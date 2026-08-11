@@ -19,7 +19,6 @@
         <h1 class="text-3xl font-black tracking-tight text-gray-900">ZEVANIC HOUSE</h1>
         <p class="text-xs tracking-widest text-gray-500 font-bold uppercase mt-1">ERP System & Mgmt</p>
       </div>
-
       <div class="space-y-5">
         <div>
           <label class="block text-sm font-semibold text-gray-600 mb-1">Email Address</label>
@@ -35,7 +34,6 @@
             <input type="password" value="12345678" class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
           </div>
         </div>
-        
         <button onclick="pindahLayar('screen-camera')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 mt-4 flex items-center justify-center">
           Login & Mulai Shift <i class="fas fa-arrow-right ml-2"></i>
         </button>
@@ -51,23 +49,17 @@
     </div>
 
     <div class="relative w-full max-w-sm aspect-[3/4] bg-gray-800 rounded-3xl overflow-hidden border-2 border-gray-700 shadow-2xl flex items-center justify-center my-6">
-      
       <video id="kamera-feed" autoplay playsinline class="w-full h-full object-cover hidden"></video>
-      
       <img id="hasil-foto" class="w-full h-full object-cover hidden" />
-
       <canvas id="canvas-foto" class="hidden"></canvas>
-
       <div id="pesan-kamera" class="flex flex-col items-center text-gray-500 text-center px-4">
         <i class="fas fa-camera text-5xl mb-3 animate-pulse"></i>
         <span class="text-sm">Meminta akses kamera...<br>Mohon izinkan di popup browser.</span>
       </div>
-
       <div id="frame-wajah" class="absolute inset-4 border-2 border-dashed border-blue-400 rounded-2xl opacity-50 pointer-events-none"></div>
     </div>
 
     <div class="w-full max-w-sm mb-8 flex flex-col items-center h-28">
-      
       <button id="btn-jepret" onclick="ambilFoto()" class="w-20 h-20 bg-white rounded-full border-4 border-gray-300 flex items-center justify-center shadow-lg active:scale-90 transition-transform hover:bg-gray-100 hidden">
         <div class="w-16 h-16 bg-blue-600 rounded-full shadow-inner"></div>
       </button>
@@ -76,11 +68,10 @@
           <button onclick="ulangiFoto()" class="px-6 py-3 bg-gray-700 text-white font-bold rounded-xl hover:bg-gray-600 transition active:scale-95">
               Ulangi
           </button>
-          <button onclick="lanjutKeDashboard()" class="px-6 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition active:scale-95 flex items-center shadow-lg shadow-green-500/30">
+          <button id="btn-clock-in-final" onclick="lanjutKeDashboard()" class="px-6 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition active:scale-95 flex items-center shadow-lg shadow-green-500/30">
               Clock In <i class="fas fa-check ml-2"></i>
           </button>
       </div>
-      
       <p id="teks-instruksi-kamera" class="text-gray-300 text-sm font-semibold mt-4">Ketuk tombol untuk foto</p>
     </div>
   </div>
@@ -113,7 +104,7 @@
           <div class="text-[10px] md:text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center mb-0.5 md:mb-1">
             <i class="far fa-clock mr-1.5"></i> CLOCKIN SYSTEM
           </div>
-          <h2 class="text-lg md:text-2xl font-bold text-gray-900 leading-tight">Hi, Ahmad</h2>
+          <h2 class="text-lg md:text-2xl font-bold text-gray-900 leading-tight">Hi, Admin Zevanic</h2>
         </div>
         <div class="flex items-center space-x-3 md:space-x-6">
           <span class="bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[10px] md:text-xs font-bold tracking-wide flex items-center">
@@ -130,14 +121,13 @@
       <main class="flex-1 overflow-y-auto p-4 md:p-10 pb-24 md:pb-10 flex flex-col xl:flex-row gap-6 md:gap-8 items-start">
         <div class="bg-white p-6 md:p-10 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center justify-center w-full xl:w-1/3 min-h-[350px]">
           <div class="text-center mb-6">
-            <div class="text-3xl md:text-4xl font-black text-gray-800 tracking-tight mb-1">08:30:15 <span class="text-lg md:text-xl font-semibold text-gray-400">AM</span></div>
-            <p class="text-xs md:text-sm text-gray-500 font-medium">Shift Aktif Dimulai</p>
+            <div class="text-3xl md:text-4xl font-black text-gray-800 tracking-tight mb-1">Shift Aktif</div>
+            <p class="text-xs md:text-sm text-gray-500 font-medium">Selamat Bekerja Hari Ini!</p>
           </div>
           <button onclick="pindahLayar('screen-login')" class="w-full md:w-auto px-8 py-3 bg-red-50 text-red-600 font-bold rounded-xl border border-red-200 hover:bg-red-100 transition active:scale-95 flex items-center justify-center">
             <i class="fas fa-sign-out-alt mr-2"></i> Clock Out / Selesai
           </button>
         </div>
-
         <div class="w-full xl:w-2/3 space-y-6">
           <div>
             <h3 class="text-base md:text-lg font-bold text-gray-800 mb-3">Today's Summary</h3>
@@ -177,10 +167,48 @@
     </nav>
   </div>
 
+  <script type="module">
+    // Mengambil library (mesin) database resmi dari Google
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+    // Konfigurasi rahasia milikmu
+    const firebaseConfig = {
+      apiKey: "AIzaSyDOKxjdqE1476uR9zB9lug-sYMFbGwGihk",
+      authDomain: "zevanic-erp.firebaseapp.com",
+      projectId: "zevanic-erp",
+      storageBucket: "zevanic-erp.firebasestorage.app",
+      messagingSenderId: "543775962833",
+      appId: "1:543775962833:web:4dbec84b555d813bfaf7f0"
+    };
+
+    // Nyalakan Firebase dan Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Membuat fungsi penyimpan data yang bisa dipanggil oleh tombol HTML
+    window.simpanDataKeDatabase = async function(fotoBase64) {
+      try {
+        // Perintah untuk membuat catatan (document) baru di laci bernama "attendance"
+        const docRef = await addDoc(collection(db, "attendance"), {
+          nama_pegawai: "Admin Zevanic",
+          status: "CLOCK IN",
+          waktu: serverTimestamp(),
+          foto_selfie: fotoBase64
+        });
+        console.log("Berhasil disimpan dengan ID: ", docRef.id);
+        return true;
+      } catch (e) {
+        console.error("Gagal menyimpan: ", e);
+        alert("Terjadi kesalahan saat menyimpan data ke database. Cek koneksi internetmu.");
+        return false;
+      }
+    };
+  </script>
+
   <script>
     let streamKamera = null;
 
-    // Fungsi Utama Pindah Layar [cite: 472, 473]
     function pindahLayar(idTujuan) {
       document.getElementById('screen-login').classList.add('hidden');
       document.getElementById('screen-camera').classList.add('hidden');
@@ -193,15 +221,13 @@
       document.getElementById(idTujuan).classList.remove('hidden');
       document.getElementById(idTujuan).classList.add('flex');
 
-      // Logic Otomatis Kamera [cite: 484]
       if (idTujuan === 'screen-camera') {
           mulaiKamera();
       } else {
-          matikanKamera(); // Hemat baterai kalau layar kamera ditutup
+          matikanKamera(); 
       }
     }
 
-    // Fungsi Menyalakan Kamera Depan [cite: 484]
     async function mulaiKamera() {
         const video = document.getElementById('kamera-feed');
         const pesan = document.getElementById('pesan-kamera');
@@ -210,7 +236,6 @@
         const hasilFoto = document.getElementById('hasil-foto');
         const grupBtnLanjut = document.getElementById('grup-btn-lanjut');
 
-        // Reset Tampilan
         video.classList.add('hidden');
         hasilFoto.classList.add('hidden');
         grupBtnLanjut.classList.add('hidden');
@@ -219,82 +244,79 @@
         frameWajah.classList.remove('hidden');
 
         try {
-            // Minta akses kamera depan (user facing) [cite: 484]
-            streamKamera = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: 'user' }, 
-                audio: false 
-            });
-            
+            streamKamera = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
             video.srcObject = streamKamera;
             video.classList.remove('hidden');
             pesan.classList.add('hidden');
             btnJepret.classList.remove('hidden');
             document.getElementById('teks-instruksi-kamera').innerText = "Ketuk tombol untuk foto";
-            
         } catch (err) {
             console.error("Error akses kamera:", err);
-            pesan.innerHTML = '<i class="fas fa-exclamation-triangle text-red-500 text-5xl mb-3"></i><span class="text-red-400 text-sm">Gagal mengakses kamera.<br>Pastikan izin diberikan di browser.</span>';
+            pesan.innerHTML = '<i class="fas fa-exclamation-triangle text-red-500 text-5xl mb-3"></i><span class="text-red-400 text-sm">Gagal mengakses kamera.</span>';
         }
     }
 
-    // Fungsi Mematikan Kamera
     function matikanKamera() {
         if (streamKamera) {
-            const tracks = streamKamera.getTracks();
-            tracks.forEach(track => track.stop());
+            streamKamera.getTracks().forEach(track => track.stop());
             streamKamera = null;
         }
     }
 
-    // Fungsi Jepret Foto [cite: 448]
     function ambilFoto() {
         const video = document.getElementById('kamera-feed');
         const canvas = document.getElementById('canvas-foto');
         const hasilFoto = document.getElementById('hasil-foto');
         
-        // Sesuaikan ukuran canvas dengan resolusi video
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
-
-        // "Cetak" frame video saat ini ke dalam canvas
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        // Ubah gambar di canvas jadi format gambar murni (Base64 URL)
-        const dataUrl = canvas.toDataURL('image/jpeg');
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
         
-        // Tampilkan gambar diam, sembunyikan video bergerak
+        const dataUrl = canvas.toDataURL('image/jpeg');
         hasilFoto.src = dataUrl;
+        
         hasilFoto.classList.remove('hidden');
         video.classList.add('hidden');
         document.getElementById('frame-wajah').classList.add('hidden');
-
-        // Munculkan opsi Ulangi / Lanjut Clock In
         document.getElementById('btn-jepret').classList.add('hidden');
         document.getElementById('grup-btn-lanjut').classList.remove('hidden');
         document.getElementById('teks-instruksi-kamera').innerText = "Foto berhasil diambil!";
         
-        // Bonus: Tampilkan foto selfie super kecil di pojok kanan atas Dashboard
         document.getElementById('foto-profil-mini').src = dataUrl;
     }
 
-    // Fungsi Kalau Fotonya Jelek / Ngeblur
     function ulangiFoto() {
         document.getElementById('hasil-foto').classList.add('hidden');
         document.getElementById('kamera-feed').classList.remove('hidden');
         document.getElementById('frame-wajah').classList.remove('hidden');
-        
         document.getElementById('grup-btn-lanjut').classList.add('hidden');
         document.getElementById('btn-jepret').classList.remove('hidden');
         document.getElementById('teks-instruksi-kamera').innerText = "Ketuk tombol untuk foto";
     }
 
-    // Lanjut Buka Dashboard [cite: 449]
-    function lanjutKeDashboard() {
-        // Pindah ke halaman dashboard
+    // FUNGSI BARU: Simpan ke Firebase lalu pindah ke Dashboard
+    async function lanjutKeDashboard() {
+        const btnFinal = document.getElementById('btn-clock-in-final');
+        const teksLama = btnFinal.innerHTML;
+        
+        // Ubah tampilan tombol jadi loading
+        btnFinal.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Menyimpan...';
+        btnFinal.disabled = true;
+
+        // Ambil data foto wajah yang baru dijepret
+        const dataFotoWajah = document.getElementById('hasil-foto').src;
+
+        // Tunggu proses penyimpanan data ke awan (Firebase) selesai
+        if(window.simpanDataKeDatabase) {
+            await window.simpanDataKeDatabase(dataFotoWajah);
+        }
+
+        // Kembalikan tombol seperti semula dan pindah layar
+        btnFinal.innerHTML = teksLama;
+        btnFinal.disabled = false;
+        
         pindahLayar('screen-dashboard');
         
-        // Munculkan foto mini di header
         document.getElementById('foto-profil-mini').classList.remove('hidden');
         document.getElementById('ikon-profil-mini').classList.add('hidden');
     }
