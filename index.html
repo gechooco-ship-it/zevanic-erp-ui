@@ -268,11 +268,24 @@
         const canvas = document.getElementById('canvas-foto');
         const hasilFoto = document.getElementById('hasil-foto');
         
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        // --- BAGIAN YANG DIUBAH: KOMPRESI GAMBAR ---
+        // 1. Kita perkecil resolusinya menjadi maksimal lebar 400 pixel
+        const maxLebar = 400;
+        const rasio = video.videoWidth / video.videoHeight;
+        const lebarBaru = maxLebar;
+        const tinggiBaru = maxLebar / rasio;
+
+        canvas.width = lebarBaru;
+        canvas.height = tinggiBaru;
+
+        // 2. Gambar frame kamera ke canvas dengan ukuran kecil
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, lebarBaru, tinggiBaru);
         
-        const dataUrl = canvas.toDataURL('image/jpeg');
+        // 3. Ubah ke format JPEG dengan kualitas 0.7 (70%) agar ringan!
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        // -------------------------------------------
+
         hasilFoto.src = dataUrl;
         
         hasilFoto.classList.remove('hidden');
