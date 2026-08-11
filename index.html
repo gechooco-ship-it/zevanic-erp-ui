@@ -13,8 +13,8 @@
 </head>
 <body class="bg-slate-50 font-sans text-gray-800 overflow-hidden">
 
-  <div id="screen-login" class="min-h-screen flex flex-col items-center justify-center p-4 fade-in">
-    <div class="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
+  <div id="screen-login" class="min-h-screen flex flex-col items-center justify-center p-4 fade-in overflow-y-auto">
+    <div class="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl border border-gray-100 my-6">
       <div class="text-center mb-6">
         <h1 class="text-3xl font-black tracking-tight text-gray-900">ZEVANIC HOUSE</h1>
         <p class="text-xs tracking-widest text-gray-500 font-bold uppercase mt-1">ERP System & Mgmt</p>
@@ -25,18 +25,23 @@
           <label class="block text-xs font-semibold text-gray-600 mb-1">Email / Akun Login</label>
           <div class="relative">
             <i class="far fa-envelope absolute left-4 top-3 text-gray-400"></i>
-            <input type="email" id="input-email" value="operator@zevanic.com" placeholder="operator@zevanic.com" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
+            <input type="email" id="input-email" placeholder="contoh@zevanic.com" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
           </div>
-          <p class="text-[10px] text-gray-400 mt-1">Role: operator@zevanic.com | admin@zevanic.com | super@zevanic.com</p>
         </div>
 
         <div>
           <label class="block text-xs font-semibold text-gray-600 mb-1">Password</label>
           <div class="relative">
             <i class="fas fa-lock absolute left-4 top-3 text-gray-400"></i>
-            <input type="password" id="input-pass" value="1234567@" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
+            <input type="password" id="input-pass" placeholder="••••••••" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
           </div>
-          <p class="text-[10px] text-gray-400 mt-1">Password default: <span class="font-bold text-gray-600">1234567@</span></p>
+        </div>
+
+        <div class="flex items-center justify-between text-xs">
+          <label class="flex items-center space-x-2 cursor-pointer">
+            <input type="checkbox" id="check-ingat" class="rounded text-blue-600 focus:ring-blue-500 w-4 h-4">
+            <span class="text-gray-600 font-medium">Ingatkan Saya</span>
+          </label>
         </div>
 
         <div>
@@ -48,8 +53,129 @@
           </select>
         </div>
 
-        <button onclick="mulaiAlurAbsen()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 mt-2 flex items-center justify-center text-sm">
-          Lanjut ke Kamera <i class="fas fa-arrow-right ml-2"></i>
+        <button onclick="prosesLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 mt-2 flex items-center justify-center text-sm">
+          Login <i class="fas fa-arrow-right ml-2"></i>
+        </button>
+
+        <div class="text-center pt-3 border-t border-gray-100">
+          <p class="text-xs text-gray-500">Belum punya akun?</p>
+          <button onclick="bukaFormRegistrasi()" class="mt-1.5 text-blue-600 font-bold text-xs hover:underline flex items-center justify-center w-full">
+            <i class="fas fa-user-plus mr-1.5"></i> Daftar Akun Baru (Registrasi)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="screen-register" class="hidden min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 fade-in overflow-y-auto">
+    <div class="w-full max-w-xl bg-white p-8 rounded-3xl shadow-xl border border-gray-100 my-6">
+      <div class="flex justify-between items-center mb-6 border-b pb-4">
+        <div>
+          <h2 class="text-xl font-black text-gray-900">Formulir Registrasi Karyawan</h2>
+          <p class="text-xs text-gray-500">Pendaftaran akun baru Zevanic ERP</p>
+        </div>
+        <button onclick="pindahLayar('screen-login')" class="text-gray-400 hover:text-gray-600 text-sm font-bold"><i class="fas fa-times text-lg"></i></button>
+      </div>
+
+      <div class="space-y-4 text-xs">
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">ID Karyawan (Auto)</label>
+            <input type="text" id="reg-id" readonly class="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-xl font-mono text-gray-500">
+          </div>
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">QR Code Unik (Auto)</label>
+            <input type="text" id="reg-qr" readonly class="w-full px-3 py-2 bg-gray-100 border border-gray-200 rounded-xl font-mono text-gray-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">Status Pengguna (Role)</label>
+            <select id="reg-role" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="operator">Operator</option>
+              <option value="admin">Admin</option>
+              <option value="superuser">Super User</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">Jabatan</label>
+            <input type="text" id="reg-jabatan" placeholder="Contoh: Staff Gudang" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-gray-600 mb-1">Nama Lengkap</label>
+          <input type="text" id="reg-nama" placeholder="Nama sesuai KTP" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">Jenis Kelamin</label>
+            <select id="reg-gender" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="Laki-laki">Laki-laki</option>
+              <option value="Perempuan">Perempuan</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">Tanggal Lahir</label>
+            <input type="date" id="reg-tgl" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-gray-600 mb-1">Email (Untuk Login)</label>
+          <input type="email" id="reg-email" placeholder="email@zevanic.com" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">Kabupaten</label>
+            <select id="reg-kab" onchange="updateKecamatan()" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="Bandung">Bandung</option>
+              <option value="Bandung Barat">Bandung Barat</option>
+              <option value="Cimahi">Cimahi</option>
+              <option value="Garut">Garut</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">Kecamatan</label>
+            <select id="reg-kec" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="Cimaung">Cimaung</option>
+              <option value="Banjaran">Banjaran</option>
+              <option value="Soreang">Soreang</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-gray-600 mb-1">No. HP / WhatsApp</label>
+          <input type="text" id="reg-hp" placeholder="08123456789" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+        </div>
+
+        <div class="grid grid-cols-3 gap-2">
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">Bank</label>
+            <select id="reg-bank" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+              <option value="BCA">BCA</option>
+              <option value="Mandiri">Mandiri</option>
+              <option value="BNI">BNI</option>
+              <option value="BRI">BRI</option>
+            </select>
+          </div>
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">No. Rekening</label>
+            <input type="text" id="reg-norek" placeholder="Nomor Rekening" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+          </div>
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">Nama di Rekening</label>
+            <input type="text" id="reg-namarek" placeholder="Atas Nama" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none">
+          </div>
+        </div>
+
+        <button onclick="simpanPendaftaranBaru()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg transition mt-4">
+          Daftarkan Akun Sekarang <i class="fas fa-check ml-1"></i>
         </button>
       </div>
     </div>
@@ -97,17 +223,15 @@
         <p id="label-role-sidebar" class="text-[9px] tracking-widest text-blue-600 font-bold uppercase mt-0.5">Role: Operator</p>
       </div>
       <nav class="flex-1 px-4 py-6 space-y-2">
-        <button onclick="pindahTab('tab-home')" id="menu-home" class="w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl bg-blue-50 text-blue-600 transition">
+        <button onclick="pindahTab('tab-home')" class="w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl bg-blue-50 text-blue-600 transition">
           <i class="fas fa-home w-6 text-left"></i> Dashboard
         </button>
-        <button onclick="pindahTab('tab-riwayat')" id="menu-riwayat" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-500 hover:bg-gray-50 transition">
+        <button onclick="pindahTab('tab-riwayat')" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-500 hover:bg-gray-50 transition">
           <i class="far fa-clock w-6 text-left"></i> Riwayat Saya
         </button>
-        
         <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-purple-600 hover:bg-purple-50 transition font-bold">
           <i class="fas fa-shield-alt w-6 text-left"></i> Panel ACC Admin
         </button>
-
         <button onclick="pindahTab('tab-superuser')" id="menu-superuser" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-red-600 hover:bg-red-50 transition font-bold">
           <i class="fas fa-user-shield w-6 text-left"></i> Konfig Super User
         </button>
@@ -123,7 +247,7 @@
       <header class="h-20 bg-white flex items-center justify-between px-6 md:px-10 z-10 shadow-sm border-b border-gray-200">
         <div>
           <div id="label-badge-role" class="text-[10px] md:text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center mb-0.5">
-            <i class="far fa-clock mr-1.5"></i> ERP PORTAL - OPERATOR
+            <i class="far fa-clock mr-1.5"></i> ERP PORTAL
           </div>
           <h2 id="teks-nama-user" class="text-lg md:text-2xl font-bold text-gray-900 leading-tight">Hi, Pengguna</h2>
         </div>
@@ -149,7 +273,7 @@
         <div id="tab-riwayat" class="hidden space-y-6">
           <div class="flex justify-between items-center">
             <h3 class="text-lg font-bold text-gray-800">Riwayat Pengajuan Saya</h3>
-            <button onclick="muatDataRiwayat()" class="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-bold hover:bg-blue-100"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+            <button onclick="muatDataRiwayat()" class="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
           </div>
           <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <table class="w-full text-left border-collapse text-sm">
@@ -158,7 +282,7 @@
                   <th class="p-4">Waktu</th>
                   <th class="p-4">Status / Jenis</th>
                   <th class="p-4">Foto / Bukti</th>
-                  <th class="p-4">Persetujuan Admin</th>
+                  <th class="p-4">Persetujuan</th>
                 </tr>
               </thead>
               <tbody id="tabel-riwayat-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
@@ -172,7 +296,7 @@
               <h3 class="text-lg font-bold text-gray-800">Panel Persetujuan (ACC Admin)</h3>
               <p class="text-xs text-gray-500">Daftar kehadiran dan izin seluruh operator.</p>
             </div>
-            <button onclick="muatDataAdminACC()" class="text-xs bg-purple-50 text-purple-600 px-3 py-1.5 rounded-lg font-bold hover:bg-purple-100"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+            <button onclick="muatDataAdminACC()" class="text-xs bg-purple-50 text-purple-600 px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
           </div>
           <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <table class="w-full text-left border-collapse text-sm">
@@ -181,7 +305,7 @@
                   <th class="p-4">Pegawai</th>
                   <th class="p-4">Waktu & Jenis</th>
                   <th class="p-4">Foto Wajah</th>
-                  <th class="p-4">Aksi (ACC / Reject)</th>
+                  <th class="p-4">Aksi</th>
                 </tr>
               </thead>
               <tbody id="tabel-admin-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
@@ -192,15 +316,16 @@
         <div id="tab-superuser" class="hidden space-y-6">
           <div class="bg-red-50 border border-red-200 rounded-2xl p-6">
             <h3 class="text-lg font-bold text-red-700 mb-1"><i class="fas fa-user-shield mr-2"></i> Zona Kontrol Super User</h3>
-            <p class="text-xs text-red-600 mb-4">Pengaturan master data dan daftar akun di dalam sistem ERP.</p>
-            <button onclick="muatDataSuperUser()" class="bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-700 transition">Muat Daftar User Sistem</button>
+            <p class="text-xs text-red-600 mb-4">Daftar seluruh akun terdaftar di sistem ERP.</p>
+            <button onclick="muatDataSuperUser()" class="bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-700 transition">Muat Daftar User</button>
           </div>
           <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <table class="w-full text-left border-collapse text-sm">
               <thead class="bg-red-50 text-red-700 text-xs uppercase">
                 <tr>
-                  <th class="p-4">Email User</th>
-                  <th class="p-4">Role Saat Ini</th>
+                  <th class="p-4">Nama & ID</th>
+                  <th class="p-4">Email / Jabatan</th>
+                  <th class="p-4">Role</th>
                 </tr>
               </thead>
               <tbody id="tabel-superuser-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
@@ -234,7 +359,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDOKxjdqE1476uR9zB9lug-sYMFbGwGihk",
@@ -251,43 +376,132 @@
     let statusPilihanGlobal = "HADIR (CLOCK IN)";
     let currentUser = { email: "", name: "", role: "operator" };
 
-    async function inisialisasiDefaultUsers() {
-      const defaultUsers = [
-        { email: "operator@zevanic.com", name: "Operator Sinta", role: "operator" },
-        { email: "admin@zevanic.com", name: "Admin Budi", role: "admin" },
-        { email: "super@zevanic.com", name: "Super User Owner", role: "superuser" }
-      ];
-      for (let u of defaultUsers) {
-        await setDoc(doc(db, "users", u.email), u, { merge: true });
+    // Cek localStorage saat halaman dimuat (Fitur Ingatkan Saya)
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedEmail = localStorage.getItem('zevanic_email');
+      const savedPass = localStorage.getItem('zevanic_pass');
+      if (savedEmail && savedPass) {
+        document.getElementById('input-email').value = savedEmail;
+        document.getElementById('input-pass').value = savedPass;
+        document.getElementById('check-ingat').checked = true;
       }
-    }
-    inisialisasiDefaultUsers();
+    });
 
-    // Validasi Login & Password Default
-    window.mulaiAlurAbsen = async function() {
-      const emailInput = document.getElementById('input-email').value.trim().toLowerCase();
-      const passInput = document.getElementById('input-pass').value;
-      statusPilihanGlobal = document.getElementById('pilihan-status').value;
+    // Tombol Buka Form Registrasi & Generate ID/QR Otomatis
+    window.bukaFormRegistrasi = function() {
+      const randomID = "ZVN-" + Math.floor(1000 + Math.random() * 9000);
+      const randomQR = "QR-CODE-" + Math.random().toString(36).substring(2, 9).toUpperCase();
+      
+      document.getElementById('reg-id').value = randomID;
+      document.getElementById('reg-qr').value = randomQR;
+      
+      pindahLayar('screen-register');
+    };
 
-      // Cek Validasi Password Default
-      if (passInput !== "1234567@") {
-        alert("Password salah! Gunakan password default: 1234567@");
+    // Update Kecamatan berdasarkan Kabupaten
+    window.updateKecamatan = function() {
+      const kab = document.getElementById('reg-kab').value;
+      const kecSelect = document.getElementById('reg-kec');
+      kecSelect.innerHTML = "";
+      
+      let dataKec = ["Cimaung", "Banjaran", "Soreang"];
+      if(kab === "Bandung Barat") dataKec = ["Lembang", "Padalarang", "Ngamprah"];
+      if(kab === "Cimahi") dataKec = ["Cimahi Tengah", "Cimahi Selatan", "Cimahi Utara"];
+      if(kab === "Garut") dataKec = ["Tarogong", "Garut Kota", "Samarang"];
+
+      dataKec.forEach(k => {
+        kecSelect.innerHTML += `<option value="${k}">${k}</option>`;
+      });
+    };
+
+    // Simpan Data Pendaftaran ke Firestore collection "users"
+    window.simpanPendaftaranBaru = async function() {
+      const id = document.getElementById('reg-id').value;
+      const qr = document.getElementById('reg-qr').value;
+      const role = document.getElementById('reg-role').value;
+      const jabatan = document.getElementById('reg-jabatan').value;
+      const nama = document.getElementById('reg-nama').value;
+      const email = document.getElementById('reg-email').value.trim().toLowerCase();
+      const hp = document.getElementById('reg-hp').value;
+
+      if(!nama || !email || !jabatan) {
+        alert("Mohon lengkapi Nama, Email, dan Jabatan!");
         return;
       }
 
-      let roleData = { email: emailInput, role: "operator" };
-      if (emailInput.includes('super')) roleData.role = "superuser";
-      else if (emailInput.includes('admin')) roleData.role = "admin";
+      try {
+        await setDoc(doc(db, "users", email), {
+          id_karyawan: id,
+          qr_code: qr,
+          role: role,
+          jabatan: jabatan,
+          nama: nama,
+          gender: document.getElementById('reg-gender').value,
+          tgl_lahir: document.getElementById('reg-tgl').value,
+          email: email,
+          kabupaten: document.getElementById('reg-kab').value,
+          kecamatan: document.getElementById('reg-kec').value,
+          hp: hp,
+          bank: document.getElementById('reg-bank').value,
+          norek: document.getElementById('reg-norek').value,
+          namarek: document.getElementById('reg-namarek').value,
+          password_default: "1234567@"
+        });
+        alert("Registrasi Berhasil! Silakan login menggunakan email tersebut (Password default: 1234567@)");
+        pindahLayar('screen-login');
+      } catch (e) {
+        console.error("Gagal daftar:", e);
+        alert("Gagal mendaftarkan akun.");
+      }
+    };
 
-      currentUser = roleData;
-      aturTampilanBerdasarkanRole(currentUser.role, currentUser.email);
+    // Proses Login Biasa
+    window.prosesLogin = async function() {
+      const emailInput = document.getElementById('input-email').value.trim().toLowerCase();
+      const passInput = document.getElementById('input-pass').value;
+      const ingatChecked = document.getElementById('check-ingat').checked;
+      statusPilihanGlobal = document.getElementById('pilihan-status').value;
+
+      if (!emailInput || !passInput) {
+        alert("Email dan Password tidak boleh kosong!");
+        return;
+      }
+
+      // Fitur Ingatkan Saya (Simpan ke localStorage)
+      if (ingatChecked) {
+        localStorage.setItem('zevanic_email', emailInput);
+        localStorage.setItem('zevanic_pass', passInput);
+      } else {
+        localStorage.removeItem('zevanic_email');
+        localStorage.removeItem('zevanic_pass');
+      }
+
+      // Ambil data user dari database
+      const userRef = doc(db, "users", emailInput);
+      const userSnap = await getDoc(userRef);
+
+      let roleUser = "operator";
+      let namaUser = emailInput;
+
+      if (userSnap.exists()) {
+        const dataU = userSnap.data();
+        roleUser = dataU.role || "operator";
+        namaUser = dataU.nama || emailInput;
+      } else {
+        // Fallback jika email diketik manual tanpa daftar
+        if (emailInput.includes('super')) roleUser = "superuser";
+        else if (emailInput.includes('admin')) roleUser = "admin";
+      }
+
+      currentUser = { email: emailInput, name: namaUser, role: roleUser };
+      aturTampilanBerdasarkanRole(currentUser.role, currentUser.name);
 
       document.getElementById('label-status-kamera').innerText = "Mode: " + statusPilihanGlobal;
       pindahLayar('screen-camera');
     };
 
-    function aturTampilanBerdasarkanRole(role, email) {
-      document.getElementById('teks-nama-user').innerText = "Hi, " + email;
+    function aturTampilanBerdasarkanRole(role, nama) {
+      document.getElementById('teks-nama-user').innerText = "Hi, " + nama;
       document.getElementById('label-role-sidebar').innerText = "Role: " + role.toUpperCase();
       document.getElementById('label-badge-role').innerHTML = `<i class="far fa-clock mr-1.5"></i> ERP PORTAL - ${role.toUpperCase()}`;
 
@@ -315,7 +529,8 @@
     window.simpanKeFirebase = async function(fotoBase64) {
       try {
         await addDoc(collection(db, "attendance"), {
-          nama_pegawai: currentUser.email,
+          nama_pegawai: currentUser.name,
+          email: currentUser.email,
           role: currentUser.role,
           status: statusPilihanGlobal,
           waktu: new Date().toLocaleString('id-ID'),
@@ -338,7 +553,7 @@
       
       querySnapshot.forEach((document) => {
         const d = document.data();
-        if(d.nama_pegawai === currentUser.email) {
+        if(d.email === currentUser.email) {
           let badgeColor = d.persetujuan === "ACC" ? "bg-green-100 text-green-700" : (d.persetujuan === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700");
           tbody.innerHTML += `
             <tr class="hover:bg-gray-50">
@@ -366,7 +581,7 @@
         
         tbody.innerHTML += `
           <tr class="hover:bg-gray-50">
-            <td class="p-4 font-bold text-xs">${d.nama_pegawai}<br><span class="text-[10px] text-gray-400 font-normal">Role: ${d.role || 'operator'}</span></td>
+            <td class="p-4 font-bold text-xs">${d.nama_pegawai}<br><span class="text-[10px] text-gray-400 font-normal">${d.email}</span></td>
             <td class="p-4 text-xs">${d.waktu}<br><span class="text-blue-600 font-semibold">${d.status}</span></td>
             <td class="p-4"><img src="${d.foto_selfie}" class="w-10 h-10 rounded-lg object-cover border"></td>
             <td class="p-4 flex items-center space-x-2">
@@ -386,7 +601,7 @@
 
     window.muatDataSuperUser = async function() {
       const tbody = document.getElementById('tabel-superuser-body');
-      tbody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-gray-400">Memuat data user...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-400">Memuat data user...</td></tr>';
       
       const querySnapshot = await getDocs(collection(db, "users"));
       tbody.innerHTML = "";
@@ -394,7 +609,8 @@
         const d = document.data();
         tbody.innerHTML += `
           <tr class="hover:bg-gray-50">
-            <td class="p-4 font-bold text-xs">${d.email}</td>
+            <td class="p-4 font-bold text-xs">${d.nama}<br><span class="text-[10px] font-mono text-gray-500">${d.id_karyawan}</span></td>
+            <td class="p-4 text-xs">${d.email}<br><span class="text-gray-500">${d.jabatan || '-'}</span></td>
             <td class="p-4 text-xs font-semibold text-blue-600 uppercase">${d.role}</td>
           </tr>`;
       });
@@ -406,10 +622,12 @@
 
     function pindahLayar(idTujuan) {
       document.getElementById('screen-login').classList.add('hidden');
+      document.getElementById('screen-register').classList.add('hidden');
       document.getElementById('screen-camera').classList.add('hidden');
       document.getElementById('screen-dashboard').classList.add('hidden');
       
       document.getElementById('screen-login').classList.remove('flex');
+      document.getElementById('screen-register').classList.remove('flex');
       document.getElementById('screen-camera').classList.remove('flex');
       document.getElementById('screen-dashboard').classList.remove('flex');
 
