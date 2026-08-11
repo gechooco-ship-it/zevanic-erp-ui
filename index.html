@@ -22,19 +22,21 @@
 
       <div class="space-y-4">
         <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Email Address</label>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Email / Akun Login</label>
           <div class="relative">
             <i class="far fa-envelope absolute left-4 top-3 text-gray-400"></i>
-            <input type="email" id="input-email" value="operator@zevanic.com" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
+            <input type="email" id="input-email" value="operator@zevanic.com" placeholder="operator@zevanic.com" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
           </div>
+          <p class="text-[10px] text-gray-400 mt-1">Role: operator@zevanic.com | admin@zevanic.com | super@zevanic.com</p>
         </div>
 
         <div>
           <label class="block text-xs font-semibold text-gray-600 mb-1">Password</label>
           <div class="relative">
             <i class="fas fa-lock absolute left-4 top-3 text-gray-400"></i>
-            <input type="password" id="input-pass" value="12345678" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
+            <input type="password" id="input-pass" value="1234567@" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
           </div>
+          <p class="text-[10px] text-gray-400 mt-1">Password default: <span class="font-bold text-gray-600">1234567@</span></p>
         </div>
 
         <div>
@@ -47,7 +49,7 @@
         </div>
 
         <button onclick="mulaiAlurAbsen()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 mt-2 flex items-center justify-center text-sm">
-          Lanjut <i class="fas fa-arrow-right ml-2"></i>
+          Lanjut ke Kamera <i class="fas fa-arrow-right ml-2"></i>
         </button>
       </div>
     </div>
@@ -92,7 +94,7 @@
     <aside class="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col shadow-sm z-20">
       <div class="h-20 flex flex-col justify-center px-6 border-b border-gray-100">
         <h1 class="text-xl font-black tracking-tight text-gray-900">ZEVANIC HOUSE</h1>
-        <p class="text-[9px] tracking-widest text-gray-500 font-bold uppercase mt-0.5">ERP System & Mgmt</p>
+        <p id="label-role-sidebar" class="text-[9px] tracking-widest text-blue-600 font-bold uppercase mt-0.5">Role: Operator</p>
       </div>
       <nav class="flex-1 px-4 py-6 space-y-2">
         <button onclick="pindahTab('tab-home')" id="menu-home" class="w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl bg-blue-50 text-blue-600 transition">
@@ -101,8 +103,13 @@
         <button onclick="pindahTab('tab-riwayat')" id="menu-riwayat" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-500 hover:bg-gray-50 transition">
           <i class="far fa-clock w-6 text-left"></i> Riwayat Saya
         </button>
-        <button onclick="pindahTab('tab-admin-acc')" id="menu-admin" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-purple-600 hover:bg-purple-50 transition font-bold">
+        
+        <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-purple-600 hover:bg-purple-50 transition font-bold">
           <i class="fas fa-shield-alt w-6 text-left"></i> Panel ACC Admin
+        </button>
+
+        <button onclick="pindahTab('tab-superuser')" id="menu-superuser" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-red-600 hover:bg-red-50 transition font-bold">
+          <i class="fas fa-user-shield w-6 text-left"></i> Konfig Super User
         </button>
       </nav>
       <div class="p-4 border-t border-gray-100">
@@ -115,10 +122,10 @@
     <div class="flex-1 flex flex-col relative h-full overflow-hidden">
       <header class="h-20 bg-white flex items-center justify-between px-6 md:px-10 z-10 shadow-sm border-b border-gray-200">
         <div>
-          <div class="text-[10px] md:text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center mb-0.5">
-            <i class="far fa-clock mr-1.5"></i> ERP PORTAL
+          <div id="label-badge-role" class="text-[10px] md:text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center mb-0.5">
+            <i class="far fa-clock mr-1.5"></i> ERP PORTAL - OPERATOR
           </div>
-          <h2 id="teks-nama-user" class="text-lg md:text-2xl font-bold text-gray-900 leading-tight">Hi, Operator</h2>
+          <h2 id="teks-nama-user" class="text-lg md:text-2xl font-bold text-gray-900 leading-tight">Hi, Pengguna</h2>
         </div>
         <div class="flex items-center space-x-3">
           <span class="bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1 rounded-full text-xs font-bold flex items-center">
@@ -131,8 +138,8 @@
         
         <div id="tab-home" class="space-y-6">
           <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-6 md:p-8 text-white shadow-lg">
-            <h2 class="text-2xl font-black mb-2">Selamat Datang di Sistem Absensi Zevanic</h2>
-            <p class="text-blue-100 text-sm max-w-xl">Silakan lakukan absensi harian, pengajuan izin, atau cuti tepat waktu. Data Anda akan langsung diverifikasi oleh tim Admin.</p>
+            <h2 class="text-2xl font-black mb-2">Selamat Datang di Zevanic ERP</h2>
+            <p class="text-blue-100 text-sm max-w-xl">Sistem manajemen presensi & operasional terintegrasi cloud.</p>
             <button onclick="pindahLayar('screen-login')" class="mt-5 bg-white text-blue-600 font-bold px-6 py-2.5 rounded-xl text-sm shadow-md hover:bg-blue-50 transition">
               <i class="fas fa-plus-circle mr-2"></i> Buat Absen / Izin Baru
             </button>
@@ -154,8 +161,7 @@
                   <th class="p-4">Persetujuan Admin</th>
                 </tr>
               </thead>
-              <tbody id="tabel-riwayat-body" class="divide-y divide-gray-100 text-gray-700">
-                </tbody>
+              <tbody id="tabel-riwayat-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
             </table>
           </div>
         </div>
@@ -164,7 +170,7 @@
           <div class="flex justify-between items-center">
             <div>
               <h3 class="text-lg font-bold text-gray-800">Panel Persetujuan (ACC Admin)</h3>
-              <p class="text-xs text-gray-500">Daftar absensi, izin, dan cuti operator yang menunggu verifikasi.</p>
+              <p class="text-xs text-gray-500">Daftar kehadiran dan izin seluruh operator.</p>
             </div>
             <button onclick="muatDataAdminACC()" class="text-xs bg-purple-50 text-purple-600 px-3 py-1.5 rounded-lg font-bold hover:bg-purple-100"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
           </div>
@@ -178,8 +184,26 @@
                   <th class="p-4">Aksi (ACC / Reject)</th>
                 </tr>
               </thead>
-              <tbody id="tabel-admin-body" class="divide-y divide-gray-100 text-gray-700">
-                </tbody>
+              <tbody id="tabel-admin-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="tab-superuser" class="hidden space-y-6">
+          <div class="bg-red-50 border border-red-200 rounded-2xl p-6">
+            <h3 class="text-lg font-bold text-red-700 mb-1"><i class="fas fa-user-shield mr-2"></i> Zona Kontrol Super User</h3>
+            <p class="text-xs text-red-600 mb-4">Pengaturan master data dan daftar akun di dalam sistem ERP.</p>
+            <button onclick="muatDataSuperUser()" class="bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-700 transition">Muat Daftar User Sistem</button>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead class="bg-red-50 text-red-700 text-xs uppercase">
+                <tr>
+                  <th class="p-4">Email User</th>
+                  <th class="p-4">Role Saat Ini</th>
+                </tr>
+              </thead>
+              <tbody id="tabel-superuser-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
             </table>
           </div>
         </div>
@@ -196,9 +220,13 @@
         <i class="far fa-clock text-lg mb-1"></i>
         <span class="text-[10px] font-medium">Riwayat</span>
       </button>
-      <button onclick="pindahTab('tab-admin-acc')" class="flex flex-col items-center p-2 text-purple-600 w-20">
+      <button id="nav-mobile-admin" onclick="pindahTab('tab-admin-acc')" class="hidden flex flex-col items-center p-2 text-purple-600 w-20">
         <i class="fas fa-shield-alt text-lg mb-1"></i>
-        <span class="text-[10px] font-bold">Admin ACC</span>
+        <span class="text-[10px] font-bold">ACC Admin</span>
+      </button>
+      <button id="nav-mobile-super" onclick="pindahTab('tab-superuser')" class="hidden flex flex-col items-center p-2 text-red-600 w-20">
+        <i class="fas fa-user-shield text-lg mb-1"></i>
+        <span class="text-[10px] font-bold">Super</span>
       </button>
     </nav>
   </div>
@@ -206,7 +234,7 @@
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
     const firebaseConfig = {
       apiKey: "AIzaSyDOKxjdqE1476uR9zB9lug-sYMFbGwGihk",
@@ -221,48 +249,96 @@
     const db = getFirestore(app);
 
     let statusPilihanGlobal = "HADIR (CLOCK IN)";
-    let namaUserGlobal = "Operator Zevanic";
+    let currentUser = { email: "", name: "", role: "operator" };
 
-    // 1. Tombol Login Ditekan
-    window.mulaiAlurAbsen = function() {
-      const email = document.getElementById('input-email').value;
+    async function inisialisasiDefaultUsers() {
+      const defaultUsers = [
+        { email: "operator@zevanic.com", name: "Operator Sinta", role: "operator" },
+        { email: "admin@zevanic.com", name: "Admin Budi", role: "admin" },
+        { email: "super@zevanic.com", name: "Super User Owner", role: "superuser" }
+      ];
+      for (let u of defaultUsers) {
+        await setDoc(doc(db, "users", u.email), u, { merge: true });
+      }
+    }
+    inisialisasiDefaultUsers();
+
+    // Validasi Login & Password Default
+    window.mulaiAlurAbsen = async function() {
+      const emailInput = document.getElementById('input-email').value.trim().toLowerCase();
+      const passInput = document.getElementById('input-pass').value;
       statusPilihanGlobal = document.getElementById('pilihan-status').value;
-      namaUserGlobal = email.includes('admin') ? "Admin Zevanic" : "Operator Sinta";
-      
+
+      // Cek Validasi Password Default
+      if (passInput !== "1234567@") {
+        alert("Password salah! Gunakan password default: 1234567@");
+        return;
+      }
+
+      let roleData = { email: emailInput, role: "operator" };
+      if (emailInput.includes('super')) roleData.role = "superuser";
+      else if (emailInput.includes('admin')) roleData.role = "admin";
+
+      currentUser = roleData;
+      aturTampilanBerdasarkanRole(currentUser.role, currentUser.email);
+
       document.getElementById('label-status-kamera').innerText = "Mode: " + statusPilihanGlobal;
       pindahLayar('screen-camera');
     };
 
-    // 2. Simpan Data ke Firebase
+    function aturTampilanBerdasarkanRole(role, email) {
+      document.getElementById('teks-nama-user').innerText = "Hi, " + email;
+      document.getElementById('label-role-sidebar').innerText = "Role: " + role.toUpperCase();
+      document.getElementById('label-badge-role').innerHTML = `<i class="far fa-clock mr-1.5"></i> ERP PORTAL - ${role.toUpperCase()}`;
+
+      const menuAdminAcc = document.getElementById('menu-admin-acc');
+      const menuSuperUser = document.getElementById('menu-superuser');
+      const navMobileAdmin = document.getElementById('nav-mobile-admin');
+      const navMobileSuper = document.getElementById('nav-mobile-super');
+
+      menuAdminAcc.classList.add('hidden');
+      menuSuperUser.classList.add('hidden');
+      navMobileAdmin.classList.add('hidden');
+      navMobileSuper.classList.add('hidden');
+
+      if (role === 'admin') {
+        menuAdminAcc.classList.remove('hidden');
+        navMobileAdmin.classList.remove('hidden');
+      } else if (role === 'superuser') {
+        menuAdminAcc.classList.remove('hidden');
+        menuSuperUser.classList.remove('hidden');
+        navMobileAdmin.classList.remove('hidden');
+        navMobileSuper.classList.remove('hidden');
+      }
+    }
+
     window.simpanKeFirebase = async function(fotoBase64) {
       try {
         await addDoc(collection(db, "attendance"), {
-          nama_pegawai: namaUserGlobal,
-          status: statusPilihanGlobal, // Hadir / Izin / Cuti
+          nama_pegawai: currentUser.email,
+          role: currentUser.role,
+          status: statusPilihanGlobal,
           waktu: new Date().toLocaleString('id-ID'),
           foto_selfie: fotoBase64,
-          persetujuan: "PENDING" // PENDING / ACC / REJECTED
+          persetujuan: "PENDING"
         });
         return true;
       } catch (e) {
         console.error("Gagal simpan:", e);
-        alert("Gagal menyimpan ke database.");
         return false;
       }
     };
 
-    // 3. Ambil Data Riwayat Operator
     window.muatDataRiwayat = async function() {
       const tbody = document.getElementById('tabel-riwayat-body');
       tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Memuat data...</td></tr>';
       
-      const q = query(collection(db, "attendance"), orderBy("waktu", "desc"));
-      const querySnapshot = await getDocs(q);
-      
+      const querySnapshot = await getDocs(collection(db, "attendance"));
       tbody.innerHTML = "";
+      
       querySnapshot.forEach((document) => {
         const d = document.data();
-        if(d.nama_pegawai === namaUserGlobal) {
+        if(d.nama_pegawai === currentUser.email) {
           let badgeColor = d.persetujuan === "ACC" ? "bg-green-100 text-green-700" : (d.persetujuan === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700");
           tbody.innerHTML += `
             <tr class="hover:bg-gray-50">
@@ -276,7 +352,6 @@
       if(tbody.innerHTML === "") tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Belum ada riwayat.</td></tr>';
     };
 
-    // 4. Ambil Data untuk Panel ACC Admin
     window.muatDataAdminACC = async function() {
       const tbody = document.getElementById('tabel-admin-body');
       tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Memuat data...</td></tr>';
@@ -291,7 +366,7 @@
         
         tbody.innerHTML += `
           <tr class="hover:bg-gray-50">
-            <td class="p-4 font-bold text-xs">${d.nama_pegawai}</td>
+            <td class="p-4 font-bold text-xs">${d.nama_pegawai}<br><span class="text-[10px] text-gray-400 font-normal">Role: ${d.role || 'operator'}</span></td>
             <td class="p-4 text-xs">${d.waktu}<br><span class="text-blue-600 font-semibold">${d.status}</span></td>
             <td class="p-4"><img src="${d.foto_selfie}" class="w-10 h-10 rounded-lg object-cover border"></td>
             <td class="p-4 flex items-center space-x-2">
@@ -303,12 +378,26 @@
       });
     };
 
-    // 5. Ubah Status ACC / Reject oleh Admin
     window.ubahStatusACC = async function(idDoc, statusBaru) {
-      const docRef = doc(db, "attendance", idDoc);
-      await updateDoc(docRef, { persetujuan: statusBaru });
-      alert("Status berhasil diperbarui menjadi: " + statusBaru);
+      await updateDoc(doc(db, "attendance", idDoc), { persetujuan: statusBaru });
+      alert("Status berhasil diperbarui!");
       muatDataAdminACC();
+    };
+
+    window.muatDataSuperUser = async function() {
+      const tbody = document.getElementById('tabel-superuser-body');
+      tbody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-gray-400">Memuat data user...</td></tr>';
+      
+      const querySnapshot = await getDocs(collection(db, "users"));
+      tbody.innerHTML = "";
+      querySnapshot.forEach((document) => {
+        const d = document.data();
+        tbody.innerHTML += `
+          <tr class="hover:bg-gray-50">
+            <td class="p-4 font-bold text-xs">${d.email}</td>
+            <td class="p-4 text-xs font-semibold text-blue-600 uppercase">${d.role}</td>
+          </tr>`;
+      });
     };
   </script>
 
@@ -335,18 +424,19 @@
       document.getElementById('tab-home').classList.add('hidden');
       document.getElementById('tab-riwayat').classList.add('hidden');
       document.getElementById('tab-admin-acc').classList.add('hidden');
+      document.getElementById('tab-superuser').classList.add('hidden');
 
       document.getElementById(idTab).classList.remove('hidden');
 
       if(idTab === 'tab-riwayat') window.muatDataRiwayat();
       if(idTab === 'tab-admin-acc') window.muatDataAdminACC();
+      if(idTab === 'tab-superuser') window.muatDataSuperUser();
     }
 
     async function mulaiKamera() {
         const video = document.getElementById('kamera-feed');
         const pesan = document.getElementById('pesan-kamera');
         const btnJepret = document.getElementById('btn-jepret');
-        const frameWajah = document.getElementById('frame-wajah');
         const hasilFoto = document.getElementById('hasil-foto');
         const grupBtnLanjut = document.getElementById('grup-btn-lanjut');
 
@@ -415,7 +505,7 @@
         btnFinal.disabled = false;
         
         pindahLayar('screen-dashboard');
-        pindahTab('tab-riwayat'); // Otomatis buka tab riwayat setelah kirim
+        pindahTab('tab-riwayat');
     }
   </script>
 </body>
