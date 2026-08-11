@@ -15,27 +15,39 @@
 
   <div id="screen-login" class="min-h-screen flex flex-col items-center justify-center p-4 fade-in">
     <div class="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl border border-gray-100">
-      <div class="text-center mb-8">
+      <div class="text-center mb-6">
         <h1 class="text-3xl font-black tracking-tight text-gray-900">ZEVANIC HOUSE</h1>
         <p class="text-xs tracking-widest text-gray-500 font-bold uppercase mt-1">ERP System & Mgmt</p>
       </div>
-      <div class="space-y-5">
+
+      <div class="space-y-4">
         <div>
-          <label class="block text-sm font-semibold text-gray-600 mb-1">Email Address</label>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Email Address</label>
           <div class="relative">
-            <i class="far fa-envelope absolute left-4 top-3.5 text-gray-400"></i>
-            <input type="email" placeholder="admin@zevanic.com" class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
+            <i class="far fa-envelope absolute left-4 top-3 text-gray-400"></i>
+            <input type="email" id="input-email" value="operator@zevanic.com" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
           </div>
         </div>
+
         <div>
-          <label class="block text-sm font-semibold text-gray-600 mb-1">Password</label>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Password</label>
           <div class="relative">
-            <i class="fas fa-lock absolute left-4 top-3.5 text-gray-400"></i>
-            <input type="password" value="12345678" class="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
+            <i class="fas fa-lock absolute left-4 top-3 text-gray-400"></i>
+            <input type="password" id="input-pass" value="12345678" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
           </div>
         </div>
-        <button onclick="pindahLayar('screen-camera')" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 mt-4 flex items-center justify-center">
-          Login & Mulai Shift <i class="fas fa-arrow-right ml-2"></i>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-600 mb-1">Pilih Status Kehadiran / Pengajuan</label>
+          <select id="pilihan-status" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm font-medium text-gray-700">
+            <option value="HADIR (CLOCK IN)">🟢 Hadir (Clock In & Selfie)</option>
+            <option value="IZIN">🟡 Pengajuan Izin</option>
+            <option value="CUTI">🔵 Pengajuan Cuti</option>
+          </select>
+        </div>
+
+        <button onclick="mulaiAlurAbsen()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 mt-2 flex items-center justify-center text-sm">
+          Lanjut <i class="fas fa-arrow-right ml-2"></i>
         </button>
       </div>
     </div>
@@ -44,51 +56,53 @@
 
   <div id="screen-camera" class="hidden min-h-screen bg-slate-900 flex-col items-center justify-between p-6 fade-in">
     <div class="w-full text-center mt-4">
-      <h2 class="text-white text-xl font-bold">Verifikasi Wajah</h2>
-      <p class="text-gray-400 text-sm mt-1">Posisikan wajah Anda di dalam bingkai</p>
+      <h2 class="text-white text-xl font-bold">Verifikasi Wajah / Foto Bukti</h2>
+      <p id="label-status-kamera" class="text-blue-400 text-xs mt-1 font-semibold uppercase tracking-wider">Mode: Hadir</p>
     </div>
 
-    <div class="relative w-full max-w-sm aspect-[3/4] bg-gray-800 rounded-3xl overflow-hidden border-2 border-gray-700 shadow-2xl flex items-center justify-center my-6">
+    <div class="relative w-full max-w-sm aspect-[3/4] bg-gray-800 rounded-3xl overflow-hidden border-2 border-gray-700 shadow-2xl flex items-center justify-center my-4">
       <video id="kamera-feed" autoplay playsinline class="w-full h-full object-cover hidden"></video>
       <img id="hasil-foto" class="w-full h-full object-cover hidden" />
       <canvas id="canvas-foto" class="hidden"></canvas>
       <div id="pesan-kamera" class="flex flex-col items-center text-gray-500 text-center px-4">
         <i class="fas fa-camera text-5xl mb-3 animate-pulse"></i>
-        <span class="text-sm">Meminta akses kamera...<br>Mohon izinkan di popup browser.</span>
+        <span class="text-sm">Meminta akses kamera...</span>
       </div>
       <div id="frame-wajah" class="absolute inset-4 border-2 border-dashed border-blue-400 rounded-2xl opacity-50 pointer-events-none"></div>
     </div>
 
-    <div class="w-full max-w-sm mb-8 flex flex-col items-center h-28">
-      <button id="btn-jepret" onclick="ambilFoto()" class="w-20 h-20 bg-white rounded-full border-4 border-gray-300 flex items-center justify-center shadow-lg active:scale-90 transition-transform hover:bg-gray-100 hidden">
-        <div class="w-16 h-16 bg-blue-600 rounded-full shadow-inner"></div>
+    <div class="w-full max-w-sm mb-6 flex flex-col items-center h-24">
+      <button id="btn-jepret" onclick="ambilFoto()" class="w-16 h-16 bg-white rounded-full border-4 border-gray-300 flex items-center justify-center shadow-lg active:scale-90 transition-transform hover:bg-gray-100 hidden">
+        <div class="w-12 h-12 bg-blue-600 rounded-full shadow-inner"></div>
       </button>
 
-      <div id="grup-btn-lanjut" class="hidden flex space-x-4">
-          <button onclick="ulangiFoto()" class="px-6 py-3 bg-gray-700 text-white font-bold rounded-xl hover:bg-gray-600 transition active:scale-95">
-              Ulangi
-          </button>
-          <button id="btn-clock-in-final" onclick="lanjutKeDashboard()" class="px-6 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition active:scale-95 flex items-center shadow-lg shadow-green-500/30">
-              Clock In <i class="fas fa-check ml-2"></i>
+      <div id="grup-btn-lanjut" class="hidden flex space-x-3">
+          <button onclick="ulangiFoto()" class="px-5 py-2.5 bg-gray-700 text-white font-bold rounded-xl text-sm hover:bg-gray-600 transition">Ulangi</button>
+          <button id="btn-clock-in-final" onclick="kirimDataKeCloud()" class="px-5 py-2.5 bg-green-500 text-white font-bold rounded-xl text-sm hover:bg-green-600 transition flex items-center shadow-lg shadow-green-500/30">
+              Kirim Pengajuan <i class="fas fa-check ml-2"></i>
           </button>
       </div>
-      <p id="teks-instruksi-kamera" class="text-gray-300 text-sm font-semibold mt-4">Ketuk tombol untuk foto</p>
+      <p id="teks-instruksi-kamera" class="text-gray-300 text-xs font-semibold mt-3">Ketuk tombol untuk foto</p>
     </div>
   </div>
 
 
-  <div id="screen-dashboard" class="hidden h-screen w-full relative fade-in bg-slate-50">
-    <aside class="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col shadow-sm z-20 absolute h-full">
+  <div id="screen-dashboard" class="hidden h-screen w-full relative fade-in bg-slate-50 flex">
+
+    <aside class="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col shadow-sm z-20">
       <div class="h-20 flex flex-col justify-center px-6 border-b border-gray-100">
         <h1 class="text-xl font-black tracking-tight text-gray-900">ZEVANIC HOUSE</h1>
         <p class="text-[9px] tracking-widest text-gray-500 font-bold uppercase mt-0.5">ERP System & Mgmt</p>
       </div>
       <nav class="flex-1 px-4 py-6 space-y-2">
-        <button class="w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl bg-blue-50 text-blue-600 transition">
+        <button onclick="pindahTab('tab-home')" id="menu-home" class="w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl bg-blue-50 text-blue-600 transition">
           <i class="fas fa-home w-6 text-left"></i> Dashboard
         </button>
-        <button class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-500 hover:bg-gray-50 transition">
-          <i class="far fa-clock w-6 text-left"></i> History
+        <button onclick="pindahTab('tab-riwayat')" id="menu-riwayat" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-500 hover:bg-gray-50 transition">
+          <i class="far fa-clock w-6 text-left"></i> Riwayat Saya
+        </button>
+        <button onclick="pindahTab('tab-admin-acc')" id="menu-admin" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-purple-600 hover:bg-purple-50 transition font-bold">
+          <i class="fas fa-shield-alt w-6 text-left"></i> Panel ACC Admin
         </button>
       </nav>
       <div class="p-4 border-t border-gray-100">
@@ -98,81 +112,102 @@
       </div>
     </aside>
 
-    <div class="flex-1 flex flex-col relative h-full md:ml-64">
-      <header class="h-20 bg-white flex items-center justify-between px-6 md:px-10 z-10 shadow-sm md:shadow-none border-b border-gray-200">
+    <div class="flex-1 flex flex-col relative h-full overflow-hidden">
+      <header class="h-20 bg-white flex items-center justify-between px-6 md:px-10 z-10 shadow-sm border-b border-gray-200">
         <div>
-          <div class="text-[10px] md:text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center mb-0.5 md:mb-1">
-            <i class="far fa-clock mr-1.5"></i> CLOCKIN SYSTEM
+          <div class="text-[10px] md:text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center mb-0.5">
+            <i class="far fa-clock mr-1.5"></i> ERP PORTAL
           </div>
-          <h2 class="text-lg md:text-2xl font-bold text-gray-900 leading-tight">Hi, Admin Zevanic</h2>
+          <h2 id="teks-nama-user" class="text-lg md:text-2xl font-bold text-gray-900 leading-tight">Hi, Operator</h2>
         </div>
-        <div class="flex items-center space-x-3 md:space-x-6">
-          <span class="bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[10px] md:text-xs font-bold tracking-wide flex items-center">
-            <span class="w-1.5 h-1.5 md:w-2 md:h-2 bg-emerald-500 rounded-full mr-1.5 md:mr-2 animate-pulse"></span> 
-            <span class="hidden md:inline">CLOCKED IN</span><span class="md:hidden">ON DUTY</span>
+        <div class="flex items-center space-x-3">
+          <span class="bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1 rounded-full text-xs font-bold flex items-center">
+            <span class="w-2 h-2 bg-emerald-500 rounded-full mr-2 animate-pulse"></span> ONLINE
           </span>
-          <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 font-bold flex items-center justify-center border border-blue-200 shadow-sm text-sm overflow-hidden">
-            <img id="foto-profil-mini" src="" class="w-full h-full object-cover hidden">
-            <i id="ikon-profil-mini" class="fas fa-user-circle text-3xl opacity-80"></i>
-          </div>
         </div>
       </header>
 
-      <main class="flex-1 overflow-y-auto p-4 md:p-10 pb-24 md:pb-10 flex flex-col xl:flex-row gap-6 md:gap-8 items-start">
-        <div class="bg-white p-6 md:p-10 rounded-3xl shadow-sm border border-gray-100 flex flex-col items-center justify-center w-full xl:w-1/3 min-h-[350px]">
-          <div class="text-center mb-6">
-            <div class="text-3xl md:text-4xl font-black text-gray-800 tracking-tight mb-1">Shift Aktif</div>
-            <p class="text-xs md:text-sm text-gray-500 font-medium">Selamat Bekerja Hari Ini!</p>
+      <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+        
+        <div id="tab-home" class="space-y-6">
+          <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-6 md:p-8 text-white shadow-lg">
+            <h2 class="text-2xl font-black mb-2">Selamat Datang di Sistem Absensi Zevanic</h2>
+            <p class="text-blue-100 text-sm max-w-xl">Silakan lakukan absensi harian, pengajuan izin, atau cuti tepat waktu. Data Anda akan langsung diverifikasi oleh tim Admin.</p>
+            <button onclick="pindahLayar('screen-login')" class="mt-5 bg-white text-blue-600 font-bold px-6 py-2.5 rounded-xl text-sm shadow-md hover:bg-blue-50 transition">
+              <i class="fas fa-plus-circle mr-2"></i> Buat Absen / Izin Baru
+            </button>
           </div>
-          <button onclick="pindahLayar('screen-login')" class="w-full md:w-auto px-8 py-3 bg-red-50 text-red-600 font-bold rounded-xl border border-red-200 hover:bg-red-100 transition active:scale-95 flex items-center justify-center">
-            <i class="fas fa-sign-out-alt mr-2"></i> Clock Out / Selesai
-          </button>
         </div>
-        <div class="w-full xl:w-2/3 space-y-6">
-          <div>
-            <h3 class="text-base md:text-lg font-bold text-gray-800 mb-3">Today's Summary</h3>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              <div class="bg-white p-5 md:p-6 rounded-2xl border border-gray-100 shadow-sm">
-                <div class="flex justify-between items-start mb-3">
-                  <div class="p-2.5 bg-blue-50 text-blue-600 rounded-lg"><i class="far fa-clock text-lg"></i></div>
-                  <span class="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-[10px] font-semibold">Today</span>
-                </div>
-                <p class="text-xs font-medium text-gray-500 mb-1">Total Hours Logged</p>
-                <p class="text-2xl font-black text-gray-800">0h 01m</p>
-                <div class="w-full bg-gray-100 rounded-full h-1.5 mt-3">
-                  <div class="bg-blue-600 h-1.5 rounded-full" style="width: 2%"></div>
-                </div>
-              </div>
+
+        <div id="tab-riwayat" class="hidden space-y-6">
+          <div class="flex justify-between items-center">
+            <h3 class="text-lg font-bold text-gray-800">Riwayat Pengajuan Saya</h3>
+            <button onclick="muatDataRiwayat()" class="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-bold hover:bg-blue-100"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+                <tr>
+                  <th class="p-4">Waktu</th>
+                  <th class="p-4">Status / Jenis</th>
+                  <th class="p-4">Foto / Bukti</th>
+                  <th class="p-4">Persetujuan Admin</th>
+                </tr>
+              </thead>
+              <tbody id="tabel-riwayat-body" class="divide-y divide-gray-100 text-gray-700">
+                </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="tab-admin-acc" class="hidden space-y-6">
+          <div class="flex justify-between items-center">
+            <div>
+              <h3 class="text-lg font-bold text-gray-800">Panel Persetujuan (ACC Admin)</h3>
+              <p class="text-xs text-gray-500">Daftar absensi, izin, dan cuti operator yang menunggu verifikasi.</p>
             </div>
+            <button onclick="muatDataAdminACC()" class="text-xs bg-purple-50 text-purple-600 px-3 py-1.5 rounded-lg font-bold hover:bg-purple-100"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead class="bg-purple-50 text-purple-700 text-xs uppercase">
+                <tr>
+                  <th class="p-4">Pegawai</th>
+                  <th class="p-4">Waktu & Jenis</th>
+                  <th class="p-4">Foto Wajah</th>
+                  <th class="p-4">Aksi (ACC / Reject)</th>
+                </tr>
+              </thead>
+              <tbody id="tabel-admin-body" class="divide-y divide-gray-100 text-gray-700">
+                </tbody>
+            </table>
           </div>
         </div>
+
       </main>
     </div>
 
-    <nav class="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around items-end p-2 pb-4 z-50 rounded-t-2xl shadow-[0_-4px_20px_-5px_rgba(0,0,0,0.1)]">
-      <button class="flex flex-col items-center p-2 text-blue-600 transition-colors w-20 mb-1">
-        <i class="fas fa-home text-xl mb-1"></i>
+    <nav class="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around items-center p-2 pb-4 z-50 rounded-t-2xl shadow-lg">
+      <button onclick="pindahTab('tab-home')" class="flex flex-col items-center p-2 text-blue-600 w-20">
+        <i class="fas fa-home text-lg mb-1"></i>
         <span class="text-[10px] font-bold">Home</span>
       </button>
-      <button class="flex flex-col items-center relative -top-5 group">
-        <div class="bg-blue-600 text-white w-16 h-16 rounded-full flex items-center justify-center shadow-lg shadow-blue-300 border-4 border-white active:scale-95 transition-transform">
-          <i class="fas fa-qrcode text-2xl"></i>
-        </div>
-        <span class="text-[10px] font-bold text-gray-700 mt-1">Scan QR</span>
+      <button onclick="pindahTab('tab-riwayat')" class="flex flex-col items-center p-2 text-gray-400 w-20">
+        <i class="far fa-clock text-lg mb-1"></i>
+        <span class="text-[10px] font-medium">Riwayat</span>
       </button>
-      <button onclick="pindahLayar('screen-login')" class="flex flex-col items-center p-2 text-gray-400 hover:text-red-500 transition-colors w-20 mb-1">
-        <i class="fas fa-sign-out-alt text-xl mb-1"></i>
-        <span class="text-[10px] font-bold">Logout</span>
+      <button onclick="pindahTab('tab-admin-acc')" class="flex flex-col items-center p-2 text-purple-600 w-20">
+        <i class="fas fa-shield-alt text-lg mb-1"></i>
+        <span class="text-[10px] font-bold">Admin ACC</span>
       </button>
     </nav>
   </div>
 
-  <script type="module">
-    // Mengambil library (mesin) database resmi dari Google
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 
-    // Konfigurasi rahasia milikmu
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, getDocs, updateDoc, doc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
     const firebaseConfig = {
       apiKey: "AIzaSyDOKxjdqE1476uR9zB9lug-sYMFbGwGihk",
       authDomain: "zevanic-erp.firebaseapp.com",
@@ -182,27 +217,98 @@
       appId: "1:543775962833:web:4dbec84b555d813bfaf7f0"
     };
 
-    // Nyalakan Firebase dan Firestore
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // Membuat fungsi penyimpan data yang bisa dipanggil oleh tombol HTML
-    window.simpanDataKeDatabase = async function(fotoBase64) {
+    let statusPilihanGlobal = "HADIR (CLOCK IN)";
+    let namaUserGlobal = "Operator Zevanic";
+
+    // 1. Tombol Login Ditekan
+    window.mulaiAlurAbsen = function() {
+      const email = document.getElementById('input-email').value;
+      statusPilihanGlobal = document.getElementById('pilihan-status').value;
+      namaUserGlobal = email.includes('admin') ? "Admin Zevanic" : "Operator Sinta";
+      
+      document.getElementById('label-status-kamera').innerText = "Mode: " + statusPilihanGlobal;
+      pindahLayar('screen-camera');
+    };
+
+    // 2. Simpan Data ke Firebase
+    window.simpanKeFirebase = async function(fotoBase64) {
       try {
-        // Perintah untuk membuat catatan (document) baru di laci bernama "attendance"
-        const docRef = await addDoc(collection(db, "attendance"), {
-          nama_pegawai: "Admin Zevanic",
-          status: "CLOCK IN",
-          waktu: serverTimestamp(),
-          foto_selfie: fotoBase64
+        await addDoc(collection(db, "attendance"), {
+          nama_pegawai: namaUserGlobal,
+          status: statusPilihanGlobal, // Hadir / Izin / Cuti
+          waktu: new Date().toLocaleString('id-ID'),
+          foto_selfie: fotoBase64,
+          persetujuan: "PENDING" // PENDING / ACC / REJECTED
         });
-        console.log("Berhasil disimpan dengan ID: ", docRef.id);
         return true;
       } catch (e) {
-        console.error("Gagal menyimpan: ", e);
-        alert("Terjadi kesalahan saat menyimpan data ke database. Cek koneksi internetmu.");
+        console.error("Gagal simpan:", e);
+        alert("Gagal menyimpan ke database.");
         return false;
       }
+    };
+
+    // 3. Ambil Data Riwayat Operator
+    window.muatDataRiwayat = async function() {
+      const tbody = document.getElementById('tabel-riwayat-body');
+      tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Memuat data...</td></tr>';
+      
+      const q = query(collection(db, "attendance"), orderBy("waktu", "desc"));
+      const querySnapshot = await getDocs(q);
+      
+      tbody.innerHTML = "";
+      querySnapshot.forEach((document) => {
+        const d = document.data();
+        if(d.nama_pegawai === namaUserGlobal) {
+          let badgeColor = d.persetujuan === "ACC" ? "bg-green-100 text-green-700" : (d.persetujuan === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700");
+          tbody.innerHTML += `
+            <tr class="hover:bg-gray-50">
+              <td class="p-4 text-xs">${d.waktu}</td>
+              <td class="p-4 font-semibold text-xs">${d.status}</td>
+              <td class="p-4"><img src="${d.foto_selfie}" class="w-10 h-10 rounded-lg object-cover border"></td>
+              <td class="p-4"><span class="px-2.5 py-1 rounded-full text-[10px] font-bold ${badgeColor}">${d.persetujuan}</span></td>
+            </tr>`;
+        }
+      });
+      if(tbody.innerHTML === "") tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Belum ada riwayat.</td></tr>';
+    };
+
+    // 4. Ambil Data untuk Panel ACC Admin
+    window.muatDataAdminACC = async function() {
+      const tbody = document.getElementById('tabel-admin-body');
+      tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Memuat data...</td></tr>';
+      
+      const querySnapshot = await getDocs(collection(db, "attendance"));
+      tbody.innerHTML = "";
+      
+      querySnapshot.forEach((document) => {
+        const d = document.data();
+        let idDoc = document.id;
+        let badgeColor = d.persetujuan === "ACC" ? "bg-green-100 text-green-700" : (d.persetujuan === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700");
+        
+        tbody.innerHTML += `
+          <tr class="hover:bg-gray-50">
+            <td class="p-4 font-bold text-xs">${d.nama_pegawai}</td>
+            <td class="p-4 text-xs">${d.waktu}<br><span class="text-blue-600 font-semibold">${d.status}</span></td>
+            <td class="p-4"><img src="${d.foto_selfie}" class="w-10 h-10 rounded-lg object-cover border"></td>
+            <td class="p-4 flex items-center space-x-2">
+              <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor} mr-2">${d.persetujuan}</span>
+              <button onclick="ubahStatusACC('${idDoc}', 'ACC')" class="bg-green-500 text-white px-2.5 py-1 rounded text-xs font-bold hover:bg-green-600">ACC</button>
+              <button onclick="ubahStatusACC('${idDoc}', 'REJECTED')" class="bg-red-500 text-white px-2.5 py-1 rounded text-xs font-bold hover:bg-red-600">Tolak</button>
+            </td>
+          </tr>`;
+      });
+    };
+
+    // 5. Ubah Status ACC / Reject oleh Admin
+    window.ubahStatusACC = async function(idDoc, statusBaru) {
+      const docRef = doc(db, "attendance", idDoc);
+      await updateDoc(docRef, { persetujuan: statusBaru });
+      alert("Status berhasil diperbarui menjadi: " + statusBaru);
+      muatDataAdminACC();
     };
   </script>
 
@@ -221,11 +327,19 @@
       document.getElementById(idTujuan).classList.remove('hidden');
       document.getElementById(idTujuan).classList.add('flex');
 
-      if (idTujuan === 'screen-camera') {
-          mulaiKamera();
-      } else {
-          matikanKamera(); 
-      }
+      if (idTujuan === 'screen-camera') mulaiKamera();
+      else matikanKamera();
+    }
+
+    function pindahTab(idTab) {
+      document.getElementById('tab-home').classList.add('hidden');
+      document.getElementById('tab-riwayat').classList.add('hidden');
+      document.getElementById('tab-admin-acc').classList.add('hidden');
+
+      document.getElementById(idTab).classList.remove('hidden');
+
+      if(idTab === 'tab-riwayat') window.muatDataRiwayat();
+      if(idTab === 'tab-admin-acc') window.muatDataAdminACC();
     }
 
     async function mulaiKamera() {
@@ -241,7 +355,6 @@
         grupBtnLanjut.classList.add('hidden');
         pesan.classList.remove('hidden');
         btnJepret.classList.add('hidden');
-        frameWajah.classList.remove('hidden');
 
         try {
             streamKamera = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
@@ -249,10 +362,8 @@
             video.classList.remove('hidden');
             pesan.classList.add('hidden');
             btnJepret.classList.remove('hidden');
-            document.getElementById('teks-instruksi-kamera').innerText = "Ketuk tombol untuk foto";
         } catch (err) {
-            console.error("Error akses kamera:", err);
-            pesan.innerHTML = '<i class="fas fa-exclamation-triangle text-red-500 text-5xl mb-3"></i><span class="text-red-400 text-sm">Gagal mengakses kamera.</span>';
+            pesan.innerHTML = '<span class="text-red-400 text-xs">Gagal mengakses kamera.</span>';
         }
     }
 
@@ -268,24 +379,11 @@
         const canvas = document.getElementById('canvas-foto');
         const hasilFoto = document.getElementById('hasil-foto');
         
-        // --- BAGIAN YANG DIUBAH: KOMPRESI GAMBAR ---
-        // 1. Kita perkecil resolusinya menjadi maksimal lebar 400 pixel
-        const maxLebar = 400;
-        const rasio = video.videoWidth / video.videoHeight;
-        const lebarBaru = maxLebar;
-        const tinggiBaru = maxLebar / rasio;
-
-        canvas.width = lebarBaru;
-        canvas.height = tinggiBaru;
-
-        // 2. Gambar frame kamera ke canvas dengan ukuran kecil
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, lebarBaru, tinggiBaru);
+        canvas.width = 400;
+        canvas.height = 400 * (video.videoHeight / video.videoWidth);
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
         
-        // 3. Ubah ke format JPEG dengan kualitas 0.7 (70%) agar ringan!
         const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-        // -------------------------------------------
-
         hasilFoto.src = dataUrl;
         
         hasilFoto.classList.remove('hidden');
@@ -293,9 +391,6 @@
         document.getElementById('frame-wajah').classList.add('hidden');
         document.getElementById('btn-jepret').classList.add('hidden');
         document.getElementById('grup-btn-lanjut').classList.remove('hidden');
-        document.getElementById('teks-instruksi-kamera').innerText = "Foto berhasil diambil!";
-        
-        document.getElementById('foto-profil-mini').src = dataUrl;
     }
 
     function ulangiFoto() {
@@ -304,34 +399,23 @@
         document.getElementById('frame-wajah').classList.remove('hidden');
         document.getElementById('grup-btn-lanjut').classList.add('hidden');
         document.getElementById('btn-jepret').classList.remove('hidden');
-        document.getElementById('teks-instruksi-kamera').innerText = "Ketuk tombol untuk foto";
     }
 
-    // FUNGSI BARU: Simpan ke Firebase lalu pindah ke Dashboard
-    async function lanjutKeDashboard() {
+    async function kirimDataKeCloud() {
         const btnFinal = document.getElementById('btn-clock-in-final');
-        const teksLama = btnFinal.innerHTML;
-        
-        // Ubah tampilan tombol jadi loading
-        btnFinal.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Menyimpan...';
+        btnFinal.innerText = "Mengirim...";
         btnFinal.disabled = true;
 
-        // Ambil data foto wajah yang baru dijepret
-        const dataFotoWajah = document.getElementById('hasil-foto').src;
-
-        // Tunggu proses penyimpanan data ke awan (Firebase) selesai
-        if(window.simpanDataKeDatabase) {
-            await window.simpanDataKeDatabase(dataFotoWajah);
+        const fotoWajah = document.getElementById('hasil-foto').src;
+        if(window.simpanKeFirebase) {
+            await window.simpanKeFirebase(fotoWajah);
         }
 
-        // Kembalikan tombol seperti semula dan pindah layar
-        btnFinal.innerHTML = teksLama;
+        btnFinal.innerText = "Kirim Pengajuan";
         btnFinal.disabled = false;
         
         pindahLayar('screen-dashboard');
-        
-        document.getElementById('foto-profil-mini').classList.remove('hidden');
-        document.getElementById('ikon-profil-mini').classList.add('hidden');
+        pindahTab('tab-riwayat'); // Otomatis buka tab riwayat setelah kirim
     }
   </script>
 </body>
