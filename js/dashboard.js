@@ -11,7 +11,6 @@ window.muatDataProfil = function() {
   document.getElementById('profil-role').innerText = window.currentUser.role;
   document.getElementById('profil-status').innerText = window.currentUser.status_kerja;
   
-  // Isi juga nilai pada input form edit profil
   document.getElementById('profil-input-nama').value = window.currentUser.name;
   document.getElementById('profil-input-email').value = window.currentUser.email;
   document.getElementById('profil-input-jabatan').value = window.currentUser.jabatan;
@@ -19,11 +18,10 @@ window.muatDataProfil = function() {
   const qrData = "QR-" + window.currentUser.id_app;
   document.getElementById('profil-qr-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${qrData}`;
 
-  // Jalankan penghitung jam kerja di header jika sudah clock-in
   window.mulaiHitungJamKerja();
 };
 
-// ====== PENGHITUNG JAM KERJA OTOMATIS DI HEADER (Blueprint 3.2.1) ======
+// ====== JAM KERJA OTOMATIS & SHIFT ======
 let intervalJamKerja = null;
 
 window.mulaiHitungJamKerja = function() {
@@ -35,7 +33,7 @@ window.mulaiHitungJamKerja = function() {
   intervalJamKerja = setInterval(() => {
     const sekarang = new Date();
     const jamMasukShift = new Date();
-    jamMasukShift.setHours(1, 0, 0, 0); // Pukul 01:00 WIB
+    jamMasukShift.setHours(1, 0, 0, 0); // Asumsi Pukul 01:00 WIB
 
     const selisihMs = sekarang - jamMasukShift;
     let statusTeks = "";
@@ -45,7 +43,7 @@ window.mulaiHitungJamKerja = function() {
       const jam = Math.floor(sisaMs / (1000 * 60 * 60));
       const menit = Math.floor((sisaMs % (1000 * 60 * 60)) / (1000 * 60));
       const detik = Math.floor((sisaMs % (1000 * 60)) / 1000);
-      statusTeks = `🟢 Tepat Waktu (Masuk dlm -${jam.toString().padStart(2,'0')}:${menit.toString().padStart(2,'0')}:${detik.toString().padStart(2,'0')})`;
+      statusTeks = `🟢 Tepat Waktu (-${jam.toString().padStart(2,'0')}:${menit.toString().padStart(2,'0')}:${detik.toString().padStart(2,'0')})`;
     } else {
       const jam = Math.floor(selisihMs / (1000 * 60 * 60));
       const menit = Math.floor((selisihMs % (1000 * 60 * 60)) / (1000 * 60));
@@ -53,12 +51,12 @@ window.mulaiHitungJamKerja = function() {
       statusTeks = `🔴 Terlambat (+${jam.toString().padStart(2,'0')}:${menit.toString().padStart(2,'0')}:${detik.toString().padStart(2,'0')})`;
     }
 
-    headerBadge.className = "text-xs md:text-sm font-black text-slate-800 uppercase tracking-wider flex items-center mb-0.5 bg-slate-100 px-3 py-1 rounded-lg border";
+    headerBadge.className = "text-xs font-black text-slate-800 uppercase tracking-wider flex items-center mb-0.5 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm";
     headerBadge.innerHTML = `<i class="far fa-clock mr-1.5 text-blue-600 animate-pulse"></i> Shift 01:00 | ${statusTeks}`;
   }, 1000);
 };
 
-// ====== SIMPAN PERUBAHAN AKUN PROFILE ======
+// ====== UPDATE PROFIL ======
 window.simpanPerubahanProfil = async function() {
   const namaBaru = document.getElementById('profil-input-nama').value;
   const hpBaru = document.getElementById('profil-input-hp').value;
@@ -70,15 +68,11 @@ window.simpanPerubahanProfil = async function() {
 
   try {
     const userRef = doc(db, "users", window.currentUser.email);
-    await updateDoc(userRef, {
-      nama: namaBaru,
-      hp: hpBaru
-    });
+    await updateDoc(userRef, { nama: namaBaru, hp: hpBaru });
 
     window.currentUser.name = namaBaru;
     document.getElementById('teks-nama-user').innerText = "Hi, " + namaBaru;
     document.getElementById('profil-nama').innerText = namaBaru;
-    
     alert("Profil berhasil diperbarui!");
   } catch (e) {
     console.error("Gagal update profil:", e);
@@ -96,7 +90,7 @@ window.simpanKeFirebase = async function(fotoBase64) {
       waktu: new Date().toLocaleString('id-ID'),
       foto_selfie: fotoBase64,
       persetujuan: "PENDING",
-      seragam: "Sesuai" // Default awal seragam
+      seragam: "Sesuai"
     };
 
     if (window.statusPilihanGlobal === "IZIN" || window.statusPilihanGlobal === "CUTI") {
@@ -128,7 +122,6 @@ window.kirimDataKeCloud = async function() {
   
   if (berhasil) {
       const hariIni = new Date().toLocaleDateString('id-ID');
-
       if (window.statusPilihanGlobal === "HADIR (CLOCK IN)") {
           localStorage.setItem('zevanic_absen_' + window.currentUser.email, hariIni);
       } else if (window.statusPilihanGlobal === "CLOCK OUT") {
@@ -168,7 +161,7 @@ window.muatDataRiwayat = async function() {
   if(tbody.innerHTML === "") tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Belum ada riwayat.</td></tr>';
 };
 
-// ====== PANEL ACC PIC DENGAN VALIDASI SERAGAM ======
+// ====== PANEL ACC PIC & VALIDASI SERAGAM ======
 window.muatDataAdminACC = async function() {
   const tbody = document.getElementById('tabel-admin-body');
   tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Memuat data absensi...</td></tr>';
@@ -180,7 +173,6 @@ window.muatDataAdminACC = async function() {
     const d = document.data();
     let idDoc = document.id;
     let badgeColor = d.persetujuan === "ACC" ? "bg-green-100 text-green-700" : (d.persetujuan === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700");
-    
     let statusSeragam = d.seragam || "Sesuai";
     let warnaSeragam = statusSeragam === "Sesuai" ? "text-green-600 font-bold" : "text-amber-600 font-bold";
 
@@ -224,7 +216,6 @@ window.updateSeragam = async function(idDoc) {
     await updateDoc(doc(db, "attendance", idDoc), { seragam: pilihanSeragam });
   } catch (e) {
     console.error("Gagal update seragam:", e);
-    alert("Gagal memperbarui status seragam.");
   }
 };
 
@@ -239,7 +230,7 @@ window.ubahStatusACC = async function(idDoc, statusBaru) {
   }
 };
 
-// ====== ZONA KONTROL OWNER (MANAJEMEN KARYAWAN) ======
+// ====== ZONA KONTROL OWNER ======
 window.muatDataSuperUser = async function() {
   const tbody = document.getElementById('tabel-superuser-body');
   tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Memuat data user...</td></tr>';
