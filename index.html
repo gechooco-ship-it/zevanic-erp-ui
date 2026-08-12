@@ -11,7 +11,7 @@
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   </style>
 </head>
-<body class="bg-slate-50 font-sans text-gray-800 overflow-hidden">
+<body class="bg-slate-50 font-sans text-gray-800">
 
   <div id="screen-login" class="min-h-screen flex flex-col items-center justify-center p-4 fade-in overflow-y-auto">
     <div class="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl border border-gray-100 my-6">
@@ -68,8 +68,8 @@
   </div>
 
 
-  <div id="screen-register" class="hidden min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 fade-in overflow-y-auto">
-    <div class="w-full max-w-2xl bg-white p-8 rounded-3xl shadow-xl border border-gray-100 my-6">
+  <div id="screen-register" class="hidden h-auto min-h-screen w-full bg-slate-50 flex flex-col items-center justify-start p-4 py-10 fade-in overflow-y-auto">
+    <div class="w-full max-w-2xl bg-white p-8 rounded-3xl shadow-xl border border-gray-100 my-auto">
       <div class="flex justify-between items-center mb-6 border-b pb-4">
         <div>
           <h2 class="text-xl font-black text-gray-900">Formulir Pendaftaran Karyawan</h2>
@@ -475,7 +475,6 @@
       updateKecamatanKTP();
     });
 
-    // Preview KTP
     window.previewKTP = function(event) {
       const file = event.target.files[0];
       if (file) {
@@ -521,7 +520,6 @@
       }
     };
 
-    // Simpan pendaftaran sesuai Blueprint
     window.simpanPendaftaranBaru = async function() {
       const nama = document.getElementById('reg-nama').value;
       const nik = document.getElementById('reg-nik').value;
@@ -627,7 +625,6 @@
       pindahLayar('screen-camera');
     };
 
-    // Fungsi Clock Out sesuai Blueprint Header
     window.prosesClockOut = function() {
       statusPilihanGlobal = "CLOCK OUT";
       document.getElementById('label-status-kamera').innerText = "Mode: CLOCK OUT";
