@@ -634,3 +634,133 @@ window.muatTabelJadwal = async function() {
       tbody.innerHTML = '<tr><td colspan="3" class="p-3 text-center text-gray-400">Belum ada karyawan yang dijadwalkan.</td></tr>';
   }
 };
+
+// =========================================================================
+// ====== MODUL REKAP ABSENSI & EXPORT XLS (3.3.1.4.4) ======
+// =========================================================================
+
+window.siapkanFilterRekap = async function() {
+  const optGudang = document.getElementById('rekap-filter-gudang');
+  const optShift = document.getElementById('rekap-filter-shift');
+  
+  // Set default filter tanggal (Bulan ini: Tgl 1 s/d Hari ini)
+  const hariIni = new Date();
+  const tglAwal = new Date(hariIni.getFullYear(), hariIni.getMonth(), 1);
+  document.getElementById('rekap-filter-start').value = tglAwal.toISOString().split('T')[0];
+  document.getElementById('rekap-filter-end').value = hariIni.toISOString().split('T')[0];
+
+  // Muat opsi Gudang dari Master
+  const qGudang = await getDocs(collection(db, "master_gudang"));
+  optGudang.innerHTML = '<option value="SEMUA">Semua Gudang</option>';
+  qGudang.forEach(doc => {
+      optGudang.innerHTML += `<option value="${doc.data().nama_gudang}">${doc.data().nama_gudang}</option>`;
+  });
+
+  // Muat opsi Shift dari Master
+  const qShift = await getDocs(collection(db, "master_shift"));
+  optShift.innerHTML = '<option value="SEMUA">Semua Shift</option>';
+  qShift.forEach(doc => {
+      optShift.innerHTML += `<option value="${doc.data().nama_shift}">${doc.data().nama_shift}</option>`;
+  });
+};
+
+window.muatDataRekap = async function() {
+  const filterGudang = document.getElementById('rekap-filter-gudang').value;
+  // Note: Database "attendance" kita saat ini belum menyimpan kolom shift secara langsung, 
+  // Untuk query kompleks bisa dikembangkan nanti. Kita filter via JavaScript.
+  const filterStart = new Date(document.getElementById('rekap-filter-start').value);
+  const filterEnd = new Date(document.getElementById('rekap-filter-end').value);
+  filterEnd.setHours(23, 59, 59); // Sampai akhir hari tersebut
+
+  const tbody = document.getElementById('tabel-rekap-body');
+  tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-400"><i class="fas fa-spinner fa-spin mr-2"></i> Menarik data...</td></tr>';
+  
+  try {
+      const querySnapshot = await getDocs(collection(db, "attendance"));
+      tbody.innerHTML = "";
+      let adaData = false;
+
+      querySnapshot.forEach((document) => {
+          const d = document.data();
+          
+          // Parsing string waktu "DD/MM/YYYY, HH:mm:ss" ke Object Date JavaScript
+          // Hati-hati: Format locale string bisa bervariasi. Asumsi format ID: DD/MM/YYYY
+          let tglAbsen = null;
+          if (d.waktu) {
+              let parts = d.waktu.split(', ')[0].split('/');
+              if (parts.length === 3) {
+                  tglAbsen = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
+              }
+          }
+
+          // Proses Filter
+          let masukFilter = true;
+
+          // Filter Tanggal
+          if (tglAbsen) {
+              if (tglAbsen < filterStart || tglAbsen > filterEnd) masukFilter = false;
+          }
+
+          // Filter Gudang (Asumsi d.penempatan akan disimpan saat clock-in nanti, jika kosong kita anggap lewat)
+          if (filterGudang !== "SEMUA" && d.penempatan && d.penempatan !== filterGudang) masukFilter = false;
+          
+          // Cuma tampilkan yang sudah di ACC / Diproses (Memiliki status kehadiran)
+          if(!d.status_kehadiran) masukFilter = false;
+
+          if (masukFilter) {
+              adaData = true;
+              let warnaSeragam = d.seragam === 'Sesuai' ? 'text-emerald-600' : 'text-red-500';
+              let ket = d.keterangan ? d.keterangan : '-';
+
+              tbody.innerHTML += `
+                  <tr class="hover:bg-emerald-50 transition border-b border-gray-100 last:border-0 text-xs">
+                      <td class="p-3">${d.waktu}</td>
+                      <td class="p-3 font-bold">${d.nama_pegawai}</td>
+                      <td class="p-3">${d.penempatan || '-'}</td>
+                      <td class="p-3 font-bold">${d.status_kehadiran}</td>
+                      <td class="p-3 font-bold ${warnaSeragam}">${d.seragam}</td>
+                      <td class="p-3 text-[10px] text-gray-500 italic truncate max-w-[150px]">${ket}</td>
+                  </tr>
+              `;
+          }
+      });
+
+      if (!adaData) {
+          tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-400">Tidak ada data yang cocok dengan filter tersebut.</td></tr>';
+      }
+  } catch (e) {
+      console.error(e);
+      tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-red-500">Gagal menarik data rekapitulasi.</td></tr>';
+  }
+};
+
+window.exportKeExcel = function() {
+  const table = document.getElementById("tabel-rekap-export");
+  let csvContent = "";
+  
+  // Ambil semua baris di dalam tabel
+  const rows = table.querySelectorAll("tr");
+  
+  for (let i = 0; i < rows.length; i++) {
+      let row = [], cols = rows[i].querySelectorAll("td, th");
+      
+      for (let j = 0; j < cols.length; j++) {
+          // Bersihkan teks dari newline dan koma agar format CSV tidak rusak
+          let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").replace(/,/g, ";");
+          row.push(data);
+      }
+      csvContent += row.join(",") + "\r\n";
+  }
+
+  // Buat Blob dan Link untuk Download
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(blob);
+  
+  link.setAttribute("href", url);
+  link.setAttribute("download", "Rekap_Absensi_Zevanic.csv");
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
