@@ -494,3 +494,94 @@ window.hapusMasterShift = async function(idDoc) {
     window.muatMasterShift();
   }
 };
+
+// =========================================================================
+// ====== MODUL PENJADWALAN KARYAWAN (3.3.1.4.2) ======
+// =========================================================================
+
+window.muatDataPenjadwalan = async function() {
+  const optKaryawan = document.getElementById('jadwal-karyawan');
+  const optGudang = document.getElementById('jadwal-gudang');
+  const optShift = document.getElementById('jadwal-shift');
+  
+  // 1. Muat Opsi Karyawan
+  const qKaryawan = await getDocs(collection(db, "users"));
+  optKaryawan.innerHTML = '<option value="">-- Pilih Karyawan --</option>';
+  qKaryawan.forEach(doc => {
+      const d = doc.data();
+      if(d.role !== 'owner') { // Sembunyikan owner dari jadwal
+          optKaryawan.innerHTML += `<option value="${doc.id}">${d.nama} (${d.role})</option>`;
+      }
+  });
+
+  // 2. Muat Opsi Gudang
+  const qGudang = await getDocs(collection(db, "master_gudang"));
+  optGudang.innerHTML = '<option value="">-- Pilih Gudang --</option>';
+  qGudang.forEach(doc => {
+      optGudang.innerHTML += `<option value="${doc.data().nama_gudang}">${doc.data().nama_gudang}</option>`;
+  });
+
+  // 3. Muat Opsi Shift
+  const qShift = await getDocs(collection(db, "master_shift"));
+  optShift.innerHTML = '<option value="">-- Pilih Shift --</option>';
+  qShift.forEach(doc => {
+      const d = doc.data();
+      optShift.innerHTML += `<option value="${d.nama_shift}">${d.nama_shift} (${d.jam_masuk} - ${d.jam_keluar})</option>`;
+  });
+
+  // 4. Muat Tabel Jadwal Aktif
+  window.muatTabelJadwal();
+};
+
+window.simpanJadwalKaryawan = async function() {
+  const email = document.getElementById('jadwal-karyawan').value;
+  const gudang = document.getElementById('jadwal-gudang').value;
+  const shift = document.getElementById('jadwal-shift').value;
+  const libur = document.getElementById('jadwal-libur').value;
+
+  if(!email || !gudang || !shift) return alert("Harap pilih Karyawan, Gudang, dan Shift!");
+
+  try {
+      // Perbarui dokumen karyawan (mengawinkan data)
+      await updateDoc(doc(db, "users", email), {
+          gudang_penempatan: gudang,
+          nama_shift: shift,
+          hari_libur: libur
+      });
+      alert("Jadwal Karyawan Berhasil Diperbarui!");
+      window.muatTabelJadwal();
+  } catch (e) {
+      console.error(e);
+      alert("Gagal menyimpan jadwal.");
+  }
+};
+
+window.muatTabelJadwal = async function() {
+  const tbody = document.getElementById('tabel-jadwal-body');
+  if(!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="3" class="p-3 text-center text-gray-400">Memuat data...</td></tr>';
+  
+  const querySnapshot = await getDocs(collection(db, "users"));
+  tbody.innerHTML = "";
+  
+  querySnapshot.forEach((document) => {
+      const d = document.data();
+      // Tampilkan hanya karyawan yang sudah disetting penjadwalannya
+      if(d.gudang_penempatan || d.nama_shift) {
+          tbody.innerHTML += `
+              <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
+                  <td class="p-3 font-bold text-xs">${d.nama} <br><span class="text-[10px] text-gray-400 font-normal">${d.email}</span></td>
+                  <td class="p-3 text-xs text-blue-600 font-bold"><i class="fas fa-building mr-1"></i> ${d.gudang_penempatan || '-'}</td>
+                  <td class="p-3 text-xs text-amber-600 font-bold">
+                    <i class="fas fa-clock mr-1"></i> ${d.nama_shift || '-'} 
+                    <br><span class="text-[10px] text-red-500 font-semibold"><i class="fas fa-calendar-times mr-1 mt-1"></i> Libur: ${d.hari_libur || 'Tidak ada'}</span>
+                  </td>
+              </tr>
+          `;
+      }
+  });
+  
+  if(tbody.innerHTML === "") {
+      tbody.innerHTML = '<tr><td colspan="3" class="p-3 text-center text-gray-400">Belum ada karyawan yang dijadwalkan.</td></tr>';
+  }
+};

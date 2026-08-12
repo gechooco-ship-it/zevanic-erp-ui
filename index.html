@@ -312,7 +312,7 @@
         <div id="tab-admin-acc" class="hidden space-y-4">
           <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200">
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this); muatConfigAbsensi();" class="sub-absensi-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Absensi</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this)" class="sub-absensi-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Penjadwalan</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this); muatDataPenjadwalan();" class="sub-absensi-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Penjadwalan</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this)" class="sub-absensi-btn bg-blue-600 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Accept Absensi</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this)" class="sub-absensi-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Rekap Absensi</button>
           </div>
@@ -385,11 +385,65 @@
             </div>
           </div>
 
-          <div id="sub-absensi-jadwal" class="sub-absensi-content hidden fade-in mt-4">
-            <div class="bg-blue-50 border border-blue-100 p-8 rounded-3xl text-center space-y-3">
-              <i class="fas fa-calendar-alt text-4xl text-blue-400"></i>
-              <h4 class="font-bold text-blue-800 text-lg">Modul Penjadwalan</h4>
-              <p class="text-xs text-blue-600">Fitur mapping (penempatan) karyawan ke shift dan hari libur akan segera aktif.</p>
+          <div id="sub-absensi-jadwal" class="sub-absensi-content hidden fade-in mt-4 space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+              
+              <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4 md:col-span-1">
+                <h3 class="font-bold text-gray-800 border-b pb-2"><i class="fas fa-calendar-alt text-blue-600 mr-2"></i> Atur Jadwal Karyawan</h3>
+                <div class="space-y-3 text-xs">
+                  <div>
+                    <label class="block font-semibold text-gray-600 mb-1">Pilih Karyawan</label>
+                    <select id="jadwal-karyawan" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">-- Memuat Karyawan... --</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block font-semibold text-gray-600 mb-1">Penempatan Gudang</label>
+                    <select id="jadwal-gudang" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">-- Memuat Gudang... --</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block font-semibold text-gray-600 mb-1">Pilih Shift</label>
+                    <select id="jadwal-shift" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="">-- Memuat Shift... --</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label class="block font-semibold text-gray-600 mb-1">Hari Libur Mingguan</label>
+                    <select id="jadwal-libur" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                      <option value="Minggu">Minggu</option>
+                      <option value="Sabtu">Sabtu</option>
+                      <option value="Jumat">Jumat</option>
+                      <option value="Kamis">Kamis</option>
+                      <option value="Rabu">Rabu</option>
+                      <option value="Selasa">Selasa</option>
+                      <option value="Senin">Senin</option>
+                    </select>
+                  </div>
+                  <button onclick="simpanJadwalKaryawan()" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 transition active:scale-95 mt-2 shadow-sm">Simpan Jadwal</button>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 md:col-span-2 overflow-hidden flex flex-col">
+                 <div class="flex justify-between items-center border-b pb-2 mb-3">
+                   <h3 class="font-bold text-gray-800"><i class="fas fa-users text-blue-600 mr-2"></i> Daftar Penjadwalan Aktif</h3>
+                   <button onclick="muatTabelJadwal()" class="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-bold hover:bg-blue-100"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+                 </div>
+                 <div class="overflow-x-auto w-full">
+                   <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
+                      <thead class="bg-gray-50 text-gray-500 text-xs uppercase sticky top-0 z-10">
+                        <tr>
+                          <th class="p-3">Karyawan</th>
+                          <th class="p-3">Lokasi Penempatan</th>
+                          <th class="p-3">Shift & Libur</th>
+                        </tr>
+                      </thead>
+                      <tbody id="tabel-jadwal-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
+                   </table>
+                 </div>
+              </div>
+
             </div>
           </div>
 
