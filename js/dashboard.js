@@ -48,12 +48,22 @@ window.kirimDataKeCloud = async function() {
   btnFinal.disabled = false;
   
   if (berhasil) {
-      // LOGIKA BARU: Cek apakah user sedang Clock Out
+      const hariIni = new Date().toLocaleDateString('id-ID');
+
+      // ====== LOGIKA PINTAR: SIMPAN MEMORI ======
+      if (window.statusPilihanGlobal === "HADIR (CLOCK IN)") {
+          // Tandai bahwa karyawan ini sudah absen hari ini
+          localStorage.setItem('zevanic_absen_' + window.currentUser.email, hariIni);
+      } else if (window.statusPilihanGlobal === "CLOCK OUT") {
+          // Tandai bahwa karyawan ini sudah pulang
+          localStorage.setItem('zevanic_absen_' + window.currentUser.email, "OUT_" + hariIni);
+      }
+      // ==========================================
+
       if (window.statusPilihanGlobal === "CLOCK OUT") {
           alert("Clock Out berhasil! Hati-hati di jalan.");
-          window.pindahLayar('screen-login'); // Kembali ke login
+          window.pindahLayar('screen-login');
       } else {
-          // Jika Hadir/Izin/Cuti, masuk ke Dashboard Riwayat
           window.pindahLayar('screen-dashboard');
           window.pindahTab('tab-riwayat'); 
       }
