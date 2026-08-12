@@ -322,3 +322,26 @@ window.simpanEditUser = async function() {
     btnSimpan.disabled = false;
   }
 };
+
+// ====== FUNGSI NAVIGASI SUB-MENU (TAB DI DALAM TAB) ======
+window.pindahSubTab = function(grupKelas, tabIdTujuan, elemenTombol) {
+  // 1. Sembunyikan semua isi konten dalam grup ini
+  const semuaKonten = document.querySelectorAll('.' + grupKelas + '-content');
+  semuaKonten.forEach(el => el.classList.add('hidden'));
+  
+  // 2. Tampilkan konten yang dipilih
+  document.getElementById(tabIdTujuan).classList.remove('hidden');
+  
+  // 3. Reset warna semua tombol di grup ini jadi abu-abu/putih
+  const semuaTombol = document.querySelectorAll('.' + grupKelas + '-btn');
+  semuaTombol.forEach(btn => {
+    btn.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+    btn.classList.add('bg-white', 'text-gray-600');
+  });
+  
+  // 4. Warnai tombol yang baru saja diklik jadi biru (aktif)
+  if(elemenTombol) {
+    elemenTombol.classList.remove('bg-white', 'text-gray-600');
+    elemenTombol.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+  }
+};
