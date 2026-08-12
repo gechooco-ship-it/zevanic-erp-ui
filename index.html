@@ -171,3 +171,320 @@
               <select id="reg-ktp-kec" class="px-3 py-2 bg-white border rounded-xl"></select>
             </div>
             <input type="text" id="reg-ktp-detail" placeholder="Nama Jalan, RT/RW, No. Rumah" class="w-full px-3 py-2 bg-white border rounded-xl">
+          </div>
+        </div>
+
+        <div class="space-y-3 pt-2">
+          <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-graduation-cap text-blue-600 mr-2"></i> Status Pernikahan & Pendidikan</h3>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block font-semibold text-gray-600 mb-1">Status Pernikahan *</label>
+              <select id="reg-nikah" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+                <option value="Lajang">Lajang</option>
+                <option value="Menikah">Menikah</option>
+                <option value="Duda/Janda">Duda / Janda</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold text-gray-600 mb-1">Jumlah Tanggungan *</label>
+              <input type="text" id="reg-tanggungan" placeholder="Contoh: 0 atau Istri dan 2 Anak" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="block font-semibold text-gray-600 mb-1">Pendidikan Terakhir *</label>
+              <select id="reg-pendidikan" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+                <option value="SMA/SMK">SMA / SMK</option>
+                <option value="D3">Diploma (D3)</option>
+                <option value="S1">Sarjana (S1)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold text-gray-600 mb-1">Nama Sekolah / Kampus *</label>
+              <input type="text" id="reg-sekolah" placeholder="Nama instansi" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-gray-600 mb-1">Jurusan *</label>
+              <input type="text" id="reg-jurusan" placeholder="Jurusan" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-3 pt-2">
+          <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-university text-blue-600 mr-2"></i> Perbankan & Kontak Darurat</h3>
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="block font-semibold text-gray-600 mb-1">Bank *</label>
+              <select id="reg-bank" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+                <option value="BCA">BCA</option>
+                <option value="Mandiri">Mandiri</option>
+                <option value="BNI">BNI</option>
+                <option value="BRI">BRI</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold text-gray-600 mb-1">No. Rekening *</label>
+              <input type="text" id="reg-norek" placeholder="Nomor Rekening" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-gray-600 mb-1">Atas Nama Rekening *</label>
+              <input type="text" id="reg-namarek" placeholder="Nama pemilik" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+            </div>
+          </div>
+          <div class="grid grid-cols-3 gap-2 pt-2">
+            <div>
+              <label class="block font-semibold text-gray-600 mb-1">Nama Kontak Darurat *</label>
+              <input type="text" id="reg-darurat-nama" placeholder="Keluarga/Kerabat" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-gray-600 mb-1">No. HP Darurat *</label>
+              <input type="text" id="reg-darurat-hp" placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+            </div>
+            <div>
+              <label class="block font-semibold text-gray-600 mb-1">Hubungan *</label>
+              <input type="text" id="reg-darurat-hub" placeholder="Contoh: Ayah / Kakak" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
+            </div>
+          </div>
+        </div>
+
+        <button onclick="simpanPendaftaranBaru()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg transition mt-4">
+          Daftarkan Akun Karyawan <i class="fas fa-check ml-1"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+  <div id="screen-camera" class="hidden min-h-screen bg-slate-900 flex-col items-center justify-between p-6 fade-in">
+    <div class="w-full text-center mt-4">
+      <h2 class="text-white text-xl font-bold">Verifikasi Wajah / Foto Bukti</h2>
+      <p id="label-status-kamera" class="text-blue-400 text-xs mt-1 font-semibold uppercase tracking-wider">Mode: Hadir</p>
+    </div>
+    <div class="relative w-full max-w-sm aspect-[3/4] bg-gray-800 rounded-3xl overflow-hidden border-2 border-gray-700 shadow-2xl flex items-center justify-center my-4">
+      <video id="kamera-feed" autoplay playsinline class="w-full h-full object-cover hidden"></video>
+      <img id="hasil-foto" class="w-full h-full object-cover hidden" />
+      <canvas id="canvas-foto" class="hidden"></canvas>
+      <div id="pesan-kamera" class="flex flex-col items-center text-gray-500 text-center px-4">
+        <i class="fas fa-camera text-5xl mb-3 animate-pulse"></i>
+        <span class="text-sm">Meminta akses kamera...</span>
+      </div>
+      <div id="frame-wajah" class="absolute inset-4 border-2 border-dashed border-blue-400 rounded-2xl opacity-50 pointer-events-none"></div>
+    </div>
+    <div class="w-full max-w-sm mb-6 flex flex-col items-center h-24">
+      <button id="btn-jepret" onclick="ambilFoto()" class="w-16 h-16 bg-white rounded-full border-4 border-gray-300 flex items-center justify-center shadow-lg active:scale-90 transition-transform hover:bg-gray-100 hidden">
+        <div class="w-12 h-12 bg-blue-600 rounded-full shadow-inner"></div>
+      </button>
+      <div id="grup-btn-lanjut" class="hidden flex space-x-3">
+          <button onclick="ulangiFoto()" class="px-5 py-2.5 bg-gray-700 text-white font-bold rounded-xl text-sm hover:bg-gray-600 transition">Ulangi</button>
+          <button id="btn-clock-in-final" onclick="kirimDataKeCloud()" class="px-5 py-2.5 bg-green-500 text-white font-bold rounded-xl text-sm hover:bg-green-600 transition flex items-center shadow-lg shadow-green-500/30">
+              Kirim Pengajuan <i class="fas fa-check ml-2"></i>
+          </button>
+      </div>
+      <p id="teks-instruksi-kamera" class="text-gray-300 text-xs font-semibold mt-3">Ketuk tombol untuk foto</p>
+    </div>
+  </div>
+
+
+  <div id="screen-dashboard" class="hidden h-screen w-full relative fade-in bg-slate-50 flex">
+
+    <aside class="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col shadow-sm z-20">
+      <div class="h-20 flex flex-col justify-center px-6 border-b border-gray-100">
+        <h1 class="text-xl font-black tracking-tight text-gray-900">ZEVANIC HOUSE</h1>
+        <p id="label-role-sidebar" class="text-[9px] tracking-widest text-blue-600 font-bold uppercase mt-0.5">Role: Operator</p>
+      </div>
+      <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+        <button onclick="pindahTab('tab-home')" class="w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl bg-blue-50 text-blue-600 transition">
+          <i class="fas fa-home w-6 text-left"></i> Dashboard
+        </button>
+        <button onclick="pindahTab('tab-profil')" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 transition">
+          <i class="fas fa-user-circle w-6 text-left"></i> Profil Saya
+        </button>
+        <button onclick="pindahTab('tab-riwayat')" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 transition">
+          <i class="far fa-clock w-6 text-left"></i> Riwayat Saya
+        </button>
+        
+        <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-purple-600 hover:bg-purple-50 transition font-bold mt-4 border-t pt-4">
+          <i class="fas fa-shield-alt w-6 text-left"></i> Panel ACC Admin
+        </button>
+        <button onclick="pindahTab('tab-superuser')" id="menu-superuser" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-red-600 hover:bg-red-50 transition font-bold">
+          <i class="fas fa-user-shield w-6 text-left"></i> Konfig Super User
+        </button>
+      </nav>
+      <div class="p-4 border-t border-gray-100">
+        <button onclick="pindahLayar('screen-login')" class="w-full flex items-center px-4 py-2 text-sm font-bold rounded-xl text-red-500 hover:bg-red-50 transition">
+          <i class="fas fa-sign-out-alt w-6 text-left"></i> Logout
+        </button>
+      </div>
+    </aside>
+
+    <div class="flex-1 flex flex-col relative h-full overflow-hidden">
+      <header class="h-20 bg-white flex items-center justify-between px-6 md:px-10 z-10 shadow-sm border-b border-gray-200 shrink-0">
+        <div>
+          <div id="label-badge-role" class="text-[10px] md:text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center mb-0.5">
+            <i class="far fa-clock mr-1.5"></i> ERP PORTAL
+          </div>
+          <h2 id="teks-nama-user" class="text-lg md:text-2xl font-bold text-gray-900 leading-tight">Hi, Pengguna</h2>
+        </div>
+        <div class="flex items-center space-x-3">
+          <button onclick="prosesClockOut()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-4 py-2 rounded-xl text-xs font-bold transition flex items-center shadow-sm">
+            <i class="fas fa-sign-out-alt mr-2"></i> Tap Clock Out
+          </button>
+          <span class="hidden md:flex bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1 rounded-full text-xs font-bold items-center">
+            <span class="w-2 h-2 bg-emerald-500 rounded-full mr-2 animate-pulse"></span> ONLINE
+          </span>
+        </div>
+      </header>
+
+      <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-24 md:pb-8">
+        
+        <div id="tab-home" class="space-y-6">
+          <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-6 md:p-8 text-white shadow-lg">
+            <h2 class="text-2xl font-black mb-2">Selamat Datang di Zevanic ERP</h2>
+            <p class="text-blue-100 text-sm max-w-xl">Sistem manajemen presensi & operasional terintegrasi cloud.</p>
+            <button onclick="pindahLayar('screen-login')" class="mt-5 bg-white text-blue-600 font-bold px-6 py-2.5 rounded-xl text-sm shadow-md hover:bg-blue-50 transition">
+              <i class="fas fa-plus-circle mr-2"></i> Buat Absen / Izin Baru
+            </button>
+          </div>
+        </div>
+
+        <div id="tab-profil" class="hidden space-y-6">
+          <h3 class="text-lg font-bold text-gray-800 border-b pb-2">Profil & Identitas Karyawan</h3>
+          <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center md:items-start gap-6">
+            <div class="flex flex-col items-center space-y-3 bg-gray-50 p-5 rounded-2xl border border-gray-100 w-full md:w-auto shrink-0">
+              <p class="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">QR Code Presensi</p>
+              <img id="profil-qr-img" src="" alt="QR Code" class="w-32 h-32 rounded-lg bg-white p-2 shadow-sm border">
+              <div class="text-center">
+                <span id="profil-id-app" class="text-sm font-mono font-black text-blue-600 block">ZMS-XXXX</span>
+              </div>
+            </div>
+            <div class="flex-1 space-y-4 w-full">
+              <div>
+                <h2 id="profil-nama" class="text-2xl font-black text-gray-900 uppercase">Nama Lengkap</h2>
+                <p id="profil-jabatan" class="text-sm text-blue-600 font-bold">Jabatan</p>
+              </div>
+              <div class="grid grid-cols-2 gap-4 text-sm bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                <div>
+                  <p class="text-gray-400 text-[10px] uppercase font-bold tracking-wider">ID Karyawan</p>
+                  <p id="profil-id-kar" class="font-bold text-gray-800 font-mono">ZVN-XXXX</p>
+                </div>
+                <div>
+                  <p class="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Email Akun</p>
+                  <p id="profil-email" class="font-bold text-gray-800 truncate">email@zevanic.com</p>
+                </div>
+                <div>
+                  <p class="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Role Akses</p>
+                  <p id="profil-role" class="font-bold uppercase text-gray-800">Operator</p>
+                </div>
+                <div>
+                  <p class="text-gray-400 text-[10px] uppercase font-bold tracking-wider">Status Kerja</p>
+                  <p id="profil-status" class="font-bold text-green-600 uppercase">Aktif</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-riwayat" class="hidden space-y-6">
+          <div class="flex justify-between items-center">
+            <h3 class="text-lg font-bold text-gray-800 border-b pb-2 w-full flex justify-between">
+              Riwayat Pengajuan Saya
+              <button onclick="muatDataRiwayat()" class="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+            </h3>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead class="bg-gray-50 text-gray-500 text-xs uppercase">
+                <tr>
+                  <th class="p-4">Waktu</th>
+                  <th class="p-4">Status / Jenis</th>
+                  <th class="p-4">Foto / Bukti</th>
+                  <th class="p-4">Persetujuan</th>
+                </tr>
+              </thead>
+              <tbody id="tabel-riwayat-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="tab-admin-acc" class="hidden space-y-6">
+          <div class="flex justify-between items-center">
+            <div class="w-full border-b pb-2 flex justify-between">
+              <div>
+                <h3 class="text-lg font-bold text-gray-800">Panel Persetujuan (ACC Admin)</h3>
+                <p class="text-xs text-gray-500">Daftar kehadiran dan izin seluruh operator.</p>
+              </div>
+              <button onclick="muatDataAdminACC()" class="text-xs bg-purple-50 text-purple-600 px-3 py-1.5 rounded-lg font-bold h-fit"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+            </div>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead class="bg-purple-50 text-purple-700 text-xs uppercase">
+                <tr>
+                  <th class="p-4">Pegawai</th>
+                  <th class="p-4">Waktu & Jenis</th>
+                  <th class="p-4">Foto Wajah</th>
+                  <th class="p-4">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="tabel-admin-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="tab-superuser" class="hidden space-y-6">
+          <div class="bg-red-50 border border-red-200 rounded-2xl p-6 flex justify-between items-center">
+            <div>
+              <h3 class="text-lg font-bold text-red-700 mb-1"><i class="fas fa-user-shield mr-2"></i> Zona Kontrol Super User</h3>
+              <p class="text-xs text-red-600">Daftar seluruh akun terdaftar di sistem ERP.</p>
+            </div>
+            <button onclick="muatDataSuperUser()" class="bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-700 transition h-fit">Muat Daftar User</button>
+          </div>
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <table class="w-full text-left border-collapse text-sm">
+              <thead class="bg-red-50 text-red-700 text-xs uppercase">
+                <tr>
+                  <th class="p-4">Nama & ID</th>
+                  <th class="p-4">Email / Jabatan</th>
+                  <th class="p-4">Role</th>
+                </tr>
+              </thead>
+              <tbody id="tabel-superuser-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </main>
+    </div>
+
+    <nav class="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around items-center p-2 pb-4 z-50 rounded-t-2xl shadow-lg">
+      <button onclick="pindahTab('tab-home')" class="flex flex-col items-center p-2 text-blue-600 w-16">
+        <i class="fas fa-home text-lg mb-1"></i>
+        <span class="text-[9px] font-bold">Home</span>
+      </button>
+      <button onclick="pindahTab('tab-profil')" class="flex flex-col items-center p-2 text-gray-500 w-16">
+        <i class="fas fa-user-circle text-lg mb-1"></i>
+        <span class="text-[9px] font-bold">Profil</span>
+      </button>
+      <button onclick="pindahTab('tab-riwayat')" class="flex flex-col items-center p-2 text-gray-500 w-16">
+        <i class="far fa-clock text-lg mb-1"></i>
+        <span class="text-[9px] font-medium">Riwayat</span>
+      </button>
+      <button id="nav-mobile-admin" onclick="pindahTab('tab-admin-acc')" class="hidden flex flex-col items-center p-2 text-purple-600 w-16">
+        <i class="fas fa-shield-alt text-lg mb-1"></i>
+        <span class="text-[9px] font-bold">ACC</span>
+      </button>
+      <button id="nav-mobile-super" onclick="pindahTab('tab-superuser')" class="hidden flex flex-col items-center p-2 text-red-600 w-16">
+        <i class="fas fa-user-shield text-lg mb-1"></i>
+        <span class="text-[9px] font-bold">Super</span>
+      </button>
+    </nav>
+  </div>
+
+
+  <script type="module" src="js/firebase-config.js"></script>
+  <script type="module" src="js/app.js"></script>
+  <script type="module" src="js/camera.js"></script>
+  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/dashboard.js"></script>
+</body>
+</html>
