@@ -525,7 +525,39 @@
       </button>
     </nav>
   </div>
+<script>
+    function togglePassword() {
+      const inputPass = document.getElementById('input-pass');
+      const iconMata = document.getElementById('icon-mata');
+      
+      if (inputPass.type === 'password') {
+        inputPass.type = 'text';
+        iconMata.classList.remove('fa-eye-slash');
+        iconMata.classList.add('fa-eye');
+      } else {
+        inputPass.type = 'password';
+        iconMata.classList.remove('fa-eye');
+        iconMata.classList.add('fa-eye-slash');
+      }
+    }
 
+    function toggleFormIzin() {
+      const status = document.getElementById('pilihan-status').value;
+      const formIzin = document.getElementById('form-izin-cuti');
+      const labelTgl = document.getElementById('label-validasi-tgl');
+      
+      if (status === 'IZIN' || status === 'CUTI') {
+        formIzin.classList.remove('hidden');
+        if (status === 'CUTI') {
+          labelTgl.innerText = "(Minimal H-3)";
+        } else {
+          labelTgl.innerText = "";
+        }
+      } else {
+        formIzin.classList.add('hidden');
+      }
+    }
+  </script>
 
   <script type="module" src="js/firebase-config.js"></script>
   <script type="module" src="js/app.js"></script>
