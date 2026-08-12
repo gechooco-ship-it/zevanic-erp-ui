@@ -432,3 +432,131 @@ window.pindahSubTab = function(grupKelas, tabIdTujuan, elemenTombol) {
     elemenTombol.classList.add('bg-blue-600', 'text-white', 'shadow-md');
   }
 };
+
+// =========================================================================
+// ====== MODUL CONFIG ABSENSI (3.3.1.4.1 - MASTER GUDANG & SHIFT) ======
+// =========================================================================
+
+window.muatConfigAbsensi = function() {
+  window.muatMasterGudang();
+  window.muatMasterShift();
+};
+
+// --- LOGIKA MASTER GUDANG ---
+window.simpanMasterGudang = async function() {
+  const nama = document.getElementById('conf-gudang-nama').value;
+  const lat = document.getElementById('conf-gudang-lat').value;
+  const lng = document.getElementById('conf-gudang-lng').value;
+  const radius = document.getElementById('conf-gudang-radius').value;
+
+  if(!nama || !lat || !lng || !radius) return alert("Semua kolom Master Gudang harus diisi lengkap!");
+
+  try {
+    await addDoc(collection(db, "master_gudang"), {
+      nama_gudang: nama,
+      latitude: lat,
+      longitude: lng,
+      radius: parseInt(radius)
+    });
+    alert("Master Gudang Berhasil Disimpan!");
+    
+    // Kosongkan form
+    document.getElementById('conf-gudang-nama').value = '';
+    document.getElementById('conf-gudang-lat').value = '';
+    document.getElementById('conf-gudang-lng').value = '';
+    document.getElementById('conf-gudang-radius').value = '';
+    
+    window.muatMasterGudang(); // Refresh tabel
+  } catch (e) {
+    console.error(e);
+    alert("Gagal menyimpan data gudang ke Firebase.");
+  }
+};
+
+window.muatMasterGudang = async function() {
+  const tbody = document.getElementById('tabel-gudang-body');
+  tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-400">Memuat data...</td></tr>';
+  
+  const querySnapshot = await getDocs(collection(db, "master_gudang"));
+  tbody.innerHTML = "";
+  
+  querySnapshot.forEach((document) => {
+    const d = document.data();
+    tbody.innerHTML += `
+      <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
+        <td class="p-2 font-bold text-blue-800">${d.nama_gudang}</td>
+        <td class="p-2 text-[10px] text-gray-500 font-mono">Lat: ${d.latitude}<br>Lng: ${d.longitude}<br><span class="font-bold text-red-500">Radius: ${d.radius} m</span></td>
+        <td class="p-2 text-center">
+          <button onclick="hapusMasterGudang('${document.id}')" class="text-red-500 hover:text-white hover:bg-red-500 font-bold px-2 py-1.5 bg-red-50 rounded-lg transition"><i class="fas fa-trash-alt"></i></button>
+        </td>
+      </tr>
+    `;
+  });
+
+  if(tbody.innerHTML === "") tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-400">Belum ada data gudang terdaftar.</td></tr>';
+};
+
+window.hapusMasterGudang = async function(idDoc) {
+  if(confirm("Yakin ingin menghapus Gudang ini dari Master Data?")) {
+    await deleteDoc(doc(db, "master_gudang", idDoc));
+    window.muatMasterGudang();
+  }
+};
+
+// --- LOGIKA MASTER SHIFT ---
+window.simpanMasterShift = async function() {
+  const nama = document.getElementById('conf-shift-nama').value;
+  const inTime = document.getElementById('conf-shift-in').value;
+  const outTime = document.getElementById('conf-shift-out').value;
+
+  if(!nama || !inTime || !outTime) return alert("Semua kolom Master Shift harus diisi lengkap!");
+
+  try {
+    await addDoc(collection(db, "master_shift"), {
+      nama_shift: nama,
+      jam_masuk: inTime,
+      jam_keluar: outTime
+    });
+    alert("Master Shift Berhasil Disimpan!");
+    
+    // Kosongkan form
+    document.getElementById('conf-shift-nama').value = '';
+    document.getElementById('conf-shift-in').value = '';
+    document.getElementById('conf-shift-out').value = '';
+    
+    window.muatMasterShift(); // Refresh tabel
+  } catch (e) {
+    console.error(e);
+    alert("Gagal menyimpan data shift.");
+  }
+};
+
+window.muatMasterShift = async function() {
+  const tbody = document.getElementById('tabel-shift-body');
+  tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-400">Memuat data...</td></tr>';
+  
+  const querySnapshot = await getDocs(collection(db, "master_shift"));
+  tbody.innerHTML = "";
+  
+  querySnapshot.forEach((document) => {
+    const d = document.data();
+    tbody.innerHTML += `
+      <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
+        <td class="p-2 font-bold text-amber-700">${d.nama_shift}</td>
+        <td class="p-2 text-[10px] text-gray-500 font-bold">In: <span class="text-green-600">${d.jam_masuk}</span><br>Out: <span class="text-red-500">${d.jam_keluar}</span></td>
+        <td class="p-2 text-center">
+          <button onclick="hapusMasterShift('${document.id}')" class="text-red-500 hover:text-white hover:bg-red-500 font-bold px-2 py-1.5 bg-red-50 rounded-lg transition"><i class="fas fa-trash-alt"></i></button>
+        </td>
+      </tr>
+    `;
+  });
+
+  if(tbody.innerHTML === "") tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-400">Belum ada data shift terdaftar.</td></tr>';
+};
+
+window.hapusMasterShift = async function(idDoc) {
+  if(confirm("Yakin ingin menghapus Shift ini dari Master Data?")) {
+    await deleteDoc(doc(db, "master_shift", idDoc));
+    window.muatMasterShift();
+  }
+};
