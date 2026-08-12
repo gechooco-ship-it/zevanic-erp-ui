@@ -105,6 +105,7 @@ window.prosesLogin = async function() {
     return;
   }
 
+  // Simpan Sesi Email
   if (ingatChecked) {
     localStorage.setItem('zevanic_email', emailInput);
     localStorage.setItem('zevanic_pass', passInput);
@@ -113,6 +114,7 @@ window.prosesLogin = async function() {
     localStorage.removeItem('zevanic_pass');
   }
 
+  // Tarik Data User
   const userRef = doc(db, "users", emailInput);
   const userSnap = await getDoc(userRef);
 
@@ -135,6 +137,28 @@ window.prosesLogin = async function() {
   }
 
   window.aturTampilanBerdasarkanRole();
+
+  // ====== LOGIKA PINTAR: BYPASS KAMERA ======
+  const hariIni = new Date().toLocaleDateString('id-ID');
+  const statusLokal = localStorage.getItem('zevanic_absen_' + emailInput);
+
+  // Jika sengaja pilih "Hanya Masuk Dashboard"
+  if (window.statusPilihanGlobal === "MASUK DASHBOARD") {
+      window.pindahLayar('screen-dashboard');
+      window.pindahTab('tab-home');
+      return;
+  }
+
+  // Jika pilih "Hadir" tapi sistem mendeteksi hari ini SUDAH HADIR
+  if (window.statusPilihanGlobal === "HADIR (CLOCK IN)" && statusLokal === hariIni) {
+      alert("Anda sudah Clock In hari ini. Mengalihkan langsung ke Dashboard...");
+      window.pindahLayar('screen-dashboard');
+      window.pindahTab('tab-home');
+      return;
+  }
+  // ==========================================
+
+  // Jika belum absen, lanjut buka kamera
   document.getElementById('label-status-kamera').innerText = "Mode: " + window.statusPilihanGlobal;
   window.pindahLayar('screen-camera');
 };
