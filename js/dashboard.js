@@ -2,6 +2,8 @@
 import { collection, addDoc, getDocs, updateDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
+// js/dashboard.js (Tambahan & Pembaruan Profil + Jam Kerja)
+
 window.muatDataProfil = function() {
   document.getElementById('profil-nama').innerText = window.currentUser.name;
   document.getElementById('profil-jabatan').innerText = window.currentUser.jabatan;
@@ -11,8 +13,81 @@ window.muatDataProfil = function() {
   document.getElementById('profil-role').innerText = window.currentUser.role;
   document.getElementById('profil-status').innerText = window.currentUser.status_kerja;
   
+  // Isi juga nilai pada input form edit profil
+  document.getElementById('profil-input-nama').value = window.currentUser.name;
+  document.getElementById('profil-input-email').value = window.currentUser.email;
+  document.getElementById('profil-input-jabatan').value = window.currentUser.jabatan;
+
   const qrData = "QR-" + window.currentUser.id_app;
   document.getElementById('profil-qr-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${qrData}`;
+
+  // Jalankan penghitung jam kerja di header jika sudah clock-in
+  window.mulaiHitungJamKerja();
+};
+
+// ====== FITUR BARU: PENGHITUNG JAM KERJA OTOMATIS DI HEADER (Blueprint 3.2.1) ======
+let intervalJamKerja = null;
+
+window.mulaiHitungJamKerja = function() {
+  const hariIni = new Date().toLocaleDateString('id-ID');
+  const statusLokal = localStorage.getItem('zevanic_absen_' + window.currentUser.email);
+  const headerBadge = document.getElementById('label-badge-role');
+
+  if (statusLokal === hariIni) {
+    // Jika sudah absen hari ini, catat waktu mulai (atau ambil dari localStorage jika ada)
+    let jamMulai = localStorage.getItem('zevanic_jam_mulai_' + window.currentUser.email);
+    if (!jamMulai) {
+      jamMulai = new Date().getTime();
+      localStorage.setItem('zevanic_jam_mulai_' + window.currentUser.email, jamMulai);
+    }
+
+    if (intervalJamKerja) clearInterval(intervalJamKerja);
+
+    intervalJamKerja = setInterval(() => {
+      const sekarang = new Date().getTime();
+      const selisihMs = sekarang - parseInt(jamMulai);
+      
+      const jam = Math.floor((selisihMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const menit = Math.floor((selisihMs % (1000 * 60 * 60)) / (1000 * 60));
+      const detik = Math.floor((selisihMs % (1000 * 60)) / 1000);
+
+      if (headerBadge) {
+        headerBadge.innerHTML = `<i class="far fa-clock mr-1.5 text-emerald-500 animate-pulse"></i> Jam Kerja: ${jam}j ${menit}m ${detik}d`;
+      }
+    }, 1000);
+  } else {
+    if (headerBadge) {
+      headerBadge.innerHTML = `<i class="far fa-clock mr-1.5"></i> ERP PORTAL - ${window.currentUser.role.toUpperCase()}`;
+    }
+  }
+};
+
+// ====== FITUR BARU: SIMPAN PERUBAHAN AKUN PROFILE ======
+window.simpanPerubahanProfil = async function() {
+  const namaBaru = document.getElementById('profil-input-nama').value;
+  const hpBaru = document.getElementById('profil-input-hp').value;
+
+  if (!namaBaru) {
+    alert("Nama tidak boleh kosong!");
+    return;
+  }
+
+  try {
+    const userRef = doc(db, "users", window.currentUser.email);
+    await updateDoc(userRef, {
+      nama: namaBaru,
+      hp: hpBaru
+    });
+
+    window.currentUser.name = namaBaru;
+    document.getElementById('teks-nama-user').innerText = "Hi, " + namaBaru;
+    document.getElementById('profil-nama').innerText = namaBaru;
+    
+    alert("Profil berhasil diperbarui!");
+  } catch (e) {
+    console.error("Gagal update profil:", e);
+    alert("Gagal memperbarui data profil ke cloud.");
+  }
 };
 
 window.simpanKeFirebase = async function(fotoBase64) {
