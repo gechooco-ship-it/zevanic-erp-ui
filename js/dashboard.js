@@ -180,9 +180,11 @@ window.muatDataRiwayat = async function() {
   if(tbody.innerHTML === "") tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Belum ada riwayat.</td></tr>';
 };
 
+// js/dashboard.js (Pembaruan Panel ACC PIC dengan Validasi Seragam)
+
 window.muatDataAdminACC = async function() {
   const tbody = document.getElementById('tabel-admin-body');
-  tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Memuat data...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Memuat data absensi...</td></tr>';
   
   const querySnapshot = await getDocs(collection(db, "attendance"));
   tbody.innerHTML = "";
@@ -192,18 +194,65 @@ window.muatDataAdminACC = async function() {
     let idDoc = document.id;
     let badgeColor = d.persetujuan === "ACC" ? "bg-green-100 text-green-700" : (d.persetujuan === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700");
     
+    // Status Seragam (Sesuai / Tidak Sesuai)
+    let statusSeragam = d.seragam || "Belum Dicek";
+    let warnaSeragam = statusSeragam === "Sesuai" ? "text-green-600 font-bold" : "text-amber-600 font-bold";
+
     tbody.innerHTML += `
       <tr class="hover:bg-gray-50">
-        <td class="p-4 font-bold text-xs">${d.nama_pegawai}<br><span class="text-[10px] text-gray-400 font-normal">${d.email}</span></td>
-        <td class="p-4 text-xs">${d.waktu}<br><span class="text-blue-600 font-semibold">${d.status}</span></td>
-        <td class="p-4"><img src="${d.foto_selfie}" class="w-10 h-10 rounded-lg object-cover border"></td>
+        <td class="p-4 font-bold text-xs">
+          ${d.nama_pegawai}
+          <br><span class="text-[10px] text-gray-400 font-normal">${d.email}</span>
+          <br><span class="text-[10px] text-blue-600 font-semibold uppercase">Role: ${d.role || 'Operator'}</span>
+        </td>
+        <td class="p-4 text-xs">
+          ${d.waktu}
+          <br><span class="text-slate-700 font-bold">Jenis: ${d.status}</span>
+          ${d.keterangan ? `<br><span class="text-gray-500 italic">Ket: "${d.keterangan}"</span>` : ''}
+        </td>
+        <td class="p-4">
+          <img src="${d.foto_selfie}" class="w-12 h-12 rounded-xl object-cover border shadow-sm cursor-pointer hover:scale-105 transition" onclick="window.open('${d.foto_selfie}')" title="Klik untuk memperbesar">
+        </td>
+        <td class="p-4 text-xs">
+          <select id="seragam-${idDoc}" onchange="updateSeragam('${idDoc}')" class="px-2 py-1 bg-gray-50 border rounded-lg text-xs ${warnaSeragam} outline-none">
+            <option value="Sesuai" ${statusSeragam === 'Sesuai' ? 'selected' : ''}>🟢 Sesuai</option>
+            <option value="Tidak Sesuai" ${statusSeragam === 'Tidak Sesuai' ? 'selected' : ''}>🔴 Tidak Sesuai</option>
+          </select>
+        </td>
         <td class="p-4 flex items-center space-x-2">
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeColor} mr-2">${d.persetujuan}</span>
-          <button onclick="ubahStatusACC('${idDoc}', 'ACC')" class="bg-green-500 text-white px-2.5 py-1 rounded text-xs font-bold hover:bg-green-600">ACC</button>
-          <button onclick="ubahStatusACC('${idDoc}', 'REJECTED')" class="bg-red-500 text-white px-2.5 py-1 rounded text-xs font-bold hover:bg-red-600">Tolak</button>
+          <span id="badge-${idDoc}" class="px-2.5 py-1 rounded-full text-[10px] font-bold ${badgeColor} mr-1">${d.persetujuan}</span>
+          <button onclick="ubahStatusACC('${idDoc}', 'ACC')" class="bg-green-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-green-600 shadow-sm transition">ACC</button>
+          <button onclick="ubahStatusACC('${idDoc}', 'REJECTED')" class="bg-red-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-600 shadow-sm transition">Tolak</button>
         </td>
       </tr>`;
   });
+
+  if(tbody.innerHTML === "") {
+    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Belum ada data pengajuan absensi.</td></tr>';
+  }
+};
+
+// ====== FITUR BARU: SIMPAN STATUS SERAGAM ======
+window.updateSeragam = async function(idDoc) {
+  const pilihanSeragam = document.getElementById(`seragam-${idDoc}`).value;
+  try {
+    await updateDoc(doc(db, "attendance", idDoc), { seragam: pilihanSeragam });
+    // Berikan efek visual kilat sukses
+  } catch (e) {
+    console.error("Gagal update seragam:", e);
+    alert("Gagal memperbarui status seragam.");
+  }
+};
+
+window.ubahStatusACC = async function(idDoc, statusBaru) {
+  try {
+    await updateDoc(doc(db, "attendance", idDoc), { persetujuan: statusBaru });
+    alert("Keputusan absensi berhasil disimpan!");
+    window.muatDataAdminACC();
+  } catch (e) {
+    console.error("Gagal ubah status:", e);
+    alert("Gagal memperbarui persetujuan.");
+  }
 };
 
 window.ubahStatusACC = async function(idDoc, statusBaru) {

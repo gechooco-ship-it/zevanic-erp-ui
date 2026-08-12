@@ -447,8 +447,8 @@
           <div class="flex justify-between items-center">
             <div class="w-full border-b pb-2 flex justify-between">
               <div>
-                <h3 class="text-lg font-bold text-gray-800">Panel Persetujuan (ACC Admin)</h3>
-                <p class="text-xs text-gray-500">Daftar kehadiran dan izin seluruh operator.</p>
+                <h3 class="text-lg font-bold text-gray-800">Panel Persetujuan Absensi (PIC / Owner)</h3>
+                <p class="text-xs text-gray-500">Validasi kehadiran, status shift, dan kelayakan seragam kerja.</p>
               </div>
               <button onclick="muatDataAdminACC()" class="text-xs bg-purple-50 text-purple-600 px-3 py-1.5 rounded-lg font-bold h-fit"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
             </div>
@@ -457,10 +457,11 @@
             <table class="w-full text-left border-collapse text-sm">
               <thead class="bg-purple-50 text-purple-700 text-xs uppercase">
                 <tr>
-                  <th class="p-4">Pegawai</th>
-                  <th class="p-4">Waktu & Jenis</th>
-                  <th class="p-4">Foto Wajah</th>
-                  <th class="p-4">Aksi</th>
+                  <th class="p-4">Pegawai & Jabatan</th>
+                  <th class="p-4">Waktu & Status</th>
+                  <th class="p-4">Foto / Bukti</th>
+                  <th class="p-4">Validasi Seragam</th>
+                  <th class="p-4">Keputusan (ACC / Tolak)</th>
                 </tr>
               </thead>
               <tbody id="tabel-admin-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
