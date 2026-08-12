@@ -1,5 +1,5 @@
 // js/dashboard.js
-import { collection, addDoc, getDocs, updateDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, getDocs, updateDoc, doc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 window.muatDataProfil = function() {
@@ -161,8 +161,7 @@ window.muatDataRiwayat = async function() {
   if(tbody.innerHTML === "") tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Belum ada riwayat.</td></tr>';
 };
 
-// ====== PANEL ACC PIC & VALIDASI SERAGAM ======
-// ====== PANEL ACC PIC & VALIDASI SERAGAM ======
+// ====== PANEL ACC PIC & VALIDASI SESUAI BLUEPRINT 3.3.1.4.3 ======
 window.muatDataAdminACC = async function() {
   const tbody = document.getElementById('tabel-admin-body');
   tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-400">Memuat data absensi...</td></tr>';
@@ -174,21 +173,19 @@ window.muatDataAdminACC = async function() {
     const d = document.data();
     let idDoc = document.id;
 
-    // Ambil state saat ini dari database
+    // Nilai Default saat dimuat
     let statusSeragam = d.seragam || "Sesuai";
-    let persetujuan = d.persetujuan || "PENDING";
-
-    // Placeholder data (Nanti akan dinamis terhubung setelah Modul Config Absensi aktif)
+    let statusKehadiranVal = d.status_kehadiran || "Tepat Waktu";
+    
+    // Data dummy sementara sebelum modul config aktif
     let jabatan = d.jabatan || "Operator";
     let penempatan = d.penempatan || "Gudang Utama";
     let radius = d.radius || "Dalam Radius (15m)";
-    let statusKehadiran = d.status_kehadiran || "Tepat Waktu";
-    if (d.status === "IZIN" || d.status === "CUTI") statusKehadiran = d.status;
 
     tbody.innerHTML += `
       <tr class="hover:bg-gray-50 border-b border-gray-50 last:border-0">
         <td class="p-4">
-          <img src="${d.foto_selfie}" class="w-14 h-14 rounded-xl object-cover border shadow-sm cursor-pointer hover:scale-105 transition" onclick="window.open('${d.foto_selfie}')" title="Klik untuk memperbesar">
+          <img src="${d.foto_selfie}" class="w-14 h-14 rounded-xl object-cover border shadow-sm cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto('${d.foto_selfie}')" title="Klik untuk memperbesar">
         </td>
         <td class="p-4 font-bold text-xs">
           ${d.nama_pegawai}
@@ -200,31 +197,37 @@ window.muatDataAdminACC = async function() {
           <br><span class="text-[10px] text-gray-500 font-medium">${d.waktu}</span>
         </td>
         <td class="p-4 text-xs">
-          <span class="font-bold text-gray-800">${statusKehadiran}</span>
-          <br><span class="text-[10px] text-gray-500 inline-block mt-0.5"><i class="fas fa-map-marker-alt mr-1 text-red-400"></i>${radius}</span>
+          <span class="font-bold text-gray-800"><i class="fas fa-map-marker-alt mr-1 text-red-400"></i>${radius}</span>
           ${d.keterangan ? `<br><span class="text-gray-400 italic mt-1 block max-w-[150px] truncate" title="${d.keterangan}">Ket: "${d.keterangan}"</span>` : ''}
         </td>
         <td class="p-4 text-xs space-y-2">
           <div class="flex flex-col">
-            <span class="text-[9px] font-bold text-gray-400 uppercase mb-0.5">Seragam:</span>
-            <select id="seragam-${idDoc}" class="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none font-semibold focus:ring-1 focus:ring-blue-500 w-32">
-              <option value="Sesuai" ${statusSeragam === 'Sesuai' ? 'selected' : ''}>🟢 Sesuai</option>
-              <option value="Tidak Sesuai" ${statusSeragam === 'Tidak Sesuai' ? 'selected' : ''}>🔴 Tidak Sesuai</option>
+            <span class="text-[9px] font-bold text-gray-400 uppercase mb-0.5">Status Kehadiran:</span>
+            <select id="statushadir-${idDoc}" class="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none font-semibold focus:ring-1 focus:ring-blue-500 w-36">
+              <option value="Tepat Waktu" ${statusKehadiranVal === 'Tepat Waktu' ? 'selected' : ''}>🟢 Tepat Waktu</option>
+              <option value="Terlambat" ${statusKehadiranVal === 'Terlambat' ? 'selected' : ''}>🟡 Terlambat</option>
+              <option value="Tidak Absen" ${statusKehadiranVal === 'Tidak Absen' ? 'selected' : ''}>🔴 Tidak Absen</option>
+              <option value="Cuti" ${statusKehadiranVal === 'Cuti' ? 'selected' : ''}>🔵 Cuti</option>
+              <option value="Izin" ${statusKehadiranVal === 'Izin' ? 'selected' : ''}>⚪ Izin</option>
             </select>
           </div>
           <div class="flex flex-col">
-            <span class="text-[9px] font-bold text-gray-400 uppercase mb-0.5">Keputusan:</span>
-            <select id="persetujuan-${idDoc}" class="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none font-semibold focus:ring-1 focus:ring-blue-500 w-32">
-              <option value="PENDING" ${persetujuan === 'PENDING' ? 'selected' : ''}>⏳ Pending</option>
-              <option value="ACC" ${persetujuan === 'ACC' ? 'selected' : ''}>✅ ACC (Terima)</option>
-              <option value="REJECTED" ${persetujuan === 'REJECTED' ? 'selected' : ''}>❌ Tolak</option>
+            <span class="text-[9px] font-bold text-gray-400 uppercase mb-0.5">Seragam:</span>
+            <select id="seragam-${idDoc}" class="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none font-semibold focus:ring-1 focus:ring-blue-500 w-36">
+              <option value="Sesuai" ${statusSeragam === 'Sesuai' ? 'selected' : ''}>✔️ Sesuai</option>
+              <option value="Tidak Sesuai" ${statusSeragam === 'Tidak Sesuai' ? 'selected' : ''}>❌ Tidak Sesuai</option>
             </select>
           </div>
         </td>
-        <td class="p-4 text-center">
-          <button onclick="submitUpdateACC('${idDoc}')" class="bg-blue-600 text-white px-4 py-3 rounded-xl text-xs font-bold hover:bg-blue-700 shadow-sm shadow-blue-200 transition active:scale-95 flex items-center justify-center w-full">
-            Update <i class="fas fa-save ml-1.5"></i>
-          </button>
+        <td class="p-4">
+          <div class="flex flex-col space-y-1.5 items-center w-24">
+            <button onclick="submitUpdateACC('${idDoc}')" class="bg-blue-600 text-white px-3 py-2 rounded-xl text-xs font-bold hover:bg-blue-700 shadow-sm transition active:scale-95 w-full flex items-center justify-center">
+              Update <i class="fas fa-save ml-1.5"></i>
+            </button>
+            <button onclick="hapusDataAbsensi('${idDoc}')" class="bg-red-50 text-red-600 border border-red-200 px-3 py-2 rounded-xl text-xs font-bold hover:bg-red-100 shadow-sm transition active:scale-95 w-full flex items-center justify-center">
+              Delete <i class="fas fa-trash-alt ml-1.5"></i>
+            </button>
+          </div>
         </td>
       </tr>`;
   });
@@ -233,6 +236,58 @@ window.muatDataAdminACC = async function() {
     tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-400">Belum ada data pengajuan absensi.</td></tr>';
   }
 };
+
+window.submitUpdateACC = async function(idDoc) {
+  const btn = event.currentTarget;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  btn.disabled = true;
+
+  const seragamVal = document.getElementById(`seragam-${idDoc}`).value;
+  const statusHadirVal = document.getElementById(`statushadir-${idDoc}`).value;
+
+  try {
+    await updateDoc(doc(db, "attendance", idDoc), {
+      seragam: seragamVal,
+      status_kehadiran: statusHadirVal
+    });
+    
+    alert("Data Kehadiran Berhasil Diperbarui!");
+    window.muatDataAdminACC(); 
+  } catch (e) {
+    console.error("Gagal update:", e);
+    alert("Gagal menyimpan data.");
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+  }
+};
+
+window.hapusDataAbsensi = async function(idDoc) {
+  if(confirm("Apakah Anda yakin ingin menghapus data absensi ini?")) {
+    try {
+      await deleteDoc(doc(db, "attendance", idDoc));
+      alert("Data berhasil dihapus!");
+      window.muatDataAdminACC();
+    } catch (e) {
+      console.error("Gagal menghapus:", e);
+      alert("Terjadi kesalahan saat menghapus data.");
+    }
+  }
+};
+
+window.bukaPreviewFoto = function(src) {
+  document.getElementById('img-preview-besar').src = src;
+  document.getElementById('modal-preview-foto').classList.remove('hidden');
+};
+
+window.tutupPreviewFoto = function() {
+  document.getElementById('modal-preview-foto').classList.add('hidden');
+  document.getElementById('img-preview-besar').src = "";
+};
+
+
+
+
 
 window.submitUpdateACC = async function(idDoc) {
   const btn = event.currentTarget;
