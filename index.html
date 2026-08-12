@@ -9,6 +9,9 @@
   <style>
     .fade-in { animation: fadeIn 0.4s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    /* Sembunyikan scrollbar untuk menu navigasi sub-tab horizontal */
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
 <body class="bg-slate-50 font-sans text-gray-800">
@@ -94,173 +97,64 @@
 
       <div class="space-y-4 text-xs">
         <div class="grid grid-cols-2 gap-4 bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
-          <div>
-            <label class="block font-bold text-blue-800 mb-1">ID Karyawan (Auto)</label>
-            <input type="text" id="reg-id" readonly class="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl font-mono text-gray-600">
-          </div>
-          <div>
-            <label class="block font-bold text-blue-800 mb-1">ID APP (Auto)</label>
-            <input type="text" id="reg-idapp" readonly class="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl font-mono text-gray-600">
-          </div>
+          <div><label class="block font-bold text-blue-800 mb-1">ID Karyawan (Auto)</label><input type="text" id="reg-id" readonly class="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl font-mono text-gray-600"></div>
+          <div><label class="block font-bold text-blue-800 mb-1">ID APP (Auto)</label><input type="text" id="reg-idapp" readonly class="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl font-mono text-gray-600"></div>
         </div>
-
         <div class="space-y-3 pt-2">
           <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-id-card text-blue-600 mr-2"></i> Data Identitas & Personal</h3>
           <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Nama Lengkap (Sesuai KTP) *</label>
-              <input type="text" id="reg-nama" placeholder="Nama lengkap" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">NIK KTP (16 Angka) *</label>
-              <input type="text" id="reg-nik" maxlength="16" placeholder="3204xxxxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Nama Lengkap (Sesuai KTP) *</label><input type="text" id="reg-nama" placeholder="Nama lengkap" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div><label class="block font-semibold text-gray-600 mb-1">NIK KTP (16 Angka) *</label><input type="text" id="reg-nik" maxlength="16" placeholder="3204xxxxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
           </div>
           <div class="grid grid-cols-3 gap-3">
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Jenis Kelamin *</label>
-              <select id="reg-gender" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-                <option value="Pria">Pria</option>
-                <option value="Wanita">Wanita</option>
-              </select>
-            </div>
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Tempat Lahir *</label>
-              <input type="text" id="reg-tempatlahir" placeholder="Kota Kelahiran" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-            </div>
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Tanggal Lahir *</label>
-              <input type="date" id="reg-tgl" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-            </div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Jenis Kelamin *</label><select id="reg-gender" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="Pria">Pria</option><option value="Wanita">Wanita</option></select></div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Tempat Lahir *</label><input type="text" id="reg-tempatlahir" placeholder="Kota Kelahiran" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Tanggal Lahir *</label><input type="date" id="reg-tgl" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
           </div>
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">Upload Foto KTP (Wajib) *</label>
-            <div class="flex items-center space-x-3">
-              <input type="file" id="reg-ktpfile" accept="image/*" onchange="previewKTP(event)" class="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-              <img id="preview-ktp-img" class="w-12 h-12 object-cover rounded-lg border hidden shadow-sm" />
-            </div>
-          </div>
+          <div><label class="block font-semibold text-gray-600 mb-1">Upload Foto KTP (Wajib) *</label><div class="flex items-center space-x-3"><input type="file" id="reg-ktpfile" accept="image/*" onchange="previewKTP(event)" class="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"><img id="preview-ktp-img" class="w-12 h-12 object-cover rounded-lg border hidden shadow-sm" /></div></div>
         </div>
-
         <div class="space-y-3 pt-2">
           <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-map-marker-alt text-blue-600 mr-2"></i> Kontak & Domisili</h3>
           <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Email Aktif (Untuk Login) *</label>
-              <input type="email" id="reg-email" placeholder="email@zevanic.com" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-            </div>
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">No. HP / WhatsApp (Verifikasi OTP) *</label>
-              <input type="text" id="reg-hp" placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-            </div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Email Aktif (Untuk Login) *</label><input type="email" id="reg-email" placeholder="email@zevanic.com" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
+            <div><label class="block font-semibold text-gray-600 mb-1">No. HP / WhatsApp (Verifikasi OTP) *</label><input type="text" id="reg-hp" placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
           </div>
           <div class="p-3 bg-gray-50 rounded-2xl border space-y-2">
             <span class="font-bold text-gray-700">Alamat Tempat Tinggal Sekarang</span>
-            <div class="grid grid-cols-2 gap-2">
-              <select id="reg-tinggal-kab" onchange="updateKecamatanTinggal()" class="px-3 py-2 bg-white border rounded-xl">
-                <option value="Bandung">Kab. Bandung</option>
-                <option value="Bandung Barat">Kab. Bandung Barat</option>
-                <option value="Cimahi">Kota Cimahi</option>
-                <option value="Garut">Kab. Garut</option>
-              </select>
-              <select id="reg-tinggal-kec" class="px-3 py-2 bg-white border rounded-xl"></select>
-            </div>
+            <div class="grid grid-cols-2 gap-2"><select id="reg-tinggal-kab" onchange="updateKecamatanTinggal()" class="px-3 py-2 bg-white border rounded-xl"><option value="Bandung">Kab. Bandung</option><option value="Bandung Barat">Kab. Bandung Barat</option><option value="Cimahi">Kota Cimahi</option><option value="Garut">Kab. Garut</option></select><select id="reg-tinggal-kec" class="px-3 py-2 bg-white border rounded-xl"></select></div>
             <input type="text" id="reg-tinggal-detail" placeholder="Nama Jalan, RT/RW, No. Rumah" class="w-full px-3 py-2 bg-white border rounded-xl">
           </div>
           <div class="p-3 bg-gray-50 rounded-2xl border space-y-2">
-            <div class="flex justify-between items-center">
-              <span class="font-bold text-gray-700">Alamat Sesuai KTP</span>
-              <label class="flex items-center space-x-1 cursor-pointer text-[11px] text-blue-600 font-semibold">
-                <input type="checkbox" id="check-sama-alamat" onchange="salinAlamat()" class="rounded">
-                <span>Sama dengan tempat tinggal</span>
-              </label>
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-              <select id="reg-ktp-kab" onchange="updateKecamatanKTP()" class="px-3 py-2 bg-white border rounded-xl">
-                <option value="Bandung">Kab. Bandung</option>
-                <option value="Bandung Barat">Kab. Bandung Barat</option>
-                <option value="Cimahi">Kota Cimahi</option>
-                <option value="Garut">Kab. Garut</option>
-              </select>
-              <select id="reg-ktp-kec" class="px-3 py-2 bg-white border rounded-xl"></select>
-            </div>
+            <div class="flex justify-between items-center"><span class="font-bold text-gray-700">Alamat Sesuai KTP</span><label class="flex items-center space-x-1 cursor-pointer text-[11px] text-blue-600 font-semibold"><input type="checkbox" id="check-sama-alamat" onchange="salinAlamat()" class="rounded"><span>Sama dengan tempat tinggal</span></label></div>
+            <div class="grid grid-cols-2 gap-2"><select id="reg-ktp-kab" onchange="updateKecamatanKTP()" class="px-3 py-2 bg-white border rounded-xl"><option value="Bandung">Kab. Bandung</option><option value="Bandung Barat">Kab. Bandung Barat</option><option value="Cimahi">Kota Cimahi</option><option value="Garut">Kab. Garut</option></select><select id="reg-ktp-kec" class="px-3 py-2 bg-white border rounded-xl"></select></div>
             <input type="text" id="reg-ktp-detail" placeholder="Nama Jalan, RT/RW, No. Rumah" class="w-full px-3 py-2 bg-white border rounded-xl">
           </div>
         </div>
-
         <div class="space-y-3 pt-2">
           <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-graduation-cap text-blue-600 mr-2"></i> Status Pernikahan & Pendidikan</h3>
           <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Status Pernikahan *</label>
-              <select id="reg-nikah" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-                <option value="Lajang">Lajang</option>
-                <option value="Menikah">Menikah</option>
-                <option value="Duda/Janda">Duda / Janda</option>
-              </select>
-            </div>
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Jumlah Tanggungan *</label>
-              <input type="text" id="reg-tanggungan" placeholder="Contoh: 0 atau Istri dan 2 Anak" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-            </div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Status Pernikahan *</label><select id="reg-nikah" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="Lajang">Lajang</option><option value="Menikah">Menikah</option><option value="Duda/Janda">Duda / Janda</option></select></div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Jumlah Tanggungan *</label><input type="text" id="reg-tanggungan" placeholder="Contoh: 0 atau Istri dan 2 Anak" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
           </div>
           <div class="grid grid-cols-3 gap-2">
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Pendidikan Terakhir *</label>
-              <select id="reg-pendidikan" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-                <option value="SMA/SMK">SMA / SMK</option>
-                <option value="D3">Diploma (D3)</option>
-                <option value="S1">Sarjana (S1)</option>
-              </select>
-            </div>
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Nama Sekolah / Kampus *</label>
-              <input type="text" id="reg-sekolah" placeholder="Nama instansi" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-            </div>
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Jurusan *</label>
-              <input type="text" id="reg-jurusan" placeholder="Jurusan" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-            </div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Pendidikan Terakhir *</label><select id="reg-pendidikan" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="SMA/SMK">SMA / SMK</option><option value="D3">Diploma (D3)</option><option value="S1">Sarjana (S1)</option></select></div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Nama Sekolah / Kampus *</label><input type="text" id="reg-sekolah" placeholder="Nama instansi" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Jurusan *</label><input type="text" id="reg-jurusan" placeholder="Jurusan" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
           </div>
         </div>
-
         <div class="space-y-3 pt-2">
           <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-university text-blue-600 mr-2"></i> Perbankan & Kontak Darurat</h3>
           <div class="grid grid-cols-3 gap-2">
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Bank *</label>
-              <select id="reg-bank" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-                <option value="BCA">BCA</option>
-                <option value="Mandiri">Mandiri</option>
-                <option value="BNI">BNI</option>
-                <option value="BRI">BRI</option>
-              </select>
-            </div>
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">No. Rekening *</label>
-              <input type="text" id="reg-norek" placeholder="Nomor Rekening" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-            </div>
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Atas Nama Rekening *</label>
-              <input type="text" id="reg-namarek" placeholder="Nama pemilik" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-            </div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Bank *</label><select id="reg-bank" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="BCA">BCA</option><option value="Mandiri">Mandiri</option><option value="BNI">BNI</option><option value="BRI">BRI</option></select></div>
+            <div><label class="block font-semibold text-gray-600 mb-1">No. Rekening *</label><input type="text" id="reg-norek" placeholder="Nomor Rekening" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Atas Nama Rekening *</label><input type="text" id="reg-namarek" placeholder="Nama pemilik" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
           </div>
           <div class="grid grid-cols-3 gap-2 pt-2">
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Nama Kontak Darurat *</label>
-              <input type="text" id="reg-darurat-nama" placeholder="Keluarga/Kerabat" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-            </div>
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">No. HP Darurat *</label>
-              <input type="text" id="reg-darurat-hp" placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-            </div>
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Hubungan *</label>
-              <input type="text" id="reg-darurat-hub" placeholder="Contoh: Ayah / Kakak" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none">
-            </div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Nama Kontak Darurat *</label><input type="text" id="reg-darurat-nama" placeholder="Keluarga/Kerabat" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
+            <div><label class="block font-semibold text-gray-600 mb-1">No. HP Darurat *</label><input type="text" id="reg-darurat-hp" placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
+            <div><label class="block font-semibold text-gray-600 mb-1">Hubungan *</label><input type="text" id="reg-darurat-hub" placeholder="Contoh: Ayah / Kakak" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
           </div>
         </div>
-
         <button onclick="simpanPendaftaranBaru()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg transition mt-4">
           Daftarkan Akun Karyawan <i class="fas fa-check ml-1"></i>
         </button>
@@ -314,7 +208,6 @@
         <button onclick="pindahTab('tab-riwayat')" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 transition">
           <i class="far fa-clock w-6 text-left"></i> Riwayat Absensi
         </button>
-        
         <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-purple-600 hover:bg-purple-50 transition font-bold mt-4 border-t pt-4">
           <i class="fas fa-clipboard-check w-6 text-left"></i> Menu Absensi
         </button>
@@ -392,25 +285,6 @@
               </button>
             </div>
           </div>
-
-          <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 space-y-3">
-            <h4 class="font-bold text-gray-800 text-sm border-b pb-2"><i class="fas fa-file-invoice-dollar text-emerald-600 mr-2"></i> Slip Gaji Karyawan</h4>
-            <div class="p-4 bg-emerald-50 rounded-2xl border border-emerald-100 text-emerald-800 text-xs flex justify-between items-center">
-              <div>
-                <p class="font-bold">Periode Gaji Bulan Ini</p>
-                <p class="text-emerald-600 text-[11px] mt-0.5">Slip gaji digital akan otomatis terbit sesuai jadwal payroll perusahaan.</p>
-              </div>
-              <button onclick="alert('Modul Slip Gaji akan aktif pada pembaruan finansial berikutnya.')" class="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-emerald-700 transition">
-                Unduh PDF
-              </button>
-            </div>
-          </div>
-
-          <div class="pt-2 md:hidden">
-            <button onclick="pindahLayar('screen-login')" class="w-full bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold py-3 rounded-xl transition flex items-center justify-center text-sm shadow-sm">
-              <i class="fas fa-sign-out-alt mr-2"></i> Keluar (Logout)
-            </button>
-          </div>
         </div>
 
         <div id="tab-riwayat" class="hidden space-y-6">
@@ -435,53 +309,118 @@
           </div>
         </div>
 
-        <div id="tab-admin-acc" class="hidden space-y-6">
-          <div class="flex justify-between items-center">
-            <div class="w-full border-b pb-2 flex justify-between">
-              <div>
-                <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-clipboard-check text-purple-600 mr-2"></i> Menu Absensi - Accept Absensi</h3>
-                <p class="text-xs text-gray-500">Validasi kehadiran, status shift, dan kelayakan seragam kerja.</p>
-              </div>
-              <button onclick="muatDataAdminACC()" class="text-xs bg-purple-50 text-purple-600 px-3 py-1.5 rounded-lg font-bold h-fit"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+        <div id="tab-admin-acc" class="hidden space-y-4">
+          <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200">
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this)" class="sub-absensi-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Absensi</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this)" class="sub-absensi-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Penjadwalan</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this)" class="sub-absensi-btn bg-blue-600 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Accept Absensi</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this)" class="sub-absensi-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Rekap Absensi</button>
+          </div>
+
+          <div id="sub-absensi-config" class="sub-absensi-content hidden fade-in mt-4">
+            <div class="bg-blue-50 border border-blue-100 p-8 rounded-3xl text-center space-y-3">
+              <i class="fas fa-cogs text-4xl text-blue-400"></i>
+              <h4 class="font-bold text-blue-800 text-lg">Modul Config Absensi</h4>
+              <p class="text-xs text-blue-600">Fitur pengaturan Master Gudang, Koordinat, Radius Toleransi, dan Shifting Jam Masuk akan segera aktif.</p>
             </div>
           </div>
-          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full">
-            <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
-              <thead class="bg-purple-50 text-purple-700 text-xs uppercase sticky top-0 z-10">
-                <tr>
-                  <th class="p-4">Pegawai & Jabatan</th>
-                  <th class="p-4">Waktu & Status</th>
-                  <th class="p-4">Foto / Bukti</th>
-                  <th class="p-4">Validasi Seragam</th>
-                  <th class="p-4">Keputusan (ACC / Tolak)</th>
-                </tr>
-              </thead>
-              <tbody id="tabel-admin-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
-            </table>
+
+          <div id="sub-absensi-jadwal" class="sub-absensi-content hidden fade-in mt-4">
+            <div class="bg-blue-50 border border-blue-100 p-8 rounded-3xl text-center space-y-3">
+              <i class="fas fa-calendar-alt text-4xl text-blue-400"></i>
+              <h4 class="font-bold text-blue-800 text-lg">Modul Penjadwalan</h4>
+              <p class="text-xs text-blue-600">Fitur mapping (penempatan) karyawan ke shift dan hari libur akan segera aktif.</p>
+            </div>
+          </div>
+
+          <div id="sub-absensi-accept" class="sub-absensi-content fade-in mt-4 space-y-4">
+            <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+              <div>
+                <h3 class="text-sm font-bold text-gray-800"><i class="fas fa-clipboard-check text-purple-600 mr-2"></i> Accept Pengajuan</h3>
+                <p class="text-[10px] text-gray-500">Validasi kehadiran, shift, dan kelayakan seragam kerja.</p>
+              </div>
+              <button onclick="muatDataAdminACC()" class="text-xs bg-purple-50 text-purple-600 px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+            </div>
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full">
+              <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
+                <thead class="bg-purple-50 text-purple-700 text-xs uppercase sticky top-0 z-10">
+                  <tr>
+                    <th class="p-4">Pegawai & Jabatan</th>
+                    <th class="p-4">Waktu & Status</th>
+                    <th class="p-4">Foto / Bukti</th>
+                    <th class="p-4">Validasi Seragam</th>
+                    <th class="p-4">Keputusan (ACC)</th>
+                  </tr>
+                </thead>
+                <tbody id="tabel-admin-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="sub-absensi-rekap" class="sub-absensi-content hidden fade-in mt-4">
+            <div class="bg-emerald-50 border border-emerald-100 p-8 rounded-3xl text-center space-y-3">
+              <i class="fas fa-file-excel text-4xl text-emerald-400"></i>
+              <h4 class="font-bold text-emerald-800 text-lg">Modul Rekapitulasi (Export XLS)</h4>
+              <p class="text-xs text-emerald-600">Laporan absensi filter By Gudang, Shift, dan Periode Cut-Off (Fleksibel) akan segera aktif.</p>
+            </div>
           </div>
         </div>
 
-        <div id="tab-superuser" class="hidden space-y-6">
-          <div class="bg-red-50 border border-red-200 rounded-2xl p-6 flex justify-between items-center">
-            <div>
-              <h3 class="text-lg font-bold text-red-700 mb-1"><i class="fas fa-users-cog mr-2"></i> Menu Karyawan - Data Karyawan</h3>
-              <p class="text-xs text-red-600">Daftar seluruh akun terdaftar di sistem ERP.</p>
+        <div id="tab-superuser" class="hidden space-y-4">
+          <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200">
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Karyawan</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this)" class="sub-karyawan-btn bg-blue-600 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Data Karyawan</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Slip Gaji</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Payroll</button>
+          </div>
+
+          <div id="sub-karyawan-config" class="sub-karyawan-content hidden fade-in mt-4">
+            <div class="bg-blue-50 border border-blue-100 p-8 rounded-3xl text-center space-y-3">
+              <i class="fas fa-users-cog text-4xl text-blue-400"></i>
+              <h4 class="font-bold text-blue-800 text-lg">Modul Config Karyawan</h4>
+              <p class="text-xs text-blue-600">Manajemen Pembuatan Role, Akses Hak (CRUD), dan Master Jabatan akan segera aktif.</p>
             </div>
-            <button onclick="muatDataSuperUser()" class="bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-700 transition h-fit">Muat Daftar User</button>
           </div>
-          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full">
-            <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
-              <thead class="bg-red-50 text-red-700 text-xs uppercase sticky top-0 z-10">
-                <tr>
-                  <th class="p-4">Nama & ID</th>
-                  <th class="p-4">Email / Jabatan</th>
-                  <th class="p-4">Role / Status</th>
-                  <th class="p-4">Aksi</th>
-                </tr>
-              </thead>
-              <tbody id="tabel-superuser-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
-            </table>
+
+          <div id="sub-karyawan-data" class="sub-karyawan-content fade-in mt-4 space-y-4">
+            <div class="bg-red-50 border border-red-200 rounded-2xl p-4 flex justify-between items-center shadow-sm">
+              <div>
+                <h3 class="text-sm font-bold text-red-700 mb-0.5"><i class="fas fa-users mr-2"></i> Database Karyawan ERP</h3>
+                <p class="text-[10px] text-red-600">Master kontrol HR untuk Edit Role & Status.</p>
+              </div>
+              <button onclick="muatDataSuperUser()" class="bg-red-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-700 transition">Muat Data</button>
+            </div>
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full">
+              <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
+                <thead class="bg-red-50 text-red-700 text-xs uppercase sticky top-0 z-10">
+                  <tr>
+                    <th class="p-4">Nama & ID</th>
+                    <th class="p-4">Email / Jabatan</th>
+                    <th class="p-4">Role / Status</th>
+                    <th class="p-4">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="tabel-superuser-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
+              </table>
+            </div>
           </div>
+
+          <div id="sub-karyawan-slip" class="sub-karyawan-content hidden fade-in mt-4">
+            <div class="bg-orange-50 border border-orange-100 p-8 rounded-3xl text-center space-y-3">
+              <i class="fas fa-file-invoice-dollar text-4xl text-orange-400"></i>
+              <h4 class="font-bold text-orange-800 text-lg">Modul Slip Gaji</h4>
+              <p class="text-xs text-orange-600">Akan datang pada update pembaruan finansial.</p>
+            </div>
+          </div>
+
+          <div id="sub-karyawan-payroll" class="sub-karyawan-content hidden fade-in mt-4">
+            <div class="bg-orange-50 border border-orange-100 p-8 rounded-3xl text-center space-y-3">
+              <i class="fas fa-money-check-alt text-4xl text-orange-400"></i>
+              <h4 class="font-bold text-orange-800 text-lg">Modul Payroll Server</h4>
+              <p class="text-xs text-orange-600">Akan datang pada update pembaruan finansial.</p>
+            </div>
+          </div>
+
         </div>
 
       </main>
@@ -609,6 +548,6 @@
   <script type="module" src="js/app.js"></script>
   <script type="module" src="js/camera.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/dashboard.js?v=4"></script>
+  <script type="module" src="js/dashboard.js?v=5"></script>
 </body>
 </html>
