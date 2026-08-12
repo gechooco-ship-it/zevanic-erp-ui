@@ -500,28 +500,33 @@ window.hapusMasterShift = async function(idDoc) {
 // =========================================================================
 
 window.muatDataPenjadwalan = async function() {
-  const optKaryawan = document.getElementById('jadwal-karyawan');
+  const dropdownKaryawan = document.getElementById('dropdown-karyawan');
   const optGudang = document.getElementById('jadwal-gudang');
   const optShift = document.getElementById('jadwal-shift');
   
-  // 1. Muat Opsi Karyawan
+  // 1. Muat Opsi Karyawan ke dalam Custom Search Dropdown
   const qKaryawan = await getDocs(collection(db, "users"));
-  optKaryawan.innerHTML = '<option value="">-- Pilih Karyawan --</option>';
+  dropdownKaryawan.innerHTML = ''; 
   qKaryawan.forEach(doc => {
       const d = doc.data();
-      if(d.role !== 'owner') { // Sembunyikan owner dari jadwal
-          optKaryawan.innerHTML += `<option value="${doc.id}">${d.nama} (${d.role})</option>`;
+      if(d.role !== 'owner') { 
+          // Masukkan list ke dropdown
+          dropdownKaryawan.innerHTML += `
+            <div class="karyawan-option px-4 py-2 hover:bg-blue-50 cursor-pointer text-xs transition" onclick="pilihKaryawanDariList('${doc.id}', '${d.nama}')">
+              <span class="font-bold text-gray-800 block">${d.nama}</span>
+              <span class="text-[10px] text-gray-500">${d.email} - Role: ${d.role}</span>
+            </div>`;
       }
   });
 
-  // 2. Muat Opsi Gudang
+  // 2. Muat Opsi Gudang (Tetap pakai <select> karena jumlah gudang biasanya tidak ratusan)
   const qGudang = await getDocs(collection(db, "master_gudang"));
   optGudang.innerHTML = '<option value="">-- Pilih Gudang --</option>';
   qGudang.forEach(doc => {
       optGudang.innerHTML += `<option value="${doc.data().nama_gudang}">${doc.data().nama_gudang}</option>`;
   });
 
-  // 3. Muat Opsi Shift
+  // 3. Muat Opsi Shift (Tetap pakai <select>)
   const qShift = await getDocs(collection(db, "master_shift"));
   optShift.innerHTML = '<option value="">-- Pilih Shift --</option>';
   qShift.forEach(doc => {
@@ -532,6 +537,50 @@ window.muatDataPenjadwalan = async function() {
   // 4. Muat Tabel Jadwal Aktif
   window.muatTabelJadwal();
 };
+
+// ====== FUNGSI PELENGKAP SEARCH BOX KARYAWAN ======
+window.bukaDropdownKaryawan = function() {
+  document.getElementById('dropdown-karyawan').classList.remove('hidden');
+};
+
+window.filterPencarianKaryawan = function() {
+  const kataKunci = document.getElementById('jadwal-karyawan-search').value.toLowerCase();
+  const daftarOpsi = document.querySelectorAll('.karyawan-option');
+  
+  // Buka dropdown saat mengetik
+  document.getElementById('dropdown-karyawan').classList.remove('hidden');
+
+  // Sembunyikan yang tidak cocok dengan ketikan
+  daftarOpsi.forEach(opsi => {
+      const teks = opsi.innerText.toLowerCase();
+      if(teks.includes(kataKunci)) {
+          opsi.style.display = "block";
+      } else {
+          opsi.style.display = "none";
+      }
+  });
+};
+
+window.pilihKaryawanDariList = function(emailId, nama) {
+  // Masukkan nama ke kotak pencarian
+  document.getElementById('jadwal-karyawan-search').value = nama;
+  // Masukkan email (ID) ke input tersembunyi untuk dikirim ke database
+  document.getElementById('jadwal-karyawan').value = emailId;
+  // Tutup dropdown
+  document.getElementById('dropdown-karyawan').classList.add('hidden');
+};
+
+// Menutup dropdown jika user mengklik area luar kotak
+document.addEventListener('click', function(event) {
+  const wadahPencarian = document.getElementById('jadwal-karyawan-search');
+  const dropdown = document.getElementById('dropdown-karyawan');
+  
+  if (wadahPencarian && dropdown) {
+      if (event.target !== wadahPencarian && !dropdown.contains(event.target)) {
+          dropdown.classList.add('hidden');
+      }
+  }
+});
 
 window.simpanJadwalKaryawan = async function() {
   const email = document.getElementById('jadwal-karyawan').value;
