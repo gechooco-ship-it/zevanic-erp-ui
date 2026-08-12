@@ -541,5 +541,65 @@
   <script type="module" src="js/camera.js"></script>
   <script type="module" src="js/auth.js"></script>
   <script type="module" src="js/dashboard.js"></script>
+  <div id="modal-edit-user" class="hidden fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 fade-in">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+      <div class="flex justify-between items-center border-b pb-3 mb-4">
+        <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-user-edit text-blue-600 mr-2"></i> Detail & Edit Karyawan</h3>
+        <button onclick="tutupEditUser()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times text-xl"></i></button>
+      </div>
+
+      <div class="space-y-4 text-sm">
+        <div class="flex flex-col items-center mb-4 bg-gray-50 py-3 rounded-xl border border-gray-100">
+          <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Dokumen KTP Karyawan</span>
+          <img id="edit-preview-ktp" src="" class="h-32 object-cover rounded-lg border shadow-sm" alt="Foto KTP">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Nama Karyawan</label>
+            <input type="text" id="edit-nama" readonly class="w-full px-3 py-2 bg-gray-100 border rounded-lg font-bold text-gray-600 outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Email Karyawan</label>
+            <input type="text" id="edit-email" readonly class="w-full px-3 py-2 bg-gray-100 border rounded-lg text-gray-600 outline-none">
+            <input type="hidden" id="edit-email-asli">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Role Sistem</label>
+            <select id="edit-role" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none">
+              <option value="operator">Operator</option>
+              <option value="admin">Admin</option>
+              <option value="superuser">Super User</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Jabatan</label>
+            <input type="text" id="edit-jabatan" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Status Kerja</label>
+            <select id="edit-status" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none">
+              <option value="Aktif">Aktif</option>
+              <option value="Tidak Aktif">Tidak Aktif</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Gudang Penempatan</label>
+            <input type="text" id="edit-gudang" placeholder="Contoh: Gudang Utama" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none">
+          </div>
+        </div>
+
+        <button onclick="simpanEditUser()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition active:scale-95 mt-4">
+          <i class="fas fa-save mr-1"></i> Simpan Perubahan
+        </button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
