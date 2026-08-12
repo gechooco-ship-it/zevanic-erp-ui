@@ -342,7 +342,7 @@
         </div>
       </header>
 
-      <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-8">
+      <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-8 min-h-0">
         
         <div id="tab-home" class="space-y-6">
           <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-6 md:p-8 text-white shadow-lg">
@@ -420,8 +420,8 @@
               <button onclick="muatDataRiwayat()" class="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
             </h3>
           </div>
-          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto max-h-[65vh]">
-            <table class="w-full text-left border-collapse text-sm whitespace-nowrap">
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full">
+            <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
               <thead class="bg-gray-50 text-gray-500 text-xs uppercase sticky top-0 z-10">
                 <tr>
                   <th class="p-4">Waktu</th>
@@ -445,8 +445,8 @@
               <button onclick="muatDataAdminACC()" class="text-xs bg-purple-50 text-purple-600 px-3 py-1.5 rounded-lg font-bold h-fit"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
             </div>
           </div>
-          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto max-h-[65vh]">
-            <table class="w-full text-left border-collapse text-sm whitespace-nowrap">
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full">
+            <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
               <thead class="bg-purple-50 text-purple-700 text-xs uppercase sticky top-0 z-10">
                 <tr>
                   <th class="p-4">Pegawai & Jabatan</th>
@@ -469,8 +469,8 @@
             </div>
             <button onclick="muatDataSuperUser()" class="bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-red-700 transition h-fit">Muat Daftar User</button>
           </div>
-          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto max-h-[65vh]">
-            <table class="w-full text-left border-collapse text-sm whitespace-nowrap">
+          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full">
+            <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
               <thead class="bg-red-50 text-red-700 text-xs uppercase sticky top-0 z-10">
                 <tr>
                   <th class="p-4">Nama & ID</th>
