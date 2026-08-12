@@ -39,15 +39,25 @@ window.kirimDataKeCloud = async function() {
   btnFinal.disabled = true;
 
   const fotoWajah = document.getElementById('hasil-foto').src;
+  let berhasil = false;
   if(window.simpanKeFirebase) {
-      await window.simpanKeFirebase(fotoWajah);
+      berhasil = await window.simpanKeFirebase(fotoWajah);
   }
 
   btnFinal.innerText = "Kirim Pengajuan";
   btnFinal.disabled = false;
   
-  window.pindahLayar('screen-dashboard');
-  window.pindahTab('tab-riwayat'); 
+  if (berhasil) {
+      // LOGIKA BARU: Cek apakah user sedang Clock Out
+      if (window.statusPilihanGlobal === "CLOCK OUT") {
+          alert("Clock Out berhasil! Hati-hati di jalan.");
+          window.pindahLayar('screen-login'); // Kembali ke login
+      } else {
+          // Jika Hadir/Izin/Cuti, masuk ke Dashboard Riwayat
+          window.pindahLayar('screen-dashboard');
+          window.pindahTab('tab-riwayat'); 
+      }
+  }
 };
 
 window.muatDataRiwayat = async function() {
