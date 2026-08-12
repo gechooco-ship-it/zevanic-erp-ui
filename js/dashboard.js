@@ -1,5 +1,5 @@
 // js/dashboard.js
-import { collection, addDoc, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, getDocs, updateDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 window.muatDataProfil = function() {
@@ -134,17 +134,102 @@ window.ubahStatusACC = async function(idDoc, statusBaru) {
 
 window.muatDataSuperUser = async function() {
   const tbody = document.getElementById('tabel-superuser-body');
-  tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-400">Memuat data user...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Memuat data user...</td></tr>';
   
   const querySnapshot = await getDocs(collection(db, "users"));
   tbody.innerHTML = "";
   querySnapshot.forEach((document) => {
     const d = document.data();
+    let idDoc = document.id; // idDoc di database kita adalah email
+    
+    // Warna badge status kerja
+    let warnaStatus = (d.status_kerja === "Aktif" || d.status_kerja === "aktif") ? "text-green-500" : "text-red-500";
+
     tbody.innerHTML += `
       <tr class="hover:bg-gray-50">
         <td class="p-4 font-bold text-xs">${d.nama}<br><span class="text-[10px] font-mono text-gray-500">${d.id_karyawan} (${d.id_app})</span></td>
-        <td class="p-4 text-xs">${d.email}<br><span class="text-gray-500">${d.jabatan || '-'}</span></td>
-        <td class="p-4 text-xs font-semibold text-blue-600 uppercase">${d.role}</td>
+        <td class="p-4 text-xs">${d.email}<br><span class="text-gray-500">${d.jabatan || 'Staff'}</span></td>
+        <td class="p-4 text-xs font-semibold text-blue-600 uppercase">${d.role} <br> <span class="text-[10px] ${warnaStatus}">${d.status_kerja || 'Aktif'}</span></td>
+        <td class="p-4">
+          <button onclick="bukaEditUser('${idDoc}')" class="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 border border-blue-200 transition">
+            <i class="fas fa-edit"></i> Edit
+          </button>
+        </td>
       </tr>`;
   });
+};
+
+// ====== FUNGSI BARU: BUKA, TUTUP, DAN SIMPAN MODAL EDIT ======
+
+window.bukaEditUser = async function(emailId) {
+  const userRef = doc(db, "users", emailId);
+  const userSnap = await getDoc(userRef);
+  
+  if (userSnap.exists()) {
+    const d = userSnap.data();
+    
+    // Isi data ke dalam modal
+    document.getElementById('edit-email-asli').value = emailId;
+    document.getElementById('edit-nama').value = d.nama || "";
+    document.getElementById('edit-email').value = d.email || "";
+    document.getElementById('edit-role').value = d.role || "operator";
+    document.getElementById('edit-jabatan').value = d.jabatan || "Staff";
+    
+    // Kapitalisasi awal untuk status kerja ("Aktif" atau "Tidak Aktif")
+    let statusSet = (d.status_kerja === "aktif") ? "Aktif" : (d.status_kerja || "Aktif");
+    document.getElementById('edit-status').value = statusSet;
+    
+    document.getElementById('edit-gudang').value = d.gudang_penempatan || "";
+    
+    // Tampilkan Foto KTP
+    const imgPreview = document.getElementById('edit-preview-ktp');
+    if (d.foto_ktp) {
+        imgPreview.src = d.foto_ktp;
+        imgPreview.classList.remove('hidden');
+    } else {
+        imgPreview.classList.add('hidden');
+    }
+    
+    // Tampilkan Modal
+    document.getElementById('modal-edit-user').classList.remove('hidden');
+  } else {
+    alert("Data karyawan tidak ditemukan!");
+  }
+};
+
+window.tutupEditUser = function() {
+  document.getElementById('modal-edit-user').classList.add('hidden');
+};
+
+window.simpanEditUser = async function() {
+  const btnSimpan = event.currentTarget;
+  btnSimpan.innerText = "Menyimpan...";
+  btnSimpan.disabled = true;
+
+  const emailId = document.getElementById('edit-email-asli').value;
+  const roleBaru = document.getElementById('edit-role').value;
+  const jabatanBaru = document.getElementById('edit-jabatan').value;
+  const statusBaru = document.getElementById('edit-status').value;
+  const gudangBaru = document.getElementById('edit-gudang').value;
+
+  try {
+    const userRef = doc(db, "users", emailId);
+    await updateDoc(userRef, {
+      role: roleBaru,
+      jabatan: jabatanBaru,
+      status_kerja: statusBaru,
+      gudang_penempatan: gudangBaru
+    });
+    
+    alert("Data karyawan berhasil diperbarui!");
+    window.tutupEditUser();
+    window.muatDataSuperUser(); // Otomatis refresh tabel setelah simpan
+    
+  } catch (error) {
+    console.error("Gagal update:", error);
+    alert("Terjadi kesalahan saat mengupdate data.");
+  } finally {
+    btnSimpan.innerHTML = '<i class="fas fa-save mr-1"></i> Simpan Perubahan';
+    btnSimpan.disabled = false;
+  }
 };
