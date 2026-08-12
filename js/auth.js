@@ -144,20 +144,23 @@ window.prosesLogin = async function() {
 
   window.currentUser = { email: emailInput, name: emailInput, role: "operator", id_app: "N/A", id_karyawan: "N/A", jabatan: "Staff", status_kerja: "Aktif" };
 
+  // Di dalam window.prosesLogin, bagian penentuan role default jika email tidak ada di database:
   if (userSnap.exists()) {
     const dataU = userSnap.data();
     window.currentUser = {
       email: emailInput,
       name: dataU.nama || emailInput,
-      role: dataU.role || "operator",
+      role: (dataU.role || "operator").toLowerCase(),
       id_app: dataU.id_app || "N/A",
       id_karyawan: dataU.id_karyawan || "N/A",
       jabatan: dataU.jabatan || "Staff",
       status_kerja: dataU.status_kerja || "Aktif"
     };
   } else {
-    if (emailInput.includes('super')) window.currentUser.role = "superuser";
+    if (emailInput.includes('owner')) window.currentUser.role = "owner";
+    else if (emailInput.includes('pic')) window.currentUser.role = "pic";
     else if (emailInput.includes('admin')) window.currentUser.role = "admin";
+    else window.currentUser.role = "operator";
   }
 
   window.aturTampilanBerdasarkanRole();
@@ -190,29 +193,43 @@ window.prosesClockOut = function() {
   window.pindahLayar('screen-camera');
 };
 
+// js/auth.js (Bagian Aturan Tampilan Berdasarkan Role)
+
 window.aturTampilanBerdasarkanRole = function() {
   document.getElementById('teks-nama-user').innerText = "Hi, " + window.currentUser.name;
   document.getElementById('label-role-sidebar').innerText = "Role: " + window.currentUser.role.toUpperCase();
   document.getElementById('label-badge-role').innerHTML = `<i class="far fa-clock mr-1.5"></i> ERP PORTAL - ${window.currentUser.role.toUpperCase()}`;
 
-  const menuAdminAcc = document.getElementById('menu-admin-acc');
-  const menuSuperUser = document.getElementById('menu-superuser');
+  const role = (window.currentUser.role || "operator").toLowerCase();
+
+  // Ambil elemen menu berdasarkan ID
+  const menuAdminAcc = document.getElementById('menu-admin-acc'); // Untuk PIC / Owner
+  const menuSuperUser = document.getElementById('menu-superuser'); // Untuk Owner
   const navMobileAdmin = document.getElementById('nav-mobile-admin');
   const navMobileSuper = document.getElementById('nav-mobile-super');
 
-  menuAdminAcc.classList.add('hidden');
-  menuSuperUser.classList.add('hidden');
-  navMobileAdmin.classList.add('hidden');
-  navMobileSuper.classList.add('hidden');
+  // Sembunyikan semua menu khusus hak akses tinggi secara default
+  if (menuAdminAcc) menuAdminAcc.classList.add('hidden');
+  if (menuSuperUser) menuSuperUser.classList.add('hidden');
+  if (navMobileAdmin) navMobileAdmin.classList.add('hidden');
+  if (navMobileSuper) navMobileSuper.classList.add('hidden');
 
-  if (window.currentUser.role === 'admin' || window.currentUser.role === 'superuser') {
-    menuAdminAcc.classList.remove('hidden');
-    navMobileAdmin.classList.remove('hidden');
-    navMobileAdmin.classList.add('flex'); 
+  // Atur visibilitas berdasarkan Blueprint Terbaru:
+  // 1. PIC: Punya akses ke Panel ACC Absensi
+  if (role === 'pic' || role === 'owner' || role === 'admin' || role === 'superuser') {
+    if (menuAdminAcc) menuAdminAcc.classList.remove('hidden');
+    if (navMobileAdmin) {
+      navMobileAdmin.classList.remove('hidden');
+      navMobileAdmin.classList.add('flex');
+    }
   }
-  if (window.currentUser.role === 'superuser') {
-    menuSuperUser.classList.remove('hidden');
-    navMobileSuper.classList.remove('hidden');
-    navMobileSuper.classList.add('flex');
+
+  // 2. Owner: Punya akses kontrol penuh (Zona Master / Super User)
+  if (role === 'owner' || role === 'superuser') {
+    if (menuSuperUser) menuSuperUser.classList.remove('hidden');
+    if (navMobileSuper) {
+      navMobileSuper.classList.remove('hidden');
+      navMobileSuper.classList.add('flex');
+    }
   }
 };
