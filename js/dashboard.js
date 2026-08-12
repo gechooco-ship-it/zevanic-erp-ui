@@ -26,40 +26,45 @@ window.muatDataProfil = function() {
 };
 
 // ====== FITUR BARU: PENGHITUNG JAM KERJA OTOMATIS DI HEADER (Blueprint 3.2.1) ======
+// js/dashboard.js (Pembaruan Tampilan Jam Kerja & Shift)
 let intervalJamKerja = null;
 
 window.mulaiHitungJamKerja = function() {
-  const hariIni = new Date().toLocaleDateString('id-ID');
-  const statusLokal = localStorage.getItem('zevanic_absen_' + window.currentUser.email);
   const headerBadge = document.getElementById('label-badge-role');
+  if (!headerBadge) return;
 
-  if (statusLokal === hariIni) {
-    // Jika sudah absen hari ini, catat waktu mulai (atau ambil dari localStorage jika ada)
-    let jamMulai = localStorage.getItem('zevanic_jam_mulai_' + window.currentUser.email);
-    if (!jamMulai) {
-      jamMulai = new Date().getTime();
-      localStorage.setItem('zevanic_jam_mulai_' + window.currentUser.email, jamMulai);
-    }
+  // Kita buat tampilannya lebih besar, tebal, dan jelas (misal: Shift Masuk 01:00)
+  if (intervalJamKerja) clearInterval(intervalJamKerja);
 
-    if (intervalJamKerja) clearInterval(intervalJamKerja);
+  intervalJamKerja = setInterval(() => {
+    const sekarang = new Date();
+    
+    // Contoh asumsi Shift Masuk hari ini pukul 01:00 (bisa disesuaikan dengan database shift nanti)
+    const jamMasukShift = new Date();
+    jamMasukShift.setHours(1, 0, 0, 0); // Pukul 01:00 WIB
 
-    intervalJamKerja = setInterval(() => {
-      const sekarang = new Date().getTime();
-      const selisihMs = sekarang - parseInt(jamMulai);
-      
-      const jam = Math.floor((selisihMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const selisihMs = sekarang - jamMasukShift;
+    let statusTeks = "";
+
+    if (selisihMs < 0) {
+      // Masih sebelum jam masuk (hitung mundur / early)
+      const sisaMs = Math.abs(selisihMs);
+      const jam = Math.floor(sisaMs / (1000 * 60 * 60));
+      const menit = Math.floor((sisaMs % (1000 * 60 * 60)) / (1000 * 60));
+      const detik = Math.floor((sisaMs % (1000 * 60)) / 1000);
+      statusTeks = `🟢 Tepat Waktu (Masuk dlm -${jam.toString().padStart(2,'0')}:${menit.toString().padStart(2,'0')}:${detik.toString().padStart(2,'0')})`;
+    } else {
+      // Sudah lewat dari jam masuk (terlambat / telat)
+      const jam = Math.floor(selisihMs / (1000 * 60 * 60));
       const menit = Math.floor((selisihMs % (1000 * 60 * 60)) / (1000 * 60));
       const detik = Math.floor((selisihMs % (1000 * 60)) / 1000);
-
-      if (headerBadge) {
-        headerBadge.innerHTML = `<i class="far fa-clock mr-1.5 text-emerald-500 animate-pulse"></i> Jam Kerja: ${jam}j ${menit}m ${detik}d`;
-      }
-    }, 1000);
-  } else {
-    if (headerBadge) {
-      headerBadge.innerHTML = `<i class="far fa-clock mr-1.5"></i> ERP PORTAL - ${window.currentUser.role.toUpperCase()}`;
+      statusTeks = `🔴 Terlambat (+${jam.toString().padStart(2,'0')}:${menit.toString().padStart(2,'0')}:${detik.toString().padStart(2,'0')})`;
     }
-  }
+
+    // Ubah ukuran font jadi lebih besar dan jelas dibaca
+    headerBadge.className = "text-xs md:text-sm font-black text-slate-800 uppercase tracking-wider flex items-center mb-0.5 bg-slate-100 px-3 py-1 rounded-lg border";
+    headerBadge.innerHTML = `<i class="far fa-clock mr-1.5 text-blue-600 animate-pulse"></i> Shift 01:00 | ${statusTeks}`;
+  }, 1000);
 };
 
 // ====== FITUR BARU: SIMPAN PERUBAHAN AKUN PROFILE ======
