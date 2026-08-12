@@ -17,7 +17,7 @@ window.muatDataProfil = function() {
 
 window.simpanKeFirebase = async function(fotoBase64) {
   try {
-    await addDoc(collection(db, "attendance"), {
+    let dataKirim = {
       nama_pegawai: window.currentUser.name,
       email: window.currentUser.email,
       role: window.currentUser.role,
@@ -25,7 +25,14 @@ window.simpanKeFirebase = async function(fotoBase64) {
       waktu: new Date().toLocaleString('id-ID'),
       foto_selfie: fotoBase64,
       persetujuan: "PENDING"
-    });
+    };
+
+    if (window.statusPilihanGlobal === "IZIN" || window.statusPilihanGlobal === "CUTI") {
+      dataKirim.tanggal_pengajuan = window.tanggalIzinGlobal;
+      dataKirim.keterangan = window.keteranganIzinGlobal;
+    }
+
+    await addDoc(collection(db, "attendance"), dataKirim);
     return true;
   } catch (e) {
     console.error("Gagal simpan:", e);

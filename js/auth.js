@@ -100,9 +100,33 @@ window.prosesLogin = async function() {
   const ingatChecked = document.getElementById('check-ingat').checked;
   window.statusPilihanGlobal = document.getElementById('pilihan-status').value;
 
+  // Tangkap Data Form Ekstra
+  window.tanggalIzinGlobal = document.getElementById('input-tgl-izin') ? document.getElementById('input-tgl-izin').value : "";
+  window.keteranganIzinGlobal = document.getElementById('input-ket-izin') ? document.getElementById('input-ket-izin').value : "";
+
   if (!emailInput) {
     alert("Masukkan email terlebih dahulu!");
     return;
+  }
+
+  // Validasi Izin & Cuti
+  if (window.statusPilihanGlobal === "IZIN" || window.statusPilihanGlobal === "CUTI") {
+    if (!window.tanggalIzinGlobal || !window.keteranganIzinGlobal) {
+      alert("Harap isi Tanggal dan Keterangan untuk pengajuan Izin/Cuti!");
+      return;
+    }
+
+    if (window.statusPilihanGlobal === "CUTI") {
+      const tglPilih = new Date(window.tanggalIzinGlobal);
+      const tglSekarang = new Date();
+      tglSekarang.setHours(0,0,0,0);
+      
+      const selisihHari = (tglPilih - tglSekarang) / (1000 * 60 * 60 * 24);
+      if (selisihHari < 3) {
+        alert("Pengajuan Cuti minimal H-3 dari tanggal hari ini!");
+        return;
+      }
+    }
   }
 
   // Simpan Sesi Email
@@ -138,27 +162,24 @@ window.prosesLogin = async function() {
 
   window.aturTampilanBerdasarkanRole();
 
-  // ====== LOGIKA PINTAR: BYPASS KAMERA ======
+  // Bypass Kamera
   const hariIni = new Date().toLocaleDateString('id-ID');
   const statusLokal = localStorage.getItem('zevanic_absen_' + emailInput);
 
-  // Jika sengaja pilih "Hanya Masuk Dashboard"
   if (window.statusPilihanGlobal === "MASUK DASHBOARD") {
       window.pindahLayar('screen-dashboard');
       window.pindahTab('tab-home');
       return;
   }
 
-  // Jika pilih "Hadir" tapi sistem mendeteksi hari ini SUDAH HADIR
   if (window.statusPilihanGlobal === "HADIR (CLOCK IN)" && statusLokal === hariIni) {
       alert("Anda sudah Clock In hari ini. Mengalihkan langsung ke Dashboard...");
       window.pindahLayar('screen-dashboard');
       window.pindahTab('tab-home');
       return;
   }
-  // ==========================================
 
-  // Jika belum absen, lanjut buka kamera
+  // Lanjut Buka Kamera
   document.getElementById('label-status-kamera').innerText = "Mode: " + window.statusPilihanGlobal;
   window.pindahLayar('screen-camera');
 };
