@@ -111,7 +111,13 @@
             <div><label class="block font-semibold text-gray-600 mb-1">Tempat Lahir *</label><input type="text" id="reg-tempatlahir" placeholder="Kota Kelahiran" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
             <div><label class="block font-semibold text-gray-600 mb-1">Tanggal Lahir *</label><input type="date" id="reg-tgl" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
           </div>
-          <div><label class="block font-semibold text-gray-600 mb-1">Upload Foto KTP (Wajib) *</label><div class="flex items-center space-x-3"><input type="file" id="reg-ktpfile" accept="image/*" onchange="previewKTP(event)" class="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"><img id="preview-ktp-img" class="w-12 h-12 object-cover rounded-lg border hidden shadow-sm" /></div></div>
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">Upload Foto KTP (Wajib) *</label>
+            <div class="flex items-center space-x-3">
+              <input type="file" id="reg-ktpfile" accept="image/*" onchange="previewKTP(event)" class="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+              <img id="preview-ktp-img" class="w-12 h-12 object-cover rounded-lg border hidden shadow-sm cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto(this.src)" title="Klik untuk memperbesar KTP" />
+            </div>
+          </div>
         </div>
         <div class="space-y-3 pt-2">
           <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-map-marker-alt text-blue-600 mr-2"></i> Kontak & Domisili</h3>
@@ -633,7 +639,7 @@
       <div class="space-y-4 text-sm">
         <div class="flex flex-col items-center mb-4 bg-gray-50 py-3 rounded-xl border border-gray-100">
           <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Dokumen KTP Karyawan</span>
-          <img id="edit-preview-ktp" src="" class="h-32 object-cover rounded-lg border shadow-sm" alt="Foto KTP">
+          <img id="edit-preview-ktp" src="" class="h-32 object-cover rounded-lg border shadow-sm cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto(this.src)" title="Klik untuk memperbesar KTP" alt="Foto KTP">
         </div>
 
         <div class="grid grid-cols-2 gap-4">

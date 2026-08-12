@@ -1,5 +1,5 @@
 // js/dashboard.js
-import { collection, addDoc, getDocs, updateDoc, doc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, getDocs, updateDoc, doc, getDoc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 window.muatDataProfil = function() {
@@ -764,3 +764,88 @@ window.exportKeExcel = function() {
   link.click();
   document.body.removeChild(link);
 };
+
+// =========================================================================
+// ====== LOGIKA REGISTRASI KARYAWAN BARU (MASUK KE DATA KARYAWAN) ======
+// =========================================================================
+
+// 1. Fungsi mengubah file KTP menjadi gambar Base64 agar bisa disimpan
+window.previewKTP = function(event) {
+    const file = event.target.files[0];
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const imgElement = document.getElementById('preview-ktp-img');
+        imgElement.src = e.target.result;
+        imgElement.classList.remove('hidden');
+    };
+    if(file) reader.readAsDataURL(file);
+};
+
+// 2. Fungsi Eksekusi Simpan Pendaftaran
+window.simpanPendaftaranBaru = async function() {
+    const btn = event.currentTarget;
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
+    btn.disabled = true;
+
+    // Ambil field krusial (bisa ditambah variabel lain sesuai kebutuhan blueprint)
+    const email = document.getElementById('reg-email').value;
+    const nama = document.getElementById('reg-nama').value;
+    const hp = document.getElementById('reg-hp').value;
+    const nik = document.getElementById('reg-nik').value;
+
+    if(!email || !nama || !hp || !nik) {
+        alert("Harap isi field wajib: Nama, NIK, Email, dan No. HP!");
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+        return;
+    }
+
+    // Auto-Generate ID Karyawan & ID APP (Format ZVN-XXXX)
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const idKar = "ZVN-" + randomNum;
+    const idApp = "ZMS-" + randomNum;
+    
+    // Ambil Foto KTP jika dilampirkan
+    const imgKTP = document.getElementById('preview-ktp-img').src;
+
+    try {
+        // Tembak data ke koleksi "users"
+        await setDoc(doc(db, "users", email), {
+            email: email,
+            nama: nama,
+            hp: hp,
+            nik: nik,
+            id_karyawan: idKar,
+            id_app: idApp,
+            role: "operator", // Default: Semua pendaftar baru adalah Operator
+            jabatan: "Staff", // Default jabatan awal
+            status_kerja: "Aktif",
+            gudang_penempatan: "", // Akan diisi di Menu Penjadwalan
+            nama_shift: "", // Akan diisi di Menu Penjadwalan
+            foto_ktp: imgKTP.includes('base64') ? imgKTP : "",
+            tanggal_daftar: new Date().toLocaleString('id-ID')
+        });
+
+        alert("Pendaftaran Berhasil! Data Karyawan sudah masuk ke sistem ERP.");
+        
+        // Bersihkan form & kembali ke halaman login
+        document.getElementById('reg-email').value = '';
+        document.getElementById('reg-nama').value = '';
+        document.getElementById('reg-hp').value = '';
+        document.getElementById('reg-nik').value = '';
+        document.getElementById('preview-ktp-img').src = '';
+        document.getElementById('preview-ktp-img').classList.add('hidden');
+
+        // Pindah layar ke Login
+        window.pindahLayar('screen-login');
+
+    } catch (e) {
+        console.error("Gagal Daftar:", e);
+        alert("Terjadi kesalahan saat memproses pendaftaran.");
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+};
+
