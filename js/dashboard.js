@@ -21,13 +21,10 @@ window.muatDataProfil = function() {
   window.mulaiHitungJamKerja();
 };
 
-// ====== JAM KERJA OTOMATIS & SHIFT ======
 let intervalJamKerja = null;
-
 window.mulaiHitungJamKerja = function() {
   const headerBadge = document.getElementById('label-badge-role');
   if (!headerBadge) return;
-
   if (intervalJamKerja) clearInterval(intervalJamKerja);
 
   intervalJamKerja = setInterval(() => {
@@ -56,20 +53,13 @@ window.mulaiHitungJamKerja = function() {
   }, 1000);
 };
 
-// ====== UPDATE PROFIL ======
 window.simpanPerubahanProfil = async function() {
   const namaBaru = document.getElementById('profil-input-nama').value;
   const hpBaru = document.getElementById('profil-input-hp').value;
-
-  if (!namaBaru) {
-    alert("Nama tidak boleh kosong!");
-    return;
-  }
-
+  if (!namaBaru) return alert("Nama tidak boleh kosong!");
   try {
     const userRef = doc(db, "users", window.currentUser.email);
     await updateDoc(userRef, { nama: namaBaru, hp: hpBaru });
-
     window.currentUser.name = namaBaru;
     document.getElementById('teks-nama-user').innerText = "Hi, " + namaBaru;
     document.getElementById('profil-nama').innerText = namaBaru;
@@ -92,12 +82,10 @@ window.simpanKeFirebase = async function(fotoBase64) {
       persetujuan: "PENDING",
       seragam: "Sesuai"
     };
-
     if (window.statusPilihanGlobal === "IZIN" || window.statusPilihanGlobal === "CUTI") {
       dataKirim.tanggal_pengajuan = window.tanggalIzinGlobal;
       dataKirim.keterangan = window.keteranganIzinGlobal;
     }
-
     await addDoc(collection(db, "attendance"), dataKirim);
     return true;
   } catch (e) {
@@ -116,7 +104,6 @@ window.kirimDataKeCloud = async function() {
   if(window.simpanKeFirebase) {
       berhasil = await window.simpanKeFirebase(fotoWajah);
   }
-
   btnFinal.innerText = "Kirim Pengajuan";
   btnFinal.disabled = false;
   
@@ -127,7 +114,6 @@ window.kirimDataKeCloud = async function() {
       } else if (window.statusPilihanGlobal === "CLOCK OUT") {
           localStorage.setItem('zevanic_absen_' + window.currentUser.email, "OUT_" + hariIni);
       }
-
       if (window.statusPilihanGlobal === "CLOCK OUT") {
           alert("Clock Out berhasil! Hati-hati di jalan.");
           window.pindahLayar('screen-login');
@@ -141,10 +127,8 @@ window.kirimDataKeCloud = async function() {
 window.muatDataRiwayat = async function() {
   const tbody = document.getElementById('tabel-riwayat-body');
   tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Memuat data...</td></tr>';
-  
   const querySnapshot = await getDocs(collection(db, "attendance"));
   tbody.innerHTML = "";
-  
   querySnapshot.forEach((document) => {
     const d = document.data();
     if(d.email === window.currentUser.email) {
@@ -161,9 +145,10 @@ window.muatDataRiwayat = async function() {
   if(tbody.innerHTML === "") tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Belum ada riwayat.</td></tr>';
 };
 
-// ====== PANEL ACC PIC & VALIDASI SESUAI BLUEPRINT 3.3.1.4.3 ======
+// ====== PANEL ACC PIC & VALIDASI ======
 window.muatDataAdminACC = async function() {
   const tbody = document.getElementById('tabel-admin-body');
+  if(!tbody) return;
   tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-400">Memuat data absensi...</td></tr>';
   
   const querySnapshot = await getDocs(collection(db, "attendance"));
@@ -173,11 +158,8 @@ window.muatDataAdminACC = async function() {
     const d = document.data();
     let idDoc = document.id;
 
-    // Nilai Default saat dimuat
     let statusSeragam = d.seragam || "Sesuai";
     let statusKehadiranVal = d.status_kehadiran || "Tepat Waktu";
-    
-    // Data dummy sementara sebelum modul config aktif
     let jabatan = d.jabatan || "Operator";
     let penempatan = d.penempatan || "Gudang Utama";
     let radius = d.radius || "Dalam Radius (15m)";
@@ -231,7 +213,6 @@ window.muatDataAdminACC = async function() {
         </td>
       </tr>`;
   });
-
   if(tbody.innerHTML === "") {
     tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-400">Belum ada data pengajuan absensi.</td></tr>';
   }
@@ -249,9 +230,9 @@ window.submitUpdateACC = async function(idDoc) {
   try {
     await updateDoc(doc(db, "attendance", idDoc), {
       seragam: seragamVal,
-      status_kehadiran: statusHadirVal
+      status_kehadiran: statusHadirVal,
+      persetujuan: "ACC" // Otomatis tandai sudah di proses
     });
-    
     alert("Data Kehadiran Berhasil Diperbarui!");
     window.muatDataAdminACC(); 
   } catch (e) {
@@ -279,47 +260,15 @@ window.bukaPreviewFoto = function(src) {
   document.getElementById('img-preview-besar').src = src;
   document.getElementById('modal-preview-foto').classList.remove('hidden');
 };
-
 window.tutupPreviewFoto = function() {
   document.getElementById('modal-preview-foto').classList.add('hidden');
   document.getElementById('img-preview-besar').src = "";
 };
 
-
-
-
-
-window.submitUpdateACC = async function(idDoc) {
-  const btn = event.currentTarget;
-  const originalText = btn.innerHTML;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-  btn.disabled = true;
-
-  // Ambil nilai dari kedua dropdown
-  const seragamVal = document.getElementById(`seragam-${idDoc}`).value;
-  const persetujuanVal = document.getElementById(`persetujuan-${idDoc}`).value;
-
-  try {
-    // Simpan ke database firebase
-    await updateDoc(doc(db, "attendance", idDoc), {
-      seragam: seragamVal,
-      persetujuan: persetujuanVal
-    });
-    
-    // Beri tahu sukses & muat ulang tabel
-    alert("Validasi Absensi Berhasil Diupdate & Disimpan!");
-    window.muatDataAdminACC(); 
-  } catch (e) {
-    console.error("Gagal update absensi:", e);
-    alert("Gagal menyimpan data ke server.");
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-  }
-};
-
 // ====== ZONA KONTROL OWNER ======
 window.muatDataSuperUser = async function() {
   const tbody = document.getElementById('tabel-superuser-body');
+  if(!tbody) return;
   tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Memuat data user...</td></tr>';
   
   const querySnapshot = await getDocs(collection(db, "users"));
@@ -328,7 +277,6 @@ window.muatDataSuperUser = async function() {
     const d = document.data();
     let idDoc = document.id;
     let warnaStatus = (d.status_kerja === "Aktif" || d.status_kerja === "aktif") ? "text-green-500" : "text-red-500";
-
     tbody.innerHTML += `
       <tr class="hover:bg-gray-50">
         <td class="p-4 font-bold text-xs">${d.nama}<br><span class="text-[10px] font-mono text-gray-500">${d.id_karyawan} (${d.id_app})</span></td>
@@ -372,10 +320,7 @@ window.bukaEditUser = async function(emailId) {
     alert("Data karyawan tidak ditemukan!");
   }
 };
-
-window.tutupEditUser = function() {
-  document.getElementById('modal-edit-user').classList.add('hidden');
-};
+window.tutupEditUser = function() { document.getElementById('modal-edit-user').classList.add('hidden'); };
 
 window.simpanEditUser = async function() {
   const btnSimpan = event.currentTarget;
@@ -396,11 +341,9 @@ window.simpanEditUser = async function() {
       status_kerja: statusBaru,
       gudang_penempatan: gudangBaru
     });
-    
     alert("Data karyawan berhasil diperbarui!");
     window.tutupEditUser();
     window.muatDataSuperUser();
-    
   } catch (error) {
     console.error("Gagal update:", error);
     alert("Terjadi kesalahan saat mengupdate data.");
@@ -410,23 +353,18 @@ window.simpanEditUser = async function() {
   }
 };
 
-// ====== FUNGSI NAVIGASI SUB-MENU (TAB DI DALAM TAB) ======
+// ====== NAVIGASI SUB-MENU ======
 window.pindahSubTab = function(grupKelas, tabIdTujuan, elemenTombol) {
-  // 1. Sembunyikan semua isi konten dalam grup ini
   const semuaKonten = document.querySelectorAll('.' + grupKelas + '-content');
   semuaKonten.forEach(el => el.classList.add('hidden'));
-  
-  // 2. Tampilkan konten yang dipilih
   document.getElementById(tabIdTujuan).classList.remove('hidden');
   
-  // 3. Reset warna semua tombol di grup ini jadi abu-abu/putih
   const semuaTombol = document.querySelectorAll('.' + grupKelas + '-btn');
   semuaTombol.forEach(btn => {
     btn.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
     btn.classList.add('bg-white', 'text-gray-600');
   });
   
-  // 4. Warnai tombol yang baru saja diklik jadi biru (aktif)
   if(elemenTombol) {
     elemenTombol.classList.remove('bg-white', 'text-gray-600');
     elemenTombol.classList.add('bg-blue-600', 'text-white', 'shadow-md');
@@ -442,7 +380,6 @@ window.muatConfigAbsensi = function() {
   window.muatMasterShift();
 };
 
-// --- LOGIKA MASTER GUDANG ---
 window.simpanMasterGudang = async function() {
   const nama = document.getElementById('conf-gudang-nama').value;
   const lat = document.getElementById('conf-gudang-lat').value;
@@ -460,13 +397,12 @@ window.simpanMasterGudang = async function() {
     });
     alert("Master Gudang Berhasil Disimpan!");
     
-    // Kosongkan form
     document.getElementById('conf-gudang-nama').value = '';
     document.getElementById('conf-gudang-lat').value = '';
     document.getElementById('conf-gudang-lng').value = '';
     document.getElementById('conf-gudang-radius').value = '';
     
-    window.muatMasterGudang(); // Refresh tabel
+    window.muatMasterGudang();
   } catch (e) {
     console.error(e);
     alert("Gagal menyimpan data gudang ke Firebase.");
@@ -475,6 +411,7 @@ window.simpanMasterGudang = async function() {
 
 window.muatMasterGudang = async function() {
   const tbody = document.getElementById('tabel-gudang-body');
+  if(!tbody) return;
   tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-400">Memuat data...</td></tr>';
   
   const querySnapshot = await getDocs(collection(db, "master_gudang"));
@@ -492,7 +429,6 @@ window.muatMasterGudang = async function() {
       </tr>
     `;
   });
-
   if(tbody.innerHTML === "") tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-400">Belum ada data gudang terdaftar.</td></tr>';
 };
 
@@ -503,7 +439,6 @@ window.hapusMasterGudang = async function(idDoc) {
   }
 };
 
-// --- LOGIKA MASTER SHIFT ---
 window.simpanMasterShift = async function() {
   const nama = document.getElementById('conf-shift-nama').value;
   const inTime = document.getElementById('conf-shift-in').value;
@@ -519,12 +454,11 @@ window.simpanMasterShift = async function() {
     });
     alert("Master Shift Berhasil Disimpan!");
     
-    // Kosongkan form
     document.getElementById('conf-shift-nama').value = '';
     document.getElementById('conf-shift-in').value = '';
     document.getElementById('conf-shift-out').value = '';
     
-    window.muatMasterShift(); // Refresh tabel
+    window.muatMasterShift();
   } catch (e) {
     console.error(e);
     alert("Gagal menyimpan data shift.");
@@ -533,6 +467,7 @@ window.simpanMasterShift = async function() {
 
 window.muatMasterShift = async function() {
   const tbody = document.getElementById('tabel-shift-body');
+  if(!tbody) return;
   tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-400">Memuat data...</td></tr>';
   
   const querySnapshot = await getDocs(collection(db, "master_shift"));
@@ -550,7 +485,6 @@ window.muatMasterShift = async function() {
       </tr>
     `;
   });
-
   if(tbody.innerHTML === "") tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-400">Belum ada data shift terdaftar.</td></tr>';
 };
 
