@@ -162,9 +162,10 @@ window.muatDataRiwayat = async function() {
 };
 
 // ====== PANEL ACC PIC & VALIDASI SERAGAM ======
+// ====== PANEL ACC PIC & VALIDASI SERAGAM ======
 window.muatDataAdminACC = async function() {
   const tbody = document.getElementById('tabel-admin-body');
-  tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Memuat data absensi...</td></tr>';
+  tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-400">Memuat data absensi...</td></tr>';
   
   const querySnapshot = await getDocs(collection(db, "attendance"));
   tbody.innerHTML = "";
@@ -172,61 +173,92 @@ window.muatDataAdminACC = async function() {
   querySnapshot.forEach((document) => {
     const d = document.data();
     let idDoc = document.id;
-    let badgeColor = d.persetujuan === "ACC" ? "bg-green-100 text-green-700" : (d.persetujuan === "REJECTED" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700");
+
+    // Ambil state saat ini dari database
     let statusSeragam = d.seragam || "Sesuai";
-    let warnaSeragam = statusSeragam === "Sesuai" ? "text-green-600 font-bold" : "text-amber-600 font-bold";
+    let persetujuan = d.persetujuan || "PENDING";
+
+    // Placeholder data (Nanti akan dinamis terhubung setelah Modul Config Absensi aktif)
+    let jabatan = d.jabatan || "Operator";
+    let penempatan = d.penempatan || "Gudang Utama";
+    let radius = d.radius || "Dalam Radius (15m)";
+    let statusKehadiran = d.status_kehadiran || "Tepat Waktu";
+    if (d.status === "IZIN" || d.status === "CUTI") statusKehadiran = d.status;
 
     tbody.innerHTML += `
-      <tr class="hover:bg-gray-50">
+      <tr class="hover:bg-gray-50 border-b border-gray-50 last:border-0">
+        <td class="p-4">
+          <img src="${d.foto_selfie}" class="w-14 h-14 rounded-xl object-cover border shadow-sm cursor-pointer hover:scale-105 transition" onclick="window.open('${d.foto_selfie}')" title="Klik untuk memperbesar">
+        </td>
         <td class="p-4 font-bold text-xs">
           ${d.nama_pegawai}
-          <br><span class="text-[10px] text-gray-400 font-normal">${d.email}</span>
-          <br><span class="text-[10px] text-blue-600 font-semibold uppercase">Role: ${d.role || 'Operator'}</span>
+          <br><span class="text-[10px] text-gray-500 font-normal">${jabatan}</span>
+          <br><span class="text-[10px] text-blue-600 font-semibold mt-0.5 inline-block"><i class="fas fa-building mr-1"></i>${penempatan}</span>
         </td>
         <td class="p-4 text-xs">
-          ${d.waktu}
-          <br><span class="text-slate-700 font-bold">Jenis: ${d.status}</span>
-          ${d.keterangan ? `<br><span class="text-gray-500 italic">Ket: "${d.keterangan}"</span>` : ''}
-        </td>
-        <td class="p-4">
-          <img src="${d.foto_selfie}" class="w-12 h-12 rounded-xl object-cover border shadow-sm cursor-pointer hover:scale-105 transition" onclick="window.open('${d.foto_selfie}')" title="Klik untuk memperbesar">
+          <span class="font-black uppercase text-slate-700">${d.status}</span>
+          <br><span class="text-[10px] text-gray-500 font-medium">${d.waktu}</span>
         </td>
         <td class="p-4 text-xs">
-          <select id="seragam-${idDoc}" onchange="updateSeragam('${idDoc}')" class="px-2 py-1 bg-gray-50 border rounded-lg text-xs ${warnaSeragam} outline-none">
-            <option value="Sesuai" ${statusSeragam === 'Sesuai' ? 'selected' : ''}>🟢 Sesuai</option>
-            <option value="Tidak Sesuai" ${statusSeragam === 'Tidak Sesuai' ? 'selected' : ''}>🔴 Tidak Sesuai</option>
-          </select>
+          <span class="font-bold text-gray-800">${statusKehadiran}</span>
+          <br><span class="text-[10px] text-gray-500 inline-block mt-0.5"><i class="fas fa-map-marker-alt mr-1 text-red-400"></i>${radius}</span>
+          ${d.keterangan ? `<br><span class="text-gray-400 italic mt-1 block max-w-[150px] truncate" title="${d.keterangan}">Ket: "${d.keterangan}"</span>` : ''}
         </td>
-        <td class="p-4 flex items-center space-x-2">
-          <span id="badge-${idDoc}" class="px-2.5 py-1 rounded-full text-[10px] font-bold ${badgeColor} mr-1">${d.persetujuan}</span>
-          <button onclick="ubahStatusACC('${idDoc}', 'ACC')" class="bg-green-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-green-600 shadow-sm transition">ACC</button>
-          <button onclick="ubahStatusACC('${idDoc}', 'REJECTED')" class="bg-red-500 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-600 shadow-sm transition">Tolak</button>
+        <td class="p-4 text-xs space-y-2">
+          <div class="flex flex-col">
+            <span class="text-[9px] font-bold text-gray-400 uppercase mb-0.5">Seragam:</span>
+            <select id="seragam-${idDoc}" class="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none font-semibold focus:ring-1 focus:ring-blue-500 w-32">
+              <option value="Sesuai" ${statusSeragam === 'Sesuai' ? 'selected' : ''}>🟢 Sesuai</option>
+              <option value="Tidak Sesuai" ${statusSeragam === 'Tidak Sesuai' ? 'selected' : ''}>🔴 Tidak Sesuai</option>
+            </select>
+          </div>
+          <div class="flex flex-col">
+            <span class="text-[9px] font-bold text-gray-400 uppercase mb-0.5">Keputusan:</span>
+            <select id="persetujuan-${idDoc}" class="px-2 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs outline-none font-semibold focus:ring-1 focus:ring-blue-500 w-32">
+              <option value="PENDING" ${persetujuan === 'PENDING' ? 'selected' : ''}>⏳ Pending</option>
+              <option value="ACC" ${persetujuan === 'ACC' ? 'selected' : ''}>✅ ACC (Terima)</option>
+              <option value="REJECTED" ${persetujuan === 'REJECTED' ? 'selected' : ''}>❌ Tolak</option>
+            </select>
+          </div>
+        </td>
+        <td class="p-4 text-center">
+          <button onclick="submitUpdateACC('${idDoc}')" class="bg-blue-600 text-white px-4 py-3 rounded-xl text-xs font-bold hover:bg-blue-700 shadow-sm shadow-blue-200 transition active:scale-95 flex items-center justify-center w-full">
+            Update <i class="fas fa-save ml-1.5"></i>
+          </button>
         </td>
       </tr>`;
   });
 
   if(tbody.innerHTML === "") {
-    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Belum ada data pengajuan absensi.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-400">Belum ada data pengajuan absensi.</td></tr>';
   }
 };
 
-window.updateSeragam = async function(idDoc) {
-  const pilihanSeragam = document.getElementById(`seragam-${idDoc}`).value;
-  try {
-    await updateDoc(doc(db, "attendance", idDoc), { seragam: pilihanSeragam });
-  } catch (e) {
-    console.error("Gagal update seragam:", e);
-  }
-};
+window.submitUpdateACC = async function(idDoc) {
+  const btn = event.currentTarget;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  btn.disabled = true;
 
-window.ubahStatusACC = async function(idDoc, statusBaru) {
+  // Ambil nilai dari kedua dropdown
+  const seragamVal = document.getElementById(`seragam-${idDoc}`).value;
+  const persetujuanVal = document.getElementById(`persetujuan-${idDoc}`).value;
+
   try {
-    await updateDoc(doc(db, "attendance", idDoc), { persetujuan: statusBaru });
-    alert("Keputusan absensi berhasil disimpan!");
-    window.muatDataAdminACC();
+    // Simpan ke database firebase
+    await updateDoc(doc(db, "attendance", idDoc), {
+      seragam: seragamVal,
+      persetujuan: persetujuanVal
+    });
+    
+    // Beri tahu sukses & muat ulang tabel
+    alert("Validasi Absensi Berhasil Diupdate & Disimpan!");
+    window.muatDataAdminACC(); 
   } catch (e) {
-    console.error("Gagal ubah status:", e);
-    alert("Gagal memperbarui persetujuan.");
+    console.error("Gagal update absensi:", e);
+    alert("Gagal menyimpan data ke server.");
+    btn.innerHTML = originalText;
+    btn.disabled = false;
   }
 };
 
