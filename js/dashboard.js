@@ -853,25 +853,29 @@ window.simpanPendaftaranBaru = async function() {
 // ====== LOGIKA HALAMAN PROFILE (MENU MELAYANG & UPDATE DATA DIRI) ======
 // =========================================================================
 
-// 1. Fungsi Navigasi Sub-Menu Floating
+// Fungsi Navigasi Sub-Menu Profile (Sesuaikan dengan Style Menu Absensi)
 window.pindahSubProfile = function(targetId, elemenTombol) {
+  // Sembunyikan semua sub-konten profil
   const semuaKonten = document.querySelectorAll('.sub-profil-content');
   semuaKonten.forEach(el => el.classList.add('hidden'));
   
+  // Tampilkan target konten
   document.getElementById(targetId).classList.remove('hidden');
   
+  // Reset semua tombol ke gaya tidak aktif (bg-gray-100 text-gray-600)
   const semuaTombol = document.querySelectorAll('.sub-profil-btn');
   semuaTombol.forEach(btn => {
-      btn.classList.remove('bg-slate-800', 'text-white', 'shadow-sm');
-      btn.classList.add('bg-transparent', 'text-gray-500');
+      btn.classList.remove('bg-slate-800', 'text-white', 'font-bold', 'shadow-sm');
+      btn.classList.add('bg-gray-100', 'text-gray-600', 'font-semibold', 'hover:bg-gray-200');
   });
   
+  // Aktifkan tombol yang diklik (bg-slate-800 text-white)
   if(elemenTombol) {
-      elemenTombol.classList.remove('bg-transparent', 'text-gray-500');
-      elemenTombol.classList.add('bg-slate-800', 'text-white', 'shadow-sm');
+      elemenTombol.classList.remove('bg-gray-100', 'text-gray-600', 'font-semibold', 'hover:bg-gray-200');
+      elemenTombol.classList.add('bg-slate-800', 'text-white', 'font-bold', 'shadow-sm');
   }
 
-  // Muat data LENGKAP ke form (Deteksi fallback properti agar aman)
+  // Muat data LENGKAP ke form jika tab Data Diri dibuka
   if(targetId === 'profil-datadiri') {
       // Identitas Pribadi
       document.getElementById('upd-nama').value = window.currentUser.name || window.currentUser.nama || "";
