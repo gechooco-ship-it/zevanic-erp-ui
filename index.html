@@ -422,27 +422,94 @@
           </div>
 
         </div>
-<div id="tab-riwayat" class="hidden space-y-6">
-          <div class="flex justify-between items-center">
-            <h3 class="text-lg font-bold text-gray-800 border-b pb-2 w-full flex justify-between">
-              Riwayat Pengajuan Saya
-              <button onclick="muatDataRiwayat()" class="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
-            </h3>
+        <div id="tab-riwayat" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
+        
+        <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-black text-slate-800 flex items-center">
+              <i class="fas fa-file-invoice text-blue-600 mr-2.5"></i> Riwayat & Rekapitulasi Absensi
+            </h2>
+            <p class="text-xs text-gray-500 mt-0.5">Filter laporan kehadiran, pantau ringkasan statistik, dan unduh file rekapitulasi.</p>
           </div>
-          <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full">
-            <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
-              <thead class="bg-gray-50 text-gray-500 text-xs uppercase sticky top-0 z-10">
-                <tr>
-                  <th class="p-4">Waktu</th>
-                  <th class="p-4">Status / Jenis</th>
-                  <th class="p-4">Foto / Bukti</th>
-                  <th class="p-4">Persetujuan</th>
-                </tr>
-              </thead>
-              <tbody id="tabel-riwayat-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
-            </table>
+          <button onclick="exportKeCSV()" class="bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2.5 rounded-2xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5">
+            <i class="fas fa-file-excel text-sm"></i>
+            <span>Export Laporan CSV</span>
+          </button>
+        </div>
+
+        <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-3">
+          <h3 class="text-xs font-bold text-gray-700 border-b pb-2"><i class="fas fa-filter text-slate-600 mr-1.5"></i> Filter Parameter Laporan</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div>
+              <label class="block text-[11px] font-semibold text-gray-600 mb-1">Dari Tanggal</label>
+              <input type="date" id="filter-tgl-mulai" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-gray-600 mb-1">Sampai Tanggal</label>
+              <input type="date" id="filter-tgl-selesai" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-gray-600 mb-1">Filter Gudang</label>
+              <select id="filter-gudang" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="ALL">Semua Gudang</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-[11px] font-semibold text-gray-600 mb-1">Filter Shift</label>
+              <select id="filter-shift" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+                <option value="ALL">Semua Shift</option>
+              </select>
+            </div>
+          </div>
+          <div class="flex justify-end pt-1">
+            <button onclick="muatDataRiwayat()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-5 py-2 rounded-xl text-xs transition shadow-sm flex items-center space-x-1.5">
+              <i class="fas fa-search"></i>
+              <span>Tampilkan Laporan</span>
+            </button>
           </div>
         </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total Hadir</span>
+            <span id="stat-hadir" class="text-xl font-black text-green-600 mt-1 block">0</span>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Status ACC Valid</span>
+            <span id="stat-acc" class="text-xl font-black text-blue-600 mt-1 block">0</span>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Seragam Tidak Sesuai</span>
+            <span id="stat-seragam" class="text-xl font-black text-amber-500 mt-1 block">0</span>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Izin / Cuti / Ditolak</span>
+            <span id="stat-izin" class="text-xl font-black text-red-500 mt-1 block">0</span>
+          </div>
+        </div>
+
+        <div id="container-riwayat-absensi"></div>
+
+      </div>
+
+      <div id="modal-aju-banding" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 fade-in">
+        <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl space-y-4 text-xs">
+          <div class="flex justify-between items-center border-b pb-3">
+            <h3 class="font-bold text-gray-800 text-sm"><i class="fas fa-gavel text-amber-500 mr-1.5"></i> Form Pengajuan Sanggahan / Aju Banding</h3>
+            <button onclick="tutupModalAjuBanding()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times text-base"></i></button>
+          </div>
+          <p class="text-[11px] text-gray-500">Sampaikan alasan sanggahan Anda kepada Admin / Owner apabila status presensi atau catatan seragam Anda perlu dikoreksi.</p>
+          <input type="hidden" id="banding-doc-id">
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">Alasan / Catatan Sanggahan *</label>
+            <textarea id="banding-alasan" rows="3" placeholder="Jelaskan alasan atau bukti penyesuaian..." class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+          </div>
+          <div class="flex space-x-2 pt-2">
+            <button onclick="tutupModalAjuBanding()" class="w-1/2 bg-gray-100 font-bold py-2.5 rounded-xl text-gray-600 hover:bg-gray-200 transition">Batal</button>
+            <button onclick="kirimAjuBanding()" class="w-1/2 bg-amber-500 font-bold py-2.5 rounded-xl text-white hover:bg-amber-600 transition shadow-sm">Kirim Sanggahan</button>
+          </div>
+        </div>
+      </div>
 
         <div id="tab-admin-acc" class="hidden space-y-4">
           <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200">

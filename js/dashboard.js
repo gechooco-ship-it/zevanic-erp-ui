@@ -1033,31 +1033,88 @@ window.hapusAbsensi = async function(docId) {
   }
 };
 
+// Variable penyimpanan global untuk export CSV
+window.dataFilterRiwayatGlobal = [];
+
+// =========================================================================
+// ====== MODUL RIWAYAT, REKAPITULASI, DAN EXPORT CSV ======================
+// =========================================================================
+
 window.muatDataRiwayat = async function() {
   const container = document.getElementById('container-riwayat-absensi');
-  if(!container) return;
+  if (!container) return;
 
-  container.innerHTML = `<div class="text-center py-8 text-gray-400 text-xs"><i class="fas fa-spinner fa-spin text-xl mb-1"></i><p>Memuat riwayat & rekap...</p></div>`;
+  container.innerHTML = `<div class="text-center py-8 text-gray-400 text-xs"><i class="fas fa-spinner fa-spin text-xl mb-1"></i><p>Memuat laporan absensi...</p></div>`;
 
   try {
     const userRole = (window.currentUser.role || 'operator').toLowerCase();
     const isOwnerOrPic = (userRole === 'owner' || userRole === 'pic' || userRole === 'admin' || userRole === 'superuser');
 
+    // Ambil parameter filter
+    const tglMulai = document.getElementById('filter-tgl-mulai')?.value;
+    const tglSelesai = document.getElementById('filter-tgl-selesai')?.value;
+    const filterGudang = document.getElementById('filter-gudang')?.value || 'ALL';
+    const filterShift = document.getElementById('filter-shift')?.value || 'ALL';
+
     const querySnapshot = await getDocs(collection(db, "absensi"));
     let listData = [];
+
+    // Reset Statistik
+    let countHadir = 0;
+    let countACC = 0;
+    let countSeragamBeda = 0;
+    let countIzin = 0;
 
     querySnapshot.forEach((docSnap) => {
       const data = docSnap.data();
       data.id = docSnap.id;
-      if (isOwnerOrPic || data.email === window.currentUser.email) {
-        listData.push(data);
+
+      // Hak Akses: Owner/PIC lihat semua, Operator lihat milik sendiri
+      const isMilikSendiri = data.email === window.currentUser.email;
+      if (isOwnerOrPic || isMilikSendiri) {
+        
+        // Filter Tanggal
+        let lolosTgl = true;
+        if (data.waktu) {
+          const tglData = new Date(data.waktu).toISOString().split('T')[0];
+          if (tglMulai && tglData < tglMulai) lolosTgl = false;
+          if (tglSelesai && tglData > tglSelesai) lolosTgl = false;
+        }
+
+        // Filter Gudang & Shift
+        let lolosGudang = (filterGudang === 'ALL' || data.gudang === filterGudang);
+        let lolosShift = (filterShift === 'ALL' || data.shift === filterShift);
+
+        if (lolosTgl && lolosGudang && lolosShift) {
+          listData.push(data);
+
+          // Hitung Statistik
+          if (data.status === "HADIR") countHadir++;
+          else countIzin++;
+
+          if (data.status_acc === "ACC") countACC++;
+          if (data.seragam === "Tidak Sesuai") countSeragamBeda++;
+        }
       }
     });
 
+    // Update Angka Statistik UI
+    if (document.getElementById('stat-hadir')) document.getElementById('stat-hadir').innerText = countHadir;
+    if (document.getElementById('stat-acc')) document.getElementById('stat-acc').innerText = countACC;
+    if (document.getElementById('stat-seragam')) document.getElementById('stat-seragam').innerText = countSeragamBeda;
+    if (document.getElementById('stat-izin')) document.getElementById('stat-izin').innerText = countIzin;
+
+    // Urutkan Tanggal Terbaru
     listData.sort((a, b) => new Date(b.waktu || 0) - new Date(a.waktu || 0));
+    window.dataFilterRiwayatGlobal = listData; // Simpan untuk Export CSV
 
     if (listData.length === 0) {
-      container.innerHTML = `<div class="text-center py-8 text-gray-400 text-xs">Belum ada riwayat absensi tercatat.</div>`;
+      container.innerHTML = `
+        <div class="text-center py-10 bg-white rounded-3xl border border-dashed text-gray-400 text-xs">
+          <i class="fas fa-folder-open text-3xl mb-2 text-gray-300"></i>
+          <p class="font-bold text-gray-600">Tidak ada data absensi ditemukan</p>
+          <p class="text-[10px] text-gray-400">Coba ubah rentang tanggal atau parameter filter Anda.</p>
+        </div>`;
       return;
     }
 
@@ -1067,11 +1124,12 @@ window.muatDataRiwayat = async function() {
           <thead class="bg-gray-50 text-gray-700 font-bold border-b text-[11px]">
             <tr>
               <th class="p-3">Karyawan</th>
-              <th class="p-3">Waktu</th>
+              <th class="p-3">Waktu Presensi</th>
               <th class="p-3">Status</th>
               <th class="p-3">Gudang & Shift</th>
               <th class="p-3">Seragam</th>
               <th class="p-3 text-center">Status ACC</th>
+              <th class="p-3 text-center">Aksi / Sanggahan</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
@@ -1083,7 +1141,17 @@ window.muatDataRiwayat = async function() {
         ? `<span class="px-2 py-0.5 bg-green-100 text-green-700 font-bold text-[9px] rounded-full">ACC (Valid)</span>`
         : item.status_acc === "REJECT"
         ? `<span class="px-2 py-0.5 bg-red-100 text-red-700 font-bold text-[9px] rounded-full">Ditolak</span>`
-        : `<span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 font-bold text-[9px] rounded-full">Pending</span>`;
+        : `<span class="px-2 py-0.5 bg-amber-100 text-amber-700 font-bold text-[9px] rounded-full">Pending</span>`;
+
+      // Tombol Aju Banding jika catatan tidak sesuai / ditolak
+      let tombolBanding = `<span class="text-gray-300 text-[10px]">-</span>`;
+      if (item.status_acc === "REJECT" || item.seragam === "Tidak Sesuai") {
+        if (item.catatan_banding) {
+          tombolBanding = `<span class="text-amber-600 font-bold text-[10px]" title="${item.catatan_banding}"><i class="fas fa-info-circle mr-1"></i>Telah Diajukan</span>`;
+        } else {
+          tombolBanding = `<button onclick="bukaModalAjuBanding('${item.id}')" class="px-2.5 py-1 bg-amber-50 text-amber-600 border border-amber-200 font-bold text-[10px] rounded-lg hover:bg-amber-100 transition"><i class="fas fa-gavel mr-1"></i>Aju Banding</button>`;
+        }
+      }
 
       html += `
         <tr class="hover:bg-gray-50 transition">
@@ -1096,6 +1164,7 @@ window.muatDataRiwayat = async function() {
           <td class="p-3">${item.gudang || '-'} (${item.shift || '-'})</td>
           <td class="p-3">${item.seragam || 'Sesuai'}</td>
           <td class="p-3 text-center">${statusAccBadge}</td>
+          <td class="p-3 text-center">${tombolBanding}</td>
         </tr>
       `;
     });
@@ -1105,6 +1174,74 @@ window.muatDataRiwayat = async function() {
 
   } catch (e) {
     console.error("Error muat riwayat:", e);
-    container.innerHTML = `<div class="text-center py-8 text-red-500 text-xs">Gagal memuat riwayat absensi.</div>`;
+    container.innerHTML = `<div class="text-center py-8 text-red-500 text-xs">Gagal memuat laporan absensi.</div>`;
+  }
+};
+
+// =========================================================================
+// ====== FUNGSI EXPORT DATA KE CSV / EXCEL ================================
+// =========================================================================
+window.exportKeCSV = function() {
+  if (!window.dataFilterRiwayatGlobal || window.dataFilterRiwayatGlobal.length === 0) {
+    return alert("Tidak ada data untuk di-export. Silakan tampilkan laporan terlebih dahulu.");
+  }
+
+  let csvContent = "data:text/csv;charset=utf-8,";
+  csvContent += "Nama Pegawai,Email,Waktu Presensi,Status Kehadiran,Gudang,Shift,Seragam,Status ACC\n";
+
+  window.dataFilterRiwayatGlobal.forEach(row => {
+    const nama = `"${(row.nama || '').replace(/"/g, '""')}"`;
+    const email = `"${(row.email || '').replace(/"/g, '""')}"`;
+    const waktu = `"${row.waktu || ''}"`;
+    const status = `"${row.status || 'HADIR'}"`;
+    const gudang = `"${row.gudang || '-'}"`;
+    const shift = `"${row.shift || '-'}"`;
+    const seragam = `"${row.seragam || 'Sesuai'}"`;
+    const statusAcc = `"${row.status_acc || 'PENDING'}"`;
+
+    csvContent += `${nama},${email},${waktu},${status},${gudang},${shift},${seragam},${statusAcc}\n`;
+  });
+
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", `Rekap_Absensi_Zevanic_${new Date().toISOString().split('T')[0]}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+// =========================================================================
+// ====== LOGIKA POPUP AJU BANDING =========================================
+// =========================================================================
+window.bukaModalAjuBanding = function(docId) {
+  document.getElementById('banding-doc-id').value = docId;
+  document.getElementById('banding-alasan').value = "";
+  document.getElementById('modal-aju-banding').classList.remove('hidden');
+};
+
+window.tutupModalAjuBanding = function() {
+  document.getElementById('modal-aju-banding').classList.add('hidden');
+};
+
+window.kirimAjuBanding = async function() {
+  const docId = document.getElementById('banding-doc-id').value;
+  const alasan = document.getElementById('banding-alasan').value;
+
+  if (!alasan) return alert("Harap isi alasan sanggahan!");
+
+  try {
+    const docRef = doc(db, "absensi", docId);
+    await updateDoc(docRef, {
+      catatan_banding: alasan,
+      tgl_banding: new Date().toISOString()
+    });
+
+    alert("Pengajuan sanggahan berhasil dikirimkan ke Admin / Owner.");
+    window.tutupModalAjuBanding();
+    window.muatDataRiwayat();
+  } catch (e) {
+    console.error("Gagal kirim banding:", e);
+    alert("Gagal mengirimkan sanggahan.");
   }
 };
