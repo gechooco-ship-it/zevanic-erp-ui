@@ -855,84 +855,117 @@ window.simpanPendaftaranBaru = async function() {
 
 // 1. Fungsi Navigasi Sub-Menu Floating
 window.pindahSubProfile = function(targetId, elemenTombol) {
-  // Sembunyikan semua konten sub-profil
   const semuaKonten = document.querySelectorAll('.sub-profil-content');
   semuaKonten.forEach(el => el.classList.add('hidden'));
   
-  // Tampilkan target konten
   document.getElementById(targetId).classList.remove('hidden');
   
-  // Reset semua tombol melayang
   const semuaTombol = document.querySelectorAll('.sub-profil-btn');
   semuaTombol.forEach(btn => {
       btn.classList.remove('bg-slate-800', 'text-white', 'shadow-sm');
       btn.classList.add('bg-transparent', 'text-gray-500');
   });
   
-  // Aktifkan tombol yang diklik
   if(elemenTombol) {
       elemenTombol.classList.remove('bg-transparent', 'text-gray-500');
       elemenTombol.classList.add('bg-slate-800', 'text-white', 'shadow-sm');
   }
 
-  // Jika tab Data Diri dibuka, muat data aslinya ke form
+  // Muat data LENGKAP ke form (Deteksi fallback properti agar aman)
   if(targetId === 'profil-datadiri') {
-      document.getElementById('upd-nama').value = window.currentUser.name || "";
+      // Identitas Pribadi
+      document.getElementById('upd-nama').value = window.currentUser.name || window.currentUser.nama || "";
       document.getElementById('upd-nik').value = window.currentUser.nik || "";
-      document.getElementById('upd-email').value = window.currentUser.email || "";
+      document.getElementById('upd-jk').value = window.currentUser.jk || window.currentUser.gender || "";
+      document.getElementById('upd-tempat-lahir').value = window.currentUser.tempatLahir || "";
+      document.getElementById('upd-tgl-lahir').value = window.currentUser.tglLahir || window.currentUser.tgl || "";
+      
+      // Kontak
       document.getElementById('upd-hp').value = window.currentUser.hp || "";
-      document.getElementById('upd-alamat').value = window.currentUser.alamat || "";
+      document.getElementById('upd-email').value = window.currentUser.email || "";
+
+      // Alamat KTP
+      document.getElementById('upd-ktp-kab').value = window.currentUser.ktpKab || "";
+      document.getElementById('upd-ktp-kec').value = window.currentUser.ktpKec || "";
+      document.getElementById('upd-ktp-detail').value = window.currentUser.ktpDetail || "";
+
+      // Alamat Domisili
+      document.getElementById('upd-dom-kab').value = window.currentUser.domisiliKab || window.currentUser.tinggalKab || "";
+      document.getElementById('upd-dom-kec').value = window.currentUser.domisiliKec || window.currentUser.tinggalKec || "";
+      document.getElementById('upd-dom-detail').value = window.currentUser.domisiliDetail || window.currentUser.tinggalDetail || "";
+
+      // Pendidikan & Keluarga
+      document.getElementById('upd-pendidikan').value = window.currentUser.pendidikan || "";
+      document.getElementById('upd-sekolah').value = window.currentUser.sekolah || "";
+      document.getElementById('upd-jurusan').value = window.currentUser.jurusan || "";
+      document.getElementById('upd-nikah').value = window.currentUser.statusNikah || window.currentUser.nikah || "";
+      document.getElementById('upd-tanggungan').value = window.currentUser.tanggungan || "";
+
+      // Kontak Darurat
+      document.getElementById('upd-darurat-nama').value = window.currentUser.daruratNama || "";
+      document.getElementById('upd-darurat-hub').value = window.currentUser.daruratHub || "";
+      document.getElementById('upd-darurat-hp').value = window.currentUser.daruratHp || "";
+
+      // Data Bank
+      document.getElementById('upd-bank').value = window.currentUser.bank || "";
+      document.getElementById('upd-norek').value = window.currentUser.noRek || window.currentUser.norek || "";
+      document.getElementById('upd-namarek').value = window.currentUser.atasNamaRek || window.currentUser.namarek || "";
   }
 };
 
-// 2. Override fungsi muatDataProfil() untuk menyesuaikan dengan UI baru
-window.muatDataProfil = function() {
-  // Tampilkan Nama, ID, Jabatan di Tab QR
-  document.getElementById('profil-nama-utama').innerText = window.currentUser.name;
-  document.getElementById('profil-id-app-utama').innerText = window.currentUser.id_app;
-  document.getElementById('profil-jabatan-utama').innerText = window.currentUser.jabatan || window.currentUser.role;
-  
-  // Generate QR Code untuk SPK / Identitas
-  const qrData = window.currentUser.id_app;
-  document.getElementById('profil-qr-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${qrData}`;
-  
-  window.mulaiHitungJamKerja();
-};
-
-// 3. Fungsi Update Semua Data Diri (CRUD)
-window.simpanUpdateDataDiri = async function() {
+// 3. Fungsi Update Semua Data Diri SUPER LENGKAP (CRUD)
+window.simpanUpdateDataDiriLengkap = async function() {
   const btn = event.currentTarget;
-  const oldText = btn.innerText;
-  btn.innerText = "Menyimpan...";
+  const oldText = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Menyimpan...';
   btn.disabled = true;
 
-  const nama = document.getElementById('upd-nama').value;
-  const nik = document.getElementById('upd-nik').value;
-  const hp = document.getElementById('upd-hp').value;
-  const alamat = document.getElementById('upd-alamat').value;
-
   try {
+      // Ambil seluruh data dari DOM
+      const dataUpdate = {
+          name: document.getElementById('upd-nama').value,
+          nik: document.getElementById('upd-nik').value,
+          jk: document.getElementById('upd-jk').value,
+          tempatLahir: document.getElementById('upd-tempat-lahir').value,
+          tglLahir: document.getElementById('upd-tgl-lahir').value,
+          hp: document.getElementById('upd-hp').value,
+          
+          ktpKab: document.getElementById('upd-ktp-kab').value,
+          ktpKec: document.getElementById('upd-ktp-kec').value,
+          ktpDetail: document.getElementById('upd-ktp-detail').value,
+          
+          domisiliKab: document.getElementById('upd-dom-kab').value,
+          domisiliKec: document.getElementById('upd-dom-kec').value,
+          domisiliDetail: document.getElementById('upd-dom-detail').value,
+          
+          pendidikan: document.getElementById('upd-pendidikan').value,
+          sekolah: document.getElementById('upd-sekolah').value,
+          jurusan: document.getElementById('upd-jurusan').value,
+          statusNikah: document.getElementById('upd-nikah').value,
+          tanggungan: document.getElementById('upd-tanggungan').value,
+          
+          daruratNama: document.getElementById('upd-darurat-nama').value,
+          daruratHub: document.getElementById('upd-darurat-hub').value,
+          daruratHp: document.getElementById('upd-darurat-hp').value,
+          
+          bank: document.getElementById('upd-bank').value,
+          noRek: document.getElementById('upd-norek').value,
+          atasNamaRek: document.getElementById('upd-namarek').value
+      };
+
       const userRef = doc(db, "users", window.currentUser.email);
-      await updateDoc(userRef, { 
-          nama: nama, 
-          nik: nik, 
-          hp: hp, 
-          alamat: alamat 
-      });
+      await updateDoc(userRef, dataUpdate);
       
-      // Update global user object
-      window.currentUser.name = nama;
-      window.currentUser.nik = nik;
-      window.currentUser.hp = hp;
-      window.currentUser.alamat = alamat;
+      // Update global user object di memori supaya real-time tanpa refresh
+      Object.assign(window.currentUser, dataUpdate);
       
-      alert("Pembaruan Data Diri Berhasil Disimpan!");
-      window.muatDataProfil(); // Refresh UI
+      alert("Seluruh pembaruan data diri Anda berhasil disimpan secara sistem!");
+      window.muatDataProfil(); // Refresh UI QR
   } catch (e) {
       console.error(e);
       alert("Gagal memperbarui data. Pastikan koneksi stabil.");
   } finally {
-      btn.innerText = oldText;
+      btn.innerHTML = oldText;
       btn.disabled = false;
   }
 };
