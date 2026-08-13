@@ -756,21 +756,33 @@ window.simpanPendaftaranBaru = async function() {
 // ====== LOGIKA HALAMAN PROFILE & OVERRIDE FUNGSI UTAMA ======
 // =========================================================================
 
+// =========================================================================
+// ====== LOGIKA PERPINDAHAN TAB UTAMA (ANTI KETUMPUK) =====================
+// =========================================================================
 window.pindahTab = function(tabId) {
-    const semuaTab = document.querySelectorAll('.tab-content');
-    semuaTab.forEach(tab => tab.classList.add('hidden'));
-    
-    const targetTab = document.getElementById(tabId);
-    if(targetTab) targetTab.classList.remove('hidden');
-
-    if(tabId === 'tab-profil') {
-        if (window.pindahSubProfile) window.pindahSubProfile('profil-qr', document.querySelector('.sub-profil-btn'));
-        if (window.muatDataProfil) window.muatDataProfil(); 
+  // 1. Amankan dan sembunyikan SEMUA tab menggunakan daftar ID spesifik
+  const tabs = ['tab-home', 'tab-profil', 'tab-riwayat', 'tab-admin-acc', 'tab-superuser'];
+  tabs.forEach(tab => {
+    const elemenTab = document.getElementById(tab);
+    if (elemenTab) {
+      elemenTab.classList.add('hidden');
     }
-    
-    if(tabId === 'tab-riwayat' && window.muatDataRiwayat) window.muatDataRiwayat();
-    if(tabId === 'tab-admin-acc' && window.muatDataAdminACC) window.muatDataAdminACC();
-    if(tabId === 'tab-superuser' && window.muatDataSuperUser) window.muatDataSuperUser();
+  });
+  
+  // 2. Tampilkan HANYA tab yang sedang diklik
+  const targetTab = document.getElementById(tabId);
+  if (targetTab) {
+    targetTab.classList.remove('hidden');
+  }
+
+  // 3. Pemanggilan data otomatis sesuai tab yang aktif
+  if (tabId === 'tab-profil') {
+    if (window.pindahSubProfile) window.pindahSubProfile('profil-qr', document.querySelector('.sub-profil-btn'));
+    if (window.muatDataProfil) window.muatDataProfil(); 
+  }
+  if (tabId === 'tab-riwayat' && window.muatDataRiwayat) window.muatDataRiwayat();
+  if (tabId === 'tab-admin-acc' && window.muatDataAdminACC) window.muatDataAdminACC();
+  if (tabId === 'tab-superuser' && window.muatDataSuperUser) window.muatDataSuperUser();
 };
 
 window.pindahSubProfile = function(targetId, elemenTombol) {
