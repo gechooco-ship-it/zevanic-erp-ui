@@ -253,31 +253,36 @@
           </div>
         </div>
 
-        <div id="tab-profil" class="tab-content hidden fade-in max-w-5xl mx-auto h-full flex flex-col relative">
+        <div id="tab-profil" class="tab-content hidden fade-in max-w-5xl mx-auto h-full flex flex-col space-y-4">
           
-          <div class="sticky top-0 z-30 pt-4 pb-2 flex justify-center w-full">
-            <div class="bg-white/90 backdrop-blur-md shadow-xl border border-gray-200 rounded-full p-1.5 flex space-x-1 overflow-x-auto max-w-full hide-scrollbar">
-              <button onclick="pindahSubProfile('profil-qr', this)" class="sub-profil-btn bg-slate-800 text-white px-4 py-2 rounded-full text-[11px] font-bold whitespace-nowrap shadow-sm transition">ID & QR</button>
-              <button onclick="pindahSubProfile('profil-datadiri', this)" class="sub-profil-btn bg-transparent text-gray-500 hover:bg-gray-100 px-4 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition">Data Diri</button>
-              <button onclick="pindahSubProfile('profil-riwayat', this)" class="sub-profil-btn bg-transparent text-gray-500 hover:bg-gray-100 px-4 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition">Riwayat & Rekap</button>
-              <button onclick="pindahSubProfile('profil-pencapaian', this)" class="sub-profil-btn bg-transparent text-gray-500 hover:bg-gray-100 px-4 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition">Pencapaian</button>
-              <button onclick="pindahSubProfile('profil-keamanan', this)" class="sub-profil-btn bg-transparent text-gray-500 hover:bg-gray-100 px-4 py-2 rounded-full text-[11px] font-bold whitespace-nowrap transition">Keamanan</button>
+          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+            <div>
+              <h2 class="text-lg font-black text-slate-800 flex items-center">
+                <i class="fas fa-id-card text-blue-600 mr-2.5"></i> Profil & Identitas Karyawan
+              </h2>
+              <p class="text-xs text-gray-500 mt-0.5">Kelola data diri, QR identitas kerja, riwayat kehadiran, pencapaian, serta keamanan akun Anda.</p>
+            </div>
+
+            <div class="flex items-center space-x-2 border-t pt-4 overflow-x-auto hide-scrollbar">
+              <button onclick="pindahSubProfile('profil-qr', this)" class="sub-profil-btn bg-slate-800 text-white font-bold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap shadow-sm transition flex items-center">
+                <i class="fas fa-qrcode mr-1.5"></i> ID & QR
+              </button>
+              <button onclick="pindahSubProfile('profil-datadiri', this)" class="sub-profil-btn bg-gray-100 text-gray-600 hover:bg-gray-200 font-semibold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap transition flex items-center">
+                <i class="fas fa-user-edit mr-1.5"></i> Data Diri
+              </button>
+              <button onclick="pindahSubProfile('profil-riwayat', this)" class="sub-profil-btn bg-gray-100 text-gray-600 hover:bg-gray-200 font-semibold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap transition flex items-center">
+                <i class="fas fa-history mr-1.5"></i> Riwayat & Rekap
+              </button>
+              <button onclick="pindahSubProfile('profil-pencapaian', this)" class="sub-profil-btn bg-gray-100 text-gray-600 hover:bg-gray-200 font-semibold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap transition flex items-center">
+                <i class="fas fa-trophy mr-1.5"></i> Pencapaian
+              </button>
+              <button onclick="pindahSubProfile('profil-keamanan', this)" class="sub-profil-btn bg-gray-100 text-gray-600 hover:bg-gray-200 font-semibold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap transition flex items-center">
+                <i class="fas fa-key mr-1.5"></i> Keamanan
+              </button>
             </div>
           </div>
 
-          <div id="profil-qr" class="sub-profil-content fade-in mt-4">
-            <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center max-w-sm mx-auto text-center space-y-4">
-              <div class="w-32 h-32 p-2 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300">
-                <img id="profil-qr-img" src="" alt="QR Code" class="w-full h-full object-contain">
-              </div>
-              <div>
-                <h2 id="profil-nama-utama" class="text-xl font-black text-slate-800">Nama Pegawai</h2>
-                <p id="profil-id-app-utama" class="text-sm font-mono font-bold text-blue-600 mt-1">ZMS-XXXX</p>
-                <span class="inline-block px-3 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full mt-2" id="profil-jabatan-utama">Staff</span>
-              </div>
-              <p class="text-[10px] text-gray-400 max-w-[200px] leading-relaxed">Tunjukkan QR ini saat melakukan absensi fisik atau verifikasi proses SPK.</p>
-            </div>
-          </div>
+          ...
 
           <div id="profil-datadiri" class="sub-profil-content hidden fade-in mt-4 max-w-4xl mx-auto w-full">
             <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-6 text-xs">
