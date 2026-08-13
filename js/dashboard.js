@@ -849,3 +849,90 @@ window.simpanPendaftaranBaru = async function() {
     }
 };
 
+// =========================================================================
+// ====== LOGIKA HALAMAN PROFILE (MENU MELAYANG & UPDATE DATA DIRI) ======
+// =========================================================================
+
+// 1. Fungsi Navigasi Sub-Menu Floating
+window.pindahSubProfile = function(targetId, elemenTombol) {
+  // Sembunyikan semua konten sub-profil
+  const semuaKonten = document.querySelectorAll('.sub-profil-content');
+  semuaKonten.forEach(el => el.classList.add('hidden'));
+  
+  // Tampilkan target konten
+  document.getElementById(targetId).classList.remove('hidden');
+  
+  // Reset semua tombol melayang
+  const semuaTombol = document.querySelectorAll('.sub-profil-btn');
+  semuaTombol.forEach(btn => {
+      btn.classList.remove('bg-slate-800', 'text-white', 'shadow-sm');
+      btn.classList.add('bg-transparent', 'text-gray-500');
+  });
+  
+  // Aktifkan tombol yang diklik
+  if(elemenTombol) {
+      elemenTombol.classList.remove('bg-transparent', 'text-gray-500');
+      elemenTombol.classList.add('bg-slate-800', 'text-white', 'shadow-sm');
+  }
+
+  // Jika tab Data Diri dibuka, muat data aslinya ke form
+  if(targetId === 'profil-datadiri') {
+      document.getElementById('upd-nama').value = window.currentUser.name || "";
+      document.getElementById('upd-nik').value = window.currentUser.nik || "";
+      document.getElementById('upd-email').value = window.currentUser.email || "";
+      document.getElementById('upd-hp').value = window.currentUser.hp || "";
+      document.getElementById('upd-alamat').value = window.currentUser.alamat || "";
+  }
+};
+
+// 2. Override fungsi muatDataProfil() untuk menyesuaikan dengan UI baru
+window.muatDataProfil = function() {
+  // Tampilkan Nama, ID, Jabatan di Tab QR
+  document.getElementById('profil-nama-utama').innerText = window.currentUser.name;
+  document.getElementById('profil-id-app-utama').innerText = window.currentUser.id_app;
+  document.getElementById('profil-jabatan-utama').innerText = window.currentUser.jabatan || window.currentUser.role;
+  
+  // Generate QR Code untuk SPK / Identitas
+  const qrData = window.currentUser.id_app;
+  document.getElementById('profil-qr-img').src = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${qrData}`;
+  
+  window.mulaiHitungJamKerja();
+};
+
+// 3. Fungsi Update Semua Data Diri (CRUD)
+window.simpanUpdateDataDiri = async function() {
+  const btn = event.currentTarget;
+  const oldText = btn.innerText;
+  btn.innerText = "Menyimpan...";
+  btn.disabled = true;
+
+  const nama = document.getElementById('upd-nama').value;
+  const nik = document.getElementById('upd-nik').value;
+  const hp = document.getElementById('upd-hp').value;
+  const alamat = document.getElementById('upd-alamat').value;
+
+  try {
+      const userRef = doc(db, "users", window.currentUser.email);
+      await updateDoc(userRef, { 
+          nama: nama, 
+          nik: nik, 
+          hp: hp, 
+          alamat: alamat 
+      });
+      
+      // Update global user object
+      window.currentUser.name = nama;
+      window.currentUser.nik = nik;
+      window.currentUser.hp = hp;
+      window.currentUser.alamat = alamat;
+      
+      alert("Pembaruan Data Diri Berhasil Disimpan!");
+      window.muatDataProfil(); // Refresh UI
+  } catch (e) {
+      console.error(e);
+      alert("Gagal memperbarui data. Pastikan koneksi stabil.");
+  } finally {
+      btn.innerText = oldText;
+      btn.disabled = false;
+  }
+};
