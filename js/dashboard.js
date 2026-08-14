@@ -131,11 +131,14 @@ window.muatDataSuperUser = async function() {
     const d = document.data();
     let idDoc = document.id;
     let warnaStatus = (d.status_kerja === "Aktif" || d.status_kerja === "aktif") ? "text-green-500" : "text-red-500";
+    let badgeApproval = "";
+    if (d.status_approval === "PENDING") badgeApproval = '<span class="inline-block px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-[9px] font-bold rounded ml-1">MENUNGGU</span>';
+    else if (d.status_approval === "REJECTED") badgeApproval = '<span class="inline-block px-1.5 py-0.5 bg-red-100 text-red-700 text-[9px] font-bold rounded ml-1">DITOLAK</span>';
     tbody.innerHTML += `
       <tr class="hover:bg-gray-50">
         <td class="p-4 font-bold text-xs">${d.nama}<br><span class="text-[10px] font-mono text-gray-500">${d.id_karyawan} (${d.id_app})</span></td>
-        <td class="p-4 text-xs">${d.email}<br><span class="text-gray-500">${d.jabatan || 'Staff'}</span></td>
-        <td class="p-4 text-xs font-semibold text-blue-600 uppercase">${d.role} <br> <span class="text-[10px] ${warnaStatus}">${d.status_kerja || 'Aktif'}</span></td>
+        <td class="p-4 text-xs">${d.email}<br><span class="text-gray-500">${d.jabatan || '-'}</span></td>
+        <td class="p-4 text-xs font-semibold text-blue-600 uppercase">${d.role} <br> <span class="text-[10px] ${warnaStatus}">${d.status_kerja || 'Aktif'}</span>${badgeApproval}</td>
         <td class="p-4">
           <button onclick="bukaEditUser('${idDoc}')" class="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 border border-blue-200 transition">
             <i class="fas fa-edit"></i> Edit
@@ -143,6 +146,151 @@ window.muatDataSuperUser = async function() {
         </td>
       </tr>`;
   });
+};
+
+// =========================================================================
+// ====== ANTREAN KARYAWAN: approve pendaftar baru sebelum bisa login ======
+// =========================================================================
+window.muatDataAntreanKaryawan = async function() {
+  const container = document.getElementById('container-antrean-karyawan');
+  if (!container) return;
+  container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400 text-xs"><i class="fas fa-spinner fa-spin text-2xl mb-2"></i><p>Memuat antrean karyawan baru...</p></div>`;
+
+  try {
+    const qGudang = await getDocs(collection(db, "master_gudang"));
+    const daftarGudang = [];
+    qGudang.forEach(g => daftarGudang.push(g.data().nama_gudang));
+
+    const querySnapshot = await getDocs(collection(db, "users"));
+    let html = "";
+    let countPending = 0;
+
+    querySnapshot.forEach((docSnap) => {
+      const d = docSnap.data();
+      const emailId = docSnap.id;
+      if (d.status_approval === "PENDING") {
+        countPending++;
+        const idAman = emailId.replace(/[@.]/g, '_');
+        html += `
+          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+            <div class="flex items-center space-x-3 border-b pb-3">
+              ${d.foto_ktp ? `<img src="${d.foto_ktp}" class="w-16 h-12 rounded-lg object-cover border cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto('${d.foto_ktp}')">` : `<div class="w-16 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-300"><i class="fas fa-id-card"></i></div>`}
+              <div>
+                <h4 class="font-bold text-slate-800 text-sm">${d.nama || 'Tanpa Nama'}</h4>
+                <p class="text-[10px] text-gray-400 font-mono">${d.email || emailId} &bull; ${d.hp || '-'}</p>
+                <p class="text-[10px] text-gray-400 font-mono">NIK: ${d.nik || '-'}</p>
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Status Kerja</label>
+                <select id="antrean-statuskerja-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
+                  <option value="Aktif" selected>Aktif</option>
+                  <option value="Tidak Aktif">Tidak Aktif</option>
+                  <option value="Resign">Resign</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Role Akses</label>
+                <select id="antrean-role-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
+                  <option value="operator" selected>Operator</option>
+                  <option value="admin">Admin</option>
+                  <option value="pic">PIC</option>
+                  <option value="owner">Owner</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Jabatan</label>
+                <select id="antrean-jabatan-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
+                  <option value="Operator" selected>Operator</option>
+                  <option value="Admin">Admin</option>
+                  <option value="Warehouse">Warehouse</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Status Karyawan</label>
+                <select id="antrean-tipe-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
+                  <option value="Tetap" selected>Tetap</option>
+                  <option value="Part Time">Part Time</option>
+                  <option value="Kontrak">Kontrak</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="block text-[10px] font-bold text-gray-500 mb-1.5 uppercase">Gudang Penempatan (bisa lebih dari satu)</label>
+              <div id="antrean-gudang-${idAman}" class="flex flex-wrap gap-2"></div>
+            </div>
+            <div class="flex space-x-2 pt-2 border-t">
+              <button onclick="setujuiKaryawanBaru('${emailId}')" class="flex-1 bg-green-600 text-white font-bold py-2.5 rounded-xl hover:bg-green-700 transition text-xs">
+                <i class="fas fa-check-circle mr-1"></i> Setujui & Aktifkan
+              </button>
+              <button onclick="tolakKaryawanBaru('${emailId}')" class="bg-red-50 text-red-600 font-bold px-4 py-2.5 rounded-xl hover:bg-red-100 transition text-xs">
+                <i class="fas fa-times"></i> Tolak
+              </button>
+            </div>
+          </div>
+        `;
+      }
+    });
+
+    if (countPending === 0) {
+      container.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 bg-white rounded-3xl border border-dashed"><i class="fas fa-user-check text-4xl text-green-300 mb-3"></i><h4 class="font-bold text-gray-700 text-sm">Tidak Ada Antrean</h4><p class="text-xs text-gray-400 mt-1">Semua pendaftar sudah diproses.</p></div>`;
+    } else {
+      container.innerHTML = html;
+      // Render checkbox gudang untuk tiap kartu SETELAH innerHTML terpasang (butuh elemen sudah ada di DOM)
+      querySnapshot.forEach((docSnap) => {
+        const d = docSnap.data();
+        if (d.status_approval === "PENDING") {
+          const idAman = docSnap.id.replace(/[@.]/g, '_');
+          window.renderGudangCheckboxes(document.getElementById(`antrean-gudang-${idAman}`), daftarGudang, []);
+        }
+      });
+    }
+  } catch (e) {
+    console.error("Gagal muat antrean karyawan:", e);
+    container.innerHTML = `<div class="col-span-full text-center py-8 text-red-500 text-xs">Gagal memuat antrean karyawan.</div>`;
+  }
+};
+
+window.setujuiKaryawanBaru = async function(emailId) {
+  const idAman = emailId.replace(/[@.]/g, '_');
+  const statusKerja = document.getElementById(`antrean-statuskerja-${idAman}`).value;
+  const role = document.getElementById(`antrean-role-${idAman}`).value;
+  const jabatan = document.getElementById(`antrean-jabatan-${idAman}`).value;
+  const statusKaryawan = document.getElementById(`antrean-tipe-${idAman}`).value;
+  const gudangTerpilih = window.bacaGudangCheckboxes(document.getElementById(`antrean-gudang-${idAman}`));
+
+  if (gudangTerpilih.length === 0) {
+    if (!confirm("Belum ada gudang dipilih. Karyawan ini TIDAK akan bisa login sampai gudang ditautkan (bisa diatur lagi lewat Data Karyawan > Edit). Lanjutkan?")) return;
+  }
+
+  try {
+    await updateDoc(doc(db, "users", emailId), {
+      status_kerja: statusKerja,
+      role: role,
+      jabatan: jabatan,
+      status_karyawan: statusKaryawan,
+      gudang_penempatan: gudangTerpilih,
+      status_approval: "APPROVED"
+    });
+    alert("Karyawan berhasil disetujui dan diaktifkan!");
+    window.muatDataAntreanKaryawan();
+  } catch (e) {
+    console.error("Gagal menyetujui karyawan:", e);
+    alert("Gagal menyimpan persetujuan.");
+  }
+};
+
+window.tolakKaryawanBaru = async function(emailId) {
+  if (!confirm("Tolak pendaftaran karyawan ini? Karyawan tidak akan bisa login. Bisa diaktifkan lagi nanti lewat Data Karyawan jika berubah pikiran.")) return;
+  try {
+    await updateDoc(doc(db, "users", emailId), { status_approval: "REJECTED" });
+    alert("Pendaftaran ditolak.");
+    window.muatDataAntreanKaryawan();
+  } catch (e) {
+    console.error("Gagal menolak:", e);
+    alert("Gagal memproses penolakan.");
+  }
 };
 
 window.bukaEditUser = async function(emailId) {
@@ -155,11 +303,17 @@ window.bukaEditUser = async function(emailId) {
     document.getElementById('edit-nama').value = d.nama || "";
     document.getElementById('edit-email').value = d.email || "";
     document.getElementById('edit-role').value = d.role || "operator";
-    document.getElementById('edit-jabatan').value = d.jabatan || "Staff";
+    document.getElementById('edit-jabatan').value = d.jabatan || "";
     
     let statusSet = (d.status_kerja === "aktif") ? "Aktif" : (d.status_kerja || "Aktif");
     document.getElementById('edit-status').value = statusSet;
-    document.getElementById('edit-gudang').value = d.gudang_penempatan || "";
+    document.getElementById('edit-tipe-karyawan').value = d.status_karyawan || "";
+    document.getElementById('edit-status-approval').value = d.status_approval || "APPROVED";
+
+    const qGudang = await getDocs(collection(db, "master_gudang"));
+    const daftarGudang = [];
+    qGudang.forEach(g => daftarGudang.push(g.data().nama_gudang));
+    window.renderGudangCheckboxes(document.getElementById('edit-gudang-checkboxes'), daftarGudang, d.gudang_penempatan);
     
     const imgPreview = document.getElementById('edit-preview-ktp');
     if (d.foto_ktp) {
@@ -185,7 +339,9 @@ window.simpanEditUser = async function() {
   const roleBaru = document.getElementById('edit-role').value;
   const jabatanBaru = document.getElementById('edit-jabatan').value;
   const statusBaru = document.getElementById('edit-status').value;
-  const gudangBaru = document.getElementById('edit-gudang').value;
+  const tipeKaryawanBaru = document.getElementById('edit-tipe-karyawan').value;
+  const statusApprovalBaru = document.getElementById('edit-status-approval').value;
+  const gudangBaru = window.bacaGudangCheckboxes(document.getElementById('edit-gudang-checkboxes'));
 
   try {
     const userRef = doc(db, "users", emailId);
@@ -193,6 +349,8 @@ window.simpanEditUser = async function() {
       role: roleBaru,
       jabatan: jabatanBaru,
       status_kerja: statusBaru,
+      status_karyawan: tipeKaryawanBaru,
+      status_approval: statusApprovalBaru,
       gudang_penempatan: gudangBaru
     });
     alert("Data karyawan berhasil diperbarui!");
@@ -337,7 +495,7 @@ window.hapusMasterShift = async function(idDoc) {
 
 window.muatDataPenjadwalan = async function() {
   const dropdownKaryawan = document.getElementById('dropdown-karyawan');
-  const optGudang = document.getElementById('jadwal-gudang');
+  const wadahGudang = document.getElementById('jadwal-gudang-checkboxes');
   const optShift = document.getElementById('jadwal-shift');
   
   // 1. Muat Opsi Karyawan ke dalam Custom Search Dropdown
@@ -355,12 +513,11 @@ window.muatDataPenjadwalan = async function() {
       }
   });
 
-  // 2. Muat Opsi Gudang (Tetap pakai <select> karena jumlah gudang biasanya tidak ratusan)
+  // 2. Muat Opsi Gudang sebagai checkbox (satu karyawan bisa ditempatkan di lebih dari satu gudang)
   const qGudang = await getDocs(collection(db, "master_gudang"));
-  optGudang.innerHTML = '<option value="">-- Pilih Gudang --</option>';
-  qGudang.forEach(doc => {
-      optGudang.innerHTML += `<option value="${doc.data().nama_gudang}">${doc.data().nama_gudang}</option>`;
-  });
+  const daftarGudang = [];
+  qGudang.forEach(doc => daftarGudang.push(doc.data().nama_gudang));
+  window.renderGudangCheckboxes(wadahGudang, daftarGudang, []);
 
   // 3. Muat Opsi Shift (Tetap pakai <select>)
   const qShift = await getDocs(collection(db, "master_shift"));
@@ -420,16 +577,16 @@ document.addEventListener('click', function(event) {
 
 window.simpanJadwalKaryawan = async function() {
   const email = document.getElementById('jadwal-karyawan').value;
-  const gudang = document.getElementById('jadwal-gudang').value;
+  const gudangTerpilih = window.bacaGudangCheckboxes(document.getElementById('jadwal-gudang-checkboxes'));
   const shift = document.getElementById('jadwal-shift').value;
   const libur = document.getElementById('jadwal-libur').value;
 
-  if(!email || !gudang || !shift) return alert("Harap pilih Karyawan, Gudang, dan Shift!");
+  if(!email || gudangTerpilih.length === 0 || !shift) return alert("Harap pilih Karyawan, minimal 1 Gudang, dan Shift!");
 
   try {
       // Perbarui dokumen karyawan (mengawinkan data)
       await updateDoc(doc(db, "users", email), {
-          gudang_penempatan: gudang,
+          gudang_penempatan: gudangTerpilih,
           nama_shift: shift,
           hari_libur: libur
       });
@@ -451,12 +608,13 @@ window.muatTabelJadwal = async function() {
   
   querySnapshot.forEach((document) => {
       const d = document.data();
+      const daftarGudangKaryawan = window.normalisasiGudang(d.gudang_penempatan);
       // Tampilkan hanya karyawan yang sudah disetting penjadwalannya
-      if(d.gudang_penempatan || d.nama_shift) {
+      if(daftarGudangKaryawan.length > 0 || d.nama_shift) {
           tbody.innerHTML += `
               <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
                   <td class="p-3 font-bold text-xs">${d.nama} <br><span class="text-[10px] text-gray-400 font-normal">${d.email}</span></td>
-                  <td class="p-3 text-xs text-blue-600 font-bold"><i class="fas fa-building mr-1"></i> ${d.gudang_penempatan || '-'}</td>
+                  <td class="p-3 text-xs text-blue-600 font-bold"><i class="fas fa-building mr-1"></i> ${daftarGudangKaryawan.length > 0 ? daftarGudangKaryawan.join(', ') : '-'}</td>
                   <td class="p-3 text-xs text-amber-600 font-bold">
                     <i class="fas fa-clock mr-1"></i> ${d.nama_shift || '-'} 
                     <br><span class="text-[10px] text-red-500 font-semibold"><i class="fas fa-calendar-times mr-1 mt-1"></i> Libur: ${d.hari_libur || 'Tidak ada'}</span>
@@ -495,7 +653,7 @@ window.pindahTab = function(tabId) {
       window.muatDataAdminACC();
   }
   
-  if (tabId === 'tab-superuser' && window.muatDataSuperUser) window.muatDataSuperUser();
+  if (tabId === 'tab-superuser' && window.muatDataAntreanKaryawan) window.muatDataAntreanKaryawan();
 };
 
 window.pindahSubProfile = function(targetId, elemenTombol) {
@@ -646,6 +804,30 @@ window.pindahSubTab = function(prefixClass, targetId, elemenTombol) {
     elemenTombol.classList.remove('bg-gray-100', 'text-gray-600', 'font-semibold', 'hover:bg-gray-200');
     elemenTombol.classList.add('bg-slate-800', 'text-white', 'font-bold', 'shadow-md');
   }
+};
+
+// =========================================================================
+// ====== HELPER BERSAMA: PILIH GUDANG (MULTI) VIA CHECKBOX ================
+// Dipakai oleh: Antrean Karyawan, Penjadwalan, dan Edit Karyawan.
+// =========================================================================
+window.renderGudangCheckboxes = function(container, daftarGudang, gudangTerpilih) {
+  if (!container) return;
+  const terpilih = window.normalisasiGudang(gudangTerpilih);
+  if (!daftarGudang || daftarGudang.length === 0) {
+    container.innerHTML = '<span class="text-[10px] text-gray-400">Belum ada Master Gudang. Buat dulu di Config Absensi.</span>';
+    return;
+  }
+  container.innerHTML = daftarGudang.map(g => `
+    <label class="flex items-center space-x-1.5 bg-white border rounded-lg px-2.5 py-1.5 text-[11px] cursor-pointer hover:bg-blue-50 transition">
+      <input type="checkbox" value="${g}" class="rounded text-blue-600" ${terpilih.includes(g) ? 'checked' : ''}>
+      <span>${g}</span>
+    </label>
+  `).join('');
+};
+
+window.bacaGudangCheckboxes = function(container) {
+  if (!container) return [];
+  return Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
 };
 
 window.muatDataAdminACC = async function() {

@@ -25,6 +25,14 @@ function pesanErrorAuth(kode) {
   return peta[kode] || null;
 }
 
+// Helper bersama (dipakai juga oleh dashboard.js): gudang_penempatan dulu string
+// tunggal, sekarang array (mendukung banyak gudang). Ini menormalkan keduanya.
+window.normalisasiGudang = function(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (typeof value === 'string' && value.trim()) return [value.trim()];
+  return [];
+};
+
 window.addEventListener('DOMContentLoaded', () => {
   // Catatan: password TIDAK PERNAH disimpan di localStorage (dulu iya, ini bug keamanan).
   // "Ingat Saya" sekarang hanya mengingat alamat email untuk kenyamanan pengisian form.
@@ -118,14 +126,19 @@ window.simpanPendaftaranBaru = async function() {
     await createUserWithEmailAndPassword(auth, email, pass);
 
     // 2. Simpan profil lengkap ke Firestore (skema flat, sama dengan dashboard.js)
+    // Akun baru MASUK ANTREAN dulu — PIC/Owner wajib approve & lengkapi
+    // status kerja, role akses, jabatan, tipe karyawan, dan gudang penempatan
+    // lewat Menu Karyawan > Antrean Karyawan sebelum akun ini bisa dipakai.
     await setDoc(doc(db, "users", email), {
       id_karyawan: document.getElementById('reg-id').value,
       id_app: document.getElementById('reg-idapp').value,
       qr_code: "QR-" + document.getElementById('reg-idapp').value,
-      status_kerja: "Aktif",
+      status_approval: "PENDING",
+      status_kerja: "Menunggu Persetujuan",
       role: "operator",
-      jabatan: "Staff",
-      gudang_penempatan: "",
+      jabatan: "",
+      status_karyawan: "",
+      gudang_penempatan: [],
       nama_shift: "",
 
       email: email,
@@ -164,7 +177,7 @@ window.simpanPendaftaranBaru = async function() {
       tanggal_daftar: new Date().toLocaleDateString('id-ID')
     });
 
-    alert("Registrasi Berhasil! Silakan login dengan email dan password Anda.");
+    alert("Registrasi Berhasil! Akun Anda menunggu persetujuan Owner/PIC sebelum bisa dipakai login.");
     window.pindahLayar('screen-login');
   } catch (e) {
     console.error("Gagal daftar:", e);
@@ -246,12 +259,32 @@ window.prosesLogin = async function() {
       id_app: d.id_app || "N/A",
       id_karyawan: d.id_karyawan || "N/A",
       jabatan: d.jabatan || "Staff",
-      status_kerja: d.status_kerja || "Aktif"
+      status_kerja: d.status_kerja || "Aktif",
+      gudang_penempatan: window.normalisasiGudang(d.gudang_penempatan)
     };
+
+    // Gerbang persetujuan: akun yang belum di-approve (atau ditolak) tidak boleh masuk.
+    // Akun lama yang belum pernah lewat alur Antrean Karyawan (tidak punya field ini)
+    // tetap diizinkan, supaya tidak mengunci akun-akun yang sudah aktif sebelumnya.
+    if (d.status_approval && d.status_approval !== "APPROVED") {
+      alert(d.status_approval === "PENDING"
+        ? "Akun Anda masih menunggu persetujuan Owner/PIC. Silakan hubungi mereka."
+        : "Akun Anda tidak disetujui untuk mengakses sistem. Silakan hubungi Owner/PIC.");
+      await signOut(auth);
+      return;
+    }
+
+    // Gerbang gudang: karyawan yang belum ditautkan ke gudang manapun tidak bisa login.
+    if (window.currentUser.gudang_penempatan.length === 0) {
+      alert("Akun Anda belum ditautkan ke gudang manapun. Silakan hubungi Owner/PIC.");
+      await signOut(auth);
+      return;
+    }
   } else {
-    // Akun Auth ada tapi belum punya profil Firestore (kasus langka) —
-    // beri akses paling minim, BUKAN menebak role dari email.
-    window.currentUser = { email: emailInput, name: emailInput, role: "operator", id_app: "N/A", id_karyawan: "N/A", jabatan: "Staff", status_kerja: "Aktif" };
+    // Akun Auth ada tapi profil Firestore-nya tidak ditemukan — jangan beri akses.
+    alert("Profil akun Anda tidak ditemukan. Silakan hubungi Owner/PIC.");
+    await signOut(auth);
+    return;
   }
 
   window.aturTampilanBerdasarkanRole();
