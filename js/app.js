@@ -18,18 +18,8 @@ window.pindahLayar = function(idTujuan) {
   }
 };
 
-window.pindahTab = function(idTab) {
-  const tabs = ['tab-home', 'tab-profil', 'tab-riwayat', 'tab-admin-acc', 'tab-superuser'];
-  
-  tabs.forEach(tab => {
-    document.getElementById(tab).classList.add('hidden');
-  });
-
-  document.getElementById(idTab).classList.remove('hidden');
-
-  // Muat ulang data saat tab diklik
-  if(idTab === 'tab-profil' && window.muatDataProfil) window.muatDataProfil();
-  if(idTab === 'tab-riwayat' && window.muatDataRiwayat) window.muatDataRiwayat();
-  if(idTab === 'tab-admin-acc' && window.muatDataAdminACC) window.muatDataAdminACC();
-  if(idTab === 'tab-superuser' && window.muatDataSuperUser) window.muatDataSuperUser();
-};
+// Catatan: window.pindahTab sengaja TIDAK didefinisikan di sini.
+// Fungsi ini dimiliki oleh js/dashboard.js (versi yang null-safe dan
+// menangani sub-tab profil/admin-acc/superuser). Dulu ada definisi
+// duplikat di file ini yang masih mereferensikan 'tab-riwayat' tanpa
+// cek null — berbahaya jika dashboard.js gagal/terlambat dimuat.
