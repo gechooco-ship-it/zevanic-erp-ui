@@ -305,10 +305,12 @@ window.setujuiKaryawanBaru = async function(emailId) {
       const userSnap = await getDoc(doc(db, "users", emailId));
       if (userSnap.exists()) {
         const d = userSnap.data();
-        if (d.hp && window.kirimPesanWhatsapp) {
+        if (d.hp && window.kirimPesanWhatsapp && window.ambilTemplateWA) {
+          const templateAktif = await window.ambilTemplateWA('template_aktif');
           window.kirimPesanWhatsapp(
             d.hp,
-            `Halo ${d.nama || ''}, akun Zevanic ERP Anda sudah *AKTIF*. Anda sekarang bisa login dan melakukan absensi.`
+            templateAktif.replace(/\{nama\}/g, d.nama || ''),
+            "Akun Aktif"
           ).catch(e => console.error("Gagal kirim notifikasi WA aktivasi:", e));
         }
       }
@@ -387,11 +389,91 @@ window.tesKirimWhatsapp = async function() {
   btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
   btn.disabled = true;
 
-  const berhasil = await window.kirimPesanWhatsapp(nomor, "Ini pesan tes dari Zevanic ERP. Jika Anda menerima ini, WhatsApp Gateway sudah tersambung dengan benar. \u2705");
+  const berhasil = await window.kirimPesanWhatsapp(nomor, "Ini pesan tes dari Zevanic ERP. Jika Anda menerima ini, WhatsApp Gateway sudah tersambung dengan benar. \u2705", "Tes");
 
   btn.innerHTML = teksAsli;
   btn.disabled = false;
   alert(berhasil ? "Pesan tes berhasil dikirim! Cek WhatsApp di nomor tersebut." : "Gagal mengirim pesan tes. Cek kembali URL Web App & Kunci Rahasia, pastikan sudah disimpan, dan cek Script Properties di Apps Script.");
+};
+
+// =========================================================================
+// TEMPLATE PESAN (greeting) — bisa diubah Owner tanpa perlu ubah kode.
+// =========================================================================
+const TEMPLATE_DEFAULT = {
+  template_otp: "Kode OTP login Zevanic ERP Anda: *{kode}*. Jangan bagikan kode ini ke siapapun. Berlaku 5 menit.",
+  template_aktif: "Halo {nama}, akun Zevanic ERP Anda sudah *AKTIF*. Anda sekarang bisa login dan melakukan absensi.",
+  template_pending: "Halo {nama}, pendaftaran Anda di Zevanic ERP telah diterima dan sedang *menunggu persetujuan*. Silakan hubungi Koordinator/PIC untuk aktivasi akun Anda."
+};
+
+window.muatTemplateWA = async function() {
+  try {
+    const snap = await getDoc(doc(db, "config", "whatsapp_templates"));
+    const tpl = snap.exists() ? snap.data() : {};
+    document.getElementById('wa-tpl-otp').value = tpl.template_otp || TEMPLATE_DEFAULT.template_otp;
+    document.getElementById('wa-tpl-aktif').value = tpl.template_aktif || TEMPLATE_DEFAULT.template_aktif;
+    document.getElementById('wa-tpl-pending').value = tpl.template_pending || TEMPLATE_DEFAULT.template_pending;
+  } catch (e) {
+    console.error("Gagal memuat template WA:", e);
+  }
+};
+
+window.simpanTemplateWA = async function() {
+  try {
+    await setDoc(doc(db, "config", "whatsapp_templates"), {
+      template_otp: document.getElementById('wa-tpl-otp').value,
+      template_aktif: document.getElementById('wa-tpl-aktif').value,
+      template_pending: document.getElementById('wa-tpl-pending').value
+    });
+    alert("Template pesan berhasil disimpan!");
+  } catch (e) {
+    console.error("Gagal menyimpan template WA:", e);
+    alert("Gagal menyimpan template.");
+  }
+};
+
+// =========================================================================
+// MONITORING RESPON — riwayat pengiriman WA (OTP, notifikasi, tes) & statusnya.
+// =========================================================================
+window.muatMonitoringWA = async function() {
+  const tbody = document.getElementById('tabel-monitoring-wa');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Memuat riwayat...</td></tr>';
+
+  try {
+    const querySnapshot = await getDocs(collection(db, "wa_log"));
+    let listLog = [];
+    querySnapshot.forEach(docSnap => {
+      const d = docSnap.data();
+      d.id = docSnap.id;
+      listLog.push(d);
+    });
+
+    listLog.sort((a, b) => new Date(b.waktu || 0) - new Date(a.waktu || 0));
+    listLog = listLog.slice(0, 50);
+
+    if (listLog.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Belum ada riwayat pengiriman.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = "";
+    listLog.forEach(log => {
+      const badgeStatus = log.sukses
+        ? '<span class="px-2 py-0.5 bg-green-100 text-green-700 font-bold text-[10px] rounded-full">Terkirim</span>'
+        : '<span class="px-2 py-0.5 bg-red-100 text-red-700 font-bold text-[10px] rounded-full">Gagal</span>';
+      tbody.innerHTML += `
+        <tr class="hover:bg-gray-50">
+          <td class="p-3">${log.waktu || '-'}</td>
+          <td class="p-3 font-semibold">${log.jenis || '-'}</td>
+          <td class="p-3 font-mono">${log.target || '-'}</td>
+          <td class="p-3">${badgeStatus}</td>
+          <td class="p-3 text-gray-500 max-w-[220px] truncate" title="${(log.keterangan || '').replace(/"/g, '&quot;')}">${log.keterangan || '-'}</td>
+        </tr>`;
+    });
+  } catch (e) {
+    console.error("Gagal memuat monitoring WA:", e);
+    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500">Gagal memuat riwayat.</td></tr>';
+  }
 };
 
 window.bukaEditUser = async function(emailId) {
@@ -410,6 +492,40 @@ window.bukaEditUser = async function(emailId) {
     document.getElementById('edit-status').value = statusSet;
     document.getElementById('edit-tipe-karyawan').value = d.status_karyawan || "";
     document.getElementById('edit-status-approval').value = d.status_approval || "APPROVED";
+
+    // Data Pribadi
+    document.getElementById('edit-nik').value = d.nik || "";
+    document.getElementById('edit-gender').value = d.gender || d.jk || "";
+    document.getElementById('edit-tempatlahir').value = d.tempatLahir || "";
+    document.getElementById('edit-tgllahir').value = d.tglLahir || d.tgl || "";
+    document.getElementById('edit-hp').value = d.hp || "";
+
+    // Alamat Domisili
+    document.getElementById('edit-tinggal-kab').value = d.tinggalKab || d.domisiliKab || "";
+    document.getElementById('edit-tinggal-kec').value = d.tinggalKec || d.domisiliKec || "";
+    document.getElementById('edit-tinggal-detail').value = d.tinggalDetail || d.domisiliDetail || "";
+
+    // Alamat KTP
+    document.getElementById('edit-ktp-kab').value = d.ktpKab || "";
+    document.getElementById('edit-ktp-kec').value = d.ktpKec || "";
+    document.getElementById('edit-ktp-detail').value = d.ktpDetail || "";
+
+    // Pendidikan & Keluarga
+    document.getElementById('edit-nikah').value = d.statusNikah || d.nikah || "";
+    document.getElementById('edit-tanggungan').value = d.tanggungan || "";
+    document.getElementById('edit-pendidikan').value = d.pendidikan || "";
+    document.getElementById('edit-sekolah').value = d.sekolah || "";
+    document.getElementById('edit-jurusan').value = d.jurusan || "";
+
+    // Rekening Bank
+    document.getElementById('edit-bank').value = d.bank || "";
+    document.getElementById('edit-norek').value = d.noRek || d.norek || "";
+    document.getElementById('edit-namarek').value = d.atasNamaRek || d.namarek || "";
+
+    // Kontak Darurat
+    document.getElementById('edit-darurat-nama').value = d.daruratNama || "";
+    document.getElementById('edit-darurat-hp').value = d.daruratHp || "";
+    document.getElementById('edit-darurat-hub').value = d.daruratHub || "";
 
     const qGudang = await getDocs(collection(db, "master_gudang"));
     const daftarGudang = [];
@@ -452,7 +568,35 @@ window.simpanEditUser = async function() {
       status_kerja: statusBaru,
       status_karyawan: tipeKaryawanBaru,
       status_approval: statusApprovalBaru,
-      gudang_penempatan: gudangBaru
+      gudang_penempatan: gudangBaru,
+
+      nik: document.getElementById('edit-nik').value,
+      gender: document.getElementById('edit-gender').value,
+      tempatLahir: document.getElementById('edit-tempatlahir').value,
+      tglLahir: document.getElementById('edit-tgllahir').value,
+      hp: document.getElementById('edit-hp').value,
+
+      tinggalKab: document.getElementById('edit-tinggal-kab').value,
+      tinggalKec: document.getElementById('edit-tinggal-kec').value,
+      tinggalDetail: document.getElementById('edit-tinggal-detail').value,
+
+      ktpKab: document.getElementById('edit-ktp-kab').value,
+      ktpKec: document.getElementById('edit-ktp-kec').value,
+      ktpDetail: document.getElementById('edit-ktp-detail').value,
+
+      statusNikah: document.getElementById('edit-nikah').value,
+      tanggungan: document.getElementById('edit-tanggungan').value,
+      pendidikan: document.getElementById('edit-pendidikan').value,
+      sekolah: document.getElementById('edit-sekolah').value,
+      jurusan: document.getElementById('edit-jurusan').value,
+
+      bank: document.getElementById('edit-bank').value,
+      noRek: document.getElementById('edit-norek').value,
+      atasNamaRek: document.getElementById('edit-namarek').value,
+
+      daruratNama: document.getElementById('edit-darurat-nama').value,
+      daruratHp: document.getElementById('edit-darurat-hp').value,
+      daruratHub: document.getElementById('edit-darurat-hub').value
     });
     alert("Data karyawan berhasil diperbarui!");
     window.tutupEditUser();
@@ -735,7 +879,7 @@ window.muatTabelJadwal = async function() {
 // =========================================================================
 
 window.pindahTab = function(tabId) {
-  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-superuser'];
+  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-superuser', 'tab-whatsapp'];
   tabs.forEach(tab => {
     const elemenTab = document.getElementById(tab);
     if (elemenTab) elemenTab.classList.add('hidden');
@@ -755,6 +899,8 @@ window.pindahTab = function(tabId) {
   }
   
   if (tabId === 'tab-superuser' && window.muatDataAntreanKaryawan) window.muatDataAntreanKaryawan();
+
+  if (tabId === 'tab-whatsapp' && window.muatKonfigWhatsapp) window.muatKonfigWhatsapp();
 };
 
 window.pindahSubProfile = function(targetId, elemenTombol) {

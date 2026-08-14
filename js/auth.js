@@ -1,10 +1,11 @@
 // js/auth.js
-import { doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, setDoc, getDoc, collection, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
-  onAuthStateChanged
+  onAuthStateChanged,
+  sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { db, auth } from "./firebase-config.js";
 
@@ -90,36 +91,76 @@ window.cekMasihJamKerja = async function(namaShift) {
 // config/whatsapp_gateway, diatur lewat Menu Karyawan > WhatsApp Gateway.
 // Token Fonnte sendiri TIDAK PERNAH ada di kode ini — disimpan di Apps Script.
 // =========================================================================
-window.kirimPesanWhatsapp = async function(nomor, pesan) {
+window.kirimPesanWhatsapp = async function(nomor, pesan, jenis) {
+  jenis = jenis || "Lainnya";
+  let sukses = false;
+  let keterangan = "";
   try {
     const configSnap = await getDoc(doc(db, "config", "whatsapp_gateway"));
     if (!configSnap.exists()) {
-      console.warn("Konfigurasi WhatsApp Gateway belum diatur.");
-      return false;
+      keterangan = "Konfigurasi WhatsApp Gateway belum diatur.";
+      console.warn(keterangan);
+    } else {
+      const cfg = configSnap.data();
+      if (!cfg.webapp_url || !cfg.shared_secret) {
+        keterangan = "URL Apps Script atau kunci rahasia belum diisi.";
+        console.warn(keterangan);
+      } else {
+        // Menumpang di Apps Script project WA Gateway yang sudah ada (bot produksi) —
+        // routing pakai query string ?modul=absensi sesuai hook yang sudah disiapkan
+        // di doPost() mereka, supaya satu nomor/token bisa dipakai berdampingan.
+        const urlDenganModul = cfg.webapp_url + (cfg.webapp_url.includes('?') ? '&' : '?') + 'modul=absensi';
+        // Content-Type text/plain sengaja dipakai supaya browser tidak melakukan
+        // CORS preflight (OPTIONS) yang tidak ditangani baik oleh Apps Script Web App.
+        const resp = await fetch(urlDenganModul, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ secret: cfg.shared_secret, target: nomor, message: pesan })
+        });
+        const hasil = await resp.json();
+        sukses = !!hasil.sukses;
+        keterangan = hasil.pesan || (sukses ? "Terkirim." : "Gagal tanpa keterangan.");
+      }
     }
-    const cfg = configSnap.data();
-    if (!cfg.webapp_url || !cfg.shared_secret) {
-      console.warn("URL Apps Script atau kunci rahasia belum diisi.");
-      return false;
-    }
-    // Menumpang di Apps Script project WA Gateway yang sudah ada (bot produksi) —
-    // routing pakai query string ?modul=absensi sesuai hook yang sudah disiapkan
-    // di doPost() mereka, supaya satu nomor/token bisa dipakai berdampingan.
-    const urlDenganModul = cfg.webapp_url + (cfg.webapp_url.includes('?') ? '&' : '?') + 'modul=absensi';
-    // Content-Type text/plain sengaja dipakai supaya browser tidak melakukan
-    // CORS preflight (OPTIONS) yang tidak ditangani baik oleh Apps Script Web App.
-    const resp = await fetch(urlDenganModul, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ secret: cfg.shared_secret, target: nomor, message: pesan })
-    });
-    const hasil = await resp.json();
-    return !!hasil.sukses;
   } catch (e) {
     console.error("Gagal kirim WhatsApp:", e);
-    return false;
+    keterangan = e.message || "Error tidak diketahui.";
   }
+
+  // Catat ke log untuk panel Monitoring Respon (best-effort, tidak menghambat alur utama)
+  try {
+    await addDoc(collection(db, "wa_log"), {
+      waktu: new Date().toLocaleString('id-ID'),
+      target: nomor,
+      jenis: jenis,
+      pesan: pesan,
+      sukses: sukses,
+      keterangan: keterangan
+    });
+  } catch (e) {
+    console.error("Gagal mencatat log WA:", e);
+  }
+
+  return sukses;
 };
+
+// Ambil template pesan yang bisa diedit Owner (Menu WhatsApp Gateway > Template
+// Pesan). jenis: 'template_otp' | 'template_aktif' | 'template_pending'
+const TEMPLATE_DEFAULT_AUTH = {
+  template_otp: "Kode OTP login Zevanic ERP Anda: *{kode}*. Jangan bagikan kode ini ke siapapun. Berlaku 5 menit.",
+  template_aktif: "Halo {nama}, akun Zevanic ERP Anda sudah *AKTIF*. Anda sekarang bisa login dan melakukan absensi.",
+  template_pending: "Halo {nama}, pendaftaran Anda di Zevanic ERP telah diterima dan sedang *menunggu persetujuan*. Silakan hubungi Koordinator/PIC untuk aktivasi akun Anda."
+};
+async function ambilTemplateWA(jenis) {
+  try {
+    const snap = await getDoc(doc(db, "config", "whatsapp_templates"));
+    if (snap.exists() && snap.data()[jenis]) return snap.data()[jenis];
+  } catch (e) {
+    console.error("Gagal ambil template WA:", e);
+  }
+  return TEMPLATE_DEFAULT_AUTH[jenis];
+}
+window.ambilTemplateWA = ambilTemplateWA; // dipakai juga oleh dashboard.js
 
 // ---- OTP login perangkat baru (Poin 1: sekali per perangkat) ----
 window._otpState = { kode: null, email: null, kadaluarsa: null };
@@ -151,9 +192,11 @@ window.mulaiVerifikasiOtp = async function(email) {
     return false;
   }
 
+  const templateOtp = await ambilTemplateWA('template_otp');
   const terkirim = await window.kirimPesanWhatsapp(
     nomorHp,
-    `Kode OTP login Zevanic ERP Anda: *${kode}*. Jangan bagikan kode ini ke siapapun. Berlaku 5 menit.`
+    templateOtp.replace(/\{kode\}/g, kode),
+    "OTP"
   );
   if (!terkirim) {
     alert("Gagal mengirim kode OTP lewat WhatsApp. Coba lagi atau hubungi Owner/PIC.");
@@ -401,10 +444,14 @@ window.simpanPendaftaranBaru = async function() {
     });
 
     // Notifikasi WA (Poin 4): akun berhasil diajukan, menunggu persetujuan
-    window.kirimPesanWhatsapp(
-      hp,
-      `Halo ${nama}, pendaftaran Anda di Zevanic ERP telah diterima dan sedang *menunggu persetujuan*. Silakan hubungi Koordinator/PIC untuk aktivasi akun Anda.`
-    ).catch(e => console.error("Gagal kirim notifikasi WA pendaftaran:", e));
+    (async () => {
+      try {
+        const templatePending = await ambilTemplateWA('template_pending');
+        await window.kirimPesanWhatsapp(hp, templatePending.replace(/\{nama\}/g, nama), "Akun Menunggu");
+      } catch (e) {
+        console.error("Gagal kirim notifikasi WA pendaftaran:", e);
+      }
+    })();
 
     alert("Registrasi Berhasil! Akun Anda menunggu persetujuan Owner/PIC sebelum bisa dipakai login.");
     window.pindahLayar('screen-login');
@@ -622,6 +669,23 @@ window.ajukanCutiDariProfil = function() {
   window.pindahLayar('screen-camera');
 };
 
+// Lupa Password: pakai fitur bawaan Firebase Auth (kirim link reset ke email
+// terdaftar). Tidak butuh WhatsApp/backend tambahan — ini paling aman & simpel.
+window.lupaPassword = async function() {
+  const email = document.getElementById('input-email').value.trim().toLowerCase();
+  if (!email) {
+    alert("Isi dulu email Anda di kolom Email/Akun Login di atas, baru klik \"Lupa Password?\".");
+    return;
+  }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    alert("Link reset password sudah dikirim ke " + email + ". Cek inbox (atau folder Spam) email Anda.");
+  } catch (e) {
+    console.error("Gagal kirim reset password:", e);
+    alert(pesanErrorAuth(e.code) || "Gagal mengirim link reset password: " + e.message);
+  }
+};
+
 // Logout sungguhan: keluar dari sesi Firebase Auth, bukan cuma pindah layar
 window.logout = async function() {
   try {
@@ -644,13 +708,17 @@ window.aturTampilanBerdasarkanRole = function() {
 
   const menuAdminAcc = document.getElementById('menu-admin-acc');
   const menuSuperUser = document.getElementById('menu-superuser');
+  const menuWhatsapp = document.getElementById('menu-whatsapp');
   const navMobileAdmin = document.getElementById('nav-mobile-admin');
   const navMobileSuper = document.getElementById('nav-mobile-super');
+  const navMobileWhatsapp = document.getElementById('nav-mobile-whatsapp');
 
   if (menuAdminAcc) menuAdminAcc.classList.add('hidden');
   if (menuSuperUser) menuSuperUser.classList.add('hidden');
+  if (menuWhatsapp) menuWhatsapp.classList.add('hidden');
   if (navMobileAdmin) navMobileAdmin.classList.add('hidden');
   if (navMobileSuper) navMobileSuper.classList.add('hidden');
+  if (navMobileWhatsapp) navMobileWhatsapp.classList.add('hidden');
 
   if (role === 'pic' || role === 'owner' || role === 'admin' || role === 'superuser') {
     if (menuAdminAcc) menuAdminAcc.classList.remove('hidden');
@@ -665,6 +733,11 @@ window.aturTampilanBerdasarkanRole = function() {
     if (navMobileSuper) {
       navMobileSuper.classList.remove('hidden');
       navMobileSuper.classList.add('flex');
+    }
+    if (menuWhatsapp) menuWhatsapp.classList.remove('hidden');
+    if (navMobileWhatsapp) {
+      navMobileWhatsapp.classList.remove('hidden');
+      navMobileWhatsapp.classList.add('flex');
     }
   }
 };

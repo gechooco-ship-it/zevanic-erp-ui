@@ -48,6 +48,7 @@
             <input type="checkbox" id="check-ingat" class="rounded text-blue-600 focus:ring-blue-500 w-4 h-4">
             <span class="text-gray-600 font-medium">Ingatkan Saya</span>
           </label>
+          <button type="button" onclick="lupaPassword()" class="text-blue-600 font-semibold hover:underline">Lupa Password?</button>
         </div>
 
         <div id="wadah-pilihan-status">
@@ -245,6 +246,9 @@
         </button>
         <button onclick="pindahTab('tab-superuser')" id="menu-superuser" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-red-600 hover:bg-red-50 transition font-bold">
           <i class="fas fa-users-cog w-6 text-left"></i> Menu Karyawan
+        </button>
+        <button onclick="pindahTab('tab-whatsapp')" id="menu-whatsapp" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-green-600 hover:bg-green-50 transition font-bold">
+          <i class="fab fa-whatsapp w-6 text-left"></i> WhatsApp Gateway
         </button>
       </nav>
       <div class="p-4 border-t border-gray-100">
@@ -598,7 +602,6 @@
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this); muatDataSuperUser();" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Data Karyawan</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Slip Gaji</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Payroll</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-whatsapp', this); muatKonfigWhatsapp();" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition"><i class="fab fa-whatsapp mr-1"></i> WhatsApp Gateway</button>
           </div>
 
           <div id="sub-karyawan-antrean" class="sub-karyawan-content fade-in mt-4 space-y-4">
@@ -659,17 +662,31 @@
             </div>
           </div>
 
-          <div id="sub-karyawan-whatsapp" class="sub-karyawan-content hidden fade-in mt-4">
+        </div>
+
+        <div id="tab-whatsapp" class="tab-content hidden fade-in space-y-4">
+          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+            <div>
+              <h2 class="text-lg font-black text-slate-800 flex items-center"><i class="fab fa-whatsapp text-green-500 mr-2.5"></i> WhatsApp Gateway</h2>
+              <p class="text-xs text-gray-500 mt-0.5">Notifikasi WhatsApp (OTP, status akun) lewat Fonnte. Token Fonnte disimpan aman di Google Apps Script, tidak pernah ada di aplikasi ini.</p>
+            </div>
+            <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200 pt-2">
+              <button onclick="pindahSubTab('sub-wa', 'sub-wa-config', this); muatKonfigWhatsapp();" class="sub-wa-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition"><i class="fas fa-cogs mr-1.5"></i> Config API</button>
+              <button onclick="pindahSubTab('sub-wa', 'sub-wa-template', this); muatTemplateWA();" class="sub-wa-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition"><i class="fas fa-comment-dots mr-1.5"></i> Template Pesan</button>
+              <button onclick="pindahSubTab('sub-wa', 'sub-wa-monitor', this); muatMonitoringWA();" class="sub-wa-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition"><i class="fas fa-chart-line mr-1.5"></i> Monitoring Respon</button>
+            </div>
+          </div>
+
+          <div id="sub-wa-config" class="sub-wa-content fade-in space-y-4">
             <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 max-w-lg">
-              <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fab fa-whatsapp text-green-500 mr-2"></i> Pengaturan WhatsApp Gateway (Fonnte)</h3>
-              <p class="text-[11px] text-gray-500">Notifikasi WhatsApp (OTP login perangkat baru, status akun) dikirim lewat Google Apps Script sebagai perantara aman ke Fonnte. Token Fonnte disimpan di Apps Script, bukan di sini.</p>
+              <h3 class="text-sm font-bold text-slate-800 border-b pb-2">Koneksi API</h3>
               <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1">URL Web App Apps Script</label>
                 <input type="text" id="wa-webapp-url" placeholder="https://script.google.com/macros/s/xxxxx/exec" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs font-mono">
               </div>
               <div>
                 <label class="block text-xs font-semibold text-gray-600 mb-1">Kunci Rahasia (Shared Secret)</label>
-                <input type="text" id="wa-secret" placeholder="Samakan dengan APP_SHARED_SECRET di Apps Script" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs font-mono">
+                <input type="text" id="wa-secret" placeholder="Samakan dengan ZEVANIC_SHARED_SECRET di Apps Script" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs font-mono">
               </div>
               <div class="flex items-center space-x-2">
                 <input type="checkbox" id="wa-otp-aktif" class="rounded text-blue-600 w-4 h-4">
@@ -683,6 +700,50 @@
                   <button onclick="tesKirimWhatsapp()" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-900 transition whitespace-nowrap">Kirim Tes</button>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div id="sub-wa-template" class="sub-wa-content hidden fade-in space-y-4">
+            <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 max-w-lg">
+              <h3 class="text-sm font-bold text-slate-800 border-b pb-2">Template Pesan (Greeting)</h3>
+              <p class="text-[11px] text-gray-500">Placeholder <code class="bg-gray-100 px-1 rounded">{nama}</code> dan <code class="bg-gray-100 px-1 rounded">{kode}</code> akan otomatis diganti sistem saat pesan dikirim.</p>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Pesan OTP Login</label>
+                <textarea id="wa-tpl-otp" rows="3" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs resize-none"></textarea>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Pesan Akun Disetujui</label>
+                <textarea id="wa-tpl-aktif" rows="3" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs resize-none"></textarea>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Pesan Akun Menunggu Persetujuan</label>
+                <textarea id="wa-tpl-pending" rows="3" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs resize-none"></textarea>
+              </div>
+              <button onclick="simpanTemplateWA()" class="w-full bg-green-600 text-white font-bold py-2.5 rounded-xl hover:bg-green-700 transition text-xs"><i class="fas fa-save mr-1"></i> Simpan Template</button>
+            </div>
+          </div>
+
+          <div id="sub-wa-monitor" class="sub-wa-content hidden fade-in space-y-4">
+            <div class="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex justify-between items-center">
+              <div>
+                <h3 class="text-sm font-bold text-slate-800">Riwayat Pengiriman</h3>
+                <p class="text-[10px] text-gray-500">50 pengiriman terakhir (OTP, notifikasi, tes).</p>
+              </div>
+              <button onclick="muatMonitoringWA()" class="text-xs bg-green-50 text-green-600 px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+            </div>
+            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full">
+              <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
+                <thead class="bg-gray-50 text-gray-500 text-xs uppercase sticky top-0 z-10">
+                  <tr>
+                    <th class="p-3">Waktu</th>
+                    <th class="p-3">Jenis</th>
+                    <th class="p-3">Nomor Tujuan</th>
+                    <th class="p-3">Status</th>
+                    <th class="p-3">Keterangan</th>
+                  </tr>
+                </thead>
+                <tbody id="tabel-monitoring-wa" class="divide-y divide-gray-100 text-gray-700 text-xs"></tbody>
+              </table>
             </div>
           </div>
 
@@ -707,6 +768,10 @@
       <button id="nav-mobile-super" onclick="pindahTab('tab-superuser')" class="hidden flex flex-col items-center p-2 text-red-600 w-16">
         <i class="fas fa-users-cog text-lg mb-1"></i>
         <span class="text-[9px] font-bold">Karyawan</span>
+      </button>
+      <button id="nav-mobile-whatsapp" onclick="pindahTab('tab-whatsapp')" class="hidden flex flex-col items-center p-2 text-green-600 w-16">
+        <i class="fab fa-whatsapp text-lg mb-1"></i>
+        <span class="text-[9px] font-bold">WA Gateway</span>
       </button>
     </nav>
   </div>
@@ -784,6 +849,64 @@
           <div>
             <label class="block text-xs font-semibold text-gray-500 mb-1">Gudang Penempatan</label>
             <div id="edit-gudang-checkboxes" class="flex flex-wrap gap-1.5 p-2 bg-white border rounded-lg min-h-[42px]"></div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t space-y-3">
+          <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Data Pribadi</h4>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">NIK</label><input type="text" id="edit-nik" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Jenis Kelamin</label><select id="edit-gender" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"><option value="">-- Pilih --</option><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select></div>
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Tempat Lahir</label><input type="text" id="edit-tempatlahir" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Tanggal Lahir</label><input type="date" id="edit-tgllahir" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div class="col-span-2"><label class="block text-xs font-semibold text-gray-500 mb-1">No. HP / WhatsApp</label><input type="text" id="edit-hp" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t space-y-3">
+          <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Alamat Domisili Saat Ini</h4>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Kabupaten/Kota</label><input type="text" id="edit-tinggal-kab" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Kecamatan</label><input type="text" id="edit-tinggal-kec" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div class="col-span-2"><label class="block text-xs font-semibold text-gray-500 mb-1">Detail Alamat</label><textarea id="edit-tinggal-detail" rows="2" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea></div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t space-y-3">
+          <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Alamat Sesuai KTP</h4>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Kabupaten/Kota</label><input type="text" id="edit-ktp-kab" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Kecamatan</label><input type="text" id="edit-ktp-kec" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div class="col-span-2"><label class="block text-xs font-semibold text-gray-500 mb-1">Detail Alamat</label><textarea id="edit-ktp-detail" rows="2" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea></div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t space-y-3">
+          <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Pendidikan & Keluarga</h4>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Status Pernikahan</label><select id="edit-nikah" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"><option value="">-- Pilih --</option><option value="Belum Menikah">Belum Menikah</option><option value="Menikah">Menikah</option><option value="Cerai">Cerai</option></select></div>
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Jumlah Tanggungan</label><input type="text" id="edit-tanggungan" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Pendidikan Terakhir</label><input type="text" id="edit-pendidikan" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Sekolah/Kampus</label><input type="text" id="edit-sekolah" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div class="col-span-2"><label class="block text-xs font-semibold text-gray-500 mb-1">Jurusan</label><input type="text" id="edit-jurusan" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t space-y-3">
+          <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Rekening Bank</h4>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Nama Bank</label><input type="text" id="edit-bank" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">No. Rekening</label><input type="text" id="edit-norek" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div class="col-span-2"><label class="block text-xs font-semibold text-gray-500 mb-1">Atas Nama Rekening</label><input type="text" id="edit-namarek" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+          </div>
+        </div>
+
+        <div class="pt-3 border-t space-y-3">
+          <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Kontak Darurat</h4>
+          <div class="grid grid-cols-2 gap-4">
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Nama</label><input type="text" id="edit-darurat-nama" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Hubungan</label><input type="text" id="edit-darurat-hub" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div class="col-span-2"><label class="block text-xs font-semibold text-gray-500 mb-1">No. HP Darurat</label><input type="text" id="edit-darurat-hp" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
           </div>
         </div>
 
