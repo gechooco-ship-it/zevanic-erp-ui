@@ -2,7 +2,6 @@
 import { collection, addDoc, getDocs, updateDoc, doc, getDoc, deleteDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
-;
 
 let intervalJamKerja = null;
 window.mulaiHitungJamKerja = function() {
@@ -102,15 +101,14 @@ window.kirimDataKeCloud = async function() {
           window.pindahLayar('screen-login');
       } else {
           window.pindahLayar('screen-dashboard');
-          window.pindahTab('tab-riwayat'); 
+          window.pindahTab('tab-profil');
+          window.pindahSubProfile('profil-riwayat', document.querySelector('.sub-profil-btn[onclick*=profil-riwayat]'));
       }
   }
 };
 
-;
 
 // ====== PANEL ACC PIC & VALIDASI ======
-;
 
 window.submitUpdateACC = async function(idDoc) {
   const btn = event.currentTarget;
@@ -244,24 +242,6 @@ window.simpanEditUser = async function() {
   } finally {
     btnSimpan.innerHTML = '<i class="fas fa-save mr-1"></i> Simpan Perubahan';
     btnSimpan.disabled = false;
-  }
-};
-
-// ====== NAVIGASI SUB-MENU ======
-window.pindahSubTab = function(grupKelas, tabIdTujuan, elemenTombol) {
-  const semuaKonten = document.querySelectorAll('.' + grupKelas + '-content');
-  semuaKonten.forEach(el => el.classList.add('hidden'));
-  document.getElementById(tabIdTujuan).classList.remove('hidden');
-  
-  const semuaTombol = document.querySelectorAll('.' + grupKelas + '-btn');
-  semuaTombol.forEach(btn => {
-    btn.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
-    btn.classList.add('bg-white', 'text-gray-600');
-  });
-  
-  if(elemenTombol) {
-    elemenTombol.classList.remove('bg-white', 'text-gray-600');
-    elemenTombol.classList.add('bg-blue-600', 'text-white', 'shadow-md');
   }
 };
 
@@ -526,337 +506,6 @@ window.muatTabelJadwal = async function() {
   
   if(tbody.innerHTML === "") {
       tbody.innerHTML = '<tr><td colspan="3" class="p-3 text-center text-gray-400">Belum ada karyawan yang dijadwalkan.</td></tr>';
-  }
-};
-
-// =========================================================================
-// ====== MODUL REKAP ABSENSI & EXPORT XLS (3.3.1.4.4) ======
-// =========================================================================
-
-window.siapkanFilterRekap = async function() {
-  const optGudang = document.getElementById('rekap-filter-gudang');
-  const optShift = document.getElementById('rekap-filter-shift');
-  
-  // Set default filter tanggal (Bulan ini: Tgl 1 s/d Hari ini)
-  const hariIni = new Date();
-  const tglAwal = new Date(hariIni.getFullYear(), hariIni.getMonth(), 1);
-  document.getElementById('rekap-filter-start').value = tglAwal.toISOString().split('T')[0];
-  document.getElementById('rekap-filter-end').value = hariIni.toISOString().split('T')[0];
-
-  // Muat opsi Gudang dari Master
-  const qGudang = await getDocs(collection(db, "master_gudang"));
-  optGudang.innerHTML = '<option value="SEMUA">Semua Gudang</option>';
-  qGudang.forEach(doc => {
-      optGudang.innerHTML += `<option value="${doc.data().nama_gudang}">${doc.data().nama_gudang}</option>`;
-  });
-
-  // Muat opsi Shift dari Master
-  const qShift = await getDocs(collection(db, "master_shift"));
-  optShift.innerHTML = '<option value="SEMUA">Semua Shift</option>';
-  qShift.forEach(doc => {
-      optShift.innerHTML += `<option value="${doc.data().nama_shift}">${doc.data().nama_shift}</option>`;
-  });
-};
-
-window.muatDataRekap = async function() {
-  const filterGudang = document.getElementById('rekap-filter-gudang').value;
-  // Note: Database "attendance" kita saat ini belum menyimpan kolom shift secara langsung, 
-  // Untuk query kompleks bisa dikembangkan nanti. Kita filter via JavaScript.
-  const filterStart = new Date(document.getElementById('rekap-filter-start').value);
-  const filterEnd = new Date(document.getElementById('rekap-filter-end').value);
-  filterEnd.setHours(23, 59, 59); // Sampai akhir hari tersebut
-
-  const tbody = document.getElementById('tabel-rekap-body');
-  tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-400"><i class="fas fa-spinner fa-spin mr-2"></i> Menarik data...</td></tr>';
-  
-  try {
-      const querySnapshot = await getDocs(collection(db, "attendance"));
-      tbody.innerHTML = "";
-      let adaData = false;
-
-      querySnapshot.forEach((document) => {
-          const d = document.data();
-          
-          // Parsing string waktu "DD/MM/YYYY, HH:mm:ss" ke Object Date JavaScript
-          // Hati-hati: Format locale string bisa bervariasi. Asumsi format ID: DD/MM/YYYY
-          let tglAbsen = null;
-          if (d.waktu) {
-              let parts = d.waktu.split(', ')[0].split('/');
-              if (parts.length === 3) {
-                  tglAbsen = new Date(`${parts[2]}-${parts[1]}-${parts[0]}T00:00:00`);
-              }
-          }
-
-          // Proses Filter
-          let masukFilter = true;
-
-          // Filter Tanggal
-          if (tglAbsen) {
-              if (tglAbsen < filterStart || tglAbsen > filterEnd) masukFilter = false;
-          }
-
-          // Filter Gudang (Asumsi d.penempatan akan disimpan saat clock-in nanti, jika kosong kita anggap lewat)
-          if (filterGudang !== "SEMUA" && d.penempatan && d.penempatan !== filterGudang) masukFilter = false;
-          
-          // Cuma tampilkan yang sudah di ACC / Diproses (Memiliki status kehadiran)
-          if(!d.status_kehadiran) masukFilter = false;
-
-          if (masukFilter) {
-              adaData = true;
-              let warnaSeragam = d.seragam === 'Sesuai' ? 'text-emerald-600' : 'text-red-500';
-              let ket = d.keterangan ? d.keterangan : '-';
-
-              tbody.innerHTML += `
-                  <tr class="hover:bg-emerald-50 transition border-b border-gray-100 last:border-0 text-xs">
-                      <td class="p-3">${d.waktu}</td>
-                      <td class="p-3 font-bold">${d.nama_pegawai}</td>
-                      <td class="p-3">${d.penempatan || '-'}</td>
-                      <td class="p-3 font-bold">${d.status_kehadiran}</td>
-                      <td class="p-3 font-bold ${warnaSeragam}">${d.seragam}</td>
-                      <td class="p-3 text-[10px] text-gray-500 italic truncate max-w-[150px]">${ket}</td>
-                  </tr>
-              `;
-          }
-      });
-
-      if (!adaData) {
-          tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-400">Tidak ada data yang cocok dengan filter tersebut.</td></tr>';
-      }
-  } catch (e) {
-      console.error(e);
-      tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-red-500">Gagal menarik data rekapitulasi.</td></tr>';
-  }
-};
-
-window.exportKeExcel = function() {
-  const table = document.getElementById("tabel-rekap-export");
-  let csvContent = "";
-  
-  // Ambil semua baris di dalam tabel
-  const rows = table.querySelectorAll("tr");
-  
-  for (let i = 0; i < rows.length; i++) {
-      let row = [], cols = rows[i].querySelectorAll("td, th");
-      
-      for (let j = 0; j < cols.length; j++) {
-          // Bersihkan teks dari newline dan koma agar format CSV tidak rusak
-          let data = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").replace(/,/g, ";");
-          row.push(data);
-      }
-      csvContent += row.join(",") + "\r\n";
-  }
-
-  // Buat Blob dan Link untuk Download
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement("a");
-  const url = URL.createObjectURL(blob);
-  
-  link.setAttribute("href", url);
-  link.setAttribute("download", "Rekap_Absensi_Zevanic.csv");
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
-// =========================================================================
-// ====== LOGIKA REGISTRASI KARYAWAN BARU (MASUK KE DATA KARYAWAN) ======
-// =========================================================================
-
-// 1. Fungsi mengubah file KTP menjadi gambar Base64 agar bisa disimpan
-window.previewKTP = function(event) {
-    const file = event.target.files[0];
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        const imgElement = document.getElementById('preview-ktp-img');
-        imgElement.src = e.target.result;
-        imgElement.classList.remove('hidden');
-    };
-    if(file) reader.readAsDataURL(file);
-};
-
-// 2. Fungsi Eksekusi Simpan Pendaftaran
-window.simpanPendaftaranBaru = async function() {
-    const btn = event.currentTarget;
-    const originalText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
-    btn.disabled = true;
-
-    // Ambil field krusial (bisa ditambah variabel lain sesuai kebutuhan blueprint)
-    const email = document.getElementById('reg-email').value;
-    const nama = document.getElementById('reg-nama').value;
-    const hp = document.getElementById('reg-hp').value;
-    const nik = document.getElementById('reg-nik').value;
-
-    if(!email || !nama || !hp || !nik) {
-        alert("Harap isi field wajib: Nama, NIK, Email, dan No. HP!");
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-        return;
-    }
-
-    // Auto-Generate ID Karyawan & ID APP (Format ZVN-XXXX)
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const idKar = "ZVN-" + randomNum;
-    const idApp = "ZMS-" + randomNum;
-    
-    // Ambil Foto KTP jika dilampirkan
-    const imgKTP = document.getElementById('preview-ktp-img').src;
-
-    try {
-        // Tembak data ke koleksi "users"
-        await setDoc(doc(db, "users", email), {
-            email: email,
-            nama: nama,
-            hp: hp,
-            nik: nik,
-            id_karyawan: idKar,
-            id_app: idApp,
-            role: "operator", // Default: Semua pendaftar baru adalah Operator
-            jabatan: "Staff", // Default jabatan awal
-            status_kerja: "Aktif",
-            gudang_penempatan: "", // Akan diisi di Menu Penjadwalan
-            nama_shift: "", // Akan diisi di Menu Penjadwalan
-            foto_ktp: imgKTP.includes('base64') ? imgKTP : "",
-            tanggal_daftar: new Date().toLocaleString('id-ID')
-        });
-
-        alert("Pendaftaran Berhasil! Data Karyawan sudah masuk ke sistem ERP.");
-        
-        // Bersihkan form & kembali ke halaman login
-        document.getElementById('reg-email').value = '';
-        document.getElementById('reg-nama').value = '';
-        document.getElementById('reg-hp').value = '';
-        document.getElementById('reg-nik').value = '';
-        document.getElementById('preview-ktp-img').src = '';
-        document.getElementById('preview-ktp-img').classList.add('hidden');
-
-        // Pindah layar ke Login
-        window.pindahLayar('screen-login');
-
-    } catch (e) {
-        console.error("Gagal Daftar:", e);
-        alert("Terjadi kesalahan saat memproses pendaftaran.");
-    } finally {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-    }
-};
-
-// =========================================================================
-// ====== LOGIKA HALAMAN PROFILE (MENU MELAYANG & UPDATE DATA DIRI) ======
-// =========================================================================
-
-// Fungsi Navigasi Sub-Menu Profile (Sesuaikan dengan Style Menu Absensi)
-;
-
-// 3. Fungsi Update Semua Data Diri SUPER LENGKAP (CRUD)
-;
-// =========================================================================
-// ====== LOGIKA HALAMAN PROFILE & OVERRIDE FUNGSI UTAMA ======
-// =========================================================================
-
-// =========================================================================
-// ====== LOGIKA PERPINDAHAN TAB UTAMA (ANTI KETUMPUK) =====================
-// =========================================================================
-;
-
-;
-
-;
-
-;
-
-;
-
-;
-
-window.hapusAbsensi = async function(docId) {
-  if (!confirm("Apakah Anda yakin ingin menghapus data absensi ini secara permanen?")) return;
-  try {
-    await deleteDoc(doc(db, "absensi", docId));
-    alert("Data absensi berhasil dihapus.");
-    window.muatDataAdminACC();
-  } catch (e) {
-    console.error("Gagal hapus:", e);
-    alert("Gagal menghapus data.");
-  }
-};
-
-// Variable penyimpanan global untuk export CSV
-window.dataFilterRiwayatGlobal = [];
-
-// =========================================================================
-// ====== MODUL RIWAYAT, REKAPITULASI, DAN EXPORT CSV ======================
-// =========================================================================
-
-;
-
-// =========================================================================
-// ====== FUNGSI EXPORT DATA KE CSV / EXCEL ================================
-// =========================================================================
-window.exportKeCSV = function() {
-  if (!window.dataFilterRiwayatGlobal || window.dataFilterRiwayatGlobal.length === 0) {
-    return alert("Tidak ada data untuk di-export. Silakan tampilkan laporan terlebih dahulu.");
-  }
-
-  let csvContent = "data:text/csv;charset=utf-8,";
-  csvContent += "Nama Pegawai,Email,Waktu Presensi,Status Kehadiran,Gudang,Shift,Seragam,Status ACC\n";
-
-  window.dataFilterRiwayatGlobal.forEach(row => {
-    const nama = `"${(row.nama || '').replace(/"/g, '""')}"`;
-    const email = `"${(row.email || '').replace(/"/g, '""')}"`;
-    const waktu = `"${row.waktu || ''}"`;
-    const status = `"${row.status || 'HADIR'}"`;
-    const gudang = `"${row.gudang || '-'}"`;
-    const shift = `"${row.shift || '-'}"`;
-    const seragam = `"${row.seragam || 'Sesuai'}"`;
-    const statusAcc = `"${row.status_acc || 'PENDING'}"`;
-
-    csvContent += `${nama},${email},${waktu},${status},${gudang},${shift},${seragam},${statusAcc}\n`;
-  });
-
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `Rekap_Absensi_Zevanic_${new Date().toISOString().split('T')[0]}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
-
-// =========================================================================
-// ====== LOGIKA POPUP AJU BANDING =========================================
-// =========================================================================
-window.bukaModalAjuBanding = function(docId) {
-  document.getElementById('banding-doc-id').value = docId;
-  document.getElementById('banding-alasan').value = "";
-  document.getElementById('modal-aju-banding').classList.remove('hidden');
-};
-
-window.tutupModalAjuBanding = function() {
-  document.getElementById('modal-aju-banding').classList.add('hidden');
-};
-
-window.kirimAjuBanding = async function() {
-  const docId = document.getElementById('banding-doc-id').value;
-  const alasan = document.getElementById('banding-alasan').value;
-
-  if (!alasan) return alert("Harap isi alasan sanggahan!");
-
-  try {
-    const docRef = doc(db, "absensi", docId);
-    await updateDoc(docRef, {
-      catatan_banding: alasan,
-      tgl_banding: new Date().toISOString()
-    });
-
-    alert("Pengajuan sanggahan berhasil dikirimkan ke Admin / Owner.");
-    window.tutupModalAjuBanding();
-    window.muatDataRiwayat();
-  } catch (e) {
-    console.error("Gagal kirim banding:", e);
-    alert("Gagal mengirimkan sanggahan.");
   }
 };
 
@@ -1418,8 +1067,7 @@ window.exportKeCSV = function() {
   }
 
   let csvContent = "data:text/csv;charset=utf-8,";
-  csvContent += "Nama Pegawai,Email,Waktu Presensi,Tipe Presensi,Lokasi Gudang,Shift,Seragam,Status Persetujuan
-";
+  csvContent += "Nama Pegawai,Email,Waktu Presensi,Tipe Presensi,Lokasi Gudang,Shift,Seragam,Status Persetujuan\n";
 
   window.dataRiwayatGlobal.forEach(row => {
     const nama = `"${(row.nama_pegawai || row.nama || '').replace(/"/g, '""')}"`;
@@ -1431,8 +1079,7 @@ window.exportKeCSV = function() {
     const seragam = `"${row.seragam || 'Sesuai'}"`;
     const statusAcc = `"${row.status_acc || 'PENDING'}"`;
 
-    csvContent += `${nama},${email},${waktu},${status},${gudang},${shift},${seragam},${statusAcc}
-`;
+    csvContent += `${nama},${email},${waktu},${status},${gudang},${shift},${seragam},${statusAcc}\n`;
   });
 
   const encodedUri = encodeURI(csvContent);

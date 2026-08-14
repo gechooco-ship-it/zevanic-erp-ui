@@ -1,18 +1,41 @@
 // js/auth.js
 import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { db } from "./firebase-config.js";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut
+} from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { db, auth } from "./firebase-config.js";
 
 window.statusPilihanGlobal = "HADIR (CLOCK IN)";
 window.currentUser = { email: "", name: "", role: "operator", id_app: "", id_karyawan: "", jabatan: "", status_kerja: "aktif" };
 
+// Pesan error Firebase Auth diterjemahkan ke Bahasa Indonesia yang ramah pengguna
+function pesanErrorAuth(kode) {
+  const peta = {
+    "auth/email-already-in-use": "Email ini sudah terdaftar. Silakan login.",
+    "auth/invalid-email": "Format email tidak valid.",
+    "auth/weak-password": "Password terlalu lemah, minimal 6 karakter.",
+    "auth/wrong-password": "Email atau password salah.",
+    "auth/user-not-found": "Email atau password salah.",
+    "auth/invalid-credential": "Email atau password salah.",
+    "auth/too-many-requests": "Terlalu banyak percobaan gagal. Coba lagi beberapa saat lagi.",
+    "auth/network-request-failed": "Gagal terhubung ke server. Cek koneksi internet Anda."
+  };
+  return peta[kode] || null;
+}
+
 window.addEventListener('DOMContentLoaded', () => {
+  // Catatan: password TIDAK PERNAH disimpan di localStorage (dulu iya, ini bug keamanan).
+  // "Ingat Saya" sekarang hanya mengingat alamat email untuk kenyamanan pengisian form.
   const savedEmail = localStorage.getItem('zevanic_email');
-  const savedPass = localStorage.getItem('zevanic_pass');
-  if (savedEmail && savedPass) {
+  if (savedEmail) {
     document.getElementById('input-email').value = savedEmail;
-    document.getElementById('input-pass').value = savedPass;
     document.getElementById('check-ingat').checked = true;
   }
+  // Bersihkan sisa password lama yang mungkin masih tersimpan dari versi sebelumnya
+  localStorage.removeItem('zevanic_pass');
+
   if (document.getElementById('reg-tinggal-kab')) window.updateKecamatanTinggal();
   if (document.getElementById('reg-ktp-kab')) window.updateKecamatanKTP();
 });
@@ -50,50 +73,113 @@ window.salinAlamat = function() {
   }
 };
 
+// ============================================================================
+// REGISTRASI: membuat akun Firebase Auth sungguhan + menyimpan profil lengkap
+// Skema field profil di sini SENGAJA disamakan persis dengan yang dibaca/ditulis
+// oleh js/dashboard.js (pindahSubProfile & simpanUpdateDataDiriLengkap), supaya
+// data yang diisi saat registrasi langsung muncul kembali di tab "Data Diri".
+// ============================================================================
 window.simpanPendaftaranBaru = async function() {
-  const nama = document.getElementById('reg-nama').value;
-  const nik = document.getElementById('reg-nik').value;
-  const email = document.getElementById('reg-email').value.trim().toLowerCase();
-  const hp = document.getElementById('reg-hp').value;
+  const btn = event.currentTarget;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
+  btn.disabled = true;
 
-  if(!nama || !nik || !email || !hp || !window.ktpBase64Global) {
-    alert("Mohon lengkapi data wajib (Nama, NIK, Email, No HP, dan Foto KTP)!");
+  const nama = document.getElementById('reg-nama').value.trim();
+  const nik = document.getElementById('reg-nik').value.trim();
+  const email = document.getElementById('reg-email').value.trim().toLowerCase();
+  const hp = document.getElementById('reg-hp').value.trim();
+  const pass = document.getElementById('reg-pass').value;
+  const confirmPass = document.getElementById('reg-confirm-pass').value;
+
+  if (!nama || !nik || !email || !hp || !pass || !confirmPass || !window.ktpBase64Global) {
+    alert("Mohon lengkapi data wajib (Nama, NIK, Email, No HP, Password, dan Foto KTP)!");
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+    return;
+  }
+
+  if (pass !== confirmPass) {
+    alert("Konfirmasi password tidak sama dengan password!");
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+    return;
+  }
+
+  if (pass.length < 6) {
+    alert("Password minimal 6 karakter!");
+    btn.innerHTML = originalText;
+    btn.disabled = false;
     return;
   }
 
   try {
+    // 1. Buat akun autentikasi sungguhan di Firebase Auth
+    await createUserWithEmailAndPassword(auth, email, pass);
+
+    // 2. Simpan profil lengkap ke Firestore (skema flat, sama dengan dashboard.js)
     await setDoc(doc(db, "users", email), {
       id_karyawan: document.getElementById('reg-id').value,
       id_app: document.getElementById('reg-idapp').value,
       qr_code: "QR-" + document.getElementById('reg-idapp').value,
-      status_kerja: "aktif",
+      status_kerja: "Aktif",
       role: "operator",
       jabatan: "Staff",
-      nama: nama,
-      nik: nik,
-      gender: document.getElementById('reg-gender').value,
-      tempat_lahir: document.getElementById('reg-tempatlahir').value,
-      tgl_lahir: document.getElementById('reg-tgl').value,
-      foto_ktp: window.ktpBase64Global,
+      gudang_penempatan: "",
+      nama_shift: "",
+
       email: email,
+      nama: nama,
+      name: nama,
+      nik: nik,
       hp: hp,
-      alamat_tinggal: { kabupaten: document.getElementById('reg-tinggal-kab').value, kecamatan: document.getElementById('reg-tinggal-kec').value, detail: document.getElementById('reg-tinggal-detail').value },
-      alamat_ktp: { kabupaten: document.getElementById('reg-ktp-kab').value, kecamatan: document.getElementById('reg-ktp-kec').value, detail: document.getElementById('reg-ktp-detail').value },
-      status_nikah: document.getElementById('reg-nikah').value,
+      gender: document.getElementById('reg-gender').value,
+      tempatLahir: document.getElementById('reg-tempatlahir').value,
+      tglLahir: document.getElementById('reg-tgl').value,
+      foto_ktp: window.ktpBase64Global,
+
+      tinggalKab: document.getElementById('reg-tinggal-kab').value,
+      tinggalKec: document.getElementById('reg-tinggal-kec').value,
+      tinggalDetail: document.getElementById('reg-tinggal-detail').value,
+
+      ktpKab: document.getElementById('reg-ktp-kab').value,
+      ktpKec: document.getElementById('reg-ktp-kec').value,
+      ktpDetail: document.getElementById('reg-ktp-detail').value,
+
+      statusNikah: document.getElementById('reg-nikah').value,
       tanggungan: document.getElementById('reg-tanggungan').value,
-      pendidikan: { tingkat: document.getElementById('reg-pendidikan').value, sekolah: document.getElementById('reg-sekolah').value, jurusan: document.getElementById('reg-jurusan').value },
-      bank: { nama: document.getElementById('reg-bank').value, norek: document.getElementById('reg-norek').value, atas_nama: document.getElementById('reg-namarek').value },
-      kontak_darurat: { nama: document.getElementById('reg-darurat-nama').value, hp: document.getElementById('reg-darurat-hp').value, hubungan: document.getElementById('reg-darurat-hub').value },
+
+      pendidikan: document.getElementById('reg-pendidikan').value,
+      sekolah: document.getElementById('reg-sekolah').value,
+      jurusan: document.getElementById('reg-jurusan').value,
+
+      bank: document.getElementById('reg-bank').value,
+      noRek: document.getElementById('reg-norek').value,
+      atasNamaRek: document.getElementById('reg-namarek').value,
+
+      daruratNama: document.getElementById('reg-darurat-nama').value,
+      daruratHp: document.getElementById('reg-darurat-hp').value,
+      daruratHub: document.getElementById('reg-darurat-hub').value,
+
       tanggal_daftar: new Date().toLocaleDateString('id-ID')
     });
-    alert("Registrasi Karyawan Berhasil! Silakan login.");
+
+    alert("Registrasi Berhasil! Silakan login dengan email dan password Anda.");
     window.pindahLayar('screen-login');
   } catch (e) {
     console.error("Gagal daftar:", e);
-    alert("Gagal menyimpan ke database.");
+    alert(pesanErrorAuth(e.code) || "Gagal menyimpan pendaftaran: " + e.message);
+  } finally {
+    btn.innerHTML = originalText;
+    btn.disabled = false;
   }
 };
 
+// ============================================================================
+// LOGIN: memverifikasi email + password sungguhan lewat Firebase Auth.
+// Tidak ada lagi "tebak role dari email" — akses hanya diberikan setelah
+// autentikasi berhasil, dan role diambil dari data Firestore yang tersimpan.
+// ============================================================================
 window.prosesLogin = async function() {
   const emailInput = document.getElementById('input-email').value.trim().toLowerCase();
   const passInput = document.getElementById('input-pass').value;
@@ -104,8 +190,8 @@ window.prosesLogin = async function() {
   window.tanggalIzinGlobal = document.getElementById('input-tgl-izin') ? document.getElementById('input-tgl-izin').value : "";
   window.keteranganIzinGlobal = document.getElementById('input-ket-izin') ? document.getElementById('input-ket-izin').value : "";
 
-  if (!emailInput) {
-    alert("Masukkan email terlebih dahulu!");
+  if (!emailInput || !passInput) {
+    alert("Masukkan email dan password terlebih dahulu!");
     return;
   }
 
@@ -120,7 +206,7 @@ window.prosesLogin = async function() {
       const tglPilih = new Date(window.tanggalIzinGlobal);
       const tglSekarang = new Date();
       tglSekarang.setHours(0,0,0,0);
-      
+
       const selisihHari = (tglPilih - tglSekarang) / (1000 * 60 * 60 * 24);
       if (selisihHari < 3) {
         alert("Pengajuan Cuti minimal H-3 dari tanggal hari ini!");
@@ -129,38 +215,43 @@ window.prosesLogin = async function() {
     }
   }
 
-  // Simpan Sesi Email
-  if (ingatChecked) {
-    localStorage.setItem('zevanic_email', emailInput);
-    localStorage.setItem('zevanic_pass', passInput);
-  } else {
-    localStorage.removeItem('zevanic_email');
-    localStorage.removeItem('zevanic_pass');
+  // Verifikasi email + password sungguhan ke Firebase Auth
+  try {
+    await signInWithEmailAndPassword(auth, emailInput, passInput);
+  } catch (e) {
+    console.error("Gagal login:", e);
+    alert(pesanErrorAuth(e.code) || "Gagal login: " + e.message);
+    return;
   }
 
-  // Tarik Data User
+  // Simpan/hapus sesi email (password TIDAK PERNAH disimpan)
+  if (ingatChecked) {
+    localStorage.setItem('zevanic_email', emailInput);
+  } else {
+    localStorage.removeItem('zevanic_email');
+  }
+  localStorage.removeItem('zevanic_pass');
+
+  // Tarik profil lengkap dari Firestore
   const userRef = doc(db, "users", emailInput);
   const userSnap = await getDoc(userRef);
 
-  window.currentUser = { email: emailInput, name: emailInput, role: "operator", id_app: "N/A", id_karyawan: "N/A", jabatan: "Staff", status_kerja: "Aktif" };
-
-  // Di dalam window.prosesLogin, bagian penentuan role default jika email tidak ada di database:
   if (userSnap.exists()) {
-    const dataU = userSnap.data();
+    const d = userSnap.data();
     window.currentUser = {
+      ...d,
       email: emailInput,
-      name: dataU.nama || emailInput,
-      role: (dataU.role || "operator").toLowerCase(),
-      id_app: dataU.id_app || "N/A",
-      id_karyawan: dataU.id_karyawan || "N/A",
-      jabatan: dataU.jabatan || "Staff",
-      status_kerja: dataU.status_kerja || "Aktif"
+      name: d.nama || d.name || emailInput,
+      role: (d.role || "operator").toLowerCase(),
+      id_app: d.id_app || "N/A",
+      id_karyawan: d.id_karyawan || "N/A",
+      jabatan: d.jabatan || "Staff",
+      status_kerja: d.status_kerja || "Aktif"
     };
   } else {
-    if (emailInput.includes('owner')) window.currentUser.role = "owner";
-    else if (emailInput.includes('pic')) window.currentUser.role = "pic";
-    else if (emailInput.includes('admin')) window.currentUser.role = "admin";
-    else window.currentUser.role = "operator";
+    // Akun Auth ada tapi belum punya profil Firestore (kasus langka) —
+    // beri akses paling minim, BUKAN menebak role dari email.
+    window.currentUser = { email: emailInput, name: emailInput, role: "operator", id_app: "N/A", id_karyawan: "N/A", jabatan: "Staff", status_kerja: "Aktif" };
   }
 
   window.aturTampilanBerdasarkanRole();
@@ -193,6 +284,17 @@ window.prosesClockOut = function() {
   window.pindahLayar('screen-camera');
 };
 
+// Logout sungguhan: keluar dari sesi Firebase Auth, bukan cuma pindah layar
+window.logout = async function() {
+  try {
+    await signOut(auth);
+  } catch (e) {
+    console.error("Gagal logout dari Firebase Auth:", e);
+  }
+  window.currentUser = { email: "", name: "", role: "operator", id_app: "", id_karyawan: "", jabatan: "", status_kerja: "aktif" };
+  window.pindahLayar('screen-login');
+};
+
 // js/auth.js (Bagian Aturan Tampilan Berdasarkan Role)
 
 window.aturTampilanBerdasarkanRole = function() {
@@ -202,20 +304,16 @@ window.aturTampilanBerdasarkanRole = function() {
 
   const role = (window.currentUser.role || "operator").toLowerCase();
 
-  // Ambil elemen menu berdasarkan ID
-  const menuAdminAcc = document.getElementById('menu-admin-acc'); // Untuk PIC / Owner
-  const menuSuperUser = document.getElementById('menu-superuser'); // Untuk Owner
+  const menuAdminAcc = document.getElementById('menu-admin-acc');
+  const menuSuperUser = document.getElementById('menu-superuser');
   const navMobileAdmin = document.getElementById('nav-mobile-admin');
   const navMobileSuper = document.getElementById('nav-mobile-super');
 
-  // Sembunyikan semua menu khusus hak akses tinggi secara default
   if (menuAdminAcc) menuAdminAcc.classList.add('hidden');
   if (menuSuperUser) menuSuperUser.classList.add('hidden');
   if (navMobileAdmin) navMobileAdmin.classList.add('hidden');
   if (navMobileSuper) navMobileSuper.classList.add('hidden');
 
-  // Atur visibilitas berdasarkan Blueprint Terbaru:
-  // 1. PIC: Punya akses ke Panel ACC Absensi
   if (role === 'pic' || role === 'owner' || role === 'admin' || role === 'superuser') {
     if (menuAdminAcc) menuAdminAcc.classList.remove('hidden');
     if (navMobileAdmin) {
@@ -224,7 +322,6 @@ window.aturTampilanBerdasarkanRole = function() {
     }
   }
 
-  // 2. Owner: Punya akses kontrol penuh (Zona Master / Super User)
   if (role === 'owner' || role === 'superuser') {
     if (menuSuperUser) menuSuperUser.classList.remove('hidden');
     if (navMobileSuper) {
