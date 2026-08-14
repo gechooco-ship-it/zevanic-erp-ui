@@ -68,7 +68,7 @@ window.simpanKeFirebase = async function(fotoBase64) {
       dataKirim.tanggal_pengajuan = window.tanggalIzinGlobal;
       dataKirim.keterangan = window.keteranganIzinGlobal;
     }
-    await addDoc(collection(db, "attendance"), dataKirim);
+    await addDoc(collection(db, "absensi"), dataKirim);
     return true;
   } catch (e) {
     console.error("Gagal simpan:", e);
@@ -109,44 +109,6 @@ window.kirimDataKeCloud = async function() {
 
 
 // ====== PANEL ACC PIC & VALIDASI ======
-
-window.submitUpdateACC = async function(idDoc) {
-  const btn = event.currentTarget;
-  const originalText = btn.innerHTML;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-  btn.disabled = true;
-
-  const seragamVal = document.getElementById(`seragam-${idDoc}`).value;
-  const statusHadirVal = document.getElementById(`statushadir-${idDoc}`).value;
-
-  try {
-    await updateDoc(doc(db, "attendance", idDoc), {
-      seragam: seragamVal,
-      status_kehadiran: statusHadirVal,
-      persetujuan: "ACC" // Otomatis tandai sudah di proses
-    });
-    alert("Data Kehadiran Berhasil Diperbarui!");
-    window.muatDataAdminACC(); 
-  } catch (e) {
-    console.error("Gagal update:", e);
-    alert("Gagal menyimpan data.");
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-  }
-};
-
-window.hapusDataAbsensi = async function(idDoc) {
-  if(confirm("Apakah Anda yakin ingin menghapus data absensi ini?")) {
-    try {
-      await deleteDoc(doc(db, "attendance", idDoc));
-      alert("Data berhasil dihapus!");
-      window.muatDataAdminACC();
-    } catch (e) {
-      console.error("Gagal menghapus:", e);
-      alert("Terjadi kesalahan saat menghapus data.");
-    }
-  }
-};
 
 window.bukaPreviewFoto = function(src) {
   document.getElementById('img-preview-besar').src = src;
