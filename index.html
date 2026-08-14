@@ -235,7 +235,7 @@
         <button onclick="pindahTab('tab-profil')" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 transition">
           <i class="fas fa-user-circle w-6 text-left"></i> Account Profile
         </button>
-        <button onclick="pindahTab('tab-profil'); pindahSubProfile('profil-riwayat', document.querySelector('[onclick*=profil-riwayat]'))" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 transition">
+        <button onclick="pindahTab('tab-profil'); pindahSubProfile('profil-riwayat', document.querySelector('.sub-profil-btn[onclick*=profil-riwayat]'))" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 transition">
           <i class="far fa-clock w-6 text-left"></i> Riwayat Absensi
         </button>
         <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-purple-600 hover:bg-purple-50 transition font-bold mt-4 border-t pt-4">
@@ -246,7 +246,7 @@
         </button>
       </nav>
       <div class="p-4 border-t border-gray-100">
-        <button onclick="pindahLayar('screen-login')" class="w-full flex items-center px-4 py-2 text-sm font-bold rounded-xl text-red-500 hover:bg-red-50 transition">
+        <button onclick="logout()" class="w-full flex items-center px-4 py-2 text-sm font-bold rounded-xl text-red-500 hover:bg-red-50 transition">
           <i class="fas fa-sign-out-alt w-6 text-left"></i> Logout
         </button>
       </div>
@@ -563,10 +563,10 @@
 
         <div id="tab-superuser" class="tab-content hidden fade-in space-y-4">
           <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200">
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Karyawan</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this)" class="sub-karyawan-btn bg-blue-600 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Data Karyawan</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Slip Gaji</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Payroll</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Karyawan</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this)" class="sub-karyawan-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Data Karyawan</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Slip Gaji</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Payroll</button>
           </div>
 
           <div id="sub-karyawan-config" class="sub-karyawan-content hidden fade-in mt-4">
@@ -630,7 +630,7 @@
         <i class="fas fa-user-circle text-lg mb-1"></i>
         <span class="text-[9px] font-bold">Profile</span>
       </button>
-      <button onclick="pindahTab('tab-profil'); pindahSubProfile('profil-riwayat', document.querySelector('[onclick*=profil-riwayat]'))" class="flex flex-col items-center p-2 text-gray-500 w-16">
+      <button onclick="pindahTab('tab-profil'); pindahSubProfile('profil-riwayat', document.querySelector('.sub-profil-btn[onclick*=profil-riwayat]'))" class="flex flex-col items-center p-2 text-gray-500 w-16">
         <i class="far fa-clock text-lg mb-1"></i>
         <span class="text-[9px] font-medium">Riwayat</span>
       </button>
