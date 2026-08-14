@@ -102,15 +102,19 @@ window.kirimPesanWhatsapp = async function(nomor, pesan) {
       console.warn("URL Apps Script atau kunci rahasia belum diisi.");
       return false;
     }
+    // Menumpang di Apps Script project WA Gateway yang sudah ada (bot produksi) —
+    // routing pakai query string ?modul=absensi sesuai hook yang sudah disiapkan
+    // di doPost() mereka, supaya satu nomor/token bisa dipakai berdampingan.
+    const urlDenganModul = cfg.webapp_url + (cfg.webapp_url.includes('?') ? '&' : '?') + 'modul=absensi';
     // Content-Type text/plain sengaja dipakai supaya browser tidak melakukan
     // CORS preflight (OPTIONS) yang tidak ditangani baik oleh Apps Script Web App.
-    const resp = await fetch(cfg.webapp_url, {
+    const resp = await fetch(urlDenganModul, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ secret: cfg.shared_secret, target: nomor, message: pesan })
     });
     const hasil = await resp.json();
-    return !!hasil.success;
+    return !!hasil.sukses;
   } catch (e) {
     console.error("Gagal kirim WhatsApp:", e);
     return false;
