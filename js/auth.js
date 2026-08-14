@@ -1,9 +1,10 @@
 // js/auth.js
-import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, setDoc, getDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  signOut
+  signOut,
+  onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { db, auth } from "./firebase-config.js";
 
@@ -32,6 +33,107 @@ window.normalisasiGudang = function(value) {
   if (typeof value === 'string' && value.trim()) return [value.trim()];
   return [];
 };
+
+// Poin 4: deteksi perangkat desktop (bukan HP/tablet)
+function isDesktopBrowser() {
+  return !/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+// Poin 4: cek ke server (bukan localStorage) apakah user ini sudah Clock In hari ini —
+// harus ke server karena Clock In wajib dari HP, lalu login berikutnya boleh dari desktop.
+async function sudahClockInHariIniServer(email) {
+  const hariIni = new Date().toLocaleDateString('id-ID');
+  try {
+    const querySnapshot = await getDocs(collection(db, "absensi"));
+    let ditemukan = false;
+    querySnapshot.forEach(docSnap => {
+      const d = docSnap.data();
+      if (d.email === email && d.status === "HADIR (CLOCK IN)" && d.waktu) {
+        const tglRecord = d.waktu.split(', ')[0];
+        if (tglRecord === hariIni) ditemukan = true;
+      }
+    });
+    return ditemukan;
+  } catch (e) {
+    console.error("Gagal cek status clock-in:", e);
+    return false; // gagal cek -> anggap belum, lebih aman (fail-safe, bukan fail-open)
+  }
+}
+
+// Poin 1: cek apakah waktu sekarang masih dalam jam shift yang di-assign ke karyawan ini
+window.cekMasihJamKerja = async function(namaShift) {
+  if (!namaShift) return false; // tidak ada shift ter-assign -> tidak bisa dipastikan, wajib login ulang
+  try {
+    const qShift = await getDocs(collection(db, "master_shift"));
+    let shiftData = null;
+    qShift.forEach(s => { if (s.data().nama_shift === namaShift) shiftData = s.data(); });
+    if (!shiftData || !shiftData.jam_masuk || !shiftData.jam_keluar) return false;
+
+    const sekarang = new Date();
+    const [jamMasukH, jamMasukM] = shiftData.jam_masuk.split(':').map(Number);
+    const [jamKeluarH, jamKeluarM] = shiftData.jam_keluar.split(':').map(Number);
+
+    const mulai = new Date(sekarang); mulai.setHours(jamMasukH, jamMasukM, 0, 0);
+    let selesai = new Date(sekarang); selesai.setHours(jamKeluarH, jamKeluarM, 0, 0);
+    if (selesai <= mulai) selesai.setDate(selesai.getDate() + 1); // shift lewat tengah malam
+
+    return sekarang >= mulai && sekarang <= selesai;
+  } catch (e) {
+    console.error("Gagal cek jam kerja:", e);
+    return false;
+  }
+};
+
+// =========================================================================
+// Poin 1: SESI OTOMATIS — kalau browser ditutup lalu dibuka lagi, dan sesi
+// Firebase masih tersimpan, dan user masih dalam jam kerja shift-nya, dan
+// sudah Clock In hari ini -> langsung ke Dashboard tanpa isi ulang email/
+// password. Ini HANYA jalan sekali saat aplikasi pertama kali dimuat, bukan
+// setiap kali status auth berubah (supaya tidak bentrok dengan proses login
+// manual di prosesLogin()).
+// =========================================================================
+let sesiOtomatisSudahDicek = false;
+onAuthStateChanged(auth, async (user) => {
+  if (sesiOtomatisSudahDicek) return;
+  sesiOtomatisSudahDicek = true;
+  if (!user || !user.email) return; // tidak ada sesi tersimpan -> layar login tampil normal
+
+  try {
+    const userSnap = await getDoc(doc(db, "users", user.email));
+    if (!userSnap.exists()) return;
+    const d = userSnap.data();
+
+    if (d.status_approval && d.status_approval !== "APPROVED") return;
+
+    const gudangUser = window.normalisasiGudang(d.gudang_penempatan);
+    if (gudangUser.length === 0) return;
+
+    const hariIni = new Date().toLocaleDateString('id-ID');
+    const statusLokal = localStorage.getItem('zevanic_absen_' + user.email);
+    if (statusLokal !== hariIni) return; // belum Clock In hari ini -> tetap layar login
+
+    const masihJamKerja = await window.cekMasihJamKerja(d.nama_shift);
+    if (!masihJamKerja) return; // di luar jam kerja -> wajib login ulang
+
+    // Semua syarat terpenuhi -> lewati layar login, langsung ke Dashboard
+    window.currentUser = {
+      ...d,
+      email: user.email,
+      name: d.nama || d.name || user.email,
+      role: (d.role || "operator").toLowerCase(),
+      id_app: d.id_app || "N/A",
+      id_karyawan: d.id_karyawan || "N/A",
+      jabatan: d.jabatan || "Staff",
+      status_kerja: d.status_kerja || "Aktif",
+      gudang_penempatan: gudangUser
+    };
+    if (window.aturTampilanBerdasarkanRole) window.aturTampilanBerdasarkanRole();
+    if (window.pindahLayar) window.pindahLayar('screen-dashboard');
+    if (window.pindahTab) window.pindahTab('tab-home');
+  } catch (e) {
+    console.error("Gagal cek sesi otomatis:", e);
+  }
+});
 
 window.addEventListener('DOMContentLoaded', () => {
   // Catatan: password TIDAK PERNAH disimpan di localStorage (dulu iya, ini bug keamanan).
@@ -237,6 +339,17 @@ window.prosesLogin = async function() {
     return;
   }
 
+  // Gerbang perangkat (Poin 4): login lewat komputer diblokir kalau belum ada
+  // Clock In hari ini. Clock In wajib dilakukan lewat HP/perangkat mobile dulu.
+  if (isDesktopBrowser()) {
+    const sudahClockIn = await sudahClockInHariIniServer(emailInput);
+    if (!sudahClockIn) {
+      alert("Login lewat komputer belum bisa dipakai sebelum Clock In hari ini. Silakan Clock In terlebih dahulu dari HP/perangkat mobile.");
+      await signOut(auth);
+      return;
+    }
+  }
+
   // Simpan/hapus sesi email (password TIDAK PERNAH disimpan)
   if (ingatChecked) {
     localStorage.setItem('zevanic_email', emailInput);
@@ -312,8 +425,49 @@ window.prosesLogin = async function() {
 };
 
 window.prosesClockOut = function() {
+  const hariIni = new Date().toLocaleDateString('id-ID');
+  const statusLokal = localStorage.getItem('zevanic_absen_' + window.currentUser.email);
+  if (statusLokal !== hariIni) {
+    alert("Anda belum Clock In hari ini, tidak bisa Clock Out.");
+    return;
+  }
   window.statusPilihanGlobal = "CLOCK OUT";
   document.getElementById('label-status-kamera').innerText = "Mode: CLOCK OUT";
+  window.pindahLayar('screen-camera');
+};
+
+// Poin 10: Ajukan Cuti sekarang lewat Account Profile > ID & QR (bukan dropdown login lagi)
+window.bukaFormCutiProfil = function() {
+  document.getElementById('form-cuti-profil').classList.remove('hidden');
+};
+window.tutupFormCutiProfil = function() {
+  document.getElementById('form-cuti-profil').classList.add('hidden');
+  document.getElementById('profil-cuti-tanggal').value = '';
+  document.getElementById('profil-cuti-keterangan').value = '';
+};
+window.ajukanCutiDariProfil = function() {
+  const tanggal = document.getElementById('profil-cuti-tanggal').value;
+  const keterangan = document.getElementById('profil-cuti-keterangan').value;
+
+  if (!tanggal || !keterangan) {
+    alert("Harap isi Tanggal dan Keterangan Cuti!");
+    return;
+  }
+
+  const tglPilih = new Date(tanggal);
+  const tglSekarang = new Date();
+  tglSekarang.setHours(0, 0, 0, 0);
+  const selisihHari = (tglPilih - tglSekarang) / (1000 * 60 * 60 * 24);
+  if (selisihHari < 3) {
+    alert("Pengajuan Cuti minimal H-3 dari tanggal hari ini!");
+    return;
+  }
+
+  window.statusPilihanGlobal = "CUTI";
+  window.tanggalIzinGlobal = tanggal;
+  window.keteranganIzinGlobal = keterangan;
+  window.tutupFormCutiProfil();
+  document.getElementById('label-status-kamera').innerText = "Mode: CUTI";
   window.pindahLayar('screen-camera');
 };
 

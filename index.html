@@ -53,10 +53,8 @@
         <div>
           <label class="block text-xs font-semibold text-gray-600 mb-1">Pilih Status Kehadiran / Pengajuan</label>
           <select id="pilihan-status" onchange="toggleFormIzin()" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm font-medium text-gray-700">
-            <option value="MASUK DASHBOARD">➡️ Hanya Masuk Dashboard (Sudah Absen)</option>
             <option value="HADIR (CLOCK IN)">🟢 Hadir (Clock In Pertama)</option>
             <option value="IZIN">🟡 Pengajuan Izin (Hari H)</option>
-            <option value="CUTI">🔵 Pengajuan Cuti (Min H-3)</option>
           </select>
         </div>
 
@@ -315,6 +313,32 @@
               </div>
               <p class="text-[10px] text-gray-400 max-w-[200px] leading-relaxed">Tunjukkan QR ini saat melakukan absensi fisik atau verifikasi proses SPK.</p>
             </div>
+
+            <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm max-w-sm mx-auto w-full space-y-3 mt-4">
+              <h3 class="text-xs font-bold text-gray-700 border-b pb-2">Aksi Absensi</h3>
+              <button onclick="prosesClockOut()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center transition">
+                <i class="fas fa-sign-out-alt mr-2"></i> Clock Out (Pulang)
+              </button>
+              <button onclick="bukaFormCutiProfil()" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-3 rounded-xl text-sm flex items-center justify-center transition border border-blue-200">
+                <i class="fas fa-calendar-alt mr-2"></i> Ajukan Cuti
+              </button>
+            </div>
+
+            <div id="form-cuti-profil" class="hidden bg-white p-5 rounded-3xl border border-gray-100 shadow-sm max-w-sm mx-auto w-full space-y-3 mt-3">
+              <h3 class="text-xs font-bold text-gray-700 border-b pb-2">Form Pengajuan Cuti (Minimal H-3)</h3>
+              <div>
+                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Tanggal Cuti</label>
+                <input type="date" id="profil-cuti-tanggal" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Keterangan / Alasan</label>
+                <textarea id="profil-cuti-keterangan" rows="2" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm resize-none"></textarea>
+              </div>
+              <div class="flex space-x-2 pt-1">
+                <button onclick="tutupFormCutiProfil()" class="w-1/2 bg-gray-100 text-gray-600 font-bold py-2.5 rounded-xl text-xs">Batal</button>
+                <button onclick="ajukanCutiDariProfil()" class="w-1/2 bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs">Lanjut Foto</button>
+              </div>
+            </div>
           </div>
 
           <div id="profil-datadiri" class="sub-profil-content hidden fade-in mt-4 max-w-4xl mx-auto w-full">
@@ -422,7 +446,7 @@
                 <div><label class="block text-[11px] font-semibold text-gray-600 mb-1">Filter Shift</label><select id="filter-shift" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"><option value="ALL">Semua Shift</option></select></div>
               </div>
               <div class="flex justify-end pt-1">
-                <button onclick="muatDataRiwayat()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm flex items-center space-x-1.5">
+                <button onclick="muatDataRiwayatPersonal()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm flex items-center space-x-1.5">
                   <i class="fas fa-search"></i><span>Tampilkan Laporan</span>
                 </button>
               </div>
@@ -537,7 +561,7 @@
                 <div><label class="block font-semibold text-gray-600 mb-1">Gudang Penempatan (bisa lebih dari satu) *</label><div id="jadwal-gudang-checkboxes" class="flex flex-wrap gap-2 p-2 bg-gray-50 border rounded-xl min-h-[42px]"></div></div>
                 <div><label class="block font-semibold text-gray-600 mb-1">Pilih Shift *</label><select id="jadwal-shift" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></select></div>
                 <div><label class="block font-semibold text-gray-600 mb-1">Hari Libur *</label><select id="jadwal-libur" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"><option value="Minggu">Minggu</option><option value="Senin">Senin</option><option value="Selasa">Selasa</option><option value="Rabu">Rabu</option><option value="Kamis">Kamis</option><option value="Jumat">Jumat</option><option value="Sabtu">Sabtu</option></select></div>
-                <button onclick="simpanPenjadwalan()" class="w-full bg-slate-800 text-white font-bold py-2.5 rounded-xl hover:bg-slate-900 transition shadow-sm mt-3"><i class="fas fa-save mr-1"></i> Terapkan Jadwal</button>
+                <button onclick="simpanJadwalKaryawan()" class="w-full bg-slate-800 text-white font-bold py-2.5 rounded-xl hover:bg-slate-900 transition shadow-sm mt-3"><i class="fas fa-save mr-1"></i> Terapkan Jadwal</button>
               </div>
             </div>
             <div class="md:col-span-2 bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
