@@ -94,22 +94,10 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">Email Aktif (Identitas Login) *</label>
-            <input type="email" id="reg-email" required placeholder="email@domain.com" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">No. Handphone (WhatsApp) *</label>
-            <input type="text" id="reg-hp" required placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">Kata Sandi (Password) *</label>
-            <input type="password" id="reg-pass" required placeholder="Buat password login" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">Konfirmasi Kata Sandi *</label>
-            <input type="password" id="reg-confirm-pass" required placeholder="Ulangi password" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
+          <div><label class="block font-semibold text-gray-600 mb-1">Email Aktif (Identitas Login) *</label><input type="email" id="reg-email" required placeholder="email@domain.com" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
+          <div><label class="block font-semibold text-gray-600 mb-1">No. Handphone (WhatsApp) *</label><input type="text" id="reg-hp" required placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
+          <div><label class="block font-semibold text-gray-600 mb-1">Kata Sandi (Password) *</label><input type="password" id="reg-pass" required placeholder="Buat password login" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
+          <div><label class="block font-semibold text-gray-600 mb-1">Konfirmasi Kata Sandi *</label><input type="password" id="reg-confirm-pass" required placeholder="Ulangi password" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
         </div>
 
         <div class="space-y-3 pt-2">
@@ -165,6 +153,60 @@
       </div>
     </div>
   </div>
+
+<div id="screen-camera" class="hidden min-h-screen bg-slate-900 flex-col items-center justify-between p-6 fade-in">
+    <div class="w-full text-center mt-4">
+      <h2 class="text-white text-xl font-bold">Verifikasi Wajah / Foto Bukti</h2>
+      <p id="label-status-kamera" class="text-blue-400 text-xs mt-1 font-semibold uppercase tracking-wider">Mode: Hadir</p>
+    </div>
+
+    <div class="w-full max-w-sm mt-2">
+      <label class="block text-xs font-semibold text-gray-400 mb-1 text-center">Pilih Status Kehadiran / Pengajuan</label>
+      <select id="pilihan-status" onchange="if(window.toggleFormIzin) window.toggleFormIzin()" class="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm font-medium text-white appearance-none text-center shadow-lg">
+        <option value="HADIR (CLOCK IN)">🟢 Hadir (Clock In Pertama)</option>
+        <option value="IZIN">🟡 Pengajuan Izin (Hari H)</option>
+        <option value="CUTI">🔵 Pengajuan Cuti (H-3)</option>
+        <option value="MASUK DASHBOARD">➡️ Hanya Masuk Dashboard (Sudah Absen)</option>
+      </select>
+    </div>
+
+    <div class="relative w-full max-w-sm aspect-[3/4] bg-gray-800 rounded-3xl overflow-hidden border-2 border-gray-700 shadow-2xl flex items-center justify-center my-4">
+      <video id="kamera-feed" autoplay playsinline class="w-full h-full object-cover hidden"></video>
+      <img id="hasil-foto" class="w-full h-full object-cover hidden" />
+      <canvas id="canvas-foto" class="hidden"></canvas>
+      <div id="pesan-kamera" class="flex flex-col items-center text-gray-500 text-center px-4">
+        <i class="fas fa-camera text-5xl mb-3 animate-pulse"></i>
+        <span class="text-sm">Meminta akses kamera...</span>
+      </div>
+      <div id="frame-wajah" class="absolute inset-4 border-2 border-dashed border-blue-400 rounded-2xl opacity-50 pointer-events-none"></div>
+    </div>
+
+    <div id="form-izin-cuti" class="hidden w-full max-w-sm space-y-3 mb-2">
+       <div>
+          <label id="label-tgl-izin" class="block text-xs font-semibold text-gray-400 mb-1">Tanggal Izin/Cuti</label>
+          <input type="date" id="input-tgl-izin" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white outline-none focus:ring-2 focus:ring-amber-500">
+       </div>
+       <div>
+          <label class="block text-xs font-semibold text-gray-400 mb-1">Keterangan / Alasan Lengkap</label>
+          <textarea id="input-ket-izin" rows="2" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl text-white outline-none focus:ring-2 focus:ring-amber-500" placeholder="Tulis alasan..."></textarea>
+       </div>
+    </div>
+
+    <div class="w-full max-w-sm mb-6 flex flex-col items-center h-24">
+      <button id="btn-jepret" onclick="ambilFoto()" class="w-16 h-16 bg-white rounded-full border-4 border-gray-300 flex items-center justify-center shadow-lg active:scale-90 transition-transform hover:bg-gray-100 hidden">
+        <div class="w-12 h-12 bg-blue-600 rounded-full shadow-inner"></div>
+      </button>
+      <div id="grup-btn-lanjut" class="hidden flex space-x-3">
+          <button onclick="ulangiFoto()" class="px-5 py-2.5 bg-gray-700 text-white font-bold rounded-xl text-sm hover:bg-gray-600 transition">Ulangi</button>
+          <button id="btn-clock-in-final" onclick="kirimDataKeCloud()" class="px-5 py-2.5 bg-green-500 text-white font-bold rounded-xl text-sm hover:bg-green-600 transition flex items-center shadow-lg shadow-green-500/30">
+              Kirim Pengajuan <i class="fas fa-check ml-2"></i>
+          </button>
+      </div>
+      <p id="teks-instruksi-kamera" class="text-gray-300 text-xs font-semibold mt-3">Ketuk tombol untuk foto</p>
+    </div>
+  </div>
+
+
 
   <div id="screen-dashboard" class="hidden min-h-screen flex flex-col md:flex-row bg-slate-50">
     
