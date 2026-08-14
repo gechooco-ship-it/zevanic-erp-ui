@@ -85,6 +85,110 @@ window.cekMasihJamKerja = async function(namaShift) {
 };
 
 // =========================================================================
+// WHATSAPP GATEWAY (Fonnte lewat Google Apps Script sebagai perantara aman).
+// Konfigurasi (URL Apps Script + kunci rahasia) disimpan di Firestore
+// config/whatsapp_gateway, diatur lewat Menu Karyawan > WhatsApp Gateway.
+// Token Fonnte sendiri TIDAK PERNAH ada di kode ini — disimpan di Apps Script.
+// =========================================================================
+window.kirimPesanWhatsapp = async function(nomor, pesan) {
+  try {
+    const configSnap = await getDoc(doc(db, "config", "whatsapp_gateway"));
+    if (!configSnap.exists()) {
+      console.warn("Konfigurasi WhatsApp Gateway belum diatur.");
+      return false;
+    }
+    const cfg = configSnap.data();
+    if (!cfg.webapp_url || !cfg.shared_secret) {
+      console.warn("URL Apps Script atau kunci rahasia belum diisi.");
+      return false;
+    }
+    // Content-Type text/plain sengaja dipakai supaya browser tidak melakukan
+    // CORS preflight (OPTIONS) yang tidak ditangani baik oleh Apps Script Web App.
+    const resp = await fetch(cfg.webapp_url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ secret: cfg.shared_secret, target: nomor, message: pesan })
+    });
+    const hasil = await resp.json();
+    return !!hasil.success;
+  } catch (e) {
+    console.error("Gagal kirim WhatsApp:", e);
+    return false;
+  }
+};
+
+// ---- OTP login perangkat baru (Poin 1: sekali per perangkat) ----
+window._otpState = { kode: null, email: null, kadaluarsa: null };
+
+window.apakahOtpDiperlukan = async function(email) {
+  try {
+    const configSnap = await getDoc(doc(db, "config", "whatsapp_gateway"));
+    if (!configSnap.exists() || !configSnap.data().otp_aktif) return false;
+  } catch (e) {
+    console.error("Gagal cek konfigurasi OTP:", e);
+    return false; // gagal cek konfigurasi -> jangan halangi login
+  }
+  const sudahTerverifikasi = localStorage.getItem('zevanic_device_verified_' + email) === 'true';
+  return !sudahTerverifikasi;
+};
+
+window.mulaiVerifikasiOtp = async function(email) {
+  const kode = String(Math.floor(100000 + Math.random() * 900000));
+  window._otpState = { kode, email, kadaluarsa: Date.now() + 5 * 60 * 1000 };
+
+  let nomorHp = "";
+  try {
+    const userSnap = await getDoc(doc(db, "users", email));
+    if (userSnap.exists()) nomorHp = userSnap.data().hp || "";
+  } catch (e) { console.error(e); }
+
+  if (!nomorHp) {
+    alert("Nomor HP Anda belum terdaftar di sistem, tidak bisa mengirim OTP. Hubungi Owner/PIC.");
+    return false;
+  }
+
+  const terkirim = await window.kirimPesanWhatsapp(
+    nomorHp,
+    `Kode OTP login Zevanic ERP Anda: *${kode}*. Jangan bagikan kode ini ke siapapun. Berlaku 5 menit.`
+  );
+  if (!terkirim) {
+    alert("Gagal mengirim kode OTP lewat WhatsApp. Coba lagi atau hubungi Owner/PIC.");
+    return false;
+  }
+
+  const infoNomor = document.getElementById('otp-info-nomor');
+  if (infoNomor) infoNomor.innerText = nomorHp.replace(/(\d{4})\d+(\d{3})/, '$1****$2');
+  const otpInput = document.getElementById('otp-input');
+  if (otpInput) otpInput.value = '';
+  document.getElementById('modal-otp').classList.remove('hidden');
+  return true;
+};
+
+window.batalkanOtp = async function() {
+  document.getElementById('modal-otp').classList.add('hidden');
+  await signOut(auth);
+};
+
+window.kirimUlangOtp = function() {
+  if (window._otpState.email) window.mulaiVerifikasiOtp(window._otpState.email);
+};
+
+window.verifikasiOtpDanLanjut = async function() {
+  const kodeInput = document.getElementById('otp-input').value.trim();
+  if (!window._otpState.kode || Date.now() > window._otpState.kadaluarsa) {
+    alert("Kode OTP sudah kadaluarsa. Silakan kirim ulang.");
+    return;
+  }
+  if (kodeInput !== window._otpState.kode) {
+    alert("Kode OTP salah. Silakan coba lagi.");
+    return;
+  }
+  localStorage.setItem('zevanic_device_verified_' + window._otpState.email, 'true');
+  document.getElementById('modal-otp').classList.add('hidden');
+  await window.lanjutkanSetelahLogin(window._otpState.email);
+};
+
+// =========================================================================
 // Poin 1: SESI OTOMATIS — kalau browser ditutup lalu dibuka lagi, dan sesi
 // Firebase masih tersimpan, dan user masih dalam jam kerja shift-nya, dan
 // sudah Clock In hari ini -> langsung ke Dashboard tanpa isi ulang email/
@@ -145,6 +249,19 @@ window.addEventListener('DOMContentLoaded', () => {
   }
   // Bersihkan sisa password lama yang mungkin masih tersimpan dari versi sebelumnya
   localStorage.removeItem('zevanic_pass');
+
+  // Desktop wajib Clock In dari HP dulu -> sembunyikan opsi "Hadir" di dropdown.
+  // Izin tetap tersedia karena tidak butuh kehadiran fisik.
+  if (isDesktopBrowser()) {
+    const selectStatus = document.getElementById('pilihan-status');
+    const optHadir = selectStatus ? selectStatus.querySelector('option[value="HADIR (CLOCK IN)"]') : null;
+    if (optHadir) optHadir.remove();
+    if (selectStatus) {
+      selectStatus.value = "IZIN";
+      window.statusPilihanGlobal = "IZIN";
+      if (window.toggleFormIzin) window.toggleFormIzin();
+    }
+  }
 
   if (document.getElementById('reg-tinggal-kab')) window.updateKecamatanTinggal();
   if (document.getElementById('reg-ktp-kab')) window.updateKecamatanKTP();
@@ -279,6 +396,12 @@ window.simpanPendaftaranBaru = async function() {
       tanggal_daftar: new Date().toLocaleDateString('id-ID')
     });
 
+    // Notifikasi WA (Poin 4): akun berhasil diajukan, menunggu persetujuan
+    window.kirimPesanWhatsapp(
+      hp,
+      `Halo ${nama}, pendaftaran Anda di Zevanic ERP telah diterima dan sedang *menunggu persetujuan*. Silakan hubungi Koordinator/PIC untuk aktivasi akun Anda.`
+    ).catch(e => console.error("Gagal kirim notifikasi WA pendaftaran:", e));
+
     alert("Registrasi Berhasil! Akun Anda menunggu persetujuan Owner/PIC sebelum bisa dipakai login.");
     window.pindahLayar('screen-login');
   } catch (e) {
@@ -298,7 +421,6 @@ window.simpanPendaftaranBaru = async function() {
 window.prosesLogin = async function() {
   const emailInput = document.getElementById('input-email').value.trim().toLowerCase();
   const passInput = document.getElementById('input-pass').value;
-  const ingatChecked = document.getElementById('check-ingat').checked;
   window.statusPilihanGlobal = document.getElementById('pilihan-status').value;
 
   // Tangkap Data Form Ekstra
@@ -339,18 +461,38 @@ window.prosesLogin = async function() {
     return;
   }
 
-  // Gerbang perangkat (Poin 4): login lewat komputer diblokir kalau belum ada
-  // Clock In hari ini. Clock In wajib dilakukan lewat HP/perangkat mobile dulu.
-  if (isDesktopBrowser()) {
+  // Verifikasi OTP WhatsApp — hanya untuk login PERTAMA di perangkat ini.
+  // Kalau perlu, alur login "dijeda" di sini (modal OTP tampil) dan akan
+  // dilanjutkan oleh verifikasiOtpDanLanjut() setelah kode benar.
+  const otpDiperlukan = await window.apakahOtpDiperlukan(emailInput);
+  if (otpDiperlukan) {
+    const terkirim = await window.mulaiVerifikasiOtp(emailInput);
+    if (!terkirim) await signOut(auth); // gagal kirim OTP -> jangan biarkan sesi menggantung
+    return;
+  }
+
+  await window.lanjutkanSetelahLogin(emailInput);
+};
+
+// Sisa proses login (gerbang perangkat, approval, gudang, routing ke dashboard/kamera).
+// Dipanggil langsung dari prosesLogin() kalau OTP tidak diperlukan, atau dipanggil
+// dari verifikasiOtpDanLanjut() setelah kode OTP benar.
+window.lanjutkanSetelahLogin = async function(emailInput) {
+  // Gerbang perangkat (Poin 4): Clock In lewat komputer diblokir — wajib dari HP dulu.
+  // (Opsi "Hadir" sudah disembunyikan dari dropdown khusus desktop; ini jaga-jaga
+  // kalau statusPilihanGlobal masih HADIR lewat jalur lain.) Izin tetap boleh dari
+  // desktop karena tidak butuh kehadiran fisik.
+  if (isDesktopBrowser() && window.statusPilihanGlobal === "HADIR (CLOCK IN)") {
     const sudahClockIn = await sudahClockInHariIniServer(emailInput);
     if (!sudahClockIn) {
-      alert("Login lewat komputer belum bisa dipakai sebelum Clock In hari ini. Silakan Clock In terlebih dahulu dari HP/perangkat mobile.");
+      alert("Clock In wajib dilakukan lewat HP/perangkat mobile terlebih dahulu.");
       await signOut(auth);
       return;
     }
   }
 
   // Simpan/hapus sesi email (password TIDAK PERNAH disimpan)
+  const ingatChecked = document.getElementById('check-ingat').checked;
   if (ingatChecked) {
     localStorage.setItem('zevanic_email', emailInput);
   } else {
@@ -405,6 +547,7 @@ window.prosesLogin = async function() {
   // Bypass Kamera
   const hariIni = new Date().toLocaleDateString('id-ID');
   const statusLokal = localStorage.getItem('zevanic_absen_' + emailInput);
+  const sudahClockInHariIni = statusLokal === hariIni;
 
   if (window.statusPilihanGlobal === "MASUK DASHBOARD") {
       window.pindahLayar('screen-dashboard');
@@ -412,7 +555,15 @@ window.prosesLogin = async function() {
       return;
   }
 
-  if (window.statusPilihanGlobal === "HADIR (CLOCK IN)" && statusLokal === hariIni) {
+  // Desktop yang sudah Clock In hari ini -> langsung ke Dashboard, lewati pilihan
+  // status apapun (Izin dkk tidak relevan lagi kalau memang sudah hadir).
+  if (isDesktopBrowser() && sudahClockInHariIni) {
+      window.pindahLayar('screen-dashboard');
+      window.pindahTab('tab-home');
+      return;
+  }
+
+  if (window.statusPilihanGlobal === "HADIR (CLOCK IN)" && sudahClockInHariIni) {
       alert("Anda sudah Clock In hari ini. Mengalihkan langsung ke Dashboard...");
       window.pindahLayar('screen-dashboard');
       window.pindahTab('tab-home');
@@ -423,6 +574,7 @@ window.prosesLogin = async function() {
   document.getElementById('label-status-kamera').innerText = "Mode: " + window.statusPilihanGlobal;
   window.pindahLayar('screen-camera');
 };
+
 
 window.prosesClockOut = function() {
   const hariIni = new Date().toLocaleDateString('id-ID');

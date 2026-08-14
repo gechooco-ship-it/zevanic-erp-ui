@@ -88,6 +88,11 @@
       <h2 class="text-white text-xl font-bold">Verifikasi Wajah / Foto Bukti</h2>
       <p id="label-status-kamera" class="text-blue-400 text-xs mt-1 font-semibold uppercase tracking-wider">Mode: Hadir</p>
     </div>
+    <div id="wadah-pilih-gudang" class="hidden w-full max-w-sm mt-3">
+      <label class="block text-gray-300 text-[11px] font-semibold mb-1">Pilih Gudang</label>
+      <select id="pilih-gudang-kamera" onchange="window.gudangDipilihGlobal = this.value; window.ambilLokasiGPS();" class="w-full px-3 py-2 bg-slate-800 text-white border border-slate-600 rounded-xl outline-none text-sm"></select>
+    </div>
+    <div id="status-lokasi-kamera" class="w-full max-w-sm text-center mt-2"></div>
     <div class="relative w-full max-w-sm aspect-[3/4] bg-gray-800 rounded-3xl overflow-hidden border-2 border-gray-700 shadow-2xl flex items-center justify-center my-4">
       <video id="kamera-feed" autoplay playsinline class="w-full h-full object-cover hidden"></video>
       <img id="hasil-foto" class="w-full h-full object-cover hidden" />
@@ -591,6 +596,7 @@
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this); muatDataSuperUser();" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Data Karyawan</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Slip Gaji</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Payroll</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-whatsapp', this); muatKonfigWhatsapp();" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition"><i class="fab fa-whatsapp mr-1"></i> WhatsApp Gateway</button>
           </div>
 
           <div id="sub-karyawan-antrean" class="sub-karyawan-content fade-in mt-4 space-y-4">
@@ -648,6 +654,33 @@
               <i class="fas fa-money-check-alt text-4xl text-orange-400"></i>
               <h4 class="font-bold text-orange-800 text-lg">Modul Payroll Server</h4>
               <p class="text-xs text-orange-600">Akan datang pada update pembaruan finansial.</p>
+            </div>
+          </div>
+
+          <div id="sub-karyawan-whatsapp" class="sub-karyawan-content hidden fade-in mt-4">
+            <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 max-w-lg">
+              <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fab fa-whatsapp text-green-500 mr-2"></i> Pengaturan WhatsApp Gateway (Fonnte)</h3>
+              <p class="text-[11px] text-gray-500">Notifikasi WhatsApp (OTP login perangkat baru, status akun) dikirim lewat Google Apps Script sebagai perantara aman ke Fonnte. Token Fonnte disimpan di Apps Script, bukan di sini.</p>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">URL Web App Apps Script</label>
+                <input type="text" id="wa-webapp-url" placeholder="https://script.google.com/macros/s/xxxxx/exec" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs font-mono">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Kunci Rahasia (Shared Secret)</label>
+                <input type="text" id="wa-secret" placeholder="Samakan dengan APP_SHARED_SECRET di Apps Script" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs font-mono">
+              </div>
+              <div class="flex items-center space-x-2">
+                <input type="checkbox" id="wa-otp-aktif" class="rounded text-blue-600 w-4 h-4">
+                <label for="wa-otp-aktif" class="text-xs font-semibold text-gray-600">Aktifkan verifikasi OTP saat login perangkat baru</label>
+              </div>
+              <button onclick="simpanKonfigWhatsapp()" class="w-full bg-green-600 text-white font-bold py-2.5 rounded-xl hover:bg-green-700 transition text-xs"><i class="fas fa-save mr-1"></i> Simpan Pengaturan</button>
+              <div class="pt-3 border-t space-y-2">
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Tes Kirim Pesan</label>
+                <div class="flex space-x-2">
+                  <input type="text" id="wa-test-nomor" placeholder="08xxxxxxxxxx" class="flex-1 px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs">
+                  <button onclick="tesKirimWhatsapp()" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-900 transition whitespace-nowrap">Kirim Tes</button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -763,6 +796,22 @@
     <div class="relative max-w-2xl w-full flex justify-center">
       <img id="img-preview-besar" src="" class="max-w-full max-h-[80vh] rounded-xl shadow-2xl object-contain">
       <button onclick="tutupPreviewFoto()" class="absolute -top-10 right-0 text-white hover:text-red-500 text-3xl transition"><i class="fas fa-times"></i></button>
+    </div>
+  </div>
+
+  <div id="modal-otp" class="hidden fixed inset-0 z-[120] bg-black/70 flex items-center justify-center p-4 fade-in">
+    <div class="bg-white w-full max-w-sm p-6 rounded-3xl shadow-2xl space-y-4 text-center">
+      <i class="fab fa-whatsapp text-5xl text-green-500"></i>
+      <div>
+        <h3 class="font-bold text-gray-800 text-sm">Verifikasi Perangkat Baru</h3>
+        <p class="text-[11px] text-gray-500 mt-1">Kode OTP telah dikirim lewat WhatsApp ke nomor <span id="otp-info-nomor" class="font-bold text-gray-700">****</span></p>
+      </div>
+      <input type="text" id="otp-input" maxlength="6" inputmode="numeric" placeholder="6 digit kode" class="w-full text-center tracking-[0.5em] text-lg font-bold px-3 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-green-500">
+      <button onclick="verifikasiOtpDanLanjut()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl text-sm transition">Verifikasi</button>
+      <div class="flex justify-between text-xs pt-1">
+        <button onclick="kirimUlangOtp()" class="text-blue-600 font-semibold hover:underline">Kirim Ulang</button>
+        <button onclick="batalkanOtp()" class="text-gray-400 font-semibold hover:underline">Batal</button>
+      </div>
     </div>
   </div>
 

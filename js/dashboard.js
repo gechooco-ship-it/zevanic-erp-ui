@@ -68,6 +68,18 @@ window.simpanKeFirebase = async function(fotoBase64) {
       dataKirim.tanggal_pengajuan = window.tanggalIzinGlobal;
       dataKirim.keterangan = window.keteranganIzinGlobal;
     }
+    // Poin 7 (Geofencing): sertakan gudang, koordinat, dan status radius untuk Clock In/Out
+    if (window.statusPilihanGlobal === "HADIR (CLOCK IN)" || window.statusPilihanGlobal === "CLOCK OUT") {
+      dataKirim.gudang = window.gudangDipilihGlobal || "";
+      if (window.koordinatGlobal) {
+        dataKirim.koordinat = { lat: window.koordinatGlobal.lat, lng: window.koordinatGlobal.lng };
+      }
+      if (window.statusRadiusGlobal) {
+        dataKirim.jarak_meter = window.statusRadiusGlobal.jarak;
+        dataKirim.radius_izin_meter = window.statusRadiusGlobal.radiusIzin;
+        dataKirim.status_radius = window.statusRadiusGlobal.dalamRadius ? "DALAM RADIUS" : "DI LUAR RADIUS";
+      }
+    }
     await addDoc(collection(db, "absensi"), dataKirim);
     return true;
   } catch (e) {
@@ -77,6 +89,20 @@ window.simpanKeFirebase = async function(fotoBase64) {
 };
 
 window.kirimDataKeCloud = async function() {
+  // Poin 7: jaga-jaga (defense in depth) — tombol jepret sudah dikunci kalau di luar
+  // radius, tapi cek ulang di sini juga sebelum benar-benar terkirim ke server.
+  const perluLokasi = (window.statusPilihanGlobal === "HADIR (CLOCK IN)" || window.statusPilihanGlobal === "CLOCK OUT");
+  if (perluLokasi) {
+    if (!window.koordinatGlobal) {
+      alert("Lokasi GPS belum berhasil diverifikasi. Silakan coba lagi.");
+      return;
+    }
+    if (window.statusRadiusGlobal && window.statusRadiusGlobal.dalamRadius === false) {
+      alert("Anda berada di luar radius gudang. Absensi tidak bisa dikirim.");
+      return;
+    }
+  }
+
   const btnFinal = document.getElementById('btn-clock-in-final');
   btnFinal.innerText = "Mengirim...";
   btnFinal.disabled = true;
@@ -273,6 +299,21 @@ window.setujuiKaryawanBaru = async function(emailId) {
       gudang_penempatan: gudangTerpilih,
       status_approval: "APPROVED"
     });
+
+    // Notifikasi WA (Poin 3): akun sudah aktif
+    try {
+      const userSnap = await getDoc(doc(db, "users", emailId));
+      if (userSnap.exists()) {
+        const d = userSnap.data();
+        if (d.hp && window.kirimPesanWhatsapp) {
+          window.kirimPesanWhatsapp(
+            d.hp,
+            `Halo ${d.nama || ''}, akun Zevanic ERP Anda sudah *AKTIF*. Anda sekarang bisa login dan melakukan absensi.`
+          ).catch(e => console.error("Gagal kirim notifikasi WA aktivasi:", e));
+        }
+      }
+    } catch (e) { console.error("Gagal ambil data untuk notifikasi WA:", e); }
+
     alert("Karyawan berhasil disetujui dan diaktifkan!");
     window.muatDataAntreanKaryawan();
   } catch (e) {
@@ -291,6 +332,66 @@ window.tolakKaryawanBaru = async function(emailId) {
     console.error("Gagal menolak:", e);
     alert("Gagal memproses penolakan.");
   }
+};
+
+// =========================================================================
+// PENGATURAN WHATSAPP GATEWAY (Menu Karyawan > WhatsApp Gateway, khusus Owner)
+// Menyimpan URL Web App Apps Script + kunci rahasia ke Firestore. Token
+// Fonnte sendiri TIDAK disimpan di sini — itu ada di Apps Script.
+// =========================================================================
+window.muatKonfigWhatsapp = async function() {
+  try {
+    const configSnap = await getDoc(doc(db, "config", "whatsapp_gateway"));
+    if (configSnap.exists()) {
+      const cfg = configSnap.data();
+      document.getElementById('wa-webapp-url').value = cfg.webapp_url || '';
+      document.getElementById('wa-secret').value = cfg.shared_secret || '';
+      document.getElementById('wa-otp-aktif').checked = !!cfg.otp_aktif;
+    }
+  } catch (e) {
+    console.error("Gagal memuat konfigurasi WhatsApp:", e);
+  }
+};
+
+window.simpanKonfigWhatsapp = async function() {
+  const webappUrl = document.getElementById('wa-webapp-url').value.trim();
+  const secret = document.getElementById('wa-secret').value.trim();
+  const otpAktif = document.getElementById('wa-otp-aktif').checked;
+
+  if (!webappUrl || !secret) {
+    alert("URL Web App dan Kunci Rahasia wajib diisi!");
+    return;
+  }
+
+  try {
+    await setDoc(doc(db, "config", "whatsapp_gateway"), {
+      webapp_url: webappUrl,
+      shared_secret: secret,
+      otp_aktif: otpAktif
+    });
+    alert("Pengaturan WhatsApp Gateway berhasil disimpan!");
+  } catch (e) {
+    console.error("Gagal menyimpan konfigurasi WhatsApp:", e);
+    alert("Gagal menyimpan pengaturan.");
+  }
+};
+
+window.tesKirimWhatsapp = async function() {
+  const nomor = document.getElementById('wa-test-nomor').value.trim();
+  if (!nomor) {
+    alert("Masukkan nomor HP tujuan tes terlebih dahulu!");
+    return;
+  }
+  const btn = event.currentTarget;
+  const teksAsli = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+  btn.disabled = true;
+
+  const berhasil = await window.kirimPesanWhatsapp(nomor, "Ini pesan tes dari Zevanic ERP. Jika Anda menerima ini, WhatsApp Gateway sudah tersambung dengan benar. \u2705");
+
+  btn.innerHTML = teksAsli;
+  btn.disabled = false;
+  alert(berhasil ? "Pesan tes berhasil dikirim! Cek WhatsApp di nomor tersebut." : "Gagal mengirim pesan tes. Cek kembali URL Web App & Kunci Rahasia, pastikan sudah disimpan, dan cek Script Properties di Apps Script.");
 };
 
 window.bukaEditUser = async function(emailId) {
@@ -851,6 +952,14 @@ window.muatDataAdminACC = async function() {
         countPending++;
         const fotoUrl = data.foto_selfie || data.foto || "https://via.placeholder.com/150";
         const tanggalStr = data.waktu ? new Date(data.waktu).toLocaleString('id-ID') : "-";
+        const koordinatHtml = data.koordinat
+          ? `${data.koordinat.lat.toFixed(5)}, ${data.koordinat.lng.toFixed(5)}<br><a href="https://www.google.com/maps?q=${data.koordinat.lat},${data.koordinat.lng}" target="_blank" class="text-blue-500 text-[9px]"><i class="fas fa-map-marker-alt"></i> Lihat di Peta</a>`
+          : '-';
+        const statusRadiusHtml = data.status_radius === "DALAM RADIUS"
+          ? `<span class="inline-block px-2 py-0.5 bg-green-100 text-green-700 font-bold text-[9px] rounded-full">Dalam Radius (${data.jarak_meter || 0}m)</span>`
+          : data.status_radius === "DI LUAR RADIUS"
+          ? `<span class="inline-block px-2 py-0.5 bg-red-100 text-red-700 font-bold text-[9px] rounded-full">Di Luar Radius (${data.jarak_meter || 0}m)</span>`
+          : '<span class="text-gray-300">-</span>';
 
         html += `
           <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
@@ -867,6 +976,8 @@ window.muatDataAdminACC = async function() {
               <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Waktu</span> <b class="text-slate-800">${tanggalStr}</b></div>
               <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Gudang</span> <b class="text-slate-800">${data.gudang || "-"}</b></div>
               <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Shift</span> <b class="text-slate-800">${data.shift || "-"}</b></div>
+              <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Koordinat</span> <b class="text-slate-800">${koordinatHtml}</b></div>
+              <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Status Radius</span> ${statusRadiusHtml}</div>
             </div>
             <div class="grid grid-cols-2 gap-3 pt-2">
               <div>
