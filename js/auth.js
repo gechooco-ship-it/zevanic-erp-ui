@@ -537,12 +537,15 @@ window.lanjutkanSetelahLogin = async function(emailInput) {
 
   const hariIni = new Date().toLocaleDateString('id-ID');
   const statusLokal = localStorage.getItem('zevanic_absen_' + emailInput);
-  const sudahClockInHariIni = statusLokal === hariIni;
+  const sudahClockInLokal = statusLokal === hariIni; // cache khusus perangkat ini
 
-  // Desktop: satu-satunya jalan masuk adalah kalau sudah Clock In hari ini
-  // (lewat HP). Tidak ada alur kamera/Izin/Cuti sama sekali di desktop.
+  // Desktop: satu-satunya jalan masuk adalah kalau sudah Clock In hari ini.
+  // WAJIB dicek ke server (bukan localStorage) — Clock In terjadi di HP, yaitu
+  // perangkat yang BEDA dengan desktop ini, jadi localStorage desktop tidak
+  // akan pernah tahu soal Clock In yang terjadi di HP.
   if (isDesktopBrowser()) {
-    if (sudahClockInHariIni) {
+    const sudahClockInServer = await sudahClockInHariIniServer(emailInput);
+    if (sudahClockInServer) {
       window.pindahLayar('screen-dashboard');
       window.pindahTab('tab-home');
     } else {
@@ -559,7 +562,7 @@ window.lanjutkanSetelahLogin = async function(emailInput) {
       return;
   }
 
-  if (window.statusPilihanGlobal === "HADIR (CLOCK IN)" && sudahClockInHariIni) {
+  if (window.statusPilihanGlobal === "HADIR (CLOCK IN)" && sudahClockInLokal) {
       alert("Anda sudah Clock In hari ini. Mengalihkan langsung ke Dashboard...");
       window.pindahLayar('screen-dashboard');
       window.pindahTab('tab-home');
