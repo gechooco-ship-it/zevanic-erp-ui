@@ -85,89 +85,6 @@
     </div>
   </div>
 
-  <div id="screen-register" class="hidden h-auto min-h-screen w-full bg-slate-50 flex flex-col items-center justify-start p-4 py-10 fade-in overflow-y-auto">
-    <div class="w-full max-w-2xl bg-white p-8 rounded-3xl shadow-xl border border-gray-100 my-auto">
-      <div class="flex justify-between items-center mb-6 border-b pb-4">
-        <div>
-          <h2 class="text-xl font-black text-gray-900">Formulir Pendaftaran Karyawan</h2>
-          <p class="text-xs text-gray-500">Sesuai standar operasional Zevanic ERP</p>
-        </div>
-        <button onclick="pindahLayar('screen-login')" class="text-gray-400 hover:text-gray-600 text-sm font-bold"><i class="fas fa-times text-lg"></i></button>
-      </div>
-
-      <div class="space-y-4 text-xs">
-        <div class="grid grid-cols-2 gap-4 bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
-          <div><label class="block font-bold text-blue-800 mb-1">ID Karyawan (Auto)</label><input type="text" id="reg-id" readonly class="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl font-mono text-gray-600"></div>
-          <div><label class="block font-bold text-blue-800 mb-1">ID APP (Auto)</label><input type="text" id="reg-idapp" readonly class="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl font-mono text-gray-600"></div>
-        </div>
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-id-card text-blue-600 mr-2"></i> Data Identitas & Personal</h3>
-          <div class="grid grid-cols-2 gap-4">
-            <div><label class="block font-semibold text-gray-600 mb-1">Nama Lengkap (Sesuai KTP) *</label><input type="text" id="reg-nama" placeholder="Nama lengkap" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">NIK KTP (16 Angka) *</label><input type="text" id="reg-nik" maxlength="16" placeholder="3204xxxxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-          </div>
-          <div class="grid grid-cols-3 gap-3">
-            <div><label class="block font-semibold text-gray-600 mb-1">Jenis Kelamin *</label><select id="reg-gender" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="Pria">Pria</option><option value="Wanita">Wanita</option></select></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Tempat Lahir *</label><input type="text" id="reg-tempatlahir" placeholder="Kota Kelahiran" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Tanggal Lahir *</label><input type="date" id="reg-tgl" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-          </div>
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">Upload Foto KTP (Wajib) *</label>
-            <div class="flex items-center space-x-3">
-              <input type="file" id="reg-ktpfile" accept="image/*" onchange="previewKTP(event)" class="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-              <img id="preview-ktp-img" class="w-12 h-12 object-cover rounded-lg border hidden shadow-sm cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto(this.src)" title="Klik untuk memperbesar KTP" />
-            </div>
-          </div>
-        </div>
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-map-marker-alt text-blue-600 mr-2"></i> Kontak & Domisili</h3>
-          <div class="grid grid-cols-2 gap-4">
-            <div><label class="block font-semibold text-gray-600 mb-1">Email Aktif (Untuk Login) *</label><input type="email" id="reg-email" placeholder="email@zevanic.com" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">No. HP / WhatsApp (Verifikasi OTP) *</label><input type="text" id="reg-hp" placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-          </div>
-          <div class="p-3 bg-gray-50 rounded-2xl border space-y-2">
-            <span class="font-bold text-gray-700">Alamat Tempat Tinggal Sekarang</span>
-            <div class="grid grid-cols-2 gap-2"><select id="reg-tinggal-kab" onchange="updateKecamatanTinggal()" class="px-3 py-2 bg-white border rounded-xl"><option value="Bandung">Kab. Bandung</option><option value="Bandung Barat">Kab. Bandung Barat</option><option value="Cimahi">Kota Cimahi</option><option value="Garut">Kab. Garut</option></select><select id="reg-tinggal-kec" class="px-3 py-2 bg-white border rounded-xl"></select></div>
-            <input type="text" id="reg-tinggal-detail" placeholder="Nama Jalan, RT/RW, No. Rumah" class="w-full px-3 py-2 bg-white border rounded-xl">
-          </div>
-          <div class="p-3 bg-gray-50 rounded-2xl border space-y-2">
-            <div class="flex justify-between items-center"><span class="font-bold text-gray-700">Alamat Sesuai KTP</span><label class="flex items-center space-x-1 cursor-pointer text-[11px] text-blue-600 font-semibold"><input type="checkbox" id="check-sama-alamat" onchange="salinAlamat()" class="rounded"><span>Sama dengan tempat tinggal</span></label></div>
-            <div class="grid grid-cols-2 gap-2"><select id="reg-ktp-kab" onchange="updateKecamatanKTP()" class="px-3 py-2 bg-white border rounded-xl"><option value="Bandung">Kab. Bandung</option><option value="Bandung Barat">Kab. Bandung Barat</option><option value="Cimahi">Kota Cimahi</option><option value="Garut">Kab. Garut</option></select><select id="reg-ktp-kec" class="px-3 py-2 bg-white border rounded-xl"></select></div>
-            <input type="text" id="reg-ktp-detail" placeholder="Nama Jalan, RT/RW, No. Rumah" class="w-full px-3 py-2 bg-white border rounded-xl">
-          </div>
-        </div>
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-graduation-cap text-blue-600 mr-2"></i> Status Pernikahan & Pendidikan</h3>
-          <div class="grid grid-cols-2 gap-4">
-            <div><label class="block font-semibold text-gray-600 mb-1">Status Pernikahan *</label><select id="reg-nikah" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="Lajang">Lajang</option><option value="Menikah">Menikah</option><option value="Duda/Janda">Duda / Janda</option></select></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Jumlah Tanggungan *</label><input type="text" id="reg-tanggungan" placeholder="Contoh: 0 atau Istri dan 2 Anak" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-          </div>
-          <div class="grid grid-cols-3 gap-2">
-            <div><label class="block font-semibold text-gray-600 mb-1">Pendidikan Terakhir *</label><select id="reg-pendidikan" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="SMA/SMK">SMA / SMK</option><option value="D3">Diploma (D3)</option><option value="S1">Sarjana (S1)</option></select></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Nama Sekolah / Kampus *</label><input type="text" id="reg-sekolah" placeholder="Nama instansi" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Jurusan *</label><input type="text" id="reg-jurusan" placeholder="Jurusan" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-          </div>
-        </div>
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-university text-blue-600 mr-2"></i> Perbankan & Kontak Darurat</h3>
-          <div class="grid grid-cols-3 gap-2">
-            <div><label class="block font-semibold text-gray-600 mb-1">Bank *</label><select id="reg-bank" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="BCA">BCA</option><option value="Mandiri">Mandiri</option><option value="BNI">BNI</option><option value="BRI">BRI</option></select></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">No. Rekening *</label><input type="text" id="reg-norek" placeholder="Nomor Rekening" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Atas Nama Rekening *</label><input type="text" id="reg-namarek" placeholder="Nama pemilik" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-          </div>
-          <div class="grid grid-cols-3 gap-2 pt-2">
-            <div><label class="block font-semibold text-gray-600 mb-1">Nama Kontak Darurat *</label><input type="text" id="reg-darurat-nama" placeholder="Keluarga/Kerabat" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">No. HP Darurat *</label><input type="text" id="reg-darurat-hp" placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Hubungan *</label><input type="text" id="reg-darurat-hub" placeholder="Contoh: Ayah / Kakak" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-          </div>
-        </div>
-        <button onclick="simpanPendaftaranBaru()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg transition mt-4">
-          Daftarkan Akun Karyawan <i class="fas fa-check ml-1"></i>
-        </button>
-      </div>
-    </div>
-  </div>
-
   <div id="screen-camera" class="hidden min-h-screen bg-slate-900 flex-col items-center justify-between p-6 fade-in">
     <div class="w-full text-center mt-4">
       <h2 class="text-white text-xl font-bold">Verifikasi Wajah / Foto Bukti</h2>
@@ -197,744 +114,6 @@
     </div>
   </div>
 
-  <div id="screen-dashboard" class="hidden h-[100dvh] w-full relative fade-in bg-slate-50 flex overflow-hidden">
-
-    <aside class="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col shadow-sm z-20 shrink-0">
-      <div class="h-20 flex flex-col justify-center px-6 border-b border-gray-100">
-        <h1 class="text-xl font-black tracking-tight text-gray-900">ZEVANIC HOUSE</h1>
-        <p id="label-role-sidebar" class="text-[9px] tracking-widest text-blue-600 font-bold uppercase mt-0.5">Role: Operator</p>
-      </div>
-      <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-        <button onclick="pindahTab('tab-home')" class="w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl bg-blue-50 text-blue-600 transition">
-          <i class="fas fa-home w-6 text-left"></i> Dashboard
-        </button>
-        <button onclick="pindahTab('tab-profil')" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 transition">
-          <i class="fas fa-user-circle w-6 text-left"></i> Account Profile
-        </button>
-        <button onclick="pindahTab('tab-riwayat')" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 transition">
-          <i class="far fa-clock w-6 text-left"></i> Riwayat Absensi
-        </button>
-        <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-purple-600 hover:bg-purple-50 transition font-bold mt-4 border-t pt-4">
-          <i class="fas fa-clipboard-check w-6 text-left"></i> Menu Absensi
-        </button>
-        <button onclick="pindahTab('tab-superuser')" id="menu-superuser" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-red-600 hover:bg-red-50 transition font-bold">
-          <i class="fas fa-users-cog w-6 text-left"></i> Menu Karyawan
-        </button>
-      </nav>
-      <div class="p-4 border-t border-gray-100">
-        <button onclick="pindahLayar('screen-login')" class="w-full flex items-center px-4 py-2 text-sm font-bold rounded-xl text-red-500 hover:bg-red-50 transition">
-          <i class="fas fa-sign-out-alt w-6 text-left"></i> Logout
-        </button>
-      </div>
-    </aside>
-
-    <div class="flex-1 flex flex-col relative h-full overflow-hidden">
-      <header class="h-20 bg-white border-b border-gray-100 px-6 py-4 flex justify-between items-center shadow-sm shrink-0 z-10">
-        <div class="flex items-center space-x-3">
-          <h2 class="text-xl font-black tracking-tight text-gray-800 hidden sm:inline">ERP PORTAL</h2>
-          <span id="label-badge-role" class="text-xs font-semibold text-gray-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
-            <i class="far fa-clock mr-1.5"></i> ERP PORTAL
-          </span>
-        </div>
-        <div class="flex items-center space-x-3">
-          <span id="teks-nama-user" class="text-xs font-bold text-gray-700">Hi, Karyawan</span>
-        </div>
-      </header>
-
-      <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-8 min-h-0">
-        
-        <div id="tab-home" class="space-y-6">
-          <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-6 md:p-8 text-white shadow-lg">
-            <h2 class="text-2xl font-black mb-2">Selamat Datang di Zevanic ERP</h2>
-            <p class="text-blue-100 text-sm max-w-xl">Sistem manajemen presensi & operasional terintegrasi cloud.</p>
-            <button onclick="pindahLayar('screen-login')" class="mt-5 bg-white text-blue-600 font-bold px-6 py-2.5 rounded-xl text-sm shadow-md hover:bg-blue-50 transition">
-              <i class="fas fa-plus-circle mr-2"></i> Buat Absen / Izin Baru
-            </button>
-          </div>
-        </div>
-
-        <div id="tab-profil" class="tab-content hidden fade-in max-w-5xl mx-auto h-full flex flex-col space-y-4">
-          
-          <!-- HEADER & SUB-MENU CARD (MENGIKUTI DESAIN MENU ABSENSI) -->
-          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-            <div>
-              <h2 class="text-lg font-black text-slate-800 flex items-center">
-                <i class="fas fa-id-card text-blue-600 mr-2.5"></i> Profil & Identitas Karyawan
-              </h2>
-              <p class="text-xs text-gray-500 mt-0.5">Kelola data diri, QR identitas kerja, riwayat kehadiran, pencapaian, serta keamanan akun Anda.</p>
-            </div>
-
-            <!-- TOMBOL SUB-MENU (STYLE PRESISI SEPERTI ABSENSI) -->
-            <div class="flex items-center space-x-2 border-t pt-4 overflow-x-auto hide-scrollbar">
-              <button onclick="pindahSubProfile('profil-qr', this)" class="sub-profil-btn bg-slate-800 text-white font-bold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap shadow-sm transition flex items-center">
-                <i class="fas fa-qrcode mr-1.5"></i> ID & QR
-              </button>
-              <button onclick="pindahSubProfile('profil-datadiri', this)" class="sub-profil-btn bg-gray-100 text-gray-600 hover:bg-gray-200 font-semibold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap transition flex items-center">
-                <i class="fas fa-user-edit mr-1.5"></i> Data Diri
-              </button>
-              <button onclick="pindahSubProfile('profil-riwayat', this)" class="sub-profil-btn bg-gray-100 text-gray-600 hover:bg-gray-200 font-semibold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap transition flex items-center">
-                <i class="fas fa-history mr-1.5"></i> Riwayat & Rekap
-              </button>
-              <button onclick="pindahSubProfile('profil-pencapaian', this)" class="sub-profil-btn bg-gray-100 text-gray-600 hover:bg-gray-200 font-semibold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap transition flex items-center">
-                <i class="fas fa-trophy mr-1.5"></i> Pencapaian
-              </button>
-              <button onclick="pindahSubProfile('profil-keamanan', this)" class="sub-profil-btn bg-gray-100 text-gray-600 hover:bg-gray-200 font-semibold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap transition flex items-center">
-                <i class="fas fa-key mr-1.5"></i> Keamanan
-              </button>
-            </div>
-          </div>
-
-          <!-- KONTEN 1: QR CODE & IDENTITAS -->
-          <div id="profil-qr" class="sub-profil-content fade-in mt-4">
-            <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center max-w-sm mx-auto text-center space-y-4">
-              <div class="w-32 h-32 p-2 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300">
-                <img id="profil-qr-img" src="" alt="QR Code" class="w-full h-full object-contain">
-              </div>
-              <div>
-                <h2 id="profil-nama-utama" class="text-xl font-black text-slate-800">Nama Pegawai</h2>
-                <p id="profil-id-app-utama" class="text-sm font-mono font-bold text-blue-600 mt-1">ZMS-XXXX</p>
-                <span class="inline-block px-3 py-1 bg-green-100 text-green-700 text-[10px] font-bold rounded-full mt-2" id="profil-jabatan-utama">Staff</span>
-              </div>
-              <p class="text-[10px] text-gray-400 max-w-[200px] leading-relaxed">Tunjukkan QR ini saat melakukan absensi fisik atau verifikasi proses SPK.</p>
-            </div>
-          </div>
-
-          <!-- KONTEN 2: CRUD DATA DIRI (SUPER LENGKAP SESUAI REGISTRASI) -->
-          <div id="profil-datadiri" class="sub-profil-content hidden fade-in mt-4 max-w-4xl mx-auto w-full">
-            <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-6 text-xs">
-              
-              <div class="flex items-center border-b pb-3">
-                <i class="fas fa-user-edit text-blue-600 text-xl mr-3"></i>
-                <div>
-                  <h3 class="font-bold text-gray-800 text-sm">Lengkapi / Perbarui Data Diri</h3>
-                  <p class="text-[10px] text-gray-500">Pastikan seluruh data selaras dengan identitas KTP dan data pendaftaran awal.</p>
-                </div>
-              </div>
-
-              <!-- 1. Identitas Pribadi -->
-              <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <h4 class="font-bold text-gray-700 mb-3 border-b pb-1">1. Identitas Pribadi</h4>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div><label class="block font-semibold text-gray-600 mb-1">Nama Lengkap (Sesuai KTP)</label><input type="text" id="upd-nama" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">NIK</label><input type="text" id="upd-nik" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">Jenis Kelamin</label><select id="upd-jk" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"><option value="">-- Pilih --</option><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">Tempat Lahir</label><input type="text" id="upd-tempat-lahir" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">Tanggal Lahir</label><input type="date" id="upd-tgl-lahir" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                </div>
-              </div>
-
-              <!-- 2. Informasi Kontak -->
-              <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <h4 class="font-bold text-gray-700 mb-3 border-b pb-1">2. Informasi Kontak</h4>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div><label class="block font-semibold text-gray-600 mb-1">No. Handphone (WhatsApp)</label><input type="text" id="upd-hp" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">Email Aktif (Identitas Login)</label><input type="text" id="upd-email" disabled class="w-full px-3 py-2 bg-gray-200 border rounded-xl outline-none text-gray-500 cursor-not-allowed" title="Hubungi Admin untuk ubah Email"></div>
-                </div>
-              </div>
-
-              <!-- 3. Alamat Lengkap -->
-              <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <h4 class="font-bold text-gray-700 mb-3 border-b pb-1">3. Alamat Lengkap</h4>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <!-- Alamat KTP -->
-                  <div class="space-y-3">
-                    <label class="block font-bold text-gray-800 text-xs text-blue-600">A. Alamat Sesuai KTP</label>
-                    <div><label class="block font-semibold text-gray-600 mb-1">Kabupaten/Kota</label><input type="text" id="upd-ktp-kab" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                    <div><label class="block font-semibold text-gray-600 mb-1">Kecamatan</label><input type="text" id="upd-ktp-kec" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                    <div><label class="block font-semibold text-gray-600 mb-1">Alamat Detail (Jalan/RT/RW)</label><textarea id="upd-ktp-detail" rows="2" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></textarea></div>
-                  </div>
-                  <!-- Alamat Domisili -->
-                  <div class="space-y-3">
-                    <label class="block font-bold text-gray-800 text-xs text-green-600">B. Alamat Domisili Saat Ini</label>
-                    <div><label class="block font-semibold text-gray-600 mb-1">Kabupaten/Kota</label><input type="text" id="upd-dom-kab" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                    <div><label class="block font-semibold text-gray-600 mb-1">Kecamatan</label><input type="text" id="upd-dom-kec" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                    <div><label class="block font-semibold text-gray-600 mb-1">Alamat Detail (Jalan/RT/RW)</label><textarea id="upd-dom-detail" rows="2" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></textarea></div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 4. Pendidikan & Keluarga -->
-              <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <h4 class="font-bold text-gray-700 mb-3 border-b pb-1">4. Latar Belakang & Keluarga</h4>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div><label class="block font-semibold text-gray-600 mb-1">Pendidikan Terakhir</label><select id="upd-pendidikan" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"><option value="">-- Pilih --</option><option value="SD">SD</option><option value="SMP">SMP</option><option value="SMA/SMK">SMA/SMK</option><option value="D3">D3</option><option value="S1">S1</option><option value="S2">S2</option></select></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">Nama Sekolah / Kampus</label><input type="text" id="upd-sekolah" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">Jurusan</label><input type="text" id="upd-jurusan" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">Status Pernikahan</label><select id="upd-nikah" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"><option value="">-- Pilih --</option><option value="Belum Menikah">Belum Menikah</option><option value="Menikah">Menikah</option><option value="Cerai">Cerai</option></select></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">Jumlah Tanggungan (Orang)</label><input type="number" id="upd-tanggungan" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500" min="0"></div>
-                </div>
-              </div>
-
-              <!-- 5. Kontak Darurat -->
-              <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <h4 class="font-bold text-gray-700 mb-3 border-b pb-1">5. Kontak Darurat</h4>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div><label class="block font-semibold text-gray-600 mb-1">Nama Kontak Darurat</label><input type="text" id="upd-darurat-nama" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">Hubungan</label><input type="text" id="upd-darurat-hub" placeholder="Ibu / Ayah / Suami / dll" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">No. HP Darurat</label><input type="text" id="upd-darurat-hp" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                </div>
-              </div>
-
-              <!-- 6. Data Rekening Bank -->
-              <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-                <h4 class="font-bold text-gray-700 mb-3 border-b pb-1">6. Data Rekening Bank</h4>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div><label class="block font-semibold text-gray-600 mb-1">Nama Bank</label><input type="text" id="upd-bank" placeholder="BCA / Mandiri / BRI / dll" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">No. Rekening</label><input type="text" id="upd-norek" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">Atas Nama Rekening</label><input type="text" id="upd-namarek" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-                </div>
-              </div>
-
-              <!-- Tombol Simpan -->
-              <button onclick="simpanUpdateDataDiriLengkap()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition shadow-md mt-4 flex justify-center items-center text-sm">
-                <i class="fas fa-save mr-2"></i> Simpan Seluruh Pembaruan Data
-              </button>
-            </div>
-          </div>
-
-          <!-- KONTEN 3: RIWAYAT ABSENSI & REKAP (PLACEHOLDER) -->
-          <div id="profil-riwayat" class="sub-profil-content hidden fade-in mt-4">
-            <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm text-center text-gray-500 py-10">
-              <i class="fas fa-calendar-check text-4xl text-gray-300 mb-3"></i>
-              <h3 class="font-bold text-gray-800 text-sm">Modul Riwayat Absensi & Rekapitulasi</h3>
-              <p class="text-xs mt-1">Akan dibangun di Tahap 2 (Fitur Filter, Aju Banding, Export XLS).</p>
-            </div>
-          </div>
-
-          <!-- KONTEN 4: PENCAPAIAN (PLACEHOLDER) -->
-          <div id="profil-pencapaian" class="sub-profil-content hidden fade-in mt-4">
-            <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm text-center text-gray-500 py-10">
-              <i class="fas fa-trophy text-4xl text-yellow-300 mb-3"></i>
-              <h3 class="font-bold text-gray-800 text-sm">Modul Pencapaian & Penilaian SPK</h3>
-              <p class="text-xs mt-1">Sedang dalam pengembangan operasional.</p>
-            </div>
-          </div>
-
-          <!-- KONTEN 5: KEAMANAN & PASSWORD -->
-          <div id="profil-keamanan" class="sub-profil-content hidden fade-in mt-4 max-w-md mx-auto w-full">
-            <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4 text-xs">
-              <h3 class="font-bold text-gray-800 border-b pb-2"><i class="fas fa-shield-alt text-red-500 mr-2"></i> Update Password</h3>
-              <p class="text-[10px] text-gray-500">Ubah kata sandi Anda secara berkala untuk menjaga keamanan akun.</p>
-              <div><label class="block font-semibold text-gray-600 mb-1">Password Lama</label><input type="password" id="upd-pass-lama" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-red-500"></div>
-              <div><label class="block font-semibold text-gray-600 mb-1">Password Baru</label><input type="password" id="upd-pass-baru" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-red-500"></div>
-              <button class="w-full bg-slate-800 text-white font-bold py-2.5 rounded-xl hover:bg-slate-900 transition shadow-sm mt-2">Update Password</button>
-            </div>
-          </div>
-
-        </div>
-        <div id="tab-riwayat" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
-        
-        <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <h2 class="text-lg font-black text-slate-800 flex items-center">
-              <i class="fas fa-file-invoice text-blue-600 mr-2.5"></i> Riwayat & Rekapitulasi Absensi
-            </h2>
-            <p class="text-xs text-gray-500 mt-0.5">Filter laporan kehadiran, pantau ringkasan statistik, dan unduh file rekapitulasi.</p>
-          </div>
-          <button onclick="exportKeCSV()" class="bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2.5 rounded-2xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5">
-            <i class="fas fa-file-excel text-sm"></i>
-            <span>Export Laporan CSV</span>
-          </button>
-        </div>
-
-        <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-3">
-          <h3 class="text-xs font-bold text-gray-700 border-b pb-2"><i class="fas fa-filter text-slate-600 mr-1.5"></i> Filter Parameter Laporan</h3>
-          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-            <div>
-              <label class="block text-[11px] font-semibold text-gray-600 mb-1">Dari Tanggal</label>
-              <input type="date" id="filter-tgl-mulai" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold text-gray-600 mb-1">Sampai Tanggal</label>
-              <input type="date" id="filter-tgl-selesai" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold text-gray-600 mb-1">Filter Gudang</label>
-              <select id="filter-gudang" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="ALL">Semua Gudang</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-[11px] font-semibold text-gray-600 mb-1">Filter Shift</label>
-              <select id="filter-shift" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                <option value="ALL">Semua Shift</option>
-              </select>
-            </div>
-          </div>
-          <div class="flex justify-end pt-1">
-            <button onclick="muatDataRiwayat()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-5 py-2 rounded-xl text-xs transition shadow-sm flex items-center space-x-1.5">
-              <i class="fas fa-search"></i>
-              <span>Tampilkan Laporan</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total Hadir</span>
-            <span id="stat-hadir" class="text-xl font-black text-green-600 mt-1 block">0</span>
-          </div>
-          <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Status ACC Valid</span>
-            <span id="stat-acc" class="text-xl font-black text-blue-600 mt-1 block">0</span>
-          </div>
-          <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Seragam Tidak Sesuai</span>
-            <span id="stat-seragam" class="text-xl font-black text-amber-500 mt-1 block">0</span>
-          </div>
-          <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Izin / Cuti / Ditolak</span>
-            <span id="stat-izin" class="text-xl font-black text-red-500 mt-1 block">0</span>
-          </div>
-        </div>
-
-        <div id="container-riwayat-absensi"></div>
-
-      </div>
-
-      <div id="modal-aju-banding" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 fade-in">
-        <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl space-y-4 text-xs">
-          <div class="flex justify-between items-center border-b pb-3">
-            <h3 class="font-bold text-gray-800 text-sm"><i class="fas fa-gavel text-amber-500 mr-1.5"></i> Form Pengajuan Sanggahan / Aju Banding</h3>
-            <button onclick="tutupModalAjuBanding()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times text-base"></i></button>
-          </div>
-          <p class="text-[11px] text-gray-500">Sampaikan alasan sanggahan Anda kepada Admin / Owner apabila status presensi atau catatan seragam Anda perlu dikoreksi.</p>
-          <input type="hidden" id="banding-doc-id">
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">Alasan / Catatan Sanggahan *</label>
-            <textarea id="banding-alasan" rows="3" placeholder="Jelaskan alasan atau bukti penyesuaian..." class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500"></textarea>
-          </div>
-          <div class="flex space-x-2 pt-2">
-            <button onclick="tutupModalAjuBanding()" class="w-1/2 bg-gray-100 font-bold py-2.5 rounded-xl text-gray-600 hover:bg-gray-200 transition">Batal</button>
-            <button onclick="kirimAjuBanding()" class="w-1/2 bg-amber-500 font-bold py-2.5 rounded-xl text-white hover:bg-amber-600 transition shadow-sm">Kirim Sanggahan</button>
-          </div>
-        </div>
-      </div>
-
-        <div id="tab-admin-acc" class="hidden space-y-4">
-          <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200">
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this); muatConfigAbsensi();" class="sub-absensi-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Absensi</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this); muatDataPenjadwalan();" class="sub-absensi-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Penjadwalan</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this)" class="sub-absensi-btn bg-blue-600 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Accept Absensi</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this); siapkanFilterRekap();" class="sub-absensi-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Rekap Absensi</button>
-          </div>
-
-          <div id="sub-absensi-config" class="sub-absensi-content hidden fade-in mt-4 space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
-              <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
-                <h3 class="font-bold text-gray-800 border-b pb-2"><i class="fas fa-building text-blue-600 mr-2"></i> Master Gudang & Lokasi</h3>
-                <div class="space-y-3 text-xs">
-                  <div>
-                    <label class="block font-semibold text-gray-600 mb-1">Nama Gudang / Cabang</label>
-                    <input type="text" id="conf-gudang-nama" placeholder="Contoh: Gudang Utama" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                  </div>
-                  <div class="grid grid-cols-2 gap-3">
-                    <div>
-                      <label class="block font-semibold text-gray-600 mb-1">Latitude</label>
-                      <input type="text" id="conf-gudang-lat" placeholder="-6.914744" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                    <div>
-                      <label class="block font-semibold text-gray-600 mb-1">Longitude</label>
-                      <input type="text" id="conf-gudang-lng" placeholder="107.609810" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                    </div>
-                  </div>
-                  <div>
-                    <label class="block font-semibold text-gray-600 mb-1">Radius Toleransi (Meter)</label>
-                    <input type="number" id="conf-gudang-radius" placeholder="Contoh: 50" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                  </div>
-                  <button onclick="simpanMasterGudang()" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 transition active:scale-95">Simpan Data Gudang</button>
-                </div>
-                <div class="pt-4 border-t overflow-x-auto">
-                  <table class="w-full text-left text-xs whitespace-nowrap">
-                    <thead class="bg-gray-50 text-gray-500 uppercase">
-                      <tr><th class="p-2">Gudang</th><th class="p-2">Koordinat & Radius</th><th class="p-2 text-center">Aksi</th></tr>
-                    </thead>
-                    <tbody id="tabel-gudang-body" class="divide-y divide-gray-100"></tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
-                <h3 class="font-bold text-gray-800 border-b pb-2"><i class="fas fa-clock text-amber-500 mr-2"></i> Master Shift Jam Kerja</h3>
-                <div class="space-y-3 text-xs">
-                  <div>
-                    <label class="block font-semibold text-gray-600 mb-1">Nama Shift</label>
-                    <input type="text" id="conf-shift-nama" placeholder="Contoh: Shift Pagi" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500">
-                  </div>
-                  <div class="grid grid-cols-2 gap-3">
-                    <div>
-                      <label class="block font-semibold text-gray-600 mb-1">Jam Masuk (Clock In)</label>
-                      <input type="time" id="conf-shift-in" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500">
-                    </div>
-                    <div>
-                      <label class="block font-semibold text-gray-600 mb-1">Jam Keluar (Clock Out)</label>
-                      <input type="time" id="conf-shift-out" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-amber-500">
-                    </div>
-                  </div>
-                  <button onclick="simpanMasterShift()" class="w-full bg-amber-500 text-white font-bold py-2.5 rounded-xl hover:bg-amber-600 transition active:scale-95 mt-2">Simpan Data Shift</button>
-                </div>
-                <div class="pt-4 border-t overflow-x-auto">
-                  <table class="w-full text-left text-xs whitespace-nowrap">
-                    <thead class="bg-gray-50 text-gray-500 uppercase">
-                      <tr><th class="p-2">Nama Shift</th><th class="p-2">Jadwal (In - Out)</th><th class="p-2 text-center">Aksi</th></tr>
-                    </thead>
-                    <tbody id="tabel-shift-body" class="divide-y divide-gray-100"></tbody>
-                  </table>
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          <div id="sub-absensi-jadwal" class="sub-absensi-content hidden fade-in mt-4 space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-              
-              <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4 md:col-span-1">
-                <h3 class="font-bold text-gray-800 border-b pb-2"><i class="fas fa-calendar-alt text-blue-600 mr-2"></i> Atur Jadwal Karyawan</h3>
-                <div class="space-y-3 text-xs">
-                  <div class="relative">
-                    <label class="block font-semibold text-gray-600 mb-1">Cari & Pilih Karyawan</label>
-                    
-                    <div class="relative">
-                      <i class="fas fa-search absolute left-3 top-2.5 text-gray-400"></i>
-                      <input type="text" id="jadwal-karyawan-search" placeholder="Ketik nama..." autocomplete="off" onkeyup="filterPencarianKaryawan()" onclick="bukaDropdownKaryawan()" class="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 cursor-text">
-                    </div>
-                    
-                    <input type="hidden" id="jadwal-karyawan">
-                    
-                    <div id="dropdown-karyawan" class="hidden absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-gray-50">
-                      </div>
-                  </div>
-                  <div>
-                    <label class="block font-semibold text-gray-600 mb-1">Penempatan Gudang</label>
-                    <select id="jadwal-gudang" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="">-- Memuat Gudang... --</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="block font-semibold text-gray-600 mb-1">Pilih Shift</label>
-                    <select id="jadwal-shift" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="">-- Memuat Shift... --</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label class="block font-semibold text-gray-600 mb-1">Hari Libur Mingguan</label>
-                    <select id="jadwal-libur" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-                      <option value="Minggu">Minggu</option>
-                      <option value="Sabtu">Sabtu</option>
-                      <option value="Jumat">Jumat</option>
-                      <option value="Kamis">Kamis</option>
-                      <option value="Rabu">Rabu</option>
-                      <option value="Selasa">Selasa</option>
-                      <option value="Senin">Senin</option>
-                    </select>
-                  </div>
-                  <button onclick="simpanJadwalKaryawan()" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 transition active:scale-95 mt-2 shadow-sm">Simpan Jadwal</button>
-                </div>
-              </div>
-
-              <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 md:col-span-2 overflow-hidden flex flex-col">
-                 <div class="flex justify-between items-center border-b pb-2 mb-3">
-                   <h3 class="font-bold text-gray-800"><i class="fas fa-users text-blue-600 mr-2"></i> Daftar Penjadwalan Aktif</h3>
-                   <button onclick="muatTabelJadwal()" class="text-xs bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg font-bold hover:bg-blue-100"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
-                 </div>
-                 <div class="overflow-x-auto w-full">
-                   <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
-                      <thead class="bg-gray-50 text-gray-500 text-xs uppercase sticky top-0 z-10">
-                        <tr>
-                          <th class="p-3">Karyawan</th>
-                          <th class="p-3">Lokasi Penempatan</th>
-                          <th class="p-3">Shift & Libur</th>
-                        </tr>
-                      </thead>
-                      <tbody id="tabel-jadwal-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
-                   </table>
-                 </div>
-              </div>
-
-            </div>
-          </div>
-
-          <div id="sub-absensi-accept" class="sub-absensi-content fade-in mt-4 space-y-4">
-            <div class="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
-              <div>
-                <h3 class="text-sm font-bold text-gray-800"><i class="fas fa-clipboard-check text-purple-600 mr-2"></i> Accept Pengajuan</h3>
-                <p class="text-[10px] text-gray-500">Validasi kehadiran, shift, dan kelayakan seragam kerja.</p>
-              </div>
-              <button onclick="muatDataAdminACC()" class="text-xs bg-purple-50 text-purple-600 px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
-            </div>
-            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full">
-              <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
-              <thead class="bg-purple-50 text-purple-700 text-xs uppercase sticky top-0 z-10">
-                <tr>
-                  <th class="p-4">Foto</th>
-                  <th class="p-4">Nama, Jabatan & Lokasi</th>
-                  <th class="p-4">Tgl, Waktu & Kehadiran</th>
-                  <th class="p-4">Radius Absen</th>
-                  <th class="p-4">Validasi Status & Seragam</th>
-                  <th class="p-4 text-center">Aksi</th>
-                </tr>
-              </thead>
-              <tbody id="tabel-admin-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
-            </table>
-            </div>
-          </div>
-
-          <div id="sub-absensi-rekap" class="sub-absensi-content hidden fade-in mt-4 space-y-4">
-            
-            <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-              <div class="flex justify-between items-center border-b pb-2">
-                <div>
-                  <h3 class="font-bold text-gray-800"><i class="fas fa-filter text-emerald-500 mr-2"></i> Filter & Rekapitulasi</h3>
-                  <p class="text-[10px] text-gray-500">Tentukan periode cut-off dan parameter untuk menarik laporan.</p>
-                </div>
-                <button onclick="exportKeExcel()" class="bg-emerald-500 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-600 shadow-sm transition flex items-center">
-                  <i class="fas fa-file-excel mr-2"></i> Export XLS
-                </button>
-              </div>
-              
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                <div>
-                  <label class="block font-semibold text-gray-600 mb-1">Gudang Penempatan</label>
-                  <select id="rekap-filter-gudang" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
-                    <option value="SEMUA">Semua Gudang</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block font-semibold text-gray-600 mb-1">Shift Jam Kerja</label>
-                  <select id="rekap-filter-shift" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
-                    <option value="SEMUA">Semua Shift</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block font-semibold text-gray-600 mb-1">Dari Tanggal</label>
-                  <input type="date" id="rekap-filter-start" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
-                </div>
-                <div>
-                  <label class="block font-semibold text-gray-600 mb-1">Sampai Tanggal</label>
-                  <input type="date" id="rekap-filter-end" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500">
-                </div>
-              </div>
-              <button onclick="muatDataRekap()" class="w-full bg-slate-800 text-white font-bold py-2.5 rounded-xl hover:bg-slate-900 transition active:scale-95 flex items-center justify-center shadow-sm">
-                <i class="fas fa-search mr-2"></i> Tampilkan Rekap
-              </button>
-            </div>
-
-            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full max-h-[50vh]">
-              <table id="tabel-rekap-export" class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
-                <thead class="bg-emerald-50 text-emerald-800 text-xs uppercase sticky top-0 z-10">
-                  <tr>
-                    <th class="p-3 border-b border-emerald-100">Tanggal & Waktu</th>
-                    <th class="p-3 border-b border-emerald-100">Nama Pegawai</th>
-                    <th class="p-3 border-b border-emerald-100">Gudang</th>
-                    <th class="p-3 border-b border-emerald-100">Status Kehadiran</th>
-                    <th class="p-3 border-b border-emerald-100">Seragam</th>
-                    <th class="p-3 border-b border-emerald-100">Keterangan</th>
-                  </tr>
-                </thead>
-                <tbody id="tabel-rekap-body" class="divide-y divide-gray-100 text-gray-700">
-                  <tr><td colspan="6" class="p-4 text-center text-gray-400">Silakan atur filter dan klik "Tampilkan Rekap".</td></tr>
-                </tbody>
-              </table>
-            </div>
-
-          </div>
-
-        <div id="tab-superuser" class="tab-content hidden fade-in space-y-4">
-          <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200">
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Karyawan</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this)" class="sub-karyawan-btn bg-blue-600 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Data Karyawan</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Slip Gaji</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Payroll</button>
-          </div>
-
-          <div id="sub-karyawan-config" class="sub-karyawan-content hidden fade-in mt-4">
-            <div class="bg-blue-50 border border-blue-100 p-8 rounded-3xl text-center space-y-3">
-              <i class="fas fa-users-cog text-4xl text-blue-400"></i>
-              <h4 class="font-bold text-blue-800 text-lg">Modul Config Karyawan</h4>
-              <p class="text-xs text-blue-600">Manajemen Pembuatan Role, Akses Hak (CRUD), dan Master Jabatan akan segera aktif.</p>
-            </div>
-          </div>
-
-          <div id="sub-karyawan-data" class="sub-karyawan-content fade-in mt-4 space-y-4">
-            <div class="bg-red-50 border border-red-200 rounded-2xl p-4 flex justify-between items-center shadow-sm">
-              <div>
-                <h3 class="text-sm font-bold text-red-700 mb-0.5"><i class="fas fa-users mr-2"></i> Database Karyawan ERP</h3>
-                <p class="text-[10px] text-red-600">Master kontrol HR untuk Edit Role & Status.</p>
-              </div>
-              <button onclick="muatDataSuperUser()" class="bg-red-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-700 transition">Muat Data</button>
-            </div>
-            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full">
-              <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
-                <thead class="bg-red-50 text-red-700 text-xs uppercase sticky top-0 z-10">
-                  <tr>
-                    <th class="p-4">Nama & ID</th>
-                    <th class="p-4">Email / Jabatan</th>
-                    <th class="p-4">Role / Status</th>
-                    <th class="p-4">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody id="tabel-superuser-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
-              </table>
-            </div>
-          </div>
-
-          <div id="sub-karyawan-slip" class="sub-karyawan-content hidden fade-in mt-4">
-            <div class="bg-orange-50 border border-orange-100 p-8 rounded-3xl text-center space-y-3">
-              <i class="fas fa-file-invoice-dollar text-4xl text-orange-400"></i>
-              <h4 class="font-bold text-orange-800 text-lg">Modul Slip Gaji</h4>
-              <p class="text-xs text-orange-600">Akan datang pada update pembaruan finansial.</p>
-            </div>
-          </div>
-
-          <div id="sub-karyawan-payroll" class="sub-karyawan-content hidden fade-in mt-4">
-            <div class="bg-orange-50 border border-orange-100 p-8 rounded-3xl text-center space-y-3">
-              <i class="fas fa-money-check-alt text-4xl text-orange-400"></i>
-              <h4 class="font-bold text-orange-800 text-lg">Modul Payroll Server</h4>
-              <p class="text-xs text-orange-600">Akan datang pada update pembaruan finansial.</p>
-            </div>
-          </div>
-
-        </div>
-
-      </main>
-    </div>
-
-    <nav class="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around items-center p-2 pb-4 z-50 rounded-t-2xl shadow-lg">
-      <button onclick="pindahTab('tab-home')" class="flex flex-col items-center p-2 text-blue-600 w-16">
-        <i class="fas fa-home text-lg mb-1"></i>
-        <span class="text-[9px] font-bold">Dashboard</span>
-      </button>
-      <button onclick="pindahTab('tab-profil')" class="flex flex-col items-center p-2 text-gray-500 w-16">
-        <i class="fas fa-user-circle text-lg mb-1"></i>
-        <span class="text-[9px] font-bold">Profile</span>
-      </button>
-      <button onclick="pindahTab('tab-riwayat')" class="flex flex-col items-center p-2 text-gray-500 w-16">
-        <i class="far fa-clock text-lg mb-1"></i>
-        <span class="text-[9px] font-medium">Riwayat</span>
-      </button>
-      <button id="nav-mobile-admin" onclick="pindahTab('tab-admin-acc')" class="hidden flex flex-col items-center p-2 text-purple-600 w-16">
-        <i class="fas fa-clipboard-check text-lg mb-1"></i>
-        <span class="text-[9px] font-bold">Absensi</span>
-      </button>
-      <button id="nav-mobile-super" onclick="pindahTab('tab-superuser')" class="hidden flex flex-col items-center p-2 text-red-600 w-16">
-        <i class="fas fa-users-cog text-lg mb-1"></i>
-        <span class="text-[9px] font-bold">Karyawan</span>
-      </button>
-    </nav>
-  </div>
-
-  <div id="modal-edit-user" class="hidden fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 fade-in">
-    <div class="bg-white rounded-3xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
-      <div class="flex justify-between items-center border-b pb-3 mb-4">
-        <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-user-edit text-blue-600 mr-2"></i> Detail & Edit Karyawan</h3>
-        <button onclick="tutupEditUser()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times text-xl"></i></button>
-      </div>
-
-      <div class="space-y-4 text-sm">
-        <div class="flex flex-col items-center mb-4 bg-gray-50 py-3 rounded-xl border border-gray-100">
-          <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Dokumen KTP Karyawan</span>
-          <img id="edit-preview-ktp" src="" class="h-32 object-cover rounded-lg border shadow-sm cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto(this.src)" title="Klik untuk memperbesar KTP" alt="Foto KTP">
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Nama Karyawan</label>
-            <input type="text" id="edit-nama" readonly class="w-full px-3 py-2 bg-gray-100 border rounded-lg font-bold text-gray-600 outline-none">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Email Karyawan</label>
-            <input type="text" id="edit-email" readonly class="w-full px-3 py-2 bg-gray-100 border rounded-lg text-gray-600 outline-none">
-            <input type="hidden" id="edit-email-asli">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Role Sistem</label>
-            <select id="edit-role" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none">
-              <option value="operator">Operator</option>
-              <option value="admin">Admin</option>
-              <option value="pic">PIC</option>
-              <option value="owner">Owner</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Jabatan</label>
-            <input type="text" id="edit-jabatan" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Status Kerja</label>
-            <select id="edit-status" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none">
-              <option value="Aktif">Aktif</option>
-              <option value="Tidak Aktif">Tidak Aktif</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Gudang Penempatan</label>
-            <input type="text" id="edit-gudang" placeholder="Contoh: Gudang Utama" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none">
-          </div>
-        </div>
-
-        <button onclick="simpanEditUser()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition active:scale-95 mt-4">
-          <i class="fas fa-save mr-1"></i> Simpan Perubahan
-        </button>
-      </div>
-    </div>
-  </div>
-
-  <div id="modal-preview-foto" class="hidden fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4 fade-in" onclick="tutupPreviewFoto()">
-    <div class="relative max-w-2xl w-full flex justify-center">
-      <img id="img-preview-besar" src="" class="max-w-full max-h-[80vh] rounded-xl shadow-2xl object-contain">
-      <button onclick="tutupPreviewFoto()" class="absolute -top-10 right-0 text-white hover:text-red-500 text-3xl transition"><i class="fas fa-times"></i></button>
-    </div>
-  </div>
-
-  <script>
-    function togglePassword() {
-      const inputPass = document.getElementById('input-pass');
-      const iconMata = document.getElementById('icon-mata');
-      if (inputPass.type === 'password') {
-        inputPass.type = 'text';
-        iconMata.classList.remove('fa-eye-slash');
-        iconMata.classList.add('fa-eye');
-      } else {
-        inputPass.type = 'password';
-        iconMata.classList.remove('fa-eye');
-        iconMata.classList.add('fa-eye-slash');
-      }
-    }
-
-    function toggleFormIzin() {
-      const status = document.getElementById('pilihan-status').value;
-      const formIzin = document.getElementById('form-izin-cuti');
-      const labelTgl = document.getElementById('label-validasi-tgl');
-      if (status === 'IZIN' || status === 'CUTI') {
-        formIzin.classList.remove('hidden');
-        if (status === 'CUTI') {
-          labelTgl.innerText = "(Minimal H-3)";
-        } else {
-          labelTgl.innerText = "";
-        }
-      } else {
-        formIzin.classList.add('hidden');
-      }
-    }
-
-    
-  </script>
-
-  <script type="module" src="js/firebase-config.js"></script>
-  <script type="module" src="js/app.js"></script>
-  <script type="module" src="js/camera.js"></script>
-  <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/dashboard.js?v=5"></script>
-</body>
-</html
   <!-- LAYAR 2: REGISTRASI KARYAWAN -->
   <div id="screen-register" class="hidden h-auto min-h-screen w-full bg-slate-50 flex flex-col items-center justify-start p-4 py-10 fade-in overflow-y-auto">
     <div class="w-full max-w-2xl bg-white p-8 rounded-3xl shadow-xl border border-gray-100 my-auto">
@@ -1042,7 +221,7 @@
     </div>
   </div>
 
-<div id="screen-dashboard" class="hidden h-[100dvh] w-full relative fade-in bg-slate-50 flex overflow-hidden">
+  <div id="screen-dashboard" class="hidden h-[100dvh] w-full relative fade-in bg-slate-50 flex overflow-hidden">
 
     <aside class="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col shadow-sm z-20 shrink-0">
       <div class="h-20 flex flex-col justify-center px-6 border-b border-gray-100">
@@ -1056,7 +235,7 @@
         <button onclick="pindahTab('tab-profil')" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 transition">
           <i class="fas fa-user-circle w-6 text-left"></i> Account Profile
         </button>
-        <button onclick="pindahTab('tab-riwayat')" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 transition">
+        <button onclick="pindahTab('tab-profil'); pindahSubProfile('profil-riwayat', document.querySelector('[onclick*=profil-riwayat]'))" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 transition">
           <i class="far fa-clock w-6 text-left"></i> Riwayat Absensi
         </button>
         <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-purple-600 hover:bg-purple-50 transition font-bold mt-4 border-t pt-4">
@@ -1087,7 +266,7 @@
       </header>
 
       <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-8 min-h-0">
-        
+
         <div id="tab-home" class="space-y-6">
           <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-6 md:p-8 text-white shadow-lg">
             <h2 class="text-2xl font-black mb-2">Selamat Datang di Zevanic ERP</h2>
@@ -1099,8 +278,7 @@
         </div>
 
         <div id="tab-profil" class="tab-content hidden fade-in max-w-5xl mx-auto h-full flex flex-col space-y-4">
-          
-          <!-- HEADER & SUB-MENU CARD (MENGIKUTI DESAIN MENU ABSENSI) -->
+
           <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
             <div>
               <h2 class="text-lg font-black text-slate-800 flex items-center">
@@ -1109,7 +287,6 @@
               <p class="text-xs text-gray-500 mt-0.5">Kelola data diri, QR identitas kerja, riwayat kehadiran, pencapaian, serta keamanan akun Anda.</p>
             </div>
 
-            <!-- TOMBOL SUB-MENU (STYLE PRESISI SEPERTI ABSENSI) -->
             <div class="flex items-center space-x-2 border-t pt-4 overflow-x-auto hide-scrollbar">
               <button onclick="pindahSubProfile('profil-qr', this)" class="sub-profil-btn bg-slate-800 text-white font-bold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap shadow-sm transition flex items-center">
                 <i class="fas fa-qrcode mr-1.5"></i> ID & QR
@@ -1129,7 +306,6 @@
             </div>
           </div>
 
-          <!-- KONTEN 1: QR CODE & IDENTITAS -->
           <div id="profil-qr" class="sub-profil-content fade-in mt-4">
             <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex flex-col items-center justify-center max-w-sm mx-auto text-center space-y-4">
               <div class="w-32 h-32 p-2 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-300">
@@ -1144,10 +320,9 @@
             </div>
           </div>
 
-          <!-- KONTEN 2: CRUD DATA DIRI (SUPER LENGKAP SESUAI REGISTRASI) -->
           <div id="profil-datadiri" class="sub-profil-content hidden fade-in mt-4 max-w-4xl mx-auto w-full">
             <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-6 text-xs">
-              
+
               <div class="flex items-center border-b pb-3">
                 <i class="fas fa-user-edit text-blue-600 text-xl mr-3"></i>
                 <div>
@@ -1156,7 +331,6 @@
                 </div>
               </div>
 
-              <!-- 1. Identitas Pribadi -->
               <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
                 <h4 class="font-bold text-gray-700 mb-3 border-b pb-1">1. Identitas Pribadi</h4>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1168,7 +342,6 @@
                 </div>
               </div>
 
-              <!-- 2. Informasi Kontak -->
               <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
                 <h4 class="font-bold text-gray-700 mb-3 border-b pb-1">2. Informasi Kontak</h4>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1177,18 +350,15 @@
                 </div>
               </div>
 
-              <!-- 3. Alamat Lengkap -->
               <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
                 <h4 class="font-bold text-gray-700 mb-3 border-b pb-1">3. Alamat Lengkap</h4>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <!-- Alamat KTP -->
                   <div class="space-y-3">
                     <label class="block font-bold text-gray-800 text-xs text-blue-600">A. Alamat Sesuai KTP</label>
                     <div><label class="block font-semibold text-gray-600 mb-1">Kabupaten/Kota</label><input type="text" id="upd-ktp-kab" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
                     <div><label class="block font-semibold text-gray-600 mb-1">Kecamatan</label><input type="text" id="upd-ktp-kec" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
                     <div><label class="block font-semibold text-gray-600 mb-1">Alamat Detail (Jalan/RT/RW)</label><textarea id="upd-ktp-detail" rows="2" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></textarea></div>
                   </div>
-                  <!-- Alamat Domisili -->
                   <div class="space-y-3">
                     <label class="block font-bold text-gray-800 text-xs text-green-600">B. Alamat Domisili Saat Ini</label>
                     <div><label class="block font-semibold text-gray-600 mb-1">Kabupaten/Kota</label><input type="text" id="upd-dom-kab" class="w-full px-3 py-2 bg-white border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
@@ -1198,7 +368,6 @@
                 </div>
               </div>
 
-              <!-- 4. Pendidikan & Keluarga -->
               <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
                 <h4 class="font-bold text-gray-700 mb-3 border-b pb-1">4. Latar Belakang & Keluarga</h4>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1210,7 +379,6 @@
                 </div>
               </div>
 
-              <!-- 5. Kontak Darurat -->
               <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
                 <h4 class="font-bold text-gray-700 mb-3 border-b pb-1">5. Kontak Darurat</h4>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1220,7 +388,6 @@
                 </div>
               </div>
 
-              <!-- 6. Data Rekening Bank -->
               <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
                 <h4 class="font-bold text-gray-700 mb-3 border-b pb-1">6. Data Rekening Bank</h4>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1230,52 +397,50 @@
                 </div>
               </div>
 
-              <!-- Tombol Simpan -->
               <button onclick="simpanUpdateDataDiriLengkap()" class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition shadow-md mt-4 flex justify-center items-center text-sm">
                 <i class="fas fa-save mr-2"></i> Simpan Seluruh Pembaruan Data
               </button>
             </div>
           </div>
 
-          <!-- KONTEN 3: RIWAYAT ABSENSI & REKAP (PLACEHOLDER) -->
-                  <div id="profil-riwayat" class="sub-profil-content hidden fade-in mt-4 space-y-4">
-          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h3 class="text-sm font-bold text-slate-800 flex items-center">
-                <i class="fas fa-file-invoice text-blue-600 mr-2"></i> Laporan Riwayat & Rekapitulasi Absensi
-              </h3>
-              <p class="text-[11px] text-gray-500 mt-0.5">Filter laporan kehadiran, pantau statistik, dan unduh file rekapitulasi.</p>
-            </div>
-            <button onclick="exportKeCSV()" class="bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5">
-              <i class="fas fa-file-excel"></i><span>Export Laporan CSV</span>
-            </button>
-          </div>
-
-          <div class="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm space-y-3 text-xs">
-            <h4 class="font-bold text-gray-700 border-b pb-2"><i class="fas fa-filter text-slate-600 mr-1"></i> Filter Parameter Laporan</h4>
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-              <div><label class="block text-[11px] font-semibold text-gray-600 mb-1">Dari Tanggal</label><input type="date" id="filter-tgl-mulai" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-              <div><label class="block text-[11px] font-semibold text-gray-600 mb-1">Sampai Tanggal</label><input type="date" id="filter-tgl-selesai" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-              <div><label class="block text-[11px] font-semibold text-gray-600 mb-1">Filter Gudang</label><select id="filter-gudang" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"><option value="ALL">Semua Gudang</option></select></div>
-              <div><label class="block text-[11px] font-semibold text-gray-600 mb-1">Filter Shift</label><select id="filter-shift" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"><option value="ALL">Semua Shift</option></select></div>
-            </div>
-            <div class="flex justify-end pt-1">
-              <button onclick="muatDataRiwayat()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm flex items-center space-x-1.5">
-                <i class="fas fa-search"></i><span>Tampilkan Laporan</span>
+          <div id="profil-riwayat" class="sub-profil-content hidden fade-in mt-4 space-y-4">
+            <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 class="text-sm font-bold text-slate-800 flex items-center">
+                  <i class="fas fa-file-invoice text-blue-600 mr-2"></i> Laporan Riwayat & Rekapitulasi Absensi
+                </h3>
+                <p class="text-[11px] text-gray-500 mt-0.5">Filter laporan kehadiran, pantau statistik, dan unduh file rekapitulasi.</p>
+              </div>
+              <button onclick="exportKeCSV()" class="bg-green-600 hover:bg-green-700 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5">
+                <i class="fas fa-file-excel"></i><span>Export Laporan CSV</span>
               </button>
             </div>
+
+            <div class="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm space-y-3 text-xs">
+              <h4 class="font-bold text-gray-700 border-b pb-2"><i class="fas fa-filter text-slate-600 mr-1"></i> Filter Parameter Laporan</h4>
+              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                <div><label class="block text-[11px] font-semibold text-gray-600 mb-1">Dari Tanggal</label><input type="date" id="filter-tgl-mulai" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
+                <div><label class="block text-[11px] font-semibold text-gray-600 mb-1">Sampai Tanggal</label><input type="date" id="filter-tgl-selesai" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
+                <div><label class="block text-[11px] font-semibold text-gray-600 mb-1">Filter Gudang</label><select id="filter-gudang" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"><option value="ALL">Semua Gudang</option></select></div>
+                <div><label class="block text-[11px] font-semibold text-gray-600 mb-1">Filter Shift</label><select id="filter-shift" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"><option value="ALL">Semua Shift</option></select></div>
+              </div>
+              <div class="flex justify-end pt-1">
+                <button onclick="muatDataRiwayat()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2 rounded-xl text-xs transition shadow-sm flex items-center space-x-1.5">
+                  <i class="fas fa-search"></i><span>Tampilkan Laporan</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm"><span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Total Hadir</span><span id="stat-hadir" class="text-lg font-black text-green-600 mt-0.5 block">0</span></div>
+              <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm"><span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">ACC Valid</span><span id="stat-acc" class="text-lg font-black text-blue-600 mt-0.5 block">0</span></div>
+              <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm"><span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Seragam Beda</span><span id="stat-seragam" class="text-lg font-black text-amber-500 mt-0.5 block">0</span></div>
+              <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm"><span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Izin/Cuti/Tolak</span><span id="stat-izin" class="text-lg font-black text-red-500 mt-0.5 block">0</span></div>
+            </div>
+            <div id="container-riwayat-absensi"></div>
           </div>
 
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm"><span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Total Hadir</span><span id="stat-hadir" class="text-lg font-black text-green-600 mt-0.5 block">0</span></div>
-            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm"><span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">ACC Valid</span><span id="stat-acc" class="text-lg font-black text-blue-600 mt-0.5 block">0</span></div>
-            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm"><span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Seragam Beda</span><span id="stat-seragam" class="text-lg font-black text-amber-500 mt-0.5 block">0</span></div>
-            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm"><span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Izin/Cuti/Tolak</span><span id="stat-izin" class="text-lg font-black text-red-500 mt-0.5 block">0</span></div>
-          </div>
-          <div id="container-riwayat-absensi"></div>
-        </div>
-
-        <div id="profil-pencapaian" class="sub-profil-content hidden fade-in mt-4">
+          <div id="profil-pencapaian" class="sub-profil-content hidden fade-in mt-4">
             <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm text-center text-gray-500 py-10">
               <i class="fas fa-trophy text-4xl text-yellow-300 mb-3"></i>
               <h3 class="font-bold text-gray-800 text-sm">Modul Pencapaian & Penilaian SPK</h3>
@@ -1283,7 +448,6 @@
             </div>
           </div>
 
-          <!-- KONTEN 5: KEAMANAN & PASSWORD -->
           <div id="profil-keamanan" class="sub-profil-content hidden fade-in mt-4 max-w-md mx-auto w-full">
             <div class="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm space-y-4 text-xs">
               <h3 class="font-bold text-gray-800 border-b pb-2"><i class="fas fa-shield-alt text-red-500 mr-2"></i> Update Password</h3>
@@ -1295,32 +459,39 @@
           </div>
 
         </div>
-              <div id="tab-admin-acc" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
+
+        <!-- Modal Aju Banding (dipulihkan dari versi awal - dipakai dari daftar Riwayat & Rekap) -->
+        <div id="modal-aju-banding" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 fade-in">
+          <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl space-y-4 text-xs">
+            <div class="flex justify-between items-center border-b pb-3">
+              <h3 class="font-bold text-gray-800 text-sm"><i class="fas fa-gavel text-amber-500 mr-1.5"></i> Form Pengajuan Sanggahan / Aju Banding</h3>
+              <button onclick="tutupModalAjuBanding()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times text-base"></i></button>
+            </div>
+            <p class="text-[11px] text-gray-500">Sampaikan alasan sanggahan Anda kepada Admin / Owner apabila status presensi atau catatan seragam Anda perlu dikoreksi.</p>
+            <input type="hidden" id="banding-doc-id">
+            <div>
+              <label class="block font-semibold text-gray-600 mb-1">Alasan / Catatan Sanggahan *</label>
+              <textarea id="banding-alasan" rows="3" placeholder="Jelaskan alasan atau bukti penyesuaian..." class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+            </div>
+            <div class="flex space-x-2 pt-2">
+              <button onclick="tutupModalAjuBanding()" class="w-1/2 bg-gray-100 font-bold py-2.5 rounded-xl text-gray-600 hover:bg-gray-200 transition">Batal</button>
+              <button onclick="kirimAjuBanding()" class="w-1/2 bg-amber-500 font-bold py-2.5 rounded-xl text-white hover:bg-amber-600 transition shadow-sm">Kirim Sanggahan</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="tab-admin-acc" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
         <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
           <div>
-            <h2 class="text-lg font-black text-slate-800 flex items-center">
-              <i class="fas fa-check-double text-amber-500 mr-2.5"></i> Management & Validasi Absensi
-            </h2>
+            <h2 class="text-lg font-black text-slate-800 flex items-center"><i class="fas fa-check-double text-amber-500 mr-2.5"></i> Management & Validasi Absensi</h2>
             <p class="text-xs text-gray-500 mt-0.5">Kelola antrean persetujuan, pantau riwayat absensi, rekapitulasi, dan konfigurasi jadwal.</p>
           </div>
-
-          <!-- NAVIGASI SUB-MENU ABSENSI LENGKAP -->
-          <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200 hide-scrollbar pt-2">
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this); muatConfigAbsensi();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center">
-              <i class="fas fa-cogs mr-1.5"></i> Config Absensi
-            </button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this); muatDataPenjadwalan();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center">
-              <i class="fas fa-calendar-alt mr-1.5"></i> Penjadwalan
-            </button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this); muatDataAdminACC();" class="sub-absensi-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center">
-              <i class="fas fa-clock mr-1.5"></i> Antrean Pending
-            </button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-riwayat-acc', this); muatDataRiwayatACC();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center">
-              <i class="fas fa-check-circle mr-1.5"></i> Riwayat ACC
-            </button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this); siapkanFilterRekap();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center">
-              <i class="fas fa-chart-bar mr-1.5"></i> Rekap Absensi
-            </button>
+          <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200 pt-2 hide-scrollbar">
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this); muatConfigAbsensi();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-cogs mr-1.5"></i> Config Absensi</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this); muatDataPenjadwalan();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-calendar-alt mr-1.5"></i> Penjadwalan</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this); muatDataAdminACC();" class="sub-absensi-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-clock mr-1.5"></i> Antrean Pending</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-riwayat-acc', this); muatDataRiwayatACC();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-check-circle mr-1.5"></i> Riwayat ACC</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this); siapkanFilterRekap();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-chart-bar mr-1.5"></i> Rekap Absensi</button>
           </div>
         </div>
 
@@ -1390,7 +561,7 @@
         </div>
       </div>
 
-      <div id="tab-superuser" class="tab-content hidden fade-in space-y-4">
+        <div id="tab-superuser" class="tab-content hidden fade-in space-y-4">
           <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200">
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn bg-white text-gray-600 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Karyawan</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this)" class="sub-karyawan-btn bg-blue-600 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Data Karyawan</button>
@@ -1459,7 +630,7 @@
         <i class="fas fa-user-circle text-lg mb-1"></i>
         <span class="text-[9px] font-bold">Profile</span>
       </button>
-      <button onclick="pindahTab('tab-riwayat')" class="flex flex-col items-center p-2 text-gray-500 w-16">
+      <button onclick="pindahTab('tab-profil'); pindahSubProfile('profil-riwayat', document.querySelector('[onclick*=profil-riwayat]'))" class="flex flex-col items-center p-2 text-gray-500 w-16">
         <i class="far fa-clock text-lg mb-1"></i>
         <span class="text-[9px] font-medium">Riwayat</span>
       </button>
@@ -1573,8 +744,6 @@
         formIzin.classList.add('hidden');
       }
     }
-
-    
   </script>
 
   <script type="module" src="js/firebase-config.js"></script>
