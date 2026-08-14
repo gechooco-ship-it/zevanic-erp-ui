@@ -1245,3 +1245,83 @@ window.kirimAjuBanding = async function() {
     alert("Gagal mengirimkan sanggahan.");
   }
 };
+
+// =========================================================================
+// ====== LOGIKA RIWAYAT ACC & REKAP (UNTUK TAB ADMIN ACC) =================
+// =========================================================================
+
+window.muatDataRiwayatACC = async function() {
+  const container = document.getElementById('container-acc-riwayat');
+  if (!container) return;
+
+  container.innerHTML = `<div class="text-center py-8 text-gray-400 text-xs"><i class="fas fa-spinner fa-spin text-xl mb-1"></i><p>Memuat riwayat persetujuan...</p></div>`;
+
+  try {
+    const querySnapshot = await getDocs(collection(db, "absensi"));
+    let html = `
+      <div class="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm bg-white">
+        <table class="w-full text-left text-xs text-gray-600 whitespace-nowrap">
+          <thead class="bg-gray-50 text-gray-700 font-bold border-b text-[11px]">
+            <tr>
+              <th class="p-3">Karyawan</th>
+              <th class="p-3">Waktu Presensi</th>
+              <th class="p-3">Status ACC</th>
+              <th class="p-3">Kesesuaian Seragam</th>
+              <th class="p-3">Divalidasi Oleh</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+    `;
+
+    let countACC = 0;
+    querySnapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      // Tampilkan HANYA yang sudah di-ACC atau REJECT (Bukan Pending)
+      if (data.status_acc && data.status_acc !== "PENDING") {
+        countACC++;
+        const tglPresensi = data.waktu ? new Date(data.waktu).toLocaleString('id-ID') : '-';
+        
+        const badgeStatus = data.status_acc === "ACC"
+          ? `<span class="px-2 py-0.5 bg-green-100 text-green-700 font-bold text-[9px] rounded-full"><i class="fas fa-check mr-1"></i>Disetujui (ACC)</span>`
+          : `<span class="px-2 py-0.5 bg-red-100 text-red-700 font-bold text-[9px] rounded-full"><i class="fas fa-times mr-1"></i>Ditolak</span>`;
+
+        html += `
+          <tr class="hover:bg-gray-50 transition">
+            <td class="p-3 font-semibold text-slate-800">${data.nama || 'Pegawai'}<br><span class="text-[10px] text-gray-400 font-normal">${data.email || ''}</span></td>
+            <td class="p-3">${tglPresensi}</td>
+            <td class="p-3">${badgeStatus}</td>
+            <td class="p-3">${data.seragam || 'Sesuai'}</td>
+            <td class="p-3 font-bold text-slate-700">${data.validated_by || 'Sistem / Admin'}</td>
+          </tr>
+        `;
+      }
+    });
+
+    html += `</tbody></table></div>`;
+
+    if (countACC === 0) {
+      container.innerHTML = `<div class="text-center py-10 bg-white rounded-3xl border border-dashed text-gray-400 text-xs">Belum ada riwayat absensi yang divalidasi.</div>`;
+    } else {
+      container.innerHTML = html;
+    }
+  } catch (e) {
+    console.error("Error muat riwayat ACC:", e);
+    container.innerHTML = `<div class="text-center py-8 text-red-500 text-xs">Gagal memuat riwayat persetujuan.</div>`;
+  }
+};
+
+window.siapkanFilterRekap = function() {
+  const container = document.getElementById('container-acc-rekap');
+  if (!container) return;
+  
+  // Ambil UI Filter & Tabel dari tab Profil > Riwayat agar tersinkronisasi 1 pintu
+  if (window.muatDataRiwayat) {
+    window.muatDataRiwayat(); // refresh datanya
+    const kontenRiwayat = document.getElementById('profil-riwayat')?.innerHTML;
+    if(kontenRiwayat) {
+      container.innerHTML = kontenRiwayat;
+    } else {
+      container.innerHTML = '<p class="text-xs text-gray-400 text-center py-6">Fitur Rekapitulasi disinkronkan dengan menu Riwayat Profil.</p>';
+    }
+  }
+};

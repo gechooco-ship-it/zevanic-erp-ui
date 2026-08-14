@@ -233,3 +233,81 @@ window.aturTampilanBerdasarkanRole = function() {
     }
   }
 };
+
+window.prosesRegister = async function() {
+  const btn = document.querySelector('#screen-register button[type="submit"]');
+  const oldText = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Memproses...';
+  btn.disabled = true;
+
+  try {
+    const email = document.getElementById('reg-email').value;
+    const pass = document.getElementById('reg-pass').value;
+    const confirmPass = document.getElementById('reg-confirm-pass').value;
+
+    // VALIDASI PASSWORD SEBELUM MENYIMPAN
+    if (pass !== confirmPass) {
+      alert("Kata sandi dan Konfirmasi Kata Sandi tidak cocok! Harap periksa kembali.");
+      btn.innerHTML = oldText;
+      btn.disabled = false;
+      return;
+    }
+    if (pass.length < 6) {
+      alert("Kata sandi minimal harus 6 karakter untuk keamanan.");
+      btn.innerHTML = oldText;
+      btn.disabled = false;
+      return;
+    }
+
+    const userData = {
+      nama: document.getElementById('reg-nama').value,
+      nik: document.getElementById('reg-nik').value,
+      tempatLahir: document.getElementById('reg-tempatlahir').value,
+      tglLahir: document.getElementById('reg-tgl').value,
+      gender: document.getElementById('reg-gender').value,
+      hp: document.getElementById('reg-hp').value,
+      email: email,
+      password: pass, // Disimpan ke Firestore agar sinkron saat login
+      
+      ktpKab: document.getElementById('reg-ktp-kab').value,
+      ktpKec: document.getElementById('reg-ktp-kec').value,
+      ktpDetail: document.getElementById('reg-ktp-detail').value,
+      tinggalKab: document.getElementById('reg-tinggal-kab').value,
+      tinggalKec: document.getElementById('reg-tinggal-kec').value,
+      tinggalDetail: document.getElementById('reg-tinggal-detail').value,
+      
+      pendidikan: document.getElementById('reg-pendidikan').value,
+      sekolah: document.getElementById('reg-sekolah').value,
+      jurusan: document.getElementById('reg-jurusan').value,
+      nikah: document.getElementById('reg-nikah').value,
+      tanggungan: document.getElementById('reg-tanggungan').value,
+      
+      daruratNama: document.getElementById('reg-darurat-nama').value,
+      daruratHub: document.getElementById('reg-darurat-hub').value,
+      daruratHp: document.getElementById('reg-darurat-hp').value,
+      
+      bank: document.getElementById('reg-bank').value,
+      norek: document.getElementById('reg-norek').value,
+      namarek: document.getElementById('reg-namarek').value,
+      
+      id_karyawan: document.getElementById('reg-id').value,
+      id_app: document.getElementById('reg-idapp').value,
+      role: 'operator',
+      jabatan: 'Staff',
+      status_kerja: 'aktif',
+      tgl_daftar: new Date().toISOString(),
+      ktp_base64: window.ktpBase64Global || ""
+    };
+
+    await setDoc(doc(db, "users", email), userData);
+
+    alert("Pendaftaran Karyawan Berhasil! Silakan login menggunakan Email dan Kata Sandi Anda.");
+    window.pindahLayar('screen-login');
+  } catch (error) {
+    console.error("Error Registrasi:", error);
+    alert("Terjadi kesalahan saat mendaftar. Pastikan koneksi internet stabil.");
+  } finally {
+    btn.innerHTML = oldText;
+    btn.disabled = false;
+  }
+};
