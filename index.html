@@ -121,10 +121,25 @@
         </div>
         <div class="space-y-3 pt-2">
           <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-map-marker-alt text-blue-600 mr-2"></i> Kontak & Domisili</h3>
-          <div class="grid grid-cols-2 gap-4">
-            <div><label class="block font-semibold text-gray-600 mb-1">Email Aktif (Untuk Login) *</label><input type="email" id="reg-email" placeholder="email@zevanic.com" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">No. HP / WhatsApp (Verifikasi OTP) *</label><input type="text" id="reg-hp" placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">Email Aktif (Identitas Login) *</label>
+            <input type="email" id="reg-email" required placeholder="email@domain.com" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
           </div>
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">No. Handphone (WhatsApp) *</label>
+            <input type="text" id="reg-hp" required placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">Kata Sandi (Password) *</label>
+            <input type="password" id="reg-pass" required placeholder="Buat password login" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block font-semibold text-gray-600 mb-1">Konfirmasi Kata Sandi *</label>
+            <input type="password" id="reg-confirm-pass" required placeholder="Ulangi password" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          
+        </div>
           <div class="p-3 bg-gray-50 rounded-2xl border space-y-2">
             <span class="font-bold text-gray-700">Alamat Tempat Tinggal Sekarang</span>
             <div class="grid grid-cols-2 gap-2"><select id="reg-tinggal-kab" onchange="updateKecamatanTinggal()" class="px-3 py-2 bg-white border rounded-xl"><option value="Bandung">Kab. Bandung</option><option value="Bandung Barat">Kab. Bandung Barat</option><option value="Cimahi">Kota Cimahi</option><option value="Garut">Kab. Garut</option></select><select id="reg-tinggal-kec" class="px-3 py-2 bg-white border rounded-xl"></select></div>
