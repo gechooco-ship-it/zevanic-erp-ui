@@ -142,6 +142,8 @@ window.simpanPendaftaranBaru = async function() {
   }
 };
 
+
+
 window.prosesLogin = async function() {
   const emailInput = document.getElementById('input-email').value;
   const passInput = document.getElementById('input-pass').value;
@@ -152,10 +154,16 @@ window.prosesLogin = async function() {
     if (userSnap.exists()) {
       const data = userSnap.data();
       
-      // Verifikasi Password dari Database
-      if (data.password !== passInput) {
-        alert("Kata sandi salah! Silakan coba lagi.");
-        return;
+      // FIX BUG PASSWORD: 
+      // Jika akun lama tidak punya password di database, izinkan masuk sementara.
+      // Tapi jika ada password, wajib cocok!
+      if (data.password) {
+        if (data.password !== passInput) {
+          alert("Kata sandi salah! Silakan coba lagi.");
+          return;
+        }
+      } else {
+         console.warn("Akun lama terdeteksi (belum ada password di DB). Melanjutkan login...");
       }
 
       if (data.status_kerja === "tidak aktif") {
