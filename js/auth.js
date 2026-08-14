@@ -254,17 +254,17 @@ window.addEventListener('DOMContentLoaded', () => {
   // Bersihkan sisa password lama yang mungkin masih tersimpan dari versi sebelumnya
   localStorage.removeItem('zevanic_pass');
 
-  // Desktop wajib Clock In dari HP dulu -> sembunyikan opsi "Hadir" di dropdown.
-  // Izin tetap tersedia karena tidak butuh kehadiran fisik.
+  // Desktop tidak dipakai untuk Clock In/Izin/Cuti (semua butuh selfie via kamera).
+  // Sembunyikan seluruh dropdown pilihan status, jangan paksa ke opsi manapun.
+  // Login desktop cuma untuk masuk Dashboard setelah Clock In dari HP.
   if (isDesktopBrowser()) {
-    const selectStatus = document.getElementById('pilihan-status');
-    const optHadir = selectStatus ? selectStatus.querySelector('option[value="HADIR (CLOCK IN)"]') : null;
-    if (optHadir) optHadir.remove();
-    if (selectStatus) {
-      selectStatus.value = "IZIN";
-      window.statusPilihanGlobal = "IZIN";
-      if (window.toggleFormIzin) window.toggleFormIzin();
-    }
+    const wadahStatus = document.getElementById('wadah-pilihan-status');
+    const formIzin = document.getElementById('form-izin-cuti');
+    const infoDesktop = document.getElementById('info-desktop-login');
+    if (wadahStatus) wadahStatus.classList.add('hidden');
+    if (formIzin) formIzin.classList.add('hidden');
+    if (infoDesktop) infoDesktop.classList.remove('hidden');
+    window.statusPilihanGlobal = "HADIR (CLOCK IN)"; // nilai internal saja, tidak dipakai untuk apapun di desktop
   }
 
   if (document.getElementById('reg-tinggal-kab')) window.updateKecamatanTinggal();
@@ -482,19 +482,6 @@ window.prosesLogin = async function() {
 // Dipanggil langsung dari prosesLogin() kalau OTP tidak diperlukan, atau dipanggil
 // dari verifikasiOtpDanLanjut() setelah kode OTP benar.
 window.lanjutkanSetelahLogin = async function(emailInput) {
-  // Gerbang perangkat (Poin 4): Clock In lewat komputer diblokir — wajib dari HP dulu.
-  // (Opsi "Hadir" sudah disembunyikan dari dropdown khusus desktop; ini jaga-jaga
-  // kalau statusPilihanGlobal masih HADIR lewat jalur lain.) Izin tetap boleh dari
-  // desktop karena tidak butuh kehadiran fisik.
-  if (isDesktopBrowser() && window.statusPilihanGlobal === "HADIR (CLOCK IN)") {
-    const sudahClockIn = await sudahClockInHariIniServer(emailInput);
-    if (!sudahClockIn) {
-      alert("Clock In wajib dilakukan lewat HP/perangkat mobile terlebih dahulu.");
-      await signOut(auth);
-      return;
-    }
-  }
-
   // Simpan/hapus sesi email (password TIDAK PERNAH disimpan)
   const ingatChecked = document.getElementById('check-ingat').checked;
   if (ingatChecked) {
@@ -548,20 +535,25 @@ window.lanjutkanSetelahLogin = async function(emailInput) {
 
   window.aturTampilanBerdasarkanRole();
 
-  // Bypass Kamera
   const hariIni = new Date().toLocaleDateString('id-ID');
   const statusLokal = localStorage.getItem('zevanic_absen_' + emailInput);
   const sudahClockInHariIni = statusLokal === hariIni;
 
-  if (window.statusPilihanGlobal === "MASUK DASHBOARD") {
+  // Desktop: satu-satunya jalan masuk adalah kalau sudah Clock In hari ini
+  // (lewat HP). Tidak ada alur kamera/Izin/Cuti sama sekali di desktop.
+  if (isDesktopBrowser()) {
+    if (sudahClockInHariIni) {
       window.pindahLayar('screen-dashboard');
       window.pindahTab('tab-home');
-      return;
+    } else {
+      alert("Login lewat komputer cuma bisa dipakai kalau Anda sudah Clock In hari ini. Silakan Clock In dari HP terlebih dahulu, atau ajukan Izin/Cuti dari HP.");
+      await signOut(auth);
+    }
+    return;
   }
 
-  // Desktop yang sudah Clock In hari ini -> langsung ke Dashboard, lewati pilihan
-  // status apapun (Izin dkk tidak relevan lagi kalau memang sudah hadir).
-  if (isDesktopBrowser() && sudahClockInHariIni) {
+  // ---- Mulai di sini: alur khusus perangkat mobile (butuh kamera) ----
+  if (window.statusPilihanGlobal === "MASUK DASHBOARD") {
       window.pindahLayar('screen-dashboard');
       window.pindahTab('tab-home');
       return;
