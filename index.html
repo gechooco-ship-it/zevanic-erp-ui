@@ -17,7 +17,16 @@
 </head>
 <body class="bg-slate-50 font-sans text-gray-800">
 
-  <div id="screen-login" class="min-h-screen flex flex-col items-center justify-center p-4 fade-in overflow-y-auto">
+  <div id="screen-loading" class="min-h-screen flex flex-col items-center justify-center p-4 fade-in">
+    <div class="text-center">
+      <h1 class="text-2xl font-black tracking-tight text-gray-900 mb-1">ZEVANIC HOUSE</h1>
+      <p class="text-[11px] tracking-widest text-gray-400 font-bold uppercase mb-8">ERP System & Mgmt</p>
+    </div>
+    <div class="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
+    <p class="text-xs text-gray-400 mt-4">Memeriksa sesi Anda...</p>
+  </div>
+
+  <div id="screen-login" class="hidden min-h-screen flex-col items-center justify-center p-4 fade-in overflow-y-auto">
     <!-- MIGRASI VUE: lihat js/vue-login.js (termasuk modal OTP) -->
     <div id="vue-login"></div>
   </div>

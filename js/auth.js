@@ -165,12 +165,17 @@ onAuthStateChanged(auth, async (user) => {
     // dengan user=null SEMENTARA sebelum sesi tersimpan selesai dicek dari
     // penyimpanan lokal — kalau kita kunci di sini, sesi yang sebenarnya ada
     // tidak akan pernah diproses saat callback dipanggil ulang dengan user
-    // yang benar. Biarkan layar login tampil apa adanya untuk saat ini; kalau
-    // memang tidak ada sesi tersimpan, callback ini tidak akan dipanggil lagi.
+    // yang benar. Layar loading tetap tampil untuk saat ini; kalau memang
+    // tidak ada sesi tersimpan, callback ini tidak akan dipanggil lagi — jadi
+    // kita beri sedikit toleransi lalu pindah ke layar Login sebagai fallback.
+    setTimeout(() => {
+      if (!sesiOtomatisSudahDicek && window.pindahLayar) window.pindahLayar('screen-login');
+    }, 1200);
     return;
   }
 
   sesiOtomatisSudahDicek = true; // kunci HANYA setelah dapat user yang nyata
+  let berhasilMasukDashboard = false;
 
   try {
     const userSnap = await getDoc(doc(db, "users", user.email));
@@ -211,8 +216,14 @@ onAuthStateChanged(auth, async (user) => {
     if (window.aturTampilanBerdasarkanRole) window.aturTampilanBerdasarkanRole();
     if (window.pindahLayar) window.pindahLayar('screen-dashboard');
     if (window.pindahTab) window.pindahTab('tab-home');
+    berhasilMasukDashboard = true;
   } catch (e) {
     console.error("Gagal cek sesi otomatis:", e);
+  } finally {
+    // Semua jalur yang TIDAK berhasil masuk Dashboard (profil tak ditemukan,
+    // belum di-approve, belum Clock In, di luar jam shift, error) berakhir di
+    // sini — pindah dari layar loading ke layar Login.
+    if (!berhasilMasukDashboard && window.pindahLayar) window.pindahLayar('screen-login');
   }
 });
 

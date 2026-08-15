@@ -1,6 +1,6 @@
 // js/app.js
 window.pindahLayar = function(idTujuan) {
-  const screens = ['screen-login', 'screen-register', 'screen-camera', 'screen-dashboard'];
+  const screens = ['screen-loading', 'screen-login', 'screen-register', 'screen-camera', 'screen-dashboard'];
   
   screens.forEach(screen => {
     document.getElementById(screen).classList.add('hidden');
