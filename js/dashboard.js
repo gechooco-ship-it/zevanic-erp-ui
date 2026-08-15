@@ -169,177 +169,12 @@ window.tutupPreviewFoto = function() {
 // pindah ke js/vue-daftar-karyawan.js.
 
 // =========================================================================
-// ====== ANTREAN KARYAWAN: approve pendaftar baru sebelum bisa login ======
+// ANTREAN KARYAWAN (Antrean Dakar) — sudah pindah ke js/vue-antrean-dakar.js.
+// Dipakai ulang di sana: GudangCheckboxSelect (vue-components.js),
+// window.ambilMasterList, window.ambilTemplateWA, window.kirimPesanWhatsapp.
 // =========================================================================
-window.muatDataAntreanKaryawan = async function() {
-  const container = document.getElementById('container-antrean-karyawan');
-  if (!container) return;
-  container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400 text-xs"><i class="fas fa-spinner fa-spin text-2xl mb-2"></i><p>Memuat antrean karyawan baru...</p></div>`;
 
-  try {
-    const qGudang = await getDocs(collection(db, "master_gudang"));
-    const daftarGudang = [];
-    qGudang.forEach(g => daftarGudang.push(g.data().nama_gudang));
 
-    const [daftarStatusKerja, daftarJenisPekerjaan, daftarJabatan, daftarStatusKaryawan] = await Promise.all([
-      window.ambilMasterList('status_kerja'),
-      window.ambilMasterList('jenis_pekerjaan'),
-      window.ambilMasterList('jabatan'),
-      window.ambilMasterList('status_karyawan')
-    ]);
-    const opsiSelect = (list, nilaiDefault) => list.map(item =>
-      `<option value="${item}" ${item === nilaiDefault ? 'selected' : ''}>${item}</option>`
-    ).join('');
-
-    const querySnapshot = await getDocs(collection(db, "users"));
-    let html = "";
-    let countPending = 0;
-
-    querySnapshot.forEach((docSnap) => {
-      const d = docSnap.data();
-      const emailId = docSnap.id;
-      if (d.status_approval === "PENDING") {
-        countPending++;
-        const idAman = emailId.replace(/[@.]/g, '_');
-        html += `
-          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-            <div class="flex items-center space-x-3 border-b pb-3">
-              ${d.foto_ktp ? `<img src="${d.foto_ktp}" class="w-16 h-12 rounded-lg object-cover border cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto('${d.foto_ktp}')">` : `<div class="w-16 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-300"><i class="fas fa-id-card"></i></div>`}
-              <div>
-                <h4 class="font-bold text-slate-800 text-sm">${d.nama || 'Tanpa Nama'}</h4>
-                <p class="text-[10px] text-gray-400 font-mono">${d.email || emailId} &bull; ${d.hp || '-'}</p>
-                <p class="text-[10px] text-gray-400 font-mono">NIK: ${d.nik || '-'}</p>
-              </div>
-            </div>
-            <div class="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Status Kerja</label>
-                <select id="antrean-statuskerja-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
-                  ${opsiSelect(daftarStatusKerja, 'Aktif')}
-                </select>
-              </div>
-              <div>
-                <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Jenis Pekerjaan</label>
-                <select id="antrean-jenispekerjaan-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
-                  ${opsiSelect(daftarJenisPekerjaan, daftarJenisPekerjaan[0] || '')}
-                </select>
-              </div>
-              <div>
-                <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Jabatan</label>
-                <select id="antrean-jabatan-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
-                  ${opsiSelect(daftarJabatan, daftarJabatan[0] || '')}
-                </select>
-              </div>
-              <div>
-                <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Status Karyawan</label>
-                <select id="antrean-tipe-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
-                  ${opsiSelect(daftarStatusKaryawan, daftarStatusKaryawan[0] || '')}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label class="block text-[10px] font-bold text-gray-500 mb-1.5 uppercase">Gudang Penempatan (bisa lebih dari satu)</label>
-              <div id="antrean-gudang-${idAman}" class="flex flex-wrap gap-2"></div>
-            </div>
-            <div class="flex space-x-2 pt-2 border-t">
-              <button onclick="setujuiKaryawanBaru('${emailId}')" class="flex-1 bg-green-600 text-white font-bold py-2.5 rounded-xl hover:bg-green-700 transition text-xs">
-                <i class="fas fa-check-circle mr-1"></i> Setujui & Aktifkan
-              </button>
-              <button onclick="tolakKaryawanBaru('${emailId}')" class="bg-red-50 text-red-600 font-bold px-4 py-2.5 rounded-xl hover:bg-red-100 transition text-xs">
-                <i class="fas fa-times"></i> Tolak
-              </button>
-            </div>
-          </div>
-        `;
-      }
-    });
-
-    if (countPending === 0) {
-      container.innerHTML = `<div class="col-span-full text-center py-16 text-gray-400 bg-white rounded-3xl border border-dashed"><i class="fas fa-user-check text-4xl text-green-300 mb-3"></i><h4 class="font-bold text-gray-700 text-sm">Tidak Ada Antrean</h4><p class="text-xs text-gray-400 mt-1">Semua pendaftar sudah diproses.</p></div>`;
-    } else {
-      container.innerHTML = html;
-      // Render checkbox gudang untuk tiap kartu SETELAH innerHTML terpasang (butuh elemen sudah ada di DOM)
-      querySnapshot.forEach((docSnap) => {
-        const d = docSnap.data();
-        if (d.status_approval === "PENDING") {
-          const idAman = docSnap.id.replace(/[@.]/g, '_');
-          window.renderGudangCheckboxes(document.getElementById(`antrean-gudang-${idAman}`), daftarGudang, []);
-        }
-      });
-    }
-  } catch (e) {
-    console.error("Gagal muat antrean karyawan:", e);
-    container.innerHTML = `<div class="col-span-full text-center py-8 text-red-500 text-xs">Gagal memuat antrean karyawan.</div>`;
-  }
-};
-
-window.setujuiKaryawanBaru = async function(emailId) {
-  const idAman = emailId.replace(/[@.]/g, '_');
-  const statusKerja = document.getElementById(`antrean-statuskerja-${idAman}`).value;
-  const jenisPekerjaan = document.getElementById(`antrean-jenispekerjaan-${idAman}`).value;
-  const jabatan = document.getElementById(`antrean-jabatan-${idAman}`).value;
-  const statusKaryawan = document.getElementById(`antrean-tipe-${idAman}`).value;
-  const gudangTerpilih = window.bacaGudangCheckboxes(document.getElementById(`antrean-gudang-${idAman}`));
-
-  if (gudangTerpilih.length === 0) {
-    if (!confirm("Belum ada gudang dipilih. Karyawan ini TIDAK akan bisa login sampai gudang ditautkan (bisa diatur lagi lewat Daftar Karyawan > Edit). Lanjutkan?")) return;
-  }
-
-  try {
-    await updateDoc(doc(db, "users", emailId), {
-      status_kerja: statusKerja,
-      jenis_pekerjaan: jenisPekerjaan,
-      // Role/Status Pengguna SENGAJA tidak diset di sini — supaya siapapun yang
-      // approve di Antrean Dakar tidak bisa memberi akses Owner ke akun baru.
-      // Role hanya bisa diubah Owner lewat Master Karyawan > Daftar Karyawan > Edit.
-      role: "operator",
-      jabatan: jabatan,
-      status_karyawan: statusKaryawan,
-      gudang_penempatan: gudangTerpilih,
-      status_approval: "APPROVED"
-    });
-
-    // Notifikasi WA (Poin 3): akun sudah aktif
-    try {
-      const userSnap = await getDoc(doc(db, "users", emailId));
-      if (userSnap.exists()) {
-        const d = userSnap.data();
-        if (d.hp && window.kirimPesanWhatsapp && window.ambilTemplateWA) {
-          const templateAktif = await window.ambilTemplateWA('template_aktif');
-          window.kirimPesanWhatsapp(
-            d.hp,
-            templateAktif.replace(/\{nama\}/g, d.nama || ''),
-            "Akun Aktif"
-          ).catch(e => console.error("Gagal kirim notifikasi WA aktivasi:", e));
-        }
-      }
-    } catch (e) { console.error("Gagal ambil data untuk notifikasi WA:", e); }
-
-    alert("Karyawan berhasil disetujui dan diaktifkan!");
-    window.muatDataAntreanKaryawan();
-  } catch (e) {
-    console.error("Gagal menyetujui karyawan:", e);
-    alert("Gagal menyimpan persetujuan.");
-  }
-};
-
-window.tolakKaryawanBaru = async function(emailId) {
-  if (!confirm("Tolak pendaftaran karyawan ini? Karyawan tidak akan bisa login. Bisa diaktifkan lagi nanti lewat Data Karyawan jika berubah pikiran.")) return;
-  try {
-    await updateDoc(doc(db, "users", emailId), { status_approval: "REJECTED" });
-    alert("Pendaftaran ditolak.");
-    window.muatDataAntreanKaryawan();
-  } catch (e) {
-    console.error("Gagal menolak:", e);
-    alert("Gagal memproses penolakan.");
-  }
-};
-
-// =========================================================================
-// PENGATURAN WHATSAPP GATEWAY (Menu Karyawan > WhatsApp Gateway, khusus Owner)
-// Menyimpan URL Web App Apps Script + kunci rahasia ke Firestore. Token
-// Fonnte sendiri TIDAK disimpan di sini — itu ada di Apps Script.
-// =========================================================================
 window.muatKonfigWhatsapp = async function() {
   try {
     const configSnap = await getDoc(doc(db, "config", "whatsapp_gateway"));
@@ -896,8 +731,6 @@ window.pindahTab = function(tabId) {
       window.muatDataAdminACC();
   }
   
-  if (tabId === 'tab-superuser' && window.muatDataAntreanKaryawan) window.muatDataAntreanKaryawan();
-
   if (tabId === 'tab-whatsapp' && window.muatKonfigWhatsapp) window.muatKonfigWhatsapp();
 };
 

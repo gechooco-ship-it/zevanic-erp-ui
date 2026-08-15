@@ -722,7 +722,7 @@
 
         <div id="tab-superuser" class="tab-content hidden fade-in space-y-4">
           <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200">
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', this); muatDataAntreanKaryawan();" class="sub-karyawan-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', this)" class="sub-karyawan-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">
               <i class="fas fa-user-clock mr-1.5"></i> Antrean Dakar
             </button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Karyawan</button>
@@ -732,14 +732,8 @@
           </div>
 
           <div id="sub-karyawan-antrean" class="sub-karyawan-content fade-in mt-4 space-y-4">
-            <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex justify-between items-center shadow-sm">
-              <div>
-                <h3 class="text-sm font-bold text-amber-700 mb-0.5"><i class="fas fa-user-clock mr-2"></i> Antrean Persetujuan Karyawan Baru</h3>
-                <p class="text-[10px] text-amber-600">Pendaftar baru tidak bisa login sampai disetujui & dilengkapi datanya di sini.</p>
-              </div>
-              <button onclick="muatDataAntreanKaryawan()" class="bg-amber-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-amber-700 transition"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
-            </div>
-            <div id="container-antrean-karyawan" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            <!-- MIGRASI VUE: lihat js/vue-antrean-dakar.js -->
+            <div id="vue-antrean-dakar"></div>
           </div>
 
           <div id="sub-karyawan-config" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
@@ -984,5 +978,7 @@
   <script type="module" src="js/dashboard.js?v=5"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>
   <script type="module" src="js/vue-config-absensi.js"></script>
+  <script type="module" src="js/vue-daftar-karyawan.js"></script>
+  <script type="module" src="js/vue-antrean-dakar.js"></script>
 </body>
 </html>
