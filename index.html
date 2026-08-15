@@ -243,7 +243,7 @@
           <i class="fas fa-home w-6 text-left"></i> Dashboard
         </button>
         <button onclick="pindahTab('tab-profil')" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 transition">
-          <i class="fas fa-user-circle w-6 text-left"></i> Account Profile
+          <i class="fas fa-user-circle w-6 text-left"></i> Profile
         </button>
         <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-purple-600 hover:bg-purple-50 transition font-bold mt-4 border-t pt-4">
           <i class="fas fa-clipboard-check w-6 text-left"></i> Master Absensi
@@ -299,13 +299,13 @@
 
             <div class="flex items-center space-x-2 border-t pt-4 overflow-x-auto hide-scrollbar">
               <button onclick="pindahSubProfile('profil-qr', this)" class="sub-profil-btn bg-slate-800 text-white font-bold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap shadow-sm transition flex items-center">
-                <i class="fas fa-qrcode mr-1.5"></i> ID & QR
+                <i class="fas fa-qrcode mr-1.5"></i> Account
               </button>
               <button onclick="pindahSubProfile('profil-datadiri', this)" class="sub-profil-btn bg-gray-100 text-gray-600 hover:bg-gray-200 font-semibold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap transition flex items-center">
-                <i class="fas fa-user-edit mr-1.5"></i> Data Diri
+                <i class="fas fa-user-edit mr-1.5"></i> Data Karyawan
               </button>
               <button onclick="pindahSubProfile('profil-riwayat', this)" class="sub-profil-btn bg-gray-100 text-gray-600 hover:bg-gray-200 font-semibold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap transition flex items-center">
-                <i class="fas fa-history mr-1.5"></i> Riwayat & Rekap
+                <i class="fas fa-history mr-1.5"></i> Absensi
               </button>
               <button onclick="pindahSubProfile('profil-pencapaian', this)" class="sub-profil-btn bg-gray-100 text-gray-600 hover:bg-gray-200 font-semibold px-4 py-2.5 rounded-2xl text-xs whitespace-nowrap transition flex items-center">
                 <i class="fas fa-trophy mr-1.5"></i> Pencapaian
@@ -334,29 +334,7 @@
               <button onclick="prosesClockOut()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center transition">
                 <i class="fas fa-sign-out-alt mr-2"></i> Clock Out (Pulang)
               </button>
-              <button onclick="bukaFormCutiProfil()" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-3 rounded-xl text-sm flex items-center justify-center transition border border-blue-200">
-                <i class="fas fa-calendar-alt mr-2"></i> Ajukan Cuti
-              </button>
-            </div>
-
-            <div id="form-cuti-profil" class="hidden bg-white p-5 rounded-3xl border border-gray-100 shadow-sm max-w-sm mx-auto w-full space-y-3 mt-3">
-              <h3 class="text-xs font-bold text-gray-700 border-b pb-2">Form Pengajuan Cuti (Minimal H-3)</h3>
-              <div>
-                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Tanggal Cuti</label>
-                <input type="date" id="profil-cuti-tanggal" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Alasan</label>
-                <select id="profil-cuti-keterangan" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm"></select>
-              </div>
-              <div>
-                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Detail Tambahan (opsional)</label>
-                <textarea id="profil-cuti-detail" rows="2" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm resize-none"></textarea>
-              </div>
-              <div class="flex space-x-2 pt-1">
-                <button onclick="tutupFormCutiProfil()" class="w-1/2 bg-gray-100 text-gray-600 font-bold py-2.5 rounded-xl text-xs">Batal</button>
-                <button onclick="ajukanCutiDariProfil()" class="w-1/2 bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs">Lanjut Foto</button>
-              </div>
+              <p class="text-[10px] text-gray-400 text-center">Pengajuan Izin/Cuti/Lembur sekarang ada di tab <b>Absensi</b>.</p>
             </div>
           </div>
 
@@ -444,6 +422,87 @@
           </div>
 
           <div id="profil-riwayat" class="sub-profil-content hidden fade-in mt-4 space-y-4">
+            <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm max-w-lg mx-auto w-full space-y-3">
+              <h3 class="text-xs font-bold text-gray-700 border-b pb-2">Pengajuan</h3>
+              <div class="grid grid-cols-3 gap-2">
+                <button onclick="bukaFormIzinProfil()" class="bg-yellow-50 hover:bg-yellow-100 text-yellow-700 font-bold py-2.5 rounded-xl text-xs flex flex-col items-center justify-center transition border border-yellow-200">
+                  <i class="fas fa-file-signature mb-1"></i> Izin
+                </button>
+                <button onclick="bukaFormCutiProfil()" class="bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold py-2.5 rounded-xl text-xs flex flex-col items-center justify-center transition border border-blue-200">
+                  <i class="fas fa-calendar-alt mb-1"></i> Cuti
+                </button>
+                <button onclick="bukaFormLemburProfil()" class="bg-purple-50 hover:bg-purple-100 text-purple-600 font-bold py-2.5 rounded-xl text-xs flex flex-col items-center justify-center transition border border-purple-200">
+                  <i class="fas fa-business-time mb-1"></i> Lembur
+                </button>
+              </div>
+            </div>
+
+            <div id="form-izin-profil" class="hidden bg-white p-5 rounded-3xl border border-gray-100 shadow-sm max-w-lg mx-auto w-full space-y-3">
+              <h3 class="text-xs font-bold text-gray-700 border-b pb-2">Form Pengajuan Izin (Hari H)</h3>
+              <div>
+                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Tanggal</label>
+                <input type="date" id="profil-izin-tanggal" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Alasan</label>
+                <select id="profil-izin-keterangan" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm"></select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Detail Tambahan (opsional)</label>
+                <textarea id="profil-izin-detail" rows="2" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm resize-none"></textarea>
+              </div>
+              <div class="flex space-x-2 pt-1">
+                <button onclick="tutupFormIzinProfil()" class="w-1/2 bg-gray-100 text-gray-600 font-bold py-2.5 rounded-xl text-xs">Batal</button>
+                <button onclick="ajukanIzinDariProfil()" class="w-1/2 bg-yellow-500 text-white font-bold py-2.5 rounded-xl text-xs">Lanjut Foto</button>
+              </div>
+            </div>
+
+            <div id="form-cuti-profil" class="hidden bg-white p-5 rounded-3xl border border-gray-100 shadow-sm max-w-lg mx-auto w-full space-y-3">
+              <h3 class="text-xs font-bold text-gray-700 border-b pb-2">Form Pengajuan Cuti (Minimal H-3)</h3>
+              <div>
+                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Tanggal Cuti</label>
+                <input type="date" id="profil-cuti-tanggal" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Alasan</label>
+                <select id="profil-cuti-keterangan" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm"></select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Detail Tambahan (opsional)</label>
+                <textarea id="profil-cuti-detail" rows="2" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm resize-none"></textarea>
+              </div>
+              <div class="flex space-x-2 pt-1">
+                <button onclick="tutupFormCutiProfil()" class="w-1/2 bg-gray-100 text-gray-600 font-bold py-2.5 rounded-xl text-xs">Batal</button>
+                <button onclick="ajukanCutiDariProfil()" class="w-1/2 bg-blue-600 text-white font-bold py-2.5 rounded-xl text-xs">Lanjut Foto</button>
+              </div>
+            </div>
+
+            <div id="form-lembur-profil" class="hidden bg-white p-5 rounded-3xl border border-gray-100 shadow-sm max-w-lg mx-auto w-full space-y-3">
+              <h3 class="text-xs font-bold text-gray-700 border-b pb-2">Form Pengajuan Jam Lembur</h3>
+              <div class="grid grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-[11px] font-semibold text-gray-600 mb-1">Mulai Lembur</label>
+                  <input type="datetime-local" id="profil-lembur-mulai" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
+                </div>
+                <div>
+                  <label class="block text-[11px] font-semibold text-gray-600 mb-1">Selesai (perkiraan)</label>
+                  <input type="datetime-local" id="profil-lembur-selesai" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
+                </div>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Alasan Lembur</label>
+                <textarea id="profil-lembur-alasan" rows="2" placeholder="Kenapa perlu lembur..." class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm resize-none"></textarea>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Instruksi / Tugas yang Dikerjakan</label>
+                <textarea id="profil-lembur-instruksi" rows="2" placeholder="Instruksi dari atasan / tugas yang dikerjakan..." class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm resize-none"></textarea>
+              </div>
+              <div class="flex space-x-2 pt-1">
+                <button onclick="tutupFormLemburProfil()" class="w-1/2 bg-gray-100 text-gray-600 font-bold py-2.5 rounded-xl text-xs">Batal</button>
+                <button onclick="ajukanLemburDariProfil()" class="w-1/2 bg-purple-600 text-white font-bold py-2.5 rounded-xl text-xs">Clock In Lembur (Foto)</button>
+              </div>
+            </div>
+
             <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                 <h3 class="text-sm font-bold text-slate-800 flex items-center">
@@ -502,7 +561,7 @@
 
         <!-- Modal Aju Banding (dipulihkan dari versi awal - dipakai dari daftar Riwayat & Rekap) -->
         <div id="modal-aju-banding" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 fade-in">
-          <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl space-y-4 text-xs">
+          <div class="bg-white w-full max-w-md p-6 rounded-3xl shadow-2xl space-y-4 text-xs max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center border-b pb-3">
               <h3 class="font-bold text-gray-800 text-sm"><i class="fas fa-gavel text-amber-500 mr-1.5"></i> Form Pengajuan Sanggahan / Aju Banding</h3>
               <button onclick="tutupModalAjuBanding()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times text-base"></i></button>
@@ -512,6 +571,11 @@
             <div>
               <label class="block font-semibold text-gray-600 mb-1">Alasan / Catatan Sanggahan *</label>
               <textarea id="banding-alasan" rows="3" placeholder="Jelaskan alasan atau bukti penyesuaian..." class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+            </div>
+            <div>
+              <label class="block font-semibold text-gray-600 mb-1">Lampiran Foto/Video (opsional, maks 1MB)</label>
+              <input type="file" id="banding-file" accept="image/*,video/*" onchange="pilihFileBanding(event)" class="w-full text-[11px] text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100">
+              <p id="banding-file-info" class="text-[10px] text-gray-400 mt-1"></p>
             </div>
             <div class="flex space-x-2 pt-2">
               <button onclick="tutupModalAjuBanding()" class="w-1/2 bg-gray-100 font-bold py-2.5 rounded-xl text-gray-600 hover:bg-gray-200 transition">Batal</button>
@@ -529,9 +593,9 @@
           <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200 pt-2 hide-scrollbar">
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this); muatConfigAbsensi();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-cogs mr-1.5"></i> Config Absensi</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this); muatDataPenjadwalan();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-calendar-alt mr-1.5"></i> Penjadwalan</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this); muatDataAdminACC();" class="sub-absensi-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-clock mr-1.5"></i> Antrean Pending</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this); muatDataAdminACC();" class="sub-absensi-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-clock mr-1.5"></i> Antrean Absensi</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-riwayat-acc', this); muatDataRiwayatACC();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-check-circle mr-1.5"></i> Riwayat ACC</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this); siapkanFilterRekap();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-chart-bar mr-1.5"></i> Rekap Absensi</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this); siapkanFilterRekap();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-chart-bar mr-1.5"></i> Riwayat All Absensi</button>
           </div>
         </div>
 
@@ -622,10 +686,10 @@
         <div id="tab-superuser" class="tab-content hidden fade-in space-y-4">
           <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200">
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', this); muatDataAntreanKaryawan();" class="sub-karyawan-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">
-              <i class="fas fa-user-clock mr-1.5"></i> Antrean Karyawan
+              <i class="fas fa-user-clock mr-1.5"></i> Antrean Dakar
             </button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this); muatSemuaMasterData();" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Karyawan</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this); muatDataSuperUser();" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Data Karyawan</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this); muatDataSuperUser();" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Daftar Karyawan</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Slip Gaji</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Payroll</button>
           </div>
@@ -730,13 +794,22 @@
                 </div>
                 <div id="list-alasan_cuti" class="flex flex-wrap"></div>
               </div>
+
+              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+                <h4 class="text-xs font-bold text-gray-700">Status Kehadiran</h4>
+                <div class="flex space-x-2">
+                  <input type="text" id="input-status_kehadiran" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
+                  <button onclick="tambahMasterListItem('status_kehadiran', 'input-status_kehadiran', 'list-status_kehadiran')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="list-status_kehadiran" class="flex flex-wrap"></div>
+              </div>
             </div>
           </div>
 
           <div id="sub-karyawan-data" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
             <div class="bg-red-50 border border-red-200 rounded-2xl p-4 flex justify-between items-center shadow-sm">
               <div>
-                <h3 class="text-sm font-bold text-red-700 mb-0.5"><i class="fas fa-users mr-2"></i> Database Karyawan ERP</h3>
+                <h3 class="text-sm font-bold text-red-700 mb-0.5"><i class="fas fa-users mr-2"></i> Daftar Karyawan</h3>
                 <p class="text-[10px] text-red-600">Master kontrol HR untuk Edit Role & Status.</p>
               </div>
               <button onclick="muatDataSuperUser()" class="bg-red-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-700 transition">Muat Data</button>
@@ -745,10 +818,14 @@
               <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
                 <thead class="bg-red-50 text-red-700 text-xs uppercase sticky top-0 z-10">
                   <tr>
-                    <th class="p-4">Nama & ID</th>
-                    <th class="p-4">Email / Jabatan</th>
-                    <th class="p-4">Role / Status</th>
-                    <th class="p-4">Aksi</th>
+                    <th class="p-3">Jenis Pekerjaan / Status Kerja</th>
+                    <th class="p-3">KTP</th>
+                    <th class="p-3">Nama / ID</th>
+                    <th class="p-3">No HP / Email</th>
+                    <th class="p-3">Jabatan / Status Karyawan</th>
+                    <th class="p-3">Penempatan / Shift</th>
+                    <th class="p-3">Role / Jenis Lokasi</th>
+                    <th class="p-3 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody id="tabel-superuser-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
@@ -917,20 +994,26 @@
             <select id="edit-role" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
           </div>
           <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Jabatan</label>
-            <select id="edit-jabatan" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Jenis Pekerjaan</label>
+            <select id="edit-jenis-pekerjaan" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Status Kerja</label>
-            <select id="edit-status" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Jabatan</label>
+            <select id="edit-jabatan" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
           </div>
           <div>
             <label class="block text-xs font-semibold text-gray-500 mb-1">Status Karyawan</label>
             <select id="edit-tipe-karyawan" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
           </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-gray-500 mb-1">Status Kerja</label>
+          <select id="edit-status" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
+        </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
@@ -1033,6 +1116,37 @@
         <button onclick="kirimUlangOtp()" class="text-blue-600 font-semibold hover:underline">Kirim Ulang</button>
         <button onclick="batalkanOtp()" class="text-gray-400 font-semibold hover:underline">Batal</button>
       </div>
+    </div>
+  </div>
+
+  <div id="modal-edit-absensi" class="hidden fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 fade-in">
+    <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4">
+      <div class="flex justify-between items-center border-b pb-3">
+        <h3 class="text-sm font-bold text-gray-800"><i class="fas fa-edit text-blue-600 mr-2"></i> Edit Data Absensi</h3>
+        <button onclick="tutupEditAbsensi()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times text-lg"></i></button>
+      </div>
+      <p class="text-xs text-gray-500">Karyawan: <b id="editabsensi-nama" class="text-slate-800">-</b></p>
+      <input type="hidden" id="editabsensi-doc-id">
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Status Kehadiran</label>
+        <select id="editabsensi-statuskehadiran" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm"></select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Seragam</label>
+        <select id="editabsensi-seragam" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
+          <option value="Sesuai">Sesuai</option>
+          <option value="Tidak Sesuai">Tidak Sesuai</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Status Persetujuan</label>
+        <select id="editabsensi-statusacc" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
+          <option value="ACC">ACC</option>
+          <option value="REJECT">REJECT</option>
+          <option value="PENDING">PENDING</option>
+        </select>
+      </div>
+      <button onclick="simpanEditAbsensi()" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 transition text-sm"><i class="fas fa-save mr-1"></i> Simpan Perubahan</button>
     </div>
   </div>
 

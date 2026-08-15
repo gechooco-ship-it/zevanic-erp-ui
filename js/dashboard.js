@@ -68,8 +68,14 @@ window.simpanKeFirebase = async function(fotoBase64) {
       dataKirim.tanggal_pengajuan = window.tanggalIzinGlobal;
       dataKirim.keterangan = window.keteranganIzinGlobal;
     }
+    if (window.statusPilihanGlobal === "LEMBUR (CLOCK IN)") {
+      dataKirim.lembur_mulai = window.lemburMulaiGlobal || "";
+      dataKirim.lembur_selesai = window.lemburSelesaiGlobal || "";
+      dataKirim.keterangan = window.lemburAlasanGlobal || "";
+      dataKirim.lembur_instruksi = window.lemburInstruksiGlobal || "";
+    }
     // Poin 7 (Geofencing): sertakan gudang, koordinat, dan status radius untuk Clock In/Out
-    if (window.statusPilihanGlobal === "HADIR (CLOCK IN)" || window.statusPilihanGlobal === "CLOCK OUT") {
+    if (window.statusPilihanGlobal === "HADIR (CLOCK IN)" || window.statusPilihanGlobal === "CLOCK OUT" || window.statusPilihanGlobal === "LEMBUR (CLOCK IN)") {
       dataKirim.gudang = window.gudangDipilihGlobal || "";
       if (window.koordinatGlobal) {
         dataKirim.koordinat = { lat: window.koordinatGlobal.lat, lng: window.koordinatGlobal.lng };
@@ -98,7 +104,7 @@ window.kirimDataKeCloud = async function() {
   // selesai), coba ambil lagi sekarang dan TUNGGU hasilnya — bukan langsung
   // gagal. Ini menghindari kondisi "sempat berhasil ambil foto tapi status GPS
   // sudah basi/hilang pas mau kirim".
-  const perluLokasi = (window.statusPilihanGlobal === "HADIR (CLOCK IN)" || window.statusPilihanGlobal === "CLOCK OUT");
+  const perluLokasi = (window.statusPilihanGlobal === "HADIR (CLOCK IN)" || window.statusPilihanGlobal === "CLOCK OUT" || window.statusPilihanGlobal === "LEMBUR (CLOCK IN)");
   if (perluLokasi) {
     if (!window.koordinatGlobal && window.ambilLokasiGPS) {
       btnFinal.innerText = "Memeriksa lokasi GPS...";
@@ -162,29 +168,62 @@ window.tutupPreviewFoto = function() {
 window.muatDataSuperUser = async function() {
   const tbody = document.getElementById('tabel-superuser-body');
   if(!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="4" class="p-4 text-center text-gray-400">Memuat data user...</td></tr>';
-  
+  tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-400">Memuat data user...</td></tr>';
+
+  // Ambil peta nama gudang -> jenis lokasi (Tetap/Dinamis), dipakai buat kolom 7
+  const qGudang = await getDocs(collection(db, "master_gudang"));
+  const petaJenisLokasi = {};
+  qGudang.forEach(g => { petaJenisLokasi[g.data().nama_gudang] = g.data().tipe_lokasi || 'Tetap'; });
+
+  const dua = (a, b) => `<b class="text-slate-800">${a || '-'}</b><br><span class="text-[10px] text-gray-400 font-normal">${b || '-'}</span>`;
+
   const querySnapshot = await getDocs(collection(db, "users"));
   tbody.innerHTML = "";
   querySnapshot.forEach((document) => {
     const d = document.data();
     let idDoc = document.id;
-    let warnaStatus = (d.status_kerja === "Aktif" || d.status_kerja === "aktif") ? "text-green-500" : "text-red-500";
     let badgeApproval = "";
     if (d.status_approval === "PENDING") badgeApproval = '<span class="inline-block px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-[9px] font-bold rounded ml-1">MENUNGGU</span>';
     else if (d.status_approval === "REJECTED") badgeApproval = '<span class="inline-block px-1.5 py-0.5 bg-red-100 text-red-700 text-[9px] font-bold rounded ml-1">DITOLAK</span>';
+
+    const daftarGudangUser = window.normalisasiGudang(d.gudang_penempatan);
+    const daftarJenisLokasi = [...new Set(daftarGudangUser.map(g => petaJenisLokasi[g] || '-'))];
+
     tbody.innerHTML += `
       <tr class="hover:bg-gray-50">
-        <td class="p-4 font-bold text-xs">${d.nama}<br><span class="text-[10px] font-mono text-gray-500">${d.id_karyawan} (${d.id_app})</span></td>
-        <td class="p-4 text-xs">${d.email}<br><span class="text-gray-500">${d.jabatan || '-'}</span></td>
-        <td class="p-4 text-xs font-semibold text-blue-600 uppercase">${d.role} <br> <span class="text-[10px] ${warnaStatus}">${d.status_kerja || 'Aktif'}</span>${badgeApproval}</td>
-        <td class="p-4">
-          <button onclick="bukaEditUser('${idDoc}')" class="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 border border-blue-200 transition">
-            <i class="fas fa-edit"></i> Edit
-          </button>
+        <td class="p-3 text-xs">${dua(d.jenis_pekerjaan, d.status_kerja)}${badgeApproval}</td>
+        <td class="p-3">
+          ${d.foto_ktp ? `<img src="${d.foto_ktp}" class="w-12 h-9 rounded object-cover border cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto('${d.foto_ktp}')">` : '<div class="w-12 h-9 bg-gray-100 rounded flex items-center justify-center text-gray-300"><i class="fas fa-id-card text-xs"></i></div>'}
+        </td>
+        <td class="p-3 text-xs">${dua(d.nama, d.id_karyawan + ' / ' + (d.id_app || '-'))}</td>
+        <td class="p-3 text-xs">${dua(d.hp, d.email)}</td>
+        <td class="p-3 text-xs">${dua(d.jabatan, d.status_karyawan)}</td>
+        <td class="p-3 text-xs">${dua(daftarGudangUser.join(', ') || '-', d.nama_shift)}</td>
+        <td class="p-3 text-xs uppercase">${dua(d.role, daftarJenisLokasi.join(', ') || '-')}</td>
+        <td class="p-3 text-center">
+          <div class="flex items-center justify-center gap-1.5">
+            <button onclick="bukaEditUser('${idDoc}')" class="bg-blue-50 text-blue-600 px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 border border-blue-200 transition">
+              <i class="fas fa-edit"></i>
+            </button>
+            <button onclick="hapusKaryawan('${idDoc}')" class="bg-red-50 text-red-600 px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100 border border-red-200 transition">
+              <i class="fas fa-trash-alt"></i>
+            </button>
+          </div>
         </td>
       </tr>`;
   });
+};
+
+window.hapusKaryawan = async function(emailId) {
+  if (!confirm(`Yakin ingin menghapus data karyawan "${emailId}" secara permanen? Data profil akan hilang dan tidak bisa dikembalikan.`)) return;
+  try {
+    await deleteDoc(doc(db, "users", emailId));
+    alert("Data karyawan berhasil dihapus dari Daftar Karyawan.\n\nCatatan: akun login (Firebase Auth) orang ini masih ada di sistem terpisah. Kalau mau benar-benar diblokir dari login, hapus juga manual lewat Firebase Console > Authentication.");
+    window.muatDataSuperUser();
+  } catch (e) {
+    console.error("Gagal menghapus karyawan:", e);
+    alert("Gagal menghapus data karyawan.");
+  }
 };
 
 // =========================================================================
@@ -200,9 +239,9 @@ window.muatDataAntreanKaryawan = async function() {
     const daftarGudang = [];
     qGudang.forEach(g => daftarGudang.push(g.data().nama_gudang));
 
-    const [daftarStatusKerja, daftarStatusPengguna, daftarJabatan, daftarStatusKaryawan] = await Promise.all([
+    const [daftarStatusKerja, daftarJenisPekerjaan, daftarJabatan, daftarStatusKaryawan] = await Promise.all([
       window.ambilMasterList('status_kerja'),
-      window.ambilMasterList('status_pengguna'),
+      window.ambilMasterList('jenis_pekerjaan'),
       window.ambilMasterList('jabatan'),
       window.ambilMasterList('status_karyawan')
     ]);
@@ -238,9 +277,9 @@ window.muatDataAntreanKaryawan = async function() {
                 </select>
               </div>
               <div>
-                <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Status Pengguna (Role Akses)</label>
-                <select id="antrean-role-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
-                  ${opsiSelect(daftarStatusPengguna, 'operator')}
+                <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Jenis Pekerjaan</label>
+                <select id="antrean-jenispekerjaan-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
+                  ${opsiSelect(daftarJenisPekerjaan, daftarJenisPekerjaan[0] || '')}
                 </select>
               </div>
               <div>
@@ -295,19 +334,23 @@ window.muatDataAntreanKaryawan = async function() {
 window.setujuiKaryawanBaru = async function(emailId) {
   const idAman = emailId.replace(/[@.]/g, '_');
   const statusKerja = document.getElementById(`antrean-statuskerja-${idAman}`).value;
-  const role = document.getElementById(`antrean-role-${idAman}`).value;
+  const jenisPekerjaan = document.getElementById(`antrean-jenispekerjaan-${idAman}`).value;
   const jabatan = document.getElementById(`antrean-jabatan-${idAman}`).value;
   const statusKaryawan = document.getElementById(`antrean-tipe-${idAman}`).value;
   const gudangTerpilih = window.bacaGudangCheckboxes(document.getElementById(`antrean-gudang-${idAman}`));
 
   if (gudangTerpilih.length === 0) {
-    if (!confirm("Belum ada gudang dipilih. Karyawan ini TIDAK akan bisa login sampai gudang ditautkan (bisa diatur lagi lewat Data Karyawan > Edit). Lanjutkan?")) return;
+    if (!confirm("Belum ada gudang dipilih. Karyawan ini TIDAK akan bisa login sampai gudang ditautkan (bisa diatur lagi lewat Daftar Karyawan > Edit). Lanjutkan?")) return;
   }
 
   try {
     await updateDoc(doc(db, "users", emailId), {
       status_kerja: statusKerja,
-      role: role,
+      jenis_pekerjaan: jenisPekerjaan,
+      // Role/Status Pengguna SENGAJA tidak diset di sini — supaya siapapun yang
+      // approve di Antrean Dakar tidak bisa memberi akses Owner ke akun baru.
+      // Role hanya bisa diubah Owner lewat Master Karyawan > Daftar Karyawan > Edit.
+      role: "operator",
       jabatan: jabatan,
       status_karyawan: statusKaryawan,
       gudang_penempatan: gudangTerpilih,
@@ -462,7 +505,7 @@ window.muatMonitoringWA = async function() {
       listLog.push(d);
     });
 
-    listLog.sort((a, b) => new Date(b.waktu || 0) - new Date(a.waktu || 0));
+    listLog.sort((a, b) => (window.parseWaktuIndo(b.waktu)?.getTime() || 0) - (window.parseWaktuIndo(a.waktu)?.getTime() || 0));
     listLog = listLog.slice(0, 50);
 
     if (listLog.length === 0) {
@@ -515,6 +558,7 @@ window.bukaEditUser = async function(emailId) {
     document.getElementById('edit-email').value = d.email || "";
 
     await window.isiSelectDariMaster('edit-role', 'status_pengguna', d.role || 'operator');
+    await window.isiSelectDariMaster('edit-jenis-pekerjaan', 'jenis_pekerjaan', d.jenis_pekerjaan || '');
     await window.isiSelectDariMaster('edit-jabatan', 'jabatan', d.jabatan || '');
     
     let statusSet = (d.status_kerja === "aktif") ? "Aktif" : (d.status_kerja || "Aktif");
@@ -583,6 +627,7 @@ window.simpanEditUser = async function() {
 
   const emailId = document.getElementById('edit-email-asli').value;
   const roleBaru = document.getElementById('edit-role').value;
+  const jenisPekerjaanBaru = document.getElementById('edit-jenis-pekerjaan').value;
   const jabatanBaru = document.getElementById('edit-jabatan').value;
   const statusBaru = document.getElementById('edit-status').value;
   const tipeKaryawanBaru = document.getElementById('edit-tipe-karyawan').value;
@@ -593,6 +638,7 @@ window.simpanEditUser = async function() {
     const userRef = doc(db, "users", emailId);
     await updateDoc(userRef, {
       role: roleBaru,
+      jenis_pekerjaan: jenisPekerjaanBaru,
       jabatan: jabatanBaru,
       status_kerja: statusBaru,
       status_karyawan: tipeKaryawanBaru,
@@ -733,7 +779,8 @@ const MASTER_DATA_DEFAULT = {
   status_karyawan: ["Tetap", "Part Time", "Kontrak"],
   kabupaten: ["Bandung", "Bandung Barat", "Cimahi", "Garut"],
   alasan_izin: ["Sakit", "Keperluan Keluarga", "Keperluan Pribadi", "Lainnya"],
-  alasan_cuti: ["Cuti Tahunan", "Cuti Melahirkan/Menikah", "Keperluan Keluarga", "Lainnya"]
+  alasan_cuti: ["Cuti Tahunan", "Cuti Melahirkan/Menikah", "Keperluan Keluarga", "Lainnya"],
+  status_kehadiran: ["Ontime", "Terlambat", "Tidak Absen"]
 };
 const KECAMATAN_DEFAULT = {
   "Bandung": ["Cimaung", "Banjaran", "Soreang"],
@@ -900,6 +947,7 @@ window.muatSemuaMasterData = function() {
   window.muatDanTampilkanMasterList('kabupaten', 'list-kabupaten');
   window.muatDanTampilkanMasterList('alasan_izin', 'list-alasan_izin');
   window.muatDanTampilkanMasterList('alasan_cuti', 'list-alasan_cuti');
+  window.muatDanTampilkanMasterList('status_kehadiran', 'list-status_kehadiran');
   window.muatKabupatenUntukKecamatan();
 };
 
@@ -1259,6 +1307,26 @@ window.simpanUpdateDataDiriLengkap = async function() {
   }
 };
 
+// Field "waktu" disimpan sebagai teks hasil new Date().toLocaleString('id-ID'),
+// contoh: "15/8/2026, 10.30.15" (bukan format ISO). Bug lama: banyak tempat di
+// file ini mencoba new Date(data.waktu) lagi seolah itu format yang bisa
+// di-parse ulang — hasilnya selalu "Invalid Date" karena JS tidak mengerti
+// format DD/M/YYYY dengan titik sebagai pemisah jam. Fungsi ini yang benar.
+window.parseWaktuIndo = function(waktuStr) {
+  if (!waktuStr || typeof waktuStr !== 'string') return null;
+  const [tglPart, jamPart] = waktuStr.split(', ');
+  if (!tglPart) return null;
+  const [d, m, y] = tglPart.split('/').map(Number);
+  if (!d || !m || !y) return null;
+  let h = 0, mi = 0, s = 0;
+  if (jamPart) {
+    const bagianJam = jamPart.split('.').map(Number);
+    h = bagianJam[0] || 0; mi = bagianJam[1] || 0; s = bagianJam[2] || 0;
+  }
+  const hasil = new Date(y, m - 1, d, h, mi, s);
+  return isNaN(hasil.getTime()) ? null : hasil;
+};
+
 window.pindahSubTab = function(prefixClass, targetId, elemenTombol) {
   const semuaKonten = document.querySelectorAll(`.${prefixClass}-content`);
   semuaKonten.forEach(el => el.classList.add('hidden'));
@@ -1312,6 +1380,7 @@ window.muatDataAdminACC = async function() {
     const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
     const { db } = await import("./firebase-config.js");
     const querySnapshot = await getDocs(collection(db, "absensi"));
+    const daftarStatusKehadiran = window.ambilMasterList ? await window.ambilMasterList('status_kehadiran') : ["Ontime", "Terlambat", "Tidak Absen"];
     let html = "";
     let countPending = 0;
 
@@ -1322,7 +1391,7 @@ window.muatDataAdminACC = async function() {
       if (!data.status_acc || data.status_acc === "PENDING") {
         countPending++;
         const fotoUrl = data.foto_selfie || data.foto || "https://via.placeholder.com/150";
-        const tanggalStr = data.waktu ? new Date(data.waktu).toLocaleString('id-ID') : "-";
+        const tanggalStr = data.waktu || "-";
         const koordinatHtml = data.koordinat
           ? `${data.koordinat.lat.toFixed(5)}, ${data.koordinat.lng.toFixed(5)}<br><a href="https://www.google.com/maps?q=${data.koordinat.lat},${data.koordinat.lng}" target="_blank" class="text-blue-500 text-[9px]"><i class="fas fa-map-marker-alt"></i> Lihat di Peta</a>`
           : '-';
@@ -1354,10 +1423,9 @@ window.muatDataAdminACC = async function() {
             </div>
             <div class="grid grid-cols-2 gap-3 pt-2">
               <div>
-                <label class="block text-[10px] text-gray-500 mb-1 font-bold uppercase tracking-wider">Persetujuan</label>
-                <select id="acc-status-${docId}" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none font-bold text-slate-700 text-xs">
-                  <option value="ACC" selected>ACC (Valid)</option>
-                  <option value="REJECT">Tolak (Reject)</option>
+                <label class="block text-[10px] text-gray-500 mb-1 font-bold uppercase tracking-wider">Status Kehadiran</label>
+                <select id="acc-statuskehadiran-${docId}" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none font-bold text-slate-700 text-xs">
+                  ${daftarStatusKehadiran.map(s => `<option value="${s}" ${data.status_kehadiran === s ? 'selected' : ''}>${s}</option>`).join('')}
                 </select>
               </div>
               <div>
@@ -1369,10 +1437,13 @@ window.muatDataAdminACC = async function() {
               </div>
             </div>
             <div class="flex space-x-2 pt-2 border-t">
-              <button onclick="prosesAcceptAbsensi('${docId}')" class="flex-1 bg-green-600 text-white font-bold py-2.5 rounded-xl hover:bg-green-700 transition shadow-sm text-xs flex items-center justify-center">
-                <i class="fas fa-check-circle mr-1.5"></i> Proses Validasi
+              <button onclick="prosesAcceptAbsensi('${docId}', 'ACC')" class="flex-1 bg-green-600 text-white font-bold py-2.5 rounded-xl hover:bg-green-700 transition shadow-sm text-xs flex items-center justify-center">
+                <i class="fas fa-check-circle mr-1"></i> Accept
               </button>
-              <button onclick="hapusAbsensi('${docId}')" class="bg-red-50 text-red-600 font-bold px-4 py-2.5 rounded-xl hover:bg-red-100 transition text-xs" title="Hapus Permanen">
+              <button onclick="prosesAcceptAbsensi('${docId}', 'REJECT')" class="flex-1 bg-red-500 text-white font-bold py-2.5 rounded-xl hover:bg-red-600 transition shadow-sm text-xs flex items-center justify-center">
+                <i class="fas fa-times-circle mr-1"></i> Reject
+              </button>
+              <button onclick="hapusAbsensi('${docId}')" class="bg-gray-100 text-gray-500 font-bold px-3.5 py-2.5 rounded-xl hover:bg-gray-200 transition text-xs" title="Hapus Permanen">
                 <i class="fas fa-trash-alt"></i>
               </button>
             </div>
@@ -1397,9 +1468,9 @@ window.muatDataAdminACC = async function() {
   }
 };
 
-window.prosesAcceptAbsensi = async function(docId) {
-  const statusAcc = document.getElementById(`acc-status-${docId}`).value;
+window.prosesAcceptAbsensi = async function(docId, statusAcc) {
   const seragam = document.getElementById(`acc-seragam-${docId}`).value;
+  const statusKehadiran = document.getElementById(`acc-statuskehadiran-${docId}`) ? document.getElementById(`acc-statuskehadiran-${docId}`).value : "";
 
   try {
     const { doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
@@ -1408,12 +1479,13 @@ window.prosesAcceptAbsensi = async function(docId) {
     const docRef = doc(db, "absensi", docId);
     await updateDoc(docRef, {
       status_acc: statusAcc,
+      status_kehadiran: statusKehadiran,
       seragam: seragam,
       validated_at: new Date().toISOString(),
       validated_by: window.currentUser.name || window.currentUser.nama || window.currentUser.email
     });
 
-    alert(`Absensi berhasil di-${statusAcc}! Data telah berpindah ke Riwayat & Rekapitulasi.`);
+    alert(`Absensi berhasil di-${statusAcc}! Data telah berpindah ke Riwayat All Absensi.`);
     window.muatDataAdminACC(); 
   } catch (e) {
     console.error("Gagal update ACC:", e);
@@ -1463,9 +1535,12 @@ window.muatDataRiwayatPersonal = async function() {
       if (data.email === window.currentUser.email) {
         let lolosTgl = true;
         if (data.waktu) {
-          const tglData = new Date(data.waktu).toISOString().split('T')[0];
-          if (tglMulai && tglData < tglMulai) lolosTgl = false;
-          if (tglSelesai && tglData > tglSelesai) lolosTgl = false;
+          const waktuObj = window.parseWaktuIndo(data.waktu);
+          if (waktuObj) {
+            const tglData = `${waktuObj.getFullYear()}-${String(waktuObj.getMonth() + 1).padStart(2, '0')}-${String(waktuObj.getDate()).padStart(2, '0')}`;
+            if (tglMulai && tglData < tglMulai) lolosTgl = false;
+            if (tglSelesai && tglData > tglSelesai) lolosTgl = false;
+          }
         }
 
         let lolosGudang = (filterGudang === 'ALL' || data.gudang === filterGudang);
@@ -1488,7 +1563,7 @@ window.muatDataRiwayatPersonal = async function() {
     if (document.getElementById('stat-seragam')) document.getElementById('stat-seragam').innerText = countSeragamBeda;
     if (document.getElementById('stat-izin')) document.getElementById('stat-izin').innerText = countIzin;
 
-    listData.sort((a, b) => new Date(b.waktu || 0) - new Date(a.waktu || 0));
+    listData.sort((a, b) => (window.parseWaktuIndo(b.waktu)?.getTime() || 0) - (window.parseWaktuIndo(a.waktu)?.getTime() || 0));
     window.dataRiwayatGlobal = listData;
 
     if (listData.length === 0) {
@@ -1501,42 +1576,49 @@ window.muatDataRiwayatPersonal = async function() {
         <table class="w-full text-left text-xs text-gray-600 whitespace-nowrap">
           <thead class="bg-gray-50 text-gray-700 font-bold border-b text-[10px] uppercase">
             <tr>
-              <th class="p-3">Waktu Presensi</th>
-              <th class="p-3">Status</th>
-              <th class="p-3">Lokasi & Shift</th>
-              <th class="p-3">Seragam</th>
-              <th class="p-3 text-center">Status Validasi</th>
-              <th class="p-3 text-center">Aksi / Sanggahan</th>
+              <th class="p-3">Persetujuan / Tipe Absen</th>
+              <th class="p-3">Shift / Gudang</th>
+              <th class="p-3">Tanggal / Waktu</th>
+              <th class="p-3">Foto</th>
+              <th class="p-3">Nama / No HP</th>
+              <th class="p-3">Status Kehadiran / Seragam</th>
+              <th class="p-3">Sanggahan Karyawan</th>
+              <th class="p-3">Status Aju Banding</th>
+              <th class="p-3 text-center">Aksi Aju Banding</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
     `;
 
-    listData.forEach(item => {
-      const tgl = item.waktu ? new Date(item.waktu).toLocaleString('id-ID') : '-';
-      const statusAccBadge = item.status_acc === "ACC" 
-        ? `<span class="px-2 py-1 bg-green-50 text-green-700 font-bold text-[9px] rounded-lg"><i class="fas fa-check-circle mr-1"></i>ACC Valid</span>`
-        : item.status_acc === "REJECT"
-        ? `<span class="px-2 py-1 bg-red-50 text-red-600 font-bold text-[9px] rounded-lg"><i class="fas fa-times-circle mr-1"></i>Ditolak</span>`
-        : `<span class="px-2 py-1 bg-yellow-50 text-yellow-700 font-bold text-[9px] rounded-lg"><i class="fas fa-clock mr-1"></i>Pending</span>`;
+    const dua = (a, b) => `<b class="text-slate-800">${a || '-'}</b><br><span class="text-[10px] text-gray-400 font-normal">${b || '-'}</span>`;
 
-      let tombolBanding = `<span class="text-gray-300 text-[10px]">-</span>`;
-      if (item.status_acc === "REJECT" || item.seragam === "Tidak Sesuai") {
-        if (item.catatan_banding) {
-          tombolBanding = `<span class="text-amber-600 font-bold text-[10px] bg-amber-50 px-2 py-1 rounded-lg" title="${item.catatan_banding}"><i class="fas fa-info-circle mr-1"></i>Telah Diajukan</span>`;
-        } else {
-          tombolBanding = `<button onclick="bukaModalAjuBanding('${item.id}')" class="px-3 py-1.5 bg-white border border-amber-300 text-amber-600 font-bold text-[10px] rounded-lg hover:bg-amber-50 transition shadow-sm"><i class="fas fa-gavel mr-1"></i>Aju Sanggahan</button>`;
-        }
+    listData.forEach(item => {
+      const [tglBagian, jamBagian] = (item.waktu || '-, -').split(', ');
+      const fotoUrl = item.foto_selfie || item.foto || '';
+      const statusAccLabel = item.status_acc === 'ACC' ? '<span class="text-green-600">ACC</span>' : (item.status_acc === 'REJECT' ? '<span class="text-red-500">REJECT</span>' : '<span class="text-amber-500">PENDING</span>');
+
+      let statusBandingHtml = '<span class="text-gray-300">-</span>';
+      let aksiBandingHtml = '<span class="text-gray-300 text-[10px]">-</span>';
+      const bolehBanding = (item.status_acc === "REJECT" || item.seragam === "Tidak Sesuai");
+
+      if (item.catatan_banding) {
+        statusBandingHtml = '<span class="inline-block px-2 py-0.5 bg-amber-100 text-amber-700 font-bold text-[9px] rounded-full">Sudah Diajukan</span>';
+        aksiBandingHtml = `<span class="text-[10px] text-gray-500" title="${item.catatan_banding.replace(/"/g,'&quot;')}"><i class="fas fa-check mr-1 text-green-500"></i>Terkirim</span>`;
+      } else if (bolehBanding) {
+        aksiBandingHtml = `<button onclick="bukaModalAjuBanding('${item.id}')" class="px-3 py-1.5 bg-white border border-amber-300 text-amber-600 font-bold text-[10px] rounded-lg hover:bg-amber-50 transition shadow-sm"><i class="fas fa-gavel mr-1"></i>Aju Banding</button>`;
       }
 
       html += `
         <tr class="hover:bg-gray-50 transition">
-          <td class="p-3 font-semibold text-slate-800">${tgl}</td>
-          <td class="p-3"><span class="font-bold text-slate-700">${item.status || 'HADIR'}</span></td>
-          <td class="p-3">${item.gudang || '-'} (${item.shift || '-'})</td>
-          <td class="p-3 font-semibold ${item.seragam === 'Tidak Sesuai' ? 'text-amber-600' : 'text-gray-600'}">${item.seragam || 'Sesuai'}</td>
-          <td class="p-3 text-center">${statusAccBadge}</td>
-          <td class="p-3 text-center">${tombolBanding}</td>
+          <td class="p-3">${dua(statusAccLabel, item.status || 'HADIR')}</td>
+          <td class="p-3">${dua(item.shift, item.gudang)}</td>
+          <td class="p-3">${dua(tglBagian, jamBagian)}</td>
+          <td class="p-3">${fotoUrl ? `<img src="${fotoUrl}" class="w-10 h-10 rounded-lg object-cover border cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto('${fotoUrl}')">` : '<span class="text-gray-300">-</span>'}</td>
+          <td class="p-3">${dua(item.nama_pegawai || item.nama, window.currentUser.hp || '-')}</td>
+          <td class="p-3">${dua(item.status_kehadiran, item.seragam || 'Sesuai')}</td>
+          <td class="p-3 max-w-[150px] truncate" title="${(item.catatan_banding || '').replace(/"/g, '&quot;')}">${item.catatan_banding || '-'}</td>
+          <td class="p-3 text-center">${statusBandingHtml}</td>
+          <td class="p-3 text-center">${aksiBandingHtml}</td>
         </tr>
       `;
     });
@@ -1582,7 +1664,7 @@ window.muatDataRiwayatACC = async function() {
       const data = docSnap.data();
       if (data.status_acc && data.status_acc !== "PENDING") {
         countACC++;
-        const tglPresensi = data.waktu ? new Date(data.waktu).toLocaleString('id-ID') : '-';
+        const tglPresensi = data.waktu || '-';
         
         const badgeStatus = data.status_acc === "ACC"
           ? `<span class="px-2 py-1 bg-green-50 text-green-700 font-bold text-[10px] rounded-lg"><i class="fas fa-check mr-1"></i>Disetujui (ACC)</span>`
@@ -1622,11 +1704,16 @@ window.siapkanFilterRekap = async function() {
   const container = document.getElementById('container-acc-rekap');
   if (!container) return;
 
-  container.innerHTML = `<div class="text-center py-10 text-gray-400 text-xs"><i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p>Menyiapkan Rekapitulasi Data Komplit...</p></div>`;
+  container.innerHTML = `<div class="text-center py-10 text-gray-400 text-xs"><i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p>Menyiapkan Riwayat All Absensi...</p></div>`;
 
   try {
     const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
     const { db } = await import("./firebase-config.js");
+
+    // Cross-reference No. HP dari koleksi users (record absensi tidak simpan hp langsung)
+    const qUsers = await getDocs(collection(db, "users"));
+    const petaHp = {};
+    qUsers.forEach(u => { petaHp[u.data().email] = u.data().hp || '-'; });
 
     const querySnapshot = await getDocs(collection(db, "absensi"));
     let listData = [];
@@ -1637,13 +1724,15 @@ window.siapkanFilterRekap = async function() {
         listData.push(data);
     });
 
-    listData.sort((a, b) => new Date(b.waktu || 0) - new Date(a.waktu || 0));
+    listData.sort((a, b) => (window.parseWaktuIndo(b.waktu)?.getTime() || 0) - (window.parseWaktuIndo(a.waktu)?.getTime() || 0));
     window.dataRiwayatGlobal = listData; 
+
+    const dua = (a, b) => `<b class="text-slate-800">${a || '-'}</b><br><span class="text-[10px] text-gray-400 font-normal">${b || '-'}</span>`;
 
     let html = `
       <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex justify-between items-center mb-4">
         <div>
-           <h3 class="font-black text-slate-800 text-sm"><i class="fas fa-database text-purple-600 mr-2"></i> Rekapitulasi Absensi Global</h3>
+           <h3 class="font-black text-slate-800 text-sm"><i class="fas fa-database text-purple-600 mr-2"></i> Riwayat All Absensi</h3>
            <p class="text-[10px] text-gray-500 mt-1">Laporan lengkap seluruh karyawan. Anda bisa mengunduhnya untuk keperluan Payroll.</p>
         </div>
         <button onclick="exportKeCSV()" class="bg-green-600 hover:bg-green-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition shadow-md flex items-center space-x-2">
@@ -1655,27 +1744,45 @@ window.siapkanFilterRekap = async function() {
         <table class="w-full text-left text-xs text-gray-600 whitespace-nowrap">
           <thead class="bg-slate-800 text-white font-bold border-b text-[10px] uppercase">
             <tr>
-              <th class="p-3">Nama Pegawai</th>
-              <th class="p-3">Waktu Presensi</th>
-              <th class="p-3">Gudang & Shift</th>
-              <th class="p-3">Tipe Absen</th>
-              <th class="p-3">Status ACC</th>
-              <th class="p-3">Seragam</th>
+              <th class="p-3">Persetujuan / Tipe Absen</th>
+              <th class="p-3">Shift / Gudang</th>
+              <th class="p-3">Tanggal / Waktu</th>
+              <th class="p-3">Foto</th>
+              <th class="p-3">Nama / No HP</th>
+              <th class="p-3">Status Kehadiran / Seragam</th>
+              <th class="p-3">Sanggahan Karyawan</th>
+              <th class="p-3">Aju Banding</th>
+              <th class="p-3">Pemeriksa</th>
+              <th class="p-3 text-center">Aksi</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100">
     `;
 
     listData.forEach(item => {
-      const tgl = item.waktu ? new Date(item.waktu).toLocaleString('id-ID') : '-';
+      const [tglBagian, jamBagian] = (item.waktu || '-, -').split(', ');
+      const fotoUrl = item.foto_selfie || item.foto || '';
+      const statusAccLabel = item.status_acc === 'ACC' ? '<span class="text-green-600">ACC</span>' : (item.status_acc === 'REJECT' ? '<span class="text-red-500">REJECT</span>' : '<span class="text-amber-500">PENDING</span>');
+      const adaSanggahan = !!item.catatan_banding;
+
       html += `
-        <tr class="hover:bg-blue-50 transition cursor-pointer">
-          <td class="p-3 font-bold text-slate-800">${item.nama_pegawai || item.nama || 'Anonim'}</td>
-          <td class="p-3">${tgl}</td>
-          <td class="p-3">${item.gudang || '-'} (${item.shift || '-'})</td>
-          <td class="p-3 font-semibold text-blue-600">${item.status || 'HADIR'}</td>
-          <td class="p-3 font-bold ${item.status_acc === 'ACC' ? 'text-green-600' : 'text-amber-500'}">${item.status_acc || 'PENDING'}</td>
-          <td class="p-3">${item.seragam || 'Sesuai'}</td>
+        <tr class="hover:bg-blue-50 transition">
+          <td class="p-3">${dua(statusAccLabel, item.status || 'HADIR')}</td>
+          <td class="p-3">${dua(item.shift, item.gudang)}</td>
+          <td class="p-3">${dua(tglBagian, jamBagian)}</td>
+          <td class="p-3">${fotoUrl ? `<img src="${fotoUrl}" class="w-10 h-10 rounded-lg object-cover border cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto('${fotoUrl}')">` : '<span class="text-gray-300">-</span>'}</td>
+          <td class="p-3">${dua(item.nama_pegawai || item.nama, petaHp[item.email] || item.email || '-')}</td>
+          <td class="p-3">${dua(item.status_kehadiran, item.seragam || 'Sesuai')}</td>
+          <td class="p-3 max-w-[160px] truncate" title="${(item.catatan_banding || '').replace(/"/g, '&quot;')}">${item.catatan_banding || '-'}</td>
+          <td class="p-3">${adaSanggahan ? '<span class="px-2 py-0.5 bg-amber-100 text-amber-700 font-bold text-[9px] rounded-full">Ada Aju Banding</span>' : '<span class="text-gray-300">-</span>'}</td>
+          <td class="p-3">${item.validated_by || '-'}</td>
+          <td class="p-3 text-center">
+            <div class="flex items-center justify-center gap-1">
+              <button onclick="bukaEditAbsensi('${item.id}')" class="bg-blue-50 text-blue-600 px-2 py-1.5 rounded-lg text-[10px] font-bold hover:bg-blue-100" title="Edit"><i class="fas fa-edit"></i></button>
+              <button onclick="hapusAbsensi('${item.id}')" class="bg-red-50 text-red-600 px-2 py-1.5 rounded-lg text-[10px] font-bold hover:bg-red-100" title="Hapus"><i class="fas fa-trash-alt"></i></button>
+              ${adaSanggahan ? `<button onclick="assignUlangAbsensi('${item.id}')" class="bg-amber-50 text-amber-600 px-2 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-100" title="Assign ulang ke Antrean Absensi"><i class="fas fa-undo"></i></button>` : ''}
+            </div>
+          </td>
         </tr>
       `;
     });
@@ -1686,6 +1793,63 @@ window.siapkanFilterRekap = async function() {
   } catch(e) {
      console.error("Gagal muat rekap global:", e);
      container.innerHTML = `<div class="text-center py-8 text-red-500 text-xs">Gagal menarik data rekapitulasi server.</div>`;
+  }
+};
+
+// ---- Aksi Edit & Assign Ulang untuk Riwayat All Absensi ----
+window.bukaEditAbsensi = async function(docId) {
+  const item = (window.dataRiwayatGlobal || []).find(i => i.id === docId);
+  if (!item) return alert("Data tidak ditemukan, coba refresh dulu.");
+
+  const daftarStatusKehadiran = window.ambilMasterList ? await window.ambilMasterList('status_kehadiran') : ["Ontime", "Terlambat", "Tidak Absen"];
+  document.getElementById('editabsensi-doc-id').value = docId;
+  document.getElementById('editabsensi-nama').innerText = item.nama_pegawai || item.nama || '-';
+  document.getElementById('editabsensi-statuskehadiran').innerHTML = daftarStatusKehadiran.map(s =>
+    `<option value="${s}" ${item.status_kehadiran === s ? 'selected' : ''}>${s}</option>`
+  ).join('');
+  document.getElementById('editabsensi-seragam').value = item.seragam || 'Sesuai';
+  document.getElementById('editabsensi-statusacc').value = item.status_acc || 'PENDING';
+  document.getElementById('modal-edit-absensi').classList.remove('hidden');
+};
+
+window.tutupEditAbsensi = function() {
+  document.getElementById('modal-edit-absensi').classList.add('hidden');
+};
+
+window.simpanEditAbsensi = async function() {
+  const docId = document.getElementById('editabsensi-doc-id').value;
+  const statusKehadiran = document.getElementById('editabsensi-statuskehadiran').value;
+  const seragam = document.getElementById('editabsensi-seragam').value;
+  const statusAcc = document.getElementById('editabsensi-statusacc').value;
+
+  try {
+    await updateDoc(doc(db, "absensi", docId), {
+      status_kehadiran: statusKehadiran,
+      seragam: seragam,
+      status_acc: statusAcc
+    });
+    alert("Data absensi berhasil diperbarui!");
+    window.tutupEditAbsensi();
+    window.siapkanFilterRekap();
+  } catch (e) {
+    console.error("Gagal edit absensi:", e);
+    alert("Gagal menyimpan perubahan.");
+  }
+};
+
+// Assign ulang: dipakai kalau ada sanggahan karyawan (aju banding) — kembalikan
+// record ke Antrean Absensi supaya diperiksa ulang oleh PIC/Owner.
+window.assignUlangAbsensi = async function(docId) {
+  if (!confirm("Kembalikan data ini ke Antrean Absensi untuk diperiksa ulang?")) return;
+  try {
+    await updateDoc(doc(db, "absensi", docId), {
+      status_acc: "PENDING"
+    });
+    alert("Data berhasil di-assign ulang ke Antrean Absensi.");
+    window.siapkanFilterRekap();
+  } catch (e) {
+    console.error("Gagal assign ulang:", e);
+    alert("Gagal memproses assign ulang.");
   }
 };
 
@@ -1719,14 +1883,42 @@ window.exportKeCSV = function() {
   document.body.removeChild(link);
 };
 
+window._bandingFileGlobal = null;
+
 window.bukaModalAjuBanding = function(docId) {
   document.getElementById('banding-doc-id').value = docId;
   document.getElementById('banding-alasan').value = "";
+  document.getElementById('banding-file').value = "";
+  document.getElementById('banding-file-info').innerText = "";
+  window._bandingFileGlobal = null;
   document.getElementById('modal-aju-banding').classList.remove('hidden');
 };
 
 window.tutupModalAjuBanding = function() {
   document.getElementById('modal-aju-banding').classList.add('hidden');
+};
+
+window.pilihFileBanding = function(event) {
+  const file = event.target.files[0];
+  const info = document.getElementById('banding-file-info');
+  const BATAS_1MB = 1024 * 1024;
+
+  if (!file) { window._bandingFileGlobal = null; info.innerText = ""; return; }
+
+  if (file.size > BATAS_1MB) {
+    alert(`File terlalu besar (${Math.round(file.size / 1024)}KB). Maksimal 1MB.`);
+    event.target.value = "";
+    window._bandingFileGlobal = null;
+    info.innerText = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    window._bandingFileGlobal = { dataUrl: e.target.result, tipe: file.type.startsWith('video') ? 'video' : 'foto', nama: file.name };
+    info.innerHTML = `<i class="fas fa-check-circle text-green-500 mr-1"></i>${file.name} (${Math.round(file.size / 1024)}KB) siap diunggah`;
+  };
+  reader.readAsDataURL(file);
 };
 
 window.kirimAjuBanding = async function() {
@@ -1739,18 +1931,25 @@ window.kirimAjuBanding = async function() {
     const { doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
     const { db } = await import("./firebase-config.js");
 
-    const docRef = doc(db, "absensi", docId);
-    await updateDoc(docRef, {
+    const dataBanding = {
       catatan_banding: alasan,
       tgl_banding: new Date().toISOString()
-    });
+    };
+    if (window._bandingFileGlobal) {
+      dataBanding.lampiran_banding = window._bandingFileGlobal.dataUrl;
+      dataBanding.lampiran_banding_tipe = window._bandingFileGlobal.tipe;
+    }
+
+    const docRef = doc(db, "absensi", docId);
+    await updateDoc(docRef, dataBanding);
 
     alert("Sanggahan berhasil dikirimkan ke Admin / Owner untuk ditinjau ulang.");
     window.tutupModalAjuBanding();
+    window._bandingFileGlobal = null;
     
     if(window.muatDataRiwayatPersonal) window.muatDataRiwayatPersonal();
   } catch (e) {
     console.error("Gagal kirim banding:", e);
-    alert("Gagal mengirimkan sanggahan ke server.");
+    alert("Gagal mengirimkan sanggahan ke server. Kalau ada lampiran, coba kirim tanpa lampiran atau pakai file lebih kecil.");
   }
 };

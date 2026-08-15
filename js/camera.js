@@ -175,7 +175,7 @@ window.mulaiKamera = async function() {
     btnJepret.classList.remove('opacity-40', 'cursor-not-allowed');
 
     // Poin 7: geofencing hanya berlaku untuk Clock In & Clock Out (bukan Izin/Cuti)
-    const perluLokasi = (window.statusPilihanGlobal === "HADIR (CLOCK IN)" || window.statusPilihanGlobal === "CLOCK OUT");
+    const perluLokasi = (window.statusPilihanGlobal === "HADIR (CLOCK IN)" || window.statusPilihanGlobal === "CLOCK OUT" || window.statusPilihanGlobal === "LEMBUR (CLOCK IN)");
     window.koordinatGlobal = null;
     window.gudangDipilihGlobal = "";
     window.statusRadiusGlobal = null;

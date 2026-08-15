@@ -5,7 +5,8 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  deleteUser
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { db, auth } from "./firebase-config.js";
 
@@ -396,61 +397,87 @@ window.simpanPendaftaranBaru = async function() {
     return;
   }
 
+  // Jaga-jaga (defense in depth): Firestore membatasi 1 dokumen maksimal 1MB.
+  // Foto KTP seharusnya sudah dikompres otomatis saat dipilih, tapi cek ulang
+  // di sini supaya tidak sampai gagal simpan di tengah jalan.
+  const perkiraanUkuranKtpKB = Math.round((window.ktpBase64Global.length * 0.75) / 1024);
+  if (perkiraanUkuranKtpKB > 700) {
+    alert(`Foto KTP masih terlalu besar (\u00b1${perkiraanUkuranKtpKB}KB). Silakan pilih ulang/ambil ulang foto KTP-nya.`);
+    btn.innerHTML = originalText;
+    btn.disabled = false;
+    return;
+  }
+
+  let userCredential = null;
   try {
     // 1. Buat akun autentikasi sungguhan di Firebase Auth
-    await createUserWithEmailAndPassword(auth, email, pass);
+    userCredential = await createUserWithEmailAndPassword(auth, email, pass);
 
     // 2. Simpan profil lengkap ke Firestore (skema flat, sama dengan dashboard.js)
     // Akun baru MASUK ANTREAN dulu — PIC/Owner wajib approve & lengkapi
     // status kerja, role akses, jabatan, tipe karyawan, dan gudang penempatan
     // lewat Menu Karyawan > Antrean Karyawan sebelum akun ini bisa dipakai.
-    await setDoc(doc(db, "users", email), {
-      id_karyawan: document.getElementById('reg-id').value,
-      id_app: document.getElementById('reg-idapp').value,
-      qr_code: "QR-" + document.getElementById('reg-idapp').value,
-      status_approval: "PENDING",
-      status_kerja: "Menunggu Persetujuan",
-      role: "operator",
-      jabatan: "",
-      status_karyawan: "",
-      gudang_penempatan: [],
-      nama_shift: "",
+    try {
+      await setDoc(doc(db, "users", email), {
+        id_karyawan: document.getElementById('reg-id').value,
+        id_app: document.getElementById('reg-idapp').value,
+        qr_code: "QR-" + document.getElementById('reg-idapp').value,
+        status_approval: "PENDING",
+        status_kerja: "Menunggu Persetujuan",
+        role: "operator",
+        jenis_pekerjaan: "",
+        jabatan: "",
+        status_karyawan: "",
+        gudang_penempatan: [],
+        nama_shift: "",
 
-      email: email,
-      nama: nama,
-      name: nama,
-      nik: nik,
-      hp: hp,
-      gender: document.getElementById('reg-gender').value,
-      tempatLahir: document.getElementById('reg-tempatlahir').value,
-      tglLahir: document.getElementById('reg-tgl').value,
-      foto_ktp: window.ktpBase64Global,
+        email: email,
+        nama: nama,
+        name: nama,
+        nik: nik,
+        hp: hp,
+        gender: document.getElementById('reg-gender').value,
+        tempatLahir: document.getElementById('reg-tempatlahir').value,
+        tglLahir: document.getElementById('reg-tgl').value,
+        foto_ktp: window.ktpBase64Global,
 
-      tinggalKab: document.getElementById('reg-tinggal-kab').value,
-      tinggalKec: document.getElementById('reg-tinggal-kec').value,
-      tinggalDetail: document.getElementById('reg-tinggal-detail').value,
+        tinggalKab: document.getElementById('reg-tinggal-kab').value,
+        tinggalKec: document.getElementById('reg-tinggal-kec').value,
+        tinggalDetail: document.getElementById('reg-tinggal-detail').value,
 
-      ktpKab: document.getElementById('reg-ktp-kab').value,
-      ktpKec: document.getElementById('reg-ktp-kec').value,
-      ktpDetail: document.getElementById('reg-ktp-detail').value,
+        ktpKab: document.getElementById('reg-ktp-kab').value,
+        ktpKec: document.getElementById('reg-ktp-kec').value,
+        ktpDetail: document.getElementById('reg-ktp-detail').value,
 
-      statusNikah: document.getElementById('reg-nikah').value,
-      tanggungan: document.getElementById('reg-tanggungan').value,
+        statusNikah: document.getElementById('reg-nikah').value,
+        tanggungan: document.getElementById('reg-tanggungan').value,
 
-      pendidikan: document.getElementById('reg-pendidikan').value,
-      sekolah: document.getElementById('reg-sekolah').value,
-      jurusan: document.getElementById('reg-jurusan').value,
+        pendidikan: document.getElementById('reg-pendidikan').value,
+        sekolah: document.getElementById('reg-sekolah').value,
+        jurusan: document.getElementById('reg-jurusan').value,
 
-      bank: document.getElementById('reg-bank').value,
-      noRek: document.getElementById('reg-norek').value,
-      atasNamaRek: document.getElementById('reg-namarek').value,
+        bank: document.getElementById('reg-bank').value,
+        noRek: document.getElementById('reg-norek').value,
+        atasNamaRek: document.getElementById('reg-namarek').value,
 
-      daruratNama: document.getElementById('reg-darurat-nama').value,
-      daruratHp: document.getElementById('reg-darurat-hp').value,
-      daruratHub: document.getElementById('reg-darurat-hub').value,
+        daruratNama: document.getElementById('reg-darurat-nama').value,
+        daruratHp: document.getElementById('reg-darurat-hp').value,
+        daruratHub: document.getElementById('reg-darurat-hub').value,
 
-      tanggal_daftar: new Date().toLocaleDateString('id-ID')
-    });
+        tanggal_daftar: new Date().toLocaleDateString('id-ID')
+      });
+    } catch (errSimpanProfil) {
+      // PENTING: akun Auth di langkah 1 sudah terlanjur dibuat. Kalau simpan
+      // profil gagal (foto kegedean, jaringan putus, dll), akun itu HARUS
+      // dihapus lagi di sini — supaya email ini tidak "nyangkut" (tidak bisa
+      // dipakai daftar ulang, tapi juga tidak pernah bisa login).
+      try {
+        await deleteUser(userCredential.user);
+      } catch (errRollback) {
+        console.error("Gagal rollback akun Auth setelah simpan profil gagal:", errRollback);
+      }
+      throw errSimpanProfil;
+    }
 
     // Notifikasi WA (Poin 4): akun berhasil diajukan, menunggu persetujuan
     (async () => {
@@ -645,7 +672,40 @@ window.prosesClockOut = function() {
   window.pindahLayar('screen-camera');
 };
 
-// Poin 10: Ajukan Cuti sekarang lewat Account Profile > ID & QR (bukan dropdown login lagi)
+// Poin 10: Pengajuan Izin/Cuti/Lembur sekarang lewat Account Profile > Absensi
+
+window.bukaFormIzinProfil = async function() {
+  document.getElementById('form-izin-profil').classList.remove('hidden');
+  const selectAlasan = document.getElementById('profil-izin-keterangan');
+  if (selectAlasan && selectAlasan.options.length === 0 && window.ambilMasterList) {
+    const items = await window.ambilMasterList('alasan_izin');
+    selectAlasan.innerHTML = items.map(a => `<option value="${a}">${a}</option>`).join('');
+  }
+};
+window.tutupFormIzinProfil = function() {
+  document.getElementById('form-izin-profil').classList.add('hidden');
+  document.getElementById('profil-izin-tanggal').value = '';
+  document.getElementById('profil-izin-detail').value = '';
+};
+window.ajukanIzinDariProfil = function() {
+  const tanggal = document.getElementById('profil-izin-tanggal').value;
+  const alasanTerpilih = document.getElementById('profil-izin-keterangan').value;
+  const detail = document.getElementById('profil-izin-detail').value.trim();
+  const keterangan = detail ? `${alasanTerpilih} - ${detail}` : alasanTerpilih;
+
+  if (!tanggal || !alasanTerpilih) {
+    alert("Harap isi Tanggal dan pilih Alasan Izin!");
+    return;
+  }
+
+  window.statusPilihanGlobal = "IZIN";
+  window.tanggalIzinGlobal = tanggal;
+  window.keteranganIzinGlobal = keterangan;
+  window.tutupFormIzinProfil();
+  document.getElementById('label-status-kamera').innerText = "Mode: IZIN";
+  window.pindahLayar('screen-camera');
+};
+
 window.bukaFormCutiProfil = async function() {
   document.getElementById('form-cuti-profil').classList.remove('hidden');
   const selectAlasan = document.getElementById('profil-cuti-keterangan');
@@ -684,6 +744,39 @@ window.ajukanCutiDariProfil = function() {
   window.keteranganIzinGlobal = keterangan;
   window.tutupFormCutiProfil();
   document.getElementById('label-status-kamera').innerText = "Mode: CUTI";
+  window.pindahLayar('screen-camera');
+};
+
+// Poin 10: Pengajuan Jam Lembur — clock in lewat kamera+selfie (+lokasi seperti
+// Hadir/Clock Out), data masuk ke Antrean Absensi seperti pengajuan lainnya.
+window.bukaFormLemburProfil = function() {
+  document.getElementById('form-lembur-profil').classList.remove('hidden');
+};
+window.tutupFormLemburProfil = function() {
+  document.getElementById('form-lembur-profil').classList.add('hidden');
+  document.getElementById('profil-lembur-mulai').value = '';
+  document.getElementById('profil-lembur-selesai').value = '';
+  document.getElementById('profil-lembur-alasan').value = '';
+  document.getElementById('profil-lembur-instruksi').value = '';
+};
+window.ajukanLemburDariProfil = function() {
+  const mulai = document.getElementById('profil-lembur-mulai').value;
+  const selesai = document.getElementById('profil-lembur-selesai').value;
+  const alasan = document.getElementById('profil-lembur-alasan').value.trim();
+  const instruksi = document.getElementById('profil-lembur-instruksi').value.trim();
+
+  if (!mulai || !alasan) {
+    alert("Harap isi minimal Waktu Mulai Lembur dan Alasan!");
+    return;
+  }
+
+  window.statusPilihanGlobal = "LEMBUR (CLOCK IN)";
+  window.lemburMulaiGlobal = mulai;
+  window.lemburSelesaiGlobal = selesai;
+  window.lemburAlasanGlobal = alasan;
+  window.lemburInstruksiGlobal = instruksi;
+  window.tutupFormLemburProfil();
+  document.getElementById('label-status-kamera').innerText = "Mode: LEMBUR";
   window.pindahLayar('screen-camera');
 };
 
