@@ -12,6 +12,7 @@ import { db, auth } from "./firebase-config.js";
 
 window.statusPilihanGlobal = "HADIR (CLOCK IN)";
 window.currentUser = { email: "", name: "", role: "operator", id_app: "", id_karyawan: "", jabatan: "", status_kerja: "aktif" };
+window._manualLoginInProgress = false; // dicek oleh onAuthStateChanged, disetel oleh vue-login.js
 
 // Pesan error Firebase Auth diterjemahkan ke Bahasa Indonesia yang ramah pengguna
 function pesanErrorAuth(kode) {
@@ -154,9 +155,22 @@ window.ambilTemplateWA = ambilTemplateWA; // dipakai juga oleh dashboard.js
 // =========================================================================
 let sesiOtomatisSudahDicek = false;
 onAuthStateChanged(auth, async (user) => {
-  if (sesiOtomatisSudahDicek) return;
-  sesiOtomatisSudahDicek = true;
-  if (!user || !user.email) return; // tidak ada sesi tersimpan -> layar login tampil normal
+  // Jangan proses kalau: sudah pernah selesai diproses SEBELUMNYA dengan user
+  // nyata, ATAU sedang ada proses login manual aktif (window.js/vue-login.js
+  // yang urus, supaya tidak bentrok/dobel navigasi).
+  if (sesiOtomatisSudahDicek || window._manualLoginInProgress) return;
+
+  if (!user || !user.email) {
+    // PENTING: TIDAK mengunci di sini. Firebase kadang memanggil callback ini
+    // dengan user=null SEMENTARA sebelum sesi tersimpan selesai dicek dari
+    // penyimpanan lokal — kalau kita kunci di sini, sesi yang sebenarnya ada
+    // tidak akan pernah diproses saat callback dipanggil ulang dengan user
+    // yang benar. Biarkan layar login tampil apa adanya untuk saat ini; kalau
+    // memang tidak ada sesi tersimpan, callback ini tidak akan dipanggil lagi.
+    return;
+  }
+
+  sesiOtomatisSudahDicek = true; // kunci HANYA setelah dapat user yang nyata
 
   try {
     const userSnap = await getDoc(doc(db, "users", user.email));

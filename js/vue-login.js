@@ -111,12 +111,14 @@ const AppLogin = {
       }
 
       memproses.value = true;
+      window._manualLoginInProgress = true; // beri tahu listener sesi-otomatis di auth.js: mundur, biar alur manual ini yang urus
       try {
         await signInWithEmailAndPassword(auth, emailInput, passInput);
       } catch (e) {
         console.error("Gagal login:", e);
         alert((window.pesanErrorAuth && window.pesanErrorAuth(e.code)) || "Gagal login: " + e.message);
         memproses.value = false;
+        window._manualLoginInProgress = false;
         return;
       }
 
