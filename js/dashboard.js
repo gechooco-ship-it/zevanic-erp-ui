@@ -726,9 +726,8 @@ window.pindahTab = function(tabId) {
     if (window.muatDataProfil) window.muatDataProfil(); 
   }
   
-  if (tabId === 'tab-admin-acc' && window.muatDataAdminACC) {
+  if (tabId === 'tab-admin-acc') {
       if (window.pindahSubTab) window.pindahSubTab('sub-absensi', 'sub-absensi-accept', document.querySelectorAll('.sub-absensi-btn')[2]);
-      window.muatDataAdminACC();
   }
   
   if (tabId === 'tab-whatsapp' && window.muatKonfigWhatsapp) window.muatKonfigWhatsapp();
@@ -928,128 +927,9 @@ window.bacaGudangCheckboxes = function(container) {
   return Array.from(container.querySelectorAll('input[type=checkbox]:checked')).map(cb => cb.value);
 };
 
-window.muatDataAdminACC = async function() {
-  const container = document.getElementById('container-admin-acc');
-  if (!container) return;
-  
-  container.innerHTML = `<div class="col-span-full text-center py-10 text-gray-400"><i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p class="text-xs">Memuat antrean validasi absensi...</p></div>`;
-
-  try {
-    const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
-    const { db } = await import("./firebase-config.js");
-    const querySnapshot = await getDocs(collection(db, "absensi"));
-    const daftarStatusKehadiran = window.ambilMasterList ? await window.ambilMasterList('status_kehadiran') : ["Ontime", "Terlambat", "Tidak Absen"];
-    let html = "";
-    let countPending = 0;
-
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      const docId = docSnap.id;
-
-      if (!data.status_acc || data.status_acc === "PENDING") {
-        countPending++;
-        const fotoUrl = data.foto_selfie || data.foto || "https://via.placeholder.com/150";
-        const tanggalStr = data.waktu || "-";
-        const koordinatHtml = data.koordinat
-          ? `${data.koordinat.lat.toFixed(5)}, ${data.koordinat.lng.toFixed(5)}<br><a href="https://www.google.com/maps?q=${data.koordinat.lat},${data.koordinat.lng}" target="_blank" class="text-blue-500 text-[9px]"><i class="fas fa-map-marker-alt"></i> Lihat di Peta</a>`
-          : '-';
-        const statusRadiusHtml = data.status_radius === "DALAM RADIUS"
-          ? `<span class="inline-block px-2 py-0.5 bg-green-100 text-green-700 font-bold text-[9px] rounded-full">Dalam Radius (${data.jarak_meter || 0}m)</span>`
-          : data.status_radius === "DI LUAR RADIUS"
-          ? `<span class="inline-block px-2 py-0.5 bg-red-100 text-red-700 font-bold text-[9px] rounded-full">Di Luar Radius (${data.jarak_meter || 0}m)</span>`
-          : data.status_radius === "LOKASI DINAMIS"
-          ? `<span class="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 font-bold text-[9px] rounded-full">Lokasi Dinamis</span>`
-          : '<span class="text-gray-300">-</span>';
-
-        html += `
-          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-            <div class="flex items-center space-x-3 border-b pb-3">
-              <img src="${fotoUrl}" class="w-16 h-16 rounded-xl object-cover border-2 border-gray-100 shadow-sm" onclick="window.bukaPreviewFoto('${fotoUrl}')">
-              <div>
-                <h4 class="font-bold text-slate-800 text-sm">${data.nama_pegawai || data.nama || "Karyawan"}</h4>
-                <p class="text-[10px] text-gray-400 font-mono">${data.email || "-"}</p>
-                <span class="inline-block px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[9px] font-bold rounded-full mt-1"><i class="fas fa-clock mr-1"></i>Menunggu Validasi</span>
-              </div>
-            </div>
-            <div class="grid grid-cols-2 gap-2 text-[11px] bg-gray-50 p-3 rounded-2xl text-gray-600">
-              <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Status</span> <b class="text-slate-800">${data.status || "HADIR"}</b></div>
-              <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Waktu</span> <b class="text-slate-800">${tanggalStr}</b></div>
-              <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Gudang</span> <b class="text-slate-800">${data.gudang || "-"}</b></div>
-              <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Shift</span> <b class="text-slate-800">${data.shift || "-"}</b></div>
-              <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Koordinat</span> <b class="text-slate-800">${koordinatHtml}</b></div>
-              <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Status Radius</span> ${statusRadiusHtml}</div>
-            </div>
-            <div class="grid grid-cols-2 gap-3 pt-2">
-              <div>
-                <label class="block text-[10px] text-gray-500 mb-1 font-bold uppercase tracking-wider">Status Kehadiran</label>
-                <select id="acc-statuskehadiran-${docId}" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none font-bold text-slate-700 text-xs">
-                  ${daftarStatusKehadiran.map(s => `<option value="${s}" ${data.status_kehadiran === s ? 'selected' : ''}>${s}</option>`).join('')}
-                </select>
-              </div>
-              <div>
-                <label class="block text-[10px] text-gray-500 mb-1 font-bold uppercase tracking-wider">Seragam</label>
-                <select id="acc-seragam-${docId}" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none font-bold text-slate-700 text-xs">
-                  <option value="Sesuai" ${data.seragam === "Sesuai" ? "selected" : ""}>Sesuai</option>
-                  <option value="Tidak Sesuai" ${data.seragam === "Tidak Sesuai" ? "selected" : ""}>Tidak Sesuai</option>
-                </select>
-              </div>
-            </div>
-            <div class="flex space-x-2 pt-2 border-t">
-              <button onclick="prosesAcceptAbsensi('${docId}', 'ACC')" class="flex-1 bg-green-600 text-white font-bold py-2.5 rounded-xl hover:bg-green-700 transition shadow-sm text-xs flex items-center justify-center">
-                <i class="fas fa-check-circle mr-1"></i> Accept
-              </button>
-              <button onclick="prosesAcceptAbsensi('${docId}', 'REJECT')" class="flex-1 bg-red-500 text-white font-bold py-2.5 rounded-xl hover:bg-red-600 transition shadow-sm text-xs flex items-center justify-center">
-                <i class="fas fa-times-circle mr-1"></i> Reject
-              </button>
-              <button onclick="hapusAbsensi('${docId}')" class="bg-gray-100 text-gray-500 font-bold px-3.5 py-2.5 rounded-xl hover:bg-gray-200 transition text-xs" title="Hapus Permanen">
-                <i class="fas fa-trash-alt"></i>
-              </button>
-            </div>
-          </div>
-        `;
-      }
-    });
-
-    if (countPending === 0) {
-      container.innerHTML = `
-        <div class="col-span-full text-center py-16 text-gray-400 bg-white rounded-3xl border border-dashed">
-          <i class="fas fa-glass-cheers text-5xl text-blue-300 mb-4"></i>
-          <h4 class="font-bold text-gray-700 text-sm">Semua Absensi Telah Tervalidasi</h4>
-          <p class="text-xs text-gray-400 mt-1">Tidak ada antrean absensi baru yang perlu diperiksa.</p>
-        </div>`;
-    } else {
-      container.innerHTML = html;
-    }
-  } catch (e) {
-    console.error("Error muat admin ACC:", e);
-    container.innerHTML = `<div class="col-span-full text-center py-8 text-red-500 text-xs">Gagal memuat antrean jaringan.</div>`;
-  }
-};
-
-window.prosesAcceptAbsensi = async function(docId, statusAcc) {
-  const seragam = document.getElementById(`acc-seragam-${docId}`).value;
-  const statusKehadiran = document.getElementById(`acc-statuskehadiran-${docId}`) ? document.getElementById(`acc-statuskehadiran-${docId}`).value : "";
-
-  try {
-    const { doc, updateDoc } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
-    const { db } = await import("./firebase-config.js");
-
-    const docRef = doc(db, "absensi", docId);
-    await updateDoc(docRef, {
-      status_acc: statusAcc,
-      status_kehadiran: statusKehadiran,
-      seragam: seragam,
-      validated_at: new Date().toISOString(),
-      validated_by: window.currentUser.name || window.currentUser.nama || window.currentUser.email
-    });
-
-    alert(`Absensi berhasil di-${statusAcc}! Data telah berpindah ke Riwayat All Absensi.`);
-    window.muatDataAdminACC(); 
-  } catch (e) {
-    console.error("Gagal update ACC:", e);
-    alert("Terjadi kesalahan sistem saat memproses validasi.");
-  }
-};
+// Antrean Absensi (kartu validasi + Accept/Reject) sudah pindah ke
+// js/vue-antrean-absensi.js. window.hapusAbsensi TETAP di sini karena masih
+// dipakai Riwayat All Absensi yang belum dimigrasi.
 
 window.hapusAbsensi = async function(docId) {
   if (!confirm("Peringatan: Anda yakin ingin menghapus data absensi ini secara permanen? Data tidak dapat dikembalikan.")) return;
@@ -1057,7 +937,10 @@ window.hapusAbsensi = async function(docId) {
     const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
     const { db } = await import("./firebase-config.js");
     await deleteDoc(doc(db, "absensi", docId));
-    window.muatDataAdminACC();
+    // Dipanggil dari 2 tempat berbeda (Antrean Absensi lama & Riwayat All
+    // Absensi) — cek dulu mana yang masih ada sebelum dipanggil.
+    if (window.muatDataAdminACC) window.muatDataAdminACC();
+    if (window.siapkanFilterRekap) window.siapkanFilterRekap();
   } catch (e) {
     console.error("Gagal hapus:", e);
     alert("Gagal menghapus data.");

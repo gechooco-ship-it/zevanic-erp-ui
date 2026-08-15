@@ -594,7 +594,7 @@
           <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200 pt-2 hide-scrollbar">
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this)" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-cogs mr-1.5"></i> Config Absensi</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this); muatDataPenjadwalan();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-calendar-alt mr-1.5"></i> Penjadwalan</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this); muatDataAdminACC();" class="sub-absensi-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-clock mr-1.5"></i> Antrean Absensi</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this)" class="sub-absensi-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-clock mr-1.5"></i> Antrean Absensi</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-riwayat-acc', this); muatDataRiwayatACC();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-check-circle mr-1.5"></i> Riwayat ACC</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this); siapkanFilterRekap();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-chart-bar mr-1.5"></i> Riwayat All Absensi</button>
           </div>
@@ -709,7 +709,8 @@
         </div>
 
         <div id="sub-absensi-accept" class="sub-absensi-content fade-in space-y-4">
-           <div id="container-admin-acc" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+           <!-- MIGRASI VUE: lihat js/vue-antrean-absensi.js -->
+           <div id="vue-antrean-absensi"></div>
         </div>
 
         <div id="sub-absensi-riwayat-acc" class="sub-absensi-content hidden fade-in space-y-4">
@@ -980,5 +981,6 @@
   <script type="module" src="js/vue-config-absensi.js"></script>
   <script type="module" src="js/vue-daftar-karyawan.js"></script>
   <script type="module" src="js/vue-antrean-dakar.js"></script>
+  <script type="module" src="js/vue-antrean-absensi.js"></script>
 </body>
 </html>
