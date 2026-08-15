@@ -89,21 +89,32 @@ window.simpanKeFirebase = async function(fotoBase64) {
 };
 
 window.kirimDataKeCloud = async function() {
-  // Poin 7: jaga-jaga (defense in depth) — tombol jepret sudah dikunci kalau di luar
-  // radius, tapi cek ulang di sini juga sebelum benar-benar terkirim ke server.
+  const btnFinal = document.getElementById('btn-clock-in-final');
+
+  // Poin 7 (Geofencing): cek lokasi TEPAT saat submit ditekan. Kalau GPS belum
+  // siap (masih dari pemanasan background di layar kamera, atau belum sempat
+  // selesai), coba ambil lagi sekarang dan TUNGGU hasilnya — bukan langsung
+  // gagal. Ini menghindari kondisi "sempat berhasil ambil foto tapi status GPS
+  // sudah basi/hilang pas mau kirim".
   const perluLokasi = (window.statusPilihanGlobal === "HADIR (CLOCK IN)" || window.statusPilihanGlobal === "CLOCK OUT");
   if (perluLokasi) {
+    if (!window.koordinatGlobal && window.ambilLokasiGPS) {
+      btnFinal.innerText = "Memeriksa lokasi GPS...";
+      btnFinal.disabled = true;
+      await window.ambilLokasiGPS();
+      btnFinal.innerText = "Kirim Pengajuan";
+      btnFinal.disabled = false;
+    }
     if (!window.koordinatGlobal) {
-      alert("Lokasi GPS belum berhasil diverifikasi. Silakan coba lagi.");
+      alert("Gagal mendapatkan lokasi GPS. Pastikan GPS & izin lokasi browser aktif (coba keluar dari area tertutup/beratap jika sinyal lemah), lalu coba lagi.");
       return;
     }
     if (window.statusRadiusGlobal && window.statusRadiusGlobal.dalamRadius === false) {
-      alert("Anda berada di luar radius gudang. Absensi tidak bisa dikirim.");
+      alert(`Anda berada di luar radius gudang ${window.statusRadiusGlobal.gudang} (${window.statusRadiusGlobal.jarak}m dari batas ${window.statusRadiusGlobal.radiusIzin}m). Absensi tidak bisa dikirim.`);
       return;
     }
   }
 
-  const btnFinal = document.getElementById('btn-clock-in-final');
   btnFinal.innerText = "Mengirim...";
   btnFinal.disabled = true;
 
