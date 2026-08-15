@@ -596,7 +596,7 @@
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this); muatDataPenjadwalan();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-calendar-alt mr-1.5"></i> Penjadwalan</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this)" class="sub-absensi-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-clock mr-1.5"></i> Antrean Absensi</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-riwayat-acc', this); muatDataRiwayatACC();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-check-circle mr-1.5"></i> Riwayat ACC</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this); siapkanFilterRekap();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-chart-bar mr-1.5"></i> Riwayat All Absensi</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this)" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-chart-bar mr-1.5"></i> Riwayat All Absensi</button>
           </div>
         </div>
 
@@ -717,7 +717,8 @@
            <div id="container-acc-riwayat"></div>
         </div>
         <div id="sub-absensi-rekap" class="sub-absensi-content hidden fade-in space-y-4">
-            <div id="container-acc-rekap"></div>
+            <!-- MIGRASI VUE: lihat js/vue-riwayat-absensi.js -->
+            <div id="vue-riwayat-absensi"></div>
         </div>
       </div>
 
@@ -903,36 +904,7 @@
     </div>
   </div>
 
-  <div id="modal-edit-absensi" class="hidden fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 fade-in">
-    <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4">
-      <div class="flex justify-between items-center border-b pb-3">
-        <h3 class="text-sm font-bold text-gray-800"><i class="fas fa-edit text-blue-600 mr-2"></i> Edit Data Absensi</h3>
-        <button onclick="tutupEditAbsensi()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times text-lg"></i></button>
-      </div>
-      <p class="text-xs text-gray-500">Karyawan: <b id="editabsensi-nama" class="text-slate-800">-</b></p>
-      <input type="hidden" id="editabsensi-doc-id">
-      <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Status Kehadiran</label>
-        <select id="editabsensi-statuskehadiran" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm"></select>
-      </div>
-      <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Seragam</label>
-        <select id="editabsensi-seragam" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
-          <option value="Sesuai">Sesuai</option>
-          <option value="Tidak Sesuai">Tidak Sesuai</option>
-        </select>
-      </div>
-      <div>
-        <label class="block text-xs font-semibold text-gray-600 mb-1">Status Persetujuan</label>
-        <select id="editabsensi-statusacc" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
-          <option value="ACC">ACC</option>
-          <option value="REJECT">REJECT</option>
-          <option value="PENDING">PENDING</option>
-        </select>
-      </div>
-      <button onclick="simpanEditAbsensi()" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 transition text-sm"><i class="fas fa-save mr-1"></i> Simpan Perubahan</button>
-    </div>
-  </div>
+  <!-- Modal Edit Absensi sudah dipindah ke js/vue-riwayat-absensi.js -->
 
   <script>
     function togglePassword() {
@@ -982,5 +954,6 @@
   <script type="module" src="js/vue-daftar-karyawan.js"></script>
   <script type="module" src="js/vue-antrean-dakar.js"></script>
   <script type="module" src="js/vue-antrean-absensi.js"></script>
+  <script type="module" src="js/vue-riwayat-absensi.js"></script>
 </body>
 </html>

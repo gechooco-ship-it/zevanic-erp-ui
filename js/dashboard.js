@@ -937,8 +937,9 @@ window.hapusAbsensi = async function(docId) {
     const { doc, deleteDoc } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
     const { db } = await import("./firebase-config.js");
     await deleteDoc(doc(db, "absensi", docId));
-    // Dipanggil dari 2 tempat berbeda (Antrean Absensi lama & Riwayat All
-    // Absensi) — cek dulu mana yang masih ada sebelum dipanggil.
+    // Dipanggil dari 2 komponen Vue berbeda (Antrean Absensi & Riwayat All
+    // Absensi) — masing-masing menangani refresh-nya sendiri lewat .then(muat)
+    // di pemanggilnya. Guard ini dipertahankan untuk jaga-jaga saja.
     if (window.muatDataAdminACC) window.muatDataAdminACC();
     if (window.siapkanFilterRekap) window.siapkanFilterRekap();
   } catch (e) {
@@ -1141,158 +1142,11 @@ window.muatDataRiwayatACC = async function() {
   }
 };
 
-window.siapkanFilterRekap = async function() {
-  const container = document.getElementById('container-acc-rekap');
-  if (!container) return;
-
-  container.innerHTML = `<div class="text-center py-10 text-gray-400 text-xs"><i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p>Menyiapkan Riwayat All Absensi...</p></div>`;
-
-  try {
-    const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
-    const { db } = await import("./firebase-config.js");
-
-    // Cross-reference No. HP dari koleksi users (record absensi tidak simpan hp langsung)
-    const qUsers = await getDocs(collection(db, "users"));
-    const petaHp = {};
-    qUsers.forEach(u => { petaHp[u.data().email] = u.data().hp || '-'; });
-
-    const querySnapshot = await getDocs(collection(db, "absensi"));
-    let listData = [];
-    
-    querySnapshot.forEach((docSnap) => {
-        const data = docSnap.data();
-        data.id = docSnap.id;
-        listData.push(data);
-    });
-
-    listData.sort((a, b) => (window.parseWaktuIndo(b.waktu)?.getTime() || 0) - (window.parseWaktuIndo(a.waktu)?.getTime() || 0));
-    window.dataRiwayatGlobal = listData; 
-
-    const dua = (a, b) => `<b class="text-slate-800">${a || '-'}</b><br><span class="text-[10px] text-gray-400 font-normal">${b || '-'}</span>`;
-
-    let html = `
-      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex justify-between items-center mb-4">
-        <div>
-           <h3 class="font-black text-slate-800 text-sm"><i class="fas fa-database text-purple-600 mr-2"></i> Riwayat All Absensi</h3>
-           <p class="text-[10px] text-gray-500 mt-1">Laporan lengkap seluruh karyawan. Anda bisa mengunduhnya untuk keperluan Payroll.</p>
-        </div>
-        <button onclick="exportKeCSV()" class="bg-green-600 hover:bg-green-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition shadow-md flex items-center space-x-2">
-            <i class="fas fa-file-excel text-sm"></i><span>Unduh Excel (CSV)</span>
-        </button>
-      </div>
-
-      <div class="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm bg-white">
-        <table class="w-full text-left text-xs text-gray-600 whitespace-nowrap">
-          <thead class="bg-slate-800 text-white font-bold border-b text-[10px] uppercase">
-            <tr>
-              <th class="p-3">Persetujuan / Tipe Absen</th>
-              <th class="p-3">Shift / Gudang</th>
-              <th class="p-3">Tanggal / Waktu</th>
-              <th class="p-3">Foto</th>
-              <th class="p-3">Nama / No HP</th>
-              <th class="p-3">Status Kehadiran / Seragam</th>
-              <th class="p-3">Sanggahan Karyawan</th>
-              <th class="p-3">Aju Banding</th>
-              <th class="p-3">Pemeriksa</th>
-              <th class="p-3 text-center">Aksi</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-    `;
-
-    listData.forEach(item => {
-      const [tglBagian, jamBagian] = (item.waktu || '-, -').split(', ');
-      const fotoUrl = item.foto_selfie || item.foto || '';
-      const statusAccLabel = item.status_acc === 'ACC' ? '<span class="text-green-600">ACC</span>' : (item.status_acc === 'REJECT' ? '<span class="text-red-500">REJECT</span>' : '<span class="text-amber-500">PENDING</span>');
-      const adaSanggahan = !!item.catatan_banding;
-
-      html += `
-        <tr class="hover:bg-blue-50 transition">
-          <td class="p-3">${dua(statusAccLabel, item.status || 'HADIR')}</td>
-          <td class="p-3">${dua(item.shift, item.gudang)}</td>
-          <td class="p-3">${dua(tglBagian, jamBagian)}</td>
-          <td class="p-3">${fotoUrl ? `<img src="${fotoUrl}" class="w-10 h-10 rounded-lg object-cover border cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto('${fotoUrl}')">` : '<span class="text-gray-300">-</span>'}</td>
-          <td class="p-3">${dua(item.nama_pegawai || item.nama, petaHp[item.email] || item.email || '-')}</td>
-          <td class="p-3">${dua(item.status_kehadiran, item.seragam || 'Sesuai')}</td>
-          <td class="p-3 max-w-[160px] truncate" title="${(item.catatan_banding || '').replace(/"/g, '&quot;')}">${item.catatan_banding || '-'}</td>
-          <td class="p-3">${adaSanggahan ? '<span class="px-2 py-0.5 bg-amber-100 text-amber-700 font-bold text-[9px] rounded-full">Ada Aju Banding</span>' : '<span class="text-gray-300">-</span>'}</td>
-          <td class="p-3">${item.validated_by || '-'}</td>
-          <td class="p-3 text-center">
-            <div class="flex items-center justify-center gap-1">
-              <button onclick="bukaEditAbsensi('${item.id}')" class="bg-blue-50 text-blue-600 px-2 py-1.5 rounded-lg text-[10px] font-bold hover:bg-blue-100" title="Edit"><i class="fas fa-edit"></i></button>
-              <button onclick="hapusAbsensi('${item.id}')" class="bg-red-50 text-red-600 px-2 py-1.5 rounded-lg text-[10px] font-bold hover:bg-red-100" title="Hapus"><i class="fas fa-trash-alt"></i></button>
-              ${adaSanggahan ? `<button onclick="assignUlangAbsensi('${item.id}')" class="bg-amber-50 text-amber-600 px-2 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-100" title="Assign ulang ke Antrean Absensi"><i class="fas fa-undo"></i></button>` : ''}
-            </div>
-          </td>
-        </tr>
-      `;
-    });
-
-    html += `</tbody></table></div>`;
-    container.innerHTML = html;
-
-  } catch(e) {
-     console.error("Gagal muat rekap global:", e);
-     container.innerHTML = `<div class="text-center py-8 text-red-500 text-xs">Gagal menarik data rekapitulasi server.</div>`;
-  }
-};
-
-// ---- Aksi Edit & Assign Ulang untuk Riwayat All Absensi ----
-window.bukaEditAbsensi = async function(docId) {
-  const item = (window.dataRiwayatGlobal || []).find(i => i.id === docId);
-  if (!item) return alert("Data tidak ditemukan, coba refresh dulu.");
-
-  const daftarStatusKehadiran = window.ambilMasterList ? await window.ambilMasterList('status_kehadiran') : ["Ontime", "Terlambat", "Tidak Absen"];
-  document.getElementById('editabsensi-doc-id').value = docId;
-  document.getElementById('editabsensi-nama').innerText = item.nama_pegawai || item.nama || '-';
-  document.getElementById('editabsensi-statuskehadiran').innerHTML = daftarStatusKehadiran.map(s =>
-    `<option value="${s}" ${item.status_kehadiran === s ? 'selected' : ''}>${s}</option>`
-  ).join('');
-  document.getElementById('editabsensi-seragam').value = item.seragam || 'Sesuai';
-  document.getElementById('editabsensi-statusacc').value = item.status_acc || 'PENDING';
-  document.getElementById('modal-edit-absensi').classList.remove('hidden');
-};
-
-window.tutupEditAbsensi = function() {
-  document.getElementById('modal-edit-absensi').classList.add('hidden');
-};
-
-window.simpanEditAbsensi = async function() {
-  const docId = document.getElementById('editabsensi-doc-id').value;
-  const statusKehadiran = document.getElementById('editabsensi-statuskehadiran').value;
-  const seragam = document.getElementById('editabsensi-seragam').value;
-  const statusAcc = document.getElementById('editabsensi-statusacc').value;
-
-  try {
-    await updateDoc(doc(db, "absensi", docId), {
-      status_kehadiran: statusKehadiran,
-      seragam: seragam,
-      status_acc: statusAcc
-    });
-    alert("Data absensi berhasil diperbarui!");
-    window.tutupEditAbsensi();
-    window.siapkanFilterRekap();
-  } catch (e) {
-    console.error("Gagal edit absensi:", e);
-    alert("Gagal menyimpan perubahan.");
-  }
-};
-
-// Assign ulang: dipakai kalau ada sanggahan karyawan (aju banding) — kembalikan
-// record ke Antrean Absensi supaya diperiksa ulang oleh PIC/Owner.
-window.assignUlangAbsensi = async function(docId) {
-  if (!confirm("Kembalikan data ini ke Antrean Absensi untuk diperiksa ulang?")) return;
-  try {
-    await updateDoc(doc(db, "absensi", docId), {
-      status_acc: "PENDING"
-    });
-    alert("Data berhasil di-assign ulang ke Antrean Absensi.");
-    window.siapkanFilterRekap();
-  } catch (e) {
-    console.error("Gagal assign ulang:", e);
-    alert("Gagal memproses assign ulang.");
-  }
-};
+// Tabel Riwayat All Absensi (siapkanFilterRekap/bukaEditAbsensi/
+// tutupEditAbsensi/simpanEditAbsensi/assignUlangAbsensi) sudah pindah ke
+// js/vue-riwayat-absensi.js. window.exportKeCSV & window.dataRiwayatGlobal
+// TETAP di sini — masih dipakai laporan personal Account Profile > Absensi
+// yang belum dimigrasi.
 
 window.exportKeCSV = function() {
   if (!window.dataRiwayatGlobal || window.dataRiwayatGlobal.length === 0) {
