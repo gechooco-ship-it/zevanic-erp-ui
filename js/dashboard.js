@@ -175,140 +175,10 @@ window.tutupPreviewFoto = function() {
 // =========================================================================
 
 
-window.muatKonfigWhatsapp = async function() {
-  try {
-    const configSnap = await getDoc(doc(db, "config", "whatsapp_gateway"));
-    if (configSnap.exists()) {
-      const cfg = configSnap.data();
-      document.getElementById('wa-webapp-url').value = cfg.webapp_url || '';
-      document.getElementById('wa-secret').value = cfg.shared_secret || '';
-      document.getElementById('wa-otp-aktif').checked = !!cfg.otp_aktif;
-    }
-  } catch (e) {
-    console.error("Gagal memuat konfigurasi WhatsApp:", e);
-  }
-};
+// WhatsApp Gateway (Config API, Template Pesan, Monitoring Respon) sudah
+// pindah ke js/vue-whatsapp-gateway.js. window.kirimPesanWhatsapp (auth.js)
+// TETAP dipertahankan — masih dipakai alur registrasi/approval.
 
-window.simpanKonfigWhatsapp = async function() {
-  const webappUrl = document.getElementById('wa-webapp-url').value.trim();
-  const secret = document.getElementById('wa-secret').value.trim();
-  const otpAktif = document.getElementById('wa-otp-aktif').checked;
-
-  if (!webappUrl || !secret) {
-    alert("URL Web App dan Kunci Rahasia wajib diisi!");
-    return;
-  }
-
-  try {
-    await setDoc(doc(db, "config", "whatsapp_gateway"), {
-      webapp_url: webappUrl,
-      shared_secret: secret,
-      otp_aktif: otpAktif
-    });
-    alert("Pengaturan WhatsApp Gateway berhasil disimpan!");
-  } catch (e) {
-    console.error("Gagal menyimpan konfigurasi WhatsApp:", e);
-    alert("Gagal menyimpan pengaturan.");
-  }
-};
-
-window.tesKirimWhatsapp = async function() {
-  const nomor = document.getElementById('wa-test-nomor').value.trim();
-  if (!nomor) {
-    alert("Masukkan nomor HP tujuan tes terlebih dahulu!");
-    return;
-  }
-  const btn = event.currentTarget;
-  const teksAsli = btn.innerHTML;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
-  btn.disabled = true;
-
-  const berhasil = await window.kirimPesanWhatsapp(nomor, "Ini pesan tes dari Zevanic ERP. Jika Anda menerima ini, WhatsApp Gateway sudah tersambung dengan benar. \u2705", "Tes");
-
-  btn.innerHTML = teksAsli;
-  btn.disabled = false;
-  alert(berhasil ? "Pesan tes berhasil dikirim! Cek WhatsApp di nomor tersebut." : "Gagal mengirim pesan tes. Cek kembali URL Web App & Kunci Rahasia, pastikan sudah disimpan, dan cek Script Properties di Apps Script.");
-};
-
-// =========================================================================
-// TEMPLATE PESAN (greeting) — bisa diubah Owner tanpa perlu ubah kode.
-// =========================================================================
-const TEMPLATE_DEFAULT = {
-  template_otp: "Kode OTP login Zevanic ERP Anda: *{kode}*. Jangan bagikan kode ini ke siapapun. Berlaku 5 menit.",
-  template_aktif: "Halo {nama}, akun Zevanic ERP Anda sudah *AKTIF*. Anda sekarang bisa login dan melakukan absensi.",
-  template_pending: "Halo {nama}, pendaftaran Anda di Zevanic ERP telah diterima dan sedang *menunggu persetujuan*. Silakan hubungi Koordinator/PIC untuk aktivasi akun Anda."
-};
-
-window.muatTemplateWA = async function() {
-  try {
-    const snap = await getDoc(doc(db, "config", "whatsapp_templates"));
-    const tpl = snap.exists() ? snap.data() : {};
-    document.getElementById('wa-tpl-otp').value = tpl.template_otp || TEMPLATE_DEFAULT.template_otp;
-    document.getElementById('wa-tpl-aktif').value = tpl.template_aktif || TEMPLATE_DEFAULT.template_aktif;
-    document.getElementById('wa-tpl-pending').value = tpl.template_pending || TEMPLATE_DEFAULT.template_pending;
-  } catch (e) {
-    console.error("Gagal memuat template WA:", e);
-  }
-};
-
-window.simpanTemplateWA = async function() {
-  try {
-    await setDoc(doc(db, "config", "whatsapp_templates"), {
-      template_otp: document.getElementById('wa-tpl-otp').value,
-      template_aktif: document.getElementById('wa-tpl-aktif').value,
-      template_pending: document.getElementById('wa-tpl-pending').value
-    });
-    alert("Template pesan berhasil disimpan!");
-  } catch (e) {
-    console.error("Gagal menyimpan template WA:", e);
-    alert("Gagal menyimpan template.");
-  }
-};
-
-// =========================================================================
-// MONITORING RESPON — riwayat pengiriman WA (OTP, notifikasi, tes) & statusnya.
-// =========================================================================
-window.muatMonitoringWA = async function() {
-  const tbody = document.getElementById('tabel-monitoring-wa');
-  if (!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Memuat riwayat...</td></tr>';
-
-  try {
-    const querySnapshot = await getDocs(collection(db, "wa_log"));
-    let listLog = [];
-    querySnapshot.forEach(docSnap => {
-      const d = docSnap.data();
-      d.id = docSnap.id;
-      listLog.push(d);
-    });
-
-    listLog.sort((a, b) => (window.parseWaktuIndo(b.waktu)?.getTime() || 0) - (window.parseWaktuIndo(a.waktu)?.getTime() || 0));
-    listLog = listLog.slice(0, 50);
-
-    if (listLog.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-400">Belum ada riwayat pengiriman.</td></tr>';
-      return;
-    }
-
-    tbody.innerHTML = "";
-    listLog.forEach(log => {
-      const badgeStatus = log.sukses
-        ? '<span class="px-2 py-0.5 bg-green-100 text-green-700 font-bold text-[10px] rounded-full">Terkirim</span>'
-        : '<span class="px-2 py-0.5 bg-red-100 text-red-700 font-bold text-[10px] rounded-full">Gagal</span>';
-      tbody.innerHTML += `
-        <tr class="hover:bg-gray-50">
-          <td class="p-3">${log.waktu || '-'}</td>
-          <td class="p-3 font-semibold">${log.jenis || '-'}</td>
-          <td class="p-3 font-mono">${log.target || '-'}</td>
-          <td class="p-3">${badgeStatus}</td>
-          <td class="p-3 text-gray-500 max-w-[220px] truncate" title="${(log.keterangan || '').replace(/"/g, '&quot;')}">${log.keterangan || '-'}</td>
-        </tr>`;
-    });
-  } catch (e) {
-    console.error("Gagal memuat monitoring WA:", e);
-    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500">Gagal memuat riwayat.</td></tr>';
-  }
-};
 
 // Modal Edit Karyawan (dulu window.isiSelectDariMaster/bukaEditUser/
 // tutupEditUser/simpanEditUser) sudah pindah ke js/vue-daftar-karyawan.js.
@@ -411,7 +281,6 @@ window.pindahTab = function(tabId) {
       if (window.pindahSubTab) window.pindahSubTab('sub-absensi', 'sub-absensi-accept', document.querySelectorAll('.sub-absensi-btn')[2]);
   }
   
-  if (tabId === 'tab-whatsapp' && window.muatKonfigWhatsapp) window.muatKonfigWhatsapp();
 };
 
 window.pindahSubProfile = function(targetId, elemenTombol) {
