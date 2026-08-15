@@ -672,113 +672,12 @@ window.prosesClockOut = function() {
   window.pindahLayar('screen-camera');
 };
 
-// Poin 10: Pengajuan Izin/Cuti/Lembur sekarang lewat Account Profile > Absensi
-
-window.bukaFormIzinProfil = async function() {
-  document.getElementById('form-izin-profil').classList.remove('hidden');
-  const selectAlasan = document.getElementById('profil-izin-keterangan');
-  if (selectAlasan && selectAlasan.options.length === 0 && window.ambilMasterList) {
-    const items = await window.ambilMasterList('alasan_izin');
-    selectAlasan.innerHTML = items.map(a => `<option value="${a}">${a}</option>`).join('');
-  }
-};
-window.tutupFormIzinProfil = function() {
-  document.getElementById('form-izin-profil').classList.add('hidden');
-  document.getElementById('profil-izin-tanggal').value = '';
-  document.getElementById('profil-izin-detail').value = '';
-};
-window.ajukanIzinDariProfil = function() {
-  const tanggal = document.getElementById('profil-izin-tanggal').value;
-  const alasanTerpilih = document.getElementById('profil-izin-keterangan').value;
-  const detail = document.getElementById('profil-izin-detail').value.trim();
-  const keterangan = detail ? `${alasanTerpilih} - ${detail}` : alasanTerpilih;
-
-  if (!tanggal || !alasanTerpilih) {
-    alert("Harap isi Tanggal dan pilih Alasan Izin!");
-    return;
-  }
-
-  window.statusPilihanGlobal = "IZIN";
-  window.tanggalIzinGlobal = tanggal;
-  window.keteranganIzinGlobal = keterangan;
-  window.tutupFormIzinProfil();
-  document.getElementById('label-status-kamera').innerText = "Mode: IZIN";
-  window.pindahLayar('screen-camera');
-};
-
-window.bukaFormCutiProfil = async function() {
-  document.getElementById('form-cuti-profil').classList.remove('hidden');
-  const selectAlasan = document.getElementById('profil-cuti-keterangan');
-  if (selectAlasan && selectAlasan.options.length === 0 && window.ambilMasterList) {
-    const items = await window.ambilMasterList('alasan_cuti');
-    selectAlasan.innerHTML = items.map(a => `<option value="${a}">${a}</option>`).join('');
-  }
-};
-window.tutupFormCutiProfil = function() {
-  document.getElementById('form-cuti-profil').classList.add('hidden');
-  document.getElementById('profil-cuti-tanggal').value = '';
-  document.getElementById('profil-cuti-detail').value = '';
-};
-window.ajukanCutiDariProfil = function() {
-  const tanggal = document.getElementById('profil-cuti-tanggal').value;
-  const alasanTerpilih = document.getElementById('profil-cuti-keterangan').value;
-  const detail = document.getElementById('profil-cuti-detail').value.trim();
-  const keterangan = detail ? `${alasanTerpilih} - ${detail}` : alasanTerpilih;
-
-  if (!tanggal || !alasanTerpilih) {
-    alert("Harap isi Tanggal dan pilih Alasan Cuti!");
-    return;
-  }
-
-  const tglPilih = new Date(tanggal);
-  const tglSekarang = new Date();
-  tglSekarang.setHours(0, 0, 0, 0);
-  const selisihHari = (tglPilih - tglSekarang) / (1000 * 60 * 60 * 24);
-  if (selisihHari < 3) {
-    alert("Pengajuan Cuti minimal H-3 dari tanggal hari ini!");
-    return;
-  }
-
-  window.statusPilihanGlobal = "CUTI";
-  window.tanggalIzinGlobal = tanggal;
-  window.keteranganIzinGlobal = keterangan;
-  window.tutupFormCutiProfil();
-  document.getElementById('label-status-kamera').innerText = "Mode: CUTI";
-  window.pindahLayar('screen-camera');
-};
-
-// Poin 10: Pengajuan Jam Lembur — clock in lewat kamera+selfie (+lokasi seperti
-// Hadir/Clock Out), data masuk ke Antrean Absensi seperti pengajuan lainnya.
-window.bukaFormLemburProfil = function() {
-  document.getElementById('form-lembur-profil').classList.remove('hidden');
-};
-window.tutupFormLemburProfil = function() {
-  document.getElementById('form-lembur-profil').classList.add('hidden');
-  document.getElementById('profil-lembur-mulai').value = '';
-  document.getElementById('profil-lembur-selesai').value = '';
-  document.getElementById('profil-lembur-alasan').value = '';
-  document.getElementById('profil-lembur-instruksi').value = '';
-};
-window.ajukanLemburDariProfil = function() {
-  const mulai = document.getElementById('profil-lembur-mulai').value;
-  const selesai = document.getElementById('profil-lembur-selesai').value;
-  const alasan = document.getElementById('profil-lembur-alasan').value.trim();
-  const instruksi = document.getElementById('profil-lembur-instruksi').value.trim();
-
-  if (!mulai || !alasan) {
-    alert("Harap isi minimal Waktu Mulai Lembur dan Alasan!");
-    return;
-  }
-
-  window.statusPilihanGlobal = "LEMBUR (CLOCK IN)";
-  window.lemburMulaiGlobal = mulai;
-  window.lemburSelesaiGlobal = selesai;
-  window.lemburAlasanGlobal = alasan;
-  window.lemburInstruksiGlobal = instruksi;
-  window.tutupFormLemburProfil();
-  document.getElementById('label-status-kamera').innerText = "Mode: LEMBUR";
-  window.pindahLayar('screen-camera');
-};
+// Pengajuan Izin/Cuti/Lembur (form-nya) sudah pindah ke
+// js/vue-account-profile.js. Variabel global (statusPilihanGlobal,
+// tanggalIzinGlobal, keteranganIzinGlobal, lemburMulaiGlobal, dst) dan
+// window.pindahLayar('screen-camera') TETAP dipakai — itu titik sambung ke
+// alur kamera/geofencing yang belum dimigrasi. window.prosesClockOut TETAP
+// di atas sini (dipanggil dari Vue).
 
 // Lupa Password: pakai fitur bawaan Firebase Auth (kirim link reset ke email
 // terdaftar). Tidak butuh WhatsApp/backend tambahan — ini paling aman & simpel.
