@@ -766,7 +766,7 @@
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', this); muatDataAntreanKaryawan();" class="sub-karyawan-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">
               <i class="fas fa-user-clock mr-1.5"></i> Antrean Dakar
             </button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this); muatSemuaMasterData();" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Karyawan</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Karyawan</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this); muatDataSuperUser();" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Daftar Karyawan</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Slip Gaji</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Payroll</button>
@@ -784,104 +784,9 @@
           </div>
 
           <div id="sub-karyawan-config" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
-            <div class="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
-              <h4 class="font-bold text-blue-800 text-sm"><i class="fas fa-database mr-1.5"></i> Master Data</h4>
-              <p class="text-[11px] text-blue-600 mt-0.5">Kelola pilihan yang muncul di dropdown seluruh aplikasi (Antrean Karyawan, Edit Karyawan, Registrasi, dll). Ketik lalu klik + untuk menambah, klik &times; pada item untuk menghapus.</p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
-                <h4 class="text-xs font-bold text-gray-700">Jenis Pekerjaan</h4>
-                <div class="flex space-x-2">
-                  <input type="text" id="input-jenis_pekerjaan" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
-                  <button onclick="tambahMasterListItem('jenis_pekerjaan', 'input-jenis_pekerjaan', 'list-jenis_pekerjaan')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
-                </div>
-                <div id="list-jenis_pekerjaan" class="flex flex-wrap"></div>
-              </div>
-
-              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
-                <h4 class="text-xs font-bold text-gray-700">Status Kerja</h4>
-                <div class="flex space-x-2">
-                  <input type="text" id="input-status_kerja" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
-                  <button onclick="tambahMasterListItem('status_kerja', 'input-status_kerja', 'list-status_kerja')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
-                </div>
-                <div id="list-status_kerja" class="flex flex-wrap"></div>
-              </div>
-
-              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
-                <h4 class="text-xs font-bold text-gray-700">Status Pengguna (Role Akses)</h4>
-                <div class="flex space-x-2">
-                  <input type="text" id="input-status_pengguna" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
-                  <button onclick="tambahMasterListItem('status_pengguna', 'input-status_pengguna', 'list-status_pengguna')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
-                </div>
-                <div id="list-status_pengguna" class="flex flex-wrap"></div>
-                <p class="text-[9px] text-amber-600"><i class="fas fa-info-circle"></i> Hati-hati mengubah ini — dipakai untuk menentukan hak akses menu.</p>
-              </div>
-
-              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
-                <h4 class="text-xs font-bold text-gray-700">Jabatan</h4>
-                <div class="flex space-x-2">
-                  <input type="text" id="input-jabatan" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
-                  <button onclick="tambahMasterListItem('jabatan', 'input-jabatan', 'list-jabatan')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
-                </div>
-                <div id="list-jabatan" class="flex flex-wrap"></div>
-              </div>
-
-              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
-                <h4 class="text-xs font-bold text-gray-700">Status Karyawan</h4>
-                <div class="flex space-x-2">
-                  <input type="text" id="input-status_karyawan" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
-                  <button onclick="tambahMasterListItem('status_karyawan', 'input-status_karyawan', 'list-status_karyawan')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
-                </div>
-                <div id="list-status_karyawan" class="flex flex-wrap"></div>
-              </div>
-
-              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
-                <h4 class="text-xs font-bold text-gray-700">Kabupaten/Kota</h4>
-                <div class="flex space-x-2">
-                  <input type="text" id="input-kabupaten" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
-                  <button onclick="tambahMasterListItem('kabupaten', 'input-kabupaten', 'list-kabupaten').then(() => muatKabupatenUntukKecamatan())" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
-                </div>
-                <div id="list-kabupaten" class="flex flex-wrap"></div>
-              </div>
-
-              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2 md:col-span-2">
-                <h4 class="text-xs font-bold text-gray-700">Kecamatan (per Kabupaten/Kota)</h4>
-                <select id="config-kecamatan-kabupaten-pilih" onchange="muatKecamatanUntukKabupatenTerpilih()" class="w-full px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none mb-1"></select>
-                <div class="flex space-x-2">
-                  <input type="text" id="config-kecamatan-input" placeholder="Tambah kecamatan untuk kabupaten di atas..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
-                  <button onclick="tambahKecamatanItem()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
-                </div>
-                <div id="config-kecamatan-list" class="flex flex-wrap"></div>
-              </div>
-
-              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
-                <h4 class="text-xs font-bold text-gray-700">Alasan Izin</h4>
-                <div class="flex space-x-2">
-                  <input type="text" id="input-alasan_izin" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
-                  <button onclick="tambahMasterListItem('alasan_izin', 'input-alasan_izin', 'list-alasan_izin')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
-                </div>
-                <div id="list-alasan_izin" class="flex flex-wrap"></div>
-              </div>
-
-              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
-                <h4 class="text-xs font-bold text-gray-700">Alasan Cuti</h4>
-                <div class="flex space-x-2">
-                  <input type="text" id="input-alasan_cuti" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
-                  <button onclick="tambahMasterListItem('alasan_cuti', 'input-alasan_cuti', 'list-alasan_cuti')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
-                </div>
-                <div id="list-alasan_cuti" class="flex flex-wrap"></div>
-              </div>
-
-              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
-                <h4 class="text-xs font-bold text-gray-700">Status Kehadiran</h4>
-                <div class="flex space-x-2">
-                  <input type="text" id="input-status_kehadiran" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
-                  <button onclick="tambahMasterListItem('status_kehadiran', 'input-status_kehadiran', 'list-status_kehadiran')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
-                </div>
-                <div id="list-status_kehadiran" class="flex flex-wrap"></div>
-              </div>
-            </div>
+            <!-- MIGRASI VUE: halaman pertama yang pindah dari vanilla JS ke Vue
+                 (CDN, tanpa build). Lihat js/vue-config-karyawan.js -->
+            <div id="vue-config-karyawan"></div>
           </div>
 
           <div id="sub-karyawan-data" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
@@ -1281,5 +1186,6 @@
   <script type="module" src="js/camera.js"></script>
   <script type="module" src="js/auth.js"></script>
   <script type="module" src="js/dashboard.js?v=5"></script>
+  <script type="module" src="js/vue-config-karyawan.js"></script>
 </body>
 </html>

@@ -803,59 +803,8 @@ window.ambilMasterList = async function(kategori) {
   return defaultItems;
 };
 
-window.muatDanTampilkanMasterList = async function(kategori, containerId) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  container.innerHTML = '<span class="text-[10px] text-gray-400">Memuat...</span>';
-  try {
-    const items = await window.ambilMasterList(kategori);
-    if (items.length === 0) {
-      container.innerHTML = '<span class="text-[10px] text-gray-400">Belum ada data.</span>';
-      return;
-    }
-    container.innerHTML = items.map(item => `
-      <span class="inline-flex items-center gap-1.5 bg-gray-100 px-2.5 py-1 rounded-lg text-[11px] mr-1.5 mb-1.5">
-        ${item}
-        <button onclick="hapusMasterListItem('${kategori}', '${String(item).replace(/'/g, "\\'")}', '${containerId}')" class="text-red-400 hover:text-red-600"><i class="fas fa-times"></i></button>
-      </span>
-    `).join('');
-  } catch (e) {
-    console.error("Gagal muat master list:", kategori, e);
-    container.innerHTML = '<span class="text-[10px] text-red-500">Gagal memuat.</span>';
-  }
-};
-
-window.tambahMasterListItem = async function(kategori, inputId, containerId) {
-  const input = document.getElementById(inputId);
-  const nilai = input.value.trim();
-  if (!nilai) return;
-  try {
-    const items = await window.ambilMasterList(kategori);
-    if (items.includes(nilai)) { alert("Item ini sudah ada di daftar."); return; }
-    items.push(nilai);
-    await setDoc(doc(db, "master_data", kategori), { items });
-    input.value = '';
-    await window.muatDanTampilkanMasterList(kategori, containerId);
-  } catch (e) {
-    console.error("Gagal menambah item master:", e);
-    alert("Gagal menambah item.");
-  }
-};
-
-window.hapusMasterListItem = async function(kategori, nilai, containerId) {
-  try {
-    let items = await window.ambilMasterList(kategori);
-    items = items.filter(i => i !== nilai);
-    await setDoc(doc(db, "master_data", kategori), { items });
-    window.muatDanTampilkanMasterList(kategori, containerId);
-  } catch (e) {
-    console.error("Gagal menghapus item master:", e);
-    alert("Gagal menghapus item.");
-  }
-};
-
-// ---- Kecamatan: khusus, bertingkat per Kabupaten ----
-// Helper bersama (dipakai juga oleh auth.js untuk dropdown kecamatan di form registrasi)
+// Helper bersama (dipakai oleh auth.js untuk dropdown kecamatan di form
+// registrasi, dan oleh js/vue-components.js KecamatanManager).
 window.ambilKecamatanUntukKabupaten = async function(kab) {
   try {
     const snap = await getDoc(doc(db, "master_data", "kecamatan"));
@@ -871,85 +820,13 @@ window.ambilKecamatanUntukKabupaten = async function(kab) {
   }
 };
 
-window.muatKabupatenUntukKecamatan = async function() {
-  const items = await window.ambilMasterList('kabupaten');
-  const select = document.getElementById('config-kecamatan-kabupaten-pilih');
-  if (!select) return;
-  const terpilihSebelumnya = select.value;
-  select.innerHTML = items.map(k => `<option value="${k}">${k}</option>`).join('');
-  if (items.includes(terpilihSebelumnya)) select.value = terpilihSebelumnya;
-  if (items.length > 0) window.muatKecamatanUntukKabupatenTerpilih();
-};
+// Catatan migrasi Vue: fungsi UI Master Data (tambah/lihat/hapus item,
+// termasuk Kecamatan) sudah dipindah ke js/vue-components.js +
+// js/vue-config-karyawan.js. window.ambilMasterList,
+// window.ambilKecamatanUntukKabupaten, dan window.isiSelectDariMaster
+// TETAP dipertahankan di sini karena masih dipakai layar yang belum
+// dimigrasi (Antrean Dakar, Edit Karyawan, Registrasi).
 
-window.muatKecamatanUntukKabupatenTerpilih = async function() {
-  const kab = document.getElementById('config-kecamatan-kabupaten-pilih').value;
-  const container = document.getElementById('config-kecamatan-list');
-  if (!kab || !container) return;
-  container.innerHTML = '<span class="text-[10px] text-gray-400">Memuat...</span>';
-  try {
-    const items = await window.ambilKecamatanUntukKabupaten(kab);
-    container.innerHTML = items.length === 0
-      ? '<span class="text-[10px] text-gray-400">Belum ada kecamatan untuk kabupaten ini.</span>'
-      : items.map(item => `
-        <span class="inline-flex items-center gap-1.5 bg-gray-100 px-2.5 py-1 rounded-lg text-[11px] mr-1.5 mb-1.5">
-          ${item}
-          <button onclick="hapusKecamatanItem('${String(item).replace(/'/g, "\\'")}')" class="text-red-400 hover:text-red-600"><i class="fas fa-times"></i></button>
-        </span>
-      `).join('');
-  } catch (e) {
-    console.error("Gagal muat kecamatan:", e);
-    container.innerHTML = '<span class="text-[10px] text-red-500">Gagal memuat.</span>';
-  }
-};
-
-window.tambahKecamatanItem = async function() {
-  const kab = document.getElementById('config-kecamatan-kabupaten-pilih').value;
-  const input = document.getElementById('config-kecamatan-input');
-  const nilai = input.value.trim();
-  if (!kab) return alert("Pilih Kabupaten/Kota dulu.");
-  if (!nilai) return;
-  try {
-    const snap = await getDoc(doc(db, "master_data", "kecamatan"));
-    const map = (snap.exists() && snap.data().map) ? snap.data().map : { ...KECAMATAN_DEFAULT };
-    if (!map[kab]) map[kab] = [];
-    if (map[kab].includes(nilai)) { alert("Sudah ada."); return; }
-    map[kab].push(nilai);
-    await setDoc(doc(db, "master_data", "kecamatan"), { map });
-    input.value = '';
-    window.muatKecamatanUntukKabupatenTerpilih();
-  } catch (e) {
-    console.error("Gagal menambah kecamatan:", e);
-    alert("Gagal menambah kecamatan.");
-  }
-};
-
-window.hapusKecamatanItem = async function(nilai) {
-  const kab = document.getElementById('config-kecamatan-kabupaten-pilih').value;
-  try {
-    const snap = await getDoc(doc(db, "master_data", "kecamatan"));
-    const map = (snap.exists() && snap.data().map) ? snap.data().map : {};
-    if (map[kab]) map[kab] = map[kab].filter(i => i !== nilai);
-    await setDoc(doc(db, "master_data", "kecamatan"), { map });
-    window.muatKecamatanUntukKabupatenTerpilih();
-  } catch (e) {
-    console.error("Gagal menghapus kecamatan:", e);
-    alert("Gagal menghapus kecamatan.");
-  }
-};
-
-// Muat semua kartu master data sekaligus saat tab Config Karyawan dibuka
-window.muatSemuaMasterData = function() {
-  window.muatDanTampilkanMasterList('jenis_pekerjaan', 'list-jenis_pekerjaan');
-  window.muatDanTampilkanMasterList('status_kerja', 'list-status_kerja');
-  window.muatDanTampilkanMasterList('status_pengguna', 'list-status_pengguna');
-  window.muatDanTampilkanMasterList('jabatan', 'list-jabatan');
-  window.muatDanTampilkanMasterList('status_karyawan', 'list-status_karyawan');
-  window.muatDanTampilkanMasterList('kabupaten', 'list-kabupaten');
-  window.muatDanTampilkanMasterList('alasan_izin', 'list-alasan_izin');
-  window.muatDanTampilkanMasterList('alasan_cuti', 'list-alasan_cuti');
-  window.muatDanTampilkanMasterList('status_kehadiran', 'list-status_kehadiran');
-  window.muatKabupatenUntukKecamatan();
-};
 
 window.simpanMasterShift = async function() {
   const nama = document.getElementById('conf-shift-nama').value;
