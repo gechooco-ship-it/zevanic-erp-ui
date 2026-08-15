@@ -93,6 +93,69 @@ export const MasterDataCategory = {
 };
 
 // ---------------------------------------------------------------------------
+// DuaBaris — pola "2 baris per sel" yang dipakai berulang kali di berbagai
+// tabel (Daftar Karyawan, Antrean Absensi, Riwayat All Absensi): baris atas
+// bold/besar, baris bawah kecil/abu-abu. 1 komponen, dipakai di mana-mana.
+// ---------------------------------------------------------------------------
+export const DuaBaris = {
+  props: {
+    a: { type: [String, Number], default: '' },
+    b: { type: [String, Number], default: '' }
+  },
+  template: `
+    <span>
+      <b class="text-slate-800">{{ a || '-' }}</b><br>
+      <span class="text-[10px] text-gray-400 font-normal">{{ b || '-' }}</span>
+    </span>
+  `
+};
+
+// ---------------------------------------------------------------------------
+// GudangCheckboxSelect — pilih gudang (bisa lebih dari satu) via checkbox.
+// Dipakai lewat v-model, contoh: <gudang-checkbox-select v-model="gudangTerpilih" />
+// ---------------------------------------------------------------------------
+export const GudangCheckboxSelect = {
+  props: {
+    modelValue: { type: Array, default: () => [] }
+  },
+  emits: ['update:modelValue'],
+  setup(props, { emit }) {
+    const daftarGudang = ref([]);
+    const memuat = ref(true);
+
+    async function muat() {
+      const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
+      const snap = await getDocs(collection(db, 'master_gudang'));
+      const list = [];
+      snap.forEach(d => list.push(d.data().nama_gudang));
+      daftarGudang.value = list;
+      memuat.value = false;
+    }
+
+    function toggle(nama, dicentang) {
+      const nilaiBaru = [...props.modelValue];
+      const idx = nilaiBaru.indexOf(nama);
+      if (dicentang && idx === -1) nilaiBaru.push(nama);
+      if (!dicentang && idx > -1) nilaiBaru.splice(idx, 1);
+      emit('update:modelValue', nilaiBaru);
+    }
+
+    onMounted(muat);
+    return { daftarGudang, memuat, toggle };
+  },
+  template: `
+    <div class="flex flex-wrap gap-1.5 p-2 bg-white border rounded-lg min-h-[42px]">
+      <span v-if="memuat" class="text-[10px] text-gray-400">Memuat gudang...</span>
+      <span v-else-if="daftarGudang.length === 0" class="text-[10px] text-gray-400">Belum ada Master Gudang. Buat dulu di Config Absensi.</span>
+      <label v-for="g in daftarGudang" :key="g"
+             class="flex items-center space-x-1.5 bg-white border rounded-lg px-2.5 py-1.5 text-[11px] cursor-pointer hover:bg-blue-50 transition">
+        <input type="checkbox" :checked="modelValue.includes(g)" @change="toggle(g, $event.target.checked)" class="rounded text-blue-600">
+        <span>{{ g }}</span>
+      </label>
+    </div>
+  `
+};
+// ---------------------------------------------------------------------------
 // KecamatanManager — khusus, bertingkat per Kabupaten/Kota.
 // ---------------------------------------------------------------------------
 export const KecamatanManager = {

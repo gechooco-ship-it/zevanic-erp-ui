@@ -726,7 +726,7 @@
               <i class="fas fa-user-clock mr-1.5"></i> Antrean Dakar
             </button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Karyawan</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this); muatDataSuperUser();" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Daftar Karyawan</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Daftar Karyawan</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Slip Gaji</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Payroll</button>
           </div>
@@ -749,30 +749,8 @@
           </div>
 
           <div id="sub-karyawan-data" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
-            <div class="bg-red-50 border border-red-200 rounded-2xl p-4 flex justify-between items-center shadow-sm">
-              <div>
-                <h3 class="text-sm font-bold text-red-700 mb-0.5"><i class="fas fa-users mr-2"></i> Daftar Karyawan</h3>
-                <p class="text-[10px] text-red-600">Master kontrol HR untuk Edit Role & Status.</p>
-              </div>
-              <button onclick="muatDataSuperUser()" class="bg-red-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-red-700 transition">Muat Data</button>
-            </div>
-            <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full">
-              <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
-                <thead class="bg-red-50 text-red-700 text-xs uppercase sticky top-0 z-10">
-                  <tr>
-                    <th class="p-3">Jenis Pekerjaan / Status Kerja</th>
-                    <th class="p-3">KTP</th>
-                    <th class="p-3">Nama / ID</th>
-                    <th class="p-3">No HP / Email</th>
-                    <th class="p-3">Jabatan / Status Karyawan</th>
-                    <th class="p-3">Penempatan / Shift</th>
-                    <th class="p-3">Role / Jenis Lokasi</th>
-                    <th class="p-3 text-center">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody id="tabel-superuser-body" class="divide-y divide-gray-100 text-gray-700"></tbody>
-              </table>
-            </div>
+            <!-- MIGRASI VUE: lihat js/vue-daftar-karyawan.js -->
+            <div id="vue-daftar-karyawan"></div>
           </div>
 
           <div id="sub-karyawan-slip" class="sub-karyawan-content hidden fade-in mt-4">
@@ -905,138 +883,7 @@
     </nav>
   </div>
 
-  <div id="modal-edit-user" class="hidden fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 fade-in">
-    <div class="bg-white rounded-3xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
-      <div class="flex justify-between items-center border-b pb-3 mb-4">
-        <h3 class="text-lg font-bold text-gray-800"><i class="fas fa-user-edit text-blue-600 mr-2"></i> Detail & Edit Karyawan</h3>
-        <button onclick="tutupEditUser()" class="text-gray-400 hover:text-red-500"><i class="fas fa-times text-xl"></i></button>
-      </div>
-
-      <div class="space-y-4 text-sm">
-        <div class="flex flex-col items-center mb-4 bg-gray-50 py-3 rounded-xl border border-gray-100">
-          <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Dokumen KTP Karyawan</span>
-          <img id="edit-preview-ktp" src="" class="h-32 object-cover rounded-lg border shadow-sm cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto(this.src)" title="Klik untuk memperbesar KTP" alt="Foto KTP">
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Nama Karyawan</label>
-            <input type="text" id="edit-nama" readonly class="w-full px-3 py-2 bg-gray-100 border rounded-lg font-bold text-gray-600 outline-none">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Email Karyawan</label>
-            <input type="text" id="edit-email" readonly class="w-full px-3 py-2 bg-gray-100 border rounded-lg text-gray-600 outline-none">
-            <input type="hidden" id="edit-email-asli">
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Status Pengguna (Role Akses)</label>
-            <select id="edit-role" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Jenis Pekerjaan</label>
-            <select id="edit-jenis-pekerjaan" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Jabatan</label>
-            <select id="edit-jabatan" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Status Karyawan</label>
-            <select id="edit-tipe-karyawan" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-gray-500 mb-1">Status Kerja</label>
-          <select id="edit-status" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
-        </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Status Persetujuan</label>
-            <select id="edit-status-approval" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none">
-              <option value="APPROVED">Disetujui (bisa login)</option>
-              <option value="PENDING">Menunggu</option>
-              <option value="REJECTED">Ditolak</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Gudang Penempatan</label>
-            <div id="edit-gudang-checkboxes" class="flex flex-wrap gap-1.5 p-2 bg-white border rounded-lg min-h-[42px]"></div>
-          </div>
-        </div>
-
-        <div class="pt-3 border-t space-y-3">
-          <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Data Pribadi</h4>
-          <div class="grid grid-cols-2 gap-4">
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">NIK</label><input type="text" id="edit-nik" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Jenis Kelamin</label><select id="edit-gender" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"><option value="">-- Pilih --</option><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select></div>
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Tempat Lahir</label><input type="text" id="edit-tempatlahir" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Tanggal Lahir</label><input type="date" id="edit-tgllahir" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div class="col-span-2"><label class="block text-xs font-semibold text-gray-500 mb-1">No. HP / WhatsApp</label><input type="text" id="edit-hp" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-          </div>
-        </div>
-
-        <div class="pt-3 border-t space-y-3">
-          <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Alamat Domisili Saat Ini</h4>
-          <div class="grid grid-cols-2 gap-4">
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Kabupaten/Kota</label><input type="text" id="edit-tinggal-kab" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Kecamatan</label><input type="text" id="edit-tinggal-kec" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div class="col-span-2"><label class="block text-xs font-semibold text-gray-500 mb-1">Detail Alamat</label><textarea id="edit-tinggal-detail" rows="2" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea></div>
-          </div>
-        </div>
-
-        <div class="pt-3 border-t space-y-3">
-          <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Alamat Sesuai KTP</h4>
-          <div class="grid grid-cols-2 gap-4">
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Kabupaten/Kota</label><input type="text" id="edit-ktp-kab" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Kecamatan</label><input type="text" id="edit-ktp-kec" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div class="col-span-2"><label class="block text-xs font-semibold text-gray-500 mb-1">Detail Alamat</label><textarea id="edit-ktp-detail" rows="2" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea></div>
-          </div>
-        </div>
-
-        <div class="pt-3 border-t space-y-3">
-          <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Pendidikan & Keluarga</h4>
-          <div class="grid grid-cols-2 gap-4">
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Status Pernikahan</label><select id="edit-nikah" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"><option value="">-- Pilih --</option><option value="Belum Menikah">Belum Menikah</option><option value="Menikah">Menikah</option><option value="Cerai">Cerai</option></select></div>
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Jumlah Tanggungan</label><input type="text" id="edit-tanggungan" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Pendidikan Terakhir</label><input type="text" id="edit-pendidikan" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Sekolah/Kampus</label><input type="text" id="edit-sekolah" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div class="col-span-2"><label class="block text-xs font-semibold text-gray-500 mb-1">Jurusan</label><input type="text" id="edit-jurusan" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-          </div>
-        </div>
-
-        <div class="pt-3 border-t space-y-3">
-          <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Rekening Bank</h4>
-          <div class="grid grid-cols-2 gap-4">
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Nama Bank</label><input type="text" id="edit-bank" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">No. Rekening</label><input type="text" id="edit-norek" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div class="col-span-2"><label class="block text-xs font-semibold text-gray-500 mb-1">Atas Nama Rekening</label><input type="text" id="edit-namarek" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-          </div>
-        </div>
-
-        <div class="pt-3 border-t space-y-3">
-          <h4 class="text-xs font-bold text-gray-700 uppercase tracking-wider">Kontak Darurat</h4>
-          <div class="grid grid-cols-2 gap-4">
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Nama</label><input type="text" id="edit-darurat-nama" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block text-xs font-semibold text-gray-500 mb-1">Hubungan</label><input type="text" id="edit-darurat-hub" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div class="col-span-2"><label class="block text-xs font-semibold text-gray-500 mb-1">No. HP Darurat</label><input type="text" id="edit-darurat-hp" class="w-full px-3 py-2 bg-white border rounded-lg outline-none focus:ring-2 focus:ring-blue-500"></div>
-          </div>
-        </div>
-
-        <button onclick="simpanEditUser()" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition active:scale-95 mt-4">
-          <i class="fas fa-save mr-1"></i> Simpan Perubahan
-        </button>
-      </div>
-    </div>
-  </div>
+  <!-- Modal Edit Karyawan sudah dipindah ke js/vue-daftar-karyawan.js -->
 
   <div id="modal-preview-foto" class="hidden fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4 fade-in" onclick="tutupPreviewFoto()">
     <div class="relative max-w-2xl w-full flex justify-center">

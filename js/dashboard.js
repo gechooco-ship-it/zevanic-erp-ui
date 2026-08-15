@@ -165,66 +165,8 @@ window.tutupPreviewFoto = function() {
 };
 
 // ====== ZONA KONTROL OWNER ======
-window.muatDataSuperUser = async function() {
-  const tbody = document.getElementById('tabel-superuser-body');
-  if(!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-400">Memuat data user...</td></tr>';
-
-  // Ambil peta nama gudang -> jenis lokasi (Tetap/Dinamis), dipakai buat kolom 7
-  const qGudang = await getDocs(collection(db, "master_gudang"));
-  const petaJenisLokasi = {};
-  qGudang.forEach(g => { petaJenisLokasi[g.data().nama_gudang] = g.data().tipe_lokasi || 'Tetap'; });
-
-  const dua = (a, b) => `<b class="text-slate-800">${a || '-'}</b><br><span class="text-[10px] text-gray-400 font-normal">${b || '-'}</span>`;
-
-  const querySnapshot = await getDocs(collection(db, "users"));
-  tbody.innerHTML = "";
-  querySnapshot.forEach((document) => {
-    const d = document.data();
-    let idDoc = document.id;
-    let badgeApproval = "";
-    if (d.status_approval === "PENDING") badgeApproval = '<span class="inline-block px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-[9px] font-bold rounded ml-1">MENUNGGU</span>';
-    else if (d.status_approval === "REJECTED") badgeApproval = '<span class="inline-block px-1.5 py-0.5 bg-red-100 text-red-700 text-[9px] font-bold rounded ml-1">DITOLAK</span>';
-
-    const daftarGudangUser = window.normalisasiGudang(d.gudang_penempatan);
-    const daftarJenisLokasi = [...new Set(daftarGudangUser.map(g => petaJenisLokasi[g] || '-'))];
-
-    tbody.innerHTML += `
-      <tr class="hover:bg-gray-50">
-        <td class="p-3 text-xs">${dua(d.jenis_pekerjaan, d.status_kerja)}${badgeApproval}</td>
-        <td class="p-3">
-          ${d.foto_ktp ? `<img src="${d.foto_ktp}" class="w-12 h-9 rounded object-cover border cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto('${d.foto_ktp}')">` : '<div class="w-12 h-9 bg-gray-100 rounded flex items-center justify-center text-gray-300"><i class="fas fa-id-card text-xs"></i></div>'}
-        </td>
-        <td class="p-3 text-xs">${dua(d.nama, d.id_karyawan + ' / ' + (d.id_app || '-'))}</td>
-        <td class="p-3 text-xs">${dua(d.hp, d.email)}</td>
-        <td class="p-3 text-xs">${dua(d.jabatan, d.status_karyawan)}</td>
-        <td class="p-3 text-xs">${dua(daftarGudangUser.join(', ') || '-', d.nama_shift)}</td>
-        <td class="p-3 text-xs uppercase">${dua(d.role, daftarJenisLokasi.join(', ') || '-')}</td>
-        <td class="p-3 text-center">
-          <div class="flex items-center justify-center gap-1.5">
-            <button onclick="bukaEditUser('${idDoc}')" class="bg-blue-50 text-blue-600 px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-100 border border-blue-200 transition">
-              <i class="fas fa-edit"></i>
-            </button>
-            <button onclick="hapusKaryawan('${idDoc}')" class="bg-red-50 text-red-600 px-2.5 py-1.5 rounded-lg text-xs font-bold hover:bg-red-100 border border-red-200 transition">
-              <i class="fas fa-trash-alt"></i>
-            </button>
-          </div>
-        </td>
-      </tr>`;
-  });
-};
-
-window.hapusKaryawan = async function(emailId) {
-  if (!confirm(`Yakin ingin menghapus data karyawan "${emailId}" secara permanen? Data profil akan hilang dan tidak bisa dikembalikan.`)) return;
-  try {
-    await deleteDoc(doc(db, "users", emailId));
-    alert("Data karyawan berhasil dihapus dari Daftar Karyawan.\n\nCatatan: akun login (Firebase Auth) orang ini masih ada di sistem terpisah. Kalau mau benar-benar diblokir dari login, hapus juga manual lewat Firebase Console > Authentication.");
-    window.muatDataSuperUser();
-  } catch (e) {
-    console.error("Gagal menghapus karyawan:", e);
-    alert("Gagal menghapus data karyawan.");
-  }
-};
+// Tabel Daftar Karyawan (dulu window.muatDataSuperUser/hapusKaryawan) sudah
+// pindah ke js/vue-daftar-karyawan.js.
 
 // =========================================================================
 // ====== ANTREAN KARYAWAN: approve pendaftar baru sebelum bisa login ======
@@ -533,157 +475,8 @@ window.muatMonitoringWA = async function() {
   }
 };
 
-window.isiSelectDariMaster = async function(selectId, kategori, nilaiTerpilih) {
-  const select = document.getElementById(selectId);
-  if (!select) return;
-  const items = await window.ambilMasterList(kategori);
-  select.innerHTML = items.map(item =>
-    `<option value="${item}" ${item === nilaiTerpilih ? 'selected' : ''}>${item}</option>`
-  ).join('');
-  // Kalau nilai tersimpan tidak ada di Master Data (data lama/dihapus dari master),
-  // tetap tampilkan supaya data tidak hilang dari layar.
-  if (nilaiTerpilih && !items.includes(nilaiTerpilih)) {
-    select.innerHTML += `<option value="${nilaiTerpilih}" selected>${nilaiTerpilih} (tidak ada di Master Data)</option>`;
-  }
-};
-
-window.bukaEditUser = async function(emailId) {
-  const userRef = doc(db, "users", emailId);
-  const userSnap = await getDoc(userRef);
-  
-  if (userSnap.exists()) {
-    const d = userSnap.data();
-    document.getElementById('edit-email-asli').value = emailId;
-    document.getElementById('edit-nama').value = d.nama || "";
-    document.getElementById('edit-email').value = d.email || "";
-
-    await window.isiSelectDariMaster('edit-role', 'status_pengguna', d.role || 'operator');
-    await window.isiSelectDariMaster('edit-jenis-pekerjaan', 'jenis_pekerjaan', d.jenis_pekerjaan || '');
-    await window.isiSelectDariMaster('edit-jabatan', 'jabatan', d.jabatan || '');
-    
-    let statusSet = (d.status_kerja === "aktif") ? "Aktif" : (d.status_kerja || "Aktif");
-    await window.isiSelectDariMaster('edit-status', 'status_kerja', statusSet);
-    await window.isiSelectDariMaster('edit-tipe-karyawan', 'status_karyawan', d.status_karyawan || '');
-    document.getElementById('edit-status-approval').value = d.status_approval || "APPROVED";
-
-    // Data Pribadi
-    document.getElementById('edit-nik').value = d.nik || "";
-    document.getElementById('edit-gender').value = d.gender || d.jk || "";
-    document.getElementById('edit-tempatlahir').value = d.tempatLahir || "";
-    document.getElementById('edit-tgllahir').value = d.tglLahir || d.tgl || "";
-    document.getElementById('edit-hp').value = d.hp || "";
-
-    // Alamat Domisili
-    document.getElementById('edit-tinggal-kab').value = d.tinggalKab || d.domisiliKab || "";
-    document.getElementById('edit-tinggal-kec').value = d.tinggalKec || d.domisiliKec || "";
-    document.getElementById('edit-tinggal-detail').value = d.tinggalDetail || d.domisiliDetail || "";
-
-    // Alamat KTP
-    document.getElementById('edit-ktp-kab').value = d.ktpKab || "";
-    document.getElementById('edit-ktp-kec').value = d.ktpKec || "";
-    document.getElementById('edit-ktp-detail').value = d.ktpDetail || "";
-
-    // Pendidikan & Keluarga
-    document.getElementById('edit-nikah').value = d.statusNikah || d.nikah || "";
-    document.getElementById('edit-tanggungan').value = d.tanggungan || "";
-    document.getElementById('edit-pendidikan').value = d.pendidikan || "";
-    document.getElementById('edit-sekolah').value = d.sekolah || "";
-    document.getElementById('edit-jurusan').value = d.jurusan || "";
-
-    // Rekening Bank
-    document.getElementById('edit-bank').value = d.bank || "";
-    document.getElementById('edit-norek').value = d.noRek || d.norek || "";
-    document.getElementById('edit-namarek').value = d.atasNamaRek || d.namarek || "";
-
-    // Kontak Darurat
-    document.getElementById('edit-darurat-nama').value = d.daruratNama || "";
-    document.getElementById('edit-darurat-hp').value = d.daruratHp || "";
-    document.getElementById('edit-darurat-hub').value = d.daruratHub || "";
-
-    const qGudang = await getDocs(collection(db, "master_gudang"));
-    const daftarGudang = [];
-    qGudang.forEach(g => daftarGudang.push(g.data().nama_gudang));
-    window.renderGudangCheckboxes(document.getElementById('edit-gudang-checkboxes'), daftarGudang, d.gudang_penempatan);
-    
-    const imgPreview = document.getElementById('edit-preview-ktp');
-    if (d.foto_ktp) {
-        imgPreview.src = d.foto_ktp;
-        imgPreview.classList.remove('hidden');
-    } else {
-        imgPreview.classList.add('hidden');
-    }
-    
-    document.getElementById('modal-edit-user').classList.remove('hidden');
-  } else {
-    alert("Data karyawan tidak ditemukan!");
-  }
-};
-window.tutupEditUser = function() { document.getElementById('modal-edit-user').classList.add('hidden'); };
-
-window.simpanEditUser = async function() {
-  const btnSimpan = event.currentTarget;
-  btnSimpan.innerText = "Menyimpan...";
-  btnSimpan.disabled = true;
-
-  const emailId = document.getElementById('edit-email-asli').value;
-  const roleBaru = document.getElementById('edit-role').value;
-  const jenisPekerjaanBaru = document.getElementById('edit-jenis-pekerjaan').value;
-  const jabatanBaru = document.getElementById('edit-jabatan').value;
-  const statusBaru = document.getElementById('edit-status').value;
-  const tipeKaryawanBaru = document.getElementById('edit-tipe-karyawan').value;
-  const statusApprovalBaru = document.getElementById('edit-status-approval').value;
-  const gudangBaru = window.bacaGudangCheckboxes(document.getElementById('edit-gudang-checkboxes'));
-
-  try {
-    const userRef = doc(db, "users", emailId);
-    await updateDoc(userRef, {
-      role: roleBaru,
-      jenis_pekerjaan: jenisPekerjaanBaru,
-      jabatan: jabatanBaru,
-      status_kerja: statusBaru,
-      status_karyawan: tipeKaryawanBaru,
-      status_approval: statusApprovalBaru,
-      gudang_penempatan: gudangBaru,
-
-      nik: document.getElementById('edit-nik').value,
-      gender: document.getElementById('edit-gender').value,
-      tempatLahir: document.getElementById('edit-tempatlahir').value,
-      tglLahir: document.getElementById('edit-tgllahir').value,
-      hp: document.getElementById('edit-hp').value,
-
-      tinggalKab: document.getElementById('edit-tinggal-kab').value,
-      tinggalKec: document.getElementById('edit-tinggal-kec').value,
-      tinggalDetail: document.getElementById('edit-tinggal-detail').value,
-
-      ktpKab: document.getElementById('edit-ktp-kab').value,
-      ktpKec: document.getElementById('edit-ktp-kec').value,
-      ktpDetail: document.getElementById('edit-ktp-detail').value,
-
-      statusNikah: document.getElementById('edit-nikah').value,
-      tanggungan: document.getElementById('edit-tanggungan').value,
-      pendidikan: document.getElementById('edit-pendidikan').value,
-      sekolah: document.getElementById('edit-sekolah').value,
-      jurusan: document.getElementById('edit-jurusan').value,
-
-      bank: document.getElementById('edit-bank').value,
-      noRek: document.getElementById('edit-norek').value,
-      atasNamaRek: document.getElementById('edit-namarek').value,
-
-      daruratNama: document.getElementById('edit-darurat-nama').value,
-      daruratHp: document.getElementById('edit-darurat-hp').value,
-      daruratHub: document.getElementById('edit-darurat-hub').value
-    });
-    alert("Data karyawan berhasil diperbarui!");
-    window.tutupEditUser();
-    window.muatDataSuperUser();
-  } catch (error) {
-    console.error("Gagal update:", error);
-    alert("Terjadi kesalahan saat mengupdate data.");
-  } finally {
-    btnSimpan.innerHTML = '<i class="fas fa-save mr-1"></i> Simpan Perubahan';
-    btnSimpan.disabled = false;
-  }
-};
+// Modal Edit Karyawan (dulu window.isiSelectDariMaster/bukaEditUser/
+// tutupEditUser/simpanEditUser) sudah pindah ke js/vue-daftar-karyawan.js.
 
 // =========================================================================
 // MODUL CONFIG ABSENSI (Master Gudang & Master Shift) — UI-nya sudah pindah
@@ -748,10 +541,9 @@ window.ambilKecamatanUntukKabupaten = async function(kab) {
 
 // Catatan migrasi Vue: fungsi UI Master Data (tambah/lihat/hapus item,
 // termasuk Kecamatan) sudah dipindah ke js/vue-components.js +
-// js/vue-config-karyawan.js. window.ambilMasterList,
-// window.ambilKecamatanUntukKabupaten, dan window.isiSelectDariMaster
-// TETAP dipertahankan di sini karena masih dipakai layar yang belum
-// dimigrasi (Antrean Dakar, Edit Karyawan, Registrasi).
+// js/vue-config-karyawan.js. window.ambilMasterList dan
+// window.ambilKecamatanUntukKabupaten TETAP dipertahankan di sini karena
+// masih dipakai layar yang belum dimigrasi (Antrean Dakar, Registrasi).
 
 
 // Master Shift UI dipindah ke js/vue-config-absensi.js.
