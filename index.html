@@ -6,6 +6,7 @@
   <title>ZEVANIC HOUSE - ERP System</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     .fade-in { animation: fadeIn 0.4s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -646,28 +647,112 @@
         </div>
 
         <div id="sub-absensi-jadwal" class="sub-absensi-content hidden fade-in space-y-4">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="md:col-span-1 bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 h-fit">
-              <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-calendar-plus text-blue-600 mr-1.5"></i> Plotting Jadwal & Lokasi</h3>
-              <div class="space-y-3 text-xs">
-                <div class="relative">
-                  <label class="block font-semibold text-gray-600 mb-1">Cari & Pilih Karyawan *</label>
-                  <div class="relative">
-                    <i class="fas fa-search absolute left-3 top-2.5 text-gray-400"></i>
-                    <input type="text" id="jadwal-karyawan-search" placeholder="Ketik nama..." autocomplete="off" onkeyup="filterPencarianKaryawan()" onclick="bukaDropdownKaryawan()" class="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 cursor-text">
-                  </div>
-                  <input type="hidden" id="jadwal-karyawan">
-                  <div id="dropdown-karyawan" class="hidden absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-gray-50"></div>
+
+          <!-- 0. Ringkasan Penjadwalan -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm"><span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Total Karyawan</span><span id="jadwal-ring-total" class="text-lg font-black text-slate-800 mt-0.5 block">0</span></div>
+            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm"><span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Sudah Dijadwalkan</span><span id="jadwal-ring-sudah" class="text-lg font-black text-green-600 mt-0.5 block">0</span></div>
+            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm"><span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block">Belum Dijadwalkan</span><span id="jadwal-ring-belum" class="text-lg font-black text-red-500 mt-0.5 block">0</span></div>
+            <div class="bg-white p-3.5 rounded-2xl border border-gray-100 shadow-sm">
+              <span class="text-[9px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Per Gudang</span>
+              <div id="jadwal-ring-gudang" class="text-[10px] text-slate-600 space-y-0.5 max-h-16 overflow-y-auto"></div>
+            </div>
+          </div>
+
+          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+
+            <!-- 1. Pencarian -->
+            <div class="relative">
+              <i class="fas fa-search absolute left-3 top-2.5 text-gray-400 text-xs"></i>
+              <input type="text" id="jadwal-cari-nama" oninput="jadwalTerapkanFilter()" placeholder="Cari nama karyawan..." autocomplete="off" class="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-xs">
+            </div>
+
+            <!-- 2. Filter -->
+            <div class="bg-gray-50 rounded-2xl p-3.5 space-y-3 text-xs">
+              <div class="flex items-center justify-between">
+                <h4 class="font-bold text-gray-600"><i class="fas fa-filter mr-1"></i> Filter & Seleksi</h4>
+                <div class="flex gap-2">
+                  <button onclick="jadwalPilihSemua()" class="text-blue-600 font-bold hover:underline text-[11px]">Select All</button>
+                  <span class="text-gray-300">|</span>
+                  <button onclick="jadwalBersihkanPilihan()" class="text-gray-500 font-bold hover:underline text-[11px]">Clear All</button>
                 </div>
-                <div><label class="block font-semibold text-gray-600 mb-1">Gudang Penempatan (bisa lebih dari satu) *</label><div id="jadwal-gudang-checkboxes" class="flex flex-wrap gap-2 p-2 bg-gray-50 border rounded-xl min-h-[42px]"></div></div>
-                <div><label class="block font-semibold text-gray-600 mb-1">Pilih Shift *</label><select id="jadwal-shift" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></select></div>
-                <div><label class="block font-semibold text-gray-600 mb-1">Hari Libur *</label><select id="jadwal-libur" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"><option value="Minggu">Minggu</option><option value="Senin">Senin</option><option value="Selasa">Selasa</option><option value="Rabu">Rabu</option><option value="Kamis">Kamis</option><option value="Jumat">Jumat</option><option value="Sabtu">Sabtu</option></select></div>
-                <button onclick="simpanJadwalKaryawan()" class="w-full bg-slate-800 text-white font-bold py-2.5 rounded-xl hover:bg-slate-900 transition shadow-sm mt-3"><i class="fas fa-save mr-1"></i> Terapkan Jadwal</button>
+              </div>
+              <div class="flex flex-wrap gap-4">
+                <label class="flex items-center gap-1.5 font-semibold text-gray-600"><input type="checkbox" id="jadwal-cek-sudah" checked onchange="jadwalTerapkanFilter()"> Sudah Dijadwalkan</label>
+                <label class="flex items-center gap-1.5 font-semibold text-gray-600"><input type="checkbox" id="jadwal-cek-belum" checked onchange="jadwalTerapkanFilter()"> Belum Dijadwalkan</label>
+              </div>
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <select id="jadwal-filter-jenispekerjaan" onchange="jadwalTerapkanFilter()" class="px-2.5 py-2 bg-white border rounded-xl outline-none"><option value="ALL">Semua Jenis Pekerjaan</option></select>
+                <select id="jadwal-filter-gudang" onchange="jadwalTerapkanFilter()" class="px-2.5 py-2 bg-white border rounded-xl outline-none"><option value="ALL">Semua Gudang</option></select>
+                <select id="jadwal-filter-shift" onchange="jadwalTerapkanFilter()" class="px-2.5 py-2 bg-white border rounded-xl outline-none"><option value="ALL">Semua Shift</option></select>
+                <select id="jadwal-filter-libur" onchange="jadwalTerapkanFilter()" class="px-2.5 py-2 bg-white border rounded-xl outline-none"><option value="ALL">Semua Hari Libur</option></select>
               </div>
             </div>
-            <div class="md:col-span-2 bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-              <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-clipboard-list text-amber-500 mr-1.5"></i> Daftar Penjadwalan Aktif</h3>
-              <div class="overflow-x-auto rounded-xl border border-gray-100"><table class="w-full text-left text-xs text-gray-600 whitespace-nowrap"><thead class="bg-gray-50 text-gray-700 font-bold border-b text-[10px] uppercase"><tr><th class="p-3">Karyawan</th><th class="p-3">Gudang / Lokasi</th><th class="p-3">Shift</th><th class="p-3 text-center">Hari Libur</th><th class="p-3 text-center">Aksi</th></tr></thead><tbody id="tabel-jadwal-body" class="divide-y divide-gray-100"></tbody></table></div>
+
+            <!-- Daftar Karyawan (checkbox) -->
+            <div class="overflow-x-auto rounded-xl border border-gray-100">
+              <table class="w-full text-left text-xs text-gray-600 whitespace-nowrap">
+                <thead class="bg-gray-50 text-gray-700 font-bold border-b text-[10px] uppercase">
+                  <tr>
+                    <th class="p-3"><input type="checkbox" id="jadwal-cek-header" onchange="jadwalToggleSemuaHalamanIni()"></th>
+                    <th class="p-3">Karyawan</th>
+                    <th class="p-3">Jenis Pekerjaan</th>
+                    <th class="p-3">Gudang</th>
+                    <th class="p-3">Shift</th>
+                    <th class="p-3">Hari Libur</th>
+                    <th class="p-3 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody id="tabel-jadwal-body" class="divide-y divide-gray-100"></tbody>
+              </table>
+            </div>
+
+            <!-- 4. Pagination -->
+            <div class="flex items-center justify-between text-xs pt-1">
+              <span id="jadwal-info-halaman" class="text-gray-400">-</span>
+              <div class="flex gap-2">
+                <button onclick="jadwalHalamanSebelumnya()" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold"><i class="fas fa-chevron-left"></i></button>
+                <button onclick="jadwalHalamanBerikutnya()" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold"><i class="fas fa-chevron-right"></i></button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Bulk Update -->
+          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-3">
+            <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-layer-group text-blue-600 mr-1.5"></i> Update Massal (<span id="jadwal-jumlah-terpilih">0</span> Karyawan Terpilih)</h3>
+            <p class="text-[10px] text-gray-400">Kosongkan kolom yang tidak ingin diubah. Berlaku untuk karyawan yang dicentang di atas (mengikuti filter/pencarian yang sedang aktif).</p>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+              <div>
+                <label class="block font-semibold text-gray-600 mb-1">Gudang Penempatan (kosongkan = tidak diubah)</label>
+                <div id="jadwal-bulk-gudang-checkboxes" class="flex flex-wrap gap-2 p-2 bg-gray-50 border rounded-xl min-h-[42px]"></div>
+              </div>
+              <div>
+                <label class="block font-semibold text-gray-600 mb-1">Shift</label>
+                <select id="jadwal-bulk-shift" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"><option value="">-- Tidak Diubah --</option></select>
+              </div>
+              <div>
+                <label class="block font-semibold text-gray-600 mb-1">Hari Libur</label>
+                <select id="jadwal-bulk-libur" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none">
+                  <option value="">-- Tidak Diubah --</option>
+                  <option value="Minggu">Minggu</option><option value="Senin">Senin</option><option value="Selasa">Selasa</option><option value="Rabu">Rabu</option><option value="Kamis">Kamis</option><option value="Jumat">Jumat</option><option value="Sabtu">Sabtu</option>
+                </select>
+              </div>
+            </div>
+            <button onclick="jadwalTerapkanBulkUpdate()" class="w-full bg-slate-800 text-white font-bold py-2.5 rounded-xl hover:bg-slate-900 transition shadow-sm"><i class="fas fa-check-double mr-1"></i> Terapkan ke Karyawan Terpilih</button>
+          </div>
+
+          <!-- 4. Excel Export/Import -->
+          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-3">
+            <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-file-excel text-green-600 mr-1.5"></i> Edit Lewat Excel</h3>
+            <p class="text-[10px] text-gray-400">Unduh data (mengikuti filter aktif), edit kolom Gudang/Shift/Hari Libur di Excel, lalu unggah ulang untuk update massal.</p>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button onclick="jadwalExportExcel()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5">
+                <i class="fas fa-download"></i><span>Unduh Excel</span>
+              </button>
+              <label class="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 font-bold py-2.5 rounded-xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5 cursor-pointer">
+                <i class="fas fa-upload"></i><span>Unggah Excel</span>
+                <input type="file" id="jadwal-excel-input" accept=".xlsx,.xls" onchange="jadwalImportExcel(event)" class="hidden">
+              </label>
             </div>
           </div>
         </div>

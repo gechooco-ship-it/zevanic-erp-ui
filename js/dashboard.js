@@ -1011,140 +1011,294 @@ window.hapusMasterShift = async function(idDoc) {
 // ====== MODUL PENJADWALAN KARYAWAN (3.3.1.4.2) ======
 // =========================================================================
 
-window.muatDataPenjadwalan = async function() {
-  const dropdownKaryawan = document.getElementById('dropdown-karyawan');
-  const wadahGudang = document.getElementById('jadwal-gudang-checkboxes');
-  const optShift = document.getElementById('jadwal-shift');
-  
-  // 1. Muat Opsi Karyawan ke dalam Custom Search Dropdown
-  const qKaryawan = await getDocs(collection(db, "users"));
-  dropdownKaryawan.innerHTML = ''; 
-  qKaryawan.forEach(doc => {
-      const d = doc.data();
-      if(d.role !== 'owner') { 
-          // Masukkan list ke dropdown
-          dropdownKaryawan.innerHTML += `
-            <div class="karyawan-option px-4 py-2 hover:bg-blue-50 cursor-pointer text-xs transition" onclick="pilihKaryawanDariList('${doc.id}', '${d.nama}')">
-              <span class="font-bold text-gray-800 block">${d.nama}</span>
-              <span class="text-[10px] text-gray-500">${d.email} - Role: ${d.role}</span>
-            </div>`;
-      }
-  });
+// =========================================================================
+// ====== PENJADWALAN (bulk): ringkasan, cari, filter, pilih massal, =======
+// ====== update massal, pagination, export/import Excel ===================
+// =========================================================================
+window._jadwalState = {
+  semuaKaryawan: [],
+  gudangGudang: [],
+  semuaShift: [],
+  terpilih: new Set(),
+  hasilFilter: [],
+  halaman: 1,
+  perHalaman: 15
+};
 
-  // 2. Muat Opsi Gudang sebagai checkbox (satu karyawan bisa ditempatkan di lebih dari satu gudang)
+window.muatDataPenjadwalan = async function() {
+  const qKaryawan = await getDocs(collection(db, "users"));
+  const daftarKaryawan = [];
+  qKaryawan.forEach(docSnap => {
+    const d = docSnap.data();
+    if (d.role !== 'owner') daftarKaryawan.push({ email: docSnap.id, ...d });
+  });
+  window._jadwalState.semuaKaryawan = daftarKaryawan;
+
   const qGudang = await getDocs(collection(db, "master_gudang"));
   const daftarGudang = [];
-  qGudang.forEach(doc => daftarGudang.push(doc.data().nama_gudang));
-  window.renderGudangCheckboxes(wadahGudang, daftarGudang, []);
+  qGudang.forEach(docSnap => daftarGudang.push(docSnap.data().nama_gudang));
+  window._jadwalState.daftarGudang = daftarGudang;
 
-  // 3. Muat Opsi Shift (Tetap pakai <select>)
   const qShift = await getDocs(collection(db, "master_shift"));
-  optShift.innerHTML = '<option value="">-- Pilih Shift --</option>';
-  qShift.forEach(doc => {
-      const d = doc.data();
-      optShift.innerHTML += `<option value="${d.nama_shift}">${d.nama_shift} (${d.jam_masuk} - ${d.jam_keluar})</option>`;
+  const daftarShift = [];
+  qShift.forEach(docSnap => daftarShift.push(docSnap.data()));
+  window._jadwalState.daftarShift = daftarShift;
+
+  const daftarJenisPekerjaan = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
+
+  // Isi dropdown filter
+  const isiOpsi = (id, list, labelSemua) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = `<option value="ALL">${labelSemua}</option>` + list.map(v => `<option value="${v}">${v}</option>`).join('');
+  };
+  isiOpsi('jadwal-filter-jenispekerjaan', daftarJenisPekerjaan, 'Semua Jenis Pekerjaan');
+  isiOpsi('jadwal-filter-gudang', daftarGudang, 'Semua Gudang');
+  isiOpsi('jadwal-filter-shift', daftarShift.map(s => s.nama_shift), 'Semua Shift');
+  isiOpsi('jadwal-filter-libur', ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'], 'Semua Hari Libur');
+
+  const selectBulkShift = document.getElementById('jadwal-bulk-shift');
+  if (selectBulkShift) {
+    selectBulkShift.innerHTML = '<option value="">-- Tidak Diubah --</option>' +
+      daftarShift.map(s => `<option value="${s.nama_shift}">${s.nama_shift} (${s.jam_masuk} - ${s.jam_keluar})</option>`).join('');
+  }
+  window.renderGudangCheckboxes(document.getElementById('jadwal-bulk-gudang-checkboxes'), daftarGudang, []);
+
+  window._jadwalState.terpilih.clear();
+  window.jadwalTerapkanFilter();
+};
+
+// Karyawan dianggap "sudah dijadwalkan" kalau sudah punya minimal 1 gudang DAN shift
+window.jadwalStatusTerjadwal = function(d) {
+  const gudang = window.normalisasiGudang(d.gudang_penempatan);
+  return (gudang.length > 0 && !!d.nama_shift);
+};
+
+window.jadwalTerapkanFilter = function() {
+  const kataKunci = (document.getElementById('jadwal-cari-nama').value || '').toLowerCase().trim();
+  const cekSudah = document.getElementById('jadwal-cek-sudah').checked;
+  const cekBelum = document.getElementById('jadwal-cek-belum').checked;
+  const fJenisPekerjaan = document.getElementById('jadwal-filter-jenispekerjaan').value;
+  const fGudang = document.getElementById('jadwal-filter-gudang').value;
+  const fShift = document.getElementById('jadwal-filter-shift').value;
+  const fLibur = document.getElementById('jadwal-filter-libur').value;
+
+  const hasil = window._jadwalState.semuaKaryawan.filter(d => {
+    if (kataKunci && !(d.nama || '').toLowerCase().includes(kataKunci)) return false;
+
+    const sudahTerjadwal = window.jadwalStatusTerjadwal(d);
+    if (sudahTerjadwal && !cekSudah) return false;
+    if (!sudahTerjadwal && !cekBelum) return false;
+
+    if (fJenisPekerjaan !== 'ALL' && d.jenis_pekerjaan !== fJenisPekerjaan) return false;
+    if (fGudang !== 'ALL' && !window.normalisasiGudang(d.gudang_penempatan).includes(fGudang)) return false;
+    if (fShift !== 'ALL' && d.nama_shift !== fShift) return false;
+    if (fLibur !== 'ALL' && d.hari_libur !== fLibur) return false;
+
+    return true;
   });
 
-  // 4. Muat Tabel Jadwal Aktif
-  window.muatTabelJadwal();
+  window._jadwalState.hasilFilter = hasil;
+  window._jadwalState.halaman = 1;
+  window.jadwalRenderRingkasan();
+  window.jadwalRenderTabel();
 };
 
-// ====== FUNGSI PELENGKAP SEARCH BOX KARYAWAN ======
-window.bukaDropdownKaryawan = function() {
-  document.getElementById('dropdown-karyawan').classList.remove('hidden');
-};
+window.jadwalRenderRingkasan = function() {
+  const semua = window._jadwalState.semuaKaryawan;
+  const total = semua.length;
+  const sudah = semua.filter(window.jadwalStatusTerjadwal).length;
+  const belum = total - sudah;
 
-window.filterPencarianKaryawan = function() {
-  const kataKunci = document.getElementById('jadwal-karyawan-search').value.toLowerCase();
-  const daftarOpsi = document.querySelectorAll('.karyawan-option');
-  
-  // Buka dropdown saat mengetik
-  document.getElementById('dropdown-karyawan').classList.remove('hidden');
+  document.getElementById('jadwal-ring-total').innerText = total;
+  document.getElementById('jadwal-ring-sudah').innerText = sudah;
+  document.getElementById('jadwal-ring-belum').innerText = belum;
 
-  // Sembunyikan yang tidak cocok dengan ketikan
-  daftarOpsi.forEach(opsi => {
-      const teks = opsi.innerText.toLowerCase();
-      if(teks.includes(kataKunci)) {
-          opsi.style.display = "block";
-      } else {
-          opsi.style.display = "none";
-      }
+  const petaGudang = {};
+  semua.forEach(d => {
+    window.normalisasiGudang(d.gudang_penempatan).forEach(g => { petaGudang[g] = (petaGudang[g] || 0) + 1; });
   });
+  const elGudang = document.getElementById('jadwal-ring-gudang');
+  const entri = Object.entries(petaGudang);
+  elGudang.innerHTML = entri.length === 0
+    ? '<span class="text-gray-300">Belum ada data</span>'
+    : entri.map(([nama, jumlah]) => `<div class="flex justify-between"><span>${nama}</span><b>${jumlah}</b></div>`).join('');
 };
 
-window.pilihKaryawanDariList = function(emailId, nama) {
-  // Masukkan nama ke kotak pencarian
-  document.getElementById('jadwal-karyawan-search').value = nama;
-  // Masukkan email (ID) ke input tersembunyi untuk dikirim ke database
-  document.getElementById('jadwal-karyawan').value = emailId;
-  // Tutup dropdown
-  document.getElementById('dropdown-karyawan').classList.add('hidden');
-};
-
-// Menutup dropdown jika user mengklik area luar kotak
-document.addEventListener('click', function(event) {
-  const wadahPencarian = document.getElementById('jadwal-karyawan-search');
-  const dropdown = document.getElementById('dropdown-karyawan');
-  
-  if (wadahPencarian && dropdown) {
-      if (event.target !== wadahPencarian && !dropdown.contains(event.target)) {
-          dropdown.classList.add('hidden');
-      }
-  }
-});
-
-window.simpanJadwalKaryawan = async function() {
-  const email = document.getElementById('jadwal-karyawan').value;
-  const gudangTerpilih = window.bacaGudangCheckboxes(document.getElementById('jadwal-gudang-checkboxes'));
-  const shift = document.getElementById('jadwal-shift').value;
-  const libur = document.getElementById('jadwal-libur').value;
-
-  if(!email || gudangTerpilih.length === 0 || !shift) return alert("Harap pilih Karyawan, minimal 1 Gudang, dan Shift!");
-
-  try {
-      // Perbarui dokumen karyawan (mengawinkan data)
-      await updateDoc(doc(db, "users", email), {
-          gudang_penempatan: gudangTerpilih,
-          nama_shift: shift,
-          hari_libur: libur
-      });
-      alert("Jadwal Karyawan Berhasil Diperbarui!");
-      window.muatTabelJadwal();
-  } catch (e) {
-      console.error(e);
-      alert("Gagal menyimpan jadwal.");
-  }
-};
-
-window.muatTabelJadwal = async function() {
+window.jadwalRenderTabel = function() {
   const tbody = document.getElementById('tabel-jadwal-body');
-  if(!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="3" class="p-3 text-center text-gray-400">Memuat data...</td></tr>';
-  
-  const querySnapshot = await getDocs(collection(db, "users"));
-  tbody.innerHTML = "";
-  
-  querySnapshot.forEach((document) => {
-      const d = document.data();
-      const daftarGudangKaryawan = window.normalisasiGudang(d.gudang_penempatan);
-      // Tampilkan hanya karyawan yang sudah disetting penjadwalannya
-      if(daftarGudangKaryawan.length > 0 || d.nama_shift) {
-          tbody.innerHTML += `
-              <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
-                  <td class="p-3 font-bold text-xs">${d.nama} <br><span class="text-[10px] text-gray-400 font-normal">${d.email}</span></td>
-                  <td class="p-3 text-xs text-blue-600 font-bold"><i class="fas fa-building mr-1"></i> ${daftarGudangKaryawan.length > 0 ? daftarGudangKaryawan.join(', ') : '-'}</td>
-                  <td class="p-3 text-xs text-amber-600 font-bold">
-                    <i class="fas fa-clock mr-1"></i> ${d.nama_shift || '-'} 
-                    <br><span class="text-[10px] text-red-500 font-semibold"><i class="fas fa-calendar-times mr-1 mt-1"></i> Libur: ${d.hari_libur || 'Tidak ada'}</span>
-                  </td>
-              </tr>
-          `;
-      }
-  });
-  
-  if(tbody.innerHTML === "") {
-      tbody.innerHTML = '<tr><td colspan="3" class="p-3 text-center text-gray-400">Belum ada karyawan yang dijadwalkan.</td></tr>';
+  const { hasilFilter, halaman, perHalaman, terpilih } = window._jadwalState;
+
+  const totalHalaman = Math.max(1, Math.ceil(hasilFilter.length / perHalaman));
+  const halamanAman = Math.min(halaman, totalHalaman);
+  window._jadwalState.halaman = halamanAman;
+
+  const mulai = (halamanAman - 1) * perHalaman;
+  const potongan = hasilFilter.slice(mulai, mulai + perHalaman);
+
+  if (potongan.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-400">Tidak ada karyawan yang cocok dengan filter.</td></tr>';
+  } else {
+    tbody.innerHTML = potongan.map(d => {
+      const gudangList = window.normalisasiGudang(d.gudang_penempatan);
+      const sudahTerjadwal = window.jadwalStatusTerjadwal(d);
+      const dicentang = terpilih.has(d.email);
+      return `
+        <tr class="hover:bg-gray-50">
+          <td class="p-3"><input type="checkbox" ${dicentang ? 'checked' : ''} onchange="jadwalToggleCheckbox('${d.email}', this.checked)"></td>
+          <td class="p-3"><b class="text-slate-800">${d.nama || '-'}</b><br><span class="text-[10px] text-gray-400">${d.email}</span></td>
+          <td class="p-3">${d.jenis_pekerjaan || '-'}</td>
+          <td class="p-3">${gudangList.join(', ') || '-'}</td>
+          <td class="p-3">${d.nama_shift || '-'}</td>
+          <td class="p-3">${d.hari_libur || '-'}</td>
+          <td class="p-3 text-center">${sudahTerjadwal
+            ? '<span class="inline-block px-2 py-0.5 bg-green-100 text-green-700 font-bold text-[9px] rounded-full">Sudah</span>'
+            : '<span class="inline-block px-2 py-0.5 bg-red-100 text-red-600 font-bold text-[9px] rounded-full">Belum</span>'}</td>
+        </tr>`;
+    }).join('');
   }
+
+  document.getElementById('jadwal-cek-header').checked = potongan.length > 0 && potongan.every(d => terpilih.has(d.email));
+  document.getElementById('jadwal-jumlah-terpilih').innerText = terpilih.size;
+  document.getElementById('jadwal-info-halaman').innerText =
+    hasilFilter.length === 0 ? 'Tidak ada data' : `Halaman ${halamanAman} dari ${totalHalaman} (${hasilFilter.length} karyawan cocok filter)`;
+};
+
+window.jadwalToggleCheckbox = function(email, dicentang) {
+  if (dicentang) window._jadwalState.terpilih.add(email);
+  else window._jadwalState.terpilih.delete(email);
+  document.getElementById('jadwal-jumlah-terpilih').innerText = window._jadwalState.terpilih.size;
+};
+
+window.jadwalToggleSemuaHalamanIni = function() {
+  const dicentang = document.getElementById('jadwal-cek-header').checked;
+  const { hasilFilter, halaman, perHalaman, terpilih } = window._jadwalState;
+  const mulai = (halaman - 1) * perHalaman;
+  hasilFilter.slice(mulai, mulai + perHalaman).forEach(d => {
+    if (dicentang) terpilih.add(d.email); else terpilih.delete(d.email);
+  });
+  window.jadwalRenderTabel();
+};
+
+window.jadwalPilihSemua = function() {
+  window._jadwalState.hasilFilter.forEach(d => window._jadwalState.terpilih.add(d.email));
+  window.jadwalRenderTabel();
+};
+
+window.jadwalBersihkanPilihan = function() {
+  window._jadwalState.terpilih.clear();
+  window.jadwalRenderTabel();
+};
+
+window.jadwalHalamanSebelumnya = function() {
+  if (window._jadwalState.halaman > 1) { window._jadwalState.halaman--; window.jadwalRenderTabel(); }
+};
+window.jadwalHalamanBerikutnya = function() {
+  const totalHalaman = Math.max(1, Math.ceil(window._jadwalState.hasilFilter.length / window._jadwalState.perHalaman));
+  if (window._jadwalState.halaman < totalHalaman) { window._jadwalState.halaman++; window.jadwalRenderTabel(); }
+};
+
+window.jadwalTerapkanBulkUpdate = async function() {
+  const terpilih = Array.from(window._jadwalState.terpilih);
+  if (terpilih.length === 0) return alert("Belum ada karyawan yang dicentang/terpilih.");
+
+  const gudangBaru = window.bacaGudangCheckboxes(document.getElementById('jadwal-bulk-gudang-checkboxes'));
+  const shiftBaru = document.getElementById('jadwal-bulk-shift').value;
+  const liburBaru = document.getElementById('jadwal-bulk-libur').value;
+
+  if (gudangBaru.length === 0 && !shiftBaru && !liburBaru) {
+    return alert("Isi minimal salah satu: Gudang, Shift, atau Hari Libur untuk diterapkan.");
+  }
+
+  if (!confirm(`Terapkan perubahan ke ${terpilih.length} karyawan terpilih?`)) return;
+
+  const dataUpdate = {};
+  if (gudangBaru.length > 0) dataUpdate.gudang_penempatan = gudangBaru;
+  if (shiftBaru) dataUpdate.nama_shift = shiftBaru;
+  if (liburBaru) dataUpdate.hari_libur = liburBaru;
+
+  let sukses = 0, gagal = 0;
+  for (const email of terpilih) {
+    try {
+      await updateDoc(doc(db, "users", email), dataUpdate);
+      sukses++;
+    } catch (e) {
+      console.error("Gagal update jadwal untuk", email, e);
+      gagal++;
+    }
+  }
+
+  alert(`Update massal selesai. Berhasil: ${sukses}, Gagal: ${gagal}.`);
+  window.muatDataPenjadwalan();
+};
+
+window.jadwalExportExcel = function() {
+  const data = window._jadwalState.hasilFilter.map(d => ({
+    'Email (jangan diubah)': d.email,
+    'Nama': d.nama || '',
+    'Jenis Pekerjaan': d.jenis_pekerjaan || '',
+    'Gudang (pisahkan koma jika lebih dari satu)': window.normalisasiGudang(d.gudang_penempatan).join(', '),
+    'Shift': d.nama_shift || '',
+    'Hari Libur': d.hari_libur || ''
+  }));
+  if (data.length === 0) return alert("Tidak ada data untuk diunduh (sesuai filter aktif).");
+
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Penjadwalan");
+  XLSX.writeFile(wb, `Penjadwalan_Zevanic_${new Date().toISOString().slice(0, 10)}.xlsx`);
+};
+
+window.jadwalImportExcel = function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws);
+
+      if (rows.length === 0) return alert("File Excel kosong atau format tidak dikenali.");
+      if (!confirm(`Ditemukan ${rows.length} baris data. Terapkan update ke semua karyawan di file ini?`)) {
+        event.target.value = '';
+        return;
+      }
+
+      let sukses = 0, gagal = 0, dilewati = 0;
+      for (const row of rows) {
+        const email = row['Email (jangan diubah)'];
+        if (!email) { dilewati++; continue; }
+
+        const dataUpdate = {};
+        if (row['Gudang (pisahkan koma jika lebih dari satu)']) {
+          dataUpdate.gudang_penempatan = String(row['Gudang (pisahkan koma jika lebih dari satu)']).split(',').map(g => g.trim()).filter(Boolean);
+        }
+        if (row['Shift']) dataUpdate.nama_shift = String(row['Shift']).trim();
+        if (row['Hari Libur']) dataUpdate.hari_libur = String(row['Hari Libur']).trim();
+
+        if (Object.keys(dataUpdate).length === 0) { dilewati++; continue; }
+
+        try {
+          await updateDoc(doc(db, "users", email), dataUpdate);
+          sukses++;
+        } catch (err) {
+          console.error("Gagal update baris untuk", email, err);
+          gagal++;
+        }
+      }
+
+      alert(`Import selesai. Berhasil: ${sukses}, Gagal: ${gagal}, Dilewati (email kosong/tidak ada perubahan): ${dilewati}.`);
+      event.target.value = '';
+      window.muatDataPenjadwalan();
+    } catch (err) {
+      console.error("Gagal membaca file Excel:", err);
+      alert("Gagal membaca file Excel. Pastikan formatnya sesuai hasil unduhan dari sistem ini.");
+      event.target.value = '';
+    }
+  };
+  reader.readAsArrayBuffer(file);
 };
 
 // =========================================================================
