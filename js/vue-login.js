@@ -207,6 +207,8 @@ const AppLogin = {
       const userRef = doc(db, "users", emailInput);
       const userSnap = await getDoc(userRef);
 
+      let isOwnerRole = false;
+
       if (userSnap.exists()) {
         const d = userSnap.data();
         window.currentUser = {
@@ -220,6 +222,7 @@ const AppLogin = {
           status_kerja: d.status_kerja || "Aktif",
           gudang_penempatan: window.normalisasiGudang(d.gudang_penempatan)
         };
+        isOwnerRole = (window.currentUser.role === 'owner' || window.currentUser.role === 'superuser');
 
         if (d.status_approval && d.status_approval !== "APPROVED") {
           alert(d.status_approval === "PENDING"
@@ -229,7 +232,9 @@ const AppLogin = {
           return;
         }
 
-        if (window.currentUser.gudang_penempatan.length === 0) {
+        // Owner/Superuser tidak wajib ditautkan ke gudang manapun — perannya
+        // manajerial, bukan operasional lapangan.
+        if (window.currentUser.gudang_penempatan.length === 0 && !isOwnerRole) {
           alert("Akun Anda belum ditautkan ke gudang manapun. Silakan hubungi Owner/PIC.");
           await signOut(auth);
           return;
@@ -241,6 +246,15 @@ const AppLogin = {
       }
 
       window.aturTampilanBerdasarkanRole();
+
+      // Owner/Superuser: langsung ke Dashboard dari HP maupun komputer,
+      // tanpa syarat Clock In sama sekali — perannya tidak melakukan presensi
+      // lapangan seperti karyawan operasional.
+      if (isOwnerRole) {
+        window.pindahLayar('screen-dashboard');
+        window.pindahTab('tab-home');
+        return;
+      }
 
       const hariIni = new Date().toLocaleDateString('id-ID');
       const statusLokal = localStorage.getItem('zevanic_absen_' + emailInput);

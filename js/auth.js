@@ -165,22 +165,29 @@ onAuthStateChanged(auth, async (user) => {
 
     if (d.status_approval && d.status_approval !== "APPROVED") return;
 
+    const roleUser = (d.role || "operator").toLowerCase();
+    const isOwnerRole = (roleUser === 'owner' || roleUser === 'superuser');
     const gudangUser = window.normalisasiGudang(d.gudang_penempatan);
-    if (gudangUser.length === 0) return;
 
-    const hariIni = new Date().toLocaleDateString('id-ID');
-    const statusLokal = localStorage.getItem('zevanic_absen_' + user.email);
-    if (statusLokal !== hariIni) return; // belum Clock In hari ini -> tetap layar login
+    if (!isOwnerRole) {
+      if (gudangUser.length === 0) return;
 
-    const masihJamKerja = await window.cekMasihJamKerja(d.nama_shift);
-    if (!masihJamKerja) return; // di luar jam kerja -> wajib login ulang
+      const hariIni = new Date().toLocaleDateString('id-ID');
+      const statusLokal = localStorage.getItem('zevanic_absen_' + user.email);
+      if (statusLokal !== hariIni) return; // belum Clock In hari ini -> tetap layar login
+
+      const masihJamKerja = await window.cekMasihJamKerja(d.nama_shift);
+      if (!masihJamKerja) return; // di luar jam kerja -> wajib login ulang
+    }
+    // Owner/Superuser: lewati semua syarat Clock In/gudang/jam kerja di atas —
+    // perannya manajerial, boleh masuk kapan saja dari HP maupun komputer.
 
     // Semua syarat terpenuhi -> lewati layar login, langsung ke Dashboard
     window.currentUser = {
       ...d,
       email: user.email,
       name: d.nama || d.name || user.email,
-      role: (d.role || "operator").toLowerCase(),
+      role: roleUser,
       id_app: d.id_app || "N/A",
       id_karyawan: d.id_karyawan || "N/A",
       jabatan: d.jabatan || "Staff",
