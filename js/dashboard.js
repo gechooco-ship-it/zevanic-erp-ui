@@ -1053,7 +1053,12 @@ window.muatDataPenjadwalan = async function() {
     el.innerHTML = `<option value="ALL">${labelSemua}</option>` + list.map(v => `<option value="${v}">${v}</option>`).join('');
   };
   isiOpsi('jadwal-filter-jenispekerjaan', daftarJenisPekerjaan, 'Semua Jenis Pekerjaan');
-  isiOpsi('jadwal-filter-gudang', daftarGudang, 'Semua Gudang');
+  const elFilterGudang = document.getElementById('jadwal-filter-gudang');
+  if (elFilterGudang) {
+    elFilterGudang.innerHTML = `<option value="ALL">Semua Gudang</option>` +
+      daftarGudang.map(v => `<option value="${v}">${v}</option>`).join('') +
+      `<option value="__TANPA_GUDANG__">Tanpa Gudang</option>`;
+  }
   isiOpsi('jadwal-filter-shift', daftarShift.map(s => s.nama_shift), 'Semua Shift');
   isiOpsi('jadwal-filter-libur', ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'], 'Semua Hari Libur');
 
@@ -1091,7 +1096,11 @@ window.jadwalTerapkanFilter = function() {
     if (!sudahTerjadwal && !cekBelum) return false;
 
     if (fJenisPekerjaan !== 'ALL' && d.jenis_pekerjaan !== fJenisPekerjaan) return false;
-    if (fGudang !== 'ALL' && !window.normalisasiGudang(d.gudang_penempatan).includes(fGudang)) return false;
+    if (fGudang === '__TANPA_GUDANG__') {
+      if (window.normalisasiGudang(d.gudang_penempatan).length > 0) return false;
+    } else if (fGudang !== 'ALL' && !window.normalisasiGudang(d.gudang_penempatan).includes(fGudang)) {
+      return false;
+    }
     if (fShift !== 'ALL' && d.nama_shift !== fShift) return false;
     if (fLibur !== 'ALL' && d.hari_libur !== fLibur) return false;
 
@@ -1106,23 +1115,44 @@ window.jadwalTerapkanFilter = function() {
 
 window.jadwalRenderRingkasan = function() {
   const semua = window._jadwalState.semuaKaryawan;
-  const total = semua.length;
-  const sudah = semua.filter(window.jadwalStatusTerjadwal).length;
-  const belum = total - sudah;
+  const daftarGudang = window._jadwalState.daftarGudang || [];
+  const filterAktif = document.getElementById('jadwal-filter-gudang') ? document.getElementById('jadwal-filter-gudang').value : 'ALL';
 
-  document.getElementById('jadwal-ring-total').innerText = total;
-  document.getElementById('jadwal-ring-sudah').innerText = sudah;
-  document.getElementById('jadwal-ring-belum').innerText = belum;
+  const hitungUntuk = (list) => {
+    const total = list.length;
+    const sudah = list.filter(window.jadwalStatusTerjadwal).length;
+    return { total, sudah, belum: total - sudah };
+  };
 
-  const petaGudang = {};
-  semua.forEach(d => {
-    window.normalisasiGudang(d.gudang_penempatan).forEach(g => { petaGudang[g] = (petaGudang[g] || 0) + 1; });
+  const buatKartu = (label, nilaiFilter, angka, warnaAktif) => {
+    const aktif = filterAktif === nilaiFilter;
+    return `
+      <div onclick="jadwalKlikKartuGudang('${nilaiFilter}')" class="flex-shrink-0 w-40 bg-white p-4 rounded-2xl border-2 ${aktif ? 'border-blue-500 shadow-md' : 'border-gray-100 shadow-sm'} cursor-pointer hover:border-blue-300 transition">
+        <h4 class="text-[11px] font-bold text-slate-800 truncate mb-2" title="${label}">${label}</h4>
+        <div class="space-y-1 text-[10px]">
+          <div class="flex justify-between"><span class="text-gray-400">Total</span><b class="text-slate-800">${angka.total}</b></div>
+          <div class="flex justify-between"><span class="text-gray-400">Sudah</span><b class="text-green-600">${angka.sudah}</b></div>
+          <div class="flex justify-between"><span class="text-gray-400">Belum</span><b class="text-red-500">${angka.belum}</b></div>
+        </div>
+      </div>`;
+  };
+
+  let html = buatKartu('Semua Gudang', 'ALL', hitungUntuk(semua));
+
+  daftarGudang.forEach(g => {
+    const list = semua.filter(d => window.normalisasiGudang(d.gudang_penempatan).includes(g));
+    html += buatKartu(g, g, hitungUntuk(list));
   });
-  const elGudang = document.getElementById('jadwal-ring-gudang');
-  const entri = Object.entries(petaGudang);
-  elGudang.innerHTML = entri.length === 0
-    ? '<span class="text-gray-300">Belum ada data</span>'
-    : entri.map(([nama, jumlah]) => `<div class="flex justify-between"><span>${nama}</span><b>${jumlah}</b></div>`).join('');
+
+  const tanpaGudang = semua.filter(d => window.normalisasiGudang(d.gudang_penempatan).length === 0);
+  html += buatKartu('Tanpa Gudang', '__TANPA_GUDANG__', hitungUntuk(tanpaGudang));
+
+  document.getElementById('jadwal-ring-scroll').innerHTML = html;
+};
+
+window.jadwalKlikKartuGudang = function(nilaiFilter) {
+  document.getElementById('jadwal-filter-gudang').value = nilaiFilter;
+  window.jadwalTerapkanFilter();
 };
 
 window.jadwalRenderTabel = function() {
