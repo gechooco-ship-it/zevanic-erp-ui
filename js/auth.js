@@ -310,8 +310,7 @@ window.addEventListener('DOMContentLoaded', () => {
     window.statusPilihanGlobal = "HADIR (CLOCK IN)"; // nilai internal saja, tidak dipakai untuk apapun di desktop
   }
 
-  if (document.getElementById('reg-tinggal-kab')) window.updateKecamatanTinggal();
-  if (document.getElementById('reg-ktp-kab')) window.updateKecamatanKTP();
+  if (document.getElementById('reg-tinggal-kab')) window.muatKabupatenRegistrasi();
 });
 
 window.bukaFormRegistrasi = function() {
@@ -320,28 +319,38 @@ window.bukaFormRegistrasi = function() {
   window.pindahLayar('screen-register');
 };
 
-window.updateKecamatanTinggal = function() {
-  const kab = document.getElementById('reg-tinggal-kab').value;
+// Isi dropdown Kabupaten (tinggal & KTP) dari Master Data, lalu munculkan
+// kecamatan untuk pilihan pertama.
+window.muatKabupatenRegistrasi = async function() {
+  if (!window.ambilMasterList) return;
+  const items = await window.ambilMasterList('kabupaten');
+  const opsi = items.map(k => `<option value="${k}">${k}</option>`).join('');
+  const selectTinggal = document.getElementById('reg-tinggal-kab');
+  const selectKtp = document.getElementById('reg-ktp-kab');
+  if (selectTinggal) { selectTinggal.innerHTML = opsi; await window.updateKecamatanTinggal(); }
+  if (selectKtp) { selectKtp.innerHTML = opsi; await window.updateKecamatanKTP(); }
+};
+
+window.updateKecamatanTinggal = async function() {
+  const kabEl = document.getElementById('reg-tinggal-kab');
   const kec = document.getElementById('reg-tinggal-kec');
-  if(!kec) return;
-  kec.innerHTML = "";
-  let list = kab === "Bandung" ? ["Cimaung", "Banjaran", "Soreang"] : (kab === "Bandung Barat" ? ["Lembang", "Padalarang", "Ngamprah"] : ["Cimahi Utara", "Cimahi Tengah", "Cimahi Selatan"]);
-  list.forEach(k => kec.innerHTML += `<option value="${k}">${k}</option>`);
+  if (!kec || !kabEl || !window.ambilKecamatanUntukKabupaten) return;
+  const list = await window.ambilKecamatanUntukKabupaten(kabEl.value);
+  kec.innerHTML = list.map(k => `<option value="${k}">${k}</option>`).join('');
 };
 
-window.updateKecamatanKTP = function() {
-  const kab = document.getElementById('reg-ktp-kab').value;
+window.updateKecamatanKTP = async function() {
+  const kabEl = document.getElementById('reg-ktp-kab');
   const kec = document.getElementById('reg-ktp-kec');
-  if(!kec) return;
-  kec.innerHTML = "";
-  let list = kab === "Bandung" ? ["Cimaung", "Banjaran", "Soreang"] : (kab === "Bandung Barat" ? ["Lembang", "Padalarang", "Ngamprah"] : ["Cimahi Utara", "Cimahi Tengah", "Cimahi Selatan"]);
-  list.forEach(k => kec.innerHTML += `<option value="${k}">${k}</option>`);
+  if (!kec || !kabEl || !window.ambilKecamatanUntukKabupaten) return;
+  const list = await window.ambilKecamatanUntukKabupaten(kabEl.value);
+  kec.innerHTML = list.map(k => `<option value="${k}">${k}</option>`).join('');
 };
 
-window.salinAlamat = function() {
+window.salinAlamat = async function() {
   if(document.getElementById('check-sama-alamat').checked) {
     document.getElementById('reg-ktp-kab').value = document.getElementById('reg-tinggal-kab').value;
-    window.updateKecamatanKTP();
+    await window.updateKecamatanKTP();
     document.getElementById('reg-ktp-kec').value = document.getElementById('reg-tinggal-kec').value;
     document.getElementById('reg-ktp-detail').value = document.getElementById('reg-tinggal-detail').value;
   }
@@ -476,7 +485,9 @@ window.prosesLogin = async function() {
 
   // Tangkap Data Form Ekstra
   window.tanggalIzinGlobal = document.getElementById('input-tgl-izin') ? document.getElementById('input-tgl-izin').value : "";
-  window.keteranganIzinGlobal = document.getElementById('input-ket-izin') ? document.getElementById('input-ket-izin').value : "";
+  const alasanIzinTerpilih = document.getElementById('input-ket-izin') ? document.getElementById('input-ket-izin').value : "";
+  const detailIzin = document.getElementById('input-ket-izin-detail') ? document.getElementById('input-ket-izin-detail').value.trim() : "";
+  window.keteranganIzinGlobal = detailIzin ? `${alasanIzinTerpilih} - ${detailIzin}` : alasanIzinTerpilih;
 
   if (!emailInput || !passInput) {
     alert("Masukkan email dan password terlebih dahulu!");
@@ -635,20 +646,27 @@ window.prosesClockOut = function() {
 };
 
 // Poin 10: Ajukan Cuti sekarang lewat Account Profile > ID & QR (bukan dropdown login lagi)
-window.bukaFormCutiProfil = function() {
+window.bukaFormCutiProfil = async function() {
   document.getElementById('form-cuti-profil').classList.remove('hidden');
+  const selectAlasan = document.getElementById('profil-cuti-keterangan');
+  if (selectAlasan && selectAlasan.options.length === 0 && window.ambilMasterList) {
+    const items = await window.ambilMasterList('alasan_cuti');
+    selectAlasan.innerHTML = items.map(a => `<option value="${a}">${a}</option>`).join('');
+  }
 };
 window.tutupFormCutiProfil = function() {
   document.getElementById('form-cuti-profil').classList.add('hidden');
   document.getElementById('profil-cuti-tanggal').value = '';
-  document.getElementById('profil-cuti-keterangan').value = '';
+  document.getElementById('profil-cuti-detail').value = '';
 };
 window.ajukanCutiDariProfil = function() {
   const tanggal = document.getElementById('profil-cuti-tanggal').value;
-  const keterangan = document.getElementById('profil-cuti-keterangan').value;
+  const alasanTerpilih = document.getElementById('profil-cuti-keterangan').value;
+  const detail = document.getElementById('profil-cuti-detail').value.trim();
+  const keterangan = detail ? `${alasanTerpilih} - ${detail}` : alasanTerpilih;
 
-  if (!tanggal || !keterangan) {
-    alert("Harap isi Tanggal dan Keterangan Cuti!");
+  if (!tanggal || !alasanTerpilih) {
+    alert("Harap isi Tanggal dan pilih Alasan Cuti!");
     return;
   }
 

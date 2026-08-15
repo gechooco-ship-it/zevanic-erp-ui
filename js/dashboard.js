@@ -77,7 +77,9 @@ window.simpanKeFirebase = async function(fotoBase64) {
       if (window.statusRadiusGlobal) {
         dataKirim.jarak_meter = window.statusRadiusGlobal.jarak;
         dataKirim.radius_izin_meter = window.statusRadiusGlobal.radiusIzin;
-        dataKirim.status_radius = window.statusRadiusGlobal.dalamRadius ? "DALAM RADIUS" : "DI LUAR RADIUS";
+        dataKirim.status_radius = window.statusRadiusGlobal.dinamis
+          ? "LOKASI DINAMIS"
+          : (window.statusRadiusGlobal.dalamRadius ? "DALAM RADIUS" : "DI LUAR RADIUS");
       }
     }
     await addDoc(collection(db, "absensi"), dataKirim);
@@ -198,6 +200,16 @@ window.muatDataAntreanKaryawan = async function() {
     const daftarGudang = [];
     qGudang.forEach(g => daftarGudang.push(g.data().nama_gudang));
 
+    const [daftarStatusKerja, daftarStatusPengguna, daftarJabatan, daftarStatusKaryawan] = await Promise.all([
+      window.ambilMasterList('status_kerja'),
+      window.ambilMasterList('status_pengguna'),
+      window.ambilMasterList('jabatan'),
+      window.ambilMasterList('status_karyawan')
+    ]);
+    const opsiSelect = (list, nilaiDefault) => list.map(item =>
+      `<option value="${item}" ${item === nilaiDefault ? 'selected' : ''}>${item}</option>`
+    ).join('');
+
     const querySnapshot = await getDocs(collection(db, "users"));
     let html = "";
     let countPending = 0;
@@ -222,34 +234,25 @@ window.muatDataAntreanKaryawan = async function() {
               <div>
                 <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Status Kerja</label>
                 <select id="antrean-statuskerja-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
-                  <option value="Aktif" selected>Aktif</option>
-                  <option value="Tidak Aktif">Tidak Aktif</option>
-                  <option value="Resign">Resign</option>
+                  ${opsiSelect(daftarStatusKerja, 'Aktif')}
                 </select>
               </div>
               <div>
-                <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Role Akses</label>
+                <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Status Pengguna (Role Akses)</label>
                 <select id="antrean-role-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
-                  <option value="operator" selected>Operator</option>
-                  <option value="admin">Admin</option>
-                  <option value="pic">PIC</option>
-                  <option value="owner">Owner</option>
+                  ${opsiSelect(daftarStatusPengguna, 'operator')}
                 </select>
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Jabatan</label>
                 <select id="antrean-jabatan-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
-                  <option value="Operator" selected>Operator</option>
-                  <option value="Admin">Admin</option>
-                  <option value="Warehouse">Warehouse</option>
+                  ${opsiSelect(daftarJabatan, daftarJabatan[0] || '')}
                 </select>
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Status Karyawan</label>
                 <select id="antrean-tipe-${idAman}" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
-                  <option value="Tetap" selected>Tetap</option>
-                  <option value="Part Time">Part Time</option>
-                  <option value="Kontrak">Kontrak</option>
+                  ${opsiSelect(daftarStatusKaryawan, daftarStatusKaryawan[0] || '')}
                 </select>
               </div>
             </div>
@@ -487,6 +490,20 @@ window.muatMonitoringWA = async function() {
   }
 };
 
+window.isiSelectDariMaster = async function(selectId, kategori, nilaiTerpilih) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  const items = await window.ambilMasterList(kategori);
+  select.innerHTML = items.map(item =>
+    `<option value="${item}" ${item === nilaiTerpilih ? 'selected' : ''}>${item}</option>`
+  ).join('');
+  // Kalau nilai tersimpan tidak ada di Master Data (data lama/dihapus dari master),
+  // tetap tampilkan supaya data tidak hilang dari layar.
+  if (nilaiTerpilih && !items.includes(nilaiTerpilih)) {
+    select.innerHTML += `<option value="${nilaiTerpilih}" selected>${nilaiTerpilih} (tidak ada di Master Data)</option>`;
+  }
+};
+
 window.bukaEditUser = async function(emailId) {
   const userRef = doc(db, "users", emailId);
   const userSnap = await getDoc(userRef);
@@ -496,12 +513,13 @@ window.bukaEditUser = async function(emailId) {
     document.getElementById('edit-email-asli').value = emailId;
     document.getElementById('edit-nama').value = d.nama || "";
     document.getElementById('edit-email').value = d.email || "";
-    document.getElementById('edit-role').value = d.role || "operator";
-    document.getElementById('edit-jabatan').value = d.jabatan || "";
+
+    await window.isiSelectDariMaster('edit-role', 'status_pengguna', d.role || 'operator');
+    await window.isiSelectDariMaster('edit-jabatan', 'jabatan', d.jabatan || '');
     
     let statusSet = (d.status_kerja === "aktif") ? "Aktif" : (d.status_kerja || "Aktif");
-    document.getElementById('edit-status').value = statusSet;
-    document.getElementById('edit-tipe-karyawan').value = d.status_karyawan || "";
+    await window.isiSelectDariMaster('edit-status', 'status_kerja', statusSet);
+    await window.isiSelectDariMaster('edit-tipe-karyawan', 'status_karyawan', d.status_karyawan || '');
     document.getElementById('edit-status-approval').value = d.status_approval || "APPROVED";
 
     // Data Pribadi
@@ -632,18 +650,23 @@ window.muatConfigAbsensi = function() {
 
 window.simpanMasterGudang = async function() {
   const nama = document.getElementById('conf-gudang-nama').value;
+  const tipeLokasi = document.getElementById('conf-gudang-tipe').value;
   const lat = document.getElementById('conf-gudang-lat').value;
   const lng = document.getElementById('conf-gudang-lng').value;
   const radius = document.getElementById('conf-gudang-radius').value;
 
-  if(!nama || !lat || !lng || !radius) return alert("Semua kolom Master Gudang harus diisi lengkap!");
+  if (!nama) return alert("Nama Gudang / Cabang harus diisi!");
+  if (tipeLokasi === 'Tetap' && (!lat || !lng || !radius)) {
+    return alert("Untuk lokasi Tetap, Latitude/Longitude/Radius harus diisi lengkap!");
+  }
 
   try {
     await addDoc(collection(db, "master_gudang"), {
       nama_gudang: nama,
-      latitude: lat,
-      longitude: lng,
-      radius: parseInt(radius)
+      tipe_lokasi: tipeLokasi,
+      latitude: tipeLokasi === 'Tetap' ? lat : "",
+      longitude: tipeLokasi === 'Tetap' ? lng : "",
+      radius: tipeLokasi === 'Tetap' ? parseInt(radius) : 0
     });
     alert("Master Gudang Berhasil Disimpan!");
     
@@ -651,6 +674,8 @@ window.simpanMasterGudang = async function() {
     document.getElementById('conf-gudang-lat').value = '';
     document.getElementById('conf-gudang-lng').value = '';
     document.getElementById('conf-gudang-radius').value = '';
+    document.getElementById('conf-gudang-tipe').value = 'Tetap';
+    if (window.toggleFieldLokasiGudang) window.toggleFieldLokasiGudang();
     
     window.muatMasterGudang();
   } catch (e) {
@@ -669,10 +694,14 @@ window.muatMasterGudang = async function() {
   
   querySnapshot.forEach((document) => {
     const d = document.data();
+    const isDinamis = d.tipe_lokasi === 'Dinamis';
+    const infoLokasi = isDinamis
+      ? '<span class="inline-block px-2 py-0.5 bg-blue-50 text-blue-600 font-bold text-[9px] rounded-full">DINAMIS - Tanpa Radius</span>'
+      : `Lat: ${d.latitude}<br>Lng: ${d.longitude}<br><span class="font-bold text-red-500">Radius: ${d.radius} m</span>`;
     tbody.innerHTML += `
       <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
         <td class="p-2 font-bold text-blue-800">${d.nama_gudang}</td>
-        <td class="p-2 text-[10px] text-gray-500 font-mono">Lat: ${d.latitude}<br>Lng: ${d.longitude}<br><span class="font-bold text-red-500">Radius: ${d.radius} m</span></td>
+        <td class="p-2 text-[10px] text-gray-500 font-mono">${infoLokasi}</td>
         <td class="p-2 text-center">
           <button onclick="hapusMasterGudang('${document.id}')" class="text-red-500 hover:text-white hover:bg-red-500 font-bold px-2 py-1.5 bg-red-50 rounded-lg transition"><i class="fas fa-trash-alt"></i></button>
         </td>
@@ -687,6 +716,191 @@ window.hapusMasterGudang = async function(idDoc) {
     await deleteDoc(doc(db, "master_gudang", idDoc));
     window.muatMasterGudang();
   }
+};
+
+// =========================================================================
+// SISTEM MASTER DATA (Config Karyawan) — 1 sistem generik dipakai bareng untuk
+// 9 kategori dropdown di seluruh aplikasi. Disimpan di Firestore koleksi
+// "master_data", 1 dokumen per kategori, field "items" (array string).
+// Kecamatan dikecualikan (lihat fungsi khusus di bawah) karena strukturnya
+// bertingkat per Kabupaten.
+// =========================================================================
+const MASTER_DATA_DEFAULT = {
+  jenis_pekerjaan: ["Full Time", "Part Time", "Harian"],
+  status_kerja: ["Aktif", "Tidak Aktif", "Resign"],
+  status_pengguna: ["operator", "admin", "pic", "owner"],
+  jabatan: ["Operator", "Admin", "Warehouse"],
+  status_karyawan: ["Tetap", "Part Time", "Kontrak"],
+  kabupaten: ["Bandung", "Bandung Barat", "Cimahi", "Garut"],
+  alasan_izin: ["Sakit", "Keperluan Keluarga", "Keperluan Pribadi", "Lainnya"],
+  alasan_cuti: ["Cuti Tahunan", "Cuti Melahirkan/Menikah", "Keperluan Keluarga", "Lainnya"]
+};
+const KECAMATAN_DEFAULT = {
+  "Bandung": ["Cimaung", "Banjaran", "Soreang"],
+  "Bandung Barat": ["Lembang", "Padalarang", "Ngamprah"],
+  "Cimahi": ["Cimahi Utara", "Cimahi Tengah", "Cimahi Selatan"],
+  "Garut": []
+};
+
+// Ambil daftar item 1 kategori. Kalau dokumennya belum ada di Firestore,
+// otomatis diisi dulu dengan nilai default (sekali saja) supaya dropdown di
+// seluruh aplikasi tidak pernah kosong.
+window.ambilMasterList = async function(kategori) {
+  const ref = doc(db, "master_data", kategori);
+  const snap = await getDoc(ref);
+  if (snap.exists() && Array.isArray(snap.data().items)) {
+    return snap.data().items;
+  }
+  const defaultItems = MASTER_DATA_DEFAULT[kategori] || [];
+  try { await setDoc(ref, { items: defaultItems }); } catch (e) { console.error(e); }
+  return defaultItems;
+};
+
+window.muatDanTampilkanMasterList = async function(kategori, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '<span class="text-[10px] text-gray-400">Memuat...</span>';
+  try {
+    const items = await window.ambilMasterList(kategori);
+    if (items.length === 0) {
+      container.innerHTML = '<span class="text-[10px] text-gray-400">Belum ada data.</span>';
+      return;
+    }
+    container.innerHTML = items.map(item => `
+      <span class="inline-flex items-center gap-1.5 bg-gray-100 px-2.5 py-1 rounded-lg text-[11px] mr-1.5 mb-1.5">
+        ${item}
+        <button onclick="hapusMasterListItem('${kategori}', '${String(item).replace(/'/g, "\\'")}', '${containerId}')" class="text-red-400 hover:text-red-600"><i class="fas fa-times"></i></button>
+      </span>
+    `).join('');
+  } catch (e) {
+    console.error("Gagal muat master list:", kategori, e);
+    container.innerHTML = '<span class="text-[10px] text-red-500">Gagal memuat.</span>';
+  }
+};
+
+window.tambahMasterListItem = async function(kategori, inputId, containerId) {
+  const input = document.getElementById(inputId);
+  const nilai = input.value.trim();
+  if (!nilai) return;
+  try {
+    const items = await window.ambilMasterList(kategori);
+    if (items.includes(nilai)) { alert("Item ini sudah ada di daftar."); return; }
+    items.push(nilai);
+    await setDoc(doc(db, "master_data", kategori), { items });
+    input.value = '';
+    await window.muatDanTampilkanMasterList(kategori, containerId);
+  } catch (e) {
+    console.error("Gagal menambah item master:", e);
+    alert("Gagal menambah item.");
+  }
+};
+
+window.hapusMasterListItem = async function(kategori, nilai, containerId) {
+  try {
+    let items = await window.ambilMasterList(kategori);
+    items = items.filter(i => i !== nilai);
+    await setDoc(doc(db, "master_data", kategori), { items });
+    window.muatDanTampilkanMasterList(kategori, containerId);
+  } catch (e) {
+    console.error("Gagal menghapus item master:", e);
+    alert("Gagal menghapus item.");
+  }
+};
+
+// ---- Kecamatan: khusus, bertingkat per Kabupaten ----
+// Helper bersama (dipakai juga oleh auth.js untuk dropdown kecamatan di form registrasi)
+window.ambilKecamatanUntukKabupaten = async function(kab) {
+  try {
+    const snap = await getDoc(doc(db, "master_data", "kecamatan"));
+    let map = (snap.exists() && snap.data().map) ? snap.data().map : null;
+    if (!map) {
+      map = KECAMATAN_DEFAULT;
+      await setDoc(doc(db, "master_data", "kecamatan"), { map });
+    }
+    return map[kab] || [];
+  } catch (e) {
+    console.error("Gagal ambil kecamatan:", e);
+    return [];
+  }
+};
+
+window.muatKabupatenUntukKecamatan = async function() {
+  const items = await window.ambilMasterList('kabupaten');
+  const select = document.getElementById('config-kecamatan-kabupaten-pilih');
+  if (!select) return;
+  const terpilihSebelumnya = select.value;
+  select.innerHTML = items.map(k => `<option value="${k}">${k}</option>`).join('');
+  if (items.includes(terpilihSebelumnya)) select.value = terpilihSebelumnya;
+  if (items.length > 0) window.muatKecamatanUntukKabupatenTerpilih();
+};
+
+window.muatKecamatanUntukKabupatenTerpilih = async function() {
+  const kab = document.getElementById('config-kecamatan-kabupaten-pilih').value;
+  const container = document.getElementById('config-kecamatan-list');
+  if (!kab || !container) return;
+  container.innerHTML = '<span class="text-[10px] text-gray-400">Memuat...</span>';
+  try {
+    const items = await window.ambilKecamatanUntukKabupaten(kab);
+    container.innerHTML = items.length === 0
+      ? '<span class="text-[10px] text-gray-400">Belum ada kecamatan untuk kabupaten ini.</span>'
+      : items.map(item => `
+        <span class="inline-flex items-center gap-1.5 bg-gray-100 px-2.5 py-1 rounded-lg text-[11px] mr-1.5 mb-1.5">
+          ${item}
+          <button onclick="hapusKecamatanItem('${String(item).replace(/'/g, "\\'")}')" class="text-red-400 hover:text-red-600"><i class="fas fa-times"></i></button>
+        </span>
+      `).join('');
+  } catch (e) {
+    console.error("Gagal muat kecamatan:", e);
+    container.innerHTML = '<span class="text-[10px] text-red-500">Gagal memuat.</span>';
+  }
+};
+
+window.tambahKecamatanItem = async function() {
+  const kab = document.getElementById('config-kecamatan-kabupaten-pilih').value;
+  const input = document.getElementById('config-kecamatan-input');
+  const nilai = input.value.trim();
+  if (!kab) return alert("Pilih Kabupaten/Kota dulu.");
+  if (!nilai) return;
+  try {
+    const snap = await getDoc(doc(db, "master_data", "kecamatan"));
+    const map = (snap.exists() && snap.data().map) ? snap.data().map : { ...KECAMATAN_DEFAULT };
+    if (!map[kab]) map[kab] = [];
+    if (map[kab].includes(nilai)) { alert("Sudah ada."); return; }
+    map[kab].push(nilai);
+    await setDoc(doc(db, "master_data", "kecamatan"), { map });
+    input.value = '';
+    window.muatKecamatanUntukKabupatenTerpilih();
+  } catch (e) {
+    console.error("Gagal menambah kecamatan:", e);
+    alert("Gagal menambah kecamatan.");
+  }
+};
+
+window.hapusKecamatanItem = async function(nilai) {
+  const kab = document.getElementById('config-kecamatan-kabupaten-pilih').value;
+  try {
+    const snap = await getDoc(doc(db, "master_data", "kecamatan"));
+    const map = (snap.exists() && snap.data().map) ? snap.data().map : {};
+    if (map[kab]) map[kab] = map[kab].filter(i => i !== nilai);
+    await setDoc(doc(db, "master_data", "kecamatan"), { map });
+    window.muatKecamatanUntukKabupatenTerpilih();
+  } catch (e) {
+    console.error("Gagal menghapus kecamatan:", e);
+    alert("Gagal menghapus kecamatan.");
+  }
+};
+
+// Muat semua kartu master data sekaligus saat tab Config Karyawan dibuka
+window.muatSemuaMasterData = function() {
+  window.muatDanTampilkanMasterList('jenis_pekerjaan', 'list-jenis_pekerjaan');
+  window.muatDanTampilkanMasterList('status_kerja', 'list-status_kerja');
+  window.muatDanTampilkanMasterList('status_pengguna', 'list-status_pengguna');
+  window.muatDanTampilkanMasterList('jabatan', 'list-jabatan');
+  window.muatDanTampilkanMasterList('status_karyawan', 'list-status_karyawan');
+  window.muatDanTampilkanMasterList('kabupaten', 'list-kabupaten');
+  window.muatDanTampilkanMasterList('alasan_izin', 'list-alasan_izin');
+  window.muatDanTampilkanMasterList('alasan_cuti', 'list-alasan_cuti');
+  window.muatKabupatenUntukKecamatan();
 };
 
 window.simpanMasterShift = async function() {
@@ -1116,6 +1330,8 @@ window.muatDataAdminACC = async function() {
           ? `<span class="inline-block px-2 py-0.5 bg-green-100 text-green-700 font-bold text-[9px] rounded-full">Dalam Radius (${data.jarak_meter || 0}m)</span>`
           : data.status_radius === "DI LUAR RADIUS"
           ? `<span class="inline-block px-2 py-0.5 bg-red-100 text-red-700 font-bold text-[9px] rounded-full">Di Luar Radius (${data.jarak_meter || 0}m)</span>`
+          : data.status_radius === "LOKASI DINAMIS"
+          ? `<span class="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 font-bold text-[9px] rounded-full">Lokasi Dinamis</span>`
           : '<span class="text-gray-300">-</span>';
 
         html += `

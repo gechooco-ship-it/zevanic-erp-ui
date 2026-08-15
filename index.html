@@ -67,8 +67,12 @@
             <input type="date" id="input-tgl-izin" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
           </div>
           <div>
-            <label class="block text-xs font-semibold text-gray-600 mb-1">Keterangan / Alasan</label>
-            <textarea id="input-ket-izin" rows="2" placeholder="Tuliskan alasan Anda..." class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm resize-none"></textarea>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Alasan</label>
+            <select id="input-ket-izin" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Detail Tambahan (opsional)</label>
+            <textarea id="input-ket-izin-detail" rows="2" placeholder="Keterangan lebih lanjut jika perlu..." class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm resize-none"></textarea>
           </div>
         </div>
 
@@ -186,12 +190,12 @@
 
           <div class="p-3 bg-gray-50 rounded-2xl border space-y-2">
             <span class="font-bold text-gray-700">Alamat Tempat Tinggal Sekarang</span>
-            <div class="grid grid-cols-2 gap-2"><select id="reg-tinggal-kab" onchange="updateKecamatanTinggal()" class="px-3 py-2 bg-white border rounded-xl"><option value="Bandung">Kab. Bandung</option><option value="Bandung Barat">Kab. Bandung Barat</option><option value="Cimahi">Kota Cimahi</option><option value="Garut">Kab. Garut</option></select><select id="reg-tinggal-kec" class="px-3 py-2 bg-white border rounded-xl"></select></div>
+            <div class="grid grid-cols-2 gap-2"><select id="reg-tinggal-kab" onchange="updateKecamatanTinggal()" class="px-3 py-2 bg-white border rounded-xl"></select><select id="reg-tinggal-kec" class="px-3 py-2 bg-white border rounded-xl"></select></div>
             <input type="text" id="reg-tinggal-detail" placeholder="Nama Jalan, RT/RW, No. Rumah" class="w-full px-3 py-2 bg-white border rounded-xl">
           </div>
           <div class="p-3 bg-gray-50 rounded-2xl border space-y-2">
             <div class="flex justify-between items-center"><span class="font-bold text-gray-700">Alamat Sesuai KTP</span><label class="flex items-center space-x-1 cursor-pointer text-[11px] text-blue-600 font-semibold"><input type="checkbox" id="check-sama-alamat" onchange="salinAlamat()" class="rounded"><span>Sama dengan tempat tinggal</span></label></div>
-            <div class="grid grid-cols-2 gap-2"><select id="reg-ktp-kab" onchange="updateKecamatanKTP()" class="px-3 py-2 bg-white border rounded-xl"><option value="Bandung">Kab. Bandung</option><option value="Bandung Barat">Kab. Bandung Barat</option><option value="Cimahi">Kota Cimahi</option><option value="Garut">Kab. Garut</option></select><select id="reg-ktp-kec" class="px-3 py-2 bg-white border rounded-xl"></select></div>
+            <div class="grid grid-cols-2 gap-2"><select id="reg-ktp-kab" onchange="updateKecamatanKTP()" class="px-3 py-2 bg-white border rounded-xl"></select><select id="reg-ktp-kec" class="px-3 py-2 bg-white border rounded-xl"></select></div>
             <input type="text" id="reg-ktp-detail" placeholder="Nama Jalan, RT/RW, No. Rumah" class="w-full px-3 py-2 bg-white border rounded-xl">
           </div>
         </div>
@@ -242,10 +246,10 @@
           <i class="fas fa-user-circle w-6 text-left"></i> Account Profile
         </button>
         <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-purple-600 hover:bg-purple-50 transition font-bold mt-4 border-t pt-4">
-          <i class="fas fa-clipboard-check w-6 text-left"></i> Menu Absensi
+          <i class="fas fa-clipboard-check w-6 text-left"></i> Master Absensi
         </button>
         <button onclick="pindahTab('tab-superuser')" id="menu-superuser" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-red-600 hover:bg-red-50 transition font-bold">
-          <i class="fas fa-users-cog w-6 text-left"></i> Menu Karyawan
+          <i class="fas fa-users-cog w-6 text-left"></i> Master Karyawan
         </button>
         <button onclick="pindahTab('tab-whatsapp')" id="menu-whatsapp" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-green-600 hover:bg-green-50 transition font-bold">
           <i class="fab fa-whatsapp w-6 text-left"></i> WhatsApp Gateway
@@ -342,8 +346,12 @@
                 <input type="date" id="profil-cuti-tanggal" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
               </div>
               <div>
-                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Keterangan / Alasan</label>
-                <textarea id="profil-cuti-keterangan" rows="2" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm resize-none"></textarea>
+                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Alasan</label>
+                <select id="profil-cuti-keterangan" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm"></select>
+              </div>
+              <div>
+                <label class="block text-[11px] font-semibold text-gray-600 mb-1">Detail Tambahan (opsional)</label>
+                <textarea id="profil-cuti-detail" rows="2" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm resize-none"></textarea>
               </div>
               <div class="flex space-x-2 pt-1">
                 <button onclick="tutupFormCutiProfil()" class="w-1/2 bg-gray-100 text-gray-600 font-bold py-2.5 rounded-xl text-xs">Batal</button>
@@ -533,11 +541,21 @@
               <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-map-marker-alt text-blue-500 mr-1.5"></i> Master Gudang & Titik Lokasi</h3>
               <div class="space-y-3 text-xs">
                 <div><label class="block font-semibold text-gray-600 mb-1">Nama Gudang / Cabang *</label><input type="text" id="conf-gudang-nama" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-                <div class="grid grid-cols-2 gap-3">
-                  <div><label class="block font-semibold text-gray-600 mb-1">Latitude *</label><input type="number" step="any" id="conf-gudang-lat" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">Longitude *</label><input type="number" step="any" id="conf-gudang-lng" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
+                <div>
+                  <label class="block font-semibold text-gray-600 mb-1">Jenis Lokasi *</label>
+                  <select id="conf-gudang-tipe" onchange="toggleFieldLokasiGudang()" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none">
+                    <option value="Tetap">Tetap (titik & radius pasti)</option>
+                    <option value="Dinamis">Dinamis (lapangan, lokasi bebas)</option>
+                  </select>
+                  <p class="text-[10px] text-gray-400 mt-1">Dinamis dipakai untuk orang lapangan yang visit ke mana saja — tidak ada validasi radius/koordinat saat Clock In.</p>
                 </div>
-                <div><label class="block font-semibold text-gray-600 mb-1">Radius Toleransi Absen (Meter) *</label><input type="number" id="conf-gudang-radius" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
+                <div id="wadah-koordinat-gudang" class="space-y-3">
+                  <div class="grid grid-cols-2 gap-3">
+                    <div><label class="block font-semibold text-gray-600 mb-1">Latitude *</label><input type="number" step="any" id="conf-gudang-lat" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
+                    <div><label class="block font-semibold text-gray-600 mb-1">Longitude *</label><input type="number" step="any" id="conf-gudang-lng" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
+                  </div>
+                  <div><label class="block font-semibold text-gray-600 mb-1">Radius Toleransi Absen (Meter) *</label><input type="number" id="conf-gudang-radius" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
+                </div>
                 <button onclick="simpanMasterGudang()" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 transition shadow-sm mt-2"><i class="fas fa-save mr-1"></i> Simpan Master Gudang</button>
               </div>
               <div class="mt-4 pt-4 border-t">
@@ -568,7 +586,15 @@
             <div class="md:col-span-1 bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 h-fit">
               <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-calendar-plus text-blue-600 mr-1.5"></i> Plotting Jadwal & Lokasi</h3>
               <div class="space-y-3 text-xs">
-                <div><label class="block font-semibold text-gray-600 mb-1">Pilih Karyawan *</label><select id="jadwal-karyawan" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></select></div>
+                <div class="relative">
+                  <label class="block font-semibold text-gray-600 mb-1">Cari & Pilih Karyawan *</label>
+                  <div class="relative">
+                    <i class="fas fa-search absolute left-3 top-2.5 text-gray-400"></i>
+                    <input type="text" id="jadwal-karyawan-search" placeholder="Ketik nama..." autocomplete="off" onkeyup="filterPencarianKaryawan()" onclick="bukaDropdownKaryawan()" class="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 cursor-text">
+                  </div>
+                  <input type="hidden" id="jadwal-karyawan">
+                  <div id="dropdown-karyawan" class="hidden absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-gray-50"></div>
+                </div>
                 <div><label class="block font-semibold text-gray-600 mb-1">Gudang Penempatan (bisa lebih dari satu) *</label><div id="jadwal-gudang-checkboxes" class="flex flex-wrap gap-2 p-2 bg-gray-50 border rounded-xl min-h-[42px]"></div></div>
                 <div><label class="block font-semibold text-gray-600 mb-1">Pilih Shift *</label><select id="jadwal-shift" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></select></div>
                 <div><label class="block font-semibold text-gray-600 mb-1">Hari Libur *</label><select id="jadwal-libur" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"><option value="Minggu">Minggu</option><option value="Senin">Senin</option><option value="Selasa">Selasa</option><option value="Rabu">Rabu</option><option value="Kamis">Kamis</option><option value="Jumat">Jumat</option><option value="Sabtu">Sabtu</option></select></div>
@@ -598,7 +624,7 @@
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', this); muatDataAntreanKaryawan();" class="sub-karyawan-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">
               <i class="fas fa-user-clock mr-1.5"></i> Antrean Karyawan
             </button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Karyawan</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this); muatSemuaMasterData();" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Karyawan</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this); muatDataSuperUser();" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Data Karyawan</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Slip Gaji</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Payroll</button>
@@ -615,11 +641,95 @@
             <div id="container-antrean-karyawan" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
           </div>
 
-          <div id="sub-karyawan-config" class="sub-karyawan-content hidden fade-in mt-4">
-            <div class="bg-blue-50 border border-blue-100 p-8 rounded-3xl text-center space-y-3">
-              <i class="fas fa-users-cog text-4xl text-blue-400"></i>
-              <h4 class="font-bold text-blue-800 text-lg">Modul Config Karyawan</h4>
-              <p class="text-xs text-blue-600">Manajemen Pembuatan Role, Akses Hak (CRUD), dan Master Jabatan akan segera aktif.</p>
+          <div id="sub-karyawan-config" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
+            <div class="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
+              <h4 class="font-bold text-blue-800 text-sm"><i class="fas fa-database mr-1.5"></i> Master Data</h4>
+              <p class="text-[11px] text-blue-600 mt-0.5">Kelola pilihan yang muncul di dropdown seluruh aplikasi (Antrean Karyawan, Edit Karyawan, Registrasi, dll). Ketik lalu klik + untuk menambah, klik &times; pada item untuk menghapus.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+                <h4 class="text-xs font-bold text-gray-700">Jenis Pekerjaan</h4>
+                <div class="flex space-x-2">
+                  <input type="text" id="input-jenis_pekerjaan" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
+                  <button onclick="tambahMasterListItem('jenis_pekerjaan', 'input-jenis_pekerjaan', 'list-jenis_pekerjaan')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="list-jenis_pekerjaan" class="flex flex-wrap"></div>
+              </div>
+
+              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+                <h4 class="text-xs font-bold text-gray-700">Status Kerja</h4>
+                <div class="flex space-x-2">
+                  <input type="text" id="input-status_kerja" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
+                  <button onclick="tambahMasterListItem('status_kerja', 'input-status_kerja', 'list-status_kerja')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="list-status_kerja" class="flex flex-wrap"></div>
+              </div>
+
+              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+                <h4 class="text-xs font-bold text-gray-700">Status Pengguna (Role Akses)</h4>
+                <div class="flex space-x-2">
+                  <input type="text" id="input-status_pengguna" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
+                  <button onclick="tambahMasterListItem('status_pengguna', 'input-status_pengguna', 'list-status_pengguna')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="list-status_pengguna" class="flex flex-wrap"></div>
+                <p class="text-[9px] text-amber-600"><i class="fas fa-info-circle"></i> Hati-hati mengubah ini — dipakai untuk menentukan hak akses menu.</p>
+              </div>
+
+              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+                <h4 class="text-xs font-bold text-gray-700">Jabatan</h4>
+                <div class="flex space-x-2">
+                  <input type="text" id="input-jabatan" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
+                  <button onclick="tambahMasterListItem('jabatan', 'input-jabatan', 'list-jabatan')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="list-jabatan" class="flex flex-wrap"></div>
+              </div>
+
+              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+                <h4 class="text-xs font-bold text-gray-700">Status Karyawan</h4>
+                <div class="flex space-x-2">
+                  <input type="text" id="input-status_karyawan" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
+                  <button onclick="tambahMasterListItem('status_karyawan', 'input-status_karyawan', 'list-status_karyawan')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="list-status_karyawan" class="flex flex-wrap"></div>
+              </div>
+
+              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+                <h4 class="text-xs font-bold text-gray-700">Kabupaten/Kota</h4>
+                <div class="flex space-x-2">
+                  <input type="text" id="input-kabupaten" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
+                  <button onclick="tambahMasterListItem('kabupaten', 'input-kabupaten', 'list-kabupaten').then(() => muatKabupatenUntukKecamatan())" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="list-kabupaten" class="flex flex-wrap"></div>
+              </div>
+
+              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2 md:col-span-2">
+                <h4 class="text-xs font-bold text-gray-700">Kecamatan (per Kabupaten/Kota)</h4>
+                <select id="config-kecamatan-kabupaten-pilih" onchange="muatKecamatanUntukKabupatenTerpilih()" class="w-full px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none mb-1"></select>
+                <div class="flex space-x-2">
+                  <input type="text" id="config-kecamatan-input" placeholder="Tambah kecamatan untuk kabupaten di atas..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
+                  <button onclick="tambahKecamatanItem()" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="config-kecamatan-list" class="flex flex-wrap"></div>
+              </div>
+
+              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+                <h4 class="text-xs font-bold text-gray-700">Alasan Izin</h4>
+                <div class="flex space-x-2">
+                  <input type="text" id="input-alasan_izin" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
+                  <button onclick="tambahMasterListItem('alasan_izin', 'input-alasan_izin', 'list-alasan_izin')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="list-alasan_izin" class="flex flex-wrap"></div>
+              </div>
+
+              <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
+                <h4 class="text-xs font-bold text-gray-700">Alasan Cuti</h4>
+                <div class="flex space-x-2">
+                  <input type="text" id="input-alasan_cuti" placeholder="Tambah item baru..." class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
+                  <button onclick="tambahMasterListItem('alasan_cuti', 'input-alasan_cuti', 'list-alasan_cuti')" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
+                </div>
+                <div id="list-alasan_cuti" class="flex flex-wrap"></div>
+              </div>
             </div>
           </div>
 
@@ -803,37 +913,23 @@
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs font-semibold text-gray-500 mb-1">Role Sistem</label>
-            <select id="edit-role" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none">
-              <option value="operator">Operator</option>
-              <option value="admin">Admin</option>
-              <option value="pic">PIC</option>
-              <option value="owner">Owner</option>
-            </select>
+            <label class="block text-xs font-semibold text-gray-500 mb-1">Status Pengguna (Role Akses)</label>
+            <select id="edit-role" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
           </div>
           <div>
             <label class="block text-xs font-semibold text-gray-500 mb-1">Jabatan</label>
-            <input type="text" id="edit-jabatan" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none">
+            <select id="edit-jabatan" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
           </div>
         </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-xs font-semibold text-gray-500 mb-1">Status Kerja</label>
-            <select id="edit-status" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none">
-              <option value="Aktif">Aktif</option>
-              <option value="Tidak Aktif">Tidak Aktif</option>
-              <option value="Resign">Resign</option>
-            </select>
+            <select id="edit-status" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
           </div>
           <div>
             <label class="block text-xs font-semibold text-gray-500 mb-1">Status Karyawan</label>
-            <select id="edit-tipe-karyawan" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none">
-              <option value="">-- Pilih --</option>
-              <option value="Tetap">Tetap</option>
-              <option value="Part Time">Part Time</option>
-              <option value="Kontrak">Kontrak</option>
-            </select>
+            <select id="edit-tipe-karyawan" class="w-full px-3 py-2 bg-white border focus:ring-2 focus:ring-blue-500 rounded-lg outline-none"></select>
           </div>
         </div>
 
@@ -966,8 +1062,24 @@
         } else {
           labelTgl.innerText = "";
         }
+        const selectAlasan = document.getElementById('input-ket-izin');
+        if (selectAlasan && selectAlasan.options.length === 0 && window.ambilMasterList) {
+          window.ambilMasterList('alasan_izin').then(items => {
+            selectAlasan.innerHTML = items.map(a => `<option value="${a}">${a}</option>`).join('');
+          });
+        }
       } else {
         formIzin.classList.add('hidden');
+      }
+    }
+
+    function toggleFieldLokasiGudang() {
+      const tipe = document.getElementById('conf-gudang-tipe').value;
+      const wadah = document.getElementById('wadah-koordinat-gudang');
+      if (tipe === 'Dinamis') {
+        wadah.classList.add('hidden');
+      } else {
+        wadah.classList.remove('hidden');
       }
     }
   </script>

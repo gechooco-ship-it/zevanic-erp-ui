@@ -10,18 +10,52 @@ window.koordinatGlobal = null;       // { lat, lng, accuracy }
 window.gudangDipilihGlobal = "";     // nama gudang yang dipilih/aktif
 window.statusRadiusGlobal = null;    // { dalamRadius, jarak, radiusIzin, gudang }
 
-window.previewKTP = function(event) {
-  const file = event.target.files[0];
-  if (file) {
+// Kompresi gambar sisi klien: perkecil dimensi & kualitas JPEG supaya ukuran
+// file kecil (penting: Firestore punya batas 1MB per dokumen — foto asli dari
+// kamera HP bisa 3-8MB kalau tidak dikompres, bisa bikin simpan data gagal).
+function kompresGambar(file, maxDimensi, kualitas) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = function(e) {
-      window.ktpBase64Global = e.target.result;
-      const img = document.getElementById('preview-ktp-img');
-      img.src = window.ktpBase64Global;
-      img.classList.remove('hidden');
+      const img = new Image();
+      img.onload = function() {
+        let { width, height } = img;
+        if (width > maxDimensi || height > maxDimensi) {
+          if (width > height) {
+            height = Math.round(height * (maxDimensi / width));
+            width = maxDimensi;
+          } else {
+            width = Math.round(width * (maxDimensi / height));
+            height = maxDimensi;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', kualitas));
+      };
+      img.onerror = () => reject(new Error("Gagal memuat gambar."));
+      img.src = e.target.result;
     };
+    reader.onerror = () => reject(new Error("Gagal membaca file."));
     reader.readAsDataURL(file);
-  }
+  });
+}
+
+window.previewKTP = function(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const img = document.getElementById('preview-ktp-img');
+  kompresGambar(file, 1000, 0.75).then(dataUrl => {
+    window.ktpBase64Global = dataUrl;
+    img.src = dataUrl;
+    img.classList.remove('hidden');
+  }).catch(err => {
+    console.error("Gagal kompres foto KTP:", err);
+    alert("Gagal memproses foto KTP. Coba ambil/pilih foto lain.");
+  });
 };
 
 // Haversine: jarak antara 2 koordinat GPS dalam meter
@@ -49,7 +83,21 @@ window.validasiRadiusGudang = async function() {
     let gudangData = null;
     qGudang.forEach(g => { if (g.data().nama_gudang === window.gudangDipilihGlobal) gudangData = g.data(); });
 
-    if (!gudangData || !gudangData.latitude || !gudangData.longitude) {
+    if (!gudangData) {
+      window.statusRadiusGlobal = null;
+      if (statusEl) statusEl.innerHTML = '<span class="text-amber-400 text-xs"><i class="fas fa-exclamation-triangle mr-1"></i>Data gudang tidak ditemukan. Hubungi Owner/PIC.</span>';
+      return;
+    }
+
+    // Lokasi Dinamis (orang lapangan): tidak ada titik/radius pasti, lokasi
+    // dicatat apa adanya untuk arsip tanpa divalidasi jaraknya.
+    if (gudangData.tipe_lokasi === 'Dinamis') {
+      window.statusRadiusGlobal = { dalamRadius: true, jarak: 0, radiusIzin: 0, gudang: window.gudangDipilihGlobal, dinamis: true };
+      if (statusEl) statusEl.innerHTML = `<span class="text-blue-400 text-xs"><i class="fas fa-map-marked-alt mr-1"></i>Lokasi Dinamis (${window.gudangDipilihGlobal}) — tanpa validasi radius</span>`;
+      return;
+    }
+
+    if (!gudangData.latitude || !gudangData.longitude) {
       window.statusRadiusGlobal = null;
       if (statusEl) statusEl.innerHTML = '<span class="text-amber-400 text-xs"><i class="fas fa-exclamation-triangle mr-1"></i>Data lokasi gudang belum lengkap. Hubungi Owner/PIC.</span>';
       return;
