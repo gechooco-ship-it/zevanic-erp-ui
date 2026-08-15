@@ -304,7 +304,6 @@
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this)" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-cogs mr-1.5"></i> Config Absensi</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this)" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-calendar-alt mr-1.5"></i> Penjadwalan</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this)" class="sub-absensi-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-clock mr-1.5"></i> Antrean Absensi</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-riwayat-acc', this); muatDataRiwayatACC();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-check-circle mr-1.5"></i> Riwayat ACC</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this)" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-chart-bar mr-1.5"></i> Riwayat All Absensi</button>
           </div>
         </div>
@@ -325,9 +324,6 @@
            <div id="vue-antrean-absensi"></div>
         </div>
 
-        <div id="sub-absensi-riwayat-acc" class="sub-absensi-content hidden fade-in space-y-4">
-           <div id="container-acc-riwayat"></div>
-        </div>
         <div id="sub-absensi-rekap" class="sub-absensi-content hidden fade-in space-y-4">
             <!-- MIGRASI VUE: lihat js/vue-riwayat-absensi.js -->
             <div id="vue-riwayat-absensi"></div>

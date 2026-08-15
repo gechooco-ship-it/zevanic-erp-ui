@@ -283,73 +283,9 @@ window.pindahTab = function(tabId) {
 // window.mulaiHitungJamKerja TETAP dipertahankan (dipanggil dari Vue).
 
 
-window.muatDataRiwayatACC = async function() {
-  const container = document.getElementById('container-acc-riwayat');
-  if (!container) return;
-
-  container.innerHTML = `<div class="text-center py-10 text-gray-400 text-xs"><i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p>Memuat riwayat persetujuan...</p></div>`;
-
-  try {
-    const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
-    const { db } = await import("./firebase-config.js");
-    const querySnapshot = await getDocs(collection(db, "absensi"));
-    
-    let html = `
-      <div class="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm bg-white">
-        <table class="w-full text-left text-xs text-gray-600 whitespace-nowrap">
-          <thead class="bg-gray-50 text-gray-700 font-bold border-b text-[10px] uppercase">
-            <tr>
-              <th class="p-4">Pegawai</th>
-              <th class="p-4">Tgl & Waktu Presensi</th>
-              <th class="p-4 text-center">Status Keputusan</th>
-              <th class="p-4">Kesesuaian Seragam</th>
-              <th class="p-4">Sanggahan Karyawan</th>
-              <th class="p-4">Pemeriksa (Validator)</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100">
-    `;
-
-    let countACC = 0;
-    querySnapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      if (data.status_acc && data.status_acc !== "PENDING") {
-        countACC++;
-        const tglPresensi = data.waktu || '-';
-        
-        const badgeStatus = data.status_acc === "ACC"
-          ? `<span class="px-2 py-1 bg-green-50 text-green-700 font-bold text-[10px] rounded-lg"><i class="fas fa-check mr-1"></i>Disetujui (ACC)</span>`
-          : `<span class="px-2 py-1 bg-red-50 text-red-600 font-bold text-[10px] rounded-lg"><i class="fas fa-times mr-1"></i>Ditolak (REJECT)</span>`;
-
-        const txtSanggah = data.catatan_banding 
-          ? `<span class="text-amber-600 font-bold cursor-help" title="${data.catatan_banding}">Ada Sanggahan <i class="fas fa-info-circle"></i></span>` 
-          : `<span class="text-gray-300">-</span>`;
-
-        html += `
-          <tr class="hover:bg-gray-50 transition">
-            <td class="p-4 font-bold text-blue-900">${data.nama_pegawai || data.nama || 'Anonim'}<br><span class="text-[10px] text-gray-400 font-normal font-mono">${data.email || ''}</span></td>
-            <td class="p-4 font-semibold text-slate-700">${tglPresensi}</td>
-            <td class="p-4 text-center">${badgeStatus}</td>
-            <td class="p-4 font-bold ${data.seragam === 'Tidak Sesuai' ? 'text-red-500' : 'text-slate-600'}">${data.seragam || 'Sesuai'}</td>
-            <td class="p-4">${txtSanggah}</td>
-            <td class="p-4 text-[10px] text-gray-500 font-mono">${data.validated_by || 'Sistem'}</td>
-          </tr>
-        `;
-      }
-    });
-
-    html += `</tbody></table></div>`;
-
-    if (countACC === 0) {
-      container.innerHTML = `<div class="text-center py-10 bg-white rounded-3xl border border-dashed text-gray-400 text-xs">Belum ada riwayat absensi yang divalidasi.</div>`;
-    } else {
-      container.innerHTML = html;
-    }
-  } catch (e) {
-    console.error("Error muat riwayat ACC:", e);
-    container.innerHTML = `<div class="text-center py-8 text-red-500 text-xs">Gagal memuat riwayat persetujuan.</div>`;
-  }
-};
+// "Riwayat ACC" (fitur terpisah, tumpang tindih dengan Riwayat All Absensi)
+// sudah dihapus sepenuhnya atas permintaan — window.muatDataRiwayatACC tidak
+// ada lagi.
 
 // Tabel Riwayat All Absensi (siapkanFilterRekap/bukaEditAbsensi/
 // tutupEditAbsensi/simpanEditAbsensi/assignUlangAbsensi) sudah pindah ke
