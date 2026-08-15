@@ -45,13 +45,16 @@ function kompresGambar(file, maxDimensi, kualitas) {
 
 window.previewKTP = function(event) {
   const file = event.target.files[0];
-  if (!file) return;
+  if (!file) return Promise.resolve();
 
-  const img = document.getElementById('preview-ktp-img');
-  kompresGambar(file, 1000, 0.75).then(dataUrl => {
+  const img = document.getElementById('preview-ktp-img'); // mungkin null (Vue menangani preview-nya sendiri)
+  return kompresGambar(file, 1000, 0.75).then(dataUrl => {
     window.ktpBase64Global = dataUrl;
-    img.src = dataUrl;
-    img.classList.remove('hidden');
+    if (img) {
+      img.src = dataUrl;
+      img.classList.remove('hidden');
+    }
+    return dataUrl;
   }).catch(err => {
     console.error("Gagal kompres foto KTP:", err);
     alert("Gagal memproses foto KTP. Coba ambil/pilih foto lain.");

@@ -127,110 +127,10 @@
 
   <!-- LAYAR 2: REGISTRASI KARYAWAN -->
   <div id="screen-register" class="hidden h-auto min-h-screen w-full bg-slate-50 flex flex-col items-center justify-start p-4 py-10 fade-in overflow-y-auto">
-    <div class="w-full max-w-2xl bg-white p-8 rounded-3xl shadow-xl border border-gray-100 my-auto">
-      <div class="flex justify-between items-center mb-6 border-b pb-4">
-        <div>
-          <h2 class="text-xl font-black text-gray-900">Formulir Pendaftaran Karyawan</h2>
-          <p class="text-xs text-gray-500">Sesuai standar operasional Zevanic ERP</p>
-        </div>
-        <button onclick="pindahLayar('screen-login')" class="text-gray-400 hover:text-gray-600 text-sm font-bold"><i class="fas fa-times text-lg"></i></button>
-      </div>
-
-      <div class="space-y-4 text-xs">
-        <div class="grid grid-cols-2 gap-4 bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
-          <div><label class="block font-bold text-blue-800 mb-1">ID Karyawan (Auto)</label><input type="text" id="reg-id" readonly class="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl font-mono text-gray-600"></div>
-          <div><label class="block font-bold text-blue-800 mb-1">ID APP (Auto)</label><input type="text" id="reg-idapp" readonly class="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl font-mono text-gray-600"></div>
-        </div>
-
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-id-card text-blue-600 mr-2"></i> Data Identitas Personal</h3>
-          <div class="grid grid-cols-2 gap-4">
-
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">Upload Foto KTP (Wajib) *</label>
-            <div class="flex items-center space-x-3">
-              <input type="file" id="reg-ktpfile" accept="image/*" onchange="previewKTP(event)" class="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-              <img id="preview-ktp-img" class="w-12 h-12 object-cover rounded-lg border hidden shadow-sm cursor-pointer hover:scale-105 transition" onclick="bukaPreviewFoto(this.src)" title="Klik untuk memperbesar KTP" />
-            </div>
-          </div>
-            <div><label class="block font-semibold text-gray-600 mb-1">NIK KTP (16 Angka) *</label><input type="text" id="reg-nik" maxlength="16" placeholder="3204xxxxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Nama Lengkap (Sesuai KTP) *</label><input type="text" id="reg-nama" placeholder="Nama lengkap" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-          </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">Email Aktif (Identitas Login) *</label>
-            <input type="email" id="reg-email" required placeholder="email@domain.com" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
-
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">No. Handphone (WhatsApp) *</label>
-            <input type="text" id="reg-hp" required placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
-
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">Kata Sandi (Password) *</label>
-            <input type="password" id="reg-pass" required placeholder="Buat password login" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
-
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">Konfirmasi Kata Sandi *</label>
-            <input type="password" id="reg-confirm-pass" required placeholder="Ulangi password" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500">
-          </div>
-        </div>
-
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-map-marker-alt text-blue-600 mr-2"></i> Domisili</h3>
-          <div class="grid grid-cols-3 gap-3">
-            <div><label class="block font-semibold text-gray-600 mb-1">Jenis Kelamin *</label><select id="reg-gender" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="Pria">Pria</option><option value="Wanita">Wanita</option></select></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Tempat Lahir *</label><input type="text" id="reg-tempatlahir" placeholder="Kota Kelahiran" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Tanggal Lahir *</label><input type="date" id="reg-tgl" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-          </div>
-
-        </div>
-
-          <div class="p-3 bg-gray-50 rounded-2xl border space-y-2">
-            <span class="font-bold text-gray-700">Alamat Tempat Tinggal Sekarang</span>
-            <div class="grid grid-cols-2 gap-2"><select id="reg-tinggal-kab" onchange="updateKecamatanTinggal()" class="px-3 py-2 bg-white border rounded-xl"></select><select id="reg-tinggal-kec" class="px-3 py-2 bg-white border rounded-xl"></select></div>
-            <input type="text" id="reg-tinggal-detail" placeholder="Nama Jalan, RT/RW, No. Rumah" class="w-full px-3 py-2 bg-white border rounded-xl">
-          </div>
-          <div class="p-3 bg-gray-50 rounded-2xl border space-y-2">
-            <div class="flex justify-between items-center"><span class="font-bold text-gray-700">Alamat Sesuai KTP</span><label class="flex items-center space-x-1 cursor-pointer text-[11px] text-blue-600 font-semibold"><input type="checkbox" id="check-sama-alamat" onchange="salinAlamat()" class="rounded"><span>Sama dengan tempat tinggal</span></label></div>
-            <div class="grid grid-cols-2 gap-2"><select id="reg-ktp-kab" onchange="updateKecamatanKTP()" class="px-3 py-2 bg-white border rounded-xl"></select><select id="reg-ktp-kec" class="px-3 py-2 bg-white border rounded-xl"></select></div>
-            <input type="text" id="reg-ktp-detail" placeholder="Nama Jalan, RT/RW, No. Rumah" class="w-full px-3 py-2 bg-white border rounded-xl">
-          </div>
-        </div>
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-graduation-cap text-blue-600 mr-2"></i> Status Pernikahan & Pendidikan</h3>
-          <div class="grid grid-cols-2 gap-4">
-            <div><label class="block font-semibold text-gray-600 mb-1">Status Pernikahan *</label><select id="reg-nikah" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="Lajang">Lajang</option><option value="Menikah">Menikah</option><option value="Duda/Janda">Duda / Janda</option></select></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Jumlah Tanggungan *</label><input type="text" id="reg-tanggungan" placeholder="Contoh: 0 atau Istri dan 2 Anak" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-          </div>
-          <div class="grid grid-cols-3 gap-2">
-            <div><label class="block font-semibold text-gray-600 mb-1">Pendidikan Terakhir *</label><select id="reg-pendidikan" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="SMA/SMK">SMA / SMK</option><option value="D3">Diploma (D3)</option><option value="S1">Sarjana (S1)</option></select></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Nama Sekolah / Kampus *</label><input type="text" id="reg-sekolah" placeholder="Nama instansi" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Jurusan *</label><input type="text" id="reg-jurusan" placeholder="Jurusan" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-          </div>
-        </div>
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-university text-blue-600 mr-2"></i> Perbankan & Kontak Darurat</h3>
-          <div class="grid grid-cols-3 gap-2">
-            <div><label class="block font-semibold text-gray-600 mb-1">Bank *</label><select id="reg-bank" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="BCA">BCA</option><option value="Mandiri">Mandiri</option><option value="BNI">BNI</option><option value="BRI">BRI</option></select></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">No. Rekening *</label><input type="text" id="reg-norek" placeholder="Nomor Rekening" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Atas Nama Rekening *</label><input type="text" id="reg-namarek" placeholder="Nama pemilik" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-          </div>
-          <div class="grid grid-cols-3 gap-2 pt-2">
-            <div><label class="block font-semibold text-gray-600 mb-1">Nama Kontak Darurat *</label><input type="text" id="reg-darurat-nama" placeholder="Keluarga/Kerabat" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">No. HP Darurat *</label><input type="text" id="reg-darurat-hp" placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Hubungan *</label><input type="text" id="reg-darurat-hub" placeholder="Contoh: Ayah / Kakak" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-          </div>
-        </div>
-        <button onclick="simpanPendaftaranBaru()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg transition mt-4">
-          Daftarkan Akun Karyawan <i class="fas fa-check ml-1"></i>
-        </button>
-      </div>
-    </div>
+    <!-- MIGRASI VUE: lihat js/vue-registrasi.js -->
+    <div id="vue-registrasi"></div>
   </div>
+
 
   <div id="screen-dashboard" class="hidden h-[100dvh] w-full relative fade-in bg-slate-50 flex overflow-hidden">
 
@@ -486,5 +386,6 @@
   <script type="module" src="js/vue-penjadwalan.js"></script>
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>
   <script type="module" src="js/vue-account-profile.js"></script>
+  <script type="module" src="js/vue-registrasi.js"></script>
 </body>
 </html>

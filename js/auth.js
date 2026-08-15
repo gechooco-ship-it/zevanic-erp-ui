@@ -27,6 +27,7 @@ function pesanErrorAuth(kode) {
   };
   return peta[kode] || null;
 }
+window.pesanErrorAuth = pesanErrorAuth; // dipakai juga oleh js/vue-registrasi.js
 
 // Helper bersama (dipakai juga oleh dashboard.js): gudang_penempatan dulu string
 // tunggal, sekarang array (mendukung banyak gudang). Ini menormalkan keduanya.
@@ -311,194 +312,17 @@ window.addEventListener('DOMContentLoaded', () => {
     window.statusPilihanGlobal = "HADIR (CLOCK IN)"; // nilai internal saja, tidak dipakai untuk apapun di desktop
   }
 
-  if (document.getElementById('reg-tinggal-kab')) window.muatKabupatenRegistrasi();
 });
 
 window.bukaFormRegistrasi = function() {
-  document.getElementById('reg-id').value = "ZVN-" + Math.floor(1000 + Math.random() * 9000);
-  document.getElementById('reg-idapp').value = "ZMS-" + Math.floor(1000 + Math.random() * 9000);
   window.pindahLayar('screen-register');
+  if (window.resetFormRegistrasi) window.resetFormRegistrasi();
 };
 
-// Isi dropdown Kabupaten (tinggal & KTP) dari Master Data, lalu munculkan
-// kecamatan untuk pilihan pertama.
-window.muatKabupatenRegistrasi = async function() {
-  if (!window.ambilMasterList) return;
-  const items = await window.ambilMasterList('kabupaten');
-  const opsi = items.map(k => `<option value="${k}">${k}</option>`).join('');
-  const selectTinggal = document.getElementById('reg-tinggal-kab');
-  const selectKtp = document.getElementById('reg-ktp-kab');
-  if (selectTinggal) { selectTinggal.innerHTML = opsi; await window.updateKecamatanTinggal(); }
-  if (selectKtp) { selectKtp.innerHTML = opsi; await window.updateKecamatanKTP(); }
-};
+// Registrasi karyawan baru (form, dropdown Kabupaten/Kecamatan, submit +
+// rollback akun jika simpan profil gagal) sudah pindah ke
+// js/vue-registrasi.js.
 
-window.updateKecamatanTinggal = async function() {
-  const kabEl = document.getElementById('reg-tinggal-kab');
-  const kec = document.getElementById('reg-tinggal-kec');
-  if (!kec || !kabEl || !window.ambilKecamatanUntukKabupaten) return;
-  const list = await window.ambilKecamatanUntukKabupaten(kabEl.value);
-  kec.innerHTML = list.map(k => `<option value="${k}">${k}</option>`).join('');
-};
-
-window.updateKecamatanKTP = async function() {
-  const kabEl = document.getElementById('reg-ktp-kab');
-  const kec = document.getElementById('reg-ktp-kec');
-  if (!kec || !kabEl || !window.ambilKecamatanUntukKabupaten) return;
-  const list = await window.ambilKecamatanUntukKabupaten(kabEl.value);
-  kec.innerHTML = list.map(k => `<option value="${k}">${k}</option>`).join('');
-};
-
-window.salinAlamat = async function() {
-  if(document.getElementById('check-sama-alamat').checked) {
-    document.getElementById('reg-ktp-kab').value = document.getElementById('reg-tinggal-kab').value;
-    await window.updateKecamatanKTP();
-    document.getElementById('reg-ktp-kec').value = document.getElementById('reg-tinggal-kec').value;
-    document.getElementById('reg-ktp-detail').value = document.getElementById('reg-tinggal-detail').value;
-  }
-};
-
-// ============================================================================
-// REGISTRASI: membuat akun Firebase Auth sungguhan + menyimpan profil lengkap
-// Skema field profil di sini SENGAJA disamakan persis dengan yang dibaca/ditulis
-// oleh js/dashboard.js (pindahSubProfile & simpanUpdateDataDiriLengkap), supaya
-// data yang diisi saat registrasi langsung muncul kembali di tab "Data Diri".
-// ============================================================================
-window.simpanPendaftaranBaru = async function() {
-  const btn = event.currentTarget;
-  const originalText = btn.innerHTML;
-  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Memproses...';
-  btn.disabled = true;
-
-  const nama = document.getElementById('reg-nama').value.trim();
-  const nik = document.getElementById('reg-nik').value.trim();
-  const email = document.getElementById('reg-email').value.trim().toLowerCase();
-  const hp = document.getElementById('reg-hp').value.trim();
-  const pass = document.getElementById('reg-pass').value;
-  const confirmPass = document.getElementById('reg-confirm-pass').value;
-
-  if (!nama || !nik || !email || !hp || !pass || !confirmPass || !window.ktpBase64Global) {
-    alert("Mohon lengkapi data wajib (Nama, NIK, Email, No HP, Password, dan Foto KTP)!");
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-    return;
-  }
-
-  if (pass !== confirmPass) {
-    alert("Konfirmasi password tidak sama dengan password!");
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-    return;
-  }
-
-  if (pass.length < 6) {
-    alert("Password minimal 6 karakter!");
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-    return;
-  }
-
-  // Jaga-jaga (defense in depth): Firestore membatasi 1 dokumen maksimal 1MB.
-  // Foto KTP seharusnya sudah dikompres otomatis saat dipilih, tapi cek ulang
-  // di sini supaya tidak sampai gagal simpan di tengah jalan.
-  const perkiraanUkuranKtpKB = Math.round((window.ktpBase64Global.length * 0.75) / 1024);
-  if (perkiraanUkuranKtpKB > 700) {
-    alert(`Foto KTP masih terlalu besar (\u00b1${perkiraanUkuranKtpKB}KB). Silakan pilih ulang/ambil ulang foto KTP-nya.`);
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-    return;
-  }
-
-  let userCredential = null;
-  try {
-    // 1. Buat akun autentikasi sungguhan di Firebase Auth
-    userCredential = await createUserWithEmailAndPassword(auth, email, pass);
-
-    // 2. Simpan profil lengkap ke Firestore (skema flat, sama dengan dashboard.js)
-    // Akun baru MASUK ANTREAN dulu — PIC/Owner wajib approve & lengkapi
-    // status kerja, role akses, jabatan, tipe karyawan, dan gudang penempatan
-    // lewat Menu Karyawan > Antrean Karyawan sebelum akun ini bisa dipakai.
-    try {
-      await setDoc(doc(db, "users", email), {
-        id_karyawan: document.getElementById('reg-id').value,
-        id_app: document.getElementById('reg-idapp').value,
-        qr_code: "QR-" + document.getElementById('reg-idapp').value,
-        status_approval: "PENDING",
-        status_kerja: "Menunggu Persetujuan",
-        role: "operator",
-        jenis_pekerjaan: "",
-        jabatan: "",
-        status_karyawan: "",
-        gudang_penempatan: [],
-        nama_shift: "",
-
-        email: email,
-        nama: nama,
-        name: nama,
-        nik: nik,
-        hp: hp,
-        gender: document.getElementById('reg-gender').value,
-        tempatLahir: document.getElementById('reg-tempatlahir').value,
-        tglLahir: document.getElementById('reg-tgl').value,
-        foto_ktp: window.ktpBase64Global,
-
-        tinggalKab: document.getElementById('reg-tinggal-kab').value,
-        tinggalKec: document.getElementById('reg-tinggal-kec').value,
-        tinggalDetail: document.getElementById('reg-tinggal-detail').value,
-
-        ktpKab: document.getElementById('reg-ktp-kab').value,
-        ktpKec: document.getElementById('reg-ktp-kec').value,
-        ktpDetail: document.getElementById('reg-ktp-detail').value,
-
-        statusNikah: document.getElementById('reg-nikah').value,
-        tanggungan: document.getElementById('reg-tanggungan').value,
-
-        pendidikan: document.getElementById('reg-pendidikan').value,
-        sekolah: document.getElementById('reg-sekolah').value,
-        jurusan: document.getElementById('reg-jurusan').value,
-
-        bank: document.getElementById('reg-bank').value,
-        noRek: document.getElementById('reg-norek').value,
-        atasNamaRek: document.getElementById('reg-namarek').value,
-
-        daruratNama: document.getElementById('reg-darurat-nama').value,
-        daruratHp: document.getElementById('reg-darurat-hp').value,
-        daruratHub: document.getElementById('reg-darurat-hub').value,
-
-        tanggal_daftar: new Date().toLocaleDateString('id-ID')
-      });
-    } catch (errSimpanProfil) {
-      // PENTING: akun Auth di langkah 1 sudah terlanjur dibuat. Kalau simpan
-      // profil gagal (foto kegedean, jaringan putus, dll), akun itu HARUS
-      // dihapus lagi di sini — supaya email ini tidak "nyangkut" (tidak bisa
-      // dipakai daftar ulang, tapi juga tidak pernah bisa login).
-      try {
-        await deleteUser(userCredential.user);
-      } catch (errRollback) {
-        console.error("Gagal rollback akun Auth setelah simpan profil gagal:", errRollback);
-      }
-      throw errSimpanProfil;
-    }
-
-    // Notifikasi WA (Poin 4): akun berhasil diajukan, menunggu persetujuan
-    (async () => {
-      try {
-        const templatePending = await ambilTemplateWA('template_pending');
-        await window.kirimPesanWhatsapp(hp, templatePending.replace(/\{nama\}/g, nama), "Akun Menunggu");
-      } catch (e) {
-        console.error("Gagal kirim notifikasi WA pendaftaran:", e);
-      }
-    })();
-
-    alert("Registrasi Berhasil! Akun Anda menunggu persetujuan Owner/PIC sebelum bisa dipakai login.");
-    window.pindahLayar('screen-login');
-  } catch (e) {
-    console.error("Gagal daftar:", e);
-    alert(pesanErrorAuth(e.code) || "Gagal menyimpan pendaftaran: " + e.message);
-  } finally {
-    btn.innerHTML = originalText;
-    btn.disabled = false;
-  }
-};
 
 // ============================================================================
 // LOGIN: memverifikasi email + password sungguhan lewat Firebase Auth.
