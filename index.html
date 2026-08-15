@@ -592,7 +592,7 @@
             <p class="text-xs text-gray-500 mt-0.5">Kelola antrean persetujuan, pantau riwayat absensi, rekapitulasi, dan konfigurasi jadwal.</p>
           </div>
           <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200 pt-2 hide-scrollbar">
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this); muatConfigAbsensi();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-cogs mr-1.5"></i> Config Absensi</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this)" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-cogs mr-1.5"></i> Config Absensi</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this); muatDataPenjadwalan();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-calendar-alt mr-1.5"></i> Penjadwalan</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this); muatDataAdminACC();" class="sub-absensi-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-clock mr-1.5"></i> Antrean Absensi</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-riwayat-acc', this); muatDataRiwayatACC();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-check-circle mr-1.5"></i> Riwayat ACC</button>
@@ -601,49 +601,8 @@
         </div>
 
         <div id="sub-absensi-config" class="sub-absensi-content hidden fade-in space-y-4">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-              <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-map-marker-alt text-blue-500 mr-1.5"></i> Master Gudang & Titik Lokasi</h3>
-              <div class="space-y-3 text-xs">
-                <div><label class="block font-semibold text-gray-600 mb-1">Nama Gudang / Cabang *</label><input type="text" id="conf-gudang-nama" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-                <div>
-                  <label class="block font-semibold text-gray-600 mb-1">Jenis Lokasi *</label>
-                  <select id="conf-gudang-tipe" onchange="toggleFieldLokasiGudang()" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none">
-                    <option value="Tetap">Tetap (titik & radius pasti)</option>
-                    <option value="Dinamis">Dinamis (lapangan, lokasi bebas)</option>
-                  </select>
-                  <p class="text-[10px] text-gray-400 mt-1">Dinamis dipakai untuk orang lapangan yang visit ke mana saja — tidak ada validasi radius/koordinat saat Clock In.</p>
-                </div>
-                <div id="wadah-koordinat-gudang" class="space-y-3">
-                  <div class="grid grid-cols-2 gap-3">
-                    <div><label class="block font-semibold text-gray-600 mb-1">Latitude *</label><input type="number" step="any" id="conf-gudang-lat" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-                    <div><label class="block font-semibold text-gray-600 mb-1">Longitude *</label><input type="number" step="any" id="conf-gudang-lng" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-                  </div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">Radius Toleransi Absen (Meter) *</label><input type="number" id="conf-gudang-radius" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-                </div>
-                <button onclick="simpanMasterGudang()" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 transition shadow-sm mt-2"><i class="fas fa-save mr-1"></i> Simpan Master Gudang</button>
-              </div>
-              <div class="mt-4 pt-4 border-t">
-                <h4 class="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-wider">Daftar Gudang Tersimpan</h4>
-                <div class="overflow-x-auto rounded-xl border border-gray-100"><table class="w-full text-left text-[11px] text-gray-600"><tbody id="tabel-gudang-body" class="divide-y divide-gray-100"></tbody></table></div>
-              </div>
-            </div>
-            <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-              <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-clock text-amber-500 mr-1.5"></i> Master Shift Jam Kerja</h3>
-              <div class="space-y-3 text-xs">
-                <div><label class="block font-semibold text-gray-600 mb-1">Nama Shift *</label><input type="text" id="conf-shift-nama" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-                <div class="grid grid-cols-2 gap-3">
-                  <div><label class="block font-semibold text-gray-600 mb-1">Jam Masuk (In) *</label><input type="time" id="conf-shift-in" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-                  <div><label class="block font-semibold text-gray-600 mb-1">Jam Keluar (Out) *</label><input type="time" id="conf-shift-out" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-                </div>
-                <button onclick="simpanMasterShift()" class="w-full bg-amber-500 text-white font-bold py-2.5 rounded-xl hover:bg-amber-600 transition shadow-sm mt-5"><i class="fas fa-save mr-1"></i> Simpan Master Shift</button>
-              </div>
-              <div class="mt-4 pt-4 border-t">
-                <h4 class="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-wider">Daftar Shift Tersimpan</h4>
-                <div class="overflow-x-auto rounded-xl border border-gray-100"><table class="w-full text-left text-[11px] text-gray-600"><tbody id="tabel-shift-body" class="divide-y divide-gray-100"></tbody></table></div>
-              </div>
-            </div>
-          </div>
+          <!-- MIGRASI VUE: lihat js/vue-config-absensi.js -->
+          <div id="vue-config-absensi"></div>
         </div>
 
         <div id="sub-absensi-jadwal" class="sub-absensi-content hidden fade-in space-y-4">
@@ -1169,16 +1128,6 @@
         formIzin.classList.add('hidden');
       }
     }
-
-    function toggleFieldLokasiGudang() {
-      const tipe = document.getElementById('conf-gudang-tipe').value;
-      const wadah = document.getElementById('wadah-koordinat-gudang');
-      if (tipe === 'Dinamis') {
-        wadah.classList.add('hidden');
-      } else {
-        wadah.classList.remove('hidden');
-      }
-    }
   </script>
 
   <script type="module" src="js/firebase-config.js"></script>
@@ -1187,5 +1136,6 @@
   <script type="module" src="js/auth.js"></script>
   <script type="module" src="js/dashboard.js?v=5"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>
+  <script type="module" src="js/vue-config-absensi.js"></script>
 </body>
 </html>

@@ -686,88 +686,14 @@ window.simpanEditUser = async function() {
 };
 
 // =========================================================================
-// ====== MODUL CONFIG ABSENSI (3.3.1.4.1 - MASTER GUDANG & SHIFT) ======
+// MODUL CONFIG ABSENSI (Master Gudang & Master Shift) — UI-nya sudah pindah
+// ke js/vue-config-absensi.js. Koleksi Firestore "master_gudang" dan
+// "master_shift" TETAP dibaca langsung (skema field sama persis) oleh
+// bagian yang belum dimigrasi: geofencing di camera.js, Penjadwalan,
+// Daftar Karyawan, dan Antrean Dakar.
 // =========================================================================
 
-window.muatConfigAbsensi = function() {
-  window.muatMasterGudang();
-  window.muatMasterShift();
-};
 
-window.simpanMasterGudang = async function() {
-  const nama = document.getElementById('conf-gudang-nama').value;
-  const tipeLokasi = document.getElementById('conf-gudang-tipe').value;
-  const lat = document.getElementById('conf-gudang-lat').value;
-  const lng = document.getElementById('conf-gudang-lng').value;
-  const radius = document.getElementById('conf-gudang-radius').value;
-
-  if (!nama) return alert("Nama Gudang / Cabang harus diisi!");
-  if (tipeLokasi === 'Tetap' && (!lat || !lng || !radius)) {
-    return alert("Untuk lokasi Tetap, Latitude/Longitude/Radius harus diisi lengkap!");
-  }
-
-  try {
-    await addDoc(collection(db, "master_gudang"), {
-      nama_gudang: nama,
-      tipe_lokasi: tipeLokasi,
-      latitude: tipeLokasi === 'Tetap' ? lat : "",
-      longitude: tipeLokasi === 'Tetap' ? lng : "",
-      radius: tipeLokasi === 'Tetap' ? parseInt(radius) : 0
-    });
-    alert("Master Gudang Berhasil Disimpan!");
-    
-    document.getElementById('conf-gudang-nama').value = '';
-    document.getElementById('conf-gudang-lat').value = '';
-    document.getElementById('conf-gudang-lng').value = '';
-    document.getElementById('conf-gudang-radius').value = '';
-    document.getElementById('conf-gudang-tipe').value = 'Tetap';
-    if (window.toggleFieldLokasiGudang) window.toggleFieldLokasiGudang();
-    
-    window.muatMasterGudang();
-  } catch (e) {
-    console.error(e);
-    alert("Gagal menyimpan data gudang ke Firebase.");
-  }
-};
-
-window.muatMasterGudang = async function() {
-  const tbody = document.getElementById('tabel-gudang-body');
-  if(!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-400">Memuat data...</td></tr>';
-  
-  const querySnapshot = await getDocs(collection(db, "master_gudang"));
-  tbody.innerHTML = "";
-  
-  querySnapshot.forEach((document) => {
-    const d = document.data();
-    const isDinamis = d.tipe_lokasi === 'Dinamis';
-    const infoLokasi = isDinamis
-      ? '<span class="inline-block px-2 py-0.5 bg-blue-50 text-blue-600 font-bold text-[9px] rounded-full">DINAMIS - Tanpa Radius</span>'
-      : `Lat: ${d.latitude}<br>Lng: ${d.longitude}<br><span class="font-bold text-red-500">Radius: ${d.radius} m</span>`;
-    tbody.innerHTML += `
-      <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
-        <td class="p-2 font-bold text-blue-800">${d.nama_gudang}</td>
-        <td class="p-2 text-[10px] text-gray-500 font-mono">${infoLokasi}</td>
-        <td class="p-2 text-center">
-          <button onclick="hapusMasterGudang('${document.id}')" class="text-red-500 hover:text-white hover:bg-red-500 font-bold px-2 py-1.5 bg-red-50 rounded-lg transition"><i class="fas fa-trash-alt"></i></button>
-        </td>
-      </tr>
-    `;
-  });
-  if(tbody.innerHTML === "") tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-400">Belum ada data gudang terdaftar.</td></tr>';
-};
-
-window.hapusMasterGudang = async function(idDoc) {
-  if(confirm("Yakin ingin menghapus Gudang ini dari Master Data?")) {
-    await deleteDoc(doc(db, "master_gudang", idDoc));
-    window.muatMasterGudang();
-  }
-};
-
-// =========================================================================
-// SISTEM MASTER DATA (Config Karyawan) — 1 sistem generik dipakai bareng untuk
-// 9 kategori dropdown di seluruh aplikasi. Disimpan di Firestore koleksi
-// "master_data", 1 dokumen per kategori, field "items" (array string).
 // Kecamatan dikecualikan (lihat fungsi khusus di bawah) karena strukturnya
 // bertingkat per Kabupaten.
 // =========================================================================
@@ -828,61 +754,7 @@ window.ambilKecamatanUntukKabupaten = async function(kab) {
 // dimigrasi (Antrean Dakar, Edit Karyawan, Registrasi).
 
 
-window.simpanMasterShift = async function() {
-  const nama = document.getElementById('conf-shift-nama').value;
-  const inTime = document.getElementById('conf-shift-in').value;
-  const outTime = document.getElementById('conf-shift-out').value;
-
-  if(!nama || !inTime || !outTime) return alert("Semua kolom Master Shift harus diisi lengkap!");
-
-  try {
-    await addDoc(collection(db, "master_shift"), {
-      nama_shift: nama,
-      jam_masuk: inTime,
-      jam_keluar: outTime
-    });
-    alert("Master Shift Berhasil Disimpan!");
-    
-    document.getElementById('conf-shift-nama').value = '';
-    document.getElementById('conf-shift-in').value = '';
-    document.getElementById('conf-shift-out').value = '';
-    
-    window.muatMasterShift();
-  } catch (e) {
-    console.error(e);
-    alert("Gagal menyimpan data shift.");
-  }
-};
-
-window.muatMasterShift = async function() {
-  const tbody = document.getElementById('tabel-shift-body');
-  if(!tbody) return;
-  tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-400">Memuat data...</td></tr>';
-  
-  const querySnapshot = await getDocs(collection(db, "master_shift"));
-  tbody.innerHTML = "";
-  
-  querySnapshot.forEach((document) => {
-    const d = document.data();
-    tbody.innerHTML += `
-      <tr class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
-        <td class="p-2 font-bold text-amber-700">${d.nama_shift}</td>
-        <td class="p-2 text-[10px] text-gray-500 font-bold">In: <span class="text-green-600">${d.jam_masuk}</span><br>Out: <span class="text-red-500">${d.jam_keluar}</span></td>
-        <td class="p-2 text-center">
-          <button onclick="hapusMasterShift('${document.id}')" class="text-red-500 hover:text-white hover:bg-red-500 font-bold px-2 py-1.5 bg-red-50 rounded-lg transition"><i class="fas fa-trash-alt"></i></button>
-        </td>
-      </tr>
-    `;
-  });
-  if(tbody.innerHTML === "") tbody.innerHTML = '<tr><td colspan="3" class="p-2 text-center text-gray-400">Belum ada data shift terdaftar.</td></tr>';
-};
-
-window.hapusMasterShift = async function(idDoc) {
-  if(confirm("Yakin ingin menghapus Shift ini dari Master Data?")) {
-    await deleteDoc(doc(db, "master_shift", idDoc));
-    window.muatMasterShift();
-  }
-};
+// Master Shift UI dipindah ke js/vue-config-absensi.js.
 
 // =========================================================================
 // ====== MODUL PENJADWALAN KARYAWAN (3.3.1.4.2) ======
