@@ -593,7 +593,7 @@
           </div>
           <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200 pt-2 hide-scrollbar">
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this)" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-cogs mr-1.5"></i> Config Absensi</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this); muatDataPenjadwalan();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-calendar-alt mr-1.5"></i> Penjadwalan</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this)" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-calendar-alt mr-1.5"></i> Penjadwalan</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this)" class="sub-absensi-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-clock mr-1.5"></i> Antrean Absensi</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-riwayat-acc', this); muatDataRiwayatACC();" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-check-circle mr-1.5"></i> Riwayat ACC</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this)" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-chart-bar mr-1.5"></i> Riwayat All Absensi</button>
@@ -606,107 +606,10 @@
         </div>
 
         <div id="sub-absensi-jadwal" class="sub-absensi-content hidden fade-in space-y-4">
-
-          <!-- 0. Ringkasan Penjadwalan: 1 kartu = 1 gudang, scroll horizontal, bisa diklik untuk filter tabel -->
-          <div id="jadwal-ring-scroll" class="flex gap-3 overflow-x-auto pb-2 no-scrollbar"></div>
-
-          <!-- 3. Update Massal -->
-          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-3">
-            <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-layer-group text-blue-600 mr-1.5"></i> Update Massal (<span id="jadwal-jumlah-terpilih">0</span> Karyawan Terpilih)</h3>
-            <p class="text-[10px] text-gray-400">Kosongkan kolom yang tidak ingin diubah. Berlaku untuk karyawan yang dicentang di tabel bawah (mengikuti filter/pencarian yang sedang aktif).</p>
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-              <div>
-                <label class="block font-semibold text-gray-600 mb-1">Gudang Penempatan (kosongkan = tidak diubah)</label>
-                <div id="jadwal-bulk-gudang-checkboxes" class="flex flex-wrap gap-2 p-2 bg-gray-50 border rounded-xl min-h-[42px]"></div>
-              </div>
-              <div>
-                <label class="block font-semibold text-gray-600 mb-1">Shift</label>
-                <select id="jadwal-bulk-shift" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"><option value="">-- Tidak Diubah --</option></select>
-              </div>
-              <div>
-                <label class="block font-semibold text-gray-600 mb-1">Hari Libur</label>
-                <select id="jadwal-bulk-libur" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none">
-                  <option value="">-- Tidak Diubah --</option>
-                  <option value="Minggu">Minggu</option><option value="Senin">Senin</option><option value="Selasa">Selasa</option><option value="Rabu">Rabu</option><option value="Kamis">Kamis</option><option value="Jumat">Jumat</option><option value="Sabtu">Sabtu</option>
-                </select>
-              </div>
-            </div>
-            <button onclick="jadwalTerapkanBulkUpdate()" class="w-full bg-slate-800 text-white font-bold py-2.5 rounded-xl hover:bg-slate-900 transition shadow-sm"><i class="fas fa-check-double mr-1"></i> Terapkan ke Karyawan Terpilih</button>
-          </div>
-
-          <!-- 4. Excel Export/Import -->
-          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-3">
-            <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-file-excel text-green-600 mr-1.5"></i> Edit Lewat Excel</h3>
-            <p class="text-[10px] text-gray-400">Unduh data (mengikuti filter aktif), edit kolom Gudang/Shift/Hari Libur di Excel, lalu unggah ulang untuk update massal.</p>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <button onclick="jadwalExportExcel()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5">
-                <i class="fas fa-download"></i><span>Unduh Excel</span>
-              </button>
-              <label class="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 font-bold py-2.5 rounded-xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5 cursor-pointer">
-                <i class="fas fa-upload"></i><span>Unggah Excel</span>
-                <input type="file" id="jadwal-excel-input" accept=".xlsx,.xls" onchange="jadwalImportExcel(event)" class="hidden">
-              </label>
-            </div>
-          </div>
-
-          <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-
-            <!-- 1. Pencarian -->
-            <div class="relative">
-              <i class="fas fa-search absolute left-3 top-2.5 text-gray-400 text-xs"></i>
-              <input type="text" id="jadwal-cari-nama" oninput="jadwalTerapkanFilter()" placeholder="Cari nama karyawan..." autocomplete="off" class="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-xs">
-            </div>
-
-            <!-- 2. Filter -->
-            <div class="bg-gray-50 rounded-2xl p-3.5 space-y-3 text-xs">
-              <div class="flex items-center justify-between">
-                <h4 class="font-bold text-gray-600"><i class="fas fa-filter mr-1"></i> Filter & Seleksi</h4>
-                <div class="flex gap-2">
-                  <button onclick="jadwalPilihSemua()" class="text-blue-600 font-bold hover:underline text-[11px]">Select All</button>
-                  <span class="text-gray-300">|</span>
-                  <button onclick="jadwalBersihkanPilihan()" class="text-gray-500 font-bold hover:underline text-[11px]">Clear All</button>
-                </div>
-              </div>
-              <div class="flex flex-wrap gap-4">
-                <label class="flex items-center gap-1.5 font-semibold text-gray-600"><input type="checkbox" id="jadwal-cek-sudah" checked onchange="jadwalTerapkanFilter()"> Sudah Dijadwalkan</label>
-                <label class="flex items-center gap-1.5 font-semibold text-gray-600"><input type="checkbox" id="jadwal-cek-belum" checked onchange="jadwalTerapkanFilter()"> Belum Dijadwalkan</label>
-              </div>
-              <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-                <select id="jadwal-filter-jenispekerjaan" onchange="jadwalTerapkanFilter()" class="px-2.5 py-2 bg-white border rounded-xl outline-none"><option value="ALL">Semua Jenis Pekerjaan</option></select>
-                <select id="jadwal-filter-gudang" onchange="jadwalTerapkanFilter()" class="px-2.5 py-2 bg-white border rounded-xl outline-none"><option value="ALL">Semua Gudang</option></select>
-                <select id="jadwal-filter-shift" onchange="jadwalTerapkanFilter()" class="px-2.5 py-2 bg-white border rounded-xl outline-none"><option value="ALL">Semua Shift</option></select>
-                <select id="jadwal-filter-libur" onchange="jadwalTerapkanFilter()" class="px-2.5 py-2 bg-white border rounded-xl outline-none"><option value="ALL">Semua Hari Libur</option></select>
-              </div>
-            </div>
-
-            <!-- Daftar Karyawan (checkbox) -->
-            <div class="overflow-x-auto rounded-xl border border-gray-100">
-              <table class="w-full text-left text-xs text-gray-600 whitespace-nowrap">
-                <thead class="bg-gray-50 text-gray-700 font-bold border-b text-[10px] uppercase">
-                  <tr>
-                    <th class="p-3"><input type="checkbox" id="jadwal-cek-header" onchange="jadwalToggleSemuaHalamanIni()"></th>
-                    <th class="p-3">Karyawan</th>
-                    <th class="p-3">Jenis Pekerjaan</th>
-                    <th class="p-3">Gudang</th>
-                    <th class="p-3">Shift</th>
-                    <th class="p-3">Hari Libur</th>
-                    <th class="p-3 text-center">Status</th>
-                  </tr>
-                </thead>
-                <tbody id="tabel-jadwal-body" class="divide-y divide-gray-100"></tbody>
-              </table>
-            </div>
-
-            <!-- 4. Pagination -->
-            <div class="flex items-center justify-between text-xs pt-1">
-              <span id="jadwal-info-halaman" class="text-gray-400">-</span>
-              <div class="flex gap-2">
-                <button onclick="jadwalHalamanSebelumnya()" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold"><i class="fas fa-chevron-left"></i></button>
-                <button onclick="jadwalHalamanBerikutnya()" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold"><i class="fas fa-chevron-right"></i></button>
-              </div>
-            </div>
-          </div>
+          <!-- MIGRASI VUE: lihat js/vue-penjadwalan.js -->
+          <div id="vue-penjadwalan"></div>
         </div>
+
 
         <div id="sub-absensi-accept" class="sub-absensi-content fade-in space-y-4">
            <!-- MIGRASI VUE: lihat js/vue-antrean-absensi.js -->
@@ -955,5 +858,6 @@
   <script type="module" src="js/vue-antrean-dakar.js"></script>
   <script type="module" src="js/vue-antrean-absensi.js"></script>
   <script type="module" src="js/vue-riwayat-absensi.js"></script>
+  <script type="module" src="js/vue-penjadwalan.js"></script>
 </body>
 </html>
