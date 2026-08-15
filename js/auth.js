@@ -37,31 +37,8 @@ window.normalisasiGudang = function(value) {
   return [];
 };
 
-// Poin 4: deteksi perangkat desktop (bukan HP/tablet)
-function isDesktopBrowser() {
-  return !/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-}
-
-// Poin 4: cek ke server (bukan localStorage) apakah user ini sudah Clock In hari ini —
-// harus ke server karena Clock In wajib dari HP, lalu login berikutnya boleh dari desktop.
-async function sudahClockInHariIniServer(email) {
-  const hariIni = new Date().toLocaleDateString('id-ID');
-  try {
-    const querySnapshot = await getDocs(collection(db, "absensi"));
-    let ditemukan = false;
-    querySnapshot.forEach(docSnap => {
-      const d = docSnap.data();
-      if (d.email === email && d.status === "HADIR (CLOCK IN)" && d.waktu) {
-        const tglRecord = d.waktu.split(', ')[0];
-        if (tglRecord === hariIni) ditemukan = true;
-      }
-    });
-    return ditemukan;
-  } catch (e) {
-    console.error("Gagal cek status clock-in:", e);
-    return false; // gagal cek -> anggap belum, lebih aman (fail-safe, bukan fail-open)
-  }
-}
+// isDesktopBrowser & sudahClockInHariIniServer sudah direplikasi di
+// js/vue-login.js (dipakai murni untuk gerbang login).
 
 // Poin 1: cek apakah waktu sekarang masih dalam jam shift yang di-assign ke karyawan ini
 window.cekMasihJamKerja = async function(namaShift) {
@@ -164,78 +141,8 @@ async function ambilTemplateWA(jenis) {
 }
 window.ambilTemplateWA = ambilTemplateWA; // dipakai juga oleh dashboard.js
 
-// ---- OTP login perangkat baru (Poin 1: sekali per perangkat) ----
-window._otpState = { kode: null, email: null, kadaluarsa: null };
+// OTP login perangkat baru sudah pindah ke js/vue-login.js.
 
-window.apakahOtpDiperlukan = async function(email) {
-  try {
-    const configSnap = await getDoc(doc(db, "config", "whatsapp_gateway"));
-    if (!configSnap.exists() || !configSnap.data().otp_aktif) return false;
-  } catch (e) {
-    console.error("Gagal cek konfigurasi OTP:", e);
-    return false; // gagal cek konfigurasi -> jangan halangi login
-  }
-  const sudahTerverifikasi = localStorage.getItem('zevanic_device_verified_' + email) === 'true';
-  return !sudahTerverifikasi;
-};
-
-window.mulaiVerifikasiOtp = async function(email) {
-  const kode = String(Math.floor(100000 + Math.random() * 900000));
-  window._otpState = { kode, email, kadaluarsa: Date.now() + 5 * 60 * 1000 };
-
-  let nomorHp = "";
-  try {
-    const userSnap = await getDoc(doc(db, "users", email));
-    if (userSnap.exists()) nomorHp = userSnap.data().hp || "";
-  } catch (e) { console.error(e); }
-
-  if (!nomorHp) {
-    alert("Nomor HP Anda belum terdaftar di sistem, tidak bisa mengirim OTP. Hubungi Owner/PIC.");
-    return false;
-  }
-
-  const templateOtp = await ambilTemplateWA('template_otp');
-  const terkirim = await window.kirimPesanWhatsapp(
-    nomorHp,
-    templateOtp.replace(/\{kode\}/g, kode),
-    "OTP"
-  );
-  if (!terkirim) {
-    alert("Gagal mengirim kode OTP lewat WhatsApp. Coba lagi atau hubungi Owner/PIC.");
-    return false;
-  }
-
-  const infoNomor = document.getElementById('otp-info-nomor');
-  if (infoNomor) infoNomor.innerText = nomorHp.replace(/(\d{4})\d+(\d{3})/, '$1****$2');
-  const otpInput = document.getElementById('otp-input');
-  if (otpInput) otpInput.value = '';
-  document.getElementById('modal-otp').classList.remove('hidden');
-  return true;
-};
-
-window.batalkanOtp = async function() {
-  document.getElementById('modal-otp').classList.add('hidden');
-  await signOut(auth);
-};
-
-window.kirimUlangOtp = function() {
-  if (window._otpState.email) window.mulaiVerifikasiOtp(window._otpState.email);
-};
-
-window.verifikasiOtpDanLanjut = async function() {
-  const kodeInput = document.getElementById('otp-input').value.trim();
-  if (!window._otpState.kode || Date.now() > window._otpState.kadaluarsa) {
-    alert("Kode OTP sudah kadaluarsa. Silakan kirim ulang.");
-    return;
-  }
-  if (kodeInput !== window._otpState.kode) {
-    alert("Kode OTP salah. Silakan coba lagi.");
-    return;
-  }
-  localStorage.setItem('zevanic_device_verified_' + window._otpState.email, 'true');
-  document.getElementById('modal-otp').classList.add('hidden');
-  await window.lanjutkanSetelahLogin(window._otpState.email);
-};
 
 // =========================================================================
 // Poin 1: SESI OTOMATIS — kalau browser ditutup lalu dibuka lagi, dan sesi
@@ -243,7 +150,7 @@ window.verifikasiOtpDanLanjut = async function() {
 // sudah Clock In hari ini -> langsung ke Dashboard tanpa isi ulang email/
 // password. Ini HANYA jalan sekali saat aplikasi pertama kali dimuat, bukan
 // setiap kali status auth berubah (supaya tidak bentrok dengan proses login
-// manual di prosesLogin()).
+// manual di js/vue-login.js).
 // =========================================================================
 let sesiOtomatisSudahDicek = false;
 onAuthStateChanged(auth, async (user) => {
@@ -288,31 +195,8 @@ onAuthStateChanged(auth, async (user) => {
   }
 });
 
-window.addEventListener('DOMContentLoaded', () => {
-  // Catatan: password TIDAK PERNAH disimpan di localStorage (dulu iya, ini bug keamanan).
-  // "Ingat Saya" sekarang hanya mengingat alamat email untuk kenyamanan pengisian form.
-  const savedEmail = localStorage.getItem('zevanic_email');
-  if (savedEmail) {
-    document.getElementById('input-email').value = savedEmail;
-    document.getElementById('check-ingat').checked = true;
-  }
-  // Bersihkan sisa password lama yang mungkin masih tersimpan dari versi sebelumnya
-  localStorage.removeItem('zevanic_pass');
-
-  // Desktop tidak dipakai untuk Clock In/Izin/Cuti (semua butuh selfie via kamera).
-  // Sembunyikan seluruh dropdown pilihan status, jangan paksa ke opsi manapun.
-  // Login desktop cuma untuk masuk Dashboard setelah Clock In dari HP.
-  if (isDesktopBrowser()) {
-    const wadahStatus = document.getElementById('wadah-pilihan-status');
-    const formIzin = document.getElementById('form-izin-cuti');
-    const infoDesktop = document.getElementById('info-desktop-login');
-    if (wadahStatus) wadahStatus.classList.add('hidden');
-    if (formIzin) formIzin.classList.add('hidden');
-    if (infoDesktop) infoDesktop.classList.remove('hidden');
-    window.statusPilihanGlobal = "HADIR (CLOCK IN)"; // nilai internal saja, tidak dipakai untuk apapun di desktop
-  }
-
-});
+// Prefill email "Ingat Saya" + deteksi desktop (sembunyikan dropdown status)
+// sudah dipindah ke onMounted() di js/vue-login.js.
 
 window.bukaFormRegistrasi = function() {
   window.pindahLayar('screen-register');
@@ -324,164 +208,9 @@ window.bukaFormRegistrasi = function() {
 // js/vue-registrasi.js.
 
 
-// ============================================================================
-// LOGIN: memverifikasi email + password sungguhan lewat Firebase Auth.
-// Tidak ada lagi "tebak role dari email" — akses hanya diberikan setelah
-// autentikasi berhasil, dan role diambil dari data Firestore yang tersimpan.
-// ============================================================================
-window.prosesLogin = async function() {
-  const emailInput = document.getElementById('input-email').value.trim().toLowerCase();
-  const passInput = document.getElementById('input-pass').value;
-  window.statusPilihanGlobal = document.getElementById('pilihan-status').value;
-
-  // Tangkap Data Form Ekstra
-  window.tanggalIzinGlobal = document.getElementById('input-tgl-izin') ? document.getElementById('input-tgl-izin').value : "";
-  const alasanIzinTerpilih = document.getElementById('input-ket-izin') ? document.getElementById('input-ket-izin').value : "";
-  const detailIzin = document.getElementById('input-ket-izin-detail') ? document.getElementById('input-ket-izin-detail').value.trim() : "";
-  window.keteranganIzinGlobal = detailIzin ? `${alasanIzinTerpilih} - ${detailIzin}` : alasanIzinTerpilih;
-
-  if (!emailInput || !passInput) {
-    alert("Masukkan email dan password terlebih dahulu!");
-    return;
-  }
-
-  // Validasi Izin & Cuti
-  if (window.statusPilihanGlobal === "IZIN" || window.statusPilihanGlobal === "CUTI") {
-    if (!window.tanggalIzinGlobal || !window.keteranganIzinGlobal) {
-      alert("Harap isi Tanggal dan Keterangan untuk pengajuan Izin/Cuti!");
-      return;
-    }
-
-    if (window.statusPilihanGlobal === "CUTI") {
-      const tglPilih = new Date(window.tanggalIzinGlobal);
-      const tglSekarang = new Date();
-      tglSekarang.setHours(0,0,0,0);
-
-      const selisihHari = (tglPilih - tglSekarang) / (1000 * 60 * 60 * 24);
-      if (selisihHari < 3) {
-        alert("Pengajuan Cuti minimal H-3 dari tanggal hari ini!");
-        return;
-      }
-    }
-  }
-
-  // Verifikasi email + password sungguhan ke Firebase Auth
-  try {
-    await signInWithEmailAndPassword(auth, emailInput, passInput);
-  } catch (e) {
-    console.error("Gagal login:", e);
-    alert(pesanErrorAuth(e.code) || "Gagal login: " + e.message);
-    return;
-  }
-
-  // Verifikasi OTP WhatsApp — hanya untuk login PERTAMA di perangkat ini.
-  // Kalau perlu, alur login "dijeda" di sini (modal OTP tampil) dan akan
-  // dilanjutkan oleh verifikasiOtpDanLanjut() setelah kode benar.
-  const otpDiperlukan = await window.apakahOtpDiperlukan(emailInput);
-  if (otpDiperlukan) {
-    const terkirim = await window.mulaiVerifikasiOtp(emailInput);
-    if (!terkirim) await signOut(auth); // gagal kirim OTP -> jangan biarkan sesi menggantung
-    return;
-  }
-
-  await window.lanjutkanSetelahLogin(emailInput);
-};
-
-// Sisa proses login (gerbang perangkat, approval, gudang, routing ke dashboard/kamera).
-// Dipanggil langsung dari prosesLogin() kalau OTP tidak diperlukan, atau dipanggil
-// dari verifikasiOtpDanLanjut() setelah kode OTP benar.
-window.lanjutkanSetelahLogin = async function(emailInput) {
-  // Simpan/hapus sesi email (password TIDAK PERNAH disimpan)
-  const ingatChecked = document.getElementById('check-ingat').checked;
-  if (ingatChecked) {
-    localStorage.setItem('zevanic_email', emailInput);
-  } else {
-    localStorage.removeItem('zevanic_email');
-  }
-  localStorage.removeItem('zevanic_pass');
-
-  // Tarik profil lengkap dari Firestore
-  const userRef = doc(db, "users", emailInput);
-  const userSnap = await getDoc(userRef);
-
-  if (userSnap.exists()) {
-    const d = userSnap.data();
-    window.currentUser = {
-      ...d,
-      email: emailInput,
-      name: d.nama || d.name || emailInput,
-      role: (d.role || "operator").toLowerCase(),
-      id_app: d.id_app || "N/A",
-      id_karyawan: d.id_karyawan || "N/A",
-      jabatan: d.jabatan || "Staff",
-      status_kerja: d.status_kerja || "Aktif",
-      gudang_penempatan: window.normalisasiGudang(d.gudang_penempatan)
-    };
-
-    // Gerbang persetujuan: akun yang belum di-approve (atau ditolak) tidak boleh masuk.
-    // Akun lama yang belum pernah lewat alur Antrean Karyawan (tidak punya field ini)
-    // tetap diizinkan, supaya tidak mengunci akun-akun yang sudah aktif sebelumnya.
-    if (d.status_approval && d.status_approval !== "APPROVED") {
-      alert(d.status_approval === "PENDING"
-        ? "Akun Anda masih menunggu persetujuan Owner/PIC. Silakan hubungi mereka."
-        : "Akun Anda tidak disetujui untuk mengakses sistem. Silakan hubungi Owner/PIC.");
-      await signOut(auth);
-      return;
-    }
-
-    // Gerbang gudang: karyawan yang belum ditautkan ke gudang manapun tidak bisa login.
-    if (window.currentUser.gudang_penempatan.length === 0) {
-      alert("Akun Anda belum ditautkan ke gudang manapun. Silakan hubungi Owner/PIC.");
-      await signOut(auth);
-      return;
-    }
-  } else {
-    // Akun Auth ada tapi profil Firestore-nya tidak ditemukan — jangan beri akses.
-    alert("Profil akun Anda tidak ditemukan. Silakan hubungi Owner/PIC.");
-    await signOut(auth);
-    return;
-  }
-
-  window.aturTampilanBerdasarkanRole();
-
-  const hariIni = new Date().toLocaleDateString('id-ID');
-  const statusLokal = localStorage.getItem('zevanic_absen_' + emailInput);
-  const sudahClockInLokal = statusLokal === hariIni; // cache khusus perangkat ini
-
-  // Desktop: satu-satunya jalan masuk adalah kalau sudah Clock In hari ini.
-  // WAJIB dicek ke server (bukan localStorage) — Clock In terjadi di HP, yaitu
-  // perangkat yang BEDA dengan desktop ini, jadi localStorage desktop tidak
-  // akan pernah tahu soal Clock In yang terjadi di HP.
-  if (isDesktopBrowser()) {
-    const sudahClockInServer = await sudahClockInHariIniServer(emailInput);
-    if (sudahClockInServer) {
-      window.pindahLayar('screen-dashboard');
-      window.pindahTab('tab-home');
-    } else {
-      alert("Login lewat komputer cuma bisa dipakai kalau Anda sudah Clock In hari ini. Silakan Clock In dari HP terlebih dahulu, atau ajukan Izin/Cuti dari HP.");
-      await signOut(auth);
-    }
-    return;
-  }
-
-  // ---- Mulai di sini: alur khusus perangkat mobile (butuh kamera) ----
-  if (window.statusPilihanGlobal === "MASUK DASHBOARD") {
-      window.pindahLayar('screen-dashboard');
-      window.pindahTab('tab-home');
-      return;
-  }
-
-  if (window.statusPilihanGlobal === "HADIR (CLOCK IN)" && sudahClockInLokal) {
-      alert("Anda sudah Clock In hari ini. Mengalihkan langsung ke Dashboard...");
-      window.pindahLayar('screen-dashboard');
-      window.pindahTab('tab-home');
-      return;
-  }
-
-  // Lanjut Buka Kamera
-  document.getElementById('label-status-kamera').innerText = "Mode: " + window.statusPilihanGlobal;
-  window.pindahLayar('screen-camera');
-};
+// LOGIN (prosesLogin, lanjutkanSetelahLogin) + Modal OTP sudah pindah ke
+// js/vue-login.js. window.prosesClockOut TETAP di bawah sini (dipanggil
+// dari Vue Account Profile).
 
 
 window.prosesClockOut = function() {

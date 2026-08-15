@@ -18,111 +18,13 @@
 <body class="bg-slate-50 font-sans text-gray-800">
 
   <div id="screen-login" class="min-h-screen flex flex-col items-center justify-center p-4 fade-in overflow-y-auto">
-    <div class="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl border border-gray-100 my-6">
-      <div class="text-center mb-6">
-        <h1 class="text-3xl font-black tracking-tight text-gray-900">ZEVANIC HOUSE</h1>
-        <p class="text-xs tracking-widest text-gray-500 font-bold uppercase mt-1">ERP System & Mgmt</p>
-      </div>
-
-      <div class="space-y-4">
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Email / Akun Login</label>
-          <div class="relative">
-            <i class="far fa-envelope absolute left-4 top-3 text-gray-400"></i>
-            <input type="email" id="input-email" placeholder="contoh@zevanic.com" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Password</label>
-          <div class="relative flex items-center">
-            <i class="fas fa-lock absolute left-4 text-gray-400"></i>
-            <input type="password" id="input-pass" placeholder="••••••••" class="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
-            <button type="button" onclick="togglePassword()" class="absolute right-3 text-gray-400 hover:text-gray-600 focus:outline-none">
-              <i id="icon-mata" class="fas fa-eye-slash"></i>
-            </button>
-          </div>
-        </div>
-
-        <div class="flex items-center justify-between text-xs">
-          <label class="flex items-center space-x-2 cursor-pointer">
-            <input type="checkbox" id="check-ingat" class="rounded text-blue-600 focus:ring-blue-500 w-4 h-4">
-            <span class="text-gray-600 font-medium">Ingatkan Saya</span>
-          </label>
-          <button type="button" onclick="lupaPassword()" class="text-blue-600 font-semibold hover:underline">Lupa Password?</button>
-        </div>
-
-        <div id="wadah-pilihan-status">
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Pilih Status Kehadiran / Pengajuan</label>
-          <select id="pilihan-status" onchange="toggleFormIzin()" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm font-medium text-gray-700">
-            <option value="HADIR (CLOCK IN)">🟢 Hadir (Clock In Pertama)</option>
-            <option value="IZIN">🟡 Pengajuan Izin (Hari H)</option>
-          </select>
-        </div>
-
-        <p id="info-desktop-login" class="hidden text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5"><i class="fas fa-info-circle mr-1"></i> Login lewat komputer hanya untuk masuk Dashboard setelah Clock In dari HP. Untuk Clock In / Izin / Cuti, gunakan HP.</p>
-
-        <div id="form-izin-cuti" class="hidden space-y-4 pt-2 border-t border-gray-100">
-          <div>
-            <label class="block text-xs font-semibold text-gray-600 mb-1">Tanggal Pengajuan <span id="label-validasi-tgl" class="text-red-500"></span></label>
-            <input type="date" id="input-tgl-izin" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-600 mb-1">Alasan</label>
-            <select id="input-ket-izin" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm"></select>
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-600 mb-1">Detail Tambahan (opsional)</label>
-            <textarea id="input-ket-izin-detail" rows="2" placeholder="Keterangan lebih lanjut jika perlu..." class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm resize-none"></textarea>
-          </div>
-        </div>
-
-        <button onclick="prosesLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 mt-2 flex items-center justify-center text-sm">
-          Masuk / Lanjut <i class="fas fa-arrow-right ml-2"></i>
-        </button>
-
-        <div class="text-center pt-3 border-t border-gray-100">
-          <p class="text-xs text-gray-500">Belum punya akun?</p>
-          <button onclick="bukaFormRegistrasi()" class="mt-1.5 text-blue-600 font-bold text-xs hover:underline flex items-center justify-center w-full">
-            <i class="fas fa-user-plus mr-1.5"></i> Daftar Akun Baru (Registrasi)
-          </button>
-        </div>
-      </div>
-    </div>
+    <!-- MIGRASI VUE: lihat js/vue-login.js (termasuk modal OTP) -->
+    <div id="vue-login"></div>
   </div>
 
   <div id="screen-camera" class="hidden min-h-screen bg-slate-900 flex-col items-center justify-between p-6 fade-in">
-    <div class="w-full text-center mt-4">
-      <h2 class="text-white text-xl font-bold">Verifikasi Wajah / Foto Bukti</h2>
-      <p id="label-status-kamera" class="text-blue-400 text-xs mt-1 font-semibold uppercase tracking-wider">Mode: Hadir</p>
-    </div>
-    <div id="wadah-pilih-gudang" class="hidden w-full max-w-sm mt-3">
-      <label class="block text-gray-300 text-[11px] font-semibold mb-1">Pilih Gudang</label>
-      <select id="pilih-gudang-kamera" onchange="window.gudangDipilihGlobal = this.value; window.ambilLokasiGPS();" class="w-full px-3 py-2 bg-slate-800 text-white border border-slate-600 rounded-xl outline-none text-sm"></select>
-    </div>
-    <div id="status-lokasi-kamera" class="w-full max-w-sm text-center mt-2"></div>
-    <div class="relative w-full max-w-sm aspect-[3/4] bg-gray-800 rounded-3xl overflow-hidden border-2 border-gray-700 shadow-2xl flex items-center justify-center my-4">
-      <video id="kamera-feed" autoplay playsinline class="w-full h-full object-cover hidden"></video>
-      <img id="hasil-foto" class="w-full h-full object-cover hidden" />
-      <canvas id="canvas-foto" class="hidden"></canvas>
-      <div id="pesan-kamera" class="flex flex-col items-center text-gray-500 text-center px-4">
-        <i class="fas fa-camera text-5xl mb-3 animate-pulse"></i>
-        <span class="text-sm">Meminta akses kamera...</span>
-      </div>
-      <div id="frame-wajah" class="absolute inset-4 border-2 border-dashed border-blue-400 rounded-2xl opacity-50 pointer-events-none"></div>
-    </div>
-    <div class="w-full max-w-sm mb-6 flex flex-col items-center h-24">
-      <button id="btn-jepret" onclick="ambilFoto()" class="w-16 h-16 bg-white rounded-full border-4 border-gray-300 flex items-center justify-center shadow-lg active:scale-90 transition-transform hover:bg-gray-100 hidden">
-        <div class="w-12 h-12 bg-blue-600 rounded-full shadow-inner"></div>
-      </button>
-      <div id="grup-btn-lanjut" class="hidden flex space-x-3">
-          <button onclick="ulangiFoto()" class="px-5 py-2.5 bg-gray-700 text-white font-bold rounded-xl text-sm hover:bg-gray-600 transition">Ulangi</button>
-          <button id="btn-clock-in-final" onclick="kirimDataKeCloud()" class="px-5 py-2.5 bg-green-500 text-white font-bold rounded-xl text-sm hover:bg-green-600 transition flex items-center shadow-lg shadow-green-500/30">
-              Kirim Pengajuan <i class="fas fa-check ml-2"></i>
-          </button>
-      </div>
-      <p id="teks-instruksi-kamera" class="text-gray-300 text-xs font-semibold mt-3">Ketuk tombol untuk foto</p>
-    </div>
+    <!-- MIGRASI VUE: lihat js/vue-camera.js -->
+    <div id="vue-camera" class="w-full flex flex-col items-center justify-between h-full"></div>
   </div>
 
   <!-- LAYAR 2: REGISTRASI KARYAWAN -->
@@ -316,61 +218,11 @@
     </div>
   </div>
 
-  <div id="modal-otp" class="hidden fixed inset-0 z-[120] bg-black/70 flex items-center justify-center p-4 fade-in">
-    <div class="bg-white w-full max-w-sm p-6 rounded-3xl shadow-2xl space-y-4 text-center">
-      <i class="fab fa-whatsapp text-5xl text-green-500"></i>
-      <div>
-        <h3 class="font-bold text-gray-800 text-sm">Verifikasi Perangkat Baru</h3>
-        <p class="text-[11px] text-gray-500 mt-1">Kode OTP telah dikirim lewat WhatsApp ke nomor <span id="otp-info-nomor" class="font-bold text-gray-700">****</span></p>
-      </div>
-      <input type="text" id="otp-input" maxlength="6" inputmode="numeric" placeholder="6 digit kode" class="w-full text-center tracking-[0.5em] text-lg font-bold px-3 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-green-500">
-      <button onclick="verifikasiOtpDanLanjut()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl text-sm transition">Verifikasi</button>
-      <div class="flex justify-between text-xs pt-1">
-        <button onclick="kirimUlangOtp()" class="text-blue-600 font-semibold hover:underline">Kirim Ulang</button>
-        <button onclick="batalkanOtp()" class="text-gray-400 font-semibold hover:underline">Batal</button>
-      </div>
-    </div>
-  </div>
+  <!-- Modal OTP sudah pindah ke js/vue-login.js -->
 
   <!-- Modal Edit Absensi sudah dipindah ke js/vue-riwayat-absensi.js -->
 
-  <script>
-    function togglePassword() {
-      const inputPass = document.getElementById('input-pass');
-      const iconMata = document.getElementById('icon-mata');
-      if (inputPass.type === 'password') {
-        inputPass.type = 'text';
-        iconMata.classList.remove('fa-eye-slash');
-        iconMata.classList.add('fa-eye');
-      } else {
-        inputPass.type = 'password';
-        iconMata.classList.remove('fa-eye');
-        iconMata.classList.add('fa-eye-slash');
-      }
-    }
-
-    function toggleFormIzin() {
-      const status = document.getElementById('pilihan-status').value;
-      const formIzin = document.getElementById('form-izin-cuti');
-      const labelTgl = document.getElementById('label-validasi-tgl');
-      if (status === 'IZIN' || status === 'CUTI') {
-        formIzin.classList.remove('hidden');
-        if (status === 'CUTI') {
-          labelTgl.innerText = "(Minimal H-3)";
-        } else {
-          labelTgl.innerText = "";
-        }
-        const selectAlasan = document.getElementById('input-ket-izin');
-        if (selectAlasan && selectAlasan.options.length === 0 && window.ambilMasterList) {
-          window.ambilMasterList('alasan_izin').then(items => {
-            selectAlasan.innerHTML = items.map(a => `<option value="${a}">${a}</option>`).join('');
-          });
-        }
-      } else {
-        formIzin.classList.add('hidden');
-      }
-    }
-  </script>
+  <!-- togglePassword & toggleFormIzin (dulu di sini) sudah jadi bagian reaktif js/vue-login.js -->
 
   <script type="module" src="js/firebase-config.js"></script>
   <script type="module" src="js/app.js"></script>
@@ -387,5 +239,7 @@
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>
   <script type="module" src="js/vue-account-profile.js"></script>
   <script type="module" src="js/vue-registrasi.js"></script>
+  <script type="module" src="js/vue-login.js"></script>
+  <script type="module" src="js/vue-camera.js"></script>
 </body>
 </html>
