@@ -280,6 +280,13 @@ onAuthStateChanged(auth, async (user) => {
     };
     if (window.aturTampilanBerdasarkanRole) window.aturTampilanBerdasarkanRole();
     if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
+    // Home itu layar landasan (langsung tampil begitu login, beda dari
+    // layar admin yang baru mount saat dibuka) — jadi butuh refresh SEGERA
+    // di sini juga, sama seperti Account Profile. Tanpa ini, Home sempat
+    // baca window.currentUser SEBELUM terisi data asli (masih fallback
+    // kosong/'operator'), bikin grup menu Master Absensi/Karyawan/WhatsApp
+    // dianggap tidak berhak muncul walau yang login sebenarnya Owner.
+    if (window.refreshHome) window.refreshHome();
     if (window.pindahLayar) window.pindahLayar('screen-dashboard');
     if (window.pindahTab) window.pindahTab('tab-home');
     berhasilMasukDashboard = true;
