@@ -38,6 +38,33 @@ window.normalisasiGudang = function(value) {
   return [];
 };
 
+// Helper bersama (dipakai vue-riwayat-absensi.js, vue-account-profile.js,
+// vue-whatsapp-gateway.js untuk sorting berdasarkan waktu): field `waktu` di
+// Firestore disimpan sebagai string locale Indonesia dari
+// new Date().toLocaleString('id-ID'), formatnya "D/M/YYYY, HH.MM.SS" (titik
+// sebagai pemisah jam, BUKAN titik dua) — new Date(waktuStr) tidak bisa parse
+// ini secara langsung, jadi perlu di-parse manual di sini.
+window.parseWaktuIndo = function(waktuStr) {
+  if (!waktuStr || typeof waktuStr !== 'string') return null;
+  try {
+    const [tglPart, jamPart] = waktuStr.split(',').map(s => s.trim());
+    if (!tglPart) return null;
+    const [tgl, bln, thn] = tglPart.split('/').map(Number);
+    if (!tgl || !bln || !thn) return null;
+    let jam = 0, mnt = 0, dtk = 0;
+    if (jamPart) {
+      const bagianJam = jamPart.split('.').map(Number);
+      jam = bagianJam[0] || 0;
+      mnt = bagianJam[1] || 0;
+      dtk = bagianJam[2] || 0;
+    }
+    const hasil = new Date(thn, bln - 1, tgl, jam, mnt, dtk);
+    return isNaN(hasil.getTime()) ? null : hasil;
+  } catch (e) {
+    return null;
+  }
+};
+
 // isDesktopBrowser & sudahClockInHariIniServer sudah direplikasi di
 // js/vue-login.js (dipakai murni untuk gerbang login).
 
@@ -214,6 +241,7 @@ onAuthStateChanged(auth, async (user) => {
       gudang_penempatan: gudangUser
     };
     if (window.aturTampilanBerdasarkanRole) window.aturTampilanBerdasarkanRole();
+    if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
     if (window.pindahLayar) window.pindahLayar('screen-dashboard');
     if (window.pindahTab) window.pindahTab('tab-home');
     berhasilMasukDashboard = true;

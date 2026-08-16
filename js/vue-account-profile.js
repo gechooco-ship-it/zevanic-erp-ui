@@ -108,13 +108,24 @@ const AppAccountProfile = {
     const tabAktif = ref('account');
 
     // ---- Account (QR/ID) ----
-    const namaTampil = computed(() => window.currentUser?.name || window.currentUser?.nama || 'User');
-    const idAppTampil = computed(() => window.currentUser?.id_app || 'ID Tidak Ditemukan');
-    const jabatanTampil = computed(() => window.currentUser?.jabatan || window.currentUser?.role || 'Staff');
-    const qrUrl = computed(() => {
+    // PENTING: window.currentUser adalah objek biasa (bukan reactive Vue),
+    // dan Vue app ini ter-mount di awal load halaman — SEBELUM proses login
+    // selesai. Kalau pakai computed() biasa, nilainya "terkunci" kosong
+    // selamanya (computed cuma jalan sekali, tidak tahu window.currentUser
+    // berubah). Makanya di sini pakai ref() yang di-refresh eksplisit setiap
+    // kali tab ini dibuka (lihat muatAccountDisplay + pindahTab di bawah).
+    const namaTampil = ref('User');
+    const idAppTampil = ref('ID Tidak Ditemukan');
+    const jabatanTampil = ref('Staff');
+    const qrUrl = ref('');
+
+    function muatAccountDisplay() {
+      namaTampil.value = window.currentUser?.name || window.currentUser?.nama || 'User';
+      idAppTampil.value = window.currentUser?.id_app || 'ID Tidak Ditemukan';
+      jabatanTampil.value = window.currentUser?.jabatan || window.currentUser?.role || 'Staff';
       const qrData = window.currentUser?.id_app || window.currentUser?.email || '';
-      return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${qrData}`;
-    });
+      qrUrl.value = qrData ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}` : '';
+    }
 
     function clockOut() {
       if (window.prosesClockOut) window.prosesClockOut();
@@ -333,18 +344,20 @@ const AppAccountProfile = {
     // ---- Navigasi antar sub-tab ----
     function pindahTab(nama) {
       tabAktif.value = nama;
+      muatAccountDisplay(); // selalu refresh — murah (baca objek lokal, tanpa network)
       if (nama === 'datadiri') muatFormDariCurrentUser();
       if (nama === 'absensi' && listRiwayat.value.length === 0) muatRiwayat();
     }
 
     onMounted(async () => {
+      muatAccountDisplay();
       if (window.mulaiHitungJamKerja) window.mulaiHitungJamKerja();
       await muatOpsiFilter();
       await muatRiwayat();
     });
 
     return {
-      tabAktif, pindahTab,
+      tabAktif, pindahTab, muatAccountDisplay,
       namaTampil, idAppTampil, jabatanTampil, qrUrl, clockOut,
       form, menyimpanForm, simpanDataDiri,
       formTerbuka, opsiAlasanIzin, opsiAlasanCuti, izin, cuti, lembur,
@@ -651,5 +664,13 @@ if (mountPoint) {
   window.bukaTabAbsensiProfile = function() {
     vm.pindahTab('absensi');
     vm.muatRiwayat(); // paksa refresh — bukan cuma buka tab — supaya pengajuan yang baru dikirim langsung kelihatan
+  };
+  // Jembatan ke vanilla: dipanggil dari auth.js (sesi otomatis) & vue-login.js
+  // (login manual) TEPAT setelah window.currentUser terisi data asli —
+  // supaya nama/ID/jabatan/QR di tab Account tidak "kekunci" kosong/lama
+  // (Vue app ini ter-mount di awal load, sebelum login selesai, dan
+  // window.currentUser bukan objek reactive jadi tidak ke-track otomatis).
+  window.refreshAccountProfileDisplay = function() {
+    vm.muatAccountDisplay();
   };
 }

@@ -248,6 +248,7 @@ const AppLogin = {
       }
 
       window.aturTampilanBerdasarkanRole();
+      if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
 
       // Owner/Superuser: langsung ke Dashboard dari HP maupun komputer,
       // tanpa syarat Clock In sama sekali — perannya tidak melakukan presensi
