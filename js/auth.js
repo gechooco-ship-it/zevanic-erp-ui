@@ -29,10 +29,25 @@ window._manualLoginInProgress = false; // dicek oleh onAuthStateChanged, disetel
 // logic sensitif itu sama sekali. Fungsinya cuma satu: kasih sinyal "Auth
 // sudah pasti tahu jawabannya (login atau tidak)", dipakai semua komponen
 // Vue yang fetch data lewat `await window.authReady` sebelum mulai ambil.
+//
+// PENTING (perbaikan putaran kedua): versi PERTAMA bug ini masih ada celah
+// yang SAMA PERSIS dengan yang sudah pernah kita perbaiki di logic
+// sesi-otomatis di bawah — Firebase kadang panggil callback ini DUA KALI:
+// pertama dengan user=null SEMENTARA (bukan berarti belum login, cuma
+// belum selesai cek sesi tersimpan), baru setelah itu dengan user asli.
+// Versi pertama authReady langsung "selesai" di panggilan PERTAMA — kalau
+// itu kebetulan yang null, semua komponen kena sinyal "siap" padahal
+// belum. Sekarang meniru pola toleransi 1200ms yang sama seperti di bawah.
 window.authReady = new Promise((resolve) => {
+  let sudahSelesai = false;
   const lepasListener = onAuthStateChanged(auth, (user) => {
-    lepasListener();
-    resolve(user);
+    if (user && user.email) {
+      if (!sudahSelesai) { sudahSelesai = true; lepasListener(); resolve(user); }
+    } else {
+      setTimeout(() => {
+        if (!sudahSelesai) { sudahSelesai = true; lepasListener(); resolve(null); }
+      }, 1200);
+    }
   });
 });
 
