@@ -23,6 +23,18 @@ window.pindahLayar = function(idTujuan) {
   document.getElementById(idTujuan).classList.remove('hidden');
   document.getElementById(idTujuan).classList.add('flex');
 
+  // PERBAIKAN REGRESI: nav mobile sekarang posisinya di LUAR
+  // #screen-dashboard (dipindah untuk perbaikan bug sentuhan sebelumnya)
+  // — akibatnya dia TIDAK LAGI otomatis ikut tersembunyi saat layar lain
+  // (Login/Kamera/dst) aktif, karena dulu itu terjadi otomatis lewat
+  // #screen-dashboard yang ditutup. Sekarang harus diatur eksplisit di
+  // sini: nav CUMA muncul kalau tujuannya screen-dashboard.
+  const navMobile = document.querySelector('.gc-mobile-nav');
+  if (navMobile) {
+    if (idTujuan === 'screen-dashboard') navMobile.classList.remove('hidden');
+    else navMobile.classList.add('hidden');
+  }
+
   // Panggil fungsi kamera jika ke layar kamera
   if (idTujuan === 'screen-camera' && window.mulaiKamera) {
     window.mulaiKamera();
