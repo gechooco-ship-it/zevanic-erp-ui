@@ -13,6 +13,18 @@
    SELURUH file Vue selesai dikonversi ke class di file ini.
    ============================================================================= */
 
+/* =============================================================================
+   RESET DASAR — dulu ini otomatis disediakan Tailwind ("Preflight"), tapi
+   pas Tailwind dicabut kemarin, bagian ini KELUPAAN ikut ditulis ulang.
+   Akibatnya: box (input/textarea) jadi lebih lebar dari kotaknya sendiri
+   (default browser: lebar = isi + padding + border, DITAMBAH, bukan
+   dipotong dari situ), dan <button> tampil dengan border/bayangan bawaan
+   browser (bukan gaya kita) karena belum di-reset.
+   ============================================================================= */
+*, *::before, *::after{box-sizing:border-box;}
+button{border:none; background:none; font:inherit; color:inherit; cursor:pointer; padding:0; margin:0; text-align:inherit;}
+input, select, textarea{font:inherit; color:inherit;}
+
 :root{
   --ivory:#FAF4E7; --ivory-dim:#F1E8D6;
   --pink:#F2D2CE; --pink-deep:#E3ADA6;
@@ -81,7 +93,7 @@
 .gc-side-brand{padding:4px 10px 20px; border-bottom:1px solid var(--pink-deep); margin-bottom:14px;}
 .gc-side-brand b{color:var(--mahogany); font-size:15px; font-weight:700; font-family:'Poppins',sans-serif;}
 .gc-side-brand span{display:block; color:var(--burgundy); font-size:9.5px; letter-spacing:.08em; margin-top:1px;}
-.gc-nav-item{display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:12px; color:var(--mahogany-soft); font-size:13px; font-weight:600; cursor:pointer;}
+.gc-nav-item{display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:12px; color:var(--mahogany-soft); font-size:13px; font-weight:600; cursor:pointer; width:100%; border:none; background:none;}
 .gc-nav-item.active{background:var(--surface); color:var(--burgundy); box-shadow:0 2px 6px rgba(91,56,38,.08);}
 .gc-nav-item:not(.active):hover{background:rgba(255,255,255,.4); color:var(--mahogany);}
 .gc-nav-ico{width:17px; height:17px; flex-shrink:0;}
