@@ -7,6 +7,12 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- Rebrand Gechoo: font & sistem desain baru. Tailwind di atas SENGAJA
+       masih aktif selama masa transisi — dicabut setelah semua file Vue
+       selesai dikonversi ke class di gechoo-design.css. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/gechoo-design.css">
   <style>
     .fade-in { animation: fadeIn 0.4s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -15,18 +21,18 @@
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
 </head>
-<body class="bg-slate-50 font-sans text-gray-800">
+<body class="gc-app">
 
-  <div id="screen-loading" class="min-h-screen flex flex-col items-center justify-center p-4 fade-in">
+  <div id="screen-loading" class="min-h-screen flex flex-col items-center justify-center p-4 fade-in" style="background:var(--ivory);">
     <div class="text-center">
-      <h1 class="text-2xl font-black tracking-tight text-gray-900 mb-1">ZEVANIC HOUSE</h1>
-      <p class="text-[11px] tracking-widest text-gray-400 font-bold uppercase mb-8">ERP System & Mgmt</p>
+      <h1 class="gc-heading mb-1" style="font-size:24px; font-weight:700; color:var(--mahogany);">Gechoo</h1>
+      <p class="mb-8" style="font-size:11px; letter-spacing:.08em; color:var(--text-faint); font-weight:700; text-transform:uppercase;">ERP System & Mgmt</p>
     </div>
-    <div class="w-10 h-10 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin"></div>
-    <p class="text-xs text-gray-400 mt-4">Memeriksa sesi Anda...</p>
+    <div class="w-10 h-10 rounded-full animate-spin" style="border:4px solid var(--pink); border-top-color:var(--burgundy);"></div>
+    <p class="mt-4" style="font-size:12px; color:var(--text-muted);">Memeriksa sesi Anda...</p>
   </div>
 
-  <div id="screen-login" class="hidden min-h-screen flex-col items-center justify-center p-4 fade-in overflow-y-auto">
+  <div id="screen-login" class="hidden min-h-screen flex-col items-center justify-center p-4 fade-in overflow-y-auto" style="background:var(--ivory);">
     <!-- MIGRASI VUE: lihat js/vue-login.js (termasuk modal OTP) -->
     <div id="vue-login"></div>
   </div>

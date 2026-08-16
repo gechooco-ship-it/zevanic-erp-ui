@@ -1,0 +1,136 @@
+/* css/gechoo-design.css
+   =============================================================================
+   Sistem desain Gechoo / Zevanic ERP — token warna, tipografi, dan komponen
+   bersama yang dipakai seluruh file Vue.
+
+   Palet (porsi pemakaian yang disepakati): Ivory 55%, Baby Pink 20%,
+   Light Blue 10%, Mahogany 10% (dipakai sebagai warna TEKS/ikon, bukan blok
+   besar), Burgundy 5% (KHUSUS tombol utama & penekanan penting — dijaga
+   ketat, jangan dipakai berlebihan).
+
+   File ini TIDAK menggantikan Tailwind secara langsung — selama masa
+   transisi, keduanya aktif berdampingan. Tailwind baru dicabut setelah
+   SELURUH file Vue selesai dikonversi ke class di file ini.
+   ============================================================================= */
+
+:root{
+  --ivory:#FAF4E7; --ivory-dim:#F1E8D6;
+  --pink:#F2D2CE; --pink-deep:#E3ADA6;
+  --blue:#ABD1DE; --blue-deep:#82B7C8;
+  --mahogany:#5B3826; --mahogany-soft:#6E4630;
+  --burgundy:#6E1E2C; --burgundy-dark:#551521; --burgundy-light:#F6E4E6;
+  --ok:#5E7C4F; --ok-light:#EAF0E3;
+  --warn:#B8863A; --warn-light:#F7EEDC;
+  --danger:#B33A3A; --danger-light:#F8E5E2;
+  --surface:#FFFFFF; --line:#E9DDCE;
+  --text:#3B2A1F; --text-muted:#8C7A6B; --text-faint:#B3A493;
+  --radius:16px;
+}
+
+/* ---- Dasar ---- */
+.gc-app{font-family:'Nunito Sans',sans-serif; background:var(--ivory); color:var(--text); -webkit-font-smoothing:antialiased;}
+.gc-heading{font-family:'Poppins',sans-serif;}
+.gc-num{font-variant-numeric:tabular-nums;}
+
+/* ---- Tag / badge (elemen ciri khas — pil bulat + titik) ---- */
+.tag{display:inline-flex; align-items:center; gap:6px; font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; padding:4px 12px; border-radius:20px; white-space:nowrap;}
+.tag-dot{width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0;}
+.tag.ok{color:var(--ok); background:var(--ok-light);}
+.tag.warn{color:var(--warn); background:var(--warn-light);}
+.tag.danger{color:var(--danger); background:var(--danger-light);}
+.tag.neutral{color:var(--text-muted); background:var(--ivory-dim);}
+.tag.pink{color:var(--burgundy-dark); background:var(--pink);}
+.tag.blue{color:#1F5060; background:var(--blue);}
+
+/* ---- Form ---- */
+.gc-field{margin-bottom:16px;}
+.gc-field label{display:block; font-size:12px; font-weight:700; color:var(--text); margin-bottom:6px; font-family:'Poppins',sans-serif;}
+.gc-field input,.gc-field select,.gc-field textarea{width:100%; padding:12px 15px; border:1.5px solid var(--line); border-radius:12px; font-family:'Nunito Sans',sans-serif; font-size:14px; background:var(--surface); color:var(--text); outline:none; transition:.15s;}
+.gc-field input:focus,.gc-field select:focus,.gc-field textarea:focus{border-color:var(--burgundy); box-shadow:0 0 0 3px var(--burgundy-light);}
+.gc-field input:disabled{background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;}
+
+/* ---- Tombol ---- */
+.btn-primary{padding:12px 20px; background:var(--burgundy); color:#fff; border:none; border-radius:12px; font-family:'Poppins',sans-serif; font-size:14px; font-weight:600; cursor:pointer; transition:.15s;}
+.btn-primary:hover{background:var(--burgundy-dark);}
+.btn-primary:disabled{opacity:.5; cursor:not-allowed;}
+.btn-primary.block{width:100%;}
+.btn-outline{padding:9px 16px; border:1.5px solid var(--burgundy); color:var(--burgundy); background:transparent; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer; font-family:'Poppins',sans-serif;}
+.btn-outline.filled{background:var(--burgundy); color:#fff;}
+.btn-outline:disabled{opacity:.5; cursor:not-allowed;}
+.btn-ghost{padding:9px 16px; border:none; background:transparent; color:var(--text-muted); font-weight:600; font-size:13px; cursor:pointer; font-family:'Poppins',sans-serif;}
+.btn-acc{padding:9px 16px; background:var(--ok); color:#fff; border:none; border-radius:10px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:'Poppins',sans-serif;}
+.btn-rej{padding:9px 16px; background:var(--danger-light); color:var(--danger); border:none; border-radius:10px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:'Poppins',sans-serif;}
+.icon-btn{width:30px; height:30px; border-radius:9px; border:1px solid var(--line); background:var(--surface); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-muted);}
+.icon-btn:hover{border-color:var(--burgundy); color:var(--burgundy);}
+
+/* ---- Kartu / panel ---- */
+.gc-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px;}
+.gc-card-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;}
+.gc-card-head h3{font-size:14.5px; font-weight:700; font-family:'Poppins',sans-serif;}
+.gc-card-head .sub{font-size:11.5px; color:var(--text-muted); margin-top:2px;}
+
+/* ---- Kartu KPI ---- */
+.kpi{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+.kpi .label{font-size:11.5px; color:var(--text-muted); font-weight:700; margin-bottom:10px; font-family:'Poppins',sans-serif;}
+.kpi .val{font-family:'Poppins',sans-serif; font-size:25px; font-weight:700;}
+.kpi .delta{font-size:11.5px; margin-top:6px; font-weight:700;}
+.kpi .delta.up{color:var(--ok);} .kpi .delta.down{color:var(--danger);}
+
+/* ---- Sidebar desktop ---- */
+.gc-sidebar{background:var(--pink); padding:22px 14px; display:flex; flex-direction:column; gap:3px; border-right:1px solid var(--pink-deep);}
+.gc-side-brand{padding:4px 10px 20px; border-bottom:1px solid var(--pink-deep); margin-bottom:14px;}
+.gc-side-brand b{color:var(--mahogany); font-size:15px; font-weight:700; font-family:'Poppins',sans-serif;}
+.gc-side-brand span{display:block; color:var(--burgundy); font-size:9.5px; letter-spacing:.08em; margin-top:1px;}
+.gc-nav-item{display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:12px; color:var(--mahogany-soft); font-size:13px; font-weight:600; cursor:pointer;}
+.gc-nav-item.active{background:var(--surface); color:var(--burgundy); box-shadow:0 2px 6px rgba(91,56,38,.08);}
+.gc-nav-item:not(.active):hover{background:rgba(255,255,255,.4); color:var(--mahogany);}
+.gc-nav-ico{width:17px; height:17px; flex-shrink:0;}
+.gc-nav-section{font-size:10px; letter-spacing:.08em; color:var(--mahogany-soft); opacity:.7; text-transform:uppercase; margin:14px 10px 6px; font-family:'Poppins',sans-serif;}
+
+/* ---- Tabel — dengan dukungan kolom freeze (perbaikan bug scroll) ---- */
+.gc-table-scroll{overflow-x:auto; border-radius:var(--radius); position:relative;}
+table.gc-table{width:100%; min-width:760px; border-collapse:collapse; font-size:13px;}
+table.gc-table thead th{text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); font-weight:700; padding:0 12px 12px; border-bottom:1.5px solid var(--line); white-space:nowrap; background:var(--surface);}
+table.gc-table tbody td{padding:12px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap;}
+table.gc-table tbody tr:last-child td{border-bottom:none;}
+table.gc-table tbody tr:hover td{background:var(--ivory);}
+table.gc-table tbody tr:hover td.freeze{background:var(--ivory);}
+.freeze{position:sticky; z-index:2; background:var(--surface);}
+.freeze-left{left:0; box-shadow:2px 0 4px rgba(59,42,31,.06);}
+.freeze-right{right:0; box-shadow:-2px 0 4px rgba(59,42,31,.06); text-align:center;}
+thead .freeze{z-index:3;}
+.gc-emp{display:flex; align-items:center; gap:10px;}
+.gc-emp-av{width:32px; height:32px; border-radius:10px; background:var(--pink); color:var(--burgundy-dark); display:flex; align-items:center; justify-content:center; font-family:'Poppins',sans-serif; font-weight:700; font-size:12px; flex-shrink:0;}
+.gc-emp b{display:block; font-size:13px; font-weight:700;}
+.gc-emp span{display:block; font-size:11.5px; color:var(--text-muted); margin-top:1px;}
+.gc-cell-muted{color:var(--text-muted); font-size:12.5px;}
+
+/* ---- Filter bar ---- */
+.gc-filter-bar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px;}
+.gc-filter-bar input[type=text]{flex:1; min-width:180px; padding:9px 13px; border:1.5px solid var(--line); border-radius:10px; font-family:'Nunito Sans',sans-serif; font-size:13px;}
+.gc-filter-bar select{padding:9px 13px; border:1.5px solid var(--line); border-radius:10px; font-family:'Nunito Sans',sans-serif; font-size:13px; color:var(--text);}
+.gc-chk{width:16px; height:16px; accent-color:var(--burgundy);}
+
+/* ---- Kamera / Scan (latar terang, hanya kotak viewfinder yang gelap) ---- */
+.gc-cam-wrap{min-height:100vh; background:var(--ivory); display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:40px 20px;}
+.gc-cam-top{text-align:center;}
+.gc-cam-top h2{color:var(--mahogany); font-size:19px; font-weight:700; font-family:'Poppins',sans-serif;}
+.gc-cam-top .mode{color:var(--burgundy); font-family:'Poppins',sans-serif; font-size:11.5px; font-weight:600; margin-top:6px;}
+.gc-cam-view{width:100%; max-width:300px; aspect-ratio:1/1; background:var(--mahogany-soft); border-radius:28px; border:6px solid var(--surface); box-shadow:0 8px 24px rgba(91,56,38,.12); position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; margin:22px 0;}
+.gc-cam-frame{position:absolute; inset:20px; border:3px solid var(--pink); border-radius:18px; opacity:.9; pointer-events:none;}
+.gc-cam-caption{color:var(--text-muted); font-size:12px; margin-top:14px; text-align:center;}
+.gc-cam-btn{width:72px; height:72px; border-radius:50%; background:var(--surface); border:5px solid var(--pink); cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(91,56,38,.1);}
+.gc-cam-btn-inner{width:52px; height:52px; border-radius:50%; background:var(--burgundy);}
+
+/* ---- Mobile bottom nav ---- */
+.gc-mobile-nav{position:fixed; bottom:0; left:0; right:0; background:var(--surface); border-top:1px solid var(--line); padding:8px 6px calc(14px + env(safe-area-inset-bottom)); display:flex; justify-content:space-around; align-items:flex-end; z-index:40; border-radius:20px 20px 0 0;}
+.gc-mnav-item{display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--text-faint); font-size:9.5px; font-weight:700;}
+.gc-mnav-item.active{color:var(--burgundy);}
+.gc-mnav-ico{width:20px; height:20px;}
+
+/* ---- Login ---- */
+.login-wrap{min-height:100vh; display:grid; grid-template-columns:1fr 1fr;}
+@media(max-width:860px){ .login-wrap{grid-template-columns:1fr;} .login-brand{min-height:220px;} }
+
+/* ---- Utilitas ---- */
+.gc-safe-bottom{padding-bottom:90px;} /* perbaikan bug: konten tidak lagi ketutupan bottom nav mobile */

@@ -295,93 +295,94 @@ const AppLogin = {
     };
   },
   template: `
-    <div class="w-full max-w-md bg-white p-8 rounded-3xl shadow-xl border border-gray-100 my-6">
-      <div class="text-center mb-6">
-        <h1 class="text-3xl font-black tracking-tight text-gray-900">ZEVANIC HOUSE</h1>
-        <p class="text-xs tracking-widest text-gray-500 font-bold uppercase mt-1">ERP System & Mgmt</p>
+    <div class="login-wrap">
+      <div class="login-brand" style="background:var(--pink); position:relative; overflow:hidden; display:flex; flex-direction:column; justify-content:space-between; padding:48px; border-right:1px solid var(--pink-deep);">
+        <div style="position:absolute; right:-60px; top:-60px; width:260px; height:260px; border-radius:50%; background:var(--blue); opacity:.25;"></div>
+        <div style="position:absolute; left:-40px; bottom:-40px; width:180px; height:180px; border-radius:50%; background:#fff; opacity:.4;"></div>
+        <div style="position:relative; z-index:1;">
+          <div class="gc-heading" style="font-size:22px; font-weight:700; color:var(--burgundy); margin-bottom:18px;">Gechoo &hearts;</div>
+          <div class="gc-heading" style="font-size:30px; font-weight:700; color:var(--mahogany); line-height:1.25;">Sistem operasional<br>gudang &amp; presensi</div>
+          <p style="font-size:13.5px; color:var(--mahogany-soft); margin-top:12px; max-width:300px; line-height:1.65; opacity:.85;">Kelola kehadiran, penjadwalan, dan proses kerja karyawan dari satu tempat.</p>
+        </div>
       </div>
 
-      <div class="space-y-4">
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Email / Akun Login</label>
-          <div class="relative">
-            <i class="far fa-envelope absolute left-4 top-3 text-gray-400"></i>
-            <input v-model="email" id="input-email" type="email" placeholder="contoh@zevanic.com" class="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
+      <div style="display:flex; align-items:center; justify-content:center; padding:32px; background:var(--ivory);">
+        <div style="width:100%; max-width:380px;">
+          <h1 class="gc-heading" style="font-size:22px; font-weight:700; margin-bottom:5px;">Masuk ke akun Anda</h1>
+          <p style="color:var(--text-muted); font-size:13.5px; margin-bottom:30px;">Isi email dan kata sandi untuk melanjutkan.</p>
+
+          <div class="gc-field">
+            <label>Email / akun login</label>
+            <div style="position:relative;">
+              <i class="far fa-envelope" style="position:absolute; left:14px; top:14px; color:var(--text-faint); font-size:13px;"></i>
+              <input v-model="email" id="input-email" type="email" placeholder="nama@gechoo.co" style="padding-left:40px;">
+            </div>
           </div>
-        </div>
 
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Password</label>
-          <div class="relative flex items-center">
-            <i class="fas fa-lock absolute left-4 text-gray-400"></i>
-            <input v-model="password" id="input-pass" :type="showPassword ? 'text' : 'password'" placeholder="••••••••" class="w-full pl-10 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
-            <button type="button" @click="showPassword = !showPassword" class="absolute right-3 text-gray-400 hover:text-gray-600 focus:outline-none">
-              <i :class="showPassword ? 'fa-eye' : 'fa-eye-slash'" class="fas"></i>
-            </button>
+          <div class="gc-field">
+            <label>Password</label>
+            <div style="position:relative;">
+              <i class="fas fa-lock" style="position:absolute; left:14px; top:14px; color:var(--text-faint); font-size:13px;"></i>
+              <input v-model="password" id="input-pass" :type="showPassword ? 'text' : 'password'" placeholder="••••••••" style="padding-left:40px; padding-right:40px;">
+              <button type="button" @click="showPassword = !showPassword" style="position:absolute; right:12px; top:12px; background:none; border:none; color:var(--text-faint); cursor:pointer;">
+                <i :class="showPassword ? 'fa-eye' : 'fa-eye-slash'" class="fas"></i>
+              </button>
+            </div>
           </div>
-        </div>
 
-        <div class="flex items-center justify-between text-xs">
-          <label class="flex items-center space-x-2 cursor-pointer">
-            <input v-model="ingatSaya" type="checkbox" class="rounded text-blue-600 focus:ring-blue-500 w-4 h-4">
-            <span class="text-gray-600 font-medium">Ingatkan Saya</span>
-          </label>
-          <button type="button" @click="lupaPassword" class="text-blue-600 font-semibold hover:underline">Lupa Password?</button>
-        </div>
-
-        <div v-if="!isDesktop">
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Pilih Status Kehadiran / Pengajuan</label>
-          <select v-model="statusPilihan" @change="bukaFormIzinDropdown" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm font-medium text-gray-700">
-            <option value="HADIR (CLOCK IN)">🟢 Hadir (Clock In Pertama)</option>
-            <option value="IZIN">🟡 Pengajuan Izin (Hari H)</option>
-          </select>
-        </div>
-
-        <p v-if="isDesktop" class="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5"><i class="fas fa-info-circle mr-1"></i> Login lewat komputer hanya untuk masuk Dashboard setelah Clock In dari HP. Untuk Clock In / Izin / Cuti, gunakan HP.</p>
-
-        <div v-if="!isDesktop && statusPilihan === 'IZIN'" class="space-y-4 pt-2 border-t border-gray-100">
-          <div>
-            <label class="block text-xs font-semibold text-gray-600 mb-1">Tanggal Pengajuan</label>
-            <input v-model="izin.tanggal" type="date" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:22px; font-size:12.5px;">
+            <label style="display:flex; align-items:center; gap:7px; color:var(--text-muted); font-weight:600; cursor:pointer;">
+              <input v-model="ingatSaya" type="checkbox" style="width:14px; height:14px; accent-color:var(--burgundy);">Ingat saya
+            </label>
+            <button type="button" @click="lupaPassword" style="background:none; border:none; color:var(--burgundy); font-weight:700; cursor:pointer;">Lupa sandi?</button>
           </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-600 mb-1">Alasan</label>
-            <select v-model="izin.alasan" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm">
-              <option value="">-- Pilih --</option>
-              <option v-for="a in opsiAlasanIzin" :key="a" :value="a">{{ a }}</option>
+
+          <div v-if="!isDesktop" class="gc-field">
+            <label>Pilih status kehadiran / pengajuan</label>
+            <select v-model="statusPilihan" @change="bukaFormIzinDropdown">
+              <option value="HADIR (CLOCK IN)">Hadir (Clock In pertama)</option>
+              <option value="IZIN">Pengajuan izin (hari H)</option>
             </select>
           </div>
-          <div>
-            <label class="block text-xs font-semibold text-gray-600 mb-1">Detail Tambahan (opsional)</label>
-            <textarea v-model="izin.detail" rows="2" placeholder="Keterangan lebih lanjut jika perlu..." class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition text-sm resize-none"></textarea>
+
+          <p v-if="isDesktop" class="tag warn" style="display:block; margin-bottom:16px; padding:10px 14px; border-radius:12px;"><i class="fas fa-info-circle" style="margin-right:6px;"></i>Login lewat komputer hanya untuk masuk Dashboard setelah Clock In dari HP.</p>
+
+          <div v-if="!isDesktop && statusPilihan === 'IZIN'" style="padding-top:8px; border-top:1px solid var(--line); margin-bottom:6px;">
+            <div class="gc-field"><label>Tanggal pengajuan</label><input v-model="izin.tanggal" type="date"></div>
+            <div class="gc-field">
+              <label>Alasan</label>
+              <select v-model="izin.alasan">
+                <option value="">-- Pilih --</option>
+                <option v-for="a in opsiAlasanIzin" :key="a" :value="a">{{ a }}</option>
+              </select>
+            </div>
+            <div class="gc-field"><label>Detail tambahan (opsional)</label><textarea v-model="izin.detail" rows="2" placeholder="Keterangan lebih lanjut jika perlu..."></textarea></div>
           </div>
-        </div>
 
-        <button @click="login" :disabled="memproses" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 mt-2 flex items-center justify-center text-sm disabled:opacity-50">
-          {{ memproses ? 'Memproses...' : 'Masuk / Lanjut' }} <i v-if="!memproses" class="fas fa-arrow-right ml-2"></i>
-        </button>
-
-        <div class="text-center pt-3 border-t border-gray-100">
-          <p class="text-xs text-gray-500">Belum punya akun?</p>
-          <button @click="bukaFormRegistrasi" class="mt-1.5 text-blue-600 font-bold text-xs hover:underline flex items-center justify-center w-full">
-            <i class="fas fa-user-plus mr-1.5"></i> Daftar Akun Baru (Registrasi)
+          <button @click="login" :disabled="memproses" class="btn-primary block" style="margin-top:8px;">
+            {{ memproses ? 'Memproses...' : 'Masuk' }} <i v-if="!memproses" class="fas fa-arrow-right" style="margin-left:8px;"></i>
           </button>
+
+          <div style="text-align:center; margin-top:24px; font-size:13px; color:var(--text-muted);">
+            <p>Belum punya akun?</p>
+            <button @click="bukaFormRegistrasi" style="background:none; border:none; margin-top:6px; color:var(--burgundy); font-weight:700; cursor:pointer; font-size:13px;">
+              <i class="fas fa-user-plus" style="margin-right:6px;"></i>Daftar akun baru
+            </button>
+          </div>
         </div>
       </div>
     </div>
 
-    <div v-if="otpVisible" class="fixed inset-0 z-[120] bg-black/70 flex items-center justify-center p-4 fade-in">
-      <div class="bg-white w-full max-w-sm p-6 rounded-3xl shadow-2xl space-y-4 text-center">
-        <i class="fab fa-whatsapp text-5xl text-green-500"></i>
-        <div>
-          <h3 class="font-bold text-gray-800 text-sm">Verifikasi Perangkat Baru</h3>
-          <p class="text-[11px] text-gray-500 mt-1">Kode OTP telah dikirim lewat WhatsApp ke nomor <span class="font-bold text-gray-700">{{ otpNomorMasked }}</span></p>
-        </div>
-        <input v-model="otpInput" type="text" maxlength="6" inputmode="numeric" placeholder="6 digit kode" class="w-full text-center tracking-[0.5em] text-lg font-bold px-3 py-3 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-green-500">
-        <button @click="verifikasiOtpDanLanjut" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl text-sm transition">Verifikasi</button>
-        <div class="flex justify-between text-xs pt-1">
-          <button @click="kirimUlangOtp" class="text-blue-600 font-semibold hover:underline">Kirim Ulang</button>
-          <button @click="batalkanOtp" class="text-gray-400 font-semibold hover:underline">Batal</button>
+    <div v-if="otpVisible" style="position:fixed; inset:0; z-index:120; background:rgba(59,42,31,.6); display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+      <div style="background:var(--surface); width:100%; max-width:380px; padding:26px; border-radius:22px; text-align:center;">
+        <i class="fab fa-whatsapp" style="font-size:44px; color:var(--ok);"></i>
+        <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-top:10px;">Verifikasi perangkat baru</h3>
+        <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Kode OTP telah dikirim lewat WhatsApp ke nomor <b style="color:var(--text);">{{ otpNomorMasked }}</b></p>
+        <input v-model="otpInput" type="text" maxlength="6" inputmode="numeric" placeholder="6 digit kode" style="width:100%; text-align:center; letter-spacing:.5em; font-size:18px; font-weight:700; padding:12px; margin-top:16px; border:1.5px solid var(--line); border-radius:12px; outline:none; font-family:'Poppins',sans-serif;">
+        <button @click="verifikasiOtpDanLanjut" class="btn-primary block" style="margin-top:14px; background:var(--ok);">Verifikasi</button>
+        <div style="display:flex; justify-content:space-between; margin-top:12px; font-size:12.5px;">
+          <button @click="kirimUlangOtp" style="background:none; border:none; color:var(--burgundy); font-weight:700; cursor:pointer;">Kirim ulang</button>
+          <button @click="batalkanOtp" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer;">Batal</button>
         </div>
       </div>
     </div>
