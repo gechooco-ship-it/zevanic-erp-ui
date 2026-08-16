@@ -201,6 +201,9 @@ window.pindahTab = function(tabId, navKey) {
   if (tabId === 'tab-superuser') {
       if (window.pindahSubTab) window.pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', document.querySelectorAll('.sub-karyawan-btn')[0]);
   }
+  if (tabId === 'tab-whatsapp') {
+      if (window.pastikanMountWhatsapp) window.pastikanMountWhatsapp();
+  }
   
 };
 
@@ -224,31 +227,30 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
   // menu ini sama sekali). Di titik ini juga sudah pasti lama setelah
   // login berhasil, jadi tidak mungkin lagi kena masalah timing Auth.
   //
-  // HEMAT LAGI: cuma ambil di kunjungan PERTAMA ke sub-tab ini dalam sesi
-  // tab browser yang sedang aktif (`window.subTabSudahDimuat`, di-reset
-  // otomatis tiap reload/login baru — TIDAK disimpan ke localStorage
-  // supaya tidak ada risiko data basi untuk alur kerja approval yang
-  // dipakai banyak admin sekaligus, misal Antrean Dakar/Antrean Absensi).
-  // Klik bolak-balik antar menu dalam 1 sesi TIDAK baca Firestore lagi.
-  // Mau data terbaru di tengah sesi? Tinggal klik tombol Refresh di
-  // masing-masing layar (sudah ada dari awal, memang untuk itu fungsinya).
-  window.subTabSudahDimuat = window.subTabSudahDimuat || {};
-  const petaRefresh = {
-    'sub-absensi-config': 'refreshConfigAbsensi',
-    'sub-absensi-jadwal': 'refreshPenjadwalan',
-    'sub-absensi-accept': 'refreshAntreanAbsensi',
-    'sub-absensi-rekap': 'refreshRiwayatAbsensi',
-    'sub-karyawan-antrean': 'refreshAntreanDakar',
-    'sub-karyawan-config': 'refreshConfigKaryawan',
-    'sub-karyawan-data': 'refreshDaftarKaryawan',
-    'sub-karyawan-akses': 'refreshConfigAkses',
-    'sub-karyawan-hakakses': 'refreshHakAkses'
+  // PERBAIKAN BESAR (menggantikan cara lama window.subTabSudahDimuat):
+  // sebelumnya komponennya SUDAH ter-mount dari awal (cuma disembunyikan
+  // CSS), jadi onMounted-nya tetap jalan sendiri saat halaman dibuka —
+  // walau ada pelacakan "sekali per sesi" di SINI, itu cuma mencegah
+  // panggilan ULANG, TIDAK mencegah panggilan PERTAMA yang otomatis dari
+  // onMounted saat mount awal. Sekarang componentnya BARU di-mount() lewat
+  // window.pastikanMountXxx() di titik INI — jadi kalau orang tidak pernah
+  // klik ke sub-tab ini, komponennya tidak pernah lahir sama sekali, dan
+  // tidak pernah mencoba baca Firestore sama sekali. pastikanMountXxx()
+  // sendiri sudah idempoten (aman dipanggil berkali-kali, cuma mount()
+  // sekali di panggilan pertama), jadi tidak perlu pelacakan manual lagi.
+  const petaMount = {
+    'sub-absensi-config': 'pastikanMountConfigAbsensi',
+    'sub-absensi-jadwal': 'pastikanMountPenjadwalan',
+    'sub-absensi-accept': 'pastikanMountAntreanAbsensi',
+    'sub-absensi-rekap': 'pastikanMountRiwayatAbsensi',
+    'sub-karyawan-antrean': 'pastikanMountAntreanDakar',
+    'sub-karyawan-config': 'pastikanMountConfigKaryawan',
+    'sub-karyawan-data': 'pastikanMountDaftarKaryawan',
+    'sub-karyawan-akses': 'pastikanMountConfigAkses',
+    'sub-karyawan-hakakses': 'pastikanMountHakAkses'
   };
-  const namaFungsi = petaRefresh[targetId];
-  if (namaFungsi && window[namaFungsi] && !window.subTabSudahDimuat[targetId]) {
-    window.subTabSudahDimuat[targetId] = true;
-    window[namaFungsi]();
-  }
+  const namaFungsiMount = petaMount[targetId];
+  if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();
 };
 
 // Account Profile (Account/QR, Data Karyawan self-edit, Absensi dengan

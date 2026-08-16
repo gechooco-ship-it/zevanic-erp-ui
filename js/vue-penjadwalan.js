@@ -506,14 +506,19 @@ const AppPenjadwalan = {
   `
 };
 
-const mountPoint = document.getElementById('vue-penjadwalan');
-if (mountPoint) {
-  const vm = createApp(AppPenjadwalan).mount('#vue-penjadwalan');
-  // Jembatan ke vanilla: dipanggil dari auth.js (sesi otomatis) & vue-login.js
-  // (login manual) TEPAT setelah role/currentUser terisi data asli — supaya
-  // tabel ini pasti coba ambil data lagi di titik yang PASTI Firestore sudah
-  // bisa diakses (bukan menebak-nebak waktu "Auth siap"), memperbaiki bug
-  // "Memuat data..." macet selamanya kalau fetch pertama sempat kepentok
-  // kondisi belum login.
-  window.refreshPenjadwalan = function() { vm.muat(); };
-}
+let vmPenjadwalan = null;
+// Perbaikan bug BESAR: komponen ini dulu langsung di-mount() begitu file ini
+// dimuat (artinya SETIAP kali halaman dibuka, oleh SIAPAPUN, termasuk yang
+// tidak punya akses ke layar ini) — onMounted-nya otomatis mencoba fetch
+// Firestore walau orangnya tidak pernah membuka tab ini sama sekali. Itu
+// yang bikin console penuh "Missing or insufficient permissions" dan baca
+// Firestore boros. Sekarang mount() BARU terjadi saat dashboard.js
+// pindahSubTab benar-benar memanggil window.pastikanMountPenjadwalan() —
+// yaitu PERSIS saat tab ini pertama kali dibuka, bukan dari awal muat
+// halaman.
+window.pastikanMountPenjadwalan = function() {
+  if (vmPenjadwalan) return; // sudah pernah di-mount, tidak perlu ulang
+  const mountPoint = document.getElementById('vue-penjadwalan');
+  if (mountPoint) vmPenjadwalan = createApp(AppPenjadwalan).mount('#vue-penjadwalan');
+};
+window.refreshPenjadwalan = function() { if (vmPenjadwalan) vmPenjadwalan.muat(); };

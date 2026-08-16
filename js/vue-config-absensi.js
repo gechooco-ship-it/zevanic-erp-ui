@@ -213,10 +213,14 @@ const AppConfigAbsensi = {
   `
 };
 
-const mountPoint = document.getElementById('vue-config-absensi');
-if (mountPoint) {
-  const vm = createApp(AppConfigAbsensi).mount('#vue-config-absensi');
-  // Jembatan ke vanilla — sama seperti Config Karyawan, ganti key supaya
-  // kedua anak (Master Gudang, Master Shift) lahir ulang dan fetch ulang.
-  window.refreshConfigAbsensi = function() { vm.refreshKey++; };
-}
+let vmConfigAbsensi = null;
+// Sama seperti layar admin lain — mount() ditunda sampai benar-benar
+// dinavigasi pertama kali. Karena anak-anaknya (Master Gudang, Master
+// Shift) baru MUNCUL setelah induknya di-mount, menunda mount induk ini
+// otomatis ikut menunda fetch pertama kedua anaknya juga.
+window.pastikanMountConfigAbsensi = function() {
+  if (vmConfigAbsensi) return;
+  const mountPoint = document.getElementById('vue-config-absensi');
+  if (mountPoint) vmConfigAbsensi = createApp(AppConfigAbsensi).mount('#vue-config-absensi');
+};
+window.refreshConfigAbsensi = function() { if (vmConfigAbsensi) vmConfigAbsensi.refreshKey++; };

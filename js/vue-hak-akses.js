@@ -312,8 +312,19 @@ const AppHakAkses = {
   `
 };
 
-const mountPoint = document.getElementById('vue-hak-akses');
-if (mountPoint) {
-  const vm = createApp(AppHakAkses).mount('#vue-hak-akses');
-  window.refreshHakAkses = function() { vm.muat(); };
-}
+let vmHakAkses = null;
+// Perbaikan bug BESAR: komponen ini dulu langsung di-mount() begitu file ini
+// dimuat (artinya SETIAP kali halaman dibuka, oleh SIAPAPUN, termasuk yang
+// tidak punya akses ke layar ini) — onMounted-nya otomatis mencoba fetch
+// Firestore walau orangnya tidak pernah membuka tab ini sama sekali. Itu
+// yang bikin console penuh "Missing or insufficient permissions" dan baca
+// Firestore boros. Sekarang mount() BARU terjadi saat dashboard.js
+// pindahSubTab benar-benar memanggil window.pastikanMountHakAkses() —
+// yaitu PERSIS saat tab ini pertama kali dibuka, bukan dari awal muat
+// halaman.
+window.pastikanMountHakAkses = function() {
+  if (vmHakAkses) return; // sudah pernah di-mount, tidak perlu ulang
+  const mountPoint = document.getElementById('vue-hak-akses');
+  if (mountPoint) vmHakAkses = createApp(AppHakAkses).mount('#vue-hak-akses');
+};
+window.refreshHakAkses = function() { if (vmHakAkses) vmHakAkses.muat(); };

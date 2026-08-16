@@ -44,13 +44,13 @@ const AppConfigKaryawan = {
 
 // Vue cuma mount ke div ini — sisanya (tab switching, dst) tetap dikontrol
 // oleh app.js/dashboard.js seperti biasa.
-const mountPoint = document.getElementById('vue-config-karyawan');
-if (mountPoint) {
-  const vm = createApp(AppConfigKaryawan).mount('#vue-config-karyawan');
-  // Jembatan ke vanilla: dipanggil dari auth.js/vue-login.js tepat setelah
-  // login berhasil. Komponen di sini semuanya anak (MasterDataCategory x9,
-  // KecamatanManager) tanpa fungsi muat() sendiri di induknya — jadi caranya
-  // beda dari layar lain: ganti `key` supaya Vue "lahir ulang" semua anaknya
-  // dari nol, otomatis mengulang onMounted (dan fetch) masing-masing.
-  window.refreshConfigKaryawan = function() { vm.refreshKey++; };
-}
+let vmConfigKaryawan = null;
+// Sama seperti Config Absensi — mount() ditunda sampai benar-benar
+// dinavigasi pertama kali, supaya 9x MasterDataCategory + KecamatanManager
+// di dalamnya tidak ikut fetch on-load kalau layar ini belum pernah dibuka.
+window.pastikanMountConfigKaryawan = function() {
+  if (vmConfigKaryawan) return;
+  const mountPoint = document.getElementById('vue-config-karyawan');
+  if (mountPoint) vmConfigKaryawan = createApp(AppConfigKaryawan).mount('#vue-config-karyawan');
+};
+window.refreshConfigKaryawan = function() { if (vmConfigKaryawan) vmConfigKaryawan.refreshKey++; };
