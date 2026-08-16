@@ -24,6 +24,7 @@ import { db, auth } from "./firebase-config.js";
 function isDesktopBrowser() {
   return !/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
+// xx 
 
 // Poin 4: cek ke server (bukan localStorage) apakah user ini sudah Clock In
 // hari ini — Clock In terjadi di HP, desktop tidak akan pernah tahu soal itu

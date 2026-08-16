@@ -14,6 +14,7 @@ window.statusPilihanGlobal = "HADIR (CLOCK IN)";
 window.currentUser = { email: "", name: "", role: "operator", id_app: "", id_karyawan: "", jabatan: "", status_kerja: "aktif" };
 window._manualLoginInProgress = false; // dicek oleh onAuthStateChanged, disetel oleh vue-login.js
 
+// xx 
 // window.authReady — PERBAIKAN BUG: semua layar Master Absensi/Master
 // Karyawan (Antrean Dakar, Config Karyawan, Config Absensi, Daftar
 // Karyawan, Penjadwalan, Antrean Absensi, Riwayat All Absensi) sebelumnya

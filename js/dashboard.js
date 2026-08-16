@@ -178,6 +178,9 @@ window.pindahTab = function(tabId) {
   if (tabId === 'tab-admin-acc') {
       if (window.pindahSubTab) window.pindahSubTab('sub-absensi', 'sub-absensi-accept', document.querySelectorAll('.sub-absensi-btn')[2]);
   }
+  if (tabId === 'tab-superuser') {
+      if (window.pindahSubTab) window.pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', document.querySelectorAll('.sub-karyawan-btn')[0]);
+  }
   
 };
 
@@ -194,6 +197,23 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
 
   document.querySelectorAll('.' + grupKelas + '-btn').forEach(btn => btn.classList.remove('active'));
   if (tombolEl) tombolEl.classList.add('active');
+
+  // Perbaikan bug "Memuat data..." macet — TAPI hemat baca Firestore:
+  // ambil data cuma pas sub-tab-nya BENAR-BENAR dibuka orang (bukan buat
+  // SEMUA orang pas login, termasuk operator yang tidak punya akses ke
+  // menu ini sama sekali). Di titik ini juga sudah pasti lama setelah
+  // login berhasil, jadi tidak mungkin lagi kena masalah timing Auth.
+  const petaRefresh = {
+    'sub-absensi-config': 'refreshConfigAbsensi',
+    'sub-absensi-jadwal': 'refreshPenjadwalan',
+    'sub-absensi-accept': 'refreshAntreanAbsensi',
+    'sub-absensi-rekap': 'refreshRiwayatAbsensi',
+    'sub-karyawan-antrean': 'refreshAntreanDakar',
+    'sub-karyawan-config': 'refreshConfigKaryawan',
+    'sub-karyawan-data': 'refreshDaftarKaryawan'
+  };
+  const namaFungsi = petaRefresh[targetId];
+  if (namaFungsi && window[namaFungsi]) window[namaFungsi]();
 };
 
 // Account Profile (Account/QR, Data Karyawan self-edit, Absensi dengan
