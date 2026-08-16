@@ -142,11 +142,10 @@ const AppHome = {
 
       <div v-for="grup in menuGroups" :key="grup.nama" style="margin-bottom:22px;">
         <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">{{ grup.nama }}</h3>
-        <div class="gc-card" style="padding:6px;">
-          <button v-for="item in grup.items" :key="item.label" @click="item.aksi()" style="width:100%; display:flex; align-items:center; gap:12px; padding:12px 10px; background:none; border:none; border-radius:12px; cursor:pointer; text-align:left;">
-            <span style="width:34px; height:34px; border-radius:10px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy); flex-shrink:0;"><i class="fas" :class="item.icon"></i></span>
-            <span style="font-size:12.5px; font-weight:600; color:var(--text); flex:1;">{{ item.label }}</span>
-            <i class="fas fa-chevron-right" style="color:var(--text-faint); font-size:11px;"></i>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px;">
+          <button v-for="item in grup.items" :key="item.label" @click="item.aksi()" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
+            <span style="width:40px; height:40px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy);"><i class="fas" :class="item.icon"></i></span>
+            <span style="font-size:10.5px; font-weight:700; color:var(--text); text-align:center; line-height:1.25;">{{ item.label }}</span>
           </button>
         </div>
       </div>
