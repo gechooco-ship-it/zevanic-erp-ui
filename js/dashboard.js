@@ -220,7 +220,9 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-absensi-rekap': 'refreshRiwayatAbsensi',
     'sub-karyawan-antrean': 'refreshAntreanDakar',
     'sub-karyawan-config': 'refreshConfigKaryawan',
-    'sub-karyawan-data': 'refreshDaftarKaryawan'
+    'sub-karyawan-data': 'refreshDaftarKaryawan',
+    'sub-karyawan-akses': 'refreshConfigAkses',
+    'sub-karyawan-hakakses': 'refreshHakAkses'
   };
   const namaFungsi = petaRefresh[targetId];
   if (namaFungsi && window[namaFungsi] && !window.subTabSudahDimuat[targetId]) {

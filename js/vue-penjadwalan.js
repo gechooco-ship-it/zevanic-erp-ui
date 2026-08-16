@@ -130,6 +130,12 @@ const AppPenjadwalan = {
       potonganHalamanIni.value.length > 0 && potonganHalamanIni.value.every(d => terpilih.has(d.email))
     );
 
+    // ---- Scroll kartu ringkasan (tombol panah, karena scrollbar disembunyikan) ----
+    const railRingkasan = ref(null);
+    function geserRingkasan(arah) {
+      if (railRingkasan.value) railRingkasan.value.scrollBy({ left: arah * 240, behavior: 'smooth' });
+    }
+
     // ---- Ringkasan per-gudang (kartu scroll horizontal, bisa diklik) ----
     const ringkasanKartu = computed(() => {
       const hitung = (list) => {
@@ -281,6 +287,7 @@ const AppPenjadwalan = {
 
     return {
       semuaKaryawan, daftarShift, daftarJenisPekerjaan, memuat, muat,
+      railRingkasan, geserRingkasan,
       cariNama, cekSudah, cekBelum, filterJenisPekerjaan, filterGudang, filterShift, filterLibur,
       terpilih, hasilFilter, potonganHalamanIni, infoHalaman, headerDicentang, halamanAman, totalHalaman,
       ringkasanKartu, klikKartuGudang,
@@ -298,7 +305,9 @@ const AppPenjadwalan = {
         <button @click="muat" class="btn-outline"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
       </div>
       <!-- 0. Ringkasan per-gudang: scroll horizontal, bisa diklik -->
-      <div style="display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; margin-bottom:16px;" class="no-scrollbar">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">
+        <button @click="geserRingkasan(-1)" class="icon-btn" style="flex-shrink:0;" aria-label="Geser kiri"><i class="fas fa-chevron-left"></i></button>
+        <div ref="railRingkasan" style="display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; scroll-behavior:smooth;" class="no-scrollbar">
         <div v-for="k in ringkasanKartu" :key="k.nilaiFilter"
              @click="klikKartuGudang(k.nilaiFilter)"
              style="flex-shrink:0; width:150px; background:var(--surface); padding:14px; border-radius:16px; cursor:pointer; transition:.15s;"
@@ -310,6 +319,8 @@ const AppPenjadwalan = {
             <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-faint);">Belum</span><b style="color:var(--danger);">{{ k.angka.belum }}</b></div>
           </div>
         </div>
+        </div>
+        <button @click="geserRingkasan(1)" class="icon-btn" style="flex-shrink:0;" aria-label="Geser kanan"><i class="fas fa-chevron-right"></i></button>
       </div>
 
       <!-- 3. Update Massal -->
