@@ -132,6 +132,10 @@ const AppAccountProfile = {
       if (window.prosesClockOut) window.prosesClockOut();
     }
 
+    // HARUS lewat fungsi begini, bukan "window.logout()" langsung di
+    // template — sama seperti bug yang ditemukan di vue-profile-drawer.js.
+    function keluar() { if (window.logout) window.logout(); }
+
     // Buat menu pintasan Admin di tab Account (pengganti akses lewat bottom
     // nav mobile yang sekarang dipakai buat Home/Absensi/Scan QR/Progress
     // universal semua role) — computed, bukan re-baca window.currentUser
@@ -372,7 +376,7 @@ const AppAccountProfile = {
 
     return {
       tabAktif, pindahTab, muatAccountDisplay,
-      namaTampil, idAppTampil, jabatanTampil, qrUrl, clockOut,
+      namaTampil, idAppTampil, jabatanTampil, qrUrl, clockOut, keluar,
       form, menyimpanForm, simpanDataDiri,
       formTerbuka, opsiAlasanIzin, opsiAlasanCuti, izin, cuti, lembur,
       bukaFormIzin, tutupFormIzin, ajukanIzin,
@@ -385,7 +389,7 @@ const AppAccountProfile = {
     };
   },
   template: `
-    <div class="gc-card">
+    <div class="gc-card hidden md:block">
       <div>
         <h2 class="gc-heading" style="font-size:16.5px; font-weight:700; display:flex; align-items:center;"><i class="fas fa-user-circle" style="color:var(--burgundy); margin-right:10px;"></i> Profile</h2>
       </div>
@@ -426,7 +430,7 @@ const AppAccountProfile = {
       </div>
 
       <div class="md:hidden" style="max-width:380px; margin:14px auto 0;">
-        <button @click="window.logout()" class="btn-outline block" style="color:var(--danger); border-color:var(--danger);">
+        <button @click="keluar" class="btn-outline block" style="color:var(--danger); border-color:var(--danger);">
           <i class="fas fa-sign-out-alt" style="margin-right:8px;"></i> Logout
         </button>
       </div>

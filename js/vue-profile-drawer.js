@@ -39,7 +39,12 @@ const AppProfileDrawer = {
       if (window.pindahTabAccountProfile) window.pindahTabAccountProfile(subtab);
     }
 
-    return { terbuka, zoomTerbuka, qrUrl, nama, jabatan, buka, tutup, bukaZoom, tutupZoom, navigasi };
+    // HARUS lewat fungsi begini, bukan "window.logout()" langsung di
+    // template — itu yang bikin tombol Logout diam tidak merespon (Vue
+    // anggap "window" properti komponen, bukan objek global browser).
+    function keluar() { if (window.logout) window.logout(); }
+
+    return { terbuka, zoomTerbuka, qrUrl, nama, jabatan, buka, tutup, bukaZoom, tutupZoom, navigasi, keluar };
   },
   template: `
     <div>
@@ -68,7 +73,7 @@ const AppProfileDrawer = {
         </div>
 
         <div style="padding:14px 18px; margin-top:auto;">
-          <button @click="window.logout()" class="btn-outline block" style="color:var(--danger); border-color:var(--danger);">
+          <button @click="keluar" class="btn-outline block" style="color:var(--danger); border-color:var(--danger);">
             <i class="fas fa-sign-out-alt" style="margin-right:8px;"></i> Logout
           </button>
         </div>
