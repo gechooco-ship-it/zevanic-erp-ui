@@ -277,7 +277,7 @@ const AppPenjadwalan = {
       reader.readAsArrayBuffer(file);
     }
 
-    onMounted(muat);
+    onMounted(async () => { await window.authReady; muat(); });
 
     return {
       semuaKaryawan, daftarShift, daftarJenisPekerjaan, memuat,

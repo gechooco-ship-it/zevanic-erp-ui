@@ -73,7 +73,7 @@ const MasterGudangManager = {
       await muat();
     }
 
-    onMounted(muat);
+    onMounted(async () => { await window.authReady; muat(); });
     return { daftarGudang, memuat, menyimpan, nama, tipeLokasi, lat, lng, radius, simpan, hapus };
   },
   template: `
@@ -168,7 +168,7 @@ const MasterShiftManager = {
       await muat();
     }
 
-    onMounted(muat);
+    onMounted(async () => { await window.authReady; muat(); });
     return { daftarShift, memuat, menyimpan, nama, jamMasuk, jamKeluar, simpan, hapus };
   },
   template: `

@@ -14,6 +14,28 @@ window.statusPilihanGlobal = "HADIR (CLOCK IN)";
 window.currentUser = { email: "", name: "", role: "operator", id_app: "", id_karyawan: "", jabatan: "", status_kerja: "aktif" };
 window._manualLoginInProgress = false; // dicek oleh onAuthStateChanged, disetel oleh vue-login.js
 
+// window.authReady — PERBAIKAN BUG: semua layar Master Absensi/Master
+// Karyawan (Antrean Dakar, Config Karyawan, Config Absensi, Daftar
+// Karyawan, Penjadwalan, Antrean Absensi, Riwayat All Absensi) sebelumnya
+// langsung ambil data Firestore begitu Vue-nya ter-mount (onMounted) — TANPA
+// menunggu Firebase Auth benar-benar selesai memastikan status login. Kalau
+// itu terjadi SEBELUM Auth siap (terutama pas sesi otomatis, yang butuh
+// waktu cek dulu), Firestore Rules menolak baca datanya (karena dianggap
+// belum login), dan karena tidak ada percobaan ulang, tabelnya macet
+// "Memuat data..." selamanya sampai halaman di-reload manual.
+//
+// Listener INI SENGAJA terpisah dari onAuthStateChanged besar di bawah
+// (yang urus logic sesi-otomatis/navigasi layar) — supaya tidak mengganggu
+// logic sensitif itu sama sekali. Fungsinya cuma satu: kasih sinyal "Auth
+// sudah pasti tahu jawabannya (login atau tidak)", dipakai semua komponen
+// Vue yang fetch data lewat `await window.authReady` sebelum mulai ambil.
+window.authReady = new Promise((resolve) => {
+  const lepasListener = onAuthStateChanged(auth, (user) => {
+    lepasListener();
+    resolve(user);
+  });
+});
+
 // Pesan error Firebase Auth diterjemahkan ke Bahasa Indonesia yang ramah pengguna
 function pesanErrorAuth(kode) {
   const peta = {

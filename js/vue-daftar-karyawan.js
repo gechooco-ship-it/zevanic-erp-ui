@@ -354,7 +354,7 @@ const AppDaftarKaryawan = {
       if (url && window.bukaPreviewFoto) window.bukaPreviewFoto(url);
     }
 
-    onMounted(muat);
+    onMounted(async () => { await window.authReady; muat(); });
     return { daftarKaryawan, memuat, emailSedangDiedit, muat, hapus, bukaEdit, tutupEdit, selesaiSimpan, badgeApproval, lihatFotoBesar };
   },
   template: `

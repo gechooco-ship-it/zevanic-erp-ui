@@ -139,7 +139,7 @@ const AppAntreanAbsensi = {
       memuat.value = false;
     }
 
-    onMounted(muat);
+    onMounted(async () => { await window.authReady; muat(); });
     return { daftarPending, daftarStatusKehadiran, memuat, muat };
   },
   template: `

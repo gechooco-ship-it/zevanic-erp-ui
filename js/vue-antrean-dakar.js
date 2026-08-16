@@ -104,7 +104,7 @@ const AntreanDakarCard = {
       memproses.value = false;
     }
 
-    onMounted(muatOpsi);
+    onMounted(async () => { await window.authReady; muatOpsi(); });
     return { form, opsiStatusKerja, opsiJenisPekerjaan, opsiJabatan, opsiStatusKaryawan, memproses, lihatFotoBesar, setujui, tolak };
   },
   template: `
@@ -178,7 +178,7 @@ const AppAntreanDakar = {
       memuat.value = false;
     }
 
-    onMounted(muat);
+    onMounted(async () => { await window.authReady; muat(); });
     return { daftarPending, memuat, muat };
   },
   template: `

@@ -64,7 +64,7 @@ export const MasterDataCategory = {
       await simpanKeFirestore();
     }
 
-    onMounted(muat);
+    onMounted(async () => { await window.authReady; muat(); });
 
     return { items, inputBaru, memuat, menyimpan, tambah, hapus };
   },
@@ -137,7 +137,7 @@ export const GudangCheckboxSelect = {
       emit('update:modelValue', nilaiBaru);
     }
 
-    onMounted(muat);
+    onMounted(async () => { await window.authReady; muat(); });
     return { daftarGudang, memuat, toggle };
   },
   template: `
@@ -207,7 +207,7 @@ export const KecamatanManager = {
     }
 
     watch(kabupatenTerpilih, muatKecamatan);
-    onMounted(async () => { await muatKabupaten(); await muatKecamatan(); });
+    onMounted(async () => { await window.authReady; await muatKabupaten(); await muatKecamatan(); });
 
     return { daftarKabupaten, kabupatenTerpilih, kecamatanList, inputBaru, memuat, tambah, hapus };
   },

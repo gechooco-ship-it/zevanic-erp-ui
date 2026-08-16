@@ -131,7 +131,7 @@ const AppWhatsappGateway = {
       if (nama === 'monitor') muatMonitoring();
     }
 
-    onMounted(muatKonfig);
+    onMounted(async () => { await window.authReady; muatKonfig(); });
 
     return {
       tabAktif, pindahTab,

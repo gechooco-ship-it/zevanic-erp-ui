@@ -48,7 +48,7 @@ const EditAbsensiModal = {
       menyimpan.value = false;
     }
 
-    onMounted(muatOpsi);
+    onMounted(async () => { await window.authReady; muatOpsi(); });
     return { form, opsiStatusKehadiran, menyimpan, simpan };
   },
   template: `
@@ -168,7 +168,7 @@ const AppRiwayatAbsensi = {
       document.body.removeChild(link);
     }
 
-    onMounted(muat);
+    onMounted(async () => { await window.authReady; muat(); });
     return { listData, memuat, itemSedangDiedit, muat, pisahTanggalWaktu, lihatFotoBesar, bukaEdit, tutupEdit, selesaiSimpan, hapus, assignUlang, exportCSV };
   },
   template: `

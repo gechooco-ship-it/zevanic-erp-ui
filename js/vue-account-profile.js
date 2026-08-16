@@ -352,6 +352,7 @@ const AppAccountProfile = {
     onMounted(async () => {
       muatAccountDisplay();
       if (window.mulaiHitungJamKerja) window.mulaiHitungJamKerja();
+      await window.authReady;
       await muatOpsiFilter();
       await muatRiwayat();
     });
