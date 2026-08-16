@@ -7,16 +7,18 @@
 // Security Rules — jadi mengubah Role di sini punya efek nyata & langsung,
 // tidak seperti Config Akses yang baru "cetak biru" saja.
 //
-// Tampilan & pola interaksi (cari, filter, centang massal, Update Massal,
-// paginasi) SENGAJA disamakan dengan js/vue-penjadwalan.js sesuai
-// permintaan — supaya orang yang sudah biasa pakai Penjadwalan langsung
-// familiar pakai layar ini juga.
+// Tampilan & pola interaksi (rail ringkasan bisa diklik+digeser, cari,
+// filter, centang massal, Update Massal, paginasi) SENGAJA disamakan
+// dengan js/vue-penjadwalan.js sesuai permintaan.
+//
+// Akses ke layar ini SENGAJA dibatasi khusus Owner (lihat auth.js).
 // ============================================================================
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 const DAFTAR_ROLE = ['operator', 'pic', 'admin', 'owner', 'superuser'];
+const NILAI_BELUM_DIATUR = '__BELUM_DIATUR__';
 const PER_HALAMAN = 15;
 
 const AppHakAkses = {
@@ -34,6 +36,12 @@ const AppHakAkses = {
 
     const bulkRole = ref('');
     const memprosesBulk = ref(false);
+
+    // ---- Scroll rail ringkasan (sama seperti Penjadwalan) ----
+    const railRingkasan = ref(null);
+    function geserRingkasan(arah) {
+      if (railRingkasan.value) railRingkasan.value.scrollBy({ left: arah * 240, behavior: 'smooth' });
+    }
 
     async function muat() {
       memuat.value = true;
@@ -59,11 +67,27 @@ const AppHakAkses = {
       memuat.value = false;
     }
 
+    // ---- Ringkasan per-role (kartu scroll horizontal, bisa diklik) ----
+    const ringkasanKartu = computed(() => {
+      const semua = semuaKaryawan.value;
+      const kartu = [{ label: 'Semua', nilaiFilter: 'ALL', angka: semua.length }];
+      DAFTAR_ROLE.forEach(r => {
+        kartu.push({ label: r, nilaiFilter: r, angka: semua.filter(d => (d.role || '') === r).length });
+      });
+      kartu.push({ label: 'Belum diatur', nilaiFilter: NILAI_BELUM_DIATUR, angka: semua.filter(d => !d.role).length });
+      return kartu;
+    });
+    function klikKartuRingkasan(nilaiFilter) { filterRole.value = nilaiFilter; }
+
     const hasilFilter = computed(() => {
       const kataKunci = cariNama.value.toLowerCase().trim();
       return semuaKaryawan.value.filter(d => {
         if (kataKunci && !(d.nama || '').toLowerCase().includes(kataKunci)) return false;
-        if (filterRole.value !== 'ALL' && (d.role || 'operator') !== filterRole.value) return false;
+        if (filterRole.value === NILAI_BELUM_DIATUR) {
+          if (d.role) return false;
+        } else if (filterRole.value !== 'ALL' && (d.role || '') !== filterRole.value) {
+          return false;
+        }
         if (filterGudang.value !== 'ALL') {
           const gudangKaryawan = window.normalisasiGudang(d.gudang_penempatan);
           if (!gudangKaryawan.includes(filterGudang.value)) return false;
@@ -104,15 +128,16 @@ const AppHakAkses = {
     function halamanSebelumnya() { if (halamanAman.value > 1) halaman.value = halamanAman.value - 1; }
     function halamanBerikutnya() { if (halamanAman.value < totalHalaman.value) halaman.value = halamanAman.value + 1; }
 
-    // Ubah role 1 karyawan langsung dari tabel (tanpa perlu centang+bulk)
+    // Ubah role 1 karyawan langsung dari tabel (tanpa perlu centang+bulk).
+    // Nilai "" (blank) berarti kosongkan/belum diatur.
     async function ubahRoleLangsung(item, roleBaru) {
       const roleLama = item.role;
-      item.role = roleBaru; // optimistik, langsung kelihatan di tabel
+      item.role = roleBaru || '';
       try {
-        await updateDoc(doc(db, "users", item.email), { role: roleBaru });
+        await updateDoc(doc(db, "users", item.email), { role: roleBaru || '' });
       } catch (e) {
         console.error("Gagal ubah role:", e);
-        item.role = roleLama; // batal balik kalau gagal
+        item.role = roleLama;
         alert("Gagal menyimpan perubahan role.");
       }
     }
@@ -120,14 +145,16 @@ const AppHakAkses = {
     async function terapkanBulkRole() {
       const daftarTerpilih = Array.from(terpilih);
       if (daftarTerpilih.length === 0) return alert("Belum ada karyawan yang dicentang/terpilih.");
-      if (!bulkRole.value) return alert("Pilih Role yang ingin diterapkan.");
-      if (!confirm(`Ubah Role ${daftarTerpilih.length} karyawan terpilih menjadi "${bulkRole.value}"?`)) return;
+      if (bulkRole.value === '__TIDAK_DIUBAH__') return alert("Pilih Role yang ingin diterapkan (atau \"Kosongkan\" untuk hapus role).");
+      const nilaiRole = bulkRole.value === '__KOSONGKAN__' ? '' : bulkRole.value;
+      const labelKonfirmasi = nilaiRole || '(dikosongkan / belum diatur)';
+      if (!confirm(`Ubah Role ${daftarTerpilih.length} karyawan terpilih menjadi "${labelKonfirmasi}"?`)) return;
 
       memprosesBulk.value = true;
       let sukses = 0, gagal = 0;
       for (const email of daftarTerpilih) {
         try {
-          await updateDoc(doc(db, "users", email), { role: bulkRole.value });
+          await updateDoc(doc(db, "users", email), { role: nilaiRole });
           sukses++;
         } catch (e) {
           console.error("Gagal ubah role untuk", email, e);
@@ -136,7 +163,7 @@ const AppHakAkses = {
       }
       memprosesBulk.value = false;
       alert(`Update massal selesai. Berhasil: ${sukses}, Gagal: ${gagal}.`);
-      bulkRole.value = '';
+      bulkRole.value = '__TIDAK_DIUBAH__';
       await muat();
     }
 
@@ -144,7 +171,8 @@ const AppHakAkses = {
 
     return {
       semuaKaryawan, daftarGudang, memuat, muat,
-      cariNama, filterRole, filterGudang, DAFTAR_ROLE,
+      cariNama, filterRole, filterGudang, DAFTAR_ROLE, NILAI_BELUM_DIATUR,
+      railRingkasan, geserRingkasan, ringkasanKartu, klikKartuRingkasan,
       terpilih, hasilFilter, potonganHalamanIni, infoHalaman, headerDicentang, halamanAman, totalHalaman,
       toggleCheckbox, toggleSemuaHalamanIni, pilihSemua, bersihkanPilihan,
       halamanSebelumnya, halamanBerikutnya,
@@ -159,6 +187,21 @@ const AppHakAkses = {
         <p style="font-size:11px; color:#1F5060; margin-top:4px; opacity:.85;">Hubungkan karyawan ke Role (izinnya diatur di tab Config Akses). Ubah 1 karyawan langsung lewat dropdown di tabel, atau centang beberapa lalu pakai Update Massal.</p>
       </div>
 
+      <!-- Rail ringkasan per-role -->
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:16px;">
+        <button @click="geserRingkasan(-1)" class="icon-btn" style="flex-shrink:0;" aria-label="Geser kiri"><i class="fas fa-chevron-left"></i></button>
+        <div ref="railRingkasan" style="display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; scroll-behavior:smooth;" class="no-scrollbar">
+          <div v-for="k in ringkasanKartu" :key="k.nilaiFilter"
+               @click="klikKartuRingkasan(k.nilaiFilter)"
+               style="flex-shrink:0; width:130px; background:var(--surface); padding:14px; border-radius:16px; cursor:pointer; transition:.15s;"
+               :style="filterRole === k.nilaiFilter ? 'border:2px solid var(--burgundy); box-shadow:0 4px 10px rgba(110,30,44,.1);' : 'border:1px solid var(--line);'">
+            <h4 style="font-size:11.5px; font-weight:700; color:var(--text); text-transform:uppercase; margin-bottom:8px;">{{ k.label }}</h4>
+            <div class="num" style="font-family:'Poppins',sans-serif; font-size:22px; font-weight:700; color:var(--burgundy);">{{ k.angka }}</div>
+          </div>
+        </div>
+        <button @click="geserRingkasan(1)" class="icon-btn" style="flex-shrink:0;" aria-label="Geser kanan"><i class="fas fa-chevron-right"></i></button>
+      </div>
+
       <!-- Update Massal -->
       <div class="gc-card" style="margin-bottom:16px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;"><i class="fas fa-layer-group" style="color:var(--burgundy); margin-right:8px;"></i> Update massal ({{ terpilih.size }} karyawan terpilih)</h3>
@@ -166,7 +209,8 @@ const AppHakAkses = {
           <div class="gc-field" style="margin-bottom:0; flex:1; min-width:200px;">
             <label>Role baru</label>
             <select v-model="bulkRole">
-              <option value="">-- Pilih role --</option>
+              <option value="__TIDAK_DIUBAH__">-- Pilih role --</option>
+              <option value="__KOSONGKAN__">(Kosongkan / belum diatur)</option>
               <option v-for="r in DAFTAR_ROLE" :key="r" :value="r">{{ r }}</option>
             </select>
           </div>
@@ -196,6 +240,7 @@ const AppHakAkses = {
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
             <select v-model="filterRole" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
               <option value="ALL">Semua role</option>
+              <option :value="NILAI_BELUM_DIATUR">(Belum diatur)</option>
               <option v-for="r in DAFTAR_ROLE" :key="r" :value="r">{{ r }}</option>
             </select>
             <select v-model="filterGudang" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
@@ -226,9 +271,13 @@ const AppHakAkses = {
                 <td class="freeze freeze-left" style="left:36px;"><b>{{ d.nama || '-' }}</b><br><span style="font-size:10.5px; color:var(--text-muted);">{{ d.email }}</span></td>
                 <td class="gc-cell-muted">{{ d.jenis_pekerjaan || '-' }}</td>
                 <td class="gc-cell-muted">{{ (d.gudang_penempatan && d.gudang_penempatan.length) ? d.gudang_penempatan.join(', ') : '-' }}</td>
-                <td style="text-align:center;"><span class="tag pink" style="text-transform:uppercase;">{{ d.role || 'operator' }}</span></td>
+                <td style="text-align:center;">
+                  <span v-if="d.role" class="tag pink" style="text-transform:uppercase;">{{ d.role }}</span>
+                  <span v-else class="tag neutral">Belum diatur</span>
+                </td>
                 <td>
-                  <select :value="d.role || 'operator'" @change="ubahRoleLangsung(d, $event.target.value)" style="padding:6px 10px; font-size:11.5px; border:1.5px solid var(--line); border-radius:8px; background:var(--surface);">
+                  <select :value="d.role || ''" @change="ubahRoleLangsung(d, $event.target.value)" style="padding:6px 10px; font-size:11.5px; border:1.5px solid var(--line); border-radius:8px; background:var(--surface);">
+                    <option value="">(Belum diatur)</option>
                     <option v-for="r in DAFTAR_ROLE" :key="r" :value="r">{{ r }}</option>
                   </select>
                 </td>

@@ -376,8 +376,14 @@ window.aturTampilanBerdasarkanRole = function() {
   const navMobileAdmin = document.getElementById('nav-mobile-admin');
   const navMobileSuper = document.getElementById('nav-mobile-super');
   const navMobileWhatsapp = document.getElementById('nav-mobile-whatsapp');
+  // Config Akses & Hak Akses SENGAJA dipisah dari gerbang owner+superuser di
+  // atas — permintaan eksplisit: dua sub-menu ini khusus Owner saja, bahkan
+  // Superuser (yang sebelumnya setara Owner untuk Master Karyawan lain)
+  // tidak boleh mengaksesnya.
+  const btnKonfigAkses = document.getElementById('btn-sub-karyawan-akses');
+  const btnHakAkses = document.getElementById('btn-sub-karyawan-hakakses');
 
-  [menuAdminAcc, menuAdminAccBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp].forEach(el => {
+  [menuAdminAcc, menuAdminAccBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -403,5 +409,10 @@ window.aturTampilanBerdasarkanRole = function() {
       navMobileWhatsapp.classList.remove('hidden');
       navMobileWhatsapp.classList.add('flex');
     }
+  }
+
+  if (role === 'owner') {
+    if (btnKonfigAkses) btnKonfigAkses.classList.remove('hidden');
+    if (btnHakAkses) btnHakAkses.classList.remove('hidden');
   }
 };
