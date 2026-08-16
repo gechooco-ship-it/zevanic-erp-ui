@@ -87,9 +87,14 @@ const AppConfigAkses = {
         const snap = await getDocs(collection(db, "akses_config"));
         const namaTersimpan = [];
         snap.forEach(d => namaTersimpan.push(d.id));
-        // Gabungkan dengan 5 profil baku (biar selalu muncul di daftar
-        // pilihan meski belum pernah disimpan sekalipun).
-        const gabungan = [...new Set([...PROFIL_BAKU, ...namaTersimpan])].sort();
+        // Gabungkan dengan profil baku (biar selalu muncul di daftar
+        // pilihan meski belum pernah disimpan sekalipun) — KECUALI "owner",
+        // sengaja disembunyikan dari daftar pilih/edit karena Owner wajib
+        // selalu punya akses penuh ke segalanya, tidak boleh dikonfigurasi
+        // (dikecilkan) lewat layar ini sama sekali.
+        const gabungan = [...new Set([...PROFIL_BAKU, ...namaTersimpan])]
+          .filter(nama => nama !== 'owner')
+          .sort();
         daftarProfil.value = gabungan;
 
         if (!profilDipilih.value && gabungan.length > 0) {
@@ -127,6 +132,9 @@ const AppConfigAkses = {
     async function simpan() {
       const nama = namaAkses.value.trim();
       if (!nama) return alert("Nama Akses harus diisi!");
+      if (nama.toLowerCase() === 'owner') {
+        return alert("Nama \"owner\" tidak boleh dipakai — Owner wajib selalu punya akses penuh dan tidak boleh dikonfigurasi lewat layar ini.");
+      }
 
       menyimpan.value = true;
       try {
