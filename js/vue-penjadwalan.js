@@ -154,8 +154,19 @@ const AppPenjadwalan = {
       return kartu;
     });
 
+    // Perbaikan bug yang sama dengan Hak Akses: kartu ringkasan cuma
+    // menghitung berdasarkan Gudang, tidak ikut memperhitungkan filter lain
+    // (cariNama, cekSudah/cekBelum, Jenis Pekerjaan, Shift, Hari Libur) yang
+    // mungkin masih aktif — bisa bikin tabel kosong walau kartu bilang ada
+    // datanya. Klik kartu sekarang reset filter lain juga.
     function klikKartuGudang(nilaiFilter) {
       filterGudang.value = nilaiFilter;
+      cariNama.value = '';
+      cekSudah.value = true;
+      cekBelum.value = true;
+      filterJenisPekerjaan.value = 'ALL';
+      filterShift.value = 'ALL';
+      filterLibur.value = 'ALL';
     }
 
     // ---- Seleksi ----

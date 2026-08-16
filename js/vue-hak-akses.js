@@ -77,7 +77,18 @@ const AppHakAkses = {
       kartu.push({ label: 'Belum diatur', nilaiFilter: NILAI_BELUM_DIATUR, angka: semua.filter(d => !d.role).length });
       return kartu;
     });
-    function klikKartuRingkasan(nilaiFilter) { filterRole.value = nilaiFilter; }
+    // Perbaikan bug: kartu ringkasan cuma menghitung berdasarkan Role, TIDAK
+    // ikut memperhitungkan filter Gudang/pencarian yang mungkin masih aktif
+    // dari sebelumnya — jadi kalau keduanya digabung (Role=owner DAN
+    // Gudang=tertentu), hasilnya bisa 0 walau kartu bilang 4 (Owner
+    // biasanya memang tidak ditautkan ke gudang manapun). Klik kartu
+    // sekarang RESET filter lain, supaya tabel selalu persis sama dengan
+    // angka yang tertulis di kartunya.
+    function klikKartuRingkasan(nilaiFilter) {
+      filterRole.value = nilaiFilter;
+      filterGudang.value = 'ALL';
+      cariNama.value = '';
+    }
 
     const hasilFilter = computed(() => {
       const kataKunci = cariNama.value.toLowerCase().trim();
