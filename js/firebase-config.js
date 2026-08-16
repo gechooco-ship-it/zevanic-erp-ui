@@ -1,6 +1,6 @@
 // js/firebase-config.js
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getFirestore } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 const firebaseConfig = {
@@ -13,5 +13,14 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app);
+
+// Offline Persistence (cache lokal via IndexedDB) — data yang PERNAH dibaca
+// tersimpan di perangkat, jadi kalau data yang SAMA diminta lagi (misal
+// balik ke tab yang sama, atau reload halaman) Firestore bisa jawab dari
+// cache lokal dulu tanpa perlu round-trip baca ke server tiap kali.
+// persistentMultipleTabManager: aman kalau orang buka app di beberapa tab
+// browser sekaligus (tidak rebutan/konflik cache antar tab).
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+});
 export const auth = getAuth(app);
