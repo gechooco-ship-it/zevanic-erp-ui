@@ -143,7 +143,7 @@ thead .freeze{z-index:3;}
    (bukan warna) yang masih dipakai di seluruh file setelah rebrand Gechoo.
    Breakpoint disamakan persis dengan default Tailwind: sm=640px, md=768px.
    ============================================================================= */
-.hidden{display:none !important;}
+.hidden{display:none;}
 .block{display:block;}
 .flex{display:flex;}
 .fixed{position:fixed;}
