@@ -280,7 +280,7 @@ const AppPenjadwalan = {
     onMounted(async () => { await window.authReady; muat(); });
 
     return {
-      semuaKaryawan, daftarShift, daftarJenisPekerjaan, memuat,
+      semuaKaryawan, daftarShift, daftarJenisPekerjaan, memuat, muat,
       cariNama, cekSudah, cekBelum, filterJenisPekerjaan, filterGudang, filterShift, filterLibur,
       terpilih, hasilFilter, potonganHalamanIni, infoHalaman, headerDicentang, halamanAman, totalHalaman,
       ringkasanKartu, klikKartuGudang,
@@ -294,6 +294,9 @@ const AppPenjadwalan = {
   },
   template: `
     <div>
+      <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+        <button @click="muat" class="btn-outline"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
+      </div>
       <!-- 0. Ringkasan per-gudang: scroll horizontal, bisa diklik -->
       <div style="display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; margin-bottom:16px;" class="no-scrollbar">
         <div v-for="k in ringkasanKartu" :key="k.nilaiFilter"
