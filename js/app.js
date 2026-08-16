@@ -52,13 +52,23 @@ window.pindahLayar = function(idTujuan) {
 // listener lewat JS (persis seperti cara Vue mengikat @click di baliknya)
 // menghindari masalah itu sepenuhnya, apapun penyebab pastinya.
 window.addEventListener('DOMContentLoaded', () => {
+  console.log('[DEBUG] DOMContentLoaded jalan, mulai pasang listener nav mobile...');
+
   const mnavHome = document.getElementById('mnav-home');
-  if (mnavHome) mnavHome.addEventListener('click', () => window.pindahTab('tab-home'));
+  console.log('[DEBUG] elemen mnav-home ditemukan?', !!mnavHome);
+  if (mnavHome) mnavHome.addEventListener('click', () => {
+    console.log('[DEBUG] tombol Home DIKLIK, panggil pindahTab...');
+    window.pindahTab('tab-home');
+    console.log('[DEBUG] pindahTab(tab-home) selesai dipanggil. tab-home hidden?', document.getElementById('tab-home').classList.contains('hidden'));
+  });
 
   const mnavAbsensi = document.getElementById('mnav-absensi');
+  console.log('[DEBUG] elemen mnav-absensi ditemukan?', !!mnavAbsensi);
   if (mnavAbsensi) mnavAbsensi.addEventListener('click', () => {
+    console.log('[DEBUG] tombol Absensi DIKLIK, panggil pindahTab...');
     window.pindahTab('tab-profil', 'tab-profil-absensi');
     if (window.bukaTabAbsensiProfile) window.bukaTabAbsensiProfile();
+    console.log('[DEBUG] Absensi selesai. tab-profil hidden?', document.getElementById('tab-profil').classList.contains('hidden'));
   });
 
   const mnavScanQr = document.getElementById('mnav-scanqr');
@@ -72,6 +82,8 @@ window.addEventListener('DOMContentLoaded', () => {
     if (window.matikanScanQr) window.matikanScanQr();
     if (window.bukaProfileDrawer) window.bukaProfileDrawer();
   });
+
+  console.log('[DEBUG] semua listener nav mobile selesai dipasang.');
 });
 
 // Catatan: window.pindahTab sengaja TIDAK didefinisikan di sini.
