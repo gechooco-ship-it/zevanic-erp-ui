@@ -125,11 +125,23 @@ const AppAccountProfile = {
       jabatanTampil.value = window.currentUser?.jabatan || window.currentUser?.role || 'Staff';
       const qrData = window.currentUser?.id_app || window.currentUser?.email || '';
       qrUrl.value = qrData ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}` : '';
+      muatRoleTampil();
     }
 
     function clockOut() {
       if (window.prosesClockOut) window.prosesClockOut();
     }
+
+    // Buat menu pintasan Admin di tab Account (pengganti akses lewat bottom
+    // nav mobile yang sekarang dipakai buat Home/Absensi/Scan QR/Progress
+    // universal semua role) — computed, bukan re-baca window.currentUser
+    // langsung di template (Vue tidak reaktif ke situ, sudah pernah kena
+    // bug ini sebelumnya).
+    const roleTampil = ref('');
+    function muatRoleTampil() { roleTampil.value = (window.currentUser?.role || '').toLowerCase(); }
+    const isAdminRole = computed(() => ['pic', 'admin', 'owner', 'superuser'].includes(roleTampil.value));
+    const isAdminAccessLevel = computed(() => ['pic', 'admin', 'owner', 'superuser'].includes(roleTampil.value));
+    const isOwnerAccessLevel = computed(() => ['owner', 'superuser'].includes(roleTampil.value));
 
     // ---- Data Karyawan (self-edit) ----
     const form = reactive({
@@ -360,6 +372,7 @@ const AppAccountProfile = {
     return {
       tabAktif, pindahTab, muatAccountDisplay,
       namaTampil, idAppTampil, jabatanTampil, qrUrl, clockOut,
+      isAdminRole, isAdminAccessLevel, isOwnerAccessLevel,
       form, menyimpanForm, simpanDataDiri,
       formTerbuka, opsiAlasanIzin, opsiAlasanCuti, izin, cuti, lembur,
       bukaFormIzin, tutupFormIzin, ajukanIzin,
@@ -409,11 +422,22 @@ const AppAccountProfile = {
         <p style="font-size:10.5px; color:var(--text-faint); max-width:200px; line-height:1.6; margin-top:10px;">Tunjukkan QR ini saat melakukan absensi fisik atau verifikasi proses SPK.</p>
       </div>
       <div class="gc-card" style="max-width:380px; margin:14px auto 0;">
-        <h3 style="font-size:11.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;">Aksi Absensi</h3>
-        <button @click="clockOut" class="btn-primary block" style="background:var(--danger); padding:13px;">
-          <i class="fas fa-sign-out-alt" style="margin-right:8px;"></i> Clock Out (Pulang)
+        <p style="font-size:11px; color:var(--text-muted); text-align:center;">Clock Out dan pengajuan Izin/Cuti/Lembur sekarang ada di tab <b>Absensi</b>.</p>
+      </div>
+
+      <div v-if="isAdminRole" class="gc-card" style="max-width:380px; margin:14px auto 0;">
+        <h3 style="font-size:11.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;"><i class="fas fa-user-shield" style="margin-right:6px; color:var(--burgundy);"></i>Menu Admin</h3>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button v-if="isAdminAccessLevel" @click="window.pindahTab('tab-admin-acc')" class="btn-outline" style="text-align:left; display:flex; align-items:center; gap:10px;"><i class="fas fa-check-double" style="width:16px;"></i> Master Absensi</button>
+          <button v-if="isOwnerAccessLevel" @click="window.pindahTab('tab-superuser')" class="btn-outline" style="text-align:left; display:flex; align-items:center; gap:10px;"><i class="fas fa-users-cog" style="width:16px;"></i> Master Karyawan</button>
+          <button v-if="isOwnerAccessLevel" @click="window.pindahTab('tab-whatsapp')" class="btn-outline" style="text-align:left; display:flex; align-items:center; gap:10px;"><i class="fab fa-whatsapp" style="width:16px;"></i> WhatsApp Gateway</button>
+        </div>
+      </div>
+
+      <div class="md:hidden" style="max-width:380px; margin:14px auto 0;">
+        <button @click="window.logout()" class="btn-outline block" style="color:var(--danger); border-color:var(--danger);">
+          <i class="fas fa-sign-out-alt" style="margin-right:8px;"></i> Logout
         </button>
-        <p style="font-size:10.5px; color:var(--text-faint); text-align:center; margin-top:10px;">Pengajuan Izin/Cuti/Lembur sekarang ada di tab <b>Absensi</b>.</p>
       </div>
     </div>
 
@@ -504,6 +528,9 @@ const AppAccountProfile = {
     <div v-show="tabAktif === 'absensi'" style="margin-top:16px;">
       <div class="gc-card" style="max-width:520px; margin:0 auto 14px;">
         <h3 style="font-size:11.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;">Pengajuan</h3>
+        <button @click="clockOut" class="btn-primary block" style="background:var(--danger); padding:12px; margin-bottom:12px;">
+          <i class="fas fa-sign-out-alt" style="margin-right:8px;"></i> Clock Out (Pulang)
+        </button>
         <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px;">
           <button @click="bukaFormIzin" style="background:var(--warn-light); color:var(--warn); font-weight:700; padding:10px; border-radius:14px; font-size:12px; display:flex; flex-direction:column; align-items:center; gap:4px; border:1px solid #EAD7B0; cursor:pointer;">
             <i class="fas fa-file-signature"></i> Izin
@@ -674,4 +701,11 @@ if (mountPoint) {
   window.refreshAccountProfileDisplay = function() {
     vm.muatAccountDisplay();
   };
+  // Jembatan BARU ke layar Home (js/vue-home.js) — pintasan "Izin"/"Cuti"/
+  // "Lembur" di Home langsung buka tab Absensi profil INI dan langsung
+  // munculkan form yang relevan, tanpa orang harus klik 2 kali (buka
+  // Profile dulu, baru klik Absensi, baru klik Izin/dst).
+  window.bukaFormIzinDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('absensi'); vm.bukaFormIzin(); };
+  window.bukaFormCutiDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('absensi'); vm.bukaFormCuti(); };
+  window.bukaFormLemburDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('absensi'); vm.bukaFormLembur(); };
 }

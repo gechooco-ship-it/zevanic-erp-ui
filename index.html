@@ -93,16 +93,21 @@
 
       <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-8 min-h-0">
 
-        <div id="tab-home" class="space-y-6">
-          <div style="background:var(--pink); border-radius:22px; padding:28px; position:relative; overflow:hidden;">
-            <div style="position:absolute; right:-40px; top:-40px; width:180px; height:180px; border-radius:50%; background:var(--blue); opacity:.3;"></div>
-            <div style="position:relative; z-index:1;">
-              <h2 class="gc-heading" style="font-size:22px; font-weight:700; color:var(--mahogany); margin-bottom:8px;">Selamat datang di Gechoo ERP</h2>
-              <p style="font-size:13px; color:var(--mahogany-soft); max-width:420px;">Sistem manajemen presensi & operasional terintegrasi cloud.</p>
-              <button onclick="pindahLayar('screen-login')" class="btn-primary" style="margin-top:18px;">
-                <i class="fas fa-plus-circle" style="margin-right:8px;"></i> Buat absen / izin baru
-              </button>
-            </div>
+        <div id="tab-home" class="max-w-xl mx-auto w-full">
+          <!-- MIGRASI VUE: lihat js/vue-home.js -->
+          <div id="vue-home"></div>
+        </div>
+
+        <div id="tab-scan-qr" class="tab-content hidden fade-in">
+          <!-- MIGRASI VUE: lihat js/vue-scan-qr.js (kamera + pembaca QR sungguhan) -->
+          <div id="vue-scan-qr"></div>
+        </div>
+
+        <div id="tab-progress" class="tab-content hidden fade-in max-w-xl mx-auto w-full">
+          <div class="gc-card" style="text-align:center; padding:56px 20px; margin-top:16px;">
+            <i class="fas fa-diagram-project" style="font-size:38px; color:var(--blue-deep); margin-bottom:14px; display:block;"></i>
+            <h4 class="gc-heading" style="font-weight:700; font-size:15px;">Progress sedang dibangun</h4>
+            <p style="font-size:12px; color:var(--text-muted); margin-top:6px; max-width:280px; margin-left:auto; margin-right:auto;">Fitur pelacakan tahapan produksi/SPK lewat Scan QR akan muncul di sini. Menyusul di pembaruan berikutnya.</p>
           </div>
         </div>
 
@@ -216,25 +221,27 @@
     </div>
 
     <nav class="md:hidden gc-mobile-nav" style="width:100%;">
-      <button onclick="pindahTab('tab-home')" class="gc-mnav-item active">
+      <button data-navtab="tab-home" onclick="pindahTab('tab-home')" class="gc-mnav-item active">
         <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-        <span>Dashboard</span>
+        <span>Home</span>
       </button>
-      <button onclick="pindahTab('tab-profil')" class="gc-mnav-item">
-        <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
-        <span>Profile</span>
-      </button>
-      <button id="nav-mobile-admin" onclick="pindahTab('tab-admin-acc')" class="hidden gc-mnav-item">
-        <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+      <button data-navtab="tab-profil-absensi" onclick="pindahTab('tab-profil', 'tab-profil-absensi'); if(window.bukaTabAbsensiProfile) window.bukaTabAbsensiProfile();" class="gc-mnav-item">
+        <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
         <span>Absensi</span>
       </button>
-      <button id="nav-mobile-super" onclick="pindahTab('tab-superuser')" class="hidden gc-mnav-item">
-        <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-        <span>Karyawan</span>
+      <div data-navtab="tab-scan-qr" class="gc-mnav-scan">
+        <button onclick="pindahTab('tab-scan-qr')" class="gc-mnav-scan-btn" aria-label="Scan QR">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        </button>
+        <span>Scan QR</span>
+      </div>
+      <button data-navtab="tab-progress" onclick="pindahTab('tab-progress')" class="gc-mnav-item">
+        <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18M18 9l-5 5-4-4-3 3"/></svg>
+        <span>Progress</span>
       </button>
-      <button id="nav-mobile-whatsapp" onclick="pindahTab('tab-whatsapp')" class="hidden gc-mnav-item">
-        <i class="fab fa-whatsapp gc-mnav-ico"></i>
-        <span>WA Gateway</span>
+      <button data-navtab="tab-profil" onclick="pindahTab('tab-profil')" class="gc-mnav-item">
+        <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+        <span>Profile</span>
       </button>
     </nav>
   </div>
@@ -270,8 +277,10 @@
   <script type="module" src="js/vue-penjadwalan.js"></script>
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>
   <script type="module" src="js/vue-account-profile.js"></script>
+  <script type="module" src="js/vue-home.js"></script>
   <script type="module" src="js/vue-registrasi.js"></script>
   <script type="module" src="js/vue-login.js"></script>
   <script type="module" src="js/vue-camera.js"></script>
+  <script type="module" src="js/vue-scan-qr.js"></script>
 </body>
 </html>

@@ -165,8 +165,13 @@ window.ambilKecamatanUntukKabupaten = async function(kab) {
 // ====== LOGIKA PERPINDAHAN HALAMAN UTAMA (ANTI KETUMPUK) =================
 // =========================================================================
 
-window.pindahTab = function(tabId) {
-  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-superuser', 'tab-whatsapp'];
+window.pindahTab = function(tabId, navKey) {
+  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-superuser', 'tab-whatsapp', 'tab-scan-qr', 'tab-progress'];
+  const tabSebelumnya = tabs.find(t => {
+    const el = document.getElementById(t);
+    return el && !el.classList.contains('hidden');
+  });
+
   tabs.forEach(tab => {
     const elemenTab = document.getElementById(tab);
     if (elemenTab) elemenTab.classList.add('hidden');
@@ -174,6 +179,21 @@ window.pindahTab = function(tabId) {
   
   const targetTab = document.getElementById(tabId);
   if (targetTab) targetTab.classList.remove('hidden');
+
+  // Tandai ikon nav mobile mana yang aktif. navKey opsional — dipakai
+  // khusus untuk kasus 2 tombol berbeda (Absensi & Profile) yang sama-sama
+  // menuju tab-profil, supaya masing-masing tetap tersorot sesuai yang
+  // benar-benar diklik, bukan cuma ikut tabId apa adanya.
+  document.querySelectorAll('.gc-mnav-item, .gc-mnav-scan').forEach(el => el.classList.remove('active'));
+  const navBtn = document.querySelector('[data-navtab="' + (navKey || tabId) + '"]');
+  if (navBtn) navBtn.classList.add('active');
+
+  // Kamera Scan QR: nyala TEPAT saat tab-nya benar-benar dibuka, mati saat
+  // pindah ke tab lain — bukan otomatis nyala dari awal (boros baterai &
+  // minta izin kamera di waktu yang aneh kalau dilakukan dari awal muat
+  // halaman, sebelum orang benar-benar mau pakai fiturnya).
+  if (tabId === 'tab-scan-qr' && window.mulaiScanQr) window.mulaiScanQr();
+  if (tabSebelumnya === 'tab-scan-qr' && tabId !== 'tab-scan-qr' && window.matikanScanQr) window.matikanScanQr();
 
   if (tabId === 'tab-admin-acc') {
       if (window.pindahSubTab) window.pindahSubTab('sub-absensi', 'sub-absensi-accept', document.querySelectorAll('.sub-absensi-btn')[2]);
