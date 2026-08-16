@@ -26,11 +26,11 @@ const AppConfigKaryawan = {
     return { kategoriList: KATEGORI_SEDERHANA };
   },
   template: `
-    <div class="bg-blue-50 border border-blue-100 p-4 rounded-2xl">
-      <h4 class="font-bold text-blue-800 text-sm"><i class="fas fa-database mr-1.5"></i> Master Data</h4>
-      <p class="text-[11px] text-blue-600 mt-0.5">Kelola pilihan yang muncul di dropdown seluruh aplikasi (Antrean Dakar, Edit Karyawan, Registrasi, dll). Ketik lalu Enter/klik + untuk menambah, klik &times; pada item untuk menghapus.</p>
+    <div class="gc-card" style="background:var(--blue); border:none;">
+      <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:#1F5060;"><i class="fas fa-database" style="margin-right:8px;"></i> Master Data</h4>
+      <p style="font-size:11px; color:#1F5060; margin-top:4px; opacity:.85;">Kelola pilihan yang muncul di dropdown seluruh aplikasi (Antrean Dakar, Edit Karyawan, Registrasi, dll). Ketik lalu Enter/klik + untuk menambah, klik &times; pada item untuk menghapus.</p>
     </div>
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+    <div style="gap:14px; margin-top:16px;" class="grid grid-cols-1 md:grid-cols-2">
       <master-data-category
         v-for="k in kategoriList"
         :key="k.kategori"

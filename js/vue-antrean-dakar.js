@@ -108,51 +108,51 @@ const AntreanDakarCard = {
     return { form, opsiStatusKerja, opsiJenisPekerjaan, opsiJabatan, opsiStatusKaryawan, memproses, lihatFotoBesar, setujui, tolak };
   },
   template: `
-    <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-      <div class="flex items-center space-x-3 border-b pb-3">
-        <img v-if="data.foto_ktp" :src="data.foto_ktp" @click="lihatFotoBesar" class="w-16 h-12 rounded-lg object-cover border cursor-pointer hover:scale-105 transition">
-        <div v-else class="w-16 h-12 bg-gray-100 rounded-lg flex items-center justify-center text-gray-300"><i class="fas fa-id-card"></i></div>
+    <div class="gc-card">
+      <div style="display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
+        <img v-if="data.foto_ktp" :src="data.foto_ktp" @click="lihatFotoBesar" style="width:64px; height:48px; border-radius:10px; object-fit:cover; border:1px solid var(--line); cursor:pointer;">
+        <div v-else style="width:64px; height:48px; background:var(--ivory-dim); border-radius:10px; display:flex; align-items:center; justify-content:center; color:var(--text-faint);"><i class="fas fa-id-card"></i></div>
         <div>
-          <h4 class="font-bold text-slate-800 text-sm">{{ data.nama || 'Tanpa Nama' }}</h4>
-          <p class="text-[10px] text-gray-400 font-mono">{{ data.email || emailId }} &bull; {{ data.hp || '-' }}</p>
-          <p class="text-[10px] text-gray-400 font-mono">NIK: {{ data.nik || '-' }}</p>
+          <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ data.nama || 'Tanpa Nama' }}</h4>
+          <p style="font-size:10.5px; color:var(--text-muted); font-family:'Poppins',sans-serif;">{{ data.email || emailId }} &bull; {{ data.hp || '-' }}</p>
+          <p style="font-size:10.5px; color:var(--text-muted); font-family:'Poppins',sans-serif;">NIK: {{ data.nik || '-' }}</p>
         </div>
       </div>
-      <div class="grid grid-cols-2 gap-3 text-xs">
-        <div>
-          <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Status Kerja</label>
-          <select v-model="form.statusKerja" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+        <div class="gc-field" style="margin-bottom:0;">
+          <label style="font-size:10.5px;">Status kerja</label>
+          <select v-model="form.statusKerja" style="padding:7px 10px; font-size:12px;">
             <option v-for="o in opsiStatusKerja" :key="o" :value="o">{{ o }}</option>
           </select>
         </div>
-        <div>
-          <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Jenis Pekerjaan</label>
-          <select v-model="form.jenisPekerjaan" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
+        <div class="gc-field" style="margin-bottom:0;">
+          <label style="font-size:10.5px;">Jenis pekerjaan</label>
+          <select v-model="form.jenisPekerjaan" style="padding:7px 10px; font-size:12px;">
             <option v-for="o in opsiJenisPekerjaan" :key="o" :value="o">{{ o }}</option>
           </select>
         </div>
-        <div>
-          <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Jabatan</label>
-          <select v-model="form.jabatan" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
+        <div class="gc-field" style="margin-bottom:0;">
+          <label style="font-size:10.5px;">Jabatan</label>
+          <select v-model="form.jabatan" style="padding:7px 10px; font-size:12px;">
             <option v-for="o in opsiJabatan" :key="o" :value="o">{{ o }}</option>
           </select>
         </div>
-        <div>
-          <label class="block text-[10px] font-bold text-gray-500 mb-1 uppercase">Status Karyawan</label>
-          <select v-model="form.statusKaryawan" class="w-full px-2 py-1.5 bg-gray-50 border rounded-lg text-xs">
+        <div class="gc-field" style="margin-bottom:0;">
+          <label style="font-size:10.5px;">Status karyawan</label>
+          <select v-model="form.statusKaryawan" style="padding:7px 10px; font-size:12px;">
             <option v-for="o in opsiStatusKaryawan" :key="o" :value="o">{{ o }}</option>
           </select>
         </div>
       </div>
-      <div>
-        <label class="block text-[10px] font-bold text-gray-500 mb-1.5 uppercase">Gudang Penempatan (bisa lebih dari satu)</label>
+      <div class="gc-field">
+        <label style="font-size:10.5px;">Gudang penempatan (bisa lebih dari satu)</label>
         <gudang-checkbox-select v-model="form.gudang" />
       </div>
-      <div class="flex space-x-2 pt-2 border-t">
-        <button @click="setujui" :disabled="memproses" class="flex-1 bg-green-600 text-white font-bold py-2.5 rounded-xl hover:bg-green-700 transition text-xs disabled:opacity-50">
-          <i class="fas fa-check-circle mr-1"></i> Setujui & Aktifkan
+      <div style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line);">
+        <button @click="setujui" :disabled="memproses" class="btn-acc" style="flex:1;">
+          <i class="fas fa-check-circle" style="margin-right:6px;"></i> Setujui & aktifkan
         </button>
-        <button @click="tolak" :disabled="memproses" class="bg-red-50 text-red-600 font-bold px-4 py-2.5 rounded-xl hover:bg-red-100 transition text-xs disabled:opacity-50">
+        <button @click="tolak" :disabled="memproses" class="btn-rej">
           <i class="fas fa-times"></i> Tolak
         </button>
       </div>
@@ -182,23 +182,23 @@ const AppAntreanDakar = {
     return { daftarPending, memuat, muat };
   },
   template: `
-    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex justify-between items-center shadow-sm">
+    <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none;">
       <div>
-        <h3 class="text-sm font-bold text-amber-700 mb-0.5"><i class="fas fa-user-clock mr-2"></i> Antrean Persetujuan Karyawan Baru</h3>
-        <p class="text-[10px] text-amber-600">Pendaftar baru tidak bisa login sampai disetujui & dilengkapi datanya di sini.</p>
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; color:var(--burgundy-dark);"><i class="fas fa-user-clock" style="margin-right:8px;"></i> Antrean persetujuan karyawan baru</h3>
+        <p style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Pendaftar baru tidak bisa login sampai disetujui & dilengkapi datanya di sini.</p>
       </div>
-      <button @click="muat" class="bg-amber-600 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-amber-700 transition"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+      <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
     </div>
 
-    <div v-if="memuat" class="text-center py-10 text-gray-400 text-xs mt-4">
-      <i class="fas fa-spinner fa-spin text-2xl mb-2"></i><p>Memuat antrean karyawan baru...</p>
+    <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint); font-size:12px; margin-top:16px;">
+      <i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i>Memuat antrean karyawan baru...
     </div>
-    <div v-else-if="daftarPending.length === 0" class="text-center py-16 text-gray-400 bg-white rounded-3xl border border-dashed mt-4">
-      <i class="fas fa-user-check text-4xl text-green-300 mb-3"></i>
-      <h4 class="font-bold text-gray-700 text-sm">Tidak Ada Antrean</h4>
-      <p class="text-xs text-gray-400 mt-1">Semua pendaftar sudah diproses.</p>
+    <div v-else-if="daftarPending.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px; margin-top:16px;">
+      <i class="fas fa-user-check" style="font-size:34px; color:var(--ok); margin-bottom:10px; display:block;"></i>
+      <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Tidak ada antrean</h4>
+      <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Semua pendaftar sudah diproses.</p>
     </div>
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+    <div v-else style="gap:14px; margin-top:16px;" class="grid grid-cols-1 md:grid-cols-2">
       <antrean-dakar-card v-for="item in daftarPending" :key="item.id" :email-id="item.id" :data="item.data" @diproses="muat" />
     </div>
   `

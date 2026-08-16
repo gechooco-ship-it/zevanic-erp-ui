@@ -4,12 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ZEVANIC HOUSE - ERP System</title>
-  <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <!-- Rebrand Gechoo: font & sistem desain baru. Tailwind di atas SENGAJA
-       masih aktif selama masa transisi — dicabut setelah semua file Vue
-       selesai dikonversi ke class di gechoo-design.css. -->
+  <!-- Rebrand Gechoo: Tailwind CDN sudah DICABUT (30 Agustus) — semua warna
+       DAN struktur layout (flex/grid/spacing/responsif) sekarang murni
+       css/gechoo-design.css, jauh lebih ringan & tanpa compile di browser. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/gechoo-design.css">
@@ -37,71 +36,73 @@
     <div id="vue-login"></div>
   </div>
 
-  <div id="screen-camera" class="hidden min-h-screen bg-slate-900 flex-col items-center justify-between p-6 fade-in">
+  <div id="screen-camera" class="hidden min-h-screen flex-col items-center justify-between fade-in">
     <!-- MIGRASI VUE: lihat js/vue-camera.js -->
-    <div id="vue-camera" class="w-full flex flex-col items-center justify-between h-full"></div>
+    <div id="vue-camera" class="w-full h-full"></div>
   </div>
 
   <!-- LAYAR 2: REGISTRASI KARYAWAN -->
-  <div id="screen-register" class="hidden h-auto min-h-screen w-full bg-slate-50 flex flex-col items-center justify-start p-4 py-10 fade-in overflow-y-auto">
+  <div id="screen-register" class="hidden h-auto min-h-screen w-full flex flex-col items-center justify-start p-4 py-10 fade-in overflow-y-auto" style="background:var(--ivory);">
     <!-- MIGRASI VUE: lihat js/vue-registrasi.js -->
     <div id="vue-registrasi"></div>
   </div>
 
 
-  <div id="screen-dashboard" class="hidden h-[100dvh] w-full relative fade-in bg-slate-50 flex overflow-hidden">
+  <div id="screen-dashboard" class="hidden h-[100dvh] w-full relative fade-in flex overflow-hidden" style="background:var(--ivory);">
 
-    <aside class="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col shadow-sm z-20 shrink-0">
-      <div class="h-20 flex flex-col justify-center px-6 border-b border-gray-100">
-        <h1 class="text-xl font-black tracking-tight text-gray-900">ZEVANIC HOUSE</h1>
-        <p id="label-role-sidebar" class="text-[9px] tracking-widest text-blue-600 font-bold uppercase mt-0.5">Role: Operator</p>
+    <aside class="gc-sidebar hidden md:flex w-64 flex-col shrink-0" style="z-index:20;">
+      <div style="padding:4px 10px 20px; border-bottom:1px solid var(--pink-deep); margin-bottom:14px;">
+        <h1 class="gc-heading" style="font-size:17px; font-weight:700; color:var(--mahogany);">Gechoo &hearts;</h1>
+        <p id="label-role-sidebar" class="gc-heading" style="font-size:9.5px; letter-spacing:.08em; color:var(--burgundy); font-weight:700; text-transform:uppercase; margin-top:1px;">Role: Operator</p>
       </div>
-      <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-        <button onclick="pindahTab('tab-home')" class="w-full flex items-center px-4 py-3 text-sm font-bold rounded-xl bg-blue-50 text-blue-600 transition">
-          <i class="fas fa-home w-6 text-left"></i> Dashboard
+      <nav class="flex-1 overflow-y-auto" style="display:flex; flex-direction:column; gap:3px;">
+        <button onclick="pindahTab('tab-home')" class="gc-nav-item active">
+          <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg> Dashboard
         </button>
-        <button onclick="pindahTab('tab-profil')" class="w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-gray-600 hover:bg-gray-50 transition">
-          <i class="fas fa-user-circle w-6 text-left"></i> Profile
+        <button onclick="pindahTab('tab-profil')" class="gc-nav-item">
+          <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg> Profile
         </button>
-        <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-purple-600 hover:bg-purple-50 transition font-bold mt-4 border-t pt-4">
-          <i class="fas fa-clipboard-check w-6 text-left"></i> Master Absensi
+        <div id="menu-admin-acc" class="hidden gc-nav-section">Master absensi</div>
+        <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc-btn" class="hidden gc-nav-item">
+          <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> Absensi
         </button>
-        <button onclick="pindahTab('tab-superuser')" id="menu-superuser" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-red-600 hover:bg-red-50 transition font-bold">
-          <i class="fas fa-users-cog w-6 text-left"></i> Master Karyawan
+        <div id="menu-superuser" class="hidden gc-nav-section">Master karyawan</div>
+        <button onclick="pindahTab('tab-superuser')" id="menu-superuser-btn" class="hidden gc-nav-item">
+          <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg> Karyawan
         </button>
-        <button onclick="pindahTab('tab-whatsapp')" id="menu-whatsapp" class="hidden w-full flex items-center px-4 py-3 text-sm font-medium rounded-xl text-green-600 hover:bg-green-50 transition font-bold">
-          <i class="fab fa-whatsapp w-6 text-left"></i> WhatsApp Gateway
+        <div id="menu-whatsapp" class="hidden gc-nav-section">Integrasi</div>
+        <button onclick="pindahTab('tab-whatsapp')" id="menu-whatsapp-btn" class="hidden gc-nav-item">
+          <i class="fab fa-whatsapp" style="width:17px; text-align:center;"></i> WhatsApp
         </button>
       </nav>
-      <div class="p-4 border-t border-gray-100">
-        <button onclick="logout()" class="w-full flex items-center px-4 py-2 text-sm font-bold rounded-xl text-red-500 hover:bg-red-50 transition">
-          <i class="fas fa-sign-out-alt w-6 text-left"></i> Logout
+      <div style="padding-top:14px; border-top:1px solid var(--pink-deep);">
+        <button onclick="logout()" class="gc-nav-item" style="color:var(--danger);">
+          <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg> Logout
         </button>
       </div>
     </aside>
 
     <div class="flex-1 flex flex-col relative h-full overflow-hidden">
-      <header class="h-20 bg-white border-b border-gray-100 px-6 py-4 flex justify-between items-center shadow-sm shrink-0 z-10">
-        <div class="flex items-center space-x-3">
-          <h2 class="text-xl font-black tracking-tight text-gray-800 hidden sm:inline">ERP PORTAL</h2>
-          <span id="label-badge-role" class="text-xs font-semibold text-gray-500 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
-            <i class="far fa-clock mr-1.5"></i> ERP PORTAL
-          </span>
+      <header class="shrink-0" style="height:80px; background:var(--surface); border-bottom:1px solid var(--line); padding:16px 24px; display:flex; justify-content:space-between; align-items:center; z-index:10;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <h2 class="gc-heading hidden sm:inline" style="font-size:17px; font-weight:700; color:var(--mahogany);">ERP Portal</h2>
+          <span id="label-badge-role" class="tag neutral"><i class="far fa-clock" style="margin-right:6px;"></i> ERP Portal</span>
         </div>
-        <div class="flex items-center space-x-3">
-          <span id="teks-nama-user" class="text-xs font-bold text-gray-700">Hi, Karyawan</span>
-        </div>
+        <span id="teks-nama-user" class="gc-heading" style="font-size:12.5px; font-weight:700; color:var(--text);">Hi, Karyawan</span>
       </header>
 
       <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-8 min-h-0">
 
         <div id="tab-home" class="space-y-6">
-          <div class="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-3xl p-6 md:p-8 text-white shadow-lg">
-            <h2 class="text-2xl font-black mb-2">Selamat Datang di Zevanic ERP</h2>
-            <p class="text-blue-100 text-sm max-w-xl">Sistem manajemen presensi & operasional terintegrasi cloud.</p>
-            <button onclick="pindahLayar('screen-login')" class="mt-5 bg-white text-blue-600 font-bold px-6 py-2.5 rounded-xl text-sm shadow-md hover:bg-blue-50 transition">
-              <i class="fas fa-plus-circle mr-2"></i> Buat Absen / Izin Baru
-            </button>
+          <div style="background:var(--pink); border-radius:22px; padding:28px; position:relative; overflow:hidden;">
+            <div style="position:absolute; right:-40px; top:-40px; width:180px; height:180px; border-radius:50%; background:var(--blue); opacity:.3;"></div>
+            <div style="position:relative; z-index:1;">
+              <h2 class="gc-heading" style="font-size:22px; font-weight:700; color:var(--mahogany); margin-bottom:8px;">Selamat datang di Gechoo ERP</h2>
+              <p style="font-size:13px; color:var(--mahogany-soft); max-width:420px;">Sistem manajemen presensi & operasional terintegrasi cloud.</p>
+              <button onclick="pindahLayar('screen-login')" class="btn-primary" style="margin-top:18px;">
+                <i class="fas fa-plus-circle" style="margin-right:8px;"></i> Buat absen / izin baru
+              </button>
+            </div>
           </div>
         </div>
 
@@ -112,16 +113,16 @@
 
 
         <div id="tab-admin-acc" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
-        <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+        <div class="gc-card">
           <div>
-            <h2 class="text-lg font-black text-slate-800 flex items-center"><i class="fas fa-check-double text-amber-500 mr-2.5"></i> Management & Validasi Absensi</h2>
-            <p class="text-xs text-gray-500 mt-0.5">Kelola antrean persetujuan, pantau riwayat absensi, rekapitulasi, dan konfigurasi jadwal.</p>
+            <h2 class="gc-heading" style="font-size:16.5px; font-weight:700; display:flex; align-items:center;"><i class="fas fa-check-double" style="color:var(--burgundy); margin-right:10px;"></i> Management & validasi absensi</h2>
+            <p style="font-size:12px; color:var(--text-muted); margin-top:3px;">Kelola antrean persetujuan, pantau riwayat absensi, rekapitulasi, dan konfigurasi jadwal.</p>
           </div>
-          <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200 pt-2 hide-scrollbar">
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this)" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-cogs mr-1.5"></i> Config Absensi</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this)" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-calendar-alt mr-1.5"></i> Penjadwalan</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this)" class="sub-absensi-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-clock mr-1.5"></i> Antrean Absensi</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this)" class="sub-absensi-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center"><i class="fas fa-chart-bar mr-1.5"></i> Riwayat All Absensi</button>
+          <div class="flex space-x-2 overflow-x-auto no-scrollbar hide-scrollbar" style="padding-top:14px; margin-top:14px; border-top:1px solid var(--line);">
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this)" class="sub-absensi-btn gc-sub-tab-btn"><i class="fas fa-cogs" style="margin-right:6px;"></i> Config Absensi</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this)" class="sub-absensi-btn gc-sub-tab-btn"><i class="fas fa-calendar-alt" style="margin-right:6px;"></i> Penjadwalan</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this)" class="sub-absensi-btn gc-sub-tab-btn active"><i class="fas fa-clock" style="margin-right:6px;"></i> Antrean Absensi</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this)" class="sub-absensi-btn gc-sub-tab-btn"><i class="fas fa-chart-bar" style="margin-right:6px;"></i> Riwayat All Absensi</button>
           </div>
         </div>
 
@@ -148,14 +149,14 @@
       </div>
 
         <div id="tab-superuser" class="tab-content hidden fade-in space-y-4">
-          <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200">
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', this)" class="sub-karyawan-btn bg-slate-800 text-white shadow-md px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">
-              <i class="fas fa-user-clock mr-1.5"></i> Antrean Dakar
+          <div class="flex space-x-2 overflow-x-auto no-scrollbar">
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', this)" class="sub-karyawan-btn gc-sub-tab-btn active">
+              <i class="fas fa-user-clock" style="margin-right:6px;"></i> Antrean Dakar
             </button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Config Karyawan</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Daftar Karyawan</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Slip Gaji</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn bg-gray-100 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition">Payroll</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn gc-sub-tab-btn">Config Karyawan</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this)" class="sub-karyawan-btn gc-sub-tab-btn">Daftar Karyawan</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn gc-sub-tab-btn">Slip Gaji</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn gc-sub-tab-btn">Payroll</button>
           </div>
 
           <div id="sub-karyawan-antrean" class="sub-karyawan-content fade-in mt-4 space-y-4">
@@ -175,18 +176,18 @@
           </div>
 
           <div id="sub-karyawan-slip" class="sub-karyawan-content hidden fade-in mt-4">
-            <div class="bg-orange-50 border border-orange-100 p-8 rounded-3xl text-center space-y-3">
-              <i class="fas fa-file-invoice-dollar text-4xl text-orange-400"></i>
-              <h4 class="font-bold text-orange-800 text-lg">Modul Slip Gaji</h4>
-              <p class="text-xs text-orange-600">Akan datang pada update pembaruan finansial.</p>
+            <div class="gc-card" style="text-align:center; background:var(--blue); border:none;">
+              <i class="fas fa-file-invoice-dollar" style="font-size:34px; color:#1F5060;"></i>
+              <h4 class="gc-heading" style="font-weight:700; font-size:15px; color:#1F5060; margin-top:10px;">Modul Slip Gaji</h4>
+              <p style="font-size:12px; color:#1F5060; margin-top:4px; opacity:.85;">Akan datang pada update pembaruan finansial.</p>
             </div>
           </div>
 
           <div id="sub-karyawan-payroll" class="sub-karyawan-content hidden fade-in mt-4">
-            <div class="bg-orange-50 border border-orange-100 p-8 rounded-3xl text-center space-y-3">
-              <i class="fas fa-money-check-alt text-4xl text-orange-400"></i>
-              <h4 class="font-bold text-orange-800 text-lg">Modul Payroll Server</h4>
-              <p class="text-xs text-orange-600">Akan datang pada update pembaruan finansial.</p>
+            <div class="gc-card" style="text-align:center; background:var(--blue); border:none;">
+              <i class="fas fa-money-check-alt" style="font-size:34px; color:#1F5060;"></i>
+              <h4 class="gc-heading" style="font-weight:700; font-size:15px; color:#1F5060; margin-top:10px;">Modul Payroll Server</h4>
+              <p style="font-size:12px; color:#1F5060; margin-top:4px; opacity:.85;">Akan datang pada update pembaruan finansial.</p>
             </div>
           </div>
 
@@ -200,36 +201,36 @@
       </main>
     </div>
 
-    <nav class="md:hidden fixed bottom-0 w-full bg-white border-t border-gray-200 flex justify-around items-center p-2 pb-4 z-50 rounded-t-2xl shadow-lg">
-      <button onclick="pindahTab('tab-home')" class="flex flex-col items-center p-2 text-blue-600 w-16">
-        <i class="fas fa-home text-lg mb-1"></i>
-        <span class="text-[9px] font-bold">Dashboard</span>
+    <nav class="md:hidden gc-mobile-nav" style="width:100%;">
+      <button onclick="pindahTab('tab-home')" class="gc-mnav-item active">
+        <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+        <span>Dashboard</span>
       </button>
-      <button onclick="pindahTab('tab-profil')" class="flex flex-col items-center p-2 text-gray-500 w-16">
-        <i class="fas fa-user-circle text-lg mb-1"></i>
-        <span class="text-[9px] font-bold">Profile</span>
+      <button onclick="pindahTab('tab-profil')" class="gc-mnav-item">
+        <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
+        <span>Profile</span>
       </button>
-      <button id="nav-mobile-admin" onclick="pindahTab('tab-admin-acc')" class="hidden flex flex-col items-center p-2 text-purple-600 w-16">
-        <i class="fas fa-clipboard-check text-lg mb-1"></i>
-        <span class="text-[9px] font-bold">Absensi</span>
+      <button id="nav-mobile-admin" onclick="pindahTab('tab-admin-acc')" class="hidden gc-mnav-item">
+        <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+        <span>Absensi</span>
       </button>
-      <button id="nav-mobile-super" onclick="pindahTab('tab-superuser')" class="hidden flex flex-col items-center p-2 text-red-600 w-16">
-        <i class="fas fa-users-cog text-lg mb-1"></i>
-        <span class="text-[9px] font-bold">Karyawan</span>
+      <button id="nav-mobile-super" onclick="pindahTab('tab-superuser')" class="hidden gc-mnav-item">
+        <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+        <span>Karyawan</span>
       </button>
-      <button id="nav-mobile-whatsapp" onclick="pindahTab('tab-whatsapp')" class="hidden flex flex-col items-center p-2 text-green-600 w-16">
-        <i class="fab fa-whatsapp text-lg mb-1"></i>
-        <span class="text-[9px] font-bold">WA Gateway</span>
+      <button id="nav-mobile-whatsapp" onclick="pindahTab('tab-whatsapp')" class="hidden gc-mnav-item">
+        <i class="fab fa-whatsapp gc-mnav-ico"></i>
+        <span>WA Gateway</span>
       </button>
     </nav>
   </div>
 
   <!-- Modal Edit Karyawan sudah dipindah ke js/vue-daftar-karyawan.js -->
 
-  <div id="modal-preview-foto" class="hidden fixed inset-0 z-[110] bg-black/80 flex items-center justify-center p-4 fade-in" onclick="tutupPreviewFoto()">
+  <div id="modal-preview-foto" class="hidden fixed inset-0 z-[110] flex items-center justify-center p-4 fade-in" style="background:rgba(59,42,31,.75);" onclick="tutupPreviewFoto()">
     <div class="relative max-w-2xl w-full flex justify-center">
-      <img id="img-preview-besar" src="" class="max-w-full max-h-[80vh] rounded-xl shadow-2xl object-contain">
-      <button onclick="tutupPreviewFoto()" class="absolute -top-10 right-0 text-white hover:text-red-500 text-3xl transition"><i class="fas fa-times"></i></button>
+      <img id="img-preview-besar" src="" style="max-width:100%; max-height:80vh; border-radius:18px; box-shadow:0 12px 30px rgba(0,0,0,.3);">
+      <button onclick="tutupPreviewFoto()" style="position:absolute; top:-40px; right:0; color:#fff; font-size:26px; background:none; border:none; cursor:pointer;"><i class="fas fa-times"></i></button>
     </div>
   </div>
 

@@ -293,135 +293,135 @@ const AppPenjadwalan = {
     };
   },
   template: `
-    <div class="space-y-4">
+    <div>
       <!-- 0. Ringkasan per-gudang: scroll horizontal, bisa diklik -->
-      <div class="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+      <div style="display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; margin-bottom:16px;" class="no-scrollbar">
         <div v-for="k in ringkasanKartu" :key="k.nilaiFilter"
              @click="klikKartuGudang(k.nilaiFilter)"
-             class="flex-shrink-0 w-40 bg-white p-4 rounded-2xl border-2 cursor-pointer hover:border-blue-300 transition"
-             :class="filterGudang === k.nilaiFilter ? 'border-blue-500 shadow-md' : 'border-gray-100 shadow-sm'">
-          <h4 class="text-[11px] font-bold text-slate-800 truncate mb-2" :title="k.label">{{ k.label }}</h4>
-          <div class="space-y-1 text-[10px]">
-            <div class="flex justify-between"><span class="text-gray-400">Total</span><b class="text-slate-800">{{ k.angka.total }}</b></div>
-            <div class="flex justify-between"><span class="text-gray-400">Sudah</span><b class="text-green-600">{{ k.angka.sudah }}</b></div>
-            <div class="flex justify-between"><span class="text-gray-400">Belum</span><b class="text-red-500">{{ k.angka.belum }}</b></div>
+             style="flex-shrink:0; width:150px; background:var(--surface); padding:14px; border-radius:16px; cursor:pointer; transition:.15s;"
+             :style="filterGudang === k.nilaiFilter ? 'border:2px solid var(--burgundy); box-shadow:0 4px 10px rgba(110,30,44,.1);' : 'border:1px solid var(--line);'">
+          <h4 :title="k.label" style="font-size:11.5px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:8px;">{{ k.label }}</h4>
+          <div style="display:flex; flex-direction:column; gap:4px; font-size:10.5px;">
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-faint);">Total</span><b>{{ k.angka.total }}</b></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-faint);">Sudah</span><b style="color:var(--ok);">{{ k.angka.sudah }}</b></div>
+            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-faint);">Belum</span><b style="color:var(--danger);">{{ k.angka.belum }}</b></div>
           </div>
         </div>
       </div>
 
       <!-- 3. Update Massal -->
-      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-3">
-        <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-layer-group text-blue-600 mr-1.5"></i> Update Massal ({{ terpilih.size }} Karyawan Terpilih)</h3>
-        <p class="text-[10px] text-gray-400">Kosongkan kolom yang tidak ingin diubah. Berlaku untuk karyawan yang dicentang di tabel bawah (mengikuti filter/pencarian yang sedang aktif).</p>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">Gudang Penempatan (kosongkan = tidak diubah)</label>
+      <div class="gc-card" style="margin-bottom:16px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;"><i class="fas fa-layer-group" style="color:var(--burgundy); margin-right:8px;"></i> Update massal ({{ terpilih.size }} karyawan terpilih)</h3>
+        <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:12px;">Kosongkan kolom yang tidak ingin diubah. Berlaku untuk karyawan yang dicentang di tabel bawah (mengikuti filter/pencarian yang sedang aktif).</p>
+        <div style="gap:12px;" class="grid grid-cols-1 md:grid-cols-3">
+          <div class="gc-field" style="margin-bottom:0;">
+            <label>Gudang penempatan (kosongkan = tidak diubah)</label>
             <gudang-checkbox-select v-model="bulkGudang" />
           </div>
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">Shift</label>
-            <select v-model="bulkShift" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none">
-              <option value="">-- Tidak Diubah --</option>
+          <div class="gc-field" style="margin-bottom:0;">
+            <label>Shift</label>
+            <select v-model="bulkShift">
+              <option value="">-- Tidak diubah --</option>
               <option v-for="s in daftarShift" :key="s.nama_shift" :value="s.nama_shift">{{ s.nama_shift }} ({{ s.jam_masuk }} - {{ s.jam_keluar }})</option>
             </select>
           </div>
-          <div>
-            <label class="block font-semibold text-gray-600 mb-1">Hari Libur</label>
-            <select v-model="bulkLibur" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none">
-              <option value="">-- Tidak Diubah --</option>
+          <div class="gc-field" style="margin-bottom:0;">
+            <label>Hari libur</label>
+            <select v-model="bulkLibur">
+              <option value="">-- Tidak diubah --</option>
               <option v-for="h in HARI_LIBUR_PILIHAN" :key="h" :value="h">{{ h }}</option>
             </select>
           </div>
         </div>
-        <button @click="terapkanBulkUpdate" :disabled="memprosesBulk" class="w-full bg-slate-800 text-white font-bold py-2.5 rounded-xl hover:bg-slate-900 transition shadow-sm disabled:opacity-50">
-          <i class="fas fa-check-double mr-1"></i> {{ memprosesBulk ? 'Memproses...' : 'Terapkan ke Karyawan Terpilih' }}
+        <button @click="terapkanBulkUpdate" :disabled="memprosesBulk" class="btn-primary block" style="margin-top:14px;">
+          <i class="fas fa-check-double" style="margin-right:8px;"></i> {{ memprosesBulk ? 'Memproses...' : 'Terapkan ke karyawan terpilih' }}
         </button>
       </div>
 
       <!-- 4. Excel Export/Import -->
-      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-3">
-        <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-file-excel text-green-600 mr-1.5"></i> Edit Lewat Excel</h3>
-        <p class="text-[10px] text-gray-400">Unduh data (mengikuti filter aktif), edit kolom Gudang/Shift/Hari Libur di Excel, lalu unggah ulang untuk update massal.</p>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <button @click="exportExcel" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 rounded-xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5">
+      <div class="gc-card" style="margin-bottom:16px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;"><i class="fas fa-file-excel" style="color:var(--ok); margin-right:8px;"></i> Edit lewat Excel</h3>
+        <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:12px;">Unduh data (mengikuti filter aktif), edit kolom Gudang/Shift/Hari Libur di Excel, lalu unggah ulang untuk update massal.</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <button @click="exportExcel" class="btn-outline filled" style="display:flex; align-items:center; justify-content:center; gap:8px;">
             <i class="fas fa-download"></i><span>Unduh Excel</span>
           </button>
-          <label class="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 font-bold py-2.5 rounded-xl text-xs transition shadow-sm flex items-center justify-center space-x-1.5 cursor-pointer">
+          <label class="btn-outline" style="display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer;">
             <i class="fas fa-upload"></i><span>Unggah Excel</span>
             <input type="file" accept=".xlsx,.xls" @change="importExcel" class="hidden">
           </label>
         </div>
       </div>
 
-      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+      <div class="gc-card">
         <!-- 1. Pencarian -->
-        <div class="relative">
-          <i class="fas fa-search absolute left-3 top-2.5 text-gray-400 text-xs"></i>
-          <input v-model="cariNama" type="text" placeholder="Cari nama karyawan..." autocomplete="off" class="w-full pl-9 pr-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-xs">
+        <div style="position:relative; margin-bottom:14px;">
+          <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
+          <input v-model="cariNama" type="text" placeholder="Cari nama karyawan..." autocomplete="off" style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; outline:none;">
         </div>
 
         <!-- 2. Filter -->
-        <div class="bg-gray-50 rounded-2xl p-3.5 space-y-3 text-xs">
-          <div class="flex items-center justify-between">
-            <h4 class="font-bold text-gray-600"><i class="fas fa-filter mr-1"></i> Filter & Seleksi</h4>
-            <div class="flex gap-2">
-              <button @click="pilihSemua" class="text-blue-600 font-bold hover:underline text-[11px]">Select All</button>
-              <span class="text-gray-300">|</span>
-              <button @click="bersihkanPilihan" class="text-gray-500 font-bold hover:underline text-[11px]">Clear All</button>
+        <div style="background:var(--ivory-dim); border-radius:16px; padding:14px; margin-bottom:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h4 style="font-weight:700; color:var(--text-muted); font-size:12px;"><i class="fas fa-filter" style="margin-right:6px;"></i> Filter & Seleksi</h4>
+            <div style="display:flex; gap:8px;">
+              <button @click="pilihSemua" style="background:none; border:none; color:var(--burgundy); font-weight:700; font-size:11px; cursor:pointer;">Select All</button>
+              <span style="color:var(--text-faint);">|</span>
+              <button @click="bersihkanPilihan" style="background:none; border:none; color:var(--text-muted); font-weight:700; font-size:11px; cursor:pointer;">Clear All</button>
             </div>
           </div>
-          <div class="flex flex-wrap gap-4">
-            <label class="flex items-center gap-1.5 font-semibold text-gray-600"><input type="checkbox" v-model="cekSudah"> Sudah Dijadwalkan</label>
-            <label class="flex items-center gap-1.5 font-semibold text-gray-600"><input type="checkbox" v-model="cekBelum"> Belum Dijadwalkan</label>
+          <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:10px;">
+            <label style="display:flex; align-items:center; gap:6px; font-weight:600; color:var(--text-muted); font-size:12px;"><input type="checkbox" v-model="cekSudah" style="accent-color:var(--burgundy);"> Sudah dijadwalkan</label>
+            <label style="display:flex; align-items:center; gap:6px; font-weight:600; color:var(--text-muted); font-size:12px;"><input type="checkbox" v-model="cekBelum" style="accent-color:var(--burgundy);"> Belum dijadwalkan</label>
           </div>
-          <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <select v-model="filterJenisPekerjaan" class="px-2.5 py-2 bg-white border rounded-xl outline-none">
-              <option value="ALL">Semua Jenis Pekerjaan</option>
+          <div style="gap:8px;" class="grid grid-cols-2 md:grid-cols-4">
+            <select v-model="filterJenisPekerjaan" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+              <option value="ALL">Semua jenis pekerjaan</option>
               <option v-for="v in daftarJenisPekerjaan" :key="v" :value="v">{{ v }}</option>
             </select>
-            <select v-model="filterGudang" class="px-2.5 py-2 bg-white border rounded-xl outline-none">
-              <option value="ALL">Semua Gudang</option>
+            <select v-model="filterGudang" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+              <option value="ALL">Semua gudang</option>
               <option v-for="k in ringkasanKartu.slice(1, -1)" :key="k.nilaiFilter" :value="k.nilaiFilter">{{ k.label }}</option>
-              <option value="__TANPA_GUDANG__">Tanpa Gudang</option>
+              <option value="__TANPA_GUDANG__">Tanpa gudang</option>
             </select>
-            <select v-model="filterShift" class="px-2.5 py-2 bg-white border rounded-xl outline-none">
-              <option value="ALL">Semua Shift</option>
+            <select v-model="filterShift" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+              <option value="ALL">Semua shift</option>
               <option v-for="s in daftarShift" :key="s.nama_shift" :value="s.nama_shift">{{ s.nama_shift }}</option>
             </select>
-            <select v-model="filterLibur" class="px-2.5 py-2 bg-white border rounded-xl outline-none">
-              <option value="ALL">Semua Hari Libur</option>
+            <select v-model="filterLibur" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+              <option value="ALL">Semua hari libur</option>
               <option v-for="h in HARI_LIBUR_PILIHAN" :key="h" :value="h">{{ h }}</option>
             </select>
           </div>
         </div>
 
-        <!-- Daftar Karyawan (checkbox) -->
-        <div class="overflow-x-auto rounded-xl border border-gray-100">
-          <table class="w-full text-left text-xs text-gray-600 whitespace-nowrap">
-            <thead class="bg-gray-50 text-gray-700 font-bold border-b text-[10px] uppercase">
+        <!-- Daftar Karyawan (checkbox) — kolom Karyawan di-freeze saat scroll ke samping -->
+        <div class="gc-table-scroll" style="border:1px solid var(--line);">
+          <table class="gc-table">
+            <thead>
               <tr>
-                <th class="p-3"><input type="checkbox" :checked="headerDicentang" @change="toggleSemuaHalamanIni"></th>
-                <th class="p-3">Karyawan</th>
-                <th class="p-3">Jenis Pekerjaan</th>
-                <th class="p-3">Gudang</th>
-                <th class="p-3">Shift</th>
-                <th class="p-3">Hari Libur</th>
-                <th class="p-3 text-center">Status</th>
+                <th class="freeze freeze-left" style="width:36px;"><input type="checkbox" :checked="headerDicentang" @change="toggleSemuaHalamanIni" style="accent-color:var(--burgundy);"></th>
+                <th class="freeze freeze-left" style="left:36px;">Karyawan</th>
+                <th>Jenis Pekerjaan</th>
+                <th>Gudang</th>
+                <th>Shift</th>
+                <th>Hari Libur</th>
+                <th style="text-align:center;">Status</th>
               </tr>
             </thead>
-            <tbody class="divide-y divide-gray-100">
-              <tr v-if="memuat"><td colspan="7" class="p-4 text-center text-gray-400">Memuat data...</td></tr>
-              <tr v-else-if="potonganHalamanIni.length === 0"><td colspan="7" class="p-4 text-center text-gray-400">Tidak ada karyawan yang cocok dengan filter.</td></tr>
-              <tr v-for="d in potonganHalamanIni" :key="d.email" class="hover:bg-gray-50">
-                <td class="p-3"><input type="checkbox" :checked="terpilih.has(d.email)" @change="toggleCheckbox(d.email)"></td>
-                <td class="p-3"><b class="text-slate-800">{{ d.nama || '-' }}</b><br><span class="text-[10px] text-gray-400">{{ d.email }}</span></td>
-                <td class="p-3">{{ d.jenis_pekerjaan || '-' }}</td>
-                <td class="p-3">{{ (d.gudang_penempatan && d.gudang_penempatan.length) ? d.gudang_penempatan.join(', ') : '-' }}</td>
-                <td class="p-3">{{ d.nama_shift || '-' }}</td>
-                <td class="p-3">{{ d.hari_libur || '-' }}</td>
-                <td class="p-3 text-center">
-                  <span v-if="statusTerjadwal(d)" class="inline-block px-2 py-0.5 bg-green-100 text-green-700 font-bold text-[9px] rounded-full">Sudah</span>
-                  <span v-else class="inline-block px-2 py-0.5 bg-red-100 text-red-600 font-bold text-[9px] rounded-full">Belum</span>
+            <tbody>
+              <tr v-if="memuat"><td colspan="7" style="text-align:center; padding:20px; color:var(--text-faint);">Memuat data...</td></tr>
+              <tr v-else-if="potonganHalamanIni.length === 0"><td colspan="7" style="text-align:center; padding:20px; color:var(--text-faint);">Tidak ada karyawan yang cocok dengan filter.</td></tr>
+              <tr v-for="d in potonganHalamanIni" :key="d.email">
+                <td class="freeze freeze-left"><input type="checkbox" :checked="terpilih.has(d.email)" @change="toggleCheckbox(d.email)" style="accent-color:var(--burgundy);"></td>
+                <td class="freeze freeze-left" style="left:36px;"><b>{{ d.nama || '-' }}</b><br><span style="font-size:10.5px; color:var(--text-muted);">{{ d.email }}</span></td>
+                <td class="gc-cell-muted">{{ d.jenis_pekerjaan || '-' }}</td>
+                <td class="gc-cell-muted">{{ (d.gudang_penempatan && d.gudang_penempatan.length) ? d.gudang_penempatan.join(', ') : '-' }}</td>
+                <td class="gc-cell-muted">{{ d.nama_shift || '-' }}</td>
+                <td class="gc-cell-muted">{{ d.hari_libur || '-' }}</td>
+                <td style="text-align:center;">
+                  <span v-if="statusTerjadwal(d)" class="tag ok">Sudah</span>
+                  <span v-else class="tag danger">Belum</span>
                 </td>
               </tr>
             </tbody>
@@ -429,11 +429,11 @@ const AppPenjadwalan = {
         </div>
 
         <!-- Pagination -->
-        <div class="flex items-center justify-between text-xs pt-1">
-          <span class="text-gray-400">{{ infoHalaman }}</span>
-          <div class="flex gap-2">
-            <button @click="halamanSebelumnya" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold"><i class="fas fa-chevron-left"></i></button>
-            <button @click="halamanBerikutnya" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg font-bold"><i class="fas fa-chevron-right"></i></button>
+        <div style="display:flex; justify-content:space-between; align-items:center; padding-top:12px; font-size:12px;">
+          <span style="color:var(--text-faint);">{{ infoHalaman }}</span>
+          <div style="display:flex; gap:8px;">
+            <button @click="halamanSebelumnya" class="icon-btn"><i class="fas fa-chevron-left"></i></button>
+            <button @click="halamanBerikutnya" class="icon-btn"><i class="fas fa-chevron-right"></i></button>
           </div>
         </div>
       </div>

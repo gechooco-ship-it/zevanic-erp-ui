@@ -55,59 +55,59 @@ const AntreanAbsensiCard = {
     return { statusKehadiran, seragam, memproses, lihatFotoBesar, proses, hapus };
   },
   template: `
-    <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-      <div class="flex items-center space-x-3 border-b pb-3">
-        <img :src="data.foto_selfie || data.foto || 'https://via.placeholder.com/150'" @click="lihatFotoBesar" class="w-16 h-16 rounded-xl object-cover border-2 border-gray-100 shadow-sm cursor-pointer">
+    <div class="gc-card">
+      <div style="display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
+        <img :src="data.foto_selfie || data.foto || 'https://via.placeholder.com/150'" @click="lihatFotoBesar" style="width:64px; height:64px; border-radius:14px; object-fit:cover; border:2px solid var(--surface); box-shadow:0 2px 8px rgba(91,56,38,.1); cursor:pointer;">
         <div>
-          <h4 class="font-bold text-slate-800 text-sm">{{ data.nama_pegawai || data.nama || 'Karyawan' }}</h4>
-          <p class="text-[10px] text-gray-400 font-mono">{{ data.email || '-' }}</p>
-          <span class="inline-block px-2 py-0.5 bg-yellow-100 text-yellow-700 text-[9px] font-bold rounded-full mt-1"><i class="fas fa-clock mr-1"></i>Menunggu Validasi</span>
+          <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ data.nama_pegawai || data.nama || 'Karyawan' }}</h4>
+          <p style="font-size:10.5px; color:var(--text-muted); font-family:'Poppins',sans-serif;">{{ data.email || '-' }}</p>
+          <span class="tag warn" style="margin-top:5px;"><span class="tag-dot"></span>Menunggu validasi</span>
         </div>
       </div>
-      <div class="grid grid-cols-2 gap-2 text-[11px] bg-gray-50 p-3 rounded-2xl text-gray-600">
-        <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Status</span> <b class="text-slate-800">{{ data.status || 'HADIR' }}</b></div>
-        <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Waktu</span> <b class="text-slate-800">{{ data.waktu || '-' }}</b></div>
-        <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Gudang</span> <b class="text-slate-800">{{ data.gudang || '-' }}</b></div>
-        <div><span class="text-gray-400 block text-[9px] uppercase tracking-wider">Shift</span> <b class="text-slate-800">{{ data.shift || '-' }}</b></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; background:var(--ivory-dim); padding:14px; border-radius:14px; font-size:12px; margin-bottom:14px;">
+        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Status</span> <b>{{ data.status || 'HADIR' }}</b></div>
+        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Waktu</span> <b>{{ data.waktu || '-' }}</b></div>
+        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Gudang</span> <b>{{ data.gudang || '-' }}</b></div>
+        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Shift</span> <b>{{ data.shift || '-' }}</b></div>
         <div>
-          <span class="text-gray-400 block text-[9px] uppercase tracking-wider">Koordinat</span>
-          <b v-if="data.koordinat" class="text-slate-800">
+          <span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Koordinat</span>
+          <b v-if="data.koordinat">
             {{ data.koordinat.lat.toFixed(5) }}, {{ data.koordinat.lng.toFixed(5) }}<br>
-            <a :href="'https://www.google.com/maps?q=' + data.koordinat.lat + ',' + data.koordinat.lng" target="_blank" class="text-blue-500 text-[9px]"><i class="fas fa-map-marker-alt"></i> Lihat di Peta</a>
+            <a :href="'https://www.google.com/maps?q=' + data.koordinat.lat + ',' + data.koordinat.lng" target="_blank" style="color:var(--burgundy); font-size:9.5px; font-weight:600;"><i class="fas fa-map-marker-alt"></i> Lihat di peta</a>
           </b>
-          <span v-else>-</span>
+          <span v-else style="color:var(--text-faint);">-</span>
         </div>
         <div>
-          <span class="text-gray-400 block text-[9px] uppercase tracking-wider">Status Radius</span>
-          <span v-if="data.status_radius === 'DALAM RADIUS'" class="inline-block px-2 py-0.5 bg-green-100 text-green-700 font-bold text-[9px] rounded-full">Dalam Radius ({{ data.jarak_meter || 0 }}m)</span>
-          <span v-else-if="data.status_radius === 'DI LUAR RADIUS'" class="inline-block px-2 py-0.5 bg-red-100 text-red-700 font-bold text-[9px] rounded-full">Di Luar Radius ({{ data.jarak_meter || 0 }}m)</span>
-          <span v-else-if="data.status_radius === 'LOKASI DINAMIS'" class="inline-block px-2 py-0.5 bg-blue-100 text-blue-700 font-bold text-[9px] rounded-full">Lokasi Dinamis</span>
-          <span v-else class="text-gray-300">-</span>
+          <span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Status radius</span>
+          <span v-if="data.status_radius === 'DALAM RADIUS'" class="tag ok">Dalam radius ({{ data.jarak_meter || 0 }}m)</span>
+          <span v-else-if="data.status_radius === 'DI LUAR RADIUS'" class="tag danger">Di luar radius ({{ data.jarak_meter || 0 }}m)</span>
+          <span v-else-if="data.status_radius === 'LOKASI DINAMIS'" class="tag blue">Lokasi dinamis</span>
+          <span v-else style="color:var(--text-faint);">-</span>
         </div>
       </div>
-      <div class="grid grid-cols-2 gap-3 pt-2">
-        <div>
-          <label class="block text-[10px] text-gray-500 mb-1 font-bold uppercase tracking-wider">Status Kehadiran</label>
-          <select v-model="statusKehadiran" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none font-bold text-slate-700 text-xs">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+        <div class="gc-field" style="margin-bottom:0;">
+          <label style="font-size:10.5px;">Status kehadiran</label>
+          <select v-model="statusKehadiran" style="padding:8px 10px; font-size:12px; font-weight:600;">
             <option v-for="s in daftarStatusKehadiran" :key="s" :value="s">{{ s }}</option>
           </select>
         </div>
-        <div>
-          <label class="block text-[10px] text-gray-500 mb-1 font-bold uppercase tracking-wider">Seragam</label>
-          <select v-model="seragam" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none font-bold text-slate-700 text-xs">
+        <div class="gc-field" style="margin-bottom:0;">
+          <label style="font-size:10.5px;">Seragam</label>
+          <select v-model="seragam" style="padding:8px 10px; font-size:12px; font-weight:600;">
             <option value="Sesuai">Sesuai</option>
             <option value="Tidak Sesuai">Tidak Sesuai</option>
           </select>
         </div>
       </div>
-      <div class="flex space-x-2 pt-2 border-t">
-        <button @click="proses('ACC')" :disabled="memproses" class="flex-1 bg-green-600 text-white font-bold py-2.5 rounded-xl hover:bg-green-700 transition shadow-sm text-xs flex items-center justify-center disabled:opacity-50">
-          <i class="fas fa-check-circle mr-1"></i> Accept
+      <div style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line);">
+        <button @click="proses('ACC')" :disabled="memproses" class="btn-acc" style="flex:1; display:flex; align-items:center; justify-content:center;">
+          <i class="fas fa-check-circle" style="margin-right:6px;"></i> Accept
         </button>
-        <button @click="proses('REJECT')" :disabled="memproses" class="flex-1 bg-red-500 text-white font-bold py-2.5 rounded-xl hover:bg-red-600 transition shadow-sm text-xs flex items-center justify-center disabled:opacity-50">
-          <i class="fas fa-times-circle mr-1"></i> Reject
+        <button @click="proses('REJECT')" :disabled="memproses" class="btn-rej" style="flex:1; display:flex; align-items:center; justify-content:center;">
+          <i class="fas fa-times-circle" style="margin-right:6px;"></i> Reject
         </button>
-        <button @click="hapus" class="bg-gray-100 text-gray-500 font-bold px-3.5 py-2.5 rounded-xl hover:bg-gray-200 transition text-xs" title="Hapus Permanen">
+        <button @click="hapus" class="icon-btn" title="Hapus permanen">
           <i class="fas fa-trash-alt"></i>
         </button>
       </div>
@@ -143,23 +143,23 @@ const AppAntreanAbsensi = {
     return { daftarPending, daftarStatusKehadiran, memuat, muat };
   },
   template: `
-    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex justify-between items-center shadow-sm mb-4">
+    <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none; margin-bottom:16px;">
       <div>
-        <h3 class="text-sm font-bold text-slate-700 mb-0.5"><i class="fas fa-clock mr-2"></i> Antrean Validasi Absensi</h3>
-        <p class="text-[10px] text-slate-500">Klik Refresh untuk melihat pengajuan absensi terbaru.</p>
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; color:var(--burgundy-dark);"><i class="fas fa-clock" style="margin-right:8px;"></i> Antrean validasi absensi</h3>
+        <p style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Klik Refresh untuk melihat pengajuan absensi terbaru.</p>
       </div>
-      <button @click="muat" class="bg-slate-800 text-white px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-slate-900 transition"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+      <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
     </div>
 
-    <div v-if="memuat" class="text-center py-10 text-gray-400">
-      <i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p class="text-xs">Memuat antrean validasi absensi...</p>
+    <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint);">
+      <i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i><p style="font-size:12px;">Memuat antrean validasi absensi...</p>
     </div>
-    <div v-else-if="daftarPending.length === 0" class="text-center py-16 text-gray-400 bg-white rounded-3xl border border-dashed">
-      <i class="fas fa-glass-cheers text-5xl text-blue-300 mb-4"></i>
-      <h4 class="font-bold text-gray-700 text-sm">Semua Absensi Telah Tervalidasi</h4>
-      <p class="text-xs text-gray-400 mt-1">Tidak ada antrean absensi baru yang perlu diperiksa.</p>
+    <div v-else-if="daftarPending.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
+      <i class="fas fa-glass-cheers" style="font-size:40px; color:var(--blue-deep); margin-bottom:12px; display:block;"></i>
+      <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Semua absensi telah tervalidasi</h4>
+      <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Tidak ada antrean absensi baru yang perlu diperiksa.</p>
     </div>
-    <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div v-else style="gap:14px;" class="grid grid-cols-1 md:grid-cols-2">
       <antrean-absensi-card
         v-for="item in daftarPending" :key="item.id"
         :doc-id="item.id" :data="item.data" :daftar-status-kehadiran="daftarStatusKehadiran"

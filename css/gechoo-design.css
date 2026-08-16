@@ -132,5 +132,81 @@ thead .freeze{z-index:3;}
 .login-wrap{min-height:100vh; display:grid; grid-template-columns:1fr 1fr;}
 @media(max-width:860px){ .login-wrap{grid-template-columns:1fr;} .login-brand{min-height:220px;} }
 
+/* ---- Sub-tab pill (Config Absensi, Penjadwalan, Antrean, dst) ---- */
+.gc-sub-tab-btn{padding:9px 16px; border-radius:10px; font-family:'Poppins',sans-serif; font-size:12.5px; font-weight:600; white-space:nowrap; background:var(--ivory-dim); color:var(--text-muted); border:none; cursor:pointer; transition:.15s;}
+.gc-sub-tab-btn.active{background:var(--burgundy); color:#fff;}
+.gc-sub-tab-btn:not(.active):hover{background:var(--pink);}
+
+/* =============================================================================
+   UTILITY LAYER — pengganti Tailwind CDN
+   Bukan reimplementasi Tailwind penuh — cuma persis daftar class struktural
+   (bukan warna) yang masih dipakai di seluruh file setelah rebrand Gechoo.
+   Breakpoint disamakan persis dengan default Tailwind: sm=640px, md=768px.
+   ============================================================================= */
+.hidden{display:none !important;}
+.block{display:block;}
+.flex{display:flex;}
+.fixed{position:fixed;}
+.relative{position:relative;}
+.inset-0{top:0; right:0; bottom:0; left:0;}
+.shrink-0{flex-shrink:0;}
+.flex-1{flex:1 1 0%;}
+.flex-col{flex-direction:column;}
+.items-center{align-items:center;}
+.justify-center{justify-content:center;}
+.justify-between{justify-content:space-between;}
+.justify-start{justify-content:flex-start;}
+.text-center{text-align:center;}
+.space-x-2 > * + *{margin-left:8px;}
+.space-y-4 > * + *{margin-top:16px;}
+.space-y-6 > * + *{margin-top:24px;}
+.mt-4{margin-top:16px;}
+.mb-1{margin-bottom:4px;}
+.mb-8{margin-bottom:32px;}
+.mx-auto{margin-left:auto; margin-right:auto;}
+.p-4{padding:16px;}
+.py-10{padding-top:40px; padding-bottom:40px;}
+.pb-32{padding-bottom:128px;}
+.h-10{height:40px;}
+.h-full{height:100%;}
+.h-auto{height:auto;}
+.h-\[100dvh\]{height:100dvh;}
+.w-10{width:40px;}
+.w-64{width:256px;}
+.w-full{width:100%;}
+.min-h-0{min-height:0;}
+.min-h-screen{min-height:100vh;}
+.max-w-2xl{max-width:672px;}
+.max-w-4xl{max-width:896px;}
+.max-w-5xl{max-width:1024px;}
+.max-w-md{max-width:448px;}
+.overflow-hidden{overflow:hidden;}
+.overflow-x-auto{overflow-x:auto;}
+.overflow-y-auto{overflow-y:auto;}
+.rounded-full{border-radius:9999px;}
+.z-\[110\]{z-index:110;}
+.grid{display:grid;}
+.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr));}
+.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}
+.animate-spin{animation:gc-spin 1s linear infinite;}
+@keyframes gc-spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+@media(min-width:640px){
+  .sm\:inline{display:inline;}
+  .sm\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(min-width:768px){
+  .md\:flex{display:flex;}
+  .md\:flex-row{flex-direction:row;}
+  .md\:hidden{display:none;}
+  .md\:items-center{align-items:center;}
+  .md\:justify-between{justify-content:space-between;}
+  .md\:p-8{padding:32px;}
+  .md\:pb-8{padding-bottom:32px;}
+  .md\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .md\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr));}
+  .md\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr));}
+  .md\:col-span-2{grid-column:span 2 / span 2;}
+}
+
 /* ---- Utilitas ---- */
 .gc-safe-bottom{padding-bottom:90px;} /* perbaikan bug: konten tidak lagi ketutupan bottom nav mobile */

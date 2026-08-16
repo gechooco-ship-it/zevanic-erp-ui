@@ -77,51 +77,45 @@ const MasterGudangManager = {
     return { daftarGudang, memuat, menyimpan, nama, tipeLokasi, lat, lng, radius, simpan, hapus };
   },
   template: `
-    <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-      <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-map-marker-alt text-blue-500 mr-1.5"></i> Master Gudang & Titik Lokasi</h3>
-      <div class="space-y-3 text-xs">
-        <div>
-          <label class="block font-semibold text-gray-600 mb-1">Nama Gudang / Cabang *</label>
-          <input v-model="nama" type="text" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none">
-        </div>
-        <div>
-          <label class="block font-semibold text-gray-600 mb-1">Jenis Lokasi *</label>
-          <select v-model="tipeLokasi" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none">
-            <option value="Tetap">Tetap (titik & radius pasti)</option>
-            <option value="Dinamis">Dinamis (lapangan, lokasi bebas)</option>
-          </select>
-          <p class="text-[10px] text-gray-400 mt-1">Dinamis dipakai untuk orang lapangan yang visit ke mana saja — tidak ada validasi radius/koordinat saat Clock In.</p>
-        </div>
-        <div v-if="tipeLokasi === 'Tetap'" class="space-y-3">
-          <div class="grid grid-cols-2 gap-3">
-            <div><label class="block font-semibold text-gray-600 mb-1">Latitude *</label><input v-model="lat" type="number" step="any" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Longitude *</label><input v-model="lng" type="number" step="any" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-          </div>
-          <div><label class="block font-semibold text-gray-600 mb-1">Radius Toleransi Absen (Meter) *</label><input v-model="radius" type="number" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-        </div>
-        <button @click="simpan" :disabled="menyimpan" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 transition shadow-sm mt-2 disabled:opacity-50">
-          <i class="fas fa-save mr-1"></i> Simpan Master Gudang
-        </button>
+    <div class="gc-card">
+      <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;"><i class="fas fa-map-marker-alt" style="color:var(--burgundy); margin-right:8px;"></i> Master Gudang & Titik Lokasi</h3>
+      <div class="gc-field">
+        <label>Nama gudang / cabang *</label>
+        <input v-model="nama" type="text">
       </div>
-      <div class="mt-4 pt-4 border-t">
-        <h4 class="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-wider">Daftar Gudang Tersimpan</h4>
-        <div v-if="memuat" class="text-center text-gray-400 text-xs py-3">Memuat data...</div>
-        <div v-else class="overflow-x-auto rounded-xl border border-gray-100">
-          <table class="w-full text-left text-[11px] text-gray-600">
-            <tbody class="divide-y divide-gray-100">
-              <tr v-if="daftarGudang.length === 0"><td class="p-2 text-center text-gray-400">Belum ada data gudang terdaftar.</td></tr>
-              <tr v-for="g in daftarGudang" :key="g.id" class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
-                <td class="p-2 font-bold text-blue-800">{{ g.nama_gudang }}</td>
-                <td class="p-2 text-[10px] text-gray-500 font-mono">
-                  <span v-if="g.tipe_lokasi === 'Dinamis'" class="inline-block px-2 py-0.5 bg-blue-50 text-blue-600 font-bold text-[9px] rounded-full">DINAMIS - Tanpa Radius</span>
-                  <template v-else>Lat: {{ g.latitude }}<br>Lng: {{ g.longitude }}<br><span class="font-bold text-red-500">Radius: {{ g.radius }} m</span></template>
-                </td>
-                <td class="p-2 text-center">
-                  <button @click="hapus(g.id)" class="text-red-500 hover:text-white hover:bg-red-500 font-bold px-2 py-1.5 bg-red-50 rounded-lg transition"><i class="fas fa-trash-alt"></i></button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+      <div class="gc-field">
+        <label>Jenis lokasi *</label>
+        <select v-model="tipeLokasi">
+          <option value="Tetap">Tetap (titik & radius pasti)</option>
+          <option value="Dinamis">Dinamis (lapangan, lokasi bebas)</option>
+        </select>
+        <p style="font-size:10.5px; color:var(--text-faint); margin-top:5px;">Dinamis dipakai untuk orang lapangan yang visit ke mana saja — tidak ada validasi radius/koordinat saat Clock In.</p>
+      </div>
+      <div v-if="tipeLokasi === 'Tetap'">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="gc-field"><label>Latitude *</label><input v-model="lat" type="number" step="any"></div>
+          <div class="gc-field"><label>Longitude *</label><input v-model="lng" type="number" step="any"></div>
+        </div>
+        <div class="gc-field"><label>Radius toleransi absen (meter) *</label><input v-model="radius" type="number"></div>
+      </div>
+      <button @click="simpan" :disabled="menyimpan" class="btn-primary block" style="margin-top:6px;">
+        <i class="fas fa-save" style="margin-right:6px;"></i> Simpan master gudang
+      </button>
+      <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--line);">
+        <h4 style="font-size:10px; font-weight:700; color:var(--text-faint); text-transform:uppercase; letter-spacing:.05em; margin-bottom:10px;">Daftar gudang tersimpan</h4>
+        <div v-if="memuat" style="text-align:center; color:var(--text-faint); font-size:12px; padding:12px 0;">Memuat data...</div>
+        <div v-else style="display:flex; flex-direction:column; gap:8px;">
+          <div v-if="daftarGudang.length === 0" style="text-align:center; color:var(--text-faint); font-size:12px; padding:12px 0;">Belum ada data gudang terdaftar.</div>
+          <div v-for="g in daftarGudang" :key="g.id" style="display:flex; justify-content:space-between; align-items:center; background:var(--ivory-dim); padding:10px 12px; border-radius:12px;">
+            <div>
+              <div style="font-weight:700; color:var(--burgundy-dark); font-size:12.5px;">{{ g.nama_gudang }}</div>
+              <div style="font-size:10px; color:var(--text-muted); font-family:'Poppins',sans-serif; margin-top:2px;">
+                <span v-if="g.tipe_lokasi === 'Dinamis'" class="tag blue">Dinamis — tanpa radius</span>
+                <template v-else>Lat: {{ g.latitude }} &bull; Lng: {{ g.longitude }} &bull; <b style="color:var(--danger);">Radius: {{ g.radius }}m</b></template>
+              </div>
+            </div>
+            <button @click="hapus(g.id)" class="icon-btn" style="color:var(--danger); flex-shrink:0;"><i class="fas fa-trash-alt"></i></button>
+          </div>
         </div>
       </div>
     </div>
@@ -178,34 +172,28 @@ const MasterShiftManager = {
     return { daftarShift, memuat, menyimpan, nama, jamMasuk, jamKeluar, simpan, hapus };
   },
   template: `
-    <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
-      <h3 class="text-sm font-bold text-slate-800 border-b pb-2"><i class="fas fa-clock text-amber-500 mr-1.5"></i> Master Shift Jam Kerja</h3>
-      <div class="space-y-3 text-xs">
-        <div><label class="block font-semibold text-gray-600 mb-1">Nama Shift *</label><input v-model="nama" type="text" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-        <div class="grid grid-cols-2 gap-3">
-          <div><label class="block font-semibold text-gray-600 mb-1">Jam Masuk (In) *</label><input v-model="jamMasuk" type="time" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-          <div><label class="block font-semibold text-gray-600 mb-1">Jam Keluar (Out) *</label><input v-model="jamKeluar" type="time" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none"></div>
-        </div>
-        <button @click="simpan" :disabled="menyimpan" class="w-full bg-amber-500 text-white font-bold py-2.5 rounded-xl hover:bg-amber-600 transition shadow-sm mt-5 disabled:opacity-50">
-          <i class="fas fa-save mr-1"></i> Simpan Master Shift
-        </button>
+    <div class="gc-card">
+      <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;"><i class="fas fa-clock" style="color:var(--burgundy); margin-right:8px;"></i> Master Shift Jam Kerja</h3>
+      <div class="gc-field"><label>Nama shift *</label><input v-model="nama" type="text"></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="gc-field"><label>Jam masuk (in) *</label><input v-model="jamMasuk" type="time"></div>
+        <div class="gc-field"><label>Jam keluar (out) *</label><input v-model="jamKeluar" type="time"></div>
       </div>
-      <div class="mt-4 pt-4 border-t">
-        <h4 class="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-wider">Daftar Shift Tersimpan</h4>
-        <div v-if="memuat" class="text-center text-gray-400 text-xs py-3">Memuat data...</div>
-        <div v-else class="overflow-x-auto rounded-xl border border-gray-100">
-          <table class="w-full text-left text-[11px] text-gray-600">
-            <tbody class="divide-y divide-gray-100">
-              <tr v-if="daftarShift.length === 0"><td class="p-2 text-center text-gray-400">Belum ada data shift terdaftar.</td></tr>
-              <tr v-for="s in daftarShift" :key="s.id" class="hover:bg-gray-50 border-b border-gray-100 last:border-0">
-                <td class="p-2 font-bold text-amber-700">{{ s.nama_shift }}</td>
-                <td class="p-2 text-[10px] text-gray-500 font-bold">In: <span class="text-green-600">{{ s.jam_masuk }}</span><br>Out: <span class="text-red-500">{{ s.jam_keluar }}</span></td>
-                <td class="p-2 text-center">
-                  <button @click="hapus(s.id)" class="text-red-500 hover:text-white hover:bg-red-500 font-bold px-2 py-1.5 bg-red-50 rounded-lg transition"><i class="fas fa-trash-alt"></i></button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+      <button @click="simpan" :disabled="menyimpan" class="btn-primary block" style="margin-top:6px;">
+        <i class="fas fa-save" style="margin-right:6px;"></i> Simpan master shift
+      </button>
+      <div style="margin-top:18px; padding-top:16px; border-top:1px solid var(--line);">
+        <h4 style="font-size:10px; font-weight:700; color:var(--text-faint); text-transform:uppercase; letter-spacing:.05em; margin-bottom:10px;">Daftar shift tersimpan</h4>
+        <div v-if="memuat" style="text-align:center; color:var(--text-faint); font-size:12px; padding:12px 0;">Memuat data...</div>
+        <div v-else style="display:flex; flex-direction:column; gap:8px;">
+          <div v-if="daftarShift.length === 0" style="text-align:center; color:var(--text-faint); font-size:12px; padding:12px 0;">Belum ada data shift terdaftar.</div>
+          <div v-for="s in daftarShift" :key="s.id" style="display:flex; justify-content:space-between; align-items:center; background:var(--ivory-dim); padding:10px 12px; border-radius:12px;">
+            <div>
+              <div style="font-weight:700; color:var(--burgundy-dark); font-size:12.5px;">{{ s.nama_shift }}</div>
+              <div style="font-size:10.5px; color:var(--text-muted); font-family:'Poppins',sans-serif; margin-top:2px;">In: <b style="color:var(--ok);">{{ s.jam_masuk }}</b> &bull; Out: <b style="color:var(--danger);">{{ s.jam_keluar }}</b></div>
+            </div>
+            <button @click="hapus(s.id)" class="icon-btn" style="color:var(--danger); flex-shrink:0;"><i class="fas fa-trash-alt"></i></button>
+          </div>
         </div>
       </div>
     </div>
@@ -215,7 +203,7 @@ const MasterShiftManager = {
 const AppConfigAbsensi = {
   components: { MasterGudangManager, MasterShiftManager },
   template: `
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div style="gap:14px;" class="grid grid-cols-1 md:grid-cols-2">
       <master-gudang-manager />
       <master-shift-manager />
     </div>
