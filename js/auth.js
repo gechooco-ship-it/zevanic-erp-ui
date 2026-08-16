@@ -325,26 +325,27 @@ window.logout = async function() {
 window.aturTampilanBerdasarkanRole = function() {
   document.getElementById('teks-nama-user').innerText = "Hi, " + window.currentUser.name;
   document.getElementById('label-role-sidebar').innerText = "Role: " + window.currentUser.role.toUpperCase();
-  document.getElementById('label-badge-role').innerHTML = `<i class="far fa-clock mr-1.5"></i> ERP PORTAL - ${window.currentUser.role.toUpperCase()}`;
+  document.getElementById('label-badge-role').innerHTML = `<i class="far fa-clock mr-1.5"></i> ERP Portal - ${window.currentUser.role.toUpperCase()}`;
 
   const role = (window.currentUser.role || "operator").toLowerCase();
 
   const menuAdminAcc = document.getElementById('menu-admin-acc');
+  const menuAdminAccBtn = document.getElementById('menu-admin-acc-btn');
   const menuSuperUser = document.getElementById('menu-superuser');
+  const menuSuperUserBtn = document.getElementById('menu-superuser-btn');
   const menuWhatsapp = document.getElementById('menu-whatsapp');
+  const menuWhatsappBtn = document.getElementById('menu-whatsapp-btn');
   const navMobileAdmin = document.getElementById('nav-mobile-admin');
   const navMobileSuper = document.getElementById('nav-mobile-super');
   const navMobileWhatsapp = document.getElementById('nav-mobile-whatsapp');
 
-  if (menuAdminAcc) menuAdminAcc.classList.add('hidden');
-  if (menuSuperUser) menuSuperUser.classList.add('hidden');
-  if (menuWhatsapp) menuWhatsapp.classList.add('hidden');
-  if (navMobileAdmin) navMobileAdmin.classList.add('hidden');
-  if (navMobileSuper) navMobileSuper.classList.add('hidden');
-  if (navMobileWhatsapp) navMobileWhatsapp.classList.add('hidden');
+  [menuAdminAcc, menuAdminAccBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp].forEach(el => {
+    if (el) el.classList.add('hidden');
+  });
 
   if (role === 'pic' || role === 'owner' || role === 'admin' || role === 'superuser') {
     if (menuAdminAcc) menuAdminAcc.classList.remove('hidden');
+    if (menuAdminAccBtn) menuAdminAccBtn.classList.remove('hidden');
     if (navMobileAdmin) {
       navMobileAdmin.classList.remove('hidden');
       navMobileAdmin.classList.add('flex');
@@ -353,11 +354,13 @@ window.aturTampilanBerdasarkanRole = function() {
 
   if (role === 'owner' || role === 'superuser') {
     if (menuSuperUser) menuSuperUser.classList.remove('hidden');
+    if (menuSuperUserBtn) menuSuperUserBtn.classList.remove('hidden');
     if (navMobileSuper) {
       navMobileSuper.classList.remove('hidden');
       navMobileSuper.classList.add('flex');
     }
     if (menuWhatsapp) menuWhatsapp.classList.remove('hidden');
+    if (menuWhatsappBtn) menuWhatsappBtn.classList.remove('hidden');
     if (navMobileWhatsapp) {
       navMobileWhatsapp.classList.remove('hidden');
       navMobileWhatsapp.classList.add('flex');

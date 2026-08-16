@@ -52,36 +52,27 @@ const EditAbsensiModal = {
     return { form, opsiStatusKehadiran, menyimpan, simpan };
   },
   template: `
-    <div class="fixed inset-0 z-[100] bg-black/60 flex items-center justify-center p-4 fade-in">
-      <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl space-y-4">
-        <div class="flex justify-between items-center border-b pb-3">
-          <h3 class="text-sm font-bold text-gray-800"><i class="fas fa-edit text-blue-600 mr-2"></i> Edit Data Absensi</h3>
-          <button @click="$emit('tutup')" class="text-gray-400 hover:text-red-500"><i class="fas fa-times text-lg"></i></button>
+    <div style="position:fixed; inset:0; z-index:100; background:rgba(59,42,31,.6); display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+      <div style="background:var(--surface); border-radius:22px; padding:22px; width:100%; max-width:380px; font-size:12.5px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
+          <h3 class="gc-heading" style="font-weight:700; font-size:14px;"><i class="fas fa-edit" style="color:var(--burgundy); margin-right:8px;"></i> Edit Data Absensi</h3>
+          <button @click="$emit('tutup')" style="background:none; border:none; color:var(--text-faint); font-size:16px; cursor:pointer;"><i class="fas fa-times"></i></button>
         </div>
-        <p class="text-xs text-gray-500">Karyawan: <b class="text-slate-800">{{ item.nama_pegawai || item.nama || '-' }}</b></p>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Status Kehadiran</label>
-          <select v-model="form.statusKehadiran" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
-            <option v-for="s in opsiStatusKehadiran" :key="s" :value="s">{{ s }}</option>
-          </select>
+        <p style="font-size:11.5px; color:var(--text-muted); margin-bottom:12px;">Karyawan: <b style="color:var(--text);">{{ item.nama_pegawai || item.nama || '-' }}</b></p>
+        <div class="gc-field">
+          <label>Status Kehadiran</label>
+          <select v-model="form.statusKehadiran"><option v-for="s in opsiStatusKehadiran" :key="s" :value="s">{{ s }}</option></select>
         </div>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Seragam</label>
-          <select v-model="form.seragam" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
-            <option value="Sesuai">Sesuai</option>
-            <option value="Tidak Sesuai">Tidak Sesuai</option>
-          </select>
+        <div class="gc-field">
+          <label>Seragam</label>
+          <select v-model="form.seragam"><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option></select>
         </div>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Status Persetujuan</label>
-          <select v-model="form.statusAcc" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-sm">
-            <option value="ACC">ACC</option>
-            <option value="REJECT">REJECT</option>
-            <option value="PENDING">PENDING</option>
-          </select>
+        <div class="gc-field">
+          <label>Status Persetujuan</label>
+          <select v-model="form.statusAcc"><option value="ACC">ACC</option><option value="REJECT">REJECT</option><option value="PENDING">PENDING</option></select>
         </div>
-        <button @click="simpan" :disabled="menyimpan" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 transition text-sm disabled:opacity-50">
-          <i class="fas fa-save mr-1"></i> {{ menyimpan ? 'Menyimpan...' : 'Simpan Perubahan' }}
+        <button @click="simpan" :disabled="menyimpan" class="btn-primary block">
+          <i class="fas fa-save" style="margin-right:6px;"></i> {{ menyimpan ? 'Menyimpan...' : 'Simpan Perubahan' }}
         </button>
       </div>
     </div>
@@ -181,64 +172,64 @@ const AppRiwayatAbsensi = {
     return { listData, memuat, itemSedangDiedit, muat, pisahTanggalWaktu, lihatFotoBesar, bukaEdit, tutupEdit, selesaiSimpan, hapus, assignUlang, exportCSV };
   },
   template: `
-    <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex justify-between items-center mb-4">
+    <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
       <div>
-         <h3 class="font-black text-slate-800 text-sm"><i class="fas fa-database text-purple-600 mr-2"></i> Riwayat All Absensi</h3>
-         <p class="text-[10px] text-gray-500 mt-1">Laporan lengkap seluruh karyawan. Anda bisa mengunduhnya untuk keperluan Payroll.</p>
+         <h3 class="gc-heading" style="font-weight:700; font-size:13.5px;"><i class="fas fa-database" style="color:var(--burgundy); margin-right:8px;"></i> Riwayat All Absensi</h3>
+         <p style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">Laporan lengkap seluruh karyawan. Anda bisa mengunduhnya untuk keperluan Payroll.</p>
       </div>
-      <button @click="exportCSV" class="bg-green-600 hover:bg-green-700 text-white font-bold px-5 py-2.5 rounded-xl text-xs transition shadow-md flex items-center space-x-2">
-          <i class="fas fa-file-excel text-sm"></i><span>Unduh Excel (CSV)</span>
+      <button @click="exportCSV" class="btn-outline filled" style="display:flex; align-items:center; gap:8px;">
+          <i class="fas fa-file-excel"></i><span>Unduh Excel (CSV)</span>
       </button>
     </div>
 
-    <div v-if="memuat" class="text-center py-10 text-gray-400 text-xs"><i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p>Menyiapkan Riwayat All Absensi...</p></div>
+    <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint); font-size:12px;"><i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i>Menyiapkan Riwayat All Absensi...</div>
 
-    <div v-else class="overflow-x-auto rounded-2xl border border-gray-100 shadow-sm bg-white">
-      <table class="w-full text-left text-xs text-gray-600 whitespace-nowrap">
-        <thead class="bg-slate-800 text-white font-bold border-b text-[10px] uppercase">
+    <div v-else class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line);">
+      <table class="gc-table">
+        <thead>
           <tr>
-            <th class="p-3">Persetujuan / Tipe Absen</th>
-            <th class="p-3">Shift / Gudang</th>
-            <th class="p-3">Tanggal / Waktu</th>
-            <th class="p-3">Foto</th>
-            <th class="p-3">Nama / No HP</th>
-            <th class="p-3">Status Kehadiran / Seragam</th>
-            <th class="p-3">Sanggahan Karyawan</th>
-            <th class="p-3">Aju Banding</th>
-            <th class="p-3">Pemeriksa</th>
-            <th class="p-3 text-center">Aksi</th>
+            <th>Persetujuan / Tipe Absen</th>
+            <th>Shift / Gudang</th>
+            <th>Tanggal / Waktu</th>
+            <th>Foto</th>
+            <th>Nama / No HP</th>
+            <th>Status Kehadiran / Seragam</th>
+            <th>Sanggahan Karyawan</th>
+            <th>Aju Banding</th>
+            <th>Pemeriksa</th>
+            <th class="freeze freeze-right">Aksi</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr v-if="listData.length === 0"><td colspan="10" class="p-4 text-center text-gray-400">Belum ada data absensi.</td></tr>
-          <tr v-for="item in listData" :key="item.id" class="hover:bg-blue-50 transition">
-            <td class="p-3">
+        <tbody>
+          <tr v-if="listData.length === 0"><td colspan="10" style="text-align:center; padding:20px; color:var(--text-faint);">Belum ada data absensi.</td></tr>
+          <tr v-for="item in listData" :key="item.id">
+            <td>
               <b>
-                <span v-if="item.status_acc === 'ACC'" class="text-green-600">ACC</span>
-                <span v-else-if="item.status_acc === 'REJECT'" class="text-red-500">REJECT</span>
-                <span v-else class="text-amber-500">PENDING</span>
+                <span v-if="item.status_acc === 'ACC'" style="color:var(--ok);">ACC</span>
+                <span v-else-if="item.status_acc === 'REJECT'" style="color:var(--danger);">REJECT</span>
+                <span v-else style="color:var(--warn);">PENDING</span>
               </b><br>
-              <span class="text-[10px] text-gray-400 font-normal">{{ item.status || 'HADIR' }}</span>
+              <span style="font-size:10.5px; color:var(--text-muted); font-weight:400;">{{ item.status || 'HADIR' }}</span>
             </td>
-            <td class="p-3"><dua-baris :a="item.shift" :b="item.gudang" /></td>
-            <td class="p-3"><dua-baris :a="pisahTanggalWaktu(item.waktu).tgl" :b="pisahTanggalWaktu(item.waktu).jam" /></td>
-            <td class="p-3">
-              <img v-if="item.foto_selfie || item.foto" :src="item.foto_selfie || item.foto" @click="lihatFotoBesar(item.foto_selfie || item.foto)" class="w-10 h-10 rounded-lg object-cover border cursor-pointer hover:scale-105 transition">
-              <span v-else class="text-gray-300">-</span>
+            <td><dua-baris :a="item.shift" :b="item.gudang" /></td>
+            <td><dua-baris :a="pisahTanggalWaktu(item.waktu).tgl" :b="pisahTanggalWaktu(item.waktu).jam" /></td>
+            <td>
+              <img v-if="item.foto_selfie || item.foto" :src="item.foto_selfie || item.foto" @click="lihatFotoBesar(item.foto_selfie || item.foto)" style="width:40px; height:40px; border-radius:10px; object-fit:cover; border:1px solid var(--line); cursor:pointer;">
+              <span v-else style="color:var(--text-faint);">-</span>
             </td>
-            <td class="p-3"><dua-baris :a="item.nama_pegawai || item.nama" :b="item.hpDicariDariUsers" /></td>
-            <td class="p-3"><dua-baris :a="item.status_kehadiran" :b="item.seragam || 'Sesuai'" /></td>
-            <td class="p-3 max-w-[160px] truncate" :title="item.catatan_banding || ''">{{ item.catatan_banding || '-' }}</td>
-            <td class="p-3">
-              <span v-if="item.catatan_banding" class="px-2 py-0.5 bg-amber-100 text-amber-700 font-bold text-[9px] rounded-full">Ada Aju Banding</span>
-              <span v-else class="text-gray-300">-</span>
+            <td><dua-baris :a="item.nama_pegawai || item.nama" :b="item.hpDicariDariUsers" /></td>
+            <td><dua-baris :a="item.status_kehadiran" :b="item.seragam || 'Sesuai'" /></td>
+            <td class="gc-cell-muted" style="max-width:160px; overflow:hidden; text-overflow:ellipsis;" :title="item.catatan_banding || ''">{{ item.catatan_banding || '-' }}</td>
+            <td>
+              <span v-if="item.catatan_banding" class="tag warn">Ada Aju Banding</span>
+              <span v-else style="color:var(--text-faint);">-</span>
             </td>
-            <td class="p-3">{{ item.validated_by || '-' }}</td>
-            <td class="p-3 text-center">
-              <div class="flex items-center justify-center gap-1">
-                <button @click="bukaEdit(item)" class="bg-blue-50 text-blue-600 px-2 py-1.5 rounded-lg text-[10px] font-bold hover:bg-blue-100" title="Edit"><i class="fas fa-edit"></i></button>
-                <button @click="hapus(item.id)" class="bg-red-50 text-red-600 px-2 py-1.5 rounded-lg text-[10px] font-bold hover:bg-red-100" title="Hapus"><i class="fas fa-trash-alt"></i></button>
-                <button v-if="item.catatan_banding" @click="assignUlang(item.id)" class="bg-amber-50 text-amber-600 px-2 py-1.5 rounded-lg text-[10px] font-bold hover:bg-amber-100" title="Assign ulang ke Antrean Absensi"><i class="fas fa-undo"></i></button>
+            <td class="gc-cell-muted">{{ item.validated_by || '-' }}</td>
+            <td class="freeze freeze-right">
+              <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
+                <button @click="bukaEdit(item)" class="icon-btn" title="Edit"><i class="fas fa-edit"></i></button>
+                <button @click="hapus(item.id)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
+                <button v-if="item.catatan_banding" @click="assignUlang(item.id)" class="icon-btn" style="color:var(--warn);" title="Assign ulang ke Antrean Absensi"><i class="fas fa-undo"></i></button>
               </div>
             </td>
           </tr>

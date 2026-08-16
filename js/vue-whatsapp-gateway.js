@@ -141,101 +141,101 @@ const AppWhatsappGateway = {
     };
   },
   template: `
-    <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4">
+    <div class="gc-card">
       <div>
-        <h2 class="text-lg font-black text-slate-800 flex items-center"><i class="fab fa-whatsapp text-green-500 mr-2.5"></i> WhatsApp Gateway</h2>
-        <p class="text-xs text-gray-500 mt-0.5">Notifikasi WhatsApp (OTP, status akun) lewat Fonnte. Token Fonnte disimpan aman di Google Apps Script, tidak pernah ada di aplikasi ini.</p>
+        <h2 class="gc-heading" style="font-size:16.5px; font-weight:700; display:flex; align-items:center;"><i class="fab fa-whatsapp" style="color:var(--ok); margin-right:10px;"></i> WhatsApp Gateway</h2>
+        <p style="font-size:12px; color:var(--text-muted); margin-top:3px;">Notifikasi WhatsApp (OTP, status akun) lewat Fonnte. Token Fonnte disimpan aman di Google Apps Script, tidak pernah ada di aplikasi ini.</p>
       </div>
-      <div class="flex space-x-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-200 pt-2">
-        <button @click="pindahTab('config')" :class="tabAktif === 'config' ? 'bg-slate-800 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition"><i class="fas fa-cogs mr-1.5"></i> Config API</button>
-        <button @click="pindahTab('template')" :class="tabAktif === 'template' ? 'bg-slate-800 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition"><i class="fas fa-comment-dots mr-1.5"></i> Template Pesan</button>
-        <button @click="pindahTab('monitor')" :class="tabAktif === 'monitor' ? 'bg-slate-800 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'" class="px-4 py-2.5 rounded-xl text-xs font-bold whitespace-nowrap transition"><i class="fas fa-chart-line mr-1.5"></i> Monitoring Respon</button>
+      <div class="flex space-x-2 overflow-x-auto no-scrollbar" style="padding-top:14px; margin-top:14px; border-top:1px solid var(--line);">
+        <button @click="pindahTab('config')" class="gc-sub-tab-btn" :class="{ active: tabAktif === 'config' }"><i class="fas fa-cogs" style="margin-right:6px;"></i> Config API</button>
+        <button @click="pindahTab('template')" class="gc-sub-tab-btn" :class="{ active: tabAktif === 'template' }"><i class="fas fa-comment-dots" style="margin-right:6px;"></i> Template Pesan</button>
+        <button @click="pindahTab('monitor')" class="gc-sub-tab-btn" :class="{ active: tabAktif === 'monitor' }"><i class="fas fa-chart-line" style="margin-right:6px;"></i> Monitoring Respon</button>
       </div>
     </div>
 
-    <div v-show="tabAktif === 'config'" class="mt-4">
-      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 max-w-lg">
-        <h3 class="text-sm font-bold text-slate-800 border-b pb-2">Koneksi API</h3>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">URL Web App Apps Script</label>
-          <input v-model="webappUrl" type="text" placeholder="https://script.google.com/macros/s/xxxxx/exec" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs font-mono">
+    <div v-show="tabAktif === 'config'" style="margin-top:16px;">
+      <div class="gc-card" style="max-width:480px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;">Koneksi API</h3>
+        <div class="gc-field">
+          <label>URL Web App Apps Script</label>
+          <input v-model="webappUrl" type="text" placeholder="https://script.google.com/macros/s/xxxxx/exec" style="font-family:'Poppins',sans-serif; font-size:11.5px;">
         </div>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Kunci Rahasia (Shared Secret)</label>
-          <input v-model="secret" type="text" placeholder="Samakan dengan ZEVANIC_SHARED_SECRET di Apps Script" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs font-mono">
+        <div class="gc-field">
+          <label>Kunci rahasia (shared secret)</label>
+          <input v-model="secret" type="text" placeholder="Samakan dengan ZEVANIC_SHARED_SECRET di Apps Script" style="font-family:'Poppins',sans-serif; font-size:11.5px;">
         </div>
-        <div class="flex items-center space-x-2">
-          <input v-model="otpAktif" type="checkbox" id="wa-otp-aktif" class="rounded text-blue-600 w-4 h-4">
-          <label for="wa-otp-aktif" class="text-xs font-semibold text-gray-600">Aktifkan verifikasi OTP saat login perangkat baru</label>
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+          <input v-model="otpAktif" type="checkbox" id="wa-otp-aktif" style="width:16px; height:16px; accent-color:var(--burgundy);">
+          <label for="wa-otp-aktif" style="font-size:12px; font-weight:600; color:var(--text-muted);">Aktifkan verifikasi OTP saat login perangkat baru</label>
         </div>
-        <button @click="simpanKonfig" :disabled="menyimpanKonfig" class="w-full bg-green-600 text-white font-bold py-2.5 rounded-xl hover:bg-green-700 transition text-xs disabled:opacity-50">
-          <i class="fas fa-save mr-1"></i> {{ menyimpanKonfig ? 'Menyimpan...' : 'Simpan Pengaturan' }}
+        <button @click="simpanKonfig" :disabled="menyimpanKonfig" class="btn-primary block" style="background:var(--ok);">
+          <i class="fas fa-save" style="margin-right:6px;"></i> {{ menyimpanKonfig ? 'Menyimpan...' : 'Simpan pengaturan' }}
         </button>
-        <div class="pt-3 border-t space-y-2">
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Tes Kirim Pesan</label>
-          <div class="flex space-x-2">
-            <input v-model="nomorTes" type="text" placeholder="08xxxxxxxxxx" class="flex-1 px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs">
-            <button @click="tesKirim" :disabled="mengujiKirim" class="bg-slate-800 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-slate-900 transition whitespace-nowrap disabled:opacity-50">
-              <i v-if="mengujiKirim" class="fas fa-spinner fa-spin"></i><span v-else>Kirim Tes</span>
+        <div style="padding-top:14px; margin-top:14px; border-top:1px solid var(--line);">
+          <label style="display:block; font-size:12px; font-weight:700; margin-bottom:8px; font-family:'Poppins',sans-serif;">Tes kirim pesan</label>
+          <div style="display:flex; gap:8px;">
+            <input v-model="nomorTes" type="text" placeholder="08xxxxxxxxxx" style="flex:1; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+            <button @click="tesKirim" :disabled="mengujiKirim" class="btn-primary" style="white-space:nowrap;">
+              <i v-if="mengujiKirim" class="fas fa-spinner fa-spin"></i><span v-else>Kirim tes</span>
             </button>
           </div>
         </div>
       </div>
     </div>
 
-    <div v-show="tabAktif === 'template'" class="mt-4">
-      <div class="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm space-y-4 max-w-lg">
-        <h3 class="text-sm font-bold text-slate-800 border-b pb-2">Template Pesan (Greeting)</h3>
-        <p class="text-[11px] text-gray-500">Placeholder <code class="bg-gray-100 px-1 rounded">{nama}</code> dan <code class="bg-gray-100 px-1 rounded">{kode}</code> akan otomatis diganti sistem saat pesan dikirim.</p>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Pesan OTP Login</label>
-          <textarea v-model="template.otp" rows="3" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs resize-none"></textarea>
+    <div v-show="tabAktif === 'template'" style="margin-top:16px;">
+      <div class="gc-card" style="max-width:480px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;">Template Pesan (Greeting)</h3>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Placeholder <code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{nama}</code> dan <code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{kode}</code> akan otomatis diganti sistem saat pesan dikirim.</p>
+        <div class="gc-field">
+          <label>Pesan OTP login</label>
+          <textarea v-model="template.otp" rows="3" style="font-size:12px;"></textarea>
         </div>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Pesan Akun Disetujui</label>
-          <textarea v-model="template.aktif" rows="3" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs resize-none"></textarea>
+        <div class="gc-field">
+          <label>Pesan akun disetujui</label>
+          <textarea v-model="template.aktif" rows="3" style="font-size:12px;"></textarea>
         </div>
-        <div>
-          <label class="block text-xs font-semibold text-gray-600 mb-1">Pesan Akun Menunggu Persetujuan</label>
-          <textarea v-model="template.pending" rows="3" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none text-xs resize-none"></textarea>
+        <div class="gc-field">
+          <label>Pesan akun menunggu persetujuan</label>
+          <textarea v-model="template.pending" rows="3" style="font-size:12px;"></textarea>
         </div>
-        <button @click="simpanTemplate" :disabled="menyimpanTemplate" class="w-full bg-green-600 text-white font-bold py-2.5 rounded-xl hover:bg-green-700 transition text-xs disabled:opacity-50">
-          <i class="fas fa-save mr-1"></i> {{ menyimpanTemplate ? 'Menyimpan...' : 'Simpan Template' }}
+        <button @click="simpanTemplate" :disabled="menyimpanTemplate" class="btn-primary block" style="background:var(--ok);">
+          <i class="fas fa-save" style="margin-right:6px;"></i> {{ menyimpanTemplate ? 'Menyimpan...' : 'Simpan template' }}
         </button>
       </div>
     </div>
 
-    <div v-show="tabAktif === 'monitor'" class="mt-4 space-y-4">
-      <div class="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex justify-between items-center">
+    <div v-show="tabAktif === 'monitor'" style="margin-top:16px;">
+      <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
         <div>
-          <h3 class="text-sm font-bold text-slate-800">Riwayat Pengiriman</h3>
-          <p class="text-[10px] text-gray-500">50 pengiriman terakhir (OTP, notifikasi, tes).</p>
+          <h3 class="gc-heading" style="font-size:13.5px; font-weight:700;">Riwayat pengiriman</h3>
+          <p style="font-size:10.5px; color:var(--text-muted); margin-top:2px;">50 pengiriman terakhir (OTP, notifikasi, tes).</p>
         </div>
-        <button @click="muatMonitoring" class="text-xs bg-green-50 text-green-600 px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-sync-alt mr-1"></i> Refresh</button>
+        <button @click="muatMonitoring" class="btn-outline"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
       </div>
-      <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-x-auto w-full">
-        <table class="w-full text-left border-collapse text-sm whitespace-nowrap min-w-max">
-          <thead class="bg-gray-50 text-gray-500 text-xs uppercase sticky top-0 z-10">
+      <div class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line);">
+        <table class="gc-table">
+          <thead>
             <tr>
-              <th class="p-3">Waktu</th>
-              <th class="p-3">Jenis</th>
-              <th class="p-3">Nomor Tujuan</th>
-              <th class="p-3">Status</th>
-              <th class="p-3">Keterangan</th>
+              <th>Waktu</th>
+              <th>Jenis</th>
+              <th>Nomor Tujuan</th>
+              <th>Status</th>
+              <th>Keterangan</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100 text-gray-700 text-xs">
-            <tr v-if="memuatLog"><td colspan="5" class="p-4 text-center text-gray-400">Memuat riwayat...</td></tr>
-            <tr v-else-if="daftarLog.length === 0"><td colspan="5" class="p-4 text-center text-gray-400">Belum ada riwayat pengiriman.</td></tr>
-            <tr v-for="log in daftarLog" :key="log.id" class="hover:bg-gray-50">
-              <td class="p-3">{{ log.waktu || '-' }}</td>
-              <td class="p-3 font-semibold">{{ log.jenis || '-' }}</td>
-              <td class="p-3 font-mono">{{ log.target || '-' }}</td>
-              <td class="p-3">
-                <span v-if="log.sukses" class="px-2 py-0.5 bg-green-100 text-green-700 font-bold text-[10px] rounded-full">Terkirim</span>
-                <span v-else class="px-2 py-0.5 bg-red-100 text-red-700 font-bold text-[10px] rounded-full">Gagal</span>
+          <tbody>
+            <tr v-if="memuatLog"><td colspan="5" style="text-align:center; padding:20px; color:var(--text-faint);">Memuat riwayat...</td></tr>
+            <tr v-else-if="daftarLog.length === 0"><td colspan="5" style="text-align:center; padding:20px; color:var(--text-faint);">Belum ada riwayat pengiriman.</td></tr>
+            <tr v-for="log in daftarLog" :key="log.id">
+              <td class="gc-cell-muted">{{ log.waktu || '-' }}</td>
+              <td style="font-weight:600;">{{ log.jenis || '-' }}</td>
+              <td style="font-family:'Poppins',sans-serif; font-size:11.5px;">{{ log.target || '-' }}</td>
+              <td>
+                <span v-if="log.sukses" class="tag ok">Terkirim</span>
+                <span v-else class="tag danger">Gagal</span>
               </td>
-              <td class="p-3 text-gray-500 max-w-[220px] truncate" :title="log.keterangan || ''">{{ log.keterangan || '-' }}</td>
+              <td class="gc-cell-muted" style="max-width:220px; overflow:hidden; text-overflow:ellipsis;" :title="log.keterangan || ''">{{ log.keterangan || '-' }}</td>
             </tr>
           </tbody>
         </table>

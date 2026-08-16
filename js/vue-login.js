@@ -65,6 +65,34 @@ const AppLogin = {
     const otpNomorMasked = ref('****');
     const otpInput = ref('');
     const otpState = reactive({ kode: null, email: null, kadaluarsa: null });
+    const otpSudahDikirim = ref(false); // sebelum ini true, tombol "Kirim Kode OTP" yang tampil, bukan input kode
+    const otpMengirim = ref(false);
+    const otpCountdown = ref(0); // detik tersisa sebelum boleh kirim ulang
+    let otpCountdownTimer = null;
+
+    function formatCountdownOtp(detik) {
+      const m = Math.floor(detik / 60);
+      const s = detik % 60;
+      return m + ':' + String(s).padStart(2, '0');
+    }
+
+    function mulaiCountdownOtp() {
+      otpCountdown.value = 120; // 2 menit — cegah spam kirim ulang ke WhatsApp
+      if (otpCountdownTimer) clearInterval(otpCountdownTimer);
+      otpCountdownTimer = setInterval(() => {
+        otpCountdown.value--;
+        if (otpCountdown.value <= 0) {
+          clearInterval(otpCountdownTimer);
+          otpCountdownTimer = null;
+          otpCountdown.value = 0;
+        }
+      }, 1000);
+    }
+
+    function hentikanCountdownOtp() {
+      if (otpCountdownTimer) { clearInterval(otpCountdownTimer); otpCountdownTimer = null; }
+      otpCountdown.value = 0;
+    }
 
     onMounted(() => {
       const savedEmail = localStorage.getItem('zevanic_email');
@@ -123,10 +151,19 @@ const AppLogin = {
       }
 
       // Verifikasi OTP WhatsApp — hanya untuk login PERTAMA di perangkat ini.
+      // PENTING: kode TIDAK dikirim otomatis di sini lagi — modal tampil dulu,
+      // user harus klik "Kirim Kode OTP" secara manual (lihat kirimKodeOtp()).
+      // Ini mencegah pengiriman WA berulang tanpa sadar/disengaja (spam).
       const otpDiperlukan = await apakahOtpDiperlukan(emailInput);
       if (otpDiperlukan) {
-        const terkirim = await mulaiVerifikasiOtp(emailInput);
-        if (!terkirim) await signOut(auth);
+        otpState.email = emailInput;
+        otpState.kode = null;
+        otpState.kadaluarsa = null;
+        otpSudahDikirim.value = false;
+        otpInput.value = '';
+        otpNomorMasked.value = '****';
+        hentikanCountdownOtp();
+        otpVisible.value = true;
         memproses.value = false;
         return;
       }
@@ -147,9 +184,15 @@ const AppLogin = {
       return !sudahTerverifikasi;
     }
 
-    async function mulaiVerifikasiOtp(emailOtp) {
+    // Dipanggil dari tombol "Kirim Kode OTP" (pertama kali) MAUPUN "Kirim Ulang"
+    // (setelah countdown 2 menit habis) — logic-nya sama persis, cuma dipicu
+    // dari 2 tombol berbeda di template.
+    async function kirimKodeOtp() {
+      if (otpMengirim.value || otpCountdown.value > 0) return; // jaga-jaga dobel klik
+      otpMengirim.value = true;
+
+      const emailOtp = otpState.email;
       const kode = String(Math.floor(100000 + Math.random() * 900000));
-      Object.assign(otpState, { kode, email: emailOtp, kadaluarsa: Date.now() + 5 * 60 * 1000 });
 
       let nomorHp = "";
       try {
@@ -159,29 +202,32 @@ const AppLogin = {
 
       if (!nomorHp) {
         alert("Nomor HP Anda belum terdaftar di sistem, tidak bisa mengirim OTP. Hubungi Owner/PIC.");
-        return false;
+        otpMengirim.value = false;
+        return;
       }
 
       const templateOtp = window.ambilTemplateWA ? await window.ambilTemplateWA('template_otp') : "Kode OTP Anda: *{kode}*";
       const terkirim = window.kirimPesanWhatsapp ? await window.kirimPesanWhatsapp(nomorHp, templateOtp.replace(/\{kode\}/g, kode), "OTP") : false;
+
+      otpMengirim.value = false;
+
       if (!terkirim) {
         alert("Gagal mengirim kode OTP lewat WhatsApp. Coba lagi atau hubungi Owner/PIC.");
-        return false;
+        return;
       }
 
+      Object.assign(otpState, { kode, email: emailOtp, kadaluarsa: Date.now() + 5 * 60 * 1000 });
       otpNomorMasked.value = nomorHp.replace(/(\d{4})\d+(\d{3})/, '$1****$2');
       otpInput.value = '';
-      otpVisible.value = true;
-      return true;
+      otpSudahDikirim.value = true;
+      mulaiCountdownOtp();
     }
 
     async function batalkanOtp() {
       otpVisible.value = false;
+      hentikanCountdownOtp();
+      otpSudahDikirim.value = false;
       await signOut(auth);
-    }
-
-    function kirimUlangOtp() {
-      if (otpState.email) mulaiVerifikasiOtp(otpState.email);
     }
 
     async function verifikasiOtpDanLanjut() {
@@ -195,6 +241,7 @@ const AppLogin = {
       }
       localStorage.setItem('zevanic_device_verified_' + otpState.email, 'true');
       otpVisible.value = false;
+      hentikanCountdownOtp();
       await lanjutkanSetelahLogin(otpState.email);
     }
 
@@ -289,9 +336,9 @@ const AppLogin = {
     return {
       email, password, showPassword, ingatSaya, statusPilihan, memproses, isDesktop,
       izin, opsiAlasanIzin, bukaFormIzinDropdown,
-      otpVisible, otpNomorMasked, otpInput,
+      otpVisible, otpNomorMasked, otpInput, otpSudahDikirim, otpMengirim, otpCountdown, formatCountdownOtp,
       lupaPassword, bukaFormRegistrasi, login,
-      batalkanOtp, kirimUlangOtp, verifikasiOtpDanLanjut
+      batalkanOtp, kirimKodeOtp, verifikasiOtpDanLanjut
     };
   },
   template: `
@@ -377,13 +424,25 @@ const AppLogin = {
       <div style="background:var(--surface); width:100%; max-width:380px; padding:26px; border-radius:22px; text-align:center;">
         <i class="fab fa-whatsapp" style="font-size:44px; color:var(--ok);"></i>
         <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-top:10px;">Verifikasi perangkat baru</h3>
-        <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Kode OTP telah dikirim lewat WhatsApp ke nomor <b style="color:var(--text);">{{ otpNomorMasked }}</b></p>
-        <input v-model="otpInput" type="text" maxlength="6" inputmode="numeric" placeholder="6 digit kode" style="width:100%; text-align:center; letter-spacing:.5em; font-size:18px; font-weight:700; padding:12px; margin-top:16px; border:1.5px solid var(--line); border-radius:12px; outline:none; font-family:'Poppins',sans-serif;">
-        <button @click="verifikasiOtpDanLanjut" class="btn-primary block" style="margin-top:14px; background:var(--ok);">Verifikasi</button>
-        <div style="display:flex; justify-content:space-between; margin-top:12px; font-size:12.5px;">
-          <button @click="kirimUlangOtp" style="background:none; border:none; color:var(--burgundy); font-weight:700; cursor:pointer;">Kirim ulang</button>
-          <button @click="batalkanOtp" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer;">Batal</button>
-        </div>
+
+        <template v-if="!otpSudahDikirim">
+          <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Perangkat ini belum pernah diverifikasi. Klik tombol di bawah untuk kirim kode OTP ke WhatsApp nomor terdaftar Anda.</p>
+          <button @click="kirimKodeOtp" :disabled="otpMengirim" class="btn-primary block" style="margin-top:16px; background:var(--ok);">
+            {{ otpMengirim ? 'Mengirim...' : 'Kirim Kode OTP' }}
+          </button>
+          <button @click="batalkanOtp" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer; margin-top:12px; font-size:12.5px;">Batal</button>
+        </template>
+
+        <template v-else>
+          <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Kode OTP telah dikirim lewat WhatsApp ke nomor <b style="color:var(--text);">{{ otpNomorMasked }}</b></p>
+          <input v-model="otpInput" type="text" maxlength="6" inputmode="numeric" placeholder="6 digit kode" style="width:100%; text-align:center; letter-spacing:.5em; font-size:18px; font-weight:700; padding:12px; margin-top:16px; border:1.5px solid var(--line); border-radius:12px; outline:none; font-family:'Poppins',sans-serif;">
+          <button @click="verifikasiOtpDanLanjut" class="btn-primary block" style="margin-top:14px; background:var(--ok);">Verifikasi</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:12.5px;">
+            <button v-if="otpCountdown > 0" disabled style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:not-allowed;">Kirim ulang ({{ formatCountdownOtp(otpCountdown) }})</button>
+            <button v-else @click="kirimKodeOtp" :disabled="otpMengirim" style="background:none; border:none; color:var(--burgundy); font-weight:700; cursor:pointer;">{{ otpMengirim ? 'Mengirim...' : 'Kirim ulang' }}</button>
+            <button @click="batalkanOtp" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer;">Batal</button>
+          </div>
+        </template>
       </div>
     </div>
   `

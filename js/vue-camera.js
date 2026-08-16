@@ -65,7 +65,7 @@ const AppKamera = {
     async function validasiRadiusGudang() {
       if (!koordinatGlobal) return;
       if (!gudangDipilih.value) {
-        statusLokasiHtml.value = '<span class="text-gray-300 text-xs">Pilih gudang terlebih dahulu.</span>';
+        statusLokasiHtml.value = '<span class="tag neutral">Pilih gudang terlebih dahulu.</span>';
         return;
       }
       try {
@@ -75,19 +75,19 @@ const AppKamera = {
 
         if (!gudangData) {
           statusRadiusGlobal = null;
-          statusLokasiHtml.value = '<span class="text-amber-400 text-xs"><i class="fas fa-exclamation-triangle mr-1"></i>Data gudang tidak ditemukan. Hubungi Owner/PIC.</span>';
+          statusLokasiHtml.value = '<span class="tag warn"><span class="tag-dot"></span>Data gudang tidak ditemukan. Hubungi Owner/PIC.</span>';
           return;
         }
 
         if (gudangData.tipe_lokasi === 'Dinamis') {
           statusRadiusGlobal = { dalamRadius: true, jarak: 0, radiusIzin: 0, gudang: gudangDipilih.value, dinamis: true };
-          statusLokasiHtml.value = `<span class="text-blue-400 text-xs"><i class="fas fa-map-marked-alt mr-1"></i>Lokasi Dinamis (${gudangDipilih.value}) — tanpa validasi radius</span>`;
+          statusLokasiHtml.value = `<span class="tag blue"><span class="tag-dot"></span>Lokasi Dinamis (${gudangDipilih.value}) — tanpa validasi radius</span>`;
           return;
         }
 
         if (!gudangData.latitude || !gudangData.longitude) {
           statusRadiusGlobal = null;
-          statusLokasiHtml.value = '<span class="text-amber-400 text-xs"><i class="fas fa-exclamation-triangle mr-1"></i>Data lokasi gudang belum lengkap. Hubungi Owner/PIC.</span>';
+          statusLokasiHtml.value = '<span class="tag warn"><span class="tag-dot"></span>Data lokasi gudang belum lengkap. Hubungi Owner/PIC.</span>';
           return;
         }
 
@@ -97,20 +97,20 @@ const AppKamera = {
         statusRadiusGlobal = { dalamRadius, jarak: Math.round(jarak), radiusIzin, gudang: gudangDipilih.value };
 
         statusLokasiHtml.value = dalamRadius
-          ? `<span class="text-green-400 text-xs"><i class="fas fa-check-circle mr-1"></i>Dalam radius ${gudangDipilih.value} (\u00b1${Math.round(jarak)}m)</span>`
-          : `<span class="text-red-400 text-xs"><i class="fas fa-times-circle mr-1"></i>Di luar radius ${gudangDipilih.value} (${Math.round(jarak)}m dari batas ${radiusIzin}m)</span>`;
+          ? `<span class="tag ok"><span class="tag-dot"></span>Dalam radius ${gudangDipilih.value} (\u00b1${Math.round(jarak)}m)</span>`
+          : `<span class="tag danger"><span class="tag-dot"></span>Di luar radius ${gudangDipilih.value} (${Math.round(jarak)}m dari batas ${radiusIzin}m)</span>`;
       } catch (e) {
         console.error("Gagal validasi radius:", e);
-        statusLokasiHtml.value = '<span class="text-red-400 text-xs">Gagal memeriksa lokasi gudang.</span>';
+        statusLokasiHtml.value = '<span class="tag danger">Gagal memeriksa lokasi gudang.</span>';
       }
     }
 
     function ambilLokasiGPS() {
       if (!navigator.geolocation) {
-        statusLokasiHtml.value = '<span class="text-red-400 text-xs"><i class="fas fa-exclamation-triangle mr-1"></i>Perangkat/browser tidak mendukung GPS.</span>';
+        statusLokasiHtml.value = '<span class="tag danger"><span class="tag-dot"></span>Perangkat/browser tidak mendukung GPS.</span>';
         return Promise.resolve(null);
       }
-      statusLokasiHtml.value = '<span class="text-gray-300 text-xs"><i class="fas fa-spinner fa-spin mr-1"></i>Mencari lokasi GPS...</span>';
+      statusLokasiHtml.value = '<span class="tag neutral"><i class="fas fa-spinner fa-spin" style="margin-right:5px;"></i>Mencari lokasi GPS...</span>';
 
       return new Promise((resolve) => {
         navigator.geolocation.getCurrentPosition(
@@ -122,7 +122,7 @@ const AppKamera = {
           (err) => {
             koordinatGlobal = null;
             statusRadiusGlobal = null;
-            statusLokasiHtml.value = '<span class="text-red-400 text-xs"><i class="fas fa-map-marker-alt mr-1"></i>Gagal mengambil lokasi. Aktifkan GPS & izinkan akses lokasi di browser.</span>';
+            statusLokasiHtml.value = '<span class="tag danger"><span class="tag-dot"></span>Gagal mengambil lokasi. Aktifkan GPS & izinkan akses lokasi di browser.</span>';
             resolve(null);
           },
           { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
@@ -292,42 +292,44 @@ const AppKamera = {
     };
   },
   template: `
-    <div class="w-full text-center mt-4">
-      <h2 class="text-white text-xl font-bold">Verifikasi Wajah / Foto Bukti</h2>
-      <p class="text-blue-400 text-xs mt-1 font-semibold uppercase tracking-wider">{{ modeLabel }}</p>
-    </div>
-
-    <div v-if="tampilkanPilihGudang" class="w-full max-w-sm mt-3">
-      <label class="block text-gray-300 text-[11px] font-semibold mb-1">Pilih Gudang</label>
-      <select :value="gudangDipilih" @change="pilihGudang($event.target.value)" class="w-full px-3 py-2 bg-slate-800 text-white border border-slate-600 rounded-xl outline-none text-sm">
-        <option v-for="g in daftarGudangUser" :key="g" :value="g">{{ g }}</option>
-      </select>
-    </div>
-    <div class="w-full max-w-sm text-center mt-2" v-html="statusLokasiHtml"></div>
-
-    <div class="relative w-full max-w-sm aspect-[3/4] bg-gray-800 rounded-3xl overflow-hidden border-2 border-gray-700 shadow-2xl flex items-center justify-center my-4">
-      <video ref="videoEl" autoplay playsinline class="w-full h-full object-cover" :class="{ hidden: sedangMemuatKamera || sudahAmbilFoto }"></video>
-      <img v-if="sudahAmbilFoto" :src="hasilFotoUrl" class="w-full h-full object-cover">
-      <canvas ref="canvasEl" class="hidden"></canvas>
-      <div v-if="sedangMemuatKamera" class="flex flex-col items-center text-gray-500 text-center px-4">
-        <i class="fas fa-camera text-5xl mb-3 animate-pulse"></i>
-        <span v-if="kameraError" class="text-red-400 text-xs">{{ kameraError }}</span>
-        <span v-else class="text-sm">Meminta akses kamera...</span>
+    <div class="gc-cam-wrap">
+      <div class="gc-cam-top">
+        <h2>Verifikasi wajah</h2>
+        <p class="mode">{{ modeLabel }}</p>
       </div>
-      <div v-if="!sedangMemuatKamera && !sudahAmbilFoto" class="absolute inset-4 border-2 border-dashed border-blue-400 rounded-2xl opacity-50 pointer-events-none"></div>
-    </div>
 
-    <div class="w-full max-w-sm mb-6 flex flex-col items-center h-24">
-      <button v-if="!sedangMemuatKamera && !sudahAmbilFoto" @click="ambilFoto" class="w-16 h-16 bg-white rounded-full border-4 border-gray-300 flex items-center justify-center shadow-lg active:scale-90 transition-transform hover:bg-gray-100">
-        <div class="w-12 h-12 bg-blue-600 rounded-full shadow-inner"></div>
-      </button>
-      <div v-if="sudahAmbilFoto" class="flex space-x-3">
-        <button @click="ulangiFoto" class="px-5 py-2.5 bg-gray-700 text-white font-bold rounded-xl text-sm hover:bg-gray-600 transition">Ulangi</button>
-        <button @click="kirimDataKeCloud" :disabled="mengirim" class="px-5 py-2.5 bg-green-500 text-white font-bold rounded-xl text-sm hover:bg-green-600 transition flex items-center shadow-lg shadow-green-500/30 disabled:opacity-50">
-          {{ teksTombolKirim }} <i v-if="!mengirim" class="fas fa-check ml-2"></i>
+      <div v-if="tampilkanPilihGudang" class="gc-field" style="width:100%; max-width:300px; margin-top:10px;">
+        <label>Pilih gudang</label>
+        <select :value="gudangDipilih" @change="pilihGudang($event.target.value)">
+          <option v-for="g in daftarGudangUser" :key="g" :value="g">{{ g }}</option>
+        </select>
+      </div>
+      <div style="margin-top:8px;" v-html="statusLokasiHtml"></div>
+
+      <div class="gc-cam-view">
+        <video ref="videoEl" autoplay playsinline style="width:100%; height:100%; object-fit:cover;" :class="{ hidden: sedangMemuatKamera || sudahAmbilFoto }"></video>
+        <img v-if="sudahAmbilFoto" :src="hasilFotoUrl" style="width:100%; height:100%; object-fit:cover;">
+        <canvas ref="canvasEl" class="hidden"></canvas>
+        <div v-if="sedangMemuatKamera" style="display:flex; flex-direction:column; align-items:center; text-align:center; padding:16px; color:#C9B4A4;">
+          <i class="fas fa-camera" style="font-size:44px; margin-bottom:10px;"></i>
+          <span v-if="kameraError" style="color:#F2A0A0; font-size:12px;">{{ kameraError }}</span>
+          <span v-else style="font-size:13px;">Meminta akses kamera...</span>
+        </div>
+        <div v-if="!sedangMemuatKamera && !sudahAmbilFoto" class="gc-cam-frame"></div>
+      </div>
+
+      <div style="width:100%; max-width:300px; margin-bottom:20px; display:flex; flex-direction:column; align-items:center; min-height:96px;">
+        <button v-if="!sedangMemuatKamera && !sudahAmbilFoto" @click="ambilFoto" class="gc-cam-btn">
+          <div class="gc-cam-btn-inner"></div>
         </button>
+        <div v-if="sudahAmbilFoto" style="display:flex; gap:12px;">
+          <button @click="ulangiFoto" class="btn-outline">Ulangi</button>
+          <button @click="kirimDataKeCloud" :disabled="mengirim" class="btn-primary" style="display:flex; align-items:center;">
+            {{ teksTombolKirim }} <i v-if="!mengirim" class="fas fa-check" style="margin-left:8px;"></i>
+          </button>
+        </div>
+        <p class="gc-cam-caption">{{ sudahAmbilFoto ? '' : 'Ketuk tombol untuk foto' }}</p>
       </div>
-      <p class="text-gray-300 text-xs font-semibold mt-3">{{ sudahAmbilFoto ? '' : 'Ketuk tombol untuk foto' }}</p>
     </div>
   `
 };

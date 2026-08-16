@@ -69,23 +69,20 @@ export const MasterDataCategory = {
     return { items, inputBaru, memuat, menyimpan, tambah, hapus };
   },
   template: `
-    <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
-      <h4 class="text-xs font-bold text-gray-700">{{ label }}</h4>
-      <div class="flex space-x-2">
-        <input v-model="inputBaru" @keyup.enter="tambah" type="text" placeholder="Tambah item baru..."
-               class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
-        <button @click="tambah" :disabled="menyimpan"
-                class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 disabled:opacity-50">
+    <div class="gc-card" style="padding:16px;">
+      <h4 class="gc-heading" style="font-size:12.5px; font-weight:700; margin-bottom:10px;">{{ label }}</h4>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <input v-model="inputBaru" @keyup.enter="tambah" type="text" placeholder="Tambah item baru..." style="flex:1; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; outline:none;">
+        <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="padding:8px 14px;">
           <i class="fas fa-plus"></i>
         </button>
       </div>
-      <div v-if="memuat" class="text-[10px] text-gray-400">Memuat...</div>
-      <div v-else class="flex flex-wrap">
-        <span v-if="items.length === 0" class="text-[10px] text-gray-400">Belum ada data.</span>
-        <span v-for="item in items" :key="item"
-              class="inline-flex items-center gap-1.5 bg-gray-100 px-2.5 py-1 rounded-lg text-[11px] mr-1.5 mb-1.5">
+      <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
+      <div v-else style="display:flex; flex-wrap:wrap; gap:6px;">
+        <span v-if="items.length === 0" style="font-size:11px; color:var(--text-faint);">Belum ada data.</span>
+        <span v-for="item in items" :key="item" class="tag neutral" style="gap:8px;">
           {{ item }}
-          <button @click="hapus(item)" class="text-red-400 hover:text-red-600"><i class="fas fa-times"></i></button>
+          <button @click="hapus(item)" style="background:none; border:none; color:var(--danger); cursor:pointer; padding:0; font-size:11px;"><i class="fas fa-times"></i></button>
         </span>
       </div>
     </div>
@@ -104,8 +101,8 @@ export const DuaBaris = {
   },
   template: `
     <span>
-      <b class="text-slate-800">{{ a || '-' }}</b><br>
-      <span class="text-[10px] text-gray-400 font-normal">{{ b || '-' }}</span>
+      <b style="color:var(--text);">{{ a || '-' }}</b><br>
+      <span style="font-size:11px; color:var(--text-muted); font-weight:400;">{{ b || '-' }}</span>
     </span>
   `
 };
@@ -144,12 +141,11 @@ export const GudangCheckboxSelect = {
     return { daftarGudang, memuat, toggle };
   },
   template: `
-    <div class="flex flex-wrap gap-1.5 p-2 bg-white border rounded-lg min-h-[42px]">
-      <span v-if="memuat" class="text-[10px] text-gray-400">Memuat gudang...</span>
-      <span v-else-if="daftarGudang.length === 0" class="text-[10px] text-gray-400">Belum ada Master Gudang. Buat dulu di Config Absensi.</span>
-      <label v-for="g in daftarGudang" :key="g"
-             class="flex items-center space-x-1.5 bg-white border rounded-lg px-2.5 py-1.5 text-[11px] cursor-pointer hover:bg-blue-50 transition">
-        <input type="checkbox" :checked="modelValue.includes(g)" @change="toggle(g, $event.target.checked)" class="rounded text-blue-600">
+    <div style="display:flex; flex-wrap:wrap; gap:8px; padding:10px; background:var(--surface); border:1.5px solid var(--line); border-radius:12px; min-height:44px;">
+      <span v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat gudang...</span>
+      <span v-else-if="daftarGudang.length === 0" style="font-size:11px; color:var(--text-faint);">Belum ada Master Gudang. Buat dulu di Config Absensi.</span>
+      <label v-for="g in daftarGudang" :key="g" style="display:flex; align-items:center; gap:7px; background:var(--ivory-dim); border-radius:10px; padding:7px 12px; font-size:12px; cursor:pointer; transition:.15s;">
+        <input type="checkbox" :checked="modelValue.includes(g)" @change="toggle(g, $event.target.checked)" style="accent-color:var(--burgundy); width:14px; height:14px;">
         <span>{{ g }}</span>
       </label>
     </div>
@@ -216,23 +212,21 @@ export const KecamatanManager = {
     return { daftarKabupaten, kabupatenTerpilih, kecamatanList, inputBaru, memuat, tambah, hapus };
   },
   template: `
-    <div class="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm space-y-2">
-      <h4 class="text-xs font-bold text-gray-700">Kecamatan (per Kabupaten/Kota)</h4>
-      <select v-model="kabupatenTerpilih" class="w-full px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none mb-1">
+    <div class="gc-card" style="padding:16px;">
+      <h4 class="gc-heading" style="font-size:12.5px; font-weight:700; margin-bottom:10px;">Kecamatan (per kabupaten/kota)</h4>
+      <select v-model="kabupatenTerpilih" style="width:100%; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; margin-bottom:8px;">
         <option v-for="k in daftarKabupaten" :key="k" :value="k">{{ k }}</option>
       </select>
-      <div class="flex space-x-2">
-        <input v-model="inputBaru" @keyup.enter="tambah" type="text" placeholder="Tambah kecamatan untuk kabupaten di atas..."
-               class="flex-1 px-2.5 py-1.5 bg-gray-50 border rounded-lg text-xs outline-none">
-        <button @click="tambah" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700"><i class="fas fa-plus"></i></button>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">
+        <input v-model="inputBaru" @keyup.enter="tambah" type="text" placeholder="Tambah kecamatan untuk kabupaten di atas..." style="flex:1; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; outline:none;">
+        <button @click="tambah" class="btn-primary" style="padding:8px 14px;"><i class="fas fa-plus"></i></button>
       </div>
-      <div v-if="memuat" class="text-[10px] text-gray-400">Memuat...</div>
-      <div v-else class="flex flex-wrap">
-        <span v-if="kecamatanList.length === 0" class="text-[10px] text-gray-400">Belum ada kecamatan untuk kabupaten ini.</span>
-        <span v-for="item in kecamatanList" :key="item"
-              class="inline-flex items-center gap-1.5 bg-gray-100 px-2.5 py-1 rounded-lg text-[11px] mr-1.5 mb-1.5">
+      <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
+      <div v-else style="display:flex; flex-wrap:wrap; gap:6px;">
+        <span v-if="kecamatanList.length === 0" style="font-size:11px; color:var(--text-faint);">Belum ada kecamatan untuk kabupaten ini.</span>
+        <span v-for="item in kecamatanList" :key="item" class="tag neutral" style="gap:8px;">
           {{ item }}
-          <button @click="hapus(item)" class="text-red-400 hover:text-red-600"><i class="fas fa-times"></i></button>
+          <button @click="hapus(item)" style="background:none; border:none; color:var(--danger); cursor:pointer; padding:0; font-size:11px;"><i class="fas fa-times"></i></button>
         </span>
       </div>
     </div>

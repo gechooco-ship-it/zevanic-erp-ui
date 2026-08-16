@@ -220,101 +220,100 @@ const AppRegistrasi = {
     };
   },
   template: `
-    <div class="w-full max-w-2xl bg-white p-8 rounded-3xl shadow-xl border border-gray-100 my-auto">
-      <div class="flex justify-between items-center mb-6 border-b pb-4">
+    <div class="reg-card" style="width:100%; max-width:720px; background:var(--surface); border:1px solid var(--line); border-radius:22px; padding:34px; margin:20px auto;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid var(--line); padding-bottom:16px; margin-bottom:24px;">
         <div>
-          <h2 class="text-xl font-black text-gray-900">Formulir Pendaftaran Karyawan</h2>
-          <p class="text-xs text-gray-500">Sesuai standar operasional Zevanic ERP</p>
+          <h2 class="gc-heading" style="font-size:18.5px; font-weight:700;">Formulir pendaftaran karyawan</h2>
+          <p style="font-size:12.5px; color:var(--text-muted); margin-top:3px;">Sesuai standar operasional Gechoo</p>
         </div>
-        <button @click="tutup" class="text-gray-400 hover:text-gray-600 text-sm font-bold"><i class="fas fa-times text-lg"></i></button>
+        <button @click="tutup" style="background:none; border:none; color:var(--text-faint); font-size:18px; cursor:pointer;"><i class="fas fa-times"></i></button>
       </div>
 
-      <div class="space-y-4 text-xs">
-        <div class="grid grid-cols-2 gap-4 bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
-          <div><label class="block font-bold text-blue-800 mb-1">ID Karyawan (Auto)</label><input :value="idKaryawan" readonly class="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl font-mono text-gray-600"></div>
-          <div><label class="block font-bold text-blue-800 mb-1">ID APP (Auto)</label><input :value="idApp" readonly class="w-full px-3 py-2 bg-white border border-blue-200 rounded-xl font-mono text-gray-600"></div>
+      <div style="font-size:13px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; background:var(--blue); opacity:.9; padding:16px; border-radius:14px; margin-bottom:20px;">
+          <div><label style="display:block; font-weight:700; color:#1F5060; font-size:12px; margin-bottom:4px;">ID Karyawan (Auto)</label><input :value="idKaryawan" readonly style="width:100%; padding:9px 12px; background:var(--surface); border:1px solid var(--blue-deep); border-radius:10px; font-family:'Poppins',sans-serif; color:var(--text);"></div>
+          <div><label style="display:block; font-weight:700; color:#1F5060; font-size:12px; margin-bottom:4px;">ID APP (Auto)</label><input :value="idApp" readonly style="width:100%; padding:9px 12px; background:var(--surface); border:1px solid var(--blue-deep); border-radius:10px; font-family:'Poppins',sans-serif; color:var(--text);"></div>
         </div>
 
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-id-card text-blue-600 mr-2"></i> Data Identitas Personal</h3>
-          <div class="grid grid-cols-2 gap-4">
-            <div>
-              <label class="block font-semibold text-gray-600 mb-1">Upload Foto KTP (Wajib) *</label>
-              <div class="flex items-center space-x-3">
-                <input type="file" accept="image/*" @change="pilihFotoKtp" class="text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                <img v-if="ktpPreview" :src="ktpPreview" @click="lihatFotoBesar" class="w-12 h-12 object-cover rounded-lg border shadow-sm cursor-pointer hover:scale-105 transition" title="Klik untuk memperbesar KTP">
+        <div style="margin-bottom:22px;">
+          <h3 class="gc-heading" style="font-size:12.5px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; border-bottom:1px solid var(--pink); padding-bottom:8px; margin-bottom:14px;"><i class="fas fa-id-card" style="margin-right:8px;"></i>Data identitas personal</h3>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+            <div class="gc-field" style="grid-column:1/-1;">
+              <label>Upload foto KTP (wajib) *</label>
+              <div style="display:flex; align-items:center; gap:12px;">
+                <input type="file" accept="image/*" @change="pilihFotoKtp" style="font-size:12px; color:var(--text-muted);">
+                <img v-if="ktpPreview" :src="ktpPreview" @click="lihatFotoBesar" style="width:48px; height:48px; object-fit:cover; border-radius:10px; border:1px solid var(--line); cursor:pointer;" title="Klik untuk memperbesar KTP">
               </div>
             </div>
-            <div><label class="block font-semibold text-gray-600 mb-1">NIK KTP (16 Angka) *</label><input v-model="form.nik" type="text" maxlength="16" placeholder="3204xxxxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Nama Lengkap (Sesuai KTP) *</label><input v-model="form.nama" type="text" placeholder="Nama lengkap" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
+            <div class="gc-field"><label>NIK KTP (16 angka) *</label><input v-model="form.nik" type="text" maxlength="16" placeholder="3204xxxxxxxxxxxx"></div>
+            <div class="gc-field"><label>Nama lengkap (sesuai KTP) *</label><input v-model="form.nama" type="text" placeholder="Nama lengkap"></div>
           </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
-            <div><label class="block font-semibold text-gray-600 mb-1">Email Aktif (Identitas Login) *</label><input v-model="form.email" type="email" required placeholder="email@domain.com" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">No. Handphone (WhatsApp) *</label><input v-model="form.hp" type="text" required placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Kata Sandi (Password) *</label><input v-model="form.pass" type="password" required placeholder="Buat password login" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Konfirmasi Kata Sandi *</label><input v-model="form.confirmPass" type="password" required placeholder="Ulangi password" class="w-full px-3 py-2 bg-gray-50 border rounded-xl outline-none focus:ring-2 focus:ring-blue-500"></div>
-          </div>
-
-          <div class="space-y-3 pt-2">
-            <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-map-marker-alt text-blue-600 mr-2"></i> Domisili</h3>
-            <div class="grid grid-cols-3 gap-3">
-              <div><label class="block font-semibold text-gray-600 mb-1">Jenis Kelamin *</label><select v-model="form.gender" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="Pria">Pria</option><option value="Wanita">Wanita</option></select></div>
-              <div><label class="block font-semibold text-gray-600 mb-1">Tempat Lahir *</label><input v-model="form.tempatLahir" type="text" placeholder="Kota Kelahiran" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-              <div><label class="block font-semibold text-gray-600 mb-1">Tanggal Lahir *</label><input v-model="form.tgl" type="date" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            </div>
-          </div>
-
-          <div class="p-3 bg-gray-50 rounded-2xl border space-y-2">
-            <span class="font-bold text-gray-700">Alamat Tempat Tinggal Sekarang</span>
-            <div class="grid grid-cols-2 gap-2">
-              <select v-model="form.tinggalKab" @change="muatKecTinggal" class="px-3 py-2 bg-white border rounded-xl"><option v-for="k in daftarKabupaten" :key="k" :value="k">{{ k }}</option></select>
-              <select v-model="form.tinggalKec" class="px-3 py-2 bg-white border rounded-xl"><option v-for="k in daftarKecTinggal" :key="k" :value="k">{{ k }}</option></select>
-            </div>
-            <input v-model="form.tinggalDetail" type="text" placeholder="Nama Jalan, RT/RW, No. Rumah" class="w-full px-3 py-2 bg-white border rounded-xl">
-          </div>
-          <div class="p-3 bg-gray-50 rounded-2xl border space-y-2">
-            <div class="flex justify-between items-center">
-              <span class="font-bold text-gray-700">Alamat Sesuai KTP</span>
-              <label class="flex items-center space-x-1 cursor-pointer text-[11px] text-blue-600 font-semibold"><input v-model="samaAlamat" @change="salinAlamat" type="checkbox" class="rounded"><span>Sama dengan tempat tinggal</span></label>
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-              <select v-model="form.ktpKab" @change="muatKecKtp" class="px-3 py-2 bg-white border rounded-xl"><option v-for="k in daftarKabupaten" :key="k" :value="k">{{ k }}</option></select>
-              <select v-model="form.ktpKec" class="px-3 py-2 bg-white border rounded-xl"><option v-for="k in daftarKecKtp" :key="k" :value="k">{{ k }}</option></select>
-            </div>
-            <input v-model="form.ktpDetail" type="text" placeholder="Nama Jalan, RT/RW, No. Rumah" class="w-full px-3 py-2 bg-white border rounded-xl">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; padding-top:12px; border-top:1px solid var(--line); margin-top:8px;">
+            <div class="gc-field"><label>Email aktif (identitas login) *</label><input v-model="form.email" type="email" required placeholder="email@gechoo.co"></div>
+            <div class="gc-field"><label>No. handphone (WhatsApp) *</label><input v-model="form.hp" type="text" required placeholder="08xxxxxxxxxx"></div>
+            <div class="gc-field"><label>Kata sandi (password) *</label><input v-model="form.pass" type="password" required placeholder="Buat password login"></div>
+            <div class="gc-field"><label>Konfirmasi kata sandi *</label><input v-model="form.confirmPass" type="password" required placeholder="Ulangi password"></div>
           </div>
         </div>
 
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-graduation-cap text-blue-600 mr-2"></i> Status Pernikahan & Pendidikan</h3>
-          <div class="grid grid-cols-2 gap-4">
-            <div><label class="block font-semibold text-gray-600 mb-1">Status Pernikahan *</label><select v-model="form.nikah" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="Lajang">Lajang</option><option value="Menikah">Menikah</option><option value="Duda/Janda">Duda / Janda</option></select></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Jumlah Tanggungan *</label><input v-model="form.tanggungan" type="text" placeholder="Contoh: 0 atau Istri dan 2 Anak" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
+        <div style="margin-bottom:22px;">
+          <h3 class="gc-heading" style="font-size:12.5px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; border-bottom:1px solid var(--pink); padding-bottom:8px; margin-bottom:14px;"><i class="fas fa-map-marker-alt" style="margin-right:8px;"></i>Domisili</h3>
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:14px;">
+            <div class="gc-field"><label>Jenis kelamin *</label><select v-model="form.gender"><option value="Pria">Pria</option><option value="Wanita">Wanita</option></select></div>
+            <div class="gc-field"><label>Tempat lahir *</label><input v-model="form.tempatLahir" type="text" placeholder="Kota kelahiran"></div>
+            <div class="gc-field"><label>Tanggal lahir *</label><input v-model="form.tgl" type="date"></div>
           </div>
-          <div class="grid grid-cols-3 gap-2">
-            <div><label class="block font-semibold text-gray-600 mb-1">Pendidikan Terakhir *</label><select v-model="form.pendidikan" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="SMA/SMK">SMA / SMK</option><option value="D3">Diploma (D3)</option><option value="S1">Sarjana (S1)</option></select></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Nama Sekolah / Kampus *</label><input v-model="form.sekolah" type="text" placeholder="Nama instansi" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Jurusan *</label><input v-model="form.jurusan" type="text" placeholder="Jurusan" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
+
+          <div style="background:var(--ivory-dim); border-radius:14px; padding:14px; margin-bottom:12px;">
+            <span class="gc-heading" style="font-weight:700; font-size:12.5px; color:var(--text);">Alamat tempat tinggal sekarang</span>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
+              <select v-model="form.tinggalKab" @change="muatKecTinggal" style="padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);"><option v-for="k in daftarKabupaten" :key="k" :value="k">{{ k }}</option></select>
+              <select v-model="form.tinggalKec" style="padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);"><option v-for="k in daftarKecTinggal" :key="k" :value="k">{{ k }}</option></select>
+            </div>
+            <input v-model="form.tinggalDetail" type="text" placeholder="Nama jalan, RT/RW, no. rumah" style="width:100%; margin-top:10px; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+          </div>
+          <div style="background:var(--ivory-dim); border-radius:14px; padding:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span class="gc-heading" style="font-weight:700; font-size:12.5px; color:var(--text);">Alamat sesuai KTP</span>
+              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:11.5px; color:var(--burgundy); font-weight:600;"><input v-model="samaAlamat" @change="salinAlamat" type="checkbox" style="accent-color:var(--burgundy);">Sama dengan tempat tinggal</label>
+            </div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
+              <select v-model="form.ktpKab" @change="muatKecKtp" style="padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);"><option v-for="k in daftarKabupaten" :key="k" :value="k">{{ k }}</option></select>
+              <select v-model="form.ktpKec" style="padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);"><option v-for="k in daftarKecKtp" :key="k" :value="k">{{ k }}</option></select>
+            </div>
+            <input v-model="form.ktpDetail" type="text" placeholder="Nama jalan, RT/RW, no. rumah" style="width:100%; margin-top:10px; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
           </div>
         </div>
 
-        <div class="space-y-3 pt-2">
-          <h3 class="font-bold text-gray-900 text-sm border-b pb-1"><i class="fas fa-university text-blue-600 mr-2"></i> Perbankan & Kontak Darurat</h3>
-          <div class="grid grid-cols-3 gap-2">
-            <div><label class="block font-semibold text-gray-600 mb-1">Bank *</label><select v-model="form.bank" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"><option value="BCA">BCA</option><option value="Mandiri">Mandiri</option><option value="BNI">BNI</option><option value="BRI">BRI</option></select></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">No. Rekening *</label><input v-model="form.norek" type="text" placeholder="Nomor Rekening" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Atas Nama Rekening *</label><input v-model="form.namarek" type="text" placeholder="Nama pemilik" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
+        <div style="margin-bottom:22px;">
+          <h3 class="gc-heading" style="font-size:12.5px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; border-bottom:1px solid var(--pink); padding-bottom:8px; margin-bottom:14px;"><i class="fas fa-graduation-cap" style="margin-right:8px;"></i>Status pernikahan & pendidikan</h3>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:12px;">
+            <div class="gc-field"><label>Status pernikahan *</label><select v-model="form.nikah"><option value="Lajang">Lajang</option><option value="Menikah">Menikah</option><option value="Duda/Janda">Duda / Janda</option></select></div>
+            <div class="gc-field"><label>Jumlah tanggungan *</label><input v-model="form.tanggungan" type="text" placeholder="Contoh: 0 atau Istri dan 2 Anak"></div>
           </div>
-          <div class="grid grid-cols-3 gap-2 pt-2">
-            <div><label class="block font-semibold text-gray-600 mb-1">Nama Kontak Darurat *</label><input v-model="form.daruratNama" type="text" placeholder="Keluarga/Kerabat" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">No. HP Darurat *</label><input v-model="form.daruratHp" type="text" placeholder="08xxxxxxxxxx" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
-            <div><label class="block font-semibold text-gray-600 mb-1">Hubungan *</label><input v-model="form.daruratHub" type="text" placeholder="Contoh: Ayah / Kakak" class="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none"></div>
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px;">
+            <div class="gc-field"><label>Pendidikan terakhir *</label><select v-model="form.pendidikan"><option value="SMA/SMK">SMA / SMK</option><option value="D3">Diploma (D3)</option><option value="S1">Sarjana (S1)</option></select></div>
+            <div class="gc-field"><label>Nama sekolah / kampus *</label><input v-model="form.sekolah" type="text" placeholder="Nama instansi"></div>
+            <div class="gc-field"><label>Jurusan *</label><input v-model="form.jurusan" type="text" placeholder="Jurusan"></div>
           </div>
         </div>
 
-        <button @click="daftar" :disabled="menyimpan" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl shadow-lg transition mt-4 disabled:opacity-50">
-          {{ menyimpan ? 'Memproses...' : 'Daftarkan Akun Karyawan' }} <i v-if="!menyimpan" class="fas fa-check ml-1"></i>
+        <div style="margin-bottom:22px;">
+          <h3 class="gc-heading" style="font-size:12.5px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; border-bottom:1px solid var(--pink); padding-bottom:8px; margin-bottom:14px;"><i class="fas fa-university" style="margin-right:8px;"></i>Perbankan & kontak darurat</h3>
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:12px;">
+            <div class="gc-field"><label>Bank *</label><select v-model="form.bank"><option value="BCA">BCA</option><option value="Mandiri">Mandiri</option><option value="BNI">BNI</option><option value="BRI">BRI</option></select></div>
+            <div class="gc-field"><label>No. rekening *</label><input v-model="form.norek" type="text" placeholder="Nomor rekening"></div>
+            <div class="gc-field"><label>Atas nama rekening *</label><input v-model="form.namarek" type="text" placeholder="Nama pemilik"></div>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px;">
+            <div class="gc-field"><label>Nama kontak darurat *</label><input v-model="form.daruratNama" type="text" placeholder="Keluarga/kerabat"></div>
+            <div class="gc-field"><label>No. HP darurat *</label><input v-model="form.daruratHp" type="text" placeholder="08xxxxxxxxxx"></div>
+            <div class="gc-field"><label>Hubungan *</label><input v-model="form.daruratHub" type="text" placeholder="Contoh: Ayah / Kakak"></div>
+          </div>
+        </div>
+
+        <button @click="daftar" :disabled="menyimpan" class="btn-primary block">
+          {{ menyimpan ? 'Memproses...' : 'Daftarkan akun karyawan' }} <i v-if="!menyimpan" class="fas fa-check" style="margin-left:6px;"></i>
         </button>
       </div>
     </div>

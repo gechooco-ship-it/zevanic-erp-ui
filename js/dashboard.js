@@ -181,6 +181,21 @@ window.pindahTab = function(tabId) {
   
 };
 
+// pindahSubTab: SEBELUMNYA dipanggil di banyak tombol (Config Absensi,
+// Penjadwalan, Daftar Karyawan, dst) tapi definisinya sendiri hilang/kehapus
+// tidak sengaja di masa lalu — tombol-tombol itu praktis mati (klik tidak
+// berbuat apa-apa, cuma error di Console). Diperbaiki di sini, sekalian
+// pindah dari cara lama (gonta-ganti banyak class Tailwind manual) ke class
+// gc-sub-tab-btn/active yang lebih sederhana.
+window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
+  document.querySelectorAll('.' + grupKelas + '-content').forEach(el => el.classList.add('hidden'));
+  const target = document.getElementById(targetId);
+  if (target) target.classList.remove('hidden');
+
+  document.querySelectorAll('.' + grupKelas + '-btn').forEach(btn => btn.classList.remove('active'));
+  if (tombolEl) tombolEl.classList.add('active');
+};
+
 // Account Profile (Account/QR, Data Karyawan self-edit, Absensi dengan
 // Izin/Cuti/Lembur + riwayat) sudah pindah ke js/vue-account-profile.js.
 // window.mulaiHitungJamKerja TETAP dipertahankan (dipanggil dari Vue).
