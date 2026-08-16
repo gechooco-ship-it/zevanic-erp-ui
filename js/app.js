@@ -1,7 +1,20 @@
 // js/app.js
 window.pindahLayar = function(idTujuan) {
   const screens = ['screen-loading', 'screen-login', 'screen-register', 'screen-camera', 'screen-dashboard'];
-  
+
+  // Ingat layar yang aktif SEBELUM pindah — dipakai tombol Batal/Kembali
+  // di layar kamera (js/vue-camera.js) supaya tahu harus kembali ke mana:
+  // ke Login (kalau masuk kamera dari alur Login pertama kali) atau ke
+  // Dashboard (kalau masuk kamera dari shortcut Clock In/Izin/Cuti/Lembur
+  // di Home, yang berarti sudah dalam sesi Dashboard).
+  const layarAktifSaatIni = screens.find(s => {
+    const el = document.getElementById(s);
+    return el && !el.classList.contains('hidden');
+  });
+  if (layarAktifSaatIni && layarAktifSaatIni !== idTujuan) {
+    window._layarSebelumKamera = layarAktifSaatIni;
+  }
+
   screens.forEach(screen => {
     document.getElementById(screen).classList.add('hidden');
     document.getElementById(screen).classList.remove('flex');

@@ -246,5 +246,9 @@ const AppWhatsappGateway = {
 
 const mountPoint = document.getElementById('vue-whatsapp-gateway');
 if (mountPoint) {
-  createApp(AppWhatsappGateway).mount('#vue-whatsapp-gateway');
+  const vm = createApp(AppWhatsappGateway).mount('#vue-whatsapp-gateway');
+  // Jembatan: dipanggil dari Home (js/vue-home.js) supaya link "Monitoring
+  // Respon"/"Template Pesan"/"Config API" langsung buka sub-tab yang tepat,
+  // bukan cuma masuk ke tab-whatsapp lalu diam di sub-tab default.
+  window.bukaSubTabWhatsapp = function(nama) { vm.pindahTab(nama); };
 }

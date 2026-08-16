@@ -239,12 +239,15 @@
         <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18M18 9l-5 5-4-4-3 3"/></svg>
         <span>Progress</span>
       </button>
-      <button data-navtab="tab-profil" onclick="pindahTab('tab-profil')" class="gc-mnav-item">
+      <button data-navtab="tab-profil" onclick="window.bukaProfileDrawer()" class="gc-mnav-item">
         <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
         <span>Profile</span>
       </button>
     </nav>
   </div>
+
+  <!-- Drawer Profile khusus mobile — lihat js/vue-profile-drawer.js -->
+  <div id="vue-profile-drawer"></div>
 
   <!-- Modal Edit Karyawan sudah dipindah ke js/vue-daftar-karyawan.js -->
 
@@ -277,6 +280,7 @@
   <script type="module" src="js/vue-penjadwalan.js"></script>
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>
   <script type="module" src="js/vue-account-profile.js"></script>
+  <script type="module" src="js/vue-profile-drawer.js"></script>
   <script type="module" src="js/vue-home.js"></script>
   <script type="module" src="js/vue-registrasi.js"></script>
   <script type="module" src="js/vue-login.js"></script>

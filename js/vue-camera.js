@@ -283,16 +283,26 @@ const AppKamera = {
       }
     }
 
+    function batalKamera() {
+      matikanKamera();
+      // Kembali ke layar sebelum masuk kamera — Login (kalau ini alur Login
+      // pertama kali) atau Dashboard (kalau dari shortcut Home saat sudah
+      // login). Dilacak otomatis oleh app.js pindahLayar, fallback ke
+      // Dashboard kalau entah kenapa tidak ke-track.
+      window.pindahLayar(window._layarSebelumKamera || 'screen-dashboard');
+    }
+
     return {
       videoEl, canvasEl, hasilFotoUrl, sedangMemuatKamera, kameraError, sudahAmbilFoto,
       mengirim, teksTombolKirim, modeLabel, perluLokasi, daftarGudangUser,
       tampilkanPilihGudang, gudangDipilih, statusLokasiHtml,
       pilihGudang, ambilFoto, ulangiFoto, kirimDataKeCloud,
-      mulaiKamera, matikanKamera
+      mulaiKamera, matikanKamera, batalKamera
     };
   },
   template: `
     <div class="gc-cam-wrap">
+      <button @click="batalKamera" class="gc-cam-close" aria-label="Batal"><i class="fas fa-arrow-left"></i></button>
       <div class="gc-cam-top">
         <h2>Verifikasi wajah</h2>
         <p class="mode">{{ modeLabel }}</p>

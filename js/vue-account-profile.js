@@ -137,11 +137,12 @@ const AppAccountProfile = {
     // universal semua role) — computed, bukan re-baca window.currentUser
     // langsung di template (Vue tidak reaktif ke situ, sudah pernah kena
     // bug ini sebelumnya).
+    // roleTampil masih dipertahankan (dipakai muatRoleTampil di
+    // muatAccountDisplay) sekalipun computed turunan Admin/Owner-nya sudah
+    // tidak dipakai lagi di sini — menu admin sudah pindah ke Home
+    // (js/vue-home.js, lewat daftarMenuGroups).
     const roleTampil = ref('');
     function muatRoleTampil() { roleTampil.value = (window.currentUser?.role || '').toLowerCase(); }
-    const isAdminRole = computed(() => ['pic', 'admin', 'owner', 'superuser'].includes(roleTampil.value));
-    const isAdminAccessLevel = computed(() => ['pic', 'admin', 'owner', 'superuser'].includes(roleTampil.value));
-    const isOwnerAccessLevel = computed(() => ['owner', 'superuser'].includes(roleTampil.value));
 
     // ---- Data Karyawan (self-edit) ----
     const form = reactive({
@@ -372,7 +373,6 @@ const AppAccountProfile = {
     return {
       tabAktif, pindahTab, muatAccountDisplay,
       namaTampil, idAppTampil, jabatanTampil, qrUrl, clockOut,
-      isAdminRole, isAdminAccessLevel, isOwnerAccessLevel,
       form, menyimpanForm, simpanDataDiri,
       formTerbuka, opsiAlasanIzin, opsiAlasanCuti, izin, cuti, lembur,
       bukaFormIzin, tutupFormIzin, ajukanIzin,
@@ -423,15 +423,6 @@ const AppAccountProfile = {
       </div>
       <div class="gc-card" style="max-width:380px; margin:14px auto 0;">
         <p style="font-size:11px; color:var(--text-muted); text-align:center;">Clock Out dan pengajuan Izin/Cuti/Lembur sekarang ada di tab <b>Absensi</b>.</p>
-      </div>
-
-      <div v-if="isAdminRole" class="gc-card" style="max-width:380px; margin:14px auto 0;">
-        <h3 style="font-size:11.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;"><i class="fas fa-user-shield" style="margin-right:6px; color:var(--burgundy);"></i>Menu Admin</h3>
-        <div style="display:flex; flex-direction:column; gap:8px;">
-          <button v-if="isAdminAccessLevel" @click="window.pindahTab('tab-admin-acc')" class="btn-outline" style="text-align:left; display:flex; align-items:center; gap:10px;"><i class="fas fa-check-double" style="width:16px;"></i> Master Absensi</button>
-          <button v-if="isOwnerAccessLevel" @click="window.pindahTab('tab-superuser')" class="btn-outline" style="text-align:left; display:flex; align-items:center; gap:10px;"><i class="fas fa-users-cog" style="width:16px;"></i> Master Karyawan</button>
-          <button v-if="isOwnerAccessLevel" @click="window.pindahTab('tab-whatsapp')" class="btn-outline" style="text-align:left; display:flex; align-items:center; gap:10px;"><i class="fab fa-whatsapp" style="width:16px;"></i> WhatsApp Gateway</button>
-        </div>
       </div>
 
       <div class="md:hidden" style="max-width:380px; margin:14px auto 0;">
@@ -668,6 +659,15 @@ const AppAccountProfile = {
       </div>
     </div>
 
+    <!-- Tab: Estimasi Gaji -->
+    <div v-show="tabAktif === 'gaji'" style="margin-top:16px;">
+      <div class="gc-card" style="text-align:center; padding:44px 20px; color:var(--text-muted);">
+        <i class="fas fa-sack-dollar" style="font-size:34px; color:var(--ok); margin-bottom:12px; display:block;"></i>
+        <h3 class="gc-heading" style="font-weight:700; font-size:14px; color:var(--text);">Modul Estimasi Gaji</h3>
+        <p style="font-size:12px; margin-top:4px;">Akan datang pada pembaruan finansial berikutnya.</p>
+      </div>
+    </div>
+
     <!-- Tab: Keamanan -->
     <div v-show="tabAktif === 'keamanan'" class="max-w-md mx-auto w-full" style="margin-top:16px;">
       <div class="gc-card" style="font-size:12.5px;">
@@ -708,4 +708,8 @@ if (mountPoint) {
   window.bukaFormIzinDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('absensi'); vm.bukaFormIzin(); };
   window.bukaFormCutiDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('absensi'); vm.bukaFormCuti(); };
   window.bukaFormLemburDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('absensi'); vm.bukaFormLembur(); };
+  // Jembatan BARU ke drawer Profile mobile (js/vue-profile-drawer.js) —
+  // dipakai untuk lompat langsung ke sub-tab manapun (Data Karyawan,
+  // Estimasi Gaji, Pencapaian, Keamanan) dari link teks di drawer.
+  window.pindahTabAccountProfile = function(nama) { vm.pindahTab(nama); };
 }

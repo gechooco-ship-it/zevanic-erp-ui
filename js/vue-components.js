@@ -301,3 +301,59 @@ export const GudangRingkas = {
     </span>
   `
 };
+
+// ---------------------------------------------------------------------------
+// daftarMenuGroups(role) — REGISTRY MENU TERPUSAT. Satu sumber kebenaran
+// untuk struktur "menu apa masuk grup apa, siapa boleh lihat, dan aksinya
+// pindah ke mana" — dipakai Home mobile (js/vue-home.js) sekarang, dan bisa
+// dipakai ulang untuk desktop nanti kalau strukturnya mau disamakan (sesuai
+// arahan: "kalau ada yg bisa jadi function bersama vue, hajar update
+// component"). Ubah/tambah menu di SINI SATU TEMPAT SAJA, otomatis
+// ke-reflect di semua tempat yang memakai fungsi ini.
+// ---------------------------------------------------------------------------
+export function daftarMenuGroups(role) {
+  const r = (role || 'operator').toLowerCase();
+  const semuaGroup = [
+    {
+      nama: 'Absensi',
+      roleBoleh: ['pic', 'admin', 'owner', 'superuser'],
+      items: [
+        { label: 'Antrean Absensi', icon: 'fa-clipboard-check', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-accept', null); } },
+        { label: 'Riwayat All Absensi', icon: 'fa-clock-rotate-left', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-rekap', null); } },
+        { label: 'Penjadwalan', icon: 'fa-calendar-days', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-jadwal', null); } },
+        { label: 'Config', icon: 'fa-gear', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-config', null); } }
+      ]
+    },
+    {
+      nama: 'Master Karyawan',
+      roleBoleh: ['owner', 'superuser'],
+      items: [
+        { label: 'Antrean Dakar', icon: 'fa-user-clock', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', null); } },
+        { label: 'Daftar Karyawan', icon: 'fa-users', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-data', null); } },
+        { label: 'Slip Gaji', icon: 'fa-file-invoice-dollar', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-slip', null); } },
+        { label: 'Payroll', icon: 'fa-money-check-dollar', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', null); } },
+        { label: 'Config Karyawan', icon: 'fa-sliders', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-config', null); } },
+        // Hak Akses & Config Akses SENGAJA dikunci Owner asli saja (lihat
+        // roleBoleh per-item di bawah) — Superuser tetap lihat 5 item lain
+        // di grup ini, tapi bukan 2 ini, konsisten dengan gerbang yang
+        // sudah ada di auth.js/index.html.
+        { label: 'Hak Akses', icon: 'fa-user-shield', roleBoleh: ['owner'], aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-hakakses', null); } },
+        { label: 'Config Akses', icon: 'fa-shield-halved', roleBoleh: ['owner'], aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-akses', null); } }
+      ]
+    },
+    {
+      nama: 'Whatsapp',
+      roleBoleh: ['owner', 'superuser'],
+      items: [
+        { label: 'Monitoring Respon', icon: 'fa-chart-line', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('monitor'); } },
+        { label: 'Template Pesan', icon: 'fa-comment-dots', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('template'); } },
+        { label: 'Config API', icon: 'fa-plug', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('config'); } }
+      ]
+    }
+  ];
+
+  return semuaGroup
+    .filter(g => !g.roleBoleh || g.roleBoleh.includes(r))
+    .map(g => ({ ...g, items: g.items.filter(i => !i.roleBoleh || i.roleBoleh.includes(r)) }))
+    .filter(g => g.items.length > 0);
+}

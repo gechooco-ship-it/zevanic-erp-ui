@@ -1,25 +1,18 @@
 // js/vue-home.js
 // ============================================================================
-// tab-home versi baru — sebelumnya cuma banner statis "Selamat datang",
-// sekarang layar Home sungguhan: sapaan, kartu shift hari ini, shortcut
-// Clock In/Izin/Cuti/Lembur, dan pengumuman.
-//
-// PENTING soal Pengumuman: SENGAJA dibaca dari koleksi Firestore
-// "pengumuman" yang sungguhan (bukan data contoh/hardcode) — supaya jujur,
-// kalau belum ada yang diisi ya tampil kosong, bukan pura-pura ada berita.
-// Mengisi pengumuman lewat Firestore Console dulu untuk sekarang; layar
-// admin buat nulis pengumuman langsung dari UI itu kerjaan susulan terpisah.
-//
-// Shortcut Clock In langsung memicu alur kamera yang SAMA PERSIS dengan
-// alur di Login (window.statusPilihanGlobal + pindahLayar('screen-camera'))
-// — tidak menduplikasi logic, cuma titik masuknya beda (dari Home, bukan
-// dari Login, karena orang sudah login duluan).
-// Shortcut Izin/Cuti/Lembur lewat jembatan ke vue-account-profile.js
-// (window.bukaFormIzinDariHome dst) — form aslinya cuma ada SATU, di sana.
+// tab-home mobile — sapaan + kartu shift, lalu "hub menu" terkelompok:
+// - Grup "Shortcut": Clock In/Clock Out (dinamis sesuai status hari ini),
+//   Izin, Cuti, Lembur — tampil grid ikon seperti sebelumnya.
+// - Grup "Absensi"/"Master Karyawan"/"Whatsapp": daftar link, muncul HANYA
+//   untuk role yang berhak (lihat daftarMenuGroups di vue-components.js —
+//   registry terpusat, satu sumber kebenaran, supaya nanti kalau desktop
+//   mau dirapikan pakai struktur sama tinggal reuse fungsi yang sama).
+// - Pengumuman tetap di bawah, baca data Firestore asli.
 // ============================================================================
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+import { daftarMenuGroups } from './vue-components.js';
 
 const AppHome = {
   setup() {
@@ -29,6 +22,7 @@ const AppHome = {
     const sudahAbsenHariIni = ref(false);
     const pengumuman = ref([]);
     const memuatPengumuman = ref(true);
+    const menuGroups = ref([]);
 
     function tentukanSapaan() {
       const jam = new Date().getHours();
@@ -41,13 +35,10 @@ const AppHome = {
     function muatTampilan() {
       nama.value = window.currentUser?.name || window.currentUser?.nama || 'Karyawan';
       sapaan.value = tentukanSapaan();
-      // Cek cepat pakai localStorage (sama seperti dipakai alur login) —
-      // sengaja TIDAK query Firestore di sini biar hemat baca; ini cuma
-      // indikator tampilan, bukan gerbang keamanan (gerbang aslinya tetap
-      // di server, lihat auth.js/vue-login.js).
       const hariIni = new Date().toLocaleDateString('id-ID');
       const statusLokal = localStorage.getItem('zevanic_absen_' + (window.currentUser?.email || ''));
       sudahAbsenHariIni.value = statusLokal === hariIni;
+      menuGroups.value = daftarMenuGroups(window.currentUser?.role);
     }
 
     async function muatShift() {
@@ -77,17 +68,14 @@ const AppHome = {
         snap.forEach(d => list.push({ id: d.id, ...d.data() }));
         pengumuman.value = list;
       } catch (e) {
-        // Koleksi belum ada / belum ada isinya sama sekali itu WAJAR untuk
-        // pemakaian pertama kali — jangan tampilkan sebagai error ke user,
-        // cukup tampil kosong.
-        pengumuman.value = [];
+        pengumuman.value = []; // koleksi belum ada/kosong itu wajar, bukan error
       }
       memuatPengumuman.value = false;
     }
 
-    function mulaiClockIn() {
+    function klikClockInOut() {
       if (sudahAbsenHariIni.value) {
-        alert("Anda sudah Clock In hari ini.");
+        if (window.prosesClockOut) window.prosesClockOut();
         return;
       }
       window.statusPilihanGlobal = "HADIR (CLOCK IN)";
@@ -107,9 +95,9 @@ const AppHome = {
     onMounted(async () => { await window.authReady; muatSemua(); });
 
     return {
-      nama, sapaan, shift, sudahAbsenHariIni,
+      nama, sapaan, shift, sudahAbsenHariIni, menuGroups,
       pengumuman, memuatPengumuman,
-      mulaiClockIn, bukaIzin, bukaCuti, bukaLembur,
+      klikClockInOut, bukaIzin, bukaCuti, bukaLembur,
       muatTampilan, muatSemua
     };
   },
@@ -126,16 +114,17 @@ const AppHome = {
       <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;" v-if="shift.nama">
         <div>
           <p style="font-size:11px; color:var(--text-muted); font-weight:600;">Shift hari ini</p>
-          <p class="gc-heading" style="font-size:15px; font-weight:700; margin-top:2px;" class="num">{{ shift.jamMasuk }} &ndash; {{ shift.jamKeluar }}</p>
+          <p class="gc-heading num" style="font-size:15px; font-weight:700; margin-top:2px;">{{ shift.jamMasuk }} &ndash; {{ shift.jamKeluar }}</p>
         </div>
         <span v-if="sudahAbsenHariIni" class="tag ok"><span class="tag-dot"></span>Sudah absen</span>
         <span v-else class="tag warn"><span class="tag-dot"></span>Belum absen</span>
       </div>
 
-      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:20px;">
-        <button @click="mulaiClockIn" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
-          <span style="width:40px; height:40px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy);"><i class="fas fa-clock"></i></span>
-          <span style="font-size:10.5px; font-weight:700; color:var(--text);">Clock in</span>
+      <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Shortcut</h3>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:22px;">
+        <button @click="klikClockInOut" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
+          <span style="width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;" :style="sudahAbsenHariIni ? 'background:#FBE4E4; color:var(--danger);' : 'background:var(--ivory-dim); color:var(--burgundy);'"><i class="fas" :class="sudahAbsenHariIni ? 'fa-right-from-bracket' : 'fa-clock'"></i></span>
+          <span style="font-size:10.5px; font-weight:700; color:var(--text);">{{ sudahAbsenHariIni ? 'Clock out' : 'Clock in' }}</span>
         </button>
         <button @click="bukaIzin" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
           <span style="width:40px; height:40px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy);"><i class="fas fa-file-signature"></i></span>
@@ -151,7 +140,18 @@ const AppHome = {
         </button>
       </div>
 
-      <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin-bottom:10px;">Pengumuman</h3>
+      <div v-for="grup in menuGroups" :key="grup.nama" style="margin-bottom:22px;">
+        <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">{{ grup.nama }}</h3>
+        <div class="gc-card" style="padding:6px;">
+          <button v-for="item in grup.items" :key="item.label" @click="item.aksi()" style="width:100%; display:flex; align-items:center; gap:12px; padding:12px 10px; background:none; border:none; border-radius:12px; cursor:pointer; text-align:left;">
+            <span style="width:34px; height:34px; border-radius:10px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy); flex-shrink:0;"><i class="fas" :class="item.icon"></i></span>
+            <span style="font-size:12.5px; font-weight:600; color:var(--text); flex:1;">{{ item.label }}</span>
+            <i class="fas fa-chevron-right" style="color:var(--text-faint); font-size:11px;"></i>
+          </button>
+        </div>
+      </div>
+
+      <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Pengumuman</h3>
       <div v-if="memuatPengumuman" style="text-align:center; padding:24px 0; color:var(--text-faint); font-size:12px;">Memuat pengumuman...</div>
       <div v-else-if="pengumuman.length === 0" style="text-align:center; padding:24px 0; background:var(--surface); border:1px dashed var(--line); border-radius:16px; color:var(--text-faint); font-size:12px;">
         <i class="fas fa-bell-slash" style="font-size:22px; margin-bottom:8px; display:block;"></i>Belum ada pengumuman terbaru.
