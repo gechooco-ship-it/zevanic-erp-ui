@@ -94,8 +94,18 @@
       <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-8 min-h-0">
 
         <div id="tab-home" class="max-w-xl mx-auto w-full">
-          <!-- MIGRASI VUE: lihat js/vue-home.js -->
-          <div id="vue-home"></div>
+          <!-- Desktop: banner sambutan sederhana (sidebar sudah cukup buat navigasi) -->
+          <div class="hidden md:block" style="background:var(--pink); border-radius:22px; padding:28px; position:relative; overflow:hidden; max-width:640px;">
+            <div style="position:absolute; right:-40px; top:-40px; width:180px; height:180px; border-radius:50%; background:var(--blue); opacity:.3;"></div>
+            <div style="position:relative; z-index:1;">
+              <h2 class="gc-heading" style="font-size:22px; font-weight:700; color:var(--mahogany); margin-bottom:8px;">Selamat datang di Gechoo ERP</h2>
+              <p style="font-size:13px; color:var(--mahogany-soft); max-width:420px;">Sistem manajemen presensi & operasional terintegrasi cloud.</p>
+            </div>
+          </div>
+          <!-- Mobile: hub menu lengkap (Shortcut + grup menu per role). Lihat js/vue-home.js -->
+          <div class="md:hidden">
+            <div id="vue-home"></div>
+          </div>
         </div>
 
         <div id="tab-scan-qr" class="tab-content hidden fade-in">
