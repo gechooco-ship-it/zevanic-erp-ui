@@ -176,12 +176,13 @@ const AppConfigAkses = {
             </select>
           </div>
           <div class="gc-field" style="margin-bottom:0;">
-            <label>Nama akses</label>
-            <input v-model="namaAkses" type="text" placeholder="Contoh: admin_gudang_utama">
+            <label>Nama akses{{ profilDipilih ? ' (nama profil yang sedang diedit, tidak bisa diganti di sini)' : '' }}</label>
+            <input v-model="namaAkses" type="text" placeholder="Contoh: admin_gudang_utama" :disabled="!!profilDipilih" :style="profilDipilih ? 'background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;' : ''">
           </div>
         </div>
         <button @click="simpan" :disabled="menyimpan" class="btn-primary block">
-          <i class="fas fa-save" style="margin-right:8px;"></i> {{ menyimpan ? 'Menyimpan...' : 'Simpan profil akses' }}
+          <i class="fas" :class="profilDipilih ? 'fa-rotate' : 'fa-save'" style="margin-right:8px;"></i>
+          {{ menyimpan ? 'Menyimpan...' : (profilDipilih ? 'Update profil akses' : 'Simpan profil akses (baru)') }}
         </button>
       </div>
 
