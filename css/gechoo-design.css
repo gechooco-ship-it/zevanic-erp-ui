@@ -143,7 +143,6 @@ thead .freeze{z-index:3;}
    (bukan warna) yang masih dipakai di seluruh file setelah rebrand Gechoo.
    Breakpoint disamakan persis dengan default Tailwind: sm=640px, md=768px.
    ============================================================================= */
-.hidden{display:none;}
 .block{display:block;}
 .flex{display:flex;}
 .fixed{position:fixed;}
@@ -190,6 +189,13 @@ thead .freeze{z-index:3;}
 .grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}
 .animate-spin{animation:gc-spin 1s linear infinite;}
 @keyframes gc-spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+/* .hidden SENGAJA ditulis di sini (bukan di atas) — kalau 1 elemen punya
+   class "hidden" DAN "flex"/"block"/"grid" sekaligus (pola umum: JS cuma
+   lepas/pasang class "hidden", sementara flex/block sudah permanen di situ
+   buat tampilan pas kelihatan), CSS pilih aturan yang ditulis PALING AKHIR
+   kalau bobotnya sama. Taruh di atas tadi bikin .flex menang terus, modal
+   foto & beberapa elemen lain jadi kelihatan padahal harusnya nyembunyi. */
+.hidden{display:none;}
 @media(min-width:640px){
   .sm\:inline{display:inline;}
   .sm\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}
