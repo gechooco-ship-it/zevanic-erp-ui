@@ -281,7 +281,7 @@ const AppHakAkses = {
                 <td class="freeze freeze-left"><input type="checkbox" :checked="terpilih.has(d.email)" @change="toggleCheckbox(d.email)" style="accent-color:var(--burgundy);"></td>
                 <td class="freeze freeze-left" style="left:36px;"><b>{{ d.nama || '-' }}</b><br><span style="font-size:10.5px; color:var(--text-muted);">{{ d.email }}</span></td>
                 <td class="gc-cell-muted">{{ d.jenis_pekerjaan || '-' }}</td>
-                <td class="gc-cell-muted">{{ (d.gudang_penempatan && d.gudang_penempatan.length) ? d.gudang_penempatan.join(', ') : '-' }}</td>
+                <td class="gc-cell-muted">{{ window.normalisasiGudang(d.gudang_penempatan).join(', ') || '-' }}</td>
                 <td style="text-align:center;">
                   <span v-if="d.role" class="tag pink" style="text-transform:uppercase;">{{ d.role }}</span>
                   <span v-else class="tag neutral">Belum diatur</span>

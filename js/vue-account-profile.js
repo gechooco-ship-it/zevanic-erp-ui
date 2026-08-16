@@ -553,7 +553,7 @@ const AppAccountProfile = {
         </div>
       </div>
 
-      <div class="gc-card" style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;" class="md:flex-row md:items-center md:justify-between">
+      <div class="gc-card md:flex-row md:items-center md:justify-between" style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
         <div>
           <h3 class="gc-heading" style="font-size:14px; font-weight:700; display:flex; align-items:center;"><i class="fas fa-file-invoice" style="color:var(--burgundy); margin-right:8px;"></i> Laporan Riwayat & Rekapitulasi Absensi</h3>
           <p style="font-size:11px; color:var(--text-muted); margin-top:3px;">Filter laporan kehadiran, pantau statistik, dan unduh file rekapitulasi.</p>
