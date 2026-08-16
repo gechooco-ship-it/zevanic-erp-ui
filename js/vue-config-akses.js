@@ -81,6 +81,18 @@ const AppConfigAkses = {
       return DAFTAR_MENU.filter(m => m.kategori === kategori);
     }
 
+    // Checkbox "pilih semua" di header kolom (View/Add/Edit/Delete/Print) —
+    // cakupannya cuma menu-menu di dalam kategori itu saja, tidak ikut
+    // menyentuh kategori lain.
+    function semuaTercentangKolom(kategori, field) {
+      const daftarMenu = menuUntukKategori(kategori);
+      return daftarMenu.length > 0 && daftarMenu.every(m => menus[m.id][field]);
+    }
+    function toggleKolomKategori(kategori, field) {
+      const nilaiBaru = !semuaTercentangKolom(kategori, field);
+      menuUntukKategori(kategori).forEach(m => { menus[m.id][field] = nilaiBaru; });
+    }
+
     async function muat() {
       memuat.value = true;
       try {
@@ -156,7 +168,8 @@ const AppConfigAkses = {
     return {
       daftarProfil, memuat, menyimpan, muat,
       namaAkses, profilDipilih, pilihProfil, mulaiProfilBaru, simpan,
-      menus, KATEGORI_URUTAN, kategoriTerbuka, toggleKategori, menuUntukKategori
+      menus, KATEGORI_URUTAN, kategoriTerbuka, toggleKategori, menuUntukKategori,
+      semuaTercentangKolom, toggleKolomKategori
     };
   },
   template: `
@@ -196,15 +209,40 @@ const AppConfigAkses = {
           <i class="fas" :class="kategoriTerbuka[kategori] ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-muted);"></i>
         </div>
         <div v-show="kategoriTerbuka[kategori]" class="gc-table-scroll">
-          <table class="gc-table">
+          <table class="gc-table" style="table-layout:fixed; min-width:640px;">
             <thead>
               <tr>
-                <th class="freeze freeze-left">Nama menu</th>
-                <th style="text-align:center;">View</th>
-                <th style="text-align:center;">Add</th>
-                <th style="text-align:center;">Edit</th>
-                <th style="text-align:center;">Delete</th>
-                <th style="text-align:center;">Print</th>
+                <th class="freeze freeze-left" style="width:220px;">Nama menu</th>
+                <th style="width:84px; text-align:center;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'view')" @change="toggleKolomKategori(kategori, 'view')" style="accent-color:var(--burgundy); width:14px; height:14px;">
+                    <span>View</span>
+                  </div>
+                </th>
+                <th style="width:84px; text-align:center;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'add')" @change="toggleKolomKategori(kategori, 'add')" style="accent-color:var(--burgundy); width:14px; height:14px;">
+                    <span>Add</span>
+                  </div>
+                </th>
+                <th style="width:84px; text-align:center;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'edit')" @change="toggleKolomKategori(kategori, 'edit')" style="accent-color:var(--burgundy); width:14px; height:14px;">
+                    <span>Edit</span>
+                  </div>
+                </th>
+                <th style="width:84px; text-align:center;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'delete')" @change="toggleKolomKategori(kategori, 'delete')" style="accent-color:var(--burgundy); width:14px; height:14px;">
+                    <span>Delete</span>
+                  </div>
+                </th>
+                <th style="width:84px; text-align:center;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'print')" @change="toggleKolomKategori(kategori, 'print')" style="accent-color:var(--burgundy); width:14px; height:14px;">
+                    <span>Print</span>
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody>

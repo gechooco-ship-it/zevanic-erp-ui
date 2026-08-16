@@ -56,6 +56,12 @@ const AppPenjadwalan = {
       return (gudang.length > 0 && !!d.nama_shift);
     }
 
+    // Pembungkus window.normalisasiGudang untuk ditampilkan di template —
+    // HARUS lewat fungsi begini, bukan "window.xxx" langsung di template.
+    function tampilkanGudang(d) {
+      return window.normalisasiGudang(d.gudang_penempatan).join(', ') || '-';
+    }
+
     async function muat() {
       memuat.value = true;
       try {
@@ -306,7 +312,7 @@ const AppPenjadwalan = {
       halamanSebelumnya, halamanBerikutnya,
       bulkGudang, bulkShift, bulkLibur, memprosesBulk, terapkanBulkUpdate,
       exportExcel, importExcel,
-      statusTerjadwal,
+      statusTerjadwal, tampilkanGudang,
       HARI_LIBUR_PILIHAN
     };
   },
@@ -441,7 +447,7 @@ const AppPenjadwalan = {
                 <td class="freeze freeze-left"><input type="checkbox" :checked="terpilih.has(d.email)" @change="toggleCheckbox(d.email)" style="accent-color:var(--burgundy);"></td>
                 <td class="freeze freeze-left" style="left:36px;"><b>{{ d.nama || '-' }}</b><br><span style="font-size:10.5px; color:var(--text-muted);">{{ d.email }}</span></td>
                 <td class="gc-cell-muted">{{ d.jenis_pekerjaan || '-' }}</td>
-                <td class="gc-cell-muted">{{ window.normalisasiGudang(d.gudang_penempatan).join(', ') || '-' }}</td>
+                <td class="gc-cell-muted">{{ tampilkanGudang(d) }}</td>
                 <td class="gc-cell-muted">{{ d.nama_shift || '-' }}</td>
                 <td class="gc-cell-muted">{{ d.hari_libur || '-' }}</td>
                 <td style="text-align:center;">
