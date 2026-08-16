@@ -139,11 +139,13 @@ thead .freeze{z-index:3;}
 .scan-result .row{display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:.03em;}
 
 /* ---- Mobile bottom nav ---- */
-.gc-mobile-nav{position:fixed; bottom:0; left:0; right:0; background:var(--surface); border-top:1px solid var(--line); padding:8px 6px calc(14px + env(safe-area-inset-bottom)); display:flex; justify-content:space-around; align-items:flex-end; z-index:40; border-radius:20px 20px 0 0;}
-.gc-mnav-item{display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--text-faint); font-size:9.5px; font-weight:700;}
+.gc-mobile-nav{position:fixed; bottom:0; left:0; right:0; background:var(--surface); border-top:1px solid var(--line); padding:8px 6px calc(14px + env(safe-area-inset-bottom)); display:flex; justify-content:space-around; align-items:flex-end; z-index:40; border-radius:20px 20px 0 0; touch-action:manipulation;}
+.gc-mnav-item{display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--text-faint); font-size:9.5px; font-weight:700; touch-action:manipulation; cursor:pointer;}
+.gc-mnav-item *{pointer-events:none;}
 .gc-mnav-item.active{color:var(--burgundy);}
 .gc-mnav-scan{display:flex; flex-direction:column; align-items:center; gap:4px; margin-top:-26px;}
-.gc-mnav-scan-btn{width:52px; height:52px; border-radius:50%; background:var(--burgundy); display:flex; align-items:center; justify-content:center; box-shadow:0 6px 14px rgba(110,30,44,.35); color:#fff; font-size:20px; border:4px solid var(--surface);}
+.gc-mnav-scan-btn{width:52px; height:52px; border-radius:50%; background:var(--burgundy); display:flex; align-items:center; justify-content:center; box-shadow:0 6px 14px rgba(110,30,44,.35); color:#fff; font-size:20px; border:4px solid var(--surface); touch-action:manipulation; cursor:pointer;}
+.gc-mnav-scan-btn *{pointer-events:none;}
 .gc-mnav-scan span{font-size:9.5px; font-weight:700; color:var(--burgundy);}
 .gc-mnav-ico{width:20px; height:20px;}
 
@@ -228,6 +230,7 @@ thead .freeze{z-index:3;}
 }
 @media(min-width:768px){
   .md\:flex{display:flex;}
+  .md\:block{display:block;}
   .md\:flex-row{flex-direction:row;}
   .md\:hidden{display:none;}
   .md\:items-center{align-items:center;}

@@ -221,25 +221,25 @@
     </div>
 
     <nav class="md:hidden gc-mobile-nav" style="width:100%;">
-      <button data-navtab="tab-home" onclick="pindahTab('tab-home')" class="gc-mnav-item active">
+      <button id="mnav-home" data-navtab="tab-home" class="gc-mnav-item active">
         <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
         <span>Home</span>
       </button>
-      <button data-navtab="tab-profil-absensi" onclick="pindahTab('tab-profil', 'tab-profil-absensi'); if(window.bukaTabAbsensiProfile) window.bukaTabAbsensiProfile();" class="gc-mnav-item">
+      <button id="mnav-absensi" data-navtab="tab-profil-absensi" class="gc-mnav-item">
         <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="9"/></svg>
         <span>Absensi</span>
       </button>
       <div data-navtab="tab-scan-qr" class="gc-mnav-scan">
-        <button onclick="pindahTab('tab-scan-qr')" class="gc-mnav-scan-btn" aria-label="Scan QR">
+        <button id="mnav-scanqr" class="gc-mnav-scan-btn" aria-label="Scan QR">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
         </button>
         <span>Scan QR</span>
       </div>
-      <button data-navtab="tab-progress" onclick="pindahTab('tab-progress')" class="gc-mnav-item">
+      <button id="mnav-progress" data-navtab="tab-progress" class="gc-mnav-item">
         <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18M18 9l-5 5-4-4-3 3"/></svg>
         <span>Progress</span>
       </button>
-      <button data-navtab="tab-profil" onclick="if(window.matikanScanQr) window.matikanScanQr(); window.bukaProfileDrawer();" class="gc-mnav-item">
+      <button id="mnav-profile" data-navtab="tab-profil" class="gc-mnav-item">
         <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg>
         <span>Profile</span>
       </button>

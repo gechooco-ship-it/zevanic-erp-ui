@@ -31,6 +31,37 @@ window.pindahLayar = function(idTujuan) {
   }
 };
 
+// Nav mobile (Home/Absensi/Scan QR/Progress/Profile) — SENGAJA dipasang
+// lewat addEventListener di sini, BUKAN onclick="..." langsung di HTML.
+// Ditemukan lewat pengetesan panjang bersama user: onclick inline di
+// tombol-tombol ini tidak merespon di lingkungan produksi mereka (diduga
+// diblokir aturan keamanan browser/hosting), padahal panggil fungsi yang
+// SAMA lewat Console atau lewat @click Vue selalu berhasil. Memasang
+// listener lewat JS (persis seperti cara Vue mengikat @click di baliknya)
+// menghindari masalah itu sepenuhnya, apapun penyebab pastinya.
+window.addEventListener('DOMContentLoaded', () => {
+  const mnavHome = document.getElementById('mnav-home');
+  if (mnavHome) mnavHome.addEventListener('click', () => window.pindahTab('tab-home'));
+
+  const mnavAbsensi = document.getElementById('mnav-absensi');
+  if (mnavAbsensi) mnavAbsensi.addEventListener('click', () => {
+    window.pindahTab('tab-profil', 'tab-profil-absensi');
+    if (window.bukaTabAbsensiProfile) window.bukaTabAbsensiProfile();
+  });
+
+  const mnavScanQr = document.getElementById('mnav-scanqr');
+  if (mnavScanQr) mnavScanQr.addEventListener('click', () => window.pindahTab('tab-scan-qr'));
+
+  const mnavProgress = document.getElementById('mnav-progress');
+  if (mnavProgress) mnavProgress.addEventListener('click', () => window.pindahTab('tab-progress'));
+
+  const mnavProfile = document.getElementById('mnav-profile');
+  if (mnavProfile) mnavProfile.addEventListener('click', () => {
+    if (window.matikanScanQr) window.matikanScanQr();
+    if (window.bukaProfileDrawer) window.bukaProfileDrawer();
+  });
+});
+
 // Catatan: window.pindahTab sengaja TIDAK didefinisikan di sini.
 // Fungsi ini dimiliki oleh js/dashboard.js (versi yang null-safe dan
 // menangani sub-tab profil/admin-acc/superuser). Dulu ada definisi
