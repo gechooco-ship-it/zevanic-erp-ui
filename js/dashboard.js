@@ -203,6 +203,16 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
   // SEMUA orang pas login, termasuk operator yang tidak punya akses ke
   // menu ini sama sekali). Di titik ini juga sudah pasti lama setelah
   // login berhasil, jadi tidak mungkin lagi kena masalah timing Auth.
+  //
+  // HEMAT LAGI: cuma ambil di kunjungan PERTAMA ke sub-tab ini dalam sesi
+  // tab browser yang sedang aktif (`window.subTabSudahDimuat`, di-reset
+  // otomatis tiap reload/login baru — TIDAK disimpan ke localStorage
+  // supaya tidak ada risiko data basi untuk alur kerja approval yang
+  // dipakai banyak admin sekaligus, misal Antrean Dakar/Antrean Absensi).
+  // Klik bolak-balik antar menu dalam 1 sesi TIDAK baca Firestore lagi.
+  // Mau data terbaru di tengah sesi? Tinggal klik tombol Refresh di
+  // masing-masing layar (sudah ada dari awal, memang untuk itu fungsinya).
+  window.subTabSudahDimuat = window.subTabSudahDimuat || {};
   const petaRefresh = {
     'sub-absensi-config': 'refreshConfigAbsensi',
     'sub-absensi-jadwal': 'refreshPenjadwalan',
@@ -213,7 +223,10 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-karyawan-data': 'refreshDaftarKaryawan'
   };
   const namaFungsi = petaRefresh[targetId];
-  if (namaFungsi && window[namaFungsi]) window[namaFungsi]();
+  if (namaFungsi && window[namaFungsi] && !window.subTabSudahDimuat[targetId]) {
+    window.subTabSudahDimuat[targetId] = true;
+    window[namaFungsi]();
+  }
 };
 
 // Account Profile (Account/QR, Data Karyawan self-edit, Absensi dengan
