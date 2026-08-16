@@ -8,7 +8,7 @@
 // Dipakai via CDN (tanpa build step) — import langsung dari unpkg, sama
 // seperti pola import Firebase yang sudah ada di app ini.
 // ============================================================================
-import { ref, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { ref, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
@@ -119,6 +119,7 @@ export const GudangCheckboxSelect = {
   setup(props, { emit }) {
     const daftarGudang = ref([]);
     const memuat = ref(true);
+    const terbuka = ref(false);
 
     async function muat() {
       const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js");
@@ -137,17 +138,39 @@ export const GudangCheckboxSelect = {
       emit('update:modelValue', nilaiBaru);
     }
 
+    function toggleDropdown() { terbuka.value = !terbuka.value; }
+    function pilihSemua() { emit('update:modelValue', [...daftarGudang.value]); }
+    function kosongkanSemua() { emit('update:modelValue', []); }
+
+    const teksRingkasan = computed(() => {
+      if (props.modelValue.length === 0) return 'Pilih gudang...';
+      if (props.modelValue.length <= 2) return props.modelValue.join(', ');
+      return `${props.modelValue.length} gudang dipilih`;
+    });
+
     onMounted(async () => { await window.authReady; muat(); });
-    return { daftarGudang, memuat, toggle };
+    return { daftarGudang, memuat, terbuka, toggle, toggleDropdown, pilihSemua, kosongkanSemua, teksRingkasan };
   },
   template: `
-    <div style="display:flex; flex-wrap:wrap; gap:8px; padding:10px; background:var(--surface); border:1.5px solid var(--line); border-radius:12px; min-height:44px;">
-      <span v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat gudang...</span>
-      <span v-else-if="daftarGudang.length === 0" style="font-size:11px; color:var(--text-faint);">Belum ada Master Gudang. Buat dulu di Config Absensi.</span>
-      <label v-for="g in daftarGudang" :key="g" style="display:flex; align-items:center; gap:7px; background:var(--ivory-dim); border-radius:10px; padding:7px 12px; font-size:12px; cursor:pointer; transition:.15s;">
-        <input type="checkbox" :checked="modelValue.includes(g)" @change="toggle(g, $event.target.checked)" style="accent-color:var(--burgundy); width:14px; height:14px;">
-        <span>{{ g }}</span>
-      </label>
+    <div style="position:relative;">
+      <button type="button" @click="toggleDropdown" style="width:100%; display:flex; justify-content:space-between; align-items:center; padding:10px 13px; background:var(--surface); border:1.5px solid var(--line); border-radius:12px; font-size:12.5px; cursor:pointer; text-align:left;" :style="modelValue.length === 0 ? 'color:var(--text-faint);' : 'color:var(--text);'">
+        <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ teksRingkasan }}</span>
+        <i class="fas" :class="terbuka ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-faint); flex-shrink:0; margin-left:8px;"></i>
+      </button>
+      <div v-if="terbuka" style="position:absolute; z-index:20; top:calc(100% + 4px); left:0; right:0; background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:10px; box-shadow:0 8px 20px rgba(59,42,31,.12); max-height:240px; overflow-y:auto;">
+        <div v-if="memuat" style="font-size:11px; color:var(--text-faint); padding:6px;">Memuat gudang...</div>
+        <div v-else-if="daftarGudang.length === 0" style="font-size:11px; color:var(--text-faint); padding:6px;">Belum ada Master Gudang. Buat dulu di Config Absensi.</div>
+        <template v-else>
+          <div style="display:flex; justify-content:flex-end; gap:10px; padding-bottom:8px; margin-bottom:6px; border-bottom:1px solid var(--line);">
+            <button type="button" @click="pilihSemua" style="background:none; border:none; color:var(--burgundy); font-weight:700; font-size:11px; cursor:pointer;">Select All</button>
+            <button type="button" @click="kosongkanSemua" style="background:none; border:none; color:var(--text-muted); font-weight:700; font-size:11px; cursor:pointer;">Clear All</button>
+          </div>
+          <label v-for="g in daftarGudang" :key="g" style="display:flex; align-items:center; gap:8px; padding:7px 6px; font-size:12.5px; cursor:pointer; border-radius:8px;">
+            <input type="checkbox" :checked="modelValue.includes(g)" @change="toggle(g, $event.target.checked)" style="accent-color:var(--burgundy); width:15px; height:15px;">
+            <span>{{ g }}</span>
+          </label>
+        </template>
+      </div>
     </div>
   `
 };
@@ -230,5 +253,51 @@ export const KecamatanManager = {
         </span>
       </div>
     </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
+// GudangRingkas — tampilkan daftar gudang karyawan secara ringkas di tabel.
+// Kalau cuma 1-2 gudang, tampil penuh. Kalau lebih, dipersingkat + link
+// "lihat semua" yang buka popup daftar lengkapnya (popup dikelola sendiri
+// di komponen ini, orang tua tidak perlu urus state apa-apa).
+// Dipakai: <gudang-ringkas :gudang="d.gudang_penempatan" :nama="d.nama" />
+// (terima array MAUPUN string lama — dinormalkan otomatis lewat
+// window.normalisasiGudang, jadi aman untuk data lama/baru sekaligus.)
+// ---------------------------------------------------------------------------
+export const GudangRingkas = {
+  props: {
+    gudang: { type: [Array, String], default: () => [] },
+    nama: { type: String, default: '' }
+  },
+  setup(props) {
+    const popupTerbuka = ref(false);
+    const daftar = computed(() => window.normalisasiGudang(props.gudang));
+    const teksSingkat = computed(() => {
+      if (daftar.value.length === 0) return '-';
+      if (daftar.value.length <= 2) return daftar.value.join(', ');
+      return daftar.value.slice(0, 1).join(', ') + ` +${daftar.value.length - 1} lainnya`;
+    });
+    const perluPopup = computed(() => daftar.value.length > 2);
+    function buka() { popupTerbuka.value = true; }
+    function tutup() { popupTerbuka.value = false; }
+    return { daftar, teksSingkat, perluPopup, popupTerbuka, buka, tutup };
+  },
+  template: `
+    <span>
+      {{ teksSingkat }}
+      <button v-if="perluPopup" @click="buka" style="background:none; border:none; color:var(--burgundy); font-weight:700; cursor:pointer; font-size:11px; margin-left:4px; text-decoration:underline;">lihat semua</button>
+      <div v-if="popupTerbuka" @click="tutup" style="position:fixed; inset:0; background:rgba(59,42,31,.6); z-index:100; display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+        <div @click.stop style="background:var(--surface); width:100%; max-width:360px; padding:22px; border-radius:20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
+            <h3 class="gc-heading" style="font-weight:700; font-size:13.5px;">Semua gudang{{ nama ? ' — ' + nama : '' }}</h3>
+            <button @click="tutup" style="background:none; border:none; color:var(--text-faint); font-size:16px; cursor:pointer;"><i class="fas fa-times"></i></button>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:6px;">
+            <span v-for="g in daftar" :key="g" class="tag pink">{{ g }}</span>
+          </div>
+        </div>
+      </div>
+    </span>
   `
 };

@@ -16,18 +16,19 @@
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { GudangCheckboxSelect } from './vue-components.js';
+import { GudangCheckboxSelect, GudangRingkas } from './vue-components.js';
 
 const HARI_LIBUR_PILIHAN = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 const PER_HALAMAN = 15;
 const NILAI_TANPA_GUDANG = '__TANPA_GUDANG__';
 
 const AppPenjadwalan = {
-  components: { GudangCheckboxSelect },
+  components: { GudangCheckboxSelect, GudangRingkas },
   setup() {
     // ---- State mentah ----
     const semuaKaryawan = ref([]);
     const daftarGudang = ref([]);
+    const petaJenisLokasi = ref({}); // nama gudang -> "Tetap"/"Dinamis", buat kolom Jenis Lokasi
     const daftarShift = ref([]);
     const daftarJenisPekerjaan = ref([]);
     const memuat = ref(true);
@@ -47,9 +48,20 @@ const AppPenjadwalan = {
 
     // ---- Form update massal ----
     const bulkGudang = ref([]);
+    const bulkJenisPekerjaan = ref('');
     const bulkShift = ref('');
     const bulkLibur = ref('');
     const memprosesBulk = ref(false);
+
+    // Jenis Lokasi karyawan — kalau gudangnya campur Tetap & Dinamis,
+    // tampilkan "Campuran"; kalau semua sama, tampilkan itu; kalau belum
+    // ada gudang sama sekali, "-".
+    function jenisLokasiKaryawan(d) {
+      const list = window.normalisasiGudang(d.gudang_penempatan);
+      if (list.length === 0) return '-';
+      const jenisUnik = [...new Set(list.map(g => petaJenisLokasi.value[g] || 'Tetap'))];
+      return jenisUnik.length > 1 ? 'Campuran' : jenisUnik[0];
+    }
 
     function statusTerjadwal(d) {
       const gudang = window.normalisasiGudang(d.gudang_penempatan);
@@ -75,8 +87,14 @@ const AppPenjadwalan = {
 
         const qGudang = await getDocs(collection(db, "master_gudang"));
         const listGudang = [];
-        qGudang.forEach(docSnap => listGudang.push(docSnap.data().nama_gudang));
+        const petaJenis = {};
+        qGudang.forEach(docSnap => {
+          const g = docSnap.data();
+          listGudang.push(g.nama_gudang);
+          petaJenis[g.nama_gudang] = g.tipe_lokasi || 'Tetap';
+        });
         daftarGudang.value = listGudang;
+        petaJenisLokasi.value = petaJenis;
 
         const qShift = await getDocs(collection(db, "master_shift"));
         const listShift = [];
@@ -200,13 +218,14 @@ const AppPenjadwalan = {
     async function terapkanBulkUpdate() {
       const daftarTerpilih = Array.from(terpilih);
       if (daftarTerpilih.length === 0) return alert("Belum ada karyawan yang dicentang/terpilih.");
-      if (bulkGudang.value.length === 0 && !bulkShift.value && !bulkLibur.value) {
-        return alert("Isi minimal salah satu: Gudang, Shift, atau Hari Libur untuk diterapkan.");
+      if (bulkGudang.value.length === 0 && !bulkJenisPekerjaan.value && !bulkShift.value && !bulkLibur.value) {
+        return alert("Isi minimal salah satu: Gudang, Jenis Pekerjaan, Shift, atau Hari Libur untuk diterapkan.");
       }
       if (!confirm(`Terapkan perubahan ke ${daftarTerpilih.length} karyawan terpilih?`)) return;
 
       const dataUpdate = {};
       if (bulkGudang.value.length > 0) dataUpdate.gudang_penempatan = bulkGudang.value;
+      if (bulkJenisPekerjaan.value) dataUpdate.jenis_pekerjaan = bulkJenisPekerjaan.value;
       if (bulkShift.value) dataUpdate.nama_shift = bulkShift.value;
       if (bulkLibur.value) dataUpdate.hari_libur = bulkLibur.value;
 
@@ -225,6 +244,7 @@ const AppPenjadwalan = {
 
       alert(`Update massal selesai. Berhasil: ${sukses}, Gagal: ${gagal}.`);
       bulkGudang.value = [];
+      bulkJenisPekerjaan.value = '';
       bulkShift.value = '';
       bulkLibur.value = '';
       await muat();
@@ -310,9 +330,9 @@ const AppPenjadwalan = {
       ringkasanKartu, klikKartuGudang,
       toggleCheckbox, toggleSemuaHalamanIni, pilihSemua, bersihkanPilihan,
       halamanSebelumnya, halamanBerikutnya,
-      bulkGudang, bulkShift, bulkLibur, memprosesBulk, terapkanBulkUpdate,
+      bulkGudang, bulkJenisPekerjaan, bulkShift, bulkLibur, memprosesBulk, terapkanBulkUpdate,
       exportExcel, importExcel,
-      statusTerjadwal, tampilkanGudang,
+      statusTerjadwal, tampilkanGudang, jenisLokasiKaryawan,
       HARI_LIBUR_PILIHAN
     };
   },
@@ -344,10 +364,17 @@ const AppPenjadwalan = {
       <div class="gc-card" style="margin-bottom:16px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;"><i class="fas fa-layer-group" style="color:var(--burgundy); margin-right:8px;"></i> Update massal ({{ terpilih.size }} karyawan terpilih)</h3>
         <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:12px;">Kosongkan kolom yang tidak ingin diubah. Berlaku untuk karyawan yang dicentang di tabel bawah (mengikuti filter/pencarian yang sedang aktif).</p>
-        <div style="gap:12px;" class="grid grid-cols-1 md:grid-cols-3">
+        <div style="gap:12px;" class="grid grid-cols-1 md:grid-cols-4">
           <div class="gc-field" style="margin-bottom:0;">
             <label>Gudang penempatan (kosongkan = tidak diubah)</label>
             <gudang-checkbox-select v-model="bulkGudang" />
+          </div>
+          <div class="gc-field" style="margin-bottom:0;">
+            <label>Jenis pekerjaan</label>
+            <select v-model="bulkJenisPekerjaan">
+              <option value="">-- Tidak diubah --</option>
+              <option v-for="j in daftarJenisPekerjaan" :key="j" :value="j">{{ j }}</option>
+            </select>
           </div>
           <div class="gc-field" style="margin-bottom:0;">
             <label>Shift</label>
@@ -434,6 +461,7 @@ const AppPenjadwalan = {
                 <th class="freeze freeze-left" style="width:36px;"><input type="checkbox" :checked="headerDicentang" @change="toggleSemuaHalamanIni" style="accent-color:var(--burgundy);"></th>
                 <th class="freeze freeze-left" style="left:36px;">Karyawan</th>
                 <th>Jenis Pekerjaan</th>
+                <th>Jenis Lokasi</th>
                 <th>Gudang</th>
                 <th>Shift</th>
                 <th>Hari Libur</th>
@@ -441,13 +469,19 @@ const AppPenjadwalan = {
               </tr>
             </thead>
             <tbody>
-              <tr v-if="memuat"><td colspan="7" style="text-align:center; padding:20px; color:var(--text-faint);">Memuat data...</td></tr>
-              <tr v-else-if="potonganHalamanIni.length === 0"><td colspan="7" style="text-align:center; padding:20px; color:var(--text-faint);">Tidak ada karyawan yang cocok dengan filter.</td></tr>
+              <tr v-if="memuat"><td colspan="8" style="text-align:center; padding:20px; color:var(--text-faint);">Memuat data...</td></tr>
+              <tr v-else-if="potonganHalamanIni.length === 0"><td colspan="8" style="text-align:center; padding:20px; color:var(--text-faint);">Tidak ada karyawan yang cocok dengan filter.</td></tr>
               <tr v-for="d in potonganHalamanIni" :key="d.email">
                 <td class="freeze freeze-left"><input type="checkbox" :checked="terpilih.has(d.email)" @change="toggleCheckbox(d.email)" style="accent-color:var(--burgundy);"></td>
                 <td class="freeze freeze-left" style="left:36px;"><b>{{ d.nama || '-' }}</b><br><span style="font-size:10.5px; color:var(--text-muted);">{{ d.email }}</span></td>
                 <td class="gc-cell-muted">{{ d.jenis_pekerjaan || '-' }}</td>
-                <td class="gc-cell-muted">{{ tampilkanGudang(d) }}</td>
+                <td>
+                  <span v-if="jenisLokasiKaryawan(d) === 'Tetap'" class="tag neutral">Tetap</span>
+                  <span v-else-if="jenisLokasiKaryawan(d) === 'Dinamis'" class="tag blue">Dinamis</span>
+                  <span v-else-if="jenisLokasiKaryawan(d) === 'Campuran'" class="tag warn">Campuran</span>
+                  <span v-else class="gc-cell-muted">-</span>
+                </td>
+                <td class="gc-cell-muted"><gudang-ringkas :gudang="d.gudang_penempatan" :nama="d.nama" /></td>
                 <td class="gc-cell-muted">{{ d.nama_shift || '-' }}</td>
                 <td class="gc-cell-muted">{{ d.hari_libur || '-' }}</td>
                 <td style="text-align:center;">

@@ -11,7 +11,7 @@
 import { createApp, ref, reactive, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { DuaBaris, GudangCheckboxSelect } from './vue-components.js';
+import { DuaBaris, GudangCheckboxSelect, GudangRingkas } from './vue-components.js';
 
 // Field kosong default untuk form edit (dipakai untuk reset & memastikan
 // semua field ke-cover, sama seperti window.bukaEditUser versi lama).
@@ -299,7 +299,7 @@ const EditKaryawanModal = {
 };
 
 const AppDaftarKaryawan = {
-  components: { DuaBaris, EditKaryawanModal },
+  components: { DuaBaris, EditKaryawanModal, GudangRingkas },
   setup() {
     const daftarKaryawan = ref([]);
     const memuat = ref(true);
@@ -319,7 +319,6 @@ const AppDaftarKaryawan = {
         const jenisLokasiList = [...new Set(gudangList.map(g => petaJenisLokasi[g] || '-'))];
         list.push({
           id: docSnap.id, ...d,
-          gudangGabungan: gudangList.join(', ') || '-',
           jenisLokasiGabungan: jenisLokasiList.join(', ') || '-',
           idGabungan: (d.id_karyawan || '-') + ' / ' + (d.id_app || '-')
         });
@@ -394,7 +393,10 @@ const AppDaftarKaryawan = {
             </td>
             <td><dua-baris :a="d.hp" :b="d.email" /></td>
             <td><dua-baris :a="d.jabatan" :b="d.status_karyawan" /></td>
-            <td><dua-baris :a="d.gudangGabungan" :b="d.nama_shift" /></td>
+            <td>
+              <gudang-ringkas :gudang="d.gudang_penempatan" :nama="d.nama" /><br>
+              <span style="font-size:11px; color:var(--text-muted);">{{ d.nama_shift || '-' }}</span>
+            </td>
             <td style="text-transform:uppercase;"><dua-baris :a="d.role" :b="d.jenisLokasiGabungan" /></td>
             <td class="freeze freeze-right">
               <div style="display:flex; align-items:center; justify-content:center; gap:6px;">

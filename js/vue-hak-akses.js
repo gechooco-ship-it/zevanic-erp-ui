@@ -16,12 +16,14 @@
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+import { GudangRingkas } from './vue-components.js';
 
 const DAFTAR_ROLE = ['operator', 'pic', 'admin', 'owner', 'superuser'];
 const NILAI_BELUM_DIATUR = '__BELUM_DIATUR__';
 const PER_HALAMAN = 15;
 
 const AppHakAkses = {
+  components: { GudangRingkas },
   setup() {
     const semuaKaryawan = ref([]);
     const daftarGudang = ref([]);
@@ -88,14 +90,6 @@ const AppHakAkses = {
       filterRole.value = nilaiFilter;
       filterGudang.value = 'ALL';
       cariNama.value = '';
-    }
-
-    // Pembungkus window.normalisasiGudang — HARUS dipanggil dari fungsi
-    // JavaScript biasa di dalam setup() seperti ini, BUKAN "window.xxx"
-    // langsung di dalam template (itu yang bikin error kemarin: Vue anggap
-    // "window" properti komponen, bukan objek global browser).
-    function tampilkanGudang(d) {
-      return window.normalisasiGudang(d.gudang_penempatan).join(', ') || '-';
     }
 
     const hasilFilter = computed(() => {
@@ -195,7 +189,7 @@ const AppHakAkses = {
       terpilih, hasilFilter, potonganHalamanIni, infoHalaman, headerDicentang, halamanAman, totalHalaman,
       toggleCheckbox, toggleSemuaHalamanIni, pilihSemua, bersihkanPilihan,
       halamanSebelumnya, halamanBerikutnya,
-      ubahRoleLangsung, tampilkanGudang,
+      ubahRoleLangsung,
       bulkRole, memprosesBulk, terapkanBulkRole
     };
   },
@@ -289,7 +283,7 @@ const AppHakAkses = {
                 <td class="freeze freeze-left"><input type="checkbox" :checked="terpilih.has(d.email)" @change="toggleCheckbox(d.email)" style="accent-color:var(--burgundy);"></td>
                 <td class="freeze freeze-left" style="left:36px;"><b>{{ d.nama || '-' }}</b><br><span style="font-size:10.5px; color:var(--text-muted);">{{ d.email }}</span></td>
                 <td class="gc-cell-muted">{{ d.jenis_pekerjaan || '-' }}</td>
-                <td class="gc-cell-muted">{{ tampilkanGudang(d) }}</td>
+                <td class="gc-cell-muted"><gudang-ringkas :gudang="d.gudang_penempatan" :nama="d.nama" /></td>
                 <td style="text-align:center;">
                   <span v-if="d.role" class="tag pink" style="text-transform:uppercase;">{{ d.role }}</span>
                   <span v-else class="tag neutral">Belum diatur</span>
