@@ -330,7 +330,12 @@ const AppLogin = {
         return;
       }
 
-      document.getElementById('label-status-kamera').innerText = "Mode: " + window.statusPilihanGlobal;
+      // Label "Mode: ..." di layar kamera diatur OTOMATIS & REAKTIF oleh
+      // vue-camera.js sendiri (modeLabel) tiap kali pindah ke screen-camera
+      // (lihat app.js pindahLayar -> window.mulaiKamera()) — baris
+      // document.getElementById('label-status-kamera') yang dulu di sini
+      // SUDAH TIDAK ADA elemennya (dihapus saat migrasi Vue kamera), jadi
+      // selalu error dan bikin proses login macet di "Memproses...".
       window.pindahLayar('screen-camera');
     }
 

@@ -319,7 +319,7 @@ window.prosesClockOut = function() {
     return;
   }
   window.statusPilihanGlobal = "CLOCK OUT";
-  document.getElementById('label-status-kamera').innerText = "Mode: CLOCK OUT";
+  // Label diatur otomatis oleh vue-camera.js (modeLabel) — lihat catatan di vue-login.js.
   window.pindahLayar('screen-camera');
 };
 

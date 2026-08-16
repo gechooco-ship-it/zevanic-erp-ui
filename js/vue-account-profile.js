@@ -215,7 +215,7 @@ const AppAccountProfile = {
       window.tanggalIzinGlobal = izin.tanggal;
       window.keteranganIzinGlobal = keterangan;
       tutupFormIzin();
-      document.getElementById('label-status-kamera').innerText = "Mode: IZIN";
+      // Label diatur otomatis oleh vue-camera.js (modeLabel).
       window.pindahLayar('screen-camera');
     }
 
@@ -239,7 +239,7 @@ const AppAccountProfile = {
       window.tanggalIzinGlobal = cuti.tanggal;
       window.keteranganIzinGlobal = keterangan;
       tutupFormCuti();
-      document.getElementById('label-status-kamera').innerText = "Mode: CUTI";
+      // Label diatur otomatis oleh vue-camera.js (modeLabel).
       window.pindahLayar('screen-camera');
     }
 
@@ -253,7 +253,7 @@ const AppAccountProfile = {
       window.lemburAlasanGlobal = lembur.alasan;
       window.lemburInstruksiGlobal = lembur.instruksi;
       tutupFormLembur();
-      document.getElementById('label-status-kamera').innerText = "Mode: LEMBUR";
+      // Label diatur otomatis oleh vue-camera.js (modeLabel).
       window.pindahLayar('screen-camera');
     }
 
