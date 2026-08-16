@@ -23,7 +23,7 @@ const KATEGORI_SEDERHANA = [
 const AppConfigKaryawan = {
   components: { MasterDataCategory, KecamatanManager },
   data() {
-    return { kategoriList: KATEGORI_SEDERHANA };
+    return { kategoriList: KATEGORI_SEDERHANA, refreshKey: 0 };
   },
   template: `
     <div class="gc-card" style="background:var(--blue); border:none;">
@@ -33,11 +33,11 @@ const AppConfigKaryawan = {
     <div style="gap:14px; margin-top:16px;" class="grid grid-cols-1 md:grid-cols-2">
       <master-data-category
         v-for="k in kategoriList"
-        :key="k.kategori"
+        :key="k.kategori + '-' + refreshKey"
         :kategori="k.kategori"
         :label="k.label"
       />
-      <kecamatan-manager class="md:col-span-2" />
+      <kecamatan-manager :key="'kecamatan-' + refreshKey" class="md:col-span-2" />
     </div>
   `
 };
@@ -46,5 +46,11 @@ const AppConfigKaryawan = {
 // oleh app.js/dashboard.js seperti biasa.
 const mountPoint = document.getElementById('vue-config-karyawan');
 if (mountPoint) {
-  createApp(AppConfigKaryawan).mount('#vue-config-karyawan');
+  const vm = createApp(AppConfigKaryawan).mount('#vue-config-karyawan');
+  // Jembatan ke vanilla: dipanggil dari auth.js/vue-login.js tepat setelah
+  // login berhasil. Komponen di sini semuanya anak (MasterDataCategory x9,
+  // KecamatanManager) tanpa fungsi muat() sendiri di induknya — jadi caranya
+  // beda dari layar lain: ganti `key` supaya Vue "lahir ulang" semua anaknya
+  // dari nol, otomatis mengulang onMounted (dan fetch) masing-masing.
+  window.refreshConfigKaryawan = function() { vm.refreshKey++; };
 }

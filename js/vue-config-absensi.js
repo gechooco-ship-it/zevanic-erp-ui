@@ -202,15 +202,21 @@ const MasterShiftManager = {
 
 const AppConfigAbsensi = {
   components: { MasterGudangManager, MasterShiftManager },
+  data() {
+    return { refreshKey: 0 };
+  },
   template: `
     <div style="gap:14px;" class="grid grid-cols-1 md:grid-cols-2">
-      <master-gudang-manager />
-      <master-shift-manager />
+      <master-gudang-manager :key="'gudang-' + refreshKey" />
+      <master-shift-manager :key="'shift-' + refreshKey" />
     </div>
   `
 };
 
 const mountPoint = document.getElementById('vue-config-absensi');
 if (mountPoint) {
-  createApp(AppConfigAbsensi).mount('#vue-config-absensi');
+  const vm = createApp(AppConfigAbsensi).mount('#vue-config-absensi');
+  // Jembatan ke vanilla — sama seperti Config Karyawan, ganti key supaya
+  // kedua anak (Master Gudang, Master Shift) lahir ulang dan fetch ulang.
+  window.refreshConfigAbsensi = function() { vm.refreshKey++; };
 }

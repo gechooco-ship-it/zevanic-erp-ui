@@ -413,5 +413,12 @@ const AppDaftarKaryawan = {
 
 const mountPoint = document.getElementById('vue-daftar-karyawan');
 if (mountPoint) {
-  createApp(AppDaftarKaryawan).mount('#vue-daftar-karyawan');
+  const vm = createApp(AppDaftarKaryawan).mount('#vue-daftar-karyawan');
+  // Jembatan ke vanilla: dipanggil dari auth.js (sesi otomatis) & vue-login.js
+  // (login manual) TEPAT setelah role/currentUser terisi data asli — supaya
+  // tabel ini pasti coba ambil data lagi di titik yang PASTI Firestore sudah
+  // bisa diakses (bukan menebak-nebak waktu "Auth siap"), memperbaiki bug
+  // "Memuat data..." macet selamanya kalau fetch pertama sempat kepentok
+  // kondisi belum login.
+  window.refreshDaftarKaryawan = function() { vm.muat(); };
 }

@@ -443,5 +443,12 @@ const AppPenjadwalan = {
 
 const mountPoint = document.getElementById('vue-penjadwalan');
 if (mountPoint) {
-  createApp(AppPenjadwalan).mount('#vue-penjadwalan');
+  const vm = createApp(AppPenjadwalan).mount('#vue-penjadwalan');
+  // Jembatan ke vanilla: dipanggil dari auth.js (sesi otomatis) & vue-login.js
+  // (login manual) TEPAT setelah role/currentUser terisi data asli — supaya
+  // tabel ini pasti coba ambil data lagi di titik yang PASTI Firestore sudah
+  // bisa diakses (bukan menebak-nebak waktu "Auth siap"), memperbaiki bug
+  // "Memuat data..." macet selamanya kalau fetch pertama sempat kepentok
+  // kondisi belum login.
+  window.refreshPenjadwalan = function() { vm.muat(); };
 }
