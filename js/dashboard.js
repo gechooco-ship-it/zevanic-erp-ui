@@ -245,6 +245,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-absensi-rekap': 'pastikanMountRiwayatAbsensi',
     'sub-karyawan-antrean': 'pastikanMountAntreanDakar',
     'sub-karyawan-config': 'pastikanMountConfigKaryawan',
+    'sub-karyawan-info': 'pastikanMountConfigInfo',
     'sub-karyawan-data': 'pastikanMountDaftarKaryawan',
     'sub-karyawan-akses': 'pastikanMountConfigAkses',
     'sub-karyawan-hakakses': 'pastikanMountHakAkses'

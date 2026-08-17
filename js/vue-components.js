@@ -333,6 +333,7 @@ export function daftarMenuGroups(role) {
         { label: 'Slip Gaji', icon: 'fa-file-invoice-dollar', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-slip', null); } },
         { label: 'Payroll', icon: 'fa-money-check-dollar', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', null); } },
         { label: 'Config Karyawan', icon: 'fa-sliders', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-config', null); } },
+        { label: 'Config Info', icon: 'fa-bullhorn', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-info', null); } },
         // Hak Akses & Config Akses SENGAJA dikunci Owner asli saja (lihat
         // roleBoleh per-item di bawah) — Superuser tetap lihat 5 item lain
         // di grup ini, tapi bukan 2 ini, konsisten dengan gerbang yang
@@ -352,8 +353,19 @@ export function daftarMenuGroups(role) {
     }
   ];
 
-  return semuaGroup
-    .filter(g => !g.roleBoleh || g.roleBoleh.includes(r))
-    .map(g => ({ ...g, items: g.items.filter(i => !i.roleBoleh || i.roleBoleh.includes(r)) }))
-    .filter(g => g.items.length > 0);
+  // PERUBAHAN 17 Agt 2026 (khusus tampilan Home mobile): dulu grup/menu
+  // yang tidak boleh diakses role ini langsung DIHILANGKAN dari daftar.
+  // Sekarang SEMUA grup & menu tetap DITAMPILKAN untuk siapapun — item
+  // yang sebenarnya tidak boleh diakses cuma ditandai `terkunci: true`,
+  // dan pengecekannya PAKAI ROLE YANG SUDAH ADA DI MEMORI (parameter
+  // `role` ini, dari window.currentUser.role) — BUKAN baca Firestore lagi,
+  // supaya tetap hemat. Halaman pemanggil (vue-home.js) yang tampilkan
+  // pesan "Akses terkunci" kalau item.terkunci true saat diklik.
+  return semuaGroup.map(g => ({
+    ...g,
+    items: g.items.map(i => ({
+      ...i,
+      terkunci: !((!g.roleBoleh || g.roleBoleh.includes(r)) && (!i.roleBoleh || i.roleBoleh.includes(r)))
+    }))
+  }));
 }

@@ -62,11 +62,25 @@ const AppHome = {
     async function muatPengumuman() {
       memuatPengumuman.value = true;
       try {
-        const q = query(collection(db, "pengumuman"), orderBy("dibuat_pada", "desc"), limit(5));
+        // Ambil agak lebih banyak dari yang ditampilkan (15, bukan 5) —
+        // karena sebagian akan disaring keluar berdasarkan role SETELAH
+        // diambil (bukan query where() ke server, biar hemat baca —
+        // filternya cuma bandingkan array kecil di JS, pakai role yang
+        // SUDAH ada di window.currentUser, tidak baca Firestore lagi).
+        const q = query(collection(db, "pengumuman"), orderBy("dibuat_pada", "desc"), limit(15));
         const snap = await getDocs(q);
+        const roleSaya = (window.currentUser?.role || 'operator').toLowerCase();
         const list = [];
-        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-        pengumuman.value = list;
+        snap.forEach(d => {
+          const data = d.data();
+          const rolesTampil = data.rolesTampil || [];
+          // Kosongkan array rolesTampil = tampil untuk SEMUA role (default
+          // aman kalau pengumuman lama belum punya field ini sama sekali).
+          if (rolesTampil.length === 0 || rolesTampil.includes(roleSaya)) {
+            list.push({ id: d.id, ...data });
+          }
+        });
+        pengumuman.value = list.slice(0, 5);
       } catch (e) {
         pengumuman.value = []; // koleksi belum ada/kosong itu wajar, bukan error
       }
@@ -80,6 +94,14 @@ const AppHome = {
       }
       window.statusPilihanGlobal = "HADIR (CLOCK IN)";
       window.pindahLayar('screen-camera');
+    }
+
+    function klikMenu(item) {
+      if (item.terkunci) {
+        alert('Akses terkunci, silahkan hubungi Owner / PIC Owner!');
+        return;
+      }
+      item.aksi();
     }
 
     function bukaIzin() { if (window.bukaFormIzinDariHome) window.bukaFormIzinDariHome(); }
@@ -97,20 +119,12 @@ const AppHome = {
     return {
       nama, sapaan, shift, sudahAbsenHariIni, menuGroups,
       pengumuman, memuatPengumuman,
-      klikClockInOut, bukaIzin, bukaCuti, bukaLembur,
+      klikClockInOut, klikMenu, bukaIzin, bukaCuti, bukaLembur,
       muatTampilan, muatSemua
     };
   },
   template: `
     <div>
-      <div style="background:var(--pink); border-radius:22px; padding:24px; position:relative; overflow:hidden; margin-bottom:16px;">
-        <div style="position:absolute; right:-40px; top:-40px; width:180px; height:180px; border-radius:50%; background:var(--blue); opacity:.3;"></div>
-        <div style="position:relative; z-index:1;">
-          <p style="font-size:12.5px; color:var(--mahogany-soft);">{{ sapaan }},</p>
-          <h2 class="gc-heading" style="font-size:19px; font-weight:700; color:var(--mahogany);">{{ nama }}</h2>
-        </div>
-      </div>
-
       <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;" v-if="shift.nama">
         <div>
           <p style="font-size:11px; color:var(--text-muted); font-weight:600;">Shift hari ini</p>
@@ -118,6 +132,21 @@ const AppHome = {
         </div>
         <span v-if="sudahAbsenHariIni" class="tag ok"><span class="tag-dot"></span>Sudah absen</span>
         <span v-else class="tag warn"><span class="tag-dot"></span>Belum absen</span>
+      </div>
+
+      <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Pengumuman</h3>
+      <div v-if="memuatPengumuman" style="text-align:center; padding:24px 0; color:var(--text-faint); font-size:12px; margin-bottom:22px;">Memuat pengumuman...</div>
+      <div v-else-if="pengumuman.length === 0" style="text-align:center; padding:24px 0; background:var(--surface); border:1px dashed var(--line); border-radius:16px; color:var(--text-faint); font-size:12px; margin-bottom:22px;">
+        <i class="fas fa-bell-slash" style="font-size:22px; margin-bottom:8px; display:block;"></i>Belum ada pengumuman terbaru.
+      </div>
+      <div v-else style="display:flex; flex-direction:column; gap:10px; margin-bottom:22px;">
+        <div v-for="p in pengumuman" :key="p.id" style="display:flex; gap:12px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px;">
+          <div style="width:38px; height:38px; border-radius:10px; background:var(--blue); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#1F5060;"><i class="fas fa-bell"></i></div>
+          <div>
+            <b style="font-size:12.5px;">{{ p.judul }}</b>
+            <p style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">{{ p.isi }}</p>
+          </div>
+        </div>
       </div>
 
       <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Shortcut</h3>
@@ -143,25 +172,11 @@ const AppHome = {
       <div v-for="grup in menuGroups" :key="grup.nama" style="margin-bottom:22px;">
         <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">{{ grup.nama }}</h3>
         <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px;">
-          <button v-for="item in grup.items" :key="item.label" @click="item.aksi()" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
+          <button v-for="item in grup.items" :key="item.label" @click="klikMenu(item)" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer; position:relative;" :style="item.terkunci ? 'opacity:.5;' : ''">
+            <i v-if="item.terkunci" class="fas fa-lock" style="position:absolute; top:6px; right:8px; font-size:9px; color:var(--text-faint);"></i>
             <span style="width:40px; height:40px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy);"><i class="fas" :class="item.icon"></i></span>
             <span style="font-size:10.5px; font-weight:700; color:var(--text); text-align:center; line-height:1.25;">{{ item.label }}</span>
           </button>
-        </div>
-      </div>
-
-      <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Pengumuman</h3>
-      <div v-if="memuatPengumuman" style="text-align:center; padding:24px 0; color:var(--text-faint); font-size:12px;">Memuat pengumuman...</div>
-      <div v-else-if="pengumuman.length === 0" style="text-align:center; padding:24px 0; background:var(--surface); border:1px dashed var(--line); border-radius:16px; color:var(--text-faint); font-size:12px;">
-        <i class="fas fa-bell-slash" style="font-size:22px; margin-bottom:8px; display:block;"></i>Belum ada pengumuman terbaru.
-      </div>
-      <div v-else style="display:flex; flex-direction:column; gap:10px;">
-        <div v-for="p in pengumuman" :key="p.id" style="display:flex; gap:12px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px;">
-          <div style="width:38px; height:38px; border-radius:10px; background:var(--blue); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#1F5060;"><i class="fas fa-bell"></i></div>
-          <div>
-            <b style="font-size:12.5px;">{{ p.judul }}</b>
-            <p style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">{{ p.isi }}</p>
-          </div>
         </div>
       </div>
     </div>

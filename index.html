@@ -169,6 +169,7 @@
               <i class="fas fa-user-clock" style="margin-right:6px;"></i> Antrean Dakar
             </button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn gc-sub-tab-btn">Config Karyawan</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-info', this)" class="sub-karyawan-btn gc-sub-tab-btn">Config Info</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this)" class="sub-karyawan-btn gc-sub-tab-btn">Daftar Karyawan</button>
             <button id="btn-sub-karyawan-akses" onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-akses', this)" class="sub-karyawan-btn gc-sub-tab-btn hidden">Config Akses</button>
             <button id="btn-sub-karyawan-hakakses" onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-hakakses', this)" class="sub-karyawan-btn gc-sub-tab-btn hidden">Hak Akses</button>
@@ -185,6 +186,12 @@
             <!-- MIGRASI VUE: halaman pertama yang pindah dari vanilla JS ke Vue
                  (CDN, tanpa build). Lihat js/vue-config-karyawan.js -->
             <div id="vue-config-karyawan"></div>
+          </div>
+
+          <div id="sub-karyawan-info" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
+            <!-- Config Info: kelola pengumuman yang tampil di Home mobile.
+                 Lihat js/vue-config-info.js -->
+            <div id="vue-config-info"></div>
           </div>
 
           <div id="sub-karyawan-data" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
@@ -287,6 +294,7 @@
   <script type="module" src="js/auth.js"></script>
   <script type="module" src="js/dashboard.js?v=5"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>
+  <script type="module" src="js/vue-config-info.js"></script>
   <script type="module" src="js/vue-config-absensi.js"></script>
   <script type="module" src="js/vue-daftar-karyawan.js"></script>
   <script type="module" src="js/vue-config-akses.js"></script>
