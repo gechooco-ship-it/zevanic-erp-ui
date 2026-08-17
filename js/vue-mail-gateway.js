@@ -8,7 +8,13 @@
 //
 // window.kirimOtpEmail / window.verifikasiOtpEmail (vue-otp.js) TETAP
 // dipanggil apa adanya dari sini — fungsi bersama, juga dipakai alur
-// Registrasi & login perangkat baru yang belum dimigrasi.
+// Registrasi & login perangkat baru.
+//
+// UPDATE (18 Agt 2026): tambah 1 template baru "Aktivasi Akun" — dipakai
+// js/vue-antrean-dakar.js untuk kirim email cara login (email + password
+// sementara = NIK) begitu Admin/Owner approve pendaftaran karyawan baru.
+// Sama seperti template lain di sini: kalau belum pernah diatur di
+// Firestore (config/mail_templates), fallback ke teks baku otomatis.
 // ============================================================================
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -18,7 +24,9 @@ const TEMPLATE_DEFAULT = {
   subjek_registrasi: "Kode Verifikasi Pendaftaran - Zevanic ERP",
   isi_registrasi: "Terima kasih sudah mendaftar di Zevanic ERP.\n\nKode verifikasi email Anda: {kode}\n\nMasukkan kode ini di aplikasi untuk melanjutkan pendaftaran. Kode berlaku 10 menit.",
   subjek_perangkat: "Kode Verifikasi Login Perangkat Baru - Zevanic ERP",
-  isi_perangkat: "Ada percobaan login ke akun Zevanic ERP Anda dari perangkat baru.\n\nKode verifikasi Anda: {kode}\n\nKode berlaku 10 menit. Kalau ini bukan Anda, abaikan email ini dan segera ganti password."
+  isi_perangkat: "Ada percobaan login ke akun Zevanic ERP Anda dari perangkat baru.\n\nKode verifikasi Anda: {kode}\n\nKode berlaku 10 menit. Kalau ini bukan Anda, abaikan email ini dan segera ganti password.",
+  subjek_aktivasi: "Akun Zevanic ERP Anda Sudah Aktif",
+  isi_aktivasi: "Halo {nama},\n\nAkun Zevanic ERP Anda sudah disetujui dan aktif.\n\nLogin di gechoo.online dengan:\nEmail: {email}\nPassword sementara: {password}\n\nAnda akan diminta mengganti password ini saat login pertama kali."
 };
 
 const AppMailGateway = {
@@ -71,7 +79,7 @@ const AppMailGateway = {
       menyimpanTemplate.value = true;
       try {
         await setDoc(doc(db, "config", "mail_templates"), { ...template });
-        alert("Template email berhasil disimpan! Berlaku untuk pengiriman OTP berikutnya.");
+        alert("Template email berhasil disimpan! Berlaku untuk pengiriman berikutnya.");
       } catch (e) {
         console.error("Gagal menyimpan template email:", e);
         alert("Gagal menyimpan template.");
@@ -119,7 +127,7 @@ const AppMailGateway = {
     <div class="gc-card">
       <div>
         <h2 class="gc-heading" style="font-size:16.5px; font-weight:700; display:flex; align-items:center;"><i class="fas fa-envelope" style="color:var(--burgundy); margin-right:10px;"></i> Mail Gateway</h2>
-        <p style="font-size:12px; color:var(--text-muted); margin-top:3px;">Pengiriman email OTP (registrasi & login perangkat baru) lewat Firebase Extension "Trigger Email". Konfigurasi SMTP-nya sendiri (App Password, dsb) diatur di Firebase Console, bukan di sini.</p>
+        <p style="font-size:12px; color:var(--text-muted); margin-top:3px;">Pengiriman email OTP (registrasi & login perangkat baru) & aktivasi akun lewat Firebase Extension "Trigger Email". Konfigurasi SMTP-nya sendiri (App Password, dsb) diatur di Firebase Console, bukan di sini.</p>
       </div>
       <div class="flex space-x-2 overflow-x-auto no-scrollbar" style="padding-top:14px; margin-top:14px; border-top:1px solid var(--line);">
         <button @click="pindahTab('config')" class="gc-sub-tab-btn" :class="{ active: tabAktif === 'config' }"><i class="fas fa-vial" style="margin-right:6px;"></i> Config &amp; Tes OTP</button>
@@ -155,8 +163,8 @@ const AppMailGateway = {
 
     <div v-show="tabAktif === 'template'" style="margin-top:16px;">
       <div class="gc-card" style="max-width:480px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;">Template Pesan OTP</h3>
-        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Placeholder <code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{kode}</code> otomatis diganti sistem saat email dikirim.</p>
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;">Template Pesan</h3>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Placeholder <code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{kode}</code>/<code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{nama}</code>/<code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{email}</code>/<code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{password}</code> otomatis diganti sistem saat email dikirim (tidak semua template pakai semua placeholder).</p>
 
         <div style="font-size:11px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; margin-bottom:8px;">OTP Registrasi</div>
         <div class="gc-field">
@@ -178,6 +186,16 @@ const AppMailGateway = {
           <textarea v-model="template.isi_perangkat" rows="4" style="font-size:12px;"></textarea>
         </div>
 
+        <div style="font-size:11px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; margin:16px 0 8px;">Aktivasi Akun (dikirim dari Antrean Dakar)</div>
+        <div class="gc-field">
+          <label>Subjek</label>
+          <input v-model="template.subjek_aktivasi" type="text">
+        </div>
+        <div class="gc-field">
+          <label>Isi pesan</label>
+          <textarea v-model="template.isi_aktivasi" rows="5" style="font-size:12px;"></textarea>
+        </div>
+
         <button @click="simpanTemplate" :disabled="menyimpanTemplate" class="btn-primary block" style="background:var(--ok);">
           <i class="fas fa-save" style="margin-right:6px;"></i> {{ menyimpanTemplate ? 'Menyimpan...' : 'Simpan template' }}
         </button>
@@ -188,7 +206,7 @@ const AppMailGateway = {
       <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
         <div>
           <h3 class="gc-heading" style="font-size:13.5px; font-weight:700;">Riwayat pengiriman</h3>
-          <p style="font-size:10.5px; color:var(--text-muted); margin-top:2px;">50 email terakhir yang diminta kirim (OTP, tes).</p>
+          <p style="font-size:10.5px; color:var(--text-muted); margin-top:2px;">50 email terakhir yang diminta kirim (OTP, aktivasi, tes).</p>
         </div>
         <button @click="muatMonitoring" class="btn-outline"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
       </div>

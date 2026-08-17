@@ -1,30 +1,54 @@
 // js/vue-login.js
 // ============================================================================
-// Migrasi layar Login (+ modal OTP) ke Vue. INI BAGIAN PALING SENSITIF DI
-// SELURUH APLIKASI — autentikasi, sesi, dan gerbang akses. Setiap logic di
-// bawah ini SENGAJA direplikasi PERSIS SAMA dengan versi vanilla sebelumnya,
-// tidak ada perubahan perilaku.
+// DIBANGUN ULANG (18 Agt 2026, sesi lanjutan) — BAGIAN PALING SENSITIF DI
+// SELURUH APLIKASI. Versi SEBELUMNYA masih pakai OTP WhatsApp yang TIDAK
+// AMAN (kode dibuat & dibandingkan LANGSUNG di JS browser — siapapun buka
+// DevTools bisa lihat/lewati verifikasinya) dan TIDAK PERNAH dapat modal
+// "wajib ganti password" — file itu ternyata tidak pernah berhasil
+// ter-push ke GitHub malam itu (lihat STATUS-PROYEK.md §3.5.5). File ini
+// dibangun ulang dari SPESIFIKASI di STATUS-PROYEK.md §3.5.1 — BELUM
+// PERNAH DITES sama sekali, WAJIB dites end-to-end sebelum dipakai
+// karyawan sungguhan.
+//
+// URUTAN SETELAH EMAIL+PASSWORD BENAR (keputusan desain sesi ini, dicatat
+// supaya jelas alasannya untuk sesi berikutnya):
+//   1. Device belum pernah diverifikasi (localStorage) DAN toggle OTP aktif
+//      -> modal OTP EMAIL dulu (window.kirimOtpEmail/verifikasiOtpEmail,
+//      konteks 'perangkat_baru') — verifikasi identitas orangnya SEBELUM
+//      apapun lagi, termasuk sebelum boleh ganti password.
+//   2. BARU SETELAH itu (atau langsung kalau device sudah terpercaya):
+//      cek wajib_ganti_password — kalau true, modal ganti password WAJIB,
+//      tidak bisa dilewati.
+//   3. BARU lanjut ke alur normal (cek status_approval/gudang/jam kerja,
+//      dst — SAMA PERSIS seperti sebelumnya, tidak diubah).
+// Urutan 1 sebelum 2 ini SENGAJA DIBALIK dari kalimat STATUS-PROYEK.md
+// §3.5.1 poin 3 ("begitu password benar, SEBELUM lanjut kemanapun, modal
+// wajib ganti password") — pertimbangannya: kalau modal ganti password
+// ditaruh SEBELUM verifikasi perangkat, seseorang yang cuma tahu/nebak
+// NIK orang lain (NIK relatif tidak rahasia di banyak konteks) bisa
+// langsung ganti password akun itu tanpa perlu lolos verifikasi apapun.
+// Verifikasi device dulu menutup celah itu. DISKUSIKAN ULANG dengan
+// Hilman kalau urutan ini dianggap kurang tepat — gampang dibalik lagi.
 //
 // TIDAK disentuh / tetap murni vanilla di auth.js:
-// - onAuthStateChanged (sesi otomatis) — berjalan independen di level modul,
-//   tidak bergantung pada elemen form manapun, jadi aman dibiarkan apa adanya.
+// - onAuthStateChanged (sesi otomatis)
 // - window.lupaPassword — TETAP membaca document.getElementById('input-email')
 //   secara langsung; makanya input email di Vue ini WAJIB tetap pakai
-//   id="input-email" (v-model tetap menjaga .value DOM-nya sinkron).
+//   id="input-email".
 // - window.bukaFormRegistrasi, window.aturTampilanBerdasarkanRole,
 //   window.pindahLayar, window.pindahTab, window.ambilMasterList,
-//   window.kirimPesanWhatsapp, window.ambilTemplateWA, window.pesanErrorAuth
-//   — semua dipanggil apa adanya dari sini.
+//   window.pesanErrorAuth — semua dipanggil apa adanya dari sini.
+// - window.kirimOtpEmail / window.verifikasiOtpEmail (vue-otp.js) — fondasi
+//   OTP bersama, SAMA yang dipakai Registrasi.
 // ============================================================================
-import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { collection, getDocs, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { signInWithEmailAndPassword, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { db, auth } from "./firebase-config.js";
 
 function isDesktopBrowser() {
   return !/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
-// xx 
 
 // Poin 4: cek ke server (bukan localStorage) apakah user ini sudah Clock In
 // hari ini — Clock In terjadi di HP, desktop tidak akan pernah tahu soal itu
@@ -61,13 +85,13 @@ const AppLogin = {
     const izin = reactive({ tanggal: '', alasan: '', detail: '' });
     const opsiAlasanIzin = ref([]);
 
-    // ---- OTP ----
+    // ---- OTP perangkat baru (EMAIL, lewat vue-otp.js — bukan WA lagi) ----
     const otpVisible = ref(false);
-    const otpNomorMasked = ref('****');
+    const otpEmailAktif = ref(''); // email yang sedang diverifikasi
     const otpInput = ref('');
-    const otpState = reactive({ kode: null, email: null, kadaluarsa: null });
     const otpSudahDikirim = ref(false); // sebelum ini true, tombol "Kirim Kode OTP" yang tampil, bukan input kode
     const otpMengirim = ref(false);
+    const otpMemverifikasi = ref(false);
     const otpCountdown = ref(0); // detik tersisa sebelum boleh kirim ulang
     let otpCountdownTimer = null;
 
@@ -76,9 +100,8 @@ const AppLogin = {
       const s = detik % 60;
       return m + ':' + String(s).padStart(2, '0');
     }
-
     function mulaiCountdownOtp() {
-      otpCountdown.value = 120; // 2 menit — cegah spam kirim ulang ke WhatsApp
+      otpCountdown.value = 120; // 2 menit — cegah spam kirim ulang
       if (otpCountdownTimer) clearInterval(otpCountdownTimer);
       otpCountdownTimer = setInterval(() => {
         otpCountdown.value--;
@@ -89,11 +112,17 @@ const AppLogin = {
         }
       }, 1000);
     }
-
     function hentikanCountdownOtp() {
       if (otpCountdownTimer) { clearInterval(otpCountdownTimer); otpCountdownTimer = null; }
       otpCountdown.value = 0;
     }
+
+    // ---- Wajib ganti password (dipicu wajib_ganti_password==true) ----
+    const gantiPasswordVisible = ref(false);
+    const gantiPasswordEmailAktif = ref('');
+    const passwordBaru = ref('');
+    const passwordKonfirmasi = ref('');
+    const menyimpanPasswordBaru = ref(false);
 
     onMounted(() => {
       const savedEmail = localStorage.getItem('zevanic_email');
@@ -113,7 +142,6 @@ const AppLogin = {
     function lupaPassword() {
       if (window.lupaPassword) window.lupaPassword();
     }
-
     function bukaFormRegistrasi() {
       if (window.bukaFormRegistrasi) window.bukaFormRegistrasi();
     }
@@ -131,7 +159,6 @@ const AppLogin = {
         alert("Masukkan email dan password terlebih dahulu!");
         return;
       }
-
       if (window.statusPilihanGlobal === "IZIN") {
         if (!window.tanggalIzinGlobal || !window.keteranganIzinGlobal) {
           alert("Harap isi Tanggal dan Keterangan untuk pengajuan Izin/Cuti!");
@@ -151,25 +178,22 @@ const AppLogin = {
         return;
       }
 
-      // Verifikasi OTP WhatsApp — hanya untuk login PERTAMA di perangkat ini.
-      // PENTING: kode TIDAK dikirim otomatis di sini lagi — modal tampil dulu,
-      // user harus klik "Kirim Kode OTP" secara manual (lihat kirimKodeOtp()).
-      // Ini mencegah pengiriman WA berulang tanpa sadar/disengaja (spam).
-      const otpDiperlukan = await apakahOtpDiperlukan(emailInput);
-      if (otpDiperlukan) {
-        otpState.email = emailInput;
-        otpState.kode = null;
-        otpState.kadaluarsa = null;
-        otpSudahDikirim.value = false;
+      // Tahap 1: verifikasi perangkat baru (kalau perlu) — kode TIDAK
+      // dikirim otomatis di sini, modal tampil dulu, user klik "Kirim
+      // Kode OTP" secara manual (cegah pengiriman email berulang tanpa
+      // sadar/disengaja).
+      const perluOtp = await apakahOtpDiperlukan(emailInput);
+      if (perluOtp) {
+        otpEmailAktif.value = emailInput;
         otpInput.value = '';
-        otpNomorMasked.value = '****';
+        otpSudahDikirim.value = false;
         hentikanCountdownOtp();
         otpVisible.value = true;
         memproses.value = false;
-        return;
+        return; // nunggu interaksi modal OTP — dilanjut dari verifikasiOtpPerangkat()
       }
 
-      await lanjutkanSetelahLogin(emailInput);
+      await lanjutkanSetelahOtp(emailInput);
       memproses.value = false;
     }
 
@@ -185,68 +209,123 @@ const AppLogin = {
       return !sudahTerverifikasi;
     }
 
-    // Dipanggil dari tombol "Kirim Kode OTP" (pertama kali) MAUPUN "Kirim Ulang"
-    // (setelah countdown 2 menit habis) — logic-nya sama persis, cuma dipicu
-    // dari 2 tombol berbeda di template.
-    async function kirimKodeOtp() {
+    // Dipanggil dari tombol "Kirim Kode OTP" (pertama kali) MAUPUN "Kirim
+    // Ulang" (setelah countdown 2 menit habis) — logic-nya sama persis.
+    async function kirimKodeOtpPerangkat() {
       if (otpMengirim.value || otpCountdown.value > 0) return; // jaga-jaga dobel klik
       otpMengirim.value = true;
-
-      const emailOtp = otpState.email;
-      const kode = String(Math.floor(100000 + Math.random() * 900000));
-
-      let nomorHp = "";
-      try {
-        const userSnap = await getDoc(doc(db, "users", emailOtp));
-        if (userSnap.exists()) nomorHp = userSnap.data().hp || "";
-      } catch (e) { console.error(e); }
-
-      if (!nomorHp) {
-        alert("Nomor HP Anda belum terdaftar di sistem, tidak bisa mengirim OTP. Hubungi Owner/PIC.");
-        otpMengirim.value = false;
-        return;
-      }
-
-      const templateOtp = window.ambilTemplateWA ? await window.ambilTemplateWA('template_otp') : "Kode OTP Anda: *{kode}*";
-      const terkirim = window.kirimPesanWhatsapp ? await window.kirimPesanWhatsapp(nomorHp, templateOtp.replace(/\{kode\}/g, kode), "OTP") : false;
-
+      const hasil = await window.kirimOtpEmail(otpEmailAktif.value, 'perangkat_baru');
       otpMengirim.value = false;
-
-      if (!terkirim) {
-        alert("Gagal mengirim kode OTP lewat WhatsApp. Coba lagi atau hubungi Owner/PIC.");
+      if (!hasil.sukses) {
+        alert(hasil.pesan || "Gagal mengirim kode verifikasi.");
         return;
       }
-
-      Object.assign(otpState, { kode, email: emailOtp, kadaluarsa: Date.now() + 5 * 60 * 1000 });
-      otpNomorMasked.value = nomorHp.replace(/(\d{4})\d+(\d{3})/, '$1****$2');
       otpInput.value = '';
       otpSudahDikirim.value = true;
       mulaiCountdownOtp();
     }
 
+    async function verifikasiOtpPerangkat() {
+      if (!/^\d{6}$/.test(otpInput.value.trim())) {
+        alert("Kode harus 6 angka.");
+        return;
+      }
+      otpMemverifikasi.value = true;
+      const hasil = await window.verifikasiOtpEmail(otpEmailAktif.value, otpInput.value.trim());
+      otpMemverifikasi.value = false;
+      if (!hasil.sukses) {
+        alert(hasil.pesan);
+        return;
+      }
+      localStorage.setItem('zevanic_device_verified_' + otpEmailAktif.value, 'true');
+      otpVisible.value = false;
+      hentikanCountdownOtp();
+      memproses.value = true;
+      await lanjutkanSetelahOtp(otpEmailAktif.value);
+      memproses.value = false;
+    }
+
     async function batalkanOtp() {
       otpVisible.value = false;
       hentikanCountdownOtp();
-      otpSudahDikirim.value = false;
       await signOut(auth);
+      window._manualLoginInProgress = false;
     }
 
-    async function verifikasiOtpDanLanjut() {
-      if (!otpState.kode || Date.now() > otpState.kadaluarsa) {
-        alert("Kode OTP sudah kadaluarsa. Silakan kirim ulang.");
+    // Tahap 2: cek wajib ganti password SEBELUM lanjut ke pengecekan lain
+    // (status_approval/gudang/dst — lihat lanjutkanSetelahLogin di bawah).
+    async function lanjutkanSetelahOtp(emailInput) {
+      let dataUser = null;
+      try {
+        const userSnap = await getDoc(doc(db, "users", emailInput));
+        if (!userSnap.exists()) {
+          alert("Profil akun Anda tidak ditemukan. Silakan hubungi Owner/PIC.");
+          await signOut(auth);
+          window._manualLoginInProgress = false;
+          return;
+        }
+        dataUser = userSnap.data();
+      } catch (e) {
+        console.error("Gagal ambil profil untuk cek wajib ganti password:", e);
+        alert("Gagal memuat profil akun Anda. Coba login lagi.");
+        await signOut(auth);
+        window._manualLoginInProgress = false;
         return;
       }
-      if (otpInput.value.trim() !== otpState.kode) {
-        alert("Kode OTP salah. Silakan coba lagi.");
-        return;
+
+      if (dataUser.wajib_ganti_password === true) {
+        gantiPasswordEmailAktif.value = emailInput;
+        passwordBaru.value = '';
+        passwordKonfirmasi.value = '';
+        gantiPasswordVisible.value = true;
+        return; // nunggu interaksi modal ganti password — dilanjut dari simpanPasswordBaru()
       }
-      localStorage.setItem('zevanic_device_verified_' + otpState.email, 'true');
-      otpVisible.value = false;
-      hentikanCountdownOtp();
-      await lanjutkanSetelahLogin(otpState.email);
+
+      await lanjutkanSetelahLogin(emailInput, dataUser);
     }
 
-    async function lanjutkanSetelahLogin(emailInput) {
+    async function simpanPasswordBaru() {
+      if (passwordBaru.value.length < 6) return alert("Password baru minimal 6 karakter!");
+      if (passwordBaru.value !== passwordKonfirmasi.value) return alert("Konfirmasi password tidak sama dengan password baru!");
+      menyimpanPasswordBaru.value = true;
+      try {
+        await updatePassword(auth.currentUser, passwordBaru.value);
+        await updateDoc(doc(db, "users", gantiPasswordEmailAktif.value), { wajib_ganti_password: false });
+        gantiPasswordVisible.value = false;
+        await lanjutkanSetelahLogin(gantiPasswordEmailAktif.value);
+      } catch (e) {
+        console.error("Gagal ganti password:", e);
+        // Risiko yang sudah diketahui sejak spesifikasi awal
+        // (STATUS-PROYEK.md §3.5.5): updatePassword() Firebase bisa
+        // menolak kalau sesi dianggap "tidak baru login" —
+        // auth/requires-recent-login. Solusinya: login ulang, LANGSUNG
+        // coba lagi (jangan ditunda).
+        if (e.code === 'auth/requires-recent-login') {
+          alert("Demi keamanan, Firebase minta sesi login yang lebih baru untuk ganti password. Silakan login LAGI dengan password lama, lalu SEGERA coba ganti password (jangan ditunda).");
+          await signOut(auth);
+          window._manualLoginInProgress = false;
+          gantiPasswordVisible.value = false;
+        } else if (e.code === 'auth/weak-password') {
+          alert("Password terlalu lemah, minimal 6 karakter.");
+        } else {
+          alert("Gagal menyimpan password baru: " + e.message);
+        }
+      }
+      menyimpanPasswordBaru.value = false;
+    }
+
+    async function batalkanGantiPassword() {
+      if (!confirm("Anda WAJIB mengganti password sebelum bisa memakai sistem. Batal berarti keluar dari sesi login ini — lanjutkan?")) return;
+      gantiPasswordVisible.value = false;
+      await signOut(auth);
+      window._manualLoginInProgress = false;
+    }
+
+    // Tahap 3: alur normal — SAMA PERSIS seperti versi sebelum perombakan
+    // ini (status_approval, gudang, Clock In desktop/mobile, dst, TIDAK
+    // diubah perilakunya). Terima dataUserSudahAda opsional supaya tidak
+    // baca ulang Firestore kalau sudah sempat diambil di lanjutkanSetelahOtp().
+    async function lanjutkanSetelahLogin(emailInput, dataUserSudahAda) {
       if (ingatSaya.value) {
         localStorage.setItem('zevanic_email', emailInput);
       } else {
@@ -254,61 +333,62 @@ const AppLogin = {
       }
       localStorage.removeItem('zevanic_pass');
 
-      const userRef = doc(db, "users", emailInput);
-      const userSnap = await getDoc(userRef);
+      let d = dataUserSudahAda;
+      if (!d) {
+        const userSnap = await getDoc(doc(db, "users", emailInput));
+        if (!userSnap.exists()) {
+          alert("Profil akun Anda tidak ditemukan. Silakan hubungi Owner/PIC.");
+          await signOut(auth);
+          window._manualLoginInProgress = false;
+          return;
+        }
+        d = userSnap.data();
+      }
 
       let isOwnerRole = false;
+      window.currentUser = {
+        ...d,
+        email: emailInput,
+        name: d.nama || d.name || emailInput,
+        role: (d.role || "operator").toLowerCase(),
+        id_app: d.id_app || "N/A",
+        id_karyawan: d.id_karyawan || "N/A",
+        jabatan: d.jabatan || "Staff",
+        status_kerja: d.status_kerja || "Aktif",
+        gudang_penempatan: window.normalisasiGudang(d.gudang_penempatan)
+      };
+      isOwnerRole = (window.currentUser.role === 'owner' || window.currentUser.role === 'superuser');
 
-      if (userSnap.exists()) {
-        const d = userSnap.data();
-        window.currentUser = {
-          ...d,
-          email: emailInput,
-          name: d.nama || d.name || emailInput,
-          role: (d.role || "operator").toLowerCase(),
-          id_app: d.id_app || "N/A",
-          id_karyawan: d.id_karyawan || "N/A",
-          jabatan: d.jabatan || "Staff",
-          status_kerja: d.status_kerja || "Aktif",
-          gudang_penempatan: window.normalisasiGudang(d.gudang_penempatan)
-        };
-        isOwnerRole = (window.currentUser.role === 'owner' || window.currentUser.role === 'superuser');
-
-        if (d.status_approval && d.status_approval !== "APPROVED") {
-          alert(d.status_approval === "PENDING"
-            ? "Akun Anda masih menunggu persetujuan Owner/PIC. Silakan hubungi mereka."
-            : "Akun Anda tidak disetujui untuk mengakses sistem. Silakan hubungi Owner/PIC.");
-          await signOut(auth);
-          return;
-        }
-
-        // Owner/Superuser tidak wajib ditautkan ke gudang manapun — perannya
-        // manajerial, bukan operasional lapangan.
-        if (window.currentUser.gudang_penempatan.length === 0 && !isOwnerRole) {
-          alert("Akun Anda belum ditautkan ke gudang manapun. Silakan hubungi Owner/PIC.");
-          await signOut(auth);
-          return;
-        }
-      } else {
-        alert("Profil akun Anda tidak ditemukan. Silakan hubungi Owner/PIC.");
+      if (d.status_approval && d.status_approval !== "APPROVED") {
+        alert(d.status_approval === "PENDING"
+          ? "Akun Anda masih menunggu persetujuan Owner/PIC. Silakan hubungi mereka."
+          : "Akun Anda tidak disetujui untuk mengakses sistem. Silakan hubungi Owner/PIC.");
         await signOut(auth);
+        window._manualLoginInProgress = false;
+        return;
+      }
+
+      // Owner/Superuser tidak wajib ditautkan ke gudang manapun — perannya
+      // manajerial, bukan operasional lapangan.
+      if (window.currentUser.gudang_penempatan.length === 0 && !isOwnerRole) {
+        alert("Akun Anda belum ditautkan ke gudang manapun. Silakan hubungi Owner/PIC.");
+        await signOut(auth);
+        window._manualLoginInProgress = false;
         return;
       }
 
       await window.muatAksesConfigSaya(window.currentUser.role, window.currentUser.profil_akses);
       window.aturTampilanBerdasarkanRole();
       if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
-      // Sama seperti di auth.js — Home butuh refresh segera setelah login
-      // manual juga, bukan cuma sesi otomatis.
       if (window.refreshHome) window.refreshHome();
       if (window.refreshHeaderMobile) window.refreshHeaderMobile();
 
       // Owner/Superuser: langsung ke Dashboard dari HP maupun komputer,
-      // tanpa syarat Clock In sama sekali — perannya tidak melakukan presensi
-      // lapangan seperti karyawan operasional.
+      // tanpa syarat Clock In sama sekali.
       if (isOwnerRole) {
         window.pindahLayar('screen-dashboard');
         window.pindahTab('tab-home');
+        window._manualLoginInProgress = false;
         return;
       }
 
@@ -325,6 +405,7 @@ const AppLogin = {
           alert("Login lewat komputer cuma bisa dipakai kalau Anda sudah Clock In hari ini. Silakan Clock In dari HP terlebih dahulu, atau ajukan Izin/Cuti dari HP.");
           await signOut(auth);
         }
+        window._manualLoginInProgress = false;
         return;
       }
 
@@ -332,24 +413,22 @@ const AppLogin = {
         alert("Anda sudah Clock In hari ini. Mengalihkan langsung ke Dashboard...");
         window.pindahLayar('screen-dashboard');
         window.pindahTab('tab-home');
+        window._manualLoginInProgress = false;
         return;
       }
 
-      // Label "Mode: ..." di layar kamera diatur OTOMATIS & REAKTIF oleh
-      // vue-camera.js sendiri (modeLabel) tiap kali pindah ke screen-camera
-      // (lihat app.js pindahLayar -> window.mulaiKamera()) — baris
-      // document.getElementById('label-status-kamera') yang dulu di sini
-      // SUDAH TIDAK ADA elemennya (dihapus saat migrasi Vue kamera), jadi
-      // selalu error dan bikin proses login macet di "Memproses...".
+      window._manualLoginInProgress = false;
       window.pindahLayar('screen-camera');
     }
 
     return {
       email, password, showPassword, ingatSaya, statusPilihan, memproses, isDesktop,
       izin, opsiAlasanIzin, bukaFormIzinDropdown,
-      otpVisible, otpNomorMasked, otpInput, otpSudahDikirim, otpMengirim, otpCountdown, formatCountdownOtp,
+      otpVisible, otpEmailAktif, otpInput, otpSudahDikirim, otpMengirim, otpMemverifikasi, otpCountdown, formatCountdownOtp,
+      gantiPasswordVisible, passwordBaru, passwordKonfirmasi, menyimpanPasswordBaru,
       lupaPassword, bukaFormRegistrasi, login,
-      batalkanOtp, kirimKodeOtp, verifikasiOtpDanLanjut
+      batalkanOtp, kirimKodeOtpPerangkat, verifikasiOtpPerangkat,
+      simpanPasswordBaru, batalkanGantiPassword
     };
   },
   template: `
@@ -431,29 +510,53 @@ const AppLogin = {
       </div>
     </div>
 
+    <!-- Modal OTP perangkat baru — EMAIL, bukan WhatsApp lagi -->
     <div v-if="otpVisible" style="position:fixed; inset:0; z-index:120; background:rgba(59,42,31,.6); display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
       <div style="background:var(--surface); width:100%; max-width:380px; padding:26px; border-radius:22px; text-align:center;">
-        <i class="fab fa-whatsapp" style="font-size:44px; color:var(--ok);"></i>
+        <i class="far fa-envelope" style="font-size:44px; color:var(--burgundy);"></i>
         <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-top:10px;">Verifikasi perangkat baru</h3>
 
         <template v-if="!otpSudahDikirim">
-          <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Perangkat ini belum pernah diverifikasi. Klik tombol di bawah untuk kirim kode OTP ke WhatsApp nomor terdaftar Anda.</p>
-          <button @click="kirimKodeOtp" :disabled="otpMengirim" class="btn-primary block" style="margin-top:16px; background:var(--ok);">
+          <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Perangkat ini belum pernah diverifikasi. Klik tombol di bawah untuk kirim kode OTP ke EMAIL terdaftar Anda.</p>
+          <button @click="kirimKodeOtpPerangkat" :disabled="otpMengirim" class="btn-primary block" style="margin-top:16px;">
             {{ otpMengirim ? 'Mengirim...' : 'Kirim Kode OTP' }}
           </button>
           <button @click="batalkanOtp" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer; margin-top:12px; font-size:12.5px;">Batal</button>
         </template>
 
         <template v-else>
-          <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Kode OTP telah dikirim lewat WhatsApp ke nomor <b style="color:var(--text);">{{ otpNomorMasked }}</b></p>
+          <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Kode OTP telah dikirim lewat email ke <b style="color:var(--text);">{{ otpEmailAktif }}</b></p>
           <input v-model="otpInput" type="text" maxlength="6" inputmode="numeric" placeholder="6 digit kode" style="width:100%; text-align:center; letter-spacing:.5em; font-size:18px; font-weight:700; padding:12px; margin-top:16px; border:1.5px solid var(--line); border-radius:12px; outline:none; font-family:'Poppins',sans-serif;">
-          <button @click="verifikasiOtpDanLanjut" class="btn-primary block" style="margin-top:14px; background:var(--ok);">Verifikasi</button>
+          <button @click="verifikasiOtpPerangkat" :disabled="otpMemverifikasi" class="btn-primary block" style="margin-top:14px;">{{ otpMemverifikasi ? 'Memverifikasi...' : 'Verifikasi' }}</button>
           <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:12.5px;">
             <button v-if="otpCountdown > 0" disabled style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:not-allowed;">Kirim ulang ({{ formatCountdownOtp(otpCountdown) }})</button>
-            <button v-else @click="kirimKodeOtp" :disabled="otpMengirim" style="background:none; border:none; color:var(--burgundy); font-weight:700; cursor:pointer;">{{ otpMengirim ? 'Mengirim...' : 'Kirim ulang' }}</button>
+            <button v-else @click="kirimKodeOtpPerangkat" :disabled="otpMengirim" style="background:none; border:none; color:var(--burgundy); font-weight:700; cursor:pointer;">{{ otpMengirim ? 'Mengirim...' : 'Kirim ulang' }}</button>
             <button @click="batalkanOtp" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer;">Batal</button>
           </div>
         </template>
+      </div>
+    </div>
+
+    <!-- Modal WAJIB ganti password — login pertama kali setelah di-approve -->
+    <div v-if="gantiPasswordVisible" style="position:fixed; inset:0; z-index:120; background:rgba(59,42,31,.6); display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+      <div style="background:var(--surface); width:100%; max-width:380px; padding:26px; border-radius:22px;">
+        <div style="text-align:center; margin-bottom:16px;">
+          <i class="fas fa-key" style="font-size:40px; color:var(--burgundy);"></i>
+          <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-top:10px;">Wajib ganti password</h3>
+          <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Ini login pertama Anda. Demi keamanan, ganti password sementara (NIK) dengan password baru pilihan Anda sendiri sebelum lanjut.</p>
+        </div>
+        <div class="gc-field">
+          <label>Password baru (min. 6 karakter)</label>
+          <input v-model="passwordBaru" type="password" placeholder="Password baru">
+        </div>
+        <div class="gc-field">
+          <label>Konfirmasi password baru</label>
+          <input v-model="passwordKonfirmasi" type="password" placeholder="Ulangi password baru">
+        </div>
+        <button @click="simpanPasswordBaru" :disabled="menyimpanPasswordBaru" class="btn-primary block">
+          {{ menyimpanPasswordBaru ? 'Menyimpan...' : 'Simpan & lanjutkan' }}
+        </button>
+        <button @click="batalkanGantiPassword" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer; margin-top:12px; font-size:12.5px; display:block; width:100%; text-align:center;">Batal & keluar</button>
       </div>
     </div>
   `

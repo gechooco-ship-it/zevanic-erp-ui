@@ -4,7 +4,12 @@ import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { getStorage } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
-const firebaseConfig = {
+// EXPORTED (18 Agt 2026) — objek mentahnya, bukan cuma hasil initializeApp,
+// dipakai js/vue-antrean-dakar.js untuk bikin instance Firebase KEDUA saat
+// approve karyawan baru (supaya createUserWithEmailAndPassword tidak
+// "melempar" logout sesi Admin yang sedang aktif di instance UTAMA). Lihat
+// STATUS-PROYEK.md §3.5.2 untuk penjelasan lengkap kenapa ini perlu.
+export const firebaseConfig = {
   apiKey: "AIzaSyDOKxjdqE1476uR9zB9lug-sYMFbGwGihk",
   authDomain: "zevanic-erp.firebaseapp.com",
   projectId: "zevanic-erp",
