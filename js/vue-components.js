@@ -476,16 +476,16 @@ export const PengumumanCarousel = {
             <video v-if="p.mediaType === 'video'" :src="p.mediaUrl" controls style="width:100%; height:100%; object-fit:cover; display:block;"></video>
             <img v-else :src="p.mediaUrl" :alt="p.judul" style="width:100%; height:100%; object-fit:cover; display:block;">
           </div>
-          <div style="padding:14px; display:flex; gap:12px;">
-            <div v-if="!p.mediaUrl" style="width:38px; height:38px; border-radius:10px; background:var(--blue); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#1F5060;"><i class="fas fa-bell"></i></div>
+          <div style="padding:11px; display:flex; gap:9px;">
+            <div v-if="!p.mediaUrl" style="width:34px; height:34px; border-radius:10px; background:var(--blue); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#1F5060;"><i class="fas fa-bell"></i></div>
             <div>
               <b style="font-size:13px;">{{ p.judul }}</b>
-              <p style="font-size:12px; color:var(--text-muted); margin-top:3px;">{{ p.isi }}</p>
+              <p style="font-size:12px; color:var(--text-muted); margin-top:2px;">{{ p.isi }}</p>
             </div>
           </div>
         </div>
       </div>
-      <div v-if="daftar.length > 1" style="display:flex; justify-content:center; gap:6px; margin-top:10px;">
+      <div v-if="daftar.length > 1" style="display:flex; justify-content:center; gap:6px; margin-top:7px;">
         <button v-for="(p, i) in daftar" :key="p.id" @click="keSlide(i)" style="width:7px; height:7px; border-radius:50%; border:none; padding:0; cursor:pointer;" :style="i === slideAktif ? 'background:var(--burgundy); width:18px; border-radius:4px;' : 'background:var(--line);'"></button>
       </div>
     </div>
@@ -553,11 +553,11 @@ export const QuoteCard = {
     return { quote, memuat };
   },
   template: `
-    <div v-if="!memuat && quote" style="background:linear-gradient(135deg, var(--pink), var(--blue)); border-radius:18px; padding:16px; margin-bottom:22px; position:relative; overflow:hidden;">
+    <div v-if="!memuat && quote" style="background:linear-gradient(135deg, var(--pink), var(--blue)); border-radius:18px; padding:12px 14px; margin-bottom:14px; position:relative; overflow:hidden;">
       <div style="position:absolute; right:-20px; bottom:-20px; width:100px; height:100px; border-radius:50%; background:rgba(255,255,255,.25);"></div>
       <div style="position:relative; z-index:1;">
         <h4 class="gc-heading" style="font-size:14px; font-weight:700; color:var(--mahogany); display:flex; align-items:center; gap:8px;"><i class="fas fa-quote-left"></i> {{ quote.judul }}</h4>
-        <p style="font-size:12.5px; color:var(--mahogany-soft); margin-top:6px; line-height:1.5;">{{ quote.isi }}</p>
+        <p style="font-size:12.5px; color:var(--mahogany-soft); margin-top:5px; line-height:1.45;">{{ quote.isi }}</p>
       </div>
     </div>
   `

@@ -118,7 +118,7 @@ const AppHome = {
   },
   template: `
     <div>
-      <div class="gc-card" v-if="shift.nama" style="margin-top:-26px; margin-bottom:16px; position:relative; z-index:2; box-shadow:0 8px 20px rgba(110,30,44,.12);">
+      <div class="gc-card" v-if="shift.nama" style="margin-top:-26px; margin-bottom:14px; padding:14px 16px; position:relative; z-index:2; box-shadow:0 8px 20px rgba(110,30,44,.12);">
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
           <div>
             <p style="font-size:11px; color:var(--text-muted); font-weight:600;">Shift hari ini &middot; {{ shift.gudang }}</p>
@@ -127,14 +127,13 @@ const AppHome = {
           <span v-if="sudahAbsenHariIni" class="tag ok"><span class="tag-dot"></span>Sudah absen</span>
           <span v-else class="tag warn"><span class="tag-dot"></span>Belum absen</span>
         </div>
-        <div v-if="sudahAbsenHariIni && jamMasukAsli" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--line); display:flex; align-items:center; gap:6px;">
+        <div v-if="sudahAbsenHariIni && jamMasukAsli" style="margin-top:8px; padding-top:8px; border-top:1px solid var(--line); display:flex; align-items:center; gap:6px;">
           <i class="fas fa-stopwatch" style="color:var(--burgundy); font-size:12px;"></i>
           <span class="gc-heading num" style="font-size:13px; font-weight:700; color:var(--text);">{{ jamMasukAsli }} &ndash; {{ durasiBerjalan }}</span>
         </div>
       </div>
 
-      <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Pengumuman</h3>
-      <div style="margin-bottom:22px;">
+      <div style="margin-bottom:14px;">
         <pengumuman-carousel />
       </div>
 

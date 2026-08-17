@@ -105,6 +105,8 @@ const AppConfigInfo = {
 
     async function simpan() {
       if (!form.judul.trim() || !form.isi.trim()) return alert("Judul dan isi pengumuman harus diisi!");
+      if (form.judul.length > 35) return alert("Judul maksimal 35 karakter!");
+      if (form.isi.length > 145) return alert("Isi pengumuman maksimal 145 karakter!");
       menyimpan.value = true;
       try {
         const idDipakai = form.id || String(Date.now());
@@ -262,12 +264,18 @@ const AppConfigInfo = {
       <div class="gc-card" style="margin-bottom:16px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;">{{ form.id ? 'Edit Pengumuman' : 'Buat Pengumuman Baru' }}</h3>
         <div class="gc-field">
-          <label style="display:flex; justify-content:space-between; align-items:center;">Judul <emoji-picker @pilih="form.judul += $event" /></label>
-          <input v-model="form.judul" type="text" placeholder="Contoh: Libur Nasional 17 Agustus">
+          <label style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Judul <span style="font-weight:400; color:var(--text-faint);">({{ form.judul.length }}/35)</span></span>
+            <emoji-picker @pilih="form.judul += $event" />
+          </label>
+          <input v-model="form.judul" type="text" maxlength="35" placeholder="Contoh: Libur Nasional 17 Agustus">
         </div>
         <div class="gc-field">
-          <label style="display:flex; justify-content:space-between; align-items:center;">Isi Pengumuman <emoji-picker @pilih="form.isi += $event" /></label>
-          <textarea v-model="form.isi" rows="3" placeholder="Contoh: Gudang tutup, absensi otomatis libur."></textarea>
+          <label style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Isi Pengumuman <span style="font-weight:400; color:var(--text-faint);">({{ form.isi.length }}/145)</span></span>
+            <emoji-picker @pilih="form.isi += $event" />
+          </label>
+          <textarea v-model="form.isi" rows="3" maxlength="145" placeholder="Contoh: Gudang tutup, absensi otomatis libur."></textarea>
         </div>
         <div class="gc-field">
           <label>Lampiran Gambar/Video (opsional, maks 1MB)</label>

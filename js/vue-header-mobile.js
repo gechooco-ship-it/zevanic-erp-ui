@@ -14,7 +14,7 @@
 // TIDAK baca Firestore sama sekali untuk ganti konteks (murni cocokkan ID
 // ke daftar label yang sudah ada di memori).
 // ============================================================================
-import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 
 const LABEL_TAB = {
   'tab-home': 'Home',
@@ -46,6 +46,10 @@ const AppHeaderMobile = {
     const konteks = reactive({ mode: 'home', menuLabel: '', subMenuLabel: '' });
     const sapaan = ref('Selamat datang');
     const nama = ref('');
+    // Nama dibatasi maksimal 20 karakter di header (kartu kecil, banyak
+    // nama karyawan panjang) — dipotong + "…" kalau lebih panjang dari
+    // itu, nama ASLI tetap utuh di window.currentUser/Profile.
+    const namaTampil = computed(() => nama.value.length > 20 ? nama.value.slice(0, 20).trim() + '…' : nama.value);
 
     function tentukanSapaan() {
       const jam = new Date().getHours();
@@ -77,15 +81,15 @@ const AppHeaderMobile = {
     window.refreshHeaderMobile = muatTampilan;
     onMounted(async () => { await window.authReady; muatTampilan(); });
 
-    return { konteks, sapaan, nama };
+    return { konteks, sapaan, namaTampil };
   },
   template: `
-    <div class="md:hidden" style="background:var(--pink); border-radius:22px; padding:18px 20px; position:relative; overflow:hidden; margin-bottom:16px;">
+    <div class="md:hidden" style="background:var(--pink); border-radius:22px; padding:14px 16px; position:relative; overflow:hidden; margin-bottom:14px;">
       <div style="position:absolute; right:-30px; top:-30px; width:120px; height:120px; border-radius:50%; background:var(--blue); opacity:.3;"></div>
       <div style="position:relative; z-index:1;">
         <template v-if="konteks.mode === 'home'">
           <p style="font-size:12.5px; color:var(--mahogany-soft);">{{ sapaan }},</p>
-          <h2 class="gc-heading" style="font-size:19px; font-weight:700; color:var(--mahogany);">{{ nama }}</h2>
+          <h2 class="gc-heading" style="font-size:19px; font-weight:700; color:var(--mahogany);">{{ namaTampil }}</h2>
         </template>
         <template v-else>
           <p style="font-size:12.5px; color:var(--mahogany-soft);">ERP Zevanic House</p>
