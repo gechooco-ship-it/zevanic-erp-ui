@@ -82,7 +82,7 @@ window.authReady = new Promise((resolve) => {
 // jangan cek falsy biasa.
 window.aksesConfigSaya = undefined; // undefined = belum sempat dimuat sama sekali
 
-window.muatAksesConfigSaya = async function(role) {
+window.muatAksesConfigSaya = async function(role, profilAkses) {
   const r = (role || '').toLowerCase();
   if (r === 'owner') {
     // Owner SELALU akses penuh, tidak pernah dibatasi — tidak perlu baca
@@ -90,11 +90,16 @@ window.muatAksesConfigSaya = async function(role) {
     window.aksesConfigSaya = 'OWNER_PENUH';
     return;
   }
+  // Kunci pencarian akses_config: profil_akses kalau ada (bisa nama
+  // custom, mis. "admin_finance"), fallback ke role untuk data lama yang
+  // belum pernah diatur pakai profil custom sama sekali.
+  const kunciCari = (profilAkses || role || '').toLowerCase();
+  if (!kunciCari) { window.aksesConfigSaya = null; return; }
   try {
-    const snap = await getDoc(doc(db, "akses_config", r));
+    const snap = await getDoc(doc(db, "akses_config", kunciCari));
     window.aksesConfigSaya = snap.exists() ? snap.data() : null;
   } catch (e) {
-    console.error("Gagal muat akses_config untuk role", r, e);
+    console.error("Gagal muat akses_config untuk profil", kunciCari, e);
     window.aksesConfigSaya = null;
   }
 };
@@ -344,7 +349,7 @@ onAuthStateChanged(auth, async (user) => {
       status_kerja: d.status_kerja || "Aktif",
       gudang_penempatan: gudangUser
     };
-    await window.muatAksesConfigSaya(roleUser);
+    await window.muatAksesConfigSaya(roleUser, d.profil_akses);
     if (window.aturTampilanBerdasarkanRole) window.aturTampilanBerdasarkanRole();
     if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
     // Home itu layar landasan (langsung tampil begitu login, beda dari

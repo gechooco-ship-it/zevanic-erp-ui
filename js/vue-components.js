@@ -29,6 +29,13 @@ export const MasterDataCategory = {
     const memuat = ref(true);
     const menyimpan = ref(false);
 
+    // PENERAPAN NYATA Config Akses — komponen ini dipakai buat 9 kategori
+    // Master Data sekaligus, SEMUANYA di bawah menu "config_karyawan".
+    // Cek 1 kali di sini, otomatis berlaku ke semuanya. Fallback aman:
+    // kalau belum diatur (null), dianggap boleh.
+    const bolehTambah = computed(() => window.cekIzinMenu('config_karyawan', 'add') !== false);
+    const bolehHapus = computed(() => window.cekIzinMenu('config_karyawan', 'delete') !== false);
+
     async function muat() {
       memuat.value = true;
       try {
@@ -51,6 +58,7 @@ export const MasterDataCategory = {
     }
 
     async function tambah() {
+      if (!bolehTambah.value) return alert('Anda tidak punya izin menambah item di sini. Hubungi Owner/PIC.');
       const nilai = inputBaru.value.trim();
       if (!nilai) return;
       if (items.value.includes(nilai)) { alert('Item ini sudah ada di daftar.'); return; }
@@ -60,18 +68,19 @@ export const MasterDataCategory = {
     }
 
     async function hapus(nilai) {
+      if (!bolehHapus.value) return alert('Anda tidak punya izin menghapus item di sini. Hubungi Owner/PIC.');
       items.value = items.value.filter(i => i !== nilai);
       await simpanKeFirestore();
     }
 
     onMounted(async () => { await window.authReady; muat(); });
 
-    return { items, inputBaru, memuat, menyimpan, tambah, hapus };
+    return { items, inputBaru, memuat, menyimpan, tambah, hapus, bolehTambah, bolehHapus };
   },
   template: `
     <div class="gc-card" style="padding:16px;">
       <h4 class="gc-heading" style="font-size:12.5px; font-weight:700; margin-bottom:10px;">{{ label }}</h4>
-      <div style="display:flex; gap:8px; margin-bottom:10px;">
+      <div v-if="bolehTambah" style="display:flex; gap:8px; margin-bottom:10px;">
         <input v-model="inputBaru" @keyup.enter="tambah" type="text" placeholder="Tambah item baru..." style="flex:1; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; outline:none;">
         <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="padding:8px 14px;">
           <i class="fas fa-plus"></i>
@@ -82,7 +91,7 @@ export const MasterDataCategory = {
         <span v-if="items.length === 0" style="font-size:11px; color:var(--text-faint);">Belum ada data.</span>
         <span v-for="item in items" :key="item" class="tag neutral" style="gap:8px;">
           {{ item }}
-          <button @click="hapus(item)" style="background:none; border:none; color:var(--danger); cursor:pointer; padding:0; font-size:11px;"><i class="fas fa-times"></i></button>
+          <button v-if="bolehHapus" @click="hapus(item)" style="background:none; border:none; color:var(--danger); cursor:pointer; padding:0; font-size:11px;"><i class="fas fa-times"></i></button>
         </span>
       </div>
     </div>

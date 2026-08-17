@@ -79,13 +79,18 @@ const MasterGudangManager = {
     }
 
     async function hapus(id) {
+      if (window.cekIzinMenu('config_absensi', 'delete') === false) {
+        return alert('Anda tidak punya izin menghapus data di sini. Hubungi Owner/PIC.');
+      }
       if (!confirm("Yakin ingin menghapus Gudang ini dari Master Data?")) return;
       await deleteDoc(doc(db, "master_gudang", id));
       await muat();
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { daftarGudang, memuat, menyimpan, nama, tipeLokasi, lat, lng, radius, simpan, hapus, bolehUbahJenisLokasi };
+    const bolehHapus = computed(() => window.cekIzinMenu('config_absensi', 'delete') !== false);
+
+    return { daftarGudang, memuat, menyimpan, nama, tipeLokasi, lat, lng, radius, simpan, hapus, bolehUbahJenisLokasi, bolehHapus };
   },
   template: `
     <div class="gc-card">
@@ -126,7 +131,7 @@ const MasterGudangManager = {
                 <template v-else>Lat: {{ g.latitude }} &bull; Lng: {{ g.longitude }} &bull; <b style="color:var(--danger);">Radius: {{ g.radius }}m</b></template>
               </div>
             </div>
-            <button @click="hapus(g.id)" class="icon-btn" style="color:var(--danger); flex-shrink:0;"><i class="fas fa-trash-alt"></i></button>
+            <button v-if="bolehHapus" @click="hapus(g.id)" class="icon-btn" style="color:var(--danger); flex-shrink:0;"><i class="fas fa-trash-alt"></i></button>
           </div>
         </div>
       </div>
@@ -175,13 +180,18 @@ const MasterShiftManager = {
     }
 
     async function hapus(id) {
+      if (window.cekIzinMenu('config_absensi', 'delete') === false) {
+        return alert('Anda tidak punya izin menghapus data di sini. Hubungi Owner/PIC.');
+      }
       if (!confirm("Yakin ingin menghapus Shift ini dari Master Data?")) return;
       await deleteDoc(doc(db, "master_shift", id));
       await muat();
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { daftarShift, memuat, menyimpan, nama, jamMasuk, jamKeluar, simpan, hapus };
+    const bolehHapus = computed(() => window.cekIzinMenu('config_absensi', 'delete') !== false);
+
+    return { daftarShift, memuat, menyimpan, nama, jamMasuk, jamKeluar, simpan, hapus, bolehHapus };
   },
   template: `
     <div class="gc-card">
@@ -204,7 +214,7 @@ const MasterShiftManager = {
               <div style="font-weight:700; color:var(--burgundy-dark); font-size:12.5px;">{{ s.nama_shift }}</div>
               <div style="font-size:10.5px; color:var(--text-muted); font-family:'Poppins',sans-serif; margin-top:2px;">In: <b style="color:var(--ok);">{{ s.jam_masuk }}</b> &bull; Out: <b style="color:var(--danger);">{{ s.jam_keluar }}</b></div>
             </div>
-            <button @click="hapus(s.id)" class="icon-btn" style="color:var(--danger); flex-shrink:0;"><i class="fas fa-trash-alt"></i></button>
+            <button v-if="bolehHapus" @click="hapus(s.id)" class="icon-btn" style="color:var(--danger); flex-shrink:0;"><i class="fas fa-trash-alt"></i></button>
           </div>
         </div>
       </div>

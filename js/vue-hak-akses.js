@@ -28,6 +28,12 @@ const AppHakAkses = {
     const semuaKaryawan = ref([]);
     const daftarGudang = ref([]);
     const DAFTAR_ROLE = ref([...DAFTAR_ROLE_BAKU]); // diisi ulang dari akses_config saat muat()
+    // petaTingkatKeamanan: profil (nama bebas) -> tingkat keamanan baku
+    // (operator/pic/admin/owner/superuser) — INI yang benar-benar ditulis
+    // ke field "role" karyawan (dipakai Firestore Rules & custom claim).
+    // Nama profil sendiri ditulis terpisah ke field "profil_akses" (dipakai
+    // buat cari izin tampilan). Lihat catatan lengkap di vue-config-akses.js.
+    const petaTingkatKeamanan = reactive({});
     const memuat = ref(true);
 
     const cariNama = ref('');
@@ -76,7 +82,20 @@ const AppHakAkses = {
         try {
           const qProfil = await getDocs(collection(db, "akses_config"));
           const namaProfil = [];
-          qProfil.forEach(d => namaProfil.push(d.id));
+          petaTingkatKeamanan.operator = 'operator';
+          petaTingkatKeamanan.pic = 'pic';
+          petaTingkatKeamanan.admin = 'admin';
+          petaTingkatKeamanan.owner = 'owner';
+          petaTingkatKeamanan.superuser = 'superuser';
+          qProfil.forEach(d => {
+            namaProfil.push(d.id);
+            const data = d.data();
+            // Fallback aman: profil lama yang dibuat SEBELUM fitur
+            // tingkatKeamanan ada, anggap 'operator' (paling rendah) —
+            // supaya tidak ada yang tiba-tiba dapat akses tulis lebih
+            // luas dari yang seharusnya cuma karena datanya belum lengkap.
+            petaTingkatKeamanan[d.id] = data.tingkatKeamanan || (DAFTAR_ROLE_BAKU.includes(d.id) ? d.id : 'operator');
+          });
           const gabungan = [...new Set([...DAFTAR_ROLE_BAKU, ...namaProfil, 'owner'])].sort();
           DAFTAR_ROLE.value = gabungan;
         } catch (e) {
@@ -91,14 +110,21 @@ const AppHakAkses = {
       memuat.value = false;
     }
 
+    // profilEfektif: nama profil yang SEBENARNYA dipakai buat ditampilkan/
+    // dihitung/difilter di layar ini. Karyawan yang SUDAH diatur pakai
+    // sistem baru punya profil_akses tersendiri (bisa custom, mis.
+    // "admin_finance"); karyawan LAMA (dari sebelum perubahan ini) cuma
+    // punya field role — fallback ke situ supaya tetap tampil benar.
+    function profilEfektif(d) { return d.profil_akses || d.role || ''; }
+
     // ---- Ringkasan per-role (kartu scroll horizontal, bisa diklik) ----
     const ringkasanKartu = computed(() => {
       const semua = semuaKaryawan.value;
       const kartu = [{ label: 'Semua', nilaiFilter: 'ALL', angka: semua.length }];
       DAFTAR_ROLE.value.forEach(r => {
-        kartu.push({ label: r, nilaiFilter: r, angka: semua.filter(d => (d.role || '') === r).length });
+        kartu.push({ label: r, nilaiFilter: r, angka: semua.filter(d => profilEfektif(d) === r).length });
       });
-      kartu.push({ label: 'Belum diatur', nilaiFilter: NILAI_BELUM_DIATUR, angka: semua.filter(d => !d.role).length });
+      kartu.push({ label: 'Belum diatur', nilaiFilter: NILAI_BELUM_DIATUR, angka: semua.filter(d => !profilEfektif(d)).length });
       return kartu;
     });
     // Perbaikan bug: kartu ringkasan cuma menghitung berdasarkan Role, TIDAK
@@ -119,8 +145,8 @@ const AppHakAkses = {
       return semuaKaryawan.value.filter(d => {
         if (kataKunci && !(d.nama || '').toLowerCase().includes(kataKunci)) return false;
         if (filterRole.value === NILAI_BELUM_DIATUR) {
-          if (d.role) return false;
-        } else if (filterRole.value !== 'ALL' && (d.role || '') !== filterRole.value) {
+          if (profilEfektif(d)) return false;
+        } else if (filterRole.value !== 'ALL' && profilEfektif(d) !== filterRole.value) {
           return false;
         }
         if (filterGudang.value !== 'ALL') {
@@ -165,14 +191,25 @@ const AppHakAkses = {
 
     // Ubah role 1 karyawan langsung dari tabel (tanpa perlu centang+bulk).
     // Nilai "" (blank) berarti kosongkan/belum diatur.
-    async function ubahRoleLangsung(item, roleBaru) {
+    //
+    // PENTING (17 Agt 2026): "roleBaru" di sini sebenarnya NAMA PROFIL
+    // (bisa custom, mis. "admin_finance"), BUKAN otomatis tingkat
+    // keamanan. Jadi WAJIB tulis 2 field: "role" (tingkat keamanan baku,
+    // dicari dari petaTingkatKeamanan — INI yang dipakai Firestore Rules)
+    // dan "profil_akses" (nama aslinya, dipakai buat cari izin tampilan).
+    // Lihat penjelasan lengkap di vue-config-akses.js.
+    async function ubahRoleLangsung(item, profilBaru) {
       const roleLama = item.role;
-      item.role = roleBaru || '';
+      const profilLama = item.profil_akses;
+      const tingkat = profilBaru ? (petaTingkatKeamanan[profilBaru] || 'operator') : '';
+      item.role = tingkat;
+      item.profil_akses = profilBaru || '';
       try {
-        await updateDoc(doc(db, "users", item.email), { role: roleBaru || '' });
+        await updateDoc(doc(db, "users", item.email), { role: tingkat, profil_akses: profilBaru || '' });
       } catch (e) {
         console.error("Gagal ubah role:", e);
         item.role = roleLama;
+        item.profil_akses = profilLama;
         alert("Gagal menyimpan perubahan role.");
       }
     }
@@ -181,15 +218,16 @@ const AppHakAkses = {
       const daftarTerpilih = Array.from(terpilih);
       if (daftarTerpilih.length === 0) return alert("Belum ada karyawan yang dicentang/terpilih.");
       if (bulkRole.value === '__TIDAK_DIUBAH__') return alert("Pilih Role yang ingin diterapkan (atau \"Kosongkan\" untuk hapus role).");
-      const nilaiRole = bulkRole.value === '__KOSONGKAN__' ? '' : bulkRole.value;
-      const labelKonfirmasi = nilaiRole || '(dikosongkan / belum diatur)';
+      const profilBaru = bulkRole.value === '__KOSONGKAN__' ? '' : bulkRole.value;
+      const tingkat = profilBaru ? (petaTingkatKeamanan[profilBaru] || 'operator') : '';
+      const labelKonfirmasi = profilBaru || '(dikosongkan / belum diatur)';
       if (!confirm(`Ubah Role ${daftarTerpilih.length} karyawan terpilih menjadi "${labelKonfirmasi}"?`)) return;
 
       memprosesBulk.value = true;
       let sukses = 0, gagal = 0;
       for (const email of daftarTerpilih) {
         try {
-          await updateDoc(doc(db, "users", email), { role: nilaiRole });
+          await updateDoc(doc(db, "users", email), { role: tingkat, profil_akses: profilBaru });
           sukses++;
         } catch (e) {
           console.error("Gagal ubah role untuk", email, e);
@@ -211,7 +249,7 @@ const AppHakAkses = {
       terpilih, hasilFilter, potonganHalamanIni, infoHalaman, headerDicentang, halamanAman, totalHalaman,
       toggleCheckbox, toggleSemuaHalamanIni, pilihSemua, bersihkanPilihan,
       halamanSebelumnya, halamanBerikutnya,
-      ubahRoleLangsung,
+      ubahRoleLangsung, profilEfektif,
       bulkRole, memprosesBulk, terapkanBulkRole
     };
   },
@@ -307,11 +345,11 @@ const AppHakAkses = {
                 <td class="gc-cell-muted">{{ d.jenis_pekerjaan || '-' }}</td>
                 <td class="gc-cell-muted"><gudang-ringkas :gudang="d.gudang_penempatan" :nama="d.nama" /></td>
                 <td style="text-align:center;">
-                  <span v-if="d.role" class="tag pink" style="text-transform:uppercase;">{{ d.role }}</span>
+                  <span v-if="profilEfektif(d)" class="tag pink" style="text-transform:uppercase;">{{ profilEfektif(d) }}</span>
                   <span v-else class="tag neutral">Belum diatur</span>
                 </td>
                 <td>
-                  <select :value="d.role || ''" @change="ubahRoleLangsung(d, $event.target.value)" style="padding:6px 10px; font-size:11.5px; border:1.5px solid var(--line); border-radius:8px; background:var(--surface);">
+                  <select :value="profilEfektif(d)" @change="ubahRoleLangsung(d, $event.target.value)" style="padding:6px 10px; font-size:11.5px; border:1.5px solid var(--line); border-radius:8px; background:var(--surface);">
                     <option value="">(Belum diatur)</option>
                     <option v-for="r in DAFTAR_ROLE" :key="r" :value="r">{{ r }}</option>
                   </select>

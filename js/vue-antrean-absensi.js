@@ -7,7 +7,7 @@
 // All Absensi yang belum dimigrasi — TIDAK dihapus dari dashboard.js, tetap
 // dipanggil apa adanya lewat window.
 // ============================================================================
-import { createApp, ref, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
@@ -29,6 +29,9 @@ const AntreanAbsensiCard = {
     }
 
     async function proses(statusAcc) {
+      if (window.cekIzinMenu('antrean_absensi', 'edit') === false) {
+        return alert('Anda tidak punya izin memproses ACC/Reject di sini. Hubungi Owner/PIC.');
+      }
       memproses.value = true;
       try {
         await updateDoc(doc(db, "absensi", props.docId), {
@@ -48,11 +51,17 @@ const AntreanAbsensiCard = {
     }
 
     function hapus() {
+      if (window.cekIzinMenu('antrean_absensi', 'delete') === false) {
+        return alert('Anda tidak punya izin menghapus data di sini. Hubungi Owner/PIC.');
+      }
       // Fungsi bersama (juga dipakai Riwayat All Absensi yang belum dimigrasi)
       if (window.hapusAbsensi) window.hapusAbsensi(props.docId).then(() => emit('diproses'));
     }
 
-    return { statusKehadiran, seragam, memproses, lihatFotoBesar, proses, hapus };
+    const bolehEdit = computed(() => window.cekIzinMenu('antrean_absensi', 'edit') !== false);
+    const bolehHapus = computed(() => window.cekIzinMenu('antrean_absensi', 'delete') !== false);
+
+    return { statusKehadiran, seragam, memproses, lihatFotoBesar, proses, hapus, bolehEdit, bolehHapus };
   },
   template: `
     <div class="gc-card">
@@ -100,14 +109,14 @@ const AntreanAbsensiCard = {
           </select>
         </div>
       </div>
-      <div style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line);">
-        <button @click="proses('ACC')" :disabled="memproses" class="btn-acc" style="flex:1; display:flex; align-items:center; justify-content:center;">
+      <div v-if="bolehEdit || bolehHapus" style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line);">
+        <button v-if="bolehEdit" @click="proses('ACC')" :disabled="memproses" class="btn-acc" style="flex:1; display:flex; align-items:center; justify-content:center;">
           <i class="fas fa-check-circle" style="margin-right:6px;"></i> Accept
         </button>
-        <button @click="proses('REJECT')" :disabled="memproses" class="btn-rej" style="flex:1; display:flex; align-items:center; justify-content:center;">
+        <button v-if="bolehEdit" @click="proses('REJECT')" :disabled="memproses" class="btn-rej" style="flex:1; display:flex; align-items:center; justify-content:center;">
           <i class="fas fa-times-circle" style="margin-right:6px;"></i> Reject
         </button>
-        <button @click="hapus" class="icon-btn" title="Hapus permanen">
+        <button v-if="bolehHapus" @click="hapus" class="icon-btn" title="Hapus permanen">
           <i class="fas fa-trash-alt"></i>
         </button>
       </div>

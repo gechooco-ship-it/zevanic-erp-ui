@@ -8,7 +8,7 @@
 // field yang SAMA PERSIS seperti versi lama — supaya Antrean Dakar,
 // Penjadwalan, dan layar lain yang belum dimigrasi tetap jalan normal.
 // ============================================================================
-import { createApp, ref, reactive, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DuaBaris, GudangCheckboxSelect, GudangRingkas } from './vue-components.js';
@@ -41,6 +41,10 @@ const EditKaryawanModal = {
     const form = reactive(formKosong());
     const menyimpan = ref(false);
     const opsiRole = ref([]);
+    // petaTingkatKeamanan: nama profil (form.role, bisa custom) -> tingkat
+    // keamanan baku. Sama persis pola yang dipakai vue-hak-akses.js —
+    // lihat penjelasan lengkap di vue-config-akses.js.
+    const petaTingkatKeamanan = reactive({});
     const opsiJenisPekerjaan = ref([]);
     const opsiJabatan = ref([]);
     const opsiStatusKerja = ref([]);
@@ -54,8 +58,17 @@ const EditKaryawanModal = {
       try {
         const qProfil = await getDocs(collection(db, "akses_config"));
         const namaProfil = [];
-        qProfil.forEach(d => namaProfil.push(d.id));
+        petaTingkatKeamanan.operator = 'operator';
+        petaTingkatKeamanan.pic = 'pic';
+        petaTingkatKeamanan.admin = 'admin';
+        petaTingkatKeamanan.owner = 'owner';
+        petaTingkatKeamanan.superuser = 'superuser';
         const bakuMinimal = ['operator', 'pic', 'admin', 'owner', 'superuser'];
+        qProfil.forEach(d => {
+          namaProfil.push(d.id);
+          const data = d.data();
+          petaTingkatKeamanan[d.id] = data.tingkatKeamanan || (bakuMinimal.includes(d.id) ? d.id : 'operator');
+        });
         opsiRole.value = [...new Set([...bakuMinimal, ...namaProfil])].sort();
       } catch (e) {
         console.error("Gagal sinkron daftar role dari Config Akses:", e);
@@ -84,7 +97,7 @@ const EditKaryawanModal = {
         nama: d.nama || '',
         email: d.email || '',
         fotoKtp: d.foto_ktp || '',
-        role: d.role || 'operator',
+        role: d.profil_akses || d.role || 'operator',
         jenisPekerjaan: d.jenis_pekerjaan || '',
         jabatan: d.jabatan || '',
         statusKerja: d.status_kerja === 'aktif' ? 'Aktif' : (d.status_kerja || 'Aktif'),
@@ -126,8 +139,15 @@ const EditKaryawanModal = {
     async function simpan() {
       menyimpan.value = true;
       try {
+        // form.role sebenarnya NAMA PROFIL (bisa custom, mis.
+        // "admin_finance") — WAJIB tulis 2 field terpisah: "role" (tingkat
+        // keamanan baku, dicari dari petaTingkatKeamanan, dipakai
+        // Firestore Rules) dan "profil_akses" (nama aslinya, dipakai cari
+        // izin tampilan). Lihat penjelasan lengkap di vue-config-akses.js.
+        const tingkat = petaTingkatKeamanan[form.role] || 'operator';
         await updateDoc(doc(db, 'users', form.emailAsli), {
-          role: form.role,
+          role: tingkat,
+          profil_akses: form.role,
           jenis_pekerjaan: form.jenisPekerjaan,
           jabatan: form.jabatan,
           status_kerja: form.statusKerja,
@@ -316,6 +336,10 @@ const AppDaftarKaryawan = {
   components: { DuaBaris, EditKaryawanModal, GudangRingkas },
   setup() {
     const memuat = ref(true);
+    // PENERAPAN NYATA Config Akses — tombol Hapus/Edit sembunyi kalau
+    // izinnya memang tidak ada. Fallback aman: belum diatur = boleh.
+    const bolehHapus = computed(() => window.cekIzinMenu('daftar_karyawan', 'delete') !== false);
+    const bolehEdit = computed(() => window.cekIzinMenu('daftar_karyawan', 'edit') !== false);
     const emailSedangDiedit = ref(null);
     let petaJenisLokasi = {}; // diisi sekali sebelum muat halaman pertama
 
@@ -351,6 +375,9 @@ const AppDaftarKaryawan = {
     }
 
     async function hapus(emailId) {
+      if (window.cekIzinMenu('daftar_karyawan', 'delete') === false) {
+        return alert('Anda tidak punya izin menghapus karyawan. Hubungi Owner/PIC.');
+      }
       if (!confirm(`Yakin ingin menghapus data karyawan "${emailId}" secara permanen? Data profil akan hilang dan tidak bisa dikembalikan.`)) return;
       try {
         await deleteDoc(doc(db, "users", emailId));
@@ -362,7 +389,12 @@ const AppDaftarKaryawan = {
       }
     }
 
-    function bukaEdit(emailId) { emailSedangDiedit.value = emailId; }
+    function bukaEdit(emailId) {
+      if (window.cekIzinMenu('daftar_karyawan', 'edit') === false) {
+        return alert('Anda tidak punya izin mengedit karyawan. Hubungi Owner/PIC.');
+      }
+      emailSedangDiedit.value = emailId;
+    }
     function tutupEdit() { emailSedangDiedit.value = null; }
     async function selesaiSimpan() { emailSedangDiedit.value = null; await muat(); }
 
@@ -377,7 +409,7 @@ const AppDaftarKaryawan = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { paginasi, memuat, emailSedangDiedit, muat, hapus, bukaEdit, tutupEdit, selesaiSimpan, badgeApproval, lihatFotoBesar };
+    return { paginasi, memuat, emailSedangDiedit, muat, hapus, bukaEdit, tutupEdit, selesaiSimpan, badgeApproval, lihatFotoBesar, bolehHapus, bolehEdit };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none;">
@@ -420,11 +452,11 @@ const AppDaftarKaryawan = {
               <gudang-ringkas :gudang="d.gudang_penempatan" :nama="d.nama" /><br>
               <span style="font-size:11px; color:var(--text-muted);">{{ d.nama_shift || '-' }}</span>
             </td>
-            <td style="text-transform:uppercase;"><dua-baris :a="d.role" :b="d.jenisLokasiGabungan" /></td>
+            <td style="text-transform:uppercase;"><dua-baris :a="d.profil_akses || d.role" :b="d.jenisLokasiGabungan" /></td>
             <td class="freeze freeze-right">
               <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                <button @click="bukaEdit(d.id)" class="icon-btn"><i class="fas fa-edit"></i></button>
-                <button @click="hapus(d.id)" class="icon-btn" style="color:var(--danger);"><i class="fas fa-trash-alt"></i></button>
+                <button v-if="bolehEdit" @click="bukaEdit(d.id)" class="icon-btn"><i class="fas fa-edit"></i></button>
+                <button v-if="bolehHapus" @click="hapus(d.id)" class="icon-btn" style="color:var(--danger);"><i class="fas fa-trash-alt"></i></button>
               </div>
             </td>
           </tr>

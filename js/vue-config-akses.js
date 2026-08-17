@@ -4,20 +4,27 @@
 // (bukan cuma 5 role baku). Tiap profil punya izin View/Add/Edit/Delete/
 // Print per menu, dikelompokkan per kategori (bisa dilipat/dibuka).
 //
-// PENTING (batas fitur ini): layar ini menyimpan konfigurasinya dengan rapi
-// ke Firestore (koleksi "akses_config"), TAPI belum ada bagian lain di
-// aplikasi yang MEMBACA/menerapkan nilai-nilai ini untuk benar-benar
-// menyembunyikan menu atau memblokir aksi Add/Edit/Delete/Print — itu
-// pekerjaan SUSULAN yang jauh lebih besar (perlu ubah
-// aturTampilanBerdasarkanRole di auth.js, semua tombol aksi di semua
-// layar, DAN Firestore Security Rules supaya benar-benar aman, bukan cuma
-// sembunyi di tampilan). Layar ini murni tempat MENGATUR nilainya dulu.
+// PENERAPAN (update 17 Agt 2026): View menu (Home mobile) dan tombol Add/
+// Edit/Delete/Print di beberapa layar SUDAH menerapkan izin dari sini
+// secara nyata (lihat window.cekIzinMenu/cekFiturAkses di auth.js, dan
+// STATUS-PROYEK.md untuk daftar layar mana saja yang sudah/belum). Ini
+// murni PENERAPAN DI TAMPILAN (client-side) — keputusan sadar, BUKAN
+// jadi batas keamanan Firestore Rules (itu tetap di 4 tingkat role baku,
+// biar tidak nambah biaya baca per operasi tulis).
+//
+// KARENA rules tetap di tingkat role baku, tapi profil di sini boleh
+// bernama BEBAS (mis. "admin_finance") — tiap profil WAJIB pilih 1 dari
+// 5 tingkat baku sebagai "tingkatKeamanan"-nya (lihat bagian atas form).
+// Itu yang benar-benar dikirim ke Firestore Rules lewat custom claim;
+// nama profil sendiri cuma dipakai buat cari izin tampilan di sini.
 //
 // Akses ke layar ini SENGAJA dibatasi khusus Owner (lihat auth.js).
 // ============================================================================
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+
+const TINGKAT_KEAMANAN_BAKU = ['operator', 'pic', 'admin', 'owner', 'superuser'];
 
 const DAFTAR_MENU = [
   { id: 'dashboard', label: 'Dashboard', kategori: 'Umum' },
@@ -89,6 +96,13 @@ const AppConfigAkses = {
 
     const namaAkses = ref('');
     const profilDipilih = ref('');
+    // tingkatKeamanan: 1 dari 5 nama baku, INI yang benar-benar dikirim
+    // ke Firestore Rules lewat custom claim (field "role" di data
+    // karyawan). Nama profil di "namaAkses" cuma dipakai buat cari izin
+    // TAMPILAN, tidak pernah sampai ke Rules. Default 'operator' (paling
+    // rendah) — sengaja bukan default tinggi, biar profil baru yang lupa
+    // diatur tidak tiba-tiba dapat akses tulis luas.
+    const tingkatKeamanan = ref('operator');
     const menus = reactive({});
     // pastikanFiturAda: kalau menu ini punya fiturList (kontrol granular
     // tambahan), pastikan menus[id].fitur SELALU ada sebagai objek —
@@ -151,7 +165,13 @@ const AppConfigAkses = {
       namaAkses.value = nama;
       try {
         const snap = await getDoc(doc(db, "akses_config", nama));
-        const dataMenus = snap.exists() ? (snap.data().menus || {}) : null;
+        const data = snap.exists() ? snap.data() : null;
+        const dataMenus = data ? (data.menus || {}) : null;
+        // Profil baku (operator/pic/admin/owner/superuser): tingkat
+        // keamanannya SAMA DENGAN namanya sendiri, kecuali sudah pernah
+        // disimpan beda secara eksplisit. Profil kustom yang belum pernah
+        // diatur: default 'operator' (paling aman/rendah).
+        tingkatKeamanan.value = data?.tingkatKeamanan || (PROFIL_BAKU.includes(nama) ? nama : 'operator');
         DAFTAR_MENU.forEach(m => {
           menus[m.id] = dataMenus && dataMenus[m.id] ? { ...KOSONG_IZIN(), ...dataMenus[m.id] } : (
             PROFIL_BAKU.includes(nama) ? bikinDefaultProfil(nama)[m.id] : KOSONG_IZIN()
@@ -166,6 +186,7 @@ const AppConfigAkses = {
     function mulaiProfilBaru() {
       profilDipilih.value = '';
       namaAkses.value = '';
+      tingkatKeamanan.value = 'operator';
       DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN(); pastikanFiturAda(m.id); });
     }
 
@@ -180,7 +201,7 @@ const AppConfigAkses = {
       try {
         const menusPolos = {};
         DAFTAR_MENU.forEach(m => { menusPolos[m.id] = { ...menus[m.id] }; });
-        await setDoc(doc(db, "akses_config", nama), { nama, menus: menusPolos });
+        await setDoc(doc(db, "akses_config", nama), { nama, tingkatKeamanan: tingkatKeamanan.value, menus: menusPolos });
         alert(`Profil akses "${nama}" berhasil disimpan!`);
         profilDipilih.value = nama;
         await muat();
@@ -196,6 +217,7 @@ const AppConfigAkses = {
     return {
       daftarProfil, memuat, menyimpan, muat,
       namaAkses, profilDipilih, pilihProfil, mulaiProfilBaru, simpan,
+      tingkatKeamanan, TINGKAT_KEAMANAN_BAKU,
       menus, KATEGORI_URUTAN, kategoriTerbuka, toggleKategori, menuUntukKategori,
       semuaTercentangKolom, toggleKolomKategori
     };
@@ -205,6 +227,17 @@ const AppConfigAkses = {
       <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px;">
         <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:#1F5060;"><i class="fas fa-shield-halved" style="margin-right:8px;"></i> Config Akses</h4>
         <p style="font-size:11px; color:#1F5060; margin-top:4px; opacity:.85;">Buat atau ubah profil akses — tiap profil punya izin View/Add/Edit/Delete/Print sendiri per menu. Profil ini nanti dipilih untuk tiap karyawan di tab Hak Akses.</p>
+      </div>
+
+      <div class="gc-card" style="margin-bottom:16px; border:1.5px solid var(--burgundy);">
+        <h4 class="gc-heading" style="font-size:12.5px; font-weight:700; margin-bottom:6px;"><i class="fas fa-shield-halved" style="color:var(--burgundy); margin-right:8px;"></i> Tingkat Keamanan Dasar</h4>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Profil ini boleh dinamai bebas, tapi untuk KEAMANAN DATA (Firestore Rules), harus setara dengan salah satu dari 5 tingkat baku berikut. Ini yang menentukan bisa/tidaknya karyawan dengan profil ini benar-benar MENYIMPAN data (bukan cuma soal tampil/sembunyi menu).</p>
+        <div class="gc-field" style="margin-bottom:0; max-width:280px;">
+          <label>Setara dengan tingkat</label>
+          <select v-model="tingkatKeamanan">
+            <option v-for="t in TINGKAT_KEAMANAN_BAKU" :key="t" :value="t">{{ t.toUpperCase() }}</option>
+          </select>
+        </div>
       </div>
 
       <div class="gc-card" style="margin-bottom:16px;">

@@ -50,6 +50,9 @@ const AntreanDakarCard = {
     }
 
     async function setujui() {
+      if (window.cekIzinMenu('antrean_dakar', 'add') === false) {
+        return alert('Anda tidak punya izin menyetujui karyawan baru. Hubungi Owner/PIC.');
+      }
       if (form.gudang.length === 0) {
         if (!confirm("Belum ada gudang dipilih. Karyawan ini TIDAK akan bisa login sampai gudang ditautkan (bisa diatur lagi lewat Daftar Karyawan > Edit). Lanjutkan?")) return;
       }
@@ -91,6 +94,9 @@ const AntreanDakarCard = {
     }
 
     async function tolak() {
+      if (window.cekIzinMenu('antrean_dakar', 'delete') === false) {
+        return alert('Anda tidak punya izin menolak pendaftaran. Hubungi Owner/PIC.');
+      }
       if (!confirm("Tolak pendaftaran karyawan ini? Karyawan tidak akan bisa login. Bisa diaktifkan lagi nanti lewat Daftar Karyawan jika berubah pikiran.")) return;
       memproses.value = true;
       try {
