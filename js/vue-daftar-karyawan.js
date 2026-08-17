@@ -12,6 +12,7 @@ import { createApp, ref, reactive, onMounted, watch } from 'https://unpkg.com/vu
 import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DuaBaris, GudangCheckboxSelect, GudangRingkas } from './vue-components.js';
+import { usePaginasiFirestore } from './vue-paginasi.js';
 
 // Field kosong default untuk form edit (dipakai untuk reset & memastikan
 // semua field ke-cover, sama seperti window.bukaEditUser versi lama).
@@ -301,29 +302,38 @@ const EditKaryawanModal = {
 const AppDaftarKaryawan = {
   components: { DuaBaris, EditKaryawanModal, GudangRingkas },
   setup() {
-    const daftarKaryawan = ref([]);
     const memuat = ref(true);
     const emailSedangDiedit = ref(null);
+    let petaJenisLokasi = {}; // diisi sekali sebelum muat halaman pertama
+
+    async function muatPetaGudang() {
+      const qGudang = await getDocs(collection(db, "master_gudang"));
+      petaJenisLokasi = {};
+      qGudang.forEach(g => { petaJenisLokasi[g.data().nama_gudang] = g.data().tipe_lokasi || 'Tetap'; });
+    }
+
+    // Paginasi Firestore SUNGGUHAN (composable bersama, lihat
+    // js/vue-paginasi.js) — cuma tarik 15 karyawan per halaman dari
+    // server, bukan tarik SEMUA lalu potong di JS seperti sebelumnya.
+    // Diurutkan berdasarkan nama supaya urutannya stabil & masuk akal.
+    const paginasi = usePaginasiFirestore(db, 'users', {
+      perHalaman: 15,
+      urutkanField: 'nama',
+      petakan: (id, d) => {
+        const gudangList = window.normalisasiGudang(d.gudang_penempatan);
+        const jenisLokasiList = [...new Set(gudangList.map(g => petaJenisLokasi[g] || '-'))];
+        return {
+          id, ...d,
+          jenisLokasiGabungan: jenisLokasiList.join(', ') || '-',
+          idGabungan: (d.id_karyawan || '-') + ' / ' + (d.id_app || '-')
+        };
+      }
+    });
 
     async function muat() {
       memuat.value = true;
-      const qGudang = await getDocs(collection(db, "master_gudang"));
-      const petaJenisLokasi = {};
-      qGudang.forEach(g => { petaJenisLokasi[g.data().nama_gudang] = g.data().tipe_lokasi || 'Tetap'; });
-
-      const qUsers = await getDocs(collection(db, "users"));
-      const list = [];
-      qUsers.forEach(docSnap => {
-        const d = docSnap.data();
-        const gudangList = window.normalisasiGudang(d.gudang_penempatan);
-        const jenisLokasiList = [...new Set(gudangList.map(g => petaJenisLokasi[g] || '-'))];
-        list.push({
-          id: docSnap.id, ...d,
-          jenisLokasiGabungan: jenisLokasiList.join(', ') || '-',
-          idGabungan: (d.id_karyawan || '-') + ' / ' + (d.id_app || '-')
-        });
-      });
-      daftarKaryawan.value = list;
+      await muatPetaGudang();
+      await paginasi.muatUlang();
       memuat.value = false;
     }
 
@@ -354,7 +364,7 @@ const AppDaftarKaryawan = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { daftarKaryawan, memuat, emailSedangDiedit, muat, hapus, bukaEdit, tutupEdit, selesaiSimpan, badgeApproval, lihatFotoBesar };
+    return { paginasi, memuat, emailSedangDiedit, muat, hapus, bukaEdit, tutupEdit, selesaiSimpan, badgeApproval, lihatFotoBesar };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none;">
@@ -380,8 +390,8 @@ const AppDaftarKaryawan = {
         </thead>
         <tbody>
           <tr v-if="memuat"><td colspan="8" style="text-align:center; padding:20px; color:var(--text-faint);">Memuat data user...</td></tr>
-          <tr v-else-if="daftarKaryawan.length === 0"><td colspan="8" style="text-align:center; padding:20px; color:var(--text-faint);">Belum ada data karyawan.</td></tr>
-          <tr v-for="d in daftarKaryawan" :key="d.id">
+          <tr v-else-if="paginasi.dataHalaman.length === 0"><td colspan="8" style="text-align:center; padding:20px; color:var(--text-faint);">Belum ada data karyawan.</td></tr>
+          <tr v-for="d in paginasi.dataHalaman" :key="d.id">
             <td class="freeze freeze-left">
               <dua-baris :a="d.nama" :b="d.idGabungan" />
               <span v-if="badgeApproval(d.status_approval)" class="tag" :class="badgeApproval(d.status_approval).kelas" style="margin-left:6px; padding:2px 8px; font-size:9px;">{{ badgeApproval(d.status_approval).teks }}</span>
@@ -407,6 +417,14 @@ const AppDaftarKaryawan = {
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; padding-top:12px; font-size:12px;">
+      <span style="color:var(--text-faint);">Halaman {{ paginasi.nomorHalaman }}</span>
+      <div style="display:flex; gap:8px;">
+        <button @click="paginasi.halamanSebelumnya" :disabled="paginasi.nomorHalaman <= 1 || paginasi.memuat" class="icon-btn"><i class="fas fa-chevron-left"></i></button>
+        <button @click="paginasi.halamanBerikutnya" :disabled="!paginasi.adaBerikutnya || paginasi.memuat" class="icon-btn"><i class="fas fa-chevron-right"></i></button>
+      </div>
     </div>
 
     <edit-karyawan-modal v-if="emailSedangDiedit" :email-id="emailSedangDiedit" @tutup="tutupEdit" @tersimpan="selesaiSimpan" />

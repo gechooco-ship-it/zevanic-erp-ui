@@ -49,7 +49,37 @@ Kalau belum ada tapi kira-kira bakal dipakai lagi (misal: tampilan foto
 karyawan dengan badge status, atau kartu ringkasan berskala/berklik) —
 buat sebagai komponen bersama dari awal, bukan ditulis lokal dulu.
 
-## PR (belum dikerjakan, disadari lewat diskusi 17 Agt 2026)
+## Aturan baku tabel (mulai 17 Agt 2026, malam)
+
+Semua tabel BARU (dan tabel lama yang direfaktor) mengikuti 1 pola seragam
+ini — composable-nya ada di `js/vue-paginasi.js`:
+
+| Kondisi | Cara ambil data |
+|---|---|
+| Browsing polos (tanpa cari/filter) | Paginasi cursor (`.limit()`+`.startAfter()`), hemat |
+| 1 filter dropdown pilihan tetap aktif (Role/Gudang/dst) | Paginasi + `where()`, masih hemat |
+| Kotak cari nama diisi | Paginasi + prefix-match (`>=`/`<=`), masih hemat |
+| Filter dropdown + cari AKTIF BERSAMAAN | Balik ke fetch-semua + filter di JS (satu-satunya kondisi boros yang disisakan — index gabungan Firestore untuk semua kombinasi filter itu tidak praktis) |
+
+**Keterbatasan pencarian yang wajib diketahui:**
+- Cuma bisa cari AWALAN ("nama yang DIAWALI teks ini"), bukan cari
+  teks di tengah kata.
+- Peka huruf besar/kecil — field yang mau dicari harus konsisten
+  kapitalisasinya, atau siapkan field tambahan huruf-kecil-semua.
+
+**Kalau tabelnya juga punya kartu ringkasan berisi TOTAL/hitungan**
+(seperti kartu Role di Hak Akses) — paginasi TIDAK CUKUP, karena cuma
+punya sebagian data di memori. Kartu itu perlu query terpisah pakai
+`getCountFromServer()` (aggregation query — hitung jumlah tanpa baca
+seluruh isi dokumennya). Ini pekerjaan TAMBAHAN di luar paginasi tabelnya
+sendiri, belum dikerjakan per 17 Agt 2026.
+
+**Status penerapan per 17 Agt 2026 malam:**
+- ✅ Daftar Karyawan — paginasi dasar (belum ada cari/filter di layar ini)
+- ⏳ Antrean Dakar, Penjadwalan, Hak Akses — belum, masing-masing beda
+  tingkat kerumitan (Hak Akses paling rumit karena ada kartu ringkasan)
+
+
 
 Ini BUKAN tugas mendesak untuk skala sekarang (~90-100 karyawan), tapi
 WAJIB dikerjakan SEBELUM data `absensi`/`users` tumbuh jauh lebih besar,

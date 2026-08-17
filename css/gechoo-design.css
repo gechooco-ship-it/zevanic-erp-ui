@@ -75,6 +75,7 @@ input, select, textarea{font:inherit; color:inherit;}
 .btn-rej{padding:9px 16px; background:var(--danger-light); color:var(--danger); border:none; border-radius:10px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:'Poppins',sans-serif;}
 .icon-btn{width:30px; height:30px; border-radius:9px; border:1px solid var(--line); background:var(--surface); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-muted);}
 .icon-btn:hover{border-color:var(--burgundy); color:var(--burgundy);}
+.icon-btn:disabled{opacity:.35; cursor:not-allowed; border-color:var(--line); color:var(--text-faint);}
 
 /* ---- Kartu / panel ---- */
 .gc-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px;}

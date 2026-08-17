@@ -15,7 +15,7 @@
 // dashboard.js karena dipakai bareng laporan ini.
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DuaBaris } from './vue-components.js';
 
@@ -300,14 +300,22 @@ const AppAccountProfile = {
     async function muatRiwayat() {
       memuatRiwayat.value = true;
       try {
-        const snap = await getDocs(collection(db, "absensi"));
+        // PERBAIKAN HEMAT PALING PENTING: dulu ambil SELURUH koleksi
+        // "absensi" (punya SEMUA orang) baru difilter cari punya sendiri
+        // di JavaScript — dipakai oleh SEMUA karyawan (bukan cuma admin),
+        // jadi ini paling boros dan MAKIN MAHAL tiap hari seiring absensi
+        // menumpuk. Sekarang query where(email==...) di Firestore sendiri
+        // — cuma dokumen milik orang ini yang benar-benar ditarik dari
+        // server, siapapun banyaknya karyawan lain / berapa lama app ini
+        // sudah jalan.
+        const q = query(collection(db, "absensi"), where("email", "==", window.currentUser.email));
+        const snap = await getDocs(q);
         let countHadir = 0, countACC = 0, countSeragamBeda = 0, countIzin = 0;
         const list = [];
 
         snap.forEach(docSnap => {
           const data = docSnap.data();
           data.id = docSnap.id;
-          if (data.email !== window.currentUser.email) return;
 
           let lolosTgl = true;
           if (data.waktu) {

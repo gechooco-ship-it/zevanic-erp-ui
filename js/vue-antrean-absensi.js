@@ -128,11 +128,27 @@ const AppAntreanAbsensi = {
         daftarStatusKehadiran.value = window.ambilMasterList ? await window.ambilMasterList('status_kehadiran') : daftarStatusKehadiran.value;
         const snap = await getDocs(collection(db, "absensi"));
         const list = [];
+        // Perbaikan data lama (SEMENTARA — lihat catatan di
+        // vue-camera.js): dokumen yang dibuat SEBELUM field status_acc
+        // konsisten diisi saat pengajuan baru dibuat mungkin belum punya
+        // field ini sama sekali. Sambil baca di sini, sekalian perbaiki
+        // supaya konsisten — begitu semua data sudah punya status_acc,
+        // baca koleksi ini bisa diganti query where(status_acc=="PENDING")
+        // yang jauh lebih hemat (tidak perlu baca SEMUA histori absensi
+        // tiap kali layar ini dibuka).
+        const perluDiperbaiki = [];
         snap.forEach(docSnap => {
           const d = docSnap.data();
           if (!d.status_acc || d.status_acc === "PENDING") list.push({ id: docSnap.id, data: d });
+          if (!d.status_acc) perluDiperbaiki.push(docSnap.id);
         });
         daftarPending.value = list;
+        if (perluDiperbaiki.length > 0) {
+          console.log(`Memperbaiki ${perluDiperbaiki.length} data absensi lama yang belum punya status_acc...`);
+          for (const id of perluDiperbaiki) {
+            updateDoc(doc(db, "absensi", id), { status_acc: "PENDING" }).catch(() => {});
+          }
+        }
       } catch (e) {
         console.error("Error muat antrean absensi:", e);
       }

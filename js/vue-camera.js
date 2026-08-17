@@ -205,6 +205,15 @@ const AppKamera = {
           waktu: new Date().toLocaleString('id-ID'),
           foto_selfie: fotoBase64,
           persetujuan: "PENDING",
+          // PENTING: status_acc HARUS diisi di sini (bukan cuma "persetujuan"
+          // yang ternyata tidak pernah dibaca di manapun) — status_acc ini
+          // field yang BENAR-BENAR dipakai Antrean Absensi/Riwayat Absensi
+          // untuk tahu mana yang masih perlu di-ACC. Sebelumnya field ini
+          // baru terisi SAAT admin approve/reject — dokumen baru jadi tidak
+          // punya field ini sama sekali sampai diproses, yang bikin query
+          // Firestore where(status_acc=="PENDING") tidak bisa dipakai
+          // dengan aman (bakal ke-skip semua pengajuan baru).
+          status_acc: "PENDING",
           seragam: "Sesuai"
         };
         if (window.statusPilihanGlobal === "IZIN" || window.statusPilihanGlobal === "CUTI") {
