@@ -9,7 +9,7 @@
 // seperti pola import Firebase yang sudah ada di app ini.
 // ============================================================================
 import { ref, computed, onMounted, onUnmounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { doc, setDoc, getDoc, collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, setDoc, getDoc, collection, getDocs, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 // ---------------------------------------------------------------------------
@@ -486,6 +486,77 @@ export const PengumumanCarousel = {
       </div>
       <div v-if="daftar.length > 1" style="display:flex; justify-content:center; gap:6px; margin-top:10px;">
         <button v-for="(p, i) in daftar" :key="p.id" @click="keSlide(i)" style="width:7px; height:7px; border-radius:50%; border:none; padding:0; cursor:pointer;" :style="i === slideAktif ? 'background:var(--burgundy); width:18px; border-radius:4px;' : 'background:var(--line);'"></button>
+      </div>
+    </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
+// EmojiPicker — komponen bersama, tombol kecil + popup grid emoji. Dipakai
+// di field judul/isi Pengumuman & Quote (Config Info), bisa dipakai ulang
+// di form manapun ke depan yang butuh emoji. TIDAK menyimpan state teksnya
+// sendiri — cuma emit karakter emoji yang dipilih (@pilih="target += $event"),
+// pemanggil yang tentukan mau ditambahkan ke field mana.
+// ---------------------------------------------------------------------------
+const DAFTAR_EMOJI = [
+  '😊','😀','🎉','🎊','✨','🔥','💪','👏','🙏','❤️',
+  '📢','📣','⏰','🕐','✅','❌','⚠️','🏆','🎯','📅',
+  '💰','🎁','🌟','👍','😍','🥳','💯','🚀','📌','☕'
+];
+
+export const EmojiPicker = {
+  emits: ['pilih'],
+  setup(props, { emit }) {
+    const terbuka = ref(false);
+    function toggle() { terbuka.value = !terbuka.value; }
+    function pilih(emoji) { emit('pilih', emoji); terbuka.value = false; }
+    return { terbuka, toggle, pilih, DAFTAR_EMOJI };
+  },
+  template: `
+    <div style="position:relative; display:inline-block;">
+      <button type="button" @click="toggle" style="background:var(--ivory-dim); border:1px solid var(--line); border-radius:8px; width:30px; height:30px; cursor:pointer; font-size:14px;">😊</button>
+      <div v-if="terbuka" style="position:absolute; z-index:50; top:36px; right:0; background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:0 8px 20px rgba(0,0,0,.15); padding:8px; width:200px; display:grid; grid-template-columns:repeat(6,1fr); gap:4px;">
+        <button v-for="e in DAFTAR_EMOJI" :key="e" type="button" @click="pilih(e)" style="background:none; border:none; font-size:17px; padding:4px; cursor:pointer; border-radius:6px;">{{ e }}</button>
+      </div>
+      <div v-if="terbuka" @click="terbuka = false" style="position:fixed; inset:0; z-index:40;"></div>
+    </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
+// QuoteCard — komponen bersama (Kotak 3), dipakai di desktop & mobile Home
+// sekaligus. Ambil QUOTE HARI INI SAJA (query where tanggalTampil==hari
+// ini, limit 1 — paling murah, 0 atau 1 baca), diatur di Config Info >
+// Quote Harian. Kalau tidak ada Quote dijadwalkan untuk hari ini, komponen
+// ini tidak render apapun (tidak ada kartu kosong yang aneh).
+// ---------------------------------------------------------------------------
+export const QuoteCard = {
+  setup() {
+    const quote = ref(null);
+    const memuat = ref(true);
+
+    async function muat() {
+      memuat.value = true;
+      try {
+        const hariIni = new Date().toISOString().split('T')[0]; // format YYYY-MM-DD, sama dengan <input type="date">
+        const q = query(collection(db, "quotes"), where("tanggalTampil", "==", hariIni), limit(1));
+        const snap = await getDocs(q);
+        quote.value = snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
+      } catch (e) {
+        quote.value = null; // koleksi belum ada/kosong itu wajar, bukan error
+      }
+      memuat.value = false;
+    }
+
+    onMounted(async () => { await window.authReady; muat(); });
+    return { quote, memuat };
+  },
+  template: `
+    <div v-if="!memuat && quote" style="background:linear-gradient(135deg, var(--pink), var(--blue)); border-radius:18px; padding:16px; margin-bottom:22px; position:relative; overflow:hidden;">
+      <div style="position:absolute; right:-20px; bottom:-20px; width:100px; height:100px; border-radius:50%; background:rgba(255,255,255,.25);"></div>
+      <div style="position:relative; z-index:1;">
+        <h4 class="gc-heading" style="font-size:14px; font-weight:700; color:var(--mahogany); display:flex; align-items:center; gap:8px;"><i class="fas fa-quote-left"></i> {{ quote.judul }}</h4>
+        <p style="font-size:12.5px; color:var(--mahogany-soft); margin-top:6px; line-height:1.5;">{{ quote.isi }}</p>
       </div>
     </div>
   `

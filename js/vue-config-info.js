@@ -10,11 +10,13 @@ import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dis
 import { collection, getDocs, doc, setDoc, deleteDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
+import { EmojiPicker } from './vue-components.js';
 
 const DAFTAR_ROLE = ['operator', 'pic', 'admin', 'owner', 'superuser'];
 const BATAS_UKURAN_BYTE = 1 * 1024 * 1024; // 1MB, sesuai permintaan
 
 const AppConfigInfo = {
+  components: { EmojiPicker },
   setup() {
     const daftarPengumuman = ref([]);
     const memuat = ref(true);
@@ -162,12 +164,92 @@ const AppConfigInfo = {
       }
     }
 
-    onMounted(async () => { await window.authReady; muat(); });
+    // ========================================================================
+    // KOTAK 3 — QUOTE HARIAN (17 Agt 2026)
+    // Beda dari Pengumuman: 1 quote ditampilkan per HARI TERTENTU (dijadwal
+    // di muka, bukan "N terbaru" seperti Pengumuman). Kalau tidak ada quote
+    // yang dijadwalkan untuk hari itu, kartu Quote di Home tidak tampil
+    // sama sekali (bukan kartu kosong yang aneh).
+    // Batas karakter: judul maks 20, isi maks 60 — SESUAI PERMINTAAN, biar
+    // muat rapi di kartu kecil ala prototype (kartu "Giveaway" di Home).
+    // ========================================================================
+    const daftarQuote = ref([]);
+    const memuatQuote = ref(true);
+    const menyimpanQuote = ref(false);
+    const formQuote = reactive({ id: null, judul: '', isi: '', tanggalTampil: '' });
+
+    function formQuoteKosong() {
+      formQuote.id = null;
+      formQuote.judul = '';
+      formQuote.isi = '';
+      formQuote.tanggalTampil = '';
+    }
+
+    async function muatQuote() {
+      memuatQuote.value = true;
+      try {
+        const q = query(collection(db, "quotes"), orderBy("tanggalTampil", "desc"));
+        const snap = await getDocs(q);
+        const list = [];
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        daftarQuote.value = list;
+      } catch (e) {
+        console.error("Gagal muat Quote:", e);
+      }
+      memuatQuote.value = false;
+    }
+
+    function editQuote(item) {
+      formQuote.id = item.id;
+      formQuote.judul = item.judul || '';
+      formQuote.isi = item.isi || '';
+      formQuote.tanggalTampil = item.tanggalTampil || '';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function simpanQuote() {
+      if (!formQuote.judul.trim() || !formQuote.isi.trim() || !formQuote.tanggalTampil) {
+        return alert("Judul, isi, dan tanggal tampil Quote harus diisi!");
+      }
+      if (formQuote.judul.length > 20) return alert("Judul maksimal 20 karakter!");
+      if (formQuote.isi.length > 60) return alert("Isi Quote maksimal 60 karakter!");
+      menyimpanQuote.value = true;
+      try {
+        const idDipakai = formQuote.id || `${formQuote.tanggalTampil}_${Date.now()}`;
+        await setDoc(doc(db, "quotes", idDipakai), {
+          judul: formQuote.judul.trim(),
+          isi: formQuote.isi.trim(),
+          tanggalTampil: formQuote.tanggalTampil
+        }, { merge: true });
+        alert(formQuote.id ? "Quote berhasil diperbarui!" : "Quote baru berhasil dijadwalkan!");
+        formQuoteKosong();
+        await muatQuote();
+      } catch (e) {
+        console.error("Gagal simpan Quote:", e);
+        alert("Gagal menyimpan Quote.");
+      }
+      menyimpanQuote.value = false;
+    }
+
+    async function hapusQuote(id) {
+      if (!confirm("Yakin ingin menghapus Quote ini?")) return;
+      try {
+        await deleteDoc(doc(db, "quotes", id));
+        await muatQuote();
+      } catch (e) {
+        console.error("Gagal hapus Quote:", e);
+        alert("Gagal menghapus Quote.");
+      }
+    }
+
+    onMounted(async () => { await window.authReady; muat(); muatQuote(); });
 
     return {
       daftarPengumuman, memuat, menyimpan, mengupload, form, DAFTAR_ROLE,
       fileTerpilih, previewUrl, pilihFile, hapusMediaTerpilih,
-      toggleRole, edit, simpan, hapus, formKosong, muat
+      toggleRole, edit, simpan, hapus, formKosong, muat,
+      daftarQuote, memuatQuote, menyimpanQuote, formQuote,
+      editQuote, simpanQuote, hapusQuote, formQuoteKosong, muatQuote
     };
   },
   template: `
@@ -180,11 +262,11 @@ const AppConfigInfo = {
       <div class="gc-card" style="margin-bottom:16px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;">{{ form.id ? 'Edit Pengumuman' : 'Buat Pengumuman Baru' }}</h3>
         <div class="gc-field">
-          <label>Judul</label>
+          <label style="display:flex; justify-content:space-between; align-items:center;">Judul <emoji-picker @pilih="form.judul += $event" /></label>
           <input v-model="form.judul" type="text" placeholder="Contoh: Libur Nasional 17 Agustus">
         </div>
         <div class="gc-field">
-          <label>Isi Pengumuman</label>
+          <label style="display:flex; justify-content:space-between; align-items:center;">Isi Pengumuman <emoji-picker @pilih="form.isi += $event" /></label>
           <textarea v-model="form.isi" rows="3" placeholder="Contoh: Gudang tutup, absensi otomatis libur."></textarea>
         </div>
         <div class="gc-field">
@@ -240,6 +322,61 @@ const AppConfigInfo = {
                 <button @click="edit(p)" class="icon-btn"><i class="fas fa-pen"></i></button>
                 <button @click="hapus(p)" class="icon-btn" style="color:var(--danger);"><i class="fas fa-trash-alt"></i></button>
               </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px; margin-top:24px;">
+        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:#1F5060;"><i class="fas fa-quote-left" style="margin-right:8px;"></i> Quote Harian</h4>
+        <p style="font-size:11px; color:#1F5060; margin-top:4px; opacity:.85;">Beda dari Pengumuman — 1 Quote tampil per TANGGAL yang dijadwalkan. Kalau tidak ada Quote untuk hari itu, kartunya tidak muncul di Home.</p>
+      </div>
+
+      <div class="gc-card" style="margin-bottom:16px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;">{{ formQuote.id ? 'Edit Quote' : 'Jadwalkan Quote Baru' }}</h3>
+        <div class="gc-field">
+          <label>Tanggal Tampil</label>
+          <input v-model="formQuote.tanggalTampil" type="date">
+        </div>
+        <div class="gc-field">
+          <label style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Judul <span style="font-weight:400; color:var(--text-faint);">({{ formQuote.judul.length }}/20)</span></span>
+            <emoji-picker @pilih="formQuote.judul += $event" />
+          </label>
+          <input v-model="formQuote.judul" type="text" maxlength="20" placeholder="Contoh: Giveaway Agustus">
+        </div>
+        <div class="gc-field">
+          <label style="display:flex; justify-content:space-between; align-items:center;">
+            <span>Isi Quote <span style="font-weight:400; color:var(--text-faint);">({{ formQuote.isi.length }}/60)</span></span>
+            <emoji-picker @pilih="formQuote.isi += $event" />
+          </label>
+          <textarea v-model="formQuote.isi" rows="2" maxlength="60" placeholder="Contoh: Absen 20 hari penuh, menangkan voucher belanja!"></textarea>
+        </div>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button @click="simpanQuote" :disabled="menyimpanQuote" class="btn-primary" style="flex:1;">
+            <i class="fas fa-save" style="margin-right:8px;"></i> {{ menyimpanQuote ? 'Menyimpan...' : (formQuote.id ? 'Update Quote' : 'Jadwalkan Quote') }}
+          </button>
+          <button v-if="formQuote.id" @click="formQuoteKosong" class="btn-outline">Batal Edit</button>
+        </div>
+      </div>
+
+      <div class="gc-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;">
+          <h3 class="gc-heading" style="font-size:13.5px; font-weight:700;">Daftar Quote Terjadwal</h3>
+          <button @click="muatQuote" class="icon-btn"><i class="fas fa-sync-alt"></i></button>
+        </div>
+        <div v-if="memuatQuote" style="text-align:center; padding:24px 0; color:var(--text-faint); font-size:12px;">Memuat...</div>
+        <div v-else-if="daftarQuote.length === 0" style="text-align:center; padding:24px 0; color:var(--text-faint); font-size:12px;">Belum ada Quote dijadwalkan.</div>
+        <div v-else style="display:flex; flex-direction:column; gap:10px;">
+          <div v-for="q in daftarQuote" :key="q.id" style="border:1px solid var(--line); border-radius:14px; padding:12px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+            <div style="flex:1;">
+              <span class="tag neutral" style="margin-bottom:6px; display:inline-block;">{{ q.tanggalTampil }}</span>
+              <b style="font-size:13px; display:block;">{{ q.judul }}</b>
+              <p style="font-size:12px; color:var(--text-muted); margin-top:2px;">{{ q.isi }}</p>
+            </div>
+            <div style="display:flex; gap:6px; flex-shrink:0;">
+              <button @click="editQuote(q)" class="icon-btn"><i class="fas fa-pen"></i></button>
+              <button @click="hapusQuote(q.id)" class="icon-btn" style="color:var(--danger);"><i class="fas fa-trash-alt"></i></button>
             </div>
           </div>
         </div>

@@ -21,7 +21,7 @@
 // (fitur upload foto KTP, bukan bagian dari layar selfie ini).
 // ============================================================================
 import { createApp, ref, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, addDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 // Haversine: jarak antara 2 koordinat GPS dalam meter
@@ -195,6 +195,66 @@ const AppKamera = {
       sudahAmbilFoto.value = false;
     }
 
+    // Ubah "HH:MM" jadi objek Date HARI INI jam segitu.
+    function jamKeStringHariIni(strJam) {
+      if (!strJam) return null;
+      const [j, m] = strJam.split(':').map(Number);
+      if (isNaN(j) || isNaN(m)) return null;
+      const d = new Date();
+      d.setHours(j, m, 0, 0);
+      return d;
+    }
+
+    async function hitungJamKeluarUntukGaji() {
+      const sekarang = new Date();
+      try {
+        // 1. Cari jam pulang jadwal shift karyawan ini.
+        const namaShift = window.currentUser?.nama_shift;
+        let batasAtas = null;
+        if (namaShift) {
+          const snapShift = await getDocs(collection(db, "master_shift"));
+          snapShift.forEach(d => {
+            const s = d.data();
+            if (s.nama_shift === namaShift) batasAtas = jamKeStringHariIni(s.jam_keluar);
+          });
+        }
+        // Tidak ketemu jadwal shift sama sekali -> tidak bisa membatasi
+        // dengan aman, pakai jam Clock Out asli apa adanya (lebih aman
+        // daripada menebak/salah potong jam kerja orang).
+        if (!batasAtas) return sekarang.toLocaleString('id-ID');
+
+        // 2. Cari pengajuan Lembur milik SAYA SENDIRI yang SUDAH di-ACC
+        // untuk hari ini — kalau ada dan jam selesainya lebih lambat dari
+        // jadwal shift, itu yang jadi batas baru (bukan shift lagi).
+        const hariIni = sekarang.toLocaleDateString('id-ID');
+        const qLembur = query(
+          collection(db, "absensi"),
+          where("email", "==", window.currentUser.email),
+          where("status", "==", "LEMBUR (CLOCK IN)"),
+          where("status_acc", "==", "ACC")
+        );
+        const snapLembur = await getDocs(qLembur);
+        snapLembur.forEach(d => {
+          const l = d.data();
+          // Data lama pakai "waktu" string lokal (bukan Timestamp asli),
+          // jadi cocokkan tanggalnya di JS, bukan lewat where() Firestore.
+          const tanggalDoc = (l.waktu || '').split(',')[0].trim();
+          if (tanggalDoc !== hariIni) return;
+          const selesaiLembur = jamKeStringHariIni(l.lembur_selesai);
+          if (selesaiLembur && selesaiLembur > batasAtas) batasAtas = selesaiLembur;
+        });
+
+        // 3. Ambil yang LEBIH KECIL — jam asli Clock Out kalau belum
+        // lewat batas, atau batas atasnya kalau sudah lewat.
+        const jamDipakai = sekarang <= batasAtas ? sekarang : batasAtas;
+        return jamDipakai.toLocaleString('id-ID');
+      } catch (e) {
+        console.error("Gagal hitung jam keluar untuk gaji, pakai jam asli:", e);
+        return sekarang.toLocaleString('id-ID');
+      }
+    }
+
+
     async function simpanKeFirebase(fotoBase64) {
       try {
         let dataKirim = {
@@ -226,6 +286,26 @@ const AppKamera = {
           dataKirim.keterangan = window.lemburAlasanGlobal || "";
           dataKirim.lembur_instruksi = window.lemburInstruksiGlobal || "";
         }
+        // ====================================================================
+        // PEMBATAS JAM KELUAR UNTUK PENGGAJIAN (17 Agt 2026)
+        // Tujuan: jam pulang TERLAMBAT dari jadwal shift TIDAK otomatis
+        // dihitung sebagai jam kerja tambahan untuk gaji — kecuali memang
+        // ada pengajuan Lembur yang SUDAH DI-ACC untuk hari ini. Contoh:
+        // shift 08:00–16:00, karyawan Clock Out jam 17:00 tanpa pengajuan
+        // lembur -> yang dipakai untuk gaji TETAP 16:00 (jam shift), bukan
+        // 17:00 asli.
+        //
+        // SENGAJA disimpan DUA-DUANYA — "waktu" (jam Clock Out ASLI, tidak
+        // diubah, buat transparansi/audit) DAN "jam_keluar_untuk_gaji" (jam
+        // yang sudah dibatasi, siap dipakai perhitungan gaji kapanpun nanti
+        // dibangun). Admin tetap bisa lihat & koreksi manual dari Antrean/
+        // Riwayat Absensi kalau perhitungan otomatis ini meleset — belum
+        // ada mesin payroll sungguhan yang membaca field ini (Slip Gaji/
+        // Payroll masih placeholder), jadi ini menyiapkan datanya duluan.
+        if (window.statusPilihanGlobal === "CLOCK OUT") {
+          dataKirim.jam_keluar_untuk_gaji = await hitungJamKeluarUntukGaji();
+        }
+        // ====================================================================
         if (perluLokasi.value) {
           dataKirim.gudang = gudangDipilih.value || "";
           if (koordinatGlobal) {
@@ -278,8 +358,13 @@ const AppKamera = {
         const hariIni = new Date().toLocaleDateString('id-ID');
         if (window.statusPilihanGlobal === "HADIR (CLOCK IN)") {
           localStorage.setItem('zevanic_absen_' + window.currentUser.email, hariIni);
+          // Simpan JAM clock-in juga (bukan cuma tanggal) — dipakai Home
+          // buat tampilkan "Clock in HH:MM - jam berjalan sekarang", cuma
+          // baca localStorage, tidak nambah baca Firestore sama sekali.
+          localStorage.setItem('zevanic_jam_masuk_' + window.currentUser.email, new Date().toISOString());
         } else if (window.statusPilihanGlobal === "CLOCK OUT") {
           localStorage.setItem('zevanic_absen_' + window.currentUser.email, "OUT_" + hariIni);
+          localStorage.removeItem('zevanic_jam_masuk_' + window.currentUser.email);
         }
         if (window.statusPilihanGlobal === "CLOCK OUT") {
           alert("Clock Out berhasil! Hati-hati di jalan.");
