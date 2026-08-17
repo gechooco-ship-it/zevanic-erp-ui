@@ -9,7 +9,7 @@
 // sini SENGAJA dipertahankan identik dengan versi lama supaya bagian-bagian
 // itu tetap jalan normal tanpa perlu ikut diubah.
 // ============================================================================
-import { createApp, ref, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
@@ -24,6 +24,17 @@ const MasterGudangManager = {
     const lat = ref('');
     const lng = ref('');
     const radius = ref('');
+
+    // PENERAPAN NYATA Config Akses — kunci dropdown Jenis Lokasi kalau
+    // role ini SENGAJA dilarang mengubahnya (fitur "ubah_jenis_lokasi" di
+    // menu config_absensi, diatur lewat Config Akses). Sama seperti
+    // pengaman lain: kalau BELUM DIATUR sama sekali (null), dianggap
+    // BOLEH — supaya tidak ada yang tiba-tiba terkunci keluar cuma
+    // karena Config Akses belum sempat dibuat untuk role itu.
+    const bolehUbahJenisLokasi = computed(() => {
+      const izin = window.cekFiturAkses('config_absensi', 'ubah_jenis_lokasi');
+      return izin === false ? false : true;
+    });
 
     async function muat() {
       memuat.value = true;
@@ -74,7 +85,7 @@ const MasterGudangManager = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { daftarGudang, memuat, menyimpan, nama, tipeLokasi, lat, lng, radius, simpan, hapus };
+    return { daftarGudang, memuat, menyimpan, nama, tipeLokasi, lat, lng, radius, simpan, hapus, bolehUbahJenisLokasi };
   },
   template: `
     <div class="gc-card">
@@ -85,11 +96,12 @@ const MasterGudangManager = {
       </div>
       <div class="gc-field">
         <label>Jenis lokasi *</label>
-        <select v-model="tipeLokasi">
+        <select v-model="tipeLokasi" :disabled="!bolehUbahJenisLokasi">
           <option value="Tetap">Tetap (titik & radius pasti)</option>
           <option value="Dinamis">Dinamis (lapangan, lokasi bebas)</option>
         </select>
-        <p style="font-size:10.5px; color:var(--text-faint); margin-top:5px;">Dinamis dipakai untuk orang lapangan yang visit ke mana saja — tidak ada validasi radius/koordinat saat Clock In.</p>
+        <p v-if="!bolehUbahJenisLokasi" style="font-size:10.5px; color:var(--danger); margin-top:5px;"><i class="fas fa-lock" style="margin-right:4px;"></i>Cuma Owner yang bisa ubah Jenis Lokasi. Hubungi Owner kalau perlu diubah.</p>
+        <p v-else style="font-size:10.5px; color:var(--text-faint); margin-top:5px;">Dinamis dipakai untuk orang lapangan yang visit ke mana saja — tidak ada validasi radius/koordinat saat Clock In.</p>
       </div>
       <div v-if="tipeLokasi === 'Tetap'">
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">

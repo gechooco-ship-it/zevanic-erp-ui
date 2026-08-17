@@ -52,6 +52,72 @@ window.authReady = new Promise((resolve) => {
   });
 });
 
+// ============================================================================
+// SISTEM PENERAPAN IZIN CONFIG AKSES — fondasi bersama (17 Agt 2026)
+//
+// Sebelum ini, Config Akses cuma "cetak biru" — tersimpan tapi tidak
+// membatasi apapun. Sekarang izin BENAR-BENAR dibaca & diterapkan lewat
+// 2 fungsi bantu global ini, dipanggil dari MANAPUN di app (Vue atau
+// vanilla JS) tanpa perlu import apapun:
+//
+//   window.cekIzinMenu(menuId, jenis) — jenis: 'view'|'add'|'edit'|'delete'|'print'
+//   window.cekFiturAkses(menuId, fiturKey) — kontrol granular per-field,
+//     misal kunci dropdown tertentu (lihat DAFTAR_MENU di
+//     vue-config-akses.js untuk daftar fitur yang terdaftar per menu)
+//
+// Keduanya baca dari window.aksesConfigSaya — diambil SEKALI saat login
+// (mirip window.currentUser), BUKAN baca Firestore tiap kali dicek, biar
+// hemat. Kalau nanti butuh fitur baru serupa "kunci field X", TIDAK perlu
+// bikin mekanisme baru — cukup daftarkan fiturKey baru di DAFTAR_MENU
+// (vue-config-akses.js), lalu panggil window.cekFiturAkses(...) di titik
+// yang mau dikunci. 1 pola, dipakai berkali-kali — bukan solusi ad-hoc
+// per kasus.
+//
+// ATURAN JATUH-AMAN (fallback) — PENTING: kalau akses_config untuk role
+// ini belum ada/gagal dibaca, kedua fungsi INI KEMBALIKAN null (bukan
+// false) — artinya "belum diatur", dan kode PEMANGGIL yang memutuskan
+// defaultnya (biasanya: anggap boleh, supaya tidak ada yang tiba-tiba
+// terkunci keluar cuma karena Config Akses belum lengkap/belum dibuat
+// buat role itu). Cek eksplisit `=== false` untuk "sengaja dilarang",
+// jangan cek falsy biasa.
+window.aksesConfigSaya = undefined; // undefined = belum sempat dimuat sama sekali
+
+window.muatAksesConfigSaya = async function(role) {
+  const r = (role || '').toLowerCase();
+  if (r === 'owner') {
+    // Owner SELALU akses penuh, tidak pernah dibatasi — tidak perlu baca
+    // Firestore sama sekali buat role ini.
+    window.aksesConfigSaya = 'OWNER_PENUH';
+    return;
+  }
+  try {
+    const snap = await getDoc(doc(db, "akses_config", r));
+    window.aksesConfigSaya = snap.exists() ? snap.data() : null;
+  } catch (e) {
+    console.error("Gagal muat akses_config untuk role", r, e);
+    window.aksesConfigSaya = null;
+  }
+};
+
+window.cekIzinMenu = function(menuId, jenis) {
+  if (window.aksesConfigSaya === 'OWNER_PENUH') return true;
+  if (!window.aksesConfigSaya) return null; // belum dimuat / tidak ada data -> pemanggil yang putuskan default
+  const menu = window.aksesConfigSaya.menus?.[menuId];
+  if (!menu) return null;
+  return menu[jenis] === true ? true : (menu[jenis] === false ? false : null);
+};
+
+window.cekFiturAkses = function(menuId, fiturKey) {
+  if (window.aksesConfigSaya === 'OWNER_PENUH') return true;
+  if (!window.aksesConfigSaya) return null;
+  const menu = window.aksesConfigSaya.menus?.[menuId];
+  if (!menu || !menu.fitur) return null;
+  const nilai = menu.fitur[fiturKey];
+  return nilai === true ? true : (nilai === false ? false : null);
+};
+// ============================================================================
+
+
 // Pesan error Firebase Auth diterjemahkan ke Bahasa Indonesia yang ramah pengguna
 function pesanErrorAuth(kode) {
   const peta = {
@@ -278,6 +344,7 @@ onAuthStateChanged(auth, async (user) => {
       status_kerja: d.status_kerja || "Aktif",
       gudang_penempatan: gudangUser
     };
+    await window.muatAksesConfigSaya(roleUser);
     if (window.aturTampilanBerdasarkanRole) window.aturTampilanBerdasarkanRole();
     if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
     // Home itu layar landasan (langsung tampil begitu login, beda dari

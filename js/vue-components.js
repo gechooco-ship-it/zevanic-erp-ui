@@ -318,37 +318,37 @@ export function daftarMenuGroups(role) {
       nama: 'Absensi',
       roleBoleh: ['pic', 'admin', 'owner', 'superuser'],
       items: [
-        { label: 'Antrean Absensi', icon: 'fa-clipboard-check', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-accept', null); } },
-        { label: 'Riwayat All Absensi', icon: 'fa-clock-rotate-left', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-rekap', null); } },
-        { label: 'Penjadwalan', icon: 'fa-calendar-days', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-jadwal', null); } },
-        { label: 'Config', icon: 'fa-gear', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-config', null); } }
+        { label: 'Antrean Absensi', menuId: 'antrean_absensi', icon: 'fa-clipboard-check', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-accept', null); } },
+        { label: 'Riwayat All Absensi', menuId: 'riwayat_absensi', icon: 'fa-clock-rotate-left', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-rekap', null); } },
+        { label: 'Penjadwalan', menuId: 'penjadwalan', icon: 'fa-calendar-days', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-jadwal', null); } },
+        { label: 'Config', menuId: 'config_absensi', icon: 'fa-gear', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-config', null); } }
       ]
     },
     {
       nama: 'Master Karyawan',
       roleBoleh: ['owner', 'superuser'],
       items: [
-        { label: 'Antrean Dakar', icon: 'fa-user-clock', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', null); } },
-        { label: 'Daftar Karyawan', icon: 'fa-users', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-data', null); } },
-        { label: 'Slip Gaji', icon: 'fa-file-invoice-dollar', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-slip', null); } },
-        { label: 'Payroll', icon: 'fa-money-check-dollar', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', null); } },
-        { label: 'Config Karyawan', icon: 'fa-sliders', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-config', null); } },
-        { label: 'Config Info', icon: 'fa-bullhorn', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-info', null); } },
+        { label: 'Antrean Dakar', menuId: 'antrean_dakar', icon: 'fa-user-clock', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', null); } },
+        { label: 'Daftar Karyawan', menuId: 'daftar_karyawan', icon: 'fa-users', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-data', null); } },
+        { label: 'Slip Gaji', menuId: 'slip_gaji', icon: 'fa-file-invoice-dollar', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-slip', null); } },
+        { label: 'Payroll', menuId: 'payroll', icon: 'fa-money-check-dollar', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', null); } },
+        { label: 'Config Karyawan', menuId: 'config_karyawan', icon: 'fa-sliders', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-config', null); } },
+        { label: 'Config Info', menuId: 'config_info', icon: 'fa-bullhorn', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-info', null); } },
         // Hak Akses & Config Akses SENGAJA dikunci Owner asli saja (lihat
         // roleBoleh per-item di bawah) — Superuser tetap lihat 5 item lain
         // di grup ini, tapi bukan 2 ini, konsisten dengan gerbang yang
         // sudah ada di auth.js/index.html.
-        { label: 'Hak Akses', icon: 'fa-user-shield', roleBoleh: ['owner'], aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-hakakses', null); } },
-        { label: 'Config Akses', icon: 'fa-shield-halved', roleBoleh: ['owner'], aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-akses', null); } }
+        { label: 'Hak Akses', menuId: 'hak_akses', icon: 'fa-user-shield', roleBoleh: ['owner'], aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-hakakses', null); } },
+        { label: 'Config Akses', menuId: 'config_akses', icon: 'fa-shield-halved', roleBoleh: ['owner'], aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-akses', null); } }
       ]
     },
     {
       nama: 'Whatsapp',
       roleBoleh: ['owner', 'superuser'],
       items: [
-        { label: 'Monitoring Respon', icon: 'fa-chart-line', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('monitor'); } },
-        { label: 'Template Pesan', icon: 'fa-comment-dots', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('template'); } },
-        { label: 'Config API', icon: 'fa-plug', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('config'); } }
+        { label: 'Monitoring Respon', menuId: 'whatsapp_gateway', icon: 'fa-chart-line', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('monitor'); } },
+        { label: 'Template Pesan', menuId: 'whatsapp_gateway', icon: 'fa-comment-dots', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('template'); } },
+        { label: 'Config API', menuId: 'whatsapp_gateway', icon: 'fa-plug', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('config'); } }
       ]
     }
   ];
@@ -361,12 +361,29 @@ export function daftarMenuGroups(role) {
   // `role` ini, dari window.currentUser.role) — BUKAN baca Firestore lagi,
   // supaya tetap hemat. Halaman pemanggil (vue-home.js) yang tampilkan
   // pesan "Akses terkunci" kalau item.terkunci true saat diklik.
+  // PERUBAHAN 17 Agt 2026: dulu grup/menu yang tidak boleh diakses role
+  // ini langsung DIHILANGKAN dari daftar. Sekarang SEMUA grup & menu
+  // tetap DITAMPILKAN untuk siapapun — item yang tidak boleh diakses
+  // cuma ditandai `terkunci: true`.
+  //
+  // PENERAPAN NYATA Config Akses (17 Agt 2026, tahap 1): status terkunci
+  // sekarang CEK IZIN 'view' SUNGGUHAN dari akses_config lewat
+  // window.cekIzinMenu(menuId, 'view') — bukan cuma tebakan roleBoleh
+  // hardcode lagi. Kalau izin BELUM DIATUR untuk role ini (hasilnya
+  // null, misal role itu belum pernah dibuka di Config Akses sama
+  // sekali), JATUH KEMBALI ke logic roleBoleh lama sebagai jaring
+  // pengaman — supaya tidak ada yang tiba-tiba terkunci keluar cuma
+  // karena admin belum sempat atur Config Akses buat role itu.
   return semuaGroup.map(g => ({
     ...g,
-    items: g.items.map(i => ({
-      ...i,
-      terkunci: !((!g.roleBoleh || g.roleBoleh.includes(r)) && (!i.roleBoleh || i.roleBoleh.includes(r)))
-    }))
+    items: g.items.map(i => {
+      const izinAsli = i.menuId ? window.cekIzinMenu(i.menuId, 'view') : null;
+      const terkunciFallback = !((!g.roleBoleh || g.roleBoleh.includes(r)) && (!i.roleBoleh || i.roleBoleh.includes(r)));
+      return {
+        ...i,
+        terkunci: izinAsli === null ? terkunciFallback : !izinAsli
+      };
+    })
   }));
 }
 

@@ -295,6 +295,7 @@ const AppLogin = {
         return;
       }
 
+      await window.muatAksesConfigSaya(window.currentUser.role);
       window.aturTampilanBerdasarkanRole();
       if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
       // Sama seperti di auth.js — Home butuh refresh segera setelah login

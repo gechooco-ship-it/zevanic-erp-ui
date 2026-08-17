@@ -22,13 +22,27 @@ import { db } from "./firebase-config.js";
 const DAFTAR_MENU = [
   { id: 'dashboard', label: 'Dashboard', kategori: 'Umum' },
   { id: 'profile', label: 'Profile', kategori: 'Umum' },
-  { id: 'config_absensi', label: 'Config Absensi', kategori: 'Master Absensi' },
+  // fiturList = kontrol granular OPSIONAL per menu, di luar View/Add/Edit/
+  // Delete/Print baku — dipakai buat kunci field/dropdown SPESIFIK di
+  // dalam form menu itu (bukan seluruh menunya). Contoh nyata: dropdown
+  // "Jenis Lokasi" di form Master Gudang, defaultnya Tetap untuk non-
+  // Owner, cuma Owner yang bisa buka opsi Dinamis. Kalau nanti ada
+  // kebutuhan serupa (kunci field lain), TAMBAHKAN entry baru di
+  // fiturList menu terkait di sini — JANGAN bikin mekanisme baru,
+  // panggil window.cekFiturAkses(menuId, fiturKey) di titik yang mau
+  // dikunci (lihat auth.js untuk definisi fungsinya).
+  { id: 'config_absensi', label: 'Config Absensi', kategori: 'Master Absensi', fiturList: [
+    { key: 'ubah_jenis_lokasi', label: 'Boleh ubah Jenis Lokasi gudang (Tetap/Dinamis)' }
+  ] },
   { id: 'penjadwalan', label: 'Penjadwalan', kategori: 'Master Absensi' },
   { id: 'antrean_absensi', label: 'Antrean Absensi', kategori: 'Master Absensi' },
   { id: 'riwayat_absensi', label: 'Riwayat All Absensi', kategori: 'Master Absensi' },
   { id: 'antrean_dakar', label: 'Antrean Dakar', kategori: 'Master Karyawan' },
   { id: 'config_karyawan', label: 'Config Karyawan', kategori: 'Master Karyawan' },
   { id: 'daftar_karyawan', label: 'Daftar Karyawan', kategori: 'Master Karyawan' },
+  { id: 'config_info', label: 'Config Info', kategori: 'Master Karyawan' },
+  { id: 'slip_gaji', label: 'Slip Gaji', kategori: 'Master Karyawan' },
+  { id: 'payroll', label: 'Payroll', kategori: 'Master Karyawan' },
   { id: 'config_akses', label: 'Config Akses', kategori: 'Master Karyawan' },
   { id: 'hak_akses', label: 'Hak Akses', kategori: 'Master Karyawan' },
   { id: 'whatsapp_gateway', label: 'WhatsApp Gateway', kategori: 'Integrasi' }
@@ -53,6 +67,11 @@ function bikinDefaultProfil(namaProfil) {
     lihatSaja('dashboard');
     menus.profile = { view: true, add: true, edit: true, delete: false, print: false };
     ['config_absensi', 'penjadwalan', 'antrean_absensi', 'riwayat_absensi'].forEach(semua);
+    // Contoh nyata pemakaian fitur granular: Admin/PIC boleh kelola
+    // Master Gudang sepenuhnya (view/add/edit/delete/print semua true di
+    // atas), TAPI khusus dropdown "Jenis Lokasi"-nya tetap terkunci ke
+    // Tetap — cuma Owner yang bisa buka opsi Dinamis.
+    menus.config_absensi.fitur = { ubah_jenis_lokasi: false };
   } else {
     lihatSaja('dashboard');
     menus.profile = { view: true, add: true, edit: true, delete: false, print: false };
@@ -71,7 +90,15 @@ const AppConfigAkses = {
     const namaAkses = ref('');
     const profilDipilih = ref('');
     const menus = reactive({});
-    DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN(); });
+    // pastikanFiturAda: kalau menu ini punya fiturList (kontrol granular
+    // tambahan), pastikan menus[id].fitur SELALU ada sebagai objek —
+    // supaya template (v-model="menus[m.id].fitur[f.key]") tidak error
+    // kalau datanya belum pernah tersimpan sama sekali.
+    function pastikanFiturAda(menuId) {
+      const def = DAFTAR_MENU.find(m => m.id === menuId);
+      if (def && def.fiturList && !menus[menuId].fitur) menus[menuId].fitur = {};
+    }
+    DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN(); pastikanFiturAda(m.id); });
 
     const kategoriTerbuka = reactive({});
     KATEGORI_URUTAN.forEach(k => { kategoriTerbuka[k] = true; });
@@ -129,6 +156,7 @@ const AppConfigAkses = {
           menus[m.id] = dataMenus && dataMenus[m.id] ? { ...KOSONG_IZIN(), ...dataMenus[m.id] } : (
             PROFIL_BAKU.includes(nama) ? bikinDefaultProfil(nama)[m.id] : KOSONG_IZIN()
           );
+          pastikanFiturAda(m.id);
         });
       } catch (e) {
         console.error("Gagal muat profil akses:", nama, e);
@@ -138,7 +166,7 @@ const AppConfigAkses = {
     function mulaiProfilBaru() {
       profilDipilih.value = '';
       namaAkses.value = '';
-      DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN(); });
+      DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN(); pastikanFiturAda(m.id); });
     }
 
     async function simpan() {
@@ -253,6 +281,15 @@ const AppConfigAkses = {
                 <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].edit" style="accent-color:var(--ok); width:16px; height:16px;"></td>
                 <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].delete" style="accent-color:var(--ok); width:16px; height:16px;"></td>
                 <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].print" style="accent-color:var(--ok); width:16px; height:16px;"></td>
+              </tr>
+              <tr v-for="m in menuUntukKategori(kategori).filter(x => x.fiturList)" :key="m.id + '-fitur'">
+                <td colspan="6" style="background:var(--ivory-dim); padding:10px 12px;">
+                  <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px;">Kontrol tambahan — {{ m.label }}</div>
+                  <label v-for="f in m.fiturList" :key="f.key" style="display:flex; align-items:center; gap:8px; font-size:12px; padding:4px 0; cursor:pointer;">
+                    <input type="checkbox" v-model="menus[m.id].fitur[f.key]" style="accent-color:var(--ok); width:15px; height:15px;">
+                    {{ f.label }}
+                  </label>
+                </td>
               </tr>
             </tbody>
           </table>
