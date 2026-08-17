@@ -6,7 +6,7 @@
 > terbawa ke chat baru. Update file ini di akhir sesi kerja yang cukup
 > besar (bukan tiap perubahan kecil).
 
-Terakhir diperbarui: **17 Agustus 2026, malam** (sesi sistem Hak Akses lengkap — Tahap 1/2/3 selesai)
+Terakhir diperbarui: **17 Agustus 2026, malam** (+ catatan aturan login desktop & Owner)
 
 ---
 
@@ -68,30 +68,109 @@ cuma 5 nama baku ini (lihat poin 6, Config Akses).
   dibangun), **Profile** (drawer geser dari kanan).
 
 **Master Absensi** (`tab-admin-acc`): Config Absensi, Penjadwalan,
-Antrean Absensi, Riwayat All Absensi.
+Antrean Absensi, **Antrean Lembur** (baru), Riwayat All Absensi.
 **Master Karyawan** (`tab-superuser`): Antrean Dakar, Daftar Karyawan,
 Slip Gaji (placeholder), Payroll (placeholder), Config Karyawan,
-**Config Info** (baru, kelola Pengumuman), **Hak Akses** (owner-only),
-**Config Akses** (owner-only).
+**Config Info** (kelola Pengumuman + Quote Harian), **Hak Akses**
+(owner-only), **Config Akses** (owner-only).
 
-## 5. Home mobile — hub menu (dibangun 17 Agt 2026)
+### 4.1 Login komputer WAJIB Clock In dari HP dulu (aturan lama, bukan baru)
+`js/vue-login.js` — sistem deteksi otomatis kalau login lewat browser
+desktop (`isDesktopBrowser()`, cek `navigator.userAgent`, BUKAN pilihan
+manual). Kalau desktop: kotak pilihan status (Hadir/Izin/Cuti)
+disembunyikan sama sekali, diganti cek LANGSUNG ke Firestore
+(`sudahClockInHariIniServer()`) — apakah email ini SUDAH ada catatan
+Clock In hari ini. Kalau sudah → langsung masuk Dashboard. Kalau belum →
+ditolak + logout otomatis, pesan minta Clock In dari HP dulu.
+
+**Alasan**: foto selfie + validasi lokasi/radius cuma bisa lewat kamera
+HP — desktop SENGAJA tidak punya jalur Clock In sendiri. Alur yang
+benar: HP dulu untuk absen (dengan bukti foto), baru komputer boleh
+dipakai untuk kerja administratif (Dashboard, dsb, layar lebih besar).
+
+### 4.2 Aturan khusus Owner
+- **Cara ditentukan**: murni field `role: "owner"` di Firestore. TIDAK
+  ADA lagi deteksi dari pola email (versi lama yang cek "email
+  mengandung kata owner" sudah dihapus total).
+- **Login**: Owner (dan Superuser) dikecualikan dari wajib tautan
+  gudang — role lain ditolak login kalau belum ditautkan ke gudang
+  manapun, Owner tidak (perannya manajerial, bukan operasional
+  lapangan). Tetap kena aturan `status_approval` yang sama seperti
+  role lain.
+- **Akses**: dapat semua menu Master Absensi + Master Karyawan +
+  WhatsApp Gateway, DITAMBAH Config Akses & Hak Akses (2 menu ini
+  KHUSUS Owner, Superuser tidak dapat).
+- **Bypass Config Akses**: Owner SELALU dianggap akses penuh
+  (`window.aksesConfigSaya = 'OWNER_PENUH'` di auth.js), dicek PALING
+  AWAL sebelum baca Firestore apapun — jadi Owner tidak pernah baca
+  `akses_config` sama sekali (hemat), dan tidak bisa dibatasi lewat
+  Config Akses walau dicoba. Sengaja begini — Owner tidak boleh
+  terkunci sendiri oleh kesalahan pengaturan.
+- **Cara menjadikan seseorang Owner**: lewat Hak Akses (pilih role
+  "owner" di dropdown). Untuk Owner PERTAMA KALI (belum ada Owner sama
+  sekali di sistem) harus diatur manual di Firestore Console
+  (`users/{email}.role = "owner"`), karena tidak ada Owner lain yang
+  bisa memasangkannya lewat Hak Akses.
+
+## 5. Home mobile — hub menu + header dinamis (dibangun 17 Agt 2026)
 
 `js/vue-home.js` — bukan lagi cuma sapaan+shortcut, sekarang "hub menu"
-lengkap: Pengumuman (carousel, di atas) → Shortcut (Clock In/Out
-dinamis, Izin, Cuti, Lembur) → grup menu per role (Absensi/Master
-Karyawan/Whatsapp), semua tampil kotak grid 5 kolom.
+lengkap: Kartu shift (melayang, lihat 5.2) → Pengumuman (carousel) →
+Quote Harian (lihat poin 7.2, cuma tampil kalau ada jadwal hari itu) →
+Shortcut (Clock In/Out dinamis, Izin, Cuti, Lembur) → grup menu per role
+(Absensi/Master Karyawan/Whatsapp), semua tampil kotak grid 5 kolom.
 
 **Penting**: SEMUA menu grup sekarang **selalu tampil ke siapapun**
 (operator termasuk) — yang tidak berhak cuma ditandai kunci (redup +
 ikon gembok), klik-nya munculkan pesan "Akses terkunci, silahkan hubungi
-Owner / PIC Owner!", BUKAN navigasi. Pengecekan izinnya pakai
-`window.currentUser.role` yang sudah ada di memori, TIDAK baca Firestore
-lagi. Logic-nya ada di `daftarMenuGroups()` (vue-components.js) — 1
-registry terpusat, kalau mau ubah/tambah menu, ubah di SATU tempat itu.
+Owner / PIC Owner!", BUKAN navigasi. Pengecekan izinnya lewat
+`window.cekIzinMenu()` (lihat 6.3), fallback ke role kalau belum diatur.
+Logic-nya ada di `daftarMenuGroups()` (vue-components.js) — 1 registry
+terpusat, kalau mau ubah/tambah menu, ubah di SATU tempat itu.
 
 Desktop TIDAK pakai hub menu ini — cuma banner sambutan sederhana +
-Pengumuman (komponen `PengumumanCarousel` yang SAMA, di-mount terpisah
-lewat `js/vue-home-desktop.js`).
+Pengumuman + Quote (komponen SAMA, di-mount terpisah lewat
+`js/vue-home-desktop.js`).
+
+### 5.1 Header mobile dinamis (`js/vue-header-mobile.js`, baru)
+SATU komponen, dipasang di `<main>` (di atas SEMUA tab, bukan cuma
+Home), isinya berubah otomatis:
+- **Di Home**: "Selamat [pagi/siang/sore/malam], [Nama]" — kartu pink.
+- **Di halaman lain**: "ERP Zevanic House" / "[Menu] - [Sub-menu]" —
+  supaya orang tetap tahu sedang di mana walau baris tombol sub-tab
+  disembunyikan di mobile (lihat 5.3).
+
+Diaktifkan lewat `window.aturHeaderKonteks(tabId, subTabId)`, dipanggil
+dari `pindahTab`/`pindahSubTab` (dashboard.js) — murni cocokkan ID ke
+tabel label (`LABEL_TAB`/`LABEL_SUBTAB` di file itu sendiri), TIDAK baca
+Firestore. **Kalau nambah tab/sub-tab baru, WAJIB tambahkan label-nya di
+kedua tabel itu juga**, atau header-nya bakal kosong pas dibuka.
+
+Header lama (`label-badge-role` + `teks-nama-user`, dengan countdown
+"Terlambat +HH:MM:SS") sekarang **desktop-only** (`hidden md:flex`) —
+mobile TIDAK pakai lagi, sengaja dihapus dari mobile sesuai permintaan
+(fungsi `mulaiHitungJamKerja` di dashboard.js masih ada, cuma untuk
+desktop sekarang).
+
+### 5.2 Kartu shift melayang
+Kartu putih dengan `margin-top:-26px` supaya visual overlap ke kartu
+header pink di atasnya (gaya "melayang"). Isinya sekarang juga:
+- Nama gudang di sebelah "Shift hari ini"
+- Kalau sudah absen: jam Clock In asli + **durasi kerja berjalan
+  real-time** (format `09:00 – 02:14:37`, update tiap detik pakai
+  `setInterval`) — murni baca `localStorage` (key
+  `zevanic_jam_masuk_{email}`, diisi `js/vue-camera.js` saat Clock In,
+  dihapus saat Clock Out), TIDAK ada baca Firestore tambahan.
+
+### 5.3 Baris tombol sub-tab disembunyikan di mobile
+Master Absensi & Master Karyawan tadinya punya baris tombol horizontal
+(Config Absensi | Penjadwalan | ... ) yang tampil di SEMUA ukuran layar
+— sekarang `hidden md:flex`, cuma tampil desktop. Alasan: di mobile,
+navigasi SEHARUSNYA lewat Home (atau header dinamis di 5.1), bukan
+loncat-loncat sub-tab yang bisa kepencet tidak sengaja + boros baca
+(tiap sub-tab dibuka = mount baru = fetch baru). Profile (`vue-account-
+profile.js`) SUDAH lebih dulu begini (`hidden md:block`) — drawer profil
+di mobile yang jadi navigasinya, bukan baris tombol.
 
 ## 6. Sistem Hak Akses (dirombak total 17 Agt 2026, beberapa tahap)
 
@@ -191,8 +270,9 @@ terdampak sama sekali, tidak perlu tindakan apapun.
 
 
 
-## 7. Config Info & Pengumuman (baru 17 Agt 2026)
+## 7. Config Info, Pengumuman, Quote & Emoji Picker (17 Agt 2026)
 
+### 7.1 Pengumuman
 `js/vue-config-info.js` — kelola Pengumuman yang tampil di Home (desktop
 & mobile). Bisa lampirkan gambar/video (maks 1MB, disimpan di **Firebase
 Storage**, BUKAN base64 di Firestore — Firestore batas 1MB/dokumen,
@@ -205,7 +285,63 @@ field `rolesTampil`, kosong = semua). Filternya dilakukan LOKAL di
 `PengumumanCarousel` (vue-components.js) pakai `window.currentUser.role`
 yang sudah ada di memori — bukan query `where()` baru ke server.
 
-## 8. Prinsip hemat Firestore — WAJIB baca `PRINSIP-HEMAT.md`
+### 7.2 Quote Harian (Kotak 3, baru)
+Beda konsep dari Pengumuman — koleksi Firestore TERPISAH (`quotes`), 1
+quote tampil PER TANGGAL yang dijadwalkan di muka (field
+`tanggalTampil`, format `YYYY-MM-DD`), bukan "N terbaru". Kalau tidak
+ada quote dijadwalkan untuk hari ini, kartunya (`QuoteCard`,
+vue-components.js) TIDAK render apapun — bukan kartu kosong.
+
+Diatur di Config Info juga (section terpisah "Quote Harian"). Batas
+karakter SENGAJA diberlakukan: **judul maks 20, isi maks 60** — supaya
+muat rapi di kartu kecil (gradasi pink-ke-biru, gaya kartu "Giveaway").
+Query-nya `where(tanggalTampil==hariIni), limit(1)` — paling murah, 0
+atau 1 baca.
+
+### 7.3 Emoji Picker
+`EmojiPicker` (vue-components.js) — komponen bersama, tombol kecil +
+popup grid emoji, emit karakter terpilih lewat `@pilih`. Dipasang di
+judul+isi Pengumuman DAN judul+isi Quote (4 field total). Kalau nanti
+butuh di field lain, tinggal pakai `<emoji-picker @pilih="targetRef += $event">`
+— tidak perlu bikin mekanisme baru.
+
+## 8. Antrean Lembur & pembatas jam kerja untuk penggajian (17 Agt 2026)
+
+### 8.1 Antrean Lembur (menu baru, terpisah dari Antrean Absensi)
+`js/vue-antrean-lembur.js` — dulu pengajuan Lembur TERCAMPUR di Antrean
+Absensi, tapi tampilannya dirancang untuk absensi Hadir biasa (radius/
+koordinat/seragam) — info yang PALING PENTING buat Lembur (jam mulai/
+selesai diajukan, alasan, instruksi kerja) tidak kelihatan jelas.
+Sekarang punya layar sendiri, field yang relevan, Approve/Reject sendiri.
+`vue-antrean-absensi.js` sekarang MENGECUALIKAN dokumen berstatus
+`"LEMBUR (CLOCK IN)"` — supaya tidak dobel tampil di 2 tempat.
+
+### 8.2 Pembatas jam kerja untuk penggajian
+`js/vue-camera.js`, fungsi `hitungJamKeluarUntukGaji()` — dipanggil
+SAAT Clock Out. Tujuan: jam pulang TERLAMBAT dari jadwal shift TIDAK
+otomatis dihitung sebagai jam kerja tambahan untuk gaji, KECUALI ada
+pengajuan Lembur yang **sudah di-ACC** (lihat 8.1) untuk hari itu.
+
+Contoh: shift 08:00–16:00, Clock Out jam 17:00 tanpa Lembur disetujui
+→ yang dipakai gaji TETAP 16:00. Kalau ADA Lembur disetujui sampai jam
+17:30 → yang dipakai gaji jadi 17:00 (jam Clock Out asli, karena masih
+dalam batas lembur yang disetujui).
+
+**Field disimpan DUA-DUANYA** — `waktu` (jam Clock Out ASLI, tidak
+pernah diubah, buat transparansi/audit) dan `jam_keluar_untuk_gaji`
+(jam yang sudah dibatasi). ⚠️ **Belum ada mesin Payroll sungguhan** yang
+membaca field `jam_keluar_untuk_gaji` ini (Slip Gaji/Payroll masih
+placeholder) — ini menyiapkan datanya duluan, siap dipakai kapanpun
+fitur itu dibangun. Admin tetap bisa koreksi manual dari Antrean/Riwayat
+Absensi kalau perhitungan otomatis meleset.
+
+⚠️ **Perlu dicek saat testing**: query di `hitungJamKeluarUntukGaji()`
+pakai 3 filter sekaligus (`email` + `status` + `status_acc`) — Firestore
+MUNGKIN minta index khusus untuk kombinasi ini. Kalau muncul error
+"index diperlukan" di Console, klik link yang Firestore berikan di
+pesan error itu (otomatis bikinkan index-nya).
+
+## 9. Prinsip hemat Firestore — WAJIB baca `PRINSIP-HEMAT.md`
 
 Ringkasan super singkat (detail lengkap di file itu):
 - Komponen admin **tidak mount sama sekali** sampai tab-nya benar-benar
@@ -224,7 +360,7 @@ Ringkasan super singkat (detail lengkap di file itu):
   tanggal format Firestore asli dulu, bukan cuma teks Indonesia, biar
   bisa query rentang tanggal di server).
 
-## 9. Bug besar yang pernah terjadi & pelajarannya (baca kalau nav/klik terasa aneh)
+## 10. Bug besar yang pernah terjadi & pelajarannya (baca kalau nav/klik terasa aneh)
 
 1. **`window.xxx` langsung di template Vue itu TIDAK JALAN** — Vue
    anggap `window` properti komponen, bukan objek global browser. HARUS
@@ -251,7 +387,7 @@ Ringkasan super singkat (detail lengkap di file itu):
    di titik SETELAH `window.currentUser` dipastikan terisi (lihat
    `auth.js`/`vue-login.js`, cari `refreshHome`).
 
-## 10. Yang belum dikerjakan (kalau lanjut sesi baru, ini kandidat berikutnya)
+## 11. Yang belum dikerjakan (kalau lanjut sesi baru, ini kandidat berikutnya)
 
 - Paginasi + `getCountFromServer()` untuk Hak Akses, Antrean Dakar,
   Penjadwalan.
