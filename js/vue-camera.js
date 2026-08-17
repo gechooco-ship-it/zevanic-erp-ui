@@ -21,7 +21,7 @@
 // (fitur upload foto KTP, bukan bagian dari layar selfie ini).
 // ============================================================================
 import { createApp, ref, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, addDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, addDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 // Haversine: jarak antara 2 koordinat GPS dalam meter
@@ -226,6 +226,7 @@ const AppKamera = {
         // 2. Cari pengajuan Lembur milik SAYA SENDIRI yang SUDAH di-ACC
         // untuk hari ini — kalau ada dan jam selesainya lebih lambat dari
         // jadwal shift, itu yang jadi batas baru (bukan shift lagi).
+        const awalHariIni = new Date(sekarang.getFullYear(), sekarang.getMonth(), sekarang.getDate(), 0, 0, 0);
         const hariIni = sekarang.toLocaleDateString('id-ID');
         const qLembur = query(
           collection(db, "absensi"),
@@ -236,10 +237,19 @@ const AppKamera = {
         const snapLembur = await getDocs(qLembur);
         snapLembur.forEach(d => {
           const l = d.data();
-          // Data lama pakai "waktu" string lokal (bukan Timestamp asli),
-          // jadi cocokkan tanggalnya di JS, bukan lewat where() Firestore.
-          const tanggalDoc = (l.waktu || '').split(',')[0].trim();
-          if (tanggalDoc !== hariIni) return;
+          // Cocokkan tanggal pakai waktu_ts (Timestamp asli, andal) kalau
+          // dokumennya SUDAH dimigrasi (lihat Riwayat All Absensi > alat
+          // migrasi). Dokumen LAMA yang belum sempat dimigrasi masih
+          // jatuh ke cara lama (cocokkan teks tanggal) sebagai fallback —
+          // supaya proses gaji tetap jalan benar buat data lama juga,
+          // tidak mendadak berhenti berfungsi cuma karena belum dimigrasi.
+          let cocokHariIni;
+          if (l.waktu_ts) {
+            cocokHariIni = l.waktu_ts.toDate() >= awalHariIni;
+          } else {
+            cocokHariIni = (l.waktu || '').split(',')[0].trim() === hariIni;
+          }
+          if (!cocokHariIni) return;
           const selesaiLembur = jamKeStringHariIni(l.lembur_selesai);
           if (selesaiLembur && selesaiLembur > batasAtas) batasAtas = selesaiLembur;
         });
@@ -262,7 +272,15 @@ const AppKamera = {
           email: window.currentUser.email,
           role: window.currentUser.role,
           status: window.statusPilihanGlobal,
-          waktu: new Date().toLocaleString('id-ID'),
+          waktu: new Date().toLocaleString('id-ID'), // DIPERTAHANKAN — dipakai tampilan/kode lama yang belum sempat migrasi
+          // waktu_ts (BARU, 18 Agt 2026): Timestamp ASLI Firestore, bukan
+          // teks. Pakai serverTimestamp() (bukan new Date() dari HP orang)
+          // — ini praktik baku Firestore: jam SERVER yang jadi acuan,
+          // supaya tidak bisa dimanipulasi dengan mengubah jam di HP.
+          // Field ini yang bikin query rentang tanggal (where >=, <=) dan
+          // orderBy tanggal beneran bisa dilakukan di server nanti — lihat
+          // PRINSIP-HEMAT.md & STATUS-PROYEK.md buat detail migrasinya.
+          waktu_ts: serverTimestamp(),
           foto_selfie: fotoBase64,
           persetujuan: "PENDING",
           // PENTING: status_acc HARUS diisi di sini (bukan cuma "persetujuan"

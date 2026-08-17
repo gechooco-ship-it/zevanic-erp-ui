@@ -32,6 +32,21 @@ admin yang ter-mount otomatis di setiap pemuatan halaman.
   `persistentMultipleTabManager`) aktif di `firebase-config.js` sejak
   17 Agt 2026 — data yang pernah dibaca tersimpan lokal, mengurangi
   round-trip baca berulang untuk data yang sama.
+- **`waktu_ts` (Timestamp asli, BUKAN teks) — 18 Agt 2026**. Dulu
+  koleksi `absensi` cuma simpan `waktu` sebagai teks lokal Indonesia
+  (`"17/8/2026, 08.15.32"`) — Firestore TIDAK BISA query rentang tanggal
+  atau `orderBy` yang benar-benar andal di server pakai format teks
+  begitu. Sekarang tiap dokumen baru (`vue-camera.js`) JUGA menulis
+  `waktu_ts: serverTimestamp()` (jam SERVER, bukan jam HP orang — praktik
+  baku Firestore, supaya tidak bisa dimanipulasi). Field `waktu` (teks)
+  TETAP dipertahankan buat tampilan/kode lama, tidak dihapus. Dokumen
+  LAMA (dari sebelum tanggal ini) dimigrasi lewat alat 1x-jalan di
+  **Riwayat All Absensi** (banner kuning, muncul otomatis kalau masih
+  ada data belum bermigrasi, pakai `writeBatch` per 400 dokumen — aman
+  diulang kalau terputus). `hitungJamKeluarUntukGaji()` (vue-camera.js)
+  sudah pakai `waktu_ts` buat cocokkan "lembur disetujui hari ini",
+  dengan fallback ke cara lama (cocokkan teks) buat dokumen yang belum
+  sempat dimigrasi.
 
 ## Komponen bersama yang sudah ada (vue-components.js)
 

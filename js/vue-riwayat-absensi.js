@@ -9,7 +9,7 @@
 // oleh Antrean Absensi yang sudah dimigrasi).
 // ============================================================================
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, doc, updateDoc, writeBatch, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DuaBaris } from './vue-components.js';
 
@@ -86,6 +86,14 @@ const AppRiwayatAbsensi = {
     const memuat = ref(true);
     const itemSedangDiedit = ref(null);
 
+    // ---- Migrasi waktu_ts (18 Agt 2026) ----
+    // Dokumen LAMA (dibuat sebelum perbaikan ini) cuma punya "waktu" (teks),
+    // belum punya "waktu_ts" (Timestamp asli). Status migrasinya DIHITUNG
+    // dari data yang SAMA yang sudah diambil muat() di bawah — TIDAK ada
+    // baca Firestore tambahan cuma buat cek status ini.
+    const migrasi = reactive({ totalBelumMigrasi: 0, sedangProses: false, sudahDicek: false, hasilTerakhir: '' });
+    let dokumenBelumMigrasi = []; // {id, waktu} — disiapkan muat(), dipakai jalankanMigrasi()
+
     async function muat() {
       memuat.value = true;
       try {
@@ -96,19 +104,57 @@ const AppRiwayatAbsensi = {
 
         const snap = await getDocs(collection(db, "absensi"));
         const list = [];
+        dokumenBelumMigrasi = [];
         snap.forEach(docSnap => {
           const d = docSnap.data();
           d.id = docSnap.id;
           d.hpDicariDariUsers = petaHp[d.email] || d.email || '-';
           list.push(d);
+          if (!d.waktu_ts) dokumenBelumMigrasi.push({ id: docSnap.id, waktu: d.waktu });
         });
 
         list.sort((a, b) => (window.parseWaktuIndo(b.waktu)?.getTime() || 0) - (window.parseWaktuIndo(a.waktu)?.getTime() || 0));
         listData.value = list;
+        migrasi.totalBelumMigrasi = dokumenBelumMigrasi.length;
+        migrasi.sudahDicek = true;
       } catch (e) {
         console.error("Gagal muat rekap global:", e);
       }
       memuat.value = false;
+    }
+
+    // Migrasi satu-kali: ubah "waktu" (teks) jadi "waktu_ts" (Timestamp
+    // asli) buat dokumen LAMA yang belum punya. Pakai writeBatch — praktik
+    // baku Firestore buat tulis banyak dokumen sekaligus (atomik per
+    // kelompok, maks 500 operasi/batch, jadi dipecah per 400 biar aman).
+    async function jalankanMigrasi() {
+      if (migrasi.totalBelumMigrasi === 0) return;
+      if (!confirm(`Migrasi ${migrasi.totalBelumMigrasi} dokumen lama sekarang? Proses ini aman diulang kalau terputus di tengah jalan (dokumen yang sudah selesai tidak akan diproses ulang).`)) return;
+
+      migrasi.sedangProses = true;
+      migrasi.hasilTerakhir = '';
+      let sukses = 0, gagalParsing = 0;
+      const UKURAN_BATCH = 400;
+
+      try {
+        for (let i = 0; i < dokumenBelumMigrasi.length; i += UKURAN_BATCH) {
+          const potongan = dokumenBelumMigrasi.slice(i, i + UKURAN_BATCH);
+          const batch = writeBatch(db);
+          potongan.forEach(d => {
+            const tanggalTerurai = window.parseWaktuIndo(d.waktu);
+            if (!tanggalTerurai) { gagalParsing++; return; } // format teks tidak terbaca -> lewati, jangan hentikan seluruh proses
+            batch.update(doc(db, "absensi", d.id), { waktu_ts: Timestamp.fromDate(tanggalTerurai) });
+            sukses++;
+          });
+          await batch.commit();
+        }
+        migrasi.hasilTerakhir = `Selesai! ${sukses} dokumen berhasil dimigrasi.` + (gagalParsing > 0 ? ` ${gagalParsing} dokumen dilewati (format tanggal lama tidak terbaca — bisa dicek manual di Firestore Console kalau perlu).` : '');
+        await muat(); // refresh, sekaligus hitung ulang sisa yang belum (harusnya 0 kalau semua berhasil)
+      } catch (e) {
+        console.error("Gagal migrasi waktu_ts:", e);
+        migrasi.hasilTerakhir = 'Migrasi terhenti karena error: ' + e.message + ' — aman dijalankan ulang, dokumen yang sudah selesai tidak akan diproses dobel.';
+      }
+      migrasi.sedangProses = false;
     }
 
     function pisahTanggalWaktu(waktu) {
@@ -169,7 +215,7 @@ const AppRiwayatAbsensi = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { listData, memuat, itemSedangDiedit, muat, pisahTanggalWaktu, lihatFotoBesar, bukaEdit, tutupEdit, selesaiSimpan, hapus, assignUlang, exportCSV };
+    return { listData, memuat, itemSedangDiedit, muat, pisahTanggalWaktu, lihatFotoBesar, bukaEdit, tutupEdit, selesaiSimpan, hapus, assignUlang, exportCSV, migrasi, jalankanMigrasi };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
@@ -180,6 +226,22 @@ const AppRiwayatAbsensi = {
       <button @click="exportCSV" class="btn-outline filled" style="display:flex; align-items:center; gap:8px;">
           <i class="fas fa-file-excel"></i><span>Unduh Excel (CSV)</span>
       </button>
+    </div>
+
+    <div v-if="migrasi.sudahDicek && migrasi.totalBelumMigrasi > 0" class="gc-card" style="background:var(--warn-light); border:1.5px solid var(--warn); margin-bottom:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;">
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <i class="fas fa-clock-rotate-left" style="color:var(--warn); font-size:18px; margin-top:2px;"></i>
+          <div>
+            <h4 class="gc-heading" style="font-weight:700; font-size:12.5px;">{{ migrasi.totalBelumMigrasi }} data lama belum punya Timestamp asli</h4>
+            <p style="font-size:11px; color:var(--text-muted); margin-top:3px; max-width:480px;">Data ini masih tersimpan sebagai teks (dari sebelum 18 Agt 2026) — belum bisa dipakai untuk filter rentang tanggal yang hemat di server. Migrasi ini AMAN dijalankan kapan saja, boleh diulang kalau terputus, dan TIDAK mengubah data yang sudah dimigrasi.</p>
+            <p v-if="migrasi.hasilTerakhir" style="font-size:11px; color:var(--text); margin-top:6px; font-weight:600;">{{ migrasi.hasilTerakhir }}</p>
+          </div>
+        </div>
+        <button @click="jalankanMigrasi" :disabled="migrasi.sedangProses" class="btn-outline filled" style="flex-shrink:0;">
+          {{ migrasi.sedangProses ? 'Sedang migrasi...' : 'Jalankan Migrasi' }}
+        </button>
+      </div>
     </div>
 
     <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint); font-size:12px;"><i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i>Menyiapkan Riwayat All Absensi...</div>

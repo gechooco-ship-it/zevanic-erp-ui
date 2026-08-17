@@ -6,7 +6,7 @@
 > terbawa ke chat baru. Update file ini di akhir sesi kerja yang cukup
 > besar (bukan tiap perubahan kecil).
 
-Terakhir diperbarui: **18 Agustus 2026, dini hari** (+ Mail Gateway, OTP, aturan menu baru Owner-only)
+Terakhir diperbarui: **18 Agustus 2026, dini hari** (+ migrasi `waktu_ts` Timestamp asli untuk koleksi absensi)
 
 ---
 
@@ -52,7 +52,95 @@ deploy `firestore.rules`/`storage.rules` yang menyertainya, lalu fitur
 gagal dengan "Missing or insufficient permissions" — **selalu cek dulu
 apakah ada file `.rules` yang menyertai sebelum menyimpulkan itu bug kode.**
 
-## 4. Peta halaman & role
+## 3.5. Alur Registrasi -> Login DIROMBAK TOTAL (18 Agt 2026, dini hari)
+
+**Kenapa**: data karyawan akan dipakai untuk pajak/asuransi/gaji ke depan
+— makin penting diverifikasi manusia dulu sebelum jadi akun resmi.
+Sekaligus menutup celah nyata: dulu kalau proses daftar gagal di tengah
+jalan, email bisa "nyangkut" (akun Auth terlanjur dibuat, profil
+Firestore gagal, tidak bisa dibersihkan otomatis — lihat riwayat masalah
+ini di git log lama). Desain baru MENGHILANGKAN skenario itu sama sekali
+— akun Auth baru dibuat SETELAH semuanya pasti valid.
+
+### 3.5.1 Alur baru, singkatnya
+1. **Registrasi** (`vue-registrasi.js`) — 3 tahap: (a) isi email → kirim
+   OTP, (b) masukkan kode OTP → verifikasi, (c) BARU form data lengkap
+   muncul (NIK, KTP, alamat, dst — **tanpa field password sama sekali**).
+   Submit → tersimpan ke koleksi **`pendaftaran_pending/{email}`** —
+   **BELUM ADA akun Firebase Auth sama sekali** di titik ini.
+2. **Antrean Dakar** (`vue-antrean-dakar.js`) — Admin baca dari
+   `pendaftaran_pending` (bukan `users` lagi), cek data & foto KTP.
+   **Setujui** → akun Firebase Auth baru dibuat (password sementara =
+   NIK), profil `users/{email}` dibuat lengkap (`role:operator`,
+   `status_approval:APPROVED`, `wajib_ganti_password:true`), dokumen
+   pending dihapus, email berisi cara login dikirim. **Tolak** → dokumen
+   pending dihapus saja (tidak ada akun Auth yang perlu dibersihkan,
+   karena memang belum pernah dibuat).
+3. **Login pertama kali** (`vue-login.js`) — begitu password benar
+   (NIK), sebelum lanjut kemanapun, muncul modal **wajib ganti password**
+   (`wajib_ganti_password` di Firestore, `updatePassword()` Firebase
+   Auth). Setelah diganti, `wajib_ganti_password` otomatis jadi `false`,
+   alur normal lanjut (cek gudang, Clock In, dst — TIDAK berubah).
+4. **Login dari perangkat baru** (kapanpun, bukan cuma pertama kali) —
+   modal OTP muncul (deteksi murni `localStorage`, key
+   `zevanic_device_verified_{email}` — perangkat yang PERNAH lolos OTP
+   tidak akan diminta lagi SELAMA localStorage-nya tidak dihapus).
+   Diaktifkan/nonaktifkan lewat toggle di WhatsApp Gateway > Config API
+   ("Aktifkan verifikasi OTP saat login perangkat baru" — nama menu
+   TIDAK diganti biar tidak perlu bikin toggle baru, tapi ISINYA sekarang
+   kirim lewat EMAIL, BUKAN WhatsApp lagi — lihat 3.5.3).
+
+### 3.5.2 Teknis paling berisiko — instance Firebase KEDUA
+`createUserWithEmailAndPassword()` BAWAANNYA otomatis login sebagai akun
+yang BARU dibuat. Kalau dipanggil di instance Firebase yang SAMA dengan
+sesi Admin, Admin akan "terlempar" logout dari akunnya sendiri, jadi
+login sebagai karyawan baru itu. Solusinya (di `vue-antrean-dakar.js`,
+fungsi `buatAkunTanpaGangguSesi`): bikin instance Firebase KEDUA
+(`initializeApp(firebaseConfig, "nama-unik")`, config yang SAMA tapi
+instance terpisah total), pakai instance itu KHUSUS buat bikin akun,
+lalu buang instance itu. Sesi Admin di instance UTAMA sama sekali tidak
+tersentuh. `firebaseConfig` (objek mentahnya, bukan cuma hasil
+`initializeApp`) sekarang diekspor dari `firebase-config.js` khusus
+untuk kebutuhan ini.
+
+### 3.5.3 OTP lama (WhatsApp) DIGANTI TOTAL, bukan cuma dimatikan
+Ditemukan saat mengerjakan ini: mekanisme OTP lama di `vue-login.js`
+**tidak aman** — kode OTP dibuat & DIBANDINGKAN LANGSUNG di JS browser
+(`otpState.kode`, variabel biasa) — siapapun buka DevTools bisa
+lihat/lewati verifikasinya. Sekarang diganti total pakai
+`window.kirimOtpEmail`/`verifikasiOtpEmail` (lihat 7.4/vue-otp.js) — kode
+aslinya TIDAK PERNAH ada di browser, verifikasi murni lewat Firestore
+Rules. Toggle aktivasinya TETAP di WhatsApp Gateway (field
+`config/whatsapp_gateway.otp_aktif`, biar tidak bikin toggle baru lagi),
+tapi pengirimannya sekarang email, bukan WA.
+
+### 3.5.4 Security Rules yang berubah untuk alur ini
+- `users/{email}` — CREATE dulu syaratnya "orangnya sendiri yang bikin"
+  (`request.auth.token.email == email`). SEKARANG jadi
+  `isAdminLevel() && role=='operator' && status_approval=='APPROVED'`
+  — karena yang bikin sekarang ADMIN (instance kedua), bukan orangnya.
+- `pendaftaran_pending/{email}` (BARU) — create CUMA boleh kalau
+  `otp_email/{email}` sudah `terverifikasi:true`. Read/delete
+  `isAdminLevel()` saja (dipakai Antrean Dakar).
+
+### 3.5.5 PR — belum sempat dikerjakan malam ini
+- **BELUM DITES SAMA SEKALI END-TO-END** (deploy GitHub Pages sempat
+  error berkali-kali malam ini) — WAJIB coba alur penuh (daftar → OTP →
+  Antrean Dakar setujui → login pertama → ganti password → login lagi
+  dari "device" lain buat tes OTP perangkat baru) sebelum dipakai
+  karyawan sungguhan.
+- Field `wajib_ganti_password` & alur ganti password BELUM pernah
+  diuji — `updatePassword()` Firebase bisa gagal kalau sesi dianggap
+  "tidak baru login" (`auth/requires-recent-login`) — sudah dikasih
+  pesan error yang menjelaskan, tapi belum terverifikasi kapan tepatnya
+  ini muncul dalam praktik.
+- Kalau nanti ada YANG PERNAH pakai flow REGISTRASI LAMA (akun Auth
+  sudah ada dari SEBELUM perombakan ini) dan masih berstatus PENDING di
+  `users` (bukan `pendaftaran_pending`) — Antrean Dakar YANG BARU TIDAK
+  AKAN melihatnya lagi (beda koleksi!). Perlu dicek manual apakah ada
+  data lama seperti ini yang perlu dipindahkan/diproses manual.
+
+
 
 ### 4.0 Registrasi karyawan baru — bug "email nyangkut" (ditemukan & diperbaiki 17 Agt 2026)
 `js/vue-registrasi.js` — proses daftar itu 2 langkah: (1) buat akun
@@ -454,8 +542,12 @@ Ringkasan super singkat (detail lengkap di file itu):
 
 - Paginasi + `getCountFromServer()` untuk Hak Akses, Antrean Dakar,
   Penjadwalan.
-- Field tanggal Firestore asli (bukan teks) untuk Riwayat All Absensi,
-  supaya bisa dioptimasi juga.
+- ~~Field tanggal Firestore asli untuk Riwayat All Absensi~~ — **SELESAI
+  18 Agt 2026** (`waktu_ts`, lihat `PRINSIP-HEMAT.md`). Yang MASIH
+  belum: Riwayat All Absensi sendiri BELUM pakai `waktu_ts` ini untuk
+  filter rentang tanggal di server (`muat()`-nya masih `getDocs` ambil
+  semua) — field-nya sudah siap, tinggal query-nya yang perlu diubah
+  (dan UI filter tanggal ditambahkan) kalau mau benar-benar hemat.
 - Penerapan izin Config Akses (View/Add/Edit/Delete/Print) — SUDAH jalan
   nyata di client-side untuk sebagian layar (lihat 6.3 buat daftar
   lengkap mana yang sudah/belum). Security Rules SENGAJA tetap di level
