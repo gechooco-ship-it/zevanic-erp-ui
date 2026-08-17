@@ -359,6 +359,7 @@ onAuthStateChanged(auth, async (user) => {
     // kosong/'operator'), bikin grup menu Master Absensi/Karyawan/WhatsApp
     // dianggap tidak berhak muncul walau yang login sebenarnya Owner.
     if (window.refreshHome) window.refreshHome();
+    if (window.refreshHeaderMobile) window.refreshHeaderMobile();
     if (window.pindahLayar) window.pindahLayar('screen-dashboard');
     if (window.pindahTab) window.pindahTab('tab-home');
     berhasilMasukDashboard = true;

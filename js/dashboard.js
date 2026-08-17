@@ -181,6 +181,7 @@ window.pindahTab = function(tabId, navKey) {
   
   const targetTab = document.getElementById(tabId);
   if (targetTab) targetTab.classList.remove('hidden');
+  if (window.aturHeaderKonteks) window.aturHeaderKonteks(tabId, null);
 
   // Tandai ikon nav mobile mana yang aktif. navKey opsional — dipakai
   // khusus untuk kasus 2 tombol berbeda (Absensi & Profile) yang sama-sama
@@ -223,6 +224,11 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
   document.querySelectorAll('.' + grupKelas + '-btn').forEach(btn => btn.classList.remove('active'));
   if (tombolEl) tombolEl.classList.add('active');
 
+  if (window.aturHeaderKonteks) {
+    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-karyawan': 'tab-superuser' };
+    window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
+  }
+
   // Perbaikan bug "Memuat data..." macet — TAPI hemat baca Firestore:
   // ambil data cuma pas sub-tab-nya BENAR-BENAR dibuka orang (bukan buat
   // SEMUA orang pas login, termasuk operator yang tidak punya akses ke
@@ -244,6 +250,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-absensi-config': 'pastikanMountConfigAbsensi',
     'sub-absensi-jadwal': 'pastikanMountPenjadwalan',
     'sub-absensi-accept': 'pastikanMountAntreanAbsensi',
+    'sub-absensi-lembur': 'pastikanMountAntreanLembur',
     'sub-absensi-rekap': 'pastikanMountRiwayatAbsensi',
     'sub-karyawan-antrean': 'pastikanMountAntreanDakar',
     'sub-karyawan-config': 'pastikanMountConfigKaryawan',
