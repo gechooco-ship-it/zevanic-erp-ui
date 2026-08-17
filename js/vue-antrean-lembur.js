@@ -1,0 +1,163 @@
+// js/vue-antrean-lembur.js
+// ============================================================================
+// Master Absensi > Antrean Lembur — validasi/approve pengajuan LEMBUR
+// karyawan (terpisah dari Antrean Absensi biasa, 17 Agt 2026).
+//
+// KENAPA TERPISAH dari Antrean Absensi: pengajuan Lembur punya info yang
+// beda sama sekali (jam mulai/selesai diajukan, alasan, instruksi) — bukan
+// radius/koordinat/seragam seperti absensi Hadir biasa. Menampilkan
+// keduanya di layar yang sama bikin info yang relevan buat Lembur
+// tenggelam di antara field yang tidak relevan.
+//
+// PENTING — kenapa layar ini nyata dibutuhkan (bukan cuma kerapian UI):
+// window.currentUser tidak baca ulang status Lembur, tapi js/vue-camera.js
+// (proses Clock Out) MEMBACA status_acc dokumen Lembur ini untuk
+// menentukan batas jam kerja yang dipakai penggajian (jam_keluar_untuk_gaji)
+// — kalau Lembur belum di-ACC di sini, Clock Out lewat jam shift akan
+// otomatis dipotong ke jam shift, BUKAN jam lembur yang diajukan. Approve/
+// Reject di sini punya efek nyata ke perhitungan jam kerja karyawan.
+// ============================================================================
+import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { db } from "./firebase-config.js";
+
+const AntreanLemburCard = {
+  props: {
+    docId: { type: String, required: true },
+    data: { type: Object, required: true }
+  },
+  emits: ['diproses'],
+  setup(props, { emit }) {
+    const memproses = ref(false);
+
+    async function proses(statusAcc) {
+      if (window.cekIzinMenu('antrean_lembur', 'edit') === false) {
+        return alert('Anda tidak punya izin memproses ACC/Reject Lembur di sini. Hubungi Owner/PIC.');
+      }
+      memproses.value = true;
+      try {
+        await updateDoc(doc(db, "absensi", props.docId), {
+          status_acc: statusAcc,
+          validated_at: new Date().toISOString(),
+          validated_by: window.currentUser.name || window.currentUser.nama || window.currentUser.email
+        });
+        alert(`Pengajuan Lembur berhasil di-${statusAcc}!`);
+        emit('diproses');
+      } catch (e) {
+        console.error("Gagal update ACC Lembur:", e);
+        alert("Terjadi kesalahan sistem saat memproses validasi.");
+      }
+      memproses.value = false;
+    }
+
+    function hapus() {
+      if (window.cekIzinMenu('antrean_lembur', 'delete') === false) {
+        return alert('Anda tidak punya izin menghapus data di sini. Hubungi Owner/PIC.');
+      }
+      if (window.hapusAbsensi) window.hapusAbsensi(props.docId).then(() => emit('diproses'));
+    }
+
+    const bolehEdit = computed(() => window.cekIzinMenu('antrean_lembur', 'edit') !== false);
+    const bolehHapus = computed(() => window.cekIzinMenu('antrean_lembur', 'delete') !== false);
+
+    return { memproses, proses, hapus, bolehEdit, bolehHapus };
+  },
+  template: `
+    <div class="gc-card">
+      <div style="display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
+        <div style="width:44px; height:44px; border-radius:12px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy); flex-shrink:0;"><i class="fas fa-business-time"></i></div>
+        <div>
+          <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ data.nama_pegawai || data.nama || 'Karyawan' }}</h4>
+          <p style="font-size:10.5px; color:var(--text-muted);">{{ data.email || '-' }}</p>
+          <span class="tag warn" style="margin-top:5px;"><span class="tag-dot"></span>Menunggu validasi</span>
+        </div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; background:var(--ivory-dim); padding:14px; border-radius:14px; font-size:12px; margin-bottom:14px;">
+        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Diajukan</span> <b>{{ data.waktu || '-' }}</b></div>
+        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Gudang</span> <b>{{ data.gudang || '-' }}</b></div>
+        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Jam Lembur Diajukan</span> <b style="color:var(--burgundy);">{{ data.lembur_mulai || '-' }} &ndash; {{ data.lembur_selesai || '-' }}</b></div>
+        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Instruksi Kerja</span> <b>{{ data.lembur_instruksi || '-' }}</b></div>
+        <div style="grid-column:1 / -1;"><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Alasan</span> <b>{{ data.keterangan || '-' }}</b></div>
+      </div>
+      <div v-if="bolehEdit || bolehHapus" style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line);">
+        <button v-if="bolehEdit" @click="proses('ACC')" :disabled="memproses" class="btn-acc" style="flex:1; display:flex; align-items:center; justify-content:center;">
+          <i class="fas fa-check-circle" style="margin-right:6px;"></i> Setujui Lembur
+        </button>
+        <button v-if="bolehEdit" @click="proses('REJECT')" :disabled="memproses" class="btn-rej" style="flex:1; display:flex; align-items:center; justify-content:center;">
+          <i class="fas fa-times-circle" style="margin-right:6px;"></i> Tolak
+        </button>
+        <button v-if="bolehHapus" @click="hapus" class="icon-btn" title="Hapus permanen">
+          <i class="fas fa-trash-alt"></i>
+        </button>
+      </div>
+    </div>
+  `
+};
+
+const AppAntreanLembur = {
+  components: { AntreanLemburCard },
+  setup() {
+    const daftarPending = ref([]);
+    const memuat = ref(true);
+
+    async function muat() {
+      memuat.value = true;
+      try {
+        const snap = await getDocs(collection(db, "absensi"));
+        const list = [];
+        const perluDiperbaiki = [];
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          if (d.status !== "LEMBUR (CLOCK IN)") return;
+          if (!d.status_acc || d.status_acc === "PENDING") list.push({ id: docSnap.id, data: d });
+          if (!d.status_acc) perluDiperbaiki.push(docSnap.id);
+        });
+        daftarPending.value = list;
+        if (perluDiperbaiki.length > 0) {
+          for (const id of perluDiperbaiki) {
+            updateDoc(doc(db, "absensi", id), { status_acc: "PENDING" }).catch(() => {});
+          }
+        }
+      } catch (e) {
+        console.error("Error muat antrean lembur:", e);
+      }
+      memuat.value = false;
+    }
+
+    onMounted(async () => { await window.authReady; muat(); });
+    return { daftarPending, memuat, muat };
+  },
+  template: `
+    <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none; margin-bottom:16px;">
+      <div>
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; color:var(--burgundy-dark);"><i class="fas fa-business-time" style="margin-right:8px;"></i> Antrean validasi Lembur</h3>
+        <p style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Approve di sini menentukan jam Clock Out yang dipakai untuk penggajian.</p>
+      </div>
+      <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
+    </div>
+
+    <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint);">
+      <i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i><p style="font-size:12px;">Memuat antrean validasi lembur...</p>
+    </div>
+    <div v-else-if="daftarPending.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
+      <i class="fas fa-glass-cheers" style="font-size:40px; color:var(--blue-deep); margin-bottom:12px; display:block;"></i>
+      <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Semua pengajuan lembur telah divalidasi</h4>
+      <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Tidak ada antrean lembur baru yang perlu diperiksa.</p>
+    </div>
+    <div v-else style="gap:14px;" class="grid grid-cols-1 md:grid-cols-2">
+      <antrean-lembur-card
+        v-for="item in daftarPending" :key="item.id"
+        :doc-id="item.id" :data="item.data"
+        @diproses="muat"
+      />
+    </div>
+  `
+};
+
+let vmAntreanLembur = null;
+window.pastikanMountAntreanLembur = function() {
+  if (vmAntreanLembur) return;
+  const mountPoint = document.getElementById('vue-antrean-lembur');
+  if (mountPoint) vmAntreanLembur = createApp(AppAntreanLembur).mount('#vue-antrean-lembur');
+};
+window.refreshAntreanLembur = function() { if (vmAntreanLembur) vmAntreanLembur.muat(); };

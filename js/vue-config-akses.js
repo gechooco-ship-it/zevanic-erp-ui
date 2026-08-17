@@ -43,6 +43,7 @@ const DAFTAR_MENU = [
   ] },
   { id: 'penjadwalan', label: 'Penjadwalan', kategori: 'Master Absensi' },
   { id: 'antrean_absensi', label: 'Antrean Absensi', kategori: 'Master Absensi' },
+  { id: 'antrean_lembur', label: 'Antrean Lembur', kategori: 'Master Absensi' },
   { id: 'riwayat_absensi', label: 'Riwayat All Absensi', kategori: 'Master Absensi' },
   { id: 'antrean_dakar', label: 'Antrean Dakar', kategori: 'Master Karyawan' },
   { id: 'config_karyawan', label: 'Config Karyawan', kategori: 'Master Karyawan' },
@@ -73,7 +74,7 @@ function bikinDefaultProfil(namaProfil) {
   } else if (namaProfil === 'pic' || namaProfil === 'admin') {
     lihatSaja('dashboard');
     menus.profile = { view: true, add: true, edit: true, delete: false, print: false };
-    ['config_absensi', 'penjadwalan', 'antrean_absensi', 'riwayat_absensi'].forEach(semua);
+    ['config_absensi', 'penjadwalan', 'antrean_absensi', 'antrean_lembur', 'riwayat_absensi'].forEach(semua);
     // Contoh nyata pemakaian fitur granular: Admin/PIC boleh kelola
     // Master Gudang sepenuhnya (view/add/edit/delete/print semua true di
     // atas), TAPI khusus dropdown "Jenis Lokasi"-nya tetap terkunci ke

@@ -328,6 +328,7 @@ export function daftarMenuGroups(role) {
       roleBoleh: ['pic', 'admin', 'owner', 'superuser'],
       items: [
         { label: 'Antrean Absensi', menuId: 'antrean_absensi', icon: 'fa-clipboard-check', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-accept', null); } },
+        { label: 'Antrean Lembur', menuId: 'antrean_lembur', icon: 'fa-business-time', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-lembur', null); } },
         { label: 'Riwayat All Absensi', menuId: 'riwayat_absensi', icon: 'fa-clock-rotate-left', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-rekap', null); } },
         { label: 'Penjadwalan', menuId: 'penjadwalan', icon: 'fa-calendar-days', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-jadwal', null); } },
         { label: 'Config', menuId: 'config_absensi', icon: 'fa-gear', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-config', null); } }

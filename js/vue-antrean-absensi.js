@@ -148,6 +148,12 @@ const AppAntreanAbsensi = {
         const perluDiperbaiki = [];
         snap.forEach(docSnap => {
           const d = docSnap.data();
+          // Pengajuan Lembur SENGAJA dikecualikan dari sini (17 Agt 2026)
+          // — sekarang ditangani terpisah di Antrean Lembur
+          // (vue-antrean-lembur.js), yang tampilkan info relevan buat
+          // lembur (jam mulai/selesai diajukan), bukan radius/koordinat
+          // seperti di sini yang tidak relevan buat pengajuan lembur.
+          if (d.status === "LEMBUR (CLOCK IN)") return;
           if (!d.status_acc || d.status_acc === "PENDING") list.push({ id: docSnap.id, data: d });
           if (!d.status_acc) perluDiperbaiki.push(docSnap.id);
         });

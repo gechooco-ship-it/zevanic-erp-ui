@@ -150,6 +150,7 @@
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this)" class="sub-absensi-btn gc-sub-tab-btn"><i class="fas fa-cogs" style="margin-right:6px;"></i> Config Absensi</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this)" class="sub-absensi-btn gc-sub-tab-btn"><i class="fas fa-calendar-alt" style="margin-right:6px;"></i> Penjadwalan</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this)" class="sub-absensi-btn gc-sub-tab-btn active"><i class="fas fa-clock" style="margin-right:6px;"></i> Antrean Absensi</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-lembur', this)" class="sub-absensi-btn gc-sub-tab-btn"><i class="fas fa-business-time" style="margin-right:6px;"></i> Antrean Lembur</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this)" class="sub-absensi-btn gc-sub-tab-btn"><i class="fas fa-chart-bar" style="margin-right:6px;"></i> Riwayat All Absensi</button>
           </div>
         </div>
@@ -168,6 +169,11 @@
         <div id="sub-absensi-accept" class="sub-absensi-content fade-in space-y-4">
            <!-- MIGRASI VUE: lihat js/vue-antrean-absensi.js -->
            <div id="vue-antrean-absensi"></div>
+        </div>
+
+        <div id="sub-absensi-lembur" class="sub-absensi-content hidden fade-in space-y-4">
+           <!-- Antrean Lembur: lihat js/vue-antrean-lembur.js -->
+           <div id="vue-antrean-lembur"></div>
         </div>
 
         <div id="sub-absensi-rekap" class="sub-absensi-content hidden fade-in space-y-4">
@@ -314,6 +320,7 @@
   <script type="module" src="js/vue-hak-akses.js"></script>
   <script type="module" src="js/vue-antrean-dakar.js"></script>
   <script type="module" src="js/vue-antrean-absensi.js"></script>
+  <script type="module" src="js/vue-antrean-lembur.js"></script>
   <script type="module" src="js/vue-riwayat-absensi.js"></script>
   <script type="module" src="js/vue-penjadwalan.js"></script>
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>
