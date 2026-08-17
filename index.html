@@ -74,6 +74,9 @@
         <button onclick="pindahTab('tab-whatsapp')" id="menu-whatsapp-btn" class="hidden gc-nav-item">
           <i class="fab fa-whatsapp" style="width:17px; text-align:center;"></i> WhatsApp
         </button>
+        <button onclick="pindahTab('tab-mail-gateway')" id="menu-mail-gateway-btn" class="hidden gc-nav-item">
+          <i class="fas fa-envelope" style="width:17px; text-align:center;"></i> Mail Gateway
+        </button>
       </nav>
       <div style="padding-top:14px; border-top:1px solid var(--pink-deep);">
         <button onclick="logout()" class="gc-nav-item" style="color:var(--danger);">
@@ -253,6 +256,11 @@
           <div id="vue-whatsapp-gateway"></div>
         </div>
 
+        <div id="tab-mail-gateway" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
+          <!-- Mail Gateway: lihat js/vue-mail-gateway.js -->
+          <div id="vue-mail-gateway"></div>
+        </div>
+
       </main>
     </div>
 
@@ -324,12 +332,13 @@
   <script type="module" src="js/vue-riwayat-absensi.js"></script>
   <script type="module" src="js/vue-penjadwalan.js"></script>
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>
+  <script type="module" src="js/vue-otp.js"></script>
+  <script type="module" src="js/vue-mail-gateway.js"></script>
   <script type="module" src="js/vue-account-profile.js"></script>
   <script type="module" src="js/vue-profile-drawer.js"></script>
   <script type="module" src="js/vue-home.js"></script>
   <script type="module" src="js/vue-home-desktop.js"></script>
   <script type="module" src="js/vue-header-mobile.js"></script>
-  <script type="module" src="js/vue-otp.js"></script>
   <script type="module" src="js/vue-registrasi.js"></script>
   <script type="module" src="js/vue-login.js"></script>
   <script type="module" src="js/vue-camera.js"></script>

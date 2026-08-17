@@ -168,7 +168,7 @@ window.ambilKecamatanUntukKabupaten = async function(kab) {
 // =========================================================================
 
 window.pindahTab = function(tabId, navKey) {
-  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-superuser', 'tab-whatsapp', 'tab-scan-qr', 'tab-progress'];
+  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-superuser', 'tab-whatsapp', 'tab-mail-gateway', 'tab-scan-qr', 'tab-progress'];
   const tabSebelumnya = tabs.find(t => {
     const el = document.getElementById(t);
     return el && !el.classList.contains('hidden');
@@ -206,6 +206,9 @@ window.pindahTab = function(tabId, navKey) {
   }
   if (tabId === 'tab-whatsapp') {
       if (window.pastikanMountWhatsapp) window.pastikanMountWhatsapp();
+  }
+  if (tabId === 'tab-mail-gateway') {
+      if (window.pastikanMountMailGateway) window.pastikanMountMailGateway();
   }
   
 };

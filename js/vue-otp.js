@@ -32,7 +32,7 @@
 // Function (server) yang bisa diakses, pertimbangkan pindah ke sana untuk
 // tambahan pembatas jumlah percobaan yang lebih presisi.
 // ============================================================================
-import { doc, setDoc, updateDoc, addDoc, collection, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, getDoc, setDoc, updateDoc, addDoc, collection, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 const MASA_BERLAKU_MENIT = 10;
@@ -60,20 +60,31 @@ window.kirimOtpEmail = async function(email, konteks) {
       dibuat_pada: serverTimestamp()
     });
 
-    // 2. Tulis ke koleksi "mail" -> Trigger Email extension otomatis kirim
+    // 2. Tulis ke koleksi "mail" -> Trigger Email extension otomatis kirim.
+    // Subjek & isi diambil dari config/mail_templates (bisa diubah Admin
+    // lewat Mail Gateway > Template Pesan), fallback ke teks baku di sini
+    // kalau belum pernah diatur sama sekali.
+    let tpl = {};
+    try {
+      const snapTpl = await getDoc(doc(db, "config", "mail_templates"));
+      tpl = snapTpl.exists() ? snapTpl.data() : {};
+    } catch (e) { /* gagal baca template -> pakai fallback baku di bawah */ }
+
     const judulEmail = konteks === 'perangkat_baru'
-      ? 'Kode Verifikasi Login Perangkat Baru - Zevanic ERP'
-      : 'Kode Verifikasi Pendaftaran - Zevanic ERP';
-    const isiTeksEmail = konteks === 'perangkat_baru'
-      ? `Ada percobaan login ke akun Zevanic ERP Anda dari perangkat baru.\n\nKode verifikasi Anda: ${kode}\n\nKode berlaku ${MASA_BERLAKU_MENIT} menit. Kalau ini bukan Anda, abaikan email ini dan segera ganti password.`
-      : `Terima kasih sudah mendaftar di Zevanic ERP.\n\nKode verifikasi email Anda: ${kode}\n\nMasukkan kode ini di aplikasi untuk melanjutkan pendaftaran. Kode berlaku ${MASA_BERLAKU_MENIT} menit.`;
+      ? (tpl.subjek_perangkat || 'Kode Verifikasi Login Perangkat Baru - Zevanic ERP')
+      : (tpl.subjek_registrasi || 'Kode Verifikasi Pendaftaran - Zevanic ERP');
+    const templateIsi = konteks === 'perangkat_baru'
+      ? (tpl.isi_perangkat || `Ada percobaan login ke akun Zevanic ERP Anda dari perangkat baru.\n\nKode verifikasi Anda: {kode}\n\nKode berlaku ${MASA_BERLAKU_MENIT} menit. Kalau ini bukan Anda, abaikan email ini dan segera ganti password.`)
+      : (tpl.isi_registrasi || `Terima kasih sudah mendaftar di Zevanic ERP.\n\nKode verifikasi email Anda: {kode}\n\nMasukkan kode ini di aplikasi untuk melanjutkan pendaftaran. Kode berlaku ${MASA_BERLAKU_MENIT} menit.`);
+    const isiTeksEmail = templateIsi.replace(/\{kode\}/g, kode);
 
     await addDoc(collection(db, "mail"), {
       to: [emailBersih],
       message: {
         subject: judulEmail,
         text: isiTeksEmail
-      }
+      },
+      dikirim_pada: serverTimestamp() // dipakai Mail Gateway > Monitoring buat urutkan (ID dokumen acak, tidak mencerminkan waktu)
     });
 
     return { sukses: true };

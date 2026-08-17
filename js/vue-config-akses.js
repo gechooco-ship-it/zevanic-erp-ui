@@ -53,7 +53,8 @@ const DAFTAR_MENU = [
   { id: 'payroll', label: 'Payroll', kategori: 'Master Karyawan' },
   { id: 'config_akses', label: 'Config Akses', kategori: 'Master Karyawan' },
   { id: 'hak_akses', label: 'Hak Akses', kategori: 'Master Karyawan' },
-  { id: 'whatsapp_gateway', label: 'WhatsApp Gateway', kategori: 'Integrasi' }
+  { id: 'whatsapp_gateway', label: 'WhatsApp Gateway', kategori: 'Integrasi' },
+  { id: 'mail_gateway', label: 'Mail Gateway', kategori: 'Integrasi' }
 ];
 
 const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Karyawan', 'Integrasi'];
@@ -69,8 +70,26 @@ function bikinDefaultProfil(namaProfil) {
   const semua = (id) => { menus[id] = { view: true, add: true, edit: true, delete: true, print: true }; };
   const lihatSaja = (id) => { menus[id].view = true; };
 
-  if (namaProfil === 'owner' || namaProfil === 'superuser') {
+  if (namaProfil === 'owner') {
     DAFTAR_MENU.forEach(m => semua(m.id));
+  } else if (namaProfil === 'superuser') {
+    // ATURAN TETAP (18 Agt 2026, permintaan eksplisit): menu BARU yang
+    // ditambahkan ke DAFTAR_MENU TIDAK LAGI otomatis ikut ke sini. Dulu
+    // Superuser = Owner untuk SEMUA menu (blanket, ikut DAFTAR_MENU
+    // apapun isinya) — sekarang daftar di bawah ini FIXED/snapshot,
+    // cuma menu yang SUDAH ADA per tanggal ini. Menu baru ke depan
+    // default-nya CUMA Owner yang bisa akses, sampai Owner atur manual
+    // lewat Config Akses kalau memang mau dibagikan ke Superuser juga.
+    // JANGAN tambahkan menu baru ke daftar ini secara otomatis — biarkan
+    // Owner yang putuskan & atur sendiri lewat tampilan Config Akses.
+    [
+      'dashboard', 'profile',
+      'config_absensi', 'penjadwalan', 'antrean_absensi', 'antrean_lembur', 'riwayat_absensi',
+      'antrean_dakar', 'config_karyawan', 'daftar_karyawan', 'config_info', 'slip_gaji', 'payroll',
+      'whatsapp_gateway', 'mail_gateway'
+      // SENGAJA TIDAK termasuk: config_akses, hak_akses — khusus Owner
+      // asli, sudah begitu sejak awal fitur ini dibuat, bukan hal baru.
+    ].forEach(semua);
   } else if (namaProfil === 'pic' || namaProfil === 'admin') {
     lihatSaja('dashboard');
     menus.profile = { view: true, add: true, edit: true, delete: false, print: false };

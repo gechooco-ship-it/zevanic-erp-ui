@@ -126,7 +126,7 @@ window.cekFiturAkses = function(menuId, fiturKey) {
 // Pesan error Firebase Auth diterjemahkan ke Bahasa Indonesia yang ramah pengguna
 function pesanErrorAuth(kode) {
   const peta = {
-    "auth/email-already-in-use": "Email ini sudah terdaftar. Silakan login.",
+    "auth/email-already-in-use": "Email ini sudah terdaftar di sistem. Kalau Anda YAKIN belum pernah daftar sebelumnya (atau pendaftaran sebelumnya sempat gagal di tengah jalan), JANGAN coba daftar ulang berkali-kali — hubungi Owner/Admin untuk dicek dan dibersihkan datanya. Kalau memang sudah pernah daftar, silakan langsung login.",
     "auth/invalid-email": "Format email tidak valid.",
     "auth/weak-password": "Password terlalu lemah, minimal 6 karakter.",
     "auth/wrong-password": "Email atau password salah.",
@@ -453,6 +453,7 @@ window.aturTampilanBerdasarkanRole = function() {
   const menuSuperUserBtn = document.getElementById('menu-superuser-btn');
   const menuWhatsapp = document.getElementById('menu-whatsapp');
   const menuWhatsappBtn = document.getElementById('menu-whatsapp-btn');
+  const menuMailGatewayBtn = document.getElementById('menu-mail-gateway-btn');
   const navMobileAdmin = document.getElementById('nav-mobile-admin');
   const navMobileSuper = document.getElementById('nav-mobile-super');
   const navMobileWhatsapp = document.getElementById('nav-mobile-whatsapp');
@@ -463,7 +464,7 @@ window.aturTampilanBerdasarkanRole = function() {
   const btnKonfigAkses = document.getElementById('btn-sub-karyawan-akses');
   const btnHakAkses = document.getElementById('btn-sub-karyawan-hakakses');
 
-  [menuAdminAcc, menuAdminAccBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses].forEach(el => {
+  [menuAdminAcc, menuAdminAccBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -485,6 +486,7 @@ window.aturTampilanBerdasarkanRole = function() {
     }
     if (menuWhatsapp) menuWhatsapp.classList.remove('hidden');
     if (menuWhatsappBtn) menuWhatsappBtn.classList.remove('hidden');
+    if (menuMailGatewayBtn) menuMailGatewayBtn.classList.remove('hidden');
     if (navMobileWhatsapp) {
       navMobileWhatsapp.classList.remove('hidden');
       navMobileWhatsapp.classList.add('flex');

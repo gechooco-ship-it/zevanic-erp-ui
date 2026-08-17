@@ -358,7 +358,8 @@ export function daftarMenuGroups(role) {
       items: [
         { label: 'Monitoring Respon', menuId: 'whatsapp_gateway', icon: 'fa-chart-line', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('monitor'); } },
         { label: 'Template Pesan', menuId: 'whatsapp_gateway', icon: 'fa-comment-dots', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('template'); } },
-        { label: 'Config API', menuId: 'whatsapp_gateway', icon: 'fa-plug', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('config'); } }
+        { label: 'Config API', menuId: 'whatsapp_gateway', icon: 'fa-plug', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('config'); } },
+        { label: 'Mail Gateway', menuId: 'mail_gateway', icon: 'fa-envelope', aksi: () => { window.pindahTab('tab-mail-gateway'); } }
       ]
     }
   ];
