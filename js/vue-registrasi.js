@@ -266,7 +266,12 @@ const AppRegistrasi = {
         window.pindahLayar('screen-login');
       } catch (e) {
         console.error("Gagal simpan pendaftaran:", e);
-        alert("Gagal menyimpan pendaftaran. Kemungkinan verifikasi email Anda sudah kadaluarsa (berlaku 10 menit) — silakan mulai lagi dari awal (kirim kode OTP ulang).");
+        // Rule pendaftaran_pending: "allow update: if false" — kalau email
+        // ini SUDAH PERNAH submit sebelumnya (dokumen sudah ada, belum
+        // diproses Admin), percobaan submit ulang ditolak MUTLAK (bukan
+        // soal OTP kadaluarsa, data lama sengaja tidak boleh ditimpa demi
+        // keamanan).
+        alert("Gagal menyimpan pendaftaran. Kemungkinan email ini SUDAH PERNAH mendaftar sebelumnya dan masih menunggu diproses Admin (data lama tidak bisa ditimpa demi keamanan) — hubungi Admin/Owner untuk ditindaklanjuti. Kalau ini pendaftaran PERTAMA Anda, coba ulangi dari awal (kirim kode OTP baru).");
       }
       menyimpan.value = false;
     }
