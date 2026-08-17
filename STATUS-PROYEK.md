@@ -6,7 +6,7 @@
 > terbawa ke chat baru. Update file ini di akhir sesi kerja yang cukup
 > besar (bukan tiap perubahan kecil).
 
-Terakhir diperbarui: **17 Agustus 2026, malam** (+ catatan aturan login desktop & Owner)
+Terakhir diperbarui: **18 Agustus 2026, dini hari** (+ Mail Gateway, OTP, aturan menu baru Owner-only)
 
 ---
 
@@ -53,6 +53,36 @@ gagal dengan "Missing or insufficient permissions" — **selalu cek dulu
 apakah ada file `.rules` yang menyertai sebelum menyimpulkan itu bug kode.**
 
 ## 4. Peta halaman & role
+
+### 4.0 Registrasi karyawan baru — bug "email nyangkut" (ditemukan & diperbaiki 17 Agt 2026)
+`js/vue-registrasi.js` — proses daftar itu 2 langkah: (1) buat akun
+Firebase Auth, (2) simpan profil ke Firestore. Kalau langkah 2 gagal,
+kode BERUSAHA membatalkan langkah 1 (`deleteUser`) — tapi pembatalan itu
+sendiri bisa gagal juga (sebelumnya cuma dicatat diam-diam di Console,
+TIDAK diberitahu ke siapapun) — hasilnya akun Auth "nyangkut" (ada login
+tapi tidak ada profil Firestore), email itu jadi tidak bisa dipakai
+daftar ulang ("email sudah digunakan") padahal registrasi aslinya gagal.
+
+**Perbaikan yang sudah masuk:**
+1. Paksa refresh token (`getIdToken(true)`) sebelum `setDoc`, supaya
+   Security Rules cek `request.auth.token.email` dengan token yang pasti
+   segar — mengurangi kemungkinan `setDoc` gagal karena masalah timing.
+2. Kalau pembatalan (`deleteUser`) SENDIRI gagal, sekarang pesan
+   eksplisit muncul ke pengisi form: berhenti, jangan coba ulang, hubungi
+   Admin — bukan diam-diam cuma log Console.
+3. Pesan error "email sudah digunakan" diperjelas: mencakup 2
+   kemungkinan (memang sudah daftar VS nyangkut dari kegagalan
+   sebelumnya) — TIDAK bisa dibedakan otomatis dari sisi form, karena
+   orang yang gagal daftar belum punya sesi login (Security Rules
+   `users/{email}` wajib login dulu untuk dibaca, sengaja tidak dibuka
+   supaya tidak ada celah keamanan baru).
+
+⚠️ **Keterbatasan yang masih ada**: kalau email sampai benar-benar
+nyangkut, SATU-SATUNYA cara membersihkannya adalah manual lewat
+**Firebase Console → Authentication → cari email → Delete**. Tidak ada
+alat di dalam app ini untuk mendeteksi/membersihkan otomatis — itu
+butuh Admin SDK (server/Cloud Function), di luar jangkauan kode
+client-side biasa yang dipakai di sini.
 
 **Role**: `operator` (default, karyawan biasa) < `pic`/`admin` < `owner`/`superuser`
 (setara, kecuali disebutkan beda) — role sekarang **dinamis**, tidak
@@ -267,6 +297,39 @@ belum terisi. Solusinya: buka lagi lewat Hak Akses, pilih ulang
 profilnya, simpan — otomatis dapat `role`+`profil_akses` yang benar.
 Karyawan dengan role baku (operator/pic/admin/owner/superuser) TIDAK
 terdampak sama sekali, tidak perlu tindakan apapun.
+
+### 6.8 ATURAN TETAP (18 Agt 2026): menu BARU defaultnya Owner-only
+**Permintaan eksplisit Hilman, WAJIB diikuti setiap kali menambah menu
+baru ke depan** — jangan otomatis kasih akses ke role lain, biar Owner
+yang atur manual lewat Config Akses/Hak Akses kalau memang mau dibagikan.
+
+**Yang SUDAH diubah (otomatis)**: `bikinDefaultProfil()` di
+`vue-config-akses.js` — dulu Superuser = Owner untuk SEMUA menu (ikut
+`DAFTAR_MENU` apapun isinya, otomatis dapat menu baru). SEKARANG
+daftar Superuser itu FIXED/snapshot (menu yang sudah ada per tanggal
+ini) — menu baru TIDAK otomatis masuk situ lagi. **JANGAN tambahkan
+menu baru ke daftar itu secara otomatis** kapanpun menambah menu —
+biarkan kosong, biar Owner yang putuskan sendiri.
+
+**Nuansa PENTING yang perlu dipahami** (supaya tidak salah kira "sudah
+otomatis aman"): `bikinDefaultProfil()` itu CUMA memengaruhi checkbox
+apa yang tampil TERCENTANG saat Owner PERTAMA KALI buka profil yang
+BELUM PERNAH disimpan di Config Akses. Itu BUKAN gerbang keamanan
+runtime. Gerbang sungguhan (`window.cekIzinMenu`, dipakai di seluruh
+app) baca LANGSUNG dari `akses_config/{profil}` di Firestore — kalau
+dokumen itu SUDAH PERNAH disimpan sebelumnya (dari sesi kerja
+sebelumnya), field menu yang baru ditambahkan TIDAK ADA di situ, dan
+sesuai prinsip "jatuh-aman" yang dipegang sejak awal (lihat 6.3),
+menu yang belum diatur DIANGGAP BOLEH oleh sebagian besar komponen —
+**bertentangan dengan maksud "Owner-only" ini**.
+
+**Solusi praktis** (sampai ada cara yang lebih otomatis): setiap kali
+ada menu baru ditambahkan, Owner perlu buka Config Akses → buka tiap
+profil yang SUDAH ADA (pic, admin, superuser, profil kustom lain) →
+klik "Update profil akses" (simpan ulang, walau menu barunya
+dibiarkan tidak dicentang) — supaya menu baru itu TERCATAT EKSPLISIT
+sebagai "tidak boleh" di Firestore untuk profil itu, bukan cuma
+"belum diatur" (yang jatuh-amannya ke arah BOLEH, bukan TIDAK BOLEH).
 
 
 
