@@ -266,3 +266,14 @@ Ringkasan super singkat (detail lengkap di file itu):
 - "Scan QR" bisa baca kode QR sungguhan, tapi belum ada yang MEMPROSES
   hasilnya (belum nyambung ke alur kerja apapun).
 - Slip Gaji, Payroll, Estimasi Gaji — semua masih placeholder "segera hadir".
+
+**Soal fondasi kerja (bukan fitur, cara kerja) — belum jadi masalah di
+skala sekarang, tapi relevan kalau nanti dipakai ratusan orang:**
+- Belum ada testing otomatis — semua perubahan diverifikasi manual
+  (screenshot, cek Console). Risiko "perbaiki A, rusak B tanpa ketahuan"
+  makin besar seiring fitur bertambah.
+- Belum ada lingkungan staging — semua perubahan langsung ke
+  `gechoo.online`, langsung dipakai semua orang begitu di-deploy.
+- Belum ada pemantauan error produksi — bug yang cuma muncul di
+  perangkat orang lain (bukan yang sedang testing) tidak akan ketahuan
+  kecuali dilaporkan manual.
