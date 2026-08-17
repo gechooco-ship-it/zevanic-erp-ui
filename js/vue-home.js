@@ -124,17 +124,14 @@ const AppHome = {
             <p style="font-size:11px; color:var(--text-muted); font-weight:600;">Shift hari ini &middot; {{ shift.gudang }}</p>
             <p class="gc-heading num" style="font-size:15px; font-weight:700; margin-top:2px;">{{ shift.jamMasuk }} &ndash; {{ shift.jamKeluar }}</p>
           </div>
-          <span v-if="sudahAbsenHariIni" class="tag ok"><span class="tag-dot"></span>Sudah absen</span>
-          <span v-else class="tag warn"><span class="tag-dot"></span>Belum absen</span>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+            <span v-if="sudahAbsenHariIni" class="tag ok"><span class="tag-dot"></span>Sudah absen</span>
+            <span v-else class="tag warn"><span class="tag-dot"></span>Belum absen</span>
+            <span v-if="sudahAbsenHariIni && jamMasukAsli" class="gc-heading num" style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:flex; align-items:center; gap:4px;">
+              <i class="fas fa-stopwatch" style="color:var(--burgundy); font-size:10px;"></i>{{ jamMasukAsli }} &ndash; {{ durasiBerjalan }}
+            </span>
+          </div>
         </div>
-        <div v-if="sudahAbsenHariIni && jamMasukAsli" style="margin-top:8px; padding-top:8px; border-top:1px solid var(--line); display:flex; align-items:center; gap:6px;">
-          <i class="fas fa-stopwatch" style="color:var(--burgundy); font-size:12px;"></i>
-          <span class="gc-heading num" style="font-size:13px; font-weight:700; color:var(--text);">{{ jamMasukAsli }} &ndash; {{ durasiBerjalan }}</span>
-        </div>
-      </div>
-
-      <div style="margin-bottom:14px;">
-        <pengumuman-carousel />
       </div>
 
       <quote-card />
@@ -168,6 +165,10 @@ const AppHome = {
             <span style="font-size:10.5px; font-weight:700; color:var(--text); text-align:center; line-height:1.25;">{{ item.label }}</span>
           </button>
         </div>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <pengumuman-carousel />
       </div>
     </div>
   `
