@@ -8,8 +8,8 @@
 // Dipakai via CDN (tanpa build step) — import langsung dari unpkg, sama
 // seperti pola import Firebase yang sudah ada di app ini.
 // ============================================================================
-import { ref, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { ref, computed, onMounted, onUnmounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { doc, setDoc, getDoc, collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 // ---------------------------------------------------------------------------
@@ -369,3 +369,98 @@ export function daftarMenuGroups(role) {
     }))
   }));
 }
+
+// ---------------------------------------------------------------------------
+// PengumumanCarousel — komponen bersama, dipakai di desktop DAN mobile
+// (Home) sekaligus, satu sumber kebenaran. Mengambil data sendiri (fetch +
+// filter role lokal, TIDAK query where() ke server — hemat baca), tampil
+// sebagai carousel geser (scroll-snap, otomatis + bisa digeser manual).
+// Lampiran gambar/video (kalau ada) ditampilkan dengan RASIO TETAP 16:9
+// (object-fit:cover) supaya proporsional di layar manapun tanpa gepeng/
+// terpotong aneh, baik di desktop maupun mobile — TIDAK perlu upload 2
+// versi file berbeda untuk itu.
+// ---------------------------------------------------------------------------
+export const PengumumanCarousel = {
+  setup() {
+    const daftar = ref([]);
+    const memuat = ref(true);
+    const slideAktif = ref(0);
+    const railEl = ref(null);
+    let timerOtomatis = null;
+
+    async function muat() {
+      memuat.value = true;
+      try {
+        const q = query(collection(db, "pengumuman"), orderBy("dibuat_pada", "desc"), limit(15));
+        const snap = await getDocs(q);
+        const roleSaya = (window.currentUser?.role || 'operator').toLowerCase();
+        const list = [];
+        snap.forEach(d => {
+          const data = d.data();
+          const rolesTampil = data.rolesTampil || [];
+          if (rolesTampil.length === 0 || rolesTampil.includes(roleSaya)) list.push({ id: d.id, ...data });
+        });
+        daftar.value = list.slice(0, 5);
+        mulaiOtomatis();
+      } catch (e) {
+        daftar.value = []; // koleksi belum ada/kosong itu wajar, bukan error
+      }
+      memuat.value = false;
+    }
+
+    function keSlide(i) {
+      slideAktif.value = i;
+      if (railEl.value) {
+        const anak = railEl.value.children[i];
+        if (anak) anak.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+      }
+    }
+
+    function mulaiOtomatis() {
+      if (timerOtomatis) clearInterval(timerOtomatis);
+      if (daftar.value.length <= 1) return;
+      timerOtomatis = setInterval(() => {
+        keSlide((slideAktif.value + 1) % daftar.value.length);
+      }, 6000);
+    }
+
+    function saatDigeserManual() {
+      if (!railEl.value) return;
+      const lebar = railEl.value.clientWidth;
+      const posisi = railEl.value.scrollLeft;
+      slideAktif.value = Math.round(posisi / lebar);
+      mulaiOtomatis(); // reset hitungan otomatis tiap kali orang geser sendiri
+    }
+
+    onMounted(async () => { await window.authReady; muat(); });
+    onUnmounted(() => { if (timerOtomatis) clearInterval(timerOtomatis); });
+
+    return { daftar, memuat, slideAktif, railEl, keSlide, saatDigeserManual };
+  },
+  template: `
+    <div v-if="memuat" style="text-align:center; padding:24px 0; color:var(--text-faint); font-size:12px;">Memuat pengumuman...</div>
+    <div v-else-if="daftar.length === 0" style="text-align:center; padding:24px 0; background:var(--surface); border:1px dashed var(--line); border-radius:16px; color:var(--text-faint); font-size:12px;">
+      <i class="fas fa-bell-slash" style="font-size:22px; margin-bottom:8px; display:block;"></i>Belum ada pengumuman terbaru.
+    </div>
+    <div v-else>
+      <div ref="railEl" @scroll="saatDigeserManual" style="display:flex; overflow-x:auto; scroll-snap-type:x mandatory; gap:12px; scrollbar-width:none;" class="no-scrollbar">
+        <div v-for="p in daftar" :key="p.id" style="flex:0 0 100%; scroll-snap-align:start; background:var(--surface); border:1px solid var(--line); border-radius:16px; overflow:hidden;">
+          <div v-if="p.mediaUrl" style="width:100%; aspect-ratio:16/9; background:var(--ivory-dim); overflow:hidden;">
+            <video v-if="p.mediaType === 'video'" :src="p.mediaUrl" controls style="width:100%; height:100%; object-fit:cover; display:block;"></video>
+            <img v-else :src="p.mediaUrl" :alt="p.judul" style="width:100%; height:100%; object-fit:cover; display:block;">
+          </div>
+          <div style="padding:14px; display:flex; gap:12px;">
+            <div v-if="!p.mediaUrl" style="width:38px; height:38px; border-radius:10px; background:var(--blue); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#1F5060;"><i class="fas fa-bell"></i></div>
+            <div>
+              <b style="font-size:13px;">{{ p.judul }}</b>
+              <p style="font-size:12px; color:var(--text-muted); margin-top:3px;">{{ p.isi }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-if="daftar.length > 1" style="display:flex; justify-content:center; gap:6px; margin-top:10px;">
+        <button v-for="(p, i) in daftar" :key="p.id" @click="keSlide(i)" style="width:7px; height:7px; border-radius:50%; border:none; padding:0; cursor:pointer;" :style="i === slideAktif ? 'background:var(--burgundy); width:18px; border-radius:4px;' : 'background:var(--line);'"></button>
+      </div>
+    </div>
+  `
+};

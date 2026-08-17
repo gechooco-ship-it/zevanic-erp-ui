@@ -2,6 +2,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { getAuth } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { getStorage } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDOKxjdqE1476uR9zB9lug-sYMFbGwGihk",
@@ -24,3 +25,9 @@ export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
 });
 export const auth = getAuth(app);
+// Firebase Storage — khusus buat lampiran gambar/video Config Info
+// (Pengumuman). Firestore punya batas keras 1MB PER DOKUMEN, dan
+// base64-kan file membengkakkan ukurannya ~33% — jadi TIDAK aman simpan
+// gambar/video langsung di Firestore seperti foto_selfie/foto_ktp selama
+// ini. Storage memang didesain untuk file, Firestore cuma simpan link-nya.
+export const storage = getStorage(app);

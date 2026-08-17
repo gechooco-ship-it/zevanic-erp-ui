@@ -1,27 +1,28 @@
 // js/vue-home.js
 // ============================================================================
-// tab-home mobile — sapaan + kartu shift, lalu "hub menu" terkelompok:
+// tab-home mobile — kartu shift, lalu Pengumuman (komponen bersama, lihat
+// PengumumanCarousel di vue-components.js — dipakai sama di desktop &
+// mobile, satu sumber kebenaran), lalu "hub menu" terkelompok:
 // - Grup "Shortcut": Clock In/Clock Out (dinamis sesuai status hari ini),
-//   Izin, Cuti, Lembur — tampil grid ikon seperti sebelumnya.
-// - Grup "Absensi"/"Master Karyawan"/"Whatsapp": daftar link, muncul HANYA
-//   untuk role yang berhak (lihat daftarMenuGroups di vue-components.js —
-//   registry terpusat, satu sumber kebenaran, supaya nanti kalau desktop
-//   mau dirapikan pakai struktur sama tinggal reuse fungsi yang sama).
-// - Pengumuman tetap di bawah, baca data Firestore asli.
+//   Izin, Cuti, Lembur — tampil grid ikon.
+// - Grup "Absensi"/"Master Karyawan"/"Whatsapp": SEMUA menu tetap tampil
+//   untuk siapapun (17 Agt 2026, perubahan dari sebelumnya yang
+//   menyembunyikan) — yang tidak berhak cuma ditandai terkunci, klik-nya
+//   munculkan pesan, bukan navigasi (lihat daftarMenuGroups di
+//   vue-components.js — registry terpusat, satu sumber kebenaran).
 // ============================================================================
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { daftarMenuGroups } from './vue-components.js';
+import { daftarMenuGroups, PengumumanCarousel } from './vue-components.js';
 
 const AppHome = {
+  components: { PengumumanCarousel },
   setup() {
     const nama = ref('');
     const sapaan = ref('Selamat datang');
     const shift = reactive({ nama: '', jamMasuk: '', jamKeluar: '' });
     const sudahAbsenHariIni = ref(false);
-    const pengumuman = ref([]);
-    const memuatPengumuman = ref(true);
     const menuGroups = ref([]);
 
     function tentukanSapaan() {
@@ -59,34 +60,6 @@ const AppHome = {
       }
     }
 
-    async function muatPengumuman() {
-      memuatPengumuman.value = true;
-      try {
-        // Ambil agak lebih banyak dari yang ditampilkan (15, bukan 5) —
-        // karena sebagian akan disaring keluar berdasarkan role SETELAH
-        // diambil (bukan query where() ke server, biar hemat baca —
-        // filternya cuma bandingkan array kecil di JS, pakai role yang
-        // SUDAH ada di window.currentUser, tidak baca Firestore lagi).
-        const q = query(collection(db, "pengumuman"), orderBy("dibuat_pada", "desc"), limit(15));
-        const snap = await getDocs(q);
-        const roleSaya = (window.currentUser?.role || 'operator').toLowerCase();
-        const list = [];
-        snap.forEach(d => {
-          const data = d.data();
-          const rolesTampil = data.rolesTampil || [];
-          // Kosongkan array rolesTampil = tampil untuk SEMUA role (default
-          // aman kalau pengumuman lama belum punya field ini sama sekali).
-          if (rolesTampil.length === 0 || rolesTampil.includes(roleSaya)) {
-            list.push({ id: d.id, ...data });
-          }
-        });
-        pengumuman.value = list.slice(0, 5);
-      } catch (e) {
-        pengumuman.value = []; // koleksi belum ada/kosong itu wajar, bukan error
-      }
-      memuatPengumuman.value = false;
-    }
-
     function klikClockInOut() {
       if (sudahAbsenHariIni.value) {
         if (window.prosesClockOut) window.prosesClockOut();
@@ -111,14 +84,12 @@ const AppHome = {
     function muatSemua() {
       muatTampilan();
       muatShift();
-      muatPengumuman();
     }
 
     onMounted(async () => { await window.authReady; muatSemua(); });
 
     return {
       nama, sapaan, shift, sudahAbsenHariIni, menuGroups,
-      pengumuman, memuatPengumuman,
       klikClockInOut, klikMenu, bukaIzin, bukaCuti, bukaLembur,
       muatTampilan, muatSemua
     };
@@ -135,18 +106,8 @@ const AppHome = {
       </div>
 
       <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Pengumuman</h3>
-      <div v-if="memuatPengumuman" style="text-align:center; padding:24px 0; color:var(--text-faint); font-size:12px; margin-bottom:22px;">Memuat pengumuman...</div>
-      <div v-else-if="pengumuman.length === 0" style="text-align:center; padding:24px 0; background:var(--surface); border:1px dashed var(--line); border-radius:16px; color:var(--text-faint); font-size:12px; margin-bottom:22px;">
-        <i class="fas fa-bell-slash" style="font-size:22px; margin-bottom:8px; display:block;"></i>Belum ada pengumuman terbaru.
-      </div>
-      <div v-else style="display:flex; flex-direction:column; gap:10px; margin-bottom:22px;">
-        <div v-for="p in pengumuman" :key="p.id" style="display:flex; gap:12px; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px;">
-          <div style="width:38px; height:38px; border-radius:10px; background:var(--blue); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#1F5060;"><i class="fas fa-bell"></i></div>
-          <div>
-            <b style="font-size:12.5px;">{{ p.judul }}</b>
-            <p style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">{{ p.isi }}</p>
-          </div>
-        </div>
+      <div style="margin-bottom:22px;">
+        <pengumuman-carousel />
       </div>
 
       <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Shortcut</h3>
