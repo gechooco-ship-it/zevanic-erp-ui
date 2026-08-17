@@ -204,6 +204,7 @@ thead .freeze{z-index:3;}
 .w-full{width:100%;}
 .min-h-0{min-height:0;}
 .min-h-screen{min-height:100vh;}
+.max-w-xl{max-width:576px;}
 .max-w-2xl{max-width:672px;}
 .max-w-4xl{max-width:896px;}
 .max-w-5xl{max-width:1024px;}

@@ -22,6 +22,7 @@ const LABEL_TAB = {
   'tab-admin-acc': 'Master Absensi',
   'tab-superuser': 'Master Karyawan',
   'tab-whatsapp': 'WhatsApp Gateway',
+  'tab-mail-gateway': 'Mail Gateway',
   'tab-scan-qr': 'Scan QR',
   'tab-progress': 'Progress'
 };
