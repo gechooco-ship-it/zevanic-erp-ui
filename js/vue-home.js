@@ -121,8 +121,8 @@ const AppHome = {
       <div class="gc-card" v-if="shift.nama" style="margin-top:-26px; margin-bottom:14px; padding:14px 16px; position:relative; z-index:2; box-shadow:0 8px 20px rgba(110,30,44,.12);">
         <div style="display:flex; justify-content:space-between; align-items:flex-start;">
           <div>
-            <p style="font-size:11px; color:var(--text-muted); font-weight:600;">Shift hari ini &middot; {{ shift.gudang }}</p>
-            <p class="gc-heading num" style="font-size:15px; font-weight:700; margin-top:2px;">{{ shift.jamMasuk }} &ndash; {{ shift.jamKeluar }}</p>
+            <p style="font-size:11px; color:var(--text-muted); font-weight:600; margin:0;">Shift hari ini &middot; {{ shift.gudang }}</p>
+            <p class="gc-heading num" style="font-size:15px; font-weight:700; margin:2px 0 0 0;">{{ shift.jamMasuk }} &ndash; {{ shift.jamKeluar }}</p>
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
             <span v-if="sudahAbsenHariIni" class="tag ok"><span class="tag-dot"></span>Sudah absen</span>

@@ -88,12 +88,12 @@ const AppHeaderMobile = {
       <div style="position:absolute; right:-30px; top:-30px; width:120px; height:120px; border-radius:50%; background:var(--blue); opacity:.3;"></div>
       <div style="position:relative; z-index:1;">
         <template v-if="konteks.mode === 'home'">
-          <p style="font-size:12.5px; color:var(--mahogany-soft);">{{ sapaan }},</p>
-          <h2 class="gc-heading" style="font-size:19px; font-weight:700; color:var(--mahogany);">{{ namaTampil }}</h2>
+          <p style="font-size:12.5px; color:var(--mahogany-soft); margin:0;">{{ sapaan }},</p>
+          <h2 class="gc-heading" style="font-size:19px; font-weight:700; color:var(--mahogany); margin:2px 0 0 0;">{{ namaTampil }}</h2>
         </template>
         <template v-else>
-          <p style="font-size:12.5px; color:var(--mahogany-soft);">ERP Zevanic House</p>
-          <h2 class="gc-heading" style="font-size:17px; font-weight:700; color:var(--mahogany);">{{ konteks.menuLabel }}<span v-if="konteks.subMenuLabel"> - {{ konteks.subMenuLabel }}</span></h2>
+          <p style="font-size:12.5px; color:var(--mahogany-soft); margin:0;">ERP Zevanic House</p>
+          <h2 class="gc-heading" style="font-size:17px; font-weight:700; color:var(--mahogany); margin:2px 0 0 0;">{{ konteks.menuLabel }}<span v-if="konteks.subMenuLabel"> - {{ konteks.subMenuLabel }}</span></h2>
         </template>
       </div>
     </div>

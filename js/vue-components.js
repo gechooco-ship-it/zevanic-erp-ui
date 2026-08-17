@@ -556,8 +556,8 @@ export const QuoteCard = {
     <div v-if="!memuat && quote" style="background:linear-gradient(135deg, var(--pink), var(--blue)); border-radius:18px; padding:12px 14px; margin-bottom:14px; position:relative; overflow:hidden;">
       <div style="position:absolute; right:-20px; bottom:-20px; width:100px; height:100px; border-radius:50%; background:rgba(255,255,255,.25);"></div>
       <div style="position:relative; z-index:1;">
-        <h4 class="gc-heading" style="font-size:14px; font-weight:700; color:var(--mahogany); display:flex; align-items:center; gap:8px;"><i class="fas fa-quote-left"></i> {{ quote.judul }}</h4>
-        <p style="font-size:12.5px; color:var(--mahogany-soft); margin-top:5px; line-height:1.45;">{{ quote.isi }}</p>
+        <h4 class="gc-heading" style="font-size:14px; font-weight:700; color:var(--mahogany); display:flex; align-items:center; gap:8px; margin:0;"><i class="fas fa-quote-left"></i> {{ quote.judul }}</h4>
+        <p style="font-size:12.5px; color:var(--mahogany-soft); margin:5px 0 0 0; line-height:1.45;">{{ quote.isi }}</p>
       </div>
     </div>
   `
