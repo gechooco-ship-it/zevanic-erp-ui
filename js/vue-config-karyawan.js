@@ -11,7 +11,13 @@ import { MasterDataCategory, KecamatanManager } from './vue-components.js';
 const KATEGORI_SEDERHANA = [
   { kategori: 'jenis_pekerjaan', label: 'Jenis Pekerjaan' },
   { kategori: 'status_kerja', label: 'Status Kerja' },
-  { kategori: 'status_pengguna', label: 'Status Pengguna (Role Akses)' },
+  // "Status Pengguna (Role Akses)" SENGAJA dihapus dari sini (17 Agt
+  // 2026) — dulu ini daftar role TERPISAH dan TIDAK SINKRON dengan Config
+  // Akses/Hak Akses, berisiko bentrok (2 tempat kelola "role apa saja
+  // yang ada", tidak saling tahu). Sekarang role dikelola SATU tempat
+  // saja: Config Akses (buat profil baru) + Hak Akses (pasangkan ke
+  // karyawan) — keduanya sudah baca dari koleksi akses_config yang sama,
+  // begitu juga dropdown Role di modal Edit Karyawan (Daftar Karyawan).
   { kategori: 'jabatan', label: 'Jabatan' },
   { kategori: 'status_karyawan', label: 'Status Karyawan' },
   { kategori: 'kabupaten', label: 'Kabupaten/Kota' },

@@ -47,7 +47,20 @@ const EditKaryawanModal = {
     const opsiStatusKaryawan = ref([]);
 
     async function muatOpsiMaster() {
-      opsiRole.value = await window.ambilMasterList('status_pengguna');
+      // Sinkron dengan Config Akses & Hak Akses — dulu ambil dari Master
+      // Data "status_pengguna" (Config Karyawan), sekarang dari koleksi
+      // akses_config yang SAMA dipakai keduanya, biar 1 sumber kebenaran
+      // saja untuk "role apa saja yang ada" di SELURUH aplikasi.
+      try {
+        const qProfil = await getDocs(collection(db, "akses_config"));
+        const namaProfil = [];
+        qProfil.forEach(d => namaProfil.push(d.id));
+        const bakuMinimal = ['operator', 'pic', 'admin', 'owner', 'superuser'];
+        opsiRole.value = [...new Set([...bakuMinimal, ...namaProfil])].sort();
+      } catch (e) {
+        console.error("Gagal sinkron daftar role dari Config Akses:", e);
+        opsiRole.value = ['operator', 'pic', 'admin', 'owner', 'superuser'];
+      }
       opsiJenisPekerjaan.value = await window.ambilMasterList('jenis_pekerjaan');
       opsiJabatan.value = await window.ambilMasterList('jabatan');
       opsiStatusKerja.value = await window.ambilMasterList('status_kerja');

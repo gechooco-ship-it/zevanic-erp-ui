@@ -101,7 +101,9 @@ window.tutupPreviewFoto = function() {
 const MASTER_DATA_DEFAULT = {
   jenis_pekerjaan: ["Full Time", "Part Time", "Harian"],
   status_kerja: ["Aktif", "Tidak Aktif", "Resign"],
-  status_pengguna: ["operator", "admin", "pic", "owner"],
+  // "status_pengguna" dihapus dari sini (17 Agt 2026) — sudah tidak
+  // dibaca di manapun lagi, role sekarang dikelola lewat Config Akses +
+  // Hak Akses (koleksi akses_config). Lihat catatan di vue-config-karyawan.js.
   jabatan: ["Operator", "Admin", "Warehouse"],
   status_karyawan: ["Tetap", "Part Time", "Kontrak"],
   kabupaten: ["Bandung", "Bandung Barat", "Cimahi", "Garut"],

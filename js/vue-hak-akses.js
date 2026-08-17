@@ -18,7 +18,7 @@ import { collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/fir
 import { db } from "./firebase-config.js";
 import { GudangRingkas } from './vue-components.js';
 
-const DAFTAR_ROLE = ['operator', 'pic', 'admin', 'owner', 'superuser'];
+const DAFTAR_ROLE_BAKU = ['operator', 'pic', 'admin', 'owner', 'superuser']; // cadangan kalau koleksi akses_config belum ada isinya sama sekali
 const NILAI_BELUM_DIATUR = '__BELUM_DIATUR__';
 const PER_HALAMAN = 15;
 
@@ -27,6 +27,7 @@ const AppHakAkses = {
   setup() {
     const semuaKaryawan = ref([]);
     const daftarGudang = ref([]);
+    const DAFTAR_ROLE = ref([...DAFTAR_ROLE_BAKU]); // diisi ulang dari akses_config saat muat()
     const memuat = ref(true);
 
     const cariNama = ref('');
@@ -61,6 +62,27 @@ const AppHakAkses = {
         qGudang.forEach(docSnap => listGudang.push(docSnap.data().nama_gudang));
         daftarGudang.value = listGudang;
 
+        // Sinkron dengan Config Akses: dulu daftar role di sini
+        // hardcode di kode, jadi profil BARU yang dibuat di Config Akses
+        // (mis. "admin_finance") tidak pernah muncul di sini sampai ada
+        // yang ubah kodenya manual. Sekarang ambil LANGSUNG dari koleksi
+        // akses_config yang sama — begitu ada profil baru dibuat di sana,
+        // otomatis ikut muncul di sini tanpa perlu ubah kode lagi.
+        // "owner" SENGAJA selalu ditambahkan manual di sini meski Config
+        // Akses sendiri mengecualikannya dari daftar yang BISA DIEDIT di
+        // sana (Owner wajib akses penuh, tidak bisa dikonfigurasi) — tapi
+        // di SINI (Hak Akses) "owner" tetap harus bisa DIPILIH sebagai
+        // role karyawan, dua hal yang berbeda.
+        try {
+          const qProfil = await getDocs(collection(db, "akses_config"));
+          const namaProfil = [];
+          qProfil.forEach(d => namaProfil.push(d.id));
+          const gabungan = [...new Set([...DAFTAR_ROLE_BAKU, ...namaProfil, 'owner'])].sort();
+          DAFTAR_ROLE.value = gabungan;
+        } catch (e) {
+          console.error("Gagal sinkron daftar role dari Config Akses, pakai daftar baku:", e);
+        }
+
         terpilih.clear();
         halaman.value = 1;
       } catch (e) {
@@ -73,7 +95,7 @@ const AppHakAkses = {
     const ringkasanKartu = computed(() => {
       const semua = semuaKaryawan.value;
       const kartu = [{ label: 'Semua', nilaiFilter: 'ALL', angka: semua.length }];
-      DAFTAR_ROLE.forEach(r => {
+      DAFTAR_ROLE.value.forEach(r => {
         kartu.push({ label: r, nilaiFilter: r, angka: semua.filter(d => (d.role || '') === r).length });
       });
       kartu.push({ label: 'Belum diatur', nilaiFilter: NILAI_BELUM_DIATUR, angka: semua.filter(d => !d.role).length });
