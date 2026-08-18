@@ -315,8 +315,10 @@ const AppAccountProfile = {
     const filterTglSelesai = ref('');
     const filterGudang = ref('ALL');
     const filterShift = ref('ALL');
+    const filterStatusKehadiran = ref('ALL');
     const opsiGudangFilter = ref([]);
     const opsiShiftFilter = ref([]);
+    const opsiStatusKehadiranFilter = ref([]);
 
     const stat = reactive({ hadir: 0, acc: 0, seragamBeda: 0, izin: 0 });
     const listRiwayat = ref([]);
@@ -331,6 +333,8 @@ const AppAccountProfile = {
       const qShift = await getDocs(collection(db, "master_shift"));
       opsiShiftFilter.value = [];
       qShift.forEach(d => opsiShiftFilter.value.push(d.data().nama_shift));
+
+      opsiStatusKehadiranFilter.value = window.ambilMasterList ? await window.ambilMasterList('status_kehadiran') : ["Ontime", "Terlambat", "Tidak Absen"];
     }
 
     async function muatRiwayat() {
@@ -368,7 +372,8 @@ const AppAccountProfile = {
           }
           const lolosGudang = (filterGudang.value === 'ALL' || data.gudang === filterGudang.value);
           const lolosShift = (filterShift.value === 'ALL' || data.shift === filterShift.value);
-          if (!lolosTgl || !lolosGudang || !lolosShift) return;
+          const lolosStatusKehadiran = (filterStatusKehadiran.value === 'ALL' || f.statusKehadiranMasuk === filterStatusKehadiran.value || f.statusKehadiranKeluar === filterStatusKehadiran.value);
+          if (!lolosTgl || !lolosGudang || !lolosShift || !lolosStatusKehadiran) return;
 
           list.push(data);
           if (data.status === "HADIR" || data.status === "HADIR (CLOCK IN)") countHadir++;
@@ -436,7 +441,7 @@ const AppAccountProfile = {
       bukaFormIzin, tutupFormIzin, ajukanIzin,
       bukaFormCuti, tutupFormCuti, ajukanCuti,
       bukaFormLembur, tutupFormLembur, ajukanLembur,
-      filterTglMulai, filterTglSelesai, filterGudang, filterShift, opsiGudangFilter, opsiShiftFilter,
+      filterTglMulai, filterTglSelesai, filterGudang, filterShift, filterStatusKehadiran, opsiGudangFilter, opsiShiftFilter, opsiStatusKehadiranFilter,
       stat, listRiwayat, memuatRiwayat, muatRiwayat, exportCSV,
       pisahTanggalWaktu, lihatFotoBesar, bolehBanding, formatBaris,
       docIdSedangDibanding, bukaBanding, tutupBanding, selesaiBanding
@@ -641,11 +646,12 @@ const AppAccountProfile = {
 
       <div class="gc-card" style="font-size:12px; margin-bottom:14px;">
         <h4 style="font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;"><i class="fas fa-filter" style="margin-right:6px;"></i> Filter Parameter Laporan</h4>
-        <div style="gap:12px;" class="grid grid-cols-2 md:grid-cols-4">
+        <div style="gap:12px;" class="grid grid-cols-2 md:grid-cols-5">
           <div class="gc-field" style="margin-bottom:0;"><label>Dari Tanggal</label><input v-model="filterTglMulai" type="date"></div>
           <div class="gc-field" style="margin-bottom:0;"><label>Sampai Tanggal</label><input v-model="filterTglSelesai" type="date"></div>
           <div class="gc-field" style="margin-bottom:0;"><label>Filter Gudang</label><select v-model="filterGudang"><option value="ALL">Semua Gudang</option><option v-for="g in opsiGudangFilter" :key="g" :value="g">{{ g }}</option></select></div>
           <div class="gc-field" style="margin-bottom:0;"><label>Filter Shift</label><select v-model="filterShift"><option value="ALL">Semua Shift</option><option v-for="s in opsiShiftFilter" :key="s" :value="s">{{ s }}</option></select></div>
+          <div class="gc-field" style="margin-bottom:0;"><label>Status Kehadiran</label><select v-model="filterStatusKehadiran"><option value="ALL">Semua Status</option><option v-for="s in opsiStatusKehadiranFilter" :key="s" :value="s">{{ s }}</option></select></div>
         </div>
         <div style="display:flex; justify-content:flex-end; padding-top:10px;">
           <button @click="muatRiwayat" class="btn-primary" style="display:flex; align-items:center; gap:8px;">

@@ -146,6 +146,12 @@ const AppRiwayatAbsensi = {
   components: { DuaBaris, EditAbsensiModal },
   setup() {
     const listData = ref([]);
+    const cariNama = ref('');
+    const listDataTersaring = computed(() => {
+      const kata = cariNama.value.trim().toLowerCase();
+      if (!kata) return listData.value;
+      return listData.value.filter(item => (item.nama_pegawai || item.nama || '').toLowerCase().includes(kata));
+    });
     const memuat = ref(true);
     const itemSedangDiedit = ref(null);
 
@@ -296,7 +302,7 @@ const AppRiwayatAbsensi = {
 
     onMounted(async () => { await window.authReady; muat(); });
     return {
-      listData, memuat, itemSedangDiedit, muat, pisahTanggalWaktu, lihatFotoBesar,
+      listData, listDataTersaring, cariNama, memuat, itemSedangDiedit, muat, pisahTanggalWaktu, lihatFotoBesar,
       bukaEdit, tutupEdit, selesaiSimpan, hapus, assignUlang, exportCSV, migrasi, jalankanMigrasi,
       formatBaris
     };
@@ -330,7 +336,12 @@ const AppRiwayatAbsensi = {
 
     <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint); font-size:12px;"><i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i>Menyiapkan Riwayat All Absensi...</div>
 
-    <div v-else class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line);">
+    <div v-if="!memuat && listData.length > 0" style="position:relative; margin-bottom:14px; max-width:320px;">
+      <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
+      <input v-model="cariNama" type="text" placeholder="Cari nama karyawan..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+    </div>
+
+    <div v-if="!memuat" class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line);">
       <table class="gc-table">
         <thead>
           <tr>
@@ -348,7 +359,8 @@ const AppRiwayatAbsensi = {
         </thead>
         <tbody>
           <tr v-if="listData.length === 0"><td colspan="10" style="text-align:center; padding:20px; color:var(--text-faint);">Belum ada data absensi.</td></tr>
-          <tr v-for="item in listData" :key="item.id">
+          <tr v-else-if="listDataTersaring.length === 0"><td colspan="10" style="text-align:center; padding:20px; color:var(--text-faint);">Tidak ada nama yang cocok dicari.</td></tr>
+          <tr v-for="item in listDataTersaring" :key="item.id">
             <td>
               <b>
                 <span v-if="formatBaris(item).statusAccMasuk === 'ACC'" style="color:var(--ok);">Masuk: ACC</span>

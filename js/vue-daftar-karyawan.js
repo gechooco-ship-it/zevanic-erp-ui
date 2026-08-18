@@ -9,7 +9,7 @@
 // Penjadwalan, dan layar lain yang belum dimigrasi tetap jalan normal.
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DuaBaris, GudangCheckboxSelect, GudangRingkas } from './vue-components.js';
 import { usePaginasiFirestore } from './vue-paginasi.js';
@@ -353,10 +353,28 @@ const AppDaftarKaryawan = {
     // js/vue-paginasi.js) — cuma tarik 15 karyawan per halaman dari
     // server, bukan tarik SEMUA lalu potong di JS seperti sebelumnya.
     // Diurutkan berdasarkan nama supaya urutannya stabil & masuk akal.
+    const isOwnerRole = computed(() => ['owner', 'superuser'].includes((window.currentUser.role || '').toLowerCase()));
+    const filterJenisPekerjaanOwner = ref('ALL');
+    const filterGudangOwner = ref('ALL');
+    const opsiJenisPekerjaanOwner = ref([]);
+    const opsiGudangOwner = ref([]);
+
     const paginasi = reactive(usePaginasiFirestore(db, 'users', {
       perHalaman: 15,
       urutkanField: 'nama',
+      cariField: 'nama', // BARU — search box prefix-match server-side, hemat (bukan fetch-semua)
       filterPeran: true, // PEDOMAN KERJA (18 Agt 2026) - lihat vue-paginasi.js
+      // BARU — filter manual Jenis Pekerjaan/Gudang, CUMA berlaku efeknya
+      // buat Owner/Superuser (Admin biasa sudah otomatis kefilter lewat
+      // filterPeran di atas, dropdown ini sengaja disembunyikan buat
+      // mereka di template — pola §16, lihat STATUS-PROYEK.md).
+      constraintTambahan: () => {
+        if (!isOwnerRole.value) return [];
+        const cs = [];
+        if (filterJenisPekerjaanOwner.value !== 'ALL') cs.push(where('jenis_pekerjaan', '==', filterJenisPekerjaanOwner.value));
+        if (filterGudangOwner.value !== 'ALL') cs.push(where('gudang_penempatan', 'array-contains', filterGudangOwner.value));
+        return cs;
+      },
       petakan: (id, d) => {
         const gudangList = window.normalisasiGudang(d.gudang_penempatan);
         const jenisLokasiList = [...new Set(gudangList.map(g => petaJenisLokasi[g] || '-'))];
@@ -371,9 +389,17 @@ const AppDaftarKaryawan = {
     async function muat() {
       memuat.value = true;
       await muatPetaGudang();
+      if (isOwnerRole.value && opsiJenisPekerjaanOwner.value.length === 0) {
+        opsiJenisPekerjaanOwner.value = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
+        const qGudang = await getDocs(collection(db, "master_gudang"));
+        const listGudang = [];
+        qGudang.forEach(g => listGudang.push(g.data().nama_gudang));
+        opsiGudangOwner.value = listGudang;
+      }
       await paginasi.muatUlang();
       memuat.value = false;
     }
+    watch([filterJenisPekerjaanOwner, filterGudangOwner], () => paginasi.muatUlang());
 
     async function hapus(emailId) {
       if (window.cekIzinMenu('daftar_karyawan', 'delete') === false) {
@@ -410,7 +436,11 @@ const AppDaftarKaryawan = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { paginasi, memuat, emailSedangDiedit, muat, hapus, bukaEdit, tutupEdit, selesaiSimpan, badgeApproval, lihatFotoBesar, bolehHapus, bolehEdit };
+    return {
+      paginasi, memuat, emailSedangDiedit, muat, hapus, bukaEdit, tutupEdit, selesaiSimpan, badgeApproval, lihatFotoBesar, bolehHapus, bolehEdit,
+      cariNama: computed({ get: () => paginasi.cariTeks, set: (v) => paginasi.cariDenganDebounce(v) }),
+      isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner
+    };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none;">
@@ -419,6 +449,22 @@ const AppDaftarKaryawan = {
         <p style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Master kontrol HR untuk edit role & status.</p>
       </div>
       <button @click="muat" class="btn-outline filled">Muat Data</button>
+    </div>
+    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:14px;">
+      <div style="position:relative; flex:1; min-width:200px;">
+        <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
+        <input v-model="cariNama" type="text" placeholder="Cari nama karyawan..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+      </div>
+      <template v-if="isOwnerRole">
+        <select v-model="filterJenisPekerjaanOwner" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+          <option value="ALL">Semua jenis pekerjaan</option>
+          <option v-for="jp in opsiJenisPekerjaanOwner" :key="jp" :value="jp">{{ jp }}</option>
+        </select>
+        <select v-model="filterGudangOwner" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+          <option value="ALL">Semua gudang</option>
+          <option v-for="g in opsiGudangOwner" :key="g" :value="g">{{ g }}</option>
+        </select>
+      </template>
     </div>
     <div class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line); margin-top:16px;">
       <table class="gc-table">

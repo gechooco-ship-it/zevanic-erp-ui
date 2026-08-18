@@ -445,15 +445,17 @@ const AppPenjadwalan = {
             <label style="display:flex; align-items:center; gap:6px; font-weight:600; color:var(--text-muted); font-size:12px;"><input type="checkbox" v-model="cekBelum" style="accent-color:var(--burgundy);"> Belum dijadwalkan</label>
           </div>
           <div style="gap:8px;" class="grid grid-cols-2 md:grid-cols-4">
-            <select v-model="filterJenisPekerjaan" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
-              <option value="ALL">Semua jenis pekerjaan</option>
-              <option v-for="v in daftarJenisPekerjaan" :key="v" :value="v">{{ v }}</option>
-            </select>
-            <select v-model="filterGudang" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
-              <option value="ALL">Semua gudang</option>
-              <option v-for="k in ringkasanKartu.slice(1, -1)" :key="k.nilaiFilter" :value="k.nilaiFilter">{{ k.label }}</option>
-              <option value="__TANPA_GUDANG__">Tanpa gudang</option>
-            </select>
+            <template v-if="isOwnerRole">
+              <select v-model="filterJenisPekerjaan" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+                <option value="ALL">Semua jenis pekerjaan</option>
+                <option v-for="v in daftarJenisPekerjaan" :key="v" :value="v">{{ v }}</option>
+              </select>
+              <select v-model="filterGudang" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+                <option value="ALL">Semua gudang</option>
+                <option v-for="k in ringkasanKartu.slice(1, -1)" :key="k.nilaiFilter" :value="k.nilaiFilter">{{ k.label }}</option>
+                <option value="__TANPA_GUDANG__">Tanpa gudang</option>
+              </select>
+            </template>
             <select v-model="filterShift" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
               <option value="ALL">Semua shift</option>
               <option v-for="s in daftarShift" :key="s.nama_shift" :value="s.nama_shift">{{ s.nama_shift }}</option>
