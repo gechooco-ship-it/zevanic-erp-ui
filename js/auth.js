@@ -14,6 +14,19 @@ window.statusPilihanGlobal = "HADIR (CLOCK IN)";
 window.currentUser = { email: "", name: "", role: "operator", id_app: "", id_karyawan: "", jabatan: "", status_kerja: "aktif" };
 window._manualLoginInProgress = false; // dicek oleh onAuthStateChanged, disetel oleh vue-login.js
 
+// BARU (18 Agt 2026, revisi ke-2 alur registrasi) — deteksi link "Buat
+// Password" dari email (?buatpassword=1&email=...&token=...) PALING AWAL,
+// sebelum logic sesi-otomatis di bawah sempat jalan & mungkin melempar ke
+// screen-login duluan. window._modeBuatPassword dicek di listener
+// onAuthStateChanged besar di bawah (pola sama seperti
+// window._manualLoginInProgress) supaya tidak ditimpa balik ke Login/
+// Dashboard. app.js dimuat SEBELUM file ini (urutan <script> di
+// index.html), jadi window.pindahLayar sudah pasti ada di titik ini.
+window._modeBuatPassword = new URLSearchParams(window.location.search).get('buatpassword') === '1';
+if (window._modeBuatPassword && window.pindahLayar) {
+  window.pindahLayar('screen-buat-password');
+}
+
 // xx 
 // window.authReady — PERBAIKAN BUG: semua layar Master Absensi/Master
 // Karyawan (Antrean Dakar, Config Karyawan, Config Absensi, Daftar
@@ -294,7 +307,7 @@ onAuthStateChanged(auth, async (user) => {
   // Jangan proses kalau: sudah pernah selesai diproses SEBELUMNYA dengan user
   // nyata, ATAU sedang ada proses login manual aktif (window.js/vue-login.js
   // yang urus, supaya tidak bentrok/dobel navigasi).
-  if (sesiOtomatisSudahDicek || window._manualLoginInProgress) return;
+  if (sesiOtomatisSudahDicek || window._manualLoginInProgress || window._modeBuatPassword) return;
 
   if (!user || !user.email) {
     // PENTING: TIDAK mengunci di sini. Firebase kadang memanggil callback ini
