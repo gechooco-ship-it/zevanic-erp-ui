@@ -759,3 +759,36 @@ diterapkan).
 3. Ini berlaku default utk SEMUA tabel yang nampilin data karyawan/
    gudang/shift, KECUALI Owner/Superuser — sama seperti aturan "menu
    baru default Owner-only" di §6.8, JANGAN dianggap opsional.
+
+## 16. PEDOMAN KERJA: search box + filter manual khusus Owner (18 Agt 2026)
+
+**Kenapa perlu, padahal sudah ada §15**: §15 (`window.bolehLihatData`)
+otomatis nyaring Admin biasa ke 1 jenis pekerjaan + gudang sendiri —
+tapi Owner/Superuser SELALU bypass (lihat semua data tanpa kecuali).
+Kalau datanya banyak, Owner bisa "kebanjiran" tanpa cara menyaring.
+Solusinya BUKAN ikut kena filter otomatis (Owner memang harus tetap
+bisa lihat semua) — Owner dikasih **kendali MANUAL** buat nyaring
+sendiri kalau perlu, beda kebutuhan dari Admin biasa.
+
+**Pola baku** (diterapkan pertama di `vue-antrean-absensi.js`, WAJIB
+dicontek sama persis di tabel/kartu-grid lain):
+- **Search box** — SELALU ada buat semua role, cari berdasarkan nama.
+- **Filter Jenis Pekerjaan** & **Filter Gudang** (dropdown) — CUMA
+  render (`v-if="isOwnerRole"`) buat Owner/Superuser. Admin biasa TIDAK
+  PERNAH lihat dropdown ini sama sekali (redundan, sudah otomatis
+  kefilter lewat §15).
+- Opsi dropdown Gudang dari `master_gudang`, opsi Jenis Pekerjaan dari
+  `window.ambilMasterList('jenis_pekerjaan')` — CUMA dimuat kalau
+  `isOwnerRole` true (hemat, Admin biasa tidak pernah butuh).
+- Filtering CLIENT-SIDE (bukan `where()` Firestore) — konsisten dengan
+  prinsip "antrean seharusnya kecil" di §13 (Antrean/queue BUKAN tabel
+  besar yang tumbuh terus, hemat-nya dari query pending-only, bukan
+  paginasi/filter server tambahan).
+- Setiap item di list WAJIB dilampiri `jenisPekerjaan` (dari peta
+  email->jenis_pekerjaan yang sudah dibangun buat §15) supaya filter
+  Owner bisa jalan TANPA baca tambahan — data yang sama dipakai ulang,
+  bukan fetch baru.
+- Kalau hasil filter/cari kosong TAPI `daftarPending` aslinya TIDAK
+  kosong, WAJIB pesan BEDA ("Tidak ada yang cocok" bukan "Semua sudah
+  tervalidasi") — supaya Owner tidak salah paham antrean-nya benar-benar
+  kosong.
