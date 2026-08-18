@@ -49,6 +49,7 @@ const MasterGudangManager = {
 
     // ---- Edit jenis pekerjaan untuk data yang SUDAH ADA sebelumnya ----
     const sedangEditId = ref(null);
+    const editNama = ref('');
     const editJenisPekerjaan = ref([]);
     const menyimpanEdit = ref(false);
 
@@ -126,20 +127,28 @@ const MasterGudangManager = {
 
     function mulaiEdit(g) {
       sedangEditId.value = g.id;
+      editNama.value = g.nama_gudang || '';
       editJenisPekerjaan.value = [...(g.jenis_pekerjaan || [])];
     }
     function batalEdit() {
       sedangEditId.value = null;
+      editNama.value = '';
       editJenisPekerjaan.value = [];
     }
-    async function simpanEditJenisPekerjaan(id) {
+    // Ganti nama dari "simpanEditJenisPekerjaan" -> "simpanEdit" (sekarang
+    // simpan Nama Gudang JUGA, bukan cuma jenis pekerjaan — permintaan
+    // checklist rebuild 18 Agt 2026). Nama fungsi lama dipertahankan
+    // sebagai alias di bawah biar titik panggil template tidak perlu ikut
+    // berubah semua.
+    async function simpanEdit(id) {
+      if (!editNama.value.trim()) return alert("Nama Gudang tidak boleh kosong!");
       menyimpanEdit.value = true;
       try {
-        await updateDoc(doc(db, "master_gudang", id), { jenis_pekerjaan: editJenisPekerjaan.value });
+        await updateDoc(doc(db, "master_gudang", id), { nama_gudang: editNama.value.trim(), jenis_pekerjaan: editJenisPekerjaan.value });
         sedangEditId.value = null;
         await muat();
       } catch (e) {
-        console.error("Gagal simpan jenis pekerjaan gudang:", e);
+        console.error("Gagal simpan perubahan gudang:", e);
         alert("Gagal menyimpan perubahan.");
       }
       menyimpanEdit.value = false;
@@ -152,7 +161,7 @@ const MasterGudangManager = {
     return {
       daftarGudang, memuat, menyimpan, nama, tipeLokasi, lat, lng, radius, opsiJenisPekerjaan, jenisPekerjaanBaru,
       simpan, hapus, bolehUbahJenisLokasi, bolehHapus, bolehEdit,
-      sedangEditId, editJenisPekerjaan, menyimpanEdit, mulaiEdit, batalEdit, simpanEditJenisPekerjaan
+      sedangEditId, editNama, editJenisPekerjaan, menyimpanEdit, mulaiEdit, batalEdit, simpanEdit
     };
   },
   template: `
@@ -213,6 +222,8 @@ const MasterGudangManager = {
               </div>
             </div>
             <div v-if="sedangEditId === g.id" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">
+              <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Edit nama gudang:</label>
+              <input v-model="editNama" type="text" style="width:100%; padding:7px 10px; font-size:12px; border:1px solid var(--line); border-radius:8px; margin-bottom:10px;">
               <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Edit jenis pekerjaan untuk gudang ini:</label>
               <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
                 <label v-for="jp in opsiJenisPekerjaan" :key="jp" style="display:flex; align-items:center; gap:5px; font-size:11.5px; background:var(--surface); padding:5px 10px; border-radius:20px; cursor:pointer; border:1px solid var(--line);">
@@ -220,7 +231,7 @@ const MasterGudangManager = {
                 </label>
               </div>
               <div style="display:flex; gap:8px;">
-                <button @click="simpanEditJenisPekerjaan(g.id)" :disabled="menyimpanEdit" class="btn-primary" style="padding:6px 16px; font-size:11.5px;">{{ menyimpanEdit ? 'Menyimpan...' : 'Simpan' }}</button>
+                <button @click="simpanEdit(g.id)" :disabled="menyimpanEdit" class="btn-primary" style="padding:6px 16px; font-size:11.5px;">{{ menyimpanEdit ? 'Menyimpan...' : 'Simpan' }}</button>
                 <button @click="batalEdit" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer; font-size:11.5px;">Batal</button>
               </div>
             </div>
@@ -247,6 +258,7 @@ const MasterShiftManager = {
 
     // ---- Edit jenis pekerjaan untuk data yang SUDAH ADA sebelumnya ----
     const sedangEditId = ref(null);
+    const editNama = ref('');
     const editJenisPekerjaan = ref([]);
     const menyimpanEdit = ref(false);
 
@@ -298,20 +310,23 @@ const MasterShiftManager = {
 
     function mulaiEdit(s) {
       sedangEditId.value = s.id;
+      editNama.value = s.nama_shift || '';
       editJenisPekerjaan.value = [...(s.jenis_pekerjaan || [])];
     }
     function batalEdit() {
       sedangEditId.value = null;
+      editNama.value = '';
       editJenisPekerjaan.value = [];
     }
-    async function simpanEditJenisPekerjaan(id) {
+    async function simpanEdit(id) {
+      if (!editNama.value.trim()) return alert("Nama Shift tidak boleh kosong!");
       menyimpanEdit.value = true;
       try {
-        await updateDoc(doc(db, "master_shift", id), { jenis_pekerjaan: editJenisPekerjaan.value });
+        await updateDoc(doc(db, "master_shift", id), { nama_shift: editNama.value.trim(), jenis_pekerjaan: editJenisPekerjaan.value });
         sedangEditId.value = null;
         await muat();
       } catch (e) {
-        console.error("Gagal simpan jenis pekerjaan shift:", e);
+        console.error("Gagal simpan perubahan shift:", e);
         alert("Gagal menyimpan perubahan.");
       }
       menyimpanEdit.value = false;
@@ -324,7 +339,7 @@ const MasterShiftManager = {
     return {
       daftarShift, memuat, menyimpan, nama, jamMasuk, jamKeluar, opsiJenisPekerjaan, jenisPekerjaanBaru,
       simpan, hapus, bolehHapus, bolehEdit,
-      sedangEditId, editJenisPekerjaan, menyimpanEdit, mulaiEdit, batalEdit, simpanEditJenisPekerjaan
+      sedangEditId, editNama, editJenisPekerjaan, menyimpanEdit, mulaiEdit, batalEdit, simpanEdit
     };
   },
   template: `
@@ -367,6 +382,8 @@ const MasterShiftManager = {
               </div>
             </div>
             <div v-if="sedangEditId === s.id" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">
+              <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Edit nama shift:</label>
+              <input v-model="editNama" type="text" style="width:100%; padding:7px 10px; font-size:12px; border:1px solid var(--line); border-radius:8px; margin-bottom:10px;">
               <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Edit jenis pekerjaan untuk shift ini:</label>
               <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
                 <label v-for="jp in opsiJenisPekerjaan" :key="jp" style="display:flex; align-items:center; gap:5px; font-size:11.5px; background:var(--surface); padding:5px 10px; border-radius:20px; cursor:pointer; border:1px solid var(--line);">
@@ -374,7 +391,7 @@ const MasterShiftManager = {
                 </label>
               </div>
               <div style="display:flex; gap:8px;">
-                <button @click="simpanEditJenisPekerjaan(s.id)" :disabled="menyimpanEdit" class="btn-primary" style="padding:6px 16px; font-size:11.5px;">{{ menyimpanEdit ? 'Menyimpan...' : 'Simpan' }}</button>
+                <button @click="simpanEdit(s.id)" :disabled="menyimpanEdit" class="btn-primary" style="padding:6px 16px; font-size:11.5px;">{{ menyimpanEdit ? 'Menyimpan...' : 'Simpan' }}</button>
                 <button @click="batalEdit" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer; font-size:11.5px;">Batal</button>
               </div>
             </div>
