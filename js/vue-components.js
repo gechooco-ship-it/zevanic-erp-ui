@@ -21,7 +21,14 @@ import { db } from "./firebase-config.js";
 export const MasterDataCategory = {
   props: {
     kategori: { type: String, required: true },
-    label: { type: String, required: true }
+    label: { type: String, required: true },
+    // BARU — supaya komponen ini bisa dipakai ulang di menu LAIN (misal
+    // Config Absensi > Jenis Pekerjaan) dengan izin Config Akses yang
+    // benar, bukan selalu dicek ke 'config_karyawan'. Default tetap
+    // 'config_karyawan' — 9 pemakaian lama di vue-config-karyawan.js
+    // TIDAK perlu diubah sama sekali, otomatis tetap jalan sama seperti
+    // sebelumnya.
+    menuId: { type: String, default: 'config_karyawan' }
   },
   setup(props) {
     const items = ref([]);
@@ -29,12 +36,12 @@ export const MasterDataCategory = {
     const memuat = ref(true);
     const menyimpan = ref(false);
 
-    // PENERAPAN NYATA Config Akses — komponen ini dipakai buat 9 kategori
-    // Master Data sekaligus, SEMUANYA di bawah menu "config_karyawan".
-    // Cek 1 kali di sini, otomatis berlaku ke semuanya. Fallback aman:
-    // kalau belum diatur (null), dianggap boleh.
-    const bolehTambah = computed(() => window.cekIzinMenu('config_karyawan', 'add') !== false);
-    const bolehHapus = computed(() => window.cekIzinMenu('config_karyawan', 'delete') !== false);
+    // PENERAPAN NYATA Config Akses — komponen ini dipakai buat beberapa
+    // kategori Master Data sekaligus, izinnya dicek ke props.menuId
+    // (menu tempat komponen ini dipasang), BUKAN hardcode lagi. Fallback
+    // aman: kalau belum diatur (null), dianggap boleh.
+    const bolehTambah = computed(() => window.cekIzinMenu(props.menuId, 'add') !== false);
+    const bolehHapus = computed(() => window.cekIzinMenu(props.menuId, 'delete') !== false);
 
     async function muat() {
       memuat.value = true;

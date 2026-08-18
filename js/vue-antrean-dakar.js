@@ -124,7 +124,10 @@ const AntreanDakarCard = {
       opsiStatusKerja.value = await window.ambilMasterList('status_kerja');
       const qShift = await getDocs(collection(db, "master_shift"));
       const listShift = [];
-      qShift.forEach(docSnap => listShift.push(docSnap.data()));
+      qShift.forEach(docSnap => {
+        const s = docSnap.data();
+        if (window.bolehLihatJenisPekerjaan(s.jenis_pekerjaan)) listShift.push(s);
+      });
       daftarShift.value = listShift;
       opsiJabatan.value = await window.ambilMasterList('jabatan');
       opsiStatusKaryawan.value = await window.ambilMasterList('status_karyawan');
@@ -312,6 +315,11 @@ const AntreanDakarCard = {
 const AppAntreanDakar = {
   components: { AntreanDakarCard },
   setup() {
+    // Dipakai buat catatan transparansi filter jenis pekerjaan di template
+    // (LEWAT computed, BUKAN window.xxx langsung di template — lihat
+    // STATUS-PROYEK.md §10.1).
+    const isOwnerRole = computed(() => ['owner', 'superuser'].includes((window.currentUser.role || '').toLowerCase()));
+
     const daftarPending = ref([]);
     const memuat = ref(true);
     const errorMuat = ref('');
@@ -322,7 +330,10 @@ const AppAntreanDakar = {
       try {
         const snap = await getDocs(collection(db, "pendaftaran_pending"));
         const list = [];
-        snap.forEach(docSnap => list.push({ id: docSnap.id, data: docSnap.data() }));
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          if (window.bolehLihatJenisPekerjaan(d.jenis_pekerjaan)) list.push({ id: docSnap.id, data: d });
+        });
         daftarPending.value = list;
       } catch (e) {
         console.error("Gagal memuat antrean pendaftaran:", e);
@@ -332,13 +343,14 @@ const AppAntreanDakar = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { daftarPending, memuat, errorMuat, muat };
+    return { isOwnerRole, daftarPending, memuat, errorMuat, muat };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none;">
       <div>
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; color:var(--burgundy-dark);"><i class="fas fa-user-clock" style="margin-right:8px;"></i> Antrean persetujuan karyawan baru</h3>
         <p style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Pendaftar baru TIDAK punya akun login sama sekali sampai mereka sendiri membuat password lewat link email.</p>
+        <p v-if="!isOwnerRole" style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;"><i class="fas fa-filter" style="margin-right:5px;"></i>Cuma nampilin jenis pekerjaan yang sama dengan profil Anda.</p>
       </div>
       <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
     </div>

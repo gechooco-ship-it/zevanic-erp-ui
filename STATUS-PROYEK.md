@@ -558,6 +558,111 @@ Ringkasan super singkat (detail lengkap di file itu):
   hasilnya (belum nyambung ke alur kerja apapun).
 - Slip Gaji, Payroll, Estimasi Gaji — semua masih placeholder "segera hadir".
 
+## 12. Registrasi -> Login revisi ke-3: password dibuat karyawan sendiri (18 Agt 2026)
+
+**Kenapa dirombak lagi**: supaya karyawan pilih password sendiri sejak
+awal (bukan dipaksa pakai NIK sebagai password sementara lalu wajib
+ganti login pertama). Alur token verifikasi lewat TULIS (pola sama
+persis `otp_email`) — jangan pernah baca `pendaftaran_pending` langsung
+tanpa verifikasi token dulu, lihat `firestore.rules`.
+
+1. **Registrasi** (`vue-registrasi.js`) — TIDAK berubah dari revisi
+   sebelumnya: 3 tahap, tanpa password, simpan ke `pendaftaran_pending`.
+2. **Antrean Dakar** (`vue-antrean-dakar.js`) — "Setujui" SEKARANG cuma
+   generate token acak (`token_buat_password`, `token_kadaluarsa` 30
+   menit dari `MASA_BERLAKU_MENIT`) + kirim EMAIL link, BUKAN bikin akun
+   langsung. Status "Menunggu Buat Password" (badge kuning) muncul
+   sampai karyawan klik link atau kadaluarsa (badge merah) — di kedua
+   kondisi itu tombolnya jadi **Assign Ulang** (generate token baru,
+   kirim ulang) + **Tolak** (aman, akun Auth belum pernah dibuat).
+   **Instance Firebase kedua (`buatAkunTanpaGangguSesi`) SUDAH DIHAPUS**
+   — tidak relevan lagi karena yang bikin akun sekarang karyawan sendiri
+   (belum login sebagai siapapun), bukan Admin.
+3. **Buat Password** (`js/vue-buat-password.js`, layar BARU) — dibuka
+   lewat link email (`?buatpassword=1&email=...&token=...`, dideteksi di
+   `auth.js` PALING AWAL sebelum logic sesi-otomatis lain jalan, lewat
+   `window._modeBuatPassword`). Verifikasi token lewat TULIS
+   `tebakan_token` ke `pendaftaran_pending` (persis pola `otp_email`) —
+   kalau cocok & belum kadaluarsa, `token_terverifikasi:true` otomatis
+   ke-set, BARU boleh baca email/nama/HP (read-only) buat ditampilkan.
+   Isi Password+Konfirmasi -> `createUserWithEmailAndPassword` (TANPA
+   instance kedua) -> tulis `users/{email}` (field `token_*` dibuang,
+   TIDAK ikut ke profil final) -> hapus `pendaftaran_pending` SENDIRI ->
+   sign-out -> arahkan ke Login biasa (supaya login pertama tetap lewat
+   SATU jalur yang sama, termasuk cek device baru).
+4. **Login** (`vue-login.js`) — modal **wajib ganti password DIHAPUS**
+   total (sudah tidak relevan). Urutan sekarang cuma: cek device baru
+   (OTP email kalau perlu) -> langsung alur normal.
+
+**BELUM PERNAH DITES END-TO-END sama sekali** — WAJIB dicoba penuh
+(daftar -> OTP -> Antrean Dakar Setujui -> cek email link -> Buat
+Password -> login) sebelum dipakai karyawan sungguhan.
+
+## 13. Filter otomatis Jenis Pekerjaan di Penjadwalan & Antrean Dakar (18 Agt 2026)
+
+**Tujuan**: Admin yang login cuma urus jenis pekerjaan yang sama dengan
+profilnya sendiri — otomatis, tanpa pilih filter manual, DAN hemat baca
+Firestore (bukan baca semua lalu filter tampilan, tapi filter di JS
+setelah 1x baca per koleksi, sebelum dirender).
+
+**Helper bersama**: `window.bolehLihatJenisPekerjaan(jenisPekerjaanData)`
+(`auth.js`, dekat `window.cekIzinMenu`). Aturan:
+- **Owner/Superuser SELALU lolos** (`role() bypass`, TIDAK PERNAH
+  difilter) — sama seperti bypass Config Akses yang sudah ada.
+- **Jatuh-aman**: kalau `jenisPekerjaanData` KOSONG/BELUM ADA (data
+  lama yang belum sempat ditag), dianggap BOLEH TAMPIL ke SEMUA Admin —
+  supaya data lama tidak tiba-tiba hilang dari pandangan siapapun cuma
+  karena belum sempat ditag. Sama prinsipnya dengan aturan jatuh-aman di
+  §6.3 (Config Akses).
+- Dipakai buat 2 bentuk data: string tunggal (karyawan, field
+  `jenis_pekerjaan`) MAUPUN array (gudang/shift, field yang SAMA namanya
+  `jenis_pekerjaan`, karena 1 gudang/shift bisa dipakai lebih dari 1
+  jenis pekerjaan).
+
+**Diterapkan di:**
+- `vue-penjadwalan.js` — daftar karyawan, dropdown Gudang, dropdown
+  Shift, ketiganya difilter sesuai `window.currentUser.jenis_pekerjaan`
+  Admin yang login.
+- `vue-antrean-dakar.js` — daftar antrean pendaftaran (`pendaftaran_pending`)
+  DAN dropdown Jadwal Shift di kartu approve, keduanya difilter sama.
+- Catatan transparansi ("Cuma nampilin jenis pekerjaan yang sama dengan
+  profil Anda") ditampilkan di kedua halaman itu kalau bukan Owner/
+  Superuser — lewat `computed` di `setup()`, **BUKAN** `window.xxx`
+  langsung di template (lihat §10.1, jangan ulangi bug itu).
+
+**`master_gudang` & `master_shift` sekarang punya field baru**
+`jenis_pekerjaan` (array, opsional) — diisi lewat Config Absensi (lihat
+§14). Data LAMA yang belum ditag TETAP tampil ke semua Admin (jatuh-aman
+di atas), sampai Owner/Admin sempat tag manual.
+
+## 14. Config Absensi jadi 3 sub-tab, hemat baca Master Gudang/Shift (18 Agt 2026)
+
+**Sebelumnya**: Master Gudang & Master Shift tampil BARENGAN begitu
+Config Absensi dibuka (2 kartu sebelahan) — jadi KEDUA koleksi kebaca
+sekaligus walau orangnya cuma mau lihat salah satu.
+
+**Sekarang** (`vue-config-absensi.js`): dipecah jadi 3 sub-tab (Master
+Gudang / Master Shift / **Jenis Pekerjaan**, BARU) — tiap koleksi CUMA
+dibaca begitu sub-tabnya BENAR-BENAR dibuka pertama kali. Pola render:
+`v-if="dibukaSekali.xxx"` (mount SEKALI, pertama kali dibuka) digabung
+`v-show="tabAktif==='xxx'"` (pindah-pindah SETELAH itu TANPA fetch
+ulang) — bukan `v-if` polos (itu akan fetch ulang tiap pindah balik).
+
+Sub-tab **Jenis Pekerjaan** PAKAI ULANG komponen bersama
+`MasterDataCategory` (`vue-components.js`, sama yang dipakai 9 kategori
+Master Data lain di Config Karyawan) — bukan komponen baru. Komponen itu
+ditambah prop **`menuId`** (default `'config_karyawan'`, backward-
+compatible — 9 pemakaian lama TIDAK berubah sama sekali) supaya
+pemakaian baru ini bisa kirim `menu-id="config_absensi"`, biar izinnya
+dicek ke menu yang benar, bukan ketiban 'config_karyawan'.
+
+**Master Gudang & Master Shift** — form tambah data baru sekarang punya
+checkbox multi-pilih Jenis Pekerjaan (array, dari `master_data/jenis_pekerjaan`).
+Data yang SUDAH ADA sebelumnya (dibuat sebelum fitur ini) bisa di-tag
+belakangan lewat tombol ikon <i class="fas fa-tags"></i> di tiap baris —
+buka form checkbox inline, pilih, Simpan (`updateDoc`, cuma field
+`jenis_pekerjaan` yang berubah, field lain tidak tersentuh).
+
 **Soal fondasi kerja (bukan fitur, cara kerja) — belum jadi masalah di
 skala sekarang, tapi relevan kalau nanti dipakai ratusan orang:**
 - Belum ada testing otomatis — semua perubahan diverifikasi manual

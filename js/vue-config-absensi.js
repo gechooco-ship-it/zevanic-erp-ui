@@ -1,7 +1,21 @@
 // js/vue-config-absensi.js
 // ============================================================================
-// Halaman KEDUA yang dimigrasi ke Vue: Master Absensi > Config Absensi
-// (Master Gudang & Titik Lokasi + Master Shift Jam Kerja).
+// Halaman KEDUA yang dimigrasi ke Vue: Master Absensi > Config Absensi.
+//
+// DIROMBAK (18 Agt 2026) — dulu Master Gudang & Master Shift tampil
+// BARENGAN begitu Config Absensi dibuka (2 kartu sebelahan), jadi KEDUA
+// koleksi ("master_gudang" DAN "master_shift") kebaca sekaligus walau
+// orangnya cuma mau lihat salah satu. SEKARANG dipecah jadi 3 sub-tab
+// (Master Gudang / Master Shift / Jenis Pekerjaan) — tiap koleksi CUMA
+// dibaca begitu sub-tab-nya benar-benar dibuka pertama kali (pola
+// "mount sekali, sisanya tinggal show/hide" — v-if buat mount pertama,
+// v-show buat pindah-pindah selanjutnya TANPA fetch ulang).
+//
+// Sub-tab "Jenis Pekerjaan" PAKAI ULANG komponen bersama
+// MasterDataCategory (vue-components.js, sama yang dipakai 9 kategori
+// lain di Config Karyawan) — BUKAN komponen baru. Prop menuId="config_absensi"
+// WAJIB disertakan supaya izinnya dicek ke menu yang benar (lihat catatan
+// di vue-components.js kenapa prop ini ditambahkan).
 //
 // PENTING: koleksi Firestore "master_gudang" dan "master_shift" dibaca
 // langsung oleh banyak bagian lain yang BELUM dimigrasi (geofencing di
@@ -9,21 +23,34 @@
 // sini SENGAJA dipertahankan identik dengan versi lama supaya bagian-bagian
 // itu tetap jalan normal tanpa perlu ikut diubah.
 // ============================================================================
-import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+import { MasterDataCategory } from './vue-components.js';
 
 const MasterGudangManager = {
   setup() {
     const daftarGudang = ref([]);
     const memuat = ref(true);
     const menyimpan = ref(false);
+    const opsiJenisPekerjaan = ref([]);
 
     const nama = ref('');
     const tipeLokasi = ref('Tetap');
     const lat = ref('');
     const lng = ref('');
     const radius = ref('');
+    // BARU (18 Agt 2026) — 1 gudang bisa dipakai LEBIH DARI 1 jenis
+    // pekerjaan (misal Operator Gudang & Checker sama-sama kerja di
+    // gudang yang sama), jadi array (checkbox), bukan dropdown 1 pilihan.
+    // Dipakai Penjadwalan/Antrean Dakar buat nyaring dropdown gudang
+    // sesuai jenis pekerjaan Admin yang login (lihat PETA-DATABASE.md).
+    const jenisPekerjaanBaru = ref([]);
+
+    // ---- Edit jenis pekerjaan untuk data yang SUDAH ADA sebelumnya ----
+    const sedangEditId = ref(null);
+    const editJenisPekerjaan = ref([]);
+    const menyimpanEdit = ref(false);
 
     // PENERAPAN NYATA Config Akses — kunci dropdown Jenis Lokasi kalau
     // role ini SENGAJA dilarang mengubahnya (fitur "ubah_jenis_lokasi" di
@@ -42,6 +69,7 @@ const MasterGudangManager = {
       const list = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() }));
       daftarGudang.value = list;
+      opsiJenisPekerjaan.value = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
       memuat.value = false;
     }
 
@@ -51,6 +79,7 @@ const MasterGudangManager = {
       lat.value = '';
       lng.value = '';
       radius.value = '';
+      jenisPekerjaanBaru.value = [];
     }
 
     async function simpan() {
@@ -66,7 +95,8 @@ const MasterGudangManager = {
           tipe_lokasi: tipeLokasi.value,
           latitude: tipeLokasi.value === 'Tetap' ? lat.value : "",
           longitude: tipeLokasi.value === 'Tetap' ? lng.value : "",
-          radius: tipeLokasi.value === 'Tetap' ? parseInt(radius.value) : 0
+          radius: tipeLokasi.value === 'Tetap' ? parseInt(radius.value) : 0,
+          jenis_pekerjaan: jenisPekerjaanBaru.value
         });
         alert("Master Gudang Berhasil Disimpan!");
         resetForm();
@@ -87,10 +117,36 @@ const MasterGudangManager = {
       await muat();
     }
 
+    function mulaiEdit(g) {
+      sedangEditId.value = g.id;
+      editJenisPekerjaan.value = [...(g.jenis_pekerjaan || [])];
+    }
+    function batalEdit() {
+      sedangEditId.value = null;
+      editJenisPekerjaan.value = [];
+    }
+    async function simpanEditJenisPekerjaan(id) {
+      menyimpanEdit.value = true;
+      try {
+        await updateDoc(doc(db, "master_gudang", id), { jenis_pekerjaan: editJenisPekerjaan.value });
+        sedangEditId.value = null;
+        await muat();
+      } catch (e) {
+        console.error("Gagal simpan jenis pekerjaan gudang:", e);
+        alert("Gagal menyimpan perubahan.");
+      }
+      menyimpanEdit.value = false;
+    }
+
     onMounted(async () => { await window.authReady; muat(); });
     const bolehHapus = computed(() => window.cekIzinMenu('config_absensi', 'delete') !== false);
+    const bolehEdit = computed(() => window.cekIzinMenu('config_absensi', 'edit') !== false);
 
-    return { daftarGudang, memuat, menyimpan, nama, tipeLokasi, lat, lng, radius, simpan, hapus, bolehUbahJenisLokasi, bolehHapus };
+    return {
+      daftarGudang, memuat, menyimpan, nama, tipeLokasi, lat, lng, radius, opsiJenisPekerjaan, jenisPekerjaanBaru,
+      simpan, hapus, bolehUbahJenisLokasi, bolehHapus, bolehEdit,
+      sedangEditId, editJenisPekerjaan, menyimpanEdit, mulaiEdit, batalEdit, simpanEditJenisPekerjaan
+    };
   },
   template: `
     <div class="gc-card">
@@ -115,6 +171,14 @@ const MasterGudangManager = {
         </div>
         <div class="gc-field"><label>Radius toleransi absen (meter) *</label><input v-model="radius" type="number"></div>
       </div>
+      <div class="gc-field">
+        <label>Jenis pekerjaan yang pakai gudang ini <span style="font-weight:400; color:var(--text-faint);">(boleh lebih dari 1)</span></label>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          <label v-for="jp in opsiJenisPekerjaan" :key="jp" style="display:flex; align-items:center; gap:5px; font-size:11.5px; background:var(--ivory-dim); padding:5px 10px; border-radius:20px; cursor:pointer;">
+            <input type="checkbox" :value="jp" v-model="jenisPekerjaanBaru" style="accent-color:var(--burgundy);">{{ jp }}
+          </label>
+        </div>
+      </div>
       <button @click="simpan" :disabled="menyimpan" class="btn-primary block" style="margin-top:6px;">
         <i class="fas fa-save" style="margin-right:6px;"></i> Simpan master gudang
       </button>
@@ -123,15 +187,36 @@ const MasterGudangManager = {
         <div v-if="memuat" style="text-align:center; color:var(--text-faint); font-size:12px; padding:12px 0;">Memuat data...</div>
         <div v-else style="display:flex; flex-direction:column; gap:8px;">
           <div v-if="daftarGudang.length === 0" style="text-align:center; color:var(--text-faint); font-size:12px; padding:12px 0;">Belum ada data gudang terdaftar.</div>
-          <div v-for="g in daftarGudang" :key="g.id" style="display:flex; justify-content:space-between; align-items:center; background:var(--ivory-dim); padding:10px 12px; border-radius:12px;">
-            <div>
-              <div style="font-weight:700; color:var(--burgundy-dark); font-size:12.5px;">{{ g.nama_gudang }}</div>
-              <div style="font-size:10px; color:var(--text-muted); font-family:'Poppins',sans-serif; margin-top:2px;">
-                <span v-if="g.tipe_lokasi === 'Dinamis'" class="tag blue">Dinamis — tanpa radius</span>
-                <template v-else>Lat: {{ g.latitude }} &bull; Lng: {{ g.longitude }} &bull; <b style="color:var(--danger);">Radius: {{ g.radius }}m</b></template>
+          <div v-for="g in daftarGudang" :key="g.id" style="background:var(--ivory-dim); padding:10px 12px; border-radius:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-weight:700; color:var(--burgundy-dark); font-size:12.5px;">{{ g.nama_gudang }}</div>
+                <div style="font-size:10px; color:var(--text-muted); font-family:'Poppins',sans-serif; margin-top:2px;">
+                  <span v-if="g.tipe_lokasi === 'Dinamis'" class="tag blue">Dinamis — tanpa radius</span>
+                  <template v-else>Lat: {{ g.latitude }} &bull; Lng: {{ g.longitude }} &bull; <b style="color:var(--danger);">Radius: {{ g.radius }}m</b></template>
+                </div>
+                <div style="margin-top:5px;">
+                  <span v-if="(g.jenis_pekerjaan || []).length === 0" class="tag neutral" style="font-size:9px;">Belum ada jenis pekerjaan</span>
+                  <span v-for="jp in (g.jenis_pekerjaan || [])" :key="jp" class="tag" style="font-size:9px; margin-right:4px; background:var(--pink); color:var(--burgundy-dark);">{{ jp }}</span>
+                </div>
+              </div>
+              <div style="display:flex; gap:6px; flex-shrink:0;">
+                <button v-if="bolehEdit" @click="mulaiEdit(g)" class="icon-btn"><i class="fas fa-tags"></i></button>
+                <button v-if="bolehHapus" @click="hapus(g.id)" class="icon-btn" style="color:var(--danger);"><i class="fas fa-trash-alt"></i></button>
               </div>
             </div>
-            <button v-if="bolehHapus" @click="hapus(g.id)" class="icon-btn" style="color:var(--danger); flex-shrink:0;"><i class="fas fa-trash-alt"></i></button>
+            <div v-if="sedangEditId === g.id" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">
+              <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Edit jenis pekerjaan untuk gudang ini:</label>
+              <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+                <label v-for="jp in opsiJenisPekerjaan" :key="jp" style="display:flex; align-items:center; gap:5px; font-size:11.5px; background:var(--surface); padding:5px 10px; border-radius:20px; cursor:pointer; border:1px solid var(--line);">
+                  <input type="checkbox" :value="jp" v-model="editJenisPekerjaan" style="accent-color:var(--burgundy);">{{ jp }}
+                </label>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button @click="simpanEditJenisPekerjaan(g.id)" :disabled="menyimpanEdit" class="btn-primary" style="padding:6px 16px; font-size:11.5px;">{{ menyimpanEdit ? 'Menyimpan...' : 'Simpan' }}</button>
+                <button @click="batalEdit" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer; font-size:11.5px;">Batal</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -144,10 +229,19 @@ const MasterShiftManager = {
     const daftarShift = ref([]);
     const memuat = ref(true);
     const menyimpan = ref(false);
+    const opsiJenisPekerjaan = ref([]);
 
     const nama = ref('');
     const jamMasuk = ref('');
     const jamKeluar = ref('');
+    // BARU (18 Agt 2026) — sama seperti Master Gudang: 1 shift bisa
+    // dipakai LEBIH DARI 1 jenis pekerjaan, array bukan dropdown tunggal.
+    const jenisPekerjaanBaru = ref([]);
+
+    // ---- Edit jenis pekerjaan untuk data yang SUDAH ADA sebelumnya ----
+    const sedangEditId = ref(null);
+    const editJenisPekerjaan = ref([]);
+    const menyimpanEdit = ref(false);
 
     async function muat() {
       memuat.value = true;
@@ -155,6 +249,7 @@ const MasterShiftManager = {
       const list = [];
       snap.forEach(d => list.push({ id: d.id, ...d.data() }));
       daftarShift.value = list;
+      opsiJenisPekerjaan.value = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
       memuat.value = false;
     }
 
@@ -167,10 +262,11 @@ const MasterShiftManager = {
         await addDoc(collection(db, "master_shift"), {
           nama_shift: nama.value,
           jam_masuk: jamMasuk.value,
-          jam_keluar: jamKeluar.value
+          jam_keluar: jamKeluar.value,
+          jenis_pekerjaan: jenisPekerjaanBaru.value
         });
         alert("Master Shift Berhasil Disimpan!");
-        nama.value = ''; jamMasuk.value = ''; jamKeluar.value = '';
+        nama.value = ''; jamMasuk.value = ''; jamKeluar.value = ''; jenisPekerjaanBaru.value = [];
         await muat();
       } catch (e) {
         console.error(e);
@@ -188,10 +284,36 @@ const MasterShiftManager = {
       await muat();
     }
 
+    function mulaiEdit(s) {
+      sedangEditId.value = s.id;
+      editJenisPekerjaan.value = [...(s.jenis_pekerjaan || [])];
+    }
+    function batalEdit() {
+      sedangEditId.value = null;
+      editJenisPekerjaan.value = [];
+    }
+    async function simpanEditJenisPekerjaan(id) {
+      menyimpanEdit.value = true;
+      try {
+        await updateDoc(doc(db, "master_shift", id), { jenis_pekerjaan: editJenisPekerjaan.value });
+        sedangEditId.value = null;
+        await muat();
+      } catch (e) {
+        console.error("Gagal simpan jenis pekerjaan shift:", e);
+        alert("Gagal menyimpan perubahan.");
+      }
+      menyimpanEdit.value = false;
+    }
+
     onMounted(async () => { await window.authReady; muat(); });
     const bolehHapus = computed(() => window.cekIzinMenu('config_absensi', 'delete') !== false);
+    const bolehEdit = computed(() => window.cekIzinMenu('config_absensi', 'edit') !== false);
 
-    return { daftarShift, memuat, menyimpan, nama, jamMasuk, jamKeluar, simpan, hapus, bolehHapus };
+    return {
+      daftarShift, memuat, menyimpan, nama, jamMasuk, jamKeluar, opsiJenisPekerjaan, jenisPekerjaanBaru,
+      simpan, hapus, bolehHapus, bolehEdit,
+      sedangEditId, editJenisPekerjaan, menyimpanEdit, mulaiEdit, batalEdit, simpanEditJenisPekerjaan
+    };
   },
   template: `
     <div class="gc-card">
@@ -201,6 +323,14 @@ const MasterShiftManager = {
         <div class="gc-field"><label>Jam masuk (in) *</label><input v-model="jamMasuk" type="time"></div>
         <div class="gc-field"><label>Jam keluar (out) *</label><input v-model="jamKeluar" type="time"></div>
       </div>
+      <div class="gc-field">
+        <label>Jenis pekerjaan yang pakai shift ini <span style="font-weight:400; color:var(--text-faint);">(boleh lebih dari 1)</span></label>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          <label v-for="jp in opsiJenisPekerjaan" :key="jp" style="display:flex; align-items:center; gap:5px; font-size:11.5px; background:var(--ivory-dim); padding:5px 10px; border-radius:20px; cursor:pointer;">
+            <input type="checkbox" :value="jp" v-model="jenisPekerjaanBaru" style="accent-color:var(--burgundy);">{{ jp }}
+          </label>
+        </div>
+      </div>
       <button @click="simpan" :disabled="menyimpan" class="btn-primary block" style="margin-top:6px;">
         <i class="fas fa-save" style="margin-right:6px;"></i> Simpan master shift
       </button>
@@ -209,12 +339,33 @@ const MasterShiftManager = {
         <div v-if="memuat" style="text-align:center; color:var(--text-faint); font-size:12px; padding:12px 0;">Memuat data...</div>
         <div v-else style="display:flex; flex-direction:column; gap:8px;">
           <div v-if="daftarShift.length === 0" style="text-align:center; color:var(--text-faint); font-size:12px; padding:12px 0;">Belum ada data shift terdaftar.</div>
-          <div v-for="s in daftarShift" :key="s.id" style="display:flex; justify-content:space-between; align-items:center; background:var(--ivory-dim); padding:10px 12px; border-radius:12px;">
-            <div>
-              <div style="font-weight:700; color:var(--burgundy-dark); font-size:12.5px;">{{ s.nama_shift }}</div>
-              <div style="font-size:10.5px; color:var(--text-muted); font-family:'Poppins',sans-serif; margin-top:2px;">In: <b style="color:var(--ok);">{{ s.jam_masuk }}</b> &bull; Out: <b style="color:var(--danger);">{{ s.jam_keluar }}</b></div>
+          <div v-for="s in daftarShift" :key="s.id" style="background:var(--ivory-dim); padding:10px 12px; border-radius:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-weight:700; color:var(--burgundy-dark); font-size:12.5px;">{{ s.nama_shift }}</div>
+                <div style="font-size:10.5px; color:var(--text-muted); font-family:'Poppins',sans-serif; margin-top:2px;">In: <b style="color:var(--ok);">{{ s.jam_masuk }}</b> &bull; Out: <b style="color:var(--danger);">{{ s.jam_keluar }}</b></div>
+                <div style="margin-top:5px;">
+                  <span v-if="(s.jenis_pekerjaan || []).length === 0" class="tag neutral" style="font-size:9px;">Belum ada jenis pekerjaan</span>
+                  <span v-for="jp in (s.jenis_pekerjaan || [])" :key="jp" class="tag" style="font-size:9px; margin-right:4px; background:var(--pink); color:var(--burgundy-dark);">{{ jp }}</span>
+                </div>
+              </div>
+              <div style="display:flex; gap:6px; flex-shrink:0;">
+                <button v-if="bolehEdit" @click="mulaiEdit(s)" class="icon-btn"><i class="fas fa-tags"></i></button>
+                <button v-if="bolehHapus" @click="hapus(s.id)" class="icon-btn" style="color:var(--danger);"><i class="fas fa-trash-alt"></i></button>
+              </div>
             </div>
-            <button v-if="bolehHapus" @click="hapus(s.id)" class="icon-btn" style="color:var(--danger); flex-shrink:0;"><i class="fas fa-trash-alt"></i></button>
+            <div v-if="sedangEditId === s.id" style="margin-top:10px; padding-top:10px; border-top:1px dashed var(--line);">
+              <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Edit jenis pekerjaan untuk shift ini:</label>
+              <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+                <label v-for="jp in opsiJenisPekerjaan" :key="jp" style="display:flex; align-items:center; gap:5px; font-size:11.5px; background:var(--surface); padding:5px 10px; border-radius:20px; cursor:pointer; border:1px solid var(--line);">
+                  <input type="checkbox" :value="jp" v-model="editJenisPekerjaan" style="accent-color:var(--burgundy);">{{ jp }}
+                </label>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <button @click="simpanEditJenisPekerjaan(s.id)" :disabled="menyimpanEdit" class="btn-primary" style="padding:6px 16px; font-size:11.5px;">{{ menyimpanEdit ? 'Menyimpan...' : 'Simpan' }}</button>
+                <button @click="batalEdit" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer; font-size:11.5px;">Batal</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -223,23 +374,48 @@ const MasterShiftManager = {
 };
 
 const AppConfigAbsensi = {
-  components: { MasterGudangManager, MasterShiftManager },
-  data() {
-    return { refreshKey: 0 };
+  components: { MasterGudangManager, MasterShiftManager, MasterDataCategory },
+  setup() {
+    const tabAktif = ref('gudang');
+    // Tab pertama (gudang) langsung true karena otomatis aktif & harus
+    // langsung muat begitu Config Absensi dibuka. shift/jenispekerjaan
+    // baru jadi true SEKALI begitu tab-nya diklik pertama kali — dan
+    // TETAP true selamanya setelah itu (v-show yang urus tampil/
+    // sembunyi selanjutnya, BUKAN v-if lagi, jadi tidak fetch ulang).
+    const dibukaSekali = reactive({ gudang: true, shift: false, jenispekerjaan: false });
+    const refreshKey = ref(0);
+
+    function pindahTab(nama) {
+      tabAktif.value = nama;
+      dibukaSekali[nama] = true;
+    }
+
+    return { tabAktif, dibukaSekali, refreshKey, pindahTab };
   },
   template: `
-    <div style="gap:14px;" class="grid grid-cols-1 md:grid-cols-2">
-      <master-gudang-manager :key="'gudang-' + refreshKey" />
-      <master-shift-manager :key="'shift-' + refreshKey" />
+    <div class="gc-card">
+      <h3 class="gc-heading" style="font-size:13.5px; font-weight:700;"><i class="fas fa-sliders" style="color:var(--burgundy); margin-right:8px;"></i> Config Absensi</h3>
+      <div class="flex space-x-2 overflow-x-auto no-scrollbar" style="padding-top:14px; margin-top:14px; border-top:1px solid var(--line);">
+        <button @click="pindahTab('gudang')" class="gc-sub-tab-btn" :class="{ active: tabAktif === 'gudang' }"><i class="fas fa-map-marker-alt" style="margin-right:6px;"></i> Master Gudang</button>
+        <button @click="pindahTab('shift')" class="gc-sub-tab-btn" :class="{ active: tabAktif === 'shift' }"><i class="fas fa-clock" style="margin-right:6px;"></i> Master Shift</button>
+        <button @click="pindahTab('jenispekerjaan')" class="gc-sub-tab-btn" :class="{ active: tabAktif === 'jenispekerjaan' }"><i class="fas fa-briefcase" style="margin-right:6px;"></i> Jenis Pekerjaan</button>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;">
+      <master-gudang-manager v-if="dibukaSekali.gudang" v-show="tabAktif === 'gudang'" :key="'gudang-' + refreshKey" />
+      <master-shift-manager v-if="dibukaSekali.shift" v-show="tabAktif === 'shift'" :key="'shift-' + refreshKey" />
+      <master-data-category v-if="dibukaSekali.jenispekerjaan" v-show="tabAktif === 'jenispekerjaan'" :key="'jp-' + refreshKey" kategori="jenis_pekerjaan" label="Jenis Pekerjaan" menu-id="config_absensi" />
     </div>
   `
 };
 
 let vmConfigAbsensi = null;
 // Sama seperti layar admin lain — mount() ditunda sampai benar-benar
-// dinavigasi pertama kali. Karena anak-anaknya (Master Gudang, Master
-// Shift) baru MUNCUL setelah induknya di-mount, menunda mount induk ini
-// otomatis ikut menunda fetch pertama kedua anaknya juga.
+// dinavigasi pertama kali. Setelah induk ter-mount, sub-tab pertama
+// (Master Gudang) langsung ikut muat; Master Shift & Jenis Pekerjaan baru
+// muat begitu sub-tabnya sendiri diklik pertama kali (lihat dibukaSekali
+// di AppConfigAbsensi).
 window.pastikanMountConfigAbsensi = function() {
   if (vmConfigAbsensi) return;
   const mountPoint = document.getElementById('vue-config-absensi');

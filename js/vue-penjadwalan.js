@@ -25,6 +25,11 @@ const NILAI_TANPA_GUDANG = '__TANPA_GUDANG__';
 const AppPenjadwalan = {
   components: { GudangCheckboxSelect, GudangRingkas },
   setup() {
+    // Dipakai buat catatan transparansi filter jenis pekerjaan di template
+    // (LEWAT computed, BUKAN window.xxx langsung di template — lihat
+    // STATUS-PROYEK.md §10.1, sudah pernah kejadian bug diam-diam karena ini).
+    const isOwnerRole = computed(() => ['owner', 'superuser'].includes((window.currentUser.role || '').toLowerCase()));
+
     // ---- State mentah ----
     const semuaKaryawan = ref([]);
     const daftarGudang = ref([]);
@@ -81,7 +86,7 @@ const AppPenjadwalan = {
         const listKaryawan = [];
         qKaryawan.forEach(docSnap => {
           const d = docSnap.data();
-          if (d.role !== 'owner') listKaryawan.push({ email: docSnap.id, ...d });
+          if (d.role !== 'owner' && window.bolehLihatJenisPekerjaan(d.jenis_pekerjaan)) listKaryawan.push({ email: docSnap.id, ...d });
         });
         semuaKaryawan.value = listKaryawan;
 
@@ -90,6 +95,7 @@ const AppPenjadwalan = {
         const petaJenis = {};
         qGudang.forEach(docSnap => {
           const g = docSnap.data();
+          if (!window.bolehLihatJenisPekerjaan(g.jenis_pekerjaan)) return;
           listGudang.push(g.nama_gudang);
           petaJenis[g.nama_gudang] = g.tipe_lokasi || 'Tetap';
         });
@@ -98,7 +104,10 @@ const AppPenjadwalan = {
 
         const qShift = await getDocs(collection(db, "master_shift"));
         const listShift = [];
-        qShift.forEach(docSnap => listShift.push(docSnap.data()));
+        qShift.forEach(docSnap => {
+          const s = docSnap.data();
+          if (window.bolehLihatJenisPekerjaan(s.jenis_pekerjaan)) listShift.push(s);
+        });
         daftarShift.value = listShift;
 
         daftarJenisPekerjaan.value = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
@@ -323,6 +332,7 @@ const AppPenjadwalan = {
     onMounted(async () => { await window.authReady; muat(); });
 
     return {
+      isOwnerRole,
       semuaKaryawan, daftarShift, daftarJenisPekerjaan, memuat, muat,
       railRingkasan, geserRingkasan,
       cariNama, cekSudah, cekBelum, filterJenisPekerjaan, filterGudang, filterShift, filterLibur,
@@ -338,7 +348,9 @@ const AppPenjadwalan = {
   },
   template: `
     <div>
-      <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <p v-if="!isOwnerRole" style="font-size:10.5px; color:var(--text-muted); margin:0;"><i class="fas fa-filter" style="margin-right:5px;"></i>Cuma nampilin jenis pekerjaan yang sama dengan profil Anda.</p>
+        <div v-else></div>
         <button @click="muat" class="btn-outline"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
       </div>
       <!-- 0. Ringkasan per-gudang: scroll horizontal, bisa diklik -->

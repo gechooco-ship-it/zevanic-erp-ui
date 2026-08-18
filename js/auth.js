@@ -133,6 +133,25 @@ window.cekFiturAkses = function(menuId, fiturKey) {
   const nilai = menu.fitur[fiturKey];
   return nilai === true ? true : (nilai === false ? false : null);
 };
+
+// BARU (18 Agt 2026) — filter otomatis Penjadwalan/Antrean Dakar: Admin
+// (bukan Owner/Superuser) cuma lihat data yang jenis pekerjaannya SAMA
+// dengan jenis_pekerjaan di profilnya sendiri. Dipakai untuk karyawan
+// (field jenis_pekerjaan-nya string tunggal) MAUPUN gudang/shift (field
+// array, karena 1 gudang/shift bisa dipakai lebih dari 1 jenis
+// pekerjaan). Aturan jatuh-aman SAMA seperti cekIzinMenu di atas: kalau
+// datanya BELUM ADA tag jenis pekerjaan sama sekali (data lama yang
+// belum sempat ditandai), TETAP TAMPIL ke semua Admin — supaya tidak
+// ada data lama yang tiba-tiba hilang dari pandangan siapapun cuma
+// karena belum sempat ditag.
+window.bolehLihatJenisPekerjaan = function(jenisPekerjaanData) {
+  const role = (window.currentUser.role || '').toLowerCase();
+  if (role === 'owner' || role === 'superuser') return true;
+  if (!jenisPekerjaanData || (Array.isArray(jenisPekerjaanData) && jenisPekerjaanData.length === 0)) return true;
+  const jpAdmin = window.currentUser.jenis_pekerjaan;
+  if (!jpAdmin) return true; // Admin sendiri belum punya jenis_pekerjaan di profilnya -> jatuh-aman, tampil semua
+  return Array.isArray(jenisPekerjaanData) ? jenisPekerjaanData.includes(jpAdmin) : jenisPekerjaanData === jpAdmin;
+};
 // ============================================================================
 
 

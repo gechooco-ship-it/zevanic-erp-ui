@@ -31,7 +31,7 @@ Dokumen ID = email karyawan.
 | `nama_shift` | string | Nama shift yang ditugaskan (dicocokkan ke `master_shift`) |
 
 ### `pendaftaran_pending/{email}` — form Registrasi SEBELUM diverifikasi Admin
-Field-nya SAMA PERSIS dengan bagian identitas di atas (`nama`, `nik`, dst) — TAPI **belum ada** `role`/`profil_akses`/`status_approval`/`gudang_penempatan` sama sekali (itu baru ditambahkan pas Antrean Dakar approve, sekaligus pindah jadi dokumen `users`). Dihapus otomatis setelah diproses (Setuju ATAU Tolak).
+Field-nya SAMA PERSIS dengan bagian identitas di atas (`nama`, `nik`, `jenis_pekerjaan`, dst) — TAPI **belum ada** `role`/`profil_akses`/`status_approval`/`gudang_penempatan` sama sekali (itu baru ditambahkan pas Antrean Dakar approve). **REVISI KE-3 (18 Agt 2026)**: begitu Admin klik "Setujui", field kerja (`status_kerja`/`jabatan`/`status_karyawan`/`nama_shift`/`gudang_penempatan`) DITULIS DI SINI DULU, plus `token_buat_password` (string acak), `token_kadaluarsa` (Timestamp, 30 menit), `token_terverifikasi` (boolean, awalnya `false`) — BUKAN langsung bikin akun. Karyawan verifikasi token lewat TULIS `tebakan_token` (pola sama `otp_email`, lihat `js/vue-buat-password.js`), begitu cocok baru boleh baca dokumen ini & bikin password sendiri. Field `token_*` DIBUANG (tidak ikut) saat akhirnya ditulis ke `users`. Dihapus SENDIRI oleh karyawan (setelah akun jadi) ATAU oleh Admin (Tolak).
 
 ### `absensi/{autoId}` — SEMUA catatan (Hadir/Izin/Cuti/Lembur/Clock Out)
 1 koleksi buat SEMUA jenis pengajuan, dibedakan field `status`.
@@ -85,10 +85,10 @@ Dokumen ID = nama profil (`operator`, `admin_finance`, dst — TIDAK termasuk `o
 | `tanggalTampil` | string | Format `YYYY-MM-DD` — 1 quote tampil PER TANGGAL ini |
 
 ### `master_gudang/{autoId}`
-`nama_gudang`, `tipe_lokasi` (`Tetap`/`Dinamis`), `latitude`, `longitude`, `radius` (meter — kosong kalau Dinamis).
+`nama_gudang`, `tipe_lokasi` (`Tetap`/`Dinamis`), `latitude`, `longitude`, `radius` (meter — kosong kalau Dinamis). **BARU (18 Agt 2026)**: `jenis_pekerjaan` (array\<string\>, opsional) — 1 gudang boleh dipakai lebih dari 1 jenis pekerjaan. Dokumen lama tanpa field ini dianggap "boleh dilihat semua" (jatuh-aman, lihat `window.bolehLihatJenisPekerjaan` di `auth.js`), diisi belakangan lewat tombol Edit di Config Absensi > Master Gudang.
 
 ### `master_shift/{autoId}`
-`nama_shift`, `jam_masuk`, `jam_keluar` (format `"HH:MM"`).
+`nama_shift`, `jam_masuk`, `jam_keluar` (format `"HH:MM"`). **BARU (18 Agt 2026)**: `jenis_pekerjaan` (array\<string\>, opsional) — sama pola seperti `master_gudang` di atas.
 
 ### `master_data/{kategori}`
 Dokumen ID = nama kategori (`jenis_pekerjaan`, `status_kerja`, `jabatan`, `status_karyawan`, `kabupaten`, `alasan_izin`, `alasan_cuti`, `status_kehadiran`, `kecamatan`). Tiap dokumen isinya `{ items: [...] }` atau `{ map: {...} }` khusus kecamatan (bertingkat per kabupaten).
