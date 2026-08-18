@@ -82,7 +82,14 @@ export const MasterDataCategory = {
 
     onMounted(async () => { await window.authReady; muat(); });
 
-    return { items, inputBaru, memuat, menyimpan, tambah, hapus, bolehTambah, bolehHapus };
+    const cariItem = ref('');
+    const itemsTersaring = computed(() => {
+      const kata = cariItem.value.trim().toLowerCase();
+      if (!kata) return items.value;
+      return items.value.filter(i => i.toLowerCase().includes(kata));
+    });
+
+    return { items, itemsTersaring, cariItem, inputBaru, memuat, menyimpan, tambah, hapus, bolehTambah, bolehHapus };
   },
   template: `
     <div class="gc-card" style="padding:16px;">
@@ -93,10 +100,15 @@ export const MasterDataCategory = {
           <i class="fas fa-plus"></i>
         </button>
       </div>
+      <div v-if="!memuat && items.length > 5" style="position:relative; margin-bottom:10px;">
+        <i class="fas fa-search" style="position:absolute; left:11px; top:9px; color:var(--text-faint); font-size:11px;"></i>
+        <input v-model="cariItem" type="text" placeholder="Cari item..." style="width:100%; max-width:220px; padding:7px 10px 7px 28px; border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none;">
+      </div>
       <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
       <div v-else style="display:flex; flex-wrap:wrap; gap:6px;">
         <span v-if="items.length === 0" style="font-size:11px; color:var(--text-faint);">Belum ada data.</span>
-        <span v-for="item in items" :key="item" class="tag neutral" style="gap:8px;">
+        <span v-else-if="itemsTersaring.length === 0" style="font-size:11px; color:var(--text-faint);">Tidak ada yang cocok dicari.</span>
+        <span v-for="item in itemsTersaring" :key="item" class="tag neutral" style="gap:8px;">
           {{ item }}
           <button v-if="bolehHapus" @click="hapus(item)" style="background:none; border:none; color:var(--danger); cursor:pointer; padding:0; font-size:11px;"><i class="fas fa-times"></i></button>
         </span>

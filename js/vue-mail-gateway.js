@@ -16,7 +16,7 @@
 // Sama seperti template lain di sini: kalau belum pernah diatur di
 // Firestore (config/mail_templates), fallback ke teks baku otomatis.
 // ============================================================================
-import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
@@ -89,6 +89,16 @@ const AppMailGateway = {
 
     // ---- Monitoring ----
     const daftarLog = ref([]);
+    const filterStatus = ref('ALL');
+    const daftarLogTersaring = computed(() => {
+      if (filterStatus.value === 'ALL') return daftarLog.value;
+      return daftarLog.value.filter(log => {
+        const state = log.delivery && log.delivery.state;
+        if (filterStatus.value === 'Terkirim') return state === 'SUCCESS';
+        if (filterStatus.value === 'Gagal') return state === 'ERROR';
+        return !state; // 'Diproses'
+      });
+    });
     const memuatLog = ref(true);
 
     async function muatMonitoring() {
@@ -120,7 +130,7 @@ const AppMailGateway = {
       tabAktif, pindahTab,
       emailTes, kodeTes, mengirimTes, memverifikasiTes, hasilTes, kirimKodeTes, verifikasiKodeTes,
       template, menyimpanTemplate, simpanTemplate,
-      daftarLog, memuatLog, muatMonitoring
+      daftarLog, daftarLogTersaring, filterStatus, memuatLog, muatMonitoring
     };
   },
   template: `
@@ -210,10 +220,19 @@ const AppMailGateway = {
         </div>
         <button @click="muatMonitoring" class="btn-outline"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
       </div>
+      <div style="margin-bottom:12px;">
+        <select v-model="filterStatus" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+          <option value="ALL">Semua status kirim</option>
+          <option value="Terkirim">Terkirim</option>
+          <option value="Gagal">Gagal</option>
+          <option value="Diproses">Diproses...</option>
+        </select>
+      </div>
       <div class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line);">
         <table class="gc-table">
           <thead>
             <tr>
+              <th>Waktu</th>
               <th>Tujuan</th>
               <th>Subjek</th>
               <th>Status Kirim</th>
@@ -221,9 +240,11 @@ const AppMailGateway = {
             </tr>
           </thead>
           <tbody>
-            <tr v-if="memuatLog"><td colspan="4" style="text-align:center; padding:20px; color:var(--text-faint);">Memuat riwayat...</td></tr>
-            <tr v-else-if="daftarLog.length === 0"><td colspan="4" style="text-align:center; padding:20px; color:var(--text-faint);">Belum ada riwayat pengiriman.</td></tr>
-            <tr v-for="log in daftarLog" :key="log.id">
+            <tr v-if="memuatLog"><td colspan="5" style="text-align:center; padding:20px; color:var(--text-faint);">Memuat riwayat...</td></tr>
+            <tr v-else-if="daftarLog.length === 0"><td colspan="5" style="text-align:center; padding:20px; color:var(--text-faint);">Belum ada riwayat pengiriman.</td></tr>
+            <tr v-else-if="daftarLogTersaring.length === 0"><td colspan="5" style="text-align:center; padding:20px; color:var(--text-faint);">Tidak ada yang cocok filter.</td></tr>
+            <tr v-for="log in daftarLogTersaring" :key="log.id">
+              <td class="gc-cell-muted" style="white-space:nowrap;">{{ log.dikirim_pada && log.dikirim_pada.toDate ? log.dikirim_pada.toDate().toLocaleString('id-ID') : '-' }}</td>
               <td style="font-family:'Poppins',sans-serif; font-size:11.5px;">{{ (log.to && log.to[0]) || '-' }}</td>
               <td class="gc-cell-muted">{{ (log.message && log.message.subject) || '-' }}</td>
               <td>

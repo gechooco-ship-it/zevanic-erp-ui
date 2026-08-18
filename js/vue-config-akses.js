@@ -138,8 +138,10 @@ const AppConfigAkses = {
     KATEGORI_URUTAN.forEach(k => { kategoriTerbuka[k] = true; });
     function toggleKategori(k) { kategoriTerbuka[k] = !kategoriTerbuka[k]; }
 
+    const cariMenu = ref('');
     function menuUntukKategori(kategori) {
-      return DAFTAR_MENU.filter(m => m.kategori === kategori);
+      const kata = cariMenu.value.trim().toLowerCase();
+      return DAFTAR_MENU.filter(m => m.kategori === kategori && (!kata || m.label.toLowerCase().includes(kata)));
     }
 
     // Checkbox "pilih semua" di header kolom (View/Add/Edit/Delete/Print) —
@@ -238,7 +240,7 @@ const AppConfigAkses = {
       daftarProfil, memuat, menyimpan, muat,
       namaAkses, profilDipilih, pilihProfil, mulaiProfilBaru, simpan,
       tingkatKeamanan, TINGKAT_KEAMANAN_BAKU,
-      menus, KATEGORI_URUTAN, kategoriTerbuka, toggleKategori, menuUntukKategori,
+      menus, KATEGORI_URUTAN, kategoriTerbuka, toggleKategori, menuUntukKategori, cariMenu,
       semuaTercentangKolom, toggleKolomKategori
     };
   },
@@ -284,7 +286,12 @@ const AppConfigAkses = {
         <i class="fas fa-spinner fa-spin" style="font-size:24px; margin-bottom:8px; display:block;"></i>Memuat...
       </div>
 
-      <div v-else v-for="kategori in KATEGORI_URUTAN" :key="kategori" class="gc-card" style="margin-bottom:12px; padding:0; overflow:hidden;">
+      <div v-else style="position:relative; margin-bottom:14px;">
+        <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
+        <input v-model="cariMenu" type="text" placeholder="Cari nama menu..." style="width:100%; max-width:320px; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+      </div>
+
+      <div v-if="!memuat" v-for="kategori in KATEGORI_URUTAN" :key="kategori" class="gc-card" style="margin-bottom:12px; padding:0; overflow:hidden;">
         <div @click="toggleKategori(kategori)" style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; cursor:pointer; background:var(--ivory-dim);">
           <h3 class="gc-heading" style="font-size:13px; font-weight:700;">{{ kategori }}</h3>
           <i class="fas" :class="kategoriTerbuka[kategori] ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-muted);"></i>
