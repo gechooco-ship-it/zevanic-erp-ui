@@ -68,6 +68,40 @@ dari tool call itu sendiri.
 
 ---
 
+## Batas "sudah divalidasi" — JANGAN OVERCLAIM
+
+Sandbox yang tersedia **TIDAK BISA menjalankan aplikasi Vue+Firebase
+ini sungguhan** (butuh browser asli + koneksi Firebase project yang
+hidup, dua-duanya tidak ada di sini). Supaya tidak salah bilang
+"sudah teruji" padahal cuma sebagian kecil yang benar-benar teruji,
+pahami 3 tingkatnya:
+
+**✅ PASTI bisa, WAJIB dilakukan tiap edit**: cek sintaks (`node
+--check` buat JS, Babel buat JSX), hitung kurung/tag seimbang
+(`{}`/`()`/`<div>`), cek ID HTML tidak dobel. Ini cuma BUKTIKAN "tidak
+ada typo/kepotong" — SAMA SEKALI BELUM membuktikan logikanya benar.
+
+**✅ Bisa, dan SEBAIKNYA dilakukan buat fungsi logic PENTING**: kalau
+ada fungsi yang murni "input → proses → output" TANPA butuh
+Firebase/browser (contoh nyata di project ini: `hitungJamKeluarUntukGaji`
+di `vue-camera.js`, `parseWaktuIndo`, logic paginasi) — bisa benar-benar
+DIJALANKAN pakai Node dengan beberapa contoh input, dicek hasilnya
+sesuai harapan atau tidak. Ini BEDA dari sekadar cek sintaks — ini
+benar-benar membuktikan LOGIKANYA jalan benar. **Utamakan cara ini
+untuk logic yang menyangkut uang/keamanan** (lihat "1 pengecualian
+penting" di bawah).
+
+**❌ TIDAK BISA sama sekali** — jangan pernah klaim ini "sudah
+dites": tampilan sungguhan di browser, baca/tulis Firestore beneran,
+email OTP benar-benar terkirim, klik tombol/isi form sungguhan,
+keamanan Security Rules SESUNGGUHNYA (butuh Firebase Emulator, tidak
+tersedia). **Ini yang WAJIB diserahkan ke pengguna untuk dites manual**
+— jangan pernah bilang "sudah saya pastikan berfungsi" untuk hal-hal
+ini, bilang jujur "ini perlu dites langsung, saya cuma bisa pastikan
+sintaksnya benar".
+
+---
+
 ## Contoh nyata dari project ini (pola yang TERBUKTI cepat)
 
 Sepanjang malam pembangunan fitur ini, pola yang konsisten dipakai:
@@ -189,3 +223,53 @@ menyentuh **keamanan** (Security Rules, password, OTP), **uang**
 lebih lambat tapi benar, daripada cepat tapi salah. Lihat
 `STATUS-PROYEK.md` §3.5 dan §8 sebagai contoh area yang MEMANG pantas
 dikerjakan hati-hati, bukan buru-buru.
+
+---
+
+## Kebiasaan yang bikin hasil kerja DIPERCAYA (bukan cuma cepat)
+
+Ini beda dari bagian kecepatan di atas — ini soal KUALITAS penilaian.
+Semua contoh di bawah ini BENAR-BENAR terjadi sepanjang pembangunan
+project ini, bukan teori kosong.
+
+**1. Verifikasi dulu, jangan asumsi dari ingatan** — sebelum bikin
+`PETA-DATABASE.md`, semua nama koleksi & field di-`grep` LANGSUNG dari
+kode, bukan ditulis dari ingatan percakapan yang sudah panjang. Sebelum
+bikin prototipe warna, warna aslinya dicek dulu dari `gechoo-design.css`,
+bukan ditebak/dikira-kira mirip.
+
+**2. Jujur soal kesalahan sendiri, PERBAIKI SAAT ITU JUGA** — pernah
+2x tidak sengaja menghapus bagian penting saat edit (fungsi di
+`vue-camera.js`, judul bagian di file ini sendiri, DUA KALI). Ketahuan
+lewat validasi SEBELUM dikirim, langsung diperbaiki, DAN diberitahu ke
+pengguna apa yang sempat salah — bukan didiamkan seolah tidak terjadi.
+
+**3. Pakai ulang pola yang sudah terbukti, jangan reka ulang tiap
+kali** — paginasi (`vue-paginasi.js`), sistem izin (`window.cekIzinMenu`),
+kartu bersama (`PengumumanCarousel`, `QuoteCard`) — sekali dibangun
+benar, dipakai ULANG di banyak tempat, bukan didesain dari nol setiap
+ada kebutuhan mirip.
+
+**4. Berhenti & diskusi dulu untuk keputusan berisiko/mahal, JANGAN
+langsung eksekusi** — soal biaya Security Rules per-menu (§6.5), soal
+password sementara karyawan baru, soal model keamanan OTP — semuanya
+dijelaskan trade-off-nya DULU, tunggu keputusan pengguna, baru
+dikerjakan. Bukan asumsi sendiri lalu kerjakan.
+
+**5. Telusuri AKAR masalah, bukan cuma tempelkan solusi ke gejalanya**
+— waktu ada laporan "email nyangkut, tidak bisa daftar ulang", tidak
+langsung tebak-tebak solusi. Ditelusuri dulu ALUR LENGKAPNYA sampai
+ketemu SEBAB ASLINYA (rollback akun gagal, tidak diberitahu ke user) —
+baru dirancang perbaikannya. Solusi yang tidak berdasar akar masalah
+biasanya cuma menutupi gejala, bukan benar-benar menyelesaikan.
+
+**6. Catat keputusan penting SAAT ITU JUGA, jangan tunda sampai
+"nanti"** — `STATUS-PROYEK.md` diperbarui BERKALI-KALI sepanjang
+pembangunan, bukan ditulis sekali di akhir. Keputusan yang tidak
+dicatat SEGERA gampang terlupa atau berubah tanpa disadari.
+
+**Benang merahnya**: kecepatan itu penting (lihat semua bagian di
+atas), TAPI kecepatan tanpa kebiasaan-kebiasaan ini cuma menghasilkan
+kerja yang cepat SALAH. Tujuannya cepat DAN bisa dipercaya — dua-duanya,
+bukan pilih salah satu.
+
