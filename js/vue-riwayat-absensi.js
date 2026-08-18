@@ -3,15 +3,75 @@
 // Halaman KEENAM yang dimigrasi ke Vue: Master Absensi > Riwayat All Absensi
 // (laporan lengkap semua data absensi + edit/hapus/assign ulang + export CSV).
 //
-// Dipakai ulang: DuaBaris (dari migrasi Daftar Karyawan) — tabel 10 kolom ini
-// pakai pola yang sama persis tanpa ditulis ulang.
-// window.hapusAbsensi TETAP dipanggil dari sini (fungsi bersama, juga dipakai
-// oleh Antrean Absensi yang sudah dimigrasi).
+// DIROMBAK (18 Agt 2026) — tabel ini WAJIB nampilin 2 BENTUK dokumen
+// sekaligus (LAMA: 1 baris = 1 event Clock In ATAU Clock Out terpisah;
+// BARU: 1 baris = gabungan Clock In+Out, lihat js/vue-camera.js). Kolom
+// "Tanggal/Waktu" yang dulu 1 kolom SEKARANG dipecah jadi 2 kolom
+// terpisah — "Tanggal-Waktu Clock In" dan "Tanggal-Waktu Clock Out"
+// (permintaan checklist rebuild 18 Agt 2026) — supaya kelihatan jelas
+// jam masuk & keluar karyawan di 1 baris yang sama untuk dokumen format
+// baru, TANPA kehilangan kompatibilitas ke dokumen format lama (yang
+// otomatis cuma isi SALAH SATU kolom itu, sesuai jenis event-nya).
+//
+// formatBaris() di bawah adalah "penerjemah" 1 fungsi tunggal yang
+// menyeragamkan KEDUA bentuk dokumen jadi 1 bentuk tampilan yang sama —
+// SEMUA bagian template baca lewat fungsi ini, TIDAK ada cabang if/else
+// format lama/baru tersebar di banyak tempat template (lebih gampang
+// dirawat & diuji terpisah dari Vue).
+//
+// Ditambah filter TETAP "Status Kerja = Aktif" (permintaan checklist) —
+// karyawan nonaktif/resign tidak perlu muncul di laporan operasional ini.
+//
+// Dipakai ulang: DuaBaris (dari migrasi Daftar Karyawan).
+// window.hapusAbsensi TETAP dipanggil dari sini (fungsi bersama, juga
+// dipakai oleh Antrean Absensi).
 // ============================================================================
-import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc, writeBatch, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DuaBaris } from './vue-components.js';
+
+// Diekspor juga (dipakai test) — seragamkan dokumen LAMA (1 event/baris)
+// dan BARU (gabungan masuk+keluar) jadi 1 bentuk tampilan yang sama.
+export function formatBaris(item) {
+  const adalahBaru = item.status_acc_masuk !== undefined;
+  if (adalahBaru) {
+    return {
+      waktuMasuk: item.waktu_masuk || null,
+      waktuKeluar: item.waktu_keluar || null,
+      statusAccMasuk: item.status_acc_masuk || null,
+      statusAccKeluar: item.status_acc_keluar !== undefined ? item.status_acc_keluar : null,
+      fotoMasuk: item.foto_selfie_masuk || null,
+      fotoKeluar: item.foto_selfie_keluar || null,
+      statusKehadiranMasuk: item.status_kehadiran_masuk || '',
+      statusKehadiranKeluar: item.status_kehadiran_keluar || '',
+      seragamMasuk: item.seragam_masuk || 'Sesuai',
+      seragamKeluar: item.seragam_keluar || null
+    };
+  }
+  // Format LAMA — 1 baris = 1 event tunggal (Clock In ATAU Clock Out
+  // ATAU Izin/Cuti/Lembur, tidak pernah gabungan).
+  const iniKeluar = item.status === 'CLOCK OUT';
+  return {
+    waktuMasuk: iniKeluar ? null : (item.waktu || null),
+    waktuKeluar: iniKeluar ? (item.waktu || null) : null,
+    statusAccMasuk: iniKeluar ? null : (item.status_acc || null),
+    statusAccKeluar: iniKeluar ? (item.status_acc || null) : null,
+    fotoMasuk: iniKeluar ? null : (item.foto_selfie || item.foto || null),
+    fotoKeluar: iniKeluar ? (item.foto_selfie || item.foto || null) : null,
+    statusKehadiranMasuk: iniKeluar ? '' : (item.status_kehadiran || ''),
+    statusKehadiranKeluar: iniKeluar ? (item.status_kehadiran || '') : '',
+    seragamMasuk: iniKeluar ? 'Sesuai' : (item.seragam || 'Sesuai'),
+    seragamKeluar: iniKeluar ? (item.seragam || 'Sesuai') : null
+  };
+}
+
+// Waktu sortir gabungan — pakai yang paling akhir terjadi (keluar kalau
+// ada, jatuh-aman ke masuk kalau belum Clock Out).
+function waktuUntukSortir(item) {
+  if (item.status_acc_masuk !== undefined) return item.waktu_keluar || item.waktu_masuk || '';
+  return item.waktu || '';
+}
 
 const EditAbsensiModal = {
   props: {
@@ -19,10 +79,11 @@ const EditAbsensiModal = {
   },
   emits: ['tutup', 'tersimpan'],
   setup(props, { emit }) {
+    const adalahBaru = props.item.status_acc_masuk !== undefined;
     const form = reactive({
-      statusKehadiran: props.item.status_kehadiran || '',
-      seragam: props.item.seragam || 'Sesuai',
-      statusAcc: props.item.status_acc || 'PENDING'
+      statusKehadiran: props.item.status_kehadiran || props.item.status_kehadiran_masuk || '',
+      seragam: props.item.seragam || props.item.seragam_masuk || 'Sesuai',
+      statusAcc: props.item.status_acc || props.item.status_acc_masuk || 'PENDING'
     });
     const opsiStatusKehadiran = ref([]);
     const menyimpan = ref(false);
@@ -34,11 +95,13 @@ const EditAbsensiModal = {
     async function simpan() {
       menyimpan.value = true;
       try {
-        await updateDoc(doc(db, "absensi", props.item.id), {
-          status_kehadiran: form.statusKehadiran,
-          seragam: form.seragam,
-          status_acc: form.statusAcc
-        });
+        // Dokumen BARU: edit di sini WAJIB ke field_masuk (form Edit cuma
+        // 1 set kolom — kalau butuh edit sisi Keluar, dilakukan lewat
+        // Antrean Absensi sebelum di-ACC, bukan dari sini).
+        const dataUpdate = adalahBaru
+          ? { status_kehadiran_masuk: form.statusKehadiran, seragam_masuk: form.seragam, status_acc_masuk: form.statusAcc }
+          : { status_kehadiran: form.statusKehadiran, seragam: form.seragam, status_acc: form.statusAcc };
+        await updateDoc(doc(db, "absensi", props.item.id), dataUpdate);
         alert("Data absensi berhasil diperbarui!");
         emit('tersimpan');
       } catch (e) {
@@ -86,34 +149,41 @@ const AppRiwayatAbsensi = {
     const memuat = ref(true);
     const itemSedangDiedit = ref(null);
 
-    // ---- Migrasi waktu_ts (18 Agt 2026) ----
-    // Dokumen LAMA (dibuat sebelum perbaikan ini) cuma punya "waktu" (teks),
-    // belum punya "waktu_ts" (Timestamp asli). Status migrasinya DIHITUNG
-    // dari data yang SAMA yang sudah diambil muat() di bawah — TIDAK ada
-    // baca Firestore tambahan cuma buat cek status ini.
+    // ---- Migrasi waktu_ts (18 Agt 2026) — TIDAK BERUBAH dari sebelumnya ----
     const migrasi = reactive({ totalBelumMigrasi: 0, sedangProses: false, sudahDicek: false, hasilTerakhir: '' });
-    let dokumenBelumMigrasi = []; // {id, waktu} — disiapkan muat(), dipakai jalankanMigrasi()
+    let dokumenBelumMigrasi = [];
 
     async function muat() {
       memuat.value = true;
       try {
-        // Cross-reference No. HP dari koleksi users (record absensi tidak simpan hp langsung)
         const qUsers = await getDocs(collection(db, "users"));
         const petaHp = {};
-        qUsers.forEach(u => { petaHp[u.data().email] = u.data().hp || '-'; });
+        const petaJenisPekerjaan = {};
+        const petaStatusKerja = {}; // BARU — buat filter Status Kerja=Aktif
+        qUsers.forEach(u => {
+          const du = u.data();
+          petaHp[du.email] = du.hp || '-';
+          petaJenisPekerjaan[du.email] = du.jenis_pekerjaan || '';
+          petaStatusKerja[du.email] = du.status_kerja || '';
+        });
 
         const snap = await getDocs(collection(db, "absensi"));
         const list = [];
         dokumenBelumMigrasi = [];
         snap.forEach(docSnap => {
           const d = docSnap.data();
+          if (!window.bolehLihatData(petaJenisPekerjaan[d.email], d.gudang)) return;
+          // BARU (permintaan checklist) — karyawan nonaktif/resign tidak
+          // perlu muncul di laporan operasional ini.
+          if (petaStatusKerja[d.email] !== 'Aktif') return;
           d.id = docSnap.id;
           d.hpDicariDariUsers = petaHp[d.email] || d.email || '-';
           list.push(d);
-          if (!d.waktu_ts) dokumenBelumMigrasi.push({ id: docSnap.id, waktu: d.waktu });
+          const belumAdaWaktuTs = d.status_acc_masuk !== undefined ? !d.waktu_masuk_ts : !d.waktu_ts;
+          if (belumAdaWaktuTs) dokumenBelumMigrasi.push({ id: docSnap.id, waktu: d.waktu || d.waktu_masuk });
         });
 
-        list.sort((a, b) => (window.parseWaktuIndo(b.waktu)?.getTime() || 0) - (window.parseWaktuIndo(a.waktu)?.getTime() || 0));
+        list.sort((a, b) => (window.parseWaktuIndo(waktuUntukSortir(b))?.getTime() || 0) - (window.parseWaktuIndo(waktuUntukSortir(a))?.getTime() || 0));
         listData.value = list;
         migrasi.totalBelumMigrasi = dokumenBelumMigrasi.length;
         migrasi.sudahDicek = true;
@@ -123,10 +193,6 @@ const AppRiwayatAbsensi = {
       memuat.value = false;
     }
 
-    // Migrasi satu-kali: ubah "waktu" (teks) jadi "waktu_ts" (Timestamp
-    // asli) buat dokumen LAMA yang belum punya. Pakai writeBatch — praktik
-    // baku Firestore buat tulis banyak dokumen sekaligus (atomik per
-    // kelompok, maks 500 operasi/batch, jadi dipecah per 400 biar aman).
     async function jalankanMigrasi() {
       if (migrasi.totalBelumMigrasi === 0) return;
       if (!confirm(`Migrasi ${migrasi.totalBelumMigrasi} dokumen lama sekarang? Proses ini aman diulang kalau terputus di tengah jalan (dokumen yang sudah selesai tidak akan diproses ulang).`)) return;
@@ -142,14 +208,19 @@ const AppRiwayatAbsensi = {
           const batch = writeBatch(db);
           potongan.forEach(d => {
             const tanggalTerurai = window.parseWaktuIndo(d.waktu);
-            if (!tanggalTerurai) { gagalParsing++; return; } // format teks tidak terbaca -> lewati, jangan hentikan seluruh proses
-            batch.update(doc(db, "absensi", d.id), { waktu_ts: Timestamp.fromDate(tanggalTerurai) });
+            if (!tanggalTerurai) { gagalParsing++; return; }
+            // Field target waktu_ts vs waktu_masuk_ts tergantung format
+            // dokumennya — dicek dari listData yang sudah dimuat (bukan
+            // baca Firestore lagi cuma buat tahu ini format apa).
+            const itemAsli = listData.value.find(x => x.id === d.id);
+            const fieldTarget = (itemAsli && itemAsli.status_acc_masuk !== undefined) ? 'waktu_masuk_ts' : 'waktu_ts';
+            batch.update(doc(db, "absensi", d.id), { [fieldTarget]: Timestamp.fromDate(tanggalTerurai) });
             sukses++;
           });
           await batch.commit();
         }
         migrasi.hasilTerakhir = `Selesai! ${sukses} dokumen berhasil dimigrasi.` + (gagalParsing > 0 ? ` ${gagalParsing} dokumen dilewati (format tanggal lama tidak terbaca — bisa dicek manual di Firestore Console kalau perlu).` : '');
-        await muat(); // refresh, sekaligus hitung ulang sisa yang belum (harusnya 0 kalau semua berhasil)
+        await muat();
       } catch (e) {
         console.error("Gagal migrasi waktu_ts:", e);
         migrasi.hasilTerakhir = 'Migrasi terhenti karena error: ' + e.message + ' — aman dijalankan ulang, dokumen yang sudah selesai tidak akan diproses dobel.';
@@ -171,14 +242,20 @@ const AppRiwayatAbsensi = {
     async function selesaiSimpan() { itemSedangDiedit.value = null; await muat(); }
 
     function hapus(docId) {
-      // Fungsi bersama (juga dipakai Antrean Absensi)
       if (window.hapusAbsensi) window.hapusAbsensi(docId).then(muat);
     }
 
     async function assignUlang(docId) {
       if (!confirm("Kembalikan data ini ke Antrean Absensi untuk diperiksa ulang?")) return;
       try {
-        await updateDoc(doc(db, "absensi", docId), { status_acc: "PENDING" });
+        const item = listData.value.find(x => x.id === docId);
+        const adalahBaru = item && item.status_acc_masuk !== undefined;
+        // Dokumen BARU: assign ulang KEDUA sisi (masuk & keluar kalau
+        // ada) — lebih aman daripada nebak sisi mana yang dimaksud.
+        const dataUpdate = adalahBaru
+          ? { status_acc_masuk: 'PENDING', ada_pending: true, ...(item.waktu_keluar ? { status_acc_keluar: 'PENDING' } : {}) }
+          : { status_acc: 'PENDING' };
+        await updateDoc(doc(db, "absensi", docId), dataUpdate);
         alert("Data berhasil di-assign ulang ke Antrean Absensi.");
         await muat();
       } catch (e) {
@@ -191,18 +268,21 @@ const AppRiwayatAbsensi = {
       if (listData.value.length === 0) return alert("Tidak ada data untuk di-export saat ini.");
 
       let csvContent = "data:text/csv;charset=utf-8,";
-      csvContent += "Nama Pegawai,Email,Waktu Presensi,Tipe Presensi,Lokasi Gudang,Shift,Seragam,Status Persetujuan\n";
+      csvContent += "Nama Pegawai,Email,Tipe Absen,Gudang,Shift,Waktu Clock In,Status ACC Masuk,Waktu Clock Out,Status ACC Keluar,Seragam\n";
 
       listData.value.forEach(row => {
+        const f = formatBaris(row);
         const nama = `"${(row.nama_pegawai || row.nama || '').replace(/"/g, '""')}"`;
         const email = `"${(row.email || '').replace(/"/g, '""')}"`;
-        const waktu = `"${row.waktu || ''}"`;
         const status = `"${row.status || 'HADIR'}"`;
         const gudang = `"${row.gudang || '-'}"`;
         const shift = `"${row.shift || '-'}"`;
-        const seragam = `"${row.seragam || 'Sesuai'}"`;
-        const statusAcc = `"${row.status_acc || 'PENDING'}"`;
-        csvContent += `${nama},${email},${waktu},${status},${gudang},${shift},${seragam},${statusAcc}\n`;
+        const waktuMasuk = `"${f.waktuMasuk || '-'}"`;
+        const accMasuk = `"${f.statusAccMasuk || '-'}"`;
+        const waktuKeluar = `"${f.waktuKeluar || '-'}"`;
+        const accKeluar = `"${f.statusAccKeluar || '-'}"`;
+        const seragam = `"${f.seragamMasuk || f.seragamKeluar || 'Sesuai'}"`;
+        csvContent += `${nama},${email},${status},${gudang},${shift},${waktuMasuk},${accMasuk},${waktuKeluar},${accKeluar},${seragam}\n`;
       });
 
       const encodedUri = encodeURI(csvContent);
@@ -215,7 +295,11 @@ const AppRiwayatAbsensi = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { listData, memuat, itemSedangDiedit, muat, pisahTanggalWaktu, lihatFotoBesar, bukaEdit, tutupEdit, selesaiSimpan, hapus, assignUlang, exportCSV, migrasi, jalankanMigrasi };
+    return {
+      listData, memuat, itemSedangDiedit, muat, pisahTanggalWaktu, lihatFotoBesar,
+      bukaEdit, tutupEdit, selesaiSimpan, hapus, assignUlang, exportCSV, migrasi, jalankanMigrasi,
+      formatBaris
+    };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
@@ -251,13 +335,13 @@ const AppRiwayatAbsensi = {
         <thead>
           <tr>
             <th>Persetujuan / Tipe Absen</th>
-            <th>Shift / Gudang</th>
-            <th>Tanggal / Waktu</th>
-            <th>Foto</th>
             <th>Nama / No HP</th>
+            <th>Gudang / Shift</th>
+            <th>Tanggal - Waktu Clock In</th>
+            <th>Tanggal - Waktu Clock Out</th>
+            <th>Foto</th>
             <th>Status Kehadiran / Seragam</th>
             <th>Sanggahan Karyawan</th>
-            <th>Aju Banding</th>
             <th>Pemeriksa</th>
             <th class="freeze freeze-right">Aksi</th>
           </tr>
@@ -267,26 +351,29 @@ const AppRiwayatAbsensi = {
           <tr v-for="item in listData" :key="item.id">
             <td>
               <b>
-                <span v-if="item.status_acc === 'ACC'" style="color:var(--ok);">ACC</span>
-                <span v-else-if="item.status_acc === 'REJECT'" style="color:var(--danger);">REJECT</span>
-                <span v-else style="color:var(--warn);">PENDING</span>
-              </b><br>
-              <span style="font-size:10.5px; color:var(--text-muted); font-weight:400;">{{ item.status || 'HADIR' }}</span>
-            </td>
-            <td><dua-baris :a="item.shift" :b="item.gudang" /></td>
-            <td><dua-baris :a="pisahTanggalWaktu(item.waktu).tgl" :b="pisahTanggalWaktu(item.waktu).jam" /></td>
-            <td>
-              <img v-if="item.foto_selfie || item.foto" :src="item.foto_selfie || item.foto" @click="lihatFotoBesar(item.foto_selfie || item.foto)" style="width:40px; height:40px; border-radius:10px; object-fit:cover; border:1px solid var(--line); cursor:pointer;">
-              <span v-else style="color:var(--text-faint);">-</span>
+                <span v-if="formatBaris(item).statusAccMasuk === 'ACC'" style="color:var(--ok);">Masuk: ACC</span>
+                <span v-else-if="formatBaris(item).statusAccMasuk === 'REJECT'" style="color:var(--danger);">Masuk: REJECT</span>
+                <span v-else-if="formatBaris(item).statusAccMasuk === 'PENDING'" style="color:var(--warn);">Masuk: PENDING</span>
+              </b>
+              <br v-if="formatBaris(item).statusAccMasuk && formatBaris(item).statusAccKeluar">
+              <b>
+                <span v-if="formatBaris(item).statusAccKeluar === 'ACC'" style="color:var(--ok);">Keluar: ACC</span>
+                <span v-else-if="formatBaris(item).statusAccKeluar === 'REJECT'" style="color:var(--danger);">Keluar: REJECT</span>
+                <span v-else-if="formatBaris(item).statusAccKeluar === 'PENDING'" style="color:var(--warn);">Keluar: PENDING</span>
+              </b>
+              <br><span style="font-size:10.5px; color:var(--text-muted); font-weight:400;">{{ item.status || 'HADIR' }}</span>
             </td>
             <td><dua-baris :a="item.nama_pegawai || item.nama" :b="item.hpDicariDariUsers" /></td>
-            <td><dua-baris :a="item.status_kehadiran" :b="item.seragam || 'Sesuai'" /></td>
-            <td class="gc-cell-muted" style="max-width:160px; overflow:hidden; text-overflow:ellipsis;" :title="item.catatan_banding || ''">{{ item.catatan_banding || '-' }}</td>
+            <td><dua-baris :a="item.gudang" :b="item.shift" /></td>
+            <td><dua-baris :a="pisahTanggalWaktu(formatBaris(item).waktuMasuk).tgl" :b="pisahTanggalWaktu(formatBaris(item).waktuMasuk).jam" /></td>
+            <td><dua-baris :a="pisahTanggalWaktu(formatBaris(item).waktuKeluar).tgl" :b="pisahTanggalWaktu(formatBaris(item).waktuKeluar).jam" /></td>
             <td>
-              <span v-if="item.catatan_banding" class="tag warn">Ada Aju Banding</span>
+              <img v-if="formatBaris(item).fotoMasuk || formatBaris(item).fotoKeluar" :src="formatBaris(item).fotoMasuk || formatBaris(item).fotoKeluar" @click="lihatFotoBesar(formatBaris(item).fotoMasuk || formatBaris(item).fotoKeluar)" style="width:40px; height:40px; border-radius:10px; object-fit:cover; border:1px solid var(--line); cursor:pointer;">
               <span v-else style="color:var(--text-faint);">-</span>
             </td>
-            <td class="gc-cell-muted">{{ item.validated_by || '-' }}</td>
+            <td><dua-baris :a="formatBaris(item).statusKehadiranMasuk || formatBaris(item).statusKehadiranKeluar" :b="formatBaris(item).seragamMasuk || formatBaris(item).seragamKeluar || 'Sesuai'" /></td>
+            <td class="gc-cell-muted" style="max-width:160px; overflow:hidden; text-overflow:ellipsis;" :title="item.catatan_banding || ''">{{ item.catatan_banding || '-' }}</td>
+            <td class="gc-cell-muted">{{ item.validated_by || item.validated_by_masuk || item.validated_by_keluar || '-' }}</td>
             <td class="freeze freeze-right">
               <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
                 <button @click="bukaEdit(item)" class="icon-btn" title="Edit"><i class="fas fa-edit"></i></button>
@@ -304,17 +391,8 @@ const AppRiwayatAbsensi = {
 };
 
 let vmRiwayatAbsensi = null;
-// Perbaikan bug BESAR: komponen ini dulu langsung di-mount() begitu file ini
-// dimuat (artinya SETIAP kali halaman dibuka, oleh SIAPAPUN, termasuk yang
-// tidak punya akses ke layar ini) — onMounted-nya otomatis mencoba fetch
-// Firestore walau orangnya tidak pernah membuka tab ini sama sekali. Itu
-// yang bikin console penuh "Missing or insufficient permissions" dan baca
-// Firestore boros. Sekarang mount() BARU terjadi saat dashboard.js
-// pindahSubTab benar-benar memanggil window.pastikanMountRiwayatAbsensi() —
-// yaitu PERSIS saat tab ini pertama kali dibuka, bukan dari awal muat
-// halaman.
 window.pastikanMountRiwayatAbsensi = function() {
-  if (vmRiwayatAbsensi) return; // sudah pernah di-mount, tidak perlu ulang
+  if (vmRiwayatAbsensi) return;
   const mountPoint = document.getElementById('vue-riwayat-absensi');
   if (mountPoint) vmRiwayatAbsensi = createApp(AppRiwayatAbsensi).mount('#vue-riwayat-absensi');
 };

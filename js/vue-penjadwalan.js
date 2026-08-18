@@ -86,7 +86,7 @@ const AppPenjadwalan = {
         const listKaryawan = [];
         qKaryawan.forEach(docSnap => {
           const d = docSnap.data();
-          if (d.role !== 'owner' && window.bolehLihatData(d.jenis_pekerjaan, d.gudang_penempatan)) listKaryawan.push({ email: docSnap.id, ...d });
+          if (d.role !== 'owner' && d.status_kerja === 'Aktif' && window.bolehLihatData(d.jenis_pekerjaan, d.gudang_penempatan)) listKaryawan.push({ email: docSnap.id, ...d });
         });
         semuaKaryawan.value = listKaryawan;
 

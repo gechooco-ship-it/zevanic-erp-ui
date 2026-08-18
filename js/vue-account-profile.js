@@ -19,6 +19,7 @@ import { collection, getDocs, doc, updateDoc, query, where } from "https://www.g
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { db, auth } from "./firebase-config.js";
 import { DuaBaris } from './vue-components.js';
+import { formatBaris } from './vue-riwayat-absensi.js';
 
 // ---------------------------------------------------------------------------
 // Aju Banding modal (dipakai dari dalam tab Absensi)
@@ -351,10 +352,14 @@ const AppAccountProfile = {
         snap.forEach(docSnap => {
           const data = docSnap.data();
           data.id = docSnap.id;
+          const f = formatBaris(data); // seragamkan format lama/baru — lihat vue-riwayat-absensi.js
 
+          // Waktu buat filter tanggal & sortir: pakai yang PALING AKHIR
+          // terjadi (keluar kalau ada, jatuh-aman ke masuk).
+          const waktuAcuan = f.waktuKeluar || f.waktuMasuk;
           let lolosTgl = true;
-          if (data.waktu) {
-            const w = window.parseWaktuIndo(data.waktu);
+          if (waktuAcuan) {
+            const w = window.parseWaktuIndo(waktuAcuan);
             if (w) {
               const tglData = `${w.getFullYear()}-${String(w.getMonth() + 1).padStart(2, '0')}-${String(w.getDate()).padStart(2, '0')}`;
               if (filterTglMulai.value && tglData < filterTglMulai.value) lolosTgl = false;
@@ -368,13 +373,17 @@ const AppAccountProfile = {
           list.push(data);
           if (data.status === "HADIR" || data.status === "HADIR (CLOCK IN)") countHadir++;
           else countIzin++;
-          if (data.status_acc === "ACC") countACC++;
-          if (data.seragam === "Tidak Sesuai") countSeragamBeda++;
+          if (f.statusAccMasuk === "ACC" || f.statusAccKeluar === "ACC") countACC++;
+          if (f.seragamMasuk === "Tidak Sesuai" || f.seragamKeluar === "Tidak Sesuai") countSeragamBeda++;
         });
 
         stat.hadir = countHadir; stat.acc = countACC; stat.seragamBeda = countSeragamBeda; stat.izin = countIzin;
 
-        list.sort((a, b) => (window.parseWaktuIndo(b.waktu)?.getTime() || 0) - (window.parseWaktuIndo(a.waktu)?.getTime() || 0));
+        list.sort((a, b) => {
+          const fa = formatBaris(a), fb = formatBaris(b);
+          const wa = fa.waktuKeluar || fa.waktuMasuk, wb = fb.waktuKeluar || fb.waktuMasuk;
+          return (window.parseWaktuIndo(wb)?.getTime() || 0) - (window.parseWaktuIndo(wa)?.getTime() || 0);
+        });
         listRiwayat.value = list;
         window.dataRiwayatGlobal = list; // dipakai bareng window.exportKeCSV
       } catch (e) {
@@ -391,7 +400,8 @@ const AppAccountProfile = {
       if (url && window.bukaPreviewFoto) window.bukaPreviewFoto(url);
     }
     function bolehBanding(item) {
-      return (item.status_acc === "REJECT" || item.seragam === "Tidak Sesuai");
+      const f = formatBaris(item);
+      return (f.statusAccMasuk === "REJECT" || f.statusAccKeluar === "REJECT" || f.seragamMasuk === "Tidak Sesuai" || f.seragamKeluar === "Tidak Sesuai");
     }
     function bukaBanding(docId) { docIdSedangDibanding.value = docId; }
     function tutupBanding() { docIdSedangDibanding.value = null; }
@@ -428,7 +438,7 @@ const AppAccountProfile = {
       bukaFormLembur, tutupFormLembur, ajukanLembur,
       filterTglMulai, filterTglSelesai, filterGudang, filterShift, opsiGudangFilter, opsiShiftFilter,
       stat, listRiwayat, memuatRiwayat, muatRiwayat, exportCSV,
-      pisahTanggalWaktu, lihatFotoBesar, bolehBanding,
+      pisahTanggalWaktu, lihatFotoBesar, bolehBanding, formatBaris,
       docIdSedangDibanding, bukaBanding, tutupBanding, selesaiBanding
     };
   },
@@ -658,10 +668,10 @@ const AppAccountProfile = {
           <thead>
             <tr>
               <th>Persetujuan / Tipe Absen</th>
-              <th>Shift / Gudang</th>
+              <th>Nama / No HP</th>
+              <th>Gudang / Shift</th>
               <th>Tanggal / Waktu</th>
               <th>Foto</th>
-              <th>Nama / No HP</th>
               <th>Status Kehadiran / Seragam</th>
               <th>Sanggahan Karyawan</th>
               <th>Status Aju Banding</th>
@@ -671,17 +681,27 @@ const AppAccountProfile = {
           <tbody>
             <tr v-for="item in listRiwayat" :key="item.id">
               <td>
-                <b><span v-if="item.status_acc === 'ACC'" style="color:var(--ok);">ACC</span><span v-else-if="item.status_acc === 'REJECT'" style="color:var(--danger);">REJECT</span><span v-else style="color:var(--warn);">PENDING</span></b><br>
-                <span style="font-size:10.5px; color:var(--text-muted); font-weight:400;">{{ item.status || 'HADIR' }}</span>
-              </td>
-              <td><dua-baris :a="item.shift" :b="item.gudang" /></td>
-              <td><dua-baris :a="pisahTanggalWaktu(item.waktu).tgl" :b="pisahTanggalWaktu(item.waktu).jam" /></td>
-              <td>
-                <img v-if="item.foto_selfie || item.foto" :src="item.foto_selfie || item.foto" @click="lihatFotoBesar(item.foto_selfie || item.foto)" style="width:40px; height:40px; border-radius:10px; object-fit:cover; border:1px solid var(--line); cursor:pointer;">
-                <span v-else style="color:var(--text-faint);">-</span>
+                <b>
+                  <span v-if="formatBaris(item).statusAccMasuk === 'ACC'" style="color:var(--ok);">Masuk: ACC</span>
+                  <span v-else-if="formatBaris(item).statusAccMasuk === 'REJECT'" style="color:var(--danger);">Masuk: REJECT</span>
+                  <span v-else-if="formatBaris(item).statusAccMasuk === 'PENDING'" style="color:var(--warn);">Masuk: PENDING</span>
+                </b>
+                <br v-if="formatBaris(item).statusAccMasuk && formatBaris(item).statusAccKeluar">
+                <b>
+                  <span v-if="formatBaris(item).statusAccKeluar === 'ACC'" style="color:var(--ok);">Keluar: ACC</span>
+                  <span v-else-if="formatBaris(item).statusAccKeluar === 'REJECT'" style="color:var(--danger);">Keluar: REJECT</span>
+                  <span v-else-if="formatBaris(item).statusAccKeluar === 'PENDING'" style="color:var(--warn);">Keluar: PENDING</span>
+                </b>
+                <br><span style="font-size:10.5px; color:var(--text-muted); font-weight:400;">{{ item.status || 'HADIR' }}</span>
               </td>
               <td><dua-baris :a="item.nama_pegawai || item.nama" :b="form.hp" /></td>
-              <td><dua-baris :a="item.status_kehadiran" :b="item.seragam || 'Sesuai'" /></td>
+              <td><dua-baris :a="item.gudang" :b="item.shift" /></td>
+              <td><dua-baris :a="pisahTanggalWaktu(formatBaris(item).waktuKeluar || formatBaris(item).waktuMasuk).tgl" :b="pisahTanggalWaktu(formatBaris(item).waktuKeluar || formatBaris(item).waktuMasuk).jam" /></td>
+              <td>
+                <img v-if="formatBaris(item).fotoMasuk || formatBaris(item).fotoKeluar" :src="formatBaris(item).fotoKeluar || formatBaris(item).fotoMasuk" @click="lihatFotoBesar(formatBaris(item).fotoKeluar || formatBaris(item).fotoMasuk)" style="width:40px; height:40px; border-radius:10px; object-fit:cover; border:1px solid var(--line); cursor:pointer;">
+                <span v-else style="color:var(--text-faint);">-</span>
+              </td>
+              <td><dua-baris :a="formatBaris(item).statusKehadiranMasuk || formatBaris(item).statusKehadiranKeluar" :b="formatBaris(item).seragamMasuk || formatBaris(item).seragamKeluar || 'Sesuai'" /></td>
               <td class="gc-cell-muted" style="max-width:150px; overflow:hidden; text-overflow:ellipsis;" :title="item.catatan_banding || ''">{{ item.catatan_banding || '-' }}</td>
               <td style="text-align:center;">
                 <span v-if="item.catatan_banding" class="tag warn">Sudah Diajukan</span>
