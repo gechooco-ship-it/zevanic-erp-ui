@@ -408,7 +408,7 @@ const AppAntreanDakar = {
       </div>
     </div>
 
-    <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint); font-size:12px; margin-top:16px;">
+    <div v-if="memuat && daftarPending.length === 0" style="text-align:center; padding:40px 0; color:var(--text-faint); font-size:12px; margin-top:16px;">
       <i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i>Memuat antrean karyawan baru...
     </div>
     <div v-else-if="errorMuat" style="text-align:center; padding:40px 0; color:var(--danger); font-size:12px; margin-top:16px; background:var(--danger-light); border-radius:18px;">{{ errorMuat }}</div>
