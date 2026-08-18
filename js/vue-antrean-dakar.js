@@ -1,57 +1,75 @@
 // js/vue-antrean-dakar.js
 // ============================================================================
-// DIBANGUN ULANG (18 Agt 2026, sesi lanjutan) — versi SEBELUMNYA (baca dari
-// "users" dengan status_approval=="PENDING", approve = updateDoc biasa)
-// TERNYATA TIDAK PERNAH BERHASIL ter-push ke GitHub malam itu (lihat
-// STATUS-PROYEK.md §3.5.5). File ini dibangun ulang dari SPESIFIKASI di
-// STATUS-PROYEK.md §3.5.1/§3.5.2 — BELUM PERNAH DITES sama sekali, WAJIB
-// dites end-to-end sebelum dipakai karyawan sungguhan.
+// DIROMBAK LAGI (18 Agt 2026, revisi ke-2) — versi SEBELUMNYA di file ini
+// bikin akun Auth LANGSUNG (password sementara = NIK) lewat instance
+// Firebase kedua saat Admin klik "Setujui". SEKARANG diganti total:
+// "Setujui" cuma generate TOKEN RAHASIA + kirim EMAIL berisi LINK
+// "Buat Password" — akun Auth baru benar-benar dibuat NANTI oleh
+// KARYAWAN SENDIRI (lewat js/vue-buat-password.js), begitu mereka klik
+// link itu dan pilih password sendiri. BELUM PERNAH DITES sama sekali,
+// WAJIB dites end-to-end sebelum dipakai karyawan sungguhan.
 //
-// ALUR BARU: baca dari koleksi "pendaftaran_pending" (BUKAN "users" lagi
-// — di alur baru, TIDAK ADA akun Auth/dokumen users sampai di-approve di
-// sini). "Setujui" -> bikin akun Firebase Auth baru (password sementara =
-// NIK) LEWAT INSTANCE FIREBASE KEDUA (supaya sesi Admin yang sedang login
-// tidak ikut ter-logout), lalu tulis profil lengkap ke users/{email},
-// hapus dokumen pending, kirim email cara login. "Tolak" -> hapus dokumen
-// pending saja (tidak ada akun Auth yang perlu dibersihkan, karena memang
-// belum pernah dibuat).
+// KENAPA DIROMBAK: supaya karyawan pilih password SENDIRI (bukan
+// dipaksa pakai NIK sebagai password sementara lalu wajib ganti) — lihat
+// diskusi lengkap alasannya di STATUS-PROYEK.md.
 //
-// TEKNIS PALING BERISIKO di file ini — instance Firebase KEDUA:
-// createUserWithEmailAndPassword() BAWAANNYA otomatis login sebagai akun
-// yang BARU dibuat. Kalau dipanggil di instance yang SAMA dengan sesi
-// Admin (instance utama, firebase-config.js), Admin akan "terlempar"
-// logout dari akunnya sendiri, jadi login sebagai karyawan baru itu.
-// Solusinya: bikin instance Firebase KEDUA (initializeApp(firebaseConfig,
-// "nama-unik"), config yang SAMA tapi instance terpisah total), pakai
-// instance itu KHUSUS buat bikin akun, lalu BUANG instance itu
-// (deleteApp). Sesi Admin di instance UTAMA sama sekali tidak tersentuh.
+// INSTANCE FIREBASE KEDUA (buatAkunTanpaGangguSesi) SUDAH DIHAPUS DARI
+// FILE INI — sudah tidak relevan lagi, karena yang bikin akun sekarang
+// KARYAWAN SENDIRI (belum login sebagai siapapun), bukan Admin. Tidak
+// ada sesi Admin yang perlu dilindungi di titik approve ini lagi.
+//
+// ALUR BARU per dokumen pendaftaran_pending, 3 kemungkinan status:
+//   1. BARU — belum ada token sama sekali. Tombol: Setujui (isi data
+//      kerja, generate token, kirim link) / Tolak.
+//   2. MENUNGGU BUAT PASSWORD — token ada & belum kadaluarsa (30 menit).
+//      Tombol: Assign Ulang (generate token baru, kirim ulang link) /
+//      Tolak. AMAN ditolak di status ini karena akun Auth memang belum
+//      pernah dibuat.
+//   3. KADALUARSA — token ada tapi sudah lewat 30 menit. Tombol sama
+//      seperti status 2, cuma ditandai visual beda (badge merah).
+// Begitu karyawan berhasil klik link & buat password, dokumen ini
+// DIHAPUS SENDIRI oleh karyawan (bukan Admin) — jadi otomatis hilang
+// dari daftar ini, tidak perlu status ke-4 "selesai".
+//
+// Verifikasi token pakai pola SAMA PERSIS seperti otp_email (lihat
+// vue-otp.js) — lewat TULIS, bukan baca langsung. Lihat firestore.rules
+// match /pendaftaran_pending/{email} untuk detail lengkapnya.
 //
 // Dipakai ulang: GudangCheckboxSelect (vue-components.js).
 // ============================================================================
-import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, getDoc, setDoc, deleteDoc, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
-import { getAuth, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-import { db, firebaseConfig } from "./firebase-config.js";
+import { createApp, ref, reactive, computed, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { db } from "./firebase-config.js";
 import { GudangCheckboxSelect } from './vue-components.js';
 
-// Bikin akun Auth baru TANPA mengganggu sesi Admin yang sedang aktif di
-// instance utama — lihat catatan panjang di atas file ini kenapa perlu
-// begini.
-async function buatAkunTanpaGangguSesi(email, passwordSementara) {
-  const namaInstance = 'akun-baru-' + Date.now();
-  const appKedua = initializeApp(firebaseConfig, namaInstance);
-  const authKedua = getAuth(appKedua);
+const MASA_BERLAKU_MENIT = 30; // disepakati 18 Agt 2026 — lihat STATUS-PROYEK.md
+
+// Token acak yang cukup panjang (bukan dari Math.random() yang gampang
+// ditebak polanya) — dipakai sebagai "kunci" di link email Buat Password.
+function buatTokenAcak() {
+  const bytes = new Uint8Array(24);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function kirimEmailLinkPassword(email, nama, token) {
+  const link = `https://gechoo.online/?buatpassword=1&email=${encodeURIComponent(email)}&token=${token}`;
+  let tpl = {};
   try {
-    await createUserWithEmailAndPassword(authKedua, email, passwordSementara);
-    await signOut(authKedua); // jaga-jaga, walau instance ini akan dibuang juga
-    return { sukses: true };
-  } catch (e) {
-    console.error("Gagal membuat akun Auth baru:", e);
-    return { sukses: false, error: e };
-  } finally {
-    await deleteApp(appKedua); // buang instance kedua, sudah tidak dipakai lagi
-  }
+    const snapTpl = await getDoc(doc(db, "config", "mail_templates"));
+    tpl = snapTpl.exists() ? snapTpl.data() : {};
+  } catch (e) { /* pakai fallback baku di bawah */ }
+  const subjek = tpl.subjek_buat_password || "Buat Password Akun Zevanic ERP Anda";
+  const isiTemplat = tpl.isi_buat_password || "Halo {nama},\n\nPendaftaran Anda sudah disetujui! Klik link di bawah untuk membuat password akun Anda sendiri (berlaku " + MASA_BERLAKU_MENIT + " menit):\n\n{link}\n\nKalau link ini kadaluarsa, hubungi Admin/Owner untuk dikirimkan ulang.";
+  const isiEmail = isiTemplat
+    .replace(/\{nama\}/g, nama || '')
+    .replace(/\{link\}/g, link)
+    .replace(/\{menit\}/g, String(MASA_BERLAKU_MENIT));
+  await addDoc(collection(db, "mail"), {
+    to: [email],
+    message: { subject: subjek, text: isiEmail },
+    dikirim_pada: serverTimestamp()
+  });
 }
 
 const AntreanDakarCard = {
@@ -75,6 +93,33 @@ const AntreanDakarCard = {
     const opsiStatusKaryawan = ref([]);
     const memproses = ref(false);
 
+    // Status pendaftaran ini — dihitung dari field token di data, BUKAN
+    // disimpan sebagai state Vue terpisah, supaya selalu sinkron sama
+    // Firestore begitu daftar di-refresh.
+    const sudahDiSetujui = computed(() => !!props.data.token_buat_password);
+    const sudahKadaluarsa = computed(() => {
+      if (!props.data.token_kadaluarsa) return false;
+      const kadaluarsaMs = props.data.token_kadaluarsa.toMillis ? props.data.token_kadaluarsa.toMillis() : props.data.token_kadaluarsa.seconds * 1000;
+      return kadaluarsaMs <= detikSekarang.value;
+    });
+
+    // Countdown real-time — cuma buat TAMPILAN (bukan sumber kebenaran;
+    // yang menentukan valid/tidaknya token tetap request.time di
+    // Firestore Rules saat karyawan klik link-nya).
+    const detikSekarang = ref(Date.now());
+    let timerCountdown = null;
+    onMounted(() => { timerCountdown = setInterval(() => { detikSekarang.value = Date.now(); }, 1000); });
+    onUnmounted(() => { if (timerCountdown) clearInterval(timerCountdown); });
+
+    const sisaWaktuTeks = computed(() => {
+      if (!props.data.token_kadaluarsa) return '';
+      const kadaluarsaMs = props.data.token_kadaluarsa.toMillis ? props.data.token_kadaluarsa.toMillis() : props.data.token_kadaluarsa.seconds * 1000;
+      const sisaDetik = Math.max(0, Math.floor((kadaluarsaMs - detikSekarang.value) / 1000));
+      const m = Math.floor(sisaDetik / 60);
+      const s = sisaDetik % 60;
+      return m + ':' + String(s).padStart(2, '0');
+    });
+
     async function muatOpsi() {
       opsiStatusKerja.value = await window.ambilMasterList('status_kerja');
       const qShift = await getDocs(collection(db, "master_shift"));
@@ -94,6 +139,8 @@ const AntreanDakarCard = {
       if (props.data.foto_ktp && window.bukaPreviewFoto) window.bukaPreviewFoto(props.data.foto_ktp);
     }
 
+    // "Setujui" — SEKARANG cuma simpan data kerja + generate token + kirim
+    // link. TIDAK bikin akun Auth apapun di titik ini.
     async function setujui() {
       if (window.cekIzinMenu('antrean_dakar', 'add') === false) {
         return alert('Anda tidak punya izin menyetujui karyawan baru. Hubungi Owner/PIC.');
@@ -101,84 +148,63 @@ const AntreanDakarCard = {
       if (form.gudang.length === 0) {
         if (!confirm("Belum ada gudang dipilih. Karyawan ini TIDAK akan bisa login sampai gudang ditautkan (bisa diatur lagi lewat Daftar Karyawan > Edit). Lanjutkan?")) return;
       }
-      const nikSementara = (props.data.nik || '').trim();
-      if (!/^\d{6,}$/.test(nikSementara)) {
-        return alert("NIK karyawan ini tidak valid untuk dipakai sebagai password sementara (kosong/kurang dari 6 digit). Tolak pendaftaran ini dan minta karyawan daftar ulang dengan NIK yang benar.");
-      }
 
       memproses.value = true;
       try {
-        // 1. Bikin akun Auth DULU (lewat instance kedua) — kalau ini
-        // gagal, dokumen pending TIDAK disentuh sama sekali, aman dicoba
-        // lagi tanpa ada apapun yang perlu dibersihkan.
-        const hasilAkun = await buatAkunTanpaGangguSesi(props.emailId, nikSementara);
-        if (!hasilAkun.sukses) {
-          const kode = hasilAkun.error?.code;
-          if (kode === 'auth/email-already-in-use') {
-            alert("Gagal: email ini SUDAH punya akun login (kemungkinan sisa dari sistem lama, atau percobaan approve sebelumnya sempat berhasil bikin akun tapi gagal di langkah berikutnya). Cek manual dulu di Firebase Console > Authentication sebelum coba approve lagi — JANGAN diulang berkali-kali.");
-          } else {
-            alert("Gagal membuat akun login untuk karyawan ini: " + (hasilAkun.error?.message || 'error tidak diketahui') + ". Data pendaftaran TIDAK terhapus, aman dicoba lagi.");
-          }
-          memproses.value = false;
-          return;
-        }
-
-        // 2. Akun Auth sudah pasti berhasil dibuat -> baru tulis profil
-        // lengkap ke "users" (gabungan data pendaftaran + isian Admin di
-        // sini) dan hapus dokumen pending.
-        await setDoc(doc(db, "users", props.emailId), {
-          ...props.data,
+        const token = buatTokenAcak();
+        const kadaluarsa = new Date(Date.now() + MASA_BERLAKU_MENIT * 60 * 1000);
+        await updateDoc(doc(db, "pendaftaran_pending", props.emailId), {
           status_kerja: form.statusKerja,
           nama_shift: form.shift,
-          // Role SENGAJA hardcode "operator" di sini — supaya siapapun
-          // yang approve tidak bisa memberi akses lebih tinggi ke akun
-          // baru. Role cuma bisa dinaikkan Owner lewat Hak Akses,
-          // setelah karyawan ini beneran aktif.
-          role: "operator",
           jabatan: form.jabatan,
           status_karyawan: form.statusKaryawan,
           gudang_penempatan: form.gudang,
-          status_approval: "APPROVED",
-          wajib_ganti_password: true,
+          token_buat_password: token,
+          token_kadaluarsa: Timestamp.fromDate(kadaluarsa),
+          token_terverifikasi: false,
           disetujui_pada: serverTimestamp(),
           disetujui_oleh: window.currentUser.name || window.currentUser.email
         });
-        await deleteDoc(doc(db, "pendaftaran_pending", props.emailId));
-
-        // 3. Notifikasi email cara login (best-effort — kalau gagal
-        // kirim, akun & profil TETAP sudah jadi, cuma emailnya yang
-        // perlu dikirim manual/ulang). Template bisa diedit Owner lewat
-        // Mail Gateway > Template Pesan (bagian "Aktivasi Akun").
-        try {
-          let tpl = {};
-          try {
-            const snapTpl = await getDoc(doc(db, "config", "mail_templates"));
-            tpl = snapTpl.exists() ? snapTpl.data() : {};
-          } catch (e) { /* pakai fallback baku di bawah */ }
-          const subjek = tpl.subjek_aktivasi || "Akun Zevanic ERP Anda Sudah Aktif";
-          const isiTemplat = tpl.isi_aktivasi || "Halo {nama},\n\nAkun Zevanic ERP Anda sudah disetujui dan aktif.\n\nLogin di gechoo.online dengan:\nEmail: {email}\nPassword sementara: {password}\n\nAnda akan diminta mengganti password ini saat login pertama kali.";
-          const isiEmail = isiTemplat
-            .replace(/\{nama\}/g, props.data.nama || '')
-            .replace(/\{email\}/g, props.emailId)
-            .replace(/\{password\}/g, nikSementara);
-          await addDoc(collection(db, "mail"), {
-            to: [props.emailId],
-            message: { subject: subjek, text: isiEmail },
-            dikirim_pada: serverTimestamp()
-          });
-        } catch (e) {
-          console.error("Gagal kirim email aktivasi (akun & profil TETAP berhasil dibuat):", e);
-        }
-
-        alert("Karyawan berhasil disetujui & diaktifkan! Email berisi cara login sudah dikirim ke " + props.emailId + ".");
+        await kirimEmailLinkPassword(props.emailId, props.data.nama, token);
+        alert("Link \"Buat Password\" sudah dikirim ke " + props.emailId + ". Berlaku " + MASA_BERLAKU_MENIT + " menit.");
         emit('diproses');
       } catch (e) {
         console.error("Gagal menyetujui karyawan:", e);
-        alert("Terjadi kesalahan saat menyimpan persetujuan. Kalau akun login SUDAH sempat dibuat (cek Firebase Console > Authentication), mungkin perlu dihapus manual dulu supaya bisa dicoba approve lagi dari sini.");
+        alert("Gagal menyimpan persetujuan: " + e.message + ". Aman dicoba lagi, belum ada apapun yang berhasil disimpan.");
       }
       memproses.value = false;
     }
 
+    // "Assign Ulang" — dipakai kalau link lama kadaluarsa atau karyawan
+    // minta dikirim ulang. Data kerja yang SUDAH disimpan (status_kerja,
+    // shift, dst) TIDAK diminta ulang — cuma token & waktu kadaluarsanya
+    // yang di-generate baru.
+    async function assignUlang() {
+      if (window.cekIzinMenu('antrean_dakar', 'add') === false) {
+        return alert('Anda tidak punya izin mengirim ulang link. Hubungi Owner/PIC.');
+      }
+      memproses.value = true;
+      try {
+        const token = buatTokenAcak();
+        const kadaluarsa = new Date(Date.now() + MASA_BERLAKU_MENIT * 60 * 1000);
+        await updateDoc(doc(db, "pendaftaran_pending", props.emailId), {
+          token_buat_password: token,
+          token_kadaluarsa: Timestamp.fromDate(kadaluarsa),
+          token_terverifikasi: false
+        });
+        await kirimEmailLinkPassword(props.emailId, props.data.nama, token);
+        alert("Link baru sudah dikirim ke " + props.emailId + ". Berlaku " + MASA_BERLAKU_MENIT + " menit lagi.");
+        emit('diproses');
+      } catch (e) {
+        console.error("Gagal assign ulang:", e);
+        alert("Gagal mengirim ulang link: " + e.message);
+      }
+      memproses.value = false;
+    }
+
+    // "Tolak" — AMAN dipakai di status manapun (BARU maupun MENUNGGU
+    // BUAT PASSWORD/KADALUARSA), karena akun Auth memang belum pernah
+    // dibuat sampai karyawan sendiri klik link & submit password.
     async function tolak() {
       if (window.cekIzinMenu('antrean_dakar', 'delete') === false) {
         return alert('Anda tidak punya izin menolak pendaftaran. Hubungi Owner/PIC.');
@@ -197,57 +223,88 @@ const AntreanDakarCard = {
     }
 
     onMounted(async () => { await window.authReady; muatOpsi(); });
-    return { form, opsiStatusKerja, daftarShift, opsiJabatan, opsiStatusKaryawan, memproses, lihatFotoBesar, setujui, tolak };
+    return {
+      form, opsiStatusKerja, daftarShift, opsiJabatan, opsiStatusKaryawan, memproses,
+      sudahDiSetujui, sudahKadaluarsa, sisaWaktuTeks,
+      lihatFotoBesar, setujui, assignUlang, tolak
+    };
   },
   template: `
     <div class="gc-card">
       <div style="display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
         <img v-if="data.foto_ktp" :src="data.foto_ktp" @click="lihatFotoBesar" style="width:64px; height:48px; border-radius:10px; object-fit:cover; border:1px solid var(--line); cursor:pointer;">
         <div v-else style="width:64px; height:48px; background:var(--ivory-dim); border-radius:10px; display:flex; align-items:center; justify-content:center; color:var(--text-faint);"><i class="fas fa-id-card"></i></div>
-        <div>
+        <div style="flex:1;">
           <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ data.nama || 'Tanpa Nama' }}</h4>
           <p style="font-size:10.5px; color:var(--text-muted); font-family:'Poppins',sans-serif;">{{ data.email || emailId }} &bull; {{ data.hp || '-' }}</p>
           <p style="font-size:10.5px; color:var(--text-muted); font-family:'Poppins',sans-serif;">NIK: {{ data.nik || '-' }}</p>
         </div>
+        <span v-if="sudahDiSetujui && sudahKadaluarsa" class="tag danger">Link kadaluarsa</span>
+        <span v-else-if="sudahDiSetujui" class="tag warn">Menunggu Buat Password</span>
       </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
-        <div class="gc-field" style="margin-bottom:0;">
-          <label style="font-size:10.5px;">Status kerja</label>
-          <select v-model="form.statusKerja" style="padding:7px 10px; font-size:12px;">
-            <option v-for="o in opsiStatusKerja" :key="o" :value="o">{{ o }}</option>
-          </select>
+
+      <template v-if="!sudahDiSetujui">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+          <div class="gc-field" style="margin-bottom:0;">
+            <label style="font-size:10.5px;">Status kerja</label>
+            <select v-model="form.statusKerja" style="padding:7px 10px; font-size:12px;">
+              <option v-for="o in opsiStatusKerja" :key="o" :value="o">{{ o }}</option>
+            </select>
+          </div>
+          <div class="gc-field" style="margin-bottom:0;">
+            <label style="font-size:10.5px;">Jadwal shift</label>
+            <select v-model="form.shift" style="padding:7px 10px; font-size:12px;">
+              <option v-for="s in daftarShift" :key="s.nama_shift" :value="s.nama_shift">{{ s.nama_shift }} ({{ s.jam_masuk }} - {{ s.jam_keluar }})</option>
+            </select>
+          </div>
+          <div class="gc-field" style="margin-bottom:0;">
+            <label style="font-size:10.5px;">Jabatan</label>
+            <select v-model="form.jabatan" style="padding:7px 10px; font-size:12px;">
+              <option v-for="o in opsiJabatan" :key="o" :value="o">{{ o }}</option>
+            </select>
+          </div>
+          <div class="gc-field" style="margin-bottom:0;">
+            <label style="font-size:10.5px;">Status karyawan</label>
+            <select v-model="form.statusKaryawan" style="padding:7px 10px; font-size:12px;">
+              <option v-for="o in opsiStatusKaryawan" :key="o" :value="o">{{ o }}</option>
+            </select>
+          </div>
         </div>
-        <div class="gc-field" style="margin-bottom:0;">
-          <label style="font-size:10.5px;">Jadwal shift</label>
-          <select v-model="form.shift" style="padding:7px 10px; font-size:12px;">
-            <option v-for="s in daftarShift" :key="s.nama_shift" :value="s.nama_shift">{{ s.nama_shift }} ({{ s.jam_masuk }} - {{ s.jam_keluar }})</option>
-          </select>
+        <div class="gc-field">
+          <label style="font-size:10.5px;">Gudang penempatan (bisa lebih dari satu)</label>
+          <gudang-checkbox-select v-model="form.gudang" />
         </div>
-        <div class="gc-field" style="margin-bottom:0;">
-          <label style="font-size:10.5px;">Jabatan</label>
-          <select v-model="form.jabatan" style="padding:7px 10px; font-size:12px;">
-            <option v-for="o in opsiJabatan" :key="o" :value="o">{{ o }}</option>
-          </select>
+        <div style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line);">
+          <button @click="setujui" :disabled="memproses" class="btn-acc" style="flex:1;">
+            <i class="fas fa-paper-plane" style="margin-right:6px;"></i> {{ memproses ? 'Memproses...' : 'Setujui & Kirim Link' }}
+          </button>
+          <button @click="tolak" :disabled="memproses" class="btn-rej">
+            <i class="fas fa-times"></i> Tolak
+          </button>
         </div>
-        <div class="gc-field" style="margin-bottom:0;">
-          <label style="font-size:10.5px;">Status karyawan</label>
-          <select v-model="form.statusKaryawan" style="padding:7px 10px; font-size:12px;">
-            <option v-for="o in opsiStatusKaryawan" :key="o" :value="o">{{ o }}</option>
-          </select>
+      </template>
+
+      <template v-else>
+        <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 14px; margin-bottom:12px; font-size:11.5px; color:var(--text-muted); display:grid; grid-template-columns:1fr 1fr; gap:6px;">
+          <div><b>Status kerja:</b> {{ data.status_kerja || '-' }}</div>
+          <div><b>Shift:</b> {{ data.nama_shift || '-' }}</div>
+          <div><b>Jabatan:</b> {{ data.jabatan || '-' }}</div>
+          <div><b>Status karyawan:</b> {{ data.status_karyawan || '-' }}</div>
         </div>
-      </div>
-      <div class="gc-field">
-        <label style="font-size:10.5px;">Gudang penempatan (bisa lebih dari satu)</label>
-        <gudang-checkbox-select v-model="form.gudang" />
-      </div>
-      <div style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line);">
-        <button @click="setujui" :disabled="memproses" class="btn-acc" style="flex:1;">
-          <i class="fas fa-check-circle" style="margin-right:6px;"></i> {{ memproses ? 'Memproses...' : 'Setujui & aktifkan' }}
-        </button>
-        <button @click="tolak" :disabled="memproses" class="btn-rej">
-          <i class="fas fa-times"></i> Tolak
-        </button>
-      </div>
+        <p style="font-size:12px; text-align:center; margin-bottom:12px;">
+          <i class="fas fa-hourglass-half" style="margin-right:6px; color:var(--warn);"></i>
+          <span v-if="!sudahKadaluarsa">Link berlaku lagi <b>{{ sisaWaktuTeks }}</b></span>
+          <span v-else style="color:var(--danger);">Link sudah kadaluarsa</span>
+        </p>
+        <div style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line);">
+          <button @click="assignUlang" :disabled="memproses" class="btn-acc" style="flex:1;">
+            <i class="fas fa-rotate" style="margin-right:6px;"></i> {{ memproses ? 'Memproses...' : 'Assign Ulang' }}
+          </button>
+          <button @click="tolak" :disabled="memproses" class="btn-rej">
+            <i class="fas fa-times"></i> Tolak
+          </button>
+        </div>
+      </template>
     </div>
   `
 };
@@ -281,7 +338,7 @@ const AppAntreanDakar = {
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none;">
       <div>
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; color:var(--burgundy-dark);"><i class="fas fa-user-clock" style="margin-right:8px;"></i> Antrean persetujuan karyawan baru</h3>
-        <p style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Pendaftar baru TIDAK punya akun login sama sekali sampai disetujui & dilengkapi datanya di sini.</p>
+        <p style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Pendaftar baru TIDAK punya akun login sama sekali sampai mereka sendiri membuat password lewat link email.</p>
       </div>
       <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
     </div>
