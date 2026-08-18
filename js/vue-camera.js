@@ -19,9 +19,36 @@
 // window.previewKTP / kompresGambar / window.ktpBase64Global TIDAK dipindah
 // ke sini — itu tetap di js/camera.js karena masih dipakai Registrasi
 // (fitur upload foto KTP, bukan bagian dari layar selfie ini).
+//
+// DIROMBAK (18 Agt 2026) — Clock In & Clock Out SEKARANG jadi 1 DOKUMEN
+// per orang per hari (dulu 2 dokumen terpisah lewat addDoc() dua kali).
+// Clock In bikin dokumen baru (field *_masuk) DAN simpan ID dokumen itu
+// ke localStorage (zevanic_absensi_doc_id_{email}, pola SAMA seperti
+// zevanic_jam_masuk_{email} yang sudah ada). Clock Out ambil ID itu dari
+// localStorage lalu updateDoc() ke dokumen YANG SAMA (field *_keluar) —
+// TIDAK PERLU baca Firestore sama sekali buat cari dokumennya kalau
+// localStorage-nya ada. Kalau localStorage kosong (cache dibersihkan,
+// device beda), fallback query 1x ke Firestore (email+tanggal+status).
+//
+// status_acc_masuk & status_acc_keluar SENGAJA field TERPISAH (bukan
+// digabung 1 status_acc) — supaya PIC/Admin Finance bisa approve Clock In
+// pagi & Clock Out sore sebagai 2 aksi independen di kartu yang sama,
+// keputusan disepakati bareng Hilman 18 Agt 2026. ada_pending (boolean)
+// jadi 1 field tambahan yang di-update tiap ada perubahan status —
+// dipakai Antrean Absensi query where('ada_pending','==',true) LANGSUNG,
+// tanpa perlu "OR antar-field" yang Firestore tidak bisa lakukan dengan
+// hemat. Lihat STATUS-PROYEK.md buat penjelasan lengkap rancangan ini.
+//
+// IZIN/CUTI/LEMBUR TIDAK ikut dirombak — tetap 1 dokumen tunggal seperti
+// sebelumnya (tidak ada pasangan "masuk/keluar" buat jenis pengajuan itu).
+//
+// DATA LAMA (dibuat sebelum perombakan ini, format 2-dokumen-terpisah)
+// SENGAJA DIBIARKAN APA ADANYA — Antrean/Riwayat Absensi WAJIB tetap bisa
+// baca kedua format sampai data lama itu naturally phase-out (approved/
+// rejected, tidak pernah jadi dokumen baru lagi). Jangan migrasi paksa.
 // ============================================================================
 import { createApp, ref, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, addDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, addDoc, doc, updateDoc, query, where, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 // Haversine: jarak antara 2 koordinat GPS dalam meter
@@ -265,80 +292,150 @@ const AppKamera = {
     }
 
 
-    async function simpanKeFirebase(fotoBase64) {
+    // Kunci localStorage tempat ID dokumen Clock In disimpan — dibaca lagi
+    // saat Clock Out supaya updateDoc() langsung tahu dokumen mana yang
+    // dituju, TANPA perlu query cari dulu (gratis, bukan baca Firestore).
+    function kunciDocIdAbsensi(email) { return 'zevanic_absensi_doc_id_' + email; }
+
+    // Fallback KALAU localStorage kosong (device beda / cache dibersihkan)
+    // — 1x query cari dokumen HADIR milik SAYA SENDIRI hari ini. Cuma
+    // kepakai di kasus jarang ini, bukan jalur biasa.
+    async function cariDocIdHadirHariIni(email, tanggalHariIni) {
       try {
-        let dataKirim = {
+        const q = query(
+          collection(db, "absensi"),
+          where("email", "==", email),
+          where("status", "==", "HADIR"),
+          where("tanggal", "==", tanggalHariIni),
+          limit(1)
+        );
+        const snap = await getDocs(q);
+        let idKetemu = null;
+        snap.forEach(d => { idKetemu = d.id; });
+        return idKetemu;
+      } catch (e) {
+        console.error("Gagal cari dokumen Clock In hari ini (fallback):", e);
+        return null;
+      }
+    }
+
+    // Return: id dokumen (string) kalau berhasil, atau false kalau gagal —
+    // BEDA dari sebelumnya yang cuma true/false, karena Clock In sekarang
+    // WAJIB tahu ID dokumennya sendiri buat disimpan ke localStorage.
+    async function simpanKeFirebase(fotoBase64) {
+      const email = window.currentUser.email;
+      const hariIni = new Date().toLocaleDateString('id-ID');
+      const statusPilihan = window.statusPilihanGlobal;
+
+      try {
+        // ==================================================================
+        // JALUR 1: HADIR (CLOCK IN) — bikin dokumen BARU, field ber-akhiran
+        // _masuk. ada_pending:true karena status_acc_masuk baru "PENDING".
+        // ==================================================================
+        if (statusPilihan === "HADIR (CLOCK IN)") {
+          const dataKirim = {
+            nama_pegawai: window.currentUser.name,
+            email, role: window.currentUser.role,
+            status: "HADIR", // BUKAN "HADIR (CLOCK IN)" lagi — dokumen ini
+                              // mewakili SELURUH hari (masuk+keluar), bukan
+                              // cuma momen Clock In saja.
+            tanggal: hariIni, // dipakai fallback cariDocIdHadirHariIni() di atas
+            waktu_masuk: new Date().toLocaleString('id-ID'), // dipertahankan (tampilan) — rename dari "waktu"
+            waktu_masuk_ts: serverTimestamp(),
+            foto_selfie_masuk: fotoBase64,
+            status_acc_masuk: "PENDING",
+            seragam_masuk: "Sesuai",
+            ada_pending: true
+          };
+          if (perluLokasi.value) {
+            dataKirim.gudang = gudangDipilih.value || "";
+            if (koordinatGlobal) dataKirim.koordinat_masuk = { lat: koordinatGlobal.lat, lng: koordinatGlobal.lng };
+            if (statusRadiusGlobal) {
+              dataKirim.jarak_meter_masuk = statusRadiusGlobal.jarak;
+              dataKirim.radius_izin_meter_masuk = statusRadiusGlobal.radiusIzin;
+              dataKirim.status_radius_masuk = statusRadiusGlobal.dinamis
+                ? "LOKASI DINAMIS"
+                : (statusRadiusGlobal.dalamRadius ? "DALAM RADIUS" : "DI LUAR RADIUS");
+            }
+          }
+          const docRef = await addDoc(collection(db, "absensi"), dataKirim);
+          return docRef.id;
+        }
+
+        // ==================================================================
+        // JALUR 2: CLOCK OUT — updateDoc() ke dokumen Clock In HARI INI
+        // yang SAMA (bukan addDoc dokumen baru lagi).
+        // ==================================================================
+        if (statusPilihan === "CLOCK OUT") {
+          let docId = localStorage.getItem(kunciDocIdAbsensi(email));
+          if (!docId) docId = await cariDocIdHadirHariIni(email, hariIni); // fallback jarang kepakai
+          if (!docId) {
+            console.error("Tidak ketemu dokumen Clock In hari ini buat di-update.");
+            alert("Tidak ditemukan data Clock In hari ini. Kalau Anda YAKIN sudah Clock In hari ini, hubungi Admin/Owner — jangan coba Clock In ulang.");
+            return false;
+          }
+
+          const dataUpdate = {
+            waktu_keluar: new Date().toLocaleString('id-ID'),
+            waktu_keluar_ts: serverTimestamp(),
+            foto_selfie_keluar: fotoBase64,
+            status_acc_keluar: "PENDING",
+            seragam_keluar: "Sesuai",
+            ada_pending: true, // status_acc_keluar baru "PENDING" -> WAJIB true lagi
+            jam_keluar_untuk_gaji: await hitungJamKeluarUntukGaji()
+          };
+          if (perluLokasi.value) {
+            if (koordinatGlobal) dataUpdate.koordinat_keluar = { lat: koordinatGlobal.lat, lng: koordinatGlobal.lng };
+            if (statusRadiusGlobal) {
+              dataUpdate.jarak_meter_keluar = statusRadiusGlobal.jarak;
+              dataUpdate.radius_izin_meter_keluar = statusRadiusGlobal.radiusIzin;
+              dataUpdate.status_radius_keluar = statusRadiusGlobal.dinamis
+                ? "LOKASI DINAMIS"
+                : (statusRadiusGlobal.dalamRadius ? "DALAM RADIUS" : "DI LUAR RADIUS");
+            }
+          }
+          await updateDoc(doc(db, "absensi", docId), dataUpdate);
+          return docId;
+        }
+
+        // ==================================================================
+        // JALUR 3: IZIN / CUTI / LEMBUR — TIDAK BERUBAH, tetap 1 dokumen
+        // tunggal seperti sebelumnya (tidak ada pasangan masuk/keluar).
+        // ==================================================================
+        const dataKirim = {
           nama_pegawai: window.currentUser.name,
-          email: window.currentUser.email,
-          role: window.currentUser.role,
-          status: window.statusPilihanGlobal,
-          waktu: new Date().toLocaleString('id-ID'), // DIPERTAHANKAN — dipakai tampilan/kode lama yang belum sempat migrasi
-          // waktu_ts (BARU, 18 Agt 2026): Timestamp ASLI Firestore, bukan
-          // teks. Pakai serverTimestamp() (bukan new Date() dari HP orang)
-          // — ini praktik baku Firestore: jam SERVER yang jadi acuan,
-          // supaya tidak bisa dimanipulasi dengan mengubah jam di HP.
-          // Field ini yang bikin query rentang tanggal (where >=, <=) dan
-          // orderBy tanggal beneran bisa dilakukan di server nanti — lihat
-          // PRINSIP-HEMAT.md & STATUS-PROYEK.md buat detail migrasinya.
+          email, role: window.currentUser.role,
+          status: statusPilihan,
+          waktu: new Date().toLocaleString('id-ID'),
           waktu_ts: serverTimestamp(),
           foto_selfie: fotoBase64,
-          persetujuan: "PENDING",
-          // PENTING: status_acc HARUS diisi di sini (bukan cuma "persetujuan"
-          // yang ternyata tidak pernah dibaca di manapun) — status_acc ini
-          // field yang BENAR-BENAR dipakai Antrean Absensi/Riwayat Absensi
-          // untuk tahu mana yang masih perlu di-ACC. Sebelumnya field ini
-          // baru terisi SAAT admin approve/reject — dokumen baru jadi tidak
-          // punya field ini sama sekali sampai diproses, yang bikin query
-          // Firestore where(status_acc=="PENDING") tidak bisa dipakai
-          // dengan aman (bakal ke-skip semua pengajuan baru).
+          persetujuan: "PENDING", // legacy, dipertahankan apa adanya (tidak dibaca di manapun)
           status_acc: "PENDING",
           seragam: "Sesuai"
         };
-        if (window.statusPilihanGlobal === "IZIN" || window.statusPilihanGlobal === "CUTI") {
+        if (statusPilihan === "IZIN" || statusPilihan === "CUTI") {
           dataKirim.tanggal_pengajuan = window.tanggalIzinGlobal;
           dataKirim.keterangan = window.keteranganIzinGlobal;
         }
-        if (window.statusPilihanGlobal === "LEMBUR (CLOCK IN)") {
+        if (statusPilihan === "LEMBUR (CLOCK IN)") {
           dataKirim.lembur_mulai = window.lemburMulaiGlobal || "";
           dataKirim.lembur_selesai = window.lemburSelesaiGlobal || "";
           dataKirim.keterangan = window.lemburAlasanGlobal || "";
           dataKirim.lembur_instruksi = window.lemburInstruksiGlobal || "";
-        }
-        // ====================================================================
-        // PEMBATAS JAM KELUAR UNTUK PENGGAJIAN (17 Agt 2026)
-        // Tujuan: jam pulang TERLAMBAT dari jadwal shift TIDAK otomatis
-        // dihitung sebagai jam kerja tambahan untuk gaji — kecuali memang
-        // ada pengajuan Lembur yang SUDAH DI-ACC untuk hari ini. Contoh:
-        // shift 08:00–16:00, karyawan Clock Out jam 17:00 tanpa pengajuan
-        // lembur -> yang dipakai untuk gaji TETAP 16:00 (jam shift), bukan
-        // 17:00 asli.
-        //
-        // SENGAJA disimpan DUA-DUANYA — "waktu" (jam Clock Out ASLI, tidak
-        // diubah, buat transparansi/audit) DAN "jam_keluar_untuk_gaji" (jam
-        // yang sudah dibatasi, siap dipakai perhitungan gaji kapanpun nanti
-        // dibangun). Admin tetap bisa lihat & koreksi manual dari Antrean/
-        // Riwayat Absensi kalau perhitungan otomatis ini meleset — belum
-        // ada mesin payroll sungguhan yang membaca field ini (Slip Gaji/
-        // Payroll masih placeholder), jadi ini menyiapkan datanya duluan.
-        if (window.statusPilihanGlobal === "CLOCK OUT") {
-          dataKirim.jam_keluar_untuk_gaji = await hitungJamKeluarUntukGaji();
-        }
-        // ====================================================================
-        if (perluLokasi.value) {
-          dataKirim.gudang = gudangDipilih.value || "";
-          if (koordinatGlobal) {
-            dataKirim.koordinat = { lat: koordinatGlobal.lat, lng: koordinatGlobal.lng };
-          }
-          if (statusRadiusGlobal) {
-            dataKirim.jarak_meter = statusRadiusGlobal.jarak;
-            dataKirim.radius_izin_meter = statusRadiusGlobal.radiusIzin;
-            dataKirim.status_radius = statusRadiusGlobal.dinamis
-              ? "LOKASI DINAMIS"
-              : (statusRadiusGlobal.dalamRadius ? "DALAM RADIUS" : "DI LUAR RADIUS");
+          if (perluLokasi.value) {
+            dataKirim.gudang = gudangDipilih.value || "";
+            if (koordinatGlobal) dataKirim.koordinat = { lat: koordinatGlobal.lat, lng: koordinatGlobal.lng };
+            if (statusRadiusGlobal) {
+              dataKirim.jarak_meter = statusRadiusGlobal.jarak;
+              dataKirim.radius_izin_meter = statusRadiusGlobal.radiusIzin;
+              dataKirim.status_radius = statusRadiusGlobal.dinamis
+                ? "LOKASI DINAMIS"
+                : (statusRadiusGlobal.dalamRadius ? "DALAM RADIUS" : "DI LUAR RADIUS");
+            }
           }
         }
-        await addDoc(collection(db, "absensi"), dataKirim);
-        return true;
+        const docRef = await addDoc(collection(db, "absensi"), dataKirim);
+        return docRef.id;
       } catch (e) {
         console.error("Gagal simpan:", e);
         return false;
@@ -367,12 +464,12 @@ const AppKamera = {
       mengirim.value = true;
       teksTombolKirim.value = 'Mengirim...';
 
-      const berhasil = await simpanKeFirebase(hasilFotoUrl.value);
+      const hasilId = await simpanKeFirebase(hasilFotoUrl.value);
 
       mengirim.value = false;
       teksTombolKirim.value = 'Kirim Pengajuan';
 
-      if (berhasil) {
+      if (hasilId) {
         const hariIni = new Date().toLocaleDateString('id-ID');
         if (window.statusPilihanGlobal === "HADIR (CLOCK IN)") {
           localStorage.setItem('zevanic_absen_' + window.currentUser.email, hariIni);
@@ -380,9 +477,14 @@ const AppKamera = {
           // buat tampilkan "Clock in HH:MM - jam berjalan sekarang", cuma
           // baca localStorage, tidak nambah baca Firestore sama sekali.
           localStorage.setItem('zevanic_jam_masuk_' + window.currentUser.email, new Date().toISOString());
+          // BARU (18 Agt 2026) — simpan ID dokumen juga, dibaca lagi saat
+          // Clock Out supaya updateDoc() ke dokumen YANG SAMA (gabungan
+          // masuk+keluar), lihat kunciDocIdAbsensi()/simpanKeFirebase().
+          localStorage.setItem(kunciDocIdAbsensi(window.currentUser.email), hasilId);
         } else if (window.statusPilihanGlobal === "CLOCK OUT") {
           localStorage.setItem('zevanic_absen_' + window.currentUser.email, "OUT_" + hariIni);
           localStorage.removeItem('zevanic_jam_masuk_' + window.currentUser.email);
+          localStorage.removeItem(kunciDocIdAbsensi(window.currentUser.email));
         }
         if (window.statusPilihanGlobal === "CLOCK OUT") {
           alert("Clock Out berhasil! Hati-hati di jalan.");
