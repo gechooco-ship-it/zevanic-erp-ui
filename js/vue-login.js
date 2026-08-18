@@ -1,34 +1,19 @@
 // js/vue-login.js
 // ============================================================================
-// DIBANGUN ULANG (18 Agt 2026, sesi lanjutan) — BAGIAN PALING SENSITIF DI
-// SELURUH APLIKASI. Versi SEBELUMNYA masih pakai OTP WhatsApp yang TIDAK
-// AMAN (kode dibuat & dibandingkan LANGSUNG di JS browser — siapapun buka
-// DevTools bisa lihat/lewati verifikasinya) dan TIDAK PERNAH dapat modal
-// "wajib ganti password" — file itu ternyata tidak pernah berhasil
-// ter-push ke GitHub malam itu (lihat STATUS-PROYEK.md §3.5.5). File ini
-// dibangun ulang dari SPESIFIKASI di STATUS-PROYEK.md §3.5.1 — BELUM
-// PERNAH DITES sama sekali, WAJIB dites end-to-end sebelum dipakai
-// karyawan sungguhan.
+// DIROMBAK LAGI (18 Agt 2026, revisi ke-2 alur registrasi) — modal WAJIB
+// GANTI PASSWORD sudah DIHAPUS dari file ini. Sudah tidak relevan lagi:
+// password sekarang dipilih SENDIRI oleh karyawan sejak awal (lewat layar
+// baru js/vue-buat-password.js, dibuka dari link email Antrean Dakar),
+// bukan lagi dipaksa pakai NIK sebagai password sementara lalu wajib
+// ganti di login pertama. BELUM PERNAH DITES sama sekali, WAJIB dites
+// end-to-end sebelum dipakai karyawan sungguhan.
 //
-// URUTAN SETELAH EMAIL+PASSWORD BENAR (keputusan desain sesi ini, dicatat
-// supaya jelas alasannya untuk sesi berikutnya):
+// URUTAN SETELAH EMAIL+PASSWORD BENAR:
 //   1. Device belum pernah diverifikasi (localStorage) DAN toggle OTP aktif
 //      -> modal OTP EMAIL dulu (window.kirimOtpEmail/verifikasiOtpEmail,
-//      konteks 'perangkat_baru') — verifikasi identitas orangnya SEBELUM
-//      apapun lagi, termasuk sebelum boleh ganti password.
-//   2. BARU SETELAH itu (atau langsung kalau device sudah terpercaya):
-//      cek wajib_ganti_password — kalau true, modal ganti password WAJIB,
-//      tidak bisa dilewati.
-//   3. BARU lanjut ke alur normal (cek status_approval/gudang/jam kerja,
-//      dst — SAMA PERSIS seperti sebelumnya, tidak diubah).
-// Urutan 1 sebelum 2 ini SENGAJA DIBALIK dari kalimat STATUS-PROYEK.md
-// §3.5.1 poin 3 ("begitu password benar, SEBELUM lanjut kemanapun, modal
-// wajib ganti password") — pertimbangannya: kalau modal ganti password
-// ditaruh SEBELUM verifikasi perangkat, seseorang yang cuma tahu/nebak
-// NIK orang lain (NIK relatif tidak rahasia di banyak konteks) bisa
-// langsung ganti password akun itu tanpa perlu lolos verifikasi apapun.
-// Verifikasi device dulu menutup celah itu. DISKUSIKAN ULANG dengan
-// Hilman kalau urutan ini dianggap kurang tepat — gampang dibalik lagi.
+//      konteks 'perangkat_baru').
+//   2. Lanjut langsung ke alur normal (cek status_approval/gudang/jam
+//      kerja, dst — TIDAK diubah dari sebelumnya).
 //
 // TIDAK disentuh / tetap murni vanilla di auth.js:
 // - onAuthStateChanged (sesi otomatis)
@@ -42,8 +27,8 @@
 //   OTP bersama, SAMA yang dipakai Registrasi.
 // ============================================================================
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { signInWithEmailAndPassword, signOut, updatePassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { db, auth } from "./firebase-config.js";
 
 function isDesktopBrowser() {
@@ -116,13 +101,6 @@ const AppLogin = {
       if (otpCountdownTimer) { clearInterval(otpCountdownTimer); otpCountdownTimer = null; }
       otpCountdown.value = 0;
     }
-
-    // ---- Wajib ganti password (dipicu wajib_ganti_password==true) ----
-    const gantiPasswordVisible = ref(false);
-    const gantiPasswordEmailAktif = ref('');
-    const passwordBaru = ref('');
-    const passwordKonfirmasi = ref('');
-    const menyimpanPasswordBaru = ref(false);
 
     onMounted(() => {
       const savedEmail = localStorage.getItem('zevanic_email');
@@ -252,8 +230,11 @@ const AppLogin = {
       window._manualLoginInProgress = false;
     }
 
-    // Tahap 2: cek wajib ganti password SEBELUM lanjut ke pengecekan lain
-    // (status_approval/gudang/dst — lihat lanjutkanSetelahLogin di bawah).
+    // Tahap 2: alur normal — SAMA PERSIS seperti versi sebelum perombakan
+    // ini (status_approval, gudang, Clock In desktop/mobile, dst, TIDAK
+    // diubah perilakunya). Nama fungsi dipertahankan "lanjutkanSetelahOtp"
+    // (bukan sekadar alias) supaya titik panggilnya dari verifikasiOtpPerangkat()
+    // tidak perlu ikut berubah.
     async function lanjutkanSetelahOtp(emailInput) {
       let dataUser = null;
       try {
@@ -266,59 +247,14 @@ const AppLogin = {
         }
         dataUser = userSnap.data();
       } catch (e) {
-        console.error("Gagal ambil profil untuk cek wajib ganti password:", e);
+        console.error("Gagal ambil profil akun:", e);
         alert("Gagal memuat profil akun Anda. Coba login lagi.");
         await signOut(auth);
         window._manualLoginInProgress = false;
         return;
       }
 
-      if (dataUser.wajib_ganti_password === true) {
-        gantiPasswordEmailAktif.value = emailInput;
-        passwordBaru.value = '';
-        passwordKonfirmasi.value = '';
-        gantiPasswordVisible.value = true;
-        return; // nunggu interaksi modal ganti password — dilanjut dari simpanPasswordBaru()
-      }
-
       await lanjutkanSetelahLogin(emailInput, dataUser);
-    }
-
-    async function simpanPasswordBaru() {
-      if (passwordBaru.value.length < 6) return alert("Password baru minimal 6 karakter!");
-      if (passwordBaru.value !== passwordKonfirmasi.value) return alert("Konfirmasi password tidak sama dengan password baru!");
-      menyimpanPasswordBaru.value = true;
-      try {
-        await updatePassword(auth.currentUser, passwordBaru.value);
-        await updateDoc(doc(db, "users", gantiPasswordEmailAktif.value), { wajib_ganti_password: false });
-        gantiPasswordVisible.value = false;
-        await lanjutkanSetelahLogin(gantiPasswordEmailAktif.value);
-      } catch (e) {
-        console.error("Gagal ganti password:", e);
-        // Risiko yang sudah diketahui sejak spesifikasi awal
-        // (STATUS-PROYEK.md §3.5.5): updatePassword() Firebase bisa
-        // menolak kalau sesi dianggap "tidak baru login" —
-        // auth/requires-recent-login. Solusinya: login ulang, LANGSUNG
-        // coba lagi (jangan ditunda).
-        if (e.code === 'auth/requires-recent-login') {
-          alert("Demi keamanan, Firebase minta sesi login yang lebih baru untuk ganti password. Silakan login LAGI dengan password lama, lalu SEGERA coba ganti password (jangan ditunda).");
-          await signOut(auth);
-          window._manualLoginInProgress = false;
-          gantiPasswordVisible.value = false;
-        } else if (e.code === 'auth/weak-password') {
-          alert("Password terlalu lemah, minimal 6 karakter.");
-        } else {
-          alert("Gagal menyimpan password baru: " + e.message);
-        }
-      }
-      menyimpanPasswordBaru.value = false;
-    }
-
-    async function batalkanGantiPassword() {
-      if (!confirm("Anda WAJIB mengganti password sebelum bisa memakai sistem. Batal berarti keluar dari sesi login ini — lanjutkan?")) return;
-      gantiPasswordVisible.value = false;
-      await signOut(auth);
-      window._manualLoginInProgress = false;
     }
 
     // Tahap 3: alur normal — SAMA PERSIS seperti versi sebelum perombakan
@@ -425,10 +361,8 @@ const AppLogin = {
       email, password, showPassword, ingatSaya, statusPilihan, memproses, isDesktop,
       izin, opsiAlasanIzin, bukaFormIzinDropdown,
       otpVisible, otpEmailAktif, otpInput, otpSudahDikirim, otpMengirim, otpMemverifikasi, otpCountdown, formatCountdownOtp,
-      gantiPasswordVisible, passwordBaru, passwordKonfirmasi, menyimpanPasswordBaru,
       lupaPassword, bukaFormRegistrasi, login,
-      batalkanOtp, kirimKodeOtpPerangkat, verifikasiOtpPerangkat,
-      simpanPasswordBaru, batalkanGantiPassword
+      batalkanOtp, kirimKodeOtpPerangkat, verifikasiOtpPerangkat
     };
   },
   template: `
@@ -534,29 +468,6 @@ const AppLogin = {
             <button @click="batalkanOtp" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer;">Batal</button>
           </div>
         </template>
-      </div>
-    </div>
-
-    <!-- Modal WAJIB ganti password — login pertama kali setelah di-approve -->
-    <div v-if="gantiPasswordVisible" style="position:fixed; inset:0; z-index:120; background:rgba(59,42,31,.6); display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
-      <div style="background:var(--surface); width:100%; max-width:380px; padding:26px; border-radius:22px;">
-        <div style="text-align:center; margin-bottom:16px;">
-          <i class="fas fa-key" style="font-size:40px; color:var(--burgundy);"></i>
-          <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-top:10px;">Wajib ganti password</h3>
-          <p style="font-size:12px; color:var(--text-muted); margin-top:6px;">Ini login pertama Anda. Demi keamanan, ganti password sementara (NIK) dengan password baru pilihan Anda sendiri sebelum lanjut.</p>
-        </div>
-        <div class="gc-field">
-          <label>Password baru (min. 6 karakter)</label>
-          <input v-model="passwordBaru" type="password" placeholder="Password baru">
-        </div>
-        <div class="gc-field">
-          <label>Konfirmasi password baru</label>
-          <input v-model="passwordKonfirmasi" type="password" placeholder="Ulangi password baru">
-        </div>
-        <button @click="simpanPasswordBaru" :disabled="menyimpanPasswordBaru" class="btn-primary block">
-          {{ menyimpanPasswordBaru ? 'Menyimpan...' : 'Simpan & lanjutkan' }}
-        </button>
-        <button @click="batalkanGantiPassword" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer; margin-top:12px; font-size:12.5px; display:block; width:100%; text-align:center;">Batal & keluar</button>
       </div>
     </div>
   `

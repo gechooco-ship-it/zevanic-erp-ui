@@ -25,8 +25,8 @@ const TEMPLATE_DEFAULT = {
   isi_registrasi: "Terima kasih sudah mendaftar di Zevanic ERP.\n\nKode verifikasi email Anda: {kode}\n\nMasukkan kode ini di aplikasi untuk melanjutkan pendaftaran. Kode berlaku 10 menit.",
   subjek_perangkat: "Kode Verifikasi Login Perangkat Baru - Zevanic ERP",
   isi_perangkat: "Ada percobaan login ke akun Zevanic ERP Anda dari perangkat baru.\n\nKode verifikasi Anda: {kode}\n\nKode berlaku 10 menit. Kalau ini bukan Anda, abaikan email ini dan segera ganti password.",
-  subjek_aktivasi: "Akun Zevanic ERP Anda Sudah Aktif",
-  isi_aktivasi: "Halo {nama},\n\nAkun Zevanic ERP Anda sudah disetujui dan aktif.\n\nLogin di gechoo.online dengan:\nEmail: {email}\nPassword sementara: {password}\n\nAnda akan diminta mengganti password ini saat login pertama kali."
+  subjek_buat_password: "Buat Password Akun Zevanic ERP Anda",
+  isi_buat_password: "Halo {nama},\n\nPendaftaran Anda sudah disetujui! Klik link di bawah untuk membuat password akun Anda sendiri (berlaku {menit} menit):\n\n{link}\n\nKalau link ini kadaluarsa, hubungi Admin/Owner untuk dikirimkan ulang."
 };
 
 const AppMailGateway = {
@@ -164,7 +164,7 @@ const AppMailGateway = {
     <div v-show="tabAktif === 'template'" style="margin-top:16px;">
       <div class="gc-card" style="max-width:480px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;">Template Pesan</h3>
-        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Placeholder <code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{kode}</code>/<code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{nama}</code>/<code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{email}</code>/<code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{password}</code> otomatis diganti sistem saat email dikirim (tidak semua template pakai semua placeholder).</p>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Placeholder <code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{kode}</code>/<code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{nama}</code>/<code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{email}</code>/<code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{link}</code>/<code style="background:var(--ivory-dim); padding:1px 5px; border-radius:4px;">{menit}</code> otomatis diganti sistem saat email dikirim (tidak semua template pakai semua placeholder).</p>
 
         <div style="font-size:11px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; margin-bottom:8px;">OTP Registrasi</div>
         <div class="gc-field">
@@ -186,14 +186,14 @@ const AppMailGateway = {
           <textarea v-model="template.isi_perangkat" rows="4" style="font-size:12px;"></textarea>
         </div>
 
-        <div style="font-size:11px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; margin:16px 0 8px;">Aktivasi Akun (dikirim dari Antrean Dakar)</div>
+        <div style="font-size:11px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; margin:16px 0 8px;">Buat Password (dikirim dari Antrean Dakar saat Setujui/Assign Ulang)</div>
         <div class="gc-field">
           <label>Subjek</label>
-          <input v-model="template.subjek_aktivasi" type="text">
+          <input v-model="template.subjek_buat_password" type="text">
         </div>
         <div class="gc-field">
-          <label>Isi pesan</label>
-          <textarea v-model="template.isi_aktivasi" rows="5" style="font-size:12px;"></textarea>
+          <label>Isi pesan <span style="font-weight:400; color:var(--text-faint); text-transform:none;">— placeholder: {nama}, {link}, {menit}</span></label>
+          <textarea v-model="template.isi_buat_password" rows="5" style="font-size:12px;"></textarea>
         </div>
 
         <button @click="simpanTemplate" :disabled="menyimpanTemplate" class="btn-primary block" style="background:var(--ok);">
