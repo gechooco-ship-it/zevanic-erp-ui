@@ -1,5 +1,5 @@
 // js/auth.js
-import { doc, setDoc, getDoc, collection, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, setDoc, getDoc, collection, getDocs, addDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -516,11 +516,80 @@ window.bukaFormRegistrasi = function() {
 // dari Vue Account Profile).
 
 
-window.prosesClockOut = function() {
-  const hariIni = new Date().toLocaleDateString('id-ID');
-  const statusLokal = localStorage.getItem('zevanic_absen_' + window.currentUser.email);
-  if (statusLokal !== hariIni) {
-    alert("Anda belum Clock In hari ini, tidak bisa Clock Out.");
+// ============================================================================
+// BARU (19 Agt 2026) — satu-satunya sumber kebenaran soal "apakah SAYA
+// sedang Clock In dan belum Clock Out". Dipakai BARENG oleh vue-home.js
+// (tentukan tombol Clock In/Out di Home), fungsi prosesClockOut di bawah,
+// DAN vue-camera.js (submit Clock Out) — supaya ketiganya TIDAK BISA beda
+// pendapat soal status orangnya.
+//
+// 2 BUG NYATA yang melatarbelakangi ini (dilaporkan Hilman 19 Agt 2026):
+// 1. Shift malam (masuk 18:00, pulang besok 06:00) — logic LAMA cocokkan
+//    localStorage['zevanic_absen_'+email] === tanggal HARI INI (string
+//    persis). Begitu lewat tengah malam, tanggalnya beda walau orangnya
+//    masih di shift yang SAMA belum selesai — salah baca status.
+// 2. Karyawan nebeng HP (tidak punya HP sendiri) — localStorage itu
+//    NEMPEL DI PERANGKAT, bukan ke akun. Ganti perangkat = localStorage
+//    kosong = sistem kira "belum pernah Clock In" padahal aslinya sudah
+//    (datanya ADA di Firestore, cuma tidak kebaca dari device yang beda).
+//
+// PRINSIP: localStorage cuma JALAN PINTAS (gratis, cepat) — begitu KOSONG
+// atau meragukan, WAJIB tanya Firestore (sumber kebenaran), TIDAK BOLEH
+// langsung disimpulkan "belum Clock In".
+//
+// Return: { aktif: bool, docId: string|null, formatLama: bool }
+// - formatLama:true dipakai vue-camera.js buat tau harus BIKIN dokumen
+//   CLOCK OUT terpisah (perilaku lama), BUKAN updateDoc ke dokumen
+//   manapun — dokumen format lama TIDAK bisa digabung tanpa migrasi
+//   paksa yang sudah kita hindari (lihat vue-camera.js).
+window.cekStatusClockInSaya = async function(email) {
+  // 1. Jalan pintas: localStorage device INI (gratis, tanpa baca Firestore)
+  const docIdLokal = localStorage.getItem('zevanic_absensi_doc_id_' + email);
+  if (docIdLokal) return { aktif: true, docId: docIdLokal, formatLama: false };
+
+  // 2. Format BARU — tanya Firestore langsung (device baru/nebeng HP/cache
+  // dibersihkan tetap kebaca benar lewat jalur ini).
+  try {
+    const qBaru = query(collection(db, "absensi"), where("email", "==", email), where("status", "==", "HADIR"), where("sedang_aktif", "==", true), limit(1));
+    const snapBaru = await getDocs(qBaru);
+    if (!snapBaru.empty) {
+      const docId = snapBaru.docs[0].id;
+      localStorage.setItem('zevanic_absensi_doc_id_' + email, docId); // sinkron device INI juga
+      return { aktif: true, docId, formatLama: false };
+    }
+  } catch (e) {
+    console.error("Gagal cek status Clock In (format baru):", e);
+  }
+
+  // 3. Jaring pengaman FORMAT LAMA (masa transisi) — bandingkan waktu
+  // Clock In vs Clock Out TERAKHIR. Kalau tidak bisa dipastikan dengan
+  // aman (waktu_ts belum dimigrasi — lihat Riwayat All Absensi), JANGAN
+  // blokir siapapun — anggap tidak aktif, lebih aman daripada memblokir
+  // orang yang sebenarnya sedang tidak aktif.
+  try {
+    const qMasukLama = query(collection(db, "absensi"), where("email", "==", email), where("status", "==", "HADIR (CLOCK IN)"), orderBy("waktu_ts", "desc"), limit(1));
+    const qKeluarLama = query(collection(db, "absensi"), where("email", "==", email), where("status", "==", "CLOCK OUT"), orderBy("waktu_ts", "desc"), limit(1));
+    const [snapMasuk, snapKeluar] = await Promise.all([getDocs(qMasukLama), getDocs(qKeluarLama)]);
+    if (!snapMasuk.empty) {
+      const docMasuk = snapMasuk.docs[0];
+      const tsMasuk = docMasuk.data().waktu_ts;
+      if (tsMasuk) {
+        const tsKeluar = snapKeluar.empty ? null : snapKeluar.docs[0].data().waktu_ts;
+        const masihAktif = !tsKeluar || tsMasuk.toDate() > tsKeluar.toDate();
+        if (masihAktif) return { aktif: true, docId: docMasuk.id, formatLama: true };
+      }
+    }
+  } catch (e) {
+    console.error("Gagal cek status Clock In (format lama):", e);
+  }
+
+  return { aktif: false, docId: null, formatLama: false };
+};
+
+window.prosesClockOut = async function() {
+  const status = await window.cekStatusClockInSaya(window.currentUser.email);
+  if (!status.aktif) {
+    alert("Anda belum Clock In, tidak bisa Clock Out.");
     return;
   }
   window.statusPilihanGlobal = "CLOCK OUT";

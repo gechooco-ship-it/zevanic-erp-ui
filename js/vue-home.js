@@ -52,10 +52,17 @@ const AppHome = {
       timerDurasi = setInterval(tik, 1000);
     }
 
-    function muatTampilan() {
-      const hariIni = new Date().toLocaleDateString('id-ID');
-      const statusLokal = localStorage.getItem('zevanic_absen_' + (window.currentUser?.email || ''));
-      sudahAbsenHariIni.value = statusLokal === hariIni;
+    // DIROMBAK (19 Agt 2026) — dulu cocokkan localStorage vs tanggal HARI
+    // INI (string persis), yang SALAH untuk shift malam (lintas tengah
+    // malam) dan karyawan nebeng HP (localStorage kosong di device
+    // beda). Sekarang pakai window.cekStatusClockInSaya() — satu sumber
+    // kebenaran bareng auth.js/vue-camera.js, lihat catatan lengkap di
+    // auth.js. Variabel sudahAbsenHariIni TETAP nama yang sama (supaya
+    // binding template tidak perlu ikut berubah) tapi ARTINYA sekarang
+    // "sedang aktif Clock In" (bukan cuma "absen hari ini").
+    async function muatTampilan() {
+      const status = await window.cekStatusClockInSaya(window.currentUser?.email || '');
+      sudahAbsenHariIni.value = status.aktif;
       menuGroups.value = daftarMenuGroups(window.currentUser?.role);
       const gudangList = window.normalisasiGudang ? window.normalisasiGudang(window.currentUser?.gudang_penempatan) : [];
       shift.gudang = gudangList.length > 0 ? gudangList.join(', ') : '-';
@@ -101,12 +108,12 @@ const AppHome = {
     function bukaCuti() { if (window.bukaFormCutiDariHome) window.bukaFormCutiDariHome(); }
     function bukaLembur() { if (window.bukaFormLemburDariHome) window.bukaFormLemburDariHome(); }
 
-    function muatSemua() {
-      muatTampilan();
-      muatShift();
+    async function muatSemua() {
+      await muatTampilan();
+      await muatShift();
     }
 
-    onMounted(async () => { await window.authReady; muatSemua(); });
+    onMounted(async () => { await window.authReady; await muatSemua(); });
     onUnmounted(() => { if (timerDurasi) clearInterval(timerDurasi); });
 
     return {

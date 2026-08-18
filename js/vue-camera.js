@@ -48,7 +48,7 @@
 // rejected, tidak pernah jadi dokumen baru lagi). Jangan migrasi paksa.
 // ============================================================================
 import { createApp, ref, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, addDoc, doc, updateDoc, query, where, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, addDoc, doc, updateDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 // Haversine: jarak antara 2 koordinat GPS dalam meter
@@ -297,27 +297,12 @@ const AppKamera = {
     // dituju, TANPA perlu query cari dulu (gratis, bukan baca Firestore).
     function kunciDocIdAbsensi(email) { return 'zevanic_absensi_doc_id_' + email; }
 
-    // Fallback KALAU localStorage kosong (device beda / cache dibersihkan)
-    // — 1x query cari dokumen HADIR milik SAYA SENDIRI hari ini. Cuma
-    // kepakai di kasus jarang ini, bukan jalur biasa.
-    async function cariDocIdHadirHariIni(email, tanggalHariIni) {
-      try {
-        const q = query(
-          collection(db, "absensi"),
-          where("email", "==", email),
-          where("status", "==", "HADIR"),
-          where("tanggal", "==", tanggalHariIni),
-          limit(1)
-        );
-        const snap = await getDocs(q);
-        let idKetemu = null;
-        snap.forEach(d => { idKetemu = d.id; });
-        return idKetemu;
-      } catch (e) {
-        console.error("Gagal cari dokumen Clock In hari ini (fallback):", e);
-        return null;
-      }
-    }
+    // CATATAN (19 Agt 2026) — fallback pencarian dokumen dulu ADA di sini
+    // sendiri (cariDocIdHadirHariIni), tapi DIHAPUS — digantikan
+    // window.cekStatusClockInSaya() di auth.js yang JAUH lebih lengkap
+    // (nangani format lama JUGA, dan bekerja lintas device buat kasus
+    // karyawan nebeng HP). Satu sumber kebenaran, bukan 2 fallback
+    // terpisah yang bisa beda pendapat. Lihat catatan lengkap di auth.js.
 
     // Return: id dokumen (string) kalau berhasil, atau false kalau gagal —
     // BEDA dari sebelumnya yang cuma true/false, karena Clock In sekarang
@@ -345,7 +330,13 @@ const AppKamera = {
             foto_selfie_masuk: fotoBase64,
             status_acc_masuk: "PENDING",
             seragam_masuk: "Sesuai",
-            ada_pending: true
+            ada_pending: true,
+            // BARU (19 Agt 2026) — dipakai window.cekStatusClockInSaya()
+            // (auth.js) buat tau "masih ada Clock In aktif belum ditutup"
+            // TANPA bergantung ke localStorage device — jadi kebaca benar
+            // walau shift-nya nyebrang tengah malam ATAU dibuka dari HP
+            // yang beda (nebeng). Diset false lagi pas Clock Out.
+            sedang_aktif: true
           };
           if (perluLokasi.value) {
             dataKirim.gudang = gudangDipilih.value || "";
@@ -363,18 +354,57 @@ const AppKamera = {
         }
 
         // ==================================================================
-        // JALUR 2: CLOCK OUT — updateDoc() ke dokumen Clock In HARI INI
-        // yang SAMA (bukan addDoc dokumen baru lagi).
+        // JALUR 2: CLOCK OUT — cek dulu status AKTIF-nya (window.
+        // cekStatusClockInSaya di auth.js, bukan localStorage/tanggal
+        // lagi — lihat catatan lengkap di sana). Dua kemungkinan:
+        //   a) formatLama:false -> updateDoc() ke dokumen Clock In yang
+        //      SAMA (field *_keluar), seperti sebelumnya.
+        //   b) formatLama:true -> dokumen Clock In-nya masih pakai skema
+        //      LAMA (dari sebelum 18 Agt 2026) — TIDAK bisa digabung
+        //      tanpa migrasi paksa, jadi addDoc() dokumen CLOCK OUT
+        //      TERPISAH persis seperti perilaku asli sebelum dirombak.
         // ==================================================================
         if (statusPilihan === "CLOCK OUT") {
-          let docId = localStorage.getItem(kunciDocIdAbsensi(email));
-          if (!docId) docId = await cariDocIdHadirHariIni(email, hariIni); // fallback jarang kepakai
-          if (!docId) {
-            console.error("Tidak ketemu dokumen Clock In hari ini buat di-update.");
-            alert("Tidak ditemukan data Clock In hari ini. Kalau Anda YAKIN sudah Clock In hari ini, hubungi Admin/Owner — jangan coba Clock In ulang.");
+          const status = await window.cekStatusClockInSaya(email);
+          if (!status.aktif) {
+            console.error("Tidak ketemu Clock In aktif buat di-Clock Out.");
+            alert("Tidak ditemukan data Clock In yang aktif. Kalau Anda YAKIN sudah Clock In, hubungi Admin/Owner — jangan coba Clock In ulang.");
             return false;
           }
 
+          if (status.formatLama) {
+            // (b) Dokumen CLOCK OUT terpisah — skema PERSIS seperti
+            // sebelum dirombak 18 Agt 2026 (dokumen Clock In lama ini
+            // tetap apa adanya, tidak disentuh/diupdate sama sekali).
+            const dataKirim = {
+              nama_pegawai: window.currentUser.name,
+              email, role: window.currentUser.role,
+              status: "CLOCK OUT",
+              waktu: new Date().toLocaleString('id-ID'),
+              waktu_ts: serverTimestamp(),
+              foto_selfie: fotoBase64,
+              persetujuan: "PENDING",
+              status_acc: "PENDING",
+              seragam: "Sesuai",
+              jam_keluar_untuk_gaji: await hitungJamKeluarUntukGaji()
+            };
+            if (perluLokasi.value) {
+              dataKirim.gudang = gudangDipilih.value || "";
+              if (koordinatGlobal) dataKirim.koordinat = { lat: koordinatGlobal.lat, lng: koordinatGlobal.lng };
+              if (statusRadiusGlobal) {
+                dataKirim.jarak_meter = statusRadiusGlobal.jarak;
+                dataKirim.radius_izin_meter = statusRadiusGlobal.radiusIzin;
+                dataKirim.status_radius = statusRadiusGlobal.dinamis
+                  ? "LOKASI DINAMIS"
+                  : (statusRadiusGlobal.dalamRadius ? "DALAM RADIUS" : "DI LUAR RADIUS");
+              }
+            }
+            const docRef = await addDoc(collection(db, "absensi"), dataKirim);
+            return docRef.id;
+          }
+
+          // (a) Format BARU — updateDoc() ke dokumen yang sama.
+          const docId = status.docId;
           const dataUpdate = {
             waktu_keluar: new Date().toLocaleString('id-ID'),
             waktu_keluar_ts: serverTimestamp(),
@@ -382,6 +412,7 @@ const AppKamera = {
             status_acc_keluar: "PENDING",
             seragam_keluar: "Sesuai",
             ada_pending: true, // status_acc_keluar baru "PENDING" -> WAJIB true lagi
+            sedang_aktif: false, // BARU — shift ini SELESAI, tutup dari pantauan cekStatusClockInSaya
             jam_keluar_untuk_gaji: await hitungJamKeluarUntukGaji()
           };
           if (perluLokasi.value) {
