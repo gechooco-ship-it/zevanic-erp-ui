@@ -55,6 +55,7 @@ const AppHakAkses = {
 
     const ringkasanKartu = ref([]);
     const memuatRingkasan = ref(true);
+    const errorRingkasan = ref('');
 
     const filterRole = ref('ALL');
     const filterGudang = ref('ALL');
@@ -82,6 +83,10 @@ const AppHakAkses = {
         // query" punya Firestore (array-contains DAN array-contains-any
         // tidak boleh dipakai bersamaan).
         const cs = [...bangunConstraintFilterPeran({ fieldGudang: null })];
+        // BARU (18 Agt 2026, permintaan checklist rebuild) — cuma tampilkan
+        // karyawan yang status_kerja-nya "Aktif". Karyawan nonaktif/resign
+        // tidak perlu muncul di Hak Akses (tidak relevan diatur role-nya).
+        cs.push(where('status_kerja', '==', 'Aktif'));
         if (filterGudang.value !== 'ALL') {
           cs.push(where('gudang_penempatan', 'array-contains', filterGudang.value));
         } else if (!isOwnerRole()) {
@@ -105,8 +110,10 @@ const AppHakAkses = {
     // ---- KARTU RINGKASAN: getCountFromServer() terpisah per kartu ----
     async function muatRingkasan() {
       memuatRingkasan.value = true;
+      errorRingkasan.value = '';
       try {
         const csDasar = [...bangunConstraintFilterPeran({ fieldGudang: null })];
+        csDasar.push(where('status_kerja', '==', 'Aktif')); // sinkron dengan filter tabel utama
         if (!isOwnerRole()) {
           const gudangAdmin = window.normalisasiGudang(window.currentUser.gudang_penempatan);
           if (gudangAdmin.length > 0) csDasar.push(where('gudang_penempatan', 'array-contains-any', gudangAdmin.slice(0, 10)));
@@ -122,6 +129,13 @@ const AppHakAkses = {
         ringkasanKartu.value = kartu;
       } catch (e) {
         console.error('Gagal muat ringkasan Hak Akses:', e);
+        // SEBELUMNYA cuma console.error — area Ringkasan jadi BLANK TOTAL
+        // tanpa pesan apapun kalau query gagal (paling sering: butuh index
+        // Firestore gabungan yang belum dibuat, karena query di atas gabung
+        // beberapa where() sekaligus). Sekarang WAJIB tampil ke layar.
+        errorRingkasan.value = e.code === 'failed-precondition'
+          ? 'Ringkasan gagal dimuat — butuh index Firestore baru. Buka Console browser (F12), cari link "Create composite index" dari error ini, klik untuk bikin index-nya sekali.'
+          : 'Ringkasan gagal dimuat (' + (e.code || e.message) + ').';
       }
       memuatRingkasan.value = false;
     }
@@ -265,7 +279,7 @@ const AppHakAkses = {
       paginasi, daftarGudang, memuat,
       cariNama: computed({ get: () => paginasi.cariTeks, set: (v) => paginasi.cariDenganDebounce(v) }),
       filterRole, filterGudang, DAFTAR_ROLE, NILAI_BELUM_DIATUR,
-      railRingkasan, geserRingkasan, ringkasanKartu, memuatRingkasan, klikKartuRingkasan,
+      railRingkasan, geserRingkasan, ringkasanKartu, memuatRingkasan, errorRingkasan, klikKartuRingkasan,
       terpilih, headerDicentang,
       toggleCheckbox, toggleSemuaHalamanIni, pilihSemua, bersihkanPilihan,
       ubahRoleLangsung, profilEfektif,
@@ -284,6 +298,7 @@ const AppHakAkses = {
         <button @click="geserRingkasan(-1)" class="icon-btn" style="flex-shrink:0;" aria-label="Geser kiri"><i class="fas fa-chevron-left"></i></button>
         <div ref="railRingkasan" style="display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; scroll-behavior:smooth;" class="no-scrollbar">
           <div v-if="memuatRingkasan" style="flex-shrink:0; width:130px; text-align:center; color:var(--text-faint); font-size:11px; padding:20px 0;">Menghitung...</div>
+          <div v-else-if="errorRingkasan" style="flex-shrink:0; width:280px; background:var(--danger-light); color:var(--danger); font-size:11px; padding:12px 14px; border-radius:14px;">{{ errorRingkasan }}</div>
           <div v-for="k in ringkasanKartu" :key="k.nilaiFilter"
                @click="klikKartuRingkasan(k.nilaiFilter)"
                style="flex-shrink:0; width:130px; background:var(--surface); padding:14px; border-radius:16px; cursor:pointer; transition:.15s;"
