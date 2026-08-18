@@ -345,6 +345,28 @@ const AppAntreanDakar = {
     const errorMuat = ref('');
     const memprosesUji = ref(false);
 
+    // PEDOMAN KERJA §16 — search box selalu ada, filter Jenis Pekerjaan+
+    // Gudang cuma buat Owner/Superuser (Admin biasa sudah otomatis
+    // kefilter lewat window.bolehLihatData di muat()).
+    const cariNama = ref('');
+    const filterJenisPekerjaanOwner = ref('ALL');
+    const filterGudangOwner = ref('ALL');
+    const opsiJenisPekerjaanOwner = ref([]);
+    const opsiGudangOwner = ref([]);
+    const daftarPendingTersaring = computed(() => {
+      let hasil = daftarPending.value;
+      const cari = cariNama.value.trim().toLowerCase();
+      if (cari) hasil = hasil.filter(item => (item.data.nama || '').toLowerCase().includes(cari));
+      if (isOwnerRole.value) {
+        if (filterJenisPekerjaanOwner.value !== 'ALL') hasil = hasil.filter(item => item.data.jenis_pekerjaan === filterJenisPekerjaanOwner.value);
+        // Sebelum Setujui, gudang_penempatan BELUM ada sama sekali (baru
+        // diisi Admin saat approve) — item begitu WAJAR tidak cocok
+        // filter gudang manapun, bukan bug.
+        if (filterGudangOwner.value !== 'ALL') hasil = hasil.filter(item => (item.data.gudang_penempatan || []).includes(filterGudangOwner.value));
+      }
+      return hasil;
+    });
+
     // BARU — supaya bisa tes alur Setujui -> token -> link "Buat Password"
     // TANPA perlu tunggu ada orang benar-benar daftar & lolos OTP dulu.
     // Cuma Owner (dicek juga via Firestore Rules: create pendaftaran_pending
@@ -385,6 +407,14 @@ const AppAntreanDakar = {
           if (window.bolehLihatData(d.jenis_pekerjaan, d.gudang_penempatan)) list.push({ id: docSnap.id, data: d });
         });
         daftarPending.value = list;
+
+        if (isOwnerRole.value) {
+          opsiJenisPekerjaanOwner.value = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
+          const qGudang = await getDocs(collection(db, "master_gudang"));
+          const listGudang = [];
+          qGudang.forEach(g => listGudang.push(g.data().nama_gudang));
+          opsiGudangOwner.value = listGudang;
+        }
       } catch (e) {
         console.error("Gagal memuat antrean pendaftaran:", e);
         errorMuat.value = 'Gagal memuat data (' + (e.code || e.message) + '). Kemungkinan izin akses (role Anda) belum ter-refresh — coba Logout lalu Login lagi.';
@@ -393,7 +423,10 @@ const AppAntreanDakar = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { isOwnerRole, daftarPending, memuat, errorMuat, muat, memprosesUji, buatDataUji };
+    return {
+      isOwnerRole, daftarPending, daftarPendingTersaring, memuat, errorMuat, muat, memprosesUji, buatDataUji,
+      cariNama, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner
+    };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none;">
@@ -408,6 +441,23 @@ const AppAntreanDakar = {
       </div>
     </div>
 
+    <div v-if="!memuat && daftarPending.length > 0" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:14px;">
+      <div style="position:relative; flex:1; min-width:200px;">
+        <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
+        <input v-model="cariNama" type="text" placeholder="Cari nama pendaftar..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+      </div>
+      <template v-if="isOwnerRole">
+        <select v-model="filterJenisPekerjaanOwner" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+          <option value="ALL">Semua jenis pekerjaan</option>
+          <option v-for="jp in opsiJenisPekerjaanOwner" :key="jp" :value="jp">{{ jp }}</option>
+        </select>
+        <select v-model="filterGudangOwner" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+          <option value="ALL">Semua gudang</option>
+          <option v-for="g in opsiGudangOwner" :key="g" :value="g">{{ g }}</option>
+        </select>
+      </template>
+    </div>
+
     <div v-if="memuat && daftarPending.length === 0" style="text-align:center; padding:40px 0; color:var(--text-faint); font-size:12px; margin-top:16px;">
       <i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i>Memuat antrean karyawan baru...
     </div>
@@ -417,8 +467,13 @@ const AppAntreanDakar = {
       <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Tidak ada antrean</h4>
       <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Semua pendaftar sudah diproses.</p>
     </div>
+    <div v-else-if="daftarPendingTersaring.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px; margin-top:16px;">
+      <i class="fas fa-filter-circle-xmark" style="font-size:34px; color:var(--text-faint); margin-bottom:10px; display:block;"></i>
+      <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Tidak ada yang cocok</h4>
+      <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Coba ubah kata kunci pencarian atau filter yang aktif.</p>
+    </div>
     <div v-else style="gap:14px; margin-top:16px;" class="grid grid-cols-1 md:grid-cols-2">
-      <antrean-dakar-card v-for="item in daftarPending" :key="item.id" :email-id="item.id" :data="item.data" @diproses="muat" />
+      <antrean-dakar-card v-for="item in daftarPendingTersaring" :key="item.id" :email-id="item.id" :data="item.data" @diproses="muat" />
     </div>
   `
 };
