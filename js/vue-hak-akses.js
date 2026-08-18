@@ -276,7 +276,7 @@ const AppHakAkses = {
     onMounted(async () => { await window.authReady; muat(); });
 
     return {
-      paginasi, daftarGudang, memuat,
+      paginasi, daftarGudang,
       cariNama: computed({ get: () => paginasi.cariTeks, set: (v) => paginasi.cariDenganDebounce(v) }),
       filterRole, filterGudang, DAFTAR_ROLE, NILAI_BELUM_DIATUR,
       railRingkasan, geserRingkasan, ringkasanKartu, memuatRingkasan, errorRingkasan, klikKartuRingkasan,
