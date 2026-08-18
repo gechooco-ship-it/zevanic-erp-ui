@@ -314,6 +314,7 @@ const AppLogin = {
       }
 
       await window.muatAksesConfigSaya(window.currentUser.role, window.currentUser.profil_akses);
+      window.simpanKonteksSesi(); // biar reload berikutnya (F5, tab baru) tidak baca ulang users/akses_config
       window.aturTampilanBerdasarkanRole();
       if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
       if (window.refreshHome) window.refreshHome();

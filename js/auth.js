@@ -134,6 +134,53 @@ window.cekFiturAkses = function(menuId, fiturKey) {
   return nilai === true ? true : (nilai === false ? false : null);
 };
 
+// BARU (18 Agt 2026) — cache konteks sesi (window.currentUser +
+// window.aksesConfigSaya) ke localStorage, supaya RELOAD halaman (F5,
+// buka tab baru, dst) TIDAK perlu baca ulang "users/{email}" +
+// "akses_config/{profil}" dari Firestore — cukup 1x per sesi LOGIN,
+// bukan 1x per RELOAD. Dibersihkan SENDIRI cuma saat logout (lihat
+// window.bersihkanKonteksSesi, dipanggil dari window.logout di bawah).
+//
+// AMAN dipakai localStorage untuk ini — email/role/profil_akses/
+// jenis_pekerjaan/gudang BUKAN rahasia (levelnya sama dengan custom
+// claim yang Firebase Auth sendiri SUDAH simpan permanen di IndexedDB).
+// "Hak akses" (aksesConfig) juga cuma buat TAMPILAN — penegak keamanan
+// SUNGGUHAN tetap Firestore Rules di server, tidak peduli apa isi
+// localStorage. foto_ktp SENGAJA dibuang dari cache (besar, base64,
+// tidak perlu buat kebanyakan layar).
+window.simpanKonteksSesi = function() {
+  try {
+    const { foto_ktp, ...ringkas } = window.currentUser;
+    localStorage.setItem('zevanic_konteks_sesi', JSON.stringify({
+      data: ringkas,
+      aksesConfig: window.aksesConfigSaya,
+      disimpan_pada: Date.now()
+    }));
+  } catch (e) {
+    console.error("Gagal simpan konteks sesi ke localStorage (tidak fatal, lanjut normal):", e);
+  }
+};
+
+// Kembalikan {data, aksesConfig} kalau cache ADA dan emailnya COCOK
+// dengan user Firebase Auth yang sedang login sekarang — null kalau
+// tidak ada/tidak cocok (pemanggil WAJIB fallback baca Firestore biasa).
+window.bacaKonteksSesiDariCache = function(email) {
+  try {
+    const mentah = localStorage.getItem('zevanic_konteks_sesi');
+    if (!mentah) return null;
+    const cache = JSON.parse(mentah);
+    if (!cache.data || cache.data.email !== email) return null; // beda akun -> jangan dipakai
+    return cache;
+  } catch (e) {
+    console.error("Gagal baca cache konteks sesi:", e);
+    return null;
+  }
+};
+
+window.bersihkanKonteksSesi = function() {
+  localStorage.removeItem('zevanic_konteks_sesi');
+};
+
 // BARU (18 Agt 2026) — filter otomatis Penjadwalan/Antrean Dakar: Admin
 // (bukan Owner/Superuser) cuma lihat data yang jenis pekerjaannya SAMA
 // dengan jenis_pekerjaan di profilnya sendiri. Dipakai untuk karyawan
@@ -346,9 +393,18 @@ onAuthStateChanged(auth, async (user) => {
   let berhasilMasukDashboard = false;
 
   try {
-    const userSnap = await getDoc(doc(db, "users", user.email));
-    if (!userSnap.exists()) return;
-    const d = userSnap.data();
+    // Coba cache localStorage DULU (lihat window.bacaKonteksSesiDariCache
+    // di atas) — cuma kalau kosong/beda akun baru baca Firestore biasa.
+    const cache = window.bacaKonteksSesiDariCache(user.email);
+    let d;
+    if (cache) {
+      d = cache.data;
+      window.aksesConfigSaya = cache.aksesConfig;
+    } else {
+      const userSnap = await getDoc(doc(db, "users", user.email));
+      if (!userSnap.exists()) return;
+      d = userSnap.data();
+    }
 
     if (d.status_approval && d.status_approval !== "APPROVED") return;
 
@@ -381,7 +437,12 @@ onAuthStateChanged(auth, async (user) => {
       status_kerja: d.status_kerja || "Aktif",
       gudang_penempatan: gudangUser
     };
-    await window.muatAksesConfigSaya(roleUser, d.profil_akses);
+    // Kalau tadi TIDAK dari cache (fetch Firestore biasa), aksesConfigSaya
+    // belum keisi sama sekali — baru di titik ini perlu dimuat. Kalau
+    // SUDAH dari cache, sudah keisi dari cache.aksesConfig di atas, skip
+    // (hemat 1 baca akses_config).
+    if (!cache) await window.muatAksesConfigSaya(roleUser, d.profil_akses);
+    window.simpanKonteksSesi(); // simpan/refresh cache buat reload berikutnya
     if (window.aturTampilanBerdasarkanRole) window.aturTampilanBerdasarkanRole();
     if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
     // Home itu layar landasan (langsung tampil begitu login, beda dari
@@ -466,6 +527,7 @@ window.logout = async function() {
   } catch (e) {
     console.error("Gagal logout dari Firebase Auth:", e);
   }
+  window.bersihkanKonteksSesi(); // WAJIB — supaya komputer bersama tidak nyangkut data akun sebelumnya
   window.currentUser = { email: "", name: "", role: "operator", id_app: "", id_karyawan: "", jabatan: "", status_kerja: "aktif" };
   window.pindahLayar('screen-login');
 };
