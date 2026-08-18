@@ -86,7 +86,7 @@ const AppPenjadwalan = {
         const listKaryawan = [];
         qKaryawan.forEach(docSnap => {
           const d = docSnap.data();
-          if (d.role !== 'owner' && window.bolehLihatJenisPekerjaan(d.jenis_pekerjaan)) listKaryawan.push({ email: docSnap.id, ...d });
+          if (d.role !== 'owner' && window.bolehLihatData(d.jenis_pekerjaan, d.gudang_penempatan)) listKaryawan.push({ email: docSnap.id, ...d });
         });
         semuaKaryawan.value = listKaryawan;
 
@@ -95,7 +95,7 @@ const AppPenjadwalan = {
         const petaJenis = {};
         qGudang.forEach(docSnap => {
           const g = docSnap.data();
-          if (!window.bolehLihatJenisPekerjaan(g.jenis_pekerjaan)) return;
+          if (!window.bolehLihatData(g.jenis_pekerjaan, [g.nama_gudang])) return;
           listGudang.push(g.nama_gudang);
           petaJenis[g.nama_gudang] = g.tipe_lokasi || 'Tetap';
         });

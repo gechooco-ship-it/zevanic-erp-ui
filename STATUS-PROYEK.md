@@ -558,6 +558,17 @@ Ringkasan super singkat (detail lengkap di file itu):
   hasilnya (belum nyambung ke alur kerja apapun).
 - Slip Gaji, Payroll, Estimasi Gaji — semua masih placeholder "segera hadir".
 
+**Soal fondasi kerja (bukan fitur, cara kerja) — belum jadi masalah di
+skala sekarang, tapi relevan kalau nanti dipakai ratusan orang:**
+- Belum ada testing otomatis — semua perubahan diverifikasi manual
+  (screenshot, cek Console). Risiko "perbaiki A, rusak B tanpa ketahuan"
+  makin besar seiring fitur bertambah.
+- Belum ada lingkungan staging — semua perubahan langsung ke
+  `gechoo.online`, langsung dipakai semua orang begitu di-deploy.
+- Belum ada pemantauan error produksi — bug yang cuma muncul di
+  perangkat orang lain (bukan yang sedang testing) tidak akan ketahuan
+  kecuali dilaporkan manual.
+
 ## 12. Registrasi -> Login revisi ke-3: password dibuat karyawan sendiri (18 Agt 2026)
 
 **Kenapa dirombak lagi**: supaya karyawan pilih password sendiri sejak
@@ -663,13 +674,88 @@ belakangan lewat tombol ikon <i class="fas fa-tags"></i> di tiap baris —
 buka form checkbox inline, pilih, Simpan (`updateDoc`, cuma field
 `jenis_pekerjaan` yang berubah, field lain tidak tersentuh).
 
-**Soal fondasi kerja (bukan fitur, cara kerja) — belum jadi masalah di
-skala sekarang, tapi relevan kalau nanti dipakai ratusan orang:**
-- Belum ada testing otomatis — semua perubahan diverifikasi manual
-  (screenshot, cek Console). Risiko "perbaiki A, rusak B tanpa ketahuan"
-  makin besar seiring fitur bertambah.
-- Belum ada lingkungan staging — semua perubahan langsung ke
-  `gechoo.online`, langsung dipakai semua orang begitu di-deploy.
-- Belum ada pemantauan error produksi — bug yang cuma muncul di
-  perangkat orang lain (bukan yang sedang testing) tidak akan ketahuan
-  kecuali dilaporkan manual.
+## 15. PEDOMAN KERJA: filter role+jenis_pekerjaan+gudang jadi 1 sistem reusable (18 Agt 2026)
+
+**Kenapa dirombak jadi sistem, bukan tempel manual per tabel**: §13
+awalnya nambah `window.bolehLihatJenisPekerjaan()` dan dipakai manual di
+2 file. Setelah diminta tambah dimensi GUDANG juga dan diterapkan ke
+"semua tabel", pola tempel-manual itu tidak scalable — jadi dirombak
+jadi 1 sistem dipakai lewat OPSI, bukan ditulis ulang tiap file.
+
+### Tier 1 — tabel yang MASIH fetch-semua (client-side filter)
+Pakai **`window.bolehLihatData(jenisPekerjaanData, gudangData)`**
+(`auth.js`) — Owner/Superuser bypass, PUNYA jatuh-aman (data belum ditag
+tetap tampil ke semua Admin). Panggil manual di titik `.forEach()` yang
+membangun list, SEBELUM `list.push(...)`.
+
+**Sudah diterapkan**: `vue-hak-akses.js`, `vue-riwayat-absensi.js`,
+`vue-antrean-absensi.js`, `vue-antrean-lembur.js`, `vue-antrean-dakar.js`
+(daftar pending + dropdown shift), `vue-penjadwalan.js` (daftar
+karyawan + dropdown gudang/shift), `vue-config-absensi.js` (daftar
+Master Gudang & Master Shift yang ditampilkan).
+
+⚠️ **Jebakan yang sudah pernah kejadian**: kalau ada logic "perbaikan
+data lama" (`perluDiperbaiki`, dst) di tabel yang sama, filter INI WAJIB
+dipasang SETELAH logic perbaikan itu, bukan sebelum — kalau salah
+urutan, dokumen yang kefilter keluar tidak akan pernah diperbaiki
+(kejadian nyata di `vue-antrean-absensi.js`/`vue-antrean-lembur.js` saat
+dikerjakan, ketahuan & diperbaiki sebelum dikirim).
+
+`absensi` **TIDAK** simpan `jenis_pekerjaan` langsung (cuma `gudang`) —
+tabel yang sumbernya `absensi` (Riwayat/Antrean Absensi/Lembur) WAJIB
+fetch `users` dulu buat bangun peta `email -> jenis_pekerjaan` (1 baca
+tambahan per buka halaman, tidak terhindarkan).
+
+### Tier 2 — tabel yang pakai paginasi cursor Firestore sungguhan
+Pakai opsi **`filterPeran: true`** di `usePaginasiFirestore()`
+(`vue-paginasi.js`) — filter jalan lewat `where()` Firestore beneran
+(server-side), BUKAN client-side. Cukup 1 baris opsi, TIDAK PERLU tulis
+`where()` manual:
+```js
+const paginasi = reactive(usePaginasiFirestore(db, 'users', {
+  perHalaman: 15, urutkanField: 'nama',
+  filterPeran: true,   // <- cukup ini
+  petakan: (id, d) => ({ id, ...d })
+}));
+```
+Field custom (kalau nama field beda dari default `jenis_pekerjaan`/
+`gudang_penempatan`, atau koleksinya tidak punya dimensi gudang sama
+sekali seperti `master_shift`): `filterPeranField: { fieldGudang: null }`.
+
+⚠️ **BEDA PENTING dari Tier 1**: `where()` Firestore **TIDAK PUNYA
+jatuh-aman**. Karyawan/gudang lama yang belum ditag `jenis_pekerjaan`/
+`gudang_penempatan` **TIDAK AKAN MUNCUL** di tabel Tier 2 buat Admin
+non-Owner, sampai ditag. Trade-off SADAR, diterima demi paginasi cursor
+tetap benar (filter di JS SETELAH ambil per halaman akan merusak
+hitungan "ada halaman berikutnya").
+
+Kemungkinan besar Firestore minta **index gabungan baru** pertama kali
+`filterPeran:true` dipakai di koleksi tertentu — errornya muncul di
+Console browser lengkap link bikin index sekali klik, itu wajar bukan
+bug.
+
+**Sudah diterapkan**: `vue-daftar-karyawan.js` (satu-satunya tabel yang
+sudah paginasi cursor sungguhan sampai saat ini).
+
+### Tier 3 — TIDAK bisa langsung dikonversi ke Tier 2 (butuh desain ulang dulu)
+`vue-hak-akses.js` dan `vue-penjadwalan.js` punya fitur **Ringkasan**
+(kartu jumlah per-role/per-gudang, dihitung dari SELURUH data) dan
+**Pilih Semua/Update Massal** (beroperasi ke SEMUA hasil filter, bukan
+cuma halaman yang sedang tampil) — dua fitur ini BUTUH seluruh dataset
+ke-load di JS. Dipaksa jadi cursor pagination akan DIAM-DIAM MERUSAK
+keduanya (kartu cuma hitung 15 baris yang kebaca; "Pilih Semua" cuma
+pilih 1 halaman). Kalau nanti mau dikonversi, perlu desain terpisah
+(`getCountFromServer()` dengan `where()` beda per kartu ringkasan) —
+BUKAN sekadar tukar `getDocs` jadi `usePaginasiFirestore`. Untuk
+sekarang keduanya tetap di Tier 1 (`window.bolehLihatData`, sudah
+diterapkan).
+
+### PEDOMAN buat tabel BARU ke depan
+1. Tidak ada fitur ringkasan/pilih-semua-lintas-halaman? -> **Tier 2**
+   langsung (`filterPeran: true`), jangan mulai dari fetch-semua.
+2. ADA fitur ringkasan/pilih-semua-lintas-halaman? -> **Tier 1**
+   (`window.bolehLihatData`) dulu, evaluasi Tier 2 belakangan kalau data
+   sudah besar SEKALIGUS ada waktu desain ulang fitur ringkasannya.
+3. Ini berlaku default utk SEMUA tabel yang nampilin data karyawan/
+   gudang/shift, KECUALI Owner/Superuser — sama seperti aturan "menu
+   baru default Owner-only" di §6.8, JANGAN dianggap opsional.

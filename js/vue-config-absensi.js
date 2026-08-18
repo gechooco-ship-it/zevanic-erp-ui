@@ -67,7 +67,14 @@ const MasterGudangManager = {
       memuat.value = true;
       const snap = await getDocs(collection(db, "master_gudang"));
       const list = [];
-      snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+      // BARU (18 Agt 2026) — PEDOMAN KERJA: Admin cuma lihat gudang yang
+      // jenis pekerjaannya cocok DAN nama gudangnya ada di gudang_penempatan
+      // dia sendiri. Owner/Superuser tetap lihat semua (bypass di dalam
+      // bolehLihatData).
+      snap.forEach(d => {
+        const g = d.data();
+        if (window.bolehLihatData(g.jenis_pekerjaan, [g.nama_gudang])) list.push({ id: d.id, ...g });
+      });
       daftarGudang.value = list;
       opsiJenisPekerjaan.value = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
       memuat.value = false;
@@ -247,7 +254,12 @@ const MasterShiftManager = {
       memuat.value = true;
       const snap = await getDocs(collection(db, "master_shift"));
       const list = [];
-      snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+      // BARU (18 Agt 2026) — PEDOMAN KERJA: cuma dimensi jenis pekerjaan
+      // (Master Shift tidak punya field gudang sama sekali).
+      snap.forEach(d => {
+        const s = d.data();
+        if (window.bolehLihatJenisPekerjaan(s.jenis_pekerjaan)) list.push({ id: d.id, ...s });
+      });
       daftarShift.value = list;
       opsiJenisPekerjaan.value = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
       memuat.value = false;

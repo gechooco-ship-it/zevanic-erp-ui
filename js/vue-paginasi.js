@@ -48,9 +48,56 @@
 //     constraintTambahan: () => filterRole.value === 'ALL' ? [] : [where('role', '==', filterRole.value)]
 //   });
 //   watch(filterRole, () => paginasi.muatUlang());
+//
+// PEDOMAN KERJA (18 Agt 2026) — filter otomatis role+jenis_pekerjaan+gudang:
+//   const paginasi = usePaginasiFirestore(db, 'users', {
+//     ...,
+//     filterPeran: true   // cukup ini, TIDAK PERLU tulis where() manual
+//   });
+// Tabel BARU yang nampilin data karyawan/gudang WAJIB pakai opsi ini dari
+// awal (sama seperti aturan §6.8 "menu baru default Owner-only" di
+// STATUS-PROYEK.md) — TIDAK PERLU tulis ulang filternya tiap tabel.
+//
+// PENTING beda dari window.bolehLihatData (auth.js, dipakai tabel yang
+// MASIH fetch-semua): fungsi itu client-side & PUNYA jatuh-aman (data
+// belum ditag tetap tampil). Filter DI SINI jalan lewat where()
+// Firestore SUNGGUHAN (server-side) — TIDAK PUNYA jatuh-aman, karena
+// where() Firestore cuma bisa cocokkan field yang ADA nilainya.
+// Karyawan/gudang lama yang BELUM ditag jenis_pekerjaan/gudang TIDAK
+// AKAN muncul sampai ditag. Trade-off SADAR, disepakati 18 Agt 2026 demi
+// paginasi cursor sungguhan tetap jalan benar (filter di JS SETELAH
+// ambil per halaman akan merusak hitungan "ada halaman berikutnya").
+//
+// Kemungkinan besar Firestore minta INDEX GABUNGAN BARU pertama kali opsi
+// ini dipakai di koleksi tertentu — errornya muncul di Console browser
+// lengkap dengan LINK buat bikin index itu sekali klik (bukan bug, itu
+// memang cara kerja Firestore untuk query gabungan where()+where()+orderBy()).
 // ============================================================================
 import { ref } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, query, orderBy, limit, startAfter, where, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+
+// Diekspor juga (bukan cuma dipakai internal composable ini) supaya kode
+// yang MASIH fetch-semua manual (belum sempat dimigrasi ke paginasi) bisa
+// pakai pola filter YANG SAMA tanpa tulis ulang logicnya — lihat
+// STATUS-PROYEK.md soal daftar tabel yang masih perlu dimigrasi.
+export function bangunConstraintFilterPeran(opsiField = {}) {
+  const fieldJenisPekerjaan = opsiField.fieldJenisPekerjaan || 'jenis_pekerjaan';
+  const fieldGudang = opsiField.fieldGudang === undefined ? 'gudang_penempatan' : opsiField.fieldGudang; // null = koleksi ini tidak punya dimensi gudang (mis. master_shift)
+  const role = (window.currentUser.role || '').toLowerCase();
+  if (role === 'owner' || role === 'superuser') return [];
+  const constraints = [];
+  if (window.currentUser.jenis_pekerjaan) {
+    constraints.push(where(fieldJenisPekerjaan, '==', window.currentUser.jenis_pekerjaan));
+  }
+  if (fieldGudang) {
+    const gudangAdmin = window.normalisasiGudang(window.currentUser.gudang_penempatan);
+    if (gudangAdmin.length > 0) {
+      // Firestore array-contains-any MAKSIMAL 10 nilai per query.
+      constraints.push(where(fieldGudang, 'array-contains-any', gudangAdmin.slice(0, 10)));
+    }
+  }
+  return constraints;
+}
 
 export function usePaginasiFirestore(db, namaKoleksi, opsi = {}) {
   const perHalaman = opsi.perHalaman || 15;
@@ -59,6 +106,8 @@ export function usePaginasiFirestore(db, namaKoleksi, opsi = {}) {
   const cariField = opsi.cariField || null; // null = fitur cari tidak aktif
   const ambilConstraintTambahan = opsi.constraintTambahan || (() => []); // filter dropdown, fungsi -> array where()
   const petakan = opsi.petakan || ((id, data) => ({ id, ...data }));
+  const filterPeran = opsi.filterPeran || false; // BARU — lihat PEDOMAN KERJA di atas
+  const filterPeranField = opsi.filterPeranField || {};
 
   const dataHalaman = ref([]);
   const memuat = ref(true);
@@ -83,6 +132,7 @@ export function usePaginasiFirestore(db, namaKoleksi, opsi = {}) {
       constraints.push(where(cariField, '>=', teks));
       constraints.push(where(cariField, '<=', teks + '\uf8ff'));
     }
+    if (filterPeran) constraints.push(...bangunConstraintFilterPeran(filterPeranField));
     constraints.push(...ambilConstraintTambahan());
     constraints.push(orderBy(fieldUrutDipakai, urutkanArah));
     return constraints;

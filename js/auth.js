@@ -181,23 +181,55 @@ window.bersihkanKonteksSesi = function() {
   localStorage.removeItem('zevanic_konteks_sesi');
 };
 
-// BARU (18 Agt 2026) — filter otomatis Penjadwalan/Antrean Dakar: Admin
-// (bukan Owner/Superuser) cuma lihat data yang jenis pekerjaannya SAMA
-// dengan jenis_pekerjaan di profilnya sendiri. Dipakai untuk karyawan
-// (field jenis_pekerjaan-nya string tunggal) MAUPUN gudang/shift (field
-// array, karena 1 gudang/shift bisa dipakai lebih dari 1 jenis
-// pekerjaan). Aturan jatuh-aman SAMA seperti cekIzinMenu di atas: kalau
-// datanya BELUM ADA tag jenis pekerjaan sama sekali (data lama yang
-// belum sempat ditandai), TETAP TAMPIL ke semua Admin — supaya tidak
-// ada data lama yang tiba-tiba hilang dari pandangan siapapun cuma
-// karena belum sempat ditag.
-window.bolehLihatJenisPekerjaan = function(jenisPekerjaanData) {
+// PEDOMAN KERJA (18 Agt 2026) — SEMUA tabel yang nampilin data karyawan/
+// gudang/shift WAJIB pakai filter ini secara DEFAULT, KECUALI Owner/
+// Superuser (selalu bypass). Kalau nambah tabel BARU ke depan yang
+// nampilin data serupa, WAJIB ikut pola ini juga — sama seperti aturan
+// "menu baru default Owner-only" di §6.8.
+//
+// Gabungan 2 dimensi (role dicek DI DALAM fungsi ini duluan — Owner/
+// Superuser bypass total, pemanggil TIDAK perlu cek role sendiri,
+// konsisten dengan pola cekIzinMenu/cekFiturAkses di atas):
+// 1. Jenis pekerjaan — HARUS SAMA dengan window.currentUser.jenis_pekerjaan
+// 2. Gudang — HARUS BERIRISAN dengan window.currentUser.gudang_penempatan
+//    (dicek pakai window.normalisasiGudang biar konsisten format array)
+// Dua-duanya harus LOLOS (AND), bukan salah satu (OR).
+//
+// Aturan jatuh-aman SAMA di kedua dimensi (konsisten dengan §6.3 Config
+// Akses): kalau datanya BELUM ADA tag sama sekali di dimensi itu (field
+// kosong/tidak ada), dimensi itu dianggap LOLOS — supaya data lama yang
+// belum sempat ditag tidak tiba-tiba hilang dari pandangan siapapun.
+// Sama juga kalau ADMIN sendiri belum punya jenis_pekerjaan/gudang di
+// profilnya — jatuh-aman ke LOLOS, bukan malah dikunci total.
+//
+// Dipakai untuk 3 bentuk data field, jenisPekerjaanData/gudangData
+// boleh: string tunggal (karyawan), array (gudang/shift bisa >1 jenis
+// pekerjaan; karyawan bisa >1 gudang), atau null/undefined (field tidak
+// relevan di tabel itu, misal Master Shift tidak punya dimensi gudang).
+window.bolehLihatData = function(jenisPekerjaanData, gudangData) {
   const role = (window.currentUser.role || '').toLowerCase();
-  if (role === 'owner' || role === 'superuser') return true;
-  if (!jenisPekerjaanData || (Array.isArray(jenisPekerjaanData) && jenisPekerjaanData.length === 0)) return true;
-  const jpAdmin = window.currentUser.jenis_pekerjaan;
-  if (!jpAdmin) return true; // Admin sendiri belum punya jenis_pekerjaan di profilnya -> jatuh-aman, tampil semua
-  return Array.isArray(jenisPekerjaanData) ? jenisPekerjaanData.includes(jpAdmin) : jenisPekerjaanData === jpAdmin;
+  if (role === 'owner' || role === 'superuser') return true; // bypass total, SAMA seperti cekIzinMenu/cekFiturAkses
+  const jpCocok = (() => {
+    if (!jenisPekerjaanData || (Array.isArray(jenisPekerjaanData) && jenisPekerjaanData.length === 0)) return true;
+    const jpAdmin = window.currentUser.jenis_pekerjaan;
+    if (!jpAdmin) return true;
+    return Array.isArray(jenisPekerjaanData) ? jenisPekerjaanData.includes(jpAdmin) : jenisPekerjaanData === jpAdmin;
+  })();
+  const gudangCocok = (() => {
+    if (!gudangData || (Array.isArray(gudangData) && gudangData.length === 0)) return true;
+    const gudangAdmin = window.normalisasiGudang(window.currentUser.gudang_penempatan);
+    if (gudangAdmin.length === 0) return true;
+    const gudangDataArr = Array.isArray(gudangData) ? gudangData : [gudangData];
+    return gudangDataArr.some(g => gudangAdmin.includes(g));
+  })();
+  return jpCocok && gudangCocok;
+};
+
+// Dipertahankan sebagai alias singkat — dipakai di titik yang CUMA
+// relevan dimensi jenis pekerjaan saja (misal Master Shift, tidak ada
+// field gudang sama sekali).
+window.bolehLihatJenisPekerjaan = function(jenisPekerjaanData) {
+  return window.bolehLihatData(jenisPekerjaanData, null);
 };
 // ============================================================================
 

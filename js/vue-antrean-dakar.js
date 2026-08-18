@@ -332,7 +332,7 @@ const AppAntreanDakar = {
         const list = [];
         snap.forEach(docSnap => {
           const d = docSnap.data();
-          if (window.bolehLihatJenisPekerjaan(d.jenis_pekerjaan)) list.push({ id: docSnap.id, data: d });
+          if (window.bolehLihatData(d.jenis_pekerjaan, d.gudang_penempatan)) list.push({ id: docSnap.id, data: d });
         });
         daftarPending.value = list;
       } catch (e) {

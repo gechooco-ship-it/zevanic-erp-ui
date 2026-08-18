@@ -356,6 +356,7 @@ const AppDaftarKaryawan = {
     const paginasi = reactive(usePaginasiFirestore(db, 'users', {
       perHalaman: 15,
       urutkanField: 'nama',
+      filterPeran: true, // PEDOMAN KERJA (18 Agt 2026) - lihat vue-paginasi.js
       petakan: (id, d) => {
         const gudangList = window.normalisasiGudang(d.gudang_penempatan);
         const jenisLokasiList = [...new Set(gudangList.map(g => petaJenisLokasi[g] || '-'))];
