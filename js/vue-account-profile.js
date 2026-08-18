@@ -16,7 +16,8 @@
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { db } from "./firebase-config.js";
+import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { db, auth } from "./firebase-config.js";
 import { DuaBaris } from './vue-components.js';
 
 // ---------------------------------------------------------------------------
@@ -106,6 +107,40 @@ const AppAccountProfile = {
   components: { DuaBaris, AjuBandingModal },
   setup() {
     const tabAktif = ref('account');
+
+    // ---- Keamanan: Update Password ----
+    const passwordLama = ref('');
+    const passwordBaruKeamanan = ref('');
+    const menyimpanPasswordKeamanan = ref(false);
+
+    async function updatePasswordKeamanan() {
+      if (!passwordLama.value || !passwordBaruKeamanan.value) return alert("Isi password lama dan password baru!");
+      if (passwordBaruKeamanan.value.length < 6) return alert("Password baru minimal 6 karakter!");
+      menyimpanPasswordKeamanan.value = true;
+      try {
+        // Reauthenticate DULU pakai password lama — supaya updatePassword tidak
+        // ditolak Firebase karena sesi dianggap "tidak baru login" (sama
+        // seperti risiko auth/requires-recent-login yang dicatat di vue-login.js).
+        const credential = EmailAuthProvider.credential(window.currentUser.email, passwordLama.value);
+        await reauthenticateWithCredential(auth.currentUser, credential);
+        await updatePassword(auth.currentUser, passwordBaruKeamanan.value);
+        alert("Password berhasil diperbarui!");
+        passwordLama.value = '';
+        passwordBaruKeamanan.value = '';
+      } catch (e) {
+        console.error("Gagal update password:", e);
+        if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+          alert("Password lama salah.");
+        } else if (e.code === 'auth/weak-password') {
+          alert("Password baru terlalu lemah, minimal 6 karakter.");
+        } else if (e.code === 'auth/too-many-requests') {
+          alert("Terlalu banyak percobaan gagal. Coba lagi beberapa saat.");
+        } else {
+          alert("Gagal memperbarui password: " + e.message);
+        }
+      }
+      menyimpanPasswordKeamanan.value = false;
+    }
 
     // ---- Account (QR/ID) ----
     // PENTING: window.currentUser adalah objek biasa (bukan reactive Vue),
@@ -385,6 +420,7 @@ const AppAccountProfile = {
     return {
       tabAktif, pindahTab, muatAccountDisplay,
       namaTampil, idAppTampil, jabatanTampil, qrUrl, clockOut, keluar,
+      passwordLama, passwordBaruKeamanan, menyimpanPasswordKeamanan, updatePasswordKeamanan,
       form, menyimpanForm, simpanDataDiri,
       formTerbuka, opsiAlasanIzin, opsiAlasanCuti, izin, cuti, lembur,
       bukaFormIzin, tutupFormIzin, ajukanIzin,
@@ -685,9 +721,9 @@ const AppAccountProfile = {
       <div class="gc-card" style="font-size:12.5px;">
         <h3 style="font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;"><i class="fas fa-shield-alt" style="color:var(--danger); margin-right:8px;"></i> Update Password</h3>
         <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:14px;">Ubah kata sandi Anda secara berkala untuk menjaga keamanan akun.</p>
-        <div class="gc-field"><label>Password Lama</label><input type="password"></div>
-        <div class="gc-field"><label>Password Baru</label><input type="password"></div>
-        <button class="btn-primary block" style="background:var(--danger);">Update Password</button>
+        <div class="gc-field"><label>Password Lama</label><input v-model="passwordLama" type="password"></div>
+        <div class="gc-field"><label>Password Baru (min. 6 karakter)</label><input v-model="passwordBaruKeamanan" type="password"></div>
+        <button @click="updatePasswordKeamanan" :disabled="menyimpanPasswordKeamanan" class="btn-primary block" style="background:var(--danger);">{{ menyimpanPasswordKeamanan ? 'Menyimpan...' : 'Update Password' }}</button>
       </div>
     </div>
 

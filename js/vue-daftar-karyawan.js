@@ -419,6 +419,11 @@ const AppDaftarKaryawan = {
       </div>
       <button @click="muat" class="btn-outline filled">Muat Data</button>
     </div>
+    <div v-if="!memuat" style="background:#fffbe0; border:2px solid orange; border-radius:12px; padding:12px; margin-top:12px; font-size:11px; font-family:monospace; white-space:pre-wrap; word-break:break-all;">
+      DEBUG SEMENTARA (hapus setelah beres) — total baris: {{ paginasi.dataHalaman.length }} | adaBerikutnya: {{ paginasi.adaBerikutnya }} | errorPaginasi: {{ paginasi.errorPaginasi || '(kosong)' }}
+      ---RAW BARIS PERTAMA---
+      {{ JSON.stringify(paginasi.dataHalaman[0] || {}, null, 2) }}
+    </div>
     <div class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line); margin-top:16px;">
       <table class="gc-table">
         <thead>
@@ -435,6 +440,7 @@ const AppDaftarKaryawan = {
         </thead>
         <tbody>
           <tr v-if="memuat"><td colspan="8" style="text-align:center; padding:20px; color:var(--text-faint);">Memuat data user...</td></tr>
+          <tr v-else-if="paginasi.errorPaginasi"><td colspan="8" style="text-align:center; padding:20px; color:var(--danger);">{{ paginasi.errorPaginasi }}</td></tr>
           <tr v-else-if="paginasi.dataHalaman.length === 0"><td colspan="8" style="text-align:center; padding:20px; color:var(--text-faint);">Belum ada data karyawan.</td></tr>
           <tr v-for="d in paginasi.dataHalaman" :key="d.id">
             <td class="freeze freeze-left">
