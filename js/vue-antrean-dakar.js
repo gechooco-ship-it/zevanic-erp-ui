@@ -38,7 +38,7 @@
 // Dipakai ulang: GudangCheckboxSelect (vue-components.js).
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { GudangCheckboxSelect } from './vue-components.js';
 
@@ -70,6 +70,7 @@ async function kirimEmailLinkPassword(email, nama, token) {
     message: { subject: subjek, text: isiEmail },
     dikirim_pada: serverTimestamp()
   });
+  return link; // BARU — supaya Admin bisa lihat/salin link LANGSUNG, tidak cuma andalkan email masuk
 }
 
 const AntreanDakarCard = {
@@ -142,6 +143,18 @@ const AntreanDakarCard = {
       if (props.data.foto_ktp && window.bukaPreviewFoto) window.bukaPreviewFoto(props.data.foto_ktp);
     }
 
+    // BARU — link ditampilkan LANGSUNG di kartu (bukan cuma dikirim lewat
+    // email), supaya Admin bisa tes/bagikan manual (WhatsApp, dsb) tanpa
+    // bergantung ke email masuk atau tidak (bisa nyangkut Spam, dsb).
+    const linkTerakhir = ref('');
+    const linkTersalin = ref(false);
+    function salinLink() {
+      navigator.clipboard.writeText(linkTerakhir.value).then(() => {
+        linkTersalin.value = true;
+        setTimeout(() => { linkTersalin.value = false; }, 2000);
+      });
+    }
+
     // "Setujui" — SEKARANG cuma simpan data kerja + generate token + kirim
     // link. TIDAK bikin akun Auth apapun di titik ini.
     async function setujui() {
@@ -168,8 +181,7 @@ const AntreanDakarCard = {
           disetujui_pada: serverTimestamp(),
           disetujui_oleh: window.currentUser.name || window.currentUser.email
         });
-        await kirimEmailLinkPassword(props.emailId, props.data.nama, token);
-        alert("Link \"Buat Password\" sudah dikirim ke " + props.emailId + ". Berlaku " + MASA_BERLAKU_MENIT + " menit.");
+        linkTerakhir.value = await kirimEmailLinkPassword(props.emailId, props.data.nama, token);
         emit('diproses');
       } catch (e) {
         console.error("Gagal menyetujui karyawan:", e);
@@ -195,8 +207,7 @@ const AntreanDakarCard = {
           token_kadaluarsa: Timestamp.fromDate(kadaluarsa),
           token_terverifikasi: false
         });
-        await kirimEmailLinkPassword(props.emailId, props.data.nama, token);
-        alert("Link baru sudah dikirim ke " + props.emailId + ". Berlaku " + MASA_BERLAKU_MENIT + " menit lagi.");
+        linkTerakhir.value = await kirimEmailLinkPassword(props.emailId, props.data.nama, token);
         emit('diproses');
       } catch (e) {
         console.error("Gagal assign ulang:", e);
@@ -228,7 +239,7 @@ const AntreanDakarCard = {
     onMounted(async () => { await window.authReady; muatOpsi(); });
     return {
       form, opsiStatusKerja, daftarShift, opsiJabatan, opsiStatusKaryawan, memproses,
-      sudahDiSetujui, sudahKadaluarsa, sisaWaktuTeks,
+      sudahDiSetujui, sudahKadaluarsa, sisaWaktuTeks, linkTerakhir, linkTersalin, salinLink,
       lihatFotoBesar, setujui, assignUlang, tolak
     };
   },
@@ -244,6 +255,15 @@ const AntreanDakarCard = {
         </div>
         <span v-if="sudahDiSetujui && sudahKadaluarsa" class="tag danger">Link kadaluarsa</span>
         <span v-else-if="sudahDiSetujui" class="tag warn">Menunggu Buat Password</span>
+      </div>
+
+      <div v-if="linkTerakhir" style="background:var(--ok-light); border:1px dashed var(--ok); border-radius:12px; padding:12px 14px; margin-bottom:14px;">
+        <p style="font-size:10.5px; font-weight:700; color:var(--ok); margin-bottom:6px;"><i class="fas fa-link" style="margin-right:5px;"></i> Link "Buat Password" (juga sudah coba dikirim lewat email):</p>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <input :value="linkTerakhir" readonly onclick="this.select()" style="flex:1; font-size:10.5px; padding:7px 10px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--text-muted); font-family:monospace;">
+          <button @click="salinLink" class="icon-btn" style="flex-shrink:0;"><i :class="linkTersalin ? 'fa-check' : 'fa-copy'" class="fas"></i></button>
+        </div>
+        <p style="font-size:10px; color:var(--text-faint); margin-top:6px;">Bisa dibagikan manual (WhatsApp, dsb) — berguna kalau emailnya belum/tidak masuk.</p>
       </div>
 
       <template v-if="!sudahDiSetujui">
@@ -323,6 +343,36 @@ const AppAntreanDakar = {
     const daftarPending = ref([]);
     const memuat = ref(true);
     const errorMuat = ref('');
+    const memprosesUji = ref(false);
+
+    // BARU — supaya bisa tes alur Setujui -> token -> link "Buat Password"
+    // TANPA perlu tunggu ada orang benar-benar daftar & lolos OTP dulu.
+    // Cuma Owner (dicek juga via Firestore Rules: create pendaftaran_pending
+    // sekarang boleh isAdminLevel() langsung, tidak wajib lolos OTP lagi).
+    async function buatDataUji() {
+      if (!confirm("Buat 1 data pendaftaran PALSU buat testing? Nanti muncul di daftar di bawah, proses Setujui/Tolak SAMA seperti data asli — tinggal dihapus (Tolak) kalau sudah selesai tes.")) return;
+      memprosesUji.value = true;
+      try {
+        const stempel = Date.now();
+        const emailUji = `data.uji.${stempel}@zevanic.test`;
+        const opsiJp = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
+        await setDoc(doc(db, "pendaftaran_pending", emailUji), {
+          email: emailUji,
+          nama: "DATA UJI " + new Date(stempel).toLocaleString('id-ID'),
+          nik: "3200000000" + String(stempel).slice(-6),
+          hp: "0812" + String(stempel).slice(-8),
+          jenis_pekerjaan: opsiJp[0] || '',
+          foto_ktp: '',
+          dibuat_pada: serverTimestamp()
+        });
+        alert("Data uji dibuat: " + emailUji + "\n\nSekarang muncul di daftar di bawah — coba klik Setujui seperti biasa buat lihat link \"Buat Password\"-nya.");
+        muat();
+      } catch (e) {
+        console.error("Gagal membuat data uji:", e);
+        alert("Gagal membuat data uji: " + e.message);
+      }
+      memprosesUji.value = false;
+    }
 
     async function muat() {
       memuat.value = true;
@@ -343,7 +393,7 @@ const AppAntreanDakar = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { isOwnerRole, daftarPending, memuat, errorMuat, muat };
+    return { isOwnerRole, daftarPending, memuat, errorMuat, muat, memprosesUji, buatDataUji };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none;">
@@ -352,7 +402,10 @@ const AppAntreanDakar = {
         <p style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Pendaftar baru TIDAK punya akun login sama sekali sampai mereka sendiri membuat password lewat link email.</p>
         <p v-if="!isOwnerRole" style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;"><i class="fas fa-filter" style="margin-right:5px;"></i>Cuma nampilin jenis pekerjaan yang sama dengan profil Anda.</p>
       </div>
-      <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
+      <div style="display:flex; gap:8px;">
+        <button v-if="isOwnerRole" @click="buatDataUji" :disabled="memprosesUji" class="btn-outline" style="border-color:var(--ok); color:var(--ok);" title="Khusus testing - bikin data pendaftaran palsu"><i class="fas fa-flask" style="margin-right:6px;"></i> Buat Data Uji</button>
+        <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
+      </div>
     </div>
 
     <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint); font-size:12px; margin-top:16px;">
