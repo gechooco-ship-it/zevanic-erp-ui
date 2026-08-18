@@ -353,7 +353,7 @@ const AppDaftarKaryawan = {
     // js/vue-paginasi.js) — cuma tarik 15 karyawan per halaman dari
     // server, bukan tarik SEMUA lalu potong di JS seperti sebelumnya.
     // Diurutkan berdasarkan nama supaya urutannya stabil & masuk akal.
-    const paginasi = usePaginasiFirestore(db, 'users', {
+    const paginasi = reactive(usePaginasiFirestore(db, 'users', {
       perHalaman: 15,
       urutkanField: 'nama',
       petakan: (id, d) => {
@@ -365,9 +365,7 @@ const AppDaftarKaryawan = {
           idGabungan: (d.id_karyawan || '-') + ' / ' + (d.id_app || '-')
         };
       }
-    });
-
-    async function muat() {
+    }));
       memuat.value = true;
       await muatPetaGudang();
       await paginasi.muatUlang();
@@ -418,11 +416,6 @@ const AppDaftarKaryawan = {
         <p style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Master kontrol HR untuk edit role & status.</p>
       </div>
       <button @click="muat" class="btn-outline filled">Muat Data</button>
-    </div>
-    <div v-if="!memuat" style="background:#fffbe0; border:2px solid orange; border-radius:12px; padding:12px; margin-top:12px; font-size:11px; font-family:monospace; white-space:pre-wrap; word-break:break-all;">
-      DEBUG SEMENTARA (hapus setelah beres) — total baris: {{ paginasi.dataHalaman.length }} | adaBerikutnya: {{ paginasi.adaBerikutnya }} | errorPaginasi: {{ paginasi.errorPaginasi || '(kosong)' }}
-      ---RAW BARIS PERTAMA---
-      {{ JSON.stringify(paginasi.dataHalaman[0] || {}, null, 2) }}
     </div>
     <div class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line); margin-top:16px;">
       <table class="gc-table">
