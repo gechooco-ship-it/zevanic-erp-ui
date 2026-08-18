@@ -366,6 +366,8 @@ const AppDaftarKaryawan = {
         };
       }
     }));
+
+    async function muat() {
       memuat.value = true;
       await muatPetaGudang();
       await paginasi.muatUlang();
