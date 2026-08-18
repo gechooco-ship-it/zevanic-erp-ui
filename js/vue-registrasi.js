@@ -132,6 +132,10 @@ const AppRegistrasi = {
       generateId();
       tahap.value = 'form';
       if (daftarKabupaten.value.length === 0) await muatKabupaten();
+      if (opsiJenisPekerjaan.value.length === 0) {
+        opsiJenisPekerjaan.value = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
+        if (opsiJenisPekerjaan.value.length > 0) form.jenisPekerjaan = opsiJenisPekerjaan.value[0];
+      }
     }
 
     function gantiEmail() {
@@ -147,12 +151,13 @@ const AppRegistrasi = {
     const menyimpan = ref(false);
 
     const daftarKabupaten = ref([]);
+    const opsiJenisPekerjaan = ref([]);
     const daftarKecTinggal = ref([]);
     const daftarKecKtp = ref([]);
     const samaAlamat = ref(false);
 
     const form = reactive({
-      nik: '', nama: '', hp: '',
+      nik: '', nama: '', hp: '', jenisPekerjaan: '',
       gender: 'Pria', tempatLahir: '', tgl: '',
       tinggalKab: '', tinggalKec: '', tinggalDetail: '',
       ktpKab: '', ktpKec: '', ktpDetail: '',
@@ -229,6 +234,7 @@ const AppRegistrasi = {
           nama: form.nama.trim(),
           name: form.nama.trim(),
           nik: form.nik.trim(),
+          jenis_pekerjaan: form.jenisPekerjaan,
           hp: form.hp.trim(),
           gender: form.gender,
           tempatLahir: form.tempatLahir,
@@ -286,7 +292,7 @@ const AppRegistrasi = {
       kodeOtp.value = '';
       hentikanCountdownOtp();
       Object.assign(form, {
-        nik: '', nama: '', hp: '',
+        nik: '', nama: '', hp: '', jenisPekerjaan: '',
         gender: 'Pria', tempatLahir: '', tgl: '',
         tinggalDetail: '', ktpDetail: '',
         nikah: 'Lajang', tanggungan: '',
@@ -305,7 +311,7 @@ const AppRegistrasi = {
       tahap, emailInput, mengirimOtp, kirimOtp, kirimUlangOtp, gantiEmail,
       kodeOtp, memverifikasiOtp, verifikasiOtp, otpCountdown, formatCountdownOtp,
       idKaryawan, idApp, ktpPreview, menyimpan, form, samaAlamat,
-      daftarKabupaten, daftarKecTinggal, daftarKecKtp,
+      daftarKabupaten, daftarKecTinggal, daftarKecKtp, opsiJenisPekerjaan,
       muatKecTinggal, muatKecKtp, salinAlamat,
       pilihFotoKtp, lihatFotoBesar, daftar, tutup, resetForm
     };
@@ -375,6 +381,7 @@ const AppRegistrasi = {
             </div>
             <div class="gc-field"><label>NIK KTP (16 angka) *</label><input v-model="form.nik" type="text" maxlength="16" placeholder="3204xxxxxxxxxxxx"></div>
             <div class="gc-field"><label>Nama lengkap (sesuai KTP) *</label><input v-model="form.nama" type="text" placeholder="Nama lengkap"></div>
+            <div class="gc-field"><label>Jenis pekerjaan *</label><select v-model="form.jenisPekerjaan"><option v-for="o in opsiJenisPekerjaan" :key="o" :value="o">{{ o }}</option></select></div>
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; padding-top:12px; border-top:1px solid var(--line); margin-top:8px;">
             <div class="gc-field"><label>Email login</label><input :value="emailInput" type="email" readonly style="background:var(--ivory-dim); color:var(--text-muted);"></div>

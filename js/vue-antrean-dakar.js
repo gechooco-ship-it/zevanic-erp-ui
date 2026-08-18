@@ -64,25 +64,28 @@ const AntreanDakarCard = {
   setup(props, { emit }) {
     const form = reactive({
       statusKerja: 'Aktif',
-      jenisPekerjaan: '',
+      shift: '',
       jabatan: '',
       statusKaryawan: '',
       gudang: []
     });
     const opsiStatusKerja = ref([]);
-    const opsiJenisPekerjaan = ref([]);
+    const daftarShift = ref([]);
     const opsiJabatan = ref([]);
     const opsiStatusKaryawan = ref([]);
     const memproses = ref(false);
 
     async function muatOpsi() {
       opsiStatusKerja.value = await window.ambilMasterList('status_kerja');
-      opsiJenisPekerjaan.value = await window.ambilMasterList('jenis_pekerjaan');
+      const qShift = await getDocs(collection(db, "master_shift"));
+      const listShift = [];
+      qShift.forEach(docSnap => listShift.push(docSnap.data()));
+      daftarShift.value = listShift;
       opsiJabatan.value = await window.ambilMasterList('jabatan');
       opsiStatusKaryawan.value = await window.ambilMasterList('status_karyawan');
 
       form.statusKerja = opsiStatusKerja.value.includes('Aktif') ? 'Aktif' : (opsiStatusKerja.value[0] || '');
-      form.jenisPekerjaan = opsiJenisPekerjaan.value[0] || '';
+      form.shift = daftarShift.value[0]?.nama_shift || '';
       form.jabatan = opsiJabatan.value[0] || '';
       form.statusKaryawan = opsiStatusKaryawan.value[0] || '';
     }
@@ -126,7 +129,7 @@ const AntreanDakarCard = {
         await setDoc(doc(db, "users", props.emailId), {
           ...props.data,
           status_kerja: form.statusKerja,
-          jenis_pekerjaan: form.jenisPekerjaan,
+          nama_shift: form.shift,
           // Role SENGAJA hardcode "operator" di sini — supaya siapapun
           // yang approve tidak bisa memberi akses lebih tinggi ke akun
           // baru. Role cuma bisa dinaikkan Owner lewat Hak Akses,
@@ -135,7 +138,6 @@ const AntreanDakarCard = {
           jabatan: form.jabatan,
           status_karyawan: form.statusKaryawan,
           gudang_penempatan: form.gudang,
-          nama_shift: "",
           status_approval: "APPROVED",
           wajib_ganti_password: true,
           disetujui_pada: serverTimestamp(),
@@ -195,7 +197,7 @@ const AntreanDakarCard = {
     }
 
     onMounted(async () => { await window.authReady; muatOpsi(); });
-    return { form, opsiStatusKerja, opsiJenisPekerjaan, opsiJabatan, opsiStatusKaryawan, memproses, lihatFotoBesar, setujui, tolak };
+    return { form, opsiStatusKerja, daftarShift, opsiJabatan, opsiStatusKaryawan, memproses, lihatFotoBesar, setujui, tolak };
   },
   template: `
     <div class="gc-card">
@@ -216,9 +218,9 @@ const AntreanDakarCard = {
           </select>
         </div>
         <div class="gc-field" style="margin-bottom:0;">
-          <label style="font-size:10.5px;">Jenis pekerjaan</label>
-          <select v-model="form.jenisPekerjaan" style="padding:7px 10px; font-size:12px;">
-            <option v-for="o in opsiJenisPekerjaan" :key="o" :value="o">{{ o }}</option>
+          <label style="font-size:10.5px;">Jadwal shift</label>
+          <select v-model="form.shift" style="padding:7px 10px; font-size:12px;">
+            <option v-for="s in daftarShift" :key="s.nama_shift" :value="s.nama_shift">{{ s.nama_shift }} ({{ s.jam_masuk }} - {{ s.jam_keluar }})</option>
           </select>
         </div>
         <div class="gc-field" style="margin-bottom:0;">
@@ -255,18 +257,25 @@ const AppAntreanDakar = {
   setup() {
     const daftarPending = ref([]);
     const memuat = ref(true);
+    const errorMuat = ref('');
 
     async function muat() {
       memuat.value = true;
-      const snap = await getDocs(collection(db, "pendaftaran_pending"));
-      const list = [];
-      snap.forEach(docSnap => list.push({ id: docSnap.id, data: docSnap.data() }));
-      daftarPending.value = list;
+      errorMuat.value = '';
+      try {
+        const snap = await getDocs(collection(db, "pendaftaran_pending"));
+        const list = [];
+        snap.forEach(docSnap => list.push({ id: docSnap.id, data: docSnap.data() }));
+        daftarPending.value = list;
+      } catch (e) {
+        console.error("Gagal memuat antrean pendaftaran:", e);
+        errorMuat.value = 'Gagal memuat data (' + (e.code || e.message) + '). Kemungkinan izin akses (role Anda) belum ter-refresh — coba Logout lalu Login lagi.';
+      }
       memuat.value = false;
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { daftarPending, memuat, muat };
+    return { daftarPending, memuat, errorMuat, muat };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none;">
@@ -280,6 +289,7 @@ const AppAntreanDakar = {
     <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint); font-size:12px; margin-top:16px;">
       <i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i>Memuat antrean karyawan baru...
     </div>
+    <div v-else-if="errorMuat" style="text-align:center; padding:40px 0; color:var(--danger); font-size:12px; margin-top:16px; background:var(--danger-light); border-radius:18px;">{{ errorMuat }}</div>
     <div v-else-if="daftarPending.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px; margin-top:16px;">
       <i class="fas fa-user-check" style="font-size:34px; color:var(--ok); margin-bottom:10px; display:block;"></i>
       <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Tidak ada antrean</h4>
