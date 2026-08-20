@@ -259,6 +259,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-absensi-lembur': 'pastikanMountAntreanLembur',
     'sub-absensi-rekap': 'pastikanMountRiwayatAbsensi',
     'sub-keuangan-antrean': 'pastikanMountAntreanReimburse',
+    'sub-keuangan-kendaraan': 'pastikanMountMasterKendaraan',
     'sub-keuangan-kategori': 'pastikanMountMasterKeuangan',
     'sub-karyawan-antrean': 'pastikanMountAntreanDakar',
     'sub-karyawan-config': 'pastikanMountConfigKaryawan',

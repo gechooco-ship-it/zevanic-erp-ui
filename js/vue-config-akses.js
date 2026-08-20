@@ -45,6 +45,7 @@ const DAFTAR_MENU = [
   { id: 'antrean_absensi', label: 'Antrean Absensi', kategori: 'Master Absensi' },
   { id: 'antrean_lembur', label: 'Antrean Lembur', kategori: 'Master Absensi' },
   { id: 'antrean_reimburse', label: 'Antrean Reimburse', kategori: 'Master Keuangan' },
+  { id: 'master_kendaraan', label: 'Master Kendaraan', kategori: 'Master Keuangan' },
   { id: 'master_keuangan', label: 'Master Keuangan', kategori: 'Master Keuangan' },
   { id: 'riwayat_absensi', label: 'Riwayat All Absensi', kategori: 'Master Absensi' },
   { id: 'antrean_dakar', label: 'Antrean Dakar', kategori: 'Master Karyawan' },

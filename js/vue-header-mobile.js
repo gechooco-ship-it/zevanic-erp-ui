@@ -34,6 +34,7 @@ const LABEL_SUBTAB = {
   'sub-absensi-lembur': 'Antrean Lembur',
   'sub-absensi-rekap': 'Riwayat All Absensi',
   'sub-keuangan-antrean': 'Antrean Reimburse',
+  'sub-keuangan-kendaraan': 'Master Kendaraan',
   'sub-keuangan-kategori': 'Kategori Keuangan',
   'sub-karyawan-antrean': 'Antrean Dakar',
   'sub-karyawan-data': 'Daftar Karyawan',

@@ -1,0 +1,266 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Role diambil LANGSUNG dari token login (custom claim), BUKAN dari
+    // get() ke Firestore lagi — jadi pengecekan ini GRATIS, tidak dihitung
+    // sebagai read sama sekali. Custom claim ini disetel otomatis oleh
+    // Cloud Function syncRoleClaim setiap kali field `role` di dokumen
+    // users/{email} berubah (lihat functions/index.js).
+    function role() {
+      return request.auth != null ? request.auth.token.role : null;
+    }
+    function isAdminLevel() {
+      return role() in ['admin', 'pic', 'owner', 'superuser'];
+    }
+    function isOwnerLevel() {
+      return role() in ['owner', 'superuser'];
+    }
+    // PENTING: beda dari isOwnerLevel() di atas — ini SENGAJA TIDAK
+    // menyertakan 'superuser'. Dipakai khusus untuk Config Akses & Hak
+    // Akses (menu.js/vue-config-akses.js, vue-hak-akses.js), yang secara
+    // eksplisit diminta cuma boleh diakses Owner asli, bukan Superuser
+    // sekalipun (berbeda dari sisa Master Karyawan lain yang keduanya
+    // setara).
+    function isOwnerOnly() {
+      return role() == 'owner';
+    }
+    function login() {
+      return request.auth != null;
+    }
+    // ---- users: profil karyawan ----
+    match /users/{email} {
+      allow read: if login() && (request.auth.token.email == email || isAdminLevel());
+      // DIROMBAK LAGI (18 Agt 2026, revisi ke-2): akun SEKARANG dibuat
+      // SENDIRI oleh karyawan (lewat link email "Buat Password"), BUKAN
+      // Admin lagi — instance Firebase kedua (buatAkunTanpaGangguSesi)
+      // sudah TIDAK DIPAKAI, karena tidak ada sesi Admin yang perlu
+      // dilindungi di titik ini (karyawan belum login sebagai siapapun).
+      // Syaratnya: dokumen pendaftaran_pending dengan email yang SAMA
+      // sudah lolos verifikasi token (token_terverifikasi==true) — bukti
+      // sudah melalui approval Admin + klik link yang benar dari email.
+      // role/status_approval TETAP dipaksa nilai aman, supaya orangnya
+      // sendiri tidak bisa naikkan aksesnya sendiri lewat request ini.
+      allow create: if
+        (isAdminLevel()
+          && request.resource.data.role == 'operator'
+          && request.resource.data.status_approval == 'APPROVED')
+        || (request.auth.token.email == email
+          && get(/databases/$(database)/documents/pendaftaran_pending/$(email)).data.token_terverifikasi == true
+          && request.resource.data.role == 'operator'
+          && request.resource.data.status_approval == 'APPROVED');
+      // Update: admin ke atas boleh ubah siapa saja. Karyawan biasa boleh
+      // update PROFIL SENDIRI, tapi tidak boleh ubah role/status_approval/
+      // gudang_penempatan miliknya sendiri.
+      allow update: if isAdminLevel()
+        || (request.auth.token.email == email
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.status_approval == resource.data.status_approval
+            && request.resource.data.gudang_penempatan == resource.data.gudang_penempatan);
+      allow delete: if isOwnerLevel();
+    }
+    // ---- pendaftaran_pending: form registrasi SEBELUM diverifikasi Admin ----
+    // Belum ada akun Firebase Auth sama sekali untuk data di sini. Create
+    // CUMA boleh kalau email ini SUDAH lolos verifikasi OTP (dicek dari
+    // koleksi otp_email — lihat js/vue-otp.js buat model keamanan
+    // lengkapnya) — tanpa OTP valid, siapapun (termasuk belum login) tetap
+    // TIDAK BISA masuk sini.
+    //
+    // DIROMBAK LAGI (18 Agt 2026, revisi ke-2) — alur "Setujui" Admin
+    // SEKARANG cuma generate token + kirim link email, BUKAN langsung bikin
+    // akun. Karyawan yang klik link (masih belum login) verifikasi token-nya
+    // lewat TULIS (pola SAMA PERSIS seperti otp_email — lihat Cabang B di
+    // bawah): kalau tebakan_token cocok DAN belum kadaluarsa, tulisan itu
+    // berhasil dan token_terverifikasi otomatis ke-set true. Field
+    // token_buat_password/token_kadaluarsa DITULIS ADMIN saat klik
+    // "Setujui"/"Assign Ulang" — cuma isAdminLevel() yang boleh menulis
+    // field-field itu (Cabang A).
+    //
+    // Baca (read) BOLEH kalau sudah token_terverifikasi==true — SENGAJA
+    // tidak disyaratkan request.auth di situ (karyawan belum punya sesi
+    // sama sekali di titik itu), TAPI ini cuma kebuka SEBENTAR (antara
+    // verifikasi token & akun jadi, dokumennya langsung dihapus) dan CUMA
+    // bisa dicapai kalau sudah tahu token yang benar duluan.
+    //
+    // Dihapus SENDIRI oleh karyawan (bukan Admin lagi) setelah akun Auth +
+    // profil users berhasil dibuat, ATAU oleh Admin kalau ditolak.
+    match /pendaftaran_pending/{email} {
+      allow read: if isAdminLevel() || resource.data.token_terverifikasi == true;
+      allow create: if isAdminLevel() || get(/databases/$(database)/documents/otp_email/$(email)).data.terverifikasi == true;
+      allow update: if
+        // Cabang A — Admin generate/assign ulang token saat Setujui.
+        isAdminLevel()
+        ||
+        // Cabang B — karyawan verifikasi token, pola SAMA seperti otp_email.
+        (
+          'tebakan_token' in request.resource.data
+          && resource.data.token_kadaluarsa > request.time
+          && request.resource.data.tebakan_token == resource.data.token_buat_password
+          && request.resource.data.token_terverifikasi == true
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tebakan_token', 'token_terverifikasi'])
+        );
+      allow delete: if isAdminLevel()
+        || (request.auth != null && request.auth.token.email == email && resource.data.token_terverifikasi == true);
+    }
+    // ---- absensi: presensi karyawan ----
+    match /absensi/{docId} {
+      allow read: if login();
+      allow create: if login() && request.resource.data.email == request.auth.token.email;
+      allow update: if isAdminLevel() || request.auth.token.email == resource.data.email;
+      allow delete: if isAdminLevel();
+    }
+    // ---- reimburse: pengajuan reimburse, persetujuan berjenjang 3 tahap ----
+    // (dibangun 19 Agt 2026, rencana Hilman) Operator -> Admin Finance ->
+    // PIC -> Owner. 1 field `tahap` yang jadi penanda ada di posisi mana
+    // (bukan 3 field status_acc terpisah kayak Absensi masuk/keluar) —
+    // beda desain SENGAJA, karena di sini SELALU cuma 1 tahap yang aktif
+    // di satu waktu (berurutan/sequential), tidak pernah 2 tahap
+    // bersamaan kayak Clock In+Out yang BISA sama2 pending.
+    //
+    // KUNCI KEAMANAN: siapa boleh update itu TERGANTUNG resource.data.tahap
+    // (tahap SAAT INI di database), BUKAN request.resource.data.tahap (isi
+    // baru yang diajukan) — supaya Admin Finance TIDAK BISA approve
+    // dokumen yang sebenarnya sudah lewat & sedang nunggu PIC/Owner
+    // (mencegah "loncat tahap").
+    //
+    // 'admin' role di sini artinya Admin Finance, 'pic' role artinya PIC
+    // — INI PERTAMA KALINYA di seluruh app kedua role ini beneran beda
+    // perilaku (sebelumnya SELALU disamakan lewat isAdminLevel()).
+    match /reimburse/{docId} {
+      allow read: if login();
+      allow create: if login()
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.tahap == 'menunggu_admin_finance'
+        && request.resource.data.jumlah is number
+        && request.resource.data.jumlah > 0;
+      allow update: if
+        (role() in ['admin', 'owner', 'superuser'] && resource.data.tahap == 'menunggu_admin_finance')
+        || (role() in ['pic', 'owner', 'superuser'] && resource.data.tahap == 'menunggu_pic')
+        || (role() in ['owner', 'superuser'] && resource.data.tahap == 'menunggu_owner');
+      // Hapus SENGAJA lebih ketat dari Absensi biasa (isAdminLevel()) —
+      // ini data UANG, cuma Owner/Superuser yang boleh hapus permanen.
+      allow delete: if isOwnerLevel();
+    }
+    // ---- master_gudang, master_shift, master_data: dibaca semua, ditulis admin ----
+    match /master_gudang/{docId} {
+      allow read: if login();
+      allow write: if isAdminLevel();
+    }
+    // master_kendaraan (19 Agt 2026) — daftar kendaraan + supir pemegang
+    // saat ini, dipakai form Ajukan Reimburse (monitoring bensin/servis
+    // per kendaraan). isAdminLevel() SUDAH termasuk pic+admin (Admin
+    // Finance & PIC boleh assign ulang supir — permintaan eksplisit
+    // Hilman, bukan cuma Owner).
+    match /master_kendaraan/{docId} {
+      allow read: if login();
+      allow write: if isAdminLevel();
+    }
+    match /master_shift/{docId} {
+      allow read: if login();
+      allow write: if isAdminLevel();
+    }
+    match /master_data/{docId} {
+      // FIX (18 Agt 2026) — SEBELUMNYA butuh login(), tapi koleksi ini
+      // dipakai form Registrasi (vue-registrasi.js: kabupaten, jenis
+      // pekerjaan) yang diisi orang yang BELUM PUNYA AKUN SAMA SEKALI.
+      // Bug nyata: dropdown kabupaten & jenis pekerjaan gagal diam-diam
+      // (permission-denied, tidak ada try/catch) buat siapapun yang
+      // belum login — dilaporkan tim lewat testing pertama alur ini
+      // benar-benar dari kondisi logout total. Aman dibuka publik: isinya
+      // cuma daftar pilihan dropdown (jenis pekerjaan, jabatan, status
+      // kerja, kabupaten, dst), tidak ada data pribadi apapun.
+      allow read: if true;
+      allow write: if isAdminLevel();
+    }
+    // ---- config: shared_secret WA Gateway — WRITE hanya Owner.
+    match /config/{docId} {
+      allow read: if login();
+      allow write: if isOwnerLevel();
+    }
+    // ---- wa_log: riwayat kirim WA ----
+    match /wa_log/{docId} {
+      allow read: if isAdminLevel();
+      allow create: if login();
+    }
+    // ---- akses_config: profil izin (Config Akses) & penghubung Role
+    // (Hak Akses menyimpan hasilnya di field `role` pada users/{email} di
+    // atas, bukan di sini — koleksi ini murni "cetak biru" profil
+    // View/Add/Edit/Delete/Print per menu). Dibatasi Owner ASLI saja,
+    // sesuai permintaan eksplisit — Superuser TIDAK termasuk di sini,
+    // beda dari koleksi lain yang menyamakan Owner+Superuser.
+    match /akses_config/{docId} {
+      allow read: if isOwnerOnly();
+      allow write: if isOwnerOnly();
+    }
+    // ---- pengumuman: Config Info, dibaca Home semua karyawan ----
+    match /pengumuman/{docId} {
+      allow read: if login();
+      allow write: if isAdminLevel();
+    }
+    // ---- quotes: Quote Harian (Kotak 3), Config Info, dibaca Home semua karyawan ----
+    match /quotes/{docId} {
+      allow read: if login();
+      allow write: if isAdminLevel();
+    }
+    // ---- otp_email: verifikasi kode OTP (registrasi & login perangkat baru) ----
+    // PENTING: "allow get" SENGAJA selalu false — kode aslinya TIDAK PERNAH
+    // boleh terbaca client manapun, verifikasi murni lewat percobaan tulis
+    // (rules yang membandingkan, client cuma tahu berhasil/gagal). Lihat
+    // penjelasan lengkap model keamanannya di js/vue-otp.js — SEBELUM ubah
+    // rule ini, WAJIB baca komentar di file itu dulu.
+    match /otp_email/{email} {
+      allow get: if false;
+      allow list: if false;
+      allow write: if
+        // CABANG A — minta kode baru (window.kirimOtpEmail): request TIDAK
+        // menyertakan field "tebakan". Dibatasi jeda 60 detik dari
+        // permintaan sebelumnya (kalau ada) ke email yang SAMA — mencegah
+        // spam kirim OTP berkali-kali ke 1 email dalam waktu singkat.
+        // SENGAJA boleh dari mana saja (termasuk BELUM login) karena saat
+        // registrasi awal, orangnya memang belum punya akun sama sekali.
+        (
+          !('tebakan' in request.resource.data)
+          && request.resource.data.terverifikasi == false
+          && (
+            !exists(/databases/$(database)/documents/otp_email/$(email))
+            || get(/databases/$(database)/documents/otp_email/$(email)).data.dibuat_pada < request.time - duration.value(60, 's')
+          )
+        )
+        ||
+        // CABANG B — coba verifikasi kode (window.verifikasiOtpEmail):
+        // tebakan HARUS PERSIS sama dengan kode asli yang tersimpan, dan
+        // belum kadaluarsa. Kalau kebetulan ada sesi login aktif, emailnya
+        // HARUS cocok sesi itu (cegah orang lain yang sedang login iseng
+        // menebak kode OTP milik email orang lain).
+        (
+          'tebakan' in request.resource.data
+          // isAdminLevel() ditambahkan (18 Agt 2026) — tanpa ini, Mail
+          // Gateway > Config & Tes OTP tidak bisa dites sama sekali: email
+          // login Admin pasti beda dari email tujuan tes, jadi syarat
+          // email==email di bawah selalu gagal untuk skenario tes.
+          // Konsekuensinya: role admin ke atas sekarang bisa verifikasi
+          // OTP untuk email siapapun (bukan cuma dirinya sendiri) — wajar,
+          // karena role ini sudah dipercaya luas di seluruh app.
+          && (request.auth == null || request.auth.token.email == email || isAdminLevel())
+          && resource.data.kadaluarsa > request.time
+          && request.resource.data.tebakan == resource.data.kode
+          && request.resource.data.terverifikasi == true
+        );
+    }
+    // ---- mail: "kotak pos" buat Extension Trigger Email — tulis di sini,
+    // Firebase yang kirim beneran. Dibatasi bentuknya (1 penerima, subjek
+    // wajib ada) supaya tidak gampang disalahgunakan kirim spam pakai akun
+    // SMTP kita. Boleh dari mana saja (termasuk belum login) karena OTP
+    // registrasi butuh ini SEBELUM orangnya punya akun.
+    match /mail/{docId} {
+      // Baca dibolehkan admin ke atas saja (buat tab Monitoring di Mail
+      // Gateway) — bukan siapa saja, karena isinya alamat email + isi
+      // pesan OTP orang lain.
+      allow read: if isAdminLevel();
+      allow create: if request.resource.data.to is list
+        && request.resource.data.to.size() == 1
+        && request.resource.data.message.subject is string
+        && request.resource.data.message.subject.size() > 0;
+      allow update, delete: if false;
+    }
+  }
+}

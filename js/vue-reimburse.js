@@ -15,7 +15,7 @@
 // 'pic' BENERAN beda perilaku (sebelumnya SELALU disamakan lewat
 // isAdminLevel() — lihat diskusi sebelumnya di STATUS-PROYEK.md).
 // 'admin' = Admin Finance (validator tahap 1), 'pic' = PIC (validator
-// tahap 2). Keduanya di-scope ke gudang sendiri (window.bolehLihatData),
+// tahap 2). Keduanya di-scope ke jenis_pekerjaan+gudang (window.bolehLihatData,
 // PERSIS pola yang sudah baku dipakai di Antrean Absensi/Lembur/Dakar.
 //
 // Keamanan SEBENARNYA (anti-loncat-tahap) ada di firestore.rules —
@@ -23,7 +23,7 @@
 // dari Console browser, Firestore Rules yang jadi penjaga terakhir.
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, addDoc, doc, updateDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { MasterDataCategory } from './vue-components.js';
 
@@ -107,7 +107,20 @@ function warnaTahap(tahap) {
 export const AjukanReimburseTab = {
   setup() {
     const opsiKategori = ref([]);
-    const form = reactive({ kategori: '', jumlah: '', keterangan: '', fotoBukti: '' });
+    const form = reactive({ kategori: '', jumlah: '', keterangan: '', fotoBukti: '', kendaraanId: '' });
+    const daftarKendaraan = ref([]);
+
+    async function muatDaftarKendaraan() {
+      try {
+        const snap = await getDocs(collection(db, "master_kendaraan"));
+        const list = [];
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        list.sort((a, b) => (a.plat_nomor || '').localeCompare(b.plat_nomor || ''));
+        daftarKendaraan.value = list;
+      } catch (e) {
+        console.error("Gagal muat daftar kendaraan:", e);
+      }
+    }
     const mengirim = ref(false);
     const riwayatSaya = ref([]);
     const memuatRiwayat = ref(true);
@@ -147,6 +160,7 @@ export const AjukanReimburseTab = {
 
       mengirim.value = true;
       try {
+        const kendaraanDipilih = daftarKendaraan.value.find(k => k.id === form.kendaraanId);
         await addDoc(collection(db, "reimburse"), {
           email: window.currentUser.email,
           nama_pegawai: window.currentUser.name,
@@ -156,11 +170,17 @@ export const AjukanReimburseTab = {
           jumlah: jumlahAngka,
           keterangan: form.keterangan || '',
           foto_bukti: form.fotoBukti,
+          // Kendaraan OPSIONAL — dititip plat+nama langsung (denormalisasi,
+          // pola sama seperti jenis_pekerjaan/hp/status_kerja di absensi)
+          // supaya Antrean Reimburse & laporan nanti TIDAK perlu baca
+          // master_kendaraan lagi cuma buat tampilkan plat nomornya.
+          kendaraan_id: form.kendaraanId || '',
+          kendaraan_plat: kendaraanDipilih ? kendaraanDipilih.plat_nomor : '',
           tahap: 'menunggu_admin_finance',
           diajukan_pada: serverTimestamp()
         });
         alert("Pengajuan reimburse berhasil dikirim, menunggu ACC Admin Finance.");
-        form.jumlah = ''; form.keterangan = ''; form.fotoBukti = '';
+        form.jumlah = ''; form.keterangan = ''; form.fotoBukti = ''; form.kendaraanId = '';
         await muatRiwayatSaya();
       } catch (e) {
         console.error("Gagal ajukan reimburse:", e);
@@ -173,9 +193,9 @@ export const AjukanReimburseTab = {
       if (url && window.bukaPreviewFoto) window.bukaPreviewFoto(url);
     }
 
-    onMounted(async () => { await window.authReady; await muatOpsiKategori(); await muatRiwayatSaya(); });
+    onMounted(async () => { await window.authReady; await muatOpsiKategori(); await muatDaftarKendaraan(); await muatRiwayatSaya(); });
     return {
-      opsiKategori, form, mengirim, pilihFoto, ajukan, lihatFotoBesar,
+      opsiKategori, form, mengirim, pilihFoto, ajukan, lihatFotoBesar, daftarKendaraan,
       riwayatSaya, memuatRiwayat, LABEL_TAHAP, warnaTahap, formatRupiah
     };
   },
@@ -186,6 +206,13 @@ export const AjukanReimburseTab = {
         <div class="gc-field">
           <label>Kategori Pengeluaran</label>
           <select v-model="form.kategori"><option v-for="k in opsiKategori" :key="k" :value="k">{{ k }}</option></select>
+        </div>
+        <div class="gc-field">
+          <label>Kendaraan (opsional — isi kalau terkait bensin/servis mobil)</label>
+          <select v-model="form.kendaraanId">
+            <option value="">Tidak terkait kendaraan</option>
+            <option v-for="k in daftarKendaraan" :key="k.id" :value="k.id">{{ k.plat_nomor }}{{ k.nama_kendaraan ? ' - ' + k.nama_kendaraan : '' }}</option>
+          </select>
         </div>
         <div class="gc-field">
           <label>Jumlah (Rp)</label>
@@ -280,6 +307,7 @@ const ReimburseCard = {
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; background:var(--ivory-dim); padding:14px; border-radius:14px; font-size:12px; margin-bottom:14px;">
         <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">Kategori</span> <b>{{ data.kategori || '-' }}</b></div>
         <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">Jumlah</span> <b style="color:var(--burgundy);">{{ formatRupiah(data.jumlah) }}</b></div>
+        <div v-if="data.kendaraan_plat"><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">Kendaraan</span> <b><i class="fas fa-truck" style="margin-right:4px; color:var(--text-faint);"></i>{{ data.kendaraan_plat }}</b></div>
         <div style="grid-column:1 / -1;"><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">Keterangan</span> <b>{{ data.keterangan || '-' }}</b></div>
       </div>
       <img v-if="data.foto_bukti" :src="data.foto_bukti" @click="lihatFotoBesar" style="width:64px; height:64px; border-radius:12px; object-fit:cover; cursor:pointer; margin-bottom:14px; border:1px solid var(--line);">
@@ -296,8 +324,24 @@ const AppAntreanReimburse = {
   components: { ReimburseCard },
   setup() {
     const daftarPending = ref([]);
+    const totalMentahSebelumFilter = ref(0); // BARU — diagnostik, lihat catatan di muat()
     const memuat = ref(true);
     const errorMuat = ref('');
+
+    // Filter Kendaraan — buat monitoring biaya per kendaraan (permintaan
+    // Hilman 19 Agt 2026). Client-side, dari data yang SUDAH ketarik
+    // (tidak nambah baca Firestore) — antrean ini kecil (cuma yang
+    // pending), jadi aman disaring di browser.
+    const filterKendaraan = ref('ALL');
+    const opsiKendaraan = computed(() => {
+      const set = new Set();
+      daftarPending.value.forEach(item => { if (item.data.kendaraan_plat) set.add(item.data.kendaraan_plat); });
+      return [...set].sort();
+    });
+    const daftarPendingTersaring = computed(() => {
+      if (filterKendaraan.value === 'ALL') return daftarPending.value;
+      return daftarPending.value.filter(item => item.data.kendaraan_plat === filterKendaraan.value);
+    });
 
     function tahapUntukRoleSaya() {
       const role = (window.currentUser.role || '').toLowerCase();
@@ -316,9 +360,19 @@ const AppAntreanReimburse = {
         if (!tahapSaya) { daftarPending.value = []; memuat.value = false; return; }
 
         const snap = await getDocs(query(collection(db, "reimburse"), where("tahap", "==", tahapSaya)));
+        totalMentahSebelumFilter.value = snap.size; // BARU — diagnostik: sebelum kena filter jenis_pekerjaan+gudang
         const list = [];
         snap.forEach(docSnap => {
           const d = docSnap.data();
+          // REVERT (19 Agt 2026) — sempat diganti ke bolehLihatGudangSaja
+          // (cuma cek gudang) karena dikira jenis_pekerjaan = jabatan
+          // (Supir vs Admin Finance, dianggap wajar beda). TERNYATA
+          // jenis_pekerjaan di app ini = BIDANG USAHA (Konveksi/Retail/
+          // Logistik, dipakai bareng 3 usaha Hilman dalam 1 sistem yang
+          // sama) — field itu WAJIB dicocokkan, supaya Admin Finance
+          // bisnis Konveksi TIDAK bisa lihat reimburse bisnis Logistik.
+          // Akar masalah SEBENARNYA: akun Admin Finance testing belum
+          // di-set jenis_pekerjaan="Logistik" di profil karyawannya.
           if (!window.bolehLihatData(d.jenis_pekerjaan, d.gudang)) return;
           list.push({ id: docSnap.id, data: d });
         });
@@ -331,7 +385,7 @@ const AppAntreanReimburse = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { daftarPending, memuat, errorMuat, muat, labelTahapSaya };
+    return { daftarPending, daftarPendingTersaring, totalMentahSebelumFilter, filterKendaraan, opsiKendaraan, memuat, errorMuat, muat, labelTahapSaya };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
@@ -343,17 +397,34 @@ const AppAntreanReimburse = {
       <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
     </div>
 
+    <div v-if="!memuat && opsiKendaraan.length > 0" style="margin-bottom:16px;">
+      <select v-model="filterKendaraan" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+        <option value="ALL">Semua kendaraan</option>
+        <option v-for="plat in opsiKendaraan" :key="plat" :value="plat"><i class="fas fa-truck"></i> {{ plat }}</option>
+      </select>
+    </div>
+
     <div v-if="memuat && daftarPending.length === 0" style="text-align:center; padding:40px 0; color:var(--text-faint);">
       <i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i><p style="font-size:12px;">Memuat antrean reimburse...</p>
     </div>
     <div v-else-if="errorMuat" style="text-align:center; padding:40px 0; color:var(--danger); font-size:12px; background:var(--danger-light); border-radius:18px;">{{ errorMuat }}</div>
-    <div v-else-if="daftarPending.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
+    <div v-else-if="daftarPending.length === 0 && totalMentahSebelumFilter === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
       <i class="fas fa-glass-cheers" style="font-size:40px; color:var(--blue-deep); margin-bottom:12px; display:block;"></i>
       <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Tidak ada antrean</h4>
       <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Semua reimburse yang jadi tanggung jawab Anda sudah diproses.</p>
     </div>
+    <div v-else-if="daftarPending.length === 0 && totalMentahSebelumFilter > 0" style="text-align:center; padding:56px 0; background:var(--warn-light); border:1.5px solid var(--warn); border-radius:18px;">
+      <i class="fas fa-triangle-exclamation" style="font-size:34px; color:var(--warn); margin-bottom:12px; display:block;"></i>
+      <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Ada {{ totalMentahSebelumFilter }} reimburse menunggu tahap Anda, tapi tidak ada yang cocok profil Anda</h4>
+      <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px; max-width:360px; margin-left:auto; margin-right:auto;">Kemungkinan besar Jenis Pekerjaan atau Gudang di profil Anda beda (walau kelihatan sama, sering ada spasi/huruf beda tipis) dari yang mengajukan. Cek ulang di Daftar Karyawan / Hak Akses.</p>
+    </div>
+    <div v-else-if="daftarPendingTersaring.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
+      <i class="fas fa-filter-circle-xmark" style="font-size:34px; color:var(--text-faint); margin-bottom:12px; display:block;"></i>
+      <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Tidak ada yang cocok</h4>
+      <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Tidak ada reimburse untuk kendaraan ini di tahap Anda saat ini.</p>
+    </div>
     <div v-else style="gap:14px;" class="grid grid-cols-1 md:grid-cols-2">
-      <reimburse-card v-for="item in daftarPending" :key="item.id" :doc-id="item.id" :data="item.data" @diproses="muat" />
+      <reimburse-card v-for="item in daftarPendingTersaring" :key="item.id" :doc-id="item.id" :data="item.data" @diproses="muat" />
     </div>
   `
 };
@@ -389,4 +460,142 @@ window.pastikanMountMasterKeuangan = function() {
   if (vmMasterKeuangan) return;
   const mountPoint = document.getElementById('vue-master-keuangan');
   if (mountPoint) vmMasterKeuangan = createApp(AppMasterKeuangan).mount('#vue-master-keuangan');
+};
+
+// ============================================================================
+// KOMPONEN 4 — Master Kendaraan: daftar kendaraan + supir pemegang SAAT
+// INI (bisa di-assign ulang kapan saja — rotasi antar supir, permintaan
+// eksplisit Hilman 19 Agt 2026). Dipakai form Ajukan Reimburse supaya
+// Admin Finance/PIC/Owner bisa monitor biaya bensin+servis PER KENDARAAN,
+// bukan cuma per orang (supir bisa gonta-ganti kendaraan dari waktu ke
+// waktu, kendaraan yang jadi acuan biaya, bukan orangnya).
+//
+// SENGAJA 1 dokumen per kendaraan (bukan 1 dokumen array semua kendaraan,
+// pola master_data biasa) — supaya assign ulang supir 1 kendaraan TIDAK
+// perlu baca+tulis ulang SELURUH daftar kendaraan (hindari resiko
+// tabrakan kalau 2 Admin assign kendaraan BEDA di waktu bersamaan),
+// PERSIS alasan yang sama kenapa master_gudang/master_shift juga begitu.
+// ============================================================================
+const MasterKendaraanManager = {
+  setup() {
+    const daftarKendaraan = ref([]);
+    const memuat = ref(true);
+    const platBaru = ref('');
+    const namaBaru = ref('');
+    const menyimpan = ref(false);
+    const daftarOperator = ref([]);
+
+    async function muat() {
+      memuat.value = true;
+      try {
+        const snap = await getDocs(collection(db, "master_kendaraan"));
+        const list = [];
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        list.sort((a, b) => (a.plat_nomor || '').localeCompare(b.plat_nomor || ''));
+        daftarKendaraan.value = list;
+      } catch (e) {
+        console.error("Gagal muat master kendaraan:", e);
+      }
+      memuat.value = false;
+    }
+
+    async function muatOperator() {
+      try {
+        // Dropdown assign supir dari SEMUA operator (bukan cuma Driver/
+        // Kurir) — konsisten dengan dropdown Kendaraan di form Reimburse
+        // yang juga terbuka buat semua operator.
+        const snap = await getDocs(query(collection(db, "users"), where("role", "==", "operator")));
+        const list = [];
+        snap.forEach(d => list.push({ email: d.id, nama: d.data().name || d.data().nama || d.id }));
+        list.sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
+        daftarOperator.value = list;
+      } catch (e) {
+        console.error("Gagal muat daftar operator:", e);
+      }
+    }
+
+    async function tambah() {
+      if (!platBaru.value.trim()) return alert("Isi plat nomor dulu.");
+      menyimpan.value = true;
+      try {
+        await addDoc(collection(db, "master_kendaraan"), {
+          plat_nomor: platBaru.value.trim().toUpperCase(),
+          nama_kendaraan: namaBaru.value.trim(),
+          supir_pemegang_email: '',
+          supir_pemegang_nama: ''
+        });
+        platBaru.value = ''; namaBaru.value = '';
+        await muat();
+      } catch (e) {
+        console.error("Gagal tambah kendaraan:", e);
+        alert("Gagal menambah kendaraan.");
+      }
+      menyimpan.value = false;
+    }
+
+    // Assign/rotasi supir — dipanggil tiap dropdown supir di 1 baris
+    // kendaraan berubah. TIDAK menyentuh kendaraan LAIN sama sekali
+    // (1 dokumen per kendaraan, lihat catatan di atas).
+    async function assignSupir(kendaraanId, emailSupir) {
+      const operator = daftarOperator.value.find(o => o.email === emailSupir);
+      try {
+        await updateDoc(doc(db, "master_kendaraan", kendaraanId), {
+          supir_pemegang_email: emailSupir || '',
+          supir_pemegang_nama: operator ? operator.nama : ''
+        });
+        await muat();
+      } catch (e) {
+        console.error("Gagal assign supir:", e);
+        alert("Gagal mengubah supir pemegang.");
+      }
+    }
+
+    async function hapus(id) {
+      if (!confirm("Hapus data kendaraan ini secara permanen?")) return;
+      try {
+        await deleteDoc(doc(db, "master_kendaraan", id));
+        await muat();
+      } catch (e) {
+        console.error("Gagal hapus kendaraan:", e);
+        alert("Gagal menghapus kendaraan.");
+      }
+    }
+
+    onMounted(async () => { await window.authReady; await muat(); await muatOperator(); });
+    return { daftarKendaraan, memuat, platBaru, namaBaru, menyimpan, daftarOperator, tambah, assignSupir, hapus };
+  },
+  template: `
+    <div class="gc-card">
+      <h3 class="gc-heading" style="font-weight:700; font-size:13.5px; margin-bottom:14px;"><i class="fas fa-truck" style="color:var(--burgundy); margin-right:8px;"></i> Master Kendaraan</h3>
+      <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
+        <input v-model="platBaru" type="text" placeholder="Plat nomor (contoh: D 1234 AB)" style="flex:1; min-width:160px; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+        <input v-model="namaBaru" type="text" placeholder="Nama/jenis kendaraan (opsional)" style="flex:1; min-width:160px; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+        <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="padding:8px 16px;"><i class="fas fa-plus" style="margin-right:6px;"></i>Tambah</button>
+      </div>
+
+      <div v-if="memuat" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+      <div v-else-if="daftarKendaraan.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px; background:var(--ivory-dim); border-radius:14px;">Belum ada kendaraan terdaftar.</div>
+      <div v-else style="display:flex; flex-direction:column; gap:10px;">
+        <div v-for="k in daftarKendaraan" :key="k.id" style="display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--ivory-dim); border-radius:12px; flex-wrap:wrap;">
+          <div style="flex:1; min-width:140px;">
+            <b style="font-size:12.5px;">{{ k.plat_nomor }}</b>
+            <p style="font-size:10.5px; color:var(--text-muted);">{{ k.nama_kendaraan || '-' }}</p>
+          </div>
+          <select :value="k.supir_pemegang_email" @change="assignSupir(k.id, $event.target.value)" style="padding:7px 10px; font-size:11.5px; border:1.5px solid var(--line); border-radius:8px; min-width:160px;">
+            <option value="">(Belum ada supir)</option>
+            <option v-for="o in daftarOperator" :key="o.email" :value="o.email">{{ o.nama }}</option>
+          </select>
+          <button @click="hapus(k.id)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+const AppMasterKendaraan = { components: { MasterKendaraanManager }, template: `<master-kendaraan-manager />` };
+let vmMasterKendaraan = null;
+window.pastikanMountMasterKendaraan = function() {
+  if (vmMasterKendaraan) return;
+  const mountPoint = document.getElementById('vue-master-kendaraan');
+  if (mountPoint) vmMasterKendaraan = createApp(AppMasterKendaraan).mount('#vue-master-kendaraan');
 };
