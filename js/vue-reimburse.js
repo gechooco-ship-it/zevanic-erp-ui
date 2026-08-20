@@ -324,9 +324,41 @@ const AppAntreanReimburse = {
   components: { ReimburseCard },
   setup() {
     const daftarPending = ref([]);
-    const totalMentahSebelumFilter = ref(0); // BARU — diagnostik, lihat catatan di muat()
+    const totalMentahSebelumFilter = ref(0); // diagnostik, lihat catatan di muat()
     const memuat = ref(true);
     const errorMuat = ref('');
+    const isOwnerRole = computed(() => ['owner', 'superuser'].includes((window.currentUser.role || '').toLowerCase()));
+
+    // BARU (19 Agt 2026, permintaan Hilman) — Owner TIDAK dibatasi 1 tahap
+    // lagi (dulu cuma lihat menunggu_owner) — Owner sekarang bisa lihat
+    // SEMUA tahap sekaligus, buat lacak "reimburse ini nyangkut di tahap
+    // mana" pas lagi debug. Admin Finance/PIC TETAP dibatasi 1 tahap
+    // (sesuai wewenang mereka di firestore.rules, tidak berubah).
+    function tahapUntukRoleSaya() {
+      const role = (window.currentUser.role || '').toLowerCase();
+      if (role === 'admin') return 'menunggu_admin_finance';
+      if (role === 'pic') return 'menunggu_pic';
+      if (isOwnerRole.value) return null; // null = TIDAK dibatasi where(), lihat muat()
+      return 'TIDAK_BERWENANG'; // Operator dkk — beda dari Owner punya null, biar tidak ketuker
+    }
+    const labelTahapSaya = computed(() => {
+      if (isOwnerRole.value) return 'Semua tahap (Owner bisa lihat semua)';
+      return LABEL_TAHAP[tahapUntukRoleSaya()] || '';
+    });
+
+    // Search box + filter tahap — filter tahap CUMA relevan/tampil buat
+    // Owner (Admin Finance/PIC sudah otomatis di-scope 1 tahap lewat
+    // query, dropdown lagi cuma bikin bingung). Default "Pengajuan PIC"
+    // (menunggu_owner) — itu tahap yang jadi tanggung jawab Owner
+    // sendiri, paling relevan dibuka duluan tanpa perlu ganti-ganti.
+    const cariNama = ref('');
+    const filterTahapOwner = ref('menunggu_owner');
+    const OPSI_FILTER_TAHAP = [
+      { value: 'SEMUA', label: 'Semua tahap' },
+      { value: 'menunggu_admin_finance', label: 'Pengajuan Operator (baru diajukan)' },
+      { value: 'menunggu_pic', label: 'Pengajuan Admin (sudah ACC Admin Finance)' },
+      { value: 'menunggu_owner', label: 'Pengajuan PIC (sudah ACC PIC)' }
+    ];
 
     // Filter Kendaraan — buat monitoring biaya per kendaraan (permintaan
     // Hilman 19 Agt 2026). Client-side, dari data yang SUDAH ketarik
@@ -339,40 +371,37 @@ const AppAntreanReimburse = {
       return [...set].sort();
     });
     const daftarPendingTersaring = computed(() => {
-      if (filterKendaraan.value === 'ALL') return daftarPending.value;
-      return daftarPending.value.filter(item => item.data.kendaraan_plat === filterKendaraan.value);
+      let hasil = daftarPending.value;
+      const kata = cariNama.value.trim().toLowerCase();
+      if (kata) hasil = hasil.filter(item => (item.data.nama_pegawai || '').toLowerCase().includes(kata));
+      if (isOwnerRole.value && filterTahapOwner.value !== 'SEMUA') {
+        hasil = hasil.filter(item => item.data.tahap === filterTahapOwner.value);
+      }
+      if (filterKendaraan.value !== 'ALL') hasil = hasil.filter(item => item.data.kendaraan_plat === filterKendaraan.value);
+      return hasil;
     });
-
-    function tahapUntukRoleSaya() {
-      const role = (window.currentUser.role || '').toLowerCase();
-      if (role === 'admin') return 'menunggu_admin_finance';
-      if (role === 'pic') return 'menunggu_pic';
-      if (['owner', 'superuser'].includes(role)) return 'menunggu_owner';
-      return null; // Operator dkk tidak berwenang di antrean ini sama sekali
-    }
-    const labelTahapSaya = computed(() => LABEL_TAHAP[tahapUntukRoleSaya()] || '');
 
     async function muat() {
       memuat.value = true;
       errorMuat.value = '';
       try {
         const tahapSaya = tahapUntukRoleSaya();
-        if (!tahapSaya) { daftarPending.value = []; memuat.value = false; return; }
+        if (tahapSaya === 'TIDAK_BERWENANG') { daftarPending.value = []; memuat.value = false; return; }
 
-        const snap = await getDocs(query(collection(db, "reimburse"), where("tahap", "==", tahapSaya)));
-        totalMentahSebelumFilter.value = snap.size; // BARU — diagnostik: sebelum kena filter jenis_pekerjaan+gudang
+        // Owner (tahapSaya === null): fetch SELURUH collection reimburse,
+        // TANPA where() tahap — sengaja, buat diagnostik "lihat semua".
+        // Admin Finance/PIC: tetap query 1 tahap seperti biasa (hemat,
+        // sesuai wewenang mereka).
+        const snap = tahapSaya === null
+          ? await getDocs(collection(db, "reimburse"))
+          : await getDocs(query(collection(db, "reimburse"), where("tahap", "==", tahapSaya)));
+        totalMentahSebelumFilter.value = snap.size; // diagnostik: sebelum kena filter jenis_pekerjaan+gudang
         const list = [];
         snap.forEach(docSnap => {
           const d = docSnap.data();
-          // REVERT (19 Agt 2026) — sempat diganti ke bolehLihatGudangSaja
-          // (cuma cek gudang) karena dikira jenis_pekerjaan = jabatan
-          // (Supir vs Admin Finance, dianggap wajar beda). TERNYATA
           // jenis_pekerjaan di app ini = BIDANG USAHA (Konveksi/Retail/
-          // Logistik, dipakai bareng 3 usaha Hilman dalam 1 sistem yang
-          // sama) — field itu WAJIB dicocokkan, supaya Admin Finance
-          // bisnis Konveksi TIDAK bisa lihat reimburse bisnis Logistik.
-          // Akar masalah SEBENARNYA: akun Admin Finance testing belum
-          // di-set jenis_pekerjaan="Logistik" di profil karyawannya.
+          // Logistik) — WAJIB dicocokkan, supaya Admin Finance bisnis
+          // Konveksi TIDAK bisa lihat reimburse bisnis Logistik.
           if (!window.bolehLihatData(d.jenis_pekerjaan, d.gudang)) return;
           list.push({ id: docSnap.id, data: d });
         });
@@ -385,7 +414,10 @@ const AppAntreanReimburse = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { daftarPending, daftarPendingTersaring, totalMentahSebelumFilter, filterKendaraan, opsiKendaraan, memuat, errorMuat, muat, labelTahapSaya };
+    return {
+      daftarPending, daftarPendingTersaring, totalMentahSebelumFilter, memuat, errorMuat, muat, labelTahapSaya,
+      isOwnerRole, cariNama, filterTahapOwner, OPSI_FILTER_TAHAP, filterKendaraan, opsiKendaraan
+    };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
@@ -395,6 +427,16 @@ const AppAntreanReimburse = {
         <p v-else style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Role Anda tidak berwenang memvalidasi reimburse.</p>
       </div>
       <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
+    </div>
+
+    <div v-if="!memuat && daftarPending.length > 0" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+      <div style="position:relative; flex:1; min-width:200px;">
+        <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
+        <input v-model="cariNama" type="text" placeholder="Cari nama karyawan..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+      </div>
+      <select v-if="isOwnerRole" v-model="filterTahapOwner" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+        <option v-for="opsi in OPSI_FILTER_TAHAP" :key="opsi.value" :value="opsi.value">{{ opsi.label }}</option>
+      </select>
     </div>
 
     <div v-if="!memuat && opsiKendaraan.length > 0" style="margin-bottom:16px;">
@@ -410,18 +452,18 @@ const AppAntreanReimburse = {
     <div v-else-if="errorMuat" style="text-align:center; padding:40px 0; color:var(--danger); font-size:12px; background:var(--danger-light); border-radius:18px;">{{ errorMuat }}</div>
     <div v-else-if="daftarPending.length === 0 && totalMentahSebelumFilter === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
       <i class="fas fa-glass-cheers" style="font-size:40px; color:var(--blue-deep); margin-bottom:12px; display:block;"></i>
-      <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Tidak ada antrean</h4>
-      <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Semua reimburse yang jadi tanggung jawab Anda sudah diproses.</p>
+      <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ isOwnerRole ? 'Belum ada reimburse sama sekali di sistem' : 'Tidak ada antrean' }}</h4>
+      <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">{{ isOwnerRole ? 'Belum ada satupun pengajuan reimburse dibuat.' : 'Semua reimburse yang jadi tanggung jawab Anda sudah diproses.' }}</p>
     </div>
     <div v-else-if="daftarPending.length === 0 && totalMentahSebelumFilter > 0" style="text-align:center; padding:56px 0; background:var(--warn-light); border:1.5px solid var(--warn); border-radius:18px;">
       <i class="fas fa-triangle-exclamation" style="font-size:34px; color:var(--warn); margin-bottom:12px; display:block;"></i>
-      <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Ada {{ totalMentahSebelumFilter }} reimburse menunggu tahap Anda, tapi tidak ada yang cocok profil Anda</h4>
+      <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Ada {{ totalMentahSebelumFilter }} reimburse {{ isOwnerRole ? 'di sistem' : 'menunggu tahap Anda' }}, tapi tidak ada yang cocok profil Anda</h4>
       <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px; max-width:360px; margin-left:auto; margin-right:auto;">Kemungkinan besar Jenis Pekerjaan atau Gudang di profil Anda beda (walau kelihatan sama, sering ada spasi/huruf beda tipis) dari yang mengajukan. Cek ulang di Daftar Karyawan / Hak Akses.</p>
     </div>
     <div v-else-if="daftarPendingTersaring.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
       <i class="fas fa-filter-circle-xmark" style="font-size:34px; color:var(--text-faint); margin-bottom:12px; display:block;"></i>
       <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Tidak ada yang cocok</h4>
-      <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Tidak ada reimburse untuk kendaraan ini di tahap Anda saat ini.</p>
+      <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Coba ubah kata kunci pencarian, filter tahap, atau filter kendaraan yang aktif.</p>
     </div>
     <div v-else style="gap:14px;" class="grid grid-cols-1 md:grid-cols-2">
       <reimburse-card v-for="item in daftarPendingTersaring" :key="item.id" :doc-id="item.id" :data="item.data" @diproses="muat" />
