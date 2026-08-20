@@ -107,30 +107,42 @@ function warnaTahap(tahap) {
 export const AjukanReimburseTab = {
   setup() {
     const opsiKategori = ref([]);
-    const form = reactive({ kategori: '', jumlah: '', keterangan: '', fotoBukti: '', kendaraanId: '', gudang: '' });
-    // BARU (19 Agt 2026) — SEBELUMNYA gudang diambil OTOMATIS dari
-    // gudang_penempatan[0] (posisi PERTAMA di array), tanpa peduli
-    // apakah itu gudang yang RELEVAN buat pengajuan ini. Untuk PIC/Admin
-    // Finance lapangan yang pegang BEBERAPA gudang sekaligus, ini bikin
-    // reimburse-nya bisa tercatat ke gudang yang SALAH — Admin Finance
-    // gudang yang benar jadi TIDAK PERNAH lihat pengajuannya. Sekarang
-    // WAJIB pilih sendiri (dropdown dari gudang MILIK SENDIRI saja,
-    // bukan semua gudang perusahaan — tetap sesuai penempatan resmi).
+    const form = reactive({
+      kategori: '', jumlah: '', keterangan: '', fotoBukti: '', gudang: '',
+      kendaraanId: '', kmSaatIsi: '',
+      itemServis: [{ namaBarang: '', qty: 1, harga: '' }]
+    });
     const opsiGudangSaya = window.normalisasiGudang ? window.normalisasiGudang(window.currentUser.gudang_penempatan) : (window.currentUser.gudang_penempatan || []);
-    if (opsiGudangSaya.length === 1) form.gudang = opsiGudangSaya[0]; // 1 gudang saja -> otomatis, tidak perlu ganggu orang milih
-    const daftarKendaraan = ref([]);
+    if (opsiGudangSaya.length === 1) form.gudang = opsiGudangSaya[0]; // 1 gudang saja -> otomatis
 
-    async function muatDaftarKendaraan() {
+    // BARU (19 Agt 2026, permintaan Hilman) — cuma kendaraan yang
+    // DIKAITKAN ke SAYA SENDIRI (via supir_pemegang di Master Kendaraan)
+    // yang muncul di sini. Kalau tidak dikaitkan ke kendaraan APAPUN,
+    // seluruh bagian "Jenis Pengajuan/Bensin/Servis" TIDAK tampil sama
+    // sekali — cuma dapat form Reimburse Umum biasa.
+    const kendaraanSaya = ref([]);
+    const jenisPengajuan = ref('umum'); // 'umum' | 'bensin' | 'servis'
+
+    async function muatKendaraanSaya() {
       try {
         const snap = await getDocs(collection(db, "master_kendaraan"));
         const list = [];
-        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-        list.sort((a, b) => (a.plat_nomor || '').localeCompare(b.plat_nomor || ''));
-        daftarKendaraan.value = list;
+        snap.forEach(d => {
+          const data = d.data();
+          const supirArr = Array.isArray(data.supir_pemegang) ? data.supir_pemegang
+            : (data.supir_pemegang_email ? [{ email: data.supir_pemegang_email }] : []);
+          if (supirArr.some(s => s.email === window.currentUser.email)) list.push({ id: d.id, plat_nomor: data.plat_nomor, nama_kendaraan: data.nama_kendaraan });
+        });
+        kendaraanSaya.value = list;
+        // 1 kendaraan saja -> otomatis terpilih, tidak perlu ganggu orang
+        // milih (permintaan eksplisit: "gak usah isi plat nomor kecuali
+        // dia multi mobil").
+        if (list.length === 1) form.kendaraanId = list[0].id;
       } catch (e) {
-        console.error("Gagal muat daftar kendaraan:", e);
+        console.error("Gagal muat kendaraan milik saya:", e);
       }
     }
+
     const mengirim = ref(false);
     const riwayatSaya = ref([]);
     const memuatRiwayat = ref(true);
@@ -162,36 +174,77 @@ export const AjukanReimburseTab = {
       memuatRiwayat.value = false;
     }
 
+    // ---- Item Servis (bisa nambah baris terus ke bawah) ----
+    function tambahBarisServis() { form.itemServis.push({ namaBarang: '', qty: 1, harga: '' }); }
+    function hapusBarisServis(idx) {
+      if (form.itemServis.length <= 1) return; // minimal 1 baris tetap ada
+      form.itemServis.splice(idx, 1);
+    }
+    function jumlahBarisServis(item) {
+      const qty = parseInt(item.qty) || 0;
+      const harga = parseInt(String(item.harga).replace(/\D/g, '')) || 0;
+      return qty * harga;
+    }
+    const totalServis = computed(() => form.itemServis.reduce((sum, item) => sum + jumlahBarisServis(item), 0));
+
+    function resetForm() {
+      form.jumlah = ''; form.keterangan = ''; form.fotoBukti = ''; form.kmSaatIsi = '';
+      form.itemServis = [{ namaBarang: '', qty: 1, harga: '' }];
+      if (opsiKategori.value.length > 0) form.kategori = opsiKategori.value[0];
+      jenisPengajuan.value = 'umum';
+    }
+
     async function ajukan() {
-      if (!form.kategori) return alert("Pilih kategori pengeluaran dulu.");
-      const jumlahAngka = parseInt(String(form.jumlah).replace(/\D/g, ''), 10);
-      if (!jumlahAngka || jumlahAngka <= 0) return alert("Isi jumlah reimburse yang benar (harus lebih dari 0).");
-      if (!form.fotoBukti) return alert("Foto bukti/struk wajib dilampirkan.");
       if (opsiGudangSaya.length > 0 && !form.gudang) return alert("Pilih gudang yang relevan buat pengajuan ini dulu.");
+      if (!form.fotoBukti) return alert("Foto bukti/struk wajib dilampirkan.");
+
+      let dataKirim = {
+        email: window.currentUser.email,
+        nama_pegawai: window.currentUser.name,
+        jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '',
+        gudang: form.gudang || '',
+        keterangan: form.keterangan || '',
+        foto_bukti: form.fotoBukti,
+        tahap: 'menunggu_admin_finance',
+        diajukan_pada: serverTimestamp()
+      };
+
+      if (jenisPengajuan.value === 'bensin') {
+        if (!form.kendaraanId) return alert("Pilih kendaraan dulu.");
+        const jumlahAngka = parseInt(String(form.jumlah).replace(/\D/g, ''), 10);
+        if (!jumlahAngka || jumlahAngka <= 0) return alert("Isi jumlah reimburse yang benar (harus lebih dari 0).");
+        if (!form.kmSaatIsi || parseInt(form.kmSaatIsi) <= 0) return alert("Isi KM (odometer) saat mengisi bensin.");
+        const kendaraanDipilih = kendaraanSaya.value.find(k => k.id === form.kendaraanId);
+        dataKirim = {
+          ...dataKirim,
+          kategori: 'BBM', jenis_entry_kendaraan: 'bensin',
+          jumlah: jumlahAngka, km_saat_isi: parseInt(form.kmSaatIsi) || 0,
+          kendaraan_id: form.kendaraanId, kendaraan_plat: kendaraanDipilih ? kendaraanDipilih.plat_nomor : ''
+        };
+      } else if (jenisPengajuan.value === 'servis') {
+        if (!form.kendaraanId) return alert("Pilih kendaraan dulu.");
+        const itemValid = form.itemServis.filter(i => i.namaBarang.trim() && parseInt(i.qty) > 0 && jumlahBarisServis(i) > 0);
+        if (itemValid.length === 0) return alert("Isi minimal 1 item servis dengan lengkap (nama barang, qty, harga).");
+        const kendaraanDipilih = kendaraanSaya.value.find(k => k.id === form.kendaraanId);
+        dataKirim = {
+          ...dataKirim,
+          kategori: 'Servis Kendaraan', jenis_entry_kendaraan: 'servis',
+          jumlah: totalServis.value,
+          item_servis: itemValid.map(i => ({ nama_barang: i.namaBarang.trim(), qty: parseInt(i.qty) || 0, harga: parseInt(String(i.harga).replace(/\D/g, '')) || 0, jumlah: jumlahBarisServis(i) })),
+          kendaraan_id: form.kendaraanId, kendaraan_plat: kendaraanDipilih ? kendaraanDipilih.plat_nomor : ''
+        };
+      } else {
+        if (!form.kategori) return alert("Pilih kategori pengeluaran dulu.");
+        const jumlahAngka = parseInt(String(form.jumlah).replace(/\D/g, ''), 10);
+        if (!jumlahAngka || jumlahAngka <= 0) return alert("Isi jumlah reimburse yang benar (harus lebih dari 0).");
+        dataKirim = { ...dataKirim, kategori: form.kategori, jumlah: jumlahAngka };
+      }
 
       mengirim.value = true;
       try {
-        const kendaraanDipilih = daftarKendaraan.value.find(k => k.id === form.kendaraanId);
-        await addDoc(collection(db, "reimburse"), {
-          email: window.currentUser.email,
-          nama_pegawai: window.currentUser.name,
-          jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '',
-          gudang: form.gudang || '',
-          kategori: form.kategori,
-          jumlah: jumlahAngka,
-          keterangan: form.keterangan || '',
-          foto_bukti: form.fotoBukti,
-          // Kendaraan OPSIONAL — dititip plat+nama langsung (denormalisasi,
-          // pola sama seperti jenis_pekerjaan/hp/status_kerja di absensi)
-          // supaya Antrean Reimburse & laporan nanti TIDAK perlu baca
-          // master_kendaraan lagi cuma buat tampilkan plat nomornya.
-          kendaraan_id: form.kendaraanId || '',
-          kendaraan_plat: kendaraanDipilih ? kendaraanDipilih.plat_nomor : '',
-          tahap: 'menunggu_admin_finance',
-          diajukan_pada: serverTimestamp()
-        });
+        await addDoc(collection(db, "reimburse"), dataKirim);
         alert("Pengajuan reimburse berhasil dikirim, menunggu ACC Admin Finance.");
-        form.jumlah = ''; form.keterangan = ''; form.fotoBukti = ''; form.kendaraanId = '';
+        resetForm();
         await muatRiwayatSaya();
       } catch (e) {
         console.error("Gagal ajukan reimburse:", e);
@@ -204,9 +257,10 @@ export const AjukanReimburseTab = {
       if (url && window.bukaPreviewFoto) window.bukaPreviewFoto(url);
     }
 
-    onMounted(async () => { await window.authReady; await muatOpsiKategori(); await muatDaftarKendaraan(); await muatRiwayatSaya(); });
+    onMounted(async () => { await window.authReady; await muatOpsiKategori(); await muatKendaraanSaya(); await muatRiwayatSaya(); });
     return {
-      opsiKategori, form, mengirim, pilihFoto, ajukan, lihatFotoBesar, daftarKendaraan, opsiGudangSaya,
+      opsiKategori, form, mengirim, pilihFoto, ajukan, lihatFotoBesar, opsiGudangSaya,
+      kendaraanSaya, jenisPengajuan, tambahBarisServis, hapusBarisServis, jumlahBarisServis, totalServis,
       riwayatSaya, memuatRiwayat, LABEL_TAHAP, warnaTahap, formatRupiah
     };
   },
@@ -214,10 +268,7 @@ export const AjukanReimburseTab = {
     <div>
       <div class="gc-card" style="max-width:520px; margin:0 auto 16px;">
         <h4 class="gc-heading" style="font-weight:700; font-size:13px; margin-bottom:14px;"><i class="fas fa-receipt" style="color:var(--burgundy); margin-right:8px;"></i> Ajukan Reimburse Baru</h4>
-        <div class="gc-field">
-          <label>Kategori Pengeluaran</label>
-          <select v-model="form.kategori"><option v-for="k in opsiKategori" :key="k" :value="k">{{ k }}</option></select>
-        </div>
+
         <div class="gc-field" v-if="opsiGudangSaya.length > 1">
           <label>Gudang <span style="color:var(--danger);">*</span> (Anda ditempatkan di beberapa gudang, pilih yang relevan buat pengajuan ini)</label>
           <select v-model="form.gudang">
@@ -225,17 +276,67 @@ export const AjukanReimburseTab = {
             <option v-for="g in opsiGudangSaya" :key="g" :value="g">{{ g }}</option>
           </select>
         </div>
-        <div class="gc-field">
-          <label>Kendaraan (opsional — isi kalau terkait bensin/servis mobil)</label>
-          <select v-model="form.kendaraanId">
-            <option value="">Tidak terkait kendaraan</option>
-            <option v-for="k in daftarKendaraan" :key="k.id" :value="k.id">{{ k.plat_nomor }}{{ k.nama_kendaraan ? ' - ' + k.nama_kendaraan : '' }}</option>
-          </select>
+
+        <div class="gc-field" v-if="kendaraanSaya.length > 0">
+          <label>Jenis Pengajuan</label>
+          <div style="display:flex; gap:6px;">
+            <button type="button" @click="jenisPengajuan = 'umum'" :class="{ active: jenisPengajuan === 'umum' }" class="gc-sub-tab-btn" style="flex:1; font-size:11px; padding:8px 4px;">Umum</button>
+            <button type="button" @click="jenisPengajuan = 'bensin'" :class="{ active: jenisPengajuan === 'bensin' }" class="gc-sub-tab-btn" style="flex:1; font-size:11px; padding:8px 4px;"><i class="fas fa-gas-pump" style="margin-right:4px;"></i>Bensin</button>
+            <button type="button" @click="jenisPengajuan = 'servis'" :class="{ active: jenisPengajuan === 'servis' }" class="gc-sub-tab-btn" style="flex:1; font-size:11px; padding:8px 4px;"><i class="fas fa-wrench" style="margin-right:4px;"></i>Servis</button>
+          </div>
         </div>
-        <div class="gc-field">
-          <label>Jumlah (Rp)</label>
-          <input v-model="form.jumlah" type="number" min="1" placeholder="Contoh: 50000">
-        </div>
+
+        <!-- ============ BENSIN ============ -->
+        <template v-if="jenisPengajuan === 'bensin' && kendaraanSaya.length > 0">
+          <div class="gc-field" v-if="kendaraanSaya.length > 1">
+            <label>Kendaraan</label>
+            <select v-model="form.kendaraanId"><option value="" disabled>Pilih kendaraan...</option><option v-for="k in kendaraanSaya" :key="k.id" :value="k.id">{{ k.plat_nomor }}{{ k.nama_kendaraan ? ' - ' + k.nama_kendaraan : '' }}</option></select>
+          </div>
+          <p v-else style="font-size:11.5px; color:var(--text-muted); background:var(--ivory-dim); padding:8px 12px; border-radius:10px; margin-bottom:12px;"><i class="fas fa-truck" style="margin-right:6px;"></i>Kendaraan: <b>{{ kendaraanSaya[0].plat_nomor }}</b></p>
+          <div class="gc-field">
+            <label>KM (Odometer) Saat Mengisi</label>
+            <input v-model="form.kmSaatIsi" type="number" min="1" placeholder="Contoh: 45230">
+          </div>
+          <div class="gc-field">
+            <label>Jumlah (Rp)</label>
+            <input v-model="form.jumlah" type="number" min="1" placeholder="Contoh: 100000">
+          </div>
+        </template>
+
+        <!-- ============ SERVIS ============ -->
+        <template v-else-if="jenisPengajuan === 'servis' && kendaraanSaya.length > 0">
+          <div class="gc-field" v-if="kendaraanSaya.length > 1">
+            <label>Kendaraan</label>
+            <select v-model="form.kendaraanId"><option value="" disabled>Pilih kendaraan...</option><option v-for="k in kendaraanSaya" :key="k.id" :value="k.id">{{ k.plat_nomor }}{{ k.nama_kendaraan ? ' - ' + k.nama_kendaraan : '' }}</option></select>
+          </div>
+          <p v-else style="font-size:11.5px; color:var(--text-muted); background:var(--ivory-dim); padding:8px 12px; border-radius:10px; margin-bottom:12px;"><i class="fas fa-truck" style="margin-right:6px;"></i>Kendaraan: <b>{{ kendaraanSaya[0].plat_nomor }}</b></p>
+          <label style="font-size:12.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Rincian Item Servis</label>
+          <div v-for="(item, idx) in form.itemServis" :key="idx" style="display:flex; gap:6px; margin-bottom:8px; align-items:center;">
+            <input v-model="item.namaBarang" type="text" placeholder="Nama barang/jasa" style="flex:2; padding:7px 9px; border:1.5px solid var(--line); border-radius:8px; font-size:11.5px;">
+            <input v-model="item.qty" type="number" min="1" placeholder="Qty" style="width:50px; padding:7px 9px; border:1.5px solid var(--line); border-radius:8px; font-size:11.5px;">
+            <input v-model="item.harga" type="number" min="0" placeholder="Harga" style="width:90px; padding:7px 9px; border:1.5px solid var(--line); border-radius:8px; font-size:11.5px;">
+            <span style="font-size:10.5px; color:var(--text-faint); width:70px; text-align:right;">{{ formatRupiah(jumlahBarisServis(item)) }}</span>
+            <button type="button" @click="hapusBarisServis(idx)" :disabled="form.itemServis.length <= 1" style="background:none; border:none; color:var(--danger); cursor:pointer; padding:4px;"><i class="fas fa-times"></i></button>
+          </div>
+          <button type="button" @click="tambahBarisServis" style="font-size:11px; color:var(--burgundy); background:none; border:1px dashed var(--line); border-radius:8px; padding:6px 12px; cursor:pointer; margin-bottom:12px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah Item</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; background:var(--ivory-dim); padding:10px 14px; border-radius:10px; margin-bottom:14px;">
+            <span style="font-size:12px; font-weight:700;">Total</span>
+            <b style="font-size:14px; color:var(--burgundy);">{{ formatRupiah(totalServis) }}</b>
+          </div>
+        </template>
+
+        <!-- ============ UMUM (default, atau tidak dikaitkan kendaraan apapun) ============ -->
+        <template v-else>
+          <div class="gc-field">
+            <label>Kategori Pengeluaran</label>
+            <select v-model="form.kategori"><option v-for="k in opsiKategori" :key="k" :value="k">{{ k }}</option></select>
+          </div>
+          <div class="gc-field">
+            <label>Jumlah (Rp)</label>
+            <input v-model="form.jumlah" type="number" min="1" placeholder="Contoh: 50000">
+          </div>
+        </template>
+
         <div class="gc-field">
           <label>Keterangan</label>
           <textarea v-model="form.keterangan" rows="2" placeholder="Contoh: BBM antar barang ke SOG12"></textarea>
@@ -258,6 +359,7 @@ export const AjukanReimburseTab = {
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
             <div>
               <b style="font-size:12.5px;">{{ r.kategori }}</b>
+              <p v-if="r.kendaraan_plat" style="font-size:10.5px; color:var(--text-faint); margin-top:1px;"><i class="fas fa-truck" style="margin-right:4px;"></i>{{ r.kendaraan_plat }}<span v-if="r.km_saat_isi"> &middot; {{ r.km_saat_isi.toLocaleString('id-ID') }} km</span></p>
               <p style="font-size:11px; color:var(--text-muted); margin-top:2px;">{{ r.keterangan || '-' }}</p>
             </div>
             <b style="font-size:13px; white-space:nowrap;">{{ formatRupiah(r.jumlah) }}</b>
@@ -334,7 +436,15 @@ const ReimburseCard = {
         <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">Kategori</span> <b>{{ data.kategori || '-' }}</b></div>
         <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">Jumlah</span> <b style="color:var(--burgundy);">{{ formatRupiah(data.jumlah) }}</b></div>
         <div v-if="data.kendaraan_plat"><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">Kendaraan</span> <b><i class="fas fa-truck" style="margin-right:4px; color:var(--text-faint);"></i>{{ data.kendaraan_plat }}</b></div>
+        <div v-if="data.jenis_entry_kendaraan === 'bensin' && data.km_saat_isi"><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">KM Saat Isi</span> <b>{{ data.km_saat_isi.toLocaleString('id-ID') }} km</b></div>
         <div style="grid-column:1 / -1;"><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">Keterangan</span> <b>{{ data.keterangan || '-' }}</b></div>
+        <div v-if="data.jenis_entry_kendaraan === 'servis' && data.item_servis && data.item_servis.length > 0" style="grid-column:1 / -1;">
+          <span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:6px;">Rincian Servis</span>
+          <div v-for="(item, idx) in data.item_servis" :key="idx" style="display:flex; justify-content:space-between; font-size:11px; padding:4px 0; border-bottom:1px dashed var(--line);">
+            <span>{{ item.nama_barang }} <span style="color:var(--text-faint);">&times;{{ item.qty }}</span></span>
+            <b>{{ formatRupiah(item.jumlah) }}</b>
+          </div>
+        </div>
       </div>
       <img v-if="data.foto_bukti" :src="data.foto_bukti" @click="lihatFotoBesar" style="width:64px; height:64px; border-radius:12px; object-fit:cover; cursor:pointer; margin-bottom:14px; border:1px solid var(--line);">
       <div v-if="bolehProses" style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line);">
@@ -553,13 +663,22 @@ const MasterKendaraanManager = {
     const namaBaru = ref('');
     const menyimpan = ref(false);
     const daftarOperator = ref([]);
+    const sedangEditSupirId = ref(null); // id kendaraan yang panel checkbox-nya lagi kebuka
+    const pilihanSementara = ref([]); // array email, draft sebelum disimpan
 
     async function muat() {
       memuat.value = true;
       try {
         const snap = await getDocs(collection(db, "master_kendaraan"));
         const list = [];
-        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        snap.forEach(d => {
+          const data = d.data();
+          // Kompatibel data LAMA (single supir_pemegang_email) — otomatis
+          // dikonversi jadi array pas dibaca, TANPA perlu migrasi paksa.
+          const supirArr = Array.isArray(data.supir_pemegang) ? data.supir_pemegang
+            : (data.supir_pemegang_email ? [{ email: data.supir_pemegang_email, nama: data.supir_pemegang_nama || data.supir_pemegang_email }] : []);
+          list.push({ id: d.id, ...data, supir_pemegang: supirArr });
+        });
         list.sort((a, b) => (a.plat_nomor || '').localeCompare(b.plat_nomor || ''));
         daftarKendaraan.value = list;
       } catch (e) {
@@ -570,9 +689,6 @@ const MasterKendaraanManager = {
 
     async function muatOperator() {
       try {
-        // Dropdown assign supir dari SEMUA operator (bukan cuma Driver/
-        // Kurir) — konsisten dengan dropdown Kendaraan di form Reimburse
-        // yang juga terbuka buat semua operator.
         const snap = await getDocs(query(collection(db, "users"), where("role", "==", "operator")));
         const list = [];
         snap.forEach(d => list.push({ email: d.id, nama: d.data().name || d.data().nama || d.id }));
@@ -590,8 +706,7 @@ const MasterKendaraanManager = {
         await addDoc(collection(db, "master_kendaraan"), {
           plat_nomor: platBaru.value.trim().toUpperCase(),
           nama_kendaraan: namaBaru.value.trim(),
-          supir_pemegang_email: '',
-          supir_pemegang_nama: ''
+          supir_pemegang: [] // array kosong, isi belakangan lewat panel edit
         });
         platBaru.value = ''; namaBaru.value = '';
         await muat();
@@ -602,19 +717,35 @@ const MasterKendaraanManager = {
       menyimpan.value = false;
     }
 
-    // Assign/rotasi supir — dipanggil tiap dropdown supir di 1 baris
-    // kendaraan berubah. TIDAK menyentuh kendaraan LAIN sama sekali
-    // (1 dokumen per kendaraan, lihat catatan di atas).
-    async function assignSupir(kendaraanId, emailSupir) {
-      const operator = daftarOperator.value.find(o => o.email === emailSupir);
+    // BARU (19 Agt 2026, permintaan Hilman) — supir_pemegang SEKARANG
+    // array (bisa 2+ orang rolling gantian pakai 1 kendaraan yang sama),
+    // bukan 1 orang saja seperti sebelumnya. Panel checkbox mirip pola
+    // GudangCheckboxSelect di Penjadwalan.
+    function bukaEditSupir(k) {
+      sedangEditSupirId.value = k.id;
+      pilihanSementara.value = k.supir_pemegang.map(s => s.email);
+    }
+    function batalEditSupir() {
+      sedangEditSupirId.value = null;
+      pilihanSementara.value = [];
+    }
+    async function simpanSupir(kendaraanId) {
+      const supirTerpilih = daftarOperator.value
+        .filter(o => pilihanSementara.value.includes(o.email))
+        .map(o => ({ email: o.email, nama: o.nama }));
       try {
         await updateDoc(doc(db, "master_kendaraan", kendaraanId), {
-          supir_pemegang_email: emailSupir || '',
-          supir_pemegang_nama: operator ? operator.nama : ''
+          supir_pemegang: supirTerpilih,
+          // Field lama (supir_pemegang_email/nama tunggal) SENGAJA
+          // dihapus dari dokumen baru — bukan dipertahankan kosong,
+          // biar tidak membingungkan siapa yang baca nanti.
+          supir_pemegang_email: null,
+          supir_pemegang_nama: null
         });
+        sedangEditSupirId.value = null;
         await muat();
       } catch (e) {
-        console.error("Gagal assign supir:", e);
+        console.error("Gagal simpan supir pemegang:", e);
         alert("Gagal mengubah supir pemegang.");
       }
     }
@@ -631,11 +762,15 @@ const MasterKendaraanManager = {
     }
 
     onMounted(async () => { await window.authReady; await muat(); await muatOperator(); });
-    return { daftarKendaraan, memuat, platBaru, namaBaru, menyimpan, daftarOperator, tambah, assignSupir, hapus };
+    return {
+      daftarKendaraan, memuat, platBaru, namaBaru, menyimpan, daftarOperator, hapus,
+      sedangEditSupirId, pilihanSementara, bukaEditSupir, batalEditSupir, simpanSupir
+    };
   },
   template: `
     <div class="gc-card">
       <h3 class="gc-heading" style="font-weight:700; font-size:13.5px; margin-bottom:14px;"><i class="fas fa-truck" style="color:var(--burgundy); margin-right:8px;"></i> Master Kendaraan</h3>
+      <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:14px;">1 kendaraan bisa dipegang lebih dari 1 supir (rolling/gantian) — cukup centang siapa saja yang boleh pakai.</p>
       <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
         <input v-model="platBaru" type="text" placeholder="Plat nomor (contoh: D 1234 AB)" style="flex:1; min-width:160px; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
         <input v-model="namaBaru" type="text" placeholder="Nama/jenis kendaraan (opsional)" style="flex:1; min-width:160px; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
@@ -645,16 +780,33 @@ const MasterKendaraanManager = {
       <div v-if="memuat" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
       <div v-else-if="daftarKendaraan.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px; background:var(--ivory-dim); border-radius:14px;">Belum ada kendaraan terdaftar.</div>
       <div v-else style="display:flex; flex-direction:column; gap:10px;">
-        <div v-for="k in daftarKendaraan" :key="k.id" style="display:flex; align-items:center; gap:12px; padding:12px 14px; background:var(--ivory-dim); border-radius:12px; flex-wrap:wrap;">
-          <div style="flex:1; min-width:140px;">
-            <b style="font-size:12.5px;">{{ k.plat_nomor }}</b>
-            <p style="font-size:10.5px; color:var(--text-muted);">{{ k.nama_kendaraan || '-' }}</p>
+        <div v-for="k in daftarKendaraan" :key="k.id" style="padding:12px 14px; background:var(--ivory-dim); border-radius:12px;">
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:140px;">
+              <b style="font-size:12.5px;">{{ k.plat_nomor }}</b>
+              <p style="font-size:10.5px; color:var(--text-muted);">{{ k.nama_kendaraan || '-' }}</p>
+              <p style="font-size:10.5px; color:var(--burgundy); margin-top:3px;">
+                <i class="fas fa-user" style="margin-right:4px;"></i>
+                <span v-if="k.supir_pemegang.length === 0">Belum ada supir</span>
+                <span v-else>{{ k.supir_pemegang.map(s => s.nama).join(', ') }}</span>
+              </p>
+            </div>
+            <button @click="bukaEditSupir(k)" class="btn-outline" style="font-size:11px; padding:6px 12px;"><i class="fas fa-user-edit" style="margin-right:5px;"></i>Atur Supir</button>
+            <button @click="hapus(k.id)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
           </div>
-          <select :value="k.supir_pemegang_email" @change="assignSupir(k.id, $event.target.value)" style="padding:7px 10px; font-size:11.5px; border:1.5px solid var(--line); border-radius:8px; min-width:160px;">
-            <option value="">(Belum ada supir)</option>
-            <option v-for="o in daftarOperator" :key="o.email" :value="o.email">{{ o.nama }}</option>
-          </select>
-          <button @click="hapus(k.id)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
+
+          <div v-if="sedangEditSupirId === k.id" style="margin-top:12px; padding-top:12px; border-top:1px dashed var(--line);">
+            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Centang supir yang boleh pakai kendaraan ini:</label>
+            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+              <label v-for="o in daftarOperator" :key="o.email" style="display:flex; align-items:center; gap:5px; font-size:11.5px; background:var(--surface); padding:5px 10px; border-radius:20px; cursor:pointer; border:1px solid var(--line);">
+                <input type="checkbox" :value="o.email" v-model="pilihanSementara" style="accent-color:var(--burgundy);">{{ o.nama }}
+              </label>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button @click="simpanSupir(k.id)" class="btn-primary" style="padding:6px 16px; font-size:11.5px;">Simpan</button>
+              <button @click="batalEditSupir" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer; font-size:11.5px;">Batal</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
