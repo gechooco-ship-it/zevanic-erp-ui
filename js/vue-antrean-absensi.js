@@ -53,6 +53,17 @@ const AntreanAbsensiCard = {
     // hasil js/vue-camera.js yang sudah dirombak yang punya field ini).
     const adalahFormatBaru = computed(() => props.data.ada_pending !== undefined);
 
+    // JARING PENGAMAN (19 Agt 2026) — kalau karena SEBAB APAPUN item ini
+    // ke-query padahal KEDUA sisi (masuk & keluar) sudah tidak PENDING
+    // lagi, JANGAN render kartu kosong tanpa Accept/Reject sama sekali
+    // (dilaporkan Hilman: kartu "hantu" cuma nampilin Gudang+hapus,
+    // menumpuk di layar). Kartu SEMBUNYI total dari tampilan kalau tidak
+    // ada satupun sisi yang butuh diproses.
+    const adaYangPending = computed(() => {
+      if (!adalahFormatBaru.value) return true; // format lama selalu render seperti biasa
+      return props.data.status_acc_masuk === 'PENDING' || props.data.status_acc_keluar === 'PENDING';
+    });
+
     function lihatFotoBesar(url) {
       if (url && window.bukaPreviewFoto) window.bukaPreviewFoto(url);
     }
@@ -147,14 +158,14 @@ const AntreanAbsensiCard = {
     }
 
     return {
-      adalahFormatBaru, lihatFotoBesar, hapus, bolehEdit, bolehHapus,
+      adalahFormatBaru, adaYangPending, lihatFotoBesar, hapus, bolehEdit, bolehHapus,
       statusKehadiran, seragam, memproses, proses,
       statusKehadiranMasuk, seragamMasuk, memprosesMasuk, prosesMasuk,
       statusKehadiranKeluar, seragamKeluar, memprosesKeluar, prosesKeluar
     };
   },
   template: `
-    <div class="gc-card">
+    <div v-if="adaYangPending" class="gc-card">
       <div style="display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
         <img :src="data.foto_selfie_masuk || data.foto_selfie || data.foto || 'https://via.placeholder.com/150'" @click="lihatFotoBesar(data.foto_selfie_masuk || data.foto_selfie || data.foto)" style="width:64px; height:64px; border-radius:14px; object-fit:cover; border:2px solid var(--surface); box-shadow:0 2px 8px rgba(91,56,38,.1); cursor:pointer;">
         <div>
@@ -304,13 +315,6 @@ const AppAntreanAbsensi = {
       try {
         daftarStatusKehadiran.value = window.ambilMasterList ? await window.ambilMasterList('status_kehadiran') : daftarStatusKehadiran.value;
 
-        // PEDOMAN KERJA filter jenis pekerjaan+gudang: absensi tidak simpan
-        // jenis_pekerjaan, jadi perlu peta email->jenis_pekerjaan (gudang
-        // sudah langsung ada di tiap record).
-        const qUsers = await getDocs(collection(db, "users"));
-        const petaJenisPekerjaan = {};
-        qUsers.forEach(u => { petaJenisPekerjaan[u.data().email] = u.data().jenis_pekerjaan || ''; });
-
         // BARU (18 Agt 2026) — 2 query LANGSUNG cari yang pending, BUKAN
         // fetch seluruh histori absensi lagi. Lihat catatan lengkap di
         // header file.
@@ -319,11 +323,32 @@ const AppAntreanAbsensi = {
           getDocs(query(collection(db, "absensi"), where("status_acc", "==", "PENDING")))
         ]);
 
+        // DIROMBAK (19 Agt 2026) — dulu SELALU fetch-semua "users" duluan
+        // demi peta email->jenis_pekerjaan (dipakai filter §15, absensi
+        // tidak simpan info ini). SEKARANG js/vue-camera.js sudah titip
+        // field jenis_pekerjaan LANGSUNG di tiap dokumen absensi baru —
+        // jadi users CUMA dibaca kalau BENERAN masih ada dokumen PENDING
+        // yang belum punya field ini sendiri (dokumen sangat lama, dari
+        // sebelum perbaikan ini dipasang). Begitu dokumen lama itu habis
+        // diproses (ACC/Reject), baca users di sini akan OTOMATIS
+        // berhenti sepenuhnya — TANPA perlu ubah kode lagi nanti.
+        const semuaDokPending = [];
+        snapBaru.forEach(d => semuaDokPending.push(d));
+        snapLama.forEach(d => { if (d.data().status !== "LEMBUR (CLOCK IN)") semuaDokPending.push(d); });
+        const adaYangBelumPunyaJP = semuaDokPending.some(d => !d.data().jenis_pekerjaan);
+
+        let petaJenisPekerjaan = {};
+        if (adaYangBelumPunyaJP) {
+          const qUsers = await getDocs(collection(db, "users"));
+          qUsers.forEach(u => { petaJenisPekerjaan[u.data().email] = u.data().jenis_pekerjaan || ''; });
+        }
+        function ambilJP(d) { return d.jenis_pekerjaan || petaJenisPekerjaan[d.email] || ''; }
+
         const list = [];
         snapBaru.forEach(docSnap => {
           const d = docSnap.data();
-          if (!window.bolehLihatData(petaJenisPekerjaan[d.email], d.gudang)) return;
-          list.push({ id: docSnap.id, data: d, jenisPekerjaan: petaJenisPekerjaan[d.email] || '' });
+          if (!window.bolehLihatData(ambilJP(d), d.gudang)) return;
+          list.push({ id: docSnap.id, data: d, jenisPekerjaan: ambilJP(d) });
         });
         snapLama.forEach(docSnap => {
           const d = docSnap.data();
@@ -331,8 +356,8 @@ const AppAntreanAbsensi = {
           // di Antrean Lembur (info relevan beda: jam mulai/selesai
           // diajukan, bukan radius/koordinat seperti di sini).
           if (d.status === "LEMBUR (CLOCK IN)") return;
-          if (!window.bolehLihatData(petaJenisPekerjaan[d.email], d.gudang)) return;
-          list.push({ id: docSnap.id, data: d, jenisPekerjaan: petaJenisPekerjaan[d.email] || '' });
+          if (!window.bolehLihatData(ambilJP(d), d.gudang)) return;
+          list.push({ id: docSnap.id, data: d, jenisPekerjaan: ambilJP(d) });
         });
         daftarPending.value = list;
 
@@ -420,7 +445,7 @@ const AppAntreanAbsensi = {
       </template>
     </div>
 
-    <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint);">
+    <div v-if="memuat && daftarPending.length === 0" style="text-align:center; padding:40px 0; color:var(--text-faint);">
       <i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i><p style="font-size:12px;">Memuat antrean validasi absensi...</p>
     </div>
     <div v-else-if="errorMuat" style="text-align:center; padding:40px 0; color:var(--danger); font-size:12px; background:var(--danger-light); border-radius:18px;">{{ errorMuat }}</div>

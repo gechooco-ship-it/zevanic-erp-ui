@@ -320,6 +320,9 @@ const AppKamera = {
         if (statusPilihan === "HADIR (CLOCK IN)") {
           const dataKirim = {
             nama_pegawai: window.currentUser.name,
+            jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '', // BARU (19 Agt 2026) - titip dari memori, hindari baca users terpisah
+            hp: window.currentUser.hp || '',
+            status_kerja: window.currentUser.status_kerja || '',
             email, role: window.currentUser.role,
             status: "HADIR", // BUKAN "HADIR (CLOCK IN)" lagi — dokumen ini
                               // mewakili SELURUH hari (masuk+keluar), bukan
@@ -378,6 +381,9 @@ const AppKamera = {
             // tetap apa adanya, tidak disentuh/diupdate sama sekali).
             const dataKirim = {
               nama_pegawai: window.currentUser.name,
+              jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '',
+              hp: window.currentUser.hp || '',
+              status_kerja: window.currentUser.status_kerja || '',
               email, role: window.currentUser.role,
               status: "CLOCK OUT",
               waktu: new Date().toLocaleString('id-ID'),
@@ -435,6 +441,9 @@ const AppKamera = {
         // ==================================================================
         const dataKirim = {
           nama_pegawai: window.currentUser.name,
+          jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '',
+          hp: window.currentUser.hp || '',
+          status_kerja: window.currentUser.status_kerja || '',
           email, role: window.currentUser.role,
           status: statusPilihan,
           waktu: new Date().toLocaleString('id-ID'),

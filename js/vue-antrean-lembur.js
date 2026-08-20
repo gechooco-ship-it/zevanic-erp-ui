@@ -126,17 +126,27 @@ const AppAntreanLembur = {
       memuat.value = true;
       errorMuat.value = '';
       try {
-        const qUsers = await getDocs(collection(db, "users"));
-        const petaJenisPekerjaan = {};
-        qUsers.forEach(u => { petaJenisPekerjaan[u.data().email] = u.data().jenis_pekerjaan || ''; });
-
         const snap = await getDocs(query(collection(db, "absensi"), where("status_acc", "==", "PENDING")));
+        const dokLembur = [];
+        snap.forEach(d => { if (d.data().status === "LEMBUR (CLOCK IN)") dokLembur.push(d); });
+
+        // DIROMBAK (19 Agt 2026) — sama persis pola vue-antrean-absensi.js:
+        // users CUMA dibaca kalau ada dokumen Lembur pending yang belum
+        // punya field jenis_pekerjaan sendiri (dokumen sangat lama). Lihat
+        // catatan lengkap di sana.
+        const adaYangBelumPunyaJP = dokLembur.some(d => !d.data().jenis_pekerjaan);
+        let petaJenisPekerjaan = {};
+        if (adaYangBelumPunyaJP) {
+          const qUsers = await getDocs(collection(db, "users"));
+          qUsers.forEach(u => { petaJenisPekerjaan[u.data().email] = u.data().jenis_pekerjaan || ''; });
+        }
+        function ambilJP(d) { return d.jenis_pekerjaan || petaJenisPekerjaan[d.email] || ''; }
+
         const list = [];
-        snap.forEach(docSnap => {
+        dokLembur.forEach(docSnap => {
           const d = docSnap.data();
-          if (d.status !== "LEMBUR (CLOCK IN)") return;
-          if (!window.bolehLihatData(petaJenisPekerjaan[d.email], d.gudang)) return;
-          list.push({ id: docSnap.id, data: d, jenisPekerjaan: petaJenisPekerjaan[d.email] || '' });
+          if (!window.bolehLihatData(ambilJP(d), d.gudang)) return;
+          list.push({ id: docSnap.id, data: d, jenisPekerjaan: ambilJP(d) });
         });
         daftarPending.value = list;
 
