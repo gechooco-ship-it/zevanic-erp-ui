@@ -44,6 +44,8 @@ const DAFTAR_MENU = [
   { id: 'penjadwalan', label: 'Penjadwalan', kategori: 'Master Absensi' },
   { id: 'antrean_absensi', label: 'Antrean Absensi', kategori: 'Master Absensi' },
   { id: 'antrean_lembur', label: 'Antrean Lembur', kategori: 'Master Absensi' },
+  { id: 'antrean_reimburse', label: 'Antrean Reimburse', kategori: 'Master Keuangan' },
+  { id: 'master_keuangan', label: 'Master Keuangan', kategori: 'Master Keuangan' },
   { id: 'riwayat_absensi', label: 'Riwayat All Absensi', kategori: 'Master Absensi' },
   { id: 'antrean_dakar', label: 'Antrean Dakar', kategori: 'Master Karyawan' },
   { id: 'config_karyawan', label: 'Config Karyawan', kategori: 'Master Karyawan' },
@@ -57,7 +59,7 @@ const DAFTAR_MENU = [
   { id: 'mail_gateway', label: 'Mail Gateway', kategori: 'Integrasi' }
 ];
 
-const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Karyawan', 'Integrasi'];
+const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Integrasi'];
 const KOSONG_IZIN = () => ({ view: false, add: false, edit: false, delete: false, print: false });
 
 // Default awal untuk 5 profil baku SENGAJA disamakan dengan perilaku

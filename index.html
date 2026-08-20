@@ -72,6 +72,10 @@
         <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc-btn" class="hidden gc-nav-item">
           <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> Absensi
         </button>
+        <div id="menu-keuangan" class="hidden gc-nav-section">Master keuangan</div>
+        <button onclick="pindahTab('tab-keuangan')" id="menu-keuangan-btn" class="hidden gc-nav-item">
+          <i class="fas fa-wallet" style="width:17px; text-align:center;"></i> Keuangan
+        </button>
         <div id="menu-superuser" class="hidden gc-nav-section">Master karyawan</div>
         <button onclick="pindahTab('tab-superuser')" id="menu-superuser-btn" class="hidden gc-nav-item">
           <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg> Karyawan
@@ -189,6 +193,23 @@
             <!-- MIGRASI VUE: lihat js/vue-riwayat-absensi.js -->
             <div id="vue-riwayat-absensi"></div>
         </div>
+      </div>
+
+        <div id="tab-keuangan" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
+          <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-antrean', this)" class="sub-keuangan-btn gc-sub-tab-btn active"><i class="fas fa-receipt" style="margin-right:6px;"></i> Antrean Reimburse</button>
+            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-kategori', this)" class="sub-keuangan-btn gc-sub-tab-btn"><i class="fas fa-tags" style="margin-right:6px;"></i> Kategori Keuangan</button>
+          </div>
+
+          <div id="sub-keuangan-antrean" class="sub-keuangan-content fade-in space-y-4">
+            <!-- Antrean Reimburse: lihat js/vue-reimburse.js -->
+            <div id="vue-antrean-reimburse"></div>
+          </div>
+
+          <div id="sub-keuangan-kategori" class="sub-keuangan-content hidden fade-in space-y-4">
+            <!-- Master Keuangan (Kategori Pengeluaran & Pemasukan): lihat js/vue-reimburse.js -->
+            <div id="vue-master-keuangan"></div>
+          </div>
       </div>
 
         <div id="tab-superuser" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
@@ -335,6 +356,7 @@
   <script type="module" src="js/vue-antrean-dakar.js"></script>
   <script type="module" src="js/vue-antrean-absensi.js"></script>
   <script type="module" src="js/vue-antrean-lembur.js"></script>
+  <script type="module" src="js/vue-reimburse.js"></script>
   <script type="module" src="js/vue-riwayat-absensi.js"></script>
   <script type="module" src="js/vue-penjadwalan.js"></script>
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>

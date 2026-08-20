@@ -168,7 +168,7 @@ window.ambilKecamatanUntukKabupaten = async function(kab) {
 // =========================================================================
 
 window.pindahTab = function(tabId, navKey) {
-  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-superuser', 'tab-whatsapp', 'tab-mail-gateway', 'tab-scan-qr', 'tab-progress'];
+  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-whatsapp', 'tab-mail-gateway', 'tab-scan-qr', 'tab-progress'];
   const tabSebelumnya = tabs.find(t => {
     const el = document.getElementById(t);
     return el && !el.classList.contains('hidden');
@@ -201,6 +201,9 @@ window.pindahTab = function(tabId, navKey) {
   if (tabId === 'tab-admin-acc') {
       if (window.pindahSubTab) window.pindahSubTab('sub-absensi', 'sub-absensi-accept', document.querySelectorAll('.sub-absensi-btn')[2]);
   }
+  if (tabId === 'tab-keuangan') {
+      if (window.pindahSubTab) window.pindahSubTab('sub-keuangan', 'sub-keuangan-antrean', document.querySelectorAll('.sub-keuangan-btn')[0]);
+  }
   if (tabId === 'tab-superuser') {
       if (window.pindahSubTab) window.pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', document.querySelectorAll('.sub-karyawan-btn')[0]);
   }
@@ -228,7 +231,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
   if (tombolEl) tombolEl.classList.add('active');
 
   if (window.aturHeaderKonteks) {
-    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-karyawan': 'tab-superuser' };
+    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -255,6 +258,8 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-absensi-accept': 'pastikanMountAntreanAbsensi',
     'sub-absensi-lembur': 'pastikanMountAntreanLembur',
     'sub-absensi-rekap': 'pastikanMountRiwayatAbsensi',
+    'sub-keuangan-antrean': 'pastikanMountAntreanReimburse',
+    'sub-keuangan-kategori': 'pastikanMountMasterKeuangan',
     'sub-karyawan-antrean': 'pastikanMountAntreanDakar',
     'sub-karyawan-config': 'pastikanMountConfigKaryawan',
     'sub-karyawan-info': 'pastikanMountConfigInfo',
