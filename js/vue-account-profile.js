@@ -20,6 +20,7 @@ import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 
 import { db, auth } from "./firebase-config.js";
 import { DuaBaris } from './vue-components.js';
 import { formatBaris } from './vue-riwayat-absensi.js';
+import { AjukanReimburseTab } from './vue-reimburse.js';
 
 // ---------------------------------------------------------------------------
 // Aju Banding modal (dipakai dari dalam tab Absensi)
@@ -105,7 +106,7 @@ const AjuBandingModal = {
 // App utama
 // ---------------------------------------------------------------------------
 const AppAccountProfile = {
-  components: { DuaBaris, AjuBandingModal },
+  components: { DuaBaris, AjuBandingModal, AjukanReimburseTab },
   setup() {
     const tabAktif = ref('account');
 
@@ -462,6 +463,9 @@ const AppAccountProfile = {
         <button @click="pindahTab('absensi')" class="gc-sub-tab-btn" :class="{ active: tabAktif === 'absensi' }" style="border-radius:16px;">
           <i class="fas fa-history" style="margin-right:6px;"></i> Absensi
         </button>
+        <button @click="pindahTab('reimburse')" class="gc-sub-tab-btn" :class="{ active: tabAktif === 'reimburse' }" style="border-radius:16px;">
+          <i class="fas fa-receipt" style="margin-right:6px;"></i> Reimburse
+        </button>
         <button @click="pindahTab('pencapaian')" class="gc-sub-tab-btn" :class="{ active: tabAktif === 'pencapaian' }" style="border-radius:16px;">
           <i class="fas fa-trophy" style="margin-right:6px;"></i> Pencapaian
         </button>
@@ -722,6 +726,11 @@ const AppAccountProfile = {
           </tbody>
         </table>
       </div>
+    </div>
+
+    <!-- Tab: Reimburse -->
+    <div v-show="tabAktif === 'reimburse'" style="margin-top:16px;">
+      <ajukan-reimburse-tab v-if="tabAktif === 'reimburse'" />
     </div>
 
     <!-- Tab: Pencapaian -->

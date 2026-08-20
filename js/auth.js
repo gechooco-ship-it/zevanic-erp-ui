@@ -646,6 +646,8 @@ window.aturTampilanBerdasarkanRole = function() {
   const menuAdminAccBtn = document.getElementById('menu-admin-acc-btn');
   const menuSuperUser = document.getElementById('menu-superuser');
   const menuSuperUserBtn = document.getElementById('menu-superuser-btn');
+  const menuKeuangan = document.getElementById('menu-keuangan');
+  const menuKeuanganBtn = document.getElementById('menu-keuangan-btn');
   const menuWhatsapp = document.getElementById('menu-whatsapp');
   const menuWhatsappBtn = document.getElementById('menu-whatsapp-btn');
   const menuMailGatewayBtn = document.getElementById('menu-mail-gateway-btn');
@@ -659,13 +661,19 @@ window.aturTampilanBerdasarkanRole = function() {
   const btnKonfigAkses = document.getElementById('btn-sub-karyawan-akses');
   const btnHakAkses = document.getElementById('btn-sub-karyawan-hakakses');
 
-  [menuAdminAcc, menuAdminAccBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses].forEach(el => {
+  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
+  // Master Keuangan (Antrean Reimburse + Kategori) SEJAJAR Master Absensi
+  // (bukan anak di dalamnya) — dibuka Hilman 19 Agt 2026 karena PIC & Admin
+  // Finance BEDA peran validasi (tahap 1 vs tahap 2), jadi menu-nya
+  // ditampilkan ke role yang SAMA persis dengan Master Absensi.
   if (role === 'pic' || role === 'owner' || role === 'admin' || role === 'superuser') {
     if (menuAdminAcc) menuAdminAcc.classList.remove('hidden');
     if (menuAdminAccBtn) menuAdminAccBtn.classList.remove('hidden');
+    if (menuKeuangan) menuKeuangan.classList.remove('hidden');
+    if (menuKeuanganBtn) menuKeuanganBtn.classList.remove('hidden');
     if (navMobileAdmin) {
       navMobileAdmin.classList.remove('hidden');
       navMobileAdmin.classList.add('flex');
