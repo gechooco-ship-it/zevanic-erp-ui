@@ -200,6 +200,9 @@
             <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-antrean', this)" class="sub-keuangan-btn gc-sub-tab-btn active"><i class="fas fa-receipt" style="margin-right:6px;"></i> Antrean Reimburse</button>
             <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-kendaraan', this)" class="sub-keuangan-btn gc-sub-tab-btn"><i class="fas fa-truck" style="margin-right:6px;"></i> Master Kendaraan</button>
             <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-kategori', this)" class="sub-keuangan-btn gc-sub-tab-btn"><i class="fas fa-tags" style="margin-right:6px;"></i> Kategori Keuangan</button>
+            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-reimburse', this)" class="sub-keuangan-btn gc-sub-tab-btn"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i> Riwayat Reimburse</button>
+            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-bensin', this)" class="sub-keuangan-btn gc-sub-tab-btn"><i class="fas fa-gas-pump" style="margin-right:6px;"></i> Riwayat Isi Bensin</button>
+            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-servis', this)" class="sub-keuangan-btn gc-sub-tab-btn"><i class="fas fa-wrench" style="margin-right:6px;"></i> Riwayat Servis</button>
           </div>
 
           <div id="sub-keuangan-antrean" class="sub-keuangan-content fade-in space-y-4">
@@ -215,6 +218,21 @@
           <div id="sub-keuangan-kategori" class="sub-keuangan-content hidden fade-in space-y-4">
             <!-- Master Keuangan (Kategori Pengeluaran & Pemasukan): lihat js/vue-reimburse.js -->
             <div id="vue-master-keuangan"></div>
+          </div>
+
+          <div id="sub-keuangan-riwayat-reimburse" class="sub-keuangan-content hidden fade-in space-y-4">
+            <!-- Riwayat Reimburse: lihat js/vue-reimburse.js -->
+            <div id="vue-riwayat-reimburse"></div>
+          </div>
+
+          <div id="sub-keuangan-riwayat-bensin" class="sub-keuangan-content hidden fade-in space-y-4">
+            <!-- Riwayat Isi Bensin: lihat js/vue-reimburse.js -->
+            <div id="vue-riwayat-bensin"></div>
+          </div>
+
+          <div id="sub-keuangan-riwayat-servis" class="sub-keuangan-content hidden fade-in space-y-4">
+            <!-- Riwayat Servis: lihat js/vue-reimburse.js -->
+            <div id="vue-riwayat-servis"></div>
           </div>
       </div>
 

@@ -22,7 +22,7 @@
 // bagian sini cuma UI, kalau ada yang nekat panggil updateDoc() langsung
 // dari Console browser, Firestore Rules yang jadi penjaga terakhir.
 // ============================================================================
-import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { MasterDataCategory } from './vue-components.js';
@@ -659,12 +659,50 @@ const MasterKendaraanManager = {
   setup() {
     const daftarKendaraan = ref([]);
     const memuat = ref(true);
+
+    // Form tambah kendaraan baru — urutan sesuai permintaan: Jenis
+    // Pekerjaan -> Gudang -> Plat Nomor -> (Atur Supir belakangan, lewat
+    // panel terpisah biar konsisten sama alur edit).
+    const jenisPekerjaanBaru = ref('');
+    const gudangBaru = ref('');
     const platBaru = ref('');
     const namaBaru = ref('');
+    const opsiJenisPekerjaan = ref([]);
+    const opsiGudang = ref([]);
     const menyimpan = ref(false);
+
     const daftarOperator = ref([]);
     const sedangEditSupirId = ref(null); // id kendaraan yang panel checkbox-nya lagi kebuka
     const pilihanSementara = ref([]); // array email, draft sebelum disimpan
+
+    // BARU — search box + tabel riwayat
+    const cariKendaraan = ref('');
+    const daftarKendaraanTersaring = computed(() => {
+      const kata = cariKendaraan.value.trim().toLowerCase();
+      if (!kata) return daftarKendaraan.value;
+      return daftarKendaraan.value.filter(k =>
+        (k.plat_nomor || '').toLowerCase().includes(kata) ||
+        (k.nama_kendaraan || '').toLowerCase().includes(kata) ||
+        (k.gudang || '').toLowerCase().includes(kata) ||
+        k.supir_pemegang.some(s => (s.nama || '').toLowerCase().includes(kata))
+      );
+    });
+    // PEDOMAN KERJA (19 Agt 2026) — setiap menu baru WAJIB paginasi.
+    // Client-side (bukan cursor Firestore) karena koleksi kendaraan
+    // biasanya kecil, cukup dipotong di browser.
+    const PER_HALAMAN = 15;
+    const halamanSaatIni = ref(1);
+    watch(cariKendaraan, () => { halamanSaatIni.value = 1; });
+    const totalHalaman = computed(() => Math.max(1, Math.ceil(daftarKendaraanTersaring.value.length / PER_HALAMAN)));
+    const daftarKendaraanTerpaginasi = computed(() => {
+      const mulai = (halamanSaatIni.value - 1) * PER_HALAMAN;
+      return daftarKendaraanTersaring.value.slice(mulai, mulai + PER_HALAMAN);
+    });
+    function gantiHalaman(delta) { halamanSaatIni.value = Math.min(totalHalaman.value, Math.max(1, halamanSaatIni.value + delta)); }
+    function formatTglSingkat(ts) {
+      if (!ts || !ts.toDate) return '-';
+      return ts.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
 
     async function muat() {
       memuat.value = true;
@@ -687,6 +725,18 @@ const MasterKendaraanManager = {
       memuat.value = false;
     }
 
+    async function muatOpsi() {
+      try {
+        opsiJenisPekerjaan.value = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
+        const qGudang = await getDocs(collection(db, "master_gudang"));
+        const listGudang = [];
+        qGudang.forEach(g => listGudang.push(g.data().nama_gudang));
+        opsiGudang.value = listGudang;
+      } catch (e) {
+        console.error("Gagal muat opsi jenis pekerjaan/gudang:", e);
+      }
+    }
+
     async function muatOperator() {
       try {
         const snap = await getDocs(query(collection(db, "users"), where("role", "==", "operator")));
@@ -700,13 +750,18 @@ const MasterKendaraanManager = {
     }
 
     async function tambah() {
+      if (!jenisPekerjaanBaru.value) return alert("Pilih Jenis Pekerjaan (bidang usaha) dulu.");
+      if (!gudangBaru.value) return alert("Pilih Gudang dulu.");
       if (!platBaru.value.trim()) return alert("Isi plat nomor dulu.");
       menyimpan.value = true;
       try {
         await addDoc(collection(db, "master_kendaraan"), {
+          jenis_pekerjaan: jenisPekerjaanBaru.value,
+          gudang: gudangBaru.value,
           plat_nomor: platBaru.value.trim().toUpperCase(),
           nama_kendaraan: namaBaru.value.trim(),
-          supir_pemegang: [] // array kosong, isi belakangan lewat panel edit
+          supir_pemegang: [], // array kosong, isi belakangan lewat panel edit
+          dibuat_pada: serverTimestamp()
         });
         platBaru.value = ''; namaBaru.value = '';
         await muat();
@@ -717,10 +772,8 @@ const MasterKendaraanManager = {
       menyimpan.value = false;
     }
 
-    // BARU (19 Agt 2026, permintaan Hilman) — supir_pemegang SEKARANG
-    // array (bisa 2+ orang rolling gantian pakai 1 kendaraan yang sama),
-    // bukan 1 orang saja seperti sebelumnya. Panel checkbox mirip pola
-    // GudangCheckboxSelect di Penjadwalan.
+    // Panel "Atur Supir" — fitur checklist multi-select yang SUDAH ADA,
+    // dipakai ulang apa adanya (bukan dibangun baru).
     function bukaEditSupir(k) {
       sedangEditSupirId.value = k.id;
       pilihanSementara.value = k.supir_pemegang.map(s => s.email);
@@ -736,11 +789,11 @@ const MasterKendaraanManager = {
       try {
         await updateDoc(doc(db, "master_kendaraan", kendaraanId), {
           supir_pemegang: supirTerpilih,
-          // Field lama (supir_pemegang_email/nama tunggal) SENGAJA
-          // dihapus dari dokumen baru — bukan dipertahankan kosong,
-          // biar tidak membingungkan siapa yang baca nanti.
           supir_pemegang_email: null,
-          supir_pemegang_nama: null
+          supir_pemegang_nama: null,
+          // BARU — catat KAPAN pengaitan ini dibuat, ditampilkan sebagai
+          // kolom "Dikaitkan Sejak" di tabel (permintaan riwayat).
+          supir_ditugaskan_pada: serverTimestamp()
         });
         sedangEditSupirId.value = null;
         await muat();
@@ -761,54 +814,96 @@ const MasterKendaraanManager = {
       }
     }
 
-    onMounted(async () => { await window.authReady; await muat(); await muatOperator(); });
+    onMounted(async () => { await window.authReady; await muat(); await muatOpsi(); await muatOperator(); });
     return {
-      daftarKendaraan, memuat, platBaru, namaBaru, menyimpan, daftarOperator, hapus,
+      daftarKendaraan, daftarKendaraanTersaring, daftarKendaraanTerpaginasi, cariKendaraan, formatTglSingkat, memuat,
+      halamanSaatIni, totalHalaman, gantiHalaman,
+      jenisPekerjaanBaru, gudangBaru, platBaru, namaBaru, opsiJenisPekerjaan, opsiGudang, menyimpan,
+      daftarOperator, hapus, tambah,
       sedangEditSupirId, pilihanSementara, bukaEditSupir, batalEditSupir, simpanSupir
     };
   },
   template: `
-    <div class="gc-card">
-      <h3 class="gc-heading" style="font-weight:700; font-size:13.5px; margin-bottom:14px;"><i class="fas fa-truck" style="color:var(--burgundy); margin-right:8px;"></i> Master Kendaraan</h3>
-      <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:14px;">1 kendaraan bisa dipegang lebih dari 1 supir (rolling/gantian) — cukup centang siapa saja yang boleh pakai.</p>
-      <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
-        <input v-model="platBaru" type="text" placeholder="Plat nomor (contoh: D 1234 AB)" style="flex:1; min-width:160px; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
-        <input v-model="namaBaru" type="text" placeholder="Nama/jenis kendaraan (opsional)" style="flex:1; min-width:160px; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
-        <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="padding:8px 16px;"><i class="fas fa-plus" style="margin-right:6px;"></i>Tambah</button>
-      </div>
-
-      <div v-if="memuat" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
-      <div v-else-if="daftarKendaraan.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px; background:var(--ivory-dim); border-radius:14px;">Belum ada kendaraan terdaftar.</div>
-      <div v-else style="display:flex; flex-direction:column; gap:10px;">
-        <div v-for="k in daftarKendaraan" :key="k.id" style="padding:12px 14px; background:var(--ivory-dim); border-radius:12px;">
-          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-            <div style="flex:1; min-width:140px;">
-              <b style="font-size:12.5px;">{{ k.plat_nomor }}</b>
-              <p style="font-size:10.5px; color:var(--text-muted);">{{ k.nama_kendaraan || '-' }}</p>
-              <p style="font-size:10.5px; color:var(--burgundy); margin-top:3px;">
-                <i class="fas fa-user" style="margin-right:4px;"></i>
-                <span v-if="k.supir_pemegang.length === 0">Belum ada supir</span>
-                <span v-else>{{ k.supir_pemegang.map(s => s.nama).join(', ') }}</span>
-              </p>
-            </div>
-            <button @click="bukaEditSupir(k)" class="btn-outline" style="font-size:11px; padding:6px 12px;"><i class="fas fa-user-edit" style="margin-right:5px;"></i>Atur Supir</button>
-            <button @click="hapus(k.id)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
-          </div>
-
-          <div v-if="sedangEditSupirId === k.id" style="margin-top:12px; padding-top:12px; border-top:1px dashed var(--line);">
-            <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Centang supir yang boleh pakai kendaraan ini:</label>
-            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
-              <label v-for="o in daftarOperator" :key="o.email" style="display:flex; align-items:center; gap:5px; font-size:11.5px; background:var(--surface); padding:5px 10px; border-radius:20px; cursor:pointer; border:1px solid var(--line);">
-                <input type="checkbox" :value="o.email" v-model="pilihanSementara" style="accent-color:var(--burgundy);">{{ o.nama }}
-              </label>
-            </div>
-            <div style="display:flex; gap:8px;">
-              <button @click="simpanSupir(k.id)" class="btn-primary" style="padding:6px 16px; font-size:11.5px;">Simpan</button>
-              <button @click="batalEditSupir" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer; font-size:11.5px;">Batal</button>
-            </div>
-          </div>
+    <div class="gc-card" style="margin-bottom:16px;">
+      <h3 class="gc-heading" style="font-weight:700; font-size:13.5px; margin-bottom:14px;"><i class="fas fa-truck" style="color:var(--burgundy); margin-right:8px;"></i> Tambah Kendaraan Baru</h3>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;" class="grid-cols-1 md:grid-cols-2">
+        <div class="gc-field" style="margin-bottom:0;">
+          <label>1. Jenis Pekerjaan (bidang usaha)</label>
+          <select v-model="jenisPekerjaanBaru"><option value="" disabled>Pilih...</option><option v-for="jp in opsiJenisPekerjaan" :key="jp" :value="jp">{{ jp }}</option></select>
+        </div>
+        <div class="gc-field" style="margin-bottom:0;">
+          <label>2. Gudang</label>
+          <select v-model="gudangBaru"><option value="" disabled>Pilih...</option><option v-for="g in opsiGudang" :key="g" :value="g">{{ g }}</option></select>
         </div>
       </div>
+      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+        <input v-model="platBaru" type="text" placeholder="3. Plat nomor (contoh: D 1234 AB)" style="flex:1; min-width:160px; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+        <input v-model="namaBaru" type="text" placeholder="Nama/jenis kendaraan (opsional)" style="flex:1; min-width:160px; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+      </div>
+      <p style="font-size:10px; color:var(--text-faint); margin-bottom:12px;"><i class="fas fa-circle-info" style="margin-right:4px;"></i>4. Atur Supir (rolling, bisa 2+ orang) dilakukan setelah kendaraan tersimpan, lewat tombol "Atur Supir" di tabel bawah.</p>
+      <button @click="tambah" :disabled="menyimpan" class="btn-primary"><i class="fas fa-plus" style="margin-right:6px;"></i>{{ menyimpan ? 'Menyimpan...' : 'Tambah Kendaraan' }}</button>
+    </div>
+
+    <div style="position:relative; margin-bottom:14px; max-width:320px;">
+      <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
+      <input v-model="cariKendaraan" type="text" placeholder="Cari plat, nama, gudang, atau supir..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+    </div>
+
+    <div class="gc-card" style="padding:0; overflow:hidden;">
+      <div v-if="memuat" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+      <div v-else-if="daftarKendaraan.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada kendaraan terdaftar.</div>
+      <div v-else-if="daftarKendaraanTersaring.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Tidak ada yang cocok dicari.</div>
+      <div v-else class="gc-table-scroll">
+        <table class="gc-table">
+          <thead>
+            <tr>
+              <th>Plat / Nama</th>
+              <th>Jenis Pekerjaan / Gudang</th>
+              <th>Supir Pemegang</th>
+              <th>Dikaitkan Sejak</th>
+              <th class="freeze freeze-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="k in daftarKendaraanTerpaginasi" :key="k.id">
+              <tr>
+                <td><b>{{ k.plat_nomor }}</b><br><span style="color:var(--text-faint); font-size:10.5px;">{{ k.nama_kendaraan || '-' }}</span></td>
+                <td>{{ k.jenis_pekerjaan || '-' }}<br><span style="color:var(--text-faint); font-size:10.5px;">{{ k.gudang || '-' }}</span></td>
+                <td>
+                  <span v-if="k.supir_pemegang.length === 0" style="color:var(--text-faint);">Belum ada supir</span>
+                  <span v-else>{{ k.supir_pemegang.map(s => s.nama).join(', ') }}</span>
+                </td>
+                <td class="gc-cell-muted">{{ formatTglSingkat(k.supir_ditugaskan_pada) }}</td>
+                <td class="freeze freeze-right">
+                  <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
+                    <button @click="bukaEditSupir(k)" class="icon-btn" title="Atur Supir"><i class="fas fa-user-edit"></i></button>
+                    <button @click="hapus(k.id)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="sedangEditSupirId === k.id">
+                <td colspan="5" style="background:var(--ivory-dim);">
+                  <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Centang supir yang boleh pakai kendaraan ini:</label>
+                  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+                    <label v-for="o in daftarOperator" :key="o.email" style="display:flex; align-items:center; gap:5px; font-size:11.5px; background:var(--surface); padding:5px 10px; border-radius:20px; cursor:pointer; border:1px solid var(--line);">
+                      <input type="checkbox" :value="o.email" v-model="pilihanSementara" style="accent-color:var(--burgundy);">{{ o.nama }}
+                    </label>
+                  </div>
+                  <div style="display:flex; gap:8px;">
+                    <button @click="simpanSupir(k.id)" class="btn-primary" style="padding:6px 16px; font-size:11.5px;">Simpan</button>
+                    <button @click="batalEditSupir" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer; font-size:11.5px;">Batal</button>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div v-if="!memuat && daftarKendaraanTersaring.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
+      <button class="icon-btn" :disabled="halamanSaatIni <= 1" @click="gantiHalaman(-1)"><i class="fas fa-chevron-left"></i></button>
+      <span style="font-size:12px; color:var(--text-muted);">Halaman {{ halamanSaatIni }} / {{ totalHalaman }} &middot; {{ daftarKendaraanTersaring.length }} kendaraan</span>
+      <button class="icon-btn" :disabled="halamanSaatIni >= totalHalaman" @click="gantiHalaman(1)"><i class="fas fa-chevron-right"></i></button>
     </div>
   `
 };
@@ -819,4 +914,174 @@ window.pastikanMountMasterKendaraan = function() {
   if (vmMasterKendaraan) return;
   const mountPoint = document.getElementById('vue-master-kendaraan');
   if (mountPoint) vmMasterKendaraan = createApp(AppMasterKendaraan).mount('#vue-master-kendaraan');
+};
+
+// ============================================================================
+// KOMPONEN 5 — Riwayat (3 menu: Reimburse/Bensin/Servis, permintaan
+// Hilman 19 Agt 2026). 1 komponen dipakai ULANG buat ketiganya lewat
+// prop `mode` — bukan bikin 3 komponen terpisah yang isinya 90% sama.
+// Beda dari Antrean Reimburse: di sini TAMPILKAN SEMUA tahap (termasuk
+// yang sudah disetujui/ditolak) — ini laporan/riwayat, bukan antrean
+// kerja. Di-scope jenis_pekerjaan+gudang (window.bolehLihatData), SAMA
+// seperti tabel lain di app ini.
+// ============================================================================
+const LABEL_MODE = {
+  semua: { judul: 'Riwayat Reimburse', ikon: 'fa-receipt', placeholder: 'Cari nama karyawan...' },
+  bensin: { judul: 'Riwayat Isi Bensin', ikon: 'fa-gas-pump', placeholder: 'Cari nama karyawan atau plat...' },
+  servis: { judul: 'Riwayat Servis', ikon: 'fa-wrench', placeholder: 'Cari nama karyawan atau plat...' }
+};
+
+const RiwayatReimburseTable = {
+  props: { mode: { type: String, default: 'semua' } },
+  setup(props) {
+    const daftarSemua = ref([]);
+    const memuat = ref(true);
+    const errorMuat = ref('');
+    const cariKata = ref('');
+
+    const daftarTersaring = computed(() => {
+      const kata = cariKata.value.trim().toLowerCase();
+      if (!kata) return daftarSemua.value;
+      return daftarSemua.value.filter(r =>
+        (r.nama_pegawai || '').toLowerCase().includes(kata) ||
+        (r.kendaraan_plat || '').toLowerCase().includes(kata)
+      );
+    });
+    // PEDOMAN KERJA (19 Agt 2026) — setiap menu baru WAJIB paginasi.
+    const PER_HALAMAN = 15;
+    const halamanSaatIni = ref(1);
+    watch(cariKata, () => { halamanSaatIni.value = 1; });
+    const totalHalaman = computed(() => Math.max(1, Math.ceil(daftarTersaring.value.length / PER_HALAMAN)));
+    const daftarTerpaginasi = computed(() => {
+      const mulai = (halamanSaatIni.value - 1) * PER_HALAMAN;
+      return daftarTersaring.value.slice(mulai, mulai + PER_HALAMAN);
+    });
+    function gantiHalaman(delta) { halamanSaatIni.value = Math.min(totalHalaman.value, Math.max(1, halamanSaatIni.value + delta)); }
+
+    function formatTgl(ts) {
+      if (!ts || !ts.toDate) return '-';
+      return ts.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    async function muat() {
+      memuat.value = true;
+      errorMuat.value = '';
+      try {
+        // Riwayat = SEMUA tahap (bukan cuma pending) — ini laporan, bukan
+        // antrean kerja. Filter jenis_entry_kendaraan (bensin/servis)
+        // dilakukan DI CLIENT (bukan where() Firestore) supaya 1 fetch
+        // ini bisa dipakai ulang oleh ketiga mode tanpa 3x baca beda-beda.
+        const snap = await getDocs(collection(db, "reimburse"));
+        const list = [];
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          if (props.mode === 'bensin' && d.jenis_entry_kendaraan !== 'bensin') return;
+          if (props.mode === 'servis' && d.jenis_entry_kendaraan !== 'servis') return;
+          if (!window.bolehLihatData(d.jenis_pekerjaan, d.gudang)) return;
+          list.push({ id: docSnap.id, ...d });
+        });
+        list.sort((a, b) => (b.diajukan_pada?.toDate?.().getTime() || 0) - (a.diajukan_pada?.toDate?.().getTime() || 0));
+        daftarSemua.value = list;
+      } catch (e) {
+        console.error("Gagal muat riwayat reimburse:", e);
+        errorMuat.value = 'Gagal memuat data. Cek Console untuk detail (mungkin perlu index Firestore baru — lihat link di pesan error aslinya).';
+      }
+      memuat.value = false;
+    }
+
+    function lihatFotoBesar(url) {
+      if (url && window.bukaPreviewFoto) window.bukaPreviewFoto(url);
+    }
+
+    onMounted(async () => { await window.authReady; muat(); });
+    return {
+      daftarSemua, daftarTersaring, daftarTerpaginasi, memuat, errorMuat, muat, cariKata, formatTgl, lihatFotoBesar,
+      LABEL_TAHAP, warnaTahap, formatRupiah, LABEL_MODE, halamanSaatIni, totalHalaman, gantiHalaman
+    };
+  },
+  template: `
+    <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+      <h3 class="gc-heading" style="font-weight:700; font-size:13.5px;"><i class="fas" :class="LABEL_MODE[mode].ikon" style="color:var(--burgundy); margin-right:8px;"></i> {{ LABEL_MODE[mode].judul }}</h3>
+      <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
+    </div>
+
+    <div v-if="!memuat && daftarSemua.length > 0" style="position:relative; margin-bottom:14px; max-width:320px;">
+      <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
+      <input v-model="cariKata" type="text" :placeholder="LABEL_MODE[mode].placeholder" style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+    </div>
+
+    <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint);"><i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i><p style="font-size:12px;">Memuat riwayat...</p></div>
+    <div v-else-if="errorMuat" style="text-align:center; padding:40px 0; color:var(--danger); font-size:12px; background:var(--danger-light); border-radius:18px;">{{ errorMuat }}</div>
+    <div v-else-if="daftarSemua.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
+      <i class="fas fa-inbox" style="font-size:40px; color:var(--text-faint); margin-bottom:12px; display:block;"></i>
+      <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Belum ada riwayat</h4>
+    </div>
+    <div v-else-if="daftarTersaring.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
+      <p style="font-size:11.5px; color:var(--text-muted);">Tidak ada yang cocok dicari.</p>
+    </div>
+    <div v-else class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line);">
+      <table class="gc-table">
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Nama</th>
+            <th v-if="mode !== 'semua'">Kendaraan</th>
+            <th v-if="mode === 'bensin'">KM</th>
+            <th v-if="mode === 'semua'">Kategori</th>
+            <th v-if="mode === 'servis'">Rincian</th>
+            <th>Jumlah</th>
+            <th>Status</th>
+            <th>Foto</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in daftarTerpaginasi" :key="r.id">
+            <td class="gc-cell-muted">{{ formatTgl(r.diajukan_pada) }}</td>
+            <td>{{ r.nama_pegawai || '-' }}</td>
+            <td v-if="mode !== 'semua'">{{ r.kendaraan_plat || '-' }}</td>
+            <td v-if="mode === 'bensin'">{{ r.km_saat_isi ? r.km_saat_isi.toLocaleString('id-ID') + ' km' : '-' }}</td>
+            <td v-if="mode === 'semua'">{{ r.kategori || '-' }}</td>
+            <td v-if="mode === 'servis'" style="max-width:200px;">
+              <span v-if="!r.item_servis || r.item_servis.length === 0">-</span>
+              <span v-else style="font-size:10.5px;">{{ r.item_servis.map(i => i.nama_barang).join(', ') }}</span>
+            </td>
+            <td><b>{{ formatRupiah(r.jumlah) }}</b></td>
+            <td><span class="tag" :class="warnaTahap(r.tahap)" style="font-size:10px;">{{ LABEL_TAHAP[r.tahap] || r.tahap }}</span></td>
+            <td>
+              <img v-if="r.foto_bukti" :src="r.foto_bukti" @click="lihatFotoBesar(r.foto_bukti)" style="width:32px; height:32px; border-radius:8px; object-fit:cover; cursor:pointer;">
+              <span v-else style="color:var(--text-faint);">-</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div v-if="!memuat && daftarTersaring.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
+      <button class="icon-btn" :disabled="halamanSaatIni <= 1" @click="gantiHalaman(-1)"><i class="fas fa-chevron-left"></i></button>
+      <span style="font-size:12px; color:var(--text-muted);">Halaman {{ halamanSaatIni }} / {{ totalHalaman }} &middot; {{ daftarTersaring.length }} baris</span>
+      <button class="icon-btn" :disabled="halamanSaatIni >= totalHalaman" @click="gantiHalaman(1)"><i class="fas fa-chevron-right"></i></button>
+    </div>
+  `
+};
+
+const AppRiwayatReimburse = { components: { RiwayatReimburseTable }, template: `<riwayat-reimburse-table mode="semua" />` };
+const AppRiwayatBensin = { components: { RiwayatReimburseTable }, template: `<riwayat-reimburse-table mode="bensin" />` };
+const AppRiwayatServis = { components: { RiwayatReimburseTable }, template: `<riwayat-reimburse-table mode="servis" />` };
+
+let vmRiwayatReimburse = null;
+window.pastikanMountRiwayatReimburse = function() {
+  if (vmRiwayatReimburse) return;
+  const mountPoint = document.getElementById('vue-riwayat-reimburse');
+  if (mountPoint) vmRiwayatReimburse = createApp(AppRiwayatReimburse).mount('#vue-riwayat-reimburse');
+};
+let vmRiwayatBensin = null;
+window.pastikanMountRiwayatBensin = function() {
+  if (vmRiwayatBensin) return;
+  const mountPoint = document.getElementById('vue-riwayat-bensin');
+  if (mountPoint) vmRiwayatBensin = createApp(AppRiwayatBensin).mount('#vue-riwayat-bensin');
+};
+let vmRiwayatServis = null;
+window.pastikanMountRiwayatServis = function() {
+  if (vmRiwayatServis) return;
+  const mountPoint = document.getElementById('vue-riwayat-servis');
+  if (mountPoint) vmRiwayatServis = createApp(AppRiwayatServis).mount('#vue-riwayat-servis');
 };

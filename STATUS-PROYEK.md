@@ -792,3 +792,30 @@ dicontek sama persis di tabel/kartu-grid lain):
   kosong, WAJIB pesan BEDA ("Tidak ada yang cocok" bukan "Semua sudah
   tervalidasi") — supaya Owner tidak salah paham antrean-nya benar-benar
   kosong.
+
+## 17. PEDOMAN KERJA: search box + paginasi WAJIB tiap menu baru, filter WAJIB tanya dulu (19 Agt 2026)
+
+Aturan baku permanen dari Hilman, berlaku ke SEMUA menu baru ke depan
+tanpa kecuali:
+
+1. **Search box** — WAJIB ada di tiap menu baru yang nampilin daftar/
+   tabel data (kecuali memang cuma 1-2 baris yang mustahil butuh cari).
+2. **Paginasi** — WAJIB ada di tiap menu baru yang nampilin daftar/tabel
+   data. Untuk koleksi kecil (kategori, kendaraan, dsb) cukup PAGINASI
+   TAMPILAN client-side (potong array yang sudah difetch, pola
+   `PER_HALAMAN`/`halamanSaatIni`/computed slice — SAMA persis dengan
+   yang sudah dipakai di Riwayat All Absensi, Master Kendaraan, Riwayat
+   Reimburse/Bensin/Servis). TIDAK WAJIB cursor Firestore sungguhan
+   kecuali datanya memang sudah/berpotensi besar (baru dipertimbangkan
+   Tier 2 kalau itu terjadi).
+3. **Filter** (dropdown tambahan di luar search+paginasi) — **WAJIB
+   TANYA Hilman dulu** sebelum ditambahkan, JANGAN diputuskan sendiri.
+   Ini beda dari search+paginasi yang otomatis wajib tanpa perlu
+   ditanya — filter itu soal *apa yang relevan buat pekerjaan
+   sehari-hari*, itu Hilman yang paling tahu, bukan diasumsikan dari
+   pola tabel lain.
+
+**Kenapa aturan ini dibuat**: 3 halaman baru (Master Kendaraan, Riwayat
+Reimburse, Riwayat Bensin/Servis) sempat dikirim TANPA paginasi sama
+sekali — Hilman minta dibetulkan dan dijadikan aturan permanen supaya
+tidak kejadian lagi ke tabel-tabel baru berikutnya.
