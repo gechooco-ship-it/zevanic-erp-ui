@@ -26,8 +26,8 @@
 // window.hapusAbsensi TETAP dipanggil dari sini (fungsi bersama, juga
 // dipakai oleh Antrean Absensi).
 // ============================================================================
-import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, updateDoc, writeBatch, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { collection, getDocs, doc, updateDoc, writeBatch, Timestamp, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DuaBaris } from './vue-components.js';
 
@@ -152,47 +152,158 @@ const AppRiwayatAbsensi = {
       if (!kata) return listData.value;
       return listData.value.filter(item => (item.nama_pegawai || item.nama || '').toLowerCase().includes(kata));
     });
+    // Paginasi TAMPILAN (bukan re-query Firestore per halaman) — aman
+    // dilakukan di browser karena listData SUDAH dibatasi rentang
+    // tanggal duluan (lihat muat() di bawah), jadi ukurannya sudah wajar
+    // untuk dipotong-potong di sini, bukan ribuan baris sekaligus.
+    const totalHalaman = computed(() => Math.max(1, Math.ceil(listDataTersaring.value.length / PER_HALAMAN)));
+    const listDataTerpaginasi = computed(() => {
+      const mulai = (halamanSaatIni.value - 1) * PER_HALAMAN;
+      return listDataTersaring.value.slice(mulai, mulai + PER_HALAMAN);
+    });
+    function gantiHalaman(delta) {
+      halamanSaatIni.value = Math.min(totalHalaman.value, Math.max(1, halamanSaatIni.value + delta));
+    }
     const memuat = ref(true);
     const itemSedangDiedit = ref(null);
 
-    // ---- Migrasi waktu_ts (18 Agt 2026) — TIDAK BERUBAH dari sebelumnya ----
+    // ---- BARU (19 Agt 2026) — Filter Tanggal jadi QUERY SUNGGUHAN ----
+    // Defaultnya "Hari Ini" — inilah hemat-nya: buka halaman pertama kali
+    // TIDAK LAGI fetch SELURUH riwayat sepanjang masa, cuma tarik yang
+    // beneran relevan hari itu. Preset lain (Kemarin/7/30 hari) atau
+    // rentang bebas tinggal ganti nilai where() di bawah — TETAP query,
+    // bukan fetch-semua-lalu-buang di JS.
+    const filterTanggalPreset = ref('hari_ini');
+    const tglMulaiCustom = ref('');
+    const tglSelesaiCustom = ref('');
+    const PER_HALAMAN = 20;
+    const halamanSaatIni = ref(1);
+
+    function hitungRentangTanggal(preset, customMulai, customSelesai) {
+      const s = new Date();
+      const hariIniMulai = new Date(s.getFullYear(), s.getMonth(), s.getDate(), 0, 0, 0, 0);
+      const hariIniSelesai = new Date(s.getFullYear(), s.getMonth(), s.getDate(), 23, 59, 59, 999);
+      if (preset === 'kemarin') {
+        const m = new Date(hariIniMulai); m.setDate(m.getDate() - 1);
+        const sl = new Date(hariIniSelesai); sl.setDate(sl.getDate() - 1);
+        return { mulai: m, selesai: sl };
+      }
+      if (preset === '7_hari') {
+        const m = new Date(hariIniMulai); m.setDate(m.getDate() - 6);
+        return { mulai: m, selesai: hariIniSelesai };
+      }
+      if (preset === '30_hari') {
+        const m = new Date(hariIniMulai); m.setDate(m.getDate() - 29);
+        return { mulai: m, selesai: hariIniSelesai };
+      }
+      if (preset === 'custom' && customMulai && customSelesai) {
+        const [ym, mm, dm] = customMulai.split('-').map(Number);
+        const [ys, ms, ds] = customSelesai.split('-').map(Number);
+        return { mulai: new Date(ym, mm - 1, dm, 0, 0, 0, 0), selesai: new Date(ys, ms - 1, ds, 23, 59, 59, 999) };
+      }
+      return { mulai: hariIniMulai, selesai: hariIniSelesai }; // default & fallback aman: Hari Ini
+    }
+
+    const LABEL_PRESET = { hari_ini: 'Hari Ini', kemarin: 'Kemarin', '7_hari': '7 Hari Terakhir', '30_hari': '30 Hari Terakhir', custom: 'Rentang Pilihan' };
+    function formatTglCaption(d) { return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }); }
+    const captionRentang = computed(() => {
+      const { mulai, selesai } = hitungRentangTanggal(filterTanggalPreset.value, tglMulaiCustom.value, tglSelesaiCustom.value);
+      const sama = mulai.toDateString() === selesai.toDateString();
+      const teksTgl = sama ? formatTglCaption(mulai) : `${formatTglCaption(mulai)} — ${formatTglCaption(selesai)}`;
+      return `Menampilkan riwayat: ${LABEL_PRESET[filterTanggalPreset.value] || ''} (${teksTgl})`;
+    });
+
+    // ---- Migrasi waktu_ts — SEKARANG jadi pengecekan MANUAL (tombol),
+    // bukan otomatis tiap buka halaman lagi. Kenapa: query rentang
+    // tanggal di bawah TIDAK BISA "melihat" dokumen yang belum punya
+    // waktu_ts/waktu_masuk_ts sama sekali (Firestore tidak bisa cocokkan
+    // rentang tanggal ke field yang tidak ada) — jadi deteksinya perlu
+    // fetch-semua terpisah, SEKALI diklik, bukan dibebankan ke query
+    // utama yang justru mau dibikin hemat.
     const migrasi = reactive({ totalBelumMigrasi: 0, sedangProses: false, sudahDicek: false, hasilTerakhir: '' });
     let dokumenBelumMigrasi = [];
+    async function cekDataBelumMigrasi() {
+      migrasi.sedangProses = true;
+      try {
+        const snap = await getDocs(collection(db, "absensi"));
+        dokumenBelumMigrasi = [];
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          const belumAdaWaktuTs = d.status_acc_masuk !== undefined ? !d.waktu_masuk_ts : !d.waktu_ts;
+          if (belumAdaWaktuTs) dokumenBelumMigrasi.push({ id: docSnap.id, waktu: d.waktu || d.waktu_masuk, formatBaru: d.status_acc_masuk !== undefined });
+        });
+        migrasi.totalBelumMigrasi = dokumenBelumMigrasi.length;
+        migrasi.sudahDicek = true;
+      } catch (e) {
+        console.error("Gagal cek data belum migrasi:", e);
+      }
+      migrasi.sedangProses = false;
+    }
 
     async function muat() {
       memuat.value = true;
       try {
-        const qUsers = await getDocs(collection(db, "users"));
-        const petaHp = {};
-        const petaJenisPekerjaan = {};
-        const petaStatusKerja = {}; // BARU — buat filter Status Kerja=Aktif
-        qUsers.forEach(u => {
-          const du = u.data();
-          petaHp[du.email] = du.hp || '-';
-          petaJenisPekerjaan[du.email] = du.jenis_pekerjaan || '';
-          petaStatusKerja[du.email] = du.status_kerja || '';
+        const { mulai, selesai } = hitungRentangTanggal(filterTanggalPreset.value, tglMulaiCustom.value, tglSelesaiCustom.value);
+        const tsMulai = Timestamp.fromDate(mulai);
+        const tsSelesai = Timestamp.fromDate(selesai);
+
+        // 2 query TERPISAH by DESAIN — dokumen format BARU pakai
+        // waktu_masuk_ts, format LAMA pakai waktu_ts (field beda nama,
+        // Firestore tidak bisa "OR" antar field beda dalam 1 query).
+        // Dokumen yang BELUM py field ini sama sekali (belum migrasi)
+        // OTOMATIS tidak ketemu di sini — itu tugas cekDataBelumMigrasi().
+        const [snapBaru, snapLama] = await Promise.all([
+          getDocs(query(collection(db, "absensi"), where("waktu_masuk_ts", ">=", tsMulai), where("waktu_masuk_ts", "<=", tsSelesai))),
+          getDocs(query(collection(db, "absensi"), where("waktu_ts", ">=", tsMulai), where("waktu_ts", "<=", tsSelesai)))
+        ]);
+        const semuaDok = [];
+        snapBaru.forEach(d => semuaDok.push(d));
+        snapLama.forEach(d => semuaDok.push(d));
+
+        // DIROMBAK (19 Agt 2026) — dulu SELALU fetch-semua "users" duluan.
+        // SEKARANG js/vue-camera.js sudah titip jenis_pekerjaan/status_kerja/
+        // hp LANGSUNG di tiap dokumen absensi baru — jadi users CUMA
+        // dibaca buat email yang dokumennya masih BOLONG (data lama).
+        const emailPerluDicari = new Set();
+        semuaDok.forEach(docSnap => {
+          const d = docSnap.data();
+          if (!d.jenis_pekerjaan || !d.status_kerja || d.hp === undefined) emailPerluDicari.add(d.email);
         });
 
-        const snap = await getDocs(collection(db, "absensi"));
+        const petaHp = {}, petaJenisPekerjaan = {}, petaStatusKerja = {};
+        if (emailPerluDicari.size > 0) {
+          const daftarEmail = [...emailPerluDicari];
+          const UKURAN_POTONGAN = 30; // batas Firestore where(field,'in',[...])
+          for (let i = 0; i < daftarEmail.length; i += UKURAN_POTONGAN) {
+            const potongan = daftarEmail.slice(i, i + UKURAN_POTONGAN);
+            const qUsers = await getDocs(query(collection(db, "users"), where("email", "in", potongan)));
+            qUsers.forEach(u => {
+              const du = u.data();
+              petaHp[du.email] = du.hp || '-';
+              petaJenisPekerjaan[du.email] = du.jenis_pekerjaan || '';
+              petaStatusKerja[du.email] = du.status_kerja || '';
+            });
+          }
+        }
+        function ambilJP(d) { return d.jenis_pekerjaan || petaJenisPekerjaan[d.email] || ''; }
+        function ambilStatusKerja(d) { return d.status_kerja || petaStatusKerja[d.email] || ''; }
+        function ambilHp(d) { return d.hp || petaHp[d.email] || d.email || '-'; }
+
         const list = [];
-        dokumenBelumMigrasi = [];
-        snap.forEach(docSnap => {
+        semuaDok.forEach(docSnap => {
           const d = docSnap.data();
-          if (!window.bolehLihatData(petaJenisPekerjaan[d.email], d.gudang)) return;
+          if (!window.bolehLihatData(ambilJP(d), d.gudang)) return;
           // BARU (permintaan checklist) — karyawan nonaktif/resign tidak
           // perlu muncul di laporan operasional ini.
-          if (petaStatusKerja[d.email] !== 'Aktif') return;
+          if (ambilStatusKerja(d) !== 'Aktif') return;
           d.id = docSnap.id;
-          d.hpDicariDariUsers = petaHp[d.email] || d.email || '-';
+          d.hpDicariDariUsers = ambilHp(d);
           list.push(d);
-          const belumAdaWaktuTs = d.status_acc_masuk !== undefined ? !d.waktu_masuk_ts : !d.waktu_ts;
-          if (belumAdaWaktuTs) dokumenBelumMigrasi.push({ id: docSnap.id, waktu: d.waktu || d.waktu_masuk });
         });
 
         list.sort((a, b) => (window.parseWaktuIndo(waktuUntukSortir(b))?.getTime() || 0) - (window.parseWaktuIndo(waktuUntukSortir(a))?.getTime() || 0));
         listData.value = list;
-        migrasi.totalBelumMigrasi = dokumenBelumMigrasi.length;
-        migrasi.sudahDicek = true;
+        halamanSaatIni.value = 1; // reset ke halaman 1 tiap filter tanggal/cari berubah
       } catch (e) {
         console.error("Gagal muat rekap global:", e);
       }
@@ -215,11 +326,13 @@ const AppRiwayatAbsensi = {
           potongan.forEach(d => {
             const tanggalTerurai = window.parseWaktuIndo(d.waktu);
             if (!tanggalTerurai) { gagalParsing++; return; }
-            // Field target waktu_ts vs waktu_masuk_ts tergantung format
-            // dokumennya — dicek dari listData yang sudah dimuat (bukan
-            // baca Firestore lagi cuma buat tahu ini format apa).
-            const itemAsli = listData.value.find(x => x.id === d.id);
-            const fieldTarget = (itemAsli && itemAsli.status_acc_masuk !== undefined) ? 'waktu_masuk_ts' : 'waktu_ts';
+            // Field target waktu_ts vs waktu_masuk_ts sudah ditentukan
+            // pas dikumpulkan di cekDataBelumMigrasi() (d.formatBaru) —
+            // JANGAN cari lagi di listData.value, karena sekarang
+            // listData sudah dibatasi rentang tanggal (19 Agt 2026),
+            // dokumen lama yang mau dimigrasi kemungkinan besar TIDAK
+            // ADA di situ (sumber data beda: fetch-semua vs date-scoped).
+            const fieldTarget = d.formatBaru ? 'waktu_masuk_ts' : 'waktu_ts';
             batch.update(doc(db, "absensi", d.id), { [fieldTarget]: Timestamp.fromDate(tanggalTerurai) });
             sukses++;
           });
@@ -271,12 +384,16 @@ const AppRiwayatAbsensi = {
     }
 
     function exportCSV() {
-      if (listData.value.length === 0) return alert("Tidak ada data untuk di-export saat ini.");
+      if (listDataTersaring.value.length === 0) return alert("Tidak ada data untuk di-export sesuai filter tanggal/cari yang aktif.");
 
       let csvContent = "data:text/csv;charset=utf-8,";
+      // BARU (19 Agt 2026) — baris caption di awal CSV, biar siapapun yang
+      // buka filenya nanti (tanpa lihat aplikasi) tetap tau ini data
+      // rentang tanggal berapa & sedang dicari nama apa (kalau ada).
+      csvContent += `"${captionRentang.value}${cariNama.value.trim() ? ' | Cari: ' + cariNama.value.trim() : ''}"\n\n`;
       csvContent += "Nama Pegawai,Email,Tipe Absen,Gudang,Shift,Waktu Clock In,Status ACC Masuk,Waktu Clock Out,Status ACC Keluar,Seragam\n";
 
-      listData.value.forEach(row => {
+      listDataTersaring.value.forEach(row => {
         const f = formatBaris(row);
         const nama = `"${(row.nama_pegawai || row.nama || '').replace(/"/g, '""')}"`;
         const email = `"${(row.email || '').replace(/"/g, '""')}"`;
@@ -294,17 +411,27 @@ const AppRiwayatAbsensi = {
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
       link.setAttribute("href", encodedUri);
-      link.setAttribute("download", `Data_Absensi_Zevanic_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute("download", `Data_Absensi_Zevanic_${filterTanggalPreset.value}_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
     }
 
+    watch(cariNama, () => { halamanSaatIni.value = 1; });
+    watch([filterTanggalPreset, tglMulaiCustom, tglSelesaiCustom], () => {
+      // Rentang custom: JANGAN re-fetch sebelum DUA tanggal terisi —
+      // hindari query aneh (mis. cuma tglMulai terisi, tglSelesai kosong).
+      if (filterTanggalPreset.value === 'custom' && (!tglMulaiCustom.value || !tglSelesaiCustom.value)) return;
+      muat();
+    });
+
     onMounted(async () => { await window.authReady; muat(); });
     return {
-      listData, listDataTersaring, cariNama, memuat, itemSedangDiedit, muat, pisahTanggalWaktu, lihatFotoBesar,
-      bukaEdit, tutupEdit, selesaiSimpan, hapus, assignUlang, exportCSV, migrasi, jalankanMigrasi,
-      formatBaris
+      listData, listDataTersaring, listDataTerpaginasi, cariNama, memuat, itemSedangDiedit, muat, pisahTanggalWaktu, lihatFotoBesar,
+      bukaEdit, tutupEdit, selesaiSimpan, hapus, assignUlang, exportCSV, migrasi, jalankanMigrasi, cekDataBelumMigrasi,
+      formatBaris,
+      filterTanggalPreset, tglMulaiCustom, tglSelesaiCustom, captionRentang,
+      halamanSaatIni, totalHalaman, gantiHalaman
     };
   },
   template: `
@@ -318,13 +445,34 @@ const AppRiwayatAbsensi = {
       </button>
     </div>
 
+    <div class="gc-card" style="margin-bottom:16px;">
+      <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+        <select v-model="filterTanggalPreset" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface); font-weight:600;">
+          <option value="hari_ini">Hari Ini</option>
+          <option value="kemarin">Kemarin</option>
+          <option value="7_hari">7 Hari Terakhir</option>
+          <option value="30_hari">30 Hari Terakhir</option>
+          <option value="custom">Pilih Tanggal Sendiri...</option>
+        </select>
+        <template v-if="filterTanggalPreset === 'custom'">
+          <input v-model="tglMulaiCustom" type="date" style="padding:7px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px;">
+          <span style="color:var(--text-faint); font-size:12px;">s/d</span>
+          <input v-model="tglSelesaiCustom" type="date" style="padding:7px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px;">
+        </template>
+        <button @click="cekDataBelumMigrasi" :disabled="migrasi.sedangProses" class="btn-outline" style="margin-left:auto; font-size:11px; padding:7px 12px;" title="Cek sekali data sangat lama yang belum ke-migrasi (tidak otomatis, di luar rentang tanggal di atas)">
+          <i class="fas fa-magnifying-glass" style="margin-right:5px;"></i>Cek Data Belum Migrasi
+        </button>
+      </div>
+      <p style="font-size:11px; color:var(--text-muted); margin-top:10px; font-style:italic;"><i class="fas fa-circle-info" style="margin-right:5px;"></i>{{ captionRentang }}</p>
+    </div>
+
     <div v-if="migrasi.sudahDicek && migrasi.totalBelumMigrasi > 0" class="gc-card" style="background:var(--warn-light); border:1.5px solid var(--warn); margin-bottom:16px;">
       <div style="display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;">
         <div style="display:flex; gap:12px; align-items:flex-start;">
           <i class="fas fa-clock-rotate-left" style="color:var(--warn); font-size:18px; margin-top:2px;"></i>
           <div>
             <h4 class="gc-heading" style="font-weight:700; font-size:12.5px;">{{ migrasi.totalBelumMigrasi }} data lama belum punya Timestamp asli</h4>
-            <p style="font-size:11px; color:var(--text-muted); margin-top:3px; max-width:480px;">Data ini masih tersimpan sebagai teks (dari sebelum 18 Agt 2026) — belum bisa dipakai untuk filter rentang tanggal yang hemat di server. Migrasi ini AMAN dijalankan kapan saja, boleh diulang kalau terputus, dan TIDAK mengubah data yang sudah dimigrasi.</p>
+            <p style="font-size:11px; color:var(--text-muted); margin-top:3px; max-width:480px;">Data ini masih tersimpan sebagai teks — belum bisa muncul lewat filter tanggal di atas sampai dimigrasi. Migrasi ini AMAN dijalankan kapan saja, boleh diulang kalau terputus.</p>
             <p v-if="migrasi.hasilTerakhir" style="font-size:11px; color:var(--text); margin-top:6px; font-weight:600;">{{ migrasi.hasilTerakhir }}</p>
           </div>
         </div>
@@ -358,9 +506,9 @@ const AppRiwayatAbsensi = {
           </tr>
         </thead>
         <tbody>
-          <tr v-if="listData.length === 0"><td colspan="10" style="text-align:center; padding:20px; color:var(--text-faint);">Belum ada data absensi.</td></tr>
+          <tr v-if="listData.length === 0"><td colspan="10" style="text-align:center; padding:20px; color:var(--text-faint);">Tidak ada data absensi pada rentang tanggal ini.</td></tr>
           <tr v-else-if="listDataTersaring.length === 0"><td colspan="10" style="text-align:center; padding:20px; color:var(--text-faint);">Tidak ada nama yang cocok dicari.</td></tr>
-          <tr v-for="item in listDataTersaring" :key="item.id">
+          <tr v-for="item in listDataTerpaginasi" :key="item.id">
             <td>
               <b>
                 <span v-if="formatBaris(item).statusAccMasuk === 'ACC'" style="color:var(--ok);">Masuk: ACC</span>
@@ -396,6 +544,12 @@ const AppRiwayatAbsensi = {
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <div v-if="!memuat && listDataTersaring.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
+      <button class="icon-btn" :disabled="halamanSaatIni <= 1" @click="gantiHalaman(-1)"><i class="fas fa-chevron-left"></i></button>
+      <span style="font-size:12px; color:var(--text-muted);">Halaman {{ halamanSaatIni }} / {{ totalHalaman }} &middot; {{ listDataTersaring.length }} baris</span>
+      <button class="icon-btn" :disabled="halamanSaatIni >= totalHalaman" @click="gantiHalaman(1)"><i class="fas fa-chevron-right"></i></button>
     </div>
 
     <edit-absensi-modal v-if="itemSedangDiedit" :item="itemSedangDiedit" @tutup="tutupEdit" @tersimpan="selesaiSimpan" />
