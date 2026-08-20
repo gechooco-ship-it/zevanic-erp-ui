@@ -107,6 +107,7 @@ const AppHome = {
     function bukaIzin() { if (window.bukaFormIzinDariHome) window.bukaFormIzinDariHome(); }
     function bukaCuti() { if (window.bukaFormCutiDariHome) window.bukaFormCutiDariHome(); }
     function bukaLembur() { if (window.bukaFormLemburDariHome) window.bukaFormLemburDariHome(); }
+    function bukaReimburse() { if (window.bukaReimburseDariHome) window.bukaReimburseDariHome(); }
 
     async function muatSemua() {
       await muatTampilan();
@@ -119,7 +120,7 @@ const AppHome = {
     return {
       shift, sudahAbsenHariIni, menuGroups,
       jamMasukAsli, durasiBerjalan,
-      klikClockInOut, klikMenu, bukaIzin, bukaCuti, bukaLembur,
+      klikClockInOut, klikMenu, bukaIzin, bukaCuti, bukaLembur, bukaReimburse,
       muatTampilan, muatSemua
     };
   },
@@ -160,6 +161,10 @@ const AppHome = {
         <button @click="bukaLembur" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
           <span style="width:40px; height:40px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy);"><i class="fas fa-business-time"></i></span>
           <span style="font-size:10.5px; font-weight:700; color:var(--text);">Lembur</span>
+        </button>
+        <button @click="bukaReimburse" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
+          <span style="width:40px; height:40px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy);"><i class="fas fa-receipt"></i></span>
+          <span style="font-size:10.5px; font-weight:700; color:var(--text);">Reimburse</span>
         </button>
       </div>
 
