@@ -107,7 +107,17 @@ function warnaTahap(tahap) {
 export const AjukanReimburseTab = {
   setup() {
     const opsiKategori = ref([]);
-    const form = reactive({ kategori: '', jumlah: '', keterangan: '', fotoBukti: '', kendaraanId: '' });
+    const form = reactive({ kategori: '', jumlah: '', keterangan: '', fotoBukti: '', kendaraanId: '', gudang: '' });
+    // BARU (19 Agt 2026) — SEBELUMNYA gudang diambil OTOMATIS dari
+    // gudang_penempatan[0] (posisi PERTAMA di array), tanpa peduli
+    // apakah itu gudang yang RELEVAN buat pengajuan ini. Untuk PIC/Admin
+    // Finance lapangan yang pegang BEBERAPA gudang sekaligus, ini bikin
+    // reimburse-nya bisa tercatat ke gudang yang SALAH — Admin Finance
+    // gudang yang benar jadi TIDAK PERNAH lihat pengajuannya. Sekarang
+    // WAJIB pilih sendiri (dropdown dari gudang MILIK SENDIRI saja,
+    // bukan semua gudang perusahaan — tetap sesuai penempatan resmi).
+    const opsiGudangSaya = window.normalisasiGudang ? window.normalisasiGudang(window.currentUser.gudang_penempatan) : (window.currentUser.gudang_penempatan || []);
+    if (opsiGudangSaya.length === 1) form.gudang = opsiGudangSaya[0]; // 1 gudang saja -> otomatis, tidak perlu ganggu orang milih
     const daftarKendaraan = ref([]);
 
     async function muatDaftarKendaraan() {
@@ -157,6 +167,7 @@ export const AjukanReimburseTab = {
       const jumlahAngka = parseInt(String(form.jumlah).replace(/\D/g, ''), 10);
       if (!jumlahAngka || jumlahAngka <= 0) return alert("Isi jumlah reimburse yang benar (harus lebih dari 0).");
       if (!form.fotoBukti) return alert("Foto bukti/struk wajib dilampirkan.");
+      if (opsiGudangSaya.length > 0 && !form.gudang) return alert("Pilih gudang yang relevan buat pengajuan ini dulu.");
 
       mengirim.value = true;
       try {
@@ -165,7 +176,7 @@ export const AjukanReimburseTab = {
           email: window.currentUser.email,
           nama_pegawai: window.currentUser.name,
           jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '',
-          gudang: (window.currentUser.gudang_penempatan || [])[0] || '',
+          gudang: form.gudang || '',
           kategori: form.kategori,
           jumlah: jumlahAngka,
           keterangan: form.keterangan || '',
@@ -195,7 +206,7 @@ export const AjukanReimburseTab = {
 
     onMounted(async () => { await window.authReady; await muatOpsiKategori(); await muatDaftarKendaraan(); await muatRiwayatSaya(); });
     return {
-      opsiKategori, form, mengirim, pilihFoto, ajukan, lihatFotoBesar, daftarKendaraan,
+      opsiKategori, form, mengirim, pilihFoto, ajukan, lihatFotoBesar, daftarKendaraan, opsiGudangSaya,
       riwayatSaya, memuatRiwayat, LABEL_TAHAP, warnaTahap, formatRupiah
     };
   },
@@ -206,6 +217,13 @@ export const AjukanReimburseTab = {
         <div class="gc-field">
           <label>Kategori Pengeluaran</label>
           <select v-model="form.kategori"><option v-for="k in opsiKategori" :key="k" :value="k">{{ k }}</option></select>
+        </div>
+        <div class="gc-field" v-if="opsiGudangSaya.length > 1">
+          <label>Gudang <span style="color:var(--danger);">*</span> (Anda ditempatkan di beberapa gudang, pilih yang relevan buat pengajuan ini)</label>
+          <select v-model="form.gudang">
+            <option value="" disabled>Pilih gudang...</option>
+            <option v-for="g in opsiGudangSaya" :key="g" :value="g">{{ g }}</option>
+          </select>
         </div>
         <div class="gc-field">
           <label>Kendaraan (opsional — isi kalau terkait bensin/servis mobil)</label>
@@ -264,7 +282,15 @@ const ReimburseCard = {
   emits: ['diproses'],
   setup(props, { emit }) {
     const memproses = ref(false);
-    const bolehProses = computed(() => rolesBolehProses(props.data.tahap).includes((window.currentUser.role || '').toLowerCase()));
+    // BARU (19 Agt 2026) — cerminan larangan self-approval yang SEBENARNYA
+    // dijaga firestore.rules (lihat catatan di sana). Di sini cuma
+    // supaya tombol Accept/Reject TIDAK MUNCUL buat pengajuan sendiri
+    // (bukan muncul lalu ditolak server, pengalaman lebih jelas).
+    const punyaSendiri = computed(() => props.data.email === window.currentUser.email);
+    const bolehProses = computed(() => {
+      if (punyaSendiri.value) return false;
+      return rolesBolehProses(props.data.tahap).includes((window.currentUser.role || '').toLowerCase());
+    });
 
     function lihatFotoBesar() {
       if (props.data.foto_bukti && window.bukaPreviewFoto) window.bukaPreviewFoto(props.data.foto_bukti);
@@ -292,7 +318,7 @@ const ReimburseCard = {
       memproses.value = false;
     }
 
-    return { memproses, bolehProses, lihatFotoBesar, proses, formatRupiah, LABEL_TAHAP, warnaTahap };
+    return { memproses, bolehProses, punyaSendiri, lihatFotoBesar, proses, formatRupiah, LABEL_TAHAP, warnaTahap };
   },
   template: `
     <div class="gc-card">
@@ -315,6 +341,7 @@ const ReimburseCard = {
         <button @click="proses(true)" :disabled="memproses" class="btn-acc" style="flex:1;"><i class="fas fa-check-circle" style="margin-right:6px;"></i> Accept</button>
         <button @click="proses(false)" :disabled="memproses" class="btn-rej" style="flex:1;"><i class="fas fa-times-circle" style="margin-right:6px;"></i> Reject</button>
       </div>
+      <p v-else-if="punyaSendiri" style="text-align:center; font-size:11px; color:var(--text-faint); padding-top:10px; border-top:1px solid var(--line);"><i class="fas fa-lock" style="margin-right:5px;"></i>Ini pengajuan Anda sendiri — tidak bisa Accept/Reject sendiri.</p>
       <p v-else style="text-align:center; font-size:11px; color:var(--text-faint); padding-top:10px; border-top:1px solid var(--line);">Menunggu validator tahap ini (bukan Anda).</p>
     </div>
   `
