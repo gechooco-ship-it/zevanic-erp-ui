@@ -312,6 +312,20 @@ const AppLogin = {
         return;
       }
 
+      // BARU (19 Agt 2026, permintaan Hilman) — karyawan yang sudah
+      // resign/nonaktif (status_kerja BUKAN "Aktif") TIDAK BOLEH login
+      // lagi, walau akun & password-nya masih ada di Firebase Auth.
+      // Owner/Superuser SENGAJA dikecualikan — supaya tidak ada resiko
+      // kunci-mati total dari sistem sendiri kalau field ini kebetulan
+      // salah/kosong di akun Owner sendiri (tidak ada orang lain yang
+      // bisa perbaiki Firestore-nya kalau itu terjadi).
+      if (!isOwnerRole && window.currentUser.status_kerja !== "Aktif") {
+        alert("Akun ini berstatus \"" + window.currentUser.status_kerja + "\" (bukan Aktif) dan tidak bisa dipakai login. Kalau ini keliru, hubungi Admin/Owner.");
+        await signOut(auth);
+        window._manualLoginInProgress = false;
+        return;
+      }
+
       // Owner/Superuser tidak wajib ditautkan ke gudang manapun — perannya
       // manajerial, bukan operasional lapangan.
       if (window.currentUser.gudang_penempatan.length === 0 && !isOwnerRole) {
