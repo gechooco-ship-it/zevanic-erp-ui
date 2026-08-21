@@ -330,9 +330,14 @@ const AppLogin = {
         return;
       }
 
-      // Owner/Superuser tidak wajib ditautkan ke gudang manapun — perannya
-      // manajerial, bukan operasional lapangan.
-      if (window.currentUser.gudang_penempatan.length === 0 && !isOwnerRole) {
+      // DIUBAH (19 Agt 2026, permintaan Hilman) — SEBELUMNYA Owner/
+      // Superuser dikecualikan dari syarat gudang ("perannya manajerial").
+      // Sekarang WAJIB juga, tidak ada pengecualian — konsisten dengan
+      // syarat Clock In yang juga sekarang berlaku ke Owner (lihat di
+      // bawah). PENTING: kalau akun Owner belum ada gudang_penempatan
+      // terisi, Owner akan TERKUNCI dari sistemnya sendiri sampai field
+      // ini diisi — WAJIB dicek dulu sebelum file ini dipakai produksi.
+      if (window.currentUser.gudang_penempatan.length === 0) {
         alert("Akun Anda belum ditautkan ke gudang manapun. Silakan hubungi Owner/PIC.");
         await signOut(auth);
         window._manualLoginInProgress = false;
@@ -345,15 +350,6 @@ const AppLogin = {
       if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
       if (window.refreshHome) window.refreshHome();
       if (window.refreshHeaderMobile) window.refreshHeaderMobile();
-
-      // Owner/Superuser: langsung ke Dashboard dari HP maupun komputer,
-      // tanpa syarat Clock In sama sekali.
-      if (isOwnerRole) {
-        window.pindahLayar('screen-dashboard');
-        window.pindahTab('tab-home');
-        window._manualLoginInProgress = false;
-        return;
-      }
 
       const hariIni = new Date().toLocaleDateString('id-ID');
       const statusLokal = localStorage.getItem('zevanic_absen_' + emailInput);
