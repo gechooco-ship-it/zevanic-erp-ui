@@ -27,7 +27,7 @@
 //   OTP bersama, SAMA yang dipakai Registrasi.
 // ============================================================================
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, getDoc, query, where, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { db, auth } from "./firebase-config.js";
 
@@ -47,18 +47,22 @@ function isDesktopBrowser() {
 // HP, login desktop tetap ditolak. Sekaligus dulu fetch SELURUH koleksi
 // absensi tiap kali dicek — boros parah, sekarang query LANGSUNG scoped
 // ke email+tanggal, dan cek KEDUA format (baru & lama) sekaligus.
+// DIROMBAK LAGI (19 Agt 2026) — versi sebelumnya cek "Clock In HARI INI"
+// pakai rentang tanggal kalender (00:00-23:59), yang PERSIS kena bug
+// shift-malam yang sama seperti tombol Home dulu: kalau Clock In malam
+// kemarin dan sekarang sudah lewat tengah malam, "hari ini" versi
+// kalender jadi beda tanggal — walau orangnya masih aktif di shift yang
+// SAMA belum Clock Out. Sekarang PAKAI ULANG window.cekStatusClockInSaya
+// (auth.js) — satu sumber kebenaran yang SAMA dipakai tombol Home &
+// Clock Out, sudah teruji tahan shift-malam & lintas-device. Juga lebih
+// masuk akal secara bisnis: aturan "wajib Clock In dulu" itu maksudnya
+// "sedang aktif di shift sekarang", bukan "pernah Clock In kapan saja
+// hari ini" (kalau sudah Clock Out & pulang, mestinya memang tidak boleh
+// remote-login ke sistem kantor lagi).
 async function sudahClockInHariIniServer(email) {
-  const s = new Date();
-  const tsMulai = Timestamp.fromDate(new Date(s.getFullYear(), s.getMonth(), s.getDate(), 0, 0, 0, 0));
-  const tsSelesai = Timestamp.fromDate(new Date(s.getFullYear(), s.getMonth(), s.getDate(), 23, 59, 59, 999));
   try {
-    const [snapBaru, snapLama] = await Promise.all([
-      getDocs(query(collection(db, "absensi"),
-        where("email", "==", email), where("waktu_masuk_ts", ">=", tsMulai), where("waktu_masuk_ts", "<=", tsSelesai))),
-      getDocs(query(collection(db, "absensi"),
-        where("email", "==", email), where("status", "==", "HADIR (CLOCK IN)"), where("waktu_ts", ">=", tsMulai), where("waktu_ts", "<=", tsSelesai)))
-    ]);
-    return !snapBaru.empty || !snapLama.empty;
+    const status = await window.cekStatusClockInSaya(email);
+    return status.aktif;
   } catch (e) {
     console.error("Gagal cek status clock-in:", e);
     return false; // gagal cek -> anggap belum, lebih aman (fail-safe)
