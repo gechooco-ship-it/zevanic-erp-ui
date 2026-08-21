@@ -504,3 +504,4 @@ const mountPoint = document.getElementById('vue-login');
 if (mountPoint) {
   createApp(AppLogin).mount('#vue-login');
 }
+
