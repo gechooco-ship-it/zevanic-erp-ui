@@ -27,7 +27,7 @@
 //   OTP bersama, SAMA yang dipakai Registrasi.
 // ============================================================================
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc, query, where, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { db, auth } from "./firebase-config.js";
 
@@ -38,19 +38,27 @@ function isDesktopBrowser() {
 // Poin 4: cek ke server (bukan localStorage) apakah user ini sudah Clock In
 // hari ini — Clock In terjadi di HP, desktop tidak akan pernah tahu soal itu
 // lewat localStorage-nya sendiri.
+// DIROMBAK TOTAL (19 Agt 2026) — versi LAMA cuma cek d.status ===
+// "HADIR (CLOCK IN)" + d.waktu, yang itu FORMAT LAMA doang. Sejak Clock
+// In/Out digabung jadi 1 dokumen (js/vue-camera.js, 18 Agt 2026),
+// dokumen BARU pakai status:"HADIR" + waktu_masuk (BUKAN "HADIR (CLOCK
+// IN)" / waktu lagi) — akibatnya SIAPAPUN yang Clock In pakai sistem
+// baru TIDAK PERNAH terdeteksi di sini, walau beneran sudah Clock In di
+// HP, login desktop tetap ditolak. Sekaligus dulu fetch SELURUH koleksi
+// absensi tiap kali dicek — boros parah, sekarang query LANGSUNG scoped
+// ke email+tanggal, dan cek KEDUA format (baru & lama) sekaligus.
 async function sudahClockInHariIniServer(email) {
-  const hariIni = new Date().toLocaleDateString('id-ID');
+  const s = new Date();
+  const tsMulai = Timestamp.fromDate(new Date(s.getFullYear(), s.getMonth(), s.getDate(), 0, 0, 0, 0));
+  const tsSelesai = Timestamp.fromDate(new Date(s.getFullYear(), s.getMonth(), s.getDate(), 23, 59, 59, 999));
   try {
-    const querySnapshot = await getDocs(collection(db, "absensi"));
-    let ditemukan = false;
-    querySnapshot.forEach(docSnap => {
-      const d = docSnap.data();
-      if (d.email === email && d.status === "HADIR (CLOCK IN)" && d.waktu) {
-        const tglRecord = d.waktu.split(', ')[0];
-        if (tglRecord === hariIni) ditemukan = true;
-      }
-    });
-    return ditemukan;
+    const [snapBaru, snapLama] = await Promise.all([
+      getDocs(query(collection(db, "absensi"),
+        where("email", "==", email), where("waktu_masuk_ts", ">=", tsMulai), where("waktu_masuk_ts", "<=", tsSelesai))),
+      getDocs(query(collection(db, "absensi"),
+        where("email", "==", email), where("status", "==", "HADIR (CLOCK IN)"), where("waktu_ts", ">=", tsMulai), where("waktu_ts", "<=", tsSelesai)))
+    ]);
+    return !snapBaru.empty || !snapLama.empty;
   } catch (e) {
     console.error("Gagal cek status clock-in:", e);
     return false; // gagal cek -> anggap belum, lebih aman (fail-safe)
