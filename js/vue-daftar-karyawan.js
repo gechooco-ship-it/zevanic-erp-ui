@@ -340,6 +340,80 @@ const AppDaftarKaryawan = {
     // izinnya memang tidak ada. Fallback aman: belum diatur = boleh.
     const bolehHapus = computed(() => window.cekIzinMenu('daftar_karyawan', 'delete') !== false);
     const bolehEdit = computed(() => window.cekIzinMenu('daftar_karyawan', 'edit') !== false);
+    // DIPERBAIKI (22 Agt 2026) — SEBELUMNYA pakai pola sama seperti
+    // bolehEdit/bolehHapus (`!== false`), yang artinya "izin BELUM
+    // diatur" (null) dianggap BOLEH. Buat print badge/barcode karyawan
+    // ini SENGAJA dibalik jadi default DITOLAK — soalnya ini mencetak
+    // identitas fisik, bukan sekadar lihat/edit data. Owner/Superuser
+    // selalu boleh; role lain WAJIB diizinkan eksplisit oleh Owner lewat
+    // Config Akses (centang kolom Print), tidak otomatis ke-allow.
+    const bolehPrint = computed(() => {
+      const roleSaya = (window.currentUser.role || '').toLowerCase();
+      if (['owner', 'superuser'].includes(roleSaya)) return true;
+      return window.cekIzinMenu('daftar_karyawan', 'print') === true;
+    });
+
+    // BARU (22 Agt 2026, permintaan Hilman) — cetak barcode karyawan buat
+    // absensi fisik, dipakai kalau HP karyawan tidak ada/rusak (di-scan
+    // pakai fitur Scan QR yang sudah ada, tab-scan-qr). SENGAJA pakai
+    // format QR PERSIS SAMA seperti di Account Profile (id_app, fallback
+    // email, lewat api.qrserver.com) — supaya kompatibel dengan Scan QR
+    // yang sudah ada, bukan bikin format baru yang malah tidak kebaca.
+    function cetakBarcode(d) {
+      const qrData = d.id_app || d.email || d.id;
+      if (!qrData) return alert('Karyawan ini belum punya ID App maupun email, tidak bisa dibuatkan barcode.');
+      const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrData)}`;
+      const namaTampil = d.nama || d.name || '-';
+      const jabatanTampil = d.jabatan || d.role || '-';
+      const idTampil = d.id_app || d.email || d.id;
+
+      const jendela = window.open('', '_blank', 'width=420,height=620');
+      if (!jendela) return alert('Popup diblokir browser. Izinkan popup buat situs ini, lalu coba cetak lagi.');
+      // Ukuran kertas FISIK 10x15cm (foto ukuran standar) — @page nentuin
+      // ukuran kertas pas dicetak, body match persis biar tidak ada
+      // margin nyasar/terpotong pas print sungguhan. Border putus-putus
+      // cuma buat PREVIEW di layar (hilang otomatis pas print, karena
+      // kertas 10x15 aslinya sudah pas ukurannya, tidak perlu garis batas).
+      jendela.document.write(`<!DOCTYPE html>
+<html><head><title>Barcode - ${namaTampil}</title>
+<style>
+  @page { size: 10cm 15cm; margin: 0; }
+  * { box-sizing: border-box; }
+  body {
+    width: 10cm; height: 15cm; margin: 0 auto; padding: 0;
+    font-family: -apple-system, 'Segoe UI', sans-serif; color: #3A2A22;
+    display: flex; align-items: center; justify-content: center;
+    background: #EDEDED;
+  }
+  .kartu {
+    width: 10cm; height: 15cm; padding: 1cm;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    border: 2px dashed #C98B93; background: #fff;
+  }
+  img { width: 6cm; height: 6cm; }
+  h2 { margin: 0.5cm 0 0.15cm; font-size: 22px; }
+  p { margin: 0.05cm 0; color: #7A6A5C; font-size: 14px; }
+  .id { font-weight: 700; color: #7A2E3A; font-size: 15px; }
+  .catatan { margin-top: 0.8cm; font-size: 11px; color: #A69684; max-width: 8cm; }
+  .tombol-cetak { margin-top: 0.6cm; padding: 8px 18px; border-radius: 10px; border: 1.5px solid #C98B93; background: #fff; cursor: pointer; font-size: 12px; }
+  @media print {
+    body { width: 10cm; height: 15cm; background: #fff; }
+    .kartu { border: none; }
+    .tombol-cetak { display: none; }
+  }
+</style></head>
+<body>
+  <div class="kartu">
+    <img src="${qrUrl}" alt="Barcode" id="qrimg" onload="window.print()">
+    <h2>${namaTampil}</h2>
+    <p class="id">${idTampil}</p>
+    <p>${jabatanTampil}</p>
+    <p class="catatan">Tunjukkan barcode ini ke petugas Scan QR untuk absensi fisik, kalau HP tidak tersedia/rusak.</p>
+    <button class="tombol-cetak" onclick="window.print()">Cetak Ulang</button>
+  </div>
+</body></html>`);
+      jendela.document.close();
+    }
     const emailSedangDiedit = ref(null);
     let petaJenisLokasi = {}; // diisi sekali sebelum muat halaman pertama
 
@@ -437,7 +511,7 @@ const AppDaftarKaryawan = {
 
     onMounted(async () => { await window.authReady; muat(); });
     return {
-      paginasi, memuat, emailSedangDiedit, muat, hapus, bukaEdit, tutupEdit, selesaiSimpan, badgeApproval, lihatFotoBesar, bolehHapus, bolehEdit,
+      paginasi, memuat, emailSedangDiedit, muat, hapus, bukaEdit, tutupEdit, selesaiSimpan, badgeApproval, lihatFotoBesar, bolehHapus, bolehEdit, bolehPrint, cetakBarcode,
       cariNama: computed({ get: () => paginasi.cariTeks, set: (v) => paginasi.cariDenganDebounce(v) }),
       isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner
     };
@@ -503,6 +577,7 @@ const AppDaftarKaryawan = {
             <td style="text-transform:uppercase;"><dua-baris :a="d.profil_akses || d.role" :b="d.jenisLokasiGabungan" /></td>
             <td class="freeze freeze-right">
               <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
+                <button v-if="bolehPrint" @click="cetakBarcode(d)" class="icon-btn" title="Cetak barcode absensi"><i class="fas fa-barcode"></i></button>
                 <button v-if="bolehEdit" @click="bukaEdit(d.id)" class="icon-btn"><i class="fas fa-edit"></i></button>
                 <button v-if="bolehHapus" @click="hapus(d.id)" class="icon-btn" style="color:var(--danger);"><i class="fas fa-trash-alt"></i></button>
               </div>
