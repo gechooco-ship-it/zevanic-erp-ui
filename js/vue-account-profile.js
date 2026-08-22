@@ -184,6 +184,15 @@ const AppAccountProfile = {
         const hash = await hashPin(pinBaru.value, window.currentUser.email);
         await updateDoc(doc(db, "users", window.currentUser.email), { pin_hash: hash });
         window.currentUser.pin_hash = hash; // biar badge langsung update tanpa reload
+        // BUG (ditemukan 22 Agt 2026): tanpa baris ini, cache sesi di
+        // localStorage (window.simpanKonteksSesi, auth.js) TETAP versi
+        // LAMA (belum ada pin_hash) — begitu halaman di-refresh, app
+        // baca dari cache basi itu (bukan Firestore lagi, demi hemat
+        // read), badge balik jadi "Belum Terpasang" walau di Firestore
+        // sebenarnya SUDAH tersimpan benar. WAJIB refresh cache setiap
+        // kali window.currentUser diubah di tengah sesi, bukan cuma pas
+        // login pertama kali.
+        if (window.simpanKonteksSesi) window.simpanKonteksSesi();
         const sudahAdaSebelumnya = pinStatusTerpasang.value;
         pinStatusTerpasang.value = true;
         alert(sudahAdaSebelumnya ? "PIN berhasil diperbarui!" : "PIN berhasil dipasang!");
