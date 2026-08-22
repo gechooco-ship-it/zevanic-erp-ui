@@ -34,6 +34,43 @@ import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dis
 import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
+// Diekspor juga (dipakai test) — bandingkan JAM aktual (Firestore
+// Timestamp) vs JAM jadwal shift ("HH:MM" dari master_shift).
+// DIROMBAK (19 Agt 2026, revisi ke-2) — versi PERTAMA cuma bandingkan
+// jam-saja (abaikan tanggal), yang ternyata BUG buat shift malam
+// nyebrang tengah malam: orang lembur pulang jam 07:00 (tanggal
+// berikutnya) malah salah dibilang "Pulang Cepat" dibanding jadwal
+// 06:00, padahal itu justru LEMBUR. Sekarang pakai `waktuAnchorTs`
+// (SELALU waktu Clock In, baik lagi hitung status masuk MAUPUN keluar)
+// buat tentukan TANGGAL DASAR yang benar — persis pola yang sama
+// dengan window.cekMasihJamKerja (auth.js) buat shift yang nyebrang
+// tengah malam.
+// tipe: 'masuk' (Ontime/Terlambat) atau 'keluar' (Ontime/Pulang Cepat)
+// — arah perbandingannya BERLAWANAN (masuk: cepat=Ontime; keluar:
+// lambat=Ontime), makanya tidak bisa 1 fungsi generik tanpa parameter ini.
+export function hitungStatusKehadiran(waktuAktualTs, waktuAnchorTs, jamJadwalStr, tipe) {
+  if (!waktuAktualTs || typeof waktuAktualTs.toDate !== 'function') return null;
+  if (!waktuAnchorTs || typeof waktuAnchorTs.toDate !== 'function') return null;
+  if (!jamJadwalStr) return null;
+
+  const aktual = waktuAktualTs.toDate();
+  const anchor = waktuAnchorTs.toDate();
+  const [jamJadwalH, jamJadwalM] = jamJadwalStr.split(':').map(Number);
+
+  let batasJadwal = new Date(anchor);
+  batasJadwal.setHours(jamJadwalH, jamJadwalM, 0, 0);
+
+  if (tipe === 'keluar') {
+    // Kalau batas (jam_keluar) yang dibangun di TANGGAL Clock In itu <=
+    // Clock In itu sendiri, berarti shift ini nyebrang tengah malam ->
+    // WAJIB didorong ke hari berikutnya, biar perbandingan kronologis
+    // benar (bukan cuma bandingkan jam mentah 0-23).
+    if (batasJadwal <= anchor) batasJadwal.setDate(batasJadwal.getDate() + 1);
+    return aktual >= batasJadwal ? 'Ontime' : 'Pulang Cepat';
+  }
+  return aktual <= batasJadwal ? 'Ontime' : 'Terlambat';
+}
+
 // Diekspor juga (dipakai test) — hitung ulang ada_pending dari status
 // masuk+keluar TERBARU (bukan dari data lama di props, supaya benar
 // walau salah satu baru saja diproses barengan).
@@ -44,8 +81,7 @@ export function hitungAdaPending(statusMasuk, statusKeluar) {
 const AntreanAbsensiCard = {
   props: {
     docId: { type: String, required: true },
-    data: { type: Object, required: true },
-    daftarStatusKehadiran: { type: Array, required: true }
+    data: { type: Object, required: true }
   },
   emits: ['diproses'],
   setup(props, { emit }) {
@@ -70,10 +106,58 @@ const AntreanAbsensiCard = {
     const bolehEdit = computed(() => window.cekIzinMenu('antrean_absensi', 'edit') !== false);
     const bolehHapus = computed(() => window.cekIzinMenu('antrean_absensi', 'delete') !== false);
 
+    // BARU (19 Agt 2026, permintaan Hilman) — Status Kehadiran SEKARANG
+    // dihitung OTOMATIS oleh sistem (bandingkan jam Clock In/Out asli vs
+    // jadwal shift di master_shift), BUKAN dipilih manual admin lagi.
+    // Admin cuma MANUAL cek Seragam (satu-satunya yang butuh mata
+    // manusia — belum ada OCR/pengenalan gambar buat itu). Jam shift
+    // diambil SEKALI per kartu (bukan re-fetch tiap render).
+    const jamShift = ref({ masuk: null, keluar: null }); // "HH:MM" | null kalau shift tidak ketemu
+    async function muatJamShift() {
+      if (!props.data.shift) return;
+      try {
+        const qShift = await getDocs(query(collection(db, "master_shift"), where("nama_shift", "==", props.data.shift)));
+        if (!qShift.empty) {
+          const s = qShift.docs[0].data();
+          jamShift.value = { masuk: s.jam_masuk || null, keluar: s.jam_keluar || null };
+        }
+      } catch (e) {
+        console.error("Gagal muat jam shift buat hitung status kehadiran:", e);
+      }
+    }
+
+    // BARU (19 Agt 2026, permintaan Hilman) — kalau ada pengajuan LEMBUR
+    // yang SUDAH DI-ACC buat email+tanggal yang sama dengan Clock In
+    // shift reguler ini, badge Clock Out jadi "Lembur" (bukan Ontime/
+    // Pulang Cepat biasa) — Lembur itu SESI TERPISAH (status "LEMBUR
+    // (CLOCK IN)", collection SAMA "absensi" tapi dokumen beda), jadi
+    // dicek silang, bukan dihitung dari jam shift reguler.
+    const adaLemburApproved = ref(false);
+    async function cekLemburHariItu(waktuAnchorTs) {
+      if (!waktuAnchorTs || typeof waktuAnchorTs.toDate !== 'function' || !props.data.email) return;
+      try {
+        const tglAnchor = waktuAnchorTs.toDate().toDateString();
+        const snap = await getDocs(query(collection(db, "absensi"),
+          where("email", "==", props.data.email), where("status", "==", "LEMBUR (CLOCK IN)"), where("status_acc", "==", "ACC")));
+        adaLemburApproved.value = snap.docs.some(d => {
+          const wl = d.data().waktu_ts;
+          return wl && typeof wl.toDate === 'function' && wl.toDate().toDateString() === tglAnchor;
+        });
+      } catch (e) {
+        console.error("Gagal cek lembur approved:", e);
+      }
+    }
+
     // ---- FORMAT LAMA: 1 status_acc tunggal — TIDAK DIUBAH SAMA SEKALI
     // dari versi sebelumnya (juga dipakai IZIN/CUTI/LEMBUR SELAMANYA,
     // bukan cuma migrasi sementara). ----
-    const statusKehadiran = ref(props.data.status_kehadiran || '');
+    // Status Kehadiran OTOMATIS — CUMA dihitung kalau ini beneran record
+    // HADIR (Clock In); IZIN/CUTI/LEMBUR tidak relevan buat "ontime/
+    // terlambat" sama sekali, biarkan null (tampil '-').
+    const statusKehadiranOtomatis = computed(() => {
+      if (props.data.status !== 'HADIR (CLOCK IN)') return null;
+      return hitungStatusKehadiran(props.data.waktu_ts, props.data.waktu_ts, jamShift.value.masuk, 'masuk');
+    });
     const seragam = ref(props.data.seragam || 'Sesuai');
     const memproses = ref(false);
     async function proses(statusAcc) {
@@ -84,7 +168,7 @@ const AntreanAbsensiCard = {
       try {
         await updateDoc(doc(db, "absensi", props.docId), {
           status_acc: statusAcc,
-          status_kehadiran: statusKehadiran.value,
+          status_kehadiran: statusKehadiranOtomatis.value || 'Tidak Absen',
           seragam: seragam.value,
           validated_at: new Date().toISOString(),
           validated_by: window.currentUser.name || window.currentUser.email
@@ -98,7 +182,7 @@ const AntreanAbsensiCard = {
     }
 
     // ---- FORMAT BARU: masuk & keluar diproses independen ----
-    const statusKehadiranMasuk = ref(props.data.status_kehadiran_masuk || '');
+    const statusKehadiranMasukOtomatis = computed(() => hitungStatusKehadiran(props.data.waktu_masuk_ts, props.data.waktu_masuk_ts, jamShift.value.masuk, 'masuk'));
     const seragamMasuk = ref(props.data.seragam_masuk || 'Sesuai');
     const memprosesMasuk = ref(false);
     async function prosesMasuk(statusAcc) {
@@ -109,7 +193,7 @@ const AntreanAbsensiCard = {
       try {
         await updateDoc(doc(db, "absensi", props.docId), {
           status_acc_masuk: statusAcc,
-          status_kehadiran_masuk: statusKehadiranMasuk.value,
+          status_kehadiran_masuk: statusKehadiranMasukOtomatis.value || 'Tidak Absen',
           seragam_masuk: seragamMasuk.value,
           validated_at_masuk: new Date().toISOString(),
           validated_by_masuk: window.currentUser.name || window.currentUser.email,
@@ -125,7 +209,7 @@ const AntreanAbsensiCard = {
       memprosesMasuk.value = false;
     }
 
-    const statusKehadiranKeluar = ref(props.data.status_kehadiran_keluar || '');
+    const statusKehadiranKeluarOtomatis = computed(() => hitungStatusKehadiran(props.data.waktu_keluar_ts, props.data.waktu_masuk_ts, jamShift.value.keluar, 'keluar'));
     const seragamKeluar = ref(props.data.seragam_keluar || 'Sesuai');
     const memprosesKeluar = ref(false);
     async function prosesKeluar(statusAcc) {
@@ -136,7 +220,7 @@ const AntreanAbsensiCard = {
       try {
         await updateDoc(doc(db, "absensi", props.docId), {
           status_acc_keluar: statusAcc,
-          status_kehadiran_keluar: statusKehadiranKeluar.value,
+          status_kehadiran_keluar: adaLemburApproved.value ? 'Lembur' : (statusKehadiranKeluarOtomatis.value || 'Tidak Absen'),
           seragam_keluar: seragamKeluar.value,
           validated_at_keluar: new Date().toISOString(),
           validated_by_keluar: window.currentUser.name || window.currentUser.email,
@@ -157,11 +241,16 @@ const AntreanAbsensiCard = {
       if (window.hapusAbsensi) window.hapusAbsensi(props.docId).then(() => emit('diproses'));
     }
 
+    onMounted(() => {
+      muatJamShift();
+      cekLemburHariItu(props.data.waktu_masuk_ts || props.data.waktu_ts);
+    });
+
     return {
       adalahFormatBaru, adaYangPending, lihatFotoBesar, hapus, bolehEdit, bolehHapus,
-      statusKehadiran, seragam, memproses, proses,
-      statusKehadiranMasuk, seragamMasuk, memprosesMasuk, prosesMasuk,
-      statusKehadiranKeluar, seragamKeluar, memprosesKeluar, prosesKeluar
+      statusKehadiranOtomatis, seragam, memproses, proses,
+      statusKehadiranMasukOtomatis, seragamMasuk, memprosesMasuk, prosesMasuk,
+      statusKehadiranKeluarOtomatis, seragamKeluar, memprosesKeluar, prosesKeluar, adaLemburApproved
     };
   },
   template: `
@@ -203,10 +292,12 @@ const AntreanAbsensiCard = {
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
           <div class="gc-field" style="margin-bottom:0;">
-            <label style="font-size:10.5px;">Status kehadiran</label>
-            <select v-model="statusKehadiran" style="padding:8px 10px; font-size:12px; font-weight:600;">
-              <option v-for="s in daftarStatusKehadiran" :key="s" :value="s">{{ s }}</option>
-            </select>
+            <label style="font-size:10.5px;">Status kehadiran <span style="font-weight:400; color:var(--text-faint);">(otomatis)</span></label>
+            <div style="padding:8px 10px;">
+              <span v-if="statusKehadiranOtomatis === 'Ontime'" class="tag ok">Ontime</span>
+              <span v-else-if="statusKehadiranOtomatis === 'Terlambat'" class="tag danger">Terlambat</span>
+              <span v-else style="color:var(--text-faint); font-size:11.5px;">-</span>
+            </div>
           </div>
           <div class="gc-field" style="margin-bottom:0;">
             <label style="font-size:10.5px;">Seragam</label>
@@ -225,8 +316,9 @@ const AntreanAbsensiCard = {
 
       <!-- ============ FORMAT BARU: blok Clock In + blok Clock Out terpisah ============ -->
       <template v-else>
-        <div style="background:var(--ivory-dim); padding:12px 14px; border-radius:14px; font-size:11.5px; margin-bottom:12px;">
-          <b>Gudang:</b> {{ data.gudang || '-' }}
+        <div style="background:var(--ivory-dim); padding:12px 14px; border-radius:14px; font-size:11.5px; margin-bottom:12px; display:flex; gap:16px;">
+          <span><b>Gudang:</b> {{ data.gudang || '-' }}</span>
+          <span><b>Shift:</b> {{ data.shift || '-' }}</span>
         </div>
 
         <div v-if="data.status_acc_masuk === 'PENDING'" style="border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:12px;">
@@ -238,7 +330,12 @@ const AntreanAbsensiCard = {
             <span v-else-if="data.status_radius_masuk === 'LOKASI DINAMIS'" class="tag blue">Lokasi dinamis</span>
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
-            <select v-model="statusKehadiranMasuk" style="padding:7px 9px; font-size:11.5px;"><option v-for="s in daftarStatusKehadiran" :key="s" :value="s">{{ s }}</option></select>
+            <div>
+              <label style="font-size:9.5px; color:var(--text-faint); display:block; margin-bottom:3px;">Status kehadiran (otomatis)</label>
+              <span v-if="statusKehadiranMasukOtomatis === 'Ontime'" class="tag ok">Ontime</span>
+              <span v-else-if="statusKehadiranMasukOtomatis === 'Terlambat'" class="tag danger">Terlambat</span>
+              <span v-else style="color:var(--text-faint); font-size:11.5px;">-</span>
+            </div>
             <select v-model="seragamMasuk" style="padding:7px 9px; font-size:11.5px;"><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option></select>
           </div>
           <div v-if="bolehEdit" style="display:flex; gap:8px;">
@@ -256,7 +353,13 @@ const AntreanAbsensiCard = {
             <span v-else-if="data.status_radius_keluar === 'LOKASI DINAMIS'" class="tag blue">Lokasi dinamis</span>
           </div>
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
-            <select v-model="statusKehadiranKeluar" style="padding:7px 9px; font-size:11.5px;"><option v-for="s in daftarStatusKehadiran" :key="s" :value="s">{{ s }}</option></select>
+            <div>
+              <label style="font-size:9.5px; color:var(--text-faint); display:block; margin-bottom:3px;">Status kehadiran (otomatis)</label>
+              <span v-if="adaLemburApproved" class="tag blue">Lembur</span>
+              <span v-else-if="statusKehadiranKeluarOtomatis === 'Ontime'" class="tag ok">Ontime</span>
+              <span v-else-if="statusKehadiranKeluarOtomatis === 'Pulang Cepat'" class="tag warn">Pulang Cepat</span>
+              <span v-else style="color:var(--text-faint); font-size:11.5px;">-</span>
+            </div>
             <select v-model="seragamKeluar" style="padding:7px 9px; font-size:11.5px;"><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option></select>
           </div>
           <div v-if="bolehEdit" style="display:flex; gap:8px;">
@@ -277,7 +380,6 @@ const AppAntreanAbsensi = {
   components: { AntreanAbsensiCard },
   setup() {
     const daftarPending = ref([]);
-    const daftarStatusKehadiran = ref(["Ontime", "Terlambat", "Tidak Absen"]);
     const memuat = ref(true);
     const errorMuat = ref('');
     const memuatDataLama = ref(false);
@@ -313,8 +415,6 @@ const AppAntreanAbsensi = {
       memuat.value = true;
       errorMuat.value = '';
       try {
-        daftarStatusKehadiran.value = window.ambilMasterList ? await window.ambilMasterList('status_kehadiran') : daftarStatusKehadiran.value;
-
         // BARU (18 Agt 2026) — 2 query LANGSUNG cari yang pending, BUKAN
         // fetch seluruh histori absensi lagi. Lihat catatan lengkap di
         // header file.
@@ -411,7 +511,7 @@ const AppAntreanAbsensi = {
 
     onMounted(async () => { await window.authReady; muat(); });
     return {
-      daftarPending, daftarPendingTersaring, daftarStatusKehadiran, memuat, errorMuat, muat, memuatDataLama, infoDataLama, cekDataSangatLama,
+      daftarPending, daftarPendingTersaring, memuat, errorMuat, muat, memuatDataLama, infoDataLama, cekDataSangatLama,
       cariNama, isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner
     };
   },
@@ -462,7 +562,7 @@ const AppAntreanAbsensi = {
     <div v-else style="gap:14px;" class="grid grid-cols-1 md:grid-cols-2">
       <antrean-absensi-card
         v-for="item in daftarPendingTersaring" :key="item.id"
-        :doc-id="item.id" :data="item.data" :daftar-status-kehadiran="daftarStatusKehadiran"
+        :doc-id="item.id" :data="item.data"
         @diproses="muat"
       />
     </div>

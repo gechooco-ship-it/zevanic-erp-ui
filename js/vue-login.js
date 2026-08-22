@@ -27,7 +27,7 @@
 //   OTP bersama, SAMA yang dipakai Registrasi.
 // ============================================================================
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { db, auth } from "./firebase-config.js";
 
@@ -38,19 +38,31 @@ function isDesktopBrowser() {
 // Poin 4: cek ke server (bukan localStorage) apakah user ini sudah Clock In
 // hari ini — Clock In terjadi di HP, desktop tidak akan pernah tahu soal itu
 // lewat localStorage-nya sendiri.
+// DIROMBAK TOTAL (19 Agt 2026) — versi LAMA cuma cek d.status ===
+// "HADIR (CLOCK IN)" + d.waktu, yang itu FORMAT LAMA doang. Sejak Clock
+// In/Out digabung jadi 1 dokumen (js/vue-camera.js, 18 Agt 2026),
+// dokumen BARU pakai status:"HADIR" + waktu_masuk (BUKAN "HADIR (CLOCK
+// IN)" / waktu lagi) — akibatnya SIAPAPUN yang Clock In pakai sistem
+// baru TIDAK PERNAH terdeteksi di sini, walau beneran sudah Clock In di
+// HP, login desktop tetap ditolak. Sekaligus dulu fetch SELURUH koleksi
+// absensi tiap kali dicek — boros parah, sekarang query LANGSUNG scoped
+// ke email+tanggal, dan cek KEDUA format (baru & lama) sekaligus.
+// DIROMBAK LAGI (19 Agt 2026) — versi sebelumnya cek "Clock In HARI INI"
+// pakai rentang tanggal kalender (00:00-23:59), yang PERSIS kena bug
+// shift-malam yang sama seperti tombol Home dulu: kalau Clock In malam
+// kemarin dan sekarang sudah lewat tengah malam, "hari ini" versi
+// kalender jadi beda tanggal — walau orangnya masih aktif di shift yang
+// SAMA belum Clock Out. Sekarang PAKAI ULANG window.cekStatusClockInSaya
+// (auth.js) — satu sumber kebenaran yang SAMA dipakai tombol Home &
+// Clock Out, sudah teruji tahan shift-malam & lintas-device. Juga lebih
+// masuk akal secara bisnis: aturan "wajib Clock In dulu" itu maksudnya
+// "sedang aktif di shift sekarang", bukan "pernah Clock In kapan saja
+// hari ini" (kalau sudah Clock Out & pulang, mestinya memang tidak boleh
+// remote-login ke sistem kantor lagi).
 async function sudahClockInHariIniServer(email) {
-  const hariIni = new Date().toLocaleDateString('id-ID');
   try {
-    const querySnapshot = await getDocs(collection(db, "absensi"));
-    let ditemukan = false;
-    querySnapshot.forEach(docSnap => {
-      const d = docSnap.data();
-      if (d.email === email && d.status === "HADIR (CLOCK IN)" && d.waktu) {
-        const tglRecord = d.waktu.split(', ')[0];
-        if (tglRecord === hariIni) ditemukan = true;
-      }
-    });
-    return ditemukan;
+    const status = await window.cekStatusClockInSaya(email);
+    return status.aktif;
   } catch (e) {
     console.error("Gagal cek status clock-in:", e);
     return false; // gagal cek -> anggap belum, lebih aman (fail-safe)
@@ -304,9 +316,28 @@ const AppLogin = {
         return;
       }
 
-      // Owner/Superuser tidak wajib ditautkan ke gudang manapun — perannya
-      // manajerial, bukan operasional lapangan.
-      if (window.currentUser.gudang_penempatan.length === 0 && !isOwnerRole) {
+      // BARU (19 Agt 2026, permintaan Hilman) — karyawan yang sudah
+      // resign/nonaktif (status_kerja BUKAN "Aktif") TIDAK BOLEH login
+      // lagi, walau akun & password-nya masih ada di Firebase Auth.
+      // Owner/Superuser SENGAJA dikecualikan — supaya tidak ada resiko
+      // kunci-mati total dari sistem sendiri kalau field ini kebetulan
+      // salah/kosong di akun Owner sendiri (tidak ada orang lain yang
+      // bisa perbaiki Firestore-nya kalau itu terjadi).
+      if (!isOwnerRole && window.currentUser.status_kerja !== "Aktif") {
+        alert("Akun ini berstatus \"" + window.currentUser.status_kerja + "\" (bukan Aktif) dan tidak bisa dipakai login. Kalau ini keliru, hubungi Admin/Owner.");
+        await signOut(auth);
+        window._manualLoginInProgress = false;
+        return;
+      }
+
+      // DIUBAH (19 Agt 2026, permintaan Hilman) — SEBELUMNYA Owner/
+      // Superuser dikecualikan dari syarat gudang ("perannya manajerial").
+      // Sekarang WAJIB juga, tidak ada pengecualian — konsisten dengan
+      // syarat Clock In yang juga sekarang berlaku ke Owner (lihat di
+      // bawah). PENTING: kalau akun Owner belum ada gudang_penempatan
+      // terisi, Owner akan TERKUNCI dari sistemnya sendiri sampai field
+      // ini diisi — WAJIB dicek dulu sebelum file ini dipakai produksi.
+      if (window.currentUser.gudang_penempatan.length === 0) {
         alert("Akun Anda belum ditautkan ke gudang manapun. Silakan hubungi Owner/PIC.");
         await signOut(auth);
         window._manualLoginInProgress = false;
@@ -319,15 +350,6 @@ const AppLogin = {
       if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
       if (window.refreshHome) window.refreshHome();
       if (window.refreshHeaderMobile) window.refreshHeaderMobile();
-
-      // Owner/Superuser: langsung ke Dashboard dari HP maupun komputer,
-      // tanpa syarat Clock In sama sekali.
-      if (isOwnerRole) {
-        window.pindahLayar('screen-dashboard');
-        window.pindahTab('tab-home');
-        window._manualLoginInProgress = false;
-        return;
-      }
 
       const hariIni = new Date().toLocaleDateString('id-ID');
       const statusLokal = localStorage.getItem('zevanic_absen_' + emailInput);

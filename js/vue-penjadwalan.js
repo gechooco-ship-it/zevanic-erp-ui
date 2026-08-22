@@ -86,7 +86,12 @@ const AppPenjadwalan = {
         const listKaryawan = [];
         qKaryawan.forEach(docSnap => {
           const d = docSnap.data();
-          if (d.role !== 'owner' && d.status_kerja === 'Aktif' && window.bolehLihatData(d.jenis_pekerjaan, d.gudang_penempatan)) listKaryawan.push({ email: docSnap.id, ...d });
+          // DIUBAH (19 Agt 2026) — eksklusi "d.role !== 'owner'" DIBUANG,
+          // konsisten dengan keputusan Hilman: Owner sekarang WAJIB ikut
+          // alur operasional yang sama (gudang/Clock In/jam kerja), jadi
+          // WAJAR juga muncul di Penjadwalan kalau memang ditempatkan di
+          // gudang tertentu.
+          if (d.status_kerja === 'Aktif' && window.bolehLihatData(d.jenis_pekerjaan, d.gudang_penempatan)) listKaryawan.push({ email: docSnap.id, ...d });
         });
         semuaKaryawan.value = listKaryawan;
 

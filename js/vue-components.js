@@ -354,6 +354,15 @@ export function daftarMenuGroups(role) {
       ]
     },
     {
+      nama: 'Master Keuangan',
+      roleBoleh: ['pic', 'admin', 'owner', 'superuser'],
+      items: [
+        { label: 'Antrean Reimburse', menuId: 'antrean_reimburse', icon: 'fa-receipt', aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-antrean', null); } },
+        { label: 'Master Kendaraan', menuId: 'master_kendaraan', icon: 'fa-truck', aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-kendaraan', null); } },
+        { label: 'Kategori Keuangan', menuId: 'master_keuangan', icon: 'fa-tags', aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-kategori', null); } }
+      ]
+    },
+    {
       nama: 'Master Karyawan',
       roleBoleh: ['owner', 'superuser'],
       items: [

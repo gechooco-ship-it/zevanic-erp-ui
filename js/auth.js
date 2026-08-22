@@ -443,19 +443,39 @@ onAuthStateChanged(auth, async (user) => {
     const roleUser = (d.role || "operator").toLowerCase();
     const isOwnerRole = (roleUser === 'owner' || roleUser === 'superuser');
     const gudangUser = window.normalisasiGudang(d.gudang_penempatan);
+    const statusKerjaUser = d.status_kerja || "Aktif";
 
-    if (!isOwnerRole) {
-      if (gudangUser.length === 0) return;
+    // BARU (19 Agt 2026) — SEBELUMNYA status_kerja cuma DISIMPAN di jalur
+    // ini, TIDAK PERNAH DICEK — celah nyata: karyawan resign yang sesi
+    // lamanya masih aktif (Firebase Auth persist) tinggal reload halaman
+    // buat masuk lagi, sama sekali tidak lewat login manual yang sudah
+    // ada penolakannya. Owner/Superuser TETAP dikecualikan (beda urusan
+    // dari Clock In di bawah — ini soal hindari kunci-mati total kalau
+    // field ini kebetulan salah/kosong di akun Owner sendiri).
+    if (!isOwnerRole && statusKerjaUser !== "Aktif") return;
 
-      const hariIni = new Date().toLocaleDateString('id-ID');
-      const statusLokal = localStorage.getItem('zevanic_absen_' + user.email);
-      if (statusLokal !== hariIni) return; // belum Clock In hari ini -> tetap layar login
+    // DIUBAH (19 Agt 2026, permintaan Hilman) — SEBELUMNYA Owner/Superuser
+    // dikecualikan total dari gudang/Clock In/jam kerja ("perannya
+    // manajerial"). Sekarang WAJIB ikut alur SAMA PERSIS, tidak ada
+    // pengecualian — konsisten dengan login manual (vue-login.js) yang
+    // sudah diubah sama. PENTING: Owner WAJIB sudah ada gudang_penempatan
+    // + nama_shift terisi di profilnya, kalau belum akan tertahan di
+    // layar login terus (lihat catatan di vue-login.js).
+    //
+    // Clock In DIROMBAK — SEBELUMNYA cek localStorage 'zevanic_absen_'
+    // (device-lokal, date-string), yang PERSIS kena bug shift-malam:
+    // Clock In malam kemarin + sekarang sudah lewat tengah malam ->
+    // "hari ini" versi kalender beda tanggal, walau masih di shift yang
+    // sama. Sekarang pakai window.cekStatusClockInSaya() — sumber
+    // kebenaran YANG SAMA dipakai tombol Home & login manual, tahan
+    // shift-malam & lintas-device.
+    if (gudangUser.length === 0) return;
 
-      const masihJamKerja = await window.cekMasihJamKerja(d.nama_shift);
-      if (!masihJamKerja) return; // di luar jam kerja -> wajib login ulang
-    }
-    // Owner/Superuser: lewati semua syarat Clock In/gudang/jam kerja di atas —
-    // perannya manajerial, boleh masuk kapan saja dari HP maupun komputer.
+    const statusClockIn = await window.cekStatusClockInSaya(user.email);
+    if (!statusClockIn.aktif) return; // belum Clock In / sudah Clock Out -> tetap layar login
+
+    const masihJamKerja = await window.cekMasihJamKerja(d.nama_shift);
+    if (!masihJamKerja) return; // di luar jam kerja -> wajib login ulang
 
     // Semua syarat terpenuhi -> lewati layar login, langsung ke Dashboard
     window.currentUser = {
@@ -466,7 +486,7 @@ onAuthStateChanged(auth, async (user) => {
       id_app: d.id_app || "N/A",
       id_karyawan: d.id_karyawan || "N/A",
       jabatan: d.jabatan || "Staff",
-      status_kerja: d.status_kerja || "Aktif",
+      status_kerja: statusKerjaUser,
       gudang_penempatan: gudangUser
     };
     // Kalau tadi TIDAK dari cache (fetch Firestore biasa), aksesConfigSaya

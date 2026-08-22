@@ -791,6 +791,10 @@ if (mountPoint) {
   window.bukaFormIzinDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('absensi'); vm.bukaFormIzin(); };
   window.bukaFormCutiDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('absensi'); vm.bukaFormCuti(); };
   window.bukaFormLemburDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('absensi'); vm.bukaFormLembur(); };
+  // Reimburse TIDAK perlu "buka form" terpisah kayak Izin/Cuti/Lembur —
+  // form-nya SELALU tampil di atas tab (lihat AjukanReimburseTab di
+  // vue-reimburse.js), jadi cukup pindah ke tab-nya saja.
+  window.bukaReimburseDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('reimburse'); };
   // Jembatan BARU ke drawer Profile mobile (js/vue-profile-drawer.js) —
   // dipakai untuk lompat langsung ke sub-tab manapun (Data Karyawan,
   // Estimasi Gaji, Pencapaian, Keamanan) dari link teks di drawer.
