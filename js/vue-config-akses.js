@@ -61,7 +61,7 @@ const DAFTAR_MENU = [
   { id: 'hak_akses', label: 'Hak Akses', kategori: 'Master Karyawan' },
   { id: 'whatsapp_gateway', label: 'WhatsApp Gateway', kategori: 'Master Integrasi' },
   { id: 'mail_gateway', label: 'Mail Gateway', kategori: 'Master Integrasi' },
-  { id: 'device_kiosk', label: 'List Device Kiosk', kategori: 'Master Integrasi' }
+  { id: 'device_kiosk', label: 'Device Kiosk', kategori: 'Master Integrasi' }
 ];
 
 const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi'];
