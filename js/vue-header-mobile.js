@@ -24,6 +24,7 @@ const LABEL_TAB = {
   'tab-superuser': 'Master Karyawan',
   'tab-whatsapp': 'WhatsApp Gateway',
   'tab-mail-gateway': 'Mail Gateway',
+  'tab-device-kiosk': 'List Device Kiosk',
   'tab-scan-qr': 'Scan QR',
   'tab-progress': 'Progress'
 };
