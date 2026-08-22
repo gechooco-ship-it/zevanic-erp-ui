@@ -528,17 +528,30 @@ const AppKamera = {
         }
         if (window.statusPilihanGlobal === "CLOCK OUT") {
           alert("Clock Out berhasil! Hati-hati di jalan.");
-          window.pindahLayar('screen-login');
+          // BARU (22 Agt 2026) — mode Kiosk ("Absensi Melalui QR"): jangan
+          // navigasi ke screen-login (itu logout-nya KARYAWAN biasa, tidak
+          // relevan buat Kiosk). Panggil balik window.selesaiModeKiosk()
+          // (didefinisikan js/vue-absensi-qr.js) — pulihkan identitas asli
+          // Kiosk, balik ke menu 5 pilihan siap buat karyawan berikutnya.
+          if (window.modeKioskAktif && window.selesaiModeKiosk) { window.selesaiModeKiosk(); }
+          else { window.pindahLayar('screen-login'); }
         } else {
-          window.pindahLayar('screen-dashboard');
-          window.pindahTab('tab-profil');
-          if (window.bukaTabAbsensiProfile) window.bukaTabAbsensiProfile();
+          if (window.modeKioskAktif && window.selesaiModeKiosk) { window.selesaiModeKiosk(); }
+          else {
+            window.pindahLayar('screen-dashboard');
+            window.pindahTab('tab-profil');
+            if (window.bukaTabAbsensiProfile) window.bukaTabAbsensiProfile();
+          }
         }
       }
     }
 
     function batalKamera() {
       matikanKamera();
+      // Mode Kiosk: batal juga WAJIB balik ke menu Absensi Melalui QR,
+      // BUKAN ke screen-dashboard (itu dashboard punya akun KIOSK,
+      // bukan tempat yang relevan buat siapapun yang lagi discan).
+      if (window.modeKioskAktif && window.selesaiModeKiosk) { window.selesaiModeKiosk(); return; }
       // Kembali ke layar sebelum masuk kamera — Login (kalau ini alur Login
       // pertama kali) atau Dashboard (kalau dari shortcut Home saat sudah
       // login). Dilacak otomatis oleh app.js pindahLayar, fallback ke

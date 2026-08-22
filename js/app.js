@@ -1,6 +1,6 @@
 // js/app.js
 window.pindahLayar = function(idTujuan) {
-  const screens = ['screen-loading', 'screen-login', 'screen-register', 'screen-buat-password', 'screen-camera', 'screen-dashboard'];
+  const screens = ['screen-loading', 'screen-login', 'screen-register', 'screen-buat-password', 'screen-camera', 'screen-absensi-qr', 'screen-dashboard'];
 
   // Ingat layar yang aktif SEBELUM pindah — dipakai tombol Batal/Kembali
   // di layar kamera (js/vue-camera.js) supaya tahu harus kembali ke mana:

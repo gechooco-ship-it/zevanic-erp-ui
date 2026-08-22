@@ -1,0 +1,360 @@
+// js/vue-absensi-qr.js
+// ============================================================================
+// "Absensi Melalui QR" — dipakai HP Kiosk yang digantung tetap di gudang,
+// buat karyawan yang HP-nya tidak ada/rusak. Alurnya (rencana 5 fase,
+// Hilman 22 Agt 2026):
+//   Fase 1 (SELESAI) — PIN di Profile > Keamanan (vue-account-profile.js)
+//   Fase 2 (FILE INI) — Link di Login + menu 5 pilihan
+//   Fase 3 (BELUM) — Kamera auto-scan QR (timeout 7 detik)
+//   Fase 4 (BELUM) — Keypad PIN + verifikasi hash
+//   Fase 5 (BELUM) — Role 'kiosk' baru di firestore.rules + tulis absensi
+//                     atas nama orang yang di-scan (gudang+radius tetap
+//                     ditegakkan, sama seperti Clock In/Out biasa)
+//
+// File ini BARU bangun tahap MENU (tahap='menu') + kerangka tahap 'scan'
+// (masih placeholder, diisi Fase 3). SENGAJA dipisah dari vue-camera.js
+// (bukan menambah mode baru di situ) — alur otentikasinya beda total
+// (PIN, bukan Firebase Auth email/password), jadi lebih jelas kalau
+// berdiri sendiri.
+// ============================================================================
+import { createApp, ref, onMounted, onBeforeUnmount } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { collection, getDocs, doc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { db } from "./firebase-config.js";
+
+
+// SAMA PERSIS dengan hashPin di vue-account-profile.js (Fase 1) — WAJIB
+// identik, kalau beda dikit saja hasil hash tidak akan pernah cocok.
+// Disalin (bukan diimpor) karena ini utilitas kecil berdiri sendiri,
+// pola yang sama dipakai kompresGambarReimburse di vue-reimburse.js.
+async function hashPin(pin, email) {
+  const data = new TextEncoder().encode(pin + '|' + email);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+const MAKS_PERCOBAAN_PIN = 3;
+
+
+const AppAbsensiQr = {
+  setup() {
+    // tahap: 'menu' -> 'scan' -> 'mencari' -> 'pin' (Fase 4) | balik 'menu' kalau gagal
+    const tahap = ref('menu');
+    const jenisTerpilih = ref('');
+    const karyawanTerscan = ref(null);
+    const sisaDetik = ref(7);
+    const pinInput = ref('');
+    const pinError = ref('');
+    const percobaanPin = ref(0);
+    const memverifikasiPin = ref(false);
+
+    const JENIS_MENU = [
+      { key: 'HADIR (CLOCK IN)', label: 'Clock In', icon: 'fa-right-to-bracket' },
+      { key: 'CLOCK OUT', label: 'Clock Out', icon: 'fa-right-from-bracket' },
+      { key: 'LEMBUR (CLOCK IN)', label: 'Lembur', icon: 'fa-business-time' },
+      { key: 'IZIN', label: 'Izin', icon: 'fa-file-signature' },
+      { key: 'CUTI', label: 'Cuti', icon: 'fa-calendar-alt' },
+    ];
+
+    let streamKamera = null;
+    let timeoutHabis = null;
+    let intervalHitung = null;
+    let rafId = null;
+    let sudahKetemu = false; // guard — cegah loopScan & timeout jalan BARENGAN setelah QR ketemu
+
+    function elVideo() { return document.getElementById('video-scan-qr'); }
+    function elCanvas() { return document.getElementById('canvas-scan-qr'); }
+
+    async function pilihJenis(key) {
+      jenisTerpilih.value = key;
+      tahap.value = 'scan';
+      sudahKetemu = false;
+      sisaDetik.value = 7;
+      await mulaiScan();
+    }
+
+    async function mulaiScan() {
+      try {
+        streamKamera = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      } catch (e) {
+        console.error("Gagal akses kamera:", e);
+        alert("Tidak bisa mengakses kamera depan. Pastikan izin kamera sudah diberikan ke browser ini.");
+        kembaliKeMenu();
+        return;
+      }
+      // Video element baru ADA di DOM setelah Vue render v-if="tahap==='scan'"
+      // selesai — tunggu 1 tick biar elemen-nya sudah pasti muncul.
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const video = elVideo();
+      if (!video) { hentikanKamera(); return; }
+      video.srcObject = streamKamera;
+      await video.play();
+
+      // Hitung mundur TAMPILAN (per detik, buat UI) — TERPISAH dari
+      // timeout SEBENARNYA (di bawah), biar tidak meleset kalau ada jeda
+      // render antar keduanya.
+      intervalHitung = setInterval(() => {
+        sisaDetik.value = Math.max(0, sisaDetik.value - 1);
+      }, 1000);
+
+      // Timeout SEBENARNYA — 7 detik pas, kamera WAJIB berhenti kalau QR
+      // belum ketemu, balik ke menu (sesuai spesifikasi).
+      timeoutHabis = setTimeout(() => {
+        if (sudahKetemu) return; // sudah keduluan ketemu QR, abaikan timeout
+        hentikanKamera();
+        alert("QR tidak ditemukan dalam 7 detik. Coba lagi.");
+        kembaliKeMenu();
+      }, 7000);
+
+      loopScan();
+    }
+
+    function loopScan() {
+      if (sudahKetemu) return;
+      const video = elVideo();
+      const canvas = elCanvas();
+      if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const gambar = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const kode = window.jsQR ? window.jsQR(gambar.data, gambar.width, gambar.height) : null;
+        if (kode && kode.data) {
+          sudahKetemu = true;
+          hentikanKamera();
+          prosesHasilScan(kode.data);
+          return;
+        }
+      }
+      rafId = requestAnimationFrame(loopScan);
+    }
+
+    function hentikanKamera() {
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+      if (timeoutHabis) { clearTimeout(timeoutHabis); timeoutHabis = null; }
+      if (intervalHitung) { clearInterval(intervalHitung); intervalHitung = null; }
+      if (streamKamera) {
+        streamKamera.getTracks().forEach(track => track.stop());
+        streamKamera = null;
+      }
+    }
+
+    // Cari karyawan pemilik barcode — QR isinya id_app (prioritas) ATAU
+    // email (fallback), PERSIS format yang di-generate Account Profile
+    // (lihat vue-account-profile.js, muatAccountDisplay). Coba id_app
+    // dulu (lebih umum), baru fallback anggap hasil scan itu email
+    // (soalnya email JUGA jadi document ID di collection users).
+    async function prosesHasilScan(qrData) {
+      tahap.value = 'mencari';
+      try {
+        let dataKaryawan = null;
+        const qSnap = await getDocs(query(collection(db, "users"), where("id_app", "==", qrData)));
+        if (!qSnap.empty) {
+          dataKaryawan = { id: qSnap.docs[0].id, ...qSnap.docs[0].data() };
+        } else {
+          const docSnap = await getDoc(doc(db, "users", qrData));
+          if (docSnap.exists()) dataKaryawan = { id: docSnap.id, ...docSnap.data() };
+        }
+
+        if (!dataKaryawan) {
+          alert("Barcode tidak dikenali — karyawan tidak ditemukan.");
+          kembaliKeMenu();
+          return;
+        }
+
+        karyawanTerscan.value = dataKaryawan;
+        tahap.value = 'pin'; // Fase 4 yang bangun keypad PIN di tahap ini
+      } catch (e) {
+        console.error("Gagal cari data karyawan dari hasil scan:", e);
+        // Kemungkinan besar penyebabnya: field jenis_akun='kiosk' belum
+        // terisi di dokumen users akun Kiosk ini (dicek firestore.rules
+        // lewat isKiosk(), BUKAN custom claim role — lihat catatan di
+        // firestore.rules kenapa begitu), atau gudang_penempatan-nya
+        // belum diisi lewat menu Device Kiosk.
+        alert("Gagal mengambil data karyawan. Kemungkinan izin akses HP Kiosk belum diatur di sistem (Fase 5, menyusul).");
+        kembaliKeMenu();
+      }
+    }
+
+    // ---- Setelah PIN benar: DELEGASI PENUH ke screen-camera yang SUDAH
+    // ADA (foto selfie, pilih gudang, cek radius, tulis Firestore — semua
+    // sudah terbukti jalan, TIDAK dibangun ulang di sini). Trik-nya:
+    // override window.currentUser SEMENTARA jadi profil KARYAWAN yang
+    // di-scan (vue-camera.js baca SEMUA datanya dari window.currentUser,
+    // termasuk gudang_penempatan-nya sendiri buat validasi radius) —
+    // identitas ASLI si Kiosk disimpan ke window._kioskUserAsli dulu,
+    // dipulihkan lagi lewat window.selesaiModeKiosk() (lihat onMounted
+    // di bawah) begitu proses selesai/dibatalkan — perubahan terkait
+    // di vue-camera.js (window.modeKioskAktif) yang panggil balik itu. ----
+    function lanjutKeKameraAsli() {
+      const k = karyawanTerscan.value;
+      window._kioskUserAsli = window.currentUser;
+      window.currentUser = { ...k, email: k.id };
+      window.statusPilihanGlobal = jenisTerpilih.value;
+      window.modeKioskAktif = true;
+      window.pindahLayar('screen-camera');
+    }
+
+    function kembaliKeMenu() {
+      hentikanKamera();
+      tahap.value = 'menu';
+      jenisTerpilih.value = '';
+      karyawanTerscan.value = null;
+      pinInput.value = '';
+      pinError.value = '';
+      percobaanPin.value = 0;
+      sudahKetemu = false;
+    }
+    function kembaliKeLogin() {
+      hentikanKamera();
+      if (window.pindahLayar) window.pindahLayar('screen-login');
+    }
+    // ---- Keypad PIN (Fase 4) ----
+    function tambahDigit(n) {
+      pinError.value = '';
+      if (pinInput.value.length >= 6) return;
+      pinInput.value += String(n);
+    }
+    function hapusDigit() {
+      pinError.value = '';
+      pinInput.value = pinInput.value.slice(0, -1);
+    }
+    function kosongkanPin() {
+      pinError.value = '';
+      pinInput.value = '';
+    }
+
+    async function verifikasiPin() {
+      if (pinInput.value.length !== 6) { pinError.value = 'PIN wajib 6 digit.'; return; }
+      const k = karyawanTerscan.value;
+      if (!k || !k.pin_hash) {
+        alert('Karyawan ini belum mengatur PIN di Profile > Keamanan. Absensi via QR tidak bisa dipakai sampai PIN diatur.');
+        kembaliKeMenu();
+        return;
+      }
+      memverifikasiPin.value = true;
+      try {
+        // Salt HARUS email pemilik PIN (k.id, document ID = email) — BUKAN
+        // sisi HP Kiosk — persis cara hash dibuat pas dipasang di Profile.
+        const hashInput = await hashPin(pinInput.value, k.id);
+        if (hashInput === k.pin_hash) {
+          pinInput.value = ''; pinError.value = ''; percobaanPin.value = 0;
+          lanjutKeKameraAsli();
+        } else {
+          percobaanPin.value++;
+          if (percobaanPin.value >= MAKS_PERCOBAAN_PIN) {
+            alert(`PIN salah ${MAKS_PERCOBAAN_PIN}x berturut-turut. Kembali ke menu awal.`);
+            kembaliKeMenu();
+          } else {
+            pinError.value = `PIN salah. Sisa percobaan: ${MAKS_PERCOBAAN_PIN - percobaanPin.value}.`;
+            pinInput.value = '';
+          }
+        }
+      } catch (e) {
+        console.error('Gagal verifikasi PIN:', e);
+        pinError.value = 'Terjadi kesalahan sistem, coba lagi.';
+      }
+      memverifikasiPin.value = false;
+    }
+
+    // Jaga-jaga — kalau komponen ke-unmount (jarang terjadi di app ini,
+    // tapi tetap wajib) pastikan kamera BENAR-BENAR mati, jangan sampai
+    // lampu kamera nyala terus padahal layarnya sudah pindah.
+    // Jembatan ke vanilla: dipanggil dari vue-camera.js pas proses mode
+    // Kiosk selesai (submit sukses ATAU Batal) — pulihkan identitas ASLI
+    // si Kiosk, reset komponen ini balik ke menu 5 pilihan (siap buat
+    // karyawan berikutnya scan).
+    onMounted(() => {
+      window.selesaiModeKiosk = function() {
+        if (window._kioskUserAsli) {
+          window.currentUser = window._kioskUserAsli;
+          window._kioskUserAsli = null;
+        }
+        window.modeKioskAktif = false;
+        kembaliKeMenu();
+        window.pindahLayar('screen-absensi-qr');
+      };
+    });
+
+    onBeforeUnmount(() => { hentikanKamera(); });
+
+    return {
+      tahap, jenisTerpilih, karyawanTerscan, sisaDetik, JENIS_MENU,
+      pinInput, pinError, percobaanPin, memverifikasiPin,
+      pilihJenis, kembaliKeMenu, kembaliKeLogin,
+      tambahDigit, hapusDigit, kosongkanPin, verifikasiPin
+    };
+  },
+  template: `
+    <div style="min-height:100vh; display:flex; flex-direction:column; background:var(--ivory);">
+      <div style="padding:16px 18px; display:flex; align-items:center; gap:14px; border-bottom:1px solid var(--line); background:var(--surface);">
+        <button @click="kembaliKeLogin" style="background:none; border:none; font-size:17px; color:var(--text); cursor:pointer; padding:4px;"><i class="fas fa-arrow-left"></i></button>
+        <div>
+          <h2 style="font-weight:700; font-size:15px; margin:0; color:var(--burgundy-dark);">Absensi Melalui QR</h2>
+          <p style="font-size:10.5px; color:var(--text-muted); margin:1px 0 0;">Khusus HP Kiosk gudang</p>
+        </div>
+      </div>
+
+      <!-- ============ TAHAP: MENU (5 pilihan) ============ -->
+      <div v-if="tahap === 'menu'" style="flex:1; padding:28px 20px; display:flex; flex-direction:column; gap:12px; max-width:420px; margin:0 auto; width:100%;">
+        <p style="font-size:12px; color:var(--text-muted); text-align:center; margin-bottom:10px;">Pilih jenis absensi, lalu arahkan kamera ke barcode karyawan.</p>
+        <button v-for="m in JENIS_MENU" :key="m.key" @click="pilihJenis(m.key)"
+          style="display:flex; align-items:center; gap:14px; padding:16px 18px; background:var(--surface); border:1.5px solid var(--line); border-radius:16px; cursor:pointer; text-align:left;">
+          <span style="width:42px; height:42px; border-radius:12px; background:var(--pink); color:var(--burgundy); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><i class="fas" :class="m.icon" style="font-size:16px;"></i></span>
+          <span style="font-size:14px; font-weight:700; color:var(--text);">{{ m.label }}</span>
+          <i class="fas fa-chevron-right" style="margin-left:auto; color:var(--text-faint); font-size:12px;"></i>
+        </button>
+      </div>
+
+      <!-- ============ TAHAP: SCAN (kamera sungguhan) ============ -->
+      <div v-else-if="tahap === 'scan'" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center;">
+        <h3 style="font-weight:700; font-size:14px; margin-bottom:4px;">{{ JENIS_MENU.find(m => m.key === jenisTerpilih)?.label }}</h3>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:16px;">Arahkan barcode karyawan ke kamera</p>
+        <div style="position:relative; width:260px; height:260px; border-radius:20px; overflow:hidden; border:3px solid var(--burgundy); background:#000;">
+          <video id="video-scan-qr" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover; transform:scaleX(-1);"></video>
+          <canvas id="canvas-scan-qr" style="display:none;"></canvas>
+          <div style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,.55); color:#fff; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700;">{{ sisaDetik }}s</div>
+        </div>
+        <button @click="kembaliKeMenu" class="btn-outline" style="margin-top:22px; padding:9px 20px;">Batal</button>
+      </div>
+
+      <!-- ============ TAHAP: MENCARI (loading pas cek database) ============ -->
+      <div v-else-if="tahap === 'mencari'" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px;">
+        <i class="fas fa-spinner fa-spin" style="font-size:30px; color:var(--burgundy); margin-bottom:14px;"></i>
+        <p style="font-size:12px; color:var(--text-muted);">Mencari data karyawan...</p>
+      </div>
+
+      <!-- ============ TAHAP: PIN (keypad sungguhan) ============ -->
+      <div v-else-if="tahap === 'pin'" style="flex:1; display:flex; flex-direction:column; align-items:center; padding:24px 20px; text-align:center; max-width:340px; margin:0 auto; width:100%;">
+        <h3 style="font-weight:700; font-size:14px; margin-bottom:2px;">{{ karyawanTerscan?.nama || karyawanTerscan?.name }}</h3>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:18px;">Masukkan PIN 6 digit</p>
+
+        <!-- Titik progress PIN -->
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <span v-for="i in 6" :key="i" style="width:14px; height:14px; border-radius:50%; border:1.5px solid var(--burgundy);"
+            :style="{ background: pinInput.length >= i ? 'var(--burgundy)' : 'transparent' }"></span>
+        </div>
+        <p v-if="pinError" style="font-size:11px; color:var(--danger); font-weight:700; min-height:14px; margin-bottom:8px;">{{ pinError }}</p>
+        <p v-else style="min-height:14px; margin-bottom:8px;"></p>
+
+        <!-- 2 tombol DI ATAS keypad, sesuai spesifikasi -->
+        <div style="display:flex; gap:10px; width:100%; margin-bottom:18px;">
+          <button @click="verifikasiPin" :disabled="memverifikasiPin || pinInput.length !== 6" class="btn-primary" style="flex:1; padding:11px;">{{ memverifikasiPin ? '...' : 'Enter' }}</button>
+          <button @click="kembaliKeMenu" class="btn-outline" style="flex:1; padding:11px;">Kembali</button>
+        </div>
+
+        <!-- Keypad angka -->
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:100%;">
+          <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="tambahDigit(n)"
+            style="padding:16px 0; font-size:18px; font-weight:700; background:var(--surface); border:1.5px solid var(--line); border-radius:14px; cursor:pointer;">{{ n }}</button>
+          <button @click="kosongkanPin" style="padding:16px 0; font-size:12px; font-weight:700; color:var(--text-faint); background:var(--surface); border:1.5px solid var(--line); border-radius:14px; cursor:pointer;">Hapus</button>
+          <button @click="tambahDigit(0)" style="padding:16px 0; font-size:18px; font-weight:700; background:var(--surface); border:1.5px solid var(--line); border-radius:14px; cursor:pointer;">0</button>
+          <button @click="hapusDigit" style="padding:16px 0; font-size:16px; background:var(--surface); border:1.5px solid var(--line); border-radius:14px; cursor:pointer;"><i class="fas fa-delete-left"></i></button>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+const mountPoint = document.getElementById('vue-absensi-qr');
+if (mountPoint) createApp(AppAbsensiQr).mount('#vue-absensi-qr');

@@ -6,6 +6,8 @@
   <title>ZEVANIC HOUSE - ERP System</title>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <!-- jsQR — baca kode QR dari frame kamera, dipakai Absensi Melalui QR (js/vue-absensi-qr.js) -->
+  <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
   <!-- Rebrand Gechoo: Tailwind CDN sudah DICABUT (30 Agustus) — semua warna
        DAN struktur layout (flex/grid/spacing/responsif) sekarang murni
        css/gechoo-design.css, jauh lebih ringan & tanpa compile di browser. -->
@@ -39,6 +41,11 @@
   <div id="screen-camera" class="hidden min-h-screen flex-col items-center justify-between fade-in">
     <!-- MIGRASI VUE: lihat js/vue-camera.js -->
     <div id="vue-camera" class="w-full h-full"></div>
+  </div>
+
+  <div id="screen-absensi-qr" class="hidden min-h-screen flex-col fade-in" style="background:var(--ivory);">
+    <!-- Absensi Melalui QR (HP Kiosk): lihat js/vue-absensi-qr.js -->
+    <div id="vue-absensi-qr" class="w-full h-full"></div>
   </div>
 
   <!-- LAYAR 2: REGISTRASI KARYAWAN -->
@@ -80,12 +87,15 @@
         <button onclick="pindahTab('tab-superuser')" id="menu-superuser-btn" class="hidden gc-nav-item">
           <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg> Karyawan
         </button>
-        <div id="menu-whatsapp" class="hidden gc-nav-section">Integrasi</div>
+        <div id="menu-whatsapp" class="hidden gc-nav-section">Master integrasi</div>
         <button onclick="pindahTab('tab-whatsapp')" id="menu-whatsapp-btn" class="hidden gc-nav-item">
           <i class="fab fa-whatsapp" style="width:17px; text-align:center;"></i> WhatsApp
         </button>
         <button onclick="pindahTab('tab-mail-gateway')" id="menu-mail-gateway-btn" class="hidden gc-nav-item">
           <i class="fas fa-envelope" style="width:17px; text-align:center;"></i> Mail Gateway
+        </button>
+        <button onclick="pindahTab('tab-device-kiosk')" id="menu-device-kiosk-btn" class="hidden gc-nav-item">
+          <i class="fas fa-tablet-screen-button" style="width:17px; text-align:center;"></i> Device Kiosk
         </button>
       </nav>
       <div style="padding-top:14px; border-top:1px solid var(--pink-deep);">
@@ -312,6 +322,11 @@
           <div id="vue-mail-gateway"></div>
         </div>
 
+        <div id="tab-device-kiosk" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
+          <!-- Device Kiosk (Owner only): lihat js/vue-device-kiosk.js -->
+          <div id="vue-device-kiosk"></div>
+        </div>
+
       </main>
     </div>
 
@@ -386,6 +401,7 @@
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>
   <script type="module" src="js/vue-otp.js"></script>
   <script type="module" src="js/vue-mail-gateway.js"></script>
+  <script type="module" src="js/vue-device-kiosk.js"></script>
   <script type="module" src="js/vue-account-profile.js"></script>
   <script type="module" src="js/vue-profile-drawer.js"></script>
   <script type="module" src="js/vue-home.js"></script>
@@ -394,6 +410,7 @@
   <script type="module" src="js/vue-registrasi.js"></script>
   <script type="module" src="js/vue-buat-password.js"></script>
   <script type="module" src="js/vue-login.js"></script>
+  <script type="module" src="js/vue-absensi-qr.js"></script>
   <script type="module" src="js/vue-camera.js"></script>
   <script type="module" src="js/vue-scan-qr.js"></script>
 </body>

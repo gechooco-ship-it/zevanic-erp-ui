@@ -78,6 +78,12 @@ const AppLogin = {
     const statusPilihan = ref('HADIR (CLOCK IN)');
     const memproses = ref(false);
     const isDesktop = ref(isDesktopBrowser());
+    // BARU (22 Agt 2026) — "Absensi Melalui QR" (HP Kiosk gudang scan
+    // barcode karyawan + verifikasi PIN). Cuma relevan di HP/tablet
+    // (makanya link-nya cuma tampil kalau !isDesktop), tapi fungsi
+    // pindah layarnya sendiri tidak perlu dibatasi lagi di sini —
+    // pembatasan visual di template sudah cukup.
+    function bukaAbsensiQr() { window.pindahLayar('screen-absensi-qr'); }
 
     const izin = reactive({ tanggal: '', alasan: '', detail: '' });
     const opsiAlasanIzin = ref([]);
@@ -381,7 +387,7 @@ const AppLogin = {
     }
 
     return {
-      email, password, showPassword, ingatSaya, statusPilihan, memproses, isDesktop,
+      email, password, showPassword, ingatSaya, statusPilihan, memproses, isDesktop, bukaAbsensiQr,
       izin, opsiAlasanIzin, bukaFormIzinDropdown,
       otpVisible, otpEmailAktif, otpInput, otpSudahDikirim, otpMengirim, otpMemverifikasi, otpCountdown, formatCountdownOtp,
       lupaPassword, bukaFormRegistrasi, login,
@@ -456,6 +462,12 @@ const AppLogin = {
           <button @click="login" :disabled="memproses" class="btn-primary block" style="margin-top:8px;">
             {{ memproses ? 'Memproses...' : 'Masuk' }} <i v-if="!memproses" class="fas fa-arrow-right" style="margin-left:8px;"></i>
           </button>
+
+          <div v-if="!isDesktop" style="text-align:center; margin-top:16px;">
+            <button @click="bukaAbsensiQr" style="background:none; border:none; color:var(--burgundy); font-weight:700; font-size:12.5px; cursor:pointer;">
+              <i class="fas fa-qrcode" style="margin-right:6px;"></i>Absensi Melalui QR
+            </button>
+          </div>
 
           <div style="text-align:center; margin-top:24px; font-size:13px; color:var(--text-muted);">
             <p>Belum punya akun?</p>

@@ -144,6 +144,63 @@ const AppAccountProfile = {
       menyimpanPasswordKeamanan.value = false;
     }
 
+    // ---- Keamanan: PIN (BARU, 22 Agt 2026, permintaan Hilman) ----
+    // Dipakai buat "Absensi Melalui QR" — HP Kiosk di gudang scan barcode
+    // karyawan, lalu minta PIN buat pastikan bukan orang lain yang absen
+    // pakai barcode yang dipinjam/dicuri. TIDAK PERNAH simpan PIN mentah
+    // — cuma hash SHA-256 (Web Crypto API bawaan browser, tanpa library
+    // tambahan) + di-salt pakai email pemiliknya sendiri, supaya PIN yang
+    // SAMA antar 2 karyawan beda tetap hasilkan hash BEDA (anti rainbow-
+    // table sederhana). WAJIB re-auth password dulu sebelum PIN
+    // dipasang/diubah — sama persis pola Update Password di atas.
+    const subTabKeamanan = ref('password'); // 'password' | 'pin'
+    const pinStatusTerpasang = ref(false);
+    const pinBaru = ref('');
+    const konfirmasiPin = ref('');
+    const passwordUntukPin = ref('');
+    const menyimpanPin = ref(false);
+
+    function muatStatusPin() {
+      pinStatusTerpasang.value = !!(window.currentUser && window.currentUser.pin_hash);
+    }
+
+    async function hashPin(pin, email) {
+      const data = new TextEncoder().encode(pin + '|' + email);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function simpanPin() {
+      if (!/^\d{6}$/.test(pinBaru.value)) return alert("PIN wajib PERSIS 6 angka (0-9 saja).");
+      if (pinBaru.value !== konfirmasiPin.value) return alert("Konfirmasi PIN tidak cocok dengan PIN baru.");
+      if (!passwordUntukPin.value) return alert("Masukkan password Anda dulu buat konfirmasi.");
+      menyimpanPin.value = true;
+      try {
+        // Reauthenticate DULU — PERSIS pola updatePasswordKeamanan di atas,
+        // supaya orang lain yang kebetulan pegang sesi login tidak bisa
+        // ganti PIN tanpa tahu password aslinya.
+        const credential = EmailAuthProvider.credential(window.currentUser.email, passwordUntukPin.value);
+        await reauthenticateWithCredential(auth.currentUser, credential);
+        const hash = await hashPin(pinBaru.value, window.currentUser.email);
+        await updateDoc(doc(db, "users", window.currentUser.email), { pin_hash: hash });
+        window.currentUser.pin_hash = hash; // biar badge langsung update tanpa reload
+        const sudahAdaSebelumnya = pinStatusTerpasang.value;
+        pinStatusTerpasang.value = true;
+        alert(sudahAdaSebelumnya ? "PIN berhasil diperbarui!" : "PIN berhasil dipasang!");
+        pinBaru.value = ''; konfirmasiPin.value = ''; passwordUntukPin.value = '';
+      } catch (e) {
+        console.error("Gagal simpan PIN:", e);
+        if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
+          alert("Password salah.");
+        } else if (e.code === 'auth/too-many-requests') {
+          alert("Terlalu banyak percobaan gagal. Coba lagi beberapa saat lagi.");
+        } else {
+          alert("Terjadi kesalahan sistem saat menyimpan PIN.");
+        }
+      }
+      menyimpanPin.value = false;
+    }
+
     // ---- Account (QR/ID) ----
     // PENTING: window.currentUser adalah objek biasa (bukan reactive Vue),
     // dan Vue app ini ter-mount di awal load halaman — SEBELUM proses login
@@ -427,6 +484,7 @@ const AppAccountProfile = {
 
     onMounted(async () => {
       muatAccountDisplay();
+      muatStatusPin();
       if (window.mulaiHitungJamKerja) window.mulaiHitungJamKerja();
       await window.authReady;
       await muatOpsiFilter();
@@ -437,6 +495,7 @@ const AppAccountProfile = {
       tabAktif, pindahTab, muatAccountDisplay,
       namaTampil, idAppTampil, jabatanTampil, qrUrl, clockOut, keluar,
       passwordLama, passwordBaruKeamanan, menyimpanPasswordKeamanan, updatePasswordKeamanan,
+      subTabKeamanan, pinStatusTerpasang, pinBaru, konfirmasiPin, passwordUntukPin, menyimpanPin, simpanPin,
       form, menyimpanForm, simpanDataDiri,
       formTerbuka, opsiAlasanIzin, opsiAlasanCuti, izin, cuti, lembur,
       bukaFormIzin, tutupFormIzin, ajukanIzin,
@@ -753,12 +812,30 @@ const AppAccountProfile = {
 
     <!-- Tab: Keamanan -->
     <div v-show="tabAktif === 'keamanan'" class="max-w-md mx-auto w-full" style="margin-top:16px;">
-      <div class="gc-card" style="font-size:12.5px;">
+      <div style="display:flex; gap:6px; margin-bottom:14px;">
+        <button @click="subTabKeamanan = 'password'" class="gc-sub-tab-btn" :class="{ active: subTabKeamanan === 'password' }" style="flex:1;">Password</button>
+        <button @click="subTabKeamanan = 'pin'" class="gc-sub-tab-btn" :class="{ active: subTabKeamanan === 'pin' }" style="flex:1;">
+          PIN <span class="tag" :class="pinStatusTerpasang ? 'ok' : 'warn'" style="margin-left:6px; font-size:9px;">{{ pinStatusTerpasang ? 'Terpasang' : 'Belum' }}</span>
+        </button>
+      </div>
+
+      <div v-if="subTabKeamanan === 'password'" class="gc-card" style="font-size:12.5px;">
         <h3 style="font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;"><i class="fas fa-shield-alt" style="color:var(--danger); margin-right:8px;"></i> Update Password</h3>
         <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:14px;">Ubah kata sandi Anda secara berkala untuk menjaga keamanan akun.</p>
         <div class="gc-field"><label>Password Lama</label><input v-model="passwordLama" type="password"></div>
         <div class="gc-field"><label>Password Baru (min. 6 karakter)</label><input v-model="passwordBaruKeamanan" type="password"></div>
         <button @click="updatePasswordKeamanan" :disabled="menyimpanPasswordKeamanan" class="btn-primary block" style="background:var(--danger);">{{ menyimpanPasswordKeamanan ? 'Menyimpan...' : 'Update Password' }}</button>
+      </div>
+
+      <div v-else class="gc-card" style="font-size:12.5px;">
+        <h3 style="font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;"><i class="fas fa-shield-halved" style="color:var(--burgundy); margin-right:8px;"></i> PIN Absensi
+          <span class="tag" :class="pinStatusTerpasang ? 'ok' : 'warn'" style="margin-left:8px;">{{ pinStatusTerpasang ? 'Terpasang' : 'Belum Terpasang' }}</span>
+        </h3>
+        <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:14px;">PIN 6 angka ini dipakai buat "Absensi Melalui QR" — waktu barcode Anda di-scan HP Kiosk gudang, PIN ini yang memastikan bukan orang lain yang absen memakainya.</p>
+        <div class="gc-field"><label>PIN Baru (6 angka)</label><input v-model="pinBaru" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div>
+        <div class="gc-field"><label>Konfirmasi PIN Baru</label><input v-model="konfirmasiPin" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div>
+        <div class="gc-field"><label>Password Anda (konfirmasi identitas)</label><input v-model="passwordUntukPin" type="password"></div>
+        <button @click="simpanPin" :disabled="menyimpanPin" class="btn-primary block">{{ menyimpanPin ? 'Menyimpan...' : (pinStatusTerpasang ? 'Perbarui PIN' : 'Pasang PIN') }}</button>
       </div>
     </div>
 
