@@ -529,7 +529,46 @@ const AppKamera = {
           // cekStatusClockInSaya supaya tidak diam-diam gagal total.
           const docIdUtama = snapSemuaAktif.docs[0]?.id || status.docId;
           const semuaDocId = snapSemuaAktif.docs.length > 0 ? snapSemuaAktif.docs.map(d => d.id) : [docIdUtama];
-          await Promise.all(semuaDocId.map(id => updateDoc(doc(db, "absensi", id), dataUpdate)));
+          // DIPERBAIKI (23 Agt 2026, ronde 2 — dilaporkan Hilman: "sudah
+          // Clock Out, tapi discan lagi malah diminta Clock Out lagi",
+          // dikonfirmasi terjadi disertai alert "Gagal mengirim
+          // pengajuan..." di akun Owner) — root cause KEMUNGKINAN BESAR:
+          // dokumen zombie LAMA (sisa testing 7x Clock In sebelum §19.5
+          // diperbaiki) bisa punya field `gudang` yang TIDAK termasuk
+          // gudang Kiosk INI — Firestore Rules cuma izinkan Kiosk menulis
+          // absensi buat gudang miliknya sendiri (§18.4 poin 9). SEBELUMNYA
+          // pakai Promise.all — kalau SATU SAJA dokumen ditolak Rules
+          // (gudang tidak cocok), SEMUANYA (termasuk dokumen shift yang
+          // SEHARUSNYA berhasil ditutup Kiosk ini) ikut dianggap gagal —
+          // Clock Out selalu gagal & orangnya kelihatan "aktif terus" di
+          // scan berikutnya, TIDAK PERNAH bisa Clock In lagi lewat Kiosk
+          // manapun. Sekarang pakai Promise.allSettled — tiap dokumen
+          // ditutup SENDIRI-SENDIRI, dokumen yang MEMANG boleh ditutup
+          // Kiosk ini tetap berhasil walau ada dokumen lain yang ditolak.
+          // CATATAN: ini belum tentu 100% akar masalahnya (belum bisa
+          // baca firestore.rules dari sesi ini) — kalau dokumen zombie
+          // gudang-tidak-cocok itu MASIH ada setelah fix ini, Kiosk mana
+          // pun TETAP tidak akan bisa menutupnya (itu keterbatasan Rules,
+          // bukan bug kode) — solusinya orangnya WAJIB Clock Out sekali
+          // lewat HP-nya SENDIRI (bukan Kiosk) buat membersihkan sisa
+          // dokumen lama itu, baru Kiosk bisa dipakai normal lagi.
+          const hasilTutup = await Promise.allSettled(semuaDocId.map(id => updateDoc(doc(db, "absensi", id), dataUpdate)));
+          const jumlahBerhasil = hasilTutup.filter(h => h.status === 'fulfilled').length;
+          const jumlahGagal = hasilTutup.length - jumlahBerhasil;
+          if (jumlahGagal > 0) {
+            console.error(
+              `Clock Out: ${jumlahGagal} dari ${hasilTutup.length} dokumen absensi GAGAL ditutup ` +
+              `(kemungkinan gudang dokumen lama tidak cocok dengan gudang Kiosk ini) — ${jumlahBerhasil} lainnya berhasil. Detail:`,
+              hasilTutup.filter(h => h.status === 'rejected').map(h => h.reason?.message || h.reason)
+            );
+          }
+          if (jumlahBerhasil === 0) {
+            // Tidak ada SATU PUN yang berhasil ditutup — ini baru benar-
+            // benar gagal total, lempar supaya catch di luar tampilkan
+            // alert gagal seperti biasa (perilaku sebelumnya, TIDAK berubah
+            // untuk kasus ini).
+            throw hasilTutup[0].reason || new Error('Semua percobaan tutup dokumen Clock Out gagal.');
+          }
           return docIdUtama;
         }
 
