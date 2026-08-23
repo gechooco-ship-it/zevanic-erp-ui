@@ -78,12 +78,18 @@ const AppLogin = {
     const statusPilihan = ref('HADIR (CLOCK IN)');
     const memproses = ref(false);
     const isDesktop = ref(isDesktopBrowser());
-    // BARU (22 Agt 2026) — "Absensi Melalui QR" (HP Kiosk gudang scan
-    // barcode karyawan + verifikasi PIN). Cuma relevan di HP/tablet
-    // (makanya link-nya cuma tampil kalau !isDesktop), tapi fungsi
-    // pindah layarnya sendiri tidak perlu dibatasi lagi di sini —
-    // pembatasan visual di template sudah cukup.
-    function bukaAbsensiQr() { window.pindahLayar('screen-absensi-qr'); }
+    // DIROMBAK (22 Agt 2026, revisi ke-2 dari Hilman) — "Absensi Melalui
+    // QR" TERNYATA bukan layar terpisah dari Login, cuma MODE TAMPILAN
+    // di form Login yang SAMA (email+password yang sama, proses login()
+    // yang sama juga) — yang login di sini akun HP KIOSK (email/password
+    // asli-nya, BUKAN PIN karyawan — PIN itu punya konsep beda, dipakai
+    // nanti pas scan barcode di dalam screen-absensi-qr). Begitu akun
+    // KIOSK berhasil login, auth.js YANG deteksi (jenis_akun==='kiosk')
+    // dan otomatis lempar ke screen-absensi-qr — termasuk pas refresh,
+    // karena Firebase Auth inget sesi login, bukan logic tambahan di sini.
+    const modeKioskLogin = ref(false);
+    function bukaAbsensiQr() { modeKioskLogin.value = true; }
+    function kembaliKeLoginBiasa() { modeKioskLogin.value = false; }
 
     const izin = reactive({ tanggal: '', alasan: '', detail: '' });
     const opsiAlasanIzin = ref([]);
@@ -146,6 +152,11 @@ const AppLogin = {
       const emailInput = email.value.trim().toLowerCase();
       const passInput = password.value;
       window.statusPilihanGlobal = isDesktop.value ? 'HADIR (CLOCK IN)' : statusPilihan.value;
+      // Dibaca auth.js setelah login sukses — validasi silang: kalau
+      // orang coba login mode Kiosk pakai akun BUKAN Kiosk (atau
+      // sebaliknya), auth.js yang tolak & logout paksa (lihat catatan
+      // di auth.js kenapa validasi ini WAJIB di sana, bukan di sini).
+      window._modeLoginKioskDicoba = modeKioskLogin.value;
 
       window.tanggalIzinGlobal = izin.tanggal;
       const keterangan = izin.detail.trim() ? `${izin.alasan} - ${izin.detail.trim()}` : izin.alasan;
@@ -313,6 +324,19 @@ const AppLogin = {
       };
       isOwnerRole = (window.currentUser.role === 'owner' || window.currentUser.role === 'superuser');
 
+      // BARU (22 Agt 2026) — validasi silang mode "Absensi Melalui QR":
+      // 1) Coba mode Kiosk pakai akun BUKAN Kiosk terdaftar -> TOLAK.
+      //    ("hanya device yang terdaftar yang bisa login disini")
+      // 2) Akun Kiosk asli -> SELALU ke screen-absensi-qr, TIDAK PERNAH
+      //    kena gerbang Clock In (kiosk bukan orang, tidak clock in).
+      const iniAkunKiosk = d.jenis_akun === 'kiosk';
+      if (window._modeLoginKioskDicoba && !iniAkunKiosk) {
+        alert("Akun ini bukan Device Kiosk terdaftar. Gunakan menu Login biasa, atau hubungi Owner kalau device ini seharusnya terdaftar.");
+        await signOut(auth);
+        window._manualLoginInProgress = false;
+        return;
+      }
+
       if (d.status_approval && d.status_approval !== "APPROVED") {
         alert(d.status_approval === "PENDING"
           ? "Akun Anda masih menunggu persetujuan Owner/PIC. Silakan hubungi mereka."
@@ -352,6 +376,19 @@ const AppLogin = {
 
       await window.muatAksesConfigSaya(window.currentUser.role, window.currentUser.profil_akses);
       window.simpanKonteksSesi(); // biar reload berikutnya (F5, tab baru) tidak baca ulang users/akses_config
+
+      // Akun Kiosk BERHENTI DI SINI — tidak pernah ke Dashboard/kamera
+      // biasa, tidak kena gerbang Clock In apapun (desktop maupun
+      // mobile), karena kiosk bukan orang yang absen buat dirinya
+      // sendiri. "Terkunci" di screen-absensi-qr tercapai otomatis di
+      // SETIAP reload juga — lihat blok serupa di onAuthStateChanged
+      // utama (bawah file ini) buat kasus refresh/auto-reload.
+      if (iniAkunKiosk) {
+        window._manualLoginInProgress = false;
+        window.pindahLayar('screen-absensi-qr');
+        return;
+      }
+
       window.aturTampilanBerdasarkanRole();
       if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
       if (window.refreshHome) window.refreshHome();
@@ -387,7 +424,7 @@ const AppLogin = {
     }
 
     return {
-      email, password, showPassword, ingatSaya, statusPilihan, memproses, isDesktop, bukaAbsensiQr,
+      email, password, showPassword, ingatSaya, statusPilihan, memproses, isDesktop, bukaAbsensiQr, modeKioskLogin, kembaliKeLoginBiasa,
       izin, opsiAlasanIzin, bukaFormIzinDropdown,
       otpVisible, otpEmailAktif, otpInput, otpSudahDikirim, otpMengirim, otpMemverifikasi, otpCountdown, formatCountdownOtp,
       lupaPassword, bukaFormRegistrasi, login,
@@ -437,7 +474,7 @@ const AppLogin = {
             <button type="button" @click="lupaPassword" style="background:none; border:none; color:var(--burgundy); font-weight:700; cursor:pointer;">Lupa sandi?</button>
           </div>
 
-          <div v-if="!isDesktop" class="gc-field">
+          <div v-if="!isDesktop && !modeKioskLogin" class="gc-field">
             <label>Pilih status kehadiran / pengajuan</label>
             <select v-model="statusPilihan" @change="bukaFormIzinDropdown">
               <option value="HADIR (CLOCK IN)">Hadir (Clock In pertama)</option>
@@ -445,9 +482,11 @@ const AppLogin = {
             </select>
           </div>
 
+          <p v-if="modeKioskLogin" class="tag ok" style="display:block; margin-bottom:16px; padding:10px 14px; border-radius:12px;"><i class="fas fa-tablet-screen-button" style="margin-right:6px;"></i>Login akun HP Kiosk — isi email &amp; password Kiosk (bukan akun pribadi).</p>
+
           <p v-if="isDesktop" class="tag warn" style="display:block; margin-bottom:16px; padding:10px 14px; border-radius:12px;"><i class="fas fa-info-circle" style="margin-right:6px;"></i>Login lewat komputer hanya untuk masuk Dashboard setelah Clock In dari HP.</p>
 
-          <div v-if="!isDesktop && statusPilihan === 'IZIN'" style="padding-top:8px; border-top:1px solid var(--line); margin-bottom:6px;">
+          <div v-if="!isDesktop && !modeKioskLogin && statusPilihan === 'IZIN'" style="padding-top:8px; border-top:1px solid var(--line); margin-bottom:6px;">
             <div class="gc-field"><label>Tanggal pengajuan</label><input v-model="izin.tanggal" type="date"></div>
             <div class="gc-field">
               <label>Alasan</label>
@@ -460,12 +499,15 @@ const AppLogin = {
           </div>
 
           <button @click="login" :disabled="memproses" class="btn-primary block" style="margin-top:8px;">
-            {{ memproses ? 'Memproses...' : 'Masuk' }} <i v-if="!memproses" class="fas fa-arrow-right" style="margin-left:8px;"></i>
+            {{ memproses ? 'Memproses...' : (modeKioskLogin ? 'Login HP Kiosk' : 'Masuk') }} <i v-if="!memproses" class="fas fa-arrow-right" style="margin-left:8px;"></i>
           </button>
 
           <div v-if="!isDesktop" style="text-align:center; margin-top:16px;">
-            <button @click="bukaAbsensiQr" style="background:none; border:none; color:var(--burgundy); font-weight:700; font-size:12.5px; cursor:pointer;">
+            <button v-if="!modeKioskLogin" @click="bukaAbsensiQr" style="background:none; border:none; color:var(--burgundy); font-weight:700; font-size:12.5px; cursor:pointer;">
               <i class="fas fa-qrcode" style="margin-right:6px;"></i>Absensi Melalui QR
+            </button>
+            <button v-else @click="kembaliKeLoginBiasa" style="background:none; border:none; color:var(--text-muted); font-weight:700; font-size:12.5px; cursor:pointer;">
+              <i class="fas fa-arrow-left" style="margin-right:6px;"></i>Kembali ke Login biasa
             </button>
           </div>
 

@@ -454,6 +454,23 @@ onAuthStateChanged(auth, async (user) => {
     // field ini kebetulan salah/kosong di akun Owner sendiri).
     if (!isOwnerRole && statusKerjaUser !== "Aktif") return;
 
+    // BARU (22 Agt 2026) — akun Kiosk: BERHENTI DI SINI, langsung ke
+    // screen-absensi-qr, TIDAK PERNAH lewat gerbang gudang/Clock In/jam
+    // kerja di bawah (kiosk bukan orang, tidak "clock in" buat dirinya
+    // sendiri) — ini yang bikin "terkunci" di menu Absensi QR tercapai
+    // di SETIAP refresh/reload otomatis (bukan cuma pas login manual
+    // pertama kali, lihat blok serupa di vue-login.js). status_kerja
+    // TETAP dicek di atas (baris sebelum ini) — "Nonaktifkan" dari
+    // Device Kiosk TETAP berfungsi blokir login kiosk yang dinonaktifkan.
+    if (d.jenis_akun === 'kiosk') {
+      window.currentUser = { ...d, email: user.email, role: roleUser };
+      if (!cache) await window.muatAksesConfigSaya(roleUser, d.profil_akses);
+      window.simpanKonteksSesi();
+      berhasilMasukDashboard = true;
+      window.pindahLayar('screen-absensi-qr');
+      return;
+    }
+
     // DIUBAH (19 Agt 2026, permintaan Hilman) — SEBELUMNYA Owner/Superuser
     // dikecualikan total dari gudang/Clock In/jam kerja ("perannya
     // manajerial"). Sekarang WAJIB ikut alur SAMA PERSIS, tidak ada
@@ -680,8 +697,9 @@ window.aturTampilanBerdasarkanRole = function() {
   // tidak boleh mengaksesnya.
   const btnKonfigAkses = document.getElementById('btn-sub-karyawan-akses');
   const btnHakAkses = document.getElementById('btn-sub-karyawan-hakakses');
+  const menuDeviceKioskBtn = document.getElementById('menu-device-kiosk-btn');
 
-  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses].forEach(el => {
+  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -719,5 +737,9 @@ window.aturTampilanBerdasarkanRole = function() {
   if (role === 'owner') {
     if (btnKonfigAkses) btnKonfigAkses.classList.remove('hidden');
     if (btnHakAkses) btnHakAkses.classList.remove('hidden');
+    // Device Kiosk (22 Agt 2026) — "hanya owner saja", SENGAJA pola sama
+    // persis Config Akses/Hak Akses (Superuser TIDAK ikut, beda dari
+    // WhatsApp/Mail Gateway yang Superuser masih boleh).
+    if (menuDeviceKioskBtn) menuDeviceKioskBtn.classList.remove('hidden');
   }
 };

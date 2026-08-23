@@ -26,6 +26,7 @@ const AppDeviceKiosk = {
   setup() {
     const daftarKiosk = ref([]);
     const memuat = ref(true);
+    const pesanErrorMuat = ref('');
     // PEDOMAN §17 (STATUS-PROYEK.md) — search+paginasi WAJIB tiap menu
     // baru bertabel, pola client-side PERSIS sama dengan Master
     // Kendaraan (vue-reimburse.js).
@@ -55,6 +56,7 @@ const AppDeviceKiosk = {
 
     async function muat() {
       memuat.value = true;
+      pesanErrorMuat.value = '';
       try {
         // BARU: cari via jenis_akun (BUKAN role — role kiosk TETAP
         // 'operator', nilai baku, lihat catatan di tambahKiosk() bawah).
@@ -64,7 +66,12 @@ const AppDeviceKiosk = {
         list.sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
         daftarKiosk.value = list;
       } catch (e) {
+        // DIPERBAIKI (22 Agt 2026) — SEBELUMNYA cuma console.error, user
+        // TIDAK PERNAH tahu ada yang gagal (tabel kelihatan "kosong"
+        // padahal sebenarnya QUERY DITOLAK). Sekarang error tampil jelas
+        // di layar, bukan cuma di console yang jarang dicek.
         console.error("Gagal muat daftar device kiosk:", e);
+        pesanErrorMuat.value = `Gagal memuat daftar Device Kiosk: ${e.code || e.message || 'error tidak diketahui'}`;
       }
       memuat.value = false;
     }
@@ -114,7 +121,10 @@ const AppDeviceKiosk = {
         } else if (e.code === 'auth/invalid-email') {
           alert("Format email tidak valid.");
         } else {
-          alert("Terjadi kesalahan sistem saat membuat device kiosk.");
+          // DIPERBAIKI — SEBELUMNYA pesan generik menyembunyikan kode
+          // error asli (misal 'permission-denied' dari Firestore Rules)
+          // yang justru paling penting buat debug.
+          alert(`Gagal membuat device kiosk: ${e.code || e.message || 'error tidak diketahui'}`);
         }
       } finally {
         await deleteApp(appKedua); // WAJIB dibuang — jangan biarkan instance kedua menumpuk di memori
@@ -148,7 +158,8 @@ const AppDeviceKiosk = {
     onMounted(async () => { await window.authReady; await muat(); });
     return {
       daftarKiosk, memuat, menyimpan, form, tambahKiosk, toggleAktif, hapusKiosk,
-      cariKiosk, halamanSaatIni, totalHalaman, gantiHalaman, daftarKioskHalaman
+      cariKiosk, halamanSaatIni, totalHalaman, gantiHalaman, daftarKioskHalaman,
+      pesanErrorMuat, muat
     };
   },
   template: `
@@ -171,6 +182,10 @@ const AppDeviceKiosk = {
     </div>
 
     <div class="gc-card" style="padding:0; overflow:hidden;">
+      <div v-if="pesanErrorMuat" style="padding:16px; background:#FBE3DE; margin:14px; border-radius:12px;">
+        <p style="font-size:11.5px; color:var(--danger); font-weight:700; margin-bottom:8px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ pesanErrorMuat }}</p>
+        <button @click="muat" class="icon-btn" style="font-size:11px; padding:5px 12px; border:1px solid var(--danger); border-radius:8px;">Coba Lagi</button>
+      </div>
       <div v-if="memuat" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
       <div v-else-if="daftarKiosk.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada Device Kiosk terdaftar.</div>
       <div v-else-if="daftarKioskHalaman.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Tidak ada yang cocok dengan pencarian.</div>

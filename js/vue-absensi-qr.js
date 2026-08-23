@@ -19,7 +19,8 @@
 // ============================================================================
 import { createApp, ref, onMounted, onBeforeUnmount } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { db } from "./firebase-config.js";
+import { db, auth } from "./firebase-config.js";
+import { signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 
 // SAMA PERSIS dengan hashPin di vue-account-profile.js (Fase 1) — WAJIB
@@ -205,8 +206,15 @@ const AppAbsensiQr = {
       percobaanPin.value = 0;
       sudahKetemu = false;
     }
-    function kembaliKeLogin() {
+    // DIUBAH (22 Agt 2026) — SEBELUMNYA cuma pindahLayar('screen-login')
+    // TANPA logout — itu TIDAK CUKUP lagi sekarang: kiosk yang "terkunci"
+    // (lihat auth.js) akan otomatis dilempar BALIK ke screen-absensi-qr
+    // di refresh berikutnya kalau sesi Firebase-nya masih aktif. WAJIB
+    // signOut() sungguhan buat benar-benar keluar dari mode Kiosk.
+    async function logoutKiosk() {
       hentikanKamera();
+      if (!confirm('Logout dari Device Kiosk ini?')) return;
+      await signOut(auth);
       if (window.pindahLayar) window.pindahLayar('screen-login');
     }
     // ---- Keypad PIN (Fase 4) ----
@@ -281,18 +289,18 @@ const AppAbsensiQr = {
     return {
       tahap, jenisTerpilih, karyawanTerscan, sisaDetik, JENIS_MENU,
       pinInput, pinError, percobaanPin, memverifikasiPin,
-      pilihJenis, kembaliKeMenu, kembaliKeLogin,
+      pilihJenis, kembaliKeMenu, logoutKiosk,
       tambahDigit, hapusDigit, kosongkanPin, verifikasiPin
     };
   },
   template: `
     <div style="min-height:100vh; display:flex; flex-direction:column; background:var(--ivory);">
       <div style="padding:16px 18px; display:flex; align-items:center; gap:14px; border-bottom:1px solid var(--line); background:var(--surface);">
-        <button @click="kembaliKeLogin" style="background:none; border:none; font-size:17px; color:var(--text); cursor:pointer; padding:4px;"><i class="fas fa-arrow-left"></i></button>
-        <div>
+        <div style="flex:1;">
           <h2 style="font-weight:700; font-size:15px; margin:0; color:var(--burgundy-dark);">Absensi Melalui QR</h2>
           <p style="font-size:10.5px; color:var(--text-muted); margin:1px 0 0;">Khusus HP Kiosk gudang</p>
         </div>
+        <button @click="logoutKiosk" style="background:none; border:1.5px solid var(--line); border-radius:10px; padding:6px 12px; font-size:11px; color:var(--text-muted); cursor:pointer;"><i class="fas fa-right-from-bracket" style="margin-right:4px;"></i>Logout</button>
       </div>
 
       <!-- ============ TAHAP: MENU (5 pilihan) ============ -->
