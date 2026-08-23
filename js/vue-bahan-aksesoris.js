@@ -47,9 +47,9 @@
 //     awal ini.
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, setDoc, serverTimestamp, runTransaction, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, runTransaction, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { MasterDataCategory } from './vue-components.js';
+import { MasterDataCategory, MasterDataTabelManager, DropdownCari } from './vue-components.js';
 import { usePaginasiFirestore } from './vue-paginasi.js';
 
 const KATEGORI_UTAMA_OPSI = ['Bahan', 'Aksesoris'];
@@ -59,6 +59,24 @@ function kategoriMasterData(kategoriUtama) {
 }
 function kunciPengaturanId(kategoriUtama) {
   return kategoriUtama === 'Aksesoris' ? 'aksesoris' : 'bahan';
+}
+
+// ambilDaftarNama — BARU (23 Agt 2026), dipakai buat isi opsi DropdownCari
+// (Warna, Satuan Pembelian, Satuan Pemakaian) dari koleksi MasterDataTabelManager
+// (master_satuan/master_warna, lihat vue-components.js) — beda dari
+// window.ambilMasterList (dashboard.js) yang bacanya dari 1 dokumen
+// `master_data/{kategori}` berisi array, koleksi ini 1 dokumen per item.
+async function ambilDaftarNama(koleksi) {
+  try {
+    const snap = await getDocs(collection(db, koleksi));
+    const list = [];
+    snap.forEach(d => { if (d.data().nama) list.push(d.data().nama); });
+    list.sort((a, b) => a.localeCompare(b));
+    return list;
+  } catch (e) {
+    console.error(`Gagal ambil daftar ${koleksi}:`, e);
+    return [];
+  }
 }
 
 // Kompresi gambar sisi klien — pola SAMA seperti js/camera.js (foto KTP) &
@@ -175,7 +193,7 @@ function formatRupiah(n) {
 // Jenis Aksesoris (pakai MasterDataCategory yang sudah ada, dipakai ulang).
 // ---------------------------------------------------------------------------
 const PengaturanBahanAksesoris = {
-  components: { MasterDataCategory },
+  components: { MasterDataCategory, MasterDataTabelManager },
   emits: ['tutup'],
   setup(props, { emit }) {
     const prefixBahan = ref('');
@@ -248,6 +266,23 @@ const PengaturanBahanAksesoris = {
           <master-data-category kategori="jenis_bahan" label="Jenis Bahan" menu-id="bahan_aksesoris_entry" />
           <div style="height:14px;"></div>
           <master-data-category kategori="jenis_aksesoris" label="Jenis Aksesoris" menu-id="bahan_aksesoris_entry" />
+
+          <hr style="border-color:var(--line); margin:18px 0 16px;">
+          <!-- BARU (23 Agt 2026) — Data Satuan & Data Warna DIPAKAI di form
+               Bahan/Aksesoris (jadi opsi DropdownCari). Data Ukuran BELUM
+               dipakai di field manapun di form ini (tidak ada field "Ukuran"
+               di 13 field asli) — disiapkan di sini duluan buat dipakai menu
+               lain nanti, sesuai permintaan. -->
+          <div class="gc-card" style="padding:14px; margin-bottom:12px;">
+            <master-data-tabel-manager koleksi="master_satuan" label-singular="Satuan" label-nama="Nama Satuan" />
+          </div>
+          <div class="gc-card" style="padding:14px; margin-bottom:12px;">
+            <master-data-tabel-manager koleksi="master_warna" label-singular="Warna" label-nama="Nama Warna" />
+          </div>
+          <div class="gc-card" style="padding:14px; margin-bottom:12px;">
+            <master-data-tabel-manager koleksi="master_ukuran" label-singular="Ukuran" label-nama="Nama Ukuran" />
+            <p style="font-size:10px; color:var(--text-faint); margin-top:8px;"><i class="fas fa-circle-info" style="margin-right:4px;"></i>Belum dipakai di form Bahan/Aksesoris manapun saat ini — disiapkan untuk menu lain ke depan.</p>
+          </div>
         </template>
         <button @click="$emit('tutup')" class="btn-outline" style="width:100%; margin-top:18px;">Tutup</button>
       </div>
@@ -293,12 +328,21 @@ const PopupKonversiBerjenjang = {
 // BahanAksesorisEntryManager — menu "Bahan / Aksesoris" (form entry data baru)
 // ---------------------------------------------------------------------------
 const BahanAksesorisEntryManager = {
-  components: { PopupKonversiBerjenjang, PengaturanBahanAksesoris },
+  components: { PopupKonversiBerjenjang, PengaturanBahanAksesoris, DropdownCari },
   setup() {
     const form = formStateKosong();
     const opsiJenis = ref([]);
+    const opsiSatuan = ref([]);
+    const opsiWarna = ref([]);
     const menyimpan = ref(false);
     const tampilPengaturan = ref(false);
+
+    async function muatOpsiSatuanWarna() {
+      [opsiSatuan.value, opsiWarna.value] = await Promise.all([
+        ambilDaftarNama('master_satuan'),
+        ambilDaftarNama('master_warna')
+      ]);
+    }
 
     const hargaModal = computed(() => {
       const hp = parseFloat(form.harga_pembelian) || 0;
@@ -312,6 +356,8 @@ const BahanAksesorisEntryManager = {
       opsiJenis.value = window.ambilMasterList ? await window.ambilMasterList(kategoriMasterData(form.kategori_utama)) : [];
     }
     watch(() => form.kategori_utama, () => { form.jenis = ''; muatOpsiJenis(); });
+
+    onMounted(muatOpsiSatuanWarna);
 
     function pilihFoto(event) {
       const file = event.target.files[0];
@@ -330,15 +376,23 @@ const BahanAksesorisEntryManager = {
       form.kategori_utama = kategoriDipertahankan; // biar tidak usah pilih ulang tiap entry berturut-turut
     }
 
-    async function simpan() {
+    // simpanData(duplikat) — BARU (23 Agt 2026): 1 fungsi dipakai 2 tombol.
+    // duplikat=false (tombol "Simpan"): form direset kosong setelah sukses
+    // (perilaku LAMA, tetap dipertahankan). duplikat=true (tombol "Simpan &
+    // Duplikat"): form TIDAK direset — semua field DIPERTAHANKAN APA ADANYA
+    // (kecuali Foto, sengaja dikosongkan — varian warna baru biasanya butuh
+    // foto baru juga) supaya admin tinggal ubah sedikit detail yang beda
+    // (paling umum: Warna, tapi bisa juga Harga/Satuan/dll — bebas) lalu
+    // simpan lagi jadi entri BARU (ID baru lagi, BUKAN update entri lama).
+    async function simpanData(duplikat) {
       if (!form.kategori_utama) return alert('Pilih Kategori Utama (Bahan/Aksesoris) dulu.');
       if (!form.jenis) return alert('Pilih Jenis Bahan/Aksesoris dulu.');
       if (!form.nama.trim()) return alert('Isi Nama Bahan/Aksesoris dulu.');
-      if (!form.warna.trim()) return alert('Isi Warna Bahan/Aksesoris dulu.');
+      if (!form.warna.trim()) return alert('Pilih Warna dulu.');
       if (!(parseFloat(form.harga_pembelian) > 0)) return alert('Isi Harga Pembelian dulu (harus lebih dari 0).');
-      if (!form.satuan_pembelian.trim()) return alert('Isi Satuan Pembelian dulu.');
+      if (!form.satuan_pembelian.trim()) return alert('Pilih Satuan Pembelian dulu.');
       if (!(parseFloat(form.isi_konversi_pembelian) > 0)) return alert('Isi Isi Konversi Pembelian dulu (harus lebih dari 0) — bisa pakai tombol "Bantu Hitung Konversi Berjenjang" kalau tingkatnya banyak.');
-      if (!form.satuan_pemakaian.trim()) return alert('Isi Satuan Pemakaian dulu.');
+      if (!form.satuan_pemakaian.trim()) return alert('Pilih Satuan Pemakaian dulu.');
       if (form.margin_modal === '' || form.margin_modal === null) return alert('Isi Margin Modal dulu (boleh 0 kalau memang tidak ada margin).');
 
       menyimpan.value = true;
@@ -362,18 +416,25 @@ const BahanAksesorisEntryManager = {
           dibuat_pada: serverTimestamp(),
           dibuat_oleh: window.currentUser?.email || null
         });
-        alert(`Tersimpan! ID: ${idBaru}`);
-        resetForm();
+        if (duplikat) {
+          form.foto = '';
+          alert(`Tersimpan! ID: ${idBaru}\n\nForm DIPERTAHANKAN untuk Duplikat — ubah detail yang beda (misal Warna), lalu Simpan / Simpan & Duplikat lagi.`);
+        } else {
+          alert(`Tersimpan! ID: ${idBaru}`);
+          resetForm();
+        }
       } catch (e) {
         console.error('Gagal simpan Bahan/Aksesoris:', e);
         alert(e.message && e.message.includes('Prefix ID') ? e.message : 'Gagal menyimpan data. Coba lagi.');
       }
       menyimpan.value = false;
     }
+    function simpan() { return simpanData(false); }
+    function simpanDanDuplikat() { return simpanData(true); }
 
     return {
-      form, opsiJenis, KATEGORI_UTAMA_OPSI, menyimpan, hargaModal, hargaPemakaian, formatRupiah,
-      pilihFoto, hapusFoto, simpan, tampilPengaturan,
+      form, opsiJenis, opsiSatuan, opsiWarna, KATEGORI_UTAMA_OPSI, menyimpan, hargaModal, hargaPemakaian, formatRupiah,
+      pilihFoto, hapusFoto, simpan, simpanDanDuplikat, tampilPengaturan, muatOpsiJenis, muatOpsiSatuanWarna,
       ...konversi
     };
   },
@@ -398,10 +459,7 @@ const BahanAksesorisEntryManager = {
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;" class="grid-cols-1 md:grid-cols-2">
         <div class="gc-field">
           <label>Jenis Bahan / Aksesoris <span style="color:var(--danger);">*</span></label>
-          <select v-model="form.jenis" :disabled="!form.kategori_utama">
-            <option value="" disabled>{{ form.kategori_utama ? 'Pilih...' : 'Pilih Kategori Utama dulu' }}</option>
-            <option v-for="j in opsiJenis" :key="j" :value="j">{{ j }}</option>
-          </select>
+          <dropdown-cari v-model="form.jenis" :opsi="opsiJenis" :disabled="!form.kategori_utama" :placeholder="form.kategori_utama ? 'Cari & pilih Jenis...' : 'Pilih Kategori Utama dulu'" />
         </div>
         <div class="gc-field">
           <label>Nama Bahan / Aksesoris <span style="color:var(--danger);">*</span></label>
@@ -409,7 +467,7 @@ const BahanAksesorisEntryManager = {
         </div>
         <div class="gc-field">
           <label>Warna <span style="color:var(--danger);">*</span></label>
-          <input v-model="form.warna" type="text" placeholder="Contoh: Navy">
+          <dropdown-cari v-model="form.warna" :opsi="opsiWarna" placeholder="Cari & pilih Warna..." />
         </div>
         <div class="gc-field">
           <label>Foto (opsional)</label>
@@ -430,7 +488,7 @@ const BahanAksesorisEntryManager = {
         </div>
         <div class="gc-field">
           <label>Satuan Pembelian <span style="color:var(--danger);">*</span></label>
-          <input v-model="form.satuan_pembelian" type="text" placeholder="Contoh: Dus">
+          <dropdown-cari v-model="form.satuan_pembelian" :opsi="opsiSatuan" placeholder="Cari & pilih Satuan..." />
         </div>
         <div class="gc-field" style="grid-column:1/-1;">
           <label>Isi Konversi Pembelian <span style="color:var(--danger);">*</span></label>
@@ -444,7 +502,7 @@ const BahanAksesorisEntryManager = {
         </div>
         <div class="gc-field">
           <label>Satuan Pemakaian <span style="color:var(--danger);">*</span></label>
-          <input v-model="form.satuan_pemakaian" type="text" placeholder="Contoh: Pcs">
+          <dropdown-cari v-model="form.satuan_pemakaian" :opsi="opsiSatuan" placeholder="Cari & pilih Satuan..." />
         </div>
         <div class="gc-field">
           <label>Margin Modal (Rp) <span style="color:var(--danger);">*</span></label>
@@ -457,12 +515,15 @@ const BahanAksesorisEntryManager = {
         <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Pemakaian (otomatis)</span><b style="font-size:14px; color:var(--burgundy);">{{ formatRupiah(hargaPemakaian) }}</b></div>
       </div>
 
-      <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="width:100%; padding:12px;"><i class="fas fa-floppy-disk" style="margin-right:6px;"></i>{{ menyimpan ? 'Menyimpan...' : 'Simpan Bahan / Aksesoris' }}</button>
+      <div style="display:flex; gap:8px;">
+        <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="flex:1; padding:12px;"><i class="fas fa-floppy-disk" style="margin-right:6px;"></i>{{ menyimpan ? 'Menyimpan...' : 'Simpan' }}</button>
+        <button @click="simpanDanDuplikat" :disabled="menyimpan" class="btn-outline" style="flex:1; padding:12px;" title="Simpan sebagai entri baru, TAPI form tidak dikosongkan — tinggal ubah detail yang beda (misal Warna) lalu simpan lagi"><i class="fas fa-copy" style="margin-right:6px;"></i>Simpan &amp; Duplikat</button>
+      </div>
     </div>
 
     <popup-konversi-berjenjang v-if="tampilPopupKonversi" :baris="barisKonversi" :total="totalKonversiBerjenjang"
       @tambah="tambahBarisKonversi" @hapus="hapusBarisKonversi" @terapkan="terapkanKonversi" @tutup="tutupPopupKonversi" />
-    <pengaturan-bahan-aksesoris v-if="tampilPengaturan" @tutup="tampilPengaturan = false; muatOpsiJenis()" />
+    <pengaturan-bahan-aksesoris v-if="tampilPengaturan" @tutup="tampilPengaturan = false; muatOpsiJenis(); muatOpsiSatuanWarna()" />
   `
 };
 
@@ -472,7 +533,7 @@ const BahanAksesorisEntryManager = {
 // potong-di-JS seperti MasterKendaraanManager lama).
 // ---------------------------------------------------------------------------
 const BahanAksesorisListManager = {
-  components: { PopupKonversiBerjenjang },
+  components: { PopupKonversiBerjenjang, DropdownCari },
   setup() {
     const filterKategori = ref('ALL');
     const paginasi = usePaginasiFirestore(db, 'master_bahan_aksesoris', {
@@ -487,7 +548,16 @@ const BahanAksesorisListManager = {
     const sedangEditId = ref(null);
     const formEdit = formStateKosong();
     const opsiJenisEdit = ref([]);
+    const opsiSatuanEdit = ref([]);
+    const opsiWarnaEdit = ref([]);
     const menyimpanEdit = ref(false);
+
+    async function muatOpsiSatuanWarnaEdit() {
+      [opsiSatuanEdit.value, opsiWarnaEdit.value] = await Promise.all([
+        ambilDaftarNama('master_satuan'),
+        ambilDaftarNama('master_warna')
+      ]);
+    }
 
     const hargaModalEdit = computed(() => {
       const hp = parseFloat(formEdit.harga_pembelian) || 0;
@@ -512,6 +582,7 @@ const BahanAksesorisListManager = {
         konversi_bertingkat: item.konversi_bertingkat || []
       });
       muatOpsiJenisEdit();
+      muatOpsiSatuanWarnaEdit();
     }
     function batalEdit() { sedangEditId.value = null; }
 
@@ -569,7 +640,7 @@ const BahanAksesorisListManager = {
 
     return {
       filterKategori, paginasi, formatRupiah,
-      sedangEditId, formEdit, opsiJenisEdit, menyimpanEdit, hargaModalEdit, hargaPemakaianEdit,
+      sedangEditId, formEdit, opsiJenisEdit, opsiSatuanEdit, opsiWarnaEdit, menyimpanEdit, hargaModalEdit, hargaPemakaianEdit,
       bukaEdit, batalEdit, pilihFotoEdit, simpanEdit, hapus,
       tampilPopupKonversiEdit: konversiEdit.tampilPopupKonversi, barisKonversiEdit: konversiEdit.barisKonversi,
       bukaPopupKonversiEdit: konversiEdit.bukaPopupKonversi, tutupPopupKonversiEdit: konversiEdit.tutupPopupKonversi,
@@ -640,16 +711,16 @@ const BahanAksesorisListManager = {
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;" class="grid-cols-1 md:grid-cols-2">
           <div class="gc-field">
             <label>Jenis</label>
-            <select v-model="formEdit.jenis"><option value="" disabled>Pilih...</option><option v-for="j in opsiJenisEdit" :key="j" :value="j">{{ j }}</option></select>
+            <dropdown-cari v-model="formEdit.jenis" :opsi="opsiJenisEdit" placeholder="Cari & pilih Jenis..." />
           </div>
           <div class="gc-field"><label>Nama</label><input v-model="formEdit.nama" type="text"></div>
-          <div class="gc-field"><label>Warna</label><input v-model="formEdit.warna" type="text"></div>
+          <div class="gc-field"><label>Warna</label><dropdown-cari v-model="formEdit.warna" :opsi="opsiWarnaEdit" placeholder="Cari & pilih Warna..." /></div>
           <div class="gc-field"><label>Foto</label><input type="file" accept="image/*" @change="pilihFotoEdit"></div>
         </div>
         <div v-if="formEdit.foto" style="margin-bottom:12px;"><img :src="formEdit.foto" style="width:70px; height:70px; object-fit:cover; border-radius:10px; border:1.5px solid var(--line);"></div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;" class="grid-cols-1 md:grid-cols-2">
           <div class="gc-field"><label>Harga Pembelian (Rp)</label><input v-model.number="formEdit.harga_pembelian" type="number" min="0"></div>
-          <div class="gc-field"><label>Satuan Pembelian</label><input v-model="formEdit.satuan_pembelian" type="text"></div>
+          <div class="gc-field"><label>Satuan Pembelian</label><dropdown-cari v-model="formEdit.satuan_pembelian" :opsi="opsiSatuanEdit" placeholder="Cari & pilih Satuan..." /></div>
           <div class="gc-field" style="grid-column:1/-1;">
             <label>Isi Konversi Pembelian</label>
             <div style="display:flex; gap:8px;">
@@ -657,7 +728,7 @@ const BahanAksesorisListManager = {
               <button @click="bukaPopupKonversiEdit" class="btn-outline" style="white-space:nowrap; font-size:11.5px; padding:0 14px;"><i class="fas fa-calculator" style="margin-right:5px;"></i>Konversi Berjenjang</button>
             </div>
           </div>
-          <div class="gc-field"><label>Satuan Pemakaian</label><input v-model="formEdit.satuan_pemakaian" type="text"></div>
+          <div class="gc-field"><label>Satuan Pemakaian</label><dropdown-cari v-model="formEdit.satuan_pemakaian" :opsi="opsiSatuanEdit" placeholder="Cari & pilih Satuan..." /></div>
           <div class="gc-field"><label>Margin Modal (Rp)</label><input v-model.number="formEdit.margin_modal" type="number" min="0"></div>
         </div>
         <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">

@@ -9,7 +9,7 @@
 // seperti pola import Firebase yang sudah ada di app ini.
 // ============================================================================
 import { ref, computed, onMounted, onUnmounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { doc, setDoc, getDoc, collection, getDocs, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, setDoc, getDoc, addDoc, deleteDoc, collection, getDocs, query, orderBy, limit, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 // ---------------------------------------------------------------------------
@@ -111,6 +111,169 @@ export const MasterDataCategory = {
         <span v-for="item in itemsTersaring" :key="item" class="tag neutral" style="gap:8px;">
           {{ item }}
           <button v-if="bolehHapus" @click="hapus(item)" style="background:none; border:none; color:var(--danger); cursor:pointer; padding:0; font-size:11px;"><i class="fas fa-times"></i></button>
+        </span>
+      </div>
+    </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
+// DropdownCari — BARU (23 Agt 2026, awalnya buat Master Bahan & Aksesoris,
+// ditaruh di sini karena bentuknya generik & bisa dipakai ulang di menu
+// lain). Pengganti <select> polos: kotak ketik yang MEMFILTER daftar opsi
+// sambil diketik (mirip combobox), bukan scroll-cari-manual di dropdown
+// panjang. STRICT-SELECT — cuma bisa pilih dari `opsi` yang dikasih lewat
+// props, TIDAK bisa isi teks bebas (kalau item belum ada di daftar, harus
+// ditambah dulu lewat menu Master Data terkait, konsisten dengan pola
+// MasterDataCategory di atas).
+// ---------------------------------------------------------------------------
+export const DropdownCari = {
+  props: {
+    modelValue: { type: String, default: '' },
+    opsi: { type: Array, default: () => [] },
+    placeholder: { type: String, default: 'Cari & pilih...' },
+    disabled: { type: Boolean, default: false }
+  },
+  emits: ['update:modelValue'],
+  setup(props, { emit }) {
+    const tampilDropdown = ref(false);
+    const kataCari = ref('');
+    const opsiTersaring = computed(() => {
+      const kata = kataCari.value.trim().toLowerCase();
+      if (!kata) return props.opsi;
+      return props.opsi.filter(o => o.toLowerCase().includes(kata));
+    });
+    function buka() {
+      if (props.disabled) return;
+      kataCari.value = '';
+      tampilDropdown.value = true;
+    }
+    // @mousedown.prevent di opsi (lihat template) mencegah event 'blur' di
+    // input keburu nutup dropdown SEBELUM klik opsi sempat kedaftar — tetap
+    // pasang jeda kecil di sini sebagai jaring pengaman kedua.
+    function tutupTunda() {
+      setTimeout(() => { tampilDropdown.value = false; }, 150);
+    }
+    function pilih(o) {
+      emit('update:modelValue', o);
+      tampilDropdown.value = false;
+      kataCari.value = '';
+    }
+    return { tampilDropdown, kataCari, opsiTersaring, buka, pilih, tutupTunda };
+  },
+  template: `
+    <div style="position:relative;">
+      <input
+        :value="tampilDropdown ? kataCari : (modelValue || '')"
+        @input="kataCari = $event.target.value"
+        @focus="buka"
+        @blur="tutupTunda"
+        :disabled="disabled"
+        type="text"
+        :placeholder="placeholder"
+        style="width:100%; padding:8px 30px 8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; background:var(--surface); box-sizing:border-box;"
+      >
+      <i class="fas fa-chevron-down" style="position:absolute; right:12px; top:11px; font-size:10px; color:var(--text-faint); pointer-events:none;"></i>
+      <div v-if="tampilDropdown" style="position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--surface); border:1.5px solid var(--line); border-radius:10px; max-height:220px; overflow-y:auto; z-index:50; box-shadow:0 8px 20px rgba(0,0,0,.14);">
+        <div v-if="opsiTersaring.length === 0" style="padding:10px 12px; font-size:11.5px; color:var(--text-faint);">Tidak ada yang cocok.</div>
+        <div v-for="o in opsiTersaring" :key="o" @mousedown.prevent="pilih(o)"
+          :style="{padding:'8px 12px', fontSize:'12.5px', cursor:'pointer', background: (o===modelValue ? 'var(--ivory-dim)' : 'transparent'), fontWeight: (o===modelValue ? '700':'400')}">{{ o }}</div>
+      </div>
+    </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
+// MasterDataTabelManager — BARU (23 Agt 2026). Beda dari MasterDataCategory
+// di atas (yang nyimpan 1 dokumen `master_data/{kategori}` berisi array
+// string polos): komponen ini kelola koleksi Firestore SENDIRI (1 dokumen
+// per item), tiap item punya 2 kolom: `nama` + `keterangan`. Dipakai
+// pertama kali buat Data Satuan/Ukuran/Warna (Master Bahan & Aksesoris) —
+// TAPI ditulis generik (props `koleksi`) supaya bisa dipakai ulang buat
+// master data 2-kolom lain di menu manapun ke depannya.
+// ---------------------------------------------------------------------------
+export const MasterDataTabelManager = {
+  props: {
+    koleksi: { type: String, required: true },
+    labelSingular: { type: String, required: true }, // "Satuan" / "Ukuran" / "Warna"
+    labelNama: { type: String, required: true }, // "Nama Satuan" dst — placeholder input
+    menuId: { type: String, default: 'bahan_aksesoris_entry' }
+  },
+  setup(props) {
+    const daftar = ref([]);
+    const memuat = ref(true);
+    const namaBaru = ref('');
+    const keteranganBaru = ref('');
+    const menyimpan = ref(false);
+
+    const bolehTambah = computed(() => window.cekIzinMenu(props.menuId, 'add') !== false);
+    const bolehHapus = computed(() => window.cekIzinMenu(props.menuId, 'delete') !== false);
+
+    async function muat() {
+      memuat.value = true;
+      try {
+        const snap = await getDocs(collection(db, props.koleksi));
+        const list = [];
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        list.sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
+        daftar.value = list;
+      } catch (e) {
+        console.error(`Gagal muat ${props.koleksi}:`, e);
+      }
+      memuat.value = false;
+    }
+
+    async function tambah() {
+      if (!bolehTambah.value) return alert('Anda tidak punya izin menambah item di sini. Hubungi Owner/PIC.');
+      const nama = namaBaru.value.trim();
+      if (!nama) return;
+      if (daftar.value.some(d => (d.nama || '').toLowerCase() === nama.toLowerCase())) {
+        alert(`${props.labelSingular} "${nama}" sudah ada di daftar.`);
+        return;
+      }
+      menyimpan.value = true;
+      try {
+        await addDoc(collection(db, props.koleksi), {
+          nama, keterangan: keteranganBaru.value.trim(), dibuat_pada: serverTimestamp()
+        });
+        namaBaru.value = ''; keteranganBaru.value = '';
+        await muat();
+      } catch (e) {
+        console.error(`Gagal tambah ${props.koleksi}:`, e);
+        alert('Gagal menambah data.');
+      }
+      menyimpan.value = false;
+    }
+
+    async function hapus(item) {
+      if (!bolehHapus.value) return alert('Anda tidak punya izin menghapus item di sini. Hubungi Owner/PIC.');
+      if (!confirm(`Hapus ${props.labelSingular.toLowerCase()} "${item.nama}"? Data Bahan/Aksesoris yang SUDAH memakai nilai ini TIDAK ikut berubah/terhapus.`)) return;
+      try {
+        await deleteDoc(doc(db, props.koleksi, item.id));
+        await muat();
+      } catch (e) {
+        console.error(`Gagal hapus ${props.koleksi}:`, e);
+        alert('Gagal menghapus data.');
+      }
+    }
+
+    onMounted(async () => { await window.authReady; muat(); });
+    return { daftar, memuat, namaBaru, keteranganBaru, menyimpan, bolehTambah, bolehHapus, tambah, hapus };
+  },
+  template: `
+    <div>
+      <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Data {{ labelSingular }}</label>
+      <div v-if="bolehTambah" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+        <input v-model="namaBaru" @keyup.enter="tambah" type="text" :placeholder="labelNama + '...'" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+        <input v-model="keteranganBaru" @keyup.enter="tambah" type="text" placeholder="Keterangan (opsional)" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+        <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="padding:0 16px;"><i class="fas fa-plus"></i></button>
+      </div>
+      <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
+      <div v-else-if="daftar.length === 0" style="font-size:11px; color:var(--text-faint);">Belum ada data.</div>
+      <div v-else style="display:flex; flex-wrap:wrap; gap:6px;">
+        <span v-for="d in daftar" :key="d.id" class="tag neutral" :title="d.keterangan || ''" style="gap:8px;">
+          {{ d.nama }}
+          <button v-if="bolehHapus" @click="hapus(d)" style="background:none; border:none; color:var(--danger); cursor:pointer; padding:0; font-size:11px;"><i class="fas fa-times"></i></button>
         </span>
       </div>
     </div>
