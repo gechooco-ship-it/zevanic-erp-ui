@@ -58,20 +58,31 @@ const AppDeviceKiosk = {
       memuat.value = true;
       pesanErrorMuat.value = '';
       try {
-        // BARU: cari via jenis_akun (BUKAN role — role kiosk TETAP
-        // 'operator', nilai baku, lihat catatan di tambahKiosk() bawah).
-        const snap = await getDocs(query(collection(db, "users"), where("jenis_akun", "==", "kiosk")));
+        // DIPERBAIKI (23 Agt 2026) — SEBELUMNYA kalau getDocs() genuinely
+        // HANG (Promise tidak pernah selesai MAUPUN gagal — bisa terjadi
+        // karena masalah jaringan/konflik IndexedDB offline-cache),
+        // try-catch TIDAK BISA menolong (tidak ada yang dilempar sama
+        // sekali), tabel macet di "Memuat..." SELAMANYA tanpa pesan
+        // apapun. Sekarang dibatasi 10 detik pakai Promise.race() — kalau
+        // lewat itu, paksa berhenti + kasih pesan jelas + tombol coba lagi.
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('TIMEOUT_10_DETIK')), 10000)
+        );
+        const snap = await Promise.race([
+          getDocs(query(collection(db, "users"), where("jenis_akun", "==", "kiosk"))),
+          timeoutPromise
+        ]);
         const list = [];
         snap.forEach(d => list.push({ id: d.id, ...d.data() }));
         list.sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
         daftarKiosk.value = list;
       } catch (e) {
-        // DIPERBAIKI (22 Agt 2026) — SEBELUMNYA cuma console.error, user
-        // TIDAK PERNAH tahu ada yang gagal (tabel kelihatan "kosong"
-        // padahal sebenarnya QUERY DITOLAK). Sekarang error tampil jelas
-        // di layar, bukan cuma di console yang jarang dicek.
         console.error("Gagal muat daftar device kiosk:", e);
-        pesanErrorMuat.value = `Gagal memuat daftar Device Kiosk: ${e.code || e.message || 'error tidak diketahui'}`;
+        if (e.message === 'TIMEOUT_10_DETIK') {
+          pesanErrorMuat.value = 'Waktu memuat habis (lebih dari 10 detik) — kemungkinan koneksi lambat/terputus. Coba lagi.';
+        } else {
+          pesanErrorMuat.value = `Gagal memuat daftar Device Kiosk: ${e.code || e.message || 'error tidak diketahui'}`;
+        }
       }
       memuat.value = false;
     }
