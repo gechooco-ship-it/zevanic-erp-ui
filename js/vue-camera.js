@@ -334,9 +334,26 @@ const AppKamera = {
             // (di bawah, dekat "Gagal mengirim pengajuan...") tidak
             // menampilkan alert GENERIK "masalah izin akses/koneksi" di
             // ATAS alert spesifik ini (dobel alert membingungkan).
-            alert("Anda SUDAH Clock In dan masih aktif (belum Clock Out). Tidak bisa Clock In dua kali. Mengalihkan ke Dashboard...");
-            if (window.pindahLayar) window.pindahLayar('screen-dashboard');
-            if (window.pindahTab) window.pindahTab('tab-home');
+            //
+            // DIPERBAIKI (23 Agt 2026, ditemukan Hilman) — SEBELUMNYA di
+            // sini SELALU redirect ke screen-dashboard/tab-home, padahal
+            // kalau ini dipicu dari mode Kiosk (window.modeKioskAktif),
+            // window.currentUser lagi DI-TIMPA SEMENTARA jadi identitas
+            // KARYAWAN yang di-scan (lihat vue-absensi-qr.js) — redirect
+            // ke Dashboard biasa jadi SALAH ARAH (device Kiosk seharusnya
+            // balik ke menu Absensi QR, bukan Dashboard karyawan siapapun
+            // yang kebetulan sedang di-scan). Sekarang pola yang SAMA
+            // dengan batalKamera() di bawah: mode Kiosk -> selesaiModeKiosk()
+            // (pulihkan identitas Kiosk asli + balik ke screen-absensi-qr),
+            // bukan Kiosk -> redirect Dashboard seperti semula.
+            if (window.modeKioskAktif && window.selesaiModeKiosk) {
+              alert("Karyawan ini SUDAH Clock In dan masih aktif (belum Clock Out). Tidak bisa Clock In dua kali. Kembali ke menu Kiosk...");
+              window.selesaiModeKiosk();
+            } else {
+              alert("Anda SUDAH Clock In dan masih aktif (belum Clock Out). Tidak bisa Clock In dua kali. Mengalihkan ke Dashboard...");
+              if (window.pindahLayar) window.pindahLayar('screen-dashboard');
+              if (window.pindahTab) window.pindahTab('tab-home');
+            }
             return 'SUDAH_CLOCK_IN';
           }
 

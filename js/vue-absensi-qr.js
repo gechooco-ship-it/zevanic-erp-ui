@@ -49,9 +49,19 @@ const AppAbsensiQr = {
     const memverifikasiPin = ref(false);
     const suksesInfo = ref(null); // { nama, shift, jenis, foto, waktu } — diisi window.tampilkanSuksesKiosk()
 
+    // DIRAMBAK (23 Agt 2026, permintaan Hilman) — SEBELUMNYA 5 tombol
+    // (Clock In & Clock Out terpisah). Sekarang digabung jadi 1 tombol
+    // "Clock In / Out" (total jadi 4 tombol) — arah (Masuk/Keluar)
+    // ditentukan OTOMATIS belakangan, SETELAH orangnya di-scan & PIN
+    // benar (lihat lanjutKeKameraAsli, key 'ABSEN' di bawah), bukan
+    // dipilih manual dari menu ini. Ini SEKALIGUS menutup celah lama:
+    // dulu orang bisa pilih tombol "Clock In" biarpun sebenarnya SUDAH
+    // Clock In aktif (menu tidak tau status orangnya sebelum di-scan) —
+    // sekarang arahnya SELALU dihitung dari status TERKINI orang yang
+    // di-scan (window.cekStatusClockInSaya, sumber kebenaran yang sama
+    // dipakai Home & Login), jadi tidak mungkin salah pilih arah lagi.
     const JENIS_MENU = [
-      { key: 'HADIR (CLOCK IN)', label: 'Clock In', icon: 'fa-right-to-bracket' },
-      { key: 'CLOCK OUT', label: 'Clock Out', icon: 'fa-right-from-bracket' },
+      { key: 'ABSEN', label: 'Clock In / Out', icon: 'fa-clock' },
       { key: 'LEMBUR (CLOCK IN)', label: 'Lembur', icon: 'fa-business-time' },
       { key: 'IZIN', label: 'Izin', icon: 'fa-file-signature' },
       { key: 'CUTI', label: 'Cuti', icon: 'fa-calendar-alt' },
@@ -195,7 +205,7 @@ const AppAbsensiQr = {
     // dipulihkan lagi lewat window.selesaiModeKiosk() (lihat onMounted
     // di bawah) begitu proses selesai/dibatalkan — perubahan terkait
     // di vue-camera.js (window.modeKioskAktif) yang panggil balik itu. ----
-    function lanjutKeKameraAsli() {
+    async function lanjutKeKameraAsli() {
       const k = karyawanTerscan.value;
       window._kioskUserAsli = window.currentUser;
       // DIPERBAIKI (23 Agt 2026) — BUG NYATA ditemukan: SEBELUMNYA
@@ -216,8 +226,18 @@ const AppAbsensiQr = {
         alert(`Karyawan "${k.nama || k.name}" tidak ditempatkan di gudang yang sama dengan Kiosk ini. Absensi tidak bisa diproses lewat Kiosk ini.`);
         return;
       }
+      // BARU (23 Agt 2026) — tentukan arah Clock In/Out DI SINI (tombol
+      // menu 'ABSEN' gabungan, lihat JENIS_MENU) — TEPAT setelah identitas
+      // karyawan pasti (PIN sudah benar), pakai window.cekStatusClockInSaya
+      // (satu sumber kebenaran yang sama dengan Home/Login) supaya arahnya
+      // SELALU sesuai status TERKINI orangnya, tidak mungkin salah pilih.
+      let statusFinal = jenisTerpilih.value;
+      if (statusFinal === 'ABSEN') {
+        const statusKaryawan = await window.cekStatusClockInSaya(k.id);
+        statusFinal = statusKaryawan.aktif ? 'CLOCK OUT' : 'HADIR (CLOCK IN)';
+      }
       window.currentUser = { ...k, email: k.id, gudang_penempatan: gudangIrisan };
-      window.statusPilihanGlobal = jenisTerpilih.value;
+      window.statusPilihanGlobal = statusFinal;
       window.modeKioskAktif = true;
       window.pindahLayar('screen-camera');
     }
@@ -273,7 +293,7 @@ const AppAbsensiQr = {
         const hashInput = await hashPin(pinInput.value, k.id);
         if (hashInput === k.pin_hash) {
           pinInput.value = ''; pinError.value = ''; percobaanPin.value = 0;
-          lanjutKeKameraAsli();
+          await lanjutKeKameraAsli();
         } else {
           percobaanPin.value++;
           if (percobaanPin.value >= MAKS_PERCOBAAN_PIN) {

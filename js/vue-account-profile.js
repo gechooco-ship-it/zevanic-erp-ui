@@ -501,9 +501,33 @@ const AppAccountProfile = {
       if (nama === 'absensi' && listRiwayat.value.length === 0) muatRiwayat();
     }
 
+    // DIPERBAIKI (23 Agt 2026, bug ditemukan Hilman: QR yang di-generate
+    // dari mobile tidak bisa di-scan padahal dari desktop aman — lihat
+    // STATUS-PROYEK.md §19.6) — SEBELUMNYA muatAccountDisplay() (yang
+    // mengisi idAppTampil & qrUrl, sumber QR yang ditampilkan) dipanggil
+    // LANGSUNG di sini begitu komponen mount, TANPA cek window.currentUser
+    // sudah terisi atau belum. Pola ini PERSIS yang sudah dibongkar di
+    // §19.2/§19.5 (window.authReady TIDAK menjamin window.currentUser
+    // sudah lengkap data Firestore, dua hal beda — lihat §10 poin 4).
+    // Kalau mount terjadi SEBELUM window.currentUser terisi (device/
+    // jaringan tertentu lebih lambat resolve auth-nya, makanya mobile
+    // lebih sering kena daripada desktop — timing-dependent, bukan
+    // deterministik), QR ke-generate dari data KOSONG/sebelumnya. Karena
+    // 'account' adalah sub-tab AKTIF DEFAULT (tabAktif='account'), user
+    // yang buka Profile lewat drawer (bukan klik sub-tab manual) TIDAK
+    // PERNAH memicu pindahTab('account') buat refresh ulang — QR yang
+    // salah itu bisa terus tampil sampai user pindah sub-tab lalu balik
+    // lagi. Perbaikannya: SAMA seperti vue-home.js — di sini CUMA muat
+    // kalau window.currentUser SUDAH ada isinya; kalau belum, JANGAN muat
+    // apapun, biarkan window.refreshAccountProfileDisplay() (bridge yang
+    // sudah benar, dipanggil dari auth.js/vue-login.js TEPAT setelah
+    // currentUser lengkap) yang mengisi qrUrl/idAppTampil dengan data
+    // yang benar.
     onMounted(async () => {
-      muatAccountDisplay();
-      muatStatusPin();
+      if (window.currentUser && window.currentUser.email) {
+        muatAccountDisplay();
+        muatStatusPin();
+      }
       if (window.mulaiHitungJamKerja) window.mulaiHitungJamKerja();
       await window.authReady;
       await muatOpsiFilter();
