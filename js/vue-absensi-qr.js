@@ -401,6 +401,26 @@ const AppAbsensiQr = {
           waktu: new Date().toLocaleTimeString('id-ID')
         };
         tahap.value = 'sukses';
+        // BARU (23 Agt 2026, ronde 4, permintaan Hilman) — ucapkan
+        // "Terima kasih" lewat text-to-speech bawaan browser, KHUSUS buat
+        // Clock In/Clock Out (bukan Lembur/Izin/Cuti — permintaan
+        // eksplisit "mau clockin atau clock out"). Dibungkus try/catch +
+        // cek window.speechSynthesis ADA dulu — beberapa
+        // browser/perangkat lama mungkin tidak dukung, jangan sampai
+        // fitur ini bikin seluruh alur submit gagal cuma gara-gara suara
+        // tidak bisa diputar.
+        if (jenis === 'HADIR (CLOCK IN)' || jenis === 'CLOCK OUT') {
+          try {
+            if (window.speechSynthesis) {
+              window.speechSynthesis.cancel(); // hindari numpuk kalau ada ucapan sebelumnya belum selesai
+              const ucapan = new SpeechSynthesisUtterance('Terima kasih');
+              ucapan.lang = 'id-ID';
+              window.speechSynthesis.speak(ucapan);
+            }
+          } catch (e) {
+            console.error('Gagal memutar suara "Terima kasih":', e);
+          }
+        }
         // DIPERBAIKI (23 Agt 2026, ronde 3 — bug ditemukan Hilman: kartu
         // sukses TIDAK PERNAH kelihatan sama sekali) — root cause: fungsi
         // ini dipanggil dari vue-camera.js SAAT layar yang AKTIF masih
@@ -420,10 +440,12 @@ const AppAbsensiQr = {
         // selain screen-camera otomatis panggil window.matikanKamera()),
         // pas karena foto sudah selesai diambil & dikirim.
         window.pindahLayar('screen-absensi-qr');
+        // DIUBAH (23 Agt 2026, ronde 4, permintaan Hilman: "terlalu
+        // cepat") — durasi tampil kartu sukses dari 3 detik jadi 7 detik.
         setTimeout(() => {
           suksesInfo.value = null;
           window.selesaiModeKiosk();
-        }, 3000);
+        }, 7000);
       };
     });
 
@@ -521,19 +543,20 @@ const AppAbsensiQr = {
         </div>
       </div>
 
-      <!-- ============ TAHAP: SUKSES (kartu besar, auto-tutup 3 detik) ============ -->
+      <!-- ============ TAHAP: SUKSES (kartu besar "epic", auto-tutup 7 detik) ============ -->
       <div v-else-if="tahap === 'sukses' && suksesInfo" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center; background:var(--ivory);">
-        <div style="background:var(--surface); border-radius:24px; padding:32px 28px; max-width:340px; width:100%; box-shadow:0 12px 32px rgba(0,0,0,.12);">
-          <i class="fas fa-circle-check" style="font-size:36px; color:var(--ok); margin-bottom:10px; display:block;"></i>
-          <h2 style="font-weight:700; font-size:17px; margin-bottom:4px; color:var(--burgundy-dark);">Selamat, {{ suksesInfo.nama }}!</h2>
-          <p style="font-size:13px; color:var(--ok); font-weight:700; margin-bottom:18px;">{{ PESAN_SUKSES[suksesInfo.jenis] }}</p>
-          <!-- DIPERBESAR + bingkai ganda (23 Agt 2026, permintaan Hilman:
-               biar orangnya bangga lihat foto selfie-nya sendiri di kartu
-               sukses ini) — bulat + cincin dobel pink/burgundy, dari
-               sebelumnya kotak membulat 140x140 bingkai tunggal. -->
-          <img v-if="suksesInfo.foto" :src="suksesInfo.foto" style="width:172px; height:172px; border-radius:50%; object-fit:cover; margin-bottom:18px; border:4px solid var(--pink); box-shadow:0 0 0 4px var(--burgundy), 0 10px 24px rgba(0,0,0,.18);">
-          <div style="text-align:left; background:var(--ivory-dim); border-radius:14px; padding:14px 16px; font-size:12.5px;">
-            <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span style="color:var(--text-muted);">Shift</span><b>{{ suksesInfo.shift }}</b></div>
+        <div style="background:var(--surface); border-radius:28px; padding:40px 32px; max-width:460px; width:100%; box-shadow:0 16px 40px rgba(0,0,0,.14);">
+          <i class="fas fa-circle-check" style="font-size:46px; color:var(--ok); margin-bottom:12px; display:block;"></i>
+          <h2 style="font-weight:700; font-size:22px; margin-bottom:6px; color:var(--burgundy-dark);">Selamat, {{ suksesInfo.nama }}!</h2>
+          <p style="font-size:15px; color:var(--ok); font-weight:700; margin-bottom:24px;">{{ PESAN_SUKSES[suksesInfo.jenis] }}</p>
+          <!-- DIPERBESAR LAGI 2x LIPAT (23 Agt 2026, ronde 4, permintaan
+               Hilman: "biar epic", proporsional dengan kartunya yang juga
+               diperbesar) — dari 172x172 bingkai ganda jadi 344x344,
+               bingkainya ikut disesuaikan (bukan sekadar 2x mentah,
+               supaya tetap enak dilihat). -->
+          <img v-if="suksesInfo.foto" :src="suksesInfo.foto" style="width:344px; height:344px; max-width:100%; border-radius:50%; object-fit:cover; margin-bottom:22px; border:6px solid var(--pink); box-shadow:0 0 0 6px var(--burgundy), 0 14px 30px rgba(0,0,0,.2);">
+          <div style="text-align:left; background:var(--ivory-dim); border-radius:16px; padding:16px 18px; font-size:14px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="color:var(--text-muted);">Shift</span><b>{{ suksesInfo.shift }}</b></div>
             <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted);">Jam</span><b>{{ suksesInfo.waktu }}</b></div>
           </div>
         </div>
