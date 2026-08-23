@@ -73,6 +73,26 @@ const AppAbsensiQr = {
       'IZIN': 'Pengajuan Izin Terkirim!',
       'CUTI': 'Pengajuan Cuti Terkirim!',
     };
+    // BARU (23 Agt 2026, permintaan Hilman) — dipakai tahap 'konfirmasi'
+    // (PIN kedua) buat kasih tau dengan jelas tindakan APA yang lagi
+    // dikonfirmasi. Terpisah dari PESAN_SUKSES (yang bahasanya "sudah
+    // terjadi") karena di sini masih "akan terjadi".
+    const LABEL_ARAH = {
+      'HADIR (CLOCK IN)': { label: 'Clock In', icon: 'fa-right-to-bracket' },
+      'CLOCK OUT': { label: 'Clock Out', icon: 'fa-right-from-bracket' },
+      'LEMBUR (CLOCK IN)': { label: 'Lembur', icon: 'fa-business-time' },
+      'IZIN': { label: 'Izin', icon: 'fa-file-signature' },
+      'CUTI': { label: 'Cuti', icon: 'fa-calendar-alt' },
+    };
+    // sedangKonfirmasi: false = PIN yang lagi diminta adalah PIN PERTAMA
+    // (identitas). true = ini PIN KEDUA (konfirmasi akhir sebelum kamera
+    // benar-benar terbuka). arahAbsenTerkonfirmasi: hasil tentuin arah
+    // Clock In/Out (atau Lembur/Izin/Cuti apa adanya), ditentukan SEKALI
+    // pas PIN pertama benar, dipakai lagi di layar konfirmasi & saat
+    // benar-benar lanjut ke kamera — supaya tidak dihitung ulang dan
+    // berpotensi beda hasil antara yang ditampilkan vs yang dieksekusi.
+    const sedangKonfirmasi = ref(false);
+    const arahAbsenTerkonfirmasi = ref('');
 
     let streamKamera = null;
     let timeoutHabis = null;
@@ -224,22 +244,42 @@ const AppAbsensiQr = {
       const gudangIrisan = gudangKaryawan.filter(g => gudangKiosk.includes(g));
       if (gudangIrisan.length === 0) {
         alert(`Karyawan "${k.nama || k.name}" tidak ditempatkan di gudang yang sama dengan Kiosk ini. Absensi tidak bisa diproses lewat Kiosk ini.`);
+        // DITAMBAHKAN (23 Agt 2026) — SEBELUMNYA di sini cuma `return`,
+        // layar tertinggal diam di tahap 'konfirmasi'/'pin' tanpa jalan
+        // keluar (ketahuan pas nambah tahap konfirmasi ekstra). Sekarang
+        // reset balik ke menu, konsisten dengan jalur gagal lainnya.
+        kembaliKeMenu();
         return;
       }
-      // BARU (23 Agt 2026) — tentukan arah Clock In/Out DI SINI (tombol
-      // menu 'ABSEN' gabungan, lihat JENIS_MENU) — TEPAT setelah identitas
-      // karyawan pasti (PIN sudah benar), pakai window.cekStatusClockInSaya
-      // (satu sumber kebenaran yang sama dengan Home/Login) supaya arahnya
-      // SELALU sesuai status TERKINI orangnya, tidak mungkin salah pilih.
+      // DIUBAH (23 Agt 2026, PIN dobel — lihat siapkanKonfirmasi) — arah
+      // Clock In/Out SEKARANG sudah ditentukan & ditampilkan DULUAN di
+      // layar konfirmasi (PIN pertama), dipakai lagi di sini APA ADANYA
+      // (BUKAN dihitung ulang) — supaya yang dieksekusi PASTI sama
+      // dengan yang ditunjukkan ke orangnya sebelum PIN kedua.
+      window.currentUser = { ...k, email: k.id, gudang_penempatan: gudangIrisan };
+      window.statusPilihanGlobal = arahAbsenTerkonfirmasi.value;
+      window.modeKioskAktif = true;
+      window.pindahLayar('screen-camera');
+    }
+
+    // BARU (23 Agt 2026, permintaan Hilman: PIN 2x, yang kedua sebagai
+    // KONFIRMASI) — dipanggil begitu PIN PERTAMA benar. Tentukan arah
+    // Clock In/Out DI SINI (tombol menu 'ABSEN' gabungan, §19.6) — TEPAT
+    // setelah identitas karyawan pasti (PIN pertama benar), pakai
+    // window.cekStatusClockInSaya (satu sumber kebenaran yang sama
+    // dengan Home/Login) supaya arahnya SELALU sesuai status TERKINI
+    // orangnya. Hasilnya ditampilkan di layar konfirmasi, BARU minta PIN
+    // sekali lagi sebelum benar-benar buka kamera.
+    async function siapkanKonfirmasi() {
+      const k = karyawanTerscan.value;
       let statusFinal = jenisTerpilih.value;
       if (statusFinal === 'ABSEN') {
         const statusKaryawan = await window.cekStatusClockInSaya(k.id);
         statusFinal = statusKaryawan.aktif ? 'CLOCK OUT' : 'HADIR (CLOCK IN)';
       }
-      window.currentUser = { ...k, email: k.id, gudang_penempatan: gudangIrisan };
-      window.statusPilihanGlobal = statusFinal;
-      window.modeKioskAktif = true;
-      window.pindahLayar('screen-camera');
+      arahAbsenTerkonfirmasi.value = statusFinal;
+      sedangKonfirmasi.value = true;
+      tahap.value = 'konfirmasi';
     }
 
     function kembaliKeMenu() {
@@ -251,6 +291,11 @@ const AppAbsensiQr = {
       pinError.value = '';
       percobaanPin.value = 0;
       sudahKetemu = false;
+      // BARU (23 Agt 2026) — reset state PIN dobel juga, supaya scan
+      // berikutnya SELALU mulai dari PIN pertama lagi (bukan kebawa
+      // status "sedang konfirmasi" dari percobaan sebelumnya).
+      sedangKonfirmasi.value = false;
+      arahAbsenTerkonfirmasi.value = '';
     }
     // DIUBAH (22 Agt 2026) — SEBELUMNYA cuma pindahLayar('screen-login')
     // TANPA logout — itu TIDAK CUKUP lagi sekarang: kiosk yang "terkunci"
@@ -293,7 +338,20 @@ const AppAbsensiQr = {
         const hashInput = await hashPin(pinInput.value, k.id);
         if (hashInput === k.pin_hash) {
           pinInput.value = ''; pinError.value = ''; percobaanPin.value = 0;
-          await lanjutKeKameraAsli();
+          // BARU (23 Agt 2026, permintaan Hilman) — PIN sekarang diminta
+          // 2x: PIN PERTAMA (di sini, `!sedangKonfirmasi`) cuma buat
+          // pastikan identitas & tentukan arah (Clock In/Out/dst), BELUM
+          // eksekusi apapun — lanjut ke layar konfirmasi (siapkanKonfirmasi).
+          // PIN KEDUA (`sedangKonfirmasi === true`, dimasukkan di layar
+          // konfirmasi) itu baru yang BENAR-BENAR membuka kamera —
+          // fungsinya sebagai jeda/konfirmasi terakhir sebelum submit,
+          // supaya tidak ada absensi ke-submit dari scan yang tidak
+          // disengaja/salah orang.
+          if (!sedangKonfirmasi.value) {
+            await siapkanKonfirmasi();
+          } else {
+            await lanjutKeKameraAsli();
+          }
         } else {
           percobaanPin.value++;
           if (percobaanPin.value >= MAKS_PERCOBAAN_PIN) {
@@ -359,7 +417,8 @@ const AppAbsensiQr = {
     onBeforeUnmount(() => { hentikanKamera(); });
 
     return {
-      tahap, jenisTerpilih, karyawanTerscan, sisaDetik, JENIS_MENU, PESAN_SUKSES,
+      tahap, jenisTerpilih, karyawanTerscan, sisaDetik, JENIS_MENU, PESAN_SUKSES, LABEL_ARAH,
+      sedangKonfirmasi, arahAbsenTerkonfirmasi,
       pinInput, pinError, percobaanPin, memverifikasiPin, suksesInfo,
       pilihJenis, kembaliKeMenu, logoutKiosk,
       tambahDigit, hapusDigit, kosongkanPin, verifikasiPin
@@ -433,13 +492,50 @@ const AppAbsensiQr = {
         </div>
       </div>
 
+      <!-- ============ TAHAP: KONFIRMASI (PIN kedua, BARU 23 Agt 2026) ============ -->
+      <div v-else-if="tahap === 'konfirmasi'" style="flex:1; display:flex; flex-direction:column; align-items:center; padding:24px 20px; text-align:center; max-width:340px; margin:0 auto; width:100%;">
+        <h3 style="font-weight:700; font-size:14px; margin-bottom:2px;">{{ karyawanTerscan?.nama || karyawanTerscan?.name }}</h3>
+        <div style="display:inline-flex; align-items:center; gap:6px; background:var(--pink); color:var(--burgundy); border-radius:20px; padding:6px 14px; font-size:12px; font-weight:700; margin:8px 0 14px;">
+          <i class="fas" :class="LABEL_ARAH[arahAbsenTerkonfirmasi]?.icon"></i>
+          {{ LABEL_ARAH[arahAbsenTerkonfirmasi]?.label }}
+        </div>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:18px;">Masukkan PIN sekali lagi untuk konfirmasi</p>
+
+        <!-- Titik progress PIN -->
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <span v-for="i in 6" :key="i" style="width:14px; height:14px; border-radius:50%; border:1.5px solid var(--burgundy);"
+            :style="{ background: pinInput.length >= i ? 'var(--burgundy)' : 'transparent' }"></span>
+        </div>
+        <p v-if="pinError" style="font-size:11px; color:var(--danger); font-weight:700; min-height:14px; margin-bottom:8px;">{{ pinError }}</p>
+        <p v-else style="min-height:14px; margin-bottom:8px;"></p>
+
+        <!-- 2 tombol DI ATAS keypad, sesuai pola tahap 'pin' -->
+        <div style="display:flex; gap:10px; width:100%; margin-bottom:18px;">
+          <button @click="verifikasiPin" :disabled="memverifikasiPin || pinInput.length !== 6" class="btn-primary" style="flex:1; padding:11px;">{{ memverifikasiPin ? '...' : 'Konfirmasi' }}</button>
+          <button @click="kembaliKeMenu" class="btn-outline" style="flex:1; padding:11px;">Batal</button>
+        </div>
+
+        <!-- Keypad angka -->
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:100%;">
+          <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="tambahDigit(n)"
+            style="padding:16px 0; font-size:18px; font-weight:700; background:var(--surface); border:1.5px solid var(--line); border-radius:14px; cursor:pointer;">{{ n }}</button>
+          <button @click="kosongkanPin" style="padding:16px 0; font-size:12px; font-weight:700; color:var(--text-faint); background:var(--surface); border:1.5px solid var(--line); border-radius:14px; cursor:pointer;">Hapus</button>
+          <button @click="tambahDigit(0)" style="padding:16px 0; font-size:18px; font-weight:700; background:var(--surface); border:1.5px solid var(--line); border-radius:14px; cursor:pointer;">0</button>
+          <button @click="hapusDigit" style="padding:16px 0; font-size:16px; background:var(--surface); border:1.5px solid var(--line); border-radius:14px; cursor:pointer;"><i class="fas fa-delete-left"></i></button>
+        </div>
+      </div>
+
       <!-- ============ TAHAP: SUKSES (kartu besar, auto-tutup 3 detik) ============ -->
       <div v-else-if="tahap === 'sukses' && suksesInfo" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center; background:var(--ivory);">
         <div style="background:var(--surface); border-radius:24px; padding:32px 28px; max-width:340px; width:100%; box-shadow:0 12px 32px rgba(0,0,0,.12);">
-          <i class="fas fa-circle-check" style="font-size:44px; color:var(--ok); margin-bottom:16px; display:block;"></i>
+          <i class="fas fa-circle-check" style="font-size:36px; color:var(--ok); margin-bottom:10px; display:block;"></i>
           <h2 style="font-weight:700; font-size:17px; margin-bottom:4px; color:var(--burgundy-dark);">Selamat, {{ suksesInfo.nama }}!</h2>
           <p style="font-size:13px; color:var(--ok); font-weight:700; margin-bottom:18px;">{{ PESAN_SUKSES[suksesInfo.jenis] }}</p>
-          <img v-if="suksesInfo.foto" :src="suksesInfo.foto" style="width:140px; height:140px; border-radius:16px; object-fit:cover; margin-bottom:16px; border:3px solid var(--pink);">
+          <!-- DIPERBESAR + bingkai ganda (23 Agt 2026, permintaan Hilman:
+               biar orangnya bangga lihat foto selfie-nya sendiri di kartu
+               sukses ini) — bulat + cincin dobel pink/burgundy, dari
+               sebelumnya kotak membulat 140x140 bingkai tunggal. -->
+          <img v-if="suksesInfo.foto" :src="suksesInfo.foto" style="width:172px; height:172px; border-radius:50%; object-fit:cover; margin-bottom:18px; border:4px solid var(--pink); box-shadow:0 0 0 4px var(--burgundy), 0 10px 24px rgba(0,0,0,.18);">
           <div style="text-align:left; background:var(--ivory-dim); border-radius:14px; padding:14px 16px; font-size:12.5px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:6px;"><span style="color:var(--text-muted);">Shift</span><b>{{ suksesInfo.shift }}</b></div>
             <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-muted);">Jam</span><b>{{ suksesInfo.waktu }}</b></div>
