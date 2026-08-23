@@ -506,16 +506,12 @@ const AppAccountProfile = {
       muatStatusPin();
       if (window.mulaiHitungJamKerja) window.mulaiHitungJamKerja();
       await window.authReady;
-      muatStatusPin(); // DIPERBAIKI (23 Agt 2026) — baca ulang status PIN SETELAH
-                        // window.currentUser dipastikan lengkap (authReady), supaya
-                        // badge tidak salah tampil "Belum Terpasang" pas refresh
-                        // halaman (lihat STATUS-PROYEK.md §19.2 & §10 poin 4).
       await muatOpsiFilter();
       await muatRiwayat();
     });
 
     return {
-      tabAktif, pindahTab, muatAccountDisplay,
+      tabAktif, pindahTab, muatAccountDisplay, muatStatusPin,
       namaTampil, idAppTampil, jabatanTampil, qrUrl, clockOut, keluar,
       passwordLama, passwordBaruKeamanan, menyimpanPasswordKeamanan, updatePasswordKeamanan,
       subTabKeamanan, pinStatusTerpasang, pinBaru, konfirmasiPin, passwordUntukPin, menyimpanPin, simpanPin,
@@ -883,6 +879,23 @@ if (mountPoint) {
   // window.currentUser bukan objek reactive jadi tidak ke-track otomatis).
   window.refreshAccountProfileDisplay = function() {
     vm.muatAccountDisplay();
+    // DIPERBAIKI (23 Agt 2026) — badge status PIN sempat salah tampil
+    // "Belum Terpasang" pas refresh halaman, walau PIN aslinya sudah
+    // terpasang & berfungsi normal. ROOT CAUSE SEBENARNYA: window.authReady
+    // (dipakai di onMounted komponen ini) cuma nunggu Firebase AUTH tau
+    // siapa yang login (cepat) — TIDAK nunggu window.currentUser BENERAN
+    // terisi data profil Firestore (termasuk pin_hash). Yang mengisi
+    // window.currentUser sungguhan itu proses TERPISAH (sesi-otomatis di
+    // auth.js / login manual di vue-login.js, keduanya ASYNC baca cache
+    // atau Firestore) — dan proses itu SUDAH memanggil jembatan INI
+    // (window.refreshAccountProfileDisplay) TEPAT setelah currentUser
+    // benar-benar lengkap (lihat auth.js baris ~516, komentar
+    // "Jembatan ke vanilla"). Jadi titik paling benar buat baca ulang
+    // status PIN itu DI SINI, bukan di onMounted/authReady. Percobaan
+    // fix pertama (taruh muatStatusPin() kedua setelah authReady di
+    // onMounted) TERBUKTI TIDAK CUKUP — sudah dilepas lagi, jangan
+    // ditambahkan balik. Lihat STATUS-PROYEK.md §19.2 untuk kronologinya.
+    vm.muatStatusPin();
   };
   // Jembatan BARU ke layar Home (js/vue-home.js) — pintasan "Izin"/"Cuti"/
   // "Lembur" di Home langsung buka tab Absensi profil INI dan langsung
