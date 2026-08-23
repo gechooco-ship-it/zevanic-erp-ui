@@ -14,7 +14,7 @@
 // siapapun yang status_kerja bukan "Aktif"), tidak perlu logic baru.
 // ============================================================================
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
 import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { db } from "./firebase-config.js";
@@ -58,31 +58,25 @@ const AppDeviceKiosk = {
       memuat.value = true;
       pesanErrorMuat.value = '';
       try {
-        // DIPERBAIKI (23 Agt 2026) — SEBELUMNYA kalau getDocs() genuinely
-        // HANG (Promise tidak pernah selesai MAUPUN gagal — bisa terjadi
-        // karena masalah jaringan/konflik IndexedDB offline-cache),
-        // try-catch TIDAK BISA menolong (tidak ada yang dilempar sama
-        // sekali), tabel macet di "Memuat..." SELAMANYA tanpa pesan
-        // apapun. Sekarang dibatasi 10 detik pakai Promise.race() — kalau
-        // lewat itu, paksa berhenti + kasih pesan jelas + tombol coba lagi.
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('TIMEOUT_10_DETIK')), 10000)
-        );
-        const snap = await Promise.race([
-          getDocs(query(collection(db, "users"), where("jenis_akun", "==", "kiosk"))),
-          timeoutPromise
-        ]);
+        // DIPERBAIKI (23 Agt 2026) — SEBELUMNYA pakai query BERFILTER
+        // (where jenis_akun=='kiosk') ke collection `users` — collection
+        // itu punya aturan baca lebih rumit (isKiosk() pakai get()) dari
+        // `master_kendaraan` (aturan simpel: allow read: if login();).
+        // Disamakan PERSIS pola Master Kendaraan yang TERBUKTI jalan
+        // (vue-reimburse.js, MasterKendaraanManager.muat()) — baca
+        // SELURUH collection TANPA filter, saring jenis_akun di
+        // JavaScript, BUKAN di query Firestore.
+        const snap = await getDocs(collection(db, "users"));
         const list = [];
-        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        snap.forEach(d => {
+          const data = d.data();
+          if (data.jenis_akun === 'kiosk') list.push({ id: d.id, ...data });
+        });
         list.sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
         daftarKiosk.value = list;
       } catch (e) {
         console.error("Gagal muat daftar device kiosk:", e);
-        if (e.message === 'TIMEOUT_10_DETIK') {
-          pesanErrorMuat.value = 'Waktu memuat habis (lebih dari 10 detik) — kemungkinan koneksi lambat/terputus. Coba lagi.';
-        } else {
-          pesanErrorMuat.value = `Gagal memuat daftar Device Kiosk: ${e.code || e.message || 'error tidak diketahui'}`;
-        }
+        pesanErrorMuat.value = `Gagal memuat daftar Device Kiosk: ${e.code || e.message || 'error tidak diketahui'}`;
       }
       memuat.value = false;
     }
