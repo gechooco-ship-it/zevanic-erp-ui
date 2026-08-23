@@ -84,14 +84,18 @@ const AppAbsensiQr = {
       'IZIN': { label: 'Izin', icon: 'fa-file-signature' },
       'CUTI': { label: 'Cuti', icon: 'fa-calendar-alt' },
     };
-    // sedangKonfirmasi: false = PIN yang lagi diminta adalah PIN PERTAMA
-    // (identitas). true = ini PIN KEDUA (konfirmasi akhir sebelum kamera
-    // benar-benar terbuka). arahAbsenTerkonfirmasi: hasil tentuin arah
-    // Clock In/Out (atau Lembur/Izin/Cuti apa adanya), ditentukan SEKALI
-    // pas PIN pertama benar, dipakai lagi di layar konfirmasi & saat
-    // benar-benar lanjut ke kamera — supaya tidak dihitung ulang dan
-    // berpotensi beda hasil antara yang ditampilkan vs yang dieksekusi.
-    const sedangKonfirmasi = ref(false);
+    // DIKOREKSI (23 Agt 2026, sore — klarifikasi langsung dari Hilman
+    // setelah tes: "kamera kebuka > PIN kedua > alert") — SEBELUMNYA PIN
+    // kedua diminta DI SINI (layar konfirmasi), SEBELUM kamera dibuka.
+    // Urutan yang BENAR: PIN pertama cuma cek identitas + tentukan arah
+    // (Clock In/Out/dst) → layar konfirmasi CUMA tampilkan badge arah
+    // (tanpa minta PIN lagi) → kamera dibuka & foto diambil → PIN KEDUA
+    // baru diminta TEPAT SEBELUM submit ke Firestore (di vue-camera.js,
+    // sebagai gerbang terakhir setelah foto ada, bukan sebelum foto).
+    // arahAbsenTerkonfirmasi: hasil tentuin arah, ditentukan SEKALI pas
+    // PIN pertama benar, dipakai lagi di layar konfirmasi & dikirim ke
+    // vue-camera.js lewat window.statusPilihanGlobal — supaya yang
+    // ditampilkan PASTI sama dengan yang dieksekusi.
     const arahAbsenTerkonfirmasi = ref('');
 
     let streamKamera = null;
@@ -278,7 +282,6 @@ const AppAbsensiQr = {
         statusFinal = statusKaryawan.aktif ? 'CLOCK OUT' : 'HADIR (CLOCK IN)';
       }
       arahAbsenTerkonfirmasi.value = statusFinal;
-      sedangKonfirmasi.value = true;
       tahap.value = 'konfirmasi';
     }
 
@@ -291,10 +294,8 @@ const AppAbsensiQr = {
       pinError.value = '';
       percobaanPin.value = 0;
       sudahKetemu = false;
-      // BARU (23 Agt 2026) — reset state PIN dobel juga, supaya scan
-      // berikutnya SELALU mulai dari PIN pertama lagi (bukan kebawa
-      // status "sedang konfirmasi" dari percobaan sebelumnya).
-      sedangKonfirmasi.value = false;
+      // Reset arah yang sempat ditentukan juga, supaya scan berikutnya
+      // SELALU mulai bersih dari PIN pertama lagi.
       arahAbsenTerkonfirmasi.value = '';
     }
     // DIUBAH (22 Agt 2026) — SEBELUMNYA cuma pindahLayar('screen-login')
@@ -338,20 +339,13 @@ const AppAbsensiQr = {
         const hashInput = await hashPin(pinInput.value, k.id);
         if (hashInput === k.pin_hash) {
           pinInput.value = ''; pinError.value = ''; percobaanPin.value = 0;
-          // BARU (23 Agt 2026, permintaan Hilman) — PIN sekarang diminta
-          // 2x: PIN PERTAMA (di sini, `!sedangKonfirmasi`) cuma buat
-          // pastikan identitas & tentukan arah (Clock In/Out/dst), BELUM
-          // eksekusi apapun — lanjut ke layar konfirmasi (siapkanKonfirmasi).
-          // PIN KEDUA (`sedangKonfirmasi === true`, dimasukkan di layar
-          // konfirmasi) itu baru yang BENAR-BENAR membuka kamera —
-          // fungsinya sebagai jeda/konfirmasi terakhir sebelum submit,
-          // supaya tidak ada absensi ke-submit dari scan yang tidak
-          // disengaja/salah orang.
-          if (!sedangKonfirmasi.value) {
-            await siapkanKonfirmasi();
-          } else {
-            await lanjutKeKameraAsli();
-          }
+          // PIN ini (satu-satunya PIN di file ini) cuma buat pastikan
+          // identitas & tentukan arah (Clock In/Out/dst) — BELUM eksekusi
+          // apapun. Lanjut ke layar konfirmasi (badge arah), lalu kamera.
+          // PIN KEDUA (konfirmasi akhir) diminta belakangan di
+          // vue-camera.js, TEPAT SEBELUM submit — SETELAH foto selfie
+          // diambil (lihat catatan di deklarasi arahAbsenTerkonfirmasi).
+          await siapkanKonfirmasi();
         } else {
           percobaanPin.value++;
           if (percobaanPin.value >= MAKS_PERCOBAAN_PIN) {
@@ -418,9 +412,9 @@ const AppAbsensiQr = {
 
     return {
       tahap, jenisTerpilih, karyawanTerscan, sisaDetik, JENIS_MENU, PESAN_SUKSES, LABEL_ARAH,
-      sedangKonfirmasi, arahAbsenTerkonfirmasi,
+      arahAbsenTerkonfirmasi,
       pinInput, pinError, percobaanPin, memverifikasiPin, suksesInfo,
-      pilihJenis, kembaliKeMenu, logoutKiosk,
+      pilihJenis, kembaliKeMenu, logoutKiosk, lanjutKeKameraAsli,
       tambahDigit, hapusDigit, kosongkanPin, verifikasiPin
     };
   },
@@ -492,36 +486,19 @@ const AppAbsensiQr = {
         </div>
       </div>
 
-      <!-- ============ TAHAP: KONFIRMASI (PIN kedua, BARU 23 Agt 2026) ============ -->
-      <div v-else-if="tahap === 'konfirmasi'" style="flex:1; display:flex; flex-direction:column; align-items:center; padding:24px 20px; text-align:center; max-width:340px; margin:0 auto; width:100%;">
-        <h3 style="font-weight:700; font-size:14px; margin-bottom:2px;">{{ karyawanTerscan?.nama || karyawanTerscan?.name }}</h3>
-        <div style="display:inline-flex; align-items:center; gap:6px; background:var(--pink); color:var(--burgundy); border-radius:20px; padding:6px 14px; font-size:12px; font-weight:700; margin:8px 0 14px;">
+      <!-- ============ TAHAP: KONFIRMASI (cuma badge arah + tombol lanjut —
+           DIKOREKSI 23 Agt 2026 sore: PIN kedua PINDAH ke vue-camera.js,
+           diminta SETELAH foto selfie diambil, bukan di sini) ============ -->
+      <div v-else-if="tahap === 'konfirmasi'" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 20px; text-align:center; max-width:340px; margin:0 auto; width:100%;">
+        <h3 style="font-weight:700; font-size:15px; margin-bottom:4px;">{{ karyawanTerscan?.nama || karyawanTerscan?.name }}</h3>
+        <div style="display:inline-flex; align-items:center; gap:6px; background:var(--pink); color:var(--burgundy); border-radius:20px; padding:7px 16px; font-size:13px; font-weight:700; margin:10px 0 16px;">
           <i class="fas" :class="LABEL_ARAH[arahAbsenTerkonfirmasi]?.icon"></i>
           {{ LABEL_ARAH[arahAbsenTerkonfirmasi]?.label }}
         </div>
-        <p style="font-size:11px; color:var(--text-muted); margin-bottom:18px;">Masukkan PIN sekali lagi untuk konfirmasi</p>
-
-        <!-- Titik progress PIN -->
-        <div style="display:flex; gap:10px; margin-bottom:10px;">
-          <span v-for="i in 6" :key="i" style="width:14px; height:14px; border-radius:50%; border:1.5px solid var(--burgundy);"
-            :style="{ background: pinInput.length >= i ? 'var(--burgundy)' : 'transparent' }"></span>
-        </div>
-        <p v-if="pinError" style="font-size:11px; color:var(--danger); font-weight:700; min-height:14px; margin-bottom:8px;">{{ pinError }}</p>
-        <p v-else style="min-height:14px; margin-bottom:8px;"></p>
-
-        <!-- 2 tombol DI ATAS keypad, sesuai pola tahap 'pin' -->
-        <div style="display:flex; gap:10px; width:100%; margin-bottom:18px;">
-          <button @click="verifikasiPin" :disabled="memverifikasiPin || pinInput.length !== 6" class="btn-primary" style="flex:1; padding:11px;">{{ memverifikasiPin ? '...' : 'Konfirmasi' }}</button>
-          <button @click="kembaliKeMenu" class="btn-outline" style="flex:1; padding:11px;">Batal</button>
-        </div>
-
-        <!-- Keypad angka -->
-        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; width:100%;">
-          <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="tambahDigit(n)"
-            style="padding:16px 0; font-size:18px; font-weight:700; background:var(--surface); border:1.5px solid var(--line); border-radius:14px; cursor:pointer;">{{ n }}</button>
-          <button @click="kosongkanPin" style="padding:16px 0; font-size:12px; font-weight:700; color:var(--text-faint); background:var(--surface); border:1.5px solid var(--line); border-radius:14px; cursor:pointer;">Hapus</button>
-          <button @click="tambahDigit(0)" style="padding:16px 0; font-size:18px; font-weight:700; background:var(--surface); border:1.5px solid var(--line); border-radius:14px; cursor:pointer;">0</button>
-          <button @click="hapusDigit" style="padding:16px 0; font-size:16px; background:var(--surface); border:1.5px solid var(--line); border-radius:14px; cursor:pointer;"><i class="fas fa-delete-left"></i></button>
+        <p style="font-size:11.5px; color:var(--text-muted); margin-bottom:26px;">Kamera akan dibuka untuk foto selfie. PIN akan diminta sekali lagi sebagai konfirmasi akhir sebelum absensi dikirim.</p>
+        <div style="display:flex; gap:10px; width:100%;">
+          <button @click="lanjutKeKameraAsli" class="btn-primary" style="flex:1; padding:13px;">Lanjut ke Kamera</button>
+          <button @click="kembaliKeMenu" class="btn-outline" style="flex:1; padding:13px;">Batal</button>
         </div>
       </div>
 

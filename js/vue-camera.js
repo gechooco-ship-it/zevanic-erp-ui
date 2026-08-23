@@ -51,6 +51,18 @@ import { createApp, ref, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-
 import { collection, getDocs, addDoc, doc, updateDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
+// BARU (23 Agt 2026, permintaan Hilman: PIN Kiosk 2x, yang KEDUA diminta
+// SETELAH foto selfie diambil, tepat sebelum submit) — SAMA PERSIS dengan
+// hashPin di vue-absensi-qr.js/vue-account-profile.js — disalin (bukan
+// diimpor), pola yang sama dipakai di semua file lain yang butuh fungsi
+// kecil ini.
+async function hashPin(pin, email) {
+  const data = new TextEncoder().encode(pin + '|' + email);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+const MAKS_PERCOBAAN_PIN_KIOSK = 3;
+
 // Haversine: jarak antara 2 koordinat GPS dalam meter
 function hitungJarakMeter(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -73,6 +85,19 @@ const AppKamera = {
     const sudahAmbilFoto = ref(false);
     const mengirim = ref(false);
     const teksTombolKirim = ref('Kirim Pengajuan');
+
+    // BARU (23 Agt 2026) — gerbang PIN kedua, KHUSUS mode Kiosk
+    // (window.modeKioskAktif). Diminta SETELAH foto selfie diambil & tombol
+    // Kirim ditekan, TEPAT SEBELUM data benar-benar ditulis ke Firestore —
+    // sesuai klarifikasi Hilman: "kamera kebuka > PIN kedua > alert". PIN
+    // dicocokkan ke window.currentUser.pin_hash (identitas KARYAWAN yang
+    // di-scan, sudah dioverride vue-absensi-qr.js sebelum masuk sini —
+    // BUKAN identitas asli Kiosk).
+    const pinKioskDiminta = ref(false);
+    const pinKioskInput = ref('');
+    const pinKioskError = ref('');
+    const percobaanPinKiosk = ref(0);
+    const memverifikasiPinKiosk = ref(false);
 
     const modeLabel = ref('Mode: Hadir');
     const perluLokasi = ref(false);
@@ -168,6 +193,10 @@ const AppKamera = {
       hasilFotoUrl.value = '';
       sudahAmbilFoto.value = false;
       teksTombolKirim.value = 'Kirim Pengajuan';
+      pinKioskDiminta.value = false;
+      pinKioskInput.value = '';
+      pinKioskError.value = '';
+      percobaanPinKiosk.value = 0;
 
       modeLabel.value = "Mode: " + (window.statusPilihanGlobal || 'Hadir');
       perluLokasi.value = tentukanPerluLokasi();
@@ -449,7 +478,31 @@ const AppKamera = {
           }
 
           // (a) Format BARU — updateDoc() ke dokumen yang sama.
-          const docId = status.docId;
+          //
+          // DIPERBAIKI (23 Agt 2026, bug ditemukan Hilman: discan ulang
+          // beberapa menit setelah Clock Out, MASIH dianggap "sedang aktif
+          // Clock In" jadi bisa Clock Out lagi) — SEBELUMNYA cuma nutup 1
+          // dokumen (`status.docId`, dari cekStatusClockInSaya yang query-
+          // nya `limit(1)`). Root cause SEBENARNYA: sebelum bug Clock In
+          // dobel (§19.5) diperbaiki, SATU karyawan bisa ke-generate LEBIH
+          // DARI 1 dokumen "sedang_aktif:true" sekaligus (tiap Clock In
+          // dobel = dokumen baru). Clock Out lewat `limit(1)` cuma nutup
+          // SATU dari dokumen-dokumen zombie itu — sisanya TETAP
+          // "sedang_aktif:true" selamanya, jadi scan berikutnya (walau
+          // beda waktu, bukan race sesaat) masih nemu dokumen LAIN yang
+          // masih aktif -> dikira belum Clock Out. Sekarang query SEMUA
+          // dokumen "sedang_aktif:true" milik email ini (bukan cuma 1) dan
+          // TUTUP SEKALIGUS SEMUANYA di titik Clock Out mana pun terjadi —
+          // supaya tidak mungkin ada zombie tersisa lagi ke depan, apapun
+          // penyebab dokumen dobelnya (jaring pengaman, bukan cuma
+          // mengandalkan data sudah bersih).
+          const qSemuaAktif = query(
+            collection(db, "absensi"),
+            where("email", "==", email),
+            where("status", "==", "HADIR"),
+            where("sedang_aktif", "==", true)
+          );
+          const snapSemuaAktif = await getDocs(qSemuaAktif);
           const dataUpdate = {
             waktu_keluar: new Date().toLocaleString('id-ID'),
             waktu_keluar_ts: serverTimestamp(),
@@ -470,8 +523,14 @@ const AppKamera = {
                 : (statusRadiusGlobal.dalamRadius ? "DALAM RADIUS" : "DI LUAR RADIUS");
             }
           }
-          await updateDoc(doc(db, "absensi", docId), dataUpdate);
-          return docId;
+          // Kalau karena SESUATU HAL query di atas kosong (harusnya tidak
+          // mungkin, karena status.aktif sudah dipastikan true di atas —
+          // ini cuma jaring pengaman ekstra), jatuh balik ke docId dari
+          // cekStatusClockInSaya supaya tidak diam-diam gagal total.
+          const docIdUtama = snapSemuaAktif.docs[0]?.id || status.docId;
+          const semuaDocId = snapSemuaAktif.docs.length > 0 ? snapSemuaAktif.docs.map(d => d.id) : [docIdUtama];
+          await Promise.all(semuaDocId.map(id => updateDoc(doc(db, "absensi", id), dataUpdate)));
+          return docIdUtama;
         }
 
         // ==================================================================
@@ -612,6 +671,78 @@ const AppKamera = {
       }
     }
 
+    // Dipanggil dari tombol "Kirim Pengajuan" — mode Kiosk WAJIB lewat
+    // gerbang PIN kedua dulu (buka modal), mode biasa (karyawan submit
+    // sendiri lewat HP-nya, sudah login Firebase Auth) langsung kirim
+    // seperti sebelumnya, TIDAK berubah.
+    function klikTombolKirim() {
+      if (window.modeKioskAktif) {
+        pinKioskInput.value = '';
+        pinKioskError.value = '';
+        percobaanPinKiosk.value = 0;
+        pinKioskDiminta.value = true;
+      } else {
+        kirimDataKeCloud();
+      }
+    }
+
+    function tambahDigitKiosk(n) {
+      pinKioskError.value = '';
+      if (pinKioskInput.value.length >= 6) return;
+      pinKioskInput.value += String(n);
+    }
+    function hapusDigitKiosk() {
+      pinKioskError.value = '';
+      pinKioskInput.value = pinKioskInput.value.slice(0, -1);
+    }
+    function kosongkanPinKiosk() {
+      pinKioskError.value = '';
+      pinKioskInput.value = '';
+    }
+    function batalPinKiosk() {
+      pinKioskDiminta.value = false;
+      pinKioskInput.value = '';
+      pinKioskError.value = '';
+    }
+
+    async function verifikasiPinKiosk() {
+      if (pinKioskInput.value.length !== 6) { pinKioskError.value = 'PIN wajib 6 digit.'; return; }
+      if (!window.currentUser || !window.currentUser.pin_hash) {
+        alert('Data PIN karyawan tidak ditemukan. Mengalihkan ke menu Kiosk...');
+        pinKioskDiminta.value = false;
+        batalKamera();
+        return;
+      }
+      memverifikasiPinKiosk.value = true;
+      try {
+        // Salt = email KARYAWAN yang di-scan (window.currentUser sudah
+        // dioverride vue-absensi-qr.js sebelum masuk screen-camera) —
+        // PERSIS cara PIN pertama dicocokkan di vue-absensi-qr.js.
+        const hashInput = await hashPin(pinKioskInput.value, window.currentUser.email);
+        if (hashInput === window.currentUser.pin_hash) {
+          pinKioskDiminta.value = false;
+          pinKioskInput.value = ''; pinKioskError.value = ''; percobaanPinKiosk.value = 0;
+          memverifikasiPinKiosk.value = false;
+          await kirimDataKeCloud();
+          return;
+        } else {
+          percobaanPinKiosk.value++;
+          if (percobaanPinKiosk.value >= MAKS_PERCOBAAN_PIN_KIOSK) {
+            alert(`PIN salah ${MAKS_PERCOBAAN_PIN_KIOSK}x berturut-turut. Kembali ke menu Kiosk.`);
+            pinKioskDiminta.value = false;
+            batalKamera();
+          } else {
+            pinKioskError.value = `PIN salah. Sisa percobaan: ${MAKS_PERCOBAAN_PIN_KIOSK - percobaanPinKiosk.value}.`;
+            pinKioskInput.value = '';
+          }
+        }
+      } catch (e) {
+        console.error('Gagal verifikasi PIN Kiosk (tahap kedua):', e);
+        pinKioskError.value = 'Terjadi kesalahan sistem, coba lagi.';
+      }
+      memverifikasiPinKiosk.value = false;
+    }
+
     function batalKamera() {
       matikanKamera();
       // Mode Kiosk: batal juga WAJIB balik ke menu Absensi Melalui QR,
@@ -629,7 +760,9 @@ const AppKamera = {
       videoEl, canvasEl, hasilFotoUrl, sedangMemuatKamera, kameraError, sudahAmbilFoto,
       mengirim, teksTombolKirim, modeLabel, perluLokasi, daftarGudangUser,
       tampilkanPilihGudang, gudangDipilih, statusLokasiHtml,
-      pilihGudang, ambilFoto, ulangiFoto, kirimDataKeCloud,
+      pinKioskDiminta, pinKioskInput, pinKioskError, memverifikasiPinKiosk,
+      pilihGudang, ambilFoto, ulangiFoto, kirimDataKeCloud, klikTombolKirim,
+      tambahDigitKiosk, hapusDigitKiosk, kosongkanPinKiosk, batalPinKiosk, verifikasiPinKiosk,
       mulaiKamera, matikanKamera, batalKamera
     };
   },
@@ -667,11 +800,42 @@ const AppKamera = {
         </button>
         <div v-if="sudahAmbilFoto" style="display:flex; gap:12px;">
           <button @click="ulangiFoto" class="btn-outline">Ulangi</button>
-          <button @click="kirimDataKeCloud" :disabled="mengirim" class="btn-primary" style="display:flex; align-items:center;">
+          <button @click="klikTombolKirim" :disabled="mengirim" class="btn-primary" style="display:flex; align-items:center;">
             {{ teksTombolKirim }} <i v-if="!mengirim" class="fas fa-check" style="margin-left:8px;"></i>
           </button>
         </div>
         <p class="gc-cam-caption">{{ sudahAmbilFoto ? '' : 'Ketuk tombol untuk foto' }}</p>
+      </div>
+
+      <!-- ============ GERBANG PIN KEDUA (mode Kiosk saja, BARU 23 Agt 2026)
+           — muncul SETELAH foto diambil & Kirim ditekan, TEPAT SEBELUM
+           data ditulis ke Firestore. ============ -->
+      <div v-if="pinKioskDiminta" style="position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px;">
+        <div style="background:var(--surface); border-radius:20px; padding:26px 22px; max-width:320px; width:100%; text-align:center;">
+          <i class="fas fa-shield-halved" style="font-size:26px; color:var(--burgundy); margin-bottom:8px; display:block;"></i>
+          <h3 style="font-weight:700; font-size:14px; margin-bottom:4px;">Konfirmasi Terakhir</h3>
+          <p style="font-size:11px; color:var(--text-muted); margin-bottom:16px;">Masukkan PIN sekali lagi untuk mengirim absensi ini</p>
+
+          <div style="display:flex; gap:10px; justify-content:center; margin-bottom:10px;">
+            <span v-for="i in 6" :key="i" style="width:14px; height:14px; border-radius:50%; border:1.5px solid var(--burgundy); display:inline-block;"
+              :style="{ background: pinKioskInput.length >= i ? 'var(--burgundy)' : 'transparent' }"></span>
+          </div>
+          <p v-if="pinKioskError" style="font-size:11px; color:var(--danger); font-weight:700; min-height:14px; margin-bottom:8px;">{{ pinKioskError }}</p>
+          <p v-else style="min-height:14px; margin-bottom:8px;"></p>
+
+          <div style="display:flex; gap:10px; width:100%; margin-bottom:16px;">
+            <button @click="verifikasiPinKiosk" :disabled="memverifikasiPinKiosk || pinKioskInput.length !== 6" class="btn-primary" style="flex:1; padding:11px;">{{ memverifikasiPinKiosk ? '...' : 'Kirim' }}</button>
+            <button @click="batalPinKiosk" class="btn-outline" style="flex:1; padding:11px;">Batal</button>
+          </div>
+
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; width:100%;">
+            <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="tambahDigitKiosk(n)"
+              style="padding:14px 0; font-size:16px; font-weight:700; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; cursor:pointer;">{{ n }}</button>
+            <button @click="kosongkanPinKiosk" style="padding:14px 0; font-size:11px; font-weight:700; color:var(--text-faint); background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; cursor:pointer;">Hapus</button>
+            <button @click="tambahDigitKiosk(0)" style="padding:14px 0; font-size:16px; font-weight:700; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; cursor:pointer;">0</button>
+            <button @click="hapusDigitKiosk" style="padding:14px 0; font-size:15px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; cursor:pointer;"><i class="fas fa-delete-left"></i></button>
+          </div>
+        </div>
       </div>
     </div>
   `
