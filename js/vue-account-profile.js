@@ -506,6 +506,10 @@ const AppAccountProfile = {
       muatStatusPin();
       if (window.mulaiHitungJamKerja) window.mulaiHitungJamKerja();
       await window.authReady;
+      muatStatusPin(); // DIPERBAIKI (23 Agt 2026) — baca ulang status PIN SETELAH
+                        // window.currentUser dipastikan lengkap (authReady), supaya
+                        // badge tidak salah tampil "Belum Terpasang" pas refresh
+                        // halaman (lihat STATUS-PROYEK.md §19.2 & §10 poin 4).
       await muatOpsiFilter();
       await muatRiwayat();
     });
