@@ -164,7 +164,7 @@ const AppDeviceKiosk = {
     return {
       daftarKiosk, memuat, menyimpan, form, tambahKiosk, toggleAktif, hapusKiosk,
       cariKiosk, halamanSaatIni, totalHalaman, gantiHalaman, daftarKioskHalaman,
-      pesanErrorMuat, muat
+      daftarKioskTersaring, pesanErrorMuat, muat
     };
   },
   template: `
