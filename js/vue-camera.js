@@ -318,6 +318,28 @@ const AppKamera = {
         // _masuk. ada_pending:true karena status_acc_masuk baru "PENDING".
         // ==================================================================
         if (statusPilihan === "HADIR (CLOCK IN)") {
+          // BARU (23 Agt 2026, bug ditemukan Hilman: bisa Clock In sampai
+          // 7x) — jaring pengaman TERAKHIR tepat di titik TULIS (bukan
+          // cuma andalkan badge/UI di Home & Login sudah benar). Apapun
+          // penyebabnya di sisi UI (race condition, cache, tombol
+          // kepencet dobel, dsb — lihat STATUS-PROYEK.md §19.5), di sini
+          // dicek LANGSUNG ke sumber kebenaran (window.cekStatusClockInSaya)
+          // SEBELUM benar-benar bikin dokumen Clock In baru. Kalau
+          // ternyata SUDAH ada Clock In aktif punya orang ini, TOLAK di
+          // sini — supaya TIDAK PERNAH ada 2 dokumen "sedang_aktif:true"
+          // bersamaan untuk 1 karyawan.
+          const statusCekDulu = await window.cekStatusClockInSaya(email);
+          if (statusCekDulu.aktif) {
+            // Sentinel KHUSUS (bukan `false` biasa) — supaya pemanggil
+            // (di bawah, dekat "Gagal mengirim pengajuan...") tidak
+            // menampilkan alert GENERIK "masalah izin akses/koneksi" di
+            // ATAS alert spesifik ini (dobel alert membingungkan).
+            alert("Anda SUDAH Clock In dan masih aktif (belum Clock Out). Tidak bisa Clock In dua kali. Mengalihkan ke Dashboard...");
+            if (window.pindahLayar) window.pindahLayar('screen-dashboard');
+            if (window.pindahTab) window.pindahTab('tab-home');
+            return 'SUDAH_CLOCK_IN';
+          }
+
           const dataKirim = {
             nama_pegawai: window.currentUser.name,
             jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '', // BARU (19 Agt 2026) - titip dari memori, hindari baca users terpisah
@@ -508,6 +530,15 @@ const AppKamera = {
 
       mengirim.value = false;
       teksTombolKirim.value = 'Kirim Pengajuan';
+
+      // BARU (23 Agt 2026) — sentinel KHUSUS dari jaring pengaman Clock In
+      // dobel (lihat simpanKeFirebase, JALUR 1) — alert-nya SUDAH
+      // ditampilkan & sudah dialihkan ke Dashboard di sana, jadi di sini
+      // CUKUP berhenti diam-diam, JANGAN tampilkan alert generik di bawah
+      // (mencegah dobel alert yang membingungkan).
+      if (hasilId === 'SUDAH_CLOCK_IN') {
+        return;
+      }
 
       // DIPERBAIKI (23 Agt 2026) — BUG LAMA baru ketahuan sekarang:
       // SEBELUMNYA kalau simpanKeFirebase() gagal (hasilId===false),

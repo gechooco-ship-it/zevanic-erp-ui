@@ -114,7 +114,31 @@ const AppHome = {
       await muatShift();
     }
 
-    onMounted(async () => { await window.authReady; await muatSemua(); });
+    // DIPERBAIKI (23 Agt 2026, bug ditemukan Hilman: badge "Sudah absen"
+    // balik jadi "Belum absen" begitu di-refresh, lihat STATUS-PROYEK.md
+    // §19.5) — SEBELUMNYA di sini langsung await muatSemua() begitu
+    // authReady resolve. Tapi `window.authReady` CUMA nandain Firebase
+    // AUTH sudah tau SIAPA yang login — BUKAN nandain window.currentUser
+    // (data profil Firestore) sudah lengkap terisi (lihat §10 poin 4,
+    // pelajaran yang SAMA yang membongkar bug badge PIN di §19.2). Kalau
+    // dipaksa jalan di sini padahal window.currentUser MASIH kosong,
+    // muatTampilan() jalan dengan email KOSONG ('') -> query Firestore-nya
+    // pasti balik "tidak ketemu" -> sudahAbsenHariIni jadi FALSE. Race
+    // condition-nya: fetch dengan email kosong ini (harus nunggu network,
+    // lebih lambat) bisa SELESAI BELAKANGAN dan MENIMPA hasil BENAR yang
+    // sudah lebih dulu dimuat window.refreshHome() (dipanggil dari
+    // auth.js/vue-login.js TEPAT SETELAH window.currentUser lengkap) —
+    // itulah kenapa badge sempat benar dulu, lalu "balik salah" sendiri.
+    // Perbaikannya: di sini CUMA muat kalau window.currentUser SUDAH ada
+    // (kasus navigasi dalam SPA, bukan refresh/reload baru) — kalau belum
+    // ada, JANGAN muat apapun, CUKUP diam dan biarkan window.refreshHome()
+    // yang memanggil muatSemua() begitu datanya benar-benar siap.
+    onMounted(async () => {
+      await window.authReady;
+      if (window.currentUser && window.currentUser.email) {
+        await muatSemua();
+      }
+    });
     onUnmounted(() => { if (timerDurasi) clearInterval(timerDurasi); });
 
     return {

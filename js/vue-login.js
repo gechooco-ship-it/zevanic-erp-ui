@@ -394,12 +394,24 @@ const AppLogin = {
       if (window.refreshHome) window.refreshHome();
       if (window.refreshHeaderMobile) window.refreshHeaderMobile();
 
-      const hariIni = new Date().toLocaleDateString('id-ID');
-      const statusLokal = localStorage.getItem('zevanic_absen_' + emailInput);
-      const sudahClockInLokal = statusLokal === hariIni;
+      // DIROMBAK (23 Agt 2026, bug ditemukan Hilman: bisa Clock In berkali-
+      // kali sampai 7x + badge status salah) — SEBELUMNYA jalur MOBILE di
+      // sini (beda dari jalur desktop tepat di bawah) masih cek "sudah
+      // Clock In" pakai localStorage LEGACY 'zevanic_absen_' dibandingkan
+      // STRING TANGGAL HARI INI persis (sudahClockInLokal) — PERSIS pola
+      // lama yang sudah digantikan window.cekStatusClockInSaya() untuk
+      // jalur desktop (rombak 19 Agt 2026), tapi jalur mobile ini KELEWAT
+      // saat itu. Akibatnya: localStorage device-lokal gampang meleset
+      // (device beda/cache dibersihkan/app ditutup-buka) -> dianggap
+      // "belum Clock In" padahal aslinya SUDAH -> user diarahkan ke
+      // screen-camera lagi -> Clock In dobel. Sekarang mobile JUGA pakai
+      // SATU sumber kebenaran yang SAMA persis dengan desktop (Firestore,
+      // tahan shift-malam & lintas-device) — dihitung SEKALI, dipakai
+      // ulang di kedua cabang di bawah supaya tidak bisa "beda pendapat"
+      // lagi ke depan.
+      const sudahClockInServer = await sudahClockInHariIniServer(emailInput);
 
       if (isDesktop.value) {
-        const sudahClockInServer = await sudahClockInHariIniServer(emailInput);
         if (sudahClockInServer) {
           window.pindahLayar('screen-dashboard');
           window.pindahTab('tab-home');
@@ -411,7 +423,7 @@ const AppLogin = {
         return;
       }
 
-      if (window.statusPilihanGlobal === "HADIR (CLOCK IN)" && sudahClockInLokal) {
+      if (window.statusPilihanGlobal === "HADIR (CLOCK IN)" && sudahClockInServer) {
         alert("Anda sudah Clock In hari ini. Mengalihkan langsung ke Dashboard...");
         window.pindahLayar('screen-dashboard');
         window.pindahTab('tab-home');
