@@ -167,18 +167,37 @@ window.ambilKecamatanUntukKabupaten = async function(kab) {
 // ====== LOGIKA PERPINDAHAN HALAMAN UTAMA (ANTI KETUMPUK) =================
 // =========================================================================
 
-window.pindahTab = function(tabId, navKey) {
+window.pindahTab = function(tabId, navKey, _dariPopstate) {
   const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress'];
   const tabSebelumnya = tabs.find(t => {
     const el = document.getElementById(t);
     return el && !el.classList.contains('hidden');
   });
 
+  // BARU (23 Agt 2026) — Browser History API, lihat STATUS-PROYEK.md §19.4.
+  // Catat perpindahan tab INI sebagai 1 entry riwayat browser, KECUALI kalau
+  // panggilan ini sendiri HASIL dari tombol back/forward (_dariPopstate,
+  // dipasang oleh listener 'popstate' di bawah — jangan sampai push lagi,
+  // nanti muter/dobel) atau tab tujuannya SAMA dengan yang sudah aktif
+  // (hindari entry kosong berulang). SENGAJA cuma level TAB (bottom nav
+  // mobile + sidebar desktop) — BELUM sub-tab admin (masih disembunyikan
+  // di mobile per §5.3) ataupun perpindahan LAYAR/screen (Login/Kamera/
+  // Buat Password, sudah punya alur "Batal"/pengaman sendiri, sengaja
+  // tidak disentuh dulu). URL tidak berubah (app ini tanpa routing) —
+  // cuma dipakai sebagai "jejak" internal buat tombol back HP.
+  if (!_dariPopstate && tabSebelumnya !== tabId) {
+    try {
+      history.pushState({ tab: tabId, navKey: navKey || null }, '', location.href);
+    } catch (e) {
+      console.error("Gagal catat riwayat navigasi tab (tidak fatal, navigasi tetap lanjut):", e);
+    }
+  }
+
   tabs.forEach(tab => {
     const elemenTab = document.getElementById(tab);
     if (elemenTab) elemenTab.classList.add('hidden');
   });
-  
+
   const targetTab = document.getElementById(tabId);
   if (targetTab) targetTab.classList.remove('hidden');
   if (window.aturHeaderKonteks) window.aturHeaderKonteks(tabId, null);
@@ -277,6 +296,37 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();
 };
+
+// =========================================================================
+// TOMBOL BACK BROWSER/HP (History API) — BARU 23 Agt 2026, lihat
+// STATUS-PROYEK.md §19.4. SEBELUM ini app TIDAK PERNAH pakai Browser
+// History API sama sekali — tombol back HP langsung "keluar" ke riwayat
+// browser SEBELUM app ini dibuka (biasanya hasil pencarian terakhir),
+// alih-alih kembali ke tab yang sebelumnya dibuka DI DALAM app.
+//
+// Cara kerja: setiap window.pindahTab() (di atas) mencatat 1 entry riwayat
+// browser (kecuali dipanggil dari sini sendiri). Listener di bawah ini
+// menangkap event 'popstate' (browser back/forward) dan memanggil balik
+// window.pindahTab() dengan tab yang tersimpan di entry itu, DENGAN flag
+// _dariPopstate=true supaya tidak ikut push lagi (baca komentar di
+// pindahTab). Kalau riwayatnya sudah habis (state null, berarti sudah
+// sampai entry SEBELUM app ini dibuka), tidak ada yang dilakukan di sini —
+// biarkan browser lanjut keluar app seperti biasa, itu sudah benar.
+//
+// TIDAK MENCAKUP (sengaja, lihat §19.4 untuk alasan & kemungkinan
+// perluasan ke depan): sub-tab admin (pindahSubTab, disembunyikan di
+// mobile), dan perpindahan LAYAR/screen (pindahLayar — Login, Kamera,
+// Buat Password, Absensi QR) yang sudah punya alur "Batal"/pengaman
+// sendiri. Kalau back ditekan SAAT sedang di layar selain Dashboard
+// (misal Kamera), listener ini tetap boleh konsumsi 1 langkah riwayat
+// browser di belakang layar (tidak berbahaya, cuma update tab yang
+// sedang tersembunyi) — TIDAK mengubah screen yang sedang tampil.
+window.addEventListener('popstate', (e) => {
+  const state = e.state;
+  if (state && state.tab) {
+    window.pindahTab(state.tab, state.navKey, true);
+  }
+});
 
 // Account Profile (Account/QR, Data Karyawan self-edit, Absensi dengan
 // Izin/Cuti/Lembur + riwayat) sudah pindah ke js/vue-account-profile.js.
