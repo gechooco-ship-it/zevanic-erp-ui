@@ -226,7 +226,17 @@ const AppAccountProfile = {
       namaTampil.value = window.currentUser?.name || window.currentUser?.nama || 'User';
       idAppTampil.value = window.currentUser?.id_app || 'ID Tidak Ditemukan';
       jabatanTampil.value = window.currentUser?.jabatan || window.currentUser?.role || 'Staff';
-      const qrData = window.currentUser?.id_app || window.currentUser?.email || '';
+      // DIPERBAIKI (23 Agt 2026) — BUG LAMA baru ketahuan lewat fitur
+      // Kiosk: auth.js/vue-login.js isi window.currentUser.id_app dengan
+      // literal string "N/A" (BUKAN kosong/falsy) kalau field id_app di
+      // Firestore memang kosong (kasus nyata: akun Owner yang dibuat
+      // manual lewat Firebase Console, id_app tidak sempat diisi).
+      // "N/A" itu STRING BENERAN (truthy) — `|| email` TIDAK PERNAH
+      // kepakai, QR jadi isinya literal teks "N/A", tidak bisa ditemukan
+      // di database manapun saat di-scan. WAJIB kecualikan "N/A" secara
+      // eksplisit di sini, bukan cuma cek falsy biasa.
+      const idAppAsli = (window.currentUser?.id_app && window.currentUser.id_app !== 'N/A') ? window.currentUser.id_app : null;
+      const qrData = idAppAsli || window.currentUser?.email || '';
       qrUrl.value = qrData ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}` : '';
       muatRoleTampil();
     }
