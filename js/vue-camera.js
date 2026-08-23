@@ -527,17 +527,23 @@ const AppKamera = {
           localStorage.removeItem(kunciDocIdAbsensi(window.currentUser.email));
         }
         if (window.statusPilihanGlobal === "CLOCK OUT") {
-          alert("Clock Out berhasil! Hati-hati di jalan.");
-          // BARU (22 Agt 2026) — mode Kiosk ("Absensi Melalui QR"): jangan
-          // navigasi ke screen-login (itu logout-nya KARYAWAN biasa, tidak
-          // relevan buat Kiosk). Panggil balik window.selesaiModeKiosk()
-          // (didefinisikan js/vue-absensi-qr.js) — pulihkan identitas asli
-          // Kiosk, balik ke menu 5 pilihan siap buat karyawan berikutnya.
-          if (window.modeKioskAktif && window.selesaiModeKiosk) { window.selesaiModeKiosk(); }
-          else { window.pindahLayar('screen-login'); }
+          // BARU (23 Agt 2026) — mode Kiosk: SEBELUMNYA langsung panggil
+          // selesaiModeKiosk() (reset diam-diam, TANPA feedback apapun
+          // ke orang yang baru submit) — Hilman laporan "kirim pengajuan
+          // tidak ada respon". Sekarang tampilkan kartu sukses dulu
+          // (foto+nama+jam, otomatis tutup 3 detik) lewat
+          // window.tampilkanSuksesKiosk() (vue-absensi-qr.js), BARU
+          // reset ke menu — bukan langsung dari sini.
+          if (window.modeKioskAktif && window.tampilkanSuksesKiosk) {
+            window.tampilkanSuksesKiosk({ jenis: 'CLOCK OUT', foto: hasilFotoUrl.value });
+          } else {
+            alert("Clock Out berhasil! Hati-hati di jalan.");
+            window.pindahLayar('screen-login');
+          }
         } else {
-          if (window.modeKioskAktif && window.selesaiModeKiosk) { window.selesaiModeKiosk(); }
-          else {
+          if (window.modeKioskAktif && window.tampilkanSuksesKiosk) {
+            window.tampilkanSuksesKiosk({ jenis: window.statusPilihanGlobal, foto: hasilFotoUrl.value });
+          } else {
             window.pindahLayar('screen-dashboard');
             window.pindahTab('tab-profil');
             if (window.bukaTabAbsensiProfile) window.bukaTabAbsensiProfile();
