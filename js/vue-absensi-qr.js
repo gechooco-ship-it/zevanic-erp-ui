@@ -198,7 +198,25 @@ const AppAbsensiQr = {
     function lanjutKeKameraAsli() {
       const k = karyawanTerscan.value;
       window._kioskUserAsli = window.currentUser;
-      window.currentUser = { ...k, email: k.id };
+      // DIPERBAIKI (23 Agt 2026) — BUG NYATA ditemukan: SEBELUMNYA
+      // gudang_penempatan karyawan APA ADANYA yang dipakai vue-camera.js
+      // buat pilih gudang — tapi Firestore Rules cuma izinkan Kiosk
+      // tulis absensi buat gudang yang ADA di gudang_penempatan MILIK
+      // KIOSK SENDIRI. Kalau karyawan (terutama Owner, yang biasanya
+      // punya banyak/beda gudang) gudang PERTAMA-nya bukan gudang yang
+      // sama dengan Kiosk ini, tulisan DITOLAK Firestore diam-diam
+      // (persis kejadian scan Owner gagal, kasus lain sukses). Sekarang
+      // dipotong dulu jadi IRISAN gudang karyawan DAN gudang kiosk —
+      // vue-camera.js cuma akan menawarkan/pilih gudang yang PASTI valid
+      // buat kombinasi karyawan+kiosk ini.
+      const gudangKaryawan = k.gudang_penempatan || [];
+      const gudangKiosk = window._kioskUserAsli.gudang_penempatan || [];
+      const gudangIrisan = gudangKaryawan.filter(g => gudangKiosk.includes(g));
+      if (gudangIrisan.length === 0) {
+        alert(`Karyawan "${k.nama || k.name}" tidak ditempatkan di gudang yang sama dengan Kiosk ini. Absensi tidak bisa diproses lewat Kiosk ini.`);
+        return;
+      }
+      window.currentUser = { ...k, email: k.id, gudang_penempatan: gudangIrisan };
       window.statusPilihanGlobal = jenisTerpilih.value;
       window.modeKioskAktif = true;
       window.pindahLayar('screen-camera');

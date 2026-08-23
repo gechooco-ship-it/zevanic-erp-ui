@@ -483,17 +483,13 @@ const AppKamera = {
     }
 
     async function kirimDataKeCloud() {
-      // ============ DEBUG SEMENTARA (23 Agt 2026) - HAPUS SETELAH KETEMU ============
-      alert('DEBUG 1: kirimDataKeCloud mulai jalan');
       if (perluLokasi.value) {
         if (!koordinatGlobal) {
-          alert('DEBUG 2: mulai ambil GPS ulang');
           teksTombolKirim.value = 'Memeriksa lokasi GPS...';
           mengirim.value = true;
           await ambilLokasiGPS();
           mengirim.value = false;
           teksTombolKirim.value = 'Kirim Pengajuan';
-          alert('DEBUG 3: GPS selesai, koordinat = ' + JSON.stringify(koordinatGlobal));
         }
         if (!koordinatGlobal) {
           alert("Gagal mendapatkan lokasi GPS. Pastikan GPS & izin lokasi browser aktif (coba keluar dari area tertutup/beratap jika sinyal lemah), lalu coba lagi.");
@@ -504,20 +500,26 @@ const AppKamera = {
           return;
         }
       }
-      alert('DEBUG 4: lolos cek lokasi, mulai simpan ke Firebase');
-      // ============ AKHIR DEBUG SEMENTARA ============
 
       mengirim.value = true;
       teksTombolKirim.value = 'Mengirim...';
 
       const hasilId = await simpanKeFirebase(hasilFotoUrl.value);
 
-      // ============ DEBUG SEMENTARA ============
-      alert('DEBUG 5: simpanKeFirebase selesai, hasilId = ' + hasilId);
-      // ============ AKHIR DEBUG SEMENTARA ============
-
       mengirim.value = false;
       teksTombolKirim.value = 'Kirim Pengajuan';
+
+      // DIPERBAIKI (23 Agt 2026) — BUG LAMA baru ketahuan sekarang:
+      // SEBELUMNYA kalau simpanKeFirebase() gagal (hasilId===false),
+      // TIDAK ADA feedback apapun ke user — cuma diam saja, kelihatan
+      // seperti "tidak ada respon" padahal sebenarnya GAGAL (biasanya
+      // permission denied dari Firestore Rules). Sekarang kasih pesan
+      // jelas, biar orangnya tahu harus hubungi Admin, bukan mengira
+      // app-nya hang/rusak.
+      if (!hasilId) {
+        alert("Gagal mengirim pengajuan. Kemungkinan masalah izin akses atau koneksi — coba lagi, atau hubungi Admin/Owner kalau berulang.");
+        return;
+      }
 
       if (hasilId) {
         const hariIni = new Date().toLocaleDateString('id-ID');
