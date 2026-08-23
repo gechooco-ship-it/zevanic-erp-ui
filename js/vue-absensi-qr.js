@@ -401,6 +401,25 @@ const AppAbsensiQr = {
           waktu: new Date().toLocaleTimeString('id-ID')
         };
         tahap.value = 'sukses';
+        // DIPERBAIKI (23 Agt 2026, ronde 3 — bug ditemukan Hilman: kartu
+        // sukses TIDAK PERNAH kelihatan sama sekali) — root cause: fungsi
+        // ini dipanggil dari vue-camera.js SAAT layar yang AKTIF masih
+        // 'screen-camera' (bukan 'screen-absensi-qr'), sedangkan kartu
+        // sukses ini adanya di komponen INI (vue-absensi-qr.js), yang
+        // hidup di div 'screen-absensi-qr' — SEBELUMNYA div itu TETAP
+        // 'hidden' (CSS display:none) di titik ini, jadi ganti tahap.value
+        // ke 'sukses' TIDAK ADA EFEK VISUAL sama sekali. 3 detik kemudian
+        // window.selesaiModeKiosk() BARU pindahLayar ke screen-absensi-qr
+        // — TAPI di callback YANG SAMA, suksesInfo.value SUDAH ke-null-kan
+        // duluan (baris tepat di atas pindahLayar itu) — jadi begitu
+        // layarnya akhirnya kelihatan, kartunya sudah "dihapus" lagi,
+        // langsung balik ke tahap 'menu'. Sekarang pindahLayar() dipanggil
+        // SEKARANG JUGA (bukan nunggu 3 detik) — supaya kartu sukses ini
+        // BENAR-BENAR kelihatan selama 3 detik itu. Ini JUGA otomatis
+        // mematikan kamera (lihat app.js pindahLayar — pindah ke layar
+        // selain screen-camera otomatis panggil window.matikanKamera()),
+        // pas karena foto sudah selesai diambil & dikirim.
+        window.pindahLayar('screen-absensi-qr');
         setTimeout(() => {
           suksesInfo.value = null;
           window.selesaiModeKiosk();

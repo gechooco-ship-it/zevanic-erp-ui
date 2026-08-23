@@ -98,6 +98,14 @@ const AppKamera = {
     const pinKioskError = ref('');
     const percobaanPinKiosk = ref(0);
     const memverifikasiPinKiosk = ref(false);
+    // BARU (23 Agt 2026, ronde 3, permintaan Hilman: kasih sesi loading
+    // sambil nunggu, jangan langsung "diam" dulu sebelum kartu sukses
+    // muncul) — true = PIN kedua SUDAH benar, lagi proses kirim ke
+    // Firestore. Modal PIN (pinKioskDiminta) TETAP terbuka selama ini,
+    // TAPI isinya ganti jadi spinner (lihat template), BUKAN langsung
+    // ditutup — supaya tidak ada jeda "kosong" antara PIN benar & kartu
+    // sukses/alert gagal muncul.
+    const mengirimPinKiosk = ref(false);
 
     const modeLabel = ref('Mode: Hadir');
     const perluLokasi = ref(false);
@@ -197,6 +205,7 @@ const AppKamera = {
       pinKioskInput.value = '';
       pinKioskError.value = '';
       percobaanPinKiosk.value = 0;
+      mengirimPinKiosk.value = false;
 
       modeLabel.value = "Mode: " + (window.statusPilihanGlobal || 'Hadir');
       perluLokasi.value = tentukanPerluLokasi();
@@ -742,6 +751,7 @@ const AppKamera = {
       pinKioskDiminta.value = false;
       pinKioskInput.value = '';
       pinKioskError.value = '';
+      mengirimPinKiosk.value = false;
     }
 
     async function verifikasiPinKiosk() {
@@ -759,10 +769,22 @@ const AppKamera = {
         // PERSIS cara PIN pertama dicocokkan di vue-absensi-qr.js.
         const hashInput = await hashPin(pinKioskInput.value, window.currentUser.email);
         if (hashInput === window.currentUser.pin_hash) {
-          pinKioskDiminta.value = false;
           pinKioskInput.value = ''; pinKioskError.value = ''; percobaanPinKiosk.value = 0;
           memverifikasiPinKiosk.value = false;
+          // BARU (23 Agt 2026, ronde 3, permintaan Hilman) — JANGAN tutup
+          // modal PIN dulu di sini — ganti isinya jadi spinner "Mengirim
+          // Absensi..." (lihat template), supaya tidak ada jeda kosong
+          // antara PIN benar & kartu sukses/alert gagal muncul. Modal
+          // BARU benar-benar ditutup setelah kirimDataKeCloud() selesai
+          // (baik sukses MAUPUN gagal — kalau sukses & mode Kiosk, layar
+          // sudah keburu pindah ke screen-absensi-qr duluan lewat
+          // tampilkanSuksesKiosk, jadi modal ini otomatis ikut hilang
+          // dari pandangan; reset di bawah cuma jaga-jaga/tidak berefek
+          // visual apapun di kasus itu).
+          mengirimPinKiosk.value = true;
           await kirimDataKeCloud();
+          mengirimPinKiosk.value = false;
+          pinKioskDiminta.value = false;
           return;
         } else {
           percobaanPinKiosk.value++;
@@ -799,7 +821,7 @@ const AppKamera = {
       videoEl, canvasEl, hasilFotoUrl, sedangMemuatKamera, kameraError, sudahAmbilFoto,
       mengirim, teksTombolKirim, modeLabel, perluLokasi, daftarGudangUser,
       tampilkanPilihGudang, gudangDipilih, statusLokasiHtml,
-      pinKioskDiminta, pinKioskInput, pinKioskError, memverifikasiPinKiosk,
+      pinKioskDiminta, pinKioskInput, pinKioskError, memverifikasiPinKiosk, mengirimPinKiosk,
       pilihGudang, ambilFoto, ulangiFoto, kirimDataKeCloud, klikTombolKirim,
       tambahDigitKiosk, hapusDigitKiosk, kosongkanPinKiosk, batalPinKiosk, verifikasiPinKiosk,
       mulaiKamera, matikanKamera, batalKamera
@@ -851,29 +873,40 @@ const AppKamera = {
            data ditulis ke Firestore. ============ -->
       <div v-if="pinKioskDiminta" style="position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px;">
         <div style="background:var(--surface); border-radius:20px; padding:26px 22px; max-width:320px; width:100%; text-align:center;">
-          <i class="fas fa-shield-halved" style="font-size:26px; color:var(--burgundy); margin-bottom:8px; display:block;"></i>
-          <h3 style="font-weight:700; font-size:14px; margin-bottom:4px;">Konfirmasi Terakhir</h3>
-          <p style="font-size:11px; color:var(--text-muted); margin-bottom:16px;">Masukkan PIN sekali lagi untuk mengirim absensi ini</p>
+          <!-- BARU (23 Agt 2026, ronde 3) — PIN benar, lagi kirim ke
+               Firestore: modal TETAP terbuka, ganti isi jadi spinner
+               (bukan langsung ditutup begitu saja) supaya tidak ada jeda
+               "kosong" sebelum kartu sukses/alert gagal muncul. -->
+          <template v-if="mengirimPinKiosk">
+            <i class="fas fa-spinner fa-spin" style="font-size:30px; color:var(--burgundy); margin-bottom:14px; display:block;"></i>
+            <h3 style="font-weight:700; font-size:14px; margin-bottom:4px;">Mengirim Absensi...</h3>
+            <p style="font-size:11px; color:var(--text-muted);">Mohon tunggu sebentar</p>
+          </template>
+          <template v-else>
+            <i class="fas fa-shield-halved" style="font-size:26px; color:var(--burgundy); margin-bottom:8px; display:block;"></i>
+            <h3 style="font-weight:700; font-size:14px; margin-bottom:4px;">Konfirmasi Terakhir</h3>
+            <p style="font-size:11px; color:var(--text-muted); margin-bottom:16px;">Masukkan PIN sekali lagi untuk mengirim absensi ini</p>
 
-          <div style="display:flex; gap:10px; justify-content:center; margin-bottom:10px;">
-            <span v-for="i in 6" :key="i" style="width:14px; height:14px; border-radius:50%; border:1.5px solid var(--burgundy); display:inline-block;"
-              :style="{ background: pinKioskInput.length >= i ? 'var(--burgundy)' : 'transparent' }"></span>
-          </div>
-          <p v-if="pinKioskError" style="font-size:11px; color:var(--danger); font-weight:700; min-height:14px; margin-bottom:8px;">{{ pinKioskError }}</p>
-          <p v-else style="min-height:14px; margin-bottom:8px;"></p>
+            <div style="display:flex; gap:10px; justify-content:center; margin-bottom:10px;">
+              <span v-for="i in 6" :key="i" style="width:14px; height:14px; border-radius:50%; border:1.5px solid var(--burgundy); display:inline-block;"
+                :style="{ background: pinKioskInput.length >= i ? 'var(--burgundy)' : 'transparent' }"></span>
+            </div>
+            <p v-if="pinKioskError" style="font-size:11px; color:var(--danger); font-weight:700; min-height:14px; margin-bottom:8px;">{{ pinKioskError }}</p>
+            <p v-else style="min-height:14px; margin-bottom:8px;"></p>
 
-          <div style="display:flex; gap:10px; width:100%; margin-bottom:16px;">
-            <button @click="verifikasiPinKiosk" :disabled="memverifikasiPinKiosk || pinKioskInput.length !== 6" class="btn-primary" style="flex:1; padding:11px;">{{ memverifikasiPinKiosk ? '...' : 'Kirim' }}</button>
-            <button @click="batalPinKiosk" class="btn-outline" style="flex:1; padding:11px;">Batal</button>
-          </div>
+            <div style="display:flex; gap:10px; width:100%; margin-bottom:16px;">
+              <button @click="verifikasiPinKiosk" :disabled="memverifikasiPinKiosk || pinKioskInput.length !== 6" class="btn-primary" style="flex:1; padding:11px;">{{ memverifikasiPinKiosk ? '...' : 'Kirim' }}</button>
+              <button @click="batalPinKiosk" class="btn-outline" style="flex:1; padding:11px;">Batal</button>
+            </div>
 
-          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; width:100%;">
-            <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="tambahDigitKiosk(n)"
-              style="padding:14px 0; font-size:16px; font-weight:700; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; cursor:pointer;">{{ n }}</button>
-            <button @click="kosongkanPinKiosk" style="padding:14px 0; font-size:11px; font-weight:700; color:var(--text-faint); background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; cursor:pointer;">Hapus</button>
-            <button @click="tambahDigitKiosk(0)" style="padding:14px 0; font-size:16px; font-weight:700; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; cursor:pointer;">0</button>
-            <button @click="hapusDigitKiosk" style="padding:14px 0; font-size:15px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; cursor:pointer;"><i class="fas fa-delete-left"></i></button>
-          </div>
+            <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; width:100%;">
+              <button v-for="n in [1,2,3,4,5,6,7,8,9]" :key="n" @click="tambahDigitKiosk(n)"
+                style="padding:14px 0; font-size:16px; font-weight:700; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; cursor:pointer;">{{ n }}</button>
+              <button @click="kosongkanPinKiosk" style="padding:14px 0; font-size:11px; font-weight:700; color:var(--text-faint); background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; cursor:pointer;">Hapus</button>
+              <button @click="tambahDigitKiosk(0)" style="padding:14px 0; font-size:16px; font-weight:700; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; cursor:pointer;">0</button>
+              <button @click="hapusDigitKiosk" style="padding:14px 0; font-size:15px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; cursor:pointer;"><i class="fas fa-delete-left"></i></button>
+            </div>
+          </template>
         </div>
       </div>
     </div>
