@@ -61,10 +61,13 @@ const DAFTAR_MENU = [
   { id: 'hak_akses', label: 'Hak Akses', kategori: 'Master Karyawan' },
   { id: 'whatsapp_gateway', label: 'WhatsApp Gateway', kategori: 'Master Integrasi' },
   { id: 'mail_gateway', label: 'Mail Gateway', kategori: 'Master Integrasi' },
-  { id: 'device_kiosk', label: 'List Device Kiosk', kategori: 'Master Integrasi' }
+  { id: 'device_kiosk', label: 'List Device Kiosk', kategori: 'Master Integrasi' },
+  // BARU (23 Agt 2026) — Zevanic House > Master Bahan & Aksesoris.
+  { id: 'bahan_aksesoris_entry', label: 'Bahan / Aksesoris (Entry)', kategori: 'Zevanic House' },
+  { id: 'bahan_aksesoris_list', label: 'List Bahan / Aksesoris', kategori: 'Zevanic House' }
 ];
 
-const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi'];
+const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House'];
 const KOSONG_IZIN = () => ({ view: false, add: false, edit: false, delete: false, print: false });
 
 // Default awal untuk 5 profil baku SENGAJA disamakan dengan perilaku

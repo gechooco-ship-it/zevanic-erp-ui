@@ -698,8 +698,14 @@ window.aturTampilanBerdasarkanRole = function() {
   const btnKonfigAkses = document.getElementById('btn-sub-karyawan-akses');
   const btnHakAkses = document.getElementById('btn-sub-karyawan-hakakses');
   const menuDeviceKioskBtn = document.getElementById('menu-device-kiosk-btn');
+  // BARU (23 Agt 2026) — Zevanic House > Master Bahan & Aksesoris. Gerbang
+  // role SAMA PERSIS dengan Master Absensi/Keuangan (isAdminLevel() di
+  // firestore.rules: pic/admin/owner/superuser) — keputusan dikonfirmasi
+  // Hilman lewat AskUserQuestion ("admin ke atas").
+  const menuZevanicHouse = document.getElementById('menu-zevanic-house');
+  const menuZevanicHouseBtn = document.getElementById('menu-zevanic-house-btn');
 
-  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn].forEach(el => {
+  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -712,6 +718,8 @@ window.aturTampilanBerdasarkanRole = function() {
     if (menuAdminAccBtn) menuAdminAccBtn.classList.remove('hidden');
     if (menuKeuangan) menuKeuangan.classList.remove('hidden');
     if (menuKeuanganBtn) menuKeuanganBtn.classList.remove('hidden');
+    if (menuZevanicHouse) menuZevanicHouse.classList.remove('hidden');
+    if (menuZevanicHouseBtn) menuZevanicHouseBtn.classList.remove('hidden');
     if (navMobileAdmin) {
       navMobileAdmin.classList.remove('hidden');
       navMobileAdmin.classList.add('flex');

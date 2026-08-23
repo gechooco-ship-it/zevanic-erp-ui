@@ -168,7 +168,7 @@ window.ambilKecamatanUntukKabupaten = async function(kab) {
 // =========================================================================
 
 window.pindahTab = function(tabId, navKey, _dariPopstate) {
-  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress'];
+  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-zevanic-house', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress'];
   const tabSebelumnya = tabs.find(t => {
     const el = document.getElementById(t);
     return el && !el.classList.contains('hidden');
@@ -226,6 +226,9 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
   if (tabId === 'tab-superuser') {
       if (window.pindahSubTab) window.pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', document.querySelectorAll('.sub-karyawan-btn')[0]);
   }
+  if (tabId === 'tab-zevanic-house') {
+      if (window.pindahSubTab) window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-entry', document.querySelectorAll('.sub-zevanic-house-btn')[0]);
+  }
   if (tabId === 'tab-whatsapp') {
       if (window.pastikanMountWhatsapp) window.pastikanMountWhatsapp();
   }
@@ -253,7 +256,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
   if (tombolEl) tombolEl.classList.add('active');
 
   if (window.aturHeaderKonteks) {
-    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser' };
+    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -291,7 +294,9 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-karyawan-info': 'pastikanMountConfigInfo',
     'sub-karyawan-data': 'pastikanMountDaftarKaryawan',
     'sub-karyawan-akses': 'pastikanMountConfigAkses',
-    'sub-karyawan-hakakses': 'pastikanMountHakAkses'
+    'sub-karyawan-hakakses': 'pastikanMountHakAkses',
+    'sub-zevanic-house-entry': 'pastikanMountBahanAksesorisEntry',
+    'sub-zevanic-house-list': 'pastikanMountBahanAksesorisList'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();

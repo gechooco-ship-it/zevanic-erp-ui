@@ -87,6 +87,10 @@
         <button onclick="pindahTab('tab-superuser')" id="menu-superuser-btn" class="hidden gc-nav-item">
           <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg> Karyawan
         </button>
+        <div id="menu-zevanic-house" class="hidden gc-nav-section">Zevanic House</div>
+        <button onclick="pindahTab('tab-zevanic-house')" id="menu-zevanic-house-btn" class="hidden gc-nav-item">
+          <i class="fas fa-shirt" style="width:17px; text-align:center;"></i> Master Bahan &amp; Aksesoris
+        </button>
         <div id="menu-whatsapp" class="hidden gc-nav-section">Master integrasi</div>
         <button onclick="pindahTab('tab-whatsapp')" id="menu-whatsapp-btn" class="hidden gc-nav-item">
           <i class="fab fa-whatsapp" style="width:17px; text-align:center;"></i> WhatsApp
@@ -312,6 +316,23 @@
 
         </div>
 
+        <div id="tab-zevanic-house" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
+          <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+            <button onclick="pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-entry', this)" class="sub-zevanic-house-btn gc-sub-tab-btn active"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Bahan / Aksesoris</button>
+            <button onclick="pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-list', this)" class="sub-zevanic-house-btn gc-sub-tab-btn"><i class="fas fa-list" style="margin-right:6px;"></i> List Bahan / Aksesoris</button>
+          </div>
+
+          <div id="sub-zevanic-house-entry" class="sub-zevanic-house-content fade-in space-y-4">
+            <!-- Entry Bahan/Aksesoris: lihat js/vue-bahan-aksesoris.js -->
+            <div id="vue-bahan-aksesoris-entry"></div>
+          </div>
+
+          <div id="sub-zevanic-house-list" class="sub-zevanic-house-content hidden fade-in space-y-4">
+            <!-- List Bahan/Aksesoris: lihat js/vue-bahan-aksesoris.js -->
+            <div id="vue-bahan-aksesoris-list"></div>
+          </div>
+      </div>
+
         <div id="tab-whatsapp" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
           <!-- MIGRASI VUE: lihat js/vue-whatsapp-gateway.js -->
           <div id="vue-whatsapp-gateway"></div>
@@ -413,5 +434,6 @@
   <script type="module" src="js/vue-absensi-qr.js"></script>
   <script type="module" src="js/vue-camera.js"></script>
   <script type="module" src="js/vue-scan-qr.js"></script>
+  <script type="module" src="js/vue-bahan-aksesoris.js"></script>
 </body>
 </html>

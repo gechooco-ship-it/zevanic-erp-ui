@@ -381,6 +381,16 @@ export function daftarMenuGroups(role) {
       ]
     },
     {
+      // BARU (23 Agt 2026) — Zevanic House > Master Bahan & Aksesoris.
+      // roleBoleh SAMA dengan grup Absensi/Keuangan (admin ke atas).
+      nama: 'Zevanic House',
+      roleBoleh: ['pic', 'admin', 'owner', 'superuser'],
+      items: [
+        { label: 'Bahan / Aksesoris', menuId: 'bahan_aksesoris_entry', icon: 'fa-boxes-stacked', aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-entry', null); } },
+        { label: 'List Bahan / Aksesoris', menuId: 'bahan_aksesoris_list', icon: 'fa-list', aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-list', null); } }
+      ]
+    },
+    {
       nama: 'Whatsapp',
       roleBoleh: ['owner', 'superuser'],
       items: [
