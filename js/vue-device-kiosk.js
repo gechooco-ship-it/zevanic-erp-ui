@@ -217,5 +217,18 @@ const AppDeviceKiosk = {
   `
 };
 
-const mountPoint = document.getElementById('vue-device-kiosk');
-if (mountPoint) createApp(AppDeviceKiosk).mount('#vue-device-kiosk');
+// DIPERBAIKI (23 Agt 2026) — BUG NYATA: SEBELUMNYA mount LANGSUNG di sini
+// (top-level, jalan begitu script ini dimuat browser — BUKAN pas tab-nya
+// diklik). Ini MELANGGAR pola hemat yang dipakai SEMUA layar admin lain
+// (lihat PETA-HEMAT.md, window.pastikanMountXxx) — boros 1 baca Firestore
+// di SETIAP pemuatan halaman siapapun yang login (bukan cuma Owner yang
+// buka menu ini), DAN kemungkinan besar jadi penyebab tabel "Memuat..."
+// tidak pernah selesai (component ke-mount lebih awal dari yang
+// diharapkan, race condition dengan window.authReady). Sekarang ditunda
+// sampai tab-device-kiosk benar-benar dinavigasi (lihat dashboard.js).
+let vmDeviceKiosk = null;
+window.pastikanMountDeviceKiosk = function() {
+  if (vmDeviceKiosk) return;
+  const mountPoint = document.getElementById('vue-device-kiosk');
+  if (mountPoint) vmDeviceKiosk = createApp(AppDeviceKiosk).mount('#vue-device-kiosk');
+};
