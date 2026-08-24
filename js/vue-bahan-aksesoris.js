@@ -334,6 +334,15 @@ const PopupKonversiBerjenjang = {
       <div class="gc-card" style="max-width:640px; width:100%; max-height:90vh; overflow-y:auto;">
         <h3 style="font-weight:700; font-size:15px; margin-bottom:6px;"><i class="fas fa-calculator" style="color:var(--burgundy); margin-right:8px;"></i>Bantu Hitung Konversi Berjenjang</h3>
         <p style="font-size:11px; color:var(--text-faint); margin-bottom:14px;">Contoh: 1 Dus = 12 Pack, 1 Pack = 12 Pcs. Tambah baris kalau tingkatnya lebih dari 1. Hasil akhir akan otomatis mengisi "Isi Konversi Pembelian". Satuan diambil dari Data Satuan — kalau belum ada di daftar, tambah dulu lewat Pengaturan.</p>
+        <!-- BARU (malam 24 Agt 2026) — harga BERJENJANG: harga per satuan
+             beda-beda tiap tingkat (beli Dus lebih murah, Pack di tengah,
+             Pcs/ecer paling mahal). "Harga Pembelian" di atas = harga
+             satuan PALING ATAS (Satuan Pembelian) — INI YANG DIPAKAI buat
+             hitung Harga Modal (dikonfirmasi Guru). Field "Harga kalau
+             beli langsung per ..." di tiap baris SIFATNYA REFERENSI saja
+             (opsional, tidak ikut dihitung ke Harga Modal) — supaya
+             kelihatan kalau beli eceran/tanggung di tingkat itu harganya
+             berapa, tanpa perlu dibeli sekalian 1 Satuan Pembelian penuh. -->
         <div style="display:grid; grid-template-columns:1fr 1fr 64px 1fr 30px; gap:6px; margin-bottom:4px;">
           <span style="font-size:10px; font-weight:700; color:var(--text-faint);">HARGA PEMBELIAN</span>
           <span style="font-size:10px; font-weight:700; color:var(--text-faint);">SATUAN AWAL</span>
@@ -341,13 +350,19 @@ const PopupKonversiBerjenjang = {
           <span style="font-size:10px; font-weight:700; color:var(--text-faint);">SATUAN TUJUAN</span>
           <span></span>
         </div>
-        <div v-for="(b, i) in baris" :key="i" style="display:grid; grid-template-columns:1fr 1fr 64px 1fr 30px; gap:6px; align-items:center; margin-bottom:8px;">
-          <input v-if="i === 0" :value="harga" @input="$emit('update:harga', $event.target.valueAsNumber ?? '')" type="number" min="0" placeholder="0" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <span v-else></span>
-          <dropdown-cari v-model="b.dari" :opsi="opsiSatuan" placeholder="Mis. Dus" />
-          <input v-model.number="b.jumlah" type="number" min="0" placeholder="Jml" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <dropdown-cari v-model="b.ke" :opsi="opsiSatuan" placeholder="Mis. Pack" />
-          <button @click="$emit('hapus', i)" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button>
+        <div v-for="(b, i) in baris" :key="i" style="margin-bottom:10px; padding-bottom:10px;" :style="i < baris.length - 1 ? 'border-bottom:1px dashed var(--line);' : ''">
+          <div style="display:grid; grid-template-columns:1fr 1fr 64px 1fr 30px; gap:6px; align-items:center;">
+            <input v-if="i === 0" :value="harga" @input="$emit('update:harga', $event.target.valueAsNumber ?? '')" type="number" min="0" placeholder="0" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+            <span v-else></span>
+            <dropdown-cari v-model="b.dari" :opsi="opsiSatuan" placeholder="Mis. Dus" />
+            <input v-model.number="b.jumlah" type="number" min="0" placeholder="Jml" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+            <dropdown-cari v-model="b.ke" :opsi="opsiSatuan" placeholder="Mis. Pack" />
+            <button @click="$emit('hapus', i)" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:6px;">
+            <label style="font-size:10.5px; color:var(--text-faint); white-space:nowrap;">Harga kalau beli langsung per {{ b.ke || 'satuan tujuan' }} (opsional, referensi saja):</label>
+            <input v-model.number="b.hargaTujuan" type="number" min="0" placeholder="0" style="width:110px; padding:5px 8px; border:1.5px solid var(--line); border-radius:8px; font-size:11.5px;">
+          </div>
         </div>
         <button @click="$emit('tambah')" class="btn-outline" style="font-size:11.5px; padding:6px 14px; margin-bottom:16px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah Tingkat</button>
         <div style="background:var(--ivory-dim); border-radius:10px; padding:10px 14px; margin-bottom:16px; font-size:12.5px; display:flex; justify-content:space-between;">
@@ -547,7 +562,7 @@ const BahanAksesorisEntryManager = {
           </div>
         </div>
         <p style="font-size:11.5px; margin-bottom:4px;">Harga Pembelian: <b>{{ formatRupiah(form.harga_pembelian) }}</b></p>
-        <p style="font-size:11.5px; color:var(--text-muted);">Rincian: {{ form.konversi_bertingkat.map(b => '1 ' + b.dari + ' = ' + b.jumlah + ' ' + b.ke).join(', ') }}</p>
+        <p style="font-size:11.5px; color:var(--text-muted);">Rincian: {{ form.konversi_bertingkat.map(b => '1 ' + b.dari + ' = ' + b.jumlah + ' ' + b.ke + (b.hargaTujuan ? ' (' + formatRupiah(b.hargaTujuan) + '/' + b.ke + ')' : '')).join(', ') }}</p>
         <p style="font-size:11.5px; margin-top:4px;">Isi Konversi Pembelian: <b>{{ form.isi_konversi_pembelian }}</b> &middot; Satuan Pemakaian: <b>{{ form.satuan_pemakaian }}</b></p>
       </div>
 
@@ -788,7 +803,7 @@ const BahanAksesorisListManager = {
             </div>
           </div>
           <p style="font-size:11.5px; margin-bottom:4px;">Harga Pembelian: <b>{{ formatRupiah(formEdit.harga_pembelian) }}</b></p>
-          <p style="font-size:11.5px; color:var(--text-muted);">Rincian: {{ formEdit.konversi_bertingkat.map(b => '1 ' + b.dari + ' = ' + b.jumlah + ' ' + b.ke).join(', ') }}</p>
+          <p style="font-size:11.5px; color:var(--text-muted);">Rincian: {{ formEdit.konversi_bertingkat.map(b => '1 ' + b.dari + ' = ' + b.jumlah + ' ' + b.ke + (b.hargaTujuan ? ' (' + formatRupiah(b.hargaTujuan) + '/' + b.ke + ')' : '')).join(', ') }}</p>
           <p style="font-size:11.5px; margin-top:4px;">Isi Konversi Pembelian: <b>{{ formEdit.isi_konversi_pembelian }}</b> &middot; Satuan Pemakaian: <b>{{ formEdit.satuan_pemakaian }}</b></p>
         </div>
 
