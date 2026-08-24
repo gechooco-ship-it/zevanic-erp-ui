@@ -167,21 +167,47 @@ window.ambilKecamatanUntukKabupaten = async function(kab) {
 // ====== LOGIKA PERPINDAHAN HALAMAN UTAMA (ANTI KETUMPUK) =================
 // =========================================================================
 
-// toggleNavGroup — BARU (24 Agt 2026), dipakai grup sidebar "Data Bahan &
-// Aksesoris" / "Stock & Pembelian" di bawah Zevanic House (index.html) —
-// pola sidebar bertingkat/collapsible PERTAMA di app ini (grup sidebar lain
-// masih datar 1 tombol, TIDAK disentuh/diubah). Buka/tutup <div id=groupId>
-// berisi tombol sub-menu + putar ikon chevron di tombolnya sendiri.
-window.toggleNavGroup = function(groupId, btnEl) {
+// setGrupSidebarTerbuka / toggleNavGroup / bukaGrupSidebarUntukTab — DIROMBAK
+// (24 Agt 2026, revisi permintaan Guru) — SEKARANG dipakai SEMUA grup
+// sidebar (Master Absensi/Keuangan/Karyawan/Zevanic House/Integrasi), pola
+// SERAGAM: parent (klik = buka/tutup) > sub-menu nested di bawahnya.
+// ACCORDION — buka 1 grup, yang lain otomatis tutup (biar sidebar tetap
+// rapi walau daftarnya panjang) — dicari lewat atribut data-group di tiap
+// tombol parent, BUKAN daftar id di-hardcode di sini, supaya kalau ada
+// grup baru nanti tinggal tambah tombol+data-group di index.html saja.
+function setGrupSidebarTerbuka(groupId) {
+  document.querySelectorAll('[data-group]').forEach(btn => {
+    const target = document.getElementById(btn.dataset.group);
+    const cocok = btn.dataset.group === groupId;
+    if (target) target.classList.toggle('hidden', !cocok);
+    const ikon = btn.querySelector('i.fa-chevron-down, i.fa-chevron-up');
+    if (ikon) {
+      ikon.classList.toggle('fa-chevron-down', !cocok);
+      ikon.classList.toggle('fa-chevron-up', cocok);
+    }
+  });
+}
+window.toggleNavGroup = function(groupId) {
   const el = document.getElementById(groupId);
   if (!el) return;
-  const sedangTertutup = el.classList.contains('hidden');
-  el.classList.toggle('hidden');
-  const ikon = btnEl ? btnEl.querySelector('i.fa-chevron-down, i.fa-chevron-up') : null;
-  if (ikon) {
-    ikon.classList.toggle('fa-chevron-down', !sedangTertutup);
-    ikon.classList.toggle('fa-chevron-up', sedangTertutup);
-  }
+  const sedangTerbuka = !el.classList.contains('hidden');
+  setGrupSidebarTerbuka(sedangTerbuka ? null : groupId); // klik ulang grup yg sudah terbuka -> tutup semua
+};
+// bukaGrupSidebarUntukTab — dipanggil dari pindahTab() supaya begitu
+// pindah tab (klik sub-menu, tombol back/forward, dsb), grup sidebar yang
+// relevan OTOMATIS ikut terbuka — jangan sampai orang pindah halaman tapi
+// sidebar-nya masih nutup/nunjuk ke grup lain, bingung nyarinya.
+const petaGrupSidebarPerTab = {
+  'tab-admin-acc': 'navgrp-absensi',
+  'tab-keuangan': 'navgrp-keuangan',
+  'tab-superuser': 'navgrp-karyawan',
+  'tab-zevanic-house': 'navgrp-zevanic',
+  'tab-whatsapp': 'navgrp-integrasi',
+  'tab-mail-gateway': 'navgrp-integrasi',
+  'tab-device-kiosk': 'navgrp-integrasi'
+};
+window.bukaGrupSidebarUntukTab = function(tabId) {
+  setGrupSidebarTerbuka(petaGrupSidebarPerTab[tabId] || null);
 };
 
 window.pindahTab = function(tabId, navKey, _dariPopstate) {
@@ -218,6 +244,7 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
   const targetTab = document.getElementById(tabId);
   if (targetTab) targetTab.classList.remove('hidden');
   if (window.aturHeaderKonteks) window.aturHeaderKonteks(tabId, null);
+  if (window.bukaGrupSidebarUntukTab) window.bukaGrupSidebarUntukTab(tabId);
 
   // Tandai ikon nav mobile mana yang aktif. navKey opsional — dipakai
   // khusus untuk kasus 2 tombol berbeda (Absensi & Profile) yang sama-sama
@@ -244,7 +271,10 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
       if (window.pindahSubTab) window.pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', document.querySelectorAll('.sub-karyawan-btn')[0]);
   }
   if (tabId === 'tab-zevanic-house') {
-      if (window.pindahSubTab) window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-entry', document.querySelectorAll('.sub-zevanic-house-btn')[0]);
+      if (window.pindahSubTab) {
+        window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', document.querySelectorAll('.sub-zevanic-house-btn')[0]);
+        window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry');
+      }
   }
   if (tabId === 'tab-whatsapp') {
       if (window.pastikanMountWhatsapp) window.pastikanMountWhatsapp();
@@ -273,7 +303,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
   if (tombolEl) tombolEl.classList.add('active');
 
   if (window.aturHeaderKonteks) {
-    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house' };
+    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -312,12 +342,12 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-karyawan-data': 'pastikanMountDaftarKaryawan',
     'sub-karyawan-akses': 'pastikanMountConfigAkses',
     'sub-karyawan-hakakses': 'pastikanMountHakAkses',
-    'sub-zevanic-house-entry': 'pastikanMountBahanAksesorisEntry',
-    'sub-zevanic-house-list': 'pastikanMountBahanAksesorisList',
+    'sub-zh-databahan-entry': 'pastikanMountBahanAksesorisEntry',
+    'sub-zh-databahan-list': 'pastikanMountBahanAksesorisList',
     'sub-zevanic-house-persiapan': 'pastikanMountPersiapanMasalah',
-    'sub-zevanic-house-alias': 'pastikanMountAliasPembelian',
-    'sub-zevanic-house-list-order': 'pastikanMountListOrderBelanja',
-    'sub-zevanic-house-nota-order': 'pastikanMountNotaOrderBelanja'
+    'sub-zh-stock-alias': 'pastikanMountAliasPembelian',
+    'sub-zh-stock-listorder': 'pastikanMountListOrderBelanja',
+    'sub-zh-stock-notaorder': 'pastikanMountNotaOrderBelanja'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();
