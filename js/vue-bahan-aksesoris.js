@@ -331,20 +331,19 @@ const PopupKonversiBerjenjang = {
   emits: ['tambah', 'hapus', 'terapkan', 'tutup', 'update:harga'],
   template: `
     <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="$emit('tutup')">
-      <div class="gc-card" style="max-width:560px; width:100%; max-height:90vh; overflow-y:auto;">
+      <div class="gc-card" style="max-width:640px; width:100%; max-height:90vh; overflow-y:auto;">
         <h3 style="font-weight:700; font-size:15px; margin-bottom:6px;"><i class="fas fa-calculator" style="color:var(--burgundy); margin-right:8px;"></i>Bantu Hitung Konversi Berjenjang</h3>
         <p style="font-size:11px; color:var(--text-faint); margin-bottom:14px;">Contoh: 1 Dus = 12 Pack, 1 Pack = 12 Pcs. Tambah baris kalau tingkatnya lebih dari 1. Hasil akhir akan otomatis mengisi "Isi Konversi Pembelian". Satuan diambil dari Data Satuan — kalau belum ada di daftar, tambah dulu lewat Pengaturan.</p>
-        <div class="gc-field">
-          <label>Harga Pembelian (Rp) <span style="color:var(--danger);">*</span></label>
-          <input :value="harga" @input="$emit('update:harga', $event.target.valueAsNumber ?? '')" type="number" min="0" placeholder="0">
-        </div>
-        <div style="display:grid; grid-template-columns:1fr 64px 1fr 30px; gap:6px; margin:12px 0 4px;">
+        <div style="display:grid; grid-template-columns:1fr 1fr 64px 1fr 30px; gap:6px; margin-bottom:4px;">
+          <span style="font-size:10px; font-weight:700; color:var(--text-faint);">HARGA PEMBELIAN</span>
           <span style="font-size:10px; font-weight:700; color:var(--text-faint);">SATUAN AWAL</span>
           <span style="font-size:10px; font-weight:700; color:var(--text-faint);">JUMLAH</span>
           <span style="font-size:10px; font-weight:700; color:var(--text-faint);">SATUAN TUJUAN</span>
           <span></span>
         </div>
-        <div v-for="(b, i) in baris" :key="i" style="display:grid; grid-template-columns:1fr 64px 1fr 30px; gap:6px; align-items:center; margin-bottom:8px;">
+        <div v-for="(b, i) in baris" :key="i" style="display:grid; grid-template-columns:1fr 1fr 64px 1fr 30px; gap:6px; align-items:center; margin-bottom:8px;">
+          <input v-if="i === 0" :value="harga" @input="$emit('update:harga', $event.target.valueAsNumber ?? '')" type="number" min="0" placeholder="0" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+          <span v-else></span>
           <dropdown-cari v-model="b.dari" :opsi="opsiSatuan" placeholder="Mis. Dus" />
           <input v-model.number="b.jumlah" type="number" min="0" placeholder="Jml" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
           <dropdown-cari v-model="b.ke" :opsi="opsiSatuan" placeholder="Mis. Pack" />
@@ -531,10 +530,7 @@ const BahanAksesorisEntryManager = {
         </div>
         <div class="gc-field">
           <label>Isi Konversi Pembelian <span style="color:var(--danger);">*</span></label>
-          <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            <input v-model.number="form.isi_konversi_pembelian" type="number" min="0" placeholder="144" style="flex:1; min-width:70px;">
-            <button @click="bukaPopupKonversi" class="btn-outline" style="white-space:nowrap; font-size:11px; padding:0 10px;" title="Bantu Hitung Konversi Banyak Tingkat"><i class="fas fa-calculator"></i></button>
-          </div>
+          <input v-model.number="form.isi_konversi_pembelian" type="number" min="0" placeholder="Contoh: 144">
         </div>
         <div class="gc-field">
           <label>Satuan Pemakaian <span style="color:var(--danger);">*</span></label>
@@ -555,12 +551,15 @@ const BahanAksesorisEntryManager = {
         <p style="font-size:11.5px; margin-top:4px;">Isi Konversi Pembelian: <b>{{ form.isi_konversi_pembelian }}</b> &middot; Satuan Pemakaian: <b>{{ form.satuan_pemakaian }}</b></p>
       </div>
 
-      <div class="gc-field" style="max-width:260px; margin-top:10px;">
-        <label>Margin Modal (Rp) <span style="color:var(--danger);">*</span></label>
-        <input v-model.number="form.margin_modal" type="number" min="0" placeholder="0">
+      <div style="display:flex; gap:10px; align-items:flex-end; margin-top:10px;">
+        <div class="gc-field" style="flex:1; margin-bottom:0;">
+          <label>Margin Modal (Rp) <span style="color:var(--danger);">*</span></label>
+          <input v-model.number="form.margin_modal" type="number" min="0" placeholder="0">
+        </div>
+        <button v-if="!(form.konversi_bertingkat && form.konversi_bertingkat.length > 0)" @click="bukaPopupKonversi" class="btn-outline" style="white-space:nowrap; padding:0 16px; height:44px;"><i class="fas fa-calculator" style="margin-right:6px;"></i>Konversi Banyak Tingkat</button>
       </div>
 
-      <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+      <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0;">
         <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Modal (otomatis)</span><b style="font-size:14px;">{{ formatRupiah(hargaModal) }}</b></div>
         <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Pemakaian (otomatis)</span><b style="font-size:14px; color:var(--burgundy);">{{ formatRupiah(hargaPemakaian) }}</b></div>
       </div>
@@ -775,10 +774,7 @@ const BahanAksesorisListManager = {
           <div class="gc-field"><label>Satuan Pembelian</label><dropdown-cari v-model="formEdit.satuan_pembelian" :opsi="opsiSatuanEdit" placeholder="Cari & pilih Satuan..." /></div>
           <div class="gc-field">
             <label>Isi Konversi Pembelian</label>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <input v-model.number="formEdit.isi_konversi_pembelian" type="number" min="0" style="flex:1; min-width:70px;">
-              <button @click="bukaPopupKonversiEdit" class="btn-outline" style="white-space:nowrap; font-size:11px; padding:0 10px;" title="Konversi Banyak Tingkat"><i class="fas fa-calculator"></i></button>
-            </div>
+            <input v-model.number="formEdit.isi_konversi_pembelian" type="number" min="0">
           </div>
           <div class="gc-field"><label>Satuan Pemakaian</label><dropdown-cari v-model="formEdit.satuan_pemakaian" :opsi="opsiSatuanEdit" placeholder="Cari & pilih Satuan..." /></div>
         </div>
@@ -796,10 +792,13 @@ const BahanAksesorisListManager = {
           <p style="font-size:11.5px; margin-top:4px;">Isi Konversi Pembelian: <b>{{ formEdit.isi_konversi_pembelian }}</b> &middot; Satuan Pemakaian: <b>{{ formEdit.satuan_pemakaian }}</b></p>
         </div>
 
-        <div class="gc-field" style="max-width:260px; margin-top:10px;">
-          <label>Margin Modal (Rp)</label><input v-model.number="formEdit.margin_modal" type="number" min="0">
+        <div style="display:flex; gap:10px; align-items:flex-end; margin-top:10px;">
+          <div class="gc-field" style="flex:1; margin-bottom:0;">
+            <label>Margin Modal (Rp)</label><input v-model.number="formEdit.margin_modal" type="number" min="0">
+          </div>
+          <button v-if="!(formEdit.konversi_bertingkat && formEdit.konversi_bertingkat.length > 0)" @click="bukaPopupKonversiEdit" class="btn-outline" style="white-space:nowrap; padding:0 16px; height:44px;"><i class="fas fa-calculator" style="margin-right:6px;"></i>Konversi Banyak Tingkat</button>
         </div>
-        <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+        <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0;">
           <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Modal (otomatis)</span><b>{{ formatRupiah(hargaModalEdit) }}</b></div>
           <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Pemakaian (otomatis)</span><b style="color:var(--burgundy);">{{ formatRupiah(hargaPemakaianEdit) }}</b></div>
         </div>
