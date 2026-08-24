@@ -390,6 +390,7 @@
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-alias', this)" class="sub-zh-stock-btn gc-sub-tab-btn active"><i class="fas fa-tags" style="margin-right:6px;"></i> Alias Pembelian</button>
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-listorder', this)" class="sub-zh-stock-btn gc-sub-tab-btn"><i class="fas fa-cart-shopping" style="margin-right:6px;"></i> List Order Belanja</button>
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', this)" class="sub-zh-stock-btn gc-sub-tab-btn"><i class="fas fa-receipt" style="margin-right:6px;"></i> Nota Order Belanja</button>
+              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-riwayat', this)" class="sub-zh-stock-btn gc-sub-tab-btn"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i> Riwayat Harga Pembelian</button>
             </div>
             <div id="sub-zh-stock-alias" class="sub-zh-stock-content fade-in space-y-4">
               <!-- Alias Pembelian: lihat js/vue-stock-pembelian.js -->
@@ -402,6 +403,11 @@
             <div id="sub-zh-stock-notaorder" class="sub-zh-stock-content hidden fade-in space-y-4">
               <!-- Nota Order Belanja: lihat js/vue-stock-pembelian.js -->
               <div id="vue-nota-order-belanja"></div>
+            </div>
+            <!-- BARU (malam 24 Agt 2026) — Riwayat Harga Pembelian: lihat
+                 js/vue-stock-pembelian.js (RiwayatHargaPembelianManager) -->
+            <div id="sub-zh-stock-riwayat" class="sub-zh-stock-content hidden fade-in space-y-4">
+              <div id="vue-riwayat-harga-pembelian"></div>
             </div>
           </div>
       </div>
@@ -479,7 +485,7 @@
   <script type="module" src="js/app.js"></script>
   <script type="module" src="js/camera.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/dashboard.js?v=5"></script>
+  <script type="module" src="js/dashboard.js?v=6"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>
   <script type="module" src="js/vue-config-info.js"></script>
   <script type="module" src="js/vue-config-absensi.js"></script>
@@ -507,8 +513,8 @@
   <script type="module" src="js/vue-absensi-qr.js"></script>
   <script type="module" src="js/vue-camera.js"></script>
   <script type="module" src="js/vue-scan-qr.js"></script>
-  <script type="module" src="js/vue-bahan-aksesoris.js?v=8"></script>
+  <script type="module" src="js/vue-bahan-aksesoris.js?v=9"></script>
   <script type="module" src="js/vue-persiapan-masalah.js?v=1"></script>
-  <script type="module" src="js/vue-stock-pembelian.js?v=1"></script>
+  <script type="module" src="js/vue-stock-pembelian.js?v=2"></script>
 </body>
 </html>

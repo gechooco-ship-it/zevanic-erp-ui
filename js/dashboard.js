@@ -347,7 +347,8 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-zevanic-house-persiapan': 'pastikanMountPersiapanMasalah',
     'sub-zh-stock-alias': 'pastikanMountAliasPembelian',
     'sub-zh-stock-listorder': 'pastikanMountListOrderBelanja',
-    'sub-zh-stock-notaorder': 'pastikanMountNotaOrderBelanja'
+    'sub-zh-stock-notaorder': 'pastikanMountNotaOrderBelanja',
+    'sub-zh-stock-riwayat': 'pastikanMountRiwayatHargaPembelian'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();

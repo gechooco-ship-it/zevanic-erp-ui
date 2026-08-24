@@ -49,6 +49,7 @@ import { createApp, ref, reactive, computed, onMounted, watch } from 'https://un
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, runTransaction, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DropdownCari, MasterDataTabelManager } from './vue-components.js';
+import { usePaginasiFirestore } from './vue-paginasi.js';
 
 // --- helper: ambil semua Bahan+Aksesoris (disalin dari vue-bahan-aksesoris.js
 // / vue-persiapan-masalah.js secara sengaja — lihat catatan di file itu). ---
@@ -318,7 +319,10 @@ const OrderBelanjaScreen = {
 
     const opsiSuplayer = computed(() => daftarSuplayer.value.map(s => s.nama));
     const opsiNamaBarang = computed(() => daftarBahan.value.map(b => b.nama));
-    const estimasiBiaya = computed(() => daftarPesanan.value.reduce((t, i) => t + (parseFloat(i.jumlah) || 0), 0));
+    // BARU (malam 24 Agt 2026) — dihitung LIVE dari qty*harga (bukan baca
+    // field `jumlah` statis lagi), supaya begitu admin edit Harga Aktual
+    // di tabel, Estimasi Biaya Belanja di atas langsung ikut update.
+    const estimasiBiaya = computed(() => daftarPesanan.value.reduce((t, i) => t + (parseFloat(i.qty) || 0) * (parseFloat(i.harga) || 0), 0));
     const adaTerpilih = computed(() => daftarPesanan.value.some(i => i.dicentang));
 
     const labelGroup1 = props.modeNota ? 'Daftar Pesanan Bahan & Aksesoris' : 'Daftar Permintaan Bahan & Aksesoris';
@@ -346,17 +350,27 @@ const OrderBelanjaScreen = {
       memuat.value = false;
     }
 
+    // BARU (malam 24 Agt 2026, fitur Riwayat Harga Pembelian) — field
+    // `harga` di baris pesanan SEKARANG "Harga Aktual": diisi OTOMATIS
+    // dari harga_pembelian master data sebagai DEFAULT/perkiraan, TAPI
+    // admin BOLEH TIMPA sesuai angka SUNGGUHAN di nota (harga sering
+    // naik-turun tiap beli). `isi_konversi` disimpan sebagai SNAPSHOT
+    // (bukan dihitung ulang dari master data nanti) supaya Riwayat Harga
+    // Pembelian tetap akurat meski konversi master data berubah di masa
+    // depan. `jumlah` SENGAJA TIDAK disimpan di sini lagi — dihitung
+    // ulang live tiap kali harga diedit (lihat estimasiBiaya computed &
+    // template kolom Jumlah), baru di-final-kan pas simpan().
     function buatBarisPesanan(item, qty, keterangan) {
       const suplayer = daftarSuplayer.value.find(s => s.nama === suplayerEntry.value);
       const isiKonversi = parseFloat(item.isi_konversi_pembelian) || 1;
-      const harga = parseFloat(item.harga_pembelian) || 0;
       return {
         dicentang: false,
         suplayer_id: suplayer ? suplayer.id : '', suplayer_nama: suplayerEntry.value,
         bahan_aksesoris_id: item.id, sku: item.id, nama: item.nama,
         qty: qty, satuan_bahan: item.satuan_pembelian || '',
         qty_s: Math.round((qty * isiKonversi) * 100) / 100, satuan: item.satuan_pemakaian || '',
-        harga, jumlah: Math.round(qty * harga),
+        isi_konversi: isiKonversi,
+        harga: parseFloat(item.harga_pembelian) || 0,
         keterangan: keterangan || ''
       };
     }
@@ -424,10 +438,17 @@ const OrderBelanjaScreen = {
       try {
         let noPembelian = noPembelianAktif.value;
         if (!noPembelian) noPembelian = await generateNoPembelian();
+        // `jumlah` di-final-kan di sini (qty*harga saat ini) — SEBELUMNYA
+        // dihitung sekali waktu baris ditambah, SEKARANG dihitung ulang
+        // pas simpan supaya ikut angka Harga Aktual terakhir yang diedit
+        // admin (lihat catatan buatBarisPesanan()).
+        const itemsFinal = daftarPesanan.value.map(({ dicentang, ...rest }) => ({
+          ...rest, jumlah: Math.round((parseFloat(rest.qty) || 0) * (parseFloat(rest.harga) || 0))
+        }));
         const payload = {
           no_pembelian: noPembelian,
           tanggal: tanggal.value,
-          items: daftarPesanan.value.map(({ dicentang, ...rest }) => rest),
+          items: itemsFinal,
           estimasi_biaya_belanja: estimasiBiaya.value,
           status: statusBaru, // 'draft' (tombol Pending) atau 'final' (tombol Simpan)
           sumber_permintaan_ids: sumberPermintaanIds.value,
@@ -442,6 +463,21 @@ const OrderBelanjaScreen = {
           draftDocId.value = refBaru.id;
         }
         noPembelianAktif.value = noPembelian;
+        // BARU (malam 24 Agt 2026) — begitu pesanan di-FINAL-kan (bukan
+        // draft), catat tiap item jadi 1 baris Riwayat Harga Pembelian +
+        // update otomatis Harga Pembelian di Data Bahan & Aksesoris
+        // (aturan: tanggal terbaru, termahal per Satuan Pemakaian kalau
+        // beda satuan — lihat catatRiwayatHargaDanUpdateMaster()).
+        // SENGAJA di-try/catch TERPISAH — kalau ini gagal, pesanan_
+        // pembelian yang SUDAH tersimpan sukses TIDAK boleh ikut dianggap
+        // gagal ke Guru, cukup dicatat di Console buat ditelusuri nanti.
+        if (statusBaru === 'final') {
+          try {
+            await catatRiwayatHargaDanUpdateMaster(itemsFinal, tanggal.value, noPembelian);
+          } catch (e) {
+            console.error('Pesanan tersimpan, TAPI gagal catat Riwayat Harga Pembelian:', e);
+          }
+        }
         alert(statusBaru === 'final' ? `Pesanan Pembelian ${noPembelian} tersimpan (final).` : `Disimpan sebagai draft (${noPembelian}).`);
         if (statusBaru === 'final') formKosong();
         await muatSemua();
@@ -452,13 +488,77 @@ const OrderBelanjaScreen = {
       menyimpan.value = false;
     }
 
+    // BARU (malam 24 Agt 2026) — Riwayat Harga Pembelian: 1 baris per item
+    // yang benar-benar dibeli (Nota/List Order Belanja di-final-kan), lalu
+    // otomatis cek ulang & update Harga Pembelian di Data Bahan & Aksesoris
+    // supaya selalu ikut harga TERBARU (dan kalau ada beberapa harga di
+    // tanggal yang sama, dipilih yang TERMAHAL — sengaja konservatif,
+    // supaya modal/harga jual tidak ketinggalan pas harga bahan naik).
+    async function catatRiwayatHargaDanUpdateMaster(items, tanggalPembelian, noPembelianRef) {
+      for (const it of items) {
+        if (!it.bahan_aksesoris_id || !(parseFloat(it.harga) > 0)) continue;
+        const isiKonversi = parseFloat(it.isi_konversi) || 1;
+        const hargaPerSatuanPemakaian = parseFloat(it.harga) / isiKonversi;
+        try {
+          await addDoc(collection(db, 'riwayat_harga_pembelian'), {
+            bahan_aksesoris_id: it.bahan_aksesoris_id,
+            nama_bahan: it.nama,
+            tanggal: tanggalPembelian,
+            satuan: it.satuan_bahan || '',
+            harga: parseFloat(it.harga) || 0,
+            isi_konversi: isiKonversi,
+            satuan_pemakaian: it.satuan || '',
+            harga_per_satuan_pemakaian: hargaPerSatuanPemakaian,
+            no_pembelian: noPembelianRef,
+            suplayer_nama: it.suplayer_nama || '',
+            dibuat_pada: serverTimestamp(),
+            dibuat_oleh: window.currentUser?.email || null
+          });
+          await perbaruiHargaMasterDariRiwayat(it.bahan_aksesoris_id);
+        } catch (e) {
+          console.error(`Gagal catat Riwayat Harga Pembelian / update master untuk "${it.nama}":`, e);
+        }
+      }
+    }
+
+    // Ambil SEMUA riwayat item ini, cari tanggal PALING BARU, di antara
+    // yang tanggalnya sama itu ambil yang harga-per-Satuan-Pemakaian-nya
+    // PALING MAHAL (apple-to-apple meski satuan beli beda-beda tiap
+    // pembelian) — lalu timpa harga_pembelian di master data (dikonversi
+    // balik ke satuan pembelian item itu SEKARANG, supaya harga_modal
+    // hasil bagi tetap konsisten dengan isi_konversi_pembelian yang ada).
+    async function perbaruiHargaMasterDariRiwayat(bahanId) {
+      const snap = await getDocs(query(collection(db, 'riwayat_harga_pembelian'), where('bahan_aksesoris_id', '==', bahanId)));
+      const semua = []; snap.forEach(d => semua.push(d.data()));
+      if (semua.length === 0) return;
+      const tanggalTerbaru = semua.reduce((max, r) => (r.tanggal > max ? r.tanggal : max), semua[0].tanggal);
+      const kandidat = semua.filter(r => r.tanggal === tanggalTerbaru);
+      const termahal = kandidat.reduce((max, r) => (r.harga_per_satuan_pemakaian > max.harga_per_satuan_pemakaian ? r : max), kandidat[0]);
+
+      const refBahan = doc(db, 'master_bahan_aksesoris', bahanId);
+      const snapBahan = await getDoc(refBahan);
+      if (!snapBahan.exists()) return;
+      const bahan = snapBahan.data();
+      const isiKonversiSaatIni = parseFloat(bahan.isi_konversi_pembelian) || 1;
+      const hargaPembelianBaru = Math.round(termahal.harga_per_satuan_pemakaian * isiKonversiSaatIni);
+      const hargaModalBaru = isiKonversiSaatIni > 0 ? hargaPembelianBaru / isiKonversiSaatIni : 0;
+      const marginModal = parseFloat(bahan.margin_modal) || 0;
+      await updateDoc(refBahan, {
+        harga_pembelian: hargaPembelianBaru,
+        harga_modal: hargaModalBaru,
+        margin_modal: marginModal,
+        harga_pemakaian: hargaModalBaru + marginModal,
+        harga_diupdate_dari_riwayat_pada: serverTimestamp()
+      });
+    }
+
     function cetak() {
       if (daftarPesanan.value.length === 0) return alert('Belum ada item untuk dicetak.');
       const w = window.open('', '_blank');
       if (!w) return alert('Popup diblokir browser. Izinkan popup untuk mencetak.');
       const baris = daftarPesanan.value.map((it, i) => `<tr>
         <td>${i + 1}</td><td>${it.suplayer_nama || '-'}</td><td>${it.sku || '-'}</td><td>${it.nama || '-'}</td>
-        <td>${it.qty} ${it.satuan_bahan || ''}</td><td>${formatRupiah(it.harga)}</td><td>${formatRupiah(it.jumlah)}</td><td>${it.keterangan || ''}</td>
+        <td>${it.qty} ${it.satuan_bahan || ''}</td><td>${formatRupiah(it.harga)}</td><td>${formatRupiah((parseFloat(it.qty) || 0) * (parseFloat(it.harga) || 0))}</td><td>${it.keterangan || ''}</td>
       </tr>`).join('');
       w.document.write(`<html><head><title>${noPembelianAktif.value || 'Order Belanja'}</title>
         <style>body{font-family:Arial,sans-serif;padding:24px;color:#222;} table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px;} th,td{border:1px solid #999;padding:6px 8px;text-align:left;} th{background:#f2f2f2;} h2{margin-bottom:2px;}</style>
@@ -547,7 +647,8 @@ const OrderBelanjaScreen = {
                   <td><input type="checkbox" v-model="it.dicentang" style="accent-color:var(--burgundy);"></td>
                   <td>{{ i + 1 }}</td><td>{{ it.suplayer_nama }}</td><td>{{ it.sku }}</td><td>{{ it.nama }}</td>
                   <td>{{ it.qty }}</td><td>{{ it.satuan_bahan }}</td><td>{{ it.qty_s }}</td><td>{{ it.satuan }}</td>
-                  <td>{{ formatRupiah(it.harga) }}</td><td>{{ formatRupiah(it.jumlah) }}</td>
+                  <td><input v-model.number="it.harga" type="number" min="0" style="width:90px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-size:11px;"></td>
+                  <td>{{ formatRupiah((parseFloat(it.qty)||0) * (parseFloat(it.harga)||0)) }}</td>
                   <td><input v-model="it.keterangan" type="text" style="width:100%; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-size:11px;"></td>
                 </tr>
               </tbody>
@@ -564,6 +665,63 @@ const OrderBelanjaScreen = {
         </div>
       </template>
       <pengaturan-stock-pembelian v-if="tampilPengaturan" @tutup="tampilPengaturan = false" />
+    </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
+// RiwayatHargaPembelianManager — menu "Riwayat Harga Pembelian" (BARU, malam
+// 24 Agt 2026). Tabel READ-ONLY, cursor-based paginasi (WAJIB sesuai
+// PRINSIP-HEMAT.md), diisi otomatis oleh catatRiwayatHargaDanUpdateMaster()
+// tiap kali Nota/List Order Belanja di-final-kan. Cari berdasarkan nama
+// bahan (awalan), urut tanggal terbaru dulu.
+// ---------------------------------------------------------------------------
+const RiwayatHargaPembelianManager = {
+  setup() {
+    const paginasi = usePaginasiFirestore(db, 'riwayat_harga_pembelian', {
+      perHalaman: 15,
+      urutkanField: 'tanggal',
+      urutkanArah: 'desc',
+      cariField: 'nama_bahan',
+      petakan: (id, d) => ({ id, ...d })
+    });
+    onMounted(async () => { await window.authReady; await paginasi.muatUlang(); });
+    return { paginasi, formatRupiah };
+  },
+  template: `
+    <div class="gc-card" style="padding:14px;">
+      <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Riwayat Harga Pembelian</label>
+      <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Tercatat otomatis tiap kali Nota / List Order Belanja di-final-kan. Harga Pembelian di Data Bahan &amp; Aksesoris otomatis mengikuti baris dengan tanggal PALING BARU (kalau ada beberapa di tanggal sama, yang PALING MAHAL per Satuan Pemakaian).</p>
+
+      <div style="position:relative; max-width:320px; margin-bottom:12px;">
+        <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:12px;"></i>
+        <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama bahan (awalan)..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+      </div>
+
+      <div v-if="paginasi.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+      <div v-else-if="paginasi.errorPaginasi.value" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
+      <div v-else-if="paginasi.dataHalaman.value.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada riwayat pembelian.</div>
+      <div v-else style="overflow-x:auto;">
+        <table class="gc-table" style="width:100%; font-size:11.5px;">
+          <thead><tr>
+            <th>Tanggal</th><th>Nama Bahan</th><th>Suplayer</th><th>Satuan Beli</th><th>Harga</th><th>Isi Konversi</th><th>Satuan Pemakaian</th><th>Harga / Satuan Pemakaian</th><th>No. Pembelian</th>
+          </tr></thead>
+          <tbody>
+            <tr v-for="r in paginasi.dataHalaman.value" :key="r.id">
+              <td>{{ r.tanggal }}</td><td>{{ r.nama_bahan }}</td><td>{{ r.suplayer_nama || '-' }}</td>
+              <td>{{ r.satuan }}</td><td>{{ formatRupiah(r.harga) }}</td><td>{{ r.isi_konversi }}</td>
+              <td>{{ r.satuan_pemakaian }}</td><td style="color:var(--burgundy); font-weight:700;">{{ formatRupiah(r.harga_per_satuan_pemakaian) }}</td>
+              <td>{{ r.no_pembelian || '-' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-if="!paginasi.memuat.value && paginasi.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
+        <button class="icon-btn" :disabled="paginasi.nomorHalaman.value <= 1" @click="paginasi.halamanSebelumnya"><i class="fas fa-chevron-left"></i></button>
+        <span style="font-size:12px; color:var(--text-muted);">Halaman {{ paginasi.nomorHalaman.value }}</span>
+        <button class="icon-btn" :disabled="!paginasi.adaBerikutnya.value" @click="paginasi.halamanBerikutnya"><i class="fas fa-chevron-right"></i></button>
+      </div>
     </div>
   `
 };
@@ -593,4 +751,12 @@ window.pastikanMountNotaOrderBelanja = function() {
   if (vmNotaOrderBelanja) return;
   const mountPoint = document.getElementById('vue-nota-order-belanja');
   if (mountPoint) vmNotaOrderBelanja = createApp(AppNotaOrderBelanja).mount('#vue-nota-order-belanja');
+};
+
+const AppRiwayatHargaPembelian = { components: { RiwayatHargaPembelianManager }, template: `<riwayat-harga-pembelian-manager />` };
+let vmRiwayatHargaPembelian = null;
+window.pastikanMountRiwayatHargaPembelian = function() {
+  if (vmRiwayatHargaPembelian) return;
+  const mountPoint = document.getElementById('vue-riwayat-harga-pembelian');
+  if (mountPoint) vmRiwayatHargaPembelian = createApp(AppRiwayatHargaPembelian).mount('#vue-riwayat-harga-pembelian');
 };
