@@ -296,19 +296,27 @@ const PengaturanBahanAksesoris = {
 // induk masing-masing (form Entry / form Edit), bukan disimpan ganda di sini.
 // ---------------------------------------------------------------------------
 const PopupKonversiBerjenjang = {
-  props: { baris: { type: Array, required: true }, total: { type: Number, required: true } },
+  components: { DropdownCari },
+  props: {
+    baris: { type: Array, required: true },
+    total: { type: Number, required: true },
+    // BARU (24 Agt 2026) — Satuan awal/tujuan SEKARANG dropdown pencarian
+    // (bukan teks bebas lagi), opsi diambil dari Data Satuan (master_satuan,
+    // dikirim dari komponen induk Entry/Edit yang sudah punya list ini).
+    opsiSatuan: { type: Array, default: () => [] }
+  },
   emits: ['tambah', 'hapus', 'terapkan', 'tutup'],
   template: `
     <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="$emit('tutup')">
       <div class="gc-card" style="max-width:520px; width:100%; max-height:90vh; overflow-y:auto;">
         <h3 style="font-weight:700; font-size:15px; margin-bottom:6px;"><i class="fas fa-calculator" style="color:var(--burgundy); margin-right:8px;"></i>Bantu Hitung Konversi Berjenjang</h3>
-        <p style="font-size:11px; color:var(--text-faint); margin-bottom:14px;">Contoh: 1 Dus = 12 Pack, 1 Pack = 12 Pcs. Tambah baris kalau tingkatnya lebih dari 1. Hasil akhir akan otomatis mengisi "Isi Konversi Pembelian".</p>
+        <p style="font-size:11px; color:var(--text-faint); margin-bottom:14px;">Contoh: 1 Dus = 12 Pack, 1 Pack = 12 Pcs. Tambah baris kalau tingkatnya lebih dari 1. Hasil akhir akan otomatis mengisi "Isi Konversi Pembelian". Satuan diambil dari Data Satuan — kalau belum ada di daftar, tambah dulu lewat Pengaturan.</p>
         <div v-for="(b, i) in baris" :key="i" style="display:flex; align-items:center; gap:6px; margin-bottom:8px; flex-wrap:wrap;">
           <span style="font-size:11px; color:var(--text-faint); width:14px;">1</span>
-          <input v-model="b.dari" type="text" placeholder="Satuan awal (mis. Dus)" style="flex:1; min-width:100px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+          <div style="flex:1; min-width:120px;"><dropdown-cari v-model="b.dari" :opsi="opsiSatuan" placeholder="Satuan awal (mis. Dus)" /></div>
           <span style="font-size:12px; color:var(--text-faint);">=</span>
           <input v-model.number="b.jumlah" type="number" min="0" placeholder="Jumlah" style="width:80px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <input v-model="b.ke" type="text" placeholder="Satuan tujuan (mis. Pack)" style="flex:1; min-width:100px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+          <div style="flex:1; min-width:120px;"><dropdown-cari v-model="b.ke" :opsi="opsiSatuan" placeholder="Satuan tujuan (mis. Pack)" /></div>
           <button @click="$emit('hapus', i)" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button>
         </div>
         <button @click="$emit('tambah')" class="btn-outline" style="font-size:11.5px; padding:6px 14px; margin-bottom:16px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah Tingkat</button>
@@ -521,7 +529,7 @@ const BahanAksesorisEntryManager = {
       </div>
     </div>
 
-    <popup-konversi-berjenjang v-if="tampilPopupKonversi" :baris="barisKonversi" :total="totalKonversiBerjenjang"
+    <popup-konversi-berjenjang v-if="tampilPopupKonversi" :baris="barisKonversi" :total="totalKonversiBerjenjang" :opsi-satuan="opsiSatuan"
       @tambah="tambahBarisKonversi" @hapus="hapusBarisKonversi" @terapkan="terapkanKonversi" @tutup="tutupPopupKonversi" />
     <pengaturan-bahan-aksesoris v-if="tampilPengaturan" @tutup="tampilPengaturan = false; muatOpsiJenis(); muatOpsiSatuanWarna()" />
   `
@@ -741,7 +749,7 @@ const BahanAksesorisListManager = {
         </div>
       </div>
     </div>
-    <popup-konversi-berjenjang v-if="tampilPopupKonversiEdit" :baris="barisKonversiEdit" :total="totalKonversiBerjenjangEdit"
+    <popup-konversi-berjenjang v-if="tampilPopupKonversiEdit" :baris="barisKonversiEdit" :total="totalKonversiBerjenjangEdit" :opsi-satuan="opsiSatuanEdit"
       @tambah="tambahBarisKonversiEdit" @hapus="hapusBarisKonversiEdit" @terapkan="terapkanKonversiEdit" @tutup="tutupPopupKonversiEdit" />
   `
 };
