@@ -531,7 +531,10 @@ const BahanAksesorisEntryManager = {
         </div>
         <div class="gc-field">
           <label>Isi Konversi Pembelian <span style="color:var(--danger);">*</span></label>
-          <input v-model.number="form.isi_konversi_pembelian" type="number" min="0" placeholder="Contoh: 144">
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <input v-model.number="form.isi_konversi_pembelian" type="number" min="0" placeholder="144" style="flex:1; min-width:70px;">
+            <button @click="bukaPopupKonversi" class="btn-outline" style="white-space:nowrap; font-size:11px; padding:0 10px;" title="Bantu Hitung Konversi Banyak Tingkat"><i class="fas fa-calculator"></i></button>
+          </div>
         </div>
         <div class="gc-field">
           <label>Satuan Pemakaian <span style="color:var(--danger);">*</span></label>
@@ -552,15 +555,12 @@ const BahanAksesorisEntryManager = {
         <p style="font-size:11.5px; margin-top:4px;">Isi Konversi Pembelian: <b>{{ form.isi_konversi_pembelian }}</b> &middot; Satuan Pemakaian: <b>{{ form.satuan_pemakaian }}</b></p>
       </div>
 
-      <div style="display:flex; gap:10px; align-items:flex-end; margin-top:10px;">
-        <div class="gc-field" style="flex:1; margin-bottom:0;">
-          <label>Margin Modal (Rp) <span style="color:var(--danger);">*</span></label>
-          <input v-model.number="form.margin_modal" type="number" min="0" placeholder="0">
-        </div>
-        <button v-if="!(form.konversi_bertingkat && form.konversi_bertingkat.length > 0)" @click="bukaPopupKonversi" class="btn-outline" style="white-space:nowrap; padding:0 16px; height:44px;"><i class="fas fa-calculator" style="margin-right:6px;"></i>Konversi Banyak Tingkat</button>
+      <div class="gc-field" style="max-width:260px; margin-top:10px;">
+        <label>Margin Modal (Rp) <span style="color:var(--danger);">*</span></label>
+        <input v-model.number="form.margin_modal" type="number" min="0" placeholder="0">
       </div>
 
-      <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0;">
+      <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
         <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Modal (otomatis)</span><b style="font-size:14px;">{{ formatRupiah(hargaModal) }}</b></div>
         <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Pemakaian (otomatis)</span><b style="font-size:14px; color:var(--burgundy);">{{ formatRupiah(hargaPemakaian) }}</b></div>
       </div>
@@ -775,7 +775,10 @@ const BahanAksesorisListManager = {
           <div class="gc-field"><label>Satuan Pembelian</label><dropdown-cari v-model="formEdit.satuan_pembelian" :opsi="opsiSatuanEdit" placeholder="Cari & pilih Satuan..." /></div>
           <div class="gc-field">
             <label>Isi Konversi Pembelian</label>
-            <input v-model.number="formEdit.isi_konversi_pembelian" type="number" min="0">
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <input v-model.number="formEdit.isi_konversi_pembelian" type="number" min="0" style="flex:1; min-width:70px;">
+              <button @click="bukaPopupKonversiEdit" class="btn-outline" style="white-space:nowrap; font-size:11px; padding:0 10px;" title="Konversi Banyak Tingkat"><i class="fas fa-calculator"></i></button>
+            </div>
           </div>
           <div class="gc-field"><label>Satuan Pemakaian</label><dropdown-cari v-model="formEdit.satuan_pemakaian" :opsi="opsiSatuanEdit" placeholder="Cari & pilih Satuan..." /></div>
         </div>
@@ -793,13 +796,10 @@ const BahanAksesorisListManager = {
           <p style="font-size:11.5px; margin-top:4px;">Isi Konversi Pembelian: <b>{{ formEdit.isi_konversi_pembelian }}</b> &middot; Satuan Pemakaian: <b>{{ formEdit.satuan_pemakaian }}</b></p>
         </div>
 
-        <div style="display:flex; gap:10px; align-items:flex-end; margin-top:10px;">
-          <div class="gc-field" style="flex:1; margin-bottom:0;">
-            <label>Margin Modal (Rp)</label><input v-model.number="formEdit.margin_modal" type="number" min="0">
-          </div>
-          <button v-if="!(formEdit.konversi_bertingkat && formEdit.konversi_bertingkat.length > 0)" @click="bukaPopupKonversiEdit" class="btn-outline" style="white-space:nowrap; padding:0 16px; height:44px;"><i class="fas fa-calculator" style="margin-right:6px;"></i>Konversi Banyak Tingkat</button>
+        <div class="gc-field" style="max-width:260px; margin-top:10px;">
+          <label>Margin Modal (Rp)</label><input v-model.number="formEdit.margin_modal" type="number" min="0">
         </div>
-        <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0;">
+        <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
           <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Modal (otomatis)</span><b>{{ formatRupiah(hargaModalEdit) }}</b></div>
           <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Pemakaian (otomatis)</span><b style="color:var(--burgundy);">{{ formatRupiah(hargaPemakaianEdit) }}</b></div>
         </div>
