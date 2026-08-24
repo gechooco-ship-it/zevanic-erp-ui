@@ -333,7 +333,8 @@ const PopupKonversiBerjenjang = {
     <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="$emit('tutup')">
       <div class="gc-card" style="max-width:640px; width:100%; max-height:90vh; overflow-y:auto;">
         <h3 style="font-weight:700; font-size:15px; margin-bottom:6px;"><i class="fas fa-calculator" style="color:var(--burgundy); margin-right:8px;"></i>Bantu Hitung Konversi Berjenjang</h3>
-        <p style="font-size:11px; color:var(--text-faint); margin-bottom:14px;">Contoh: 1 Dus = 12 Pack, 1 Pack = 12 Pcs. Tambah baris kalau tingkatnya lebih dari 1. Hasil akhir akan otomatis mengisi "Isi Konversi Pembelian". Satuan diambil dari Data Satuan — kalau belum ada di daftar, tambah dulu lewat Pengaturan.</p>
+        <p style="font-size:11px; color:var(--text-faint); margin-bottom:6px;">Contoh: 1 Dus = 12 Pack, 1 Pack = 12 Pcs. Tambah baris kalau tingkatnya lebih dari 1. Hasil akhir akan otomatis mengisi "Isi Konversi Pembelian". Satuan diambil dari Data Satuan — kalau belum ada di daftar, tambah dulu lewat Pengaturan.</p>
+        <p style="font-size:11px; color:var(--burgundy); background:var(--burgundy-light); border-radius:8px; padding:8px 10px; margin-bottom:14px;"><i class="fas fa-circle-info" style="margin-right:5px;"></i><b>Tips isi urutan:</b> mulai dari satuan yang <b>PALING BESAR</b> dulu (Satuan Pembelian, mis. Dus), baru turun ke yang lebih kecil tiap tambah baris (Pack, lalu Pcs) sampai ke Satuan Pemakaian. Jangan dibalik — biar Isi Konversi Pembelian otomatisnya benar dan tidak salah pilih satuan awal/tujuan.</p>
         <!-- BARU (malam 24 Agt 2026) — harga BERJENJANG: harga per satuan
              beda-beda tiap tingkat (beli Dus lebih murah, Pack di tengah,
              Pcs/ecer paling mahal). "Harga Pembelian" di atas = harga
@@ -515,16 +516,16 @@ const BahanAksesorisEntryManager = {
           <dropdown-cari v-model="form.jenis" :opsi="opsiJenis" :disabled="!form.kategori_utama" :placeholder="form.kategori_utama ? 'Cari & pilih Jenis...' : 'Pilih Kategori Utama dulu'" />
         </div>
         <div class="gc-field">
+          <label>Foto (opsional)</label>
+          <input type="file" accept="image/*" @change="pilihFoto">
+        </div>
+        <div class="gc-field">
           <label>Nama Bahan / Aksesoris <span style="color:var(--danger);">*</span></label>
           <input v-model="form.nama" type="text" placeholder="Contoh: Katun Combed 30s">
         </div>
         <div class="gc-field">
-          <label>Warna <span style="color:var(--danger);">*</span></label>
+          <label>Warna Bahan / Aksesoris <span style="color:var(--danger);">*</span></label>
           <dropdown-cari v-model="form.warna" :opsi="opsiWarna" placeholder="Cari & pilih Warna..." />
-        </div>
-        <div class="gc-field">
-          <label>Foto (opsional)</label>
-          <input type="file" accept="image/*" @change="pilihFoto">
         </div>
       </div>
       <div v-if="form.foto" style="margin-bottom:12px;">
@@ -779,9 +780,9 @@ const BahanAksesorisListManager = {
             <label>Jenis</label>
             <dropdown-cari v-model="formEdit.jenis" :opsi="opsiJenisEdit" placeholder="Cari & pilih Jenis..." />
           </div>
+          <div class="gc-field"><label>Foto</label><input type="file" accept="image/*" @change="pilihFotoEdit"></div>
           <div class="gc-field"><label>Nama</label><input v-model="formEdit.nama" type="text"></div>
           <div class="gc-field"><label>Warna</label><dropdown-cari v-model="formEdit.warna" :opsi="opsiWarnaEdit" placeholder="Cari & pilih Warna..." /></div>
-          <div class="gc-field"><label>Foto</label><input type="file" accept="image/*" @change="pilihFotoEdit"></div>
         </div>
         <div v-if="formEdit.foto" style="margin-bottom:12px;"><img :src="formEdit.foto" style="width:70px; height:70px; object-fit:cover; border-radius:10px; border:1.5px solid var(--line);"></div>
         <div v-if="!(formEdit.konversi_bertingkat && formEdit.konversi_bertingkat.length > 0)" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
