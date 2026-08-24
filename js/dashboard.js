@@ -167,6 +167,23 @@ window.ambilKecamatanUntukKabupaten = async function(kab) {
 // ====== LOGIKA PERPINDAHAN HALAMAN UTAMA (ANTI KETUMPUK) =================
 // =========================================================================
 
+// toggleNavGroup — BARU (24 Agt 2026), dipakai grup sidebar "Data Bahan &
+// Aksesoris" / "Stock & Pembelian" di bawah Zevanic House (index.html) —
+// pola sidebar bertingkat/collapsible PERTAMA di app ini (grup sidebar lain
+// masih datar 1 tombol, TIDAK disentuh/diubah). Buka/tutup <div id=groupId>
+// berisi tombol sub-menu + putar ikon chevron di tombolnya sendiri.
+window.toggleNavGroup = function(groupId, btnEl) {
+  const el = document.getElementById(groupId);
+  if (!el) return;
+  const sedangTertutup = el.classList.contains('hidden');
+  el.classList.toggle('hidden');
+  const ikon = btnEl ? btnEl.querySelector('i.fa-chevron-down, i.fa-chevron-up') : null;
+  if (ikon) {
+    ikon.classList.toggle('fa-chevron-down', !sedangTertutup);
+    ikon.classList.toggle('fa-chevron-up', sedangTertutup);
+  }
+};
+
 window.pindahTab = function(tabId, navKey, _dariPopstate) {
   const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-zevanic-house', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress'];
   const tabSebelumnya = tabs.find(t => {
@@ -296,7 +313,11 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-karyawan-akses': 'pastikanMountConfigAkses',
     'sub-karyawan-hakakses': 'pastikanMountHakAkses',
     'sub-zevanic-house-entry': 'pastikanMountBahanAksesorisEntry',
-    'sub-zevanic-house-list': 'pastikanMountBahanAksesorisList'
+    'sub-zevanic-house-list': 'pastikanMountBahanAksesorisList',
+    'sub-zevanic-house-persiapan': 'pastikanMountPersiapanMasalah',
+    'sub-zevanic-house-alias': 'pastikanMountAliasPembelian',
+    'sub-zevanic-house-list-order': 'pastikanMountListOrderBelanja',
+    'sub-zevanic-house-nota-order': 'pastikanMountNotaOrderBelanja'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();

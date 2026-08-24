@@ -704,8 +704,12 @@ window.aturTampilanBerdasarkanRole = function() {
   // Hilman lewat AskUserQuestion ("admin ke atas").
   const menuZevanicHouse = document.getElementById('menu-zevanic-house');
   const menuZevanicHouseBtn = document.getElementById('menu-zevanic-house-btn');
+  // BARU (24 Agt 2026) — Zevanic House > Persiapan Masalah + Stock &
+  // Pembelian (sidebar bertingkat). Gerbang role SAMA (isAdminLevel()).
+  const menuZevanicPersiapanBtn = document.getElementById('menu-zevanic-persiapan-btn');
+  const menuZevanicStockBtn = document.getElementById('menu-zevanic-stock-btn');
 
-  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn].forEach(el => {
+  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuZevanicStockBtn].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -720,6 +724,8 @@ window.aturTampilanBerdasarkanRole = function() {
     if (menuKeuanganBtn) menuKeuanganBtn.classList.remove('hidden');
     if (menuZevanicHouse) menuZevanicHouse.classList.remove('hidden');
     if (menuZevanicHouseBtn) menuZevanicHouseBtn.classList.remove('hidden');
+    if (menuZevanicPersiapanBtn) menuZevanicPersiapanBtn.classList.remove('hidden');
+    if (menuZevanicStockBtn) menuZevanicStockBtn.classList.remove('hidden');
     if (navMobileAdmin) {
       navMobileAdmin.classList.remove('hidden');
       navMobileAdmin.classList.add('flex');

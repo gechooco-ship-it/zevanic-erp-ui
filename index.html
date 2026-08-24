@@ -88,9 +88,33 @@
           <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg> Karyawan
         </button>
         <div id="menu-zevanic-house" class="hidden gc-nav-section">Zevanic House</div>
-        <button onclick="pindahTab('tab-zevanic-house')" id="menu-zevanic-house-btn" class="hidden gc-nav-item">
-          <i class="fas fa-shirt" style="width:17px; text-align:center;"></i> Master Bahan &amp; Aksesoris
+        <!-- BARU (24 Agt 2026) — grup sidebar bertingkat/collapsible, pola BARU
+             di app ini (sebelumnya semua grup sidebar cuma 1 tombol datar).
+             toggleNavGroup() di js/dashboard.js buka/tutup panel di bawah
+             tombolnya + putar ikon chevron, TIDAK mengubah pola grup sidebar
+             lain (Master Absensi/Keuangan/Karyawan/Integrasi tetap datar). -->
+        <button onclick="toggleNavGroup('navgrp-zh-databahan', this)" id="menu-zevanic-house-btn" class="hidden gc-nav-item gc-nav-group-toggle" style="display:flex; align-items:center; gap:0;">
+          <i class="fas fa-shirt" style="width:17px; text-align:center;"></i> Data Bahan &amp; Aksesoris
+          <i class="fas fa-chevron-down" style="margin-left:auto; font-size:10px;"></i>
         </button>
+        <div id="navgrp-zh-databahan" class="hidden" style="display:flex; flex-direction:column; gap:2px; padding-left:16px; margin:2px 0 4px;">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-entry', this)" class="sub-zevanic-house-btn gc-nav-item active" style="font-size:12.5px; padding:7px 10px;">Entry Bahan &amp; Aksesoris</button>
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-list', this)" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">List Bahan &amp; Aksesoris</button>
+        </div>
+
+        <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-persiapan', this)" id="menu-zevanic-persiapan-btn" class="sub-zevanic-house-btn hidden gc-nav-item">
+          <i class="fas fa-triangle-exclamation" style="width:17px; text-align:center;"></i> Persiapan Masalah
+        </button>
+
+        <button onclick="toggleNavGroup('navgrp-zh-stock', this)" id="menu-zevanic-stock-btn" class="hidden gc-nav-item gc-nav-group-toggle" style="display:flex; align-items:center; gap:0;">
+          <i class="fas fa-truck-ramp-box" style="width:17px; text-align:center;"></i> Stock &amp; Pembelian
+          <i class="fas fa-chevron-down" style="margin-left:auto; font-size:10px;"></i>
+        </button>
+        <div id="navgrp-zh-stock" class="hidden" style="display:flex; flex-direction:column; gap:2px; padding-left:16px; margin:2px 0 4px;">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-alias', this)" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">Alias Pembelian</button>
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-list-order', this)" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">List Order Belanja</button>
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-nota-order', this)" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">Nota Order Belanja</button>
+        </div>
         <div id="menu-whatsapp" class="hidden gc-nav-section">Master integrasi</div>
         <button onclick="pindahTab('tab-whatsapp')" id="menu-whatsapp-btn" class="hidden gc-nav-item">
           <i class="fab fa-whatsapp" style="width:17px; text-align:center;"></i> WhatsApp
@@ -317,10 +341,10 @@
         </div>
 
         <div id="tab-zevanic-house" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
-          <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-            <button onclick="pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-entry', this)" class="sub-zevanic-house-btn gc-sub-tab-btn active"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Bahan / Aksesoris</button>
-            <button onclick="pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-list', this)" class="sub-zevanic-house-btn gc-sub-tab-btn"><i class="fas fa-list" style="margin-right:6px;"></i> List Bahan / Aksesoris</button>
-          </div>
+          <!-- BARU (24 Agt 2026) — navigasi antar sub-menu SEKARANG lewat
+               sidebar (grup "Data Bahan & Aksesoris" / tombol "Persiapan
+               Masalah" / grup "Stock & Pembelian"), bukan lagi baris tombol
+               di dalam halaman ini — lihat sidebar di atas. -->
 
           <div id="sub-zevanic-house-entry" class="sub-zevanic-house-content fade-in space-y-4">
             <!-- Entry Bahan/Aksesoris: lihat js/vue-bahan-aksesoris.js -->
@@ -330,6 +354,26 @@
           <div id="sub-zevanic-house-list" class="sub-zevanic-house-content hidden fade-in space-y-4">
             <!-- List Bahan/Aksesoris: lihat js/vue-bahan-aksesoris.js -->
             <div id="vue-bahan-aksesoris-list"></div>
+          </div>
+
+          <div id="sub-zevanic-house-persiapan" class="sub-zevanic-house-content hidden fade-in space-y-4">
+            <!-- Persiapan Masalah: lihat js/vue-persiapan-masalah.js -->
+            <div id="vue-persiapan-masalah"></div>
+          </div>
+
+          <div id="sub-zevanic-house-alias" class="sub-zevanic-house-content hidden fade-in space-y-4">
+            <!-- Alias Pembelian: lihat js/vue-stock-pembelian.js -->
+            <div id="vue-alias-pembelian"></div>
+          </div>
+
+          <div id="sub-zevanic-house-list-order" class="sub-zevanic-house-content hidden fade-in space-y-4">
+            <!-- List Order Belanja: lihat js/vue-stock-pembelian.js -->
+            <div id="vue-list-order-belanja"></div>
+          </div>
+
+          <div id="sub-zevanic-house-nota-order" class="sub-zevanic-house-content hidden fade-in space-y-4">
+            <!-- Nota Order Belanja: lihat js/vue-stock-pembelian.js -->
+            <div id="vue-nota-order-belanja"></div>
           </div>
       </div>
 
@@ -435,5 +479,7 @@
   <script type="module" src="js/vue-camera.js"></script>
   <script type="module" src="js/vue-scan-qr.js"></script>
   <script type="module" src="js/vue-bahan-aksesoris.js?v=2"></script>
+  <script type="module" src="js/vue-persiapan-masalah.js?v=1"></script>
+  <script type="module" src="js/vue-stock-pembelian.js?v=1"></script>
 </body>
 </html>

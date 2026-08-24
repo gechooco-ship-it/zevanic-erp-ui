@@ -195,14 +195,21 @@ export const DropdownCari = {
 export const MasterDataTabelManager = {
   props: {
     koleksi: { type: String, required: true },
-    labelSingular: { type: String, required: true }, // "Satuan" / "Ukuran" / "Warna"
+    labelSingular: { type: String, required: true }, // "Satuan" / "Ukuran" / "Warna" / "Suplayer"
     labelNama: { type: String, required: true }, // "Nama Satuan" dst — placeholder input
-    menuId: { type: String, default: 'bahan_aksesoris_entry' }
+    menuId: { type: String, default: 'bahan_aksesoris_entry' },
+    // BARU (24 Agt 2026) — dipakai pertama kali buat Master Suplayer (field
+    // "Kontak/Alamat", opsional). Kalau field3Key KOSONG (default), komponen
+    // ini persis seperti semula: 2 kolom nama+keterangan. Kalau diisi, input
+    // ke-3 muncul DI ANTARA nama & keterangan, disimpan dengan key custom.
+    field3Key: { type: String, default: '' },
+    field3Label: { type: String, default: '' } // contoh: "Kontak/Alamat (opsional)"
   },
   setup(props) {
     const daftar = ref([]);
     const memuat = ref(true);
     const namaBaru = ref('');
+    const field3Baru = ref('');
     const keteranganBaru = ref('');
     const menyimpan = ref(false);
 
@@ -233,10 +240,10 @@ export const MasterDataTabelManager = {
       }
       menyimpan.value = true;
       try {
-        await addDoc(collection(db, props.koleksi), {
-          nama, keterangan: keteranganBaru.value.trim(), dibuat_pada: serverTimestamp()
-        });
-        namaBaru.value = ''; keteranganBaru.value = '';
+        const dataBaru = { nama, keterangan: keteranganBaru.value.trim(), dibuat_pada: serverTimestamp() };
+        if (props.field3Key) dataBaru[props.field3Key] = field3Baru.value.trim();
+        await addDoc(collection(db, props.koleksi), dataBaru);
+        namaBaru.value = ''; keteranganBaru.value = ''; field3Baru.value = '';
         await muat();
       } catch (e) {
         console.error(`Gagal tambah ${props.koleksi}:`, e);
@@ -247,7 +254,7 @@ export const MasterDataTabelManager = {
 
     async function hapus(item) {
       if (!bolehHapus.value) return alert('Anda tidak punya izin menghapus item di sini. Hubungi Owner/PIC.');
-      if (!confirm(`Hapus ${props.labelSingular.toLowerCase()} "${item.nama}"? Data Bahan/Aksesoris yang SUDAH memakai nilai ini TIDAK ikut berubah/terhapus.`)) return;
+      if (!confirm(`Hapus ${props.labelSingular.toLowerCase()} "${item.nama}"? Data yang SUDAH memakai nilai ini TIDAK ikut berubah/terhapus.`)) return;
       try {
         await deleteDoc(doc(db, props.koleksi, item.id));
         await muat();
@@ -258,20 +265,21 @@ export const MasterDataTabelManager = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { daftar, memuat, namaBaru, keteranganBaru, menyimpan, bolehTambah, bolehHapus, tambah, hapus };
+    return { daftar, memuat, namaBaru, field3Baru, keteranganBaru, menyimpan, bolehTambah, bolehHapus, tambah, hapus };
   },
   template: `
     <div>
       <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Data {{ labelSingular }}</label>
       <div v-if="bolehTambah" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
         <input v-model="namaBaru" @keyup.enter="tambah" type="text" :placeholder="labelNama + '...'" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+        <input v-if="field3Key" v-model="field3Baru" @keyup.enter="tambah" type="text" :placeholder="field3Label" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
         <input v-model="keteranganBaru" @keyup.enter="tambah" type="text" placeholder="Keterangan (opsional)" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
         <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="padding:0 16px;"><i class="fas fa-plus"></i></button>
       </div>
       <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
       <div v-else-if="daftar.length === 0" style="font-size:11px; color:var(--text-faint);">Belum ada data.</div>
       <div v-else style="display:flex; flex-wrap:wrap; gap:6px;">
-        <span v-for="d in daftar" :key="d.id" class="tag neutral" :title="d.keterangan || ''" style="gap:8px;">
+        <span v-for="d in daftar" :key="d.id" class="tag neutral" :title="(field3Key && d[field3Key] ? (field3Label + ': ' + d[field3Key] + ' — ') : '') + (d.keterangan || '')" style="gap:8px;">
           {{ d.nama }}
           <button v-if="bolehHapus" @click="hapus(d)" style="background:none; border:none; color:var(--danger); cursor:pointer; padding:0; font-size:11px;"><i class="fas fa-times"></i></button>
         </span>

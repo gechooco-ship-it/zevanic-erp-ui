@@ -62,9 +62,18 @@ const DAFTAR_MENU = [
   { id: 'whatsapp_gateway', label: 'WhatsApp Gateway', kategori: 'Master Integrasi' },
   { id: 'mail_gateway', label: 'Mail Gateway', kategori: 'Master Integrasi' },
   { id: 'device_kiosk', label: 'List Device Kiosk', kategori: 'Master Integrasi' },
-  // BARU (23 Agt 2026) — Zevanic House > Master Bahan & Aksesoris.
-  { id: 'bahan_aksesoris_entry', label: 'Bahan / Aksesoris (Entry)', kategori: 'Zevanic House' },
-  { id: 'bahan_aksesoris_list', label: 'List Bahan / Aksesoris', kategori: 'Zevanic House' }
+  // BARU (23 Agt 2026) — Zevanic House > Master Bahan & Aksesoris. id
+  // SENGAJA TIDAK diubah (masih bahan_aksesoris_entry/list) walau labelnya
+  // di sidebar sekarang "Data Bahan & Aksesoris" — supaya akses_config yang
+  // sudah tersimpan sebelumnya (per-user) TIDAK ikut kereset/hilang.
+  { id: 'bahan_aksesoris_entry', label: 'Entry Bahan & Aksesoris', kategori: 'Zevanic House' },
+  { id: 'bahan_aksesoris_list', label: 'List Bahan & Aksesoris', kategori: 'Zevanic House' },
+  // BARU (24 Agt 2026) — Persiapan Masalah + Stock & Pembelian.
+  { id: 'persiapan_masalah', label: 'Persiapan Masalah', kategori: 'Zevanic House' },
+  { id: 'master_suplayer', label: 'Master Suplayer (lewat Pengaturan)', kategori: 'Zevanic House' },
+  { id: 'stock_alias_pembelian', label: 'Alias Pembelian', kategori: 'Zevanic House' },
+  { id: 'stock_list_order_belanja', label: 'List Order Belanja', kategori: 'Zevanic House' },
+  { id: 'stock_nota_order_belanja', label: 'Nota Order Belanja', kategori: 'Zevanic House' }
 ];
 
 const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House'];
