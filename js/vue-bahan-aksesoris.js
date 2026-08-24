@@ -171,15 +171,34 @@ function useKonversiBerjenjang(form) {
     barisKonversi.value.reduce((total, b) => total * (parseFloat(b.jumlah) || 0), 1)
   );
   function terapkanKonversi() {
+    if (!(parseFloat(form.harga_pembelian) > 0)) { alert('Isi Harga Pembelian dulu (harus lebih dari 0).'); return; }
     const tidakLengkap = barisKonversi.value.some(b => !b.dari.trim() || !b.ke.trim() || !(parseFloat(b.jumlah) > 0));
     if (tidakLengkap) { alert('Lengkapi semua baris dulu: satuan awal, jumlah (angka > 0), dan satuan tujuan.'); return; }
     form.isi_konversi_pembelian = totalKonversiBerjenjang.value;
     form.konversi_bertingkat = JSON.parse(JSON.stringify(barisKonversi.value));
+    // Field Satuan Pembelian & Satuan Pemakaian di form utama JADI HILANG
+    // begitu Konversi Banyak Tingkat dipakai (lihat template Entry/Edit) —
+    // makanya di sini WAJIB selalu diisi/ditimpa otomatis dari baris
+    // pertama & terakhir popup, bukan cuma "kalau masih kosong" seperti
+    // sebelumnya. Kalau tidak, field itu bisa jadi kosong tapi tidak
+    // kelihatan (karena disembunyikan) dan Simpan gagal tanpa jelas kenapa.
+    const barisPertama = barisKonversi.value[0];
     const barisTerakhir = barisKonversi.value[barisKonversi.value.length - 1];
-    if (barisTerakhir && barisTerakhir.ke && !form.satuan_pemakaian) form.satuan_pemakaian = barisTerakhir.ke;
+    if (barisPertama && barisPertama.dari) form.satuan_pembelian = barisPertama.dari;
+    if (barisTerakhir && barisTerakhir.ke) form.satuan_pemakaian = barisTerakhir.ke;
     tampilPopupKonversi.value = false;
   }
-  return { tampilPopupKonversi, barisKonversi, bukaPopupKonversi, tutupPopupKonversi, tambahBarisKonversi, hapusBarisKonversi, totalKonversiBerjenjang, terapkanKonversi };
+  // BARU (24 Agt 2026) — dipakai tombol "Hapus & Isi Manual" yang muncul
+  // saat Konversi Banyak Tingkat sudah diterapkan (form.konversi_bertingkat
+  // ada isinya). Nilai Satuan Pembelian/Isi Konversi/Satuan Pemakaian yang
+  // SUDAH terisi dari hasil konversi SENGAJA tidak ikut dikosongkan — cuma
+  // flag konversi_bertingkat-nya yang dibersihkan, supaya user tinggal edit
+  // manual dari situ (bukan mulai dari nol lagi).
+  function hapusKonversiBertingkat() {
+    if (!confirm('Hapus Konversi Banyak Tingkat? Field Satuan Pembelian, Isi Konversi Pembelian & Satuan Pemakaian akan tampil lagi sebagai isian manual (nilai yang sudah ada tetap dipertahankan, tinggal diedit kalau perlu).')) return;
+    form.konversi_bertingkat = [];
+  }
+  return { tampilPopupKonversi, barisKonversi, bukaPopupKonversi, tutupPopupKonversi, tambahBarisKonversi, hapusBarisKonversi, totalKonversiBerjenjang, terapkanKonversi, hapusKonversiBertingkat };
 }
 
 function formatRupiah(n) {
@@ -303,20 +322,32 @@ const PopupKonversiBerjenjang = {
     // BARU (24 Agt 2026) — Satuan awal/tujuan SEKARANG dropdown pencarian
     // (bukan teks bebas lagi), opsi diambil dari Data Satuan (master_satuan,
     // dikirim dari komponen induk Entry/Edit yang sudah punya list ini).
-    opsiSatuan: { type: Array, default: () => [] }
+    opsiSatuan: { type: Array, default: () => [] },
+    // BARU (24 Agt 2026, ronde tampilan 4 grid) — Harga Pembelian SEKARANG
+    // juga diisi lewat popup ini, supaya begitu Konversi Banyak Tingkat
+    // dipakai, field ini "pindah" ke sini (bukan hilang tanpa gantinya).
+    harga: { type: [Number, String], default: '' }
   },
-  emits: ['tambah', 'hapus', 'terapkan', 'tutup'],
+  emits: ['tambah', 'hapus', 'terapkan', 'tutup', 'update:harga'],
   template: `
     <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="$emit('tutup')">
-      <div class="gc-card" style="max-width:520px; width:100%; max-height:90vh; overflow-y:auto;">
+      <div class="gc-card" style="max-width:560px; width:100%; max-height:90vh; overflow-y:auto;">
         <h3 style="font-weight:700; font-size:15px; margin-bottom:6px;"><i class="fas fa-calculator" style="color:var(--burgundy); margin-right:8px;"></i>Bantu Hitung Konversi Berjenjang</h3>
         <p style="font-size:11px; color:var(--text-faint); margin-bottom:14px;">Contoh: 1 Dus = 12 Pack, 1 Pack = 12 Pcs. Tambah baris kalau tingkatnya lebih dari 1. Hasil akhir akan otomatis mengisi "Isi Konversi Pembelian". Satuan diambil dari Data Satuan — kalau belum ada di daftar, tambah dulu lewat Pengaturan.</p>
-        <div v-for="(b, i) in baris" :key="i" style="display:flex; align-items:center; gap:6px; margin-bottom:8px; flex-wrap:wrap;">
-          <span style="font-size:11px; color:var(--text-faint); width:14px;">1</span>
-          <div style="flex:1; min-width:120px;"><dropdown-cari v-model="b.dari" :opsi="opsiSatuan" placeholder="Satuan awal (mis. Dus)" /></div>
-          <span style="font-size:12px; color:var(--text-faint);">=</span>
-          <input v-model.number="b.jumlah" type="number" min="0" placeholder="Jumlah" style="width:80px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <div style="flex:1; min-width:120px;"><dropdown-cari v-model="b.ke" :opsi="opsiSatuan" placeholder="Satuan tujuan (mis. Pack)" /></div>
+        <div class="gc-field">
+          <label>Harga Pembelian (Rp) <span style="color:var(--danger);">*</span></label>
+          <input :value="harga" @input="$emit('update:harga', $event.target.valueAsNumber ?? '')" type="number" min="0" placeholder="0">
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 64px 1fr 30px; gap:6px; margin:12px 0 4px;">
+          <span style="font-size:10px; font-weight:700; color:var(--text-faint);">SATUAN AWAL</span>
+          <span style="font-size:10px; font-weight:700; color:var(--text-faint);">JUMLAH</span>
+          <span style="font-size:10px; font-weight:700; color:var(--text-faint);">SATUAN TUJUAN</span>
+          <span></span>
+        </div>
+        <div v-for="(b, i) in baris" :key="i" style="display:grid; grid-template-columns:1fr 64px 1fr 30px; gap:6px; align-items:center; margin-bottom:8px;">
+          <dropdown-cari v-model="b.dari" :opsi="opsiSatuan" placeholder="Mis. Dus" />
+          <input v-model.number="b.jumlah" type="number" min="0" placeholder="Jml" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+          <dropdown-cari v-model="b.ke" :opsi="opsiSatuan" placeholder="Mis. Pack" />
           <button @click="$emit('hapus', i)" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button>
         </div>
         <button @click="$emit('tambah')" class="btn-outline" style="font-size:11.5px; padding:6px 14px; margin-bottom:16px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah Tingkat</button>
@@ -489,7 +520,7 @@ const BahanAksesorisEntryManager = {
 
       <hr style="border-color:var(--line); margin:14px 0;">
 
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;" class="grid-cols-1 md:grid-cols-2">
+      <div v-if="!(form.konversi_bertingkat && form.konversi_bertingkat.length > 0)" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
         <div class="gc-field">
           <label>Harga Pembelian (Rp) <span style="color:var(--danger);">*</span></label>
           <input v-model.number="form.harga_pembelian" type="number" min="0" placeholder="0">
@@ -498,24 +529,35 @@ const BahanAksesorisEntryManager = {
           <label>Satuan Pembelian <span style="color:var(--danger);">*</span></label>
           <dropdown-cari v-model="form.satuan_pembelian" :opsi="opsiSatuan" placeholder="Cari & pilih Satuan..." />
         </div>
-        <div class="gc-field" style="grid-column:1/-1;">
+        <div class="gc-field">
           <label>Isi Konversi Pembelian <span style="color:var(--danger);">*</span></label>
-          <div style="display:flex; gap:8px;">
-            <input v-model.number="form.isi_konversi_pembelian" type="number" min="0" placeholder="Contoh: 144" style="flex:1;">
-            <button @click="bukaPopupKonversi" class="btn-outline" style="white-space:nowrap; font-size:11.5px; padding:0 14px;"><i class="fas fa-calculator" style="margin-right:5px;"></i>Konversi Banyak Tingkat</button>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <input v-model.number="form.isi_konversi_pembelian" type="number" min="0" placeholder="144" style="flex:1; min-width:70px;">
+            <button @click="bukaPopupKonversi" class="btn-outline" style="white-space:nowrap; font-size:11px; padding:0 10px;" title="Bantu Hitung Konversi Banyak Tingkat"><i class="fas fa-calculator"></i></button>
           </div>
-          <p v-if="form.konversi_bertingkat && form.konversi_bertingkat.length > 0" style="font-size:10px; color:var(--text-faint); margin-top:4px;">
-            Rincian: {{ form.konversi_bertingkat.map(b => '1 ' + b.dari + ' = ' + b.jumlah + ' ' + b.ke).join(', ') }}
-          </p>
         </div>
         <div class="gc-field">
           <label>Satuan Pemakaian <span style="color:var(--danger);">*</span></label>
           <dropdown-cari v-model="form.satuan_pemakaian" :opsi="opsiSatuan" placeholder="Cari & pilih Satuan..." />
         </div>
-        <div class="gc-field">
-          <label>Margin Modal (Rp) <span style="color:var(--danger);">*</span></label>
-          <input v-model.number="form.margin_modal" type="number" min="0" placeholder="0">
+      </div>
+
+      <div v-else style="background:var(--ivory-dim); border-radius:12px; padding:14px 16px; margin-bottom:4px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <b style="font-size:12.5px;"><i class="fas fa-calculator" style="color:var(--burgundy); margin-right:6px;"></i>Konversi Banyak Tingkat aktif</b>
+          <div style="display:flex; gap:6px;">
+            <button @click="bukaPopupKonversi" class="icon-btn" title="Ubah Konversi Banyak Tingkat"><i class="fas fa-pen"></i></button>
+            <button @click="hapusKonversiBertingkat" class="icon-btn" style="color:var(--danger);" title="Hapus & isi manual"><i class="fas fa-times"></i></button>
+          </div>
         </div>
+        <p style="font-size:11.5px; margin-bottom:4px;">Harga Pembelian: <b>{{ formatRupiah(form.harga_pembelian) }}</b></p>
+        <p style="font-size:11.5px; color:var(--text-muted);">Rincian: {{ form.konversi_bertingkat.map(b => '1 ' + b.dari + ' = ' + b.jumlah + ' ' + b.ke).join(', ') }}</p>
+        <p style="font-size:11.5px; margin-top:4px;">Isi Konversi Pembelian: <b>{{ form.isi_konversi_pembelian }}</b> &middot; Satuan Pemakaian: <b>{{ form.satuan_pemakaian }}</b></p>
+      </div>
+
+      <div class="gc-field" style="max-width:260px; margin-top:10px;">
+        <label>Margin Modal (Rp) <span style="color:var(--danger);">*</span></label>
+        <input v-model.number="form.margin_modal" type="number" min="0" placeholder="0">
       </div>
 
       <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
@@ -530,6 +572,7 @@ const BahanAksesorisEntryManager = {
     </div>
 
     <popup-konversi-berjenjang v-if="tampilPopupKonversi" :baris="barisKonversi" :total="totalKonversiBerjenjang" :opsi-satuan="opsiSatuan"
+      :harga="form.harga_pembelian" @update:harga="v => form.harga_pembelian = v"
       @tambah="tambahBarisKonversi" @hapus="hapusBarisKonversi" @terapkan="terapkanKonversi" @tutup="tutupPopupKonversi" />
     <pengaturan-bahan-aksesoris v-if="tampilPengaturan" @tutup="tampilPengaturan = false; muatOpsiJenis(); muatOpsiSatuanWarna()" />
   `
@@ -653,7 +696,8 @@ const BahanAksesorisListManager = {
       tampilPopupKonversiEdit: konversiEdit.tampilPopupKonversi, barisKonversiEdit: konversiEdit.barisKonversi,
       bukaPopupKonversiEdit: konversiEdit.bukaPopupKonversi, tutupPopupKonversiEdit: konversiEdit.tutupPopupKonversi,
       tambahBarisKonversiEdit: konversiEdit.tambahBarisKonversi, hapusBarisKonversiEdit: konversiEdit.hapusBarisKonversi,
-      totalKonversiBerjenjangEdit: konversiEdit.totalKonversiBerjenjang, terapkanKonversiEdit: konversiEdit.terapkanKonversi
+      totalKonversiBerjenjangEdit: konversiEdit.totalKonversiBerjenjang, terapkanKonversiEdit: konversiEdit.terapkanKonversi,
+      hapusKonversiBertingkatEdit: konversiEdit.hapusKonversiBertingkat
     };
   },
   template: `
@@ -726,18 +770,34 @@ const BahanAksesorisListManager = {
           <div class="gc-field"><label>Foto</label><input type="file" accept="image/*" @change="pilihFotoEdit"></div>
         </div>
         <div v-if="formEdit.foto" style="margin-bottom:12px;"><img :src="formEdit.foto" style="width:70px; height:70px; object-fit:cover; border-radius:10px; border:1.5px solid var(--line);"></div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;" class="grid-cols-1 md:grid-cols-2">
+        <div v-if="!(formEdit.konversi_bertingkat && formEdit.konversi_bertingkat.length > 0)" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
           <div class="gc-field"><label>Harga Pembelian (Rp)</label><input v-model.number="formEdit.harga_pembelian" type="number" min="0"></div>
           <div class="gc-field"><label>Satuan Pembelian</label><dropdown-cari v-model="formEdit.satuan_pembelian" :opsi="opsiSatuanEdit" placeholder="Cari & pilih Satuan..." /></div>
-          <div class="gc-field" style="grid-column:1/-1;">
+          <div class="gc-field">
             <label>Isi Konversi Pembelian</label>
-            <div style="display:flex; gap:8px;">
-              <input v-model.number="formEdit.isi_konversi_pembelian" type="number" min="0" style="flex:1;">
-              <button @click="bukaPopupKonversiEdit" class="btn-outline" style="white-space:nowrap; font-size:11.5px; padding:0 14px;"><i class="fas fa-calculator" style="margin-right:5px;"></i>Konversi Berjenjang</button>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <input v-model.number="formEdit.isi_konversi_pembelian" type="number" min="0" style="flex:1; min-width:70px;">
+              <button @click="bukaPopupKonversiEdit" class="btn-outline" style="white-space:nowrap; font-size:11px; padding:0 10px;" title="Konversi Banyak Tingkat"><i class="fas fa-calculator"></i></button>
             </div>
           </div>
           <div class="gc-field"><label>Satuan Pemakaian</label><dropdown-cari v-model="formEdit.satuan_pemakaian" :opsi="opsiSatuanEdit" placeholder="Cari & pilih Satuan..." /></div>
-          <div class="gc-field"><label>Margin Modal (Rp)</label><input v-model.number="formEdit.margin_modal" type="number" min="0"></div>
+        </div>
+
+        <div v-else style="background:var(--ivory-dim); border-radius:12px; padding:14px 16px; margin-bottom:4px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <b style="font-size:12.5px;"><i class="fas fa-calculator" style="color:var(--burgundy); margin-right:6px;"></i>Konversi Banyak Tingkat aktif</b>
+            <div style="display:flex; gap:6px;">
+              <button @click="bukaPopupKonversiEdit" class="icon-btn" title="Ubah Konversi Banyak Tingkat"><i class="fas fa-pen"></i></button>
+              <button @click="hapusKonversiBertingkatEdit" class="icon-btn" style="color:var(--danger);" title="Hapus & isi manual"><i class="fas fa-times"></i></button>
+            </div>
+          </div>
+          <p style="font-size:11.5px; margin-bottom:4px;">Harga Pembelian: <b>{{ formatRupiah(formEdit.harga_pembelian) }}</b></p>
+          <p style="font-size:11.5px; color:var(--text-muted);">Rincian: {{ formEdit.konversi_bertingkat.map(b => '1 ' + b.dari + ' = ' + b.jumlah + ' ' + b.ke).join(', ') }}</p>
+          <p style="font-size:11.5px; margin-top:4px;">Isi Konversi Pembelian: <b>{{ formEdit.isi_konversi_pembelian }}</b> &middot; Satuan Pemakaian: <b>{{ formEdit.satuan_pemakaian }}</b></p>
+        </div>
+
+        <div class="gc-field" style="max-width:260px; margin-top:10px;">
+          <label>Margin Modal (Rp)</label><input v-model.number="formEdit.margin_modal" type="number" min="0">
         </div>
         <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
           <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Modal (otomatis)</span><b>{{ formatRupiah(hargaModalEdit) }}</b></div>
@@ -750,6 +810,7 @@ const BahanAksesorisListManager = {
       </div>
     </div>
     <popup-konversi-berjenjang v-if="tampilPopupKonversiEdit" :baris="barisKonversiEdit" :total="totalKonversiBerjenjangEdit" :opsi-satuan="opsiSatuanEdit"
+      :harga="formEdit.harga_pembelian" @update:harga="v => formEdit.harga_pembelian = v"
       @tambah="tambahBarisKonversiEdit" @hapus="hapusBarisKonversiEdit" @terapkan="terapkanKonversiEdit" @tutup="tutupPopupKonversiEdit" />
   `
 };
