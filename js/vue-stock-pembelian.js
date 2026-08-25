@@ -191,6 +191,19 @@ function formatRupiah(n) {
   const angka = parseFloat(n) || 0;
   return 'Rp ' + Math.round(angka).toLocaleString('id-ID');
 }
+// formatNamaBahan — BARU (25 Agt 2026) — gabungkan `nama` + `warna` (mis.
+// "DUSKY CRINKLE BLUSH PINK") buat ditampilkan di dropdown pencarian item
+// (Alias Pembelian, List/Nota Order Belanja — lihat opsiNamaInternal &
+// opsiNamaBarang di bawah). Sebelum ini dropdown cuma tampil `nama` polos
+// — kalau ada beberapa item dengan `nama` SAMA tapi `warna` beda (kasus
+// normal, warna itu field terpisah di Data Bahan & Aksesoris), item-itemnya
+// TIDAK BISA dibedakan di dropdown, DAN pemilihan salah satu bisa
+// nyantol ke varian warna yang SALAH (dulu di-cocokkan cuma dari `nama`
+// lewat `.find()`, selalu ambil hasil PERTAMA yang cocok — silent bug,
+// diperbaiki sekalian di sini karena satu akar masalah yang sama).
+function formatNamaBahan(b) {
+  return (b.nama || '') + (b.warna ? ` ${b.warna}` : '');
+}
 // generateNoPembelian — pola SAMA seperti generateIdBerurutan di
 // vue-bahan-aksesoris.js, cuma 1 kunci saja (tidak per-kategori).
 async function generateNoPembelian() {
@@ -293,7 +306,11 @@ const AliasPembelianManager = {
     const tampilPengaturan = ref(false);
 
     const form = reactive({ suplayerNama: '', namaInternal: '', namaDiNota: '' });
-    const opsiNamaInternal = computed(() => daftarBahan.value.map(b => b.nama));
+    // BARU (25 Agt 2026) — tampilkan nama+warna (formatNamaBahan(), lihat
+    // atas) supaya item dengan `nama` sama tapi `warna` beda bisa
+    // dibedakan di dropdown, DAN tidak salah nyantol (lihat catatan di
+    // tambah() di bawah).
+    const opsiNamaInternal = computed(() => daftarBahan.value.map(formatNamaBahan));
     const opsiSuplayer = computed(() => daftarSuplayer.value.map(s => s.nama));
 
     const bolehTambah = computed(() => window.cekIzinMenu('stock_alias_pembelian', 'add') !== false);
@@ -321,7 +338,11 @@ const AliasPembelianManager = {
     async function tambah() {
       if (!bolehTambah.value) return alert('Anda tidak punya izin menambah di sini. Hubungi Owner/PIC.');
       const suplayer = daftarSuplayer.value.find(s => s.nama === form.suplayerNama);
-      const bahan = daftarBahan.value.find(b => b.nama === form.namaInternal);
+      // GANTI (25 Agt 2026) — cocokkan lewat formatNamaBahan() (nama+warna),
+      // BUKAN `nama` polos lagi — dulu kalau ada 2+ item `nama` sama beda
+      // `warna`, ini selalu ambil yang PERTAMA cocok (bisa salah varian
+      // warna, silent bug).
+      const bahan = daftarBahan.value.find(b => formatNamaBahan(b) === form.namaInternal);
       if (!suplayer) return alert('Pilih Suplayer dulu. Kalau belum ada, tambahkan lewat tombol Pengaturan.');
       if (!bahan) return alert('Pilih Nama Bahan/Aksesoris (internal) dulu.');
       const namaDiNota = form.namaDiNota.trim();
@@ -728,7 +749,13 @@ const OrderBelanjaScreen = {
     const bolehHapus = computed(() => window.cekIzinMenu(menuId, 'delete') !== false);
 
     const opsiSuplayer = computed(() => daftarSuplayer.value.map(s => s.nama));
-    const opsiNamaBarang = computed(() => daftarBahan.value.map(b => b.nama));
+    // BARU (25 Agt 2026) — tampilkan nama+warna (formatNamaBahan(), lihat
+    // atas dekat formatRupiah) supaya item dengan `nama` sama tapi `warna`
+    // beda bisa dibedakan di dropdown "Nama Barang" (List & Nota Order
+    // Belanja, komponen SAMA-SAMA lewat OrderBelanjaScreen ini), DAN tidak
+    // salah nyantol ke varian warna lain — lihat catatan di
+    // tambahItemManual() di bawah.
+    const opsiNamaBarang = computed(() => daftarBahan.value.map(formatNamaBahan));
     // BARU (malam 24 Agt 2026) — dihitung LIVE dari qty*harga (bukan baca
     // field `jumlah` statis lagi), supaya begitu admin edit Harga Aktual
     // di tabel, Estimasi Biaya Belanja di atas langsung ikut update.
@@ -794,7 +821,11 @@ const OrderBelanjaScreen = {
 
     function tambahItemManual() {
       if (!suplayerEntry.value) return alert('Pilih Suplayer dulu.');
-      const item = daftarBahan.value.find(b => b.nama === namaBarangEntry.value);
+      // GANTI (25 Agt 2026) — cocokkan lewat formatNamaBahan() (nama+warna),
+      // BUKAN `nama` polos lagi — dulu kalau ada 2+ item `nama` sama beda
+      // `warna`, ini selalu ambil yang PERTAMA cocok (bisa salah varian
+      // warna masuk ke Daftar Pesanan Pembelian, silent bug).
+      const item = daftarBahan.value.find(b => formatNamaBahan(b) === namaBarangEntry.value);
       if (!item) return alert('Pilih Nama Barang dari daftar dulu (bukan teks bebas). Kalau nama di nota Suplayer beda, catat dulu di menu Alias Pembelian.');
       const qty = parseFloat(qtyEntry.value);
       if (!(qty > 0)) return alert('Isi Qty dengan angka lebih dari 0.');
