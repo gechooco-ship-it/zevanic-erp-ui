@@ -68,6 +68,8 @@ const DAFTAR_MENU = [
   // sudah tersimpan sebelumnya (per-user) TIDAK ikut kereset/hilang.
   { id: 'bahan_aksesoris_entry', label: 'Entry Bahan & Aksesoris', kategori: 'Zevanic House' },
   { id: 'bahan_aksesoris_list', label: 'List Bahan & Aksesoris', kategori: 'Zevanic House' },
+  // BARU (25 Agt 2026, §25) — Rak Penyimpanan.
+  { id: 'bahan_aksesoris_rak', label: 'Rak Penyimpanan', kategori: 'Zevanic House' },
   // BARU (24 Agt 2026) — Persiapan Masalah + Stock & Pembelian.
   { id: 'persiapan_masalah', label: 'Persiapan Masalah', kategori: 'Zevanic House' },
   { id: 'master_suplayer', label: 'Master Suplayer (lewat Pengaturan)', kategori: 'Zevanic House' },

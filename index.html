@@ -369,6 +369,8 @@
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry', this)" class="sub-zh-databahan-btn gc-sub-tab-btn active"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Entry Bahan &amp; Aksesoris</button>
               <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-list', this)" class="sub-zh-databahan-btn gc-sub-tab-btn"><i class="fas fa-list" style="margin-right:6px;"></i> List Bahan &amp; Aksesoris</button>
+              <!-- BARU (25 Agt 2026, §25) — Rak Penyimpanan: lihat js/vue-rak-penyimpanan.js -->
+              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-rak', this)" class="sub-zh-databahan-btn gc-sub-tab-btn"><i class="fas fa-warehouse" style="margin-right:6px;"></i> Rak Penyimpanan</button>
             </div>
             <div id="sub-zh-databahan-entry" class="sub-zh-databahan-content fade-in space-y-4">
               <!-- Entry Bahan/Aksesoris: lihat js/vue-bahan-aksesoris.js -->
@@ -377,6 +379,10 @@
             <div id="sub-zh-databahan-list" class="sub-zh-databahan-content hidden fade-in space-y-4">
               <!-- List Bahan/Aksesoris: lihat js/vue-bahan-aksesoris.js -->
               <div id="vue-bahan-aksesoris-list"></div>
+            </div>
+            <!-- BARU (25 Agt 2026, §25) — Rak Penyimpanan: lihat js/vue-rak-penyimpanan.js -->
+            <div id="sub-zh-databahan-rak" class="sub-zh-databahan-content hidden fade-in space-y-4">
+              <div id="vue-rak-penyimpanan"></div>
             </div>
           </div>
 
@@ -518,9 +524,10 @@
   <script type="module" src="js/vue-absensi-qr.js"></script>
   <script type="module" src="js/vue-camera.js?v=2"></script>
   <script type="module" src="js/vue-scan-qr.js"></script>
-  <script type="module" src="js/vue-bahan-aksesoris.js?v=11"></script>
+  <script type="module" src="js/vue-bahan-aksesoris.js?v=13"></script>
+  <script type="module" src="js/vue-rak-penyimpanan.js?v=1"></script>
   <script type="module" src="js/vue-persiapan-masalah.js?v=1"></script>
-  <script type="module" src="js/vue-stock-pembelian.js?v=3"></script>
-  <script type="module" src="js/vue-kartu-stok.js?v=1"></script>
+  <script type="module" src="js/vue-stock-pembelian.js?v=5"></script>
+  <script type="module" src="js/vue-kartu-stok.js?v=2"></script>
 </body>
 </html>

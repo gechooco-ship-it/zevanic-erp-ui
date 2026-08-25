@@ -44,6 +44,61 @@
 //   - Item per Pesanan Pembelian disimpan sebagai ARRAY di dalam 1 dokumen
 //     (bukan sub-koleksi terpisah) — jumlah baris per order wajar kecil,
 //     lebih sederhana dibaca/ditulis sekaligus (konsisten prinsip hemat).
+//
+// UPDATE (25 Agt 2026, §25.2) — Qty per Roll/Lot. Arahan Hilman (persis):
+// "1. untuk qty per lot bantu jalankan (fifo nanti saja) 2. pakai tombol
+// pop up disimpan per baris dan kolomnya paling depan. tombol aktif jika
+// dia memang menurut data wajib entry qty per lot". Diimplementasikan:
+//   - Kolom BARU paling kiri di tabel "Daftar Pesanan Pembelian" (sebelum
+//     kolom centang), isinya 1 tombol per baris (ikon layer-group).
+//   - Tombol HANYA aktif kalau item baris itu ditandai `pakai_lot_tracking`
+//     di Data Bahan & Aksesoris (field BARU, lihat vue-bahan-aksesoris.js)
+//     — didenormalisasi ke tiap baris lewat buatBarisPesanan() di bawah.
+//     Kalau tidak ditandai, sel tampil "-" (tidak bisa diklik).
+//   - Klik tombol -> buka popup (PopupQtyPerLot, pola SAMA seperti
+//     PopupKonversiBerjenjang di vue-bahan-aksesoris.js) — isi qty tiap
+//     roll/lot satu-satu (SEBELUM Nota/List disimpan, sesuai arahan Guru
+//     "ketika nota datang input langsung sebelum simpan"). Hasil disimpan
+//     ke field BARU `detail_lot` (array {qty, keterangan}) di baris itu,
+//     ikut tersimpan ke `pesanan_pembelian.items[].detail_lot` pas
+//     Simpan/Pending — TIDAK ada dokumen lot terpisah dulu.
+//   - FIFO / logic konsumsi per-lot (dipakai barang lama dulu baru baru)
+//     SENGAJA BELUM dikerjakan ronde ini (arahan Guru: "fifo nanti saja").
+//     Konsekuensi yang PERLU DIKETAHUI: begitu "Catat Pemakaian" manual di
+//     Kartu Stok (js/vue-kartu-stok.js) dipakai, stok_akhir agregat
+//     berkurang TAPI qty per-lot di sini TIDAK ikut berkurang — jadi
+//     invarian "total lot = stok_akhir" cuma pasti benar TEPAT SETELAH
+//     barang diterima, lalu bisa "meleset" begitu ada pemakaian, sampai
+//     FIFO benar-benar dikerjakan. Ini keterbatasan SEMENTARA yang
+//     disengaja, dicatat juga di STATUS-PROYEK.md §25.2.
+//
+// UPDATE (25 Agt 2026, §25.3) — FIFO dijalankan (arahan Guru: "stok saat
+// dipakai bantu sync dlu langsung pangkas aja bisa? walau data rak belum
+// ada?" — dikonfirmasi lewat AskUserQuestion: pakai form "Catat Pemakaian"
+// yang SUDAH ADA di Kartu Stok, TIDAK menunggu modul SPK/produksi yang
+// belum ada). Ditambahkan:
+//   - Koleksi BARU `lot_bahan_aksesoris` — 1 dokumen = 1 roll/lot individual
+//     (`qty_awal`, `qty_sisa`, `tanggal_masuk`, dst). Dibuat OTOMATIS begitu
+//     Nota Order Belanja di-final-kan untuk item `pakai_lot_tracking` yang
+//     `detail_lot`-nya sudah diisi (lihat `catatPergerakanKartuStok()` di
+//     bawah, param baru `lotBaru`) — DALAM transaksi yang SAMA dengan
+//     update `stok_akhir` & ledger `kartu_stok_bahan_aksesoris`, supaya
+//     ketiganya SELALU konsisten sekaligus.
+//   - Fungsi BARU `catatPemakaianDenganFifo()` (export, dipakai
+//     `js/vue-kartu-stok.js` di form "Catat Pemakaian") — untuk item
+//     `pakai_lot_tracking`, potong dari roll/lot TERLAMA dulu (urut
+//     `tanggal_masuk` ASC), dalam 1 `runTransaction()` (baca semua lot dulu
+//     lewat `tx.get()`, baru tulis — aturan wajib Firestore transaction).
+//     Kalau BELUM ADA data lot sama sekali -> lempar error `LOT_KOSONG`
+//     (BLOKIR, sesuai keputusan Guru — jangan proses pemakaian tanpa data
+//     lot). Kalau total lot AKTIF < qty diminta -> lempar error `LOT_KURANG`
+//     (bawa info `totalTersedia`) — TIDAK diblokir diam-diam, `vue-kartu-
+//     stok.js` menangkap ini dan menampilkan popup 3 opsi keputusan (kurangi
+//     jumlah / proses sebagian + sisanya masuk Persiapan Masalah / tunggu
+//     dulu, sisanya tetap masuk Persiapan Masalah) — SEMUA lewat koleksi
+//     `persiapan_masalah` yang SUDAH ADA apa adanya (TIDAK ada field/skema
+//     baru di sana, cukup 1 entri normal seperti alur "butuh beli barang"
+//     yang sudah berjalan).
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, runTransaction, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -312,7 +367,7 @@ const AliasPembelianManager = {
 // sama, tidak ada 2 cara beda yang bisa bikin angkanya meleset satu sama
 // lain. `qty` WAJIB sudah dalam satuan_pemakaian (bukan satuan_pembelian)
 // — stok SATU satuan konsisten walau tiap pembelian bisa beda satuan beli.
-export async function catatPergerakanKartuStok({ bahanId, namaBahan, tanggal, jenis, qty, satuan, sumber, noPembelian, keterangan }) {
+export async function catatPergerakanKartuStok({ bahanId, namaBahan, tanggal, jenis, qty, satuan, sumber, noPembelian, keterangan, lotBaru }) {
   const refBahan = doc(db, 'master_bahan_aksesoris', bahanId);
   await runTransaction(db, async (tx) => {
     const snapBahan = await tx.get(refBahan);
@@ -326,11 +381,176 @@ export async function catatPergerakanKartuStok({ bahanId, namaBahan, tanggal, je
       keterangan: keterangan || '', saldo_setelah: stokSetelah,
       dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
     });
+    // BARU (25 Agt 2026, §25.3) — kalau ada data lot baru (masuk lewat Nota
+    // untuk item `pakai_lot_tracking`), tulis 1 dokumen `lot_bahan_aksesoris`
+    // per baris DALAM transaksi yang SAMA — supaya stok_akhir, ledger kartu
+    // stok, dan data lot SELALU konsisten sekaligus (tidak ada celah antara
+    // 1 tulis sukses & yang lain gagal).
+    if (jenis === 'masuk' && Array.isArray(lotBaru) && lotBaru.length > 0) {
+      lotBaru.forEach(l => {
+        const qtyLot = parseFloat(l.qty) || 0;
+        if (qtyLot <= 0) return;
+        const refLot = doc(collection(db, 'lot_bahan_aksesoris'));
+        tx.set(refLot, {
+          bahan_aksesoris_id: bahanId, nama_bahan: namaBahan,
+          qty_awal: qtyLot, qty_sisa: qtyLot, satuan: satuan || '',
+          tanggal_masuk: tanggal, no_pembelian: noPembelian || '',
+          keterangan: l.keterangan || '', status: 'aktif',
+          dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
+        });
+      });
+    }
   });
 }
 
+// catatPemakaianDenganFifo — BARU (25 Agt 2026, §25.3). Dipakai form "Catat
+// Pemakaian" di js/vue-kartu-stok.js, HANYA untuk item `pakai_lot_tracking`.
+// Potong dari roll/lot TERLAMA dulu (`tanggal_masuk` ASC). Query kandidat
+// lot dilakukan DULU di luar transaksi (Firestore transaction TIDAK
+// mendukung query, cuma tx.get() per-dokumen) — begitu masuk transaksi,
+// SEMUA lot kandidat dibaca ULANG lewat tx.get() (data FRESH, jaga-jaga
+// ada pemakaian lain nyelip di antara query awal & transaksi ini) sebelum
+// ada tulisan apapun (aturan wajib Firestore: semua get() sebelum set/
+// update dalam 1 transaction).
+//
+// 2 kondisi dilempar sebagai Error dengan `.kode` (BUKAN dikembalikan diam-
+// diam) — supaya pemanggil (vue-kartu-stok.js) bisa tangani beda-beda:
+//   - `LOT_KOSONG` — belum ada data lot SAMA SEKALI untuk item ini. BLOKIR
+//     (keputusan Guru) — jangan proses pemakaian tanpa data lot.
+//   - `LOT_KURANG` — total qty_sisa semua lot aktif < qty yang diminta.
+//     TIDAK diblokir diam-diam, `err.totalTersedia` dibawa supaya pemanggil
+//     bisa tawarkan 3 opsi keputusan (lihat vue-kartu-stok.js).
+export async function catatPemakaianDenganFifo({ bahanId, namaBahan, tanggal, qty, satuan, keterangan }) {
+  const snapLot = await getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('bahan_aksesoris_id', '==', bahanId), where('status', '==', 'aktif')));
+  const lots = []; snapLot.forEach(d => lots.push({ id: d.id, ...d.data() }));
+  lots.sort((a, b) => (a.tanggal_masuk || '').localeCompare(b.tanggal_masuk || '') || ((a.dibuat_pada?.seconds || 0) - (b.dibuat_pada?.seconds || 0)));
+
+  if (lots.length === 0) {
+    const err = new Error('Belum ada data lot untuk item ini.');
+    err.kode = 'LOT_KOSONG';
+    throw err;
+  }
+  const totalTersedia = lots.reduce((t, l) => t + (parseFloat(l.qty_sisa) || 0), 0);
+  if (totalTersedia < qty) {
+    const err = new Error('Total qty lot aktif kurang dari yang diminta.');
+    err.kode = 'LOT_KURANG';
+    err.totalTersedia = totalTersedia;
+    throw err;
+  }
+
+  // Rencana alokasi FIFO (dihitung dari data hasil query di atas) — jumlah
+  // `ambil` per lot di-clamp ULANG pakai data FRESH di dalam transaksi
+  // (lihat bawah), rencana ini cuma menentukan LOT MANA saja yang kepakai
+  // & urutannya.
+  let sisaDipotong = qty;
+  const rencana = [];
+  for (const l of lots) {
+    if (sisaDipotong <= 0) break;
+    const tersedia = parseFloat(l.qty_sisa) || 0;
+    if (tersedia <= 0) continue;
+    const ambil = Math.min(tersedia, sisaDipotong);
+    rencana.push({ id: l.id, tanggal_masuk: l.tanggal_masuk, ambil });
+    sisaDipotong -= ambil;
+  }
+
+  const refBahan = doc(db, 'master_bahan_aksesoris', bahanId);
+  const rincianHasil = [];
+  let stokSetelahFinal = 0;
+  await runTransaction(db, async (tx) => {
+    const snapBahan = await tx.get(refBahan);
+    const lotRefs = rencana.map(r => doc(db, 'lot_bahan_aksesoris', r.id));
+    const lotSnaps = [];
+    for (const ref of lotRefs) lotSnaps.push(await tx.get(ref)); // WAJIB berurutan/di-await 1-1 dalam transaction (bukan Promise.all) — konsisten dengan cara tx.get() dipakai di tempat lain
+
+    const stokSebelum = snapBahan.exists() ? (parseFloat(snapBahan.data().stok_akhir) || 0) : 0;
+    const stokSetelah = stokSebelum - qty;
+    tx.set(refBahan, { stok_akhir: stokSetelah }, { merge: true });
+
+    let totalTerpotongUlang = 0;
+    rencana.forEach((r, i) => {
+      const lotSnap = lotSnaps[i];
+      const sisaSekarang = lotSnap.exists() ? (parseFloat(lotSnap.data().qty_sisa) || 0) : 0;
+      const ambilFix = Math.min(r.ambil, sisaSekarang);
+      const sisaBaru = sisaSekarang - ambilFix;
+      tx.update(lotRefs[i], { qty_sisa: sisaBaru, status: sisaBaru <= 0 ? 'habis' : 'aktif' });
+      rincianHasil.push({ lot_id: r.id, tanggal_masuk: r.tanggal_masuk, dipotong: ambilFix, sisa_setelah: sisaBaru });
+      totalTerpotongUlang += ambilFix;
+    });
+    // Jaga-jaga langka: kalau data berubah persis di antara query awal &
+    // transaksi ini (mis. ada pemakaian lain nyelip) sampai totalnya jadi
+    // tidak cukup lagi — batalkan transaksi ini dengan pesan jelas, JANGAN
+    // diam-diam catat kurang dari qty yang diminta.
+    if (Math.round((totalTerpotongUlang - qty) * 100) !== 0) {
+      throw Object.assign(new Error('Data lot berubah saat diproses, coba Catat Pemakaian lagi.'), { kode: 'LOT_BERUBAH' });
+    }
+
+    const refGerak = doc(collection(db, 'kartu_stok_bahan_aksesoris'));
+    tx.set(refGerak, {
+      bahan_aksesoris_id: bahanId, nama_bahan: namaBahan, tanggal, jenis: 'keluar', qty,
+      satuan: satuan || '', sumber: 'Pemakaian Manual (FIFO Lot)', no_pembelian: '',
+      keterangan: keterangan || '', saldo_setelah: stokSetelah, rincian_lot: rincianHasil,
+      dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
+    });
+    stokSetelahFinal = stokSetelah;
+  });
+
+  return { rincian: rincianHasil, stokSetelah: stokSetelahFinal };
+}
+
+// ---------------------------------------------------------------------------
+// PopupQtyPerLot — BARU (25 Agt 2026, §25.2). Popup isi qty per roll/lot
+// untuk 1 baris di "Daftar Pesanan Pembelian", pola SAMA seperti
+// PopupKonversiBerjenjang di vue-bahan-aksesoris.js (state diedit di
+// komponen induk OrderBelanjaScreen lewat props, emit 'tambah'/'hapus'/
+// 'terapkan'/'tutup' — bukan disimpan ganda di sini).
+// ---------------------------------------------------------------------------
+const PopupQtyPerLot = {
+  props: {
+    baris: { type: Array, required: true },
+    total: { type: Number, required: true },
+    target: { type: Number, default: 0 },
+    satuan: { type: String, default: '' },
+    namaBarang: { type: String, default: '' }
+  },
+  emits: ['tambah', 'hapus', 'terapkan', 'tutup'],
+  template: `
+    <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="$emit('tutup')">
+      <div class="gc-card" style="max-width:520px; width:100%; max-height:90vh; overflow-y:auto;">
+        <h3 style="font-weight:700; font-size:15px; margin-bottom:6px;"><i class="fas fa-layer-group" style="color:var(--burgundy); margin-right:8px;"></i>Qty per Roll/Lot — {{ namaBarang }}</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin-bottom:14px;">Isi qty tiap roll/kones satu per satu (qtynya bisa beda-beda tiap roll). Total dijumlah otomatis. Catatan: FIFO/pemakaian per-lot belum aktif — ronde ini baru mencatat qty per roll saat barang diterima.</p>
+        <div style="display:grid; grid-template-columns:40px 1fr 1fr 30px; gap:6px; margin-bottom:4px;">
+          <span style="font-size:10px; font-weight:700; color:var(--text-faint);">NO</span>
+          <span style="font-size:10px; font-weight:700; color:var(--text-faint);">QTY ({{ satuan || 'satuan' }})</span>
+          <span style="font-size:10px; font-weight:700; color:var(--text-faint);">KETERANGAN (opsional)</span>
+          <span></span>
+        </div>
+        <div v-for="(b, i) in baris" :key="i" style="display:grid; grid-template-columns:40px 1fr 1fr 30px; gap:6px; align-items:center; margin-bottom:8px;">
+          <span style="font-size:11.5px; color:var(--text-muted); text-align:center;">{{ i + 1 }}</span>
+          <input v-model.number="b.qty" type="number" min="0" placeholder="0" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+          <input v-model="b.keterangan" type="text" placeholder="Mis. no. roll" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+          <button @click="$emit('hapus', i)" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button>
+        </div>
+        <button @click="$emit('tambah')" class="btn-outline" style="font-size:11.5px; padding:6px 14px; margin-bottom:16px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah Roll/Lot</button>
+        <div style="background:var(--ivory-dim); border-radius:10px; padding:10px 14px; margin-bottom:16px; font-size:12.5px;">
+          <div style="display:flex; justify-content:space-between;">
+            <span style="color:var(--text-muted);">Total {{ baris.length }} roll/lot:</span><b>{{ total }} {{ satuan }}</b>
+          </div>
+          <div v-if="target > 0" style="display:flex; justify-content:space-between; margin-top:4px; padding-top:4px; border-top:1px dashed var(--line);">
+            <span style="color:var(--text-muted);">Qty di baris pesanan:</span>
+            <b :style="{color: total === target ? 'var(--text-muted)' : 'var(--danger)'}">{{ target }} {{ satuan }}{{ total !== target ? ' (beda dengan total roll!)' : '' }}</b>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button @click="$emit('terapkan')" class="btn-primary" style="flex:1;">Terapkan</button>
+          <button @click="$emit('tutup')" class="btn-outline" style="flex:1;">Batal</button>
+        </div>
+      </div>
+    </div>
+  `
+};
+
 const OrderBelanjaScreen = {
-  components: { DropdownCari, PengaturanStockPembelian },
+  components: { DropdownCari, PengaturanStockPembelian, PopupQtyPerLot },
   props: { modeNota: { type: Boolean, default: false } },
   setup(props) {
     const menuId = props.modeNota ? 'stock_nota_order_belanja' : 'stock_list_order_belanja';
@@ -350,6 +570,42 @@ const OrderBelanjaScreen = {
     const daftarPesanan = ref([]);
     const sumberPermintaanIds = ref([]);
     const menyimpan = ref(false);
+
+    // BARU (25 Agt 2026, §25.2) — Popup "Qty per Roll/Lot". indexBarisLot
+    // menyimpan INDEX baris di daftarPesanan yang sedang diedit lewat
+    // popup (bukan reference langsung, supaya gampang dibatalkan tanpa
+    // menyentuh data asli sebelum "Terapkan" diklik).
+    const tampilPopupLot = ref(false);
+    const indexBarisLot = ref(-1);
+    const barisLotSementara = ref([]);
+    function bukaPopupLot(i) {
+      const it = daftarPesanan.value[i];
+      if (!it || !it.pakai_lot_tracking) return;
+      indexBarisLot.value = i;
+      barisLotSementara.value = (it.detail_lot && it.detail_lot.length > 0)
+        ? JSON.parse(JSON.stringify(it.detail_lot))
+        : [{ qty: '', keterangan: '' }];
+      tampilPopupLot.value = true;
+    }
+    function tutupPopupLot() { tampilPopupLot.value = false; indexBarisLot.value = -1; }
+    function tambahBarisLot() { barisLotSementara.value.push({ qty: '', keterangan: '' }); }
+    function hapusBarisLot(i) {
+      if (barisLotSementara.value.length <= 1) return;
+      barisLotSementara.value.splice(i, 1);
+    }
+    const totalQtyLot = computed(() => barisLotSementara.value.reduce((t, b) => t + (parseFloat(b.qty) || 0), 0));
+    const barisLotTarget = computed(() => (indexBarisLot.value >= 0 && daftarPesanan.value[indexBarisLot.value]) ? (parseFloat(daftarPesanan.value[indexBarisLot.value].qty_s) || 0) : 0);
+    const barisLotSatuan = computed(() => (indexBarisLot.value >= 0 && daftarPesanan.value[indexBarisLot.value]) ? (daftarPesanan.value[indexBarisLot.value].satuan || '') : '');
+    const barisLotNama = computed(() => (indexBarisLot.value >= 0 && daftarPesanan.value[indexBarisLot.value]) ? (daftarPesanan.value[indexBarisLot.value].nama || '') : '');
+    function terapkanLot() {
+      const tidakLengkap = barisLotSementara.value.some(b => !(parseFloat(b.qty) > 0));
+      if (tidakLengkap) { alert('Isi Qty tiap roll/lot dulu (harus lebih dari 0). Hapus baris yang tidak dipakai.'); return; }
+      if (indexBarisLot.value >= 0 && daftarPesanan.value[indexBarisLot.value]) {
+        daftarPesanan.value[indexBarisLot.value].detail_lot = JSON.parse(JSON.stringify(barisLotSementara.value));
+      }
+      tampilPopupLot.value = false;
+      indexBarisLot.value = -1;
+    }
 
     const bolehSimpan = computed(() => window.cekIzinMenu(menuId, 'add') !== false);
     const bolehHapus = computed(() => window.cekIzinMenu(menuId, 'delete') !== false);
@@ -408,7 +664,14 @@ const OrderBelanjaScreen = {
         qty_s: Math.round((qty * isiKonversi) * 100) / 100, satuan: item.satuan_pemakaian || '',
         isi_konversi: isiKonversi,
         harga: parseFloat(item.harga_pembelian) || 0,
-        keterangan: keterangan || ''
+        keterangan: keterangan || '',
+        // BARU (25 Agt 2026, §25.2) — denormalisasi flag dari Data Bahan &
+        // Aksesoris (item.pakai_lot_tracking) supaya tombol popup "Qty per
+        // Roll/Lot" di tabel tahu harus aktif/tidak TANPA perlu lookup
+        // ulang tiap render. `detail_lot` mulai kosong, diisi lewat popup
+        // (lihat bukaPopupLot/terapkanLot di bawah).
+        pakai_lot_tracking: !!item.pakai_lot_tracking,
+        detail_lot: []
       };
     }
 
@@ -459,7 +722,13 @@ const OrderBelanjaScreen = {
       draftDocId.value = d.id;
       noPembelianAktif.value = d.no_pembelian || '';
       tanggal.value = d.tanggal || new Date().toISOString().slice(0, 10);
-      daftarPesanan.value = JSON.parse(JSON.stringify(d.items || [])).map(i => ({ ...i, dicentang: false }));
+      // BARU (25 Agt 2026, §25.2) — fallback pakai_lot_tracking/detail_lot
+      // buat draft LAMA (dibuat sebelum field ini ada) supaya tetap aman
+      // dibuka & tidak error di template.
+      daftarPesanan.value = JSON.parse(JSON.stringify(d.items || [])).map(i => ({
+        ...i, dicentang: false,
+        pakai_lot_tracking: !!i.pakai_lot_tracking, detail_lot: i.detail_lot || []
+      }));
       sumberPermintaanIds.value = d.sumber_permintaan_ids || [];
     }
 
@@ -579,7 +848,12 @@ const OrderBelanjaScreen = {
             await catatPergerakanKartuStok({
               bahanId: it.bahan_aksesoris_id, namaBahan: it.nama, tanggal: tanggalPembelian,
               jenis: 'masuk', qty: qtyMasuk, satuan: it.satuan || '',
-              sumber: 'Nota Order Belanja', noPembelian: noPembelianRef, keterangan: ''
+              sumber: 'Nota Order Belanja', noPembelian: noPembelianRef, keterangan: '',
+              // BARU (25 Agt 2026, §25.3) — kalau item ini pakai_lot_tracking
+              // DAN sudah diisi lewat popup "Qty per Roll/Lot" (§25.2), ikut
+              // buatkan dokumen lot_bahan_aksesoris (lihat catatan di
+              // catatPergerakanKartuStok() di atas).
+              lotBaru: (it.pakai_lot_tracking && Array.isArray(it.detail_lot) && it.detail_lot.length > 0) ? it.detail_lot : undefined
             });
           }
         } catch (e) {
@@ -645,7 +919,10 @@ const OrderBelanjaScreen = {
       draftDocId, noPembelianAktif, tanggal, suplayerEntry, qtyEntry, namaBarangEntry,
       daftarPesanan, menyimpan, bolehSimpan, bolehHapus, opsiSuplayer, opsiNamaBarang,
       estimasiBiaya, adaTerpilih, formatRupiah,
-      tambahItemManual, tambahDariPermintaan, hapusTerpilih, pilihNoPembelian, batal, simpan, cetak
+      tambahItemManual, tambahDariPermintaan, hapusTerpilih, pilihNoPembelian, batal, simpan, cetak,
+      // BARU (25 Agt 2026, §25.2) — Popup Qty per Roll/Lot.
+      tampilPopupLot, barisLotSementara, totalQtyLot, barisLotTarget, barisLotSatuan, barisLotNama,
+      bukaPopupLot, tutupPopupLot, tambahBarisLot, hapusBarisLot, terapkanLot
     };
   },
   template: `
@@ -706,11 +983,20 @@ const OrderBelanjaScreen = {
           <div v-else style="overflow-x:auto; margin-bottom:14px;">
             <table class="gc-table" style="width:100%; font-size:11.5px;">
               <thead><tr>
+                <th title="Qty per Roll/Lot"><i class="fas fa-layer-group"></i></th>
                 <th><i class="fas fa-square-check"></i></th><th>No</th><th>Suplayer</th><th>SKU</th><th>Nama Barang</th>
                 <th>QTY</th><th>Satuan Bahan</th><th>QTY-s</th><th>Satuan</th><th>Harga</th><th>Jumlah</th><th>Keterangan</th>
               </tr></thead>
               <tbody>
                 <tr v-for="(it, i) in daftarPesanan" :key="i">
+                  <td>
+                    <button v-if="it.pakai_lot_tracking" @click="bukaPopupLot(i)" class="icon-btn"
+                      :style="{color: (it.detail_lot && it.detail_lot.length) ? 'var(--burgundy)' : 'var(--text-faint)'}"
+                      :title="(it.detail_lot && it.detail_lot.length) ? ('Qty per Roll/Lot: ' + it.detail_lot.length + ' lot terisi') : 'Isi Qty per Roll/Lot'">
+                      <i class="fas fa-layer-group"></i>
+                    </button>
+                    <span v-else style="color:var(--text-faint); font-size:11px;" title="Item ini tidak ditandai perlu Qty per Roll/Lot (atur di Data Bahan & Aksesoris)">-</span>
+                  </td>
                   <td><input type="checkbox" v-model="it.dicentang" style="accent-color:var(--burgundy);"></td>
                   <td>{{ i + 1 }}</td><td>{{ it.suplayer_nama }}</td><td>{{ it.sku }}</td><td>{{ it.nama }}</td>
                   <td>{{ it.qty }}</td><td>{{ it.satuan_bahan }}</td><td>{{ it.qty_s }}</td><td>{{ it.satuan }}</td>
@@ -735,6 +1021,8 @@ const OrderBelanjaScreen = {
         </div>
       </template>
       <pengaturan-stock-pembelian v-if="tampilPengaturan" @tutup="tampilPengaturan = false" />
+      <popup-qty-per-lot v-if="tampilPopupLot" :baris="barisLotSementara" :total="totalQtyLot" :target="barisLotTarget" :satuan="barisLotSatuan" :nama-barang="barisLotNama"
+        @tambah="tambahBarisLot" @hapus="hapusBarisLot" @terapkan="terapkanLot" @tutup="tutupPopupLot" />
     </div>
   `
 };

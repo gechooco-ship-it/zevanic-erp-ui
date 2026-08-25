@@ -344,6 +344,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-karyawan-hakakses': 'pastikanMountHakAkses',
     'sub-zh-databahan-entry': 'pastikanMountBahanAksesorisEntry',
     'sub-zh-databahan-list': 'pastikanMountBahanAksesorisList',
+    'sub-zh-databahan-rak': 'pastikanMountRakPenyimpanan',
     'sub-zevanic-house-persiapan': 'pastikanMountPersiapanMasalah',
     'sub-zh-stock-alias': 'pastikanMountAliasPembelian',
     'sub-zh-stock-listorder': 'pastikanMountListOrderBelanja',

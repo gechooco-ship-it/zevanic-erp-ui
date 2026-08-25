@@ -71,6 +71,32 @@
 //      peringatan overstok. Peringatan overstok direncanakan MENYUSUL,
 //      munculnya nanti di menu List Order Belanja & Nota Order Belanja
 //      (vue-stock-pembelian.js), BELUM dikerjakan di sini.
+//
+// UPDATE (25 Agt 2026, §25.2) — Qty per Roll/Lot (arahan Hilman: "untuk qty
+// per lot bantu jalankan (fifo nanti saja) ... tombol aktif jika dia memang
+// menurut data wajib entry qty per lot"). Field BARU `pakai_lot_tracking`
+// (boolean, opsional/opt-in per item, default false) ditambahkan di sini —
+// dipakai SEMATA-MATA sebagai FLAG PENANDA di js/vue-stock-pembelian.js
+// (Daftar Pesanan Pembelian) untuk mengaktifkan/nonaktifkan tombol popup
+// "Qty per Roll/Lot" di kolom paling kiri tabel itu. TIDAK ADA logic
+// FIFO/pengurangan stok per-lot di ronde ini (SENGAJA ditunda sesuai
+// arahan Guru) — lihat catatan lengkap di vue-stock-pembelian.js &
+// STATUS-PROYEK.md §25.2.
+//
+// UPDATE (25 Agt 2026, §25) — Rak Penyimpanan DIROMBAK jadi menu tersendiri
+// (`js/vue-rak-penyimpanan.js`, koleksi `master_rak_penyimpanan`), atas
+// permintaan Hilman: "Kode Rak Penyimpanan mending dibuat Menu di data
+// bahan & aksesoris ... estimasi kapasitas rak volumenya brpa". Field
+// `kode_rak`/`baris_rak`/`kolom_rak` LEPAS di poin 1 di atas (25 Agt,
+// ronde pertama) DIGANTI jadi `rak_id` (ref ke 1 record spesifik di
+// `master_rak_penyimpanan`) + `rak_label` (denormalisasi, mis. "A-1-3") —
+// dikonfirmasi Hilman lewat AskUserQuestion ("1 dropdown pilih Rak
+// terdaftar", bukan 3 dropdown lepas lagi). AMAN diganti langsung (bukan
+// migrasi) karena field lama belum sempat dipakai data nyata sama sekali.
+// 3 kategori master_data (`kode_rak`/`baris_rak`/`kolom_rak`) TETAP
+// dipertahankan (masih dipakai di panel Pengaturan di bawah) — sekarang
+// fungsinya jadi "bahan baku" isian saat BIKIN record Rak baru di menu
+// Rak Penyimpanan, BUKAN dipilih langsung di sini lagi.
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, runTransaction, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -101,6 +127,25 @@ async function ambilDaftarNama(koleksi) {
     return list;
   } catch (e) {
     console.error(`Gagal ambil daftar ${koleksi}:`, e);
+    return [];
+  }
+}
+
+// ambilDaftarRak — BARU (25 Agt 2026, §25). Ambil SEMUA record dari menu
+// baru "Rak Penyimpanan" (`master_rak_penyimpanan`, js/vue-rak-penyimpanan.js)
+// buat jadi opsi dropdown "Pilih Rak" di sini — pola sama seperti
+// ambilDaftarNama() di atas (fetch semua, TANPA paginasi — ini buat
+// SUMBER dropdown, bukan tabel browsing, jumlah rak realistis kecil,
+// konsisten dengan opsiSatuan/opsiWarna).
+async function ambilDaftarRak() {
+  try {
+    const snap = await getDocs(collection(db, 'master_rak_penyimpanan'));
+    const list = [];
+    snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+    list.sort((a, b) => (a.rak_label || '').localeCompare(b.rak_label || ''));
+    return list;
+  } catch (e) {
+    console.error('Gagal ambil daftar Rak Penyimpanan:', e);
     return [];
   }
 }
@@ -166,14 +211,20 @@ function formStateKosong() {
     satuan_pembelian: '',
     isi_konversi_pembelian: '',
     satuan_pemakaian: '',
+    // BARU (25 Agt 2026, §25.2) — flag opsional, lihat catatan arsitektur
+    // di atas file ini (dekat komentar "UPDATE (25 Agt 2026, §25.2)").
+    pakai_lot_tracking: false,
     // BARU (25 Agt 2026) — Rak Penyimpanan (Kode/Baris/Kolom) & Volume
     // Barang (Tinggi/Panjang/Lebar, volume dihitung otomatis = t*p*l).
     // Lihat catatan arsitektur di bawah PengaturanBahanAksesoris. SEMUA
     // opsional (tidak divalidasi wajib di simpanData/simpanEdit) — item
     // lama/baru tetap bisa disimpan tanpa data rak dulu, diisi menyusul.
-    kode_rak: '',
-    baris_rak: '',
-    kolom_rak: '',
+    // BARU (25 Agt 2026, §25) — ref ke record di master_rak_penyimpanan
+    // (menu baru "Rak Penyimpanan"). rak_label = denormalisasi tampilan
+    // (mis. "A-1-3"), dipakai juga jadi v-model DropdownCari (strict-select
+    // dari opsiRak) — rak_id diturunkan otomatis dari rak_label lewat watch.
+    rak_id: '',
+    rak_label: '',
     tinggi_barang: '',
     panjang_barang: '',
     lebar_barang: '',
@@ -461,9 +512,8 @@ const BahanAksesorisEntryManager = {
     const opsiJenis = ref([]);
     const opsiSatuan = ref([]);
     const opsiWarna = ref([]);
-    const opsiKodeRak = ref([]);
-    const opsiBarisRak = ref([]);
-    const opsiKolomRak = ref([]);
+    const daftarRak = ref([]);
+    const opsiRak = computed(() => daftarRak.value.map(r => r.rak_label));
     const menyimpan = ref(false);
     const tampilPengaturan = ref(false);
 
@@ -474,17 +524,20 @@ const BahanAksesorisEntryManager = {
       ]);
     }
 
-    // muatOpsiRak — BARU (25 Agt 2026). Sama seperti opsiJenis, sumbernya
-    // window.ambilMasterList (dokumen master_data/{kategori}) — TAPI beda
-    // dari Jenis, rak TIDAK dipisah per kategori_utama (lihat catatan
-    // arsitektur di atas file ini), jadi dimuat sekali saja saat mounted.
-    async function muatOpsiRak() {
-      [opsiKodeRak.value, opsiBarisRak.value, opsiKolomRak.value] = await Promise.all([
-        window.ambilMasterList ? window.ambilMasterList('kode_rak') : [],
-        window.ambilMasterList ? window.ambilMasterList('baris_rak') : [],
-        window.ambilMasterList ? window.ambilMasterList('kolom_rak') : []
-      ]);
-    }
+    // muatDaftarRak — BARU (25 Agt 2026, §25). Ambil semua record Rak
+    // (menu "Rak Penyimpanan") buat opsi dropdown "Pilih Rak" di bawah.
+    async function muatDaftarRak() { daftarRak.value = await ambilDaftarRak(); }
+    // rakDipilih — cari record lengkap Rak yang sedang dipilih (buat
+    // tampilkan info dimensi/volume rak-nya sebagai konfirmasi visual).
+    const rakDipilih = computed(() => daftarRak.value.find(r => r.id === form.rak_id) || null);
+    // Begitu form.rak_label berubah (DropdownCari strict-select — SELALU
+    // salah satu dari opsiRak, atau string kosong), turunkan rak_id
+    // otomatis dari situ. Kalau labelnya tidak cocok record manapun
+    // (mis. dikosongkan), rak_id ikut dikosongkan.
+    watch(() => form.rak_label, (label) => {
+      const cocok = daftarRak.value.find(r => r.rak_label === label);
+      form.rak_id = cocok ? cocok.id : '';
+    });
 
     const hargaModal = computed(() => {
       const hp = parseFloat(form.harga_pembelian) || 0;
@@ -509,7 +562,7 @@ const BahanAksesorisEntryManager = {
     }
     watch(() => form.kategori_utama, () => { form.jenis = ''; muatOpsiJenis(); });
 
-    onMounted(() => { muatOpsiSatuanWarna(); muatOpsiRak(); });
+    onMounted(() => { muatOpsiSatuanWarna(); muatDaftarRak(); });
 
     function pilihFoto(event) {
       const file = event.target.files[0];
@@ -565,11 +618,13 @@ const BahanAksesorisEntryManager = {
           margin_modal: parseFloat(form.margin_modal) || 0,
           harga_pemakaian: hargaPemakaian.value,
           konversi_bertingkat: form.konversi_bertingkat || [],
+          // BARU (25 Agt 2026, §25.2) — flag opsional, lihat catatan
+          // arsitektur di atas file ini.
+          pakai_lot_tracking: !!form.pakai_lot_tracking,
           // BARU (25 Agt 2026) — Rak Penyimpanan & Volume Barang, semua
           // opsional (lihat catatan arsitektur di atas file ini).
-          kode_rak: form.kode_rak || '',
-          baris_rak: form.baris_rak || '',
-          kolom_rak: form.kolom_rak || '',
+          rak_id: form.rak_id || '',
+          rak_label: form.rak_id ? form.rak_label : '',
           tinggi_barang: parseFloat(form.tinggi_barang) || 0,
           panjang_barang: parseFloat(form.panjang_barang) || 0,
           lebar_barang: parseFloat(form.lebar_barang) || 0,
@@ -594,9 +649,9 @@ const BahanAksesorisEntryManager = {
     function simpanDanDuplikat() { return simpanData(true); }
 
     return {
-      form, opsiJenis, opsiSatuan, opsiWarna, opsiKodeRak, opsiBarisRak, opsiKolomRak,
-      KATEGORI_UTAMA_OPSI, menyimpan, hargaModal, hargaPemakaian, volumeBarang, formatRupiah,
-      pilihFoto, hapusFoto, simpan, simpanDanDuplikat, tampilPengaturan, muatOpsiJenis, muatOpsiSatuanWarna, muatOpsiRak,
+      form, opsiJenis, opsiSatuan, opsiWarna, opsiRak, rakDipilih,
+      KATEGORI_UTAMA_OPSI, menyimpan, hargaModal, hargaPemakaian, volumeBarang, formatRupiah, formatQty,
+      pilihFoto, hapusFoto, simpan, simpanDanDuplikat, tampilPengaturan, muatOpsiJenis, muatOpsiSatuanWarna, muatDaftarRak,
       ...konversi
     };
   },
@@ -686,23 +741,30 @@ const BahanAksesorisEntryManager = {
         <button @click="bukaPopupKonversi" class="btn-outline" style="white-space:nowrap; padding:0 16px; height:44px;"><i class="fas fa-calculator" style="margin-right:6px;"></i>Konversi Banyak Tingkat</button>
       </div>
 
-      <!-- BARU (25 Agt 2026) — Rak Penyimpanan (Kode/Baris/Kolom Rak),
-           semua "Master Data Rak terkelola" (DropdownCari strict-select,
-           dikelola lewat Pengaturan). Semua opsional. -->
+      <!-- BARU (25 Agt 2026, §25.2) — flag opsional per item: tandai kalau
+           bahan ini disimpan per roll/kones & perlu qty per roll dicatat
+           saat diterima (Nota Order Belanja). Mengaktifkan tombol popup
+           "Qty per Roll/Lot" di tabel Daftar Pesanan Pembelian
+           (js/vue-stock-pembelian.js) — FIFO/pemakaian per-lot belum
+           dikerjakan (menyusul). -->
+      <div class="gc-field" style="margin-top:12px;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:400;">
+          <input type="checkbox" v-model="form.pakai_lot_tracking" style="accent-color:var(--burgundy); width:16px; height:16px;">
+          <span>Perlu Qty per Roll/Lot saat diterima (mis. bahan berbentuk Roll/Kones)</span>
+        </label>
+      </div>
+
+      <!-- BARU (25 Agt 2026, §25) — Rak Penyimpanan SEKARANG 1 dropdown
+           pilih Rak terdaftar (menu baru "Rak Penyimpanan",
+           js/vue-rak-penyimpanan.js) — BUKAN 3 dropdown lepas lagi. Kalau
+           daftar Rak masih kosong, ada pesan bantu arah ke menu itu.
+           Opsional. -->
       <p style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin:16px 0 8px;"><i class="fas fa-warehouse" style="margin-right:6px;"></i>Rak Penyimpanan (opsional)</p>
-      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;" class="grid-cols-1 md:grid-cols-3">
-        <div class="gc-field">
-          <label>Kode Rak</label>
-          <dropdown-cari v-model="form.kode_rak" :opsi="opsiKodeRak" placeholder="Cari & pilih Kode Rak..." />
-        </div>
-        <div class="gc-field">
-          <label>Baris Rak</label>
-          <dropdown-cari v-model="form.baris_rak" :opsi="opsiBarisRak" placeholder="Cari & pilih Baris Rak..." />
-        </div>
-        <div class="gc-field">
-          <label>Kolom Rak</label>
-          <dropdown-cari v-model="form.kolom_rak" :opsi="opsiKolomRak" placeholder="Cari & pilih Kolom Rak..." />
-        </div>
+      <div class="gc-field">
+        <label>Pilih Rak</label>
+        <dropdown-cari v-model="form.rak_label" :opsi="opsiRak" placeholder="Cari & pilih Rak..." />
+        <p v-if="opsiRak.length === 0" style="font-size:10.5px; color:var(--text-faint); margin-top:4px;">Belum ada Rak terdaftar — daftarkan dulu di sub-menu "Rak Penyimpanan".</p>
+        <p v-else-if="rakDipilih" style="font-size:10.5px; color:var(--text-faint); margin-top:4px;">Dimensi Rak: {{ formatQty(rakDipilih.tinggi_rak) }} &times; {{ formatQty(rakDipilih.panjang_rak) }} &times; {{ formatQty(rakDipilih.lebar_rak) }} cm &middot; Kapasitas: {{ formatQty(rakDipilih.volume_rak) }} cm&sup3;</p>
       </div>
 
       <!-- BARU (25 Agt 2026) — Volume Barang (Tinggi/Panjang/Lebar dari 1
@@ -744,7 +806,7 @@ const BahanAksesorisEntryManager = {
 
     <popup-konversi-berjenjang v-if="tampilPopupKonversi" :baris="barisKonversi" :total="totalKonversiBerjenjang" :opsi-satuan="opsiSatuan"
       @tambah="tambahBarisKonversi" @hapus="hapusBarisKonversi" @terapkan="terapkanKonversi" @tutup="tutupPopupKonversi" />
-    <pengaturan-bahan-aksesoris v-if="tampilPengaturan" @tutup="tampilPengaturan = false; muatOpsiJenis(); muatOpsiSatuanWarna(); muatOpsiRak()" />
+    <pengaturan-bahan-aksesoris v-if="tampilPengaturan" @tutup="tampilPengaturan = false; muatOpsiJenis(); muatOpsiSatuanWarna(); muatDaftarRak()" />
   `
 };
 
@@ -771,9 +833,8 @@ const BahanAksesorisListManager = {
     const opsiJenisEdit = ref([]);
     const opsiSatuanEdit = ref([]);
     const opsiWarnaEdit = ref([]);
-    const opsiKodeRakEdit = ref([]);
-    const opsiBarisRakEdit = ref([]);
-    const opsiKolomRakEdit = ref([]);
+    const daftarRakEdit = ref([]);
+    const opsiRakEdit = computed(() => daftarRakEdit.value.map(r => r.rak_label));
     const menyimpanEdit = ref(false);
 
     async function muatOpsiSatuanWarnaEdit() {
@@ -783,16 +844,16 @@ const BahanAksesorisListManager = {
       ]);
     }
 
-    // muatOpsiRakEdit — BARU (25 Agt 2026), sama seperti muatOpsiRak() di
-    // BahanAksesorisEntryManager, dipanggil tiap bukaEdit() (bukan sekali
-    // saat mounted) supaya selalu ambil daftar terbaru saat modal dibuka.
-    async function muatOpsiRakEdit() {
-      [opsiKodeRakEdit.value, opsiBarisRakEdit.value, opsiKolomRakEdit.value] = await Promise.all([
-        window.ambilMasterList ? window.ambilMasterList('kode_rak') : [],
-        window.ambilMasterList ? window.ambilMasterList('baris_rak') : [],
-        window.ambilMasterList ? window.ambilMasterList('kolom_rak') : []
-      ]);
-    }
+    // muatDaftarRakEdit — BARU (25 Agt 2026, §25), sama seperti
+    // muatDaftarRak() di BahanAksesorisEntryManager, dipanggil tiap
+    // bukaEdit() (bukan sekali saat mounted) supaya selalu ambil daftar
+    // Rak terbaru saat modal dibuka.
+    async function muatDaftarRakEdit() { daftarRakEdit.value = await ambilDaftarRak(); }
+    const rakDipilihEdit = computed(() => daftarRakEdit.value.find(r => r.id === formEdit.rak_id) || null);
+    watch(() => formEdit.rak_label, (label) => {
+      const cocok = daftarRakEdit.value.find(r => r.rak_label === label);
+      formEdit.rak_id = cocok ? cocok.id : '';
+    });
 
     const hargaModalEdit = computed(() => {
       const hp = parseFloat(formEdit.harga_pembelian) || 0;
@@ -822,14 +883,17 @@ const BahanAksesorisListManager = {
         nama: item.nama || '', warna: item.warna || '', harga_pembelian: item.harga_pembelian || '',
         satuan_pembelian: item.satuan_pembelian || '', isi_konversi_pembelian: item.isi_konversi_pembelian || '',
         satuan_pemakaian: item.satuan_pemakaian || '', margin_modal: item.margin_modal ?? '',
-        // BARU (25 Agt 2026) — Rak Penyimpanan & Volume Barang.
-        kode_rak: item.kode_rak || '', baris_rak: item.baris_rak || '', kolom_rak: item.kolom_rak || '',
+        // BARU (25 Agt 2026, §25.2) — flag opsional, lihat catatan
+        // arsitektur di atas file ini.
+        pakai_lot_tracking: !!item.pakai_lot_tracking,
+        // BARU (25 Agt 2026, §25) — Rak Penyimpanan (ref) & Volume Barang.
+        rak_id: item.rak_id || '', rak_label: item.rak_label || '',
         tinggi_barang: item.tinggi_barang || '', panjang_barang: item.panjang_barang || '', lebar_barang: item.lebar_barang || '',
         konversi_bertingkat: item.konversi_bertingkat || []
       });
       muatOpsiJenisEdit();
       muatOpsiSatuanWarnaEdit();
-      muatOpsiRakEdit();
+      muatDaftarRakEdit();
     }
     function batalEdit() { sedangEditId.value = null; }
 
@@ -861,8 +925,11 @@ const BahanAksesorisListManager = {
           isi_konversi_pembelian: parseFloat(formEdit.isi_konversi_pembelian) || 0, satuan_pemakaian: formEdit.satuan_pemakaian.trim(),
           harga_modal: hargaModalEdit.value, margin_modal: parseFloat(formEdit.margin_modal) || 0, harga_pemakaian: hargaPemakaianEdit.value,
           konversi_bertingkat: formEdit.konversi_bertingkat || [],
-          // BARU (25 Agt 2026) — Rak Penyimpanan & Volume Barang.
-          kode_rak: formEdit.kode_rak || '', baris_rak: formEdit.baris_rak || '', kolom_rak: formEdit.kolom_rak || '',
+          // BARU (25 Agt 2026, §25.2) — flag opsional, lihat catatan
+          // arsitektur di atas file ini.
+          pakai_lot_tracking: !!formEdit.pakai_lot_tracking,
+          // BARU (25 Agt 2026, §25) — Rak Penyimpanan (ref) & Volume Barang.
+          rak_id: formEdit.rak_id || '', rak_label: formEdit.rak_id ? formEdit.rak_label : '',
           tinggi_barang: parseFloat(formEdit.tinggi_barang) || 0, panjang_barang: parseFloat(formEdit.panjang_barang) || 0,
           lebar_barang: parseFloat(formEdit.lebar_barang) || 0, volume_barang: volumeBarangEdit.value,
           diedit_pada: serverTimestamp(), diedit_oleh: window.currentUser?.email || null
@@ -892,7 +959,7 @@ const BahanAksesorisListManager = {
     return {
       filterKategori, paginasi, formatRupiah, formatQty,
       sedangEditId, formEdit, opsiJenisEdit, opsiSatuanEdit, opsiWarnaEdit,
-      opsiKodeRakEdit, opsiBarisRakEdit, opsiKolomRakEdit, volumeBarangEdit,
+      opsiRakEdit, rakDipilihEdit, volumeBarangEdit,
       menyimpanEdit, hargaModalEdit, hargaPemakaianEdit,
       bukaEdit, batalEdit, pilihFotoEdit, simpanEdit, hapus,
       tampilPopupKonversiEdit: konversiEdit.tampilPopupKonversi, barisKonversiEdit: konversiEdit.barisKonversi,
@@ -934,7 +1001,7 @@ const BahanAksesorisListManager = {
                 <td><b>{{ item.id_tampil || '-' }}</b><br><span class="gc-cell-muted">{{ item.dibuat_pada?.toDate ? item.dibuat_pada.toDate().toLocaleDateString('id-ID') : '-' }}</span></td>
                 <td>{{ item.kategori_utama }}<br><span class="gc-cell-muted">{{ item.jenis }}</span></td>
                 <td><img v-if="item.foto" :src="item.foto" style="width:36px; height:36px; object-fit:cover; border-radius:6px;"><span v-else class="gc-cell-muted">-</span></td>
-                <td><b>{{ item.nama }}</b><br><span class="gc-cell-muted">{{ item.warna }}</span></td>
+                <td><b>{{ item.nama }}</b> <i v-if="item.pakai_lot_tracking" class="fas fa-layer-group" style="color:var(--burgundy); font-size:10px;" title="Perlu Qty per Roll/Lot saat diterima"></i><br><span class="gc-cell-muted">{{ item.warna }}</span></td>
                 <td>{{ formatRupiah(item.harga_pembelian) }}<br><span class="gc-cell-muted">/ {{ item.satuan_pembelian }}</span></td>
                 <td>{{ item.isi_konversi_pembelian }}</td>
                 <td>{{ item.satuan_pemakaian }}</td>
@@ -942,7 +1009,7 @@ const BahanAksesorisListManager = {
                 <td>{{ formatRupiah(item.margin_modal) }}</td>
                 <td><b>{{ formatRupiah(item.harga_pemakaian) }}</b></td>
                 <td><b>{{ formatQty(item.stok_akhir) }}</b><br><span class="gc-cell-muted">{{ item.satuan_pemakaian }}</span></td>
-                <td>{{ [item.kode_rak, item.baris_rak, item.kolom_rak].filter(Boolean).join('-') || '-' }}<br><span class="gc-cell-muted">{{ item.volume_barang ? formatQty(item.volume_barang) + ' cm³' : '-' }}</span></td>
+                <td>{{ item.rak_label || '-' }}<br><span class="gc-cell-muted">{{ item.volume_barang ? formatQty(item.volume_barang) + ' cm³' : '-' }}</span></td>
                 <td class="freeze freeze-right">
                   <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
                     <button @click="bukaEdit(item)" class="icon-btn" title="Edit"><i class="fas fa-pen"></i></button>
@@ -1003,22 +1070,22 @@ const BahanAksesorisListManager = {
           <button @click="bukaPopupKonversiEdit" class="btn-outline" style="white-space:nowrap; padding:0 16px; height:44px;"><i class="fas fa-calculator" style="margin-right:6px;"></i>Konversi Banyak Tingkat</button>
         </div>
 
-        <!-- BARU (25 Agt 2026) — Rak Penyimpanan & Volume Barang, sama
-             seperti form Entry (lihat catatan di sana). -->
+        <!-- BARU (25 Agt 2026, §25.2) — flag opsional, sama seperti form Entry. -->
+        <div class="gc-field" style="margin-top:12px;">
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:400;">
+            <input type="checkbox" v-model="formEdit.pakai_lot_tracking" style="accent-color:var(--burgundy); width:16px; height:16px;">
+            <span>Perlu Qty per Roll/Lot saat diterima (mis. bahan berbentuk Roll/Kones)</span>
+          </label>
+        </div>
+
+        <!-- BARU (25 Agt 2026, §25) — Rak Penyimpanan sekarang 1 dropdown
+             pilih Rak terdaftar, sama seperti form Entry (lihat catatan
+             di sana). -->
         <p style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin:16px 0 8px;"><i class="fas fa-warehouse" style="margin-right:6px;"></i>Rak Penyimpanan (opsional)</p>
-        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;" class="grid-cols-1 md:grid-cols-3">
-          <div class="gc-field">
-            <label>Kode Rak</label>
-            <dropdown-cari v-model="formEdit.kode_rak" :opsi="opsiKodeRakEdit" placeholder="Cari & pilih Kode Rak..." />
-          </div>
-          <div class="gc-field">
-            <label>Baris Rak</label>
-            <dropdown-cari v-model="formEdit.baris_rak" :opsi="opsiBarisRakEdit" placeholder="Cari & pilih Baris Rak..." />
-          </div>
-          <div class="gc-field">
-            <label>Kolom Rak</label>
-            <dropdown-cari v-model="formEdit.kolom_rak" :opsi="opsiKolomRakEdit" placeholder="Cari & pilih Kolom Rak..." />
-          </div>
+        <div class="gc-field">
+          <label>Pilih Rak</label>
+          <dropdown-cari v-model="formEdit.rak_label" :opsi="opsiRakEdit" placeholder="Cari & pilih Rak..." />
+          <p v-if="rakDipilihEdit" style="font-size:10.5px; color:var(--text-faint); margin-top:4px;">Dimensi Rak: {{ formatQty(rakDipilihEdit.tinggi_rak) }} &times; {{ formatQty(rakDipilihEdit.panjang_rak) }} &times; {{ formatQty(rakDipilihEdit.lebar_rak) }} cm &middot; Kapasitas: {{ formatQty(rakDipilihEdit.volume_rak) }} cm&sup3;</p>
         </div>
 
         <p style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin:14px 0 8px;"><i class="fas fa-cube" style="margin-right:6px;"></i>Volume Barang (opsional) — untuk hitung kapasitas rak, cegah over stok</p>
