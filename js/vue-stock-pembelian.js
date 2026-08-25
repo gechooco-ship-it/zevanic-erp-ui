@@ -1078,50 +1078,85 @@ const OrderBelanjaScreen = {
     // cetakLabelLot — BARU (Tahap 2). 1 label per roll/lot BARU (kode_lot +
     // QR + nama/qty/tanggal), dipakai buat ditempel fisik di roll-nya
     // sendiri supaya nanti bisa di-scan pas "Catat Pemakaian" (vue-kartu-
-    // stok.js). Pola window print SAMA seperti cetak() di atas, TAPI
-    // library pembuat QR (`qrcodejs`, davidshimjs, CDN) dimuat & dijalankan
-    // DI DALAM window cetak (`w`) itu sendiri lewat <script src> di
-    // document.write() — BUKAN dimuat di window utama lalu di-oper ke `w`,
-    // supaya tidak ada masalah objek lintas-window (tiap window Firefox/
-    // Chrome punya `document`/DOM sendiri-sendiri).
+    // stok.js).
+    //
+    // FIX §25.8 (Guru lapor: "cetak label roll sudah bisa tapi kode qr nya
+    // ga ada") — versi SEBELUMNYA memuat library `qrcodejs` lewat
+    // <script src="...cdnjs..."> DI DALAM document.write() window print
+    // yang baru dibuka. Sudah dicek: URL library-nya SENDIRI valid (dites
+    // via fetch langsung, isinya benar kode qrcodejs). Tapi pola "muat
+    // script eksternal lewat document.write() di window kosong" itu beda
+    // dari satu-satunya pola yang SUDAH terbukti jalan di app ini (jsQR,
+    // yang dimuat lewat <script> biasa di index.html, BUKAN document.write
+    // di popup) — dan pola document.write() begini punya beberapa cara
+    // gagal nyata: (1) intervensi bawaan Chrome yang BISA membatalkan
+    // eksekusi <script> lintas-domain yang disisipkan lewat document.write
+    // di koneksi lambat, (2) proses internal qrcodejs mengubah canvas jadi
+    // <img> lewat callback ASYNC (canvas.toDataURL -> Image.onload) yang
+    // bisa saja belum selesai saat window.print() keburu jalan.
+    //
+    // PERBAIKAN: qrcodejs sekarang dimuat SEKALI di index.html (sama
+    // seperti jsQR — lihat komentar di sana), lalu tiap kode QR digambar
+    // DI WINDOW UTAMA (bukan di window print) ke sebuah <div> tersembunyi,
+    // diambil hasilnya sebagai gambar base64 (canvas.toDataURL langsung
+    // sesudah new QRCode(), SINKRON — tidak perlu menunggu proses async
+    // internal library), baru dikirim ke window print sebagai <img> statis
+    // biasa. Window print jadi tidak butuh apa pun dari internet lagi, jadi
+    // tidak ada lagi race atau ketergantungan CDN pada saat mencetak.
+    function buatQrDataUrl(teks) {
+      if (typeof QRCode === 'undefined') return '';
+      const tmp = document.createElement('div');
+      tmp.style.cssText = 'position:absolute; left:-9999px; top:-9999px; width:160px; height:160px;';
+      document.body.appendChild(tmp);
+      let dataUrl = '';
+      try {
+        new QRCode(tmp, { text: String(teks || ''), width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
+        const canvas = tmp.querySelector('canvas');
+        if (canvas) dataUrl = canvas.toDataURL('image/png');
+      } catch (e) {
+        console.error('Gagal generate QR untuk kode_lot:', teks, e);
+      }
+      document.body.removeChild(tmp);
+      return dataUrl;
+    }
     function cetakLabelLot(daftarLot) {
       if (!daftarLot || daftarLot.length === 0) return;
-      const w = window.open('', '_blank');
-      if (!w) return alert('Popup diblokir browser. Izinkan popup untuk mencetak label.');
-      const labelsHtml = daftarLot.map((l, i) => `
+      if (typeof QRCode === 'undefined') {
+        alert('Library pembuat QR belum siap dimuat. Coba refresh halaman (Ctrl+Shift+R) lalu ulangi.');
+        return;
+      }
+      const labelsHtml = daftarLot.map((l) => {
+        const qrDataUrl = buatQrDataUrl(l.kode_lot);
+        const qrHtml = qrDataUrl
+          ? `<img src="${qrDataUrl}" width="80" height="80" alt="QR ${l.kode_lot}" />`
+          : `<div style="font-size:9px;">(QR gagal dibuat)</div>`;
+        return `
         <div class="label">
-          <div class="qr" id="qr-${i}"></div>
+          <div class="qr">${qrHtml}</div>
           <div class="teks">
             <div class="kode">${l.kode_lot}</div>
             <div class="nama">${l.nama_bahan || ''}</div>
             <div class="info">${l.qty} ${l.satuan || ''} &middot; ${l.tanggal_masuk || ''}</div>
           </div>
-        </div>`).join('');
+        </div>`;
+      }).join('');
+      const w = window.open('', '_blank');
+      if (!w) return alert('Popup diblokir browser. Izinkan popup untuk mencetak label.');
       w.document.write(`<html><head><title>Label Roll/Lot</title>
         <style>
           body{font-family:Arial,sans-serif; margin:0; padding:12px;}
           .label{display:inline-flex; align-items:center; gap:10px; border:1px dashed #999; border-radius:6px; padding:8px 12px; margin:4px; width:280px; box-sizing:border-box; page-break-inside:avoid; vertical-align:top;}
-          .qr{width:80px; height:80px; flex-shrink:0;}
+          .qr{width:80px; height:80px; flex-shrink:0; display:flex; align-items:center; justify-content:center;}
+          .qr img{width:80px; height:80px; display:block;}
           .teks{font-size:11px; line-height:1.4;}
           .kode{font-weight:700; font-size:13px;}
           .nama{font-size:11px;}
           .info{font-size:10px; color:#555;}
         </style>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
         </head><body>
         ${labelsHtml}
         <script>
-          window.onload = function() {
-            var kodeSemua = ${JSON.stringify(daftarLot.map(l => l.kode_lot))};
-            kodeSemua.forEach(function(kode, i) {
-              try {
-                new QRCode(document.getElementById('qr-' + i), { text: kode, width: 80, height: 80, correctLevel: QRCode.CorrectLevel.M });
-              } catch (e) {
-                document.getElementById('qr-' + i).innerText = '(QR gagal dimuat, cek koneksi internet)';
-              }
-            });
-            setTimeout(function () { window.print(); }, 400);
-          };
+          window.onload = function() { setTimeout(function () { window.print(); }, 300); };
         <\/script>
         </body></html>`);
       w.document.close();

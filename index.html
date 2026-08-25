@@ -8,6 +8,18 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <!-- jsQR — baca kode QR dari frame kamera, dipakai Absensi Melalui QR (js/vue-absensi-qr.js) -->
   <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
+  <!-- qrcodejs (davidshimjs) — BUAT/generate kode QR (bukan baca), dipakai
+       Cetak Label Roll (vue-stock-pembelian.js, cetakLabelLot()). Dimuat DI
+       SINI (halaman utama), SAMA seperti pola jsQR di atas — BUKAN lewat
+       document.write() di window print terpisah. Perbaikan §25.8: versi
+       lama memuat lib ini document.write() ke DALAM window print baru, dan
+       QR-nya suka tidak muncul (kemungkinan diblokir intervensi
+       document.write() Chrome dan/atau race async canvas->image saat
+       window.print() terlalu cepat). Sekarang lib ini SELALU sudah siap di
+       window utama, QR digambar+diambil sebagai gambar (base64) DI window
+       utama, baru dikirim sebagai <img> statis ke window print — window
+       print tidak perlu load apa pun dari internet lagi. -->
+  <script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
   <!-- Rebrand Gechoo: Tailwind CDN sudah DICABUT (30 Agustus) — semua warna
        DAN struktur layout (flex/grid/spacing/responsif) sekarang murni
        css/gechoo-design.css, jauh lebih ringan & tanpa compile di browser. -->
@@ -527,7 +539,7 @@
   <script type="module" src="js/vue-bahan-aksesoris.js?v=13"></script>
   <script type="module" src="js/vue-rak-penyimpanan.js?v=1"></script>
   <script type="module" src="js/vue-persiapan-masalah.js?v=1"></script>
-  <script type="module" src="js/vue-stock-pembelian.js?v=7"></script>
+  <script type="module" src="js/vue-stock-pembelian.js?v=8"></script>
   <script type="module" src="js/vue-kartu-stok.js?v=3"></script>
 </body>
 </html>
