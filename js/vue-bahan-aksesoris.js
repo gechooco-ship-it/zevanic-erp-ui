@@ -216,6 +216,14 @@ function formatRupiah(n) {
   return 'Rp ' + Math.round(angka).toLocaleString('id-ID');
 }
 
+// BARU (24 Agt 2026) — dipakai untuk tampilkan stok_akhir (lihat Kartu Stok
+// Bahan/Aksesoris, js/vue-kartu-stok.js). Field ini di-update transaksional
+// oleh catatPergerakanKartuStok() di vue-stock-pembelian.js, bukan diedit manual.
+function formatQty(n) {
+  const angka = parseFloat(n) || 0;
+  return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 });
+}
+
 // ---------------------------------------------------------------------------
 // PengaturanBahanAksesoris — panel (dibuka lewat ikon gear) berisi 2 hal:
 // atur prefix ID per kategori (poin 3), dan kelola daftar Jenis Bahan/
@@ -721,7 +729,7 @@ const BahanAksesorisListManager = {
     onMounted(async () => { await window.authReady; await paginasi.muatUlang(); });
 
     return {
-      filterKategori, paginasi, formatRupiah,
+      filterKategori, paginasi, formatRupiah, formatQty,
       sedangEditId, formEdit, opsiJenisEdit, opsiSatuanEdit, opsiWarnaEdit, menyimpanEdit, hargaModalEdit, hargaPemakaianEdit,
       bukaEdit, batalEdit, pilihFotoEdit, simpanEdit, hapus,
       tampilPopupKonversiEdit: konversiEdit.tampilPopupKonversi, barisKonversiEdit: konversiEdit.barisKonversi,
@@ -753,7 +761,7 @@ const BahanAksesorisListManager = {
           <thead>
             <tr>
               <th>ID / Tanggal</th><th>Kategori / Jenis</th><th>Foto</th><th>Nama / Warna</th>
-              <th>Beli</th><th>Konversi</th><th>Pakai</th><th>Modal</th><th>Margin</th><th>Harga Pakai</th>
+              <th>Beli</th><th>Konversi</th><th>Pakai</th><th>Modal</th><th>Margin</th><th>Harga Pakai</th><th>Stok Akhir</th>
               <th class="freeze freeze-right">Aksi</th>
             </tr>
           </thead>
@@ -770,6 +778,7 @@ const BahanAksesorisListManager = {
                 <td>{{ formatRupiah(item.harga_modal) }}</td>
                 <td>{{ formatRupiah(item.margin_modal) }}</td>
                 <td><b>{{ formatRupiah(item.harga_pemakaian) }}</b></td>
+                <td><b>{{ formatQty(item.stok_akhir) }}</b><br><span class="gc-cell-muted">{{ item.satuan_pemakaian }}</span></td>
                 <td class="freeze freeze-right">
                   <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
                     <button @click="bukaEdit(item)" class="icon-btn" title="Edit"><i class="fas fa-pen"></i></button>

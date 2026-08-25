@@ -114,9 +114,9 @@ const AntreanAbsensiCard = {
     // diambil SEKALI per kartu (bukan re-fetch tiap render).
     const jamShift = ref({ masuk: null, keluar: null }); // "HH:MM" | null kalau shift tidak ketemu
     async function muatJamShift() {
-      if (!props.data.shift) return;
+      if (!props.data.nama_shift) return;
       try {
-        const qShift = await getDocs(query(collection(db, "master_shift"), where("nama_shift", "==", props.data.shift)));
+        const qShift = await getDocs(query(collection(db, "master_shift"), where("nama_shift", "==", props.data.nama_shift)));
         if (!qShift.empty) {
           const s = qShift.docs[0].data();
           jamShift.value = { masuk: s.jam_masuk || null, keluar: s.jam_keluar || null };
@@ -274,7 +274,7 @@ const AntreanAbsensiCard = {
           <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Status</span> <b>{{ data.status || 'HADIR' }}</b></div>
           <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Waktu</span> <b>{{ data.waktu || '-' }}</b></div>
           <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Gudang</span> <b>{{ data.gudang || '-' }}</b></div>
-          <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Shift</span> <b>{{ data.shift || '-' }}</b></div>
+          <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Shift</span> <b>{{ data.nama_shift || '-' }}</b></div>
           <div>
             <span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Koordinat</span>
             <b v-if="data.koordinat">{{ data.koordinat.lat.toFixed(5) }}, {{ data.koordinat.lng.toFixed(5) }}<br>
@@ -318,7 +318,7 @@ const AntreanAbsensiCard = {
       <template v-else>
         <div style="background:var(--ivory-dim); padding:12px 14px; border-radius:14px; font-size:11.5px; margin-bottom:12px; display:flex; gap:16px;">
           <span><b>Gudang:</b> {{ data.gudang || '-' }}</span>
-          <span><b>Shift:</b> {{ data.shift || '-' }}</span>
+          <span><b>Shift:</b> {{ data.nama_shift || '-' }}</span>
         </div>
 
         <div v-if="data.status_acc_masuk === 'PENDING'" style="border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:12px;">

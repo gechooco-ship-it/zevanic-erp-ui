@@ -240,6 +240,83 @@ const AppRiwayatAbsensi = {
       migrasi.sedangProses = false;
     }
 
+    // BARU (malam 24 Agt 2026) — Migrasi field `nama_shift` (bug ditemukan
+    // Guru: "Shift" tidak pernah tampil di Antrean Absensi/Riwayat All
+    // Absensi/CSV — root cause: field ini TIDAK PERNAH dititip ke dokumen
+    // `absensi` sebelum ronde ini, lihat catatan di js/vue-camera.js).
+    // Pola SAMA PERSIS seperti migrasi waktu_ts di atas — tombol manual,
+    // aman diulang, dokumen yang sudah punya nama_shift dilewati.
+    //
+    // KETERBATASAN JUJUR (WAJIB dikasih tau ke Guru, bukan disembunyikan):
+    // migrasi ini pakai `nama_shift` KARYAWAN SAAT INI (dari users/{email})
+    // sebagai isian dokumen LAMA — BUKAN shift yang sebenarnya berlaku
+    // waktu absensi itu terjadi (sistem tidak pernah mencatat itu, tidak
+    // bisa dipulihkan). Kalau shift karyawan pernah pindah sejak saat itu,
+    // hasil migrasinya BISA MELESET — best-effort, bukan 100% akurat.
+    const migrasiShift = reactive({ totalBelumMigrasi: 0, sedangProses: false, sudahDicek: false, hasilTerakhir: '' });
+    let dokumenBelumMigrasiShift = [];
+    async function cekDataBelumMigrasiShift() {
+      migrasiShift.sedangProses = true;
+      try {
+        const snap = await getDocs(collection(db, "absensi"));
+        dokumenBelumMigrasiShift = [];
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          if (!d.nama_shift && d.email) dokumenBelumMigrasiShift.push({ id: docSnap.id, email: d.email });
+        });
+        migrasiShift.totalBelumMigrasi = dokumenBelumMigrasiShift.length;
+        migrasiShift.sudahDicek = true;
+      } catch (e) {
+        console.error("Gagal cek data belum migrasi nama_shift:", e);
+      }
+      migrasiShift.sedangProses = false;
+    }
+
+    async function jalankanMigrasiShift() {
+      if (migrasiShift.totalBelumMigrasi === 0) return;
+      if (!confirm(`Migrasi ${migrasiShift.totalBelumMigrasi} dokumen lama sekarang? Isian nama_shift diambil dari shift KARYAWAN SAAT INI (bukan histori) — lihat catatan keterbatasan di atas tombol ini. Proses ini aman diulang kalau terputus.`)) return;
+
+      migrasiShift.sedangProses = true;
+      migrasiShift.hasilTerakhir = '';
+      let sukses = 0, dilewatiTanpaShift = 0;
+      const UKURAN_BATCH = 400;
+      const UKURAN_POTONGAN = 30; // batas Firestore where(field,'in',[...])
+
+      try {
+        // 1. Kumpulkan nama_shift TERKINI tiap email yang perlu (1x fetch
+        // batch, bukan 1 getDoc per dokumen — hemat, pola sama seperti
+        // muat() di atas buat jenis_pekerjaan/status_kerja/hp).
+        const daftarEmail = [...new Set(dokumenBelumMigrasiShift.map(d => d.email))];
+        const petaNamaShift = {};
+        for (let i = 0; i < daftarEmail.length; i += UKURAN_POTONGAN) {
+          const potongan = daftarEmail.slice(i, i + UKURAN_POTONGAN);
+          const qUsers = await getDocs(query(collection(db, "users"), where("email", "in", potongan)));
+          qUsers.forEach(u => { petaNamaShift[u.data().email] = u.data().nama_shift || ''; });
+        }
+
+        // 2. Tulis batch — dokumen yang emailnya TIDAK ketemu nama_shift
+        // apapun (karyawan sudah dihapus, atau memang belum ditugaskan
+        // shift) DILEWATI, bukan dipaksa isi string kosong.
+        for (let i = 0; i < dokumenBelumMigrasiShift.length; i += UKURAN_BATCH) {
+          const potongan = dokumenBelumMigrasiShift.slice(i, i + UKURAN_BATCH);
+          const batch = writeBatch(db);
+          potongan.forEach(d => {
+            const namaShift = petaNamaShift[d.email];
+            if (!namaShift) { dilewatiTanpaShift++; return; }
+            batch.update(doc(db, "absensi", d.id), { nama_shift: namaShift });
+            sukses++;
+          });
+          await batch.commit();
+        }
+        migrasiShift.hasilTerakhir = `Selesai! ${sukses} dokumen berhasil dimigrasi.` + (dilewatiTanpaShift > 0 ? ` ${dilewatiTanpaShift} dokumen dilewati (karyawannya saat ini belum/tidak punya nama_shift — bisa dicek manual di Firestore Console kalau perlu).` : '');
+        await muat();
+      } catch (e) {
+        console.error("Gagal migrasi nama_shift:", e);
+        migrasiShift.hasilTerakhir = 'Migrasi terhenti karena error: ' + e.message + ' — aman dijalankan ulang, dokumen yang sudah selesai tidak akan diproses dobel.';
+      }
+      migrasiShift.sedangProses = false;
+    }
+
     async function muat() {
       memuat.value = true;
       try {
@@ -399,7 +476,7 @@ const AppRiwayatAbsensi = {
         const email = `"${(row.email || '').replace(/"/g, '""')}"`;
         const status = `"${row.status || 'HADIR'}"`;
         const gudang = `"${row.gudang || '-'}"`;
-        const shift = `"${row.shift || '-'}"`;
+        const shift = `"${row.nama_shift || '-'}"`;
         const waktuMasuk = `"${f.waktuMasuk || '-'}"`;
         const accMasuk = `"${f.statusAccMasuk || '-'}"`;
         const waktuKeluar = `"${f.waktuKeluar || '-'}"`;
@@ -429,6 +506,7 @@ const AppRiwayatAbsensi = {
     return {
       listData, listDataTersaring, listDataTerpaginasi, cariNama, memuat, itemSedangDiedit, muat, pisahTanggalWaktu, lihatFotoBesar,
       bukaEdit, tutupEdit, selesaiSimpan, hapus, assignUlang, exportCSV, migrasi, jalankanMigrasi, cekDataBelumMigrasi,
+      migrasiShift, jalankanMigrasiShift, cekDataBelumMigrasiShift,
       formatBaris,
       filterTanggalPreset, tglMulaiCustom, tglSelesaiCustom, captionRentang,
       halamanSaatIni, totalHalaman, gantiHalaman
@@ -462,6 +540,9 @@ const AppRiwayatAbsensi = {
         <button @click="cekDataBelumMigrasi" :disabled="migrasi.sedangProses" class="btn-outline" style="margin-left:auto; font-size:11px; padding:7px 12px;" title="Cek sekali data sangat lama yang belum ke-migrasi (tidak otomatis, di luar rentang tanggal di atas)">
           <i class="fas fa-magnifying-glass" style="margin-right:5px;"></i>Cek Data Belum Migrasi
         </button>
+        <button @click="cekDataBelumMigrasiShift" :disabled="migrasiShift.sedangProses" class="btn-outline" style="font-size:11px; padding:7px 12px;" title="Cek data lama yang belum punya nama Shift (bug BARU diperbaiki 24 Agt 2026 — lihat catatan di banner kalau ketemu)">
+          <i class="fas fa-users-rectangle" style="margin-right:5px;"></i>Cek Data Belum Punya Shift
+        </button>
       </div>
       <p style="font-size:11px; color:var(--text-muted); margin-top:10px; font-style:italic;"><i class="fas fa-circle-info" style="margin-right:5px;"></i>{{ captionRentang }}</p>
     </div>
@@ -478,6 +559,22 @@ const AppRiwayatAbsensi = {
         </div>
         <button @click="jalankanMigrasi" :disabled="migrasi.sedangProses" class="btn-outline filled" style="flex-shrink:0;">
           {{ migrasi.sedangProses ? 'Sedang migrasi...' : 'Jalankan Migrasi' }}
+        </button>
+      </div>
+    </div>
+
+    <div v-if="migrasiShift.sudahDicek && migrasiShift.totalBelumMigrasi > 0" class="gc-card" style="background:var(--warn-light); border:1.5px solid var(--warn); margin-bottom:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;">
+        <div style="display:flex; gap:12px; align-items:flex-start;">
+          <i class="fas fa-users-rectangle" style="color:var(--warn); font-size:18px; margin-top:2px;"></i>
+          <div>
+            <h4 class="gc-heading" style="font-weight:700; font-size:12.5px;">{{ migrasiShift.totalBelumMigrasi }} data lama belum punya nama Shift</h4>
+            <p style="font-size:11px; color:var(--text-muted); margin-top:3px; max-width:520px;">Kolom "Shift" data ini kosong karena bug lama (baru diperbaiki 24 Agt 2026) yang belum sempat menyimpan nama shift. Migrasi ini isi nama_shift pakai shift karyawan SAAT INI (bukan histori — kalau shift-nya pernah pindah, hasilnya bisa meleset). AMAN dijalankan kapan saja, boleh diulang kalau terputus.</p>
+            <p v-if="migrasiShift.hasilTerakhir" style="font-size:11px; color:var(--text); margin-top:6px; font-weight:600;">{{ migrasiShift.hasilTerakhir }}</p>
+          </div>
+        </div>
+        <button @click="jalankanMigrasiShift" :disabled="migrasiShift.sedangProses" class="btn-outline filled" style="flex-shrink:0;">
+          {{ migrasiShift.sedangProses ? 'Sedang migrasi...' : 'Jalankan Migrasi' }}
         </button>
       </div>
     </div>
@@ -524,7 +621,7 @@ const AppRiwayatAbsensi = {
               <br><span style="font-size:10.5px; color:var(--text-muted); font-weight:400;">{{ item.status || 'HADIR' }}</span>
             </td>
             <td><dua-baris :a="item.nama_pegawai || item.nama" :b="item.hpDicariDariUsers" /></td>
-            <td><dua-baris :a="item.gudang" :b="item.shift" /></td>
+            <td><dua-baris :a="item.gudang" :b="item.nama_shift" /></td>
             <td><dua-baris :a="pisahTanggalWaktu(formatBaris(item).waktuMasuk).tgl" :b="pisahTanggalWaktu(formatBaris(item).waktuMasuk).jam" /></td>
             <td><dua-baris :a="pisahTanggalWaktu(formatBaris(item).waktuKeluar).tgl" :b="pisahTanggalWaktu(formatBaris(item).waktuKeluar).jam" /></td>
             <td>

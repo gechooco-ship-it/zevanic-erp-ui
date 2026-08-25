@@ -289,9 +289,46 @@ const AliasPembelianManager = {
 
 // ---------------------------------------------------------------------------
 // OrderBelanjaScreen — dipakai BARENG oleh "List Order Belanja" (mode-nota
-// false) dan "Nota Order Belanja" (mode-nota true). Props modeNota mengatur
-// 2 beda: label Group 1, dan apakah Group 1 punya tombol (+) otomatis.
+// false) dan "Nota Order Belanja" (mode-nota true).
+//
+// DIPERTEGAS (malam 24 Agt 2026, revisi Guru) — 2 mode ini punya MAKNA
+// BISNIS beda, bukan cuma beda label:
+// - "List Order Belanja" (modeNota=false) — ESTIMASI belanja yang dibuat
+//   SUPIR, lalu di-approve OWNER, SEBELUM belanja sungguhan terjadi. Harga
+//   di sini CUMA ikut Data Bahan & Aksesoris apa adanya (read-only, lihat
+//   kolom Harga di template) — TIDAK memicu Riwayat Harga Pembelian atau
+//   auto-update harga master (lihat simpan()).
+// - "Nota Order Belanja" (modeNota=true) — CATATAN PEMBELIAN NYATA
+//   (harga aktual sesuai nota fisik), harga per baris BISA diedit admin,
+//   DAN memicu catatRiwayatHargaDanUpdateMaster() begitu di-final-kan.
 // ---------------------------------------------------------------------------
+
+// BARU (malam 24 Agt 2026) — Kartu Stok Bahan/Aksesoris. Module-level
+// (BUKAN di dalam setup() manapun) & di-export SUPAYA bisa dipakai BARENG
+// oleh hook pembelian di catatRiwayatHargaDanUpdateMaster() (bawah, dalam
+// file yang sama) MAUPUN form "Pemakaian Manual" di js/vue-kartu-stok.js
+// (file terpisah) — 1 fungsi tunggal biar stok_akhir master & saldo_setelah
+// di tiap baris kartu SELALU dihitung dari 1 jalur runTransaction() yang
+// sama, tidak ada 2 cara beda yang bisa bikin angkanya meleset satu sama
+// lain. `qty` WAJIB sudah dalam satuan_pemakaian (bukan satuan_pembelian)
+// — stok SATU satuan konsisten walau tiap pembelian bisa beda satuan beli.
+export async function catatPergerakanKartuStok({ bahanId, namaBahan, tanggal, jenis, qty, satuan, sumber, noPembelian, keterangan }) {
+  const refBahan = doc(db, 'master_bahan_aksesoris', bahanId);
+  await runTransaction(db, async (tx) => {
+    const snapBahan = await tx.get(refBahan);
+    const stokSebelum = snapBahan.exists() ? (parseFloat(snapBahan.data().stok_akhir) || 0) : 0;
+    const stokSetelah = jenis === 'masuk' ? stokSebelum + qty : stokSebelum - qty;
+    tx.set(refBahan, { stok_akhir: stokSetelah }, { merge: true });
+    const refGerak = doc(collection(db, 'kartu_stok_bahan_aksesoris'));
+    tx.set(refGerak, {
+      bahan_aksesoris_id: bahanId, nama_bahan: namaBahan, tanggal, jenis, qty,
+      satuan: satuan || '', sumber: sumber || '', no_pembelian: noPembelian || '',
+      keterangan: keterangan || '', saldo_setelah: stokSetelah,
+      dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
+    });
+  });
+}
+
 const OrderBelanjaScreen = {
   components: { DropdownCari, PengaturanStockPembelian },
   props: { modeNota: { type: Boolean, default: false } },
@@ -471,7 +508,17 @@ const OrderBelanjaScreen = {
         // SENGAJA di-try/catch TERPISAH — kalau ini gagal, pesanan_
         // pembelian yang SUDAH tersimpan sukses TIDAK boleh ikut dianggap
         // gagal ke Guru, cukup dicatat di Console buat ditelusuri nanti.
-        if (statusBaru === 'final') {
+        //
+        // DIPERBAIKI (malam 24 Agt 2026, revisi Guru) — SEBELUMNYA jalan
+        // buat KEDUA mode (List & Nota), TERNYATA salah: "List Order
+        // Belanja" itu ESTIMASI belanja dipakai supir + di-approve Owner
+        // (harga di situ CUMA ikut apa adanya dari Data Bahan &
+        // Aksesoris, lihat komentar props modeNota & template Harga di
+        // bawah — read-only). Yang benar-benar jadi CATATAN PEMBELIAN
+        // NYATA (harga aktual sesuai nota) cuma "Nota Order Belanja" —
+        // makanya riwayat & auto-update harga SEKARANG cuma jalan kalau
+        // props.modeNota true.
+        if (statusBaru === 'final' && props.modeNota) {
           try {
             await catatRiwayatHargaDanUpdateMaster(itemsFinal, tanggal.value, noPembelian);
           } catch (e) {
@@ -517,6 +564,26 @@ const OrderBelanjaScreen = {
           await perbaruiHargaMasterDariRiwayat(it.bahan_aksesoris_id);
         } catch (e) {
           console.error(`Gagal catat Riwayat Harga Pembelian / update master untuk "${it.nama}":`, e);
+        }
+        // BARU (malam 24 Agt 2026) — Kartu Stok: pembelian (Nota final)
+        // JUGA dicatat sebagai 1 baris "masuk" di kartu_stok_bahan_
+        // aksesoris, dalam satuan_pemakaian (qty_s, sudah dikonversi
+        // waktu baris ditambah) — bukan satuan_bahan, biar stok SATU
+        // satuan konsisten walau tiap pembelian bisa beda satuan beli.
+        // Dibungkus try/catch TERPISAH LAGI dari riwayat harga di atas —
+        // supaya kartu stok gagal tidak ikut menggagalkan riwayat harga
+        // yang sudah berhasil (dan sebaliknya).
+        try {
+          const qtyMasuk = parseFloat(it.qty_s) || 0;
+          if (qtyMasuk > 0) {
+            await catatPergerakanKartuStok({
+              bahanId: it.bahan_aksesoris_id, namaBahan: it.nama, tanggal: tanggalPembelian,
+              jenis: 'masuk', qty: qtyMasuk, satuan: it.satuan || '',
+              sumber: 'Nota Order Belanja', noPembelian: noPembelianRef, keterangan: ''
+            });
+          }
+        } catch (e) {
+          console.error(`Gagal catat Kartu Stok (masuk) untuk "${it.nama}":`, e);
         }
       }
     }
@@ -647,7 +714,10 @@ const OrderBelanjaScreen = {
                   <td><input type="checkbox" v-model="it.dicentang" style="accent-color:var(--burgundy);"></td>
                   <td>{{ i + 1 }}</td><td>{{ it.suplayer_nama }}</td><td>{{ it.sku }}</td><td>{{ it.nama }}</td>
                   <td>{{ it.qty }}</td><td>{{ it.satuan_bahan }}</td><td>{{ it.qty_s }}</td><td>{{ it.satuan }}</td>
-                  <td><input v-model.number="it.harga" type="number" min="0" style="width:90px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-size:11px;"></td>
+                  <td>
+                    <input v-if="modeNota" v-model.number="it.harga" type="number" min="0" style="width:90px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-size:11px;">
+                    <span v-else :title="'Ikut Data Bahan & Aksesoris — List Order Belanja cuma estimasi, harga tidak bisa diedit di sini'">{{ formatRupiah(it.harga) }}</span>
+                  </td>
                   <td>{{ formatRupiah((parseFloat(it.qty)||0) * (parseFloat(it.harga)||0)) }}</td>
                   <td><input v-model="it.keterangan" type="text" style="width:100%; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-size:11px;"></td>
                 </tr>

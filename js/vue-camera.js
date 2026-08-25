@@ -400,6 +400,15 @@ const AppKamera = {
             jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '', // BARU (19 Agt 2026) - titip dari memori, hindari baca users terpisah
             hp: window.currentUser.hp || '',
             status_kerja: window.currentUser.status_kerja || '',
+            // DIPERBAIKI (malam 24 Agt 2026, bug ditemukan Guru: "Shift"
+            // di Antrean Absensi/Riwayat All Absensi tidak pernah tampil)
+            // — root cause: field ini TIDAK PERNAH dititip ke dokumen
+            // absensi sejak awal, padahal vue-antrean-absensi.js SUDAH
+            // baca `data.shift`/`nama_shift` buat hitung Status Kehadiran
+            // otomatis (19 Agt 2026) — jadi perhitungan itu diam-diam
+            // SELALU gagal (jamShift tidak pernah ke-fetch). Titip di
+            // sini, pola SAMA seperti jenis_pekerjaan/status_kerja di atas.
+            nama_shift: window.currentUser.nama_shift || '',
             email, role: window.currentUser.role,
             status: "HADIR", // BUKAN "HADIR (CLOCK IN)" lagi — dokumen ini
                               // mewakili SELURUH hari (masuk+keluar), bukan
@@ -461,6 +470,7 @@ const AppKamera = {
               jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '',
               hp: window.currentUser.hp || '',
               status_kerja: window.currentUser.status_kerja || '',
+              nama_shift: window.currentUser.nama_shift || '', // lihat catatan di dataKirim format baru di atas
               email, role: window.currentUser.role,
               status: "CLOCK OUT",
               waktu: new Date().toLocaleString('id-ID'),
@@ -590,6 +600,7 @@ const AppKamera = {
           jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '',
           hp: window.currentUser.hp || '',
           status_kerja: window.currentUser.status_kerja || '',
+          nama_shift: window.currentUser.nama_shift || '', // lihat catatan di dataKirim format baru di atas
           email, role: window.currentUser.role,
           status: statusPilihan,
           waktu: new Date().toLocaleString('id-ID'),

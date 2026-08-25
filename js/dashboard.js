@@ -348,7 +348,8 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-zh-stock-alias': 'pastikanMountAliasPembelian',
     'sub-zh-stock-listorder': 'pastikanMountListOrderBelanja',
     'sub-zh-stock-notaorder': 'pastikanMountNotaOrderBelanja',
-    'sub-zh-stock-riwayat': 'pastikanMountRiwayatHargaPembelian'
+    'sub-zh-stock-riwayat': 'pastikanMountRiwayatHargaPembelian',
+    'sub-zh-stock-kartustok': 'pastikanMountKartuStok'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();

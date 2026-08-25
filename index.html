@@ -391,6 +391,7 @@
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-listorder', this)" class="sub-zh-stock-btn gc-sub-tab-btn"><i class="fas fa-cart-shopping" style="margin-right:6px;"></i> List Order Belanja</button>
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', this)" class="sub-zh-stock-btn gc-sub-tab-btn"><i class="fas fa-receipt" style="margin-right:6px;"></i> Nota Order Belanja</button>
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-riwayat', this)" class="sub-zh-stock-btn gc-sub-tab-btn"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i> Riwayat Harga Pembelian</button>
+              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-kartustok', this)" class="sub-zh-stock-btn gc-sub-tab-btn"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Kartu Stok</button>
             </div>
             <div id="sub-zh-stock-alias" class="sub-zh-stock-content fade-in space-y-4">
               <!-- Alias Pembelian: lihat js/vue-stock-pembelian.js -->
@@ -408,6 +409,10 @@
                  js/vue-stock-pembelian.js (RiwayatHargaPembelianManager) -->
             <div id="sub-zh-stock-riwayat" class="sub-zh-stock-content hidden fade-in space-y-4">
               <div id="vue-riwayat-harga-pembelian"></div>
+            </div>
+            <!-- BARU (24 Agt 2026) — Kartu Stok Bahan/Aksesoris: lihat js/vue-kartu-stok.js -->
+            <div id="sub-zh-stock-kartustok" class="sub-zh-stock-content hidden fade-in space-y-4">
+              <div id="vue-kartu-stok"></div>
             </div>
           </div>
       </div>
@@ -485,7 +490,7 @@
   <script type="module" src="js/app.js"></script>
   <script type="module" src="js/camera.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/dashboard.js?v=6"></script>
+  <script type="module" src="js/dashboard.js?v=7"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>
   <script type="module" src="js/vue-config-info.js"></script>
   <script type="module" src="js/vue-config-absensi.js"></script>
@@ -493,10 +498,10 @@
   <script type="module" src="js/vue-config-akses.js"></script>
   <script type="module" src="js/vue-hak-akses.js"></script>
   <script type="module" src="js/vue-antrean-dakar.js"></script>
-  <script type="module" src="js/vue-antrean-absensi.js"></script>
+  <script type="module" src="js/vue-antrean-absensi.js?v=2"></script>
   <script type="module" src="js/vue-antrean-lembur.js"></script>
   <script type="module" src="js/vue-reimburse.js"></script>
-  <script type="module" src="js/vue-riwayat-absensi.js"></script>
+  <script type="module" src="js/vue-riwayat-absensi.js?v=2"></script>
   <script type="module" src="js/vue-penjadwalan.js"></script>
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>
   <script type="module" src="js/vue-otp.js"></script>
@@ -511,10 +516,11 @@
   <script type="module" src="js/vue-buat-password.js"></script>
   <script type="module" src="js/vue-login.js"></script>
   <script type="module" src="js/vue-absensi-qr.js"></script>
-  <script type="module" src="js/vue-camera.js"></script>
+  <script type="module" src="js/vue-camera.js?v=2"></script>
   <script type="module" src="js/vue-scan-qr.js"></script>
-  <script type="module" src="js/vue-bahan-aksesoris.js?v=9"></script>
+  <script type="module" src="js/vue-bahan-aksesoris.js?v=10"></script>
   <script type="module" src="js/vue-persiapan-masalah.js?v=1"></script>
-  <script type="module" src="js/vue-stock-pembelian.js?v=2"></script>
+  <script type="module" src="js/vue-stock-pembelian.js?v=3"></script>
+  <script type="module" src="js/vue-kartu-stok.js?v=1"></script>
 </body>
 </html>
