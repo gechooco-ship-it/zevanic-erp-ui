@@ -99,6 +99,61 @@
 //     `persiapan_masalah` yang SUDAH ADA apa adanya (TIDAK ada field/skema
 //     baru di sana, cukup 1 entri normal seperti alur "butuh beli barang"
 //     yang sudah berjalan).
+//
+// UPDATE (25 Agt 2026, Tahap 2 — GANTI pendekatan §25.3) — arahan Guru
+// (persis): "per lot punya id bahan/aksesoris masing2 jadi nanti saat
+// ngambil karyawan cari kode yg sama (atau saat pengambilan scan qr id
+// bahan yg mau dipakai lalu ambil yg mau dipakainya)". FIFO OTOMATIS
+// (`catatPemakaianDenganFifo`, §25.3) DIGANTI jadi FIFO SEBAGAI SARAN
+// DEFAULT saja — karyawan yang pilih SENDIRI roll/lot mana yang benar-benar
+// diambil (cari kode ATAU scan QR label roll), lewat form "Catat Pemakaian"
+// di `js/vue-kartu-stok.js`. Dikonfirmasi lewat AskUserQuestion (3
+// pertanyaan): (1) "Langsung ke Tahap 2, cetak label + scan QR" — TIDAK
+// mulai dari versi manual tanpa kamera; (2) kalau roll yang dipilih BUKAN
+// yang tertua -> "Beri peringatan dulu" (konfirmasi, bukan blokir) — lihat
+// `vue-kartu-stok.js`; (3) untuk item BUKAN lot, scan/cari kode "Cuma buka
+// form Catat Pemakaian lebih cepat" — TIDAK ada perubahan logic stok untuk
+// item biasa.
+// Ditambahkan:
+//   - Field BARU `kode_lot` di `lot_bahan_aksesoris` (mis. "BHN-0001-L003")
+//     — dibuat OTOMATIS di `catatPergerakanKartuStok()` (di bawah) lewat
+//     counter BARU `lot_counter` di `master_bahan_aksesoris`, di-increment
+//     ATOMIK dalam transaksi yang SAMA (baca+tulis 1x, tidak ada race
+//     antar-lot). `catatPergerakanKartuStok()` SEKARANG me-RETURN
+//     `{ lotDibuat: [...] }` (id, kode_lot, qty, tanggal_masuk, keterangan)
+//     supaya pemanggilnya (OrderBelanjaScreen.simpan(), di bawah) bisa
+//     menawarkan cetak label fisik (QR) begitu Nota Order Belanja
+//     di-final-kan.
+//   - Fungsi BARU (export) `ambilLotAktif(bahanId)`, `cariLotByKode(kodeLot)`,
+//     `cariBahanByIdTampil(idTampil)`, `ambilBahanById(bahanId)` — dipakai
+//     `vue-kartu-stok.js` untuk mengisi tabel pilihan roll & untuk fitur
+//     "Scan Barang"/"Scan Roll". PENTING: `bahanId` (ID dokumen Firestore,
+//     auto-generated) dan `id_tampil` (ID manusia-terbaca mis. "BHN-0001",
+//     field TERPISAH di master_bahan_aksesoris — lihat PETA-DATABASE.md)
+//     itu 2 hal BEDA — makanya ada 2 fungsi cari yang beda juga
+//     (`cariBahanByIdTampil` query field `id_tampil`, `ambilBahanById`
+//     getDoc langsung lewat ID dokumen).
+//   - `catatPemakaianDenganFifo()` DIHAPUS, GANTI `catatPemakaianDariAlokasi()`
+//     — alokasi (`{lotId, qty}[]`) sudah ditentukan pemanggil (FIFO cuma
+//     saran default, editable), fungsi ini HANYA validasi total cocok +
+//     eksekusi transaksional (baca ulang semua lot FRESH lewat tx.get()
+//     sebelum tulis, sama seperti pola §25.3, supaya tetap aman dari race
+//     kalau ada 2 orang catat pemakaian bersamaan).
+//   - Cek LOT_KOSONG/LOT_KURANG (belum ada data lot / lot aktif < qty
+//     diminta) SEKARANG dilakukan `vue-kartu-stok.js` SENDIRI (baca
+//     `ambilLotAktif()` dulu SEBELUM buka tabel alokasi) — bukan dilempar
+//     dari `catatPemakaianDariAlokasi()` lagi. 3 opsi keputusan PIC saat
+//     kurang (kurangi/proses sebagian/tunggu) TETAP SAMA seperti §25.3.
+//   - Cetak label roll (QR): tombol BARU "Cetak Label Roll" di
+//     OrderBelanjaScreen (mode Nota), muncul begitu Nota di-final-kan DAN
+//     ada `lotDibuat`. Pola SAMA seperti `cetak()` (window.open +
+//     document.write + window.print()) — library pembuat QR (`qrcodejs`,
+//     davidshimjs, CDN) dimuat & dijalankan DI DALAM window cetak itu
+//     sendiri (bukan window utama) supaya tidak ada masalah lintas-window.
+//   - Scan QR (baca) pakai `jsQR` (CDN), pola SAMA PERSIS seperti yang
+//     sudah ada di `js/vue-scan-qr.js` — disalin ulang ke `vue-kartu-stok.js`
+//     (konsisten dengan pola "salin logic kecil per-file" yang sudah
+//     dipakai di proyek ini, BUKAN import lintas file).
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, runTransaction, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -369,11 +424,14 @@ const AliasPembelianManager = {
 // — stok SATU satuan konsisten walau tiap pembelian bisa beda satuan beli.
 export async function catatPergerakanKartuStok({ bahanId, namaBahan, tanggal, jenis, qty, satuan, sumber, noPembelian, keterangan, lotBaru }) {
   const refBahan = doc(db, 'master_bahan_aksesoris', bahanId);
+  const lotDibuat = [];
   await runTransaction(db, async (tx) => {
     const snapBahan = await tx.get(refBahan);
-    const stokSebelum = snapBahan.exists() ? (parseFloat(snapBahan.data().stok_akhir) || 0) : 0;
+    const dataBahan = snapBahan.exists() ? snapBahan.data() : {};
+    const stokSebelum = parseFloat(dataBahan.stok_akhir) || 0;
     const stokSetelah = jenis === 'masuk' ? stokSebelum + qty : stokSebelum - qty;
-    tx.set(refBahan, { stok_akhir: stokSetelah }, { merge: true });
+    const updateBahan = { stok_akhir: stokSetelah };
+
     const refGerak = doc(collection(db, 'kartu_stok_bahan_aksesoris'));
     tx.set(refGerak, {
       bahan_aksesoris_id: bahanId, nama_bahan: namaBahan, tanggal, jenis, qty,
@@ -381,76 +439,125 @@ export async function catatPergerakanKartuStok({ bahanId, namaBahan, tanggal, je
       keterangan: keterangan || '', saldo_setelah: stokSetelah,
       dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
     });
-    // BARU (25 Agt 2026, §25.3) — kalau ada data lot baru (masuk lewat Nota
-    // untuk item `pakai_lot_tracking`), tulis 1 dokumen `lot_bahan_aksesoris`
-    // per baris DALAM transaksi yang SAMA — supaya stok_akhir, ledger kartu
-    // stok, dan data lot SELALU konsisten sekaligus (tidak ada celah antara
-    // 1 tulis sukses & yang lain gagal).
+    // BARU (25 Agt 2026, §25.3, kode_lot ditambah Tahap 2) — kalau ada data
+    // lot baru (masuk lewat Nota untuk item `pakai_lot_tracking`), tulis 1
+    // dokumen `lot_bahan_aksesoris` per baris DALAM transaksi yang SAMA —
+    // supaya stok_akhir, ledger kartu stok, dan data lot SELALU konsisten
+    // sekaligus (tidak ada celah antara 1 tulis sukses & yang lain gagal).
+    // `kode_lot` (mis. "BHN-0001-L003") dibuat dari `id_tampil` BAHAN
+    // (field id manusia-terbaca di master_bahan_aksesoris, mis. "BHN-0001"
+    // — BUKAN `bahanId`/ID dokumen Firestore-nya yang auto-generated dan
+    // TIDAK enak dibaca/di-scan, lihat PETA-DATABASE.md) + counter BARU
+    // `lot_counter` di master_bahan_aksesoris, di-increment di TRANSAKSI
+    // YANG SAMA (pakai data snapBahan yang SAMA dengan stok_akhir di atas —
+    // tidak ada baca tambahan) supaya tidak ada 2 lot kebagian kode yang
+    // sama walau dibuat nyaris bersamaan. Fallback ke `bahanId` kalau
+    // `id_tampil` entah kenapa kosong (data lama/rusak) — supaya kode_lot
+    // tetap unik walau kurang rapi tampilannya.
     if (jenis === 'masuk' && Array.isArray(lotBaru) && lotBaru.length > 0) {
+      let counterLot = parseInt(dataBahan.lot_counter) || 0;
+      const prefixLot = dataBahan.id_tampil || bahanId;
       lotBaru.forEach(l => {
         const qtyLot = parseFloat(l.qty) || 0;
         if (qtyLot <= 0) return;
+        counterLot += 1;
+        const kodeLot = `${prefixLot}-L${String(counterLot).padStart(3, '0')}`;
         const refLot = doc(collection(db, 'lot_bahan_aksesoris'));
         tx.set(refLot, {
-          bahan_aksesoris_id: bahanId, nama_bahan: namaBahan,
+          bahan_aksesoris_id: bahanId, nama_bahan: namaBahan, kode_lot: kodeLot,
           qty_awal: qtyLot, qty_sisa: qtyLot, satuan: satuan || '',
           tanggal_masuk: tanggal, no_pembelian: noPembelian || '',
           keterangan: l.keterangan || '', status: 'aktif',
           dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
         });
+        lotDibuat.push({ id: refLot.id, kode_lot: kodeLot, qty: qtyLot, tanggal_masuk: tanggal, keterangan: l.keterangan || '' });
       });
+      updateBahan.lot_counter = counterLot;
     }
+    tx.set(refBahan, updateBahan, { merge: true });
   });
+  return { lotDibuat };
 }
 
-// catatPemakaianDenganFifo — BARU (25 Agt 2026, §25.3). Dipakai form "Catat
-// Pemakaian" di js/vue-kartu-stok.js, HANYA untuk item `pakai_lot_tracking`.
-// Potong dari roll/lot TERLAMA dulu (`tanggal_masuk` ASC). Query kandidat
-// lot dilakukan DULU di luar transaksi (Firestore transaction TIDAK
-// mendukung query, cuma tx.get() per-dokumen) — begitu masuk transaksi,
-// SEMUA lot kandidat dibaca ULANG lewat tx.get() (data FRESH, jaga-jaga
-// ada pemakaian lain nyelip di antara query awal & transaksi ini) sebelum
-// ada tulisan apapun (aturan wajib Firestore: semua get() sebelum set/
-// update dalam 1 transaction).
-//
-// 2 kondisi dilempar sebagai Error dengan `.kode` (BUKAN dikembalikan diam-
-// diam) — supaya pemanggil (vue-kartu-stok.js) bisa tangani beda-beda:
-//   - `LOT_KOSONG` — belum ada data lot SAMA SEKALI untuk item ini. BLOKIR
-//     (keputusan Guru) — jangan proses pemakaian tanpa data lot.
-//   - `LOT_KURANG` — total qty_sisa semua lot aktif < qty yang diminta.
-//     TIDAK diblokir diam-diam, `err.totalTersedia` dibawa supaya pemanggil
-//     bisa tawarkan 3 opsi keputusan (lihat vue-kartu-stok.js).
-export async function catatPemakaianDenganFifo({ bahanId, namaBahan, tanggal, qty, satuan, keterangan }) {
-  const snapLot = await getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('bahan_aksesoris_id', '==', bahanId), where('status', '==', 'aktif')));
-  const lots = []; snapLot.forEach(d => lots.push({ id: d.id, ...d.data() }));
+// ambilLotAktif — BARU (Tahap 2). Baca semua lot AKTIF milik 1 bahan, urut
+// FIFO (tanggal_masuk ASC, sama seperti bekas catatPemakaianDenganFifo()).
+// Dipakai `vue-kartu-stok.js` untuk (a) cek cepat kosong/tidaknya data lot
+// SEBELUM buka tabel alokasi, (b) isi tabel alokasi & saran FIFO default,
+// (c) cari suggestion saat karyawan mengetik kode roll manual.
+export async function ambilLotAktif(bahanId) {
+  const snap = await getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('bahan_aksesoris_id', '==', bahanId), where('status', '==', 'aktif')));
+  const lots = []; snap.forEach(d => lots.push({ id: d.id, ...d.data() }));
   lots.sort((a, b) => (a.tanggal_masuk || '').localeCompare(b.tanggal_masuk || '') || ((a.dibuat_pada?.seconds || 0) - (b.dibuat_pada?.seconds || 0)));
+  return lots;
+}
 
-  if (lots.length === 0) {
-    const err = new Error('Belum ada data lot untuk item ini.');
-    err.kode = 'LOT_KOSONG';
-    throw err;
-  }
-  const totalTersedia = lots.reduce((t, l) => t + (parseFloat(l.qty_sisa) || 0), 0);
-  if (totalTersedia < qty) {
-    const err = new Error('Total qty lot aktif kurang dari yang diminta.');
-    err.kode = 'LOT_KURANG';
-    err.totalTersedia = totalTersedia;
-    throw err;
-  }
+// cariLotByKode — cari 1 lot AKTIF lewat `kode_lot` PERSIS (hasil scan QR
+// label fisik roll, atau diketik manual). null kalau tidak ketemu/lot itu
+// sudah habis (status bukan 'aktif' lagi, jadi tidak muncul di query ini).
+export async function cariLotByKode(kodeLot) {
+  if (!kodeLot) return null;
+  const snap = await getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('kode_lot', '==', String(kodeLot).trim()), where('status', '==', 'aktif')));
+  let hasil = null;
+  snap.forEach(d => { if (!hasil) hasil = { id: d.id, ...d.data() }; });
+  return hasil;
+}
 
-  // Rencana alokasi FIFO (dihitung dari data hasil query di atas) — jumlah
-  // `ambil` per lot di-clamp ULANG pakai data FRESH di dalam transaksi
-  // (lihat bawah), rencana ini cuma menentukan LOT MANA saja yang kepakai
-  // & urutannya.
-  let sisaDipotong = qty;
-  const rencana = [];
-  for (const l of lots) {
-    if (sisaDipotong <= 0) break;
-    const tersedia = parseFloat(l.qty_sisa) || 0;
-    if (tersedia <= 0) continue;
-    const ambil = Math.min(tersedia, sisaDipotong);
-    rencana.push({ id: l.id, tanggal_masuk: l.tanggal_masuk, ambil });
-    sisaDipotong -= ambil;
+// cariBahanByIdTampil — cari 1 dokumen master_bahan_aksesoris lewat field
+// `id_tampil` (ID manusia-terbaca, mis. "BHN-0001", DENORMALISASI/BEDA dari
+// ID dokumen Firestore-nya sendiri yang auto-generated — lihat catatan di
+// catatPergerakanKartuStok() di atas & PETA-DATABASE.md). WAJIB query
+// (bukan getDoc langsung) karena id_tampil BUKAN ID dokumennya. Dipakai
+// fitur "Scan Barang" di vue-kartu-stok.js — (a) untuk buka item dari
+// bahan_aksesoris_id hasil cariLotByKode() (di situ SUDAH ID dokumen asli,
+// dipetik via getDoc langsung — lihat pemanggilnya), (b) fallback kalau
+// kode yang di-scan BUKAN kode_lot & dicoba sebagai id_tampil bahan itu
+// sendiri.
+export async function cariBahanByIdTampil(idTampil) {
+  if (!idTampil) return null;
+  const snap = await getDocs(query(collection(db, 'master_bahan_aksesoris'), where('id_tampil', '==', String(idTampil).trim())));
+  let hasil = null;
+  snap.forEach(d => { if (!hasil) hasil = { id: d.id, ...d.data() }; });
+  return hasil;
+}
+
+// ambilBahanById — getDoc LANGSUNG lewat ID dokumen Firestore asli (dipakai
+// utamanya utk resolve `lot.bahan_aksesoris_id` hasil cariLotByKode(), yang
+// SUDAH ID dokumen, BUKAN id_tampil — beda dari cariBahanByIdTampil() di
+// atas). Export terpisah supaya pemanggil (vue-kartu-stok.js) tidak salah
+// pakai fungsi utk 2 jenis ID yang beda ini.
+export async function ambilBahanById(bahanId) {
+  if (!bahanId) return null;
+  const snap = await getDoc(doc(db, 'master_bahan_aksesoris', bahanId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
+}
+
+// catatPemakaianDariAlokasi — GANTI (Tahap 2) dari catatPemakaianDenganFifo()
+// versi §25.3. `alokasi` (array {lotId, qty}) sudah ditentukan pemanggil
+// (vue-kartu-stok.js) — FIFO cuma jadi SARAN DEFAULT yang otomatis diisi di
+// sana (bangunAlokasiFifo()), karyawan boleh ganti/tambah lewat cari kode
+// atau scan QR label roll. Fungsi ini HANYA validasi total alokasi cocok
+// dengan qty pemakaian, lalu eksekusi transaksional — SEMUA lot yang
+// dialokasikan dibaca ULANG lewat tx.get() (data FRESH) sebelum ada
+// tulisan apapun (aturan wajib Firestore transaction), sama seperti pola
+// §25.3, supaya tetap aman kalau ada 2 orang catat pemakaian bersamaan.
+//
+// Peringatan "bukan roll tertua" (keputusan Guru: "Beri peringatan dulu
+// kalau bukan yang tertua") DITAMPILKAN vue-kartu-stok.js SEBELUM fungsi
+// ini dipanggil — fungsi backend ini SENGAJA tidak menolak alokasi yang
+// menyimpang dari FIFO, cuma pastikan datanya valid & konsisten.
+//
+// Cek LOT_KOSONG/LOT_KURANG (belum ada data lot / lot aktif < qty diminta)
+// SEKARANG dilakukan vue-kartu-stok.js SENDIRI lewat ambilLotAktif() SEBELUM
+// tabel alokasi dibuka — TIDAK dilempar dari sini lagi. `LOT_BERUBAH` tetap
+// dilempar dari sini kalau data lot berubah persis di antara alokasi
+// disusun & transaksi ini dieksekusi (jaga-jaga race).
+export async function catatPemakaianDariAlokasi({ bahanId, namaBahan, tanggal, qty, satuan, keterangan, alokasi }) {
+  if (!Array.isArray(alokasi) || alokasi.length === 0) {
+    throw new Error('Belum ada roll/lot yang dipilih untuk pemakaian ini.');
+  }
+  const totalAlokasi = alokasi.reduce((t, a) => t + (parseFloat(a.qty) || 0), 0);
+  if (Math.round((totalAlokasi - qty) * 100) !== 0) {
+    throw new Error(`Total qty roll/lot yang dipilih (${totalAlokasi}) tidak sama dengan jumlah pemakaian (${qty}).`);
   }
 
   const refBahan = doc(db, 'master_bahan_aksesoris', bahanId);
@@ -458,7 +565,7 @@ export async function catatPemakaianDenganFifo({ bahanId, namaBahan, tanggal, qt
   let stokSetelahFinal = 0;
   await runTransaction(db, async (tx) => {
     const snapBahan = await tx.get(refBahan);
-    const lotRefs = rencana.map(r => doc(db, 'lot_bahan_aksesoris', r.id));
+    const lotRefs = alokasi.map(a => doc(db, 'lot_bahan_aksesoris', a.lotId));
     const lotSnaps = [];
     for (const ref of lotRefs) lotSnaps.push(await tx.get(ref)); // WAJIB berurutan/di-await 1-1 dalam transaction (bukan Promise.all) — konsisten dengan cara tx.get() dipakai di tempat lain
 
@@ -467,27 +574,33 @@ export async function catatPemakaianDenganFifo({ bahanId, namaBahan, tanggal, qt
     tx.set(refBahan, { stok_akhir: stokSetelah }, { merge: true });
 
     let totalTerpotongUlang = 0;
-    rencana.forEach((r, i) => {
+    alokasi.forEach((a, i) => {
       const lotSnap = lotSnaps[i];
-      const sisaSekarang = lotSnap.exists() ? (parseFloat(lotSnap.data().qty_sisa) || 0) : 0;
-      const ambilFix = Math.min(r.ambil, sisaSekarang);
+      if (!lotSnap.exists()) {
+        throw Object.assign(new Error('Salah satu roll/lot yang dipilih sudah tidak ada, coba pilih ulang roll/lot-nya.'), { kode: 'LOT_BERUBAH' });
+      }
+      const dataLot = lotSnap.data();
+      const sisaSekarang = parseFloat(dataLot.qty_sisa) || 0;
+      const diminta = parseFloat(a.qty) || 0;
+      const ambilFix = Math.min(diminta, sisaSekarang);
       const sisaBaru = sisaSekarang - ambilFix;
       tx.update(lotRefs[i], { qty_sisa: sisaBaru, status: sisaBaru <= 0 ? 'habis' : 'aktif' });
-      rincianHasil.push({ lot_id: r.id, tanggal_masuk: r.tanggal_masuk, dipotong: ambilFix, sisa_setelah: sisaBaru });
+      rincianHasil.push({ lot_id: a.lotId, kode_lot: dataLot.kode_lot || '', tanggal_masuk: dataLot.tanggal_masuk || '', dipotong: ambilFix, sisa_setelah: sisaBaru });
       totalTerpotongUlang += ambilFix;
     });
-    // Jaga-jaga langka: kalau data berubah persis di antara query awal &
-    // transaksi ini (mis. ada pemakaian lain nyelip) sampai totalnya jadi
-    // tidak cukup lagi — batalkan transaksi ini dengan pesan jelas, JANGAN
-    // diam-diam catat kurang dari qty yang diminta.
+    // Jaga-jaga langka: kalau data lot berubah persis di antara alokasi
+    // disusun (di UI) & transaksi ini dieksekusi (mis. ada pemakaian lain
+    // nyelip di roll yang sama) sampai totalnya jadi tidak cukup lagi —
+    // batalkan transaksi ini dengan pesan jelas, JANGAN diam-diam catat
+    // kurang dari qty yang diminta.
     if (Math.round((totalTerpotongUlang - qty) * 100) !== 0) {
-      throw Object.assign(new Error('Data lot berubah saat diproses, coba Catat Pemakaian lagi.'), { kode: 'LOT_BERUBAH' });
+      throw Object.assign(new Error('Data roll/lot berubah saat diproses (mungkin dipakai bersamaan di perangkat lain), coba pilih ulang roll/lot-nya.'), { kode: 'LOT_BERUBAH' });
     }
 
     const refGerak = doc(collection(db, 'kartu_stok_bahan_aksesoris'));
     tx.set(refGerak, {
       bahan_aksesoris_id: bahanId, nama_bahan: namaBahan, tanggal, jenis: 'keluar', qty,
-      satuan: satuan || '', sumber: 'Pemakaian Manual (FIFO Lot)', no_pembelian: '',
+      satuan: satuan || '', sumber: 'Pemakaian Manual (Pilih Roll/Lot)', no_pembelian: '',
       keterangan: keterangan || '', saldo_setelah: stokSetelah, rincian_lot: rincianHasil,
       dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
     });
@@ -570,6 +683,10 @@ const OrderBelanjaScreen = {
     const daftarPesanan = ref([]);
     const sumberPermintaanIds = ref([]);
     const menyimpan = ref(false);
+    // BARU (Tahap 2) — roll/lot baru yang barusan dibuat dari Nota yang
+    // di-final-kan (diisi simpan(), lihat catatan di sana), dipakai tombol
+    // "Cetak Label Roll" (cetakLabelLot(), di bawah dekat cetak()).
+    const lotUntukCetak = ref([]);
 
     // BARU (25 Agt 2026, §25.2) — Popup "Qty per Roll/Lot". indexBarisLot
     // menyimpan INDEX baris di daftarPesanan yang sedang diedit lewat
@@ -789,7 +906,13 @@ const OrderBelanjaScreen = {
         // props.modeNota true.
         if (statusBaru === 'final' && props.modeNota) {
           try {
-            await catatRiwayatHargaDanUpdateMaster(itemsFinal, tanggal.value, noPembelian);
+            const lotBaruDariNota = await catatRiwayatHargaDanUpdateMaster(itemsFinal, tanggal.value, noPembelian);
+            // BARU (Tahap 2) — kalau ada roll/lot baru dibuat dari Nota ini,
+            // tawarkan cetak label (tombol muncul di bawah form, lihat
+            // template) — TIDAK auto-cetak, biar admin yang putuskan kapan.
+            if (Array.isArray(lotBaruDariNota) && lotBaruDariNota.length > 0) {
+              lotUntukCetak.value = lotBaruDariNota;
+            }
           } catch (e) {
             console.error('Pesanan tersimpan, TAPI gagal catat Riwayat Harga Pembelian:', e);
           }
@@ -811,6 +934,10 @@ const OrderBelanjaScreen = {
     // tanggal yang sama, dipilih yang TERMAHAL — sengaja konservatif,
     // supaya modal/harga jual tidak ketinggalan pas harga bahan naik).
     async function catatRiwayatHargaDanUpdateMaster(items, tanggalPembelian, noPembelianRef) {
+      // BARU (Tahap 2) — kumpulkan lot BARU yang dibuat (dari catatPergerakanKartuStok()
+      // di bawah, param lotBaru) sepanjang loop item ini, supaya simpan() bisa
+      // menawarkan "Cetak Label Roll" begitu Nota selesai di-final-kan.
+      const lotDibuatSemua = [];
       for (const it of items) {
         if (!it.bahan_aksesoris_id || !(parseFloat(it.harga) > 0)) continue;
         const isiKonversi = parseFloat(it.isi_konversi) || 1;
@@ -845,7 +972,7 @@ const OrderBelanjaScreen = {
         try {
           const qtyMasuk = parseFloat(it.qty_s) || 0;
           if (qtyMasuk > 0) {
-            await catatPergerakanKartuStok({
+            const hasilGerak = await catatPergerakanKartuStok({
               bahanId: it.bahan_aksesoris_id, namaBahan: it.nama, tanggal: tanggalPembelian,
               jenis: 'masuk', qty: qtyMasuk, satuan: it.satuan || '',
               sumber: 'Nota Order Belanja', noPembelian: noPembelianRef, keterangan: '',
@@ -855,11 +982,15 @@ const OrderBelanjaScreen = {
               // catatPergerakanKartuStok() di atas).
               lotBaru: (it.pakai_lot_tracking && Array.isArray(it.detail_lot) && it.detail_lot.length > 0) ? it.detail_lot : undefined
             });
+            if (hasilGerak && Array.isArray(hasilGerak.lotDibuat) && hasilGerak.lotDibuat.length > 0) {
+              hasilGerak.lotDibuat.forEach(l => lotDibuatSemua.push({ ...l, nama_bahan: it.nama, satuan: it.satuan || '' }));
+            }
           }
         } catch (e) {
           console.error(`Gagal catat Kartu Stok (masuk) untuk "${it.nama}":`, e);
         }
       }
+      return lotDibuatSemua;
     }
 
     // Ambil SEMUA riwayat item ini, cari tanggal PALING BARU, di antara
@@ -913,6 +1044,58 @@ const OrderBelanjaScreen = {
       w.document.close();
     }
 
+    // cetakLabelLot — BARU (Tahap 2). 1 label per roll/lot BARU (kode_lot +
+    // QR + nama/qty/tanggal), dipakai buat ditempel fisik di roll-nya
+    // sendiri supaya nanti bisa di-scan pas "Catat Pemakaian" (vue-kartu-
+    // stok.js). Pola window print SAMA seperti cetak() di atas, TAPI
+    // library pembuat QR (`qrcodejs`, davidshimjs, CDN) dimuat & dijalankan
+    // DI DALAM window cetak (`w`) itu sendiri lewat <script src> di
+    // document.write() — BUKAN dimuat di window utama lalu di-oper ke `w`,
+    // supaya tidak ada masalah objek lintas-window (tiap window Firefox/
+    // Chrome punya `document`/DOM sendiri-sendiri).
+    function cetakLabelLot(daftarLot) {
+      if (!daftarLot || daftarLot.length === 0) return;
+      const w = window.open('', '_blank');
+      if (!w) return alert('Popup diblokir browser. Izinkan popup untuk mencetak label.');
+      const labelsHtml = daftarLot.map((l, i) => `
+        <div class="label">
+          <div class="qr" id="qr-${i}"></div>
+          <div class="teks">
+            <div class="kode">${l.kode_lot}</div>
+            <div class="nama">${l.nama_bahan || ''}</div>
+            <div class="info">${l.qty} ${l.satuan || ''} &middot; ${l.tanggal_masuk || ''}</div>
+          </div>
+        </div>`).join('');
+      w.document.write(`<html><head><title>Label Roll/Lot</title>
+        <style>
+          body{font-family:Arial,sans-serif; margin:0; padding:12px;}
+          .label{display:inline-flex; align-items:center; gap:10px; border:1px dashed #999; border-radius:6px; padding:8px 12px; margin:4px; width:280px; box-sizing:border-box; page-break-inside:avoid; vertical-align:top;}
+          .qr{width:80px; height:80px; flex-shrink:0;}
+          .teks{font-size:11px; line-height:1.4;}
+          .kode{font-weight:700; font-size:13px;}
+          .nama{font-size:11px;}
+          .info{font-size:10px; color:#555;}
+        </style>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>
+        </head><body>
+        ${labelsHtml}
+        <script>
+          window.onload = function() {
+            var kodeSemua = ${JSON.stringify(daftarLot.map(l => l.kode_lot))};
+            kodeSemua.forEach(function(kode, i) {
+              try {
+                new QRCode(document.getElementById('qr-' + i), { text: kode, width: 80, height: 80, correctLevel: QRCode.CorrectLevel.M });
+              } catch (e) {
+                document.getElementById('qr-' + i).innerText = '(QR gagal dimuat, cek koneksi internet)';
+              }
+            });
+            setTimeout(function () { window.print(); }, 400);
+          };
+        <\/script>
+        </body></html>`);
+      w.document.close();
+    }
+
     onMounted(async () => { await window.authReady; muatSemua(); });
     return {
       daftarPermintaan, daftarDraft, memuat, tampilPengaturan, labelGroup1,
@@ -922,7 +1105,9 @@ const OrderBelanjaScreen = {
       tambahItemManual, tambahDariPermintaan, hapusTerpilih, pilihNoPembelian, batal, simpan, cetak,
       // BARU (25 Agt 2026, §25.2) — Popup Qty per Roll/Lot.
       tampilPopupLot, barisLotSementara, totalQtyLot, barisLotTarget, barisLotSatuan, barisLotNama,
-      bukaPopupLot, tutupPopupLot, tambahBarisLot, hapusBarisLot, terapkanLot
+      bukaPopupLot, tutupPopupLot, tambahBarisLot, hapusBarisLot, terapkanLot,
+      // BARU (Tahap 2) — Cetak Label Roll.
+      lotUntukCetak, cetakLabelLot
     };
   },
   template: `
@@ -1017,6 +1202,15 @@ const OrderBelanjaScreen = {
             <button v-if="bolehHapus" @click="hapusTerpilih" :disabled="!adaTerpilih" class="btn-outline" style="flex:1; min-width:90px; color:var(--danger); border-color:var(--danger);">Hapus Terpilih</button>
             <button @click="cetak" class="btn-outline" style="flex:1; min-width:90px;">Cetak</button>
             <button @click="simpan('draft')" :disabled="menyimpan" class="btn-outline" style="flex:1; min-width:90px;">Pending</button>
+          </div>
+
+          <!-- BARU (Tahap 2) — muncul begitu Nota di-final-kan DAN ada
+               roll/lot baru dibuat (item pakai_lot_tracking + detail_lot
+               terisi). TIDAK auto-cetak, admin yang putuskan kapan cetak
+               (mis. sekalian tempel labelnya ke roll fisiknya). -->
+          <div v-if="modeNota && lotUntukCetak.length > 0" style="margin-top:12px; background:var(--ivory-dim); border-radius:10px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+            <span style="font-size:12px;"><i class="fas fa-tags" style="color:var(--burgundy); margin-right:6px;"></i>{{ lotUntukCetak.length }} roll/lot baru dibuat dari Nota ini — cetak labelnya (QR) untuk ditempel ke roll fisiknya.</span>
+            <button @click="cetakLabelLot(lotUntukCetak)" class="btn-primary" style="padding:8px 16px; font-size:12px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label Roll</button>
           </div>
         </div>
       </template>
