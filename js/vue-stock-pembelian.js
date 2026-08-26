@@ -721,6 +721,11 @@ const OrderBelanjaScreen = {
     const daftarSuplayer = ref([]);
     const daftarPermintaan = ref([]); // dari persiapan_masalah, status menunggu
     const daftarDraft = ref([]);
+    // BARU (26 Agt 2026, permintaan Guru) — alias_pembelian, supaya dropdown
+    // "Nama Barang" (List & Nota Order Belanja) JUGA bisa dicari lewat nama
+    // di nota Suplayer (bukan cuma nama+warna internal) — lihat
+    // opsiNamaBarangMap di bawah.
+    const daftarAlias = ref([]);
     const memuat = ref(true);
     const tampilPengaturan = ref(false);
 
@@ -784,7 +789,38 @@ const OrderBelanjaScreen = {
     // Belanja, komponen SAMA-SAMA lewat OrderBelanjaScreen ini), DAN tidak
     // salah nyantol ke varian warna lain — lihat catatan di
     // tambahItemManual() di bawah.
-    const opsiNamaBarang = computed(() => daftarBahan.value.map(formatNamaBahan));
+    //
+    // DIPERLUAS (26 Agt 2026, permintaan Guru): "field nama barang ...
+    // data alias tidak muncul, harusnya nama internal + warna dan atau
+    // nama alias juga muncul saat pencarian". SEBELUMNYA dropdown ini
+    // CUMA berisi nama+warna internal — alias (nama di nota Suplayer,
+    // menu Alias Pembelian) TIDAK bisa dicari/dipilih sama sekali di sini
+    // (cuma dipakai buat referensi manual admin). SEKARANG opsi dropdown
+    // gabungan: (a) semua nama+warna internal, (b) semua nama alias
+    // (diberi label jelas "(alias {suplayer} -> {nama+warna internal})"
+    // supaya tidak ketuker sama nama internal aslinya, DAN supaya alias
+    // dari Suplayer BEDA yang kebetulan sama teksnya tetap bisa dibedakan).
+    // Dipakai sebagai Map (bukan cuma array string) SUPAYA baik nama
+    // internal MAUPUN nama alias yang dipilih bisa langsung di-resolve
+    // balik ke item bahan yang benar TANPA re-matching rawan-ambigu
+    // seperti sebelumnya (lihat tambahItemManual() di bawah) — alias
+    // yang bahan internalnya sudah kehapus SENGAJA di-skip (tidak
+    // mungkin di-resolve balik lagi).
+    const opsiNamaBarangMap = computed(() => {
+      const map = new Map();
+      daftarBahan.value.forEach(b => {
+        const label = formatNamaBahan(b);
+        if (!map.has(label)) map.set(label, b);
+      });
+      daftarAlias.value.forEach(a => {
+        const bahan = daftarBahan.value.find(b => b.id === a.bahan_aksesoris_id);
+        if (!bahan) return;
+        const label = `${a.nama_di_nota} (alias ${a.suplayer_nama || '?'} → ${formatNamaBahan(bahan)})`;
+        if (!map.has(label)) map.set(label, bahan);
+      });
+      return map;
+    });
+    const opsiNamaBarang = computed(() => Array.from(opsiNamaBarangMap.value.keys()));
     // BARU (malam 24 Agt 2026) — dihitung LIVE dari qty*harga (bukan baca
     // field `jumlah` statis lagi), supaya begitu admin edit Harga Aktual
     // di tabel, Estimasi Biaya Belanja di atas langsung ikut update.
@@ -796,11 +832,15 @@ const OrderBelanjaScreen = {
     async function muatSemua() {
       memuat.value = true;
       try {
-        const [bahan, suplayer, snapPermintaan, snapDraft] = await Promise.all([
+        // BARU (26 Agt 2026) — ikut muat `alias_pembelian` (query TANPA
+        // where, sama seperti AliasPembelianManager) supaya opsiNamaBarang
+        // di atas bisa gabung nama internal + nama alias.
+        const [bahan, suplayer, snapPermintaan, snapDraft, snapAlias] = await Promise.all([
           ambilDaftarBahanAksesorisLengkap(),
           ambilDaftarSuplayer(),
           getDocs(query(collection(db, 'persiapan_masalah'), where('status', '==', 'menunggu'))),
-          getDocs(query(collection(db, 'pesanan_pembelian'), where('status', '==', 'draft')))
+          getDocs(query(collection(db, 'pesanan_pembelian'), where('status', '==', 'draft'))),
+          getDocs(collection(db, 'alias_pembelian'))
         ]);
         daftarBahan.value = bahan;
         daftarSuplayer.value = suplayer;
@@ -810,6 +850,8 @@ const OrderBelanjaScreen = {
         const listDraft = []; snapDraft.forEach(d => listDraft.push({ id: d.id, ...d.data() }));
         listDraft.sort((a, b) => (b.dibuat_pada?.seconds || 0) - (a.dibuat_pada?.seconds || 0));
         daftarDraft.value = listDraft;
+        const listAlias = []; snapAlias.forEach(d => listAlias.push({ id: d.id, ...d.data() }));
+        daftarAlias.value = listAlias;
       } catch (e) {
         console.error('Gagal muat Order Belanja:', e);
       }
@@ -850,11 +892,13 @@ const OrderBelanjaScreen = {
 
     function tambahItemManual() {
       if (!suplayerEntry.value) return alert('Pilih Suplayer dulu.');
-      // GANTI (25 Agt 2026) — cocokkan lewat formatNamaBahan() (nama+warna),
-      // BUKAN `nama` polos lagi — dulu kalau ada 2+ item `nama` sama beda
-      // `warna`, ini selalu ambil yang PERTAMA cocok (bisa salah varian
-      // warna masuk ke Daftar Pesanan Pembelian, silent bug).
-      const item = daftarBahan.value.find(b => formatNamaBahan(b) === namaBarangEntry.value);
+      // GANTI (26 Agt 2026) — resolve lewat opsiNamaBarangMap (bukan
+      // re-matching formatNamaBahan()) — SEKARANG value yang dipilih bisa
+      // berasal dari nama+warna internal ATAU dari label alias (lihat
+      // opsiNamaBarangMap di atas), Map ini yang jadi satu-satunya sumber
+      // kebenaran buat resolve balik ke item bahan yang benar, jadi tidak
+      // ada 2 jalur re-matching yang bisa saling tidak sinkron.
+      const item = opsiNamaBarangMap.value.get(namaBarangEntry.value);
       if (!item) return alert('Pilih Nama Barang dari daftar dulu (bukan teks bebas). Kalau nama di nota Suplayer beda, catat dulu di menu Alias Pembelian.');
       const qty = parseFloat(qtyEntry.value);
       if (!(qty > 0)) return alert('Isi Qty dengan angka lebih dari 0.');
