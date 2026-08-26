@@ -146,10 +146,13 @@
 //     kurang (kurangi/proses sebagian/tunggu) TETAP SAMA seperti §25.3.
 //   - Cetak label roll (QR): tombol BARU "Cetak Label Roll" di
 //     OrderBelanjaScreen (mode Nota), muncul begitu Nota di-final-kan DAN
-//     ada `lotDibuat`. Pola SAMA seperti `cetak()` (window.open +
-//     document.write + window.print()) — library pembuat QR (`qrcodejs`,
-//     davidshimjs, CDN) dimuat & dijalankan DI DALAM window cetak itu
-//     sendiri (bukan window utama) supaya tidak ada masalah lintas-window.
+//     ada `lotDibuat`. FIX §25.8 (QR sempat tidak muncul di label
+//     tercetak): library pembuat QR (`qrcodejs`, davidshimjs) SEKARANG
+//     dimuat SEKALI di index.html (sama seperti `jsQR`) — BUKAN lagi
+//     lewat document.write() di window cetak. Tiap QR digambar & diambil
+//     jadi gambar base64 DI WINDOW UTAMA (lihat `buatQrDataUrl()`, dekat
+//     `cetakLabelLot()` di bawah), window cetak cuma terima <img> statis
+//     — tidak butuh internet lagi saat mencetak.
 //   - Scan QR (baca) pakai `jsQR` (CDN), pola SAMA PERSIS seperti yang
 //     sudah ada di `js/vue-scan-qr.js` — disalin ulang ke `vue-kartu-stok.js`
 //     (konsisten dengan pola "salin logic kecil per-file" yang sudah
@@ -354,7 +357,15 @@ const AliasPembelianManager = {
       try {
         await addDoc(collection(db, 'alias_pembelian'), {
           suplayer_id: suplayer.id, suplayer_nama: suplayer.nama,
-          bahan_aksesoris_id: bahan.id, bahan_aksesoris_nama: bahan.nama,
+          // FIX (25 Agt 2026, revisi tabel) — SEBELUMNYA `bahan_aksesoris_nama`
+          // disimpan dari `bahan.nama` POLOS (tanpa warna), jadi walau dropdown
+          // di atas sudah bisa bedakan nama+warna, tabel Alias tetap tidak
+          // bisa. Sekarang disimpan `formatNamaBahan(bahan)` (nama+warna) —
+          // dipakai sebagai FALLBACK ARSIP kalau item internalnya suatu saat
+          // dihapus (lihat namaInternalTampil() di bawah, yang tampilan
+          // utamanya tetap baca LIVE dari daftarBahan supaya kalau nama/warna
+          // item diedit belakangan, alias lama ikut ke-update tampilannya).
+          bahan_aksesoris_id: bahan.id, bahan_aksesoris_nama: formatNamaBahan(bahan),
           nama_di_nota: namaDiNota,
           dibuat_pada: serverTimestamp()
         });
@@ -365,6 +376,19 @@ const AliasPembelianManager = {
         alert('Gagal menyimpan.');
       }
       menyimpan.value = false;
+    }
+
+    // namaInternalTampil — BARU (25 Agt 2026, revisi tabel Alias Pembelian,
+    // permintaan Guru: kolom "Nama Internal" tabel JUGA tampilkan Nama+Warna,
+    // bukan cuma dropdown entry-nya). Cari LIVE ke daftarBahan (bukan baca
+    // field `bahan_aksesoris_nama` yang tersimpan statis) — supaya kalau
+    // nama/warna item internal diedit belakangan di Data Bahan & Aksesoris,
+    // alias lama ikut tampil update, bukan data beku saat alias dibuat.
+    // Fallback ke `bahan_aksesoris_nama` yang tersimpan HANYA kalau item
+    // internalnya sudah tidak ada lagi (terhapus).
+    function namaInternalTampil(a) {
+      const b = daftarBahan.value.find(x => x.id === a.bahan_aksesoris_id);
+      return b ? formatNamaBahan(b) : (a.bahan_aksesoris_nama || '-');
     }
 
     async function hapus(item) {
@@ -380,7 +404,7 @@ const AliasPembelianManager = {
     }
 
     onMounted(async () => { await window.authReady; muatSemua(); });
-    return { daftarAlias, memuat, menyimpan, form, opsiNamaInternal, opsiSuplayer, bolehTambah, bolehHapus, tampilPengaturan, tambah, hapus };
+    return { daftarAlias, memuat, menyimpan, form, opsiNamaInternal, opsiSuplayer, bolehTambah, bolehHapus, tampilPengaturan, tambah, hapus, namaInternalTampil };
   },
   template: `
     <div class="gc-card" style="padding:16px;">
@@ -389,25 +413,30 @@ const AliasPembelianManager = {
         <button @click="tampilPengaturan = true" class="icon-btn" title="Pengaturan"><i class="fas fa-gear"></i></button>
       </div>
       <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Petakan nama barang di nota Suplayer (bisa beda-beda tiap Suplayer) ke 1 item internal di Data Bahan &amp; Aksesoris — supaya pencarian di Order Belanja lebih gampang.</p>
-      <div v-if="bolehTambah" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px;">
+      <!-- REVISI (25 Agt 2026, permintaan Guru) — urutan field entry SEKARANG
+           Suplayer, Nama di Nota Suplayer, Nama Internal (Nama + Warna),
+           tombol Tambah jadi kolom grid terpisah di akhir (pola sama seperti
+           entry Daftar Pesanan di OrderBelanjaScreen di bawah). SEBELUMNYA
+           urutannya Suplayer, Nama Internal, Nama di Nota (+ tombol nempel
+           di kolom itu). -->
+      <div v-if="bolehTambah" style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; margin-bottom:14px;">
         <div class="gc-field" style="margin-bottom:0;"><label>Suplayer</label><dropdown-cari v-model="form.suplayerNama" :opsi="opsiSuplayer" placeholder="Pilih Suplayer..." /></div>
-        <div class="gc-field" style="margin-bottom:0;"><label>Nama Internal</label><dropdown-cari v-model="form.namaInternal" :opsi="opsiNamaInternal" placeholder="Pilih item internal..." /></div>
-        <div class="gc-field" style="margin-bottom:0;">
-          <label>Nama di Nota Suplayer</label>
-          <div style="display:flex; gap:6px;">
-            <input v-model="form.namaDiNota" type="text" placeholder="Persis seperti di nota" style="flex:1; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
-            <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="white-space:nowrap; padding:0 16px;"><i class="fas fa-plus"></i></button>
-          </div>
-        </div>
+        <div class="gc-field" style="margin-bottom:0;"><label>Nama di Nota Suplayer</label><input v-model="form.namaDiNota" type="text" placeholder="Persis seperti di nota" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
+        <div class="gc-field" style="margin-bottom:0;"><label>Nama Internal (Nama + Warna)</label><dropdown-cari v-model="form.namaInternal" :opsi="opsiNamaInternal" placeholder="Pilih item internal..." /></div>
+        <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="padding:0 18px; height:38px;"><i class="fas fa-plus"></i></button>
       </div>
       <div v-if="memuat" style="text-align:center; padding:16px; color:var(--text-faint); font-size:12px;">Memuat...</div>
       <div v-else-if="daftarAlias.length === 0" style="font-size:11.5px; color:var(--text-faint);">Belum ada alias.</div>
       <div v-else style="overflow-x:auto;">
         <table class="gc-table" style="width:100%; font-size:12px;">
-          <thead><tr><th>Suplayer</th><th>Nama di Nota</th><th>Item Internal</th><th></th></tr></thead>
+          <!-- REVISI (25 Agt 2026) — kolom SEKARANG Suplayer, Nama di Nota,
+               Nama Internal (Nama + Warna) — SEBELUMNYA kolom ke-3 cuma
+               "Item Internal" & isinya nama polos tanpa warna (lihat fix
+               namaInternalTampil() & tambah() di atas). -->
+          <thead><tr><th>Suplayer</th><th>Nama di Nota</th><th>Nama Internal (Nama + Warna)</th><th></th></tr></thead>
           <tbody>
             <tr v-for="a in daftarAlias" :key="a.id">
-              <td>{{ a.suplayer_nama }}</td><td><b>{{ a.nama_di_nota }}</b></td><td>{{ a.bahan_aksesoris_nama }}</td>
+              <td>{{ a.suplayer_nama }}</td><td><b>{{ a.nama_di_nota }}</b></td><td>{{ namaInternalTampil(a) }}</td>
               <td><button v-if="bolehHapus" @click="hapus(a)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button></td>
             </tr>
           </tbody>
