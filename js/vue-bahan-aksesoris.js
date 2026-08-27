@@ -101,7 +101,11 @@
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, runTransaction, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { MasterDataCategory, MasterDataTabelManager, DropdownCari } from './vue-components.js?v=1';
+// MasterDataCategory/MasterDataTabelManager TIDAK diimpor lagi di sini
+// (27 Agt 2026, §26.1) — panel Pengaturan yang dulu pakai keduanya (Jenis
+// Bahan/Aksesoris, Data Satuan/Warna/Ukuran, Data Rak Penyimpanan) sudah
+// dirombak, lihat catatan di atas PengaturanBahanAksesoris di bawah.
+import { DropdownCari } from './vue-components.js?v=2';
 import { usePaginasiFirestore } from './vue-paginasi.js';
 
 const KATEGORI_UTAMA_OPSI = ['Bahan', 'Aksesoris'];
@@ -365,12 +369,24 @@ function formatQty(n) {
 }
 
 // ---------------------------------------------------------------------------
-// PengaturanBahanAksesoris — panel (dibuka lewat ikon gear) berisi 2 hal:
-// atur prefix ID per kategori (poin 3), dan kelola daftar Jenis Bahan/
-// Jenis Aksesoris (pakai MasterDataCategory yang sudah ada, dipakai ulang).
+// PengaturanBahanAksesoris — panel (dibuka lewat ikon gear), SEKARANG cuma
+// atur Prefix ID per kategori.
+//
+// RIWAYAT (27 Agt 2026, §26.1) — sebelumnya panel ini JUGA berisi kelola
+// Jenis Bahan/Jenis Aksesoris/Data Satuan/Data Warna/Data Ukuran DAN Data
+// Rak Penyimpanan (Kode/Baris/Kolom Rak). Keputusan Guru:
+//   - Jenis Bahan, Jenis Aksesoris, Data Satuan, Data Warna, Data Ukuran —
+//     DIPINDAH ke menu baru "Config" (Zevanic House > Config), lihat
+//     js/vue-config.js. TIDAK lagi ada di panel ini.
+//   - Data Rak Penyimpanan (Kode/Baris/Kolom Rak) — DIHAPUS TOTAL (bukan
+//     dipindah), karena sudah ada menu "Rak Penyimpanan" sendiri yang
+//     lebih lengkap (vue-rak-penyimpanan.js), jadi versi mini di sini
+//     jadi redundan.
+//   - Prefix ID (satu-satunya yang tersisa di sini) TETAP di panel ini,
+//     bukan ikut pindah ke Config — sifatnya setting teknis (counter
+//     internal per kategori), bukan data referensi yang dicari-cari.
 // ---------------------------------------------------------------------------
 const PengaturanBahanAksesoris = {
-  components: { MasterDataCategory, MasterDataTabelManager },
   emits: ['tutup'],
   setup(props, { emit }) {
     const prefixBahan = ref('');
@@ -437,40 +453,8 @@ const PengaturanBahanAksesoris = {
               <p style="font-size:10px; color:var(--text-faint); margin-top:4px;">Sudah terpakai: {{ counterAksesoris }}. ID berikutnya: {{ (prefixAksesoris||'...').toUpperCase() }}-{{ String(counterAksesoris+1).padStart(4,'0') }}</p>
             </div>
           </div>
-          <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="width:100%; margin-bottom:20px;">{{ menyimpan ? 'Menyimpan...' : 'Simpan Prefix' }}</button>
-
-          <hr style="border-color:var(--line); margin-bottom:16px;">
-          <master-data-category kategori="jenis_bahan" label="Jenis Bahan" menu-id="bahan_aksesoris_entry" />
-          <div style="height:14px;"></div>
-          <master-data-category kategori="jenis_aksesoris" label="Jenis Aksesoris" menu-id="bahan_aksesoris_entry" />
-
-          <hr style="border-color:var(--line); margin:18px 0 16px;">
-          <!-- BARU (23 Agt 2026) — Data Satuan & Data Warna DIPAKAI di form
-               Bahan/Aksesoris (jadi opsi DropdownCari). Data Ukuran BELUM
-               dipakai di field manapun di form ini (tidak ada field "Ukuran"
-               di 13 field asli) — disiapkan di sini duluan buat dipakai menu
-               lain nanti, sesuai permintaan. -->
-          <div class="gc-card" style="padding:14px; margin-bottom:12px;">
-            <master-data-tabel-manager koleksi="master_satuan" label-singular="Satuan" label-nama="Nama Satuan" />
-          </div>
-          <div class="gc-card" style="padding:14px; margin-bottom:12px;">
-            <master-data-tabel-manager koleksi="master_warna" label-singular="Warna" label-nama="Nama Warna" />
-          </div>
-          <div class="gc-card" style="padding:14px; margin-bottom:12px;">
-            <master-data-tabel-manager koleksi="master_ukuran" label-singular="Ukuran" label-nama="Nama Ukuran" />
-            <p style="font-size:10px; color:var(--text-faint); margin-top:8px;"><i class="fas fa-circle-info" style="margin-right:4px;"></i>Belum dipakai di form Bahan/Aksesoris manapun saat ini — disiapkan untuk menu lain ke depan.</p>
-          </div>
-
-          <hr style="border-color:var(--line); margin:18px 0 16px;">
-          <!-- BARU (25 Agt 2026) — Data Rak Penyimpanan (Kode/Baris/Kolom),
-               dipakai di form Bahan/Aksesoris buat field "Rak Penyimpanan"
-               (lihat catatan arsitektur di atas file ini). -->
-          <p style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:8px;">Data Rak Penyimpanan</p>
-          <master-data-category kategori="kode_rak" label="Kode Rak" menu-id="bahan_aksesoris_entry" />
-          <div style="height:14px;"></div>
-          <master-data-category kategori="baris_rak" label="Baris Rak" menu-id="bahan_aksesoris_entry" />
-          <div style="height:14px;"></div>
-          <master-data-category kategori="kolom_rak" label="Kolom Rak" menu-id="bahan_aksesoris_entry" />
+          <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="width:100%;">{{ menyimpan ? 'Menyimpan...' : 'Simpan Prefix' }}</button>
+          <p style="font-size:10.5px; color:var(--text-faint); margin-top:10px;"><i class="fas fa-circle-info" style="margin-right:4px;"></i>Kelola Jenis Bahan, Jenis Aksesoris, Data Satuan, Data Warna, Data Ukuran, dan Data Suplayer sekarang lewat menu <b>Zevanic House &gt; Config</b>.</p>
         </template>
         <button @click="$emit('tutup')" class="btn-outline" style="width:100%; margin-top:18px;">Tutup</button>
       </div>

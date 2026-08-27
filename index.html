@@ -128,6 +128,11 @@
           Zevanic House <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
         <div id="navgrp-zevanic" class="hidden" style="display:flex; flex-direction:column; gap:2px; padding-left:16px; margin:2px 0 4px;">
+          <!-- BARU (27 Agt 2026, §26.1) — Config: lihat js/vue-config.js. Sengaja
+               PALING ATAS sesuai urutan yang diminta Guru. -->
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-config', this); pindahSubTab('sub-zh-config','sub-zh-config-jenisbahan')" id="menu-zevanic-config-btn" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-sliders" style="width:17px; text-align:center;"></i> Config
+          </button>
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-databahan', this); pindahSubTab('sub-zh-databahan','sub-zh-databahan-entry')" id="menu-zevanic-house-btn" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-shirt" style="width:17px; text-align:center;"></i> Data Bahan &amp; Aksesoris
           </button>
@@ -377,6 +382,39 @@
                dikembalikan), BUKAN naik ke sidebar, supaya sidebar tetap
                rapi. -->
 
+          <!-- BARU (27 Agt 2026, §26.1) — Config: 6 tab child, masing-masing
+               format entry+searchbox+table (lihat js/vue-config.js). Mulai
+               `hidden` — landing default tab-zevanic-house TETAP Data Bahan
+               & Aksesoris (tidak diubah), sama seperti sebelumnya. -->
+          <div id="sub-zevanic-house-config" class="sub-zevanic-house-content hidden fade-in space-y-4">
+            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+              <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-jenisbahan', this)" class="sub-zh-config-btn gc-sub-tab-btn active"><i class="fas fa-shirt" style="margin-right:6px;"></i> Jenis Bahan</button>
+              <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-jenisaksesoris', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-gem" style="margin-right:6px;"></i> Jenis Aksesoris</button>
+              <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-satuan', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-ruler" style="margin-right:6px;"></i> Data Satuan</button>
+              <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-warna', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-palette" style="margin-right:6px;"></i> Data Warna</button>
+              <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-ukuran', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-ruler-combined" style="margin-right:6px;"></i> Data Ukuran</button>
+              <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-suplayer', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Data Suplayer</button>
+            </div>
+            <div id="sub-zh-config-jenisbahan" class="sub-zh-config-content fade-in space-y-4">
+              <div id="vue-config-jenisbahan"></div>
+            </div>
+            <div id="sub-zh-config-jenisaksesoris" class="sub-zh-config-content hidden fade-in space-y-4">
+              <div id="vue-config-jenisaksesoris"></div>
+            </div>
+            <div id="sub-zh-config-satuan" class="sub-zh-config-content hidden fade-in space-y-4">
+              <div id="vue-config-satuan"></div>
+            </div>
+            <div id="sub-zh-config-warna" class="sub-zh-config-content hidden fade-in space-y-4">
+              <div id="vue-config-warna"></div>
+            </div>
+            <div id="sub-zh-config-ukuran" class="sub-zh-config-content hidden fade-in space-y-4">
+              <div id="vue-config-ukuran"></div>
+            </div>
+            <div id="sub-zh-config-suplayer" class="sub-zh-config-content hidden fade-in space-y-4">
+              <div id="vue-config-suplayer"></div>
+            </div>
+          </div>
+
           <div id="sub-zevanic-house-databahan" class="sub-zevanic-house-content fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry', this)" class="sub-zh-databahan-btn gc-sub-tab-btn active"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Entry Bahan &amp; Aksesoris</button>
@@ -508,7 +546,7 @@
   <script type="module" src="js/app.js"></script>
   <script type="module" src="js/camera.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/dashboard.js?v=7"></script>
+  <script type="module" src="js/dashboard.js?v=8"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>
   <script type="module" src="js/vue-config-info.js"></script>
   <script type="module" src="js/vue-config-absensi.js"></script>
@@ -536,10 +574,12 @@
   <script type="module" src="js/vue-absensi-qr.js"></script>
   <script type="module" src="js/vue-camera.js?v=2"></script>
   <script type="module" src="js/vue-scan-qr.js"></script>
-  <script type="module" src="js/vue-bahan-aksesoris.js?v=15"></script>
-  <script type="module" src="js/vue-rak-penyimpanan.js?v=2"></script>
-  <script type="module" src="js/vue-persiapan-masalah.js?v=2"></script>
-  <script type="module" src="js/vue-stock-pembelian.js?v=14"></script>
-  <script type="module" src="js/vue-kartu-stok.js?v=4"></script>
+  <script type="module" src="js/vue-bahan-aksesoris.js?v=16"></script>
+  <script type="module" src="js/vue-rak-penyimpanan.js?v=3"></script>
+  <script type="module" src="js/vue-persiapan-masalah.js?v=3"></script>
+  <script type="module" src="js/vue-stock-pembelian.js?v=15"></script>
+  <script type="module" src="js/vue-kartu-stok.js?v=5"></script>
+  <!-- BARU (27 Agt 2026, §26.1) — Zevanic House > Config. -->
+  <script type="module" src="js/vue-config.js?v=1"></script>
 </body>
 </html>

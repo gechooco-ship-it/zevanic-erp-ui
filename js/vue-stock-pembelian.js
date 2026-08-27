@@ -161,7 +161,11 @@
 import { createApp, ref, reactive, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, runTransaction, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { DropdownCari, MasterDataTabelManager } from './vue-components.js?v=1';
+// MasterDataTabelManager TIDAK diimpor lagi di sini (27 Agt 2026, §26.1) —
+// dulu dipakai MasterSuplayerManager (gear Stock & Pembelian), sekarang
+// CRUD Suplayer pindah ke menu Config (vue-config.js). Lihat catatan di
+// PengaturanStockPembelian di bawah.
+import { DropdownCari } from './vue-components.js?v=2';
 import { usePaginasiFirestore } from './vue-paginasi.js';
 
 // --- helper: ambil semua Bahan+Aksesoris (disalin dari vue-bahan-aksesoris.js
@@ -316,20 +320,79 @@ async function generateNoPembelian() {
 }
 
 // ---------------------------------------------------------------------------
-// MasterSuplayerManager — pembungkus tipis MasterDataTabelManager, field
-// ke-3 "Kontak/Alamat" (opsional) sesuai permintaan Hilman.
+// PopupTambahSuplayerCepat — BARU (27 Agt 2026, §26.1). Shortcut "+" nempel
+// di sebelah dropdown-cari Suplayer (Alias Pembelian, List/Nota Order
+// Belanja) — permintaan Guru: "ringkas dan mudah dimengerti operator",
+// popup MINI 2 field PERSIS sama seperti yang dulu ada di MasterDataTabelManager
+// (Nama Suplayer + Kontak/Alamat opsional), simpan LANGSUNG ke koleksi
+// master_suplayer TANPA pindah halaman ke Config. Begitu simpan sukses,
+// emit 'tersimpan' bawa nama Suplayer baru — komponen pemanggil yang
+// tanggung jawab auto-pilih di dropdown & refresh daftarnya sendiri
+// (lihat onSuplayerBaruTersimpan() di AliasPembelianManager/
+// OrderBelanjaScreen).
 // ---------------------------------------------------------------------------
-const MasterSuplayerManager = {
-  components: { MasterDataTabelManager },
-  template: `<master-data-tabel-manager koleksi="master_suplayer" label-singular="Suplayer" label-nama="Nama Suplayer" menu-id="master_suplayer" field3-key="kontak" field3-label="Kontak/Alamat (opsional)" />`
+const PopupTambahSuplayerCepat = {
+  emits: ['tersimpan', 'tutup'],
+  setup(props, { emit }) {
+    const nama = ref('');
+    const kontak = ref('');
+    const menyimpan = ref(false);
+    async function simpan() {
+      const namaTrim = nama.value.trim();
+      if (!namaTrim) return alert('Isi Nama Suplayer dulu.');
+      menyimpan.value = true;
+      try {
+        await addDoc(collection(db, 'master_suplayer'), {
+          nama: namaTrim,
+          kontak: kontak.value.trim(),
+          keterangan: '',
+          dibuat_pada: serverTimestamp()
+        });
+        emit('tersimpan', namaTrim);
+      } catch (e) {
+        console.error('Gagal tambah Suplayer cepat:', e);
+        alert('Gagal menambah Suplayer. Coba lagi.');
+      }
+      menyimpan.value = false;
+    }
+    return { nama, kontak, menyimpan, simpan };
+  },
+  template: `
+    <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="$emit('tutup')">
+      <div class="gc-card" style="max-width:380px; width:100%;">
+        <h3 style="font-weight:700; font-size:14px; margin-bottom:12px;"><i class="fas fa-truck-fast" style="color:var(--burgundy); margin-right:8px;"></i>Tambah Suplayer Baru</h3>
+        <div class="gc-field">
+          <label>Nama Suplayer <span style="color:var(--danger);">*</span></label>
+          <input v-model="nama" @keyup.enter="simpan" type="text" placeholder="Nama Suplayer" autofocus>
+        </div>
+        <div class="gc-field">
+          <label>Kontak/Alamat (opsional)</label>
+          <input v-model="kontak" @keyup.enter="simpan" type="text" placeholder="Kontak/Alamat">
+        </div>
+        <div style="display:flex; gap:8px; margin-top:6px;">
+          <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="flex:1;">{{ menyimpan ? 'Menyimpan...' : 'Simpan' }}</button>
+          <button @click="$emit('tutup')" class="btn-outline" style="flex:1;">Batal</button>
+        </div>
+      </div>
+    </div>
+  `
 };
 
 // ---------------------------------------------------------------------------
-// PengaturanStockPembelian — panel gear: atur prefix No. Pembelian + kelola
-// Master Suplayer. Dipakai di ke-3 menu Stock & Pembelian.
+// PengaturanStockPembelian — panel gear: atur prefix No. Pembelian.
+//
+// RIWAYAT (27 Agt 2026, §26.1) — sebelumnya panel ini JUGA kelola Master
+// Suplayer (dulu lewat MasterSuplayerManager, pembungkus tipis
+// MasterDataTabelManager). Keputusan Guru: CRUD lengkap Suplayer DIPINDAH
+// ke menu baru "Config" (Zevanic House > Config > Data Suplayer, lihat
+// js/vue-config.js) — TIDAK diimpor silang dari sini (konsisten pola
+// "disalin, bukan diimpor silang"), Config panggil MasterDataTabelManager
+// langsung. Panel gear ini sekarang cuma Prefix No. Pembelian. Sebagai
+// gantinya, form yang butuh tambah Suplayer cepat (Alias Pembelian, List/
+// Nota Order Belanja) SEKARANG punya tombol "+" shortcut sendiri di
+// sebelah dropdown Suplayer — lihat PopupTambahSuplayerCepat di bawah.
 // ---------------------------------------------------------------------------
 const PengaturanStockPembelian = {
-  components: { MasterSuplayerManager },
   emits: ['tutup'],
   setup(props, { emit }) {
     const prefix = ref('');
@@ -374,11 +437,8 @@ const PengaturanStockPembelian = {
             <input v-model="prefix" type="text" placeholder="Contoh: NP" style="text-transform:uppercase;">
             <p style="font-size:10px; color:var(--text-faint); margin-top:4px;">Sudah terpakai: {{ counter }}. Nomor berikutnya: {{ (prefix||'...').toUpperCase() }}{{ String(counter+1).padStart(3,'0') }}</p>
           </div>
-          <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="width:100%; margin-bottom:20px;">{{ menyimpan ? 'Menyimpan...' : 'Simpan Prefix' }}</button>
-          <hr style="border-color:var(--line); margin-bottom:16px;">
-          <div class="gc-card" style="padding:14px;">
-            <master-suplayer-manager />
-          </div>
+          <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="width:100%;">{{ menyimpan ? 'Menyimpan...' : 'Simpan Prefix' }}</button>
+          <p style="font-size:10.5px; color:var(--text-faint); margin-top:10px;"><i class="fas fa-circle-info" style="margin-right:4px;"></i>Kelola Data Suplayer sekarang lewat menu <b>Zevanic House &gt; Config</b>.</p>
         </template>
         <button @click="$emit('tutup')" class="btn-outline" style="width:100%; margin-top:18px;">Tutup</button>
       </div>
@@ -390,7 +450,7 @@ const PengaturanStockPembelian = {
 // AliasPembelianManager — menu "Alias Pembelian"
 // ---------------------------------------------------------------------------
 const AliasPembelianManager = {
-  components: { DropdownCari, PengaturanStockPembelian },
+  components: { DropdownCari, PengaturanStockPembelian, PopupTambahSuplayerCepat },
   setup() {
     const daftarBahan = ref([]);
     const daftarSuplayer = ref([]);
@@ -398,6 +458,14 @@ const AliasPembelianManager = {
     const memuat = ref(true);
     const menyimpan = ref(false);
     const tampilPengaturan = ref(false);
+    // BARU (27 Agt 2026, §26.1) — shortcut "+" tambah Suplayer cepat tanpa
+    // pindah ke Config, lihat PopupTambahSuplayerCepat.
+    const tampilTambahSuplayer = ref(false);
+    async function onSuplayerBaruTersimpan(namaBaru) {
+      tampilTambahSuplayer.value = false;
+      daftarSuplayer.value = await ambilDaftarSuplayer();
+      form.suplayerNama = namaBaru;
+    }
 
     const form = reactive({ suplayerNama: '', namaInternal: '', namaDiNota: '' });
     // BARU (25 Agt 2026) — tampilkan nama+warna (formatNamaBahan(), lihat
@@ -495,7 +563,7 @@ const AliasPembelianManager = {
     }
 
     onMounted(async () => { await window.authReady; muatSemua(); });
-    return { daftarAlias, memuat, menyimpan, form, opsiNamaInternal, opsiSuplayer, bolehTambah, bolehHapus, tampilPengaturan, tambah, hapus, namaInternalTampil };
+    return { daftarAlias, memuat, menyimpan, form, opsiNamaInternal, opsiSuplayer, bolehTambah, bolehHapus, tampilPengaturan, tambah, hapus, namaInternalTampil, tampilTambahSuplayer, onSuplayerBaruTersimpan };
   },
   template: `
     <div class="gc-card" style="padding:16px;">
@@ -511,7 +579,13 @@ const AliasPembelianManager = {
            urutannya Suplayer, Nama Internal, Nama di Nota (+ tombol nempel
            di kolom itu). -->
       <div v-if="bolehTambah" style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; margin-bottom:14px;">
-        <div class="gc-field" style="margin-bottom:0;"><label>Suplayer</label><dropdown-cari v-model="form.suplayerNama" :opsi="opsiSuplayer" placeholder="Pilih Suplayer..." /></div>
+        <div class="gc-field" style="margin-bottom:0;">
+          <label>Suplayer</label>
+          <div style="display:flex; gap:6px;">
+            <dropdown-cari v-model="form.suplayerNama" :opsi="opsiSuplayer" placeholder="Pilih Suplayer..." />
+            <button @click="tampilTambahSuplayer = true" type="button" class="icon-btn" style="flex-shrink:0;" title="Tambah Suplayer baru"><i class="fas fa-plus"></i></button>
+          </div>
+        </div>
         <div class="gc-field" style="margin-bottom:0;"><label>Nama di Nota Suplayer</label><input v-model="form.namaDiNota" type="text" placeholder="Persis seperti di nota" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
         <div class="gc-field" style="margin-bottom:0;"><label>Nama Internal (Nama + Warna)</label><dropdown-cari v-model="form.namaInternal" :opsi="opsiNamaInternal" placeholder="Pilih item internal..." /></div>
         <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="padding:0 18px; height:38px;"><i class="fas fa-plus"></i></button>
@@ -534,6 +608,7 @@ const AliasPembelianManager = {
         </table>
       </div>
       <pengaturan-stock-pembelian v-if="tampilPengaturan" @tutup="tampilPengaturan = false" />
+      <popup-tambah-suplayer-cepat v-if="tampilTambahSuplayer" @tersimpan="onSuplayerBaruTersimpan" @tutup="tampilTambahSuplayer = false" />
     </div>
   `
 };
@@ -804,7 +879,7 @@ const PopupQtyPerLot = {
 };
 
 const OrderBelanjaScreen = {
-  components: { DropdownCari, PengaturanStockPembelian, PopupQtyPerLot },
+  components: { DropdownCari, PengaturanStockPembelian, PopupQtyPerLot, PopupTambahSuplayerCepat },
   props: { modeNota: { type: Boolean, default: false } },
   setup(props) {
     const menuId = props.modeNota ? 'stock_nota_order_belanja' : 'stock_list_order_belanja';
@@ -819,6 +894,14 @@ const OrderBelanjaScreen = {
     const daftarAlias = ref([]);
     const memuat = ref(true);
     const tampilPengaturan = ref(false);
+    // BARU (27 Agt 2026, §26.1) — shortcut "+" tambah Suplayer cepat, sama
+    // pola seperti AliasPembelianManager di atas.
+    const tampilTambahSuplayer = ref(false);
+    async function onSuplayerBaruTersimpan(namaBaru) {
+      tampilTambahSuplayer.value = false;
+      daftarSuplayer.value = await ambilDaftarSuplayer();
+      suplayerEntry.value = namaBaru;
+    }
 
     const draftDocId = ref(null);
     const noPembelianAktif = ref('');
@@ -1502,7 +1585,9 @@ const OrderBelanjaScreen = {
       lotUntukCetak, cetakLabelLot,
       // BARU (26 Agt 2026, §25.11) — revisi posisi field + kunci Suplayer
       // Nota + fokus otomatis ke Qty + tampilan Satuan read-only entry.
-      satuanEntryManual, opsiSatuanEntry, suplayerTerkunci, qtyEntryEl
+      satuanEntryManual, opsiSatuanEntry, suplayerTerkunci, qtyEntryEl,
+      // BARU (27 Agt 2026, §26.1) — shortcut "+" tambah Suplayer cepat.
+      tampilTambahSuplayer, onSuplayerBaruTersimpan
     };
   },
   template: `
@@ -1554,7 +1639,10 @@ const OrderBelanjaScreen = {
             <div class="gc-field" style="margin-bottom:0;"><label>Tanggal</label><input v-model="tanggal" type="date" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
             <div class="gc-field" style="margin-bottom:0;">
               <label>Suplayer{{ suplayerTerkunci ? ' (terkunci — 1 Nota = 1 Suplayer)' : '' }}</label>
-              <dropdown-cari v-model="suplayerEntry" :opsi="opsiSuplayer" :disabled="suplayerTerkunci" placeholder="Pilih Suplayer..." />
+              <div style="display:flex; gap:6px;">
+                <dropdown-cari v-model="suplayerEntry" :opsi="opsiSuplayer" :disabled="suplayerTerkunci" placeholder="Pilih Suplayer..." />
+                <button v-if="!suplayerTerkunci" @click="tampilTambahSuplayer = true" type="button" class="icon-btn" style="flex-shrink:0;" title="Tambah Suplayer baru"><i class="fas fa-plus"></i></button>
+              </div>
             </div>
           </div>
           <div v-else style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
@@ -1589,7 +1677,13 @@ const OrderBelanjaScreen = {
             <button @click="tambahItemManual" class="btn-primary" style="padding:0 18px; height:38px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah</button>
           </div>
           <div v-else style="display:grid; grid-template-columns:1fr 100px 100px 1fr auto; gap:8px; align-items:end; margin-bottom:16px;">
-            <div class="gc-field" style="margin-bottom:0;"><label>Suplayer</label><dropdown-cari v-model="suplayerEntry" :opsi="opsiSuplayer" placeholder="Pilih Suplayer..." /></div>
+            <div class="gc-field" style="margin-bottom:0;">
+              <label>Suplayer</label>
+              <div style="display:flex; gap:6px;">
+                <dropdown-cari v-model="suplayerEntry" :opsi="opsiSuplayer" placeholder="Pilih Suplayer..." />
+                <button @click="tampilTambahSuplayer = true" type="button" class="icon-btn" style="flex-shrink:0;" title="Tambah Suplayer baru"><i class="fas fa-plus"></i></button>
+              </div>
+            </div>
             <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input ref="qtyEntryEl" v-model.number="qtyEntry" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari v-model="satuanEntryManual" :opsi="opsiSatuanEntry" :disabled="opsiSatuanEntry.length === 0" placeholder="Satuan..." /></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Nama Barang</label><dropdown-cari v-model="namaBarangEntry" :opsi="opsiNamaBarang" placeholder="Cari & pilih..." /></div>
@@ -1659,6 +1753,7 @@ const OrderBelanjaScreen = {
       <pengaturan-stock-pembelian v-if="tampilPengaturan" @tutup="tampilPengaturan = false" />
       <popup-qty-per-lot v-if="tampilPopupLot" :baris="barisLotSementara" :total="totalQtyLot" :target="barisLotTarget" :satuan="barisLotSatuan" :nama-barang="barisLotNama"
         @tambah="tambahBarisLot" @hapus="hapusBarisLot" @terapkan="terapkanLot" @tutup="tutupPopupLot" />
+      <popup-tambah-suplayer-cepat v-if="tampilTambahSuplayer" @tersimpan="onSuplayerBaruTersimpan" @tutup="tampilTambahSuplayer = false" />
     </div>
   `
 };

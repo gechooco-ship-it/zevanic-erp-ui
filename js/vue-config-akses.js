@@ -66,13 +66,23 @@ const DAFTAR_MENU = [
   // SENGAJA TIDAK diubah (masih bahan_aksesoris_entry/list) walau labelnya
   // di sidebar sekarang "Data Bahan & Aksesoris" — supaya akses_config yang
   // sudah tersimpan sebelumnya (per-user) TIDAK ikut kereset/hilang.
+  // BARU (27 Agt 2026, §26.1) — Zevanic House > Config (6 tab child: Jenis
+  // Bahan, Jenis Aksesoris, Data Satuan, Data Warna, Data Ukuran, Data
+  // Suplayer). 1 menu-id dipakai bareng ke-6nya (pola sama seperti
+  // 'config_karyawan'), lihat js/vue-config.js.
+  { id: 'config_master_data', label: 'Config', kategori: 'Zevanic House' },
   { id: 'bahan_aksesoris_entry', label: 'Entry Bahan & Aksesoris', kategori: 'Zevanic House' },
   { id: 'bahan_aksesoris_list', label: 'List Bahan & Aksesoris', kategori: 'Zevanic House' },
   // BARU (25 Agt 2026, §25) — Rak Penyimpanan.
   { id: 'bahan_aksesoris_rak', label: 'Rak Penyimpanan', kategori: 'Zevanic House' },
   // BARU (24 Agt 2026) — Persiapan Masalah + Stock & Pembelian.
   { id: 'persiapan_masalah', label: 'Persiapan Masalah', kategori: 'Zevanic House' },
-  { id: 'master_suplayer', label: 'Master Suplayer (lewat Pengaturan)', kategori: 'Zevanic House' },
+  // DIPENSIUNKAN (27 Agt 2026, §26.1) — CRUD Suplayer sekarang di
+  // 'config_master_data' (menu Config), BUKAN lagi lewat gear Stock &
+  // Pembelian. Entry ini SENGAJA dibiarkan (bukan dihapus) supaya data
+  // izin lama di Firestore tidak yatim tanpa penjelasan — sudah tidak
+  // dipakai komponen manapun.
+  { id: 'master_suplayer', label: 'Master Suplayer (DIPENSIUNKAN, lihat Config)', kategori: 'Zevanic House' },
   { id: 'stock_alias_pembelian', label: 'Alias Pembelian', kategori: 'Zevanic House' },
   { id: 'stock_list_order_belanja', label: 'List Order Belanja', kategori: 'Zevanic House' },
   { id: 'stock_nota_order_belanja', label: 'Nota Order Belanja', kategori: 'Zevanic House' }

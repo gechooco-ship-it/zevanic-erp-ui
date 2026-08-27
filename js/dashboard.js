@@ -303,7 +303,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
   if (tombolEl) tombolEl.classList.add('active');
 
   if (window.aturHeaderKonteks) {
-    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house' };
+    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -342,6 +342,13 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-karyawan-data': 'pastikanMountDaftarKaryawan',
     'sub-karyawan-akses': 'pastikanMountConfigAkses',
     'sub-karyawan-hakakses': 'pastikanMountHakAkses',
+    // BARU (27 Agt 2026, §26.1) — Config (6 tab child).
+    'sub-zh-config-jenisbahan': 'pastikanMountConfigJenisBahan',
+    'sub-zh-config-jenisaksesoris': 'pastikanMountConfigJenisAksesoris',
+    'sub-zh-config-satuan': 'pastikanMountConfigSatuan',
+    'sub-zh-config-warna': 'pastikanMountConfigWarna',
+    'sub-zh-config-ukuran': 'pastikanMountConfigUkuran',
+    'sub-zh-config-suplayer': 'pastikanMountConfigSuplayer',
     'sub-zh-databahan-entry': 'pastikanMountBahanAksesorisEntry',
     'sub-zh-databahan-list': 'pastikanMountBahanAksesorisList',
     'sub-zh-databahan-rak': 'pastikanMountRakPenyimpanan',

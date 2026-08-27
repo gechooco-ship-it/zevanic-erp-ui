@@ -28,7 +28,14 @@ export const MasterDataCategory = {
     // 'config_karyawan' — 9 pemakaian lama di vue-config-karyawan.js
     // TIDAK perlu diubah sama sekali, otomatis tetap jalan sama seperti
     // sebelumnya.
-    menuId: { type: String, default: 'config_karyawan' }
+    menuId: { type: String, default: 'config_karyawan' },
+    // BARU (27 Agt 2026) — dipakai pertama kali buat menu "Config" (Zevanic
+    // House). Guru minta format tampilan "entry+searchbox+table" di sana,
+    // BEDA dari tampilan lama (kumpulan tag/chip) yang tetap dipertahankan
+    // di semua pemakaian lama (Config Karyawan dst, default false = TIDAK
+    // berubah). Logic tambah/hapus/cari di bawah TETAP 1 sumber yang sama,
+    // cuma template yang beda per mode.
+    tampilTabel: { type: Boolean, default: false }
   },
   setup(props) {
     const items = ref([]);
@@ -92,7 +99,37 @@ export const MasterDataCategory = {
     return { items, itemsTersaring, cariItem, inputBaru, memuat, menyimpan, tambah, hapus, bolehTambah, bolehHapus };
   },
   template: `
-    <div class="gc-card" style="padding:16px;">
+    <!-- Mode BARU (27 Agt 2026) — entry+searchbox+table, dipakai menu Config. -->
+    <div v-if="tampilTabel" class="gc-card" style="padding:16px;">
+      <h4 class="gc-heading" style="font-size:12.5px; font-weight:700; margin-bottom:10px;">{{ label }}</h4>
+      <div v-if="bolehTambah" style="display:flex; gap:8px; margin-bottom:10px;">
+        <input v-model="inputBaru" @keyup.enter="tambah" type="text" placeholder="Tambah item baru..." style="flex:1; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; outline:none;">
+        <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="padding:8px 14px;">
+          <i class="fas fa-plus"></i>
+        </button>
+      </div>
+      <div v-if="!memuat" style="position:relative; margin-bottom:10px;">
+        <i class="fas fa-search" style="position:absolute; left:11px; top:9px; color:var(--text-faint); font-size:11px;"></i>
+        <input v-model="cariItem" type="text" placeholder="Cari item..." style="width:100%; max-width:280px; padding:7px 10px 7px 28px; border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none;">
+      </div>
+      <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
+      <div v-else class="gc-table-scroll">
+        <table class="gc-table">
+          <thead><tr><th style="width:48px;">No</th><th>{{ label }}</th><th style="width:70px;">Aksi</th></tr></thead>
+          <tbody>
+            <tr v-if="items.length === 0"><td colspan="3" style="color:var(--text-faint); font-size:11px;">Belum ada data.</td></tr>
+            <tr v-else-if="itemsTersaring.length === 0"><td colspan="3" style="color:var(--text-faint); font-size:11px;">Tidak ada yang cocok dicari.</td></tr>
+            <tr v-for="(item, i) in itemsTersaring" :key="item">
+              <td>{{ i + 1 }}</td>
+              <td>{{ item }}</td>
+              <td><button v-if="bolehHapus" @click="hapus(item)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <!-- Mode LAMA (tag/chip) — TIDAK berubah, dipakai semua menu lain. -->
+    <div v-else class="gc-card" style="padding:16px;">
       <h4 class="gc-heading" style="font-size:12.5px; font-weight:700; margin-bottom:10px;">{{ label }}</h4>
       <div v-if="bolehTambah" style="display:flex; gap:8px; margin-bottom:10px;">
         <input v-model="inputBaru" @keyup.enter="tambah" type="text" placeholder="Tambah item baru..." style="flex:1; padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; outline:none;">
@@ -260,7 +297,11 @@ export const MasterDataTabelManager = {
     // ini persis seperti semula: 2 kolom nama+keterangan. Kalau diisi, input
     // ke-3 muncul DI ANTARA nama & keterangan, disimpan dengan key custom.
     field3Key: { type: String, default: '' },
-    field3Label: { type: String, default: '' } // contoh: "Kontak/Alamat (opsional)"
+    field3Label: { type: String, default: '' }, // contoh: "Kontak/Alamat (opsional)"
+    // BARU (27 Agt 2026) — sama seperti MasterDataCategory di atas, dipakai
+    // pertama kali buat menu "Config". Default false = TIDAK berubah untuk
+    // semua pemakaian lama (tag/chip).
+    tampilTabel: { type: Boolean, default: false }
   },
   setup(props) {
     const daftar = ref([]);
@@ -269,6 +310,14 @@ export const MasterDataTabelManager = {
     const field3Baru = ref('');
     const keteranganBaru = ref('');
     const menyimpan = ref(false);
+    // cariItem/daftarTersaring — BARU (27 Agt 2026), cuma dipakai mode
+    // tampilTabel (searchbox). Tidak berpengaruh ke mode tag/chip lama.
+    const cariItem = ref('');
+    const daftarTersaring = computed(() => {
+      const kata = cariItem.value.trim().toLowerCase();
+      if (!kata) return daftar.value;
+      return daftar.value.filter(d => (d.nama || '').toLowerCase().includes(kata));
+    });
 
     const bolehTambah = computed(() => window.cekIzinMenu(props.menuId, 'add') !== false);
     const bolehHapus = computed(() => window.cekIzinMenu(props.menuId, 'delete') !== false);
@@ -322,10 +371,42 @@ export const MasterDataTabelManager = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return { daftar, memuat, namaBaru, field3Baru, keteranganBaru, menyimpan, bolehTambah, bolehHapus, tambah, hapus };
+    return { daftar, memuat, namaBaru, field3Baru, keteranganBaru, menyimpan, bolehTambah, bolehHapus, tambah, hapus, cariItem, daftarTersaring };
   },
   template: `
-    <div>
+    <!-- Mode BARU (27 Agt 2026) — entry+searchbox+table, dipakai menu Config. -->
+    <div v-if="tampilTabel">
+      <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Data {{ labelSingular }}</label>
+      <div v-if="bolehTambah" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+        <input v-model="namaBaru" @keyup.enter="tambah" type="text" :placeholder="labelNama + '...'" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+        <input v-if="field3Key" v-model="field3Baru" @keyup.enter="tambah" type="text" :placeholder="field3Label" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+        <input v-model="keteranganBaru" @keyup.enter="tambah" type="text" placeholder="Keterangan (opsional)" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+        <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="padding:0 16px;"><i class="fas fa-plus"></i></button>
+      </div>
+      <div v-if="!memuat" style="position:relative; margin-bottom:10px;">
+        <i class="fas fa-search" style="position:absolute; left:11px; top:9px; color:var(--text-faint); font-size:11px;"></i>
+        <input v-model="cariItem" type="text" placeholder="Cari item..." style="width:100%; max-width:280px; padding:7px 10px 7px 28px; border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none;">
+      </div>
+      <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
+      <div v-else class="gc-table-scroll">
+        <table class="gc-table">
+          <thead><tr><th style="width:48px;">No</th><th>Nama</th><th v-if="field3Key">{{ field3Label }}</th><th>Keterangan</th><th style="width:70px;">Aksi</th></tr></thead>
+          <tbody>
+            <tr v-if="daftar.length === 0"><td :colspan="field3Key ? 5 : 4" style="color:var(--text-faint); font-size:11px;">Belum ada data.</td></tr>
+            <tr v-else-if="daftarTersaring.length === 0"><td :colspan="field3Key ? 5 : 4" style="color:var(--text-faint); font-size:11px;">Tidak ada yang cocok dicari.</td></tr>
+            <tr v-for="(d, i) in daftarTersaring" :key="d.id">
+              <td>{{ i + 1 }}</td>
+              <td>{{ d.nama }}</td>
+              <td v-if="field3Key">{{ d[field3Key] || '-' }}</td>
+              <td>{{ d.keterangan || '-' }}</td>
+              <td><button v-if="bolehHapus" @click="hapus(d)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <!-- Mode LAMA (tag/chip) — TIDAK berubah, dipakai semua menu lain. -->
+    <div v-else>
       <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Data {{ labelSingular }}</label>
       <div v-if="bolehTambah" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
         <input v-model="namaBaru" @keyup.enter="tambah" type="text" :placeholder="labelNama + '...'" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
