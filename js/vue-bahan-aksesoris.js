@@ -233,6 +233,47 @@ function formStateKosong() {
   });
 }
 
+// hitungHargaPerSatuanAkhir — BARU (27 Agt 2026, §25.14, revisi permintaan
+// Guru atas §21.11/§21.13). SEBELUM INI "Harga per Satuan Akhir" (dan Harga
+// Modal turunannya) SELALU dihitung dari baris PALING ATAS saja
+// (baris[0].harga / total-faktor-semua-tingkat) — baris tingkat lain
+// (Pack/Pcs) cuma DICATAT tapi TIDAK ikut menentukan Harga Modal.
+//
+// Guru: "kita tarik data saja dari hitung konversi berjenjang. harga
+// menurut satuan awal adalah harga saat pembelian. misal ada 3 jenjang
+// artinya ada 3 harga dengan 3 satuan awal, untuk harga per satuan akhir
+// tetap patokannya pada harga per harga terupdate per satuan" — dicontohkan
+// dengan angka: Dus 900rb, Pack 100rb → hasil akhir per Pcs = 1rb, "menurut
+// data satuan awal yang PALING MAHAL". Jadi SEKARANG: tiap tingkat yang
+// harga-nya diisi (>0) dihitung dulu "harga implikasi per satuan akhir"-nya
+// SENDIRI-SENDIRI (harga tingkat itu dibagi faktor konversi dari tingkat
+// itu SAMPAI akhir rantai — BUKAN dari tingkat paling atas), lalu diambil
+// yang PALING MAHAL di antara semuanya. Ini KONSISTEN dengan prinsip
+// konservatif yang SUDAH dipakai `perbaruiHargaMasterDariRiwayat()` di
+// vue-stock-pembelian.js (pilih harga TERMAHAL supaya modal/harga jual
+// tidak "ketinggalan" pas harga bahan naik) — cuma sekarang prinsip yang
+// sama diterapkan juga ke input MANUAL popup ini, bukan cuma ke riwayat
+// pembelian otomatis.
+//
+// Item 1-tingkat (tanpa Konversi Berjenjang, isi manual biasa) TIDAK
+// terpengaruh sama sekali — fungsi ini HANYA dipakai di dalam popup
+// Konversi Berjenjang.
+function hitungHargaPerSatuanAkhir(baris) {
+  let maxHarga = 0;
+  baris.forEach((b, i) => {
+    const h = parseFloat(b.harga);
+    if (!(h > 0)) return;
+    // Faktor konversi dari TINGKAT INI (i) sampai akhir rantai — BUKAN
+    // dari tingkat 0. Mis. kalau tingkat ini "Pack" (i=1) dan tingkat
+    // terakhir "Pcs" dengan jumlah 12, faktornya = 12 (1 Pack = 12 Pcs),
+    // BUKAN faktor gabungan Dus->Pcs.
+    const faktor = baris.slice(i).reduce((t, x) => t * (parseFloat(x.jumlah) || 0), 1);
+    if (!(faktor > 0)) return;
+    const impliedHargaAkhir = h / faktor;
+    if (impliedHargaAkhir > maxHarga) maxHarga = impliedHargaAkhir;
+  });
+  return maxHarga;
+}
 // useKonversiBerjenjang — logic popup "bantu hitung konversi banyak tingkat"
 // (mis. Dus > Pack > Pcs), dipakai BARENG oleh form Entry & form Edit (di
 // modal List) lewat 1 fungsi ini supaya logicnya tidak ditulis 2x beda-beda.
@@ -264,15 +305,26 @@ function useKonversiBerjenjang(form) {
   function terapkanKonversi() {
     // BARU (malam 24 Agt 2026, harga berjenjang) — Harga Pembelian SEKARANG
     // field di TIAP baris (harga waktu beli di satuan AWAL baris itu), bukan
-    // 1 field tunggal di atas popup lagi. Yang dipakai buat Harga Modal
-    // (form.harga_pembelian) tetap dari baris PALING ATAS (Satuan Pembelian)
-    // — sesuai keputusan Guru di §21.11, TIDAK berubah — cuma sumbernya
-    // sekarang baris[0].harga, bukan prop `harga` terpisah lagi.
+    // 1 field tunggal di atas popup lagi.
+    // GANTI (27 Agt 2026, §25.14, permintaan Guru — SUPERSEDE §21.11/§21.13)
+    // — SEBELUMNYA form.harga_pembelian SELALU = baris[0].harga polos
+    // (baris lain cuma tercatat, tidak ikut menentukan Harga Modal).
+    // SEKARANG Harga Modal (form.harga_pembelian / isi_konversi_pembelian,
+    // formula TIDAK berubah — lihat komentar atas file) diturunkan dari
+    // hitungHargaPerSatuanAkhir() — harga TERMAHAL di antara implikasi
+    // per-satuan-akhir SEMUA tingkat yang diisi (bukan cuma tingkat
+    // teratas). form.harga_pembelian di sini DIKONVERSI BALIK ke "per
+    // Satuan Pembelian" (dikali isi_konversi_pembelian) supaya field ini
+    // (dan label "Satuan Pembelian"-nya) tetap konsisten artinya seperti
+    // sebelumnya, HANYA angkanya sekarang bisa lebih tinggi dari yang
+    // diketik di baris[0] kalau ada tingkat lain yang implikasinya lebih
+    // mahal.
     if (!(parseFloat(barisKonversi.value[0]?.harga) > 0)) { alert('Isi Harga Pembelian di baris pertama dulu (harus lebih dari 0).'); return; }
     const tidakLengkap = barisKonversi.value.some(b => !b.dari.trim() || !b.ke.trim() || !(parseFloat(b.jumlah) > 0));
     if (tidakLengkap) { alert('Lengkapi semua baris dulu: satuan awal, jumlah (angka > 0), dan satuan tujuan.'); return; }
-    form.harga_pembelian = parseFloat(barisKonversi.value[0].harga) || 0;
     form.isi_konversi_pembelian = totalKonversiBerjenjang.value;
+    const hargaSatuanAkhirMax = hitungHargaPerSatuanAkhir(barisKonversi.value);
+    form.harga_pembelian = Math.round(hargaSatuanAkhirMax * form.isi_konversi_pembelian);
     form.konversi_bertingkat = JSON.parse(JSON.stringify(barisKonversi.value));
     // Field Satuan Pembelian & Satuan Pemakaian di form utama JADI HILANG
     // begitu Konversi Banyak Tingkat dipakai (lihat template Entry/Edit) —
@@ -447,10 +499,13 @@ const PopupKonversiBerjenjang = {
     // isi harga NOTA (harga di satuan awal, mis. Rp 1jt per Dus), sistem
     // yang hitung harga per satuan akhirnya sendiri — tidak perlu admin
     // hitung manual (permintaan Guru: "admin males hitung").
+    // GANTI (27 Agt 2026, §25.14) — SEBELUMNYA cuma baca baris[0] (tingkat
+    // teratas). SEKARANG pakai hitungHargaPerSatuanAkhir() (fungsi
+    // module-level, dipakai bareng terapkanKonversi() di atas) — ambil
+    // yang PALING MAHAL di antara implikasi per-satuan-akhir SEMUA
+    // tingkat yang harganya diisi, bukan cuma tingkat teratas.
     hargaPerSatuanAkhirFormatted() {
-      const b0 = this.baris[0];
-      if (!b0 || !(parseFloat(b0.harga) > 0) || !(this.total > 0)) return formatRupiah(0);
-      return formatRupiah(parseFloat(b0.harga) / this.total);
+      return formatRupiah(hitungHargaPerSatuanAkhir(this.baris));
     }
   },
   template: `

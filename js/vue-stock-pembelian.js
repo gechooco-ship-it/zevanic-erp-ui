@@ -255,6 +255,49 @@ function faktorKonversiUntukSatuan(item, satuanDipilih) {
   // tingkat PALING ATAS.
   return tingkat.slice(idx).reduce((total, t) => total * (parseFloat(t.jumlah) || 1), 1);
 }
+// hargaUntukSatuan — BARU (27 Agt 2026, §25.14, permintaan Guru: "harga
+// menurut satuan awal adalah harga saat pembelian... misal ada 3 jenjang
+// artinya ada 3 harga dengan 3 satuan awal"). Prefill "Harga Aktual" di
+// baris pesanan SEKARANG ambil harga TINGKAT yang SUNGGUHAN dipilih di
+// field Satuan (dari `konversi_bertingkat`, mis. harga PACK bukan harga
+// DUS kalau yang dipilih PACK) — bukan selalu `harga_pembelian` (harga
+// tingkat teratas) seperti sebelumnya. Field ini TETAP bisa diedit admin
+// di tabel Nota (tidak berubah) — ini cuma nilai DEFAULT/perkiraan awal.
+function hargaUntukSatuan(item, satuanDipilih) {
+  const tingkat = Array.isArray(item.konversi_bertingkat) ? item.konversi_bertingkat : [];
+  if (tingkat.length === 0) return parseFloat(item.harga_pembelian) || 0;
+  const cocok = tingkat.find(t => t.dari === satuanDipilih);
+  if (cocok && parseFloat(cocok.harga) > 0) return parseFloat(cocok.harga);
+  // Satuan dipilih = satuan akhir/dasar (satuan_pemakaian, tidak punya
+  // baris "dari" sendiri) — pakai Harga Modal (`harga_modal`, sudah
+  // dihitung otomatis di Data Bahan & Aksesoris = harga TERMAHAL di
+  // antara implikasi per-satuan-akhir semua tingkat, lihat §25.14 di
+  // vue-bahan-aksesoris.js/hitungHargaPerSatuanAkhir()).
+  if (satuanDipilih && satuanDipilih === tingkat[tingkat.length - 1].ke) {
+    return Math.round(parseFloat(item.harga_modal) || 0);
+  }
+  return parseFloat(item.harga_pembelian) || 0; // fallback aman (seharusnya tidak kejadian lewat UI)
+}
+// hitungHargaPerSatuanAkhir — SAMA PERSIS dengan fungsi nama sama di
+// vue-bahan-aksesoris.js (disalin, BUKAN diimpor silang — konvensi yang
+// sudah dipakai di file ini utk ambilDaftarBahanAksesorisLengkap() juga,
+// lihat catatan di atas: supaya 2 file ini tetap bisa berdiri
+// sendiri-sendiri kalau salah satu diedit). Dipakai `perbaruiHargaMasterDariRiwayat()`
+// di bawah (§25.14) — kalau diubah, WAJIB diubah bareng versi di
+// vue-bahan-aksesoris.js juga supaya rumusnya tetap sama antara popup
+// Konversi Berjenjang & auto-update dari Nota final.
+function hitungHargaPerSatuanAkhir(baris) {
+  let maxHarga = 0;
+  baris.forEach((b, i) => {
+    const h = parseFloat(b.harga);
+    if (!(h > 0)) return;
+    const faktor = baris.slice(i).reduce((t, x) => t * (parseFloat(x.jumlah) || 0), 1);
+    if (!(faktor > 0)) return;
+    const impliedHargaAkhir = h / faktor;
+    if (impliedHargaAkhir > maxHarga) maxHarga = impliedHargaAkhir;
+  });
+  return maxHarga;
+}
 // generateNoPembelian — pola SAMA seperti generateIdBerurutan di
 // vue-bahan-aksesoris.js, cuma 1 kunci saja (tidak per-kategori).
 async function generateNoPembelian() {
@@ -1012,7 +1055,15 @@ const OrderBelanjaScreen = {
         qty: qty, satuan_bahan: satuanDipakai,
         qty_s: Math.round((qty * isiKonversi) * 100) / 100, satuan: item.satuan_pemakaian || '',
         isi_konversi: isiKonversi,
-        harga: parseFloat(item.harga_pembelian) || 0,
+        // GANTI (27 Agt 2026, §25.14, permintaan Guru: "harga menurut
+        // satuan awal adalah harga saat pembelian... ada 3 harga dengan
+        // 3 satuan awal") — SEBELUMNYA prefill "Harga Aktual" SELALU dari
+        // `item.harga_pembelian` (harga tingkat TERATAS/satuan_pembelian
+        // saja), walau yang dibeli sekarang PACK atau PCS. Sekarang pakai
+        // hargaUntukSatuan() — ambil harga TINGKAT yang SUNGGUHAN dipilih
+        // (dari konversi_bertingkat item itu), fallback ke Harga Modal
+        // kalau beli langsung di satuan dasar/pemakaian.
+        harga: hargaUntukSatuan(item, satuanDipakai),
         keterangan: keterangan || '',
         // BARU (25 Agt 2026, §25.2) — denormalisasi flag dari Data Bahan &
         // Aksesoris (item.pakai_lot_tracking) supaya tombol popup "Qty per
@@ -1247,29 +1298,87 @@ const OrderBelanjaScreen = {
     // pembelian) — lalu timpa harga_pembelian di master data (dikonversi
     // balik ke satuan pembelian item itu SEKARANG, supaya harga_modal
     // hasil bagi tetap konsisten dengan isi_konversi_pembelian yang ada).
+    // GANTI (27 Agt 2026, §25.14, permintaan Guru: "misal ada 3 jenjang
+    // artinya ada 3 harga dengan 3 satuan awal... ternyata ada nota
+    // pembelian 1 dus jadi 1,1jt > artinya update data jg pada data
+    // bahan & aksesoris"). SEBELUMNYA fungsi ini cuma menormalkan SEMUA
+    // riwayat pembelian (apapun satuannya) ke 1 angka `harga_pembelian`
+    // tunggal (di satuan_pembelian/tingkat teratas) — TIDAK PERNAH
+    // menyentuh `konversi_bertingkat` (harga per tingkat di situ TETAP
+    // beku sejak diisi manual lewat popup, walau ada pembelian nyata di
+    // tingkat itu dengan harga BEDA). SEKARANG, item yang PUNYA
+    // `konversi_bertingkat`: tiap TINGKAT di-cek & di-update SENDIRI
+    // (harga NYATA termahal di satuan tingkat itu, kalau ada pembelian
+    // baru) — supaya "1 Dus jadi Rp 1,1jt" BENERAN mengubah data Master,
+    // bukan cuma tercatat di Riwayat doang. `harga_pembelian`/`harga_modal`
+    // lalu dihitung ULANG dari tingkat-tingkat yang SUDAH ter-update itu,
+    // pakai rumus yang SAMA dengan popup Konversi Berjenjang
+    // (hitungHargaPerSatuanAkhir — PALING MAHAL di antara implikasi
+    // semua tingkat, lihat §25.14 di atas). Item LAMA/1-tingkat (TANPA
+    // konversi_bertingkat) TETAP pakai cara lama (normalisasi ke satuan
+    // pemakaian) — TIDAK ADA yang berubah buat data lama.
     async function perbaruiHargaMasterDariRiwayat(bahanId) {
       const snap = await getDocs(query(collection(db, 'riwayat_harga_pembelian'), where('bahan_aksesoris_id', '==', bahanId)));
       const semua = []; snap.forEach(d => semua.push(d.data()));
       if (semua.length === 0) return;
-      const tanggalTerbaru = semua.reduce((max, r) => (r.tanggal > max ? r.tanggal : max), semua[0].tanggal);
-      const kandidat = semua.filter(r => r.tanggal === tanggalTerbaru);
-      const termahal = kandidat.reduce((max, r) => (r.harga_per_satuan_pemakaian > max.harga_per_satuan_pemakaian ? r : max), kandidat[0]);
 
       const refBahan = doc(db, 'master_bahan_aksesoris', bahanId);
       const snapBahan = await getDoc(refBahan);
       if (!snapBahan.exists()) return;
       const bahan = snapBahan.data();
-      const isiKonversiSaatIni = parseFloat(bahan.isi_konversi_pembelian) || 1;
-      const hargaPembelianBaru = Math.round(termahal.harga_per_satuan_pemakaian * isiKonversiSaatIni);
-      const hargaModalBaru = isiKonversiSaatIni > 0 ? hargaPembelianBaru / isiKonversiSaatIni : 0;
+      const tingkat = Array.isArray(bahan.konversi_bertingkat) ? bahan.konversi_bertingkat : [];
+
+      // Dari SEMUA riwayat pembelian yang satuannya PERSIS `satuan` ini,
+      // ambil tanggal PALING BARU, lalu di antara yang tanggalnya sama
+      // ambil yang harganya (MENTAH — sudah same-satuan, apple-to-apple
+      // tanpa perlu normalisasi lagi) PALING MAHAL.
+      function termahalUntukSatuan(satuan) {
+        const cocokSatuan = semua.filter(r => (r.satuan || '') === satuan && parseFloat(r.harga) > 0);
+        if (cocokSatuan.length === 0) return null;
+        const tgl = cocokSatuan.reduce((max, r) => (r.tanggal > max ? r.tanggal : max), cocokSatuan[0].tanggal);
+        const kandidat = cocokSatuan.filter(r => r.tanggal === tgl);
+        return kandidat.reduce((max, r) => (parseFloat(r.harga) > parseFloat(max.harga) ? r : max), kandidat[0]);
+      }
+
+      let hargaPembelianBaru, hargaModalBaru, konversiBertingkatBaru;
+      if (tingkat.length > 0) {
+        konversiBertingkatBaru = tingkat.map(t => {
+          const t2 = termahalUntukSatuan(t.dari);
+          return t2 ? { ...t, harga: parseFloat(t2.harga) } : { ...t };
+        });
+        // BARU — pembelian langsung di satuan dasar/pemakaian (tidak
+        // lewat kemasan sama sekali, mis. beli Pcs eceran) tidak punya
+        // baris tingkat sendiri, tapi TETAP ikut jadi kandidat "harga per
+        // satuan akhir" (faktor konversinya = 1, sudah di satuan dasar).
+        const satuanAkhir = konversiBertingkatBaru[konversiBertingkatBaru.length - 1].ke;
+        const satuanAkhirTermahal = termahalUntukSatuan(satuanAkhir);
+        const hargaSatuanAkhirBaru = Math.max(
+          hitungHargaPerSatuanAkhir(konversiBertingkatBaru),
+          satuanAkhirTermahal ? parseFloat(satuanAkhirTermahal.harga) : 0
+        );
+        const isiKonversiSaatIni = parseFloat(bahan.isi_konversi_pembelian) || 1;
+        hargaPembelianBaru = Math.round(hargaSatuanAkhirBaru * isiKonversiSaatIni);
+        hargaModalBaru = hargaSatuanAkhirBaru;
+      } else {
+        // Item LAMA/1-tingkat — PERSIS perilaku sebelum §25.14, TIDAK berubah.
+        const tanggalTerbaru = semua.reduce((max, r) => (r.tanggal > max ? r.tanggal : max), semua[0].tanggal);
+        const kandidat = semua.filter(r => r.tanggal === tanggalTerbaru);
+        const termahal = kandidat.reduce((max, r) => (r.harga_per_satuan_pemakaian > max.harga_per_satuan_pemakaian ? r : max), kandidat[0]);
+        const isiKonversiSaatIni = parseFloat(bahan.isi_konversi_pembelian) || 1;
+        hargaPembelianBaru = Math.round(termahal.harga_per_satuan_pemakaian * isiKonversiSaatIni);
+        hargaModalBaru = isiKonversiSaatIni > 0 ? hargaPembelianBaru / isiKonversiSaatIni : 0;
+      }
+
       const marginModal = parseFloat(bahan.margin_modal) || 0;
-      await updateDoc(refBahan, {
+      const payload = {
         harga_pembelian: hargaPembelianBaru,
         harga_modal: hargaModalBaru,
         margin_modal: marginModal,
         harga_pemakaian: hargaModalBaru + marginModal,
         harga_diupdate_dari_riwayat_pada: serverTimestamp()
-      });
+      };
+      if (konversiBertingkatBaru) payload.konversi_bertingkat = konversiBertingkatBaru;
+      await updateDoc(refBahan, payload);
     }
 
     function cetak() {
