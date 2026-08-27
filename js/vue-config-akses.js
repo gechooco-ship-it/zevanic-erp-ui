@@ -248,13 +248,14 @@ const AppConfigAkses = {
     KATEGORI_URUTAN.forEach(k => { kategoriTerbuka[k] = true; });
     function toggleKategori(k) { kategoriTerbuka[k] = !kategoriTerbuka[k]; }
 
-    // BARU (27 Agt 2026, §27 — Redesain Home Mobile) — Urutan Menu di Home
-    // Mobile. Home mobile cuma nampilkan 5 menu PALING ATAS per kategori
-    // (sisanya lewat "Lihat Semua") — urutan 5 teratas itu diatur di sini,
-    // bukan ditebak. Disimpan 1 dokumen tunggal, dibaca vue-home.js tiap
-    // kali Home dimuat (1x getDoc, hemat baca). Menu yang belum pernah
-    // diatur otomatis ikut urutan asli DAFTAR_MENU di posisi paling akhir
-    // (self-healing kalau ada menu baru ditambah belakangan).
+    // BARU (27 Agt 2026, §27 — Redesain Home Mobile), N diubah 5->4 di
+    // §27.1 — Urutan Menu di Home Mobile. Home mobile cuma nampilkan 4
+    // menu PALING ATAS per kategori (sisanya lewat "Lihat Semua") — urutan
+    // 4 teratas itu diatur di sini, bukan ditebak. Disimpan 1 dokumen
+    // tunggal, dibaca vue-home.js tiap kali Home dimuat (1x getDoc, hemat
+    // baca). Menu yang belum pernah diatur otomatis ikut urutan asli
+    // DAFTAR_MENU di posisi paling akhir (self-healing kalau ada menu baru
+    // ditambah belakangan).
     const urutanMenu = reactive({});
     const urutanTerbuka = reactive({});
     const menyimpanUrutan = ref(false);
@@ -452,7 +453,7 @@ const AppConfigAkses = {
             <i class="fas" :class="menyimpanUrutan ? 'fa-spinner fa-spin' : 'fa-save'" style="margin-right:6px;"></i>{{ menyimpanUrutan ? 'Menyimpan...' : 'Simpan Urutan' }}
           </button>
         </div>
-        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Grid Home mobile cuma nampilkan 5 menu paling atas per kategori duluan (sisanya lewat "Lihat Semua") — atur urutannya di sini pakai panah naik/turun. Tidak mempengaruhi urutan sidebar desktop.</p>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Grid Home mobile cuma nampilkan 4 menu paling atas per kategori duluan (sisanya lewat "Lihat Semua") — atur urutannya di sini pakai panah naik/turun. Tidak mempengaruhi urutan sidebar desktop.</p>
         <div v-for="kategori in KATEGORI_URUTAN.filter(k => k !== 'Umum')" :key="'urutan-'+kategori" style="margin-bottom:10px; border:1px solid var(--line); border-radius:12px; overflow:hidden;">
           <div @click="urutanTerbuka[kategori] = !urutanTerbuka[kategori]" style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; cursor:pointer; background:var(--ivory-dim);">
             <span style="font-size:12px; font-weight:700;">{{ kategori }} <span style="font-size:10px; color:var(--text-faint); font-weight:600;">({{ (urutanMenu[kategori]||[]).length }} menu)</span></span>
@@ -463,7 +464,7 @@ const AppConfigAkses = {
               <span style="font-size:12px; flex:1;">
                 <span style="display:inline-block; width:20px; color:var(--text-faint); font-weight:700;">{{ idx + 1 }}.</span>
                 {{ labelMenu(id) }}
-                <span v-if="idx < 5" style="font-size:9px; font-weight:800; color:var(--ok); background:var(--ok-light); padding:1px 6px; border-radius:999px; margin-left:6px; white-space:nowrap;">tampil duluan</span>
+                <span v-if="idx < 4" style="font-size:9px; font-weight:800; color:var(--ok); background:var(--ok-light); padding:1px 6px; border-radius:999px; margin-left:6px; white-space:nowrap;">tampil duluan</span>
               </span>
               <span style="display:flex; gap:4px; flex:none;">
                 <button @click="naikkanUrutan(kategori, idx)" :disabled="idx===0" style="background:var(--surface); border:1px solid var(--line); border-radius:6px; width:26px; height:26px; cursor:pointer;" :style="idx===0 ? 'opacity:.3;' : ''"><i class="fas fa-arrow-up" style="font-size:10px;"></i></button>
