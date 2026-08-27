@@ -207,6 +207,54 @@ function formatRupiah(n) {
 function formatNamaBahan(b) {
   return (b.nama || '') + (b.warna ? ` ${b.warna}` : '');
 }
+// opsiSatuanBeliUntuk / faktorKonversiUntukSatuan — BARU (27 Agt 2026,
+// §25.13, permintaan Guru: "kadang beli dus, kadang beli pak, kadang
+// beli pcs > satuan yg muncul sesuai yg diinput di konversi banyak
+// tingkat"). Bahan/Aksesoris yang diisi lewat popup "Bantu Hitung
+// Konversi Berjenjang" (vue-bahan-aksesoris.js) NYIMPAN SELURUH rantai
+// tingkatnya di `konversi_bertingkat` (array `{dari, jumlah, ke, harga}`
+// per tingkat, mis. tingkat 1 = {dari:"DUS", jumlah:10, ke:"PACK"},
+// tingkat 2 = {dari:"PACK", jumlah:12, ke:"PCS"}) — BUKAN cuma 1 angka
+// `isi_konversi_pembelian` gabungan seperti yang dipakai selama ini di
+// Order Belanja. Dua fungsi ini baca rantai itu buat kasih PILIHAN
+// satuan beli (tiap `dari` di rantai, PLUS satuan akhir/`satuan_pemakaian`
+// kalau mau beli langsung di satuan dasarnya) & hitung faktor konversi
+// yang BENAR buat satuan manapun yang dipilih (bukan selalu pakai faktor
+// tingkat PALING ATAS/`isi_konversi_pembelian`, yang cuma benar kalau
+// beli di satuan_pembelian aslinya).
+function opsiSatuanBeliUntuk(item) {
+  const tingkat = Array.isArray(item.konversi_bertingkat) ? item.konversi_bertingkat : [];
+  if (tingkat.length === 0) {
+    // Item lama / 1-tingkat (belum pernah diisi lewat popup berjenjang)
+    // — cuma ada 1 satuan beli yang diketahui, sama seperti perilaku
+    // sebelum §25.13.
+    return item.satuan_pembelian ? [item.satuan_pembelian] : [];
+  }
+  const opsi = [];
+  tingkat.forEach(t => { if (t.dari && !opsi.includes(t.dari)) opsi.push(t.dari); });
+  const akhir = tingkat[tingkat.length - 1].ke;
+  if (akhir && !opsi.includes(akhir)) opsi.push(akhir); // beli langsung di satuan dasar (faktor 1)
+  return opsi;
+}
+function faktorKonversiUntukSatuan(item, satuanDipilih) {
+  const tingkat = Array.isArray(item.konversi_bertingkat) ? item.konversi_bertingkat : [];
+  if (tingkat.length === 0) return parseFloat(item.isi_konversi_pembelian) || 1;
+  const idx = tingkat.findIndex(t => t.dari === satuanDipilih);
+  if (idx === -1) {
+    // Bukan salah satu titik "dari" di rantai — cek apakah itu satuan
+    // AKHIR/dasar (beli langsung di satuan_pemakaian, faktor = 1).
+    if (satuanDipilih && satuanDipilih === tingkat[tingkat.length - 1].ke) return 1;
+    // Fallback aman: satuan tidak dikenali sama sekali (seharusnya tidak
+    // terjadi lewat UI, cuma jaring pengaman) — pakai faktor gabungan
+    // penuh (perilaku lama).
+    return parseFloat(item.isi_konversi_pembelian) || 1;
+  }
+  // Faktor = perkalian `jumlah` MULAI dari tingkat satuan yang dipilih
+  // SAMPAI akhir rantai (BUKAN dari tingkat paling atas) — ini yang
+  // beda dari `isi_konversi_pembelian` polos, yang selalu itung dari
+  // tingkat PALING ATAS.
+  return tingkat.slice(idx).reduce((total, t) => total * (parseFloat(t.jumlah) || 1), 1);
+}
 // generateNoPembelian — pola SAMA seperti generateIdBerurutan di
 // vue-bahan-aksesoris.js, cuma 1 kunci saja (tidak per-kategori).
 async function generateNoPembelian() {
@@ -835,28 +883,28 @@ const OrderBelanjaScreen = {
       return map;
     });
     const opsiNamaBarang = computed(() => Array.from(opsiNamaBarangMap.value.keys()));
-    // BARU (26 Agt 2026, §25.11) — Satuan (Beli) item yang SEDANG dipilih
-    // di dropdown Nama Barang, ditampilkan read-only di field "Satuan"
-    // baru di baris entry (di antara Qty & Nama Barang) — item MENENTUKAN
-    // satuannya sendiri (satuan_pembelian), bukan diketik manual.
-    // GANTI TAMPILAN (27 Agt 2026, permintaan Guru): kotak tampilan statis
-    // diganti jadi komponen dropdown-cari (biar konsisten gaya kotak+border
-    // sama seperti field Nama Barang/Suplayer di sebelahnya) — TAPI
-    // `:disabled="true"` & isi opsi cuma 1 (nilai ini sendiri), jadi
-    // PERILAKUNYA TETAP terkunci ikut item yang dipilih, TIDAK bisa dipilih
-    // bebas ke satuan lain. Sengaja begitu: `isi_konversi_pembelian` yang
-    // dipakai hitung Qty Pakai adalah SNAPSHOT yang dikalibrasi khusus buat
-    // 1 satuan_pembelian item itu (lihat buatBarisPesanan di bawah) — kalau
-    // Satuan boleh diganti bebas tanpa hitungan konversinya ikut berubah,
-    // Qty Pakai yang otomatis kehitung bisa jadi SALAH tanpa ketahuan
-    // (silent bug). Kalau ternyata maksud Guru itu Satuan-nya BENERAN mau
-    // bisa dipilih beda dari yang di-set di Master (misal beli dalam
-    // satuan lain dari biasanya), itu perlu desain terpisah dulu (gimana
-    // Qty Pakai-nya dihitung ulang) — mohon dikonfirmasi, BELUM dibuat di
-    // sini.
-    const satuanEntryTampil = computed(() => {
+    // BARU (26 Agt 2026, §25.11), DIBUKA JADI BISA PILIH (27 Agt 2026,
+    // §25.13, permintaan Guru: "kadang beli dus, kadang beli pak, kadang
+    // beli pcs > satuan yg muncul sesuai yg diinput di konversi banyak
+    // tingkat"). SEBELUMNYA field ini read-only, selalu ikut
+    // `satuan_pembelian` (tingkat PALING ATAS di Master) — sekarang jadi
+    // dropdown-cari SUNGGUHAN, opsinya diambil dari rantai
+    // `konversi_bertingkat` item yang dipilih (lihat opsiSatuanBeliUntuk
+    // di atas), supaya kalau item itu bisa dibeli dalam beberapa tingkat
+    // (mis. DUS/PACK/PCS), admin bisa pilih sesuai yang SUNGGUHAN dibeli
+    // hari itu — BUKAN dipaksa selalu satuan_pembelian teratas.
+    // `satuanEntryManual` nyimpan pilihan AKTIF user, di-set OTOMATIS ke
+    // default (satuan_pembelian, tingkat teratas) tiap kali item di
+    // dropdown Nama Barang berganti (lihat watch(namaBarangEntry) di
+    // bawah), TAPI boleh ditimpa manual lewat dropdown-nya sendiri.
+    const satuanEntryManual = ref('');
+    const opsiSatuanEntry = computed(() => {
       const dipilih = opsiNamaBarangMap.value.get(namaBarangEntry.value);
-      return dipilih ? (dipilih.bahan.satuan_pembelian || '-') : '-';
+      return dipilih ? opsiSatuanBeliUntuk(dipilih.bahan) : [];
+    });
+    watch(namaBarangEntry, (val) => {
+      const dipilih = opsiNamaBarangMap.value.get(val);
+      satuanEntryManual.value = dipilih ? (dipilih.bahan.satuan_pembelian || '') : '';
     });
     // BARU (26 Agt 2026, §25.11, permintaan Guru: "1 nota = 1 suplayer...
     // saat tambah entry data pertama pada nota order belanja field
@@ -916,9 +964,24 @@ const OrderBelanjaScreen = {
     // depan. `jumlah` SENGAJA TIDAK disimpan di sini lagi — dihitung
     // ulang live tiap kali harga diedit (lihat estimasiBiaya computed &
     // template kolom Jumlah), baru di-final-kan pas simpan().
-    function buatBarisPesanan(item, qty, keterangan, namaAlias) {
+    // BARU (27 Agt 2026, §25.13) — param ke-5 `satuanBeliPilihan`: satuan
+    // BELI yang SUNGGUHAN dipilih user di field Satuan (bisa beda dari
+    // satuan_pembelian teratas Master, mis. beli PACK padahal Master-nya
+    // DUS — lihat opsiSatuanBeliUntuk/faktorKonversiUntukSatuan di atas).
+    // Kosong/undefined (dipanggil dari tambahDariPermintaan, yang belum
+    // punya UI pilih satuan) — fallback ke satuan_pembelian Master seperti
+    // perilaku lama.
+    function buatBarisPesanan(item, qty, keterangan, namaAlias, satuanBeliPilihan) {
       const suplayer = daftarSuplayer.value.find(s => s.nama === suplayerEntry.value);
-      const isiKonversi = parseFloat(item.isi_konversi_pembelian) || 1;
+      const satuanDipakai = satuanBeliPilihan || item.satuan_pembelian || '';
+      // FIX (27 Agt 2026, §25.13) — SEBELUMNYA selalu pakai
+      // `item.isi_konversi_pembelian` (faktor gabungan dari tingkat
+      // PALING ATAS), padahal itu CUMA benar kalau beli persis di
+      // satuan_pembelian teratas. Sekarang hitung faktor yang BENAR
+      // sesuai satuan yang SUNGGUHAN dipilih (faktorKonversiUntukSatuan,
+      // baca rantai konversi_bertingkat) — supaya Qty Pakai tetap akurat
+      // walau beli di tingkat berbeda (mis. PACK, bukan DUS).
+      const isiKonversi = faktorKonversiUntukSatuan(item, satuanDipakai);
       return {
         dicentang: false,
         suplayer_id: suplayer ? suplayer.id : '', suplayer_nama: suplayerEntry.value,
@@ -946,7 +1009,7 @@ const OrderBelanjaScreen = {
         // kosong kalau dipilih langsung lewat nama+warna internal. Dipakai
         // kolom baru "Nama Alias" di tabel Daftar Pesanan Pembelian.
         nama_alias: namaAlias || '',
-        qty: qty, satuan_bahan: item.satuan_pembelian || '',
+        qty: qty, satuan_bahan: satuanDipakai,
         qty_s: Math.round((qty * isiKonversi) * 100) / 100, satuan: item.satuan_pemakaian || '',
         isi_konversi: isiKonversi,
         harga: parseFloat(item.harga_pembelian) || 0,
@@ -971,10 +1034,15 @@ const OrderBelanjaScreen = {
       // ada 2 jalur re-matching yang bisa saling tidak sinkron.
       const dipilih = opsiNamaBarangMap.value.get(namaBarangEntry.value);
       if (!dipilih) return alert('Pilih Nama Barang dari daftar dulu (bukan teks bebas). Kalau nama di nota Suplayer beda, catat dulu di menu Alias Pembelian.');
+      // BARU (27 Agt 2026, §25.13) — Satuan sekarang WAJIB dipilih (bukan
+      // otomatis lagi selalu benar) — biasanya sudah ke-isi otomatis
+      // (default satuan_pembelian, lihat watch(namaBarangEntry)), ini
+      // jaring pengaman kalau somehow kosong.
+      if (!satuanEntryManual.value) return alert('Pilih Satuan Beli dulu.');
       const qty = parseFloat(qtyEntry.value);
       if (!(qty > 0)) return alert('Isi Qty dengan angka lebih dari 0.');
-      daftarPesanan.value.push(buatBarisPesanan(dipilih.bahan, qty, '', dipilih.namaAlias));
-      qtyEntry.value = ''; namaBarangEntry.value = ''; // Suplayer SENGAJA tidak direset (terkunci)
+      daftarPesanan.value.push(buatBarisPesanan(dipilih.bahan, qty, '', dipilih.namaAlias, satuanEntryManual.value));
+      qtyEntry.value = ''; namaBarangEntry.value = ''; // Suplayer SENGAJA tidak direset (terkunci); satuanEntryManual ikut ke-reset via watch(namaBarangEntry)
       // BARU (26 Agt 2026, §25.11, permintaan Guru) — fokus balik ke
       // field Qty begitu Tambah diklik, biar entry item berikutnya lebih
       // cepat (tidak perlu klik manual ke Qty lagi). nextTick supaya
@@ -1325,7 +1393,7 @@ const OrderBelanjaScreen = {
       lotUntukCetak, cetakLabelLot,
       // BARU (26 Agt 2026, §25.11) — revisi posisi field + kunci Suplayer
       // Nota + fokus otomatis ke Qty + tampilan Satuan read-only entry.
-      satuanEntryTampil, suplayerTerkunci, qtyEntryEl
+      satuanEntryManual, opsiSatuanEntry, suplayerTerkunci, qtyEntryEl
     };
   },
   template: `
@@ -1407,14 +1475,14 @@ const OrderBelanjaScreen = {
                Suplayer di sini (per-baris, TIDAK berubah dari sebelumnya). -->
           <div v-if="modeNota" style="display:grid; grid-template-columns:100px 100px 1fr auto; gap:8px; align-items:end; margin-bottom:16px;">
             <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input ref="qtyEntryEl" v-model.number="qtyEntry" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari :model-value="satuanEntryTampil" :opsi="[satuanEntryTampil]" disabled placeholder="-" /></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari v-model="satuanEntryManual" :opsi="opsiSatuanEntry" :disabled="opsiSatuanEntry.length === 0" placeholder="Satuan..." /></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Nama Barang</label><dropdown-cari v-model="namaBarangEntry" :opsi="opsiNamaBarang" placeholder="Cari & pilih..." /></div>
             <button @click="tambahItemManual" class="btn-primary" style="padding:0 18px; height:38px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah</button>
           </div>
           <div v-else style="display:grid; grid-template-columns:1fr 100px 100px 1fr auto; gap:8px; align-items:end; margin-bottom:16px;">
             <div class="gc-field" style="margin-bottom:0;"><label>Suplayer</label><dropdown-cari v-model="suplayerEntry" :opsi="opsiSuplayer" placeholder="Pilih Suplayer..." /></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input ref="qtyEntryEl" v-model.number="qtyEntry" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari :model-value="satuanEntryTampil" :opsi="[satuanEntryTampil]" disabled placeholder="-" /></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari v-model="satuanEntryManual" :opsi="opsiSatuanEntry" :disabled="opsiSatuanEntry.length === 0" placeholder="Satuan..." /></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Nama Barang</label><dropdown-cari v-model="namaBarangEntry" :opsi="opsiNamaBarang" placeholder="Cari & pilih..." /></div>
             <button @click="tambahItemManual" class="btn-primary" style="padding:0 18px; height:38px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah</button>
           </div>
