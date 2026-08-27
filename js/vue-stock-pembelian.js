@@ -158,7 +158,7 @@
 //     (konsisten dengan pola "salin logic kecil per-file" yang sudah
 //     dipakai di proyek ini, BUKAN import lintas file).
 // ============================================================================
-import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, reactive, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, runTransaction, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DropdownCari, MasterDataTabelManager } from './vue-components.js';
@@ -790,37 +790,70 @@ const OrderBelanjaScreen = {
     // salah nyantol ke varian warna lain — lihat catatan di
     // tambahItemManual() di bawah.
     //
-    // DIPERLUAS (26 Agt 2026, permintaan Guru): "field nama barang ...
-    // data alias tidak muncul, harusnya nama internal + warna dan atau
+    // DIPERLUAS (26 Agt 2026, §25.10, permintaan Guru): "field nama barang
+    // ... data alias tidak muncul, harusnya nama internal + warna dan atau
     // nama alias juga muncul saat pencarian". SEBELUMNYA dropdown ini
     // CUMA berisi nama+warna internal — alias (nama di nota Suplayer,
-    // menu Alias Pembelian) TIDAK bisa dicari/dipilih sama sekali di sini
-    // (cuma dipakai buat referensi manual admin). SEKARANG opsi dropdown
-    // gabungan: (a) semua nama+warna internal, (b) semua nama alias
-    // (diberi label jelas "(alias {suplayer} -> {nama+warna internal})"
-    // supaya tidak ketuker sama nama internal aslinya, DAN supaya alias
-    // dari Suplayer BEDA yang kebetulan sama teksnya tetap bisa dibedakan).
-    // Dipakai sebagai Map (bukan cuma array string) SUPAYA baik nama
-    // internal MAUPUN nama alias yang dipilih bisa langsung di-resolve
-    // balik ke item bahan yang benar TANPA re-matching rawan-ambigu
-    // seperti sebelumnya (lihat tambahItemManual() di bawah) — alias
-    // yang bahan internalnya sudah kehapus SENGAJA di-skip (tidak
-    // mungkin di-resolve balik lagi).
+    // menu Alias Pembelian) TIDAK bisa dicari/dipilih sama sekali di sini.
+    //
+    // REVISI LAGI (26 Agt 2026, §25.11, permintaan Guru langsung setelah
+    // §25.10) — 2 penyesuaian: (a) opsi alias SEKARANG DIBATASI cuma
+    // punya Suplayer yang SEDANG dipilih di field Suplayer (SEBELUMNYA
+    // semua alias dari semua Suplayer ikut muncul) — supaya "tidak
+    // acak2an"; (b) label alias di dropdown SEKARANG cuma nama alias
+    // POLOS (`nama_di_nota` apa adanya), TANPA embel2
+    // "(alias {suplayer} -> ...)" lagi — lebih rapi. Karena SUDAH
+    // dibatasi per-Suplayer, tabrakan nama antar-Suplayer tidak mungkin
+    // lagi terjadi di opsi yang tampil (makanya label polos aman dipakai).
+    //
+    // Dipakai sebagai Map<label, {bahan, namaAlias}> (bukan cuma array
+    // string) SUPAYA baik nama internal MAUPUN nama alias yang dipilih
+    // bisa langsung di-resolve balik ke item bahan yang benar TANPA
+    // re-matching rawan-ambigu (lihat tambahItemManual() di bawah), DAN
+    // `namaAlias` ikut terbawa buat kolom baru "Nama Alias" di tabel
+    // Daftar Pesanan Pembelian (kosong kalau item dipilih lewat nama
+    // internal langsung, bukan lewat alias). Alias yang bahan internalnya
+    // sudah kehapus SENGAJA di-skip (tidak mungkin di-resolve balik lagi).
+    // Alias TIDAK muncul sama sekali kalau belum ada Suplayer dipilih.
     const opsiNamaBarangMap = computed(() => {
       const map = new Map();
       daftarBahan.value.forEach(b => {
         const label = formatNamaBahan(b);
-        if (!map.has(label)) map.set(label, b);
+        if (!map.has(label)) map.set(label, { bahan: b, namaAlias: '' });
       });
-      daftarAlias.value.forEach(a => {
-        const bahan = daftarBahan.value.find(b => b.id === a.bahan_aksesoris_id);
-        if (!bahan) return;
-        const label = `${a.nama_di_nota} (alias ${a.suplayer_nama || '?'} → ${formatNamaBahan(bahan)})`;
-        if (!map.has(label)) map.set(label, bahan);
-      });
+      const suplayerAktif = daftarSuplayer.value.find(s => s.nama === suplayerEntry.value);
+      if (suplayerAktif) {
+        daftarAlias.value
+          .filter(a => a.suplayer_id === suplayerAktif.id)
+          .forEach(a => {
+            const bahan = daftarBahan.value.find(b => b.id === a.bahan_aksesoris_id);
+            if (!bahan) return;
+            const label = a.nama_di_nota;
+            if (!map.has(label)) map.set(label, { bahan, namaAlias: a.nama_di_nota });
+          });
+      }
       return map;
     });
     const opsiNamaBarang = computed(() => Array.from(opsiNamaBarangMap.value.keys()));
+    // BARU (26 Agt 2026, §25.11) — Satuan (Beli) item yang SEDANG dipilih
+    // di dropdown Nama Barang, ditampilkan read-only di field "Satuan"
+    // baru di baris entry (di antara Qty & Nama Barang) — item MENENTUKAN
+    // satuannya sendiri (satuan_pembelian), bukan diketik manual.
+    const satuanEntryTampil = computed(() => {
+      const dipilih = opsiNamaBarangMap.value.get(namaBarangEntry.value);
+      return dipilih ? (dipilih.bahan.satuan_pembelian || '-') : '-';
+    });
+    // BARU (26 Agt 2026, §25.11, permintaan Guru: "1 nota = 1 suplayer...
+    // saat tambah entry data pertama pada nota order belanja field
+    // suplayer lock sampai di klik disimpan") — HANYA berlaku Nota
+    // (modeNota true); List Order Belanja TETAP boleh multi-Suplayer per
+    // dokumen (TIDAK berubah). Dasarnya `daftarPesanan.length > 0` — jadi
+    // otomatis lepas lagi begitu simpan() sukses & formKosong() ngosongin
+    // daftarPesanan (tidak perlu state terpisah).
+    const suplayerTerkunci = computed(() => props.modeNota && daftarPesanan.value.length > 0);
+    // BARU (26 Agt 2026, §25.11) — ref input Qty, dipakai fokuskan
+    // cursor ke situ lagi begitu tombol Tambah diklik (permintaan Guru).
+    const qtyEntryEl = ref(null);
     // BARU (malam 24 Agt 2026) — dihitung LIVE dari qty*harga (bukan baca
     // field `jumlah` statis lagi), supaya begitu admin edit Harga Aktual
     // di tabel, Estimasi Biaya Belanja di atas langsung ikut update.
@@ -868,13 +901,27 @@ const OrderBelanjaScreen = {
     // depan. `jumlah` SENGAJA TIDAK disimpan di sini lagi — dihitung
     // ulang live tiap kali harga diedit (lihat estimasiBiaya computed &
     // template kolom Jumlah), baru di-final-kan pas simpan().
-    function buatBarisPesanan(item, qty, keterangan) {
+    function buatBarisPesanan(item, qty, keterangan, namaAlias) {
       const suplayer = daftarSuplayer.value.find(s => s.nama === suplayerEntry.value);
       const isiKonversi = parseFloat(item.isi_konversi_pembelian) || 1;
       return {
         dicentang: false,
         suplayer_id: suplayer ? suplayer.id : '', suplayer_nama: suplayerEntry.value,
-        bahan_aksesoris_id: item.id, sku: item.id, nama: item.nama,
+        // FIX (26 Agt 2026, §25.11) — `sku` SEBELUMNYA `item.id` (ID
+        // dokumen Firestore auto-generated, BUKAN human-readable — lihat
+        // catatan id_tampil vs ID dokumen di PETA-DATABASE.md), jadi kolom
+        // ini selama ini menampilkan ID mentah yang tidak enak dibaca.
+        // Sekarang pakai `item.id_tampil` (mis. "BHN-0001"), fallback ke
+        // `item.id` HANYA kalau id_tampil entah kenapa kosong (data lama/
+        // rusak) — kolom tabelnya juga di-rename jadi "ID Bahan &
+        // Aksesoris" (lihat template) supaya konsisten.
+        bahan_aksesoris_id: item.id, sku: item.id_tampil || item.id, nama: item.nama,
+        // BARU (26 Agt 2026, §25.11) — nama alias (nota Suplayer) yang
+        // dipakai buat MEMILIH item ini lewat dropdown "Nama Barang",
+        // kalau ada (lihat opsiNamaBarangMap/tambahItemManual di atas) —
+        // kosong kalau dipilih langsung lewat nama+warna internal. Dipakai
+        // kolom baru "Nama Alias" di tabel Daftar Pesanan Pembelian.
+        nama_alias: namaAlias || '',
         qty: qty, satuan_bahan: item.satuan_pembelian || '',
         qty_s: Math.round((qty * isiKonversi) * 100) / 100, satuan: item.satuan_pemakaian || '',
         isi_konversi: isiKonversi,
@@ -898,12 +945,17 @@ const OrderBelanjaScreen = {
       // opsiNamaBarangMap di atas), Map ini yang jadi satu-satunya sumber
       // kebenaran buat resolve balik ke item bahan yang benar, jadi tidak
       // ada 2 jalur re-matching yang bisa saling tidak sinkron.
-      const item = opsiNamaBarangMap.value.get(namaBarangEntry.value);
-      if (!item) return alert('Pilih Nama Barang dari daftar dulu (bukan teks bebas). Kalau nama di nota Suplayer beda, catat dulu di menu Alias Pembelian.');
+      const dipilih = opsiNamaBarangMap.value.get(namaBarangEntry.value);
+      if (!dipilih) return alert('Pilih Nama Barang dari daftar dulu (bukan teks bebas). Kalau nama di nota Suplayer beda, catat dulu di menu Alias Pembelian.');
       const qty = parseFloat(qtyEntry.value);
       if (!(qty > 0)) return alert('Isi Qty dengan angka lebih dari 0.');
-      daftarPesanan.value.push(buatBarisPesanan(item, qty, ''));
+      daftarPesanan.value.push(buatBarisPesanan(dipilih.bahan, qty, '', dipilih.namaAlias));
       qtyEntry.value = ''; namaBarangEntry.value = ''; // Suplayer SENGAJA tidak direset (terkunci)
+      // BARU (26 Agt 2026, §25.11, permintaan Guru) — fokus balik ke
+      // field Qty begitu Tambah diklik, biar entry item berikutnya lebih
+      // cepat (tidak perlu klik manual ke Qty lagi). nextTick supaya
+      // fokus dipasang SETELAH input Qty ke-render ulang (kosong lagi).
+      nextTick(() => { qtyEntryEl.value?.focus(); });
     }
 
     // Khusus Nota Order Belanja: klik (+) di baris Group 1 -> langsung masuk
@@ -1246,7 +1298,10 @@ const OrderBelanjaScreen = {
       tampilPopupLot, barisLotSementara, totalQtyLot, barisLotTarget, barisLotSatuan, barisLotNama,
       bukaPopupLot, tutupPopupLot, tambahBarisLot, hapusBarisLot, terapkanLot,
       // BARU (Tahap 2) — Cetak Label Roll.
-      lotUntukCetak, cetakLabelLot
+      lotUntukCetak, cetakLabelLot,
+      // BARU (26 Agt 2026, §25.11) — revisi posisi field + kunci Suplayer
+      // Nota + fokus otomatis ke Qty + tampilan Satuan read-only entry.
+      satuanEntryTampil, suplayerTerkunci, qtyEntryEl
     };
   },
   template: `
@@ -1279,7 +1334,14 @@ const OrderBelanjaScreen = {
         <div class="gc-card" style="padding:14px;">
           <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Daftar Order Belanja</label>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px;">
+          <!-- REVISI (26 Agt 2026, §25.11, permintaan Guru) — baris 1 SEKARANG
+               No. Pembelian, Tanggal, Suplayer (3 grid) KHUSUS Nota — Suplayer
+               dipindah ke sini dari baris entry di bawah, karena "1 nota = 1
+               suplayer" (lihat suplayerTerkunci). List Order Belanja TETAP
+               boleh multi-Suplayer per dokumen (field per-baris di bawah,
+               TIDAK berubah) — jadi kolom Suplayer di baris 1 ini DIHILANGKAN
+               khusus List (v-else, 2 grid saja). -->
+          <div v-if="modeNota" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px;">
             <div class="gc-field" style="margin-bottom:0;">
               <label>No. Pembelian</label>
               <select :value="draftDocId" @change="pilihNoPembelian($event.target.value)" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
@@ -1290,26 +1352,65 @@ const OrderBelanjaScreen = {
             </div>
             <div class="gc-field" style="margin-bottom:0;"><label>Tanggal</label><input v-model="tanggal" type="date" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
             <div class="gc-field" style="margin-bottom:0;">
-              <label>Estimasi Biaya Belanja</label>
-              <div style="padding:9px 12px; background:var(--ivory-dim); border-radius:10px; font-weight:700; color:var(--burgundy);">{{ formatRupiah(estimasiBiaya) }}</div>
+              <label>Suplayer{{ suplayerTerkunci ? ' (terkunci — 1 Nota = 1 Suplayer)' : '' }}</label>
+              <dropdown-cari v-model="suplayerEntry" :opsi="opsiSuplayer" :disabled="suplayerTerkunci" placeholder="Pilih Suplayer..." />
             </div>
           </div>
+          <div v-else style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+            <div class="gc-field" style="margin-bottom:0;">
+              <label>No. Pembelian</label>
+              <select :value="draftDocId" @change="pilihNoPembelian($event.target.value)" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+                <option value="">+ Buat Baru{{ noPembelianAktif && !draftDocId ? '' : '' }}</option>
+                <option v-for="d in daftarDraft" :key="d.id" :value="d.id">{{ d.no_pembelian }} (draft)</option>
+              </select>
+              <p v-if="noPembelianAktif" style="font-size:10px; color:var(--text-faint); margin-top:4px;">Nomor aktif: <b>{{ noPembelianAktif }}</b></p>
+            </div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Tanggal</label><input v-model="tanggal" type="date" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
+          </div>
 
-          <div style="display:grid; grid-template-columns:1fr 100px 1fr auto; gap:8px; align-items:end; margin-bottom:16px;">
+          <!-- REVISI (26 Agt 2026, §25.11) — Estimasi Biaya Belanja SEKARANG
+               baris sendiri (bukan lagi 1 dari 3 kolom grid), ukuran field
+               diperbesar ~1.5x (font-size & padding) sesuai permintaan Guru. -->
+          <div class="gc-field" style="margin-bottom:14px;">
+            <label>Estimasi Biaya Belanja</label>
+            <div style="padding:14px 18px; background:var(--ivory-dim); border-radius:15px; font-weight:700; font-size:19px; color:var(--burgundy);">{{ formatRupiah(estimasiBiaya) }}</div>
+          </div>
+
+          <!-- REVISI (26 Agt 2026, §25.11) — baris entry SEKARANG Qty, Satuan
+               (BARU, read-only — ikut item yang dipilih di Nama Barang),
+               Nama Barang, Tambah — Suplayer DIPINDAH ke baris 1 di atas
+               KHUSUS Nota (lihat catatan di atas); List TETAP punya field
+               Suplayer di sini (per-baris, TIDAK berubah dari sebelumnya). -->
+          <div v-if="modeNota" style="display:grid; grid-template-columns:100px 100px 1fr auto; gap:8px; align-items:end; margin-bottom:16px;">
+            <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input ref="qtyEntryEl" v-model.number="qtyEntry" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><div style="padding:9px 12px; background:var(--ivory-dim); border-radius:10px; font-size:12.5px; color:var(--text-muted);">{{ satuanEntryTampil }}</div></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Nama Barang</label><dropdown-cari v-model="namaBarangEntry" :opsi="opsiNamaBarang" placeholder="Cari & pilih..." /></div>
+            <button @click="tambahItemManual" class="btn-primary" style="padding:0 18px; height:38px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah</button>
+          </div>
+          <div v-else style="display:grid; grid-template-columns:1fr 100px 100px 1fr auto; gap:8px; align-items:end; margin-bottom:16px;">
             <div class="gc-field" style="margin-bottom:0;"><label>Suplayer</label><dropdown-cari v-model="suplayerEntry" :opsi="opsiSuplayer" placeholder="Pilih Suplayer..." /></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input v-model.number="qtyEntry" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input ref="qtyEntryEl" v-model.number="qtyEntry" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><div style="padding:9px 12px; background:var(--ivory-dim); border-radius:10px; font-size:12.5px; color:var(--text-muted);">{{ satuanEntryTampil }}</div></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Nama Barang</label><dropdown-cari v-model="namaBarangEntry" :opsi="opsiNamaBarang" placeholder="Cari & pilih..." /></div>
             <button @click="tambahItemManual" class="btn-primary" style="padding:0 18px; height:38px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah</button>
           </div>
 
           <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Daftar Pesanan Pembelian ({{ daftarPesanan.length }})</label>
           <div v-if="daftarPesanan.length === 0" style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Belum ada item.</div>
+          <!-- REVISI (26 Agt 2026, §25.11) — urutan kolom tabel sesuai
+               permintaan Guru: Aksi(qty per lot), Checkbox, No, Suplayer
+               (List saja — Nota hilangkan, karena sudah 1 Suplayer di
+               header), ID Bahan & Aksesoris (rename dari "SKU", isinya
+               SEKARANG id_tampil bukan ID dokumen mentah — lihat
+               buatBarisPesanan()), Qty Beli, Satuan Beli, Qty Pakai,
+               Satuan Pakai, Nama Alias (BARU), Nama Barang, Harga, Jumlah,
+               Keterangan. -->
           <div v-else style="overflow-x:auto; margin-bottom:14px;">
             <table class="gc-table" style="width:100%; font-size:11.5px;">
               <thead><tr>
                 <th title="Qty per Roll/Lot"><i class="fas fa-layer-group"></i></th>
-                <th><i class="fas fa-square-check"></i></th><th>No</th><th>Suplayer</th><th>SKU</th><th>Nama Barang</th>
-                <th>QTY</th><th>Satuan Bahan</th><th>QTY-s</th><th>Satuan</th><th>Harga</th><th>Jumlah</th><th>Keterangan</th>
+                <th><i class="fas fa-square-check"></i></th><th>No</th><th v-if="!modeNota">Suplayer</th><th>ID Bahan &amp; Aksesoris</th>
+                <th>Qty Beli</th><th>Satuan Beli</th><th>Qty Pakai</th><th>Satuan Pakai</th><th>Nama Alias</th><th>Nama Barang</th><th>Harga</th><th>Jumlah</th><th>Keterangan</th>
               </tr></thead>
               <tbody>
                 <tr v-for="(it, i) in daftarPesanan" :key="i">
@@ -1322,8 +1423,9 @@ const OrderBelanjaScreen = {
                     <span v-else style="color:var(--text-faint); font-size:11px;" title="Item ini tidak ditandai perlu Qty per Roll/Lot (atur di Data Bahan & Aksesoris)">-</span>
                   </td>
                   <td><input type="checkbox" v-model="it.dicentang" style="accent-color:var(--burgundy);"></td>
-                  <td>{{ i + 1 }}</td><td>{{ it.suplayer_nama }}</td><td>{{ it.sku }}</td><td>{{ it.nama }}</td>
+                  <td>{{ i + 1 }}</td><td v-if="!modeNota">{{ it.suplayer_nama }}</td><td>{{ it.sku }}</td>
                   <td>{{ it.qty }}</td><td>{{ it.satuan_bahan }}</td><td>{{ it.qty_s }}</td><td>{{ it.satuan }}</td>
+                  <td style="color:var(--text-muted);">{{ it.nama_alias || '-' }}</td><td>{{ it.nama }}</td>
                   <td>
                     <input v-if="modeNota" v-model.number="it.harga" type="number" min="0" style="width:90px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-size:11px;">
                     <span v-else :title="'Ikut Data Bahan & Aksesoris — List Order Belanja cuma estimasi, harga tidak bisa diedit di sini'">{{ formatRupiah(it.harga) }}</span>
