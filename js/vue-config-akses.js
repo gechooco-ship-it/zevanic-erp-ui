@@ -86,8 +86,20 @@ const DAFTAR_MENU = [
   { id: 'stock_alias_pembelian', label: 'Alias Pembelian', kategori: 'Zevanic House' },
   { id: 'stock_list_order_belanja', label: 'List Order Belanja', kategori: 'Zevanic House' },
   { id: 'stock_nota_order_belanja', label: 'Nota Order Belanja', kategori: 'Zevanic House' },
+  // BARU (27 Agt 2026, §26.3) — Cetak Label: lihat CetakLabelManager di
+  // js/vue-stock-pembelian.js. Aksi cetak dicek lewat kolom 'print' (SUDAH
+  // ADA di KOSONG_IZIN, tapi baru menu INI yang benar-benar memakainya).
+  { id: 'stock_cetak_label', label: 'Cetak Label', kategori: 'Zevanic House' },
   // BARU (27 Agt 2026, §26.2) — Order SPK: lihat js/vue-order-spk.js.
-  { id: 'order_spk', label: 'Order SPK', kategori: 'Zevanic House' }
+  { id: 'order_spk', label: 'Order SPK', kategori: 'Zevanic House' },
+  // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname: lihat js/vue-scan-
+  // opname.js. Aksi catat penyesuaian dicek lewat kolom 'edit'. Gating
+  // "mobile-only untuk non-Owner" TIDAK lewat kolom izin ini — itu
+  // hardcode `window.currentUser.role === 'owner'` di file itu sendiri
+  // (pola sama seperti Config Akses/Hak Akses/Device Kiosk di auth.js),
+  // menu-id ini CUMA buat kontrol boleh/tidaknya menyimpan (di atas
+  // gerbang mobile itu, bukan pengganti).
+  { id: 'scan_opname', label: 'Scan Opname', kategori: 'Zevanic House' }
 ];
 
 const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House'];

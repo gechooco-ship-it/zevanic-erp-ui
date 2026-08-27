@@ -303,7 +303,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
   if (tombolEl) tombolEl.classList.add('active');
 
   if (window.aturHeaderKonteks) {
-    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house' };
+    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-zh-scan': 'tab-zevanic-house' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -358,8 +358,12 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-zh-stock-notaorder': 'pastikanMountNotaOrderBelanja',
     'sub-zh-stock-riwayat': 'pastikanMountRiwayatHargaPembelian',
     'sub-zh-stock-kartustok': 'pastikanMountKartuStok',
+    // BARU (27 Agt 2026, §26.3) — Cetak Label.
+    'sub-zh-stock-cetaklabel': 'pastikanMountCetakLabel',
     // BARU (27 Agt 2026, §26.2) — Order SPK.
-    'sub-zevanic-house-orderspk': 'pastikanMountOrderSpk'
+    'sub-zevanic-house-orderspk': 'pastikanMountOrderSpk',
+    // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname.
+    'sub-zh-scan-opname': 'pastikanMountScanOpname'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();

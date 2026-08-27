@@ -211,6 +211,31 @@ function formatRupiah(n) {
 function formatNamaBahan(b) {
   return (b.nama || '') + (b.warna ? ` ${b.warna}` : '');
 }
+// buatQrDataUrl — DIPINDAH ke level modul (27 Agt 2026, §26.3, Tahap 3)
+// dari dalam OrderBelanjaScreen.setup() supaya bisa dipakai BARENG oleh
+// cetakLabelLot() (di OrderBelanjaScreen, sudah ada) DAN CetakLabelManager
+// (menu baru "Cetak Label", di bawah) — TIDAK ada perubahan logic, cuma
+// posisi (dari closure jadi fungsi modul biasa), karena keduanya di FILE
+// YANG SAMA (bukan pelanggaran konvensi "disalin bukan diimpor silang",
+// itu cuma berlaku ANTAR file .js berbeda). Lihat komentar panjang
+// aslinya (soal kenapa qrcodejs digambar sinkron di window utama, bukan
+// document.write() di window print) di dekat cetakLabelLot() di bawah.
+function buatQrDataUrl(teks) {
+  if (typeof QRCode === 'undefined') return '';
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:absolute; left:-9999px; top:-9999px; width:160px; height:160px;';
+  document.body.appendChild(tmp);
+  let dataUrl = '';
+  try {
+    new QRCode(tmp, { text: String(teks || ''), width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
+    const canvas = tmp.querySelector('canvas');
+    if (canvas) dataUrl = canvas.toDataURL('image/png');
+  } catch (e) {
+    console.error('Gagal generate QR:', teks, e);
+  }
+  document.body.removeChild(tmp);
+  return dataUrl;
+}
 // opsiSatuanBeliUntuk / faktorKonversiUntukSatuan — BARU (27 Agt 2026,
 // §25.13, permintaan Guru: "kadang beli dus, kadang beli pak, kadang
 // beli pcs > satuan yg muncul sesuai yg diinput di konversi banyak
@@ -718,6 +743,22 @@ export async function cariLotByKode(kodeLot) {
   return hasil;
 }
 
+// cariLotByKodeSemuaStatus — BARU (27 Agt 2026, §26.4, Tahap 4). SAMA
+// PERSIS seperti `cariLotByKode()` di atas TAPI TANPA filter status —
+// dipakai KHUSUS Scan Opname (`vue-scan-opname.js`), yang justru perlu
+// bisa nemuin roll berstatus 'habis' juga: skenario nyatanya, karyawan
+// scan label fisik roll yang di SISTEM sudah tercatat 'habis', tapi
+// TERNYATA masih ada sisa fisiknya (opname justru buat nangkep selisih
+// kayak gini). Kalau dipakai `cariLotByKode()` yang lama (filter aktif
+// saja), roll begini TIDAK AKAN ketemu sama sekali lewat scan.
+export async function cariLotByKodeSemuaStatus(kodeLot) {
+  if (!kodeLot) return null;
+  const snap = await getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('kode_lot', '==', String(kodeLot).trim())));
+  let hasil = null;
+  snap.forEach(d => { if (!hasil) hasil = { id: d.id, ...d.data() }; });
+  return hasil;
+}
+
 // cariBahanByIdTampil — cari 1 dokumen master_bahan_aksesoris lewat field
 // `id_tampil` (ID manusia-terbaca, mis. "BHN-0001", DENORMALISASI/BEDA dari
 // ID dokumen Firestore-nya sendiri yang auto-generated — lihat catatan di
@@ -824,6 +865,96 @@ export async function catatPemakaianDariAlokasi({ bahanId, namaBahan, tanggal, q
   });
 
   return { rincian: rincianHasil, stokSetelah: stokSetelahFinal };
+}
+
+// ===========================================================================
+// catatPenyesuaianOpnameItem / catatPenyesuaianOpnameLot — BARU (27 Agt
+// 2026, §26.4, Tahap 4). Dipakai Scan Opname (`vue-scan-opname.js`).
+//
+// KEPUTUSAN GURU (§26.0 poin 5, "Opsi B"): efek Scan Opname ke stok BUKAN
+// override diam-diam — SELALU tercatat sebagai pergerakan "Penyesuaian" di
+// `kartu_stok_bahan_aksesoris` (ledger yang SUDAH ADA, dipakai bareng
+// semua pergerakan lain — masuk dari Nota, keluar dari Pemakaian, sekarang
+// + Penyesuaian dari Opname), supaya auditable & konsisten — BUKAN koleksi
+// baru terpisah.
+//
+// Sesuai aturan yang SUDAH didokumentasikan di `catatPergerakanKartuStok()`
+// di atas ("JANGAN PERNAH update stok_akhir langsung dari tempat lain"),
+// KEDUA fungsi ini — BUKAN kode ad-hoc di `vue-scan-opname.js` — adalah
+// SATU-SATUNYA jalur yang boleh mengubah stok_akhir/qty_sisa akibat
+// opname, konsisten dengan `catatPergerakanKartuStok()`/
+// `catatPemakaianDariAlokasi()` di atas.
+//
+// Input-nya SENGAJA "qty fisik yang ditemukan" (bukan selisihnya) — lebih
+// natural buat karyawan yang lagi hitung fisik ("saya hitung ketemu 12",
+// bukan "sistem kurang 3 dari fisik") — delta dihitung OTOMATIS di sini
+// (fisik - sistem). Kalau delta 0 (stok sudah sesuai), TIDAK ADA yang
+// ditulis sama sekali (tidak ada baris pergerakan buat "tidak ada
+// perubahan") — pemanggil (vue-scan-opname.js) cukup tampilkan pesan
+// "sudah sesuai" ke user.
+// ---------------------------------------------------------------------------
+
+// catatPenyesuaianOpnameItem — item BUKAN lot (opname per ITEM, bandingkan
+// ke `stok_akhir` langsung).
+export async function catatPenyesuaianOpnameItem({ bahanId, namaBahan, satuan, qtyFisik, keterangan }) {
+  const refBahan = doc(db, 'master_bahan_aksesoris', bahanId);
+  let hasil = { delta: 0, stokSebelum: 0, stokSetelah: 0 };
+  await runTransaction(db, async (tx) => {
+    const snapBahan = await tx.get(refBahan);
+    const stokSebelum = snapBahan.exists() ? (parseFloat(snapBahan.data().stok_akhir) || 0) : 0;
+    const delta = Math.round((qtyFisik - stokSebelum) * 100) / 100;
+    hasil = { delta, stokSebelum, stokSetelah: qtyFisik };
+    if (delta === 0) return; // sudah sesuai, tidak menulis apapun
+    tx.set(refBahan, { stok_akhir: qtyFisik }, { merge: true });
+    const refGerak = doc(collection(db, 'kartu_stok_bahan_aksesoris'));
+    tx.set(refGerak, {
+      bahan_aksesoris_id: bahanId, nama_bahan: namaBahan,
+      tanggal: new Date().toISOString().slice(0, 10),
+      jenis: delta > 0 ? 'masuk' : 'keluar', qty: Math.abs(delta),
+      satuan: satuan || '', sumber: 'Penyesuaian (Scan Opname)', no_pembelian: '',
+      keterangan: (keterangan ? keterangan + ' — ' : '') + `Opname: sistem ${stokSebelum} -> fisik ${qtyFisik}`,
+      saldo_setelah: qtyFisik,
+      dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
+    });
+  });
+  return hasil;
+}
+
+// catatPenyesuaianOpnameLot — item LOT (opname PER ROLL, keputusan Guru
+// §26.0 poin 5 — "tiap kode_lot dihitung ulang sendiri-sendiri, bukan 1
+// angka gabungan per bahan"). qty_sisa roll itu SENDIRI diganti ke qty
+// fisik, `stok_akhir` bahan induknya ikut bergeser sebesar delta yang SAMA
+// (karena stok_akhir = jumlah SEMUA roll aktifnya).
+export async function catatPenyesuaianOpnameLot({ lotId, qtyFisik, keterangan }) {
+  const refLot = doc(db, 'lot_bahan_aksesoris', lotId);
+  let hasil = { delta: 0, kodeLot: '', qtySisaSebelum: 0, qtySisaSetelah: 0 };
+  await runTransaction(db, async (tx) => {
+    const snapLot = await tx.get(refLot);
+    if (!snapLot.exists()) throw new Error('Data roll/lot ini sudah tidak ada (mungkin dihapus). Coba scan ulang.');
+    const dataLot = snapLot.data();
+    const refBahan = doc(db, 'master_bahan_aksesoris', dataLot.bahan_aksesoris_id);
+    const snapBahan = await tx.get(refBahan);
+    const qtySisaSebelum = parseFloat(dataLot.qty_sisa) || 0;
+    const delta = Math.round((qtyFisik - qtySisaSebelum) * 100) / 100;
+    hasil = { delta, kodeLot: dataLot.kode_lot || '', qtySisaSebelum, qtySisaSetelah: qtyFisik };
+    if (delta === 0) return; // sudah sesuai, tidak menulis apapun
+    tx.update(refLot, { qty_sisa: qtyFisik, status: qtyFisik <= 0 ? 'habis' : 'aktif' });
+    const stokAkhirSebelum = snapBahan.exists() ? (parseFloat(snapBahan.data().stok_akhir) || 0) : 0;
+    const stokAkhirSetelah = stokAkhirSebelum + delta;
+    tx.set(refBahan, { stok_akhir: stokAkhirSetelah }, { merge: true });
+    const refGerak = doc(collection(db, 'kartu_stok_bahan_aksesoris'));
+    tx.set(refGerak, {
+      bahan_aksesoris_id: dataLot.bahan_aksesoris_id, nama_bahan: dataLot.nama_bahan || '',
+      tanggal: new Date().toISOString().slice(0, 10),
+      jenis: delta > 0 ? 'masuk' : 'keluar', qty: Math.abs(delta),
+      satuan: dataLot.satuan || '', sumber: 'Penyesuaian (Scan Opname per Roll)', no_pembelian: '',
+      keterangan: (keterangan ? keterangan + ' — ' : '') + `Roll ${dataLot.kode_lot || ''}: sistem ${qtySisaSebelum} -> fisik ${qtyFisik}`,
+      saldo_setelah: stokAkhirSetelah,
+      rincian_lot: [{ lot_id: lotId, kode_lot: dataLot.kode_lot || '', sisa_setelah: qtyFisik }],
+      dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
+    });
+  });
+  return hasil;
 }
 
 // ---------------------------------------------------------------------------
@@ -1512,22 +1643,9 @@ const OrderBelanjaScreen = {
     // internal library), baru dikirim ke window print sebagai <img> statis
     // biasa. Window print jadi tidak butuh apa pun dari internet lagi, jadi
     // tidak ada lagi race atau ketergantungan CDN pada saat mencetak.
-    function buatQrDataUrl(teks) {
-      if (typeof QRCode === 'undefined') return '';
-      const tmp = document.createElement('div');
-      tmp.style.cssText = 'position:absolute; left:-9999px; top:-9999px; width:160px; height:160px;';
-      document.body.appendChild(tmp);
-      let dataUrl = '';
-      try {
-        new QRCode(tmp, { text: String(teks || ''), width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
-        const canvas = tmp.querySelector('canvas');
-        if (canvas) dataUrl = canvas.toDataURL('image/png');
-      } catch (e) {
-        console.error('Gagal generate QR untuk kode_lot:', teks, e);
-      }
-      document.body.removeChild(tmp);
-      return dataUrl;
-    }
+    // `buatQrDataUrl()` sendiri DIPINDAH ke level modul (§26.3, Tahap 3,
+    // lihat komentar di sana) — dipakai langsung dari closure di sini,
+    // tidak perlu didefinisikan ulang.
     function cetakLabelLot(daftarLot) {
       if (!daftarLot || daftarLot.length === 0) return;
       if (typeof QRCode === 'undefined') {
@@ -1816,6 +1934,254 @@ const RiwayatHargaPembelianManager = {
 };
 
 // ---------------------------------------------------------------------------
+// CetakLabelManager — menu "Cetak Label" (BARU, 27 Agt 2026, §26.3,
+// Tahap 3). Cari 1 item Bahan/Aksesoris (dropdown-cari) lalu cetak label
+// fisik (QR + teks) buat ditempel:
+//   - Item `pakai_lot_tracking` (qty roll): tampilkan tabel checkbox
+//     SEMUA roll/lot-nya (AKTIF *dan* SUDAH HABIS — Guru eksplisit: biar
+//     bisa cetak ULANG label yang hilang fisik walau datanya sudah habis
+//     di sistem), centang 1/lebih lalu cetak — 1 label per kode_lot,
+//     PERSIS format `cetakLabelLot()` di OrderBelanjaScreen di atas.
+//   - Item BUKAN lot (checkbox di sini SENGAJA tidak dimunculkan sama
+//     sekali, bukan cuma disabled — Guru: "kalau yg tidak qty roll maka
+//     dropdown cari checkbox jangan aktif"): cetak 1 label ITEM (bukan
+//     roll), QR isinya `id_tampil` — barang jenis ini SEBELUMNYA TIDAK
+//     PERNAH punya kode/QR sama sekali (prasyarat yang disepakati di
+//     §26.0 poin 6), jadi ini QR PERTAMA buat item non-lot, dipakai nanti
+//     buat discan di Scan Opname/Scan Persiapan (§26, Tahap 4/5).
+// Tiap kali tombol Cetak ditekan, 1 baris log ditulis ke koleksi BARU
+// `log_cetak_label` (tanggal, nama barang, jumlah label, jenis, dicetak
+// oleh) — Guru KONFIRMASI oke pakai koleksi baru (§26.0 poin 4). Riwayat
+// log ditampilkan sebagai tabel READ-ONLY paginasi di bawah form (pola
+// sama seperti RiwayatHargaPembelianManager di atas).
+// ---------------------------------------------------------------------------
+const MENU_ID_CETAK_LABEL = 'stock_cetak_label';
+// ambilSemuaLotByBahan — BEDA dari `ambilLotAktif()` (export di atas,
+// dipakai Kartu Stok) yang CUMA ambil status:'aktif'. Di sini SENGAJA
+// ambil SEMUA status (aktif + habis) karena tujuannya reprint label fisik
+// yang hilang, termasuk buat roll yang datanya sudah habis di sistem.
+// TIDAK diekspor — cuma dipakai di komponen ini, tidak ada file lain yang
+// butuh varian "semua status" ini.
+async function ambilSemuaLotByBahan(bahanId) {
+  const snap = await getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('bahan_aksesoris_id', '==', bahanId)));
+  const lots = []; snap.forEach(d => lots.push({ id: d.id, ...d.data() }));
+  lots.sort((a, b) => (b.tanggal_masuk || '').localeCompare(a.tanggal_masuk || '') || ((b.dibuat_pada?.seconds || 0) - (a.dibuat_pada?.seconds || 0)));
+  return lots;
+}
+function formatTanggalLog(ts) {
+  if (ts && typeof ts.seconds === 'number') return new Date(ts.seconds * 1000).toLocaleString('id-ID');
+  return '-';
+}
+const CetakLabelManager = {
+  components: { DropdownCari },
+  setup() {
+    const daftarBahan = ref([]);
+    const bahanEntry = ref('');
+    const memuatDaftarBahan = ref(false);
+    const opsiBahanMap = computed(() => {
+      const map = new Map();
+      daftarBahan.value.forEach(b => {
+        const label = formatNamaBahan(b) + (b.id_tampil ? ` (${b.id_tampil})` : '');
+        map.set(label, b);
+      });
+      return map;
+    });
+    const opsiBahanNama = computed(() => Array.from(opsiBahanMap.value.keys()));
+    const bahanTerpilih = computed(() => opsiBahanMap.value.get(bahanEntry.value) || null);
+
+    const daftarLot = ref([]);
+    const memuatLot = ref(false);
+    const lotDicentang = reactive({});
+    async function muatUlangLot() {
+      lotDicentang && Object.keys(lotDicentang).forEach(k => delete lotDicentang[k]);
+      if (!bahanTerpilih.value || !bahanTerpilih.value.pakai_lot_tracking) { daftarLot.value = []; return; }
+      memuatLot.value = true;
+      try { daftarLot.value = await ambilSemuaLotByBahan(bahanTerpilih.value.id); }
+      catch (e) { console.error('Gagal ambil daftar lot:', e); daftarLot.value = []; }
+      memuatLot.value = false;
+    }
+    watch(bahanEntry, muatUlangLot);
+    const lotTercentang = computed(() => daftarLot.value.filter(l => lotDicentang[l.id]));
+    function toggleSemuaLot(v) { daftarLot.value.forEach(l => { lotDicentang[l.id] = v; }); }
+
+    const menuId = MENU_ID_CETAK_LABEL;
+    const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
+    const mencetak = ref(false);
+
+    const paginasiLog = usePaginasiFirestore(db, 'log_cetak_label', {
+      perHalaman: 10, urutkanField: 'tanggal', urutkanArah: 'desc', cariField: 'nama_barang',
+      petakan: (id, d) => ({ id, ...d })
+    });
+
+    async function catatLog(namaBarang, jumlah, jenis) {
+      try {
+        await addDoc(collection(db, 'log_cetak_label'), {
+          tanggal: serverTimestamp(), nama_barang: namaBarang, jumlah_label: jumlah, jenis,
+          dicetak_oleh: window.currentUser?.email || null
+        });
+        await paginasiLog.muatUlang();
+      } catch (e) { console.error('Gagal catat log Cetak Label:', e); }
+    }
+
+    async function cetak() {
+      if (!bahanTerpilih.value) return alert('Cari & pilih Bahan/Aksesoris dulu.');
+      if (typeof QRCode === 'undefined') {
+        alert('Library pembuat QR belum siap dimuat. Coba refresh halaman (Ctrl+Shift+R) lalu ulangi.');
+        return;
+      }
+      const b = bahanTerpilih.value;
+      let daftarCetak = [];
+      let jenis = '';
+      if (b.pakai_lot_tracking) {
+        if (lotTercentang.value.length === 0) return alert('Centang minimal 1 roll/lot yang mau dicetak labelnya dulu.');
+        jenis = 'roll';
+        daftarCetak = lotTercentang.value.map(l => ({
+          kode: l.kode_lot,
+          nama: formatNamaBahan(b),
+          info: `${l.qty ?? ''} ${b.satuan_pemakaian || ''} &middot; ${l.tanggal_masuk || ''}${l.status !== 'aktif' ? ' &middot; SUDAH HABIS (cetak ulang)' : ''}`
+        }));
+      } else {
+        if (!b.id_tampil) return alert('Item ini belum punya ID Tampil (id_tampil kosong) — cek ulang data Bahan/Aksesorisnya.');
+        jenis = 'item';
+        daftarCetak = [{
+          kode: b.id_tampil,
+          nama: formatNamaBahan(b),
+          info: b.satuan_pemakaian || ''
+        }];
+      }
+      mencetak.value = true;
+      try {
+        const labelsHtml = daftarCetak.map(l => {
+          const qrDataUrl = buatQrDataUrl(l.kode);
+          const qrHtml = qrDataUrl
+            ? `<img src="${qrDataUrl}" width="80" height="80" alt="QR ${l.kode}" />`
+            : `<div style="font-size:9px;">(QR gagal dibuat)</div>`;
+          return `
+          <div class="label">
+            <div class="qr">${qrHtml}</div>
+            <div class="teks">
+              <div class="kode">${l.kode}</div>
+              <div class="nama">${l.nama}</div>
+              <div class="info">${l.info}</div>
+            </div>
+          </div>`;
+        }).join('');
+        const w = window.open('', '_blank');
+        if (!w) { alert('Popup diblokir browser. Izinkan popup untuk mencetak label.'); return; }
+        w.document.write(`<html><head><title>Label ${jenis === 'roll' ? 'Roll/Lot' : 'Barang'}</title>
+          <style>
+            body{font-family:Arial,sans-serif; margin:0; padding:12px;}
+            .label{display:inline-flex; align-items:center; gap:10px; border:1px dashed #999; border-radius:6px; padding:8px 12px; margin:4px; width:280px; box-sizing:border-box; page-break-inside:avoid; vertical-align:top;}
+            .qr{width:80px; height:80px; flex-shrink:0; display:flex; align-items:center; justify-content:center;}
+            .qr img{width:80px; height:80px; display:block;}
+            .teks{font-size:11px; line-height:1.4;}
+            .kode{font-weight:700; font-size:13px;}
+            .nama{font-size:11px;}
+            .info{font-size:10px; color:#555;}
+          </style>
+          </head><body>
+          ${labelsHtml}
+          <script>
+            window.onload = function() { setTimeout(function () { window.print(); }, 300); };
+          <\/script>
+          </body></html>`);
+        w.document.close();
+        await catatLog(formatNamaBahan(b), daftarCetak.length, jenis);
+      } finally {
+        mencetak.value = false;
+      }
+    }
+
+    onMounted(async () => {
+      await window.authReady;
+      memuatDaftarBahan.value = true;
+      daftarBahan.value = await ambilDaftarBahanAksesorisLengkap();
+      memuatDaftarBahan.value = false;
+      await paginasiLog.muatUlang();
+    });
+
+    return {
+      daftarBahan, bahanEntry, memuatDaftarBahan, opsiBahanNama, bahanTerpilih,
+      daftarLot, memuatLot, lotDicentang, lotTercentang, toggleSemuaLot,
+      bolehCetak, mencetak, cetak, paginasiLog, formatTanggalLog
+    };
+  },
+  template: `
+    <div class="gc-card" style="padding:14px; margin-bottom:14px;">
+      <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Cetak Label</label>
+      <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Cari Bahan/Aksesoris, lalu cetak ulang label fisiknya (QR). Untuk item dengan Qty per Roll/Lot, pilih dulu roll mana yang mau dicetak (bisa lebih dari 1, termasuk roll yang datanya sudah habis kalau labelnya hilang). Untuk item biasa, langsung cetak 1 label per item.</p>
+
+      <div class="gc-field" style="max-width:420px; margin-bottom:14px;">
+        <label>Bahan / Aksesoris</label>
+        <dropdown-cari v-model="bahanEntry" :opsi="opsiBahanNama" placeholder="Cari nama barang..." />
+      </div>
+
+      <div v-if="bahanTerpilih">
+        <div v-if="bahanTerpilih.pakai_lot_tracking">
+          <div v-if="memuatLot" style="font-size:12px; color:var(--text-faint); padding:8px 0;">Memuat daftar roll/lot...</div>
+          <div v-else-if="daftarLot.length === 0" style="font-size:12px; color:var(--text-faint); padding:8px 0;">Belum ada roll/lot tercatat untuk item ini.</div>
+          <div v-else style="overflow-x:auto; margin-bottom:12px;">
+            <div style="margin-bottom:6px;">
+              <button @click="toggleSemuaLot(true)" class="btn-outline" style="padding:4px 10px; font-size:11px; margin-right:6px;">Pilih Semua</button>
+              <button @click="toggleSemuaLot(false)" class="btn-outline" style="padding:4px 10px; font-size:11px;">Kosongkan</button>
+            </div>
+            <table class="gc-table" style="width:100%; font-size:11.5px;">
+              <thead><tr><th style="width:32px;"></th><th>Kode Lot</th><th>Qty Sisa</th><th>Tanggal Masuk</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr v-for="l in daftarLot" :key="l.id">
+                  <td><input type="checkbox" v-model="lotDicentang[l.id]" style="accent-color:var(--burgundy); width:14px; height:14px;"></td>
+                  <td>{{ l.kode_lot }}</td>
+                  <td>{{ l.qty_sisa ?? l.qty ?? '-' }}</td>
+                  <td>{{ l.tanggal_masuk || '-' }}</td>
+                  <td><span class="tag" :class="l.status === 'aktif' ? 'ok' : 'neutral'">{{ l.status === 'aktif' ? 'Aktif' : 'Habis' }}</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <p v-else style="font-size:11.5px; color:var(--text-faint); margin-bottom:12px;"><i class="fas fa-info-circle" style="margin-right:4px;"></i>Item ini bukan item Qty per Roll/Lot — cetak 1 label untuk item ini (kode: {{ bahanTerpilih.id_tampil || '-' }}).</p>
+
+        <button v-if="bolehCetak" @click="cetak" :disabled="mencetak" class="btn-primary" style="padding:9px 18px; font-size:12.5px;"><i class="fas fa-print" style="margin-right:6px;"></i>{{ mencetak ? 'Mencetak...' : 'Cetak Label' }}</button>
+        <p v-else style="font-size:11.5px; color:var(--text-faint);">Akun ini tidak punya izin cetak untuk menu ini.</p>
+      </div>
+    </div>
+
+    <div class="gc-card" style="padding:14px;">
+      <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Riwayat Cetak Label</label>
+
+      <div style="position:relative; max-width:320px; margin-bottom:12px;">
+        <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:12px;"></i>
+        <input :value="paginasiLog.cariTeks.value" @input="paginasiLog.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama barang (awalan)..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+      </div>
+
+      <div v-if="paginasiLog.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+      <div v-else-if="paginasiLog.errorPaginasi.value" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasiLog.errorPaginasi.value }}</div>
+      <div v-else-if="paginasiLog.dataHalaman.value.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada riwayat cetak label.</div>
+      <div v-else style="overflow-x:auto;">
+        <table class="gc-table" style="width:100%; font-size:11.5px;">
+          <thead><tr><th>Tanggal</th><th>Nama Barang</th><th>Jumlah Label</th><th>Jenis</th><th>Dicetak Oleh</th></tr></thead>
+          <tbody>
+            <tr v-for="r in paginasiLog.dataHalaman.value" :key="r.id">
+              <td>{{ formatTanggalLog(r.tanggal) }}</td>
+              <td>{{ r.nama_barang }}</td>
+              <td>{{ r.jumlah_label }}</td>
+              <td>{{ r.jenis === 'roll' ? 'Roll/Lot' : 'Item' }}</td>
+              <td>{{ r.dicetak_oleh || '-' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-if="!paginasiLog.memuat.value && paginasiLog.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
+        <button class="icon-btn" :disabled="paginasiLog.nomorHalaman.value <= 1" @click="paginasiLog.halamanSebelumnya"><i class="fas fa-chevron-left"></i></button>
+        <span style="font-size:12px; color:var(--text-muted);">Halaman {{ paginasiLog.nomorHalaman.value }}</span>
+        <button class="icon-btn" :disabled="!paginasiLog.adaBerikutnya.value" @click="paginasiLog.halamanBerikutnya"><i class="fas fa-chevron-right"></i></button>
+      </div>
+    </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
 // Mount functions — 1 per sub-menu (pola sama seperti file Zevanic House lain)
 // ---------------------------------------------------------------------------
 const AppAliasPembelian = { components: { AliasPembelianManager }, template: `<alias-pembelian-manager />` };
@@ -1848,4 +2214,13 @@ window.pastikanMountRiwayatHargaPembelian = function() {
   if (vmRiwayatHargaPembelian) return;
   const mountPoint = document.getElementById('vue-riwayat-harga-pembelian');
   if (mountPoint) vmRiwayatHargaPembelian = createApp(AppRiwayatHargaPembelian).mount('#vue-riwayat-harga-pembelian');
+};
+
+// BARU (27 Agt 2026, §26.3, Tahap 3) — Cetak Label.
+const AppCetakLabel = { components: { CetakLabelManager }, template: `<cetak-label-manager />` };
+let vmCetakLabel = null;
+window.pastikanMountCetakLabel = function() {
+  if (vmCetakLabel) return;
+  const mountPoint = document.getElementById('vue-cetak-label');
+  if (mountPoint) vmCetakLabel = createApp(AppCetakLabel).mount('#vue-cetak-label');
 };
