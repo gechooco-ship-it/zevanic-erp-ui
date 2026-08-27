@@ -9,6 +9,12 @@
 // REVISI (27 Agt 2026, §27.1 — lihat STATUS-PROYEK.md §27.1): grid semua
 // jadi 4 kolom, kolom pencarian DIHAPUS, akordeon per kategori DIGANTI
 // tampil-langsung Top-4 + "Lihat Semua" (TANPA perlu tap buka dulu).
+// REVISI LAGI (27 Agt 2026, sesi lanjutan §27.2): urutan KATEGORI (bukan
+// cuma urutan menu di dalamnya) sekarang juga bisa diatur Owner lewat
+// Config Akses > "Urutan Menu di Home Mobile & Sidebar Desktop" — urutan
+// yang SAMA dipakai juga oleh sidebar desktop (lihat
+// window.terapkanUrutanMenuDesktop di js/auth.js). Badge jumlah menu di
+// samping nama kategori DIHAPUS (sudah terwakili "Lihat Semua (N)").
 // Header sapaan (vue-header-mobile.js), kartu shift, dan Quote Card TIDAK
 // disentuh sama sekali — perombakan MULAI TEPAT SETELAH Quote Card:
 //   1. "Favorit Saya" — GANTI baris Shortcut lama (5 ikon: Clock In/Out,
@@ -24,7 +30,8 @@
 //      kebenaran, lihat catatan di vue-components.js) — TAMPIL LANGSUNG
 //      (§27.1, GANTI akordeon default-tertutup versi awal), nampilkan
 //      Top-4 menu (urutan diatur Owner lewat Config Akses > "Urutan Menu
-//      di Home Mobile"), sisanya lewat tombol "Lihat Semua".
+//      di Home Mobile"), sisanya lewat tombol "Lihat Semua". Urutan
+//      KATEGORI-nya sendiri BARU §27.2 (lihat atas).
 // Pola "tampil semua, yang tidak berhak dikunci gembok" (17 Agt 2026)
 // TETAP dipakai apa adanya — cuma sumber & susunan tampilannya yang
 // berubah.
@@ -32,13 +39,13 @@
 import { createApp, ref, reactive, computed, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-// ?v=3 (BARU 27 Agt 2026, §27) — daftarMenuGroups() di vue-components.js
-// berubah cukup besar hari ini (lihat catatan di atas). File itu sendiri
-// TIDAK punya skema versi baku (beberapa importer lain sudah pakai ?v=2
-// sejak §25.12) — sengaja dipakai angka BARU (bukan ikut v=2 yang sudah
-// ada) supaya browser Guru DIJAMIN ambil kopi paling baru, apapun yang
-// sempat ke-cache importer lain sebelumnya.
-import { daftarMenuGroups, PengumumanCarousel, QuoteCard } from './vue-components.js?v=3';
+// ?v=4 (§27.2) — daftarMenuGroups() di vue-components.js berubah lagi
+// (parameter urutanKustomKategori BARU). File itu sendiri TIDAK punya
+// skema versi baku (beberapa importer lain masih ?v=2 atau tanpa versi
+// sama sekali — quirk lama, sengaja tidak ikut dibereskan di sini) —
+// dipakai angka BARU tiap kali fungsi yang dipakai vue-home.js berubah,
+// supaya browser Guru DIJAMIN ambil kopi paling baru untuk Home mobile.
+import { daftarMenuGroups, PengumumanCarousel, QuoteCard } from './vue-components.js?v=4';
 
 const AppHome = {
   components: { PengumumanCarousel, QuoteCard },
@@ -86,10 +93,12 @@ const AppHome = {
     async function ambilUrutanKustom() {
       try {
         const snap = await getDoc(doc(db, 'pengaturan_sistem', 'urutan_menu_home'));
-        return snap.exists() ? (snap.data().perKategori || {}) : {};
+        if (!snap.exists()) return { perKategori: {}, urutanKategori: [] };
+        const data = snap.data();
+        return { perKategori: data.perKategori || {}, urutanKategori: data.urutanKategori || [] };
       } catch (e) {
         console.error('Gagal muat urutan menu Home mobile:', e);
-        return {};
+        return { perKategori: {}, urutanKategori: [] };
       }
     }
 
@@ -104,8 +113,8 @@ const AppHome = {
     async function muatTampilan() {
       const status = await window.cekStatusClockInSaya(window.currentUser?.email || '');
       sudahAbsenHariIni.value = status.aktif;
-      const urutanKustom = await ambilUrutanKustom();
-      menuGroups.value = daftarMenuGroups(window.currentUser?.role, urutanKustom);
+      const { perKategori: urutanKustom, urutanKategori: urutanKatKustom } = await ambilUrutanKustom();
+      menuGroups.value = daftarMenuGroups(window.currentUser?.role, urutanKustom, urutanKatKustom);
       // Sinkronkan favorit tersimpan dengan menu yang benar-benar ada
       // sekarang (menu bisa saja sudah dihapus/diganti id-nya) — id yang
       // sudah tidak ketemu lagi otomatis dibuang dari daftar favorit,
@@ -317,7 +326,6 @@ const AppHome = {
       <div v-for="grup in menuGroups" :key="grup.nama" style="margin-bottom:20px;">
         <div style="display:flex; align-items:center; margin-bottom:10px;">
           <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin:0; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">{{ grup.nama }}</h3>
-          <span style="font-size:10px; font-weight:800; color:var(--burgundy); background:var(--burgundy-light); padding:2px 8px; border-radius:999px; margin-left:8px;">{{ grup.items.length }}</span>
         </div>
         <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px;">
           <button v-for="item in itemsTampil(grup)" :key="item.menuId" @click="klikMenu(item)" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer; position:relative;" :style="item.terkunci ? 'opacity:.5;' : ''">

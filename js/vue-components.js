@@ -666,10 +666,21 @@ export const GudangRingkas = {
 // sebelum orang ketuk "Lihat Semua" (lihat vue-home.js). Menu yang belum
 // ada di urutan kustom jatuh ke urutan asli DAFTAR_MENU, di posisi paling
 // akhir (self-healing kalau ada menu baru).
+//
+// `urutanKustomKategori` (BARU 27 Agt 2026, sesi lanjutan §27.2, opsional):
+// array nama kategori, urutan GRUP-nya sendiri (mis. Zevanic House di atas
+// Master Absensi) — dari panel yang SAMA ("Urutan Kategori (Grup Menu)").
+// Kategori yang belum diatur jatuh ke urutan asli KATEGORI_URUTAN di posisi
+// paling akhir (self-healing sama seperti item). Urutan yang SAMA ini juga
+// dipakai sidebar desktop, lihat window.terapkanUrutanMenuDesktop di
+// js/auth.js.
 // ---------------------------------------------------------------------------
-export function daftarMenuGroups(role, urutanKustomPerKategori) {
+export function daftarMenuGroups(role, urutanKustomPerKategori, urutanKustomKategori) {
   const r = (role || 'operator').toLowerCase();
   const urutanKustom = urutanKustomPerKategori || {};
+  const urutanKatKustom = urutanKustomKategori || [];
+  const posisiKat = {};
+  urutanKatKustom.forEach((k, idx) => { posisiKat[k] = idx; });
 
   const semuaGroup = KATEGORI_URUTAN
     .filter(k => k !== 'Umum')
@@ -688,7 +699,15 @@ export function daftarMenuGroups(role, urutanKustomPerKategori) {
       });
       return { nama: kategori, items };
     })
-    .filter(g => g.items.length > 0);
+    .filter(g => g.items.length > 0)
+    .sort((a, b) => {
+      const pa = posisiKat[a.nama];
+      const pb = posisiKat[b.nama];
+      if (pa !== undefined && pb !== undefined) return pa - pb;
+      if (pa !== undefined) return -1;
+      if (pb !== undefined) return 1;
+      return 0;
+    });
 
   // PERUBAHAN 17 Agt 2026 (khusus tampilan Home mobile): dulu grup/menu
   // yang tidak boleh diakses role ini langsung DIHILANGKAN dari daftar.

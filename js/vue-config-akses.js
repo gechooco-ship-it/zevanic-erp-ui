@@ -259,14 +259,27 @@ const AppConfigAkses = {
     const urutanMenu = reactive({});
     const urutanTerbuka = reactive({});
     const menyimpanUrutan = ref(false);
+    // BARU (27 Agt 2026, sesi lanjutan §27.2) — urutanKategoriArr: urutan
+    // KATEGORI/GRUP itu sendiri (mis. Zevanic House di atas/bawah Master
+    // Absensi), TERPISAH dari urutanMenu (urutan menu DI DALAM 1 kategori,
+    // sudah ada sejak §27.1). Disimpan 1 dokumen yang SAMA (field baru
+    // `urutanKategori`, array nama kategori) — dipakai bareng oleh Home
+    // mobile (urutan grup di grid) DAN sidebar desktop (urutan grup +
+    // urutan tombol tab di dalam halaman Master Absensi/Keuangan/Karyawan/
+    // Zevanic House, lihat window.terapkanUrutanMenuDesktop di auth.js).
+    const urutanKategoriArr = ref([]);
     function labelMenu(id) { const m = DAFTAR_MENU.find(x => x.id === id); return m ? m.label : id; }
     async function muatUrutanMenu() {
       const kategoriDipakai = KATEGORI_URUTAN.filter(k => k !== 'Umum');
       kategoriDipakai.forEach(k => { urutanTerbuka[k] = false; });
       let perKategoriTersimpan = {};
+      let urutanKategoriTersimpan = [];
       try {
         const snap = await getDoc(doc(db, 'pengaturan_sistem', 'urutan_menu_home'));
-        if (snap.exists()) perKategoriTersimpan = snap.data().perKategori || {};
+        if (snap.exists()) {
+          perKategoriTersimpan = snap.data().perKategori || {};
+          urutanKategoriTersimpan = snap.data().urutanKategori || [];
+        }
       } catch (e) {
         console.error('Gagal muat urutan menu Home mobile:', e);
       }
@@ -276,6 +289,12 @@ const AppConfigAkses = {
         const belumAda = idsAsli.filter(id => !tersimpan.includes(id));
         urutanMenu[k] = [...tersimpan, ...belumAda];
       });
+      // Self-healing sama seperti urutanMenu: kategori tersimpan yang masih
+      // valid dipertahankan urutannya, kategori baru (belum pernah diatur)
+      // otomatis nambah di paling akhir.
+      const katTersimpanValid = urutanKategoriTersimpan.filter(k => kategoriDipakai.includes(k));
+      const katBelumAda = kategoriDipakai.filter(k => !katTersimpanValid.includes(k));
+      urutanKategoriArr.value = [...katTersimpanValid, ...katBelumAda];
     }
     function naikkanUrutan(kategori, idx) {
       if (idx <= 0) return;
@@ -287,13 +306,23 @@ const AppConfigAkses = {
       if (idx >= arr.length - 1) return;
       [arr[idx + 1], arr[idx]] = [arr[idx], arr[idx + 1]];
     }
+    function naikkanKategori(idx) {
+      if (idx <= 0) return;
+      const arr = urutanKategoriArr.value;
+      [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+    }
+    function turunkanKategori(idx) {
+      const arr = urutanKategoriArr.value;
+      if (idx >= arr.length - 1) return;
+      [arr[idx + 1], arr[idx]] = [arr[idx], arr[idx + 1]];
+    }
     async function simpanUrutanMenu() {
       menyimpanUrutan.value = true;
       try {
         const perKategori = {};
         KATEGORI_URUTAN.filter(k => k !== 'Umum').forEach(k => { perKategori[k] = urutanMenu[k] || []; });
-        await setDoc(doc(db, 'pengaturan_sistem', 'urutan_menu_home'), { perKategori });
-        alert('Urutan menu Home mobile berhasil disimpan!');
+        await setDoc(doc(db, 'pengaturan_sistem', 'urutan_menu_home'), { perKategori, urutanKategori: urutanKategoriArr.value });
+        alert('Urutan menu Home mobile & desktop berhasil disimpan!');
       } catch (e) {
         console.error('Gagal simpan urutan menu Home mobile:', e);
         alert('Gagal menyimpan urutan menu.');
@@ -405,7 +434,8 @@ const AppConfigAkses = {
       tingkatKeamanan, TINGKAT_KEAMANAN_BAKU,
       menus, KATEGORI_URUTAN, kategoriTerbuka, toggleKategori, menuUntukKategori, cariMenu,
       semuaTercentangKolom, toggleKolomKategori,
-      urutanMenu, urutanTerbuka, menyimpanUrutan, labelMenu, naikkanUrutan, turunkanUrutan, simpanUrutanMenu
+      urutanMenu, urutanTerbuka, menyimpanUrutan, labelMenu, naikkanUrutan, turunkanUrutan, simpanUrutanMenu,
+      urutanKategoriArr, naikkanKategori, turunkanKategori
     };
   },
   template: `
@@ -448,13 +478,25 @@ const AppConfigAkses = {
 
       <div class="gc-card" style="margin-bottom:16px; border:1.5px solid var(--burgundy);">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
-          <h4 class="gc-heading" style="font-size:12.5px; font-weight:700;"><i class="fas fa-arrow-down-wide-short" style="color:var(--burgundy); margin-right:8px;"></i> Urutan Menu di Home Mobile</h4>
+          <h4 class="gc-heading" style="font-size:12.5px; font-weight:700;"><i class="fas fa-arrow-down-wide-short" style="color:var(--burgundy); margin-right:8px;"></i> Urutan Menu di Home Mobile & Sidebar Desktop</h4>
           <button @click="simpanUrutanMenu" :disabled="menyimpanUrutan" class="btn-primary" style="padding:8px 16px; font-size:11.5px;">
             <i class="fas" :class="menyimpanUrutan ? 'fa-spinner fa-spin' : 'fa-save'" style="margin-right:6px;"></i>{{ menyimpanUrutan ? 'Menyimpan...' : 'Simpan Urutan' }}
           </button>
         </div>
-        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Grid Home mobile cuma nampilkan 4 menu paling atas per kategori duluan (sisanya lewat "Lihat Semua") — atur urutannya di sini pakai panah naik/turun. Tidak mempengaruhi urutan sidebar desktop.</p>
-        <div v-for="kategori in KATEGORI_URUTAN.filter(k => k !== 'Umum')" :key="'urutan-'+kategori" style="margin-bottom:10px; border:1px solid var(--line); border-radius:12px; overflow:hidden;">
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Urutan di sini dipakai BARENG untuk grid Home mobile (4 menu paling atas per kategori yang tampil duluan, sisanya lewat "Lihat Semua") DAN posisi tombol di sidebar desktop (termasuk tab di dalam halaman Master Absensi/Keuangan/Karyawan/Zevanic House) — 1x atur, dua-duanya ikut.</p>
+
+        <div style="margin-bottom:14px; border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:var(--ivory-dim);">
+          <p style="font-size:11px; font-weight:700; margin-bottom:8px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Urutan Kategori (Grup Menu)</p>
+          <div v-for="(kategori, idxKat) in urutanKategoriArr" :key="'kat-'+kategori" style="display:flex; align-items:center; justify-content:space-between; padding:6px 8px; border-bottom:1px solid var(--line); gap:8px;">
+            <span style="font-size:12px; flex:1;"><span style="display:inline-block; width:20px; color:var(--text-faint); font-weight:700;">{{ idxKat + 1 }}.</span>{{ kategori }}</span>
+            <span style="display:flex; gap:4px; flex:none;">
+              <button @click="naikkanKategori(idxKat)" :disabled="idxKat===0" style="background:var(--surface); border:1px solid var(--line); border-radius:6px; width:26px; height:26px; cursor:pointer;" :style="idxKat===0 ? 'opacity:.3;' : ''"><i class="fas fa-arrow-up" style="font-size:10px;"></i></button>
+              <button @click="turunkanKategori(idxKat)" :disabled="idxKat === urutanKategoriArr.length - 1" style="background:var(--surface); border:1px solid var(--line); border-radius:6px; width:26px; height:26px; cursor:pointer;" :style="idxKat === urutanKategoriArr.length - 1 ? 'opacity:.3;' : ''"><i class="fas fa-arrow-down" style="font-size:10px;"></i></button>
+            </span>
+          </div>
+        </div>
+
+        <div v-for="kategori in urutanKategoriArr" :key="'urutan-'+kategori" style="margin-bottom:10px; border:1px solid var(--line); border-radius:12px; overflow:hidden;">
           <div @click="urutanTerbuka[kategori] = !urutanTerbuka[kategori]" style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; cursor:pointer; background:var(--ivory-dim);">
             <span style="font-size:12px; font-weight:700;">{{ kategori }} <span style="font-size:10px; color:var(--text-faint); font-weight:600;">({{ (urutanMenu[kategori]||[]).length }} menu)</span></span>
             <i class="fas" :class="urutanTerbuka[kategori] ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-muted); font-size:11px;"></i>

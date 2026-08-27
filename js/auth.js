@@ -756,4 +756,108 @@ window.aturTampilanBerdasarkanRole = function() {
     // WhatsApp/Mail Gateway yang Superuser masih boleh).
     if (menuDeviceKioskBtn) menuDeviceKioskBtn.classList.remove('hidden');
   }
+
+  // BARU (27 Agt 2026, sesi lanjutan §27.2) — samakan urutan sidebar
+  // desktop dengan urutan custom yang diatur Owner lewat Config Akses >
+  // "Urutan Menu di Home Mobile & Sidebar Desktop" (fire-and-forget, tidak
+  // di-await — cuma kosmetik urutan tampil, tidak boleh menunda render
+  // sidebar). Lihat window.terapkanUrutanMenuDesktop di bawah file ini.
+  if (window.terapkanUrutanMenuDesktop) window.terapkanUrutanMenuDesktop();
+};
+
+// BARU (27 Agt 2026, sesi lanjutan §27.2) — terapkanUrutanMenuDesktop():
+// baca 1 dokumen urutan custom yang SAMA dipakai Home mobile
+// (pengaturan_sistem/urutan_menu_home, field perKategori + urutanKategori),
+// lalu SUSUN ULANG posisi DOM tombol sidebar desktop (termasuk tombol tab
+// DI DALAM halaman Master Absensi/Keuangan/Karyawan/Zevanic House) supaya
+// urutannya sama dengan yang diatur Owner. Dipanggil di akhir
+// aturTampilanBerdasarkanRole() tiap kali sidebar role di-render (login,
+// pulih sesi).
+//
+// STRATEGI: cuma REORDER node DOM yang SUDAH ADA (bukan render ulang dari
+// data) — jadi TIDAK mengubah cara kerja pindahTab/pindahSubTab/onclick
+// yang sudah ada sama sekali, cuma urutan tampil visualnya. Tombol yang mau
+// ikut diatur ditandai atribut data-menu-id="<id DAFTAR_MENU>" (1 tombol =
+// 1 menu) atau data-menu-ids="id1,id2,..." (1 tombol mewakili BEBERAPA menu
+// sekaligus — kasus grup Zevanic House yang sub-tabnya lebih dalam lagi,
+// mis. "Data Bahan & Aksesoris"/"Stock & Pembelian"/"Scan": posisi tombol
+// itu dihitung dari index PALING KECIL di antara menu yang diwakilinya).
+// Tombol tanpa data-menu-id/data-menu-ids (mis. "Riwayat Harga
+// Pembelian"/"Kartu Stok" yang tidak terdaftar di DAFTAR_MENU) tetap
+// tampil, otomatis jatuh paling belakang (urutan relatif asli
+// dipertahankan, stable sort) — tidak pernah hilang.
+function _urutkanSiblingMenu(containerEl, urutanIds) {
+  if (!containerEl) return;
+  const posisi = {};
+  (urutanIds || []).forEach((id, idx) => { posisi[id] = idx; });
+  const anak = Array.from(containerEl.children).map((el, idxAsli) => {
+    const idsEl = el.dataset && el.dataset.menuIds
+      ? el.dataset.menuIds.split(',')
+      : (el.dataset && el.dataset.menuId ? [el.dataset.menuId] : null);
+    let key = Infinity;
+    if (idsEl) {
+      idsEl.forEach(id => { if (posisi[id] !== undefined && posisi[id] < key) key = posisi[id]; });
+    }
+    return { el, key, idxAsli };
+  });
+  anak.sort((a, b) => (a.key - b.key) || (a.idxAsli - b.idxAsli));
+  anak.forEach(({ el }) => containerEl.appendChild(el));
+}
+
+window.terapkanUrutanMenuDesktop = async function() {
+  let perKategori = {};
+  let urutanKategori = null;
+  try {
+    const snap = await getDoc(doc(db, 'pengaturan_sistem', 'urutan_menu_home'));
+    if (snap.exists()) {
+      const data = snap.data();
+      perKategori = data.perKategori || {};
+      urutanKategori = data.urutanKategori || null;
+    }
+  } catch (e) {
+    console.error('Gagal muat urutan menu utk sidebar desktop:', e);
+    return;
+  }
+
+  // Lapisan A: urutan GRUP kategori itu sendiri di sidebar kiri (Master
+  // Absensi/Keuangan/Karyawan/Zevanic House/Integrasi). Kategori 'Umum'
+  // (Dashboard/Profile) TIDAK ikut diatur, selalu tetap di atas.
+  const petaGrup = {
+    'Master Absensi': 'navgrp-absensi',
+    'Master Keuangan': 'navgrp-keuangan',
+    'Master Karyawan': 'navgrp-karyawan',
+    'Zevanic House': 'navgrp-zevanic',
+    'Master Integrasi': 'navgrp-integrasi'
+  };
+  if (urutanKategori && urutanKategori.length) {
+    const nav = document.querySelector('.gc-sidebar nav');
+    if (nav) {
+      const posisi = {};
+      urutanKategori.forEach((k, idx) => { const gid = petaGrup[k]; if (gid) posisi[gid] = idx; });
+      const pasangan = Object.values(petaGrup).map((gid, idxAsli) => {
+        const tombol = nav.querySelector(`[data-group="${gid}"]`);
+        const isi = document.getElementById(gid);
+        const key = posisi[gid] !== undefined ? posisi[gid] : Infinity;
+        return { tombol, isi, key, idxAsli };
+      }).filter(p => p.tombol && p.isi);
+      pasangan.sort((a, b) => (a.key - b.key) || (a.idxAsli - b.idxAsli));
+      pasangan.forEach(({ tombol, isi }) => { nav.appendChild(tombol); nav.appendChild(isi); });
+    }
+  }
+
+  // Lapisan B: urutan tombol DI DALAM tiap grup/tab-strip — dipanggil
+  // walaupun urutanKategori belum diatur (biar urutan per-item tetap ikut
+  // walau urutan grup masih default).
+  _urutkanSiblingMenu(document.getElementById('navgrp-integrasi'), perKategori['Master Integrasi']);
+  _urutkanSiblingMenu(document.getElementById('navgrp-zevanic'), perKategori['Zevanic House']);
+  const stripParent = (kelas) => { const el = document.querySelector('.' + kelas); return el ? el.parentElement : null; };
+  _urutkanSiblingMenu(stripParent('sub-absensi-btn'), perKategori['Master Absensi']);
+  _urutkanSiblingMenu(stripParent('sub-keuangan-btn'), perKategori['Master Keuangan']);
+  _urutkanSiblingMenu(stripParent('sub-karyawan-btn'), perKategori['Master Karyawan']);
+  // Sub-tab Zevanic House yang lebih dalam lagi (Data Bahan & Aksesoris,
+  // Stock & Pembelian, Scan) — id2 menunya bagian dari kategori 'Zevanic
+  // House' yang sama, jadi pakai array urutan yang sama juga.
+  _urutkanSiblingMenu(stripParent('sub-zh-databahan-btn'), perKategori['Zevanic House']);
+  _urutkanSiblingMenu(stripParent('sub-zh-stock-btn'), perKategori['Zevanic House']);
+  _urutkanSiblingMenu(stripParent('sub-zh-scan-btn'), perKategori['Zevanic House']);
 };

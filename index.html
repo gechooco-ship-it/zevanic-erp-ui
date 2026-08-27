@@ -130,26 +130,26 @@
         <div id="navgrp-zevanic" class="hidden" style="display:flex; flex-direction:column; gap:2px; padding-left:16px; margin:2px 0 4px;">
           <!-- BARU (27 Agt 2026, §26.1) — Config: lihat js/vue-config.js. Sengaja
                PALING ATAS sesuai urutan yang diminta Guru. -->
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-config', this); pindahSubTab('sub-zh-config','sub-zh-config-jenisbahan')" id="menu-zevanic-config-btn" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-config', this); pindahSubTab('sub-zh-config','sub-zh-config-jenisbahan')" id="menu-zevanic-config-btn" data-menu-id="config_master_data" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-sliders" style="width:17px; text-align:center;"></i> Config
           </button>
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-databahan', this); pindahSubTab('sub-zh-databahan','sub-zh-databahan-entry')" id="menu-zevanic-house-btn" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-databahan', this); pindahSubTab('sub-zh-databahan','sub-zh-databahan-entry')" id="menu-zevanic-house-btn" data-menu-ids="bahan_aksesoris_entry,bahan_aksesoris_list,bahan_aksesoris_rak" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-shirt" style="width:17px; text-align:center;"></i> Data Bahan &amp; Aksesoris
           </button>
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-persiapan', this)" id="menu-zevanic-persiapan-btn" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-persiapan', this)" id="menu-zevanic-persiapan-btn" data-menu-id="persiapan_masalah" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-triangle-exclamation" style="width:17px; text-align:center;"></i> Persiapan Masalah
           </button>
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-stock', this); pindahSubTab('sub-zh-stock','sub-zh-stock-alias')" id="menu-zevanic-stock-btn" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-stock', this); pindahSubTab('sub-zh-stock','sub-zh-stock-alias')" id="menu-zevanic-stock-btn" data-menu-ids="stock_alias_pembelian,stock_list_order_belanja,stock_nota_order_belanja,stock_cetak_label" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-truck-ramp-box" style="width:17px; text-align:center;"></i> Stock &amp; Pembelian
           </button>
           <!-- BARU (27 Agt 2026, §26.2) — Order SPK: lihat js/vue-order-spk.js. -->
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-orderspk', this)" id="menu-zevanic-orderspk-btn" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-orderspk', this)" id="menu-zevanic-orderspk-btn" data-menu-id="order_spk" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-clipboard-list" style="width:17px; text-align:center;"></i> Order SPK
           </button>
           <!-- BARU (27 Agt 2026, §26.4/§26.5) — Scan: 2 tab, Scan Opname
                (js/vue-scan-opname.js) + Scan Persiapan (js/vue-scan-
                persiapan.js, Tahap 5 — TAHAP TERAKHIR dari rencana §26). -->
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-scan', this); pindahSubTab('sub-zh-scan','sub-zh-scan-opname')" id="menu-zevanic-scan-btn" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-scan', this); pindahSubTab('sub-zh-scan','sub-zh-scan-opname')" id="menu-zevanic-scan-btn" data-menu-ids="scan_opname,scan_persiapan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-qrcode" style="width:17px; text-align:center;"></i> Scan
           </button>
         </div>
@@ -158,13 +158,13 @@
           Master Integrasi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
         <div id="navgrp-integrasi" class="hidden" style="display:flex; flex-direction:column; gap:2px; padding-left:16px; margin:2px 0 4px;">
-          <button onclick="pindahTab('tab-whatsapp')" id="menu-whatsapp-btn" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-whatsapp')" id="menu-whatsapp-btn" data-menu-id="whatsapp_gateway" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fab fa-whatsapp" style="width:17px; text-align:center;"></i> WhatsApp
           </button>
-          <button onclick="pindahTab('tab-mail-gateway')" id="menu-mail-gateway-btn" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-mail-gateway')" id="menu-mail-gateway-btn" data-menu-id="mail_gateway" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-envelope" style="width:17px; text-align:center;"></i> Mail Gateway
           </button>
-          <button onclick="pindahTab('tab-device-kiosk')" id="menu-device-kiosk-btn" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-device-kiosk')" id="menu-device-kiosk-btn" data-menu-id="device_kiosk" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-tablet-screen-button" style="width:17px; text-align:center;"></i> List Device Kiosk
           </button>
         </div>
@@ -241,11 +241,11 @@
             <p style="font-size:12px; color:var(--text-muted); margin-top:3px;">Kelola antrean persetujuan, pantau riwayat absensi, rekapitulasi, dan konfigurasi jadwal.</p>
           </div>
           <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar hide-scrollbar" style="padding-top:14px; margin-top:14px; border-top:1px solid var(--line);">
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this)" class="sub-absensi-btn gc-sub-tab-btn"><i class="fas fa-cogs" style="margin-right:6px;"></i> Config Absensi</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this)" class="sub-absensi-btn gc-sub-tab-btn"><i class="fas fa-calendar-alt" style="margin-right:6px;"></i> Penjadwalan</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this)" class="sub-absensi-btn gc-sub-tab-btn active"><i class="fas fa-clock" style="margin-right:6px;"></i> Antrean Absensi</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-lembur', this)" class="sub-absensi-btn gc-sub-tab-btn"><i class="fas fa-business-time" style="margin-right:6px;"></i> Antrean Lembur</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this)" class="sub-absensi-btn gc-sub-tab-btn"><i class="fas fa-chart-bar" style="margin-right:6px;"></i> Riwayat All Absensi</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this)" class="sub-absensi-btn gc-sub-tab-btn" data-menu-id="config_absensi"><i class="fas fa-cogs" style="margin-right:6px;"></i> Config Absensi</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this)" class="sub-absensi-btn gc-sub-tab-btn" data-menu-id="penjadwalan"><i class="fas fa-calendar-alt" style="margin-right:6px;"></i> Penjadwalan</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this)" class="sub-absensi-btn gc-sub-tab-btn active" data-menu-id="antrean_absensi"><i class="fas fa-clock" style="margin-right:6px;"></i> Antrean Absensi</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-lembur', this)" class="sub-absensi-btn gc-sub-tab-btn" data-menu-id="antrean_lembur"><i class="fas fa-business-time" style="margin-right:6px;"></i> Antrean Lembur</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this)" class="sub-absensi-btn gc-sub-tab-btn" data-menu-id="riwayat_absensi"><i class="fas fa-chart-bar" style="margin-right:6px;"></i> Riwayat All Absensi</button>
           </div>
         </div>
 
@@ -278,12 +278,12 @@
 
         <div id="tab-keuangan" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
           <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-antrean', this)" class="sub-keuangan-btn gc-sub-tab-btn active"><i class="fas fa-receipt" style="margin-right:6px;"></i> Antrean Reimburse</button>
-            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-kendaraan', this)" class="sub-keuangan-btn gc-sub-tab-btn"><i class="fas fa-truck" style="margin-right:6px;"></i> Master Kendaraan</button>
-            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-kategori', this)" class="sub-keuangan-btn gc-sub-tab-btn"><i class="fas fa-tags" style="margin-right:6px;"></i> Kategori Keuangan</button>
-            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-reimburse', this)" class="sub-keuangan-btn gc-sub-tab-btn"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i> Riwayat Reimburse</button>
-            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-bensin', this)" class="sub-keuangan-btn gc-sub-tab-btn"><i class="fas fa-gas-pump" style="margin-right:6px;"></i> Riwayat Isi Bensin</button>
-            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-servis', this)" class="sub-keuangan-btn gc-sub-tab-btn"><i class="fas fa-wrench" style="margin-right:6px;"></i> Riwayat Servis</button>
+            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-antrean', this)" class="sub-keuangan-btn gc-sub-tab-btn active" data-menu-id="antrean_reimburse"><i class="fas fa-receipt" style="margin-right:6px;"></i> Antrean Reimburse</button>
+            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-kendaraan', this)" class="sub-keuangan-btn gc-sub-tab-btn" data-menu-id="master_kendaraan"><i class="fas fa-truck" style="margin-right:6px;"></i> Master Kendaraan</button>
+            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-kategori', this)" class="sub-keuangan-btn gc-sub-tab-btn" data-menu-id="master_keuangan"><i class="fas fa-tags" style="margin-right:6px;"></i> Kategori Keuangan</button>
+            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-reimburse', this)" class="sub-keuangan-btn gc-sub-tab-btn" data-menu-id="riwayat_reimburse"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i> Riwayat Reimburse</button>
+            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-bensin', this)" class="sub-keuangan-btn gc-sub-tab-btn" data-menu-id="riwayat_bensin"><i class="fas fa-gas-pump" style="margin-right:6px;"></i> Riwayat Isi Bensin</button>
+            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-servis', this)" class="sub-keuangan-btn gc-sub-tab-btn" data-menu-id="riwayat_servis"><i class="fas fa-wrench" style="margin-right:6px;"></i> Riwayat Servis</button>
           </div>
 
           <div id="sub-keuangan-antrean" class="sub-keuangan-content fade-in space-y-4">
@@ -319,16 +319,16 @@
 
         <div id="tab-superuser" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
           <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', this)" class="sub-karyawan-btn gc-sub-tab-btn active">
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', this)" class="sub-karyawan-btn gc-sub-tab-btn active" data-menu-id="antrean_dakar">
               <i class="fas fa-user-clock" style="margin-right:6px;"></i> Antrean Dakar
             </button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn gc-sub-tab-btn">Config Karyawan</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-info', this)" class="sub-karyawan-btn gc-sub-tab-btn">Config Info</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this)" class="sub-karyawan-btn gc-sub-tab-btn">Daftar Karyawan</button>
-            <button id="btn-sub-karyawan-akses" onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-akses', this)" class="sub-karyawan-btn gc-sub-tab-btn hidden">Config Akses</button>
-            <button id="btn-sub-karyawan-hakakses" onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-hakakses', this)" class="sub-karyawan-btn gc-sub-tab-btn hidden">Hak Akses</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn gc-sub-tab-btn">Slip Gaji</button>
-            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn gc-sub-tab-btn">Payroll</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="config_karyawan">Config Karyawan</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-info', this)" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="config_info">Config Info</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this)" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="daftar_karyawan">Daftar Karyawan</button>
+            <button id="btn-sub-karyawan-akses" onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-akses', this)" class="sub-karyawan-btn gc-sub-tab-btn hidden" data-menu-id="config_akses">Config Akses</button>
+            <button id="btn-sub-karyawan-hakakses" onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-hakakses', this)" class="sub-karyawan-btn gc-sub-tab-btn hidden" data-menu-id="hak_akses">Hak Akses</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="slip_gaji">Slip Gaji</button>
+            <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="payroll">Payroll</button>
           </div>
 
           <div id="sub-karyawan-antrean" class="sub-karyawan-content fade-in mt-4 space-y-4">
@@ -427,10 +427,10 @@
 
           <div id="sub-zevanic-house-databahan" class="sub-zevanic-house-content fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry', this)" class="sub-zh-databahan-btn gc-sub-tab-btn active"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Entry Bahan &amp; Aksesoris</button>
-              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-list', this)" class="sub-zh-databahan-btn gc-sub-tab-btn"><i class="fas fa-list" style="margin-right:6px;"></i> List Bahan &amp; Aksesoris</button>
+              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry', this)" class="sub-zh-databahan-btn gc-sub-tab-btn active" data-menu-id="bahan_aksesoris_entry"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Entry Bahan &amp; Aksesoris</button>
+              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-list', this)" class="sub-zh-databahan-btn gc-sub-tab-btn" data-menu-id="bahan_aksesoris_list"><i class="fas fa-list" style="margin-right:6px;"></i> List Bahan &amp; Aksesoris</button>
               <!-- BARU (25 Agt 2026, §25) — Rak Penyimpanan: lihat js/vue-rak-penyimpanan.js -->
-              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-rak', this)" class="sub-zh-databahan-btn gc-sub-tab-btn"><i class="fas fa-warehouse" style="margin-right:6px;"></i> Rak Penyimpanan</button>
+              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-rak', this)" class="sub-zh-databahan-btn gc-sub-tab-btn" data-menu-id="bahan_aksesoris_rak"><i class="fas fa-warehouse" style="margin-right:6px;"></i> Rak Penyimpanan</button>
             </div>
             <div id="sub-zh-databahan-entry" class="sub-zh-databahan-content fade-in space-y-4">
               <!-- Entry Bahan/Aksesoris: lihat js/vue-bahan-aksesoris.js -->
@@ -453,12 +453,12 @@
 
           <div id="sub-zevanic-house-stock" class="sub-zevanic-house-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-alias', this)" class="sub-zh-stock-btn gc-sub-tab-btn active"><i class="fas fa-tags" style="margin-right:6px;"></i> Alias Pembelian</button>
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-listorder', this)" class="sub-zh-stock-btn gc-sub-tab-btn"><i class="fas fa-cart-shopping" style="margin-right:6px;"></i> List Order Belanja</button>
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', this)" class="sub-zh-stock-btn gc-sub-tab-btn"><i class="fas fa-receipt" style="margin-right:6px;"></i> Nota Order Belanja</button>
+              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-alias', this)" class="sub-zh-stock-btn gc-sub-tab-btn active" data-menu-id="stock_alias_pembelian"><i class="fas fa-tags" style="margin-right:6px;"></i> Alias Pembelian</button>
+              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-listorder', this)" class="sub-zh-stock-btn gc-sub-tab-btn" data-menu-id="stock_list_order_belanja"><i class="fas fa-cart-shopping" style="margin-right:6px;"></i> List Order Belanja</button>
+              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', this)" class="sub-zh-stock-btn gc-sub-tab-btn" data-menu-id="stock_nota_order_belanja"><i class="fas fa-receipt" style="margin-right:6px;"></i> Nota Order Belanja</button>
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-riwayat', this)" class="sub-zh-stock-btn gc-sub-tab-btn"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i> Riwayat Harga Pembelian</button>
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-kartustok', this)" class="sub-zh-stock-btn gc-sub-tab-btn"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Kartu Stok</button>
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-cetaklabel', this)" class="sub-zh-stock-btn gc-sub-tab-btn"><i class="fas fa-print" style="margin-right:6px;"></i> Cetak Label</button>
+              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-cetaklabel', this)" class="sub-zh-stock-btn gc-sub-tab-btn" data-menu-id="stock_cetak_label"><i class="fas fa-print" style="margin-right:6px;"></i> Cetak Label</button>
             </div>
             <div id="sub-zh-stock-alias" class="sub-zh-stock-content fade-in space-y-4">
               <!-- Alias Pembelian: lihat js/vue-stock-pembelian.js -->
@@ -497,8 +497,8 @@
                persiapan.js, Tahap 5 — TAHAP TERAKHIR dari rencana §26). -->
           <div id="sub-zevanic-house-scan" class="sub-zevanic-house-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-              <button onclick="pindahSubTab('sub-zh-scan', 'sub-zh-scan-opname', this)" class="sub-zh-scan-btn gc-sub-tab-btn active"><i class="fas fa-qrcode" style="margin-right:6px;"></i> Scan Opname</button>
-              <button onclick="pindahSubTab('sub-zh-scan', 'sub-zh-scan-persiapan', this)" class="sub-zh-scan-btn gc-sub-tab-btn"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Scan Persiapan</button>
+              <button onclick="pindahSubTab('sub-zh-scan', 'sub-zh-scan-opname', this)" class="sub-zh-scan-btn gc-sub-tab-btn active" data-menu-id="scan_opname"><i class="fas fa-qrcode" style="margin-right:6px;"></i> Scan Opname</button>
+              <button onclick="pindahSubTab('sub-zh-scan', 'sub-zh-scan-persiapan', this)" class="sub-zh-scan-btn gc-sub-tab-btn" data-menu-id="scan_persiapan"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Scan Persiapan</button>
             </div>
             <div id="sub-zh-scan-opname" class="sub-zh-scan-content fade-in space-y-4">
               <div id="vue-scan-opname"></div>
@@ -581,7 +581,7 @@
   <script type="module" src="js/firebase-config.js"></script>
   <script type="module" src="js/app.js"></script>
   <script type="module" src="js/camera.js"></script>
-  <script type="module" src="js/auth.js"></script>
+  <script type="module" src="js/auth.js?v=1"></script>
   <script type="module" src="js/dashboard.js?v=12"></script>
   <script type="module" src="js/vue-order-spk.js?v=2"></script>
   <script type="module" src="js/vue-scan-opname.js?v=1"></script>
@@ -590,7 +590,7 @@
   <script type="module" src="js/vue-config-info.js"></script>
   <script type="module" src="js/vue-config-absensi.js"></script>
   <script type="module" src="js/vue-daftar-karyawan.js"></script>
-  <script type="module" src="js/vue-config-akses.js?v=2"></script>
+  <script type="module" src="js/vue-config-akses.js?v=3"></script>
   <script type="module" src="js/vue-hak-akses.js"></script>
   <script type="module" src="js/vue-antrean-dakar.js"></script>
   <script type="module" src="js/vue-antrean-absensi.js?v=2"></script>
@@ -604,7 +604,7 @@
   <script type="module" src="js/vue-device-kiosk.js"></script>
   <script type="module" src="js/vue-account-profile.js"></script>
   <script type="module" src="js/vue-profile-drawer.js"></script>
-  <script type="module" src="js/vue-home.js?v=2"></script>
+  <script type="module" src="js/vue-home.js?v=3"></script>
   <script type="module" src="js/vue-home-desktop.js"></script>
   <script type="module" src="js/vue-header-mobile.js?v=1"></script>
   <script type="module" src="js/vue-registrasi.js"></script>
