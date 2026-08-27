@@ -22,7 +22,7 @@
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js';
+import { DropdownCari } from './vue-components.js?v=1';
 import { usePaginasiFirestore } from './vue-paginasi.js';
 
 function formStateKosong() {

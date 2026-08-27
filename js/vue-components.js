@@ -126,6 +126,17 @@ export const MasterDataCategory = {
 // props, TIDAK bisa isi teks bebas (kalau item belum ada di daftar, harus
 // ditambah dulu lewat menu Master Data terkait, konsisten dengan pola
 // MasterDataCategory di atas).
+//
+// KOMPONEN INI 100% BUATAN SENDIRI (bukan dari library/SDK/template Vue
+// manapun) — jadi kalau ada perilaku standar combobox yang belum ada,
+// memang harus ditambah manual di sini, bukan setting yang "kelupaan
+// dinyalakan" dari library luar.
+//
+// FIX (27 Agt 2026, laporan Guru): SEBELUM INI navigasi keyboard (panah
+// atas/bawah pas ngetik cari, lalu Enter buat pilih) BELUM ADA SAMA
+// SEKALI — cuma bisa pilih pakai mouse/klik. Ditambah `indexSorot` (state
+// baru) buat highlight 1 opsi yang lagi "disorot" panah, + handler
+// @keydown Arrow Up/Down/Enter/Escape di bawah.
 // ---------------------------------------------------------------------------
 export const DropdownCari = {
   props: {
@@ -138,14 +149,29 @@ export const DropdownCari = {
   setup(props, { emit }) {
     const tampilDropdown = ref(false);
     const kataCari = ref('');
+    const indexSorot = ref(-1); // FIX 27 Agt 2026 — opsi yang sedang disorot panah keyboard
+    const listEl = ref(null); // FIX 27 Agt 2026 — buat auto-scroll pas sorotan geser lewat batas layar
     const opsiTersaring = computed(() => {
       const kata = kataCari.value.trim().toLowerCase();
       if (!kata) return props.opsi;
       return props.opsi.filter(o => o.toLowerCase().includes(kata));
     });
+    // Reset sorotan tiap kali daftar opsi tersaring berubah (ketik huruf
+    // baru) — mulai dari opsi PALING ATAS, biar Enter langsung pilih hasil
+    // teratas tanpa perlu tekan panah bawah dulu.
+    watch(opsiTersaring, () => { indexSorot.value = opsiTersaring.value.length > 0 ? 0 : -1; });
+    // FIX (27 Agt 2026) — begitu sorotan geser (panah atas/bawah), pastikan
+    // opsi yang disorot ikut ke-scroll ke dalam layar kalau posisinya lagi
+    // di luar area kelihatan (list-nya scrollable, max-height:220px).
+    watch(indexSorot, (i) => {
+      if (i < 0 || !listEl.value) return;
+      const el = listEl.value.children[i];
+      if (el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+    });
     function buka() {
       if (props.disabled) return;
       kataCari.value = '';
+      indexSorot.value = props.opsi.length > 0 ? 0 : -1;
       tampilDropdown.value = true;
     }
     // @mousedown.prevent di opsi (lihat template) mencegah event 'blur' di
@@ -158,8 +184,35 @@ export const DropdownCari = {
       emit('update:modelValue', o);
       tampilDropdown.value = false;
       kataCari.value = '';
+      indexSorot.value = -1;
     }
-    return { tampilDropdown, kataCari, opsiTersaring, buka, pilih, tutupTunda };
+    // FIX (27 Agt 2026) — navigasi keyboard: panah bawah/atas geser
+    // sorotan (berhenti di ujung, TIDAK muter balik ke awal/akhir supaya
+    // tidak bikin bingung), Enter pilih opsi yang sedang disorot, Escape
+    // tutup dropdown tanpa memilih apa-apa.
+    function sorotBerikutnya() {
+      if (!tampilDropdown.value) { buka(); return; }
+      if (opsiTersaring.value.length === 0) return;
+      indexSorot.value = Math.min(indexSorot.value + 1, opsiTersaring.value.length - 1);
+    }
+    function sorotSebelumnya() {
+      if (!tampilDropdown.value) return;
+      if (opsiTersaring.value.length === 0) return;
+      indexSorot.value = Math.max(indexSorot.value - 1, 0);
+    }
+    function pilihYangDisorot() {
+      if (!tampilDropdown.value) return;
+      const o = opsiTersaring.value[indexSorot.value];
+      if (o !== undefined) pilih(o);
+    }
+    function tutupTanpaPilih(ev) {
+      tampilDropdown.value = false;
+      ev.target.blur();
+    }
+    return {
+      tampilDropdown, kataCari, opsiTersaring, indexSorot, listEl,
+      buka, pilih, tutupTunda, sorotBerikutnya, sorotSebelumnya, pilihYangDisorot, tutupTanpaPilih
+    };
   },
   template: `
     <div style="position:relative;">
@@ -168,16 +221,20 @@ export const DropdownCari = {
         @input="kataCari = $event.target.value"
         @focus="buka"
         @blur="tutupTunda"
+        @keydown.down.prevent="sorotBerikutnya"
+        @keydown.up.prevent="sorotSebelumnya"
+        @keydown.enter.prevent="pilihYangDisorot"
+        @keydown.esc="tutupTanpaPilih"
         :disabled="disabled"
         type="text"
         :placeholder="placeholder"
         style="width:100%; padding:8px 30px 8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; background:var(--surface); box-sizing:border-box;"
       >
       <i class="fas fa-chevron-down" style="position:absolute; right:12px; top:11px; font-size:10px; color:var(--text-faint); pointer-events:none;"></i>
-      <div v-if="tampilDropdown" style="position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--surface); border:1.5px solid var(--line); border-radius:10px; max-height:220px; overflow-y:auto; z-index:50; box-shadow:0 8px 20px rgba(0,0,0,.14);">
+      <div v-if="tampilDropdown" ref="listEl" style="position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--surface); border:1.5px solid var(--line); border-radius:10px; max-height:220px; overflow-y:auto; z-index:50; box-shadow:0 8px 20px rgba(0,0,0,.14);">
         <div v-if="opsiTersaring.length === 0" style="padding:10px 12px; font-size:11.5px; color:var(--text-faint);">Tidak ada yang cocok.</div>
-        <div v-for="o in opsiTersaring" :key="o" @mousedown.prevent="pilih(o)"
-          :style="{padding:'8px 12px', fontSize:'12.5px', cursor:'pointer', background: (o===modelValue ? 'var(--ivory-dim)' : 'transparent'), fontWeight: (o===modelValue ? '700':'400')}">{{ o }}</div>
+        <div v-for="(o, i) in opsiTersaring" :key="o" @mousedown.prevent="pilih(o)" @mouseenter="indexSorot = i"
+          :style="{padding:'8px 12px', fontSize:'12.5px', cursor:'pointer', background: (i===indexSorot ? 'var(--burgundy-light)' : (o===modelValue ? 'var(--ivory-dim)' : 'transparent')), fontWeight: (o===modelValue ? '700':'400')}">{{ o }}</div>
       </div>
     </div>
   `

@@ -161,7 +161,7 @@
 import { createApp, ref, reactive, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, runTransaction, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { DropdownCari, MasterDataTabelManager } from './vue-components.js';
+import { DropdownCari, MasterDataTabelManager } from './vue-components.js?v=1';
 import { usePaginasiFirestore } from './vue-paginasi.js';
 
 // --- helper: ambil semua Bahan+Aksesoris (disalin dari vue-bahan-aksesoris.js
@@ -839,6 +839,21 @@ const OrderBelanjaScreen = {
     // di dropdown Nama Barang, ditampilkan read-only di field "Satuan"
     // baru di baris entry (di antara Qty & Nama Barang) — item MENENTUKAN
     // satuannya sendiri (satuan_pembelian), bukan diketik manual.
+    // GANTI TAMPILAN (27 Agt 2026, permintaan Guru): kotak tampilan statis
+    // diganti jadi komponen dropdown-cari (biar konsisten gaya kotak+border
+    // sama seperti field Nama Barang/Suplayer di sebelahnya) — TAPI
+    // `:disabled="true"` & isi opsi cuma 1 (nilai ini sendiri), jadi
+    // PERILAKUNYA TETAP terkunci ikut item yang dipilih, TIDAK bisa dipilih
+    // bebas ke satuan lain. Sengaja begitu: `isi_konversi_pembelian` yang
+    // dipakai hitung Qty Pakai adalah SNAPSHOT yang dikalibrasi khusus buat
+    // 1 satuan_pembelian item itu (lihat buatBarisPesanan di bawah) — kalau
+    // Satuan boleh diganti bebas tanpa hitungan konversinya ikut berubah,
+    // Qty Pakai yang otomatis kehitung bisa jadi SALAH tanpa ketahuan
+    // (silent bug). Kalau ternyata maksud Guru itu Satuan-nya BENERAN mau
+    // bisa dipilih beda dari yang di-set di Master (misal beli dalam
+    // satuan lain dari biasanya), itu perlu desain terpisah dulu (gimana
+    // Qty Pakai-nya dihitung ulang) — mohon dikonfirmasi, BELUM dibuat di
+    // sini.
     const satuanEntryTampil = computed(() => {
       const dipilih = opsiNamaBarangMap.value.get(namaBarangEntry.value);
       return dipilih ? (dipilih.bahan.satuan_pembelian || '-') : '-';
@@ -915,7 +930,16 @@ const OrderBelanjaScreen = {
         // `item.id` HANYA kalau id_tampil entah kenapa kosong (data lama/
         // rusak) — kolom tabelnya juga di-rename jadi "ID Bahan &
         // Aksesoris" (lihat template) supaya konsisten.
-        bahan_aksesoris_id: item.id, sku: item.id_tampil || item.id, nama: item.nama,
+        // FIX (27 Agt 2026, laporan Guru) — `nama` SEBELUMNYA `item.nama`
+        // POLOS (tanpa warna), jadi kolom "Nama Barang" di tabel List/Nota
+        // Order Belanja (dan Nota cetak) TIDAK bisa bedakan 2+ item nama
+        // sama beda warna — padahal dropdown pemilihannya SUDAH pakai
+        // formatNamaBahan() (nama+warna, lihat opsiNamaBarangMap di atas).
+        // Sekarang disimpan formatNamaBahan(item) juga, konsisten dengan
+        // Alias Pembelian (§25.9). Ini snapshot nama SAAT baris dibuat —
+        // sama seperti field lain di sini (harga, isi_konversi, dst), TIDAK
+        // ikut berubah otomatis kalau nama/warna item diedit belakangan.
+        bahan_aksesoris_id: item.id, sku: item.id_tampil || item.id, nama: formatNamaBahan(item),
         // BARU (26 Agt 2026, §25.11) — nama alias (nota Suplayer) yang
         // dipakai buat MEMILIH item ini lewat dropdown "Nama Barang",
         // kalau ada (lihat opsiNamaBarangMap/tambahItemManual di atas) —
@@ -1383,14 +1407,14 @@ const OrderBelanjaScreen = {
                Suplayer di sini (per-baris, TIDAK berubah dari sebelumnya). -->
           <div v-if="modeNota" style="display:grid; grid-template-columns:100px 100px 1fr auto; gap:8px; align-items:end; margin-bottom:16px;">
             <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input ref="qtyEntryEl" v-model.number="qtyEntry" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><div style="padding:9px 12px; background:var(--ivory-dim); border-radius:10px; font-size:12.5px; color:var(--text-muted);">{{ satuanEntryTampil }}</div></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari :model-value="satuanEntryTampil" :opsi="[satuanEntryTampil]" disabled placeholder="-" /></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Nama Barang</label><dropdown-cari v-model="namaBarangEntry" :opsi="opsiNamaBarang" placeholder="Cari & pilih..." /></div>
             <button @click="tambahItemManual" class="btn-primary" style="padding:0 18px; height:38px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah</button>
           </div>
           <div v-else style="display:grid; grid-template-columns:1fr 100px 100px 1fr auto; gap:8px; align-items:end; margin-bottom:16px;">
             <div class="gc-field" style="margin-bottom:0;"><label>Suplayer</label><dropdown-cari v-model="suplayerEntry" :opsi="opsiSuplayer" placeholder="Pilih Suplayer..." /></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input ref="qtyEntryEl" v-model.number="qtyEntry" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><div style="padding:9px 12px; background:var(--ivory-dim); border-radius:10px; font-size:12.5px; color:var(--text-muted);">{{ satuanEntryTampil }}</div></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari :model-value="satuanEntryTampil" :opsi="[satuanEntryTampil]" disabled placeholder="-" /></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Nama Barang</label><dropdown-cari v-model="namaBarangEntry" :opsi="opsiNamaBarang" placeholder="Cari & pilih..." /></div>
             <button @click="tambahItemManual" class="btn-primary" style="padding:0 18px; height:38px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah</button>
           </div>
