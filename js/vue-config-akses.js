@@ -85,7 +85,9 @@ const DAFTAR_MENU = [
   { id: 'master_suplayer', label: 'Master Suplayer (DIPENSIUNKAN, lihat Config)', kategori: 'Zevanic House' },
   { id: 'stock_alias_pembelian', label: 'Alias Pembelian', kategori: 'Zevanic House' },
   { id: 'stock_list_order_belanja', label: 'List Order Belanja', kategori: 'Zevanic House' },
-  { id: 'stock_nota_order_belanja', label: 'Nota Order Belanja', kategori: 'Zevanic House' }
+  { id: 'stock_nota_order_belanja', label: 'Nota Order Belanja', kategori: 'Zevanic House' },
+  // BARU (27 Agt 2026, §26.2) — Order SPK: lihat js/vue-order-spk.js.
+  { id: 'order_spk', label: 'Order SPK', kategori: 'Zevanic House' }
 ];
 
 const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House'];

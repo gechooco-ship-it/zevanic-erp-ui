@@ -142,6 +142,10 @@
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-stock', this); pindahSubTab('sub-zh-stock','sub-zh-stock-alias')" id="menu-zevanic-stock-btn" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-truck-ramp-box" style="width:17px; text-align:center;"></i> Stock &amp; Pembelian
           </button>
+          <!-- BARU (27 Agt 2026, §26.2) — Order SPK: lihat js/vue-order-spk.js. -->
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-orderspk', this)" id="menu-zevanic-orderspk-btn" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-clipboard-list" style="width:17px; text-align:center;"></i> Order SPK
+          </button>
         </div>
 
         <button onclick="toggleNavGroup('navgrp-integrasi')" id="menu-whatsapp" data-group="navgrp-integrasi" class="hidden gc-nav-item" style="display:flex; align-items:center; font-weight:700;">
@@ -471,6 +475,11 @@
               <div id="vue-kartu-stok"></div>
             </div>
           </div>
+
+          <!-- BARU (27 Agt 2026, §26.2) — Order SPK: lihat js/vue-order-spk.js. -->
+          <div id="sub-zevanic-house-orderspk" class="sub-zevanic-house-content hidden fade-in space-y-4">
+            <div id="vue-order-spk"></div>
+          </div>
       </div>
 
         <div id="tab-whatsapp" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
@@ -546,7 +555,8 @@
   <script type="module" src="js/app.js"></script>
   <script type="module" src="js/camera.js"></script>
   <script type="module" src="js/auth.js"></script>
-  <script type="module" src="js/dashboard.js?v=8"></script>
+  <script type="module" src="js/dashboard.js?v=9"></script>
+  <script type="module" src="js/vue-order-spk.js?v=1"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>
   <script type="module" src="js/vue-config-info.js"></script>
   <script type="module" src="js/vue-config-absensi.js"></script>

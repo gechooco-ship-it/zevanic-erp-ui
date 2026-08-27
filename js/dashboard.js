@@ -357,7 +357,9 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-zh-stock-listorder': 'pastikanMountListOrderBelanja',
     'sub-zh-stock-notaorder': 'pastikanMountNotaOrderBelanja',
     'sub-zh-stock-riwayat': 'pastikanMountRiwayatHargaPembelian',
-    'sub-zh-stock-kartustok': 'pastikanMountKartuStok'
+    'sub-zh-stock-kartustok': 'pastikanMountKartuStok',
+    // BARU (27 Agt 2026, §26.2) — Order SPK.
+    'sub-zevanic-house-orderspk': 'pastikanMountOrderSpk'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();
