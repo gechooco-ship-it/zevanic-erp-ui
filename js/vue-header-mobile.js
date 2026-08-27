@@ -26,7 +26,11 @@ const LABEL_TAB = {
   'tab-mail-gateway': 'Mail Gateway',
   'tab-device-kiosk': 'List Device Kiosk',
   'tab-scan-qr': 'Scan QR',
-  'tab-progress': 'Progress'
+  'tab-progress': 'Progress',
+  // BARU (27 Agt 2026, §27) — sebelumnya HILANG dari sini (celah lama,
+  // ketauan pas Home mobile jadi jalur utama ke Zevanic House). Efeknya:
+  // header mobile nongol kosong pas buka menu Zevanic House manapun.
+  'tab-zevanic-house': 'Zevanic House'
 };
 const LABEL_SUBTAB = {
   'sub-absensi-config': 'Config Absensi',
@@ -47,7 +51,30 @@ const LABEL_SUBTAB = {
   'sub-karyawan-config': 'Config Karyawan',
   'sub-karyawan-info': 'Config Info',
   'sub-karyawan-hakakses': 'Hak Akses',
-  'sub-karyawan-akses': 'Config Akses'
+  'sub-karyawan-akses': 'Config Akses',
+  // BARU (27 Agt 2026, §27) — sama seperti tab-zevanic-house di atas,
+  // set ini sebelumnya HILANG total (celah lama, bukan cuma soal menu
+  // baru §26). Ditambah sekalian semuanya supaya header mobile Zevanic
+  // House selalu jelas lagi di mana, bukan cuma yang kepakai dari Home.
+  'sub-zevanic-house-persiapan': 'Persiapan Masalah',
+  'sub-zevanic-house-orderspk': 'Order SPK',
+  'sub-zh-config-jenisbahan': 'Jenis Bahan',
+  'sub-zh-config-jenisaksesoris': 'Jenis Aksesoris',
+  'sub-zh-config-satuan': 'Data Satuan',
+  'sub-zh-config-warna': 'Data Warna',
+  'sub-zh-config-ukuran': 'Data Ukuran',
+  'sub-zh-config-suplayer': 'Data Suplayer',
+  'sub-zh-databahan-entry': 'Entry Bahan & Aksesoris',
+  'sub-zh-databahan-list': 'List Bahan & Aksesoris',
+  'sub-zh-databahan-rak': 'Rak Penyimpanan',
+  'sub-zh-stock-alias': 'Alias Pembelian',
+  'sub-zh-stock-listorder': 'List Order Belanja',
+  'sub-zh-stock-notaorder': 'Nota Order Belanja',
+  'sub-zh-stock-riwayat': 'Riwayat Harga Pembelian',
+  'sub-zh-stock-kartustok': 'Kartu Stok',
+  'sub-zh-stock-cetaklabel': 'Cetak Label',
+  'sub-zh-scan-opname': 'Scan Opname',
+  'sub-zh-scan-persiapan': 'Scan Persiapan'
 };
 
 const AppHeaderMobile = {

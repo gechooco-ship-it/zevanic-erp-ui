@@ -2,19 +2,39 @@
 // ============================================================================
 // tab-home mobile — kartu shift, lalu Pengumuman (komponen bersama, lihat
 // PengumumanCarousel di vue-components.js — dipakai sama di desktop &
-// mobile, satu sumber kebenaran), lalu "hub menu" terkelompok:
-// - Grup "Shortcut": Clock In/Clock Out (dinamis sesuai status hari ini),
-//   Izin, Cuti, Lembur — tampil grid ikon.
-// - Grup "Absensi"/"Master Karyawan"/"Whatsapp": SEMUA menu tetap tampil
-//   untuk siapapun (17 Agt 2026, perubahan dari sebelumnya yang
-//   menyembunyikan) — yang tidak berhak cuma ditandai terkunci, klik-nya
-//   munculkan pesan, bukan navigasi (lihat daftarMenuGroups di
-//   vue-components.js — registry terpusat, satu sumber kebenaran).
+// mobile, satu sumber kebenaran), lalu "hub menu" terkelompok.
+//
+// DIROMBAK (27 Agt 2026, §27 — Redesain Home Mobile, atas diskusi & mockup
+// dengan Hilman, lihat STATUS-PROYEK.md §27 untuk keputusan lengkapnya).
+// Header sapaan (vue-header-mobile.js), kartu shift, dan Quote Card TIDAK
+// disentuh sama sekali — perombakan MULAI TEPAT SETELAH Quote Card:
+//   1. "Favorit Saya" — GANTI baris Shortcut lama (5 ikon: Clock In/Out,
+//      Izin, Cuti, Lembur, Reimburse). Sekarang cuma 1 kartu Clock In/Out
+//      yang WAJIB & tidak bisa dilepas (posisi pertama, selalu ada) + MAKS
+//      4 menu yang di-favoritkan sendiri oleh user lewat mode "Atur".
+//      Disimpan per-user di field `menu_favorit` (dokumen users/{email}).
+//   2. Kolom pencarian — cari 1 menu lintas semua kategori sekaligus,
+//      tanpa perlu buka akordeon satu-satu.
+//   3. Akordeon per kategori (dari daftarMenuGroups(), yang sekarang
+//      membaca DAFTAR_MENU di vue-config-akses.js langsung — SATU sumber
+//      kebenaran, lihat catatan di vue-components.js) — tiap kategori
+//      DEFAULT TERTUTUP (rapi), begitu dibuka cuma nampilkan maksimal 5
+//      menu (urutan diatur Owner lewat Config Akses > "Urutan Menu di Home
+//      Mobile"), sisanya lewat tombol "Lihat Semua".
+// Pola "tampil semua, yang tidak berhak dikunci gembok" (17 Agt 2026)
+// TETAP dipakai apa adanya — cuma sumber & susunan tampilannya yang
+// berubah.
 // ============================================================================
-import { createApp, ref, reactive, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { createApp, ref, reactive, computed, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { collection, getDocs, doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { daftarMenuGroups, PengumumanCarousel, QuoteCard } from './vue-components.js';
+// ?v=3 (BARU 27 Agt 2026, §27) — daftarMenuGroups() di vue-components.js
+// berubah cukup besar hari ini (lihat catatan di atas). File itu sendiri
+// TIDAK punya skema versi baku (beberapa importer lain sudah pakai ?v=2
+// sejak §25.12) — sengaja dipakai angka BARU (bukan ikut v=2 yang sudah
+// ada) supaya browser Guru DIJAMIN ambil kopi paling baru, apapun yang
+// sempat ke-cache importer lain sebelumnya.
+import { daftarMenuGroups, PengumumanCarousel, QuoteCard } from './vue-components.js?v=3';
 
 const AppHome = {
   components: { PengumumanCarousel, QuoteCard },
@@ -52,6 +72,22 @@ const AppHome = {
       timerDurasi = setInterval(tik, 1000);
     }
 
+    // BARU (27 Agt 2026, §27) — urutan menu per kategori (5 teratas yang
+    // tampil duluan di tiap akordeon) diatur Owner lewat Config Akses >
+    // "Urutan Menu di Home Mobile", disimpan 1 dokumen tunggal. 1x getDoc
+    // per muat Home (hemat baca) — kalau belum pernah diatur sama sekali,
+    // urutanKustom kosong dan daftarMenuGroups() jatuh ke urutan asli
+    // DAFTAR_MENU (lihat vue-components.js).
+    async function ambilUrutanKustom() {
+      try {
+        const snap = await getDoc(doc(db, 'pengaturan_sistem', 'urutan_menu_home'));
+        return snap.exists() ? (snap.data().perKategori || {}) : {};
+      } catch (e) {
+        console.error('Gagal muat urutan menu Home mobile:', e);
+        return {};
+      }
+    }
+
     // DIROMBAK (19 Agt 2026) — dulu cocokkan localStorage vs tanggal HARI
     // INI (string persis), yang SALAH untuk shift malam (lintas tengah
     // malam) dan karyawan nebeng HP (localStorage kosong di device
@@ -63,7 +99,14 @@ const AppHome = {
     async function muatTampilan() {
       const status = await window.cekStatusClockInSaya(window.currentUser?.email || '');
       sudahAbsenHariIni.value = status.aktif;
-      menuGroups.value = daftarMenuGroups(window.currentUser?.role);
+      const urutanKustom = await ambilUrutanKustom();
+      menuGroups.value = daftarMenuGroups(window.currentUser?.role, urutanKustom);
+      // Sinkronkan favorit tersimpan dengan menu yang benar-benar ada
+      // sekarang (menu bisa saja sudah dihapus/diganti id-nya) — id yang
+      // sudah tidak ketemu lagi otomatis dibuang dari daftar favorit,
+      // TANPA perlu tulis ulang ke Firestore kalau memang tidak berubah.
+      const semuaId = new Set(menuGroups.value.flatMap(g => g.items.map(i => i.menuId)));
+      favoritIds.value = favoritIds.value.filter(id => semuaId.has(id));
       const gudangList = window.normalisasiGudang ? window.normalisasiGudang(window.currentUser?.gudang_penempatan) : [];
       shift.gudang = gudangList.length > 0 ? gudangList.join(', ') : '-';
       mulaiHitungDurasi();
@@ -96,7 +139,51 @@ const AppHome = {
       window.pindahLayar('screen-camera');
     }
 
+    // ------------------------------------------------------------------
+    // BARU (27 Agt 2026, §27) — Favorit Saya. Maks. 4 menu, disimpan per-
+    // user di field `menu_favorit` (dokumen users/{email}) — pola SAMA
+    // seperti pin_hash disimpan di vue-account-profile.js (updateDoc +
+    // update window.currentUser langsung + window.simpanKonteksSesi()
+    // biar cache localStorage ikut segar, tanpa perlu reload).
+    // ------------------------------------------------------------------
+    const modeAturFavorit = ref(false);
+    const favoritIds = ref([]);
+    const semuaItemFlat = computed(() => menuGroups.value.flatMap(g => g.items));
+    const daftarFavorit = computed(() =>
+      favoritIds.value.map(id => semuaItemFlat.value.find(i => i.menuId === id)).filter(Boolean)
+    );
+
+    async function toggleAturFavorit() {
+      if (modeAturFavorit.value) {
+        // Lagi nutup mode "Atur" -> simpan ke Firestore.
+        try {
+          await updateDoc(doc(db, 'users', window.currentUser.email), { menu_favorit: favoritIds.value });
+          window.currentUser.menu_favorit = [...favoritIds.value];
+          if (window.simpanKonteksSesi) window.simpanKonteksSesi();
+        } catch (e) {
+          console.error('Gagal simpan menu favorit:', e);
+          alert('Gagal menyimpan pilihan favorit. Coba lagi.');
+        }
+      }
+      modeAturFavorit.value = !modeAturFavorit.value;
+    }
+
+    function toggleFavorit(item) {
+      if (item.terkunci) return; // tidak bisa favoritkan menu yang terkunci
+      const idx = favoritIds.value.indexOf(item.menuId);
+      if (idx >= 0) { favoritIds.value.splice(idx, 1); return; }
+      if (favoritIds.value.length >= 4) {
+        alert('Maksimal 4 menu favorit — lepas salah satu dulu sebelum menambah yang baru.');
+        return;
+      }
+      favoritIds.value.push(item.menuId);
+    }
+
+    // klikMenu MENGGANTIKAN peran sebelumnya — sekarang cabang perilakunya
+    // tergantung mode: lagi "Atur" -> toggle favorit; normal -> navigasi
+    // (atau tampilkan pesan terkunci), PERSIS logic lama.
     function klikMenu(item) {
+      if (modeAturFavorit.value) { toggleFavorit(item); return; }
       if (item.terkunci) {
         alert('Akses terkunci, silahkan hubungi Owner / PIC Owner!');
         return;
@@ -104,12 +191,45 @@ const AppHome = {
       item.aksi();
     }
 
-    function bukaIzin() { if (window.bukaFormIzinDariHome) window.bukaFormIzinDariHome(); }
-    function bukaCuti() { if (window.bukaFormCutiDariHome) window.bukaFormCutiDariHome(); }
-    function bukaLembur() { if (window.bukaFormLemburDariHome) window.bukaFormLemburDariHome(); }
-    function bukaReimburse() { if (window.bukaReimburseDariHome) window.bukaReimburseDariHome(); }
+    // ------------------------------------------------------------------
+    // BARU (27 Agt 2026, §27) — Kolom pencarian lintas-kategori.
+    // ------------------------------------------------------------------
+    const cariMenu = ref('');
+    const hasilPencarian = computed(() => {
+      const kata = cariMenu.value.trim().toLowerCase();
+      if (!kata) return [];
+      return semuaItemFlat.value.filter(i => i.label.toLowerCase().includes(kata));
+    });
+
+    // ------------------------------------------------------------------
+    // BARU (27 Agt 2026, §27) — Akordeon per kategori. DEFAULT TERTUTUP
+    // semua (paling rapi) — lihat STATUS-PROYEK.md §27 untuk alasannya.
+    // Maksimal 5 menu tampil per kategori sampai "Lihat Semua" diketuk.
+    // ------------------------------------------------------------------
+    const BATAS_TAMPIL = 5;
+    const grupTerbuka = reactive({});
+    const grupLihatSemua = reactive({});
+    function toggleGrup(nama) { grupTerbuka[nama] = !grupTerbuka[nama]; }
+    function toggleLihatSemua(nama) { grupLihatSemua[nama] = !grupLihatSemua[nama]; }
+    function itemsTampil(grup) {
+      return grupLihatSemua[grup.nama] ? grup.items : grup.items.slice(0, BATAS_TAMPIL);
+    }
+
+    // CATATAN (27 Agt 2026, §27) — bukaIzin/bukaCuti/bukaLembur/
+    // bukaReimburse (dulu dipanggil tombol Shortcut yang sekarang dihapus
+    // atas permintaan Hilman, lihat header file ini) SUDAH DIHAPUS dari
+    // sini karena tidak dipakai lagi. window.bukaFormIzinDariHome/dst di
+    // vue-account-profile.js (jembatan yang dulu dipanggil fungsi-fungsi
+    // ini) SENGAJA DIBIARKAN ada di sana — tidak berbahaya kalau tidak
+    // dipanggil siapapun. PENTING: Izin/Cuti/Lembur/Reimburse BUKAN menu
+    // di DAFTAR_MENU (murni shortcut lama), jadi TIDAK BISA dipilih lewat
+    // "Favorit Saya" yang baru — akses 1-ketuk dari Home utk ke-4 fitur
+    // ini sekarang hilang, cuma bisa lewat tab Profile (bottom nav) ->
+    // Absensi/Reimburse. Ini konsekuensi yang SUDAH disetujui Hilman
+    // ("Shortcut hapus"), bukan sesuatu yang lupa dipindah.
 
     async function muatSemua() {
+      favoritIds.value = Array.isArray(window.currentUser?.menu_favorit) ? window.currentUser.menu_favorit.slice(0, 4) : [];
       await muatTampilan();
       await muatShift();
     }
@@ -144,8 +264,11 @@ const AppHome = {
     return {
       shift, sudahAbsenHariIni, menuGroups,
       jamMasukAsli, durasiBerjalan,
-      klikClockInOut, klikMenu, bukaIzin, bukaCuti, bukaLembur, bukaReimburse,
-      muatTampilan, muatSemua
+      klikClockInOut, klikMenu,
+      muatTampilan, muatSemua,
+      modeAturFavorit, toggleAturFavorit, daftarFavorit,
+      cariMenu, hasilPencarian,
+      grupTerbuka, toggleGrup, grupLihatSemua, toggleLihatSemua, itemsTampil, BATAS_TAMPIL
     };
   },
   template: `
@@ -168,38 +291,71 @@ const AppHome = {
 
       <quote-card />
 
-      <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Shortcut</h3>
-      <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:22px;">
+      <!-- BARU (27 Agt 2026, §27) — Favorit Saya, GANTI baris Shortcut lama.
+           1 kartu Clock In/Out wajib (selalu ada, tidak bisa dilepas) + maks
+           4 menu favorit pilihan user sendiri lewat mode "Atur". -->
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+        <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin:0; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;"><i class="fas fa-star" style="margin-right:6px; color:var(--burgundy);"></i>Favorit Saya</h3>
+        <button @click="toggleAturFavorit" style="background:none; border:none; color:var(--burgundy); font-weight:700; font-size:11px; cursor:pointer; padding:4px 2px;">{{ modeAturFavorit ? 'Selesai' : 'Atur' }}</button>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:6px;">
         <button @click="klikClockInOut" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
           <span style="width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center;" :style="sudahAbsenHariIni ? 'background:#FBE4E4; color:var(--danger);' : 'background:var(--ivory-dim); color:var(--burgundy);'"><i class="fas" :class="sudahAbsenHariIni ? 'fa-right-from-bracket' : 'fa-clock'"></i></span>
           <span style="font-size:10.5px; font-weight:700; color:var(--text);">{{ sudahAbsenHariIni ? 'Clock out' : 'Clock in' }}</span>
         </button>
-        <button @click="bukaIzin" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
-          <span style="width:40px; height:40px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy);"><i class="fas fa-file-signature"></i></span>
-          <span style="font-size:10.5px; font-weight:700; color:var(--text);">Izin</span>
+        <button v-for="item in daftarFavorit" :key="item.menuId" @click="klikMenu(item)" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer; position:relative;" :style="item.terkunci ? 'opacity:.5;' : ''">
+          <i v-if="item.terkunci" class="fas fa-lock" style="position:absolute; top:6px; right:8px; font-size:9px; color:var(--text-faint);"></i>
+          <i v-if="modeAturFavorit && !item.terkunci" class="fas fa-star" style="position:absolute; top:6px; left:8px; font-size:9px; color:var(--burgundy);"></i>
+          <span style="width:40px; height:40px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy);"><i class="fas" :class="item.icon"></i></span>
+          <span style="font-size:10.5px; font-weight:700; color:var(--text); text-align:center; line-height:1.25;">{{ item.label }}</span>
         </button>
-        <button @click="bukaCuti" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
-          <span style="width:40px; height:40px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy);"><i class="fas fa-calendar-alt"></i></span>
-          <span style="font-size:10.5px; font-weight:700; color:var(--text);">Cuti</span>
-        </button>
-        <button @click="bukaLembur" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
-          <span style="width:40px; height:40px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy);"><i class="fas fa-business-time"></i></span>
-          <span style="font-size:10.5px; font-weight:700; color:var(--text);">Lembur</span>
-        </button>
-        <button @click="bukaReimburse" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer;">
-          <span style="width:40px; height:40px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy);"><i class="fas fa-receipt"></i></span>
-          <span style="font-size:10.5px; font-weight:700; color:var(--text);">Reimburse</span>
-        </button>
+        <div v-if="modeAturFavorit" v-for="n in Math.max(0, 4 - daftarFavorit.length)" :key="'slot-'+n" style="border:1.5px dashed var(--line); border-radius:16px; display:flex; align-items:center; justify-content:center; min-height:74px; color:var(--text-faint); font-size:9.5px; text-align:center; padding:6px;">
+          Pilih dari daftar di bawah
+        </div>
+      </div>
+      <p v-if="modeAturFavorit" style="font-size:11px; color:var(--text-muted); margin:0 0 20px;">Ketuk menu (yang tidak terkunci) di kolom pencarian atau di daftar kategori di bawah buat jadiin favorit — maksimal 4. Ketuk lagi buat lepas, lalu ketuk "Selesai" buat simpan.</p>
+      <div v-else style="margin-bottom:20px;"></div>
+
+      <!-- BARU (27 Agt 2026, §27) — Kolom pencarian lintas-kategori. -->
+      <div style="position:relative; margin-bottom:18px;">
+        <i class="fas fa-magnifying-glass" style="position:absolute; left:14px; top:13px; color:var(--text-faint); font-size:12px;"></i>
+        <input v-model="cariMenu" type="text" placeholder="Cari menu..." style="width:100%; padding:11px 14px 11px 36px; border:1px solid var(--line); border-radius:999px; font-size:12.5px; background:var(--surface); color:var(--text);">
       </div>
 
-      <div v-for="grup in menuGroups" :key="grup.nama" style="margin-bottom:22px;">
-        <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">{{ grup.nama }}</h3>
-        <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px;">
-          <button v-for="item in grup.items" :key="item.label" @click="klikMenu(item)" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer; position:relative;" :style="item.terkunci ? 'opacity:.5;' : ''">
+      <div v-if="cariMenu.trim()">
+        <h3 class="gc-heading" style="font-size:12px; font-weight:700; margin-bottom:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Hasil pencarian ({{ hasilPencarian.length }})</h3>
+        <div v-if="hasilPencarian.length===0" style="color:var(--text-faint); font-size:12px; padding:4px 0 20px;">Tidak ada menu yang cocok.</div>
+        <div v-else style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px; margin-bottom:22px;">
+          <button v-for="item in hasilPencarian" :key="item.menuId" @click="klikMenu(item)" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer; position:relative;" :style="item.terkunci ? 'opacity:.5;' : ''">
             <i v-if="item.terkunci" class="fas fa-lock" style="position:absolute; top:6px; right:8px; font-size:9px; color:var(--text-faint);"></i>
+            <i v-if="modeAturFavorit && !item.terkunci" class="fas fa-star" style="position:absolute; top:6px; left:8px; font-size:9px;" :style="daftarFavorit.some(f => f.menuId === item.menuId) ? 'color:var(--burgundy);' : 'color:var(--text-faint);'"></i>
             <span style="width:40px; height:40px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy);"><i class="fas" :class="item.icon"></i></span>
             <span style="font-size:10.5px; font-weight:700; color:var(--text); text-align:center; line-height:1.25;">{{ item.label }}</span>
           </button>
+        </div>
+      </div>
+
+      <!-- BARU (27 Agt 2026, §27) — Akordeon per kategori, default tertutup,
+           maks. 5 menu tampil sampai "Lihat Semua" diketuk. -->
+      <div v-else>
+        <div v-for="grup in menuGroups" :key="grup.nama" style="margin-bottom:12px;">
+          <button @click="toggleGrup(grup.nama)" style="width:100%; display:flex; justify-content:space-between; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:12px 16px; cursor:pointer;">
+            <span style="font-size:12.5px; font-weight:700; color:var(--text);">{{ grup.nama }} <span style="font-size:10px; font-weight:800; color:var(--burgundy); background:var(--burgundy-light); padding:2px 8px; border-radius:999px; margin-left:6px;">{{ grup.items.length }}</span></span>
+            <i class="fas" :class="grupTerbuka[grup.nama] ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-muted);"></i>
+          </button>
+          <div v-if="grupTerbuka[grup.nama]" style="background:var(--ivory-dim); border-radius:14px; padding:12px; margin-top:6px;">
+            <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px;">
+              <button v-for="item in itemsTampil(grup)" :key="item.menuId" @click="klikMenu(item)" style="background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px 6px; display:flex; flex-direction:column; align-items:center; gap:8px; cursor:pointer; position:relative;" :style="item.terkunci ? 'opacity:.5;' : ''">
+                <i v-if="item.terkunci" class="fas fa-lock" style="position:absolute; top:6px; right:8px; font-size:9px; color:var(--text-faint);"></i>
+                <i v-if="modeAturFavorit && !item.terkunci" class="fas fa-star" style="position:absolute; top:6px; left:8px; font-size:9px;" :style="daftarFavorit.some(f => f.menuId === item.menuId) ? 'color:var(--burgundy);' : 'color:var(--text-faint);'"></i>
+                <span style="width:40px; height:40px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy);"><i class="fas" :class="item.icon"></i></span>
+                <span style="font-size:10.5px; font-weight:700; color:var(--text); text-align:center; line-height:1.25;">{{ item.label }}</span>
+              </button>
+            </div>
+            <button v-if="grup.items.length > BATAS_TAMPIL" @click="toggleLihatSemua(grup.nama)" style="display:block; margin:12px auto 2px; background:none; border:none; color:var(--burgundy); font-weight:700; font-size:11px; cursor:pointer;">
+              {{ grupLihatSemua[grup.nama] ? 'Sembunyikan' : 'Lihat Semua (' + grup.items.length + ')' }}
+            </button>
+          </div>
         </div>
       </div>
 

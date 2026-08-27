@@ -11,6 +11,11 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, setDoc, getDoc, addDoc, deleteDoc, collection, getDocs, query, orderBy, limit, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+// BARU (27 Agt 2026, §27) — daftarMenuGroups() di bawah sekarang MEMBACA
+// DAFTAR_MENU langsung dari vue-config-akses.js (satu-satunya tempat menu
+// didaftarkan) — bukan disalin tangan lagi. Lihat catatan lengkap di
+// definisi daftarMenuGroups().
+import { DAFTAR_MENU, KATEGORI_URUTAN } from './vue-config-akses.js';
 
 // ---------------------------------------------------------------------------
 // MasterDataCategory — kartu 1 kategori Master Data (tambah/lihat/hapus item).
@@ -640,77 +645,50 @@ export const GudangRingkas = {
 };
 
 // ---------------------------------------------------------------------------
-// daftarMenuGroups(role) — REGISTRY MENU TERPUSAT. Satu sumber kebenaran
-// untuk struktur "menu apa masuk grup apa, siapa boleh lihat, dan aksinya
-// pindah ke mana" — dipakai Home mobile (js/vue-home.js) sekarang, dan bisa
-// dipakai ulang untuk desktop nanti kalau strukturnya mau disamakan (sesuai
-// arahan: "kalau ada yg bisa jadi function bersama vue, hajar update
-// component"). Ubah/tambah menu di SINI SATU TEMPAT SAJA, otomatis
-// ke-reflect di semua tempat yang memakai fungsi ini.
+// daftarMenuGroups(role, urutanKustomPerKategori) — REGISTRY MENU TERPUSAT.
+//
+// DIROMBAK (27 Agt 2026, §27 — Redesain Home Mobile): SEBELUMNYA fungsi ini
+// isinya array grup/menu yang ditulis TANGAN, terpisah dari DAFTAR_MENU
+// (vue-config-akses.js) — itu yang bikin Home mobile ketinggalan jauh dari
+// sidebar (lihat STATUS-PROYEK.md §27, ketauan grup "Zevanic House" di sini
+// cuma ada 2 menu padahal sidebar sudah 12+). SEKARANG fungsi ini MEMBACA
+// DAFTAR_MENU langsung — itu satu-satunya tempat menu didaftarkan (lengkap
+// dengan label/icon/aksi/kategori-nya), jadi menu baru yang ditambah di
+// sana OTOMATIS nongol juga di sini, tidak perlu disalin tangan lagi.
+// Kategori (field `kategori` di DAFTAR_MENU) dipakai APA ADANYA sebagai
+// nama grup di Home mobile — kategori 'Umum' (Dashboard/Profile) SENGAJA
+// tidak diikutkan (bukan menu yang cocok jadi tile grid), begitu juga menu
+// yang ditandai `deprecated: true`.
+//
+// `urutanKustomPerKategori` (opsional): { [kategori]: [menuId, ...] } dari
+// Config Akses > "Urutan Menu di Home Mobile" (Owner yang atur). Menentukan
+// urutan tampil per kategori — 5 teratas itu yang muncul duluan di Home
+// sebelum orang ketuk "Lihat Semua" (lihat vue-home.js). Menu yang belum
+// ada di urutan kustom jatuh ke urutan asli DAFTAR_MENU, di posisi paling
+// akhir (self-healing kalau ada menu baru).
 // ---------------------------------------------------------------------------
-export function daftarMenuGroups(role) {
+export function daftarMenuGroups(role, urutanKustomPerKategori) {
   const r = (role || 'operator').toLowerCase();
-  const semuaGroup = [
-    {
-      nama: 'Absensi',
-      roleBoleh: ['pic', 'admin', 'owner', 'superuser'],
-      items: [
-        { label: 'Antrean Absensi', menuId: 'antrean_absensi', icon: 'fa-clipboard-check', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-accept', null); } },
-        { label: 'Antrean Lembur', menuId: 'antrean_lembur', icon: 'fa-business-time', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-lembur', null); } },
-        { label: 'Riwayat All Absensi', menuId: 'riwayat_absensi', icon: 'fa-clock-rotate-left', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-rekap', null); } },
-        { label: 'Penjadwalan', menuId: 'penjadwalan', icon: 'fa-calendar-days', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-jadwal', null); } },
-        { label: 'Config', menuId: 'config_absensi', icon: 'fa-gear', aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-config', null); } }
-      ]
-    },
-    {
-      nama: 'Master Keuangan',
-      roleBoleh: ['pic', 'admin', 'owner', 'superuser'],
-      items: [
-        { label: 'Antrean Reimburse', menuId: 'antrean_reimburse', icon: 'fa-receipt', aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-antrean', null); } },
-        { label: 'Master Kendaraan', menuId: 'master_kendaraan', icon: 'fa-truck', aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-kendaraan', null); } },
-        { label: 'Kategori Keuangan', menuId: 'master_keuangan', icon: 'fa-tags', aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-kategori', null); } }
-      ]
-    },
-    {
-      nama: 'Master Karyawan',
-      roleBoleh: ['owner', 'superuser'],
-      items: [
-        { label: 'Antrean Dakar', menuId: 'antrean_dakar', icon: 'fa-user-clock', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', null); } },
-        { label: 'Daftar Karyawan', menuId: 'daftar_karyawan', icon: 'fa-users', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-data', null); } },
-        { label: 'Slip Gaji', menuId: 'slip_gaji', icon: 'fa-file-invoice-dollar', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-slip', null); } },
-        { label: 'Payroll', menuId: 'payroll', icon: 'fa-money-check-dollar', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', null); } },
-        { label: 'Config Karyawan', menuId: 'config_karyawan', icon: 'fa-sliders', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-config', null); } },
-        { label: 'Config Info', menuId: 'config_info', icon: 'fa-bullhorn', aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-info', null); } },
-        // Hak Akses & Config Akses SENGAJA dikunci Owner asli saja (lihat
-        // roleBoleh per-item di bawah) — Superuser tetap lihat 5 item lain
-        // di grup ini, tapi bukan 2 ini, konsisten dengan gerbang yang
-        // sudah ada di auth.js/index.html.
-        { label: 'Hak Akses', menuId: 'hak_akses', icon: 'fa-user-shield', roleBoleh: ['owner'], aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-hakakses', null); } },
-        { label: 'Config Akses', menuId: 'config_akses', icon: 'fa-shield-halved', roleBoleh: ['owner'], aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-akses', null); } }
-      ]
-    },
-    {
-      // BARU (23 Agt 2026) — Zevanic House > Master Bahan & Aksesoris.
-      // roleBoleh SAMA dengan grup Absensi/Keuangan (admin ke atas).
-      nama: 'Zevanic House',
-      roleBoleh: ['pic', 'admin', 'owner', 'superuser'],
-      items: [
-        { label: 'Bahan / Aksesoris', menuId: 'bahan_aksesoris_entry', icon: 'fa-boxes-stacked', aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-entry', null); } },
-        { label: 'List Bahan / Aksesoris', menuId: 'bahan_aksesoris_list', icon: 'fa-list', aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-list', null); } }
-      ]
-    },
-    {
-      nama: 'Whatsapp',
-      roleBoleh: ['owner', 'superuser'],
-      items: [
-        { label: 'Monitoring Respon', menuId: 'whatsapp_gateway', icon: 'fa-chart-line', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('monitor'); } },
-        { label: 'Template Pesan', menuId: 'whatsapp_gateway', icon: 'fa-comment-dots', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('template'); } },
-        { label: 'Config API', menuId: 'whatsapp_gateway', icon: 'fa-plug', aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('config'); } },
-        { label: 'Mail Gateway', menuId: 'mail_gateway', icon: 'fa-envelope', aksi: () => { window.pindahTab('tab-mail-gateway'); } },
-        { label: 'List Device Kiosk', menuId: 'device_kiosk', icon: 'fa-tablet-screen-button', roleBoleh: ['owner'], aksi: () => { window.pindahTab('tab-device-kiosk'); } }
-      ]
-    }
-  ];
+  const urutanKustom = urutanKustomPerKategori || {};
+
+  const semuaGroup = KATEGORI_URUTAN
+    .filter(k => k !== 'Umum')
+    .map(kategori => {
+      const itemsAsli = DAFTAR_MENU.filter(m => m.kategori === kategori && !m.deprecated);
+      const urutan = urutanKustom[kategori] || [];
+      const posisiKustom = {};
+      urutan.forEach((id, idx) => { posisiKustom[id] = idx; });
+      const items = [...itemsAsli].sort((a, b) => {
+        const pa = posisiKustom[a.id];
+        const pb = posisiKustom[b.id];
+        if (pa !== undefined && pb !== undefined) return pa - pb;
+        if (pa !== undefined) return -1;
+        if (pb !== undefined) return 1;
+        return itemsAsli.indexOf(a) - itemsAsli.indexOf(b);
+      });
+      return { nama: kategori, items };
+    })
+    .filter(g => g.items.length > 0);
 
   // PERUBAHAN 17 Agt 2026 (khusus tampilan Home mobile): dulu grup/menu
   // yang tidak boleh diakses role ini langsung DIHILANGKAN dari daftar.
@@ -720,28 +698,28 @@ export function daftarMenuGroups(role) {
   // `role` ini, dari window.currentUser.role) — BUKAN baca Firestore lagi,
   // supaya tetap hemat. Halaman pemanggil (vue-home.js) yang tampilkan
   // pesan "Akses terkunci" kalau item.terkunci true saat diklik.
-  // PERUBAHAN 17 Agt 2026: dulu grup/menu yang tidak boleh diakses role
-  // ini langsung DIHILANGKAN dari daftar. Sekarang SEMUA grup & menu
-  // tetap DITAMPILKAN untuk siapapun — item yang tidak boleh diakses
-  // cuma ditandai `terkunci: true`.
   //
   // PENERAPAN NYATA Config Akses (17 Agt 2026, tahap 1): status terkunci
-  // sekarang CEK IZIN 'view' SUNGGUHAN dari akses_config lewat
-  // window.cekIzinMenu(menuId, 'view') — bukan cuma tebakan roleBoleh
-  // hardcode lagi. Kalau izin BELUM DIATUR untuk role ini (hasilnya
-  // null, misal role itu belum pernah dibuka di Config Akses sama
-  // sekali), JATUH KEMBALI ke logic roleBoleh lama sebagai jaring
-  // pengaman — supaya tidak ada yang tiba-tiba terkunci keluar cuma
-  // karena admin belum sempat atur Config Akses buat role itu.
+  // CEK IZIN 'view' SUNGGUHAN dari akses_config lewat
+  // window.cekIzinMenu(menuId, 'view'). Kalau izin BELUM DIATUR untuk role
+  // ini (hasilnya null, misal role itu belum pernah dibuka di Config Akses
+  // sama sekali), JATUH KEMBALI ke default aman: terkunci untuk siapapun
+  // SELAIN owner/superuser — supaya menu yang belum sempat diatur tidak
+  // tiba-tiba kebuka ke semua orang.
+  //
+  // BARU (27 Agt 2026, §27) — `wajibOwner: true` di DAFTAR_MENU (Config
+  // Akses, Hak Akses, List Device Kiosk) jadi pengunci TAMBAHAN di ATAS
+  // hasil cekIzinMenu — TETAP terkunci untuk siapapun selain role 'owner'
+  // asli, APAPUN hasil Config Akses-nya, sama seperti gerbang yang sudah
+  // ada di sidebar desktop untuk 3 menu itu.
   return semuaGroup.map(g => ({
     ...g,
-    items: g.items.map(i => {
-      const izinAsli = i.menuId ? window.cekIzinMenu(i.menuId, 'view') : null;
-      const terkunciFallback = !((!g.roleBoleh || g.roleBoleh.includes(r)) && (!i.roleBoleh || i.roleBoleh.includes(r)));
-      return {
-        ...i,
-        terkunci: izinAsli === null ? terkunciFallback : !izinAsli
-      };
+    items: g.items.map(m => {
+      const izinAsli = window.cekIzinMenu(m.id, 'view');
+      const fallbackAman = !(r === 'owner' || r === 'superuser');
+      let terkunci = izinAsli === null ? fallbackAman : !izinAsli;
+      if (m.wajibOwner && r !== 'owner') terkunci = true;
+      return { label: m.label, menuId: m.id, icon: m.icon, aksi: m.aksi, terkunci };
     })
   }));
 }
