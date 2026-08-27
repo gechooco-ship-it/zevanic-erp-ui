@@ -363,7 +363,9 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     // BARU (27 Agt 2026, §26.2) — Order SPK.
     'sub-zevanic-house-orderspk': 'pastikanMountOrderSpk',
     // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname.
-    'sub-zh-scan-opname': 'pastikanMountScanOpname'
+    'sub-zh-scan-opname': 'pastikanMountScanOpname',
+    // BARU (27 Agt 2026, §26.5, Tahap 5 — TAHAP TERAKHIR) — Scan > Scan Persiapan.
+    'sub-zh-scan-persiapan': 'pastikanMountScanPersiapan'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();

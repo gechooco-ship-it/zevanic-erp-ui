@@ -808,7 +808,15 @@ export async function ambilBahanById(bahanId) {
 // tabel alokasi dibuka — TIDAK dilempar dari sini lagi. `LOT_BERUBAH` tetap
 // dilempar dari sini kalau data lot berubah persis di antara alokasi
 // disusun & transaksi ini dieksekusi (jaga-jaga race).
-export async function catatPemakaianDariAlokasi({ bahanId, namaBahan, tanggal, qty, satuan, keterangan, alokasi }) {
+//
+// Param BARU (27 Agt 2026, §26.5, Tahap 5) — `sumber` (OPSIONAL, default
+// TETAP string lama persis di bawah, supaya pemanggil lama di
+// vue-kartu-stok.js yang TIDAK mengirim param ini otomatis tidak berubah
+// perilakunya sama sekali). Ditambah supaya `vue-scan-persiapan.js` bisa
+// tulis label sumber yang beda ("Pemakaian (Scan Persiapan)") — biar
+// gampang dibedakan di kolom "Sumber" Kartu Stok Detail, bukan cuma lewat
+// baca teks Keterangan.
+export async function catatPemakaianDariAlokasi({ bahanId, namaBahan, tanggal, qty, satuan, keterangan, alokasi, sumber }) {
   if (!Array.isArray(alokasi) || alokasi.length === 0) {
     throw new Error('Belum ada roll/lot yang dipilih untuk pemakaian ini.');
   }
@@ -857,7 +865,7 @@ export async function catatPemakaianDariAlokasi({ bahanId, namaBahan, tanggal, q
     const refGerak = doc(collection(db, 'kartu_stok_bahan_aksesoris'));
     tx.set(refGerak, {
       bahan_aksesoris_id: bahanId, nama_bahan: namaBahan, tanggal, jenis: 'keluar', qty,
-      satuan: satuan || '', sumber: 'Pemakaian Manual (Pilih Roll/Lot)', no_pembelian: '',
+      satuan: satuan || '', sumber: sumber || 'Pemakaian Manual (Pilih Roll/Lot)', no_pembelian: '',
       keterangan: keterangan || '', saldo_setelah: stokSetelah, rincian_lot: rincianHasil,
       dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
     });

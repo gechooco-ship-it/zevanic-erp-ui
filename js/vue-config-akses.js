@@ -99,7 +99,14 @@ const DAFTAR_MENU = [
   // (pola sama seperti Config Akses/Hak Akses/Device Kiosk di auth.js),
   // menu-id ini CUMA buat kontrol boleh/tidaknya menyimpan (di atas
   // gerbang mobile itu, bukan pengganti).
-  { id: 'scan_opname', label: 'Scan Opname', kategori: 'Zevanic House' }
+  { id: 'scan_opname', label: 'Scan Opname', kategori: 'Zevanic House' },
+  // BARU (27 Agt 2026, §26.5, Tahap 5 — TAHAP TERAKHIR) — Scan > Scan
+  // Persiapan: lihat js/vue-scan-persiapan.js. Aksi catat pemakaian dicek
+  // lewat kolom 'edit'. Gating "mobile-only utk non-Owner" TETAP hardcode
+  // role === 'owner' di file itu sendiri (SAMA seperti Scan Opname) —
+  // menu-id ini CUMA buat kontrol boleh/tidaknya menyimpan, bukan
+  // pengganti gerbang mobile itu.
+  { id: 'scan_persiapan', label: 'Scan Persiapan', kategori: 'Zevanic House' }
 ];
 
 const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House'];
