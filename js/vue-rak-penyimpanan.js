@@ -187,7 +187,7 @@ const RakPenyimpananManager = {
       <h3 style="font-weight:700; font-size:13.5px; margin-bottom:4px;"><i class="fas fa-warehouse" style="color:var(--burgundy); margin-right:8px;"></i>{{ sedangEditId ? 'Edit Rak' : 'Tambah Rak Penyimpanan' }}</h3>
       <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 12px;">Kode/Baris/Kolom Rak dikelola lewat Pengaturan di menu Entry Bahan &amp; Aksesoris (ikon gear). Dimensi di sini = dimensi FISIK rak itu sendiri (buat hitung kapasitas) — BEDA dari "Volume Barang" di form Bahan/Aksesoris (yang itu dimensi 1 satuan barangnya).</p>
 
-      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;" class="grid-cols-1 md:grid-cols-3">
+      <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-3">
         <div class="gc-field">
           <label>Kode Rak <span style="color:var(--danger);">*</span></label>
           <dropdown-cari v-model="form.kode_rak" :opsi="opsiKodeRak" placeholder="Cari & pilih Kode Rak..." />
@@ -203,7 +203,7 @@ const RakPenyimpananManager = {
       </div>
 
       <p style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin:14px 0 8px;"><i class="fas fa-cube" style="margin-right:6px;"></i>Dimensi Rak (untuk estimasi kapasitas)</p>
-      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;" class="grid-cols-1 md:grid-cols-3">
+      <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-3">
         <div class="gc-field">
           <label>Tinggi (cm) <span style="color:var(--danger);">*</span></label>
           <input v-model.number="form.tinggi_rak" type="number" min="0" placeholder="0">
@@ -229,33 +229,25 @@ const RakPenyimpananManager = {
       </div>
     </div>
 
-    <div class="gc-card" style="padding:0; overflow:hidden;">
-      <div v-if="paginasi.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
-      <div v-else-if="paginasi.errorPaginasi.value" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
-      <div v-else-if="paginasi.dataHalaman.value.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada Rak terdaftar.</div>
-      <div v-else class="gc-table-scroll">
-        <table class="gc-table">
-          <thead>
-            <tr>
-              <th>Kode Rak</th><th>Lokasi (Rak/Baris/Kolom)</th><th>Dimensi (T&times;P&times;L, cm)</th><th>Volume (cm&sup3;)</th>
-              <th class="freeze freeze-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in paginasi.dataHalaman.value" :key="item.id">
-              <td><b>{{ item.rak_label }}</b></td>
-              <td>{{ item.kode_rak }} / {{ item.baris_rak }} / {{ item.kolom_rak }}</td>
-              <td>{{ formatAngka(item.tinggi_rak) }} &times; {{ formatAngka(item.panjang_rak) }} &times; {{ formatAngka(item.lebar_rak) }}</td>
-              <td><b>{{ formatAngka(item.volume_rak) }}</b></td>
-              <td class="freeze freeze-right">
-                <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                  <button @click="bukaEdit(item)" class="icon-btn" title="Edit"><i class="fas fa-pen"></i></button>
-                  <button @click="hapus(item)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <!-- GANTI (28 Agt 2026) — dulu tabel scroll horizontal (5 kolom), SEKARANG
+         kartu (pola sama seperti List Bahan/Aksesoris), di HP MAUPUN desktop. -->
+    <div v-if="paginasi.memuat.value" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+    <div v-else-if="paginasi.errorPaginasi.value" class="gc-card" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
+    <div v-else-if="paginasi.dataHalaman.value.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada Rak terdaftar.</div>
+    <div v-else style="display:flex; flex-direction:column; gap:10px;">
+      <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:14px;">
+        <div style="margin-bottom:12px;">
+          <div style="font-weight:700; font-size:13.5px;">{{ item.rak_label }}</div>
+          <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">{{ item.kode_rak }} / {{ item.baris_rak }} / {{ item.kolom_rak }}</div>
+        </div>
+        <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Dimensi (T&times;P&times;L, cm)</span><span style="font-weight:700;">{{ formatAngka(item.tinggi_rak) }} &times; {{ formatAngka(item.panjang_rak) }} &times; {{ formatAngka(item.lebar_rak) }}</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Volume</span><span style="font-weight:700;">{{ formatAngka(item.volume_rak) }} cm&sup3;</span></div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button @click="bukaEdit(item)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px;"><i class="fas fa-pen" style="margin-right:6px;"></i>Edit</button>
+          <button @click="hapus(item)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
+        </div>
       </div>
     </div>
     <div v-if="!paginasi.memuat.value && paginasi.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">

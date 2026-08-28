@@ -603,7 +603,7 @@ const AliasPembelianManager = {
            entry Daftar Pesanan di OrderBelanjaScreen di bawah). SEBELUMNYA
            urutannya Suplayer, Nama Internal, Nama di Nota (+ tombol nempel
            di kolom itu). -->
-      <div v-if="bolehTambah" style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; margin-bottom:14px;">
+      <div v-if="bolehTambah" class="grid-cols-1 md:grid-cols-4" style="display:grid; gap:8px; align-items:end; margin-bottom:14px;">
         <div class="gc-field" style="margin-bottom:0;">
           <label>Suplayer</label>
           <div style="display:flex; gap:6px;">
@@ -617,20 +617,24 @@ const AliasPembelianManager = {
       </div>
       <div v-if="memuat" style="text-align:center; padding:16px; color:var(--text-faint); font-size:12px;">Memuat...</div>
       <div v-else-if="daftarAlias.length === 0" style="font-size:11.5px; color:var(--text-faint);">Belum ada alias.</div>
-      <div v-else style="overflow-x:auto;">
-        <table class="gc-table" style="width:100%; font-size:12px;">
-          <!-- REVISI (25 Agt 2026) — kolom SEKARANG Suplayer, Nama di Nota,
-               Nama Internal (Nama + Warna) — SEBELUMNYA kolom ke-3 cuma
-               "Item Internal" & isinya nama polos tanpa warna (lihat fix
-               namaInternalTampil() & tambah() di atas). -->
-          <thead><tr><th>Suplayer</th><th>Nama di Nota</th><th>Nama Internal (Nama + Warna)</th><th></th></tr></thead>
-          <tbody>
-            <tr v-for="a in daftarAlias" :key="a.id">
-              <td>{{ a.suplayer_nama }}</td><td><b>{{ a.nama_di_nota }}</b></td><td>{{ namaInternalTampil(a) }}</td>
-              <td><button v-if="bolehHapus" @click="hapus(a)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button></td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- REVISI (28 Agt 2026, §40, fix grid mobile) — tabel alias SEKARANG
+           Kartu (data sederhana 3 kolom, sesuai keputusan Guru), BUKAN lagi
+           tabel scroll horizontal. Header kartu = Nama Internal (judul) +
+           Suplayer (subjudul), kartu-rows = Nama di Nota, tombol Hapus di
+           bawah (kalau bolehHapus). -->
+      <div v-else style="display:flex; flex-direction:column; gap:10px;">
+        <div v-for="a in daftarAlias" :key="a.id" class="gc-card" style="padding:14px;">
+          <div style="margin-bottom:10px;">
+            <div style="font-weight:700; font-size:13.5px;">{{ namaInternalTampil(a) }}</div>
+            <div style="font-size:11.5px; color:var(--text-muted);">{{ a.suplayer_nama }}</div>
+          </div>
+          <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px;" :style="{marginBottom: bolehHapus ? '10px' : '0'}">
+            <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Nama di Nota</span><span style="font-weight:700;">{{ a.nama_di_nota }}</span></div>
+          </div>
+          <div v-if="bolehHapus" style="display:flex; gap:8px;">
+            <button @click="hapus(a)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
+          </div>
+        </div>
       </div>
       <pengaturan-stock-pembelian v-if="tampilPengaturan" @tutup="tampilPengaturan = false" />
       <popup-tambah-suplayer-cepat v-if="tampilTambahSuplayer" @tersimpan="onSuplayerBaruTersimpan" @tutup="tampilTambahSuplayer = false" />
@@ -986,17 +990,31 @@ const PopupQtyPerLot = {
       <div class="gc-card" style="max-width:520px; width:100%; max-height:90vh; overflow-y:auto;">
         <h3 style="font-weight:700; font-size:15px; margin-bottom:6px;"><i class="fas fa-layer-group" style="color:var(--burgundy); margin-right:8px;"></i>Qty per Roll/Lot — {{ namaBarang }}</h3>
         <p style="font-size:11px; color:var(--text-faint); margin-bottom:14px;">Isi qty tiap roll/kones satu per satu (qtynya bisa beda-beda tiap roll). Total dijumlah otomatis. Catatan: FIFO/pemakaian per-lot belum aktif — ronde ini baru mencatat qty per roll saat barang diterima.</p>
-        <div style="display:grid; grid-template-columns:40px 1fr 1fr 30px; gap:6px; margin-bottom:4px;">
-          <span style="font-size:10px; font-weight:700; color:var(--text-faint);">NO</span>
-          <span style="font-size:10px; font-weight:700; color:var(--text-faint);">QTY ({{ satuan || 'satuan' }})</span>
-          <span style="font-size:10px; font-weight:700; color:var(--text-faint);">KETERANGAN (opsional)</span>
-          <span></span>
+        <!-- REVISI (28 Agt 2026, §40, fix grid mobile) — grid-template-columns
+             INLINE dihapus (dulu bikin baris tetap 4-kolom sempit di HP,
+             field meluber ke luar kotak). Header kolom SEKARANG "hidden
+             md:flex" (pola BAKU dipakai di seluruh app — lihat PETA-DESAIN.md
+             — BUKAN "hidden md:grid" yang dipakai PopupKonversiBerjenjang di
+             vue-bahan-aksesoris.js baris ~779, karena class ".md:grid" itu
+             TIDAK ADA di gechoo-design.css/index.html — dicek langsung, "grid"
+             cuma didefinisikan lewat grid-cols-1/2 & md:grid-cols-2/3/4, tidak
+             ada varian "display:grid" khusus breakpoint md — jadi kalau ditiru
+             persis, header itu permanen display:none bahkan di desktop. Dipakai
+             "hidden md:flex" yang SUDAH terbukti jalan di banyak tempat lain
+             sebagai gantinya). Baris data SEKARANG grid-cols-1 md:grid-cols-4
+             (1 kolom penuh per field di HP dengan label .gc-row-label, balik
+             ke 4 kolom sejajar di desktop >=768px). -->
+        <div class="hidden md:flex" style="gap:6px; margin-bottom:4px;">
+          <span style="flex:1; font-size:10px; font-weight:700; color:var(--text-faint);">NO</span>
+          <span style="flex:1; font-size:10px; font-weight:700; color:var(--text-faint);">QTY ({{ satuan || 'satuan' }})</span>
+          <span style="flex:1; font-size:10px; font-weight:700; color:var(--text-faint);">KETERANGAN (opsional)</span>
+          <span style="flex:1;"></span>
         </div>
-        <div v-for="(b, i) in baris" :key="i" style="display:grid; grid-template-columns:40px 1fr 1fr 30px; gap:6px; align-items:center; margin-bottom:8px;">
-          <span style="font-size:11.5px; color:var(--text-muted); text-align:center;">{{ i + 1 }}</span>
-          <input v-model.number="b.qty" type="number" min="0" placeholder="0" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <input v-model="b.keterangan" type="text" placeholder="Mis. no. roll" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <button @click="$emit('hapus', i)" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button>
+        <div v-for="(b, i) in baris" :key="i" class="grid-cols-1 md:grid-cols-4" style="display:grid; gap:6px; align-items:center; margin-bottom:8px;">
+          <div><span class="gc-row-label">No</span><span style="font-size:11.5px; color:var(--text-muted);">{{ i + 1 }}</span></div>
+          <div><span class="gc-row-label">Qty ({{ satuan || 'satuan' }})</span><input v-model.number="b.qty" type="number" min="0" placeholder="0" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;"></div>
+          <div><span class="gc-row-label">Keterangan (opsional)</span><input v-model="b.keterangan" type="text" placeholder="Mis. no. roll" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;"></div>
+          <div style="display:flex; justify-content:flex-end;"><button @click="$emit('hapus', i)" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button></div>
         </div>
         <button @click="$emit('tambah')" class="btn-outline" style="font-size:11.5px; padding:6px 14px; margin-bottom:16px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah Roll/Lot</button>
         <div style="background:var(--ivory-dim); border-radius:10px; padding:10px 14px; margin-bottom:16px; font-size:12.5px;">
@@ -1729,16 +1747,25 @@ const OrderBelanjaScreen = {
         <div class="gc-card" style="padding:14px; margin-bottom:14px;">
           <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">{{ labelGroup1 }} ({{ daftarPermintaan.length }})</label>
           <div v-if="daftarPermintaan.length === 0" style="font-size:11.5px; color:var(--text-faint);">Tidak ada permintaan menunggu (lihat menu Persiapan Masalah).</div>
-          <div v-else style="overflow-x:auto;">
-            <table class="gc-table" style="width:100%; font-size:12px;">
-              <thead><tr><th>Nama</th><th>Qty</th><th>Satuan</th><th>Keterangan</th><th v-if="modeNota"></th></tr></thead>
-              <tbody>
-                <tr v-for="p in daftarPermintaan" :key="p.id">
-                  <td>{{ p.nama_bahan }}</td><td>{{ p.qty }}</td><td>{{ p.satuan }}</td><td style="color:var(--text-muted);">{{ p.keterangan || '-' }}</td>
-                  <td v-if="modeNota"><button @click="tambahDariPermintaan(p)" class="icon-btn" style="color:var(--burgundy);" title="Tambah ke Daftar Order Belanja"><i class="fas fa-circle-plus"></i></button></td>
-                </tr>
-              </tbody>
-            </table>
+          <!-- REVISI (28 Agt 2026, §40, fix grid mobile) — "List Order Belanja"
+               (tabel Daftar Permintaan ini) SEKARANG Kartu, sesuai keputusan
+               eksplisit Guru (data sederhana 4 kolom). Header kartu = Nama
+               (judul) + tag Qty+Satuan di kanan, kartu-rows = Keterangan,
+               tombol "Tambah ke Daftar Order Belanja" di bawah (khusus Nota,
+               sama seperti tombol tabel asli). -->
+          <div v-else style="display:flex; flex-direction:column; gap:10px;">
+            <div v-for="p in daftarPermintaan" :key="p.id" class="gc-card" style="padding:14px;">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px;">
+                <div style="font-weight:700; font-size:13.5px;">{{ p.nama_bahan }}</div>
+                <span class="tag neutral" style="flex-shrink:0;">{{ p.qty }} {{ p.satuan }}</span>
+              </div>
+              <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px;" :style="{marginBottom: modeNota ? '10px' : '0'}">
+                <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Keterangan</span><span style="font-weight:700;">{{ p.keterangan || '-' }}</span></div>
+              </div>
+              <div v-if="modeNota" style="display:flex; gap:8px;">
+                <button @click="tambahDariPermintaan(p)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px; color:var(--burgundy); border-color:var(--burgundy);"><i class="fas fa-circle-plus" style="margin-right:6px;"></i>Tambah ke Daftar Order Belanja</button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1753,7 +1780,7 @@ const OrderBelanjaScreen = {
                boleh multi-Suplayer per dokumen (field per-baris di bawah,
                TIDAK berubah) — jadi kolom Suplayer di baris 1 ini DIHILANGKAN
                khusus List (v-else, 2 grid saja). -->
-          <div v-if="modeNota" style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px;">
+          <div v-if="modeNota" class="grid-cols-1 md:grid-cols-3" style="display:grid; gap:10px; margin-bottom:14px;">
             <div class="gc-field" style="margin-bottom:0;">
               <label>No. Pembelian</label>
               <select :value="draftDocId" @change="pilihNoPembelian($event.target.value)" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
@@ -1771,7 +1798,7 @@ const OrderBelanjaScreen = {
               </div>
             </div>
           </div>
-          <div v-else style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+          <div v-else class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:10px; margin-bottom:14px;">
             <div class="gc-field" style="margin-bottom:0;">
               <label>No. Pembelian</label>
               <select :value="draftDocId" @change="pilihNoPembelian($event.target.value)" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
@@ -1796,13 +1823,20 @@ const OrderBelanjaScreen = {
                Nama Barang, Tambah — Suplayer DIPINDAH ke baris 1 di atas
                KHUSUS Nota (lihat catatan di atas); List TETAP punya field
                Suplayer di sini (per-baris, TIDAK berubah dari sebelumnya). -->
-          <div v-if="modeNota" style="display:grid; grid-template-columns:100px 100px 1fr auto; gap:8px; align-items:end; margin-bottom:16px;">
+          <div v-if="modeNota" class="grid-cols-1 md:grid-cols-4" style="display:grid; gap:8px; align-items:end; margin-bottom:16px;">
             <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input ref="qtyEntryEl" v-model.number="qtyEntry" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari v-model="satuanEntryManual" :opsi="opsiSatuanEntry" :disabled="opsiSatuanEntry.length === 0" placeholder="Satuan..." /></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Nama Barang</label><dropdown-cari v-model="namaBarangEntry" :opsi="opsiNamaBarang" placeholder="Cari & pilih..." /></div>
             <button @click="tambahItemManual" class="btn-primary" style="padding:0 18px; height:38px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah</button>
           </div>
-          <div v-else style="display:grid; grid-template-columns:1fr 100px 100px 1fr auto; gap:8px; align-items:end; margin-bottom:16px;">
+          <!-- REVISI (28 Agt 2026, §40, fix grid mobile) — SEBELUMNYA 5 kolom
+               rata (1fr 100px 100px 1fr auto) tanpa breakpoint (meluber di HP).
+               TIDAK ADA utilitas md:grid-cols-5 di gechoo-design.css (cuma
+               sampai 4), jadi Qty+Satuan (2 field kecil yang memang berpasangan)
+               digabung 1 sub-grid 2-kolom TETAP (muat di HP, keduanya field
+               pendek) supaya baris luar jadi 4 "kolom" & bisa pakai
+               grid-cols-1/md:grid-cols-4 yang sudah ada. -->
+          <div v-else class="grid-cols-1 md:grid-cols-4" style="display:grid; gap:8px; align-items:end; margin-bottom:16px;">
             <div class="gc-field" style="margin-bottom:0;">
               <label>Suplayer</label>
               <div style="display:flex; gap:6px;">
@@ -1810,8 +1844,10 @@ const OrderBelanjaScreen = {
                 <button @click="tampilTambahSuplayer = true" type="button" class="icon-btn" style="flex-shrink:0;" title="Tambah Suplayer baru"><i class="fas fa-plus"></i></button>
               </div>
             </div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input ref="qtyEntryEl" v-model.number="qtyEntry" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari v-model="satuanEntryManual" :opsi="opsiSatuanEntry" :disabled="opsiSatuanEntry.length === 0" placeholder="Satuan..." /></div>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+              <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input ref="qtyEntryEl" v-model.number="qtyEntry" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
+              <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari v-model="satuanEntryManual" :opsi="opsiSatuanEntry" :disabled="opsiSatuanEntry.length === 0" placeholder="Satuan..." /></div>
+            </div>
             <div class="gc-field" style="margin-bottom:0;"><label>Nama Barang</label><dropdown-cari v-model="namaBarangEntry" :opsi="opsiNamaBarang" placeholder="Cari & pilih..." /></div>
             <button @click="tambahItemManual" class="btn-primary" style="padding:0 18px; height:38px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah</button>
           </div>
@@ -2165,19 +2201,23 @@ const CetakLabelManager = {
       <div v-if="paginasiLog.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
       <div v-else-if="paginasiLog.errorPaginasi.value" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasiLog.errorPaginasi.value }}</div>
       <div v-else-if="paginasiLog.dataHalaman.value.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada riwayat cetak label.</div>
-      <div v-else style="overflow-x:auto;">
-        <table class="gc-table" style="width:100%; font-size:11.5px;">
-          <thead><tr><th>Tanggal</th><th>Nama Barang</th><th>Jumlah Label</th><th>Jenis</th><th>Dicetak Oleh</th></tr></thead>
-          <tbody>
-            <tr v-for="r in paginasiLog.dataHalaman.value" :key="r.id">
-              <td>{{ formatTanggalLog(r.tanggal) }}</td>
-              <td>{{ r.nama_barang }}</td>
-              <td>{{ r.jumlah_label }}</td>
-              <td>{{ r.jenis === 'roll' ? 'Roll/Lot' : 'Item' }}</td>
-              <td>{{ r.dicetak_oleh || '-' }}</td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- REVISI (28 Agt 2026, §40, fix grid mobile) — Riwayat Cetak Label
+           SEKARANG Kartu (log aktivitas sederhana 5 kolom, sesuai keputusan
+           Guru). Header kartu = Nama Barang (judul) + tag Jenis di kanan,
+           kartu-rows = Tanggal, Jumlah Label, Dicetak Oleh. Read-only, tidak
+           ada tombol aksi. -->
+      <div v-else style="display:flex; flex-direction:column; gap:10px;">
+        <div v-for="r in paginasiLog.dataHalaman.value" :key="r.id" class="gc-card" style="padding:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px;">
+            <div style="font-weight:700; font-size:13.5px;">{{ r.nama_barang }}</div>
+            <span class="tag neutral" style="flex-shrink:0;">{{ r.jenis === 'roll' ? 'Roll/Lot' : 'Item' }}</span>
+          </div>
+          <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px;">
+            <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Tanggal</span><span style="font-weight:700;">{{ formatTanggalLog(r.tanggal) }}</span></div>
+            <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Jumlah Label</span><span style="font-weight:700;">{{ r.jumlah_label }}</span></div>
+            <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Dicetak Oleh</span><span style="font-weight:700;">{{ r.dicetak_oleh || '-' }}</span></div>
+          </div>
+        </div>
       </div>
 
       <div v-if="!paginasiLog.memuat.value && paginasiLog.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">

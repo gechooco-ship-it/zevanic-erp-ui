@@ -290,7 +290,7 @@ const AntreanAbsensiCard = {
             <span v-else style="color:var(--text-faint);">-</span>
           </div>
         </div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+        <div style="display:grid; gap:10px; margin-bottom:14px;" class="grid-cols-1 md:grid-cols-2">
           <div class="gc-field" style="margin-bottom:0;">
             <label style="font-size:10.5px;">Status kehadiran <span style="font-weight:400; color:var(--text-faint);">(otomatis)</span></label>
             <div style="padding:8px 10px;">
@@ -329,7 +329,7 @@ const AntreanAbsensiCard = {
             <span v-else-if="data.status_radius_masuk === 'DI LUAR RADIUS'" class="tag danger">Di luar radius ({{ data.jarak_meter_masuk || 0 }}m)</span>
             <span v-else-if="data.status_radius_masuk === 'LOKASI DINAMIS'" class="tag blue">Lokasi dinamis</span>
           </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
+          <div style="display:grid; gap:8px; margin-bottom:10px;" class="grid-cols-1 md:grid-cols-2">
             <div>
               <label style="font-size:9.5px; color:var(--text-faint); display:block; margin-bottom:3px;">Status kehadiran (otomatis)</label>
               <span v-if="statusKehadiranMasukOtomatis === 'Ontime'" class="tag ok">Ontime</span>
@@ -352,7 +352,7 @@ const AntreanAbsensiCard = {
             <span v-else-if="data.status_radius_keluar === 'DI LUAR RADIUS'" class="tag danger">Di luar radius ({{ data.jarak_meter_keluar || 0 }}m)</span>
             <span v-else-if="data.status_radius_keluar === 'LOKASI DINAMIS'" class="tag blue">Lokasi dinamis</span>
           </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
+          <div style="display:grid; gap:8px; margin-bottom:10px;" class="grid-cols-1 md:grid-cols-2">
             <div>
               <label style="font-size:9.5px; color:var(--text-faint); display:block; margin-bottom:3px;">Status kehadiran (otomatis)</label>
               <span v-if="adaLemburApproved" class="tag blue">Lembur</span>

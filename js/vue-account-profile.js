@@ -21,6 +21,7 @@ import { db, auth } from "./firebase-config.js";
 import { DuaBaris } from './vue-components.js';
 import { formatBaris } from './vue-riwayat-absensi.js';
 import { AjukanReimburseTab } from './vue-reimburse.js';
+import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
 
 // ---------------------------------------------------------------------------
 // Aju Banding modal (dipakai dari dalam tab Absensi)
@@ -109,6 +110,10 @@ const AppAccountProfile = {
   components: { DuaBaris, AjuBandingModal, AjukanReimburseTab },
   setup() {
     const tabAktif = ref('account');
+    // Tab internal genuine (saklar Account/Data Karyawan/Absensi/Reimburse/
+    // Pencapaian/Keamanan dalam 1 komponen) — di-wire ke riwayat tombol back
+    // HP (§39, lihat js/vue-riwayat-tab.js).
+    pakaiRiwayatTabVue('akun-profil-tab', tabAktif);
 
     // ---- Keamanan: Update Password ----
     const passwordLama = ref('');
@@ -154,6 +159,9 @@ const AppAccountProfile = {
     // table sederhana). WAJIB re-auth password dulu sebelum PIN
     // dipasang/diubah — sama persis pola Update Password di atas.
     const subTabKeamanan = ref('password'); // 'password' | 'pin'
+    // Child-tab genuine di dalam tab Keamanan — ikut di-wire (level Child-tab,
+    // bukan cuma Sub-menu, sesuai PEDOMAN-GAYA-KERJA §riwayat browser).
+    pakaiRiwayatTabVue('akun-profil-keamanan-subtab', subTabKeamanan);
     const pinStatusTerpasang = ref(false);
     const pinBaru = ref('');
     const konfirmasiPin = ref('');
@@ -625,7 +633,7 @@ const AppAccountProfile = {
 
         <div style="background:var(--ivory-dim); padding:16px; border-radius:16px; margin-bottom:16px;">
           <h4 style="font-weight:700; color:var(--text); margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:6px;">2. Informasi Kontak</h4>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px;">
+          <div style="display:grid; gap:14px;" class="grid-cols-1 md:grid-cols-2">
             <div class="gc-field" style="margin-bottom:0;"><label>No. Handphone (WhatsApp)</label><input v-model="form.hp" type="text"></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Email Aktif (Identitas Login)</label><input :value="form.email" disabled style="background:var(--ivory-dim); color:var(--text-faint); cursor:not-allowed;" title="Hubungi Admin untuk ubah Email"></div>
           </div>
@@ -633,7 +641,7 @@ const AppAccountProfile = {
 
         <div style="background:var(--ivory-dim); padding:16px; border-radius:16px; margin-bottom:16px;">
           <h4 style="font-weight:700; color:var(--text); margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:6px;">3. Alamat Lengkap</h4>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+          <div style="display:grid; gap:20px;" class="grid-cols-1 md:grid-cols-2">
             <div>
               <label style="display:block; font-weight:700; color:var(--burgundy); margin-bottom:8px;">A. Alamat Sesuai KTP</label>
               <div class="gc-field"><label>Kabupaten/Kota</label><input v-model="form.ktpKab" type="text"></div>
@@ -728,7 +736,7 @@ const AppAccountProfile = {
 
       <div v-if="formTerbuka === 'lembur'" class="gc-card" style="max-width:520px; margin:0 auto 14px;">
         <h3 style="font-size:11.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;">Form Pengajuan Jam Lembur</h3>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div style="display:grid; gap:12px;" class="grid-cols-1 md:grid-cols-2">
           <div class="gc-field"><label>Mulai Lembur</label><input v-model="lembur.mulai" type="datetime-local"></div>
           <div class="gc-field"><label>Selesai (perkiraan)</label><input v-model="lembur.selesai" type="datetime-local"></div>
         </div>
@@ -775,58 +783,49 @@ const AppAccountProfile = {
 
       <div v-if="memuatRiwayat" style="text-align:center; padding:40px 0; color:var(--text-faint); font-size:12px;"><i class="fas fa-spinner fa-spin" style="font-size:24px; margin-bottom:8px; display:block;"></i>Memuat laporan absensi Anda...</div>
       <div v-else-if="listRiwayat.length === 0" style="text-align:center; padding:40px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px; color:var(--text-faint); font-size:12px;"><i class="fas fa-folder-open" style="font-size:28px; margin-bottom:10px; display:block; color:var(--text-faint);"></i>Belum ada riwayat absensi yang tercatat untuk Anda.</div>
-      <div v-else class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line);">
-        <table class="gc-table">
-          <thead>
-            <tr>
-              <th>Persetujuan / Tipe Absen</th>
-              <th>Nama / No HP</th>
-              <th>Gudang / Shift</th>
-              <th>Tanggal / Waktu</th>
-              <th>Foto</th>
-              <th>Status Kehadiran / Seragam</th>
-              <th>Sanggahan Karyawan</th>
-              <th>Status Aju Banding</th>
-              <th class="freeze freeze-right">Aksi Aju Banding</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in listRiwayat" :key="item.id">
-              <td>
-                <b>
-                  <span v-if="formatBaris(item).statusAccMasuk === 'ACC'" style="color:var(--ok);">Masuk: ACC</span>
-                  <span v-else-if="formatBaris(item).statusAccMasuk === 'REJECT'" style="color:var(--danger);">Masuk: REJECT</span>
-                  <span v-else-if="formatBaris(item).statusAccMasuk === 'PENDING'" style="color:var(--warn);">Masuk: PENDING</span>
-                </b>
-                <br v-if="formatBaris(item).statusAccMasuk && formatBaris(item).statusAccKeluar">
-                <b>
-                  <span v-if="formatBaris(item).statusAccKeluar === 'ACC'" style="color:var(--ok);">Keluar: ACC</span>
-                  <span v-else-if="formatBaris(item).statusAccKeluar === 'REJECT'" style="color:var(--danger);">Keluar: REJECT</span>
-                  <span v-else-if="formatBaris(item).statusAccKeluar === 'PENDING'" style="color:var(--warn);">Keluar: PENDING</span>
-                </b>
-                <br><span style="font-size:10.5px; color:var(--text-muted); font-weight:400;">{{ item.status || 'HADIR' }}</span>
-              </td>
-              <td><dua-baris :a="item.nama_pegawai || item.nama" :b="form.hp" /></td>
-              <td><dua-baris :a="item.gudang" :b="item.shift" /></td>
-              <td><dua-baris :a="pisahTanggalWaktu(formatBaris(item).waktuKeluar || formatBaris(item).waktuMasuk).tgl" :b="pisahTanggalWaktu(formatBaris(item).waktuKeluar || formatBaris(item).waktuMasuk).jam" /></td>
-              <td>
-                <img v-if="formatBaris(item).fotoMasuk || formatBaris(item).fotoKeluar" :src="formatBaris(item).fotoKeluar || formatBaris(item).fotoMasuk" @click="lihatFotoBesar(formatBaris(item).fotoKeluar || formatBaris(item).fotoMasuk)" style="width:40px; height:40px; border-radius:10px; object-fit:cover; border:1px solid var(--line); cursor:pointer;">
-                <span v-else style="color:var(--text-faint);">-</span>
-              </td>
-              <td><dua-baris :a="formatBaris(item).statusKehadiranMasuk || formatBaris(item).statusKehadiranKeluar" :b="formatBaris(item).seragamMasuk || formatBaris(item).seragamKeluar || 'Sesuai'" /></td>
-              <td class="gc-cell-muted" style="max-width:150px; overflow:hidden; text-overflow:ellipsis;" :title="item.catatan_banding || ''">{{ item.catatan_banding || '-' }}</td>
-              <td style="text-align:center;">
-                <span v-if="item.catatan_banding" class="tag warn">Sudah Diajukan</span>
-                <span v-else style="color:var(--text-faint);">-</span>
-              </td>
-              <td class="freeze freeze-right">
-                <span v-if="item.catatan_banding" style="font-size:10.5px; color:var(--text-muted);"><i class="fas fa-check" style="color:var(--ok); margin-right:4px;"></i>Terkirim</span>
-                <button v-else-if="bolehBanding(item)" @click="bukaBanding(item.id)" class="btn-outline" style="padding:6px 12px; font-size:10.5px; white-space:nowrap;"><i class="fas fa-gavel" style="margin-right:4px;"></i>Aju Banding</button>
-                <span v-else style="color:var(--text-faint); font-size:10.5px;">-</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- GANTI (grid-fix mobile §perbaikan grid+kartu) — dulu tabel scroll
+           horizontal (9 kolom, freeze-right), SEKARANG kartu (pola SAMA
+           seperti Data Bahan & Aksesoris) supaya tidak perlu geser ke
+           kanan di HP. Semua kolom tabel lama tetap ada, cuma disusun
+           ulang: header = Nama/No HP + tag Status Aju Banding, foto jadi
+           thumbnail di header, sisanya di kartu-rows, Aksi di bawah. -->
+      <div v-else style="display:flex; flex-direction:column; gap:10px;">
+        <div v-for="item in listRiwayat" :key="item.id" class="gc-card" style="padding:14px;">
+          <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:12px;">
+            <img v-if="formatBaris(item).fotoMasuk || formatBaris(item).fotoKeluar" :src="formatBaris(item).fotoKeluar || formatBaris(item).fotoMasuk" @click="lihatFotoBesar(formatBaris(item).fotoKeluar || formatBaris(item).fotoMasuk)" style="width:52px; height:52px; object-fit:cover; border-radius:10px; flex-shrink:0; cursor:pointer; border:1px solid var(--line);">
+            <div v-else style="width:52px; height:52px; border-radius:10px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><i class="fas fa-image" style="color:var(--text-faint); font-size:15px;"></i></div>
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; font-size:13.5px;">{{ item.nama_pegawai || item.nama }}</div>
+              <div style="font-size:11.5px; color:var(--text-muted);">{{ form.hp }}</div>
+              <div style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">{{ item.status || 'HADIR' }}</div>
+            </div>
+            <span v-if="item.catatan_banding" class="tag warn" style="flex-shrink:0;">Sudah Diajukan</span>
+            <span v-else class="tag neutral" style="flex-shrink:0;">Belum Diajukan</span>
+          </div>
+
+          <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+            <div style="display:flex; justify-content:space-between; font-size:12px; gap:10px;">
+              <span style="color:var(--text-faint); flex-shrink:0;">Persetujuan</span>
+              <span style="font-weight:700; text-align:right;">
+                <span v-if="formatBaris(item).statusAccMasuk === 'ACC'" style="color:var(--ok);">Masuk: ACC</span>
+                <span v-else-if="formatBaris(item).statusAccMasuk === 'REJECT'" style="color:var(--danger);">Masuk: REJECT</span>
+                <span v-else-if="formatBaris(item).statusAccMasuk === 'PENDING'" style="color:var(--warn);">Masuk: PENDING</span>
+                <span v-if="formatBaris(item).statusAccMasuk && formatBaris(item).statusAccKeluar"> &middot; </span>
+                <span v-if="formatBaris(item).statusAccKeluar === 'ACC'" style="color:var(--ok);">Keluar: ACC</span>
+                <span v-else-if="formatBaris(item).statusAccKeluar === 'REJECT'" style="color:var(--danger);">Keluar: REJECT</span>
+                <span v-else-if="formatBaris(item).statusAccKeluar === 'PENDING'" style="color:var(--warn);">Keluar: PENDING</span>
+              </span>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:12px; gap:10px;"><span style="color:var(--text-faint); flex-shrink:0;">Gudang / Shift</span><span style="font-weight:700; text-align:right;">{{ item.gudang }} / {{ item.shift }}</span></div>
+            <div style="display:flex; justify-content:space-between; font-size:12px; gap:10px;"><span style="color:var(--text-faint); flex-shrink:0;">Tanggal / Waktu</span><span style="font-weight:700; text-align:right;">{{ pisahTanggalWaktu(formatBaris(item).waktuKeluar || formatBaris(item).waktuMasuk).tgl }}, {{ pisahTanggalWaktu(formatBaris(item).waktuKeluar || formatBaris(item).waktuMasuk).jam }}</span></div>
+            <div style="display:flex; justify-content:space-between; font-size:12px; gap:10px;"><span style="color:var(--text-faint); flex-shrink:0;">Status Kehadiran / Seragam</span><span style="font-weight:700; text-align:right;">{{ formatBaris(item).statusKehadiranMasuk || formatBaris(item).statusKehadiranKeluar }} / {{ formatBaris(item).seragamMasuk || formatBaris(item).seragamKeluar || 'Sesuai' }}</span></div>
+            <div style="display:flex; justify-content:space-between; font-size:12px; gap:10px;"><span style="color:var(--text-faint); flex-shrink:0;">Sanggahan Karyawan</span><span style="font-weight:700; text-align:right;">{{ item.catatan_banding || '-' }}</span></div>
+          </div>
+
+          <div v-if="item.catatan_banding" style="text-align:center; font-size:11px; color:var(--text-muted);"><i class="fas fa-check" style="color:var(--ok); margin-right:4px;"></i>Sanggahan sudah terkirim</div>
+          <button v-else-if="bolehBanding(item)" @click="bukaBanding(item.id)" class="btn-outline block" style="font-size:11.5px;"><i class="fas fa-gavel" style="margin-right:6px;"></i>Aju Banding</button>
+          <div v-else style="text-align:center; font-size:11px; color:var(--text-faint);">-</div>
+        </div>
       </div>
     </div>
 

@@ -26,6 +26,7 @@ import { createApp, ref, reactive, computed, onMounted, watch } from 'https://un
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { MasterDataCategory } from './vue-components.js';
+import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
 
 // Kompresi gambar sisi klien — pola SAMA seperti js/camera.js (foto KTP),
 // disalin di sini (bukan diimpor) karena kompresGambar di camera.js
@@ -122,6 +123,9 @@ export const AjukanReimburseTab = {
     // sekali — cuma dapat form Reimburse Umum biasa.
     const kendaraanSaya = ref([]);
     const jenisPengajuan = ref('umum'); // 'umum' | 'bensin' | 'servis'
+    // Tab internal genuine (saklar Umum/Bensin/Servis dalam 1 komponen) —
+    // di-wire ke riwayat tombol back HP (§39, lihat js/vue-riwayat-tab.js).
+    pakaiRiwayatTabVue('reimburse-mode', jenisPengajuan);
 
     async function muatKendaraanSaya() {
       try {
@@ -628,7 +632,7 @@ const AppMasterKeuangan = {
       <h3 class="gc-heading" style="font-weight:700; font-size:13.5px;"><i class="fas fa-wallet" style="color:var(--burgundy); margin-right:8px;"></i> Master Keuangan</h3>
       <p style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">Kelola kategori pengeluaran (dipakai form Ajukan Reimburse) dan kategori pemasukan.</p>
     </div>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;" class="grid-cols-1 md:grid-cols-2">
+    <div style="display:grid; gap:16px;" class="grid-cols-1 md:grid-cols-2">
       <master-data-category kategori="kategori_reimburse" label="Kategori Pengeluaran" menu-id="master_keuangan" />
       <master-data-category kategori="kategori_pemasukan" label="Kategori Pemasukan" menu-id="master_keuangan" />
     </div>
@@ -826,7 +830,7 @@ const MasterKendaraanManager = {
   template: `
     <div class="gc-card" style="margin-bottom:16px;">
       <h3 class="gc-heading" style="font-weight:700; font-size:13.5px; margin-bottom:14px;"><i class="fas fa-truck" style="color:var(--burgundy); margin-right:8px;"></i> Tambah Kendaraan Baru</h3>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;" class="grid-cols-1 md:grid-cols-2">
+      <div style="display:grid; gap:10px; margin-bottom:12px;" class="grid-cols-1 md:grid-cols-2">
         <div class="gc-field" style="margin-bottom:0;">
           <label>1. Jenis Pekerjaan (bidang usaha)</label>
           <select v-model="jenisPekerjaanBaru"><option value="" disabled>Pilih...</option><option v-for="jp in opsiJenisPekerjaan" :key="jp" :value="jp">{{ jp }}</option></select>
@@ -849,55 +853,53 @@ const MasterKendaraanManager = {
       <input v-model="cariKendaraan" type="text" placeholder="Cari plat, nama, gudang, atau supir..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
     </div>
 
-    <div class="gc-card" style="padding:0; overflow:hidden;">
-      <div v-if="memuat" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
-      <div v-else-if="daftarKendaraan.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada kendaraan terdaftar.</div>
-      <div v-else-if="daftarKendaraanTersaring.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Tidak ada yang cocok dicari.</div>
-      <div v-else class="gc-table-scroll">
-        <table class="gc-table">
-          <thead>
-            <tr>
-              <th>Plat / Nama</th>
-              <th>Jenis Pekerjaan / Gudang</th>
-              <th>Supir Pemegang</th>
-              <th>Dikaitkan Sejak</th>
-              <th class="freeze freeze-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-for="k in daftarKendaraanTerpaginasi" :key="k.id">
-              <tr>
-                <td><b>{{ k.plat_nomor }}</b><br><span style="color:var(--text-faint); font-size:10.5px;">{{ k.nama_kendaraan || '-' }}</span></td>
-                <td>{{ k.jenis_pekerjaan || '-' }}<br><span style="color:var(--text-faint); font-size:10.5px;">{{ k.gudang || '-' }}</span></td>
-                <td>
-                  <span v-if="k.supir_pemegang.length === 0" style="color:var(--text-faint);">Belum ada supir</span>
-                  <span v-else>{{ k.supir_pemegang.map(s => s.nama).join(', ') }}</span>
-                </td>
-                <td class="gc-cell-muted">{{ formatTglSingkat(k.supir_ditugaskan_pada) }}</td>
-                <td class="freeze freeze-right">
-                  <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                    <button @click="bukaEditSupir(k)" class="icon-btn" title="Atur Supir"><i class="fas fa-user-edit"></i></button>
-                    <button @click="hapus(k.id)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
-                  </div>
-                </td>
-              </tr>
-              <tr v-if="sedangEditSupirId === k.id">
-                <td colspan="5" style="background:var(--ivory-dim);">
-                  <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Centang supir yang boleh pakai kendaraan ini:</label>
-                  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
-                    <label v-for="o in daftarOperator" :key="o.email" style="display:flex; align-items:center; gap:5px; font-size:11.5px; background:var(--surface); padding:5px 10px; border-radius:20px; cursor:pointer; border:1px solid var(--line);">
-                      <input type="checkbox" :value="o.email" v-model="pilihanSementara" style="accent-color:var(--burgundy);">{{ o.nama }}
-                    </label>
-                  </div>
-                  <div style="display:flex; gap:8px;">
-                    <button @click="simpanSupir(k.id)" class="btn-primary" style="padding:6px 16px; font-size:11.5px;">Simpan</button>
-                    <button @click="batalEditSupir" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer; font-size:11.5px;">Batal</button>
-                  </div>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
+    <!-- GANTI (grid-fix mobile §perbaikan grid+kartu) — dulu tabel scroll
+         horizontal (5 kolom, freeze-right), SEKARANG kartu supaya tidak
+         perlu geser ke kanan di HP. Semua kolom lama tetap ada: header =
+         Plat (judul) + Nama (subjudul), kartu-rows = Jenis Pekerjaan/
+         Gudang, Supir Pemegang, Dikaitkan Sejak, Aksi jadi 2 ikon di
+         header, panel "Atur Supir" tetap muncul DI DALAM kartu yang sama
+         (bukan baris tabel terpisah lagi). -->
+    <div v-if="memuat" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+    <div v-else-if="daftarKendaraan.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada kendaraan terdaftar.</div>
+    <div v-else-if="daftarKendaraanTersaring.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Tidak ada yang cocok dicari.</div>
+    <div v-else style="display:flex; flex-direction:column; gap:10px;">
+      <div v-for="k in daftarKendaraanTerpaginasi" :key="k.id" class="gc-card" style="padding:14px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
+          <div>
+            <div style="font-weight:700; font-size:13.5px;">{{ k.plat_nomor }}</div>
+            <div style="font-size:11.5px; color:var(--text-muted);">{{ k.nama_kendaraan || '-' }}</div>
+          </div>
+          <div style="display:flex; gap:6px; flex-shrink:0;">
+            <button @click="bukaEditSupir(k)" class="icon-btn" title="Atur Supir"><i class="fas fa-user-edit"></i></button>
+            <button @click="hapus(k.id)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
+          </div>
+        </div>
+
+        <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px;">
+          <div style="display:flex; justify-content:space-between; font-size:12px; gap:10px;"><span style="color:var(--text-faint); flex-shrink:0;">Jenis Pekerjaan / Gudang</span><span style="font-weight:700; text-align:right;">{{ k.jenis_pekerjaan || '-' }} / {{ k.gudang || '-' }}</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; gap:10px;">
+            <span style="color:var(--text-faint); flex-shrink:0;">Supir Pemegang</span>
+            <span style="font-weight:700; text-align:right;">
+              <span v-if="k.supir_pemegang.length === 0" style="color:var(--text-faint); font-weight:400;">Belum ada supir</span>
+              <span v-else>{{ k.supir_pemegang.map(s => s.nama).join(', ') }}</span>
+            </span>
+          </div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; gap:10px;"><span style="color:var(--text-faint); flex-shrink:0;">Dikaitkan Sejak</span><span style="font-weight:700;">{{ formatTglSingkat(k.supir_ditugaskan_pada) }}</span></div>
+        </div>
+
+        <div v-if="sedangEditSupirId === k.id" style="margin-top:12px; padding-top:12px; border-top:1px dashed var(--line);">
+          <label style="font-size:10.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Centang supir yang boleh pakai kendaraan ini:</label>
+          <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;">
+            <label v-for="o in daftarOperator" :key="o.email" style="display:flex; align-items:center; gap:5px; font-size:11.5px; background:var(--surface); padding:5px 10px; border-radius:20px; cursor:pointer; border:1px solid var(--line);">
+              <input type="checkbox" :value="o.email" v-model="pilihanSementara" style="accent-color:var(--burgundy);">{{ o.nama }}
+            </label>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button @click="simpanSupir(k.id)" class="btn-primary" style="padding:6px 16px; font-size:11.5px;">Simpan</button>
+            <button @click="batalEditSupir" style="background:none; border:none; color:var(--text-faint); font-weight:700; cursor:pointer; font-size:11.5px;">Batal</button>
+          </div>
+        </div>
       </div>
     </div>
     <div v-if="!memuat && daftarKendaraanTersaring.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
@@ -1019,41 +1021,43 @@ const RiwayatReimburseTable = {
     <div v-else-if="daftarTersaring.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
       <p style="font-size:11.5px; color:var(--text-muted);">Tidak ada yang cocok dicari.</p>
     </div>
-    <div v-else class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line);">
-      <table class="gc-table">
-        <thead>
-          <tr>
-            <th>Tanggal</th>
-            <th>Nama</th>
-            <th v-if="mode !== 'semua'">Kendaraan</th>
-            <th v-if="mode === 'bensin'">KM</th>
-            <th v-if="mode === 'semua'">Kategori</th>
-            <th v-if="mode === 'servis'">Rincian</th>
-            <th>Jumlah</th>
-            <th>Status</th>
-            <th>Foto</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in daftarTerpaginasi" :key="r.id">
-            <td class="gc-cell-muted">{{ formatTgl(r.diajukan_pada) }}</td>
-            <td>{{ r.nama_pegawai || '-' }}</td>
-            <td v-if="mode !== 'semua'">{{ r.kendaraan_plat || '-' }}</td>
-            <td v-if="mode === 'bensin'">{{ r.km_saat_isi ? r.km_saat_isi.toLocaleString('id-ID') + ' km' : '-' }}</td>
-            <td v-if="mode === 'semua'">{{ r.kategori || '-' }}</td>
-            <td v-if="mode === 'servis'" style="max-width:200px;">
+    <!-- GANTI (grid-fix mobile §perbaikan grid+kartu) — dulu tabel scroll
+         horizontal (9 kolom, sebagian kondisional lewat v-if mode),
+         SEKARANG kartu supaya tidak perlu geser ke kanan di HP. Semua
+         kolom lama + logic v-if mode (Kendaraan/KM/Kategori/Rincian)
+         tetap PERSIS sama, cuma disusun ulang: header = Nama + tag
+         Status, foto jadi thumbnail di header, Jumlah ditonjolkan di
+         bawah (pola sama seperti "Harga Pakai" di Data Bahan & Aksesoris). -->
+    <div v-else style="display:flex; flex-direction:column; gap:10px;">
+      <div v-for="r in daftarTerpaginasi" :key="r.id" class="gc-card" style="padding:14px;">
+        <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:12px;">
+          <img v-if="r.foto_bukti" :src="r.foto_bukti" @click="lihatFotoBesar(r.foto_bukti)" style="width:52px; height:52px; object-fit:cover; border-radius:10px; flex-shrink:0; cursor:pointer; border:1px solid var(--line);">
+          <div v-else style="width:52px; height:52px; border-radius:10px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><i class="fas fa-image" style="color:var(--text-faint); font-size:15px;"></i></div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700; font-size:13.5px;">{{ r.nama_pegawai || '-' }}</div>
+            <div style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">{{ formatTgl(r.diajukan_pada) }}</div>
+          </div>
+          <span class="tag" :class="warnaTahap(r.tahap)" style="flex-shrink:0;">{{ LABEL_TAHAP[r.tahap] || r.tahap }}</span>
+        </div>
+
+        <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+          <div v-if="mode !== 'semua'" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Kendaraan</span><span style="font-weight:700;">{{ r.kendaraan_plat || '-' }}</span></div>
+          <div v-if="mode === 'bensin'" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">KM</span><span style="font-weight:700;">{{ r.km_saat_isi ? r.km_saat_isi.toLocaleString('id-ID') + ' km' : '-' }}</span></div>
+          <div v-if="mode === 'semua'" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Kategori</span><span style="font-weight:700;">{{ r.kategori || '-' }}</span></div>
+          <div v-if="mode === 'servis'" style="display:flex; justify-content:space-between; font-size:12px; gap:10px;">
+            <span style="color:var(--text-faint); flex-shrink:0;">Rincian</span>
+            <span style="font-weight:700; text-align:right;">
               <span v-if="!r.item_servis || r.item_servis.length === 0">-</span>
-              <span v-else style="font-size:10.5px;">{{ r.item_servis.map(i => i.nama_barang).join(', ') }}</span>
-            </td>
-            <td><b>{{ formatRupiah(r.jumlah) }}</b></td>
-            <td><span class="tag" :class="warnaTahap(r.tahap)" style="font-size:10px;">{{ LABEL_TAHAP[r.tahap] || r.tahap }}</span></td>
-            <td>
-              <img v-if="r.foto_bukti" :src="r.foto_bukti" @click="lihatFotoBesar(r.foto_bukti)" style="width:32px; height:32px; border-radius:8px; object-fit:cover; cursor:pointer;">
-              <span v-else style="color:var(--text-faint);">-</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+              <span v-else>{{ r.item_servis.map(i => i.nama_barang).join(', ') }}</span>
+            </span>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:11px; color:var(--text-faint);">Jumlah</span>
+          <b style="font-size:15px; color:var(--burgundy);">{{ formatRupiah(r.jumlah) }}</b>
+        </div>
+      </div>
     </div>
     <div v-if="!memuat && daftarTersaring.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
       <button class="icon-btn" :disabled="halamanSaatIni <= 1" @click="gantiHalaman(-1)"><i class="fas fa-chevron-left"></i></button>

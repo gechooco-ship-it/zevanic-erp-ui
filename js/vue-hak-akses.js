@@ -345,7 +345,7 @@ const AppHakAkses = {
               <button @click="bersihkanPilihan" style="background:none; border:none; color:var(--text-muted); font-weight:700; font-size:11px; cursor:pointer;">Clear All</button>
             </div>
           </div>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <div style="display:grid; gap:8px;" class="grid-cols-1 md:grid-cols-2">
             <select v-model="filterRole" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
               <option value="ALL">Semua role</option>
               <option :value="NILAI_BELUM_DIATUR">(Belum diatur)</option>

@@ -233,6 +233,14 @@ thead .freeze{z-index:3;}
 @media(min-width:768px){
   .md\:flex{display:flex;}
   .md\:block{display:block;}
+  .md\:grid{display:grid;} /* BARU (28 Agt 2026, §39) — ketemu dari agen Batch F:
+     class ini KETAHUAN belum pernah ada padahal sudah dipakai (`hidden
+     md:grid`) di PopupKonversiBerjenjang (vue-bahan-aksesoris.js baris
+     ~779, header desktop-only 5-kolom Harga/Satuan Awal/dst). Efeknya
+     header itu SELALU hilang bahkan di desktop (`.hidden{display:none}`
+     tidak pernah ke-override balik jadi grid). Ditambahkan supaya pola
+     "hidden md:grid" + grid-template-columns inline (desktop-only header
+     row asimetris) benar-benar berfungsi seperti maksudnya. */
   .md\:flex-row{flex-direction:row;}
   .md\:hidden{display:none;}
   .md\:items-center{align-items:center;}

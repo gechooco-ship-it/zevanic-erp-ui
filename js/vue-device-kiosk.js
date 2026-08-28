@@ -172,7 +172,7 @@ const AppDeviceKiosk = {
       <h3 class="gc-heading" style="font-weight:700; font-size:13.5px; margin-bottom:6px;"><i class="fas fa-tablet-screen-button" style="color:var(--burgundy); margin-right:8px;"></i> Device Kiosk</h3>
       <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:16px;">HP/tablet yang digantung tetap di gudang, dipakai fitur "Absensi Melalui QR" — karyawan tanpa HP/HP rusak bisa absen lewat sini (scan barcode + PIN).</p>
 
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;" class="grid-cols-1 md:grid-cols-2">
+      <div style="display:grid; gap:10px; margin-bottom:12px;" class="grid-cols-1 md:grid-cols-2">
         <div class="gc-field" style="margin-bottom:0;"><label>Nama Device</label><input v-model="form.namaDevice" type="text" placeholder="Kiosk SOG12 Pintu Depan"></div>
         <div class="gc-field" style="margin-bottom:0;"><label>Gudang (bisa lebih dari 1)</label><gudang-checkbox-select v-model="form.gudang" /></div>
         <div class="gc-field" style="margin-bottom:0;"><label>Email Akun Kiosk</label><input v-model="form.email" type="email" placeholder="kiosk-sog12@zevanic-erp.com"></div>
@@ -186,32 +186,34 @@ const AppDeviceKiosk = {
       <input v-model="cariKiosk" type="text" placeholder="Cari nama device atau email..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
     </div>
 
-    <div class="gc-card" style="padding:0; overflow:hidden;">
-      <div v-if="pesanErrorMuat" style="padding:16px; background:#FBE3DE; margin:14px; border-radius:12px;">
-        <p style="font-size:11.5px; color:var(--danger); font-weight:700; margin-bottom:8px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ pesanErrorMuat }}</p>
-        <button @click="muat" class="icon-btn" style="font-size:11px; padding:5px 12px; border:1px solid var(--danger); border-radius:8px;">Coba Lagi</button>
-      </div>
-      <div v-if="memuat" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
-      <div v-else-if="daftarKiosk.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada Device Kiosk terdaftar.</div>
-      <div v-else-if="daftarKioskHalaman.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Tidak ada yang cocok dengan pencarian.</div>
-      <div v-else class="gc-table-scroll">
-        <table class="gc-table">
-          <thead><tr><th>Nama Device</th><th>Email</th><th>Gudang</th><th>Status</th><th class="freeze freeze-right">Aksi</th></tr></thead>
-          <tbody>
-            <tr v-for="k in daftarKioskHalaman" :key="k.id">
-              <td><b>{{ k.nama }}</b></td>
-              <td>{{ k.email }}</td>
-              <td>{{ (k.gudang_penempatan || []).join(', ') }}</td>
-              <td><span class="tag" :class="k.status_kerja === 'Aktif' ? 'ok' : 'danger'">{{ k.status_kerja }}</span></td>
-              <td class="freeze freeze-right">
-                <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                  <button @click="toggleAktif(k)" class="icon-btn" :title="k.status_kerja === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan'"><i class="fas" :class="k.status_kerja === 'Aktif' ? 'fa-toggle-on' : 'fa-toggle-off'"></i></button>
-                  <button @click="hapusKiosk(k)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <!-- GANTI (28 Agt 2026) — dulu tabel scroll horizontal (5 kolom),
+         SEKARANG kartu (pola SAMA seperti List Bahan & Aksesoris) — field
+         cuma 5 kolom sederhana, tabel scroll di HP bikin field/tombol
+         "melayang keluar dari kotak". -->
+    <div v-if="pesanErrorMuat" class="gc-card" style="padding:16px; background:#FBE3DE; margin-bottom:14px;">
+      <p style="font-size:11.5px; color:var(--danger); font-weight:700; margin-bottom:8px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ pesanErrorMuat }}</p>
+      <button @click="muat" class="icon-btn" style="font-size:11px; padding:5px 12px; border:1px solid var(--danger); border-radius:8px;">Coba Lagi</button>
+    </div>
+    <div v-if="memuat" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+    <div v-else-if="daftarKiosk.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada Device Kiosk terdaftar.</div>
+    <div v-else-if="daftarKioskHalaman.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Tidak ada yang cocok dengan pencarian.</div>
+    <div v-else style="display:flex; flex-direction:column; gap:10px;">
+      <div v-for="k in daftarKioskHalaman" :key="k.id" class="gc-card" style="padding:14px;">
+        <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:12px;">
+          <div style="width:44px; height:44px; border-radius:10px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><i class="fas fa-tablet-screen-button" style="color:var(--burgundy); font-size:16px;"></i></div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700; font-size:13.5px;">{{ k.nama }}</div>
+          </div>
+          <span class="tag" :class="k.status_kerja === 'Aktif' ? 'ok' : 'danger'" style="flex-shrink:0;">{{ k.status_kerja }}</span>
+        </div>
+        <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Email</span><span style="font-weight:700; text-align:right; word-break:break-all;">{{ k.email }}</span></div>
+          <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Gudang</span><span style="font-weight:700; text-align:right;">{{ (k.gudang_penempatan || []).join(', ') || '-' }}</span></div>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button @click="toggleAktif(k)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px;"><i class="fas" :class="k.status_kerja === 'Aktif' ? 'fa-toggle-off' : 'fa-toggle-on'" style="margin-right:6px;"></i>{{ k.status_kerja === 'Aktif' ? 'Nonaktifkan' : 'Aktifkan' }}</button>
+          <button @click="hapusKiosk(k)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
+        </div>
       </div>
     </div>
     <div v-if="!memuat && daftarKioskTersaring.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">

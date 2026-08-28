@@ -218,12 +218,12 @@ const EditKaryawanModal = {
             <span v-else style="font-size:12px; color:var(--text-faint);">Belum ada foto KTP</span>
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+          <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:14px; margin-bottom:14px;">
             <div class="gc-field" style="margin-bottom:0;"><label>Nama karyawan</label><input :value="form.nama" readonly style="background:var(--ivory-dim); color:var(--text-muted); font-weight:700;"></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Email karyawan</label><input :value="form.email" readonly style="background:var(--ivory-dim); color:var(--text-muted);"></div>
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+          <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:14px; margin-bottom:14px;">
             <div class="gc-field" style="margin-bottom:0;">
               <label>Status pengguna (role akses)</label>
               <select v-model="form.role"><option v-for="o in opsiRole" :key="o" :value="o">{{ o }}</option></select>
@@ -234,7 +234,7 @@ const EditKaryawanModal = {
             </div>
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+          <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:14px; margin-bottom:14px;">
             <div class="gc-field" style="margin-bottom:0;">
               <label>Jabatan</label>
               <select v-model="form.jabatan"><option v-for="o in opsiJabatan" :key="o" :value="o">{{ o }}</option></select>
@@ -250,7 +250,7 @@ const EditKaryawanModal = {
             <select v-model="form.statusKerja"><option v-for="o in opsiStatusKerja" :key="o" :value="o">{{ o }}</option></select>
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:14px;">
+          <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:14px; margin-bottom:14px;">
             <div class="gc-field" style="margin-bottom:0;">
               <label>Status persetujuan</label>
               <select v-model="form.statusApproval">
@@ -267,7 +267,7 @@ const EditKaryawanModal = {
 
           <div style="padding-top:14px; border-top:1px solid var(--line); margin-bottom:14px;">
             <h4 class="gc-heading" style="font-size:11.5px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; margin-bottom:10px;">Data pribadi</h4>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:12px;">
               <div class="gc-field" style="margin-bottom:0;"><label>NIK</label><input v-model="form.nik"></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Jenis kelamin</label><select v-model="form.gender"><option value="">-- Pilih --</option><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Tempat lahir</label><input v-model="form.tempatLahir"></div>
@@ -278,7 +278,7 @@ const EditKaryawanModal = {
 
           <div style="padding-top:14px; border-top:1px solid var(--line); margin-bottom:14px;">
             <h4 class="gc-heading" style="font-size:11.5px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; margin-bottom:10px;">Alamat domisili saat ini</h4>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:12px;">
               <div class="gc-field" style="margin-bottom:0;"><label>Kabupaten/kota</label><input v-model="form.tinggalKab"></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Kecamatan</label><input v-model="form.tinggalKec"></div>
               <div class="gc-field" style="margin-bottom:0; grid-column:1/-1;"><label>Detail alamat</label><textarea v-model="form.tinggalDetail" rows="2"></textarea></div>
@@ -287,7 +287,7 @@ const EditKaryawanModal = {
 
           <div style="padding-top:14px; border-top:1px solid var(--line); margin-bottom:14px;">
             <h4 class="gc-heading" style="font-size:11.5px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; margin-bottom:10px;">Alamat sesuai KTP</h4>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:12px;">
               <div class="gc-field" style="margin-bottom:0;"><label>Kabupaten/kota</label><input v-model="form.ktpKab"></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Kecamatan</label><input v-model="form.ktpKec"></div>
               <div class="gc-field" style="margin-bottom:0; grid-column:1/-1;"><label>Detail alamat</label><textarea v-model="form.ktpDetail" rows="2"></textarea></div>
@@ -296,7 +296,7 @@ const EditKaryawanModal = {
 
           <div style="padding-top:14px; border-top:1px solid var(--line); margin-bottom:14px;">
             <h4 class="gc-heading" style="font-size:11.5px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; margin-bottom:10px;">Pendidikan & keluarga</h4>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:12px;">
               <div class="gc-field" style="margin-bottom:0;"><label>Status pernikahan</label><select v-model="form.statusNikah"><option value="">-- Pilih --</option><option value="Belum Menikah">Belum Menikah</option><option value="Menikah">Menikah</option><option value="Cerai">Cerai</option></select></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Jumlah tanggungan</label><input v-model="form.tanggungan"></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Pendidikan terakhir</label><input v-model="form.pendidikan"></div>
@@ -307,7 +307,7 @@ const EditKaryawanModal = {
 
           <div style="padding-top:14px; border-top:1px solid var(--line); margin-bottom:14px;">
             <h4 class="gc-heading" style="font-size:11.5px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; margin-bottom:10px;">Rekening bank</h4>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:12px;">
               <div class="gc-field" style="margin-bottom:0;"><label>Nama bank</label><input v-model="form.bank"></div>
               <div class="gc-field" style="margin-bottom:0;"><label>No. rekening</label><input v-model="form.noRek"></div>
               <div class="gc-field" style="margin-bottom:0; grid-column:1/-1;"><label>Atas nama rekening</label><input v-model="form.atasNamaRek"></div>
@@ -316,7 +316,7 @@ const EditKaryawanModal = {
 
           <div style="padding-top:14px; border-top:1px solid var(--line); margin-bottom:16px;">
             <h4 class="gc-heading" style="font-size:11.5px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; margin-bottom:10px;">Kontak darurat</h4>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+            <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:12px;">
               <div class="gc-field" style="margin-bottom:0;"><label>Nama</label><input v-model="form.daruratNama"></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Hubungan</label><input v-model="form.daruratHub"></div>
               <div class="gc-field" style="margin-bottom:0; grid-column:1/-1;"><label>No. HP darurat</label><input v-model="form.daruratHp"></div>
@@ -540,51 +540,42 @@ const AppDaftarKaryawan = {
         </select>
       </template>
     </div>
-    <div class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line); margin-top:16px;">
-      <table class="gc-table">
-        <thead>
-          <tr>
-            <th class="freeze freeze-left">Nama / ID</th>
-            <th>Jenis Pekerjaan / Status Kerja</th>
-            <th>KTP</th>
-            <th>No HP / Email</th>
-            <th>Jabatan / Status Karyawan</th>
-            <th>Penempatan / Shift</th>
-            <th>Role / Jenis Lokasi</th>
-            <th class="freeze freeze-right">Aksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-if="memuat"><td colspan="8" style="text-align:center; padding:20px; color:var(--text-faint);">Memuat data user...</td></tr>
-          <tr v-else-if="paginasi.errorPaginasi"><td colspan="8" style="text-align:center; padding:20px; color:var(--danger);">{{ paginasi.errorPaginasi }}</td></tr>
-          <tr v-else-if="paginasi.dataHalaman.length === 0"><td colspan="8" style="text-align:center; padding:20px; color:var(--text-faint);">Belum ada data karyawan.</td></tr>
-          <tr v-for="d in paginasi.dataHalaman" :key="d.id">
-            <td class="freeze freeze-left">
-              <dua-baris :a="d.nama" :b="d.idGabungan" />
-              <span v-if="badgeApproval(d.status_approval)" class="tag" :class="badgeApproval(d.status_approval).kelas" style="margin-left:6px; padding:2px 8px; font-size:9px;">{{ badgeApproval(d.status_approval).teks }}</span>
-            </td>
-            <td><dua-baris :a="d.jenis_pekerjaan" :b="d.status_kerja" /></td>
-            <td>
-              <img v-if="d.foto_ktp" :src="d.foto_ktp" @click="lihatFotoBesar(d.foto_ktp)" style="width:48px; height:36px; border-radius:8px; object-fit:cover; border:1px solid var(--line); cursor:pointer;">
-              <div v-else style="width:48px; height:36px; background:var(--ivory-dim); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--text-faint); font-size:11px;"><i class="fas fa-id-card"></i></div>
-            </td>
-            <td><dua-baris :a="d.hp" :b="d.email" /></td>
-            <td><dua-baris :a="d.jabatan" :b="d.status_karyawan" /></td>
-            <td>
-              <gudang-ringkas :gudang="d.gudang_penempatan" :nama="d.nama" /><br>
-              <span style="font-size:11px; color:var(--text-muted);">{{ d.nama_shift || '-' }}</span>
-            </td>
-            <td style="text-transform:uppercase;"><dua-baris :a="d.profil_akses || d.role" :b="d.jenisLokasiGabungan" /></td>
-            <td class="freeze freeze-right">
-              <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                <button v-if="bolehPrint" @click="cetakBarcode(d)" class="icon-btn" title="Cetak barcode absensi"><i class="fas fa-barcode"></i></button>
-                <button v-if="bolehEdit" @click="bukaEdit(d.id)" class="icon-btn"><i class="fas fa-edit"></i></button>
-                <button v-if="bolehHapus" @click="hapus(d.id)" class="icon-btn" style="color:var(--danger);"><i class="fas fa-trash-alt"></i></button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- GANTI (28 Agt 2026) — dulu tabel scroll horizontal (8 kolom), SEKARANG
+         kartu (pola sama seperti List Bahan/Aksesoris) — permintaan Guru:
+         "Daftar Karyawan" eksplisit disebut jadi salah satu tabel yang
+         dijadikan Kartu, di HP MAUPUN desktop. -->
+    <div v-if="memuat" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px; margin-top:16px;">Memuat data user...</div>
+    <div v-else-if="paginasi.errorPaginasi" class="gc-card" style="text-align:center; padding:20px; color:var(--danger); font-size:12px; margin-top:16px;">{{ paginasi.errorPaginasi }}</div>
+    <div v-else-if="paginasi.dataHalaman.length === 0" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px; margin-top:16px;">Belum ada data karyawan.</div>
+    <div v-else style="display:flex; flex-direction:column; gap:10px; margin-top:16px;">
+      <div v-for="d in paginasi.dataHalaman" :key="d.id" class="gc-card" style="padding:14px;">
+        <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:12px;">
+          <img v-if="d.foto_ktp" :src="d.foto_ktp" @click="lihatFotoBesar(d.foto_ktp)" style="width:48px; height:48px; object-fit:cover; border-radius:10px; border:1px solid var(--line); cursor:pointer; flex-shrink:0;">
+          <div v-else style="width:48px; height:48px; border-radius:10px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><i class="fas fa-id-card" style="color:var(--text-faint); font-size:15px;"></i></div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700; font-size:13.5px;">{{ d.nama }}</div>
+            <div style="font-size:11px; color:var(--text-faint); margin-top:2px;">{{ d.idGabungan }}</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0;">
+            <span v-if="d.status_karyawan" class="tag neutral">{{ d.status_karyawan }}</span>
+            <span v-if="badgeApproval(d.status_approval)" class="tag" :class="badgeApproval(d.status_approval).kelas" style="padding:2px 8px; font-size:9px;">{{ badgeApproval(d.status_approval).teks }}</span>
+          </div>
+        </div>
+
+        <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Jenis Pekerjaan / Status Kerja</span><span style="font-weight:700; text-align:right;">{{ d.jenis_pekerjaan || '-' }} / {{ d.status_kerja || '-' }}</span></div>
+          <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">No HP / Email</span><span style="font-weight:700; text-align:right;">{{ d.hp || '-' }} / {{ d.email || '-' }}</span></div>
+          <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Jabatan</span><span style="font-weight:700; text-align:right;">{{ d.jabatan || '-' }}</span></div>
+          <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px; align-items:flex-start;"><span style="color:var(--text-faint); flex-shrink:0;">Penempatan / Shift</span><span style="font-weight:700; text-align:right;"><gudang-ringkas :gudang="d.gudang_penempatan" :nama="d.nama" /> / {{ d.nama_shift || '-' }}</span></div>
+          <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Role / Jenis Lokasi</span><span style="font-weight:700; text-align:right; text-transform:uppercase;">{{ d.profil_akses || d.role }} / {{ d.jenisLokasiGabungan }}</span></div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <button v-if="bolehPrint" @click="cetakBarcode(d)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px;"><i class="fas fa-barcode" style="margin-right:6px;"></i>Barcode</button>
+          <button v-if="bolehEdit" @click="bukaEdit(d.id)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px;"><i class="fas fa-pen" style="margin-right:6px;"></i>Edit</button>
+          <button v-if="bolehHapus" @click="hapus(d.id)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
+        </div>
+      </div>
     </div>
 
     <div style="display:flex; justify-content:space-between; align-items:center; padding-top:12px; font-size:12px;">

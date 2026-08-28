@@ -60,36 +60,36 @@ const DAFTAR_MENU = [
   // panggil window.cekFiturAkses(menuId, fiturKey) di titik yang mau
   // dikunci (lihat auth.js untuk definisi fungsinya).
   { id: 'config_absensi', label: 'Config Absensi', kategori: 'Master Absensi', icon: 'fa-gear',
-    aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-config', null); },
+    aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-config', null, {catatRiwayat:true}); },
     fiturList: [
     { key: 'ubah_jenis_lokasi', label: 'Boleh ubah Jenis Lokasi gudang (Tetap/Dinamis)' }
   ] },
   { id: 'penjadwalan', label: 'Penjadwalan', kategori: 'Master Absensi', icon: 'fa-calendar-days',
-    aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-jadwal', null); } },
+    aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-jadwal', null, {catatRiwayat:true}); } },
   { id: 'antrean_absensi', label: 'Antrean Absensi', kategori: 'Master Absensi', icon: 'fa-clipboard-check',
-    aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-accept', null); } },
+    aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-accept', null, {catatRiwayat:true}); } },
   { id: 'antrean_lembur', label: 'Antrean Lembur', kategori: 'Master Absensi', icon: 'fa-business-time',
-    aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-lembur', null); } },
+    aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-lembur', null, {catatRiwayat:true}); } },
   { id: 'antrean_reimburse', label: 'Antrean Reimburse', kategori: 'Master Keuangan', icon: 'fa-receipt',
-    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-antrean', null); } },
+    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-antrean', null, {catatRiwayat:true}); } },
   { id: 'master_kendaraan', label: 'Master Kendaraan', kategori: 'Master Keuangan', icon: 'fa-truck',
-    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-kendaraan', null); } },
+    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-kendaraan', null, {catatRiwayat:true}); } },
   { id: 'riwayat_reimburse', label: 'Riwayat Reimburse', kategori: 'Master Keuangan', icon: 'fa-clock-rotate-left',
-    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-reimburse', null); } },
+    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-reimburse', null, {catatRiwayat:true}); } },
   { id: 'riwayat_bensin', label: 'Riwayat Isi Bensin', kategori: 'Master Keuangan', icon: 'fa-gas-pump',
-    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-bensin', null); } },
+    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-bensin', null, {catatRiwayat:true}); } },
   { id: 'riwayat_servis', label: 'Riwayat Servis', kategori: 'Master Keuangan', icon: 'fa-wrench',
-    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-servis', null); } },
+    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-servis', null, {catatRiwayat:true}); } },
   { id: 'master_keuangan', label: 'Master Keuangan', kategori: 'Master Keuangan', icon: 'fa-tags',
-    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-kategori', null); } },
+    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-kategori', null, {catatRiwayat:true}); } },
   { id: 'riwayat_absensi', label: 'Riwayat All Absensi', kategori: 'Master Absensi', icon: 'fa-clock-rotate-left',
     aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-rekap', null); } },
   { id: 'antrean_dakar', label: 'Antrean Dakar', kategori: 'Master Karyawan', icon: 'fa-user-clock',
-    aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', null); } },
+    aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-antrean', null, {catatRiwayat:true}); } },
   { id: 'config_karyawan', label: 'Config Karyawan', kategori: 'Master Karyawan', icon: 'fa-sliders',
     aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-config', null); } },
   { id: 'daftar_karyawan', label: 'Daftar Karyawan', kategori: 'Master Karyawan', icon: 'fa-users',
-    aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-data', null); } },
+    aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-data', null, {catatRiwayat:true}); } },
   { id: 'config_info', label: 'Config Info', kategori: 'Master Karyawan', icon: 'fa-bullhorn',
     aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-info', null); } },
   { id: 'slip_gaji', label: 'Slip Gaji', kategori: 'Master Karyawan', icon: 'fa-file-invoice-dollar',
@@ -99,7 +99,7 @@ const DAFTAR_MENU = [
   { id: 'config_akses', label: 'Config Akses', kategori: 'Master Karyawan', icon: 'fa-shield-halved', wajibOwner: true,
     aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-akses', null); } },
   { id: 'hak_akses', label: 'Hak Akses', kategori: 'Master Karyawan', icon: 'fa-user-shield', wajibOwner: true,
-    aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-hakakses', null); } },
+    aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-hakakses', null, {catatRiwayat:true}); } },
   { id: 'whatsapp_gateway', label: 'WhatsApp Gateway', kategori: 'Master Integrasi', icon: 'fa-comment-dots',
     aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('monitor'); } },
   { id: 'mail_gateway', label: 'Mail Gateway', kategori: 'Master Integrasi', icon: 'fa-envelope',
@@ -129,7 +129,7 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-rak', null, {catatRiwayat:true}); } },
   // BARU (24 Agt 2026) — Persiapan Masalah + Stock & Pembelian.
   { id: 'persiapan_masalah', label: 'Persiapan Masalah', kategori: 'Zevanic House', icon: 'fa-triangle-exclamation',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapan', null); } },
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapan', null, {catatRiwayat:true}); } },
   // DIPENSIUNKAN (27 Agt 2026, §26.1) — CRUD Suplayer sekarang di
   // 'config_master_data' (menu Config), BUKAN lagi lewat gear Stock &
   // Pembelian. Entry ini SENGAJA dibiarkan (bukan dihapus) supaya data
@@ -138,26 +138,26 @@ const DAFTAR_MENU = [
   // tidak ikut nongol sebagai tile basi di grid Home mobile.
   { id: 'master_suplayer', label: 'Master Suplayer (DIPENSIUNKAN, lihat Config)', kategori: 'Zevanic House', deprecated: true },
   { id: 'stock_alias_pembelian', label: 'Alias Pembelian', kategori: 'Zevanic House', icon: 'fa-tags',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-alias', null); } },
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-alias', null, {catatRiwayat:true}); } },
   { id: 'stock_list_order_belanja', label: 'List Order Belanja', kategori: 'Zevanic House', icon: 'fa-cart-shopping',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-listorder', null); } },
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-listorder', null, {catatRiwayat:true}); } },
   { id: 'stock_nota_order_belanja', label: 'Nota Order Belanja', kategori: 'Zevanic House', icon: 'fa-receipt',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', null); } },
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', null, {catatRiwayat:true}); } },
   // BARU (27 Agt 2026, §26.3) — Cetak Label: lihat CetakLabelManager di
   // js/vue-stock-pembelian.js. Aksi cetak dicek lewat kolom 'print' (SUDAH
   // ADA di KOSONG_IZIN, tapi baru menu INI yang benar-benar memakainya).
   { id: 'stock_cetak_label', label: 'Cetak Label', kategori: 'Zevanic House', icon: 'fa-print',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-cetaklabel', null); } },
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-cetaklabel', null, {catatRiwayat:true}); } },
   // BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-master-
   // produk.js. Posisi SENGAJA setelah Stock & Pembelian, sebelum Order
   // SPK (keputusan Hilman, AskUserQuestion ronde 4).
   { id: 'master_produk_entry', label: 'Entry Produk', kategori: 'Zevanic House', icon: 'fa-box-open',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-entry', null); } },
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-entry', null, {catatRiwayat:true}); } },
   { id: 'master_produk_list', label: 'List Produk', kategori: 'Zevanic House', icon: 'fa-list',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-list', null); } },
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-list', null, {catatRiwayat:true}); } },
   // BARU (27 Agt 2026, §26.2) — Order SPK: lihat js/vue-order-spk.js.
   { id: 'order_spk', label: 'Order SPK', kategori: 'Zevanic House', icon: 'fa-clipboard-list',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-orderspk', null); } },
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-orderspk', null, {catatRiwayat:true}); } },
   // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname: lihat js/vue-scan-
   // opname.js. Aksi catat penyesuaian dicek lewat kolom 'edit'. Gating
   // "mobile-only untuk non-Owner" TIDAK lewat kolom izin ini — itu

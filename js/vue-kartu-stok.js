@@ -54,6 +54,7 @@ import { db } from "./firebase-config.js";
 import { DropdownCari } from './vue-components.js?v=2';
 import { usePaginasiFirestore } from './vue-paginasi.js';
 import { catatPergerakanKartuStok, catatPemakaianDariAlokasi, ambilLotAktif, cariLotByKode, cariBahanByIdTampil, ambilBahanById } from './vue-stock-pembelian.js';
+import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
 
 function formatRupiah(n) {
   const angka = Math.round(parseFloat(n) || 0);
@@ -68,6 +69,19 @@ const KartuStokManager = {
   components: { DropdownCari },
   setup() {
     const tampilan = ref('ringkasan'); // 'ringkasan' | 'detail'
+    // BARU (§39) — saklar Ringkasan/Detail ini adalah tab internal Vue
+    // GENUINE (bukan navigasi antar menu), disambungkan ke riwayat tombol
+    // back HP. CATATAN: `itemAktif` (item yang lagi dibuka di Detail) TIDAK
+    // ikut disimpan/di-restore lewat composable ini (di luar cakupannya,
+    // cuma nilai tab) — untuk navigasi back DALAM SATU sesi (komponen ini
+    // tidak pernah di-unmount ulang, lihat pastikanMountKartuStok di bawah)
+    // itemAktif tetap konsisten karena tidak pernah direset kecuali lewat
+    // kembaliKeRingkasan(). Kasus reload penuh browser saat persis di tab
+    // Detail: tampilan akan ke-restore 'detail' tapi itemAktif kosong (balik
+    // ke null) -> halaman tampak kosong sampai user klik "Kembali ke
+    // Ringkasan" lalu pilih ulang item; edge-case minor, bukan regresi dari
+    // sebelumnya (sebelum ini pun reload SELALU balik ke Ringkasan).
+    pakaiRiwayatTabVue('kartustok-tampilan', tampilan);
     const filterKategori = ref('ALL');
 
     const paginasiRingkasan = usePaginasiFirestore(db, 'master_bahan_aksesoris', {
@@ -599,11 +613,11 @@ const KartuStokManager = {
 
         <div class="gc-card" style="padding:14px; margin-bottom:14px;">
           <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:10px;">Catat Pemakaian</label>
-          <div style="display:grid; grid-template-columns:1fr 1fr 2fr auto; gap:8px; align-items:end;">
+          <div style="display:grid; gap:8px;" class="grid-cols-1 md:grid-cols-4">
             <div class="gc-field" style="margin-bottom:0;"><label>Tanggal</label><input v-model="formPemakaian.tanggal" type="date" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Jumlah ({{ itemAktif.satuan_pemakaian || 'satuan' }})</label><input v-model.number="formPemakaian.qty" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Keterangan (opsional)</label><input v-model="formPemakaian.keterangan" type="text" placeholder="mis. dipakai buat SPK #123" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
-            <button @click="mulaiCatatPemakaian" :disabled="menyimpanPemakaian || memuatLot || tampilAlokasi" class="btn-primary" style="padding:0 18px; height:38px;">{{ menyimpanPemakaian ? 'Menyimpan...' : (itemAktif.pakai_lot_tracking ? 'Lanjut' : 'Catat') }}</button>
+            <button @click="mulaiCatatPemakaian" :disabled="menyimpanPemakaian || memuatLot || tampilAlokasi" class="btn-primary" style="padding:0 18px; height:38px; align-self:end;">{{ menyimpanPemakaian ? 'Menyimpan...' : (itemAktif.pakai_lot_tracking ? 'Lanjut' : 'Catat') }}</button>
           </div>
           <p v-if="itemAktif.pakai_lot_tracking" style="font-size:10.5px; color:var(--text-faint); margin-top:8px;"><i class="fas fa-layer-group" style="margin-right:4px;"></i>Item ini dilacak per Roll/Lot — sistem SARANKAN roll TERTUA dulu (FIFO), tapi bisa diganti/dipilih sendiri (cari kode atau Scan Roll) di langkah berikutnya. Kalau roll/lot belum ada datanya sama sekali, pemakaian tidak bisa dicatat dulu.</p>
           <p v-else style="font-size:10.5px; color:var(--text-faint); margin-top:8px;">Belum ada modul Produksi/SPK otomatis — pemakaian dicatat manual dulu di sini sampai modul itu ada.</p>

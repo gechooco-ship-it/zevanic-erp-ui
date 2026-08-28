@@ -267,7 +267,7 @@ const AntreanDakarCard = {
       </div>
 
       <template v-if="!sudahDiSetujui">
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+        <div style="display:grid; gap:10px; margin-bottom:14px;" class="grid-cols-1 md:grid-cols-2">
           <div class="gc-field" style="margin-bottom:0;">
             <label style="font-size:10.5px;">Status kerja</label>
             <select v-model="form.statusKerja" style="padding:7px 10px; font-size:12px;">

@@ -417,7 +417,7 @@ const AppPenjadwalan = {
       <div class="gc-card" style="margin-bottom:16px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;"><i class="fas fa-file-excel" style="color:var(--ok); margin-right:8px;"></i> Edit lewat Excel</h3>
         <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:12px;">Unduh data (mengikuti filter aktif), edit kolom Gudang/Shift/Hari Libur di Excel, lalu unggah ulang untuk update massal.</p>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">
           <button @click="exportExcel" class="btn-outline filled" style="display:flex; align-items:center; justify-content:center; gap:8px;">
             <i class="fas fa-download"></i><span>Unduh Excel</span>
           </button>

@@ -137,7 +137,7 @@ const PersiapanMasalahManager = {
     <div class="gc-card" style="padding:16px; margin-bottom:16px;">
       <h3 style="font-weight:700; font-size:15px; margin-bottom:4px;"><i class="fas fa-triangle-exclamation" style="color:var(--burgundy); margin-right:8px;"></i>Persiapan Masalah</h3>
       <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Catat bahan/aksesoris yang dibutuhkan/kurang. Daftar "Menunggu" di bawah akan muncul otomatis sebagai referensi di menu Stock &amp; Pembelian &gt; List/Nota Order Belanja.</p>
-      <div v-if="bolehTambah" style="display:grid; grid-template-columns:2fr 1fr 1fr; gap:8px; margin-bottom:8px;">
+      <div v-if="bolehTambah" class="grid-cols-1 md:grid-cols-3" style="display:grid; gap:8px; margin-bottom:8px;">
         <div class="gc-field" style="margin-bottom:0;">
           <label>Nama Bahan/Aksesoris</label>
           <dropdown-cari v-model="form.nama" :opsi="opsiNama" placeholder="Cari & pilih..." @update:modelValue="saatPilihNama" />
@@ -154,34 +154,34 @@ const PersiapanMasalahManager = {
       <template v-else>
         <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Menunggu ({{ daftarMenunggu.length }})</label>
         <div v-if="daftarMenunggu.length === 0" style="font-size:11.5px; color:var(--text-faint); margin-bottom:12px;">Tidak ada permintaan menunggu.</div>
-        <div v-else style="overflow-x:auto; margin-bottom:12px;">
-          <table class="gc-table" style="width:100%; font-size:12px;">
-            <thead><tr><th>Nama</th><th>Qty</th><th>Satuan</th><th>Keterangan</th><th>Diminta Oleh</th><th></th></tr></thead>
-            <tbody>
-              <tr v-for="d in daftarMenunggu" :key="d.id">
-                <td>{{ d.nama_bahan }}</td><td>{{ d.qty }}</td><td>{{ d.satuan }}</td>
-                <td style="color:var(--text-muted);">{{ d.keterangan || '-' }}</td>
-                <td style="color:var(--text-muted);">{{ d.diminta_oleh }}</td>
-                <td><button v-if="bolehHapus" @click="hapus(d)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button></td>
-              </tr>
-            </tbody>
-          </table>
+        <!-- GANTI (28 Agt 2026) — dulu tabel scroll horizontal, SEKARANG kartu
+             (pola sama seperti List Bahan/Aksesoris), di HP MAUPUN desktop. -->
+        <div v-else style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+          <div v-for="d in daftarMenunggu" :key="d.id" class="gc-card" style="padding:12px 14px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
+              <div style="font-weight:700; font-size:13px;">{{ d.nama_bahan }}</div>
+              <button v-if="bolehHapus" @click="hapus(d)" class="icon-btn" style="color:var(--danger); flex-shrink:0;" title="Hapus"><i class="fas fa-trash-alt"></i></button>
+            </div>
+            <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:8px 10px;">
+              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Qty</span><span style="font-weight:700;">{{ d.qty }} {{ d.satuan }}</span></div>
+              <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Keterangan</span><span style="font-weight:700; text-align:right;">{{ d.keterangan || '-' }}</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Diminta Oleh</span><span style="font-weight:700;">{{ d.diminta_oleh }}</span></div>
+            </div>
+          </div>
         </div>
 
         <button @click="tampilSelesai = !tampilSelesai" class="btn-outline" style="font-size:11.5px; padding:6px 14px;">
           {{ tampilSelesai ? 'Sembunyikan' : 'Lihat' }} Riwayat Sudah Dipesan ({{ daftarSelesai.length }})
         </button>
-        <div v-if="tampilSelesai" style="overflow-x:auto; margin-top:10px;">
-          <table class="gc-table" style="width:100%; font-size:12px;">
-            <thead><tr><th>Nama</th><th>Qty</th><th>Satuan</th><th>Keterangan</th><th>Diminta Oleh</th></tr></thead>
-            <tbody>
-              <tr v-for="d in daftarSelesai" :key="d.id">
-                <td>{{ d.nama_bahan }}</td><td>{{ d.qty }}</td><td>{{ d.satuan }}</td>
-                <td style="color:var(--text-muted);">{{ d.keterangan || '-' }}</td>
-                <td style="color:var(--text-muted);">{{ d.diminta_oleh }}</td>
-              </tr>
-            </tbody>
-          </table>
+        <div v-if="tampilSelesai" style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
+          <div v-for="d in daftarSelesai" :key="d.id" class="gc-card" style="padding:12px 14px;">
+            <div style="font-weight:700; font-size:13px; margin-bottom:8px;">{{ d.nama_bahan }}</div>
+            <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:8px 10px;">
+              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Qty</span><span style="font-weight:700;">{{ d.qty }} {{ d.satuan }}</span></div>
+              <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Keterangan</span><span style="font-weight:700; text-align:right;">{{ d.keterangan || '-' }}</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Diminta Oleh</span><span style="font-weight:700;">{{ d.diminta_oleh }}</span></div>
+            </div>
+          </div>
         </div>
       </template>
     </div>

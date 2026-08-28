@@ -27,6 +27,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { MasterDataCategory } from './vue-components.js';
+import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
 
 const MasterGudangManager = {
   setup() {
@@ -181,7 +182,7 @@ const MasterGudangManager = {
         <p v-else style="font-size:10.5px; color:var(--text-faint); margin-top:5px;">Dinamis dipakai untuk orang lapangan yang visit ke mana saja — tidak ada validasi radius/koordinat saat Clock In.</p>
       </div>
       <div v-if="tipeLokasi === 'Tetap'">
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div style="display:grid; gap:12px;" class="grid-cols-1 md:grid-cols-2">
           <div class="gc-field"><label>Latitude *</label><input v-model="lat" type="number" step="any"></div>
           <div class="gc-field"><label>Longitude *</label><input v-model="lng" type="number" step="any"></div>
         </div>
@@ -346,7 +347,7 @@ const MasterShiftManager = {
     <div class="gc-card">
       <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:14px;"><i class="fas fa-clock" style="color:var(--burgundy); margin-right:8px;"></i> Master Shift Jam Kerja</h3>
       <div class="gc-field"><label>Nama shift *</label><input v-model="nama" type="text"></div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div style="display:grid; gap:12px;" class="grid-cols-1 md:grid-cols-2">
         <div class="gc-field"><label>Jam masuk (in) *</label><input v-model="jamMasuk" type="time"></div>
         <div class="gc-field"><label>Jam keluar (out) *</label><input v-model="jamKeluar" type="time"></div>
       </div>
@@ -406,6 +407,7 @@ const AppConfigAbsensi = {
   components: { MasterGudangManager, MasterShiftManager, MasterDataCategory },
   setup() {
     const tabAktif = ref('gudang');
+    pakaiRiwayatTabVue('config-absensi-tab', tabAktif);
     // Tab pertama (gudang) langsung true karena otomatis aktif & harus
     // langsung muat begitu Config Absensi dibuka. shift/jenispekerjaan
     // baru jadi true SEKALI begitu tab-nya diklik pertama kali — dan

@@ -287,7 +287,7 @@ const OrderSpkManager = {
       <h3 style="font-weight:700; font-size:13.5px; margin-bottom:4px;"><i class="fas fa-clipboard-list" style="color:var(--burgundy); margin-right:8px;"></i>{{ sedangEditId ? 'Edit Order SPK' : 'Tambah Order SPK' }}</h3>
       <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 12px;">Pencatatan No. SPK dasar (migrasi bertahap dari catatan spreadsheet). No. SPK ini nanti dipakai dropdown "No SPK" di menu Scan Persiapan.</p>
 
-      <div v-if="bolehTambah" style="display:grid; grid-template-columns:repeat(2, 1fr); gap:10px;" class="grid-cols-1 md:grid-cols-2">
+      <div v-if="bolehTambah" style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">
         <div class="gc-field">
           <label>No. SPK <span style="color:var(--danger);">*</span></label>
           <input v-model="form.no_spk" type="text" placeholder="Contoh: SPK-0001">
@@ -336,37 +336,34 @@ const OrderSpkManager = {
       </div>
       <p v-if="bolehCetak" style="font-size:10.5px; color:var(--text-faint); margin:-4px 0 10px;">Centang baris di tabel bawah buat cetak ulang label banyak No. SPK sekaligus (cuma baris yang lagi tampil di halaman ini).</p>
     </div>
-    <div class="gc-card" style="padding:0; overflow:hidden;">
-      <div v-if="paginasi.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
-      <div v-else-if="paginasi.errorPaginasi.value" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
-      <div v-else-if="paginasi.dataHalaman.value.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada Order SPK terdaftar.</div>
-      <div v-else class="gc-table-scroll">
-        <table class="gc-table">
-          <thead>
-            <tr>
-              <th v-if="bolehCetak" style="width:32px;"></th>
-              <th>No. SPK</th><th>Nama Produk / Keterangan</th><th>Qty Target</th><th>Tanggal</th><th>Status</th>
-              <th class="freeze freeze-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in paginasi.dataHalaman.value" :key="item.id">
-              <td v-if="bolehCetak"><input type="checkbox" v-model="dicentangTabel[item.id]" style="accent-color:var(--burgundy); width:14px; height:14px;"></td>
-              <td><b>{{ item.no_spk }}</b></td>
-              <td>{{ item.nama_produk }}</td>
-              <td>{{ formatQty(item.qty_target) }}</td>
-              <td>{{ item.tanggal }}</td>
-              <td><span class="tag" :class="item.status === 'Aktif' ? 'ok' : 'neutral'">{{ item.status }}</span></td>
-              <td class="freeze freeze-right">
-                <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                  <button v-if="bolehTambah" @click="bukaEdit(item)" class="icon-btn" title="Edit"><i class="fas fa-pen"></i></button>
-                  <button v-if="bolehCetak" @click="cetakSpkList([item])" class="icon-btn" title="Cetak label SPK ini"><i class="fas fa-print"></i></button>
-                  <button v-if="bolehHapus" @click="hapus(item)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <!-- GANTI (28 Agt 2026) — dulu tabel scroll horizontal (7 kolom), SEKARANG
+         kartu (pola sama seperti List Bahan/Aksesoris), di HP MAUPUN desktop.
+         Checkbox pilih-banyak buat cetak label (dicentangTabel) DIPERTAHANKAN
+         di header tiap kartu, bukan dihilangkan. -->
+    <div v-if="paginasi.memuat.value" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+    <div v-else-if="paginasi.errorPaginasi.value" class="gc-card" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
+    <div v-else-if="paginasi.dataHalaman.value.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada Order SPK terdaftar.</div>
+    <div v-else style="display:flex; flex-direction:column; gap:10px;">
+      <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:14px;">
+        <div style="display:flex; gap:10px; align-items:flex-start; margin-bottom:12px;">
+          <input v-if="bolehCetak" type="checkbox" v-model="dicentangTabel[item.id]" style="accent-color:var(--burgundy); width:16px; height:16px; margin-top:2px; flex-shrink:0;" title="Pilih buat cetak label">
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700; font-size:13.5px;">{{ item.no_spk }}</div>
+          </div>
+          <span class="tag" :class="item.status === 'Aktif' ? 'ok' : 'neutral'" style="flex-shrink:0;">{{ item.status }}</span>
+        </div>
+
+        <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Nama Produk / Keterangan</span><span style="font-weight:700; text-align:right;">{{ item.nama_produk }}</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Qty Target</span><span style="font-weight:700;">{{ formatQty(item.qty_target) }}</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Tanggal</span><span style="font-weight:700;">{{ item.tanggal }}</span></div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <button v-if="bolehTambah" @click="bukaEdit(item)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px;"><i class="fas fa-pen" style="margin-right:6px;"></i>Edit</button>
+          <button v-if="bolehCetak" @click="cetakSpkList([item])" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak</button>
+          <button v-if="bolehHapus" @click="hapus(item)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
+        </div>
       </div>
     </div>
     <div v-if="!paginasi.memuat.value && paginasi.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin:16px 0;">

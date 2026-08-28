@@ -64,6 +64,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "ht
 import { db, storage } from "./firebase-config.js";
 import { DropdownCari } from './vue-components.js?v=3';
 import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
+import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
 
 // ambilDaftarBahanAksesorisLengkap — disalin (bukan diimpor silang) dari
 // pola yang sama di js/vue-persiapan-masalah.js / vue-stock-pembelian.js /
@@ -428,10 +429,10 @@ const KelolaKomponenModal = {
       <div class="gc-card" style="max-width:560px; width:100%; max-height:90vh; overflow-y:auto;">
         <h3 style="font-weight:700; font-size:15px; margin-bottom:4px;"><i class="fas fa-puzzle-piece" style="color:var(--burgundy); margin-right:8px;"></i>Kelola Komponen</h3>
         <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Komponen untuk pola "{{ namaPola || '(belum diberi nama)' }}". Nama Komponen wajib pilih dari Data Komponen (Config).</p>
-        <div v-for="(k, i) in komponen" :key="i" style="display:grid; gap:8px; grid-template-columns:2fr 1fr 30px; align-items:center; margin-bottom:8px;">
-          <dropdown-cari v-model="k.pilih" :opsi="opsiKomponen" placeholder="Cari & pilih komponen..." />
-          <input v-model.number="k.qty" type="number" min="0" placeholder="Qty" style="width:100%; padding:8px 10px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; box-sizing:border-box;">
-          <button @click="hapus(i)" class="icon-btn" style="color:var(--danger);" title="Hapus komponen"><i class="fas fa-trash-alt"></i></button>
+        <div v-for="(k, i) in komponen" :key="i" class="gc-row-nq" style="margin-bottom:8px;">
+          <div><span class="gc-row-label">Komponen</span><dropdown-cari v-model="k.pilih" :opsi="opsiKomponen" placeholder="Cari & pilih komponen..." /></div>
+          <div><span class="gc-row-label">Qty</span><input v-model.number="k.qty" type="number" min="0" placeholder="Qty" style="width:100%; padding:8px 10px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; box-sizing:border-box;"></div>
+          <div style="display:flex; justify-content:flex-end; align-items:center;"><button @click="hapus(i)" class="icon-btn" style="color:var(--danger);" title="Hapus komponen"><i class="fas fa-trash-alt"></i></button></div>
         </div>
         <button @click="tambah" class="btn-outline" style="font-size:11.5px; padding:6px 14px; margin-bottom:16px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah Komponen</button>
         <button @click="$emit('tutup')" class="btn-primary block">Selesai</button>
@@ -457,6 +458,14 @@ const FormEntryProdukBOM = {
     const menyimpan = ref(false);
     const mengupload = ref(false);
     const tabAktif = ref('jasa'); // 'jasa' | 'pola' | 'aksesoris'
+    // BARU (§39) — switch tab BOM Jasa/Pola/Aksesoris di layar Entry Produk
+    // ini adalah tab internal Vue GENUINE (bukan navigasi antar menu), jadi
+    // disambungkan ke riwayat tombol back HP. TIDAK disambungkan untuk
+    // tabAktif milik PopupImportBOM (komponen terpisah di bawah) — itu tab
+    // di DALAM modal transient (buka saat proses Import Excel, langsung
+    // ditutup lagi setelah konfirmasi/batal), bukan tab layar yang perlu
+    // "diingat" lewat tombol back.
+    pakaiRiwayatTabVue('produk-bom-tab', tabAktif);
 
     const daftarBahan = ref([]);
     const opsiNamaBahan = computed(() => daftarBahan.value.map(b => formatNamaBahan(b)));
@@ -777,10 +786,10 @@ const FormEntryProdukBOM = {
 
         <!-- BOM Jasa -->
         <div v-show="tabAktif==='jasa'">
-          <div v-for="(j, i) in form.bom_jasa" :key="i" style="display:grid; gap:8px; grid-template-columns:2fr 1fr 30px; align-items:center; margin-bottom:8px;">
-            <div class="gc-field" style="margin-bottom:0;"><input v-model="j.nama" type="text" placeholder="Nama Jasa (mis. Jasa Jahit)"></div>
-            <div class="gc-field" style="margin-bottom:0;"><input v-model.number="j.harga" type="number" min="0" placeholder="Harga"></div>
-            <button @click="hapusJasa(i)" type="button" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
+          <div v-for="(j, i) in form.bom_jasa" :key="i" class="gc-row-nq" style="margin-bottom:8px;">
+            <div class="gc-field" style="margin-bottom:0;"><span class="gc-row-label">Nama Jasa</span><input v-model="j.nama" type="text" placeholder="Nama Jasa (mis. Jasa Jahit)"></div>
+            <div class="gc-field" style="margin-bottom:0;"><span class="gc-row-label">Harga</span><input v-model.number="j.harga" type="number" min="0" placeholder="Harga"></div>
+            <div style="display:flex; justify-content:flex-end; align-items:center;"><button @click="hapusJasa(i)" type="button" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button></div>
           </div>
           <button @click="tambahJasa" type="button" class="btn-outline" style="font-size:11.5px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah Jasa</button>
         </div>
