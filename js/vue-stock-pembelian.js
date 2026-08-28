@@ -166,7 +166,7 @@ import { db } from "./firebase-config.js";
 // CRUD Suplayer pindah ke menu Config (vue-config.js). Lihat catatan di
 // PengaturanStockPembelian di bawah.
 import { DropdownCari } from './vue-components.js?v=2';
-import { usePaginasiFirestore } from './vue-paginasi.js';
+import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
 
 // --- helper: ambil semua Bahan+Aksesoris (disalin dari vue-bahan-aksesoris.js
 // / vue-persiapan-masalah.js secara sengaja — lihat catatan di file itu). ---

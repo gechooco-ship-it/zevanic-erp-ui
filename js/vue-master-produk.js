@@ -54,7 +54,7 @@ import { collection, doc, setDoc, updateDoc, deleteDoc, getDocs, query, where, s
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
 import { DropdownCari } from './vue-components.js?v=2';
-import { usePaginasiFirestore } from './vue-paginasi.js';
+import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
 
 // ambilDaftarBahanAksesorisLengkap — disalin (bukan diimpor silang) dari
 // pola yang sama di js/vue-persiapan-masalah.js / vue-stock-pembelian.js /
@@ -1132,6 +1132,14 @@ const MasterProdukListManager = {
   setup() {
     const bolehHapus = computed(() => window.cekIzinMenu('master_produk_list', 'delete') !== false);
 
+    // CATATAN (28 Agt 2026, role "PIC Owner") — sempat dicoba tambah
+    // filterPeran jenis_pekerjaan di sini, TAPI DIBATALKAN: Guru
+    // konfirmasi SELURUH grup menu Zevanic House (termasuk Master Produk)
+    // memang 100% bisnis ZCO/Konveksi, jadi filter per-produk tidak ada
+    // gunanya (PIC Owner cukup diberi akses lewat menu, tidak perlu tag
+    // apa-apa). Filter jenis usaha yang BENAR-BENAR perlu cukup di
+    // Reimburse (satu-satunya menu lintas JNT/ZCO) — lihat STATUS-
+    // PROYEK.md §29.
     const paginasi = usePaginasiFirestore(db, 'master_produk', {
       perHalaman: 15,
       urutkanField: 'nama',

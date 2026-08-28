@@ -206,9 +206,23 @@ window.bersihkanKonteksSesi = function() {
 // boleh: string tunggal (karyawan), array (gudang/shift bisa >1 jenis
 // pekerjaan; karyawan bisa >1 gudang), atau null/undefined (field tidak
 // relevan di tabel itu, misal Master Shift tidak punya dimensi gudang).
+// BARU (28 Agt 2026, role "PIC Owner") — profil akses_config khusus
+// `pic_owner` (role baku TETAP 'pic', cuma profil_akses-nya beda) SENGAJA
+// dibuat buat orang yang mengelola 1 jenis pekerjaan/bidang usaha (misal
+// "Konveksi") tapi LINTAS SEMUA gudang — beda dari PIC biasa yang
+// dibatasi ke gudang penempatannya sendiri. Makanya dimensi gudang buat
+// profil ini di-bypass EKSPLISIT lewat pengecekan profil_akses, BUKAN
+// lewat trik "kosongkan gudang_penempatan" (itu ambigu — bisa kebaca
+// "belum diisi" oleh siapapun yang lihat datanya, dan field itu mungkin
+// masih dipakai buat keperluan lain di luar reimburse/produk, misal
+// Kiosk/Absensi — jadi tidak boleh dikorbankan cuma demi trik ini).
+// Dimensi jenis_pekerjaan (jpCocok di bawah) TETAP ditegakkan seperti
+// biasa — PIC Owner Konveksi tetap TIDAK bisa lihat data Retail/Logistik.
 window.bolehLihatData = function(jenisPekerjaanData, gudangData) {
   const role = (window.currentUser.role || '').toLowerCase();
   if (role === 'owner' || role === 'superuser') return true; // bypass total, SAMA seperti cekIzinMenu/cekFiturAkses
+  const profilSaya = (window.currentUser.profil_akses || '').toLowerCase();
+  const iniPicOwner = profilSaya === 'pic_owner';
   const jpCocok = (() => {
     if (!jenisPekerjaanData || (Array.isArray(jenisPekerjaanData) && jenisPekerjaanData.length === 0)) return true;
     const jpAdmin = window.currentUser.jenis_pekerjaan;
@@ -216,6 +230,7 @@ window.bolehLihatData = function(jenisPekerjaanData, gudangData) {
     return Array.isArray(jenisPekerjaanData) ? jenisPekerjaanData.includes(jpAdmin) : jenisPekerjaanData === jpAdmin;
   })();
   const gudangCocok = (() => {
+    if (iniPicOwner) return true; // PIC Owner: SEMUA gudang, terlepas dari gudang_penempatan-nya diisi apa
     if (!gudangData || (Array.isArray(gudangData) && gudangData.length === 0)) return true;
     const gudangAdmin = window.normalisasiGudang(window.currentUser.gudang_penempatan);
     if (gudangAdmin.length === 0) return true;

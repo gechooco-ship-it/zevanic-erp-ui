@@ -603,7 +603,9 @@
   <script type="module" src="js/firebase-config.js"></script>
   <script type="module" src="js/app.js"></script>
   <script type="module" src="js/camera.js"></script>
-  <script type="module" src="js/auth.js?v=1"></script>
+  <!-- v=2 (28 Agt 2026): window.bolehLihatData tambah bypass eksplisit
+       dimensi gudang untuk profil "pic_owner" (role "PIC Owner"). -->
+  <script type="module" src="js/auth.js?v=2"></script>
   <script type="module" src="js/dashboard.js?v=12"></script>
   <script type="module" src="js/vue-order-spk.js?v=2"></script>
   <script type="module" src="js/vue-scan-opname.js?v=1"></script>
@@ -644,14 +646,23 @@
   <script type="module" src="js/vue-bahan-aksesoris.js?v=16"></script>
   <script type="module" src="js/vue-rak-penyimpanan.js?v=3"></script>
   <script type="module" src="js/vue-persiapan-masalah.js?v=3"></script>
-  <script type="module" src="js/vue-stock-pembelian.js?v=18"></script>
+  <!-- v=19 (28 Agt 2026): sempat dicoba tag Jenis Pekerjaan per pesanan
+       (role "PIC Owner"), DIBATALKAN — Guru konfirmasi grup Zevanic House
+       100% ZCO/Konveksi, tidak perlu difilter per-item (lihat STATUS-
+       PROYEK.md §29). Cache-bust cuma sisa import vue-paginasi.js?v=1
+       (fungsi bersama yang dipakai Reimburse, tidak dipakai fitur di sini). -->
+  <script type="module" src="js/vue-stock-pembelian.js?v=19"></script>
   <script type="module" src="js/vue-kartu-stok.js?v=5"></script>
   <!-- BARU (27 Agt 2026, §26.1) — Zevanic House > Config. -->
   <script type="module" src="js/vue-config.js?v=1"></script>
   <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM). v=2 (28 Agt 2026):
        cache-bust setelah fix dropdown Bahan/Aksesoris digabung 1 field.
        v=3 (28 Agt 2026, §28.9): cache-bust setelah tambah fitur Import/
-       Export Excel (Template + Import Produk Utama & BOM, popup verifikasi). -->
-  <script type="module" src="js/vue-master-produk.js?v=3"></script>
+       Export Excel (Template + Import Produk Utama & BOM, popup verifikasi).
+       v=4 (28 Agt 2026): sempat dicoba tag Jenis Pekerjaan per produk (role
+       "PIC Owner"), DIBATALKAN — Guru konfirmasi Master Produk 100% ZCO/
+       Konveksi (lihat STATUS-PROYEK.md §29). Cache-bust cuma sisa import
+       vue-paginasi.js?v=1 (fungsi bersama, tidak dipakai fitur di sini). -->
+  <script type="module" src="js/vue-master-produk.js?v=4"></script>
 </body>
 </html>
