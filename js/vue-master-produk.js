@@ -326,7 +326,7 @@ function unduhWorkbook(sheets, namaFile) {
 const HEADER_PRODUK_UTAMA = ['Nama', 'Jenis Produk', 'Warna', 'Size'];
 const HEADER_JASA = ['Nama', 'Warna', 'Size', 'Nama Jasa', 'Harga'];
 const HEADER_POLA = ['Nama', 'Warna', 'Size', 'Tipe (internal/vendor)', 'Nama Pola', 'Bahan (Nama + Warna)', 'Panjang', 'Isi Pola (Pcs)', 'Jasa Cutting', 'Jasa Serie', 'Jenis Vendor'];
-const HEADER_KOMPONEN = ['Nama', 'Warna', 'Size', 'Nama Pola', 'Nama Komponen (Nama + Warna)', 'Qty'];
+const HEADER_KOMPONEN = ['Nama', 'Warna', 'Size', 'Nama Pola', 'Komponen', 'Qty']; // GANTI (28 Agt 2026, §36): dulu 'Nama Komponen (Nama + Warna)', sekarang 'Komponen' (sumber Data Komponen/Config, plain text)
 const HEADER_AKSESORIS = ['Nama', 'Warna', 'Size', 'Tahap Proses', 'Aksesoris (Nama + Warna)', 'Qty', 'Satuan', 'Kode Webbing 2 (Nama + Warna)', 'Kode Webbing 3 (Nama + Warna)'];
 
 function unduhTemplateProdukUtama() {
@@ -337,7 +337,7 @@ function unduhTemplateProdukUtama() {
 function unduhTemplateBOM() {
   const contohJasa = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Nama Jasa': 'Jasa Jahit', 'Harga': 15000 };
   const contohPola = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Tipe (internal/vendor)': 'internal', 'Nama Pola': 'Badan Depan', 'Bahan (Nama + Warna)': 'Kain Kanvas Merah', 'Panjang': 1.2, 'Isi Pola (Pcs)': 4, 'Jasa Cutting': 2000, 'Jasa Serie': 3000, 'Jenis Vendor': '' };
-  const contohKomponen = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Nama Pola': 'Badan Depan', 'Nama Komponen (Nama + Warna)': 'Busa Ati 3mm', 'Qty': 1 };
+  const contohKomponen = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Nama Pola': 'Badan Depan', 'Komponen': 'Badan Belakang', 'Qty': 1 };
   const contohAksesoris = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Tahap Proses': 'Finishing', 'Aksesoris (Nama + Warna)': 'Resleting YKK Hitam', 'Qty': 1, 'Satuan': 'Pcs', 'Kode Webbing 2 (Nama + Warna)': '', 'Kode Webbing 3 (Nama + Warna)': '' };
   unduhWorkbook([
     { nama: 'Jasa', header: HEADER_JASA, baris: [contohJasa] },
@@ -366,10 +366,15 @@ function barisPolaKosong() {
 // cuma daftar nama polos (pola sama Warna/Jenis Produk, TANPA id/FK) — jadi
 // `bahan_aksesoris_id` DIHAPUS dari baris ini, `pilih` sekarang LANGSUNG
 // jadi nilai final `nama_komponen` (bukan lagi teks buat di-resolve ke item
-// Bahan & Aksesoris). CATATAN: Excel Import BOM sheet "Komponen" SENGAJA
-// TIDAK ikut diubah (permintaan Guru eksplisit) — TETAP validasi ke Data
-// Bahan & Aksesoris format Nama+Warna, lihat STATUS-PROYEK.md §34 soal
-// konsekuensi 2 sumber beda buat field `nama_komponen` yang sama.
+// Bahan & Aksesoris). SUPERSEDE (28 Agt 2026, §36, permintaan Guru lewat
+// Template BOM baru): Excel Import BOM sheet "Komponen" SEKARANG JUGA ikut
+// diganti ke Data Komponen (Config) — kolom header jadi "Komponen" (dulu
+// "Nama Komponen (Nama + Warna)"), validasi ke opsiKomponen (master_komponen)
+// bukan lagi Data Bahan & Aksesoris. Baris hasil import SEKARANG format
+// `{ nama_komponen, qty }` — SAMA PERSIS dengan baris dari form manual,
+// TIDAK ADA LAGI `bahan_aksesoris_id` di baris manapun — konsekuensi "2
+// sumber beda" yang dicatat di §34 SUDAH TIDAK BERLAKU LAGI sejak §36,
+// lihat STATUS-PROYEK.md §36.
 function barisKomponenKosong() { return { pilih: '', qty: '' }; }
 function barisAksesorisKosong() {
   return {
@@ -738,8 +743,8 @@ const FormEntryProdukBOM = {
             </div>
           </div>
           <div style="flex:1; min-width:240px; display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-4">
-            <div class="gc-field" style="margin-bottom:0;"><label>Nama Produk</label><input v-model="form.nama" type="text" placeholder="Mis. Tas Ransel Kanvas"></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Jenis Produk</label><dropdown-cari v-model="form.jenis_produk_pilih" :opsi="opsiJenisProduk" placeholder="Cari & pilih Jenis Produk..." /></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Nama Produk</label><input v-model="form.nama" type="text" placeholder="Mis. Tas Ransel Kanvas"></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Warna</label><dropdown-cari v-model="form.warna_pilih" :opsi="opsiWarna" placeholder="Cari & pilih Warna..." /></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Size</label><input v-model="form.size" type="text" placeholder="Mis. All Size / L / 30x40cm"></div>
           </div>
@@ -1019,6 +1024,7 @@ const PopupImportBOM = {
     barisKomponen: { type: Array, default: () => [] },
     barisAksesoris: { type: Array, default: () => [] },
     opsiNamaBahan: { type: Array, default: () => [] },
+    opsiKomponen: { type: Array, default: () => [] }, // BARU (§36) — Data Komponen (Config), sumber validasi sheet "Komponen" (GANTI dari opsiNamaBahan)
     opsiSatuan: { type: Array, default: () => [] },
     daftarProdukLama: { type: Array, default: () => [] },
     sedangImport: { type: Boolean, default: false }
@@ -1069,13 +1075,13 @@ const PopupImportBOM = {
     const komponen = ref(props.barisKomponen.map(b => ({
       prodNama: String(b['Nama'] || '').trim(), prodWarna: String(b['Warna'] || '').trim(), prodSize: String(b['Size'] || '').trim(),
       nama_pola: String(b['Nama Pola'] || '').trim(),
-      nama_komponen: String(b['Nama Komponen (Nama + Warna)'] || '').trim(),
+      nama_komponen: String(b['Komponen'] || '').trim(), // GANTI (§36): dulu kolom 'Nama Komponen (Nama + Warna)'
       qty: b['Qty']
     })));
     function statusKomponen(b) {
       if (!produkAda(b.prodNama, b.prodWarna, b.prodSize)) return { valid: false, label: 'Produk (Nama+Warna+Size) tidak ditemukan' };
       if (!b.nama_pola || !kunciProdukPola.value.has(kunciProduk(b.prodNama, b.prodWarna, b.prodSize) + '||' + b.nama_pola.toLowerCase())) return { valid: false, label: 'Nama Pola tidak cocok baris di sheet Pola (Produk sama)' };
-      if (!validasiPilihan(b.nama_komponen, props.opsiNamaBahan).valid) return { valid: false, label: 'Nama Komponen belum valid' };
+      if (!validasiPilihan(b.nama_komponen, props.opsiKomponen).valid) return { valid: false, label: 'Komponen belum valid (cek Data Komponen di Config)' };
       if (b.qty === '' || isNaN(Number(b.qty))) return { valid: false, label: 'Qty harus angka' };
       return { valid: true, label: 'OK' };
     }
@@ -1173,12 +1179,12 @@ const PopupImportBOM = {
 
         <div v-show="tabAktif==='komponen'" style="overflow-x:auto; margin-bottom:14px;">
           <table class="gc-table" style="width:100%; border-collapse:collapse; font-size:12px;">
-            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px; min-width:160px;">Produk (Nama &middot; Warna &middot; Size)</th><th style="padding:6px;">Nama Pola</th><th style="padding:6px; min-width:160px;">Nama Komponen</th><th style="padding:6px;">Qty</th><th style="padding:6px;">Status</th></tr></thead>
+            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px; min-width:160px;">Produk (Nama &middot; Warna &middot; Size)</th><th style="padding:6px;">Nama Pola</th><th style="padding:6px; min-width:160px;">Komponen</th><th style="padding:6px;">Qty</th><th style="padding:6px;">Status</th></tr></thead>
             <tbody>
               <tr v-for="(x,i) in komponenDenganStatus" :key="i" style="border-top:1px solid var(--line);">
                 <td style="padding:6px; font-weight:700;">{{ x.b.prodNama || '-' }} &middot; {{ x.b.prodWarna || '-' }} &middot; {{ x.b.prodSize || '-' }}</td>
                 <td style="padding:6px;">{{ x.b.nama_pola || '-' }}</td>
-                <td style="padding:6px;"><field-validasi-inline v-model:nilai="x.b.nama_komponen" :opsi="opsiNamaBahan" /></td>
+                <td style="padding:6px;"><field-validasi-inline v-model:nilai="x.b.nama_komponen" :opsi="opsiKomponen" /></td>
                 <td style="padding:6px;">{{ x.b.qty }}</td>
                 <td style="padding:6px;"><span class="tag" :class="x.status.valid ? 'ok' : 'danger'">{{ x.status.label }}</span></td>
               </tr>
@@ -1314,6 +1320,7 @@ const MasterProdukListManager = {
     const inputFileBOM = ref(null);
 
     const opsiNamaBahanImport = ref([]);
+    const opsiKomponenImport = ref([]); // BARU (§36) — Data Komponen (Config), sumber validasi sheet "Komponen"
     const opsiWarnaImport = ref([]);
     const opsiSatuanImport = ref([]);
     const opsiJenisProdukImport = ref([]);
@@ -1335,15 +1342,17 @@ const MasterProdukListManager = {
     // TERBARU tiap kali mau import (bukan cache lama), biar validasi Nama
     // Bahan/Warna/Satuan/SKU pasti sesuai kondisi data SAAT INI.
     async function muatSemuaReferensiImport() {
-      const [bahan, warna, satuan, jenisProduk, semuaProduk] = await Promise.all([
+      const [bahan, warna, satuan, jenisProduk, komponen, semuaProduk] = await Promise.all([
         ambilDaftarBahanAksesorisLengkap(),
         ambilDaftarNama('master_warna'),
         ambilDaftarNama('master_satuan'),
         ambilDaftarNama('master_jenis_produk'),
+        ambilDaftarNama('master_komponen'), // BARU (§36) — Data Komponen (Config)
         ambilSemuaProduk()
       ]);
       daftarBahanImport.value = bahan;
       opsiNamaBahanImport.value = bahan.map(b => formatNamaBahan(b));
+      opsiKomponenImport.value = komponen;
       opsiWarnaImport.value = warna;
       opsiSatuanImport.value = satuan;
       opsiJenisProdukImport.value = jenisProduk;
@@ -1490,12 +1499,13 @@ const MasterProdukListManager = {
           const polaUntukProduk = payload.pola.filter(x => kunciProduk(x.prodNama, x.prodWarna, x.prodSize) === kunci);
           const bomPola = polaUntukProduk.map(p => {
             const item = resolveBahan(daftarBahanImport.value, p.bahan);
+            // GANTI (28 Agt 2026, §36): Komponen SEKARANG dari Data Komponen
+            // (Config, plain text) — TIDAK ADA LAGI resolveBahan/
+            // bahan_aksesoris_id di baris ini, sama format dengan baris
+            // Komponen dari form manual (§34).
             const komponenBaris = payload.komponen
               .filter(k => kunciProduk(k.prodNama, k.prodWarna, k.prodSize) === kunci && k.nama_pola.toLowerCase() === p.nama_pola.toLowerCase())
-              .map(k => {
-                const itemK = resolveBahan(daftarBahanImport.value, k.nama_komponen);
-                return { bahan_aksesoris_id: itemK ? itemK.id : '', nama_komponen: itemK ? formatNamaBahan(itemK) : '', qty: k.qty };
-              });
+              .map(k => ({ nama_komponen: k.nama_komponen, qty: k.qty }));
             return {
               tipe: p.tipe, foto: '', nama_pola: p.nama_pola,
               bahan_aksesoris_id: item ? item.id : '', nama_bahan: item ? item.nama : '', warna_bahan: item ? (item.warna || '') : '',
@@ -1538,7 +1548,7 @@ const MasterProdukListManager = {
       paginasi, sedangEdit, bukaEdit, tutupEdit, saatTersimpanEdit, hapus, bolehHapus,
       produkTerpilih, toggleCentang, semuaTercentang, toggleSemua, hapusMassal,
       dropdownImportTerbuka, inputFileProdukUtama, inputFileBOM,
-      opsiWarnaImport, opsiNamaBahanImport, opsiSatuanImport, opsiJenisProdukImport, daftarProdukSemuaImport,
+      opsiWarnaImport, opsiNamaBahanImport, opsiKomponenImport, opsiSatuanImport, opsiJenisProdukImport, daftarProdukSemuaImport,
       popupImportProdukUtamaAktif, barisMentahProdukUtama, sedangImportProdukUtama,
       popupImportBOMAktif, barisMentahJasa, barisMentahPola, barisMentahKomponen, barisMentahAksesoris, sedangImportBOM,
       bukaTemplateProdukUtama, bukaTemplateBOM, pancingFileProdukUtama, pancingFileBOM,
@@ -1640,6 +1650,7 @@ const MasterProdukListManager = {
         :baris-komponen="barisMentahKomponen"
         :baris-aksesoris="barisMentahAksesoris"
         :opsi-nama-bahan="opsiNamaBahanImport"
+        :opsi-komponen="opsiKomponenImport"
         :opsi-satuan="opsiSatuanImport"
         :daftar-produk-lama="daftarProdukSemuaImport"
         :sedang-import="sedangImportBOM"

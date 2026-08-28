@@ -708,7 +708,15 @@
        ambil dari Data Komponen (Config, master_komponen), BUKAN LAGI dari
        Data Bahan & Aksesoris — permintaan Guru eksplisit. Excel Import BOM
        sheet "Komponen" SENGAJA TIDAK ikut berubah (konfirmasi Guru), tetap
-       validasi ke Data Bahan & Aksesoris format Nama+Warna. -->
-  <script type="module" src="js/vue-master-produk.js?v=8"></script>
+       validasi ke Data Bahan & Aksesoris format Nama+Warna.
+       v=9 (28 Agt 2026, §36): SUPERSEDE catatan v=8 soal Excel — sheet
+       "Komponen" di Template/Import BOM SEKARANG JUGA ikut ganti ke Data
+       Komponen (Config): kolom header "Nama Komponen (Nama + Warna)" -> jadi
+       "Komponen", validasi ke opsiKomponen (bukan Data Bahan & Aksesoris
+       lagi), bahan_aksesoris_id dihapus dari baris ini (sama format dengan
+       form manual §34). Data Produk Utama (Entry/Edit Produk): urutan field
+       diubah jadi Foto Produk - Jenis Produk - Nama Produk - Warna - Size
+       (permintaan Guru), murni urutan tampilan, tidak ada perubahan skema. -->
+  <script type="module" src="js/vue-master-produk.js?v=9"></script>
 </body>
 </html>
