@@ -1170,6 +1170,49 @@ const MasterProdukListManager = {
       }
     }
 
+    // --- Checkbox pilih + Hapus Massal (28 Agt 2026) ------------------------
+    // produkTerpilih menyimpan id produk yang dicentang. SENGAJA tidak
+    // direset saat pindah halaman paginasi, supaya bisa pilih produk dari
+    // beberapa halaman sekaligus sebelum hapus massal.
+    const produkTerpilih = ref([]);
+    function toggleCentang(id) {
+      const i = produkTerpilih.value.indexOf(id);
+      if (i === -1) produkTerpilih.value.push(id); else produkTerpilih.value.splice(i, 1);
+    }
+    const semuaTercentang = computed(() => {
+      const halaman = paginasi.dataHalaman.value;
+      return halaman.length > 0 && halaman.every(it => produkTerpilih.value.includes(it.id));
+    });
+    function toggleSemua() {
+      const idHalaman = paginasi.dataHalaman.value.map(it => it.id);
+      if (semuaTercentang.value) {
+        produkTerpilih.value = produkTerpilih.value.filter(id => !idHalaman.includes(id));
+      } else {
+        produkTerpilih.value = [...new Set([...produkTerpilih.value, ...idHalaman])];
+      }
+    }
+    async function hapusMassal() {
+      if (!bolehHapus.value) return alert('Anda tidak punya izin menghapus di sini. Hubungi Owner/PIC.');
+      const jumlah = produkTerpilih.value.length;
+      if (jumlah === 0) return;
+      if (!confirm(`Hapus ${jumlah} produk terpilih? Foto yang sudah diupload juga akan dihapus. Tindakan ini tidak bisa dibatalkan.`)) return;
+      const idGagal = [];
+      for (const id of produkTerpilih.value) {
+        try {
+          const item = paginasi.dataHalaman.value.find(it => it.id === id);
+          await deleteDoc(doc(db, 'master_produk', id));
+          if (item && item.foto) await hapusFotoProdukLama(item.foto);
+          for (const b of (item && item.bom_pola || [])) { if (b.foto) await hapusFotoProdukLama(b.foto); }
+        } catch (e) {
+          console.error('Gagal hapus produk (massal), id:', id, e);
+          idGagal.push(id);
+        }
+      }
+      produkTerpilih.value = idGagal;
+      await paginasi.muatUlang();
+      if (idGagal.length > 0) alert(`${idGagal.length} dari ${jumlah} produk gagal dihapus. Coba lagi untuk yang tersisa.`);
+    }
+
     onMounted(async () => { await window.authReady; await paginasi.muatUlang(); });
 
     // --- Import/Export Excel (§28.9) ---------------------------------------
@@ -1374,6 +1417,7 @@ const MasterProdukListManager = {
 
     return {
       paginasi, sedangEdit, bukaEdit, tutupEdit, saatTersimpanEdit, hapus, bolehHapus,
+      produkTerpilih, toggleCentang, semuaTercentang, toggleSemua, hapusMassal,
       dropdownImportTerbuka, inputFileProdukUtama, inputFileBOM,
       opsiWarnaImport, opsiNamaBahanImport, opsiSatuanImport, daftarProdukSemuaImport,
       popupImportProdukUtamaAktif, barisMentahProdukUtama, sedangImportProdukUtama,
@@ -1412,49 +1456,32 @@ const MasterProdukListManager = {
       <div v-if="paginasi.memuat.value" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Memuat...</div>
       <div v-else-if="paginasi.errorPaginasi.value" style="text-align:center; padding:24px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
       <template v-else>
-        <!-- Desktop: tabel -->
-        <div class="hidden md:block" style="overflow-x:auto;">
-          <table class="gc-table" style="width:100%; border-collapse:collapse; font-size:12.5px;">
-            <thead>
-              <tr style="text-align:left; color:var(--text-faint); font-size:11px; text-transform:uppercase;">
-                <th style="padding:8px;">Foto</th>
-                <th style="padding:8px;">SKU</th>
-                <th style="padding:8px;">Nama</th>
-                <th style="padding:8px;">Warna</th>
-                <th style="padding:8px;">Size</th>
-                <th style="padding:8px;">BOM</th>
-                <th class="freeze freeze-right" style="padding:8px;">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in paginasi.dataHalaman.value" :key="item.id" style="border-top:1px solid var(--line);">
-                <td style="padding:8px;"><img v-if="item.foto" :src="item.foto" style="width:40px; height:40px; object-fit:cover; border-radius:8px;"><span v-else style="color:var(--text-faint);">-</span></td>
-                <td style="padding:8px; font-weight:700;">{{ item.sku }}</td>
-                <td style="padding:8px;">{{ item.nama }}</td>
-                <td style="padding:8px;">{{ item.warna }}</td>
-                <td style="padding:8px;">{{ item.size }}</td>
-                <td style="padding:8px;">
-                  <span class="tag neutral" style="margin-right:4px;">{{ (item.bom_jasa||[]).length }} Jasa</span>
-                  <span class="tag neutral" style="margin-right:4px;">{{ (item.bom_pola||[]).length }} Pola/Vendor</span>
-                  <span class="tag neutral">{{ (item.bom_aksesoris||[]).length }} Aksesoris</span>
-                </td>
-                <td class="freeze freeze-right" style="padding:8px; text-align:center;">
-                  <button @click="bukaEdit(item)" class="icon-btn" title="Edit"><i class="fas fa-pen"></i></button>
-                  <button v-if="bolehHapus" @click="hapus(item)" class="icon-btn" style="color:var(--danger); margin-left:4px;" title="Hapus"><i class="fas fa-trash-alt"></i></button>
-                </td>
-              </tr>
-              <tr v-if="paginasi.dataHalaman.value.length === 0"><td colspan="7" style="padding:20px; text-align:center; color:var(--text-faint);">Belum ada produk.</td></tr>
-            </tbody>
-          </table>
+        <!-- 28 Agt 2026: dulu ada 2 tampilan (tabel desktop + kartu mobile)
+             yang gantian muncul lewat CSS responsif. Guru minta disederhanakan
+             jadi SATU tampilan kartu saja untuk semua ukuran layar, sekalian
+             tambah checkbox pilih + Hapus Massal. -->
+        <div v-if="bolehHapus" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-muted); cursor:pointer;">
+            <input type="checkbox" :checked="semuaTercentang" @change="toggleSemua" style="accent-color:var(--burgundy); width:15px; height:15px;">
+            Pilih semua di halaman ini
+          </label>
+          <button @click="hapusMassal" :disabled="produkTerpilih.length === 0" class="btn-outline" style="font-size:12px; padding:7px 14px; color:var(--danger); border-color:var(--danger);">
+            <i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus Massal ({{ produkTerpilih.length }})
+          </button>
         </div>
 
-        <!-- Mobile: kartu -->
-        <div class="md:hidden" style="display:flex; flex-direction:column; gap:10px;">
-          <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:12px; display:flex; gap:10px;">
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
+            <input v-if="bolehHapus" type="checkbox" :checked="produkTerpilih.includes(item.id)" @change="toggleCentang(item.id)" style="accent-color:var(--burgundy); width:16px; height:16px; margin-top:4px; flex-shrink:0;">
             <img v-if="item.foto" :src="item.foto" style="width:56px; height:56px; object-fit:cover; border-radius:10px; flex-shrink:0;">
             <div style="flex:1; min-width:0;">
               <div style="font-weight:700; font-size:13px;">{{ item.nama }}</div>
               <div style="font-size:11.5px; color:var(--text-muted);">{{ item.sku }} &middot; {{ item.warna }} &middot; {{ item.size }}</div>
+              <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">
+                <span class="tag neutral" style="margin-right:4px;">{{ (item.bom_jasa||[]).length }} Jasa</span>
+                <span class="tag neutral" style="margin-right:4px;">{{ (item.bom_pola||[]).length }} Pola/Vendor</span>
+                <span class="tag neutral">{{ (item.bom_aksesoris||[]).length }} Aksesoris</span>
+              </div>
               <div style="margin-top:6px; display:flex; gap:8px;">
                 <button @click="bukaEdit(item)" class="btn-outline" style="font-size:11px; padding:5px 12px;">Edit</button>
                 <button v-if="bolehHapus" @click="hapus(item)" class="btn-outline" style="font-size:11px; padding:5px 12px; color:var(--danger); border-color:var(--danger);">Hapus</button>
