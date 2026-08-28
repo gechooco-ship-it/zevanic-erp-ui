@@ -304,23 +304,60 @@ window.parseWaktuIndo = function(waktuStr) {
 // js/vue-login.js (dipakai murni untuk gerbang login).
 
 // Poin 1: cek apakah waktu sekarang masih dalam jam shift yang di-assign ke karyawan ini
+//
+// FIX (28 Agt 2026, laporan Guru "refresh biasa pun keluar ke Login" —
+// dilacak lewat log diagnostik sampai ketemu shift "SHIFT OWNER" 09:00-
+// 08:59, direproduksi sekitar jam 01:00 dini hari WIB) — SEBELUMNYA cuma
+// dibangun SATU jendela: [HARI INI jam_masuk, (besok kalau lewat tengah
+// malam) jam_keluar]. Buat shift yang nyebrang tengah malam (jam_keluar
+// <= jam_masuk, mis. 09:00-08:59 = nyaris 24 jam), ini SALAH tepat di
+// jam-jam dini hari SEBELUM jam_masuk hari ini: mulai dihitung "HARI INI
+// jam 09:00" (BELUM terjadi), padahal yang sungguh berlaku saat itu
+// adalah shift yang mulai KEMARIN jam 09:00 dan baru berakhir HARI INI
+// jam 08:59 — jendela lama itu tidak pernah menengok ke belakang. Sekarang
+// dicek DUA jendela sekaligus (hari ini DAN kemarin, yang terakhir ini
+// buat menangkap shift-kemarin yang masih nyambung ke dini hari ini) —
+// lolos kalau waktu sekarang masuk salah satu.
 window.cekMasihJamKerja = async function(namaShift) {
   if (!namaShift) return false; // tidak ada shift ter-assign -> tidak bisa dipastikan, wajib login ulang
   try {
     const qShift = await getDocs(collection(db, "master_shift"));
     let shiftData = null;
     qShift.forEach(s => { if (s.data().nama_shift === namaShift) shiftData = s.data(); });
-    if (!shiftData || !shiftData.jam_masuk || !shiftData.jam_keluar) return false;
+    if (!shiftData || !shiftData.jam_masuk || !shiftData.jam_keluar) {
+      console.warn("[cekMasihJamKerja] Shift \"" + namaShift + "\" tidak ditemukan di master_shift, atau jam_masuk/jam_keluar kosong. shiftData:", shiftData);
+      return false;
+    }
 
     const sekarang = new Date();
     const [jamMasukH, jamMasukM] = shiftData.jam_masuk.split(':').map(Number);
     const [jamKeluarH, jamKeluarM] = shiftData.jam_keluar.split(':').map(Number);
 
-    const mulai = new Date(sekarang); mulai.setHours(jamMasukH, jamMasukM, 0, 0);
-    let selesai = new Date(sekarang); selesai.setHours(jamKeluarH, jamKeluarM, 0, 0);
-    if (selesai <= mulai) selesai.setDate(selesai.getDate() + 1); // shift lewat tengah malam
+    // Bangun 1 jendela [mulai, selesai] buat shift yang MULAI pada
+    // (sekarang + offsetHari) — offsetHari=0 = mulai hari ini, -1 = mulai
+    // kemarin (buat menangkap shift-nyebrang-tengah-malam yang masih
+    // berjalan pas dini hari).
+    function bikinJendela(offsetHari) {
+      const mulai = new Date(sekarang);
+      mulai.setDate(mulai.getDate() + offsetHari);
+      mulai.setHours(jamMasukH, jamMasukM, 0, 0);
+      let selesai = new Date(mulai);
+      selesai.setHours(jamKeluarH, jamKeluarM, 0, 0);
+      if (selesai <= mulai) selesai.setDate(selesai.getDate() + 1); // shift lewat tengah malam
+      return { mulai, selesai };
+    }
 
-    return sekarang >= mulai && sekarang <= selesai;
+    const jendelaHariIni = bikinJendela(0);
+    const jendelaKemarin = bikinJendela(-1);
+    const cocokHariIni = sekarang >= jendelaHariIni.mulai && sekarang <= jendelaHariIni.selesai;
+    const cocokKemarin = sekarang >= jendelaKemarin.mulai && sekarang <= jendelaKemarin.selesai;
+    const hasil = cocokHariIni || cocokKemarin;
+
+    if (!hasil) {
+      console.warn("[cekMasihJamKerja] TIDAK masuk jendela shift \"" + namaShift + "\" (" + shiftData.jam_masuk + "-" + shiftData.jam_keluar + "). sekarang=" + sekarang.toLocaleString('id-ID') + " | jendela hari ini=[" + jendelaHariIni.mulai.toLocaleString('id-ID') + " s/d " + jendelaHariIni.selesai.toLocaleString('id-ID') + "] | jendela kemarin=[" + jendelaKemarin.mulai.toLocaleString('id-ID') + " s/d " + jendelaKemarin.selesai.toLocaleString('id-ID') + "]");
+    }
+
+    return hasil;
   } catch (e) {
     console.error("Gagal cek jam kerja:", e);
     return false;
