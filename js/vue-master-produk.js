@@ -168,6 +168,145 @@ async function cekSkuDobel(sku, idSedangEdit) {
   return snap.docs.some(d => d.id !== idSedangEdit);
 }
 
+// ---------------------------------------------------------------------------
+// Import/Export Excel (Master Produk) — desain disepakati lewat 2 ronde
+// AskUserQuestion sebelum ditulis (lihat STATUS-PROYEK.md §28.9): 2 tahap
+// (Import Produk Utama dulu, baru Import BOM setelah SKU-nya ada), template
+// BOM 4 sheet dalam 1 file (Jasa/Pola/Komponen/Aksesoris), popup verifikasi
+// dengan saran koreksi (Levenshtein) + boleh dikoreksi inline lewat
+// DropdownCari sebelum Import ditekan, mode "Ganti Total" per SKU per
+// kategori (BUKAN tambah/gabung ke BOM lama), TEKS SAJA (tanpa foto), dan 1
+// tombol dropdown gabungan (Download Template + Import), sesuai konfirmasi
+// akhir Hilman.
+// ---------------------------------------------------------------------------
+
+// ambilSemuaProduk — ambil SEMUA dokumen master_produk (bukan 1 halaman
+// paginasi) — dipakai buat cek SKU dobel dalam file & cek SKU yang mau
+// di-import BOM-nya sudah terdaftar di Data Produk.
+async function ambilSemuaProduk() {
+  try {
+    const snap = await getDocs(collection(db, 'master_produk'));
+    const list = [];
+    snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+    return list;
+  } catch (e) {
+    console.error('Gagal ambil semua Master Produk:', e);
+    return [];
+  }
+}
+
+// jarakLevenshtein — jarak edit standar (insert/delete/substitute = 1).
+// Tidak ada pola/library sejenis di codebase ini, ditulis dari nol khusus
+// buat saran "maksud Anda...?" di popup verifikasi import.
+function jarakLevenshtein(a, b) {
+  a = (a || '').toLowerCase(); b = (b || '').toLowerCase();
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const baris = new Array(n + 1);
+  for (let j = 0; j <= n; j++) baris[j] = j;
+  for (let i = 1; i <= m; i++) {
+    let diagAtas = baris[0];
+    baris[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const simpan = baris[j];
+      baris[j] = a[i - 1] === b[j - 1] ? diagAtas : 1 + Math.min(diagAtas, baris[j], baris[j - 1]);
+      diagAtas = simpan;
+    }
+  }
+  return baris[n];
+}
+
+// cariSaranTerdekat — cari opsi ter-mirip (jarak Levenshtein terkecil) buat
+// "maksud Anda...?". Ambang batas separuh panjang teks (longgar tapi tetap
+// masuk akal) biar tidak menyarankan sesuatu yang jauh beda.
+function cariSaranTerdekat(teks, daftarOpsi) {
+  if (!teks || !daftarOpsi || !daftarOpsi.length) return '';
+  let terbaik = '', jarakTerbaik = Infinity;
+  for (const opsi of daftarOpsi) {
+    const j = jarakLevenshtein(teks, opsi);
+    if (j < jarakTerbaik) { jarakTerbaik = j; terbaik = opsi; }
+  }
+  const ambang = Math.max(2, Math.ceil(teks.length / 2));
+  return jarakTerbaik <= ambang ? terbaik : '';
+}
+
+// validasiPilihan — cek 1 nilai teks dari Excel terhadap daftar opsi resmi
+// (opsiNamaBahan/opsiWarna/opsiSatuan dll). Cocok PERSIS (case-insensitive,
+// trim) = valid, nilai dinormalkan ke ejaan resmi di daftar. Tidak cocok =
+// kasih saran (kalau ada) buat dikoreksi inline di popup — TIDAK PERNAH
+// otomatis dianggap benar (sesuai keputusan "kasih saran & bisa dikoreksi
+// langsung di popup", bukan auto-terima tebakan).
+function validasiPilihan(nilaiAsli, daftarOpsi) {
+  const teks = (nilaiAsli || '').trim();
+  if (!teks) return { valid: false, nilai: '', saran: '' };
+  const cocok = (daftarOpsi || []).find(o => o.toLowerCase() === teks.toLowerCase());
+  if (cocok) return { valid: true, nilai: cocok, saran: '' };
+  return { valid: false, nilai: teks, saran: cariSaranTerdekat(teks, daftarOpsi) };
+}
+
+// bacaFileExcel / ambilSheet — pakai XLSX global yang sudah dimuat lewat
+// <script> di index.html (SheetJS, sudah dipakai duluan di
+// js/vue-penjadwalan.js buat fitur export/import serupa) — TIDAK perlu
+// dependency baru.
+function bacaFileExcel(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try { resolve(XLSX.read(new Uint8Array(e.target.result), { type: 'array' })); }
+      catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+function ambilSheet(workbook, namaSheet) {
+  const sheet = workbook.Sheets[namaSheet];
+  if (!sheet) return [];
+  return XLSX.utils.sheet_to_json(sheet, { defval: '' });
+}
+
+// unduhWorkbook — bikin file .xlsx dari beberapa sheet sekaligus (dipakai
+// buat 2 template: Produk Utama 1 sheet, BOM 4 sheet dalam 1 file — sesuai
+// keputusan "4 sheet terpisah dalam 1 file").
+function unduhWorkbook(sheets, namaFile) {
+  const wb = XLSX.utils.book_new();
+  for (const s of sheets) {
+    const ws = XLSX.utils.json_to_sheet(s.baris, { header: s.header });
+    XLSX.utils.book_append_sheet(wb, ws, s.nama);
+  }
+  XLSX.writeFile(wb, namaFile);
+}
+
+// Header kolom template — string-nya SEKALIGUS jadi nama kolom di Excel,
+// jadi HARUS PERSIS sama dipakai waktu baca file (ambilSheet + akses
+// b['...']) di bawah. Field "Nama + Warna" (Bahan/Komponen/Aksesoris/
+// Webbing) diisi TEKS GABUNGAN sama seperti tampilan DropdownCari di form
+// (lihat formatNamaBahan), mis. "Kain Kanvas Merah".
+const HEADER_PRODUK_UTAMA = ['SKU', 'Nama', 'Warna', 'Size'];
+const HEADER_JASA = ['SKU', 'Nama Jasa', 'Harga'];
+const HEADER_POLA = ['SKU', 'Tipe (internal/vendor)', 'Nama Pola', 'Bahan (Nama + Warna)', 'Panjang', 'Isi Pola (Pcs)', 'Jasa Cutting', 'Jasa Serie', 'Jenis Vendor'];
+const HEADER_KOMPONEN = ['SKU', 'Nama Pola', 'Nama Komponen (Nama + Warna)', 'Qty'];
+const HEADER_AKSESORIS = ['SKU', 'Tahap Proses', 'Aksesoris (Nama + Warna)', 'Qty', 'Satuan', 'Kode Webbing 2 (Nama + Warna)', 'Kode Webbing 3 (Nama + Warna)'];
+
+function unduhTemplateProdukUtama() {
+  const contoh = { 'SKU': 'TAS-MERAH-ALLSIZE', 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size' };
+  unduhWorkbook([{ nama: 'Produk Utama', header: HEADER_PRODUK_UTAMA, baris: [contoh] }], 'Template Import Produk Utama.xlsx');
+}
+
+function unduhTemplateBOM() {
+  const contohJasa = { 'SKU': 'TAS-MERAH-ALLSIZE', 'Nama Jasa': 'Jasa Jahit', 'Harga': 15000 };
+  const contohPola = { 'SKU': 'TAS-MERAH-ALLSIZE', 'Tipe (internal/vendor)': 'internal', 'Nama Pola': 'Badan Depan', 'Bahan (Nama + Warna)': 'Kain Kanvas Merah', 'Panjang': 1.2, 'Isi Pola (Pcs)': 4, 'Jasa Cutting': 2000, 'Jasa Serie': 3000, 'Jenis Vendor': '' };
+  const contohKomponen = { 'SKU': 'TAS-MERAH-ALLSIZE', 'Nama Pola': 'Badan Depan', 'Nama Komponen (Nama + Warna)': 'Busa Ati 3mm', 'Qty': 1 };
+  const contohAksesoris = { 'SKU': 'TAS-MERAH-ALLSIZE', 'Tahap Proses': 'Finishing', 'Aksesoris (Nama + Warna)': 'Resleting YKK Hitam', 'Qty': 1, 'Satuan': 'Pcs', 'Kode Webbing 2 (Nama + Warna)': '', 'Kode Webbing 3 (Nama + Warna)': '' };
+  unduhWorkbook([
+    { nama: 'Jasa', header: HEADER_JASA, baris: [contohJasa] },
+    { nama: 'Pola', header: HEADER_POLA, baris: [contohPola] },
+    { nama: 'Komponen', header: HEADER_KOMPONEN, baris: [contohKomponen] },
+    { nama: 'Aksesoris', header: HEADER_AKSESORIS, baris: [contohAksesoris] }
+  ], 'Template Import BOM.xlsx');
+}
+
 // --- Baris kosong per kategori BOM ----------------------------------------
 function barisJasaKosong() { return { nama: '', harga: '' }; }
 function barisPolaKosong() {
@@ -654,13 +793,342 @@ const MasterProdukEntryManager = {
 };
 
 // ---------------------------------------------------------------------------
+// FieldValidasiInline — 1 sel tabel di popup verifikasi import: tampilkan
+// nilai teks dari Excel + status valid/tidak, bisa langsung dikoreksi lewat
+// DropdownCari (keputusan "kasih saran & bisa dikoreksi langsung di
+// popup", bukan cuma tampilan baca-saja).
+// ---------------------------------------------------------------------------
+const FieldValidasiInline = {
+  components: { DropdownCari },
+  props: {
+    nilai: { type: String, default: '' },
+    opsi: { type: Array, default: () => [] }
+  },
+  emits: ['update:nilai'],
+  computed: {
+    hasil() { return validasiPilihan(this.nilai, this.opsi); }
+  },
+  template: `
+    <div>
+      <dropdown-cari :model-value="nilai" :opsi="opsi" placeholder="Cari & pilih..." @update:modelValue="v => $emit('update:nilai', v)" />
+      <div v-if="!hasil.valid && nilai && hasil.saran" style="font-size:10.5px; margin-top:2px; color:var(--danger);">
+        Tidak cocok persis. Maksud Anda "{{ hasil.saran }}"? <button type="button" @click="$emit('update:nilai', hasil.saran)" style="border:none; background:none; color:var(--burgundy); text-decoration:underline; cursor:pointer; font-size:10.5px; padding:0;">Pakai ini</button>
+      </div>
+      <div v-else-if="!hasil.valid && nilai" style="font-size:10.5px; margin-top:2px; color:var(--danger);">Tidak ditemukan di daftar. Pilih dari dropdown di atas.</div>
+      <div v-else-if="!hasil.valid" style="font-size:10.5px; margin-top:2px; color:var(--danger);">Wajib diisi.</div>
+    </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
+// PopupImportProdukUtama — tahap 1 dari 2. Validasi tiap baris (SKU wajib +
+// tidak boleh dobel dalam 1 file, Nama wajib, Warna wajib cocok Data Warna,
+// Size wajib) sebelum tombol Import aktif — SEMUA baris harus valid, TIDAK
+// BISA import sebagian (keputusan "Ganti Total").
+// ---------------------------------------------------------------------------
+const PopupImportProdukUtama = {
+  components: { FieldValidasiInline },
+  props: {
+    barisMentah: { type: Array, default: () => [] },
+    opsiWarna: { type: Array, default: () => [] },
+    daftarProdukLama: { type: Array, default: () => [] },
+    sedangImport: { type: Boolean, default: false }
+  },
+  emits: ['tutup', 'konfirmasi'],
+  setup(props, { emit }) {
+    const petaSkuLama = computed(() => {
+      const peta = {};
+      for (const p of props.daftarProdukLama) peta[(p.sku || '').toLowerCase()] = p;
+      return peta;
+    });
+
+    const baris = ref(props.barisMentah.map(b => ({
+      sku: String(b['SKU'] || '').trim(),
+      nama: String(b['Nama'] || '').trim(),
+      warna: String(b['Warna'] || '').trim(),
+      size: String(b['Size'] || '').trim()
+    })));
+
+    const jumlahSkuDalamFile = computed(() => {
+      const peta = {};
+      for (const b of baris.value) {
+        const kunci = b.sku.toLowerCase();
+        if (!kunci) continue;
+        peta[kunci] = (peta[kunci] || 0) + 1;
+      }
+      return peta;
+    });
+
+    function statusBaris(b) {
+      if (!b.sku) return { valid: false, label: 'SKU kosong', tipe: 'danger' };
+      if (jumlahSkuDalamFile.value[b.sku.toLowerCase()] > 1) return { valid: false, label: 'SKU dobel di file', tipe: 'danger' };
+      if (!b.nama) return { valid: false, label: 'Nama kosong', tipe: 'danger' };
+      if (!validasiPilihan(b.warna, props.opsiWarna).valid) return { valid: false, label: 'Warna belum valid', tipe: 'danger' };
+      if (!b.size) return { valid: false, label: 'Size kosong', tipe: 'danger' };
+      const ada = petaSkuLama.value[b.sku.toLowerCase()];
+      return { valid: true, label: ada ? 'Update produk lama' : 'Produk baru', tipe: ada ? 'warn' : 'ok' };
+    }
+
+    const barisDenganStatus = computed(() => baris.value.map(b => ({ b, status: statusBaris(b) })));
+    const semuaSiap = computed(() => baris.value.length > 0 && barisDenganStatus.value.every(x => x.status.valid));
+
+    function konfirmasi() {
+      if (!semuaSiap.value) return;
+      emit('konfirmasi', baris.value.map(b => ({ ...b })));
+    }
+
+    return { baris, barisDenganStatus, semuaSiap, konfirmasi };
+  },
+  template: `
+    <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:flex-start; justify-content:center; padding:16px; overflow-y:auto;">
+      <div class="gc-card" style="max-width:820px; width:100%; margin:24px 0;">
+        <h3 style="font-weight:700; font-size:15px; margin-bottom:4px;"><i class="fas fa-file-import" style="color:var(--burgundy); margin-right:8px;"></i>Verifikasi Import Produk Utama</h3>
+        <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Periksa {{ baris.length }} baris dari file. Warna yang tidak cocok persis bisa dikoreksi langsung di sini. SKU yang sudah terdaftar akan DIGANTI TOTAL datanya (bukan ditambah dobel).</p>
+        <div style="overflow-x:auto; margin-bottom:16px;">
+          <table class="gc-table" style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead>
+              <tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;">
+                <th style="padding:6px;">SKU</th>
+                <th style="padding:6px;">Nama</th>
+                <th style="padding:6px; min-width:160px;">Warna</th>
+                <th style="padding:6px;">Size</th>
+                <th style="padding:6px;">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="(x, i) in barisDenganStatus" :key="i" style="border-top:1px solid var(--line);">
+                <td style="padding:6px; font-weight:700;">{{ x.b.sku || '-' }}</td>
+                <td style="padding:6px;">{{ x.b.nama || '-' }}</td>
+                <td style="padding:6px;"><field-validasi-inline v-model:nilai="x.b.warna" :opsi="opsiWarna" /></td>
+                <td style="padding:6px;">{{ x.b.size || '-' }}</td>
+                <td style="padding:6px;"><span class="tag" :class="x.status.tipe">{{ x.status.label }}</span></td>
+              </tr>
+              <tr v-if="!barisDenganStatus.length"><td colspan="5" style="padding:14px; text-align:center; color:var(--text-faint);">File kosong / sheet "Produk Utama" tidak ada isinya.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-if="!semuaSiap" style="font-size:11.5px; color:var(--danger); margin-bottom:10px;"><i class="fas fa-triangle-exclamation" style="margin-right:5px;"></i>Perbaiki dulu semua baris yang belum valid sebelum Import (tidak bisa sebagian).</div>
+        <div style="display:flex; gap:8px;">
+          <button @click="konfirmasi" :disabled="!semuaSiap || sedangImport" class="btn-primary" style="flex:1;">{{ sedangImport ? 'Mengimpor...' : ('Import ' + baris.length + ' Produk') }}</button>
+          <button @click="$emit('tutup')" type="button" class="btn-outline" style="flex:1;" :disabled="sedangImport">Batal</button>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
+// PopupImportBOM — tahap 2 dari 2 (jalan setelah SKU-nya ada lewat Import
+// Produk Utama). 4 tab (Jasa/Pola/Komponen/Aksesoris) dari 1 file, Komponen
+// dicocokkan ke Pola lewat pasangan (SKU, Nama Pola) yang harus ada di
+// sheet Pola. SEMUA baris di SEMUA sheet harus valid sebelum Import aktif.
+// ---------------------------------------------------------------------------
+const PopupImportBOM = {
+  components: { FieldValidasiInline },
+  props: {
+    barisJasa: { type: Array, default: () => [] },
+    barisPola: { type: Array, default: () => [] },
+    barisKomponen: { type: Array, default: () => [] },
+    barisAksesoris: { type: Array, default: () => [] },
+    opsiNamaBahan: { type: Array, default: () => [] },
+    opsiSatuan: { type: Array, default: () => [] },
+    daftarProdukLama: { type: Array, default: () => [] },
+    sedangImport: { type: Boolean, default: false }
+  },
+  emits: ['tutup', 'konfirmasi'],
+  setup(props, { emit }) {
+    const tabAktif = ref('jasa');
+    const setSkuAda = computed(() => new Set(props.daftarProdukLama.map(p => (p.sku || '').toLowerCase())));
+    function skuValid(sku) { return !!sku && setSkuAda.value.has(sku.toLowerCase()); }
+
+    const jasa = ref(props.barisJasa.map(b => ({
+      sku: String(b['SKU'] || '').trim(), nama: String(b['Nama Jasa'] || '').trim(), harga: b['Harga']
+    })));
+    function statusJasa(b) {
+      if (!skuValid(b.sku)) return { valid: false, label: 'SKU tidak ditemukan (Import Produk Utama dulu)' };
+      if (!b.nama) return { valid: false, label: 'Nama Jasa kosong' };
+      if (b.harga === '' || isNaN(Number(b.harga))) return { valid: false, label: 'Harga harus angka' };
+      return { valid: true, label: 'OK' };
+    }
+
+    const pola = ref(props.barisPola.map(b => ({
+      sku: String(b['SKU'] || '').trim(),
+      tipe: String(b['Tipe (internal/vendor)'] || '').trim().toLowerCase(),
+      nama_pola: String(b['Nama Pola'] || '').trim(),
+      bahan: String(b['Bahan (Nama + Warna)'] || '').trim(),
+      panjang: b['Panjang'], isi_pola_pcs: b['Isi Pola (Pcs)'],
+      jasa_cutting: b['Jasa Cutting'], jasa_serie: b['Jasa Serie'],
+      jenis_vendor: String(b['Jenis Vendor'] || '').trim()
+    })));
+    function statusPola(b) {
+      if (!skuValid(b.sku)) return { valid: false, label: 'SKU tidak ditemukan' };
+      if (b.tipe !== 'internal' && b.tipe !== 'vendor') return { valid: false, label: 'Tipe harus "internal" atau "vendor"' };
+      if (!b.nama_pola) return { valid: false, label: 'Nama Pola kosong' };
+      if (!validasiPilihan(b.bahan, props.opsiNamaBahan).valid) return { valid: false, label: 'Bahan belum valid' };
+      if (b.panjang === '' || isNaN(Number(b.panjang))) return { valid: false, label: 'Panjang harus angka' };
+      if (b.isi_pola_pcs === '' || isNaN(Number(b.isi_pola_pcs))) return { valid: false, label: 'Isi Pola (Pcs) harus angka' };
+      if (b.jasa_cutting === '' || isNaN(Number(b.jasa_cutting))) return { valid: false, label: 'Jasa Cutting harus angka' };
+      if (b.jasa_serie === '' || isNaN(Number(b.jasa_serie))) return { valid: false, label: 'Jasa Serie harus angka' };
+      return { valid: true, label: 'OK' };
+    }
+    const kunciSkuPola = computed(() => new Set(pola.value.filter(p => p.sku && p.nama_pola).map(p => p.sku.toLowerCase() + '||' + p.nama_pola.toLowerCase())));
+
+    const komponen = ref(props.barisKomponen.map(b => ({
+      sku: String(b['SKU'] || '').trim(),
+      nama_pola: String(b['Nama Pola'] || '').trim(),
+      nama_komponen: String(b['Nama Komponen (Nama + Warna)'] || '').trim(),
+      qty: b['Qty']
+    })));
+    function statusKomponen(b) {
+      if (!skuValid(b.sku)) return { valid: false, label: 'SKU tidak ditemukan' };
+      if (!b.nama_pola || !kunciSkuPola.value.has(b.sku.toLowerCase() + '||' + b.nama_pola.toLowerCase())) return { valid: false, label: 'Nama Pola tidak cocok baris di sheet Pola (SKU sama)' };
+      if (!validasiPilihan(b.nama_komponen, props.opsiNamaBahan).valid) return { valid: false, label: 'Nama Komponen belum valid' };
+      if (b.qty === '' || isNaN(Number(b.qty))) return { valid: false, label: 'Qty harus angka' };
+      return { valid: true, label: 'OK' };
+    }
+
+    const aksesoris = ref(props.barisAksesoris.map(b => ({
+      sku: String(b['SKU'] || '').trim(),
+      tahap_proses: String(b['Tahap Proses'] || '').trim(),
+      aksesoris: String(b['Aksesoris (Nama + Warna)'] || '').trim(),
+      qty: b['Qty'], satuan: String(b['Satuan'] || '').trim(),
+      webbing2: String(b['Kode Webbing 2 (Nama + Warna)'] || '').trim(),
+      webbing3: String(b['Kode Webbing 3 (Nama + Warna)'] || '').trim()
+    })));
+    function statusAksesoris(b) {
+      if (!skuValid(b.sku)) return { valid: false, label: 'SKU tidak ditemukan' };
+      if (!b.tahap_proses) return { valid: false, label: 'Tahap Proses kosong' };
+      if (!validasiPilihan(b.aksesoris, props.opsiNamaBahan).valid) return { valid: false, label: 'Aksesoris belum valid' };
+      if (b.qty === '' || isNaN(Number(b.qty))) return { valid: false, label: 'Qty harus angka' };
+      if (!validasiPilihan(b.satuan, props.opsiSatuan).valid) return { valid: false, label: 'Satuan belum valid' };
+      if (b.webbing2 && !validasiPilihan(b.webbing2, props.opsiNamaBahan).valid) return { valid: false, label: 'Kode Webbing 2 belum valid' };
+      if (b.webbing3 && !validasiPilihan(b.webbing3, props.opsiNamaBahan).valid) return { valid: false, label: 'Kode Webbing 3 belum valid' };
+      return { valid: true, label: 'OK' };
+    }
+
+    const jasaDenganStatus = computed(() => jasa.value.map(b => ({ b, status: statusJasa(b) })));
+    const polaDenganStatus = computed(() => pola.value.map(b => ({ b, status: statusPola(b) })));
+    const komponenDenganStatus = computed(() => komponen.value.map(b => ({ b, status: statusKomponen(b) })));
+    const aksesorisDenganStatus = computed(() => aksesoris.value.map(b => ({ b, status: statusAksesoris(b) })));
+
+    const jumlahError = computed(() =>
+      jasaDenganStatus.value.filter(x => !x.status.valid).length +
+      polaDenganStatus.value.filter(x => !x.status.valid).length +
+      komponenDenganStatus.value.filter(x => !x.status.valid).length +
+      aksesorisDenganStatus.value.filter(x => !x.status.valid).length
+    );
+    const semuaSiap = computed(() => {
+      const adaBaris = jasa.value.length || pola.value.length || komponen.value.length || aksesoris.value.length;
+      return !!adaBaris && jumlahError.value === 0;
+    });
+
+    function konfirmasi() {
+      if (!semuaSiap.value) return;
+      emit('konfirmasi', {
+        jasa: jasa.value.map(b => ({ sku: b.sku, nama: b.nama, harga: Number(b.harga) || 0 })),
+        pola: pola.value.map(b => ({ sku: b.sku, tipe: b.tipe, nama_pola: b.nama_pola, bahan: b.bahan, panjang: Number(b.panjang) || 0, isi_pola_pcs: Number(b.isi_pola_pcs) || 0, jasa_cutting: Number(b.jasa_cutting) || 0, jasa_serie: Number(b.jasa_serie) || 0, jenis_vendor: b.jenis_vendor })),
+        komponen: komponen.value.map(b => ({ sku: b.sku, nama_pola: b.nama_pola, nama_komponen: b.nama_komponen, qty: Number(b.qty) || 0 })),
+        aksesoris: aksesoris.value.map(b => ({ sku: b.sku, tahap_proses: b.tahap_proses, aksesoris: b.aksesoris, qty: Number(b.qty) || 0, satuan: b.satuan, webbing2: b.webbing2, webbing3: b.webbing3 }))
+      });
+    }
+
+    return { tabAktif, jasaDenganStatus, polaDenganStatus, komponenDenganStatus, aksesorisDenganStatus, jumlahError, semuaSiap, konfirmasi };
+  },
+  template: `
+    <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:flex-start; justify-content:center; padding:16px; overflow-y:auto;">
+      <div class="gc-card" style="max-width:960px; width:100%; margin:24px 0;">
+        <h3 style="font-weight:700; font-size:15px; margin-bottom:4px;"><i class="fas fa-file-import" style="color:var(--burgundy); margin-right:8px;"></i>Verifikasi Import BOM</h3>
+        <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">SKU harus sudah terdaftar di Data Produk (Import Produk Utama dulu). BOM lama produk yang kena akan DIGANTI TOTAL, bukan ditambah.</p>
+
+        <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
+          <button @click="tabAktif='jasa'" type="button" class="btn-outline" :class="{filled: tabAktif==='jasa'}" style="font-size:11.5px;">Jasa ({{ jasaDenganStatus.length }})</button>
+          <button @click="tabAktif='pola'" type="button" class="btn-outline" :class="{filled: tabAktif==='pola'}" style="font-size:11.5px;">Pola ({{ polaDenganStatus.length }})</button>
+          <button @click="tabAktif='komponen'" type="button" class="btn-outline" :class="{filled: tabAktif==='komponen'}" style="font-size:11.5px;">Komponen ({{ komponenDenganStatus.length }})</button>
+          <button @click="tabAktif='aksesoris'" type="button" class="btn-outline" :class="{filled: tabAktif==='aksesoris'}" style="font-size:11.5px;">Aksesoris ({{ aksesorisDenganStatus.length }})</button>
+        </div>
+
+        <div v-show="tabAktif==='jasa'" style="overflow-x:auto; margin-bottom:14px;">
+          <table class="gc-table" style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px;">SKU</th><th style="padding:6px;">Nama Jasa</th><th style="padding:6px;">Harga</th><th style="padding:6px;">Status</th></tr></thead>
+            <tbody>
+              <tr v-for="(x,i) in jasaDenganStatus" :key="i" style="border-top:1px solid var(--line);">
+                <td style="padding:6px; font-weight:700;">{{ x.b.sku || '-' }}</td>
+                <td style="padding:6px;">{{ x.b.nama || '-' }}</td>
+                <td style="padding:6px;">{{ x.b.harga }}</td>
+                <td style="padding:6px;"><span class="tag" :class="x.status.valid ? 'ok' : 'danger'">{{ x.status.label }}</span></td>
+              </tr>
+              <tr v-if="!jasaDenganStatus.length"><td colspan="4" style="padding:14px; text-align:center; color:var(--text-faint);">Sheet "Jasa" kosong.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-show="tabAktif==='pola'" style="overflow-x:auto; margin-bottom:14px;">
+          <table class="gc-table" style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px;">SKU</th><th style="padding:6px;">Tipe</th><th style="padding:6px;">Nama Pola</th><th style="padding:6px; min-width:160px;">Bahan</th><th style="padding:6px;">Status</th></tr></thead>
+            <tbody>
+              <tr v-for="(x,i) in polaDenganStatus" :key="i" style="border-top:1px solid var(--line);">
+                <td style="padding:6px; font-weight:700;">{{ x.b.sku || '-' }}</td>
+                <td style="padding:6px;">{{ x.b.tipe || '-' }}</td>
+                <td style="padding:6px;">{{ x.b.nama_pola || '-' }}</td>
+                <td style="padding:6px;"><field-validasi-inline v-model:nilai="x.b.bahan" :opsi="opsiNamaBahan" /></td>
+                <td style="padding:6px;"><span class="tag" :class="x.status.valid ? 'ok' : 'danger'">{{ x.status.label }}</span></td>
+              </tr>
+              <tr v-if="!polaDenganStatus.length"><td colspan="5" style="padding:14px; text-align:center; color:var(--text-faint);">Sheet "Pola" kosong.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-show="tabAktif==='komponen'" style="overflow-x:auto; margin-bottom:14px;">
+          <table class="gc-table" style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px;">SKU</th><th style="padding:6px;">Nama Pola</th><th style="padding:6px; min-width:160px;">Nama Komponen</th><th style="padding:6px;">Qty</th><th style="padding:6px;">Status</th></tr></thead>
+            <tbody>
+              <tr v-for="(x,i) in komponenDenganStatus" :key="i" style="border-top:1px solid var(--line);">
+                <td style="padding:6px; font-weight:700;">{{ x.b.sku || '-' }}</td>
+                <td style="padding:6px;">{{ x.b.nama_pola || '-' }}</td>
+                <td style="padding:6px;"><field-validasi-inline v-model:nilai="x.b.nama_komponen" :opsi="opsiNamaBahan" /></td>
+                <td style="padding:6px;">{{ x.b.qty }}</td>
+                <td style="padding:6px;"><span class="tag" :class="x.status.valid ? 'ok' : 'danger'">{{ x.status.label }}</span></td>
+              </tr>
+              <tr v-if="!komponenDenganStatus.length"><td colspan="5" style="padding:14px; text-align:center; color:var(--text-faint);">Sheet "Komponen" kosong.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-show="tabAktif==='aksesoris'" style="overflow-x:auto; margin-bottom:14px;">
+          <table class="gc-table" style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px;">SKU</th><th style="padding:6px;">Tahap</th><th style="padding:6px; min-width:150px;">Aksesoris</th><th style="padding:6px;">Qty</th><th style="padding:6px; min-width:120px;">Satuan</th><th style="padding:6px;">Status</th></tr></thead>
+            <tbody>
+              <tr v-for="(x,i) in aksesorisDenganStatus" :key="i" style="border-top:1px solid var(--line);">
+                <td style="padding:6px; font-weight:700;">{{ x.b.sku || '-' }}</td>
+                <td style="padding:6px;">{{ x.b.tahap_proses || '-' }}</td>
+                <td style="padding:6px;"><field-validasi-inline v-model:nilai="x.b.aksesoris" :opsi="opsiNamaBahan" /></td>
+                <td style="padding:6px;">{{ x.b.qty }}</td>
+                <td style="padding:6px;"><field-validasi-inline v-model:nilai="x.b.satuan" :opsi="opsiSatuan" /></td>
+                <td style="padding:6px;"><span class="tag" :class="x.status.valid ? 'ok' : 'danger'">{{ x.status.label }}</span></td>
+              </tr>
+              <tr v-if="!aksesorisDenganStatus.length"><td colspan="6" style="padding:14px; text-align:center; color:var(--text-faint);">Sheet "Aksesoris" kosong.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-if="!semuaSiap" style="font-size:11.5px; color:var(--danger); margin-bottom:10px;"><i class="fas fa-triangle-exclamation" style="margin-right:5px;"></i>Ada {{ jumlahError }} baris belum valid di semua sheet. Perbaiki dulu semua (tidak bisa sebagian) sebelum Import.</div>
+        <div style="display:flex; gap:8px;">
+          <button @click="konfirmasi" :disabled="!semuaSiap || sedangImport" class="btn-primary" style="flex:1;">{{ sedangImport ? 'Mengimpor...' : 'Import BOM' }}</button>
+          <button @click="$emit('tutup')" type="button" class="btn-outline" style="flex:1;" :disabled="sedangImport">Batal</button>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
 // MasterProdukListManager — halaman "List Produk": cari+paginasi+tabel,
 // modal edit (pakai ulang FormEntryProdukBOM), hapus (termasuk hapus foto
 // di Storage kalau ada, biar tidak numpuk file yatim — pola sama seperti
 // hapus() di js/vue-config-info.js).
 // ---------------------------------------------------------------------------
 const MasterProdukListManager = {
-  components: { FormEntryProdukBOM },
+  components: { FormEntryProdukBOM, PopupImportProdukUtama, PopupImportBOM },
   setup() {
     const bolehHapus = computed(() => window.cekIzinMenu('master_produk_list', 'delete') !== false);
 
@@ -696,14 +1164,241 @@ const MasterProdukListManager = {
 
     onMounted(async () => { await window.authReady; await paginasi.muatUlang(); });
 
-    return { paginasi, sedangEdit, bukaEdit, tutupEdit, saatTersimpanEdit, hapus, bolehHapus };
+    // --- Import/Export Excel (§28.9) ---------------------------------------
+    const dropdownImportTerbuka = ref(false);
+    const inputFileProdukUtama = ref(null);
+    const inputFileBOM = ref(null);
+
+    const opsiNamaBahanImport = ref([]);
+    const opsiWarnaImport = ref([]);
+    const opsiSatuanImport = ref([]);
+    const daftarBahanImport = ref([]);
+    const daftarProdukSemuaImport = ref([]); // SEMUA produk (bukan cuma 1 halaman paginasi.dataHalaman) — dipakai buat cek SKU sudah ada/belum
+
+    const popupImportProdukUtamaAktif = ref(false);
+    const barisMentahProdukUtama = ref([]);
+    const sedangImportProdukUtama = ref(false);
+
+    const popupImportBOMAktif = ref(false);
+    const barisMentahJasa = ref([]);
+    const barisMentahPola = ref([]);
+    const barisMentahKomponen = ref([]);
+    const barisMentahAksesoris = ref([]);
+    const sedangImportBOM = ref(false);
+
+    // muatSemuaReferensiImport — SELALU ambil data referensi & daftar produk
+    // TERBARU tiap kali mau import (bukan cache lama), biar validasi Nama
+    // Bahan/Warna/Satuan/SKU pasti sesuai kondisi data SAAT INI.
+    async function muatSemuaReferensiImport() {
+      const [bahan, warna, satuan, semuaProduk] = await Promise.all([
+        ambilDaftarBahanAksesorisLengkap(),
+        ambilDaftarNama('master_warna'),
+        ambilDaftarNama('master_satuan'),
+        ambilSemuaProduk()
+      ]);
+      daftarBahanImport.value = bahan;
+      opsiNamaBahanImport.value = bahan.map(b => formatNamaBahan(b));
+      opsiWarnaImport.value = warna;
+      opsiSatuanImport.value = satuan;
+      daftarProdukSemuaImport.value = semuaProduk;
+    }
+
+    function bukaTemplateProdukUtama() { unduhTemplateProdukUtama(); dropdownImportTerbuka.value = false; }
+    function bukaTemplateBOM() { unduhTemplateBOM(); dropdownImportTerbuka.value = false; }
+    function pancingFileProdukUtama() { dropdownImportTerbuka.value = false; inputFileProdukUtama.value?.click(); }
+    function pancingFileBOM() { dropdownImportTerbuka.value = false; inputFileBOM.value?.click(); }
+
+    async function saatFileProdukUtamaDipilih(ev) {
+      const file = ev.target.files[0];
+      ev.target.value = ''; // reset biar file sama bisa dipilih ulang
+      if (!file) return;
+      try {
+        const wb = await bacaFileExcel(file);
+        const baris = ambilSheet(wb, 'Produk Utama');
+        if (!baris.length) return alert('Sheet "Produk Utama" tidak ditemukan atau kosong. Pastikan file berasal dari Template Import Produk Utama.');
+        await muatSemuaReferensiImport();
+        barisMentahProdukUtama.value = baris;
+        popupImportProdukUtamaAktif.value = true;
+      } catch (e) {
+        console.error('Gagal baca file Produk Utama:', e);
+        alert('Gagal membaca file Excel. Pastikan formatnya benar (.xlsx).');
+      }
+    }
+
+    async function saatFileBOMDipilih(ev) {
+      const file = ev.target.files[0];
+      ev.target.value = '';
+      if (!file) return;
+      try {
+        const wb = await bacaFileExcel(file);
+        const jasa = ambilSheet(wb, 'Jasa');
+        const pola = ambilSheet(wb, 'Pola');
+        const komponen = ambilSheet(wb, 'Komponen');
+        const aksesoris = ambilSheet(wb, 'Aksesoris');
+        if (!jasa.length && !pola.length && !komponen.length && !aksesoris.length) {
+          return alert('Ke-4 sheet (Jasa, Pola, Komponen, Aksesoris) tidak ditemukan atau semuanya kosong. Pastikan file berasal dari Template Import BOM.');
+        }
+        await muatSemuaReferensiImport();
+        barisMentahJasa.value = jasa;
+        barisMentahPola.value = pola;
+        barisMentahKomponen.value = komponen;
+        barisMentahAksesoris.value = aksesoris;
+        popupImportBOMAktif.value = true;
+      } catch (e) {
+        console.error('Gagal baca file BOM:', e);
+        alert('Gagal membaca file Excel. Pastikan formatnya benar (.xlsx).');
+      }
+    }
+
+    function tutupPopupImportProdukUtama() { popupImportProdukUtamaAktif.value = false; }
+    function tutupPopupImportBOM() { popupImportBOMAktif.value = false; }
+
+    // konfirmasiImportProdukUtama — upsert per SKU (Ganti Total): SKU sudah
+    // ada -> TIMPA nama/warna/size-nya (bukan bikin dobel); SKU belum ada ->
+    // dokumen baru (bom_jasa/bom_pola/bom_aksesoris kosong, diisi lewat
+    // Import BOM tahap ke-2).
+    async function konfirmasiImportProdukUtama(barisSiap) {
+      sedangImportProdukUtama.value = true;
+      try {
+        const semuaProduk = await ambilSemuaProduk();
+        const petaLama = {};
+        for (const p of semuaProduk) petaLama[(p.sku || '').toLowerCase()] = p;
+        let dibuat = 0, diupdate = 0;
+        for (const b of barisSiap) {
+          const lama = petaLama[b.sku.toLowerCase()];
+          if (lama) {
+            await updateDoc(doc(db, 'master_produk', lama.id), {
+              sku: b.sku, nama: b.nama, warna: b.warna, size: b.size,
+              diedit_pada: serverTimestamp(), diedit_oleh: window.currentUser?.email || null
+            });
+            diupdate++;
+          } else {
+            const idBaru = doc(collection(db, 'master_produk')).id;
+            await setDoc(doc(db, 'master_produk', idBaru), {
+              sku: b.sku, nama: b.nama, warna: b.warna, size: b.size,
+              foto: '', bom_jasa: [], bom_pola: [], bom_aksesoris: [],
+              dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
+            });
+            dibuat++;
+          }
+        }
+        popupImportProdukUtamaAktif.value = false;
+        await paginasi.muatUlang();
+        alert(`Import selesai: ${dibuat} produk baru, ${diupdate} produk diperbarui.`);
+      } catch (e) {
+        console.error('Gagal import Produk Utama:', e);
+        alert('Gagal mengimpor. Coba lagi.');
+      }
+      sedangImportProdukUtama.value = false;
+    }
+
+    // konfirmasiImportBOM — kelompokkan per SKU, TIMPA TOTAL bom_jasa/
+    // bom_pola/bom_aksesoris produk itu (keputusan "Ganti Total", bukan
+    // tambah/gabung dengan BOM lama). Komponen dicocokkan ke Pola lewat
+    // (SKU, Nama Pola) — sudah divalidasi cocok di popup sebelum sampai sini.
+    async function konfirmasiImportBOM(payload) {
+      sedangImportBOM.value = true;
+      try {
+        const semuaProduk = await ambilSemuaProduk();
+        const petaProduk = {};
+        for (const p of semuaProduk) petaProduk[(p.sku || '').toLowerCase()] = p;
+
+        const skuTerpengaruh = new Set([
+          ...payload.jasa.map(x => x.sku.toLowerCase()),
+          ...payload.pola.map(x => x.sku.toLowerCase()),
+          ...payload.aksesoris.map(x => x.sku.toLowerCase())
+        ]);
+
+        let jumlahProdukDiupdate = 0;
+        for (const skuLower of skuTerpengaruh) {
+          const produk = petaProduk[skuLower];
+          if (!produk) continue; // sudah divalidasi ada di popup, jaga-jaga saja
+
+          const bomJasa = payload.jasa.filter(x => x.sku.toLowerCase() === skuLower)
+            .map(x => ({ nama: x.nama, harga: x.harga }));
+
+          const polaUntukSku = payload.pola.filter(x => x.sku.toLowerCase() === skuLower);
+          const bomPola = polaUntukSku.map(p => {
+            const item = resolveBahan(daftarBahanImport.value, p.bahan);
+            const komponenBaris = payload.komponen
+              .filter(k => k.sku.toLowerCase() === skuLower && k.nama_pola.toLowerCase() === p.nama_pola.toLowerCase())
+              .map(k => {
+                const itemK = resolveBahan(daftarBahanImport.value, k.nama_komponen);
+                return { bahan_aksesoris_id: itemK ? itemK.id : '', nama_komponen: itemK ? formatNamaBahan(itemK) : '', qty: k.qty };
+              });
+            return {
+              tipe: p.tipe, foto: '', nama_pola: p.nama_pola,
+              bahan_aksesoris_id: item ? item.id : '', nama_bahan: item ? item.nama : '', warna_bahan: item ? (item.warna || '') : '',
+              panjang: p.panjang, isi_pola_pcs: p.isi_pola_pcs, jasa_cutting: p.jasa_cutting, jasa_serie: p.jasa_serie,
+              jenis_vendor: p.tipe === 'vendor' ? p.jenis_vendor : '',
+              komponen: komponenBaris
+            };
+          });
+
+          const bomAksesoris = payload.aksesoris.filter(x => x.sku.toLowerCase() === skuLower).map(a => {
+            const item = resolveBahan(daftarBahanImport.value, a.aksesoris);
+            const w2 = a.webbing2 ? resolveBahan(daftarBahanImport.value, a.webbing2) : null;
+            const w3 = a.webbing3 ? resolveBahan(daftarBahanImport.value, a.webbing3) : null;
+            return {
+              tahap_proses: a.tahap_proses,
+              bahan_aksesoris_id: item ? item.id : '', nama_aksesoris: item ? item.nama : '', warna: item ? (item.warna || '') : '',
+              qty: a.qty, satuan: a.satuan,
+              webbing2_id: w2 ? w2.id : '', webbing2_nama: w2 ? formatNamaBahan(w2) : '',
+              webbing3_id: w3 ? w3.id : '', webbing3_nama: w3 ? formatNamaBahan(w3) : ''
+            };
+          });
+
+          await updateDoc(doc(db, 'master_produk', produk.id), {
+            bom_jasa: bomJasa, bom_pola: bomPola, bom_aksesoris: bomAksesoris,
+            diedit_pada: serverTimestamp(), diedit_oleh: window.currentUser?.email || null
+          });
+          jumlahProdukDiupdate++;
+        }
+        popupImportBOMAktif.value = false;
+        await paginasi.muatUlang();
+        alert(`Import BOM selesai: ${jumlahProdukDiupdate} produk diperbarui.`);
+      } catch (e) {
+        console.error('Gagal import BOM:', e);
+        alert('Gagal mengimpor BOM. Coba lagi.');
+      }
+      sedangImportBOM.value = false;
+    }
+
+    return {
+      paginasi, sedangEdit, bukaEdit, tutupEdit, saatTersimpanEdit, hapus, bolehHapus,
+      dropdownImportTerbuka, inputFileProdukUtama, inputFileBOM,
+      opsiWarnaImport, opsiNamaBahanImport, opsiSatuanImport, daftarProdukSemuaImport,
+      popupImportProdukUtamaAktif, barisMentahProdukUtama, sedangImportProdukUtama,
+      popupImportBOMAktif, barisMentahJasa, barisMentahPola, barisMentahKomponen, barisMentahAksesoris, sedangImportBOM,
+      bukaTemplateProdukUtama, bukaTemplateBOM, pancingFileProdukUtama, pancingFileBOM,
+      saatFileProdukUtamaDipilih, saatFileBOMDipilih,
+      tutupPopupImportProdukUtama, tutupPopupImportBOM,
+      konfirmasiImportProdukUtama, konfirmasiImportBOM
+    };
   },
   template: `
     <div>
       <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-bottom:12px;"><i class="fas fa-list" style="color:var(--burgundy); margin-right:8px;"></i>List Produk</h3>
 
-      <div style="margin-bottom:12px; max-width:320px;">
-        <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama produk (awalan)..." style="width:100%; padding:10px 14px; border:1.5px solid var(--line); border-radius:12px; font-size:13px; box-sizing:border-box;">
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; margin-bottom:12px;">
+        <div style="max-width:320px; flex:1; min-width:200px;">
+          <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama produk (awalan)..." style="width:100%; padding:10px 14px; border:1.5px solid var(--line); border-radius:12px; font-size:13px; box-sizing:border-box;">
+        </div>
+        <div style="position:relative;">
+          <button @click="dropdownImportTerbuka = !dropdownImportTerbuka" type="button" class="btn-outline" style="font-size:12px;">
+            <i class="fas fa-file-excel" style="margin-right:6px;"></i>Import / Template Excel <i class="fas fa-chevron-down" style="margin-left:6px; font-size:9px;"></i>
+          </button>
+          <div v-if="dropdownImportTerbuka" @click="dropdownImportTerbuka = false" style="position:fixed; inset:0; z-index:15;"></div>
+          <div v-if="dropdownImportTerbuka" style="position:absolute; top:calc(100% + 6px); left:0; z-index:20; background:var(--surface); border:1px solid var(--line); border-radius:12px; box-shadow:0 6px 18px rgba(0,0,0,.12); min-width:250px; padding:6px; display:flex; flex-direction:column;">
+            <button @click="bukaTemplateProdukUtama" type="button" class="btn-ghost" style="text-align:left; padding:8px 10px; font-size:12.5px; border-radius:8px;"><i class="fas fa-download" style="margin-right:8px; width:14px;"></i>Download Template Produk Utama</button>
+            <button @click="pancingFileProdukUtama" type="button" class="btn-ghost" style="text-align:left; padding:8px 10px; font-size:12.5px; border-radius:8px;"><i class="fas fa-upload" style="margin-right:8px; width:14px;"></i>Import Produk Utama</button>
+            <div style="height:1px; background:var(--line); margin:4px 2px;"></div>
+            <button @click="bukaTemplateBOM" type="button" class="btn-ghost" style="text-align:left; padding:8px 10px; font-size:12.5px; border-radius:8px;"><i class="fas fa-download" style="margin-right:8px; width:14px;"></i>Download Template BOM</button>
+            <button @click="pancingFileBOM" type="button" class="btn-ghost" style="text-align:left; padding:8px 10px; font-size:12.5px; border-radius:8px;"><i class="fas fa-upload" style="margin-right:8px; width:14px;"></i>Import BOM</button>
+          </div>
+        </div>
+        <input ref="inputFileProdukUtama" type="file" accept=".xlsx,.xls" @change="saatFileProdukUtamaDipilih" style="display:none;">
+        <input ref="inputFileBOM" type="file" accept=".xlsx,.xls" @change="saatFileBOMDipilih" style="display:none;">
       </div>
 
       <div v-if="paginasi.memuat.value" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -773,6 +1468,28 @@ const MasterProdukListManager = {
           <form-entry-produk-b-o-m :data-awal="sedangEdit" @tersimpan="saatTersimpanEdit" @batal="tutupEdit" />
         </div>
       </div>
+
+      <popup-import-produk-utama
+        v-if="popupImportProdukUtamaAktif"
+        :baris-mentah="barisMentahProdukUtama"
+        :opsi-warna="opsiWarnaImport"
+        :daftar-produk-lama="daftarProdukSemuaImport"
+        :sedang-import="sedangImportProdukUtama"
+        @tutup="tutupPopupImportProdukUtama"
+        @konfirmasi="konfirmasiImportProdukUtama" />
+
+      <popup-import-b-o-m
+        v-if="popupImportBOMAktif"
+        :baris-jasa="barisMentahJasa"
+        :baris-pola="barisMentahPola"
+        :baris-komponen="barisMentahKomponen"
+        :baris-aksesoris="barisMentahAksesoris"
+        :opsi-nama-bahan="opsiNamaBahanImport"
+        :opsi-satuan="opsiSatuanImport"
+        :daftar-produk-lama="daftarProdukSemuaImport"
+        :sedang-import="sedangImportBOM"
+        @tutup="tutupPopupImportBOM"
+        @konfirmasi="konfirmasiImportBOM" />
     </div>
   `
 };
