@@ -413,6 +413,10 @@
                    seperti data ukuran" (pola MasterDataTabelManager tampilTabel
                    sama persis, cuma beda koleksi/label). -->
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-jenisproduk', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-shirt" style="margin-right:6px;"></i> Jenis Produk</button>
+              <!-- BARU (28 Agt 2026) — tab "Data Komponen", permintaan Guru: "mirip
+                   seperti Data Warna" (pola MasterDataTabelManager tampilTabel
+                   sama persis, cuma beda koleksi/label). -->
+              <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-komponen', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-puzzle-piece" style="margin-right:6px;"></i> Data Komponen</button>
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-suplayer', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Data Suplayer</button>
             </div>
             <div id="sub-zh-config-jenisbahan" class="sub-zh-config-content fade-in space-y-4">
@@ -432,6 +436,9 @@
             </div>
             <div id="sub-zh-config-jenisproduk" class="sub-zh-config-content hidden fade-in space-y-4">
               <div id="vue-config-jenisproduk"></div>
+            </div>
+            <div id="sub-zh-config-komponen" class="sub-zh-config-content hidden fade-in space-y-4">
+              <div id="vue-config-komponen"></div>
             </div>
             <div id="sub-zh-config-suplayer" class="sub-zh-config-content hidden fade-in space-y-4">
               <div id="vue-config-suplayer"></div>
@@ -614,8 +621,10 @@
        dimensi gudang untuk profil "pic_owner" (role "PIC Owner"). -->
   <script type="module" src="js/auth.js?v=2"></script>
   <!-- v=13 (28 Agt 2026): peta mount tambah 'sub-zh-config-jenisproduk' ->
-       pastikanMountConfigJenisProduk (tab Config baru "Jenis Produk"). -->
-  <script type="module" src="js/dashboard.js?v=13"></script>
+       pastikanMountConfigJenisProduk (tab Config baru "Jenis Produk").
+       v=14 (28 Agt 2026): peta mount tambah 'sub-zh-config-komponen' ->
+       pastikanMountConfigKomponen (tab Config baru "Data Komponen"). -->
+  <script type="module" src="js/dashboard.js?v=14"></script>
   <script type="module" src="js/vue-order-spk.js?v=2"></script>
   <script type="module" src="js/vue-scan-opname.js?v=1"></script>
   <script type="module" src="js/vue-scan-persiapan.js?v=2"></script>
@@ -664,8 +673,10 @@
   <script type="module" src="js/vue-kartu-stok.js?v=5"></script>
   <!-- BARU (27 Agt 2026, §26.1) — Zevanic House > Config. v=2 (28 Agt 2026):
        tambah tab ke-7 "Jenis Produk" (AppConfigJenisProduk, koleksi
-       master_jenis_produk), pola sama persis seperti "Data Ukuran". -->
-  <script type="module" src="js/vue-config.js?v=2"></script>
+       master_jenis_produk), pola sama persis seperti "Data Ukuran".
+       v=3 (28 Agt 2026): tambah tab ke-8 "Data Komponen" (AppConfigKomponen,
+       koleksi master_komponen), pola sama persis seperti "Data Warna". -->
+  <script type="module" src="js/vue-config.js?v=3"></script>
   <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM). v=2 (28 Agt 2026):
        cache-bust setelah fix dropdown Bahan/Aksesoris digabung 1 field.
        v=3 (28 Agt 2026, §28.9): cache-bust setelah tambah fitur Import/

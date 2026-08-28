@@ -75,6 +75,18 @@ const AppConfigJenisProduk = {
   template: `<master-data-tabel-manager koleksi="master_jenis_produk" label-singular="Jenis Produk" label-nama="Nama Jenis Produk" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
 };
 
+// AppConfigKomponen — BARU (28 Agt 2026). Permintaan Guru: "tambah tab
+// Data Komponen mirip seperti Data Warna" — pola SAMA PERSIS (koleksi
+// 2-kolom nama+keterangan lewat MasterDataTabelManager). KOLEKSI BARU
+// (master_komponen), BELUM disambungkan ke field/dropdown manapun (mis.
+// BOM Komponen di Master Produk masih pakai Bahan+Warna seperti biasa) —
+// Guru cuma minta tab-nya, kalau nanti mau disambungkan ke field
+// tertentu, tinggal diminta terpisah.
+const AppConfigKomponen = {
+  components: { MasterDataTabelManager },
+  template: `<master-data-tabel-manager koleksi="master_komponen" label-singular="Komponen" label-nama="Nama Komponen" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
+};
+
 // AppConfigSuplayer — field3 (Kontak/Alamat) sama persis seperti
 // MasterSuplayerManager LAMA (dulu di gear Stock & Pembelian, SEKARANG
 // dihapus dari sana — lihat catatan di vue-stock-pembelian.js). TIDAK
@@ -92,6 +104,7 @@ let vmConfigSatuan = null;
 let vmConfigWarna = null;
 let vmConfigUkuran = null;
 let vmConfigJenisProduk = null;
+let vmConfigKomponen = null;
 let vmConfigSuplayer = null;
 
 window.pastikanMountConfigJenisBahan = function() {
@@ -123,6 +136,11 @@ window.pastikanMountConfigJenisProduk = function() {
   if (vmConfigJenisProduk) return;
   const mountPoint = document.getElementById('vue-config-jenisproduk');
   if (mountPoint) vmConfigJenisProduk = createApp(AppConfigJenisProduk).mount('#vue-config-jenisproduk');
+};
+window.pastikanMountConfigKomponen = function() {
+  if (vmConfigKomponen) return;
+  const mountPoint = document.getElementById('vue-config-komponen');
+  if (mountPoint) vmConfigKomponen = createApp(AppConfigKomponen).mount('#vue-config-komponen');
 };
 window.pastikanMountConfigSuplayer = function() {
   if (vmConfigSuplayer) return;
