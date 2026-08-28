@@ -342,12 +342,14 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-karyawan-data': 'pastikanMountDaftarKaryawan',
     'sub-karyawan-akses': 'pastikanMountConfigAkses',
     'sub-karyawan-hakakses': 'pastikanMountHakAkses',
-    // BARU (27 Agt 2026, §26.1) — Config (6 tab child).
+    // BARU (27 Agt 2026, §26.1) — Config (6 tab child). BARU (28 Agt 2026) —
+    // tab ke-7 "Jenis Produk", pola sama seperti "Data Ukuran".
     'sub-zh-config-jenisbahan': 'pastikanMountConfigJenisBahan',
     'sub-zh-config-jenisaksesoris': 'pastikanMountConfigJenisAksesoris',
     'sub-zh-config-satuan': 'pastikanMountConfigSatuan',
     'sub-zh-config-warna': 'pastikanMountConfigWarna',
     'sub-zh-config-ukuran': 'pastikanMountConfigUkuran',
+    'sub-zh-config-jenisproduk': 'pastikanMountConfigJenisProduk',
     'sub-zh-config-suplayer': 'pastikanMountConfigSuplayer',
     'sub-zh-databahan-entry': 'pastikanMountBahanAksesorisEntry',
     'sub-zh-databahan-list': 'pastikanMountBahanAksesorisList',

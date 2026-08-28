@@ -65,6 +65,16 @@ const AppConfigUkuran = {
   template: `<master-data-tabel-manager koleksi="master_ukuran" label-singular="Ukuran" label-nama="Nama Ukuran" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
 };
 
+// AppConfigJenisProduk — BARU (28 Agt 2026). Pola SAMA PERSIS seperti
+// AppConfigUkuran di atas (koleksi 2-kolom nama+keterangan lewat
+// MasterDataTabelManager) — permintaan Guru, "buat seperti Data Ukuran".
+// Sumber DropdownCari "Jenis Produk" di Master Produk > Entry Produk
+// (koleksi master_jenis_produk, lihat js/vue-master-produk.js).
+const AppConfigJenisProduk = {
+  components: { MasterDataTabelManager },
+  template: `<master-data-tabel-manager koleksi="master_jenis_produk" label-singular="Jenis Produk" label-nama="Nama Jenis Produk" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
+};
+
 // AppConfigSuplayer — field3 (Kontak/Alamat) sama persis seperti
 // MasterSuplayerManager LAMA (dulu di gear Stock & Pembelian, SEKARANG
 // dihapus dari sana — lihat catatan di vue-stock-pembelian.js). TIDAK
@@ -81,6 +91,7 @@ let vmConfigJenisAksesoris = null;
 let vmConfigSatuan = null;
 let vmConfigWarna = null;
 let vmConfigUkuran = null;
+let vmConfigJenisProduk = null;
 let vmConfigSuplayer = null;
 
 window.pastikanMountConfigJenisBahan = function() {
@@ -107,6 +118,11 @@ window.pastikanMountConfigUkuran = function() {
   if (vmConfigUkuran) return;
   const mountPoint = document.getElementById('vue-config-ukuran');
   if (mountPoint) vmConfigUkuran = createApp(AppConfigUkuran).mount('#vue-config-ukuran');
+};
+window.pastikanMountConfigJenisProduk = function() {
+  if (vmConfigJenisProduk) return;
+  const mountPoint = document.getElementById('vue-config-jenisproduk');
+  if (mountPoint) vmConfigJenisProduk = createApp(AppConfigJenisProduk).mount('#vue-config-jenisproduk');
 };
 window.pastikanMountConfigSuplayer = function() {
   if (vmConfigSuplayer) return;
