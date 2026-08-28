@@ -360,7 +360,17 @@ function barisPolaKosong() {
     komponen: []
   };
 }
-function barisKomponenKosong() { return { pilih: '', bahan_aksesoris_id: '', qty: '' }; }
+// barisKomponenKosong — GANTI (28 Agt 2026, §34, permintaan Guru: dropdown
+// "Kelola Komponen" sekarang ambil dari Data Komponen [Config, koleksi
+// master_komponen], BUKAN LAGI dari Data Bahan & Aksesoris. master_komponen
+// cuma daftar nama polos (pola sama Warna/Jenis Produk, TANPA id/FK) — jadi
+// `bahan_aksesoris_id` DIHAPUS dari baris ini, `pilih` sekarang LANGSUNG
+// jadi nilai final `nama_komponen` (bukan lagi teks buat di-resolve ke item
+// Bahan & Aksesoris). CATATAN: Excel Import BOM sheet "Komponen" SENGAJA
+// TIDAK ikut diubah (permintaan Guru eksplisit) — TETAP validasi ke Data
+// Bahan & Aksesoris format Nama+Warna, lihat STATUS-PROYEK.md §34 soal
+// konsekuensi 2 sumber beda buat field `nama_komponen` yang sama.
+function barisKomponenKosong() { return { pilih: '', qty: '' }; }
 function barisAksesorisKosong() {
   return {
     tahap_proses: '',
@@ -382,25 +392,23 @@ const KelolaKomponenModal = {
   props: {
     komponen: { type: Array, required: true },
     namaPola: { type: String, default: '' },
-    opsiNamaBahan: { type: Array, default: () => [] },
-    daftarBahan: { type: Array, default: () => [] }
+    // GANTI (28 Agt 2026, §34) — dulu opsiNamaBahan/daftarBahan (Data Bahan
+    // & Aksesoris), SEKARANG opsiKomponen (Data Komponen, Config, koleksi
+    // master_komponen) — permintaan Guru eksplisit.
+    opsiKomponen: { type: Array, default: () => [] }
   },
   emits: ['tutup'],
   methods: {
     tambah() { this.komponen.push(barisKomponenKosong()); },
-    hapus(i) { this.komponen.splice(i, 1); },
-    saatPilih(baris) {
-      const item = resolveBahan(this.daftarBahan, baris.pilih);
-      baris.bahan_aksesoris_id = item ? item.id : '';
-    }
+    hapus(i) { this.komponen.splice(i, 1); }
   },
   template: `
     <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="$emit('tutup')">
       <div class="gc-card" style="max-width:560px; width:100%; max-height:90vh; overflow-y:auto;">
         <h3 style="font-weight:700; font-size:15px; margin-bottom:4px;"><i class="fas fa-puzzle-piece" style="color:var(--burgundy); margin-right:8px;"></i>Kelola Komponen</h3>
-        <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Komponen untuk pola "{{ namaPola || '(belum diberi nama)' }}". Nama Komponen wajib pilih dari Data Bahan &amp; Aksesoris.</p>
+        <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Komponen untuk pola "{{ namaPola || '(belum diberi nama)' }}". Nama Komponen wajib pilih dari Data Komponen (Config).</p>
         <div v-for="(k, i) in komponen" :key="i" style="display:grid; gap:8px; grid-template-columns:2fr 1fr 30px; align-items:center; margin-bottom:8px;">
-          <dropdown-cari v-model="k.pilih" :opsi="opsiNamaBahan" placeholder="Cari & pilih komponen..." @update:modelValue="saatPilih(k)" />
+          <dropdown-cari v-model="k.pilih" :opsi="opsiKomponen" placeholder="Cari & pilih komponen..." />
           <input v-model.number="k.qty" type="number" min="0" placeholder="Qty" style="width:100%; padding:8px 10px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; box-sizing:border-box;">
           <button @click="hapus(i)" class="icon-btn" style="color:var(--danger);" title="Hapus komponen"><i class="fas fa-trash-alt"></i></button>
         </div>
@@ -437,6 +445,12 @@ const FormEntryProdukBOM = {
     // Config > Jenis Produk (master_jenis_produk), pola SAMA seperti Warna:
     // DropdownCari wajib pilih dari daftar, disimpan sebagai teks (bukan id).
     const opsiJenisProduk = ref([]);
+    // BARU (28 Agt 2026, §34) — Data Komponen (Config, master_komponen),
+    // sumber dropdown "Kelola Komponen" (BOM Pola), pola SAMA seperti Warna/
+    // Jenis Produk: DropdownCari wajib pilih dari daftar, disimpan sebagai
+    // teks (bukan id) — GANTI dari sumber lama Data Bahan & Aksesoris,
+    // permintaan Guru eksplisit.
+    const opsiKomponen = ref([]);
 
     const idProduk = props.dataAwal?.id || doc(collection(db, 'master_produk')).id;
 
@@ -515,16 +529,18 @@ const FormEntryProdukBOM = {
     function tutupKomponen() { modalKomponenAktif.value = null; }
 
     async function muatOpsi() {
-      const [bahan, warna, satuan, jenisProduk] = await Promise.all([
+      const [bahan, warna, satuan, jenisProduk, komponen] = await Promise.all([
         ambilDaftarBahanAksesorisLengkap(),
         ambilDaftarNama('master_warna'),
         ambilDaftarNama('master_satuan'),
-        ambilDaftarNama('master_jenis_produk')
+        ambilDaftarNama('master_jenis_produk'),
+        ambilDaftarNama('master_komponen')
       ]);
       daftarBahan.value = bahan;
       opsiWarna.value = warna;
       opsiSatuan.value = satuan;
       opsiJenisProduk.value = jenisProduk;
+      opsiKomponen.value = komponen;
     }
     onMounted(async () => { await window.authReady; await muatOpsi(); });
 
@@ -563,7 +579,10 @@ const FormEntryProdukBOM = {
         }
         for (const k of b.komponen) {
           if (!k.pilih && !k.qty) continue;
-          if (!resolveBahan(daftarBahan.value, k.pilih)) return `Komponen di BOM "${b.nama_pola || '(tanpa nama)'}": pilih Nama Komponen dari daftar dulu.`;
+          // GANTI (28 Agt 2026, §34) — komponen sekarang divalidasi ke Data
+          // Komponen (opsiKomponen, teks polos), BUKAN LAGI resolveBahan ke
+          // Data Bahan & Aksesoris.
+          if (!opsiKomponen.value.includes(k.pilih)) return `Komponen di BOM "${b.nama_pola || '(tanpa nama)'}": pilih Nama Komponen dari daftar dulu.`;
         }
       }
       for (const a of form.bom_aksesoris) {
@@ -628,14 +647,12 @@ const FormEntryProdukBOM = {
             jasa_cutting: parseFloat(b.jasa_cutting) || 0,
             jasa_serie: parseFloat(b.jasa_serie) || 0,
             jenis_vendor: b.tipe === 'vendor' ? (b.jenis_vendor || '').trim() : '',
-            komponen: (b.komponen || []).filter(k => k.pilih).map(k => {
-              const item = resolveBahan(daftarBahan.value, k.pilih);
-              // nama_komponen disimpan nama+warna gabungan (formatNamaBahan)
-              // — field ini dari awal tidak punya pasangan "warna_komponen"
-              // terpisah, jadi digabung langsung di sini (bukan skema baru,
-              // cuma cara isinya yang berubah).
-              return { bahan_aksesoris_id: item ? item.id : '', nama_komponen: item ? formatNamaBahan(item) : '', qty: parseFloat(k.qty) || 0 };
-            })
+            // GANTI (28 Agt 2026, §34) — komponen SEKARANG dari Data Komponen
+            // (teks polos, k.pilih = nilai final `nama_komponen` langsung),
+            // BUKAN LAGI di-resolve ke item Data Bahan & Aksesoris — field
+            // `bahan_aksesoris_id` DIHAPUS dari baris komponen (tidak relevan
+            // lagi, master_komponen tidak punya konsep id/FK ke stok).
+            komponen: (b.komponen || []).filter(k => k.pilih).map(k => ({ nama_komponen: k.pilih, qty: parseFloat(k.qty) || 0 }))
           });
         }
 
@@ -695,7 +712,7 @@ const FormEntryProdukBOM = {
     }
 
     return {
-      modeEdit, menyimpan, mengupload, tabAktif, form, opsiNamaBahan, opsiWarna, opsiSatuan, opsiJenisProduk,
+      modeEdit, menyimpan, mengupload, tabAktif, form, opsiNamaBahan, opsiWarna, opsiSatuan, opsiJenisProduk, opsiKomponen,
       fotoProdukPreview, pilihFotoProduk, hapusFotoProduk,
       pilihFotoPola, hapusFotoPola,
       modalKomponenAktif, bukaKomponen, tutupKomponen,
@@ -813,8 +830,7 @@ const FormEntryProdukBOM = {
         v-if="modalKomponenAktif !== null"
         :komponen="form.bom_pola[modalKomponenAktif].komponen"
         :nama-pola="form.bom_pola[modalKomponenAktif].nama_pola"
-        :opsi-nama-bahan="opsiNamaBahan"
-        :daftar-bahan="daftarBahan"
+        :opsi-komponen="opsiKomponen"
         @tutup="tutupKomponen" />
     </div>
   `
