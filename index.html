@@ -681,7 +681,11 @@
        checkbox pilih per produk + tombol "Hapus Massal".
        v=6 (28 Agt 2026): Entry Produk tambah field "Jenis Produk" (wajib,
        DropdownCari dari master_jenis_produk, pola sama seperti Warna) +
-       kolom "Jenis Produk" di Template/Import Excel Produk Utama. -->
-  <script type="module" src="js/vue-master-produk.js?v=6"></script>
+       kolom "Jenis Produk" di Template/Import Excel Produk Utama.
+       v=7 (28 Agt 2026): SKU SEKARANG FULL OTOMATIS (user/admin TIDAK
+       entry SKU sama sekali) — field SKU di Entry Produk jadi read-only,
+       kolom "SKU" DIHAPUS dari Template/Import Excel (Produk Utama & BOM),
+       sheet BOM sekarang cocokkan baris ke produk lewat Nama+Warna+Size. -->
+  <script type="module" src="js/vue-master-produk.js?v=7"></script>
 </body>
 </html>

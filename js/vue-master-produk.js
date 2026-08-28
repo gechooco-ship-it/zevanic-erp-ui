@@ -24,12 +24,16 @@
 //      lihat storage.rules di root repo — WAJIB ditempel manual di Firebase
 //      Console > Storage > Rules (sama seperti alur firestore.rules).
 //   5. SKU: field TERSENDIRI (bukan cuma string tampilan turunan seperti di
-//      mockup), disarankan otomatis dari Nama-Warna-Size tapi BOLEH diedit
-//      manual, WAJIB unik (dicek query sebelum simpan, pola SAMA seperti
+//      mockup), WAJIB unik (dicek query sebelum simpan, pola SAMA seperti
 //      cekNoSpkDobel() di js/vue-order-spk.js). SENGAJA TIDAK pakai id_
 //      tampil sekuensial (mis. PRD-0001) seperti master_bahan_aksesoris —
 //      SKU inilah kode utamanya, sesuai desain mockup asli, supaya tidak
-//      dobel-kode yang membingungkan.
+//      dobel-kode yang membingungkan. GANTI (28 Agt 2026, permintaan
+//      Hilman): dulu otomatis dari Nama-Warna-Size TAPI boleh diedit manual
+//      — SEKARANG FULL OTOMATIS, user/admin TIDAK ENTRY SKU SAMA SEKALI
+//      (form Entry Produk maupun Import Excel), field-nya read-only. Kalau
+//      basis Nama-Warna-Size tabrakan dengan produk lain, sistem sendiri
+//      yang nambah akhiran -2/-3/dst (lihat kunciProduk/buatSkuUnikAsync).
 //   6. "Isi Pola (Pcs)" = hasil potong per pcs produk jadi dari 1x potong
 //      pola itu. "Kode Webbing 2/3" = REFERENSI ke aksesoris/bahan lain
 //      (bukan catatan teks bebas) — makanya juga DropdownCari, opsional.
@@ -161,11 +165,38 @@ function buatSkuOtomatis(nama, warna, size) {
   return [nama, warna, size].filter(Boolean).join('-').toUpperCase().replace(/\s+/g, '');
 }
 
+// kunciProduk — GANTI (28 Agt 2026, permintaan Hilman): SKU SEKARANG full
+// otomatis, user/admin TIDAK ENTRY SKU SAMA SEKALI (baik di form Entry
+// Produk maupun Import Excel) — dulu boleh diedit manual, sekarang tidak
+// bisa lagi. Konsekuensinya identitas produk yang dipegang USER bergeser
+// dari SKU ke kombinasi Nama+Warna+Size (bahan baku SKU otomatis itu
+// sendiri). Dipakai buat mencocokkan produk yang SAMA (update lama vs buat
+// baru) di form Entry Produk (implisit, lewat idProduk) maupun Import Excel
+// (Produk Utama & BOM) — GANTI TOTAL dari pola lama yang mencocokkan by SKU.
+function kunciProduk(nama, warna, size) {
+  return [nama, warna, size].map(v => (v || '').toString().trim().toLowerCase()).join('||');
+}
+
 // cekSkuDobel — pola SAMA seperti cekNoSpkDobel() di js/vue-order-spk.js.
 async function cekSkuDobel(sku, idSedangEdit) {
   const q = query(collection(db, 'master_produk'), where('sku', '==', sku));
   const snap = await getDocs(q);
   return snap.docs.some(d => d.id !== idSedangEdit);
+}
+
+// buatSkuUnikAsync — dipakai form Entry Produk (satu produk, live Firestore
+// check). Kalau SKU dasar (dari Nama-Warna-Size) sudah dipakai produk LAIN,
+// otomatis tambah akhiran -2/-3/dst sampai ketemu yang belum dipakai — user
+// TIDAK diminta ubah apa-apa (GANTI 28 Agt 2026: dulu ditolak+alert minta
+// user ubah SKU manual, SEKARANG SKU tidak lagi bisa diedit manual jadi
+// tabrakan harus diselesaikan sistem sendiri, bukan dilempar ke user).
+async function buatSkuUnikAsync(baseSku, idSedangEdit) {
+  let sku = baseSku, n = 1;
+  while (await cekSkuDobel(sku, idSedangEdit)) {
+    n++;
+    sku = baseSku + '-' + n;
+  }
+  return sku;
 }
 
 // ---------------------------------------------------------------------------
@@ -181,8 +212,9 @@ async function cekSkuDobel(sku, idSedangEdit) {
 // ---------------------------------------------------------------------------
 
 // ambilSemuaProduk — ambil SEMUA dokumen master_produk (bukan 1 halaman
-// paginasi) — dipakai buat cek SKU dobel dalam file & cek SKU yang mau
-// di-import BOM-nya sudah terdaftar di Data Produk.
+// paginasi) — dipakai buat cek Nama+Warna+Size dobel dalam file, generate
+// SKU baru yang tidak tabrakan, & cek produk yang mau di-import BOM-nya
+// sudah terdaftar di Data Produk.
 async function ambilSemuaProduk() {
   try {
     const snap = await getDocs(collection(db, 'master_produk'));
@@ -283,22 +315,30 @@ function unduhWorkbook(sheets, namaFile) {
 // b['...']) di bawah. Field "Nama + Warna" (Bahan/Komponen/Aksesoris/
 // Webbing) diisi TEKS GABUNGAN sama seperti tampilan DropdownCari di form
 // (lihat formatNamaBahan), mis. "Kain Kanvas Merah".
-const HEADER_PRODUK_UTAMA = ['SKU', 'Nama', 'Jenis Produk', 'Warna', 'Size'];
-const HEADER_JASA = ['SKU', 'Nama Jasa', 'Harga'];
-const HEADER_POLA = ['SKU', 'Tipe (internal/vendor)', 'Nama Pola', 'Bahan (Nama + Warna)', 'Panjang', 'Isi Pola (Pcs)', 'Jasa Cutting', 'Jasa Serie', 'Jenis Vendor'];
-const HEADER_KOMPONEN = ['SKU', 'Nama Pola', 'Nama Komponen (Nama + Warna)', 'Qty'];
-const HEADER_AKSESORIS = ['SKU', 'Tahap Proses', 'Aksesoris (Nama + Warna)', 'Qty', 'Satuan', 'Kode Webbing 2 (Nama + Warna)', 'Kode Webbing 3 (Nama + Warna)'];
+// GANTI (28 Agt 2026, permintaan Hilman) — kolom "SKU" DIHAPUS dari SEMUA
+// sheet (Produk Utama & BOM). SKU sekarang full otomatis (lihat kunciProduk
+// di atas), jadi TIDAK ADA LAGI kolom SKU yang perlu diisi di Excel. Sheet
+// "Produk Utama" diidentifikasi lewat Nama+Jenis Produk+Warna+Size sendiri
+// (SKU digenerate sistem saat baris itu diimport). Sheet BOM (Jasa/Pola/
+// Komponen/Aksesoris) SEKARANG mencocokkan baris ke produk lewat kolom
+// "Nama"+"Warna"+"Size" (BUKAN SKU lagi — SKU tidak diketahui user sebelum
+// Import Produk Utama selesai jalan).
+const HEADER_PRODUK_UTAMA = ['Nama', 'Jenis Produk', 'Warna', 'Size'];
+const HEADER_JASA = ['Nama', 'Warna', 'Size', 'Nama Jasa', 'Harga'];
+const HEADER_POLA = ['Nama', 'Warna', 'Size', 'Tipe (internal/vendor)', 'Nama Pola', 'Bahan (Nama + Warna)', 'Panjang', 'Isi Pola (Pcs)', 'Jasa Cutting', 'Jasa Serie', 'Jenis Vendor'];
+const HEADER_KOMPONEN = ['Nama', 'Warna', 'Size', 'Nama Pola', 'Nama Komponen (Nama + Warna)', 'Qty'];
+const HEADER_AKSESORIS = ['Nama', 'Warna', 'Size', 'Tahap Proses', 'Aksesoris (Nama + Warna)', 'Qty', 'Satuan', 'Kode Webbing 2 (Nama + Warna)', 'Kode Webbing 3 (Nama + Warna)'];
 
 function unduhTemplateProdukUtama() {
-  const contoh = { 'SKU': 'TAS-MERAH-ALLSIZE', 'Nama': 'Tas Ransel Kanvas', 'Jenis Produk': 'Tas', 'Warna': 'Merah', 'Size': 'All Size' };
+  const contoh = { 'Nama': 'Tas Ransel Kanvas', 'Jenis Produk': 'Tas', 'Warna': 'Merah', 'Size': 'All Size' };
   unduhWorkbook([{ nama: 'Produk Utama', header: HEADER_PRODUK_UTAMA, baris: [contoh] }], 'Template Import Produk Utama.xlsx');
 }
 
 function unduhTemplateBOM() {
-  const contohJasa = { 'SKU': 'TAS-MERAH-ALLSIZE', 'Nama Jasa': 'Jasa Jahit', 'Harga': 15000 };
-  const contohPola = { 'SKU': 'TAS-MERAH-ALLSIZE', 'Tipe (internal/vendor)': 'internal', 'Nama Pola': 'Badan Depan', 'Bahan (Nama + Warna)': 'Kain Kanvas Merah', 'Panjang': 1.2, 'Isi Pola (Pcs)': 4, 'Jasa Cutting': 2000, 'Jasa Serie': 3000, 'Jenis Vendor': '' };
-  const contohKomponen = { 'SKU': 'TAS-MERAH-ALLSIZE', 'Nama Pola': 'Badan Depan', 'Nama Komponen (Nama + Warna)': 'Busa Ati 3mm', 'Qty': 1 };
-  const contohAksesoris = { 'SKU': 'TAS-MERAH-ALLSIZE', 'Tahap Proses': 'Finishing', 'Aksesoris (Nama + Warna)': 'Resleting YKK Hitam', 'Qty': 1, 'Satuan': 'Pcs', 'Kode Webbing 2 (Nama + Warna)': '', 'Kode Webbing 3 (Nama + Warna)': '' };
+  const contohJasa = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Nama Jasa': 'Jasa Jahit', 'Harga': 15000 };
+  const contohPola = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Tipe (internal/vendor)': 'internal', 'Nama Pola': 'Badan Depan', 'Bahan (Nama + Warna)': 'Kain Kanvas Merah', 'Panjang': 1.2, 'Isi Pola (Pcs)': 4, 'Jasa Cutting': 2000, 'Jasa Serie': 3000, 'Jenis Vendor': '' };
+  const contohKomponen = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Nama Pola': 'Badan Depan', 'Nama Komponen (Nama + Warna)': 'Busa Ati 3mm', 'Qty': 1 };
+  const contohAksesoris = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Tahap Proses': 'Finishing', 'Aksesoris (Nama + Warna)': 'Resleting YKK Hitam', 'Qty': 1, 'Satuan': 'Pcs', 'Kode Webbing 2 (Nama + Warna)': '', 'Kode Webbing 3 (Nama + Warna)': '' };
   unduhWorkbook([
     { nama: 'Jasa', header: HEADER_JASA, baris: [contohJasa] },
     { nama: 'Pola', header: HEADER_POLA, baris: [contohPola] },
@@ -433,11 +473,15 @@ const FormEntryProdukBOM = {
       bom_aksesoris: props.dataAwal?.bom_aksesoris ? JSON.parse(JSON.stringify(props.dataAwal.bom_aksesoris)).map(a => ({ ...barisAksesorisKosong(), ...a, aksesoris_pilih: formatNamaBahan({ nama: a.nama_aksesoris, warna: a.warna }), satuan_pilih: a.satuan || '', webbing2_pilih: a.webbing2_nama || '', webbing3_pilih: a.webbing3_nama || '' })) : []
     });
 
-    const skuDieditManual = ref(modeEdit.value); // kalau edit data lama, jangan timpa SKU otomatis
+    // GANTI (28 Agt 2026, permintaan Hilman) — SKU SEKARANG FULL OTOMATIS,
+    // user/admin TIDAK ENTRY SKU SAMA SEKALI (dulu ada mode "diedit manual"
+    // yang menghentikan auto-isi begitu user ketik langsung — DIHAPUS).
+    // form.sku di sini cuma PREVIEW dasar (live, dari Nama-Warna-Size, tanpa
+    // Firestore check) — SKU FINAL yang benar-benar unik (bisa dapat akhiran
+    // -2/-3 kalau tabrakan) baru ditentukan simpan() lewat buatSkuUnikAsync().
     watch([() => form.nama, () => form.warna_pilih, () => form.size], () => {
-      if (!skuDieditManual.value) form.sku = buatSkuOtomatis(form.nama, form.warna_pilih, form.size);
+      form.sku = buatSkuOtomatis(form.nama, form.warna_pilih, form.size);
     });
-    function saatEditSku() { skuDieditManual.value = true; }
 
     const fotoProdukFile = ref(null);
     const fotoProdukPreview = ref(props.dataAwal?.foto || '');
@@ -511,7 +555,6 @@ const FormEntryProdukBOM = {
       if (!form.jenis_produk_pilih.trim()) return 'Pilih Jenis Produk dulu.';
       if (!form.warna_pilih.trim()) return 'Pilih Warna dulu.';
       if (!form.size.trim()) return 'Isi Size dulu.';
-      if (!form.sku.trim()) return 'SKU tidak boleh kosong.';
       for (const b of form.bom_pola) {
         const adaIsi = b.nama_pola || b.bahan_pilih || b.panjang || b.isi_pola_pcs;
         if (!adaIsi) continue;
@@ -540,11 +583,11 @@ const FormEntryProdukBOM = {
       if (pesanError) return alert(pesanError);
       menyimpan.value = true;
       try {
-        if (await cekSkuDobel(form.sku.trim(), props.dataAwal?.id)) {
-          alert(`SKU "${form.sku.trim()}" sudah terdaftar di produk lain. Ubah SKU-nya, atau edit produk yang sudah ada kalau mau ubah datanya.`);
-          menyimpan.value = false;
-          return;
-        }
+        // GANTI (28 Agt 2026) — dulu SKU dobel ditolak+alert minta user ubah
+        // manual. SEKARANG SKU tidak lagi bisa diedit manual, jadi tabrakan
+        // diselesaikan sistem sendiri (tambah akhiran -2/-3/dst otomatis,
+        // lihat buatSkuUnikAsync di atas) — user tidak diminta apa-apa.
+        const skuFinal = await buatSkuUnikAsync(form.sku.trim(), props.dataAwal?.id);
 
         mengupload.value = true;
         let fotoUrl = form.foto;
@@ -621,7 +664,7 @@ const FormEntryProdukBOM = {
         const bomJasaSiap = form.bom_jasa.filter(j => j.nama).map(j => ({ nama: (j.nama || '').trim(), harga: parseFloat(j.harga) || 0 }));
 
         const payload = {
-          sku: form.sku.trim(),
+          sku: skuFinal,
           nama: form.nama.trim(),
           jenis_produk: form.jenis_produk_pilih.trim(),
           warna: form.warna_pilih.trim(),
@@ -653,7 +696,6 @@ const FormEntryProdukBOM = {
 
     return {
       modeEdit, menyimpan, mengupload, tabAktif, form, opsiNamaBahan, opsiWarna, opsiSatuan, opsiJenisProduk,
-      skuDieditManual, saatEditSku,
       fotoProdukPreview, pilihFotoProduk, hapusFotoProduk,
       pilihFotoPola, hapusFotoPola,
       modalKomponenAktif, bukaKomponen, tutupKomponen,
@@ -686,8 +728,8 @@ const FormEntryProdukBOM = {
           </div>
         </div>
         <div class="gc-field" style="max-width:320px;">
-          <label>SKU <span style="font-weight:400; color:var(--text-faint);">(otomatis dari Nama-Warna-Size, boleh diubah)</span></label>
-          <input v-model="form.sku" @input="saatEditSku" type="text" style="text-transform:uppercase;">
+          <label>SKU <span style="font-weight:400; color:var(--text-faint);">(otomatis dari Nama-Warna-Size, tidak perlu diisi)</span></label>
+          <input :value="form.sku" type="text" readonly style="text-transform:uppercase; background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;">
         </div>
       </div>
 
@@ -831,10 +873,12 @@ const FieldValidasiInline = {
 };
 
 // ---------------------------------------------------------------------------
-// PopupImportProdukUtama — tahap 1 dari 2. Validasi tiap baris (SKU wajib +
-// tidak boleh dobel dalam 1 file, Nama wajib, Warna wajib cocok Data Warna,
-// Size wajib) sebelum tombol Import aktif — SEMUA baris harus valid, TIDAK
-// BISA import sebagian (keputusan "Ganti Total").
+// PopupImportProdukUtama — tahap 1 dari 2. Validasi tiap baris (Nama wajib,
+// Warna wajib cocok Data Warna, Size wajib, kombinasi Nama+Warna+Size tidak
+// boleh dobel dalam 1 file) sebelum tombol Import aktif — SEMUA baris harus
+// valid, TIDAK BISA import sebagian (keputusan "Ganti Total"). GANTI (28 Agt
+// 2026, permintaan Hilman): kolom SKU DIHAPUS — SKU sekarang full otomatis
+// dari sistem, dicocokkan/di-preview lewat kunciProduk (Nama+Warna+Size).
 // ---------------------------------------------------------------------------
 const PopupImportProdukUtama = {
   components: { FieldValidasiInline },
@@ -847,39 +891,49 @@ const PopupImportProdukUtama = {
   },
   emits: ['tutup', 'konfirmasi'],
   setup(props, { emit }) {
-    const petaSkuLama = computed(() => {
+    const petaProdukLama = computed(() => {
       const peta = {};
-      for (const p of props.daftarProdukLama) peta[(p.sku || '').toLowerCase()] = p;
+      for (const p of props.daftarProdukLama) peta[kunciProduk(p.nama, p.warna, p.size)] = p;
       return peta;
     });
 
     const baris = ref(props.barisMentah.map(b => ({
-      sku: String(b['SKU'] || '').trim(),
       nama: String(b['Nama'] || '').trim(),
       jenis_produk: String(b['Jenis Produk'] || '').trim(),
       warna: String(b['Warna'] || '').trim(),
       size: String(b['Size'] || '').trim()
     })));
 
-    const jumlahSkuDalamFile = computed(() => {
+    const jumlahKunciDalamFile = computed(() => {
       const peta = {};
       for (const b of baris.value) {
-        const kunci = b.sku.toLowerCase();
-        if (!kunci) continue;
+        if (!b.nama || !b.warna || !b.size) continue;
+        const kunci = kunciProduk(b.nama, b.warna, b.size);
         peta[kunci] = (peta[kunci] || 0) + 1;
       }
       return peta;
     });
 
     function statusBaris(b) {
-      if (!b.sku) return { valid: false, label: 'SKU kosong', tipe: 'danger' };
-      if (jumlahSkuDalamFile.value[b.sku.toLowerCase()] > 1) return { valid: false, label: 'SKU dobel di file', tipe: 'danger' };
       if (!b.nama) return { valid: false, label: 'Nama kosong', tipe: 'danger' };
       if (!validasiPilihan(b.jenis_produk, props.opsiJenisProduk).valid) return { valid: false, label: 'Jenis Produk belum valid', tipe: 'danger' };
       if (!validasiPilihan(b.warna, props.opsiWarna).valid) return { valid: false, label: 'Warna belum valid', tipe: 'danger' };
       if (!b.size) return { valid: false, label: 'Size kosong', tipe: 'danger' };
-      const ada = petaSkuLama.value[b.sku.toLowerCase()];
-      return { valid: true, label: ada ? 'Update produk lama' : 'Produk baru', tipe: ada ? 'warn' : 'ok' };
+      const kunci = kunciProduk(b.nama, b.warna, b.size);
+      if (jumlahKunciDalamFile.value[kunci] > 1) return { valid: false, label: 'Nama+Warna+Size dobel di file', tipe: 'danger' };
+      const ada = petaProdukLama.value[kunci];
+      return { valid: true, label: ada ? 'Update produk lama (SKU tetap)' : 'Produk baru (SKU otomatis)', tipe: ada ? 'warn' : 'ok' };
+    }
+
+    // previewSku — INFORMASI SAJA (bukan nilai final): produk lama pakai SKU
+    // yang sudah ada (TIDAK berubah), produk baru pakai tebakan dasar dari
+    // Nama-Warna-Size — SKU final sungguhan (bisa dapat akhiran -2/-3 kalau
+    // ternyata tabrakan) baru ditentukan sistem saat tombol Import ditekan.
+    function previewSku(b) {
+      if (!b.nama || !b.warna || !b.size) return '-';
+      const ada = petaProdukLama.value[kunciProduk(b.nama, b.warna, b.size)];
+      if (ada) return ada.sku || '-';
+      return buatSkuOtomatis(b.nama, b.warna, b.size);
     }
 
     const barisDenganStatus = computed(() => baris.value.map(b => ({ b, status: statusBaris(b) })));
@@ -890,32 +944,32 @@ const PopupImportProdukUtama = {
       emit('konfirmasi', baris.value.map(b => ({ ...b })));
     }
 
-    return { baris, barisDenganStatus, semuaSiap, konfirmasi };
+    return { baris, barisDenganStatus, semuaSiap, konfirmasi, previewSku };
   },
   template: `
     <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:flex-start; justify-content:center; padding:16px; overflow-y:auto;">
       <div class="gc-card" style="max-width:820px; width:100%; margin:24px 0;">
         <h3 style="font-weight:700; font-size:15px; margin-bottom:4px;"><i class="fas fa-file-import" style="color:var(--burgundy); margin-right:8px;"></i>Verifikasi Import Produk Utama</h3>
-        <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Periksa {{ baris.length }} baris dari file. Warna yang tidak cocok persis bisa dikoreksi langsung di sini. SKU yang sudah terdaftar akan DIGANTI TOTAL datanya (bukan ditambah dobel).</p>
+        <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Periksa {{ baris.length }} baris dari file. Warna yang tidak cocok persis bisa dikoreksi langsung di sini. Produk yang Nama+Warna+Size-nya sudah terdaftar akan DIGANTI TOTAL datanya (bukan ditambah dobel) — SKU-nya TIDAK berubah. Produk baru dapat SKU otomatis dari sistem (kolom "SKU" di bawah cuma perkiraan, bisa dapat akhiran -2/-3 kalau ternyata tabrakan).</p>
         <div style="overflow-x:auto; margin-bottom:16px;">
           <table class="gc-table" style="width:100%; border-collapse:collapse; font-size:12px;">
             <thead>
               <tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;">
-                <th style="padding:6px;">SKU</th>
                 <th style="padding:6px;">Nama</th>
                 <th style="padding:6px; min-width:150px;">Jenis Produk</th>
                 <th style="padding:6px; min-width:160px;">Warna</th>
                 <th style="padding:6px;">Size</th>
+                <th style="padding:6px;">SKU (otomatis)</th>
                 <th style="padding:6px;">Status</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(x, i) in barisDenganStatus" :key="i" style="border-top:1px solid var(--line);">
-                <td style="padding:6px; font-weight:700;">{{ x.b.sku || '-' }}</td>
                 <td style="padding:6px;">{{ x.b.nama || '-' }}</td>
                 <td style="padding:6px;"><field-validasi-inline v-model:nilai="x.b.jenis_produk" :opsi="opsiJenisProduk" /></td>
                 <td style="padding:6px;"><field-validasi-inline v-model:nilai="x.b.warna" :opsi="opsiWarna" /></td>
                 <td style="padding:6px;">{{ x.b.size || '-' }}</td>
+                <td style="padding:6px; font-weight:700; color:var(--text-muted);">{{ previewSku(x.b) }}</td>
                 <td style="padding:6px;"><span class="tag" :class="x.status.tipe">{{ x.status.label }}</span></td>
               </tr>
               <tr v-if="!barisDenganStatus.length"><td colspan="6" style="padding:14px; text-align:center; color:var(--text-faint);">File kosong / sheet "Produk Utama" tidak ada isinya.</td></tr>
@@ -933,10 +987,13 @@ const PopupImportProdukUtama = {
 };
 
 // ---------------------------------------------------------------------------
-// PopupImportBOM — tahap 2 dari 2 (jalan setelah SKU-nya ada lewat Import
+// PopupImportBOM — tahap 2 dari 2 (jalan setelah produknya ada lewat Import
 // Produk Utama). 4 tab (Jasa/Pola/Komponen/Aksesoris) dari 1 file, Komponen
-// dicocokkan ke Pola lewat pasangan (SKU, Nama Pola) yang harus ada di
+// dicocokkan ke Pola lewat pasangan (Produk, Nama Pola) yang harus ada di
 // sheet Pola. SEMUA baris di SEMUA sheet harus valid sebelum Import aktif.
+// GANTI (28 Agt 2026, permintaan Hilman): dulu tiap baris dicocokkan ke
+// produk lewat kolom SKU — SEKARANG lewat kolom Nama+Warna+Size (kunciProduk)
+// karena SKU sudah tidak lagi diketik user di mana pun (full otomatis).
 // ---------------------------------------------------------------------------
 const PopupImportBOM = {
   components: { FieldValidasiInline },
@@ -953,21 +1010,26 @@ const PopupImportBOM = {
   emits: ['tutup', 'konfirmasi'],
   setup(props, { emit }) {
     const tabAktif = ref('jasa');
-    const setSkuAda = computed(() => new Set(props.daftarProdukLama.map(p => (p.sku || '').toLowerCase())));
-    function skuValid(sku) { return !!sku && setSkuAda.value.has(sku.toLowerCase()); }
+    const petaProdukAda = computed(() => {
+      const peta = {};
+      for (const p of props.daftarProdukLama) peta[kunciProduk(p.nama, p.warna, p.size)] = p;
+      return peta;
+    });
+    function produkAda(nama, warna, size) { return !!(nama && warna && size && petaProdukAda.value[kunciProduk(nama, warna, size)]); }
 
     const jasa = ref(props.barisJasa.map(b => ({
-      sku: String(b['SKU'] || '').trim(), nama: String(b['Nama Jasa'] || '').trim(), harga: b['Harga']
+      prodNama: String(b['Nama'] || '').trim(), prodWarna: String(b['Warna'] || '').trim(), prodSize: String(b['Size'] || '').trim(),
+      nama: String(b['Nama Jasa'] || '').trim(), harga: b['Harga']
     })));
     function statusJasa(b) {
-      if (!skuValid(b.sku)) return { valid: false, label: 'SKU tidak ditemukan (Import Produk Utama dulu)' };
+      if (!produkAda(b.prodNama, b.prodWarna, b.prodSize)) return { valid: false, label: 'Produk (Nama+Warna+Size) tidak ditemukan (Import Produk Utama dulu)' };
       if (!b.nama) return { valid: false, label: 'Nama Jasa kosong' };
       if (b.harga === '' || isNaN(Number(b.harga))) return { valid: false, label: 'Harga harus angka' };
       return { valid: true, label: 'OK' };
     }
 
     const pola = ref(props.barisPola.map(b => ({
-      sku: String(b['SKU'] || '').trim(),
+      prodNama: String(b['Nama'] || '').trim(), prodWarna: String(b['Warna'] || '').trim(), prodSize: String(b['Size'] || '').trim(),
       tipe: String(b['Tipe (internal/vendor)'] || '').trim().toLowerCase(),
       nama_pola: String(b['Nama Pola'] || '').trim(),
       bahan: String(b['Bahan (Nama + Warna)'] || '').trim(),
@@ -976,7 +1038,7 @@ const PopupImportBOM = {
       jenis_vendor: String(b['Jenis Vendor'] || '').trim()
     })));
     function statusPola(b) {
-      if (!skuValid(b.sku)) return { valid: false, label: 'SKU tidak ditemukan' };
+      if (!produkAda(b.prodNama, b.prodWarna, b.prodSize)) return { valid: false, label: 'Produk (Nama+Warna+Size) tidak ditemukan' };
       if (b.tipe !== 'internal' && b.tipe !== 'vendor') return { valid: false, label: 'Tipe harus "internal" atau "vendor"' };
       if (!b.nama_pola) return { valid: false, label: 'Nama Pola kosong' };
       if (!validasiPilihan(b.bahan, props.opsiNamaBahan).valid) return { valid: false, label: 'Bahan belum valid' };
@@ -986,24 +1048,24 @@ const PopupImportBOM = {
       if (b.jasa_serie === '' || isNaN(Number(b.jasa_serie))) return { valid: false, label: 'Jasa Serie harus angka' };
       return { valid: true, label: 'OK' };
     }
-    const kunciSkuPola = computed(() => new Set(pola.value.filter(p => p.sku && p.nama_pola).map(p => p.sku.toLowerCase() + '||' + p.nama_pola.toLowerCase())));
+    const kunciProdukPola = computed(() => new Set(pola.value.filter(p => p.prodNama && p.prodWarna && p.prodSize && p.nama_pola).map(p => kunciProduk(p.prodNama, p.prodWarna, p.prodSize) + '||' + p.nama_pola.toLowerCase())));
 
     const komponen = ref(props.barisKomponen.map(b => ({
-      sku: String(b['SKU'] || '').trim(),
+      prodNama: String(b['Nama'] || '').trim(), prodWarna: String(b['Warna'] || '').trim(), prodSize: String(b['Size'] || '').trim(),
       nama_pola: String(b['Nama Pola'] || '').trim(),
       nama_komponen: String(b['Nama Komponen (Nama + Warna)'] || '').trim(),
       qty: b['Qty']
     })));
     function statusKomponen(b) {
-      if (!skuValid(b.sku)) return { valid: false, label: 'SKU tidak ditemukan' };
-      if (!b.nama_pola || !kunciSkuPola.value.has(b.sku.toLowerCase() + '||' + b.nama_pola.toLowerCase())) return { valid: false, label: 'Nama Pola tidak cocok baris di sheet Pola (SKU sama)' };
+      if (!produkAda(b.prodNama, b.prodWarna, b.prodSize)) return { valid: false, label: 'Produk (Nama+Warna+Size) tidak ditemukan' };
+      if (!b.nama_pola || !kunciProdukPola.value.has(kunciProduk(b.prodNama, b.prodWarna, b.prodSize) + '||' + b.nama_pola.toLowerCase())) return { valid: false, label: 'Nama Pola tidak cocok baris di sheet Pola (Produk sama)' };
       if (!validasiPilihan(b.nama_komponen, props.opsiNamaBahan).valid) return { valid: false, label: 'Nama Komponen belum valid' };
       if (b.qty === '' || isNaN(Number(b.qty))) return { valid: false, label: 'Qty harus angka' };
       return { valid: true, label: 'OK' };
     }
 
     const aksesoris = ref(props.barisAksesoris.map(b => ({
-      sku: String(b['SKU'] || '').trim(),
+      prodNama: String(b['Nama'] || '').trim(), prodWarna: String(b['Warna'] || '').trim(), prodSize: String(b['Size'] || '').trim(),
       tahap_proses: String(b['Tahap Proses'] || '').trim(),
       aksesoris: String(b['Aksesoris (Nama + Warna)'] || '').trim(),
       qty: b['Qty'], satuan: String(b['Satuan'] || '').trim(),
@@ -1011,7 +1073,7 @@ const PopupImportBOM = {
       webbing3: String(b['Kode Webbing 3 (Nama + Warna)'] || '').trim()
     })));
     function statusAksesoris(b) {
-      if (!skuValid(b.sku)) return { valid: false, label: 'SKU tidak ditemukan' };
+      if (!produkAda(b.prodNama, b.prodWarna, b.prodSize)) return { valid: false, label: 'Produk (Nama+Warna+Size) tidak ditemukan' };
       if (!b.tahap_proses) return { valid: false, label: 'Tahap Proses kosong' };
       if (!validasiPilihan(b.aksesoris, props.opsiNamaBahan).valid) return { valid: false, label: 'Aksesoris belum valid' };
       if (b.qty === '' || isNaN(Number(b.qty))) return { valid: false, label: 'Qty harus angka' };
@@ -1040,10 +1102,10 @@ const PopupImportBOM = {
     function konfirmasi() {
       if (!semuaSiap.value) return;
       emit('konfirmasi', {
-        jasa: jasa.value.map(b => ({ sku: b.sku, nama: b.nama, harga: Number(b.harga) || 0 })),
-        pola: pola.value.map(b => ({ sku: b.sku, tipe: b.tipe, nama_pola: b.nama_pola, bahan: b.bahan, panjang: Number(b.panjang) || 0, isi_pola_pcs: Number(b.isi_pola_pcs) || 0, jasa_cutting: Number(b.jasa_cutting) || 0, jasa_serie: Number(b.jasa_serie) || 0, jenis_vendor: b.jenis_vendor })),
-        komponen: komponen.value.map(b => ({ sku: b.sku, nama_pola: b.nama_pola, nama_komponen: b.nama_komponen, qty: Number(b.qty) || 0 })),
-        aksesoris: aksesoris.value.map(b => ({ sku: b.sku, tahap_proses: b.tahap_proses, aksesoris: b.aksesoris, qty: Number(b.qty) || 0, satuan: b.satuan, webbing2: b.webbing2, webbing3: b.webbing3 }))
+        jasa: jasa.value.map(b => ({ prodNama: b.prodNama, prodWarna: b.prodWarna, prodSize: b.prodSize, nama: b.nama, harga: Number(b.harga) || 0 })),
+        pola: pola.value.map(b => ({ prodNama: b.prodNama, prodWarna: b.prodWarna, prodSize: b.prodSize, tipe: b.tipe, nama_pola: b.nama_pola, bahan: b.bahan, panjang: Number(b.panjang) || 0, isi_pola_pcs: Number(b.isi_pola_pcs) || 0, jasa_cutting: Number(b.jasa_cutting) || 0, jasa_serie: Number(b.jasa_serie) || 0, jenis_vendor: b.jenis_vendor })),
+        komponen: komponen.value.map(b => ({ prodNama: b.prodNama, prodWarna: b.prodWarna, prodSize: b.prodSize, nama_pola: b.nama_pola, nama_komponen: b.nama_komponen, qty: Number(b.qty) || 0 })),
+        aksesoris: aksesoris.value.map(b => ({ prodNama: b.prodNama, prodWarna: b.prodWarna, prodSize: b.prodSize, tahap_proses: b.tahap_proses, aksesoris: b.aksesoris, qty: Number(b.qty) || 0, satuan: b.satuan, webbing2: b.webbing2, webbing3: b.webbing3 }))
       });
     }
 
@@ -1053,7 +1115,7 @@ const PopupImportBOM = {
     <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:flex-start; justify-content:center; padding:16px; overflow-y:auto;">
       <div class="gc-card" style="max-width:960px; width:100%; margin:24px 0;">
         <h3 style="font-weight:700; font-size:15px; margin-bottom:4px;"><i class="fas fa-file-import" style="color:var(--burgundy); margin-right:8px;"></i>Verifikasi Import BOM</h3>
-        <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">SKU harus sudah terdaftar di Data Produk (Import Produk Utama dulu). BOM lama produk yang kena akan DIGANTI TOTAL, bukan ditambah.</p>
+        <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Produk (Nama+Warna+Size) harus sudah terdaftar di Data Produk (Import Produk Utama dulu). BOM lama produk yang kena akan DIGANTI TOTAL, bukan ditambah.</p>
 
         <div style="display:flex; gap:8px; margin-bottom:14px; flex-wrap:wrap;">
           <button @click="tabAktif='jasa'" type="button" class="btn-outline" :class="{filled: tabAktif==='jasa'}" style="font-size:11.5px;">Jasa ({{ jasaDenganStatus.length }})</button>
@@ -1064,10 +1126,10 @@ const PopupImportBOM = {
 
         <div v-show="tabAktif==='jasa'" style="overflow-x:auto; margin-bottom:14px;">
           <table class="gc-table" style="width:100%; border-collapse:collapse; font-size:12px;">
-            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px;">SKU</th><th style="padding:6px;">Nama Jasa</th><th style="padding:6px;">Harga</th><th style="padding:6px;">Status</th></tr></thead>
+            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px; min-width:160px;">Produk (Nama &middot; Warna &middot; Size)</th><th style="padding:6px;">Nama Jasa</th><th style="padding:6px;">Harga</th><th style="padding:6px;">Status</th></tr></thead>
             <tbody>
               <tr v-for="(x,i) in jasaDenganStatus" :key="i" style="border-top:1px solid var(--line);">
-                <td style="padding:6px; font-weight:700;">{{ x.b.sku || '-' }}</td>
+                <td style="padding:6px; font-weight:700;">{{ x.b.prodNama || '-' }} &middot; {{ x.b.prodWarna || '-' }} &middot; {{ x.b.prodSize || '-' }}</td>
                 <td style="padding:6px;">{{ x.b.nama || '-' }}</td>
                 <td style="padding:6px;">{{ x.b.harga }}</td>
                 <td style="padding:6px;"><span class="tag" :class="x.status.valid ? 'ok' : 'danger'">{{ x.status.label }}</span></td>
@@ -1079,10 +1141,10 @@ const PopupImportBOM = {
 
         <div v-show="tabAktif==='pola'" style="overflow-x:auto; margin-bottom:14px;">
           <table class="gc-table" style="width:100%; border-collapse:collapse; font-size:12px;">
-            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px;">SKU</th><th style="padding:6px;">Tipe</th><th style="padding:6px;">Nama Pola</th><th style="padding:6px; min-width:160px;">Bahan</th><th style="padding:6px;">Status</th></tr></thead>
+            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px; min-width:160px;">Produk (Nama &middot; Warna &middot; Size)</th><th style="padding:6px;">Tipe</th><th style="padding:6px;">Nama Pola</th><th style="padding:6px; min-width:160px;">Bahan</th><th style="padding:6px;">Status</th></tr></thead>
             <tbody>
               <tr v-for="(x,i) in polaDenganStatus" :key="i" style="border-top:1px solid var(--line);">
-                <td style="padding:6px; font-weight:700;">{{ x.b.sku || '-' }}</td>
+                <td style="padding:6px; font-weight:700;">{{ x.b.prodNama || '-' }} &middot; {{ x.b.prodWarna || '-' }} &middot; {{ x.b.prodSize || '-' }}</td>
                 <td style="padding:6px;">{{ x.b.tipe || '-' }}</td>
                 <td style="padding:6px;">{{ x.b.nama_pola || '-' }}</td>
                 <td style="padding:6px;"><field-validasi-inline v-model:nilai="x.b.bahan" :opsi="opsiNamaBahan" /></td>
@@ -1095,10 +1157,10 @@ const PopupImportBOM = {
 
         <div v-show="tabAktif==='komponen'" style="overflow-x:auto; margin-bottom:14px;">
           <table class="gc-table" style="width:100%; border-collapse:collapse; font-size:12px;">
-            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px;">SKU</th><th style="padding:6px;">Nama Pola</th><th style="padding:6px; min-width:160px;">Nama Komponen</th><th style="padding:6px;">Qty</th><th style="padding:6px;">Status</th></tr></thead>
+            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px; min-width:160px;">Produk (Nama &middot; Warna &middot; Size)</th><th style="padding:6px;">Nama Pola</th><th style="padding:6px; min-width:160px;">Nama Komponen</th><th style="padding:6px;">Qty</th><th style="padding:6px;">Status</th></tr></thead>
             <tbody>
               <tr v-for="(x,i) in komponenDenganStatus" :key="i" style="border-top:1px solid var(--line);">
-                <td style="padding:6px; font-weight:700;">{{ x.b.sku || '-' }}</td>
+                <td style="padding:6px; font-weight:700;">{{ x.b.prodNama || '-' }} &middot; {{ x.b.prodWarna || '-' }} &middot; {{ x.b.prodSize || '-' }}</td>
                 <td style="padding:6px;">{{ x.b.nama_pola || '-' }}</td>
                 <td style="padding:6px;"><field-validasi-inline v-model:nilai="x.b.nama_komponen" :opsi="opsiNamaBahan" /></td>
                 <td style="padding:6px;">{{ x.b.qty }}</td>
@@ -1111,10 +1173,10 @@ const PopupImportBOM = {
 
         <div v-show="tabAktif==='aksesoris'" style="overflow-x:auto; margin-bottom:14px;">
           <table class="gc-table" style="width:100%; border-collapse:collapse; font-size:12px;">
-            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px;">SKU</th><th style="padding:6px;">Tahap</th><th style="padding:6px; min-width:150px;">Aksesoris</th><th style="padding:6px;">Qty</th><th style="padding:6px; min-width:120px;">Satuan</th><th style="padding:6px;">Status</th></tr></thead>
+            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px; min-width:160px;">Produk (Nama &middot; Warna &middot; Size)</th><th style="padding:6px;">Tahap</th><th style="padding:6px; min-width:150px;">Aksesoris</th><th style="padding:6px;">Qty</th><th style="padding:6px; min-width:120px;">Satuan</th><th style="padding:6px;">Status</th></tr></thead>
             <tbody>
               <tr v-for="(x,i) in aksesorisDenganStatus" :key="i" style="border-top:1px solid var(--line);">
-                <td style="padding:6px; font-weight:700;">{{ x.b.sku || '-' }}</td>
+                <td style="padding:6px; font-weight:700;">{{ x.b.prodNama || '-' }} &middot; {{ x.b.prodWarna || '-' }} &middot; {{ x.b.prodSize || '-' }}</td>
                 <td style="padding:6px;">{{ x.b.tahap_proses || '-' }}</td>
                 <td style="padding:6px;"><field-validasi-inline v-model:nilai="x.b.aksesoris" :opsi="opsiNamaBahan" /></td>
                 <td style="padding:6px;">{{ x.b.qty }}</td>
@@ -1322,32 +1384,52 @@ const MasterProdukListManager = {
     function tutupPopupImportProdukUtama() { popupImportProdukUtamaAktif.value = false; }
     function tutupPopupImportBOM() { popupImportBOMAktif.value = false; }
 
-    // konfirmasiImportProdukUtama — upsert per SKU (Ganti Total): SKU sudah
-    // ada -> TIMPA nama/warna/size-nya (bukan bikin dobel); SKU belum ada ->
-    // dokumen baru (bom_jasa/bom_pola/bom_aksesoris kosong, diisi lewat
-    // Import BOM tahap ke-2).
+    // konfirmasiImportProdukUtama — GANTI (28 Agt 2026, permintaan Hilman):
+    // dulu upsert per SKU (kolom SKU wajib diisi user di Excel), SEKARANG
+    // upsert per kombinasi Nama+Warna+Size (kunciProduk) karena SKU sudah
+    // tidak lagi diketik user — produk yang kuncinya sudah ada -> TIMPA nama/
+    // jenis_produk/warna/size-nya (bukan bikin dobel), SKU LAMA DIPERTAHANKAN
+    // (tidak digenerate ulang, biar konsisten dengan SKU yang mungkin sudah
+    // dipakai fisik, mis. label tercetak); kunci belum ada -> dokumen baru
+    // dengan SKU baru digenerate otomatis dari Nama-Warna-Size (tambah
+    // akhiran -2/-3/dst kalau ternyata basis SKU-nya tabrakan — dicek pakai
+    // Set skuTerpakai yang di-seed dari SKU semua produk yang sudah ada,
+    // supaya TIDAK perlu query Firestore berulang tiap baris).
     async function konfirmasiImportProdukUtama(barisSiap) {
       sedangImportProdukUtama.value = true;
       try {
         const semuaProduk = await ambilSemuaProduk();
         const petaLama = {};
-        for (const p of semuaProduk) petaLama[(p.sku || '').toLowerCase()] = p;
+        const skuTerpakai = new Set();
+        for (const p of semuaProduk) {
+          petaLama[kunciProduk(p.nama, p.warna, p.size)] = p;
+          if (p.sku) skuTerpakai.add(p.sku.toUpperCase());
+        }
         let dibuat = 0, diupdate = 0;
         for (const b of barisSiap) {
-          const lama = petaLama[b.sku.toLowerCase()];
+          const kunci = kunciProduk(b.nama, b.warna, b.size);
+          const lama = petaLama[kunci];
           if (lama) {
             await updateDoc(doc(db, 'master_produk', lama.id), {
-              sku: b.sku, nama: b.nama, jenis_produk: b.jenis_produk, warna: b.warna, size: b.size,
+              nama: b.nama, jenis_produk: b.jenis_produk, warna: b.warna, size: b.size,
               diedit_pada: serverTimestamp(), diedit_oleh: window.currentUser?.email || null
             });
             diupdate++;
           } else {
+            let sku = buatSkuOtomatis(b.nama, b.warna, b.size);
+            let n = 1;
+            while (skuTerpakai.has(sku)) { n++; sku = buatSkuOtomatis(b.nama, b.warna, b.size) + '-' + n; }
+            skuTerpakai.add(sku);
             const idBaru = doc(collection(db, 'master_produk')).id;
             await setDoc(doc(db, 'master_produk', idBaru), {
-              sku: b.sku, nama: b.nama, jenis_produk: b.jenis_produk, warna: b.warna, size: b.size,
+              sku, nama: b.nama, jenis_produk: b.jenis_produk, warna: b.warna, size: b.size,
               foto: '', bom_jasa: [], bom_pola: [], bom_aksesoris: [],
               dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
             });
+            // simpan produk baru ini juga ke petaLama — jaga-jaga kalau ada
+            // baris lain di barisSiap dengan kunci SAMA PERSIS (seharusnya
+            // sudah ditolak validasi "dobel di file" di popup, tapi jaga-jaga).
+            petaLama[kunci] = { id: idBaru, sku, nama: b.nama, warna: b.warna, size: b.size };
             dibuat++;
           }
         }
@@ -1361,36 +1443,39 @@ const MasterProdukListManager = {
       sedangImportProdukUtama.value = false;
     }
 
-    // konfirmasiImportBOM — kelompokkan per SKU, TIMPA TOTAL bom_jasa/
-    // bom_pola/bom_aksesoris produk itu (keputusan "Ganti Total", bukan
-    // tambah/gabung dengan BOM lama). Komponen dicocokkan ke Pola lewat
-    // (SKU, Nama Pola) — sudah divalidasi cocok di popup sebelum sampai sini.
+    // konfirmasiImportBOM — GANTI (28 Agt 2026, permintaan Hilman): dulu
+    // dikelompokkan per SKU, SEKARANG per kombinasi Nama+Warna+Size
+    // (kunciProduk) karena SKU sudah tidak lagi diketik user di sheet BOM.
+    // TIMPA TOTAL bom_jasa/bom_pola/bom_aksesoris produk itu (keputusan
+    // "Ganti Total", bukan tambah/gabung dengan BOM lama). Komponen
+    // dicocokkan ke Pola lewat (Produk, Nama Pola) — sudah divalidasi cocok
+    // di popup sebelum sampai sini.
     async function konfirmasiImportBOM(payload) {
       sedangImportBOM.value = true;
       try {
         const semuaProduk = await ambilSemuaProduk();
         const petaProduk = {};
-        for (const p of semuaProduk) petaProduk[(p.sku || '').toLowerCase()] = p;
+        for (const p of semuaProduk) petaProduk[kunciProduk(p.nama, p.warna, p.size)] = p;
 
-        const skuTerpengaruh = new Set([
-          ...payload.jasa.map(x => x.sku.toLowerCase()),
-          ...payload.pola.map(x => x.sku.toLowerCase()),
-          ...payload.aksesoris.map(x => x.sku.toLowerCase())
+        const kunciTerpengaruh = new Set([
+          ...payload.jasa.map(x => kunciProduk(x.prodNama, x.prodWarna, x.prodSize)),
+          ...payload.pola.map(x => kunciProduk(x.prodNama, x.prodWarna, x.prodSize)),
+          ...payload.aksesoris.map(x => kunciProduk(x.prodNama, x.prodWarna, x.prodSize))
         ]);
 
         let jumlahProdukDiupdate = 0;
-        for (const skuLower of skuTerpengaruh) {
-          const produk = petaProduk[skuLower];
+        for (const kunci of kunciTerpengaruh) {
+          const produk = petaProduk[kunci];
           if (!produk) continue; // sudah divalidasi ada di popup, jaga-jaga saja
 
-          const bomJasa = payload.jasa.filter(x => x.sku.toLowerCase() === skuLower)
+          const bomJasa = payload.jasa.filter(x => kunciProduk(x.prodNama, x.prodWarna, x.prodSize) === kunci)
             .map(x => ({ nama: x.nama, harga: x.harga }));
 
-          const polaUntukSku = payload.pola.filter(x => x.sku.toLowerCase() === skuLower);
-          const bomPola = polaUntukSku.map(p => {
+          const polaUntukProduk = payload.pola.filter(x => kunciProduk(x.prodNama, x.prodWarna, x.prodSize) === kunci);
+          const bomPola = polaUntukProduk.map(p => {
             const item = resolveBahan(daftarBahanImport.value, p.bahan);
             const komponenBaris = payload.komponen
-              .filter(k => k.sku.toLowerCase() === skuLower && k.nama_pola.toLowerCase() === p.nama_pola.toLowerCase())
+              .filter(k => kunciProduk(k.prodNama, k.prodWarna, k.prodSize) === kunci && k.nama_pola.toLowerCase() === p.nama_pola.toLowerCase())
               .map(k => {
                 const itemK = resolveBahan(daftarBahanImport.value, k.nama_komponen);
                 return { bahan_aksesoris_id: itemK ? itemK.id : '', nama_komponen: itemK ? formatNamaBahan(itemK) : '', qty: k.qty };
@@ -1404,7 +1489,7 @@ const MasterProdukListManager = {
             };
           });
 
-          const bomAksesoris = payload.aksesoris.filter(x => x.sku.toLowerCase() === skuLower).map(a => {
+          const bomAksesoris = payload.aksesoris.filter(x => kunciProduk(x.prodNama, x.prodWarna, x.prodSize) === kunci).map(a => {
             const item = resolveBahan(daftarBahanImport.value, a.aksesoris);
             const w2 = a.webbing2 ? resolveBahan(daftarBahanImport.value, a.webbing2) : null;
             const w3 = a.webbing3 ? resolveBahan(daftarBahanImport.value, a.webbing3) : null;
