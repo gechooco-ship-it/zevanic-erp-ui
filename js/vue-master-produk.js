@@ -1244,6 +1244,28 @@ const PopupImportBOM = {
   `
 };
 
+// formatRupiah/hitungBreakdownPola/totalHargaJasa/totalKomponenPola — BARU
+// (28 Agt 2026, redesign kartu List Produk atas permintaan Guru: "bantu
+// redesign kartu list produk, saya takjub dengan kartu list bahan &
+// aksesoris ada foto juga"). formatRupiah sengaja disalin persis dari pola
+// yang sama di js/vue-bahan-aksesoris.js (tiap file vue-*.js di proyek ini
+// punya salinan lokalnya sendiri, tidak ada util currency global).
+function formatRupiah(n) {
+  const angka = parseFloat(n) || 0;
+  return 'Rp ' + Math.round(angka).toLocaleString('id-ID');
+}
+function hitungBreakdownPola(item) {
+  const pola = item.bom_pola || [];
+  const vendor = pola.filter(p => p.tipe === 'vendor').length;
+  return { total: pola.length, internal: pola.length - vendor, vendor };
+}
+function totalHargaJasa(item) {
+  return (item.bom_jasa || []).reduce((sum, j) => sum + (parseFloat(j.harga) || 0), 0);
+}
+function totalKomponenPola(item) {
+  return (item.bom_pola || []).reduce((sum, p) => sum + ((p.komponen || []).length), 0);
+}
+
 // ---------------------------------------------------------------------------
 // MasterProdukListManager — halaman "List Produk": cari+paginasi+tabel,
 // modal edit (pakai ulang FormEntryProdukBOM), hapus (termasuk hapus foto
@@ -1571,6 +1593,7 @@ const MasterProdukListManager = {
     return {
       paginasi, sedangEdit, bukaEdit, tutupEdit, saatTersimpanEdit, hapus, bolehHapus,
       produkTerpilih, toggleCentang, semuaTercentang, toggleSemua, hapusMassal,
+      formatRupiah, hitungBreakdownPola, totalHargaJasa, totalKomponenPola,
       dropdownImportTerbuka, inputFileProdukUtama, inputFileBOM,
       opsiWarnaImport, opsiNamaBahanImport, opsiKomponenImport, opsiSatuanImport, opsiJenisProdukImport, daftarProdukSemuaImport,
       popupImportProdukUtamaAktif, barisMentahProdukUtama, sedangImportProdukUtama,
@@ -1623,22 +1646,43 @@ const MasterProdukListManager = {
           </button>
         </div>
 
+        <!-- GANTI (28 Agt 2026, redesign atas permintaan Guru: "bantu redesign
+             kartu list produk, saya takjub dengan kartu list bahan &
+             aksesoris ada foto juga") — dulu kartu flat 1 baris, SEKARANG
+             pola 4-bagian yang SAMA seperti List Bahan & Aksesoris
+             (js/vue-bahan-aksesoris.js §39): header foto+nama+tag, mini-grid
+             stat BOM, blok kartu-rows ivory-dim (tanggal dibuat/diedit), lalu
+             tombol aksi. Checkbox pilih massal (bolehHapus) dipertahankan,
+             sekarang di header row sejajar foto. -->
         <div style="display:flex; flex-direction:column; gap:10px;">
-          <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:12px; display:flex; gap:10px; align-items:flex-start;">
-            <input v-if="bolehHapus" type="checkbox" :checked="produkTerpilih.includes(item.id)" @change="toggleCentang(item.id)" style="accent-color:var(--burgundy); width:16px; height:16px; margin-top:4px; flex-shrink:0;">
-            <img v-if="item.foto" :src="item.foto" style="width:56px; height:56px; object-fit:cover; border-radius:10px; flex-shrink:0;">
-            <div style="flex:1; min-width:0;">
-              <div style="font-weight:700; font-size:13px;">{{ item.nama }}</div>
-              <div style="font-size:11.5px; color:var(--text-muted);">{{ item.sku }} &middot; {{ item.warna }} &middot; {{ item.size }}</div>
-              <div style="font-size:11px; color:var(--text-faint); margin-top:4px;">
-                <span class="tag neutral" style="margin-right:4px;">{{ (item.bom_jasa||[]).length }} Jasa</span>
-                <span class="tag neutral" style="margin-right:4px;">{{ (item.bom_pola||[]).length }} Pola/Vendor</span>
-                <span class="tag neutral">{{ (item.bom_aksesoris||[]).length }} Aksesoris</span>
+          <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:14px;">
+            <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:12px;">
+              <input v-if="bolehHapus" type="checkbox" :checked="produkTerpilih.includes(item.id)" @change="toggleCentang(item.id)" style="accent-color:var(--burgundy); width:16px; height:16px; margin-top:18px; flex-shrink:0;">
+              <img v-if="item.foto" :src="item.foto" style="width:52px; height:52px; object-fit:cover; border-radius:10px; flex-shrink:0;">
+              <div v-else style="width:52px; height:52px; border-radius:10px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><i class="fas fa-tshirt" style="color:var(--text-faint); font-size:15px;"></i></div>
+              <div style="flex:1; min-width:0;">
+                <div style="font-weight:700; font-size:13.5px;">{{ item.nama }}</div>
+                <div style="font-size:11.5px; color:var(--text-muted);">{{ item.warna }} &middot; {{ item.size }}</div>
+                <div style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">SKU: {{ item.sku || '-' }}</div>
               </div>
-              <div style="margin-top:6px; display:flex; gap:8px;">
-                <button @click="bukaEdit(item)" class="btn-outline" style="font-size:11px; padding:5px 12px;">Edit</button>
-                <button v-if="bolehHapus" @click="hapus(item)" class="btn-outline" style="font-size:11px; padding:5px 12px; color:var(--danger); border-color:var(--danger);">Hapus</button>
-              </div>
+              <span v-if="item.jenis_produk" class="tag neutral" style="flex-shrink:0;">{{ item.jenis_produk }}</span>
+            </div>
+
+            <div style="display:grid; gap:8px; margin-bottom:10px;" class="grid-cols-2 md:grid-cols-4">
+              <div><span style="font-size:10px; color:var(--text-faint); display:block;">Jasa</span><b style="font-size:12.5px; color:var(--burgundy);">{{ formatRupiah(totalHargaJasa(item)) }}</b><span style="font-size:10.5px; color:var(--text-muted);"> &middot; {{ (item.bom_jasa||[]).length }} layanan</span></div>
+              <div><span style="font-size:10px; color:var(--text-faint); display:block;">Pola</span><b style="font-size:12.5px;">{{ hitungBreakdownPola(item).total }}</b><span style="font-size:10.5px; color:var(--text-muted);"> &middot; {{ hitungBreakdownPola(item).internal }} internal, {{ hitungBreakdownPola(item).vendor }} vendor</span></div>
+              <div><span style="font-size:10px; color:var(--text-faint); display:block;">Aksesoris</span><b style="font-size:12.5px;">{{ (item.bom_aksesoris||[]).length }}</b><span style="font-size:10.5px; color:var(--text-muted);"> item</span></div>
+              <div><span style="font-size:10px; color:var(--text-faint); display:block;">Komponen</span><b style="font-size:12.5px;">{{ totalKomponenPola(item) }}</b><span style="font-size:10.5px; color:var(--text-muted);"> di semua pola</span></div>
+            </div>
+
+            <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Dibuat</span><span style="font-weight:700;">{{ item.dibuat_pada?.toDate ? item.dibuat_pada.toDate().toLocaleDateString('id-ID') : '-' }}<span v-if="item.dibuat_oleh"> &middot; {{ item.dibuat_oleh }}</span></span></div>
+              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Diedit Terakhir</span><span style="font-weight:700;">{{ item.diedit_pada?.toDate ? item.diedit_pada.toDate().toLocaleDateString('id-ID') : 'Belum pernah' }}<span v-if="item.diedit_pada?.toDate && item.diedit_oleh"> &middot; {{ item.diedit_oleh }}</span></span></div>
+            </div>
+
+            <div style="display:flex; gap:8px;">
+              <button @click="bukaEdit(item)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px;"><i class="fas fa-pen" style="margin-right:6px;"></i>Edit</button>
+              <button v-if="bolehHapus" @click="hapus(item)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
             </div>
           </div>
           <div v-if="paginasi.dataHalaman.value.length === 0" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Belum ada produk.</div>
