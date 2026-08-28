@@ -144,6 +144,13 @@ const DAFTAR_MENU = [
   // ADA di KOSONG_IZIN, tapi baru menu INI yang benar-benar memakainya).
   { id: 'stock_cetak_label', label: 'Cetak Label', kategori: 'Zevanic House', icon: 'fa-print',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-cetaklabel', null); } },
+  // BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-master-
+  // produk.js. Posisi SENGAJA setelah Stock & Pembelian, sebelum Order
+  // SPK (keputusan Hilman, AskUserQuestion ronde 4).
+  { id: 'master_produk_entry', label: 'Entry Produk', kategori: 'Zevanic House', icon: 'fa-box-open',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-entry', null); } },
+  { id: 'master_produk_list', label: 'List Produk', kategori: 'Zevanic House', icon: 'fa-list',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-list', null); } },
   // BARU (27 Agt 2026, §26.2) — Order SPK: lihat js/vue-order-spk.js.
   { id: 'order_spk', label: 'Order SPK', kategori: 'Zevanic House', icon: 'fa-clipboard-list',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-orderspk', null); } },

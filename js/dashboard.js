@@ -360,6 +360,9 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
     'sub-zh-stock-kartustok': 'pastikanMountKartuStok',
     // BARU (27 Agt 2026, §26.3) — Cetak Label.
     'sub-zh-stock-cetaklabel': 'pastikanMountCetakLabel',
+    // BARU (27 Agt 2026, §28) — Master Produk (BOM).
+    'sub-zh-produk-entry': 'pastikanMountProdukEntry',
+    'sub-zh-produk-list': 'pastikanMountProdukList',
     // BARU (27 Agt 2026, §26.2) — Order SPK.
     'sub-zevanic-house-orderspk': 'pastikanMountOrderSpk',
     // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname.
