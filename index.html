@@ -661,7 +661,14 @@
   <script type="module" src="js/vue-absensi-qr.js"></script>
   <script type="module" src="js/vue-camera.js?v=2"></script>
   <script type="module" src="js/vue-scan-qr.js"></script>
-  <script type="module" src="js/vue-bahan-aksesoris.js?v=16"></script>
+  <!-- v=17 (28 Agt 2026, §35): List Bahan & Aksesoris tambah fitur Import/
+       Template Excel (upload massal) — tombol "Import / Template Excel" di
+       sebelah filter Kategori, popup verifikasi (PopupImportBahanAksesoris),
+       field wajib saja (Kategori Utama/Jenis/Nama/Warna/Harga Pembelian/
+       Satuan Pembelian/Isi Konversi Pembelian/Satuan Pemakaian/Margin
+       Modal), data yang Kategori+Nama+Warna-nya sudah ada DILEWATI (skip,
+       tidak ditimpa). -->
+  <script type="module" src="js/vue-bahan-aksesoris.js?v=17"></script>
   <script type="module" src="js/vue-rak-penyimpanan.js?v=3"></script>
   <script type="module" src="js/vue-persiapan-masalah.js?v=3"></script>
   <!-- v=19 (28 Agt 2026): sempat dicoba tag Jenis Pekerjaan per pesanan
@@ -696,7 +703,12 @@
        v=7 (28 Agt 2026): SKU SEKARANG FULL OTOMATIS (user/admin TIDAK
        entry SKU sama sekali) — field SKU di Entry Produk jadi read-only,
        kolom "SKU" DIHAPUS dari Template/Import Excel (Produk Utama & BOM),
-       sheet BOM sekarang cocokkan baris ke produk lewat Nama+Warna+Size. -->
-  <script type="module" src="js/vue-master-produk.js?v=7"></script>
+       sheet BOM sekarang cocokkan baris ke produk lewat Nama+Warna+Size.
+       v=8 (28 Agt 2026, §34): dropdown "Kelola Komponen" (BOM Pola) SEKARANG
+       ambil dari Data Komponen (Config, master_komponen), BUKAN LAGI dari
+       Data Bahan & Aksesoris — permintaan Guru eksplisit. Excel Import BOM
+       sheet "Komponen" SENGAJA TIDAK ikut berubah (konfirmasi Guru), tetap
+       validasi ke Data Bahan & Aksesoris format Nama+Warna. -->
+  <script type="module" src="js/vue-master-produk.js?v=8"></script>
 </body>
 </html>
