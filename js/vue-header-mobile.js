@@ -64,6 +64,7 @@ const LABEL_SUBTAB = {
   'sub-zh-config-warna': 'Data Warna',
   'sub-zh-config-ukuran': 'Data Ukuran',
   'sub-zh-config-suplayer': 'Data Suplayer',
+  'sub-zh-config-tahappersiapan': 'Persiapan Untuk Tahap',
   'sub-zh-databahan-entry': 'Entry Bahan & Aksesoris',
   'sub-zh-databahan-list': 'List Bahan & Aksesoris',
   'sub-zh-databahan-rak': 'Rak Penyimpanan',
@@ -73,7 +74,13 @@ const LABEL_SUBTAB = {
   'sub-zh-stock-riwayat': 'Riwayat Harga Pembelian',
   'sub-zh-stock-kartustok': 'Kartu Stok',
   'sub-zh-scan-opname': 'Scan Opname',
-  'sub-zh-scan-persiapan': 'Scan Persiapan'
+  'sub-zh-scan-persiapan': 'Scan Persiapan',
+  // BARU (28 Agt 2026) — Persiapan Produksi (5 tab child).
+  'sub-zh-persiapanproduksi-antrean': 'Perlu Disiapkan',
+  'sub-zh-persiapanproduksi-bahan': 'Persiapan Bahan',
+  'sub-zh-persiapanproduksi-sewing': 'Persiapan Acc Sewing',
+  'sub-zh-persiapanproduksi-webbing': 'Persiapan Acc Webbing',
+  'sub-zh-persiapanproduksi-finishing': 'Persiapan Acc Finishing'
 };
 
 const AppHeaderMobile = {

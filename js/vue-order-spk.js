@@ -35,7 +35,7 @@
 // ADA, lihat catatan lengkap di dekat `cetakSpkList()` di bawah.
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, setDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { usePaginasiFirestore } from './vue-paginasi.js';
 import { PopupPratinjauCetakLabel, DropdownCari } from './vue-components.js?v=5';
@@ -86,6 +86,37 @@ function formatLabelProduk(p) {
 function formatQty(n) {
   const angka = parseFloat(n) || 0;
   return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 });
+}
+
+// buatAntreanPersiapanProduksi — BARU (28 Agt 2026, permintaan Guru:
+// "dibawah menu order spk tambahkan group menu baru > Persiapan Produksi
+// ... jika orderan masuk pertama kali masuk dulu 1. Perlu disiapkan").
+// Dipanggil OTOMATIS begitu 1 SPK BARU disimpan (BUKAN saat SPK LAMA
+// diedit — lihat pemanggilan di simpan() di bawah, cuma di cabang
+// addDoc). Doc id koleksi `persiapan_produksi` SENGAJA DISAMAKAN dengan
+// doc id SPK-nya sendiri (`setDoc`, bukan `addDoc`) — pasangan 1:1 yang
+// idempoten (aman kalau baris ini kepanggil dobel karena alasan apapun,
+// TIDAK menghasilkan 2 antrean buat 1 SPK yang sama) & gampang dicari
+// (`doc(db,'persiapan_produksi', spkId)` langsung, tanpa query). SENGAJA
+// TIDAK menunggu (await) sukses/gagalnya di sini mempengaruhi hasil
+// simpan SPK utama — kegagalan tulis antrean (kalaupun rules belum
+// dipublish dsb) TIDAK BOLEH membuat simpan SPK ikut gagal, cukup dicatat
+// ke Console (lihat pemanggilan try/catch terpisah di simpan()).
+async function buatAntreanPersiapanProduksi(spkId, data) {
+  await setDoc(doc(db, 'persiapan_produksi', spkId), {
+    spk_id: spkId,
+    no_spk: data.no_spk,
+    nama_produk: data.nama_produk,
+    sku_produk: data.sku_produk || '',
+    qty_order: data.qty_order || 0,
+    // status — 'perlu_disiapkan' (antrean, kartu 1) sampai di-Approve
+    // (js/vue-persiapan-produksi.js, PersiapanQueueManager) jadi
+    // 'approved' (BOM di-generate jadi persiapan_komponen per tahap yang
+    // ADA isinya saja — Bahan/Acc Sewing/Webbing/Finishing).
+    status: 'perlu_disiapkan',
+    dibuat_pada: serverTimestamp(),
+    dibuat_oleh: window.currentUser?.email || null
+  });
 }
 
 // buatQrDataUrl — DISALIN dari `vue-stock-pembelian.js` (§26.3 — logic
@@ -246,9 +277,21 @@ const OrderSpkManager = {
           });
           if (!jugaCetak) alert('Perubahan Order SPK tersimpan.');
         } else {
-          await addDoc(collection(db, 'order_spk'), {
+          const refBaru = await addDoc(collection(db, 'order_spk'), {
             ...data, dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
           });
+          // BARU (28 Agt 2026) — auto-masuk antrean "Perlu Disiapkan"
+          // (Persiapan Produksi), CUMA untuk SPK BARU (bukan edit — SPK
+          // yang diedit statusnya di antrean TIDAK direset ulang, lihat
+          // catatan di buatAntreanPersiapanProduksi()). Kegagalan di sini
+          // SENGAJA tidak menggagalkan simpan SPK utama (sudah tersimpan
+          // di atas) — cuma dicatat ke Console + alert terpisah biar Guru
+          // tahu kalau perlu tindakan manual (mis. rules belum dipublish).
+          try {
+            await buatAntreanPersiapanProduksi(refBaru.id, data);
+          } catch (e) {
+            console.error('Gagal buat antrean Persiapan Produksi (SPK tetap tersimpan):', e);
+          }
           if (!jugaCetak) alert('Order SPK baru tersimpan.');
         }
         resetForm();

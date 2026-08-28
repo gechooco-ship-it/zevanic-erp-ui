@@ -99,6 +99,23 @@ const AppConfigKomponen = {
 // diimpor silang dari file itu (konsisten pola "disalin, bukan diimpor
 // silang" di project ini) — di sini cukup panggil MasterDataTabelManager
 // langsung dengan props yang sama.
+// AppConfigTahapPersiapan — BARU (28 Agt 2026, permintaan Guru: "tambahkan
+// menu baru di config > tahap proses (rename jadi Persiapan Untuk Tahap)").
+// Pola SAMA PERSIS seperti AppConfigKomponen/AppConfigJenisProduk (koleksi
+// 2-kolom nama+keterangan lewat MasterDataTabelManager). Koleksi BARU
+// (master_tahap_persiapan) — sumber DropdownCari field "Tahap Proses" di
+// BOM Aksesoris (Master Produk > Entry Produk, lihat js/vue-master-
+// produk.js) DAN dipakai filter kartu Persiapan Acc Sewing/Webbing/
+// Finishing (js/vue-persiapan-produksi.js, menu baru Zevanic House >
+// Persiapan Produksi). Guru diminta isi PERSIS 3 entry "Sewing"/"Webbing"/
+// "Finishing" (case-insensitive dicocokkan) supaya ke-3 kartu filter itu
+// bisa mengelompokkan baris BOM Aksesoris dengan benar — lihat catatan
+// panjang di vue-persiapan-produksi.js soal pencocokan tahap.
+const AppConfigTahapPersiapan = {
+  components: { MasterDataTabelManager },
+  template: `<master-data-tabel-manager koleksi="master_tahap_persiapan" label-singular="Tahap Persiapan" label-nama="Nama Tahap (mis. Sewing, Webbing, Finishing)" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
+};
+
 const AppConfigSuplayer = {
   components: { MasterDataTabelManager },
   template: `<master-data-tabel-manager koleksi="master_suplayer" label-singular="Suplayer" label-nama="Nama Suplayer" menu-id="${MENU_ID_CONFIG}" field3-key="kontak" field3-label="Kontak/Alamat (opsional)" :tampil-tabel="true" />`
@@ -111,6 +128,7 @@ let vmConfigWarna = null;
 let vmConfigUkuran = null;
 let vmConfigJenisProduk = null;
 let vmConfigKomponen = null;
+let vmConfigTahapPersiapan = null;
 let vmConfigSuplayer = null;
 
 window.pastikanMountConfigJenisBahan = function() {
@@ -147,6 +165,11 @@ window.pastikanMountConfigKomponen = function() {
   if (vmConfigKomponen) return;
   const mountPoint = document.getElementById('vue-config-komponen');
   if (mountPoint) vmConfigKomponen = createApp(AppConfigKomponen).mount('#vue-config-komponen');
+};
+window.pastikanMountConfigTahapPersiapan = function() {
+  if (vmConfigTahapPersiapan) return;
+  const mountPoint = document.getElementById('vue-config-tahappersiapan');
+  if (mountPoint) vmConfigTahapPersiapan = createApp(AppConfigTahapPersiapan).mount('#vue-config-tahappersiapan');
 };
 window.pastikanMountConfigSuplayer = function() {
   if (vmConfigSuplayer) return;

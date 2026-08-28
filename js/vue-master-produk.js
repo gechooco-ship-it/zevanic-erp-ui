@@ -519,6 +519,19 @@ const FormEntryProdukBOM = {
     // teks (bukan id) — GANTI dari sumber lama Data Bahan & Aksesoris,
     // permintaan Guru eksplisit.
     const opsiKomponen = ref([]);
+    // opsiTahapPersiapan — BARU (28 Agt 2026, permintaan Guru: "sambungkan
+    // dropdown cari > Persiapan untuk Tahap" di BOM Aksesoris). Sumber
+    // Config > Persiapan Untuk Tahap (koleksi master_tahap_persiapan) —
+    // pola SAMA seperti opsiKomponen/opsiJenisProduk di atas: DropdownCari
+    // BUKAN strict-select (field `tahap_proses` TETAP teks bebas seperti
+    // sebelumnya, dropdown ini cuma bantu SARAN/konsistensi penulisan,
+    // TIDAK mem-validasi harus pilih dari daftar — beda dari Warna/Jenis
+    // Produk/Komponen yang wajib pilih). Alasan: field ini SUDAH ADA lama
+    // sebagai teks bebas (dipakai juga Import Excel BOM Aksesoris sejak
+    // sebelum menu Config ini ada), mengunci jadi strict-select berisiko
+    // "mengunci keluar" data lama yang tidak persis cocok ejaannya dengan
+    // daftar master baru.
+    const opsiTahapPersiapan = ref([]);
 
     const idProduk = props.dataAwal?.id || doc(collection(db, 'master_produk')).id;
 
@@ -603,18 +616,20 @@ const FormEntryProdukBOM = {
     function tutupKomponen() { modalKomponenAktif.value = null; }
 
     async function muatOpsi() {
-      const [bahan, warna, satuan, jenisProduk, komponen] = await Promise.all([
+      const [bahan, warna, satuan, jenisProduk, komponen, tahapPersiapan] = await Promise.all([
         ambilDaftarBahanAksesorisLengkap(),
         ambilDaftarNama('master_warna'),
         ambilDaftarNama('master_satuan'),
         ambilDaftarNama('master_jenis_produk'),
-        ambilDaftarNama('master_komponen')
+        ambilDaftarNama('master_komponen'),
+        ambilDaftarNama('master_tahap_persiapan')
       ]);
       daftarBahan.value = bahan;
       opsiWarna.value = warna;
       opsiSatuan.value = satuan;
       opsiJenisProduk.value = jenisProduk;
       opsiKomponen.value = komponen;
+      opsiTahapPersiapan.value = tahapPersiapan;
     }
     onMounted(async () => { await window.authReady; await muatOpsi(); });
 
@@ -789,6 +804,7 @@ const FormEntryProdukBOM = {
 
     return {
       modeEdit, menyimpan, mengupload, tabAktif, form, opsiNamaBahan, opsiWarna, opsiSatuan, opsiJenisProduk, opsiKomponen,
+      opsiTahapPersiapan,
       kelipatanLive,
       fotoProdukPreview, pilihFotoProduk, hapusFotoProduk,
       pilihFotoPola, hapusFotoPola,
@@ -897,7 +913,17 @@ const FormEntryProdukBOM = {
               <button @click="hapusAksesoris(i)" type="button" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button>
             </div>
             <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-3">
-              <div class="gc-field" style="margin-bottom:0;"><label>Tahap Proses</label><input v-model="a.tahap_proses" type="text"></div>
+              <!-- GANTI (28 Agt 2026, permintaan Guru: "sambungkan dropdown
+                   cari > Persiapan untuk Tahap") — dulu input teks bebas
+                   polos, SEKARANG DropdownCari bersumber Config > Persiapan
+                   Untuk Tahap (master_tahap_persiapan). TETAP nilai teks
+                   bebas (bukan strict-select, lihat catatan opsiTahapPersiapan
+                   di setup() atas komponen ini) — data lama yang belum
+                   persis cocok ejaannya TETAP tampil normal. Field Firestore
+                   TIDAK berubah nama (tetap 'tahap_proses'), dipakai juga
+                   sebagai filter Persiapan Acc Sewing/Webbing/Finishing
+                   (js/vue-persiapan-produksi.js). -->
+              <div class="gc-field" style="margin-bottom:0;"><label>Tahap Proses <span style="font-weight:400; color:var(--text-faint);">(Persiapan Untuk Tahap)</span></label><dropdown-cari v-model="a.tahap_proses" :opsi="opsiTahapPersiapan" placeholder="Cari/isi tahap, mis. Sewing..." /></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Aksesoris (Nama + Warna)</label><dropdown-cari v-model="a.aksesoris_pilih" :opsi="opsiNamaBahan" placeholder="Cari & pilih..." @update:modelValue="saatPilihAksesoris(a)" /></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input v-model.number="a.qty" type="number" min="0"></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari v-model="a.satuan_pilih" :opsi="opsiSatuan" placeholder="Cari & pilih..." /></div>
@@ -1353,6 +1379,42 @@ const MasterProdukListManager = {
   setup() {
     const bolehHapus = computed(() => window.cekIzinMenu('master_produk_list', 'delete') !== false);
 
+    // --- Hitung Ulang Kelipatan Semua Produk (BARU 28 Agt 2026, permintaan
+    // Guru) --------------------------------------------------------------
+    // Field `kelipatan` (§42.2) BARU dihitung & disimpan pas produk
+    // di-SIMPAN — produk LAMA yang sudah ada dari SEBELUM fitur ini belum
+    // pernah tersentuh, jadi `kelipatan`-nya masih kosong sampai dibuka +
+    // Simpan manual satu-satu. Guru minta cara lebih cepat: 1 tombol,
+    // backfill SEMUA produk sekaligus tanpa perlu buka satu-satu.
+    //
+    // Hemat tulis (PRINSIP-HEMAT.md): kalau `kelipatan` yang SUDAH
+    // tersimpan di suatu produk KEBETULAN sudah sama dengan hasil hitung
+    // ulang (termasuk produk yang memang belum pernah punya BOM Pola sama
+    // sekali, keduanya 0), produk itu DILEWATI — tidak ada `updateDoc()`
+    // percuma. Field LAIN produk (nama/foto/BOM/dst) SAMA SEKALI tidak
+    // disentuh, cuma `kelipatan` yang ditimpa kalau beda.
+    const sedangHitungKelipatan = ref(false);
+    async function hitungUlangKelipatanSemua() {
+      if (!confirm('Hitung ulang field Kelipatan untuk SEMUA produk sekaligus, berdasarkan Isi Pola BOM yang tersimpan saat ini? Field lain tiap produk TIDAK ikut berubah.')) return;
+      sedangHitungKelipatan.value = true;
+      try {
+        const semuaProduk = await ambilSemuaProduk();
+        let diupdate = 0, dilewati = 0;
+        for (const p of semuaProduk) {
+          const kelipatanBaru = hitungKelipatan(p.bom_pola || []);
+          if ((p.kelipatan || 0) === kelipatanBaru) { dilewati++; continue; }
+          await updateDoc(doc(db, 'master_produk', p.id), { kelipatan: kelipatanBaru });
+          diupdate++;
+        }
+        await paginasi.muatUlang();
+        alert(`Selesai: ${diupdate} produk diperbarui, ${dilewati} sudah sesuai (dilewati, hemat tulis).`);
+      } catch (e) {
+        console.error('Gagal hitung ulang Kelipatan semua produk:', e);
+        alert('Gagal menghitung ulang Kelipatan. Coba lagi.');
+      }
+      sedangHitungKelipatan.value = false;
+    }
+
     // CATATAN (28 Agt 2026, role "PIC Owner") — sempat dicoba tambah
     // filterPeran jenis_pekerjaan di sini, TAPI DIBATALKAN: Guru
     // konfirmasi SELURUH grup menu Zevanic House (termasuk Master Produk)
@@ -1677,7 +1739,8 @@ const MasterProdukListManager = {
       bukaTemplateProdukUtama, bukaTemplateBOM, pancingFileProdukUtama, pancingFileBOM,
       saatFileProdukUtamaDipilih, saatFileBOMDipilih,
       tutupPopupImportProdukUtama, tutupPopupImportBOM,
-      konfirmasiImportProdukUtama, konfirmasiImportBOM
+      konfirmasiImportProdukUtama, konfirmasiImportBOM,
+      sedangHitungKelipatan, hitungUlangKelipatanSemua
     };
   },
   template: `
@@ -1701,6 +1764,14 @@ const MasterProdukListManager = {
             <button @click="pancingFileBOM" type="button" class="btn-ghost" style="text-align:left; padding:8px 10px; font-size:12.5px; border-radius:8px;"><i class="fas fa-upload" style="margin-right:8px; width:14px;"></i>Import BOM</button>
           </div>
         </div>
+        <!-- Hitung Ulang Kelipatan Semua Produk — BARU (28 Agt 2026,
+             permintaan Guru), lihat catatan panjang hitungUlangKelipatanSemua()
+             di atas file ini. 1 tombol, backfill semua produk sekaligus —
+             biar tidak perlu buka satu-satu + klik Simpan cuma buat
+             ngisi field Kelipatan produk lama. -->
+        <button @click="hitungUlangKelipatanSemua" :disabled="sedangHitungKelipatan" type="button" class="btn-outline" style="font-size:12px;">
+          <i class="fas fa-rotate" style="margin-right:6px;"></i>{{ sedangHitungKelipatan ? 'Menghitung...' : 'Hitung Ulang Kelipatan Semua Produk' }}
+        </button>
         <input ref="inputFileProdukUtama" type="file" accept=".xlsx,.xls" @change="saatFileProdukUtamaDipilih" style="display:none;">
         <input ref="inputFileBOM" type="file" accept=".xlsx,.xls" @change="saatFileBOMDipilih" style="display:none;">
       </div>

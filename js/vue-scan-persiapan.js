@@ -73,7 +73,7 @@
 // ke sini (konvensi "salin logic kecil per-file" proyek ini).
 // ============================================================================
 import { createApp, ref, computed, onMounted, onUnmounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, doc, getDocs, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DropdownCari } from './vue-components.js?v=2';
 import {
@@ -139,6 +139,48 @@ async function cariSpkByNoSpk(noSpk) {
   let hasil = null;
   snap.forEach(d => { if (!hasil) hasil = { id: d.id, ...d.data() }; });
   return hasil;
+}
+
+// tandaiPersiapanDariScan — BARU (28 Agt 2026) — INTEGRASI dengan menu baru
+// Persiapan Produksi (js/vue-persiapan-produksi.js). Guru eksplisit minta
+// (lewat AskUserQuestion) "sudah disiapkan" pada checklist Persiapan Bahan/
+// Acc Sewing/Webbing/Finishing DITANDAI lewat scan di SINI (Scan
+// Persiapan), BUKAN tombol manual di kartu-kartu itu. Dipanggil dari
+// simpanPemakaian() SETELAH pemakaian berhasil dicatat ke kartu stok
+// (ledger) — kegagalan fungsi ini TIDAK BOLEH menggagalkan/menganggap
+// gagal pemakaian yang SUDAH tercatat, makanya try/catch SENDIRI di sini,
+// dipanggil TANPA membatalkan alert "tercatat" di simpanPemakaian().
+//
+// Cari dokumen `persiapan_komponen` yang `spk_id`-nya cocok (bisa sampai 4
+// dokumen per SPK — BHN/SEW/WEB/FIN, lihat vue-persiapan-produksi.js),
+// lalu cari baris PERTAMA yang `bahan_aksesoris_id`-nya cocok DAN belum
+// `selesai` — kalau ada baris LEBIH dari 1 untuk Bahan/Aksesoris yang sama
+// (jarang tapi mungkin, mis. 2 baris BOM beda ukuran/warna sama), cuma
+// baris urutan PERTAMA yang belum selesai yang di-update tiap 1x scan
+// (SATU scan = SATU baris, sama alasan filosofi "1 roll per transaksi" di
+// bagian atas file ini). qty_disiapkan BERTAMBAH (bukan ditimpa) — baris
+// otomatis `selesai:true` begitu qty_disiapkan >= qty_dibutuhkan.
+async function tandaiPersiapanDariScan(spkId, bahanAksesorisId, qtyDipakai) {
+  if (!spkId || !bahanAksesorisId || !(qtyDipakai > 0)) return;
+  try {
+    const snap = await getDocs(query(collection(db, 'persiapan_komponen'), where('spk_id', '==', spkId)));
+    for (const d of snap.docs) {
+      const data = d.data();
+      const baris = Array.isArray(data.baris) ? data.baris : [];
+      const idx = baris.findIndex(b => b.bahan_aksesoris_id === bahanAksesorisId && !b.selesai);
+      if (idx === -1) continue;
+      const barisBaru = baris.map((b, i) => {
+        if (i !== idx) return b;
+        const qtyDisiapkanBaru = (parseFloat(b.qty_disiapkan) || 0) + qtyDipakai;
+        return { ...b, qty_disiapkan: qtyDisiapkanBaru, selesai: qtyDisiapkanBaru >= (parseFloat(b.qty_dibutuhkan) || 0) };
+      });
+      const semuaSelesai = barisBaru.every(b => b.selesai);
+      await updateDoc(doc(db, 'persiapan_komponen', d.id), { baris: barisBaru, status: semuaSelesai ? 'selesai' : 'proses' });
+      return; // 1 scan = update 1 baris saja, cukup dokumen/baris pertama yang cocok
+    }
+  } catch (e) {
+    console.error('Gagal update status Persiapan Produksi dari Scan Persiapan (pemakaian TETAP tercatat normal di Kartu Stok):', e);
+  }
 }
 
 const ScanPersiapanManager = {
@@ -410,6 +452,13 @@ const ScanPersiapanManager = {
             sumber: SUMBER_SCAN_PERSIAPAN, noPembelian: '', keterangan: keteranganGabung
           });
         }
+
+        // BARU (28 Agt 2026) — tandai checklist Persiapan Produksi (kalau
+        // SPK ini SUDAH di-Approve & punya kartu Bahan/Acc yang cocok).
+        // Lihat catatan lengkap di tandaiPersiapanDariScan() di atas file
+        // ini. Non-blocking: kegagalan di sini TIDAK mempengaruhi pemakaian
+        // yang sudah tercatat di atas.
+        await tandaiPersiapanDariScan(spkAktif.value.id, target.value.bahan.id, qty);
 
         const waktu = new Date().toLocaleTimeString('id-ID');
         riwayatSesi.value.unshift({ waktu, nama: namaBahan, kode: kodeTampil, qty: formatQty(qty) + ' ' + (target.value.bahan.satuan_pemakaian || '') });

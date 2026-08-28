@@ -165,6 +165,23 @@ const DAFTAR_MENU = [
   // BARU (27 Agt 2026, §26.2) — Order SPK: lihat js/vue-order-spk.js.
   { id: 'order_spk', label: 'Order SPK', kategori: 'Zevanic House', icon: 'fa-clipboard-list',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-orderspk', null, {catatRiwayat:true}); } },
+  // BARU (28 Agt 2026) — Persiapan Produksi: 5 menu-id terpisah (BEDA dari
+  // pola 'master_produk_entry'/'master_produk_list' 1 grup, di sini tiap
+  // tab child punya izin sendiri-sendiri) karena aksesnya diharapkan beda
+  // per peran — mis. operator/admin lapangan cuma butuh akses tab 2-5
+  // (kartu checklist per komponen), sementara Approve antrean "Perlu
+  // Disiapkan" (tab 1) lebih wajar dibatasi PIC/Admin ke atas. Lihat
+  // js/vue-persiapan-produksi.js.
+  { id: 'persiapan_produksi_antrean', label: 'Persiapan Produksi - Perlu Disiapkan', kategori: 'Zevanic House', icon: 'fa-list-check',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapanproduksi', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-antrean', null, {catatRiwayat:true}); } },
+  { id: 'persiapan_produksi_bahan', label: 'Persiapan Produksi - Persiapan Bahan', kategori: 'Zevanic House', icon: 'fa-scroll',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapanproduksi', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-bahan', null, {catatRiwayat:true}); } },
+  { id: 'persiapan_produksi_sewing', label: 'Persiapan Produksi - Persiapan Acc Sewing', kategori: 'Zevanic House', icon: 'fa-scissors',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapanproduksi', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-sewing', null, {catatRiwayat:true}); } },
+  { id: 'persiapan_produksi_webbing', label: 'Persiapan Produksi - Persiapan Acc Webbing', kategori: 'Zevanic House', icon: 'fa-ribbon',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapanproduksi', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-webbing', null, {catatRiwayat:true}); } },
+  { id: 'persiapan_produksi_finishing', label: 'Persiapan Produksi - Persiapan Acc Finishing', kategori: 'Zevanic House', icon: 'fa-check-double',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapanproduksi', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-finishing', null, {catatRiwayat:true}); } },
   // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname: lihat js/vue-scan-
   // opname.js. Aksi catat penyesuaian dicek lewat kolom 'edit'. Gating
   // "mobile-only untuk non-Owner" TIDAK lewat kolom izin ini — itu

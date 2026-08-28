@@ -338,7 +338,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
   }
 
   if (window.aturHeaderKonteks) {
-    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-zh-scan': 'tab-zevanic-house' };
+    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-zh-scan': 'tab-zevanic-house', 'sub-zh-persiapanproduksi': 'tab-zevanic-house' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -387,6 +387,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-zh-config-ukuran': 'pastikanMountConfigUkuran',
     'sub-zh-config-jenisproduk': 'pastikanMountConfigJenisProduk',
     'sub-zh-config-komponen': 'pastikanMountConfigKomponen',
+    'sub-zh-config-tahappersiapan': 'pastikanMountConfigTahapPersiapan',
     'sub-zh-config-suplayer': 'pastikanMountConfigSuplayer',
     'sub-zh-databahan-entry': 'pastikanMountBahanAksesorisEntry',
     'sub-zh-databahan-list': 'pastikanMountBahanAksesorisList',
@@ -405,6 +406,13 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-zh-produk-list': 'pastikanMountProdukList',
     // BARU (27 Agt 2026, §26.2) — Order SPK.
     'sub-zevanic-house-orderspk': 'pastikanMountOrderSpk',
+    // BARU (28 Agt 2026) — Persiapan Produksi (5 tab child): lihat js/vue-
+    // persiapan-produksi.js.
+    'sub-zh-persiapanproduksi-antrean': 'pastikanMountPersiapanProduksiAntrean',
+    'sub-zh-persiapanproduksi-bahan': 'pastikanMountPersiapanProduksiBahan',
+    'sub-zh-persiapanproduksi-sewing': 'pastikanMountPersiapanProduksiSewing',
+    'sub-zh-persiapanproduksi-webbing': 'pastikanMountPersiapanProduksiWebbing',
+    'sub-zh-persiapanproduksi-finishing': 'pastikanMountPersiapanProduksiFinishing',
     // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname.
     'sub-zh-scan-opname': 'pastikanMountScanOpname',
     // BARU (27 Agt 2026, §26.5, Tahap 5 — TAHAP TERAKHIR) — Scan > Scan Persiapan.

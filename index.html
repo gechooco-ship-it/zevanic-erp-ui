@@ -152,6 +152,19 @@
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-orderspk', this, {catatRiwayat:true})" id="menu-zevanic-orderspk-btn" data-menu-id="order_spk" data-target="sub-zevanic-house-orderspk" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-clipboard-list" style="width:17px; text-align:center;"></i> Order SPK
           </button>
+          <!-- BARU (28 Agt 2026) — Persiapan Produksi: lihat js/vue-persiapan-
+               produksi.js. 5 tab child (Perlu Disiapkan, Persiapan Bahan,
+               Persiapan Acc Sewing/Webbing/Finishing) — posisi SENGAJA
+               setelah Order SPK, sebelum Scan (permintaan Guru: "dibawah
+               menu order spk tambahkan group menu baru > Persiapan
+               Produksi"). Antrean "Perlu Disiapkan" TERISI OTOMATIS begitu
+               1 SPK baru disimpan (lihat vue-order-spk.js, simpan()) —
+               setelah di-Approve, digenerate id turunan per komponen
+               (SPK-xxxx-BHN/-SEW/-WEB/-FIN) sesuai isi BOM produk yang
+               terhubung. -->
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-persiapanproduksi', this, {catatRiwayat:true}); pindahSubTab('sub-zh-persiapanproduksi','sub-zh-persiapanproduksi-antrean', null, {catatRiwayat:true})" id="menu-zevanic-persiapanproduksi-btn" data-menu-ids="persiapan_produksi_antrean,persiapan_produksi_bahan,persiapan_produksi_sewing,persiapan_produksi_webbing,persiapan_produksi_finishing" data-target="sub-zevanic-house-persiapanproduksi" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-dolly" style="width:17px; text-align:center;"></i> Persiapan Produksi
+          </button>
           <!-- BARU (27 Agt 2026, §26.4/§26.5) — Scan: 2 tab, Scan Opname
                (js/vue-scan-opname.js) + Scan Persiapan (js/vue-scan-
                persiapan.js, Tahap 5 — TAHAP TERAKHIR dari rencana §26). -->
@@ -417,6 +430,12 @@
                    seperti Data Warna" (pola MasterDataTabelManager tampilTabel
                    sama persis, cuma beda koleksi/label). -->
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-komponen', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-puzzle-piece" style="margin-right:6px;"></i> Data Komponen</button>
+              <!-- BARU (28 Agt 2026) — tab "Persiapan Untuk Tahap" (dulu "Tahap
+                   Proses"), permintaan Guru: sumber DropdownCari field Tahap
+                   Proses di BOM Aksesoris (Master Produk) + filter kartu
+                   Persiapan Acc Sewing/Webbing/Finishing (menu baru Persiapan
+                   Produksi). Pola sama seperti Data Komponen di atas. -->
+              <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-tahappersiapan', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-layer-group" style="margin-right:6px;"></i> Persiapan Untuk Tahap</button>
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-suplayer', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Data Suplayer</button>
             </div>
             <div id="sub-zh-config-jenisbahan" class="sub-zh-config-content fade-in space-y-4">
@@ -439,6 +458,9 @@
             </div>
             <div id="sub-zh-config-komponen" class="sub-zh-config-content hidden fade-in space-y-4">
               <div id="vue-config-komponen"></div>
+            </div>
+            <div id="sub-zh-config-tahappersiapan" class="sub-zh-config-content hidden fade-in space-y-4">
+              <div id="vue-config-tahappersiapan"></div>
             </div>
             <div id="sub-zh-config-suplayer" class="sub-zh-config-content hidden fade-in space-y-4">
               <div id="vue-config-suplayer"></div>
@@ -524,6 +546,36 @@
           <!-- BARU (27 Agt 2026, §26.2) — Order SPK: lihat js/vue-order-spk.js. -->
           <div id="sub-zevanic-house-orderspk" class="sub-zevanic-house-content hidden fade-in space-y-4">
             <div id="vue-order-spk"></div>
+          </div>
+
+          <!-- BARU (28 Agt 2026) — Persiapan Produksi: lihat js/vue-persiapan-
+               produksi.js. 5 tab child, format kartu (permintaan Guru: "buat
+               menu kartu yg menarik"), tab 2-5 pakai komponen reusable yang
+               sama (PersiapanKomponenListManager, prop `tipe`), cuma beda
+               filter data. -->
+          <div id="sub-zevanic-house-persiapanproduksi" class="sub-zevanic-house-content hidden fade-in space-y-4">
+            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+              <button onclick="pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-antrean', this, {catatRiwayat:true})" class="sub-zh-persiapanproduksi-btn gc-sub-tab-btn active" data-menu-id="persiapan_produksi_antrean" data-target="sub-zh-persiapanproduksi-antrean"><i class="fas fa-list-check" style="margin-right:6px;"></i> Perlu Disiapkan</button>
+              <button onclick="pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-bahan', this, {catatRiwayat:true})" class="sub-zh-persiapanproduksi-btn gc-sub-tab-btn" data-menu-id="persiapan_produksi_bahan" data-target="sub-zh-persiapanproduksi-bahan"><i class="fas fa-scroll" style="margin-right:6px;"></i> Persiapan Bahan</button>
+              <button onclick="pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-sewing', this, {catatRiwayat:true})" class="sub-zh-persiapanproduksi-btn gc-sub-tab-btn" data-menu-id="persiapan_produksi_sewing" data-target="sub-zh-persiapanproduksi-sewing"><i class="fas fa-scissors" style="margin-right:6px;"></i> Persiapan Acc Sewing</button>
+              <button onclick="pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-webbing', this, {catatRiwayat:true})" class="sub-zh-persiapanproduksi-btn gc-sub-tab-btn" data-menu-id="persiapan_produksi_webbing" data-target="sub-zh-persiapanproduksi-webbing"><i class="fas fa-ribbon" style="margin-right:6px;"></i> Persiapan Acc Webbing</button>
+              <button onclick="pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-finishing', this, {catatRiwayat:true})" class="sub-zh-persiapanproduksi-btn gc-sub-tab-btn" data-menu-id="persiapan_produksi_finishing" data-target="sub-zh-persiapanproduksi-finishing"><i class="fas fa-check-double" style="margin-right:6px;"></i> Persiapan Acc Finishing</button>
+            </div>
+            <div id="sub-zh-persiapanproduksi-antrean" class="sub-zh-persiapanproduksi-content fade-in space-y-4">
+              <div id="vue-persiapan-produksi-antrean"></div>
+            </div>
+            <div id="sub-zh-persiapanproduksi-bahan" class="sub-zh-persiapanproduksi-content hidden fade-in space-y-4">
+              <div id="vue-persiapan-produksi-bahan"></div>
+            </div>
+            <div id="sub-zh-persiapanproduksi-sewing" class="sub-zh-persiapanproduksi-content hidden fade-in space-y-4">
+              <div id="vue-persiapan-produksi-sewing"></div>
+            </div>
+            <div id="sub-zh-persiapanproduksi-webbing" class="sub-zh-persiapanproduksi-content hidden fade-in space-y-4">
+              <div id="vue-persiapan-produksi-webbing"></div>
+            </div>
+            <div id="sub-zh-persiapanproduksi-finishing" class="sub-zh-persiapanproduksi-content hidden fade-in space-y-4">
+              <div id="vue-persiapan-produksi-finishing"></div>
+            </div>
           </div>
 
           <!-- BARU (27 Agt 2026, §26.4/§26.5) — Scan: 2 tab, Scan Opname
@@ -621,16 +673,22 @@
   <!-- v=13 (28 Agt 2026): peta mount tambah 'sub-zh-config-jenisproduk' ->
        pastikanMountConfigJenisProduk (tab Config baru "Jenis Produk").
        v=14 (28 Agt 2026): peta mount tambah 'sub-zh-config-komponen' ->
-       pastikanMountConfigKomponen (tab Config baru "Data Komponen"). -->
-  <script type="module" src="js/dashboard.js?v=16"></script>
-  <script type="module" src="js/vue-order-spk.js?v=6"></script>
+       pastikanMountConfigKomponen (tab Config baru "Data Komponen").
+       v=17 (28 Agt 2026): peta mount tambah 'sub-zh-config-tahappersiapan'
+       -> pastikanMountConfigTahapPersiapan + 5 sub-tab menu baru "Persiapan
+       Produksi" (Perlu Disiapkan/Bahan/Acc Sewing/Webbing/Finishing) ->
+       pastikanMountPersiapanProduksiAntrean/Bahan/Sewing/Webbing/Finishing,
+       & petaTabIndukPerGrup tambah 'sub-zh-persiapanproduksi'. -->
+  <script type="module" src="js/dashboard.js?v=17"></script>
+  <script type="module" src="js/vue-order-spk.js?v=7"></script>
+  <script type="module" src="js/vue-persiapan-produksi.js?v=1"></script>
   <script type="module" src="js/vue-scan-opname.js?v=1"></script>
-  <script type="module" src="js/vue-scan-persiapan.js?v=2"></script>
+  <script type="module" src="js/vue-scan-persiapan.js?v=3"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>
   <script type="module" src="js/vue-config-info.js"></script>
   <script type="module" src="js/vue-config-absensi.js?v=2"></script>
   <script type="module" src="js/vue-daftar-karyawan.js?v=2"></script>
-  <script type="module" src="js/vue-config-akses.js?v=5"></script>
+  <script type="module" src="js/vue-config-akses.js?v=6"></script>
   <script type="module" src="js/vue-hak-akses.js?v=2"></script>
   <script type="module" src="js/vue-antrean-dakar.js?v=2"></script>
   <script type="module" src="js/vue-antrean-absensi.js?v=3"></script>
@@ -652,7 +710,7 @@
   <script type="module" src="js/vue-profile-drawer.js?v=3"></script>
   <script type="module" src="js/vue-home.js?v=4"></script>
   <script type="module" src="js/vue-home-desktop.js"></script>
-  <script type="module" src="js/vue-header-mobile.js?v=2"></script>
+  <script type="module" src="js/vue-header-mobile.js?v=3"></script>
   <script type="module" src="js/vue-registrasi.js?v=2"></script>
   <script type="module" src="js/vue-buat-password.js"></script>
   <script type="module" src="js/vue-login.js"></script>
@@ -692,7 +750,7 @@
        "Import / Template Excel" (fitur BARU di MasterDataTabelManager,
        vue-components.js, diaktifkan lewat prop :izinkan-import-excel="true"
        KHUSUS di AppConfigKomponen — tab Config lain TIDAK ikut berubah). -->
-  <script type="module" src="js/vue-config.js?v=4"></script>
+  <script type="module" src="js/vue-config.js?v=5"></script>
   <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM). v=2 (28 Agt 2026):
        cache-bust setelah fix dropdown Bahan/Aksesoris digabung 1 field.
        v=3 (28 Agt 2026, §28.9): cache-bust setelah tambah fitur Import/
@@ -739,6 +797,6 @@
        `webbing3_id`/`webbing2_nama`/`webbing3_nama` DIHAPUS dari skema
        `master_produk.bom_aksesoris[]`, diganti `webbing2`/`webbing3`
        (string bebas). -->
-  <script type="module" src="js/vue-master-produk.js?v=15"></script>
+  <script type="module" src="js/vue-master-produk.js?v=17"></script>
 </body>
 </html>
