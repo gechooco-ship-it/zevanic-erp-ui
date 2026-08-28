@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Peta Tabel UI — Zevanic/Gechoo ERP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+  :root{
+    --ivory:#FAF4E7; --ivory-dim:#F1E8D6;
+    --pink:#F2D2CE; --pink-deep:#E3ADA6;
+    --blue:#ABD1DE; --blue-deep:#82B7C8;
+    --mahogany:#5B3826; --mahogany-soft:#6E4630;
+    --burgundy:#6E1E2C; --burgundy-dark:#551521; --burgundy-light:#F6E4E6;
+    --ok:#5E7C4F; --ok-light:#EAF0E3;
+    --warn:#B8863A; --warn-light:#F7EEDC;
+    --danger:#B33A3A; --danger-light:#F8E5E2;
+    --surface:#FFFFFF; --line:#E9DDCE;
+    --text:#3B2A1F; --text-muted:#8C7A6B; --text-faint:#B3A493;
+    --radius:16px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--ivory); color:var(--text); font-family:'Nunito Sans',sans-serif; font-size:14px;}
+  h1,h2,h3,.gc-heading{font-family:'Poppins',sans-serif; font-weight:700; margin:0;}
+  .layout{display:flex; min-height:100vh;}
+
+  /* ---- Sidebar nav ---- */
+  .sidebar{width:270px; flex-shrink:0; background:var(--surface); border-right:1px solid var(--line); padding:22px 16px; position:sticky; top:0; height:100vh; overflow-y:auto;}
+  .sidebar h1{font-size:16px; color:var(--burgundy); margin-bottom:2px;}
+  .sidebar p.sub{font-size:11px; color:var(--text-muted); margin:0 0 18px;}
+  .nav-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:12px; cursor:pointer; margin-bottom:4px; font-size:12.5px; font-weight:600; color:var(--mahogany-soft); transition:background .15s;}
+  .nav-item:hover{background:var(--ivory-dim);}
+  .nav-item.active{background:var(--burgundy); color:#fff;}
+  .nav-item .num{width:20px; height:20px; border-radius:6px; background:var(--ivory-dim); color:var(--mahogany-soft); font-size:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0;}
+  .nav-item.active .num{background:rgba(255,255,255,.25); color:#fff;}
+  .badge-mini{margin-left:auto; font-size:8.5px; padding:2px 6px; border-radius:20px; font-weight:700; text-transform:uppercase; letter-spacing:.02em;}
+  .badge-mini.ok{background:var(--ok-light); color:var(--ok);}
+  .badge-mini.warn{background:var(--warn-light); color:var(--warn);}
+  .nav-item.active .badge-mini{background:rgba(255,255,255,.25); color:#fff;}
+
+  /* ---- Main content ---- */
+  .main{flex:1; padding:32px 40px; max-width:1200px;}
+  .panel{display:none;}
+  .panel.active{display:block; animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
+
+  .panel-header{margin-bottom:18px;}
+  .crumb{font-size:11px; color:var(--text-faint); margin-bottom:4px;}
+  .panel-header h2{font-size:22px; color:var(--text);}
+
+  .info-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; margin:18px 0;}
+  .info-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px;}
+  .info-card .label{font-size:10px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); font-weight:700; margin-bottom:6px;}
+  .info-card .val{font-size:12.5px; color:var(--text); line-height:1.5; font-weight:600;}
+  .info-card code{font-family:'SFMono-Regular',Consolas,monospace; font-size:11px; background:var(--ivory-dim); padding:1px 5px; border-radius:5px; color:var(--burgundy-dark); word-break:break-word;}
+
+  .status-pill{display:inline-flex; align-items:center; gap:6px; padding:5px 14px; border-radius:20px; font-size:11.5px; font-weight:700;}
+  .status-pill.ok{background:var(--ok-light); color:var(--ok);}
+  .status-pill.warn{background:var(--warn-light); color:var(--warn);}
+
+  .solusi-box{background:var(--warn-light); border:1px dashed var(--warn); border-radius:12px; padding:12px 16px; margin:14px 0 10px; font-size:12.5px; color:var(--mahogany); display:flex; gap:10px; align-items:flex-start;}
+  .solusi-box i{color:var(--warn); margin-top:2px;}
+  .versi-btn{padding:8px 18px; border-radius:20px; border:1.5px solid var(--line); background:var(--surface); color:var(--text-muted); font-family:inherit; font-size:12px; font-weight:700; cursor:pointer; transition:.15s;}
+  .versi-btn.active{background:var(--burgundy); border-color:var(--burgundy); color:#fff;}
+  .versi-btn:not(.active):hover{background:var(--ivory-dim);}
+
+  .code-box{background:#2B211B; border-radius:var(--radius); padding:16px 18px; margin:14px 0 20px; overflow-x:auto;}
+  .code-box .code-label{display:flex; align-items:center; gap:8px; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:#C9B79C; font-weight:700; margin-bottom:10px;}
+  .code-box .code-label i{color:var(--pink);}
+  .code-box pre{margin:0; font-family:'SFMono-Regular',Consolas,'Liberation Mono',monospace; font-size:12px; line-height:1.65; color:#F1E8D6; white-space:pre;}
+  .code-box .cm{color:#8C7A6B;} /* komentar */
+  .code-box .kw{color:#E3ADA6;} /* keyword: import, const, await */
+  .code-box .fn{color:#ABD1DE;} /* nama fungsi */
+  .code-box .str{color:#C9DDA0;} /* string */
+
+  .trigger-box{background:var(--blue); background:rgba(171,209,222,.35); border:1px solid var(--blue-deep); border-radius:var(--radius); padding:14px 18px; margin:0 0 18px; font-size:12.5px; color:var(--mahogany);}
+  .trigger-box .t-title{display:flex; align-items:center; gap:8px; font-weight:700; font-size:12px; color:var(--burgundy-dark); margin-bottom:8px;}
+  .trigger-box .t-row{display:flex; gap:8px; margin-bottom:5px; line-height:1.55;}
+  .trigger-box .t-row .t-label{flex-shrink:0; width:110px; font-weight:700; color:var(--mahogany-soft); font-size:11px; text-transform:uppercase; letter-spacing:.02em;}
+  .trigger-box .level-badge{display:inline-block; padding:1px 8px; border-radius:10px; font-size:10px; font-weight:700; margin-left:6px;}
+  .trigger-box .level-badge.l1{background:var(--ok-light); color:var(--ok);}
+  .trigger-box .level-badge.l2{background:var(--warn-light); color:var(--warn);}
+
+  /* ---- Toolbar (search + filter mockup) ---- */
+  .toolbar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:20px 0 14px; padding:14px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);}
+  .toolbar .search-box{position:relative; flex:1; min-width:220px;}
+  .toolbar .search-box i{position:absolute; left:12px; top:10px; color:var(--text-faint); font-size:12px;}
+  .toolbar input[type=text], .toolbar input[type=date], .toolbar select{
+    padding:8px 12px; border:1.5px solid var(--line); border-radius:10px; background:var(--ivory); font-family:inherit; font-size:12px; color:var(--text);
+  }
+  .toolbar input[type=text]{padding-left:32px; width:100%;}
+  .toolbar select{cursor:pointer;}
+  .toolbar .none-note{font-size:11.5px; color:var(--text-faint); font-style:italic; padding:6px 0;}
+
+  /* ---- Table (gaya gc-table asli) ---- */
+  .table-wrap{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow-x:auto;}
+  table{width:100%; border-collapse:collapse; min-width:640px;}
+  thead th{background:var(--burgundy); color:#fff; font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; padding:10px 12px; text-align:left; white-space:pre-line; font-weight:700;}
+  tbody td{padding:12px; border-bottom:1px solid var(--line); font-size:12px; vertical-align:top; white-space:pre-line;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:var(--ivory-dim);}
+  .tag{display:inline-block; padding:2px 9px; border-radius:20px; font-size:9.5px; font-weight:700; text-transform:uppercase;}
+  .tag.ok{background:var(--ok-light); color:var(--ok);}
+  .tag.warn{background:var(--warn-light); color:var(--warn);}
+  .tag.danger{background:var(--danger-light); color:var(--danger);}
+  .tag.neutral{background:var(--ivory-dim); color:var(--text-muted);}
+  .foto-ph{width:44px; height:34px; background:var(--ivory-dim); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--text-faint); font-size:11px;}
+  .icon-btn{width:28px; height:28px; border-radius:8px; border:1px solid var(--line); background:var(--surface); color:var(--mahogany-soft); cursor:pointer; font-size:11px;}
+
+  footer.note{margin-top:20px; font-size:11px; color:var(--text-faint); text-align:center;}
+
+  @media (max-width:820px){
+    .layout{flex-direction:column;}
+    .sidebar{width:100%; height:auto; position:relative; display:flex; overflow-x:auto; gap:4px; padding:14px;}
+    .sidebar h1,.sidebar p.sub{display:none;}
+    .nav-item{flex-shrink:0; margin-bottom:0;}
+    .main{padding:20px;}
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <nav class="sidebar" id="sidebar">
+    <h1>Gechoo &hearts; ERP</h1>
+    <p class="sub">Peta Tabel UI — 8 halaman</p>
+    <div id="navList"></div>
+  </nav>
+
+  <main class="main" id="mainContent"></main>
+</div>
+
+<script>
+// CATATAN: semua nama/email/nomor di bawah ini ACAK — cuma simulasi bentuk
+// tabel, BUKAN data karyawan sungguhan.
+// ---- Generator 50 baris contoh (acak, bukan data sungguhan) untuk 4 tabel
+// yang punya toggle Versi Sekarang/Hemat — supaya bedanya KELIHATAN: versi
+// sekarang render semua 50 sekaligus, versi hemat cuma 15/halaman (sama
+// seperti perHalaman di usePaginasiFirestore).
+const NAMA_DEPAN = ['Ahmad','Dewi','Budi','Siti','Rian','Fitri','Agus','Nur','Doni','Wulan','Eko','Rina','Yusuf','Lina','Teguh','Ayu','Hendra','Maya','Fajar','Indah','Bayu','Rani','Andi','Nia','Dedi','Sari','Irwan','Tuti','Hadi','Yanti'];
+const NAMA_BELAKANG = ['Fauzi','Lestari','Santoso','Wijaya','Pratama','Utami','Saputra','Handayani','Kurniawan','Anggraini','Setiawan','Puspita','Hidayat','Marlina','Gunawan','Wardani','Firmansyah','Kartika','Ramadhan','Yulianti'];
+function buatNama(i){ return NAMA_DEPAN[i % NAMA_DEPAN.length] + ' ' + NAMA_BELAKANG[(i * 7 + 3) % NAMA_BELAKANG.length]; }
+function buatEmail(nama, i){ return nama.toLowerCase().replace(/\s+/g, '.') + i + '@contoh.com'; }
+function buatHp(i){ return '08' + String(1100000000 + (i * 137) % 800000000).padStart(9,'0'); }
+function pick(arr, i, geser){ return arr[(i + (geser||0)) % arr.length]; }
+
+function genHakAkses(n){
+  const jp = ['Operator Gudang','Admin Gudang','Checker','Picker','Driver Forklift','Staff Inventory'];
+  const gudang = ['SOG01','SOG02','SOG03','SOG07','SOG12','SOG19','SOG20','SOG25'];
+  const role = ['OPERATOR','ADMIN','Belum diatur'];
+  const out = [];
+  for (let i = 0; i < n; i++){
+    const nama = buatNama(i);
+    out.push(["☐", `<b>${nama}</b>\n${buatEmail(nama,i)}`, pick(jp,i), pick(gudang,i,2), pick(role,i,1) === 'Belum diatur' ? 'Belum diatur' : pick(role,i,1), "DROPDOWN"]);
+  }
+  return out;
+}
+function genPenjadwalan(n){
+  const jp = ['Operator Gudang','Admin Gudang','Checker','Picker','Driver Forklift'];
+  const lokasi = ['Tetap','Dinamis','Campuran'];
+  const gudang = ['SOG01','SOG02','SOG03','SOG07','SOG12','SOG19'];
+  const shift = ['Shift Pagi','Shift Siang','Shift Malam'];
+  const libur = ['Minggu','Sabtu','-'];
+  const out = [];
+  for (let i = 0; i < n; i++){
+    const nama = buatNama(i);
+    const lok = pick(lokasi,i,1);
+    const lokTag = lok === 'Tetap' ? "<span class='tag neutral'>Tetap</span>" : lok === 'Dinamis' ? "<span class='tag' style='background:var(--blue);color:#1F5060;'>Dinamis</span>" : "<span class='tag warn'>Campuran</span>";
+    const sudah = i % 3 !== 0;
+    out.push(["☐", `<b>${nama}</b>\n${buatEmail(nama,i)}`, pick(jp,i), lokTag, pick(gudang,i,3), sudah ? pick(shift,i) : '-', sudah ? pick(libur,i) : '-', sudah ? "<span class='tag ok'>Sudah</span>" : "<span class='tag danger'>Belum</span>"]);
+  }
+  return out;
+}
+function genRiwayatAbsensi(n){
+  const persetujuan = [['ACC','ok'],['PENDING','warn'],['DITOLAK','danger']];
+  const tipe = ['HADIR (CLOCK IN)','IZIN','CUTI','LEMBUR (CLOCK IN)'];
+  const shift = ['Shift Pagi','Shift Siang','Shift Malam'];
+  const gudang = ['SOG01','SOG07','SOG12','SOG19'];
+  const kehadiran = ['Tepat Waktu','Terlambat'];
+  const seragam = ['Lengkap','Tidak lengkap'];
+  const out = [];
+  for (let i = 0; i < n; i++){
+    const nama = buatNama(i);
+    const [pTeks,pKelas] = pick(persetujuan,i);
+    const tgl = 1 + (i % 28);
+    out.push([
+      `<span class='tag ${pKelas}'>${pTeks}</span>\n${pick(tipe,i,1)}`,
+      `${pick(shift,i)}\n${pick(gudang,i,2)}`,
+      `${String(tgl).padStart(2,'0')}/08/2026\n${String(7+(i%3)).padStart(2,'0')}:0${i%6}:1${i%9}`,
+      'FOTO',
+      `<b>${nama}</b>\n${buatHp(i)}`,
+      `${pick(kehadiran,i)}\n${pick(seragam,i,1)}`,
+      i % 5 === 0 ? 'Ada keperluan keluarga' : '-',
+      '-', i % 4 === 0 ? 'admin.contoh@mail.com' : '-', 'AKSI'
+    ]);
+  }
+  return out;
+}
+function genWaLog(n){
+  const jenis = ['OTP Login','Notifikasi','Reminder Shift'];
+  const status = [['Terkirim','ok'],['Gagal','danger'],['Diproses...','warn']];
+  const ket = ['-','-','-','Nomor tidak valid','Timeout gateway'];
+  const out = [];
+  for (let i = 0; i < n; i++){
+    const tgl = 1 + (i % 28);
+    const [sTeks,sKelas] = pick(status,i,2);
+    out.push([`${String(tgl).padStart(2,'0')}/08/2026 ${String(7+(i%12)).padStart(2,'0')}:${String((i*7)%60).padStart(2,'0')}`, pick(jenis,i), '628' + String(110000000 + i*91 % 89999999), `<span class='tag ${sKelas}'>${sTeks}</span>`, sKelas === 'danger' ? pick(ket,i,3) : '-']);
+  }
+  return out;
+}
+
+const TABEL = [
+  {
+    id: "daftar-karyawan",
+    halaman: "Master Karyawan &gt; Daftar Karyawan",
+    koleksi: "users",
+    query: "orderBy('nama'), limit(15+1) — cursor startAfter",
+    paginasi: "Ya (cursor Firestore sungguhan)",
+    polaAkses: "Paginasi Firestore sungguhan",
+    queryHemat: null, paginasiHemat: null, polaAksesHemat: null,
+    file: "vue-daftar-karyawan.js",
+    pemicu: { induk: "Master Karyawan (tab-superuser)", level: 1, teks: "Klik LANGSUNG sub-tab <b>Daftar Karyawan</b> (sub-karyawan-data). Bukan sub-tab yang auto-terpilih saat tab induk diklik (yang auto itu Antrean Dakar) — jadi WAJIB diklik manual sendiri." },
+    kode: "import { usePaginasiFirestore } from './vue-paginasi.js';\n\nconst paginasi = reactive(usePaginasiFirestore(db, 'users', {\n  perHalaman: 15,\n  urutkanField: 'nama',\n  petakan: (id, d) => ({ id, ...d })\n}));\n\n// di template:\n// <tr v-for=\"d in paginasi.dataHalaman\" :key=\"d.id\">\n// <button @click=\"paginasi.halamanBerikutnya\" :disabled=\"!paginasi.adaBerikutnya\">",
+    kodeHemat: null,
+    statusHemat: "ok",
+    solusi: null,
+    search: null,
+    filter: null,
+    headers: ["Nama / ID", "Jenis Pekerjaan /\nStatus Kerja", "KTP", "No HP / Email", "Jabatan /\nStatus Karyawan", "Penempatan / Shift", "Role /\nJenis Lokasi", "Aksi"],
+    rows: [
+      ["<b>Ahmad Fauzi</b>\nZVN-2213 / ZMS-4471", "Operator Gudang\nAktif", "FOTO", "081122334455\nafauzi.contoh@mail.com", "Staff\nTetap", "SOG12\nShift Pagi", "OPERATOR\nTetap", "AKSI"],
+      ["<b>Dewi Lestari</b>\nZVN-5560 / ZMS-8823", "Admin Gudang\nAktif", "FOTO", "089933221100\ndlestari.contoh@mail.com", "Admin\nKontrak", "SOG07\nShift Siang", "ADMIN\nDinamis", "AKSI"]
+    ]
+  },
+  {
+    id: "hak-akses",
+    halaman: "Master Karyawan &gt; Hak Akses <span style='font-weight:400;color:var(--text-faint)'>(Owner-only)</span>",
+    koleksi: "users, master_gudang, akses_config",
+    query: "getDocs(collection(db,'users')) — fetch semua",
+    paginasi: "Tidak (potong array di JS, bukan cursor)",
+    polaAkses: "Fetch semua + potong JS",
+    queryHemat: "orderBy('nama'), limit(15+1) — cursor startAfter (usePaginasiFirestore)",
+    paginasiHemat: "Ya (cursor Firestore sungguhan)",
+    polaAksesHemat: "Paginasi Firestore sungguhan — pola sama seperti Daftar Karyawan",
+    file: "vue-hak-akses.js",
+    pemicu: { induk: "Master Karyawan (tab-superuser)", level: 1, teks: "Klik LANGSUNG sub-tab <b>Hak Akses</b> (sub-karyawan-hakakses) — tidak ikut auto-trigger dari klik tab induk (yang auto cuma Antrean Dakar), harus diklik manual." },
+    kode: "const qKaryawan = await getDocs(collection(db, \"users\"));\nconst semuaData = [];\nqKaryawan.forEach(doc => semuaData.push({ id: doc.id, ...doc.data() }));\n\n// dipotong MANUAL di JS, BUKAN cursor Firestore:\nconst potonganHalamanIni = computed(() =>\n  semuaData.slice((halaman.value - 1) * 15, halaman.value * 15)\n);",
+    kodeHemat: "import { usePaginasiFirestore } from './vue-paginasi.js';\n\nconst paginasi = reactive(usePaginasiFirestore(db, 'users', {\n  perHalaman: 15,\n  urutkanField: 'nama',\n  cariField: 'nama', // biar search box tetap jalan lewat query\n  petakan: (id, d) => ({ id, ...d })\n}));",
+    statusHemat: "warn",
+    solusi: "Pindah ke usePaginasiFirestore — pola sama seperti Daftar Karyawan.",
+    search: "Cari nama karyawan...",
+    filter: ["Gudang"],
+    headers: ["☐", "Karyawan", "Jenis Pekerjaan", "Gudang", "Role saat ini", "Ubah Role"],
+    rows: genHakAkses(50)
+  },
+  {
+    id: "config-akses",
+    halaman: "Master Karyawan &gt; Config Akses <span style='font-weight:400;color:var(--text-faint)'>(Owner-only)</span>",
+    koleksi: "akses_config",
+    query: "getDocs(collection(db,'akses_config')) — fetch semua",
+    paginasi: "Tidak",
+    polaAkses: "Fetch semua (koleksi kecil)",
+    queryHemat: null, paginasiHemat: null, polaAksesHemat: null,
+    file: "vue-config-akses.js",
+    pemicu: { induk: "Master Karyawan (tab-superuser)", level: 1, teks: "Klik LANGSUNG sub-tab <b>Config Akses</b> (sub-karyawan-akses) — tidak auto-trigger dari tab induk." },
+    kode: "const snap = await getDocs(collection(db, \"akses_config\"));\nconst daftarProfil = [];\nsnap.forEach(doc => daftarProfil.push({ id: doc.id, ...doc.data() }));\n// aman fetch semua — jumlah profil akses selalu kecil",
+    kodeHemat: null,
+    statusHemat: "ok",
+    solusi: null,
+    search: null,
+    filter: ["Kategori menu (navigasi, bukan filter)"],
+    headers: ["Nama menu", "View", "Add", "Edit", "Delete", "Print"],
+    rows: [
+      ["Daftar Karyawan", "☑", "☐", "☑", "☐", "☑"],
+      ["Antrean Dakar", "☑", "☑", "☐", "☑", "☐"]
+    ]
+  },
+  {
+    id: "penjadwalan",
+    halaman: "Master Absensi &gt; Penjadwalan",
+    koleksi: "users, master_gudang, master_shift",
+    query: "getDocs(collection(db,'users')) — fetch semua",
+    paginasi: "Tidak (potong array di JS)",
+    polaAkses: "Fetch semua + potong JS",
+    queryHemat: "orderBy('nama'), limit(15+1) — cursor startAfter (usePaginasiFirestore)",
+    paginasiHemat: "Ya (cursor Firestore sungguhan)",
+    polaAksesHemat: "Paginasi Firestore sungguhan — pola sama seperti Daftar Karyawan",
+    file: "vue-penjadwalan.js",
+    pemicu: { induk: "Master Absensi (tab-admin-acc)", level: 1, teks: "Klik LANGSUNG sub-tab <b>Penjadwalan</b> (sub-absensi-jadwal). Bukan yang auto-terpilih dari tab induk (yang auto itu Antrean Absensi) — WAJIB diklik manual." },
+    kode: "const qKaryawan = await getDocs(collection(db, \"users\"));\nconst semuaData = [];\nqKaryawan.forEach(doc => semuaData.push({ id: doc.id, ...doc.data() }));\nconst potonganHalamanIni = computed(() =>\n  semuaData.slice((halaman.value - 1) * 15, halaman.value * 15)\n);",
+    kodeHemat: "import { usePaginasiFirestore } from './vue-paginasi.js';\n\nconst paginasi = reactive(usePaginasiFirestore(db, 'users', {\n  perHalaman: 15,\n  urutkanField: 'nama',\n  petakan: (id, d) => ({ id, ...d })\n}));",
+    statusHemat: "warn",
+    solusi: "Pindah ke usePaginasiFirestore — pola sama seperti Daftar Karyawan.",
+    search: "Cari nama karyawan...",
+    filter: ["Gudang", "Shift"],
+    headers: ["☐", "Karyawan", "Jenis Pekerjaan", "Jenis Lokasi", "Gudang", "Shift", "Hari Libur", "Status"],
+    rows: genPenjadwalan(50)
+  },
+  {
+    id: "riwayat-all-absensi",
+    halaman: "Master Absensi &gt; Riwayat All Absensi",
+    koleksi: "users, absensi",
+    query: "getDocs(collection(db,'absensi')) — fetch SEMUA dokumen",
+    paginasi: "Tidak",
+    polaAkses: "Fetch semua koleksi absensi",
+    queryHemat: "where('waktu_ts','&gt;=',mulai), where('waktu_ts','&lt;=',selesai), orderBy('waktu_ts') + limit",
+    paginasiHemat: "Ya (cursor + filter rentang tanggal di server)",
+    polaAksesHemat: "Query rentang tanggal pakai waktu_ts (Timestamp asli, sudah tersedia)",
+    file: "vue-riwayat-absensi.js",
+    pemicu: { induk: "Master Absensi (tab-admin-acc)", level: 1, teks: "Klik LANGSUNG sub-tab <b>Riwayat All Absensi</b> (sub-absensi-rekap) — tidak auto-trigger dari tab induk." },
+    kode: "const snap = await getDocs(collection(db, \"absensi\"));\nconst semuaData = [];\nsnap.forEach(doc => semuaData.push({ id: doc.id, ...doc.data() }));\n// filter tanggal/gudang/shift dilakukan di JS SETELAH semua ditarik",
+    kodeHemat: "import { where, orderBy, limit, Timestamp } from \"firebase/firestore\";\n\nconst q = query(\n  collection(db, \"absensi\"),\n  where(\"waktu_ts\", \">=\", Timestamp.fromDate(tglMulai)),\n  where(\"waktu_ts\", \"<=\", Timestamp.fromDate(tglSelesai)),\n  orderBy(\"waktu_ts\", \"desc\"),\n  limit(15)\n);\nconst snap = await getDocs(q);",
+    statusHemat: "warn",
+    solusi: "Query pakai field waktu_ts (Timestamp asli, sudah tersedia sejak 18 Agt) + filter rentang tanggal + paginasi.",
+    search: null,
+    filter: null,
+    headers: ["Persetujuan /\nTipe Absen", "Shift / Gudang", "Tanggal / Waktu", "Foto", "Nama / No HP", "Status Kehadiran /\nSeragam", "Sanggahan\nKaryawan", "Aju Banding", "Pemeriksa", "Aksi"],
+    rows: genRiwayatAbsensi(50)
+  },
+  {
+    id: "aju-banding",
+    halaman: "Account Profile &gt; Absensi &gt; Riwayat pribadi / Aju Banding",
+    koleksi: "absensi (where email==)",
+    query: "query(collection(db,'absensi'), where('email','==',...))",
+    paginasi: "Tidak (tapi sudah dipersempit ke 1 karyawan)",
+    polaAkses: "Query where(email==) — sudah hemat",
+    queryHemat: null, paginasiHemat: null, polaAksesHemat: null,
+    file: "vue-account-profile.js",
+    pemicu: { induk: "Profile (tab-profil)", level: 2, teks: "Account Profile ITU SENDIRI mount otomatis dari awal (bukan lazy) — beda dari 5 tabel Master di atas. Tapi query <code>absensi</code> ini spesifik BARU jalan saat klik inner-tab <b>Absensi</b> di dalam Profile (idempoten juga: <code>listRiwayat.value.length === 0</code>)." },
+    kode: "import { query, where } from \"firebase/firestore\";\n\nconst q = query(\n  collection(db, \"absensi\"),\n  where(\"email\", \"==\", window.currentUser.email)\n);\nconst snap = await getDocs(q);",
+    kodeHemat: null,
+    statusHemat: "ok",
+    solusi: null,
+    search: null,
+    filter: ["Gudang", "Shift", "Tanggal Mulai", "Tanggal Selesai"],
+    headers: ["Persetujuan /\nTipe Absen", "Shift / Gudang", "Tanggal / Waktu", "Foto", "Nama / No HP", "Status Kehadiran /\nSeragam", "Sanggahan\nKaryawan", "Status Aju\nBanding", "Aksi Aju\nBanding"],
+    rows: [
+      ["<span class='tag ok'>ACC</span>\nHADIR (CLOCK IN)", "Shift Pagi\nSOG12", "12/08/2026\n08:04:22", "FOTO", "<b>Ahmad Fauzi</b>\n081122334455", "Tepat Waktu\nLengkap", "-", "-", "-"],
+      ["<span class='tag danger'>DITOLAK</span>\nHADIR (CLOCK IN)", "Shift Pagi\nSOG12", "11/08/2026\n09:20:10", "FOTO", "<b>Ahmad Fauzi</b>\n081122334455", "Terlambat\nTidak lengkap", "-", "Belum diajukan", "AJUKAN"]
+    ]
+  },
+  {
+    id: "mail-log",
+    halaman: "WhatsApp/Mail Gateway &gt; Monitoring",
+    koleksi: "mail",
+    query: "query(collection(db,'mail'), orderBy('dikirim_pada','desc'), limit(50))",
+    paginasi: "Tidak (dibatasi limit 50, bukan cursor)",
+    polaAkses: "Query orderBy + limit",
+    queryHemat: null, paginasiHemat: null, polaAksesHemat: null,
+    file: "vue-mail-gateway.js",
+    pemicu: { induk: "Mail Gateway (tab-mail-gateway)", level: 2, teks: "Klik tab induk cuma me-mount halamannya, default buka inner-tab <b>Config & Tes OTP</b> (BUKAN Monitoring). Query <code>mail</code> ini baru jalan saat klik inner-tab <b>Monitoring</b> secara terpisah." },
+    kode: "import { query, orderBy, limit } from \"firebase/firestore\";\n\nconst q = query(\n  collection(db, \"mail\"),\n  orderBy(\"dikirim_pada\", \"desc\"),\n  limit(50)\n);\nconst snap = await getDocs(q);",
+    kodeHemat: null,
+    statusHemat: "ok",
+    solusi: null,
+    search: null,
+    filter: null,
+    headers: ["Tujuan", "Subjek", "Status Kirim", "Keterangan"],
+    rows: [
+      ["afauzi.contoh@mail.com", "Akun Zevanic ERP Anda Sudah Aktif", "<span class='tag ok'>Terkirim</span>", "-"],
+      ["dlestari.contoh@mail.com", "Kode Verifikasi Pendaftaran - Zevanic ERP", "<span class='tag warn'>Diproses...</span>", "-"]
+    ]
+  },
+  {
+    id: "wa-log",
+    halaman: "WhatsApp Gateway &gt; Monitoring <span style='font-weight:400;color:var(--text-faint)'>(sistem lama)</span>",
+    koleksi: "wa_log",
+    query: "getDocs(collection(db,'wa_log')) — fetch semua",
+    paginasi: "Tidak",
+    polaAkses: "Fetch semua",
+    queryHemat: "query(collection(db,'wa_log'), orderBy('waktu','desc'), limit(50))",
+    paginasiHemat: "Tidak (dibatasi limit 50 — sama pola koleksi 'mail')",
+    polaAksesHemat: "Query orderBy + limit — pola sama seperti Monitoring Mail Gateway",
+    file: "vue-whatsapp-gateway.js",
+    pemicu: { induk: "WhatsApp Gateway (tab-whatsapp)", level: 2, teks: "Sama pola seperti Mail Gateway: klik tab induk cuma mount halaman (default buka Config API), query <code>wa_log</code> baru jalan saat klik inner-tab <b>Monitoring</b> terpisah." },
+    kode: "const snap = await getDocs(collection(db, \"wa_log\"));\nconst daftarLog = [];\nsnap.forEach(doc => daftarLog.push({ id: doc.id, ...doc.data() }));",
+    kodeHemat: "import { query, orderBy, limit } from \"firebase/firestore\";\n\nconst q = query(\n  collection(db, \"wa_log\"),\n  orderBy(\"waktu\", \"desc\"),\n  limit(50)\n);\nconst snap = await getDocs(q);\n// pola sama persis seperti koleksi 'mail'",
+    statusHemat: "warn",
+    solusi: "Pindah ke pola orderBy + limit seperti koleksi 'mail'.",
+    search: null,
+    filter: null,
+    headers: ["Waktu", "Jenis", "Nomor Tujuan", "Status", "Keterangan"],
+    rows: genWaLog(50)
+  }
+];
+
+const navList = document.getElementById('navList');
+const mainContent = document.getElementById('mainContent');
+
+function highlightKode(kode){
+  return kode.split('\n').map(line => {
+    let esc = line.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    let komentar = '';
+    const cm = esc.match(/(\/\/.*)$/);
+    if (cm) { komentar = `<span class="cm">${cm[1]}</span>`; esc = esc.slice(0, cm.index); }
+    esc = esc.replace(/(['"])((?:(?!\1).)*)\1/g, (m, q, inner) => `<span class="str">${q}${inner}${q}</span>`);
+    esc = esc.replace(/\b(import|const|await|from|function|return|async|new)\b/g, `<span class="kw">$1</span>`);
+    return esc + komentar;
+  }).join('\n');
+}
+
+TABEL.forEach((t, i) => {
+  const nav = document.createElement('div');
+  nav.className = 'nav-item' + (i === 0 ? ' active' : '');
+  nav.dataset.target = t.id;
+  nav.innerHTML = `<span class="num">${i+1}</span><span style="flex:1;">${t.halaman.split('&gt;').pop().trim()}</span><span class="badge-mini ${t.statusHemat}">${t.statusHemat === 'ok' ? 'Optimal' : 'Belum'}</span>`;
+  nav.addEventListener('click', () => showPanel(t.id));
+  navList.appendChild(nav);
+
+  const panel = document.createElement('section');
+  panel.className = 'panel' + (i === 0 ? ' active' : '');
+  panel.id = 'panel-' + t.id;
+
+  const headerHtml = t.headers.map(h => `<th>${h}</th>`).join('');
+
+  let toolbarHtml = '';
+  if (t.search || t.filter) {
+    toolbarHtml = `<div class="toolbar">`;
+    if (t.search) toolbarHtml += `<div class="search-box"><i class="fas fa-search"></i><input type="text" placeholder="${t.search}" disabled></div>`;
+    if (t.filter) t.filter.forEach(f => {
+      if (f.toLowerCase().includes('tanggal')) toolbarHtml += `<input type="date" disabled title="${f}">`;
+      else toolbarHtml += `<select disabled><option>${f}: Semua</option></select>`;
+    });
+    toolbarHtml += `</div>`;
+  } else {
+    toolbarHtml = `<div class="toolbar"><span class="none-note"><i class="fas fa-circle-info"></i> Tidak ada search box / filter di tabel ini.</span></div>`;
+  }
+
+  panel.innerHTML = `
+    <div class="panel-header">
+      <div class="crumb">Peta Tabel UI &nbsp;/&nbsp; Tabel ${i+1} dari ${TABEL.length}</div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+        <h2>${t.halaman}</h2>
+        <select class="jump-dropdown" id="jump-${t.id}" style="padding:9px 14px; border:1.5px solid var(--line); border-radius:12px; background:var(--surface); font-family:inherit; font-size:12.5px; font-weight:600; color:var(--mahogany-soft); cursor:pointer;"></select>
+      </div>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-card"><div class="label">Koleksi Firestore</div><div class="val"><code>${t.koleksi}</code></div></div>
+      <div class="info-card"><div class="label">Query</div><div class="val" id="val-query-${t.id}"><code>${t.query}</code></div></div>
+      <div class="info-card"><div class="label">Paginasi</div><div class="val" id="val-paginasi-${t.id}">${t.paginasi}</div></div>
+      <div class="info-card"><div class="label">Dipakai di File</div><div class="val"><code>${t.file}</code></div></div>
+      <div class="info-card"><div class="label">Status Hemat</div><div class="val" id="val-status-${t.id}"><span class="status-pill ${t.statusHemat}"><i class="fas ${t.statusHemat === 'ok' ? 'fa-check-circle' : 'fa-triangle-exclamation'}"></i> ${t.statusHemat === 'ok' ? 'Sudah Optimal' : 'Belum Dioptimasi'}</span></div></div>
+    </div>
+
+    ${t.solusi ? `
+    <div class="solusi-box" id="solusi-${t.id}"><i class="fas fa-lightbulb"></i><div><b>Solusi hemat:</b> ${t.solusi}</div></div>
+    <div class="versi-toggle" style="display:flex; gap:8px; margin:0 0 14px;">
+      <button class="versi-btn active" id="btn-sekarang-${t.id}" onclick="toggleVersi('${t.id}','sekarang')">Versi Sekarang</button>
+      <button class="versi-btn" id="btn-hemat-${t.id}" onclick="toggleVersi('${t.id}','hemat')">Versi Hemat</button>
+    </div>` : ''}
+
+    <div class="trigger-box">
+      <div class="t-title"><i class="fas fa-hand-pointer"></i> Kapan query ini persis terpicu?</div>
+      <div class="t-row"><span class="t-label">Tab induk</span><span>${t.pemicu.induk} <span class="level-badge ${t.pemicu.level === 1 ? 'l1' : 'l2'}">${t.pemicu.level === 1 ? '1 level klik' : '2 level klik'}</span></span></div>
+      <div class="t-row"><span class="t-label">Pemicu</span><span>${t.pemicu.teks}</span></div>
+      <div class="t-row"><span class="t-label">Idempoten?</span><span>Ya — klik pertama query, klik berikutnya ke tab yang SAMA tidak query ulang (kecuali tombol Refresh/Muat Data diklik eksplisit).</span></div>
+    </div>
+
+    <div class="code-box">
+      <div class="code-label"><i class="fas fa-code"></i> Cara pemanggilan query — ${t.file}</div>
+      <pre id="kode-${t.id}">${highlightKode(t.kode)}</pre>
+    </div>
+
+    ${toolbarHtml}
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr>${headerHtml}</tr></thead>
+        <tbody id="tbody-${t.id}"></tbody>
+      </table>
+    </div>
+    <div id="pagenote-${t.id}" style="font-size:11px; color:var(--text-faint); margin-top:8px;"></div>
+    <div id="pagination-${t.id}" style="display:flex; justify-content:center; align-items:center; gap:10px; margin-top:6px;"></div>
+    <footer class="note">Contoh data (50 baris acak) untuk ilustrasi bentuk & kolom — bukan data sungguhan dari Firestore.</footer>
+  `;
+  mainContent.appendChild(panel);
+});
+
+function showPanel(id) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + id));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.target === id));
+}
+
+function selHtml(c){
+  if (c === 'FOTO') return `<td><div class="foto-ph"><i class="fas fa-id-card"></i></div></td>`;
+  if (c === 'AKSI') return `<td style="text-align:center;"><button class="icon-btn"><i class="fas fa-edit"></i></button> <button class="icon-btn" style="color:var(--danger);"><i class="fas fa-trash-alt"></i></button></td>`;
+  if (c === 'AJUKAN') return `<td><button class="icon-btn" style="width:auto;padding:0 10px;">Ajukan Banding</button></td>`;
+  if (c === 'DROPDOWN') return `<td><select style="width:100%;padding:6px 8px;border:1.5px solid var(--line);border-radius:8px;font-size:11px;"><option>(Belum diatur)</option></select></td>`;
+  return `<td>${c}</td>`;
+}
+
+const PER_HALAMAN = 15; // sama seperti perHalaman di usePaginasiFirestore
+const halamanState = {}; // { tableId: nomorHalamanAktif }
+const versiState = {}; // { tableId: 'sekarang' | 'hemat' }
+
+function renderIsiTabel(id) {
+  const t = TABEL.find(x => x.id === id);
+  const tbody = document.getElementById('tbody-' + id);
+  const pagWrap = document.getElementById('pagination-' + id);
+  const noteWrap = document.getElementById('pagenote-' + id);
+  if (!tbody) return;
+
+  const versi = versiState[id] || 'sekarang';
+
+  if (versi === 'hemat' && t.queryHemat) {
+    // VERSI HEMAT: cuma render 15 baris (1 "halaman"), tombol next/prev
+    // menirukan startAfter cursor Firestore — TIDAK render 50 baris sekaligus.
+    const halaman = halamanState[id] || 1;
+    const totalHalaman = Math.ceil(t.rows.length / PER_HALAMAN);
+    const mulai = (halaman - 1) * PER_HALAMAN;
+    const slice = t.rows.slice(mulai, mulai + PER_HALAMAN);
+    tbody.innerHTML = slice.map(r => `<tr>${r.map(selHtml).join('')}</tr>`).join('');
+    noteWrap.innerHTML = `<i class="fas fa-bolt" style="color:var(--ok);"></i> Cuma ${slice.length} baris ditarik dari server (bukan ${t.rows.length}) — halaman ${halaman} dari ${totalHalaman}.`;
+    pagWrap.innerHTML = `
+      <button class="icon-btn" ${halaman <= 1 ? 'disabled' : ''} onclick="gantiHalaman('${id}',-1)"><i class="fas fa-chevron-left"></i></button>
+      <span style="font-size:12px; color:var(--text-muted);">Halaman ${halaman} / ${totalHalaman}</span>
+      <button class="icon-btn" ${halaman >= totalHalaman ? 'disabled' : ''} onclick="gantiHalaman('${id}',1)"><i class="fas fa-chevron-right"></i></button>
+    `;
+  } else {
+    // VERSI SEKARANG: render SEMUA baris sekaligus (menirukan getDocs(collection)
+    // fetch-semua yang dipakai kode saat ini) — tidak ada paginasi.
+    tbody.innerHTML = t.rows.map(r => `<tr>${r.map(selHtml).join('')}</tr>`).join('');
+    noteWrap.innerHTML = t.rows.length > 2
+      ? `<i class="fas fa-triangle-exclamation" style="color:var(--warn);"></i> Semua ${t.rows.length} baris ditarik & dirender sekaligus (fetch semua koleksi).`
+      : '';
+    pagWrap.innerHTML = '';
+  }
+}
+
+function gantiHalaman(id, delta) {
+  const t = TABEL.find(x => x.id === id);
+  const totalHalaman = Math.ceil(t.rows.length / PER_HALAMAN);
+  const halamanBaru = Math.min(totalHalaman, Math.max(1, (halamanState[id] || 1) + delta));
+  halamanState[id] = halamanBaru;
+  renderIsiTabel(id);
+}
+
+// Render awal semua tabel (default: versi sekarang)
+TABEL.forEach(t => { versiState[t.id] = 'sekarang'; halamanState[t.id] = 1; renderIsiTabel(t.id); });
+
+// Isi opsi dropdown navigasi cepat di tiap panel (pelengkap sidebar, khusus mobile lebih ringkas)
+document.querySelectorAll('.jump-dropdown').forEach(sel => {
+  TABEL.forEach((t, i) => {
+    const opt = document.createElement('option');
+    opt.value = t.id;
+    opt.textContent = (i + 1) + '. ' + t.halaman.replace(/<[^>]+>/g, '').split('>').pop().trim();
+    sel.appendChild(opt);
+  });
+  sel.value = sel.id.replace('jump-', '');
+  sel.addEventListener('change', () => showPanel(sel.value));
+});
+
+// Toggle "Versi Sekarang" / "Versi Hemat" — tukar isi kartu Query/Paginasi/Status
+// SEKALIGUS cara tabel di-render (fetch semua vs 15/halaman).
+function toggleVersi(id, versi) {
+  const t = TABEL.find(x => x.id === id);
+  const elQuery = document.getElementById('val-query-' + id);
+  const elPaginasi = document.getElementById('val-paginasi-' + id);
+  const elStatus = document.getElementById('val-status-' + id);
+  const elSolusi = document.getElementById('solusi-' + id);
+  const btnSekarang = document.getElementById('btn-sekarang-' + id);
+  const btnHemat = document.getElementById('btn-hemat-' + id);
+  const elKode = document.getElementById('kode-' + id);
+
+  versiState[id] = versi;
+  halamanState[id] = 1; // reset ke halaman 1 tiap ganti versi
+
+  if (versi === 'hemat') {
+    elQuery.innerHTML = `<code>${t.queryHemat}</code>`;
+    elPaginasi.textContent = t.paginasiHemat;
+    elStatus.innerHTML = `<span class="status-pill ok"><i class="fas fa-check-circle"></i> Setelah Optimasi</span>`;
+    if (elSolusi) elSolusi.style.display = 'none';
+    elKode.innerHTML = highlightKode(t.kodeHemat);
+    btnHemat.classList.add('active');
+    btnSekarang.classList.remove('active');
+  } else {
+    elQuery.innerHTML = `<code>${t.query}</code>`;
+    elPaginasi.textContent = t.paginasi;
+    elStatus.innerHTML = `<span class="status-pill warn"><i class="fas fa-triangle-exclamation"></i> Belum Dioptimasi</span>`;
+    if (elSolusi) elSolusi.style.display = 'flex';
+    elKode.innerHTML = highlightKode(t.kode);
+    btnSekarang.classList.add('active');
+    btnHemat.classList.remove('active');
+  }
+  renderIsiTabel(id);
+}
+</script>
+</body>
+</html>

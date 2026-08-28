@@ -70,6 +70,31 @@
 
 ---
 
+## 📐 Lebar area konten utama (dicek 26 Agt 2026, atas pertanyaan Guru)
+
+Dicek langsung ke `index.html` + `css/gechoo-design.css` (BUKAN tebak-tebak):
+
+- **`<main>` (area konten utama, tempat semua menu di-render) TIDAK
+  punya `max-width` sama sekali** — lebarnya FLUID, mengisi seluruh
+  sisa ruang horizontal setelah dikurangi sidebar & padding.
+- **Sidebar desktop** (`.gc-sidebar`, class `w-64`) — lebar TETAP
+  `256px`, HANYA tampil di layar `md:` ke atas (≥768px), disembunyikan
+  total di mobile (`hidden md:flex`).
+- **Padding `<main>`**: class `p-4 md:p-8` — `16px` di semua sisi pada
+  mobile, `32px` di semua sisi pada desktop (≥768px).
+- **Jadi**: lebar efektif konten desktop = lebar browser − 256px
+  (sidebar) − 64px (32px×2 padding). Mobile = lebar layar − 32px
+  (16px×2 padding), tanpa sidebar.
+- **Tabel lebar** (banyak kolom) diatasi lewat scroll horizontal
+  PER-TABEL (`.gc-table-scroll`/inline `overflow-x:auto;`, tabel
+  sendiri punya `min-width:760px`) — BUKAN lewat pembatasan lebar
+  halaman. Jadi kalau ada tabel dengan banyak kolom (mis. Daftar
+  Pesanan Pembelian di Order Belanja, 14 kolom per 26 Agt 2026, §25.11
+  STATUS-PROYEK.md), yang di-scroll horizontal cuma tabelnya, bukan
+  seluruh halaman.
+
+---
+
 ## 🧩 Komponen CSS siap pakai (JANGAN reka ulang, pakai ini)
 
 ### Tag/badge (pil bulat + titik kecil)

@@ -68,6 +68,48 @@ dari tool call itu sendiri.
 
 ---
 
+## Kapan menulis ke `STATUS-PROYEK.md` / `PETA-*.md` — 1x per FITUR SELESAI (BARU 27 Agt 2026, disepakati Guru)
+
+Nulis ke dokumen `Claude/` (`STATUS-PROYEK.md`, `PETA-DATABASE.md`,
+`PETA-MENU.md`, dst) itu ADA BIAYANYA — beda dari edit file kode biasa,
+tool project docs TIDAK PUNYA mode "tempel di tengah" (`str_replace`),
+jadi tiap nulis HARUS baca SELURUH isi file dulu, susun ulang, baru
+tulis balik SELURUHNYA. Untuk file besar (`PETA-DATABASE.md`,
+`STATUS-PROYEK.md`, ratusan-ribuan baris) ini beban token & waktu yang
+nyata kalau dilakukan tiap 1 perubahan kecil.
+
+**Aturan (disepakati Guru 27 Agt 2026)**: tulis dokumen `Claude/` **1x
+per FITUR/PEKERJAAN yang BENAR-BENAR SUDAH SELESAI** dikerjakan
+(semua file kode-nya sudah diedit & divalidasi) — BUKAN tiap 1 file
+kode berubah, dan BUKAN pula ditunda sampai sesi mau berakhir/context
+mau penuh ("dipadatkan"). 2 alasan kenapa BUKAN yang kedua:
+1. Proses "memadatkan percakapan" (compaction) itu OTOMATIS dari
+   sistem, dipicu sendiri kapan context hampir penuh — Claude TIDAK
+   dapat sinyal "sebentar lagi dipadatkan, tulis dulu sekarang", baru
+   tahu SETELAH kejadian. Jadi tidak bisa dijadikan pemicu yang
+   diandalkan.
+2. Kalau 1 sesi selesai tugasnya SEBELUM context penuh (compaction
+   TIDAK PERNAH terjadi sepanjang sesi itu) — dokumen jadi TIDAK
+   PERNAH tertulis sama sekali. Sesi berikutnya (atau Guru sendiri)
+   akan baca dokumen yang ketinggalan, padahal kode sudah berubah.
+
+**Contoh pola yang BENAR** (dipakai redesain Home mobile §27): 5 file
+kode (`vue-config-akses.js`, `vue-components.js`, `vue-home.js`,
+`vue-header-mobile.js`, `index.html`) diedit & divalidasi SEMUA dulu
+sampai fitur itu utuh selesai dikirim ke Guru — BARU SETELAH ITU, 1x
+tulis ke `STATUS-PROYEK.md` + `PETA-DATABASE.md` + `PETA-MENU.md`
+(masing-masing 1x tulis, isinya rangkuman fitur yang sudah selesai).
+BUKAN nulis dokumen di tengah-tengah tiap 1 file kode kelar diedit.
+
+**Kalau fitur MASIH separuh jalan/belum final** (misal Guru minta
+jeda dulu, atau sesi terputus di tengah sebelum semua file kode
+selesai) — dokumen `Claude/` BOLEH BELUM ditulis, TAPI begitu sesi mau
+berhenti/pekerjaan mau dianggap "selesai" (dikirim ke Guru), WAJIB
+sudah tertulis SEBELUM sesi itu berakhir — jangan mengandalkan
+compaction atau sesi berikutnya buat menuliskannya.
+
+---
+
 ## Batas "sudah divalidasi" — JANGAN OVERCLAIM
 
 Sandbox yang tersedia **TIDAK BISA menjalankan aplikasi Vue+Firebase
@@ -186,6 +228,77 @@ yang sebenarnya bisa langsung dicari sendiri lewat grep.
 
 ---
 
+## WAJIB dicek tiap bikin menu baru / edit sub-tab menu lama — riwayat browser (tombol back HP) — BARU malam 24 Agt 2026
+
+Keputusan Guru (lihat `STATUS-PROYEK.md` §22 buat rencana desain teknis
+lengkapnya — bagian ini cuma CHECKLIST ringkas):
+
+- **Menu BARU** yang dibangun mulai sekarang → WAJIB langsung pakai
+  sistem riwayat browser (`pindahSubTab(..., {catatRiwayat:true})` +
+  atribut `data-target` di tiap tombol sub-tab/child-tab-nya) dari awal
+  dibangun, BUKAN ditunda ke ronde revisi terpisah.
+- **Menu LAMA yang KEBETULAN sedang disentuh/diedit** (alasan apapun —
+  bug fix, revisi tampilan, tambah fitur di layar itu) → SEKALIAN
+  ditambahkan sistem ini SAAT ITU JUGA, jangan ditunda.
+- **JANGAN retrofit massal** ke SEMUA menu lama sekaligus dalam 1 ronde
+  — itu TIDAK diminta Guru, cuma bertahap ikut 2 pemicu di atas.
+- Cakupannya WAJIB sampai level **Child-tab** (bukan cuma Sub-menu
+  sidebar) — Guru pilih opsi yang lebih dalam, bukan opsi minimal.
+- Ikuti PERSIS desain teknis di `STATUS-PROYEK.md` §22.3 (opt-in lewat
+  parameter ke-4 `pindahSubTab`, snapshot state gabungan, listener
+  `popstate` yang diperluas) — supaya konsisten antar menu, tidak
+  didesain ulang beda-beda tiap kali menyentuh menu berbeda.
+- Menu yang SUDAH dibangun sebelum keputusan ini (termasuk semua
+  Zevanic House yang ada sekarang, Riwayat Harga Pembelian yang baru
+  saja jadi) **SENGAJA TIDAK diubah** kecuali nanti memang disentuh
+  lagi untuk alasan lain.
+
+---
+
+## Cara kirim hasil kerja (file yang berubah) ke Guru — BARU malam 24 Agt 2026
+
+Ada 2 folder di komputer Guru (`desktop-ftibv77`, tersambung lewat
+device bridge), BEDA fungsi — jangan tertukar:
+
+- **`F:\ZEVANIC HOUSE\FOUNDATION`** (folder induk) — CUMA buat dokumen
+  "peta"/pengetahuan project: `STATUS-PROYEK.md`, `PETA-DATABASE.md`,
+  `PETA-MENU.md`, `PETA-DESAIN.md`, `PETA-INFRASTRUKTUR.md`,
+  `PRINSIP-HEMAT.md`, `PEDOMAN-GAYA-KERJA.md` (file ini sendiri),
+  `firestore.rules`/`storage.rules` versi terakhir. Ditulis LANGSUNG ke
+  sini (`device_commit_files`, bukan zip) SETIAP kali salah satu
+  dokumen ini diperbarui (ikuti aturan "1x per fitur SELESAI" di atas
+  — bukan tiap file kode berubah) — TIDAK PEDULI Guru sedang pakai
+  komputer mana, lakukan begitu device bridge tersambung sekalinya.
+- **`F:\ZEVANIC HOUSE\FOUNDATION\Data Yang Disiapkan`** (sub-folder,
+  ditambahkan malam 24 Agt 2026) — CUMA buat file **KODE** yang nanti
+  Guru push sendiri ke GitHub (`.js`, `index.html`, `dashboard.js`,
+  `firestore.rules` versi kerja round ini, dst) — BUKAN dokumen peta
+  (itu aturannya di atas, folder beda).
+
+**Aturan pengiriman file KODE (bukan dokumen peta) tiap selesai 1
+ronde kerja:**
+
+1. **Device bridge ke komputer ini TERSAMBUNG** (Guru sedang pakai
+   komputer `desktop-ftibv77` di rumah) — cek dengan coba
+   `device_list_dir` ke folder Foundation, kalau sukses berarti
+   tersambung: tulis file kode yang berubah **LANGSUNG (TANPA zip)**,
+   pakai nama aslinya, ke folder `Data Yang Disiapkan`. TIDAK PERLU
+   zip sama sekali dalam kondisi ini — Guru tinggal pindah/upload
+   sendiri dari situ ke GitHub.
+2. **Device bridge TIDAK tersambung** (Guru bilang lagi pakai laptop
+   lain / lagi di luar rumah, atau `device_list_dir` gagal) — kirim
+   sebagai **zip lewat chat** (`SendUserFile`), berisi CUMA file yang
+   benar-benar berubah ronde itu (bukan bundel lengkap semua file) —
+   pola yang sudah dipakai sejak permintaan Guru "kalau cukup yg
+   tersentuh gurusu saja".
+
+**Jangan asumsi** device tersambung atau tidak dari ingatan sesi
+sebelumnya — device bridge bisa putus-nyambung kapan saja tergantung
+Guru buka/tutup aplikasi desktop-nya. Coba `device_list_dir` dulu tiap
+mau kirim, baru putuskan zip atau langsung taruh folder.
+
+---
+
 ## Kalau masih lambat SETELAH baca pedoman ini — bukan lagi soal gaya bahasa
 
 **Ini bagian buat Hilman (pengguna), BUKAN instruksi untuk Claude** —
@@ -263,13 +376,15 @@ ketemu SEBAB ASLINYA (rollback akun gagal, tidak diberitahu ke user) —
 baru dirancang perbaikannya. Solusi yang tidak berdasar akar masalah
 biasanya cuma menutupi gejala, bukan benar-benar menyelesaikan.
 
-**6. Catat keputusan penting SAAT ITU JUGA, jangan tunda sampai
-"nanti"** — `STATUS-PROYEK.md` diperbarui BERKALI-KALI sepanjang
-pembangunan, bukan ditulis sekali di akhir. Keputusan yang tidak
-dicatat SEGERA gampang terlupa atau berubah tanpa disadari.
+**6. Catat keputusan penting SAAT ITU JUGA (dalam arti: begitu
+FITUR-nya selesai, bukan ditunda sampai "nanti"/sampai sesi mau
+berakhir)** — `STATUS-PROYEK.md` diperbarui tiap kali 1 fitur/pekerjaan
+rampung sepanjang pembangunan, bukan ditulis 1x saja di akhir SEMUA
+project, dan bukan pula ditunda sampai context penuh/sesi mau
+"dipadatkan" (lihat aturan "1x per fitur SELESAI" di atas). Keputusan
+yang tidak dicatat segera gampang terlupa atau berubah tanpa disadari.
 
 **Benang merahnya**: kecepatan itu penting (lihat semua bagian di
 atas), TAPI kecepatan tanpa kebiasaan-kebiasaan ini cuma menghasilkan
 kerja yang cepat SALAH. Tujuannya cepat DAN bisa dipercaya — dua-duanya,
 bukan pilih salah satu.
-
