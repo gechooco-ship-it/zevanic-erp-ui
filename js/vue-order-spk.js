@@ -9,8 +9,8 @@
 // Field (disepakati Guru, boleh direvisi/ditambah nanti kalau kebutuhan
 // migrasi dari spreadsheet ternyata lebih detail): No. SPK (unik, WAJIB
 // dicek dobel — dipakai sebagai kunci pencarian nanti dari Scan Persiapan,
-// §26 Tahap 5), Nama Produk/Keterangan, Qty Target, Tanggal, Status
-// (Aktif/Selesai).
+// §26 Tahap 5), Nama Produk/Keterangan, Qty Order (GANTI NAMA dari "Qty
+// Target", 28 Agt 2026, §42.3), Tanggal, Status (Aktif/Selesai).
 //
 // Kenapa BUKAN sub-menu di dalam Config, walau formatnya sama
 // (entry+searchbox+table) — Guru EKSPLISIT minta sub-menu SENDIRI,
@@ -44,7 +44,7 @@ import { PopupPratinjauCetakLabel, DropdownCari } from './vue-components.js?v=5'
 // seperti impor fungsi baca-koleksi besar lain di app ini, mis. dari
 // vue-stock-pembelian.js) — dipakai isi dropdown "Pilih Produk (SKU)" di
 // bawah, dan field `kelipatan` tiap produk (KPK Isi Pola BOM-nya) dipakai
-// tampilkan "Acuan Minimal Order" di samping Qty Target.
+// tampilkan "Rekomendasi Kelipatan Order" di samping Qty Order.
 import { ambilSemuaProduk } from './vue-master-produk.js';
 
 const STATUS_SPK_OPSI = ['Aktif', 'Selesai'];
@@ -56,13 +56,20 @@ function formStateKosong() {
     // master_produk.sku — kalau diisi (lewat dropdown "Pilih Produk
     // [SKU]"), `nama_produk` di bawah OTOMATIS terisi dari situ (tetap
     // bisa diedit manual setelahnya) & field `kelipatan` produk itu
-    // dipakai tampilkan "Acuan Minimal Order" di samping Qty Target.
+    // dipakai tampilkan "Rekomendasi Kelipatan Order" di samping Qty Order.
     // SENGAJA opsional (boleh kosong) — SPK migrasi dari spreadsheet lama
     // belum tentu produknya sudah ada di Master Produk, `nama_produk`
     // manual TETAP jalan seperti sebelumnya kalau tidak dihubungkan.
     sku_produk: '',
     nama_produk: '',
-    qty_target: '',
+    // qty_order — GANTI NAMA (28 Agt 2026, permintaan Guru) dari
+    // `qty_target`. Field Firestore-nya JUGA ganti nama jadi `qty_order`
+    // (lihat simpan()), TAPI dokumen LAMA yang masih pakai `qty_target`
+    // TETAP kebaca normal lewat fallback di `petakan` paginasi di bawah
+    // (`d.qty_order ?? d.qty_target`) — begitu dokumen lama itu
+    // diedit+disimpan ulang, otomatis pindah ke field baru. Tidak perlu
+    // migrasi manual data lama.
+    qty_order: '',
     tanggal: new Date().toISOString().slice(0, 10),
     status: 'Aktif'
   });
@@ -144,7 +151,7 @@ const OrderSpkManager = {
       daftarLabelPreview.value = daftarSpk.map(s => ({
         kode: s.no_spk,
         nama: s.nama_produk || '',
-        info: `Qty Target: ${formatQty(s.qty_target)} &middot; ${s.tanggal || ''}`,
+        info: `Qty Order: ${formatQty(s.qty_order ?? s.qty_target)} &middot; ${s.tanggal || ''}`,
         qrDataUrl: buatQrDataUrl(s.no_spk)
       }));
       popupCetakLabelAktif.value = true;
@@ -154,7 +161,12 @@ const OrderSpkManager = {
       perHalaman: 15,
       urutkanField: 'no_spk',
       cariField: 'no_spk',
-      petakan: (id, d) => ({ id, ...d })
+      // qty_order — normalisasi SATU TEMPAT di sini (28 Agt 2026, lihat
+      // catatan formStateKosong() di atas): dokumen LAMA yang cuma punya
+      // `qty_target` otomatis "kebaca" seolah sudah `qty_order` di semua
+      // pemakaian SETELAH titik ini (tabel, cetakSpkList, bukaEdit) — TIDAK
+      // perlu fallback berulang di tiap tempat pakai.
+      petakan: (id, d) => ({ id, ...d, qty_order: d.qty_order ?? d.qty_target ?? 0 })
     });
 
     // --- Sambungan ke Master Produk lewat SKU (BARU 28 Agt 2026, permintaan
@@ -203,7 +215,7 @@ const OrderSpkManager = {
       const noSpkTrim = form.no_spk.trim();
       if (!noSpkTrim) return alert('Isi No. SPK dulu.');
       if (!form.nama_produk.trim()) return alert('Isi Nama Produk/Keterangan dulu.');
-      if (!(parseFloat(form.qty_target) > 0)) return alert('Isi Qty Target dulu (harus lebih dari 0).');
+      if (!(parseFloat(form.qty_order) > 0)) return alert('Isi Qty Order dulu (harus lebih dari 0).');
       if (!form.tanggal) return alert('Isi Tanggal dulu.');
 
       menyimpan.value = true;
@@ -219,7 +231,12 @@ const OrderSpkManager = {
           // di atas file ini.
           sku_produk: form.sku_produk || '',
           nama_produk: form.nama_produk.trim(),
-          qty_target: parseFloat(form.qty_target) || 0,
+          // qty_order — GANTI NAMA dari qty_target (lihat catatan
+          // formStateKosong() & petakan paginasi di atas file ini). Dokumen
+          // yang ditulis/ditimpa MULAI SEKARANG pakai field baru ini saja
+          // (dokumen lama yang masih `qty_target` tetap kebaca normal
+          // sampai diedit+disimpan ulang, otomatis pindah ke field baru).
+          qty_order: parseFloat(form.qty_order) || 0,
           tanggal: form.tanggal,
           status: form.status
         };
@@ -272,7 +289,7 @@ const OrderSpkManager = {
       sedangEditId.value = item.id;
       Object.assign(form, {
         no_spk: item.no_spk || '', sku_produk: item.sku_produk || '', nama_produk: item.nama_produk || '',
-        qty_target: item.qty_target || '', tanggal: item.tanggal || '',
+        qty_order: item.qty_order || '', tanggal: item.tanggal || '',
         status: item.status || 'Aktif'
       });
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -321,7 +338,7 @@ const OrderSpkManager = {
              Begitu produk dipilih: Nama Produk/Keterangan OTOMATIS terisi
              (tetap boleh diedit manual sesudahnya) & kalau produk itu
              punya field Kelipatan (KPK Isi Pola BOM > 0), muncul info
-             "Acuan Minimal Order" di bawah Qty Target. -->
+             "Rekomendasi Kelipatan Order" di bawah Qty Order. -->
         <div class="gc-field" style="grid-column:1 / -1;">
           <label>Pilih Produk (SKU) <span style="font-weight:400; color:var(--text-faint);">(opsional — hubungkan ke Master Produk)</span></label>
           <dropdown-cari :model-value="labelProdukTerpilih" :opsi="opsiProdukLabel" placeholder="Cari SKU / Nama / Warna / Size produk..." @update:modelValue="pilihProdukSpk" />
@@ -335,21 +352,27 @@ const OrderSpkManager = {
           <label>Nama Produk / Keterangan <span style="color:var(--danger);">*</span></label>
           <input v-model="form.nama_produk" type="text" placeholder="Contoh: Kaos Polo Navy L">
         </div>
+        <!-- Qty Order — GANTI NAMA (28 Agt 2026, permintaan Guru) dari
+             "Qty Target". Lihat catatan lengkap soal field Firestore-nya
+             (juga ganti nama, dengan fallback baca data lama) di
+             formStateKosong() & petakan paginasi, atas file ini. -->
         <div class="gc-field">
-          <label>Qty Target <span style="color:var(--danger);">*</span></label>
-          <input v-model.number="form.qty_target" type="number" min="0" placeholder="0">
-          <!-- Acuan Minimal Order — BARU (28 Agt 2026, permintaan Guru:
-               "harus diinfoakan disamping qty order sebagai acuan minimal
-               order"). Cuma tampil kalau produk terhubung PUNYA kelipatan
-               (>0, ada Isi Pola BOM terisi) — kalau tidak terhubung/belum
-               ada BOM Pola, tidak ada hint sama sekali (bukan dianggap
-               error). Warning lembut (bukan alert/block simpan) kalau Qty
-               Target yang diisi BUKAN kelipatan bulat dari angka acuan —
-               keputusan tetap di tangan Guru, ini cuma pengingat visual.-->
+          <label>Qty Order <span style="color:var(--danger);">*</span></label>
+          <input v-model.number="form.qty_order" type="number" min="0" placeholder="0">
+          <!-- Rekomendasi Kelipatan Order — GANTI LABEL (28 Agt 2026,
+               permintaan Guru: "ada rekomendasi kelipatan Order disamping
+               field qty order") dari "Acuan Minimal Order" sebelumnya, isi
+               & logic TIDAK berubah. Cuma tampil kalau produk terhubung
+               PUNYA kelipatan (>0, ada Isi Pola BOM terisi) — kalau tidak
+               terhubung/belum ada BOM Pola, tidak ada hint sama sekali
+               (bukan dianggap error). Warning lembut (bukan alert/block
+               simpan) kalau Qty Order yang diisi BUKAN kelipatan bulat
+               dari angka rekomendasi — keputusan tetap di tangan Guru, ini
+               cuma pengingat visual. -->
           <p v-if="produkTerpilih && produkTerpilih.kelipatan > 0" style="font-size:10.5px; color:var(--burgundy); margin-top:4px;">
-            <i class="fas fa-circle-info" style="margin-right:4px;"></i>Acuan Minimal Order: kelipatan {{ produkTerpilih.kelipatan }} pcs (dari Isi Pola BOM)
-            <template v-if="form.qty_target > 0 && (form.qty_target % produkTerpilih.kelipatan) !== 0">
-              — Qty saat ini bukan kelipatan {{ produkTerpilih.kelipatan }}, sisa {{ form.qty_target % produkTerpilih.kelipatan }} pcs berpotensi boros pola.
+            <i class="fas fa-circle-info" style="margin-right:4px;"></i>Rekomendasi Kelipatan Order: {{ produkTerpilih.kelipatan }} pcs (dari Isi Pola BOM)
+            <template v-if="form.qty_order > 0 && (form.qty_order % produkTerpilih.kelipatan) !== 0">
+              — Qty saat ini bukan kelipatan {{ produkTerpilih.kelipatan }}, sisa {{ form.qty_order % produkTerpilih.kelipatan }} pcs berpotensi boros pola.
             </template>
           </p>
         </div>
@@ -413,7 +436,7 @@ const OrderSpkManager = {
                (migrasi spreadsheet) yang belum terhubung TIDAK tampilkan
                baris ini sama sekali. -->
           <div v-if="item.sku_produk" style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">SKU Produk</span><span style="font-weight:700; text-align:right;">{{ item.sku_produk }}</span></div>
-          <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Qty Target</span><span style="font-weight:700;">{{ formatQty(item.qty_target) }}</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Qty Order</span><span style="font-weight:700;">{{ formatQty(item.qty_order) }}</span></div>
           <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Tanggal</span><span style="font-weight:700;">{{ item.tanggal }}</span></div>
         </div>
 
