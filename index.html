@@ -731,7 +731,16 @@
        v=10 (28 Agt 2026, §37): TIDAK ADA perubahan fungsional di file ini —
        cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
        DropdownCari, tidak dipakai fitur Import Excel §37 yang ditambah di
-       Data Komponen/Config). -->
-  <script type="module" src="js/vue-master-produk.js?v=10"></script>
+       Data Komponen/Config).
+       v=11 (28 Agt 2026, §38): Kode Webbing 2 & Kode Webbing 3 (BOM
+       Aksesoris) GANTI dari DropdownCari (wajib pilih dari Data Bahan &
+       Aksesoris) jadi INPUT MANUAL/teks bebas — permintaan Guru, berlaku
+       di form Entry/Edit Produk MAUPUN Template/Import Excel BOM sheet
+       Aksesoris (kolom header disederhanakan jadi "Kode Webbing 2"/"Kode
+       Webbing 3", dulu "...(Nama + Warna)"). Field `webbing2_id`/
+       `webbing3_id`/`webbing2_nama`/`webbing3_nama` DIHAPUS dari skema
+       `master_produk.bom_aksesoris[]`, diganti `webbing2`/`webbing3`
+       (string bebas). -->
+  <script type="module" src="js/vue-master-produk.js?v=11"></script>
 </body>
 </html>

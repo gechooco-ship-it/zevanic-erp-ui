@@ -6,10 +6,12 @@
 // 4 ronde AskUserQuestion sebelum ditulis (lihat STATUS-PROYEK.md §28 untuk
 // catatan lengkap keputusan). Ringkasan keputusan kunci yang membentuk kode
 // di bawah:
-//   1. SEMUA field "Nama Bahan/Aksesoris/Komponen" (termasuk Kode Webbing
-//      2/3) WAJIB pilih dari Data Bahan & Aksesoris (master_bahan_
-//      aksesoris) lewat DropdownCari — TIDAK BOLEH teks bebas. Pola resolve
-//      nama->id SAMA seperti js/vue-persiapan-masalah.js.
+//   1. SEMUA field "Nama Bahan/Aksesoris/Komponen" WAJIB pilih dari Data
+//      Bahan & Aksesoris (master_bahan_aksesoris) lewat DropdownCari —
+//      TIDAK BOLEH teks bebas. Pola resolve nama->id SAMA seperti
+//      js/vue-persiapan-masalah.js. ⚠️ Kode Webbing 2/3 DULU juga ikut
+//      aturan ini — SUPERSEDE (28 Agt 2026, §38): SEKARANG teks bebas
+//      (input manual), lihat catatan poin 6 di bawah.
 //   2. Tujuannya fondasi produksi (nanti dipakai potong stok otomatis) —
 //      BUKAN cuma dokumentasi, makanya link ke master_bahan_aksesoris
 //      di atas WAJIB (bukan opsional) supaya datanya bisa disambung nanti.
@@ -35,8 +37,11 @@
 //      basis Nama-Warna-Size tabrakan dengan produk lain, sistem sendiri
 //      yang nambah akhiran -2/-3/dst (lihat kunciProduk/buatSkuUnikAsync).
 //   6. "Isi Pola (Pcs)" = hasil potong per pcs produk jadi dari 1x potong
-//      pola itu. "Kode Webbing 2/3" = REFERENSI ke aksesoris/bahan lain
-//      (bukan catatan teks bebas) — makanya juga DropdownCari, opsional.
+//      pola itu. "Kode Webbing 2/3" DULU referensi ke aksesoris/bahan lain
+//      (DropdownCari, opsional) — SUPERSEDE (28 Agt 2026, §38, permintaan
+//      Guru): SEKARANG input teks manual/bebas, TIDAK ADA LAGI FK ke
+//      master_bahan_aksesoris untuk 2 field ini (form maupun Excel Import
+//      BOM sheet Aksesoris — keduanya ikut diubah, dikonfirmasi Guru).
 //   7. Posisi menu: Zevanic House > setelah "Stock & Pembelian", sebelum
 //      "Order SPK".
 //   8. Dikerjakan SEKALIGUS SEMUA (bukan bertahap) — keputusan eksplisit
@@ -312,9 +317,11 @@ function unduhWorkbook(sheets, namaFile) {
 
 // Header kolom template — string-nya SEKALIGUS jadi nama kolom di Excel,
 // jadi HARUS PERSIS sama dipakai waktu baca file (ambilSheet + akses
-// b['...']) di bawah. Field "Nama + Warna" (Bahan/Komponen/Aksesoris/
-// Webbing) diisi TEKS GABUNGAN sama seperti tampilan DropdownCari di form
-// (lihat formatNamaBahan), mis. "Kain Kanvas Merah".
+// b['...']) di bawah. Field "Nama + Warna" (Bahan/Aksesoris) diisi TEKS
+// GABUNGAN sama seperti tampilan DropdownCari di form (lihat
+// formatNamaBahan), mis. "Kain Kanvas Merah". ⚠️ Kode Webbing 2/3 & kolom
+// "Komponen" (sheet Komponen) BUKAN bagian aturan ini lagi sejak §36/§38 —
+// keduanya teks bebas, TIDAK perlu format Nama+Warna.
 // GANTI (28 Agt 2026, permintaan Hilman) — kolom "SKU" DIHAPUS dari SEMUA
 // sheet (Produk Utama & BOM). SKU sekarang full otomatis (lihat kunciProduk
 // di atas), jadi TIDAK ADA LAGI kolom SKU yang perlu diisi di Excel. Sheet
@@ -327,7 +334,7 @@ const HEADER_PRODUK_UTAMA = ['Nama', 'Jenis Produk', 'Warna', 'Size'];
 const HEADER_JASA = ['Nama', 'Warna', 'Size', 'Nama Jasa', 'Harga'];
 const HEADER_POLA = ['Nama', 'Warna', 'Size', 'Tipe (internal/vendor)', 'Nama Pola', 'Bahan (Nama + Warna)', 'Panjang', 'Isi Pola (Pcs)', 'Jasa Cutting', 'Jasa Serie', 'Jenis Vendor'];
 const HEADER_KOMPONEN = ['Nama', 'Warna', 'Size', 'Nama Pola', 'Komponen', 'Qty']; // GANTI (28 Agt 2026, §36): dulu 'Nama Komponen (Nama + Warna)', sekarang 'Komponen' (sumber Data Komponen/Config, plain text)
-const HEADER_AKSESORIS = ['Nama', 'Warna', 'Size', 'Tahap Proses', 'Aksesoris (Nama + Warna)', 'Qty', 'Satuan', 'Kode Webbing 2 (Nama + Warna)', 'Kode Webbing 3 (Nama + Warna)'];
+const HEADER_AKSESORIS = ['Nama', 'Warna', 'Size', 'Tahap Proses', 'Aksesoris (Nama + Warna)', 'Qty', 'Satuan', 'Kode Webbing 2', 'Kode Webbing 3']; // GANTI (28 Agt 2026, §38): dulu 'Kode Webbing 2/3 (Nama + Warna)', sekarang teks bebas (permintaan Guru), header disederhanakan
 
 function unduhTemplateProdukUtama() {
   const contoh = { 'Nama': 'Tas Ransel Kanvas', 'Jenis Produk': 'Tas', 'Warna': 'Merah', 'Size': 'All Size' };
@@ -338,7 +345,7 @@ function unduhTemplateBOM() {
   const contohJasa = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Nama Jasa': 'Jasa Jahit', 'Harga': 15000 };
   const contohPola = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Tipe (internal/vendor)': 'internal', 'Nama Pola': 'Badan Depan', 'Bahan (Nama + Warna)': 'Kain Kanvas Merah', 'Panjang': 1.2, 'Isi Pola (Pcs)': 4, 'Jasa Cutting': 2000, 'Jasa Serie': 3000, 'Jenis Vendor': '' };
   const contohKomponen = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Nama Pola': 'Badan Depan', 'Komponen': 'Badan Belakang', 'Qty': 1 };
-  const contohAksesoris = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Tahap Proses': 'Finishing', 'Aksesoris (Nama + Warna)': 'Resleting YKK Hitam', 'Qty': 1, 'Satuan': 'Pcs', 'Kode Webbing 2 (Nama + Warna)': '', 'Kode Webbing 3 (Nama + Warna)': '' };
+  const contohAksesoris = { 'Nama': 'Tas Ransel Kanvas', 'Warna': 'Merah', 'Size': 'All Size', 'Tahap Proses': 'Finishing', 'Aksesoris (Nama + Warna)': 'Resleting YKK Hitam', 'Qty': 1, 'Satuan': 'Pcs', 'Kode Webbing 2': '', 'Kode Webbing 3': '' };
   unduhWorkbook([
     { nama: 'Jasa', header: HEADER_JASA, baris: [contohJasa] },
     { nama: 'Pola', header: HEADER_POLA, baris: [contohPola] },
@@ -376,13 +383,22 @@ function barisPolaKosong() {
 // sumber beda" yang dicatat di §34 SUDAH TIDAK BERLAKU LAGI sejak §36,
 // lihat STATUS-PROYEK.md §36.
 function barisKomponenKosong() { return { pilih: '', qty: '' }; }
+// barisAksesorisKosong — GANTI (28 Agt 2026, §38, permintaan Guru): Kode
+// Webbing 2/3 DULU wajib pilih dari Data Bahan & Aksesoris (DropdownCari,
+// resolve ke bahan_aksesoris_id — lihat komentar poin 6 di atas berkas ini,
+// SEKARANG SUDAH TIDAK BERLAKU). SEKARANG jadi INPUT MANUAL/teks bebas —
+// `webbing2_id`/`webbing3_id` DIHAPUS (tidak ada lagi link ke
+// master_bahan_aksesoris buat 2 field ini), `webbing2_pilih`/`webbing3_pilih`
+// diganti nama jadi `webbing2`/`webbing3` (langsung teks final, bukan lagi
+// teks buat di-resolve — pola sama seperti `pilih` di barisKomponenKosong
+// sejak §34).
 function barisAksesorisKosong() {
   return {
     tahap_proses: '',
     aksesoris_pilih: '', bahan_aksesoris_id: '', // GANTI (28 Agt 2026): warna_pilih dihapus, digabung ke aksesoris_pilih (lihat formatNamaBahan)
     qty: '', satuan_pilih: '',
-    webbing2_pilih: '', webbing2_id: '',
-    webbing3_pilih: '', webbing3_id: ''
+    webbing2: '',
+    webbing3: ''
   };
 }
 
@@ -485,11 +501,11 @@ const FormEntryProdukBOM = {
       })) : [],
       // GANTI (28 Agt 2026) — aksesoris_pilih SEKARANG direkonstruksi dari
       // nama_aksesoris+warna gabungan (sama alasan seperti bom_pola di
-      // atas). webbing2/3_pilih TIDAK berubah caranya (webbing2_nama/
-      // webbing3_nama SEKARANG disimpan sebagai nama+warna gabungan juga,
-      // lihat simpan() — jadi otomatis cocok tanpa perlu formatNamaBahan
-      // di sini lagi).
-      bom_aksesoris: props.dataAwal?.bom_aksesoris ? JSON.parse(JSON.stringify(props.dataAwal.bom_aksesoris)).map(a => ({ ...barisAksesorisKosong(), ...a, aksesoris_pilih: formatNamaBahan({ nama: a.nama_aksesoris, warna: a.warna }), satuan_pilih: a.satuan || '', webbing2_pilih: a.webbing2_nama || '', webbing3_pilih: a.webbing3_nama || '' })) : []
+      // atas). GANTI LAGI (28 Agt 2026, §38): webbing2/webbing3 SEKARANG
+      // field teks bebas langsung dari `a.webbing2`/`a.webbing3` (BUKAN
+      // LAGI `webbing2_nama`/`webbing3_nama` hasil resolve FK) — lihat
+      // barisAksesorisKosong() & simpan().
+      bom_aksesoris: props.dataAwal?.bom_aksesoris ? JSON.parse(JSON.stringify(props.dataAwal.bom_aksesoris)).map(a => ({ ...barisAksesorisKosong(), ...a, aksesoris_pilih: formatNamaBahan({ nama: a.nama_aksesoris, warna: a.warna }), satuan_pilih: a.satuan || '', webbing2: a.webbing2 || '', webbing3: a.webbing3 || '' })) : []
     });
 
     // GANTI (28 Agt 2026, permintaan Hilman) — SKU SEKARANG FULL OTOMATIS,
@@ -557,12 +573,9 @@ const FormEntryProdukBOM = {
       const item = resolveBahan(daftarBahan.value, baris.aksesoris_pilih);
       baris.bahan_aksesoris_id = item ? item.id : '';
     }
-    function saatPilihWebbing(baris, nomor) {
-      const teks = nomor === 2 ? baris.webbing2_pilih : baris.webbing3_pilih;
-      const item = resolveBahan(daftarBahan.value, teks);
-      if (nomor === 2) baris.webbing2_id = item ? item.id : '';
-      else baris.webbing3_id = item ? item.id : '';
-    }
+    // saatPilihWebbing() — DIHAPUS (28 Agt 2026, §38): Kode Webbing 2/3
+    // sekarang input teks manual, tidak ada lagi resolve ke Data Bahan &
+    // Aksesoris, jadi tidak perlu handler saat dipilih.
 
     function tambahJasa() { form.bom_jasa.push(barisJasaKosong()); }
     function hapusJasa(i) { form.bom_jasa.splice(i, 1); }
@@ -596,8 +609,9 @@ const FormEntryProdukBOM = {
         if (!resolveBahan(daftarBahan.value, a.aksesoris_pilih)) {
           return `BOM Aksesoris "${a.tahap_proses || '(tanpa tahap)'}": pilih Nama Aksesoris dari daftar dulu.`;
         }
-        if (a.webbing2_pilih && !resolveBahan(daftarBahan.value, a.webbing2_pilih)) return 'Kode Webbing 2 harus dipilih dari daftar Bahan & Aksesoris (atau dikosongkan).';
-        if (a.webbing3_pilih && !resolveBahan(daftarBahan.value, a.webbing3_pilih)) return 'Kode Webbing 3 harus dipilih dari daftar Bahan & Aksesoris (atau dikosongkan).';
+        // Kode Webbing 2/3 — DIHAPUS validasinya (28 Agt 2026, §38): SEKARANG
+        // teks bebas/opsional, tidak perlu resolve ke Data Bahan & Aksesoris
+        // lagi (dulu di sini, sebelum §38).
       }
       return '';
     }
@@ -663,8 +677,6 @@ const FormEntryProdukBOM = {
 
         const bomAksesorisSiap = form.bom_aksesoris.map(a => {
           const item = resolveBahan(daftarBahan.value, a.aksesoris_pilih);
-          const w2 = resolveBahan(daftarBahan.value, a.webbing2_pilih);
-          const w3 = resolveBahan(daftarBahan.value, a.webbing3_pilih);
           return {
             tahap_proses: (a.tahap_proses || '').trim(),
             bahan_aksesoris_id: item ? item.id : '',
@@ -675,11 +687,12 @@ const FormEntryProdukBOM = {
             warna: item ? (item.warna || '') : '',
             qty: parseFloat(a.qty) || 0,
             satuan: (a.satuan_pilih || '').trim(),
-            // webbing2_nama/webbing3_nama SEKARANG disimpan nama+warna
-            // gabungan (formatNamaBahan) biar tampilannya tetap jelas warna
-            // apa yang dipilih (dulu cuma nama polos, warnanya hilang).
-            webbing2_id: w2 ? w2.id : '', webbing2_nama: w2 ? formatNamaBahan(w2) : '',
-            webbing3_id: w3 ? w3.id : '', webbing3_nama: w3 ? formatNamaBahan(w3) : ''
+            // GANTI (28 Agt 2026, §38, permintaan Guru) — Kode Webbing 2/3
+            // SEKARANG teks bebas langsung dari input manual, BUKAN LAGI
+            // di-resolve ke Data Bahan & Aksesoris. `webbing2_id`/`webbing3_id`
+            // DIHAPUS (tidak ada lagi FK buat 2 field ini).
+            webbing2: (a.webbing2 || '').trim(),
+            webbing3: (a.webbing3 || '').trim()
           };
         });
 
@@ -722,7 +735,7 @@ const FormEntryProdukBOM = {
       pilihFotoPola, hapusFotoPola,
       modalKomponenAktif, bukaKomponen, tutupKomponen,
       daftarBahan,
-      saatPilihBahanPola, saatPilihAksesoris, saatPilihWebbing,
+      saatPilihBahanPola, saatPilihAksesoris,
       tambahJasa, hapusJasa, tambahPola, hapusPola, tambahAksesoris, hapusAksesoris,
       simpan
     };
@@ -818,8 +831,8 @@ const FormEntryProdukBOM = {
               <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input v-model.number="a.qty" type="number" min="0"></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari v-model="a.satuan_pilih" :opsi="opsiSatuan" placeholder="Cari & pilih..." /></div>
               <div></div>
-              <div class="gc-field" style="margin-bottom:0;"><label>Kode Webbing 2 <span style="font-weight:400; color:var(--text-faint);">(opsional)</span></label><dropdown-cari v-model="a.webbing2_pilih" :opsi="opsiNamaBahan" placeholder="Cari & pilih..." @update:modelValue="saatPilihWebbing(a, 2)" /></div>
-              <div class="gc-field" style="margin-bottom:0;"><label>Kode Webbing 3 <span style="font-weight:400; color:var(--text-faint);">(opsional)</span></label><dropdown-cari v-model="a.webbing3_pilih" :opsi="opsiNamaBahan" placeholder="Cari & pilih..." @update:modelValue="saatPilihWebbing(a, 3)" /></div>
+              <div class="gc-field" style="margin-bottom:0;"><label>Kode Webbing 2 <span style="font-weight:400; color:var(--text-faint);">(opsional, teks bebas)</span></label><input v-model="a.webbing2" type="text" placeholder="Kode/catatan webbing 2..."></div>
+              <div class="gc-field" style="margin-bottom:0;"><label>Kode Webbing 3 <span style="font-weight:400; color:var(--text-faint);">(opsional, teks bebas)</span></label><input v-model="a.webbing3" type="text" placeholder="Kode/catatan webbing 3..."></div>
             </div>
           </div>
           <button @click="tambahAksesoris" type="button" class="btn-outline" style="font-size:11.5px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah Baris Aksesoris</button>
@@ -1091,8 +1104,10 @@ const PopupImportBOM = {
       tahap_proses: String(b['Tahap Proses'] || '').trim(),
       aksesoris: String(b['Aksesoris (Nama + Warna)'] || '').trim(),
       qty: b['Qty'], satuan: String(b['Satuan'] || '').trim(),
-      webbing2: String(b['Kode Webbing 2 (Nama + Warna)'] || '').trim(),
-      webbing3: String(b['Kode Webbing 3 (Nama + Warna)'] || '').trim()
+      // GANTI (28 Agt 2026, §38): dulu kolom 'Kode Webbing 2/3 (Nama + Warna)',
+      // sekarang teks bebas — kolomnya juga diganti nama jadi 'Kode Webbing 2/3'.
+      webbing2: String(b['Kode Webbing 2'] || '').trim(),
+      webbing3: String(b['Kode Webbing 3'] || '').trim()
     })));
     function statusAksesoris(b) {
       if (!produkAda(b.prodNama, b.prodWarna, b.prodSize)) return { valid: false, label: 'Produk (Nama+Warna+Size) tidak ditemukan' };
@@ -1100,8 +1115,8 @@ const PopupImportBOM = {
       if (!validasiPilihan(b.aksesoris, props.opsiNamaBahan).valid) return { valid: false, label: 'Aksesoris belum valid' };
       if (b.qty === '' || isNaN(Number(b.qty))) return { valid: false, label: 'Qty harus angka' };
       if (!validasiPilihan(b.satuan, props.opsiSatuan).valid) return { valid: false, label: 'Satuan belum valid' };
-      if (b.webbing2 && !validasiPilihan(b.webbing2, props.opsiNamaBahan).valid) return { valid: false, label: 'Kode Webbing 2 belum valid' };
-      if (b.webbing3 && !validasiPilihan(b.webbing3, props.opsiNamaBahan).valid) return { valid: false, label: 'Kode Webbing 3 belum valid' };
+      // Kode Webbing 2/3 — DIHAPUS validasinya (28 Agt 2026, §38): SEKARANG
+      // teks bebas/opsional, tidak perlu divalidasi ke Data Bahan & Aksesoris.
       return { valid: true, label: 'OK' };
     }
 
@@ -1515,16 +1530,16 @@ const MasterProdukListManager = {
             };
           });
 
+          // GANTI (28 Agt 2026, §38): Kode Webbing 2/3 SEKARANG teks bebas
+          // langsung dari kolom Excel, TIDAK ADA LAGI resolveBahan()/
+          // webbing2_id/webbing3_id (sama alasan seperti Komponen di §36).
           const bomAksesoris = payload.aksesoris.filter(x => kunciProduk(x.prodNama, x.prodWarna, x.prodSize) === kunci).map(a => {
             const item = resolveBahan(daftarBahanImport.value, a.aksesoris);
-            const w2 = a.webbing2 ? resolveBahan(daftarBahanImport.value, a.webbing2) : null;
-            const w3 = a.webbing3 ? resolveBahan(daftarBahanImport.value, a.webbing3) : null;
             return {
               tahap_proses: a.tahap_proses,
               bahan_aksesoris_id: item ? item.id : '', nama_aksesoris: item ? item.nama : '', warna: item ? (item.warna || '') : '',
               qty: a.qty, satuan: a.satuan,
-              webbing2_id: w2 ? w2.id : '', webbing2_nama: w2 ? formatNamaBahan(w2) : '',
-              webbing3_id: w3 ? w3.id : '', webbing3_nama: w3 ? formatNamaBahan(w3) : ''
+              webbing2: a.webbing2 || '', webbing3: a.webbing3 || ''
             };
           });
 
