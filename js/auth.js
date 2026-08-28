@@ -430,9 +430,27 @@ onAuthStateChanged(auth, async (user) => {
     // yang benar. Layar loading tetap tampil untuk saat ini; kalau memang
     // tidak ada sesi tersimpan, callback ini tidak akan dipanggil lagi — jadi
     // kita beri sedikit toleransi lalu pindah ke layar Login sebagai fallback.
+    //
+    // FIX (28 Agt 2026, laporan Guru "ctrl+shift+r pasti minta keluar
+    // login") — toleransi 1200ms TETAP itu akar masalahnya: hard refresh
+    // (Ctrl+Shift+R) melewati cache HTTP browser, jadi SEMUA modul (termasuk
+    // SDK Firebase Auth dari CDN) harus diunduh ulang lewat jaringan —
+    // `onAuthStateChanged` jadi lebih lambat mengonfirmasi sesi yang
+    // SEBENARNYA masih ada (tersimpan permanen di IndexedDB Firebase +
+    // localStorage `zevanic_konteks_sesi`, keduanya TIDAK ikut terhapus oleh
+    // hard refresh). Timeout tetap 1200ms itu keburu menyerah duluan dan
+    // paksa ke layar Login walau sesinya sebenarnya valid. Sekarang: kalau
+    // ADA cache sesi tersimpan (`zevanic_konteks_sesi`), kasih toleransi
+    // jauh lebih lama (6000ms, cukup buat unduh ulang modul di koneksi
+    // lambat) sebelum menyerah — kalau TIDAK ADA cache sama sekali (memang
+    // belum pernah login / sudah logout), tetap cepat (1200ms, tidak ada
+    // yang perlu ditunggu).
+    let adaCacheSesiTersimpan = false;
+    try { adaCacheSesiTersimpan = !!localStorage.getItem('zevanic_konteks_sesi'); }
+    catch (e) { /* localStorage diblokir (mode privat dsb) — anggap tidak ada cache, aman fallback cepat */ }
     setTimeout(() => {
       if (!sesiOtomatisSudahDicek && window.pindahLayar) window.pindahLayar('screen-login');
-    }, 1200);
+    }, adaCacheSesiTersimpan ? 6000 : 1200);
     return;
   }
 

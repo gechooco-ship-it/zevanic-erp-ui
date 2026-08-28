@@ -60,7 +60,19 @@ const AppProfileDrawer = {
     // HARUS lewat fungsi begini, bukan "window.logout()" langsung di
     // template — itu yang bikin tombol Logout diam tidak merespon (Vue
     // anggap "window" properti komponen, bukan objek global browser).
-    function keluar() { if (window.logout) window.logout(); }
+    //
+    // FIX (28 Agt 2026, laporan Guru "klik logout, drawer masih buka
+    // tidak langsung tutup, menu lainnya jadi bisa diklik") — SEBELUMNYA
+    // fungsi ini TIDAK memanggil tutup() sama sekali, jadi `terbuka`
+    // tetap true sepanjang window.logout() berjalan (signOut(auth) itu
+    // ASYNC, ada jeda beneran, bukan instan). Selama jeda itu drawer +
+    // semua link navigasinya masih AKTIF/bisa diklik, sementara user
+    // sudah mengira sedang proses keluar — klik ganda ke link lain di
+    // drawer bisa memicu navigasi yang tabrakan dengan proses logout.
+    // Sekarang tutup() dipanggil LANGSUNG saat tombol Logout diklik,
+    // beri umpan balik visual instan + drawer tidak lagi bisa diklik
+    // selama proses logout berjalan di belakang layar.
+    function keluar() { tutup(); if (window.logout) window.logout(); }
 
     return { terbuka, zoomTerbuka, qrUrl, nama, jabatan, buka, tutup, bukaZoom, tutupZoom, navigasi, keluar };
   },
@@ -113,4 +125,12 @@ const mountPoint = document.getElementById('vue-profile-drawer');
 if (mountPoint) {
   const vm = createApp(AppProfileDrawer).mount('#vue-profile-drawer');
   window.bukaProfileDrawer = function() { vm.buka(); };
+  // BARU (28 Agt 2026, sepasang dengan fix di js/app.js pindahLayar()) —
+  // drawer ini di-mount DI LUAR #screen-dashboard (lihat komentar header
+  // file), jadi TIDAK ikut otomatis tersembunyi saat pindahLayar() ganti
+  // layar (mis. ke screen-login pas logout) — sama persis akar masalah
+  // yang sudah pernah diperbaiki untuk .gc-mobile-nav (lihat komentar di
+  // js/app.js). Expose fungsi tutup ini supaya pindahLayar() bisa
+  // memaksa drawer tertutup tiap kali pindah ke layar SELAIN dashboard.
+  window.tutupProfileDrawer = function() { vm.tutup(); };
 }

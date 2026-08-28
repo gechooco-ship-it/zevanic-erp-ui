@@ -35,6 +35,17 @@ window.pindahLayar = function(idTujuan) {
     else navMobile.classList.add('hidden');
   }
 
+  // FIX (28 Agt 2026, laporan Guru "klik logout, drawer masih buka tidak
+  // langsung tutup, menu lainnya jadi bisa diklik") — Drawer Profile
+  // (js/vue-profile-drawer.js) SAMA PERSIS kasusnya dengan .gc-mobile-nav
+  // di atas: di-mount DI LUAR #screen-dashboard, jadi TIDAK ikut otomatis
+  // tersembunyi waktu pindah layar (mis. logout -> screen-login). Kalau
+  // drawer masih terbuka (state Vue `terbuka` internalnya, bukan cuma
+  // class hidden) saat pindahLayar() dipanggil ke layar LAIN, paksa tutup
+  // di sini — jaring pengaman buat SEMUA jalur pindah layar, bukan cuma
+  // logout (kamera, absensi QR, dst kalau kelak dibuka juga dari drawer).
+  if (idTujuan !== 'screen-dashboard' && window.tutupProfileDrawer) window.tutupProfileDrawer();
+
   // Panggil fungsi kamera jika ke layar kamera
   if (idTujuan === 'screen-camera' && window.mulaiKamera) {
     window.mulaiKamera();
