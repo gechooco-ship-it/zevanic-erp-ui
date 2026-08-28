@@ -116,13 +116,17 @@ const DAFTAR_MENU = [
   // 'config_karyawan'), lihat js/vue-config.js.
   { id: 'config_master_data', label: 'Config', kategori: 'Zevanic House', icon: 'fa-sliders',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-config', null); window.pindahSubTab('sub-zh-config', 'sub-zh-config-jenisbahan', null); } },
+  // BARU (28 Agt 2026, §39) — 3 aksi di bawah ini SEKARANG ikut catatRiwayat:
+  // true (riwayat tombol back HP) — ini jalur PALING SERING dipakai user
+  // mobile buka menu ini (lewat tile Home §27), jadi WAJIB ikut dicatat,
+  // bukan cuma tombol sidebar desktop.
   { id: 'bahan_aksesoris_entry', label: 'Entry Bahan & Aksesoris', kategori: 'Zevanic House', icon: 'fa-boxes-stacked',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', null); window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry', null); } },
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry', null, {catatRiwayat:true}); } },
   { id: 'bahan_aksesoris_list', label: 'List Bahan & Aksesoris', kategori: 'Zevanic House', icon: 'fa-list',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', null); window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-list', null); } },
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-list', null, {catatRiwayat:true}); } },
   // BARU (25 Agt 2026, §25) — Rak Penyimpanan.
   { id: 'bahan_aksesoris_rak', label: 'Rak Penyimpanan', kategori: 'Zevanic House', icon: 'fa-warehouse',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', null); window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-rak', null); } },
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-rak', null, {catatRiwayat:true}); } },
   // BARU (24 Agt 2026) — Persiapan Masalah + Stock & Pembelian.
   { id: 'persiapan_masalah', label: 'Persiapan Masalah', kategori: 'Zevanic House', icon: 'fa-triangle-exclamation',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapan', null); } },

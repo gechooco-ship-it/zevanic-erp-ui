@@ -708,7 +708,7 @@ const PengaturanBahanAksesoris = {
         <div v-if="memuat" style="text-align:center; padding:16px; color:var(--text-faint); font-size:12px;">Memuat...</div>
         <template v-else>
           <p style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin-bottom:8px;">Prefix ID (contoh: BHN, AKS) — nomor urut naik otomatis, TIDAK bisa diubah manual di sini.</p>
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px;">
+          <div style="display:grid; gap:10px; margin-bottom:18px;" class="grid-cols-1 md:grid-cols-2">
             <div class="gc-field" style="margin-bottom:0;">
               <label>Prefix Bahan</label>
               <input v-model="prefixBahan" type="text" placeholder="Contoh: BHN" style="text-transform:uppercase;">
@@ -776,19 +776,19 @@ const PopupKonversiBerjenjang = {
              cuma referensi opsional lagi), disimpan apa adanya di
              konversi_bertingkat buat dipakai fitur Riwayat Harga
              Pembelian nanti. -->
-        <div style="display:grid; grid-template-columns:1fr 1fr 64px 1fr 30px; gap:6px; margin-bottom:4px;">
+        <div class="hidden md:grid" style="grid-template-columns:1fr 1fr 64px 1fr 30px; gap:6px; margin-bottom:4px;">
           <span style="font-size:10px; font-weight:700; color:var(--text-faint);">HARGA PEMBELIAN</span>
           <span style="font-size:10px; font-weight:700; color:var(--text-faint);">SATUAN AWAL</span>
           <span style="font-size:10px; font-weight:700; color:var(--text-faint);">JUMLAH</span>
           <span style="font-size:10px; font-weight:700; color:var(--text-faint);">SATUAN TUJUAN</span>
           <span></span>
         </div>
-        <div v-for="(b, i) in baris" :key="i" style="display:grid; grid-template-columns:1fr 1fr 64px 1fr 30px; gap:6px; align-items:center; margin-bottom:8px;">
-          <input v-model.number="b.harga" type="number" min="0" placeholder="0" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <dropdown-cari v-model="b.dari" :opsi="opsiSatuan" placeholder="Mis. Dus" />
-          <input v-model.number="b.jumlah" type="number" min="0" placeholder="Jml" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <dropdown-cari v-model="b.ke" :opsi="opsiSatuan" placeholder="Mis. Pack" />
-          <button @click="$emit('hapus', i)" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button>
+        <div v-for="(b, i) in baris" :key="i" class="gc-row-konversi" style="margin-bottom:10px; padding:10px; background:var(--ivory-dim); border-radius:10px;">
+          <div><span class="gc-row-label">Harga Pembelian</span><input v-model.number="b.harga" type="number" min="0" placeholder="0" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;"></div>
+          <div><span class="gc-row-label">Satuan Awal</span><dropdown-cari v-model="b.dari" :opsi="opsiSatuan" placeholder="Mis. Dus" /></div>
+          <div><span class="gc-row-label">Jumlah</span><input v-model.number="b.jumlah" type="number" min="0" placeholder="Jml" style="width:100%; padding:7px 6px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;"></div>
+          <div><span class="gc-row-label">Satuan Tujuan</span><dropdown-cari v-model="b.ke" :opsi="opsiSatuan" placeholder="Mis. Pack" /></div>
+          <div style="display:flex; justify-content:flex-end;"><button @click="$emit('hapus', i)" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button></div>
         </div>
         <button @click="$emit('tambah')" class="btn-outline" style="font-size:11.5px; padding:6px 14px; margin-bottom:16px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah Tingkat</button>
         <div v-if="baris[0]" style="background:var(--ivory-dim); border-radius:10px; padding:10px 14px; margin-bottom:16px; font-size:12.5px;">
@@ -979,7 +979,7 @@ const BahanAksesorisEntryManager = {
 
       <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 12px;">Tanggal Entry & ID akan dibuat OTOMATIS saat disimpan.</p>
 
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;" class="grid-cols-1 md:grid-cols-2">
+      <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">
         <div class="gc-field">
           <label>Jenis Bahan / Aksesoris <span style="color:var(--danger);">*</span></label>
           <dropdown-cari v-model="form.jenis" :opsi="opsiJenis" :disabled="!form.kategori_utama" :placeholder="form.kategori_utama ? 'Cari & pilih Jenis...' : 'Pilih Kategori Utama dulu'" />
@@ -1004,7 +1004,7 @@ const BahanAksesorisEntryManager = {
 
       <hr style="border-color:var(--line); margin:14px 0;">
 
-      <div v-if="!(form.konversi_bertingkat && form.konversi_bertingkat.length > 0)" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
+      <div v-if="!(form.konversi_bertingkat && form.konversi_bertingkat.length > 0)" style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-4">
         <div class="gc-field">
           <label>Harga Pembelian (Rp) <span style="color:var(--danger);">*</span></label>
           <input v-model.number="form.harga_pembelian" type="number" min="0" placeholder="0">
@@ -1078,7 +1078,7 @@ const BahanAksesorisEntryManager = {
            arsitektur di atas file ini). Volume dihitung otomatis
            (readonly), disimpan sebagai field volume_barang. -->
       <p style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin:14px 0 8px;"><i class="fas fa-cube" style="margin-right:6px;"></i>Volume Barang (opsional) — untuk hitung kapasitas rak, cegah over stok</p>
-      <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;" class="grid-cols-1 md:grid-cols-3">
+      <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-3">
         <div class="gc-field">
           <label>Tinggi (cm)</label>
           <input v-model.number="form.tinggi_barang" type="number" min="0" placeholder="0">
@@ -1415,44 +1415,43 @@ const BahanAksesorisListManager = {
       <input ref="inputFileBahanAksesoris" type="file" accept=".xlsx,.xls" @change="saatFileBahanAksesorisDipilih" style="display:none;">
     </div>
 
-    <div class="gc-card" style="padding:0; overflow:hidden;">
-      <div v-if="paginasi.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
-      <div v-else-if="paginasi.errorPaginasi.value" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
-      <div v-else-if="paginasi.dataHalaman.value.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada data.</div>
-      <div v-else class="gc-table-scroll">
-        <table class="gc-table">
-          <thead>
-            <tr>
-              <th>ID / Tanggal</th><th>Kategori / Jenis</th><th>Foto</th><th>Nama / Warna</th>
-              <th>Beli</th><th>Konversi</th><th>Pakai</th><th>Modal</th><th>Margin</th><th>Harga Pakai</th><th>Stok Akhir</th><th>Rak / Volume</th>
-              <th class="freeze freeze-right">Aksi</th>
-            </tr>
-          </thead>
-          <tbody>
-            <template v-for="item in paginasi.dataHalaman.value" :key="item.id">
-              <tr>
-                <td><b>{{ item.id_tampil || '-' }}</b><br><span class="gc-cell-muted">{{ item.dibuat_pada?.toDate ? item.dibuat_pada.toDate().toLocaleDateString('id-ID') : '-' }}</span></td>
-                <td>{{ item.kategori_utama }}<br><span class="gc-cell-muted">{{ item.jenis }}</span></td>
-                <td><img v-if="item.foto" :src="item.foto" style="width:36px; height:36px; object-fit:cover; border-radius:6px;"><span v-else class="gc-cell-muted">-</span></td>
-                <td><b>{{ item.nama }}</b> <i v-if="item.pakai_lot_tracking" class="fas fa-layer-group" style="color:var(--burgundy); font-size:10px;" title="Perlu Qty per Roll/Lot saat diterima"></i><br><span class="gc-cell-muted">{{ item.warna }}</span></td>
-                <td>{{ formatRupiah(item.harga_pembelian) }}<br><span class="gc-cell-muted">/ {{ item.satuan_pembelian }}</span></td>
-                <td>{{ item.isi_konversi_pembelian }}</td>
-                <td>{{ item.satuan_pemakaian }}</td>
-                <td>{{ formatRupiah(item.harga_modal) }}</td>
-                <td>{{ formatRupiah(item.margin_modal) }}</td>
-                <td><b>{{ formatRupiah(item.harga_pemakaian) }}</b></td>
-                <td><b>{{ formatQty(item.stok_akhir) }}</b><br><span class="gc-cell-muted">{{ item.satuan_pemakaian }}</span></td>
-                <td>{{ item.rak_label || '-' }}<br><span class="gc-cell-muted">{{ item.volume_barang ? formatQty(item.volume_barang) + ' cm³' : '-' }}</span></td>
-                <td class="freeze freeze-right">
-                  <div style="display:flex; align-items:center; justify-content:center; gap:6px;">
-                    <button @click="bukaEdit(item)" class="icon-btn" title="Edit"><i class="fas fa-pen"></i></button>
-                    <button @click="hapus(item.id)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
-                  </div>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
+    <!-- GANTI (28 Agt 2026, §39) — dulu tabel scroll horizontal (12 kolom),
+         SEKARANG kartu (pola SAMA seperti List Produk §30) — permintaan
+         Guru: "Data Bahan & Aksesoris" eksplisit disebut jadi salah satu
+         tabel yang dijadikan Kartu, di HP MAUPUN desktop (bukan cuma HP). -->
+    <div v-if="paginasi.memuat.value" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+    <div v-else-if="paginasi.errorPaginasi.value" class="gc-card" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
+    <div v-else-if="paginasi.dataHalaman.value.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada data.</div>
+    <div v-else style="display:flex; flex-direction:column; gap:10px;">
+      <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:14px;">
+        <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:12px;">
+          <img v-if="item.foto" :src="item.foto" style="width:52px; height:52px; object-fit:cover; border-radius:10px; flex-shrink:0;">
+          <div v-else style="width:52px; height:52px; border-radius:10px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><i class="fas fa-image" style="color:var(--text-faint); font-size:15px;"></i></div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-weight:700; font-size:13.5px;">{{ item.nama }} <i v-if="item.pakai_lot_tracking" class="fas fa-layer-group" style="color:var(--burgundy); font-size:10px;" title="Perlu Qty per Roll/Lot saat diterima"></i></div>
+            <div style="font-size:11.5px; color:var(--text-muted);">{{ item.warna }}</div>
+            <div style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">{{ item.id_tampil || '-' }} &middot; {{ item.dibuat_pada?.toDate ? item.dibuat_pada.toDate().toLocaleDateString('id-ID') : '-' }}</div>
+          </div>
+          <span class="tag neutral" style="flex-shrink:0;">{{ item.kategori_utama }}<span v-if="item.jenis"> &middot; {{ item.jenis }}</span></span>
+        </div>
+
+        <div style="display:grid; gap:8px; margin-bottom:10px;" class="grid-cols-2 md:grid-cols-4">
+          <div><span style="font-size:10px; color:var(--text-faint); display:block;">Beli</span><b style="font-size:12.5px;">{{ formatRupiah(item.harga_pembelian) }}</b><span style="font-size:10.5px; color:var(--text-muted);"> / {{ item.satuan_pembelian }}</span></div>
+          <div><span style="font-size:10px; color:var(--text-faint); display:block;">Modal</span><b style="font-size:12.5px;">{{ formatRupiah(item.harga_modal) }}</b></div>
+          <div><span style="font-size:10px; color:var(--text-faint); display:block;">Margin</span><b style="font-size:12.5px;">{{ formatRupiah(item.margin_modal) }}</b></div>
+          <div><span style="font-size:10px; color:var(--text-faint); display:block;">Harga Pakai</span><b style="font-size:12.5px; color:var(--burgundy);">{{ formatRupiah(item.harga_pemakaian) }}</b></div>
+        </div>
+
+        <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Konversi</span><span style="font-weight:700;">{{ item.isi_konversi_pembelian }} {{ item.satuan_pemakaian }} / {{ item.satuan_pembelian }}</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Stok Akhir</span><span style="font-weight:700;">{{ formatQty(item.stok_akhir) }} {{ item.satuan_pemakaian }}</span></div>
+          <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Rak / Volume</span><span style="font-weight:700;">{{ item.rak_label || '-' }}<span v-if="item.volume_barang"> &middot; {{ formatQty(item.volume_barang) }} cm&sup3;</span></span></div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <button @click="bukaEdit(item)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px;"><i class="fas fa-pen" style="margin-right:6px;"></i>Edit</button>
+          <button @click="hapus(item.id)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
+        </div>
       </div>
     </div>
     <div v-if="!paginasi.memuat.value && paginasi.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
@@ -1464,7 +1463,7 @@ const BahanAksesorisListManager = {
     <div v-if="sedangEditId" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="batalEdit">
       <div class="gc-card" style="max-width:560px; width:100%; max-height:90vh; overflow-y:auto;">
         <h3 style="font-weight:700; font-size:14px; margin-bottom:14px;">Edit Bahan / Aksesoris</h3>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;" class="grid-cols-1 md:grid-cols-2">
+        <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">
           <div class="gc-field">
             <label>Jenis</label>
             <dropdown-cari v-model="formEdit.jenis" :opsi="opsiJenisEdit" placeholder="Cari & pilih Jenis..." />
@@ -1474,7 +1473,7 @@ const BahanAksesorisListManager = {
           <div class="gc-field"><label>Warna</label><dropdown-cari v-model="formEdit.warna" :opsi="opsiWarnaEdit" placeholder="Cari & pilih Warna..." /></div>
         </div>
         <div v-if="formEdit.foto" style="margin-bottom:12px;"><img :src="formEdit.foto" style="width:70px; height:70px; object-fit:cover; border-radius:10px; border:1.5px solid var(--line);"></div>
-        <div v-if="!(formEdit.konversi_bertingkat && formEdit.konversi_bertingkat.length > 0)" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px;">
+        <div v-if="!(formEdit.konversi_bertingkat && formEdit.konversi_bertingkat.length > 0)" style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-4">
           <div class="gc-field"><label>Harga Pembelian (Rp)</label><input v-model.number="formEdit.harga_pembelian" type="number" min="0"></div>
           <div class="gc-field"><label>Satuan Pembelian</label><dropdown-cari v-model="formEdit.satuan_pembelian" :opsi="opsiSatuanEdit" placeholder="Cari & pilih Satuan..." /></div>
           <div class="gc-field">
@@ -1522,7 +1521,7 @@ const BahanAksesorisListManager = {
         </div>
 
         <p style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin:14px 0 8px;"><i class="fas fa-cube" style="margin-right:6px;"></i>Volume Barang (opsional) — untuk hitung kapasitas rak, cegah over stok</p>
-        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;" class="grid-cols-1 md:grid-cols-3">
+        <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-3">
           <div class="gc-field">
             <label>Tinggi (cm)</label>
             <input v-model.number="formEdit.tinggi_barang" type="number" min="0" placeholder="0">

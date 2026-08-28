@@ -133,7 +133,7 @@
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-config', this); pindahSubTab('sub-zh-config','sub-zh-config-jenisbahan')" id="menu-zevanic-config-btn" data-menu-id="config_master_data" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-sliders" style="width:17px; text-align:center;"></i> Config
           </button>
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-databahan', this); pindahSubTab('sub-zh-databahan','sub-zh-databahan-entry')" id="menu-zevanic-house-btn" data-menu-ids="bahan_aksesoris_entry,bahan_aksesoris_list,bahan_aksesoris_rak" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-databahan', this, {catatRiwayat:true}); pindahSubTab('sub-zh-databahan','sub-zh-databahan-entry', null, {catatRiwayat:true})" id="menu-zevanic-house-btn" data-menu-ids="bahan_aksesoris_entry,bahan_aksesoris_list,bahan_aksesoris_rak" data-target="sub-zevanic-house-databahan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-shirt" style="width:17px; text-align:center;"></i> Data Bahan &amp; Aksesoris
           </button>
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-persiapan', this)" id="menu-zevanic-persiapan-btn" data-menu-id="persiapan_masalah" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
@@ -447,10 +447,10 @@
 
           <div id="sub-zevanic-house-databahan" class="sub-zevanic-house-content fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry', this)" class="sub-zh-databahan-btn gc-sub-tab-btn active" data-menu-id="bahan_aksesoris_entry"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Entry Bahan &amp; Aksesoris</button>
-              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-list', this)" class="sub-zh-databahan-btn gc-sub-tab-btn" data-menu-id="bahan_aksesoris_list"><i class="fas fa-list" style="margin-right:6px;"></i> List Bahan &amp; Aksesoris</button>
+              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry', this, {catatRiwayat:true})" class="sub-zh-databahan-btn gc-sub-tab-btn active" data-menu-id="bahan_aksesoris_entry" data-target="sub-zh-databahan-entry"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Entry Bahan &amp; Aksesoris</button>
+              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-list', this, {catatRiwayat:true})" class="sub-zh-databahan-btn gc-sub-tab-btn" data-menu-id="bahan_aksesoris_list" data-target="sub-zh-databahan-list"><i class="fas fa-list" style="margin-right:6px;"></i> List Bahan &amp; Aksesoris</button>
               <!-- BARU (25 Agt 2026, §25) — Rak Penyimpanan: lihat js/vue-rak-penyimpanan.js -->
-              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-rak', this)" class="sub-zh-databahan-btn gc-sub-tab-btn" data-menu-id="bahan_aksesoris_rak"><i class="fas fa-warehouse" style="margin-right:6px;"></i> Rak Penyimpanan</button>
+              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-rak', this, {catatRiwayat:true})" class="sub-zh-databahan-btn gc-sub-tab-btn" data-menu-id="bahan_aksesoris_rak" data-target="sub-zh-databahan-rak"><i class="fas fa-warehouse" style="margin-right:6px;"></i> Rak Penyimpanan</button>
             </div>
             <div id="sub-zh-databahan-entry" class="sub-zh-databahan-content fade-in space-y-4">
               <!-- Entry Bahan/Aksesoris: lihat js/vue-bahan-aksesoris.js -->
@@ -624,7 +624,7 @@
        pastikanMountConfigJenisProduk (tab Config baru "Jenis Produk").
        v=14 (28 Agt 2026): peta mount tambah 'sub-zh-config-komponen' ->
        pastikanMountConfigKomponen (tab Config baru "Data Komponen"). -->
-  <script type="module" src="js/dashboard.js?v=14"></script>
+  <script type="module" src="js/dashboard.js?v=15"></script>
   <script type="module" src="js/vue-order-spk.js?v=2"></script>
   <script type="module" src="js/vue-scan-opname.js?v=1"></script>
   <script type="module" src="js/vue-scan-persiapan.js?v=2"></script>
@@ -632,7 +632,7 @@
   <script type="module" src="js/vue-config-info.js"></script>
   <script type="module" src="js/vue-config-absensi.js"></script>
   <script type="module" src="js/vue-daftar-karyawan.js"></script>
-  <script type="module" src="js/vue-config-akses.js?v=3"></script>
+  <script type="module" src="js/vue-config-akses.js?v=4"></script>
   <script type="module" src="js/vue-hak-akses.js"></script>
   <script type="module" src="js/vue-antrean-dakar.js"></script>
   <script type="module" src="js/vue-antrean-absensi.js?v=2"></script>
@@ -672,7 +672,7 @@
        cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
        DropdownCari, tidak dipakai fitur Import Excel §37 yang ditambah di
        Data Komponen). -->
-  <script type="module" src="js/vue-bahan-aksesoris.js?v=18"></script>
+  <script type="module" src="js/vue-bahan-aksesoris.js?v=19"></script>
   <script type="module" src="js/vue-rak-penyimpanan.js?v=3"></script>
   <script type="module" src="js/vue-persiapan-masalah.js?v=3"></script>
   <!-- v=19 (28 Agt 2026): sempat dicoba tag Jenis Pekerjaan per pesanan

@@ -218,19 +218,22 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
   });
 
   // BARU (23 Agt 2026) — Browser History API, lihat STATUS-PROYEK.md §19.4.
-  // Catat perpindahan tab INI sebagai 1 entry riwayat browser, KECUALI kalau
+  // DIPERLUAS (28 Agt 2026, §39) — sekarang mencatat SATU snapshot
+  // `window._riwayatNavAktif` gabungan (tab + semua sub-tab/child-tab
+  // yang ikut opt-in `catatRiwayat`), bukan cuma {tab,navKey} sendirian
+  // — lihat STATUS-PROYEK.md §22.3/§39 buat desain lengkapnya. Catat
+  // perpindahan tab INI sebagai 1 entry riwayat browser, KECUALI kalau
   // panggilan ini sendiri HASIL dari tombol back/forward (_dariPopstate,
   // dipasang oleh listener 'popstate' di bawah — jangan sampai push lagi,
   // nanti muter/dobel) atau tab tujuannya SAMA dengan yang sudah aktif
-  // (hindari entry kosong berulang). SENGAJA cuma level TAB (bottom nav
-  // mobile + sidebar desktop) — BELUM sub-tab admin (masih disembunyikan
-  // di mobile per §5.3) ataupun perpindahan LAYAR/screen (Login/Kamera/
-  // Buat Password, sudah punya alur "Batal"/pengaman sendiri, sengaja
-  // tidak disentuh dulu). URL tidak berubah (app ini tanpa routing) —
-  // cuma dipakai sebagai "jejak" internal buat tombol back HP.
+  // (hindari entry kosong berulang). URL tidak berubah (app ini tanpa
+  // routing) — cuma dipakai sebagai "jejak" internal buat tombol back HP.
   if (!_dariPopstate && tabSebelumnya !== tabId) {
+    // Reset snapshot gabungan — pindah ke tab BEDA berarti semua sub-tab/
+    // child-tab tab SEBELUMNYA sudah tidak relevan lagi buat riwayat.
+    window._riwayatNavAktif = { tab: tabId, navKey: navKey || null, subTabs: [] };
     try {
-      history.pushState({ tab: tabId, navKey: navKey || null }, '', location.href);
+      history.pushState(window._riwayatNavAktif, '', location.href);
     } catch (e) {
       console.error("Gagal catat riwayat navigasi tab (tidak fatal, navigasi tetap lanjut):", e);
     }
@@ -294,13 +297,45 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
 // berbuat apa-apa, cuma error di Console). Diperbaiki di sini, sekalian
 // pindah dari cara lama (gonta-ganti banyak class Tailwind manual) ke class
 // gc-sub-tab-btn/active yang lebih sederhana.
-window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
+//
+// BARU (28 Agt 2026, §39) — parameter ke-4 `opsi` (opsional, default {}),
+// backward-compatible: TIDAK dikirim = PERSIS perilaku lama, tidak mencatat
+// riwayat apapun (semua pemanggil lama otomatis aman). `opsi.catatRiwayat:
+// true` → sub-tab/child-tab ini opt-in ke riwayat browser (WAJIB tombolnya
+// punya atribut `data-target="<targetId>"`, dipakai buat cari tombol lagi
+// pas restore dari popstate). `opsi._dariPopstate: true` → dipasang
+// INTERNAL oleh listener popstate sendiri, supaya tidak push ulang (cegah
+// loop). Lihat STATUS-PROYEK.md §22.3/§39 buat desain lengkapnya.
+window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
+  opsi = opsi || {};
   document.querySelectorAll('.' + grupKelas + '-content').forEach(el => el.classList.add('hidden'));
   const target = document.getElementById(targetId);
   if (target) target.classList.remove('hidden');
 
+  // Popstate restore: tombolEl dikirim null oleh listener, dicari sendiri
+  // di sini lewat data-target (makanya atribut itu WAJIB buat sub-tab yang
+  // ikut opt-in riwayat).
+  let elTombolAktif = tombolEl;
+  if (!elTombolAktif && opsi._dariPopstate) {
+    elTombolAktif = document.querySelector('.' + grupKelas + '-btn[data-target="' + targetId + '"]');
+  }
   document.querySelectorAll('.' + grupKelas + '-btn').forEach(btn => btn.classList.remove('active'));
-  if (tombolEl) tombolEl.classList.add('active');
+  if (elTombolAktif) elTombolAktif.classList.add('active');
+
+  if (opsi.catatRiwayat && !opsi._dariPopstate) {
+    if (!window._riwayatNavAktif) window._riwayatNavAktif = { tab: null, navKey: null, subTabs: [] };
+    const idxAda = window._riwayatNavAktif.subTabs.findIndex(s => s.grupKelas === grupKelas);
+    const sudahSama = idxAda >= 0 && window._riwayatNavAktif.subTabs[idxAda].targetId === targetId;
+    if (!sudahSama) {
+      if (idxAda >= 0) window._riwayatNavAktif.subTabs[idxAda] = { grupKelas, targetId };
+      else window._riwayatNavAktif.subTabs.push({ grupKelas, targetId });
+      try {
+        history.pushState(window._riwayatNavAktif, '', location.href);
+      } catch (e) {
+        console.error("Gagal catat riwayat navigasi sub-tab (tidak fatal, navigasi tetap lanjut):", e);
+      }
+    }
+  }
 
   if (window.aturHeaderKonteks) {
     const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-zh-scan': 'tab-zevanic-house' };
@@ -394,18 +429,42 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl) {
 // sampai entry SEBELUM app ini dibuka), tidak ada yang dilakukan di sini —
 // biarkan browser lanjut keluar app seperti biasa, itu sudah benar.
 //
-// TIDAK MENCAKUP (sengaja, lihat §19.4 untuk alasan & kemungkinan
-// perluasan ke depan): sub-tab admin (pindahSubTab, disembunyikan di
-// mobile), dan perpindahan LAYAR/screen (pindahLayar — Login, Kamera,
-// Buat Password, Absensi QR) yang sudah punya alur "Batal"/pengaman
-// sendiri. Kalau back ditekan SAAT sedang di layar selain Dashboard
-// (misal Kamera), listener ini tetap boleh konsumsi 1 langkah riwayat
-// browser di belakang layar (tidak berbahaya, cuma update tab yang
+// DIPERLUAS (28 Agt 2026, §39) — sekarang JUGA merestorasi sub-tab/child-
+// tab (`state.subTabs`, array {grupKelas,targetId}, urutan PALING LUAR ke
+// PALING DALAM, disimpan sengaja begitu supaya elemen DOM yang lebih dalam
+// tidak keburu ke-hidden oleh induknya). `window._riwayatNavAktif` DIISI
+// LANGSUNG dari `state` (bukan dibangun ulang) supaya klik berikutnya
+// (bukan dari popstate) melanjutkan dari snapshot yang benar. TETAP TIDAK
+// MENCAKUP (sengaja, lihat §19.4): perpindahan LAYAR/screen (pindahLayar —
+// Login, Kamera, Buat Password, Absensi QR) yang sudah punya alur "Batal"/
+// pengaman sendiri. Kalau back ditekan SAAT sedang di layar selain
+// Dashboard (misal Kamera), listener ini tetap boleh konsumsi 1 langkah
+// riwayat browser di belakang layar (tidak berbahaya, cuma update tab yang
 // sedang tersembunyi) — TIDAK mengubah screen yang sedang tampil.
 window.addEventListener('popstate', (e) => {
   const state = e.state;
-  if (state && state.tab) {
+  if (!state) return;
+  window._riwayatNavAktif = state;
+  if (state.tab) {
     window.pindahTab(state.tab, state.navKey, true);
+  }
+  if (Array.isArray(state.subTabs)) {
+    state.subTabs.forEach(entry => {
+      if (window.pindahSubTab) {
+        window.pindahSubTab(entry.grupKelas, entry.targetId, null, { catatRiwayat: false, _dariPopstate: true });
+      }
+    });
+  }
+  // Level 3 (28 Agt 2026, §39) — tab INTERNAL komponen Vue (lihat
+  // js/vue-riwayat-tab.js). SENGAJA dijalankan PALING TERAKHIR, setelah
+  // subTabs di atas — supaya komponen Vue tujuannya sudah pasti ke-mount
+  // duluan (lewat pastikanMountXxx() yang otomatis terpanggil dari
+  // pindahSubTab) sebelum handler restore-nya dipanggil.
+  if (Array.isArray(state.vueTabs)) {
+    state.vueTabs.forEach(entry => {
+      const handler = window['_restoreVueTab_' + entry.nama];
+      if (handler) handler(entry.nilai);
+    });
   }
 });
 

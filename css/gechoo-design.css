@@ -247,3 +247,24 @@ thead .freeze{z-index:3;}
 
 /* ---- Utilitas ---- */
 .gc-safe-bottom{padding-bottom:90px;} /* perbaikan bug: konten tidak lagi ketutupan bottom nav mobile */
+
+/* =============================================================================
+   BARU (28 Agt 2026, §39) — baris grid RESPONSIF buat baris berulang di
+   dalam form/modal (mis. Kelola Komponen, Konversi Berjenjang, BOM Jasa) —
+   dulu semua pola ini pakai grid-template-columns INLINE tanpa breakpoint,
+   jadi tetap multi-kolom sempit di HP (field jadi kecil/meluber). Sekarang
+   1 kolom penuh per field di HP, balik ke kolom aslinya di desktop (≥768px).
+   Label per-field (.gc-row-label) SENGAJA cuma tampil di HP (header kolom
+   di atas baris sudah cukup jelas di desktop, taruh dobel malah berantakan).
+   TIDAK menggantikan grid-cols-1/md:grid-cols-N (itu tetap dipakai buat
+   form section BIASA, kolom rata semua) — INI khusus buat baris yang
+   kolomnya TIDAK rata/campur fixed-px (mis. ada kolom tombol hapus 30px).
+   ============================================================================= */
+.gc-row-nq{display:grid; grid-template-columns:1fr; gap:8px;}
+.gc-row-konversi{display:grid; grid-template-columns:1fr; gap:8px;}
+.gc-row-label{display:block; font-size:10px; font-weight:700; color:var(--text-faint); margin-bottom:3px;}
+@media(min-width:768px){
+  .gc-row-nq{grid-template-columns:2fr 1fr 30px; gap:8px; align-items:center;}
+  .gc-row-konversi{grid-template-columns:1fr 1fr 64px 1fr 30px; gap:6px; align-items:center;}
+  .gc-row-label{display:none;}
+}
