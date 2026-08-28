@@ -87,12 +87,29 @@ async function ambilDaftarNama(koleksi) {
   }
 }
 
-// resolveBahan — cari item Bahan/Aksesoris yang NAMANYA persis cocok
-// dengan teks yang dipilih lewat DropdownCari. Dipakai buat validasi "wajib
-// pilih dari daftar, bukan teks bebas" (keputusan #1) di setiap baris BOM.
+// formatNamaBahan — disalin (bukan diimpor silang) dari js/vue-stock-
+// pembelian.js: gabung nama+warna jadi 1 string tampilan/pilihan, mis.
+// "Kain Katun Merah". WAJIB dipakai (bukan b.nama polos) karena item
+// Bahan/Aksesoris yang NAMANYA sama tapi WARNA beda itu NORMAL (warna
+// field terpisah di Data Bahan & Aksesoris) — kalau opsi dropdown &
+// resolveBahan cuma pakai nama polos, varian-varian warna itu TIDAK BISA
+// dibedakan di dropdown, dan .find() selalu ambil hasil PERTAMA yang
+// cocok (silent bug, bisa nyantol ke warna yang salah). DIPERBAIKI
+// (28 Agt 2026, atas masukan Hilman) — sebelumnya modul ini pakai b.nama
+// polos + field "Warna Bahan"/"Warna" terpisah, sekarang digabung jadi 1
+// field pilihan, sama seperti bug yang sudah lebih dulu diperbaiki di
+// vue-stock-pembelian.js (§25.7/§25.11).
+function formatNamaBahan(b) {
+  return (b.nama || '') + (b.warna ? ` ${b.warna}` : '');
+}
+
+// resolveBahan — cari item Bahan/Aksesoris yang KOMBINASI nama+warna-nya
+// (lewat formatNamaBahan) persis cocok dengan teks yang dipilih lewat
+// DropdownCari. Dipakai buat validasi "wajib pilih dari daftar, bukan
+// teks bebas" (keputusan #1) di setiap baris BOM.
 function resolveBahan(daftarBahan, namaText) {
   if (!namaText) return null;
-  return daftarBahan.find(b => b.nama === namaText) || null;
+  return daftarBahan.find(b => formatNamaBahan(b) === namaText) || null;
 }
 
 // --- Kompresi & upload foto ke Firebase Storage --------------------------
@@ -158,8 +175,7 @@ function barisPolaKosong() {
     tipe: 'internal', // 'internal' | 'vendor' — keputusan #3, gabung 1 tab + toggle
     foto: '', fotoFile: null, fotoPreview: '', fotoDihapus: false,
     nama_pola: '',
-    bahan_pilih: '', bahan_aksesoris_id: '',
-    warna_bahan_pilih: '',
+    bahan_pilih: '', bahan_aksesoris_id: '', // GANTI (28 Agt 2026): warna_bahan_pilih dihapus, digabung ke bahan_pilih (lihat formatNamaBahan)
     panjang: '', isi_pola_pcs: '', jasa_cutting: '', jasa_serie: '',
     jenis_vendor: '',
     komponen: []
@@ -169,8 +185,7 @@ function barisKomponenKosong() { return { pilih: '', bahan_aksesoris_id: '', qty
 function barisAksesorisKosong() {
   return {
     tahap_proses: '',
-    aksesoris_pilih: '', bahan_aksesoris_id: '',
-    warna_pilih: '',
+    aksesoris_pilih: '', bahan_aksesoris_id: '', // GANTI (28 Agt 2026): warna_pilih dihapus, digabung ke aksesoris_pilih (lihat formatNamaBahan)
     qty: '', satuan_pilih: '',
     webbing2_pilih: '', webbing2_id: '',
     webbing3_pilih: '', webbing3_id: ''
@@ -236,7 +251,7 @@ const FormEntryProdukBOM = {
     const tabAktif = ref('jasa'); // 'jasa' | 'pola' | 'aksesoris'
 
     const daftarBahan = ref([]);
-    const opsiNamaBahan = computed(() => daftarBahan.value.map(b => b.nama));
+    const opsiNamaBahan = computed(() => daftarBahan.value.map(b => formatNamaBahan(b)));
     const opsiWarna = ref([]);
     const opsiSatuan = ref([]);
 
@@ -251,7 +266,13 @@ const FormEntryProdukBOM = {
       bom_jasa: props.dataAwal?.bom_jasa ? JSON.parse(JSON.stringify(props.dataAwal.bom_jasa)) : [],
       bom_pola: props.dataAwal?.bom_pola ? JSON.parse(JSON.stringify(props.dataAwal.bom_pola)).map(b => ({
         ...barisPolaKosong(), ...b,
-        bahan_pilih: b.nama_bahan || '', warna_bahan_pilih: b.warna_bahan || '',
+        // GANTI (28 Agt 2026) — dulu Nama Bahan & Warna Bahan 2 field
+        // terpisah, SEKARANG 1 field gabungan (formatNamaBahan) biar
+        // varian warna beda bisa dibedakan di dropdown. bahan_pilih
+        // direkonstruksi dari nama_bahan+warna_bahan yang TERSIMPAN (2
+        // field itu TETAP disimpan terpisah di Firestore, cuma UI-nya
+        // digabung jadi 1 dropdown).
+        bahan_pilih: formatNamaBahan({ nama: b.nama_bahan, warna: b.warna_bahan }),
         fotoFile: null, fotoPreview: '',
         // penting: komponen tersimpan cuma punya nama_komponen (bukan
         // "pilih") — kalau tidak dipetakan ulang, DropdownCari-nya bakal
@@ -259,7 +280,13 @@ const FormEntryProdukBOM = {
         // salah kira belum dipilih (nolak simpan padahal cuma tampilan).
         komponen: (b.komponen || []).map(k => ({ ...barisKomponenKosong(), ...k, pilih: k.nama_komponen || '' }))
       })) : [],
-      bom_aksesoris: props.dataAwal?.bom_aksesoris ? JSON.parse(JSON.stringify(props.dataAwal.bom_aksesoris)).map(a => ({ ...barisAksesorisKosong(), ...a, aksesoris_pilih: a.nama_aksesoris || '', warna_pilih: a.warna || '', satuan_pilih: a.satuan || '', webbing2_pilih: a.webbing2_nama || '', webbing3_pilih: a.webbing3_nama || '' })) : []
+      // GANTI (28 Agt 2026) — aksesoris_pilih SEKARANG direkonstruksi dari
+      // nama_aksesoris+warna gabungan (sama alasan seperti bom_pola di
+      // atas). webbing2/3_pilih TIDAK berubah caranya (webbing2_nama/
+      // webbing3_nama SEKARANG disimpan sebagai nama+warna gabungan juga,
+      // lihat simpan() — jadi otomatis cocok tanpa perlu formatNamaBahan
+      // di sini lagi).
+      bom_aksesoris: props.dataAwal?.bom_aksesoris ? JSON.parse(JSON.stringify(props.dataAwal.bom_aksesoris)).map(a => ({ ...barisAksesorisKosong(), ...a, aksesoris_pilih: formatNamaBahan({ nama: a.nama_aksesoris, warna: a.warna }), satuan_pilih: a.satuan || '', webbing2_pilih: a.webbing2_nama || '', webbing3_pilih: a.webbing3_nama || '' })) : []
     });
 
     const skuDieditManual = ref(modeEdit.value); // kalau edit data lama, jangan timpa SKU otomatis
@@ -402,7 +429,10 @@ const FormEntryProdukBOM = {
             nama_pola: (b.nama_pola || '').trim(),
             bahan_aksesoris_id: bahanItem ? bahanItem.id : '',
             nama_bahan: bahanItem ? bahanItem.nama : '',
-            warna_bahan: (b.warna_bahan_pilih || '').trim(),
+            // GANTI (28 Agt 2026) — warna_bahan SEKARANG auto-ikut dari
+            // item yang dipilih (field warna_bahan_pilih terpisah sudah
+            // dihapus), BUKAN dipilih manual lagi.
+            warna_bahan: bahanItem ? (bahanItem.warna || '') : '',
             panjang: parseFloat(b.panjang) || 0,
             isi_pola_pcs: parseFloat(b.isi_pola_pcs) || 0,
             jasa_cutting: parseFloat(b.jasa_cutting) || 0,
@@ -410,7 +440,11 @@ const FormEntryProdukBOM = {
             jenis_vendor: b.tipe === 'vendor' ? (b.jenis_vendor || '').trim() : '',
             komponen: (b.komponen || []).filter(k => k.pilih).map(k => {
               const item = resolveBahan(daftarBahan.value, k.pilih);
-              return { bahan_aksesoris_id: item ? item.id : '', nama_komponen: item ? item.nama : '', qty: parseFloat(k.qty) || 0 };
+              // nama_komponen disimpan nama+warna gabungan (formatNamaBahan)
+              // — field ini dari awal tidak punya pasangan "warna_komponen"
+              // terpisah, jadi digabung langsung di sini (bukan skema baru,
+              // cuma cara isinya yang berubah).
+              return { bahan_aksesoris_id: item ? item.id : '', nama_komponen: item ? formatNamaBahan(item) : '', qty: parseFloat(k.qty) || 0 };
             })
           });
         }
@@ -423,11 +457,17 @@ const FormEntryProdukBOM = {
             tahap_proses: (a.tahap_proses || '').trim(),
             bahan_aksesoris_id: item ? item.id : '',
             nama_aksesoris: item ? item.nama : '',
-            warna: (a.warna_pilih || '').trim(),
+            // GANTI (28 Agt 2026) — warna SEKARANG auto-ikut dari item yang
+            // dipilih (field warna_pilih terpisah sudah dihapus), BUKAN
+            // dipilih manual lagi — sama alasan seperti warna_bahan di atas.
+            warna: item ? (item.warna || '') : '',
             qty: parseFloat(a.qty) || 0,
             satuan: (a.satuan_pilih || '').trim(),
-            webbing2_id: w2 ? w2.id : '', webbing2_nama: w2 ? w2.nama : '',
-            webbing3_id: w3 ? w3.id : '', webbing3_nama: w3 ? w3.nama : ''
+            // webbing2_nama/webbing3_nama SEKARANG disimpan nama+warna
+            // gabungan (formatNamaBahan) biar tampilannya tetap jelas warna
+            // apa yang dipilih (dulu cuma nama polos, warnanya hilang).
+            webbing2_id: w2 ? w2.id : '', webbing2_nama: w2 ? formatNamaBahan(w2) : '',
+            webbing3_id: w3 ? w3.id : '', webbing3_nama: w3 ? formatNamaBahan(w3) : ''
           };
         });
 
@@ -540,8 +580,7 @@ const FormEntryProdukBOM = {
               </div>
               <div style="flex:1; min-width:260px; display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">
                 <div class="gc-field" style="margin-bottom:0;"><label>Nama Pola</label><input v-model="b.nama_pola" type="text"></div>
-                <div class="gc-field" style="margin-bottom:0;"><label>Nama Bahan</label><dropdown-cari v-model="b.bahan_pilih" :opsi="opsiNamaBahan" placeholder="Cari & pilih bahan..." @update:modelValue="saatPilihBahanPola(b)" /></div>
-                <div class="gc-field" style="margin-bottom:0;"><label>Warna Bahan</label><dropdown-cari v-model="b.warna_bahan_pilih" :opsi="opsiWarna" placeholder="Cari & pilih warna..." /></div>
+                <div class="gc-field" style="margin-bottom:0;"><label>Bahan (Nama + Warna)</label><dropdown-cari v-model="b.bahan_pilih" :opsi="opsiNamaBahan" placeholder="Cari & pilih bahan..." @update:modelValue="saatPilihBahanPola(b)" /></div>
                 <div class="gc-field" style="margin-bottom:0;"><label>Panjang</label><input v-model.number="b.panjang" type="number" min="0"></div>
                 <div class="gc-field" style="margin-bottom:0;"><label>Isi Pola (Pcs)</label><input v-model.number="b.isi_pola_pcs" type="number" min="0" placeholder="Hasil potong per pcs produk"></div>
                 <div class="gc-field" style="margin-bottom:0;"><label>Jasa Cutting</label><input v-model.number="b.jasa_cutting" type="number" min="0"></div>
@@ -562,8 +601,7 @@ const FormEntryProdukBOM = {
             </div>
             <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-3">
               <div class="gc-field" style="margin-bottom:0;"><label>Tahap Proses</label><input v-model="a.tahap_proses" type="text"></div>
-              <div class="gc-field" style="margin-bottom:0;"><label>Nama Aksesoris</label><dropdown-cari v-model="a.aksesoris_pilih" :opsi="opsiNamaBahan" placeholder="Cari & pilih..." @update:modelValue="saatPilihAksesoris(a)" /></div>
-              <div class="gc-field" style="margin-bottom:0;"><label>Warna</label><dropdown-cari v-model="a.warna_pilih" :opsi="opsiWarna" placeholder="Cari & pilih..." /></div>
+              <div class="gc-field" style="margin-bottom:0;"><label>Aksesoris (Nama + Warna)</label><dropdown-cari v-model="a.aksesoris_pilih" :opsi="opsiNamaBahan" placeholder="Cari & pilih..." @update:modelValue="saatPilihAksesoris(a)" /></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input v-model.number="a.qty" type="number" min="0"></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari v-model="a.satuan_pilih" :opsi="opsiSatuan" placeholder="Cari & pilih..." /></div>
               <div></div>
