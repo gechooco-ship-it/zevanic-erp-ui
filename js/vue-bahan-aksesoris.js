@@ -1719,7 +1719,7 @@ const BahanAksesorisListManager = {
       @konfirmasi="konfirmasiImportBahanAksesoris" />
 
     <!-- BARU (28 Agt 2026, §41.2) — popup pilih roll/lot SEBELUM cetak,
-         cuma muncul buat item `pakai_lot_tracking`. Item biasa (bukan lot)
+         cuma muncul buat item 'pakai_lot_tracking'. Item biasa (bukan lot)
          LANGSUNG lompat ke popup-pratinjau-cetak-label di bawah, tanpa
          lewat popup ini sama sekali (lihat bukaCetakLabel()). -->
     <div v-if="popupPilihRollAktif" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9998; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="tutupPopupPilihRoll">

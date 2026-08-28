@@ -38,18 +38,42 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { usePaginasiFirestore } from './vue-paginasi.js';
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=5';
+import { PopupPratinjauCetakLabel, DropdownCari } from './vue-components.js?v=5';
+// ambilSemuaProduk — BARU (28 Agt 2026, permintaan Guru: "sambungkan Order
+// SPK dengan Master Produk > SKU"). Impor lintas file (bare, konvensi SAMA
+// seperti impor fungsi baca-koleksi besar lain di app ini, mis. dari
+// vue-stock-pembelian.js) — dipakai isi dropdown "Pilih Produk (SKU)" di
+// bawah, dan field `kelipatan` tiap produk (KPK Isi Pola BOM-nya) dipakai
+// tampilkan "Acuan Minimal Order" di samping Qty Target.
+import { ambilSemuaProduk } from './vue-master-produk.js';
 
 const STATUS_SPK_OPSI = ['Aktif', 'Selesai'];
 
 function formStateKosong() {
   return reactive({
     no_spk: '',
+    // sku_produk — BARU (28 Agt 2026, permintaan Guru). FK opsional ke
+    // master_produk.sku — kalau diisi (lewat dropdown "Pilih Produk
+    // [SKU]"), `nama_produk` di bawah OTOMATIS terisi dari situ (tetap
+    // bisa diedit manual setelahnya) & field `kelipatan` produk itu
+    // dipakai tampilkan "Acuan Minimal Order" di samping Qty Target.
+    // SENGAJA opsional (boleh kosong) — SPK migrasi dari spreadsheet lama
+    // belum tentu produknya sudah ada di Master Produk, `nama_produk`
+    // manual TETAP jalan seperti sebelumnya kalau tidak dihubungkan.
+    sku_produk: '',
     nama_produk: '',
     qty_target: '',
     tanggal: new Date().toISOString().slice(0, 10),
     status: 'Aktif'
   });
+}
+
+// formatLabelProduk — label tampilan dropdown "Pilih Produk (SKU)":
+// "SKU — Nama Warna Size", dipakai BARENG buat isi opsi & buat
+// merekonstruksi label produk yang lagi kepilih (DropdownCari kerja
+// dengan array string polos, bukan objek — lihat vue-components.js).
+function formatLabelProduk(p) {
+  return `${p.sku} — ${[p.nama, p.warna, p.size].filter(Boolean).join(' ')}`;
 }
 
 function formatQty(n) {
@@ -95,7 +119,7 @@ function buatQrDataUrl(teks) {
 // TETAP SENGAJA TIDAK menulis ke `log_cetak_label` (koleksi itu domainnya
 // khusus label Bahan/Aksesoris, field `nama_barang` — beda skema).
 const OrderSpkManager = {
-  components: { PopupPratinjauCetakLabel },
+  components: { PopupPratinjauCetakLabel, DropdownCari },
   setup() {
     const form = formStateKosong();
     const menyimpan = ref(false);
@@ -133,6 +157,28 @@ const OrderSpkManager = {
       petakan: (id, d) => ({ id, ...d })
     });
 
+    // --- Sambungan ke Master Produk lewat SKU (BARU 28 Agt 2026, permintaan
+    // Guru) --------------------------------------------------------------
+    // daftarProduk dimuat SEKALI (onMounted, di bawah) — cukup buat isi
+    // dropdown pencarian, pola sama seperti ambilDaftarNama() dipakai di
+    // tempat lain (bukan koleksi besar, aman diambil semua sekaligus).
+    const daftarProduk = ref([]);
+    const opsiProdukLabel = computed(() => daftarProduk.value.map(formatLabelProduk));
+    const produkTerpilih = computed(() => daftarProduk.value.find(p => p.sku === form.sku_produk) || null);
+    // labelProdukTerpilih — dipakai :model-value DropdownCari (butuh STRING
+    // yang PERSIS sama dengan salah satu opsi, bukan objek/sku polos).
+    const labelProdukTerpilih = computed(() => produkTerpilih.value ? formatLabelProduk(produkTerpilih.value) : '');
+    function pilihProdukSpk(label) {
+      const p = daftarProduk.value.find(x => formatLabelProduk(x) === label);
+      if (!p) { form.sku_produk = ''; return; }
+      form.sku_produk = p.sku;
+      // Nama Produk/Keterangan OTOMATIS terisi dari produk yang dipilih —
+      // TETAP boleh diedit manual sesudahnya (bukan readonly), kalau Guru
+      // mau tambah keterangan lain (mis. "Kaos Polo Navy L - batch 2").
+      form.nama_produk = [p.nama, p.warna, p.size].filter(Boolean).join(' ');
+    }
+    function lepasProdukSpk() { form.sku_produk = ''; }
+
     function resetForm() {
       Object.assign(form, formStateKosong());
       sedangEditId.value = null;
@@ -169,6 +215,9 @@ const OrderSpkManager = {
         }
         const data = {
           no_spk: noSpkTrim,
+          // sku_produk — BARU (28 Agt 2026), lihat catatan formStateKosong()
+          // di atas file ini.
+          sku_produk: form.sku_produk || '',
           nama_produk: form.nama_produk.trim(),
           qty_target: parseFloat(form.qty_target) || 0,
           tanggal: form.tanggal,
@@ -222,7 +271,7 @@ const OrderSpkManager = {
     function bukaEdit(item) {
       sedangEditId.value = item.id;
       Object.assign(form, {
-        no_spk: item.no_spk || '', nama_produk: item.nama_produk || '',
+        no_spk: item.no_spk || '', sku_produk: item.sku_produk || '', nama_produk: item.nama_produk || '',
         qty_target: item.qty_target || '', tanggal: item.tanggal || '',
         status: item.status || 'Aktif'
       });
@@ -244,6 +293,10 @@ const OrderSpkManager = {
     onMounted(async () => {
       await window.authReady;
       await paginasi.muatUlang();
+      // daftarProduk — dimuat sekali di sini, BUKAN nunggu user buka
+      // dropdown, supaya label produk yang lagi kepilih (mode Edit) bisa
+      // langsung kerekonstruksi tanpa jeda/loading tambahan.
+      daftarProduk.value = await ambilSemuaProduk();
     });
 
     return {
@@ -251,7 +304,8 @@ const OrderSpkManager = {
       simpan, bukaEdit, batalEdit, hapus, paginasi, formatQty,
       bolehTambah, bolehHapus, bolehCetak, mencetak,
       dicentangTabel, spkTercentang, toggleSemuaTabel, cetakTerpilih,
-      cetakSpkList, popupCetakLabelAktif, daftarLabelPreview
+      cetakSpkList, popupCetakLabelAktif, daftarLabelPreview,
+      opsiProdukLabel, produkTerpilih, labelProdukTerpilih, pilihProdukSpk, lepasProdukSpk
     };
   },
   template: `
@@ -260,6 +314,19 @@ const OrderSpkManager = {
       <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 12px;">Pencatatan No. SPK dasar (migrasi bertahap dari catatan spreadsheet). No. SPK ini nanti dipakai dropdown "No SPK" di menu Scan Persiapan.</p>
 
       <div v-if="bolehTambah" style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">
+        <!-- Pilih Produk (SKU) — BARU (28 Agt 2026, permintaan Guru:
+             "sambungkan Order SPK dengan Master Produk > SKU"). OPSIONAL
+             (SPK migrasi spreadsheet lama boleh tetap isi Nama
+             Produk/Keterangan manual tanpa menghubungkan ke SKU manapun).
+             Begitu produk dipilih: Nama Produk/Keterangan OTOMATIS terisi
+             (tetap boleh diedit manual sesudahnya) & kalau produk itu
+             punya field Kelipatan (KPK Isi Pola BOM > 0), muncul info
+             "Acuan Minimal Order" di bawah Qty Target. -->
+        <div class="gc-field" style="grid-column:1 / -1;">
+          <label>Pilih Produk (SKU) <span style="font-weight:400; color:var(--text-faint);">(opsional — hubungkan ke Master Produk)</span></label>
+          <dropdown-cari :model-value="labelProdukTerpilih" :opsi="opsiProdukLabel" placeholder="Cari SKU / Nama / Warna / Size produk..." @update:modelValue="pilihProdukSpk" />
+          <button v-if="form.sku_produk" @click="lepasProdukSpk" type="button" class="btn-outline" style="font-size:10.5px; padding:3px 8px; margin-top:6px;">Lepas Sambungan SKU</button>
+        </div>
         <div class="gc-field">
           <label>No. SPK <span style="color:var(--danger);">*</span></label>
           <input v-model="form.no_spk" type="text" placeholder="Contoh: SPK-0001">
@@ -271,6 +338,20 @@ const OrderSpkManager = {
         <div class="gc-field">
           <label>Qty Target <span style="color:var(--danger);">*</span></label>
           <input v-model.number="form.qty_target" type="number" min="0" placeholder="0">
+          <!-- Acuan Minimal Order — BARU (28 Agt 2026, permintaan Guru:
+               "harus diinfoakan disamping qty order sebagai acuan minimal
+               order"). Cuma tampil kalau produk terhubung PUNYA kelipatan
+               (>0, ada Isi Pola BOM terisi) — kalau tidak terhubung/belum
+               ada BOM Pola, tidak ada hint sama sekali (bukan dianggap
+               error). Warning lembut (bukan alert/block simpan) kalau Qty
+               Target yang diisi BUKAN kelipatan bulat dari angka acuan —
+               keputusan tetap di tangan Guru, ini cuma pengingat visual.-->
+          <p v-if="produkTerpilih && produkTerpilih.kelipatan > 0" style="font-size:10.5px; color:var(--burgundy); margin-top:4px;">
+            <i class="fas fa-circle-info" style="margin-right:4px;"></i>Acuan Minimal Order: kelipatan {{ produkTerpilih.kelipatan }} pcs (dari Isi Pola BOM)
+            <template v-if="form.qty_target > 0 && (form.qty_target % produkTerpilih.kelipatan) !== 0">
+              — Qty saat ini bukan kelipatan {{ produkTerpilih.kelipatan }}, sisa {{ form.qty_target % produkTerpilih.kelipatan }} pcs berpotensi boros pola.
+            </template>
+          </p>
         </div>
         <div class="gc-field">
           <label>Tanggal <span style="color:var(--danger);">*</span></label>
@@ -327,6 +408,11 @@ const OrderSpkManager = {
 
         <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
           <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Nama Produk / Keterangan</span><span style="font-weight:700; text-align:right;">{{ item.nama_produk }}</span></div>
+          <!-- SKU Produk — BARU (28 Agt 2026), cuma tampil kalau SPK ini
+               terhubung ke Master Produk (sku_produk terisi). SPK lama
+               (migrasi spreadsheet) yang belum terhubung TIDAK tampilkan
+               baris ini sama sekali. -->
+          <div v-if="item.sku_produk" style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">SKU Produk</span><span style="font-weight:700; text-align:right;">{{ item.sku_produk }}</span></div>
           <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Qty Target</span><span style="font-weight:700;">{{ formatQty(item.qty_target) }}</span></div>
           <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Tanggal</span><span style="font-weight:700;">{{ item.tanggal }}</span></div>
         </div>

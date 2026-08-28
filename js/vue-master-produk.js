@@ -183,6 +183,38 @@ function kunciProduk(nama, warna, size) {
   return [nama, warna, size].map(v => (v || '').toString().trim().toLowerCase()).join('||');
 }
 
+// gcd2/lcm2/hitungKelipatan — BARU (28 Agt 2026, permintaan Guru): field
+// "Kelipatan" di Data Produk Utama. Guru: "kelipatan ini tarikan dari
+// kelipatan terkecil dari isi pola dari semua nama pola" — ini istilah
+// matematika Indonesia "KPK" (Kelipatan Persekutuan Terkecil = LCM),
+// BUKAN FPB/GCD. Tiap baris BOM Pola (`bom_pola`) punya `isi_pola_pcs`
+// (hasil potong per pcs produk buat pola itu) — misal Pola A hasil 12
+// pcs/potong, Pola B hasil 8 pcs/potong: order/produksi HARUS kelipatan
+// KPK(12,8) = 24 pcs supaya SEMUA pola bisa dipotong genap tanpa sisa
+// (tidak ada pola yang motong "setengah" karena qty tidak pas). Baris
+// dengan Isi Pola (Pcs) kosong/0 (mis. baris tipe Vendor yang belum
+// diisi, atau baris kosong) DIABAIKAN — tidak ikut dihitung, tidak
+// menggagalkan hitungan baris lain. Dipakai live-preview di form Entry
+// (lihat kelipatanLive di FormEntryProdukBOM) DAN disimpan permanen ke
+// field `kelipatan` (payload simpan()) — sama pola "computed tapi
+// disimpan" seperti volume_barang/harga_modal di tempat lain, supaya
+// Order SPK (js/vue-order-spk.js) bisa BACA LANGSUNG tanpa perlu hitung
+// ulang BOM tiap produk cuma buat tampilkan acuan minimal order.
+function gcd2(a, b) {
+  a = Math.round(Math.abs(a)); b = Math.round(Math.abs(b));
+  while (b) { [a, b] = [b, a % b]; }
+  return a;
+}
+function lcm2(a, b) {
+  if (a === 0 || b === 0) return 0;
+  return Math.abs(a * b) / gcd2(a, b);
+}
+function hitungKelipatan(bomPola) {
+  const nilai = (bomPola || []).map(b => parseFloat(b.isi_pola_pcs) || 0).filter(n => n > 0);
+  if (nilai.length === 0) return 0;
+  return nilai.reduce((a, b) => lcm2(a, b));
+}
+
 // cekSkuDobel — pola SAMA seperti cekNoSpkDobel() di js/vue-order-spk.js.
 async function cekSkuDobel(sku, idSedangEdit) {
   const q = query(collection(db, 'master_produk'), where('sku', '==', sku));
@@ -221,7 +253,13 @@ async function buatSkuUnikAsync(baseSku, idSedangEdit) {
 // paginasi) — dipakai buat cek Nama+Warna+Size dobel dalam file, generate
 // SKU baru yang tidak tabrakan, & cek produk yang mau di-import BOM-nya
 // sudah terdaftar di Data Produk.
-async function ambilSemuaProduk() {
+// `export` (BARU 28 Agt 2026) — dulu cuma dipakai internal file ini (cek
+// dobel Nama+Warna+Size saat Import Excel). SEKARANG juga diimpor
+// vue-order-spk.js buat dropdown "Pilih Produk (SKU)" — permintaan Guru
+// sambungkan Order SPK ke Master Produk lewat SKU. Fungsi & isinya TIDAK
+// diubah (tetap ambil SEMUA field termasuk `sku`, `kelipatan`), cuma
+// exposed lintas file.
+export async function ambilSemuaProduk() {
   try {
     const snap = await getDocs(collection(db, 'master_produk'));
     const list = [];
@@ -527,6 +565,12 @@ const FormEntryProdukBOM = {
       form.sku = buatSkuOtomatis(form.nama, form.warna_pilih, form.size);
     });
 
+    // kelipatanLive — BARU (28 Agt 2026, permintaan Guru), lihat catatan
+    // panjang hitungKelipatan() di atas file ini. Live-preview (reactive
+    // ke form.bom_pola, update otomatis tiap Isi Pola (Pcs) diketik) —
+    // nilai FINAL yang sama disimpan ke field `kelipatan` di simpan().
+    const kelipatanLive = computed(() => hitungKelipatan(form.bom_pola));
+
     const fotoProdukFile = ref(null);
     const fotoProdukPreview = ref(props.dataAwal?.foto || '');
     // fotoProdukDihapus — BARU: tanda "foto lama SENGAJA dihapus, jangan
@@ -716,7 +760,12 @@ const FormEntryProdukBOM = {
           foto: fotoUrl,
           bom_jasa: bomJasaSiap,
           bom_pola: bomPolaSiap,
-          bom_aksesoris: bomAksesorisSiap
+          bom_aksesoris: bomAksesorisSiap,
+          // kelipatan — BARU (28 Agt 2026, permintaan Guru). Dihitung dari
+          // bomPolaSiap (bukan kelipatanLive.value langsung) supaya pasti
+          // sinkron dengan bom_pola versi FINAL yang benar-benar disimpan
+          // (misal ada baris kosong yang difilter simpan(), dsb).
+          kelipatan: hitungKelipatan(bomPolaSiap)
         };
 
         if (modeEdit.value) {
@@ -740,6 +789,7 @@ const FormEntryProdukBOM = {
 
     return {
       modeEdit, menyimpan, mengupload, tabAktif, form, opsiNamaBahan, opsiWarna, opsiSatuan, opsiJenisProduk, opsiKomponen,
+      kelipatanLive,
       fotoProdukPreview, pilihFotoProduk, hapusFotoProduk,
       pilihFotoPola, hapusFotoPola,
       modalKomponenAktif, bukaKomponen, tutupKomponen,
@@ -771,9 +821,21 @@ const FormEntryProdukBOM = {
             <div class="gc-field" style="margin-bottom:0;"><label>Size</label><input v-model="form.size" type="text" placeholder="Mis. All Size / L / 30x40cm"></div>
           </div>
         </div>
-        <div class="gc-field" style="max-width:320px;">
-          <label>SKU <span style="font-weight:400; color:var(--text-faint);">(otomatis dari Nama-Warna-Size, tidak perlu diisi)</span></label>
-          <input :value="form.sku" type="text" readonly style="text-transform:uppercase; background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;">
+        <div style="display:flex; gap:16px; flex-wrap:wrap;">
+          <div class="gc-field" style="max-width:320px; flex:1; min-width:220px;">
+            <label>SKU <span style="font-weight:400; color:var(--text-faint);">(otomatis dari Nama-Warna-Size, tidak perlu diisi)</span></label>
+            <input :value="form.sku" type="text" readonly style="text-transform:uppercase; background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;">
+          </div>
+          <!-- Kelipatan — BARU (28 Agt 2026, permintaan Guru). Readonly,
+               otomatis dari KPK (Kelipatan Persekutuan Terkecil) semua
+               "Isi Pola (Pcs)" di tab BOM Pola & Vendor bawah — lihat
+               catatan panjang hitungKelipatan() di atas file ini. Ini
+               ACUAN MINIMAL ORDER yang nanti ditampilkan di Order SPK
+               (js/vue-order-spk.js) begitu produk ini dipilih lewat SKU. -->
+          <div class="gc-field" style="max-width:320px; flex:1; min-width:220px;">
+            <label>Kelipatan <span style="font-weight:400; color:var(--text-faint);">(otomatis, acuan minimal order — lihat tab BOM Pola)</span></label>
+            <input :value="kelipatanLive > 0 ? (kelipatanLive + ' pcs') : 'Belum ada Isi Pola (Pcs) terisi'" type="text" readonly style="background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;">
+          </div>
         </div>
       </div>
 
@@ -1702,6 +1764,12 @@ const MasterProdukListManager = {
             <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
               <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Pola Utama</span><span style="font-weight:700; text-align:right;">{{ polaUtama(item).nama || '-' }}<span v-if="polaUtama(item).nama"> &middot; {{ polaUtama(item).tipe }}</span><span v-if="(item.bom_pola||[]).length > 1"> &middot; +{{ (item.bom_pola||[]).length - 1 }} lainnya</span></span></div>
               <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Bahan Utama</span><span style="font-weight:700; text-align:right;">{{ polaUtama(item).bahan || '-' }}</span></div>
+              <!-- Kelipatan — BARU (28 Agt 2026, permintaan Guru), field
+                   'kelipatan' yang sudah tersimpan (dihitung & disimpan
+                   waktu produk terakhir disimpan, lihat FormEntryProdukBOM
+                   di atas file ini) — di sini CUMA baca, tidak dihitung
+                   ulang. -->
+              <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Kelipatan (Acuan Order)</span><span style="font-weight:700; text-align:right;">{{ item.kelipatan > 0 ? (item.kelipatan + ' pcs') : '-' }}</span></div>
             </div>
 
             <div style="display:flex; gap:8px;">
