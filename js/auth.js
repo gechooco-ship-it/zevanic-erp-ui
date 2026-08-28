@@ -467,11 +467,17 @@ onAuthStateChanged(auth, async (user) => {
       window.aksesConfigSaya = cache.aksesConfig;
     } else {
       const userSnap = await getDoc(doc(db, "users", user.email));
-      if (!userSnap.exists()) return;
+      if (!userSnap.exists()) {
+        console.warn("[Sesi Otomatis] GAGAL: dokumen users/" + user.email + " tidak ditemukan di Firestore -> balik ke Login.");
+        return;
+      }
       d = userSnap.data();
     }
 
-    if (d.status_approval && d.status_approval !== "APPROVED") return;
+    if (d.status_approval && d.status_approval !== "APPROVED") {
+      console.warn("[Sesi Otomatis] GAGAL: status_approval = \"" + d.status_approval + "\" (bukan APPROVED) -> balik ke Login.");
+      return;
+    }
 
     const roleUser = (d.role || "operator").toLowerCase();
     const isOwnerRole = (roleUser === 'owner' || roleUser === 'superuser');
@@ -485,7 +491,10 @@ onAuthStateChanged(auth, async (user) => {
     // ada penolakannya. Owner/Superuser TETAP dikecualikan (beda urusan
     // dari Clock In di bawah — ini soal hindari kunci-mati total kalau
     // field ini kebetulan salah/kosong di akun Owner sendiri).
-    if (!isOwnerRole && statusKerjaUser !== "Aktif") return;
+    if (!isOwnerRole && statusKerjaUser !== "Aktif") {
+      console.warn("[Sesi Otomatis] GAGAL: role=\"" + roleUser + "\" (bukan owner/superuser) & status_kerja=\"" + statusKerjaUser + "\" (bukan Aktif) -> balik ke Login.");
+      return;
+    }
 
     // BARU (22 Agt 2026) — akun Kiosk: BERHENTI DI SINI, langsung ke
     // screen-absensi-qr, TIDAK PERNAH lewat gerbang gudang/Clock In/jam
@@ -519,13 +528,22 @@ onAuthStateChanged(auth, async (user) => {
     // sama. Sekarang pakai window.cekStatusClockInSaya() — sumber
     // kebenaran YANG SAMA dipakai tombol Home & login manual, tahan
     // shift-malam & lintas-device.
-    if (gudangUser.length === 0) return;
+    if (gudangUser.length === 0) {
+      console.warn("[Sesi Otomatis] GAGAL: gudang_penempatan kosong setelah dinormalisasi (mentah: " + JSON.stringify(d.gudang_penempatan) + ") -> balik ke Login. Role: " + roleUser + ".");
+      return;
+    }
 
     const statusClockIn = await window.cekStatusClockInSaya(user.email);
-    if (!statusClockIn.aktif) return; // belum Clock In / sudah Clock Out -> tetap layar login
+    if (!statusClockIn.aktif) {
+      console.warn("[Sesi Otomatis] GAGAL: cekStatusClockInSaya() bilang TIDAK aktif (belum Clock In / sudah Clock Out) -> balik ke Login. Hasil lengkap:", statusClockIn);
+      return; // belum Clock In / sudah Clock Out -> tetap layar login
+    }
 
     const masihJamKerja = await window.cekMasihJamKerja(d.nama_shift);
-    if (!masihJamKerja) return; // di luar jam kerja -> wajib login ulang
+    if (!masihJamKerja) {
+      console.warn("[Sesi Otomatis] GAGAL: cekMasihJamKerja() bilang di luar jam shift (atau shift tidak ditemukan/tidak ter-assign). nama_shift di profil = \"" + d.nama_shift + "\" -> balik ke Login.");
+      return; // di luar jam kerja -> wajib login ulang
+    }
 
     // Semua syarat terpenuhi -> lewati layar login, langsung ke Dashboard
     window.currentUser = {
@@ -559,12 +577,27 @@ onAuthStateChanged(auth, async (user) => {
     if (window.pindahTab) window.pindahTab('tab-home');
     berhasilMasukDashboard = true;
   } catch (e) {
-    console.error("Gagal cek sesi otomatis:", e);
+    console.error("[Sesi Otomatis] GAGAL: error tak terduga (exception) di tengah proses cek sesi -> balik ke Login. Detail error:", e);
   } finally {
     // Semua jalur yang TIDAK berhasil masuk Dashboard (profil tak ditemukan,
     // belum di-approve, belum Clock In, di luar jam shift, error) berakhir di
     // sini — pindah dari layar loading ke layar Login.
-    if (!berhasilMasukDashboard && window.pindahLayar) window.pindahLayar('screen-login');
+    //
+    // DIAGNOSTIK (28 Agt 2026, laporan Guru "refresh biasa pun keluar ke
+    // Login") — SETIAP jalur gagal di atas sekarang punya console.warn
+    // sendiri yang menyebut alasan PERSIS-nya (lihat baris-baris di atas
+    // fungsi ini). Log baris ini adalah RINGKASAN AKHIR — kalau muncul
+    // TANPA ada warning apapun sebelumnya di console, berarti gagalnya di
+    // titik SEBELUM baris ini sempat jalan (jarang, tapi dicatat supaya
+    // tidak ada kondisi tak-terlacak). Guru: kalau bug ini muncul lagi,
+    // buka DevTools (F12) -> tab Console SEBELUM refresh, lalu screenshot/
+    // salin baris yang diawali "[Sesi Otomatis]" — itu yang tunjuk akar
+    // masalah sebenarnya (jangan cuma baris ini, cari yang muncul PALING
+    // ATAS/PERTAMA).
+    if (!berhasilMasukDashboard) {
+      console.warn("[Sesi Otomatis] RINGKASAN: sesi TIDAK berhasil masuk Dashboard -> dikembalikan ke layar Login. Cari baris \"[Sesi Otomatis] GAGAL: ...\" di atas ini untuk alasan sebenarnya.");
+      if (window.pindahLayar) window.pindahLayar('screen-login');
+    }
   }
 });
 
