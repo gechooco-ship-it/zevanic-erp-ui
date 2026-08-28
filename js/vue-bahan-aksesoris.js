@@ -105,7 +105,7 @@ import { db } from "./firebase-config.js";
 // (27 Agt 2026, §26.1) — panel Pengaturan yang dulu pakai keduanya (Jenis
 // Bahan/Aksesoris, Data Satuan/Warna/Ukuran, Data Rak Penyimpanan) sudah
 // dirombak, lihat catatan di atas PengaturanBahanAksesoris di bawah.
-import { DropdownCari } from './vue-components.js?v=2';
+import { DropdownCari } from './vue-components.js?v=3';
 import { usePaginasiFirestore } from './vue-paginasi.js';
 
 const KATEGORI_UTAMA_OPSI = ['Bahan', 'Aksesoris'];

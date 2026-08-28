@@ -667,23 +667,34 @@
        field wajib saja (Kategori Utama/Jenis/Nama/Warna/Harga Pembelian/
        Satuan Pembelian/Isi Konversi Pembelian/Satuan Pemakaian/Margin
        Modal), data yang Kategori+Nama+Warna-nya sudah ada DILEWATI (skip,
-       tidak ditimpa). -->
-  <script type="module" src="js/vue-bahan-aksesoris.js?v=17"></script>
+       tidak ditimpa).
+       v=18 (28 Agt 2026, §37): TIDAK ADA perubahan fungsional di file ini —
+       cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
+       DropdownCari, tidak dipakai fitur Import Excel §37 yang ditambah di
+       Data Komponen). -->
+  <script type="module" src="js/vue-bahan-aksesoris.js?v=18"></script>
   <script type="module" src="js/vue-rak-penyimpanan.js?v=3"></script>
   <script type="module" src="js/vue-persiapan-masalah.js?v=3"></script>
   <!-- v=19 (28 Agt 2026): sempat dicoba tag Jenis Pekerjaan per pesanan
        (role "PIC Owner"), DIBATALKAN — Guru konfirmasi grup Zevanic House
        100% ZCO/Konveksi, tidak perlu difilter per-item (lihat STATUS-
        PROYEK.md §29). Cache-bust cuma sisa import vue-paginasi.js?v=1
-       (fungsi bersama yang dipakai Reimburse, tidak dipakai fitur di sini). -->
-  <script type="module" src="js/vue-stock-pembelian.js?v=19"></script>
+       (fungsi bersama yang dipakai Reimburse, tidak dipakai fitur di sini).
+       v=20 (28 Agt 2026, §37): TIDAK ADA perubahan fungsional di file ini —
+       cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
+       DropdownCari, tidak dipakai fitur Import Excel §37). -->
+  <script type="module" src="js/vue-stock-pembelian.js?v=20"></script>
   <script type="module" src="js/vue-kartu-stok.js?v=5"></script>
   <!-- BARU (27 Agt 2026, §26.1) — Zevanic House > Config. v=2 (28 Agt 2026):
        tambah tab ke-7 "Jenis Produk" (AppConfigJenisProduk, koleksi
        master_jenis_produk), pola sama persis seperti "Data Ukuran".
        v=3 (28 Agt 2026): tambah tab ke-8 "Data Komponen" (AppConfigKomponen,
-       koleksi master_komponen), pola sama persis seperti "Data Warna". -->
-  <script type="module" src="js/vue-config.js?v=3"></script>
+       koleksi master_komponen), pola sama persis seperti "Data Warna".
+       v=4 (28 Agt 2026, §37): tab "Data Komponen" SEKARANG dapat tombol
+       "Import / Template Excel" (fitur BARU di MasterDataTabelManager,
+       vue-components.js, diaktifkan lewat prop :izinkan-import-excel="true"
+       KHUSUS di AppConfigKomponen — tab Config lain TIDAK ikut berubah). -->
+  <script type="module" src="js/vue-config.js?v=4"></script>
   <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM). v=2 (28 Agt 2026):
        cache-bust setelah fix dropdown Bahan/Aksesoris digabung 1 field.
        v=3 (28 Agt 2026, §28.9): cache-bust setelah tambah fitur Import/
@@ -716,7 +727,11 @@
        lagi), bahan_aksesoris_id dihapus dari baris ini (sama format dengan
        form manual §34). Data Produk Utama (Entry/Edit Produk): urutan field
        diubah jadi Foto Produk - Jenis Produk - Nama Produk - Warna - Size
-       (permintaan Guru), murni urutan tampilan, tidak ada perubahan skema. -->
-  <script type="module" src="js/vue-master-produk.js?v=9"></script>
+       (permintaan Guru), murni urutan tampilan, tidak ada perubahan skema.
+       v=10 (28 Agt 2026, §37): TIDAK ADA perubahan fungsional di file ini —
+       cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
+       DropdownCari, tidak dipakai fitur Import Excel §37 yang ditambah di
+       Data Komponen/Config). -->
+  <script type="module" src="js/vue-master-produk.js?v=10"></script>
 </body>
 </html>

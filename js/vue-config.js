@@ -36,7 +36,7 @@
 // Firestore 6 koleksi sekaligus kalau orang belum pernah buka Config.
 // ============================================================================
 import { createApp } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { MasterDataCategory, MasterDataTabelManager } from './vue-components.js?v=2';
+import { MasterDataCategory, MasterDataTabelManager } from './vue-components.js?v=3';
 
 const MENU_ID_CONFIG = 'config_master_data';
 
@@ -82,9 +82,15 @@ const AppConfigJenisProduk = {
 // BOM Komponen di Master Produk masih pakai Bahan+Warna seperti biasa) —
 // Guru cuma minta tab-nya, kalau nanti mau disambungkan ke field
 // tertentu, tinggal diminta terpisah.
+// BARU (28 Agt 2026, §37) — :izinkan-import-excel="true" mengaktifkan fitur
+// Import/Upload Massal Excel + Template (tombol "Import / Template Excel"
+// di sebelah searchbox) yang baru ditambahkan ke MasterDataTabelManager
+// (vue-components.js). Opt-in per tab — tab Config lain (Satuan/Ukuran/
+// Warna/dst) TIDAK ikut dapat tombol ini kecuali propnya juga dinyalakan
+// di situ.
 const AppConfigKomponen = {
   components: { MasterDataTabelManager },
-  template: `<master-data-tabel-manager koleksi="master_komponen" label-singular="Komponen" label-nama="Nama Komponen" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
+  template: `<master-data-tabel-manager koleksi="master_komponen" label-singular="Komponen" label-nama="Nama Komponen" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" :izinkan-import-excel="true" />`
 };
 
 // AppConfigSuplayer — field3 (Kontak/Alamat) sama persis seperti

@@ -283,6 +283,133 @@ export const DropdownCari = {
 };
 
 // ---------------------------------------------------------------------------
+// bacaFileExcel / ambilSheet / unduhWorkbook — BARU (28 Agt 2026, §37),
+// DISALIN dari vue-master-produk.js/vue-bahan-aksesoris.js (konvensi
+// proyek "disalin, bukan diimpor silang" antar file) — dipakai fitur
+// Import/Upload Massal Excel di MasterDataTabelManager di bawah. Pakai
+// XLSX global yang sudah dimuat lewat <script> di index.html (SheetJS).
+// ---------------------------------------------------------------------------
+function bacaFileExcel(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try { resolve(XLSX.read(new Uint8Array(e.target.result), { type: 'array' })); }
+      catch (err) { reject(err); }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+}
+function ambilSheet(workbook, namaSheet) {
+  const sheet = workbook.Sheets[namaSheet];
+  if (!sheet) return [];
+  return XLSX.utils.sheet_to_json(sheet, { defval: '' });
+}
+function unduhWorkbook(sheets, namaFile) {
+  const wb = XLSX.utils.book_new();
+  for (const s of sheets) {
+    const ws = XLSX.utils.json_to_sheet(s.baris, { header: s.header });
+    XLSX.utils.book_append_sheet(wb, ws, s.nama);
+  }
+  XLSX.writeFile(wb, namaFile);
+}
+
+// ---------------------------------------------------------------------------
+// PopupImportMasterData — BARU (28 Agt 2026, §37). Popup verifikasi Import
+// Excel buat MasterDataTabelManager (di bawah) — generik, sengaja dibikin
+// SESIMPEL skema aslinya (cuma 2-3 kolom teks bebas: Nama [+ field3
+// opsional] + Keterangan, TIDAK ADA dropdown/foreign-key yang perlu
+// divalidasi seperti Import BOM/Bahan & Aksesoris, jadi TIDAK butuh
+// FieldValidasiInline/Levenshtein). Baris yang Nama-nya SUDAH ADA di
+// daftar (persis sama alasan `tambah()` manual di MasterDataTabelManager
+// menolak nama dobel) ditandai "Sudah ada, dilewati" — TIDAK menimpa,
+// konsisten dengan §35 (Import Bahan & Aksesoris) & karena manual entry
+// di komponen ini MEMANG tidak pernah izinkan 2 nama sama persis.
+// ---------------------------------------------------------------------------
+const PopupImportMasterData = {
+  props: {
+    labelSingular: { type: String, required: true },
+    header: { type: Array, required: true }, // ['Nama'] + (field3? [field3Label]) + ['Keterangan']
+    field3Key: { type: String, default: '' },
+    field3Label: { type: String, default: '' },
+    barisMentah: { type: Array, default: () => [] },
+    daftarLama: { type: Array, default: () => [] }, // daftar {nama,...} yang sudah ada di Firestore
+    sedangImport: { type: Boolean, default: false }
+  },
+  emits: ['tutup', 'konfirmasi'],
+  setup(props, { emit }) {
+    const namaLamaSet = computed(() => new Set(props.daftarLama.map(d => (d.nama || '').trim().toLowerCase())));
+    const kolomField3 = computed(() => props.field3Key ? props.field3Label : '');
+
+    const baris = ref(props.barisMentah.map(b => ({
+      nama: String(b['Nama'] || '').trim(),
+      field3: props.field3Key ? String(b[kolomField3.value] || '').trim() : '',
+      keterangan: String(b['Keterangan'] || '').trim()
+    })));
+
+    // hitung urutan-kemunculan tiap nama (case-insensitive) di dalam file
+    // itu sendiri — dobel DI FILE (bukan cuma dobel vs data lama) juga
+    // harus ditandai, biar tidak 2x addDoc buat nama yang sama persis.
+    const indexPertamaKemunculan = computed(() => {
+      const peta = {};
+      baris.value.forEach((b, i) => {
+        const kunci = b.nama.toLowerCase();
+        if (kunci && !(kunci in peta)) peta[kunci] = i;
+      });
+      return peta;
+    });
+
+    function statusBaris(b, i) {
+      if (!b.nama) return { valid: false, dilewati: false, label: 'Nama kosong' };
+      const kunci = b.nama.toLowerCase();
+      if (namaLamaSet.value.has(kunci)) return { valid: true, dilewati: true, label: 'Sudah ada, dilewati' };
+      if (indexPertamaKemunculan.value[kunci] !== i) return { valid: true, dilewati: true, label: 'Dobel di file ini, dilewati' };
+      return { valid: true, dilewati: false, label: 'Baru, akan ditambahkan' };
+    }
+
+    const barisDenganStatus = computed(() => baris.value.map((b, i) => ({ b, status: statusBaris(b, i) })));
+    const jumlahError = computed(() => barisDenganStatus.value.filter(x => !x.status.valid).length);
+    const jumlahDitambahkan = computed(() => barisDenganStatus.value.filter(x => x.status.valid && !x.status.dilewati).length);
+    const semuaSiap = computed(() => baris.value.length > 0 && jumlahError.value === 0);
+
+    function konfirmasi() {
+      if (!semuaSiap.value) return;
+      const barisBaru = barisDenganStatus.value.filter(x => x.status.valid && !x.status.dilewati).map(x => x.b);
+      emit('konfirmasi', barisBaru);
+    }
+
+    return { kolomField3, barisDenganStatus, jumlahError, jumlahDitambahkan, semuaSiap, konfirmasi };
+  },
+  template: `
+    <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:flex-start; justify-content:center; padding:16px; overflow-y:auto;">
+      <div class="gc-card" style="max-width:720px; width:100%; margin:24px 0;">
+        <h3 style="font-weight:700; font-size:15px; margin-bottom:4px;"><i class="fas fa-file-import" style="color:var(--burgundy); margin-right:8px;"></i>Verifikasi Import {{ labelSingular }}</h3>
+        <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Baris yang namanya sudah ada (atau dobel di file ini) otomatis dilewati, TIDAK menimpa data lama.</p>
+        <div style="overflow-x:auto; margin-bottom:14px;">
+          <table class="gc-table" style="width:100%; border-collapse:collapse; font-size:12px;">
+            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10.5px; text-transform:uppercase;"><th style="padding:6px; min-width:140px;">Nama</th><th v-if="kolomField3" style="padding:6px; min-width:120px;">{{ kolomField3 }}</th><th style="padding:6px; min-width:160px;">Keterangan</th><th style="padding:6px;">Status</th></tr></thead>
+            <tbody>
+              <tr v-for="(x,i) in barisDenganStatus" :key="i" style="border-top:1px solid var(--line);">
+                <td style="padding:6px; font-weight:700;">{{ x.b.nama || '-' }}</td>
+                <td v-if="kolomField3" style="padding:6px;">{{ x.b.field3 || '-' }}</td>
+                <td style="padding:6px;">{{ x.b.keterangan || '-' }}</td>
+                <td style="padding:6px;"><span class="tag" :class="!x.status.valid ? 'danger' : (x.status.dilewati ? 'neutral' : 'ok')">{{ x.status.label }}</span></td>
+              </tr>
+              <tr v-if="!barisDenganStatus.length"><td :colspan="kolomField3 ? 4 : 3" style="padding:14px; text-align:center; color:var(--text-faint);">File kosong.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p v-if="semuaSiap" style="font-size:11.5px; color:var(--text-muted); margin-bottom:10px;">{{ jumlahDitambahkan }} data baru akan ditambahkan, {{ barisDenganStatus.length - jumlahDitambahkan }} dilewati.</p>
+        <div style="display:flex; gap:8px; justify-content:flex-end;">
+          <button @click="$emit('tutup')" type="button" class="btn-outline" :disabled="sedangImport">Batal</button>
+          <button @click="konfirmasi" type="button" class="btn-primary" :disabled="!semuaSiap || sedangImport">{{ sedangImport ? 'Mengimpor...' : 'Import' }}</button>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
 // MasterDataTabelManager — BARU (23 Agt 2026). Beda dari MasterDataCategory
 // di atas (yang nyimpan 1 dokumen `master_data/{kategori}` berisi array
 // string polos): komponen ini kelola koleksi Firestore SENDIRI (1 dokumen
@@ -306,8 +433,15 @@ export const MasterDataTabelManager = {
     // BARU (27 Agt 2026) — sama seperti MasterDataCategory di atas, dipakai
     // pertama kali buat menu "Config". Default false = TIDAK berubah untuk
     // semua pemakaian lama (tag/chip).
-    tampilTabel: { type: Boolean, default: false }
+    tampilTabel: { type: Boolean, default: false },
+    // BARU (28 Agt 2026, §37) — fitur Import/Upload Massal Excel + Template.
+    // Default false = TIDAK berubah untuk semua pemakaian lama/tab lain.
+    // Dipakai pertama kali buat "Data Komponen" (Config) — opt-in per tab,
+    // gampang dinyalakan buat tab lain (Satuan/Ukuran/Warna/dst) nanti
+    // tinggal set prop ini `true`, tidak perlu kode baru.
+    izinkanImportExcel: { type: Boolean, default: false }
   },
+  components: { PopupImportMasterData },
   setup(props) {
     const daftar = ref([]);
     const memuat = ref(true);
@@ -375,8 +509,66 @@ export const MasterDataTabelManager = {
       }
     }
 
+    // --- Import/Upload Massal Excel + Template (BARU 28 Agt 2026, §37) -----
+    const dropdownImportTerbuka = ref(false);
+    const inputFileImport = ref(null);
+    const popupImportAktif = ref(false);
+    const barisMentahImport = ref([]);
+    const sedangImport = ref(false);
+
+    const headerImport = computed(() => ['Nama', ...(props.field3Key ? [props.field3Label] : []), 'Keterangan']);
+
+    function unduhTemplateImport() {
+      dropdownImportTerbuka.value = false;
+      const contoh = { 'Nama': `Contoh ${props.labelSingular}`, 'Keterangan': 'Opsional, boleh dikosongkan' };
+      if (props.field3Key) contoh[props.field3Label] = `Contoh ${props.field3Label}`;
+      unduhWorkbook([{ nama: props.labelSingular, header: headerImport.value, baris: [contoh] }], `Template Import ${props.labelSingular}.xlsx`);
+    }
+    function pancingFileImport() { dropdownImportTerbuka.value = false; inputFileImport.value?.click(); }
+
+    async function saatFileImportDipilih(ev) {
+      const file = ev.target.files[0];
+      ev.target.value = '';
+      if (!file) return;
+      try {
+        const wb = await bacaFileExcel(file);
+        const baris = ambilSheet(wb, props.labelSingular);
+        if (!baris.length) return alert(`Sheet "${props.labelSingular}" tidak ditemukan atau kosong. Pastikan file berasal dari Template Import ${props.labelSingular}.`);
+        barisMentahImport.value = baris;
+        popupImportAktif.value = true;
+      } catch (e) {
+        console.error('Gagal baca file Excel:', e);
+        alert('Gagal membaca file Excel. Pastikan formatnya benar (.xlsx).');
+      }
+    }
+
+    function tutupPopupImport() { popupImportAktif.value = false; }
+
+    async function konfirmasiImport(barisBaru) {
+      if (!bolehTambah.value) return alert('Anda tidak punya izin menambah item di sini. Hubungi Owner/PIC.');
+      sedangImport.value = true;
+      try {
+        for (const b of barisBaru) {
+          const dataBaru = { nama: b.nama, keterangan: b.keterangan, dibuat_pada: serverTimestamp() };
+          if (props.field3Key) dataBaru[props.field3Key] = b.field3;
+          await addDoc(collection(db, props.koleksi), dataBaru);
+        }
+        popupImportAktif.value = false;
+        await muat();
+        alert(`Import selesai: ${barisBaru.length} data baru ditambahkan.`);
+      } catch (e) {
+        console.error(`Gagal import ${props.koleksi}:`, e);
+        alert('Gagal mengimpor. Coba lagi.');
+      }
+      sedangImport.value = false;
+    }
+
     onMounted(async () => { await window.authReady; muat(); });
-    return { daftar, memuat, namaBaru, field3Baru, keteranganBaru, menyimpan, bolehTambah, bolehHapus, tambah, hapus, cariItem, daftarTersaring };
+    return {
+      daftar, memuat, namaBaru, field3Baru, keteranganBaru, menyimpan, bolehTambah, bolehHapus, tambah, hapus, cariItem, daftarTersaring,
+      dropdownImportTerbuka, inputFileImport, popupImportAktif, barisMentahImport, sedangImport, headerImport,
+      unduhTemplateImport, pancingFileImport, saatFileImportDipilih, tutupPopupImport, konfirmasiImport
+    };
   },
   template: `
     <!-- Mode BARU (27 Agt 2026) — entry+searchbox+table, dipakai menu Config. -->
@@ -388,9 +580,19 @@ export const MasterDataTabelManager = {
         <input v-model="keteranganBaru" @keyup.enter="tambah" type="text" placeholder="Keterangan (opsional)" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
         <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="padding:0 16px;"><i class="fas fa-plus"></i></button>
       </div>
-      <div v-if="!memuat" style="position:relative; margin-bottom:10px;">
-        <i class="fas fa-search" style="position:absolute; left:11px; top:9px; color:var(--text-faint); font-size:11px;"></i>
-        <input v-model="cariItem" type="text" placeholder="Cari item..." style="width:100%; max-width:280px; padding:7px 10px 7px 28px; border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none;">
+      <div v-if="!memuat" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; margin-bottom:10px;">
+        <div style="position:relative; flex:1; min-width:200px; max-width:280px;">
+          <i class="fas fa-search" style="position:absolute; left:11px; top:9px; color:var(--text-faint); font-size:11px;"></i>
+          <input v-model="cariItem" type="text" placeholder="Cari item..." style="width:100%; padding:7px 10px 7px 28px; border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none; box-sizing:border-box;">
+        </div>
+        <div v-if="izinkanImportExcel && bolehTambah" style="position:relative;">
+          <button @click="dropdownImportTerbuka = !dropdownImportTerbuka" type="button" class="btn-outline" style="font-size:11.5px;"><i class="fas fa-file-import" style="margin-right:6px;"></i>Import / Template Excel <i class="fas fa-chevron-down" style="margin-left:4px; font-size:9px;"></i></button>
+          <div v-if="dropdownImportTerbuka" style="position:absolute; z-index:30; top:calc(100% + 4px); left:0; background:var(--surface); border:1.5px solid var(--line); border-radius:10px; box-shadow:0 8px 20px rgba(0,0,0,.14); min-width:200px;">
+            <button @click="unduhTemplateImport" type="button" style="display:block; width:100%; text-align:left; padding:9px 14px; background:none; border:none; font-size:12px; cursor:pointer;">Download Template</button>
+            <button @click="pancingFileImport" type="button" style="display:block; width:100%; text-align:left; padding:9px 14px; background:none; border:none; font-size:12px; cursor:pointer; border-top:1px solid var(--line);">Import Excel (Upload Massal)</button>
+          </div>
+          <input ref="inputFileImport" type="file" accept=".xlsx,.xls" @change="saatFileImportDipilih" style="display:none;">
+        </div>
       </div>
       <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
       <div v-else class="gc-table-scroll">
@@ -409,6 +611,17 @@ export const MasterDataTabelManager = {
           </tbody>
         </table>
       </div>
+      <popup-import-master-data
+        v-if="popupImportAktif"
+        :label-singular="labelSingular"
+        :header="headerImport"
+        :field3-key="field3Key"
+        :field3-label="field3Label"
+        :baris-mentah="barisMentahImport"
+        :daftar-lama="daftar"
+        :sedang-import="sedangImport"
+        @tutup="tutupPopupImport"
+        @konfirmasi="konfirmasiImport" />
     </div>
     <!-- Mode LAMA (tag/chip) — TIDAK berubah, dipakai semua menu lain. -->
     <div v-else>
