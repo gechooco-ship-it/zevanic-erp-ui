@@ -625,7 +625,13 @@
   <script type="module" src="js/vue-mail-gateway.js"></script>
   <script type="module" src="js/vue-device-kiosk.js"></script>
   <script type="module" src="js/vue-account-profile.js"></script>
-  <script type="module" src="js/vue-profile-drawer.js"></script>
+  <!-- FIX (28 Agt 2026): link "Reimburse" ditambahkan ke drawer, sebelumnya
+       sub-tab itu buntu total di mobile (baris tab desktop-nya hidden di
+       mobile, drawer ini satu-satunya jalan navigasi).
+       v=2 (28 Agt 2026): link "Absensi" ikut ditambahkan (kena pola bug
+       yang sama), urutan link disusun ulang biar sama dengan urutan
+       baris tab desktop. -->
+  <script type="module" src="js/vue-profile-drawer.js?v=2"></script>
   <script type="module" src="js/vue-home.js?v=3"></script>
   <script type="module" src="js/vue-home-desktop.js"></script>
   <script type="module" src="js/vue-header-mobile.js?v=1"></script>

@@ -3,13 +3,31 @@
 // Drawer Profile mobile — muncul geser dari kanan saat "Profile" di bottom
 // nav diklik (menggantikan navigasi langsung ke tab-profil untuk mobile).
 // Isinya: QR code (bisa diklik zoom), lalu link teks ke Data Karyawan/
-// Estimasi Gaji/Pencapaian/Keamanan — klik salah satu menutup drawer lalu
-// pindah ke tab-profil pada sub-tab yang sesuai (lewat jembatan
-// window.pindahTabAccountProfile di vue-account-profile.js).
+// Absensi/Reimburse/Estimasi Gaji/Pencapaian/Keamanan — klik salah satu
+// menutup drawer lalu pindah ke tab-profil pada sub-tab yang sesuai
+// (lewat jembatan window.pindahTabAccountProfile di
+// vue-account-profile.js).
 //
 // HANYA dipakai untuk mobile — di desktop, "Profile" di sidebar tetap
 // langsung ke tab-profil seperti biasa (lihat onclick tombol sidebar di
 // index.html, tidak diubah).
+//
+// FIX (28 Agt 2026, laporan Guru "menu profile di mobile tidak lengkap")
+// — sub-tab "Reimburse" (`pindahTab('reimburse')`, tombol "Ajukan
+// Reimburse" di baris tab vue-account-profile.js) TIDAK PERNAH
+// ditambahkan ke daftar link drawer ini waktu fitur itu dibuat. Baris
+// tab desktop (`.gc-card.hidden.md:block` di vue-account-profile.js)
+// memang sengaja disembunyikan di mobile (§5.3 STATUS-PROYEK.md) —
+// drawer inilah SATU-SATUNYA jalan navigasi sub-tab Profile di mobile,
+// jadi kelupaan nambah link di sini = sub-tab itu TIDAK BISA DIBUKA SAMA
+// SEKALI dari mobile (bukan cuma sulit ditemukan, benar-benar buntu).
+// Waktu diperbaiki, ketemu juga "Absensi" kena pola SAMA (kelupaan juga)
+// — ditambahkan sekalian, DAN urutan link disusun ULANG supaya SAMA
+// persis dengan urutan baris tab desktop (Data Karyawan → Absensi →
+// Reimburse → Pencapaian → Keamanan), "Estimasi Gaji" (tidak punya
+// tombol di baris tab desktop, placeholder) diselipkan setelah
+// Reimburse (dikelompokkan bareng topik "uang") — permintaan Guru
+// "perbaiki susunannya supaya rapi".
 // ============================================================================
 import { createApp, ref } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 
@@ -67,6 +85,8 @@ const AppProfileDrawer = {
 
         <div style="border-top:1px solid var(--line); padding:8px 10px;">
           <button @click="navigasi('datadiri')" class="gc-drawer-link"><i class="fas fa-id-card"></i> Data Karyawan <i class="fas fa-chevron-right" style="margin-left:auto; font-size:11px; color:var(--text-faint);"></i></button>
+          <button @click="navigasi('absensi')" class="gc-drawer-link"><i class="fas fa-history"></i> Absensi <i class="fas fa-chevron-right" style="margin-left:auto; font-size:11px; color:var(--text-faint);"></i></button>
+          <button @click="navigasi('reimburse')" class="gc-drawer-link"><i class="fas fa-receipt"></i> Reimburse <i class="fas fa-chevron-right" style="margin-left:auto; font-size:11px; color:var(--text-faint);"></i></button>
           <button @click="navigasi('gaji')" class="gc-drawer-link"><i class="fas fa-sack-dollar"></i> Estimasi Gaji <i class="fas fa-chevron-right" style="margin-left:auto; font-size:11px; color:var(--text-faint);"></i></button>
           <button @click="navigasi('pencapaian')" class="gc-drawer-link"><i class="fas fa-trophy"></i> Pencapaian <i class="fas fa-chevron-right" style="margin-left:auto; font-size:11px; color:var(--text-faint);"></i></button>
           <button @click="navigasi('keamanan')" class="gc-drawer-link"><i class="fas fa-shield-alt"></i> Keamanan <i class="fas fa-chevron-right" style="margin-left:auto; font-size:11px; color:var(--text-faint);"></i></button>
