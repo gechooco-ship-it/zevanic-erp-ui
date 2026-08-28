@@ -1265,6 +1265,20 @@ function totalHargaJasa(item) {
 function totalKomponenPola(item) {
   return (item.bom_pola || []).reduce((sum, p) => sum + ((p.komponen || []).length), 0);
 }
+// polaUtama — BARU (28 Agt 2026, §41.1). Ambil baris PERTAMA `bom_pola`
+// (nama_pola + tipe internal/vendor + nama_bahan/warna_bahan-nya) buat
+// ditampilkan di blok kartu-rows List Produk (GANTI dari tanggal Dibuat/
+// Diedit yang Guru bilang kurang berguna). Object kosong kalau belum ada
+// baris Pola sama sekali (template pakai `|| '-'` buat itu).
+function polaUtama(item) {
+  const p = (item.bom_pola || [])[0];
+  if (!p) return { nama: '', tipe: '', bahan: '' };
+  return {
+    nama: p.nama_pola || '',
+    tipe: p.tipe === 'vendor' ? 'Vendor' : 'Internal',
+    bahan: p.nama_bahan ? (p.nama_bahan + (p.warna_bahan ? ' ' + p.warna_bahan : '')) : ''
+  };
+}
 
 // ---------------------------------------------------------------------------
 // MasterProdukListManager — halaman "List Produk": cari+paginasi+tabel,
@@ -1593,7 +1607,7 @@ const MasterProdukListManager = {
     return {
       paginasi, sedangEdit, bukaEdit, tutupEdit, saatTersimpanEdit, hapus, bolehHapus,
       produkTerpilih, toggleCentang, semuaTercentang, toggleSemua, hapusMassal,
-      formatRupiah, hitungBreakdownPola, totalHargaJasa, totalKomponenPola,
+      formatRupiah, hitungBreakdownPola, totalHargaJasa, totalKomponenPola, polaUtama,
       dropdownImportTerbuka, inputFileProdukUtama, inputFileBOM,
       opsiWarnaImport, opsiNamaBahanImport, opsiKomponenImport, opsiSatuanImport, opsiJenisProdukImport, daftarProdukSemuaImport,
       popupImportProdukUtamaAktif, barisMentahProdukUtama, sedangImportProdukUtama,
@@ -1675,9 +1689,19 @@ const MasterProdukListManager = {
               <div><span style="font-size:10px; color:var(--text-faint); display:block;">Komponen</span><b style="font-size:12.5px;">{{ totalKomponenPola(item) }}</b><span style="font-size:10.5px; color:var(--text-muted);"> di semua pola</span></div>
             </div>
 
+            <!-- GANTI (28 Agt 2026, §41.1, permintaan Guru: "untuk text
+                 dibuat dan diedit saya kurang setuju... ganti isinya") —
+                 dulu blok ini isinya tanggal Dibuat/Diedit Terakhir (dinilai
+                 Guru kurang berguna buat kartu ini). SEKARANG isinya info
+                 PRODUKSI: Pola Utama (baris pertama bom_pola, + tipe
+                 internal/vendor) & Bahan Utama (nama+warna bahan pola itu)
+                 — lebih relevan buat kartu Master Produk dibanding metadata
+                 tanggal, dan info ini SEBELUMNYA sama sekali tidak
+                 kelihatan dari List Produk (harus buka Edit dulu buat
+                 tahu). Kalau bom_pola > 1 baris, ditambah "+N lainnya". -->
             <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
-              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Dibuat</span><span style="font-weight:700;">{{ item.dibuat_pada?.toDate ? item.dibuat_pada.toDate().toLocaleDateString('id-ID') : '-' }}<span v-if="item.dibuat_oleh"> &middot; {{ item.dibuat_oleh }}</span></span></div>
-              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Diedit Terakhir</span><span style="font-weight:700;">{{ item.diedit_pada?.toDate ? item.diedit_pada.toDate().toLocaleDateString('id-ID') : 'Belum pernah' }}<span v-if="item.diedit_pada?.toDate && item.diedit_oleh"> &middot; {{ item.diedit_oleh }}</span></span></div>
+              <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Pola Utama</span><span style="font-weight:700; text-align:right;">{{ polaUtama(item).nama || '-' }}<span v-if="polaUtama(item).nama"> &middot; {{ polaUtama(item).tipe }}</span><span v-if="(item.bom_pola||[]).length > 1"> &middot; +{{ (item.bom_pola||[]).length - 1 }} lainnya</span></span></div>
+              <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Bahan Utama</span><span style="font-weight:700; text-align:right;">{{ polaUtama(item).bahan || '-' }}</span></div>
             </div>
 
             <div style="display:flex; gap:8px;">

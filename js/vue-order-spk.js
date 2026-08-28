@@ -38,6 +38,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { usePaginasiFirestore } from './vue-paginasi.js';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=5';
 
 const STATUS_SPK_OPSI = ['Aktif', 'Selesai'];
 
@@ -80,64 +81,21 @@ function buatQrDataUrl(teks) {
   return dataUrl;
 }
 
-// cetakSpkList — BARU (27 Agt 2026, §26.6). Cetak 1 label fisik per SPK
-// (QR berisi `no_spk` + teks No. SPK/Nama Produk/Qty Target/Tanggal),
-// dipakai 2 tempat: (a) tombol "Simpan + Cetak" di form entry (1 label,
-// SPK yang baru saja disimpan), (b) tombol "Cetak" di tabel daftar
-// (banyak label sekaligus, dari baris yang DICENTANG). Pola window
-// cetak/CSS label SAMA PERSIS `CetakLabelManager.cetak()` di
-// `vue-stock-pembelian.js` (§26.3) — disalin, bukan diimpor (beda file).
-// QR-nya inilah yang nanti dibaca tombol "Scan" No. SPK BARU di menu
-// Scan Persiapan (`vue-scan-persiapan.js`, lihat catatan di sana).
-// SENGAJA TIDAK menulis log cetak ke koleksi `log_cetak_label` — koleksi
-// itu domainnya khusus label Bahan/Aksesoris (field `nama_barang`),
-// mencampur No. SPK ke situ bikin "Riwayat Cetak Label" di menu Cetak
-// Label jadi rancu. Order SPK TIDAK punya riwayat cetak tersendiri untuk
-// sekarang (bisa ditambah nanti kalau Guru minta).
-function cetakSpkList(daftarSpk) {
-  if (typeof QRCode === 'undefined') {
-    alert('Library pembuat QR belum siap dimuat. Coba refresh halaman (Ctrl+Shift+R) lalu ulangi.');
-    return;
-  }
-  if (!Array.isArray(daftarSpk) || daftarSpk.length === 0) return;
-  const labelsHtml = daftarSpk.map(s => {
-    const qrDataUrl = buatQrDataUrl(s.no_spk);
-    const qrHtml = qrDataUrl
-      ? `<img src="${qrDataUrl}" width="80" height="80" alt="QR ${s.no_spk}" />`
-      : `<div style="font-size:9px;">(QR gagal dibuat)</div>`;
-    return `
-    <div class="label">
-      <div class="qr">${qrHtml}</div>
-      <div class="teks">
-        <div class="kode">${s.no_spk}</div>
-        <div class="nama">${s.nama_produk || ''}</div>
-        <div class="info">Qty Target: ${formatQty(s.qty_target)} &middot; ${s.tanggal || ''}</div>
-      </div>
-    </div>`;
-  }).join('');
-  const w = window.open('', '_blank');
-  if (!w) { alert('Popup diblokir browser. Izinkan popup untuk mencetak label.'); return; }
-  w.document.write(`<html><head><title>Label No. SPK</title>
-    <style>
-      body{font-family:Arial,sans-serif; margin:0; padding:12px;}
-      .label{display:inline-flex; align-items:center; gap:10px; border:1px dashed #999; border-radius:6px; padding:8px 12px; margin:4px; width:280px; box-sizing:border-box; page-break-inside:avoid; vertical-align:top;}
-      .qr{width:80px; height:80px; flex-shrink:0; display:flex; align-items:center; justify-content:center;}
-      .qr img{width:80px; height:80px; display:block;}
-      .teks{font-size:11px; line-height:1.4;}
-      .kode{font-weight:700; font-size:13px;}
-      .nama{font-size:11px;}
-      .info{font-size:10px; color:#555;}
-    </style>
-    </head><body>
-    ${labelsHtml}
-    <script>
-      window.onload = function() { setTimeout(function () { window.print(); }, 300); };
-    <\/script>
-    </body></html>`);
-  w.document.close();
-}
-
+// cetakSpkList — GANTI (28 Agt 2026, §41.3, permintaan Guru: pratinjau +
+// config sebelum cetak, ukuran fisik 4x2 inch thermal roll, SAMA seperti
+// perubahan analog di `vue-stock-pembelian.js`, §41.2). DULU fungsi modul
+// biasa yang LANGSUNG window.print() dengan kotak dashed banyak-per-
+// halaman kertas biasa. SEKARANG jadi closure DI DALAM `OrderSpkManager.
+// setup()` (butuh set state reactive popup lokal), dipakai 2 tempat SAMA
+// seperti sebelumnya: (a) tombol "Simpan + Cetak", (b) tombol "Cetak" di
+// tabel (banyak SPK dicentang) — cuma siapkan `daftarLabelPreview`
+// (kode/nama/info/qrDataUrl, QR digambar sinkron seperti sebelumnya) lalu
+// buka `PopupPratinjauCetakLabel` (vue-components.js, dipakai BARENG 3
+// tempat cetak label di app ini — lihat komentar panjang di definisinya).
+// TETAP SENGAJA TIDAK menulis ke `log_cetak_label` (koleksi itu domainnya
+// khusus label Bahan/Aksesoris, field `nama_barang` — beda skema).
 const OrderSpkManager = {
+  components: { PopupPratinjauCetakLabel },
   setup() {
     const form = formStateKosong();
     const menyimpan = ref(false);
@@ -151,6 +109,22 @@ const OrderSpkManager = {
     // memakainya — Order SPK menu KEDUA).
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
     const mencetak = ref(false);
+    const popupCetakLabelAktif = ref(false);
+    const daftarLabelPreview = ref([]);
+    function cetakSpkList(daftarSpk) {
+      if (typeof QRCode === 'undefined') {
+        alert('Library pembuat QR belum siap dimuat. Coba refresh halaman (Ctrl+Shift+R) lalu ulangi.');
+        return;
+      }
+      if (!Array.isArray(daftarSpk) || daftarSpk.length === 0) return;
+      daftarLabelPreview.value = daftarSpk.map(s => ({
+        kode: s.no_spk,
+        nama: s.nama_produk || '',
+        info: `Qty Target: ${formatQty(s.qty_target)} &middot; ${s.tanggal || ''}`,
+        qrDataUrl: buatQrDataUrl(s.no_spk)
+      }));
+      popupCetakLabelAktif.value = true;
+    }
 
     const paginasi = usePaginasiFirestore(db, 'order_spk', {
       perHalaman: 15,
@@ -277,9 +251,7 @@ const OrderSpkManager = {
       simpan, bukaEdit, batalEdit, hapus, paginasi, formatQty,
       bolehTambah, bolehHapus, bolehCetak, mencetak,
       dicentangTabel, spkTercentang, toggleSemuaTabel, cetakTerpilih,
-      cetakSpkList // fungsi modul biasa (bukan reactive), diekspos apa
-      // adanya ke template supaya tombol cetak per-baris di tabel bisa
-      // panggil langsung `cetakSpkList([item])` tanpa perlu wrapper baru
+      cetakSpkList, popupCetakLabelAktif, daftarLabelPreview
     };
   },
   template: `
@@ -371,6 +343,7 @@ const OrderSpkManager = {
       <span style="font-size:12px; color:var(--text-muted);">Halaman {{ paginasi.nomorHalaman.value }}</span>
       <button class="icon-btn" :disabled="!paginasi.adaBerikutnya.value" @click="paginasi.halamanBerikutnya"><i class="fas fa-chevron-right"></i></button>
     </div>
+    <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label No. SPK" :daftar-label="daftarLabelPreview" @tutup="popupCetakLabelAktif = false" />
   `
 };
 

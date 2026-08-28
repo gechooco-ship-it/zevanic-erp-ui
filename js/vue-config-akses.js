@@ -143,11 +143,18 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-listorder', null, {catatRiwayat:true}); } },
   { id: 'stock_nota_order_belanja', label: 'Nota Order Belanja', kategori: 'Zevanic House', icon: 'fa-receipt',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', null, {catatRiwayat:true}); } },
-  // BARU (27 Agt 2026, §26.3) — Cetak Label: lihat CetakLabelManager di
-  // js/vue-stock-pembelian.js. Aksi cetak dicek lewat kolom 'print' (SUDAH
-  // ADA di KOSONG_IZIN, tapi baru menu INI yang benar-benar memakainya).
-  { id: 'stock_cetak_label', label: 'Cetak Label', kategori: 'Zevanic House', icon: 'fa-print',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-cetaklabel', null, {catatRiwayat:true}); } },
+  // DIPENSIUNKAN (28 Agt 2026, §41.2) — dulu tab "Cetak Label" tersendiri
+  // di Stock & Pembelian (CetakLabelManager, js/vue-stock-pembelian.js).
+  // Guru minta dipindah jadi tombol per-kartu di List Bahan & Aksesoris
+  // (js/vue-bahan-aksesoris.js) — tab & mount point lamanya SUDAH DIHAPUS
+  // dari index.html. Entry ini SENGAJA DIBIARKAN (bukan dihapus, pola SAMA
+  // seperti 'master_suplayer' di atas) supaya data izin `print` yang SUDAH
+  // Owner atur sebelumnya (siapa boleh cetak) TIDAK yatim — tombol cetak
+  // yang baru di List Bahan & Aksesoris TETAP mengecek menu id INI (lihat
+  // vue-bahan-aksesoris.js). `deprecated: true` supaya tidak lagi nongol
+  // sebagai tile navigasi basi di Home mobile/sidebar (sudah tidak ada
+  // tab tujuan yang bisa dituju lagi, aksi() dihapus).
+  { id: 'stock_cetak_label', label: 'Cetak Label (DIPENSIUNKAN, lihat List Bahan & Aksesoris)', kategori: 'Zevanic House', icon: 'fa-print', deprecated: true },
   // BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-master-
   // produk.js. Posisi SENGAJA setelah Stock & Pembelian, sebelum Order
   // SPK (keputusan Hilman, AskUserQuestion ronde 4).

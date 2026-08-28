@@ -105,8 +105,18 @@ import { db } from "./firebase-config.js";
 // (27 Agt 2026, §26.1) — panel Pengaturan yang dulu pakai keduanya (Jenis
 // Bahan/Aksesoris, Data Satuan/Warna/Ukuran, Data Rak Penyimpanan) sudah
 // dirombak, lihat catatan di atas PengaturanBahanAksesoris di bawah.
-import { DropdownCari } from './vue-components.js?v=3';
+import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=5';
 import { usePaginasiFirestore } from './vue-paginasi.js';
+// BARU (28 Agt 2026, §41.2, permintaan Guru: "cetak label pindahkan ke
+// Data Bahan & Aksesoris > List Bahan dan Aksesoris") — `ambilSemuaLotByBahan`
+// dan `catatLogCetakLabel` DULU privat di `CetakLabelManager`
+// (js/vue-stock-pembelian.js, menu "Cetak Label" tersendiri di Stock &
+// Pembelian, SEKARANG DIHAPUS). Koleksi `lot_bahan_aksesoris` &
+// `log_cetak_label` TETAP "dimiliki" vue-stock-pembelian.js (sudah ada
+// beberapa fungsi lot lain yang diimpor lintas file dari sana, pola sama
+// seperti vue-kartu-stok.js/vue-scan-opname.js/vue-scan-persiapan.js) —
+// cuma 2 fungsi INI yang sekarang jadi export supaya bisa dipakai di sini.
+import { ambilSemuaLotByBahan, catatLogCetakLabel } from './vue-stock-pembelian.js';
 
 const KATEGORI_UTAMA_OPSI = ['Bahan', 'Aksesoris'];
 
@@ -635,6 +645,32 @@ function formatQty(n) {
   return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 }
 
+// buatQrDataUrl — BARU (28 Agt 2026, §41.2, dibutuhkan fitur Cetak Label
+// yang pindah ke file ini). Disalin (BUKAN diimpor lintas file, konvensi
+// proyek ini utk fungsi bantu generate-QR kecil — lihat catatan sama di
+// vue-order-spk.js) dari `buatQrDataUrl()` di vue-stock-pembelian.js —
+// LOGIC SAMA PERSIS: gambar QR sinkron ke <div> tersembunyi di window
+// UTAMA (bukan di window print), ambil hasilnya sebagai data URL PNG,
+// baru dikirim ke PopupPratinjauCetakLabel sebagai gambar statis siap
+// pakai — window print tidak perlu apa pun dari internet/library lagi.
+// `qrcodejs` (global `QRCode`) sudah dimuat sekali di index.html.
+function buatQrDataUrl(teks) {
+  if (typeof QRCode === 'undefined') return '';
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:absolute; left:-9999px; top:-9999px; width:160px; height:160px;';
+  document.body.appendChild(tmp);
+  let dataUrl = '';
+  try {
+    new QRCode(tmp, { text: String(teks || ''), width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
+    const canvas = tmp.querySelector('canvas');
+    if (canvas) dataUrl = canvas.toDataURL('image/png');
+  } catch (e) {
+    console.error('Gagal generate QR:', teks, e);
+  }
+  document.body.removeChild(tmp);
+  return dataUrl;
+}
+
 // ---------------------------------------------------------------------------
 // PengaturanBahanAksesoris — panel (dibuka lewat ikon gear), SEKARANG cuma
 // atur Prefix ID per kategori.
@@ -1122,7 +1158,7 @@ const BahanAksesorisEntryManager = {
 // potong-di-JS seperti MasterKendaraanManager lama).
 // ---------------------------------------------------------------------------
 const BahanAksesorisListManager = {
-  components: { PopupKonversiBerjenjang, DropdownCari, PopupImportBahanAksesoris },
+  components: { PopupKonversiBerjenjang, DropdownCari, PopupImportBahanAksesoris, PopupPratinjauCetakLabel },
   setup() {
     const filterKategori = ref('ALL');
     const paginasi = usePaginasiFirestore(db, 'master_bahan_aksesoris', {
@@ -1260,6 +1296,111 @@ const BahanAksesorisListManager = {
       }
     }
 
+    // --- Cetak Label (BARU 28 Agt 2026, §41.2) ------------------------------
+    // GANTI dari tab tersendiri "Cetak Label" di Stock & Pembelian
+    // (CetakLabelManager, DIHAPUS) jadi tombol per-kartu di sini — permintaan
+    // Guru eksplisit: "cetak label pindahkan ke Data Bahan & Aksesoris >
+    // List Bahan dan Aksesoris". Logic (roll-tracking vs item biasa, QR,
+    // log) SAMA PERSIS seperti CetakLabelManager lama, cuma dipicu dari
+    // tombol kartu (bukan search-tab terpisah) & pakai popup pratinjau BARU
+    // (PopupPratinjauCetakLabel, vue-components.js — ukuran fisik 4x2 inch
+    // thermal roll, ganti dari cetak langsung tanpa pratinjau).
+    //
+    // Izin cetak TETAP dicek lewat menu id LAMA `stock_cetak_label` (BUKAN
+    // `bahan_aksesoris_list`) — SENGAJA, supaya hak akses yang SUDAH diatur
+    // Owner sebelumnya (siapa boleh cetak) tidak yatim/perlu diatur ulang
+    // cuma gara-gara tombolnya pindah tempat. Entrinya di DAFTAR_MENU
+    // (vue-config-akses.js) ditandai `deprecated:true` (tidak lagi tampil
+    // sebagai menu/tile navigasi), TAPI tetap tampil di tabel permission
+    // Config Akses supaya Owner masih bisa lihat/atur kolom izinnya.
+    const menuIdCetakLabel = 'stock_cetak_label';
+    const bolehCetak = computed(() => window.cekIzinMenu(menuIdCetakLabel, 'print') !== false);
+
+    const popupPilihRollAktif = ref(false);
+    const itemUntukCetak = ref(null);
+    const daftarLotUntukCetak = ref([]);
+    const memuatLotCetak = ref(false);
+    const lotDicentangCetak = reactive({});
+    const lotTercentangCetak = computed(() => daftarLotUntukCetak.value.filter(l => lotDicentangCetak[l.id]));
+    function toggleSemuaLotCetak(v) { daftarLotUntukCetak.value.forEach(l => { lotDicentangCetak[l.id] = v; }); }
+
+    const popupCetakLabelAktif = ref(false);
+    const daftarLabelPreview = ref([]);
+    const cetakInfoAktif = ref({ namaBarang: '', jenis: '' }); // dipakai catatLogCetakLabel setelah popup emit 'cetak'
+
+    async function bukaCetakLabel(item) {
+      if (!bolehCetak.value) return;
+      if (typeof QRCode === 'undefined') {
+        alert('Library pembuat QR belum siap dimuat. Coba refresh halaman (Ctrl+Shift+R) lalu ulangi.');
+        return;
+      }
+      const namaLengkap = item.nama + (item.warna ? ' ' + item.warna : '');
+      if (item.pakai_lot_tracking) {
+        itemUntukCetak.value = item;
+        Object.keys(lotDicentangCetak).forEach(k => delete lotDicentangCetak[k]);
+        daftarLotUntukCetak.value = [];
+        popupPilihRollAktif.value = true;
+        memuatLotCetak.value = true;
+        try { daftarLotUntukCetak.value = await ambilSemuaLotByBahan(item.id); }
+        catch (e) { console.error('Gagal ambil daftar lot:', e); daftarLotUntukCetak.value = []; }
+        memuatLotCetak.value = false;
+      } else {
+        if (!item.id_tampil) return alert('Item ini belum punya ID Tampil (id_tampil kosong) — cek ulang data Bahan/Aksesorisnya.');
+        cetakInfoAktif.value = { namaBarang: namaLengkap, jenis: 'item' };
+        daftarLabelPreview.value = [{ kode: item.id_tampil, nama: namaLengkap, info: item.satuan_pemakaian || '', qrDataUrl: buatQrDataUrl(item.id_tampil) }];
+        popupCetakLabelAktif.value = true;
+      }
+    }
+
+    function lanjutCetakDariRoll() {
+      if (lotTercentangCetak.value.length === 0) return alert('Centang minimal 1 roll/lot yang mau dicetak labelnya dulu.');
+      const item = itemUntukCetak.value;
+      const namaLengkap = item.nama + (item.warna ? ' ' + item.warna : '');
+      cetakInfoAktif.value = { namaBarang: namaLengkap, jenis: 'roll' };
+      daftarLabelPreview.value = lotTercentangCetak.value.map(l => ({
+        kode: l.kode_lot,
+        nama: namaLengkap,
+        info: `${l.qty ?? l.qty_sisa ?? ''} ${item.satuan_pemakaian || ''} &middot; ${l.tanggal_masuk || ''}${l.status !== 'aktif' ? ' &middot; SUDAH HABIS (cetak ulang)' : ''}`,
+        qrDataUrl: buatQrDataUrl(l.kode_lot)
+      }));
+      popupPilihRollAktif.value = false;
+      popupCetakLabelAktif.value = true;
+    }
+    function tutupPopupPilihRoll() { popupPilihRollAktif.value = false; }
+
+    // saatCetakBerhasil — dipanggil lewat event 'cetak' PopupPratinjauCetakLabel,
+    // SETELAH window cetak fisik sudah dibuka. Catat 1 baris log
+    // `log_cetak_label` (jumlah = banyak label unik x jumlah salinan yang
+    // Guru atur di popup) — pola SAMA PERSIS `CetakLabelManager.catatLog()`
+    // lama.
+    async function saatCetakBerhasil(payload) {
+      const jumlahTotal = daftarLabelPreview.value.length * (payload?.jumlahSalinan || 1);
+      await catatLogCetakLabel(cetakInfoAktif.value.namaBarang, jumlahTotal, cetakInfoAktif.value.jenis);
+      if (riwayatCetakDimuat.value) await paginasiLogCetak.muatUlang();
+    }
+
+    // --- Riwayat Cetak Label (modal on-demand, BARU §41.2) ------------------
+    // DULU tabel Riwayat SELALU tampil di bawah form Cetak Label (menu
+    // tersendiri). SEKARANG, karena Cetak Label jadi tombol per-kartu (List
+    // Bahan & Aksesoris sudah ramai — searchbox, filter, Import Excel,
+    // banyak kartu), riwayat ini dijadikan modal yang dibuka manual lewat
+    // tombol "Riwayat Cetak Label" di toolbar atas — datanya (koleksi
+    // `log_cetak_label`) TIDAK hilang, cuma cara lihatnya jadi on-demand.
+    const riwayatCetakAktif = ref(false);
+    const riwayatCetakDimuat = ref(false);
+    const paginasiLogCetak = usePaginasiFirestore(db, 'log_cetak_label', {
+      perHalaman: 10, urutkanField: 'tanggal', urutkanArah: 'desc', cariField: 'nama_barang',
+      petakan: (id, d) => ({ id, ...d })
+    });
+    async function bukaRiwayatCetak() {
+      riwayatCetakAktif.value = true;
+      if (!riwayatCetakDimuat.value) { riwayatCetakDimuat.value = true; await paginasiLogCetak.muatUlang(); }
+    }
+    function formatTanggalLogCetak(ts) {
+      if (ts && typeof ts.seconds === 'number') return new Date(ts.seconds * 1000).toLocaleString('id-ID');
+      return '-';
+    }
+
     // --- Import/Export Excel (BARU 28 Agt 2026, §35) -----------------------
     const dropdownImportTerbuka = ref(false);
     const inputFileBahanAksesoris = ref(null);
@@ -1385,7 +1526,11 @@ const BahanAksesorisListManager = {
       opsiJenisBahanImport, opsiJenisAksesorisImport, opsiWarnaImport, opsiSatuanImport, daftarLamaImport,
       popupImportAktif, barisMentahImport, sedangImport,
       bukaTemplateBahanAksesoris, pancingFileBahanAksesoris, saatFileBahanAksesorisDipilih,
-      tutupPopupImport, konfirmasiImportBahanAksesoris
+      tutupPopupImport, konfirmasiImportBahanAksesoris,
+      bolehCetak, popupPilihRollAktif, daftarLotUntukCetak, memuatLotCetak, lotDicentangCetak,
+      lotTercentangCetak, toggleSemuaLotCetak, itemUntukCetak,
+      popupCetakLabelAktif, daftarLabelPreview, bukaCetakLabel, lanjutCetakDariRoll, tutupPopupPilihRoll, saatCetakBerhasil,
+      riwayatCetakAktif, paginasiLogCetak, bukaRiwayatCetak, formatTanggalLogCetak
     };
   },
   template: `
@@ -1413,6 +1558,11 @@ const BahanAksesorisListManager = {
         </div>
       </div>
       <input ref="inputFileBahanAksesoris" type="file" accept=".xlsx,.xls" @change="saatFileBahanAksesorisDipilih" style="display:none;">
+      <!-- BARU (28 Agt 2026, §41.2) — Riwayat Cetak Label, dulu SELALU
+           tampil di bawah tab "Cetak Label" tersendiri (Stock & Pembelian,
+           DIHAPUS), sekarang modal on-demand di sini (tombol cetak per
+           kartu sekarang ada di bawah, lihat blok kartu). -->
+      <button v-if="bolehCetak" @click="bukaRiwayatCetak" type="button" class="btn-outline" style="font-size:12px;"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i>Riwayat Cetak Label</button>
     </div>
 
     <!-- GANTI (28 Agt 2026, §39) — dulu tabel scroll horizontal (12 kolom),
@@ -1450,6 +1600,9 @@ const BahanAksesorisListManager = {
 
         <div style="display:flex; gap:8px;">
           <button @click="bukaEdit(item)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px;"><i class="fas fa-pen" style="margin-right:6px;"></i>Edit</button>
+          <!-- BARU (28 Agt 2026, §41.2, permintaan Guru) — Cetak Label
+               pindah ke sini, dulu tab tersendiri di Stock & Pembelian. -->
+          <button v-if="bolehCetak" @click="bukaCetakLabel(item)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label</button>
           <button @click="hapus(item.id)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
         </div>
       </div>
@@ -1564,6 +1717,81 @@ const BahanAksesorisListManager = {
       :sedang-import="sedangImport"
       @tutup="tutupPopupImport"
       @konfirmasi="konfirmasiImportBahanAksesoris" />
+
+    <!-- BARU (28 Agt 2026, §41.2) — popup pilih roll/lot SEBELUM cetak,
+         cuma muncul buat item `pakai_lot_tracking`. Item biasa (bukan lot)
+         LANGSUNG lompat ke popup-pratinjau-cetak-label di bawah, tanpa
+         lewat popup ini sama sekali (lihat bukaCetakLabel()). -->
+    <div v-if="popupPilihRollAktif" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9998; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="tutupPopupPilihRoll">
+      <div class="gc-card" style="max-width:520px; width:100%; max-height:90vh; overflow-y:auto;">
+        <h3 style="font-weight:700; font-size:14px; margin-bottom:4px;">Pilih Roll/Lot untuk Dicetak</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">{{ itemUntukCetak ? (itemUntukCetak.nama + (itemUntukCetak.warna ? ' ' + itemUntukCetak.warna : '')) : '' }} — item ini pakai Qty per Roll/Lot. Centang roll yang mau dicetak labelnya (termasuk yang sudah habis, kalau labelnya hilang dan mau dicetak ulang).</p>
+
+        <div v-if="memuatLotCetak" style="font-size:12px; color:var(--text-faint); padding:8px 0;">Memuat daftar roll/lot...</div>
+        <div v-else-if="daftarLotUntukCetak.length === 0" style="font-size:12px; color:var(--text-faint); padding:8px 0;">Belum ada roll/lot tercatat untuk item ini.</div>
+        <div v-else style="overflow-x:auto; margin-bottom:12px;">
+          <div style="margin-bottom:6px;">
+            <button @click="toggleSemuaLotCetak(true)" class="btn-outline" style="padding:4px 10px; font-size:11px; margin-right:6px;">Pilih Semua</button>
+            <button @click="toggleSemuaLotCetak(false)" class="btn-outline" style="padding:4px 10px; font-size:11px;">Kosongkan</button>
+          </div>
+          <table class="gc-table" style="width:100%; font-size:11.5px;">
+            <thead><tr><th style="width:32px;"></th><th>Kode Lot</th><th>Qty Sisa</th><th>Tanggal Masuk</th><th>Status</th></tr></thead>
+            <tbody>
+              <tr v-for="l in daftarLotUntukCetak" :key="l.id">
+                <td><input type="checkbox" v-model="lotDicentangCetak[l.id]" style="accent-color:var(--burgundy); width:14px; height:14px;"></td>
+                <td>{{ l.kode_lot }}</td>
+                <td>{{ l.qty_sisa ?? l.qty ?? '-' }}</td>
+                <td>{{ l.tanggal_masuk || '-' }}</td>
+                <td><span class="tag" :class="l.status === 'aktif' ? 'ok' : 'neutral'">{{ l.status === 'aktif' ? 'Aktif' : 'Habis' }}</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <button @click="lanjutCetakDariRoll" :disabled="lotTercentangCetak.length === 0" class="btn-primary" style="flex:1;">Lanjut ke Pratinjau ({{ lotTercentangCetak.length }})</button>
+          <button @click="tutupPopupPilihRoll" type="button" class="btn-outline" style="flex:1;">Batal</button>
+        </div>
+      </div>
+    </div>
+
+    <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label" :daftar-label="daftarLabelPreview" @tutup="popupCetakLabelAktif = false" @cetak="saatCetakBerhasil" />
+
+    <!-- BARU (28 Agt 2026, §41.2) — Riwayat Cetak Label, modal on-demand
+         (lihat catatan di tombol toolbar-nya di atas). -->
+    <div v-if="riwayatCetakAktif" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9997; display:flex; align-items:flex-start; justify-content:center; padding:16px; overflow-y:auto;" @click.self="riwayatCetakAktif = false">
+      <div class="gc-card" style="max-width:560px; width:100%; margin:24px 0;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <h3 style="font-weight:700; font-size:14px;">Riwayat Cetak Label</h3>
+          <button @click="riwayatCetakAktif = false" style="background:none; border:none; color:var(--text-faint); font-size:16px; cursor:pointer;"><i class="fas fa-times"></i></button>
+        </div>
+        <div style="position:relative; max-width:320px; margin-bottom:12px;">
+          <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:12px;"></i>
+          <input :value="paginasiLogCetak.cariTeks.value" @input="paginasiLogCetak.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama barang (awalan)..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+        </div>
+        <div v-if="paginasiLogCetak.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+        <div v-else-if="paginasiLogCetak.errorPaginasi.value" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasiLogCetak.errorPaginasi.value }}</div>
+        <div v-else-if="paginasiLogCetak.dataHalaman.value.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada riwayat cetak label.</div>
+        <div v-else style="display:flex; flex-direction:column; gap:10px;">
+          <div v-for="r in paginasiLogCetak.dataHalaman.value" :key="r.id" class="gc-card" style="padding:14px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px;">
+              <div style="font-weight:700; font-size:13.5px;">{{ r.nama_barang }}</div>
+              <span class="tag neutral" style="flex-shrink:0;">{{ r.jenis === 'roll' ? 'Roll/Lot' : 'Item' }}</span>
+            </div>
+            <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px;">
+              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Tanggal</span><span style="font-weight:700;">{{ formatTanggalLogCetak(r.tanggal) }}</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Jumlah Label</span><span style="font-weight:700;">{{ r.jumlah_label }}</span></div>
+              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Dicetak Oleh</span><span style="font-weight:700;">{{ r.dicetak_oleh || '-' }}</span></div>
+            </div>
+          </div>
+        </div>
+        <div v-if="!paginasiLogCetak.memuat.value && paginasiLogCetak.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
+          <button class="icon-btn" :disabled="paginasiLogCetak.nomorHalaman.value <= 1" @click="paginasiLogCetak.halamanSebelumnya"><i class="fas fa-chevron-left"></i></button>
+          <span style="font-size:12px; color:var(--text-muted);">Halaman {{ paginasiLogCetak.nomorHalaman.value }}</span>
+          <button class="icon-btn" :disabled="!paginasiLogCetak.adaBerikutnya.value" @click="paginasiLogCetak.halamanBerikutnya"><i class="fas fa-chevron-right"></i></button>
+        </div>
+      </div>
+    </div>
   `
 };
 

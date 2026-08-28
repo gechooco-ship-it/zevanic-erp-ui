@@ -139,7 +139,7 @@
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-persiapan', this, {catatRiwayat:true})" id="menu-zevanic-persiapan-btn" data-menu-id="persiapan_masalah" data-target="sub-zevanic-house-persiapan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-triangle-exclamation" style="width:17px; text-align:center;"></i> Persiapan Masalah
           </button>
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-stock', this, {catatRiwayat:true}); pindahSubTab('sub-zh-stock','sub-zh-stock-alias', null, {catatRiwayat:true})" id="menu-zevanic-stock-btn" data-menu-ids="stock_alias_pembelian,stock_list_order_belanja,stock_nota_order_belanja,stock_cetak_label" data-target="sub-zevanic-house-stock" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-stock', this, {catatRiwayat:true}); pindahSubTab('sub-zh-stock','sub-zh-stock-alias', null, {catatRiwayat:true})" id="menu-zevanic-stock-btn" data-menu-ids="stock_alias_pembelian,stock_list_order_belanja,stock_nota_order_belanja" data-target="sub-zevanic-house-stock" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-truck-ramp-box" style="width:17px; text-align:center;"></i> Stock &amp; Pembelian
           </button>
           <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-
@@ -478,7 +478,6 @@
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-menu-id="stock_nota_order_belanja" data-target="sub-zh-stock-notaorder"><i class="fas fa-receipt" style="margin-right:6px;"></i> Nota Order Belanja</button>
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-riwayat', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-target="sub-zh-stock-riwayat"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i> Riwayat Harga Pembelian</button>
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-kartustok', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-target="sub-zh-stock-kartustok"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Kartu Stok</button>
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-cetaklabel', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-menu-id="stock_cetak_label" data-target="sub-zh-stock-cetaklabel"><i class="fas fa-print" style="margin-right:6px;"></i> Cetak Label</button>
             </div>
             <div id="sub-zh-stock-alias" class="sub-zh-stock-content fade-in space-y-4">
               <!-- Alias Pembelian: lihat js/vue-stock-pembelian.js -->
@@ -501,10 +500,9 @@
             <div id="sub-zh-stock-kartustok" class="sub-zh-stock-content hidden fade-in space-y-4">
               <div id="vue-kartu-stok"></div>
             </div>
-            <!-- BARU (27 Agt 2026, §26.3) — Cetak Label: lihat js/vue-stock-pembelian.js (CetakLabelManager) -->
-            <div id="sub-zh-stock-cetaklabel" class="sub-zh-stock-content hidden fade-in space-y-4">
-              <div id="vue-cetak-label"></div>
-            </div>
+            <!-- DIPENSIUNKAN (28 Agt 2026, §41.2) — tab "Cetak Label" pindah
+                 jadi tombol per-kartu di List Bahan & Aksesoris (permintaan
+                 Guru). Lihat js/vue-bahan-aksesoris.js & STATUS-PROYEK.md §41.2. -->
           </div>
 
           <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-
@@ -624,15 +622,15 @@
        pastikanMountConfigJenisProduk (tab Config baru "Jenis Produk").
        v=14 (28 Agt 2026): peta mount tambah 'sub-zh-config-komponen' ->
        pastikanMountConfigKomponen (tab Config baru "Data Komponen"). -->
-  <script type="module" src="js/dashboard.js?v=15"></script>
-  <script type="module" src="js/vue-order-spk.js?v=3"></script>
+  <script type="module" src="js/dashboard.js?v=16"></script>
+  <script type="module" src="js/vue-order-spk.js?v=4"></script>
   <script type="module" src="js/vue-scan-opname.js?v=1"></script>
   <script type="module" src="js/vue-scan-persiapan.js?v=2"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>
   <script type="module" src="js/vue-config-info.js"></script>
   <script type="module" src="js/vue-config-absensi.js?v=2"></script>
   <script type="module" src="js/vue-daftar-karyawan.js?v=2"></script>
-  <script type="module" src="js/vue-config-akses.js?v=4"></script>
+  <script type="module" src="js/vue-config-akses.js?v=5"></script>
   <script type="module" src="js/vue-hak-akses.js?v=2"></script>
   <script type="module" src="js/vue-antrean-dakar.js?v=2"></script>
   <script type="module" src="js/vue-antrean-absensi.js?v=3"></script>
@@ -654,7 +652,7 @@
   <script type="module" src="js/vue-profile-drawer.js?v=3"></script>
   <script type="module" src="js/vue-home.js?v=4"></script>
   <script type="module" src="js/vue-home-desktop.js"></script>
-  <script type="module" src="js/vue-header-mobile.js?v=1"></script>
+  <script type="module" src="js/vue-header-mobile.js?v=2"></script>
   <script type="module" src="js/vue-registrasi.js?v=2"></script>
   <script type="module" src="js/vue-buat-password.js"></script>
   <script type="module" src="js/vue-login.js"></script>
@@ -672,7 +670,7 @@
        cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
        DropdownCari, tidak dipakai fitur Import Excel §37 yang ditambah di
        Data Komponen). -->
-  <script type="module" src="js/vue-bahan-aksesoris.js?v=19"></script>
+  <script type="module" src="js/vue-bahan-aksesoris.js?v=20"></script>
   <script type="module" src="js/vue-rak-penyimpanan.js?v=4"></script>
   <script type="module" src="js/vue-persiapan-masalah.js?v=4"></script>
   <!-- v=19 (28 Agt 2026): sempat dicoba tag Jenis Pekerjaan per pesanan
@@ -683,7 +681,7 @@
        v=20 (28 Agt 2026, §37): TIDAK ADA perubahan fungsional di file ini —
        cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
        DropdownCari, tidak dipakai fitur Import Excel §37). -->
-  <script type="module" src="js/vue-stock-pembelian.js?v=21"></script>
+  <script type="module" src="js/vue-stock-pembelian.js?v=22"></script>
   <script type="module" src="js/vue-kartu-stok.js?v=6"></script>
   <!-- BARU (27 Agt 2026, §26.1) — Zevanic House > Config. v=2 (28 Agt 2026):
        tambah tab ke-7 "Jenis Produk" (AppConfigJenisProduk, koleksi
@@ -741,6 +739,6 @@
        `webbing3_id`/`webbing2_nama`/`webbing3_nama` DIHAPUS dari skema
        `master_produk.bom_aksesoris[]`, diganti `webbing2`/`webbing3`
        (string bebas). -->
-  <script type="module" src="js/vue-master-produk.js?v=13"></script>
+  <script type="module" src="js/vue-master-produk.js?v=14"></script>
 </body>
 </html>

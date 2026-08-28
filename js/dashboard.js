@@ -397,8 +397,9 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-zh-stock-notaorder': 'pastikanMountNotaOrderBelanja',
     'sub-zh-stock-riwayat': 'pastikanMountRiwayatHargaPembelian',
     'sub-zh-stock-kartustok': 'pastikanMountKartuStok',
-    // BARU (27 Agt 2026, §26.3) — Cetak Label.
-    'sub-zh-stock-cetaklabel': 'pastikanMountCetakLabel',
+    // DIPENSIUNKAN (28 Agt 2026, §41.2) — dulu 'sub-zh-stock-cetaklabel':
+    // 'pastikanMountCetakLabel' di sini, tab-nya sudah dihapus dari
+    // index.html (Cetak Label pindah jadi tombol di List Bahan & Aksesoris).
     // BARU (27 Agt 2026, §28) — Master Produk (BOM).
     'sub-zh-produk-entry': 'pastikanMountProdukEntry',
     'sub-zh-produk-list': 'pastikanMountProdukList',

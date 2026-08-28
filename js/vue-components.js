@@ -1121,3 +1121,139 @@ export const QuoteCard = {
     </div>
   `
 };
+
+// ---------------------------------------------------------------------------
+// PopupPratinjauCetakLabel — BARU (28 Agt 2026, §41.1, permintaan Guru).
+// Popup GENERIK pratinjau + konfigurasi SEBELUM cetak label fisik, dipakai
+// BARENG oleh SEMUA tempat cetak label QR di app ini (Cetak Label di List
+// Bahan & Aksesoris [GANTI dari tab tersendiri Stock & Pembelian], Cetak
+// Label Roll di Nota Order Belanja, Cetak Label di Order SPK) — sebelumnya
+// masing-masing LANGSUNG window.print() tanpa pratinjau/pengaturan apapun.
+//
+// Guru eksplisit: ukuran fisik yang dipakai 4x2 inch + kertas thermal
+// roll (1 label = 1 lembar fisik, BUKAN banyak label per lembar kertas
+// biasa seperti sebelumnya) — makanya CSS cetak di sini pakai `@page {
+// size: 4in 2in; }` + `page-break-after` per label (gaya lama pola kotak
+// dashed banyak-per-halaman DIHAPUS, sudah tidak relevan buat thermal).
+//
+// Kontrak props.daftarLabel: array `{kode, nama, info, qrDataUrl}` — kode
+// TEKS QR (nama_pola/kode_lot/id_tampil/no_spk tergantung pemanggil),
+// nama = judul barang, info = HTML pendek (boleh berisi entity &middot;,
+// dst — makanya pratinjau di sini pakai v-html buat baris info, BUKAN
+// interpolasi teks biasa yang otomatis di-escape Vue), qrDataUrl = hasil
+// `buatQrDataUrl(kode)` yang SUDAH digambar duluan oleh pemanggil (pola
+// generate-QR-sinkron-di-window-utama yang sudah terbukti jalan, lihat
+// komentar panjang `buatQrDataUrl()` di js/vue-stock-pembelian.js — popup
+// ini SENGAJA tidak menggambar QR sendiri, cuma terima gambar jadi).
+//
+// "Config print, data apa yang mau diprint" (permintaan Guru) diwakili 2
+// checkbox tampilNama/tampilInfo — QR+kode SELALU tampil (itu intinya,
+// biar tetap bisa discan). Jumlah Salinan mengulang TIAP label yang
+// dikirim sebanyak N kali di halaman cetak (bukan pakai dialog "copies"
+// bawaan printer — lebih pasti kejadian di printer thermal).
+//
+// Emit 'cetak' (payload {jumlahSalinan, tampilNama, tampilInfo}) SETELAH
+// window cetak dibuka — pemanggil boleh dengarkan buat tindak lanjutnya
+// sendiri (misal catat log_cetak_label, BEDA-BEDA per pemanggil, TIDAK
+// semua pemanggil butuh — makanya logging TIDAK dijadikan tanggung jawab
+// popup ini, cuma tugas cetak+pratinjau generik).
+// ---------------------------------------------------------------------------
+export const PopupPratinjauCetakLabel = {
+  props: {
+    terbuka: { type: Boolean, default: false },
+    judul: { type: String, default: 'Cetak Label' },
+    daftarLabel: { type: Array, default: () => [] }
+  },
+  emits: ['tutup', 'cetak'],
+  setup(props, { emit }) {
+    const tampilNama = ref(true);
+    const tampilInfo = ref(true);
+    const jumlahSalinan = ref(1);
+
+    function tutup() { emit('tutup'); }
+
+    function cetakSekarang() {
+      if (!props.daftarLabel.length) return;
+      const salinan = Math.max(1, parseInt(jumlahSalinan.value) || 1);
+      let labelsHtml = '';
+      for (const l of props.daftarLabel) {
+        const qrHtml = l.qrDataUrl
+          ? `<img src="${l.qrDataUrl}" alt="QR ${l.kode}">`
+          : `<div style="font-size:9px;">(QR gagal dibuat)</div>`;
+        const satuLabel = `
+          <div class="label-cetak">
+            <div class="qr">${qrHtml}</div>
+            <div class="teks">
+              <div class="kode">${l.kode}</div>
+              ${(tampilNama.value && l.nama) ? `<div class="nama">${l.nama}</div>` : ''}
+              ${(tampilInfo.value && l.info) ? `<div class="info">${l.info}</div>` : ''}
+            </div>
+          </div>`;
+        for (let s = 0; s < salinan; s++) labelsHtml += satuLabel;
+      }
+      const w = window.open('', '_blank');
+      if (!w) { alert('Popup diblokir browser. Izinkan popup untuk mencetak label.'); return; }
+      w.document.write(`<html><head><title>${props.judul}</title>
+        <style>
+          @page { size: 4in 2in; margin: 0; }
+          *{ box-sizing:border-box; }
+          body{ font-family:Arial,sans-serif; margin:0; }
+          .label-cetak{ width:4in; height:2in; padding:0.22in; display:flex; align-items:center; gap:0.2in; page-break-after:always; }
+          .label-cetak:last-child{ page-break-after:auto; }
+          .qr{ width:1.5in; height:1.5in; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+          .qr img{ width:100%; height:100%; display:block; }
+          .teks{ font-size:12px; line-height:1.35; min-width:0; overflow:hidden; }
+          .kode{ font-weight:700; font-size:17px; margin-bottom:4px; word-break:break-all; }
+          .nama{ font-size:13px; }
+          .info{ font-size:11px; color:#555; margin-top:2px; }
+        </style>
+        </head><body>
+        ${labelsHtml}
+        <script>
+          window.onload = function() { setTimeout(function () { window.print(); }, 300); };
+        <\/script>
+        </body></html>`);
+      w.document.close();
+      emit('cetak', { jumlahSalinan: salinan, tampilNama: tampilNama.value, tampilInfo: tampilInfo.value });
+      emit('tutup');
+    }
+
+    return { tampilNama, tampilInfo, jumlahSalinan, tutup, cetakSekarang };
+  },
+  template: `
+    <div v-if="terbuka" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="tutup">
+      <div class="gc-card" style="max-width:420px; width:100%; max-height:90vh; overflow-y:auto;">
+        <h3 style="font-weight:700; font-size:14px; margin-bottom:4px;">{{ judul }}</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin-bottom:14px;">Pratinjau label ukuran 4x2 inch (thermal roll) &mdash; 1 label = 1 lembar fisik. Atur data yang mau tampil &amp; jumlah salinan sebelum cetak.</p>
+
+        <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px; max-height:260px; overflow-y:auto;">
+          <div v-for="(l, i) in daftarLabel.slice(0,3)" :key="i" style="width:200px; height:100px; border:1.5px dashed var(--line); border-radius:6px; padding:10px; display:flex; align-items:center; gap:10px; background:#fff; margin:0 auto; box-sizing:border-box;">
+            <img v-if="l.qrDataUrl" :src="l.qrDataUrl" style="width:56px; height:56px; flex-shrink:0;">
+            <div v-else style="width:56px; height:56px; flex-shrink:0; background:var(--ivory-dim); border-radius:4px;"></div>
+            <div style="min-width:0; overflow:hidden;">
+              <div style="font-weight:700; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#222;">{{ l.kode }}</div>
+              <div v-if="tampilNama && l.nama" style="font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#222;">{{ l.nama }}</div>
+              <div v-if="tampilInfo && l.info" style="font-size:9.5px; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" v-html="l.info"></div>
+            </div>
+          </div>
+          <div v-if="daftarLabel.length > 3" style="text-align:center; font-size:11px; color:var(--text-faint);">+ {{ daftarLabel.length - 3 }} label lainnya ikut dicetak</div>
+          <div v-if="daftarLabel.length === 0" style="text-align:center; font-size:11px; color:var(--text-faint); padding:12px;">Belum ada label dipilih.</div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer;"><input type="checkbox" v-model="tampilNama" style="accent-color:var(--burgundy); width:15px; height:15px;">Tampilkan Nama Barang</label>
+          <label style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer;"><input type="checkbox" v-model="tampilInfo" style="accent-color:var(--burgundy); width:15px; height:15px;">Tampilkan Info (qty/tanggal)</label>
+          <div class="gc-field" style="margin-bottom:0;">
+            <label>Jumlah Salinan per Label</label>
+            <input v-model.number="jumlahSalinan" type="number" min="1" style="max-width:100px;">
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px;">
+          <button @click="cetakSekarang" :disabled="daftarLabel.length===0" class="btn-primary" style="flex:1;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Sekarang ({{ daftarLabel.length * (jumlahSalinan||1) }} label)</button>
+          <button @click="tutup" type="button" class="btn-outline" style="flex:1;">Batal</button>
+        </div>
+      </div>
+    </div>
+  `
+};

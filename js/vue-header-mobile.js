@@ -72,7 +72,6 @@ const LABEL_SUBTAB = {
   'sub-zh-stock-notaorder': 'Nota Order Belanja',
   'sub-zh-stock-riwayat': 'Riwayat Harga Pembelian',
   'sub-zh-stock-kartustok': 'Kartu Stok',
-  'sub-zh-stock-cetaklabel': 'Cetak Label',
   'sub-zh-scan-opname': 'Scan Opname',
   'sub-zh-scan-persiapan': 'Scan Persiapan'
 };
