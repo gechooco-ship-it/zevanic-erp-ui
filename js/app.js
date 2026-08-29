@@ -44,7 +44,11 @@ window.pindahLayar = function(idTujuan) {
   // class hidden) saat pindahLayar() dipanggil ke layar LAIN, paksa tutup
   // di sini — jaring pengaman buat SEMUA jalur pindah layar, bukan cuma
   // logout (kamera, absensi QR, dst kalau kelak dibuka juga dari drawer).
-  if (idTujuan !== 'screen-dashboard' && window.tutupProfileDrawer) window.tutupProfileDrawer();
+  // GANTI (28 Agt 2026, redesain "Gechoo Mobile Organic") — drawer lama
+  // (window.tutupProfileDrawer) DIHAPUS TOTAL, ganti Bottom Sheet Profil
+  // (js/vue-sheet-profil.js, window.tutupSheetProfil). Jaring pengaman
+  // SAMA PERSIS seperti sebelumnya, cuma nama fungsinya beda.
+  if (idTujuan !== 'screen-dashboard' && window.tutupSheetProfil) window.tutupSheetProfil();
 
   // Panggil fungsi kamera jika ke layar kamera
   if (idTujuan === 'screen-camera' && window.mulaiKamera) {
@@ -78,10 +82,14 @@ window.addEventListener('DOMContentLoaded', () => {
   const mnavProgress = document.getElementById('mnav-progress');
   if (mnavProgress) mnavProgress.addEventListener('click', () => window.pindahTab('tab-progress'));
 
+  // GANTI (28 Agt 2026, redesain "Gechoo Mobile Organic", keputusan Guru
+  // "hapus total, ganti bersih") — window.bukaProfileDrawer (drawer geser
+  // dari kanan) DIHAPUS TOTAL, ganti window.bukaSheetProfil (Bottom Sheet
+  // naik dari bawah, js/vue-sheet-profil.js).
   const mnavProfile = document.getElementById('mnav-profile');
   if (mnavProfile) mnavProfile.addEventListener('click', () => {
     if (window.matikanScanQr) window.matikanScanQr();
-    if (window.bukaProfileDrawer) window.bukaProfileDrawer();
+    if (window.bukaSheetProfil) window.bukaSheetProfil();
   });
 });
 

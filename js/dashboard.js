@@ -211,7 +211,11 @@ window.bukaGrupSidebarUntukTab = function(tabId) {
 };
 
 window.pindahTab = function(tabId, navKey, _dariPopstate) {
-  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-zevanic-house', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress'];
+  // BARU (28 Agt 2026, redesain "Gechoo Mobile Organic") — 'tab-menu-lengkap'
+  // & 'tab-atur-favorit' (layar baru, lihat js/vue-menu-lengkap.js &
+  // js/vue-atur-favorit.js, dibuka dari js/vue-home.js) didaftarkan di sini
+  // supaya ikut disembunyikan/ditampilkan seperti tab lain.
+  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-zevanic-house', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress', 'tab-menu-lengkap', 'tab-atur-favorit'];
   const tabSebelumnya = tabs.find(t => {
     const el = document.getElementById(t);
     return el && !el.classList.contains('hidden');

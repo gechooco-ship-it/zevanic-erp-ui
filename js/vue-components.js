@@ -1123,6 +1123,117 @@ export const QuoteCard = {
 };
 
 // ---------------------------------------------------------------------------
+// KartuMenu — BARU (redesain "Gechoo Mobile Organic", README.md §1.5) —
+// kartu 1 menu (lingkaran ikon + label), dipakai BERSAMA di Favorit Saya,
+// Grup menu (Beranda), dan Menu Lengkap — SATU tempat, bukan disalin 3x.
+// Modul terkunci (wajibOwner / cekIzinMenu view=false) tampil opacity .5 +
+// ikon gembok, TETAP diklik (pemanggil yang urus tampilkan dialog "Akses
+// Terbatas", bukan komponen ini — supaya nama modul & konteks dialog bisa
+// disesuaikan pemanggil).
+// ---------------------------------------------------------------------------
+export const KartuMenu = {
+  props: {
+    item: { type: Object, required: true },
+    ditandai: { type: Boolean, default: false } // dipakai mode pilih favorit (bintang kecil)
+  },
+  emits: ['klik'],
+  template: `
+    <button @click="$emit('klik', item)" class="gc-card" style="padding:14px 6px 13px; min-height:88px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:9px; cursor:pointer; position:relative; border-radius:16px;" :style="item.terkunci ? 'opacity:.5;' : ''">
+      <i v-if="item.terkunci" class="fas fa-lock" style="position:absolute; top:7px; right:7px; font-size:10px; color:var(--text-faint);"></i>
+      <i v-if="ditandai" class="fas fa-star" style="position:absolute; top:7px; left:7px; font-size:10px; color:var(--burgundy);"></i>
+      <span style="width:34px; height:34px; border-radius:50%; background:var(--aksen-lembut); display:flex; align-items:center; justify-content:center; color:var(--aksen-ink); font-size:17px;"><i class="fas" :class="item.icon"></i></span>
+      <span class="gc-heading" style="font-size:9.5px; font-weight:600; color:var(--text); text-align:center; line-height:1.25;">{{ item.label }}</span>
+    </button>
+  `
+};
+
+// ---------------------------------------------------------------------------
+// AksesTerbatasDialog — BARU (redesain, README.md "Interactions") — GANTI
+// alert() polos yang dulu dipakai untuk modul wajibOwner/terkunci. Dipakai
+// bareng di Beranda & Menu Lengkap.
+// ---------------------------------------------------------------------------
+export const AksesTerbatasDialog = {
+  props: { namaModul: { type: String, default: '' } },
+  emits: ['tutup'],
+  setup() {
+    // Dibaca lewat computed (BUKAN window.currentUser langsung di
+    // template) — pola wajib project ini, lihat catatan roleTampil di
+    // vue-account-profile.js: Vue tidak reaktif ke window.currentUser
+    // langsung. Dialog ini SELALU muncul SETELAH login (baru bisa klik
+    // menu terkunci kalau sudah login), jadi cukup dibaca sekali saat
+    // komponen ini dibuat — tidak perlu computed penuh, ref cukup.
+    const roleSaya = window.currentUser?.role || '-';
+    return { roleSaya };
+  },
+  template: `
+    <div class="gc-dialog-backdrop" @click="$emit('tutup')">
+      <div class="gc-dialog" @click.stop>
+        <div style="width:56px; height:56px; border-radius:50%; background:var(--aksen-lembut); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; color:var(--aksen-ink); font-size:24px;"><i class="fas fa-lock"></i></div>
+        <h3 class="gc-heading" style="font-size:17px; font-weight:700; margin:0;">Akses Terbatas</h3>
+        <p style="font-size:12px; font-weight:600; margin:8px 0 0;">{{ namaModul }}</p>
+        <p style="font-size:11px; color:var(--text-muted); margin:6px 0 18px; line-height:1.5;">Peran Anda saat ini ({{ roleSaya }}) belum diberi akses ke modul ini. Hubungi Owner / PIC Owner kalau perlu.</p>
+        <button @click="$emit('tutup')" class="btn-primary" style="border-radius:999px;">Mengerti</button>
+      </div>
+    </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
+// HeaderLayar — BARU (redesain "Gechoo Mobile Organic", README.md, dipakai
+// di HAMPIR SEMUA layar baru: tombol kembali bulat + kicker + judul +
+// menuId opsional). Tombol kembali pakai window.pindahTab(tabPulang) kalau
+// prop `tab-pulang` diisi (paling umum), atau emit 'kembali' kalau
+// pemanggil mau urus sendiri (dipakai untuk sub-layar di dalam 1 komponen,
+// misal Profil Lengkap yang isinya banyak tabAktif internal).
+// ---------------------------------------------------------------------------
+export const HeaderLayar = {
+  props: {
+    kicker: { type: String, default: '' },
+    judul: { type: String, required: true },
+    menuId: { type: String, default: '' },
+    tabPulang: { type: String, default: '' }
+  },
+  emits: ['kembali'],
+  setup(props, { emit }) {
+    function kembali() {
+      if (props.tabPulang && window.pindahTab) window.pindahTab(props.tabPulang, null, false);
+      else emit('kembali');
+    }
+    return { kembali };
+  },
+  template: `
+    <div style="display:flex; align-items:center; gap:11px; margin-bottom:14px;">
+      <button @click="kembali" style="width:34px; height:34px; border-radius:50%; background:var(--surface); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; cursor:pointer; flex-shrink:0; color:var(--text);" aria-label="Kembali">
+        <i class="fas fa-arrow-left" style="font-size:15px;"></i>
+      </button>
+      <div style="min-width:0;">
+        <p v-if="kicker" class="gc-heading" style="font-size:9.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.08em; margin:0;">{{ kicker }}</p>
+        <h2 class="gc-heading" style="font-size:18px; font-weight:700; color:var(--aksen-ink); margin:1px 0 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ judul }}</h2>
+        <p v-if="menuId" style="font-size:8.5px; color:var(--text-faint); margin:1px 0 0;">{{ menuId }}</p>
+      </div>
+    </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
+// KolomCari — BARU (redesain) — kolom cari pil (ikon kaca pembesar + input +
+// tombol X saat terisi), dipakai di Menu Lengkap, Atur Favorit, dan pola
+// Daftar modul. v-model lewat prop `modelValue` + emit 'update:modelValue'
+// (kompatibel v-model bawaan Vue 3).
+// ---------------------------------------------------------------------------
+export const KolomCari = {
+  props: { modelValue: { type: String, default: '' }, placeholder: { type: String, default: 'Cari...' } },
+  emits: ['update:modelValue'],
+  template: `
+    <div style="display:flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:9px 13px; margin-bottom:12px;">
+      <i class="fas fa-magnifying-glass" style="font-size:15px; color:var(--text-faint); flex-shrink:0;"></i>
+      <input :value="modelValue" @input="$emit('update:modelValue', $event.target.value)" type="text" :placeholder="placeholder" style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px; color:var(--text);">
+      <button v-if="modelValue" @click="$emit('update:modelValue', '')" style="background:none; border:none; padding:0; cursor:pointer; color:var(--text-faint); flex-shrink:0;"><i class="fas fa-xmark"></i></button>
+    </div>
+  `
+};
+
+// ---------------------------------------------------------------------------
 // PopupPratinjauCetakLabel — BARU (28 Agt 2026, §41.1, permintaan Guru).
 // Popup GENERIK pratinjau + konfigurasi SEBELUM cetak label fisik, dipakai
 // BARENG oleh SEMUA tempat cetak label QR di app ini (Cetak Label di List

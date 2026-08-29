@@ -121,11 +121,14 @@ const AppScanQr = {
           <span v-if="kameraError" style="color:#F2A0A0; font-size:12px;">{{ kameraError }}</span>
           <span v-else style="font-size:13px;">Menyiapkan kamera...</span>
         </div>
-        <div v-if="hasilScan" style="display:flex; flex-direction:column; align-items:center; text-align:center; padding:16px; color:var(--ok);">
+        <!-- BARU (28 Agt 2026, redesain, README §8) — animasi gxPop murni
+             dekoratif saat kode terdeteksi, tidak ada logic tambahan. -->
+        <div v-if="hasilScan" style="display:flex; flex-direction:column; align-items:center; text-align:center; padding:16px; color:var(--ok); animation:gxPop .3s ease;">
           <i class="fas fa-circle-check" style="font-size:44px; margin-bottom:10px;"></i>
           <span style="font-size:13px; font-weight:700;">Kode terdeteksi!</span>
         </div>
         <div v-if="!sedangMemuatKamera && !belumDibuka && !hasilScan" class="gc-cam-frame"></div>
+        <div v-if="!sedangMemuatKamera && !belumDibuka && !hasilScan" class="gc-cam-scanline"></div>
       </div>
 
       <div style="width:100%; max-width:300px; margin-bottom:20px;">

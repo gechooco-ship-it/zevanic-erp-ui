@@ -864,6 +864,9 @@ const AppKamera = {
           <span v-else style="font-size:13px;">Meminta akses kamera...</span>
         </div>
         <div v-if="!sedangMemuatKamera && !sudahAmbilFoto" class="gc-cam-frame"></div>
+        <!-- BARU (28 Agt 2026, redesain "Gechoo Mobile Organic", README §8) —
+             garis scan murni dekoratif, tidak ada logic tambahan. -->
+        <div v-if="!sedangMemuatKamera && !sudahAmbilFoto" class="gc-cam-scanline"></div>
       </div>
 
       <div style="width:100%; max-width:300px; margin-bottom:20px; display:flex; flex-direction:column; align-items:center; min-height:96px;">

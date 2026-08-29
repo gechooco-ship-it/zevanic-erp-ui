@@ -369,8 +369,8 @@ const OrderSpkManager = {
     };
   },
   template: `
-    <div class="gc-card" style="margin-bottom:16px;">
-      <h3 style="font-weight:700; font-size:13.5px; margin-bottom:4px;"><i class="fas fa-clipboard-list" style="color:var(--burgundy); margin-right:8px;"></i>{{ sedangEditId ? 'Edit Order SPK' : 'Tambah Order SPK' }}</h3>
+    <div class="gc-card" style="margin-bottom:16px; border-radius:20px;">
+      <h3 style="font-weight:700; font-size:13.5px; margin-bottom:4px;"><i class="fas fa-clipboard-list" style="color:var(--aksen-ink); margin-right:8px;"></i>{{ sedangEditId ? 'Edit Order SPK' : 'Tambah Order SPK' }}</h3>
       <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 12px;">Pencatatan No. SPK dasar (migrasi bertahap dari catatan spreadsheet). No. SPK ini nanti dipakai dropdown "No SPK" di menu Scan Persiapan.</p>
 
       <div v-if="bolehTambah" style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">
@@ -441,11 +441,15 @@ const OrderSpkManager = {
       <p v-if="bolehTambah && !bolehCetak" style="font-size:10.5px; color:var(--text-faint); margin-top:8px;">Akun ini tidak punya izin cetak untuk menu ini — cuma tombol "Simpan" yang tersedia.</p>
     </div>
 
-    <div class="gc-card" style="padding:14px 14px 4px;">
+    <div class="gc-card" style="padding:14px 14px 4px; border-radius:20px;">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
-        <div style="position:relative; max-width:280px; flex:1; min-width:200px;">
-          <i class="fas fa-search" style="position:absolute; left:11px; top:11px; color:var(--text-faint); font-size:11px;"></i>
-          <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari No. SPK..." style="width:100%; padding:8px 10px 8px 28px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; outline:none;">
+        <!-- Kolom cari pil — DISESUAIKAN (28 Agt 2026, redesain "Gechoo Mobile
+             Organic", pola sama seperti vue-persiapan-produksi.js). Tetap
+             pakai cariDenganDebounce (bukan komponen KolomCari — beda kontrak
+             v-model tanpa debounce), cuma bungkusnya diganti gaya pil. -->
+        <div style="display:flex; align-items:center; gap:9px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:999px; padding:9px 13px; flex:1; min-width:200px; max-width:320px;">
+          <i class="fas fa-magnifying-glass" style="font-size:13px; color:var(--text-faint); flex-shrink:0;"></i>
+          <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari No. SPK..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px; color:var(--text);">
         </div>
         <div v-if="bolehCetak" style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
           <button @click="toggleSemuaTabel(true)" class="btn-outline" style="padding:5px 10px; font-size:11px;">Pilih Semua</button>
@@ -461,13 +465,16 @@ const OrderSpkManager = {
          di header tiap kartu, bukan dihilangkan. -->
     <div v-if="paginasi.memuat.value" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <div v-else-if="paginasi.errorPaginasi.value" class="gc-card" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
-    <div v-else-if="paginasi.dataHalaman.value.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada Order SPK terdaftar.</div>
+    <div v-else-if="paginasi.dataHalaman.value.length === 0" class="gc-kosong gc-card">
+      <div class="lingkaran"><i class="fas fa-clipboard-list"></i></div>
+      <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada Order SPK terdaftar</h3>
+    </div>
     <div v-else style="display:flex; flex-direction:column; gap:10px;">
-      <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:14px;">
+      <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:14px; border-radius:20px;">
         <div style="display:flex; gap:10px; align-items:flex-start; margin-bottom:12px;">
           <input v-if="bolehCetak" type="checkbox" v-model="dicentangTabel[item.id]" style="accent-color:var(--burgundy); width:16px; height:16px; margin-top:2px; flex-shrink:0;" title="Pilih buat cetak label">
           <div style="flex:1; min-width:0;">
-            <div style="font-weight:700; font-size:13.5px;">{{ item.no_spk }}</div>
+            <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ item.no_spk }}</div>
           </div>
           <span class="tag" :class="item.status === 'Aktif' ? 'ok' : 'neutral'" style="flex-shrink:0;">{{ item.status }}</span>
         </div>

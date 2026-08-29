@@ -223,13 +223,17 @@ const PersiapanQueueManager = {
     return { paginasi, formatQty, bolehApprove, sedangApprove, tampilkanApproved, approveAntrean };
   },
   template: `
-    <div class="gc-card" style="padding:14px 14px 4px; margin-bottom:14px;">
-      <h3 style="font-weight:700; font-size:13.5px; margin-bottom:4px;"><i class="fas fa-list-check" style="color:var(--burgundy); margin-right:8px;"></i>Perlu Disiapkan</h3>
+    <div class="gc-card" style="padding:16px 16px 14px; margin-bottom:14px; border-radius:20px;">
+      <h3 style="font-weight:700; font-size:13.5px; margin-bottom:4px;"><i class="fas fa-list-check" style="color:var(--aksen-ink); margin-right:8px;"></i>Perlu Disiapkan</h3>
       <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 12px;">Antrean SPK baru — TERISI OTOMATIS begitu Order SPK disimpan. Approve buat generate kartu Persiapan Bahan/Acc Sewing/Webbing/Finishing sesuai isi BOM produk yang terhubung.</p>
-      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
-        <div style="position:relative; max-width:280px; flex:1; min-width:200px;">
-          <i class="fas fa-search" style="position:absolute; left:11px; top:11px; color:var(--text-faint); font-size:11px;"></i>
-          <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari No. SPK..." style="width:100%; padding:8px 10px 8px 28px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; outline:none;">
+      <!-- Kolom cari pil — DISESUAIKAN (28 Agt 2026, redesain "Gechoo Mobile
+           Organic", README §4 "Daftar modul"). Tetap pakai cariDenganDebounce
+           yang sudah ada (bukan komponen KolomCari — itu v-model langsung
+           tanpa debounce, beda kontrak), cuma bungkusnya diganti gaya pil. -->
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <div style="display:flex; align-items:center; gap:9px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:999px; padding:9px 13px; flex:1; min-width:200px; max-width:320px;">
+          <i class="fas fa-magnifying-glass" style="font-size:13px; color:var(--text-faint); flex-shrink:0;"></i>
+          <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari No. SPK..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px; color:var(--text);">
         </div>
         <label style="display:flex; align-items:center; gap:6px; font-size:11.5px; color:var(--text-muted); cursor:pointer;">
           <input type="checkbox" v-model="tampilkanApproved" @change="paginasi.muatUlang" style="accent-color:var(--burgundy);"> Tampilkan yang sudah di-Approve juga
@@ -239,24 +243,31 @@ const PersiapanQueueManager = {
 
     <div v-if="paginasi.memuat.value" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <div v-else-if="paginasi.errorPaginasi.value" class="gc-card" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
-    <div v-else-if="paginasi.dataHalaman.value.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada SPK yang perlu disiapkan.</div>
+    <div v-else-if="paginasi.dataHalaman.value.length === 0" class="gc-kosong gc-card">
+      <div class="lingkaran"><i class="fas fa-clipboard-check"></i></div>
+      <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada SPK yang perlu disiapkan</h3>
+    </div>
     <div v-else style="display:grid; gap:12px;" class="grid-cols-1 md:grid-cols-2">
-      <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:16px; border-left:4px solid var(--burgundy); position:relative;">
+      <!-- Kartu-baris (README §4) — judul+subtitle, chip status kanan-atas,
+           baris meta (ikon+teks), baris aksi dipisah border-top. -->
+      <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:13px 14px; border-radius:20px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px;">
-          <div>
-            <div style="font-weight:700; font-size:14px;">{{ item.no_spk }}</div>
-            <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">{{ item.nama_produk }}</div>
+          <div style="min-width:0;">
+            <div class="gc-heading" style="font-weight:700; font-size:13px;">{{ item.no_spk }}</div>
+            <div style="font-size:10.5px; color:var(--text-muted); margin-top:2px; line-height:1.45;">{{ item.nama_produk }}</div>
           </div>
-          <span class="tag" :class="item.status === 'approved' ? 'ok' : 'neutral'">{{ item.status === 'approved' ? 'Disetujui' : 'Perlu Disiapkan' }}</span>
+          <span class="tag" :class="item.status === 'approved' ? 'ok' : 'neutral'" style="flex-shrink:0;">{{ item.status === 'approved' ? 'Disetujui' : 'Perlu Disiapkan' }}</span>
         </div>
-        <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:12px;">
-          <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Qty Order</span><span style="font-weight:700;">{{ formatQty(item.qty_order) }} pcs</span></div>
-          <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">SKU Produk</span><span style="font-weight:700;">{{ item.sku_produk || '(belum terhubung)' }}</span></div>
+        <div style="display:flex; flex-wrap:wrap; row-gap:5px; margin-bottom:12px;">
+          <span style="display:flex; align-items:center; gap:5px; font-size:10.5px; color:var(--text-muted); padding-right:12px;"><i class="fas fa-boxes-stacked" style="font-size:13px; color:var(--aksen-ink); opacity:.85;"></i><span class="gc-num">{{ formatQty(item.qty_order) }} pcs</span></span>
+          <span style="display:flex; align-items:center; gap:5px; font-size:10.5px; color:var(--text-muted); padding-right:12px;"><i class="fas fa-barcode" style="font-size:13px; color:var(--aksen-ink); opacity:.85;"></i>{{ item.sku_produk || '(belum terhubung)' }}</span>
         </div>
-        <button v-if="item.status !== 'approved' && bolehApprove" @click="approveAntrean(item)" :disabled="sedangApprove === item.id" class="btn-primary block" style="font-size:12.5px; padding:9px;">
-          <i class="fas fa-check" style="margin-right:6px;"></i>{{ sedangApprove === item.id ? 'Memproses...' : 'Approve — Generate Persiapan' }}
-        </button>
-        <p v-else-if="item.status !== 'approved'" style="font-size:10.5px; color:var(--text-faint);">Akun ini tidak punya izin Approve untuk menu ini.</p>
+        <div v-if="item.status !== 'approved'" style="border-top:1px solid var(--line); padding-top:11px;">
+          <button v-if="bolehApprove" @click="approveAntrean(item)" :disabled="sedangApprove === item.id" class="btn-primary block" style="font-size:12px; padding:11px; border-radius:999px;">
+            <i class="fas fa-check" style="margin-right:6px;"></i>{{ sedangApprove === item.id ? 'Memproses...' : 'Approve — Generate Persiapan' }}
+          </button>
+          <p v-else style="font-size:10.5px; color:var(--text-faint); margin:0;">Akun ini tidak punya izin Approve untuk menu ini.</p>
+        </div>
       </div>
     </div>
     <div v-if="!paginasi.memuat.value && paginasi.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin:16px 0;">
@@ -293,26 +304,29 @@ const PersiapanKomponenListManager = {
     return { infoTipe, paginasi, formatQty, progres };
   },
   template: `
-    <div class="gc-card" style="padding:14px 14px 4px; margin-bottom:14px;">
-      <h3 style="font-weight:700; font-size:13.5px; margin-bottom:4px;"><i class="fas" :class="infoTipe.icon" style="color:var(--burgundy); margin-right:8px;"></i>{{ infoTipe.label }}</h3>
+    <div class="gc-card" style="padding:16px 16px 14px; margin-bottom:14px; border-radius:20px;">
+      <h3 style="font-weight:700; font-size:13.5px; margin-bottom:4px;"><i class="fas" :class="infoTipe.icon" style="color:var(--aksen-ink); margin-right:8px;"></i>{{ infoTipe.label }}</h3>
       <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 12px;">Checklist otomatis dari BOM (setelah Approve di tab "Perlu Disiapkan"). Tandai "sudah disiapkan" lewat scan di menu Scan Persiapan — bukan di sini.</p>
-      <div style="position:relative; max-width:280px; margin-bottom:12px;">
-        <i class="fas fa-search" style="position:absolute; left:11px; top:11px; color:var(--text-faint); font-size:11px;"></i>
-        <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari No. SPK..." style="width:100%; padding:8px 10px 8px 28px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; outline:none;">
+      <div style="display:flex; align-items:center; gap:9px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:999px; padding:9px 13px; max-width:280px;">
+        <i class="fas fa-magnifying-glass" style="font-size:13px; color:var(--text-faint); flex-shrink:0;"></i>
+        <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari No. SPK..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px; color:var(--text);">
       </div>
     </div>
 
     <div v-if="paginasi.memuat.value" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <div v-else-if="paginasi.errorPaginasi.value" class="gc-card" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
-    <div v-else-if="paginasi.dataHalaman.value.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada kartu {{ infoTipe.label }}.</div>
+    <div v-else-if="paginasi.dataHalaman.value.length === 0" class="gc-kosong gc-card">
+      <div class="lingkaran"><i class="fas" :class="infoTipe.icon"></i></div>
+      <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada kartu {{ infoTipe.label }}</h3>
+    </div>
     <div v-else style="display:grid; gap:12px;" class="grid-cols-1 md:grid-cols-2">
-      <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:16px; border-left:4px solid var(--burgundy);">
+      <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:13px 14px; border-radius:20px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
-          <div>
-            <div style="font-weight:700; font-size:14px;">{{ item.no_spk }}</div>
-            <div style="font-size:12px; color:var(--text-muted); margin-top:2px;">{{ item.nama_produk }}</div>
+          <div style="min-width:0;">
+            <div class="gc-heading" style="font-weight:700; font-size:13px;">{{ item.no_spk }}</div>
+            <div style="font-size:10.5px; color:var(--text-muted); margin-top:2px;">{{ item.nama_produk }}</div>
           </div>
-          <span class="tag" :class="item.status === 'selesai' ? 'ok' : 'neutral'">{{ item.status === 'selesai' ? 'Selesai' : 'Proses' }}</span>
+          <span class="tag" :class="item.status === 'selesai' ? 'ok' : 'neutral'" style="flex-shrink:0;">{{ item.status === 'selesai' ? 'Selesai' : 'Proses' }}</span>
         </div>
         <!-- Progress bar — "kartu yg menarik" permintaan Guru, gambaran cepat berapa % sudah disiapkan. -->
         <div style="height:6px; border-radius:4px; background:var(--ivory-dim); overflow:hidden; margin-bottom:10px;">
@@ -321,10 +335,10 @@ const PersiapanKomponenListManager = {
         <div class="kartu-rows" style="display:flex; flex-direction:column; gap:6px;">
           <div v-for="(b, i) in item.baris" :key="i" style="display:flex; justify-content:space-between; align-items:center; gap:10px; background:var(--ivory-dim); border-radius:10px; padding:8px 12px; font-size:12px;">
             <div style="min-width:0;">
-              <div style="font-weight:700;">{{ b.nama }}<span v-if="b.warna"> {{ b.warna }}</span></div>
-              <div style="color:var(--text-faint); font-size:11px;">{{ formatQty(b.qty_disiapkan) }} / {{ formatQty(b.qty_dibutuhkan) }} {{ b.satuan }}</div>
+              <div style="font-weight:600;">{{ b.nama }}<span v-if="b.warna"> {{ b.warna }}</span></div>
+              <div style="color:var(--text-faint); font-size:11px;" class="gc-num">{{ formatQty(b.qty_disiapkan) }} / {{ formatQty(b.qty_dibutuhkan) }} {{ b.satuan }}</div>
             </div>
-            <i class="fas" :class="b.selesai ? 'fa-circle-check' : 'fa-circle'" :style="{ color: b.selesai ? 'var(--ok, #3a9d5d)' : 'var(--text-faint)', fontSize:'16px', flexShrink:0 }"></i>
+            <i class="fas" :class="b.selesai ? 'fa-circle-check' : 'fa-circle'" :style="{ color: b.selesai ? 'var(--ok)' : 'var(--text-faint)', fontSize:'16px', flexShrink:0 }"></i>
           </div>
         </div>
       </div>

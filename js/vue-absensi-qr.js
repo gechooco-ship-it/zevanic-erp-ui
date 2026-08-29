@@ -545,7 +545,11 @@ const AppAbsensiQr = {
 
       <!-- ============ TAHAP: SUKSES (kartu besar "epic", auto-tutup 7 detik) ============ -->
       <div v-else-if="tahap === 'sukses' && suksesInfo" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center; background:var(--ivory);">
-        <div style="background:var(--surface); border-radius:28px; padding:40px 32px; max-width:460px; width:100%; box-shadow:0 16px 40px rgba(0,0,0,.14);">
+        <!-- BARU (28 Agt 2026, redesain, README §8): animasi gxPop murni
+             dekoratif ditambahkan ke kartu "epic" ini — ukuran/isi/durasi
+             7 detik TIDAK disentuh sama sekali (sudah hasil beberapa ronde
+             feedback Guru, lihat komentar di atas). -->
+        <div style="background:var(--surface); border-radius:28px; padding:40px 32px; max-width:460px; width:100%; box-shadow:0 16px 40px rgba(0,0,0,.14); animation:gxPop .3s ease;">
           <i class="fas fa-circle-check" style="font-size:46px; color:var(--ok); margin-bottom:12px; display:block;"></i>
           <h2 style="font-weight:700; font-size:22px; margin-bottom:6px; color:var(--burgundy-dark);">Selamat, {{ suksesInfo.nama }}!</h2>
           <p style="font-size:15px; color:var(--ok); font-weight:700; margin-bottom:24px;">{{ PESAN_SUKSES[suksesInfo.jenis] }}</p>

@@ -106,6 +106,20 @@ const AntreanAbsensiCard = {
     const bolehEdit = computed(() => window.cekIzinMenu('antrean_absensi', 'edit') !== false);
     const bolehHapus = computed(() => window.cekIzinMenu('antrean_absensi', 'delete') !== false);
 
+    // BARU (28 Agt 2026, redesain "Gechoo Mobile Organic", permintaan Guru
+    // "avatar pakai foto terakhir") — avatar ringkasan di header kartu
+    // SEKARANG utamakan foto_selfie_keluar (Clock Out, KRONOLOGIS lebih
+    // baru dari Clock In pada record yang sama) sebelum jatuh ke
+    // foto_selfie_masuk lalu field lama (foto_selfie/foto). Sebelumnya
+    // urutan cuma masuk->lama, foto_selfie_keluar TIDAK PERNAH dipakai di
+    // header ringkasan (padahal sudah tampil di blok Clock Out sendiri).
+    const fotoAvatar = computed(() =>
+      props.data.foto_selfie_keluar || props.data.foto_selfie_masuk || props.data.foto_selfie || props.data.foto || ''
+    );
+    const menuAksiTerbuka = ref(false);
+    function toggleMenuAksi() { menuAksiTerbuka.value = !menuAksiTerbuka.value; }
+    function tutupMenuAksi() { menuAksiTerbuka.value = false; }
+
     // BARU (19 Agt 2026, permintaan Hilman) — Status Kehadiran SEKARANG
     // dihitung OTOMATIS oleh sistem (bandingkan jam Clock In/Out asli vs
     // jadwal shift di master_shift), BUKAN dipilih manual admin lagi.
@@ -248,6 +262,7 @@ const AntreanAbsensiCard = {
 
     return {
       adalahFormatBaru, adaYangPending, lihatFotoBesar, hapus, bolehEdit, bolehHapus,
+      fotoAvatar, menuAksiTerbuka, toggleMenuAksi, tutupMenuAksi,
       statusKehadiranOtomatis, seragam, memproses, proses,
       statusKehadiranMasukOtomatis, seragamMasuk, memprosesMasuk, prosesMasuk,
       statusKehadiranKeluarOtomatis, seragamKeluar, memprosesKeluar, prosesKeluar, adaLemburApproved
@@ -256,7 +271,7 @@ const AntreanAbsensiCard = {
   template: `
     <div v-if="adaYangPending" class="gc-card">
       <div style="display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
-        <img :src="data.foto_selfie_masuk || data.foto_selfie || data.foto || 'https://via.placeholder.com/150'" @click="lihatFotoBesar(data.foto_selfie_masuk || data.foto_selfie || data.foto)" style="width:64px; height:64px; border-radius:14px; object-fit:cover; border:2px solid var(--surface); box-shadow:0 2px 8px rgba(91,56,38,.1); cursor:pointer;">
+        <img :src="fotoAvatar || 'https://via.placeholder.com/150'" @click="lihatFotoBesar(fotoAvatar)" style="width:64px; height:64px; border-radius:14px; object-fit:cover; border:2px solid var(--surface); box-shadow:0 2px 8px rgba(91,56,38,.1); cursor:pointer;">
         <div>
           <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ data.nama_pegawai || data.nama || 'Karyawan' }}</h4>
           <p style="font-size:10.5px; color:var(--text-muted); font-family:'Poppins',sans-serif;">{{ data.email || '-' }}</p>
@@ -307,10 +322,19 @@ const AntreanAbsensiCard = {
             </select>
           </div>
         </div>
-        <div v-if="bolehEdit || bolehHapus" style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line);">
+        <!-- DIROMBAK (28 Agt 2026, redesain "Gechoo Mobile Organic", permintaan
+             Guru "tombol yang jarang dipakai masuk menu titik-tiga") — Accept
+             & Reject (paling sering dipakai) TETAP langsung di kartu; Hapus
+             (jarang & destruktif) pindah ke menu ⋮ supaya baris tombol tidak
+             sempit/berantakan di HP. Logic proses()/hapus() TIDAK berubah. -->
+        <div v-if="bolehEdit || bolehHapus" style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line); position:relative;">
           <button v-if="bolehEdit" @click="proses('ACC')" :disabled="memproses" class="btn-acc" style="flex:1; display:flex; align-items:center; justify-content:center;"><i class="fas fa-check-circle" style="margin-right:6px;"></i> Accept</button>
           <button v-if="bolehEdit" @click="proses('REJECT')" :disabled="memproses" class="btn-rej" style="flex:1; display:flex; align-items:center; justify-content:center;"><i class="fas fa-times-circle" style="margin-right:6px;"></i> Reject</button>
-          <button v-if="bolehHapus" @click="hapus" class="icon-btn" title="Hapus permanen"><i class="fas fa-trash-alt"></i></button>
+          <button v-if="bolehHapus" @click="toggleMenuAksi" class="icon-btn" title="Aksi lainnya"><i class="fas fa-ellipsis-vertical"></i></button>
+          <div v-if="menuAksiTerbuka" @click="tutupMenuAksi" style="position:fixed; inset:0; z-index:60;"></div>
+          <div v-if="menuAksiTerbuka" style="position:absolute; right:0; bottom:44px; z-index:61; background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 24px -6px rgba(31,22,17,.3); padding:6px; min-width:150px;">
+            <button @click="tutupMenuAksi(); hapus();" style="width:100%; text-align:left; background:none; border:none; padding:9px 11px; border-radius:9px; font-size:12px; font-weight:600; color:var(--danger); cursor:pointer; display:flex; align-items:center; gap:8px;"><i class="fas fa-trash-alt"></i> Hapus permanen</button>
+          </div>
         </div>
       </template>
 

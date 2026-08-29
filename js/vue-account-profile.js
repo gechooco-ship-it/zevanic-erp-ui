@@ -782,15 +782,21 @@ const AppAccountProfile = {
       </div>
 
       <div v-if="memuatRiwayat" style="text-align:center; padding:40px 0; color:var(--text-faint); font-size:12px;"><i class="fas fa-spinner fa-spin" style="font-size:24px; margin-bottom:8px; display:block;"></i>Memuat laporan absensi Anda...</div>
-      <div v-else-if="listRiwayat.length === 0" style="text-align:center; padding:40px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px; color:var(--text-faint); font-size:12px;"><i class="fas fa-folder-open" style="font-size:28px; margin-bottom:10px; display:block; color:var(--text-faint);"></i>Belum ada riwayat absensi yang tercatat untuk Anda.</div>
+      <div v-else-if="listRiwayat.length === 0" class="gc-kosong gc-card">
+        <div class="lingkaran"><i class="fas fa-folder-open"></i></div>
+        <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada riwayat absensi yang tercatat untuk Anda</h3>
+      </div>
       <!-- GANTI (grid-fix mobile §perbaikan grid+kartu) — dulu tabel scroll
            horizontal (9 kolom, freeze-right), SEKARANG kartu (pola SAMA
            seperti Data Bahan & Aksesoris) supaya tidak perlu geser ke
            kanan di HP. Semua kolom tabel lama tetap ada, cuma disusun
            ulang: header = Nama/No HP + tag Status Aju Banding, foto jadi
-           thumbnail di header, sisanya di kartu-rows, Aksi di bawah. -->
+           thumbnail di header, sisanya di kartu-rows, Aksi di bawah.
+           border-radius:20px — DISESUAIKAN (28 Agt 2026, redesain "Gechoo
+           Mobile Organic") supaya konsisten dengan kartu-baris modul lain
+           yang sudah disentuh round ini (Persiapan Produksi/Order SPK). -->
       <div v-else style="display:flex; flex-direction:column; gap:10px;">
-        <div v-for="item in listRiwayat" :key="item.id" class="gc-card" style="padding:14px;">
+        <div v-for="item in listRiwayat" :key="item.id" class="gc-card" style="padding:14px; border-radius:20px;">
           <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:12px;">
             <img v-if="formatBaris(item).fotoMasuk || formatBaris(item).fotoKeluar" :src="formatBaris(item).fotoKeluar || formatBaris(item).fotoMasuk" @click="lihatFotoBesar(formatBaris(item).fotoKeluar || formatBaris(item).fotoMasuk)" style="width:52px; height:52px; object-fit:cover; border-radius:10px; flex-shrink:0; cursor:pointer; border:1px solid var(--line);">
             <div v-else style="width:52px; height:52px; border-radius:10px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><i class="fas fa-image" style="color:var(--text-faint); font-size:15px;"></i></div>
@@ -931,8 +937,9 @@ if (mountPoint) {
   // form-nya SELALU tampil di atas tab (lihat AjukanReimburseTab di
   // vue-reimburse.js), jadi cukup pindah ke tab-nya saja.
   window.bukaReimburseDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('reimburse'); };
-  // Jembatan BARU ke drawer Profile mobile (js/vue-profile-drawer.js) —
-  // dipakai untuk lompat langsung ke sub-tab manapun (Data Karyawan,
-  // Estimasi Gaji, Pencapaian, Keamanan) dari link teks di drawer.
+  // Jembatan ke Bottom Sheet Profil mobile (js/vue-sheet-profil.js, GANTI
+  // js/vue-profile-drawer.js yang dihapus 28 Agt 2026) — dipakai untuk
+  // lompat langsung ke sub-tab manapun (Data Karyawan, Estimasi Gaji,
+  // Pencapaian, Keamanan) dari tautan di sheet.
   window.pindahTabAccountProfile = function(nama) { vm.pindahTab(nama); };
 }

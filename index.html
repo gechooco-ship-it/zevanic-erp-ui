@@ -33,6 +33,37 @@
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   </style>
+  <!-- BARU (28 Agt 2026) — Mode Gelap (redesain mobile). Dipasang SEDINI
+       MUNGKIN (sebelum <body> dirender) supaya tema langsung benar sejak
+       cat pertama, tidak "kedip" terang dulu baru gelap. window.aturTema()/
+       window.toggleTema() dipanggil dari mana saja (Bottom Sheet Profil,
+       Profil Lengkap) — TIDAK butuh Vue, murni atribut data-theme di <html>
+       + localStorage, dibaca token warna di css/gechoo-design.css. -->
+  <script>
+    (function() {
+      var KUNCI = 'zevanic_tema';
+      function terapkan(mode) {
+        if (mode === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        else document.documentElement.removeAttribute('data-theme');
+      }
+      var tersimpan = null;
+      try { tersimpan = localStorage.getItem(KUNCI); } catch (e) {}
+      terapkan(tersimpan === 'dark' ? 'dark' : 'light');
+      window.aturTema = function(mode) {
+        mode = mode === 'dark' ? 'dark' : 'light';
+        terapkan(mode);
+        try { localStorage.setItem(KUNCI, mode); } catch (e) {}
+        window.dispatchEvent(new CustomEvent('zevanic-tema-berubah', { detail: { mode: mode } }));
+      };
+      window.toggleTema = function() {
+        var sekarang = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+        window.aturTema(sekarang === 'dark' ? 'light' : 'dark');
+      };
+      window.temaSaatIni = function() {
+        return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      };
+    })();
+  </script>
 </head>
 <body class="gc-app">
 
@@ -237,6 +268,16 @@
         <div id="tab-scan-qr" class="tab-content hidden fade-in">
           <!-- MIGRASI VUE: lihat js/vue-scan-qr.js (kamera + pembaca QR sungguhan) -->
           <div id="vue-scan-qr"></div>
+        </div>
+
+        <!-- BARU (28 Agt 2026, redesain "Gechoo Mobile Organic") — layar baru,
+             dibuka dari js/vue-home.js (tombol "Lihat Semua Menu"/"Atur
+             Favorit"). Lihat js/vue-menu-lengkap.js & js/vue-atur-favorit.js. -->
+        <div id="tab-menu-lengkap" class="tab-content hidden fade-in md:hidden">
+          <div id="vue-menu-lengkap"></div>
+        </div>
+        <div id="tab-atur-favorit" class="tab-content hidden fade-in md:hidden">
+          <div id="vue-atur-favorit"></div>
         </div>
 
         <div id="tab-progress" class="tab-content hidden fade-in max-w-xl mx-auto w-full">
@@ -646,8 +687,11 @@
     </button>
   </nav>
 
-  <!-- Drawer Profile khusus mobile — lihat js/vue-profile-drawer.js -->
-  <div id="vue-profile-drawer"></div>
+  <!-- Bottom Sheet Profile khusus mobile — lihat js/vue-sheet-profil.js.
+       GANTI TOTAL drawer geser-dari-kanan lama (js/vue-profile-drawer.js,
+       DIHAPUS 28 Agt 2026, keputusan Guru "hapus total, ganti bersih",
+       redesain "Gechoo Mobile Organic"). -->
+  <div id="vue-sheet-profil"></div>
 
   <!-- Modal Edit Karyawan sudah dipindah ke js/vue-daftar-karyawan.js -->
 
@@ -665,7 +709,7 @@
   <!-- togglePassword & toggleFormIzin (dulu di sini) sudah jadi bagian reaktif js/vue-login.js -->
 
   <script type="module" src="js/firebase-config.js"></script>
-  <script type="module" src="js/app.js?v=2"></script>
+  <script type="module" src="js/app.js?v=3"></script>
   <script type="module" src="js/camera.js"></script>
   <!-- v=2 (28 Agt 2026): window.bolehLihatData tambah bypass eksplisit
        dimensi gudang untuk profil "pic_owner" (role "PIC Owner"). -->
@@ -678,10 +722,22 @@
        -> pastikanMountConfigTahapPersiapan + 5 sub-tab menu baru "Persiapan
        Produksi" (Perlu Disiapkan/Bahan/Acc Sewing/Webbing/Finishing) ->
        pastikanMountPersiapanProduksiAntrean/Bahan/Sewing/Webbing/Finishing,
-       & petaTabIndukPerGrup tambah 'sub-zh-persiapanproduksi'. -->
-  <script type="module" src="js/dashboard.js?v=17"></script>
-  <script type="module" src="js/vue-order-spk.js?v=7"></script>
-  <script type="module" src="js/vue-persiapan-produksi.js?v=1"></script>
+       & petaTabIndukPerGrup tambah 'sub-zh-persiapanproduksi'.
+       v=18 (28 Agt 2026, redesain "Gechoo Mobile Organic"): array `tabs` di
+       window.pindahTab tambah 'tab-menu-lengkap' & 'tab-atur-favorit'
+       (layar baru). -->
+  <script type="module" src="js/dashboard.js?v=18"></script>
+  <!-- v=8 (28 Agt 2026, redesain "Gechoo Mobile Organic"): restyle visual
+       saja (kolom cari jadi pil, kartu daftar jadi border-radius:20px,
+       ikon header jadi var(--aksen-ink), empty state jadi pola .gc-kosong)
+       — modul contoh #2 (pasangan Persiapan Produksi), logic/field TIDAK
+       berubah. -->
+  <script type="module" src="js/vue-order-spk.js?v=8"></script>
+  <!-- v=2 (28 Agt 2026, redesain "Gechoo Mobile Organic"): restyle visual
+       saja (kolom cari jadi pil, empty state jadi pola .gc-kosong, kartu
+       antrean pola meta-row+border-top divider) — modul contoh #1, logic
+       BOM-explosion/Approve TIDAK berubah. -->
+  <script type="module" src="js/vue-persiapan-produksi.js?v=2"></script>
   <script type="module" src="js/vue-scan-opname.js?v=1"></script>
   <script type="module" src="js/vue-scan-persiapan.js?v=3"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>
@@ -690,8 +746,13 @@
   <script type="module" src="js/vue-daftar-karyawan.js?v=2"></script>
   <script type="module" src="js/vue-config-akses.js?v=6"></script>
   <script type="module" src="js/vue-hak-akses.js?v=2"></script>
-  <script type="module" src="js/vue-antrean-dakar.js?v=2"></script>
-  <script type="module" src="js/vue-antrean-absensi.js?v=3"></script>
+  <!-- v=3 (28 Agt 2026, redesain "Gechoo Mobile Organic") — gaya bingkai
+       foto KTP disamakan dengan kartu lain (border+shadow), fungsi sama. -->
+  <script type="module" src="js/vue-antrean-dakar.js?v=3"></script>
+  <!-- v=4 (28 Agt 2026, redesain "Gechoo Mobile Organic") — avatar ringkasan
+       kartu utamakan foto_selfie_keluar (foto terakhir); tombol Hapus
+       pindah ke menu titik-tiga (⋮), Accept/Reject tetap langsung tampil. -->
+  <script type="module" src="js/vue-antrean-absensi.js?v=4"></script>
   <script type="module" src="js/vue-antrean-lembur.js?v=2"></script>
   <script type="module" src="js/vue-reimburse.js?v=2"></script>
   <script type="module" src="js/vue-riwayat-absensi.js?v=2"></script>
@@ -700,17 +761,36 @@
   <script type="module" src="js/vue-otp.js"></script>
   <script type="module" src="js/vue-mail-gateway.js"></script>
   <script type="module" src="js/vue-device-kiosk.js?v=2"></script>
-  <script type="module" src="js/vue-account-profile.js?v=2"></script>
-  <!-- FIX (28 Agt 2026): link "Reimburse" ditambahkan ke drawer, sebelumnya
-       sub-tab itu buntu total di mobile (baris tab desktop-nya hidden di
-       mobile, drawer ini satu-satunya jalan navigasi).
-       v=2 (28 Agt 2026): link "Absensi" ikut ditambahkan (kena pola bug
-       yang sama), urutan link disusun ulang biar sama dengan urutan
-       baris tab desktop. -->
-  <script type="module" src="js/vue-profile-drawer.js?v=3"></script>
-  <script type="module" src="js/vue-home.js?v=4"></script>
+  <!-- v=4 (28 Agt 2026, redesain "Gechoo Mobile Organic") — sentuhan gaya
+       RINGAN saja pada tab Absensi: empty state Riwayat jadi pola
+       `.gc-kosong`, kartu Riwayat jadi border-radius:20px (konsisten
+       dengan Persiapan Produksi/Order SPK). SENGAJA TIDAK restyle penuh
+       (form Data Karyawan/Keamanan/dll TETAP tampilan lama) — restyle
+       dalam ("Daftar modul"/"Form bertahap") ke modul ini MENUNGGU Guru
+       approve pola dari 2 modul contoh dulu, sesuai proses yang
+       disepakati (lihat STATUS-PROYEK.md §44.2). -->
+  <script type="module" src="js/vue-account-profile.js?v=4"></script>
+  <!-- js/vue-profile-drawer.js DIHAPUS 28 Agt 2026 (redesain "Gechoo Mobile
+       Organic", keputusan Guru "hapus total, ganti bersih") — GANTI
+       js/vue-sheet-profil.js (Bottom Sheet Profil, lihat mount
+       #vue-sheet-profil di atas). -->
+  <script type="module" src="js/vue-sheet-profil.js"></script>
+  <!-- v=5 (28 Agt 2026, redesain "Gechoo Mobile Organic") — Beranda dirombak
+       total mengikuti mockup: dikunci 1 layar, 1 grup default (bisa diatur
+       user lewat layar baru Atur Favorit), mode "Atur" inline dihapus,
+       Pengumuman/Quote pindah ke js/vue-header-mobile.js. Lihat
+       STATUS-PROYEK.md §44. -->
+  <script type="module" src="js/vue-home.js?v=5"></script>
   <script type="module" src="js/vue-home-desktop.js"></script>
-  <script type="module" src="js/vue-header-mobile.js?v=3"></script>
+  <!-- v=4 (28 Agt 2026, redesain) — mode 'home' tambah quote inline, lonceng
+       notifikasi Pengumuman (badge + dropdown), avatar inisial. Mode
+       'tersembunyi' baru untuk layar ber-header sendiri (Menu Lengkap/Atur
+       Favorit). -->
+  <script type="module" src="js/vue-header-mobile.js?v=4"></script>
+  <!-- BARU (28 Agt 2026, redesain "Gechoo Mobile Organic") — layar baru,
+       lihat mount #vue-menu-lengkap/#vue-atur-favorit di atas. -->
+  <script type="module" src="js/vue-menu-lengkap.js"></script>
+  <script type="module" src="js/vue-atur-favorit.js"></script>
   <script type="module" src="js/vue-registrasi.js?v=2"></script>
   <script type="module" src="js/vue-buat-password.js"></script>
   <script type="module" src="js/vue-login.js"></script>

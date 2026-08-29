@@ -246,7 +246,14 @@ const AntreanDakarCard = {
   template: `
     <div class="gc-card">
       <div style="display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
-        <img v-if="data.foto_ktp" :src="data.foto_ktp" @click="lihatFotoBesar" style="width:64px; height:48px; border-radius:10px; object-fit:cover; border:1px solid var(--line); cursor:pointer;">
+        <!-- DISESUAIKAN (28 Agt 2026, redesain "Gechoo Mobile Organic") —
+             gaya bingkai foto disamakan dengan kartu lain (border+shadow),
+             TETAP persegi panjang (bukan bulat) karena ini foto KTP, bukan
+             foto wajah — sudah bisa diklik dari sebelumnya, tidak ada
+             perubahan fungsi. Tombol aksi kartu ini cuma 2 (Setujui/Assign
+             Ulang + Tolak) — TIDAK diringkas ke menu titik-tiga karena
+             belum "banyak pilihan" yang merusak tampilan. -->
+        <img v-if="data.foto_ktp" :src="data.foto_ktp" @click="lihatFotoBesar" style="width:64px; height:48px; border-radius:10px; object-fit:cover; border:2px solid var(--surface); box-shadow:0 2px 8px rgba(91,56,38,.1); cursor:pointer;">
         <div v-else style="width:64px; height:48px; background:var(--ivory-dim); border-radius:10px; display:flex; align-items:center; justify-content:center; color:var(--text-faint);"><i class="fas fa-id-card"></i></div>
         <div style="flex:1;">
           <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ data.nama || 'Tanpa Nama' }}</h4>
