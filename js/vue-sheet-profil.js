@@ -28,7 +28,6 @@ const AppSheetProfil = {
     const nik = ref('');
     const namaShift = ref('');
     const qrUrl = ref('');
-    const sudahAbsen = ref(false);
     // DIROMBAK (29 Agt 2026, permintaan Guru) — dulu boolean terang/gelap
     // saja. Sekarang preferensi MENTAH ('light'/'dark'/'auto') dari
     // window.temaPreferensi() (lihat index.html) — bisa 'auto' (ikut
@@ -47,25 +46,11 @@ const AppSheetProfil = {
       temaPref.value = window.temaPreferensi ? window.temaPreferensi() : 'light';
     }
 
-    async function buka() {
+    function buka() {
       muatData();
       terbuka.value = true;
-      try {
-        const status = await window.cekStatusClockInSaya(window.currentUser?.email || '');
-        sudahAbsen.value = status.aktif;
-      } catch (e) { sudahAbsen.value = false; }
     }
     function tutup() { terbuka.value = false; }
-
-    function klikClockInOut() {
-      tutup();
-      if (sudahAbsen.value) {
-        if (window.prosesClockOut) window.prosesClockOut();
-        return;
-      }
-      window.statusPilihanGlobal = "HADIR (CLOCK IN)";
-      window.pindahLayar('screen-camera');
-    }
 
     function klikScanQr() {
       tutup();
@@ -89,25 +74,13 @@ const AppSheetProfil = {
     // langsung dari template).
     function keluar() { tutup(); if (window.logout) window.logout(); }
 
-    return { terbuka, nama, nik, namaShift, qrUrl, sudahAbsen, temaPref, ikonTema, labelTema, buka, tutup, klikClockInOut, klikScanQr, klikModeGelap, navigasi, keluar };
+    return { terbuka, nama, nik, namaShift, qrUrl, temaPref, ikonTema, labelTema, buka, tutup, klikScanQr, klikModeGelap, navigasi, keluar };
   },
   template: `
     <div>
       <div v-if="terbuka" class="gc-sheet-backdrop" @click="tutup"></div>
       <div v-if="terbuka" class="gc-sheet">
         <div class="gc-sheet-gagang-area" @click="tutup"><div class="gc-sheet-gagang"></div></div>
-
-        <!-- Tombol Keluar — DIPINDAH ke atas (29 Agt 2026, permintaan Guru,
-             dulu tombol lebar penuh di paling bawah). Sekarang oval kecil,
-             hanya ikon X, di kanan-atas sheet. Jarak atas (dekat gagang) VS
-             jarak bawah (ke kartu profil) sengaja dibedakan — margin-top
-             kecil, margin-bottom lebih besar — supaya dia "mengambang"
-             terpisah & ke-highlight, bukan menyatu dengan kartu profil. -->
-        <div style="display:flex; justify-content:flex-end; margin-top:2px; margin-bottom:16px;">
-          <button @click="keluar" title="Keluar" aria-label="Keluar" style="display:flex; align-items:center; justify-content:center; width:34px; height:26px; border-radius:999px; border:1px solid var(--danger-light); background:var(--danger-light); color:var(--danger); cursor:pointer;">
-            <i class="fas fa-xmark" style="font-size:13px;"></i>
-          </button>
-        </div>
 
         <div class="gc-kartu-gradien" style="border-radius:22px; padding:16px; margin-bottom:14px;">
           <div style="display:flex; align-items:center; gap:14px; position:relative; z-index:1;">
@@ -122,10 +95,17 @@ const AppSheetProfil = {
           </div>
         </div>
 
+        <!-- DIROMBAK (29 Agt 2026, permintaan Guru setelah cek live) — slot
+             pertama tadinya "Clock in/out" (jalan pintas ke kamera), SEKARANG
+             diganti "Keluar" (logout). Clock In/Out TETAP bisa diakses lewat
+             kartu Favorit Saya di Beranda (WAJIB tampil di sana, lihat
+             PETA-MENU.md), jadi bukan regresi — cuma jalan pintas kedua di
+             sini yang dilepas, diganti Keluar karena dianggap lebih sering
+             dicari dari Profil. -->
         <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px;">
-          <button @click="klikClockInOut" style="background:var(--aksen-lembut); border:none; border-radius:18px; padding:13px 8px; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer;">
-            <i class="fas" :class="sudahAbsen ? 'fa-right-from-bracket' : 'fa-fingerprint'" style="font-size:20px; color:var(--aksen-ink);"></i>
-            <span style="font-size:10px; font-weight:600; color:var(--aksen-ink);">{{ sudahAbsen ? 'Clock out' : 'Clock in' }}</span>
+          <button @click="keluar" style="background:var(--danger-light); border:none; border-radius:18px; padding:13px 8px; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer;">
+            <i class="fas fa-right-from-bracket" style="font-size:20px; color:var(--danger);"></i>
+            <span style="font-size:10px; font-weight:600; color:var(--danger);">Keluar</span>
           </button>
           <button @click="klikScanQr" style="background:var(--aksen-lembut); border:none; border-radius:18px; padding:13px 8px; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer;">
             <i class="fas fa-qrcode" style="font-size:20px; color:var(--aksen-ink);"></i>
@@ -167,6 +147,18 @@ const AppSheetProfil = {
             <i class="fas fa-shield-halved" style="font-size:18px; color:var(--aksen-ink); width:20px; text-align:center;"></i>
             <span style="flex:1; font-size:12.5px; font-weight:600; color:var(--text);">Keamanan</span>
             <i class="fas fa-chevron-right" style="font-size:12px; color:var(--text-faint);"></i>
+          </button>
+        </div>
+
+        <!-- Tombol Keluar kedua — DIKEMBALIKAN ke bawah (29 Agt 2026, revisi
+             setelah cek live: percobaan pertama sempat dipindah ke ATAS,
+             Guru minta balik ke BAWAH lagi, setelah Keamanan, rata TENGAH).
+             Oval kecil isi ikon X saja (BUKAN lebar penuh seperti sebelum
+             redesain) — sengaja disediakan DUA jalan ke keluar (grid di atas
+             + ini) karena Guru minta keduanya secara eksplisit. -->
+        <div style="display:flex; justify-content:center; margin-top:14px;">
+          <button @click="keluar" title="Keluar" aria-label="Keluar" style="display:flex; align-items:center; justify-content:center; width:34px; height:26px; border-radius:999px; border:1px solid var(--danger-light); background:var(--danger-light); color:var(--danger); cursor:pointer;">
+            <i class="fas fa-xmark" style="font-size:13px;"></i>
           </button>
         </div>
       </div>

@@ -805,11 +805,19 @@
        Organic", keputusan Guru "hapus total, ganti bersih") — GANTI
        js/vue-sheet-profil.js (Bottom Sheet Profil, lihat mount
        #vue-sheet-profil di atas).
-       v=2 (29 Agt 2026) — tombol Keluar pindah ke atas (oval kecil ikon X,
-       bukan lagi tombol lebar penuh di bawah); toggle Mode Gelap jadi
-       3-arah Terang/Gelap/Otomatis (ikut window.temaPreferensi() baru,
-       lihat script tema inline di <head>). -->
-  <script type="module" src="js/vue-sheet-profil.js?v=2"></script>
+       v=2 (29 Agt 2026) — toggle Mode Gelap jadi 3-arah Terang/Gelap/
+       Otomatis (ikut window.temaPreferensi() baru, lihat script tema
+       inline di <head>).
+       v=3 (29 Agt 2026, revisi setelah cek live) — percobaan v=2 sempat
+       pindahkan tombol Keluar ke ATAS (dekat gagang) DAN tetap ada slot
+       grid "Clock in/out" — Guru cek langsung di HP, minta dikoreksi:
+       Keluar DIKEMBALIKAN ke BAWAH (oval kecil ikon X, setelah link
+       Keamanan, rata tengah) DAN slot grid pertama (dulu "Clock in/out")
+       DIGANTI jadi tombol Keluar juga (2 jalan ke Keluar, sesuai
+       permintaan eksplisit). Clock In/Out tetap bisa lewat kartu Favorit
+       Saya di Beranda — bukan regresi, cuma jalan pintas kedua yang
+       dilepas dari Profil. -->
+  <script type="module" src="js/vue-sheet-profil.js?v=3"></script>
   <!-- v=5 (28 Agt 2026, redesain "Gechoo Mobile Organic") — Beranda dirombak
        total mengikuti mockup: dikunci 1 layar, 1 grup default (bisa diatur
        user lewat layar baru Atur Favorit), mode "Atur" inline dihapus,
