@@ -199,10 +199,20 @@ const AppAntreanLembur = {
         // users CUMA dibaca kalau ada dokumen Lembur pending yang belum
         // punya field jenis_pekerjaan sendiri (dokumen sangat lama). Lihat
         // catatan lengkap di sana.
-        const adaYangBelumPunyaJP = dokLembur.some(d => !d.data().jenis_pekerjaan);
+        //
+        // DIPERBAIKI LAGI (29 Agt 2026, §44.15) — bug BOROS yang sama
+        // ketemu di sini: FULL FETCH `users` kalau satu saja dokumen
+        // Lembur pending belum punya jenis_pekerjaan. Diganti query
+        // bertarget `where("email","in",[...])`, sama seperti perbaikan
+        // di vue-antrean-absensi.js (lihat STATUS-PROYEK.md §44.15).
+        const emailPerluJP = [...new Set(
+          dokLembur.filter(d => !d.data().jenis_pekerjaan && d.data().email).map(d => d.data().email)
+        )];
         let petaJenisPekerjaan = {};
-        if (adaYangBelumPunyaJP) {
-          const qUsers = await getDocs(collection(db, "users"));
+        const UKURAN_POTONGAN_EMAIL = 30; // batas Firestore where(field,'in',[...])
+        for (let i = 0; i < emailPerluJP.length; i += UKURAN_POTONGAN_EMAIL) {
+          const potongan = emailPerluJP.slice(i, i + UKURAN_POTONGAN_EMAIL);
+          const qUsers = await getDocs(query(collection(db, "users"), where("email", "in", potongan)));
           qUsers.forEach(u => { petaJenisPekerjaan[u.data().email] = u.data().jenis_pekerjaan || ''; });
         }
         function ambilJP(d) { return d.jenis_pekerjaan || petaJenisPekerjaan[d.email] || ''; }
