@@ -33,7 +33,10 @@
        di server sudah baru (pola masalah yang sama pernah kejadian di
        vue-stock-pembelian.js, lihat STATUS-PROYEK.md §25.11). Naikkan
        angka ini tiap kali gechoo-design.css berubah ke depannya. -->
-  <link rel="stylesheet" href="css/gechoo-design.css?v=2">
+  <!-- v=4 (29 Agt 2026, sama hari, revisi lagi) — tambah class .gc-overflow-*
+       (menu "lainnya" oval titik-tiga, dipakai Antrean Absensi/Lembur/
+       Dakar/Reimburse) + .gc-badge-count. -->
+  <link rel="stylesheet" href="css/gechoo-design.css?v=4">
   <style>
     .fade-in { animation: fadeIn 0.4s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -326,12 +329,19 @@
 
 
         <div id="tab-admin-acc" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
-        <div class="gc-card">
-          <div>
-            <h2 class="gc-heading" style="font-size:16.5px; font-weight:700; display:flex; align-items:center;"><i class="fas fa-check-double" style="color:var(--burgundy); margin-right:10px;"></i> Management & validasi absensi</h2>
-            <p style="font-size:12px; color:var(--text-muted); margin-top:3px;">Kelola antrean persetujuan, pantau riwayat absensi, rekapitulasi, dan konfigurasi jadwal.</p>
-          </div>
-          <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar hide-scrollbar" style="padding-top:14px; margin-top:14px; border-top:1px solid var(--line);">
+        <!-- DIHAPUS (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, dari
+             cek live Guru di HP) — kartu deskripsi "Management & validasi
+             absensi" (h2+p) itu leftover header gaya desktop lama, dari
+             awal TIDAK PERNAH ada di rencana desain mobile (HeaderLayar
+             sudah komunikasikan info yang sama), cuma baru ketahuan masih
+             nongol live saat Guru cek langsung di HP. Baris navigasi
+             sub-tab desktop di bawah TETAP DIPERTAHANKAN 100% sama —
+             cuma wrapper .gc-card-nya sekarang IKUT disembunyikan di
+             mobile (hidden md:block) supaya tidak ada kartu kosong nongol
+             di HP begitu h2/p-nya hilang (nav-nya sendiri sudah "hidden
+             md:flex" dari awal, jadi TIDAK PERNAH tampil di mobile). -->
+        <div class="gc-card hidden md:block">
+          <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar hide-scrollbar">
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this, {catatRiwayat:true})" class="sub-absensi-btn gc-sub-tab-btn" data-menu-id="config_absensi" data-target="sub-absensi-config"><i class="fas fa-cogs" style="margin-right:6px;"></i> Config Absensi</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this, {catatRiwayat:true})" class="sub-absensi-btn gc-sub-tab-btn" data-menu-id="penjadwalan" data-target="sub-absensi-jadwal"><i class="fas fa-calendar-alt" style="margin-right:6px;"></i> Penjadwalan</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this, {catatRiwayat:true})" class="sub-absensi-btn gc-sub-tab-btn active" data-menu-id="antrean_absensi" data-target="sub-absensi-accept"><i class="fas fa-clock" style="margin-right:6px;"></i> Antrean Absensi</button>
@@ -777,15 +787,31 @@
   <script type="module" src="js/vue-daftar-karyawan.js?v=2"></script>
   <script type="module" src="js/vue-config-akses.js?v=6"></script>
   <script type="module" src="js/vue-hak-akses.js?v=2"></script>
-  <!-- v=3 (28 Agt 2026, redesain "Gechoo Mobile Organic") — gaya bingkai
-       foto KTP disamakan dengan kartu lain (border+shadow), fungsi sama. -->
-  <script type="module" src="js/vue-antrean-dakar.js?v=3"></script>
-  <!-- v=4 (28 Agt 2026, redesain "Gechoo Mobile Organic") — avatar ringkasan
-       kartu utamakan foto_selfie_keluar (foto terakhir); tombol Hapus
-       pindah ke menu titik-tiga (⋮), Accept/Reject tetap langsung tampil. -->
-  <script type="module" src="js/vue-antrean-absensi.js?v=5"></script>
-  <script type="module" src="js/vue-antrean-lembur.js?v=2"></script>
-  <script type="module" src="js/vue-reimburse.js?v=2"></script>
+  <!-- v=4 (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, permintaan
+       Guru — PERUBAHAN LOGIC juga, bukan cuma tampilan) — form approval
+       dipangkas jadi cuma Jadwal Shift + Jabatan (dibatasi Operator/
+       Admin); Status Kerja auto-'Aktif' saat Setujui; Status Karyawan &
+       Gudang penempatan DILEPAS dari form ini, jadi Owner-only lewat
+       Daftar Karyawan > Edit — lihat catatan risiko di
+       STATUS-PROYEK.md. -->
+  <script type="module" src="js/vue-antrean-dakar.js?v=4"></script>
+  <!-- v=6 (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, dari cek live
+       Guru di HP) — header kartu: baris "email" ganti nama Gudang + baris
+       baru Shift/jam shift; banner pindah ke bawah kolom cari & dipadatkan;
+       ikon filter jadi menu oval titik-tiga "lainnya". -->
+  <script type="module" src="js/vue-antrean-absensi.js?v=6"></script>
+  <!-- v=3 (29 Agt 2026, moodboard v2) — redesain LENGKAP pertama kali di
+       modul ini: avatar (foto_selfie, BARU ditampilkan), baris "{tanggal}
+       - {gudang}", Jam Shift vs Jam Lembur berdampingan, banner/menu
+       oval sama pola modul lain. -->
+  <script type="module" src="js/vue-antrean-lembur.js?v=3"></script>
+  <!-- v=3 (29 Agt 2026, moodboard v2, PRIORITAS TERAKHIR sesuai catatan
+       risiko mockup) — label "Diajukan" dilepas (tanggal polos), foto
+       bukti jadi ikon kecil di header; khusus kategori Isi Bensin: field
+       Odometer Sebelum/Sesudah + Liter BARU, badge efisiensi (km/L)
+       otomatis (rumus dicari referensinya ke Auto2000, bukan tebakan);
+       banner/menu oval sama pola modul lain. -->
+  <script type="module" src="js/vue-reimburse.js?v=3"></script>
   <script type="module" src="js/vue-riwayat-absensi.js?v=2"></script>
   <script type="module" src="js/vue-penjadwalan.js?v=2"></script>
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>
@@ -816,8 +842,14 @@
        DIGANTI jadi tombol Keluar juga (2 jalan ke Keluar, sesuai
        permintaan eksplisit). Clock In/Out tetap bisa lewat kartu Favorit
        Saya di Beranda — bukan regresi, cuma jalan pintas kedua yang
-       dilepas dari Profil. -->
-  <script type="module" src="js/vue-sheet-profil.js?v=3"></script>
+       dilepas dari Profil.
+       v=4 (29 Agt 2026, koreksi lagi hari sama) — tombol (X) di bawah
+       TERNYATA salah paham juga: itu BUKAN Keluar kedua, cuma tombol
+       TUTUP sheet biasa (@click="tutup", sama efeknya dgn klik gagang/
+       backdrop). Warnanya juga dipindah ke class .gc-x-tutup baru
+       (gechoo-design.css) — di mode gelap otomatis jadi burgundy+pink
+       (lebih redup), bukan danger-light yang kepucatan/mencolok. -->
+  <script type="module" src="js/vue-sheet-profil.js?v=4"></script>
   <!-- v=5 (28 Agt 2026, redesain "Gechoo Mobile Organic") — Beranda dirombak
        total mengikuti mockup: dikunci 1 layar, 1 grup default (bisa diatur
        user lewat layar baru Atur Favorit), mode "Atur" inline dihapus,

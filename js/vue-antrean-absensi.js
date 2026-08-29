@@ -283,7 +283,7 @@ const AntreanAbsensiCard = {
 
     return {
       adalahFormatBaru, adaYangPending, lihatFotoBesar, hapus, bolehEdit, bolehHapus,
-      fotoAvatar, menuAksiTerbuka, toggleMenuAksi, tutupMenuAksi,
+      fotoAvatar, menuAksiTerbuka, toggleMenuAksi, tutupMenuAksi, jamShift,
       statusKehadiranOtomatis, seragam, memproses, proses, prosesDenganSeragam,
       statusKehadiranMasukOtomatis, seragamMasuk, memprosesMasuk, prosesMasuk, prosesMasukDenganSeragam,
       statusKehadiranKeluarOtomatis, seragamKeluar, memprosesKeluar, prosesKeluar, prosesKeluarDenganSeragam, adaLemburApproved
@@ -311,7 +311,12 @@ const AntreanAbsensiCard = {
         <img :src="fotoAvatar || 'https://via.placeholder.com/150'" @click="lihatFotoBesar(fotoAvatar)" style="width:40px; height:40px; border-radius:14px; object-fit:cover; border:1px solid var(--line); cursor:pointer; flex-shrink:0;">
         <div style="flex:1; min-width:0;">
           <h4 class="gc-heading" style="font-weight:700; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.nama_pegawai || data.nama || 'Karyawan' }}</h4>
-          <p style="font-size:9.5px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.email || '-' }}</p>
+          <!-- BARU (29 Agt 2026, moodboard v2, cek live Guru di HP) — baris
+               "email" dilepas dari tampilan, ganti nama Gudang lalu nama
+               Shift + jam shift (jamShift dari muatJamShift() di atas,
+               SUDAH ada sebelumnya tapi belum dipakai di header). -->
+          <p style="font-size:9.5px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.gudang || '-' }}</p>
+          <p style="font-size:9.5px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.nama_shift || '-' }}<span v-if="jamShift.masuk && jamShift.keluar"> &middot; {{ jamShift.masuk }}&ndash;{{ jamShift.keluar }}</span></p>
         </div>
         <template v-if="adalahFormatBaru">
           <span v-if="data.status_acc_masuk === 'PENDING' && data.status_acc_keluar === 'PENDING'" class="tag warn" style="flex-shrink:0;"><span class="tag-dot"></span>2 menunggu</span>
@@ -320,10 +325,8 @@ const AntreanAbsensiCard = {
         <span v-else class="tag warn" style="flex-shrink:0;"><span class="tag-dot"></span>Menunggu</span>
       </div>
 
-      <div style="display:flex; gap:12px; font-size:10px; color:var(--text-muted); padding-top:8px; margin-top:8px; border-top:1px solid var(--ivory-dim); flex-wrap:wrap;">
-        <span><b>Gudang:</b> {{ data.gudang || '-' }}</span>
-        <span><b>Shift:</b> {{ data.nama_shift || '-' }}</span>
-        <a v-if="!adalahFormatBaru && data.koordinat" :href="'https://www.google.com/maps?q=' + data.koordinat.lat + ',' + data.koordinat.lng" target="_blank" style="color:var(--burgundy); font-weight:700;"><i class="fas fa-map-marker-alt"></i> Peta</a>
+      <div v-if="!adalahFormatBaru && data.koordinat" style="padding-top:6px; margin-top:8px; border-top:1px solid var(--ivory-dim);">
+        <a :href="'https://www.google.com/maps?q=' + data.koordinat.lat + ',' + data.koordinat.lng" target="_blank" style="font-size:9.5px; color:var(--burgundy); font-weight:700;"><i class="fas fa-map-marker-alt"></i> Lihat lokasi di Peta</a>
       </div>
 
       <!-- ============ FORMAT LAMA — 1 event "Hadir" ============ -->
@@ -438,8 +441,12 @@ const AppAntreanAbsensi = {
     // filter (toggle show/hide), biar baris cari lebih ringkas. Cuma
     // kosmetik — filterJenisPekerjaanOwner/filterGudangOwner & logic
     // filternya di daftarPendingTersaring TIDAK berubah.
-    const filterTerbuka = ref(false);
-    function toggleFilterTerbuka() { filterTerbuka.value = !filterTerbuka.value; }
+    // DIROMBAK (29 Agt 2026, revisi v2, cek live Guru di HP) — nama
+    // diganti filterTerbuka -> menuTerbuka karena sekarang panelnya BUKAN
+    // cuma Filter lagi, tapi "menu lainnya" oval titik-tiga yang juga
+    // nampung Cek Data Sangat Lama & Refresh (dipindah dari banner).
+    const menuTerbuka = ref(false);
+    function toggleMenuTerbuka() { menuTerbuka.value = !menuTerbuka.value; }
     const adaFilterAktif = computed(() => filterJenisPekerjaanOwner.value !== 'ALL' || filterGudangOwner.value !== 'ALL');
     const daftarPendingTersaring = computed(() => {
       let hasil = daftarPending.value;
@@ -554,39 +561,51 @@ const AppAntreanAbsensi = {
     return {
       daftarPending, daftarPendingTersaring, memuat, errorMuat, muat, memuatDataLama, infoDataLama, cekDataSangatLama,
       cariNama, isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner,
-      filterTerbuka, toggleFilterTerbuka, adaFilterAktif
+      menuTerbuka, toggleMenuTerbuka, adaFilterAktif
     };
   },
+  // ==========================================================================
+  // DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, dari cek
+  // live Guru di HP) — 3 perbaikan "desain global": (1) kartu deskripsi
+  // besar dihapus, (2) banner pink dipindah ke BAWAH kolom cari & dipadatkan
+  // 1 baris, (3) ikon filter bulat ganti tombol oval titik-tiga "menu
+  // lainnya" (.gc-overflow-btn) yang nampung Filter Owner + Cek Data Sangat
+  // Lama + Refresh (dulu 2 tombol lebar penuh di banner). Logic Firestore/
+  // filter/query TIDAK berubah sama sekali.
+  // ==========================================================================
   template: `
-    <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
-      <div>
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; color:var(--burgundy-dark);"><i class="fas fa-clock" style="margin-right:8px;"></i> Antrean validasi absensi</h3>
-        <p style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Klik Refresh untuk melihat pengajuan absensi terbaru.</p>
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+      <div style="flex:1; min-width:0;"><kolom-cari v-model="cariNama" placeholder="Cari nama karyawan..." /></div>
+      <button @click="toggleMenuTerbuka" class="gc-overflow-btn" title="Menu lainnya">
+        <i class="fas fa-ellipsis"></i>
+        <span v-if="adaFilterAktif" class="gc-overflow-dot"></span>
+      </button>
+      <div v-if="menuTerbuka" @click="toggleMenuTerbuka" class="gc-overflow-backdrop"></div>
+      <div v-if="menuTerbuka" class="gc-overflow-panel">
+        <template v-if="isOwnerRole">
+          <div class="gc-overflow-label">Filter</div>
+          <div style="padding:2px 6px 8px;">
+            <select v-model="filterJenisPekerjaanOwner" style="width:100%; margin-bottom:6px; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+              <option value="ALL">Semua jenis pekerjaan</option>
+              <option v-for="jp in opsiJenisPekerjaanOwner" :key="jp" :value="jp">{{ jp }}</option>
+            </select>
+            <select v-model="filterGudangOwner" style="width:100%; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+              <option value="ALL">Semua gudang</option>
+              <option v-for="g in opsiGudangOwner" :key="g" :value="g">{{ g }}</option>
+            </select>
+          </div>
+          <hr class="gc-overflow-sep">
+        </template>
+        <button @click="toggleMenuTerbuka(); cekDataSangatLama();" :disabled="memuatDataLama" class="gc-overflow-item"><i class="fas fa-magnifying-glass"></i> Cek Data Sangat Lama</button>
+        <button @click="toggleMenuTerbuka(); muat();" class="gc-overflow-item"><i class="fas fa-sync-alt"></i> Refresh</button>
       </div>
-      <div style="display:flex; gap:8px;">
-        <button @click="cekDataSangatLama" :disabled="memuatDataLama" class="btn-outline" title="Cek sekali data sangat lama yang mungkin belum kebaca"><i class="fas fa-magnifying-glass" style="margin-right:6px;"></i> Cek Data Sangat Lama</button>
-        <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
-      </div>
+    </div>
+    <div class="gc-card" style="display:flex; align-items:center; gap:8px; background:var(--pink); border:none; padding:9px 14px; margin-bottom:16px;">
+      <i class="fas fa-clock" style="color:var(--burgundy-dark); font-size:12px;"></i>
+      <b style="font-size:11px; color:var(--burgundy-dark);">Antrean validasi absensi</b>
+      <span class="gc-badge-count">{{ daftarPendingTersaring.length }}</span>
     </div>
     <p v-if="infoDataLama" style="font-size:11px; color:var(--text-muted); margin:-10px 0 16px; padding:8px 12px; background:var(--ivory-dim); border-radius:10px;">{{ infoDataLama }}</p>
-
-    <div style="display:flex; gap:8px; align-items:center;" :style="{ marginBottom: (isOwnerRole && filterTerbuka) ? '8px' : '16px' }">
-      <div style="flex:1; min-width:0;"><kolom-cari v-model="cariNama" placeholder="Cari nama karyawan..." /></div>
-      <button v-if="isOwnerRole" @click="toggleFilterTerbuka" class="icon-btn" style="border-radius:50%; position:relative; flex-shrink:0;" title="Filter (Jenis Pekerjaan/Gudang)">
-        <i class="fas fa-filter"></i>
-        <span v-if="adaFilterAktif" style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; border-radius:50%; background:var(--danger); border:1.5px solid var(--ivory);"></span>
-      </button>
-    </div>
-    <div v-if="isOwnerRole && filterTerbuka" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
-      <select v-model="filterJenisPekerjaanOwner" style="flex:1; min-width:150px; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
-        <option value="ALL">Semua jenis pekerjaan</option>
-        <option v-for="jp in opsiJenisPekerjaanOwner" :key="jp" :value="jp">{{ jp }}</option>
-      </select>
-      <select v-model="filterGudangOwner" style="flex:1; min-width:150px; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
-        <option value="ALL">Semua gudang</option>
-        <option v-for="g in opsiGudangOwner" :key="g" :value="g">{{ g }}</option>
-      </select>
-    </div>
 
     <div v-if="memuat && daftarPending.length === 0" style="text-align:center; padding:40px 0; color:var(--text-faint);">
       <i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i><p style="font-size:12px;">Memuat antrean validasi absensi...</p>

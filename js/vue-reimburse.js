@@ -25,7 +25,7 @@
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { MasterDataCategory } from './vue-components.js';
+import { MasterDataCategory, KolomCari } from './vue-components.js?v=5';
 import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
 
 // Kompresi gambar sisi klien — pola SAMA seperti js/camera.js (foto KTP),
@@ -108,9 +108,16 @@ function warnaTahap(tahap) {
 export const AjukanReimburseTab = {
   setup() {
     const opsiKategori = ref([]);
+    // DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2,
+    // permintaan Guru) — 1 field kmSaatIsi (odometer tunggal) GANTI jadi
+    // 3 field: odoSebelum, odoSesudah (rentang trip SEJAK isi bensin
+    // terakhir) + literBensin (jumlah BBM dibeli), dipakai hitung
+    // efisiensi (km/L) di ReimburseCard. Rumus & sumbernya lihat
+    // STATUS-PROYEK.md / mockup gechoo-mobile-organic-rollout.html
+    // (dicari referensinya ke Auto2000, BUKAN tebakan).
     const form = reactive({
       kategori: '', jumlah: '', keterangan: '', fotoBukti: '', gudang: '',
-      kendaraanId: '', kmSaatIsi: '',
+      kendaraanId: '', odoSebelum: '', odoSesudah: '', literBensin: '',
       itemServis: [{ namaBarang: '', qty: 1, harga: '' }]
     });
     const opsiGudangSaya = window.normalisasiGudang ? window.normalisasiGudang(window.currentUser.gudang_penempatan) : (window.currentUser.gudang_penempatan || []);
@@ -192,7 +199,8 @@ export const AjukanReimburseTab = {
     const totalServis = computed(() => form.itemServis.reduce((sum, item) => sum + jumlahBarisServis(item), 0));
 
     function resetForm() {
-      form.jumlah = ''; form.keterangan = ''; form.fotoBukti = ''; form.kmSaatIsi = '';
+      form.jumlah = ''; form.keterangan = ''; form.fotoBukti = '';
+      form.odoSebelum = ''; form.odoSesudah = ''; form.literBensin = '';
       form.itemServis = [{ namaBarang: '', qty: 1, harga: '' }];
       if (opsiKategori.value.length > 0) form.kategori = opsiKategori.value[0];
       jenisPengajuan.value = 'umum';
@@ -217,12 +225,18 @@ export const AjukanReimburseTab = {
         if (!form.kendaraanId) return alert("Pilih kendaraan dulu.");
         const jumlahAngka = parseInt(String(form.jumlah).replace(/\D/g, ''), 10);
         if (!jumlahAngka || jumlahAngka <= 0) return alert("Isi jumlah reimburse yang benar (harus lebih dari 0).");
-        if (!form.kmSaatIsi || parseInt(form.kmSaatIsi) <= 0) return alert("Isi KM (odometer) saat mengisi bensin.");
+        const odoSebelumAngka = parseInt(form.odoSebelum, 10) || 0;
+        const odoSesudahAngka = parseInt(form.odoSesudah, 10) || 0;
+        if (!odoSebelumAngka || !odoSesudahAngka) return alert("Isi Odometer Sebelum & Sesudah mengisi bensin.");
+        if (odoSesudahAngka <= odoSebelumAngka) return alert("Odometer Sesudah harus lebih besar dari Odometer Sebelum.");
+        const literAngka = parseFloat(String(form.literBensin).replace(',', '.'));
+        if (!literAngka || literAngka <= 0) return alert("Isi jumlah BBM yang dibeli (liter) dengan benar.");
         const kendaraanDipilih = kendaraanSaya.value.find(k => k.id === form.kendaraanId);
         dataKirim = {
           ...dataKirim,
           kategori: 'BBM', jenis_entry_kendaraan: 'bensin',
-          jumlah: jumlahAngka, km_saat_isi: parseInt(form.kmSaatIsi) || 0,
+          jumlah: jumlahAngka,
+          odo_sebelum: odoSebelumAngka, odo_sesudah: odoSesudahAngka, liter_bensin: literAngka,
           kendaraan_id: form.kendaraanId, kendaraan_plat: kendaraanDipilih ? kendaraanDipilih.plat_nomor : ''
         };
       } else if (jenisPengajuan.value === 'servis') {
@@ -297,9 +311,22 @@ export const AjukanReimburseTab = {
             <select v-model="form.kendaraanId"><option value="" disabled>Pilih kendaraan...</option><option v-for="k in kendaraanSaya" :key="k.id" :value="k.id">{{ k.plat_nomor }}{{ k.nama_kendaraan ? ' - ' + k.nama_kendaraan : '' }}</option></select>
           </div>
           <p v-else style="font-size:11.5px; color:var(--text-muted); background:var(--ivory-dim); padding:8px 12px; border-radius:10px; margin-bottom:12px;"><i class="fas fa-truck" style="margin-right:6px;"></i>Kendaraan: <b>{{ kendaraanSaya[0].plat_nomor }}</b></p>
+          <!-- DIROMBAK (29 Agt 2026 v2) — KM (Odometer) Saat Mengisi TUNGGAL
+               diganti 2 field (Sebelum/Sesudah) + Liter Dibeli, dipakai
+               ReimburseCard hitung efisiensi BBM (km/L) otomatis. -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="gc-field">
+              <label>Odometer Sebelum (km)</label>
+              <input v-model="form.odoSebelum" type="number" min="1" placeholder="Contoh: 45120">
+            </div>
+            <div class="gc-field">
+              <label>Odometer Sesudah (km)</label>
+              <input v-model="form.odoSesudah" type="number" min="1" placeholder="Contoh: 45320">
+            </div>
+          </div>
           <div class="gc-field">
-            <label>KM (Odometer) Saat Mengisi</label>
-            <input v-model="form.kmSaatIsi" type="number" min="1" placeholder="Contoh: 45230">
+            <label>BBM Dibeli (liter)</label>
+            <input v-model="form.literBensin" type="number" min="0.1" step="0.1" placeholder="Contoh: 10">
           </div>
           <div class="gc-field">
             <label>Jumlah (Rp)</label>
@@ -363,7 +390,7 @@ export const AjukanReimburseTab = {
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
             <div>
               <b style="font-size:12.5px;">{{ r.kategori }}</b>
-              <p v-if="r.kendaraan_plat" style="font-size:10.5px; color:var(--text-faint); margin-top:1px;"><i class="fas fa-truck" style="margin-right:4px;"></i>{{ r.kendaraan_plat }}<span v-if="r.km_saat_isi"> &middot; {{ r.km_saat_isi.toLocaleString('id-ID') }} km</span></p>
+              <p v-if="r.kendaraan_plat" style="font-size:10.5px; color:var(--text-faint); margin-top:1px;"><i class="fas fa-truck" style="margin-right:4px;"></i>{{ r.kendaraan_plat }}<span v-if="r.odo_sebelum && r.odo_sesudah"> &middot; {{ r.odo_sebelum.toLocaleString('id-ID') }}&rarr;{{ r.odo_sesudah.toLocaleString('id-ID') }} km</span><span v-else-if="r.km_saat_isi"> &middot; {{ r.km_saat_isi.toLocaleString('id-ID') }} km</span></p>
               <p style="font-size:11px; color:var(--text-muted); margin-top:2px;">{{ r.keterangan || '-' }}</p>
             </div>
             <b style="font-size:13px; white-space:nowrap;">{{ formatRupiah(r.jumlah) }}</b>
@@ -402,6 +429,28 @@ const ReimburseCard = {
       if (props.data.foto_bukti && window.bukaPreviewFoto) window.bukaPreviewFoto(props.data.foto_bukti);
     }
 
+    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, permintaan
+    // Guru) — efisiensi BBM (km/L) dihitung LANGSUNG di UI dari
+    // odo_sebelum/odo_sesudah/liter_bensin (field baru, isi manual saat
+    // pengajuan — lihat AjukanReimburseTab), TIDAK disimpan field
+    // terpisah di Firestore. Rumus: Jarak Tempuh (Odo Sesudah - Odo
+    // Sebelum) / Liter Dibeli — metode "isi penuh ke isi penuh", DICARI
+    // referensinya (bukan tebakan): https://auto2000.co.id/berita-dan-tips/cara-menghitung-bensin-mobil-per-kilometer
+    const efisiensiBBM = computed(() => {
+      const d = props.data;
+      if (d.jenis_entry_kendaraan !== 'bensin' || !d.odo_sebelum || !d.odo_sesudah || !d.liter_bensin) return null;
+      const jarak = d.odo_sesudah - d.odo_sebelum;
+      if (jarak <= 0 || d.liter_bensin <= 0) return null;
+      return Math.round((jarak / d.liter_bensin) * 10) / 10; // 1 desimal
+    });
+
+    // Tanggal polos ("29 Agt 2026") gantikan label "Diajukan" di depan
+    // tanggal (permintaan Guru — labelnya dilepas, tanggalnya tetap ada).
+    function formatTgl(ts) {
+      if (!ts || !ts.toDate) return '-';
+      return ts.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
     async function proses(disetujui) {
       const tahapBaru = tahapSelanjutnya(props.data.tahap, disetujui);
       const namaValidator = namaValidatorTahap(props.data.tahap);
@@ -424,45 +473,67 @@ const ReimburseCard = {
       memproses.value = false;
     }
 
-    return { memproses, bolehProses, punyaSendiri, lihatFotoBesar, proses, formatRupiah, LABEL_TAHAP, warnaTahap };
+    return { memproses, bolehProses, punyaSendiri, lihatFotoBesar, proses, efisiensiBBM, formatTgl, formatRupiah, LABEL_TAHAP, warnaTahap };
   },
+  // ==========================================================================
+  // TEMPLATE DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2,
+  // dari mockup gechoo-mobile-organic-rollout.html §Reimburse) — foto bukti
+  // (dulu thumbnail besar terpisah 64x64) jadi ikon kecil di header kartu
+  // (38x38, tetap bisa diklik lihat besar); label "Diajukan" dilepas,
+  // tanggal polos langsung ("29 Agt 2026"); Accept/Reject ikut
+  // .approve-row ("Setuju"/"Tolak"). Rincian Servis TETAP (nol perubahan).
+  // Badge tahap TETAP jadi info utama (paling penting di modul ini).
+  // Khusus kategori Isi Bensin: blok Odometer + badge efisiensi (km/L)
+  // BARU. Logic Firestore 3-tahap tahapSelanjutnya()/proses() TIDAK
+  // disentuh sama sekali.
+  // ==========================================================================
   template: `
-    <div class="gc-card">
-      <div style="display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
-        <div style="width:44px; height:44px; border-radius:12px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy); flex-shrink:0;"><i class="fas fa-receipt"></i></div>
-        <div>
-          <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ data.nama_pegawai || 'Karyawan' }}</h4>
-          <p style="font-size:10.5px; color:var(--text-muted);">{{ data.email || '-' }} &middot; {{ data.gudang || '-' }}</p>
-          <span class="tag" :class="warnaTahap(data.tahap)" style="margin-top:5px;">{{ LABEL_TAHAP[data.tahap] || data.tahap }}</span>
+    <div class="gc-card" style="border-radius:20px;">
+      <div style="display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--ivory-dim); padding-bottom:10px; margin-bottom:10px;">
+        <div v-if="!data.foto_bukti" style="width:38px; height:38px; border-radius:14px; background:var(--ivory-dim); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:var(--text-faint);"><i class="fas fa-receipt"></i></div>
+        <img v-else :src="data.foto_bukti" @click="lihatFotoBesar" style="width:38px; height:38px; border-radius:14px; object-fit:cover; border:1px solid var(--line); cursor:pointer; flex-shrink:0;">
+        <div style="flex:1; min-width:0;">
+          <h4 class="gc-heading" style="font-weight:700; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.nama_pegawai || 'Karyawan' }}</h4>
+          <p style="font-size:9.5px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.gudang || '-' }} &middot; {{ data.kategori || '-' }}</p>
+        </div>
+        <span class="tag" :class="warnaTahap(data.tahap)" style="flex-shrink:0;">{{ LABEL_TAHAP[data.tahap] || data.tahap }}</span>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px; padding:2px 0 6px;">
+        <span style="font-size:9.5px; color:var(--text-faint);">{{ formatTgl(data.diajukan_pada) }}</span>
+        <span style="font-size:12px; color:var(--burgundy); font-weight:800; margin-left:auto;">{{ formatRupiah(data.jumlah) }}<span v-if="data.jenis_entry_kendaraan === 'bensin' && data.liter_bensin"> &middot; {{ data.liter_bensin }}L</span></span>
+      </div>
+
+      <div v-if="data.kendaraan_plat" style="font-size:9.5px; color:var(--text-faint); padding-bottom:4px;"><i class="fas fa-truck" style="margin-right:4px;"></i>{{ data.kendaraan_plat }}</div>
+
+      <!-- Khusus Isi Bensin — odometer + badge efisiensi (km/L) BARU. -->
+      <div v-if="data.jenis_entry_kendaraan === 'bensin' && data.odo_sebelum && data.odo_sesudah" style="background:var(--ivory-dim); border-radius:10px; padding:8px 10px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+        <div><span style="color:var(--text-faint); display:block; font-size:9px; text-transform:uppercase; letter-spacing:.04em;">Odometer</span><b style="font-size:10.5px;">{{ data.odo_sebelum.toLocaleString('id-ID') }} &rarr; {{ data.odo_sesudah.toLocaleString('id-ID') }} km</b></div>
+        <span v-if="efisiensiBBM" class="tag ok">{{ efisiensiBBM }} km/L</span>
+      </div>
+
+      <p style="font-size:9.5px; color:var(--text-muted); padding:0 0 4px;">{{ data.keterangan || '-' }}</p>
+
+      <div v-if="data.jenis_entry_kendaraan === 'servis' && data.item_servis && data.item_servis.length > 0" style="margin-bottom:8px;">
+        <span style="color:var(--text-faint); display:block; font-size:9px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px;">Rincian Servis</span>
+        <div v-for="(item, idx) in data.item_servis" :key="idx" style="display:flex; justify-content:space-between; font-size:11px; padding:4px 0; border-bottom:1px dashed var(--line);">
+          <span>{{ item.nama_barang }} <span style="color:var(--text-faint);">&times;{{ item.qty }}</span></span>
+          <b>{{ formatRupiah(item.jumlah) }}</b>
         </div>
       </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; background:var(--ivory-dim); padding:14px; border-radius:14px; font-size:12px; margin-bottom:14px;">
-        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">Kategori</span> <b>{{ data.kategori || '-' }}</b></div>
-        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">Jumlah</span> <b style="color:var(--burgundy);">{{ formatRupiah(data.jumlah) }}</b></div>
-        <div v-if="data.kendaraan_plat"><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">Kendaraan</span> <b><i class="fas fa-truck" style="margin-right:4px; color:var(--text-faint);"></i>{{ data.kendaraan_plat }}</b></div>
-        <div v-if="data.jenis_entry_kendaraan === 'bensin' && data.km_saat_isi"><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">KM Saat Isi</span> <b>{{ data.km_saat_isi.toLocaleString('id-ID') }} km</b></div>
-        <div style="grid-column:1 / -1;"><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:2px;">Keterangan</span> <b>{{ data.keterangan || '-' }}</b></div>
-        <div v-if="data.jenis_entry_kendaraan === 'servis' && data.item_servis && data.item_servis.length > 0" style="grid-column:1 / -1;">
-          <span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; margin-bottom:6px;">Rincian Servis</span>
-          <div v-for="(item, idx) in data.item_servis" :key="idx" style="display:flex; justify-content:space-between; font-size:11px; padding:4px 0; border-bottom:1px dashed var(--line);">
-            <span>{{ item.nama_barang }} <span style="color:var(--text-faint);">&times;{{ item.qty }}</span></span>
-            <b>{{ formatRupiah(item.jumlah) }}</b>
-          </div>
-        </div>
+
+      <div v-if="bolehProses" class="approve-row">
+        <button @click="proses(true)" :disabled="memproses" class="appr-btn ok"><i class="fas fa-check"></i> Setuju</button>
+        <button @click="proses(false)" :disabled="memproses" class="appr-btn danger"><i class="fas fa-times"></i> Tolak</button>
       </div>
-      <img v-if="data.foto_bukti" :src="data.foto_bukti" @click="lihatFotoBesar" style="width:64px; height:64px; border-radius:12px; object-fit:cover; cursor:pointer; margin-bottom:14px; border:1px solid var(--line);">
-      <div v-if="bolehProses" style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line);">
-        <button @click="proses(true)" :disabled="memproses" class="btn-acc" style="flex:1;"><i class="fas fa-check-circle" style="margin-right:6px;"></i> Accept</button>
-        <button @click="proses(false)" :disabled="memproses" class="btn-rej" style="flex:1;"><i class="fas fa-times-circle" style="margin-right:6px;"></i> Reject</button>
-      </div>
-      <p v-else-if="punyaSendiri" style="text-align:center; font-size:11px; color:var(--text-faint); padding-top:10px; border-top:1px solid var(--line);"><i class="fas fa-lock" style="margin-right:5px;"></i>Ini pengajuan Anda sendiri — tidak bisa Accept/Reject sendiri.</p>
-      <p v-else style="text-align:center; font-size:11px; color:var(--text-faint); padding-top:10px; border-top:1px solid var(--line);">Menunggu validator tahap ini (bukan Anda).</p>
+      <p v-else-if="punyaSendiri" style="text-align:center; font-size:11px; color:var(--text-faint); padding-top:8px; border-top:1px solid var(--ivory-dim); margin-top:2px;"><i class="fas fa-lock" style="margin-right:5px;"></i>Ini pengajuan Anda sendiri — tidak bisa Accept/Reject sendiri.</p>
+      <p v-else style="text-align:center; font-size:11px; color:var(--text-faint); padding-top:8px; border-top:1px solid var(--ivory-dim); margin-top:2px;">Menunggu validator tahap ini (bukan Anda).</p>
     </div>
   `
 };
 
 const AppAntreanReimburse = {
-  components: { ReimburseCard },
+  components: { ReimburseCard, KolomCari },
   setup() {
     const daftarPending = ref([]);
     const totalMentahSebelumFilter = ref(0); // diagnostik, lihat catatan di muat()
@@ -522,6 +593,13 @@ const AppAntreanReimburse = {
       return hasil;
     });
 
+    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2) — dropdown
+    // filter Tahap (Owner) & Kendaraan dipindah ke 1 menu "lainnya" oval
+    // titik-tiga di sebelah kolom cari, pola sama modul lain.
+    const menuTerbuka = ref(false);
+    function toggleMenuTerbuka() { menuTerbuka.value = !menuTerbuka.value; }
+    const adaFilterAktif = computed(() => (isOwnerRole.value && filterTahapOwner.value !== 'SEMUA') || filterKendaraan.value !== 'ALL');
+
     async function muat() {
       memuat.value = true;
       errorMuat.value = '';
@@ -557,34 +635,53 @@ const AppAntreanReimburse = {
     onMounted(async () => { await window.authReady; muat(); });
     return {
       daftarPending, daftarPendingTersaring, totalMentahSebelumFilter, memuat, errorMuat, muat, labelTahapSaya,
-      isOwnerRole, cariNama, filterTahapOwner, OPSI_FILTER_TAHAP, filterKendaraan, opsiKendaraan
+      isOwnerRole, cariNama, filterTahapOwner, OPSI_FILTER_TAHAP, filterKendaraan, opsiKendaraan,
+      menuTerbuka, toggleMenuTerbuka, adaFilterAktif
     };
   },
+  // ==========================================================================
+  // DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, dari cek
+  // live Guru di HP — PRIORITAS TERAKHIR, dikerjakan setelah Absensi/Lembur/
+  // Dakar terbukti aman, sesuai catatan risiko mockup) — banner dipadatkan
+  // & dipindah ke bawah kolom cari, dropdown filter Tahap (Owner)+Kendaraan
+  // masuk ke menu oval titik-tiga — pola sama persis 3 modul lain. Logic
+  // query 3-tahap/muat()/bolehLihatData TIDAK berubah sama sekali.
+  // ==========================================================================
   template: `
-    <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
-      <div>
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; color:var(--burgundy-dark);"><i class="fas fa-receipt" style="margin-right:8px;"></i> Antrean Reimburse</h3>
-        <p v-if="labelTahapSaya" style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Menampilkan yang menunggu Anda: {{ labelTahapSaya }}</p>
-        <p v-else style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Role Anda tidak berwenang memvalidasi reimburse.</p>
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+      <div style="flex:1; min-width:0;"><kolom-cari v-model="cariNama" placeholder="Cari nama pemohon..." /></div>
+      <button @click="toggleMenuTerbuka" class="gc-overflow-btn" title="Menu lainnya">
+        <i class="fas fa-ellipsis"></i>
+        <span v-if="adaFilterAktif" class="gc-overflow-dot"></span>
+      </button>
+      <div v-if="menuTerbuka" @click="toggleMenuTerbuka" class="gc-overflow-backdrop"></div>
+      <div v-if="menuTerbuka" class="gc-overflow-panel">
+        <template v-if="isOwnerRole">
+          <div class="gc-overflow-label">Filter tahap</div>
+          <div style="padding:2px 6px 8px;">
+            <select v-model="filterTahapOwner" style="width:100%; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+              <option v-for="opsi in OPSI_FILTER_TAHAP" :key="opsi.value" :value="opsi.value">{{ opsi.label }}</option>
+            </select>
+          </div>
+        </template>
+        <template v-if="opsiKendaraan.length > 0">
+          <div class="gc-overflow-label">Filter kendaraan</div>
+          <div style="padding:2px 6px 8px;">
+            <select v-model="filterKendaraan" style="width:100%; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+              <option value="ALL">Semua kendaraan</option>
+              <option v-for="plat in opsiKendaraan" :key="plat" :value="plat">{{ plat }}</option>
+            </select>
+          </div>
+        </template>
+        <hr v-if="isOwnerRole || opsiKendaraan.length > 0" class="gc-overflow-sep">
+        <button @click="toggleMenuTerbuka(); muat();" class="gc-overflow-item"><i class="fas fa-sync-alt"></i> Refresh</button>
       </div>
-      <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
     </div>
-
-    <div v-if="!memuat && daftarPending.length > 0" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
-      <div style="position:relative; flex:1; min-width:200px;">
-        <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
-        <input v-model="cariNama" type="text" placeholder="Cari nama karyawan..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
-      </div>
-      <select v-if="isOwnerRole" v-model="filterTahapOwner" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
-        <option v-for="opsi in OPSI_FILTER_TAHAP" :key="opsi.value" :value="opsi.value">{{ opsi.label }}</option>
-      </select>
-    </div>
-
-    <div v-if="!memuat && opsiKendaraan.length > 0" style="margin-bottom:16px;">
-      <select v-model="filterKendaraan" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
-        <option value="ALL">Semua kendaraan</option>
-        <option v-for="plat in opsiKendaraan" :key="plat" :value="plat"><i class="fas fa-truck"></i> {{ plat }}</option>
-      </select>
+    <div class="gc-card" style="display:flex; align-items:center; gap:8px; background:var(--pink); border:none; padding:9px 14px; margin-bottom:16px; flex-wrap:wrap;">
+      <i class="fas fa-receipt" style="color:var(--burgundy-dark); font-size:12px;"></i>
+      <b style="font-size:11px; color:var(--burgundy-dark);">Antrean Reimburse</b>
+      <span class="gc-badge-count">{{ daftarPendingTersaring.length }}</span>
+      <span style="width:100%; font-size:9.5px; color:var(--mahogany-soft);">{{ labelTahapSaya || 'Role Anda tidak berwenang memvalidasi reimburse.' }}</span>
     </div>
 
     <div v-if="memuat && daftarPending.length === 0" style="text-align:center; padding:40px 0; color:var(--text-faint);">

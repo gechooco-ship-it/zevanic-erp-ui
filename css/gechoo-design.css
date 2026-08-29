@@ -139,6 +139,42 @@ input, select, textarea{font:inherit; color:inherit;}
 .appr-btn.danger{background:var(--danger-light); color:var(--danger);}
 .appr-btn:disabled{opacity:.5; cursor:not-allowed;}
 
+/* ---- Tombol tutup oval kecil (X) — BARU (29 Agt 2026, Bottom Sheet
+   Profil, lihat js/vue-sheet-profil.js). Warna terang (danger-light/
+   danger) sudah pas di mode terang — TAPI di mode gelap kombinasi itu
+   kepucatan/kekontrasan terlalu mencolok (danger-light JADI SANGAT
+   terang, TIDAK ikut digelapkan — lihat catatan "SENGAJA TIDAK di-
+   override" di :root di atas), jadi khusus mode gelap dipakai burgundy
+   (latar) + pink (ikon) yang lebih redup & menyatu dengan permukaan
+   gelap sekitarnya. */
+.gc-x-tutup{display:flex; align-items:center; justify-content:center; width:34px; height:26px; border-radius:999px; border:1px solid var(--danger-light); background:var(--danger-light); color:var(--danger); cursor:pointer;}
+[data-theme="dark"] .gc-x-tutup{background:var(--burgundy); border-color:var(--burgundy); color:var(--pink);}
+
+/* ---- Menu "lainnya" oval (titik-tiga) — BARU (29 Agt 2026, moodboard
+   "Gechoo Mobile Organic" v2, cek live Guru di HP). GANTI ikon filter
+   bulat lama di baris pencarian Antrean Absensi/Lembur/Dakar/Reimburse —
+   sengaja OVAL (bukan bulat penuh) biar beda dari tombol ikon biasa &
+   nyambung visual sama kolom cari pil di sebelahnya. Nampung Filter
+   Owner (Jenis Pekerjaan/Gudang/Tahap/dst) DAN aksi sekunder (Cek Data
+   Sangat Lama, Refresh) DAN tempat kosong buat fitur nanti (Import CSV,
+   Terapkan Massal). Pola dropdown-nya (trigger+backdrop+panel absolute)
+   NYONTEK PERSIS lonceng notifikasi di js/vue-header-mobile.js — bukan
+   pola baru. */
+.gc-overflow-btn{display:flex; align-items:center; justify-content:center; width:40px; height:38px; border-radius:19px; border:1.5px solid var(--line); background:var(--surface); color:var(--text-muted); cursor:pointer; position:relative; flex-shrink:0;}
+.gc-overflow-btn:hover{border-color:var(--burgundy); color:var(--burgundy);}
+.gc-overflow-dot{position:absolute; top:-2px; right:-2px; width:8px; height:8px; border-radius:50%; background:var(--danger); border:1.5px solid var(--ivory);}
+.gc-overflow-backdrop{position:fixed; inset:0; z-index:60;}
+.gc-overflow-panel{position:absolute; top:44px; right:0; z-index:61; background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:0 14px 34px -10px rgba(31,22,17,.35); padding:8px; min-width:230px;}
+.gc-overflow-label{font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-faint); padding:6px 9px 4px;}
+.gc-overflow-item{width:100%; text-align:left; background:none; border:none; padding:9px 10px; border-radius:10px; font-size:12px; font-weight:600; color:var(--text); cursor:pointer; display:flex; align-items:center; gap:8px;}
+.gc-overflow-item:hover{background:var(--ivory-dim);}
+.gc-overflow-sep{border:none; border-top:1px solid var(--line); margin:6px 2px;}
+
+/* ---- Badge angka kecil di banner ringkas (jumlah antrean) — BARU
+   (29 Agt 2026, moodboard v2) — dipakai di banner pink yang dipadatkan
+   1 baris di bawah kolom cari (gantikan paragraf deskripsi panjang). */
+.gc-badge-count{display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--burgundy); color:#fff; font-size:9.5px; font-weight:700; margin-left:6px;}
+
 /* ---- Kartu / panel ---- */
 .gc-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px;}
 .gc-card-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;}

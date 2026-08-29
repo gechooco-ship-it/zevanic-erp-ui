@@ -24,6 +24,9 @@
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+// BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2) — KolomCari
+// (pil, dipakai juga di Antrean Absensi) GANTI kolom cari hand-rolled.
+import { KolomCari } from './vue-components.js?v=5';
 
 const AntreanLemburCard = {
   props: {
@@ -64,42 +67,104 @@ const AntreanLemburCard = {
     const bolehEdit = computed(() => window.cekIzinMenu('antrean_lembur', 'edit') !== false);
     const bolehHapus = computed(() => window.cekIzinMenu('antrean_lembur', 'delete') !== false);
 
-    return { memproses, proses, hapus, bolehEdit, bolehHapus };
+    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, cek live
+    // Guru di HP) — avatar dari foto_selfie: field INI SUDAH ADA di setiap
+    // dokumen Lembur (dicek langsung di vue-camera.js — kamera yang sama
+    // dipakai Hadir/Clock Out juga dipakai pengajuan Lembur), cuma belum
+    // pernah ditampilkan di kartu ini sebelumnya.
+    function lihatFotoBesar() {
+      if (props.data.foto_selfie && window.bukaPreviewFoto) window.bukaPreviewFoto(props.data.foto_selfie);
+    }
+
+    // Jam Shift asli orangnya (buat dibandingkan sama Jam Lembur yang
+    // diajukan) — lookup nama_shift->master_shift, POLA SAMA PERSIS
+    // dengan js/vue-antrean-absensi.js (muatJamShift), Lembur belum
+    // pernah punya info ini ditampilkan sebelumnya.
+    const jamShift = ref({ masuk: null, keluar: null });
+    async function muatJamShift() {
+      if (!props.data.nama_shift) return;
+      try {
+        const qShift = await getDocs(query(collection(db, "master_shift"), where("nama_shift", "==", props.data.nama_shift)));
+        if (!qShift.empty) {
+          const s = qShift.docs[0].data();
+          jamShift.value = { masuk: s.jam_masuk || null, keluar: s.jam_keluar || null };
+        }
+      } catch (e) {
+        console.error("Gagal muat jam shift Lembur:", e);
+      }
+    }
+
+    // Tanggal pengajuan singkat ("28 Agt") dari waktu_ts (Firestore
+    // Timestamp, SUDAH ada di dataKirim vue-camera.js) — dulu dipakai
+    // data.waktu (string toLocaleString mentah, kepanjangan buat baris
+    // padat "{tanggal} - {gudang}" yang baru).
+    function formatTglSingkat(ts) {
+      if (!ts || typeof ts.toDate !== 'function') return '-';
+      return ts.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+    }
+
+    const menuAksiTerbuka = ref(false);
+    function toggleMenuAksi() { menuAksiTerbuka.value = !menuAksiTerbuka.value; }
+    function tutupMenuAksi() { menuAksiTerbuka.value = false; }
+
+    onMounted(() => { muatJamShift(); });
+
+    return {
+      memproses, proses, hapus, bolehEdit, bolehHapus, lihatFotoBesar,
+      jamShift, formatTglSingkat, menuAksiTerbuka, toggleMenuAksi, tutupMenuAksi
+    };
   },
+  // ==========================================================================
+  // TEMPLATE DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2,
+  // dari cek live Guru di HP + mockup gechoo-mobile-organic-rollout.html
+  // §Antrean Lembur) — kartu besar grid 2 kolom + tombol lebar penuh diganti
+  // pola padat SAMA dengan Antrean Absensi: avatar (foto_selfie, BARU
+  // ditampilkan), baris "{tanggal} - {gudang}" gantikan "Diajukan"+"Gudang"
+  // terpisah, baris Jam Shift (kiri) vs Jam Lembur (kanan) buat gampang
+  // dibandingkan, approve-row 2 tombol (Setujui/Tolak — Lembur TIDAK
+  // punya konsep Sesuai/Tidak Sesuai seperti Absensi). Instruksi Kerja
+  // TETAP ditampilkan (baris kecil terpisah) — TIDAK di mockup awal, tapi
+  // sengaja tidak dihilangkan karena info operasional buat penyetuju,
+  // cuma dibikin sekecil mungkin biar tetap padat.
+  // Field/logic Firestore, cekIzinMenu, proses/hapus — TIDAK ada yang
+  // berubah, cuma tampilannya.
+  // ==========================================================================
   template: `
-    <div class="gc-card">
-      <div style="display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
-        <div style="width:44px; height:44px; border-radius:12px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--burgundy); flex-shrink:0;"><i class="fas fa-business-time"></i></div>
-        <div>
-          <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ data.nama_pegawai || data.nama || 'Karyawan' }}</h4>
-          <p style="font-size:10.5px; color:var(--text-muted);">{{ data.email || '-' }}</p>
-          <span class="tag warn" style="margin-top:5px;"><span class="tag-dot"></span>Menunggu validasi</span>
+    <div class="gc-card" style="border-radius:20px;">
+      <div style="display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--ivory-dim); padding-bottom:10px; margin-bottom:10px;">
+        <img v-if="data.foto_selfie" :src="data.foto_selfie" @click="lihatFotoBesar" style="width:38px; height:38px; border-radius:14px; object-fit:cover; border:1px solid var(--line); cursor:pointer; flex-shrink:0;">
+        <div v-else style="width:38px; height:38px; border-radius:14px; background:linear-gradient(135deg,var(--pink),var(--ivory-dim)); flex-shrink:0;"></div>
+        <div style="flex:1; min-width:0;">
+          <h4 class="gc-heading" style="font-weight:700; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.nama_pegawai || data.nama || 'Karyawan' }}</h4>
+          <p style="font-size:9.5px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ formatTglSingkat(data.waktu_ts) }}<span v-if="data.gudang"> &ndash; {{ data.gudang }}</span></p>
+        </div>
+        <span class="tag warn" style="flex-shrink:0;"><span class="tag-dot"></span>Menunggu</span>
+        <div v-if="bolehHapus" style="position:relative; flex-shrink:0;">
+          <button @click="toggleMenuAksi" class="icon-btn" style="border-radius:50%; border:none; background:none;" title="Aksi lainnya"><i class="fas fa-ellipsis-vertical"></i></button>
+          <div v-if="menuAksiTerbuka" @click="tutupMenuAksi" style="position:fixed; inset:0; z-index:60;"></div>
+          <div v-if="menuAksiTerbuka" style="position:absolute; right:0; top:34px; z-index:61; background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 24px -6px rgba(31,22,17,.3); padding:6px; min-width:150px;">
+            <button @click="tutupMenuAksi(); hapus();" style="width:100%; text-align:left; background:none; border:none; padding:9px 11px; border-radius:9px; font-size:12px; font-weight:600; color:var(--danger); cursor:pointer; display:flex; align-items:center; gap:8px;"><i class="fas fa-trash-alt"></i> Hapus permanen</button>
+          </div>
         </div>
       </div>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; background:var(--ivory-dim); padding:14px; border-radius:14px; font-size:12px; margin-bottom:14px;">
-        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Diajukan</span> <b>{{ data.waktu || '-' }}</b></div>
-        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Gudang</span> <b>{{ data.gudang || '-' }}</b></div>
-        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Jam Lembur Diajukan</span> <b style="color:var(--burgundy);">{{ data.lembur_mulai || '-' }} &ndash; {{ data.lembur_selesai || '-' }}</b></div>
-        <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Instruksi Kerja</span> <b>{{ data.lembur_instruksi || '-' }}</b></div>
-        <div style="grid-column:1 / -1;"><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Alasan</span> <b>{{ data.keterangan || '-' }}</b></div>
+
+      <div style="display:flex; align-items:flex-start; gap:8px; padding:2px 0 8px;">
+        <div style="text-align:left;"><span style="font-size:9px; color:var(--text-faint); display:block; text-transform:uppercase; letter-spacing:.04em;">Jam Shift</span><b style="font-size:11px;">{{ (jamShift.masuk && jamShift.keluar) ? (jamShift.masuk + '–' + jamShift.keluar) : '-' }}</b></div>
+        <div style="text-align:right; margin-left:auto;"><span style="font-size:9px; color:var(--text-faint); display:block; text-transform:uppercase; letter-spacing:.04em;">Jam Lembur</span><b style="font-size:11px; color:var(--burgundy);">{{ data.lembur_mulai || '-' }}&ndash;{{ data.lembur_selesai || '-' }}</b></div>
       </div>
-      <div v-if="bolehEdit || bolehHapus" style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line);">
-        <button v-if="bolehEdit" @click="proses('ACC')" :disabled="memproses" class="btn-acc" style="flex:1; display:flex; align-items:center; justify-content:center;">
-          <i class="fas fa-check-circle" style="margin-right:6px;"></i> Setujui Lembur
-        </button>
-        <button v-if="bolehEdit" @click="proses('REJECT')" :disabled="memproses" class="btn-rej" style="flex:1; display:flex; align-items:center; justify-content:center;">
-          <i class="fas fa-times-circle" style="margin-right:6px;"></i> Tolak
-        </button>
-        <button v-if="bolehHapus" @click="hapus" class="icon-btn" title="Hapus permanen">
-          <i class="fas fa-trash-alt"></i>
-        </button>
+      <p v-if="data.lembur_instruksi" style="font-size:9.5px; color:var(--text-faint); padding:0 0 3px;"><b>Instruksi:</b> {{ data.lembur_instruksi }}</p>
+      <p style="font-size:9.5px; color:var(--text-muted); padding:0 0 6px;">{{ data.keterangan || '-' }}</p>
+
+      <div v-if="bolehEdit" class="approve-row">
+        <button @click="proses('ACC')" :disabled="memproses" class="appr-btn ok"><i class="fas fa-check"></i> Setujui</button>
+        <button @click="proses('REJECT')" :disabled="memproses" class="appr-btn danger"><i class="fas fa-times"></i> Tolak</button>
       </div>
     </div>
   `
 };
 
 const AppAntreanLembur = {
-  components: { AntreanLemburCard },
+  components: { AntreanLemburCard, KolomCari },
   setup() {
     const daftarPending = ref([]);
     const memuat = ref(true);
@@ -164,6 +229,15 @@ const AppAntreanLembur = {
       memuat.value = false;
     }
 
+    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2) — dropdown
+    // filter Owner + tombol Cek Data Sangat Lama/Refresh dipindah ke 1
+    // menu "lainnya" oval titik-tiga di sebelah kolom cari (POLA SAMA
+    // PERSIS vue-antrean-absensi.js), gantikan dropdown yang SELALU
+    // tampil + 2 tombol lebar penuh di banner.
+    const menuTerbuka = ref(false);
+    function toggleMenuTerbuka() { menuTerbuka.value = !menuTerbuka.value; }
+    const adaFilterAktif = computed(() => filterJenisPekerjaanOwner.value !== 'ALL' || filterGudangOwner.value !== 'ALL');
+
     const memuatDataLama = ref(false);
     const infoDataLama = ref('');
     async function cekDataSangatLama() {
@@ -196,38 +270,52 @@ const AppAntreanLembur = {
     return {
       daftarPending, daftarPendingTersaring, memuat, errorMuat, muat,
       cariNama, isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner,
+      menuTerbuka, toggleMenuTerbuka, adaFilterAktif,
       memuatDataLama, infoDataLama, cekDataSangatLama
     };
   },
+  // ==========================================================================
+  // DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, dari cek
+  // live Guru di HP) — Lembur BELUM PERNAH ikut redesain sebelumnya, jadi
+  // ini penerapan POLA LENGKAP pertama kalinya di sini: KolomCari (pil),
+  // banner dipadatkan & dipindah ke bawah kolom cari, dropdown filter Owner
+  // + Cek Data Sangat Lama/Refresh masuk ke menu oval titik-tiga
+  // (.gc-overflow-btn) — sama persis pola vue-antrean-absensi.js. Logic
+  // Firestore/query/proses('ACC'/'REJECT') TIDAK berubah sama sekali.
+  // ==========================================================================
   template: `
-    <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
-      <div>
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; color:var(--burgundy-dark);"><i class="fas fa-business-time" style="margin-right:8px;"></i> Antrean validasi Lembur</h3>
-        <p style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Approve di sini menentukan jam Clock Out yang dipakai untuk penggajian.</p>
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+      <div style="flex:1; min-width:0;"><kolom-cari v-model="cariNama" placeholder="Cari nama karyawan..." /></div>
+      <button @click="toggleMenuTerbuka" class="gc-overflow-btn" title="Menu lainnya">
+        <i class="fas fa-ellipsis"></i>
+        <span v-if="adaFilterAktif" class="gc-overflow-dot"></span>
+      </button>
+      <div v-if="menuTerbuka" @click="toggleMenuTerbuka" class="gc-overflow-backdrop"></div>
+      <div v-if="menuTerbuka" class="gc-overflow-panel">
+        <template v-if="isOwnerRole">
+          <div class="gc-overflow-label">Filter</div>
+          <div style="padding:2px 6px 8px;">
+            <select v-model="filterJenisPekerjaanOwner" style="width:100%; margin-bottom:6px; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+              <option value="ALL">Semua jenis pekerjaan</option>
+              <option v-for="jp in opsiJenisPekerjaanOwner" :key="jp" :value="jp">{{ jp }}</option>
+            </select>
+            <select v-model="filterGudangOwner" style="width:100%; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+              <option value="ALL">Semua gudang</option>
+              <option v-for="g in opsiGudangOwner" :key="g" :value="g">{{ g }}</option>
+            </select>
+          </div>
+          <hr class="gc-overflow-sep">
+        </template>
+        <button @click="toggleMenuTerbuka(); cekDataSangatLama();" :disabled="memuatDataLama" class="gc-overflow-item"><i class="fas fa-magnifying-glass"></i> Cek Data Sangat Lama</button>
+        <button @click="toggleMenuTerbuka(); muat();" class="gc-overflow-item"><i class="fas fa-sync-alt"></i> Refresh</button>
       </div>
-      <div style="display:flex; gap:8px;">
-        <button @click="cekDataSangatLama" :disabled="memuatDataLama" class="btn-outline" title="Cek sekali data sangat lama yang mungkin belum kebaca"><i class="fas fa-magnifying-glass" style="margin-right:6px;"></i> Cek Data Sangat Lama</button>
-        <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
-      </div>
+    </div>
+    <div class="gc-card" style="display:flex; align-items:center; gap:8px; background:var(--pink); border:none; padding:9px 14px; margin-bottom:16px;">
+      <i class="fas fa-business-time" style="color:var(--burgundy-dark); font-size:12px;"></i>
+      <b style="font-size:11px; color:var(--burgundy-dark);">Antrean validasi Lembur</b>
+      <span class="gc-badge-count">{{ daftarPendingTersaring.length }}</span>
     </div>
     <p v-if="infoDataLama" style="font-size:11px; color:var(--text-muted); margin:-10px 0 16px; padding:8px 12px; background:var(--ivory-dim); border-radius:10px;">{{ infoDataLama }}</p>
-
-    <div v-if="!memuat && daftarPending.length > 0" style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
-      <div style="position:relative; flex:1; min-width:200px;">
-        <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
-        <input v-model="cariNama" type="text" placeholder="Cari nama karyawan..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
-      </div>
-      <template v-if="isOwnerRole">
-        <select v-model="filterJenisPekerjaanOwner" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
-          <option value="ALL">Semua jenis pekerjaan</option>
-          <option v-for="jp in opsiJenisPekerjaanOwner" :key="jp" :value="jp">{{ jp }}</option>
-        </select>
-        <select v-model="filterGudangOwner" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
-          <option value="ALL">Semua gudang</option>
-          <option v-for="g in opsiGudangOwner" :key="g" :value="g">{{ g }}</option>
-        </select>
-      </template>
-    </div>
 
     <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint);">
       <i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i><p style="font-size:12px;">Memuat antrean validasi lembur...</p>

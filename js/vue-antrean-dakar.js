@@ -35,12 +35,17 @@
 // vue-otp.js) — lewat TULIS, bukan baca langsung. Lihat firestore.rules
 // match /pendaftaran_pending/{email} untuk detail lengkapnya.
 //
-// Dipakai ulang: GudangCheckboxSelect (vue-components.js).
+// Dipakai ulang: KolomCari (vue-components.js). GudangCheckboxSelect TIDAK
+// dipakai lagi di sini sejak 29 Agt 2026 v2 (lihat catatan di
+// AntreanDakarCard — Gudang penempatan dilepas dari form approval ini).
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { GudangCheckboxSelect } from './vue-components.js';
+// BARU (29 Agt 2026 v2) — GudangCheckboxSelect DILEPAS dari sini (form
+// approval tidak lagi input Gudang, lihat catatan di AntreanDakarCard di
+// bawah) — KolomCari (pil) dipakai buat baris cari, pola sama modul lain.
+import { KolomCari } from './vue-components.js?v=5';
 
 const MASA_BERLAKU_MENIT = 30; // disepakati 18 Agt 2026 — lihat STATUS-PROYEK.md
 
@@ -74,24 +79,27 @@ async function kirimEmailLinkPassword(email, nama, token) {
 }
 
 const AntreanDakarCard = {
-  components: { GudangCheckboxSelect },
   props: {
     emailId: { type: String, required: true },
     data: { type: Object, required: true }
   },
   emits: ['diproses'],
   setup(props, { emit }) {
+    // DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2,
+    // permintaan Guru — PERUBAHAN LOGIC, bukan cuma tampilan) — form
+    // approval SEKARANG cuma isi Jadwal Shift + Jabatan. Status Kerja
+    // LANGSUNG hardcode 'Aktif' di setujui() (bukan dipilih manual lagi).
+    // Status Karyawan & Gudang penempatan DILEPAS dari form ini SAMA
+    // SEKALI — jadi Owner-only lewat Daftar Karyawan > Edit (menu
+    // Config). Field form.statusKerja/statusKaryawan/gudang DIHAPUS
+    // (bukan cuma disembunyikan) karena memang tidak dipakai input
+    // apapun lagi di sini.
     const form = reactive({
-      statusKerja: 'Aktif',
       shift: '',
-      jabatan: '',
-      statusKaryawan: '',
-      gudang: []
+      jabatan: ''
     });
-    const opsiStatusKerja = ref([]);
     const daftarShift = ref([]);
     const opsiJabatan = ref([]);
-    const opsiStatusKaryawan = ref([]);
     const memproses = ref(false);
 
     // Status pendaftaran ini — dihitung dari field token di data, BUKAN
@@ -122,7 +130,6 @@ const AntreanDakarCard = {
     });
 
     async function muatOpsi() {
-      opsiStatusKerja.value = await window.ambilMasterList('status_kerja');
       const qShift = await getDocs(collection(db, "master_shift"));
       const listShift = [];
       qShift.forEach(docSnap => {
@@ -130,13 +137,24 @@ const AntreanDakarCard = {
         if (window.bolehLihatJenisPekerjaan(s.jenis_pekerjaan)) listShift.push(s);
       });
       daftarShift.value = listShift;
-      opsiJabatan.value = await window.ambilMasterList('jabatan');
-      opsiStatusKaryawan.value = await window.ambilMasterList('status_karyawan');
 
-      form.statusKerja = opsiStatusKerja.value.includes('Aktif') ? 'Aktif' : (opsiStatusKerja.value[0] || '');
+      // BARU (29 Agt 2026 v2) — Jabatan DIBATASI cuma Operator/Admin di
+      // form approval ini (permintaan Guru eksplisit). Jabatan lain (mis.
+      // Warehouse, lihat seed default di dashboard.js) TETAP bisa diatur
+      // Owner belakangan lewat Daftar Karyawan > Edit, TIDAK bisa dipilih
+      // di sini.
+      const semuaJabatan = window.ambilMasterList ? await window.ambilMasterList('jabatan') : [];
+      opsiJabatan.value = semuaJabatan.filter(j => j === 'Operator' || j === 'Admin');
+      if (opsiJabatan.value.length === 0) {
+        // Jaring pengaman — kalau Master Data > Jabatan TIDAK punya entri
+        // persis "Operator"/"Admin" (ejaan beda dsb), form ini akan
+        // kosong tanpa pilihan sama sekali. Bukan ditebak diam-diam —
+        // sengaja diteriakkan di Console biar ketahuan pas testing.
+        console.warn('[Antrean Dakar] Master Data > Jabatan tidak punya entri persis "Operator"/"Admin" — dropdown Jabatan di form approval ini akan kosong. Cek ejaan di Master Data > Jabatan.');
+      }
+
       form.shift = daftarShift.value[0]?.nama_shift || '';
       form.jabatan = opsiJabatan.value[0] || '';
-      form.statusKaryawan = opsiStatusKaryawan.value[0] || '';
     }
 
     function lihatFotoBesar() {
@@ -161,20 +179,30 @@ const AntreanDakarCard = {
       if (window.cekIzinMenu('antrean_dakar', 'add') === false) {
         return alert('Anda tidak punya izin menyetujui karyawan baru. Hubungi Owner/PIC.');
       }
-      if (form.gudang.length === 0) {
-        if (!confirm("Belum ada gudang dipilih. Karyawan ini TIDAK akan bisa login sampai gudang ditautkan (bisa diatur lagi lewat Daftar Karyawan > Edit). Lanjutkan?")) return;
-      }
+      // DIHAPUS (29 Agt 2026 v2) — dulu ada confirm() "belum pilih gudang,
+      // lanjutkan?" cuma buat kasus admin LUPA isi. SEKARANG gudang memang
+      // SELALU kosong di titik ini (field-nya dilepas dari form), jadi
+      // confirm() itu akan muncul TIAP KALI approve (mengganggu) — diganti
+      // catatan tetap di dalam form (lihat template, sebelum tombol
+      // Setujui) yang SELALU kelihatan, bukan popup berulang.
 
       memproses.value = true;
       try {
         const token = buatTokenAcak();
         const kadaluarsa = new Date(Date.now() + MASA_BERLAKU_MENIT * 60 * 1000);
         await updateDoc(doc(db, "pendaftaran_pending", props.emailId), {
-          status_kerja: form.statusKerja,
+          // BARU (29 Agt 2026 v2, permintaan Guru eksplisit) — Status
+          // Kerja LANGSUNG 'Aktif' begitu diklik Setujui (tidak dipilih
+          // manual lagi). Status Karyawan & Gudang penempatan SENGAJA
+          // dikosongkan di sini — wajib dilengkapi Owner lewat Daftar
+          // Karyawan > Edit SEBELUM karyawan ini bisa login (gerbang
+          // gudang_penempatan.length===0 di js/vue-login.js TIDAK
+          // disentuh/tidak berubah, cuma titik pengisiannya yang pindah).
+          status_kerja: 'Aktif',
           nama_shift: form.shift,
           jabatan: form.jabatan,
-          status_karyawan: form.statusKaryawan,
-          gudang_penempatan: form.gudang,
+          status_karyawan: '',
+          gudang_penempatan: [],
           token_buat_password: token,
           token_kadaluarsa: Timestamp.fromDate(kadaluarsa),
           token_terverifikasi: false,
@@ -238,30 +266,35 @@ const AntreanDakarCard = {
 
     onMounted(async () => { await window.authReady; muatOpsi(); });
     return {
-      form, opsiStatusKerja, daftarShift, opsiJabatan, opsiStatusKaryawan, memproses,
+      form, daftarShift, opsiJabatan, memproses,
       sudahDiSetujui, sudahKadaluarsa, sisaWaktuTeks, linkTerakhir, linkTersalin, salinLink,
       lihatFotoBesar, setujui, assignUlang, tolak
     };
   },
+  // ==========================================================================
+  // TEMPLATE DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2,
+  // dari mockup gechoo-mobile-organic-rollout.html §Antrean Dakar) — header
+  // kartu dirapikan (foto KTP 52x40, radius 12px) + badge status ("Baru"
+  // buat yang belum diproses sama sekali). Foto KTP TETAP persegi panjang
+  // (bukan avatar bulat) — ini KTP, bukan foto wajah, TIDAK berubah.
+  // Email/HP TETAP ditampilkan (baris kecil terpisah dari NIK) — mockup
+  // v2 cuma gambar NIK buat hemat ruang, tapi info kontak sengaja TIDAK
+  // dihilangkan dari kartu sungguhan karena masih relevan buat admin yang
+  // approve. Alur token-email-link TIDAK disentuh sama sekali.
+  // ==========================================================================
   template: `
-    <div class="gc-card">
-      <div style="display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
-        <!-- DISESUAIKAN (28 Agt 2026, redesain "Gechoo Mobile Organic") —
-             gaya bingkai foto disamakan dengan kartu lain (border+shadow),
-             TETAP persegi panjang (bukan bulat) karena ini foto KTP, bukan
-             foto wajah — sudah bisa diklik dari sebelumnya, tidak ada
-             perubahan fungsi. Tombol aksi kartu ini cuma 2 (Setujui/Assign
-             Ulang + Tolak) — TIDAK diringkas ke menu titik-tiga karena
-             belum "banyak pilihan" yang merusak tampilan. -->
-        <img v-if="data.foto_ktp" :src="data.foto_ktp" @click="lihatFotoBesar" style="width:64px; height:48px; border-radius:10px; object-fit:cover; border:2px solid var(--surface); box-shadow:0 2px 8px rgba(91,56,38,.1); cursor:pointer;">
-        <div v-else style="width:64px; height:48px; background:var(--ivory-dim); border-radius:10px; display:flex; align-items:center; justify-content:center; color:var(--text-faint);"><i class="fas fa-id-card"></i></div>
-        <div style="flex:1;">
-          <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ data.nama || 'Tanpa Nama' }}</h4>
-          <p style="font-size:10.5px; color:var(--text-muted); font-family:'Poppins',sans-serif;">{{ data.email || emailId }} &bull; {{ data.hp || '-' }}</p>
-          <p style="font-size:10.5px; color:var(--text-muted); font-family:'Poppins',sans-serif;">NIK: {{ data.nik || '-' }}</p>
+    <div class="gc-card" style="border-radius:20px;">
+      <div style="display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--ivory-dim); padding-bottom:10px; margin-bottom:10px;">
+        <img v-if="data.foto_ktp" :src="data.foto_ktp" @click="lihatFotoBesar" style="width:52px; height:40px; border-radius:12px; object-fit:cover; border:2px solid var(--surface); box-shadow:0 2px 8px rgba(91,56,38,.1); cursor:pointer; flex-shrink:0;">
+        <div v-else style="width:52px; height:40px; background:var(--ivory-dim); border-radius:12px; display:flex; align-items:center; justify-content:center; color:var(--text-faint); flex-shrink:0;"><i class="fas fa-id-card"></i></div>
+        <div style="flex:1; min-width:0;">
+          <h4 class="gc-heading" style="font-weight:700; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.nama || 'Tanpa Nama' }}</h4>
+          <p style="font-size:9.5px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">NIK {{ data.nik || '-' }}</p>
+          <p style="font-size:9.5px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.email || emailId }} &middot; {{ data.hp || '-' }}</p>
         </div>
-        <span v-if="sudahDiSetujui && sudahKadaluarsa" class="tag danger">Link kadaluarsa</span>
-        <span v-else-if="sudahDiSetujui" class="tag warn">Menunggu Buat Password</span>
+        <span v-if="sudahDiSetujui && sudahKadaluarsa" class="tag danger" style="flex-shrink:0;">Link kadaluarsa</span>
+        <span v-else-if="sudahDiSetujui" class="tag warn" style="flex-shrink:0;">Menunggu Password</span>
+        <span v-else class="tag warn" style="flex-shrink:0;">Baru</span>
       </div>
 
       <div v-if="linkTerakhir" style="background:var(--ok-light); border:1px dashed var(--ok); border-radius:12px; padding:12px 14px; margin-bottom:14px;">
@@ -274,13 +307,8 @@ const AntreanDakarCard = {
       </div>
 
       <template v-if="!sudahDiSetujui">
-        <div style="display:grid; gap:10px; margin-bottom:14px;" class="grid-cols-1 md:grid-cols-2">
-          <div class="gc-field" style="margin-bottom:0;">
-            <label style="font-size:10.5px;">Status kerja</label>
-            <select v-model="form.statusKerja" style="padding:7px 10px; font-size:12px;">
-              <option v-for="o in opsiStatusKerja" :key="o" :value="o">{{ o }}</option>
-            </select>
-          </div>
+        <p style="font-size:9px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px;">Isi penempatan sebelum setujui &darr;</p>
+        <div style="display:grid; gap:8px; margin-bottom:10px;" class="grid-cols-1 md:grid-cols-2">
           <div class="gc-field" style="margin-bottom:0;">
             <label style="font-size:10.5px;">Jadwal shift</label>
             <select v-model="form.shift" style="padding:7px 10px; font-size:12px;">
@@ -293,24 +321,15 @@ const AntreanDakarCard = {
               <option v-for="o in opsiJabatan" :key="o" :value="o">{{ o }}</option>
             </select>
           </div>
-          <div class="gc-field" style="margin-bottom:0;">
-            <label style="font-size:10.5px;">Status karyawan</label>
-            <select v-model="form.statusKaryawan" style="padding:7px 10px; font-size:12px;">
-              <option v-for="o in opsiStatusKaryawan" :key="o" :value="o">{{ o }}</option>
-            </select>
-          </div>
         </div>
-        <div class="gc-field">
-          <label style="font-size:10.5px;">Gudang penempatan (bisa lebih dari satu)</label>
-          <gudang-checkbox-select v-model="form.gudang" />
-        </div>
-        <div style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line);">
-          <button @click="setujui" :disabled="memproses" class="btn-acc" style="flex:1;">
-            <i class="fas fa-paper-plane" style="margin-right:6px;"></i> {{ memproses ? 'Memproses...' : 'Setujui & Kirim Link' }}
-          </button>
-          <button @click="tolak" :disabled="memproses" class="btn-rej">
-            <i class="fas fa-times"></i> Tolak
-          </button>
+        <!-- BARU (29 Agt 2026 v2) — gantikan confirm() popup lama yang
+             muncul TIAP KALI approve. Sekarang gudang/status karyawan
+             MEMANG selalu dilewatkan di sini (Owner-only, lewat Config),
+             jadi catatannya ditaruh tetap di form, bukan popup berulang. -->
+        <p style="font-size:10px; color:var(--warn); background:var(--warn-light); border-radius:10px; padding:8px 10px; margin-bottom:10px;"><i class="fas fa-triangle-exclamation" style="margin-right:5px;"></i>Gudang &amp; Status Karyawan BELUM diisi di sini — karyawan ini TIDAK BISA login sampai Owner melengkapinya lewat <b>Daftar Karyawan &gt; Edit</b>.</p>
+        <div class="approve-row" style="margin-top:2px;">
+          <button @click="setujui" :disabled="memproses" class="appr-btn ok" style="flex:2;"><i class="fas fa-paper-plane"></i> {{ memproses ? 'Memproses...' : 'Setujui & Kirim Link' }}</button>
+          <button @click="tolak" :disabled="memproses" class="appr-btn danger"><i class="fas fa-times"></i> Tolak</button>
         </div>
       </template>
 
@@ -340,7 +359,7 @@ const AntreanDakarCard = {
 };
 
 const AppAntreanDakar = {
-  components: { AntreanDakarCard },
+  components: { AntreanDakarCard, KolomCari },
   setup() {
     // Dipakai buat catatan transparansi filter jenis pekerjaan di template
     // (LEWAT computed, BUKAN window.xxx langsung di template — lihat
@@ -360,6 +379,12 @@ const AppAntreanDakar = {
     const filterGudangOwner = ref('ALL');
     const opsiJenisPekerjaanOwner = ref([]);
     const opsiGudangOwner = ref([]);
+    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2) — dropdown
+    // filter Owner + Buat Data Uji dipindah ke 1 menu "lainnya" oval
+    // titik-tiga di sebelah kolom cari, pola sama Absensi/Lembur.
+    const menuTerbuka = ref(false);
+    function toggleMenuTerbuka() { menuTerbuka.value = !menuTerbuka.value; }
+    const adaFilterAktif = computed(() => filterJenisPekerjaanOwner.value !== 'ALL' || filterGudangOwner.value !== 'ALL');
     const daftarPendingTersaring = computed(() => {
       let hasil = daftarPending.value;
       const cari = cariNama.value.trim().toLowerCase();
@@ -432,38 +457,50 @@ const AppAntreanDakar = {
     onMounted(async () => { await window.authReady; muat(); });
     return {
       isOwnerRole, daftarPending, daftarPendingTersaring, memuat, errorMuat, muat, memprosesUji, buatDataUji,
-      cariNama, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner
+      cariNama, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner,
+      menuTerbuka, toggleMenuTerbuka, adaFilterAktif
     };
   },
+  // ==========================================================================
+  // DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, dari cek
+  // live Guru di HP) — banner dipadatkan & dipindah ke bawah kolom cari,
+  // dropdown filter Owner + Buat Data Uji + Refresh masuk ke menu oval
+  // titik-tiga (.gc-overflow-btn) — pola sama persis Absensi/Lembur. Logic
+  // query/filter/bolehLihatData TIDAK berubah sama sekali.
+  // ==========================================================================
   template: `
-    <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; background:var(--pink); border:none;">
-      <div>
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; color:var(--burgundy-dark);"><i class="fas fa-user-clock" style="margin-right:8px;"></i> Antrean persetujuan karyawan baru</h3>
-        <p style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Pendaftar baru TIDAK punya akun login sama sekali sampai mereka sendiri membuat password lewat link email.</p>
-        <p v-if="!isOwnerRole" style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;"><i class="fas fa-filter" style="margin-right:5px;"></i>Cuma nampilin jenis pekerjaan yang sama dengan profil Anda.</p>
-      </div>
-      <div style="display:flex; gap:8px;">
-        <button v-if="isOwnerRole" @click="buatDataUji" :disabled="memprosesUji" class="btn-outline" style="border-color:var(--ok); color:var(--ok);" title="Khusus testing - bikin data pendaftaran palsu"><i class="fas fa-flask" style="margin-right:6px;"></i> Buat Data Uji</button>
-        <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
+    <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+      <div style="flex:1; min-width:0;"><kolom-cari v-model="cariNama" placeholder="Cari nama pendaftar..." /></div>
+      <button @click="toggleMenuTerbuka" class="gc-overflow-btn" title="Menu lainnya">
+        <i class="fas fa-ellipsis"></i>
+        <span v-if="adaFilterAktif" class="gc-overflow-dot"></span>
+      </button>
+      <div v-if="menuTerbuka" @click="toggleMenuTerbuka" class="gc-overflow-backdrop"></div>
+      <div v-if="menuTerbuka" class="gc-overflow-panel">
+        <template v-if="isOwnerRole">
+          <div class="gc-overflow-label">Filter</div>
+          <div style="padding:2px 6px 8px;">
+            <select v-model="filterJenisPekerjaanOwner" style="width:100%; margin-bottom:6px; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+              <option value="ALL">Semua jenis pekerjaan</option>
+              <option v-for="jp in opsiJenisPekerjaanOwner" :key="jp" :value="jp">{{ jp }}</option>
+            </select>
+            <select v-model="filterGudangOwner" style="width:100%; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+              <option value="ALL">Semua gudang</option>
+              <option v-for="g in opsiGudangOwner" :key="g" :value="g">{{ g }}</option>
+            </select>
+          </div>
+          <hr class="gc-overflow-sep">
+        </template>
+        <button v-if="isOwnerRole" @click="toggleMenuTerbuka(); buatDataUji();" :disabled="memprosesUji" class="gc-overflow-item"><i class="fas fa-flask"></i> Buat Data Uji</button>
+        <button @click="toggleMenuTerbuka(); muat();" class="gc-overflow-item"><i class="fas fa-sync-alt"></i> Refresh</button>
       </div>
     </div>
-
-    <div v-if="!memuat && daftarPending.length > 0" style="display:flex; flex-wrap:wrap; gap:10px; margin-top:14px;">
-      <div style="position:relative; flex:1; min-width:200px;">
-        <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
-        <input v-model="cariNama" type="text" placeholder="Cari nama pendaftar..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
-      </div>
-      <template v-if="isOwnerRole">
-        <select v-model="filterJenisPekerjaanOwner" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
-          <option value="ALL">Semua jenis pekerjaan</option>
-          <option v-for="jp in opsiJenisPekerjaanOwner" :key="jp" :value="jp">{{ jp }}</option>
-        </select>
-        <select v-model="filterGudangOwner" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
-          <option value="ALL">Semua gudang</option>
-          <option v-for="g in opsiGudangOwner" :key="g" :value="g">{{ g }}</option>
-        </select>
-      </template>
+    <div class="gc-card" style="display:flex; align-items:center; gap:8px; background:var(--pink); border:none; padding:9px 14px; margin-bottom:16px;">
+      <i class="fas fa-user-clock" style="color:var(--burgundy-dark); font-size:12px;"></i>
+      <b style="font-size:11px; color:var(--burgundy-dark);">Antrean karyawan baru</b>
+      <span class="gc-badge-count">{{ daftarPendingTersaring.length }}</span>
     </div>
+    <p v-if="!isOwnerRole" style="font-size:10.5px; color:var(--text-muted); margin:-10px 0 16px;"><i class="fas fa-filter" style="margin-right:5px;"></i>Cuma nampilin jenis pekerjaan yang sama dengan profil Anda.</p>
 
     <div v-if="memuat && daftarPending.length === 0" style="text-align:center; padding:40px 0; color:var(--text-faint); font-size:12px; margin-top:16px;">
       <i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i>Memuat antrean karyawan baru...
