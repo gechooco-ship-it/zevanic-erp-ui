@@ -434,12 +434,17 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // dari sini, tombolnya sudah dicopot dari index.html (lihat js/vue-
     // persiapan-produksi.js, DITINGGALKAN tidak lagi dimuat).
     // BARU (29 Agt 2026) — Persiapan Produksi V2 (grup top-level baru):
-    // cuma "Perlu Disiapkan" (Fase 1) yang punya komponen Vue sungguhan.
-    // 5 jalur (Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing) x 5 tahap
-    // BARU placeholder statis (tidak ada Vue di baliknya) — TIDAK butuh
-    // entry petaMount sampai Fase 2-5 nanti mengisinya. Lihat js/vue-
-    // persiapan-produksi-v2.js & STATUS-PROYEK.md §44.13.
+    // "Perlu Disiapkan" (Fase 1) + jalur Bahan (Fase 2, 29 Agt 2026 malam)
+    // sekarang punya komponen Vue sungguhan. Vendor/Acc Sewing/Acc Webbing/
+    // Acc Finishing x 5 tahap MASIH placeholder statis (tidak ada Vue di
+    // baliknya) — TIDAK butuh entry petaMount sampai Fase 3-4 mengisinya.
+    // Lihat js/vue-persiapan-produksi-v2.js & STATUS-PROYEK.md §44.13/§44.14.
     'sub-pp-disiapkan': 'pastikanMountPpDisiapkan',
+    'sub-pp-bahan-perludiproses': 'pastikanMountPpBahanPerluDiproses',
+    'sub-pp-bahan-sedangdiproses': 'pastikanMountPpBahanSedangDiproses',
+    'sub-pp-bahan-perludikirim': 'pastikanMountPpBahanPerluDikirim',
+    'sub-pp-bahan-sedangdikirim': 'pastikanMountPpBahanSedangDikirim',
+    'sub-pp-bahan-selesai': 'pastikanMountPpBahanSelesai',
     // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname.
     'sub-zh-scan-opname': 'pastikanMountScanOpname',
     // BARU (27 Agt 2026, §26.5, Tahap 5 — TAHAP TERAKHIR) — Scan > Scan Persiapan.
