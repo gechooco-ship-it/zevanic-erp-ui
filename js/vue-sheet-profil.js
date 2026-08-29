@@ -19,7 +19,7 @@
 // QR sendiri sudah tidak perlu tautan terpisah karena sudah ditampilkan
 // LANGSUNG di kartu QR sheet ini.
 // ============================================================================
-import { createApp, ref } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, computed } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 
 const AppSheetProfil = {
   setup() {
@@ -29,7 +29,14 @@ const AppSheetProfil = {
     const namaShift = ref('');
     const qrUrl = ref('');
     const sudahAbsen = ref(false);
-    const temaGelap = ref(false);
+    // DIROMBAK (29 Agt 2026, permintaan Guru) — dulu boolean terang/gelap
+    // saja. Sekarang preferensi MENTAH ('light'/'dark'/'auto') dari
+    // window.temaPreferensi() (lihat index.html) — bisa 'auto' (ikut
+    // sistem), beda dari window.temaSaatIni() yang cuma 'light'/'dark'
+    // EFEKTIF.
+    const temaPref = ref('light');
+    const ikonTema = computed(() => temaPref.value === 'auto' ? 'fa-circle-half-stroke' : (temaPref.value === 'dark' ? 'fa-moon' : 'fa-sun'));
+    const labelTema = computed(() => temaPref.value === 'auto' ? 'Otomatis' : (temaPref.value === 'dark' ? 'Mode gelap' : 'Mode terang'));
 
     function muatData() {
       const qrData = window.currentUser?.id_app || window.currentUser?.email || '';
@@ -37,7 +44,7 @@ const AppSheetProfil = {
       nama.value = window.currentUser?.name || window.currentUser?.nama || 'User';
       nik.value = window.currentUser?.nik || '-';
       namaShift.value = window.currentUser?.nama_shift || '-';
-      temaGelap.value = window.temaSaatIni ? window.temaSaatIni() === 'dark' : false;
+      temaPref.value = window.temaPreferensi ? window.temaPreferensi() : 'light';
     }
 
     async function buka() {
@@ -67,7 +74,7 @@ const AppSheetProfil = {
 
     function klikModeGelap() {
       if (window.toggleTema) window.toggleTema();
-      temaGelap.value = window.temaSaatIni ? window.temaSaatIni() === 'dark' : !temaGelap.value;
+      temaPref.value = window.temaPreferensi ? window.temaPreferensi() : temaPref.value;
     }
 
     function navigasi(subtab) {
@@ -82,13 +89,25 @@ const AppSheetProfil = {
     // langsung dari template).
     function keluar() { tutup(); if (window.logout) window.logout(); }
 
-    return { terbuka, nama, nik, namaShift, qrUrl, sudahAbsen, temaGelap, buka, tutup, klikClockInOut, klikScanQr, klikModeGelap, navigasi, keluar };
+    return { terbuka, nama, nik, namaShift, qrUrl, sudahAbsen, temaPref, ikonTema, labelTema, buka, tutup, klikClockInOut, klikScanQr, klikModeGelap, navigasi, keluar };
   },
   template: `
     <div>
       <div v-if="terbuka" class="gc-sheet-backdrop" @click="tutup"></div>
       <div v-if="terbuka" class="gc-sheet">
         <div class="gc-sheet-gagang-area" @click="tutup"><div class="gc-sheet-gagang"></div></div>
+
+        <!-- Tombol Keluar — DIPINDAH ke atas (29 Agt 2026, permintaan Guru,
+             dulu tombol lebar penuh di paling bawah). Sekarang oval kecil,
+             hanya ikon X, di kanan-atas sheet. Jarak atas (dekat gagang) VS
+             jarak bawah (ke kartu profil) sengaja dibedakan — margin-top
+             kecil, margin-bottom lebih besar — supaya dia "mengambang"
+             terpisah & ke-highlight, bukan menyatu dengan kartu profil. -->
+        <div style="display:flex; justify-content:flex-end; margin-top:2px; margin-bottom:16px;">
+          <button @click="keluar" title="Keluar" aria-label="Keluar" style="display:flex; align-items:center; justify-content:center; width:34px; height:26px; border-radius:999px; border:1px solid var(--danger-light); background:var(--danger-light); color:var(--danger); cursor:pointer;">
+            <i class="fas fa-xmark" style="font-size:13px;"></i>
+          </button>
+        </div>
 
         <div class="gc-kartu-gradien" style="border-radius:22px; padding:16px; margin-bottom:14px;">
           <div style="display:flex; align-items:center; gap:14px; position:relative; z-index:1;">
@@ -113,8 +132,8 @@ const AppSheetProfil = {
             <span style="font-size:10px; font-weight:600; color:var(--aksen-ink);">Scan QR</span>
           </button>
           <button @click="klikModeGelap" style="background:var(--aksen-lembut); border:none; border-radius:18px; padding:13px 8px; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer;">
-            <i class="fas" :class="temaGelap ? 'fa-sun' : 'fa-moon'" style="font-size:20px; color:var(--aksen-ink);"></i>
-            <span style="font-size:10px; font-weight:600; color:var(--aksen-ink);">{{ temaGelap ? 'Mode terang' : 'Mode gelap' }}</span>
+            <i class="fas" :class="ikonTema" style="font-size:20px; color:var(--aksen-ink);"></i>
+            <span style="font-size:10px; font-weight:600; color:var(--aksen-ink);">{{ labelTema }}</span>
           </button>
         </div>
 
@@ -150,10 +169,6 @@ const AppSheetProfil = {
             <i class="fas fa-chevron-right" style="font-size:12px; color:var(--text-faint);"></i>
           </button>
         </div>
-
-        <button @click="keluar" class="btn-outline block" style="color:var(--danger); border-color:var(--danger); border-radius:999px;">
-          <i class="fas fa-sign-out-alt" style="margin-right:8px;"></i> Keluar
-        </button>
       </div>
     </div>
   `

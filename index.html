@@ -46,30 +46,53 @@
        cat pertama, tidak "kedip" terang dulu baru gelap. window.aturTema()/
        window.toggleTema() dipanggil dari mana saja (Bottom Sheet Profil,
        Profil Lengkap) — TIDAK butuh Vue, murni atribut data-theme di <html>
-       + localStorage, dibaca token warna di css/gechoo-design.css. -->
+       + localStorage, dibaca token warna di css/gechoo-design.css.
+
+       DIPERLUAS (29 Agt 2026, permintaan Guru) — preferensi sekarang 3
+       pilihan: 'light' / 'dark' / 'auto' (ikut prefers-color-scheme
+       sistem, dan re-apply otomatis kalau sistemnya ganti tema SAAT
+       'auto' aktif). Dibedakan 2 fungsi:
+         - window.temaSaatIni()    -> SELALU 'light'/'dark' EFEKTIF
+           (warna yang SEDANG tampil) — dipakai tempat lama yang cuma
+           peduli warna, tidak berubah perilakunya, tidak perlu disentuh.
+         - window.temaPreferensi() -> preferensi MENTAH user, BISA 'auto'
+           — dipakai UI baru yang perlu tahu apakah user sedang 'auto'
+           atau pin manual (Bottom Sheet Profil).
+       window.toggleTema() sekarang siklus 3 tahap: light -> dark -> auto
+       -> light ..., BUKAN cuma 2 seperti sebelumnya. -->
   <script>
     (function() {
       var KUNCI = 'zevanic_tema';
+      var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+      function efektif(mode) {
+        if (mode === 'auto') return (mq && mq.matches) ? 'dark' : 'light';
+        return mode === 'dark' ? 'dark' : 'light';
+      }
       function terapkan(mode) {
-        if (mode === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+        if (efektif(mode) === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
         else document.documentElement.removeAttribute('data-theme');
       }
       var tersimpan = null;
       try { tersimpan = localStorage.getItem(KUNCI); } catch (e) {}
-      terapkan(tersimpan === 'dark' ? 'dark' : 'light');
+      var prefSaatIni = (tersimpan === 'dark' || tersimpan === 'auto') ? tersimpan : 'light';
+      terapkan(prefSaatIni);
+
       window.aturTema = function(mode) {
-        mode = mode === 'dark' ? 'dark' : 'light';
-        terapkan(mode);
-        try { localStorage.setItem(KUNCI, mode); } catch (e) {}
-        window.dispatchEvent(new CustomEvent('zevanic-tema-berubah', { detail: { mode: mode } }));
+        prefSaatIni = (mode === 'dark' || mode === 'auto') ? mode : 'light';
+        terapkan(prefSaatIni);
+        try { localStorage.setItem(KUNCI, prefSaatIni); } catch (e) {}
+        window.dispatchEvent(new CustomEvent('zevanic-tema-berubah', { detail: { mode: prefSaatIni, efektif: efektif(prefSaatIni) } }));
       };
       window.toggleTema = function() {
-        var sekarang = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-        window.aturTema(sekarang === 'dark' ? 'light' : 'dark');
+        var berikutnya = prefSaatIni === 'light' ? 'dark' : (prefSaatIni === 'dark' ? 'auto' : 'light');
+        window.aturTema(berikutnya);
       };
-      window.temaSaatIni = function() {
-        return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
-      };
+      window.temaSaatIni = function() { return efektif(prefSaatIni); };
+      window.temaPreferensi = function() { return prefSaatIni; };
+
+      if (mq && mq.addEventListener) {
+        mq.addEventListener('change', function() { if (prefSaatIni === 'auto') terapkan('auto'); });
+      }
     })();
   </script>
 </head>
@@ -781,8 +804,12 @@
   <!-- js/vue-profile-drawer.js DIHAPUS 28 Agt 2026 (redesain "Gechoo Mobile
        Organic", keputusan Guru "hapus total, ganti bersih") — GANTI
        js/vue-sheet-profil.js (Bottom Sheet Profil, lihat mount
-       #vue-sheet-profil di atas). -->
-  <script type="module" src="js/vue-sheet-profil.js"></script>
+       #vue-sheet-profil di atas).
+       v=2 (29 Agt 2026) — tombol Keluar pindah ke atas (oval kecil ikon X,
+       bukan lagi tombol lebar penuh di bawah); toggle Mode Gelap jadi
+       3-arah Terang/Gelap/Otomatis (ikut window.temaPreferensi() baru,
+       lihat script tema inline di <head>). -->
+  <script type="module" src="js/vue-sheet-profil.js?v=2"></script>
   <!-- v=5 (28 Agt 2026, redesain "Gechoo Mobile Organic") — Beranda dirombak
        total mengikuti mockup: dikunci 1 layar, 1 grup default (bisa diatur
        user lewat layar baru Atur Favorit), mode "Atur" inline dihapus,
