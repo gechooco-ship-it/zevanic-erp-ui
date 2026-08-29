@@ -480,14 +480,31 @@ const AppAntreanAbsensi = {
         // sebelum perbaikan ini dipasang). Begitu dokumen lama itu habis
         // diproses (ACC/Reject), baca users di sini akan OTOMATIS
         // berhenti sepenuhnya — TANPA perlu ubah kode lagi nanti.
+        //
+        // DIPERBAIKI LAGI (29 Agt 2026, §44.15) — BUG BOROS ketemu Guru
+        // ("tarik data 942 orang"): baris ini TADINYA masih
+        // `getDocs(collection(db,"users"))` FULL FETCH begitu SATU SAJA
+        // dokumen pending lama ketemu — jadi kalau koleksi `users` sudah
+        // besar (histori karyawan resign/ditolak ikut tersimpan, bukan
+        // cuma ~90-100 karyawan aktif), 1 dokumen absensi lama yang
+        // ketinggalan migrasi = tarik SELURUH koleksi users tiap kali
+        // Antrean Absensi dibuka. Sekarang GANTI ke query bertarget: cuma
+        // `where("email","in",[...])` atas EMAIL yang benar-benar perlu
+        // (dokumen pending yang belum punya jenis_pekerjaan saja), dipotong
+        // 30 per query (batas Firestore utk klausa `in`) — pola SAMA
+        // seperti migrasi shift di `vue-riwayat-absensi.js`.
         const semuaDokPending = [];
         snapBaru.forEach(d => semuaDokPending.push(d));
         snapLama.forEach(d => { if (d.data().status !== "LEMBUR (CLOCK IN)") semuaDokPending.push(d); });
-        const adaYangBelumPunyaJP = semuaDokPending.some(d => !d.data().jenis_pekerjaan);
+        const emailPerluJP = [...new Set(
+          semuaDokPending.filter(d => !d.data().jenis_pekerjaan && d.data().email).map(d => d.data().email)
+        )];
 
         let petaJenisPekerjaan = {};
-        if (adaYangBelumPunyaJP) {
-          const qUsers = await getDocs(collection(db, "users"));
+        const UKURAN_POTONGAN_EMAIL = 30; // batas Firestore where(field,'in',[...])
+        for (let i = 0; i < emailPerluJP.length; i += UKURAN_POTONGAN_EMAIL) {
+          const potongan = emailPerluJP.slice(i, i + UKURAN_POTONGAN_EMAIL);
+          const qUsers = await getDocs(query(collection(db, "users"), where("email", "in", potongan)));
           qUsers.forEach(u => { petaJenisPekerjaan[u.data().email] = u.data().jenis_pekerjaan || ''; });
         }
         function ambilJP(d) { return d.jenis_pekerjaan || petaJenisPekerjaan[d.email] || ''; }
