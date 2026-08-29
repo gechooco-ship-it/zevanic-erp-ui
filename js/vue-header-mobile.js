@@ -33,6 +33,15 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+// BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic", lihat PEDOMAN-GAYA-
+// KERJA.md — pilot Antrean Absensi, disetujui Guru "test dulu Antrean
+// Absensi") — mode 'lainnya' sekarang pakai HeaderLayar yang SAMA persis
+// dipakai Menu Lengkap/Atur Favorit (tombol kembali bulat + kicker + judul),
+// GANTI kartu pink + lingkaran dekoratif yang lama. Komponen ini GLOBAL
+// (dipakai di SEMUA halaman selain Home), jadi perubahan ini otomatis
+// berlaku ke semua halaman sekaligus, bukan cuma Antrean Absensi — itu
+// sudah dikonfirmasi & dicatat di PEDOMAN-GAYA-KERJA.md sebelum diterapkan.
+import { HeaderLayar } from './vue-components.js?v=5';
 
 const LABEL_TAB = {
   'tab-home': 'Home',
@@ -102,6 +111,7 @@ const LABEL_SUBTAB = {
 };
 
 const AppHeaderMobile = {
+  components: { HeaderLayar },
   setup() {
     const konteks = reactive({ mode: 'home', menuLabel: '', subMenuLabel: '' });
     const sapaan = ref('Selamat datang');
@@ -259,13 +269,7 @@ const AppHeaderMobile = {
         </div>
       </template>
       <template v-else-if="konteks.mode === 'lainnya'">
-        <div style="background:var(--pink); border-radius:22px; padding:14px 16px; position:relative; overflow:hidden;">
-          <div style="position:absolute; right:-30px; top:-30px; width:120px; height:120px; border-radius:50%; background:var(--blue); opacity:.3;"></div>
-          <div style="position:relative; z-index:1;">
-            <p style="font-size:12.5px; color:var(--mahogany-soft); margin:0;">ERP Zevanic House</p>
-            <h2 class="gc-heading" style="font-size:17px; font-weight:700; color:var(--mahogany); margin:2px 0 0 0;">{{ konteks.menuLabel }}<span v-if="konteks.subMenuLabel"> - {{ konteks.subMenuLabel }}</span></h2>
-          </div>
-        </div>
+        <header-layar :kicker="konteks.menuLabel" :judul="konteks.subMenuLabel || konteks.menuLabel" tab-pulang="tab-home" />
       </template>
       <!-- mode 'tersembunyi': layar py header sendiri (HeaderLayar), tidak render apapun di sini -->
     </div>

@@ -33,6 +33,9 @@
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+// BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic") — KolomCari (pil,
+// dipakai bareng Menu Lengkap/Atur Favorit) GANTI kolom cari hand-rolled.
+import { KolomCari } from './vue-components.js?v=5';
 
 // Diekspor juga (dipakai test) — bandingkan JAM aktual (Firestore
 // Timestamp) vs JAM jadwal shift ("HH:MM" dari master_shift).
@@ -174,6 +177,16 @@ const AntreanAbsensiCard = {
     });
     const seragam = ref(props.data.seragam || 'Sesuai');
     const memproses = ref(false);
+    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic", lihat PEDOMAN-
+    // GAYA-KERJA.md) — dulu pilih Seragam (dropdown) & Accept itu 2 langkah
+    // terpisah. Sekarang 3 tombol sejajar (Sesuai/Tidak Sesuai/Reject) —
+    // 2 yang pertama SAMA-SAMA accept, cuma nilai seragam yang ikut
+    // disimpan beda. Reject TIDAK mengubah seragam (proses('REJECT') apa
+    // adanya, sama seperti sebelumnya).
+    function prosesDenganSeragam(statusAcc, nilaiSeragam) {
+      if (nilaiSeragam) seragam.value = nilaiSeragam;
+      proses(statusAcc);
+    }
     async function proses(statusAcc) {
       if (window.cekIzinMenu('antrean_absensi', 'edit') === false) {
         return alert('Anda tidak punya izin memproses ACC/Reject di sini. Hubungi Owner/PIC.');
@@ -199,6 +212,10 @@ const AntreanAbsensiCard = {
     const statusKehadiranMasukOtomatis = computed(() => hitungStatusKehadiran(props.data.waktu_masuk_ts, props.data.waktu_masuk_ts, jamShift.value.masuk, 'masuk'));
     const seragamMasuk = ref(props.data.seragam_masuk || 'Sesuai');
     const memprosesMasuk = ref(false);
+    function prosesMasukDenganSeragam(statusAcc, nilaiSeragam) {
+      if (nilaiSeragam) seragamMasuk.value = nilaiSeragam;
+      prosesMasuk(statusAcc);
+    }
     async function prosesMasuk(statusAcc) {
       if (window.cekIzinMenu('antrean_absensi', 'edit') === false) {
         return alert('Anda tidak punya izin memproses ACC/Reject di sini. Hubungi Owner/PIC.');
@@ -226,6 +243,10 @@ const AntreanAbsensiCard = {
     const statusKehadiranKeluarOtomatis = computed(() => hitungStatusKehadiran(props.data.waktu_keluar_ts, props.data.waktu_masuk_ts, jamShift.value.keluar, 'keluar'));
     const seragamKeluar = ref(props.data.seragam_keluar || 'Sesuai');
     const memprosesKeluar = ref(false);
+    function prosesKeluarDenganSeragam(statusAcc, nilaiSeragam) {
+      if (nilaiSeragam) seragamKeluar.value = nilaiSeragam;
+      prosesKeluar(statusAcc);
+    }
     async function prosesKeluar(statusAcc) {
       if (window.cekIzinMenu('antrean_absensi', 'edit') === false) {
         return alert('Anda tidak punya izin memproses ACC/Reject di sini. Hubungi Owner/PIC.');
@@ -263,137 +284,125 @@ const AntreanAbsensiCard = {
     return {
       adalahFormatBaru, adaYangPending, lihatFotoBesar, hapus, bolehEdit, bolehHapus,
       fotoAvatar, menuAksiTerbuka, toggleMenuAksi, tutupMenuAksi,
-      statusKehadiranOtomatis, seragam, memproses, proses,
-      statusKehadiranMasukOtomatis, seragamMasuk, memprosesMasuk, prosesMasuk,
-      statusKehadiranKeluarOtomatis, seragamKeluar, memprosesKeluar, prosesKeluar, adaLemburApproved
+      statusKehadiranOtomatis, seragam, memproses, proses, prosesDenganSeragam,
+      statusKehadiranMasukOtomatis, seragamMasuk, memprosesMasuk, prosesMasuk, prosesMasukDenganSeragam,
+      statusKehadiranKeluarOtomatis, seragamKeluar, memprosesKeluar, prosesKeluar, prosesKeluarDenganSeragam, adaLemburApproved
     };
   },
+  // ==========================================================================
+  // TEMPLATE DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic", lihat
+  // PEDOMAN-GAYA-KERJA.md — pilot Antrean Absensi, disetujui Guru lewat
+  // mockup "antrean-absensi-clean.html"). Perubahan:
+  //  - Blok Clock In/Clock Out yang tadinya kotak besar (foto besar+grid 2
+  //    kolom+dropdown+2 tombol) diringkas jadi 1 baris "event" (foto kecil+
+  //    label+jam+tag), TANPA menghilangkan info apapun.
+  //  - Dropdown Seragam + tombol Accept (2 langkah) DIGANTI 3 tombol sejajar
+  //    Sesuai/Tidak Sesuai/Reject (pakai prosesDenganSeragam dkk, LIHAT
+  //    setup() di atas — logic Firestore/validasi TIDAK berubah).
+  //  - Sudut kartu/avatar/foto dilebarkan dikit, tombol ikon jadi bulat
+  //    penuh — sesuai moodboard, TAPI tag/tombol aksi TETAP sudut sedang
+  //    (bukan pil semua).
+  // Field/logic Firestore, cekIzinMenu, hapus(), lembur, dst — TIDAK ada
+  // yang berubah, cuma tampilannya.
+  // ==========================================================================
   template: `
-    <div v-if="adaYangPending" class="gc-card">
-      <div style="display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
-        <img :src="fotoAvatar || 'https://via.placeholder.com/150'" @click="lihatFotoBesar(fotoAvatar)" style="width:64px; height:64px; border-radius:14px; object-fit:cover; border:2px solid var(--surface); box-shadow:0 2px 8px rgba(91,56,38,.1); cursor:pointer;">
-        <div>
-          <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ data.nama_pegawai || data.nama || 'Karyawan' }}</h4>
-          <p style="font-size:10.5px; color:var(--text-muted); font-family:'Poppins',sans-serif;">{{ data.email || '-' }}</p>
-          <template v-if="adalahFormatBaru">
-            <span v-if="data.status_acc_masuk === 'PENDING'" class="tag warn" style="margin-top:5px; margin-right:4px;"><span class="tag-dot"></span>Clock In menunggu</span>
-            <span v-if="data.status_acc_keluar === 'PENDING'" class="tag warn" style="margin-top:5px;"><span class="tag-dot"></span>Clock Out menunggu</span>
-          </template>
-          <span v-else class="tag warn" style="margin-top:5px;"><span class="tag-dot"></span>Menunggu validasi</span>
+    <div v-if="adaYangPending" class="gc-card" style="border-radius:20px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <img :src="fotoAvatar || 'https://via.placeholder.com/150'" @click="lihatFotoBesar(fotoAvatar)" style="width:40px; height:40px; border-radius:14px; object-fit:cover; border:1px solid var(--line); cursor:pointer; flex-shrink:0;">
+        <div style="flex:1; min-width:0;">
+          <h4 class="gc-heading" style="font-weight:700; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.nama_pegawai || data.nama || 'Karyawan' }}</h4>
+          <p style="font-size:9.5px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.email || '-' }}</p>
         </div>
+        <template v-if="adalahFormatBaru">
+          <span v-if="data.status_acc_masuk === 'PENDING' && data.status_acc_keluar === 'PENDING'" class="tag warn" style="flex-shrink:0;"><span class="tag-dot"></span>2 menunggu</span>
+          <span v-else class="tag warn" style="flex-shrink:0;"><span class="tag-dot"></span>1 menunggu</span>
+        </template>
+        <span v-else class="tag warn" style="flex-shrink:0;"><span class="tag-dot"></span>Menunggu</span>
       </div>
 
-      <!-- ============ FORMAT LAMA (tidak berubah) ============ -->
+      <div style="display:flex; gap:12px; font-size:10px; color:var(--text-muted); padding-top:8px; margin-top:8px; border-top:1px solid var(--ivory-dim); flex-wrap:wrap;">
+        <span><b>Gudang:</b> {{ data.gudang || '-' }}</span>
+        <span><b>Shift:</b> {{ data.nama_shift || '-' }}</span>
+        <a v-if="!adalahFormatBaru && data.koordinat" :href="'https://www.google.com/maps?q=' + data.koordinat.lat + ',' + data.koordinat.lng" target="_blank" style="color:var(--burgundy); font-weight:700;"><i class="fas fa-map-marker-alt"></i> Peta</a>
+      </div>
+
+      <!-- ============ FORMAT LAMA — 1 event "Hadir" ============ -->
       <template v-if="!adalahFormatBaru">
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; background:var(--ivory-dim); padding:14px; border-radius:14px; font-size:12px; margin-bottom:14px;">
-          <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Status</span> <b>{{ data.status || 'HADIR' }}</b></div>
-          <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Waktu</span> <b>{{ data.waktu || '-' }}</b></div>
-          <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Gudang</span> <b>{{ data.gudang || '-' }}</b></div>
-          <div><span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Shift</span> <b>{{ data.nama_shift || '-' }}</b></div>
-          <div>
-            <span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Koordinat</span>
-            <b v-if="data.koordinat">{{ data.koordinat.lat.toFixed(5) }}, {{ data.koordinat.lng.toFixed(5) }}<br>
-              <a :href="'https://www.google.com/maps?q=' + data.koordinat.lat + ',' + data.koordinat.lng" target="_blank" style="color:var(--burgundy); font-size:9.5px; font-weight:600;"><i class="fas fa-map-marker-alt"></i> Lihat di peta</a>
-            </b>
-            <span v-else style="color:var(--text-faint);">-</span>
-          </div>
-          <div>
-            <span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:2px;">Status radius</span>
-            <span v-if="data.status_radius === 'DALAM RADIUS'" class="tag ok">Dalam radius ({{ data.jarak_meter || 0 }}m)</span>
-            <span v-else-if="data.status_radius === 'DI LUAR RADIUS'" class="tag danger">Di luar radius ({{ data.jarak_meter || 0 }}m)</span>
-            <span v-else-if="data.status_radius === 'LOKASI DINAMIS'" class="tag blue">Lokasi dinamis</span>
-            <span v-else style="color:var(--text-faint);">-</span>
-          </div>
-        </div>
-        <div style="display:grid; gap:10px; margin-bottom:14px;" class="grid-cols-1 md:grid-cols-2">
-          <div class="gc-field" style="margin-bottom:0;">
-            <label style="font-size:10.5px;">Status kehadiran <span style="font-weight:400; color:var(--text-faint);">(otomatis)</span></label>
-            <div style="padding:8px 10px;">
+        <div style="padding-top:8px; margin-top:8px; border-top:1px solid var(--ivory-dim);">
+          <div style="display:flex; align-items:center; gap:7px;">
+            <span style="font-size:9px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.02em; display:flex; align-items:center; gap:4px; flex-shrink:0;"><i class="fas fa-user-check" style="color:var(--burgundy); font-size:10px;"></i>Hadir</span>
+            <span style="font-size:12.5px; font-weight:700; flex-shrink:0;">{{ data.waktu || '-' }}</span>
+            <div style="display:flex; flex-wrap:wrap; gap:4px; margin-left:auto; justify-content:flex-end;">
               <span v-if="statusKehadiranOtomatis === 'Ontime'" class="tag ok">Ontime</span>
               <span v-else-if="statusKehadiranOtomatis === 'Terlambat'" class="tag danger">Terlambat</span>
-              <span v-else style="color:var(--text-faint); font-size:11.5px;">-</span>
+              <span v-if="data.status_radius === 'DALAM RADIUS'" class="tag ok">Radius {{ data.jarak_meter || 0 }}m</span>
+              <span v-else-if="data.status_radius === 'DI LUAR RADIUS'" class="tag danger">Radius {{ data.jarak_meter || 0 }}m</span>
+              <span v-else-if="data.status_radius === 'LOKASI DINAMIS'" class="tag blue">Lokasi dinamis</span>
             </div>
           </div>
-          <div class="gc-field" style="margin-bottom:0;">
-            <label style="font-size:10.5px;">Seragam</label>
-            <select v-model="seragam" style="padding:8px 10px; font-size:12px; font-weight:600;">
-              <option value="Sesuai">Sesuai</option>
-              <option value="Tidak Sesuai">Tidak Sesuai</option>
-            </select>
+          <div v-if="bolehEdit" class="approve-row">
+            <button @click="prosesDenganSeragam('ACC','Sesuai')" :disabled="memproses" class="appr-btn ok"><i class="fas fa-check"></i> Sesuai</button>
+            <button @click="prosesDenganSeragam('ACC','Tidak Sesuai')" :disabled="memproses" class="appr-btn warn"><i class="fas fa-check"></i> Tdk Sesuai</button>
+            <button @click="proses('REJECT')" :disabled="memproses" class="appr-btn danger"><i class="fas fa-times"></i> Reject</button>
           </div>
         </div>
-        <!-- DIROMBAK (28 Agt 2026, redesain "Gechoo Mobile Organic", permintaan
-             Guru "tombol yang jarang dipakai masuk menu titik-tiga") — Accept
-             & Reject (paling sering dipakai) TETAP langsung di kartu; Hapus
-             (jarang & destruktif) pindah ke menu ⋮ supaya baris tombol tidak
-             sempit/berantakan di HP. Logic proses()/hapus() TIDAK berubah. -->
-        <div v-if="bolehEdit || bolehHapus" style="display:flex; gap:8px; padding-top:12px; border-top:1px solid var(--line); position:relative;">
-          <button v-if="bolehEdit" @click="proses('ACC')" :disabled="memproses" class="btn-acc" style="flex:1; display:flex; align-items:center; justify-content:center;"><i class="fas fa-check-circle" style="margin-right:6px;"></i> Accept</button>
-          <button v-if="bolehEdit" @click="proses('REJECT')" :disabled="memproses" class="btn-rej" style="flex:1; display:flex; align-items:center; justify-content:center;"><i class="fas fa-times-circle" style="margin-right:6px;"></i> Reject</button>
-          <button v-if="bolehHapus" @click="toggleMenuAksi" class="icon-btn" title="Aksi lainnya"><i class="fas fa-ellipsis-vertical"></i></button>
+        <div v-if="bolehHapus" style="display:flex; justify-content:flex-end; margin-top:6px; position:relative;">
+          <button @click="toggleMenuAksi" class="icon-btn" style="border-radius:50%; border:none; background:none;" title="Aksi lainnya"><i class="fas fa-ellipsis-vertical"></i></button>
           <div v-if="menuAksiTerbuka" @click="tutupMenuAksi" style="position:fixed; inset:0; z-index:60;"></div>
-          <div v-if="menuAksiTerbuka" style="position:absolute; right:0; bottom:44px; z-index:61; background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 24px -6px rgba(31,22,17,.3); padding:6px; min-width:150px;">
+          <div v-if="menuAksiTerbuka" style="position:absolute; right:0; top:34px; z-index:61; background:var(--surface); border:1px solid var(--line); border-radius:14px; box-shadow:0 10px 24px -6px rgba(31,22,17,.3); padding:6px; min-width:150px;">
             <button @click="tutupMenuAksi(); hapus();" style="width:100%; text-align:left; background:none; border:none; padding:9px 11px; border-radius:9px; font-size:12px; font-weight:600; color:var(--danger); cursor:pointer; display:flex; align-items:center; gap:8px;"><i class="fas fa-trash-alt"></i> Hapus permanen</button>
           </div>
         </div>
       </template>
 
-      <!-- ============ FORMAT BARU: blok Clock In + blok Clock Out terpisah ============ -->
+      <!-- ============ FORMAT BARU — event Clock In & Clock Out terpisah, independen ============ -->
       <template v-else>
-        <div style="background:var(--ivory-dim); padding:12px 14px; border-radius:14px; font-size:11.5px; margin-bottom:12px; display:flex; gap:16px;">
-          <span><b>Gudang:</b> {{ data.gudang || '-' }}</span>
-          <span><b>Shift:</b> {{ data.nama_shift || '-' }}</span>
-        </div>
-
-        <div v-if="data.status_acc_masuk === 'PENDING'" style="border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:12px;">
-          <h5 style="font-size:11.5px; font-weight:700; color:var(--burgundy-dark); margin-bottom:10px;"><i class="fas fa-right-to-bracket" style="margin-right:6px;"></i> Clock In — {{ data.waktu_masuk || '-' }}</h5>
-          <img v-if="data.foto_selfie_masuk" :src="data.foto_selfie_masuk" @click="lihatFotoBesar(data.foto_selfie_masuk)" style="width:56px; height:56px; border-radius:12px; object-fit:cover; cursor:pointer; margin-bottom:10px;">
-          <div style="font-size:11px; margin-bottom:10px;">
-            <span v-if="data.status_radius_masuk === 'DALAM RADIUS'" class="tag ok">Dalam radius ({{ data.jarak_meter_masuk || 0 }}m)</span>
-            <span v-else-if="data.status_radius_masuk === 'DI LUAR RADIUS'" class="tag danger">Di luar radius ({{ data.jarak_meter_masuk || 0 }}m)</span>
-            <span v-else-if="data.status_radius_masuk === 'LOKASI DINAMIS'" class="tag blue">Lokasi dinamis</span>
-          </div>
-          <div style="display:grid; gap:8px; margin-bottom:10px;" class="grid-cols-1 md:grid-cols-2">
-            <div>
-              <label style="font-size:9.5px; color:var(--text-faint); display:block; margin-bottom:3px;">Status kehadiran (otomatis)</label>
+        <div style="padding-top:8px; margin-top:8px; border-top:1px solid var(--ivory-dim);">
+          <div style="display:flex; align-items:center; gap:7px;">
+            <img v-if="data.foto_selfie_masuk" :src="data.foto_selfie_masuk" @click="lihatFotoBesar(data.foto_selfie_masuk)" style="width:24px; height:24px; border-radius:9px; object-fit:cover; border:1px solid var(--line); cursor:pointer; flex-shrink:0;">
+            <div v-else style="width:24px; height:24px; border-radius:9px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--text-faint); font-size:11px; flex-shrink:0;"><i class="fas fa-camera"></i></div>
+            <span style="font-size:9px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.02em; display:flex; align-items:center; gap:4px; flex-shrink:0;"><i class="fas fa-right-to-bracket" style="color:var(--burgundy); font-size:10px;"></i>Masuk</span>
+            <span style="font-size:12.5px; font-weight:700; flex-shrink:0;">{{ data.waktu_masuk || '-' }}</span>
+            <div style="display:flex; flex-wrap:wrap; gap:4px; margin-left:auto; justify-content:flex-end;">
               <span v-if="statusKehadiranMasukOtomatis === 'Ontime'" class="tag ok">Ontime</span>
               <span v-else-if="statusKehadiranMasukOtomatis === 'Terlambat'" class="tag danger">Terlambat</span>
-              <span v-else style="color:var(--text-faint); font-size:11.5px;">-</span>
+              <span v-if="data.status_radius_masuk === 'DI LUAR RADIUS'" class="tag danger">Radius {{ data.jarak_meter_masuk || 0 }}m</span>
+              <span v-else-if="data.status_radius_masuk === 'LOKASI DINAMIS'" class="tag blue">Lokasi dinamis</span>
             </div>
-            <select v-model="seragamMasuk" style="padding:7px 9px; font-size:11.5px;"><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option></select>
           </div>
-          <div v-if="bolehEdit" style="display:flex; gap:8px;">
-            <button @click="prosesMasuk('ACC')" :disabled="memprosesMasuk" class="btn-acc" style="flex:1; padding:7px;">Accept</button>
-            <button @click="prosesMasuk('REJECT')" :disabled="memprosesMasuk" class="btn-rej" style="flex:1; padding:7px;">Reject</button>
+          <div v-if="data.status_acc_masuk === 'PENDING' && bolehEdit" class="approve-row">
+            <button @click="prosesMasukDenganSeragam('ACC','Sesuai')" :disabled="memprosesMasuk" class="appr-btn ok"><i class="fas fa-check"></i> Sesuai</button>
+            <button @click="prosesMasukDenganSeragam('ACC','Tidak Sesuai')" :disabled="memprosesMasuk" class="appr-btn warn"><i class="fas fa-check"></i> Tdk Sesuai</button>
+            <button @click="prosesMasuk('REJECT')" :disabled="memprosesMasuk" class="appr-btn danger"><i class="fas fa-times"></i> Reject</button>
           </div>
         </div>
 
-        <div v-if="data.status_acc_keluar === 'PENDING'" style="border:1px solid var(--line); border-radius:14px; padding:14px; margin-bottom:12px;">
-          <h5 style="font-size:11.5px; font-weight:700; color:var(--burgundy-dark); margin-bottom:10px;"><i class="fas fa-right-from-bracket" style="margin-right:6px;"></i> Clock Out — {{ data.waktu_keluar || '-' }}</h5>
-          <img v-if="data.foto_selfie_keluar" :src="data.foto_selfie_keluar" @click="lihatFotoBesar(data.foto_selfie_keluar)" style="width:56px; height:56px; border-radius:12px; object-fit:cover; cursor:pointer; margin-bottom:10px;">
-          <div style="font-size:11px; margin-bottom:10px;">
-            <span v-if="data.status_radius_keluar === 'DALAM RADIUS'" class="tag ok">Dalam radius ({{ data.jarak_meter_keluar || 0 }}m)</span>
-            <span v-else-if="data.status_radius_keluar === 'DI LUAR RADIUS'" class="tag danger">Di luar radius ({{ data.jarak_meter_keluar || 0 }}m)</span>
-            <span v-else-if="data.status_radius_keluar === 'LOKASI DINAMIS'" class="tag blue">Lokasi dinamis</span>
+        <div style="padding-top:8px; margin-top:8px; border-top:1px solid var(--ivory-dim);">
+          <div style="display:flex; align-items:center; gap:7px;">
+            <img v-if="data.foto_selfie_keluar" :src="data.foto_selfie_keluar" @click="lihatFotoBesar(data.foto_selfie_keluar)" style="width:24px; height:24px; border-radius:9px; object-fit:cover; border:1px solid var(--line); cursor:pointer; flex-shrink:0;">
+            <div v-else style="width:24px; height:24px; border-radius:9px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--text-faint); font-size:11px; flex-shrink:0;"><i class="fas fa-camera"></i></div>
+            <span style="font-size:9px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.02em; display:flex; align-items:center; gap:4px; flex-shrink:0;"><i class="fas fa-right-from-bracket" style="color:var(--burgundy); font-size:10px;"></i>Keluar</span>
+            <template v-if="data.waktu_keluar">
+              <span style="font-size:12.5px; font-weight:700; flex-shrink:0;">{{ data.waktu_keluar }}</span>
+              <div style="display:flex; flex-wrap:wrap; gap:4px; margin-left:auto; justify-content:flex-end;">
+                <span v-if="adaLemburApproved" class="tag blue">Lembur</span>
+                <span v-else-if="statusKehadiranKeluarOtomatis === 'Ontime'" class="tag ok">Ontime</span>
+                <span v-else-if="statusKehadiranKeluarOtomatis === 'Pulang Cepat'" class="tag warn">Pulang Cepat</span>
+                <span v-if="data.status_radius_keluar === 'DI LUAR RADIUS'" class="tag danger">Radius {{ data.jarak_meter_keluar || 0 }}m</span>
+                <span v-else-if="data.status_radius_keluar === 'LOKASI DINAMIS'" class="tag blue">Lokasi dinamis</span>
+              </div>
+            </template>
+            <span v-else style="font-size:10.5px; color:var(--text-faint); font-style:italic; margin-left:auto;">Belum absen</span>
           </div>
-          <div style="display:grid; gap:8px; margin-bottom:10px;" class="grid-cols-1 md:grid-cols-2">
-            <div>
-              <label style="font-size:9.5px; color:var(--text-faint); display:block; margin-bottom:3px;">Status kehadiran (otomatis)</label>
-              <span v-if="adaLemburApproved" class="tag blue">Lembur</span>
-              <span v-else-if="statusKehadiranKeluarOtomatis === 'Ontime'" class="tag ok">Ontime</span>
-              <span v-else-if="statusKehadiranKeluarOtomatis === 'Pulang Cepat'" class="tag warn">Pulang Cepat</span>
-              <span v-else style="color:var(--text-faint); font-size:11.5px;">-</span>
-            </div>
-            <select v-model="seragamKeluar" style="padding:7px 9px; font-size:11.5px;"><option value="Sesuai">Sesuai</option><option value="Tidak Sesuai">Tidak Sesuai</option></select>
-          </div>
-          <div v-if="bolehEdit" style="display:flex; gap:8px;">
-            <button @click="prosesKeluar('ACC')" :disabled="memprosesKeluar" class="btn-acc" style="flex:1; padding:7px;">Accept</button>
-            <button @click="prosesKeluar('REJECT')" :disabled="memprosesKeluar" class="btn-rej" style="flex:1; padding:7px;">Reject</button>
+          <div v-if="data.status_acc_keluar === 'PENDING' && bolehEdit" class="approve-row">
+            <button @click="prosesKeluarDenganSeragam('ACC','Sesuai')" :disabled="memprosesKeluar" class="appr-btn ok"><i class="fas fa-check"></i> Sesuai</button>
+            <button @click="prosesKeluarDenganSeragam('ACC','Tidak Sesuai')" :disabled="memprosesKeluar" class="appr-btn warn"><i class="fas fa-check"></i> Tdk Sesuai</button>
+            <button @click="prosesKeluar('REJECT')" :disabled="memprosesKeluar" class="appr-btn danger"><i class="fas fa-times"></i> Reject</button>
           </div>
         </div>
 
-        <div v-if="bolehHapus" style="padding-top:8px; border-top:1px solid var(--line); text-align:right;">
-          <button @click="hapus" class="icon-btn" title="Hapus permanen"><i class="fas fa-trash-alt"></i></button>
+        <div v-if="bolehHapus" style="display:flex; justify-content:flex-end; margin-top:6px;">
+          <button @click="hapus" class="icon-btn" style="border-radius:50%; border:none; background:none;" title="Hapus permanen"><i class="fas fa-trash-alt"></i></button>
         </div>
       </template>
     </div>
@@ -401,7 +410,7 @@ const AntreanAbsensiCard = {
 };
 
 const AppAntreanAbsensi = {
-  components: { AntreanAbsensiCard },
+  components: { AntreanAbsensiCard, KolomCari },
   setup() {
     const daftarPending = ref([]);
     const memuat = ref(true);
@@ -424,6 +433,14 @@ const AppAntreanAbsensi = {
     const filterGudangOwner = ref('ALL');
     const opsiJenisPekerjaanOwner = ref([]);
     const opsiGudangOwner = ref([]);
+    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic") — dropdown
+    // filter Owner yang tadinya SELALU tampil sekarang di belakang 1 ikon
+    // filter (toggle show/hide), biar baris cari lebih ringkas. Cuma
+    // kosmetik — filterJenisPekerjaanOwner/filterGudangOwner & logic
+    // filternya di daftarPendingTersaring TIDAK berubah.
+    const filterTerbuka = ref(false);
+    function toggleFilterTerbuka() { filterTerbuka.value = !filterTerbuka.value; }
+    const adaFilterAktif = computed(() => filterJenisPekerjaanOwner.value !== 'ALL' || filterGudangOwner.value !== 'ALL');
     const daftarPendingTersaring = computed(() => {
       let hasil = daftarPending.value;
       const cari = cariNama.value.trim().toLowerCase();
@@ -536,7 +553,8 @@ const AppAntreanAbsensi = {
     onMounted(async () => { await window.authReady; muat(); });
     return {
       daftarPending, daftarPendingTersaring, memuat, errorMuat, muat, memuatDataLama, infoDataLama, cekDataSangatLama,
-      cariNama, isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner
+      cariNama, isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner,
+      filterTerbuka, toggleFilterTerbuka, adaFilterAktif
     };
   },
   template: `
@@ -552,21 +570,22 @@ const AppAntreanAbsensi = {
     </div>
     <p v-if="infoDataLama" style="font-size:11px; color:var(--text-muted); margin:-10px 0 16px; padding:8px 12px; background:var(--ivory-dim); border-radius:10px;">{{ infoDataLama }}</p>
 
-    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
-      <div style="position:relative; flex:1; min-width:200px;">
-        <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
-        <input v-model="cariNama" type="text" placeholder="Cari nama karyawan..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
-      </div>
-      <template v-if="isOwnerRole">
-        <select v-model="filterJenisPekerjaanOwner" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
-          <option value="ALL">Semua jenis pekerjaan</option>
-          <option v-for="jp in opsiJenisPekerjaanOwner" :key="jp" :value="jp">{{ jp }}</option>
-        </select>
-        <select v-model="filterGudangOwner" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
-          <option value="ALL">Semua gudang</option>
-          <option v-for="g in opsiGudangOwner" :key="g" :value="g">{{ g }}</option>
-        </select>
-      </template>
+    <div style="display:flex; gap:8px; align-items:center;" :style="{ marginBottom: (isOwnerRole && filterTerbuka) ? '8px' : '16px' }">
+      <div style="flex:1; min-width:0;"><kolom-cari v-model="cariNama" placeholder="Cari nama karyawan..." /></div>
+      <button v-if="isOwnerRole" @click="toggleFilterTerbuka" class="icon-btn" style="border-radius:50%; position:relative; flex-shrink:0;" title="Filter (Jenis Pekerjaan/Gudang)">
+        <i class="fas fa-filter"></i>
+        <span v-if="adaFilterAktif" style="position:absolute; top:-2px; right:-2px; width:8px; height:8px; border-radius:50%; background:var(--danger); border:1.5px solid var(--ivory);"></span>
+      </button>
+    </div>
+    <div v-if="isOwnerRole && filterTerbuka" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:16px;">
+      <select v-model="filterJenisPekerjaanOwner" style="flex:1; min-width:150px; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+        <option value="ALL">Semua jenis pekerjaan</option>
+        <option v-for="jp in opsiJenisPekerjaanOwner" :key="jp" :value="jp">{{ jp }}</option>
+      </select>
+      <select v-model="filterGudangOwner" style="flex:1; min-width:150px; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+        <option value="ALL">Semua gudang</option>
+        <option v-for="g in opsiGudangOwner" :key="g" :value="g">{{ g }}</option>
+      </select>
     </div>
 
     <div v-if="memuat && daftarPending.length === 0" style="text-align:center; padding:40px 0; color:var(--text-faint);">

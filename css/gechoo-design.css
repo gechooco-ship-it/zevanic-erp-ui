@@ -126,6 +126,19 @@ input, select, textarea{font:inherit; color:inherit;}
 .icon-btn:hover{border-color:var(--burgundy); color:var(--burgundy);}
 .icon-btn:disabled{opacity:.35; cursor:not-allowed; border-color:var(--line); color:var(--text-faint);}
 
+/* ---- appr-btn (Sesuai/Tidak Sesuai/Reject) — BARU (29 Agt 2026, moodboard
+   "Gechoo Mobile Organic", lihat PEDOMAN-GAYA-KERJA.md). Gabung 2 langkah
+   lama (dropdown Seragam + tombol Accept terpisah) jadi 3 tombol sejajar —
+   dipakai bareng dengan class .approve-row sebagai wrapper flex-nya.
+   Pilot pertama: js/vue-antrean-absensi.js — dipakai lagi kalau modul
+   "Daftar + Form bertahap" lain (Antrean Dakar/Lembur/Reimburse) menyusul. */
+.approve-row{display:flex; gap:6px; margin-top:8px;}
+.appr-btn{flex:1; padding:7px 4px; border-radius:12px; font-size:10.5px; font-weight:700; font-family:'Poppins',sans-serif; cursor:pointer; border:none; text-align:center;}
+.appr-btn.ok{background:var(--ok-light); color:var(--ok);}
+.appr-btn.warn{background:var(--warn-light); color:var(--warn);}
+.appr-btn.danger{background:var(--danger-light); color:var(--danger);}
+.appr-btn:disabled{opacity:.5; cursor:not-allowed;}
+
 /* ---- Kartu / panel ---- */
 .gc-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px;}
 .gc-card-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;}
