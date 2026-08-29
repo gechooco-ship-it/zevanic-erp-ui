@@ -1,5 +1,5 @@
 // js/auth.js
-import { doc, setDoc, getDoc, collection, getDocs, addDoc, query, where, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, setDoc, getDoc, collection, getDocs, addDoc, query, where, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
@@ -410,6 +410,13 @@ window.kirimPesanWhatsapp = async function(nomor, pesan, jenis) {
   try {
     await addDoc(collection(db, "wa_log"), {
       waktu: new Date().toLocaleString('id-ID'),
+      // BARU (29 Agt 2026, §44.17, hemat) — Timestamp asli, pola SAMA
+      // PERSIS preseden absensi.waktu_ts (18 Agt 2026): `waktu` (teks
+      // lokal) TIDAK BISA di-orderBy()/limit() Firestore secara andal —
+      // Monitoring Respon sebelumnya kepaksa baca SELURUH wa_log (bisa
+      // ribuan dokumen) cuma buat tampilkan 50 terbaru. waktu_ts
+      // (server, bukan jam device) sekarang jadi field urut yang benar.
+      waktu_ts: serverTimestamp(),
       target: nomor,
       jenis: jenis,
       pesan: pesan,

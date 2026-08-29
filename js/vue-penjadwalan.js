@@ -14,7 +14,7 @@
 // index.html sejak awal fitur Excel dibangun) — tidak perlu import ulang.
 // ============================================================================
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { GudangCheckboxSelect, GudangRingkas } from './vue-components.js';
 
@@ -82,7 +82,17 @@ const AppPenjadwalan = {
     async function muat() {
       memuat.value = true;
       try {
-        const qKaryawan = await getDocs(collection(db, "users"));
+        // DIPERBAIKI (29 Agt 2026, §44.17, hemat) — layar ini SECARA
+        // FUNGSI memang butuh SEMUA karyawan aktif sekaligus (kartu
+        // ringkasan per gudang, Pilih Semua + Update Massal, Export Excel
+        // — semuanya beroperasi di atas SELURUH hasil filter, bukan cuma
+        // 1 halaman, jadi TIDAK BISA dipotong jadi paginasi cursor tanpa
+        // menghilangkan fitur itu). Yang BISA & AMAN dihemat: jangan tarik
+        // akun NON-AKTIF (resign/ditolak) yang toh dibuang lagi di JS
+        // (baris "d.status_kerja === 'Aktif'" di bawah) — pindahkan
+        // filter itu ke where() Firestore SEKARANG, supaya dokumen yang
+        // memang tidak relevan tidak ikut terbaca dari server sama sekali.
+        const qKaryawan = await getDocs(query(collection(db, "users"), where("status_kerja", "==", "Aktif")));
         const listKaryawan = [];
         qKaryawan.forEach(docSnap => {
           const d = docSnap.data();
@@ -91,7 +101,7 @@ const AppPenjadwalan = {
           // alur operasional yang sama (gudang/Clock In/jam kerja), jadi
           // WAJAR juga muncul di Penjadwalan kalau memang ditempatkan di
           // gudang tertentu.
-          if (d.status_kerja === 'Aktif' && window.bolehLihatData(d.jenis_pekerjaan, d.gudang_penempatan)) listKaryawan.push({ email: docSnap.id, ...d });
+          if (window.bolehLihatData(d.jenis_pekerjaan, d.gudang_penempatan)) listKaryawan.push({ email: docSnap.id, ...d });
         });
         semuaKaryawan.value = listKaryawan;
 

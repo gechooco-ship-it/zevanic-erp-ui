@@ -7,7 +7,7 @@
 // fungsi bersama, juga dipakai alur registrasi/approval yang belum dimigrasi.
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { doc, getDoc, setDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 const TEMPLATE_DEFAULT = {
@@ -107,8 +107,31 @@ const AppWhatsappGateway = {
     }
 
     // ---- Monitoring Respon ----
+    // DIROMBAK (29 Agt 2026, §44.17, hemat) — dulu FULL FETCH seluruh
+    // koleksi wa_log (bisa ribuan dokumen, notifikasi WA terus tercatat
+    // tiap OTP/status akun terkirim) cuma buat tampilkan 50 teratas —
+    // baca ribuan demi tampilkan puluhan, paling boros dari semua yang
+    // ditemukan (STATUS-PROYEK.md §44.16). Sekarang pakai `waktu_ts`
+    // (Timestamp asli, baru ditambahkan di js/auth.js — lihat catatan di
+    // sana) + `orderBy()+limit()` SUNGGUHAN, dengan "Muat Lagi" (cursor
+    // startAfter, nambah ke daftar yang sudah ada — BUKAN ganti halaman)
+    // sesuai permintaan Guru: "boleh dimuat sebagian, muat lagi secara
+    // bertahap tapi irit".
+    //
+    // KETERBATASAN JUJUR: dokumen wa_log dari SEBELUM perbaikan ini tidak
+    // punya `waktu_ts` sama sekali — Firestore otomatis TIDAK
+    // menyertakan dokumen yang field urutnya kosong dalam query
+    // orderBy(waktu_ts), jadi log LAMA tidak akan muncul di daftar utama
+    // ini lagi. Disediakan tombol terpisah "Lihat Log Sebelum
+    // Pembaruan" (fetch manual, SEKALI diklik, BUKAN otomatis) buat
+    // tetap bisa melihatnya kalau perlu — pola SAMA seperti "Cek Data
+    // Sangat Lama" di Antrean Absensi/Lembur.
+    const UKURAN_MUAT_LOG = 50;
     const daftarLog = ref([]);
     const memuatLog = ref(true);
+    const memuatLogLagi = ref(false);
+    const adaLogBerikutnya = ref(false);
+    let cursorLogTerakhir = null;
     const filterStatus = ref('ALL');
     const daftarLogTersaring = computed(() => {
       if (filterStatus.value === 'ALL') return daftarLog.value;
@@ -118,16 +141,58 @@ const AppWhatsappGateway = {
 
     async function muatMonitoring() {
       memuatLog.value = true;
+      daftarLog.value = [];
+      cursorLogTerakhir = null;
+      adaLogBerikutnya.value = false;
       try {
-        const snap = await getDocs(collection(db, "wa_log"));
-        const list = [];
-        snap.forEach(docSnap => list.push({ id: docSnap.id, ...docSnap.data() }));
-        list.sort((a, b) => (window.parseWaktuIndo(b.waktu)?.getTime() || 0) - (window.parseWaktuIndo(a.waktu)?.getTime() || 0));
-        daftarLog.value = list.slice(0, 50);
+        const snap = await getDocs(query(collection(db, "wa_log"), orderBy("waktu_ts", "desc"), limit(UKURAN_MUAT_LOG)));
+        const docs = snap.docs;
+        daftarLog.value = docs.map(d => ({ id: d.id, ...d.data() }));
+        if (docs.length > 0) cursorLogTerakhir = docs[docs.length - 1];
+        adaLogBerikutnya.value = docs.length === UKURAN_MUAT_LOG;
       } catch (e) {
         console.error("Gagal memuat monitoring WA:", e);
       }
       memuatLog.value = false;
+    }
+
+    async function muatLagiLog() {
+      if (!cursorLogTerakhir || memuatLogLagi.value) return;
+      memuatLogLagi.value = true;
+      try {
+        const snap = await getDocs(query(collection(db, "wa_log"), orderBy("waktu_ts", "desc"), startAfter(cursorLogTerakhir), limit(UKURAN_MUAT_LOG)));
+        const docs = snap.docs;
+        daftarLog.value = [...daftarLog.value, ...docs.map(d => ({ id: d.id, ...d.data() }))];
+        if (docs.length > 0) cursorLogTerakhir = docs[docs.length - 1];
+        adaLogBerikutnya.value = docs.length === UKURAN_MUAT_LOG;
+      } catch (e) {
+        console.error("Gagal memuat log WA berikutnya:", e);
+      }
+      memuatLogLagi.value = false;
+    }
+
+    // Jaring pengaman MANUAL (bukan otomatis) — lihat log dari SEBELUM
+    // waktu_ts ada, TIDAK tersentuh oleh orderBy(waktu_ts) di atas. Fetch-
+    // semua SEKALI kalau diklik, sama seperti "Cek Data Sangat Lama".
+    const memuatLogLama = ref(false);
+    const daftarLogLama = ref([]);
+    const sudahCekLogLama = ref(false);
+    async function muatLogLama() {
+      memuatLogLama.value = true;
+      try {
+        const snap = await getDocs(collection(db, "wa_log"));
+        const list = [];
+        snap.forEach(docSnap => {
+          const d = docSnap.data();
+          if (!d.waktu_ts) list.push({ id: docSnap.id, ...d });
+        });
+        list.sort((a, b) => (window.parseWaktuIndo(b.waktu)?.getTime() || 0) - (window.parseWaktuIndo(a.waktu)?.getTime() || 0));
+        daftarLogLama.value = list;
+        sudahCekLogLama.value = true;
+      } catch (e) {
+        console.error("Gagal memuat log WA lama:", e);
+      }
+      memuatLogLama.value = false;
     }
 
     function pindahTab(nama) {
@@ -143,7 +208,9 @@ const AppWhatsappGateway = {
       tabAktif, pindahTab,
       webappUrl, secret, otpAktif, nomorTes, mengujiKirim, menyimpanKonfig, simpanKonfig, tesKirim,
       template, menyimpanTemplate, simpanTemplate,
-      daftarLog, daftarLogTersaring, filterStatus, memuatLog, muatMonitoring
+      daftarLog, daftarLogTersaring, filterStatus, memuatLog, muatMonitoring,
+      adaLogBerikutnya, memuatLogLagi, muatLagiLog,
+      memuatLogLama, daftarLogLama, sudahCekLogLama, muatLogLama
     };
   },
   template: `
@@ -212,10 +279,10 @@ const AppWhatsappGateway = {
     </div>
 
     <div v-show="tabAktif === 'monitor'" style="margin-top:16px;">
-      <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+      <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
         <div>
           <h3 class="gc-heading" style="font-size:13.5px; font-weight:700;">Riwayat pengiriman</h3>
-          <p style="font-size:10.5px; color:var(--text-muted); margin-top:2px;">50 pengiriman terakhir (OTP, notifikasi, tes).</p>
+          <p style="font-size:10.5px; color:var(--text-muted); margin-top:2px;">Termuat {{ daftarLog.length }} pengiriman terbaru — klik "Muat Lagi" di bawah untuk yang lebih lama.</p>
         </div>
         <button @click="muatMonitoring" class="btn-outline"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
       </div>
@@ -253,6 +320,38 @@ const AppWhatsappGateway = {
             </tr>
           </tbody>
         </table>
+      </div>
+      <div v-if="adaLogBerikutnya" style="text-align:center; margin-top:14px;">
+        <button @click="muatLagiLog" :disabled="memuatLogLagi" class="btn-outline filled">
+          <i class="fas" :class="memuatLogLagi ? 'fa-spinner fa-spin' : 'fa-rotate-right'" style="margin-right:6px;"></i>
+          {{ memuatLogLagi ? 'Memuat...' : 'Muat Lagi (50 berikutnya)' }}
+        </button>
+      </div>
+
+      <!-- Jaring pengaman: log dari SEBELUM waktu_ts ada (lihat catatan
+           di muatLogLama(), js/vue-whatsapp-gateway.js) — manual, tidak
+           otomatis. -->
+      <div class="gc-card" style="margin-top:16px;">
+        <button v-if="!sudahCekLogLama" @click="muatLogLama" :disabled="memuatLogLama" class="btn-outline" style="font-size:11px; padding:7px 12px;" title="Fetch manual sekali — cari log dari sebelum pembaruan hemat ini (tidak otomatis, di luar 'Muat Lagi' di atas)">
+          <i class="fas fa-magnifying-glass" style="margin-right:5px;"></i>{{ memuatLogLama ? 'Memeriksa...' : 'Lihat Log Sebelum Pembaruan' }}
+        </button>
+        <div v-else>
+          <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px; font-style:italic;"><i class="fas fa-circle-info" style="margin-right:5px;"></i>Ketemu {{ daftarLogLama.length }} log dari sebelum pembaruan ini (dicatat dengan waktu teks, bukan Timestamp — diurutkan best-effort).</p>
+          <div v-if="daftarLogLama.length > 0" class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line);">
+            <table class="gc-table">
+              <thead><tr><th>Waktu</th><th>Jenis</th><th>Nomor Tujuan</th><th>Status</th><th>Keterangan</th></tr></thead>
+              <tbody>
+                <tr v-for="log in daftarLogLama" :key="log.id">
+                  <td class="gc-cell-muted">{{ log.waktu || '-' }}</td>
+                  <td style="font-weight:600;">{{ log.jenis || '-' }}</td>
+                  <td style="font-family:'Poppins',sans-serif; font-size:11.5px;">{{ log.target || '-' }}</td>
+                  <td><span v-if="log.sukses" class="tag ok">Terkirim</span><span v-else class="tag danger">Gagal</span></td>
+                  <td class="gc-cell-muted" style="max-width:220px; overflow:hidden; text-overflow:ellipsis;" :title="log.keterangan || ''">{{ log.keterangan || '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   `

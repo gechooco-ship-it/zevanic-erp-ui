@@ -23,7 +23,7 @@
 // dari Console browser, Firestore Rules yang jadi penjaga terakhir.
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, where, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { MasterDataCategory, KolomCari } from './vue-components.js?v=5';
 import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
@@ -1062,15 +1062,70 @@ const RiwayatReimburseTable = {
       return ts.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
     }
 
+    // BARU (29 Agt 2026, §44.17) — HEMAT: dulu fetch SELURUH koleksi
+    // `reimburse` (terus tumbuh selamanya, tidak ada batas), sekarang
+    // filter rentang tanggal jadi QUERY SUNGGUHAN (where() server-side),
+    // pola SAMA PERSIS `vue-riwayat-absensi.js` (duplikasi kecil per-file,
+    // bukan diimpor — konvensi proyek). Field `diajukan_pada` SUDAH
+    // Timestamp asli sejak awal (`serverTimestamp()` di simpan()) — TIDAK
+    // perlu alat migrasi seperti absensi.waktu_ts. Default "30 Hari
+    // Terakhir" (bukan "Hari Ini" seperti Absensi) karena reimburse jauh
+    // lebih jarang diajukan daripada Clock In/Out harian.
+    const filterTanggalPreset = ref('30_hari');
+    const tglMulaiCustom = ref('');
+    const tglSelesaiCustom = ref('');
+    const LABEL_PRESET_TGL = { hari_ini: 'Hari Ini', kemarin: 'Kemarin', '7_hari': '7 Hari Terakhir', '30_hari': '30 Hari Terakhir', '90_hari': '90 Hari Terakhir', custom: 'Rentang Pilihan' };
+    function hitungRentangTanggal(preset, customMulai, customSelesai) {
+      const s = new Date();
+      const hariIniMulai = new Date(s.getFullYear(), s.getMonth(), s.getDate(), 0, 0, 0, 0);
+      const hariIniSelesai = new Date(s.getFullYear(), s.getMonth(), s.getDate(), 23, 59, 59, 999);
+      if (preset === 'kemarin') {
+        const m = new Date(hariIniMulai); m.setDate(m.getDate() - 1);
+        const sl = new Date(hariIniSelesai); sl.setDate(sl.getDate() - 1);
+        return { mulai: m, selesai: sl };
+      }
+      if (preset === '7_hari') {
+        const m = new Date(hariIniMulai); m.setDate(m.getDate() - 6);
+        return { mulai: m, selesai: hariIniSelesai };
+      }
+      if (preset === '30_hari') {
+        const m = new Date(hariIniMulai); m.setDate(m.getDate() - 29);
+        return { mulai: m, selesai: hariIniSelesai };
+      }
+      if (preset === '90_hari') {
+        const m = new Date(hariIniMulai); m.setDate(m.getDate() - 89);
+        return { mulai: m, selesai: hariIniSelesai };
+      }
+      if (preset === 'custom' && customMulai && customSelesai) {
+        const [ym, mm, dm] = customMulai.split('-').map(Number);
+        const [ys, ms, ds] = customSelesai.split('-').map(Number);
+        return { mulai: new Date(ym, mm - 1, dm, 0, 0, 0, 0), selesai: new Date(ys, ms - 1, ds, 23, 59, 59, 999) };
+      }
+      return { mulai: hariIniMulai, selesai: hariIniSelesai };
+    }
+    function formatTglCaption(d) { return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }); }
+    const captionRentang = computed(() => {
+      const { mulai, selesai } = hitungRentangTanggal(filterTanggalPreset.value, tglMulaiCustom.value, tglSelesaiCustom.value);
+      const sama = mulai.toDateString() === selesai.toDateString();
+      const teksTgl = sama ? formatTglCaption(mulai) : `${formatTglCaption(mulai)} — ${formatTglCaption(selesai)}`;
+      return `Menampilkan riwayat: ${LABEL_PRESET_TGL[filterTanggalPreset.value] || ''} (${teksTgl})`;
+    });
+
     async function muat() {
       memuat.value = true;
       errorMuat.value = '';
       try {
-        // Riwayat = SEMUA tahap (bukan cuma pending) — ini laporan, bukan
-        // antrean kerja. Filter jenis_entry_kendaraan (bensin/servis)
-        // dilakukan DI CLIENT (bukan where() Firestore) supaya 1 fetch
-        // ini bisa dipakai ulang oleh ketiga mode tanpa 3x baca beda-beda.
-        const snap = await getDocs(collection(db, "reimburse"));
+        const { mulai, selesai } = hitungRentangTanggal(filterTanggalPreset.value, tglMulaiCustom.value, tglSelesaiCustom.value);
+        const tsMulai = Timestamp.fromDate(mulai);
+        const tsSelesai = Timestamp.fromDate(selesai);
+        // Riwayat = SEMUA tahap (bukan cuma pending) dalam rentang tanggal
+        // aktif — ini laporan, bukan antrean kerja. Filter
+        // jenis_entry_kendaraan (bensin/servis) TETAP dilakukan DI CLIENT
+        // (bukan where() Firestore) supaya 1 fetch (yang sekarang sudah
+        // dibatasi tanggal) bisa dipakai ulang oleh ketiga mode tanpa 3x
+        // baca beda-beda.
+        const snap = await getDocs(query(collection(db, "reimburse"),
+          where("diajukan_pada", ">=", tsMulai), where("diajukan_pada", "<=", tsSelesai)));
         const list = [];
         snap.forEach(docSnap => {
           const d = docSnap.data();
@@ -1125,7 +1180,7 @@ const RiwayatReimburseTable = {
       }
 
       let csvContent = "data:text/csv;charset=utf-8,";
-      csvContent += csvEsc(LABEL_MODE[props.mode].judul + (cariKata.value.trim() ? ' | Cari: ' + cariKata.value.trim() : '')) + "\n\n";
+      csvContent += csvEsc(LABEL_MODE[props.mode].judul + ' | ' + captionRentang.value + (cariKata.value.trim() ? ' | Cari: ' + cariKata.value.trim() : '')) + "\n\n";
       csvContent += header.join(',') + "\n";
 
       daftarTersaring.value.forEach(r => {
@@ -1156,19 +1211,48 @@ const RiwayatReimburseTable = {
       document.body.removeChild(link);
     }
 
+    watch([filterTanggalPreset, tglMulaiCustom, tglSelesaiCustom], () => {
+      // Rentang custom: JANGAN re-fetch sebelum DUA tanggal terisi.
+      if (filterTanggalPreset.value === 'custom' && (!tglMulaiCustom.value || !tglSelesaiCustom.value)) return;
+      halamanSaatIni.value = 1;
+      muat();
+    });
     onMounted(async () => { await window.authReady; muat(); });
     return {
       daftarSemua, daftarTersaring, daftarTerpaginasi, memuat, errorMuat, muat, cariKata, formatTgl, lihatFotoBesar,
-      LABEL_TAHAP, warnaTahap, formatRupiah, LABEL_MODE, halamanSaatIni, totalHalaman, gantiHalaman, exportCSV
+      LABEL_TAHAP, warnaTahap, formatRupiah, LABEL_MODE, halamanSaatIni, totalHalaman, gantiHalaman, exportCSV,
+      filterTanggalPreset, tglMulaiCustom, tglSelesaiCustom, captionRentang
     };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
       <h3 class="gc-heading" style="font-weight:700; font-size:13.5px;"><i class="fas" :class="LABEL_MODE[mode].ikon" style="color:var(--burgundy); margin-right:8px;"></i> {{ LABEL_MODE[mode].judul }}</h3>
       <div style="display:flex; gap:8px;">
-        <button @click="exportCSV" class="btn-outline" title="Unduh riwayat yang sedang tampil (ikut pencarian aktif) sebagai CSV"><i class="fas fa-file-excel" style="margin-right:6px;"></i> Unduh CSV</button>
+        <button @click="exportCSV" class="btn-outline" title="Unduh riwayat yang sedang tampil (ikut pencarian & rentang tanggal aktif) sebagai CSV"><i class="fas fa-file-excel" style="margin-right:6px;"></i> Unduh CSV</button>
         <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
       </div>
+    </div>
+
+    <!-- BARU (29 Agt 2026, §44.17) — filter rentang tanggal, pola SAMA
+         PERSIS Riwayat All Absensi, supaya koleksi reimburse yang terus
+         tumbuh tidak di-fetch-semua tiap layar ini dibuka. -->
+    <div class="gc-card" style="margin-bottom:14px;">
+      <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
+        <select v-model="filterTanggalPreset" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface); font-weight:600;">
+          <option value="hari_ini">Hari Ini</option>
+          <option value="kemarin">Kemarin</option>
+          <option value="7_hari">7 Hari Terakhir</option>
+          <option value="30_hari">30 Hari Terakhir</option>
+          <option value="90_hari">90 Hari Terakhir</option>
+          <option value="custom">Pilih Tanggal Sendiri...</option>
+        </select>
+        <template v-if="filterTanggalPreset === 'custom'">
+          <input v-model="tglMulaiCustom" type="date" style="padding:7px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px;">
+          <span style="color:var(--text-faint); font-size:12px;">s/d</span>
+          <input v-model="tglSelesaiCustom" type="date" style="padding:7px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px;">
+        </template>
+      </div>
+      <p style="font-size:11px; color:var(--text-muted); margin-top:10px; font-style:italic;"><i class="fas fa-circle-info" style="margin-right:5px;"></i>{{ captionRentang }}</p>
     </div>
 
     <div v-if="!memuat && daftarSemua.length > 0" style="position:relative; margin-bottom:14px; max-width:320px;">
