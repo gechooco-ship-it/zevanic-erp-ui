@@ -761,39 +761,19 @@
               <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-selesai', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-sewing-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
             </div>
             <div id="sub-pp-sewing-perludiproses" class="sub-pp-sewing-tahap-content fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-inbox"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Sewing &middot; Perlu Diproses</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-sewing-perludiproses"></div>
             </div>
             <div id="sub-pp-sewing-sedangdiproses" class="sub-pp-sewing-tahap-content hidden fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-gears"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Sewing &middot; Sedang Diproses</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-sewing-sedangdiproses"></div>
             </div>
             <div id="sub-pp-sewing-perludikirim" class="sub-pp-sewing-tahap-content hidden fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-box-open"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Sewing &middot; Perlu Dikirim</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-sewing-perludikirim"></div>
             </div>
             <div id="sub-pp-sewing-sedangdikirim" class="sub-pp-sewing-tahap-content hidden fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-truck-fast"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Sewing &middot; Sedang Dikirim</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-sewing-sedangdikirim"></div>
             </div>
             <div id="sub-pp-sewing-selesai" class="sub-pp-sewing-tahap-content hidden fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-circle-check"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Sewing &middot; Selesai</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-sewing-selesai"></div>
             </div>
           </div>
 
@@ -806,39 +786,19 @@
               <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-selesai', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-webbing-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
             </div>
             <div id="sub-pp-webbing-perludiproses" class="sub-pp-webbing-tahap-content fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-inbox"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Webbing &middot; Perlu Diproses</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-webbing-perludiproses"></div>
             </div>
             <div id="sub-pp-webbing-sedangdiproses" class="sub-pp-webbing-tahap-content hidden fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-gears"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Webbing &middot; Sedang Diproses</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-webbing-sedangdiproses"></div>
             </div>
             <div id="sub-pp-webbing-perludikirim" class="sub-pp-webbing-tahap-content hidden fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-box-open"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Webbing &middot; Perlu Dikirim</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-webbing-perludikirim"></div>
             </div>
             <div id="sub-pp-webbing-sedangdikirim" class="sub-pp-webbing-tahap-content hidden fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-truck-fast"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Webbing &middot; Sedang Dikirim</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-webbing-sedangdikirim"></div>
             </div>
             <div id="sub-pp-webbing-selesai" class="sub-pp-webbing-tahap-content hidden fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-circle-check"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Webbing &middot; Selesai</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-webbing-selesai"></div>
             </div>
           </div>
 
@@ -851,39 +811,19 @@
               <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-selesai', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-finishing-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
             </div>
             <div id="sub-pp-finishing-perludiproses" class="sub-pp-finishing-tahap-content fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-inbox"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Finishing &middot; Perlu Diproses</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-finishing-perludiproses"></div>
             </div>
             <div id="sub-pp-finishing-sedangdiproses" class="sub-pp-finishing-tahap-content hidden fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-gears"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Finishing &middot; Sedang Diproses</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-finishing-sedangdiproses"></div>
             </div>
             <div id="sub-pp-finishing-perludikirim" class="sub-pp-finishing-tahap-content hidden fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-box-open"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Finishing &middot; Perlu Dikirim</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-finishing-perludikirim"></div>
             </div>
             <div id="sub-pp-finishing-sedangdikirim" class="sub-pp-finishing-tahap-content hidden fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-truck-fast"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Finishing &middot; Sedang Dikirim</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-finishing-sedangdikirim"></div>
             </div>
             <div id="sub-pp-finishing-selesai" class="sub-pp-finishing-tahap-content hidden fade-in space-y-4">
-              <div class="gc-kosong gc-card">
-                <div class="lingkaran"><i class="fas fa-circle-check"></i></div>
-                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Finishing &middot; Selesai</h3>
-                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
-              </div>
+              <div id="vue-pp-finishing-selesai"></div>
             </div>
           </div>
 

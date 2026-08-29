@@ -435,16 +435,35 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // persiapan-produksi.js, DITINGGALKAN tidak lagi dimuat).
     // BARU (29 Agt 2026) — Persiapan Produksi V2 (grup top-level baru):
     // "Perlu Disiapkan" (Fase 1) + jalur Bahan (Fase 2, 29 Agt 2026 malam)
-    // sekarang punya komponen Vue sungguhan. Vendor/Acc Sewing/Acc Webbing/
-    // Acc Finishing x 5 tahap MASIH placeholder statis (tidak ada Vue di
-    // baliknya) — TIDAK butuh entry petaMount sampai Fase 3-4 mengisinya.
-    // Lihat js/vue-persiapan-produksi-v2.js & STATUS-PROYEK.md §44.13/§44.14.
+    // + 3 jalur Acc Sewing/Webbing/Finishing (Fase 3, 29 Agt 2026 malam,
+    // parametrisasi JalurTahapManager yang SAMA — tidak ada komponen baru)
+    // sekarang punya komponen Vue sungguhan. Vendor x 5 tahap MASIH
+    // placeholder statis (tidak ada Vue di baliknya) — TIDAK butuh entry
+    // petaMount sampai Fase 4 mengisinya (masih ada pertanyaan arsitektur
+    // terbuka, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md §5.C/§5.D).
+    // Lihat js/vue-persiapan-produksi-v2.js & STATUS-PROYEK.md §44.13/
+    // §44.14/§44.19.
     'sub-pp-disiapkan': 'pastikanMountPpDisiapkan',
     'sub-pp-bahan-perludiproses': 'pastikanMountPpBahanPerluDiproses',
     'sub-pp-bahan-sedangdiproses': 'pastikanMountPpBahanSedangDiproses',
     'sub-pp-bahan-perludikirim': 'pastikanMountPpBahanPerluDikirim',
     'sub-pp-bahan-sedangdikirim': 'pastikanMountPpBahanSedangDikirim',
     'sub-pp-bahan-selesai': 'pastikanMountPpBahanSelesai',
+    'sub-pp-sewing-perludiproses': 'pastikanMountPpSewingPerluDiproses',
+    'sub-pp-sewing-sedangdiproses': 'pastikanMountPpSewingSedangDiproses',
+    'sub-pp-sewing-perludikirim': 'pastikanMountPpSewingPerluDikirim',
+    'sub-pp-sewing-sedangdikirim': 'pastikanMountPpSewingSedangDikirim',
+    'sub-pp-sewing-selesai': 'pastikanMountPpSewingSelesai',
+    'sub-pp-webbing-perludiproses': 'pastikanMountPpWebbingPerluDiproses',
+    'sub-pp-webbing-sedangdiproses': 'pastikanMountPpWebbingSedangDiproses',
+    'sub-pp-webbing-perludikirim': 'pastikanMountPpWebbingPerluDikirim',
+    'sub-pp-webbing-sedangdikirim': 'pastikanMountPpWebbingSedangDikirim',
+    'sub-pp-webbing-selesai': 'pastikanMountPpWebbingSelesai',
+    'sub-pp-finishing-perludiproses': 'pastikanMountPpFinishingPerluDiproses',
+    'sub-pp-finishing-sedangdiproses': 'pastikanMountPpFinishingSedangDiproses',
+    'sub-pp-finishing-perludikirim': 'pastikanMountPpFinishingPerluDikirim',
+    'sub-pp-finishing-sedangdikirim': 'pastikanMountPpFinishingSedangDikirim',
+    'sub-pp-finishing-selesai': 'pastikanMountPpFinishingSelesai',
     // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname.
     'sub-zh-scan-opname': 'pastikanMountScanOpname',
     // BARU (27 Agt 2026, §26.5, Tahap 5 — TAHAP TERAKHIR) — Scan > Scan Persiapan.

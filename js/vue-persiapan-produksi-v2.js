@@ -19,15 +19,22 @@
 //      Grouping -> Scan Operator, Scan Entry/Scan Masalah, Label Bagging ->
 //      Scan Pack, Label Tugas -> Scan Kirim, Scan Sampai -> Selesai).
 //
-// FASE INI (Fase 1, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md §7): CUMA
-// "Perlu Disiapkan" (generator SPK Grouping) yang fungsional penuh di file
-// ini. 5 jalur (Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing) x 5 tahap
-// SUDAH punya navigasi lengkap (index.html, sub-tab child-tab, riwayat
-// browser aktif) tapi isinya masih placeholder statis "segera hadir" —
-// TIDAK ada Vue di baliknya sampai Fase 2-5 (Bahan dulu, lalu 3 Acc, lalu
-// Vendor) mengisi logic per jalurnya masing-masing. Keputusan ini SENGAJA
-// (PRINSIP-HEMAT: jangan bangun infrastruktur sebelum benar-benar
-// dibutuhkan) — bukan kelupaan.
+// STATUS PER FASE (lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md §7):
+// - Fase 1 — "Perlu Disiapkan" (generator SPK Grouping) — SELESAI.
+// - Fase 2 — jalur Bahan (5 tahap + scan, komponen reusable
+//   `JalurTahapManager`) — SELESAI.
+// - Fase 3 (29 Agt 2026 malam) — 3 jalur Acc (Sewing/Webbing/Finishing) —
+//   SELESAI. TIDAK ADA komponen baru: `JalurTahapManager` dipakai APA
+//   ADANYA, cuma parameter `jalur` beda (persis sesuai rencana §7 poin 3)
+//   — lihat blok mount di bawah `buatAppJalurTahap()`.
+// - Fase 4 — jalur Vendor — BELUM dimulai, masih ada pertanyaan arsitektur
+//   terbuka (§5.C/§5.D RENCANA doc: field BOM buat "Vendor" + siapa yang
+//   scan). Sub-menu/child-tab-nya SUDAH ada di index.html (navigasi aktif),
+//   tapi isinya masih placeholder statis "segera hadir" — TIDAK ada Vue di
+//   baliknya sampai pertanyaan itu dijawab Guru. Keputusan ini SENGAJA
+//   (PRINSIP-HEMAT: jangan bangun infrastruktur sebelum benar-benar
+//   dibutuhkan) — bukan kelupaan.
+// - Fase 5 — audit menyeluruh referensi lama — belum dimulai.
 //
 // Kunci grouping — CATATAN PENTING (nyaris jadi bug, ketemu lewat riset
 // kode SEBELUM ditulis, lihat STATUS-PROYEK.md §44.13): `order_spk.
@@ -826,3 +833,108 @@ window.pastikanMountPpBahanSelesai = function() {
   const mountPoint = document.getElementById('vue-pp-bahan-selesai');
   if (mountPoint) vmPpBahanSelesai = createApp(buatAppJalurTahap('bahan', 'Bahan', 'selesai', 'Selesai')).mount('#vue-pp-bahan-selesai');
 };
+
+// ============================================================================
+// Fase 3 (29 Agt 2026, malam) — 3 jalur Acc (Sewing/Webbing/Finishing).
+// TIDAK ADA komponen baru ditulis — persis seperti diperkirakan di
+// RENCANA-PERSIAPAN-PRODUKSI-V2.md §7 poin 3 ("state machine-nya sama
+// persis dengan Fase 2, tinggal parametrisasi jalur"): JalurTahapManager +
+// buatAppJalurTahap() (di atas) dipakai APA ADANYA, cuma parameter `jalur`/
+// `labelJalur` yang beda. 15 mount function baru (3 jalur x 5 tahap),
+// ditulis eksplisit satu-satu (bukan loop) — konsisten gaya kode proyek
+// ini (gampang di-grep, gampang ditelusuri 1:1 ke index.html/dashboard.js).
+// ============================================================================
+let vmPpSewingPerluDiproses = null;
+window.pastikanMountPpSewingPerluDiproses = function() {
+  if (vmPpSewingPerluDiproses) return;
+  const mountPoint = document.getElementById('vue-pp-sewing-perludiproses');
+  if (mountPoint) vmPpSewingPerluDiproses = createApp(buatAppJalurTahap('sewing', 'Acc Sewing', 'perlu_diproses', 'Perlu Diproses')).mount('#vue-pp-sewing-perludiproses');
+};
+let vmPpSewingSedangDiproses = null;
+window.pastikanMountPpSewingSedangDiproses = function() {
+  if (vmPpSewingSedangDiproses) return;
+  const mountPoint = document.getElementById('vue-pp-sewing-sedangdiproses');
+  if (mountPoint) vmPpSewingSedangDiproses = createApp(buatAppJalurTahap('sewing', 'Acc Sewing', 'sedang_diproses', 'Sedang Diproses')).mount('#vue-pp-sewing-sedangdiproses');
+};
+let vmPpSewingPerluDikirim = null;
+window.pastikanMountPpSewingPerluDikirim = function() {
+  if (vmPpSewingPerluDikirim) return;
+  const mountPoint = document.getElementById('vue-pp-sewing-perludikirim');
+  if (mountPoint) vmPpSewingPerluDikirim = createApp(buatAppJalurTahap('sewing', 'Acc Sewing', 'perlu_dikirim', 'Perlu Dikirim')).mount('#vue-pp-sewing-perludikirim');
+};
+let vmPpSewingSedangDikirim = null;
+window.pastikanMountPpSewingSedangDikirim = function() {
+  if (vmPpSewingSedangDikirim) return;
+  const mountPoint = document.getElementById('vue-pp-sewing-sedangdikirim');
+  if (mountPoint) vmPpSewingSedangDikirim = createApp(buatAppJalurTahap('sewing', 'Acc Sewing', 'sedang_dikirim', 'Sedang Dikirim')).mount('#vue-pp-sewing-sedangdikirim');
+};
+let vmPpSewingSelesai = null;
+window.pastikanMountPpSewingSelesai = function() {
+  if (vmPpSewingSelesai) return;
+  const mountPoint = document.getElementById('vue-pp-sewing-selesai');
+  if (mountPoint) vmPpSewingSelesai = createApp(buatAppJalurTahap('sewing', 'Acc Sewing', 'selesai', 'Selesai')).mount('#vue-pp-sewing-selesai');
+};
+
+let vmPpWebbingPerluDiproses = null;
+window.pastikanMountPpWebbingPerluDiproses = function() {
+  if (vmPpWebbingPerluDiproses) return;
+  const mountPoint = document.getElementById('vue-pp-webbing-perludiproses');
+  if (mountPoint) vmPpWebbingPerluDiproses = createApp(buatAppJalurTahap('webbing', 'Acc Webbing', 'perlu_diproses', 'Perlu Diproses')).mount('#vue-pp-webbing-perludiproses');
+};
+let vmPpWebbingSedangDiproses = null;
+window.pastikanMountPpWebbingSedangDiproses = function() {
+  if (vmPpWebbingSedangDiproses) return;
+  const mountPoint = document.getElementById('vue-pp-webbing-sedangdiproses');
+  if (mountPoint) vmPpWebbingSedangDiproses = createApp(buatAppJalurTahap('webbing', 'Acc Webbing', 'sedang_diproses', 'Sedang Diproses')).mount('#vue-pp-webbing-sedangdiproses');
+};
+let vmPpWebbingPerluDikirim = null;
+window.pastikanMountPpWebbingPerluDikirim = function() {
+  if (vmPpWebbingPerluDikirim) return;
+  const mountPoint = document.getElementById('vue-pp-webbing-perludikirim');
+  if (mountPoint) vmPpWebbingPerluDikirim = createApp(buatAppJalurTahap('webbing', 'Acc Webbing', 'perlu_dikirim', 'Perlu Dikirim')).mount('#vue-pp-webbing-perludikirim');
+};
+let vmPpWebbingSedangDikirim = null;
+window.pastikanMountPpWebbingSedangDikirim = function() {
+  if (vmPpWebbingSedangDikirim) return;
+  const mountPoint = document.getElementById('vue-pp-webbing-sedangdikirim');
+  if (mountPoint) vmPpWebbingSedangDikirim = createApp(buatAppJalurTahap('webbing', 'Acc Webbing', 'sedang_dikirim', 'Sedang Dikirim')).mount('#vue-pp-webbing-sedangdikirim');
+};
+let vmPpWebbingSelesai = null;
+window.pastikanMountPpWebbingSelesai = function() {
+  if (vmPpWebbingSelesai) return;
+  const mountPoint = document.getElementById('vue-pp-webbing-selesai');
+  if (mountPoint) vmPpWebbingSelesai = createApp(buatAppJalurTahap('webbing', 'Acc Webbing', 'selesai', 'Selesai')).mount('#vue-pp-webbing-selesai');
+};
+
+let vmPpFinishingPerluDiproses = null;
+window.pastikanMountPpFinishingPerluDiproses = function() {
+  if (vmPpFinishingPerluDiproses) return;
+  const mountPoint = document.getElementById('vue-pp-finishing-perludiproses');
+  if (mountPoint) vmPpFinishingPerluDiproses = createApp(buatAppJalurTahap('finishing', 'Acc Finishing', 'perlu_diproses', 'Perlu Diproses')).mount('#vue-pp-finishing-perludiproses');
+};
+let vmPpFinishingSedangDiproses = null;
+window.pastikanMountPpFinishingSedangDiproses = function() {
+  if (vmPpFinishingSedangDiproses) return;
+  const mountPoint = document.getElementById('vue-pp-finishing-sedangdiproses');
+  if (mountPoint) vmPpFinishingSedangDiproses = createApp(buatAppJalurTahap('finishing', 'Acc Finishing', 'sedang_diproses', 'Sedang Diproses')).mount('#vue-pp-finishing-sedangdiproses');
+};
+let vmPpFinishingPerluDikirim = null;
+window.pastikanMountPpFinishingPerluDikirim = function() {
+  if (vmPpFinishingPerluDikirim) return;
+  const mountPoint = document.getElementById('vue-pp-finishing-perludikirim');
+  if (mountPoint) vmPpFinishingPerluDikirim = createApp(buatAppJalurTahap('finishing', 'Acc Finishing', 'perlu_dikirim', 'Perlu Dikirim')).mount('#vue-pp-finishing-perludikirim');
+};
+let vmPpFinishingSedangDikirim = null;
+window.pastikanMountPpFinishingSedangDikirim = function() {
+  if (vmPpFinishingSedangDikirim) return;
+  const mountPoint = document.getElementById('vue-pp-finishing-sedangdikirim');
+  if (mountPoint) vmPpFinishingSedangDikirim = createApp(buatAppJalurTahap('finishing', 'Acc Finishing', 'sedang_dikirim', 'Sedang Dikirim')).mount('#vue-pp-finishing-sedangdikirim');
+};
+let vmPpFinishingSelesai = null;
+window.pastikanMountPpFinishingSelesai = function() {
+  if (vmPpFinishingSelesai) return;
+  const mountPoint = document.getElementById('vue-pp-finishing-selesai');
+  if (mountPoint) vmPpFinishingSelesai = createApp(buatAppJalurTahap('finishing', 'Acc Finishing', 'selesai', 'Selesai')).mount('#vue-pp-finishing-selesai');
+};
+// Lihat STATUS-PROYEK.md §44.19 untuk detail Fase 3 (validasi, cross-check
+// mount-div/petaMount, catatan uji manual yang masih diperlukan).
