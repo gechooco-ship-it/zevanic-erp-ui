@@ -434,15 +434,16 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // dari sini, tombolnya sudah dicopot dari index.html (lihat js/vue-
     // persiapan-produksi.js, DITINGGALKAN tidak lagi dimuat).
     // BARU (29 Agt 2026) — Persiapan Produksi V2 (grup top-level baru):
-    // "Perlu Disiapkan" (Fase 1) + jalur Bahan (Fase 2, 29 Agt 2026 malam)
-    // + 3 jalur Acc Sewing/Webbing/Finishing (Fase 3, 29 Agt 2026 malam,
-    // parametrisasi JalurTahapManager yang SAMA — tidak ada komponen baru)
-    // sekarang punya komponen Vue sungguhan. Vendor x 5 tahap MASIH
-    // placeholder statis (tidak ada Vue di baliknya) — TIDAK butuh entry
-    // petaMount sampai Fase 4 mengisinya (masih ada pertanyaan arsitektur
-    // terbuka, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md §5.C/§5.D).
+    // "Perlu Disiapkan" (Fase 1) + jalur Bahan (Fase 2) + 3 jalur Acc
+    // Sewing/Webbing/Finishing (Fase 3) + jalur Vendor (Fase 4, 29 Agt
+    // 2026 malam — semua parametrisasi JalurTahapManager yang SAMA, tidak
+    // ada komponen baru) sekarang SEMUA punya komponen Vue sungguhan.
+    // Jalur Vendor deteksi otomatis dari BOM MASIH belum ada (§5.C
+    // RENCANA doc sebagian terbuka) — sementara cuma bisa diaktifkan
+    // manual (checkbox di "Perlu Disiapkan"), tapi tahapnya sendiri
+    // (scan dst) SUDAH fungsional penuh.
     // Lihat js/vue-persiapan-produksi-v2.js & STATUS-PROYEK.md §44.13/
-    // §44.14/§44.19.
+    // §44.14/§44.19/§44.20.
     'sub-pp-disiapkan': 'pastikanMountPpDisiapkan',
     'sub-pp-bahan-perludiproses': 'pastikanMountPpBahanPerluDiproses',
     'sub-pp-bahan-sedangdiproses': 'pastikanMountPpBahanSedangDiproses',
@@ -464,6 +465,11 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-pp-finishing-perludikirim': 'pastikanMountPpFinishingPerluDikirim',
     'sub-pp-finishing-sedangdikirim': 'pastikanMountPpFinishingSedangDikirim',
     'sub-pp-finishing-selesai': 'pastikanMountPpFinishingSelesai',
+    'sub-pp-vendor-perludiproses': 'pastikanMountPpVendorPerluDiproses',
+    'sub-pp-vendor-sedangdiproses': 'pastikanMountPpVendorSedangDiproses',
+    'sub-pp-vendor-perludikirim': 'pastikanMountPpVendorPerluDikirim',
+    'sub-pp-vendor-sedangdikirim': 'pastikanMountPpVendorSedangDikirim',
+    'sub-pp-vendor-selesai': 'pastikanMountPpVendorSelesai',
     // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname.
     'sub-zh-scan-opname': 'pastikanMountScanOpname',
     // BARU (27 Agt 2026, §26.5, Tahap 5 — TAHAP TERAKHIR) — Scan > Scan Persiapan.

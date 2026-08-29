@@ -27,13 +27,14 @@
 //   SELESAI. TIDAK ADA komponen baru: `JalurTahapManager` dipakai APA
 //   ADANYA, cuma parameter `jalur` beda (persis sesuai rencana §7 poin 3)
 //   — lihat blok mount di bawah `buatAppJalurTahap()`.
-// - Fase 4 — jalur Vendor — BELUM dimulai, masih ada pertanyaan arsitektur
-//   terbuka (§5.C/§5.D RENCANA doc: field BOM buat "Vendor" + siapa yang
-//   scan). Sub-menu/child-tab-nya SUDAH ada di index.html (navigasi aktif),
-//   tapi isinya masih placeholder statis "segera hadir" — TIDAK ada Vue di
-//   baliknya sampai pertanyaan itu dijawab Guru. Keputusan ini SENGAJA
-//   (PRINSIP-HEMAT: jangan bangun infrastruktur sebelum benar-benar
-//   dibutuhkan) — bukan kelupaan.
+// - Fase 4 (29 Agt 2026 malam) — jalur Vendor — SELESAI. §5.D terjawab
+//   Guru (driver internal yang sudah biasa belanja = juga jadi kurir
+//   kirim+sampai barang vendor, akun+QR yang SAMA, bukan portal terpisah)
+//   — 5-tahap generic yang sudah ada CUKUP, TIDAK ada tahap/label
+//   tambahan. §5.C SEBAGIAN masih terbuka (field BOM buat deteksi
+//   OTOMATIS jalur Vendor + jenis vendor) — jalur Vendor SEMENTARA cuma
+//   bisa diaktifkan MANUAL (checkbox "+ Jalur Vendor (manual)", sudah ada
+//   sejak Fase 1), belum otomatis dari BOM Aksesoris.
 // - Fase 5 — audit menyeluruh referensi lama — belum dimulai.
 //
 // Kunci grouping — CATATAN PENTING (nyaris jadi bug, ketemu lewat riset
@@ -938,3 +939,58 @@ window.pastikanMountPpFinishingSelesai = function() {
 };
 // Lihat STATUS-PROYEK.md §44.19 untuk detail Fase 3 (validasi, cross-check
 // mount-div/petaMount, catatan uji manual yang masih diperlukan).
+
+// ============================================================================
+// Fase 4 (29 Agt 2026, malam) — jalur Vendor. SAMA seperti Fase 3: TIDAK
+// ADA komponen baru, `JalurTahapManager` dipakai apa adanya dengan
+// jalur='vendor'. Blocker §5.D RENCANA-PERSIAPAN-PRODUKSI-V2.md
+// (apakah alur 5-tahap tetap sama walau barang fisik keluar lokasi ke
+// vendor luar) SEKARANG TERJAWAB oleh Guru: *"vendor yg scan driver yg
+// biasa belanja, karena dia jg kurir yg kirim dan sampai barang"* —
+// driver INTERNAL (akun karyawan biasa, QR pribadi yang sama, BUKAN akun
+// vendor eksternal terpisah) yang scan SEMUA aksi jalur ini (dia juga
+// yang antar-jemput fisik ke vendor), jadi 5-tahap generic yang sudah ada
+// (Scan Operator/Entry/Pack/Kirim/Sampai) SUDAH CUKUP tanpa tahap/label
+// tambahan — persis pola Bahan/Acc, bukan alur baru.
+//
+// §5.C SEBAGIAN terjawab (siapa yang scan) — TAPI bagian lain §5.C
+// (field baru di BOM Aksesoris Master Produk buat deteksi OTOMATIS jalur
+// Vendor + jenis vendor Sublim/Sablon/Bordir) BELUM dijawab Guru, jadi
+// SENGAJA BELUM dibangun (bukan lupa) — jalur Vendor tetap pakai jalur
+// OPT-IN MANUAL yang sudah ada sejak Fase 1 (checkbox "+ Jalur Vendor
+// (manual)" di form pembuatan grouping, `vendorManual`), BUKAN deteksi
+// otomatis dari BOM. Ini sudah cukup buat jalur Vendor berfungsi
+// end-to-end sekarang — deteksi otomatis BOM cuma kenyamanan tambahan
+// buat nanti kalau Guru mau, bukan syarat wajib.
+// ============================================================================
+let vmPpVendorPerluDiproses = null;
+window.pastikanMountPpVendorPerluDiproses = function() {
+  if (vmPpVendorPerluDiproses) return;
+  const mountPoint = document.getElementById('vue-pp-vendor-perludiproses');
+  if (mountPoint) vmPpVendorPerluDiproses = createApp(buatAppJalurTahap('vendor', 'Vendor', 'perlu_diproses', 'Perlu Diproses')).mount('#vue-pp-vendor-perludiproses');
+};
+let vmPpVendorSedangDiproses = null;
+window.pastikanMountPpVendorSedangDiproses = function() {
+  if (vmPpVendorSedangDiproses) return;
+  const mountPoint = document.getElementById('vue-pp-vendor-sedangdiproses');
+  if (mountPoint) vmPpVendorSedangDiproses = createApp(buatAppJalurTahap('vendor', 'Vendor', 'sedang_diproses', 'Sedang Diproses')).mount('#vue-pp-vendor-sedangdiproses');
+};
+let vmPpVendorPerluDikirim = null;
+window.pastikanMountPpVendorPerluDikirim = function() {
+  if (vmPpVendorPerluDikirim) return;
+  const mountPoint = document.getElementById('vue-pp-vendor-perludikirim');
+  if (mountPoint) vmPpVendorPerluDikirim = createApp(buatAppJalurTahap('vendor', 'Vendor', 'perlu_dikirim', 'Perlu Dikirim')).mount('#vue-pp-vendor-perludikirim');
+};
+let vmPpVendorSedangDikirim = null;
+window.pastikanMountPpVendorSedangDikirim = function() {
+  if (vmPpVendorSedangDikirim) return;
+  const mountPoint = document.getElementById('vue-pp-vendor-sedangdikirim');
+  if (mountPoint) vmPpVendorSedangDikirim = createApp(buatAppJalurTahap('vendor', 'Vendor', 'sedang_dikirim', 'Sedang Dikirim')).mount('#vue-pp-vendor-sedangdikirim');
+};
+let vmPpVendorSelesai = null;
+window.pastikanMountPpVendorSelesai = function() {
+  if (vmPpVendorSelesai) return;
+  const mountPoint = document.getElementById('vue-pp-vendor-selesai');
+  if (mountPoint) vmPpVendorSelesai = createApp(buatAppJalurTahap('vendor', 'Vendor', 'selesai', 'Selesai')).mount('#vue-pp-vendor-selesai');
+};
+// Lihat STATUS-PROYEK.md §44.20 untuk detail Fase 4.
