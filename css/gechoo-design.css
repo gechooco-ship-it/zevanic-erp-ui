@@ -26,7 +26,14 @@ button{border:none; background:none; font:inherit; color:inherit; cursor:pointer
 input, select, textarea{font:inherit; color:inherit;}
 
 :root{
-  --ivory:#FAF4E7; --ivory-dim:#F1E8D6;
+  /* --ivory/--ivory-dim/--line — DIGANTI (29 Agt 2026) ke versi lebih
+     muda/"clean" sesuai permintaan Guru di paket handoff mockup ("Gechoo
+     Mobile Organic") — "ivorynya bikin lebih muda lagi biar clean".
+     Nilai LAMA (sebelum ini): --ivory #FAF4E7, --ivory-dim #F1E8D6,
+     --line #E9DDCE — dicatat di sini kalau perlu dikembalikan. Ini
+     token DASAR dipakai di SELURUH app (bukan cuma layar redesain
+     mobile), jadi efeknya global — desktop & mobile, layar lama & baru. */
+  --ivory:#FDFAF4; --ivory-dim:#F7F1E6;
   --pink:#F2D2CE; --pink-deep:#E3ADA6;
   --blue:#ABD1DE; --blue-deep:#82B7C8;
   --mahogany:#5B3826; --mahogany-soft:#6E4630;
@@ -34,7 +41,7 @@ input, select, textarea{font:inherit; color:inherit;}
   --ok:#5E7C4F; --ok-light:#EAF0E3;
   --warn:#B8863A; --warn-light:#F7EEDC;
   --danger:#B33A3A; --danger-light:#F8E5E2;
-  --surface:#FFFFFF; --line:#E9DDCE;
+  --surface:#FFFFFF; --line:#EFE7DA;
   --text:#3B2A1F; --text-muted:#8C7A6B; --text-faint:#B3A493;
   --radius:16px;
 

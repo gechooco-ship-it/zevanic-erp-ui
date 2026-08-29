@@ -25,7 +25,15 @@
        css/gechoo-design.css, jauh lebih ringan & tanpa compile di browser. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/gechoo-design.css">
+  <!-- ?v=1 — BARU (29 Agt 2026): CSS ini sebelumnya TIDAK PERNAH pakai
+       cache-bust query, beda dari file .js lain di app ini. Ditambahkan
+       sekarang karena §44.3 (ganti --ivory/--ivory-dim/--line ke versi
+       lebih muda) adalah perubahan visual GLOBAL — tanpa versi baru,
+       browser Guru berisiko masih pakai CSS lama dari cache walau file
+       di server sudah baru (pola masalah yang sama pernah kejadian di
+       vue-stock-pembelian.js, lihat STATUS-PROYEK.md §25.11). Naikkan
+       angka ini tiap kali gechoo-design.css berubah ke depannya. -->
+  <link rel="stylesheet" href="css/gechoo-design.css?v=1">
   <style>
     .fade-in { animation: fadeIn 0.4s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
