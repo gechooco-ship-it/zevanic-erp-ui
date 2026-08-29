@@ -29,6 +29,16 @@
 // PENTING: window.hapusAbsensi (dipanggil di sini) juga dipakai oleh Riwayat
 // All Absensi yang belum dimigrasi — TIDAK dihapus dari dashboard.js, tetap
 // dipanggil apa adanya lewat window.
+//
+// DIROMBAK LAGI (29 Agt 2026, §44.18) — BUG BOROS N+1 ketemu waktu Guru
+// tanya "apa bisa 1 data dipakai 2 menu, bisa dihemat": tiap KARTU pending
+// dulu query Firestore SENDIRI-SENDIRI ke master_shift (jam shift) DAN ke
+// absensi (cek Lembur ter-ACC hari itu) begitu di-mount — kalau ada 200
+// kartu pending, itu s.d. 400 query TERPISAH, banyak di antaranya IDENTIK
+// (kartu shift "Pagi" yang berbeda-beda tetap query "Pagi" berkali-kali).
+// SEKARANG dua lookup itu dihitung SEKALI di muat() (induk) buat seluruh
+// daftar sekaligus, chunked where(...,'in',...) — dikirim ke tiap kartu
+// lewat prop shiftInfo/lemburTanggal, kartu TIDAK query apapun lagi.
 // ============================================================================
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -84,7 +94,13 @@ export function hitungAdaPending(statusMasuk, statusKeluar) {
 const AntreanAbsensiCard = {
   props: {
     docId: { type: String, required: true },
-    data: { type: Object, required: true }
+    data: { type: Object, required: true },
+    // BARU (29 Agt 2026, §44.18) — lihat catatan lengkap di jamShift/
+    // adaLemburApproved di bawah: dua prop ini GANTI 2 query Firestore
+    // yang dulu jalan PER KARTU (N+1), sekarang dihitung SEKALI di induk
+    // (AppAntreanAbsensi.muat()) untuk seluruh daftar sekaligus.
+    shiftInfo: { type: Object, default: () => ({ masuk: null, keluar: null }) },
+    lemburTanggal: { type: Array, default: () => [] }
   },
   emits: ['diproses'],
   setup(props, { emit }) {
@@ -129,19 +145,18 @@ const AntreanAbsensiCard = {
     // Admin cuma MANUAL cek Seragam (satu-satunya yang butuh mata
     // manusia — belum ada OCR/pengenalan gambar buat itu). Jam shift
     // diambil SEKALI per kartu (bukan re-fetch tiap render).
-    const jamShift = ref({ masuk: null, keluar: null }); // "HH:MM" | null kalau shift tidak ketemu
-    async function muatJamShift() {
-      if (!props.data.nama_shift) return;
-      try {
-        const qShift = await getDocs(query(collection(db, "master_shift"), where("nama_shift", "==", props.data.nama_shift)));
-        if (!qShift.empty) {
-          const s = qShift.docs[0].data();
-          jamShift.value = { masuk: s.jam_masuk || null, keluar: s.jam_keluar || null };
-        }
-      } catch (e) {
-        console.error("Gagal muat jam shift buat hitung status kehadiran:", e);
-      }
-    }
+    // DIROMBAK (29 Agt 2026, §44.18) — DULU tiap kartu query SENDIRI ke
+    // master_shift begitu di-mount (N+1: kalau ada 200 kartu pending dan
+    // semuanya shift "Pagi", itu 200 query Firestore IDENTIK buat 1 baris
+    // data yang sama). Ditemukan pas audit lanjutan setelah Guru tanya
+    // "apa bisa 1 data dipakai 2 menu, bisa dihemat" — jawabannya kartu
+    // yang SAMA-SAMA butuh shift yang SAMA di 1 menu ini justru kasus yang
+    // lebih jelas & lebih besar dampaknya. SEKARANG jam shift buat SEMUA
+    // nama_shift yang kepakai dihitung SEKALI di induk (lihat
+    // muat()/petaShiftInfo di AppAntreanAbsensi di bawah), dikirim turun
+    // lewat prop shiftInfo — kartu tinggal baca, tidak query lagi sama
+    // sekali.
+    const jamShift = computed(() => props.shiftInfo || { masuk: null, keluar: null });
 
     // BARU (19 Agt 2026, permintaan Hilman) — kalau ada pengajuan LEMBUR
     // yang SUDAH DI-ACC buat email+tanggal yang sama dengan Clock In
@@ -149,21 +164,18 @@ const AntreanAbsensiCard = {
     // Pulang Cepat biasa) — Lembur itu SESI TERPISAH (status "LEMBUR
     // (CLOCK IN)", collection SAMA "absensi" tapi dokumen beda), jadi
     // dicek silang, bukan dihitung dari jam shift reguler.
-    const adaLemburApproved = ref(false);
-    async function cekLemburHariItu(waktuAnchorTs) {
-      if (!waktuAnchorTs || typeof waktuAnchorTs.toDate !== 'function' || !props.data.email) return;
-      try {
-        const tglAnchor = waktuAnchorTs.toDate().toDateString();
-        const snap = await getDocs(query(collection(db, "absensi"),
-          where("email", "==", props.data.email), where("status", "==", "LEMBUR (CLOCK IN)"), where("status_acc", "==", "ACC")));
-        adaLemburApproved.value = snap.docs.some(d => {
-          const wl = d.data().waktu_ts;
-          return wl && typeof wl.toDate === 'function' && wl.toDate().toDateString() === tglAnchor;
-        });
-      } catch (e) {
-        console.error("Gagal cek lembur approved:", e);
-      }
-    }
+    // DIROMBAK (29 Agt 2026, §44.18) — SAMA persis masalahnya seperti
+    // jamShift di atas: dulu tiap kartu query SENDIRI ke "absensi" (cari
+    // Lembur ter-ACC email itu) begitu di-mount — N+1 lagi. Sekarang
+    // dihitung SEKALI di induk (petaLemburTanggal: email -> daftar
+    // tanggal Lembur ter-ACC), kartu tinggal cocokkan tanggal anchor-nya
+    // sendiri ke daftar itu lewat prop lemburTanggal, TANPA query.
+    const adaLemburApproved = computed(() => {
+      const anchorTs = props.data.waktu_masuk_ts || props.data.waktu_ts;
+      if (!anchorTs || typeof anchorTs.toDate !== 'function') return false;
+      const tglAnchor = anchorTs.toDate().toDateString();
+      return (props.lemburTanggal || []).includes(tglAnchor);
+    });
 
     // ---- FORMAT LAMA: 1 status_acc tunggal — TIDAK DIUBAH SAMA SEKALI
     // dari versi sebelumnya (juga dipakai IZIN/CUTI/LEMBUR SELAMANYA,
@@ -275,11 +287,6 @@ const AntreanAbsensiCard = {
       }
       if (window.hapusAbsensi) window.hapusAbsensi(props.docId).then(() => emit('diproses'));
     }
-
-    onMounted(() => {
-      muatJamShift();
-      cekLemburHariItu(props.data.waktu_masuk_ts || props.data.waktu_ts);
-    });
 
     return {
       adalahFormatBaru, adaYangPending, lihatFotoBesar, hapus, bolehEdit, bolehHapus,
@@ -420,6 +427,12 @@ const AppAntreanAbsensi = {
     const errorMuat = ref('');
     const memuatDataLama = ref(false);
     const infoDataLama = ref('');
+    // BARU (29 Agt 2026, §44.18) — hasil batch jam shift & Lembur-approved
+    // buat SEMUA kartu (dihitung sekali per muat(), lihat di bawah),
+    // dikirim turun ke tiap AntreanAbsensiCard lewat prop. Lihat catatan
+    // lengkap di komponen kartu (jamShift/adaLemburApproved).
+    const petaShiftInfo = ref({});
+    const petaLemburTanggal = ref({});
 
     // PEDOMAN KERJA (18 Agt 2026) — Search box SELALU ada. Filter Jenis
     // Pekerjaan & Gudang CUMA muncul buat Owner/Superuser — Admin biasa
@@ -524,6 +537,42 @@ const AppAntreanAbsensi = {
           if (!window.bolehLihatData(ambilJP(d), d.gudang)) return;
           list.push({ id: docSnap.id, data: d, jenisPekerjaan: ambilJP(d) });
         });
+        // BARU (29 Agt 2026, §44.18) — jam shift & status Lembur approved
+        // dihitung SEKALI di sini buat SELURUH daftar sekaligus (bukan
+        // per-kartu lagi, lihat catatan panjang di AntreanAbsensiCard).
+        // Chunked where(...,'in',...) pola sama seperti petaJenisPekerjaan
+        // di atas.
+        const UKURAN_POTONGAN_SHIFT = 30; // batas Firestore where(field,'in',[...])
+        const distinctShift = [...new Set(list.map(item => item.data.nama_shift).filter(Boolean))];
+        const petaShift = {};
+        for (let i = 0; i < distinctShift.length; i += UKURAN_POTONGAN_SHIFT) {
+          const potongan = distinctShift.slice(i, i + UKURAN_POTONGAN_SHIFT);
+          const snapShift = await getDocs(query(collection(db, "master_shift"), where("nama_shift", "in", potongan)));
+          snapShift.forEach(s => {
+            const sd = s.data();
+            petaShift[sd.nama_shift] = { masuk: sd.jam_masuk || null, keluar: sd.jam_keluar || null };
+          });
+        }
+        petaShiftInfo.value = petaShift;
+
+        const UKURAN_POTONGAN_LEMBUR = 30; // batas Firestore where(field,'in',[...])
+        const distinctEmailLembur = [...new Set(list.map(item => item.data.email).filter(Boolean))];
+        const petaLembur = {};
+        for (let i = 0; i < distinctEmailLembur.length; i += UKURAN_POTONGAN_LEMBUR) {
+          const potongan = distinctEmailLembur.slice(i, i + UKURAN_POTONGAN_LEMBUR);
+          const snapLembur = await getDocs(query(collection(db, "absensi"),
+            where("email", "in", potongan), where("status", "==", "LEMBUR (CLOCK IN)"), where("status_acc", "==", "ACC")));
+          snapLembur.forEach(d => {
+            const dd = d.data();
+            const wl = dd.waktu_ts;
+            if (wl && typeof wl.toDate === 'function') {
+              if (!petaLembur[dd.email]) petaLembur[dd.email] = [];
+              petaLembur[dd.email].push(wl.toDate().toDateString());
+            }
+          });
+        }
+        petaLemburTanggal.value = petaLembur;
+
         daftarPending.value = list;
 
         // Opsi dropdown filter khusus Owner — cuma dimuat kalau memang
@@ -578,7 +627,7 @@ const AppAntreanAbsensi = {
     return {
       daftarPending, daftarPendingTersaring, memuat, errorMuat, muat, memuatDataLama, infoDataLama, cekDataSangatLama,
       cariNama, isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner,
-      menuTerbuka, toggleMenuTerbuka, adaFilterAktif
+      menuTerbuka, toggleMenuTerbuka, adaFilterAktif, petaShiftInfo, petaLemburTanggal
     };
   },
   // ==========================================================================
@@ -642,6 +691,8 @@ const AppAntreanAbsensi = {
       <antrean-absensi-card
         v-for="item in daftarPendingTersaring" :key="item.id"
         :doc-id="item.id" :data="item.data"
+        :shift-info="petaShiftInfo[item.data.nama_shift] || {masuk:null,keluar:null}"
+        :lembur-tanggal="petaLemburTanggal[item.data.email] || []"
         @diproses="muat"
       />
     </div>

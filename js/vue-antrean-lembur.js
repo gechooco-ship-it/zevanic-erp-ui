@@ -20,6 +20,12 @@
 //    vue-camera.js), bukan fetch semua histori absensi lagi.
 // 2. PEDOMAN KERJA (lihat vue-antrean-absensi.js) — search box selalu
 //    ada, filter Jenis Pekerjaan+Gudang cuma buat Owner/Superuser.
+//
+// DIROMBAK LAGI (29 Agt 2026, §44.18) — bug N+1 SAMA yang ketemu &
+// diperbaiki di vue-antrean-absensi.js: tiap kartu pending dulu query
+// SENDIRI ke master_shift (jam shift) begitu di-mount. Sekarang dihitung
+// SEKALI di muat() (induk) buat seluruh daftar, chunked where(...,'in',...),
+// dikirim ke tiap kartu lewat prop shiftInfo — kartu tidak query lagi.
 // ============================================================================
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -31,7 +37,11 @@ import { KolomCari } from './vue-components.js?v=5';
 const AntreanLemburCard = {
   props: {
     docId: { type: String, required: true },
-    data: { type: Object, required: true }
+    data: { type: Object, required: true },
+    // BARU (29 Agt 2026, §44.18) — lihat catatan di jamShift di bawah:
+    // prop ini GANTI query Firestore yang dulu jalan PER KARTU (N+1),
+    // sekarang dihitung SEKALI di induk (AppAntreanLembur.muat()).
+    shiftInfo: { type: Object, default: () => ({ masuk: null, keluar: null }) }
   },
   emits: ['diproses'],
   setup(props, { emit }) {
@@ -77,22 +87,15 @@ const AntreanLemburCard = {
     }
 
     // Jam Shift asli orangnya (buat dibandingkan sama Jam Lembur yang
-    // diajukan) — lookup nama_shift->master_shift, POLA SAMA PERSIS
-    // dengan js/vue-antrean-absensi.js (muatJamShift), Lembur belum
-    // pernah punya info ini ditampilkan sebelumnya.
-    const jamShift = ref({ masuk: null, keluar: null });
-    async function muatJamShift() {
-      if (!props.data.nama_shift) return;
-      try {
-        const qShift = await getDocs(query(collection(db, "master_shift"), where("nama_shift", "==", props.data.nama_shift)));
-        if (!qShift.empty) {
-          const s = qShift.docs[0].data();
-          jamShift.value = { masuk: s.jam_masuk || null, keluar: s.jam_keluar || null };
-        }
-      } catch (e) {
-        console.error("Gagal muat jam shift Lembur:", e);
-      }
-    }
+    // diajukan) — lookup nama_shift->master_shift.
+    // DIROMBAK (29 Agt 2026, §44.18) — DULU tiap kartu query SENDIRI ke
+    // master_shift begitu di-mount (N+1, bug yang sama ditemukan &
+    // diperbaiki di vue-antrean-absensi.js — kartu dengan nama_shift SAMA
+    // query hal yang SAMA berkali-kali). SEKARANG jam shift buat SEMUA
+    // nama_shift yang kepakai dihitung SEKALI di induk (lihat
+    // muat()/petaShiftInfo di AppAntreanLembur di bawah), dikirim turun
+    // lewat prop shiftInfo — kartu tinggal baca, tidak query lagi.
+    const jamShift = computed(() => props.shiftInfo || { masuk: null, keluar: null });
 
     // Tanggal pengajuan singkat ("28 Agt") dari waktu_ts (Firestore
     // Timestamp, SUDAH ada di dataKirim vue-camera.js) — dulu dipakai
@@ -106,8 +109,6 @@ const AntreanLemburCard = {
     const menuAksiTerbuka = ref(false);
     function toggleMenuAksi() { menuAksiTerbuka.value = !menuAksiTerbuka.value; }
     function tutupMenuAksi() { menuAksiTerbuka.value = false; }
-
-    onMounted(() => { muatJamShift(); });
 
     return {
       memproses, proses, hapus, bolehEdit, bolehHapus, lihatFotoBesar,
@@ -169,6 +170,11 @@ const AppAntreanLembur = {
     const daftarPending = ref([]);
     const memuat = ref(true);
     const errorMuat = ref('');
+    // BARU (29 Agt 2026, §44.18) — hasil batch jam shift buat SEMUA kartu
+    // (dihitung sekali per muat(), lihat di bawah), dikirim turun ke tiap
+    // AntreanLemburCard lewat prop. Lihat catatan lengkap di komponen
+    // kartu (jamShift).
+    const petaShiftInfo = ref({});
 
     const cariNama = ref('');
     const isOwnerRole = computed(() => ['owner', 'superuser'].includes((window.currentUser.role || '').toLowerCase()));
@@ -223,6 +229,23 @@ const AppAntreanLembur = {
           if (!window.bolehLihatData(ambilJP(d), d.gudang)) return;
           list.push({ id: docSnap.id, data: d, jenisPekerjaan: ambilJP(d) });
         });
+        // BARU (29 Agt 2026, §44.18) — jam shift dihitung SEKALI di sini
+        // buat SELURUH daftar sekaligus (bukan per-kartu lagi, lihat
+        // catatan panjang di AntreanLemburCard). Chunked
+        // where(...,'in',...) pola sama seperti petaJenisPekerjaan di atas.
+        const UKURAN_POTONGAN_SHIFT = 30; // batas Firestore where(field,'in',[...])
+        const distinctShift = [...new Set(list.map(item => item.data.nama_shift).filter(Boolean))];
+        const petaShift = {};
+        for (let i = 0; i < distinctShift.length; i += UKURAN_POTONGAN_SHIFT) {
+          const potongan = distinctShift.slice(i, i + UKURAN_POTONGAN_SHIFT);
+          const snapShift = await getDocs(query(collection(db, "master_shift"), where("nama_shift", "in", potongan)));
+          snapShift.forEach(s => {
+            const sd = s.data();
+            petaShift[sd.nama_shift] = { masuk: sd.jam_masuk || null, keluar: sd.jam_keluar || null };
+          });
+        }
+        petaShiftInfo.value = petaShift;
+
         daftarPending.value = list;
 
         if (isOwnerRole.value) {
@@ -281,7 +304,7 @@ const AppAntreanLembur = {
       daftarPending, daftarPendingTersaring, memuat, errorMuat, muat,
       cariNama, isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner,
       menuTerbuka, toggleMenuTerbuka, adaFilterAktif,
-      memuatDataLama, infoDataLama, cekDataSangatLama
+      memuatDataLama, infoDataLama, cekDataSangatLama, petaShiftInfo
     };
   },
   // ==========================================================================
@@ -345,6 +368,7 @@ const AppAntreanLembur = {
       <antrean-lembur-card
         v-for="item in daftarPendingTersaring" :key="item.id"
         :doc-id="item.id" :data="item.data"
+        :shift-info="petaShiftInfo[item.data.nama_shift] || {masuk:null,keluar:null}"
         @diproses="muat"
       />
     </div>
