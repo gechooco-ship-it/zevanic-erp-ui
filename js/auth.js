@@ -811,8 +811,13 @@ window.aturTampilanBerdasarkanRole = function() {
   // Pembelian (sidebar bertingkat). Gerbang role SAMA (isAdminLevel()).
   const menuZevanicPersiapanBtn = document.getElementById('menu-zevanic-persiapan-btn');
   const menuZevanicStockBtn = document.getElementById('menu-zevanic-stock-btn');
+  // BARU (29 Agt 2026, koreksi arsitektur menu) — Persiapan Produksi, grup
+  // top-level baru sejajar Zevanic House. Gerbang role SAMA (isAdminLevel()
+  // — pic/admin/owner/superuser), domainnya masih persiapan produksi yang
+  // sebelumnya nested di Zevanic House.
+  const menuPersiapanProduksi = document.getElementById('menu-persiapan-produksi');
 
-  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuZevanicStockBtn].forEach(el => {
+  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuZevanicStockBtn, menuPersiapanProduksi].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -829,6 +834,7 @@ window.aturTampilanBerdasarkanRole = function() {
     if (menuZevanicHouseBtn) menuZevanicHouseBtn.classList.remove('hidden');
     if (menuZevanicPersiapanBtn) menuZevanicPersiapanBtn.classList.remove('hidden');
     if (menuZevanicStockBtn) menuZevanicStockBtn.classList.remove('hidden');
+    if (menuPersiapanProduksi) menuPersiapanProduksi.classList.remove('hidden');
     if (navMobileAdmin) {
       navMobileAdmin.classList.remove('hidden');
       navMobileAdmin.classList.add('flex');
@@ -930,6 +936,9 @@ window.terapkanUrutanMenuDesktop = async function() {
     'Master Keuangan': 'navgrp-keuangan',
     'Master Karyawan': 'navgrp-karyawan',
     'Zevanic House': 'navgrp-zevanic',
+    // BARU (29 Agt 2026, koreksi arsitektur menu) — 'Persiapan Produksi'
+    // grup top-level baru, lihat STATUS-PROYEK.md §44.13.
+    'Persiapan Produksi': 'navgrp-persiapanproduksi',
     'Master Integrasi': 'navgrp-integrasi'
   };
   if (urutanKategori && urutanKategori.length) {
@@ -953,6 +962,12 @@ window.terapkanUrutanMenuDesktop = async function() {
   // walau urutan grup masih default).
   _urutkanSiblingMenu(document.getElementById('navgrp-integrasi'), perKategori['Master Integrasi']);
   _urutkanSiblingMenu(document.getElementById('navgrp-zevanic'), perKategori['Zevanic House']);
+  // BARU (29 Agt 2026) — grup 'Persiapan Produksi' baru: 6 sub-menu
+  // sejajar (Perlu Disiapkan/Vendor/Bahan/Acc Sewing/Acc Webbing/Acc
+  // Finishing), semuanya langsung anak navgrp-persiapanproduksi (tidak
+  // ada tab-strip lebih dalam lagi seperti Zevanic House), jadi cukup 1
+  // baris ini saja.
+  _urutkanSiblingMenu(document.getElementById('navgrp-persiapanproduksi'), perKategori['Persiapan Produksi']);
   const stripParent = (kelas) => { const el = document.querySelector('.' + kelas); return el ? el.parentElement : null; };
   _urutkanSiblingMenu(stripParent('sub-absensi-btn'), perKategori['Master Absensi']);
   _urutkanSiblingMenu(stripParent('sub-keuangan-btn'), perKategori['Master Keuangan']);

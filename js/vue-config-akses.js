@@ -165,23 +165,40 @@ const DAFTAR_MENU = [
   // BARU (27 Agt 2026, §26.2) — Order SPK: lihat js/vue-order-spk.js.
   { id: 'order_spk', label: 'Order SPK', kategori: 'Zevanic House', icon: 'fa-clipboard-list',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-orderspk', null, {catatRiwayat:true}); } },
-  // BARU (28 Agt 2026) — Persiapan Produksi: 5 menu-id terpisah (BEDA dari
-  // pola 'master_produk_entry'/'master_produk_list' 1 grup, di sini tiap
-  // tab child punya izin sendiri-sendiri) karena aksesnya diharapkan beda
-  // per peran — mis. operator/admin lapangan cuma butuh akses tab 2-5
-  // (kartu checklist per komponen), sementara Approve antrean "Perlu
-  // Disiapkan" (tab 1) lebih wajar dibatasi PIC/Admin ke atas. Lihat
-  // js/vue-persiapan-produksi.js.
-  { id: 'persiapan_produksi_antrean', label: 'Persiapan Produksi - Perlu Disiapkan', kategori: 'Zevanic House', icon: 'fa-list-check',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapanproduksi', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-antrean', null, {catatRiwayat:true}); } },
-  { id: 'persiapan_produksi_bahan', label: 'Persiapan Produksi - Persiapan Bahan', kategori: 'Zevanic House', icon: 'fa-scroll',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapanproduksi', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-bahan', null, {catatRiwayat:true}); } },
-  { id: 'persiapan_produksi_sewing', label: 'Persiapan Produksi - Persiapan Acc Sewing', kategori: 'Zevanic House', icon: 'fa-scissors',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapanproduksi', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-sewing', null, {catatRiwayat:true}); } },
-  { id: 'persiapan_produksi_webbing', label: 'Persiapan Produksi - Persiapan Acc Webbing', kategori: 'Zevanic House', icon: 'fa-ribbon',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapanproduksi', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-webbing', null, {catatRiwayat:true}); } },
-  { id: 'persiapan_produksi_finishing', label: 'Persiapan Produksi - Persiapan Acc Finishing', kategori: 'Zevanic House', icon: 'fa-check-double',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapanproduksi', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-finishing', null, {catatRiwayat:true}); } },
+  // DIPENSIUNKAN (29 Agt 2026, koreksi arsitektur menu Persiapan Produksi
+  // — Guru: "ralat mending bikin group menu baru namanya Persiapan
+  // Produksi supaya tersusun rapih ... sejajar dengan zevanic house").
+  // `deprecated: true` (pola SAMA seperti 'master_suplayer'/
+  // 'stock_cetak_label' di atas) — id-id ini TETAP ADA di daftar (jangan
+  // sampai config akses lama yang sudah terlanjur mengatur izinnya error),
+  // tapi tombolnya sudah dicopot dari index.html jadi tidak lagi bisa
+  // diklik/dituju. GANTI TOTAL oleh 6 menu-id baru kategori "Persiapan
+  // Produksi" di bawah (lihat js/vue-persiapan-produksi-v2.js).
+  { id: 'persiapan_produksi_antrean', label: 'Persiapan Produksi - Perlu Disiapkan (LAMA, lihat kategori Persiapan Produksi)', kategori: 'Zevanic House', deprecated: true },
+  { id: 'persiapan_produksi_bahan', label: 'Persiapan Produksi - Persiapan Bahan (LAMA, lihat kategori Persiapan Produksi)', kategori: 'Zevanic House', deprecated: true },
+  { id: 'persiapan_produksi_sewing', label: 'Persiapan Produksi - Persiapan Acc Sewing (LAMA, lihat kategori Persiapan Produksi)', kategori: 'Zevanic House', deprecated: true },
+  { id: 'persiapan_produksi_webbing', label: 'Persiapan Produksi - Persiapan Acc Webbing (LAMA, lihat kategori Persiapan Produksi)', kategori: 'Zevanic House', deprecated: true },
+  { id: 'persiapan_produksi_finishing', label: 'Persiapan Produksi - Persiapan Acc Finishing (LAMA, lihat kategori Persiapan Produksi)', kategori: 'Zevanic House', deprecated: true },
+  // BARU (29 Agt 2026, koreksi arsitektur menu) — Persiapan Produksi V2:
+  // 6 menu-id, kategori SENDIRI "Persiapan Produksi" (BUKAN "Zevanic
+  // House" lagi — sekarang grup sidebar top-level sendiri, sejajar Zevanic
+  // House). Lihat js/vue-persiapan-produksi-v2.js & STATUS-PROYEK.md
+  // §44.13. Fase 1: cuma 'pp_disiapkan' yang fungsional; 5 sisanya
+  // (jalur) sudah bisa diberi izin dari sekarang walau isinya masih
+  // placeholder, supaya Config Akses tidak perlu disentuh lagi nanti pas
+  // Fase 2-5 mengisi logic-nya.
+  { id: 'pp_disiapkan', label: 'Persiapan Produksi - Perlu Disiapkan', kategori: 'Persiapan Produksi', icon: 'fa-list-check',
+    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-disiapkan', null, {catatRiwayat:true}); } },
+  { id: 'pp_vendor', label: 'Persiapan Produksi - Vendor', kategori: 'Persiapan Produksi', icon: 'fa-handshake',
+    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-vendor', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-vendor-tahap', 'sub-pp-vendor-perludiproses', null, {catatRiwayat:true}); } },
+  { id: 'pp_bahan', label: 'Persiapan Produksi - Bahan', kategori: 'Persiapan Produksi', icon: 'fa-scroll',
+    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-bahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-perludiproses', null, {catatRiwayat:true}); } },
+  { id: 'pp_sewing', label: 'Persiapan Produksi - Acc Sewing', kategori: 'Persiapan Produksi', icon: 'fa-scissors',
+    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-sewing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-perludiproses', null, {catatRiwayat:true}); } },
+  { id: 'pp_webbing', label: 'Persiapan Produksi - Acc Webbing', kategori: 'Persiapan Produksi', icon: 'fa-ribbon',
+    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-webbing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-perludiproses', null, {catatRiwayat:true}); } },
+  { id: 'pp_finishing', label: 'Persiapan Produksi - Acc Finishing', kategori: 'Persiapan Produksi', icon: 'fa-check-double',
+    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-finishing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludiproses', null, {catatRiwayat:true}); } },
   // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname: lihat js/vue-scan-
   // opname.js. Aksi catat penyesuaian dicek lewat kolom 'edit'. Gating
   // "mobile-only untuk non-Owner" TIDAK lewat kolom izin ini — itu
@@ -201,7 +218,11 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-scan', null); window.pindahSubTab('sub-zh-scan', 'sub-zh-scan-persiapan', null); } }
 ];
 
-export const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House'];
+// BARU (29 Agt 2026, koreksi arsitektur menu) — 'Persiapan Produksi'
+// kategori BARU, sejajar 'Zevanic House' (dulu sub-menu di dalamnya).
+// Posisi SENGAJA setelah Zevanic House (urutan sidebar desktop & mobile
+// pakai array ini juga, lihat js/vue-components.js daftarMenuGroups()).
+export const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House', 'Persiapan Produksi'];
 export { DAFTAR_MENU };
 const KOSONG_IZIN = () => ({ view: false, add: false, edit: false, delete: false, print: false });
 

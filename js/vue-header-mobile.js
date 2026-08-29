@@ -57,7 +57,12 @@ const LABEL_TAB = {
   // BARU (27 Agt 2026, §27) — sebelumnya HILANG dari sini (celah lama,
   // ketauan pas Home mobile jadi jalur utama ke Zevanic House). Efeknya:
   // header mobile nongol kosong pas buka menu Zevanic House manapun.
-  'tab-zevanic-house': 'Zevanic House'
+  'tab-zevanic-house': 'Zevanic House',
+  // BARU (29 Agt 2026, koreksi arsitektur menu) — grup top-level baru,
+  // lihat STATUS-PROYEK.md §44.13. Sama seperti tab-zevanic-house di
+  // atas, WAJIB didaftarkan di sini juga (celah yang sama) supaya header
+  // mobile tidak nongol kosong.
+  'tab-persiapan-produksi': 'Persiapan Produksi'
 };
 const LABEL_SUBTAB = {
   'sub-absensi-config': 'Config Absensi',
@@ -102,12 +107,42 @@ const LABEL_SUBTAB = {
   'sub-zh-stock-kartustok': 'Kartu Stok',
   'sub-zh-scan-opname': 'Scan Opname',
   'sub-zh-scan-persiapan': 'Scan Persiapan',
-  // BARU (28 Agt 2026) — Persiapan Produksi (5 tab child).
-  'sub-zh-persiapanproduksi-antrean': 'Perlu Disiapkan',
-  'sub-zh-persiapanproduksi-bahan': 'Persiapan Bahan',
-  'sub-zh-persiapanproduksi-sewing': 'Persiapan Acc Sewing',
-  'sub-zh-persiapanproduksi-webbing': 'Persiapan Acc Webbing',
-  'sub-zh-persiapanproduksi-finishing': 'Persiapan Acc Finishing'
+  // DIPENSIUNKAN (29 Agt 2026, koreksi arsitektur menu) — 5 entry lama
+  // 'sub-zh-persiapanproduksi-*' DIHAPUS, sub-tabnya sudah dicopot dari
+  // index.html. GANTI oleh grup top-level baru "Persiapan Produksi" di
+  // bawah (6 sub-menu + 25 child-tab 5 jalur x 5 tahap), lihat STATUS-
+  // PROYEK.md §44.13.
+  'sub-pp-disiapkan': 'Perlu Disiapkan',
+  'sub-pp-vendor': 'Vendor',
+  'sub-pp-bahan': 'Bahan',
+  'sub-pp-sewing': 'Acc Sewing',
+  'sub-pp-webbing': 'Acc Webbing',
+  'sub-pp-finishing': 'Acc Finishing',
+  'sub-pp-vendor-perludiproses': 'Vendor - Perlu Diproses',
+  'sub-pp-vendor-sedangdiproses': 'Vendor - Sedang Diproses',
+  'sub-pp-vendor-perludikirim': 'Vendor - Perlu Dikirim',
+  'sub-pp-vendor-sedangdikirim': 'Vendor - Sedang Dikirim',
+  'sub-pp-vendor-selesai': 'Vendor - Selesai',
+  'sub-pp-bahan-perludiproses': 'Bahan - Perlu Diproses',
+  'sub-pp-bahan-sedangdiproses': 'Bahan - Sedang Diproses',
+  'sub-pp-bahan-perludikirim': 'Bahan - Perlu Dikirim',
+  'sub-pp-bahan-sedangdikirim': 'Bahan - Sedang Dikirim',
+  'sub-pp-bahan-selesai': 'Bahan - Selesai',
+  'sub-pp-sewing-perludiproses': 'Acc Sewing - Perlu Diproses',
+  'sub-pp-sewing-sedangdiproses': 'Acc Sewing - Sedang Diproses',
+  'sub-pp-sewing-perludikirim': 'Acc Sewing - Perlu Dikirim',
+  'sub-pp-sewing-sedangdikirim': 'Acc Sewing - Sedang Dikirim',
+  'sub-pp-sewing-selesai': 'Acc Sewing - Selesai',
+  'sub-pp-webbing-perludiproses': 'Acc Webbing - Perlu Diproses',
+  'sub-pp-webbing-sedangdiproses': 'Acc Webbing - Sedang Diproses',
+  'sub-pp-webbing-perludikirim': 'Acc Webbing - Perlu Dikirim',
+  'sub-pp-webbing-sedangdikirim': 'Acc Webbing - Sedang Dikirim',
+  'sub-pp-webbing-selesai': 'Acc Webbing - Selesai',
+  'sub-pp-finishing-perludiproses': 'Acc Finishing - Perlu Diproses',
+  'sub-pp-finishing-sedangdiproses': 'Acc Finishing - Sedang Diproses',
+  'sub-pp-finishing-perludikirim': 'Acc Finishing - Perlu Dikirim',
+  'sub-pp-finishing-sedangdikirim': 'Acc Finishing - Sedang Dikirim',
+  'sub-pp-finishing-selesai': 'Acc Finishing - Selesai'
 };
 
 const AppHeaderMobile = {

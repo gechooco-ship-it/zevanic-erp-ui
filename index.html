@@ -217,24 +217,50 @@
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-orderspk', this, {catatRiwayat:true})" id="menu-zevanic-orderspk-btn" data-menu-id="order_spk" data-target="sub-zevanic-house-orderspk" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-clipboard-list" style="width:17px; text-align:center;"></i> Order SPK
           </button>
-          <!-- BARU (28 Agt 2026) — Persiapan Produksi: lihat js/vue-persiapan-
-               produksi.js. 5 tab child (Perlu Disiapkan, Persiapan Bahan,
-               Persiapan Acc Sewing/Webbing/Finishing) — posisi SENGAJA
-               setelah Order SPK, sebelum Scan (permintaan Guru: "dibawah
-               menu order spk tambahkan group menu baru > Persiapan
-               Produksi"). Antrean "Perlu Disiapkan" TERISI OTOMATIS begitu
-               1 SPK baru disimpan (lihat vue-order-spk.js, simpan()) —
-               setelah di-Approve, digenerate id turunan per komponen
-               (SPK-xxxx-BHN/-SEW/-WEB/-FIN) sesuai isi BOM produk yang
-               terhubung. -->
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-persiapanproduksi', this, {catatRiwayat:true}); pindahSubTab('sub-zh-persiapanproduksi','sub-zh-persiapanproduksi-antrean', null, {catatRiwayat:true})" id="menu-zevanic-persiapanproduksi-btn" data-menu-ids="persiapan_produksi_antrean,persiapan_produksi_bahan,persiapan_produksi_sewing,persiapan_produksi_webbing,persiapan_produksi_finishing" data-target="sub-zevanic-house-persiapanproduksi" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-dolly" style="width:17px; text-align:center;"></i> Persiapan Produksi
-          </button>
           <!-- BARU (27 Agt 2026, §26.4/§26.5) — Scan: 2 tab, Scan Opname
                (js/vue-scan-opname.js) + Scan Persiapan (js/vue-scan-
                persiapan.js, Tahap 5 — TAHAP TERAKHIR dari rencana §26). -->
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-scan', this); pindahSubTab('sub-zh-scan','sub-zh-scan-opname')" id="menu-zevanic-scan-btn" data-menu-ids="scan_opname,scan_persiapan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-qrcode" style="width:17px; text-align:center;"></i> Scan
+          </button>
+        </div>
+
+        <!-- BARU (29 Agt 2026, koreksi arsitektur menu — permintaan Guru:
+             "ralat mending bikin group menu baru namanya Persiapan Produksi
+             supaya tersusun rapih ... sejajar dengan zevanic house").
+             GRUP TOP-LEVEL BARU (sejajar Master Absensi/Keuangan/Karyawan/
+             Zevanic House/Integrasi) — GANTI TOTAL dari versi lama yang
+             nested di dalam Zevanic House (js/vue-persiapan-produksi.js,
+             DITINGGALKAN, lihat STATUS-PROYEK.md §44.13 & RENCANA-
+             PERSIAPAN-PRODUKSI-V2.md). 6 sub-menu sejajar (Perlu Disiapkan,
+             Vendor, Bahan, Acc Sewing, Acc Webbing, Acc Finishing) — 5
+             jalur terakhir MASING-MASING punya child-tab 5 tahap pipeline
+             (Perlu Diproses -> Sedang Diproses -> Perlu Dikirim -> Sedang
+             Dikirim -> Selesai), lihat js/vue-persiapan-produksi-v2.js.
+             Fase 1 (SEKARANG): cuma "Perlu Disiapkan" (generator SPK
+             Grouping) yang fungsional — 5 jalur BARU struktur navigasi,
+             isinya placeholder "segera hadir" sampai Fase 2-5. -->
+        <button onclick="toggleNavGroup('navgrp-persiapanproduksi')" id="menu-persiapan-produksi" data-group="navgrp-persiapanproduksi" class="hidden gc-nav-item" style="display:flex; align-items:center; font-weight:700;">
+          Persiapan Produksi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+        </button>
+        <div id="navgrp-persiapanproduksi" class="hidden" style="display:flex; flex-direction:column; gap:2px; padding-left:16px; margin:2px 0 4px;">
+          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-disiapkan', this, {catatRiwayat:true})" id="menu-pp-disiapkan-btn" data-menu-id="pp_disiapkan" data-target="sub-pp-disiapkan" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-list-check" style="width:17px; text-align:center;"></i> Perlu Disiapkan
+          </button>
+          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-vendor', this, {catatRiwayat:true}); pindahSubTab('sub-pp-vendor-tahap','sub-pp-vendor-perludiproses', null, {catatRiwayat:true})" id="menu-pp-vendor-btn" data-menu-id="pp_vendor" data-target="sub-pp-vendor" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-handshake" style="width:17px; text-align:center;"></i> Vendor
+          </button>
+          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-bahan', this, {catatRiwayat:true}); pindahSubTab('sub-pp-bahan-tahap','sub-pp-bahan-perludiproses', null, {catatRiwayat:true})" id="menu-pp-bahan-btn" data-menu-id="pp_bahan" data-target="sub-pp-bahan" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-scroll" style="width:17px; text-align:center;"></i> Bahan
+          </button>
+          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-sewing', this, {catatRiwayat:true}); pindahSubTab('sub-pp-sewing-tahap','sub-pp-sewing-perludiproses', null, {catatRiwayat:true})" id="menu-pp-sewing-btn" data-menu-id="pp_sewing" data-target="sub-pp-sewing" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-scissors" style="width:17px; text-align:center;"></i> Acc Sewing
+          </button>
+          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-webbing', this, {catatRiwayat:true}); pindahSubTab('sub-pp-webbing-tahap','sub-pp-webbing-perludiproses', null, {catatRiwayat:true})" id="menu-pp-webbing-btn" data-menu-id="pp_webbing" data-target="sub-pp-webbing" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-ribbon" style="width:17px; text-align:center;"></i> Acc Webbing
+          </button>
+          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-finishing', this, {catatRiwayat:true}); pindahSubTab('sub-pp-finishing-tahap','sub-pp-finishing-perludiproses', null, {catatRiwayat:true})" id="menu-pp-finishing-btn" data-menu-id="pp_finishing" data-target="sub-pp-finishing" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-check-double" style="width:17px; text-align:center;"></i> Acc Finishing
           </button>
         </div>
 
@@ -630,36 +656,6 @@
             <div id="vue-order-spk"></div>
           </div>
 
-          <!-- BARU (28 Agt 2026) — Persiapan Produksi: lihat js/vue-persiapan-
-               produksi.js. 5 tab child, format kartu (permintaan Guru: "buat
-               menu kartu yg menarik"), tab 2-5 pakai komponen reusable yang
-               sama (PersiapanKomponenListManager, prop `tipe`), cuma beda
-               filter data. -->
-          <div id="sub-zevanic-house-persiapanproduksi" class="sub-zevanic-house-content hidden fade-in space-y-4">
-            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-              <button onclick="pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-antrean', this, {catatRiwayat:true})" class="sub-zh-persiapanproduksi-btn gc-sub-tab-btn active" data-menu-id="persiapan_produksi_antrean" data-target="sub-zh-persiapanproduksi-antrean"><i class="fas fa-list-check" style="margin-right:6px;"></i> Perlu Disiapkan</button>
-              <button onclick="pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-bahan', this, {catatRiwayat:true})" class="sub-zh-persiapanproduksi-btn gc-sub-tab-btn" data-menu-id="persiapan_produksi_bahan" data-target="sub-zh-persiapanproduksi-bahan"><i class="fas fa-scroll" style="margin-right:6px;"></i> Persiapan Bahan</button>
-              <button onclick="pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-sewing', this, {catatRiwayat:true})" class="sub-zh-persiapanproduksi-btn gc-sub-tab-btn" data-menu-id="persiapan_produksi_sewing" data-target="sub-zh-persiapanproduksi-sewing"><i class="fas fa-scissors" style="margin-right:6px;"></i> Persiapan Acc Sewing</button>
-              <button onclick="pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-webbing', this, {catatRiwayat:true})" class="sub-zh-persiapanproduksi-btn gc-sub-tab-btn" data-menu-id="persiapan_produksi_webbing" data-target="sub-zh-persiapanproduksi-webbing"><i class="fas fa-ribbon" style="margin-right:6px;"></i> Persiapan Acc Webbing</button>
-              <button onclick="pindahSubTab('sub-zh-persiapanproduksi', 'sub-zh-persiapanproduksi-finishing', this, {catatRiwayat:true})" class="sub-zh-persiapanproduksi-btn gc-sub-tab-btn" data-menu-id="persiapan_produksi_finishing" data-target="sub-zh-persiapanproduksi-finishing"><i class="fas fa-check-double" style="margin-right:6px;"></i> Persiapan Acc Finishing</button>
-            </div>
-            <div id="sub-zh-persiapanproduksi-antrean" class="sub-zh-persiapanproduksi-content fade-in space-y-4">
-              <div id="vue-persiapan-produksi-antrean"></div>
-            </div>
-            <div id="sub-zh-persiapanproduksi-bahan" class="sub-zh-persiapanproduksi-content hidden fade-in space-y-4">
-              <div id="vue-persiapan-produksi-bahan"></div>
-            </div>
-            <div id="sub-zh-persiapanproduksi-sewing" class="sub-zh-persiapanproduksi-content hidden fade-in space-y-4">
-              <div id="vue-persiapan-produksi-sewing"></div>
-            </div>
-            <div id="sub-zh-persiapanproduksi-webbing" class="sub-zh-persiapanproduksi-content hidden fade-in space-y-4">
-              <div id="vue-persiapan-produksi-webbing"></div>
-            </div>
-            <div id="sub-zh-persiapanproduksi-finishing" class="sub-zh-persiapanproduksi-content hidden fade-in space-y-4">
-              <div id="vue-persiapan-produksi-finishing"></div>
-            </div>
-          </div>
-
           <!-- BARU (27 Agt 2026, §26.4/§26.5) — Scan: 2 tab, Scan Opname
                (js/vue-scan-opname.js) + Scan Persiapan (js/vue-scan-
                persiapan.js, Tahap 5 — TAHAP TERAKHIR dari rencana §26). -->
@@ -676,6 +672,242 @@
             </div>
           </div>
       </div>
+
+        <div id="tab-persiapan-produksi" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
+          <!-- BARU (29 Agt 2026, koreksi arsitektur menu) — layar top-level
+               BARU, GANTI TOTAL versi lama (dulu nested di tab-zevanic-house,
+               lihat js/vue-persiapan-produksi.js, DITINGGALKAN). Lihat
+               STATUS-PROYEK.md §44.13 & RENCANA-PERSIAPAN-PRODUKSI-V2.md. -->
+          <div id="sub-pp-disiapkan" class="sub-persiapan-produksi-content fade-in space-y-4">
+            <div id="vue-pp-disiapkan"></div>
+          </div>
+
+          <div id="sub-pp-vendor" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
+            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+              <button onclick="pindahSubTab('sub-pp-vendor-tahap', 'sub-pp-vendor-perludiproses', this, {catatRiwayat:true})" class="sub-pp-vendor-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-vendor-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Diproses</button>
+              <button onclick="pindahSubTab('sub-pp-vendor-tahap', 'sub-pp-vendor-sedangdiproses', this, {catatRiwayat:true})" class="sub-pp-vendor-tahap-btn gc-sub-tab-btn" data-target="sub-pp-vendor-sedangdiproses"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Diproses</button>
+              <button onclick="pindahSubTab('sub-pp-vendor-tahap', 'sub-pp-vendor-perludikirim', this, {catatRiwayat:true})" class="sub-pp-vendor-tahap-btn gc-sub-tab-btn" data-target="sub-pp-vendor-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-vendor-tahap', 'sub-pp-vendor-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-vendor-tahap-btn gc-sub-tab-btn" data-target="sub-pp-vendor-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-vendor-tahap', 'sub-pp-vendor-selesai', this, {catatRiwayat:true})" class="sub-pp-vendor-tahap-btn gc-sub-tab-btn" data-target="sub-pp-vendor-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
+            </div>
+            <div id="sub-pp-vendor-perludiproses" class="sub-pp-vendor-tahap-content fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-inbox"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Vendor &middot; Perlu Diproses</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-vendor-sedangdiproses" class="sub-pp-vendor-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-gears"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Vendor &middot; Sedang Diproses</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-vendor-perludikirim" class="sub-pp-vendor-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-box-open"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Vendor &middot; Perlu Dikirim</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-vendor-sedangdikirim" class="sub-pp-vendor-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-truck-fast"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Vendor &middot; Sedang Dikirim</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-vendor-selesai" class="sub-pp-vendor-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-circle-check"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Vendor &middot; Selesai</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="sub-pp-bahan" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
+            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+              <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-perludiproses', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-bahan-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Diproses</button>
+              <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-sedangdiproses', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn" data-target="sub-pp-bahan-sedangdiproses"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Diproses</button>
+              <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-perludikirim', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn" data-target="sub-pp-bahan-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn" data-target="sub-pp-bahan-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-selesai', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn" data-target="sub-pp-bahan-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
+            </div>
+            <div id="sub-pp-bahan-perludiproses" class="sub-pp-bahan-tahap-content fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-inbox"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Bahan &middot; Perlu Diproses</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-bahan-sedangdiproses" class="sub-pp-bahan-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-gears"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Bahan &middot; Sedang Diproses</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-bahan-perludikirim" class="sub-pp-bahan-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-box-open"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Bahan &middot; Perlu Dikirim</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-bahan-sedangdikirim" class="sub-pp-bahan-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-truck-fast"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Bahan &middot; Sedang Dikirim</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-bahan-selesai" class="sub-pp-bahan-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-circle-check"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Bahan &middot; Selesai</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="sub-pp-sewing" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
+            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+              <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-perludiproses', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-sewing-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Diproses</button>
+              <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-sedangdiproses', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-sewing-sedangdiproses"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Diproses</button>
+              <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-perludikirim', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-sewing-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-sewing-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-selesai', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-sewing-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
+            </div>
+            <div id="sub-pp-sewing-perludiproses" class="sub-pp-sewing-tahap-content fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-inbox"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Sewing &middot; Perlu Diproses</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-sewing-sedangdiproses" class="sub-pp-sewing-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-gears"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Sewing &middot; Sedang Diproses</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-sewing-perludikirim" class="sub-pp-sewing-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-box-open"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Sewing &middot; Perlu Dikirim</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-sewing-sedangdikirim" class="sub-pp-sewing-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-truck-fast"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Sewing &middot; Sedang Dikirim</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-sewing-selesai" class="sub-pp-sewing-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-circle-check"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Sewing &middot; Selesai</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="sub-pp-webbing" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
+            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+              <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-perludiproses', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-webbing-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Diproses</button>
+              <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-sedangdiproses', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-webbing-sedangdiproses"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Diproses</button>
+              <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-perludikirim', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-webbing-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-webbing-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-selesai', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-webbing-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
+            </div>
+            <div id="sub-pp-webbing-perludiproses" class="sub-pp-webbing-tahap-content fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-inbox"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Webbing &middot; Perlu Diproses</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-webbing-sedangdiproses" class="sub-pp-webbing-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-gears"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Webbing &middot; Sedang Diproses</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-webbing-perludikirim" class="sub-pp-webbing-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-box-open"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Webbing &middot; Perlu Dikirim</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-webbing-sedangdikirim" class="sub-pp-webbing-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-truck-fast"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Webbing &middot; Sedang Dikirim</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-webbing-selesai" class="sub-pp-webbing-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-circle-check"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Webbing &middot; Selesai</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="sub-pp-finishing" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
+            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+              <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludiproses', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-finishing-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Diproses</button>
+              <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-sedangdiproses', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-finishing-sedangdiproses"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Diproses</button>
+              <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludikirim', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-finishing-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-finishing-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-selesai', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-finishing-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
+            </div>
+            <div id="sub-pp-finishing-perludiproses" class="sub-pp-finishing-tahap-content fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-inbox"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Finishing &middot; Perlu Diproses</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-finishing-sedangdiproses" class="sub-pp-finishing-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-gears"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Finishing &middot; Sedang Diproses</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-finishing-perludikirim" class="sub-pp-finishing-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-box-open"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Finishing &middot; Perlu Dikirim</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-finishing-sedangdikirim" class="sub-pp-finishing-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-truck-fast"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Finishing &middot; Sedang Dikirim</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+            <div id="sub-pp-finishing-selesai" class="sub-pp-finishing-tahap-content hidden fade-in space-y-4">
+              <div class="gc-kosong gc-card">
+                <div class="lingkaran"><i class="fas fa-circle-check"></i></div>
+                <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Acc Finishing &middot; Selesai</h3>
+                <p style="font-size:11px; color:var(--text-faint); margin:0;">Logic tahap ini belum dibangun (Fase 2&ndash;5, lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md). Navigasi &amp; riwayat browser sudah aktif dari sekarang.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
 
         <div id="tab-whatsapp" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
           <!-- MIGRASI VUE: lihat js/vue-whatsapp-gateway.js -->
@@ -766,19 +998,35 @@
        & petaTabIndukPerGrup tambah 'sub-zh-persiapanproduksi'.
        v=18 (28 Agt 2026, redesain "Gechoo Mobile Organic"): array `tabs` di
        window.pindahTab tambah 'tab-menu-lengkap' & 'tab-atur-favorit'
-       (layar baru). -->
-  <script type="module" src="js/dashboard.js?v=18"></script>
+       (layar baru).
+       v=19 (29 Agt 2026, koreksi arsitektur menu Persiapan Produksi) — tab
+       'tab-persiapan-produksi' BARU (grup top-level, GANTI TOTAL versi
+       lama nested di Zevanic House): tambah ke array `tabs`,
+       petaGrupSidebarPerTab -> navgrp-persiapanproduksi, petaTabIndukPerGrup
+       tambah sub-persiapan-produksi + 5 sub-jalur (vendor/bahan/sewing/
+       webbing/finishing), petaMount tambah pastikanMountPpDisiapkan (5
+       jalur BARU cuma placeholder statis, TIDAK butuh entry petaMount).
+       5 entry petaMount LAMA (persiapan_produksi_antrean/bahan/sewing/
+       webbing/finishing) DIHAPUS. Lihat STATUS-PROYEK.md §44.13. -->
+  <script type="module" src="js/dashboard.js?v=19"></script>
   <!-- v=8 (28 Agt 2026, redesain "Gechoo Mobile Organic"): restyle visual
        saja (kolom cari jadi pil, kartu daftar jadi border-radius:20px,
        ikon header jadi var(--aksen-ink), empty state jadi pola .gc-kosong)
        — modul contoh #2 (pasangan Persiapan Produksi), logic/field TIDAK
        berubah. -->
   <script type="module" src="js/vue-order-spk.js?v=8"></script>
-  <!-- v=2 (28 Agt 2026, redesain "Gechoo Mobile Organic"): restyle visual
-       saja (kolom cari jadi pil, empty state jadi pola .gc-kosong, kartu
-       antrean pola meta-row+border-top divider) — modul contoh #1, logic
-       BOM-explosion/Approve TIDAK berubah. -->
-  <script type="module" src="js/vue-persiapan-produksi.js?v=2"></script>
+  <!-- js/vue-persiapan-produksi.js — DITINGGALKAN (29 Agt 2026, koreksi
+       arsitektur menu, keputusan Guru "ditulis ulang bersih dari nol").
+       File TIDAK dihapus dari disk (jaga-jaga referensi), tapi SENGAJA
+       tidak lagi dimuat di sini — UI-nya (5 tab nested lama) sudah dicopot
+       dari index.html, GANTI TOTAL oleh grup top-level "Persiapan Produksi"
+       baru (js/vue-persiapan-produksi-v2.js) di bawah. -->
+  <!-- BARU (29 Agt 2026) — Persiapan Produksi V2: grup top-level baru,
+       Fase 1 (Perlu Disiapkan / generator SPK Grouping) fungsional penuh,
+       5 jalur (Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing) BARU
+       struktur navigasi 5-tahap, isinya placeholder sampai Fase 2-5. Lihat
+       STATUS-PROYEK.md §44.13 & RENCANA-PERSIAPAN-PRODUKSI-V2.md. -->
+  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=1"></script>
   <script type="module" src="js/vue-scan-opname.js?v=1"></script>
   <script type="module" src="js/vue-scan-persiapan.js?v=3"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>
