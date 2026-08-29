@@ -1092,16 +1092,83 @@ const RiwayatReimburseTable = {
       if (url && window.bukaPreviewFoto) window.bukaPreviewFoto(url);
     }
 
+    // BARU (29 Agt 2026, permintaan Guru) — Download CSV, pola SAMA PERSIS
+    // dengan exportCSV() di js/vue-riwayat-absensi.js (data URI + <a
+    // download>, tanpa library) — export daftarTersaring (hasil pencarian
+    // AKTIF, bukan cuma 1 halaman paginasi yang tampil), kolom menyesuaikan
+    // mode (semua/bensin/servis) SAMA PERSIS kolom yang ditampilkan di
+    // kartu (lihat v-if="mode === ..." di template kartu). Jumlah diekspor
+    // sebagai ANGKA MENTAH (bukan string "Rp100.000") supaya bisa
+    // dijumlah langsung di Excel — ini buat Master Keuangan.
+    function csvEsc(v) {
+      return '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
+    }
+    // Rumus SAMA PERSIS dengan efisiensiBBM di ReimburseCard (lihat
+    // catatan sumber Auto2000 di sana) — diduplikasi kecil di sini karena
+    // beda komponen, bukan tebakan baru.
+    function hitungEfisiensiCSV(r) {
+      if (r.jenis_entry_kendaraan !== 'bensin' || !r.odo_sebelum || !r.odo_sesudah || !r.liter_bensin) return '';
+      const jarak = r.odo_sesudah - r.odo_sebelum;
+      if (jarak <= 0 || r.liter_bensin <= 0) return '';
+      return Math.round((jarak / r.liter_bensin) * 10) / 10;
+    }
+    function exportCSV() {
+      if (daftarTersaring.value.length === 0) return alert("Tidak ada data untuk di-export sesuai pencarian yang aktif.");
+
+      let header;
+      if (props.mode === 'bensin') {
+        header = ['Nama Pegawai', 'Email', 'Gudang', 'Tanggal Diajukan', 'Kendaraan', 'Odometer Sebelum (km)', 'Odometer Sesudah (km)', 'Liter Dibeli', 'Efisiensi (km/L)', 'Jumlah (Rp)', 'Status', 'Keterangan'];
+      } else if (props.mode === 'servis') {
+        header = ['Nama Pegawai', 'Email', 'Gudang', 'Tanggal Diajukan', 'Kendaraan', 'Rincian Servis', 'Jumlah (Rp)', 'Status', 'Keterangan'];
+      } else {
+        header = ['Nama Pegawai', 'Email', 'Gudang', 'Tanggal Diajukan', 'Kategori', 'Jumlah (Rp)', 'Status', 'Keterangan'];
+      }
+
+      let csvContent = "data:text/csv;charset=utf-8,";
+      csvContent += csvEsc(LABEL_MODE[props.mode].judul + (cariKata.value.trim() ? ' | Cari: ' + cariKata.value.trim() : '')) + "\n\n";
+      csvContent += header.join(',') + "\n";
+
+      daftarTersaring.value.forEach(r => {
+        const tgl = formatTgl(r.diajukan_pada);
+        const status = LABEL_TAHAP[r.tahap] || r.tahap || '-';
+        let baris;
+        if (props.mode === 'bensin') {
+          baris = [
+            r.nama_pegawai || '-', r.email || '-', r.gudang || '-', tgl, r.kendaraan_plat || '-',
+            r.odo_sebelum || '', r.odo_sesudah || '', r.liter_bensin || '', hitungEfisiensiCSV(r),
+            r.jumlah || 0, status, r.keterangan || ''
+          ];
+        } else if (props.mode === 'servis') {
+          const rincian = (r.item_servis && r.item_servis.length > 0) ? r.item_servis.map(i => i.nama_barang + ' x' + i.qty).join('; ') : '-';
+          baris = [r.nama_pegawai || '-', r.email || '-', r.gudang || '-', tgl, r.kendaraan_plat || '-', rincian, r.jumlah || 0, status, r.keterangan || ''];
+        } else {
+          baris = [r.nama_pegawai || '-', r.email || '-', r.gudang || '-', tgl, r.kategori || '-', r.jumlah || 0, status, r.keterangan || ''];
+        }
+        csvContent += baris.map(csvEsc).join(',') + "\n";
+      });
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `${LABEL_MODE[props.mode].judul.replace(/\s+/g, '_')}_Zevanic_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
     onMounted(async () => { await window.authReady; muat(); });
     return {
       daftarSemua, daftarTersaring, daftarTerpaginasi, memuat, errorMuat, muat, cariKata, formatTgl, lihatFotoBesar,
-      LABEL_TAHAP, warnaTahap, formatRupiah, LABEL_MODE, halamanSaatIni, totalHalaman, gantiHalaman
+      LABEL_TAHAP, warnaTahap, formatRupiah, LABEL_MODE, halamanSaatIni, totalHalaman, gantiHalaman, exportCSV
     };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
       <h3 class="gc-heading" style="font-weight:700; font-size:13.5px;"><i class="fas" :class="LABEL_MODE[mode].ikon" style="color:var(--burgundy); margin-right:8px;"></i> {{ LABEL_MODE[mode].judul }}</h3>
-      <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
+      <div style="display:flex; gap:8px;">
+        <button @click="exportCSV" class="btn-outline" title="Unduh riwayat yang sedang tampil (ikut pencarian aktif) sebagai CSV"><i class="fas fa-file-excel" style="margin-right:6px;"></i> Unduh CSV</button>
+        <button @click="muat" class="btn-outline filled"><i class="fas fa-sync-alt" style="margin-right:6px;"></i> Refresh</button>
+      </div>
     </div>
 
     <div v-if="!memuat && daftarSemua.length > 0" style="position:relative; margin-bottom:14px; max-width:320px;">
