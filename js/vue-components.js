@@ -1110,11 +1110,25 @@ export const QuoteCard = {
     async function muat() {
       memuat.value = true;
       try {
-        // Tanggal LOKAL device (BUKAN toISOString() yang UTC — lihat
-        // komentar bug-fix di atas), format tetap YYYY-MM-DD sama dengan
-        // <input type="date">.
-        const skrg = new Date();
-        const hariIni = `${skrg.getFullYear()}-${String(skrg.getMonth() + 1).padStart(2, '0')}-${String(skrg.getDate()).padStart(2, '0')}`;
+        // REVISI (30 Agt 2026, sesi lanjutan lagi) — Guru tanya "kalau
+        // pakai tgl internet Jakarta WIB gimana?": fix sebelumnya (tanggal
+        // LOKAL device via getFullYear/getMonth/getDate) sudah benar
+        // secara KALENDER (bukan lagi UTC), tapi masih ikut TIMEZONE apa
+        // pun yang di-set di device — kalau timezone device salah-setting
+        // (jarang, tapi bisa), tanggalnya bisa ikut salah juga. Sekarang
+        // dipertegas: paksa hitung tanggal di zona Asia/Jakarta (WIB)
+        // EKSPLISIT via Intl (`toLocaleDateString` dengan `timeZone`),
+        // bukan ngikut timezone device apa adanya. Locale 'en-CA' dipilih
+        // karena formatnya persis YYYY-MM-DD (sama dengan <input
+        // type="date">), bukan format Indonesia DD/MM/YYYY.
+        // CATATAN: ini masih baca JAM ASLI device (Date.now()), cuma
+        // timezone-nya yang dipaksa Jakarta — TIDAK melindungi dari jam
+        // device yang sengaja dimundurkan/dimajukan (itu beda masalah,
+        // relevan untuk Absensi/Clock In, BUKAN kartu Quote yang cuma
+        // tampilan — lihat STATUS-PROYEK.md §5.9e soal ini, sudah dicek
+        // Absensi/Clock In AMAN karena pakai serverTimestamp() Firestore,
+        // bukan jam device).
+        const hariIni = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
         const q = query(collection(db, "quotes"), where("tanggalTampil", "==", hariIni), limit(1));
         const snap = await getDocs(q);
         quote.value = snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };

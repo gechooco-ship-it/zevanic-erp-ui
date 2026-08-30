@@ -241,8 +241,10 @@ const BerandaDesktop = {
     async function muatQuote() {
       memuatQuote.value = true;
       try {
-        const skrg = new Date();
-        const hariIni = `${skrg.getFullYear()}-${String(skrg.getMonth() + 1).padStart(2, '0')}-${String(skrg.getDate()).padStart(2, '0')}`;
+        // REVISI (30 Agt 2026, sesi lanjutan lagi) — dipertegas pakai
+        // timezone Asia/Jakarta EKSPLISIT (bukan ngikut timezone device
+        // apa adanya), lihat komentar lengkap di vue-components.js.
+        const hariIni = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
         const snap = await getDocs(query(collection(db, 'quotes'), where('tanggalTampil', '==', hariIni), limit(1)));
         quote.value = snap.empty ? null : snap.docs[0].data();
       } catch (e) { quote.value = null; }

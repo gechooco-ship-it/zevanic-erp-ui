@@ -176,8 +176,10 @@ const AppHeaderMobile = {
     const quoteHariIni = ref('');
     async function muatQuote() {
       try {
-        const skrg = new Date();
-        const hariIni = `${skrg.getFullYear()}-${String(skrg.getMonth() + 1).padStart(2, '0')}-${String(skrg.getDate()).padStart(2, '0')}`;
+        // REVISI (30 Agt 2026, sesi lanjutan lagi) — dipertegas pakai
+        // timezone Asia/Jakarta EKSPLISIT, lihat komentar lengkap di
+        // vue-components.js.
+        const hariIni = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
         const q = query(collection(db, "quotes"), where("tanggalTampil", "==", hariIni), limit(1));
         const snap = await getDocs(q);
         quoteHariIni.value = snap.empty ? '' : (snap.docs[0].data().isi || '');
