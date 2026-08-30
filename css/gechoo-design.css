@@ -189,15 +189,80 @@ input, select, textarea{font:inherit; color:inherit;}
 .kpi .delta.up{color:var(--ok);} .kpi .delta.down{color:var(--danger);}
 
 /* ---- Sidebar desktop ---- */
-.gc-sidebar{background:var(--pink); padding:22px 14px; display:flex; flex-direction:column; gap:3px; border-right:1px solid var(--pink-deep);}
-.gc-side-brand{padding:4px 10px 20px; border-bottom:1px solid var(--pink-deep); margin-bottom:14px;}
+/* REDESAIN (30 Agt 2026) — dari latar --pink jadi --surface (putih) +
+   header logo --ivory, mengikuti arahan "redesain tampilan DESKTOP saja"
+   (Guru, sesi mockup artefak "Zevanic Desktop Adaptasi"). Tampilan mobile
+   (.gc-mobile-nav dkk) SENGAJA TIDAK disentuh sama sekali. Struktur HTML
+   (.gc-nav-item/onclick/data-menu-id) TIDAK berubah, cuma warnanya. */
+.gc-sidebar{background:var(--surface); padding:0 14px 22px; display:flex; flex-direction:column; gap:3px; border-right:1px solid var(--line);}
+.gc-side-brand{height:80px; box-sizing:border-box; padding:0 10px; margin:0 -14px 14px; background:var(--ivory);
+  border-bottom:1px solid var(--line); display:flex; flex-direction:column; justify-content:center;}
 .gc-side-brand b{color:var(--mahogany); font-size:15px; font-weight:700; font-family:'Poppins',sans-serif;}
 .gc-side-brand span{display:block; color:var(--burgundy); font-size:9.5px; letter-spacing:.08em; margin-top:1px;}
-.gc-nav-item{display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:12px; color:var(--mahogany-soft); font-size:13px; font-weight:600; cursor:pointer; width:100%; border:none; background:none;}
-.gc-nav-item.active{background:var(--surface); color:var(--burgundy); box-shadow:0 2px 6px rgba(91,56,38,.08);}
-.gc-nav-item:not(.active):hover{background:rgba(255,255,255,.4); color:var(--mahogany);}
+.gc-nav-item{display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:12px; color:var(--text-muted); font-size:13px; font-weight:600; cursor:pointer; width:100%; border:none; background:none;}
+.gc-nav-item.active{background:var(--aksen-lembut); color:var(--aksen-ink); box-shadow:0 2px 6px rgba(91,56,38,.08);}
+.gc-nav-item:not(.active):hover{background:var(--ivory-dim); color:var(--text);}
 .gc-nav-ico{width:17px; height:17px; flex-shrink:0;}
-.gc-nav-section{font-size:10px; letter-spacing:.08em; color:var(--mahogany-soft); opacity:.7; text-transform:uppercase; margin:14px 10px 6px; font-family:'Poppins',sans-serif;}
+.gc-nav-section{font-size:10px; letter-spacing:.08em; color:var(--text-faint); opacity:.9; text-transform:uppercase; margin:14px 10px 6px; font-family:'Poppins',sans-serif;}
+
+/* ---- Topbar desktop (GANTI header 80px lama "ERP Portal" statis) ---- */
+.gc-topbar-desktop{height:80px; box-sizing:border-box; background:var(--ivory); border-bottom:1px solid var(--line);
+  padding:0 24px; display:flex; align-items:center; gap:14px;}
+.gc-notif-wrap{position:relative; margin-left:auto;}
+.gc-notif-btn{position:relative; width:36px; height:36px; border-radius:10px; border:1px solid var(--line);
+  background:var(--surface); color:var(--text-muted); display:flex; align-items:center; justify-content:center; font-size:14px;}
+.gc-notif-btn .dot{position:absolute; top:-3px; right:-3px; background:var(--danger); color:#fff; font-size:8px; font-weight:700;
+  border-radius:999px; min-width:15px; height:15px; display:flex; align-items:center; justify-content:center; padding:0 2px;}
+.gc-notif-backdrop{position:fixed; inset:0; z-index:60; background:transparent;}
+.gc-notif-panel{position:absolute; top:44px; right:0; width:310px; max-height:380px; overflow-y:auto;
+  background:var(--ivory); border:1px solid var(--line); border-radius:14px;
+  box-shadow:0 16px 36px -12px rgba(59,42,31,.28); z-index:61; padding:6px;}
+.gc-notif-panel-head{padding:9px 10px 7px; font-size:11.5px; font-weight:700; color:var(--text);
+  border-bottom:1px solid var(--line); margin-bottom:4px;}
+.gc-notif-item{padding:9px 10px; border-radius:10px;}
+.gc-notif-item:hover{background:var(--ivory-dim);}
+.gc-notif-item b{font-size:11.5px; color:var(--text); display:block;}
+.gc-notif-item p{font-size:10.5px; color:var(--text-muted); margin:2px 0 0; line-height:1.4;}
+.gc-notif-empty{padding:22px 16px; text-align:center; font-size:11px; color:var(--text-faint);}
+.gc-notif-empty i{display:block; font-size:18px; margin-bottom:6px;}
+
+/* ---- Dashboard Beranda desktop (BARU 30 Agt 2026) ----
+   Warna kartu KPI & Quote SENGAJA pakai .gc-kartu-gradien (maroon, SAMA
+   seperti kartu shift mobile) — PENGECUALIAN dari aturan porsi warna
+   "--burgundy dijaga ketat 5%" di bagian Palet warna atas, KHUSUS layar
+   Beranda desktop (permintaan eksplisit Guru, 30 Agt 2026). Kartu-kartu
+   modul LAIN (bukan Beranda) TETAP ikuti aturan porsi warna asli, jangan
+   dianggap preseden buat treatment ini di layar lain. */
+.gc-dash-grid{display:grid; grid-template-columns:1fr 320px; gap:20px; align-items:start;}
+.gc-kpi-row{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px;}
+.gc-kpi-card{border-radius:14px; padding:14px;}
+.gc-kpi-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+.gc-kpi-ico{width:28px; height:28px; border-radius:9px; background:rgba(255,255,255,.15); color:var(--tinta-gradien);
+  display:flex; align-items:center; justify-content:center; font-size:13px;}
+.gc-kpi-chip{font-size:9.5px; font-weight:700; border-radius:999px; padding:3px 8px; background:rgba(255,255,255,.15); color:var(--tinta-gradien);}
+.gc-kpi-val{font-family:'Poppins',sans-serif; font-weight:700; font-size:23px;}
+.gc-kpi-label{font-size:10.5px; opacity:.8; margin-top:2px;}
+.gc-quote-desktop{border-radius:var(--radius); padding:16px; margin-bottom:16px;}
+.gc-quote-desktop h4{font-family:'Poppins',sans-serif; font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px; margin:0;}
+.gc-quote-desktop p{font-size:12px; opacity:.85; margin:6px 0 0; line-height:1.5;}
+.gc-pipeline-card{background:var(--ivory); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:16px;}
+.gc-pipeline-head{display:flex; align-items:center; gap:8px; margin-bottom:2px;}
+.gc-pipeline-head b{font-size:13px; font-weight:700; color:var(--text); flex:1;}
+.gc-pipeline-tot{background:var(--ivory-dim); color:var(--text-muted); font-size:9.5px; font-weight:700; border-radius:999px; padding:3px 9px;}
+.gc-pipeline-desc{font-size:10.5px; color:var(--text-faint); margin:2px 0 12px;}
+.gc-pipeline-steps{display:grid; gap:9px;}
+.gc-pipeline-step{text-align:center;}
+.gc-pipeline-bar{height:3px; border-radius:3px; margin-bottom:8px;}
+.gc-pipeline-n{font-family:'Poppins',sans-serif; font-weight:700; font-size:18px; color:var(--text);}
+.gc-pipeline-lbl{font-size:9.5px; color:var(--text-muted); margin-top:2px;}
+.gc-pipeline-segera{font-size:10px; color:var(--text-faint); font-style:italic;}
+.gc-tindak-row{display:flex; align-items:center; gap:11px; padding:9px 11px; border-radius:10px; background:var(--ivory-dim); margin-bottom:6px;}
+.gc-tindak-ico{width:26px; height:26px; border-radius:8px; background:var(--ivory); border:1px solid var(--line); color:var(--aksen-ink);
+  display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0;}
+.gc-tindak-txt{flex:1; min-width:0;}
+.gc-tindak-txt b{font-size:11.5px; display:block;}
+.gc-tindak-txt span{font-size:10px; color:var(--text-faint);}
+.gc-tindak-chip{background:var(--aksen-ink); color:var(--ivory); font-size:8.5px; font-weight:700; border-radius:999px; padding:2px 8px; margin-right:4px;}
 
 /* ---- Tabel — dengan dukungan kolom freeze (perbaikan bug scroll) ---- */
 .gc-table-scroll{overflow-x:auto; border-radius:var(--radius); position:relative;}
