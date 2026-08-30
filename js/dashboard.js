@@ -202,6 +202,9 @@ const petaGrupSidebarPerTab = {
   'tab-keuangan': 'navgrp-keuangan',
   'tab-superuser': 'navgrp-karyawan',
   'tab-zevanic-house': 'navgrp-zevanic',
+  // BARU (30 Agt 2026, fitur "Pesanan") — 'tab-pesanan' grup top-level
+  // BARU (sejajar Zevanic House/Persiapan Produksi), lihat js/vue-pesanan.js.
+  'tab-pesanan': 'navgrp-pesanan',
   // BARU (29 Agt 2026, koreksi arsitektur menu) — 'tab-persiapan-produksi'
   // grup top-level BARU (sejajar Zevanic House), lihat STATUS-PROYEK.md
   // §44.13.
@@ -220,8 +223,9 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
   // js/vue-atur-favorit.js, dibuka dari js/vue-home.js) didaftarkan di sini
   // supaya ikut disembunyikan/ditampilkan seperti tab lain.
   // BARU (29 Agt 2026) — 'tab-persiapan-produksi' (grup top-level baru,
-  // lihat STATUS-PROYEK.md §44.13).
-  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-zevanic-house', 'tab-persiapan-produksi', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress', 'tab-menu-lengkap', 'tab-atur-favorit'];
+  // lihat STATUS-PROYEK.md §44.13). BARU (30 Agt 2026) — 'tab-pesanan'
+  // (grup top-level baru, lihat js/vue-pesanan.js).
+  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-zevanic-house', 'tab-pesanan', 'tab-persiapan-produksi', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress', 'tab-menu-lengkap', 'tab-atur-favorit'];
   const tabSebelumnya = tabs.find(t => {
     const el = document.getElementById(t);
     return el && !el.classList.contains('hidden');
@@ -297,6 +301,14 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
         window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-disiapkan', document.querySelectorAll('.sub-persiapan-produksi-btn')[0]);
       }
   }
+  // BARU (30 Agt 2026) — landing default 'tab-pesanan' (grup top-level
+  // baru): "Penjualan Kasir" (layar aksi utama sehari-hari, pola sama
+  // seperti tab-zevanic-house/tab-persiapan-produksi di atas).
+  if (tabId === 'tab-pesanan') {
+      if (window.pindahSubTab) {
+        window.pindahSubTab('sub-pesanan', 'sub-pesanan-kasir', document.querySelectorAll('.sub-pesanan-btn')[0]);
+      }
+  }
   if (tabId === 'tab-whatsapp') {
       if (window.pastikanMountWhatsapp) window.pastikanMountWhatsapp();
   }
@@ -361,7 +373,9 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // top-level baru). 'sub-zh-persiapanproduksi' (versi LAMA, nested di
     // Zevanic House) DIHAPUS dari peta ini — tombolnya sudah dicopot dari
     // index.html, tidak ada lagi yang memanggilnya.
-    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-zh-scan': 'tab-zevanic-house', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi' };
+    // BARU (30 Agt 2026) — 'sub-pesanan' -> 'tab-pesanan' (grup top-level
+    // baru, lihat js/vue-pesanan.js).
+    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-zh-scan': 'tab-zevanic-house', 'sub-pesanan': 'tab-pesanan', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -427,8 +441,10 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // BARU (27 Agt 2026, §28) — Master Produk (BOM).
     'sub-zh-produk-entry': 'pastikanMountProdukEntry',
     'sub-zh-produk-list': 'pastikanMountProdukList',
-    // BARU (27 Agt 2026, §26.2) — Order SPK.
-    'sub-zevanic-house-orderspk': 'pastikanMountOrderSpk',
+    // DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan") — dulu di sini
+    // 'sub-zevanic-house-orderspk': 'pastikanMountOrderSpk', tombol & div
+    // kontennya sudah dicopot dari index.html, GANTI TOTAL oleh
+    // 'sub-pesanan-menunggu' di bawah (lihat js/vue-pesanan.js).
     // DIPENSIUNKAN (29 Agt 2026, koreksi arsitektur menu) — 5 entry lama
     // 'sub-zh-persiapanproduksi-*' -> pastikanMountPersiapanProduksi* DIHAPUS
     // dari sini, tombolnya sudah dicopot dari index.html (lihat js/vue-
@@ -473,7 +489,16 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname.
     'sub-zh-scan-opname': 'pastikanMountScanOpname',
     // BARU (27 Agt 2026, §26.5, Tahap 5 — TAHAP TERAKHIR) — Scan > Scan Persiapan.
-    'sub-zh-scan-persiapan': 'pastikanMountScanPersiapan'
+    'sub-zh-scan-persiapan': 'pastikanMountScanPersiapan',
+    // BARU (30 Agt 2026) — grup top-level "Pesanan" (lihat js/vue-pesanan.js
+    // utk latar belakang lengkap): Penjualan Kasir (POS), Menunggu Proses
+    // (CRUD SPK, disalin dari OrderSpkManager lama), Proses Persiapan/
+    // Produksi/Pengiriman (ringkasan read-only dari spk_track).
+    'sub-pesanan-kasir': 'pastikanMountPesananKasir',
+    'sub-pesanan-menunggu': 'pastikanMountPesananMenunggu',
+    'sub-pesanan-persiapan': 'pastikanMountPesananPersiapan',
+    'sub-pesanan-produksi': 'pastikanMountPesananProduksi',
+    'sub-pesanan-pengiriman': 'pastikanMountPesananPengiriman'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();

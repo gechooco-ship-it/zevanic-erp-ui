@@ -542,6 +542,15 @@ const FormEntryProdukBOM = {
       size: props.dataAwal?.size || '',
       sku: props.dataAwal?.sku || '',
       foto: props.dataAwal?.foto || '',
+      // harga_jual — BARU (30 Agt 2026, fitur "Pesanan" — Penjualan Kasir
+      // butuh harga jual per produk buat isi keranjang, master_produk
+      // SEBELUMNYA cuma punya data BOM/ongkos produksi, TIDAK ADA field
+      // harga jual sama sekali (lihat AskUserQuestion, keputusan Guru:
+      // "Field 'Harga Jual' baru di Master Produk"). Angka polos (bukan
+      // per-varian/promo), opsional — produk lama tanpa harga jual tetap
+      // muncul di Kasir tapi harganya 0 (bisa diedit manual di keranjang
+      // kalau perlu, lihat js/vue-pesanan.js).
+      harga_jual: props.dataAwal?.harga_jual || '',
       bom_jasa: props.dataAwal?.bom_jasa ? JSON.parse(JSON.stringify(props.dataAwal.bom_jasa)) : [],
       bom_pola: props.dataAwal?.bom_pola ? JSON.parse(JSON.stringify(props.dataAwal.bom_pola)).map(b => ({
         ...barisPolaKosong(), ...b,
@@ -776,6 +785,9 @@ const FormEntryProdukBOM = {
           bom_jasa: bomJasaSiap,
           bom_pola: bomPolaSiap,
           bom_aksesoris: bomAksesorisSiap,
+          // harga_jual — BARU (30 Agt 2026, fitur "Pesanan"), lihat catatan
+          // panjang di form reactive() atas file ini.
+          harga_jual: parseFloat(form.harga_jual) || 0,
           // kelipatan — BARU (28 Agt 2026, permintaan Guru). Dihitung dari
           // bomPolaSiap (bukan kelipatanLive.value langsung) supaya pasti
           // sinkron dengan bom_pola versi FINAL yang benar-benar disimpan
@@ -841,6 +853,13 @@ const FormEntryProdukBOM = {
           <div class="gc-field" style="max-width:320px; flex:1; min-width:220px;">
             <label>SKU <span style="font-weight:400; color:var(--text-faint);">(otomatis dari Nama-Warna-Size, tidak perlu diisi)</span></label>
             <input :value="form.sku" type="text" readonly style="text-transform:uppercase; background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;">
+          </div>
+          <!-- Harga Jual — BARU (30 Agt 2026, fitur "Pesanan" > Penjualan
+               Kasir), lihat catatan panjang di form reactive() atas file
+               ini. Opsional (boleh 0/kosong), TIDAK ikut validasi() wajib. -->
+          <div class="gc-field" style="max-width:320px; flex:1; min-width:220px;">
+            <label>Harga Jual <span style="font-weight:400; color:var(--text-faint);">(dipakai Penjualan Kasir)</span></label>
+            <input v-model.number="form.harga_jual" type="number" min="0" placeholder="0">
           </div>
           <!-- Kelipatan — BARU (28 Agt 2026, permintaan Guru). Readonly,
                otomatis dari KPK (Kelipatan Persekutuan Terkecil) semua
@@ -1843,6 +1862,8 @@ const MasterProdukListManager = {
                    di atas file ini) — di sini CUMA baca, tidak dihitung
                    ulang. -->
               <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Kelipatan (Acuan Order)</span><span style="font-weight:700; text-align:right;">{{ item.kelipatan > 0 ? (item.kelipatan + ' pcs') : '-' }}</span></div>
+              <!-- Harga Jual — BARU (30 Agt 2026, fitur "Pesanan"). -->
+              <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Harga Jual</span><span style="font-weight:700; text-align:right;">{{ item.harga_jual > 0 ? formatRupiah(item.harga_jual) : '-' }}</span></div>
             </div>
 
             <div style="display:flex; gap:8px;">

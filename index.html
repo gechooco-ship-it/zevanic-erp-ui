@@ -216,15 +216,51 @@
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-produk', this, {catatRiwayat:true}); pindahSubTab('sub-zh-produk','sub-zh-produk-entry', null, {catatRiwayat:true})" id="menu-zevanic-produk-btn" data-menu-ids="master_produk_entry,master_produk_list" data-target="sub-zevanic-house-produk" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-layer-group" style="width:17px; text-align:center;"></i> Master Produk
           </button>
-          <!-- BARU (27 Agt 2026, §26.2) — Order SPK: lihat js/vue-order-spk.js. -->
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-orderspk', this, {catatRiwayat:true})" id="menu-zevanic-orderspk-btn" data-menu-id="order_spk" data-target="sub-zevanic-house-orderspk" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-clipboard-list" style="width:17px; text-align:center;"></i> Order SPK
-          </button>
+          <!-- DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan") — Order SPK
+               PINDAH TOTAL ke grup "Pesanan > Menunggu Proses" di bawah
+               (lihat js/vue-pesanan.js, js/vue-config-akses.js id
+               'order_spk' deprecated:true). Tombol & div konten lama
+               DIHAPUS dari sini (bukan cuma disembunyikan) — pola SAMA
+               seperti persiapan_produksi_* lama yang dicopot pas koreksi
+               arsitektur menu 29 Agt 2026. -->
           <!-- BARU (27 Agt 2026, §26.4/§26.5) — Scan: 2 tab, Scan Opname
                (js/vue-scan-opname.js) + Scan Persiapan (js/vue-scan-
                persiapan.js, Tahap 5 — TAHAP TERAKHIR dari rencana §26). -->
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-scan', this); pindahSubTab('sub-zh-scan','sub-zh-scan-opname')" id="menu-zevanic-scan-btn" data-menu-ids="scan_opname,scan_persiapan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-qrcode" style="width:17px; text-align:center;"></i> Scan
+          </button>
+        </div>
+
+        <!-- BARU (30 Agt 2026) — grup top-level BARU "Pesanan" (sejajar
+             Zevanic House/Persiapan Produksi), lihat js/vue-pesanan.js utk
+             latar belakang & keputusan arsitektur lengkap (4 ronde
+             AskUserQuestion + 3 asumsi yang belum eksplisit dikonfirmasi
+             Guru, didokumentasikan di komentar besar atas file itu).
+             5 sub-menu: Penjualan Kasir (dulu "Order SPK", tampilan POS),
+             Menunggu Proses (CRUD SPK, DISALIN dari OrderSpkManager lama),
+             Proses Persiapan/Produksi (ringkasan read-only spk_track per
+             jalur), Proses Pengiriman (ringkasan read-only spk_track lintas
+             jalur, status kirim). Posisi SENGAJA setelah Zevanic House,
+             SEBELUM Persiapan Produksi (ASUMSI urutan, belum eksplisit
+             dikonfirmasi Guru — gampang digeser). -->
+        <button onclick="toggleNavGroup('navgrp-pesanan')" id="menu-pesanan" data-group="navgrp-pesanan" class="hidden gc-nav-item" style="font-weight:700;">
+          Pesanan <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+        </button>
+        <div id="navgrp-pesanan" class="hidden gc-nav-subgroup">
+          <button onclick="pindahTab('tab-pesanan'); pindahSubTab('sub-pesanan','sub-pesanan-kasir', this, {catatRiwayat:true})" id="menu-pesanan-kasir-btn" data-menu-id="pesanan_kasir" data-target="sub-pesanan-kasir" class="sub-pesanan-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-cash-register" style="width:17px; text-align:center;"></i> Penjualan Kasir
+          </button>
+          <button onclick="pindahTab('tab-pesanan'); pindahSubTab('sub-pesanan','sub-pesanan-menunggu', this, {catatRiwayat:true})" id="menu-pesanan-menunggu-btn" data-menu-id="pesanan_menunggu" data-target="sub-pesanan-menunggu" class="sub-pesanan-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-clipboard-list" style="width:17px; text-align:center;"></i> Menunggu Proses
+          </button>
+          <button onclick="pindahTab('tab-pesanan'); pindahSubTab('sub-pesanan','sub-pesanan-persiapan', this, {catatRiwayat:true})" id="menu-pesanan-persiapan-btn" data-menu-id="pesanan_persiapan" data-target="sub-pesanan-persiapan" class="sub-pesanan-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-list-check" style="width:17px; text-align:center;"></i> Proses Persiapan
+          </button>
+          <button onclick="pindahTab('tab-pesanan'); pindahSubTab('sub-pesanan','sub-pesanan-produksi', this, {catatRiwayat:true})" id="menu-pesanan-produksi-btn" data-menu-id="pesanan_produksi" data-target="sub-pesanan-produksi" class="sub-pesanan-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-gears" style="width:17px; text-align:center;"></i> Proses Produksi
+          </button>
+          <button onclick="pindahTab('tab-pesanan'); pindahSubTab('sub-pesanan','sub-pesanan-pengiriman', this, {catatRiwayat:true})" id="menu-pesanan-pengiriman-btn" data-menu-id="pesanan_pengiriman" data-target="sub-pesanan-pengiriman" class="sub-pesanan-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-truck-fast" style="width:17px; text-align:center;"></i> Proses Pengiriman
           </button>
         </div>
 
@@ -654,10 +690,10 @@
             </div>
           </div>
 
-          <!-- BARU (27 Agt 2026, §26.2) — Order SPK: lihat js/vue-order-spk.js. -->
-          <div id="sub-zevanic-house-orderspk" class="sub-zevanic-house-content hidden fade-in space-y-4">
-            <div id="vue-order-spk"></div>
-          </div>
+          <!-- DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan") — div konten
+               Order SPK lama DIHAPUS dari sini, GANTI TOTAL oleh
+               #sub-pesanan-menunggu (grup top-level baru "Pesanan", lihat
+               js/vue-pesanan.js). -->
 
           <!-- BARU (27 Agt 2026, §26.4/§26.5) — Scan: 2 tab, Scan Opname
                (js/vue-scan-opname.js) + Scan Persiapan (js/vue-scan-
@@ -675,6 +711,29 @@
             </div>
           </div>
       </div>
+
+        <div id="tab-pesanan" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
+          <!-- BARU (30 Agt 2026) — grup top-level "Pesanan", lihat
+               js/vue-pesanan.js utk latar belakang lengkap. 5 sub-tab
+               sejajar, pola markup SAMA seperti #tab-persiapan-produksi di
+               bawah (1 tab-content, beberapa div class="sub-pesanan-
+               content", tiap satu punya mount point sendiri). -->
+          <div id="sub-pesanan-kasir" class="sub-pesanan-content fade-in space-y-4">
+            <div id="vue-pesanan-kasir"></div>
+          </div>
+          <div id="sub-pesanan-menunggu" class="sub-pesanan-content hidden fade-in space-y-4">
+            <div id="vue-pesanan-menunggu"></div>
+          </div>
+          <div id="sub-pesanan-persiapan" class="sub-pesanan-content hidden fade-in space-y-4">
+            <div id="vue-pesanan-persiapan"></div>
+          </div>
+          <div id="sub-pesanan-produksi" class="sub-pesanan-content hidden fade-in space-y-4">
+            <div id="vue-pesanan-produksi"></div>
+          </div>
+          <div id="sub-pesanan-pengiriman" class="sub-pesanan-content hidden fade-in space-y-4">
+            <div id="vue-pesanan-pengiriman"></div>
+          </div>
+        </div>
 
         <div id="tab-persiapan-produksi" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
           <!-- BARU (29 Agt 2026, koreksi arsitektur menu) — layar top-level
@@ -910,14 +969,22 @@
        webbing/finishing), petaMount tambah pastikanMountPpDisiapkan (5
        jalur BARU cuma placeholder statis, TIDAK butuh entry petaMount).
        5 entry petaMount LAMA (persiapan_produksi_antrean/bahan/sewing/
-       webbing/finishing) DIHAPUS. Lihat STATUS-PROYEK.md §44.13. -->
-  <script type="module" src="js/dashboard.js?v=19"></script>
-  <!-- v=8 (28 Agt 2026, redesain "Gechoo Mobile Organic"): restyle visual
-       saja (kolom cari jadi pil, kartu daftar jadi border-radius:20px,
-       ikon header jadi var(--aksen-ink), empty state jadi pola .gc-kosong)
-       — modul contoh #2 (pasangan Persiapan Produksi), logic/field TIDAK
-       berubah. -->
-  <script type="module" src="js/vue-order-spk.js?v=8"></script>
+       webbing/finishing) DIHAPUS. Lihat STATUS-PROYEK.md §44.13.
+       v=20 (30 Agt 2026, fitur "Pesanan") — tab 'tab-pesanan' BARU (grup
+       top-level, sejajar Zevanic House/Persiapan Produksi): tambah ke
+       array `tabs`, petaGrupSidebarPerTab -> navgrp-pesanan,
+       petaTabIndukPerGrup tambah sub-pesanan, petaMount tambah 5 entry
+       (pastikanMountPesananKasir/Menunggu/Persiapan/Produksi/Pengiriman),
+       landing default 'sub-pesanan-kasir'. Entry petaMount LAMA
+       'sub-zevanic-house-orderspk' -> pastikanMountOrderSpk DIHAPUS (lihat
+       js/vue-pesanan.js). -->
+  <script type="module" src="js/dashboard.js?v=20"></script>
+  <!-- js/vue-order-spk.js — DITINGGALKAN (30 Agt 2026, fitur "Pesanan",
+       keputusan Guru: fungsinya pindah jadi menu "Menunggu Proses" di
+       grup baru "Pesanan"). File TIDAK dihapus dari disk (jaga-jaga
+       referensi, pola SAMA seperti vue-persiapan-produksi.js di bawah),
+       tapi SENGAJA tidak lagi dimuat di sini — tombol & div kontennya
+       sudah dicopot dari index.html, GANTI TOTAL oleh js/vue-pesanan.js. -->
   <!-- js/vue-persiapan-produksi.js — DITINGGALKAN (29 Agt 2026, koreksi
        arsitektur menu, keputusan Guru "ditulis ulang bersih dari nol").
        File TIDAK dihapus dari disk (jaga-jaga referensi), tapi SENGAJA
@@ -930,13 +997,24 @@
        struktur navigasi 5-tahap, isinya placeholder sampai Fase 2-5. Lihat
        STATUS-PROYEK.md §44.13 & RENCANA-PERSIAPAN-PRODUKSI-V2.md. -->
   <script type="module" src="js/vue-persiapan-produksi-v2.js?v=1"></script>
+  <!-- BARU (30 Agt 2026) — grup top-level "Pesanan": Penjualan Kasir (POS),
+       Menunggu Proses (CRUD SPK, DISALIN dari OrderSpkManager lama),
+       Proses Persiapan/Produksi/Pengiriman (ringkasan read-only dari
+       spk_track). Lihat komentar besar atas js/vue-pesanan.js utk latar
+       belakang & keputusan arsitektur lengkap. -->
+  <script type="module" src="js/vue-pesanan.js?v=1"></script>
   <script type="module" src="js/vue-scan-opname.js?v=1"></script>
   <script type="module" src="js/vue-scan-persiapan.js?v=3"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>
   <script type="module" src="js/vue-config-info.js"></script>
   <script type="module" src="js/vue-config-absensi.js?v=2"></script>
   <script type="module" src="js/vue-daftar-karyawan.js?v=2"></script>
-  <script type="module" src="js/vue-config-akses.js?v=6"></script>
+  <!-- v=7 (30 Agt 2026, fitur "Pesanan"): KATEGORI_URUTAN tambah 'Pesanan'
+       (posisi setelah Zevanic House, sebelum Persiapan Produksi), 5 entry
+       DAFTAR_MENU baru (pesanan_kasir/menunggu/persiapan/produksi/
+       pengiriman), id 'order_spk' DIPENSIUNKAN (deprecated:true). Lihat
+       js/vue-pesanan.js. -->
+  <script type="module" src="js/vue-config-akses.js?v=7"></script>
   <script type="module" src="js/vue-hak-akses.js?v=2"></script>
   <!-- v=4 (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, permintaan
        Guru — PERUBAHAN LOGIC juga, bukan cuma tampilan) — form approval
@@ -1107,6 +1185,9 @@
        `webbing3_id`/`webbing2_nama`/`webbing3_nama` DIHAPUS dari skema
        `master_produk.bom_aksesoris[]`, diganti `webbing2`/`webbing3`
        (string bebas). -->
-  <script type="module" src="js/vue-master-produk.js?v=17"></script>
+  <!-- v=18 (30 Agt 2026, fitur "Pesanan"): field baru `harga_jual` (Entry
+       Produk form + payload simpan() + kartu List Produk) — dipakai
+       Penjualan Kasir, lihat js/vue-pesanan.js. -->
+  <script type="module" src="js/vue-master-produk.js?v=18"></script>
 </body>
 </html>

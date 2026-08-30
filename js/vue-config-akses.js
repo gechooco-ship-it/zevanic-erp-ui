@@ -162,9 +162,18 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-entry', null, {catatRiwayat:true}); } },
   { id: 'master_produk_list', label: 'List Produk', kategori: 'Zevanic House', icon: 'fa-list',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-list', null, {catatRiwayat:true}); } },
-  // BARU (27 Agt 2026, §26.2) — Order SPK: lihat js/vue-order-spk.js.
-  { id: 'order_spk', label: 'Order SPK', kategori: 'Zevanic House', icon: 'fa-clipboard-list',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-orderspk', null, {catatRiwayat:true}); } },
+  // DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan", keputusan Guru:
+  // "Pesaanan (Menu Group Baru)... 1. Order SPK (ganti nama jadi Penjualan
+  // Kasir)... 2. Menunggu Proses") — fungsi CRUD Order SPK (list/edit/
+  // hapus/cetak label) PINDAH TOTAL ke 'pesanan_menunggu' (kategori baru
+  // "Pesanan"), file js/vue-pesanan.js (kode DISALIN & disesuaikan dari
+  // js/vue-order-spk.js, BUKAN diimpor — konvensi proyek ini). Tombol
+  // sidebar & tab-content lama SUDAH DICOPOT dari index.html (js/vue-
+  // order-spk.js TIDAK LAGI dimuat, pola SAMA seperti persiapan_produksi_*
+  // di atas). `deprecated: true` supaya izin lama yang sudah diatur Owner
+  // per akun TIDAK yatim/error, id ini TETAP ADA di daftar tapi tidak lagi
+  // nongol sebagai tile navigasi.
+  { id: 'order_spk', label: 'Order SPK (DIPENSIUNKAN, lihat Pesanan > Menunggu Proses)', kategori: 'Zevanic House', deprecated: true },
   // DIPENSIUNKAN (29 Agt 2026, koreksi arsitektur menu Persiapan Produksi
   // — Guru: "ralat mending bikin group menu baru namanya Persiapan
   // Produksi supaya tersusun rapih ... sejajar dengan zevanic house").
@@ -199,6 +208,26 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-webbing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-perludiproses', null, {catatRiwayat:true}); } },
   { id: 'pp_finishing', label: 'Persiapan Produksi - Acc Finishing', kategori: 'Persiapan Produksi', icon: 'fa-check-double',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-finishing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludiproses', null, {catatRiwayat:true}); } },
+  // BARU (30 Agt 2026) — grup top-level "Pesanan" (sejajar Zevanic House/
+  // Persiapan Produksi), keputusan Guru lewat AskUserQuestion + spesifikasi
+  // final: "Pesaanan (Menu Group Baru), didalam group menu pesanan
+  // adalah: 1. Order SPK (ganti nama jadi Penjualan Kasir) > tampilan
+  // seperti request order, 2. Menunggu Proses, 3. Proses Persiapan
+  // (ringkasan data tarikan dari proses persiapan produksi), 4. Proses
+  // Produksi (ringkasan data tarikan dari proses persiapan produksi),
+  // 5. Proses Pengiriman". Lihat js/vue-pesanan.js utk detail lengkap tiap
+  // menu (kode grouping/asumsi yang belum eksplisit dikonfirmasi Guru
+  // didokumentasikan di komentar atas file itu, BUKAN cuma di sini).
+  { id: 'pesanan_kasir', label: 'Penjualan Kasir', kategori: 'Pesanan', icon: 'fa-cash-register',
+    aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-kasir', null, {catatRiwayat:true}); } },
+  { id: 'pesanan_menunggu', label: 'Menunggu Proses', kategori: 'Pesanan', icon: 'fa-clipboard-list',
+    aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-menunggu', null, {catatRiwayat:true}); } },
+  { id: 'pesanan_persiapan', label: 'Proses Persiapan', kategori: 'Pesanan', icon: 'fa-list-check',
+    aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-persiapan', null, {catatRiwayat:true}); } },
+  { id: 'pesanan_produksi', label: 'Proses Produksi', kategori: 'Pesanan', icon: 'fa-gears',
+    aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-produksi', null, {catatRiwayat:true}); } },
+  { id: 'pesanan_pengiriman', label: 'Proses Pengiriman', kategori: 'Pesanan', icon: 'fa-truck-fast',
+    aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-pengiriman', null, {catatRiwayat:true}); } },
   // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname: lihat js/vue-scan-
   // opname.js. Aksi catat penyesuaian dicek lewat kolom 'edit'. Gating
   // "mobile-only untuk non-Owner" TIDAK lewat kolom izin ini — itu
@@ -222,7 +251,14 @@ const DAFTAR_MENU = [
 // kategori BARU, sejajar 'Zevanic House' (dulu sub-menu di dalamnya).
 // Posisi SENGAJA setelah Zevanic House (urutan sidebar desktop & mobile
 // pakai array ini juga, lihat js/vue-components.js daftarMenuGroups()).
-export const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House', 'Persiapan Produksi'];
+// BARU (30 Agt 2026, fitur "Pesanan") — kategori baru 'Pesanan', posisi
+// SENGAJA setelah 'Zevanic House' dan SEBELUM 'Persiapan Produksi' — Kasir
+// (di 'Pesanan') MENGHASILKAN SPK yang mengalir ke 'Persiapan Produksi',
+// jadi urutan sidebar mengikuti alur kerja (Zevanic House data master ->
+// Pesanan jual -> Persiapan Produksi kerjakan). Posisi ini ASUMSI (belum
+// eksplisit dikonfirmasi Guru soal urutan pastinya) — gampang digeser
+// tinggal ubah array ini kalau Guru mau urutan lain.
+export const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House', 'Pesanan', 'Persiapan Produksi'];
 export { DAFTAR_MENU };
 const KOSONG_IZIN = () => ({ view: false, add: false, edit: false, delete: false, print: false });
 
