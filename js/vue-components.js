@@ -1089,7 +1089,19 @@ export const EmojiPicker = {
 // ini, limit 1 — paling murah, 0 atau 1 baca), diatur di Config Info >
 // Quote Harian. Kalau tidak ada Quote dijadwalkan untuk hari ini, komponen
 // ini tidak render apapun (tidak ada kartu kosong yang aneh).
-// ---------------------------------------------------------------------------
+//
+// BUG DITEMUKAN & DIPERBAIKI (30 Agt 2026, sesi lanjutan lagi) — Guru sudah
+// isi Quote hari ini tapi kartu tetap tidak muncul. Akar masalah: hariIni
+// dulu dihitung pakai `new Date().toISOString().split('T')[0]`, ini UTC,
+// BUKAN tanggal lokal device. WIB (Jakarta) = UTC+7, jadi setiap hari jam
+// 00:00-06:59 WIB, tanggal UTC MASIH tanggal KEMARIN — sementara admin
+// yang isi form Quote Harian (input type=date) melihat tanggal LOKAL
+// (sudah hari baru). Query jadi cari tanggal yang salah (kemarin, bukan
+// hari ini versi Jakarta), Quote yang sudah dijadwalkan Guru tidak pernah
+// ketemu. Dicek langsung ke jam server (UTC 18:36 saat bug dilaporkan =
+// 01:36 dini hari WIB) — PERSIS masuk jendela 7 jam bermasalah itu,
+// mengkonfirmasi ini akar masalahnya, bukan tebakan. Fix: pakai komponen
+// tanggal LOKAL (getFullYear/getMonth/getDate), bukan toISOString(). ---
 export const QuoteCard = {
   setup() {
     const quote = ref(null);
@@ -1098,7 +1110,11 @@ export const QuoteCard = {
     async function muat() {
       memuat.value = true;
       try {
-        const hariIni = new Date().toISOString().split('T')[0]; // format YYYY-MM-DD, sama dengan <input type="date">
+        // Tanggal LOKAL device (BUKAN toISOString() yang UTC — lihat
+        // komentar bug-fix di atas), format tetap YYYY-MM-DD sama dengan
+        // <input type="date">.
+        const skrg = new Date();
+        const hariIni = `${skrg.getFullYear()}-${String(skrg.getMonth() + 1).padStart(2, '0')}-${String(skrg.getDate()).padStart(2, '0')}`;
         const q = query(collection(db, "quotes"), where("tanggalTampil", "==", hariIni), limit(1));
         const snap = await getDocs(q);
         quote.value = snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };

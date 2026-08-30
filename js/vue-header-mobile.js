@@ -169,10 +169,15 @@ const AppHeaderMobile = {
     // tanggalTampil==hari ini) — cuma ditampilkan sebagai 1 baris kecil di
     // sini, bukan kartu terpisah lagi. QuoteCard sendiri TETAP ada di
     // vue-components.js (masih dipakai desktop, lihat vue-home-desktop.js).
+    // BUG DITEMUKAN & DIPERBAIKI (30 Agt 2026, sesi lanjutan lagi) — sama
+    // persis akar masalah dengan QuoteCard (lihat komentar bug-fix lengkap
+    // di vue-components.js): hariIni dulu toISOString() (UTC), meleset dari
+    // tanggal LOKAL device 00:00-06:59 WIB tiap hari. Fix sama.
     const quoteHariIni = ref('');
     async function muatQuote() {
       try {
-        const hariIni = new Date().toISOString().split('T')[0];
+        const skrg = new Date();
+        const hariIni = `${skrg.getFullYear()}-${String(skrg.getMonth() + 1).padStart(2, '0')}-${String(skrg.getDate()).padStart(2, '0')}`;
         const q = query(collection(db, "quotes"), where("tanggalTampil", "==", hariIni), limit(1));
         const snap = await getDocs(q);
         quoteHariIni.value = snap.empty ? '' : (snap.docs[0].data().isi || '');

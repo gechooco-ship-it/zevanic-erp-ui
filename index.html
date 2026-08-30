@@ -148,11 +148,19 @@
            jadi "Zevanic ERP" + ikon-kotak, persis mockup. Blok ini desktop-
            only dari awal (`.gc-sidebar hidden md:flex`) — mobile TIDAK
            pernah menampilkan blok ini (header sendiri, vue-header-mobile.js),
-           jadi ganti teks di sini TIDAK menyentuh branding mobile. -->
+           jadi ganti teks di sini TIDAK menyentuh branding mobile.
+           REVISI LAGI (30 Agt 2026, sesi lanjutan lagi) — nama brand GANTI
+           lagi jadi "Zevanic Core Optima" (permintaan Guru). Teks lebih
+           panjang dari "Zevanic ERP", jadi h1 ini diberi
+           white-space:nowrap + text-overflow:ellipsis (lihat inline style)
+           supaya TIDAK membungkus 2 baris — box .gc-side-brand dulu WRAP
+           saat teks kepanjangan, bikin tinggi header ikut membengkak ke
+           bawah (ini juga akar masalah kenapa header "kepanjangan" —
+           digabung sekalian jadi 1 perbaikan, lihat catatan height di CSS). -->
       <div class="gc-side-brand">
         <div class="gc-side-brand-ico"><i class="fas fa-table-cells-large"></i></div>
-        <div>
-          <h1 class="gc-heading" style="font-size:14px; font-weight:700; color:var(--aksen-ink); margin:0;">Zevanic ERP</h1>
+        <div style="min-width:0; overflow:hidden;">
+          <h1 class="gc-heading" style="font-size:13px; font-weight:700; color:var(--aksen-ink); margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Zevanic Core Optima</h1>
           <p id="label-role-sidebar" class="gc-heading" style="font-size:9.5px; letter-spacing:.08em; color:var(--text-faint); font-weight:700; text-transform:uppercase; margin-top:1px;">Role: Operator</p>
         </div>
       </div>

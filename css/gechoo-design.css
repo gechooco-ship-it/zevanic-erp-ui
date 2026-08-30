@@ -201,7 +201,14 @@ input, select, textarea{font:inherit; color:inherit;}
    (`.gc-sidebar hidden md:flex`) — GANTI teks di sini TIDAK menyentuh
    branding mobile sama sekali (mobile pakai header terpisah, vue-header-
    mobile.js, tidak pernah menampilkan blok ini). */
-.gc-side-brand{height:80px; box-sizing:border-box; padding:0 14px; margin:0 -14px 14px; background:var(--ivory);
+/* REVISI (30 Agt 2026, sesi lanjutan lagi) — height:80px fixed DICOPOT,
+   Guru lapor header "kepanjangan ke bawah". Dicek ke README paket design
+   handoff (§"Sidebar (232px)"): spec ASLI cuma nentuin padding header
+   ("14px 14px 12px"), BUKAN tinggi fixed 80px — 80px itu jelas kependekan
+   riset saya sebelumnya, kegedean dari spec. Ganti ke padding-driven
+   (height:auto) supaya tingginya ngikutin konten (ikon 32px + padding
+   14/12 ≈ 58px), sesuai mockup, otomatis lebih pendek dari 80px lama. */
+.gc-side-brand{box-sizing:border-box; padding:14px 14px 12px; margin:0 -14px 14px; background:var(--ivory);
   border-bottom:1px solid var(--line); display:flex; flex-direction:row; align-items:center; gap:10px;}
 .gc-side-brand-ico{width:32px; height:32px; border-radius:10px; background:var(--burgundy); color:var(--ivory);
   display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;}
@@ -225,8 +232,14 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-nav-item.gc-grp-buka .gc-nav-gico{color:var(--aksen-ink);}
 .gc-nav-section{font-size:10px; letter-spacing:.08em; color:var(--text-faint); opacity:.9; text-transform:uppercase; margin:14px 10px 6px; font-family:'Poppins',sans-serif;}
 
-/* ---- Topbar desktop (GANTI header 80px lama "ERP Portal" statis) ---- */
-.gc-topbar-desktop{height:80px; box-sizing:border-box; background:var(--ivory); border-bottom:1px solid var(--line);
+/* ---- Topbar desktop (GANTI header 80px lama "ERP Portal" statis) ----
+   REVISI (30 Agt 2026, sesi lanjutan lagi) — height 80px DIKURANGI jadi
+   52px, Guru lapor header kepanjangan ke bawah. Dicek ke README paket
+   design handoff: spec ASLI explisit "Topbar (tinggi 52px)" — 80px
+   sebelumnya salah, bukan dari spec. Konten di dalamnya (tombol notif
+   36px, kolom cari padding 7px 11px) semuanya masih muat di 52px karena
+   align-items:center, jadi tidak perlu ubah ukuran elemen lain. ---- */
+.gc-topbar-desktop{height:52px; box-sizing:border-box; background:var(--ivory); border-bottom:1px solid var(--line);
   padding:0 24px; display:flex; align-items:center; gap:14px;}
 /* ---- Breadcrumb topbar (BARU, 30 Agt 2026 — GANTI h2 "ERP Portal" +
    badge countdown shift lama). Statis "Umum › Beranda" untuk sekarang,
@@ -322,6 +335,15 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-tindak-txt b{font-size:11.5px; display:block;}
 .gc-tindak-txt span{font-size:10px; color:var(--text-faint);}
 .gc-tindak-chip{background:var(--aksen-ink); color:var(--ivory); font-size:8.5px; font-weight:700; border-radius:999px; padding:2px 8px; margin-right:4px;}
+/* REVISI (30 Agt 2026, sesi lanjutan lagi) — "Perlu Tindakan Anda" dipecah
+   2 grup (Persiapan/Produksi, lihat komentar di vue-home-desktop.js).
+   .gc-tindak-subgrup = label kecil pemisah grup. .gc-tindak-segera =
+   redupkan baris grup Produksi (placeholder, belum ada data real) —
+   opacity sama dengan pola Pipeline Produksi di atasnya (.55) supaya
+   konsisten secara visual: "ini belum data sungguhan". */
+.gc-tindak-subgrup{font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint); margin:0 0 6px 2px;}
+.gc-tindak-subgrup:not(:first-child){margin-top:12px;}
+.gc-tindak-row.gc-tindak-segera{opacity:.55;}
 
 /* ---- Kartu Absen desktop (BARU, 30 Agt 2026 — REAL, "diambil tempel"
    dari kartu shift mobile: .gc-kartu-gradien/.gc-pil-status/

@@ -230,12 +230,19 @@ const BerandaDesktop = {
     }
 
     // ---- Kartu Quote (data SAMA seperti QuoteCard bersama, warna beda) ----
+    // BUG DITEMUKAN & DIPERBAIKI (30 Agt 2026, sesi lanjutan lagi) — sama
+    // persis akar masalahnya dengan QuoteCard bersama di vue-components.js
+    // (baca komentar bug-fix lengkap di sana): hariIni dulu pakai
+    // toISOString() (UTC), bukan tanggal LOKAL device — meleset 7 jam tiap
+    // hari 00:00-06:59 WIB dibanding tanggal yang dilihat admin di form
+    // Quote Harian. Fix sama: pakai getFullYear/getMonth/getDate.
     const quote = ref(null);
     const memuatQuote = ref(true);
     async function muatQuote() {
       memuatQuote.value = true;
       try {
-        const hariIni = new Date().toISOString().split('T')[0];
+        const skrg = new Date();
+        const hariIni = `${skrg.getFullYear()}-${String(skrg.getMonth() + 1).padStart(2, '0')}-${String(skrg.getDate()).padStart(2, '0')}`;
         const snap = await getDocs(query(collection(db, 'quotes'), where('tanggalTampil', '==', hariIni), limit(1)));
         quote.value = snap.empty ? null : snap.docs[0].data();
       } catch (e) { quote.value = null; }
@@ -364,17 +371,35 @@ const BerandaDesktop = {
             </div>
           </div>
 
+          <!-- REVISI (30 Agt 2026, sesi lanjutan lagi) — "Perlu Tindakan
+               Anda" DIPECAH jadi 2 grup/grid (permintaan Guru): grid 1
+               Persiapan (data REAL, sama seperti Pipeline Persiapan di
+               atas — Perlu Disiapkan + 5 jalur), grid 2 Produksi. Grup
+               Produksi SENGAJA placeholder "Segera hadir" (chip "–", opacity
+               diredupkan lewat .gc-tindak-segera) — KONSISTEN dengan kartu
+               Pipeline Produksi di atas: belum ada skema data Cutting/
+               Serie/Sewing/Finishing (keputusan Guru §5.9, belum diminta
+               dibangun), jadi TIDAK dibuat angka/chip hitung palsu di sini. -->
           <div class="gc-pipeline-card" style="margin-bottom:0;">
-            <div class="gc-pipeline-head" style="margin-bottom:10px;"><b>Perlu Tindakan Anda</b></div>
+            <div class="gc-pipeline-head" style="margin-bottom:6px;"><b>Perlu Tindakan Anda</b></div>
+
+            <div class="gc-tindak-subgrup">Persiapan</div>
             <div class="gc-tindak-row">
               <div class="gc-tindak-ico"><i class="fas fa-layer-group"></i></div>
               <div class="gc-tindak-txt"><b>Perlu Disiapkan</b><span>Klaster SPK siap digrouping</span></div>
               <span class="gc-tindak-chip gc-num">{{ persiapanDisiapkan === null ? '…' : persiapanDisiapkan }}</span>
             </div>
-            <div class="gc-tindak-row" v-for="j in persiapanJalur" :key="'tindak-'+j.key">
+            <div class="gc-tindak-row" v-for="j in persiapanJalur" :key="'tindak-persiapan-'+j.key">
               <div class="gc-tindak-ico"><i class="fas" :class="j.ico"></i></div>
               <div class="gc-tindak-txt"><b>{{ j.label }}</b><span>{{ j.ket }}</span></div>
               <span class="gc-tindak-chip gc-num">{{ j.n === null ? '…' : j.n }}</span>
+            </div>
+
+            <div class="gc-tindak-subgrup">Produksi</div>
+            <div class="gc-tindak-row gc-tindak-segera" v-for="p in produksiPlaceholder" :key="'tindak-produksi-'+p.label">
+              <div class="gc-tindak-ico"><i class="fas" :class="p.ico"></i></div>
+              <div class="gc-tindak-txt"><b>{{ p.label }}</b><span>Segera hadir — skema data belum dibangun</span></div>
+              <span class="gc-tindak-chip">–</span>
             </div>
           </div>
         </div>
