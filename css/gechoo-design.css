@@ -246,6 +246,20 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-search-global span{flex:1; text-align:left;}
 .gc-search-global kbd{font-size:9.5px; border:1px solid var(--line); border-radius:5px; padding:1px 6px; color:var(--text-faint); font-family:inherit; background:var(--ivory);}
 .gc-palet-overlay{position:fixed; inset:0; z-index:80; background:rgba(31,22,17,.45); display:flex; align-items:flex-start; justify-content:center; padding-top:14vh;}
+/* BUG (30 Agt 2026, ditemukan Guru — popup selalu tampil pas refresh/hard
+   reset, bukan cuma pas dipanggil): elemen overlay pakai atribut asli
+   "hidden" (bukan class ".hidden" custom di atas), tapi rule
+   ".gc-palet-overlay{display:flex}" di atas itu CSS PENULIS (author
+   stylesheet) — author stylesheet SELALU menang mutlak dari default
+   browser "[hidden]{display:none}" (UA stylesheet), berapapun urutan/
+   specificity-nya, KECUALI ditimpa rule lebih spesifik seperti di bawah
+   ini. Makanya overlay full-layar itu SELALU kelihatan dari awal load,
+   padahal atribut hidden-nya sudah benar diisi lewat JS
+   (overlay.hidden=true/false di paletPencarianGlobal()). Kelas bug yang
+   SAMA PERSIS dengan pelajaran ".hidden vs flex" di bawah (~baris 466),
+   cuma di sini bukan salah URUTAN class, tapi salah ORIGIN (UA vs
+   author) — perlu selector lebih spesifik ([hidden]) buat menang. */
+.gc-palet-overlay[hidden]{display:none;}
 .gc-palet-card{width:520px; max-width:92vw; max-height:60vh; background:var(--ivory); border-radius:14px; box-shadow:0 20px 50px -15px rgba(31,22,17,.5); overflow:hidden; display:flex; flex-direction:column;}
 .gc-palet-input{width:100%; box-sizing:border-box; border:none; border-bottom:1px solid var(--line); padding:14px 16px; font-size:13.5px; background:transparent; color:var(--text); outline:none;}
 .gc-palet-results{overflow-y:auto; padding:6px;}
