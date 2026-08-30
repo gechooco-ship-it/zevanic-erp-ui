@@ -785,7 +785,12 @@ window.logout = async function() {
 window.aturTampilanBerdasarkanRole = function() {
   document.getElementById('teks-nama-user').innerText = "Hi, " + window.currentUser.name;
   document.getElementById('label-role-sidebar').innerText = "Role: " + window.currentUser.role.toUpperCase();
-  document.getElementById('label-badge-role').innerHTML = `<i class="far fa-clock mr-1.5"></i> ERP Portal - ${window.currentUser.role.toUpperCase()}`;
+  // REDESAIN (30 Agt 2026) — elemen #label-badge-role (badge "ERP Portal" +
+  // countdown shift lama, js/dashboard.js mulaiHitungJamKerja()) DICOPOT
+  // dari topbar desktop (index.html), diganti breadcrumb statis. Elemen ini
+  // mungkin sudah tidak ada di DOM — null-guard supaya tidak crash.
+  const elBadgeRole = document.getElementById('label-badge-role');
+  if (elBadgeRole) elBadgeRole.innerHTML = `<i class="far fa-clock mr-1.5"></i> ERP Portal - ${window.currentUser.role.toUpperCase()}`;
 
   const role = (window.currentUser.role || "operator").toLowerCase();
 

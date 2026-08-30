@@ -330,12 +330,19 @@
            topbar baru (mengikuti mockup "Zevanic Desktop Adaptasi"):
            tambah lonceng notifikasi Pengumuman (persis pola
            js/vue-header-mobile.js — BUKAN carousel lagi di body Beranda,
-           lihat #vue-beranda-desktop). #label-badge-role/#teks-nama-user
-           DIPERTAHANKAN persis (diisi js/auth.js, jangan ganti id). -->
+           lihat #vue-beranda-desktop).
+           REVISI (30 Agt 2026, sesi lanjutan) — h2 "ERP Portal" +
+           #label-badge-role (badge countdown shift lama, hardcode "01:00"
+           utk semua orang, js/dashboard.js mulaiHitungJamKerja()) DICOPOT
+           dari sini, diganti breadcrumb gaya mockup (.gc-crumb). Statis
+           "Umum › Beranda" dulu — baru Beranda yang punya versi desktop,
+           belum ada routing breadcrumb dinamis per-layar. #teks-nama-user
+           DIPERTAHANKAN persis (diisi js/auth.js & js/dashboard.js, jangan
+           ganti id). js/auth.js sudah diberi null-guard kalau
+           #label-badge-role dicari lagi. -->
       <header class="gc-topbar-desktop hidden md:flex shrink-0" style="z-index:10;">
-        <div style="display:flex; align-items:center; gap:12px;">
-          <h2 class="gc-heading hidden sm:inline" style="font-size:17px; font-weight:700; color:var(--mahogany); margin:0;">ERP Portal</h2>
-          <span id="label-badge-role" class="tag neutral"><i class="far fa-clock" style="margin-right:6px;"></i> ERP Portal</span>
+        <div class="gc-crumb">
+          <span>Umum</span><i class="fas fa-chevron-right gc-crumb-mid"></i><b>Beranda</b>
         </div>
         <span id="teks-nama-user" class="gc-heading" style="font-size:12.5px; font-weight:700; color:var(--text); margin-left:auto;">Hi, Karyawan</span>
         <div class="gc-notif-wrap" style="margin-left:14px;">

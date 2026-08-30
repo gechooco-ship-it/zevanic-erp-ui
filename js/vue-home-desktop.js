@@ -28,16 +28,33 @@
 //    desktop, permintaan eksplisit Guru. Tampilan MOBILE (vue-home.js)
 //    TIDAK BOLEH ikut berubah sama sekali — file itu tidak disentuh.
 //
-// PENYIMPANGAN JUJUR dari mockup (diputuskan sendiri, BUKAN instruksi
-// Guru — supaya tidak ada data palsu di kode produksi):
-// - "Aktivitas Terbaru" & "Pintasan Papan Tik" di mockup itu ILUSTRATIF
-//   (data contoh / fitur Ctrl+K yang belum ada). TIDAK ada koleksi log
-//   aktivitas lintas-modul di skema data sungguhan (PETA-DATABASE.md) dan
-//   TIDAK ada command palette sungguhan di app ini — jadi 2 kartu itu
-//   SENGAJA TIDAK dibangun di sini (dari pada pura-pura nampilkan data
-//   asli). Kolom kanan jadi cuma kartu Quote. Kalau Guru mau "Aktivitas
-//   Terbaru" beneran, itu perlu koleksi log baru — proyek terpisah,
-//   belum diminta.
+// REVISI (30 Agt 2026, sesi lanjutan) — permintaan eksplisit Guru:
+// "jam shift dan erp portal hapus ganti dengan yg sesuai mockup, lalu
+// kartu absen dari mobil bisa diambil tempel di dashboard. aktifitas
+// terbaru tampilkan mockup dan pintasan keyboard juga. anggap mockup yg
+// dilivekan." Ini MEMBALIK keputusan saya sendiri sebelumnya (lihat riwayat
+// git) yang SENGAJA tidak membangun 2 kartu di bawah. Sekarang dibangun,
+// TAPI tetap jujur soal sifatnya:
+// 5. Kartu Absen (kolom kanan, paling atas) — REAL, bukan ilustratif. Logic
+//    & style diambil PERSIS dari kartu shift mobile (js/vue-home.js
+//    muatShift() + window.cekStatusClockInSaya()) — read-only, TANPA
+//    tombol Clock In/Out (clock in/scan QR tetap di app mobile, sesuai teks
+//    keterangan kartu ini sendiri).
+// 6. "Aktivitas Terbaru" & "Pintasan Papan Tik" (kolom kanan, bawah Quote)
+//    — KONTEN STATIS/ILUSTRATIF (persis isi mockup, BUKAN data live). Tidak
+//    ada koleksi log aktivitas lintas-modul di skema data sungguhan
+//    (PETA-DATABASE.md) dan tidak ada command palette Ctrl+K sungguhan di
+//    app ini — jadi 2 kartu ini SENGAJA berisi data contoh, atas instruksi
+//    eksplisit Guru ("anggap mockup yg dilivekan"), BUKAN diam-diam
+//    dianggap data asli. Kalau nanti mau versi live beneran, itu perlu
+//    koleksi log aktivitas baru — proyek terpisah, belum diminta.
+// 7. Topbar (index.html, bukan file ini) — "ERP Portal" statis + badge
+//    countdown shift (dulu ditimpa js/dashboard.js mulaiHitungJamKerja(),
+//    asumsi jam shift "01:00" utk SEMUA orang — TIDAK akurat) DICOPOT,
+//    diganti breadcrumb gaya mockup ("Umum › Beranda", statis dulu karena
+//    baru Beranda yang dibangun). #label-badge-role dihapus dari DOM;
+//    js/auth.js (baris pengisi innerHTML-nya) DIBERI null-guard supaya
+//    tidak crash kalau elemen itu dicari lagi nanti.
 //
 // EFISIENSI BACA FIRESTORE (WAJIB — lihat STATUS-PROYEK.md §6, pelajaran
 // "boros baca N+1/full-collection-scan" yang pernah kejadian nyata di App
@@ -82,6 +99,23 @@ const PRODUKSI_PLACEHOLDER = [
   { label: 'Serie', ico: 'fa-list-ol' },
   { label: 'Sewing', ico: 'fa-shirt' },
   { label: 'Finishing', ico: 'fa-check-double' }
+];
+
+// KONTEN STATIS/ILUSTRATIF (bukan Firestore) — lihat poin 6 di komentar
+// header file ini soal kenapa & atas instruksi siapa.
+const AKTIVITAS_ILUSTRATIF = [
+  { warna: 'var(--ok)', teks: 'Rina Wulandari absen masuk — Gudang Utama', jam: '09:02' },
+  { warna: 'var(--warn)', teks: 'SPKG260830004 pindah ke Sedang Diproses', jam: '08:47' },
+  { warna: 'var(--ok)', teks: 'Reimburse bensin Rp 180.000 disetujui', jam: '08:31' },
+  { warna: 'var(--text-faint)', teks: 'Order SPK-2608-021 dibuat Admin Gudang', jam: '08:15' },
+  { warna: 'var(--danger)', teks: 'Persiapan Masalah baru: kain kurang 12 m', jam: '07:58' }
+];
+const PINTASAN_ILUSTRATIF = [
+  { k: 'Ctrl K', teks: 'Lompat ke menu apa saja' },
+  { k: '/', teks: 'Fokus ke kolom cari' },
+  { k: 'N', teks: 'Tambah data baru' },
+  { k: 'J / K', teks: 'Pindah kartu naik-turun' },
+  { k: 'Esc', teks: 'Tutup panel kanan' }
 ];
 
 const BerandaDesktop = {
@@ -167,6 +201,34 @@ const BerandaDesktop = {
       return angka.reduce((a, b) => a + b, 0);
     };
 
+    // ---- Kartu Absen (REAL, kolom kanan paling atas) — logic & style
+    // diambil PERSIS dari kartu shift mobile (js/vue-home.js muatShift() +
+    // window.cekStatusClockInSaya()), read-only (tanpa tombol Clock
+    // In/Out — itu tetap di app mobile). ----
+    const shiftAbsen = ref({ nama: '', jamMasuk: '', jamKeluar: '', gudang: '-' });
+    const sudahAbsenHariIni = ref(false);
+    async function muatKartuAbsen() {
+      try {
+        const status = await window.cekStatusClockInSaya(window.currentUser?.email || '');
+        sudahAbsenHariIni.value = status.aktif;
+      } catch (e) { console.error('Status absen (desktop) gagal dimuat:', e); }
+      try {
+        const gudangList = window.normalisasiGudang ? window.normalisasiGudang(window.currentUser?.gudang_penempatan) : [];
+        shiftAbsen.value.gudang = gudangList.length > 0 ? gudangList.join(', ') : '-';
+        const namaShift = window.currentUser?.nama_shift;
+        if (!namaShift) return;
+        const snap = await getDocs(collection(db, 'master_shift'));
+        snap.forEach(d => {
+          const s = d.data();
+          if (s.nama_shift === namaShift) {
+            shiftAbsen.value.nama = s.nama_shift;
+            shiftAbsen.value.jamMasuk = s.jam_masuk || '';
+            shiftAbsen.value.jamKeluar = s.jam_keluar || '';
+          }
+        });
+      } catch (e) { console.error('Kartu Absen (desktop) gagal dimuat shift:', e); }
+    }
+
     // ---- Kartu Quote (data SAMA seperti QuoteCard bersama, warna beda) ----
     const quote = ref(null);
     const memuatQuote = ref(true);
@@ -225,13 +287,15 @@ const BerandaDesktop = {
       await window.authReady;
       muatKpiMasalah(); muatKpiDakar(); muatKpiAbsensi(); muatKpiReimburse();
       muatPerluDisiapkan(); muatJalurPersiapan();
-      muatQuote(); muatNotif();
+      muatQuote(); muatNotif(); muatKartuAbsen();
     });
 
     return {
       kpiMasalah, kpiDakar, kpiAbsensi, kpiReimburse,
       persiapanDisiapkan, persiapanJalur, totalPersiapan, produksiPlaceholder: PRODUKSI_PLACEHOLDER,
+      shiftAbsen, sudahAbsenHariIni,
       quote, memuatQuote,
+      aktivitasIlustratif: AKTIVITAS_ILUSTRATIF, pintasanIlustratif: PINTASAN_ILUSTRATIF,
       daftarNotif, memuatNotif, notifTerbuka, jumlahBelumDibaca, toggleNotif, tutupNotif
     };
   },
@@ -316,9 +380,39 @@ const BerandaDesktop = {
         </div>
 
         <div>
+          <div v-if="shiftAbsen.nama" class="gc-kartu-gradien gc-absen-desktop">
+            <div class="gc-deco-lingkaran" style="right:-34px; top:-24px; width:160px; height:160px;"></div>
+            <div class="gc-deco-lingkaran" style="right:2px; top:8px; width:100px; height:100px;"></div>
+            <div style="position:relative; z-index:1;">
+              <p class="lbl">Shift hari ini &middot; {{ shiftAbsen.gudang }}</p>
+              <p class="jam gc-num">{{ shiftAbsen.jamMasuk }} &ndash; {{ shiftAbsen.jamKeluar }}</p>
+              <span class="gc-pil-status">
+                <i class="fas" :class="sudahAbsenHariIni ? 'fa-circle-check' : 'fa-circle-exclamation'"></i>
+                {{ sudahAbsenHariIni ? 'Sudah absen masuk' : 'Belum absen masuk' }}
+              </span>
+              <div class="ket">Clock in dan scan QR dikerjakan di aplikasi mobile. Desktop untuk memantau dan memproses datanya.</div>
+            </div>
+          </div>
+
           <div v-if="!memuatQuote && quote" class="gc-quote-desktop gc-kartu-gradien">
             <h4><i class="fas fa-quote-left"></i> {{ quote.judul }}</h4>
             <p>{{ quote.isi }}</p>
+          </div>
+
+          <!-- Konten ILUSTRATIF (statis, bukan Firestore) — lihat poin 6 komentar header file ini -->
+          <div class="gc-pipeline-card">
+            <div class="gc-pipeline-head" style="margin-bottom:6px;"><b>Aktivitas Terbaru</b></div>
+            <div class="gc-aktivitas-row" v-for="(a,i) in aktivitasIlustratif" :key="'akt-'+i">
+              <div class="gc-aktivitas-dot" :style="{background: a.warna}"></div>
+              <div class="gc-aktivitas-txt">{{ a.teks }}<span class="gc-aktivitas-jam gc-num">{{ a.jam }}</span></div>
+            </div>
+          </div>
+
+          <div class="gc-pipeline-card" style="margin-bottom:0;">
+            <div class="gc-pipeline-head" style="margin-bottom:6px;"><b>Pintasan Papan Tik</b></div>
+            <div class="gc-pintasan-row" v-for="(p,i) in pintasanIlustratif" :key="'pin-'+i">
+              <kbd>{{ p.k }}</kbd><span>{{ p.teks }}</span>
+            </div>
           </div>
         </div>
       </div>

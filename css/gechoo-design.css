@@ -208,6 +208,12 @@ input, select, textarea{font:inherit; color:inherit;}
 /* ---- Topbar desktop (GANTI header 80px lama "ERP Portal" statis) ---- */
 .gc-topbar-desktop{height:80px; box-sizing:border-box; background:var(--ivory); border-bottom:1px solid var(--line);
   padding:0 24px; display:flex; align-items:center; gap:14px;}
+/* ---- Breadcrumb topbar (BARU, 30 Agt 2026 — GANTI h2 "ERP Portal" +
+   badge countdown shift lama). Statis "Umum › Beranda" untuk sekarang,
+   lihat komentar di index.html. ---- */
+.gc-crumb{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-faint);}
+.gc-crumb b{font-size:13.5px; font-weight:700; color:var(--text); font-family:'Poppins',sans-serif;}
+.gc-crumb .gc-crumb-mid{font-size:9px;}
 .gc-notif-wrap{position:relative; margin-left:auto;}
 .gc-notif-btn{position:relative; width:36px; height:36px; border-radius:10px; border:1px solid var(--line);
   background:var(--surface); color:var(--text-muted); display:flex; align-items:center; justify-content:center; font-size:14px;}
@@ -263,6 +269,27 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-tindak-txt b{font-size:11.5px; display:block;}
 .gc-tindak-txt span{font-size:10px; color:var(--text-faint);}
 .gc-tindak-chip{background:var(--aksen-ink); color:var(--ivory); font-size:8.5px; font-weight:700; border-radius:999px; padding:2px 8px; margin-right:4px;}
+
+/* ---- Kartu Absen desktop (BARU, 30 Agt 2026 — REAL, "diambil tempel"
+   dari kartu shift mobile: .gc-kartu-gradien/.gc-pil-status/
+   .gc-deco-lingkaran dipakai LAGI, bukan direka ulang. Read-only, tanpa
+   tombol Clock In/Out.) ---- */
+.gc-absen-desktop{border-radius:var(--radius); padding:16px; margin-bottom:16px;}
+.gc-absen-desktop .lbl{font-size:10px; opacity:.8;}
+.gc-absen-desktop .jam{font-family:'Poppins',sans-serif; font-weight:700; font-size:19px; margin:4px 0 10px;}
+.gc-absen-desktop .ket{font-size:10px; opacity:.85; margin-top:10px; line-height:1.5;}
+
+/* ---- Aktivitas Terbaru & Pintasan Papan Tik (BARU, 30 Agt 2026) — kartu
+   pembungkusnya reuse .gc-pipeline-card/.gc-pipeline-head (sama seperti
+   mockup reuse .card/.card-head). Isinya KONTEN STATIS/ILUSTRATIF, lihat
+   komentar di js/vue-home-desktop.js. ---- */
+.gc-aktivitas-row{display:flex; gap:9px; padding:7px 0; border-bottom:1px solid var(--line);}
+.gc-aktivitas-row:last-child{border-bottom:none;}
+.gc-aktivitas-dot{width:7px; height:7px; border-radius:999px; margin-top:5px; flex:0 0 auto;}
+.gc-aktivitas-txt{flex:1; font-size:11px; line-height:1.4; color:var(--text);}
+.gc-aktivitas-jam{font-size:9.5px; color:var(--text-faint); display:block; margin-top:2px;}
+.gc-pintasan-row{display:flex; align-items:center; gap:9px; padding:6px 0; font-size:10.5px; color:var(--text-muted);}
+.gc-pintasan-row kbd{border:1px solid var(--line); border-radius:5px; padding:1px 6px; font-size:9.5px; font-family:inherit; background:var(--ivory-dim); color:var(--text);}
 
 /* ---- Tabel — dengan dukungan kolom freeze (perbaikan bug scroll) ---- */
 .gc-table-scroll{overflow-x:auto; border-radius:var(--radius); position:relative;}
