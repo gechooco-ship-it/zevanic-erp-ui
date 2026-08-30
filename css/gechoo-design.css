@@ -254,6 +254,11 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-theme-btn{width:26px; height:26px; border-radius:8px; border:1px solid var(--line); background:var(--ivory-dim);
   color:var(--text-muted); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:11px; cursor:pointer;}
 .gc-theme-btn:hover{background:var(--aksen-lembut); color:var(--aksen-ink); border-color:var(--aksen-lembut);}
+/* Avatar inisial footer sidebar (BARU, 30 Agt 2026, ronde audit desain) —
+   PERSIS `.sb-av` mockup: bulat, gradien maroon sama seperti kartu shift/
+   KPI Beranda desktop (`--grad-shift-a`, lihat pengecualian warna di atas). */
+.gc-side-av{width:30px; height:30px; border-radius:999px; background:var(--grad-shift-a); color:var(--tinta-gradien);
+  display:flex; align-items:center; justify-content:center; font-weight:700; font-size:11px; flex-shrink:0;}
 
 /* ---- Topbar desktop (GANTI header 80px lama "ERP Portal" statis) ----
    REVISI (30 Agt 2026, sesi lanjutan lagi) — height 80px DIKURANGI jadi

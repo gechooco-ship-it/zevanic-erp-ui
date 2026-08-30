@@ -44,6 +44,7 @@ window.simpanPerubahanProfil = async function() {
     await updateDoc(userRef, { nama: namaBaru, hp: hpBaru });
     window.currentUser.name = namaBaru;
     document.getElementById('teks-nama-user').innerText = "Hi, " + namaBaru;
+    if (window.perbaruiAvatarSidebarDesktop) window.perbaruiAvatarSidebarDesktop();
     document.getElementById('profil-nama').innerText = namaBaru;
     alert("Profil berhasil diperbarui!");
   } catch (e) {
@@ -747,3 +748,21 @@ window.exportKeCSV = function() {
     perbarui();
   }
 })();
+
+// Avatar inisial footer sidebar desktop (BARU, 30 Agt 2026, ronde audit
+// desain) — #teks-nama-user DIPINDAH dari topbar ke footer sidebar
+// (pojok kiri-bawah, persis mockup .sb-foot), dipasangkan avatar inisial
+// SAMA POLA dengan inisial() di js/vue-header-mobile.js (mobile), cuma
+// versi vanilla JS karena sidebar desktop bukan komponen Vue. Dipanggil
+// dari js/auth.js & js/dashboard.js persis di titik yang sudah mengisi
+// #teks-nama-user (cek grep "teks-nama-user" sebelum ubah titik panggil).
+window.perbaruiAvatarSidebarDesktop = function () {
+  const el = document.getElementById('sidebarAvatarInisial');
+  if (!el) return;
+  const nama = (window.currentUser && (window.currentUser.name || window.currentUser.nama)) || '';
+  const bersih = nama.trim();
+  el.textContent = !bersih ? '?' : (function () {
+    const kata = bersih.split(/\s+/);
+    return kata.length === 1 ? kata[0].slice(0, 2).toUpperCase() : (kata[0][0] + kata[kata.length - 1][0]).toUpperCase();
+  })();
+};

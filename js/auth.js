@@ -784,6 +784,7 @@ window.logout = async function() {
 
 window.aturTampilanBerdasarkanRole = function() {
   document.getElementById('teks-nama-user').innerText = "Hi, " + window.currentUser.name;
+  if (window.perbaruiAvatarSidebarDesktop) window.perbaruiAvatarSidebarDesktop();
   document.getElementById('label-role-sidebar').innerText = "Role: " + window.currentUser.role.toUpperCase();
   // REDESAIN (30 Agt 2026) — elemen #label-badge-role (badge "ERP Portal" +
   // countdown shift lama, js/dashboard.js mulaiHitungJamKerja()) DICOPOT
