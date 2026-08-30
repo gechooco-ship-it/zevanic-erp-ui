@@ -185,6 +185,11 @@ function setGrupSidebarTerbuka(groupId) {
       ikon.classList.toggle('fa-chevron-down', !cocok);
       ikon.classList.toggle('fa-chevron-up', cocok);
     }
+    // BARU (30 Agt 2026, sesi lanjutan) — class buat warnai ikon+latar
+    // tombol kepala grup saat grup-nya terbuka (persis mockup, lihat
+    // .gc-grp-buka di css/gechoo-design.css). Dulu tidak ada state ini
+    // sama sekali di tombol parent-nya sendiri, cuma chevron yang berubah.
+    btn.classList.toggle('gc-grp-buka', cocok);
   });
 }
 window.toggleNavGroup = function(groupId) {
@@ -607,3 +612,111 @@ window.exportKeCSV = function() {
 // Aju Banding (window._bandingFileGlobal/bukaModalAjuBanding/
 // tutupModalAjuBanding/pilihFileBanding/kirimAjuBanding) sudah pindah ke
 // komponen AjuBandingModal di js/vue-account-profile.js.
+
+// ============================================================================
+// Palet Pencarian Global / Ctrl K (BARU, 30 Agt 2026, sesi lanjutan —
+// permintaan Guru "ada pencarian, terapkan"). REVISI dari keputusan §5.9
+// yang sebelumnya SENGAJA tidak membangun elemen ini karena mockup-nya
+// cuma visual (README paket handoff: "penanganan tombol fisiknya belum
+// diikat — hanya palet Ctrl K yang berfungsi lewat klik. Implementasikan
+// listener sungguhan di repo."). DI SINI DIIKAT SUNGGUHAN:
+// - Daftar hasil pencarian DIBACA LANGSUNG dari DOM sidebar (tiap elemen
+//   ber-atribut data-menu-id/data-menu-ids di dalam .gc-sidebar), BUKAN
+//   daftar hardcode terpisah — otomatis akurat kalau menu berubah, tidak
+//   ada 2 sumber kebenaran yang bisa beda.
+// - Klik hasil = trigger .click() pada tombol sidebar ASLI (bukan
+//   menduplikasi logic pindahTab()/pindahSubTab()), supaya perilakunya
+//   PERSIS sama seperti user klik manual di sidebar (termasuk buka
+//   accordion grup induknya, catatRiwayat, dst — apapun yang sudah
+//   ditempel di onclick tombol itu).
+// - Filter ketikan = contains + tidak peka huruf besar-kecil. Ini AMAN
+//   (beda dari pencarian daftar modul yang wajib prefix-match+peka huruf
+//   besar-kecil demi hemat baca Firestore, PETA-HEMAT.md) karena ini
+//   MURNI filter array di client, sudah dari DOM, nol baca Firestore.
+// - Navigasi panah atas/bawah TIDAK diimplementasi (disederhanakan) —
+//   Enter pilih hasil PALING ATAS yang sedang tampil. Kalau Guru mau
+//   navigasi panah sungguhan nanti, itu penambahan kecil terpisah.
+// ============================================================================
+(function paletPencarianGlobal() {
+  const btnBuka = document.getElementById('btnPaletDesktop');
+  const overlay = document.getElementById('paletOverlayDesktop');
+  const input = document.getElementById('inputPaletDesktop');
+  const hasilWrap = document.getElementById('paletHasilDesktop');
+  if (!btnBuka || !overlay || !input || !hasilWrap) return; // topbar/palet tidak ada di layar ini
+
+  function kumpulkanItem() {
+    const daftar = [];
+    const btnDash = document.querySelector('.gc-sidebar nav > button[onclick*="tab-home"]');
+    const btnProfil = document.querySelector('.gc-sidebar nav > button[onclick*="tab-profil"]');
+    if (btnDash) daftar.push({ label: btnDash.textContent.trim(), grup: 'Umum', el: btnDash });
+    if (btnProfil) daftar.push({ label: btnProfil.textContent.trim(), grup: 'Umum', el: btnProfil });
+    document.querySelectorAll('.gc-sidebar [data-menu-id], .gc-sidebar [data-menu-ids]').forEach(function (el) {
+      const label = el.textContent.trim();
+      if (!label) return;
+      const subgroup = el.closest('.gc-nav-subgroup');
+      let grup = 'Umum';
+      if (subgroup && subgroup.previousElementSibling) {
+        grup = subgroup.previousElementSibling.textContent.trim();
+      }
+      daftar.push({ label: label, grup: grup, el: el });
+    });
+    return daftar;
+  }
+
+  let semuaItem = [];
+  let hasilTampil = [];
+
+  function render() {
+    if (!hasilTampil.length) {
+      hasilWrap.innerHTML = '<div class="gc-notif-empty">Tidak ada menu cocok.</div>';
+      return;
+    }
+    hasilWrap.innerHTML = hasilTampil.slice(0, 24).map(function (item, i) {
+      return '<div class="gc-palet-item' + (i === 0 ? ' aktif' : '') + '" data-idx="' + i + '">' +
+        '<span class="gc-palet-label">' + item.label + '</span>' +
+        '<span class="gc-palet-grup">' + item.grup + '</span></div>';
+    }).join('');
+  }
+
+  function saring(kata) {
+    const k = kata.trim().toLowerCase();
+    hasilTampil = !k ? semuaItem : semuaItem.filter(function (item) { return item.label.toLowerCase().indexOf(k) !== -1; });
+    render();
+  }
+
+  function buka() {
+    semuaItem = kumpulkanItem();
+    hasilTampil = semuaItem;
+    input.value = '';
+    overlay.hidden = false;
+    render();
+    setTimeout(function () { input.focus(); }, 0);
+  }
+  function tutup() { overlay.hidden = true; }
+
+  function pilih(idx) {
+    const item = hasilTampil[idx];
+    if (!item) return;
+    tutup();
+    item.el.click();
+  }
+
+  btnBuka.addEventListener('click', buka);
+  overlay.addEventListener('click', function (e) { if (e.target === overlay) tutup(); });
+  input.addEventListener('input', function () { saring(input.value); });
+  hasilWrap.addEventListener('click', function (e) {
+    const row = e.target.closest('.gc-palet-item');
+    if (row) pilih(Number(row.dataset.idx));
+  });
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      if (overlay.hidden) buka(); else tutup();
+    } else if (e.key === 'Escape' && !overlay.hidden) {
+      tutup();
+    } else if (!overlay.hidden && e.key === 'Enter') {
+      const aktif = hasilWrap.querySelector('.gc-palet-item');
+      if (aktif) pilih(Number(aktif.dataset.idx));
+    }
+  });
+})();

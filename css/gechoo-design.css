@@ -195,14 +195,34 @@ input, select, textarea{font:inherit; color:inherit;}
    (.gc-mobile-nav dkk) SENGAJA TIDAK disentuh sama sekali. Struktur HTML
    (.gc-nav-item/onclick/data-menu-id) TIDAK berubah, cuma warnanya. */
 .gc-sidebar{background:var(--surface); padding:0 14px 22px; display:flex; flex-direction:column; gap:3px; border-right:1px solid var(--line);}
-.gc-side-brand{height:80px; box-sizing:border-box; padding:0 10px; margin:0 -14px 14px; background:var(--ivory);
-  border-bottom:1px solid var(--line); display:flex; flex-direction:column; justify-content:center;}
+/* REVISI (30 Agt 2026, sesi lanjutan) — brand block GANTI dari kolom
+   teks-doang ("Gechoo ♥") jadi baris ikon-kotak + teks, persis mockup
+   ("Zevanic ERP" + role). Elemen ini SUDAH desktop-only dari awal
+   (`.gc-sidebar hidden md:flex`) — GANTI teks di sini TIDAK menyentuh
+   branding mobile sama sekali (mobile pakai header terpisah, vue-header-
+   mobile.js, tidak pernah menampilkan blok ini). */
+.gc-side-brand{height:80px; box-sizing:border-box; padding:0 14px; margin:0 -14px 14px; background:var(--ivory);
+  border-bottom:1px solid var(--line); display:flex; flex-direction:row; align-items:center; gap:10px;}
+.gc-side-brand-ico{width:32px; height:32px; border-radius:10px; background:var(--burgundy); color:var(--ivory);
+  display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;}
 .gc-side-brand b{color:var(--mahogany); font-size:15px; font-weight:700; font-family:'Poppins',sans-serif;}
 .gc-side-brand span{display:block; color:var(--burgundy); font-size:9.5px; letter-spacing:.08em; margin-top:1px;}
-.gc-nav-item{display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:12px; color:var(--text-muted); font-size:13px; font-weight:600; cursor:pointer; width:100%; border:none; background:none;}
+/* REVISI (30 Agt 2026, sesi lanjutan) — padding & font-size DIRAPATKAN
+   (dulu 10px 12px/13px, mockup minta 8px 10px/11.5px) supaya sidebar
+   tidak terasa "renggang" dibanding referensi. Ini cuma pengaruh ke item
+   yang TIDAK override inline (Beranda/Profile + 7 tombol kepala grup) —
+   sub-item nested sudah punya inline padding:7px 10px/12.5px sendiri,
+   tidak ikut berubah. */
+.gc-nav-item{display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:9px; color:var(--text-muted); font-size:12.5px; font-weight:600; cursor:pointer; width:100%; border:none; background:none;}
 .gc-nav-item.active{background:var(--aksen-lembut); color:var(--aksen-ink); box-shadow:0 2px 6px rgba(91,56,38,.08);}
 .gc-nav-item:not(.active):hover{background:var(--ivory-dim); color:var(--text);}
 .gc-nav-ico{width:17px; height:17px; flex-shrink:0;}
+/* Ikon 14px di tombol kepala grup (BARU, 30 Agt 2026 sesi lanjutan) —
+   persis mockup: netral text-faint biasa, aksen-ink saat grup terbuka
+   (class .gc-grp-buka ditambah/dicopot js/dashboard.js setGrupSidebarTerbuka()). */
+.gc-nav-gico{width:14px; text-align:center; font-size:13px; color:var(--text-faint); flex-shrink:0;}
+.gc-nav-item.gc-grp-buka{background:var(--ivory-dim); color:var(--aksen-ink);}
+.gc-nav-item.gc-grp-buka .gc-nav-gico{color:var(--aksen-ink);}
 .gc-nav-section{font-size:10px; letter-spacing:.08em; color:var(--text-faint); opacity:.9; text-transform:uppercase; margin:14px 10px 6px; font-family:'Poppins',sans-serif;}
 
 /* ---- Topbar desktop (GANTI header 80px lama "ERP Portal" statis) ---- */
@@ -214,6 +234,25 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-crumb{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-faint);}
 .gc-crumb b{font-size:13.5px; font-weight:700; color:var(--text); font-family:'Poppins',sans-serif;}
 .gc-crumb .gc-crumb-mid{font-size:9px;}
+/* ---- Pencarian global / Palet Ctrl K (BARU, 30 Agt 2026, sesi lanjutan)
+   — GANTI dari "sengaja tidak dibangun" (versi awal §5.9) jadi REAL:
+   klik/Ctrl+K buka overlay, hasil diambil LANGSUNG dari DOM sidebar
+   (data-menu-id), klik hasil = trigger .click() tombol sidebar asli.
+   Lihat js/dashboard.js paletPencarianGlobal(). Beda dari mockup yang
+   listener tombol fisiknya belum diikat (README paket handoff) — di sini
+   SUDAH diikat sungguhan, bukan cuma gambar. ---- */
+.gc-search-global{margin-left:auto; width:320px; display:flex; align-items:center; gap:8px; background:var(--ivory-dim);
+  border:1px solid var(--line); border-radius:8px; padding:7px 11px; color:var(--text-faint); font-size:12px; cursor:pointer;}
+.gc-search-global span{flex:1; text-align:left;}
+.gc-search-global kbd{font-size:9.5px; border:1px solid var(--line); border-radius:5px; padding:1px 6px; color:var(--text-faint); font-family:inherit; background:var(--ivory);}
+.gc-palet-overlay{position:fixed; inset:0; z-index:80; background:rgba(31,22,17,.45); display:flex; align-items:flex-start; justify-content:center; padding-top:14vh;}
+.gc-palet-card{width:520px; max-width:92vw; max-height:60vh; background:var(--ivory); border-radius:14px; box-shadow:0 20px 50px -15px rgba(31,22,17,.5); overflow:hidden; display:flex; flex-direction:column;}
+.gc-palet-input{width:100%; box-sizing:border-box; border:none; border-bottom:1px solid var(--line); padding:14px 16px; font-size:13.5px; background:transparent; color:var(--text); outline:none;}
+.gc-palet-results{overflow-y:auto; padding:6px;}
+.gc-palet-item{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 10px; border-radius:9px; cursor:pointer; font-size:12px; color:var(--text);}
+.gc-palet-item:hover, .gc-palet-item.aktif{background:var(--ivory-dim);}
+.gc-palet-label{font-weight:600;}
+.gc-palet-grup{font-size:10px; color:var(--text-faint);}
 .gc-notif-wrap{position:relative; margin-left:auto;}
 .gc-notif-btn{position:relative; width:36px; height:36px; border-radius:10px; border:1px solid var(--line);
   background:var(--surface); color:var(--text-muted); display:flex; align-items:center; justify-content:center; font-size:14px;}

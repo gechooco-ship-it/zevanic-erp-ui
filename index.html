@@ -144,9 +144,17 @@
   <div id="screen-dashboard" class="hidden h-[100dvh] w-full relative fade-in flex overflow-hidden" style="background:var(--ivory);">
 
     <aside class="gc-sidebar hidden md:flex w-64 flex-col shrink-0" style="z-index:20;">
+      <!-- REVISI (30 Agt 2026, sesi lanjutan) — teks brand GANTI "Gechoo ♥"
+           jadi "Zevanic ERP" + ikon-kotak, persis mockup. Blok ini desktop-
+           only dari awal (`.gc-sidebar hidden md:flex`) — mobile TIDAK
+           pernah menampilkan blok ini (header sendiri, vue-header-mobile.js),
+           jadi ganti teks di sini TIDAK menyentuh branding mobile. -->
       <div class="gc-side-brand">
-        <h1 class="gc-heading" style="font-size:17px; font-weight:700; color:var(--mahogany); margin:0;">Gechoo &hearts;</h1>
-        <p id="label-role-sidebar" class="gc-heading" style="font-size:9.5px; letter-spacing:.08em; color:var(--burgundy); font-weight:700; text-transform:uppercase; margin-top:1px;">Role: Operator</p>
+        <div class="gc-side-brand-ico"><i class="fas fa-table-cells-large"></i></div>
+        <div>
+          <h1 class="gc-heading" style="font-size:14px; font-weight:700; color:var(--aksen-ink); margin:0;">Zevanic ERP</h1>
+          <p id="label-role-sidebar" class="gc-heading" style="font-size:9.5px; letter-spacing:.08em; color:var(--text-faint); font-weight:700; text-transform:uppercase; margin-top:1px;">Role: Operator</p>
+        </div>
       </div>
       <nav class="flex-1 overflow-y-auto" style="display:flex; flex-direction:column; gap:3px;">
         <button onclick="pindahTab('tab-home')" class="gc-nav-item active">
@@ -166,7 +174,7 @@
              parent terbuka sekalian (accordion), otomatis buka parent yang
              sesuai saat pindah tab (klik sub-menu, tombol back, dsb). -->
         <button onclick="toggleNavGroup('navgrp-absensi')" id="menu-admin-acc" data-group="navgrp-absensi" class="hidden gc-nav-item" style="font-weight:700;">
-          Master Absensi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+          <i class="fas fa-clock gc-nav-gico"></i> Master Absensi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
         <div id="navgrp-absensi" class="hidden gc-nav-subgroup">
           <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc-btn" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
@@ -175,7 +183,7 @@
         </div>
 
         <button onclick="toggleNavGroup('navgrp-keuangan')" id="menu-keuangan" data-group="navgrp-keuangan" class="hidden gc-nav-item" style="font-weight:700;">
-          Master Keuangan <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+          <i class="fas fa-sack-dollar gc-nav-gico"></i> Master Keuangan <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
         <div id="navgrp-keuangan" class="hidden gc-nav-subgroup">
           <button onclick="pindahTab('tab-keuangan')" id="menu-keuangan-btn" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
@@ -184,7 +192,7 @@
         </div>
 
         <button onclick="toggleNavGroup('navgrp-karyawan')" id="menu-superuser" data-group="navgrp-karyawan" class="hidden gc-nav-item" style="font-weight:700;">
-          Master Karyawan <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+          <i class="fas fa-users gc-nav-gico"></i> Master Karyawan <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
         <div id="navgrp-karyawan" class="hidden gc-nav-subgroup">
           <button onclick="pindahTab('tab-superuser')" id="menu-superuser-btn" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
@@ -193,7 +201,7 @@
         </div>
 
         <button onclick="toggleNavGroup('navgrp-zevanic')" id="menu-zevanic-house" data-group="navgrp-zevanic" class="hidden gc-nav-item" style="font-weight:700;">
-          Zevanic House <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+          <i class="fas fa-shirt gc-nav-gico"></i> Zevanic House <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
         <div id="navgrp-zevanic" class="hidden gc-nav-subgroup">
           <!-- BARU (27 Agt 2026, §26.1) — Config: lihat js/vue-config.js. Sengaja
@@ -244,7 +252,7 @@
              SEBELUM Persiapan Produksi (ASUMSI urutan, belum eksplisit
              dikonfirmasi Guru — gampang digeser). -->
         <button onclick="toggleNavGroup('navgrp-pesanan')" id="menu-pesanan" data-group="navgrp-pesanan" class="hidden gc-nav-item" style="font-weight:700;">
-          Pesanan <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+          <i class="fas fa-receipt gc-nav-gico"></i> Pesanan <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
         <div id="navgrp-pesanan" class="hidden gc-nav-subgroup">
           <button onclick="pindahTab('tab-pesanan'); pindahSubTab('sub-pesanan','sub-pesanan-kasir', this, {catatRiwayat:true})" id="menu-pesanan-kasir-btn" data-menu-id="pesanan_kasir" data-target="sub-pesanan-kasir" class="sub-pesanan-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
@@ -280,7 +288,7 @@
              Grouping) yang fungsional — 5 jalur BARU struktur navigasi,
              isinya placeholder "segera hadir" sampai Fase 2-5. -->
         <button onclick="toggleNavGroup('navgrp-persiapanproduksi')" id="menu-persiapan-produksi" data-group="navgrp-persiapanproduksi" class="hidden gc-nav-item" style="font-weight:700;">
-          Persiapan Produksi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+          <i class="fas fa-diagram-project gc-nav-gico"></i> Persiapan Produksi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
         <div id="navgrp-persiapanproduksi" class="hidden gc-nav-subgroup">
           <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-disiapkan', this, {catatRiwayat:true})" id="menu-pp-disiapkan-btn" data-menu-id="pp_disiapkan" data-target="sub-pp-disiapkan" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
@@ -304,7 +312,7 @@
         </div>
 
         <button onclick="toggleNavGroup('navgrp-integrasi')" id="menu-whatsapp" data-group="navgrp-integrasi" class="hidden gc-nav-item" style="font-weight:700;">
-          Master Integrasi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+          <i class="fas fa-plug gc-nav-gico"></i> Master Integrasi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
         <div id="navgrp-integrasi" class="hidden gc-nav-subgroup">
           <button onclick="pindahTab('tab-whatsapp')" id="menu-whatsapp-btn" data-menu-id="whatsapp_gateway" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
@@ -344,7 +352,13 @@
         <div class="gc-crumb">
           <span>Umum</span><i class="fas fa-chevron-right gc-crumb-mid"></i><b>Beranda</b>
         </div>
-        <span id="teks-nama-user" class="gc-heading" style="font-size:12.5px; font-weight:700; color:var(--text); margin-left:auto;">Hi, Karyawan</span>
+        <!-- REVISI (30 Agt 2026, sesi lanjutan) — pencarian global REAL
+             (bukan cuma visual), lihat js/dashboard.js paletPencarianGlobal()
+             + komentar `.gc-search-global` di CSS. -->
+        <button type="button" class="gc-search-global" id="btnPaletDesktop">
+          <i class="fas fa-magnifying-glass"></i><span>Cari menu atau data...</span><kbd>Ctrl K</kbd>
+        </button>
+        <span id="teks-nama-user" class="gc-heading" style="font-size:12.5px; font-weight:700; color:var(--text); margin-left:14px;">Hi, Karyawan</span>
         <div class="gc-notif-wrap" style="margin-left:14px;">
           <button class="gc-notif-btn" id="btnNotifDesktop"><i class="fas fa-bell"></i><span class="dot" id="notifDotDesktop" hidden>0</span></button>
           <div class="gc-notif-backdrop" id="notifBackdropDesktop" hidden></div>
@@ -354,6 +368,12 @@
           </div>
         </div>
       </header>
+      <div class="gc-palet-overlay" id="paletOverlayDesktop" hidden>
+        <div class="gc-palet-card">
+          <input class="gc-palet-input" id="inputPaletDesktop" placeholder="Ketik nama menu...">
+          <div class="gc-palet-results" id="paletHasilDesktop"></div>
+        </div>
+      </div>
 
       <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-8 min-h-0">
 
