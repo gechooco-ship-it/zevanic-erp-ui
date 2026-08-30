@@ -329,6 +329,24 @@ thead .freeze{z-index:3;}
 .grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}
 .animate-spin{animation:gc-spin 1s linear infinite;}
 @keyframes gc-spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+/* .gc-nav-subgroup — BARU (30 Agt 2026, fix bug "minimize/maximize sidebar
+   desktop tidak jalan", laporan Guru). Sub-menu tiap grup sidebar (Master
+   Absensi/Keuangan/Karyawan/Zevanic House/Persiapan Produksi/Integrasi) di
+   index.html DULU pakai `class="hidden" style="display:flex; flex-
+   direction:column; gap:2px; padding-left:16px; margin:2px 0 4px;"` —
+   INLINE style di HTML SELALU menang dari class manapun di CSS (beda dari
+   soal urutan .hidden vs .flex di bawah, ini soal inline vs class, inline
+   MUTLAK menang tidak peduli urutan) — jadi toggleNavGroup()/
+   setGrupSidebarTerbuka() di js/dashboard.js SUDAH BENAR pasang/lepas class
+   "hidden"-nya, TAPI div-nya TETAP kelihatan (computedDisplay selalu
+   "flex") karena inline style itu tidak pernah benar-benar ke-override.
+   Akibatnya SEMUA grup sidebar kelihatan terbuka bersamaan terus-menerus,
+   klik parent buat minimize/maximize kelihatan seperti tidak ngefek.
+   Dikonfirmasi LANGSUNG lewat browser (bukan tebakan) sebelum diperbaiki —
+   lihat STATUS-PROYEK.md §44.26. FIX: styling yang sama dipindah ke CLASS
+   ini (BUKAN inline lagi), supaya .hidden (di bawah, urutan CSS-nya
+   SENGAJA taruh SETELAH class ini) bisa benar-benar menang & berfungsi. */
+.gc-nav-subgroup{display:flex;flex-direction:column;gap:2px;padding-left:16px;margin:2px 0 4px;}
 /* .hidden SENGAJA ditulis di sini (bukan di atas) — kalau 1 elemen punya
    class "hidden" DAN "flex"/"block"/"grid" sekaligus (pola umum: JS cuma
    lepas/pasang class "hidden", sementara flex/block sudah permanen di situ
