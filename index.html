@@ -335,17 +335,30 @@
         </div>
       </nav>
       <!-- BARU (30 Agt 2026, ronde audit desain) — footer sidebar PERSIS
-           pola mockup `.sb-foot`: avatar inisial + nama (pindahan
+           pola mockup `.sb-foot`: avatar inisial + nama+subjudul (pindahan
            #teks-nama-user dari topbar, lihat komentar di atas) + tombol
            tema, sebaris kiri-bawah. Tombol tema pakai ulang
            window.toggleTema() yang sudah ada, BUKAN logic tema baru —
            lihat window.toggleTemaSidebarDesktop()/perbaruiAvatarSidebarDesktop()
            di js/dashboard.js. Logout TETAP ada di bawahnya (tidak ada di
-           mockup, tapi sudah ada dari awal di produksi — dipertahankan). -->
+           mockup, tapi sudah ada dari awal di produksi — dipertahankan).
+           REVISI (30 Agt 2026, ronde audit desain lanjutan) — Guru bandingkan
+           screenshot live vs mockup: mockup `.sb-who` punya 2 baris (nama +
+           subjudul "SOG27A · Gudang Utama" = shift · gudang), live cuma 1
+           baris nama + prefix "Hi, " (pas dulu di topbar sebagai sapaan,
+           SEKARANG janggal di sini sebagai chip identitas). Prefix "Hi, "
+           DICOPOT (js/auth.js/dashboard.js), ditambah baris subjudul BARU
+           #teks-info-sidebar-desktop — data-nya PAKAI ULANG field yang
+           SUDAH ADA di window.currentUser (nama_shift, gudang_penempatan
+           via window.normalisasiGudang — SAMA seperti dipakai Kartu Absen
+           `js/vue-home-desktop.js`), BUKAN fetch Firestore baru. -->
       <div style="padding-top:14px; border-top:1px solid var(--pink-deep); display:flex; flex-direction:column; gap:9px;">
         <div style="display:flex; align-items:center; gap:9px;">
           <div id="sidebarAvatarInisial" class="gc-side-av">--</div>
-          <span id="teks-nama-user" class="gc-heading" style="flex:1; min-width:0; font-size:11.5px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Hi, Karyawan</span>
+          <div style="flex:1; min-width:0;">
+            <span id="teks-nama-user" class="gc-heading" style="display:block; font-size:11.5px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Karyawan</span>
+            <span id="teks-info-sidebar-desktop" style="display:block; font-size:9px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">-</span>
+          </div>
           <button type="button" class="gc-theme-btn" id="btnTemaSidebarDesktop" onclick="window.toggleTemaSidebarDesktop()" title="Ganti tema (Terang/Gelap/Otomatis)">
             <i class="fas fa-circle-half-stroke" id="ikonTemaSidebarDesktop"></i>
           </button>
@@ -385,6 +398,14 @@
         <button type="button" class="gc-search-global" id="btnPaletDesktop">
           <i class="fas fa-magnifying-glass"></i><span>Cari menu atau data...</span><kbd>Ctrl K</kbd>
         </button>
+        <!-- BARU (30 Agt 2026, ronde audit desain lanjutan) — tombol Export,
+             persis mockup `.btn-export`. STATIS SAJA (tanpa onclick), sesuai
+             permintaan Guru eksplisit: "tampilkan dulu, bangun nanti — fake
+             aja dulu tombol statis tanpa feedback". JANGAN tambah logic
+             export tanpa keputusan lanjutan Guru (mau export apa/dari mana). -->
+        <button type="button" class="gc-btn-export" title="Segera hadir">
+          <i class="fas fa-arrow-up-from-bracket"></i> Export
+        </button>
         <div class="gc-notif-wrap" style="margin-left:14px;">
           <button class="gc-notif-btn" id="btnNotifDesktop"><i class="fas fa-bell"></i><span class="dot" id="notifDotDesktop" hidden>0</span></button>
           <div class="gc-notif-backdrop" id="notifBackdropDesktop" hidden></div>
@@ -401,7 +422,13 @@
         </div>
       </div>
 
-      <main class="flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-8 min-h-0">
+      <!-- BARU (30 Agt 2026, ronde audit desain lanjutan) — kelas
+           `gc-main-desktop` DITAMBAH khusus supaya area konten desktop
+           bisa dikasih background putih (`--surface`) TERPISAH dari
+           `#screen-dashboard` (tetap ivory, dipakai MOBILE — TIDAK
+           disentuh). Lihat blok `@media(min-width:768px)` di
+           css/gechoo-design.css. -->
+      <main class="gc-main-desktop flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-8 min-h-0">
 
         <!-- Header mobile dinamis (Kotak 1) — 1 komponen dipakai di SEMUA
              tab, isinya berubah otomatis (Home vs halaman lain). Lihat

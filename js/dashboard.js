@@ -43,7 +43,7 @@ window.simpanPerubahanProfil = async function() {
     const userRef = doc(db, "users", window.currentUser.email);
     await updateDoc(userRef, { nama: namaBaru, hp: hpBaru });
     window.currentUser.name = namaBaru;
-    document.getElementById('teks-nama-user').innerText = "Hi, " + namaBaru;
+    document.getElementById('teks-nama-user').innerText = namaBaru;
     if (window.perbaruiAvatarSidebarDesktop) window.perbaruiAvatarSidebarDesktop();
     document.getElementById('profil-nama').innerText = namaBaru;
     alert("Profil berhasil diperbarui!");
@@ -765,4 +765,21 @@ window.perbaruiAvatarSidebarDesktop = function () {
     const kata = bersih.split(/\s+/);
     return kata.length === 1 ? kata[0].slice(0, 2).toUpperCase() : (kata[0][0] + kata[kata.length - 1][0]).toUpperCase();
   })();
+};
+
+// Subjudul (shift · gudang) footer sidebar desktop (BARU, 30 Agt 2026,
+// ronde audit desain lanjutan) — Guru bandingkan screenshot live vs
+// mockup: mockup `.sb-who` punya baris ke-2 "SOG27A · Gudang Utama",
+// live sebelumnya cuma 1 baris nama. PAKAI ULANG field yang SUDAH ADA di
+// window.currentUser (nama_shift, gudang_penempatan lewat
+// window.normalisasiGudang — SAMA persis dipakai Kartu Absen di
+// js/vue-home-desktop.js), BUKAN query Firestore baru.
+window.perbaruiInfoSidebarDesktop = function () {
+  const el = document.getElementById('teks-info-sidebar-desktop');
+  if (!el) return;
+  const shift = (window.currentUser && window.currentUser.nama_shift) || '';
+  const gudangList = window.normalisasiGudang ? window.normalisasiGudang(window.currentUser && window.currentUser.gudang_penempatan) : [];
+  const gudang = (gudangList && gudangList.length > 0) ? gudangList.join(', ') : '';
+  const bagian = [shift, gudang].filter(Boolean);
+  el.textContent = bagian.length ? bagian.join(' · ') : '-';
 };
