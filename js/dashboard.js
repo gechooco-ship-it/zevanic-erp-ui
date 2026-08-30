@@ -720,3 +720,30 @@ window.exportKeCSV = function() {
     }
   });
 })();
+
+// Sinkronisasi ikon tombol tema sidebar desktop (BARU, 30 Agt 2026, ronde
+// audit desain) — sidebar desktop ini murni HTML statis (bukan Vue), jadi
+// ikonnya di-update manual lewat DOM, PAKAI ULANG window.toggleTema()/
+// window.temaPreferensi() yang sudah ada di index.html (BUKAN logic tema
+// baru) — sama seperti pola ikonTema di js/vue-sheet-profil.js (mobile).
+(function temaSidebarDesktop() {
+  function kelasIkon(pref) {
+    return pref === 'auto' ? 'fa-circle-half-stroke' : (pref === 'dark' ? 'fa-moon' : 'fa-sun');
+  }
+  function perbarui() {
+    const el = document.getElementById('ikonTemaSidebarDesktop');
+    if (!el) return; // topbar/sidebar tidak ada di layar ini
+    const pref = window.temaPreferensi ? window.temaPreferensi() : 'light';
+    el.className = 'fas ' + kelasIkon(pref);
+  }
+  window.toggleTemaSidebarDesktop = function () {
+    if (window.toggleTema) window.toggleTema();
+    perbarui();
+  };
+  window.addEventListener('zevanic-tema-berubah', perbarui);
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', perbarui);
+  } else {
+    perbarui();
+  }
+})();

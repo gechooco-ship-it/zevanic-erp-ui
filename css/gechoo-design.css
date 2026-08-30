@@ -202,15 +202,27 @@ input, select, textarea{font:inherit; color:inherit;}
    branding mobile sama sekali (mobile pakai header terpisah, vue-header-
    mobile.js, tidak pernah menampilkan blok ini). */
 /* REVISI (30 Agt 2026, sesi lanjutan lagi) — height:80px fixed DICOPOT,
-   Guru lapor header "kepanjangan ke bawah". Dicek ke README paket design
-   handoff (§"Sidebar (232px)"): spec ASLI cuma nentuin padding header
-   ("14px 14px 12px"), BUKAN tinggi fixed 80px — 80px itu jelas kependekan
-   riset saya sebelumnya, kegedean dari spec. Ganti ke padding-driven
-   (height:auto) supaya tingginya ngikutin konten (ikon 32px + padding
-   14/12 ≈ 58px), sesuai mockup, otomatis lebih pendek dari 80px lama. */
-.gc-side-brand{box-sizing:border-box; padding:14px 14px 12px; margin:0 -14px 14px; background:var(--ivory);
+   Guru lapor header "kepanjangan ke bawah", diganti height:auto (~58px
+   padding-driven). INI SALAH LAGI — Guru laporan berikutnya (30 Agt 2026,
+   ronde audit desain): header sidebar & topbar jadi TIDAK SEJAJAR (garis
+   bawah beda tinggi, 58px vs topbar 52px). Dicek ULANG langsung ke
+   ARTEFAK mockup `mockup-desktop-adaptasi.html` (bukan cuma baca README
+   lagi) — `.sb-head` di mockup itu FIXED `height:52px` (SAMA PERSIS
+   dengan `.topbar{height:52px}`), bukan padding-driven auto. Itu caranya
+   garis bawah header sidebar & topbar SEJAJAR lurus. Dikoreksi balik ke
+   fixed 52px (BUKAN 80px lama, BUKAN auto ~58px kemarin) + padding
+   horizontal saja (vertical center via flex align-items:center),
+   PERSIS mockup. */
+.gc-side-brand{height:52px; box-sizing:border-box; padding:0 14px; margin:0 -14px 14px; background:var(--ivory);
   border-bottom:1px solid var(--line); display:flex; flex-direction:row; align-items:center; gap:10px;}
-.gc-side-brand-ico{width:32px; height:32px; border-radius:10px; background:var(--burgundy); color:var(--ivory);
+/* REVISI (30 Agt 2026, ronde audit desain) — warna ikon-kotak KETUKAR
+   (reversed) dari artefak mockup: kode sebelumnya pakai latar SOLID
+   `--burgundy` + glyph `--ivory` (kotak burgundy penuh), padahal mockup
+   `.sb-logo` pakai latar LEMBUT `--aksen-lembut` (pink pucat) + glyph
+   `--aksen-ink` (burgundy) — pola "soft accent" yang SAMA dipakai item
+   sidebar aktif (`.gc-nav-item.active`). Dikoreksi supaya konsisten
+   dengan mockup & pola soft-accent yang sudah ada di tempat lain. */
+.gc-side-brand-ico{width:32px; height:32px; border-radius:10px; background:var(--aksen-lembut); color:var(--aksen-ink);
   display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;}
 .gc-side-brand b{color:var(--mahogany); font-size:15px; font-weight:700; font-family:'Poppins',sans-serif;}
 .gc-side-brand span{display:block; color:var(--burgundy); font-size:9.5px; letter-spacing:.08em; margin-top:1px;}
@@ -231,6 +243,17 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-nav-item.gc-grp-buka{background:var(--ivory-dim); color:var(--aksen-ink);}
 .gc-nav-item.gc-grp-buka .gc-nav-gico{color:var(--aksen-ink);}
 .gc-nav-section{font-size:10px; letter-spacing:.08em; color:var(--text-faint); opacity:.9; text-transform:uppercase; margin:14px 10px 6px; font-family:'Poppins',sans-serif;}
+/* Tombol ganti tema (BARU, 30 Agt 2026, ronde audit desain) — Guru lapor
+   desktop BELUM punya sakelar Terang/Gelap/Otomatis sama sekali (mobile
+   sudah punya, Bottom Sheet Profil/vue-sheet-profil.js). Ditambahkan di
+   footer sidebar desktop, sebaris dengan Logout — PERSIS ukuran/gaya
+   `.theme-btn` di mockup (26x26px, border tipis, ikon berubah sesuai
+   preferensi). Logic ikon (fa-sun/fa-moon/fa-circle-half-stroke) di
+   js/dashboard.js, PAKAI ULANG window.toggleTema()/temaPreferensi() yang
+   sudah ada (index.html) — bukan logic tema baru. */
+.gc-theme-btn{width:26px; height:26px; border-radius:8px; border:1px solid var(--line); background:var(--ivory-dim);
+  color:var(--text-muted); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:11px; cursor:pointer;}
+.gc-theme-btn:hover{background:var(--aksen-lembut); color:var(--aksen-ink); border-color:var(--aksen-lembut);}
 
 /* ---- Topbar desktop (GANTI header 80px lama "ERP Portal" statis) ----
    REVISI (30 Agt 2026, sesi lanjutan lagi) — height 80px DIKURANGI jadi

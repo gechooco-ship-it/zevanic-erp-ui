@@ -334,9 +334,18 @@
           </button>
         </div>
       </nav>
-      <div style="padding-top:14px; border-top:1px solid var(--pink-deep);">
-        <button onclick="logout()" class="gc-nav-item" style="color:var(--danger);">
+      <!-- BARU (30 Agt 2026, ronde audit desain) — tombol ganti tema
+           Terang/Gelap/Otomatis, sebelumnya BELUM ADA di sidebar desktop
+           (mobile sudah punya, Bottom Sheet Profil). Pakai ulang
+           window.toggleTema() yang sudah ada di index.html, BUKAN logic
+           tema baru — lihat window.toggleTemaSidebarDesktop() di
+           js/dashboard.js. -->
+      <div style="padding-top:14px; border-top:1px solid var(--pink-deep); display:flex; align-items:center; gap:8px;">
+        <button onclick="logout()" class="gc-nav-item" style="color:var(--danger); flex:1;">
           <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg> Logout
+        </button>
+        <button type="button" class="gc-theme-btn" id="btnTemaSidebarDesktop" onclick="window.toggleTemaSidebarDesktop()" title="Ganti tema (Terang/Gelap/Otomatis)">
+          <i class="fas fa-circle-half-stroke" id="ikonTemaSidebarDesktop"></i>
         </button>
       </div>
     </aside>
