@@ -823,8 +823,17 @@ window.aturTampilanBerdasarkanRole = function() {
   // — pic/admin/owner/superuser), domainnya masih persiapan produksi yang
   // sebelumnya nested di Zevanic House.
   const menuPersiapanProduksi = document.getElementById('menu-persiapan-produksi');
+  // BARU (30 Agt 2026, fitur "Pesanan") — grup top-level baru sejajar
+  // Zevanic House/Persiapan Produksi (lihat js/vue-pesanan.js). Gerbang
+  // role SAMA (isAdminLevel()) — menggantikan Order SPK lama yang dulu
+  // nested di Zevanic House dengan gerbang role yang sama persis.
+  // PERBAIKAN BUG (30 Agt 2026): tombol #menu-pesanan sempat ketinggalan
+  // ditambahkan ke sini saat fitur ditulis — sebabnya menu tidak pernah
+  // muncul untuk role manapun (class "hidden" bawaan di index.html tidak
+  // pernah dicopot).
+  const menuPesanan = document.getElementById('menu-pesanan');
 
-  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuZevanicStockBtn, menuPersiapanProduksi].forEach(el => {
+  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuZevanicStockBtn, menuPersiapanProduksi, menuPesanan].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -842,6 +851,7 @@ window.aturTampilanBerdasarkanRole = function() {
     if (menuZevanicPersiapanBtn) menuZevanicPersiapanBtn.classList.remove('hidden');
     if (menuZevanicStockBtn) menuZevanicStockBtn.classList.remove('hidden');
     if (menuPersiapanProduksi) menuPersiapanProduksi.classList.remove('hidden');
+    if (menuPesanan) menuPesanan.classList.remove('hidden');
     if (navMobileAdmin) {
       navMobileAdmin.classList.remove('hidden');
       navMobileAdmin.classList.add('flex');
