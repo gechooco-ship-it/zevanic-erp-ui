@@ -921,8 +921,10 @@ const FormEntryProdukBOM = {
                    di setup() atas komponen ini) — data lama yang belum
                    persis cocok ejaannya TETAP tampil normal. Field Firestore
                    TIDAK berubah nama (tetap 'tahap_proses'), dipakai juga
-                   sebagai filter Persiapan Acc Sewing/Webbing/Finishing
-                   (js/vue-persiapan-produksi.js). -->
+                   sebagai filter Persiapan Acc Sewing/Webbing/Finishing di
+                   menu Persiapan Produksi V2 (js/vue-persiapan-produksi-v2.js
+                   — nama file dikoreksi 30 Agt 2026, Fase 5 audit; versi
+                   LAMA vue-persiapan-produksi.js sudah ditinggalkan). -->
               <div class="gc-field" style="margin-bottom:0;"><label>Tahap Proses <span style="font-weight:400; color:var(--text-faint);">(Persiapan Untuk Tahap)</span></label><dropdown-cari v-model="a.tahap_proses" :opsi="opsiTahapPersiapan" placeholder="Cari/isi tahap, mis. Sewing..." /></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Aksesoris (Nama + Warna)</label><dropdown-cari v-model="a.aksesoris_pilih" :opsi="opsiNamaBahan" placeholder="Cari & pilih..." @update:modelValue="saatPilihAksesoris(a)" /></div>
               <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input v-model.number="a.qty" type="number" min="0"></div>

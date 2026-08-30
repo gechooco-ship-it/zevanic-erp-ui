@@ -105,12 +105,13 @@ const AppConfigKomponen = {
 // 2-kolom nama+keterangan lewat MasterDataTabelManager). Koleksi BARU
 // (master_tahap_persiapan) — sumber DropdownCari field "Tahap Proses" di
 // BOM Aksesoris (Master Produk > Entry Produk, lihat js/vue-master-
-// produk.js) DAN dipakai filter kartu Persiapan Acc Sewing/Webbing/
-// Finishing (js/vue-persiapan-produksi.js, menu baru Zevanic House >
-// Persiapan Produksi). Guru diminta isi PERSIS 3 entry "Sewing"/"Webbing"/
+// produk.js) DAN dipakai filter kartu Acc Sewing/Webbing/Finishing di
+// menu Persiapan Produksi V2 (js/vue-persiapan-produksi-v2.js — nama file
+// dikoreksi 30 Agt 2026, Fase 5 audit; versi LAMA vue-persiapan-produksi.js
+// sudah ditinggalkan). Guru diminta isi PERSIS 3 entry "Sewing"/"Webbing"/
 // "Finishing" (case-insensitive dicocokkan) supaya ke-3 kartu filter itu
 // bisa mengelompokkan baris BOM Aksesoris dengan benar — lihat catatan
-// panjang di vue-persiapan-produksi.js soal pencocokan tahap.
+// panjang di vue-persiapan-produksi-v2.js soal pencocokan tahap.
 const AppConfigTahapPersiapan = {
   components: { MasterDataTabelManager },
   template: `<master-data-tabel-manager koleksi="master_tahap_persiapan" label-singular="Tahap Persiapan" label-nama="Nama Tahap (mis. Sewing, Webbing, Finishing)" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
