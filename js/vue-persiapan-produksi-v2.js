@@ -572,14 +572,6 @@ const PersiapanDisiapkanManager = {
     };
   },
   template: `
-    <div class="gc-card" style="margin-bottom:16px; border-radius:20px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
-      <div style="min-width:0;">
-        <h3 style="font-weight:700; font-size:13.5px; margin-bottom:4px;"><i class="fas fa-layer-group" style="color:var(--aksen-ink); margin-right:8px;"></i>Perlu Disiapkan</h3>
-        <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 0;">SPK aktif yang produk, ukuran &amp; pola BOM-nya sama dikelompokkan jadi 1 kode SPK Grouping (bisa gelar &amp; potong kain bersamaan). Kelompokkan dulu di sini sebelum lanjut ke jalur produksi (Bahan/Acc Sewing/Acc Webbing/Acc Finishing, dan Vendor kalau perlu).</p>
-      </div>
-      <span class="tag pink" style="flex-shrink:0;">{{ daftarOrder.length }} SPK menunggu</span>
-    </div>
-
     <div v-if="memuat" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <div v-else class="gc-pp-layout">
