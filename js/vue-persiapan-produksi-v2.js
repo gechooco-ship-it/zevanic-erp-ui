@@ -65,10 +65,69 @@
 // MANUAL di form pembuatan grouping, bukan hasil deteksi.
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, orderBy, limit, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=5';
+import { PopupPratinjauCetakLabel, KolomCari } from './vue-components.js?v=5';
 import { ambilSemuaProduk } from './vue-master-produk.js';
+
+// ============================================================================
+// REDESAIN "Perlu Disiapkan" (31 Agt 2026) — handoff wireframe Guru, folder
+// Mockup/handoff/Persiapan Produksi - Perlu Disiapkan/. GANTI TOTAL layar
+// "Perlu Disiapkan" lama (kartu klaster + tombol langsung) dengan tata letak
+// 2 kolom (desktop 1440: daftar klaster kiri + panel "Grouping baru" kanan
+// sticky; mobile 390: 1 kolom + panel jadi bar mengambang di atas nav).
+// JALUR/TAHAP di bawahnya (JalurTahapManager, jalur Vendor/Bahan/Sewing/
+// Webbing/Finishing, 5 tahap tiap jalur) TIDAK DISENTUH SAMA SEKALI — cuma
+// generator SPK Grouping ini yang dibangun ulang. Keputusan (AskUserQuestion
+// ke Guru sebelum coding, jangan ditebak — 3 "Yang Belum Diputuskan" dari
+// SERAH-TERIMA.md SEMUANYA sudah dijawab langsung):
+//  1. Relasi ke V2 lama -> GANTI TOTAL (bukan modul baru berdampingan).
+//  2. Belum ada data live spk_grouping/spk_track sungguhan -> aman, tidak
+//     perlu migrasi apapun.
+//  3. Riwayat: begitu grouping terbit, baris klaster HILANG TOTAL dari
+//     antrean (TIDAK ada tab Selesai/Riwayat di layar ini) -> section
+//     "SPK Grouping Terbaru" yang PERSISTEN di versi lama DIHAPUS, diganti
+//     dialog konfirmasi SEKALI TAMPIL (konfirmasiTerbit) begitu grouping
+//     berhasil dibuat, sesuai kalimat SERAH-TERIMA.md §3 "kode yang terbit
+//     ditampilkan sekali sebagai konfirmasi".
+//  4. Pembatalan grouping -> DITUNDA, tidak dibangun versi ini.
+//  5. Jalur Vendor -> TETAP ADA (bukan dihapus meski wireframe cuma gambar
+//     4 chip Bahan/Acc Sewing/Acc Webbing/Acc Finishing) — checkbox manual
+//     "+ Jalur Vendor" dipertahankan di panel & di baris "Buat Grouping
+//     Sendiri", cuma dipindah ke bawah kotak 4 chip (bukan hilang).
+//  6. Deteksi 4 pos tujuan -> TETAP otomatis dari BOM (jalurOtomatisProduk,
+//     TIDAK diubah jadi "semua 4 pos selalu", walau kalimat wireframe
+//     "otomatis, bukan pilihan" sekilas menyiratkan itu — Guru konfirmasi
+//     "bukan pilihan" artinya Owner tidak bisa UNCHECK manual, BUKAN semua
+//     pos pasti kebagian).
+//  7. BARU (di luar SERAH-TERIMA.md, kebutuhan tambahan dari Guru saat
+//     diskusi): 1 SPK BOLEH ikut LEBIH DARI 1 SPK Grouping — dipecah
+//     sebagian qty. order_spk dapat 2 field baru: `qty_tergrouping` (number,
+//     akumulatif, BUKAN ditimpa) + `grouping_ids` (array, arrayUnion tiap
+//     ikut grouping baru). `id_spk_grouping`/`kode_spk_grouping` lama TETAP
+//     ditulis (kompatibilitas tampilan lain yang mungkin baca field itu) —
+//     isinya grouping TERAKHIR yang mengambil SPK ini, bukan satu-satunya.
+//     `status_grouping` sekarang 3 nilai: '' (belum) / 'sebagian' / 'tergrouping'
+//     (habis). Antrean (`muat()`) filter berdasarkan sisa qty (qty_order -
+//     qty_tergrouping) > 0, BUKAN lagi berdasarkan id_spk_grouping kosong.
+//
+// Kunci klaster DITEGASKAN ULANG Guru (31 Agt 2026): "nama_produk + size +
+// panjang pola + isi_pola_pcs" — DICEK LANGSUNG ke kode lama sebelum
+// diedit: versi SEBELUMNYA TERNYATA TIDAK memasukkan `size` sama sekali ke
+// kunci (cuma nama+kunciPola) — gap nyata, bukan cuma persepsi Guru salah.
+// Diperbaiki di sini lewat `kunciGrupProduk()` (BARU, di bawah), field
+// `master_produk.size` (sudah ada, lihat PETA-DATABASE.md) ditambahkan ke
+// tanda-tangan kunci. `kunciPolaProduk()` sendiri (panjang+isi_pola_pcs)
+// TIDAK diubah — dipakai juga oleh JalurTahapManager & jalurOtomatisProduk
+// yang tidak disentuh.
+//
+// Sumber "warna" per baris (wireframe: "Rincian per warna: Burgundy 40 ·
+// Purple 24 · Cream 12") — order_spk TIDAK punya field warna sendiri
+// (nama_produk-nya STRING GABUNGAN "Nama Warna Size", lihat catatan lama di
+// atas file ini) — dipakai `master_produk.warna` (field terpisah, resolve
+// lewat sku_produk) supaya tidak perlu parsing teks yang rapuh. SPK tanpa
+// SKU (tidak resolve ke produk) tidak masuk hitungan rincian warna.
+// ============================================================================
 
 const PETA_JALUR = {
   vendor: { label: 'Vendor', icon: 'fa-handshake', tag: 'pink' },
@@ -94,6 +153,19 @@ function kunciPolaProduk(produk) {
     .sort((a, b) => (a.p - b.p) || (a.i - b.i));
   if (baris.length === 0) return '';
   return baris.map(b => `${b.p}x${b.i}`).join('|');
+}
+
+// kunciGrupProduk — BARU (31 Agt 2026). Tanda-tangan LENGKAP klaster:
+// nama + SIZE + kunci pola. `size` ditambahkan di sini (lihat catatan
+// besar di atas file ini) — kalau kunci pola kosong (BOM Pola belum
+// lengkap/pola belum dikunci), return '' supaya produk itu TIDAK ikut
+// klaster manapun (ditampilkan terpisah sebagai "pola belum dikunci").
+function kunciGrupProduk(produk) {
+  const kp = kunciPolaProduk(produk);
+  if (!kp) return '';
+  const nama = (produk?.nama || '').trim().toLowerCase();
+  const size = (produk?.size || '').trim().toLowerCase();
+  return `${nama}::${size}::${kp}`;
 }
 
 // jalurOtomatisProduk — lihat catatan panjang "jalur_aktif" di atas file
@@ -214,13 +286,22 @@ function muatJsQr() {
 }
 
 const PersiapanDisiapkanManager = {
-  components: { PopupPratinjauCetakLabel },
+  components: { PopupPratinjauCetakLabel, KolomCari },
   setup() {
     const memuat = ref(true);
     const daftarOrder = ref([]);
-    const daftarGroupingTerbaru = ref([]);
-    const sedangProses = reactive({});
-    const vendorManual = reactive({});
+    const cari = ref('');
+    const filterAktif = ref('semua'); // 'semua' | 'sepola' | 'belum_terkunci'
+    const klasterTerbuka = reactive({}); // kunciGrup -> bool ("buka rincian")
+    const panelKlasterKey = ref(null); // kunciGrup klaster yang lagi disiapkan di panel kanan/bar mobile
+    const pilihanCentang = reactive({}); // orderId -> bool (ikut/tidak di panel)
+    const pilihanQty = reactive({}); // orderId -> number (qty yang diambil, <= sisa qty SPK itu)
+    const vendorManualPanel = ref(false);
+    const previewKode = ref('');
+    const sedangProses = reactive({}); // key klaster -> bool
+    const sedangProsesSingle = reactive({}); // orderId -> bool ("Buat Grouping Sendiri")
+    const vendorManualSingle = reactive({}); // orderId -> bool
+    const konfirmasiTerbit = ref(null); // {kode, namaProduk, qtyTotal, jalurAktif, groupingId} — tampil SEKALI setelah terbit
     const popupCetakLabelAktif = ref(false);
     const daftarLabelPreview = ref([]);
 
@@ -238,16 +319,24 @@ const PersiapanDisiapkanManager = {
         const list = [];
         snapOrder.forEach(d => {
           const data = d.data();
-          // Sudah tergrouping sebelumnya -> tidak ikut antrean lagi.
-          if (data.id_spk_grouping) return;
+          const qtyOrder = parseFloat(data.qty_order) || 0;
+          const qtyTergrouping = parseFloat(data.qty_tergrouping) || 0;
+          const sisaQty = qtyOrder - qtyTergrouping;
+          // Sudah HABIS dipakai grouping (sebagian atau seluruhnya) -> tidak
+          // ikut antrean lagi. SPK yang baru tergrouping SEBAGIAN (sisaQty
+          // masih > 0) TETAP tampil untuk sisa qty-nya (BARU, dukung split-qty).
+          if (sisaQty <= 0) return;
           const p = data.sku_produk ? (petaProduk[data.sku_produk] || null) : null;
           const kp = p ? kunciPolaProduk(p) : '';
           const namaBase = p ? (p.nama || '').trim() : '';
           list.push({
             id: d.id, ...data,
             _produk: p,
-            _kunciGrup: (p && kp) ? `${namaBase.toLowerCase()}::${kp}` : null,
+            _sisaQty: sisaQty,
+            _kunciGrup: p ? kunciGrupProduk(p) : '',
             _namaBase: namaBase || data.nama_produk || '(tanpa nama)',
+            _size: p ? (p.size || '') : '',
+            _warna: p ? (p.warna || '') : '',
             _kunciPolaLabel: kp
           });
         });
@@ -259,57 +348,125 @@ const PersiapanDisiapkanManager = {
       memuat.value = false;
     }
 
-    async function muatGroupingTerbaru() {
-      try {
-        const q = query(collection(db, 'spk_grouping'), orderBy('tanggal_generate', 'desc'), limit(20));
-        const snap = await getDocs(q);
-        daftarGroupingTerbaru.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      } catch (e) {
-        console.error('Gagal muat SPK Grouping terbaru:', e);
-        daftarGroupingTerbaru.value = [];
-      }
+    // rincianWarna — dari SET order (`master_produk.warna`, resolve lewat
+    // SKU) — lihat catatan besar di atas file soal kenapa bukan parsing teks.
+    function rincianWarna(anggota) {
+      const peta = {};
+      anggota.forEach(o => {
+        const w = o._warna || '-';
+        peta[w] = (peta[w] || 0) + o._sisaQty;
+      });
+      return Object.entries(peta).map(([warna, qty]) => ({ warna, qty }));
     }
 
-    // daftarKlaster — kandidat grouping OTOMATIS (>=1 SPK aktif berbagi
-    // nama dasar + kunci pola yang SAMA), diurutkan yang anggotanya
-    // paling banyak duluan (paling "berharga" digabung, biar operator
-    // langsung lihat peluang gelar-kain-bersamaan terbesar dulu).
-    const daftarKlaster = computed(() => {
-      const peta = {};
+    // daftarBaris — SATU daftar gabungan (sesuai wireframe: bukan 2 section
+    // terpisah lagi) — 3 jenis baris tercampur, disaring lewat kolom cari +
+    // 2 filter pill ("sepola" / "pola belum dikunci"):
+    //   'groupable'         — >=1 SPK berbagi kunciGrup penuh (nama+size+pola)
+    //   'pola_belum_dikunci'— SKU terhubung TAPI BOM Pola kosong/tidak lengkap
+    //   'tanpa_sku'         — SPK belum terhubung Master Produk sama sekali
+    const daftarBaris = computed(() => {
+      const petaGroupable = {}, petaBelumDikunci = {};
+      const tanpaSku = [];
       daftarOrder.value.forEach(o => {
-        if (!o._kunciGrup) return;
-        if (!peta[o._kunciGrup]) {
-          peta[o._kunciGrup] = { kunciGrup: o._kunciGrup, namaBase: o._namaBase, kunciPolaLabel: o._kunciPolaLabel, anggota: [] };
+        if (o._kunciGrup) {
+          if (!petaGroupable[o._kunciGrup]) petaGroupable[o._kunciGrup] = { tipe: 'groupable', kunciGrup: o._kunciGrup, namaBase: o._namaBase, size: o._size, kunciPolaLabel: o._kunciPolaLabel, anggota: [] };
+          petaGroupable[o._kunciGrup].anggota.push(o);
+        } else if (o._produk) {
+          const key = 'nk::' + o._namaBase.toLowerCase() + '::' + (o._size || '').toLowerCase();
+          if (!petaBelumDikunci[key]) petaBelumDikunci[key] = { tipe: 'pola_belum_dikunci', kunciGrup: key, namaBase: o._namaBase, size: o._size, anggota: [] };
+          petaBelumDikunci[key].anggota.push(o);
+        } else {
+          tanpaSku.push({ tipe: 'tanpa_sku', kunciGrup: 'single-' + o.id, namaBase: o._namaBase, size: '', anggota: [o] });
         }
-        peta[o._kunciGrup].anggota.push(o);
       });
-      return Object.values(peta).map(k => ({
+      const groupable = Object.values(petaGroupable).map(k => ({
         ...k,
-        qtyTotal: k.anggota.reduce((s, o) => s + (parseFloat(o.qty_order) || 0), 0),
-        jalurOtomatis: Array.from(new Set(k.anggota.flatMap(o => Array.from(jalurOtomatisProduk(o._produk)))))
-      })).sort((a, b) => b.anggota.length - a.anggota.length || a.namaBase.localeCompare(b.namaBase));
+        qtyTotal: k.anggota.reduce((s, o) => s + o._sisaQty, 0),
+        jalurOtomatis: Array.from(new Set(k.anggota.flatMap(o => Array.from(jalurOtomatisProduk(o._produk))))),
+        rincianWarna: rincianWarna(k.anggota)
+      }));
+      const belumDikunci = Object.values(petaBelumDikunci).map(k => ({
+        ...k, qtyTotal: k.anggota.reduce((s, o) => s + o._sisaQty, 0)
+      }));
+      let semua = [...groupable, ...belumDikunci, ...tanpaSku];
+
+      const kata = cari.value.trim().toLowerCase();
+      if (kata) {
+        semua = semua.filter(b => b.namaBase.toLowerCase().includes(kata) || b.anggota.some(o => (o.no_spk || '').toLowerCase().includes(kata)));
+      }
+      if (filterAktif.value === 'sepola') semua = semua.filter(b => b.tipe === 'groupable');
+      else if (filterAktif.value === 'belum_terkunci') semua = semua.filter(b => b.tipe !== 'groupable');
+
+      return semua.sort((a, b) => {
+        if (a.tipe !== b.tipe) return a.tipe === 'groupable' ? -1 : (b.tipe === 'groupable' ? 1 : 0);
+        return (b.anggota.length - a.anggota.length) || a.namaBase.localeCompare(b.namaBase);
+      });
     });
 
-    // daftarTanpaSku — SPK aktif yang BELUM terhubung Master Produk (SKU
-    // kosong, biasanya migrasi lama dari spreadsheet) — tidak bisa dicocok-
-    // kan otomatis (tidak ada data BOM buat ambil kunci pola), tapi TETAP
-    // perlu jalan lewat "Perlu Disiapkan" (Guru: alur ini berlaku utk semua
-    // SPK aktif) — disiapkan sebagai grouping isi 1 SPK sendiri.
-    const daftarTanpaSku = computed(() => daftarOrder.value.filter(o => !o._kunciGrup));
+    function toggleRincian(b) { klasterTerbuka[b.kunciGrup] = !klasterTerbuka[b.kunciGrup]; }
+    function toggleFilter(nilai) { filterAktif.value = (filterAktif.value === nilai) ? 'semua' : nilai; }
 
-    async function buatGrouping(klaster) {
+    // --- Panel "Grouping baru" (kanan desktop / bar mengambang mobile) ---
+    async function muatPreviewKode() {
+      try {
+        const now = new Date();
+        const tanggalKey = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+        const snap = await getDoc(doc(db, 'pengaturan_id_spk_grouping', tanggalKey));
+        const nextCounter = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
+        previewKode.value = `SPK${tanggalKey}${String(nextCounter).padStart(3, '0')}`;
+      } catch (e) {
+        previewKode.value = ''; // preview gagal dimuat bukan error fatal — kode SEBENARNYA tetap digenerate transaksional saat submit
+      }
+    }
+    function bukaPanel(klaster) {
+      panelKlasterKey.value = klaster.kunciGrup;
+      klaster.anggota.forEach(o => { pilihanCentang[o.id] = true; pilihanQty[o.id] = o._sisaQty; });
+      vendorManualPanel.value = false;
+      muatPreviewKode();
+    }
+    function toggleKlasterDipilih(klaster) {
+      if (panelKlasterKey.value === klaster.kunciGrup) panelKlasterKey.value = null;
+      else bukaPanel(klaster);
+    }
+    function ubahQtyPilihan(order, nilai) {
+      let v = parseFloat(nilai) || 0;
+      if (v > order._sisaQty) v = order._sisaQty;
+      if (v < 0) v = 0;
+      pilihanQty[order.id] = v;
+      if (v <= 0) pilihanCentang[order.id] = false;
+    }
+
+    const klasterPanel = computed(() => daftarBaris.value.find(b => b.tipe === 'groupable' && b.kunciGrup === panelKlasterKey.value) || null);
+    const anggotaTerpilih = computed(() => klasterPanel.value ? klasterPanel.value.anggota.filter(o => pilihanCentang[o.id] && (parseFloat(pilihanQty[o.id]) || 0) > 0) : []);
+    const ringkasanPanel = computed(() => {
+      const list = anggotaTerpilih.value;
+      return {
+        jumlahSpk: list.length,
+        qtyTotal: list.reduce((s, o) => s + (parseFloat(pilihanQty[o.id]) || 0), 0),
+        jumlahWarna: new Set(list.map(o => o._warna || '-')).size
+      };
+    });
+    const jalurOtomatisPanel = computed(() => klasterPanel.value ? Array.from(new Set(anggotaTerpilih.value.flatMap(o => Array.from(jalurOtomatisProduk(o._produk))))) : []);
+
+    async function buatGroupingDariPanel() {
+      const klaster = klasterPanel.value;
+      if (!klaster) return;
+      const anggota = anggotaTerpilih.value;
+      if (anggota.length === 0) { alert('Pilih minimal 1 SPK dulu.'); return; }
       const key = klaster.kunciGrup;
       if (sedangProses[key]) return;
       sedangProses[key] = true;
       try {
         const kode = await generateKodeSpkGrouping();
-        const jalurAktif = Array.from(new Set([...(klaster.jalurOtomatis || []), ...(vendorManual[key] ? ['vendor'] : [])]));
-        const breakdown = klaster.anggota.map(o => ({ order_spk_id: o.id, no_spk: o.no_spk, sku_produk: o.sku_produk || '', nama_produk: o.nama_produk, qty: parseFloat(o.qty_order) || 0 }));
+        const jalurAktif = Array.from(new Set([...jalurOtomatisPanel.value, ...(vendorManualPanel.value ? ['vendor'] : [])]));
+        const breakdown = anggota.map(o => ({ order_spk_id: o.id, no_spk: o.no_spk, sku_produk: o.sku_produk || '', nama_produk: o.nama_produk, qty: parseFloat(pilihanQty[o.id]) || 0 }));
         const qtyTotal = breakdown.reduce((s, b) => s + b.qty, 0);
-        const skuTerlibat = Array.from(new Set(klaster.anggota.map(o => o.sku_produk).filter(Boolean)));
+        const skuTerlibat = Array.from(new Set(anggota.map(o => o.sku_produk).filter(Boolean)));
         const refGrouping = await addDoc(collection(db, 'spk_grouping'), {
           kode_spk: kode,
           nama_produk: klaster.namaBase,
+          size: klaster.size || '',
           kunci_pola: klaster.kunciPolaLabel || '',
           sku_produk_terlibat: skuTerlibat,
           qty_total: qtyTotal,
@@ -319,12 +476,24 @@ const PersiapanDisiapkanManager = {
           tanggal_generate: serverTimestamp(),
           dibuat_oleh: window.currentUser?.email || null
         });
-        await Promise.all(klaster.anggota.map(o => updateDoc(doc(db, 'order_spk', o.id), {
-          id_spk_grouping: refGrouping.id, kode_spk_grouping: kode, status_grouping: 'tergrouping'
-        })));
+        // qty_tergrouping BERTAMBAH (bukan ditimpa) — dukung split-qty:
+        // 1 order_spk bisa ikut >1 grouping sepanjang sisa qty-nya masih ada.
+        await Promise.all(anggota.map(o => {
+          const ambil = parseFloat(pilihanQty[o.id]) || 0;
+          const tergroupingBaru = (parseFloat(o.qty_tergrouping) || 0) + ambil;
+          const habis = tergroupingBaru >= (parseFloat(o.qty_order) || 0);
+          return updateDoc(doc(db, 'order_spk', o.id), {
+            qty_tergrouping: tergroupingBaru,
+            grouping_ids: arrayUnion(refGrouping.id),
+            id_spk_grouping: refGrouping.id, // grouping TERAKHIR (kompatibilitas tampilan lama), BUKAN satu-satunya
+            kode_spk_grouping: kode,
+            status_grouping: habis ? 'tergrouping' : 'sebagian'
+          });
+        }));
         await buatSpkTrackUntukGrouping(refGrouping.id, kode, klaster.namaBase, qtyTotal, jalurAktif);
-        delete vendorManual[key];
-        await Promise.all([muat(), muatGroupingTerbaru()]);
+        konfirmasiTerbit.value = { kode, namaProduk: klaster.namaBase, qtyTotal, jalurAktif, groupingId: refGrouping.id };
+        panelKlasterKey.value = null;
+        await muat();
       } catch (e) {
         console.error('Gagal buat SPK Grouping:', e);
         alert('Gagal membuat SPK Grouping. Coba lagi.');
@@ -332,165 +501,210 @@ const PersiapanDisiapkanManager = {
       sedangProses[key] = false;
     }
 
-    // buatGroupingSendiri — versi buat 1 SPK yang tidak punya kandidat
-    // otomatis (baik karena tidak terhubung SKU, maupun karena memang
-    // tidak ada SPK lain yang polanya cocok).
+    // buatGroupingSendiri — baris "tanpa_sku" (belum terhubung Master
+    // Produk) — tidak lewat panel (tidak ada anggota lain buat dikombinasi),
+    // langsung ambil SELURUH sisa qty SPK itu, sama seperti versi lama.
     async function buatGroupingSendiri(order) {
-      const key = 'single-' + order.id;
-      if (sedangProses[key]) return;
-      sedangProses[key] = true;
+      const key = order.id;
+      if (sedangProsesSingle[key]) return;
+      sedangProsesSingle[key] = true;
       try {
         const kode = await generateKodeSpkGrouping();
         const jalurAktif = order._produk ? Array.from(jalurOtomatisProduk(order._produk)) : [];
-        if (vendorManual[key]) jalurAktif.push('vendor');
-        const qty = parseFloat(order.qty_order) || 0;
+        if (vendorManualSingle[key]) jalurAktif.push('vendor');
+        const jalurUnik = Array.from(new Set(jalurAktif));
+        const qty = order._sisaQty;
         const refGrouping = await addDoc(collection(db, 'spk_grouping'), {
           kode_spk: kode,
           nama_produk: order._namaBase,
+          size: order._size || '',
           kunci_pola: order._kunciPolaLabel || '',
           sku_produk_terlibat: order.sku_produk ? [order.sku_produk] : [],
           qty_total: qty,
           breakdown: [{ order_spk_id: order.id, no_spk: order.no_spk, sku_produk: order.sku_produk || '', nama_produk: order.nama_produk, qty }],
-          jalur_aktif: Array.from(new Set(jalurAktif)),
+          jalur_aktif: jalurUnik,
           label_grouping_dicetak: false,
           tanggal_generate: serverTimestamp(),
           dibuat_oleh: window.currentUser?.email || null
         });
+        const tergroupingBaru = (parseFloat(order.qty_tergrouping) || 0) + qty;
         await updateDoc(doc(db, 'order_spk', order.id), {
+          qty_tergrouping: tergroupingBaru,
+          grouping_ids: arrayUnion(refGrouping.id),
           id_spk_grouping: refGrouping.id, kode_spk_grouping: kode, status_grouping: 'tergrouping'
         });
-        await buatSpkTrackUntukGrouping(refGrouping.id, kode, order._namaBase, qty, Array.from(new Set(jalurAktif)));
-        delete vendorManual[key];
-        await Promise.all([muat(), muatGroupingTerbaru()]);
+        await buatSpkTrackUntukGrouping(refGrouping.id, kode, order._namaBase, qty, jalurUnik);
+        konfirmasiTerbit.value = { kode, namaProduk: order._namaBase, qtyTotal: qty, jalurAktif: jalurUnik, groupingId: refGrouping.id };
+        delete vendorManualSingle[key];
+        await muat();
       } catch (e) {
         console.error('Gagal buat SPK Grouping (mandiri):', e);
         alert('Gagal membuat SPK Grouping. Coba lagi.');
       }
-      sedangProses[key] = false;
+      sedangProsesSingle[key] = false;
     }
 
-    function cetakLabelGrouping(item) {
-      if (typeof QRCode === 'undefined') {
-        alert('Library pembuat QR belum siap dimuat. Coba refresh halaman (Ctrl+Shift+R) lalu ulangi.');
-        return;
-      }
+    function cetakLabelDariKonfirmasi() {
+      if (!konfirmasiTerbit.value) return;
+      if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Coba refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
+      const k = konfirmasiTerbit.value;
       daftarLabelPreview.value = [{
-        kode: item.kode_spk,
-        nama: item.nama_produk || '',
-        info: `Qty Total: ${formatQty(item.qty_total)} &middot; ${(item.jalur_aktif || []).map(j => PETA_JALUR[j]?.label || j).join(', ')}`,
-        qrDataUrl: buatQrDataUrl(item.kode_spk)
+        kode: k.kode, nama: k.namaProduk,
+        info: `Qty Total: ${formatQty(k.qtyTotal)} &middot; ${(k.jalurAktif || []).map(j => PETA_JALUR[j]?.label || j).join(', ')}`,
+        qrDataUrl: buatQrDataUrl(k.kode)
       }];
       popupCetakLabelAktif.value = true;
-      updateDoc(doc(db, 'spk_grouping', item.id), { label_grouping_dicetak: true }).catch(e => console.error('Gagal catat status cetak label SPK Grouping:', e));
-      item.label_grouping_dicetak = true;
+      if (k.groupingId) updateDoc(doc(db, 'spk_grouping', k.groupingId), { label_grouping_dicetak: true }).catch(e => console.error('Gagal catat status cetak label SPK Grouping:', e));
+      konfirmasiTerbit.value = null;
     }
 
-    onMounted(async () => {
-      await window.authReady;
-      await Promise.all([muat(), muatGroupingTerbaru()]);
-    });
+    onMounted(async () => { await window.authReady; await muat(); });
 
     return {
-      memuat, daftarKlaster, daftarTanpaSku, daftarGroupingTerbaru,
-      sedangProses, vendorManual, bolehProses, bolehCetak,
-      buatGrouping, buatGroupingSendiri, cetakLabelGrouping,
+      memuat, daftarOrder, daftarBaris, cari, filterAktif, klasterTerbuka, toggleRincian, toggleFilter,
+      panelKlasterKey, klasterPanel, anggotaTerpilih, ringkasanPanel, jalurOtomatisPanel,
+      pilihanCentang, pilihanQty, vendorManualPanel, previewKode, ubahQtyPilihan, toggleKlasterDipilih,
+      sedangProses, sedangProsesSingle, vendorManualSingle, bolehProses, bolehCetak,
+      buatGroupingDariPanel, buatGroupingSendiri,
+      konfirmasiTerbit, cetakLabelDariKonfirmasi,
       popupCetakLabelAktif, daftarLabelPreview,
       formatQty, PETA_JALUR
     };
   },
   template: `
-    <div class="gc-card" style="margin-bottom:16px; border-radius:20px;">
-      <h3 style="font-weight:700; font-size:13.5px; margin-bottom:4px;"><i class="fas fa-layer-group" style="color:var(--aksen-ink); margin-right:8px;"></i>Perlu Disiapkan</h3>
-      <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 0;">SPK aktif yang produk &amp; pola BOM-nya sama dikelompokkan jadi 1 kode SPK Grouping (bisa gelar &amp; potong kain bersamaan). Kelompokkan dulu di sini sebelum lanjut ke 5 jalur produksi (Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing).</p>
+    <div class="gc-card" style="margin-bottom:16px; border-radius:20px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+      <div style="min-width:0;">
+        <h3 style="font-weight:700; font-size:13.5px; margin-bottom:4px;"><i class="fas fa-layer-group" style="color:var(--aksen-ink); margin-right:8px;"></i>Perlu Disiapkan</h3>
+        <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 0;">SPK aktif yang produk, ukuran &amp; pola BOM-nya sama dikelompokkan jadi 1 kode SPK Grouping (bisa gelar &amp; potong kain bersamaan). Kelompokkan dulu di sini sebelum lanjut ke jalur produksi (Bahan/Acc Sewing/Acc Webbing/Acc Finishing, dan Vendor kalau perlu).</p>
+      </div>
+      <span class="tag pink" style="flex-shrink:0;">{{ daftarOrder.length }} SPK menunggu</span>
     </div>
 
     <div v-if="memuat" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
-    <template v-else>
-      <div v-if="daftarKlaster.length === 0 && daftarTanpaSku.length === 0" class="gc-kosong gc-card">
-        <div class="lingkaran"><i class="fas fa-circle-check"></i></div>
-        <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada SPK aktif yang perlu dikelompokkan</h3>
-      </div>
+    <div v-else class="gc-pp-layout">
+      <div style="min-width:0;">
+        <kolom-cari v-model="cari" placeholder="Cari produk / No. SPK..." />
+        <div style="display:flex; gap:8px; margin:-4px 0 12px; flex-wrap:wrap;">
+          <button type="button" class="gc-sub-tab-btn" :class="{active: filterAktif==='sepola'}" @click="toggleFilter('sepola')">Sepola</button>
+          <button type="button" class="gc-sub-tab-btn" :class="{active: filterAktif==='belum_terkunci'}" @click="toggleFilter('belum_terkunci')">Pola belum dikunci</button>
+        </div>
 
-      <div v-if="daftarKlaster.length" style="margin-bottom:6px;">
-        <p style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; margin:10px 2px 8px;">Kandidat Grouping Otomatis ({{ daftarKlaster.length }})</p>
-        <div style="display:flex; flex-direction:column; gap:10px;">
-          <div v-for="k in daftarKlaster" :key="k.kunciGrup" class="gc-card" style="padding:14px; border-radius:20px;">
+        <div v-if="daftarBaris.length === 0" class="gc-kosong gc-card">
+          <div class="lingkaran"><i class="fas fa-circle-check"></i></div>
+          <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada SPK aktif yang cocok</h3>
+        </div>
+
+        <div v-else style="display:flex; flex-direction:column; gap:10px;">
+          <div v-for="b in daftarBaris" :key="b.kunciGrup" class="gc-card" style="padding:14px; border-radius:20px;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
               <div style="min-width:0;">
-                <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ k.namaBase }}</div>
-                <div style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">Kunci Pola: {{ k.kunciPolaLabel || '-' }}</div>
+                <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ b.namaBase }}<span v-if="b.size"> &middot; ukuran {{ b.size }}</span></div>
+                <div v-if="b.tipe==='groupable'" style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">kunci: nama + ukuran + pola {{ b.kunciPolaLabel }}</div>
+                <div v-else-if="b.tipe==='pola_belum_dikunci'" style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">pola belum ada versi &mdash; tidak bisa digabung sampai pola dikunci</div>
+                <div v-else style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">{{ b.anggota[0].nama_produk }} &middot; belum terhubung Master Produk</div>
               </div>
-              <span class="tag pink" style="flex-shrink:0;">{{ k.anggota.length }} SPK</span>
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
+                <span class="tag" :class="b.tipe==='groupable' ? 'ok' : (b.tipe==='pola_belum_dikunci' ? 'warn' : 'neutral')">
+                  {{ b.tipe==='groupable' ? (b.anggota.length + ' SPK') : (b.tipe==='pola_belum_dikunci' ? 'pola belum dikunci' : 'belum ada SKU') }}
+                </span>
+                <button v-if="b.tipe==='groupable' && bolehProses" type="button" class="btn-outline" :class="{filled: panelKlasterKey===b.kunciGrup}" style="padding:6px 12px; font-size:11px;" @click="toggleKlasterDipilih(b)">
+                  <i class="fas" :class="panelKlasterKey===b.kunciGrup ? 'fa-check' : 'fa-plus'"></i> {{ panelKlasterKey===b.kunciGrup ? 'Dipilih' : 'Pilih' }}
+                </button>
+              </div>
             </div>
 
-            <div style="display:flex; flex-direction:column; gap:4px; background:var(--ivory-dim); border-radius:10px; padding:8px 12px; margin-bottom:10px;">
-              <div v-for="o in k.anggota" :key="o.id" style="display:flex; justify-content:space-between; gap:10px; font-size:11.5px;">
+            <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:6px;">{{ b.anggota.length }} SPK &middot; {{ formatQty(b.qtyTotal) }} pcs</div>
+            <div v-if="b.tipe==='groupable' && b.rincianWarna.length" style="font-size:11px; color:var(--text-faint); margin-bottom:6px;">{{ b.rincianWarna.map(r => r.warna + ' ' + formatQty(r.qty)).join(' &middot; ') }}</div>
+            <div v-if="b.tipe==='groupable'" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px;">
+              <span v-for="j in b.jalurOtomatis" :key="j" class="tag" :class="PETA_JALUR[j].tag"><i class="fas" :class="PETA_JALUR[j].icon"></i> {{ PETA_JALUR[j].label }}</span>
+            </div>
+
+            <button type="button" @click="toggleRincian(b)" style="background:none; border:none; padding:0; color:var(--aksen-ink); font-size:11px; font-weight:700; cursor:pointer;">
+              {{ klasterTerbuka[b.kunciGrup] ? 'Tutup rincian' : 'Buka rincian' }} <i class="fas" :class="klasterTerbuka[b.kunciGrup] ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
+            </button>
+            <div v-if="klasterTerbuka[b.kunciGrup]" style="display:flex; flex-direction:column; gap:4px; background:var(--ivory-dim); border-radius:10px; padding:8px 12px; margin-top:8px;">
+              <div v-for="o in b.anggota" :key="o.id" style="display:flex; justify-content:space-between; gap:10px; font-size:11.5px;">
                 <span style="color:var(--text-faint);">{{ o.no_spk }}</span>
-                <span style="font-weight:700;">{{ formatQty(o.qty_order) }} pcs</span>
-              </div>
-              <div style="display:flex; justify-content:space-between; font-size:12px; border-top:1px solid var(--line); margin-top:4px; padding-top:6px;">
-                <span style="color:var(--text-faint);">Qty Total</span>
-                <span style="font-weight:700;">{{ formatQty(k.qtyTotal) }} pcs</span>
+                <span style="font-weight:700;">{{ formatQty(o._sisaQty) }} pcs</span>
               </div>
             </div>
 
-            <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
-              <span v-for="j in k.jalurOtomatis" :key="j" class="tag" :class="PETA_JALUR[j].tag"><i class="fas" :class="PETA_JALUR[j].icon"></i> {{ PETA_JALUR[j].label }}</span>
-              <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer; color:var(--text-muted);">
-                <input type="checkbox" v-model="vendorManual[k.kunciGrup]" style="accent-color:var(--burgundy); width:14px; height:14px;"> + Jalur Vendor (manual)
-              </label>
-            </div>
-
-            <button v-if="bolehProses" @click="buatGrouping(k)" :disabled="sedangProses[k.kunciGrup]" class="btn-primary" style="width:100%; padding:10px;">
-              <i class="fas fa-layer-group" style="margin-right:6px;"></i>{{ sedangProses[k.kunciGrup] ? 'Memproses...' : 'Buat SPK Grouping' }}
+            <button v-if="b.tipe==='tanpa_sku' && bolehProses" type="button" @click="buatGroupingSendiri(b.anggota[0])" :disabled="sedangProsesSingle[b.anggota[0].id]" class="btn-outline" style="width:100%; padding:9px; margin-top:10px;">
+              <i class="fas fa-layer-group" style="margin-right:6px;"></i>{{ sedangProsesSingle[b.anggota[0].id] ? 'Memproses...' : 'Buat Grouping Sendiri' }}
             </button>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="daftarTanpaSku.length" style="margin-bottom:6px;">
-        <p style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; margin:16px 2px 8px;">Belum Bisa Dikelompokkan Otomatis ({{ daftarTanpaSku.length }})</p>
-        <p style="font-size:10.5px; color:var(--text-faint); margin:-2px 2px 8px;">SPK ini belum terhubung ke Master Produk (SKU kosong) atau produknya belum punya BOM Pola — tidak ada data buat cocokkan otomatis. Tetap bisa lanjut sebagai SPK Grouping isi 1 SPK sendiri.</p>
-        <div style="display:flex; flex-direction:column; gap:10px;">
-          <div v-for="o in daftarTanpaSku" :key="o.id" class="gc-card" style="padding:14px; border-radius:20px;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
-              <div style="min-width:0;">
-                <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ o.no_spk }}</div>
-                <div style="font-size:11px; color:var(--text-faint); margin-top:2px;">{{ o.nama_produk }} &middot; {{ formatQty(o.qty_order) }} pcs</div>
-              </div>
-              <span class="tag neutral" style="flex-shrink:0;">{{ o.sku_produk ? 'BOM Pola kosong' : 'Belum ada SKU' }}</span>
-            </div>
-            <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer; color:var(--text-muted); margin-bottom:10px;">
-              <input type="checkbox" v-model="vendorManual['single-' + o.id]" style="accent-color:var(--burgundy); width:14px; height:14px;"> + Jalur Vendor (manual)
+            <label v-if="b.tipe==='tanpa_sku' && bolehProses" style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer; color:var(--text-muted); margin-top:8px;">
+              <input type="checkbox" v-model="vendorManualSingle[b.anggota[0].id]" class="gc-chk"> + Jalur Vendor (manual)
             </label>
-            <button v-if="bolehProses" @click="buatGroupingSendiri(o)" :disabled="sedangProses['single-' + o.id]" class="btn-outline" style="width:100%; padding:9px;">
-              <i class="fas fa-layer-group" style="margin-right:6px;"></i>{{ sedangProses['single-' + o.id] ? 'Memproses...' : 'Buat Grouping Sendiri' }}
-            </button>
           </div>
         </div>
       </div>
-    </template>
 
-    <div style="margin-top:20px;">
-      <p style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; margin:10px 2px 8px;">SPK Grouping Terbaru</p>
-      <div v-if="daftarGroupingTerbaru.length === 0" class="gc-kosong gc-card">
-        <div class="lingkaran"><i class="fas fa-layer-group"></i></div>
-        <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada SPK Grouping dibuat</h3>
+      <!-- Panel "Grouping baru" — desktop kanan sticky -->
+      <div class="gc-pp-panel gc-card" style="padding:16px; border-radius:20px;" v-if="klasterPanel">
+        <h3 class="gc-heading" style="font-weight:700; font-size:14px; margin:0 0 2px;">Grouping baru</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin:0 0 12px;">{{ ringkasanPanel.jumlahSpk }} SPK dipilih &middot; {{ formatQty(ringkasanPanel.qtyTotal) }} pcs &middot; {{ ringkasanPanel.jumlahWarna }} warna</p>
+
+        <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <div v-for="o in klasterPanel.anggota" :key="o.id" style="display:flex; align-items:center; gap:8px; font-size:11.5px;">
+            <input type="checkbox" v-model="pilihanCentang[o.id]" class="gc-chk">
+            <span style="flex:1; min-width:0; color:var(--text-muted);">{{ o._warna || o.no_spk }}</span>
+            <input type="number" min="0" :max="o._sisaQty" :value="pilihanQty[o.id]" @input="ubahQtyPilihan(o, $event.target.value)" :disabled="!pilihanCentang[o.id]" style="width:58px; padding:5px 7px; border:1.5px solid var(--line); border-radius:8px; font-size:11px; text-align:right; font-family:'Nunito Sans',sans-serif;">
+          </div>
+        </div>
+
+        <div style="border:1px solid var(--burgundy); border-radius:12px; padding:10px 12px; margin-bottom:12px;">
+          <div style="font-size:9.5px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px;">Kode yang akan diterbitkan</div>
+          <div class="gc-heading gc-num" style="font-size:18px; font-weight:700;">{{ previewKode || '...' }}</div>
+          <p style="font-size:9.5px; color:var(--text-faint); margin:4px 0 0; line-height:1.4;">SPK + tanggal + urut hari ini &middot; nomor anak tiap SPK mengikuti kode ini</p>
+        </div>
+
+        <div style="border:1px dashed var(--line); border-radius:12px; padding:10px 12px; margin-bottom:8px;">
+          <div style="font-size:9.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;">Akan masuk ke &mdash; otomatis</div>
+          <div style="display:flex; flex-wrap:wrap; gap:6px;">
+            <span v-for="j in jalurOtomatisPanel" :key="j" class="tag" :class="PETA_JALUR[j].tag"><i class="fas" :class="PETA_JALUR[j].icon"></i> {{ PETA_JALUR[j].label }}</span>
+            <span v-if="jalurOtomatisPanel.length===0" style="font-size:10.5px; color:var(--text-faint);">-</span>
+          </div>
+          <p style="font-size:9.5px; color:var(--text-faint); margin:6px 0 0;">Terdeteksi otomatis dari BOM produk &middot; bukan pilihan</p>
+          <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer; color:var(--text-muted); margin-top:8px;">
+            <input type="checkbox" v-model="vendorManualPanel" class="gc-chk"> + Jalur Vendor (manual)
+          </label>
+        </div>
+
+        <div style="border:1px dashed var(--line); border-radius:12px; padding:10px 12px; margin-bottom:14px;">
+          <div style="font-size:9.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px;">Tidak dikerjakan di sini</div>
+          <p style="font-size:9.5px; color:var(--text-faint); margin:0;">Cek stok &amp; cetak label ada di tiap pos persiapan</p>
+        </div>
+
+        <button v-if="bolehProses" type="button" @click="buatGroupingDariPanel" :disabled="sedangProses[klasterPanel.kunciGrup] || ringkasanPanel.jumlahSpk===0" class="btn-primary" style="width:100%; padding:11px;">
+          <i class="fas fa-layer-group" style="margin-right:6px;"></i>{{ sedangProses[klasterPanel.kunciGrup] ? 'Memproses...' : 'Buat SPK Grouping' }}
+        </button>
+        <p style="font-size:9.5px; color:var(--text-faint); margin:8px 0 0; text-align:center;">Sekali diterbitkan, kode ini yang dipakai seluruh pos sampai selesai</p>
       </div>
-      <div v-else style="display:flex; flex-direction:column; gap:10px;">
-        <div v-for="g in daftarGroupingTerbaru" :key="g.id" class="gc-card" style="padding:14px; border-radius:20px;">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
-            <div style="min-width:0;">
-              <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ g.kode_spk }}</div>
-              <div style="font-size:11px; color:var(--text-faint); margin-top:2px;">{{ g.nama_produk }} &middot; {{ formatQty(g.qty_total) }} pcs &middot; {{ (g.breakdown||[]).length }} SPK</div>
-            </div>
-            <span class="tag" :class="g.label_grouping_dicetak ? 'ok' : 'warn'" style="flex-shrink:0;">{{ g.label_grouping_dicetak ? 'Label tercetak' : 'Belum cetak label' }}</span>
-          </div>
-          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">
-            <span v-for="j in g.jalur_aktif" :key="j" class="tag" :class="PETA_JALUR[j]?.tag || 'neutral'"><i class="fas" :class="PETA_JALUR[j]?.icon || 'fa-circle'"></i> {{ PETA_JALUR[j]?.label || j }}</span>
-          </div>
-          <button v-if="bolehCetak" @click="cetakLabelGrouping(g)" class="btn-outline" style="width:100%; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label SPK Grouping</button>
+    </div>
+
+    <!-- Bar mengambang — mobile, tampil kalau ada klaster dipilih -->
+    <div v-if="klasterPanel" class="gc-pp-panel-mobile">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px;">
+        <div style="font-size:11px; color:var(--text-muted);">{{ ringkasanPanel.jumlahSpk }} SPK dipilih &middot; {{ formatQty(ringkasanPanel.qtyTotal) }} pcs</div>
+        <button type="button" @click="panelKlasterKey=null" style="background:none; border:none; padding:0; color:var(--text-faint); font-size:14px;"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="gc-heading gc-num" style="font-size:15px; font-weight:700; margin-bottom:8px;">{{ previewKode || '...' }}</div>
+      <button v-if="bolehProses" type="button" @click="buatGroupingDariPanel" :disabled="sedangProses[klasterPanel.kunciGrup] || ringkasanPanel.jumlahSpk===0" class="btn-primary" style="width:100%; padding:11px;">
+        {{ sedangProses[klasterPanel.kunciGrup] ? 'Memproses...' : 'Buat SPK Grouping' }}
+      </button>
+    </div>
+
+    <!-- Konfirmasi terbit — tampil SEKALI, tidak ada riwayat persisten -->
+    <div v-if="konfirmasiTerbit" class="gc-dialog-backdrop" @click="konfirmasiTerbit=null">
+      <div class="gc-dialog" @click.stop>
+        <div style="width:56px; height:56px; border-radius:50%; background:var(--ok-light); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; color:var(--ok); font-size:24px;"><i class="fas fa-circle-check"></i></div>
+        <h3 class="gc-heading" style="font-size:16px; font-weight:700; margin:0;">SPK Grouping Diterbitkan</h3>
+        <p class="gc-heading gc-num" style="font-size:19px; font-weight:700; margin:8px 0 2px;">{{ konfirmasiTerbit.kode }}</p>
+        <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 18px;">{{ konfirmasiTerbit.namaProduk }} &middot; {{ formatQty(konfirmasiTerbit.qtyTotal) }} pcs</p>
+        <div style="display:flex; gap:8px;">
+          <button v-if="bolehCetak" @click="cetakLabelDariKonfirmasi" class="btn-primary" style="flex:1;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label</button>
+          <button @click="konfirmasiTerbit=null" class="btn-outline" style="flex:1;">Tutup</button>
         </div>
       </div>
     </div>

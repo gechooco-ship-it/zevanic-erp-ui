@@ -683,6 +683,18 @@ thead .freeze{z-index:3;}
 .gc-kosong{text-align:center; padding:32px 20px;}
 .gc-kosong .lingkaran{width:52px; height:52px; border-radius:50%; background:var(--aksen-lembut); display:flex; align-items:center; justify-content:center; margin:0 auto 12px; color:var(--aksen-ink); font-size:20px;}
 
+/* ---- Persiapan Produksi V2 — "Perlu Disiapkan" (BARU 31 Agt 2026, redesain
+   wireframe handoff Guru) — layout 2 kolom desktop (daftar kiri + panel
+   grouping kanan sticky), 1 kolom + bar mengambang di mobile. Lihat komentar
+   besar di atas js/vue-persiapan-produksi-v2.js untuk keputusan lengkap. */
+.gc-pp-panel{display:none;}
+.gc-pp-panel-mobile{position:fixed; left:12px; right:12px; bottom:calc(70px + env(safe-area-inset-bottom)); z-index:39; background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:12px 14px; box-shadow:0 -10px 28px -8px rgba(31,22,17,.28);}
+@media(min-width:768px){
+  .gc-pp-layout{display:grid; grid-template-columns:1fr 320px; gap:20px; align-items:start;}
+  .gc-pp-panel{display:block; position:sticky; top:16px;}
+  .gc-pp-panel-mobile{display:none;}
+}
+
 /* ---- Animasi (nama gx* dipertahankan dari prototipe supaya gampang dicari lintas dokumen, bukan kelas gx- yang dibawa) ---- */
 @keyframes gxFade{from{opacity:0;}to{opacity:1;}}
 @keyframes gxSheet{from{transform:translateY(100%);}to{transform:translateY(0);}}

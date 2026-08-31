@@ -39,7 +39,10 @@
   <!-- v=5 (30 Agt 2026) — tambah class .gc-nav-subgroup, fix bug minimize/
        maximize sidebar desktop (inline style vs .hidden, lihat komentar
        .gc-nav-subgroup di gechoo-design.css & STATUS-PROYEK.md §44.26). -->
-  <link rel="stylesheet" href="css/gechoo-design.css?v=5">
+  <!-- v=6 (31 Agt 2026) — tambah .gc-pp-layout/.gc-pp-panel/.gc-pp-panel-mobile,
+       layout 2 kolom "Persiapan Produksi > Perlu Disiapkan" redesain wireframe
+       (lihat komentar besar di js/vue-persiapan-produksi-v2.js). -->
+  <link rel="stylesheet" href="css/gechoo-design.css?v=6">
   <style>
     .fade-in { animation: fadeIn 0.4s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -1094,7 +1097,10 @@
        5 jalur (Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing) BARU
        struktur navigasi 5-tahap, isinya placeholder sampai Fase 2-5. Lihat
        STATUS-PROYEK.md §44.13 & RENCANA-PERSIAPAN-PRODUKSI-V2.md. -->
-  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=1"></script>
+  <!-- v=2 (31 Agt 2026) — "Perlu Disiapkan" dibangun ulang total sesuai
+       wireframe handoff Guru (kunci klaster +size, layout 2 kolom, dukung
+       split-qty per SPK). JalurTahapManager (5 jalur/5 tahap) TIDAK disentuh. -->
+  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=2"></script>
   <!-- BARU (30 Agt 2026) — grup top-level "Pesanan": Penjualan Kasir (POS),
        Menunggu Proses (CRUD SPK, DISALIN dari OrderSpkManager lama),
        Proses Persiapan/Produksi/Pengiriman (ringkasan read-only dari
