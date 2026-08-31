@@ -1,20 +1,26 @@
 // js/vue-home.js
 // ============================================================================
 // tab-home mobile — kartu shift, Clock In/Out + statistik, Favorit Saya,
-// 1 grup menu default, tombol Menu Lengkap, banner.
+// maksimal 4 grup menu default, tombol Menu Lengkap, banner.
 //
 // DIROMBAK BESAR (28 Agt 2026 — redesain "Gechoo Mobile Organic", lihat
 // STATUS-PROYEK.md §44 untuk keputusan lengkap & handoff mockup asli di
 // F:\ZEVANIC HOUSE\FOUNDATION\Mockup). Mengikuti README.md §1 (Beranda)
 // APA ADANYA (sudah direview Guru). Perubahan besar dibanding versi lama:
 //   - Beranda SEKARANG DIKUNCI SATU LAYAR (README: "Tidak ada gulir di
-//     beranda") — HANYA 1 grup kategori default ditampilkan (dulu: SEMUA
-//     grup, scroll panjang). Grup mana + berapa kartu per grup sekarang
+//     beranda") — awalnya HANYA 1 grup kategori default ditampilkan (dulu:
+//     SEMUA grup, scroll panjang). REVISI (30 Agt 2026, ronde audit desain
+//     mobile, permintaan Guru eksplisit) — dinaikkan jadi MAKSIMAL 4 grup
+//     (grupTampilList) supaya beberapa modul yang sering dipakai tidak
+//     harus lewat "Lihat Semua Menu" tiap kali, tapi TETAP dibatasi (bukan
+//     literal "semua") supaya Beranda tidak scroll panjang lagi seperti
+//     versi sebelum redesain ini. Grup mana + berapa kartu per grup masih
 //     bisa diatur user sendiri lewat gear di layar Atur Favorit (lihat
-//     js/vue-atur-favorit.js) — field baru users/{email}.beranda_grup /
-//     .beranda_batas_kartu. Sisa 34 modul lain pindah ke layar baru "Menu
-//     Lengkap" (js/vue-menu-lengkap.js), diakses lewat tombol "Lihat Semua
-//     Menu (N)" di bawah grup.
+//     js/vue-atur-favorit.js) — field users/{email}.beranda_grup_urutan
+//     (array, ambil 4 pertama) / .beranda_batas_kartu (berlaku sama rata
+//     ke semua grup yang tampil). Sisa modul lain tetap bisa dijangkau
+//     lewat layar "Menu Lengkap" (js/vue-menu-lengkap.js), tombol "Lihat
+//     Semua Menu (N)" SEKARANG di bawah Favorit Saya (dulu di bawah grup).
 //   - Pengumuman Carousel DIHAPUS dari Beranda (keputusan Guru eksplisit)
 //     — pindah jadi notifikasi lonceng di js/vue-header-mobile.js.
 //   - Quote Card (kotak terpisah) DIHAPUS — quote-nya sekarang inline di
@@ -146,22 +152,31 @@ const AppHome = {
     }
 
     // ------------------------------------------------------------------
-    // 1 grup default (README §1.6) — dipilih user sendiri lewat gear di
-    // Atur Favorit (users/{email}.beranda_grup), jatuh ke grup PERTAMA
-    // menurut urutan Owner kalau user belum pernah atur. Jumlah kartu per
-    // grup (batasMenu, 2-8, default 4) juga dari users/{email}
-    // .beranda_batas_kartu.
+    // Grup menu default di Beranda — REVISI (30 Agt 2026, ronde audit
+    // desain mobile, permintaan Guru eksplisit): dulu CUMA 1 grup
+    // (README §1.6), SEKARANG maksimal 4 grup ("group menu tampilkan
+    // saja semua bukan lagi 1" -> diklarifikasi "maximal di menu kasih 4
+    // group menu saja yg sering dipakai"). Sumber pilihan grup TETAP
+    // SAMA — users/{email}.beranda_grup_urutan (array nama grup, urutan
+    // preferensi user lewat toggle di Atur Favorit, BATAS_GRUP_BERANDA
+    // di vue-atur-favorit.js juga dinaikkan dari 1 ke 4) — ambil 4
+    // PERTAMA dari situ, jatuh ke 4 grup PERTAMA menurut urutan Owner
+    // kalau user belum pernah atur. Jumlah kartu per grup (batasKartuGrup,
+    // 2-8, default 4) TETAP SAMA, dari users/{email}.beranda_batas_kartu
+    // — berlaku SAMA RATA ke semua grup yang tampil, bukan per-grup beda.
     // ------------------------------------------------------------------
-    const grupTampil = computed(() => {
-      if (menuGroups.value.length === 0) return null;
-      const pilihan = window.currentUser?.beranda_grup;
-      return menuGroups.value.find(g => g.nama === pilihan) || menuGroups.value[0];
+    const grupTampilList = computed(() => {
+      if (menuGroups.value.length === 0) return [];
+      const pilihan = Array.isArray(window.currentUser?.beranda_grup_urutan) ? window.currentUser.beranda_grup_urutan : [];
+      const dipilih = pilihan.map(nama => menuGroups.value.find(g => g.nama === nama)).filter(Boolean);
+      if (dipilih.length > 0) return dipilih.slice(0, 4);
+      return menuGroups.value.slice(0, 4);
     });
     const batasKartuGrup = computed(() => {
       const n = Number(window.currentUser?.beranda_batas_kartu);
       return (Number.isFinite(n) && n >= 2 && n <= 8) ? n : 4;
     });
-    const itemsGrupTampil = computed(() => grupTampil.value ? grupTampil.value.items.slice(0, batasKartuGrup.value) : []);
+    function itemsGrupTampil(grup) { return grup.items.slice(0, batasKartuGrup.value); }
     const totalModul = computed(() => semuaItemFlat.value.length);
 
     // ------------------------------------------------------------------
@@ -201,7 +216,7 @@ const AppHome = {
       klikClockInOut, klikMenu,
       muatTampilan, muatSemua,
       daftarFavorit, bukaAturFavorit,
-      grupTampil, itemsGrupTampil, totalModul, bukaMenuLengkap,
+      grupTampilList, itemsGrupTampil, totalModul, bukaMenuLengkap,
       dialogTerkunciModul
     };
   },
@@ -261,35 +276,41 @@ const AppHome = {
       </div>
     </div>
 
-    <!-- Favorit Saya -->
+    <!-- Favorit Saya — REVISI (30 Agt 2026, ronde audit desain mobile,
+         permintaan Guru): tombol Clock in/out DICOPOT dari grid ini (sudah
+         ada jalan pintas sendiri di baris Clock in + statistik di atas,
+         SEKALIGUS masih ada juga di dalam grid favorit kalau user pilih
+         sendiri lewat Atur Favorit). Grid sekarang OTOMATIS maksimal 4
+         (persis favoritIds, tidak ada lagi 1 slot tambahan di luar itu). -->
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:7px;">
       <h3 class="gc-heading" style="font-size:10px; font-weight:700; margin:0; color:var(--text-muted); text-transform:uppercase; letter-spacing:.09em;"><i class="fas fa-star" style="margin-right:6px; color:var(--aksen-ink);"></i>Favorit Saya</h3>
       <button @click="bukaAturFavorit" style="background:none; border:none; color:var(--text-muted); font-weight:600; font-size:10px; cursor:pointer; padding:4px 2px; display:flex; align-items:center; gap:4px;">Atur Favorit <i class="fas fa-gear" style="font-size:13px;"></i></button>
     </div>
     <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:13px;">
-      <button @click="klikClockInOut" class="gc-card" style="padding:14px 6px 13px; min-height:88px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:9px; cursor:pointer; border-radius:16px;">
-        <span style="width:34px; height:34px; border-radius:50%; background:var(--aksen-lembut); display:flex; align-items:center; justify-content:center; color:var(--aksen-ink); font-size:17px;"><i class="fas" :class="sudahAbsenHariIni ? 'fa-right-from-bracket' : 'fa-fingerprint'"></i></span>
-        <span class="gc-heading" style="font-size:9.5px; font-weight:600; color:var(--text); text-align:center;">{{ sudahAbsenHariIni ? 'Clock out' : 'Clock in' }}</span>
-      </button>
       <kartu-menu v-for="item in daftarFavorit" :key="item.menuId" :item="item" @klik="klikMenu" />
     </div>
 
-    <!-- 1 grup menu default -->
-    <div v-if="grupTampil" style="margin-bottom:8px;">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:7px;">
-        <h3 class="gc-heading" style="font-size:10px; font-weight:700; margin:0; color:var(--text-muted); text-transform:uppercase; letter-spacing:.09em;">{{ grupTampil.nama }}</h3>
-        <button v-if="grupTampil.items.length > itemsGrupTampil.length" @click="bukaMenuLengkap" style="background:none; border:none; color:var(--text-muted); font-weight:600; font-size:10px; cursor:pointer;">Lihat Semua ({{ grupTampil.items.length }})</button>
-      </div>
-      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:7px;">
-        <kartu-menu v-for="item in itemsGrupTampil" :key="item.menuId" :item="item" @klik="klikMenu" />
-      </div>
-    </div>
-
-    <!-- Lihat Semua Menu -->
-    <button @click="bukaMenuLengkap" class="gc-card" style="width:100%; min-height:48px; border-radius:999px; padding:3px; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; margin-bottom:10px;">
+    <!-- Lihat Semua Menu — DIPINDAH (30 Agt 2026, ronde audit desain
+         mobile, permintaan Guru) ke sini, tepat di bawah Favorit Saya
+         (dulu di bawah grup menu). -->
+    <button @click="bukaMenuLengkap" class="gc-card" style="width:100%; min-height:48px; border-radius:999px; padding:3px; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; margin-bottom:14px;">
       <i class="fas fa-grip" style="font-size:16px; color:var(--aksen-ink);"></i>
       <span class="gc-heading" style="font-size:12px; font-weight:600; color:var(--aksen-ink);">Lihat Semua Menu ({{ totalModul }})</span>
     </button>
+
+    <!-- Grup menu default — REVISI (30 Agt 2026, ronde audit desain
+         mobile, permintaan Guru): dulu cuma 1 grup, SEKARANG maksimal 4
+         grup (grupTampilList), tiap grup tetap tampil sampai
+         batasKartuGrup item (default 4). -->
+    <div v-for="grup in grupTampilList" :key="grup.nama" style="margin-bottom:8px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:7px;">
+        <h3 class="gc-heading" style="font-size:10px; font-weight:700; margin:0; color:var(--text-muted); text-transform:uppercase; letter-spacing:.09em;">{{ grup.nama }}</h3>
+        <button v-if="grup.items.length > itemsGrupTampil(grup).length" @click="bukaMenuLengkap" style="background:none; border:none; color:var(--text-muted); font-weight:600; font-size:10px; cursor:pointer;">Lihat Semua ({{ grup.items.length }})</button>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:7px;">
+        <kartu-menu v-for="item in itemsGrupTampil(grup)" :key="item.menuId" :item="item" @klik="klikMenu" />
+      </div>
+    </div>
 
     <!-- Banner motivasi (statis — konten & tautan asli menyusul dari Guru) -->
     <div class="gc-kartu-gradien" style="border-radius:24px; padding:12px; display:flex; align-items:flex-end; gap:12px; margin-bottom:16px;">
