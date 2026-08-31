@@ -695,6 +695,26 @@ thead .freeze{z-index:3;}
   .gc-pp-panel-mobile{display:none;}
 }
 
+/* ---- gc-card-menonjol — BARU (31 Agt 2026, percontohan submenu "Perlu
+   Disiapkan"). Sejak ronde audit desain sebelumnya, area <main> desktop
+   (`.gc-main-desktop`, ≥768px) dikasih latar PUTIH (--surface) supaya
+   kartu di dalamnya (--ivory) menonjol — TAPI itu baru diterapkan ke
+   Beranda (`.gc-pipeline-card`, dst). Submenu lain masih pakai `.gc-card`
+   polos (background:var(--surface), SAMA PUTIH dengan latar <main> di
+   desktop) — jadi kartu MENYATU lagi dengan latar, kembali ke bug yang
+   sama seperti Beranda sebelum dikoreksi (lihat komentar .gc-sidebar).
+   `.gc-card-menonjol` DITAMBAH sebagai kelas kedua (bukan ganti .gc-card)
+   di kartu-kartu "Perlu Disiapkan" (js/vue-persiapan-produksi-v2.js),
+   SENGAJA di dalam @media(min-width:768px) — di mobile TIDAK disentuh
+   (di sana latar <main> masih --ivory dari .gc-app, jadi kartu putih
+   .gc-card sudah kontras dengan sendirinya, tidak perlu diubah). Kalau
+   Guru setuju, pola yang SAMA ini tinggal ditempel ke submenu lain
+   (Bahan/Vendor/Acc Sewing/Acc Webbing/Acc Finishing, dst) — BELUM
+   dikerjakan sesi ini, sengaja cuma 1 submenu dulu sebagai percontohan. */
+@media(min-width:768px){
+  .gc-card-menonjol{background:var(--ivory);}
+}
+
 /* ---- Animasi (nama gx* dipertahankan dari prototipe supaya gampang dicari lintas dokumen, bukan kelas gx- yang dibawa) ---- */
 @keyframes gxFade{from{opacity:0;}to{opacity:1;}}
 @keyframes gxSheet{from{transform:translateY(100%);}to{transform:translateY(0);}}

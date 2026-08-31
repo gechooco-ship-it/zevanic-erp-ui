@@ -572,7 +572,7 @@ const PersiapanDisiapkanManager = {
     };
   },
   template: `
-    <div v-if="memuat" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+    <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <div v-else class="gc-pp-layout">
       <div style="min-width:0;">
@@ -582,13 +582,13 @@ const PersiapanDisiapkanManager = {
           <button type="button" class="gc-sub-tab-btn" :class="{active: filterAktif==='belum_terkunci'}" @click="toggleFilter('belum_terkunci')">Pola belum dikunci</button>
         </div>
 
-        <div v-if="daftarBaris.length === 0" class="gc-kosong gc-card">
+        <div v-if="daftarBaris.length === 0" class="gc-kosong gc-card gc-card-menonjol">
           <div class="lingkaran"><i class="fas fa-circle-check"></i></div>
           <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada SPK aktif yang cocok</h3>
         </div>
 
         <div v-else style="display:flex; flex-direction:column; gap:10px;">
-          <div v-for="b in daftarBaris" :key="b.kunciGrup" class="gc-card" style="padding:14px; border-radius:20px;">
+          <div v-for="b in daftarBaris" :key="b.kunciGrup" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
               <div style="min-width:0;">
                 <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ b.namaBase }}<span v-if="b.size"> &middot; ukuran {{ b.size }}</span></div>
@@ -633,7 +633,7 @@ const PersiapanDisiapkanManager = {
       </div>
 
       <!-- Panel "Grouping baru" — desktop kanan sticky -->
-      <div class="gc-pp-panel gc-card" style="padding:16px; border-radius:20px;" v-if="klasterPanel">
+      <div class="gc-pp-panel gc-card gc-card-menonjol" style="padding:16px; border-radius:20px;" v-if="klasterPanel">
         <h3 class="gc-heading" style="font-weight:700; font-size:14px; margin:0 0 2px;">Grouping baru</h3>
         <p style="font-size:11px; color:var(--text-faint); margin:0 0 12px;">{{ ringkasanPanel.jumlahSpk }} SPK dipilih &middot; {{ formatQty(ringkasanPanel.qtyTotal) }} pcs &middot; {{ ringkasanPanel.jumlahWarna }} warna</p>
 
