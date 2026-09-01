@@ -509,6 +509,14 @@ function formStateKosong() {
     tinggi_barang: '',
     panjang_barang: '',
     lebar_barang: '',
+    // BARU (1 Sep 2026, wireframe handoff "Persiapan Produksi - Acc
+    // Webbing") — panjang 1 roll gudang (meter), opsional, dasar hitung
+    // kolom "roll" di kartu Acc Webbing (butuh_meter / panjang_roll,
+    // dibulatkan ke atas). Kosong/0 = belum diisi, kartu Acc Webbing
+    // menampilkan "-" bukan angka salah tebak. Cuma relevan buat item
+    // webbing/tali, tapi field digeneralisasi (tidak dibatasi per jenis)
+    // biar form tetap sederhana — sama pola seperti Volume Barang di atas.
+    panjang_roll: '',
     margin_modal: '',
     konversi_bertingkat: []
   });
@@ -971,6 +979,8 @@ const BahanAksesorisEntryManager = {
           panjang_barang: parseFloat(form.panjang_barang) || 0,
           lebar_barang: parseFloat(form.lebar_barang) || 0,
           volume_barang: volumeBarang.value,
+          // BARU (1 Sep 2026) — lihat catatan panjang_roll di formKosong().
+          panjang_roll: parseFloat(form.panjang_roll) || 0,
           dibuat_pada: serverTimestamp(),
           dibuat_oleh: window.currentUser?.email || null
         });
@@ -1130,6 +1140,13 @@ const BahanAksesorisEntryManager = {
       </div>
       <p style="font-size:11px; color:var(--text-faint); margin:2px 0 0;">Volume (otomatis): <b>{{ volumeBarang.toLocaleString('id-ID') }} cm&sup3;</b> per {{ form.satuan_pemakaian || 'satuan pemakaian' }}</p>
 
+      <!-- BARU (1 Sep 2026) — Panjang Roll, dasar hitung kolom "roll" di
+           kartu Acc Webbing. Opsional, cuma relevan buat item webbing/tali. -->
+      <div class="gc-field" style="margin-top:14px;">
+        <label>Panjang 1 Roll (meter) <span style="font-size:10px; color:var(--text-faint); font-weight:400;">— opsional, dasar hitung kolom "roll" Acc Webbing</span></label>
+        <input v-model.number="form.panjang_roll" type="number" min="0" placeholder="0">
+      </div>
+
       <div class="gc-field" style="margin-top:16px;">
         <label>Margin Modal (Rp) <span style="color:var(--danger);">*</span></label>
         <input v-model.number="form.margin_modal" type="number" min="0" placeholder="0">
@@ -1231,6 +1248,7 @@ const BahanAksesorisListManager = {
         // BARU (25 Agt 2026, §25) — Rak Penyimpanan (ref) & Volume Barang.
         rak_id: item.rak_id || '', rak_label: item.rak_label || '',
         tinggi_barang: item.tinggi_barang || '', panjang_barang: item.panjang_barang || '', lebar_barang: item.lebar_barang || '',
+        panjang_roll: item.panjang_roll || '',
         konversi_bertingkat: item.konversi_bertingkat || []
       });
       muatOpsiJenisEdit();
@@ -1274,6 +1292,7 @@ const BahanAksesorisListManager = {
           rak_id: formEdit.rak_id || '', rak_label: formEdit.rak_id ? formEdit.rak_label : '',
           tinggi_barang: parseFloat(formEdit.tinggi_barang) || 0, panjang_barang: parseFloat(formEdit.panjang_barang) || 0,
           lebar_barang: parseFloat(formEdit.lebar_barang) || 0, volume_barang: volumeBarangEdit.value,
+          panjang_roll: parseFloat(formEdit.panjang_roll) || 0,
           diedit_pada: serverTimestamp(), diedit_oleh: window.currentUser?.email || null
         });
         sedangEditId.value = null;
@@ -1689,6 +1708,11 @@ const BahanAksesorisListManager = {
           </div>
         </div>
         <p style="font-size:11px; color:var(--text-faint); margin:2px 0 0;">Volume (otomatis): <b>{{ volumeBarangEdit.toLocaleString('id-ID') }} cm&sup3;</b> per {{ formEdit.satuan_pemakaian || 'satuan pemakaian' }}</p>
+
+        <div class="gc-field" style="margin-top:14px;">
+          <label>Panjang 1 Roll (meter) <span style="font-size:10px; color:var(--text-faint); font-weight:400;">— opsional, dasar hitung kolom "roll" Acc Webbing</span></label>
+          <input v-model.number="formEdit.panjang_roll" type="number" min="0" placeholder="0">
+        </div>
 
         <div class="gc-field" style="margin-top:16px;">
           <label>Margin Modal (Rp)</label><input v-model.number="formEdit.margin_modal" type="number" min="0">

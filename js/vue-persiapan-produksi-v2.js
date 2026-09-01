@@ -240,7 +240,7 @@ async function generateKodeSpkGrouping() {
 // grouping) supaya daftar per-tahap (`JalurTahapManager` di bawah) bisa
 // query+tampilkan langsung tanpa baca balik ke `spk_grouping` per baris
 // (hemat baca Firestore, PRINSIP-HEMAT).
-async function buatSpkTrackUntukGrouping(groupingId, kodeSpk, namaProduk, qtyTotal, jalurAktif, bahanRincian) {
+async function buatSpkTrackUntukGrouping(groupingId, kodeSpk, namaProduk, qtyTotal, jalurAktif, bahanRincian, sewingRincian, webbingRincian, finishingRincian) {
   await Promise.all((jalurAktif || []).map(jalur => addDoc(collection(db, 'spk_track'), {
     grouping_id: groupingId,
     kode_spk: kodeSpk,
@@ -260,9 +260,20 @@ async function buatSpkTrackUntukGrouping(groupingId, kodeSpk, namaProduk, qtyTot
     // butuh ketelitian sampai level itu (lihat wireframe.dc.html: "scan
     // label ANAK SPK berkali-kali", "satu scan menutup SATU BARIS
     // KOMPONEN") sedangkan spk_track sendiri cuma 1 dokumen per grouping
-    // per jalur. Jalur lain (sewing/webbing/finishing/vendor) array kosong
-    // dulu — belum ada UI yang butuh rincian sedetail itu (Fase 3-5).
+    // per jalur.
     bahan_rincian: (jalur === 'bahan' && Array.isArray(bahanRincian)) ? bahanRincian : [],
+    // sewing_rincian / webbing_rincian / finishing_rincian — BARU (1 Sep
+    // 2026, modul Persiapan Produksi > Acc Sewing/Webbing/Finishing).
+    // Field TAMBAHAN yang SAMA POLA seperti bahan_rincian di atas, TAPI
+    // per-jalur sendiri-sendiri (bukan 1 field digilir 4 jalur) supaya tiap
+    // pos hanya baca field miliknya sendiri — pola ini SENGAJA dipilih
+    // (bukan generik `rincian` tunggal) supaya field bahan_rincian yang
+    // sudah ada TIDAK perlu diubah bentuknya (hindari migrasi data yang
+    // sudah terlanjur tersimpan sejak 31 Agt 2026). Jalur 'vendor' tidak
+    // dapat rincian apapun — di luar lingkup 4 modul kartu-per-komponen ini.
+    sewing_rincian: (jalur === 'sewing' && Array.isArray(sewingRincian)) ? sewingRincian : [],
+    webbing_rincian: (jalur === 'webbing' && Array.isArray(webbingRincian)) ? webbingRincian : [],
+    finishing_rincian: (jalur === 'finishing' && Array.isArray(finishingRincian)) ? finishingRincian : [],
     dibuat_pada: serverTimestamp(),
     diperbarui_pada: serverTimestamp()
   })));
@@ -348,6 +359,148 @@ function hitungBahanRincian(anggotaList, petaBahan) {
         entry_qty: null, entry_oleh: '', entry_pada: null,
         catatan_masalah: '',
         kode_bagging: '', kode_tugas: ''
+      });
+    });
+  });
+  return baris;
+}
+
+// hitungSewingRincian / hitungWebbingRincian / hitungFinishingRincian — BARU
+// (1 Sep 2026, wireframe handoff "Persiapan Produksi - Acc Sewing/Webbing/
+// Finishing", 3 modul dikerjakan sekaligus atas instruksi Guru 1 Sep 2026,
+// menyimpang dari urutan satu-modul-per-sesi yang ditulis README paket
+// handoff — lihat STATUS-PROYEK.md buat catatan penyimpangan ini).
+//
+// SAMA POLA seperti hitungBahanRincian() di atas (1 baris per komponen per
+// anak SPK, disimpan denormalisasi di spk_track), TAPI sumber BOM-nya
+// `master_produk.bom_aksesoris[]` (BUKAN bom_pola[] — itu punya Bahan),
+// disaring `tahap_proses` (teks bebas, dicocokkan longgar `.includes()` —
+// SAMA seperti jalurOtomatisProduk() di atas, supaya konsisten: kalau
+// sebuah baris BOM Aksesoris kehitung sebagai jalur 'sewing' di sana, baris
+// yang SAMA juga harus muncul di sini, bukan aturan pencocokan berbeda).
+//
+// PERBEDAAN KARTU dari Bahan — PENTING: pos Bahan "satu kartu satu bahan +
+// warna" (kartu dikumpulkan LINTAS dokumen spk_track, lihat catatan besar
+// di vue-persiapan-bahan.js). 3 pos Acc ini SEBALIKNYA: "satu kartu satu
+// SPK Grouping" (SERAH-TERIMA §2, semua 3 modul) — kartunya = SATU dokumen
+// spk_track itu sendiri, isinya rincian_nya. Makanya di sini TIDAK ada
+// kelompokKartuBahan()-style "kumulatif lintas grouping" — cek stok cukup
+// dilakukan PER BARIS independen terhadap stok live (lihat js/vue-
+// persiapan-{sewing,webbing,finishing}.js), bukan dialokasikan greedy
+// lintas kartu seperti Bahan (SERAH-TERIMA 3 modul ini TIDAK menyebut
+// "kumulatif" sebagai aturan khas, beda dari Bahan yang eksplisit
+// menyebutnya).
+function _butuhAksesorisDasar(a, qty) {
+  return {
+    order_spk_id: a.order_spk_id, no_spk: a.no_spk, qty,
+    bahan_aksesoris_id: '', nama_aksesoris: '', warna: '',
+    status: 'perlu_disiapkan',
+    masuk_tahap_pada: new Date().toISOString(),
+    label_cetak_pada: null,
+    operator_uid: '', operator_nama: '', ditugaskan_pada: null,
+    riwayat_operator: [],
+    entry_qty: null, entry_oleh: '', entry_pada: null,
+    catatan_masalah: '',
+    kode_bagging: '', kode_tugas: ''
+  };
+}
+function hitungSewingRincian(anggotaList, petaBahan) {
+  const baris = [];
+  (anggotaList || []).forEach(a => {
+    const produk = a._produk || null;
+    const bomAks = (produk && Array.isArray(produk.bom_aksesoris)) ? produk.bom_aksesoris : [];
+    const qty = parseFloat(a.qty) || 0;
+    bomAks.forEach(k => {
+      const t = (k.tahap_proses || '').trim().toLowerCase();
+      if (!t.includes('sewing')) return;
+      if (!k.bahan_aksesoris_id) return; // baris BOM belum terhubung Bahan & Aksesoris -> tidak bisa dihitung
+      const qtyPerPcs = parseFloat(k.qty) || 0;
+      const bhn = petaBahan[k.bahan_aksesoris_id] || {};
+      baris.push({
+        ..._butuhAksesorisDasar(a, qty),
+        bahan_aksesoris_id: k.bahan_aksesoris_id,
+        nama_aksesoris: bhn.nama || '', warna: bhn.warna || '',
+        // produk_size — SAMA alasan seperti hitungBahanRincian: dipakai "syarat
+        // sepack" (SERAH-TERIMA Acc §3: "produk dan size sama").
+        produk_size: (produk && produk.size) || '',
+        qty_per_pcs: qtyPerPcs, satuan: (k.satuan || 'pcs').trim() || 'pcs',
+        butuh: qtyPerPcs * qty
+      });
+    });
+  });
+  return baris;
+}
+// hitungWebbingRincian — sama seperti hitungSewingRincian, TAMBAH kolom
+// khas pos ini (SERAH-TERIMA Acc Webbing §3/§5): panjang_per_pcs/
+// butuh_meter (meter, bukan pcs), roll (butuh_meter / panjang_roll master
+// bahan, dibulatkan ke atas — NULL kalau master_bahan_aksesoris.panjang_roll
+// belum diisi Guru, BUKAN ditebak jadi angka salah), kode_webbing2/3
+// (snapshot bom_aksesoris.webbing2/.webbing3 SAAT SPK Grouping terbit —
+// teks bebas, boleh kosong, TIDAK menghalangi cetak per SERAH-TERIMA).
+function hitungWebbingRincian(anggotaList, petaBahan) {
+  const baris = [];
+  (anggotaList || []).forEach(a => {
+    const produk = a._produk || null;
+    const bomAks = (produk && Array.isArray(produk.bom_aksesoris)) ? produk.bom_aksesoris : [];
+    const qty = parseFloat(a.qty) || 0;
+    bomAks.forEach(k => {
+      const t = (k.tahap_proses || '').trim().toLowerCase();
+      if (!t.includes('webbing')) return;
+      if (!k.bahan_aksesoris_id) return;
+      const panjangPerPcs = parseFloat(k.qty) || 0;
+      const butuhMeter = panjangPerPcs * qty;
+      const bhn = petaBahan[k.bahan_aksesoris_id] || {};
+      const panjangRoll = parseFloat(bhn.panjang_roll) || 0;
+      baris.push({
+        ..._butuhAksesorisDasar(a, qty),
+        bahan_aksesoris_id: k.bahan_aksesoris_id,
+        nama_aksesoris: bhn.nama || '', warna: bhn.warna || '',
+        produk_size: (produk && produk.size) || '',
+        qty_per_pcs: panjangPerPcs, satuan: 'meter',
+        butuh: butuhMeter,
+        panjang_per_pcs: panjangPerPcs, butuh_meter: butuhMeter,
+        roll: panjangRoll > 0 ? Math.ceil(butuhMeter / panjangRoll) : null,
+        kode_webbing2: (k.webbing2 || '').trim(), kode_webbing3: (k.webbing3 || '').trim()
+      });
+    });
+  });
+  return baris;
+}
+// hitungFinishingRincian — sama seperti hitungSewingRincian, TAMBAH kolom
+// khas pos ini (SERAH-TERIMA Acc Finishing §3/§5): varian_tipe/
+// varian_jumlah, keadaan_cetak/sisa_dicetak.
+//
+// KEPUTUSAN (Yang Belum Diputuskan §7 SERAH-TERIMA — belum dijawab Guru,
+// dipilih default paling aman dulu, JANGAN dianggap final):
+//   - varian_tipe/varian_jumlah default 'tunggal'/1 SAAT GENERATE — BOM
+//     Aksesoris tidak (belum) punya field pemisah varian (§3 vue-master-
+//     produk.js: cuma tahap_proses/bahan_aksesoris_id/nama/warna/qty/satuan/
+//     webbing2/webbing3), jadi satu baris BOM = satu varian tunggal sampai
+//     Guru menjawab §7 dan field varian ditambah ke BOM Aksesoris.
+//   - keadaan_cetak/sisa_dicetak SENGAJA TIDAK disimpan di sini (statis,
+//     bisa basi begitu stok berubah) — dihitung LIVE di js/vue-persiapan-
+//     finishing.js dari stok terkini vs `butuh`, sama pola seperti kolom
+//     "cukup/selisih" Bahan (kelompokKartuBahan()).
+function hitungFinishingRincian(anggotaList, petaBahan) {
+  const baris = [];
+  (anggotaList || []).forEach(a => {
+    const produk = a._produk || null;
+    const bomAks = (produk && Array.isArray(produk.bom_aksesoris)) ? produk.bom_aksesoris : [];
+    const qty = parseFloat(a.qty) || 0;
+    bomAks.forEach(k => {
+      const t = (k.tahap_proses || '').trim().toLowerCase();
+      if (!t.includes('finishing')) return;
+      if (!k.bahan_aksesoris_id) return;
+      const qtyPerPcs = parseFloat(k.qty) || 0;
+      const bhn = petaBahan[k.bahan_aksesoris_id] || {};
+      baris.push({
+        ..._butuhAksesorisDasar(a, qty),
+        bahan_aksesoris_id: k.bahan_aksesoris_id,
+        nama_aksesoris: bhn.nama || '', warna: bhn.warna || '',
+        produk_size: (produk && produk.size) || '',
+        qty_per_pcs: qtyPerPcs, satuan: (k.satuan || 'pcs').trim() || 'pcs',
+        butuh: qtyPerPcs * qty,
+        varian_tipe: 'tunggal', varian_jumlah: 1
       });
     });
   });
@@ -585,12 +738,16 @@ const PersiapanDisiapkanManager = {
             status_grouping: habis ? 'tergrouping' : 'sebagian'
           });
         }));
-        let bahanRincian = [];
-        if (jalurAktif.includes('bahan')) {
+        let bahanRincian = [], sewingRincian = [], webbingRincian = [], finishingRincian = [];
+        if (jalurAktif.some(j => ['bahan', 'sewing', 'webbing', 'finishing'].includes(j))) {
           const petaBahan = await ambilPetaBahanAksesoris();
-          bahanRincian = hitungBahanRincian(anggota.map(o => ({ order_spk_id: o.id, no_spk: o.no_spk, qty: parseFloat(pilihanQty[o.id]) || 0, _produk: o._produk })), petaBahan);
+          const anggotaBaris = anggota.map(o => ({ order_spk_id: o.id, no_spk: o.no_spk, qty: parseFloat(pilihanQty[o.id]) || 0, _produk: o._produk }));
+          if (jalurAktif.includes('bahan')) bahanRincian = hitungBahanRincian(anggotaBaris, petaBahan);
+          if (jalurAktif.includes('sewing')) sewingRincian = hitungSewingRincian(anggotaBaris, petaBahan);
+          if (jalurAktif.includes('webbing')) webbingRincian = hitungWebbingRincian(anggotaBaris, petaBahan);
+          if (jalurAktif.includes('finishing')) finishingRincian = hitungFinishingRincian(anggotaBaris, petaBahan);
         }
-        await buatSpkTrackUntukGrouping(refGrouping.id, kode, klaster.namaBase, qtyTotal, jalurAktif, bahanRincian);
+        await buatSpkTrackUntukGrouping(refGrouping.id, kode, klaster.namaBase, qtyTotal, jalurAktif, bahanRincian, sewingRincian, webbingRincian, finishingRincian);
         konfirmasiTerbit.value = { kode, namaProduk: klaster.namaBase, qtyTotal, jalurAktif, groupingId: refGrouping.id };
         panelKlasterKey.value = null;
         await muat();
@@ -633,12 +790,16 @@ const PersiapanDisiapkanManager = {
           grouping_ids: arrayUnion(refGrouping.id),
           id_spk_grouping: refGrouping.id, kode_spk_grouping: kode, status_grouping: 'tergrouping'
         });
-        let bahanRincianSendiri = [];
-        if (jalurUnik.includes('bahan')) {
+        let bahanRincianSendiri = [], sewingRincianSendiri = [], webbingRincianSendiri = [], finishingRincianSendiri = [];
+        if (jalurUnik.some(j => ['bahan', 'sewing', 'webbing', 'finishing'].includes(j))) {
           const petaBahan = await ambilPetaBahanAksesoris();
-          bahanRincianSendiri = hitungBahanRincian([{ order_spk_id: order.id, no_spk: order.no_spk, qty, _produk: order._produk }], petaBahan);
+          const anggotaBaris = [{ order_spk_id: order.id, no_spk: order.no_spk, qty, _produk: order._produk }];
+          if (jalurUnik.includes('bahan')) bahanRincianSendiri = hitungBahanRincian(anggotaBaris, petaBahan);
+          if (jalurUnik.includes('sewing')) sewingRincianSendiri = hitungSewingRincian(anggotaBaris, petaBahan);
+          if (jalurUnik.includes('webbing')) webbingRincianSendiri = hitungWebbingRincian(anggotaBaris, petaBahan);
+          if (jalurUnik.includes('finishing')) finishingRincianSendiri = hitungFinishingRincian(anggotaBaris, petaBahan);
         }
-        await buatSpkTrackUntukGrouping(refGrouping.id, kode, order._namaBase, qty, jalurUnik, bahanRincianSendiri);
+        await buatSpkTrackUntukGrouping(refGrouping.id, kode, order._namaBase, qty, jalurUnik, bahanRincianSendiri, sewingRincianSendiri, webbingRincianSendiri, finishingRincianSendiri);
         konfirmasiTerbit.value = { kode, namaProduk: order._namaBase, qtyTotal: qty, jalurAktif: jalurUnik, groupingId: refGrouping.id };
         delete vendorManualSingle[key];
         await muat();

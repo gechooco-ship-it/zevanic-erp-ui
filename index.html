@@ -311,13 +311,13 @@
           <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-bahan', this, {catatRiwayat:true}); pindahSubTab('sub-pp-bahan-tahap','sub-pp-bahan-perludisiapkan', null, {catatRiwayat:true})" id="menu-pp-bahan-btn" data-menu-id="pp_bahan" data-target="sub-pp-bahan" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-scroll" style="width:17px; text-align:center;"></i> Bahan
           </button>
-          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-sewing', this, {catatRiwayat:true}); pindahSubTab('sub-pp-sewing-tahap','sub-pp-sewing-perludiproses', null, {catatRiwayat:true})" id="menu-pp-sewing-btn" data-menu-id="pp_sewing" data-target="sub-pp-sewing" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-sewing', this, {catatRiwayat:true}); pindahSubTab('sub-pp-sewing-tahap','sub-pp-sewing-perludisiapkan', null, {catatRiwayat:true})" id="menu-pp-sewing-btn" data-menu-id="pp_sewing" data-target="sub-pp-sewing" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-scissors" style="width:17px; text-align:center;"></i> Acc Sewing
           </button>
-          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-webbing', this, {catatRiwayat:true}); pindahSubTab('sub-pp-webbing-tahap','sub-pp-webbing-perludiproses', null, {catatRiwayat:true})" id="menu-pp-webbing-btn" data-menu-id="pp_webbing" data-target="sub-pp-webbing" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-webbing', this, {catatRiwayat:true}); pindahSubTab('sub-pp-webbing-tahap','sub-pp-webbing-perludisiapkan', null, {catatRiwayat:true})" id="menu-pp-webbing-btn" data-menu-id="pp_webbing" data-target="sub-pp-webbing" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-ribbon" style="width:17px; text-align:center;"></i> Acc Webbing
           </button>
-          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-finishing', this, {catatRiwayat:true}); pindahSubTab('sub-pp-finishing-tahap','sub-pp-finishing-perludiproses', null, {catatRiwayat:true})" id="menu-pp-finishing-btn" data-menu-id="pp_finishing" data-target="sub-pp-finishing" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-finishing', this, {catatRiwayat:true}); pindahSubTab('sub-pp-finishing-tahap','sub-pp-finishing-perludisiapkan', null, {catatRiwayat:true})" id="menu-pp-finishing-btn" data-menu-id="pp_finishing" data-target="sub-pp-finishing" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-check-double" style="width:17px; text-align:center;"></i> Acc Finishing
           </button>
         </div>
@@ -901,19 +901,28 @@
             </div>
           </div>
 
+          <!-- GANTI TOTAL (1 Sep 2026, wireframe handoff "Persiapan Produksi
+               - Acc Sewing/Webbing/Finishing") — dari JalurTahapManager
+               generik (kartu per SPK, tanpa rincian komponen) jadi js/vue-
+               persiapan-{sewing,webbing,finishing}.js (kartu per SPK Grouping
+               + baris per komponen, 5 komponen Vue sendiri tiap pos) — SAMA
+               perlakuan seperti Bahan (31 Agt 2026). Label tab JUGA
+               disesuaikan ("Perlu/Sedang Disiapkan", bukan "Diproses" —
+               PEDOMAN-SERAH-TERIMA.md §"Aturan yang berlaku di semua modul"
+               #7, sama seperti Bahan). -->
           <div id="sub-pp-sewing" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-              <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-perludiproses', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-sewing-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Diproses</button>
-              <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-sedangdiproses', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-sewing-sedangdiproses"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Diproses</button>
-              <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-perludikirim', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-sewing-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Dikirim</button>
-              <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-sewing-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-perludisiapkan', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-sewing-perludisiapkan"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Disiapkan</button>
+              <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-sedangdisiapkan', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-sewing-sedangdisiapkan"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Disiapkan</button>
+              <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-perludikirim', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-sewing-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Di Kirim</button>
+              <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-sewing-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Di Kirim</button>
               <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-selesai', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-sewing-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
             </div>
-            <div id="sub-pp-sewing-perludiproses" class="sub-pp-sewing-tahap-content fade-in space-y-4">
-              <div id="vue-pp-sewing-perludiproses"></div>
+            <div id="sub-pp-sewing-perludisiapkan" class="sub-pp-sewing-tahap-content fade-in space-y-4">
+              <div id="vue-pp-sewing-perludisiapkan"></div>
             </div>
-            <div id="sub-pp-sewing-sedangdiproses" class="sub-pp-sewing-tahap-content hidden fade-in space-y-4">
-              <div id="vue-pp-sewing-sedangdiproses"></div>
+            <div id="sub-pp-sewing-sedangdisiapkan" class="sub-pp-sewing-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-sewing-sedangdisiapkan"></div>
             </div>
             <div id="sub-pp-sewing-perludikirim" class="sub-pp-sewing-tahap-content hidden fade-in space-y-4">
               <div id="vue-pp-sewing-perludikirim"></div>
@@ -928,17 +937,17 @@
 
           <div id="sub-pp-webbing" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-              <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-perludiproses', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-webbing-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Diproses</button>
-              <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-sedangdiproses', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-webbing-sedangdiproses"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Diproses</button>
-              <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-perludikirim', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-webbing-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Dikirim</button>
-              <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-webbing-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-perludisiapkan', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-webbing-perludisiapkan"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Disiapkan</button>
+              <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-sedangdisiapkan', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-webbing-sedangdisiapkan"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Disiapkan</button>
+              <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-perludikirim', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-webbing-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Di Kirim</button>
+              <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-webbing-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Di Kirim</button>
               <button onclick="pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-selesai', this, {catatRiwayat:true})" class="sub-pp-webbing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-webbing-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
             </div>
-            <div id="sub-pp-webbing-perludiproses" class="sub-pp-webbing-tahap-content fade-in space-y-4">
-              <div id="vue-pp-webbing-perludiproses"></div>
+            <div id="sub-pp-webbing-perludisiapkan" class="sub-pp-webbing-tahap-content fade-in space-y-4">
+              <div id="vue-pp-webbing-perludisiapkan"></div>
             </div>
-            <div id="sub-pp-webbing-sedangdiproses" class="sub-pp-webbing-tahap-content hidden fade-in space-y-4">
-              <div id="vue-pp-webbing-sedangdiproses"></div>
+            <div id="sub-pp-webbing-sedangdisiapkan" class="sub-pp-webbing-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-webbing-sedangdisiapkan"></div>
             </div>
             <div id="sub-pp-webbing-perludikirim" class="sub-pp-webbing-tahap-content hidden fade-in space-y-4">
               <div id="vue-pp-webbing-perludikirim"></div>
@@ -953,17 +962,17 @@
 
           <div id="sub-pp-finishing" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-              <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludiproses', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-finishing-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Diproses</button>
-              <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-sedangdiproses', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-finishing-sedangdiproses"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Diproses</button>
-              <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludikirim', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-finishing-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Dikirim</button>
-              <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-finishing-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludisiapkan', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-finishing-perludisiapkan"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Disiapkan</button>
+              <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-sedangdisiapkan', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-finishing-sedangdisiapkan"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Disiapkan</button>
+              <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludikirim', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-finishing-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Di Kirim</button>
+              <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-finishing-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Di Kirim</button>
               <button onclick="pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-selesai', this, {catatRiwayat:true})" class="sub-pp-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pp-finishing-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
             </div>
-            <div id="sub-pp-finishing-perludiproses" class="sub-pp-finishing-tahap-content fade-in space-y-4">
-              <div id="vue-pp-finishing-perludiproses"></div>
+            <div id="sub-pp-finishing-perludisiapkan" class="sub-pp-finishing-tahap-content fade-in space-y-4">
+              <div id="vue-pp-finishing-perludisiapkan"></div>
             </div>
-            <div id="sub-pp-finishing-sedangdiproses" class="sub-pp-finishing-tahap-content hidden fade-in space-y-4">
-              <div id="vue-pp-finishing-sedangdiproses"></div>
+            <div id="sub-pp-finishing-sedangdisiapkan" class="sub-pp-finishing-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-finishing-sedangdisiapkan"></div>
             </div>
             <div id="sub-pp-finishing-perludikirim" class="sub-pp-finishing-tahap-content hidden fade-in space-y-4">
               <div id="vue-pp-finishing-perludikirim"></div>
@@ -1109,7 +1118,16 @@
   <script type="module" src="js/vue-persiapan-produksi-v2.js?v=3"></script>
   <!-- BARU (31 Agt 2026, wireframe handoff "Persiapan Produksi - Bahan") —
        jalur Bahan GANTI TOTAL, lihat komentar besar di file ini. -->
-  <script type="module" src="js/vue-persiapan-bahan.js?v=1"></script>
+  <script type="module" src="js/vue-persiapan-bahan.js?v=3"></script>
+  <!-- BARU (1 Sep 2026, wireframe handoff "Persiapan Produksi - Acc
+       Sewing/Webbing/Finishing", 3 pos dikerjakan sekaligus atas instruksi
+       eksplisit Guru — menyimpang dari aturan "satu modul per sesi" di
+       README handoff) — jalur Acc Sewing/Webbing/Finishing GANTI TOTAL,
+       kartu = 1 spk_track (beda dari Bahan yang kartu = 1 bahan+warna),
+       lihat komentar besar di masing-masing file. -->
+  <script type="module" src="js/vue-persiapan-sewing.js?v=2"></script>
+  <script type="module" src="js/vue-persiapan-webbing.js?v=2"></script>
+  <script type="module" src="js/vue-persiapan-finishing.js?v=2"></script>
   <!-- BARU (30 Agt 2026) — grup top-level "Pesanan": Penjualan Kasir (POS),
        Menunggu Proses (CRUD SPK, DISALIN dari OrderSpkManager lama),
        Proses Persiapan/Produksi/Pengiriman (ringkasan read-only dari
