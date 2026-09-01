@@ -240,7 +240,7 @@ async function generateKodeSpkGrouping() {
 // grouping) supaya daftar per-tahap (`JalurTahapManager` di bawah) bisa
 // query+tampilkan langsung tanpa baca balik ke `spk_grouping` per baris
 // (hemat baca Firestore, PRINSIP-HEMAT).
-async function buatSpkTrackUntukGrouping(groupingId, kodeSpk, namaProduk, qtyTotal, jalurAktif) {
+async function buatSpkTrackUntukGrouping(groupingId, kodeSpk, namaProduk, qtyTotal, jalurAktif, bahanRincian) {
   await Promise.all((jalurAktif || []).map(jalur => addDoc(collection(db, 'spk_track'), {
     grouping_id: groupingId,
     kode_spk: kodeSpk,
@@ -254,9 +254,104 @@ async function buatSpkTrackUntukGrouping(groupingId, kodeSpk, namaProduk, qtyTot
     kode_tugas: '',
     riwayat_scan: [],
     catatan_masalah: '',
+    // bahan_rincian — BARU (31 Agt 2026, modul Persiapan Produksi > Bahan,
+    // lihat hitungBahanRincian() di atas). CUMA diisi buat jalur 'bahan' —
+    // rincian kebutuhan kain PER BAHAN PER ANAK SPK, karena tahap Bahan
+    // butuh ketelitian sampai level itu (lihat wireframe.dc.html: "scan
+    // label ANAK SPK berkali-kali", "satu scan menutup SATU BARIS
+    // KOMPONEN") sedangkan spk_track sendiri cuma 1 dokumen per grouping
+    // per jalur. Jalur lain (sewing/webbing/finishing/vendor) array kosong
+    // dulu — belum ada UI yang butuh rincian sedetail itu (Fase 3-5).
+    bahan_rincian: (jalur === 'bahan' && Array.isArray(bahanRincian)) ? bahanRincian : [],
     dibuat_pada: serverTimestamp(),
     diperbarui_pada: serverTimestamp()
   })));
+}
+
+// ambilPetaBahanAksesoris — cache modul-level, dipakai hitungBahanRincian()
+// saat grouping jalur 'bahan' diterbitkan. Koleksinya kecil (semua Bahan &
+// Aksesoris toko), pola query DISALIN dari js/vue-scan-persiapan.js.
+let _cachePetaBahanAksesoris = null;
+async function ambilPetaBahanAksesoris() {
+  if (_cachePetaBahanAksesoris) return _cachePetaBahanAksesoris;
+  const peta = {};
+  try {
+    const snap = await getDocs(collection(db, 'master_bahan_aksesoris'));
+    snap.forEach(d => { peta[d.id] = d.data(); });
+  } catch (e) {
+    console.error('Gagal ambil master_bahan_aksesoris:', e);
+  }
+  _cachePetaBahanAksesoris = peta;
+  return peta;
+}
+
+// hitungBahanRincian — BARU (31 Agt 2026, modul Persiapan Produksi > Bahan).
+// Dari daftar anak SPK yang ikut grouping ({order_spk_id, no_spk, qty,
+// _produk}) + peta master_bahan_aksesoris (id -> {nama, warna, ...}),
+// hasilkan satu baris PER BAHAN PER ANAK SPK — inilah yang disimpan
+// denormalisasi di spk_track.bahan_rincian[] (hemat baca Firestore, PRINSIP-
+// HEMAT, pola sama seperti buatSpkTrackUntukGrouping).
+//
+// Sumber BOM: `master_produk.bom_pola[]` — BUKAN `bom_aksesoris[]` (itu punya
+// Acc Sewing/Webbing/Finishing, bukan kain). Cuma baris tipe:'internal' yang
+// dipakai (tipe:'vendor' dipotong vendor sendiri, tidak lewat gudang/pos
+// Bahan). Rumus dari SERAH-TERIMA Bahan §3 "Aturan khas pos ini":
+//   amparan     = qty anak SPK / isi_pola_pcs, dibulatkan ke ATAS
+//   kebutuhan_kain (meter) = (panjang pola dalam cm / 100) x amparan
+function hitungBahanRincian(anggotaList, petaBahan) {
+  const baris = [];
+  (anggotaList || []).forEach(a => {
+    const produk = a._produk || null;
+    const bomPola = (produk && Array.isArray(produk.bom_pola)) ? produk.bom_pola : [];
+    bomPola.forEach(b => {
+      if ((b.tipe || 'internal') !== 'internal') return; // baris vendor bukan urusan pos Bahan
+      if (!b.bahan_aksesoris_id) return; // baris BOM belum terhubung Bahan & Aksesoris -> tidak bisa dihitung
+      const isiPola = parseFloat(b.isi_pola_pcs) || 0;
+      if (isiPola <= 0) return;
+      const panjangCm = parseFloat(b.panjang) || 0;
+      const qty = parseFloat(a.qty) || 0;
+      const amparan = Math.ceil(qty / isiPola);
+      const kebutuhanKain = (panjangCm / 100) * amparan;
+      const bhn = petaBahan[b.bahan_aksesoris_id] || {};
+      baris.push({
+        order_spk_id: a.order_spk_id, no_spk: a.no_spk, qty,
+        bahan_aksesoris_id: b.bahan_aksesoris_id,
+        bahan_nama: bhn.nama || '', bahan_warna: bhn.warna || '',
+        nama_pola: b.nama_pola || '',
+        // produk_size — BARU, dipakai js/vue-persiapan-bahan.js buat "syarat
+        // sepack" (SERAH-TERIMA Bahan §3: "pola, bahan, dan size sama; warna
+        // & no SPK boleh beda"). spk_track sendiri TIDAK simpan size (cuma
+        // nama_produk), jadi diambil di sini dari produk anak SPK-nya.
+        produk_size: (produk && produk.size) || '',
+        panjang_pola: panjangCm, isi_pola_pcs: isiPola,
+        amparan, kebutuhan_kain: kebutuhanKain,
+        // status per BARIS (bukan per grouping) — inilah yang dipakai
+        // js/vue-persiapan-bahan.js buat nentuin baris ini ada di tab mana:
+        // perlu_disiapkan -> sedang_disiapkan -> perlu_dikirim ->
+        // sedang_dikirim -> selesai.
+        status: 'perlu_disiapkan',
+        // masuk_tahap_pada — string ISO (BUKAN serverTimestamp(): Firestore
+        // tidak izinkan sentinel serverTimestamp() di dalam elemen array,
+        // cuma di field top-level dokumen — sama seperti field `pada` di
+        // riwayat_scan versi lama). Diperbarui tiap kali `status` baris ini
+        // pindah tahap — dasar hitung "diam sejak" / ambang tertahan (>6 jam,
+        // keputusan Guru 31 Agt 2026) di setiap tab.
+        masuk_tahap_pada: new Date().toISOString(),
+        label_cetak_pada: null,
+        operator_uid: '', operator_nama: '', ditugaskan_pada: null,
+        // riwayat_operator — estafet shift (keputusan Guru 31 Agt 2026:
+        // "boleh diganti operator di tengah jalan, bukan dipegang 2 sekaligus
+        // bersamaan"). Tiap kali baris ini di-scan-tunjuk ulang oleh operator
+        // LAIN sebelum selesai, entry baru ditambah di sini (bukan menimpa)
+        // supaya riwayat siapa-pegang-apa-jam-berapa tetap kebaca di kartu.
+        riwayat_operator: [],
+        entry_qty: null, entry_oleh: '', entry_pada: null,
+        catatan_masalah: '',
+        kode_bagging: '', kode_tugas: ''
+      });
+    });
+  });
+  return baris;
 }
 
 // cariKaryawanByQr — DISALIN dari js/vue-absensi-qr.js (prosesHasilScan(),
@@ -490,7 +585,12 @@ const PersiapanDisiapkanManager = {
             status_grouping: habis ? 'tergrouping' : 'sebagian'
           });
         }));
-        await buatSpkTrackUntukGrouping(refGrouping.id, kode, klaster.namaBase, qtyTotal, jalurAktif);
+        let bahanRincian = [];
+        if (jalurAktif.includes('bahan')) {
+          const petaBahan = await ambilPetaBahanAksesoris();
+          bahanRincian = hitungBahanRincian(anggota.map(o => ({ order_spk_id: o.id, no_spk: o.no_spk, qty: parseFloat(pilihanQty[o.id]) || 0, _produk: o._produk })), petaBahan);
+        }
+        await buatSpkTrackUntukGrouping(refGrouping.id, kode, klaster.namaBase, qtyTotal, jalurAktif, bahanRincian);
         konfirmasiTerbit.value = { kode, namaProduk: klaster.namaBase, qtyTotal, jalurAktif, groupingId: refGrouping.id };
         panelKlasterKey.value = null;
         await muat();
@@ -533,7 +633,12 @@ const PersiapanDisiapkanManager = {
           grouping_ids: arrayUnion(refGrouping.id),
           id_spk_grouping: refGrouping.id, kode_spk_grouping: kode, status_grouping: 'tergrouping'
         });
-        await buatSpkTrackUntukGrouping(refGrouping.id, kode, order._namaBase, qty, jalurUnik);
+        let bahanRincianSendiri = [];
+        if (jalurUnik.includes('bahan')) {
+          const petaBahan = await ambilPetaBahanAksesoris();
+          bahanRincianSendiri = hitungBahanRincian([{ order_spk_id: order.id, no_spk: order.no_spk, qty, _produk: order._produk }], petaBahan);
+        }
+        await buatSpkTrackUntukGrouping(refGrouping.id, kode, order._namaBase, qty, jalurUnik, bahanRincianSendiri);
         konfirmasiTerbit.value = { kode, namaProduk: order._namaBase, qtyTotal: qty, jalurAktif: jalurUnik, groupingId: refGrouping.id };
         delete vendorManualSingle[key];
         await muat();

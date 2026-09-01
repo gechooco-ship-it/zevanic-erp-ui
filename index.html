@@ -308,7 +308,7 @@
           <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-vendor', this, {catatRiwayat:true}); pindahSubTab('sub-pp-vendor-tahap','sub-pp-vendor-perludiproses', null, {catatRiwayat:true})" id="menu-pp-vendor-btn" data-menu-id="pp_vendor" data-target="sub-pp-vendor" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-handshake" style="width:17px; text-align:center;"></i> Vendor
           </button>
-          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-bahan', this, {catatRiwayat:true}); pindahSubTab('sub-pp-bahan-tahap','sub-pp-bahan-perludiproses', null, {catatRiwayat:true})" id="menu-pp-bahan-btn" data-menu-id="pp_bahan" data-target="sub-pp-bahan" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-bahan', this, {catatRiwayat:true}); pindahSubTab('sub-pp-bahan-tahap','sub-pp-bahan-perludisiapkan', null, {catatRiwayat:true})" id="menu-pp-bahan-btn" data-menu-id="pp_bahan" data-target="sub-pp-bahan" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-scroll" style="width:17px; text-align:center;"></i> Bahan
           </button>
           <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-sewing', this, {catatRiwayat:true}); pindahSubTab('sub-pp-sewing-tahap','sub-pp-sewing-perludiproses', null, {catatRiwayat:true})" id="menu-pp-sewing-btn" data-menu-id="pp_sewing" data-target="sub-pp-sewing" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
@@ -871,18 +871,24 @@
           </div>
 
           <div id="sub-pp-bahan" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
+            <!-- GANTI TOTAL (31 Agt 2026, wireframe handoff "Persiapan
+                 Produksi - Bahan") — dari JalurTahapManager generik (kartu
+                 per SPK) jadi js/vue-persiapan-bahan.js (kartu per bahan +
+                 warna, 5 komponen Vue sendiri). Label tab JUGA disesuaikan
+                 ("Perlu/Sedang Disiapkan", bukan "Diproses" — PEDOMAN-SERAH-
+                 TERIMA.md §"Aturan yang berlaku di semua modul" #7). -->
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-              <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-perludiproses', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-bahan-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Diproses</button>
-              <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-sedangdiproses', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn" data-target="sub-pp-bahan-sedangdiproses"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Diproses</button>
-              <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-perludikirim', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn" data-target="sub-pp-bahan-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Dikirim</button>
-              <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn" data-target="sub-pp-bahan-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Dikirim</button>
+              <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-perludisiapkan', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-bahan-perludisiapkan"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Disiapkan</button>
+              <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-sedangdisiapkan', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn" data-target="sub-pp-bahan-sedangdisiapkan"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Disiapkan</button>
+              <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-perludikirim', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn" data-target="sub-pp-bahan-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Di Kirim</button>
+              <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn" data-target="sub-pp-bahan-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Di Kirim</button>
               <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-selesai', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn" data-target="sub-pp-bahan-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
             </div>
-            <div id="sub-pp-bahan-perludiproses" class="sub-pp-bahan-tahap-content fade-in space-y-4">
-              <div id="vue-pp-bahan-perludiproses"></div>
+            <div id="sub-pp-bahan-perludisiapkan" class="sub-pp-bahan-tahap-content fade-in space-y-4">
+              <div id="vue-pp-bahan-perludisiapkan"></div>
             </div>
-            <div id="sub-pp-bahan-sedangdiproses" class="sub-pp-bahan-tahap-content hidden fade-in space-y-4">
-              <div id="vue-pp-bahan-sedangdiproses"></div>
+            <div id="sub-pp-bahan-sedangdisiapkan" class="sub-pp-bahan-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-bahan-sedangdisiapkan"></div>
             </div>
             <div id="sub-pp-bahan-perludikirim" class="sub-pp-bahan-tahap-content hidden fade-in space-y-4">
               <div id="vue-pp-bahan-perludikirim"></div>
@@ -1079,7 +1085,7 @@
        landing default 'sub-pesanan-kasir'. Entry petaMount LAMA
        'sub-zevanic-house-orderspk' -> pastikanMountOrderSpk DIHAPUS (lihat
        js/vue-pesanan.js). -->
-  <script type="module" src="js/dashboard.js?v=20"></script>
+  <script type="module" src="js/dashboard.js?v=21"></script>
   <!-- js/vue-order-spk.js — DITINGGALKAN (30 Agt 2026, fitur "Pesanan",
        keputusan Guru: fungsinya pindah jadi menu "Menunggu Proses" di
        grup baru "Pesanan"). File TIDAK dihapus dari disk (jaga-jaga
@@ -1100,7 +1106,10 @@
   <!-- v=2 (31 Agt 2026) — "Perlu Disiapkan" dibangun ulang total sesuai
        wireframe handoff Guru (kunci klaster +size, layout 2 kolom, dukung
        split-qty per SPK). JalurTahapManager (5 jalur/5 tahap) TIDAK disentuh. -->
-  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=2"></script>
+  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=3"></script>
+  <!-- BARU (31 Agt 2026, wireframe handoff "Persiapan Produksi - Bahan") —
+       jalur Bahan GANTI TOTAL, lihat komentar besar di file ini. -->
+  <script type="module" src="js/vue-persiapan-bahan.js?v=1"></script>
   <!-- BARU (30 Agt 2026) — grup top-level "Pesanan": Penjualan Kasir (POS),
        Menunggu Proses (CRUD SPK, DISALIN dari OrderSpkManager lama),
        Proses Persiapan/Produksi/Pengiriman (ringkasan read-only dari

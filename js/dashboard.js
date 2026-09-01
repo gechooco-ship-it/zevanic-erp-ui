@@ -467,8 +467,12 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // Lihat js/vue-persiapan-produksi-v2.js & STATUS-PROYEK.md §44.13/
     // §44.14/§44.19/§44.20.
     'sub-pp-disiapkan': 'pastikanMountPpDisiapkan',
-    'sub-pp-bahan-perludiproses': 'pastikanMountPpBahanPerluDiproses',
-    'sub-pp-bahan-sedangdiproses': 'pastikanMountPpBahanSedangDiproses',
+    // GANTI (31 Agt 2026, wireframe handoff "Persiapan Produksi - Bahan")
+    // — jalur Bahan sekarang js/vue-persiapan-bahan.js (kartu per bahan +
+    // warna), BUKAN lagi JalurTahapManager generik. 2 tab pertama ganti
+    // nama div (Perlu/Sedang DISIAPKAN, bukan Diproses).
+    'sub-pp-bahan-perludisiapkan': 'pastikanMountPpBahanPerluDisiapkan',
+    'sub-pp-bahan-sedangdisiapkan': 'pastikanMountPpBahanSedangDisiapkan',
     'sub-pp-bahan-perludikirim': 'pastikanMountPpBahanPerluDikirim',
     'sub-pp-bahan-sedangdikirim': 'pastikanMountPpBahanSedangDikirim',
     'sub-pp-bahan-selesai': 'pastikanMountPpBahanSelesai',
