@@ -145,10 +145,46 @@
 > (kunci pengelompokan klaster otomatis dulu TIDAK ikut `size`, cuma
 > `nama_produk + kunci_pola`). Detail keputusan lengkap, field baru
 > (`order_spk.qty_tergrouping`/`grouping_ids`, `spk_grouping.size`), &
-> status deploy: **§5.10**. **KODE SUDAH DITULIS & DIKIRIM** ke folder
+> status deploy: **§5.10**. **KODE SUDAH DITULIS DAN DIKIRIM** ke folder
 > `Code` (`index.html`, `css/gechoo-design.css`,
 > `js/vue-persiapan-produksi-v2.js`), **BELUM di-push Guru ke repo**,
 > **BELUM DIUJI SAMA SEKALI** di browser+Firebase sungguhan.
+>
+> **BARU LAGI (5 Sep 2026) — wiring penuh modul Master Suplayer +
+> penggantian tab Config "Data Suplayer" jadi "TLC & Prefix"**. Latar
+> belakang: Guru menyatakan Zevanic House "sudah di update fitur
+> tambahan yg komplit ... moq dan kelipatan kunci juga ditambah ada
+> prefix dan tlc sebagai pelengkap fitur" sebagai prasyarat sebelum
+> keluhan "banyak kekurangan" di Bahan/Acc Sewing/Webbing/Finishing bisa
+> dianggap selesai — modul `js/vue-master-suplayer.js` (5.1 Entry
+> Suplayer, 5.2 Alias & MOQ, 5.3 Petakan Order Default) sudah DITULIS
+> sesi sebelumnya tapi BELUM di-wiring ke menu/routing app. Sesi ini:
+> disambungkan penuh — 1 entri sidebar baru "Master Suplayer" (3 sub-
+> tab), tab Config "Data Suplayer" (generic `MasterDataTabelManager`)
+> DIGANTI komponen bespoke `AppConfigTlc` untuk koleksi BARU `master_tlc`
+> (skema REAL `{kode, nama, tipe}`, dikonfirmasi dari 4 `SERAH-TERIMA.md`
+> berbeda — BUKAN `{nama, keterangan}` seperti sempat tertulis di
+> `PETA-DATABASE.md` untuk modul Bahan, sudah dikoreksi di situ juga),
+> tab "Alias Pembelian" DIHAPUS dari Stock & Pembelian (fungsinya PINDAH
+> ke Master Suplayer > Alias & MOQ, yang field-nya SEKARANG ditambah
+> `moq`/`moq_satuan`/`lead_time_hari`/`is_default_order` — inilah yang
+> dimaksud "kelipatan kunci" oleh Guru, BUKAN `master_produk.kelipatan`/
+> `isi_pola_pcs`). **Interpretasi "Prefix"**: dicari ke SELURUH paket
+> wireframe staged, TIDAK ADA entitas/field "Prefix" terpisah ditemukan
+> — disimpulkan SEMENTARA sebagai bagian inheren dari format `master_tlc.
+> kode` (mis. "TLC-PTG-01"), BUKAN tebakan diam-diam — WAJIB dikonfirmasi
+> ulang ke Guru. 6 file diubah (`vue-config.js`, `index.html`,
+> `dashboard.js`, `vue-config-akses.js`, `vue-header-mobile.js`,
+> `vue-stock-pembelian.js` komentar saja). **BLOCKER BARU**: koleksi
+> `master_tlc` BELUM ADA rules Firestore-nya (koleksi baru, terpisah
+> dari 4 koleksi modul Bahan §5.11 yang sudah punya draft rules) — WAJIB
+> ditempel manual sebelum tab TLC & Prefix bisa dipakai. **BELUM DIKIRIM
+> ke folder `Code`, BELUM DI-PUSH GURU, BELUM DIUJI SAMA SEKALI.** Detail
+> keputusan lengkap: **§5.12**. **Pertanyaan terbuka BELUM DIJAWAB**:
+> apakah wiring Master Suplayer/TLC ini SUDAH cukup menjawab keluhan asli
+> Guru soal "banyak kekurangan tidak bisa digunakan maximal" di Bahan/Acc
+> Sewing/Webbing/Finishing, atau modul-modul itu SENDIRI juga perlu
+> perubahan langsung — belum dikonfirmasi.
 >
 > **Riwayat detail lengkap** (semua koreksi, diskusi, bug-fix step-by-
 > step) ada di `STATUS-PROYEK-ARSIP.md` (isi identik dengan versi asli
@@ -215,7 +251,12 @@ perkiraan awal ~89-100).
    `persiapan_komponen` "sudah ada di repo", DICEK LANGSUNG ke
    `vue-order-spk.js`, ternyata koleksi itu SUDAH ditinggalkan Guru
    sendiri 29 Agt 2026 — spek handoff BISA ketinggalan zaman dari kode
-   live, bukan cuma klaim lisan Guru yang perlu dicek).
+   live, bukan cuma klaim lisan Guru yang perlu dicek; **§5.12** — cek
+   ulang skema `master_tlc` yang SEMPAT salah tertulis di
+   `PETA-DATABASE.md` sebagai `{nama, keterangan}`, DICEK LANGSUNG ke
+   4 `SERAH-TERIMA.md` berbeda, ternyata skema real-nya `{kode, nama,
+   tipe}` — dokumentasi sendiri BISA ketinggalan zaman juga, bukan cuma
+   spek pihak luar).
    Sebelum menulis query Firestore baru, cek juga dulu POLA QUERY yang
    sudah terbukti jalan di modul terkait (lihat §5.9 — semua query
    dashboard Beranda desktop meniru pola yang SUDAH ada di layar
@@ -277,6 +318,9 @@ Grup menu besar BARU, mencakup:
   Master Suplayer (§21), dengan banyak revisi lanjutan soal Konversi
   Banyak Tingkat, Harga Pembelian otomatis, dropdown nama+warna,
   Satuan bisa dipilih sesuai tingkat konversi (§25.7-§25.14).
+  **UPDATE (5 Sep 2026, §5.12)**: "Alias Pembelian" DIHAPUS dari grup
+  ini, "Master Suplayer" SEKARANG jadi menu sidebar tersendiri (bukan
+  sub-tab Stock & Pembelian lagi) dengan 3 sub-tab sendiri.
 - **Rak Penyimpanan** — awalnya 3 dropdown lepas (§24), DIROMBAK jadi
   menu tersendiri dengan Volume/kapasitas otomatis (§25.1, §25.3).
 - **Lot/Roll & FIFO** — sempat 2 kali ganti pendekatan: FIFO OTOMATIS
@@ -1047,7 +1091,12 @@ kode format `BAGyymmdd-NNN` harian berurut, TANPA TLC — sesuai spek),
 dibuat_oleh}`, kode `TGSyymmdd-NNN`), `master_tlc`
 (`{kode, nama, tipe}` — daftar Titik Lokasi Cerdas/tempat, bisa
 diisi contoh 10 lokasi lewat tombol "Isi TLC Awal" di UI kalau masih
-kosong), `cetak_ulang_log` (`{kode_spk, bahan, alasan, pin_oleh, pada}`
+kosong — **KOREKSI §5.12**: skema ini SEMPAT salah tertulis di
+`PETA-DATABASE.md` sebagai `{nama, keterangan}`, sudah dikoreksi jadi
+`{kode, nama, tipe}` supaya konsisten dengan implementasi `vue-
+persiapan-bahan.js`/`vue-persiapan-sewing.js` dkk yang MEMANG sudah
+pakai skema ini sejak awal — cuma dokumentasinya yang telat), plus
+`cetak_ulang_log` (`{kode_spk, bahan, alasan, pin_oleh, pada}`
 — audit cetak ulang label), plus 2 koleksi counter harian
 (`pengaturan_id_bagging`, `pengaturan_id_tugas_kirim`, pola sama
 `pengaturan_id_spk_grouping`). **2 file txt disiapkan & dikirim**:
@@ -1412,6 +1461,262 @@ seperti pola sesi-sesi sebelumnya.
    di manapun — bukan bug, konsekuensi yang sama seperti §5.11b, cuma
    sekarang berlaku di 4 pos sekaligus.
 
+### 5.12 Wiring penuh Master Suplayer + tab Config "TLC & Prefix" (BARU, 5 Sep 2026) — **KODE DITULIS, BELUM DIKIRIM ke folder `Code`, BELUM DI-PUSH GURU, BELUM DIUJI SAMA SEKALI, RULES FIRESTORE `master_tlc` BELUM DITEMPEL**
+
+**Latar belakang & instruksi Guru**: Guru menyatakan (menjawab
+klarifikasi soal kenapa Bahan/Acc Sewing/Webbing/Finishing "banyak
+kekurangan tidak bisa digunakan maximal"): *"alurnya ada yg salah maka
+harus perbaiki dari jalur zevanic house, zevanic house sudah di update
+fitur tambahan yg komplit jg di wireframe terbaru moq dan kelipatan
+kunci juga ditambah ada prefix dan tlc sebagai pelengkap fitur"* —
+diartikan sebagai: Zevanic House (lapisan data suplayer/stok) perlu
+MOQ, "kelipatan kunci", Prefix, dan TLC SEBELUM keluhan di modul
+Persiapan Produksi bisa dianggap tuntas. File `js/vue-master-
+suplayer.js` (3 komponen: 5.1 `SuplayerEntryList`, 5.2 `AliasMoqManager`,
+5.3 `PetakanOrderManager`) sudah DITULIS sesi sebelumnya (dalam sesi
+yang sama, sebelum context di-compact), tapi BELUM di-wiring ke menu/
+routing/mount app — sesi ini menyelesaikan wiring itu.
+
+**6 file diubah**:
+1. **`js/vue-config.js`** — komponen `AppConfigSuplayer` (generic
+   `MasterDataTabelManager` utk `master_suplayer`) DIHAPUS, diganti
+   komponen BESPOKE `AppConfigTlc` (CRUD penuh: `muat()`/`tambah()`/
+   `hapus()`, permission gate `window.cekIzinMenu`) untuk koleksi BARU
+   `master_tlc`, field REAL `kode`/`nama`/`tipe` (BUKAN `nama`/
+   `keterangan` generic `MasterDataTabelManager` — field itu akan SALAH
+   menyimpan `kode` di bawah nama field `nama` generic, merusak skema
+   yang sudah dipakai `vue-persiapan-bahan.js` dkk sejak §5.11).
+   `vmConfigSuplayer`/`pastikanMountConfigSuplayer` → `vmConfigTlc`/
+   `pastikanMountConfigTlc` (mount `#vue-config-tlc`).
+2. **`index.html`** — (a) sidebar: 1 tombol BARU "Master Suplayer"
+   (antara Persiapan Masalah & Stock/Pembelian), `data-menu-ids`
+   `suplayer_entry,suplayer_alias_moq,suplayer_petakan_order`; (b) blok
+   konten BARU `sub-zevanic-house-suplayer` (3 sub-tab: Entry Suplayer,
+   Alias & MOQ, Petakan Order, mount `vue-suplayer-entry`/`-alias-moq`/
+   `-petakan`); (c) tab Config "Data Suplayer" → **"TLC & Prefix"**
+   (ikon `fa-truck-fast`→`fa-location-dot`, target `sub-zh-config-
+   suplayer`→`sub-zh-config-tlc`, mount `vue-config-tlc`); (d) tab
+   "Alias Pembelian" DIHAPUS TOTAL dari Stock & Pembelian (tombol +
+   div konten + mount div, semua dicopot), "List Order Belanja" jadi
+   default-active; `data-menu-ids` tombol Stock & Pembelian jadi
+   `stock_list_order_belanja,stock_nota_order_belanja` saja; (e) tambah
+   `<script type="module" src="js/vue-master-suplayer.js?v=1">`; (f)
+   bump versi `vue-config.js?v=5→6`, `dashboard.js?v=21→22`.
+3. **`js/dashboard.js`** — `petaTabIndukPerGrup` (map breadcrumb/
+   header-context, TERPISAH dari `petaMount`) ditambah
+   `'sub-zh-suplayer': 'tab-zevanic-house'` — ditemukan lewat baca
+   penuh `pindahSubTab()`, BUKAN sekadar asumsi `petaMount` saja cukup.
+   `petaMount`: `'sub-zh-config-suplayer': 'pastikanMountConfigSuplayer'`
+   → `'sub-zh-config-tlc': 'pastikanMountConfigTlc'`; entry
+   `'sub-zh-stock-alias': 'pastikanMountAliasPembelian'` DIHAPUS; 3
+   entry BARU ditambah (`sub-zh-suplayer-entry`/`-alias-moq`/`-petakan`
+   → `pastikanMountSuplayerEntry`/`SuplayerAliasMoq`/`SuplayerPetakan`).
+4. **`js/vue-config-akses.js`** — `DAFTAR_MENU`: entry lama
+   `master_suplayer` (dulu buka Config > Data Suplayer) label diubah
+   jadi "Master Suplayer (DIPENSIUNKAN, lihat Master Suplayer)" (sudah
+   `deprecated:true` dari sebelumnya, TIDAK dihapus — konvensi "jangan
+   pernah hapus menu-id lama"); 3 entry BARU ditambah
+   (`suplayer_entry`/`suplayer_alias_moq`/`suplayer_petakan_order`,
+   `aksi()` masing-masing routing ke sidebar/sub-tab baru); entry
+   `stock_alias_pembelian` label diubah jadi "Alias Pembelian
+   (DIPENSIUNKAN, lihat Master Suplayer)" + `deprecated:true` ditambah
+   + `aksi()`-nya dihapus (menu-id-nya TETAP ADA, tidak dihapus fisik).
+   **Owner tetap otomatis dapat akses penuh** ke 3 menu-id baru
+   (dikonfirmasi baca kode: `bikinDefaultProfil('owner')` melakukan
+   `DAFTAR_MENU.forEach(m => semua(m.id))` — tidak perlu langkah
+   tambahan).
+5. **`js/vue-header-mobile.js`** — map sub-tab-id→label (ditemukan
+   lewat grep leftover-reference, BUKAN bagian rencana awal — kalau
+   sampai tidak diubah, breadcrumb mobile untuk sub-tab baru akan
+   tampil kosong/undefined): `sub-zh-config-suplayer`→`sub-zh-config-
+   tlc` ("TLC & Prefix"), `sub-zh-stock-alias` dihapus, 3 entry baru
+   ditambah ("Master Suplayer"/"Alias & MOQ"/"Petakan Order").
+6. **`js/vue-stock-pembelian.js`** — komentar-saja (tidak ada perubahan
+   fungsional): komponen `AliasPembelianManager` (sekarang dead code,
+   tidak lagi dipanggil dari `petaMount`) diberi komentar penjelasan
+   di atasnya (kenapa dibiarkan, bukan dihapus — sesuai konvensi dead-
+   code proyek ini).
+
+**Interpretasi "kelipatan kunci"**: field `moq` (Minimum Order
+Quantity)/`moq_satuan`/`lead_time_hari`/`is_default_order` yang
+ditambahkan ke `alias_pembelian` (via `AliasMoqManager`, ganti nama
+dari `AliasPembelianManager` — file `vue-master-suplayer.js`, ditulis
+sesi sebelumnya) dianggap SUDAH memenuhi maksud "kelipatan kunci" —
+BUKAN `master_produk.kelipatan`/`isi_pola_pcs` (itu konsep BOM produk,
+beda konteks sama sekali). **Ini interpretasi, BELUM dikonfirmasi Guru
+secara eksplisit** — perlu ditanyakan ulang kalau maksudnya beda.
+
+**Interpretasi "Prefix"**: dicari SISTEMATIS ke SELURUH dokumen
+wireframe staged (`SPESIFIKASI-KOLEKSI-BARU.md`, `PEDOMAN-SERAH-
+TERIMA.md`, dan `SERAH-TERIMA.md` Zevanic House) — **TIDAK DITEMUKAN
+satu pun** entitas/field/koleksi bernama "Prefix" terpisah (juga TIDAK
+ADA `wireframe.dc.html` untuk modul Zevanic House di staged uploads).
+Disimpulkan SEMENTARA: "Prefix" yang dimaksud Guru kemungkinan besar
+merujuk ke FORMAT `master_tlc.kode` itu sendiri (mis. "TLC-PTG-01",
+prefix "TLC-PTG-" + nomor urut) — BUKAN entitas/field terpisah yang
+perlu dibangun. **Ini TEBAKAN BERBASIS BUKTI, BUKAN kepastian** — sudah
+sesuai aturan "jangan tebak diam-diam", ditulis eksplisit di komentar
+kode & WAJIB dikonfirmasi/dikoreksi Guru sebelum dianggap final.
+
+**`master_tlc` — koreksi skema dokumentasi**: `PETA-DATABASE.md` §5.11
+sempat mendokumentasikan `master_tlc` sebagai `{nama, keterangan}`
+(disamakan pola generic 7-koleksi Config lain) — INI SALAH, sudah
+dikoreksi jadi `{kode, nama, tipe}` (dikonfirmasi identik dari 4
+`SERAH-TERIMA.md` berbeda, dan memang skema INI yang sudah dipakai
+`vue-persiapan-bahan.js`/`vue-persiapan-sewing.js`/dst sejak §5.11 —
+implementasinya sudah benar dari awal, cuma dokumentasi `PETA-
+DATABASE.md`-nya yang telat menyusul).
+
+**BLOCKER Firestore Rules BARU**: koleksi `master_tlc` **SUDAH
+DIPAKAI** modul Bahan/Acc (§5.11/§5.11d, dengan rules draft di
+`firestore-rules-tambahan-persiapan-produksi-bahan.txt`) — TAPI rules
+itu **BELUM DIKONFIRMASI di-Publish** (blocker BERSAMA, lihat §5.11
+poin 2 & §7). Tab "TLC & Prefix" baru di Config ini memakai koleksi
+YANG SAMA, jadi kalau rules itu belum di-Publish, tombol Tambah/Hapus
+di tab baru ini juga akan gagal `permission-denied` — TIDAK PERLU
+rules terpisah baru, cukup pastikan rules draft yang SUDAH ADA untuk
+`master_tlc` benar-benar sudah di-Publish.
+
+**Validasi yang DIJALANKAN**: `node --check` lolos di ke-5 file JS yang
+disentuh (`vue-config.js`, `dashboard.js`, `vue-config-akses.js`,
+`vue-header-mobile.js`, `vue-stock-pembelian.js`); grep konsistensi id
+(setiap id/mount/fungsi baru muncul PERSIS di 3 tempat yang saling
+terkait: div `index.html` == `getElementById()` di file JS ==
+key `petaMount`/`petaTabIndukPerGrup` `dashboard.js`) dan grep
+leftover-reference (memastikan tidak ada sisa pemanggilan ke fungsi/id
+lama yang sudah dihapus, kecuali di komentar penjelasan). **INI BUKAN
+"sudah divalidasi" penuh** — sama seperti modul-modul sebelumnya, BELUM
+ADA satupun uji nyata di browser+Firebase sungguhan.
+
+**BELUM DILAKUKAN / BELUM DIVERIFIKASI (WAJIB dicek sesi berikutnya)**:
+1. **File BELUM dikirim ke folder `Code`** (belum sempat device-commit
+   sesi ini) — WAJIB dikirim dulu sebelum Guru bisa copy ke repo kerja
+   & `git push`. 7 file total: `vue-master-suplayer.js` (baru,
+   ditulis sesi sebelumnya), `vue-config.js`, `index.html`,
+   `dashboard.js`, `vue-config-akses.js`, `vue-header-mobile.js`,
+   `vue-stock-pembelian.js`.
+2. **BELUM DIUJI SAMA SEKALI** di browser+Firebase sungguhan. Yang
+   PALING perlu dicek Guru: menu sidebar "Master Suplayer" muncul &
+   ke-3 sub-tabnya jalan (Entry/Alias & MOQ/Petakan Order), tab Config
+   "TLC & Prefix" bisa Tambah/Hapus entri (setelah rules dipastikan
+   ter-Publish), tab lama "Alias Pembelian" benar-benar hilang dari
+   Stock & Pembelian tanpa merusak "List Order Belanja"/"Nota Order
+   Belanja" (keduanya tidak disentuh logicnya), breadcrumb mobile untuk
+   sub-tab baru tampil benar (bukan kosong/undefined).
+3. **Rules Firestore `master_tlc`** — BELUM dikonfirmasi ter-Publish
+   (blocker bersama dengan §5.11, lihat di atas) — cek Firebase Console
+   langsung, jangan asumsi dari status lama.
+4. **Konfirmasi interpretasi Guru** — (a) "kelipatan kunci" = field
+   MOQ/lead-time/is_default_order di Alias & MOQ (BUKAN
+   `master_produk.kelipatan`); (b) "Prefix" = bagian dari format
+   `master_tlc.kode` (BUKAN entitas terpisah) — KEDUANYA masih tebakan
+   berbasis bukti, WAJIB ditanyakan eksplisit ke Guru.
+5. **Pertanyaan besar BELUM terjawab**: apakah wiring Master Suplayer +
+   TLC & Prefix ini SUDAH CUKUP menjawab keluhan asli Guru ("banyak
+   kekurangan tidak bisa digunakan maximal" di Bahan/Acc Sewing/
+   Webbing/Finishing), atau modul-modul Persiapan Produksi itu SENDIRI
+   juga perlu perubahan langsung (bukan cuma lapisan data Zevanic
+   House) — WAJIB ditanyakan ke Guru sebelum menganggap alur "Perlu
+   Disiapkan" dkk selesai diperbaiki.
+
+### 5.13 MOQ Pesanan Produk + Prefix Kode SPK dikonfigurasi (BARU, 5 Sep 2026) — **KODE DITULIS, BELUM DIKIRIM ke folder `Code`, BELUM DI-PUSH GURU, BELUM DIUJI SAMA SEKALI**
+
+**Latar**: langsung menjawab 2 klarifikasi eksplisit Guru atas 2 tebakan
+terbuka §5.12 di atas (poin 4 "Konfirmasi interpretasi Guru") — Guru
+mengoreksi KEDUANYA:
+
+1. *"moq ada 2 dan keduanya beda jalur, moq pesanan produk dan moq
+   pembelian bahan & aksesoris. moq pesanan produk berkaitan dengan
+   master produk dan moq pembelian & bahan berkaitan dengan suplayer,
+   belajan bhan"* — jadi tebakan §5.12 (MOQ = field Alias & MOQ di
+   `alias_pembelian`) itu HANYA BENAR untuk separuh cerita ("MOQ
+   pembelian bahan & aksesoris", SUDAH diimplementasi §5.12, TIDAK
+   diubah lagi di sini). ADA MOQ KEDUA yang terpisah — "MOQ Pesanan
+   Produk" — yang tempatnya di `master_produk`, BELUM ada sebelum sesi
+   ini.
+2. *"iyah berkaitan dengan tlc dan pembuatan prefix kode spk"* — jadi
+   tebakan §5.12 ("Prefix" cuma bagian dari format `master_tlc.kode`,
+   BUKAN entitas terpisah) itu SALAH/KURANG LENGKAP — memang ADA
+   pengaturan prefix terpisah: prefix kode SPK Grouping, yang
+   sebelumnya HARDCODE `"SPK"`.
+
+Field `master_produk.moq_serie`/`.kelipatan_isi_pola` dikonfirmasi lewat
+riset silang wireframe (`Mockup/handoff/Proses Produksi - Serie/
+SERAH-TERIMA.md` §5: *"Field baru master_produk: moq_serie (number),
+kelipatan_isi_pola (number)"*) — SAMA PERSIS dengan yang dianjurkan
+komentar `js/vue-master-suplayer.js` yang ditulis sesi §5.12 sendiri.
+Field ini DATA-LAYER SAJA sesi ini — modul konsumennya ("Proses Produksi
+> Serie", hub 11-tab) BELUM dibangun (lihat `RENCANA-REKONSTRUKSI-
+2026-09.md` §6 langkah 6, dokumen impact-map terpisah yang SUDAH ada di
+Project sebelum sesi ini, statusnya masih draf menunggu review Guru —
+TIDAK disentuh/tidak ada kode ditulis dari rencana besar itu di sesi
+ini, murni 2 field + 1 setting prefix yang eksplisit diminta).
+
+**PENTING — JANGAN TERTUKAR** dengan field `master_produk.kelipatan`
+yang SUDAH ADA sejak 28 Agt 2026 (auto-KPK dari `isi_pola_pcs` BOM Pola,
+dipakai Order SPK/Kasir sebagai "Rekomendasi Kelipatan Order") — itu
+TETAP DIPAKAI APA ADANYA, TIDAK diubah/dihapus. `moq_serie`/
+`kelipatan_isi_pola` adalah 2 field BARU, TERPISAH, input MANUAL (bukan
+auto-hitung), untuk konteks modul Serie nanti.
+
+**File diubah (3 file)**:
+1. **`js/vue-master-produk.js`** — tab Entry Produk, kartu "Data Produk
+   Utama": 2 input baru "MOQ Pesanan Produk" & "Kelipatan Isi Pola"
+   (angka, opsional, sejajar field Harga Jual/Kelipatan yang sudah ada).
+   Ditambahkan ke `form` reactive, payload `simpan()`
+   (`moq_serie`/`kelipatan_isi_pola`, `parseFloat(...) || 0`) — TIDAK
+   ikut `validasi()` wajib.
+2. **`js/vue-config.js`** (`AppConfigTlc`, tab Zevanic House > Config >
+   TLC & Prefix) — kartu baru "Prefix Kode SPK" di atas tabel TLC:
+   input teks (auto-uppercase) + tombol Simpan, baca/tulis
+   `pengaturan_id_spk_grouping/config` (`{ prefix }`, key doc TETAP
+   `"config"` — beda dari doc counter harian yang key-nya `{yymmdd}`,
+   supaya TIDAK PERNAH tabrakan). Default tampil `"SPK"` kalau doc
+   belum pernah dibuat. Comment "CATATAN SCOPE" lama (dugaan "Prefix
+   tidak ada field terpisah") DIHAPUS/diganti catatan klarifikasi ini.
+3. **`js/vue-persiapan-produksi-v2.js`** — `generateKodeSpkGrouping()`
+   (pembuatan kode SPK Grouping SEBENARNYA, di dalam `runTransaction`)
+   dan `muatPreviewKode()` (preview tampilan sebelum submit, di panel
+   "Grouping baru") KEDUANYA diubah baca prefix dari
+   `pengaturan_id_spk_grouping/config` (fallback `"SPK"` kalau belum
+   diatur/gagal baca) — GANTI dari literal hardcode `"SPK"`. Logic
+   counter harian per-tanggal (`{yymmdd}`, reset otomatis tiap hari)
+   TIDAK diubah sama sekali.
+
+**Rules Firestore — TIDAK PERLU rule baru.** Koleksi
+`pengaturan_id_spk_grouping` sudah punya match block wildcard `{docId}`
+sejak §44.13/Fase 1 Persiapan Produksi V2 (`allow read: if login();
+allow write: if isAdminLevel();`, dikonfirmasi Guru sudah di-Publish) —
+doc id baru `"config"` otomatis ikut ter-cover, TIDAK perlu tempel rule
+tambahan apapun (beda dari fitur-fitur lain yang sering ke-blok
+permission-denied gara-gara rule belum ditempel).
+
+**Validasi yang SUDAH dilakukan**: `node --check` lolos di ke-3 file
+yang disentuh. Grep silang: 0 sisa literal `"SPK"` hardcode lain di
+manapun di file `.js` (selain fallback default yang disengaja di
+`vue-config.js`/`vue-persiapan-produksi-v2.js` sendiri) — tidak ada kode
+lain yang diam-diam masih mengasumsikan prefix SPK selalu `"SPK"`.
+
+**BELUM DILAKUKAN / BELUM DIVERIFIKASI**:
+1. **File BELUM dikirim ke folder `Code`** — WAJIB dikirim dulu (3 file:
+   `vue-master-produk.js`, `vue-config.js`,
+   `vue-persiapan-produksi-v2.js`) sebelum Guru bisa copy ke repo &
+   `git push`.
+2. **BELUM DIUJI SAMA SEKALI** di browser+Firebase sungguhan. Yang
+   PALING perlu dicek Guru: (a) 2 field baru muncul & tersimpan benar
+   di Entry Produk (isi lalu buka lagi, cek datanya tetap ada); (b)
+   kartu "Prefix Kode SPK" di TLC & Prefix bisa Simpan & tampil benar;
+   (c) generate 1 SPK Grouping baru di Persiapan Produksi > Perlu
+   Disiapkan — kode yang dihasilkan memakai prefix yang BARU diatur
+   (bukan `"SPK"` lama), baik di preview panel maupun kode final
+   tersimpan.
+3. **Belum ditanyakan ke Guru**: apakah 2 field `moq_serie`/
+   `kelipatan_isi_pola` ini cukup ditaruh polos begitu saja dulu
+   (menunggu modul Serie), atau Guru mau field ini langsung dipakai di
+   suatu tempat lain sekarang (mis. ditampilkan di kartu Order SPK) —
+   TIDAK ditebak, dibiarkan kosong/tidak dipakai dulu sesuai instruksi
+   yang eksplisit diberikan (cuma "field baru di Master Produk").
+
 ## 6. Bug besar & pelajaran BARU (selain yang sudah ada di versi awal)
 
 - **Sidebar desktop minimize/maximize tidak jalan** (§44.26) — akar
@@ -1440,6 +1745,10 @@ seperti pola sesi-sesi sebelumnya.
   muncul walau semua file lain (routing, mount, Vue component) sudah
   benar. Ini KELAS BUG YANG SAMA POTENSInya terulang lagi kalau bikin
   grup top-level baru lagi ke depan — cek checklist ini SETIAP kali.
+  **Catatan (§5.12)**: "Master Suplayer" BUKAN grup top-level baru
+  (nested di dalam `tab-zevanic-house` yang sudah ada gerbang role-nya)
+  — jadi kelas bug ini TIDAK berlaku untuk perubahan §5.12, tapi tetap
+  relevan kalau ke depan ada grup top-level BENAR-BENAR baru lagi.
 - **Tanggal "hari ini" via `toISOString()` itu UTC, BUKAN tanggal
   lokal device — dan tanggal lokal device pun masih ikut timezone
   device apa adanya** (§5.9d/§5.9e, 30 Agt 2026) — proyek ini pakai
@@ -1504,6 +1813,12 @@ seperti pola sesi-sesi sebelumnya.
   kode live sebelum dipakai sebagai dasar keputusan skema — "wireframe
   = acuan struktur bukan kode" (aturan resmi paket handoff) ternyata
   juga berlaku ke bagian Database-nya, bukan cuma bagian visual.
+  **Perluasan (§5.12, 5 Sep 2026)**: bukan cuma dokumen spek pihak
+  luar yang bisa basi — dokumentasi INTERNAL sendiri (`PETA-
+  DATABASE.md`) juga sempat salah menuliskan skema `master_tlc` sebagai
+  `{nama, keterangan}` padahal implementasinya sejak awal `{kode, nama,
+  tipe}`. Cek SELALU ke kode `addDoc`/`setDoc` sungguhan, bukan ke
+  dokumentasi mana pun (termasuk dokumentasi yang ditulis sendiri).
 - **Keputusan menu kompleks/ambigu WAJIB langsung diinterupsi ke Guru
   saat itu juga, bukan ditebak-lalu-tanya-belakangan** (kesepakatan
   BARU, 31 Agt 2026, dicatat di `PEDOMAN-GAYA-KERJA.md`) — dipicu oleh
@@ -1526,6 +1841,15 @@ seperti pola sesi-sesi sebelumnya.
   menyimpang dari aturan/konvensi yang sudah ada. Dalam kasus itu,
   Guru SUDAH membuat keputusannya secara sadar — mengonfirmasi ulang
   lewat AskUserQuestion justru berlebihan, bukan kehati-hatian.
+  **Catatan lagi (§5.12, 5 Sep 2026)**: sebaliknya, kalau SUDAH dicari
+  sistematis ke semua dokumen staged dan TIDAK ADA bukti (kasus
+  "Prefix" — tidak ketemu di manapun), bukan berarti WAJIB berhenti
+  total nunggu Guru — boleh lanjut dengan interpretasi berbasis bukti
+  terbaik SELAMA ditulis eksplisit transparan sebagai tebakan (bukan
+  fakta) di kode & laporan, dan diminta konfirmasi belakangan. Beda
+  dengan konflik arsitektur (§5.10/§5.11) yang risikonya membangun
+  skema salah total kalau ditebak — kasus "Prefix" di sini risikonya
+  jauh lebih kecil (bisa dikoreksi belakangan tanpa migrasi data).
 - **Sed/derivasi mekanis (cp + blanket string-replace) BISA salah
   rename referensi SILANG-POS di dalam file yang diturunkan** (§5.11d,
   1 Sep 2026) — menurunkan Webbing/Finishing dari Sewing lewat `cp` +
@@ -1541,66 +1865,83 @@ seperti pola sesi-sesi sebelumnya.
 
 ## 7. Yang PALING PENTING diverifikasi sesi berikutnya
 
-1. **§5.11d (modul baru sekaligus Acc Sewing/Webbing/Finishing) BELUM
-   dikonfirmasi sama sekali** — ini ronde PALING BARU (1 Sep 2026).
-   Tanya Guru: (a) sudah extract zip & di-push ke repo?, (b) rules
-   Firestore modul Bahan (§5.11, blocker BERSAMA karena koleksi
-   dipakai bareng) sudah di-Publish?, (c) begitu ada SPK Grouping
-   jalur Sewing/Webbing/Finishing pertama dibuat, MINTA tes penuh
-   ujung-ke-ujung (lihat daftar cek di §5.11d bagian "BELUM
-   DIVERIFIKASI") sebelum menganggap modul ini stabil.
-2. **§5.11b (tab Selesai Bahan) & §5.11 (modul baru Persiapan Produksi
+1. **§5.12 (wiring Master Suplayer + tab TLC & Prefix) & §5.13 (MOQ
+   Pesanan Produk + Prefix Kode SPK) BELUM dikonfirmasi/dikirim sama
+   sekali** — 2 ronde PALING BARU (5 Sep 2026), file-nya BELUM sempat
+   dikirim ke folder `Code`. **Poin (b) §5.12 SUDAH DIJAWAB Guru
+   langsung** (lihat §5.13: MOQ ada 2 jalur terpisah, "Prefix" = prefix
+   kode SPK yang bisa diatur, BUKAN cuma format `master_tlc.kode`) —
+   TIDAK perlu ditanya ulang. Yang MASIH perlu ditanya/dicek: (a) boleh
+   langsung dikirim ke folder `Code` sekarang (10 file total,
+   §5.12+§5.13)?, (b) apakah wiring §5.12/§5.13 ini sudah cukup
+   menjawab keluhan asli soal Bahan/Acc Sewing/Webbing/Finishing atau
+   modul itu sendiri juga perlu diubah langsung, (c) rules `master_tlc`
+   sudah di-Publish (blocker bersama dengan poin 2 di bawah — §5.13
+   TIDAK butuh rule baru, sudah dicek ter-cover rule lama), (d) apakah
+   2 field `moq_serie`/`kelipatan_isi_pola` mau langsung dipakai di
+   tempat lain sekarang atau dibiarkan menunggu modul Serie.
+2. **§5.11d (modul baru sekaligus Acc Sewing/Webbing/Finishing) BELUM
+   dikonfirmasi sama sekali** — ronde 1 Sep 2026. Tanya Guru: (a)
+   sudah extract zip & di-push ke repo?, (b) rules Firestore modul
+   Bahan (§5.11, blocker BERSAMA karena koleksi dipakai bareng —
+   TERMASUK `master_tlc` yang sekarang JUGA dipakai §5.12) sudah
+   di-Publish?, (c) begitu ada SPK Grouping jalur Sewing/Webbing/
+   Finishing pertama dibuat, MINTA tes penuh ujung-ke-ujung (lihat
+   daftar cek di §5.11d bagian "BELUM DIVERIFIKASI") sebelum
+   menganggap modul ini stabil.
+3. **§5.11b (tab Selesai Bahan) & §5.11 (modul baru Persiapan Produksi
    > Bahan) BELUM dikonfirmasi sama sekali**. Tanya Guru: (a) sudah
    di-copy ke repo & di-push?, (b) Rules Firestore 4 koleksi baru + 2
    counter SUDAH ditempel & di-Publish di Firebase Console? (blocker
-   keras, tanpa ini SEMUA 4 pos — Bahan + 3 Acc — GAGAL total), (c)
-   begitu ada SPK Grouping jalur Bahan pertama dibuat, MINTA tes penuh
+   keras, tanpa ini SEMUA 4 pos — Bahan + 3 Acc — GAGAL total, dan
+   SEKARANG juga blocker tab Config "TLC & Prefix" §5.12), (c) begitu
+   ada SPK Grouping jalur Bahan pertama dibuat, MINTA tes penuh
    ujung-ke-ujung (lihat daftar cek di §5.11 bagian "BELUM
    DIVERIFIKASI") sebelum menganggap modul ini stabil.
-3. **§5.10 (rebuild total "Perlu Disiapkan" dari wireframe handoff)
+4. **§5.10 (rebuild total "Perlu Disiapkan" dari wireframe handoff)
    BELUM dikonfirmasi sama sekali**. Tanya Guru apakah sudah di-copy ke
    repo & di-push, lalu MINTA tes penuh ujung-ke-ujung (lihat daftar
    cek di §5.10 bagian "BELUM DIVERIFIKASI") sebelum menganggap fitur
    ini stabil.
-4. **§5.9d/§5.9e (rename brand, tinggi header, fix bug Quote timezone
+5. **§5.9d/§5.9e (rename brand, tinggi header, fix bug Quote timezone
    Asia/Jakarta, "Perlu Tindakan" 2 grup) BELUM dikonfirmasi sama
    sekali**. Tanya Guru apakah sudah di-copy ke repo & di-push, lalu
    MINTA tes: (a) kartu Quote muncul (test di SIANG hari juga, bukan
    cuma malam/dini hari — biar yakin bukan cuma "kebetulan pas jam
    yang benar"), (b) nama "Zevanic Core Optima" 1 baris rapi, (c)
    tinggi header pas, (d) "Perlu Tindakan Anda" kelihatan 2 grup jelas.
-5. **Tanya Guru soal celah kecil di §5.9e poin 2** (field teks jam
+6. **Tanya Guru soal celah kecil di §5.9e poin 2** (field teks jam
    admin di Antrean Absensi/Riwayat All Absensi masih dari jam device,
    bisa menyesatkan walau status tetap benar) — apakah mau diperbaiki
    sekarang (ganti sumbernya jadi dari `_ts`) atau ditunda. Ini
    menyentuh jalur tulis Absensi produksi, jangan diubah tanpa
    persetujuan eksplisit karena dipakai ~500 karyawan tiap hari.
-6. **§5.9/§5.9b/§5.9c** — sudah dikonfirmasi live via screenshot
+7. **§5.9/§5.9b/§5.9c** — sudah dikonfirmasi live via screenshot
    sebelumnya, tapi verifikasi FUNGSIONAL penuh (lonceng notifikasi,
    angka KPI/Pipeline benar, pencarian global) masih belum ada
    konfirmasi tertulis eksplisit dari Guru.
-7. **Publish Firestore Rules fitur Pesanan** (`transaksi_kasir`,
+8. **Publish Firestore Rules fitur Pesanan** (`transaksi_kasir`,
    `pengaturan_id_transaksi_kasir`) di Firebase Console — masih belum
    dikonfirmasi selesai (lihat §5.7).
-8. **Cek Arsip §12** untuk alur Registrasi/Login yang BENAR (bukan
+9. **Cek Arsip §12** untuk alur Registrasi/Login yang BENAR (bukan
    §3.5 yang sudah superseded).
-9. Banyak fitur di §5.2/§5.4 berlabel "BELUM DITES" — jangan asumsikan
-   stabil tanpa tanya konfirmasi testing terbaru ke Guru.
-10. Kalau Guru mau lanjut redesain desktop ke layar LAIN (Kasir, dst)
+10. Banyak fitur di §5.2/§5.4 berlabel "BELUM DITES" — jangan asumsikan
+    stabil tanpa tanya konfirmasi testing terbaru ke Guru.
+11. Kalau Guru mau lanjut redesain desktop ke layar LAIN (Kasir, dst)
     setelah Beranda dikonfirmasi jalan — itu sesi terpisah, belum mulai.
-11. **Kalau ada laporan bug "tanggal meleset 1 hari" di modul LAIN**
+12. **Kalau ada laporan bug "tanggal meleset 1 hari" di modul LAIN**
     (bukan Quote) — cek dulu apakah modul itu masih pakai
     `toISOString().split('T')[0]` (lihat daftar di §6/§5.9d poin 2),
     kelas bug yang sama bisa terulang.
-12. **Kalau Payroll/Slip Gaji mulai dibangun** — WAJIB pastikan hitung
+13. **Kalau Payroll/Slip Gaji mulai dibangun** — WAJIB pastikan hitung
     jam kerja/gaji dari field `_ts` (server), BUKAN field teks
     `waktu_masuk`/`waktu_keluar` (device) — lihat §5.9e poin 2 & §6.
-13. **Modul "Scan Sampai" (divisi penerima) MASIH belum dibangun sama
+14. **Modul "Scan Sampai" (divisi penerima) MASIH belum dibangun sama
     sekali** — sekarang 4 pos (Bahan + Acc Sewing/Webbing/Finishing)
     SAMA-SAMA punya tab Selesai yang akan tampil kosong terus tanpa
     ini. Bahas dengan Guru siapa yang bangun/pakai modul ini & di mana
     rumahnya — belum pernah eksplisit ditanyakan.
-14. **Vendor** (jalur ke-5 di Persiapan Produksi V2) masih generik lewat
+15. **Vendor** (jalur ke-5 di Persiapan Produksi V2) masih generik lewat
     `JalurTahapManager` lama — BELUM ada rencana/wireframe buat modul
     khusus Vendor sejauh yang diketahui, beda dari 4 pos lain yang
     sudah semua diganti total.

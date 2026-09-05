@@ -226,7 +226,15 @@
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-persiapan', this, {catatRiwayat:true})" id="menu-zevanic-persiapan-btn" data-menu-id="persiapan_masalah" data-target="sub-zevanic-house-persiapan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-triangle-exclamation" style="width:17px; text-align:center;"></i> Persiapan Masalah
           </button>
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-stock', this, {catatRiwayat:true}); pindahSubTab('sub-zh-stock','sub-zh-stock-alias', null, {catatRiwayat:true})" id="menu-zevanic-stock-btn" data-menu-ids="stock_alias_pembelian,stock_list_order_belanja,stock_nota_order_belanja" data-target="sub-zevanic-house-stock" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <!-- BARU (5 Sep 2026) — Master Suplayer: lihat js/vue-master-
+               suplayer.js. GANTI TOTAL dari 2 tempat lama yang tercerai-
+               berai (Config > Data Suplayer, Stock & Pembelian > Alias
+               Pembelian) — CRUD Suplayer + Alias & MOQ + Petakan Order
+               sekarang SATU tempat di sini. -->
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-suplayer', this, {catatRiwayat:true}); pindahSubTab('sub-zh-suplayer','sub-zh-suplayer-entry', null, {catatRiwayat:true})" id="menu-zevanic-suplayer-btn" data-menu-ids="suplayer_entry,suplayer_alias_moq,suplayer_petakan_order" data-target="sub-zevanic-house-suplayer" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-truck-fast" style="width:17px; text-align:center;"></i> Master Suplayer
+          </button>
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-stock', this, {catatRiwayat:true}); pindahSubTab('sub-zh-stock','sub-zh-stock-listorder', null, {catatRiwayat:true})" id="menu-zevanic-stock-btn" data-menu-ids="stock_list_order_belanja,stock_nota_order_belanja" data-target="sub-zevanic-house-stock" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-truck-ramp-box" style="width:17px; text-align:center;"></i> Stock &amp; Pembelian
           </button>
           <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-
@@ -684,7 +692,11 @@
                    Persiapan Acc Sewing/Webbing/Finishing (menu baru Persiapan
                    Produksi). Pola sama seperti Data Komponen di atas. -->
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-tahappersiapan', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-layer-group" style="margin-right:6px;"></i> Persiapan Untuk Tahap</button>
-              <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-suplayer', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Data Suplayer</button>
+              <!-- GANTI (5 Sep 2026) — dulu "Data Suplayer" (CRUD suplayer generik,
+                   PINDAH ke Zevanic House > Master Suplayer, lihat js/vue-master-
+                   suplayer.js). Sekarang "TLC & Prefix" — daftar titik TLC (asal/
+                   tujuan kode tugas), lihat AppConfigTlc di js/vue-config.js. -->
+              <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-tlc', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-location-dot" style="margin-right:6px;"></i> TLC &amp; Prefix</button>
             </div>
             <div id="sub-zh-config-jenisbahan" class="sub-zh-config-content fade-in space-y-4">
               <div id="vue-config-jenisbahan"></div>
@@ -710,8 +722,8 @@
             <div id="sub-zh-config-tahappersiapan" class="sub-zh-config-content hidden fade-in space-y-4">
               <div id="vue-config-tahappersiapan"></div>
             </div>
-            <div id="sub-zh-config-suplayer" class="sub-zh-config-content hidden fade-in space-y-4">
-              <div id="vue-config-suplayer"></div>
+            <div id="sub-zh-config-tlc" class="sub-zh-config-content hidden fade-in space-y-4">
+              <div id="vue-config-tlc"></div>
             </div>
           </div>
 
@@ -741,19 +753,41 @@
             <div id="vue-persiapan-masalah"></div>
           </div>
 
+          <!-- BARU (5 Sep 2026) — Master Suplayer: lihat js/vue-master-suplayer.js.
+               GANTI TOTAL dari Config > Data Suplayer (CRUD suplayer, sekarang di
+               5.1 sini) + Stock & Pembelian > Alias Pembelian (sekarang 5.2, DITAMBAH
+               field MOQ/lead time) — keduanya dihapus dari tempat lama. 5.3 Petakan
+               Order BARU total (tandai suplayer default per item). -->
+          <div id="sub-zevanic-house-suplayer" class="sub-zevanic-house-content hidden fade-in space-y-4">
+            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+              <button onclick="pindahSubTab('sub-zh-suplayer', 'sub-zh-suplayer-entry', this, {catatRiwayat:true})" class="sub-zh-suplayer-btn gc-sub-tab-btn active" data-menu-id="suplayer_entry" data-target="sub-zh-suplayer-entry"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Entry &amp; List</button>
+              <button onclick="pindahSubTab('sub-zh-suplayer', 'sub-zh-suplayer-alias-moq', this, {catatRiwayat:true})" class="sub-zh-suplayer-btn gc-sub-tab-btn" data-menu-id="suplayer_alias_moq" data-target="sub-zh-suplayer-alias-moq"><i class="fas fa-tags" style="margin-right:6px;"></i> Alias &amp; MOQ</button>
+              <button onclick="pindahSubTab('sub-zh-suplayer', 'sub-zh-suplayer-petakan', this, {catatRiwayat:true})" class="sub-zh-suplayer-btn gc-sub-tab-btn" data-menu-id="suplayer_petakan_order" data-target="sub-zh-suplayer-petakan"><i class="fas fa-map-location-dot" style="margin-right:6px;"></i> Petakan Order</button>
+            </div>
+            <div id="sub-zh-suplayer-entry" class="sub-zh-suplayer-content fade-in space-y-4">
+              <div id="vue-suplayer-entry"></div>
+            </div>
+            <div id="sub-zh-suplayer-alias-moq" class="sub-zh-suplayer-content hidden fade-in space-y-4">
+              <div id="vue-suplayer-alias-moq"></div>
+            </div>
+            <div id="sub-zh-suplayer-petakan" class="sub-zh-suplayer-content hidden fade-in space-y-4">
+              <div id="vue-suplayer-petakan"></div>
+            </div>
+          </div>
+
           <div id="sub-zevanic-house-stock" class="sub-zevanic-house-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-alias', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn active" data-menu-id="stock_alias_pembelian" data-target="sub-zh-stock-alias"><i class="fas fa-tags" style="margin-right:6px;"></i> Alias Pembelian</button>
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-listorder', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-menu-id="stock_list_order_belanja" data-target="sub-zh-stock-listorder"><i class="fas fa-cart-shopping" style="margin-right:6px;"></i> List Order Belanja</button>
+              <!-- DIPENSIUNKAN (5 Sep 2026) — tab "Alias Pembelian" PINDAH ke
+                   Zevanic House > Master Suplayer > Alias & MOQ (lihat js/vue-
+                   master-suplayer.js). Tab & div konten lama DIHAPUS dari sini
+                   (bukan cuma disembunyikan) — pola sama seperti Cetak Label
+                   dulu. List Order Belanja sekarang default aktif. -->
+              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-listorder', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn active" data-menu-id="stock_list_order_belanja" data-target="sub-zh-stock-listorder"><i class="fas fa-cart-shopping" style="margin-right:6px;"></i> List Order Belanja</button>
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-menu-id="stock_nota_order_belanja" data-target="sub-zh-stock-notaorder"><i class="fas fa-receipt" style="margin-right:6px;"></i> Nota Order Belanja</button>
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-riwayat', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-target="sub-zh-stock-riwayat"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i> Riwayat Harga Pembelian</button>
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-kartustok', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-target="sub-zh-stock-kartustok"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Kartu Stok</button>
             </div>
-            <div id="sub-zh-stock-alias" class="sub-zh-stock-content fade-in space-y-4">
-              <!-- Alias Pembelian: lihat js/vue-stock-pembelian.js -->
-              <div id="vue-alias-pembelian"></div>
-            </div>
-            <div id="sub-zh-stock-listorder" class="sub-zh-stock-content hidden fade-in space-y-4">
+            <div id="sub-zh-stock-listorder" class="sub-zh-stock-content fade-in space-y-4">
               <!-- List Order Belanja: lihat js/vue-stock-pembelian.js -->
               <div id="vue-list-order-belanja"></div>
             </div>
@@ -1093,8 +1127,16 @@
        (pastikanMountPesananKasir/Menunggu/Persiapan/Produksi/Pengiriman),
        landing default 'sub-pesanan-kasir'. Entry petaMount LAMA
        'sub-zevanic-house-orderspk' -> pastikanMountOrderSpk DIHAPUS (lihat
-       js/vue-pesanan.js). -->
-  <script type="module" src="js/dashboard.js?v=21"></script>
+       js/vue-pesanan.js).
+       v=22 (5 Sep 2026) — Master Suplayer: petaMount tambah 3 entry
+       ('sub-zh-suplayer-entry/alias-moq/petakan' -> pastikanMountSuplayer
+       Entry/AliasMoq/Petakan), petaTabIndukPerGrup tambah 'sub-zh-suplayer'
+       -> tab-zevanic-house. Entry LAMA 'sub-zh-stock-alias' ->
+       pastikanMountAliasPembelian DIHAPUS (Alias Pembelian pindah ke
+       Master Suplayer). 'sub-zh-config-suplayer' -> pastikanMountConfigSuplayer
+       GANTI jadi 'sub-zh-config-tlc' -> pastikanMountConfigTlc (tab "TLC &
+       Prefix"). Lihat js/vue-master-suplayer.js. -->
+  <script type="module" src="js/dashboard.js?v=22"></script>
   <!-- js/vue-order-spk.js — DITINGGALKAN (30 Agt 2026, fitur "Pesanan",
        keputusan Guru: fungsinya pindah jadi menu "Menunggu Proses" di
        grup baru "Pesanan"). File TIDAK dihapus dari disk (jaga-jaga
@@ -1268,8 +1310,18 @@
        v=4 (28 Agt 2026, §37): tab "Data Komponen" SEKARANG dapat tombol
        "Import / Template Excel" (fitur BARU di MasterDataTabelManager,
        vue-components.js, diaktifkan lewat prop :izinkan-import-excel="true"
-       KHUSUS di AppConfigKomponen — tab Config lain TIDAK ikut berubah). -->
-  <script type="module" src="js/vue-config.js?v=5"></script>
+       KHUSUS di AppConfigKomponen — tab Config lain TIDAK ikut berubah).
+       v=5 (5 Sep 2026): AppConfigSuplayer DIHAPUS (CRUD Suplayer pindah ke
+       Zevanic House > Master Suplayer, lihat js/vue-master-suplayer.js),
+       GANTI tab "Data Suplayer" jadi "TLC & Prefix" (AppConfigTlc, koleksi
+       master_tlc BARU) — cache-bust ikut import baru firestore/firebase-
+       config di file ini. -->
+  <script type="module" src="js/vue-config.js?v=6"></script>
+  <!-- BARU (5 Sep 2026) — Zevanic House > Master Suplayer: Entry & List
+       (5.1) + Alias & MOQ (5.2, eks "Alias Pembelian" Stock & Pembelian,
+       DITAMBAH moq/moq_satuan/lead_time_hari) + Petakan Order (5.3, BARU
+       total). Lihat komentar panjang di js/vue-master-suplayer.js. -->
+  <script type="module" src="js/vue-master-suplayer.js?v=1"></script>
   <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM). v=2 (28 Agt 2026):
        cache-bust setelah fix dropdown Bahan/Aksesoris digabung 1 field.
        v=3 (28 Agt 2026, §28.9): cache-bust setelah tambah fitur Import/

@@ -130,15 +130,32 @@ const DAFTAR_MENU = [
   // BARU (24 Agt 2026) — Persiapan Masalah + Stock & Pembelian.
   { id: 'persiapan_masalah', label: 'Persiapan Masalah', kategori: 'Zevanic House', icon: 'fa-triangle-exclamation',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapan', null, {catatRiwayat:true}); } },
-  // DIPENSIUNKAN (27 Agt 2026, §26.1) — CRUD Suplayer sekarang di
-  // 'config_master_data' (menu Config), BUKAN lagi lewat gear Stock &
-  // Pembelian. Entry ini SENGAJA dibiarkan (bukan dihapus) supaya data
-  // izin lama di Firestore tidak yatim tanpa penjelasan — sudah tidak
-  // dipakai komponen manapun. `deprecated: true` (BARU §27) supaya juga
-  // tidak ikut nongol sebagai tile basi di grid Home mobile.
-  { id: 'master_suplayer', label: 'Master Suplayer (DIPENSIUNKAN, lihat Config)', kategori: 'Zevanic House', deprecated: true },
-  { id: 'stock_alias_pembelian', label: 'Alias Pembelian', kategori: 'Zevanic House', icon: 'fa-tags',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-alias', null, {catatRiwayat:true}); } },
+  // DIPENSIUNKAN (27 Agt 2026, §26.1) — CRUD Suplayer dulu di
+  // 'config_master_data' (menu Config). GANTI TOTAL (5 Sep 2026) — CRUD
+  // Suplayer sekarang di 3 entry 'suplayer_*' di bawah (Zevanic House >
+  // Master Suplayer, js/vue-master-suplayer.js). Entry ini SENGAJA
+  // dibiarkan (bukan dihapus) supaya data izin lama di Firestore tidak
+  // yatim tanpa penjelasan — sudah tidak dipakai komponen manapun.
+  // `deprecated: true` (BARU §27) supaya juga tidak ikut nongol sebagai
+  // tile basi di grid Home mobile.
+  { id: 'master_suplayer', label: 'Master Suplayer (DIPENSIUNKAN, lihat Master Suplayer)', kategori: 'Zevanic House', deprecated: true },
+  // BARU (5 Sep 2026, wireframe handoff "Zevanic House" grup 5 +
+  // rekonstruksi Persiapan Produksi) — Master Suplayer: 3 sub-tab, lihat
+  // js/vue-master-suplayer.js. Posisi SENGAJA sebelum Stock & Pembelian
+  // (data Suplayer/Alias/MOQ jadi prasyarat List Order Belanja & Nota).
+  { id: 'suplayer_entry', label: 'Master Suplayer - Entry & List', kategori: 'Zevanic House', icon: 'fa-truck-fast',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-suplayer', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-suplayer', 'sub-zh-suplayer-entry', null, {catatRiwayat:true}); } },
+  { id: 'suplayer_alias_moq', label: 'Master Suplayer - Alias & MOQ', kategori: 'Zevanic House', icon: 'fa-tags',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-suplayer', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-suplayer', 'sub-zh-suplayer-alias-moq', null, {catatRiwayat:true}); } },
+  { id: 'suplayer_petakan_order', label: 'Master Suplayer - Petakan Order', kategori: 'Zevanic House', icon: 'fa-map-location-dot',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-suplayer', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-suplayer', 'sub-zh-suplayer-petakan', null, {catatRiwayat:true}); } },
+  // DIPENSIUNKAN (5 Sep 2026) — Alias Pembelian PINDAH TOTAL ke
+  // 'suplayer_alias_moq' di atas (Zevanic House > Master Suplayer > Alias
+  // & MOQ, DITAMBAH field moq/moq_satuan/lead_time_hari). Entry ini
+  // SENGAJA dibiarkan (pola sama seperti 'master_suplayer' di atas) supaya
+  // data izin lama tidak yatim — tab & mount div lamanya sudah dicopot
+  // dari index.html, aksi() dihapus.
+  { id: 'stock_alias_pembelian', label: 'Alias Pembelian (DIPENSIUNKAN, lihat Master Suplayer)', kategori: 'Zevanic House', icon: 'fa-tags', deprecated: true },
   { id: 'stock_list_order_belanja', label: 'List Order Belanja', kategori: 'Zevanic House', icon: 'fa-cart-shopping',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-listorder', null, {catatRiwayat:true}); } },
   { id: 'stock_nota_order_belanja', label: 'Nota Order Belanja', kategori: 'Zevanic House', icon: 'fa-receipt',

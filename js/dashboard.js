@@ -381,7 +381,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // index.html, tidak ada lagi yang memanggilnya.
     // BARU (30 Agt 2026) — 'sub-pesanan' -> 'tab-pesanan' (grup top-level
     // baru, lihat js/vue-pesanan.js).
-    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-zh-scan': 'tab-zevanic-house', 'sub-pesanan': 'tab-pesanan', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi' };
+    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-suplayer': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-zh-scan': 'tab-zevanic-house', 'sub-pesanan': 'tab-pesanan', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -431,12 +431,21 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-zh-config-jenisproduk': 'pastikanMountConfigJenisProduk',
     'sub-zh-config-komponen': 'pastikanMountConfigKomponen',
     'sub-zh-config-tahappersiapan': 'pastikanMountConfigTahapPersiapan',
-    'sub-zh-config-suplayer': 'pastikanMountConfigSuplayer',
+    // GANTI (5 Sep 2026) — dulu 'sub-zh-config-suplayer': 'pastikanMountConfigSuplayer'
+    // (CRUD Suplayer generik, PINDAH ke 3 entry Master Suplayer di bawah).
+    // Tab ini sekarang "TLC & Prefix" (AppConfigTlc, koleksi master_tlc BARU).
+    'sub-zh-config-tlc': 'pastikanMountConfigTlc',
     'sub-zh-databahan-entry': 'pastikanMountBahanAksesorisEntry',
     'sub-zh-databahan-list': 'pastikanMountBahanAksesorisList',
     'sub-zh-databahan-rak': 'pastikanMountRakPenyimpanan',
     'sub-zevanic-house-persiapan': 'pastikanMountPersiapanMasalah',
-    'sub-zh-stock-alias': 'pastikanMountAliasPembelian',
+    // BARU (5 Sep 2026) — Zevanic House > Master Suplayer (3 sub-tab), lihat
+    // js/vue-master-suplayer.js. GANTI TOTAL dari 'sub-zh-stock-alias' di
+    // bawah (Alias Pembelian, DIPENSIUNKAN dari sini — entry-nya DIHAPUS,
+    // tab & mount div lamanya sudah dicopot dari index.html).
+    'sub-zh-suplayer-entry': 'pastikanMountSuplayerEntry',
+    'sub-zh-suplayer-alias-moq': 'pastikanMountSuplayerAliasMoq',
+    'sub-zh-suplayer-petakan': 'pastikanMountSuplayerPetakan',
     'sub-zh-stock-listorder': 'pastikanMountListOrderBelanja',
     'sub-zh-stock-notaorder': 'pastikanMountNotaOrderBelanja',
     'sub-zh-stock-riwayat': 'pastikanMountRiwayatHargaPembelian',

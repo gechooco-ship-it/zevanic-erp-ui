@@ -71,6 +71,24 @@
 > panjang_roll` (basis hitung roll Acc Webbing). **KODE SUDAH DITULIS &
 > DIKIRIM (1 file zip gabungan), BELUM di-push Guru, BELUM DIUJI SAMA
 > SEKALI** — detail keputusan lengkap: `STATUS-PROYEK.md` §5.11d.
+>
+> **UPDATE LAGI (5 Sep 2026, §5.12)**: **1 koleksi BARU** `master_tlc`
+> (koleksi ini sebetulnya SUDAH ditulis-baca sejak §5.11/§5.11d oleh
+> modul Bahan/Acc — TAPI skema-nya SEMPAT salah terdokumentasi di file
+> ini sebagai `{nama, keterangan}`; **DIKOREKSI sesi ini** jadi skema
+> REAL `{kode, nama, tipe}`, dikonfirmasi identik dari 4 `SERAH-TERIMA.md`
+> berbeda — implementasinya sendiri SUDAH benar sejak awal, cuma
+> dokumentasi ini yang telat menyusul). **Field BARU** di `alias_pembelian`
+> (`moq`, `moq_satuan`, `lead_time_hari`, `is_default_order`) dan
+> `master_suplayer` (`kontak`, `bank`, `nama_rek`, `no_rek`, `no_wa`) —
+> ke-2 koleksi ini SEKARANG dikelola lewat modul BARU "Master Suplayer"
+> (`js/vue-master-suplayer.js`), BUKAN lagi lewat `MasterDataTabelManager`
+> generic (`master_suplayer`) atau `AliasPembelianManager` (kode lama,
+> sekarang dead code, lihat `PETA-MENU.md`). **Total koleksi TETAP 45**
+> (koleksi `master_tlc` sudah dihitung sejak §5.11, cuma dokumentasinya
+> yang dikoreksi di sini). **KODE DITULIS, BELUM DIKIRIM ke folder
+> `Code`, BELUM di-push Guru, BELUM DIUJI SAMA SEKALI** — detail
+> keputusan lengkap: `STATUS-PROYEK.md` §5.12.
 
 ### `users/{email}` — profil karyawan resmi (SUDAH disetujui)
 Dokumen ID = email karyawan.
@@ -189,8 +207,9 @@ Dokumen ID = nama kategori (`jenis_pekerjaan`, `status_kerja`, `jabatan`, `statu
 > kode (`js/vue-bahan-aksesoris.js`, `js/vue-stock-pembelian.js`, `js/vue-
 > rak-penyimpanan.js`, `js/vue-master-produk.js`, `js/vue-persiapan-
 > masalah.js`, `js/vue-order-spk.js` [DITINGGALKAN, lihat "🛒 Pesanan" di
-> bawah], `js/vue-config.js`) — bukan dari ingatan. Lihat `PETA-MENU.md`
-> bagian "🏭 Zevanic House" untuk menu → file-nya.
+> bawah], `js/vue-config.js`, `js/vue-master-suplayer.js` [BARU, 5 Sep
+> 2026]) — bukan dari ingatan. Lihat `PETA-MENU.md` bagian "🏭 Zevanic
+> House" untuk menu → file-nya.
 
 ### `master_bahan_aksesoris/{autoId}` — item bahan & aksesoris (stok)
 | Field | Tipe | Keterangan |
@@ -244,23 +263,46 @@ Ditulis SATU-SATUNYA lewat fungsi di `vue-stock-pembelian.js` (`catatPergerakanK
 | `tinggi_rak`, `panjang_rak`, `lebar_rak`, `volume_rak` | number | — |
 | `dibuat_pada`/`dibuat_oleh`, `diedit_pada`/`diedit_oleh` | Timestamp / string | — |
 
-### `master_satuan/{autoId}`, `master_warna/{autoId}`, `master_ukuran/{autoId}`, `master_jenis_produk/{autoId}`, `master_komponen/{autoId}`, `master_tahap_persiapan/{autoId}`, `master_suplayer/{autoId}`
-7 koleksi POLA SAMA — lewat komponen generic `MasterDataTabelManager` (`vue-components.js`), semua dari tab **Config**:
+### `master_satuan/{autoId}`, `master_warna/{autoId}`, `master_ukuran/{autoId}`, `master_jenis_produk/{autoId}`, `master_komponen/{autoId}`, `master_tahap_persiapan/{autoId}`
+6 koleksi POLA SAMA — lewat komponen generic `MasterDataTabelManager` (`vue-components.js`), semua dari tab **Config**:
 
 | Field | Tipe | Keterangan |
 |---|---|---|
 | `nama` | string | Wajib, dicek dobel (case-insensitive) sebelum tambah |
 | `keterangan` | string | Opsional |
-| `kontak` | string | HANYA di `master_suplayer` (field3, opsional — "Kontak/Alamat") |
 | `dibuat_pada` | Timestamp | — |
 
-Dipakai sebagai sumber `DropdownCari` di tempat lain: `master_jenis_produk` (Entry Produk, JUGA sumber tab kategori di Pesanan > Penjualan Kasir), `master_tahap_persiapan` (BOM Aksesoris di Entry Produk, DAN filter kartu Acc Sewing/Webbing/Finishing di Persiapan Produksi V2), `master_komponen` (BELUM disambungkan ke field manapun per 28 Agt 2026). `master_satuan`/`master_warna`/`master_ukuran`/`master_suplayer` dipakai Data Bahan & Aksesoris / Stock & Pembelian.
+Dipakai sebagai sumber `DropdownCari` di tempat lain: `master_jenis_produk` (Entry Produk, JUGA sumber tab kategori di Pesanan > Penjualan Kasir), `master_tahap_persiapan` (BOM Aksesoris di Entry Produk, DAN filter kartu Acc Sewing/Webbing/Finishing di Persiapan Produksi V2), `master_komponen` (BELUM disambungkan ke field manapun per 28 Agt 2026). `master_satuan`/`master_warna`/`master_ukuran` dipakai Data Bahan & Aksesoris / Stock & Pembelian.
 
 > Kategori **Jenis Bahan** & **Jenis Aksesoris** (2 tab pertama di Config)
 > BUKAN koleksi terpisah — keduanya kategori BARU di koleksi `master_data`
 > yang SUDAH didokumentasikan di atas (`master_data/{kategori}`, kategori
 > `jenis_bahan`/`jenis_aksesoris`), lewat komponen `MasterDataCategory`
 > yang sama dengan Config Karyawan.
+>
+> **CATATAN (5 Sep 2026, §5.12)**: `master_suplayer` DIKELUARKAN dari
+> daftar "7 koleksi pola sama" di atas (SEBELUMNYA 7, SEKARANG 6) — field
+> aslinya (`nama`/`kontak`) TERNYATA sudah dilewati sama komponen BESPOKE
+> `SuplayerEntryList` (`js/vue-master-suplayer.js`, ganti dari
+> `MasterDataTabelManager`) supaya bisa nambah field kontak lengkap
+> (bank/rekening/WA). Lihat entri `master_suplayer` tersendiri di bawah.
+
+### `master_suplayer/{autoId}` — data suplayer (kontak & pembayaran)
+> **UPDATE (5 Sep 2026, §5.12)**: DIKELUARKAN dari `MasterDataTabelManager`
+> generic ke komponen BESPOKE `SuplayerEntryList` (`js/vue-master-
+> suplayer.js`, sub-tab "Entry Suplayer" di menu BARU "Master Suplayer")
+> — field `kontak` generic lama DIPECAH jadi beberapa field spesifik di
+> bawah. Dokumen LAMA yang cuma punya `nama`/`kontak`/`keterangan` tetap
+> terbaca (field baru kosong/undefined, ditampilkan null-safe), belum
+> ada migrasi otomatis.
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `nama` | string | Wajib, dicek dobel (case-insensitive), sama seperti sebelumnya |
+| `kontak` | string | **LAMA** — field generic bebas (alamat/kontak umum), TETAP ADA untuk kompatibilitas dokumen lama, BUKAN lagi field utama isi kontak |
+| `bank`, `nama_rek`, `no_rek` | string | **BARU (5 Sep 2026)** — opsional, info rekening bank suplayer |
+| `no_wa` | string | **BARU (5 Sep 2026)** — opsional, nomor WhatsApp suplayer |
+| `dibuat_pada` | Timestamp | — |
 
 ### `master_produk/{autoId}` — Master Produk (BOM)
 | Field | Tipe | Keterangan |
@@ -273,6 +315,8 @@ Dipakai sebagai sumber `DropdownCari` di tempat lain: `master_jenis_produk` (Ent
 | `bom_pola` | array | Tiap baris: `tipe` (`'internal'`/`'vendor'`), `foto`, `nama_pola`, `bahan_aksesoris_id`+`nama_bahan`+`warna_bahan` (resolve dari `master_bahan_aksesoris`), `panjang`, `isi_pola_pcs`, `jasa_cutting`, `jasa_serie`, `jenis_vendor` (kalau `tipe==='vendor'`), `komponen` (array\<{nama_komponen, qty}\>, teks bebas dari `master_komponen`, TANPA FK ke stok). **Catatan (31 Agt 2026, §5.11)**: ini SUMBER kebutuhan kain untuk pos Bahan (`spk_track.bahan_rincian[]`, hanya baris `tipe==='internal'` yang dipakai — baris `'vendor'` di luar cakupan pos Bahan internal) |
 | `bom_aksesoris` | array | Tiap baris: `tahap_proses` (teks bebas, cocok longgar ke `master_tahap_persiapan` Sewing/Webbing/Finishing — dicocokkan via `.trim().toLowerCase().includes('sewing'\|'webbing'\|'finishing')`, sama pola dengan `jalurOtomatisProduk()`), `bahan_aksesoris_id`+`nama_aksesoris`+`warna` (resolve dari `master_bahan_aksesoris`), `qty`, `satuan`, `webbing2`, `webbing3` (teks bebas). **BEDA dari `bom_pola` — JANGAN TERTUKAR**: ini dipakai pos Acc Sewing/Webbing/Finishing (trim/aksesoris) lewat `hitungSewingRincian()`/`hitungWebbingRincian()`/`hitungFinishingRincian()` (BARU 1 Sep 2026, §5.11d), BUKAN sumber kebutuhan kain pos Bahan |
 | `kelipatan` | number | KPK semua `isi_pola_pcs` di `bom_pola` — dihitung ulang tiap simpan |
+| `moq_serie` | number | **BARU (5 Sep 2026, §5.13)** — "MOQ Pesanan Produk", opsional (default 0), input MANUAL (bukan auto-hitung). JANGAN TERTUKAR dengan MOQ pembelian bahan/aksesoris di `alias_pembelian.moq` (§5.12, beda jalur — lihat catatan poin 10 di bawah). Data-layer saja: modul konsumennya ("Proses Produksi > Serie") belum dibangun |
+| `kelipatan_isi_pola` | number | **BARU (5 Sep 2026, §5.13)** — opsional (default 0), input MANUAL. JANGAN TERTUKAR dengan field `kelipatan` di atas (itu auto-KPK dari `isi_pola_pcs`, konsep LAMA yang tetap dipakai apa adanya) — ini field BARU terpisah untuk modul Serie nanti |
 | `dibuat_pada`/`dibuat_oleh`, `diedit_pada`/`diedit_oleh` | Timestamp / string | — |
 
 ### `persiapan_masalah/{autoId}` — permintaan bahan/aksesoris kosong
@@ -284,11 +328,22 @@ Dipakai sebagai sumber `DropdownCari` di tempat lain: `master_jenis_produk` (Ent
 | `diminta_oleh`, `dibuat_pada` | string / Timestamp | — |
 
 ### `alias_pembelian/{autoId}` — mapping nama di nota suplayer ↔ item internal
+> **UPDATE (5 Sep 2026, §5.12)**: SEKARANG dikelola lewat komponen
+> `AliasMoqManager` (`js/vue-master-suplayer.js`, sub-tab "Alias & MOQ"
+> di menu BARU "Master Suplayer") — GANTI dari `AliasPembelianManager`
+> lama (`vue-stock-pembelian.js`, sekarang dead code, TIDAK dihapus dari
+> disk). 4 field BARU ditambah — ini yang dimaksud Guru sebagai
+> "kelipatan kunci" (interpretasi, lihat `STATUS-PROYEK.md` §5.12).
+
 | Field | Tipe | Keterangan |
 |---|---|---|
 | `suplayer_id`, `suplayer_nama` | — | Dari `master_suplayer` |
 | `bahan_aksesoris_id`, `bahan_aksesoris_nama` | — | `bahan_aksesoris_nama` cuma FALLBACK ARSIP (tampilan utama baca LIVE dari `master_bahan_aksesoris`) |
 | `nama_di_nota` | string | Persis seperti tertulis di nota fisik suplayer — unik per suplayer |
+| `moq` | number | **BARU (5 Sep 2026)** — opsional, Minimum Order Quantity dari suplayer ini untuk item ini |
+| `moq_satuan` | string | **BARU (5 Sep 2026)** — opsional, satuan `moq` (boleh beda dari `satuan_pemakaian` item) |
+| `lead_time_hari` | number | **BARU (5 Sep 2026)** — opsional, estimasi hari pengiriman suplayer ini untuk item ini |
+| `is_default_order` | boolean | **BARU (5 Sep 2026)** — `true` kalau alias ini jadi suplayer DEFAULT untuk kelompok item ini. Dijaga SUPAYA cuma 1 `true` per kelompok item lewat `writeBatch` di `PetakanOrderManager` (`js/vue-master-suplayer.js`, sub-tab "Petakan Order") — bukan divalidasi di sisi rules |
 | `dibuat_pada` | Timestamp | — |
 
 ### `pesanan_pembelian/{autoId}` — Order Belanja (List = estimasi, Nota = pembelian nyata)
@@ -335,13 +390,13 @@ Ditulis otomatis begitu Nota Order Belanja di-final-kan (`catatRiwayatHargaDanUp
 >
 > **UPDATE (31 Agt 2026 — rebuild "Perlu Disiapkan")**: 1 SPK SEKARANG
 > BOLEH dipecah qty-nya ke LEBIH DARI 1 `spk_grouping` (partial
-> grouping) — sebelumnya SPK yang sudah punya `id_spk_grouping` langsung
-> hilang total dari antrean, sekarang yang dicek adalah SISA qty
-> (`qty_order - qty_tergrouping`); SPK baru hilang dari antrean "Perlu
-> Disiapkan" begitu sisa qty-nya 0. Kunci penggabungan klaster otomatis
-> juga DIPERBAIKI: sebelumnya cuma `nama_produk + kunci_pola` (TIDAK
-> ikut `size` — bug, ditemukan & diverifikasi langsung ke kode saat
-> sesi ini), SEKARANG `nama_produk + size + kunci_pola` (fungsi
+> grouping) — sebelumnya SPK yang sudah punya `id_spk_grouping`
+> langsung hilang total dari antrean, sekarang yang dicek adalah SISA
+> qty (`qty_order - qty_tergrouping`); SPK baru hilang dari antrean
+> "Perlu Disiapkan" begitu sisa qty-nya 0. Kunci penggabungan klaster
+> otomatis juga DIPERBAIKI: sebelumnya cuma `nama_produk + kunci_pola`
+> (TIDAK ikut `size` — bug, ditemukan & diverifikasi langsung ke kode
+> saat sesi ini), SEKARANG `nama_produk + size + kunci_pola` (fungsi
 > `kunciGrupProduk()` di `vue-persiapan-produksi-v2.js`).
 
 | Field | Tipe | Keterangan |
@@ -439,6 +494,14 @@ Ditulis otomatis begitu Nota Order Belanja di-final-kan (`catatRiwayatHargaDanUp
 > menyentuh banyak baris komponen milik 1 anak-SPK sekaligus, beda dari
 > Bahan yang 1 kartu=1 jenis bahan (maks 1 baris per anak-SPK per
 > kartu). Detail lengkap: `STATUS-PROYEK.md` §5.11d.
+>
+> **UPDATE LAGI (5 Sep 2026, §5.12)**: TIDAK ADA perubahan ke `spk_track`
+> atau jalur manapun di bagian ini — perubahan sesi ini murni di lapisan
+> Zevanic House (Master Suplayer, `master_tlc` via Config). Koleksi
+> `master_tlc` di bawah (dipakai ke-4 pos Bahan/Acc) SEKARANG skema-nya
+> DIKOREKSI di dokumentasi ini (`{kode, nama, tipe}`, sebelumnya sempat
+> salah tertulis `{nama, keterangan}` — implementasi kode sudah benar
+> sejak awal).
 
 ### `spk_grouping/{autoId}` — kelompok SPK yang produk+pola-nya sama ("gelar kain bersama")
 | Field | Tipe | Keterangan |
@@ -502,8 +565,9 @@ Dibuat otomatis (`buatSpkTrackUntukGrouping()`) begitu `spk_grouping` selesai di
 | Koleksi/dokumen | Isinya |
 |---|---|
 | `pengaturan_id_spk_grouping/{yymmdd}` | `{ counter, dibuat_pada }` — counter kode SPK Grouping, key per tanggal (auto "reset" tiap hari ganti) |
+| `pengaturan_id_spk_grouping/config` | **BARU (5 Sep 2026, §5.13)** — `{ prefix }`, key doc TETAP literal `"config"` (BUKAN tanggal, sengaja beda format supaya TIDAK PERNAH tabrakan dengan doc counter harian di atas). Diatur di Zevanic House > Config > TLC & Prefix (`AppConfigTlc`, `js/vue-config.js`). Dibaca `generateKodeSpkGrouping()`/`muatPreviewKode()` (`js/vue-persiapan-produksi-v2.js`), fallback `"SPK"` kalau belum diatur. Sama koleksi dengan doc counter di atas → otomatis ter-cover rule Firestore yang sama, TIDAK perlu rule baru |
 
-### 🆕 Koleksi bersama — dipakai Persiapan Produksi > Bahan / Acc Sewing / Acc Webbing / Acc Finishing (31 Agt 2026 & 1 Sep 2026, §5.11 & §5.11d)
+### 🆕 Koleksi bersama — dipakai Persiapan Produksi > Bahan / Acc Sewing / Acc Webbing / Acc Finishing (31 Agt 2026 & 1 Sep 2026, §5.11 & §5.11d) — DAN SEKARANG Config > TLC & Prefix (5 Sep 2026, §5.12)
 
 > Semua field DICEK LANGSUNG ke `js/vue-persiapan-bahan.js` (pemilik
 > asli koleksi ini, 31 Agt 2026) — 3 file BARU 1 Sep 2026
@@ -516,6 +580,11 @@ Dibuat otomatis (`buatSpkTrackUntukGrouping()`) begitu `spk_grouping` selesai di
 > — jadi ke-3 modul Acc BARU TIDAK PERLU rules tambahan apapun, cukup
 > pakai rules yang sama yang sudah disiapkan untuk Bahan. Tidak ada 1
 > pun yang butuh index composite baru (semua query equality 1 field).
+> **BARU (5 Sep 2026, §5.12)**: `master_tlc` SEKARANG JUGA dikelola
+> lewat komponen bespoke `AppConfigTlc` (`js/vue-config.js`, tab Config
+> "TLC & Prefix") — TIDAK menambah rules baru (koleksi + rules-nya SAMA
+> dengan yang sudah dibutuhkan modul Bahan/Acc), cuma menambah 1 jalur
+> UI tambahan untuk CRUD koleksi yang sama.
 
 ### `bagging/{autoId}` — kode label bagging (tanpa TLC)
 Dicetak BLANK (kosong, belum ada kode) lewat tombol "Cetak Kode Bagging" di tab Perlu Di Kirim, kodenya baru DIISI operator lewat Scan Pack (bukan digenerate-lalu-ditempel seperti kode_bagging/kode_tugas di jalur lain — pola "blank-then-scan-to-fill", simplifikasi dari spek wireframe 3-field-modal).
@@ -535,12 +604,22 @@ Dicetak BLANK (kosong, belum ada kode) lewat tombol "Cetak Kode Bagging" di tab 
 | `dibuat_pada`, `dibuat_oleh` | Timestamp / string | — |
 
 ### `master_tlc/{autoId}` — daftar Titik Lokasi Cerdas (tujuan pengiriman)
+> **KOREKSI SKEMA (5 Sep 2026, §5.12)**: skema di bawah SEBELUMNYA
+> (per §5.11) SALAH tertulis sebagai `{nama, keterangan}` (disamakan
+> pola generic 7-koleksi Config lain). **INI KELIRU** — implementasi
+> kode (`vue-persiapan-bahan.js`/`vue-persiapan-sewing.js`/dst,
+> DAN SEKARANG `AppConfigTlc`/`vue-config.js`) SUDAH memakai skema
+> `{kode, nama, tipe}` sejak §5.11 ditulis, dikonfirmasi identik dari 4
+> `SERAH-TERIMA.md` berbeda — implementasi kodenya BENAR dari awal, cuma
+> baris di bawah ini yang telat dikoreksi.
+
 | Field | Tipe | Keterangan |
 |---|---|---|
-| `nama` | string | — |
-| `keterangan` | string | Opsional |
+| `kode` | string | ID manusia-terbaca (mis. `TLC-PTG-01`) — kemungkinan besar INILAH yang dimaksud Guru sebagai "Prefix" (format prefix+nomor), BUKAN entitas terpisah — lihat `STATUS-PROYEK.md` §5.12, masih tebakan berbasis bukti |
+| `nama` | string | Nama lokasi (mis. "Pos Potong", "Pos Acc Sewing") |
+| `tipe` | string | Kategori/jenis lokasi (teks bebas) |
 
-Bisa diisi lewat tombol "Isi TLC Awal" di tab Perlu Di Kirim (10 lokasi contoh dari `SERAH-TERIMA.md` Bahan §5, HANYA jika koleksi masih kosong) atau ditambah manual. **BARU (1 Sep 2026)**: sudah diisi seed entri `TLC-SEW`/`TLC-WEB`/`TLC-FIN` (label `'Pos Acc Sewing'`/`'Pos Acc Webbing'`/`'Pos Acc Finishing'`) oleh ke-3 file Acc baru — masing-masing file nge-seed entri POS-nya sendiri via tombol "Isi TLC Awal" kalau koleksi masih kosong, TIDAK saling menimpa punya pos lain.
+Bisa diisi lewat tombol "Isi TLC Awal" di tab Perlu Di Kirim (10 lokasi contoh dari `SERAH-TERIMA.md` Bahan §5, HANYA jika koleksi masih kosong), ditambah manual lewat tombol itu, atau **BARU (5 Sep 2026)** lewat tab Config "TLC & Prefix" (`AppConfigTlc`, CRUD penuh: tambah/hapus). Sudah diisi seed entri `TLC-SEW`/`TLC-WEB`/`TLC-FIN` (label `'Pos Acc Sewing'`/`'Pos Acc Webbing'`/`'Pos Acc Finishing'`) oleh ke-3 file Acc — masing-masing file nge-seed entri POS-nya sendiri via tombol "Isi TLC Awal" kalau koleksi masih kosong, TIDAK saling menimpa punya pos lain.
 
 ### `cetak_ulang_log/{autoId}` — jejak audit cetak ulang label
 Audit-only (create-only, tidak bisa update/delete lewat rules) — dicatat tiap kali admin cetak ulang label SPK Grouping yang sudah pernah dicetak sebelumnya (SERAH-TERIMA Bahan §3 "1b": WAJIB alasan + PIN admin). Pola & field yang SAMA dipakai ke-3 pos Acc.
@@ -583,3 +662,7 @@ Audit-only (create-only, tidak bisa update/delete lewat rules) — dicatat tiap 
 6. **`bom_pola` vs `bom_aksesoris` (di `master_produk`)** — JANGAN TERTUKAR (§5.11). `bom_pola` = kebutuhan KAIN (pos Bahan). `bom_aksesoris` = kebutuhan aksesoris/trim (pos Acc Sewing/Webbing/Finishing). Spek wireframe modul Bahan sempat salah sebut `bom_aksesoris` sebagai sumbernya — sudah dikoreksi ke `bom_pola` saat implementasi.
 7. **`spk_track.bahan_rincian[]`/`sewing_rincian[]`/`webbing_rincian[]`/`finishing_rincian[]` masing-masing HANYA ada isinya kalau `jalur` dokumen cocok** — dokumen `spk_track` jalur `vendor` array ke-4nya selalu kosong `[]`, dan dokumen jalur `bahan` hanya `bahan_rincian[]` yang terisi (3 lainnya kosong), dst. Status operasional ke-4 jalur non-vendor ada PER BARIS di dalam array masing-masing, BUKAN di `spk_track.status` level dokumen (beda pola dari `vendor`) — kalau baca/tulis status jalur-jalur ini, WAJIB baca `..._rincian[].status`, bukan `spk_track.status`.
 8. **Kartu Bahan vs kartu 3 pos Acc — JANGAN SAMAKAN CARA GABUNGNYA** (§5.11d). Bahan: 1 kartu = 1 bahan+warna, DIGABUNG lintas dokumen `spk_track` (`kelompokKartuBahan`). Acc Sewing/Webbing/Finishing: 1 kartu = 1 dokumen `spk_track` itu sendiri (1 SPK Grouping), TIDAK ADA penggabungan lintas dokumen. Kalau nambah fitur baru di salah satu pos, jangan asumsikan pola gabungnya sama dengan pos lain.
+9. **`master_tlc` skema `{kode, nama, tipe}`, BUKAN `{nama, keterangan}`** (§5.12, 5 Sep 2026) — dokumentasi ini sempat salah menuliskan skema generic `{nama, keterangan}` untuk koleksi ini, padahal implementasi kode (`vue-persiapan-bahan.js` dkk sejak §5.11, DAN `AppConfigTlc`/`vue-config.js` sejak §5.12) SUDAH pakai `{kode, nama, tipe}` sejak awal. Kalau baca dokumen `master_tlc` di kode manapun, field yang benar adalah `kode`/`nama`/`tipe` — JANGAN pakai `keterangan`.
+10. **`master_suplayer` & `alias_pembelian` field BARU (§5.12)** — `master_suplayer` sekarang punya `bank`/`nama_rek`/`no_rek`/`no_wa` (opsional, dokumen lama tanpa field ini null-safe); `alias_pembelian` sekarang punya `moq`/`moq_satuan`/`lead_time_hari`/`is_default_order` (jangan disamakan dengan `master_produk.kelipatan`, itu konsep BOM produk yang beda konteks sama sekali).
+11. **ADA 2 MOQ terpisah, JANGAN DICAMPUR (§5.13, 5 Sep 2026, klarifikasi Guru langsung)**: (a) "MOQ Pembelian Bahan & Aksesoris" = `alias_pembelian.moq`/`moq_satuan`/`lead_time_hari` (§5.12 di atas) — jalur SUPLAYER/beli bahan; (b) "MOQ Pesanan Produk" = `master_produk.moq_serie` (§5.13) — jalur PRODUK/order, dipakai modul Serie nanti. Beda koleksi, beda konteks, beda tujuan — kalau ada permintaan fitur soal "MOQ" ke depan, WAJIB tanya dulu yang mana yang dimaksud kalau tidak eksplisit.
+12. **ADA 2 "kelipatan" terpisah di `master_produk`, JANGAN DICAMPUR (§5.13)**: (a) `kelipatan` (lama, 28 Agt 2026) = auto-KPK dari `bom_pola[].isi_pola_pcs`, dipakai Order SPK/Kasir sebagai "Rekomendasi Kelipatan Order" — TETAP dipakai apa adanya; (b) `kelipatan_isi_pola` (baru, §5.13) = input MANUAL terpisah untuk modul Serie nanti, TIDAK ada hubungan hitung-otomatis dengan (a).

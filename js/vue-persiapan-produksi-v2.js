@@ -211,6 +211,15 @@ function buatQrDataUrl(teks) {
 // "reset" tiap hari (keputusan Guru: "Global per hari, lintas produk"),
 // tidak perlu job reset manual apapun karena doc baru dibuat begitu
 // tanggal berganti.
+//
+// GANTI (5 Sep 2026, klarifikasi Guru: "iyah berkaitan dengan tlc dan
+// pembuatan prefix kode spk") — prefix "SPK" yang dulu HARDCODE di sini
+// SEKARANG dibaca dari doc pengaturan (`pengaturan_id_spk_grouping/config`,
+// key TETAP "config" — beda dari doc counter harian yang key-nya
+// `{yymmdd}`, jadi tidak pernah tabrakan), diatur admin di Zevanic House
+// > Config > TLC & Prefix (lihat AppConfigTlc, js/vue-config.js). Kalau
+// doc config belum pernah dibuat/kosong, fallback ke "SPK" (perilaku lama)
+// supaya tidak pernah gagal generate gara-gara belum diatur.
 async function generateKodeSpkGrouping() {
   const now = new Date();
   const yy = String(now.getFullYear()).slice(-2);
@@ -218,12 +227,14 @@ async function generateKodeSpkGrouping() {
   const dd = String(now.getDate()).padStart(2, '0');
   const tanggalKey = `${yy}${mm}${dd}`;
   const refDoc = doc(db, 'pengaturan_id_spk_grouping', tanggalKey);
+  const refPrefix = doc(db, 'pengaturan_id_spk_grouping', 'config');
   return await runTransaction(db, async (trx) => {
-    const snap = await trx.get(refDoc);
+    const [snap, snapPrefix] = await Promise.all([trx.get(refDoc), trx.get(refPrefix)]);
+    const prefix = (snapPrefix.exists() && snapPrefix.data().prefix) ? snapPrefix.data().prefix : 'SPK';
     const counterBaru = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
     if (snap.exists()) trx.update(refDoc, { counter: counterBaru });
     else trx.set(refDoc, { counter: counterBaru, dibuat_pada: tanggalKey });
-    return `SPK${tanggalKey}${String(counterBaru).padStart(3, '0')}`;
+    return `${prefix}${tanggalKey}${String(counterBaru).padStart(3, '0')}`;
   });
 }
 
@@ -660,9 +671,17 @@ const PersiapanDisiapkanManager = {
       try {
         const now = new Date();
         const tanggalKey = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-        const snap = await getDoc(doc(db, 'pengaturan_id_spk_grouping', tanggalKey));
+        // Prefix — BARU (5 Sep 2026): dibaca dari pengaturan_id_spk_grouping/
+        // config, sama seperti generateKodeSpkGrouping() di atas file ini
+        // (fallback "SPK" kalau belum diatur). Ini cuma preview tampilan,
+        // kode SEBENARNYA tetap digenerate transaksional saat submit.
+        const [snap, snapPrefix] = await Promise.all([
+          getDoc(doc(db, 'pengaturan_id_spk_grouping', tanggalKey)),
+          getDoc(doc(db, 'pengaturan_id_spk_grouping', 'config'))
+        ]);
+        const prefix = (snapPrefix.exists() && snapPrefix.data().prefix) ? snapPrefix.data().prefix : 'SPK';
         const nextCounter = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
-        previewKode.value = `SPK${tanggalKey}${String(nextCounter).padStart(3, '0')}`;
+        previewKode.value = `${prefix}${tanggalKey}${String(nextCounter).padStart(3, '0')}`;
       } catch (e) {
         previewKode.value = ''; // preview gagal dimuat bukan error fatal — kode SEBENARNYA tetap digenerate transaksional saat submit
       }

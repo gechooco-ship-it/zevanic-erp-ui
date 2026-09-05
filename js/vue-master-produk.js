@@ -551,6 +551,25 @@ const FormEntryProdukBOM = {
       // muncul di Kasir tapi harganya 0 (bisa diedit manual di keranjang
       // kalau perlu, lihat js/vue-pesanan.js).
       harga_jual: props.dataAwal?.harga_jual || '',
+      // moq_serie & kelipatan_isi_pola — BARU (5 Sep 2026, klarifikasi Guru
+      // langsung: "moq ada 2 dan keduanya beda jalur, moq pesanan produk
+      // dan moq pembelian bahan & aksesoris... moq pesanan produk berkaitan
+      // dengan master produk"). Ini "MOQ Pesanan Produk" — BEDA dari MOQ
+      // pembelian bahan/aksesoris yang sudah ada di alias_pembelian
+      // (moq/moq_satuan/lead_time_hari, lihat js/vue-master-suplayer.js).
+      // Field ini dikonfirmasi lewat wireframe Mockup/handoff/Proses
+      // Produksi - Serie/SERAH-TERIMA.md §5 ("Field baru master_produk:
+      // moq_serie (number), kelipatan_isi_pola (number)") — DATA LAYER
+      // SAJA di sesi ini; modul konsumennya ("Proses Produksi > Serie",
+      // hub 11-tab) BELUM dibangun, itu langkah terpisah nanti (lihat
+      // RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 6). JANGAN dicampur
+      // dengan field `kelipatan` yang SUDAH ADA (auto-KPK dari Isi Pola
+      // Pcs di BOM Pola, dipakai Order SPK/Kasir sbg "Rekomendasi
+      // Kelipatan Order") — itu konsep lama yang tetap dipakai apa adanya,
+      // moq_serie/kelipatan_isi_pola di sini adalah input MANUAL terpisah
+      // untuk kebutuhan modul Serie nanti.
+      moq_serie: props.dataAwal?.moq_serie || '',
+      kelipatan_isi_pola: props.dataAwal?.kelipatan_isi_pola || '',
       bom_jasa: props.dataAwal?.bom_jasa ? JSON.parse(JSON.stringify(props.dataAwal.bom_jasa)) : [],
       bom_pola: props.dataAwal?.bom_pola ? JSON.parse(JSON.stringify(props.dataAwal.bom_pola)).map(b => ({
         ...barisPolaKosong(), ...b,
@@ -788,6 +807,12 @@ const FormEntryProdukBOM = {
           // harga_jual — BARU (30 Agt 2026, fitur "Pesanan"), lihat catatan
           // panjang di form reactive() atas file ini.
           harga_jual: parseFloat(form.harga_jual) || 0,
+          // moq_serie & kelipatan_isi_pola — BARU (5 Sep 2026), lihat catatan
+          // panjang di form reactive() atas file ini. Opsional (boleh
+          // 0/kosong), TIDAK ikut validasi() wajib — prasyarat data buat
+          // modul Serie yang belum dibangun.
+          moq_serie: parseFloat(form.moq_serie) || 0,
+          kelipatan_isi_pola: parseFloat(form.kelipatan_isi_pola) || 0,
           // kelipatan — BARU (28 Agt 2026, permintaan Guru). Dihitung dari
           // bomPolaSiap (bukan kelipatanLive.value langsung) supaya pasti
           // sinkron dengan bom_pola versi FINAL yang benar-benar disimpan
@@ -870,6 +895,18 @@ const FormEntryProdukBOM = {
           <div class="gc-field" style="max-width:320px; flex:1; min-width:220px;">
             <label>Kelipatan <span style="font-weight:400; color:var(--text-faint);">(otomatis, acuan minimal order — lihat tab BOM Pola)</span></label>
             <input :value="kelipatanLive > 0 ? (kelipatanLive + ' pcs') : 'Belum ada Isi Pola (Pcs) terisi'" type="text" readonly style="background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;">
+          </div>
+          <!-- MOQ Pesanan Produk & Kelipatan Isi Pola — BARU (5 Sep 2026,
+               klarifikasi Guru), lihat catatan panjang di form reactive()
+               atas file ini. Input MANUAL, opsional, prasyarat data untuk
+               modul Proses Produksi > Serie (belum dibangun sesi ini). -->
+          <div class="gc-field" style="max-width:320px; flex:1; min-width:220px;">
+            <label>MOQ Pesanan Produk <span style="font-weight:400; color:var(--text-faint);">(untuk modul Serie)</span></label>
+            <input v-model.number="form.moq_serie" type="number" min="0" placeholder="0">
+          </div>
+          <div class="gc-field" style="max-width:320px; flex:1; min-width:220px;">
+            <label>Kelipatan Isi Pola <span style="font-weight:400; color:var(--text-faint);">(untuk modul Serie)</span></label>
+            <input v-model.number="form.kelipatan_isi_pola" type="number" min="0" placeholder="0">
           </div>
         </div>
       </div>

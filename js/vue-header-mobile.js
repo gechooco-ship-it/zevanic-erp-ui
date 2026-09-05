@@ -95,12 +95,19 @@ const LABEL_SUBTAB = {
   'sub-zh-config-satuan': 'Data Satuan',
   'sub-zh-config-warna': 'Data Warna',
   'sub-zh-config-ukuran': 'Data Ukuran',
-  'sub-zh-config-suplayer': 'Data Suplayer',
+  // GANTI (5 Sep 2026) — dulu 'sub-zh-config-suplayer': 'Data Suplayer',
+  // CRUD Suplayer pindah ke 3 entry 'sub-zh-suplayer-*' di bawah.
+  'sub-zh-config-tlc': 'TLC & Prefix',
   'sub-zh-config-tahappersiapan': 'Persiapan Untuk Tahap',
   'sub-zh-databahan-entry': 'Entry Bahan & Aksesoris',
   'sub-zh-databahan-list': 'List Bahan & Aksesoris',
   'sub-zh-databahan-rak': 'Rak Penyimpanan',
-  'sub-zh-stock-alias': 'Alias Pembelian',
+  // BARU (5 Sep 2026) — Master Suplayer (3 sub-tab), lihat js/vue-master-
+  // suplayer.js. GANTI TOTAL dari 'sub-zh-stock-alias': 'Alias Pembelian'
+  // di bawah (DIHAPUS, pindah ke sini sebagai 'sub-zh-suplayer-alias-moq').
+  'sub-zh-suplayer-entry': 'Master Suplayer',
+  'sub-zh-suplayer-alias-moq': 'Alias & MOQ',
+  'sub-zh-suplayer-petakan': 'Petakan Order',
   'sub-zh-stock-listorder': 'List Order Belanja',
   'sub-zh-stock-notaorder': 'Nota Order Belanja',
   'sub-zh-stock-riwayat': 'Riwayat Harga Pembelian',

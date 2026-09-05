@@ -473,6 +473,14 @@ const PengaturanStockPembelian = {
 
 // ---------------------------------------------------------------------------
 // AliasPembelianManager — menu "Alias Pembelian"
+// DIPENSIUNKAN (5 Sep 2026) — tab & mount div "Alias Pembelian" sudah
+// DICOPOT dari index.html, window.pastikanMountAliasPembelian (bawah file
+// ini) TIDAK LAGI dipanggil dari petaMount (js/dashboard.js). Fungsinya
+// PINDAH TOTAL ke AliasMoqManager (js/vue-master-suplayer.js, tab Zevanic
+// House > Master Suplayer > Alias & MOQ — struktur dokumen `alias_pembelian`
+// TIDAK berubah, cuma lokasi UI + field moq/moq_satuan/lead_time_hari
+// tambahan). Kode di bawah ini SENGAJA DIBIARKAN (bukan dihapus, konvensi
+// "dead code aman" project ini) — cuma tidak pernah lahir/jalan lagi.
 // ---------------------------------------------------------------------------
 const AliasPembelianManager = {
   components: { DropdownCari, PengaturanStockPembelian, PopupTambahSuplayerCepat },
