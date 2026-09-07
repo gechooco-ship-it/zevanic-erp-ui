@@ -42,7 +42,7 @@
 //   - PIN tidak cocok siapapun -> nama_pengguna = 'Tidak dikenali (PIN
 //     salah)', uid = null.
 // ============================================================================
-import { createApp, ref, reactive, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, reactive, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
@@ -243,25 +243,48 @@ export async function cariKaryawanByQr(qrData) {
 // stok", tiap pos punya aturan sendiri soal APA yang harus terjadi setelah
 // scan, bukan sesuatu yang bisa digeneralisir ke 1 fungsi).
 //
-// Props: judul (label besar di atas video), instruksi (kalimat kecil di
-// bawah video, mis. "Arahkan ke QR pribadi karyawan").
-// Emits: hasil(kodeTeks), batal
+// INTERFACE (revisi 7 Sep 2026, refactor 4 pos Persiapan Produksi): dibuat
+// PERSIS SAMA dengan `ModalScanQr` yang sebelumnya disalin identik di 4 file
+// vue-persiapan-{bahan,sewing,webbing,finishing}.js — BUKAN interface lama
+// (judul/instruksi, emit hasil+batal, single-shot). Alasan: Persiapan
+// Produksi butuh "scan berkali-kali tanpa buka-tutup kamera manual" (mis.
+// Tunjuk Operator lalu scan N anak-SPK berturut-turut, atau Scan Pack/Scan
+// Kirim per bagging/tugas) — interface lama berhenti setelah 1 hasil, tidak
+// cukup. Karena belum ada satupun kode produksi yang memakai interface lama
+// ini (baru didaftarkan, belum diimpor di mana-mana), aman diganti total
+// tanpa breaking change.
+//
+// Props: aktif (Boolean, default false — kontrol on/off kamera dari induk
+// via v-model/computed, BUKAN v-if di induk — video tag di dalam template
+// ini sendiri yang v-if="aktif"), judul (baris tebal), subjudul (opsional,
+// baris kecil di bawahnya).
+// Emits: hasil(kodeTeks) — ditembak SETIAP kali berhasil decode, kamera
+// TETAP menyala (auto-lanjut scan lagi setelah jeda 900ms) selama `aktif`
+// masih true; tutup — user pencet tombol Tutup, induk yang set aktif=false.
 // ---------------------------------------------------------------------------
 export const ScanGenerik = {
-  props: {
-    judul: { type: String, default: 'Scan QR' },
-    instruksi: { type: String, default: 'Arahkan kamera ke kode QR' }
-  },
-  emits: ['hasil', 'batal'],
+  props: { aktif: { type: Boolean, default: false }, judul: String, subjudul: String },
+  emits: ['hasil', 'tutup'],
   setup(props, { emit }) {
-    const videoEl = ref(null);
-    const canvasEl = ref(null);
-    const memuatKamera = ref(true);
-    const error = ref('');
-    let stream = null;
-    let frameId = null;
+    const videoEl = ref(null), canvasEl = ref(null);
+    const memuatKamera = ref(false), error = ref('');
+    let stream = null, frameId = null, timeoutId = null;
 
-    function pindaiFrame() {
+    async function mulai() {
+      memuatKamera.value = true; error.value = '';
+      try { await muatJsQr(); } catch (e) {
+        error.value = 'Gagal memuat modul pembaca QR. Cek koneksi internet.'; memuatKamera.value = false; return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        if (videoEl.value) { videoEl.value.srcObject = stream; await videoEl.value.play(); }
+        memuatKamera.value = false;
+        pindai();
+      } catch (e) {
+        error.value = 'Gagal mengakses kamera. Pastikan izin kamera diaktifkan.'; memuatKamera.value = false;
+      }
+    }
+    function pindai() {
       if (!stream) return;
       const video = videoEl.value, canvas = canvasEl.value;
       if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -272,43 +295,25 @@ export const ScanGenerik = {
         const kode = window.jsQR(gambar.data, gambar.width, gambar.height, { inversionAttempts: 'dontInvert' });
         if (kode && kode.data) {
           if (navigator.vibrate) navigator.vibrate(120);
-          const hasil = kode.data;
-          tutup();
-          emit('hasil', hasil);
+          emit('hasil', kode.data.trim());
+          timeoutId = setTimeout(() => { if (stream) pindai(); }, 900);
           return;
         }
       }
-      frameId = requestAnimationFrame(pindaiFrame);
+      frameId = requestAnimationFrame(pindai);
     }
-    function tutup() {
+    function berhenti() {
       if (frameId) { cancelAnimationFrame(frameId); frameId = null; }
+      if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
       if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-    }
-    async function mulai() {
-      memuatKamera.value = true;
       error.value = '';
-      try { await muatJsQr(); } catch (e) {
-        error.value = 'Gagal memuat modul pembaca QR. Cek koneksi internet.';
-        memuatKamera.value = false;
-        return;
-      }
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-        if (videoEl.value) { videoEl.value.srcObject = stream; await videoEl.value.play(); }
-        memuatKamera.value = false;
-        pindaiFrame();
-      } catch (e) {
-        error.value = 'Gagal mengakses kamera. Pastikan izin kamera diaktifkan.';
-        memuatKamera.value = false;
-      }
     }
-    function batal() { tutup(); emit('batal'); }
-    onMounted(mulai);
-    onUnmounted(tutup);
-    return { videoEl, canvasEl, memuatKamera, error, batal };
+    watch(() => props.aktif, (v) => { if (v) mulai(); else berhenti(); });
+    onUnmounted(berhenti);
+    return { videoEl, canvasEl, memuatKamera, error, tutup: () => emit('tutup') };
   },
   template: `
-    <div style="position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:10000; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:16px;">
+    <div v-if="aktif" style="position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:10000; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:16px;">
       <div style="width:100%; max-width:340px; aspect-ratio:1/1; background:#111; border-radius:12px; overflow:hidden; position:relative; margin-bottom:16px;">
         <video ref="videoEl" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;" :class="{ hidden: memuatKamera }"></video>
         <canvas ref="canvasEl" class="hidden"></canvas>
@@ -318,9 +323,9 @@ export const ScanGenerik = {
           <span v-else style="font-size:12.5px;">Menyiapkan kamera...</span>
         </div>
       </div>
-      <p style="color:#fff; font-weight:700; font-size:13px; margin-bottom:4px; text-align:center;">{{ judul }}</p>
-      <p style="color:#C9B4A4; font-size:12px; margin-bottom:14px; text-align:center;">{{ instruksi }}</p>
-      <button @click="batal" class="btn-outline" style="padding:8px 24px; background:#fff;">Batal</button>
+      <p style="color:#fff; font-size:12.5px; margin-bottom:4px; text-align:center; font-weight:700;">{{ judul }}</p>
+      <p v-if="subjudul" style="color:#C9B4A4; font-size:11.5px; margin-bottom:14px; text-align:center; max-width:320px;">{{ subjudul }}</p>
+      <button @click="tutup" class="btn-outline" style="padding:8px 24px; background:#fff;">Tutup</button>
     </div>
   `
 };

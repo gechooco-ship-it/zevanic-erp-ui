@@ -61,12 +61,14 @@
 // PEDOMAN-SERAH-TERIMA.md §1 — dan itu sudah keputusan lama yang berlaku
 // utuh, bukan sesuatu yang perlu ditulis ulang khusus buat pos ini).
 //
-// Scan QR: pola kamera DISALIN dari JalurTahapManager (vue-persiapan-
-// produksi-v2.js) jadi komponen lokal ModalScanQr di bawah — dibuka dari
-// tombol di kartu/baris, SAMA di desktop maupun HP (konvensi proyek ini;
-// BUKAN tombol QR navbar global generik yang disebut wireframe — itu scan
+// Scan QR: pakai komponen generik `ScanGenerik` (js/vue-scan-cetak.js,
+// refactor 7 Sep 2026 — sebelumnya komponen lokal `ModalScanQr` yang
+// disalin identik di 4 file Persiapan Produksi, sekarang genuinely
+// diimpor, interface & perilaku TIDAK berubah) — dibuka dari tombol di
+// kartu/baris, SAMA di desktop maupun HP (konvensi proyek ini; BUKAN
+// tombol QR navbar global generik yang disebut wireframe — itu scan
 // lintas-menu, bukan scan berkonteks kartu/baris seperti yang dibutuhkan
-// modul ini). ModalScanQr auto-lanjut scan berikutnya selama masih terbuka
+// modul ini). ScanGenerik auto-lanjut scan berikutnya selama masih terbuka
 // (dukung "scan berkali-kali" tanpa buka-tutup kamera berulang).
 //
 // Ambang "tertahan": >6 jam sejak `masuk_tahap_pada` (keputusan Guru, 31
@@ -96,6 +98,7 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=5';
+import { ScanGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr } from './vue-scan-cetak.js?v=2';
 
 // --- Format & hitung kecil --------------------------------------------------
 function formatMeter(n) {
@@ -147,42 +150,9 @@ function formatSiklus(jam) {
   return jam.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jam';
 }
 
-// --- QR: generate & baca — DISALIN dari vue-persiapan-produksi-v2.js/vue-
-// scan-persiapan.js (konvensi "salin logic kecil per-file" proyek ini). ---
-function buatQrDataUrl(teks) {
-  if (typeof QRCode === 'undefined') return '';
-  const tmp = document.createElement('div');
-  tmp.style.cssText = 'position:absolute; left:-9999px; top:-9999px; width:160px; height:160px;';
-  document.body.appendChild(tmp);
-  let dataUrl = '';
-  try {
-    new QRCode(tmp, { text: String(teks || ''), width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
-    const canvas = tmp.querySelector('canvas');
-    if (canvas) dataUrl = canvas.toDataURL('image/png');
-  } catch (e) {
-    console.error('Gagal generate QR:', teks, e);
-  }
-  document.body.removeChild(tmp);
-  return dataUrl;
-}
-function muatJsQr() {
-  return new Promise((resolve, reject) => {
-    if (window.jsQR) { resolve(); return; }
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js';
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-}
-async function cariKaryawanByQr(qrData) {
-  const qSnap = await getDocs(query(collection(db, 'users'), where('id_app', '==', qrData)));
-  if (!qSnap.empty) return { id: qSnap.docs[0].id, ...qSnap.docs[0].data() };
-  const docSnap = await getDoc(doc(db, 'users', qrData));
-  if (docSnap.exists()) return { id: docSnap.id, ...docSnap.data() };
-  return null;
-}
-
+// buatQrDataUrl/muatJsQr/cariKaryawanByQr DIPINDAH jadi fungsi generik
+// di js/vue-scan-cetak.js (refactor 7 Sep 2026) — sekarang diimpor,
+// bukan disalin lagi. Logic TIDAK berubah.
 // --- Kode harian berurut (bagging/tugas kirim) — SAMA pola seperti
 // generateKodeSpkGrouping() di vue-persiapan-produksi-v2.js, counter doc
 // terpisah per JENIS supaya bagging & tugas kirim tidak berebut angka. ---
@@ -307,78 +277,10 @@ function kelompokKartuBahan(barisList, petaStokBahan) {
 function kunciSepack(b) { return `${b.nama_pola}::${b.bahan_nama}::${b.produk_size}`.toLowerCase(); }
 function labelSepack(b) { return `${b.nama_pola} · ${b.bahan_nama} · ${b.produk_size || '-'}`; }
 
-// --- ModalScanQr — komponen lokal, kamera fullscreen. Auto-lanjut scan
-// berikutnya selama masih terbuka (debounce 900ms cegah dobel-baca kode
-// yang sama) — dukung "scan berkali-kali" tanpa admin buka-tutup kamera
-// manual tiap kali. Pola kamera DISALIN dari JalurTahapManager. -----------
-const ModalScanQr = {
-  props: { aktif: { type: Boolean, default: false }, judul: String, subjudul: String },
-  emits: ['hasil', 'tutup'],
-  setup(props, { emit }) {
-    const videoEl = ref(null), canvasEl = ref(null);
-    const memuatKamera = ref(false), error = ref('');
-    let stream = null, frameId = null, timeoutId = null;
-
-    async function mulai() {
-      memuatKamera.value = true; error.value = '';
-      try { await muatJsQr(); } catch (e) {
-        error.value = 'Gagal memuat modul pembaca QR. Cek koneksi internet.'; memuatKamera.value = false; return;
-      }
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-        if (videoEl.value) { videoEl.value.srcObject = stream; await videoEl.value.play(); }
-        memuatKamera.value = false;
-        pindai();
-      } catch (e) {
-        error.value = 'Gagal mengakses kamera. Pastikan izin kamera diaktifkan.'; memuatKamera.value = false;
-      }
-    }
-    function pindai() {
-      if (!stream) return;
-      const video = videoEl.value, canvas = canvasEl.value;
-      if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const gambar = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const kode = window.jsQR(gambar.data, gambar.width, gambar.height, { inversionAttempts: 'dontInvert' });
-        if (kode && kode.data) {
-          if (navigator.vibrate) navigator.vibrate(120);
-          emit('hasil', kode.data.trim());
-          timeoutId = setTimeout(() => { if (stream) pindai(); }, 900);
-          return;
-        }
-      }
-      frameId = requestAnimationFrame(pindai);
-    }
-    function berhenti() {
-      if (frameId) { cancelAnimationFrame(frameId); frameId = null; }
-      if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
-      if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-      error.value = '';
-    }
-    watch(() => props.aktif, (v) => { if (v) mulai(); else berhenti(); });
-    onUnmounted(berhenti);
-    return { videoEl, canvasEl, memuatKamera, error, tutup: () => emit('tutup') };
-  },
-  template: `
-    <div v-if="aktif" style="position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:10000; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:16px;">
-      <div style="width:100%; max-width:340px; aspect-ratio:1/1; background:#111; border-radius:12px; overflow:hidden; position:relative; margin-bottom:16px;">
-        <video ref="videoEl" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;" :class="{ hidden: memuatKamera }"></video>
-        <canvas ref="canvasEl" class="hidden"></canvas>
-        <div v-if="memuatKamera" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#C9B4A4; text-align:center; padding:16px;">
-          <i class="fas fa-qrcode" style="font-size:36px; margin-bottom:10px;"></i>
-          <span v-if="error" style="color:#F2A0A0; font-size:12px;">{{ error }}</span>
-          <span v-else style="font-size:12.5px;">Menyiapkan kamera...</span>
-        </div>
-      </div>
-      <p style="color:#fff; font-size:12.5px; margin-bottom:4px; text-align:center; font-weight:700;">{{ judul }}</p>
-      <p v-if="subjudul" style="color:#C9B4A4; font-size:11.5px; margin-bottom:14px; text-align:center; max-width:320px;">{{ subjudul }}</p>
-      <button @click="tutup" class="btn-outline" style="padding:8px 24px; background:#fff;">Tutup</button>
-    </div>
-  `
-};
-
+// Komponen kamera fullscreen (dulu bernama lokal ModalScanQr, disalin
+// identik di 4 file Persiapan Produksi) sekarang jadi ScanGenerik di
+// js/vue-scan-cetak.js — genuinely diimpor, interface & perilaku PERSIS
+// SAMA, tidak disalin lagi (refactor 7 Sep 2026).
 // ============================================================================
 // TAB 1: Perlu Disiapkan (langkah wireframe 1a -> 1b -> 1c)
 // Kartu per bahan+warna. 1a: cek stok + centang baris yang bisa jalan +
@@ -386,7 +288,7 @@ const ModalScanQr = {
 // penunjukan (scan operator + scan berkali-kali label anak SPK).
 // ============================================================================
 const PersiapanBahanPerluDisiapkan = {
-  components: { PopupPratinjauCetakLabel, ModalScanQr },
+  components: { PopupPratinjauCetakLabel, ScanGenerik },
   setup() {
     const memuat = ref(true);
     const daftarTrack = ref([]);
@@ -638,7 +540,7 @@ const PersiapanBahanPerluDisiapkan = {
       </div>
     </div>
 
-    <modal-scan-qr :aktif="modalTunjuk.aktif"
+    <scan-generik :aktif="modalTunjuk.aktif"
       :judul="modalTunjuk.tahap==='operator' ? 'Scan QR Operator/Tim' : ('Scan label anak SPK — operator: ' + (modalTunjuk.operator?.nama || ''))"
       :subjudul="modalTunjuk.tahap==='anak' ? 'Bisa discan berkali-kali. Scan QR operator lain buat ganti operator aktif.' : ''"
       @hasil="hasilScanTunjuk" @tutup="selesaiPenunjukan" />
@@ -665,7 +567,7 @@ const PersiapanBahanPerluDisiapkan = {
 // terpisah).
 // ============================================================================
 const PersiapanBahanSedangDisiapkan = {
-  components: { ModalScanQr },
+  components: { ScanGenerik },
   setup() {
     const memuat = ref(true);
     const daftarTrack = ref([]);
@@ -775,7 +677,7 @@ const PersiapanBahanSedangDisiapkan = {
       </div>
     </div>
 
-    <modal-scan-qr :aktif="modalAksi.aktif"
+    <scan-generik :aktif="modalAksi.aktif"
       :judul="modalAksi.mode==='ganti' ? 'Scan QR operator pengganti' : ('Scan label ' + (modalAksi.baris?.no_spk || ''))"
       :subjudul="modalAksi.mode==='entry' ? 'Scan Entry — stok akan berkurang.' : (modalAksi.mode==='masalah' ? 'Scan Masalah — akan diminta catatan.' : '')"
       @hasil="hasilScanAksi" @tutup="tutupAksi" />
@@ -792,7 +694,7 @@ const PersiapanBahanSedangDisiapkan = {
 // Sedang Dikirim).
 // ============================================================================
 const PersiapanBahanPerluDikirim = {
-  components: { PopupPratinjauCetakLabel, ModalScanQr },
+  components: { PopupPratinjauCetakLabel, ScanGenerik },
   setup() {
     const memuat = ref(true);
     const daftarTrack = ref([]);
@@ -1043,13 +945,13 @@ const PersiapanBahanPerluDikirim = {
 
     <div v-if="!daftarTlc.length" style="margin-top:10px;"><button @click="isiTlcAwal" class="btn-outline" style="width:100%; padding:8px; font-size:11px;">Isi TLC Awal (10 lokasi contoh)</button></div>
 
-    <modal-scan-qr :aktif="modalPack.aktif" :judul="modalPack.bagging ? ('Scan anak SPK — bagging ' + modalPack.bagging.kode) : 'Scan Kode Bagging'" subjudul="Bisa discan berkali-kali. Tutup lewat tombol di bawah kalau sudah selesai." @hasil="hasilScanPack" @tutup="tutupScanPack" />
+    <scan-generik :aktif="modalPack.aktif" :judul="modalPack.bagging ? ('Scan anak SPK — bagging ' + modalPack.bagging.kode) : 'Scan Kode Bagging'" subjudul="Bisa discan berkali-kali. Tutup lewat tombol di bawah kalau sudah selesai." @hasil="hasilScanPack" @tutup="tutupScanPack" />
     <div v-if="modalPack.aktif && modalPack.bagging" style="position:fixed; left:16px; bottom:16px; z-index:10001; display:flex; flex-direction:column; gap:8px; max-width:260px;">
       <button @click="tutupBagging" class="btn-primary" style="padding:8px 14px; font-size:11px;">Tutup Bagging Ini</button>
       <div style="background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px;"><div v-for="(l,i) in modalPack.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div></div>
     </div>
 
-    <modal-scan-qr :aktif="modalKirim.aktif" :judul="modalKirim.tugas ? ('Scan kode bagging — tugas ' + modalKirim.tugas.kode) : 'Scan Kode Tugas'" subjudul="Bisa discan berkali-kali (tiap kode bagging = 1 pack)." @hasil="hasilScanKirim" @tutup="tutupScanKirim" />
+    <scan-generik :aktif="modalKirim.aktif" :judul="modalKirim.tugas ? ('Scan kode bagging — tugas ' + modalKirim.tugas.kode) : 'Scan Kode Tugas'" subjudul="Bisa discan berkali-kali (tiap kode bagging = 1 pack)." @hasil="hasilScanKirim" @tutup="tutupScanKirim" />
     <div v-if="modalKirim.aktif && modalKirim.tugas && modalKirim.log.length" style="position:fixed; left:16px; bottom:16px; z-index:10001; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
       <div v-for="(l,i) in modalKirim.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
     </div>
