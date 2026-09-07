@@ -1,21 +1,28 @@
 # STATUS PROYEK (RINGKAS) — Zevanic/Gechoo ERP
 
-> **Terakhir diperbarui: 7 September 2026 (malam lanjut), §5.17.** 4 pos
-> Persiapan Produksi (Bahan/Acc Sewing/Acc Webbing/Acc Finishing) **SUDAH
-> DIREFAKTOR** pakai komponen kamera generik `ScanGenerik` (dari fondasi
-> §5.16) — `ModalScanQr` yang dulu disalin identik di 4 file DIHAPUS,
-> genuinely diimpor sekarang. **Perilaku scan TIDAK berubah sama sekali**
-> (interface & logic dibuat persis sama), jadi ini murni bebersih kode,
-> BUKAN fitur baru — lihat §5.17. `node --check` lolos semua, **BELUM
-> DITEST BROWSER SAMA SEKALI** (regression risk: pastikan Tunjuk Operator/
-> Scan Entry/Masalah/Pack/Kirim di 4 modul itu masih jalan persis seperti
-> sebelumnya). PopupPinGenerik/`riwayat_pin` TIDAK ikut disentuh langkah
-> ini (tetap belum dipakai modul manapun selain definisinya sendiri).
-> Fitur Pesanan REKONSTRUKSI BESAR dari handoff "Pesanan dan Transaksi":
-> piutang (Tempo/DP/Cicilan) + koleksi `piutang_pembayaran` BARU **SUDAH
-> DITULIS** (lompat duluan dari urutan §6 RENCANA-REKONSTRUKSI-2026-09.md
-> atas permintaan eksplisit Guru — bukan kesalahan urutan). **BELUM
-> DITEST BROWSER/FIRESTORE SAMA SEKALI** — lihat §5.15 & §7 poin 0. Rules
+> **Terakhir diperbarui: 7 September 2026 (malam lanjut), §5.18.**
+> Persiapan Produksi > **Masalah** (langkah 6 rencana rekonstruksi)
+> **REBUILD TOTAL SELESAI DITULIS**: dari papan manual bebas-teks lama
+> jadi alur 7 tahap (Perlu Diajukan → Menunggu Setuju → Perlu Disiapkan
+> → Sedang Disiapkan → Perlu Di Kirim → Sedang Di Kirim → Selesai), file
+> baru `js/vue-pp-masalah.js`. Konflik arsitektur (nama koleksi
+> `persiapan_masalah` sudah dipakai skema LAMA) dilaporkan & diputuskan
+> Guru via AskUserQuestion SEBELUM kode ditulis — skema baru TETAP pakai
+> nama `persiapan_masalah`, 3 konsumen skema lama DIPINDAH ke koleksi
+> baru `permintaan_bahan_manual`. **SENGAJA BELUM dikerjakan sesi ini**
+> (retrofit Scan Masalah di 4 pos Bahan/Sewing/Webbing/Finishing supaya
+> benar-benar bikin dokumen `persiapan_masalah`) — jadi modul Masalah
+> akan tampil **KOSONG di semua 7 tab**, itu EKSPEKTASI bukan bug, lihat
+> §5.18. `node --check` lolos semua, tag HTML seimbang, **BELUM DITEST
+> BROWSER SAMA SEKALI**. Rules `permintaan_bahan_manual` **BELUM
+> DIPUBLISH** — board manual lama akan `permission-denied` sampai Guru
+> publish rule ini (lihat `firestore.rules` siap-tempel & 
+> `FIRESTORE-RULES-SNAPSHOT.md`). 4 pos Persiapan Produksi (Bahan/Acc
+> Sewing/Acc Webbing/Acc Finishing) refactor `ScanGenerik` (§5.17, sesi
+> sebelumnya) juga **BELUM DITEST BROWSER**. Fitur Pesanan REKONSTRUKSI
+> BESAR dari handoff "Pesanan dan Transaksi": piutang (Tempo/DP/Cicilan)
+> + koleksi `piutang_pembayaran` BARU **SUDAH DITULIS**, **BELUM DITEST
+> BROWSER/FIRESTORE SAMA SEKALI** — lihat §5.15 & §7 poin 0. Rules
 > `piutang_pembayaran` **BELUM di-Publish**, blocker keras. Persiapan
 > Produksi > Bahan + Acc Sewing/Webbing/Finishing **SUDAH push+diuji
 > Guru, semua jalan** (bukan lagi "0 data live") — status ini adalah
@@ -25,12 +32,14 @@
 > sudah di-push GitHub, sudah dites di browser. Redesain Beranda Desktop
 > selesai beberapa ronde revisi, dikonfirmasi live via screenshot Guru.
 > Semua koleksi (termasuk `master_pelanggan`, `master_tlc`, `bagging`,
-> `tugas_kirim`, `spk_track`, `transaksi_kasir`) sekarang dikonfirmasi
-> ADA di `firestore.rules` — lihat `FIRESTORE-RULES-SNAPSHOT.md`.
-> Rencana besar berikutnya (modul Scan generik, lalu sisa Persiapan
-> Produksi, baru Proses Produksi) ada di `RENCANA-REKONSTRUKSI-2026-09.md`
-> §6 — urutannya DIGESER 7 Sep 2026, Cutting BUKAN lagi prioritas
-> berikutnya. Detail penuh tiap fitur: `STATUS-PROYEK-ARSIP.md`.
+> `tugas_kirim`, `spk_track`, `transaksi_kasir`, `permintaan_bahan_manual`)
+> sekarang dikonfirmasi ADA di `firestore.rules` — lihat
+> `FIRESTORE-RULES-SNAPSHOT.md` (2 rule baru masih BELUM DIPUBLISH ke
+> Firebase Console: `permintaan_bahan_manual` di atas, dan
+> `piutang_pembayaran`).
+> Rencana besar berikutnya: **Cutting** (Proses Produksi) — lihat
+> `RENCANA-REKONSTRUKSI-2026-09.md` §6, urutan langkah 6 (Masalah) baru
+> saja SELESAI ditulis. Detail penuh tiap fitur: `STATUS-PROYEK-ARSIP.md`.
 
 ---
 
@@ -371,7 +380,11 @@ dipercaya.
    ajukan sisa ke `persiapan_masalah` / tunggu dulu) dipindah persis
    dari Kartu Stok lama, skema tulis `persiapan_masalah` SAMA. Reuse
    `catatPemakaianDariAlokasi()` dari `vue-stock-pembelian.js` TANPA
-   DIUBAH.
+   DIUBAH. **DIPERBARUI (§5.18)**: fungsi `ajukanPersiapanMasalahKekurangan()`
+   ini SEKARANG menulis ke koleksi `permintaan_bahan_manual` (BUKAN lagi
+   `persiapan_masalah`) — nama koleksi itu dipindah supaya tidak bentrok
+   skema dengan pos Masalah baru, lihat §5.18. Fungsi & perilaku TIDAK
+   berubah, cuma nama koleksinya.
 8. **Rak Penyimpanan (sub-tab 4) — PINDAH dari "Data Bahan &
    Aksesoris" ke sini + migrasi model data**: `vue-rak-penyimpanan.js`
    ditulis ulang total. Model LAMA = 3 dropdown master-list terpisah
@@ -712,6 +725,135 @@ sana juga — bukan disalin lagi.
 `js/vue-persiapan-webbing.js`, `js/vue-persiapan-finishing.js`,
 `index.html` (version bump 5 tag `<script>`).
 
+### 5.18 Persiapan Produksi > Masalah — REBUILD TOTAL, 7 tahap (7 Sep 2026 malam lanjut, kode belum ditest browser, langkah 6 rencana rekonstruksi)
+Instruksi Guru: *"masalah gas"* — melanjutkan urutan yang sudah
+disepakati (Scan+PIN generik → refactor 4 pos → **Masalah** → Cutting →
+Sewing → Finishing → Serie → Gudang Barang Jadi → Cetak Label Produk).
+`/design-terapkan-handoff` untuk wireframe handoff "Persiapan Produksi -
+Masalah". REBUILD TOTAL dari fitur "Persiapan Masalah" lama (papan
+manual bebas-teks, 24 Agt 2026) jadi alur 7 tahap yang menangani
+kekurangan bahan/aksesoris terdeteksi OTOMATIS lewat Scan Masalah di pos
+lain: Perlu Diajukan → Menunggu Setuju → Perlu Disiapkan → Sedang
+Disiapkan → Perlu Di Kirim → Sedang Di Kirim → Selesai.
+
+**Konflik arsitektur ditemukan SEBELUM menulis kode (dilaporkan ke Guru
+lewat AskUserQuestion, BUKAN ditebak)**: wireframe modul ini
+mengasumsikan koleksi `persiapan_masalah` sudah berskema baru (TRB/SPK-
+linked), TAPI cross-check ke kode live menemukan nama koleksi itu SUDAH
+DIPAKAI AKTIF dengan skema LAMA yang sama sekali berbeda oleh 3 hal:
+papan manual lama itu sendiri (`vue-persiapan-masalah.js`), DAN 2 fitur
+yang justru BARU dibangun sesi yang sama (§5.14: `vue-scan-persiapan.js`
+fungsi kekurangan roll/lot, `vue-stock-pembelian.js` Daftar Permintaan).
+Guru diberi 3 pertanyaan (AskUserQuestion), jawaban:
+- **Skema koleksi**: *"satu koleksi yg lama hapus total, data aman
+  karena belum ada data juga"* — diimplementasikan sebagai: koleksi
+  `persiapan_masalah` (nama TETAP) sekarang PENUH skema BARU pos
+  Masalah; 3 konsumen skema LAMA di atas DIPINDAH ke koleksi baru
+  `permintaan_bahan_manual` (fungsi TIDAK berubah, cuma nama koleksi) —
+  supaya "satu koleksi [nama persiapan_masalah] utk yang baru, yang
+  lama [pindah nama]" tanpa diam-diam menghapus fitur §5.14 yang belum
+  ditest. Menu-id Config Akses `persiapan_masalah` (papan manual)
+  SENGAJA TIDAK ikut diganti namanya — itu izin per-user yang sudah
+  tersimpan, mengubahnya akan mereset akses semua user tanpa perlu.
+- **Cakupan sesi ini**: *"Modul Masalah dulu, retrofit menyusul
+  (Recommended)"* — retrofit "Scan Masalah" di 4 pos (Bahan/Acc Sewing/
+  Webbing/Finishing) supaya BENAR-BENAR membuat dokumen `persiapan_
+  masalah` (sekarang cuma catat `catatan_masalah` teks bebas, TIDAK
+  menahan baris, TIDAK membuat dokumen apapun) **SENGAJA BELUM
+  DIKERJAKAN** — modul ini akan tampil KOSONG TERUS sampai retrofit itu
+  ada. BUKAN bug di modul ini.
+- **Data "pakai/minggu"**: *"Dihitung live dari riwayat"* — dihitung
+  live dari rata-rata `entry_qty` di `spk_track.<jalur>_rincian[]`
+  milik bahan yang sama, jendela 8 minggu terakhir (konstanta
+  `MINGGU_JENDELA_PAKAI`, belum ada keputusan Guru soal lebar jendela
+  persisnya — mudah diubah kalau perlu).
+
+**File baru `js/vue-pp-masalah.js`** (BUKAN `vue-persiapan-masalah.js`
+— nama itu punya file papan manual lama, sengaja dibedakan biar tidak
+tertukar), 7 komponen Vue terpisah (pola SAMA seperti pos Bahan: satu
+Vue app per tahap, lazy-mount, TIDAK ada array rincian bersarang seperti
+`spk_track` — 1 dokumen `persiapan_masalah` = 1 baris kekurangan,
+`updateDoc` langsung, lebih simpel):
+
+1. **Perlu Diajukan** — papan info kumulatif per bahan (dihitung ULANG
+   dari sumbernya tiap render, bukan cache). Tombol "Ajukan" per KARTU
+   bahan (bukan per baris) memindahkan semua barisnya sekaligus ke
+   Menunggu Setuju — INI JUDGMENT CALL, wireframe menyebut tahap ini
+   "papan info" tapi namanya "Perlu Diajukan" & §7 SERAH-TERIMA
+   menyinggung "batas waktu sebelum auto-eskalasi" (tidak ada
+   infrastruktur cron/scheduled function di app ini utk itu) — kalau
+   Guru maksudnya lain, koreksi.
+2. **Menunggu Setuju** — SATU-SATUNYA layar sistem dengan 3 tombol
+   keputusan sungguhan per BARIS: **Setujui** (dipenuhi dari stok yang
+   sudah ada → lanjut ke Perlu Disiapkan, alur internal SAMA seperti
+   pos Bahan), **Ajukan Belanja** (perlu beli ke suplayer → KELUAR
+   modul ini menuju Persiapan Belanja/group 8, BELUM DIBANGUN — status
+   `diajukan_belanja` disiapkan sebagai pintu keluar), **Tolak** (balik
+   ke Perlu Diajukan). Gerbang Owner/PIC Owner via `tierOwnerKeAtas()`
+   (TANPA popup PIN — SERAH-TERIMA tidak memintanya, beda dari "cetak
+   ulang" di pos lain). Kolom qty beli (kelipatan MOQ dari
+   `alias_pembelian`, bisa diedit stepper), estimasi & sisa jadi stok
+   ditafsirkan MURNI dari sisi qty (bukan biaya — tidak ada field harga
+   terakhir yang terverifikasi ada).
+3. **Perlu Disiapkan** — cetak label (kode `MSL-YYMMDD-NNN`, TANPA cek
+   stok/alokasi greedy seperti pos Bahan karena itu sudah diputuskan
+   Owner di langkah 2) + Tunjuk Operator (scan operator + scan label,
+   SAMA pola 4 pos lain).
+4. **Sedang Disiapkan** — per operator, Scan Entry (SATU-SATUNYA titik
+   `master_bahan_aksesoris.stok_akhir` berkurang di pos ini, qty =
+   `qty_disetujui`), Scan Masalah (HANYA catat `catatan_masalah` di
+   baris yang sama, TIDAK rekursif bikin dokumen baru — disamakan
+   dengan pola 4 pos lain karena SERAH-TERIMA modul ini sendiri tidak
+   menyebutkan aksi ini sama sekali), Ganti Operator.
+5. **Perlu Di Kirim** — cetak Kode Bagging + Kode Tugas (REUSE
+   `bagging`/`tugas_kirim`/`master_tlc`, TLC tujuan default = TLC pos
+   ASAL kekurangan/`JALUR_TLC[sumber_jalur]`, karena barang di sini
+   KEMBALI ke pos yang kekurangan — beda arah dari pos Bahan yang
+   kirim KELUAR dari Bahan), dikelompokkan per TUJUAN (bukan per pola/
+   bahan/size seperti Bahan, karena isi kiriman di sini beragam bahan).
+   Scan Pack + Scan Kirim sama pola.
+6. **Sedang Di Kirim** — VIEW-ONLY, ditutup dari LUAR modul ini.
+7. **Selesai** — riwayat + KPI, "umur" dihitung `scan_pada` (saat
+   Scan Masalah di pos asal) → `sampai_pada` (BEDA dari pos Bahan yang
+   pakai `label_cetak_pada`→`sampai_pada`, karena di sini yang mau
+   diukur termasuk lama menunggu keputusan Owner).
+
+**Penutup alur (poin krusial, BUKAN gap — desain yang disengaja)**:
+tab "Sedang Di Kirim"/"Selesai" modul ini TIDAK PERNAH punya tombol
+penutup sendiri — baris ditutup lewat "Scan Sampai" di POS ASAL
+(pop up 2.1.4 di wireframe Bahan, field `sampai_pada`), SAMA seperti
+pola penutupan di pos Bahan/Acc lainnya. Field itu masih menunggu
+penulis (lihat §7 poin 3, TIDAK berubah dari sebelumnya).
+
+**Wiring**: sidebar `menu-pp-masalah-btn` (6 pos sejajar Disiapkan/
+Vendor/Bahan/Sewing/Webbing/Finishing di grup Persiapan Produksi), 7
+sub-tab `sub-pp-masalah-*`, menu-id Config Akses baru `pp_masalah`
+(default Owner-only, mengikuti kebijakan proyek). Rules Firestore:
+`persiapan_masalah` yang SUDAH ADA TIDAK diubah (generik cukup untuk
+skema baru); TAMBAH `permintaan_bahan_manual` (draft, pola sama, lihat
+`FIRESTORE-RULES-SNAPSHOT.md` — **BELUM DIPUBLISH**, board manual lama
+akan `permission-denied` sampai Guru publish rule ini).
+
+**File yang berubah/baru (10 total)**: `js/vue-pp-masalah.js` (baru),
+`js/vue-persiapan-masalah.js`, `js/vue-scan-persiapan.js`,
+`js/vue-stock-pembelian.js`, `js/vue-home-desktop.js` (4 file ini cuma
+ganti nama koleksi, fungsi tidak berubah), `index.html`, `js/dashboard.js`,
+`js/vue-config-akses.js`, `firestore.rules` (baru, siap-tempel),
+`claude/FIRESTORE-RULES-SNAPSHOT.md`.
+
+**BELUM ditest browser sama sekali** — `node --check` lolos semua file,
+tag HTML seimbang, mapping mount function/div id sudah di-grep cocok
+semua. Modul ini akan tampil KOSONG di semua 7 tab sampai retrofit Scan
+Masalah (sesi terpisah) dan/atau modul Persiapan Belanja (group 8)
+dibangun — itu EKSPEKTASI, bukan bug. Yang WAJIB dites begitu ada data
+uji manual (isi langsung ke Firestore untuk simulasi): (a) kumulatif
+per bahan di Perlu Diajukan & Menunggu Setuju benar, (b) 3 tombol
+keputusan di Menunggu Setuju menulis status yang benar & gerbang
+Owner/PIC Owner benar-benar mengunci non-Owner, (c) Scan Entry
+mengurangi stok dengan benar, (d) alur bagging/tugas kirim (Perlu Di
+Kirim) jalan sama seperti pos Bahan, (e) rule `permintaan_bahan_manual`
+DIPUBLISH sebelum papan manual lama dites lagi.
+
 ## 6. Bug besar & pelajaran (kelas bug yang bisa terulang)
 
 - **Inline `style="display:..."` SELALU menang dari class CSS manapun**
@@ -726,7 +868,8 @@ sana juga — bukan disalin lagi.
 - **Grup sidebar top-level BARU wajib didaftarkan ke `auth.js`**
   (`aturTampilanBerdasarkanRole()`) — kalau lupa, menu tidak PERNAH
   muncul walau semua kode lain benar. (Menu NESTED di grup yang sudah
-  ada TIDAK kena masalah ini.)
+  ada TIDAK kena masalah ini — Masalah §5.18 termasuk kategori ini,
+  TIDAK perlu sentuh `auth.js`.)
 - **`toISOString()` = UTC, bukan tanggal lokal** — proyek ini WIB
   (UTC+7), jadi jam 00:00-06:59 WIB dapat tanggal KEMARIN kalau pakai
   `toISOString()`. Pakai `toLocaleDateString('en-CA', {timeZone:
@@ -755,6 +898,10 @@ sana juga — bukan disalin lagi.
   memutuskan sendiri — itu yang benar. Kelas bug yang sama juga bisa
   muncul di klaim "koleksi/field ini sudah ditulis modul X" — selalu
   cek FUNGSI yang menulis/membaca, bukan cuma nama modul yang disebut.
+  **Contoh lain (§5.18)**: koleksi `persiapan_masalah` "sudah ada"
+  ternyata dipakai skema LAMA yang genuinely tidak kompatibel dengan
+  skema BARU yang wireframe asumsikan — ditemukan & dilaporkan SEBELUM
+  menulis kode, bukan sesudah.
 - **Jawaban keputusan Guru sendiri bisa berbasis premis teknis yang
   salah — WAJIB dicross-check ke kode live SEBELUM dieksekusi, bukan
   cuma dokumen spek.** Contoh nyata (§5.15, 7 Sep 2026): Guru sempat
@@ -776,6 +923,21 @@ sana juga — bukan disalin lagi.
 
 ## 7. Yang PALING PENTING diverifikasi sesi berikutnya
 
+00. **BARU (7 Sep 2026 malam) — §5.18 modul Masalah (7 tahap) SELESAI
+    DITULIS TAPI SENGAJA KOSONG SAMPAI 2 PRASYARAT ADA**: (a) retrofit
+    "Scan Masalah" di 4 pos Bahan/Acc Sewing/Webbing/Finishing supaya
+    benar-benar membuat dokumen `persiapan_masalah` skema baru (sesi
+    terpisah, BELUM dikerjakan sesuai keputusan Guru), (b) modul
+    Persiapan Belanja/group 8 (jalur keluar utk "Ajukan Belanja").
+    **WAJIB sebelum tab manapun bisa dites**: publish rule
+    `permintaan_bahan_manual` (lihat §5.18) — tanpa ini board manual
+    lama (`vue-persiapan-masalah.js`, `vue-scan-persiapan.js` fungsi
+    kekurangan, `vue-stock-pembelian.js` Daftar Permintaan) akan
+    `permission-denied` karena nama koleksinya baru saja dipindah.
+    **Untuk test modul Masalah itu sendiri sebelum retrofit ada**:
+    isi manual 1-2 dokumen contoh langsung ke Firestore Console
+    (skema field ada di komentar header `js/vue-pp-masalah.js`) untuk
+    memverifikasi UI 7 tahapnya jalan, sebelum retrofit selesai.
 0a. **BARU (7 Sep 2026) — §5.15 rekonstruksi Pesanan dan Transaksi (4
     sub-menu, TERMASUK PIUTANG) BELUM DITEST BROWSER/FIRESTORE SAMA
     SEKALI, dan modul ini menyentuh UANG (kasir, piutang, pembayaran)**:
@@ -833,8 +995,9 @@ sana juga — bukan disalin lagi.
    komponen kamera untuk scan yang SUDAH ADA (Operator/Entry/Masalah/
    Pack/Kirim) di 4 modul lama, TIDAK menambah jenis scan baru maupun
    menulis field `sampai_pada`. Field itu (dan padanannya di
-   `sewing_rincian[]`/`webbing_rincian[]`/`finishing_rincian[]`) dipakai
-   SEMUA 9 pos Persiapan+Proses Produksi (lihat `RENCANA-REKONSTRUKSI-
+   `sewing_rincian[]`/`webbing_rincian[]`/`finishing_rincian[]`, DAN
+   SEKARANG JUGA `persiapan_masalah.sampai_pada` — lihat §5.18) dipakai
+   SEMUA 9+1 pos Persiapan+Proses Produksi (lihat `RENCANA-REKONSTRUKSI-
    2026-09.md` §9.3), tetap menunggu Cutting (langkah berikutnya di
    urutan besar) untuk pertama kali punya penulis.
 4. **Konfirmasi fungsional Beranda Desktop belum lengkap** — lonceng
@@ -861,6 +1024,8 @@ sana juga — bukan disalin lagi.
 8. Cek `RENCANA-REKONSTRUKSI-2026-09.md` untuk peta lengkap langkah
    rekonstruksi besar yang sedang berjalan — urutan sudah DIGESER 7 Sep
    2026 (Persiapan Produksi lengkap dulu, baru Proses Produksi/Cutting).
+   **Giliran berikutnya sekarang Cutting** (Masalah §5.18 baru saja
+   selesai ditulis).
 
 ---
 

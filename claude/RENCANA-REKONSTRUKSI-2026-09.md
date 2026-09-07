@@ -123,6 +123,32 @@
 > BROWSER SAMA SEKALI** — `node --check` lolos ke-5 file yang diubah.
 > Urutan langkah 6-14 di §6 di bawah TIDAK berubah, giliran berikutnya
 > tetap Masalah (langkah 6) lalu sisanya sesuai tabel.
+>
+> **UPDATE progres (7 Sep 2026, malam lanjut lagi) — langkah 6 (Masalah)
+> SELESAI DITULIS**: instruksi Guru *"masalah gas"*. Persiapan Produksi >
+> Masalah **REBUILD TOTAL** dari papan manual bebas-teks lama jadi alur 7
+> tahap (Perlu Diajukan → Menunggu Setuju → Perlu Disiapkan → Sedang
+> Disiapkan → Perlu Di Kirim → Sedang Di Kirim → Selesai), file baru
+> `js/vue-pp-masalah.js`. **Konflik arsitektur ditemukan SEBELUM menulis
+> kode** (dilaporkan via AskUserQuestion, BUKAN ditebak): nama koleksi
+> `persiapan_masalah` yang diasumsikan wireframe berskema baru TERNYATA
+> sudah dipakai aktif skema LAMA oleh papan manual + 2 fitur §5.14 (Scan
+> Persiapan kekurangan, Daftar Permintaan Stok & Pembelian). Keputusan
+> Guru: skema BARU tetap pakai nama `persiapan_masalah`, 3 konsumen skema
+> lama DIPINDAH ke koleksi baru `permintaan_bahan_manual`. **Retrofit
+> Scan Masalah di 4 pos Bahan/Acc Sewing/Webbing/Finishing (supaya
+> benar-benar membuat dokumen `persiapan_masalah`) SENGAJA BELUM
+> dikerjakan sesi ini** (keputusan Guru: "Modul Masalah dulu, retrofit
+> menyusul") — jadi modul Masalah akan tampil **KOSONG di semua 7 tab**
+> sampai retrofit itu ada, itu EKSPEKTASI bukan bug. Data "pakai/minggu"
+> dihitung LIVE dari riwayat `spk_track` (keputusan Guru ke-3), bukan
+> di-cache. Detail lengkap: `STATUS-PROYEK.md` §5.18. **BELUM DITEST
+> BROWSER SAMA SEKALI** — `node --check` lolos, tag HTML seimbang. Rules
+> `permintaan_bahan_manual` **BELUM DIPUBLISH** (blocker board manual
+> lama). **Giliran berikutnya: Cutting** (Proses Produksi mulai) — TAPI
+> lihat catatan §6: retrofit Scan Masalah (di atas) dan Persiapan Belanja
+> (langkah 8, prasyarat penuh Masalah) masih menyusul, belum tentu Guru
+> mau loncat ke Cutting duluan seperti pola sebelumnya.
 
 ---
 
@@ -158,12 +184,15 @@ Paket wireframe ini menyentuh **4 area top-level** + 1 area pendukung:
    Bahan/Acc Sewing/Acc Webbing/Acc Finishing (yang sekarang "sengaja
    kosong terus") akan **mulai terisi data** — perlu di-regression-test
    ke 4 modul lama itu juga, bukan cuma modul baru.
-3. **Persiapan Masalah bukan penambahan — itu rebuild total.** Kode live
+3. **Persiapan Masalah bukan penambahan — itu rebuild total.** ~~Kode live
    sekarang (`js/vue-persiapan-masalah.js`, 197 baris) cuma daftar datar
-   status `menunggu`/`sudah_dipesan`. Wireframe minta **7 child-menu**
-   (Perlu Diajukan → Menunggu Setuju → … → Selesai) dengan alur approval
-   Owner dan integrasi ke Persiapan Belanja. Efeknya sama besar dengan
-   rebuild Bahan/Acc kemarin.
+   status `menunggu`/`sudah_dipesan`.~~ **SELESAI DITULIS (§5.18, 7 Sep
+   2026 malam lanjut)** — 7 child-menu (Perlu Diajukan → Menunggu Setuju →
+   … → Selesai) dengan alur approval Owner, file baru `js/vue-pp-masalah.js`
+   (papan lama dipindah jadi koleksi `permintaan_bahan_manual`, bukan
+   dihapus). **BELUM DITEST BROWSER**, dan akan tampil kosong sampai
+   retrofit Scan Masalah (4 pos) menyusul — lihat catatan update progres
+   teratas & `STATUS-PROYEK.md` §5.18.
 4. **Master Suplayer juga rebuild, bukan tambahan field kecil.** ~~Sekarang
    cuma tabel generik `MasterDataTabelManager` (field: nama, keterangan,
    kontak).~~ **SELESAI (§5.12)** — 3 sub-halaman penuh (5.1 Entry+List, 5.2
@@ -178,10 +207,13 @@ Paket wireframe ini menyentuh **4 area top-level** + 1 area pendukung:
    lagi persis begitu di §5.14~~ **RESOLVED (7 Sep 2026)** — rules
    `master_pelanggan` sudah dipublish Guru. **Terbukti lagi (7 Sep 2026
    malam) di §5.15**: koleksi BARU `piutang_pembayaran` (Pesanan piutang)
-   BELUM dipublish rules-nya — blocker keras aktif SAAT INI. Rekomendasi
+   BELUM dipublish rules-nya — blocker keras aktif SAAT INI. **Terbukti
+   LAGI (§5.18, malam lanjut lagi)**: koleksi BARU `permintaan_bahan_manual`
+   (papan manual lama Masalah, dipindah) juga BELUM dipublish. Rekomendasi
    tetap sama: siapkan draft rules BERSAMAAN dengan tiap modul (SUDAH
    dijalankan sejak §5.11 — draft dikirim terpisah tiap kali ada koleksi
-   baru, termasuk `piutang_pembayaran` di §5.15).
+   baru, termasuk `piutang_pembayaran` §5.15 dan `permintaan_bahan_manual`
+   §5.18).
 6. **Infrastruktur PIN generik (langkah 3) masih ditunda TOTAL, TAPI
    ditemukan solusi lebih ringan yang sudah cukup untuk sebagian modul.**
    `users.pin_hash` (SHA-256 client-side, dibangun 22 Agt 2026 untuk Kiosk)
@@ -194,7 +226,10 @@ Paket wireframe ini menyentuh **4 area top-level** + 1 area pendukung:
    7 Sep 2026 malam)** — Pesanan (Menunggu Proses "Proses massal" +
    Transaksi Keuangan "Catat pembayaran") juga pakai `pin_hash` yang sama,
    SELALU wajib PIN walau user login sudah Owner (beda dari pola skip-PIN-
-   untuk-Owner di Stok & Pembelian, keputusan Guru D4).
+   untuk-Owner di Stok & Pembelian, keputusan Guru D4). **Masalah (§5.18)
+   TIDAK pakai PIN sama sekali** untuk gerbang Owner di Menunggu Setuju —
+   pakai `tierOwnerKeAtas()` client-side saja (SERAH-TERIMA modul ini
+   tidak memintanya), beda pola dari 2 modul di atas.
 
 ---
 
@@ -206,7 +241,7 @@ Paket wireframe ini menyentuh **4 area top-level** + 1 area pendukung:
 | Persiapan Produksi › Bahan | ⚠️ Kode selesai & dikirim, **belum di-push Guru, belum diuji** | `js/vue-persiapan-bahan.js` ADA di repo (sudah ter-push ternyata — cek ulang saat mulai kerja apakah statusnya sudah berubah jadi "aktif") |
 | Persiapan Produksi › Acc Sewing/Webbing/Finishing | idem Bahan | 3 file ada di repo |
 | Persiapan Produksi › Vendor | ✅ Aktif, tapi **generik** (`JalurTahapManager`) | Wireframe **belum digambar** untuk pos ini — lihat §5 |
-| Persiapan Produksi › Masalah | ✅ Aktif TAPI **versi sangat sederhana** (1 daftar status) | Wireframe minta 7 child-menu — **REBUILD TOTAL**, bukan tambahan |
+| Persiapan Produksi › Masalah | ✅ **REBUILD TOTAL SELESAI DITULIS (§5.18, 7 Sep 2026 malam lanjut)** — 7 child-menu, file `js/vue-pp-masalah.js` | **BELUM DITEST BROWSER.** Akan tampil KOSONG di semua 7 tab sampai retrofit Scan Masalah (4 pos) dikerjakan — EKSPEKTASI, bukan bug |
 | Persiapan Produksi › Persiapan Belanja | ❌ Belum ada sama sekali | Konsepnya baru; sebagian tumpang tindih "List Order Belanja" yang sudah ada di Stok & Pembelian — lihat §5 |
 | Pesanan (semua 4 sub-menu, DIREKONSTRUKSI TOTAL §5.15) | ⚠️ **Kode direkonstruksi total & selesai ditulis (7 Sep 2026 malam, §5.15), `firestore.rules` transaksi_kasir SUDAH dipublish, TAPI koleksi BARU `piutang_pembayaran` BELUM dipublish (blocker keras)** | Piutang/pelanggan DIKERJAKAN SEKARANG (loncat urutan, lihat catatan update progres teratas) — BELUM DIUJI BROWSER/FIRESTORE SAMA SEKALI. Menu lama "Menunggu Proses" (CRUD manual) & 3 menu ringkasan lama (Persiapan/Produksi/Pengiriman) SUDAH TIDAK ADA LAGI, diganti struktur baru — lihat `PETA-MENU.md` |
 | Zevanic House › Master Suplayer | ✅ **Rebuild SELESAI (§5.12)**, kode dikirim ke `Code`, belum push/uji Guru | 5.1-5.3 + 4 field baru sudah jadi |
@@ -231,6 +266,7 @@ Paket wireframe ini menyentuh **4 area top-level** + 1 area pendukung:
 |---|---|---|
 | `master_pelanggan` | Zevanic House, Pesanan (kasir, piutang) | ✅ **KODE SELESAI (§5.14)**, rules SUDAH dipublish. `saldo_piutang` SEKARANG (§5.15) mulai benar-benar ditulis lewat 2 titik resmi (checkout Kasir menambah, `catatPembayaranSusulan()` mengurangi) — TIDAK lagi selalu `0` |
 | `piutang_pembayaran` | Pesanan › Transaksi Keuangan | ✅ **KODE SELESAI (§5.15, 7 Sep 2026 malam)** — 1 dokumen per PEMBAYARAN, bukan per transaksi. Wewenang: Owner/PIC Owner + PIN (selalu wajib, termasuk Owner login). **⚠️ RULES BELUM DIPUBLISH — blocker keras**, belum bisa dipakai sama sekali di production |
+| `permintaan_bahan_manual` | Persiapan Masalah (papan manual LAMA, dipindah dari `persiapan_masalah`) | ✅ **KODE SELESAI (§5.18, 7 Sep 2026 malam lanjut)** — fungsi & perilaku TIDAK berubah, cuma ganti nama koleksi (nama `persiapan_masalah` sekarang dipakai skema BARU 7-tahap). **⚠️ RULES BELUM DIPUBLISH — blocker keras**, papan manual lama akan `permission-denied` sampai dipublish |
 | `order_belanja_driver` | Persiapan Belanja, Stok & Pembelian › List Order Driver | 1 dokumen = 1 order ke 1 suplayer |
 | `pending_driver` | idem | Item yang stoknya habis di suplayer asal, bisa di-assign ulang |
 | `cutting_track` | Proses Produksi › Cutting | 1 per SPK Grouping masuk Cutting, status 7 nilai |
@@ -263,13 +299,13 @@ akan benar-benar tercapai untuk Proses Produksi.
 | `order_spk` | `qo_diproses`, `qo_diproses_pada`, `qo_oleh` (proses massal QO), `pelanggan_id`, `pelanggan_nama`, `transaksi_kasir_id`, `no_transaksi`, `status_bayar` (snapshot) | ✅ **SELESAI (§5.15)** — bukan dari spek asli, ditambahkan karena diperlukan teknis (lihat `STATUS-PROYEK.md` §5.15 T1/T2) |
 | `master_suplayer` | `bank`, `nama_rek`, `no_rek`, `no_wa` | ✅ SELESAI (§5.12) |
 | `alias_pembelian` | `moq`, `moq_satuan`, `lead_time_hari`, `is_default_order` | ✅ SELESAI (§5.12) |
-| `persiapan_masalah` | `tlc_asal`, `sumber_jalur`, `spk_track_id`, `baris_index` | Rebuild modul Masalah |
+| `persiapan_masalah` | `tlc_asal`, `sumber_jalur`, `spk_track_id`, `baris_index` | ✅ **SELESAI (§5.18)** — skema BARU 7-tahap, koleksi ini SEKARANG dipakai penuh untuk rebuild Masalah (bukan lagi papan manual lama, yang dipindah ke `permintaan_bahan_manual`) |
 | `pesanan_pembelian` | `foto_bon`, `order_driver_id` | ✅ **SELESAI (§5.14, 7 Sep 2026 malam)** — `order_driver_id` SELALU `null` untuk sekarang, belum ada modul driver yang menulis |
 | `master_bahan_aksesoris` | `harga_perlu_konfirmasi`, `harga_pending` | ✅ **BARU (§5.14)** — dipakai alert kenaikan harga + checkout guard, bukan bagian spesifikasi awal, ditemukan perlu saat implementasi |
 | `users` | `pin_hash`, `pin_salt` | PIN generik (edit harga, cetak ulang, dst) — **PIN WAJIB unik lintas user**, perlu strategi lookup kalau pakai bcrypt. **DITUNDA** (langkah 3 dilewati, lihat update progres di atas). **Catatan 7 Sep 2026 malam**: `pin_hash` (tanpa `pin_salt` terpisah, salt-nya email) TERNYATA SUDAH ADA dari fitur Kiosk 22 Agt — direuse di Stok & Pembelian (§5.14) DAN Pesanan (§5.15), bukan field baru |
 | `master_produk` | `moq_serie`, `kelipatan_isi_pola` | ✅ SELESAI (§5.13) |
 | `master_bahan_aksesoris` | — (sudah ada `panjang_roll`) | Bisa dipakai ulang |
-| `spk_track` (jalur bahan/sewing/webbing/finishing) | **tidak ada field baru**, tapi `..._rincian[].sampai_pada` **akhirnya dapat penulis** | Ditulis oleh Cutting saat "Scan Sampai" (lihat §0 poin 2) |
+| `spk_track` (jalur bahan/sewing/webbing/finishing) | **tidak ada field baru**, tapi `..._rincian[].sampai_pada` **akhirnya dapat penulis** | Ditulis oleh Cutting saat "Scan Sampai" (lihat §0 poin 2). **Sudah DIBACA (read-only) oleh Masalah §5.18** untuk hitung "pakai/minggu" live — belum ditulis modul manapun |
 | Pengaturan ambang "tertahan" (koleksi/lokasi BELUM ditentukan, lihat §9) | Field per-pos/per-shift, GANTI dari konstanta tetap `AMBANG_TERTAHAN_JAM` | Config baru, dipakai perhitungan KPI "tertahan" di semua pos (Bahan/Acc/nanti Proses Produksi) |
 
 ### 2.3 PIN — catatan keamanan
@@ -315,6 +351,12 @@ seperti dicatat di atas (skema hash lebih sederhana, belum tentu cukup
 untuk piutang bernilai besar) — dicatat di sini supaya tidak dianggap
 sudah "aman penuh" hanya karena ada gerbang PIN.
 
+**UPDATE LAGI (7 Sep 2026 malam lanjut lagi, §5.18)**: Masalah (Menunggu
+Setuju, gerbang Owner/PIC Owner) **TIDAK pakai PIN sama sekali** — cuma
+`tierOwnerKeAtas()` client-side (cek role login, tanpa popup PIN). Beda
+pola dari Stok & Pembelian/Pesanan di atas — SERAH-TERIMA modul Masalah
+tidak pernah meminta PIN untuk aksi ini, jadi tidak ditambahkan sendiri.
+
 ---
 
 ## 3. Dampak menu / sidebar
@@ -325,13 +367,13 @@ sudah "aman penuh" hanya karena ada gerbang PIN.
 | **Sub-menu baru** di Zevanic House: "Master Pelanggan" | ✅ **SELESAI (§5.14)** — nested di `navgrp-zevanic` (BUKAN grup top-level baru), 1 tombol + 1 div konten single-view, TIDAK perlu sentuh `auth.js` |
 | **Master Suplayer** diperluas | ✅ **SELESAI (§5.12)** — dari 1 tabel generik jadi grup 3 sub-halaman (Entry+List, Alias+MOQ, Petakan Order) |
 | **Sub-menu baru** di Persiapan Produksi: "Persiapan Belanja" | Grup 8, admin input + driver mobile + riwayat |
-| **Persiapan Masalah** — isi menu sama, tapi jadi 7 child-menu (bukan 1 daftar) | Perlu rombak total struktur tab di dalam menu yang sudah ada |
+| **Persiapan Masalah** — isi menu sama, tapi jadi 7 child-menu (bukan 1 daftar) | ✅ **SELESAI (§5.18, 7 Sep 2026 malam lanjut)** — nested di `sub-persiapan-produksi` (BUKAN grup top-level baru), 7 sub-tab `sub-pp-masalah-*`, menu-id Config Akses baru `pp_masalah`, TIDAK perlu sentuh `auth.js` (mengikuti pola nested Masalah dalam grup Persiapan Produksi yang sudah ada) |
 | **Alias Pembelian** pindah dari Stok & Pembelian ke Zevanic House › Master Suplayer 5.2 | ✅ SELESAI (§5.12) |
 | **List Order Belanja** (Stok & Pembelian) — **DIHAPUS TOTAL** (diputuskan 7 Sep 2026, lihat §5 poin 1), digantikan sepenuhnya oleh Persiapan Belanja | ✅ **DIEKSEKUSI (§5.14, 7 Sep 2026 malam)** — bukan cuma keputusan, sudah dihapus dari kode+menu+sidebar. Persiapan Belanja (langkah 8) sendiri belum mulai dibangun — jadi untuk sementara TIDAK ADA jalur order estimasi sampai langkah 8 selesai |
 | **4 sub-tab Stok & Pembelian rebuild** (Daftar Nota, Riwayat Harga, Kartu Stok, Rak Penyimpanan) | ✅ **SELESAI (§5.14, 7 Sep 2026 malam)** — lihat §1 untuk status per sub-tab |
 | **Menu baru "Kemasan Komponen Acc"** (ganti nama dari "Bagging Acc", Stok & Pembelian, lihat §9.4) | Kode kemasan komponen kecil per jumlah tetap — BELUM didesain, baru arah keputusan |
 | **Grup Pesanan direkonstruksi total (§5.15)**: `pesanan_persiapan`/`pesanan_produksi`/`pesanan_pengiriman` DIHAPUS, GANTI `pesanan_daftar` ("Daftar Pesanan") dan `pesanan_transaksi` ("Transaksi Keuangan") | ✅ **SELESAI DITULIS (7 Sep 2026 malam, §5.15)** — `pesanan_kasir`/`pesanan_menunggu` id sama, isi layarnya berubah total (Menunggu Proses jadi murni antrian QO). BELUM DIUJI |
-| **DAFTAR_MENU** (`vue-config-akses.js`) | Perlu banyak entri `menuId` baru — tiap sub-menu baru di atas butuh 1 entri, plus kategori baru `"Proses Produksi"` masuk ke `KATEGORI_URUTAN`. `master_pelanggan` sudah ditambahkan (§5.14). **7 Sep 2026 malam**: `stock_list_order_belanja` di-deprecated, `stock_rak_penyimpanan` ditambahkan, `bahan_aksesoris_rak` (lokasi lama) di-deprecated. **7 Sep 2026 malam lagi (§5.15)**: `pesanan_persiapan`/`pesanan_produksi`/`pesanan_pengiriman` dihapus, `pesanan_daftar`/`pesanan_transaksi` ditambahkan |
+| **DAFTAR_MENU** (`vue-config-akses.js`) | Perlu banyak entri `menuId` baru — tiap sub-menu baru di atas butuh 1 entri, plus kategori baru `"Proses Produksi"` masuk ke `KATEGORI_URUTAN`. `master_pelanggan` sudah ditambahkan (§5.14). **7 Sep 2026 malam**: `stock_list_order_belanja` di-deprecated, `stock_rak_penyimpanan` ditambahkan, `bahan_aksesoris_rak` (lokasi lama) di-deprecated. **7 Sep 2026 malam lagi (§5.15)**: `pesanan_persiapan`/`pesanan_produksi`/`pesanan_pengiriman` dihapus, `pesanan_daftar`/`pesanan_transaksi` ditambahkan. **7 Sep 2026 malam lanjut lagi (§5.18)**: `pp_masalah` ditambahkan (default Owner-only, mengikuti kebijakan proyek untuk menu baru) |
 | **Beranda desktop** — kartu "Pipeline Produksi" | Placeholder "Segera Hadir" → diaktifkan datanya nyata begitu Proses Produksi jadi (baca `cutting_track`/`separating_batch`/`sewing_track`/`finishing_track`/`label_pcs`) |
 | **Pesanan › Daftar Pesanan (3.1)** — kartu "Pipeline Proses Produksi" | Sekarang tampil "—" (modul belum ada) — otomatis terisi begitu Proses Produksi jadi, TANPA perlu ubah kode `vue-pesanan.js` (asalkan field yang dibaca cocok) |
 
@@ -381,10 +423,17 @@ sudah "aman penuh" hanya karena ada gerbang PIN.
   modul-modul ini harus dites dulu (lihat urutan di §6).
 - **Vendor**: wireframe belum digambar. Spec eksplisit bilang "belum
   diputuskan" apakah dibuatkan wireframe khusus atau tetap generik.
-- **Masalah**: rebuild total dari 1 daftar jadi 7 child-menu dengan alur
-  approval Owner (swipe di mobile) dan qty beli kelipatan MOQ. Angka
-  kumulatif lintas grouping **dihitung LIVE** (diputuskan 7 Sep 2026, lihat
-  §7), bukan di-cache.
+- **Masalah**: ✅ **REBUILD TOTAL SELESAI DITULIS (§5.18, 7 Sep 2026 malam
+  lanjut)** — dari 1 daftar jadi 7 child-menu dengan alur approval Owner
+  (3 tombol keputusan: Setujui/Ajukan Belanja/Tolak — gerbang
+  `tierOwnerKeAtas()` tanpa PIN) dan qty beli kelipatan MOQ dari
+  `alias_pembelian`. Angka kumulatif lintas grouping **dihitung LIVE**
+  (diputuskan 7 Sep 2026, lihat §7), bukan di-cache. **BELUM DITEST
+  BROWSER**, dan akan tampil KOSONG di semua 7 tab sampai retrofit Scan
+  Masalah di 4 pos (Bahan/Acc Sewing/Webbing/Finishing) menyusul — itu
+  keputusan cakupan Guru untuk sesi ini ("Modul Masalah dulu, retrofit
+  menyusul"), bukan gap tak terduga. Detail lengkap + daftar penyimpangan
+  dari spek (3 judgment call terdokumentasi): `STATUS-PROYEK.md` §5.18.
 - **Persiapan Belanja** (baru): admin input nota → cek pengajuan dari
   Masalah → ACC Owner → generate order per suplayer ke HP driver → driver
   beli (share WA + upload bon) → masuk ke Stok & Pembelian sebagai nota.
@@ -392,7 +441,10 @@ sudah "aman penuh" hanya karena ada gerbang PIN.
   Nota) SUDAH SELESAI (§5.14) — begitu Persiapan Belanja dibangun
   (langkah 8), notanya sudah punya tempat masuk, tapi `order_driver_id`
   di `pesanan_pembelian` masih `null` sampai langkah 8 benar-benar
-  menulis field itu.
+  menulis field itu. **Masalah (§5.18) sudah menyiapkan pintu keluar**
+  ke sini — status `diajukan_belanja` di `persiapan_masalah` dari tombol
+  "Ajukan Belanja" — tapi belum ada modul Persiapan Belanja yang
+  membacanya.
 
 ### 4.4 Proses Produksi (baru seluruhnya)
 Alur fisik: **Cutting → Serie → Sewing → Serie → Finishing → Serie →
@@ -434,7 +486,11 @@ langsung antar divisi manapun (aturan lintas modul, ditegaskan di
   modul, belum ada 1 config bersama). **Catatan**: `vue-scan-persiapan.js`
   sendiri (bukan Scan Opname/Cetak Label) sudah diperluas §5.14 untuk
   menyerap FIFO multi-roll + alur kekurangan dari Kartu Stok lama — belum
-  terkait dengan config cetak terpusat di atas.
+  terkait dengan config cetak terpusat di atas. **`vue-scan-persiapan.js`
+  fungsi `ajukanPersiapanMasalahKekurangan()` diperbarui (§5.18)** untuk
+  ikut ganti nama koleksi ke `permintaan_bahan_manual` — fungsi tidak
+  berubah, masih menunggu retrofit lanjutan supaya benar-benar menulis
+  skema baru `persiapan_masalah`.
 - **Kemasan Komponen Acc** (BARU, 7 Sep 2026, ganti nama dari "Bagging
   Acc") — lihat §9.4, arah keputusan komponen kecil Acc Sewing dikemas
   per jumlah tetap sebelum dipakai produksi.
@@ -459,7 +515,10 @@ Diurutkan dari yang paling menghambat:
 3. **Pola `bagging`/`tugas_kirim`** — apakah Proses Produksi memakai
    koleksi yang sama dengan Persiapan Produksi (konsisten "1 modul cetak")
    atau berdiri sendiri per pos (field inline di `cutting_track`/
-   `sewing_track`/dst, seperti tertulis literal di spec)?
+   `sewing_track`/dst, seperti tertulis literal di spec)? **Catatan
+   (§5.18)**: Masalah REUSE penuh `bagging`/`tugas_kirim`/`master_tlc`
+   yang sudah ada (bukan koleksi baru) — preseden tambahan untuk opsi
+   "konsisten 1 modul cetak" di atas.
 4. **Firestore rules** — siapa yang menyiapkan draft rules per koleksi
    baru, dan kapan? ~~(Preseden: `transaksi_kasir` sampai sekarang belum
    dipublish, 6 hari sejak kode selesai.)~~ **Update**: proses draft
@@ -469,13 +528,16 @@ Diurutkan dari yang paling menghambat:
    bottleneck aktif untuk koleksi-koleksi itu. **AKTIF LAGI (§5.15, 7 Sep
    2026 malam)**: koleksi BARU `piutang_pembayaran` (Pesanan piutang)
    BELUM dipublish — blocker keras baru, sama polanya seperti sebelumnya.
-   **Catatan**: field baru §5.14 malam (`harga_perlu_konfirmasi`/
-   `harga_pending` di `master_bahan_aksesoris`, `foto_bon`/
-   `order_driver_id` di `pesanan_pembelian`) TIDAK butuh rule baru (field
-   di koleksi yang rule-nya sudah ada), begitu juga field baru §5.15 di
-   `transaksi_kasir`/`order_spk` — beda dengan `riwayat_pin` (§5.13) dan
-   `piutang_pembayaran` (§5.15) yang keduanya butuh match block baru dan
-   BELUM dipublish.
+   **AKTIF LAGI (§5.18, malam lanjut lagi)**: koleksi BARU
+   `permintaan_bahan_manual` (Masalah) JUGA belum dipublish — 2 blocker
+   rules berjalan bersamaan sekarang. **Catatan**: field baru §5.14 malam
+   (`harga_perlu_konfirmasi`/`harga_pending` di `master_bahan_aksesoris`,
+   `foto_bon`/`order_driver_id` di `pesanan_pembelian`) TIDAK butuh rule
+   baru (field di koleksi yang rule-nya sudah ada), begitu juga field
+   baru §5.15 di `transaksi_kasir`/`order_spk` dan field baru §5.18 di
+   `persiapan_masalah` (koleksi itu SUDAH ADA rule-nya) — beda dengan
+   `riwayat_pin` (§5.13), `piutang_pembayaran` (§5.15), dan
+   `permintaan_bahan_manual` (§5.18) yang semuanya butuh match block baru.
 5. Poin "Yang Belum Diputuskan" di tiap `SERAH-TERIMA.md` (daftar lengkap
    di §7) — **9 dari 37 sudah dijawab Guru 7 Sep 2026** (ditandai ✅ di
    tabel §7), plus 3 lagi ternyata sudah dijawab lebih dulu di §5.10.
@@ -503,14 +565,14 @@ DULU seluruhnya (langkah 5-9 baru di bawah) sebelum masuk Proses Produksi
 |---|---|---|---|
 | 1 | **Push & uji** Bahan/Acc Sewing/Webbing/Finishing yang sudah "kode selesai" | ⏳ Tugas Guru, belum dikonfirmasi | Prasyarat murni — modul-modul ini akan disentuh lagi di langkah 5-8 di bawah, harus stabil duluan |
 | 2 | Publish `firestore.rules` yang tertunda (`transaksi_kasir`, 6 koleksi Bahan/Acc, `master_pelanggan`) | ✅ **SELESAI** | Blocker keras yang sudah ada sebelum paket baru ini pun — semua rules s.d. §5.14 sudah dipublish |
-| 3 | Infrastruktur PIN sungguhan (`verifikasiPIN`, `pin_hash`) | ⏸️ **Sengaja dilewati** (pilihan Guru) | Dipakai banyak modul baru (Persiapan Belanja, Stok edit harga) — kerjakan sekali, pakai ulang. Tunggu Cloud Function/keputusan pendekatan. **Catatan 7 Sep 2026 malam**: Stok & Pembelian (§5.14) DAN Pesanan (§5.15) TIDAK menunggu langkah ini — ternyata sudah ada `users.pin_hash` dari Kiosk yang cukup dipakai ulang untuk kebutuhan modul-modul itu, lihat §2.3 |
+| 3 | Infrastruktur PIN sungguhan (`verifikasiPIN`, `pin_hash`) | ⏸️ **Sengaja dilewati** (pilihan Guru) | Dipakai banyak modul baru (Persiapan Belanja, Stok edit harga) — kerjakan sekali, pakai ulang. Tunggu Cloud Function/keputusan pendekatan. **Catatan 7 Sep 2026 malam**: Stok & Pembelian (§5.14) DAN Pesanan (§5.15) TIDAK menunggu langkah ini — ternyata sudah ada `users.pin_hash` dari Kiosk yang cukup dipakai ulang untuk kebutuhan modul-modul itu, lihat §2.3. Masalah (§5.18) TIDAK pakai PIN sama sekali (cukup gerbang role) |
 | 4 | Master Pelanggan + Master Suplayer (rebuild) | ✅ **KODE SELESAI KEDUANYA, RULES SELESAI KEDUANYA** (Suplayer §5.12, Pelanggan §5.14) — belum push/uji Guru | Data dasar yang dibutuhkan Pesanan piutang & Persiapan Belanja |
-| 5 | **Modul Scan generik** (Operator/Entry/Masalah/Pack/Kirim/Sampai, BARU §9.3) | 🔶 **FONDASI + RETROFIT BAHAN/ACC SELESAI (7 Sep 2026 malam lanjut, §5.16+§5.17, `STATUS-PROYEK.md`)** — `PopupPinGenerik`/`ScanGenerik` ditulis di `js/vue-scan-cetak.js` + menu "Scan & Cetak" dibangun (§5.16), lalu `ScanGenerik` ditulis ulang interface-nya supaya persis sama `ModalScanQr` dan **4 pos Persiapan Produksi (Bahan/Acc Sewing/Webbing/Finishing) SUDAH diretrofit** memakainya (§5.17) — bukti pertama komponen ini genuinely dipakai ulang (4 pemanggil, bukan cuma janji komentar). **Retrofit Masalah BELUM dikerjakan** (modul itu memang tidak pernah pakai `ModalScanQr` sebelumnya, jadi tidak ada yang direfaktor — akan relevan begitu Masalah di-REBUILD di langkah 6). **Scan "Sampai" ITU SENDIRI (field `sampai_pada`) MASIH BELUM PUNYA PENULIS** — §5.17 cuma ganti komponen kamera untuk 5 jenis scan yang SUDAH ADA (Operator/Entry/Masalah/Pack/Kirim), bukan menambah jenis scan baru, tetap menunggu Cutting. **LONCAT URUTAN**: dikerjakan lewat `/design-terapkan-handoff` "05 - Scan dan Cetak" atas instruksi Guru langsung, MELOMPATI langkah 1-4 di atas yang belum selesai (sama presedennya dengan Pesanan §5.15) — dan SEKALIAN memicu rencana bangun 5 modul Proses Produksi (Cutting/Sewing/Finishing/Serie/Gudang Barang Jadi, lihat baris baru di bagian Proses Produksi bawah tabel ini) lebih awal dari urutan asli §7-9 | Retrofit Bahan/Acc SELESAI; Masalah (nanti, bareng rebuild-nya) + disiapkan buat dipanggil Proses Produksi nanti — dikerjakan SEBELUM Cutting supaya Cutting dkk tinggal panggil, bukan bikin scan sendiri-sendiri lagi |
-| 6 | **Masalah** (rebuild total, 7 child-menu) | ⏳ Belum mulai | Bagian dari "Persiapan Produksi diperbarui dulu" — bisa mulai begitu langkah 5 selesai |
+| 5 | **Modul Scan generik** (Operator/Entry/Masalah/Pack/Kirim/Sampai, BARU §9.3) | 🔶 **FONDASI + RETROFIT BAHAN/ACC SELESAI (7 Sep 2026 malam lanjut, §5.16+§5.17, `STATUS-PROYEK.md`)** — `PopupPinGenerik`/`ScanGenerik` ditulis di `js/vue-scan-cetak.js` + menu "Scan & Cetak" dibangun (§5.16), lalu `ScanGenerik` ditulis ulang interface-nya supaya persis sama `ModalScanQr` dan **4 pos Persiapan Produksi (Bahan/Acc Sewing/Webbing/Finishing) SUDAH diretrofit** memakainya (§5.17). **Retrofit Masalah (5 dokumen `persiapan_masalah` dari scan, di 4 pos) MASIH BELUM DIKERJAKAN** — keputusan Guru eksplisit di §5.18 ("Modul Masalah dulu, retrofit menyusul"), BUKAN terlewat. **Scan "Sampai" ITU SENDIRI (field `sampai_pada`) MASIH BELUM PUNYA PENULIS** — tetap menunggu Cutting | Retrofit Bahan/Acc SELESAI; retrofit Masalah + Scan Sampai masih menyusul |
+| 6 | **Masalah** (rebuild total, 7 child-menu) | ✅ **SELESAI DITULIS (7 Sep 2026 malam lanjut, §5.18)** — instruksi Guru *"masalah gas"*. `js/vue-pp-masalah.js` baru, 7 tahap lengkap. **BELUM DITEST BROWSER.** Tampil KOSONG sampai retrofit langkah 5 (Scan Masalah di 4 pos) menyusul — keputusan cakupan Guru, bukan gap | Bagian dari "Persiapan Produksi diperbarui dulu" — SELESAI, tapi butuh retrofit langkah 5 supaya benar-benar terisi data |
 | 7 | **Kekurangan Bahan/Acc lain** (ambang tertahan per pos §9.1 + 4 gap kode nyata, ditemukan & DIPUTUSKAN 7 Sep 2026: PIN cetak-ulang belum diverifikasi kriptografis, Bahan belum ada gerbang-batch, Acc Webbing belum ada logic roll-sisa, Acc Finishing belum ada alur vendor-sablon terpisah — dikerjakan SEKALIGUS ke-4nya) | ⏳ Belum mulai, cakupan sudah lengkap | Bagian dari "Persiapan Produksi diperbarui dulu" |
 | 7b | **Zevanic House lain** (List Bahan grid/expand, margin persen, HPP, Riwayat PIN — BARU §9.2, ditemukan 7 Sep 2026) | ✅ Semua 4 keputusan diambil Guru + kode ditulis + `node --check` lolos + sudah dikirim ke `Code\` device (7 Sep 2026) — **BELUM DITEST BROWSER sama sekali**. Rule Firestore `riwayat_pin` **SUDAH dipublish** (7 Sep 2026 malam, bareng `piutang_pembayaran`) dan Riwayat PIN sendiri **PINDAH ke menu Scan & Cetak** (§5.16) — layar Config yang lama sudah dihapus | Master Suplayer/Pelanggan sudah selesai, tapi Master Bahan/Produk/Config di area yang sama ternyata masih ada gap dari wireframe — sekalian selagi di Zevanic House |
 | 7c | **Stok dan Pembelian** (rebuild 4 sub-tab: Daftar Nota, Riwayat Harga, Kartu Stok, Rak Penyimpanan — BARU `STATUS-PROYEK.md` §5.14, dikerjakan 7 Sep 2026 malam via `/design-terapkan-handoff`) | ✅ Kode ditulis + `node --check` lolos + dikirim ke `Code\` device (7 Sep 2026) — **BELUM DITEST BROWSER/FIRESTORE SAMA SEKALI**, dan modul ini sensitif UANG+STOK (harga pembelian, saldo stok) | List Order Belanja (poin 1 di §5) akhirnya DIEKSEKUSI di sini (dihapus total dari kode, bukan cuma diputuskan). Kartu Stok/Scan Persiapan sempat ada salah premis rencana (lihat pelajaran baru `STATUS-PROYEK.md` §6) — sudah diperbaiki lewat konfirmasi ulang ke Guru |
-| 8 | **Persiapan Belanja** | ⏳ Belum mulai | Butuh Masalah (langkah 6) sudah jadi dulu (sumber pengajuan). Sisi penerima di Stok & Pembelian (Daftar Nota) sudah siap duluan (§7c) |
+| 8 | **Persiapan Belanja** | ⏳ Belum mulai | Butuh Masalah (langkah 6) sudah jadi dulu (sumber pengajuan) — **langkah 6 SEKARANG SUDAH SELESAI DITULIS (§5.18)**, jadi prasyarat ini terpenuhi dari sisi kode (status `diajukan_belanja` sudah disiapkan sebagai pintu keluar), TAPI belum ditest browser. Sisi penerima di Stok & Pembelian (Daftar Nota) sudah siap duluan (§7c) |
 | 9 | Vendor | ⏳ Belum mulai | Setelah keputusan §5 poin 2 diambil — bagian akhir Persiapan Produksi sebelum pindah ke Proses Produksi |
 | 10 | **Cutting** | ⏳ Belum mulai | Proses Produksi mulai di sini, SETELAH langkah 5-9 (Persiapan Produksi) selesai — bukan lagi langkah 5 seperti rencana lama |
 | 11 | **Serie** | ⏳ Belum mulai | Hub — semua pos lain bergantung padanya |
@@ -549,8 +611,8 @@ atas tabel ini.
 | Acc Sewing | Komponen kecil (D-ring, cord lock) — dihitung ketat per pcs atau per kantong dgn toleransi? | ✅ **Arah baru dari Guru**: dibuat kode kemasan tambahan per komponen kecil yang SUDAH dikemas per jumlah tetap (mis. 25/24 pcs) sebelum dipakai — perlu menu "Kemasan Komponen Acc" (ganti nama dari "Bagging Acc") di Stok. BUILD ITEM baru, skema belum didesain — lihat §9.4 |
 | Acc Webbing | Roll terpakai sebagian — sama seperti poin lintas modul di atas | ✅ Sama seperti roll webbing lintas modul: **stok sisa, kode sendiri** |
 | Acc Finishing | Kekurangan hangtag 1 warna — menahan seluruh SPK atau cuma baris warna itu? | ✅ **Cuma baris warna itu** — baris warna lain tetap lanjut diproses |
-| Masalah | Kumulatif lintas grouping — dihitung live atau di-cache? | ✅ **Dihitung live**, konsisten dengan pola "dihitung live" di modul lain |
-| Masalah | Batas waktu pengajuan sebelum auto-eskalasi | |
+| Masalah | Kumulatif lintas grouping — dihitung live atau di-cache? | ✅ **Dihitung live**, konsisten dengan pola "dihitung live" di modul lain — **DIIMPLEMENTASIKAN (§5.18)**: `hitungPakaiPerMinggu()` baca `spk_track` langsung tiap render, tidak ada field cache |
+| Masalah | Batas waktu pengajuan sebelum auto-eskalasi | *(masih terbuka — §5.18 tidak menjawab ini, tidak ada infrastruktur cron/scheduled function di app ini untuk auto-eskalasi. Tombol "Ajukan" di Perlu Diajukan tetap manual per kartu bahan — lihat `STATUS-PROYEK.md` §5.18 poin 1, judgment call)* |
 | Persiapan Belanja | Format WA order — bisa diedit admin? | |
 | Persiapan Belanja | Driver bisa tambah item di luar order (order tambahan)? | |
 | Persiapan Belanja | Batas waktu ACC sebelum auto-cancel | |
@@ -592,33 +654,44 @@ atas tabel ini.
   walau sudah diputuskan). **7 Sep 2026 malam lagi**: folder handoff
   `01 - Pesanan dan Transaksi` (SERAH-TERIMA.md, PEDOMAN-SERAH-TERIMA.md,
   SPESIFIKASI-KOLEKSI-BARU.md, wireframe.dc.html) dibaca ulang penuh
-  untuk `/design-terapkan-handoff` §5.15
+  untuk `/design-terapkan-handoff` §5.15. **7 Sep 2026 malam lanjut
+  lagi**: folder handoff "Persiapan Produksi - Masalah" dibaca ulang
+  penuh (SERAH-TERIMA.md + PEDOMAN-SERAH-TERIMA.md universal) untuk
+  `/design-terapkan-handoff` §5.18
 - `PETA-DATABASE.md`, `PETA-MENU.md`, `PEDOMAN-GAYA-KERJA.md` (dibaca
   penuh sesi ini)
 - Verifikasi kode live: `git clone gechooco-ship-it/zevanic-erp-ui`,
   **diperbarui 7 Sep 2026** ke commit `92083d5` ("test") — sebelumnya
   commit 2 Sep ("uppp") sudah ketinggalan 2 commit
-- `STATUS-PROYEK.md` §5.9 (Pipeline Produksi placeholder), §5.10-§5.15
+- `STATUS-PROYEK.md` §5.9 (Pipeline Produksi placeholder), §5.10-§5.18
   (histori rebuild Persiapan Produksi V2, Master Suplayer, Prefix Kode
   SPK, Master Pelanggan, Zevanic House 4 gap wireframe, Stok dan
-  Pembelian, Pesanan dan Transaksi) — **§5.15 di `STATUS-PROYEK.md`
-  sekarang berisi Pesanan dan Transaksi** (rekonstruksi 7 Sep 2026 malam
-  lagi), Stok dan Pembelian ada di §5.14, Zevanic House 4 gap di §5.13,
-  Master Pelanggan di §5.12 (penomoran §5.x bergeser seiring sesi
-  berjalan, selalu cek nomor section aktual di `STATUS-PROYEK.md`, jangan
-  asumsikan dari dokumen ini)
+  Pembelian, Pesanan dan Transaksi, fondasi Scan & Cetak, retrofit 4 pos
+  Persiapan Produksi, rebuild Masalah) — **§5.18 di `STATUS-PROYEK.md`
+  sekarang berisi Persiapan Produksi > Masalah** (rebuild 7 Sep 2026
+  malam lanjut lagi), retrofit Scan Generik ada di §5.17, Stok dan
+  Pembelian ada di §5.14, Zevanic House 4 gap di §5.13, Master Pelanggan
+  di §5.12 (penomoran §5.x bergeser seiring sesi berjalan, selalu cek
+  nomor section aktual di `STATUS-PROYEK.md`, jangan asumsikan dari
+  dokumen ini)
 
 **Status dokumen ini**: langkah 1-4 di §6 sudah berjalan (rincian per
 langkah ada di `STATUS-PROYEK.md` §5.12-§5.13), plus 2 pekerjaan
 tambahan di luar urutan numerik (7b Zevanic House, 7c Stok dan
 Pembelian) sudah SELESAI DITULIS 7 Sep 2026 — rules `master_pelanggan`
-sudah dipublish 7 Sep 2026. **DITAMBAH (7 Sep 2026 malam lagi)**: langkah
-15 (Pesanan piutang) JUGA sudah SELESAI DITULIS, LONCAT dari urutan atas
-permintaan Guru — rules `piutang_pembayaran` BELUM dipublish (blocker
-baru). Langkah 5-14 dan 16 BELUM dimulai — menunggu Guru push+uji kode
-Master Pelanggan/Suplayer (langkah 4) DAN Zevanic House (7b) DAN Stok dan
-Pembelian (7c) DAN Pesanan (15) sebelum langkah 5 (Modul Scan generik)
-dan seterusnya dimulai, sesuai urutan yang disarankan di sini.
+sudah dipublish 7 Sep 2026. Langkah 15 (Pesanan piutang) JUGA sudah
+SELESAI DITULIS, LONCAT dari urutan atas permintaan Guru — rules
+`piutang_pembayaran` BELUM dipublish (blocker). Langkah 5 (fondasi +
+retrofit 4 pos Bahan/Acc) SELESAI. **DITAMBAH (7 Sep 2026 malam lanjut
+lagi)**: langkah **6 (Masalah, rebuild total 7 tahap) SEKARANG JUGA
+SELESAI DITULIS** — `js/vue-pp-masalah.js` baru, retrofit Scan Masalah
+di 4 pos SENGAJA ditunda ke sesi lain (keputusan cakupan Guru). Langkah
+7-14 dan 16 BELUM dimulai — menunggu Guru push+uji kode Master
+Pelanggan/Suplayer (langkah 4) DAN Zevanic House (7b) DAN Stok dan
+Pembelian (7c) DAN Pesanan (15) DAN Masalah (6) sebelum langkah 7 dan
+seterusnya dimulai, sesuai urutan yang disarankan di sini. Rules
+`piutang_pembayaran` DAN `permintaan_bahan_manual` KEDUANYA masih
+menunggu Publish Guru — 2 blocker keras aktif bersamaan.
 
 ---
 
@@ -740,6 +813,16 @@ perubahan validasi, jadi tidak ada risiko migrasi data. Retrofit ke
 didesain hanya bentuk API untuk 5 modul Proses Produksi (Cutting dst)
 nanti: parameter (`pos`, `tahap`, callback per jenis scan) belum
 dibutuhkan konkret sampai Cutting mulai dikerjakan (langkah 10 §6).
+
+**UPDATE LAGI (7 Sep 2026 malam lanjut lagi, §5.18)**: Masalah **REBUILD
+TOTAL SELESAI DITULIS** (`js/vue-pp-masalah.js`) — TAPI retrofit "Scan
+Masalah supaya benar-benar membuat dokumen `persiapan_masalah`" di 4 pos
+Bahan/Acc Sewing/Webbing/Finishing **SENGAJA BELUM dikerjakan**, sesuai
+keputusan cakupan eksplisit Guru ("Modul Masalah dulu, retrofit
+menyusul"). Sampai retrofit itu ada, ke-4 pos itu masih cuma catat
+`catatan_masalah` teks bebas (perilaku LAMA, tidak berubah), dan modul
+Masalah baru akan tampil KOSONG di semua 7 tabnya. Ini PR terpisah yang
+masih menunggu giliran — BUKAN bagian dari cakupan §5.18.
 
 **Belum didesain (sisa)**: bentuk API parameter untuk Proses Produksi
 (`pos`, `tahap`, callback per jenis scan) — belum dibutuhkan konkret

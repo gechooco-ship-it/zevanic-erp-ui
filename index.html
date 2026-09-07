@@ -330,6 +330,10 @@
           <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-finishing', this, {catatRiwayat:true}); pindahSubTab('sub-pp-finishing-tahap','sub-pp-finishing-perludisiapkan', null, {catatRiwayat:true})" id="menu-pp-finishing-btn" data-menu-id="pp_finishing" data-target="sub-pp-finishing" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-check-double" style="width:17px; text-align:center;"></i> Acc Finishing
           </button>
+          <!-- BARU (7 Sep 2026, §5.18) — Masalah, langkah 6 rencana rekonstruksi. -->
+          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-masalah', this, {catatRiwayat:true}); pindahSubTab('sub-pp-masalah-tahap','sub-pp-masalah-perludiajukan', null, {catatRiwayat:true})" id="menu-pp-masalah-btn" data-menu-id="pp_masalah" data-target="sub-pp-masalah" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-triangle-exclamation" style="width:17px; text-align:center;"></i> Masalah
+          </button>
         </div>
 
         <!-- BARU (7 Sep 2026 malam) — grup top-level "Scan & Cetak" (sejajar
@@ -1065,6 +1069,41 @@
             </div>
           </div>
 
+          <!-- BARU (7 Sep 2026, §5.18) — Masalah, 7 sub-tab (rebuild total
+               dari fitur lama, lihat js/vue-pp-masalah.js). -->
+          <div id="sub-pp-masalah" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
+            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+              <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-perludiajukan', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-masalah-perludiajukan"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Diajukan</button>
+              <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-menunggusetuju', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn" data-target="sub-pp-masalah-menunggusetuju"><i class="fas fa-hourglass-half" style="margin-right:6px;"></i> Menunggu Setuju</button>
+              <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-perludisiapkan', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn" data-target="sub-pp-masalah-perludisiapkan"><i class="fas fa-list-check" style="margin-right:6px;"></i> Perlu Disiapkan</button>
+              <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-sedangdisiapkan', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn" data-target="sub-pp-masalah-sedangdisiapkan"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Disiapkan</button>
+              <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-perludikirim', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn" data-target="sub-pp-masalah-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Di Kirim</button>
+              <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-sedangdikirim', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn" data-target="sub-pp-masalah-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Di Kirim</button>
+              <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-selesai', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn" data-target="sub-pp-masalah-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
+            </div>
+            <div id="sub-pp-masalah-perludiajukan" class="sub-pp-masalah-tahap-content fade-in space-y-4">
+              <div id="vue-pp-masalah-perludiajukan"></div>
+            </div>
+            <div id="sub-pp-masalah-menunggusetuju" class="sub-pp-masalah-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-masalah-menunggusetuju"></div>
+            </div>
+            <div id="sub-pp-masalah-perludisiapkan" class="sub-pp-masalah-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-masalah-perludisiapkan"></div>
+            </div>
+            <div id="sub-pp-masalah-sedangdisiapkan" class="sub-pp-masalah-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-masalah-sedangdisiapkan"></div>
+            </div>
+            <div id="sub-pp-masalah-perludikirim" class="sub-pp-masalah-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-masalah-perludikirim"></div>
+            </div>
+            <div id="sub-pp-masalah-sedangdikirim" class="sub-pp-masalah-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-masalah-sedangdikirim"></div>
+            </div>
+            <div id="sub-pp-masalah-selesai" class="sub-pp-masalah-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-masalah-selesai"></div>
+            </div>
+          </div>
+
         </div>
 
         <!-- BARU (7 Sep 2026 malam) — "Scan & Cetak" (grup top-level baru,
@@ -1322,6 +1361,11 @@
   <script type="module" src="js/vue-persiapan-sewing.js?v=3"></script>
   <script type="module" src="js/vue-persiapan-webbing.js?v=3"></script>
   <script type="module" src="js/vue-persiapan-finishing.js?v=3"></script>
+  <!-- BARU (7 Sep 2026, §5.18) — Persiapan Produksi > Masalah, 7 tahap,
+       skema TRB baru (rebuild total dari fitur "Persiapan Masalah" lama,
+       yang sekarang cuma papan manual biasa, lihat js/vue-persiapan-
+       masalah.js — koleksinya sudah dipindah ke permintaan_bahan_manual). -->
+  <script type="module" src="js/vue-pp-masalah.js?v=1"></script>
   <!-- BARU (30 Agt 2026) — grup top-level "Pesanan": Penjualan Kasir (POS),
        Menunggu Proses (CRUD SPK, DISALIN dari OrderSpkManager lama),
        Proses Persiapan/Produksi/Pengiriman (ringkasan read-only dari
