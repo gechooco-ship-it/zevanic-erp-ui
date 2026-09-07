@@ -334,6 +334,12 @@
           <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-masalah', this, {catatRiwayat:true}); pindahSubTab('sub-pp-masalah-tahap','sub-pp-masalah-perludiajukan', null, {catatRiwayat:true})" id="menu-pp-masalah-btn" data-menu-id="pp_masalah" data-target="sub-pp-masalah" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-triangle-exclamation" style="width:17px; text-align:center;"></i> Masalah
           </button>
+          <!-- BARU (7 Sep 2026) — Persiapan Belanja, folder terakhir grup
+               Persiapan Produksi per PEDOMAN-SERAH-TERIMA.md. Lihat
+               js/vue-persiapan-belanja.js untuk dokumentasi arsitektur. -->
+          <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-belanja', this, {catatRiwayat:true}); pindahSubTab('sub-pp-belanja-tahap','sub-pp-belanja-persiapanadmin', null, {catatRiwayat:true})" id="menu-pp-belanja-btn" data-menu-id="pp_belanja" data-target="sub-pp-belanja" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-cart-shopping" style="width:17px; text-align:center;"></i> Persiapan Belanja
+          </button>
         </div>
 
         <!-- BARU (7 Sep 2026 malam) — grup top-level "Scan & Cetak" (sejajar
@@ -390,8 +396,8 @@
           <button onclick="pindahTab('tab-proses-produksi'); pindahSubTab('sub-proses-produksi','sub-pr-finishing', this, {catatRiwayat:true}); pindahSubTab('sub-pr-finishing-tahap','sub-pr-finishing-perludiproses', null, {catatRiwayat:true})" id="menu-pr-finishing-btn" data-menu-id="proses_finishing" data-target="sub-pr-finishing" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-check-double" style="width:17px; text-align:center;"></i> Finishing
           </button>
-          <button onclick="alert('Gudang Barang Jadi belum dibangun.')" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px; opacity:.55;">
-            <i class="fas fa-warehouse" style="width:17px; text-align:center;"></i> Gudang Barang Jadi <span style="margin-left:auto; font-size:9.5px;">(segera hadir)</span>
+          <button onclick="pindahTab('tab-proses-produksi'); pindahSubTab('sub-proses-produksi','sub-pr-gudang', this, {catatRiwayat:true}); pindahSubTab('sub-pr-gudang-tahap','sub-pr-gudang-perludisimpan', null, {catatRiwayat:true})" id="menu-pr-gudang-btn" data-menu-id="proses_gudang" data-target="sub-pr-gudang" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-warehouse" style="width:17px; text-align:center;"></i> Gudang Barang Jadi
           </button>
         </div>
 
@@ -1133,6 +1139,31 @@
             </div>
           </div>
 
+          <!-- BARU (7 Sep 2026) — Persiapan Belanja. 4 tab: Persiapan Admin
+               (8.1, input nota + keyboard-first entry), Menunggu ACC (8.1.3,
+               owner-gated), List Order Driver (8.2, HP driver: beli/pending),
+               Riwayat Belanja (8.3, read-only). -->
+          <div id="sub-pp-belanja" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
+            <div class="flex gap-2 flex-wrap border-b border-gray-200 pb-2">
+              <button onclick="pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-persiapanadmin', this, {catatRiwayat:true})" class="sub-pp-belanja-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-belanja-persiapanadmin"><i class="fas fa-pen-to-square" style="margin-right:6px;"></i> Persiapan Admin</button>
+              <button onclick="pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-menungguacc', this, {catatRiwayat:true})" class="sub-pp-belanja-tahap-btn gc-sub-tab-btn" data-target="sub-pp-belanja-menungguacc"><i class="fas fa-hourglass-half" style="margin-right:6px;"></i> Menunggu ACC</button>
+              <button onclick="pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-listorderdriver', this, {catatRiwayat:true})" class="sub-pp-belanja-tahap-btn gc-sub-tab-btn" data-target="sub-pp-belanja-listorderdriver"><i class="fas fa-motorcycle" style="margin-right:6px;"></i> List Order Driver</button>
+              <button onclick="pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-riwayat', this, {catatRiwayat:true})" class="sub-pp-belanja-tahap-btn gc-sub-tab-btn" data-target="sub-pp-belanja-riwayat"><i class="fas fa-receipt" style="margin-right:6px;"></i> Riwayat Belanja</button>
+            </div>
+            <div id="sub-pp-belanja-persiapanadmin" class="sub-pp-belanja-tahap-content fade-in space-y-4">
+              <div id="vue-pp-belanja-persiapanadmin"></div>
+            </div>
+            <div id="sub-pp-belanja-menungguacc" class="sub-pp-belanja-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-belanja-menungguacc"></div>
+            </div>
+            <div id="sub-pp-belanja-listorderdriver" class="sub-pp-belanja-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-belanja-listorderdriver"></div>
+            </div>
+            <div id="sub-pp-belanja-riwayat" class="sub-pp-belanja-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-belanja-riwayat"></div>
+            </div>
+          </div>
+
         </div>
 
         <!-- BARU (7 Sep 2026 malam) — "Scan & Cetak" (grup top-level baru,
@@ -1400,6 +1431,31 @@
               <div id="vue-finishing-selesai"></div>
             </div>
           </div>
+
+          <!-- BARU ("lanjut lagi" #5, 7 Sep 2026 — sesi ini) — Gudang Barang
+               Jadi, 4 tab. Titik akhir rantai produksi, beroperasi langsung
+               di atas koleksi label_pcs (TANPA koleksi tracking baru). Lihat
+               komentar besar di js/vue-pp-gudang.js. -->
+          <div id="sub-pr-gudang" class="sub-proses-produksi-content hidden fade-in space-y-4">
+            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+              <button onclick="pindahSubTab('sub-pr-gudang-tahap', 'sub-pr-gudang-perludisimpan', this, {catatRiwayat:true})" class="sub-pr-gudang-tahap-btn gc-sub-tab-btn active" data-target="sub-pr-gudang-perludisimpan"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Disimpan</button>
+              <button onclick="pindahSubTab('sub-pr-gudang-tahap', 'sub-pr-gudang-stoktersedia', this, {catatRiwayat:true})" class="sub-pr-gudang-tahap-btn gc-sub-tab-btn" data-target="sub-pr-gudang-stoktersedia"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Stok Tersedia</button>
+              <button onclick="pindahSubTab('sub-pr-gudang-tahap', 'sub-pr-gudang-riwayatkeluar', this, {catatRiwayat:true})" class="sub-pr-gudang-tahap-btn gc-sub-tab-btn" data-target="sub-pr-gudang-riwayatkeluar"><i class="fas fa-receipt" style="margin-right:6px;"></i> Riwayat Keluar</button>
+              <button onclick="pindahSubTab('sub-pr-gudang-tahap', 'sub-pr-gudang-scanopname', this, {catatRiwayat:true})" class="sub-pr-gudang-tahap-btn gc-sub-tab-btn" data-target="sub-pr-gudang-scanopname"><i class="fas fa-clipboard-check" style="margin-right:6px;"></i> Scan Opname</button>
+            </div>
+            <div id="sub-pr-gudang-perludisimpan" class="sub-pr-gudang-tahap-content fade-in space-y-4">
+              <div id="vue-gudang-perludisimpan"></div>
+            </div>
+            <div id="sub-pr-gudang-stoktersedia" class="sub-pr-gudang-tahap-content hidden fade-in space-y-4">
+              <div id="vue-gudang-stoktersedia"></div>
+            </div>
+            <div id="sub-pr-gudang-riwayatkeluar" class="sub-pr-gudang-tahap-content hidden fade-in space-y-4">
+              <div id="vue-gudang-riwayatkeluar"></div>
+            </div>
+            <div id="sub-pr-gudang-scanopname" class="sub-pr-gudang-tahap-content hidden fade-in space-y-4">
+              <div id="vue-gudang-scanopname"></div>
+            </div>
+          </div>
         </div>
 
         <div id="tab-whatsapp" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
@@ -1547,16 +1603,16 @@
   <script type="module" src="js/vue-persiapan-produksi-v2.js?v=3"></script>
   <!-- BARU (31 Agt 2026, wireframe handoff "Persiapan Produksi - Bahan") —
        jalur Bahan GANTI TOTAL, lihat komentar besar di file ini. -->
-  <script type="module" src="js/vue-persiapan-bahan.js?v=4"></script>
+  <script type="module" src="js/vue-persiapan-bahan.js?v=6"></script>
   <!-- BARU (1 Sep 2026, wireframe handoff "Persiapan Produksi - Acc
        Sewing/Webbing/Finishing", 3 pos dikerjakan sekaligus atas instruksi
        eksplisit Guru — menyimpang dari aturan "satu modul per sesi" di
        README handoff) — jalur Acc Sewing/Webbing/Finishing GANTI TOTAL,
        kartu = 1 spk_track (beda dari Bahan yang kartu = 1 bahan+warna),
        lihat komentar besar di masing-masing file. -->
-  <script type="module" src="js/vue-persiapan-sewing.js?v=3"></script>
-  <script type="module" src="js/vue-persiapan-webbing.js?v=3"></script>
-  <script type="module" src="js/vue-persiapan-finishing.js?v=3"></script>
+  <script type="module" src="js/vue-persiapan-sewing.js?v=5"></script>
+  <script type="module" src="js/vue-persiapan-webbing.js?v=6"></script>
+  <script type="module" src="js/vue-persiapan-finishing.js?v=5"></script>
   <!-- BARU (7 Sep 2026, §5.18) — Persiapan Produksi > Masalah, 7 tahap,
        skema TRB baru (rebuild total dari fitur "Persiapan Masalah" lama,
        yang sekarang cuma papan manual biasa, lihat js/vue-persiapan-
@@ -1789,5 +1845,15 @@
        finishing_track). Lihat komentar besar di js/vue-pp-finishing.js
        untuk latar belakang & keputusan arsitektur lengkap. -->
   <script type="module" src="js/vue-pp-finishing.js?v=1"></script>
+  <!-- BARU ("lanjut lagi" #5, 7 Sep 2026 — sesi ini, setelah Finishing) —
+       Proses Produksi > Gudang Barang Jadi, 4 tab (titik akhir rantai
+       produksi). Lihat komentar besar di js/vue-pp-gudang.js untuk latar
+       belakang & keputusan arsitektur lengkap. -->
+  <script type="module" src="js/vue-pp-gudang.js?v=1"></script>
+  <!-- BARU (7 Sep 2026 — sesi ini) — Persiapan Produksi > Persiapan Belanja,
+       folder terakhir grup Persiapan Produksi. Lihat komentar besar di
+       js/vue-persiapan-belanja.js untuk latar belakang & keputusan
+       arsitektur lengkap. -->
+  <script type="module" src="js/vue-persiapan-belanja.js?v=1"></script>
 </body>
 </html>

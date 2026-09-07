@@ -265,6 +265,10 @@ const DAFTAR_MENU = [
   // total, langkah 6 rencana rekonstruksi). Lihat js/vue-pp-masalah.js.
   { id: 'pp_masalah', label: 'Persiapan Produksi - Masalah', kategori: 'Persiapan Produksi', icon: 'fa-triangle-exclamation',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-masalah', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-perludiajukan', null, {catatRiwayat:true}); } },
+  // BARU (7 Sep 2026 — sesi ini) — Persiapan Belanja, folder terakhir grup
+  // Persiapan Produksi. Lihat js/vue-persiapan-belanja.js.
+  { id: 'pp_belanja', label: 'Persiapan Produksi - Persiapan Belanja', kategori: 'Persiapan Produksi', icon: 'fa-cart-shopping',
+    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-belanja', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-persiapanadmin', null, {catatRiwayat:true}); } },
   // BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi > Cutting, grup
   // top-level baru (langkah 10 rencana rekonstruksi, dikerjakan loncat
   // urutan atas instruksi Guru: "retrofit Scan Masalah supaya clear lanjut
@@ -294,6 +298,13 @@ const DAFTAR_MENU = [
   // Lihat js/vue-pp-finishing.js.
   { id: 'proses_finishing', label: 'Proses Produksi - Finishing', kategori: 'Proses Produksi', icon: 'fa-check-double',
     aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-finishing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-finishing-tahap', 'sub-pr-finishing-perludiproses', null, {catatRiwayat:true}); } },
+  // BARU ("lanjut lagi" #5, 7 Sep 2026 — sesi ini) — Proses Produksi >
+  // Gudang Barang Jadi, NESTED di grup top-level "Proses Produksi" yang
+  // SUDAH ada dari Cutting/Serie/Sewing/Finishing (bukan grup baru) -- satu
+  // izin menu untuk semua 4 tab Gudang, sama pola seperti proses_finishing.
+  // Lihat js/vue-pp-gudang.js.
+  { id: 'proses_gudang', label: 'Proses Produksi - Gudang Barang Jadi', kategori: 'Proses Produksi', icon: 'fa-warehouse',
+    aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-gudang', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-gudang-tahap', 'sub-pr-gudang-perludisimpan', null, {catatRiwayat:true}); } },
   // BARU (30 Agt 2026) — grup top-level "Pesanan" (sejajar Zevanic House/
   // Persiapan Produksi). REKONSTRUKSI (7 Sep 2026, handoff "Pesanan dan
   // Transaksi") — 3 id lama (pesanan_persiapan/produksi/pengiriman, ringkasan

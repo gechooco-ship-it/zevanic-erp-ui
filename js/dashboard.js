@@ -424,10 +424,13 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
       // — sesi ini) — 'sub-pr-finishing-tahap' (5 tab) + 'sub-pr-finishing-sedang'
       // (grup nested di dalam tab 4.2 "Sedang Finishing", 4 sub-tab
       // QC/Steam/Folding/Packing) ditambahkan sekarang Finishing sudah
-      // fungsional (js/vue-pp-finishing.js). Gudang Barang Jadi MASIH belum
-      // dibangun (placeholder alert di tombol sidebar, tidak butuh entry di
-      // sini).
-      'sub-proses-produksi': 'tab-proses-produksi', 'sub-pr-cutting-tahap': 'tab-proses-produksi', 'sub-pr-serie-tahap': 'tab-proses-produksi', 'sub-pr-sewing-tahap': 'tab-proses-produksi', 'sub-pr-finishing-tahap': 'tab-proses-produksi', 'sub-pr-finishing-sedang-sub': 'tab-proses-produksi' };
+      // fungsional (js/vue-pp-finishing.js). BARU LAGI ("lanjut lagi" #5, 7
+      // Sep 2026 — sesi ini) — 'sub-pr-gudang-tahap' (4 tab) ditambahkan
+      // sekarang Gudang Barang Jadi sudah fungsional (js/vue-pp-gudang.js).
+      // BARU LAGI ("lanjut lagi" #6, 7 Sep 2026 — sesi ini) — 'sub-pp-belanja-
+      // tahap' ditambahkan sekarang Persiapan Belanja sudah fungsional
+      // (js/vue-persiapan-belanja.js, folder terakhir grup Persiapan Produksi).
+      'sub-proses-produksi': 'tab-proses-produksi', 'sub-pr-cutting-tahap': 'tab-proses-produksi', 'sub-pr-serie-tahap': 'tab-proses-produksi', 'sub-pr-sewing-tahap': 'tab-proses-produksi', 'sub-pr-finishing-tahap': 'tab-proses-produksi', 'sub-pr-finishing-sedang-sub': 'tab-proses-produksi', 'sub-pr-gudang-tahap': 'tab-proses-produksi', 'sub-pp-belanja-tahap': 'tab-persiapan-produksi' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -629,7 +632,19 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-pr-finishing-sedangpacking': 'pastikanMountFinishingSedangPacking',
     'sub-pr-finishing-perludikirim': 'pastikanMountFinishingPerluDikirim',
     'sub-pr-finishing-sedangkirim': 'pastikanMountFinishingSedangKirim',
-    'sub-pr-finishing-selesai': 'pastikanMountFinishingSelesai'
+    'sub-pr-finishing-selesai': 'pastikanMountFinishingSelesai',
+    // BARU ("lanjut lagi" #5, 7 Sep 2026 — sesi ini) — Proses Produksi >
+    // Gudang Barang Jadi, 4 tab, lihat js/vue-pp-gudang.js.
+    'sub-pr-gudang-perludisimpan': 'pastikanMountGudangPerluDisimpan',
+    'sub-pr-gudang-stoktersedia': 'pastikanMountGudangStokTersedia',
+    'sub-pr-gudang-riwayatkeluar': 'pastikanMountGudangRiwayatKeluar',
+    'sub-pr-gudang-scanopname': 'pastikanMountGudangScanOpname',
+    // BARU ("lanjut lagi" #6, 7 Sep 2026 — sesi ini) — Persiapan Produksi >
+    // Persiapan Belanja, 4 tab, lihat js/vue-persiapan-belanja.js.
+    'sub-pp-belanja-persiapanadmin': 'pastikanMountPpBelanjaPersiapanAdmin',
+    'sub-pp-belanja-menungguacc': 'pastikanMountPpBelanjaMenungguAcc',
+    'sub-pp-belanja-listorderdriver': 'pastikanMountPpBelanjaListOrderDriver',
+    'sub-pp-belanja-riwayat': 'pastikanMountPpBelanjaRiwayat'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();
