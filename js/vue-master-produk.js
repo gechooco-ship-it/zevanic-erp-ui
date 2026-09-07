@@ -1951,6 +1951,296 @@ const MasterProdukListManager = {
   `
 };
 
+// ---------------------------------------------------------------------------
+// MasterProdukHppManager — halaman "HPP" (Harga Pokok Produksi per produk),
+// tab child ke-3 Master Produk (BARU 7 Sep 2026, wireframe step 2.3).
+//
+// KEPUTUSAN KUNCI (jangan disederhanakan sendiri kalau lanjut ubah file
+// ini) — dipertanyakan ke Guru lewat wireframe §7 "Yang Belum Diputuskan":
+// "HPP: cache as field, atau always live from BOM?" Guru pilih **"Dihitung
+// live (Recommended)"**. Konsekuensinya:
+//   - `rincianBom` (subtotal Bahan Kain, Aksesoris, Jasa Cutting, Jasa
+//     Serie, Jasa Lain) SELALU dihitung ulang di browser dari `bom_pola`/
+//     `bom_aksesoris`/`bom_jasa` produk + harga_pemakaian TERKINI dari
+//     master_bahan_aksesoris — TIDAK PERNAH dibaca dari field cache.
+//   - `hppTotal`/`marginJual`/`marginPersen` juga SELALU turunan live dari
+//     rincianBom + biayaTambahan saat itu — TIDAK ADA field `hpp`/
+//     `hpp_total` yang ditulis ke Firestore.
+//   - SATU-SATUNYA hal yang benar-benar di-`updateDoc()` oleh tombol
+//     "Simpan" di sini adalah field BARU `biaya_tambahan_hpp` (array
+//     {nama, jumlah}) — input manual per produk (mis. Ongkos Kirim,
+//     Overhead, Packaging, QC/reject — contoh di wireframe, BUKAN kategori
+//     baku, baris & labelnya bebas ditambah/hapus/ubah oleh user). Ini
+//     rekonsiliasi caption wireframe "Simpan HPP tersimpan per produk" vs
+//     metadata aksi wireframe yang lebih spesifik "Simpan biaya tambahan"
+//     — field yang PERSIS disimpan cuma biaya_tambahan_hpp, HPP-nya sendiri
+//     tetap live (tidak kontradiksi dengan keputusan Guru di atas).
+//
+// harga_pemakaian yang dibaca di sini SUDAH otomatis mengikuti perubahan
+// margin_modal berbasis persen di js/vue-bahan-aksesoris.js (diubah sesi
+// yang sama, lihat file itu) — tidak ada logic margin yang diulang di sini,
+// field-nya dibaca APA ADANYA dari master_bahan_aksesoris.
+//
+// Pola ambil data SAMA seperti js/vue-order-spk.js ("Pilih Produk (SKU)"):
+// ambilSemuaProduk() (lokal, tidak perlu import krn 1 file) + DropdownCari
+// dengan opsi label string "SKU — Nama Warna Size", resolve balik lewat
+// .find(). Peta harga Bahan/Aksesoris (bahan_aksesoris_id -> dokumen)
+// dibangun SEKALI saat mount dari ambilDaftarBahanAksesorisLengkap() (fungsi
+// yang sama dipakai dropdown Bahan di FormEntryProdukBOM atas file ini) —
+// BUKAN query per baris BOM.
+// ---------------------------------------------------------------------------
+const MasterProdukHppManager = {
+  setup() {
+    const MENU_ID = 'master_produk_hpp';
+    const memuatAwal = ref(true);
+    const daftarProduk = ref([]);
+    const mapBahan = ref(new Map());
+
+    const labelTerpilih = ref('');
+    const produkTerpilih = ref(null);
+    // biayaTambahan — draft LOKAL baris "Biaya tambahan" (nama+jumlah),
+    // disinkron dari field tersimpan `biaya_tambahan_hpp` tiap kali ganti
+    // produk / sesudah Simpan sukses. reactive() (bukan ref array) supaya
+    // v-for @input langsung ubah elemen tanpa perlu .value di template.
+    const biayaTambahan = reactive([]);
+    const sedangSimpan = ref(false);
+
+    function formatLabelProdukHpp(p) {
+      return `${p.sku || '-'} — ${[p.nama, p.warna, p.size].filter(Boolean).join(' ')}`;
+    }
+    const opsiProdukLabel = computed(() => daftarProduk.value.map(formatLabelProdukHpp));
+
+    function muatBiayaTambahanDari(p) {
+      biayaTambahan.splice(0, biayaTambahan.length);
+      (p.biaya_tambahan_hpp || []).forEach(row => biayaTambahan.push({ nama: row.nama || '', jumlah: row.jumlah || 0 }));
+    }
+
+    function pilihProduk(label) {
+      const p = daftarProduk.value.find(x => formatLabelProdukHpp(x) === label);
+      labelTerpilih.value = label;
+      produkTerpilih.value = p || null;
+      if (p) muatBiayaTambahanDari(p); else biayaTambahan.splice(0, biayaTambahan.length);
+    }
+    function lepasProduk() {
+      labelTerpilih.value = '';
+      produkTerpilih.value = null;
+      biayaTambahan.splice(0, biayaTambahan.length);
+    }
+
+    function tambahBiaya() { biayaTambahan.push({ nama: '', jumlah: 0 }); }
+    function hapusBiaya(i) { biayaTambahan.splice(i, 1); }
+
+    // hargaBahan — resolve 1 bahan_aksesoris_id ke harga_pemakaian TERKINI
+    // lewat mapBahan (dibangun sekali di onMounted). `ditemukan:false` kalau
+    // id-nya TERISI tapi item-nya sudah tidak ada lagi di master_bahan_
+    // aksesoris (dihapus) — dipakai buat banner peringatan, kontribusinya
+    // ke subtotal tetap dianggap 0 (bukan error/crash). id kosong (baris BOM
+    // yang memang belum pernah pilih bahan) BUKAN dianggap "hilang".
+    function hargaBahan(id) {
+      if (!id) return { harga: 0, ditemukan: true };
+      const item = mapBahan.value.get(id);
+      return item ? { harga: parseFloat(item.harga_pemakaian) || 0, ditemukan: true } : { harga: 0, ditemukan: false };
+    }
+
+    // rincianBom — "Komponen otomatis" (panel kiri), read-only, dihitung
+    // ULANG tiap kali computed ini dibaca (live, lihat catatan besar di
+    // atas). null kalau belum ada produk terpilih.
+    const rincianBom = computed(() => {
+      const p = produkTerpilih.value;
+      if (!p) return null;
+      const pola = p.bom_pola || [];
+      const aksesoris = p.bom_aksesoris || [];
+      const jasa = p.bom_jasa || [];
+      let bahanKain = 0, jasaCutting = 0, jasaSerie = 0, referensiHilang = 0;
+      for (const b of pola) {
+        const h = hargaBahan(b.bahan_aksesoris_id);
+        if (!h.ditemukan) referensiHilang++;
+        bahanKain += (parseFloat(b.panjang) || 0) * h.harga;
+        jasaCutting += parseFloat(b.jasa_cutting) || 0;
+        jasaSerie += parseFloat(b.jasa_serie) || 0;
+      }
+      let aksesorisTotal = 0;
+      for (const a of aksesoris) {
+        const h = hargaBahan(a.bahan_aksesoris_id);
+        if (!h.ditemukan) referensiHilang++;
+        aksesorisTotal += (parseFloat(a.qty) || 0) * h.harga;
+      }
+      const jasaLain = totalHargaJasa(p);
+      const subtotal = bahanKain + aksesorisTotal + jasaCutting + jasaSerie + jasaLain;
+      return {
+        bahanKain, aksesorisTotal, jasaCutting, jasaSerie, jasaLain, subtotal,
+        jumlahPola: pola.length, jumlahAksesoris: aksesoris.length,
+        bomKosong: pola.length === 0 && aksesoris.length === 0 && jasa.length === 0,
+        referensiHilang
+      };
+    });
+
+    const subtotalTambahan = computed(() => biayaTambahan.reduce((s, r) => s + (parseFloat(r.jumlah) || 0), 0));
+    const hppTotal = computed(() => (rincianBom.value ? rincianBom.value.subtotal : 0) + subtotalTambahan.value);
+    const hargaJualTerpilih = computed(() => parseFloat(produkTerpilih.value?.harga_jual) || 0);
+    const marginJual = computed(() => hargaJualTerpilih.value - hppTotal.value);
+    // marginPersen — null kalau Harga Jual belum diisi/0 (dianggap "belum
+    // bisa dihitung", BUKAN 0%/negatif tak terhingga) — template tampilkan
+    // '-' untuk kasus ini, sesuai wireframe (margin % turunan margin/harga
+    // jual).
+    const marginPersen = computed(() => hargaJualTerpilih.value > 0 ? (marginJual.value / hargaJualTerpilih.value) * 100 : null);
+
+    const bolehSimpan = computed(() => window.cekIzinMenu(MENU_ID, 'edit') !== false);
+
+    async function simpanBiayaTambahan() {
+      if (!produkTerpilih.value) return;
+      if (!bolehSimpan.value) { alert('Anda tidak punya izin menyimpan di sini. Hubungi Owner/PIC.'); return; }
+      sedangSimpan.value = true;
+      try {
+        const bersih = biayaTambahan
+          .filter(r => (r.nama || '').trim())
+          .map(r => ({ nama: (r.nama || '').trim(), jumlah: parseFloat(r.jumlah) || 0 }));
+        await updateDoc(doc(db, 'master_produk', produkTerpilih.value.id), { biaya_tambahan_hpp: bersih });
+        produkTerpilih.value.biaya_tambahan_hpp = bersih; // sinkron objek lokal (daftarProduk tidak perlu reload ulang)
+        muatBiayaTambahanDari(produkTerpilih.value);
+        alert('Biaya tambahan berhasil disimpan.');
+      } catch (e) {
+        console.error('Gagal simpan Biaya Tambahan HPP:', e);
+        alert('Gagal menyimpan Biaya Tambahan. Coba lagi.');
+      }
+      sedangSimpan.value = false;
+    }
+
+    onMounted(async () => {
+      try {
+        const [produk, bahan] = await Promise.all([ambilSemuaProduk(), ambilDaftarBahanAksesorisLengkap()]);
+        daftarProduk.value = produk;
+        mapBahan.value = new Map(bahan.map(b => [b.id, b]));
+      } catch (e) {
+        console.error('Gagal memuat data awal HPP Master Produk:', e);
+      }
+      memuatAwal.value = false;
+    });
+
+    return {
+      memuatAwal, opsiProdukLabel, labelTerpilih, produkTerpilih, pilihProduk, lepasProduk,
+      biayaTambahan, tambahBiaya, hapusBiaya,
+      rincianBom, subtotalTambahan, hppTotal, marginJual, marginPersen,
+      sedangSimpan, simpanBiayaTambahan, bolehSimpan,
+      formatRupiah
+    };
+  },
+  template: `
+    <div>
+      <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-bottom:4px;"><i class="fas fa-calculator" style="color:var(--burgundy); margin-right:8px;"></i>HPP (Harga Pokok Produksi)</h3>
+      <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Dihitung LIVE dari BOM produk (Bahan, Aksesoris, Jasa) tiap kali dibuka — bukan angka yang disimpan. Cuma "Biaya tambahan" yang benar-benar tersimpan per produk.</p>
+
+      <div class="gc-card" style="margin-bottom:16px;">
+        <div class="gc-field" style="margin-bottom:0;">
+          <label>Cari Produk / SKU</label>
+          <dropdown-cari :model-value="labelTerpilih" :opsi="opsiProdukLabel" placeholder="Cari SKU / Nama / Warna / Size produk..." @update:modelValue="pilihProduk" />
+          <button v-if="produkTerpilih" @click="lepasProduk" type="button" class="btn-outline" style="font-size:10.5px; padding:3px 8px; margin-top:6px;">Ganti Produk</button>
+        </div>
+      </div>
+
+      <div v-if="memuatAwal" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Memuat data produk...</div>
+
+      <div v-else-if="!produkTerpilih" class="gc-card" style="text-align:center; padding:32px 20px; color:var(--text-faint); font-size:12.5px;">
+        <i class="fas fa-magnifying-glass" style="font-size:22px; margin-bottom:10px; display:block;"></i>
+        Pilih produk dulu di atas untuk melihat rincian HPP-nya.
+      </div>
+
+      <template v-else>
+        <!-- Kartu ringkasan produk terpilih -->
+        <div class="gc-card" style="margin-bottom:16px; display:flex; gap:14px; align-items:center; flex-wrap:wrap;">
+          <img v-if="produkTerpilih.foto" :src="produkTerpilih.foto" style="width:64px; height:64px; object-fit:cover; border-radius:10px; flex-shrink:0;">
+          <div v-else style="width:64px; height:64px; border-radius:10px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><i class="fas fa-tshirt" style="color:var(--text-faint); font-size:18px;"></i></div>
+          <div style="flex:1; min-width:180px;">
+            <div style="font-weight:700; font-size:14px;">{{ produkTerpilih.nama }}</div>
+            <div style="font-size:11.5px; color:var(--text-muted);">{{ [produkTerpilih.warna, produkTerpilih.size].filter(Boolean).join(' · ') || '-' }}</div>
+            <div style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">SKU: {{ produkTerpilih.sku || '-' }}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:10px; color:var(--text-faint);">Harga Jual</div>
+            <div style="font-weight:700; font-size:15px; color:var(--burgundy);">{{ produkTerpilih.harga_jual > 0 ? formatRupiah(produkTerpilih.harga_jual) : '-' }}</div>
+          </div>
+        </div>
+
+        <div v-if="rincianBom.bomKosong" style="font-size:11.5px; color:var(--text-muted); background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:14px;">
+          <i class="fas fa-circle-info" style="margin-right:5px;"></i>Produk ini belum punya data BOM sama sekali (Jasa/Pola/Aksesoris kosong) — subtotal BOM dihitung Rp 0. Lengkapi dulu di tab Entry Produk kalau perlu.
+        </div>
+        <div v-if="rincianBom.referensiHilang > 0" class="tag warn" style="margin-bottom:14px;">
+          <i class="fas fa-triangle-exclamation"></i>{{ rincianBom.referensiHilang }} referensi Bahan/Aksesoris di BOM produk ini sudah tidak ditemukan (kemungkinan sudah dihapus) — dihitung Rp 0 di rincian, tidak menghentikan perhitungan.
+        </div>
+
+        <div style="display:grid; gap:16px;" class="grid-cols-1 md:grid-cols-2">
+          <!-- Panel kiri: Komponen otomatis (read-only, dari BOM) -->
+          <div class="gc-card">
+            <h4 style="font-weight:700; font-size:13px; margin-bottom:12px;"><i class="fas fa-gears" style="color:var(--burgundy); margin-right:6px;"></i>Komponen otomatis</h4>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div style="display:flex; justify-content:space-between; gap:10px;">
+                <div><div style="font-size:12.5px; font-weight:600;">Bahan kain (BOM Pola)</div><div style="font-size:10.5px; color:var(--text-faint);">{{ rincianBom.jumlahPola }} pola × harga pemakaian</div></div>
+                <div style="font-weight:700; font-size:12.5px; flex-shrink:0;">{{ formatRupiah(rincianBom.bahanKain) }}</div>
+              </div>
+              <div style="display:flex; justify-content:space-between; gap:10px;">
+                <div><div style="font-size:12.5px; font-weight:600;">Aksesoris (BOM Aksesoris)</div><div style="font-size:10.5px; color:var(--text-faint);">{{ rincianBom.jumlahAksesoris }} item × harga pemakaian</div></div>
+                <div style="font-weight:700; font-size:12.5px; flex-shrink:0;">{{ formatRupiah(rincianBom.aksesorisTotal) }}</div>
+              </div>
+              <div style="display:flex; justify-content:space-between; gap:10px;">
+                <div><div style="font-size:12.5px; font-weight:600;">Jasa Cutting</div><div style="font-size:10.5px; color:var(--text-faint);">otomatis dari BOM Pola</div></div>
+                <div style="font-weight:700; font-size:12.5px; flex-shrink:0;">{{ formatRupiah(rincianBom.jasaCutting) }}</div>
+              </div>
+              <div style="display:flex; justify-content:space-between; gap:10px;">
+                <div><div style="font-size:12.5px; font-weight:600;">Jasa Serie</div><div style="font-size:10.5px; color:var(--text-faint);">otomatis dari BOM Pola</div></div>
+                <div style="font-weight:700; font-size:12.5px; flex-shrink:0;">{{ formatRupiah(rincianBom.jasaSerie) }}</div>
+              </div>
+              <div style="display:flex; justify-content:space-between; gap:10px;">
+                <div><div style="font-size:12.5px; font-weight:600;">Jasa lain (Steam, Bordir, dst)</div><div style="font-size:10.5px; color:var(--text-faint);">manual dari BOM Jasa</div></div>
+                <div style="font-weight:700; font-size:12.5px; flex-shrink:0;">{{ formatRupiah(rincianBom.jasaLain) }}</div>
+              </div>
+              <div style="display:flex; justify-content:space-between; gap:10px; border-top:1.5px solid var(--line); padding-top:10px; margin-top:2px;">
+                <div style="font-size:12.5px; font-weight:700;">Subtotal BOM</div>
+                <div style="font-weight:700; font-size:13.5px; color:var(--burgundy);">{{ formatRupiah(rincianBom.subtotal) }}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Panel kanan: Biaya tambahan (input manual, TERSIMPAN) -->
+          <div class="gc-card">
+            <h4 style="font-weight:700; font-size:13px; margin-bottom:12px;"><i class="fas fa-plus-minus" style="color:var(--burgundy); margin-right:6px;"></i>Biaya tambahan</h4>
+            <p style="font-size:10.5px; color:var(--text-faint); margin-bottom:10px;">Contoh: Ongkos Kirim, Overhead Pabrik, Packaging, QC/Reject — bebas ditambah/hapus/ubah nama sesuai kebutuhan produk ini.</p>
+            <div v-if="biayaTambahan.length === 0" style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px;">Belum ada baris biaya tambahan.</div>
+            <div v-for="(r, i) in biayaTambahan" :key="i" class="gc-row-nq" style="margin-bottom:8px;">
+              <div class="gc-field" style="margin-bottom:0;"><span class="gc-row-label">Nama Biaya</span><input v-model="r.nama" type="text" placeholder="Mis. Ongkos Kirim"></div>
+              <div class="gc-field" style="margin-bottom:0;"><span class="gc-row-label">Jumlah</span><input v-model.number="r.jumlah" type="number" min="0" placeholder="0"></div>
+              <div style="display:flex; justify-content:flex-end; align-items:center;"><button @click="hapusBiaya(i)" type="button" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button></div>
+            </div>
+            <button @click="tambahBiaya" type="button" class="btn-outline" style="font-size:11.5px; margin-bottom:14px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Biaya</button>
+            <div style="display:flex; justify-content:space-between; gap:10px; border-top:1.5px solid var(--line); padding-top:10px;">
+              <div style="font-size:12.5px; font-weight:700;">Subtotal tambahan</div>
+              <div style="font-weight:700; font-size:13.5px; color:var(--burgundy);">{{ formatRupiah(subtotalTambahan) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hasil akhir -->
+        <div style="display:grid; gap:16px; margin-top:16px;" class="grid-cols-1 md:grid-cols-2">
+          <div class="gc-card" style="text-align:center;">
+            <div style="font-size:11px; color:var(--text-faint); font-weight:700; letter-spacing:.03em; margin-bottom:6px;">HPP</div>
+            <div style="font-weight:700; font-size:22px; color:var(--burgundy);">{{ formatRupiah(hppTotal) }}</div>
+            <div style="font-size:10.5px; color:var(--text-faint); margin-top:4px;">Subtotal BOM + Subtotal tambahan</div>
+          </div>
+          <div class="gc-card" style="text-align:center;">
+            <div style="font-size:11px; color:var(--text-faint); font-weight:700; letter-spacing:.03em; margin-bottom:6px;">Margin jual</div>
+            <div style="font-weight:700; font-size:22px;" :style="{ color: marginJual >= 0 ? 'var(--ok)' : 'var(--danger)' }">{{ formatRupiah(marginJual) }}</div>
+            <div style="font-size:10.5px; color:var(--text-faint); margin-top:4px;">{{ marginPersen === null ? 'Isi Harga Jual dulu untuk lihat %' : (marginPersen.toFixed(1) + '% dari Harga Jual') }}</div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;">
+          <button @click="simpanBiayaTambahan" :disabled="sedangSimpan" class="btn-primary" style="width:100%;">{{ sedangSimpan ? 'Menyimpan...' : 'Simpan' }}</button>
+          <p style="font-size:10px; color:var(--text-faint); text-align:center; margin-top:6px;">Yang tersimpan cuma daftar Biaya tambahan di atas — HPP/Margin selalu dihitung ulang otomatis, tidak ada angka yang di-cache.</p>
+        </div>
+      </template>
+    </div>
+  `
+};
+
 // --- Mount, pola SAMA seperti js/vue-order-spk.js / vue-bahan-aksesoris.js -
 const AppMasterProdukEntry = { components: { MasterProdukEntryManager }, template: `<master-produk-entry-manager />` };
 let vmMasterProdukEntry = null;
@@ -1966,4 +2256,14 @@ window.pastikanMountProdukList = function() {
   if (vmMasterProdukList) return;
   const mountPoint = document.getElementById('vue-master-produk-list');
   if (mountPoint) vmMasterProdukList = createApp(AppMasterProdukList).mount('#vue-master-produk-list');
+};
+
+// BARU (7 Sep 2026) — tab child ke-3 "HPP", lihat MasterProdukHppManager di
+// atas. Desktop-only per wireframe (peran: Admin/Owner, device: Desktop).
+const AppMasterProdukHpp = { components: { MasterProdukHppManager }, template: `<master-produk-hpp-manager />` };
+let vmMasterProdukHpp = null;
+window.pastikanMountProdukHpp = function() {
+  if (vmMasterProdukHpp) return;
+  const mountPoint = document.getElementById('vue-master-produk-hpp');
+  if (mountPoint) vmMasterProdukHpp = createApp(AppMasterProdukHpp).mount('#vue-master-produk-hpp');
 };

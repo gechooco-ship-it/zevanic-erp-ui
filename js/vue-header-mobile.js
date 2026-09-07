@@ -101,6 +101,7 @@ const LABEL_SUBTAB = {
   // GANTI (5 Sep 2026) — dulu 'sub-zh-config-suplayer': 'Data Suplayer',
   // CRUD Suplayer pindah ke 3 entry 'sub-zh-suplayer-*' di bawah.
   'sub-zh-config-tlc': 'TLC & Prefix',
+  'sub-zh-config-riwayatpin': 'Riwayat PIN',
   'sub-zh-config-tahappersiapan': 'Persiapan Untuk Tahap',
   'sub-zh-databahan-entry': 'Entry Bahan & Aksesoris',
   'sub-zh-databahan-list': 'List Bahan & Aksesoris',

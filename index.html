@@ -240,7 +240,7 @@
           <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-
                master-produk.js. Posisi SENGAJA setelah Stock & Pembelian,
                sebelum Order SPK (keputusan Hilman). -->
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-produk', this, {catatRiwayat:true}); pindahSubTab('sub-zh-produk','sub-zh-produk-entry', null, {catatRiwayat:true})" id="menu-zevanic-produk-btn" data-menu-ids="master_produk_entry,master_produk_list" data-target="sub-zevanic-house-produk" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-produk', this, {catatRiwayat:true}); pindahSubTab('sub-zh-produk','sub-zh-produk-entry', null, {catatRiwayat:true})" id="menu-zevanic-produk-btn" data-menu-ids="master_produk_entry,master_produk_list,master_produk_hpp" data-target="sub-zevanic-house-produk" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-layer-group" style="width:17px; text-align:center;"></i> Master Produk
           </button>
           <!-- BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4)
@@ -704,6 +704,11 @@
                    suplayer.js). Sekarang "TLC & Prefix" — daftar titik TLC (asal/
                    tujuan kode tugas), lihat AppConfigTlc di js/vue-config.js. -->
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-tlc', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-location-dot" style="margin-right:6px;"></i> TLC &amp; Prefix</button>
+              <!-- BARU (7 Sep 2026) — "Riwayat PIN" (SERAH-TERIMA.md §2 grup 4.1),
+                   lihat AppConfigRiwayatPin di js/vue-config.js. Layar BACA SAJA,
+                   koleksi `riwayat_pin` BARU — SAH tampil kosong terus sampai
+                   modul Scan & PIN (belum dibangun) mulai menulis ke sini. -->
+              <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-riwayatpin', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i> Riwayat PIN</button>
             </div>
             <div id="sub-zh-config-jenisbahan" class="sub-zh-config-content fade-in space-y-4">
               <div id="vue-config-jenisbahan"></div>
@@ -731,6 +736,9 @@
             </div>
             <div id="sub-zh-config-tlc" class="sub-zh-config-content hidden fade-in space-y-4">
               <div id="vue-config-tlc"></div>
+            </div>
+            <div id="sub-zh-config-riwayatpin" class="sub-zh-config-content hidden fade-in space-y-4">
+              <div id="vue-config-riwayatpin"></div>
             </div>
           </div>
 
@@ -817,18 +825,23 @@
           </div>
 
           <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-
-               master-produk.js. 2 tab child (Entry Produk / List Produk),
+               master-produk.js. 3 tab child (Entry Produk / List Produk /
+               HPP — HPP BARU 7 Sep 2026, wireframe step 2.3, Desktop-only),
                pola SAMA seperti Data Bahan & Aksesoris di atas. -->
           <div id="sub-zevanic-house-produk" class="sub-zevanic-house-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-zh-produk', 'sub-zh-produk-entry', this, {catatRiwayat:true})" class="sub-zh-produk-btn gc-sub-tab-btn active" data-menu-id="master_produk_entry" data-target="sub-zh-produk-entry"><i class="fas fa-box-open" style="margin-right:6px;"></i> Entry Produk</button>
               <button onclick="pindahSubTab('sub-zh-produk', 'sub-zh-produk-list', this, {catatRiwayat:true})" class="sub-zh-produk-btn gc-sub-tab-btn" data-menu-id="master_produk_list" data-target="sub-zh-produk-list"><i class="fas fa-list" style="margin-right:6px;"></i> List Produk</button>
+              <button onclick="pindahSubTab('sub-zh-produk', 'sub-zh-produk-hpp', this, {catatRiwayat:true})" class="sub-zh-produk-btn gc-sub-tab-btn" data-menu-id="master_produk_hpp" data-target="sub-zh-produk-hpp"><i class="fas fa-calculator" style="margin-right:6px;"></i> HPP</button>
             </div>
             <div id="sub-zh-produk-entry" class="sub-zh-produk-content fade-in space-y-4">
               <div id="vue-master-produk-entry"></div>
             </div>
             <div id="sub-zh-produk-list" class="sub-zh-produk-content hidden fade-in space-y-4">
               <div id="vue-master-produk-list"></div>
+            </div>
+            <div id="sub-zh-produk-hpp" class="sub-zh-produk-content hidden fade-in space-y-4">
+              <div id="vue-master-produk-hpp"></div>
             </div>
           </div>
 
@@ -1336,7 +1349,7 @@
        GANTI tab "Data Suplayer" jadi "TLC & Prefix" (AppConfigTlc, koleksi
        master_tlc BARU) — cache-bust ikut import baru firestore/firebase-
        config di file ini. -->
-  <script type="module" src="js/vue-config.js?v=6"></script>
+  <script type="module" src="js/vue-config.js?v=7"></script>
   <!-- BARU (5 Sep 2026) — Zevanic House > Master Suplayer: Entry & List
        (5.1) + Alias & MOQ (5.2, eks "Alias Pembelian" Stock & Pembelian,
        DITAMBAH moq/moq_satuan/lead_time_hari) + Petakan Order (5.3, BARU
@@ -1395,6 +1408,6 @@
   <!-- v=18 (30 Agt 2026, fitur "Pesanan"): field baru `harga_jual` (Entry
        Produk form + payload simpan() + kartu List Produk) — dipakai
        Penjualan Kasir, lihat js/vue-pesanan.js. -->
-  <script type="module" src="js/vue-master-produk.js?v=18"></script>
+  <script type="module" src="js/vue-master-produk.js?v=19"></script>
 </body>
 </html>

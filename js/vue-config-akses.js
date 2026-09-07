@@ -179,6 +179,21 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-entry', null, {catatRiwayat:true}); } },
   { id: 'master_produk_list', label: 'List Produk', kategori: 'Zevanic House', icon: 'fa-list',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-list', null, {catatRiwayat:true}); } },
+  // BARU (7 Sep 2026) — Master Produk > HPP (wireframe step 2.3, Harga
+  // Pokok Produksi per produk), lihat MasterProdukHppManager di js/vue-
+  // master-produk.js. Menu-id TERPISAH (bukan numpang di master_produk_
+  // entry/list) — konsisten dengan pola tab child lain di Master Produk
+  // (tiap tab punya menu-id sendiri, lihat 2 entry di atas), supaya Owner
+  // bisa atur akses HPP terpisah dari Entry/List kalau perlu (mis. kasih
+  // Admin akses lihat HPP tanpa boleh entry BOM). Default AKSES: HANYA
+  // Owner (kebijakan baku menu baru project ini, lihat catatan di js/vue-
+  // config.js baris ~27) — kalau Guru mau Admin/PIC juga bisa akses,
+  // sama seperti master_produk_entry/list, atur manual lewat Config Akses
+  // sesudah kode ini live (SENGAJA tidak disamakan otomatis di sini,
+  // menu-id ini beda dari master_produk_entry/list jadi tidak ikut warisan
+  // izin yang sudah Guru atur untuk 2 menu itu).
+  { id: 'master_produk_hpp', label: 'HPP', kategori: 'Zevanic House', icon: 'fa-calculator',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-hpp', null, {catatRiwayat:true}); } },
   // BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
   // Master Pelanggan: koleksi & menu BARU TOTAL, lihat js/vue-master-
   // pelanggan.js. Single-view, 1 menu-id saja (tidak ada sub-tab).

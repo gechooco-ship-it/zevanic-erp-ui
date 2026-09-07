@@ -435,6 +435,9 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // (CRUD Suplayer generik, PINDAH ke 3 entry Master Suplayer di bawah).
     // Tab ini sekarang "TLC & Prefix" (AppConfigTlc, koleksi master_tlc BARU).
     'sub-zh-config-tlc': 'pastikanMountConfigTlc',
+    // BARU (7 Sep 2026) — "Riwayat PIN" (SERAH-TERIMA.md §2 grup 4.1), lihat
+    // AppConfigRiwayatPin di js/vue-config.js.
+    'sub-zh-config-riwayatpin': 'pastikanMountConfigRiwayatPin',
     'sub-zh-databahan-entry': 'pastikanMountBahanAksesorisEntry',
     'sub-zh-databahan-list': 'pastikanMountBahanAksesorisList',
     'sub-zh-databahan-rak': 'pastikanMountRakPenyimpanan',
@@ -456,6 +459,8 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // BARU (27 Agt 2026, §28) — Master Produk (BOM).
     'sub-zh-produk-entry': 'pastikanMountProdukEntry',
     'sub-zh-produk-list': 'pastikanMountProdukList',
+    // BARU (7 Sep 2026) — Master Produk > HPP (wireframe step 2.3), Desktop-only.
+    'sub-zh-produk-hpp': 'pastikanMountProdukHpp',
     // BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
     // Master Pelanggan, single-view (lihat js/vue-master-pelanggan.js).
     'sub-zevanic-house-pelanggan': 'pastikanMountMasterPelanggan',

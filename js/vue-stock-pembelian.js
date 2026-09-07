@@ -1646,12 +1646,14 @@ const OrderBelanjaScreen = {
         hargaModalBaru = isiKonversiSaatIni > 0 ? hargaPembelianBaru / isiKonversiSaatIni : 0;
       }
 
+      // margin_modal sekarang PERSEN (bukan Rp flat) — lihat vue-bahan-aksesoris.js.
+      // harga_pemakaian = harga_modal + harga_modal * margin_modal / 100.
       const marginModal = parseFloat(bahan.margin_modal) || 0;
       const payload = {
         harga_pembelian: hargaPembelianBaru,
         harga_modal: hargaModalBaru,
         margin_modal: marginModal,
-        harga_pemakaian: hargaModalBaru + marginModal,
+        harga_pemakaian: hargaModalBaru + (hargaModalBaru * marginModal / 100),
         harga_diupdate_dari_riwayat_pada: serverTimestamp()
       };
       if (konversiBertingkatBaru) payload.konversi_bertingkat = konversiBertingkatBaru;
