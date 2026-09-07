@@ -105,6 +105,24 @@
 > --check` lolos, BELUM DITEST BROWSER/FIRESTORE SAMA SEKALI** — jangan
 > dianggap siap pakai. Langkah 5-14 di §6 di bawah TETAP berlaku apa
 > adanya untuk urutan sisanya (tidak berubah karena penyimpangan ini).
+>
+> **UPDATE progres (7 Sep 2026, malam lanjut) — langkah 5 lanjut jalan,
+> urutan KEMBALI ke rencana**: setelah fondasi Scan & Cetak (§5.16) &
+> loncatan Pesanan (§5.15) di atas, Guru instruksikan lanjut sesuai
+> urutan yang sudah disepakati (*"oke kita gas step selanjutanya
+> persiapan produksi"*) — **4 pos Persiapan Produksi (Bahan/Acc Sewing/
+> Webbing/Finishing) diretrofit memakai `ScanGenerik`**, menggantikan
+> `ModalScanQr` yang dulu disalin identik 4x. `ScanGenerik` ditulis ulang
+> interface-nya dulu (§5.16 draft-nya ternyata single-shot, tidak
+> mendukung "scan berkali-kali" yang dibutuhkan 4 modul ini) supaya
+> persis sama perilakunya dengan `ModalScanQr` — baru dipasang. **Ini
+> BUKTI PERTAMA `ScanGenerik` genuinely dipakai ulang lintas file** (4
+> pemanggil), bukan cuma janji arsitektur di komentar kode. Perilaku
+> scan TIDAK berubah sama sekali (murni ganti komponen, bukan fitur
+> baru). Detail lengkap: `STATUS-PROYEK.md` §5.17. **BELUM DITEST
+> BROWSER SAMA SEKALI** — `node --check` lolos ke-5 file yang diubah.
+> Urutan langkah 6-14 di §6 di bawah TIDAK berubah, giliran berikutnya
+> tetap Masalah (langkah 6) lalu sisanya sesuai tabel.
 
 ---
 
@@ -487,7 +505,7 @@ DULU seluruhnya (langkah 5-9 baru di bawah) sebelum masuk Proses Produksi
 | 2 | Publish `firestore.rules` yang tertunda (`transaksi_kasir`, 6 koleksi Bahan/Acc, `master_pelanggan`) | ✅ **SELESAI** | Blocker keras yang sudah ada sebelum paket baru ini pun — semua rules s.d. §5.14 sudah dipublish |
 | 3 | Infrastruktur PIN sungguhan (`verifikasiPIN`, `pin_hash`) | ⏸️ **Sengaja dilewati** (pilihan Guru) | Dipakai banyak modul baru (Persiapan Belanja, Stok edit harga) — kerjakan sekali, pakai ulang. Tunggu Cloud Function/keputusan pendekatan. **Catatan 7 Sep 2026 malam**: Stok & Pembelian (§5.14) DAN Pesanan (§5.15) TIDAK menunggu langkah ini — ternyata sudah ada `users.pin_hash` dari Kiosk yang cukup dipakai ulang untuk kebutuhan modul-modul itu, lihat §2.3 |
 | 4 | Master Pelanggan + Master Suplayer (rebuild) | ✅ **KODE SELESAI KEDUANYA, RULES SELESAI KEDUANYA** (Suplayer §5.12, Pelanggan §5.14) — belum push/uji Guru | Data dasar yang dibutuhkan Pesanan piutang & Persiapan Belanja |
-| 5 | **Modul Scan generik** (Operator/Entry/Masalah/Pack/Kirim/Sampai, BARU §9.3) | 🔶 **FONDASI SELESAI (7 Sep 2026 malam, §5.16, `STATUS-PROYEK.md`)** — `PopupPinGenerik`/`ScanGenerik` ditulis di `js/vue-scan-cetak.js` + menu "Scan & Cetak" dibangun. **Retrofit Bahan/Acc/Masalah yang sudah live BELUM dikerjakan** (langkah 6/7 di bawah TIDAK otomatis ikut kepakai infrastruktur ini). **LONCAT URUTAN**: dikerjakan lewat `/design-terapkan-handoff` "05 - Scan dan Cetak" atas instruksi Guru langsung, MELOMPATI langkah 1-4 di atas yang belum selesai (sama presedennya dengan Pesanan §5.15) — dan SEKALIAN memicu rencana bangun 5 modul Proses Produksi (Cutting/Sewing/Finishing/Serie/Gudang Barang Jadi, lihat baris baru di bagian Proses Produksi bawah tabel ini) lebih awal dari urutan asli §7-9 | Retrofit Bahan/Acc/Masalah yang sudah live + disiapkan buat dipanggil Proses Produksi nanti — dikerjakan SEBELUM Cutting supaya Cutting dkk tinggal panggil, bukan bikin scan sendiri-sendiri lagi |
+| 5 | **Modul Scan generik** (Operator/Entry/Masalah/Pack/Kirim/Sampai, BARU §9.3) | 🔶 **FONDASI + RETROFIT BAHAN/ACC SELESAI (7 Sep 2026 malam lanjut, §5.16+§5.17, `STATUS-PROYEK.md`)** — `PopupPinGenerik`/`ScanGenerik` ditulis di `js/vue-scan-cetak.js` + menu "Scan & Cetak" dibangun (§5.16), lalu `ScanGenerik` ditulis ulang interface-nya supaya persis sama `ModalScanQr` dan **4 pos Persiapan Produksi (Bahan/Acc Sewing/Webbing/Finishing) SUDAH diretrofit** memakainya (§5.17) — bukti pertama komponen ini genuinely dipakai ulang (4 pemanggil, bukan cuma janji komentar). **Retrofit Masalah BELUM dikerjakan** (modul itu memang tidak pernah pakai `ModalScanQr` sebelumnya, jadi tidak ada yang direfaktor — akan relevan begitu Masalah di-REBUILD di langkah 6). **Scan "Sampai" ITU SENDIRI (field `sampai_pada`) MASIH BELUM PUNYA PENULIS** — §5.17 cuma ganti komponen kamera untuk 5 jenis scan yang SUDAH ADA (Operator/Entry/Masalah/Pack/Kirim), bukan menambah jenis scan baru, tetap menunggu Cutting. **LONCAT URUTAN**: dikerjakan lewat `/design-terapkan-handoff` "05 - Scan dan Cetak" atas instruksi Guru langsung, MELOMPATI langkah 1-4 di atas yang belum selesai (sama presedennya dengan Pesanan §5.15) — dan SEKALIAN memicu rencana bangun 5 modul Proses Produksi (Cutting/Sewing/Finishing/Serie/Gudang Barang Jadi, lihat baris baru di bagian Proses Produksi bawah tabel ini) lebih awal dari urutan asli §7-9 | Retrofit Bahan/Acc SELESAI; Masalah (nanti, bareng rebuild-nya) + disiapkan buat dipanggil Proses Produksi nanti — dikerjakan SEBELUM Cutting supaya Cutting dkk tinggal panggil, bukan bikin scan sendiri-sendiri lagi |
 | 6 | **Masalah** (rebuild total, 7 child-menu) | ⏳ Belum mulai | Bagian dari "Persiapan Produksi diperbarui dulu" — bisa mulai begitu langkah 5 selesai |
 | 7 | **Kekurangan Bahan/Acc lain** (ambang tertahan per pos §9.1 + 4 gap kode nyata, ditemukan & DIPUTUSKAN 7 Sep 2026: PIN cetak-ulang belum diverifikasi kriptografis, Bahan belum ada gerbang-batch, Acc Webbing belum ada logic roll-sisa, Acc Finishing belum ada alur vendor-sablon terpisah — dikerjakan SEKALIGUS ke-4nya) | ⏳ Belum mulai, cakupan sudah lengkap | Bagian dari "Persiapan Produksi diperbarui dulu" |
 | 7b | **Zevanic House lain** (List Bahan grid/expand, margin persen, HPP, Riwayat PIN — BARU §9.2, ditemukan 7 Sep 2026) | ✅ Semua 4 keputusan diambil Guru + kode ditulis + `node --check` lolos + sudah dikirim ke `Code\` device (7 Sep 2026) — **BELUM DITEST BROWSER sama sekali**. Rule Firestore `riwayat_pin` **SUDAH dipublish** (7 Sep 2026 malam, bareng `piutang_pembayaran`) dan Riwayat PIN sendiri **PINDAH ke menu Scan & Cetak** (§5.16) — layar Config yang lama sudah dihapus | Master Suplayer/Pelanggan sudah selesai, tapi Master Bahan/Produk/Config di area yang sama ternyata masih ada gap dari wireframe — sekalian selagi di Zevanic House |
@@ -707,11 +725,25 @@ Persiapan" (file spesifik, sudah ada & baru diperluas) dengan "modul Scan
 generik" (rencana besar 6-jenis-scan yang masih di langkah 5, belum
 mulai).
 
-**Belum didesain**: nama file/struktur komponen generiknya, bentuk API
-parameter (`pos`, `tahap`, callback per jenis scan), bagaimana retrofit
-ke 4 modul Persiapan Produksi yang sudah live dilakukan tanpa mengganggu
-data yang sudah berjalan (Bahan/Acc SUDAH push+diuji Guru per 7 Sep 2026,
-lihat §5.4/§1 — bukan lagi "0 data live"). Field-level behavior per pos
+**UPDATE (7 Sep 2026 malam lanjut, §5.17)**: retrofit ke 4 modul Persiapan
+Produksi (Bahan/Acc Sewing/Webbing/Finishing) **SUDAH SELESAI** — komponen
+`ScanGenerik` ditulis ulang interface-nya (props `aktif`/`judul`/
+`subjudul`, emit `hasil`/`tutup`, perilaku "scan berkali-kali" identik)
+supaya jadi drop-in replacement untuk `ModalScanQr` yang dulu disalin 4x,
+lalu ke-4 file diganti memakainya. **Data yang sudah berjalan TIDAK
+terganggu** — ini murni ganti komponen kamera, 0 field Firestore baru, 0
+perubahan validasi, jadi tidak ada risiko migrasi data. Retrofit ke
+`persiapan_masalah` BELUM relevan (modul itu tidak pernah pakai
+`ModalScanQr`) — akan dikerjakan sekalian saat Masalah di-REBUILD
+(langkah 6 §6). Nama file & lokasi komponen generik SUDAH ditentukan
+(`js/vue-scan-cetak.js`, bukan file terpisah baru) — yang MASIH belum
+didesain hanya bentuk API untuk 5 modul Proses Produksi (Cutting dst)
+nanti: parameter (`pos`, `tahap`, callback per jenis scan) belum
+dibutuhkan konkret sampai Cutting mulai dikerjakan (langkah 10 §6).
+
+**Belum didesain (sisa)**: bentuk API parameter untuk Proses Produksi
+(`pos`, `tahap`, callback per jenis scan) — belum dibutuhkan konkret
+sampai Cutting mulai. Field-level behavior per pos
 untuk Scan Sampai spesifik SUDAH ada per divisi di SERAH-TERIMA
 masing-masing — dikonfirmasi LENGKAP (7 Sep 2026, ke-20 berkas handoff
 sudah dibaca semua, bukan cuma sebagian):

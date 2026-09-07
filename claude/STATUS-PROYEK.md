@@ -1,15 +1,25 @@
 # STATUS PROYEK (RINGKAS) — Zevanic/Gechoo ERP
 
-> **Terakhir diperbarui: 7 September 2026 (malam), §5.15.** Fitur Pesanan
-> REKONSTRUKSI BESAR dari handoff "Pesanan dan Transaksi": piutang
-> (Tempo/DP/Cicilan) + koleksi `piutang_pembayaran` BARU **SUDAH DITULIS**
-> (lompat duluan dari urutan §6 RENCANA-REKONSTRUKSI-2026-09.md atas
-> permintaan eksplisit Guru — bukan kesalahan urutan, CATATAN penting:
-> langkah 5-14/Scan generik-Persiapan-Proses Produksi TETAP belum
-> disentuh). **BELUM DITEST BROWSER/FIRESTORE SAMA SEKALI** — lihat §5.15
-> & §7 poin 0. Rules `piutang_pembayaran` **BELUM di-Publish**, blocker
-> keras. Persiapan Produksi > Bahan + Acc Sewing/Webbing/Finishing
-> **SUDAH push+diuji Guru, semua jalan** (bukan lagi "0 data live").
+> **Terakhir diperbarui: 7 September 2026 (malam lanjut), §5.17.** 4 pos
+> Persiapan Produksi (Bahan/Acc Sewing/Acc Webbing/Acc Finishing) **SUDAH
+> DIREFAKTOR** pakai komponen kamera generik `ScanGenerik` (dari fondasi
+> §5.16) — `ModalScanQr` yang dulu disalin identik di 4 file DIHAPUS,
+> genuinely diimpor sekarang. **Perilaku scan TIDAK berubah sama sekali**
+> (interface & logic dibuat persis sama), jadi ini murni bebersih kode,
+> BUKAN fitur baru — lihat §5.17. `node --check` lolos semua, **BELUM
+> DITEST BROWSER SAMA SEKALI** (regression risk: pastikan Tunjuk Operator/
+> Scan Entry/Masalah/Pack/Kirim di 4 modul itu masih jalan persis seperti
+> sebelumnya). PopupPinGenerik/`riwayat_pin` TIDAK ikut disentuh langkah
+> ini (tetap belum dipakai modul manapun selain definisinya sendiri).
+> Fitur Pesanan REKONSTRUKSI BESAR dari handoff "Pesanan dan Transaksi":
+> piutang (Tempo/DP/Cicilan) + koleksi `piutang_pembayaran` BARU **SUDAH
+> DITULIS** (lompat duluan dari urutan §6 RENCANA-REKONSTRUKSI-2026-09.md
+> atas permintaan eksplisit Guru — bukan kesalahan urutan). **BELUM
+> DITEST BROWSER/FIRESTORE SAMA SEKALI** — lihat §5.15 & §7 poin 0. Rules
+> `piutang_pembayaran` **BELUM di-Publish**, blocker keras. Persiapan
+> Produksi > Bahan + Acc Sewing/Webbing/Finishing **SUDAH push+diuji
+> Guru, semua jalan** (bukan lagi "0 data live") — status ini adalah
+> KONDISI SEBELUM refactor §5.17, WAJIB ditest ulang sesudahnya.
 > Master Suplayer rebuild **SUDAH push+diuji Guru, semua jalan**. Master
 > Pelanggan (modul baru total) **SELESAI PENUH**: rules di-Publish,
 > sudah di-push GitHub, sudah dites di browser. Redesain Beranda Desktop
@@ -615,6 +625,93 @@ katalog cetak. 5 modul Proses Produksi & refactor Persiapan Produksi
 `index.html`, `js/dashboard.js`, `js/auth.js`, `js/vue-config.js`,
 `js/vue-config-akses.js`, `js/vue-header-mobile.js`.
 
+### 5.17 Refactor 4 pos Persiapan Produksi pakai ScanGenerik (7 Sep 2026 malam lanjut, kode belum ditest browser)
+Langkah kedua dari rencana Scan & Cetak (§5.16 = fondasi, langkah ini =
+pemakaian nyata pertama). Instruksi Guru: *"oke kita gas step selanjutanya
+persiapan produksi"* — melanjutkan urutan yang sudah disepakati sebelumnya
+(Scan+PIN generik → **refactor 4 pos Persiapan Produksi** → Cutting →
+Sewing → Finishing → Serie → Gudang Barang Jadi → Cetak Label Produk).
+
+**Yang dikerjakan — MURNI bebersih kode, BUKAN fitur baru**: komponen
+kamera lokal `ModalScanQr` (byte-identik disalin 4x di `vue-persiapan-
+bahan.js`/`-sewing.js`/`-webbing.js`/`-finishing.js`, dikonfirmasi via
+`md5sum` sebelum disentuh) DIHAPUS dari ke-4 file, digantikan `ScanGenerik`
+yang genuinely diimpor dari `js/vue-scan-cetak.js`. 3 fungsi kecil
+`buatQrDataUrl`/`muatJsQr`/`cariKaryawanByQr` (juga byte-identik di 4 file
++ sudah ada salinannya di `vue-scan-cetak.js`) ikut dihapus & diimpor dari
+sana juga — bukan disalin lagi.
+
+1. **`ScanGenerik` di `vue-scan-cetak.js` DITULIS ULANG interface-nya**
+   (dari draft awal §5.16 yang ternyata single-shot: props `judul`/
+   `instruksi`, emit `hasil`+`batal`) supaya **PERSIS SAMA** dengan
+   `ModalScanQr`: props `aktif` (Boolean)/`judul`/`subjudul`, emit
+   `hasil`+`tutup`, dan yang paling penting — perilaku **"scan
+   berkali-kali"** (setelah 1 hasil sukses, kamera TETAP menyala, auto-
+   lanjut scan lagi setelah jeda 900ms, selama `aktif` masih true; parent
+   yang set `aktif=false` untuk benar-benar menutup kamera). Draft §5.16
+   berhenti/menutup kamera setelah 1 hasil — TIDAK cukup untuk pola
+   "Tunjuk Operator lalu scan N anak-SPK berturut-turut" atau "Scan Pack/
+   Scan Kirim" (tiap kode bagging/tugas = 1 scan, berulang) yang dipakai
+   4 modul ini. Karena belum ada satupun kode produksi yang sempat
+   memakai interface lama itu (baru didaftarkan §5.16, belum diimpor di
+   manapun), penggantian total ini AMAN, tidak ada breaking change.
+2. **4 file diubah dengan pola identik**: tambah 1 baris import
+   (`ScanGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr` dari
+   `./vue-scan-cetak.js?v=2`), hapus definisi lokal `ModalScanQr` + 3
+   fungsi QR (diganti komentar penjelas kenapa pindah), ganti
+   `ModalScanQr` → `ScanGenerik` di 3 titik `components: {...}` tiap
+   file, ganti tag `<modal-scan-qr` → `<scan-generik` di 4 titik
+   template tiap file (Tunjuk Operator, Entry/Masalah/Ganti Operator,
+   Scan Pack, Scan Kirim). Total 16 titik pemakaian (4 file × 4 usage)
+   dikonversi, semua dicek lewat `grep` sebelum & sesudah.
+3. **Perilaku fungsional TIDAK BERUBAH SATU PIXEL PUN** — ini murni
+   ganti "siapa yang mendefinisikan komponennya", bukan ganti cara kerja
+   scan. Tidak ada field Firestore baru, tidak ada validasi baru, tidak
+   ada UI baru. Kalau ada beda perilaku yang kelihatan pas testing
+   browser nanti, itu BUG dari refactor ini, bukan perubahan yang
+   disengaja — laporkan sebagai regresi, bukan "fitur baru yang belum
+   pas".
+4. **SENGAJA TIDAK ikut disentuh** (di luar cakupan langkah ini,
+   dicatat supaya tidak lupa/tidak diam-diam ditebak dikerjakan):
+   - PIN "Cetak Ulang" di ke-4 modul ini (`popupCetakUlang`) TETAP TIDAK
+     diverifikasi kriptografis — walau `PopupPinGenerik` sudah tersedia
+     dari §5.16, ini bukan bagian dari instruksi "refactor Scan generik"
+     dan mengubahnya berarti mengubah perilaku PIN-nya (butuh konfirmasi
+     Guru dulu, sesuai catatan besar di file-file ini sendiri — lihat
+     §5.4 poin PIN admin). `PopupPinGenerik` MASIH BELUM dipakai
+     modul manapun selain `vue-scan-cetak.js` sendiri.
+   - `persiapan_masalah` (modul "Masalah") TIDAK memakai `ModalScanQr`
+     sama sekali sebelumnya, jadi tidak ada yang perlu direfaktor di
+     sana — bukan terlewat, memang tidak relevan untuk langkah ini.
+   - Modul "Scan Sampai" (field `sampai_pada` di `bahan_rincian[]`/dst)
+     **TETAP BELUM PUNYA PENULIS** — refactor ini cuma mengganti
+     komponen kamera untuk scan yang SUDAH ADA (Operator/Entry/Masalah/
+     Pack/Kirim), TIDAK menambah jenis scan baru. Gap ini tetap menunggu
+     Cutting (langkah berikutnya di urutan besar), lihat §7 poin 3.
+5. **Version bump**: `vue-scan-cetak.js` `?v=1`→`?v=2` (interface
+   `ScanGenerik` berubah), `vue-persiapan-bahan.js` `?v=3`→`?v=4`,
+   `vue-persiapan-sewing.js`/`-webbing.js`/`-finishing.js` `?v=2`→`?v=3`.
+6. **`node --check` lolos ke-5 file, tag HTML `index.html` seimbang**
+   (dicek terprogram) — **BELUM ADA 1 klik pun di browser sungguhan.**
+   WAJIB ditest sebelum dianggap stabil (regression test penuh, bukan
+   cuma smoke test): (a) Tunjuk Operator (scan operator lalu scan
+   berkali-kali anak SPK) di ke-4 modul masih jalan, kamera tetap
+   menyala antar-scan seperti sebelumnya; (b) Scan Entry/Masalah/Ganti
+   Operator (tab Sedang Disiapkan) masih jalan, termasuk stok berkurang
+   benar di Scan Entry; (c) Scan Pack & Scan Kirim (tab Perlu Dikirim)
+   masih bisa "discan berkali-kali" tanpa buka-tutup kamera manual; (d)
+   tombol Tutup di popup kamera menutup kamera dengan benar (event
+   `tutup`, bukan lagi `batal`); (e) belum ada satupun modul baru yang
+   memanggil `ScanGenerik`/`PopupPinGenerik` selain 4 file ini — kalau
+   nanti Cutting dkk mulai dibangun, ini jadi bukti pertama komponen
+   generiknya benar-benar dipakai ulang (>1 pemanggil), bukan cuma
+   janji di komentar kode.
+
+**File yang berubah (6 total)**: `js/vue-scan-cetak.js`,
+`js/vue-persiapan-bahan.js`, `js/vue-persiapan-sewing.js`,
+`js/vue-persiapan-webbing.js`, `js/vue-persiapan-finishing.js`,
+`index.html` (version bump 5 tag `<script>`).
+
 ## 6. Bug besar & pelajaran (kelas bug yang bisa terulang)
 
 - **Inline `style="display:..."` SELALU menang dari class CSS manapun**
@@ -729,10 +826,17 @@ katalog cetak. 5 modul Proses Produksi & refactor Persiapan Produksi
    semua jalan. Checklist testing detail per-field (Arsip §5.10/§5.11/
    §5.11d) masih belum ada laporan tertulis terpisah, tapi fungsional
    confirmed jalan.
-3. **Modul "Scan Sampai" (dan 5 saudaranya) belum dibangun** — bukan
-   cuma soal Bahan/Acc, ini dipakai SEMUA 9 pos Persiapan+Proses
-   Produksi (lihat `RENCANA-REKONSTRUKSI-2026-09.md` §9.3). Diputuskan
-   dibangun sebagai 1 modul generik terpisah, SEBELUM Cutting mulai.
+3. **Komponen kameranya (`ScanGenerik`) SEKARANG sudah terbukti dipakai
+   ulang (§5.17, 4 pemanggil: Bahan/Acc Sewing/Webbing/Finishing) —
+   TAPI jenis scan "Sampai" (dan penulisan `sampai_pada`) ITU SENDIRI
+   MASIH BELUM DIBANGUN.** Jangan tertukar: §5.17 cuma mengganti
+   komponen kamera untuk scan yang SUDAH ADA (Operator/Entry/Masalah/
+   Pack/Kirim) di 4 modul lama, TIDAK menambah jenis scan baru maupun
+   menulis field `sampai_pada`. Field itu (dan padanannya di
+   `sewing_rincian[]`/`webbing_rincian[]`/`finishing_rincian[]`) dipakai
+   SEMUA 9 pos Persiapan+Proses Produksi (lihat `RENCANA-REKONSTRUKSI-
+   2026-09.md` §9.3), tetap menunggu Cutting (langkah berikutnya di
+   urutan besar) untuk pertama kali punya penulis.
 4. **Konfirmasi fungsional Beranda Desktop belum lengkap** — lonceng
    notifikasi, angka KPI/Pipeline benar, pencarian global — sudah
    confirmed LIVE via screenshot tapi belum ada konfirmasi tertulis
