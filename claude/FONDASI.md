@@ -20,11 +20,15 @@ dipakai skala **~500 karyawan**.
 
 | Jenis | Cara |
 |---|---|
-| `.js` `.html` `.css` | kirim ke `F:\ZEVANIC HOUSE\FOUNDATION\Code` (flat, tanpa subfolder `js/`) → **Guru** yang `git push` |
+| `.js` `.html` `.css` | kirim ke `F:\ZEVANIC HOUSE\FOUNDATION\Code` (flat, tanpa subfolder `js/`) → **Guru drag ke GitHub lewat web** |
 | dokumen `.md` | folder `Code\Claude\` + `project_write` ke Knowledge |
 | `firestore.rules` / `storage.rules` | Firebase Console → Rules → **Publish manual** |
 
-Selalu cek status push sebelum menganggap sebuah fitur "sudah live".
+**Guru tidak memakai git di komputer** — file diunggah dengan drag &
+drop ke GitHub web. Artinya: upload tidak pernah menghapus file (hapus
+harus manual lewat tampilan GitHub), dan jangan menyuruh Guru "cek
+status `git push`". Selalu pastikan Guru sudah mengunggah sebelum
+menganggap sebuah fitur "sudah live".
 Folder `Code` bisa jadi snapshot lama — kalau ukuran file di sana jauh
 beda dari yang diharapkan, itu tanda foldernya ketinggalan.
 
