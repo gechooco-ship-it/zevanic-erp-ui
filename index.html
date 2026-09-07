@@ -243,6 +243,13 @@
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-produk', this, {catatRiwayat:true}); pindahSubTab('sub-zh-produk','sub-zh-produk-entry', null, {catatRiwayat:true})" id="menu-zevanic-produk-btn" data-menu-ids="master_produk_entry,master_produk_list" data-target="sub-zevanic-house-produk" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-layer-group" style="width:17px; text-align:center;"></i> Master Produk
           </button>
+          <!-- BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4)
+               — Master Pelanggan: koleksi & menu BARU TOTAL, lihat js/vue-
+               master-pelanggan.js. Single-view (list + popup form), tidak
+               ada sub-tab di dalamnya (pola sama seperti Persiapan Masalah). -->
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-pelanggan', this, {catatRiwayat:true})" id="menu-zevanic-pelanggan-btn" data-menu-id="master_pelanggan" data-target="sub-zevanic-house-pelanggan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-address-book" style="width:17px; text-align:center;"></i> Master Pelanggan
+          </button>
           <!-- DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan") — Order SPK
                PINDAH TOTAL ke grup "Pesanan > Menunggu Proses" di bawah
                (lihat js/vue-pesanan.js, js/vue-config-akses.js id
@@ -825,6 +832,13 @@
             </div>
           </div>
 
+          <!-- BARU (5 Sep 2026) — Master Pelanggan: lihat js/vue-master-
+               pelanggan.js. Single-view, tidak ada sub-tab bar (pola sama
+               seperti Persiapan Masalah di atas). -->
+          <div id="sub-zevanic-house-pelanggan" class="sub-zevanic-house-content hidden fade-in space-y-4">
+            <div id="vue-master-pelanggan"></div>
+          </div>
+
           <!-- DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan") — div konten
                Order SPK lama DIHAPUS dari sini, GANTI TOTAL oleh
                #sub-pesanan-menunggu (grup top-level baru "Pesanan", lihat
@@ -1135,8 +1149,14 @@
        pastikanMountAliasPembelian DIHAPUS (Alias Pembelian pindah ke
        Master Suplayer). 'sub-zh-config-suplayer' -> pastikanMountConfigSuplayer
        GANTI jadi 'sub-zh-config-tlc' -> pastikanMountConfigTlc (tab "TLC &
-       Prefix"). Lihat js/vue-master-suplayer.js. -->
-  <script type="module" src="js/dashboard.js?v=22"></script>
+       Prefix"). Lihat js/vue-master-suplayer.js.
+       v=23 (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
+       Master Pelanggan: petaMount tambah 1 entry ('sub-zevanic-house-
+       pelanggan' -> pastikanMountMasterPelanggan). Single-view, TIDAK
+       butuh entry petaTabIndukPerGrup (tidak ada sub-tab di dalamnya,
+       sama seperti 'sub-zevanic-house-persiapan'). Lihat js/vue-master-
+       pelanggan.js. -->
+  <script type="module" src="js/dashboard.js?v=23"></script>
   <!-- js/vue-order-spk.js — DITINGGALKAN (30 Agt 2026, fitur "Pesanan",
        keputusan Guru: fungsinya pindah jadi menu "Menunggu Proses" di
        grup baru "Pesanan"). File TIDAK dihapus dari disk (jaga-jaga
@@ -1322,6 +1342,10 @@
        DITAMBAH moq/moq_satuan/lead_time_hari) + Petakan Order (5.3, BARU
        total). Lihat komentar panjang di js/vue-master-suplayer.js. -->
   <script type="module" src="js/vue-master-suplayer.js?v=1"></script>
+  <!-- BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
+       Zevanic House > Master Pelanggan: koleksi & menu BARU TOTAL. Lihat
+       komentar panjang di js/vue-master-pelanggan.js. -->
+  <script type="module" src="js/vue-master-pelanggan.js?v=1"></script>
   <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM). v=2 (28 Agt 2026):
        cache-bust setelah fix dropdown Bahan/Aksesoris digabung 1 field.
        v=3 (28 Agt 2026, §28.9): cache-bust setelah tambah fitur Import/

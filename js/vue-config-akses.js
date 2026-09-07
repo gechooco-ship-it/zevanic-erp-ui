@@ -179,6 +179,11 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-entry', null, {catatRiwayat:true}); } },
   { id: 'master_produk_list', label: 'List Produk', kategori: 'Zevanic House', icon: 'fa-list',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-list', null, {catatRiwayat:true}); } },
+  // BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
+  // Master Pelanggan: koleksi & menu BARU TOTAL, lihat js/vue-master-
+  // pelanggan.js. Single-view, 1 menu-id saja (tidak ada sub-tab).
+  { id: 'master_pelanggan', label: 'Master Pelanggan', kategori: 'Zevanic House', icon: 'fa-address-book',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-pelanggan', null, {catatRiwayat:true}); } },
   // DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan", keputusan Guru:
   // "Pesaanan (Menu Group Baru)... 1. Order SPK (ganti nama jadi Penjualan
   // Kasir)... 2. Menunggu Proses") — fungsi CRUD Order SPK (list/edit/

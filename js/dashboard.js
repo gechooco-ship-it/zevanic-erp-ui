@@ -456,6 +456,9 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // BARU (27 Agt 2026, §28) — Master Produk (BOM).
     'sub-zh-produk-entry': 'pastikanMountProdukEntry',
     'sub-zh-produk-list': 'pastikanMountProdukList',
+    // BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
+    // Master Pelanggan, single-view (lihat js/vue-master-pelanggan.js).
+    'sub-zevanic-house-pelanggan': 'pastikanMountMasterPelanggan',
     // DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan") — dulu di sini
     // 'sub-zevanic-house-orderspk': 'pastikanMountOrderSpk', tombol & div
     // kontennya sudah dicopot dari index.html, GANTI TOTAL oleh

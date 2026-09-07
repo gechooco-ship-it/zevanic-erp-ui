@@ -89,6 +89,9 @@ const LABEL_SUBTAB = {
   // baru §26). Ditambah sekalian semuanya supaya header mobile Zevanic
   // House selalu jelas lagi di mana, bukan cuma yang kepakai dari Home.
   'sub-zevanic-house-persiapan': 'Persiapan Masalah',
+  // BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
+  // Master Pelanggan, lihat js/vue-master-pelanggan.js.
+  'sub-zevanic-house-pelanggan': 'Master Pelanggan',
   'sub-zevanic-house-orderspk': 'Order SPK',
   'sub-zh-config-jenisbahan': 'Jenis Bahan',
   'sub-zh-config-jenisaksesoris': 'Jenis Aksesoris',
