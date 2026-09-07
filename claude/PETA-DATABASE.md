@@ -52,7 +52,7 @@
 > di `spk_track.bahan_rincian[]` (khusus jalur `bahan`): `tlc_tujuan`
 > (snapshot tujuan TLC saat Scan Kirim) dan `sampai_pada` (jam divisi
 > penerima Scan Sampai — **BELUM ADA PENULISNYA**, layar itu di luar
-> lingkup modul Bahan & belum dibangun di manapun, lihat catatan di
+> lingkup modul Bahan dan belum dibangun di manapun, lihat catatan di
 > field `bahan_rincian` di bawah). Tab "Selesai" (Bahan) yang tadinya
 > placeholder sekarang dibangun penuh tapi akan tampil kosong sampai
 > penulis `sampai_pada` itu ada. Detail: `STATUS-PROYEK.md` §5.11b.
@@ -89,6 +89,43 @@
 > yang dikoreksi di sini). **KODE DITULIS, BELUM DIKIRIM ke folder
 > `Code`, BELUM di-push Guru, BELUM DIUJI SAMA SEKALI** — detail
 > keputusan lengkap: `STATUS-PROYEK.md` §5.12.
+>
+> **UPDATE LAGI (7 Sep 2026, §5.13 di `STATUS-PROYEK.md`)**: TIDAK ADA
+> koleksi baru KECUALI `riwayat_pin` (lihat entri tersendiri di bagian
+> "🏭 Zevanic House" di bawah — dibangun KOSONG, belum ada penulisnya).
+> **Field BARU**: `master_bahan_aksesoris.lengkap` (boolean, dipakai tab
+> filter "Perlu dilengkapi" di List Bahan & Aksesoris yang GANTI TOTAL
+> balik ke tabel grid+expand) dan `master_produk.biaya_tambahan_hpp`
+> (array `[{nama,jumlah}]`, satu-satunya field HPP yang ditulis — sisanya
+> dihitung LIVE dari BOM, TIDAK di-cache). **PERUBAHAN FORMULA PENTING**:
+> `master_bahan_aksesoris.margin_modal` SEKARANG **PERSEN** (dulu Rupiah
+> flat) — `harga_pemakaian = harga_modal * (1 + margin_modal/100)`, lihat
+> catatan §14 di bawah. **KODE DITULIS, `node --check` lolos, DIKIRIM ke
+> `Code\` device, BELUM DIUJI BROWSER SAMA SEKALI** — dan `riwayat_pin`
+> belum bisa dipakai sampai rule Firestore-nya di-publish (TIDAK ADA di
+> `FIRESTORE-RULES-SNAPSHOT.md` 5 Sep 2026). Detail: `STATUS-PROYEK.md`
+> §5.13.
+>
+> **UPDATE LAGI (7 Sep 2026 malam, §5.14 di `STATUS-PROYEK.md`)**:
+> rebuild 4 sub-tab **Stok dan Pembelian** (Daftar Nota, Riwayat Harga
+> Pembelian, Kartu Stok, Rak Penyimpanan). TIDAK ADA koleksi baru. **Field
+> BARU**: `pesanan_pembelian.foto_bon` (URL Storage) + `.order_driver_id`
+> (SELALU `null` untuk sekarang, belum ada modul driver yang menulis);
+> `master_bahan_aksesoris.harga_perlu_konfirmasi` (boolean) +
+> `.harga_pending` (object) — dipakai alert kenaikan harga + checkout
+> guard di Pesanan. **SKEMA `master_rak_penyimpanan` BERUBAH TOTAL**
+> (migrasi model data, field lama `kode_rak`/`baris_rak`/`kolom_rak`
+> sebagai 3 nilai independen GANTI jadi `rak` + `baris_rak`/`kolom_rak`
+> free-text yang digabung jadi `kode_rak`, lihat entri koleksi di bawah
+> — dokumen LAMA tidak dimigrasi otomatis). **REUSE (bukan field baru)**:
+> `users.pin_hash` (sudah ada sejak fitur Kiosk 22 Agt 2026) dipakai
+> ulang untuk finalisasi nota + Terapkan harga — TIDAK ada field PIN baru
+> ditambahkan ke `users`. "List Order Belanja" (mode lama `pesanan_
+> pembelian` dengan `modeNota=false`) **DIHAPUS TOTAL** dari kode — baris
+> di bawah untuk `pesanan_pembelian` sekarang HANYA mode Nota. **KODE
+> DITULIS, `node --check` lolos, DIKIRIM ke `Code\` device, BELUM DIUJI
+> BROWSER/FIRESTORE SAMA SEKALI**, dan modul ini sensitif UANG+STOK.
+> Detail: `STATUS-PROYEK.md` §5.14.
 
 ### `users/{email}` — profil karyawan resmi (SUDAH disetujui)
 Dokumen ID = email karyawan.
@@ -113,6 +150,7 @@ Dokumen ID = email karyawan.
 | `beranda_grup` | string \| null | **BARU (redesain mobile "Gechoo Mobile Organic", §44)** — nama 1 kategori (dari `KATEGORI_URUTAN`) yang ditampilkan sebagai grup menu di Home mobile (`grupTampil`, `vue-home.js`). Diisi = `beranda_grup_urutan[0]`, ditulis lewat layar Atur Favorit |
 | `beranda_grup_urutan` | array\<string\> | **BARU (§44)** — urutan preferensi kategori pilihan user (diatur di Atur Favorit), dipakai turunkan `beranda_grup` |
 | `beranda_batas_kartu` | number | **BARU (§44)** — jumlah kartu menu yang tampil per grup di Home mobile, 2-8, default 4 |
+| `pin_hash` | string | **BARU (22 Agt 2026, fitur Kiosk absensi)** — `SHA-256(pin + '\|' + email)` via Web Crypto API (client-side, tanpa Cloud Function). **DIREUSE (7 Sep 2026, §5.14 Stok & Pembelian)** untuk finalisasi nota + tombol Terapkan harga (`cariUserByPin()`/`tierOwnerKeAtas()`, `vue-stock-pembelian.js`) — BUKAN field baru, cuma pemakai baru. **Keterbatasan**: user yang belum pernah set field ini (belum pernah pakai PIN Kiosk) TIDAK BISA dipakai untuk PIN di Stok & Pembelian sampai diisi. **Ini BUKAN** `verifikasiPIN()` generik yang dibayangkan `RENCANA-REKONSTRUKSI-2026-09.md` §2.3 (skema lebih sederhana, salt = email bukan acak per-user) — cukup untuk kasus PIN level Owner/Admin sederhana, belum tentu cukup untuk piutang bernilai besar |
 
 ### `pendaftaran_pending/{email}` — form Registrasi SEBELUM diverifikasi Admin
 Field-nya SAMA PERSIS dengan bagian identitas di atas (`nama`, `nik`, `jenis_pekerjaan`, dst) — TAPI **belum ada** `role`/`profil_akses`/`status_approval`/`gudang_penempatan` sama sekali (itu baru ditambahkan pas Antrean Dakar approve). **REVISI KE-3 (18 Agt 2026)**: begitu Admin klik "Setujui", field kerja (`status_kerja`/`jabatan`/`status_karyawan`/`nama_shift`/`gudang_penempatan`) DITULIS DI SINI DULU, plus `token_buat_password` (string acak), `token_kadaluarsa` (Timestamp, 30 menit), `token_terverifikasi` (boolean, awalnya `false`) — BUKAN langsung bikin akun. Karyawan verifikasi token lewat TULIS `tebakan_token` (pola sama `otp_email`, lihat `js/vue-buat-password.js`), begitu cocok baru boleh baca dokumen ini & bikin password sendiri. Field `token_*` DIBUANG (tidak ikut) saat akhirnya ditulis ke `users`. Dihapus SENDIRI oleh karyawan (setelah akun jadi) ATAU oleh Admin (Tolak).
@@ -209,7 +247,11 @@ Dokumen ID = nama kategori (`jenis_pekerjaan`, `status_kerja`, `jabatan`, `statu
 > masalah.js`, `js/vue-order-spk.js` [DITINGGALKAN, lihat "🛒 Pesanan" di
 > bawah], `js/vue-config.js`, `js/vue-master-suplayer.js` [BARU, 5 Sep
 > 2026]) — bukan dari ingatan. Lihat `PETA-MENU.md` bagian "🏭 Zevanic
-> House" untuk menu → file-nya.
+> House" untuk menu → file-nya. **Catatan 7 Sep 2026 malam**: menu "Rak
+> Penyimpanan" (`vue-rak-penyimpanan.js`) PINDAH lokasi dari "Data Bahan
+> & Aksesoris" ke "Stok dan Pembelian" (§5.14) — filenya & koleksinya
+> TIDAK berubah, cuma posisi menu, lihat `PETA-MENU.md` untuk detail
+> perpindahan.
 
 ### `master_bahan_aksesoris/{autoId}` — item bahan & aksesoris (stok)
 | Field | Tipe | Keterangan |
@@ -219,18 +261,21 @@ Dokumen ID = nama kategori (`jenis_pekerjaan`, `status_kerja`, `jabatan`, `statu
 | `jenis`, `nama`, `warna` | string | Dari Config > Jenis Bahan/Jenis Aksesoris (`master_data`) & Data Warna |
 | `foto` | string (base64) atau `null` | — |
 | `harga_pembelian`, `satuan_pembelian`, `isi_konversi_pembelian`, `satuan_pemakaian` | — | Harga & konversi 1 tingkat (dasar) |
-| `konversi_bertingkat` | array\<{dari, jumlah, ke, harga}\> | Opsional — kalau diisi, konversi berjenjang (mis. 1 Dus = 12 Roll = ...), tiap tingkat punya harga sendiri yang ikut di-update otomatis oleh Nota Order Belanja |
-| `harga_modal`, `margin_modal`, `harga_pemakaian` | number | Dihitung dari harga_pembelian + margin |
+| `konversi_bertingkat` | array\<{dari, jumlah, ke, harga}\> | Opsional — kalau diisi, konversi berjenjang (mis. 1 Dus = 12 Roll = ...), tiap tingkat punya harga sendiri yang ikut di-update otomatis oleh Nota Order Belanja. **Catatan (7 Sep 2026, §5.14)**: tombol "Terapkan" di Riwayat Harga Pembelian TIDAK menghitung ulang seluruh rantai ini — cuma update `harga_modal` tier terakhir, beda dari alur finalisasi Nota normal |
+| `harga_modal`, `margin_modal`, `harga_pemakaian` | number | **FORMULA BERUBAH (7 Sep 2026, §5.13)**: `margin_modal` SEKARANG **PERSEN** (dulu Rupiah flat) — `harga_pemakaian = harga_modal * (1 + margin_modal/100)`. Data LAMA yang `margin_modal`-nya masih nominal Rupiah akan terbaca SALAH sebagai persen, TIDAK ADA migrasi otomatis — lihat catatan §14 di bawah |
+| `harga_perlu_konfirmasi` | boolean | **BARU (7 Sep 2026, §5.14)** — `true` kalau ada nota final dengan harga LEBIH TINGGI dari `harga_modal` saat ini (atau PIN Admin-tier mengedit harga draft), belum di-"Terapkan" Owner. Dipakai checkout guard di Pesanan (`vue-pesanan.js`, `bahanTerblokirDiKeranjang()`) untuk MEMBLOK item ini dari kasir |
+| `harga_pending` | object | **BARU (7 Sep 2026, §5.14)** — `{harga_baru, harga_lama, tanggal, no_pembelian, suplayer, satuan_asal, sumber: 'finalize'\|'edit_draft'}`, diisi bareng `harga_perlu_konfirmasi=true`, dihapus begitu Owner klik "Terapkan & buka blokir" (`RiwayatHargaPembelianManager`, `vue-stock-pembelian.js`) |
+| `lengkap` | boolean | **BARU (7 Sep 2026, §5.13)** — dihitung ulang tiap simpan, dipakai tab filter "Perlu dilengkapi" di List Bahan & Aksesoris (rebuild grid+expand, ganti dari tampilan kartu 28 Agt 2026) |
 | `pakai_lot_tracking` | boolean | `true` = stok item ini dilacak PER ROLL/LOT (lihat `lot_bahan_aksesoris`), `false` = cuma 1 angka `stok_akhir` |
 | `panjang_roll` | number | **BARU (1 Sep 2026, §5.11d)** — opsional, meter, panjang 1 roll/gulung item ini. Basis hitung kolom "roll" di Acc Webbing (`roll = ceil(butuh_meter / panjang_roll)`) — TIDAK dibatasi ke `jenis` tertentu (field generik, boleh diisi item apa pun yang butuh basis hitung roll). Item tanpa field ini (0/kosong) → kolom roll di Acc Webbing tampil null-safe (tidak dihitung/error) |
-| `stok_akhir` | number | **JANGAN PERNAH ditulis langsung dari luar** — SATU-SATUNYA jalur resmi lewat `catatPergerakanKartuStok()`/`catatPemakaianDariAlokasi()`/`catatPenyesuaianOpname*()` (semua di `vue-stock-pembelian.js`), **DITAMBAH (31 Agt 2026)**: `konfirmasiEntry()` di `js/vue-persiapan-bahan.js` (dan padanannya di `vue-persiapan-sewing.js`/`vue-persiapan-webbing.js`/`vue-persiapan-finishing.js`, §5.11d) juga mengurangi `stok_akhir` lewat `runTransaction` (lihat catatan `spk_track.bahan_rincian[]`/`sewing_rincian[]`/dst di bawah) — supaya selalu konsisten dengan ledger `kartu_stok_bahan_aksesoris` |
+| `stok_akhir` | number | **JANGAN PERNAH ditulis langsung dari luar** — SATU-SATUNYA jalur resmi lewat `catatPergerakanKartuStok()`/`catatPemakaianDariAlokasi()`/`catatPenyesuaianOpname*()` (semua di `vue-stock-pembelian.js`), **DITAMBAH (31 Agt 2026)**: `konfirmasiEntry()` di `js/vue-persiapan-bahan.js` (dan padanannya di `vue-persiapan-sewing.js`/`vue-persiapan-webbing.js`/`vue-persiapan-finishing.js`, §5.11d) juga mengurangi `stok_akhir` lewat `runTransaction` (lihat catatan `spk_track.bahan_rincian[]`/`sewing_rincian[]`/dst di bawah) — supaya selalu konsisten dengan ledger `kartu_stok_bahan_aksesoris`. **DITAMBAH LAGI (7 Sep 2026, §5.14)**: `bangunAlokasiFifoScan()`/`catatPemakaianDariAlokasi()` dipanggil juga dari `vue-scan-persiapan.js` sekarang (FIFO multi-roll, sebelumnya cuma dari Kartu Stok) |
 | `lot_counter` | number | Counter pembuat `kode_lot` berikutnya (increment di transaksi yang sama dengan `stok_akhir`), cuma ada kalau `pakai_lot_tracking` |
-| `rak_id`, `rak_label` | string | Opsional, link ke `master_rak_penyimpanan` |
-| `tinggi_barang`, `panjang_barang`, `lebar_barang`, `volume_barang` | number | Opsional, dimensi satuan barang |
+| `rak_id`, `rak_label` | string | Opsional, link ke `master_rak_penyimpanan`. **Catatan (7 Sep 2026, §5.14)**: `rak_label` sekarang jadi FIELD ALIAS yang dipertahankan supaya dropdown "Pilih Rak" di sini tetap jalan tanpa perlu diubah — nilai aslinya sekarang berasal dari skema BARU `master_rak_penyimpanan` (lihat entri koleksi itu) |
+| `tinggi_barang`, `panjang_barang`, `lebar_barang`, `volume_barang` | number | Opsional, dimensi satuan barang. **Catatan (7 Sep 2026, §5.14)**: dipakai formula BARU (belum dikonfirmasi Guru) bar kapasitas Rak Penyimpanan — per-item terpakai = `stok_akhir × volume_barang` |
 | `dibuat_pada`, `dibuat_oleh` | Timestamp / string | — |
 
 ### `kartu_stok_bahan_aksesoris/{autoId}` — ledger pergerakan stok (SEMUA jenis: masuk/keluar/penyesuaian)
-Ditulis SATU-SATUNYA lewat fungsi di `vue-stock-pembelian.js` (`catatPergerakanKartuStok`, `catatPemakaianDariAlokasi`, `catatPenyesuaianOpnameItem`).
+Ditulis SATU-SATUNYA lewat fungsi di `vue-stock-pembelian.js` (`catatPergerakanKartuStok`, `catatPemakaianDariAlokasi`, `catatPenyesuaianOpnameItem`). **Catatan (7 Sep 2026, §5.14)**: tampilan (menu Kartu Stok, `vue-kartu-stok.js`) sekarang READ-ONLY MURNI — form "Catat Pemakaian" yang dulu ada di sini DIHAPUS, dipindah ke `vue-scan-persiapan.js` (FIFO multi-roll + alur kekurangan `persiapan_masalah`). Skema field ledger di bawah TIDAK BERUBAH.
 
 | Field | Tipe | Keterangan |
 |---|---|---|
@@ -255,13 +300,47 @@ Ditulis SATU-SATUNYA lewat fungsi di `vue-stock-pembelian.js` (`catatPergerakanK
 | `status` | string | `aktif` / `habis` (`habis` otomatis kalau `qty_sisa` disesuaikan opname jadi ≤0) |
 | `dibuat_pada`, `dibuat_oleh` | Timestamp / string | — |
 
-### `master_rak_penyimpanan/{autoId}`
+**Urutan FIFO** (`ambilLotAktif(bahanId)`, `vue-stock-pembelian.js`, tidak berubah field-nya): sort `tanggal_masuk` lalu `dibuat_pada.seconds`, jadi lot yang PALING LAMA masuk selalu paling awal di daftar — dasar alokasi FIFO otomatis, dikonfirmasi ulang & masih benar saat dipakai lagi oleh `bangunAlokasiFifoScan()` (§5.14, `vue-scan-persiapan.js`).
+
+### `master_rak_penyimpanan/{autoId}` — SKEMA BERUBAH TOTAL (7 Sep 2026, §5.14)
+> **Migrasi model data**: SEBELUMNYA `kode_rak`/`baris_rak`/`kolom_rak`
+> masing-masing dipilih dari 3 kategori `master_data` terkelola terpisah
+> (dropdown), kombinasinya WAJIB unik. **SEKARANG** (ikut wireframe
+> handoff "Stok dan Pembelian") ketiganya jadi **input teks bebas** —
+> `rak` (field BARU) + `baris_rak`/`kolom_rak` (masih nama field yang
+> sama, TAPI sekarang teks bebas bukan dropdown), digabung TANPA
+> pemisah jadi `kode_rak` (mis. `rak="E"`, `baris_rak="1"`,
+> `kolom_rak="1"` → `kode_rak="E11"`). Dokumen LAMA (dibuat sebelum 7 Sep
+> 2026, tidak punya field `rak`) TETAP KEBACA lewat fallback ke
+> `rak_label` lama — **TIDAK ADA migrasi otomatis** (sandbox implementasi
+> tidak punya akses Firestore live), Guru WAJIB rapikan data rak lama
+> secara manual.
+
 | Field | Tipe | Keterangan |
 |---|---|---|
-| `kode_rak`, `baris_rak`, `kolom_rak` | string | Kombinasi 3 ini WAJIB unik (dicek `cekKombinasiDobel()`) |
-| `rak_label` | string | Gabungan tampilan dari kode+baris+kolom |
-| `tinggi_rak`, `panjang_rak`, `lebar_rak`, `volume_rak` | number | — |
+| `rak` | string | **BARU** — bagian pertama kode rak, teks bebas (mis. `"E"`) |
+| `baris_rak`, `kolom_rak` | string | **GANTI dari dropdown master-data jadi teks bebas** — bagian ke-2/ke-3 kode rak |
+| `kode_rak` | string | **GANTI arti** — dulu = gabungan dash `"A-1-3"` dari 3 dropdown; SEKARANG = konkatenasi TANPA pemisah `rak+baris_rak+kolom_rak` (mis. `"E11"`) |
+| `rak_label` | string | **DIPERTAHANKAN sebagai field ALIAS** — nilainya SAMA dengan `kode_rak`, semata supaya dropdown "Pilih Rak" di `vue-bahan-aksesoris.js` (yang baca field `rak_label`) tetap jalan tanpa perlu diubah. Dokumen LAMA (skema lama) punya `rak_label` versi dash lama — dibedakan dari dokumen baru lewat ADA/TIDAKnya field `rak` |
+| `tinggi_rak`, `panjang_rak`, `lebar_rak`, `volume_rak` | number | `volume_rak` TETAP disimpan mentah dalam **cm³** (TIDAK diubah ke m³ di database) — cuma DIKONVERSI ke m³ saat DITAMPILKAN, karena `vue-bahan-aksesoris.js` membaca field ini persis dan hardcode teks "cm³" di beberapa tempat |
 | `dibuat_pada`/`dibuat_oleh`, `diedit_pada`/`diedit_oleh` | Timestamp / string | — |
+
+**Tampilan list BARU** (`vue-rak-penyimpanan.js`, §5.14): item-centric (1 baris = 1 `master_bahan_aksesoris` yang `rak_id`-nya menunjuk rak ini) + bar kapasitas — **formula BARU, BELUM DIKONFIRMASI Guru**: per-item terpakai = `stok_akhir × volume_barang` (dari `master_bahan_aksesoris`), per-rak terpakai = jumlah semua item yang nunjuk rak itu, sisa = `volume_rak − terpakai`, warna <50% hijau / 50-79% kuning / ≥80% merah.
+
+### `riwayat_pin/{autoId}` — BARU (7 Sep 2026, §5.13), KOSONG SENGAJA
+> Dibangun sebagai tab baru "Riwayat PIN" di Config (`AppConfigRiwayatPin`,
+> `js/vue-config.js`) — **belum ada satu modul pun yang menulis ke sini**.
+> Disiapkan menunggu modul Scan & PIN generik (`RENCANA-REKONSTRUKSI-
+> 2026-09.md` §9.3/langkah 5). Skema field BELUM DIKONFIRMASI (tab
+> sekarang cuma baca & tampilkan apa adanya, read-only). **BLOCKER**:
+> rule Firestore `riwayat_pin` TIDAK ADA di `FIRESTORE-RULES-SNAPSHOT.md`
+> (5 Sep 2026) — tanpa match block, default-deny Firestore bikin tab ini
+> tampil error permission-denied (BUKAN kosong seperti seharusnya) sampai
+> Guru publish rule (saran pola: `allow read: if isAdminLevel(); allow
+> create: if login(); allow update, delete: if false;`, sama seperti
+> `cetak_ulang_log`). **JANGAN disamakan dengan `users.pin_hash`** (§5.14)
+> — itu mekanisme PIN VERIFIKASI (dipakai Stok & Pembelian), ini cuma
+> tempat CATATAN riwayat pemakaian PIN, keduanya belum terhubung.
 
 ### `master_satuan/{autoId}`, `master_warna/{autoId}`, `master_ukuran/{autoId}`, `master_jenis_produk/{autoId}`, `master_komponen/{autoId}`, `master_tahap_persiapan/{autoId}`
 6 koleksi POLA SAMA — lewat komponen generic `MasterDataTabelManager` (`vue-components.js`), semua dari tab **Config**:
@@ -286,6 +365,39 @@ Dipakai sebagai sumber `DropdownCari` di tempat lain: `master_jenis_produk` (Ent
 > `SuplayerEntryList` (`js/vue-master-suplayer.js`, ganti dari
 > `MasterDataTabelManager`) supaya bisa nambah field kontak lengkap
 > (bank/rekening/WA). Lihat entri `master_suplayer` tersendiri di bawah.
+>
+> **CATATAN (7 Sep 2026, §5.14)**: 3 kategori `master_data` LAMA yang
+> dulu jadi sumber dropdown Kode/Baris/Kolom Rak (§24-25 arsip) SUDAH
+> TIDAK DIPAKAI lagi sejak migrasi Rak Penyimpanan jadi input teks bebas
+> — kategori `master_data` itu sendiri TIDAK dihapus dari Firestore
+> (tidak ada penghapusan otomatis), cuma sudah tidak dibaca kode manapun.
+
+### `master_pelanggan/{autoId}` — Master Pelanggan (BARU TOTAL, 5 Sep 2026, §5.14)
+> Koleksi BARU (bukan rework), lihat `js/vue-master-pelanggan.js`. Skema
+> persis `SPESIFIKASI-KOLEKSI-BARU.md` §1. **Rules Firestore SUDAH
+> dipublish** (7 Sep 2026, lihat `STATUS-PROYEK.md` §5.12 — sesi
+> `RENCANA-REKONSTRUKSI-2026-09.md` menyebut modul ini "§5.14" karena
+> ditulis saat itu section itu masih Master Pelanggan; di `STATUS-
+> PROYEK.md` yang sebenarnya sekarang modul ini ada di §5.12, dan §5.14
+> sudah dipakai ulang untuk Stok dan Pembelian 7 Sep malam — SELALU cek
+> nomor section aktual di `STATUS-PROYEK.md`, jangan asumsikan dari
+> dokumen lain).
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `nama` | string | Wajib, dicek dobel (case-insensitive) |
+| `telepon`, `alamat`, `email` | string | Opsional |
+| `tipe` | string | `retail` / `reseller` / `grosir`. MURNI informasional — TIDAK mempengaruhi `limit_piutang` otomatis (spek sendiri menandai ini "Belum Diputuskan") |
+| `limit_piutang` | number | Maks piutang berjalan, manual per pelanggan. `0` = tidak boleh piutang |
+| `saldo_piutang` | number | Total sisa belum bayar. **JANGAN ditulis langsung** — dibuat `0` saat pelanggan baru, TIDAK PERNAH diubah manual lewat form Master Pelanggan. Baru akan benar-benar ter-update begitu fitur Pesanan piutang (`piutang_pembayaran`, langkah 12 `RENCANA-REKONSTRUKSI-2026-09.md`) dikerjakan — sampai saat itu, field ini SELALU `0` di semua dokumen (BENAR, bukan bug) |
+| `catatan` | string | Opsional |
+| `dibuat_pada`/`dibuat_oleh` | Timestamp / string | — |
+
+**Dipakai oleh (rencana, belum diwiring)**: Pesanan > Penjualan Kasir
+(wajib pilih pelanggan sebelum checkout), Pesanan > Daftar Piutang,
+Pesanan > Transaksi Keuangan (filter per pelanggan) — SEMUA langkah 12,
+BELUM ada kode yang membaca koleksi ini selain `vue-master-pelanggan.js`
+sendiri.
 
 ### `master_suplayer/{autoId}` — data suplayer (kontak & pembayaran)
 > **UPDATE (5 Sep 2026, §5.12)**: DIKELUARKAN dari `MasterDataTabelManager`
@@ -312,11 +424,12 @@ Dipakai sebagai sumber `DropdownCari` di tempat lain: `master_jenis_produk` (Ent
 | `foto` | string (URL Storage) | — |
 | `harga_jual` | number | **BARU (30 Agt 2026, fitur "Pesanan")** — opsional, default 0. Sebelumnya `master_produk` 100% data BOM/ongkos produksi, TIDAK ADA field harga jual sama sekali. Dipakai isi harga di grid produk Pesanan > Penjualan Kasir; produk lama tanpa field ini tampil dengan harga 0/"Harga belum diisi" |
 | `bom_jasa` | array\<{nama, harga}\> | — |
-| `bom_pola` | array | Tiap baris: `tipe` (`'internal'`/`'vendor'`), `foto`, `nama_pola`, `bahan_aksesoris_id`+`nama_bahan`+`warna_bahan` (resolve dari `master_bahan_aksesoris`), `panjang`, `isi_pola_pcs`, `jasa_cutting`, `jasa_serie`, `jenis_vendor` (kalau `tipe==='vendor'`), `komponen` (array\<{nama_komponen, qty}\>, teks bebas dari `master_komponen`, TANPA FK ke stok). **Catatan (31 Agt 2026, §5.11)**: ini SUMBER kebutuhan kain untuk pos Bahan (`spk_track.bahan_rincian[]`, hanya baris `tipe==='internal'` yang dipakai — baris `'vendor'` di luar cakupan pos Bahan internal) |
-| `bom_aksesoris` | array | Tiap baris: `tahap_proses` (teks bebas, cocok longgar ke `master_tahap_persiapan` Sewing/Webbing/Finishing — dicocokkan via `.trim().toLowerCase().includes('sewing'\|'webbing'\|'finishing')`, sama pola dengan `jalurOtomatisProduk()`), `bahan_aksesoris_id`+`nama_aksesoris`+`warna` (resolve dari `master_bahan_aksesoris`), `qty`, `satuan`, `webbing2`, `webbing3` (teks bebas). **BEDA dari `bom_pola` — JANGAN TERTUKAR**: ini dipakai pos Acc Sewing/Webbing/Finishing (trim/aksesoris) lewat `hitungSewingRincian()`/`hitungWebbingRincian()`/`hitungFinishingRincian()` (BARU 1 Sep 2026, §5.11d), BUKAN sumber kebutuhan kain pos Bahan |
+| `bom_pola` | array | Tiap baris: `tipe` (`'internal'`/`'vendor'`), `foto`, `nama_pola`, `bahan_aksesoris_id`+`nama_bahan`+`warna_bahan` (resolve dari `master_bahan_aksesoris`), `panjang`, `isi_pola_pcs`, `jasa_cutting`, `jasa_serie`, `jenis_vendor` (kalau `tipe==='vendor'`), `komponen` (array\<{nama_komponen, qty}\>, teks bebas dari `master_komponen`, TANPA FK ke stok). **Catatan (31 Agt 2026, §5.11)**: ini SUMBER kebutuhan kain untuk pos Bahan (`spk_track.bahan_rincian[]`, hanya baris `tipe==='internal'` yang dipakai — baris `'vendor'` di luar cakupan pos Bahan internal). **Dipakai juga (7 Sep 2026, §5.14)** oleh checkout guard `bahanTerblokirDiKeranjang()` di `vue-pesanan.js` untuk resolve `bahan_aksesoris_id` dari isi keranjang |
+| `bom_aksesoris` | array | Tiap baris: `tahap_proses` (teks bebas, cocok longgar ke `master_tahap_persiapan` Sewing/Webbing/Finishing — dicocokkan via `.trim().toLowerCase().includes('sewing'\|'webbing'\|'finishing')`, sama pola dengan `jalurOtomatisProduk()`), `bahan_aksesoris_id`+`nama_aksesoris`+`warna` (resolve dari `master_bahan_aksesoris`), `qty`, `satuan`, `webbing2`, `webbing3` (teks bebas). **BEDA dari `bom_pola` — JANGAN TERTUKAR**: ini dipakai pos Acc Sewing/Webbing/Finishing (trim/aksesoris) lewat `hitungSewingRincian()`/`hitungWebbingRincian()`/`hitungFinishingRincian()` (BARU 1 Sep 2026, §5.11d), BUKAN sumber kebutuhan kain pos Bahan. **Dipakai juga (7 Sep 2026, §5.14)** oleh checkout guard, sama seperti `bom_pola` |
 | `kelipatan` | number | KPK semua `isi_pola_pcs` di `bom_pola` — dihitung ulang tiap simpan |
 | `moq_serie` | number | **BARU (5 Sep 2026, §5.13)** — "MOQ Pesanan Produk", opsional (default 0), input MANUAL (bukan auto-hitung). JANGAN TERTUKAR dengan MOQ pembelian bahan/aksesoris di `alias_pembelian.moq` (§5.12, beda jalur — lihat catatan poin 10 di bawah). Data-layer saja: modul konsumennya ("Proses Produksi > Serie") belum dibangun |
 | `kelipatan_isi_pola` | number | **BARU (5 Sep 2026, §5.13)** — opsional (default 0), input MANUAL. JANGAN TERTUKAR dengan field `kelipatan` di atas (itu auto-KPK dari `isi_pola_pcs`, konsep LAMA yang tetap dipakai apa adanya) — ini field BARU terpisah untuk modul Serie nanti |
+| `biaya_tambahan_hpp` | array\<{nama, jumlah}\> | **BARU (7 Sep 2026, §5.13)** — satu-satunya field HPP yang benar-benar DITULIS ke Firestore (lewat tombol Simpan di tab HPP, `MasterProdukHppManager`). Sisa komponen HPP (bahan+aksesoris×`harga_pemakaian`, jasa Cutting/Serie dari `bom_pola`, jasa lain dari `bom_jasa`) dihitung LIVE, TIDAK di-cache sebagai field |
 | `dibuat_pada`/`dibuat_oleh`, `diedit_pada`/`diedit_oleh` | Timestamp / string | — |
 
 ### `persiapan_masalah/{autoId}` — permintaan bahan/aksesoris kosong
@@ -324,7 +437,7 @@ Dipakai sebagai sumber `DropdownCari` di tempat lain: `master_jenis_produk` (Ent
 |---|---|---|
 | `bahan_aksesoris_id`, `kategori_utama`, `nama_bahan` | — | Resolve dari `master_bahan_aksesoris` |
 | `qty`, `satuan`, `keterangan` | — | — |
-| `status` | string | `menunggu` → `sudah_dipesan` (diubah otomatis begitu masuk Nota/List Order Belanja) |
+| `status` | string | `menunggu` → `sudah_dipesan` (diubah otomatis begitu masuk Nota Order Belanja). **Catatan (7 Sep 2026, §5.14)**: alur "ajukan sisa kekurangan" dari Scan Persiapan (`vue-scan-persiapan.js`, dipindah dari Kartu Stok lama) menulis ke koleksi ini dengan skema tulis yang SAMA, `keterangan` free-text-nya diisi konteks No. SPK |
 | `diminta_oleh`, `dibuat_pada` | string / Timestamp | — |
 
 ### `alias_pembelian/{autoId}` — mapping nama di nota suplayer ↔ item internal
@@ -346,8 +459,16 @@ Dipakai sebagai sumber `DropdownCari` di tempat lain: `master_jenis_produk` (Ent
 | `is_default_order` | boolean | **BARU (5 Sep 2026)** — `true` kalau alias ini jadi suplayer DEFAULT untuk kelompok item ini. Dijaga SUPAYA cuma 1 `true` per kelompok item lewat `writeBatch` di `PetakanOrderManager` (`js/vue-master-suplayer.js`, sub-tab "Petakan Order") — bukan divalidasi di sisi rules |
 | `dibuat_pada` | Timestamp | — |
 
-### `pesanan_pembelian/{autoId}` — Order Belanja (List = estimasi, Nota = pembelian nyata)
-1 koleksi dipakai KEDUA menu "List Order Belanja" (`modeNota=false`) & "Nota Order Belanja" (`modeNota=true`) — beda cuma di UI (List harga read-only dari Data Bahan, Nota harga aktual sesuai nota fisik) & efek samping saat `status:'final'` (cuma Nota yang tulis Riwayat Harga + Kartu Stok + Lot). **⚠️ Nama koleksi ini `pesanan_pembelian` (Order BELANJA/pembelian bahan) — JANGAN TERTUKAR** dengan koleksi BARU `transaksi_kasir` (Order PENJUALAN/Kasir ke pelanggan, lihat bagian "🛒 Pesanan" di bawah), 2 hal yang sama sekali berbeda walau sama-sama mulai kata "pesanan"/"Pesanan".
+### `pesanan_pembelian/{autoId}` — Nota pembelian bahan (dari driver + manual)
+> **PERUBAHAN BESAR (7 Sep 2026, §5.14)**: mode "List Order Belanja"
+> (`modeNota=false`, estimasi harga read-only dari Data Bahan) **DIHAPUS
+> TOTAL** dari kode — scope-nya pindah ke Persiapan Produksi > Persiapan
+> Belanja (belum dibangun, `RENCANA-REKONSTRUKSI-2026-09.md` langkah 8).
+> Koleksi ini SEKARANG cuma dipakai mode Nota (`DaftarNotaScreen`, ganti
+> nama dari "Nota Order Belanja"), layout ala kasir + entry keyboard-
+> first. ⚠️ Nama koleksi ini `pesanan_pembelian` (Order BELANJA/pembelian
+> bahan) — JANGAN TERTUKAR dengan koleksi `transaksi_kasir` (Order
+> PENJUALAN/Kasir ke pelanggan, lihat bagian "🛒 Pesanan" di bawah).
 
 | Field | Tipe | Keterangan |
 |---|---|---|
@@ -355,12 +476,14 @@ Dipakai sebagai sumber `DropdownCari` di tempat lain: `master_jenis_produk` (Ent
 | `tanggal` | string | `YYYY-MM-DD` |
 | `items` | array | Tiap baris: bahan+qty+harga+`jumlah` (qty×harga, dihitung ULANG saat simpan) + (kalau `pakai_lot_tracking`) `detail_lot` (array qty per roll) |
 | `estimasi_biaya_belanja` | number | Total semua `items[].jumlah` |
-| `status` | string | `draft` (tombol "Pending") / `final` (tombol "Simpan") |
+| `status` | string | `draft` (tombol "Pending") / `final` (tombol "Simpan") — finalisasi SEKARANG (§5.14) digerbang PIN: user Owner-tier langsung, tier lain WAJIB PopupPin (`cariUserByPin()`/`tierOwnerKeAtas()`, `users.pin_hash`) |
 | `sumber_permintaan_ids` | array\<string\> | ID dokumen `persiapan_masalah` yang ikut dimasukkan (kalau ada) |
+| `foto_bon` | string (URL Storage) | **BARU (7 Sep 2026, §5.14)** — opsional, bukti foto bon fisik, pola upload sama seperti foto di `vue-master-produk.js` |
+| `order_driver_id` | string \| null | **BARU (7 Sep 2026, §5.14)** — SELALU `null` untuk sekarang, belum ada modul driver (`order_belanja_driver`, `RENCANA-REKONSTRUKSI-2026-09.md` §2.1) yang menulis field ini. Chip "Sumber: Manual" tampil selalu di UI sampai field ini benar-benar terisi oleh modul driver |
 | `dibuat_pada`/`dibuat_oleh`, `diupdate_pada` | Timestamp / string | — |
 
 ### `riwayat_harga_pembelian/{autoId}` — 1 baris per item yang BENAR-BENAR dibeli
-Ditulis otomatis begitu Nota Order Belanja di-final-kan (`catatRiwayatHargaDanUpdateMaster()`), lalu ikut meng-update `harga_pembelian`/`konversi_bertingkat` di `master_bahan_aksesoris` (aturan: tanggal terbaru, termahal per satuan kalau ada beberapa harga di tanggal yang sama).
+Ditulis otomatis begitu Nota Order Belanja di-final-kan (`catatRiwayatHargaDanUpdateMaster()`), lalu ikut meng-update `harga_pembelian`/`konversi_bertingkat` di `master_bahan_aksesoris` (aturan: tanggal terbaru, termahal per satuan kalau ada beberapa harga di tanggal yang sama). **Catatan (7 Sep 2026, §5.14)**: kalau harga finalisasi baru LEBIH TINGGI dari `harga_modal` saat ini, auto-update ini DILEWATI — sebaliknya `master_bahan_aksesoris.harga_perlu_konfirmasi`/`harga_pending` diisi (lihat entri koleksi itu), menunggu Owner klik "Terapkan" di layar Riwayat Harga Pembelian (`RiwayatHargaPembelianManager`, banner alert kenaikan harga BARU).
 
 | Field | Tipe | Keterangan |
 |---|---|---|
@@ -416,7 +539,7 @@ Ditulis otomatis begitu Nota Order Belanja di-final-kan (`catatRiwayatHargaDanUp
 | Koleksi/dokumen | Isinya |
 |---|---|
 | `pengaturan_id_bahan_aksesoris/{bahan\|aksesoris}` | `{ prefix }` — prefix ID Data Bahan & Aksesoris, diatur lewat gear di Entry Bahan & Aksesoris |
-| `pengaturan_id_pembelian/pembelian` | `{ prefix }` — prefix No. Pembelian, diatur lewat gear di List/Nota Order Belanja |
+| `pengaturan_id_pembelian/pembelian` | `{ prefix }` — prefix No. Pembelian, diatur lewat gear di Daftar Nota |
 
 ---
 
@@ -441,6 +564,8 @@ Ditulis otomatis begitu Nota Order Belanja di-final-kan (`catatRiwayatHargaDanUp
 | `dibuat_pada`, `dibuat_oleh` | Timestamp / string | — |
 
 **Efek samping penting**: begitu 1 `transaksi_kasir` tersimpan, SISTEM OTOMATIS bikin **N dokumen `order_spk`** (1 per baris `items`, lihat bagian `order_spk` di atas) — supaya pesanan dari Kasir mengalir tanpa hambatan ke pipeline Persiapan Produksi V2 yang sudah ada.
+
+**Checkout guard BARU (7 Sep 2026, §5.14)**: sebelum `transaksi_kasir` ditulis, `buatOrder()` (`PesananKasirManager`) memanggil `bahanTerblokirDiKeranjang()` — query narrow `master_bahan_aksesoris` where `harga_perlu_konfirmasi==true`, cocokkan ke `bahan_aksesoris_id` hasil resolve BOM (`bom_pola`/`bom_aksesoris`) semua produk di keranjang. Kalau ada yang cocok, checkout DIBLOK (alert nama item). **Sengaja fail OPEN**: kalau query guard ini sendiri error, checkout TETAP JALAN (bukan diblok) — trade-off disengaja supaya bug di guard tidak menghentikan operasional Kasir.
 
 ### Koleksi counter (dokumen tunggal, bukan daftar)
 | Koleksi/dokumen | Isinya |
@@ -502,6 +627,18 @@ Ditulis otomatis begitu Nota Order Belanja di-final-kan (`catatRiwayatHargaDanUp
 > DIKOREKSI di dokumentasi ini (`{kode, nama, tipe}`, sebelumnya sempat
 > salah tertulis `{nama, keterangan}` — implementasi kode sudah benar
 > sejak awal).
+>
+> **UPDATE LAGI (7 Sep 2026 malam, §5.14)**: `js/vue-scan-persiapan.js`
+> (file terpisah dari daftar di atas, dipakai kasus SPK-linked
+> sederhana) DIPERLUAS menyerap 2 fungsi dari Kartu Stok lama — FIFO
+> multi-roll (`bangunAlokasiFifoScan()`) dan alur ajukan kekurangan ke
+> `persiapan_masalah` (3 opsi: kurangi jumlah / proses sebagian & ajukan
+> sisa / tunggu dulu). TIDAK ADA field/koleksi baru di `spk_track` dari
+> perubahan ini. **JANGAN TERTUKAR** dengan "modul Scan generik" yang
+> direncanakan `RENCANA-REKONSTRUKSI-2026-09.md` §9.3 (6 jenis scan,
+> dipakai SEMUA 9 pos, MASIH BELUM MULAI DIKERJAKAN) — `vue-scan-
+> persiapan.js` adalah file SPESIFIK yang sudah ada duluan & baru
+> diperluas, bukan modul generik itu.
 
 ### `spk_grouping/{autoId}` — kelompok SPK yang produk+pola-nya sama ("gelar kain bersama")
 | Field | Tipe | Keterangan |
@@ -647,6 +784,7 @@ Audit-only (create-only, tidak bisa update/delete lewat rules) — dicatat tiap 
 |---|---|
 | `pengumuman/{idPengumuman}/media_{timestamp}.{ext}` | Lampiran gambar/video Pengumuman (Config Info) — maks 1MB, divalidasi client + Storage Rules |
 | `master_produk/{produkId}/{segmen}_{timestamp}.jpg` | **BARU (30 Agt 2026, ditemukan saat audit Zevanic House)** — foto Master Produk (`vue-master-produk.js`, `uploadFotoProduk()`), pola path SAMA seperti Pengumuman. `segmen` = `foto` (foto utama produk) atau `pola{i}` (foto per baris BOM Pola) |
+| `pesanan_pembelian/{pembelianId}/bon_{timestamp}.jpg` | **BARU (7 Sep 2026, §5.14)** — foto bon fisik nota pembelian (`vue-stock-pembelian.js`, `DaftarNotaScreen`), pola upload SAMA seperti foto Master Produk |
 
 *(Update 30 Agt 2026: SEKARANG 2 folder yang dipakai, lihat baris di atas — catatan "Cuma 1 folder" per 18 Agt 2026 sudah tidak akurat. Foto selfie/KTP TIDAK di Storage, masih base64 langsung di field Firestore `foto_selfie`/`foto_ktp`, dengan segala konsekuensi ukuran dokumennya.)*
 
@@ -666,3 +804,6 @@ Audit-only (create-only, tidak bisa update/delete lewat rules) — dicatat tiap 
 10. **`master_suplayer` & `alias_pembelian` field BARU (§5.12)** — `master_suplayer` sekarang punya `bank`/`nama_rek`/`no_rek`/`no_wa` (opsional, dokumen lama tanpa field ini null-safe); `alias_pembelian` sekarang punya `moq`/`moq_satuan`/`lead_time_hari`/`is_default_order` (jangan disamakan dengan `master_produk.kelipatan`, itu konsep BOM produk yang beda konteks sama sekali).
 11. **ADA 2 MOQ terpisah, JANGAN DICAMPUR (§5.13, 5 Sep 2026, klarifikasi Guru langsung)**: (a) "MOQ Pembelian Bahan & Aksesoris" = `alias_pembelian.moq`/`moq_satuan`/`lead_time_hari` (§5.12 di atas) — jalur SUPLAYER/beli bahan; (b) "MOQ Pesanan Produk" = `master_produk.moq_serie` (§5.13) — jalur PRODUK/order, dipakai modul Serie nanti. Beda koleksi, beda konteks, beda tujuan — kalau ada permintaan fitur soal "MOQ" ke depan, WAJIB tanya dulu yang mana yang dimaksud kalau tidak eksplisit.
 12. **ADA 2 "kelipatan" terpisah di `master_produk`, JANGAN DICAMPUR (§5.13)**: (a) `kelipatan` (lama, 28 Agt 2026) = auto-KPK dari `bom_pola[].isi_pola_pcs`, dipakai Order SPK/Kasir sebagai "Rekomendasi Kelipatan Order" — TETAP dipakai apa adanya; (b) `kelipatan_isi_pola` (baru, §5.13) = input MANUAL terpisah untuk modul Serie nanti, TIDAK ada hubungan hitung-otomatis dengan (a).
+13. **`master_bahan_aksesoris.margin_modal` SEKARANG PERSEN, BUKAN Rupiah (§5.13, 7 Sep 2026)** — `harga_pemakaian = harga_modal * (1 + margin_modal/100)`. Data LAMA yang `margin_modal`-nya masih nominal Rupiah akan TERBACA SALAH sebagai persen (mis. margin lama Rp 5.000 akan dibaca sebagai margin 5.000%) — TIDAK ADA migrasi otomatis, Guru WAJIB cek & bersihkan data lama secara manual sebelum fitur ini dianggap aman dipakai.
+14. **`master_rak_penyimpanan` skema BERUBAH TOTAL (§5.14, 7 Sep 2026)** — field `kode_rak`/`baris_rak`/`kolom_rak` DULU dropdown master-data terkelola, SEKARANG teks bebas yang digabung jadi `kode_rak`. Dokumen LAMA dan BARU dibedakan lewat ADA/TIDAKnya field `rak` (field baru) — kode yang baca koleksi ini WAJIB cek keberadaan field `rak` dulu sebelum asumsi skema mana yang dipakai 1 dokumen. Lihat entri koleksi lengkap di atas.
+15. **`users.pin_hash` DIREUSE untuk Stok & Pembelian (§5.14), BUKAN infrastruktur PIN generik yang sama dengan rencana `RENCANA-REKONSTRUKSI-2026-09.md` §2.3/§9.3** — dua hal yang beda cakupan keamanan, jangan asumsikan modul lain (Persiapan Belanja, Pesanan piutang) otomatis bisa pakai mekanisme yang sama tanpa evaluasi ulang risikonya (nilai transaksi, siapa yang bisa akses).
