@@ -82,6 +82,29 @@
 > ini saja. Detail lengkap: `STATUS-PROYEK.md` §5.14. Kode ditulis + `node
 > --check` lolos + dikirim ke `Code\` device — **BELUM DITEST BROWSER/
 > FIRESTORE SAMA SEKALI**, dan modul ini sensitif UANG+STOK.
+>
+> **UPDATE progres (7 Sep 2026, lanjutan malam lagi) — PENYIMPANGAN
+> URUTAN, langkah 15 dikerjakan lebih dulu**: atas permintaan eksplisit
+> Guru lewat invocation `/design-terapkan-handoff` langsung untuk modul
+> "Pesanan dan Transaksi", **langkah 15 (Pesanan — fitur piutang) di §6
+> DIKERJAKAN SEKARANG**, LONCAT dari urutan yang disarankan (langkah 5-14
+> — Modul Scan generik, Masalah rebuild, kekurangan Bahan/Acc, Stok dan
+> Pembelian [sudah selesai duluan sebagai 7c], Persiapan Belanja, Vendor,
+> lalu Proses Produksi Cutting-Gudang — SEMUA INI TETAP BELUM SELESAI).
+> Bukan kesalahan — Guru yang eksplisit minta dikerjakan sekarang — tapi
+> WAJIB dicatat sebagai penyimpangan urutan disarankan supaya sesi
+> berikutnya tidak bingung kenapa langkah 15 sudah ada kodenya padahal
+> langkah 5-14 belum. Detail lengkap keputusan (7 keputusan Guru D1-D7 +
+> 4 tambahan teknis T1-T4, termasuk 1 temuan arsitektur `status_grouping`
+> yang dikoreksi mid-implementasi): `STATUS-PROYEK.md` §5.15. Ringkasan:
+> 4 sub-menu Pesanan direkonstruksi total (Penjualan Kasir, Menunggu
+> Proses [jadi murni antrian QO], Daftar Pesanan [BARU, gabungan 3 menu
+> ringkasan lama], Transaksi Keuangan [BARU]), 1 koleksi BARU
+> `piutang_pembayaran` (**BELUM DIPUBLISH rules-nya — blocker keras**),
+> field baru di `transaksi_kasir`/`order_spk`. **KODE DITULIS, `node
+> --check` lolos, BELUM DITEST BROWSER/FIRESTORE SAMA SEKALI** — jangan
+> dianggap siap pakai. Langkah 5-14 di §6 di bawah TETAP berlaku apa
+> adanya untuk urutan sisanya (tidak berubah karena penyimpangan ini).
 
 ---
 
@@ -135,18 +158,25 @@ Paket wireframe ini menyentuh **4 area top-level** + 1 area pendukung:
    yang sama berulang (kode selesai, rules menyusul telat), modul baru akan
    terus tertahan di "kode selesai, belum bisa ditulis". ~~Sudah terbukti
    lagi persis begitu di §5.14~~ **RESOLVED (7 Sep 2026)** — rules
-   `master_pelanggan` sudah dipublish Guru. Rekomendasi tetap sama: siapkan
-   draft rules BERSAMAAN dengan tiap modul (SUDAH dijalankan sejak §5.11 —
-   draft dikirim terpisah tiap kali ada koleksi baru).
+   `master_pelanggan` sudah dipublish Guru. **Terbukti lagi (7 Sep 2026
+   malam) di §5.15**: koleksi BARU `piutang_pembayaran` (Pesanan piutang)
+   BELUM dipublish rules-nya — blocker keras aktif SAAT INI. Rekomendasi
+   tetap sama: siapkan draft rules BERSAMAAN dengan tiap modul (SUDAH
+   dijalankan sejak §5.11 — draft dikirim terpisah tiap kali ada koleksi
+   baru, termasuk `piutang_pembayaran` di §5.15).
 6. **Infrastruktur PIN generik (langkah 3) masih ditunda TOTAL, TAPI
    ditemukan solusi lebih ringan yang sudah cukup untuk sebagian modul.**
    `users.pin_hash` (SHA-256 client-side, dibangun 22 Agt 2026 untuk Kiosk)
    ternyata sudah bisa dipakai ulang untuk Stok & Pembelian (finalisasi
    nota, Terapkan harga — lihat §5.14) TANPA perlu Cloud Function. Ini
    BUKAN pengganti `verifikasiPIN()` generik yang dibayangkan §2.3/langkah
-   3 (yang masih relevan untuk Persiapan Belanja/Pesanan piutang nanti),
-   tapi berguna dicatat sebagai opsi kalau modul lain juga cuma butuh PIN
-   level Owner/Admin sederhana, bukan audit trail penuh.
+   3 (yang masih relevan untuk Persiapan Belanja nanti), tapi berguna
+   dicatat sebagai opsi kalau modul lain juga cuma butuh PIN level
+   Owner/Admin sederhana, bukan audit trail penuh. **DIREUSE LAGI (§5.15,
+   7 Sep 2026 malam)** — Pesanan (Menunggu Proses "Proses massal" +
+   Transaksi Keuangan "Catat pembayaran") juga pakai `pin_hash` yang sama,
+   SELALU wajib PIN walau user login sudah Owner (beda dari pola skip-PIN-
+   untuk-Owner di Stok & Pembelian, keputusan Guru D4).
 
 ---
 
@@ -160,9 +190,9 @@ Paket wireframe ini menyentuh **4 area top-level** + 1 area pendukung:
 | Persiapan Produksi › Vendor | ✅ Aktif, tapi **generik** (`JalurTahapManager`) | Wireframe **belum digambar** untuk pos ini — lihat §5 |
 | Persiapan Produksi › Masalah | ✅ Aktif TAPI **versi sangat sederhana** (1 daftar status) | Wireframe minta 7 child-menu — **REBUILD TOTAL**, bukan tambahan |
 | Persiapan Produksi › Persiapan Belanja | ❌ Belum ada sama sekali | Konsepnya baru; sebagian tumpang tindih "List Order Belanja" yang sudah ada di Stok & Pembelian — lihat §5 |
-| Pesanan (semua 4 sub-menu) | ⚠️ Kode selesai, **belum diuji**, `firestore.rules` **sudah dipublish (5 Sep 2026)** | Piutang/pelanggan di wireframe ini akan ditumpuk DI ATAS kode yang belum pernah jalan sekali pun. **7 Sep 2026 malam**: tambahan `bahanTerblokirDiKeranjang()` guard checkout (§5.14) juga belum diuji |
+| Pesanan (semua 4 sub-menu, DIREKONSTRUKSI TOTAL §5.15) | ⚠️ **Kode direkonstruksi total & selesai ditulis (7 Sep 2026 malam, §5.15), `firestore.rules` transaksi_kasir SUDAH dipublish, TAPI koleksi BARU `piutang_pembayaran` BELUM dipublish (blocker keras)** | Piutang/pelanggan DIKERJAKAN SEKARANG (loncat urutan, lihat catatan update progres teratas) — BELUM DIUJI BROWSER/FIRESTORE SAMA SEKALI. Menu lama "Menunggu Proses" (CRUD manual) & 3 menu ringkasan lama (Persiapan/Produksi/Pengiriman) SUDAH TIDAK ADA LAGI, diganti struktur baru — lihat `PETA-MENU.md` |
 | Zevanic House › Master Suplayer | ✅ **Rebuild SELESAI (§5.12)**, kode dikirim ke `Code`, belum push/uji Guru | 5.1-5.3 + 4 field baru sudah jadi |
-| Zevanic House › Master Pelanggan | ✅ **Modul baru SELESAI ditulis (§5.14 lama/§5.12 di STATUS-PROYEK.md)**, kode dikirim ke `Code`, rules **SUDAH dipublish (7 Sep 2026)**, belum push/uji Guru | Koleksi + menu baru total, lihat `js/vue-master-pelanggan.js` |
+| Zevanic House › Master Pelanggan | ✅ **Modul baru SELESAI ditulis (§5.14 lama/§5.12 di STATUS-PROYEK.md)**, kode dikirim ke `Code`, rules **SUDAH dipublish (7 Sep 2026)**, belum push/uji Guru | Koleksi + menu baru total, lihat `js/vue-master-pelanggan.js`. **`saldo_piutang` SEKARANG mulai benar-benar dipakai (§5.15)** lewat 2 titik resmi di modul Pesanan |
 | Proses Produksi (semua 5 pos) | ❌ Belum ada sama sekali | Tidak ada file, tidak ada koleksi, tidak ada grup sidebar (`navgrp-prosesproduksi` belum ada) |
 | Stok & Pembelian › Alias Pembelian | ✅ Dipindah ke Zevanic House › Master Suplayer 5.2 (§5.12) | Struktur data sama, hanya lokasi menu berubah |
 | Stok & Pembelian › Daftar Nota (ganti "Order Belanja") | ✅ **Rebuild SELESAI ditulis (7 Sep 2026, `STATUS-PROYEK.md` §5.14)**, kode dikirim ke `Code`, **BELUM push/uji Guru** | Entry keyboard-first + PIN finalisasi + foto_bon; "List Order Belanja" (estimasi lama) DIHAPUS TOTAL dari sini |
@@ -181,8 +211,8 @@ Paket wireframe ini menyentuh **4 area top-level** + 1 area pendukung:
 
 | Koleksi | Dipakai oleh | Catatan kunci |
 |---|---|---|
-| `master_pelanggan` | Zevanic House, Pesanan (kasir, piutang) | ✅ **KODE SELESAI (§5.14)**, rules SUDAH dipublish (7 Sep 2026) — `saldo_piutang` JANGAN ditulis langsung — lewat fungsi catat pembayaran (langkah 12, belum dikerjakan, jadi field ini SELALU 0 untuk sekarang) |
-| `piutang_pembayaran` | Pesanan › Transaksi Keuangan | 1 dokumen per PEMBAYARAN, bukan per transaksi. Wewenang: Owner/PIC Owner + PIN |
+| `master_pelanggan` | Zevanic House, Pesanan (kasir, piutang) | ✅ **KODE SELESAI (§5.14)**, rules SUDAH dipublish. `saldo_piutang` SEKARANG (§5.15) mulai benar-benar ditulis lewat 2 titik resmi (checkout Kasir menambah, `catatPembayaranSusulan()` mengurangi) — TIDAK lagi selalu `0` |
+| `piutang_pembayaran` | Pesanan › Transaksi Keuangan | ✅ **KODE SELESAI (§5.15, 7 Sep 2026 malam)** — 1 dokumen per PEMBAYARAN, bukan per transaksi. Wewenang: Owner/PIC Owner + PIN (selalu wajib, termasuk Owner login). **⚠️ RULES BELUM DIPUBLISH — blocker keras**, belum bisa dipakai sama sekali di production |
 | `order_belanja_driver` | Persiapan Belanja, Stok & Pembelian › List Order Driver | 1 dokumen = 1 order ke 1 suplayer |
 | `pending_driver` | idem | Item yang stoknya habis di suplayer asal, bisa di-assign ulang |
 | `cutting_track` | Proses Produksi › Cutting | 1 per SPK Grouping masuk Cutting, status 7 nilai |
@@ -211,13 +241,14 @@ akan benar-benar tercapai untuk Proses Produksi.
 
 | Koleksi | Field baru | Untuk |
 |---|---|---|
-| `transaksi_kasir` | `pelanggan_id`, `status_bayar`, `dp_persen`, `total_dibayar`, `sisa_piutang`, `jatuh_tempo` | Pesanan piutang |
+| `transaksi_kasir` | `pelanggan_id`, `status_bayar`, `dp_persen`, `total_dibayar`, `sisa_piutang`, `jatuh_tempo` | ✅ **SELESAI (§5.15, 7 Sep 2026 malam)** — Pesanan piutang |
+| `order_spk` | `qo_diproses`, `qo_diproses_pada`, `qo_oleh` (proses massal QO), `pelanggan_id`, `pelanggan_nama`, `transaksi_kasir_id`, `no_transaksi`, `status_bayar` (snapshot) | ✅ **SELESAI (§5.15)** — bukan dari spek asli, ditambahkan karena diperlukan teknis (lihat `STATUS-PROYEK.md` §5.15 T1/T2) |
 | `master_suplayer` | `bank`, `nama_rek`, `no_rek`, `no_wa` | ✅ SELESAI (§5.12) |
 | `alias_pembelian` | `moq`, `moq_satuan`, `lead_time_hari`, `is_default_order` | ✅ SELESAI (§5.12) |
 | `persiapan_masalah` | `tlc_asal`, `sumber_jalur`, `spk_track_id`, `baris_index` | Rebuild modul Masalah |
 | `pesanan_pembelian` | `foto_bon`, `order_driver_id` | ✅ **SELESAI (§5.14, 7 Sep 2026 malam)** — `order_driver_id` SELALU `null` untuk sekarang, belum ada modul driver yang menulis |
 | `master_bahan_aksesoris` | `harga_perlu_konfirmasi`, `harga_pending` | ✅ **BARU (§5.14)** — dipakai alert kenaikan harga + checkout guard, bukan bagian spesifikasi awal, ditemukan perlu saat implementasi |
-| `users` | `pin_hash`, `pin_salt` | PIN generik (edit harga, cetak ulang, dst) — **PIN WAJIB unik lintas user**, perlu strategi lookup kalau pakai bcrypt. **DITUNDA** (langkah 3 dilewati, lihat update progres di atas). **Catatan 7 Sep 2026 malam**: `pin_hash` (tanpa `pin_salt` terpisah, salt-nya email) TERNYATA SUDAH ADA dari fitur Kiosk 22 Agt — direuse di Stok & Pembelian (§5.14), bukan field baru |
+| `users` | `pin_hash`, `pin_salt` | PIN generik (edit harga, cetak ulang, dst) — **PIN WAJIB unik lintas user**, perlu strategi lookup kalau pakai bcrypt. **DITUNDA** (langkah 3 dilewati, lihat update progres di atas). **Catatan 7 Sep 2026 malam**: `pin_hash` (tanpa `pin_salt` terpisah, salt-nya email) TERNYATA SUDAH ADA dari fitur Kiosk 22 Agt — direuse di Stok & Pembelian (§5.14) DAN Pesanan (§5.15), bukan field baru |
 | `master_produk` | `moq_serie`, `kelipatan_isi_pola` | ✅ SELESAI (§5.13) |
 | `master_bahan_aksesoris` | — (sudah ada `panjang_roll`) | Bisa dipakai ulang |
 | `spk_track` (jalur bahan/sewing/webbing/finishing) | **tidak ada field baru**, tapi `..._rincian[].sampai_pada` **akhirnya dapat penulis** | Ditulis oleh Cutting saat "Scan Sampai" (lihat §0 poin 2) |
@@ -255,6 +286,17 @@ bernilai besar) — tapi dicatat sebagai opsi murah kalau modul lain
 (Persiapan Belanja, dst) ternyata juga cuma butuh PIN level Owner/Admin
 sederhana, bukan audit trail penuh.
 
+**UPDATE LAGI (7 Sep 2026 malam lagi, §5.15)**: `pin_hash` yang sama JUGA
+dipakai untuk gerbang PIN Pesanan (Menunggu Proses "Proses massal",
+Transaksi Keuangan "Catat pembayaran") — meski ini modul PIUTANG yang
+disebut eksplisit di paragraf atas sebagai kasus yang idealnya menunggu
+`verifikasiPIN()` generik. Keputusan Guru (D4): pakai `pin_hash` yang
+sudah ada dulu, SELALU wajib (termasuk untuk Owner yang sudah login) —
+bukan menunggu infrastruktur generik yang masih ditunda. Risikonya SAMA
+seperti dicatat di atas (skema hash lebih sederhana, belum tentu cukup
+untuk piutang bernilai besar) — dicatat di sini supaya tidak dianggap
+sudah "aman penuh" hanya karena ada gerbang PIN.
+
 ---
 
 ## 3. Dampak menu / sidebar
@@ -270,7 +312,8 @@ sederhana, bukan audit trail penuh.
 | **List Order Belanja** (Stok & Pembelian) — **DIHAPUS TOTAL** (diputuskan 7 Sep 2026, lihat §5 poin 1), digantikan sepenuhnya oleh Persiapan Belanja | ✅ **DIEKSEKUSI (§5.14, 7 Sep 2026 malam)** — bukan cuma keputusan, sudah dihapus dari kode+menu+sidebar. Persiapan Belanja (langkah 8) sendiri belum mulai dibangun — jadi untuk sementara TIDAK ADA jalur order estimasi sampai langkah 8 selesai |
 | **4 sub-tab Stok & Pembelian rebuild** (Daftar Nota, Riwayat Harga, Kartu Stok, Rak Penyimpanan) | ✅ **SELESAI (§5.14, 7 Sep 2026 malam)** — lihat §1 untuk status per sub-tab |
 | **Menu baru "Kemasan Komponen Acc"** (ganti nama dari "Bagging Acc", Stok & Pembelian, lihat §9.4) | Kode kemasan komponen kecil per jumlah tetap — BELUM didesain, baru arah keputusan |
-| **DAFTAR_MENU** (`vue-config-akses.js`) | Perlu banyak entri `menuId` baru — tiap sub-menu baru di atas butuh 1 entri, plus kategori baru `"Proses Produksi"` masuk ke `KATEGORI_URUTAN`. `master_pelanggan` sudah ditambahkan (§5.14). **7 Sep 2026 malam**: `stock_list_order_belanja` di-deprecated, `stock_rak_penyimpanan` ditambahkan, `bahan_aksesoris_rak` (lokasi lama) di-deprecated |
+| **Grup Pesanan direkonstruksi total (§5.15)**: `pesanan_persiapan`/`pesanan_produksi`/`pesanan_pengiriman` DIHAPUS, GANTI `pesanan_daftar` ("Daftar Pesanan") dan `pesanan_transaksi` ("Transaksi Keuangan") | ✅ **SELESAI DITULIS (7 Sep 2026 malam, §5.15)** — `pesanan_kasir`/`pesanan_menunggu` id sama, isi layarnya berubah total (Menunggu Proses jadi murni antrian QO). BELUM DIUJI |
+| **DAFTAR_MENU** (`vue-config-akses.js`) | Perlu banyak entri `menuId` baru — tiap sub-menu baru di atas butuh 1 entri, plus kategori baru `"Proses Produksi"` masuk ke `KATEGORI_URUTAN`. `master_pelanggan` sudah ditambahkan (§5.14). **7 Sep 2026 malam**: `stock_list_order_belanja` di-deprecated, `stock_rak_penyimpanan` ditambahkan, `bahan_aksesoris_rak` (lokasi lama) di-deprecated. **7 Sep 2026 malam lagi (§5.15)**: `pesanan_persiapan`/`pesanan_produksi`/`pesanan_pengiriman` dihapus, `pesanan_daftar`/`pesanan_transaksi` ditambahkan |
 | **Beranda desktop** — kartu "Pipeline Produksi" | Placeholder "Segera Hadir" → diaktifkan datanya nyata begitu Proses Produksi jadi (baca `cutting_track`/`separating_batch`/`sewing_track`/`finishing_track`/`label_pcs`) |
 | **Pesanan › Daftar Pesanan (3.1)** — kartu "Pipeline Proses Produksi" | Sekarang tampil "—" (modul belum ada) — otomatis terisi begitu Proses Produksi jadi, TANPA perlu ubah kode `vue-pesanan.js` (asalkan field yang dibaca cocok) |
 
@@ -279,22 +322,26 @@ sederhana, bukan audit trail penuh.
 ## 4. Dampak alur/logika per area
 
 ### 4.1 Pesanan dan Transaksi
-- Kasir **wajib** pilih pelanggan sebelum checkout (sekarang opsional) —
-  perlu koleksi `master_pelanggan` siap dulu (✅ kode selesai §5.14, TAPI
-  `vue-pesanan.js` SENDIRI belum diubah untuk piutang — itu tetap langkah
-  12; yang SUDAH masuk ke `vue-pesanan.js` malam ini cuma checkout guard
-  harga pending, lihat §5.14 poin 5).
-- Metode bayar bertambah: Tempo, DP, Cicilan (sekarang cuma Tunai/Transfer/
-  QRIS/Lainnya).
-- Piutang jadi first-class: `status_bayar` tri/multi-state, dicatat via
-  `piutang_pembayaran`, hanya Owner/PIC Owner + PIN.
-- Daftar Pesanan (3.1) dapat ringkasan menyeluruh + kartu per pelanggan +
-  pipeline (bagian Persiapan sudah bisa jalan sekarang; bagian Proses
-  Produksi nunggu modul baru).
+- ✅ **DIKERJAKAN §5.15 (7 Sep 2026 malam, loncat urutan)** — Kasir sekarang
+  WAJIB pilih pelanggan sebelum checkout. Metode bayar TETAP Tunai/Transfer/
+  QRIS (Lainnya dihapus), status bayar bertambah Lunas/DP/Tempo (Cicilan
+  BUKAN opsi checkout, jadi status turunan dari `limit_piutang`, keputusan
+  Guru D6 — beda dari rencana awal poin ini yang membayangkan Cicilan
+  sebagai metode terpisah).
+- Piutang jadi first-class: `status_bayar` tri-state di `transaksi_kasir`,
+  dicatat via `piutang_pembayaran`, gerbang PIN + role Owner-tier untuk
+  "Proses massal" (Menunggu Proses) dan "Catat pembayaran" (Transaksi
+  Keuangan).
+- Daftar Pesanan (3.1, sekarang `PesananDaftarManager`) dapat ringkasan
+  menyeluruh + kartu per pelanggan + pipeline (bagian Persiapan sudah bisa
+  jalan sekarang, TAPI disederhanakan jadi perkiraan begitu SPK masuk
+  grouping campur-pelanggan, lihat `STATUS-PROYEK.md` §5.15 poin 5; bagian
+  Proses Produksi nunggu modul baru, tampil "—").
 
 ### 4.2 Zevanic House
-- Master Pelanggan: ✅ CRUD baru penuh SELESAI (§5.14) — BELUM dipakai
-  lintas modul manapun (kasir/piutang menyusul langkah 12).
+- Master Pelanggan: ✅ CRUD baru penuh SELESAI (§5.14) — **SEKARANG (§5.15)
+  mulai benar-benar dipakai** oleh Pesanan (kasir wajib pilih pelanggan,
+  `saldo_piutang` mulai berubah lewat 2 titik resmi).
 - Master Suplayer: ✅ SELESAI (§5.12) — dari generik jadi CRUD lengkap +
   alias + MOQ + petakan order otomatis (`is_default_order`).
 - Tidak ada perubahan pada Master Bahan/Master Produk selain field kecil
@@ -306,7 +353,11 @@ sederhana, bukan audit trail penuh.
   live sebelum diasumsikan "tidak berubah"**, karena wireframe menjelaskan
   perilaku yang cukup rinci (mis. penomoran harian 3 digit, kotak "akan
   masuk ke — otomatis") yang belum tentu 100% sama dengan implementasi
-  31 Agt 2026.
+  31 Agt 2026. **Dikonfirmasi ULANG (7 Sep 2026, §5.15)**: `status_grouping`/
+  `qty_tergrouping`/`grouping_ids` TETAP eksklusif milik modul ini — modul
+  Pesanan (Menunggu Proses) yang sempat direncanakan menulis field ini
+  ternyata TIDAK BOLEH (temuan arsitektur mid-implementasi, dikoreksi
+  sebelum kode ditulis, lihat `STATUS-PROYEK.md` §5.15 poin 4).
 - **Bahan / Acc Sewing / Acc Webbing / Acc Finishing**: kode sudah ada,
   **belum diuji** — sebelum menyentuh apapun di sini untuk paket baru ini,
   modul-modul ini harus dites dulu (lihat urutan di §6).
@@ -397,11 +448,16 @@ Diurutkan dari yang paling menghambat:
    BERSAMAAN kode sudah berjalan konsisten sejak §5.11, dan Publish oleh
    Guru juga sudah SELESAI untuk semua koleksi s.d. §5.14 (7 Sep 2026,
    termasuk `master_pelanggan`) — titik lambat lama ini TIDAK lagi jadi
-   bottleneck aktif saat ini. **Catatan**: field baru §5.14 malam
-   (`harga_perlu_konfirmasi`/`harga_pending` di `master_bahan_aksesoris`,
-   `foto_bon`/`order_driver_id` di `pesanan_pembelian`) TIDAK butuh rule
-   baru (field di koleksi yang rule-nya sudah ada) — beda dengan
-   `riwayat_pin` (§5.13) yang butuh match block baru.
+   bottleneck aktif untuk koleksi-koleksi itu. **AKTIF LAGI (§5.15, 7 Sep
+   2026 malam)**: koleksi BARU `piutang_pembayaran` (Pesanan piutang)
+   BELUM dipublish — blocker keras baru, sama polanya seperti sebelumnya.
+   **Catatan**: field baru §5.14 malam (`harga_perlu_konfirmasi`/
+   `harga_pending` di `master_bahan_aksesoris`, `foto_bon`/
+   `order_driver_id` di `pesanan_pembelian`) TIDAK butuh rule baru (field
+   di koleksi yang rule-nya sudah ada), begitu juga field baru §5.15 di
+   `transaksi_kasir`/`order_spk` — beda dengan `riwayat_pin` (§5.13) dan
+   `piutang_pembayaran` (§5.15) yang keduanya butuh match block baru dan
+   BELUM dipublish.
 5. Poin "Yang Belum Diputuskan" di tiap `SERAH-TERIMA.md` (daftar lengkap
    di §7) — **9 dari 37 sudah dijawab Guru 7 Sep 2026** (ditandai ✅ di
    tabel §7), plus 3 lagi ternyata sudah dijawab lebih dulu di §5.10.
@@ -416,13 +472,20 @@ dependency dari verifikasi kode:
 
 **GESER (7 Sep 2026, keputusan Guru)**: Persiapan Produksi diselesaikan
 DULU seluruhnya (langkah 5-9 baru di bawah) sebelum masuk Proses Produksi
-— urutan LAMA (Cutting duluan) sudah TIDAK berlaku, digantikan urutan ini:
+— urutan LAMA (Cutting duluan) sudah TIDAK berlaku, digantikan urutan ini.
+
+> **CATATAN PENYIMPANGAN (7 Sep 2026 malam lagi)**: langkah **15** di
+> tabel bawah ini (Pesanan — fitur piutang) DIKERJAKAN LEBIH DULU, LONCAT
+> dari urutan ini, atas permintaan eksplisit Guru — lihat catatan update
+> progres paling atas dokumen ini & `STATUS-PROYEK.md` §5.15. Langkah
+> 5-14 di bawah TIDAK berubah urutannya dan TETAP belum selesai — loncatan
+> ini HANYA untuk langkah 15, bukan pergeseran urutan permanen.
 
 | # | Langkah | Status (7 Sep 2026) | Alasan |
 |---|---|---|---|
 | 1 | **Push & uji** Bahan/Acc Sewing/Webbing/Finishing yang sudah "kode selesai" | ⏳ Tugas Guru, belum dikonfirmasi | Prasyarat murni — modul-modul ini akan disentuh lagi di langkah 5-8 di bawah, harus stabil duluan |
 | 2 | Publish `firestore.rules` yang tertunda (`transaksi_kasir`, 6 koleksi Bahan/Acc, `master_pelanggan`) | ✅ **SELESAI** | Blocker keras yang sudah ada sebelum paket baru ini pun — semua rules s.d. §5.14 sudah dipublish |
-| 3 | Infrastruktur PIN sungguhan (`verifikasiPIN`, `pin_hash`) | ⏸️ **Sengaja dilewati** (pilihan Guru) | Dipakai banyak modul baru (Persiapan Belanja, Pesanan piutang, Stok edit harga) — kerjakan sekali, pakai ulang. Tunggu Cloud Function/keputusan pendekatan. **Catatan 7 Sep 2026 malam**: Stok & Pembelian (§5.14) TIDAK menunggu langkah ini — ternyata sudah ada `users.pin_hash` dari Kiosk yang cukup dipakai ulang untuk kebutuhan modul itu saja, lihat §2.3 |
+| 3 | Infrastruktur PIN sungguhan (`verifikasiPIN`, `pin_hash`) | ⏸️ **Sengaja dilewati** (pilihan Guru) | Dipakai banyak modul baru (Persiapan Belanja, Stok edit harga) — kerjakan sekali, pakai ulang. Tunggu Cloud Function/keputusan pendekatan. **Catatan 7 Sep 2026 malam**: Stok & Pembelian (§5.14) DAN Pesanan (§5.15) TIDAK menunggu langkah ini — ternyata sudah ada `users.pin_hash` dari Kiosk yang cukup dipakai ulang untuk kebutuhan modul-modul itu, lihat §2.3 |
 | 4 | Master Pelanggan + Master Suplayer (rebuild) | ✅ **KODE SELESAI KEDUANYA, RULES SELESAI KEDUANYA** (Suplayer §5.12, Pelanggan §5.14) — belum push/uji Guru | Data dasar yang dibutuhkan Pesanan piutang & Persiapan Belanja |
 | 5 | **Modul Scan generik** (Operator/Entry/Masalah/Pack/Kirim/Sampai, BARU §9.3) | ⏳ Belum mulai, baru diputuskan cakupannya (7 Sep 2026) | Retrofit Bahan/Acc/Masalah yang sudah live + disiapkan buat dipanggil Proses Produksi nanti — dikerjakan SEBELUM Cutting supaya Cutting dkk tinggal panggil, bukan bikin scan sendiri-sendiri lagi |
 | 6 | **Masalah** (rebuild total, 7 child-menu) | ⏳ Belum mulai | Bagian dari "Persiapan Produksi diperbarui dulu" — bisa mulai begitu langkah 5 selesai |
@@ -436,12 +499,15 @@ DULU seluruhnya (langkah 5-9 baru di bawah) sebelum masuk Proses Produksi
 | 12 | **Sewing** (Proses Produksi) | ⏳ Belum mulai | Sumber `label_pcs`, dipakai Finishing+Gudang+Kasir |
 | 13 | **Finishing** | ⏳ Belum mulai | Bergantung pada label pcs dari Sewing |
 | 14 | **Gudang Barang Jadi** | ⏳ Belum mulai | Titik akhir, baru bisa diuji penuh setelah 10-13 selesai |
-| 15 | Pesanan — fitur piutang | ⏳ Belum mulai | Butuh Master Pelanggan (langkah 4, kode+rules sudah siap). Checkout guard harga pending (§7c) sudah lebih dulu masuk ke `vue-pesanan.js`, tidak perlu ditunggu langkah ini |
+| 15 | Pesanan — fitur piutang | ✅ **KODE SELESAI DITULIS, LONCAT DIKERJAKAN LEBIH DULU (7 Sep 2026 malam, §5.15)** — atas permintaan eksplisit Guru, BUKAN menunggu giliran urutan ini. **BELUM DITEST BROWSER/FIRESTORE SAMA SEKALI**, DAN diblokir rule Firestore `piutang_pembayaran` yang belum dipublish | Butuh Master Pelanggan (langkah 4, kode+rules sudah siap) — prasyarat itu SUDAH terpenuhi makanya loncat lebih dulu bisa dikerjakan. Checkout guard harga pending (§7c) sudah lebih dulu masuk ke `vue-pesanan.js` |
 | 16 | **Kemasan Komponen Acc** (BARU, §9.4, ganti nama dari "Bagging Acc") | ⏳ Belum mulai, baru arah keputusan | Menyusul begitu skema `kemasan_komponen_acc` didesain — dibahas bareng Acc Sewing/Webbing/Finishing karena field terkait ada di sana |
 
 Setiap langkah **tetap 1 modul 1 sesi chat**, sesuai aturan
 `PEDOMAN-SERAH-TERIMA.md` — dokumen ini hanya peta urutan, bukan izin
-mengerjakan beberapa modul sekaligus.
+mengerjakan beberapa modul sekaligus. **Pengecualian yang sudah terjadi**:
+langkah 15 dikerjakan di luar urutan atas permintaan eksplisit Guru
+(dicatat, bukan pelanggaran diam-diam) — lihat catatan penyimpangan di
+atas tabel ini.
 
 ---
 
@@ -472,10 +538,10 @@ mengerjakan beberapa modul sekaligus.
 | Persiapan Belanja | Batas waktu ACC sebelum auto-cancel | |
 | Vendor | Wireframe khusus vs tetap generik | |
 | Vendor | Vendor punya akses sistem sendiri atau hanya lewat admin? | |
-| Pesanan | Retur/pembatalan pesanan — belum dirancang | |
-| Pesanan | Diskon per item atau per transaksi — belum ada field | |
-| Pesanan | Format cetak struk — thermal 58/80mm atau A4? | |
-| Pesanan | Cicilan — ada denda keterlambatan? | |
+| Pesanan | Retur/pembatalan pesanan — belum dirancang | *(masih terbuka — §5.15 belum menjawab ini, `transaksi_kasir.status` masih cuma `'Aktif'`)* |
+| Pesanan | Diskon per item atau per transaksi — belum ada field | *(masih terbuka — §5.15 belum menambah field diskon)* |
+| Pesanan | Format cetak struk — thermal 58/80mm atau A4? | *(masih terbuka — §5.15 pakai `window.print()` browser MVP, T4, bukan integrasi printer thermal sungguhan)* |
+| Pesanan | Cicilan — ada denda keterlambatan? | ✅ **Dijawab implisit §5.15**: TIDAK ada jadwal cicilan/denda — Cicilan murni status turunan dari `limit_piutang`, checkout diblokir total kalau lewat limit (keputusan Guru D6), tidak ada mekanisme denda dibangun |
 | Zevanic House | Import/export Excel List Bahan & List Produk — tombol ada, format belum | |
 | Zevanic House | Foto produk — ukuran maks, kompresi, path Storage | |
 | Zevanic House | HPP — di-cache sebagai field atau selalu dihitung live dari BOM? | |
@@ -505,29 +571,36 @@ mengerjakan beberapa modul sekaligus.
   `bagging_acc`) dan §5.4/§5.7 di `STATUS-PROYEK.md` (gap kode nyata di
   Bahan/Acc: PIN belum diverifikasi, roll sisa Acc Webbing belum
   diimplementasi, alur vendor sablon Acc Finishing belum diimplementasi
-  walau sudah diputuskan)
+  walau sudah diputuskan). **7 Sep 2026 malam lagi**: folder handoff
+  `01 - Pesanan dan Transaksi` (SERAH-TERIMA.md, PEDOMAN-SERAH-TERIMA.md,
+  SPESIFIKASI-KOLEKSI-BARU.md, wireframe.dc.html) dibaca ulang penuh
+  untuk `/design-terapkan-handoff` §5.15
 - `PETA-DATABASE.md`, `PETA-MENU.md`, `PEDOMAN-GAYA-KERJA.md` (dibaca
   penuh sesi ini)
 - Verifikasi kode live: `git clone gechooco-ship-it/zevanic-erp-ui`,
   **diperbarui 7 Sep 2026** ke commit `92083d5` ("test") — sebelumnya
   commit 2 Sep ("uppp") sudah ketinggalan 2 commit
-- `STATUS-PROYEK.md` §5.9 (Pipeline Produksi placeholder), §5.10-§5.14
+- `STATUS-PROYEK.md` §5.9 (Pipeline Produksi placeholder), §5.10-§5.15
   (histori rebuild Persiapan Produksi V2, Master Suplayer, Prefix Kode
-  SPK, Master Pelanggan, Zevanic House 4 gap wireframe) — **§5.14 di
-  `STATUS-PROYEK.md` sekarang berisi Stok dan Pembelian** (rebuild 7 Sep
-  2026 malam), Zevanic House 4 gap ada di §5.13, Master Pelanggan di §5.12
-  (penomoran §5.x bergeser seiring sesi berjalan, selalu cek nomor
-  section aktual di `STATUS-PROYEK.md`, jangan asumsikan dari dokumen ini)
+  SPK, Master Pelanggan, Zevanic House 4 gap wireframe, Stok dan
+  Pembelian, Pesanan dan Transaksi) — **§5.15 di `STATUS-PROYEK.md`
+  sekarang berisi Pesanan dan Transaksi** (rekonstruksi 7 Sep 2026 malam
+  lagi), Stok dan Pembelian ada di §5.14, Zevanic House 4 gap di §5.13,
+  Master Pelanggan di §5.12 (penomoran §5.x bergeser seiring sesi
+  berjalan, selalu cek nomor section aktual di `STATUS-PROYEK.md`, jangan
+  asumsikan dari dokumen ini)
 
 **Status dokumen ini**: langkah 1-4 di §6 sudah berjalan (rincian per
 langkah ada di `STATUS-PROYEK.md` §5.12-§5.13), plus 2 pekerjaan
 tambahan di luar urutan numerik (7b Zevanic House, 7c Stok dan
 Pembelian) sudah SELESAI DITULIS 7 Sep 2026 — rules `master_pelanggan`
-sudah dipublish 7 Sep 2026, langkah 5-16 (kecuali 7b/7c) BELUM dimulai —
-menunggu Guru push+uji kode Master Pelanggan/Suplayer (langkah 4) DAN
-Zevanic House (7b) DAN Stok dan Pembelian (7c) sebelum langkah 5 (Modul
-Scan generik) dan seterusnya dimulai, sesuai urutan yang disarankan di
-sini.
+sudah dipublish 7 Sep 2026. **DITAMBAH (7 Sep 2026 malam lagi)**: langkah
+15 (Pesanan piutang) JUGA sudah SELESAI DITULIS, LONCAT dari urutan atas
+permintaan Guru — rules `piutang_pembayaran` BELUM dipublish (blocker
+baru). Langkah 5-14 dan 16 BELUM dimulai — menunggu Guru push+uji kode
+Master Pelanggan/Suplayer (langkah 4) DAN Zevanic House (7b) DAN Stok dan
+Pembelian (7c) DAN Pesanan (15) sebelum langkah 5 (Modul Scan generik)
+dan seterusnya dimulai, sesuai urutan yang disarankan di sini.
 
 ---
 

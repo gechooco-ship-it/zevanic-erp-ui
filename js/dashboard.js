@@ -521,15 +521,14 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-zh-scan-opname': 'pastikanMountScanOpname',
     // BARU (27 Agt 2026, §26.5, Tahap 5 — TAHAP TERAKHIR) — Scan > Scan Persiapan.
     'sub-zh-scan-persiapan': 'pastikanMountScanPersiapan',
-    // BARU (30 Agt 2026) — grup top-level "Pesanan" (lihat js/vue-pesanan.js
-    // utk latar belakang lengkap): Penjualan Kasir (POS), Menunggu Proses
-    // (CRUD SPK, disalin dari OrderSpkManager lama), Proses Persiapan/
-    // Produksi/Pengiriman (ringkasan read-only dari spk_track).
+    // REKONSTRUKSI (7 Sep 2026, lihat js/vue-pesanan.js utk latar belakang
+    // lengkap): Penjualan Kasir (1.1/1.2), Menunggu Proses (2.1, keputusan
+    // QO Owner/PIC Owner), Daftar Pesanan (3.1-3.2.1, BARU, ganti 3 ringkasan
+    // lama), Transaksi Keuangan (4.1-4.2.2, BARU TOTAL, piutang).
     'sub-pesanan-kasir': 'pastikanMountPesananKasir',
     'sub-pesanan-menunggu': 'pastikanMountPesananMenunggu',
-    'sub-pesanan-persiapan': 'pastikanMountPesananPersiapan',
-    'sub-pesanan-produksi': 'pastikanMountPesananProduksi',
-    'sub-pesanan-pengiriman': 'pastikanMountPesananPengiriman'
+    'sub-pesanan-daftar': 'pastikanMountPesananDaftar',
+    'sub-pesanan-transaksi': 'pastikanMountPesananTransaksi'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();

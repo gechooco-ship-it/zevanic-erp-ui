@@ -8,7 +8,7 @@
 
 ---
 
-## 🔥 Firestore — 45 koleksi
+## 🔥 Firestore — 46 koleksi
 
 > **UPDATE (30 Agt 2026)**: 13 koleksi awal (HR/Absensi/Keuangan, di
 > bawah) + 23 koleksi dari modul Zevanic House/Persiapan Produksi V2
@@ -126,6 +126,25 @@
 > DITULIS, `node --check` lolos, DIKIRIM ke `Code\` device, BELUM DIUJI
 > BROWSER/FIRESTORE SAMA SEKALI**, dan modul ini sensitif UANG+STOK.
 > Detail: `STATUS-PROYEK.md` §5.14.
+>
+> **UPDATE LAGI (7 Sep 2026 malam, §5.15 di `STATUS-PROYEK.md`)**:
+> rekonstruksi besar **Pesanan dan Transaksi** (4 sub-menu: Penjualan
+> Kasir, Menunggu Proses, Daftar Pesanan, Transaksi Keuangan) — LONCAT
+> dari urutan rencana atas permintaan eksplisit Guru. **1 koleksi BARU**
+> `piutang_pembayaran` (lihat bagian "🛒 Pesanan" di bawah — **BELUM
+> DIPUBLISH rules-nya, blocker keras**). **Field BARU** di
+> `transaksi_kasir` (`pelanggan_id`, `status_bayar`, `dp_persen`,
+> `total_dibayar`, `sisa_piutang`, `jatuh_tempo`) dan `order_spk`
+> (`qo_diproses`, `qo_diproses_pada`, `qo_oleh`, `pelanggan_id`,
+> `pelanggan_nama`, `transaksi_kasir_id`, `no_transaksi`, `status_bayar`
+> — snapshot, bukan dari spek asli, ditambahkan karena diperlukan
+> teknis). **Total koleksi jadi 46** (45 + `piutang_pembayaran`). Menu
+> lama "Menunggu Proses" (CRUD manual) GANTI jadi murni antrian QO;
+> menu "Proses Persiapan"/"Proses Produksi"/"Proses Pengiriman" (3
+> `RingkasanSpkTrackManager`) DIGABUNG jadi 1 menu BARU "Daftar Pesanan".
+> **KODE DITULIS, `node --check` lolos, BELUM DIUJI BROWSER/FIRESTORE
+> SAMA SEKALI** — detail keputusan lengkap (7 keputusan Guru + 4
+> tambahan teknis flagged): `STATUS-PROYEK.md` §5.15.
 
 ### `users/{email}` — profil karyawan resmi (SUDAH disetujui)
 Dokumen ID = email karyawan.
@@ -150,7 +169,7 @@ Dokumen ID = email karyawan.
 | `beranda_grup` | string \| null | **BARU (redesain mobile "Gechoo Mobile Organic", §44)** — nama 1 kategori (dari `KATEGORI_URUTAN`) yang ditampilkan sebagai grup menu di Home mobile (`grupTampil`, `vue-home.js`). Diisi = `beranda_grup_urutan[0]`, ditulis lewat layar Atur Favorit |
 | `beranda_grup_urutan` | array\<string\> | **BARU (§44)** — urutan preferensi kategori pilihan user (diatur di Atur Favorit), dipakai turunkan `beranda_grup` |
 | `beranda_batas_kartu` | number | **BARU (§44)** — jumlah kartu menu yang tampil per grup di Home mobile, 2-8, default 4 |
-| `pin_hash` | string | **BARU (22 Agt 2026, fitur Kiosk absensi)** — `SHA-256(pin + '\|' + email)` via Web Crypto API (client-side, tanpa Cloud Function). **DIREUSE (7 Sep 2026, §5.14 Stok & Pembelian)** untuk finalisasi nota + tombol Terapkan harga (`cariUserByPin()`/`tierOwnerKeAtas()`, `vue-stock-pembelian.js`) — BUKAN field baru, cuma pemakai baru. **Keterbatasan**: user yang belum pernah set field ini (belum pernah pakai PIN Kiosk) TIDAK BISA dipakai untuk PIN di Stok & Pembelian sampai diisi. **Ini BUKAN** `verifikasiPIN()` generik yang dibayangkan `RENCANA-REKONSTRUKSI-2026-09.md` §2.3 (skema lebih sederhana, salt = email bukan acak per-user) — cukup untuk kasus PIN level Owner/Admin sederhana, belum tentu cukup untuk piutang bernilai besar |
+| `pin_hash` | string | **BARU (22 Agt 2026, fitur Kiosk absensi)** — `SHA-256(pin + '\|' + email)` via Web Crypto API (client-side, tanpa Cloud Function). **DIREUSE (7 Sep 2026, §5.14 Stok & Pembelian)** untuk finalisasi nota + tombol Terapkan harga (`cariUserByPin()`/`tierOwnerKeAtas()`, `vue-stock-pembelian.js`) — BUKAN field baru, cuma pemakai baru. **DIREUSE LAGI (7 Sep 2026 malam, §5.15 Pesanan)** — salinan KE-5 fungsi `hashPin()`/`cariUserByPin()`/`tierOwnerKeAtas()` ditulis di `vue-pesanan.js` (pola "salin, jangan impor silang", sama seperti file lain), dipakai gerbang PIN di "Proses massal" (Menunggu Proses) dan "Catat pembayaran" (Transaksi Keuangan) — SELALU wajib PIN di ke-2 titik ini, TERMASUK untuk user Owner yang sudah login (BEDA dari pola `vue-stock-pembelian.js` yang skip PIN kalau user login sudah Owner-tier — sengaja TIDAK disamakan, keputusan Guru D4). **Keterbatasan**: user yang belum pernah set field ini (belum pernah pakai PIN Kiosk) TIDAK BISA dipakai untuk PIN di Stok & Pembelian ATAU Pesanan sampai diisi. **Ini BUKAN** `verifikasiPIN()` generik yang dibayangkan `RENCANA-REKONSTRUKSI-2026-09.md` §2.3 (skema lebih sederhana, salt = email bukan acak per-user) — cukup untuk kasus PIN level Owner/Admin sederhana, belum tentu cukup untuk piutang bernilai besar |
 
 ### `pendaftaran_pending/{email}` — form Registrasi SEBELUM diverifikasi Admin
 Field-nya SAMA PERSIS dengan bagian identitas di atas (`nama`, `nik`, `jenis_pekerjaan`, dst) — TAPI **belum ada** `role`/`profil_akses`/`status_approval`/`gudang_penempatan` sama sekali (itu baru ditambahkan pas Antrean Dakar approve). **REVISI KE-3 (18 Agt 2026)**: begitu Admin klik "Setujui", field kerja (`status_kerja`/`jabatan`/`status_karyawan`/`nama_shift`/`gudang_penempatan`) DITULIS DI SINI DULU, plus `token_buat_password` (string acak), `token_kadaluarsa` (Timestamp, 30 menit), `token_terverifikasi` (boolean, awalnya `false`) — BUKAN langsung bikin akun. Karyawan verifikasi token lewat TULIS `tebakan_token` (pola sama `otp_email`, lihat `js/vue-buat-password.js`), begitu cocok baru boleh baca dokumen ini & bikin password sendiri. Field `token_*` DIBUANG (tidak ikut) saat akhirnya ditulis ke `users`. Dihapus SENDIRI oleh karyawan (setelah akun jadi) ATAU oleh Admin (Tolak).
@@ -339,8 +358,9 @@ Ditulis SATU-SATUNYA lewat fungsi di `vue-stock-pembelian.js` (`catatPergerakanK
 > Guru publish rule (saran pola: `allow read: if isAdminLevel(); allow
 > create: if login(); allow update, delete: if false;`, sama seperti
 > `cetak_ulang_log`). **JANGAN disamakan dengan `users.pin_hash`** (§5.14)
-> — itu mekanisme PIN VERIFIKASI (dipakai Stok & Pembelian), ini cuma
-> tempat CATATAN riwayat pemakaian PIN, keduanya belum terhubung.
+> — itu mekanisme PIN VERIFIKASI (dipakai Stok & Pembelian, DAN sekarang
+> Pesanan §5.15), ini cuma tempat CATATAN riwayat pemakaian PIN, keduanya
+> belum terhubung.
 
 ### `master_satuan/{autoId}`, `master_warna/{autoId}`, `master_ukuran/{autoId}`, `master_jenis_produk/{autoId}`, `master_komponen/{autoId}`, `master_tahap_persiapan/{autoId}`
 6 koleksi POLA SAMA — lewat komponen generic `MasterDataTabelManager` (`vue-components.js`), semua dari tab **Config**:
@@ -379,25 +399,25 @@ Dipakai sebagai sumber `DropdownCari` di tempat lain: `master_jenis_produk` (Ent
 > `RENCANA-REKONSTRUKSI-2026-09.md` menyebut modul ini "§5.14" karena
 > ditulis saat itu section itu masih Master Pelanggan; di `STATUS-
 > PROYEK.md` yang sebenarnya sekarang modul ini ada di §5.12, dan §5.14
-> sudah dipakai ulang untuk Stok dan Pembelian 7 Sep malam — SELALU cek
-> nomor section aktual di `STATUS-PROYEK.md`, jangan asumsikan dari
-> dokumen lain).
+> sudah dipakai ulang untuk Stok dan Pembelian 7 Sep malam, §5.15 untuk
+> Pesanan dan Transaksi — SELALU cek nomor section aktual di
+> `STATUS-PROYEK.md`, jangan asumsikan dari dokumen lain).
 
 | Field | Tipe | Keterangan |
 |---|---|---|
 | `nama` | string | Wajib, dicek dobel (case-insensitive) |
 | `telepon`, `alamat`, `email` | string | Opsional |
 | `tipe` | string | `retail` / `reseller` / `grosir`. MURNI informasional — TIDAK mempengaruhi `limit_piutang` otomatis (spek sendiri menandai ini "Belum Diputuskan") |
-| `limit_piutang` | number | Maks piutang berjalan, manual per pelanggan. `0` = tidak boleh piutang |
-| `saldo_piutang` | number | Total sisa belum bayar. **JANGAN ditulis langsung** — dibuat `0` saat pelanggan baru, TIDAK PERNAH diubah manual lewat form Master Pelanggan. Baru akan benar-benar ter-update begitu fitur Pesanan piutang (`piutang_pembayaran`, langkah 12 `RENCANA-REKONSTRUKSI-2026-09.md`) dikerjakan — sampai saat itu, field ini SELALU `0` di semua dokumen (BENAR, bukan bug) |
+| `limit_piutang` | number | Maks piutang berjalan, manual per pelanggan. `0` = tidak boleh piutang. **SEKARANG BENAR-BENAR DIPAKAI (7 Sep 2026, §5.15)** sebagai SATU-SATUNYA plafon piutang — checkout Kasir DIBLOKIR TOTAL kalau `saldo_piutang + sisa_baru > limit_piutang` (keputusan Guru D6, TIDAK ADA jadwal cicilan baru yang dibangun terpisah) |
+| `saldo_piutang` | number | Total sisa belum bayar. **JANGAN ditulis langsung** — SEKARANG (§5.15) DIUPDATE oleh 2 titik resmi: (1) checkout Kasir (`buatOrder()`, ditambah sebesar sisa piutang baru kalau status_bayar bukan Lunas), (2) `catatPembayaranSusulan()` (Transaksi Keuangan, SATU-SATUNYA titik yang MENGURANGI field ini, dipakai pembayaran susulan pasca-checkout). Sebelum §5.15, field ini SELALU `0` di semua dokumen — SEKARANG mulai berubah begitu ada transaksi piutang |
 | `catatan` | string | Opsional |
 | `dibuat_pada`/`dibuat_oleh` | Timestamp / string | — |
 
-**Dipakai oleh (rencana, belum diwiring)**: Pesanan > Penjualan Kasir
-(wajib pilih pelanggan sebelum checkout), Pesanan > Daftar Piutang,
-Pesanan > Transaksi Keuangan (filter per pelanggan) — SEMUA langkah 12,
-BELUM ada kode yang membaca koleksi ini selain `vue-master-pelanggan.js`
-sendiri.
+**Dipakai oleh (§5.15, SUDAH diwiring)**: Pesanan > Penjualan Kasir
+(wajib pilih pelanggan sebelum checkout, `ambilDaftarPelanggan()` disalin
+dari `vue-master-pelanggan.js`), Pesanan > Transaksi Keuangan (Kas Besar/
+Rincian Piutang, agregasi per pelanggan) — lihat bagian "🛒 Pesanan" di
+bawah untuk detail lengkap.
 
 ### `master_suplayer/{autoId}` — data suplayer (kontak & pembayaran)
 > **UPDATE (5 Sep 2026, §5.12)**: DIKELUARKAN dari `MasterDataTabelManager`
@@ -521,18 +541,38 @@ Ditulis otomatis begitu Nota Order Belanja di-final-kan (`catatRiwayatHargaDanUp
 > (TIDAK ikut `size` — bug, ditemukan & diverifikasi langsung ke kode
 > saat sesi ini), SEKARANG `nama_produk + size + kunci_pola` (fungsi
 > `kunciGrupProduk()` di `vue-persiapan-produksi-v2.js`).
+>
+> **UPDATE LAGI (7 Sep 2026 malam, §5.15, rekonstruksi Pesanan dan
+> Transaksi)**: **field BARU** `qo_diproses` (boolean), `qo_diproses_pada`
+> (Timestamp), `qo_oleh` (string, email) — ditulis oleh menu Menunggu
+> Proses (`PesananMenungguManager`, "Proses massal") begitu SPK dipilih
+> masuk antrean QO, HANYA update `qty_order` + 3 field ini, **TIDAK
+> PERNAH menyentuh `status_grouping`/`qty_tergrouping`/dst** (field-field
+> itu TETAP eksklusif milik Persiapan Produksi > "Perlu Disiapkan" —
+> temuan arsitektur yang dicek langsung ke kode `vue-persiapan-produksi-
+> v2.js` sebelum kode QO ditulis, lihat `STATUS-PROYEK.md` §5.15 poin 4).
+> **field BARU snapshot** `pelanggan_id`, `pelanggan_nama`,
+> `transaksi_kasir_id`, `no_transaksi`, `status_bayar` — diisi otomatis
+> saat checkout Kasir (bukan dari spek asli SERAH-TERIMA, ditambahkan
+> karena diperlukan teknis supaya Daftar Pesanan & Transaksi Keuangan
+> tidak perlu N+1 lookup balik ke `transaksi_kasir` per SPK).
 
 | Field | Tipe | Keterangan |
 |---|---|---|
 | `no_spk` | string | Unik (dicek dobel). Format dari Kasir: `TRX{yymmdd}{counter 3 digit}-{urutan item}` |
 | `sku_produk` | string | Opsional — link ke `master_produk.sku`; kosong kalau migrasi lama dari spreadsheet (tidak bisa ikut auto-grouping Persiapan Produksi V2) |
 | `nama_produk` | string | Teks gabungan "Nama Warna Size" (BUKAN nama dasar produk — lihat `master_produk.nama` buat itu) |
-| `qty_order` | number | GANTI NAMA dari `qty_target` (dokumen lama masih bisa punya `qty_target`, otomatis pindah ke `qty_order` begitu diedit+disimpan ulang) |
-| `tanggal`, `status` | — | `status`: `Aktif` dst. |
-| `qty_tergrouping` | number | **BARU (31 Agt 2026)** — total qty SPK ini yang SUDAH masuk ke `spk_grouping` manapun (bisa lebih dari 1, akumulatif). Sisa yang masih bisa digrouping = `qty_order - qty_tergrouping`. Dokumen lama tanpa field ini dianggap `0` |
+| `qty_order` | number | GANTI NAMA dari `qty_target` (dokumen lama masih bisa punya `qty_target`, otomatis pindah ke `qty_order` begitu diedit+disimpan ulang). **SEKARANG (§5.15)** ini SATU-SATUNYA field yang diubah "Proses massal" QO di Menunggu Proses |
+| `tanggal`, `status` | — | `status`: `Aktif` dst. Field `status` (bukan `status_grouping`) yang dicek `qo_diproses !== true` DAN `status==='Aktif'` sebagai syarat masuk antrean "Menunggu Proses" |
+| `qty_tergrouping` | number | **BARU (31 Agt 2026)** — total qty SPK ini yang SUDAH masuk ke `spk_grouping` manapun (bisa lebih dari 1, akumulatif). Sisa yang masih bisa digrouping = `qty_order - qty_tergrouping`. Dokumen lama tanpa field ini dianggap `0`. **TETAP milik EKSKLUSIF Persiapan Produksi (§5.15) — Menunggu Proses TIDAK PERNAH menulis field ini** |
 | `grouping_ids` | array\<string\> | **BARU (31 Agt 2026)** — daftar ID SEMUA `spk_grouping` yang pernah menyertakan SPK ini (via `arrayUnion`, bisa lebih dari 1 kalau qty-nya dipecah). Menggantikan asumsi lama "1 SPK cuma bisa ikut 1 grouping" |
 | `id_spk_grouping`, `kode_spk_grouping` | string | **DIPERTAHANKAN (kompatibilitas)** — sekarang isinya grouping PALING BARU yang menyertakan SPK ini (bukan satu-satunya lagi), buat tampilan lama yang masih baca 2 field ini |
-| `status_grouping` | string | **BERUBAH JADI TRI-STATE (31 Agt 2026)** — `''` (belum digrouping sama sekali) / `'sebagian'` (BARU, sisa qty masih >0 tapi sudah ada yang digrouping) / `'tergrouping'` (sisa qty = 0, lunas). Sebelumnya biner kosong/`tergrouping` saja |
+| `status_grouping` | string | **BERUBAH JADI TRI-STATE (31 Agt 2026)** — `''` (belum digrouping sama sekali) / `'sebagian'` (BARU, sisa qty masih >0 tapi sudah ada yang digrouping) / `'tergrouping'` (sisa qty = 0, lunas). Sebelumnya biner kosong/`tergrouping` saja. **Single-source-of-truth EKSKLUSIF Persiapan Produksi > "Perlu Disiapkan"** — modul lain (termasuk Menunggu Proses §5.15) DILARANG menulis field ini |
+| `qo_diproses` | boolean | **BARU (7 Sep 2026, §5.15)** — `true` begitu SPK ini sudah diproses lewat "Proses massal" di Menunggu Proses. Dokumen lama/belum diproses dianggap `false`/tidak ada. Field TEKNIS tambahan (T1), bukan dari spek asli — diperlukan karena antrean QO tidak boleh baca `status_grouping` |
+| `qo_diproses_pada`, `qo_oleh` | Timestamp, string | **BARU (7 Sep 2026, §5.15)** — kapan & siapa (email) yang menekan "Proses massal" untuk SPK ini, ditulis bareng `qo_diproses=true` |
+| `pelanggan_id`, `pelanggan_nama` | string | **BARU (7 Sep 2026, §5.15)** — snapshot dari `master_pelanggan` saat checkout Kasir. Field TEKNIS tambahan (T2), bukan dari spek asli — dipakai atribusi per-pelanggan di Daftar Pesanan (lihat catatan simplifikasi pipeline setelah grouping, `STATUS-PROYEK.md` §5.15 poin 5) |
+| `transaksi_kasir_id`, `no_transaksi` | string | **BARU (7 Sep 2026, §5.15)** — link balik ke dokumen `transaksi_kasir` induk & nomor transaksinya, snapshot saat checkout |
+| `status_bayar` | string | **BARU (7 Sep 2026, §5.15)** — snapshot `lunas`/`dp`/`tempo` dari `transaksi_kasir` SAAT checkout — TIDAK otomatis ikut update kalau `transaksi_kasir.status_bayar` induknya berubah belakangan (mis. dilunasi via Transaksi Keuangan), tampilan yang butuh status TERKINI wajib baca `transaksi_kasir` langsung, bukan field snapshot ini |
 | `dibuat_pada`/`dibuat_oleh`, `diedit_pada`/`diedit_oleh` | Timestamp / string | — |
 
 ### Koleksi counter (dokumen tunggal, bukan daftar)
@@ -545,27 +585,68 @@ Ditulis otomatis begitu Nota Order Belanja di-final-kan (`catatRiwayatHargaDanUp
 
 ## 🛒 Pesanan — koleksi
 
-> **BARU (30 Agt 2026)**. Semua field DICEK LANGSUNG ke
-> `js/vue-pesanan.js`. Lihat `PETA-MENU.md` bagian "🛒 Pesanan" &
-> `STATUS-PROYEK.md` §45 untuk latar belakang & keputusan arsitektur
-> lengkap. **⚠️ `firestore.rules` 2 koleksi di bawah BELUM DIPUBLISH ke
-> Firebase Console** — WAJIB Guru tempel manual sebelum "Penjualan
-> Kasir" bisa menulis data.
+> **BARU (30 Agt 2026)**, **REKONSTRUKSI BESAR (7 Sep 2026 malam, §5.15,
+> `/design-terapkan-handoff` "Pesanan dan Transaksi")**. Semua field
+> DICEK LANGSUNG ke `js/vue-pesanan.js`. Lihat `PETA-MENU.md` bagian
+> "🛒 Pesanan" & `STATUS-PROYEK.md` §5.15 untuk latar belakang & 7
+> keputusan arsitektur (D1-D7) + 4 tambahan teknis (T1-T4) lengkap.
+> **⚠️ Koleksi `piutang_pembayaran` (BARU) BELUM DIPUBLISH rules-nya ke
+> Firebase Console — blocker KERAS**, tanpa ini semua baca/tulis
+> piutang akan `permission-denied`. `transaksi_kasir`/
+> `pengaturan_id_transaksi_kasir` rules-nya **SUDAH ADA** (dikonfirmasi
+> di `claude/FIRESTORE-RULES-SNAPSHOT.md` 5 Sep 2026 — klaim SERAH-
+> TERIMA.md modul ini bahwa rules itu "belum dipublish" sudah BASI).
+> **KODE SUDAH DITULIS, `node --check` lolos, BELUM DIUJI BROWSER/
+> FIRESTORE SAMA SEKALI**, dan modul ini menyentuh UANG (kasir, piutang,
+> pembayaran) — jangan dipercaya siap pakai.
 
 ### `transaksi_kasir/{autoId}` — transaksi Penjualan Kasir
 | Field | Tipe | Keterangan |
 |---|---|---|
-| `no_transaksi` | string | Format `TRX{yymmdd}{counter 3 digit}`, GLOBAL per hari (counter di `pengaturan_id_transaksi_kasir/{yymmdd}`) — pola SAMA PERSIS seperti `spk_grouping.kode_spk` |
-| `nama_pelanggan` | string | Opsional, boleh kosong |
-| `metode_pembayaran` | string | `Tunai` / `Transfer` / `QRIS` / `Lainnya` |
+| `no_transaksi` | string | Format `TRX{yymmdd}{counter 3 digit}`, GLOBAL per hari (counter di `pengaturan_id_transaksi_kasir/{yymmdd}`) — pola SAMA PERSIS seperti `spk_grouping.kode_spk`, TIDAK BERUBAH sejak §5.15 (keputusan Guru D2 — pertahankan format lama) |
+| `nama_pelanggan` | string | Opsional, boleh kosong — field LAMA, DIPERTAHANKAN untuk kompatibilitas, TAPI checkout Kasir sekarang (§5.15) WAJIB pilih `pelanggan_id` (lihat field baru di bawah), jadi field ini praktis SELALU terisi lagi untuk transaksi baru |
+| `pelanggan_id`, | string | **BARU (7 Sep 2026, §5.15)** — wajib diisi saat checkout, link ke `master_pelanggan`. Dasar cek limit piutang & agregasi per-pelanggan di Transaksi Keuangan |
+| `metode_pembayaran` | string | `Tunai` / `Transfer` / `QRIS` — **`Lainnya` DIHAPUS (§5.15)** mengikuti wireframe (`METODE_PEMBAYARAN_OPSI`) |
+| `status_bayar` | string | **BARU (7 Sep 2026, §5.15)** — `lunas` / `dp` / `tempo`, dipilih SAAT checkout (`STATUS_BAYAR_OPSI`). **Cicilan BUKAN opsi di sini** — cicilan adalah status TURUNAN (dihitung dari `sisa_piutang`/riwayat `piutang_pembayaran`, bukan dipilih user), keputusan Guru D6 |
+| `dp_persen` | number | **BARU (7 Sep 2026, §5.15)** — HANYA relevan kalau `status_bayar==='dp'`, dihitung OTOMATIS dari nominal DP yang diinput (`dibayarSekarang / total * 100`), BUKAN input manual (keputusan Guru D7) |
+| `total_dibayar` | number | **BARU (7 Sep 2026, §5.15)** — akumulasi total sudah dibayar (nominal awal checkout + semua pembayaran susulan via `catatPembayaranSusulan()`) |
+| `sisa_piutang` | number | **BARU (7 Sep 2026, §5.15)** — `total - total_dibayar`, diupdate tiap ada pembayaran susulan. `0` kalau `status_bayar==='lunas'` sejak awal |
+| `jatuh_tempo` | Timestamp \| null | **BARU (7 Sep 2026, §5.15)** — HANYA diisi kalau `status_bayar==='tempo'`, dari preset `+7`/`+14`/`+30` hari (`JATUH_TEMPO_PRESET`) dihitung dari tanggal checkout |
 | `items` | array\<{sku_produk, nama_produk, qty, harga_satuan, subtotal}\> | Isi keranjang saat "Buat Order" ditekan — snapshot harga saat itu (BUKAN link live ke `master_produk.harga_jual`, jadi perubahan harga produk sesudahnya TIDAK mengubah transaksi lama) |
 | `total` | number | Jumlah semua `items[].subtotal` |
 | `status` | string | `Aktif` (belum ada alur ubah status lain per 30 Agt 2026 — field disiapkan buat kebutuhan nanti, mis. pembatalan) |
 | `dibuat_pada`, `dibuat_oleh` | Timestamp / string | — |
 
-**Efek samping penting**: begitu 1 `transaksi_kasir` tersimpan, SISTEM OTOMATIS bikin **N dokumen `order_spk`** (1 per baris `items`, lihat bagian `order_spk` di atas) — supaya pesanan dari Kasir mengalir tanpa hambatan ke pipeline Persiapan Produksi V2 yang sudah ada.
+**Efek samping penting**: begitu 1 `transaksi_kasir` tersimpan, SISTEM OTOMATIS bikin **N dokumen `order_spk`** (1 per baris `items`, lihat bagian `order_spk` di atas — sekarang termasuk field snapshot BARU `pelanggan_id`/`pelanggan_nama`/`transaksi_kasir_id`/`no_transaksi`/`status_bayar`) — supaya pesanan dari Kasir mengalir tanpa hambatan ke pipeline Persiapan Produksi V2 yang sudah ada. **DITAMBAH (§5.15)**: kalau `sisa_piutang > 0`, ditulis juga 1 dokumen `piutang_pembayaran` (catatan pembayaran awal, `jenis` bukan `'cicilan'`) DAN `master_pelanggan.saldo_piutang` ditambah sebesar sisa itu.
 
-**Checkout guard BARU (7 Sep 2026, §5.14)**: sebelum `transaksi_kasir` ditulis, `buatOrder()` (`PesananKasirManager`) memanggil `bahanTerblokirDiKeranjang()` — query narrow `master_bahan_aksesoris` where `harga_perlu_konfirmasi==true`, cocokkan ke `bahan_aksesoris_id` hasil resolve BOM (`bom_pola`/`bom_aksesoris`) semua produk di keranjang. Kalau ada yang cocok, checkout DIBLOK (alert nama item). **Sengaja fail OPEN**: kalau query guard ini sendiri error, checkout TETAP JALAN (bukan diblok) — trade-off disengaja supaya bug di guard tidak menghentikan operasional Kasir.
+**Checkout guard (7 Sep 2026, §5.14, TETAP BERLAKU)**: sebelum `transaksi_kasir` ditulis, `buatOrder()` (`PesananKasirManager`) memanggil `bahanTerblokirDiKeranjang()` — query narrow `master_bahan_aksesoris` where `harga_perlu_konfirmasi==true`, cocokkan ke `bahan_aksesoris_id` hasil resolve BOM (`bom_pola`/`bom_aksesoris`) semua produk di keranjang. Kalau ada yang cocok, checkout DIBLOK (alert nama item). **Sengaja fail OPEN**: kalau query guard ini sendiri error, checkout TETAP JALAN (bukan diblok) — trade-off disengaja supaya bug di guard tidak menghentikan operasional Kasir.
+
+**Checkout guard BARU (7 Sep 2026, §5.15)**: `piutangTerblokir()` — dihitung dari `master_pelanggan.saldo_piutang` (pelanggan terpilih) + `sisa_piutang` transaksi baru ini, dibandingkan ke `master_pelanggan.limit_piutang`. Kalau `saldo_piutang + sisa_baru > limit_piutang`, checkout **DIBLOKIR TOTAL** (bukan warning, keputusan Guru D6) — TIDAK ADA opsi override/lanjut paksa.
+
+### `piutang_pembayaran/{autoId}` — BARU (7 Sep 2026, §5.15), 1 dokumen PER PEMBAYARAN
+> Koleksi BARU sesuai `SPESIFIKASI-KOLEKSI-BARU.md` §2. **⚠️ RULES BELUM
+> DIPUBLISH — blocker keras**, TIDAK ADA match block di
+> `claude/FIRESTORE-RULES-SNAPSHOT.md` (5 Sep 2026). Tanpa rule ini
+> SEMUA baca/tulis koleksi ini `permission-denied` di production — WAJIB
+> Guru publish dulu di Firebase Console sebelum fitur piutang di modul
+> Pesanan bisa dipakai sama sekali. Saran rule (draft awal, pola sama
+> seperti koleksi transaksi append-only lain, BELUM divalidasi Guru):
+> `allow read: if isAdminLevel(); allow create: if login(); allow
+> update, delete: if isAdminLevel();`
+
+| Field | Tipe | Keterangan |
+|---|---|---|
+| `transaksi_kasir_id`, `no_transaksi` | string | Link ke transaksi induk |
+| `pelanggan_id`, `pelanggan_nama` | string | Snapshot |
+| `jumlah` | number | Nominal pembayaran INI (bukan total/sisa) |
+| `metode` | string | `Tunai`/`Transfer`/`QRIS` |
+| `tanggal` | string/Timestamp | — |
+| `jenis` | string | Pembayaran awal saat checkout (dari `buatOrder()`, `jenis` bukan `'cicilan'`) VS pembayaran susulan pasca-checkout (`catatPembayaranSusulan()`, `jenis:'cicilan'`) — pembeda 2 sumber tulis |
+| `catatan` | string | Opsional |
+| `dicatat_oleh` | string | Email user yang mencatat (setelah lolos PopupPin) |
+| `dibuat_pada` | Timestamp | — |
+
+**SATU-SATUNYA fungsi yang menulis pembayaran SUSULAN (pasca-checkout)**: `catatPembayaranSusulan({transaksiKasirId, pelangganId, pelangganNama, noTransaksi, jumlah, metode, tanggal, catatan, dicatatOleh, pinPemilik})` (`vue-pesanan.js`) — menulis 1 dokumen di sini (`jenis:'cicilan'`), update `transaksi_kasir.total_dibayar`/`sisa_piutang`/`status_bayar` (jadi `'lunas'` kalau sisa≤0, else `'cicilan'`), DAN mengurangi `master_pelanggan.saldo_piutang`. Dipanggil dari tombol "Catat pembayaran" di Transaksi Keuangan — SELALU WAJIB `PopupPin`, TERMASUK untuk Owner yang sudah login (keputusan Guru D4, BEDA dari pola skip-PIN-untuk-Owner di `vue-stock-pembelian.js`).
 
 ### Koleksi counter (dokumen tunggal, bukan daftar)
 | Koleksi/dokumen | Isinya |
@@ -581,9 +662,10 @@ Ditulis otomatis begitu Nota Order Belanja di-final-kan (`catatRiwayatHargaDanUp
 > `buatAppJalurTahap()`). Lihat `PETA-MENU.md` bagian "🧵 Persiapan
 > Produksi V2" & `claude/RENCANA-PERSIAPAN-PRODUKSI-V2.md` untuk desain
 > lengkap. **BARU (30 Agt 2026)**: koleksi `spk_track` di bawah SEKARANG
-> JUGA dibaca (read-only) oleh Pesanan > Proses Persiapan/Produksi/
-> Pengiriman (`js/vue-pesanan.js`, `RingkasanSpkTrackManager`) — TIDAK
-> ADA field baru, TIDAK ADA penulis baru, cuma pembaca tambahan.
+> JUGA dibaca (read-only) oleh Pesanan > Daftar Pesanan (`js/vue-
+> pesanan.js`, `PesananDaftarManager` — GANTI dari `RingkasanSpkTrackManager`
+> §5.15, lihat bagian "🛒 Pesanan" & `PETA-MENU.md`) — TIDAK ADA field
+> baru, TIDAK ADA penulis baru, cuma pembaca tambahan.
 >
 > **UPDATE (31 Agt 2026 — rebuild "Perlu Disiapkan")**: sub-menu "Perlu
 > Disiapkan" dibangun ULANG TOTAL dari wireframe handoff Guru ("Ganti
@@ -639,6 +721,14 @@ Ditulis otomatis begitu Nota Order Belanja di-final-kan (`catatRiwayatHargaDanUp
 > dipakai SEMUA 9 pos, MASIH BELUM MULAI DIKERJAKAN) — `vue-scan-
 > persiapan.js` adalah file SPESIFIK yang sudah ada duluan & baru
 > diperluas, bukan modul generik itu.
+>
+> **UPDATE LAGI (7 Sep 2026 malam, §5.15)**: TIDAK ADA perubahan ke
+> `spk_track`/`spk_grouping`/jalur manapun di bagian ini — perubahan
+> §5.15 murni di lapisan `order_spk` (field `qo_diproses`/pelanggan/dst,
+> lihat entri `order_spk` di atas) dan koleksi baru "🛒 Pesanan". Field
+> `status_grouping`/`qty_tergrouping`/`grouping_ids` TETAP eksklusif
+> milik "Perlu Disiapkan" di bawah — dikonfirmasi ulang saat pengerjaan
+> §5.15 (lihat `STATUS-PROYEK.md` §5.15 poin 4 & §6 pelajaran baru).
 
 ### `spk_grouping/{autoId}` — kelompok SPK yang produk+pola-nya sama ("gelar kain bersama")
 | Field | Tipe | Keterangan |
@@ -664,7 +754,7 @@ Dibuat otomatis (`buatSpkTrackUntukGrouping()`) begitu `spk_grouping` selesai di
 | `status` | string | `perlu_diproses` → `sedang_diproses` (Scan Operator) → `perlu_dikirim` (Scan Entry) → `sedang_dikirim` (Scan Pack) → `selesai` (Scan Sampai). **Catatan**: untuk `jalur` `bahan`/`sewing`/`webbing`/`finishing`, status level-dokumen ini SEKARANG cuma dipakai buat kartu ringkas — status OPERASIONAL sesungguhnya ada PER BARIS di `bahan_rincian[].status`/`sewing_rincian[].status`/dst (lihat di bawah), beda dari `vendor` yang statusnya cuma di level dokumen ini |
 | `operator_id`, `operator_nama` | string | Diisi saat Scan Operator (scan QR pribadi karyawan, cari ke `users`). Untuk 4 jalur non-vendor, field level-dokumen ini TIDAK dipakai lagi — operator dicatat PER BARIS (`..._rincian[].operator_uid`/`operator_nama`) |
 | `kode_bagging`, `kode_tugas` | string | Kode label QR yang digenerate & dicetak per tahap (Scan Pack cek `kode_bagging`, Scan Kirim/Sampai cek `kode_tugas`). Untuk 4 jalur non-vendor, kode-kode ini dicatat PER BARIS, field level-dokumen ini tidak dipakai |
-| `riwayat_scan` | array\<{aksi, oleh, pada, catatan?}\> | `arrayUnion` tiap scan — `aksi`: `operator`/`entry`/`masalah`/`pack`/`kirim`/`sampai`. Untuk 4 jalur non-vendor, riwayat per-scan operator dicatat di `..._rincian[].riwayat_operator[]` (per baris), BUKAN di array level-dokumen ini |
+| `riwayat_scan` | array\<{aksi, oleh, pada, catatan?}\> | `arrayUnion` tiap scan — `aksi`: `operator`/`entry`/`masalah`/`pack`/`kirim`/`sampai`. Untuk 4 jalur non-vendor, riwayat per-scan operator dicatat di `..._rincian[].riwayat_operator[]` (per baris), BUKAN di array level-dokumen ini. **Dibaca (§5.15)** oleh popup timeline (3.2.1) di Pesanan > Daftar Pesanan |
 | `catatan_masalah` | string | Diisi lewat Scan Masalah (`prompt()`). Untuk 4 jalur non-vendor, dicatat PER BARIS |
 | `bahan_rincian` | array | **BARU (31 Agt 2026, §5.11)** — HANYA diisi kalau `jalur==='bahan'` (jalur lain: array kosong `[]`). 1 baris per kombinasi (bahan × anak-SPK), dihitung SEKALI saat SPK Grouping dibuat (`hitungBahanRincian()`, sumber: `spk_grouping.breakdown[]` × `master_produk.bom_pola[]` baris `tipe==='internal'` × `master_bahan_aksesoris`), lihat kolom di bawah. **Batasan teknis PENTING** (berlaku juga untuk `sewing_rincian`/`webbing_rincian`/`finishing_rincian` di bawah): array Firestore TIDAK BISA diupdate 1 elemen saja secara langsung DAN TIDAK BISA berisi sentinel `serverTimestamp()` — tiap perubahan 1 baris WAJIB baca-ubah-tulis SELURUH array lewat `runTransaction` (fungsi `updateBarisBahan()`, `js/vue-persiapan-bahan.js`), timestamp per baris pakai `new Date().toISOString()` (string biasa, BUKAN `serverTimestamp()`) |
 | `sewing_rincian` | array | **BARU (1 Sep 2026, §5.11d)** — HANYA diisi kalau `jalur==='sewing'` (jalur lain: array kosong `[]`). Field TERPISAH dari `bahan_rincian`/`webbing_rincian`/`finishing_rincian` (BUKAN 1 array generik gabungan) — sengaja dipisah supaya TIDAK perlu migrasi bentuk `bahan_rincian[]` yang sudah shipped. Dihitung SEKALI saat grouping dibuat (`hitungSewingRincian()`, sumber: `spk_grouping.breakdown[]` × `master_produk.bom_aksesoris[]` baris yang `tahap_proses`-nya cocok "sewing" × `master_bahan_aksesoris`). 1 baris per kombinasi (aksesoris × anak-SPK). Field per baris: identitas SAMA seperti `bahan_rincian[]` (`order_spk_id, no_spk, qty, bahan_aksesoris_id, bahan_nama, bahan_warna, produk_size, status, masuk_tahap_pada, label_cetak_pada, operator_uid, operator_nama, ditugaskan_pada, riwayat_operator[], entry_qty, entry_oleh, entry_pada, catatan_masalah, kode_bagging, kode_tugas, tlc_tujuan, sampai_pada`) TANPA field kain (`nama_pola`/`panjang_pola`/`isi_pola_pcs`/`amparan`/`kebutuhan_kain`) — pos ini pakai `butuh` (qty aksesoris polos dari BOM × qty SPK), bukan hitungan meter kain |
@@ -796,7 +886,7 @@ Audit-only (create-only, tidak bisa update/delete lewat rules) — dicatat tiap 
 2. **`waktu` vs `waktu_ts`** (di `absensi`) — dua-duanya ada buat sementara (masa transisi). `waktu` jangan dihapus dulu (masih dipakai tampilan lama), `waktu_ts` yang dipakai buat query hemat ke depan.
 3. **`foto_selfie`/`foto_ktp` base64 langsung di Firestore** — ini POTENSI RISIKO ke depan (dekati batas 1MB/dokumen Firestore kalau foto besar). Belum dipindah ke Storage seperti lampiran Pengumuman — kandidat perbaikan kalau ada masalah ukuran dokumen nanti.
 4. **`pesanan_pembelian` vs `transaksi_kasir`** — JANGAN TERTUKAR. `pesanan_pembelian` = Order BELANJA (beli bahan dari suplayer, modul lama Zevanic House). `transaksi_kasir` = Order PENJUALAN (jual produk ke pelanggan, modul baru Pesanan). Sama-sama mengandung kata "pesanan" tapi arah uangnya berlawanan.
-5. **`order_spk.status_grouping` sekarang TRI-STATE** (`''`/`'sebagian'`/`'tergrouping'`, sejak rebuild 31 Agt 2026) — kode LAMA yang masih cek biner (`if (status_grouping)` doang) bisa salah baca status `'sebagian'` sebagai "sudah beres". Kalau nambah UI baru yang baca field ini, WAJIB cek 3 nilai, bukan cuma truthy/falsy.
+5. **`order_spk.status_grouping` sekarang TRI-STATE** (`''`/`'sebagian'`/`'tergrouping'`, sejak rebuild 31 Agt 2026) — kode LAMA yang masih cek biner (`if (status_grouping)` doang) bisa salah baca status `'sebagian'` sebagai "sudah beres". Kalau nambah UI baru yang baca field ini, WAJIB cek 3 nilai, bukan cuma truthy/falsy. **`status_grouping`/`qty_tergrouping`/`grouping_ids` TETAP eksklusif milik Persiapan Produksi > "Perlu Disiapkan" (dikonfirmasi ulang §5.15, 7 Sep 2026)** — modul lain manapun (termasuk Menunggu Proses di Pesanan) DILARANG menulisnya, pakai field terpisah (`qo_diproses` dst) kalau butuh state serupa.
 6. **`bom_pola` vs `bom_aksesoris` (di `master_produk`)** — JANGAN TERTUKAR (§5.11). `bom_pola` = kebutuhan KAIN (pos Bahan). `bom_aksesoris` = kebutuhan aksesoris/trim (pos Acc Sewing/Webbing/Finishing). Spek wireframe modul Bahan sempat salah sebut `bom_aksesoris` sebagai sumbernya — sudah dikoreksi ke `bom_pola` saat implementasi.
 7. **`spk_track.bahan_rincian[]`/`sewing_rincian[]`/`webbing_rincian[]`/`finishing_rincian[]` masing-masing HANYA ada isinya kalau `jalur` dokumen cocok** — dokumen `spk_track` jalur `vendor` array ke-4nya selalu kosong `[]`, dan dokumen jalur `bahan` hanya `bahan_rincian[]` yang terisi (3 lainnya kosong), dst. Status operasional ke-4 jalur non-vendor ada PER BARIS di dalam array masing-masing, BUKAN di `spk_track.status` level dokumen (beda pola dari `vendor`) — kalau baca/tulis status jalur-jalur ini, WAJIB baca `..._rincian[].status`, bukan `spk_track.status`.
 8. **Kartu Bahan vs kartu 3 pos Acc — JANGAN SAMAKAN CARA GABUNGNYA** (§5.11d). Bahan: 1 kartu = 1 bahan+warna, DIGABUNG lintas dokumen `spk_track` (`kelompokKartuBahan`). Acc Sewing/Webbing/Finishing: 1 kartu = 1 dokumen `spk_track` itu sendiri (1 SPK Grouping), TIDAK ADA penggabungan lintas dokumen. Kalau nambah fitur baru di salah satu pos, jangan asumsikan pola gabungnya sama dengan pos lain.
@@ -806,4 +896,6 @@ Audit-only (create-only, tidak bisa update/delete lewat rules) — dicatat tiap 
 12. **ADA 2 "kelipatan" terpisah di `master_produk`, JANGAN DICAMPUR (§5.13)**: (a) `kelipatan` (lama, 28 Agt 2026) = auto-KPK dari `bom_pola[].isi_pola_pcs`, dipakai Order SPK/Kasir sebagai "Rekomendasi Kelipatan Order" — TETAP dipakai apa adanya; (b) `kelipatan_isi_pola` (baru, §5.13) = input MANUAL terpisah untuk modul Serie nanti, TIDAK ada hubungan hitung-otomatis dengan (a).
 13. **`master_bahan_aksesoris.margin_modal` SEKARANG PERSEN, BUKAN Rupiah (§5.13, 7 Sep 2026)** — `harga_pemakaian = harga_modal * (1 + margin_modal/100)`. Data LAMA yang `margin_modal`-nya masih nominal Rupiah akan TERBACA SALAH sebagai persen (mis. margin lama Rp 5.000 akan dibaca sebagai margin 5.000%) — TIDAK ADA migrasi otomatis, Guru WAJIB cek & bersihkan data lama secara manual sebelum fitur ini dianggap aman dipakai.
 14. **`master_rak_penyimpanan` skema BERUBAH TOTAL (§5.14, 7 Sep 2026)** — field `kode_rak`/`baris_rak`/`kolom_rak` DULU dropdown master-data terkelola, SEKARANG teks bebas yang digabung jadi `kode_rak`. Dokumen LAMA dan BARU dibedakan lewat ADA/TIDAKnya field `rak` (field baru) — kode yang baca koleksi ini WAJIB cek keberadaan field `rak` dulu sebelum asumsi skema mana yang dipakai 1 dokumen. Lihat entri koleksi lengkap di atas.
-15. **`users.pin_hash` DIREUSE untuk Stok & Pembelian (§5.14), BUKAN infrastruktur PIN generik yang sama dengan rencana `RENCANA-REKONSTRUKSI-2026-09.md` §2.3/§9.3** — dua hal yang beda cakupan keamanan, jangan asumsikan modul lain (Persiapan Belanja, Pesanan piutang) otomatis bisa pakai mekanisme yang sama tanpa evaluasi ulang risikonya (nilai transaksi, siapa yang bisa akses).
+15. **`users.pin_hash` DIREUSE untuk Stok & Pembelian (§5.14) DAN Pesanan (§5.15), BUKAN infrastruktur PIN generik yang sama dengan rencana `RENCANA-REKONSTRUKSI-2026-09.md` §2.3/§9.3** — dua hal yang beda cakupan keamanan, jangan asumsikan modul lain (Persiapan Belanja) otomatis bisa pakai mekanisme yang sama tanpa evaluasi ulang risikonya (nilai transaksi, siapa yang bisa akses).
+16. **`master_pelanggan.saldo_piutang` MULAI BERUBAH sejak §5.15 (7 Sep 2026)** — SEBELUMNYA field ini SELALU `0` di semua dokumen (didokumentasikan sebagai "benar, bukan bug" sampai fitur piutang Pesanan dikerjakan). SEKARANG ada 2 titik tulis resmi: checkout Kasir (nambah) dan `catatPembayaranSusulan()` di Transaksi Keuangan (mengurangi) — JANGAN ditulis dari titik manapun selain 2 itu, dan field ini masih BLOCKED sampai rule `piutang_pembayaran` dipublish (lihat poin 17).
+17. **Koleksi BARU `piutang_pembayaran` (§5.15) BELUM PUNYA rule Firestore SAMA SEKALI** — blocker keras, WAJIB Guru publish dulu (lihat entri koleksi & saran rule di bagian "🛒 Pesanan" di atas) sebelum fitur piutang Pesanan bisa dipakai. `transaksi_kasir`/`pengaturan_id_transaksi_kasir` rules-nya SUDAH ADA (klaim SERAH-TERIMA.md modul Pesanan yang bilang "belum dipublish" untuk 2 koleksi itu sudah BASI, dikonfirmasi via `FIRESTORE-RULES-SNAPSHOT.md`).

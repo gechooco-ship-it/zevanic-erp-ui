@@ -1,9 +1,14 @@
 # STATUS PROYEK (RINGKAS) — Zevanic/Gechoo ERP
 
-> **Terakhir diperbarui: 7 September 2026 (sore).** Fitur Pesanan (Kasir)
-> live untuk alur dasar, TAPI fitur piutang (Tempo/DP/Cicilan) dicek
-> langsung ke kode — BELUM ADA SAMA SEKALI (sesuai rencana, belum
-> giliran). Persiapan Produksi > Bahan + Acc Sewing/Webbing/Finishing
+> **Terakhir diperbarui: 7 September 2026 (malam), §5.15.** Fitur Pesanan
+> REKONSTRUKSI BESAR dari handoff "Pesanan dan Transaksi": piutang
+> (Tempo/DP/Cicilan) + koleksi `piutang_pembayaran` BARU **SUDAH DITULIS**
+> (lompat duluan dari urutan §6 RENCANA-REKONSTRUKSI-2026-09.md atas
+> permintaan eksplisit Guru — bukan kesalahan urutan, CATATAN penting:
+> langkah 5-14/Scan generik-Persiapan-Proses Produksi TETAP belum
+> disentuh). **BELUM DITEST BROWSER/FIRESTORE SAMA SEKALI** — lihat §5.15
+> & §7 poin 0. Rules `piutang_pembayaran` **BELUM di-Publish**, blocker
+> keras. Persiapan Produksi > Bahan + Acc Sewing/Webbing/Finishing
 > **SUDAH push+diuji Guru, semua jalan** (bukan lagi "0 data live").
 > Master Suplayer rebuild **SUDAH push+diuji Guru, semua jalan**. Master
 > Pelanggan (modul baru total) **SELESAI PENUH**: rules di-Publish,
@@ -160,7 +165,10 @@ SEKALI** di kode live — `METODE_PEMBAYARAN_OPSI` masih cuma
 `['Tunai','Transfer','QRIS','Lainnya']`, `nama_pelanggan` masih teks
 bebas (bukan pilih dari `master_pelanggan`). Ini BUKAN bug, ini memang
 langkah yang belum dikerjakan (lihat `RENCANA-REKONSTRUKSI-2026-09.md`
-§6 langkah 15). Detail: Arsip §45, §5.7.
+§6 langkah 15). **DIPERBARUI 7 Sep 2026 malam (§5.15)**: modul ini
+sudah DIREKONSTRUKSI TOTAL — status di paragraf ini sekarang HISTORIS
+(kondisi SEBELUM §5.15), lihat §5.15 untuk kondisi TERKINI (piutang
+sudah ditulis, tapi belum ditest). Detail: Arsip §45, §5.7.
 
 ### 5.8-5.9 Redesain Desktop — Beranda
 Dashboard desktop penuh: sidebar ("Zevanic Core Optima", ikon tiap
@@ -209,8 +217,12 @@ BENAR, BUKAN BUG). Bagian dari rencana besar `RENCANA-REKONSTRUKSI-
 
 **Rules `master_pelanggan` sudah di-Publish, sudah di-push ke GitHub,
 dan SUDAH DITES di browser (7 Sep 2026) — Tambah/Edit/Hapus, dedupe
-nama, badge tipe SEMUA jalan.** Modul ini SELESAI PENUH. Detail: Arsip
-§5.14.
+nama, badge tipe SEMUA jalan.** Modul ini SELESAI PENUH. **DIPERBARUI
+7 Sep 2026 malam (§5.15)**: `saldo_piutang` di atas SEKARANG MULAI
+BENAR-BENAR BERUBAH (bukan lagi selalu Rp 0) sejak modul Pesanan
+direkonstruksi — 2 titik tulis resmi: checkout Kasir (menambah) dan
+`catatPembayaranSusulan()` (mengurangi), lihat §5.15. Modul Master
+Pelanggan ITU SENDIRI tidak berubah kodenya. Detail: Arsip §5.14.
 
 ### 5.13 Zevanic House — 4 gap wireframe diimplementasi (7 Sep 2026, kode belum ditest browser)
 Dari audit penuh `wireframe.dc.html` Zevanic House (RENCANA-REKONSTRUKSI-
@@ -379,6 +391,135 @@ dipercaya.
 dikirim ulang untuk mastiin fitur §5.13 tidak ikut hilang (sudah
 di-grep ulang, aman).
 
+### 5.15 Pesanan dan Transaksi — rekonstruksi besar (7 Sep 2026, kode belum ditest browser, LONCAT dari urutan rencana)
+`/design-terapkan-handoff` untuk modul Pesanan dan Transaksi (folder
+handoff `01 - Pesanan dan Transaksi`), atas permintaan eksplisit Guru
+lewat invocation langsung — **ini LONCAT dari urutan
+`RENCANA-REKONSTRUKSI-2026-09.md` §6** (piutang/Pesanan tadinya
+dijadwalkan step 15, setelah Scan generik + sisa Persiapan Produksi +
+Proses Produksi yang belum selesai). Bukan kesalahan, Guru yang minta,
+tapi WAJIB dicatat sebagai penyimpangan urutan. Guru sudah putuskan 7
+keputusan lewat AskUserQuestion (2 ronde + 2 follow-up klarifikasi),
+KODE SUDAH DITULIS + `node --check` lolos — **BELUM ADA testing
+browser/Firestore sama sekali, DAN ada blocker Firestore rules yang
+belum dipublish (lihat poin 7)** — jangan dianggap siap pakai.
+
+Seluruh menu "Pesanan" dirombak dari 5 sub-menu lama (Kasir, Menunggu
+Proses [CRUD manual], Persiapan, Produksi, Pengiriman) jadi 4 sub-menu
+baru: Penjualan Kasir, Menunggu Proses (sekarang murni antrian QO,
+CRUD manual dihapus), Daftar Pesanan (baru, gabungan ringkasan
+pipeline), Transaksi Keuangan (baru, piutang & kas).
+
+1. **Penjualan Kasir (1.1/1.2)**: `PesananKasirManager` ditulis ulang
+   jadi alur 2 langkah (keranjang → pembayaran). Field pelanggan baru
+   wajib dipilih (`ambilDaftarPelanggan()`, disalin dari
+   `vue-master-pelanggan.js`). Status bayar cuma 3 opsi saat checkout:
+   Lunas/DP/Tempo (Cicilan BUKAN opsi checkout, lihat poin 6). DP
+   dihitung otomatis jadi persen dari nominal (keputusan Guru D7).
+   Struk cetak masih MVP `window.print()` browser biasa, BUKAN
+   integrasi printer thermal POS sungguhan (disederhanakan, ditandai
+   di komentar kode).
+2. **Checkout menulis ke 3 tempat**: `transaksi_kasir` (field baru
+   `pelanggan_id`, `status_bayar`, `dp_persen`, `total_dibayar`,
+   `sisa_piutang`, `jatuh_tempo`), `order_spk` (field baru
+   `pelanggan_id`/`pelanggan_nama`/`transaksi_kasir_id`/
+   `no_transaksi`/`status_bayar` — snapshot, ditambahkan supaya
+   Daftar Pesanan & Transaksi Keuangan tidak perlu N+1 lookup, bukan
+   dari spek asli tapi diperlukan secara teknis), dan koleksi BARU
+   `piutang_pembayaran/{autoId}` (1 dokumen per pembayaran, sesuai
+   `SPESIFIKASI-KOLEKSI-BARU.md` §2) untuk catatan pembayaran awal.
+   `master_pelanggan.saldo_piutang` ditambah kalau ada sisa piutang
+   baru dari transaksi ini.
+3. **Menunggu Proses (2.1/2.2) — GANTI TOTAL jadi murni antrian QO**:
+   `PesananMenungguManager` ditulis ulang total, form CRUD manual SPK
+   dihapus. Order yang statusnya `Aktif` dan belum diproses
+   (`qo_diproses !== true`, field BARU) dikelompokkan per transaksi.
+   Algoritma opsi QO (`opsiQO`) = 4 kelipatan pertama yang >= RO,
+   keputusan Guru D5 (wireframe punya contoh data yang saling
+   kontradiksi, ini interpretasi yang dipilih Guru karena cocok
+   dengan 2 dari 3 baris contoh). Akses digerbang ganda: `cekIzinMenu`
+   DAN `tierOwnerKeAtas()` — kalau bukan Owner-tier, pesan akses
+   ditolak eksplisit merujuk `PEDOMAN-SERAH-TERIMA.md` aturan #8.
+   Tombol "Proses N orderan" SELALU minta `PopupPin` walau user yang
+   login sudah Owner (keputusan Guru D4, beda dari pola
+   `vue-stock-pembelian.js` yang skip PIN untuk Owner login — di sini
+   sengaja TIDAK disamakan). Aksi proses HANYA update `qty_order` +
+   `qo_diproses`/`qo_diproses_pada`/`qo_oleh` di `order_spk` — **TIDAK
+   PERNAH menyentuh `status_grouping`**.
+4. **Temuan arsitektur penting saat pengerjaan (WAJIB diketahui kalau
+   ada yang menyentuh modul ini lagi)**: jawaban awal Guru bilang QO
+   "tulis ke `order_spk.status_grouping`". Sebelum menulis kode itu,
+   dibaca dulu `js/vue-persiapan-produksi-v2.js` (cross-check kode
+   live) — ternyata `status_grouping` (nilai `''`/`'sebagian'`/
+   `'tergrouping'`, plus `qty_tergrouping`/`grouping_ids`/
+   `id_spk_grouping`/`kode_spk_grouping`) adalah field yang SUDAH
+   PUNYA pemilik tunggal: layar "Perlu Disiapkan" di modul Persiapan
+   Produksi. Temuan ini dilaporkan balik ke Guru (bukan ditebak
+   sendiri), Guru re-konfirmasi: cukup update `qty_order` saja untuk
+   QO. Field BARU `qo_diproses`/`qo_diproses_pada`/`qo_oleh`
+   ditambahkan supaya antrian "Menunggu Proses" tetap bisa tahu order
+   mana yang sudah diproses TANPA melanggar single-source-of-truth
+   `status_grouping` milik Persiapan Produksi.
+5. **Daftar Pesanan (3.1/3.2/3.2.1) — BARU, gabungan 3 menu ringkasan
+   lama**: `PesananDaftarManager` menggantikan
+   `RingkasanSpkTrackManager` + 3 wrapper (Persiapan/Produksi/
+   Pengiriman lama). Baca semua `order_spk`+`transaksi_kasir`
+   (difilter `pelanggan_id` ada isinya)+`spk_track` sekaligus, susun
+   6-kotak ringkasan total + per-kartu-pelanggan, popup rincian anak
+   SPK (3.2) dan popup timeline riwayat scan (3.2.1, dari
+   `spk_track.riwayat_scan`). **Penyederhanaan yang WAJIB diketahui
+   (T3)**: begitu SPK masuk grouping di Persiapan Produksi, grouping
+   itu bisa berisi campuran SPK dari BEBERAPA pelanggan sekaligus —
+   jadi atribusi per-pelanggan yang presisi cuma bisa dihitung untuk
+   status "Perlu Disiapkan" (sebelum grouping). Untuk 5 kolom jalur
+   sesudahnya, angka yang ditampilkan adalah hitungan "tersentuh
+   grouping ini" berlabel perkiraan, BUKAN hitungan per-pelanggan
+   yang eksak — trade-off yang disengaja karena data sumbernya memang
+   sudah campur, bukan bug.
+6. **Transaksi Keuangan (4.1/4.1.1/4.2.1/4.2.2) — BARU**:
+   `PesananTransaksiManager`, 3 tab: Kas Besar (agregasi per
+   pelanggan: nilai/sudah dibayar/sisa/status jatuh tempo), Rincian
+   Transaksi (list flat `piutang_pembayaran`, read-only, total per
+   metode), Rincian Piutang (`transaksi_kasir` yang `sisa_piutang>0`,
+   diurutkan jatuh tempo). Fungsi baru `catatPembayaranSusulan()` —
+   SATU-SATUNYA titik yang boleh mengurangi
+   `master_pelanggan.saldo_piutang` (dipakai pembayaran susulan
+   pasca-checkout, BUKAN pembayaran awal saat checkout). Tombol "Catat
+   pembayaran" cuma KELIHATAN untuk Owner-tier, tapi tetap WAJIB lewat
+   `PopupPin` saat diklik (sama seperti poin 3 — PIN selalu wajib,
+   bukan cuma untuk yang levelnya kurang).
+7. **Cicilan = status turunan, BUKAN opsi checkout** (keputusan Guru
+   D6, diklarifikasi 2 tahap karena jawaban pertama Guru sempat
+   ambigu/terpotong): tidak ada jadwal cicilan baru yang dibangun,
+   cuma reuse `master_pelanggan.limit_piutang` yang SUDAH ADA ("0 =
+   tidak boleh piutang") sebagai plafon tunggal. Checkout **DIBLOKIR
+   TOTAL** (bukan sekadar warning) kalau
+   `saldo_piutang + sisa_baru > limit_piutang`.
+8. **BLOCKER Firestore rules — koleksi `piutang_pembayaran` BELUM
+   PUNYA rule sama sekali** (dicek silang ke
+   `claude/FIRESTORE-RULES-SNAPSHOT.md` 5 Sep 2026 — tidak ada match
+   block untuk koleksi ini). Tanpa rule, semua tulis/baca ke koleksi
+   ini akan `permission-denied` di production. **WAJIB dipublish Guru
+   di Firebase Console SEBELUM fitur pembayaran/piutang di modul ini
+   bisa dipakai sama sekali** — bukan cuma kurang optimal, benar-benar
+   tidak akan jalan. Saran rule (pola sama seperti koleksi transaksi
+   lain yang append-only dari sisi user biasa):
+   `allow read: if isAdminLevel(); allow create: if login(); allow
+   update, delete: if isAdminLevel();` (sesuaikan lagi kalau perlu —
+   ini draft awal, belum divalidasi Guru).
+   Catatan tambahan: klaim `SERAH-TERIMA.md` bahwa rule
+   `transaksi_kasir`/`pengaturan_id_transaksi_kasir` "belum
+   dipublish" ternyata BASI — rule untuk keduanya SUDAH ADA di
+   snapshot 5 Sep. `master_pelanggan` tidak ada di snapshot itu juga,
+   tapi banner `STATUS-PROYEK.md` yang lebih baru mengklaim sudah
+   dipublish — kesimpulannya dokumen snapshot rules itu sendiri yang
+   sudah basi untuk sebagian koleksi, jadi jangan 100% percaya
+   snapshot itu untuk koleksi lain juga tanpa cek ulang ke Firebase
+   Console langsung kalau ragu.
+
+**File yang berubah (4 total)**: `index.html`, `dashboard.js`,
+`vue-config-akses.js`, `vue-pesanan.js`.
+
 ## 6. Bug besar & pelajaran (kelas bug yang bisa terulang)
 
 - **Inline `style="display:..."` SELALU menang dari class CSS manapun**
@@ -422,10 +563,49 @@ di-grep ulang, aman).
   memutuskan sendiri — itu yang benar. Kelas bug yang sama juga bisa
   muncul di klaim "koleksi/field ini sudah ditulis modul X" — selalu
   cek FUNGSI yang menulis/membaca, bukan cuma nama modul yang disebut.
+- **Jawaban keputusan Guru sendiri bisa berbasis premis teknis yang
+  salah — WAJIB dicross-check ke kode live SEBELUM dieksekusi, bukan
+  cuma dokumen spek.** Contoh nyata (§5.15, 7 Sep 2026): Guru sempat
+  jawab "QO tulis ke `order_spk.status_grouping`" tanpa tahu field itu
+  sudah jadi milik penuh mekanisme grouping Persiapan Produksi
+  (state-machine dengan field pendamping `qty_tergrouping`/
+  `grouping_ids`/dst). Baca kode live LEBIH DULU sebelum menulis kode
+  yang menyentuh field bersama, baru kalau ketemu konflik — lapor
+  balik ke Guru sebagai temuan teknis, minta re-konfirmasi. Jangan
+  langsung eksekusi jawaban Guru mentah-mentah kalau itu menyangkut
+  field yang kelihatannya "milik" mekanisme lain.
+- **Kalau Guru minta modul dikerjakan di luar urutan
+  `RENCANA-REKONSTRUKSI-2026-09.md` yang sudah disepakati, itu SAH
+  (Guru berhak ubah prioritas) tapi WAJIB dicatat eksplisit sebagai
+  penyimpangan urutan** di STATUS-PROYEK.md — supaya sesi berikutnya
+  tidak bingung kenapa langkah yang "belum giliran" tiba-tiba sudah
+  ada kodenya (lihat §5.15, piutang Pesanan dikerjakan sebelum Scan
+  generik/Persiapan Produksi/Proses Produksi selesai).
 
 ## 7. Yang PALING PENTING diverifikasi sesi berikutnya
 
-0. **BARU (7 Sep 2026) — §5.14 rebuild Stok dan Pembelian (4 sub-tab)
+0a. **BARU (7 Sep 2026) — §5.15 rekonstruksi Pesanan dan Transaksi (4
+    sub-menu, TERMASUK PIUTANG) BELUM DITEST BROWSER/FIRESTORE SAMA
+    SEKALI, dan modul ini menyentuh UANG (kasir, piutang, pembayaran)**:
+    Penjualan Kasir (checkout 2 langkah + guard limit piutang), Menunggu
+    Proses (antrian QO murni, PIN selalu wajib), Daftar Pesanan
+    (ringkasan pipeline, atribusi per-pelanggan approx setelah
+    grouping), Transaksi Keuangan (Kas Besar/Rincian Transaksi/Rincian
+    Piutang, `catatPembayaranSusulan()`). **BLOCKER KERAS sebelum modul
+    ini bisa dites sama sekali**: Guru WAJIB publish Firestore rule
+    untuk koleksi BARU `piutang_pembayaran` dulu (lihat §5.15 poin 8) —
+    tanpa ini semua baca/tulis piutang akan `permission-denied`. Setelah
+    rule terpasang, test: (a) checkout Lunas/DP/Tempo menulis field baru
+    di `transaksi_kasir`+`order_spk` dengan benar, (b) blokir total
+    checkout saat `saldo_piutang + sisa_baru > limit_piutang` benar-benar
+    memblokir (bukan cuma warning), (c) "Proses massal" QO di Menunggu
+    Proses HANYA mengubah `qty_order` dan TIDAK menyentuh
+    `status_grouping` (cek Firestore langsung), (d) Catat Pembayaran
+    susulan (Transaksi Keuangan) mengurangi `saldo_piutang` dengan benar
+    dan status transaksi berubah ke `lunas`/`cicilan` sesuai sisa, (e)
+    PopupPin memang selalu muncul (termasuk untuk Owner login) di kedua
+    titik ini sesuai keputusan Guru D4.
+0. **§5.14 rebuild Stok dan Pembelian (4 sub-tab)
    BELUM DITEST BROWSER/FIRESTORE SAMA SEKALI, dan ini modul UANG+STOK**:
    Daftar Nota (entry keyboard-first + PIN finalisasi), Riwayat Harga
    (alert kenaikan harga + Terapkan PIN Owner), Kartu Stok (read-only),
@@ -469,11 +649,16 @@ di-grep ulang, aman).
    Guru (masih ditanya, jawaban tertunda — jangan anggap lengkap).
 6. Field `tipe` di Master Pelanggan murni informasional (tidak
    pengaruhi `limit_piutang` otomatis) — konfirmasi ini sudah cukup.
-7. **Pesanan piutang (Tempo/DP/Cicilan) — dicek langsung ke kode (7 Sep
-   2026), BELUM ADA SAMA SEKALI**, sesuai rencana (langkah 15, belum
-   giliran). Bukan bug, jangan dikerjakan sebelum langkah 5-14 (modul
-   Scan generik + Persiapan Produksi + Proses Produksi) selesai duluan
-   sesuai urutan `RENCANA-REKONSTRUKSI-2026-09.md` §6.
+7. ~~Pesanan piutang (Tempo/DP/Cicilan) — dicek langsung ke kode (7 Sep
+   2026), BELUM ADA SAMA SEKALI, sesuai rencana (langkah 15, belum
+   giliran)~~ **DIPERBARUI 7 Sep 2026**: Guru minta dikerjakan sekarang
+   juga (loncat urutan, lihat §5.15) — kodenya SUDAH DITULIS, TAPI
+   belum ditest sama sekali dan diblokir rule Firestore
+   `piutang_pembayaran` yang belum dipublish (lihat poin 0a di atas).
+   Langkah 5-14 (Scan generik + sisa Persiapan Produksi + Proses
+   Produksi) TETAP belum selesai — urutan rencana untuk sisanya TIDAK
+   berubah, cuma langkah 15 ini yang dikerjakan lebih awal atas
+   permintaan Guru.
 8. Cek `RENCANA-REKONSTRUKSI-2026-09.md` untuk peta lengkap langkah
    rekonstruksi besar yang sedang berjalan — urutan sudah DIGESER 7 Sep
    2026 (Persiapan Produksi lengkap dulu, baru Proses Produksi/Cutting).

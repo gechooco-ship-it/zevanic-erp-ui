@@ -265,18 +265,16 @@
           </button>
         </div>
 
-        <!-- BARU (30 Agt 2026) — grup top-level BARU "Pesanan" (sejajar
-             Zevanic House/Persiapan Produksi), lihat js/vue-pesanan.js utk
-             latar belakang & keputusan arsitektur lengkap (4 ronde
-             AskUserQuestion + 3 asumsi yang belum eksplisit dikonfirmasi
-             Guru, didokumentasikan di komentar besar atas file itu).
-             5 sub-menu: Penjualan Kasir (dulu "Order SPK", tampilan POS),
-             Menunggu Proses (CRUD SPK, DISALIN dari OrderSpkManager lama),
-             Proses Persiapan/Produksi (ringkasan read-only spk_track per
-             jalur), Proses Pengiriman (ringkasan read-only spk_track lintas
-             jalur, status kirim). Posisi SENGAJA setelah Zevanic House,
-             SEBELUM Persiapan Produksi (ASUMSI urutan, belum eksplisit
-             dikonfirmasi Guru — gampang digeser). -->
+        <!-- REKONSTRUKSI (7 Sep 2026, handoff "Pesanan dan Transaksi") —
+             grup top-level "Pesanan" (sejajar Zevanic House/Persiapan
+             Produksi), lihat js/vue-pesanan.js utk latar belakang & 7
+             keputusan Guru lengkap. 4 sub-menu: Penjualan Kasir (1.1/1.2),
+             Menunggu Proses (2.1, KHUSUS Owner/PIC Owner, keputusan QO —
+             BUKAN lagi form CRUD SPK manual), Daftar Pesanan (3.1/3.2/3.2.1,
+             BARU, GANTI 3 ringkasan lama Proses Persiapan/Produksi/
+             Pengiriman yang DIHAPUS TOTAL), Transaksi Keuangan (4.1-4.2.2,
+             BARU TOTAL, piutang). Posisi grup TETAP setelah Zevanic House,
+             sebelum Persiapan Produksi. -->
         <button onclick="toggleNavGroup('navgrp-pesanan')" id="menu-pesanan" data-group="navgrp-pesanan" class="hidden gc-nav-item" style="font-weight:700;">
           <i class="fas fa-receipt gc-nav-gico"></i> Pesanan <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
@@ -287,14 +285,11 @@
           <button onclick="pindahTab('tab-pesanan'); pindahSubTab('sub-pesanan','sub-pesanan-menunggu', this, {catatRiwayat:true})" id="menu-pesanan-menunggu-btn" data-menu-id="pesanan_menunggu" data-target="sub-pesanan-menunggu" class="sub-pesanan-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-clipboard-list" style="width:17px; text-align:center;"></i> Menunggu Proses
           </button>
-          <button onclick="pindahTab('tab-pesanan'); pindahSubTab('sub-pesanan','sub-pesanan-persiapan', this, {catatRiwayat:true})" id="menu-pesanan-persiapan-btn" data-menu-id="pesanan_persiapan" data-target="sub-pesanan-persiapan" class="sub-pesanan-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-list-check" style="width:17px; text-align:center;"></i> Proses Persiapan
+          <button onclick="pindahTab('tab-pesanan'); pindahSubTab('sub-pesanan','sub-pesanan-daftar', this, {catatRiwayat:true})" id="menu-pesanan-daftar-btn" data-menu-id="pesanan_daftar" data-target="sub-pesanan-daftar" class="sub-pesanan-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-list-check" style="width:17px; text-align:center;"></i> Daftar Pesanan
           </button>
-          <button onclick="pindahTab('tab-pesanan'); pindahSubTab('sub-pesanan','sub-pesanan-produksi', this, {catatRiwayat:true})" id="menu-pesanan-produksi-btn" data-menu-id="pesanan_produksi" data-target="sub-pesanan-produksi" class="sub-pesanan-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-gears" style="width:17px; text-align:center;"></i> Proses Produksi
-          </button>
-          <button onclick="pindahTab('tab-pesanan'); pindahSubTab('sub-pesanan','sub-pesanan-pengiriman', this, {catatRiwayat:true})" id="menu-pesanan-pengiriman-btn" data-menu-id="pesanan_pengiriman" data-target="sub-pesanan-pengiriman" class="sub-pesanan-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-truck-fast" style="width:17px; text-align:center;"></i> Proses Pengiriman
+          <button onclick="pindahTab('tab-pesanan'); pindahSubTab('sub-pesanan','sub-pesanan-transaksi', this, {catatRiwayat:true})" id="menu-pesanan-transaksi-btn" data-menu-id="pesanan_transaksi" data-target="sub-pesanan-transaksi" class="sub-pesanan-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-file-invoice-dollar" style="width:17px; text-align:center;"></i> Transaksi Keuangan
           </button>
         </div>
 
@@ -895,14 +890,15 @@
           <div id="sub-pesanan-menunggu" class="sub-pesanan-content hidden fade-in space-y-4">
             <div id="vue-pesanan-menunggu"></div>
           </div>
-          <div id="sub-pesanan-persiapan" class="sub-pesanan-content hidden fade-in space-y-4">
-            <div id="vue-pesanan-persiapan"></div>
+          <!-- REKONSTRUKSI (7 Sep 2026) — GANTI TOTAL 3 div ringkasan lama
+               (sub-pesanan-persiapan/produksi/pengiriman, DIHAPUS) jadi 2 div
+               baru, lihat js/vue-pesanan.js PesananDaftarManager/
+               PesananTransaksiManager. -->
+          <div id="sub-pesanan-daftar" class="sub-pesanan-content hidden fade-in space-y-4">
+            <div id="vue-pesanan-daftar"></div>
           </div>
-          <div id="sub-pesanan-produksi" class="sub-pesanan-content hidden fade-in space-y-4">
-            <div id="vue-pesanan-produksi"></div>
-          </div>
-          <div id="sub-pesanan-pengiriman" class="sub-pesanan-content hidden fade-in space-y-4">
-            <div id="vue-pesanan-pengiriman"></div>
+          <div id="sub-pesanan-transaksi" class="sub-pesanan-content hidden fade-in space-y-4">
+            <div id="vue-pesanan-transaksi"></div>
           </div>
         </div>
 

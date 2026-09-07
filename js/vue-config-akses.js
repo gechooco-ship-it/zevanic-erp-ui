@@ -262,25 +262,18 @@ const DAFTAR_MENU = [
   { id: 'pp_finishing', label: 'Persiapan Produksi - Acc Finishing', kategori: 'Persiapan Produksi', icon: 'fa-check-double',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-finishing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludiproses', null, {catatRiwayat:true}); } },
   // BARU (30 Agt 2026) — grup top-level "Pesanan" (sejajar Zevanic House/
-  // Persiapan Produksi), keputusan Guru lewat AskUserQuestion + spesifikasi
-  // final: "Pesaanan (Menu Group Baru), didalam group menu pesanan
-  // adalah: 1. Order SPK (ganti nama jadi Penjualan Kasir) > tampilan
-  // seperti request order, 2. Menunggu Proses, 3. Proses Persiapan
-  // (ringkasan data tarikan dari proses persiapan produksi), 4. Proses
-  // Produksi (ringkasan data tarikan dari proses persiapan produksi),
-  // 5. Proses Pengiriman". Lihat js/vue-pesanan.js utk detail lengkap tiap
-  // menu (kode grouping/asumsi yang belum eksplisit dikonfirmasi Guru
-  // didokumentasikan di komentar atas file itu, BUKAN cuma di sini).
+  // Persiapan Produksi). REKONSTRUKSI (7 Sep 2026, handoff "Pesanan dan
+  // Transaksi") — 3 id lama (pesanan_persiapan/produksi/pengiriman, ringkasan
+  // read-only) DIPENSIUNKAN, diganti pesanan_daftar + pesanan_transaksi.
+  // Lihat js/vue-pesanan.js utk 7 keputusan Guru & detail lengkap tiap menu.
   { id: 'pesanan_kasir', label: 'Penjualan Kasir', kategori: 'Pesanan', icon: 'fa-cash-register',
     aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-kasir', null, {catatRiwayat:true}); } },
   { id: 'pesanan_menunggu', label: 'Menunggu Proses', kategori: 'Pesanan', icon: 'fa-clipboard-list',
     aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-menunggu', null, {catatRiwayat:true}); } },
-  { id: 'pesanan_persiapan', label: 'Proses Persiapan', kategori: 'Pesanan', icon: 'fa-list-check',
-    aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-persiapan', null, {catatRiwayat:true}); } },
-  { id: 'pesanan_produksi', label: 'Proses Produksi', kategori: 'Pesanan', icon: 'fa-gears',
-    aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-produksi', null, {catatRiwayat:true}); } },
-  { id: 'pesanan_pengiriman', label: 'Proses Pengiriman', kategori: 'Pesanan', icon: 'fa-truck-fast',
-    aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-pengiriman', null, {catatRiwayat:true}); } },
+  { id: 'pesanan_daftar', label: 'Daftar Pesanan', kategori: 'Pesanan', icon: 'fa-list-check',
+    aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-daftar', null, {catatRiwayat:true}); } },
+  { id: 'pesanan_transaksi', label: 'Transaksi Keuangan', kategori: 'Pesanan', icon: 'fa-file-invoice-dollar',
+    aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-transaksi', null, {catatRiwayat:true}); } },
   // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname: lihat js/vue-scan-
   // opname.js. Aksi catat penyesuaian dicek lewat kolom 'edit'. Gating
   // "mobile-only untuk non-Owner" TIDAK lewat kolom izin ini — itu
