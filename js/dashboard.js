@@ -507,6 +507,9 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // 'sub-zh-databahan-rak' di Data Bahan & Aksesoris), lihat js/vue-
     // rak-penyimpanan.js.
     'sub-zh-stock-rak': 'pastikanMountRakPenyimpanan',
+    // BARU (7 Sep 2026, task #95) — Repack Komponen Acc, lihat js/vue-
+    // repack-komponen-acc.js.
+    'sub-zh-stock-repack': 'pastikanMountRepackKomponenAcc',
     // DIPENSIUNKAN (28 Agt 2026, §41.2) — dulu 'sub-zh-stock-cetaklabel':
     // 'pastikanMountCetakLabel' di sini, tab-nya sudah dihapus dari
     // index.html (Cetak Label pindah jadi tombol di List Bahan & Aksesoris).

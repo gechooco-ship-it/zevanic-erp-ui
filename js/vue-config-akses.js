@@ -176,6 +176,10 @@ const DAFTAR_MENU = [
   // penyimpanan.js.
   { id: 'stock_rak_penyimpanan', label: 'Rak Penyimpanan', kategori: 'Zevanic House', icon: 'fa-warehouse',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-rak', null, {catatRiwayat:true}); } },
+  // BARU (7 Sep 2026, task #95, TIDAK ADA wireframe — dirancang dari
+  // jawaban Guru, lihat js/vue-repack-komponen-acc.js).
+  { id: 'stock_repack', label: 'Repack', kategori: 'Zevanic House', icon: 'fa-box-archive',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-repack', null, {catatRiwayat:true}); } },
   // DIPENSIUNKAN (28 Agt 2026, §41.2) — dulu tab "Cetak Label" tersendiri
   // di Stock & Pembelian (CetakLabelManager, js/vue-stock-pembelian.js).
   // Guru minta dipindah jadi tombol per-kartu di List Bahan & Aksesoris
