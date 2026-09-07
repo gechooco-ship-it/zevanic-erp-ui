@@ -632,7 +632,7 @@ const SeriePerluDiProses = {
       </div>
     </div>
 
-    <popup-pratinjau-cetak-label v-if="popupCetakBatch" :daftar-label="daftarLabelBatch" judul="Cetak Batch Separating" @tutup="popupCetakBatch = false" />
+    <popup-pratinjau-cetak-label v-if="popupCetakBatch" :terbuka="popupCetakBatch" :daftar-label="daftarLabelBatch" judul="Cetak Batch Separating" @tutup="popupCetakBatch = false" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
@@ -791,7 +791,7 @@ const SerieSedangDiProses = {
       </div>
     </template>
 
-    <popup-pratinjau-cetak-label v-if="popupCetakAktif" :daftar-label="daftarLabelPreview" judul="Cetak ID Komponen" @tutup="popupCetakAktif = false" />
+    <popup-pratinjau-cetak-label v-if="popupCetakAktif" :terbuka="popupCetakAktif" :daftar-label="daftarLabelPreview" judul="Cetak ID Komponen" @tutup="popupCetakAktif = false" />
     <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.batch ? ('Scan Entry — ' + modalEntry.batch.kode_batch) : 'Scan Entry'" subjudul="Scan ID komponen satu per satu." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
     <popup-pin-generik v-if="popupPinOperator" judul="Verifikasi PIN — Operator Serie" konteks="Serie - Scan Operator" :roles-diizinkan="['owner','superuser','pic_owner','pic']" @sukses="pinSuksesOperator" @batal="popupPinOperator = null" />
 
@@ -939,7 +939,7 @@ const SeriePerluDiKirim = {
       </div>
     </template>
 
-    <popup-pratinjau-cetak-label v-if="popupCetakAktif" :daftar-label="daftarLabelPreview" judul="Cetak Kode Bagging" @tutup="popupCetakAktif = false" />
+    <popup-pratinjau-cetak-label v-if="popupCetakAktif" :terbuka="popupCetakAktif" :daftar-label="daftarLabelPreview" judul="Cetak Kode Bagging" @tutup="popupCetakAktif = false" />
 
     <scan-generik :aktif="modalPack.aktif" :judul="modalPack.bagging ? ('Scan ID komponen — bagging ' + modalPack.bagging.kode) : 'Scan Kode Bagging'" subjudul="Bisa discan berkali-kali. Tutup lewat tombol di bawah kalau sudah selesai." @hasil="hasilScanPack" @tutup="tutupScanPack" />
     <div v-if="modalPack.aktif && modalPack.bagging" style="position:fixed; left:16px; bottom:16px; z-index:10001; display:flex; flex-direction:column; gap:8px; max-width:260px;">
@@ -1106,7 +1106,7 @@ function buatTabKirim(cfg) {
         </div>
       </template>
 
-      <popup-pratinjau-cetak-label v-if="popupCetakAktif" :daftar-label="daftarLabelPreview" :judul="'Cetak Kode Tugas — ' + cfg.namaTujuan" @tutup="popupCetakAktif = false" />
+      <popup-pratinjau-cetak-label v-if="popupCetakAktif" :terbuka="popupCetakAktif" :daftar-label="daftarLabelPreview" :judul="'Cetak Kode Tugas — ' + cfg.namaTujuan" @tutup="popupCetakAktif = false" />
 
       <div v-if="popupCetak" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
         <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">

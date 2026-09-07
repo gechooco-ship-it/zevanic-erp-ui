@@ -418,10 +418,12 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
       // 'sub-pr-cutting-tahap' -> 'tab-proses-produksi' (grup top-level baru,
       // lihat js/vue-pp-cutting.js). BARU LAGI (7 Sep 2026 malam, "lanjut
       // lagi" #2) — 'sub-pr-serie-tahap' ditambahkan sekarang Serie sudah
-      // fungsional (js/vue-pp-serie.js, 11 tab). Sewing/Finishing/Gudang
-      // Barang Jadi MASIH belum dibangun (placeholder alert di tombol
-      // sidebar, tidak butuh entry di sini).
-      'sub-proses-produksi': 'tab-proses-produksi', 'sub-pr-cutting-tahap': 'tab-proses-produksi', 'sub-pr-serie-tahap': 'tab-proses-produksi' };
+      // fungsional (js/vue-pp-serie.js, 11 tab). BARU LAGI ("lanjut lagi" #3)
+      // — 'sub-pr-sewing-tahap' ditambahkan sekarang Sewing sudah fungsional
+      // (js/vue-pp-sewing.js, 5 tab). Finishing/Gudang Barang Jadi MASIH
+      // belum dibangun (placeholder alert di tombol sidebar, tidak butuh
+      // entry di sini).
+      'sub-proses-produksi': 'tab-proses-produksi', 'sub-pr-cutting-tahap': 'tab-proses-produksi', 'sub-pr-serie-tahap': 'tab-proses-produksi', 'sub-pr-sewing-tahap': 'tab-proses-produksi' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -605,7 +607,14 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-pr-serie-setorfinishing': 'pastikanMountSerieSetorFinishing',
     'sub-pr-serie-terimafinishing': 'pastikanMountSerieTerimaFinishing',
     'sub-pr-serie-kirimgudang': 'pastikanMountSerieKirimGudang',
-    'sub-pr-serie-selesai': 'pastikanMountSerieSelesai'
+    'sub-pr-serie-selesai': 'pastikanMountSerieSelesai',
+    // BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" #3) — Proses
+    // Produksi > Sewing, 5 tahap, lihat js/vue-pp-sewing.js.
+    'sub-pr-sewing-perludiproses': 'pastikanMountSewingPerluDiProses',
+    'sub-pr-sewing-sedangsewing': 'pastikanMountSewingSedangSewing',
+    'sub-pr-sewing-perludikirim': 'pastikanMountSewingPerluDikirim',
+    'sub-pr-sewing-sedangkirim': 'pastikanMountSewingSedangKirim',
+    'sub-pr-sewing-selesai': 'pastikanMountSewingSelesai'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();
