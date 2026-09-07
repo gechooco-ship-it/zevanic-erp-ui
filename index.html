@@ -387,8 +387,8 @@
           <button onclick="pindahTab('tab-proses-produksi'); pindahSubTab('sub-proses-produksi','sub-pr-sewing', this, {catatRiwayat:true}); pindahSubTab('sub-pr-sewing-tahap','sub-pr-sewing-perludiproses', null, {catatRiwayat:true})" id="menu-pr-sewing-btn" data-menu-id="proses_sewing" data-target="sub-pr-sewing" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-thread" style="width:17px; text-align:center;"></i> Sewing
           </button>
-          <button onclick="alert('Finishing (Proses Produksi) belum dibangun.')" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px; opacity:.55;">
-            <i class="fas fa-check-double" style="width:17px; text-align:center;"></i> Finishing <span style="margin-left:auto; font-size:9.5px;">(segera hadir)</span>
+          <button onclick="pindahTab('tab-proses-produksi'); pindahSubTab('sub-proses-produksi','sub-pr-finishing', this, {catatRiwayat:true}); pindahSubTab('sub-pr-finishing-tahap','sub-pr-finishing-perludiproses', null, {catatRiwayat:true})" id="menu-pr-finishing-btn" data-menu-id="proses_finishing" data-target="sub-pr-finishing" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-check-double" style="width:17px; text-align:center;"></i> Finishing
           </button>
           <button onclick="alert('Gudang Barang Jadi belum dibangun.')" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px; opacity:.55;">
             <i class="fas fa-warehouse" style="width:17px; text-align:center;"></i> Gudang Barang Jadi <span style="margin-left:auto; font-size:9.5px;">(segera hadir)</span>
@@ -1353,6 +1353,53 @@
               <div id="vue-sewing-selesai"></div>
             </div>
           </div>
+
+          <!-- BARU ("lanjut lagi" #4, 7 Sep 2026 — sesi ini) — Finishing, 5
+               tab. Tab 4.2 "Sedang Finishing" berisi 4 sub-tab nested
+               QC/Steam/Folding/Packing (per-PCS tracking, beda dari
+               Cutting/Serie/Sewing yang per-batch). Lihat komentar besar di
+               js/vue-pp-finishing.js. -->
+          <div id="sub-pr-finishing" class="sub-proses-produksi-content hidden fade-in space-y-4">
+            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+              <button onclick="pindahSubTab('sub-pr-finishing-tahap', 'sub-pr-finishing-perludiproses', this, {catatRiwayat:true})" class="sub-pr-finishing-tahap-btn gc-sub-tab-btn active" data-target="sub-pr-finishing-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Di Proses</button>
+              <button onclick="pindahSubTab('sub-pr-finishing-tahap', 'sub-pr-finishing-sedang', this, {catatRiwayat:true}); pindahSubTab('sub-pr-finishing-sedang-sub', 'sub-pr-finishing-sedangqc', null, {catatRiwayat:true})" class="sub-pr-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pr-finishing-sedang"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Finishing</button>
+              <button onclick="pindahSubTab('sub-pr-finishing-tahap', 'sub-pr-finishing-perludikirim', this, {catatRiwayat:true})" class="sub-pr-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pr-finishing-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Dikirim</button>
+              <button onclick="pindahSubTab('sub-pr-finishing-tahap', 'sub-pr-finishing-sedangkirim', this, {catatRiwayat:true})" class="sub-pr-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pr-finishing-sedangkirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Kirim</button>
+              <button onclick="pindahSubTab('sub-pr-finishing-tahap', 'sub-pr-finishing-selesai', this, {catatRiwayat:true})" class="sub-pr-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pr-finishing-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
+            </div>
+            <div id="sub-pr-finishing-perludiproses" class="sub-pr-finishing-tahap-content fade-in space-y-4">
+              <div id="vue-finishing-perludiproses"></div>
+            </div>
+            <div id="sub-pr-finishing-sedang" class="sub-pr-finishing-tahap-content hidden fade-in space-y-4">
+              <div class="flex space-x-2 overflow-x-auto no-scrollbar">
+                <button onclick="pindahSubTab('sub-pr-finishing-sedang-sub', 'sub-pr-finishing-sedangqc', this)" class="sub-pr-finishing-sedang-sub-btn gc-sub-tab-btn active"><i class="fas fa-magnifying-glass" style="margin-right:6px;"></i> QC</button>
+                <button onclick="pindahSubTab('sub-pr-finishing-sedang-sub', 'sub-pr-finishing-sedangsteam', this)" class="sub-pr-finishing-sedang-sub-btn gc-sub-tab-btn"><i class="fas fa-wind" style="margin-right:6px;"></i> Steam</button>
+                <button onclick="pindahSubTab('sub-pr-finishing-sedang-sub', 'sub-pr-finishing-sedangfolding', this)" class="sub-pr-finishing-sedang-sub-btn gc-sub-tab-btn"><i class="fas fa-layer-group" style="margin-right:6px;"></i> Folding</button>
+                <button onclick="pindahSubTab('sub-pr-finishing-sedang-sub', 'sub-pr-finishing-sedangpacking', this)" class="sub-pr-finishing-sedang-sub-btn gc-sub-tab-btn"><i class="fas fa-box" style="margin-right:6px;"></i> Packing</button>
+              </div>
+              <div id="sub-pr-finishing-sedangqc" class="sub-pr-finishing-sedang-sub-content fade-in space-y-4">
+                <div id="vue-finishing-sedangqc"></div>
+              </div>
+              <div id="sub-pr-finishing-sedangsteam" class="sub-pr-finishing-sedang-sub-content hidden fade-in space-y-4">
+                <div id="vue-finishing-sedangsteam"></div>
+              </div>
+              <div id="sub-pr-finishing-sedangfolding" class="sub-pr-finishing-sedang-sub-content hidden fade-in space-y-4">
+                <div id="vue-finishing-sedangfolding"></div>
+              </div>
+              <div id="sub-pr-finishing-sedangpacking" class="sub-pr-finishing-sedang-sub-content hidden fade-in space-y-4">
+                <div id="vue-finishing-sedangpacking"></div>
+              </div>
+            </div>
+            <div id="sub-pr-finishing-perludikirim" class="sub-pr-finishing-tahap-content hidden fade-in space-y-4">
+              <div id="vue-finishing-perludikirim"></div>
+            </div>
+            <div id="sub-pr-finishing-sedangkirim" class="sub-pr-finishing-tahap-content hidden fade-in space-y-4">
+              <div id="vue-finishing-sedangkirim"></div>
+            </div>
+            <div id="sub-pr-finishing-selesai" class="sub-pr-finishing-tahap-content hidden fade-in space-y-4">
+              <div id="vue-finishing-selesai"></div>
+            </div>
+          </div>
         </div>
 
         <div id="tab-whatsapp" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
@@ -1737,5 +1784,10 @@
        Proses Produksi > Sewing, 5 tab. Lihat komentar besar di js/vue-pp-
        sewing.js untuk latar belakang & keputusan arsitektur lengkap. -->
   <script type="module" src="js/vue-pp-sewing.js?v=1"></script>
+  <!-- BARU ("lanjut lagi" #4, 7 Sep 2026 — sesi ini, setelah Sewing) —
+       Proses Produksi > Finishing, 5 tab (per-PCS tracking via
+       finishing_track). Lihat komentar besar di js/vue-pp-finishing.js
+       untuk latar belakang & keputusan arsitektur lengkap. -->
+  <script type="module" src="js/vue-pp-finishing.js?v=1"></script>
 </body>
 </html>

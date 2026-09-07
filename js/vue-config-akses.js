@@ -286,6 +286,14 @@ const DAFTAR_MENU = [
   // sewing.js.
   { id: 'proses_sewing', label: 'Proses Produksi - Sewing', kategori: 'Proses Produksi', icon: 'fa-thread',
     aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-sewing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-sewing-tahap', 'sub-pr-sewing-perludiproses', null, {catatRiwayat:true}); } },
+  // BARU ("lanjut lagi" #4, 7 Sep 2026 — sesi ini) — Proses Produksi >
+  // Finishing, NESTED di grup top-level "Proses Produksi" yang SUDAH ada
+  // dari Cutting/Serie/Sewing (bukan grup baru) -- satu izin menu untuk
+  // semua 5 tab Finishing (termasuk 4 sub-tab nested QC/Steam/Folding/
+  // Packing di dalam "Sedang Finishing"), sama pola seperti proses_sewing.
+  // Lihat js/vue-pp-finishing.js.
+  { id: 'proses_finishing', label: 'Proses Produksi - Finishing', kategori: 'Proses Produksi', icon: 'fa-check-double',
+    aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-finishing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-finishing-tahap', 'sub-pr-finishing-perludiproses', null, {catatRiwayat:true}); } },
   // BARU (30 Agt 2026) — grup top-level "Pesanan" (sejajar Zevanic House/
   // Persiapan Produksi). REKONSTRUKSI (7 Sep 2026, handoff "Pesanan dan
   // Transaksi") — 3 id lama (pesanan_persiapan/produksi/pengiriman, ringkasan

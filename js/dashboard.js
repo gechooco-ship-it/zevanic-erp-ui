@@ -420,10 +420,14 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
       // lagi" #2) — 'sub-pr-serie-tahap' ditambahkan sekarang Serie sudah
       // fungsional (js/vue-pp-serie.js, 11 tab). BARU LAGI ("lanjut lagi" #3)
       // — 'sub-pr-sewing-tahap' ditambahkan sekarang Sewing sudah fungsional
-      // (js/vue-pp-sewing.js, 5 tab). Finishing/Gudang Barang Jadi MASIH
-      // belum dibangun (placeholder alert di tombol sidebar, tidak butuh
-      // entry di sini).
-      'sub-proses-produksi': 'tab-proses-produksi', 'sub-pr-cutting-tahap': 'tab-proses-produksi', 'sub-pr-serie-tahap': 'tab-proses-produksi', 'sub-pr-sewing-tahap': 'tab-proses-produksi' };
+      // (js/vue-pp-sewing.js, 5 tab). BARU LAGI ("lanjut lagi" #4, 7 Sep 2026
+      // — sesi ini) — 'sub-pr-finishing-tahap' (5 tab) + 'sub-pr-finishing-sedang'
+      // (grup nested di dalam tab 4.2 "Sedang Finishing", 4 sub-tab
+      // QC/Steam/Folding/Packing) ditambahkan sekarang Finishing sudah
+      // fungsional (js/vue-pp-finishing.js). Gudang Barang Jadi MASIH belum
+      // dibangun (placeholder alert di tombol sidebar, tidak butuh entry di
+      // sini).
+      'sub-proses-produksi': 'tab-proses-produksi', 'sub-pr-cutting-tahap': 'tab-proses-produksi', 'sub-pr-serie-tahap': 'tab-proses-produksi', 'sub-pr-sewing-tahap': 'tab-proses-produksi', 'sub-pr-finishing-tahap': 'tab-proses-produksi', 'sub-pr-finishing-sedang-sub': 'tab-proses-produksi' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -614,7 +618,18 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-pr-sewing-sedangsewing': 'pastikanMountSewingSedangSewing',
     'sub-pr-sewing-perludikirim': 'pastikanMountSewingPerluDikirim',
     'sub-pr-sewing-sedangkirim': 'pastikanMountSewingSedangKirim',
-    'sub-pr-sewing-selesai': 'pastikanMountSewingSelesai'
+    'sub-pr-sewing-selesai': 'pastikanMountSewingSelesai',
+    // BARU ("lanjut lagi" #4, 7 Sep 2026 — sesi ini) — Proses Produksi >
+    // Finishing, 5 tab (4.2 "Sedang Finishing" punya 4 sub-tab nested
+    // QC/Steam/Folding/Packing), lihat js/vue-pp-finishing.js.
+    'sub-pr-finishing-perludiproses': 'pastikanMountFinishingPerluDiProses',
+    'sub-pr-finishing-sedangqc': 'pastikanMountFinishingSedangQc',
+    'sub-pr-finishing-sedangsteam': 'pastikanMountFinishingSedangSteam',
+    'sub-pr-finishing-sedangfolding': 'pastikanMountFinishingSedangFolding',
+    'sub-pr-finishing-sedangpacking': 'pastikanMountFinishingSedangPacking',
+    'sub-pr-finishing-perludikirim': 'pastikanMountFinishingPerluDikirim',
+    'sub-pr-finishing-sedangkirim': 'pastikanMountFinishingSedangKirim',
+    'sub-pr-finishing-selesai': 'pastikanMountFinishingSelesai'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();
