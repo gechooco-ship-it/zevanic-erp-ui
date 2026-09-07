@@ -195,8 +195,44 @@ const PesananKasirManager = {
     const metodePembayaran = ref('Tunai');
     const menyimpan = ref(false);
 
+    // Guard checkout harga_perlu_konfirmasi (BARU 7 Sep 2026, wireframe Stok
+    // & Pembelian §3.4/§4) — kalau BOM (bom_pola/bom_aksesoris) produk mana
+    // pun di keranjang mereferensikan bahan/aksesoris yang harga barunya
+    // masih menunggu konfirmasi Owner (lihat tandaiHargaPerluKonfirmasi()
+    // di js/vue-stock-pembelian.js), checkout DIBLOKIR sampai Owner
+    // menerapkan atau menolak di Riwayat Harga Pembelian. Query SENGAJA
+    // narrow single-field equality (`harga_perlu_konfirmasi == true`) —
+    // TIDAK baca seluruh koleksi master_bahan_aksesoris tiap checkout
+    // (PRINSIP-HEMAT.md) — lalu dicocokkan client-side terhadap id bahan
+    // yang SUDAH ada di `daftarProduk` (bom sudah termuat dari
+    // ambilSemuaProduk() saat mount, tidak perlu baca produk lagi).
+    async function bahanTerblokirDiKeranjang() {
+      const idBahanDipakai = new Set();
+      daftarKeranjang.value.forEach(item => {
+        const produk = daftarProduk.value.find(p => p.sku === item.sku);
+        if (!produk) return;
+        (produk.bom_pola || []).forEach(b => { if (b && b.bahan_aksesoris_id) idBahanDipakai.add(b.bahan_aksesoris_id); });
+        (produk.bom_aksesoris || []).forEach(b => { if (b && b.bahan_aksesoris_id) idBahanDipakai.add(b.bahan_aksesoris_id); });
+      });
+      if (idBahanDipakai.size === 0) return [];
+      try {
+        const snap = await getDocs(query(collection(db, 'master_bahan_aksesoris'), where('harga_perlu_konfirmasi', '==', true)));
+        const terblokir = [];
+        snap.forEach(d => { if (idBahanDipakai.has(d.id)) terblokir.push(d.data().nama || d.id); });
+        return terblokir;
+      } catch (e) {
+        console.error('Gagal cek guard harga_perlu_konfirmasi:', e);
+        return []; // gagal cek -> JANGAN blokir checkout (fail-open, bukan bug tersembunyi: dicatat di console)
+      }
+    }
+
     async function buatOrder() {
       if (daftarKeranjang.value.length === 0) return alert('Keranjang masih kosong. Pilih produk dulu.');
+      const namaBahanTerblokir = await bahanTerblokirDiKeranjang();
+      if (namaBahanTerblokir.length > 0) {
+        alert(`Checkout diblokir — harga bahan berikut sedang menunggu konfirmasi Owner di Riwayat Harga Pembelian:\n\n${namaBahanTerblokir.join(', ')}\n\nHubungi Owner/PIC Owner untuk menerapkan atau menolak harga baru dulu.`);
+        return;
+      }
       menyimpan.value = true;
       try {
         const noTransaksi = await generateNoTransaksiKasir();

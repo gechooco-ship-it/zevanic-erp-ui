@@ -220,7 +220,7 @@
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-config', this); pindahSubTab('sub-zh-config','sub-zh-config-jenisbahan')" id="menu-zevanic-config-btn" data-menu-id="config_master_data" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-sliders" style="width:17px; text-align:center;"></i> Config
           </button>
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-databahan', this, {catatRiwayat:true}); pindahSubTab('sub-zh-databahan','sub-zh-databahan-entry', null, {catatRiwayat:true})" id="menu-zevanic-house-btn" data-menu-ids="bahan_aksesoris_entry,bahan_aksesoris_list,bahan_aksesoris_rak" data-target="sub-zevanic-house-databahan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-databahan', this, {catatRiwayat:true}); pindahSubTab('sub-zh-databahan','sub-zh-databahan-entry', null, {catatRiwayat:true})" id="menu-zevanic-house-btn" data-menu-ids="bahan_aksesoris_entry,bahan_aksesoris_list" data-target="sub-zevanic-house-databahan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-shirt" style="width:17px; text-align:center;"></i> Data Bahan &amp; Aksesoris
           </button>
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-persiapan', this, {catatRiwayat:true})" id="menu-zevanic-persiapan-btn" data-menu-id="persiapan_masalah" data-target="sub-zevanic-house-persiapan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
@@ -234,7 +234,7 @@
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-suplayer', this, {catatRiwayat:true}); pindahSubTab('sub-zh-suplayer','sub-zh-suplayer-entry', null, {catatRiwayat:true})" id="menu-zevanic-suplayer-btn" data-menu-ids="suplayer_entry,suplayer_alias_moq,suplayer_petakan_order" data-target="sub-zevanic-house-suplayer" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-truck-fast" style="width:17px; text-align:center;"></i> Master Suplayer
           </button>
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-stock', this, {catatRiwayat:true}); pindahSubTab('sub-zh-stock','sub-zh-stock-listorder', null, {catatRiwayat:true})" id="menu-zevanic-stock-btn" data-menu-ids="stock_list_order_belanja,stock_nota_order_belanja" data-target="sub-zevanic-house-stock" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-stock', this, {catatRiwayat:true}); pindahSubTab('sub-zh-stock','sub-zh-stock-notaorder', null, {catatRiwayat:true})" id="menu-zevanic-stock-btn" data-menu-ids="stock_nota_order_belanja,stock_rak_penyimpanan" data-target="sub-zevanic-house-stock" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-truck-ramp-box" style="width:17px; text-align:center;"></i> Stock &amp; Pembelian
           </button>
           <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-
@@ -746,8 +746,6 @@
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry', this, {catatRiwayat:true})" class="sub-zh-databahan-btn gc-sub-tab-btn active" data-menu-id="bahan_aksesoris_entry" data-target="sub-zh-databahan-entry"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Entry Bahan &amp; Aksesoris</button>
               <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-list', this, {catatRiwayat:true})" class="sub-zh-databahan-btn gc-sub-tab-btn" data-menu-id="bahan_aksesoris_list" data-target="sub-zh-databahan-list"><i class="fas fa-list" style="margin-right:6px;"></i> List Bahan &amp; Aksesoris</button>
-              <!-- BARU (25 Agt 2026, §25) — Rak Penyimpanan: lihat js/vue-rak-penyimpanan.js -->
-              <button onclick="pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-rak', this, {catatRiwayat:true})" class="sub-zh-databahan-btn gc-sub-tab-btn" data-menu-id="bahan_aksesoris_rak" data-target="sub-zh-databahan-rak"><i class="fas fa-warehouse" style="margin-right:6px;"></i> Rak Penyimpanan</button>
             </div>
             <div id="sub-zh-databahan-entry" class="sub-zh-databahan-content fade-in space-y-4">
               <!-- Entry Bahan/Aksesoris: lihat js/vue-bahan-aksesoris.js -->
@@ -756,10 +754,6 @@
             <div id="sub-zh-databahan-list" class="sub-zh-databahan-content hidden fade-in space-y-4">
               <!-- List Bahan/Aksesoris: lihat js/vue-bahan-aksesoris.js -->
               <div id="vue-bahan-aksesoris-list"></div>
-            </div>
-            <!-- BARU (25 Agt 2026, §25) — Rak Penyimpanan: lihat js/vue-rak-penyimpanan.js -->
-            <div id="sub-zh-databahan-rak" class="sub-zh-databahan-content hidden fade-in space-y-4">
-              <div id="vue-rak-penyimpanan"></div>
             </div>
           </div>
 
@@ -796,18 +790,28 @@
                    Zevanic House > Master Suplayer > Alias & MOQ (lihat js/vue-
                    master-suplayer.js). Tab & div konten lama DIHAPUS dari sini
                    (bukan cuma disembunyikan) — pola sama seperti Cetak Label
-                   dulu. List Order Belanja sekarang default aktif. -->
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-listorder', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn active" data-menu-id="stock_list_order_belanja" data-target="sub-zh-stock-listorder"><i class="fas fa-cart-shopping" style="margin-right:6px;"></i> List Order Belanja</button>
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-menu-id="stock_nota_order_belanja" data-target="sub-zh-stock-notaorder"><i class="fas fa-receipt" style="margin-right:6px;"></i> Nota Order Belanja</button>
+                   dulu.
+                   DIHAPUS TOTAL (7 Sep 2026, keputusan Guru, lihat js/vue-
+                   stock-pembelian.js) — tab & div konten "List Order Belanja"
+                   (`sub-zh-stock-listorder`/`vue-list-order-belanja`),
+                   penggantinya "Persiapan Belanja" belum dibangun (gap fitur
+                   sementara disengaja). "Nota Order Belanja" DIREKONSTRUKSI
+                   TOTAL jadi "Daftar Nota" (gabung daftar+form 1 sub-tab,
+                   DaftarNotaScreen) dan SEKARANG default aktif — id internal
+                   div/tab (`sub-zh-stock-notaorder`/`vue-nota-order-belanja`)
+                   SENGAJA dipertahankan, cuma labelnya berubah. -->
+              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn active" data-menu-id="stock_nota_order_belanja" data-target="sub-zh-stock-notaorder"><i class="fas fa-receipt" style="margin-right:6px;"></i> Daftar Nota</button>
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-riwayat', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-target="sub-zh-stock-riwayat"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i> Riwayat Harga Pembelian</button>
               <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-kartustok', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-target="sub-zh-stock-kartustok"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Kartu Stok</button>
+              <!-- BARU (7 Sep 2026) — Rak Penyimpanan DIPINDAH ke sini dari Zevanic
+                   House > Data Bahan & Aksesoris (wireframe handoff "04 - Stok dan
+                   Pembelian" §6.1). Lihat js/vue-rak-penyimpanan.js. menu-id BARU
+                   `stock_rak_penyimpanan` (id lama `bahan_aksesoris_rak` DIPENSIUNKAN,
+                   lihat js/vue-config-akses.js, supaya izin lama tidak yatim). -->
+              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-rak', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-menu-id="stock_rak_penyimpanan" data-target="sub-zh-stock-rak"><i class="fas fa-warehouse" style="margin-right:6px;"></i> Rak Penyimpanan</button>
             </div>
-            <div id="sub-zh-stock-listorder" class="sub-zh-stock-content fade-in space-y-4">
-              <!-- List Order Belanja: lihat js/vue-stock-pembelian.js -->
-              <div id="vue-list-order-belanja"></div>
-            </div>
-            <div id="sub-zh-stock-notaorder" class="sub-zh-stock-content hidden fade-in space-y-4">
-              <!-- Nota Order Belanja: lihat js/vue-stock-pembelian.js -->
+            <div id="sub-zh-stock-notaorder" class="sub-zh-stock-content fade-in space-y-4">
+              <!-- Daftar Nota (dulu "Nota Order Belanja"): lihat js/vue-stock-pembelian.js (DaftarNotaScreen) -->
               <div id="vue-nota-order-belanja"></div>
             </div>
             <!-- BARU (malam 24 Agt 2026) — Riwayat Harga Pembelian: lihat
@@ -818,6 +822,11 @@
             <!-- BARU (24 Agt 2026) — Kartu Stok Bahan/Aksesoris: lihat js/vue-kartu-stok.js -->
             <div id="sub-zh-stock-kartustok" class="sub-zh-stock-content hidden fade-in space-y-4">
               <div id="vue-kartu-stok"></div>
+            </div>
+            <!-- BARU (7 Sep 2026) — Rak Penyimpanan (dipindah dari Data Bahan &
+                 Aksesoris): lihat js/vue-rak-penyimpanan.js -->
+            <div id="sub-zh-stock-rak" class="sub-zh-stock-content hidden fade-in space-y-4">
+              <div id="vue-rak-penyimpanan"></div>
             </div>
             <!-- DIPENSIUNKAN (28 Agt 2026, §41.2) — tab "Cetak Label" pindah
                  jadi tombol per-kartu di List Bahan & Aksesoris (permintaan
@@ -1169,7 +1178,7 @@
        butuh entry petaTabIndukPerGrup (tidak ada sub-tab di dalamnya,
        sama seperti 'sub-zevanic-house-persiapan'). Lihat js/vue-master-
        pelanggan.js. -->
-  <script type="module" src="js/dashboard.js?v=23"></script>
+  <script type="module" src="js/dashboard.js?v=24"></script>
   <!-- js/vue-order-spk.js — DITINGGALKAN (30 Agt 2026, fitur "Pesanan",
        keputusan Guru: fungsinya pindah jadi menu "Menunggu Proses" di
        grup baru "Pesanan"). File TIDAK dihapus dari disk (jaga-jaga
@@ -1208,9 +1217,9 @@
        Proses Persiapan/Produksi/Pengiriman (ringkasan read-only dari
        spk_track). Lihat komentar besar atas js/vue-pesanan.js utk latar
        belakang & keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pesanan.js?v=1"></script>
+  <script type="module" src="js/vue-pesanan.js?v=2"></script>
   <script type="module" src="js/vue-scan-opname.js?v=1"></script>
-  <script type="module" src="js/vue-scan-persiapan.js?v=3"></script>
+  <script type="module" src="js/vue-scan-persiapan.js?v=4"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>
   <script type="module" src="js/vue-config-info.js"></script>
   <script type="module" src="js/vue-config-absensi.js?v=2"></script>
@@ -1220,7 +1229,7 @@
        DAFTAR_MENU baru (pesanan_kasir/menunggu/persiapan/produksi/
        pengiriman), id 'order_spk' DIPENSIUNKAN (deprecated:true). Lihat
        js/vue-pesanan.js. -->
-  <script type="module" src="js/vue-config-akses.js?v=7"></script>
+  <script type="module" src="js/vue-config-akses.js?v=8"></script>
   <script type="module" src="js/vue-hak-akses.js?v=2"></script>
   <!-- v=4 (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, permintaan
        Guru — PERUBAHAN LOGIC juga, bukan cuma tampilan) — form approval
@@ -1300,7 +1309,7 @@
        notifikasi Pengumuman (badge + dropdown), avatar inisial. Mode
        'tersembunyi' baru untuk layar ber-header sendiri (Menu Lengkap/Atur
        Favorit). -->
-  <script type="module" src="js/vue-header-mobile.js?v=5"></script>
+  <script type="module" src="js/vue-header-mobile.js?v=6"></script>
   <!-- BARU (28 Agt 2026, redesain "Gechoo Mobile Organic") — layar baru,
        lihat mount #vue-menu-lengkap/#vue-atur-favorit di atas. -->
   <script type="module" src="js/vue-menu-lengkap.js"></script>
@@ -1323,7 +1332,7 @@
        DropdownCari, tidak dipakai fitur Import Excel §37 yang ditambah di
        Data Komponen). -->
   <script type="module" src="js/vue-bahan-aksesoris.js?v=21"></script>
-  <script type="module" src="js/vue-rak-penyimpanan.js?v=4"></script>
+  <script type="module" src="js/vue-rak-penyimpanan.js?v=5"></script>
   <script type="module" src="js/vue-persiapan-masalah.js?v=4"></script>
   <!-- v=19 (28 Agt 2026): sempat dicoba tag Jenis Pekerjaan per pesanan
        (role "PIC Owner"), DIBATALKAN — Guru konfirmasi grup Zevanic House
@@ -1333,8 +1342,8 @@
        v=20 (28 Agt 2026, §37): TIDAK ADA perubahan fungsional di file ini —
        cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
        DropdownCari, tidak dipakai fitur Import Excel §37). -->
-  <script type="module" src="js/vue-stock-pembelian.js?v=22"></script>
-  <script type="module" src="js/vue-kartu-stok.js?v=6"></script>
+  <script type="module" src="js/vue-stock-pembelian.js?v=23"></script>
+  <script type="module" src="js/vue-kartu-stok.js?v=7"></script>
   <!-- BARU (27 Agt 2026, §26.1) — Zevanic House > Config. v=2 (28 Agt 2026):
        tambah tab ke-7 "Jenis Produk" (AppConfigJenisProduk, koleksi
        master_jenis_produk), pola sama persis seperti "Data Ukuran".

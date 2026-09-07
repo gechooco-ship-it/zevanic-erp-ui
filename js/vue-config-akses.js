@@ -124,9 +124,14 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry', null, {catatRiwayat:true}); } },
   { id: 'bahan_aksesoris_list', label: 'List Bahan & Aksesoris', kategori: 'Zevanic House', icon: 'fa-list',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-list', null, {catatRiwayat:true}); } },
-  // BARU (25 Agt 2026, §25) — Rak Penyimpanan.
-  { id: 'bahan_aksesoris_rak', label: 'Rak Penyimpanan', kategori: 'Zevanic House', icon: 'fa-warehouse',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-rak', null, {catatRiwayat:true}); } },
+  // DIPENSIUNKAN (7 Sep 2026, wireframe handoff "04 - Stok dan Pembelian"
+  // §6.1) — Rak Penyimpanan PINDAH TOTAL dari Data Bahan & Aksesoris ke
+  // Stock & Pembelian (menu-id baru 'stock_rak_penyimpanan' di bawah).
+  // Entry ini SENGAJA DIBIARKAN (pola sama seperti 'stock_alias_pembelian'/
+  // 'master_suplayer' di atas), aksi() dihapus, supaya izin lama (siapa
+  // boleh lihat/kelola Rak) TIDAK yatim. `deprecated: true` supaya tidak
+  // ikut nongol sebagai tile basi di grid Home mobile/sidebar.
+  { id: 'bahan_aksesoris_rak', label: 'Rak Penyimpanan (DIPENSIUNKAN, lihat Stock & Pembelian)', kategori: 'Zevanic House', icon: 'fa-warehouse', deprecated: true },
   // BARU (24 Agt 2026) — Persiapan Masalah + Stock & Pembelian.
   { id: 'persiapan_masalah', label: 'Persiapan Masalah', kategori: 'Zevanic House', icon: 'fa-triangle-exclamation',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapan', null, {catatRiwayat:true}); } },
@@ -156,10 +161,21 @@ const DAFTAR_MENU = [
   // data izin lama tidak yatim — tab & mount div lamanya sudah dicopot
   // dari index.html, aksi() dihapus.
   { id: 'stock_alias_pembelian', label: 'Alias Pembelian (DIPENSIUNKAN, lihat Master Suplayer)', kategori: 'Zevanic House', icon: 'fa-tags', deprecated: true },
-  { id: 'stock_list_order_belanja', label: 'List Order Belanja', kategori: 'Zevanic House', icon: 'fa-cart-shopping',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-listorder', null, {catatRiwayat:true}); } },
-  { id: 'stock_nota_order_belanja', label: 'Nota Order Belanja', kategori: 'Zevanic House', icon: 'fa-receipt',
+  // DIPENSIUNKAN (7 Sep 2026, keputusan Guru) — "List Order Belanja" DIHAPUS
+  // TOTAL dari index.html/vue-stock-pembelian.js SEKARANG walau penggantinya
+  // "Persiapan Belanja" (Persiapan Produksi 8) BELUM dibangun — gap fitur
+  // sementara yang Guru terima sadar. Entry ini SENGAJA DIBIARKAN (pola sama
+  // seperti 'stock_alias_pembelian' di atas), aksi() dihapus, supaya izin
+  // lama tidak yatim.
+  { id: 'stock_list_order_belanja', label: 'List Order Belanja (DIPENSIUNKAN, lihat Daftar Nota / Persiapan Belanja)', kategori: 'Zevanic House', icon: 'fa-cart-shopping', deprecated: true },
+  { id: 'stock_nota_order_belanja', label: 'Daftar Nota', kategori: 'Zevanic House', icon: 'fa-receipt',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', null, {catatRiwayat:true}); } },
+  // BARU (7 Sep 2026, wireframe handoff "04 - Stok dan Pembelian" §6.1) —
+  // Rak Penyimpanan DIPINDAH ke sini dari Data Bahan & Aksesoris (id lama
+  // 'bahan_aksesoris_rak' dipensiunkan di atas). Lihat js/vue-rak-
+  // penyimpanan.js.
+  { id: 'stock_rak_penyimpanan', label: 'Rak Penyimpanan', kategori: 'Zevanic House', icon: 'fa-warehouse',
+    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-rak', null, {catatRiwayat:true}); } },
   // DIPENSIUNKAN (28 Agt 2026, §41.2) — dulu tab "Cetak Label" tersendiri
   // di Stock & Pembelian (CetakLabelManager, js/vue-stock-pembelian.js).
   // Guru minta dipindah jadi tombol per-kartu di List Bahan & Aksesoris

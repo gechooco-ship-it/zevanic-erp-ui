@@ -112,8 +112,9 @@ const LABEL_SUBTAB = {
   'sub-zh-suplayer-entry': 'Master Suplayer',
   'sub-zh-suplayer-alias-moq': 'Alias & MOQ',
   'sub-zh-suplayer-petakan': 'Petakan Order',
-  'sub-zh-stock-listorder': 'List Order Belanja',
-  'sub-zh-stock-notaorder': 'Nota Order Belanja',
+  // DIHAPUS (7 Sep 2026) — 'sub-zh-stock-listorder': 'List Order Belanja'
+  // (tab dihapus total, lihat vue-stock-pembelian.js).
+  'sub-zh-stock-notaorder': 'Daftar Nota',
   'sub-zh-stock-riwayat': 'Riwayat Harga Pembelian',
   'sub-zh-stock-kartustok': 'Kartu Stok',
   'sub-zh-scan-opname': 'Scan Opname',

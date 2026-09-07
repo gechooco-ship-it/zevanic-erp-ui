@@ -160,7 +160,12 @@
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, runTransaction, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { db } from "./firebase-config.js";
+// BARU (7 Sep 2026, rekonstruksi Daftar Nota) — foto_bon diupload ke Firebase
+// Storage, pola SAMA PERSIS seperti uploadFotoProduk di vue-master-produk.js
+// (disalin, bukan diimpor silang — konvensi proyek ini). `storage` ikut
+// diimpor dari firebase-config.js (sudah di-export di sana, dipakai file lain).
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+import { db, storage } from "./firebase-config.js";
 // MasterDataTabelManager TIDAK diimpor lagi di sini (27 Agt 2026, §26.1) —
 // dulu dipakai MasterSuplayerManager (gear Stock & Pembelian), sekarang
 // CRUD Suplayer pindah ke menu Config (vue-config.js). Lihat catatan di
@@ -327,6 +332,206 @@ function hitungHargaPerSatuanAkhir(baris) {
   });
   return maxHarga;
 }
+// ---------------------------------------------------------------------------
+// PIN per akun — BARU (7 Sep 2026, rekonstruksi Daftar Nota, wireframe
+// "Stok dan Pembelian" §3.2e/3.4). Mekanisme "PIN per akun" (keputusan Guru
+// via AskUserQuestion): siapa pun boleh mengetik PIN di popup ini, sistem
+// yang mencari TAHU PIN itu milik siapa (bukan selalu dicocokkan ke
+// window.currentUser yang lagi login) — beda dari vue-camera.js (PIN Kiosk,
+// SELALU dicocokkan ke 1 identitas yang SUDAH diketahui). `hashPin` DISALIN
+// PERSIS dari js/vue-account-profile.js (baris ~175-179, fungsi simpanPin())
+// dan js/vue-camera.js (baris ~59-63) — konvensi proyek ini: setiap file
+// yang butuh fungsi kecil ini punya salinannya sendiri, BUKAN impor silang
+// (sudah 3 titik pakai sebelum ini, ini yang ke-4).
+async function hashPin(pin, email) {
+  const data = new TextEncoder().encode(pin + '|' + email);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+// MAKS_PERCOBAAN_PIN — SAMA seperti MAKS_PERCOBAAN_PIN_KIOSK di vue-camera.js
+// (batas 3x salah lalu popup dikunci, wajib dibuka ulang).
+const MAKS_PERCOBAAN_PIN = 3;
+
+// tierOwnerKeAtas — role "Owner / PIC Owner / superuser" per tabel peran &
+// wewenang wireframe ini. Role baku Firestore TETAP 'owner'/'superuser'/
+// 'pic'/'admin'/'operator' (lihat vue-config-akses.js TINGKAT_KEAMANAN_BAKU)
+// — "PIC Owner" BUKAN role terpisah, itu role 'pic' dengan
+// `profil_akses === 'pic_owner'` (dibuat 28 Agt 2026, §29, lihat auth.js
+// window.bolehLihatData untuk pola pengecekan yang SAMA).
+function tierOwnerKeAtas(userData) {
+  if (!userData) return false;
+  const role = (userData.role || '').toLowerCase();
+  if (role === 'owner' || role === 'superuser') return true;
+  return role === 'pic' && (userData.profil_akses || '').toLowerCase() === 'pic_owner';
+}
+
+// cariUserByPin — cocokkan PIN yang diketik terhadap SEMUA user ber-role
+// admin-level (owner/superuser/pic/admin — operator dilewati, tidak relevan
+// buat fitur ini) yang SUDAH pasang PIN (`pin_hash` ada), dengan meng-hash
+// ulang PIN itu pakai EMAIL masing-masing kandidat (garam = email sendiri,
+// lihat hashPin di atas) lalu dibandingkan ke `pin_hash` tersimpan. User
+// pertama yang cocok itulah "pemilik PIN". KETERBATASAN YANG DIKETAHUI:
+// user yang belum pernah pasang PIN (pin_hash undefined) TIDAK PERNAH bisa
+// match lewat jalur ini — WAJIB pasang PIN dulu lewat Account Profile >
+// Keamanan > PIN sebelum fitur ini bisa dipakai oleh akun itu. Query
+// `where('role','in',[...])` (bukan getDocs seluruh koleksi users) supaya
+// tidak ikut menghitung-hash akun Operator yang tidak mungkin relevan di
+// sini — TETAP membaca semua dokumen kandidat (tidak ada cara query hash
+// langsung, karena garamnya beda per user).
+async function cariUserByPin(pinInput) {
+  const snap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['owner', 'superuser', 'pic', 'admin'])));
+  for (const d of snap.docs) {
+    const u = d.data();
+    if (!u.pin_hash) continue;
+    const hash = await hashPin(pinInput, d.id); // doc id koleksi users = email
+    if (hash === u.pin_hash) return { email: d.id, ...u };
+  }
+  return null;
+}
+
+// tandaiHargaPerluKonfirmasi / bukaBlokirHargaKonfirmasi — BARU (7 Sep 2026).
+// Field BARU di `master_bahan_aksesoris`: `harga_perlu_konfirmasi` (boolean)
+// + `harga_pending` (object, bentuknya didokumentasikan di sini karena field
+// ini genuinely baru, tidak ada di SPESIFIKASI-KOLEGSI-BARU.md):
+//   harga_pending = {
+//     harga_baru: number,     // harga BARU per Satuan Pemakaian (sudah
+//                             // dinormalisasi, SAMA basis dengan harga_modal)
+//     harga_lama: number,     // harga_modal saat pending ini dibuat (snapshot
+//                             // buat hitung selisih di banner alert)
+//     tanggal: 'YYYY-MM-DD',
+//     no_pembelian: string,   // '' kalau berasal dari edit draft yang belum final
+//     suplayer: string,
+//     satuan_asal: string,    // satuan yang dipakai user saat input (tampilan saja)
+//     sumber: 'finalize' | 'edit_draft'  // dari mana pending ini berasal
+//   }
+// Dipanggil dari 2 titik (DaftarNotaScreen, lihat catatan lebih detail di
+// situ): (a) Nota di-final-kan dengan harga yang lebih TINGGI dari
+// harga_modal saat ini, (b) Admin-tier mengedit harga baris draft (PIN yang
+// dimasukkan BUKAN Owner/PIC Owner/superuser) — SELALU diqueue apapun
+// arahnya (naik/turun), karena intinya Admin memang tidak berwenang ubah
+// harga sendiri, beda dengan (a) yang HANYA kalau harga naik (supaya
+// auto-update harga master yang sudah ada sejak §25.14 TIDAK terganggu
+// untuk penurunan harga yang wajar).
+async function tandaiHargaPerluKonfirmasi(bahanId, pending) {
+  try {
+    await updateDoc(doc(db, 'master_bahan_aksesoris', bahanId), {
+      harga_perlu_konfirmasi: true,
+      harga_pending: pending
+    });
+  } catch (e) { console.error('Gagal menandai harga_perlu_konfirmasi:', bahanId, e); }
+}
+
+// ---------------------------------------------------------------------------
+// PopupPin — popup generik verifikasi PIN "per akun" (lihat cariUserByPin di
+// atas). Dipakai di 3 titik DaftarNotaScreen/RiwayatHargaPembelianManager:
+// finalisasi Nota (kalau yang login bukan Owner-tier), edit harga baris
+// draft, tombol "Terapkan & buka blokir" di Riwayat Harga. Emit 'sukses'
+// bawa {email, role, profil_akses, ...} user pemilik PIN yang cocok — DAN
+// juga 'sukses' dipanggil untuk PIN yang cocok TAPI bukan Owner-tier (branch
+// admin/alert), pemanggil yang memutuskan cabangnya lewat tierOwnerKeAtas().
+// Kalau PIN tidak cocok SAMA SEKALI dengan siapa pun (termasuk user yang
+// belum pasang PIN — lihat keterbatasan di cariUserByPin) -> hitung sebagai
+// "PIN salah", counter attempt naik, terkunci di percobaan ke-3 (mirror
+// MAKS_PERCOBAAN_PIN_KIOSK, vue-camera.js).
+// ---------------------------------------------------------------------------
+const PopupPin = {
+  props: {
+    judul: { type: String, default: 'Masukkan PIN' },
+    pesan: { type: String, default: '' }
+  },
+  emits: ['sukses', 'batal'],
+  setup(props, { emit }) {
+    const pin = ref('');
+    const error = ref('');
+    const percobaan = ref(0);
+    const terkunci = ref(false);
+    const memverifikasi = ref(false);
+    async function kirim() {
+      if (terkunci.value) return;
+      if (!/^\d{6}$/.test(pin.value)) { error.value = 'PIN wajib 6 angka.'; return; }
+      memverifikasi.value = true;
+      error.value = '';
+      try {
+        const user = await cariUserByPin(pin.value);
+        if (user) {
+          pin.value = ''; percobaan.value = 0;
+          emit('sukses', user);
+          return;
+        }
+        percobaan.value++;
+        if (percobaan.value >= MAKS_PERCOBAAN_PIN) {
+          terkunci.value = true;
+          error.value = `PIN salah ${MAKS_PERCOBAAN_PIN}x berturut-turut. Tutup popup ini dan coba lagi.`;
+        } else {
+          error.value = `PIN salah. Sisa percobaan: ${MAKS_PERCOBAAN_PIN - percobaan.value}.`;
+        }
+        pin.value = '';
+      } catch (e) {
+        console.error('Gagal verifikasi PIN:', e);
+        error.value = 'Terjadi kesalahan sistem, coba lagi.';
+      }
+      memverifikasi.value = false;
+    }
+    return { pin, error, percobaan, terkunci, memverifikasi, kirim };
+  },
+  template: `
+    <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:10000; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="!terkunci && $emit('batal')">
+      <div class="gc-card" style="max-width:360px; width:100%;">
+        <h3 style="font-weight:700; font-size:14px; margin-bottom:6px;"><i class="fas fa-lock" style="color:var(--burgundy); margin-right:8px;"></i>{{ judul }}</h3>
+        <p v-if="pesan" style="font-size:11.5px; color:var(--text-faint); margin-bottom:12px; line-height:1.5;">{{ pesan }}</p>
+        <div v-if="!terkunci" class="gc-field">
+          <label>PIN (6 angka)</label>
+          <input v-model="pin" @keyup.enter="kirim" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autofocus style="letter-spacing:6px; text-align:center; font-size:18px;">
+        </div>
+        <p v-if="error" :style="{color: terkunci ? 'var(--danger)' : 'var(--danger)', fontSize:'11px', marginBottom:'10px'}">{{ error }}</p>
+        <div style="display:flex; gap:8px;">
+          <button v-if="!terkunci" @click="kirim" :disabled="memverifikasi || pin.length !== 6" class="btn-primary" style="flex:1;">{{ memverifikasi ? 'Memeriksa...' : 'Kirim' }}</button>
+          <button @click="$emit('batal')" class="btn-outline" style="flex:1;">{{ terkunci ? 'Tutup' : 'Batal' }}</button>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+// --- Kompresi & upload foto bon ke Firebase Storage -------------------------
+// Pola SAMA PERSIS seperti kompresFotoKeBlob/uploadFotoProduk di js/vue-
+// master-produk.js (disalin, bukan diimpor silang) — 700px/kualitas 0.7,
+// cukup buat foto bon fisik (bukan dokumen resolusi tinggi).
+function kompresFotoKeBlob(file, maxDimensi, kualitas) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        let { width, height } = img;
+        if (width > maxDimensi || height > maxDimensi) {
+          if (width > height) { height = Math.round(height * (maxDimensi / width)); width = maxDimensi; }
+          else { width = Math.round(width * (maxDimensi / height)); height = maxDimensi; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Gagal buat blob foto')), 'image/jpeg', kualitas);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+async function uploadFotoBon(noPembelianAtauTemp, file) {
+  const blob = await kompresFotoKeBlob(file, 900, 0.7);
+  const pathFile = `pesanan_pembelian/${noPembelianAtauTemp}/bon_${Date.now()}.jpg`;
+  const refFile = storageRef(storage, pathFile);
+  await uploadBytes(refFile, blob);
+  return await getDownloadURL(refFile);
+}
+async function hapusFotoBonLama(url) {
+  if (!url) return;
+  try { await deleteObject(storageRef(storage, url)); } catch (e) { /* file lama mungkin sudah tidak ada, abaikan */ }
+}
+
 // generateNoPembelian — pola SAMA seperti generateIdBerurutan di
 // vue-bahan-aksesoris.js, cuma 1 kunci saja (tidak per-kategori).
 async function generateNoPembelian() {
@@ -1072,117 +1277,178 @@ const PopupQtyPerLot = {
   `
 };
 
-const OrderBelanjaScreen = {
-  components: { DropdownCari, PengaturanStockPembelian, PopupQtyPerLot, PopupTambahSuplayerCepat, PopupPratinjauCetakLabel },
-  props: { modeNota: { type: Boolean, default: false } },
-  setup(props) {
-    const menuId = props.modeNota ? 'stock_nota_order_belanja' : 'stock_list_order_belanja';
+// ---------------------------------------------------------------------------
+// DaftarNotaScreen — REKONSTRUKSI TOTAL (7 Sep 2026) menggantikan
+// OrderBelanjaScreen (dulu dipakai BARENG oleh "List Order Belanja" +
+// "Nota Order Belanja" lewat prop modeNota). Sesuai wireframe "Stok dan
+// Pembelian" (handoff 04) + keputusan eksplisit Guru:
+//
+//   1. "List Order Belanja" DIHAPUS TOTAL SEKARANG (tab/mount/komponen/
+//      entry permission) walau penggantinya ("Persiapan Belanja") belum
+//      dibangun — gap fitur sementara yang Guru terima sadar. Makanya
+//      prop `modeNota` DIHAPUS (dulu satu-satunya pemakai modeNota=false
+//      SEKARANG tidak ada lagi) — komponen ini SELALU berperilaku seperti
+//      dulunya "Nota Order Belanja" (harga manual, riwayat harga otomatis,
+//      dst), tidak ada lagi percabangan mode.
+//   2. Sub-tab SEKARANG "Daftar Nota" (SERAH-TERIMA.md §2, gabung wireframe
+//      step 2+3+3.1+3.2 jadi SATU sub-tab: daftar nota draft+final DULU
+//      tampil, "+ Nota Baru"/"Buka" pindah ke form, form kembali ke daftar
+//      sesudah Batal/Finalkan) — bukan lagi form permanen tanpa daftar.
+//   3. "Nota dari driver" (wireframe titik 2, "List Order Driver" via
+//      Persiapan Belanja) — DIBANGUN SHELL-nya saja: field `order_driver_id`
+//      (selalu null sekarang, belum ada fitur yang mengisinya) + chip
+//      filter "Manual / Dari Driver" di Daftar Nota (Dari Driver akan
+//      SELALU kosong sampai fitur List Order Driver dibangun — ini
+//      DISENGAJA, bukan bug).
+//   4. PIN per akun (lihat cariUserByPin/tierOwnerKeAtas/PopupPin di atas
+//      file ini) menggerbangi 2 aksi: Finalisasi Nota (hanya Owner/PIC
+//      Owner/superuser — kalau yang login BUKAN tier itu, WAJIB pinjam
+//      otorisasi lewat PopupPin), dan Edit Harga baris draft (Owner-tier
+//      PIN -> langsung berlaku; tier lain -> di-queue ke Riwayat Harga
+//      lewat tandaiHargaPerluKonfirmasi(), TIDAK mengubah harga baris).
+//   5. Field BARU di `pesanan_pembelian`: `foto_bon` (URL Storage, upload
+//      manual lewat form — path upload SAMA pola uploadFotoProduk di
+//      vue-master-produk.js, disalin) dan `order_driver_id` (selalu null
+//      untuk sekarang, lihat poin 3).
+//   6. Alur entry keyboard-first (wireframe 3.2a-3.2e) — BARU TOTAL, tidak
+//      ada sebelumnya (dulu cuma dropdown-cari + tombol Tambah manual,
+//      trivial @keyup.enter). Search box tunggal (cocokkan nama internal
+//      DAN alias suplayer sekaligus) -> Enter pilih -> item masuk nota
+//      qty:1/satuan default -> Tab pertama (fokus masih di search box,
+//      kosong) buka pop up Qty -> Enter konfirmasi -> Tab kedua buka pop
+//      up Satuan -> Enter konfirmasi -> Tab ketiga buka pop up PIN+Edit
+//      Harga -> selesai. Ketik apa pun di search box di titik MANA PUN
+//      membatalkan rantai Tab utk baris itu (baris tetap tersimpan dengan
+//      nilai yang sudah ke-set) dan mulai cari item berikutnya — sesuai
+//      wireframe 3.2b "percabangan berlaku di SETIAP titik Enter: ketik
+//      selalu cari lagi, Tab selalu buka pop up berikutnya".
+//      Item duplikat (sudah ada di nota, bahan_aksesoris_id sama) -> qty++
+//      pada baris yang sudah ada (MIRROR tambahKeKeranjang() vue-pesanan.js
+//      baris ~176-184), bukan baris baru.
+// ---------------------------------------------------------------------------
+const DaftarNotaScreen = {
+  components: { DropdownCari, PengaturanStockPembelian, PopupQtyPerLot, PopupTambahSuplayerCepat, PopupPratinjauCetakLabel, PopupPin },
+  setup() {
+    const menuId = 'stock_nota_order_belanja';
+    const bolehSimpan = computed(() => window.cekIzinMenu(menuId, 'add') !== false);
+    const bolehHapus = computed(() => window.cekIzinMenu(menuId, 'delete') !== false);
+    // sayaOwnerKeAtas — kalau user yang LOGIN SENDIRI sudah Owner/PIC Owner/
+    // superuser, finalisasi TIDAK perlu minta PIN lagi (sesi login-nya
+    // sendiri sudah membuktikan identitas — lihat instruksi tugas §Part 2
+    // "kalau user yang login sudah punya role itu, boleh skip PIN fresh").
+    const sayaOwnerKeAtas = computed(() => tierOwnerKeAtas(window.currentUser));
+
+    // --- Data referensi (dimuat sekali) ---------------------------------
     const daftarBahan = ref([]);
     const daftarSuplayer = ref([]);
     const daftarPermintaan = ref([]); // dari persiapan_masalah, status menunggu
-    const daftarDraft = ref([]);
-    // BARU (26 Agt 2026, permintaan Guru) — alias_pembelian, supaya dropdown
-    // "Nama Barang" (List & Nota Order Belanja) JUGA bisa dicari lewat nama
-    // di nota Suplayer (bukan cuma nama+warna internal) — lihat
-    // opsiNamaBarangMap di bawah.
     const daftarAlias = ref([]);
-    const memuat = ref(true);
+    const memuatReferensi = ref(true);
     const tampilPengaturan = ref(false);
-    // BARU (27 Agt 2026, §26.1) — shortcut "+" tambah Suplayer cepat, sama
-    // pola seperti AliasPembelianManager di atas.
     const tampilTambahSuplayer = ref(false);
     async function onSuplayerBaruTersimpan(namaBaru) {
       tampilTambahSuplayer.value = false;
       daftarSuplayer.value = await ambilDaftarSuplayer();
       suplayerEntry.value = namaBaru;
     }
+    async function muatReferensi() {
+      memuatReferensi.value = true;
+      try {
+        const [bahan, suplayer, snapPermintaan, snapAlias] = await Promise.all([
+          ambilDaftarBahanAksesorisLengkap(),
+          ambilDaftarSuplayer(),
+          getDocs(query(collection(db, 'persiapan_masalah'), where('status', '==', 'menunggu'))),
+          getDocs(collection(db, 'alias_pembelian'))
+        ]);
+        daftarBahan.value = bahan;
+        daftarSuplayer.value = suplayer;
+        const listPermintaan = []; snapPermintaan.forEach(d => listPermintaan.push({ id: d.id, ...d.data() }));
+        listPermintaan.sort((a, b) => (b.dibuat_pada?.seconds || 0) - (a.dibuat_pada?.seconds || 0));
+        daftarPermintaan.value = listPermintaan;
+        const listAlias = []; snapAlias.forEach(d => listAlias.push({ id: d.id, ...d.data() }));
+        daftarAlias.value = listAlias;
+      } catch (e) {
+        console.error('Gagal muat data referensi Daftar Nota:', e);
+      }
+      memuatReferensi.value = false;
+    }
 
+    // =====================================================================
+    // MODE LIST — wireframe step 2+3 ("Daftar Nota")
+    // =====================================================================
+    const mode = ref('list'); // 'list' | 'form'
+    const filterSumber = ref('semua'); // 'semua' | 'manual' | 'driver'
+    const paginasiNota = usePaginasiFirestore(db, 'pesanan_pembelian', {
+      perHalaman: 15,
+      urutkanField: 'dibuat_pada',
+      urutkanArah: 'desc',
+      cariField: 'no_pembelian',
+      constraintTambahan: () => filterSumber.value === 'manual' ? [where('order_driver_id', '==', null)] : [],
+      petakan: (id, d) => ({ id, ...d })
+    });
+    function muatDaftarNota() {
+      if (filterSumber.value === 'driver') return; // lihat catatan poin 3 di atas — SELALU kosong, belum ada fitur pengisinya
+      paginasiNota.muatUlang();
+    }
+    watch(filterSumber, muatDaftarNota);
+    function bukaNotaBaru() {
+      formKosong();
+      mode.value = 'form';
+    }
+    async function bukaNota(row) {
+      try {
+        const snap = await getDoc(doc(db, 'pesanan_pembelian', row.id));
+        if (!snap.exists()) return alert('Nota ini sudah tidak ada (mungkin terhapus).');
+        muatFormDariDoc(snap.id, snap.data());
+        mode.value = 'form';
+      } catch (e) {
+        console.error('Gagal buka Nota:', e);
+        alert('Gagal membuka Nota. Coba lagi.');
+      }
+    }
+    function kembaliKeDaftar() {
+      if (mode.value === 'form' && statusNota.value === 'draft' && daftarPesanan.value.length > 0 &&
+        !confirm('Kembali ke Daftar Nota? Perubahan yang belum disimpan (Simpan Draft/Finalkan) akan hilang.')) return;
+      mode.value = 'list';
+      muatDaftarNota();
+    }
+
+    // =====================================================================
+    // MODE FORM — wireframe step 3.1 (form) + 3.2 (entry keyboard-first)
+    // =====================================================================
     const draftDocId = ref(null);
     const noPembelianAktif = ref('');
+    const statusNota = ref('draft');
     const tanggal = ref(new Date().toISOString().slice(0, 10));
     const suplayerEntry = ref('');
-    const qtyEntry = ref('');
-    const namaBarangEntry = ref('');
     const daftarPesanan = ref([]);
     const sumberPermintaanIds = ref([]);
+    const orderDriverId = ref(null); // BARU — selalu null sekarang, lihat catatan poin 3
     const menyimpan = ref(false);
-    // BARU (Tahap 2) — roll/lot baru yang barusan dibuat dari Nota yang
-    // di-final-kan (diisi simpan(), lihat catatan di sana), dipakai tombol
-    // "Cetak Label Roll" (cetakLabelLot(), di bawah dekat cetak()).
     const lotUntukCetak = ref([]);
 
-    // BARU (25 Agt 2026, §25.2) — Popup "Qty per Roll/Lot". indexBarisLot
-    // menyimpan INDEX baris di daftarPesanan yang sedang diedit lewat
-    // popup (bukan reference langsung, supaya gampang dibatalkan tanpa
-    // menyentuh data asli sebelum "Terapkan" diklik).
-    const tampilPopupLot = ref(false);
-    const indexBarisLot = ref(-1);
-    const barisLotSementara = ref([]);
-    function bukaPopupLot(i) {
-      const it = daftarPesanan.value[i];
-      if (!it || !it.pakai_lot_tracking) return;
-      indexBarisLot.value = i;
-      barisLotSementara.value = (it.detail_lot && it.detail_lot.length > 0)
-        ? JSON.parse(JSON.stringify(it.detail_lot))
-        : [{ qty: '', keterangan: '' }];
-      tampilPopupLot.value = true;
+    // --- foto_bon (BARU) -------------------------------------------------
+    const fotoBonUrlTersimpan = ref(''); // URL yang SUDAH di Storage (dari doc lama)
+    const fotoBonFile = ref(null);       // File baru dipilih, belum diupload
+    const fotoBonPreview = ref('');      // Preview lokal (objectURL) ATAU URL tersimpan
+    const fotoBonDihapus = ref(false);
+    function pilihFotoBon(e) {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      fotoBonFile.value = file;
+      fotoBonPreview.value = URL.createObjectURL(file);
+      fotoBonDihapus.value = false;
     }
-    function tutupPopupLot() { tampilPopupLot.value = false; indexBarisLot.value = -1; }
-    function tambahBarisLot() { barisLotSementara.value.push({ qty: '', keterangan: '' }); }
-    function hapusBarisLot(i) {
-      if (barisLotSementara.value.length <= 1) return;
-      barisLotSementara.value.splice(i, 1);
-    }
-    const totalQtyLot = computed(() => barisLotSementara.value.reduce((t, b) => t + (parseFloat(b.qty) || 0), 0));
-    const barisLotTarget = computed(() => (indexBarisLot.value >= 0 && daftarPesanan.value[indexBarisLot.value]) ? (parseFloat(daftarPesanan.value[indexBarisLot.value].qty_s) || 0) : 0);
-    const barisLotSatuan = computed(() => (indexBarisLot.value >= 0 && daftarPesanan.value[indexBarisLot.value]) ? (daftarPesanan.value[indexBarisLot.value].satuan || '') : '');
-    const barisLotNama = computed(() => (indexBarisLot.value >= 0 && daftarPesanan.value[indexBarisLot.value]) ? (daftarPesanan.value[indexBarisLot.value].nama || '') : '');
-    function terapkanLot() {
-      const tidakLengkap = barisLotSementara.value.some(b => !(parseFloat(b.qty) > 0));
-      if (tidakLengkap) { alert('Isi Qty tiap roll/lot dulu (harus lebih dari 0). Hapus baris yang tidak dipakai.'); return; }
-      if (indexBarisLot.value >= 0 && daftarPesanan.value[indexBarisLot.value]) {
-        daftarPesanan.value[indexBarisLot.value].detail_lot = JSON.parse(JSON.stringify(barisLotSementara.value));
-      }
-      tampilPopupLot.value = false;
-      indexBarisLot.value = -1;
+    function hapusFotoBon() {
+      fotoBonFile.value = null; fotoBonPreview.value = ''; fotoBonDihapus.value = true;
     }
 
-    const bolehSimpan = computed(() => window.cekIzinMenu(menuId, 'add') !== false);
-    const bolehHapus = computed(() => window.cekIzinMenu(menuId, 'delete') !== false);
+    const suplayerTerkunci = computed(() => daftarPesanan.value.length > 0);
+    const estimasiBiaya = computed(() => daftarPesanan.value.reduce((t, i) => t + (parseFloat(i.qty) || 0) * (parseFloat(i.harga) || 0), 0));
+    const adaTerpilih = computed(() => daftarPesanan.value.some(i => i.dicentang));
+    const formReadOnly = computed(() => statusNota.value === 'final');
 
     const opsiSuplayer = computed(() => daftarSuplayer.value.map(s => s.nama));
-    // BARU (25 Agt 2026) — tampilkan nama+warna (formatNamaBahan(), lihat
-    // atas dekat formatRupiah) supaya item dengan `nama` sama tapi `warna`
-    // beda bisa dibedakan di dropdown "Nama Barang" (List & Nota Order
-    // Belanja, komponen SAMA-SAMA lewat OrderBelanjaScreen ini), DAN tidak
-    // salah nyantol ke varian warna lain — lihat catatan di
-    // tambahItemManual() di bawah.
-    //
-    // DIPERLUAS (26 Agt 2026, §25.10, permintaan Guru): "field nama barang
-    // ... data alias tidak muncul, harusnya nama internal + warna dan atau
-    // nama alias juga muncul saat pencarian". SEBELUMNYA dropdown ini
-    // CUMA berisi nama+warna internal — alias (nama di nota Suplayer,
-    // menu Alias Pembelian) TIDAK bisa dicari/dipilih sama sekali di sini.
-    //
-    // REVISI LAGI (26 Agt 2026, §25.11, permintaan Guru langsung setelah
-    // §25.10) — 2 penyesuaian: (a) opsi alias SEKARANG DIBATASI cuma
-    // punya Suplayer yang SEDANG dipilih di field Suplayer (SEBELUMNYA
-    // semua alias dari semua Suplayer ikut muncul) — supaya "tidak
-    // acak2an"; (b) label alias di dropdown SEKARANG cuma nama alias
-    // POLOS (`nama_di_nota` apa adanya), TANPA embel2
-    // "(alias {suplayer} -> ...)" lagi — lebih rapi. Karena SUDAH
-    // dibatasi per-Suplayer, tabrakan nama antar-Suplayer tidak mungkin
-    // lagi terjadi di opsi yang tampil (makanya label polos aman dipakai).
-    //
-    // Dipakai sebagai Map<label, {bahan, namaAlias}> (bukan cuma array
-    // string) SUPAYA baik nama internal MAUPUN nama alias yang dipilih
-    // bisa langsung di-resolve balik ke item bahan yang benar TANPA
-    // re-matching rawan-ambigu (lihat tambahItemManual() di bawah), DAN
-    // `namaAlias` ikut terbawa buat kolom baru "Nama Alias" di tabel
-    // Daftar Pesanan Pembelian (kosong kalau item dipilih lewat nama
-    // internal langsung, bukan lewat alias). Alias yang bahan internalnya
-    // sudah kehapus SENGAJA di-skip (tidak mungkin di-resolve balik lagi).
-    // Alias TIDAK muncul sama sekali kalau belum ada Suplayer dipilih.
     const opsiNamaBarangMap = computed(() => {
       const map = new Map();
       daftarBahan.value.forEach(b => {
@@ -1202,186 +1468,256 @@ const OrderBelanjaScreen = {
       }
       return map;
     });
-    const opsiNamaBarang = computed(() => Array.from(opsiNamaBarangMap.value.keys()));
-    // BARU (26 Agt 2026, §25.11), DIBUKA JADI BISA PILIH (27 Agt 2026,
-    // §25.13, permintaan Guru: "kadang beli dus, kadang beli pak, kadang
-    // beli pcs > satuan yg muncul sesuai yg diinput di konversi banyak
-    // tingkat"). SEBELUMNYA field ini read-only, selalu ikut
-    // `satuan_pembelian` (tingkat PALING ATAS di Master) — sekarang jadi
-    // dropdown-cari SUNGGUHAN, opsinya diambil dari rantai
-    // `konversi_bertingkat` item yang dipilih (lihat opsiSatuanBeliUntuk
-    // di atas), supaya kalau item itu bisa dibeli dalam beberapa tingkat
-    // (mis. DUS/PACK/PCS), admin bisa pilih sesuai yang SUNGGUHAN dibeli
-    // hari itu — BUKAN dipaksa selalu satuan_pembelian teratas.
-    // `satuanEntryManual` nyimpan pilihan AKTIF user, di-set OTOMATIS ke
-    // default (satuan_pembelian, tingkat teratas) tiap kali item di
-    // dropdown Nama Barang berganti (lihat watch(namaBarangEntry) di
-    // bawah), TAPI boleh ditimpa manual lewat dropdown-nya sendiri.
-    const satuanEntryManual = ref('');
-    const opsiSatuanEntry = computed(() => {
-      const dipilih = opsiNamaBarangMap.value.get(namaBarangEntry.value);
-      return dipilih ? opsiSatuanBeliUntuk(dipilih.bahan) : [];
-    });
-    watch(namaBarangEntry, (val) => {
-      const dipilih = opsiNamaBarangMap.value.get(val);
-      satuanEntryManual.value = dipilih ? (dipilih.bahan.satuan_pembelian || '') : '';
-    });
-    // BARU (26 Agt 2026, §25.11, permintaan Guru: "1 nota = 1 suplayer...
-    // saat tambah entry data pertama pada nota order belanja field
-    // suplayer lock sampai di klik disimpan") — HANYA berlaku Nota
-    // (modeNota true); List Order Belanja TETAP boleh multi-Suplayer per
-    // dokumen (TIDAK berubah). Dasarnya `daftarPesanan.length > 0` — jadi
-    // otomatis lepas lagi begitu simpan() sukses & formKosong() ngosongin
-    // daftarPesanan (tidak perlu state terpisah).
-    const suplayerTerkunci = computed(() => props.modeNota && daftarPesanan.value.length > 0);
-    // BARU (26 Agt 2026, §25.11) — ref input Qty, dipakai fokuskan
-    // cursor ke situ lagi begitu tombol Tambah diklik (permintaan Guru).
-    const qtyEntryEl = ref(null);
-    // BARU (malam 24 Agt 2026) — dihitung LIVE dari qty*harga (bukan baca
-    // field `jumlah` statis lagi), supaya begitu admin edit Harga Aktual
-    // di tabel, Estimasi Biaya Belanja di atas langsung ikut update.
-    const estimasiBiaya = computed(() => daftarPesanan.value.reduce((t, i) => t + (parseFloat(i.qty) || 0) * (parseFloat(i.harga) || 0), 0));
-    const adaTerpilih = computed(() => daftarPesanan.value.some(i => i.dicentang));
 
-    const labelGroup1 = props.modeNota ? 'Daftar Pesanan Bahan & Aksesoris' : 'Daftar Permintaan Bahan & Aksesoris';
-
-    async function muatSemua() {
-      memuat.value = true;
-      try {
-        // BARU (26 Agt 2026) — ikut muat `alias_pembelian` (query TANPA
-        // where, sama seperti AliasPembelianManager) supaya opsiNamaBarang
-        // di atas bisa gabung nama internal + nama alias.
-        const [bahan, suplayer, snapPermintaan, snapDraft, snapAlias] = await Promise.all([
-          ambilDaftarBahanAksesorisLengkap(),
-          ambilDaftarSuplayer(),
-          getDocs(query(collection(db, 'persiapan_masalah'), where('status', '==', 'menunggu'))),
-          getDocs(query(collection(db, 'pesanan_pembelian'), where('status', '==', 'draft'))),
-          getDocs(collection(db, 'alias_pembelian'))
-        ]);
-        daftarBahan.value = bahan;
-        daftarSuplayer.value = suplayer;
-        const listPermintaan = []; snapPermintaan.forEach(d => listPermintaan.push({ id: d.id, ...d.data() }));
-        listPermintaan.sort((a, b) => (b.dibuat_pada?.seconds || 0) - (a.dibuat_pada?.seconds || 0));
-        daftarPermintaan.value = listPermintaan;
-        const listDraft = []; snapDraft.forEach(d => listDraft.push({ id: d.id, ...d.data() }));
-        listDraft.sort((a, b) => (b.dibuat_pada?.seconds || 0) - (a.dibuat_pada?.seconds || 0));
-        daftarDraft.value = listDraft;
-        const listAlias = []; snapAlias.forEach(d => listAlias.push({ id: d.id, ...d.data() }));
-        daftarAlias.value = listAlias;
-      } catch (e) {
-        console.error('Gagal muat Order Belanja:', e);
-      }
-      memuat.value = false;
-    }
-
-    // BARU (malam 24 Agt 2026, fitur Riwayat Harga Pembelian) — field
-    // `harga` di baris pesanan SEKARANG "Harga Aktual": diisi OTOMATIS
-    // dari harga_pembelian master data sebagai DEFAULT/perkiraan, TAPI
-    // admin BOLEH TIMPA sesuai angka SUNGGUHAN di nota (harga sering
-    // naik-turun tiap beli). `isi_konversi` disimpan sebagai SNAPSHOT
-    // (bukan dihitung ulang dari master data nanti) supaya Riwayat Harga
-    // Pembelian tetap akurat meski konversi master data berubah di masa
-    // depan. `jumlah` SENGAJA TIDAK disimpan di sini lagi — dihitung
-    // ulang live tiap kali harga diedit (lihat estimasiBiaya computed &
-    // template kolom Jumlah), baru di-final-kan pas simpan().
-    // BARU (27 Agt 2026, §25.13) — param ke-5 `satuanBeliPilihan`: satuan
-    // BELI yang SUNGGUHAN dipilih user di field Satuan (bisa beda dari
-    // satuan_pembelian teratas Master, mis. beli PACK padahal Master-nya
-    // DUS — lihat opsiSatuanBeliUntuk/faktorKonversiUntukSatuan di atas).
-    // Kosong/undefined (dipanggil dari tambahDariPermintaan, yang belum
-    // punya UI pilih satuan) — fallback ke satuan_pembelian Master seperti
-    // perilaku lama.
     function buatBarisPesanan(item, qty, keterangan, namaAlias, satuanBeliPilihan) {
       const suplayer = daftarSuplayer.value.find(s => s.nama === suplayerEntry.value);
       const satuanDipakai = satuanBeliPilihan || item.satuan_pembelian || '';
-      // FIX (27 Agt 2026, §25.13) — SEBELUMNYA selalu pakai
-      // `item.isi_konversi_pembelian` (faktor gabungan dari tingkat
-      // PALING ATAS), padahal itu CUMA benar kalau beli persis di
-      // satuan_pembelian teratas. Sekarang hitung faktor yang BENAR
-      // sesuai satuan yang SUNGGUHAN dipilih (faktorKonversiUntukSatuan,
-      // baca rantai konversi_bertingkat) — supaya Qty Pakai tetap akurat
-      // walau beli di tingkat berbeda (mis. PACK, bukan DUS).
       const isiKonversi = faktorKonversiUntukSatuan(item, satuanDipakai);
+      const hargaAwal = hargaUntukSatuan(item, satuanDipakai);
       return {
         dicentang: false,
         suplayer_id: suplayer ? suplayer.id : '', suplayer_nama: suplayerEntry.value,
-        // FIX (26 Agt 2026, §25.11) — `sku` SEBELUMNYA `item.id` (ID
-        // dokumen Firestore auto-generated, BUKAN human-readable — lihat
-        // catatan id_tampil vs ID dokumen di PETA-DATABASE.md), jadi kolom
-        // ini selama ini menampilkan ID mentah yang tidak enak dibaca.
-        // Sekarang pakai `item.id_tampil` (mis. "BHN-0001"), fallback ke
-        // `item.id` HANYA kalau id_tampil entah kenapa kosong (data lama/
-        // rusak) — kolom tabelnya juga di-rename jadi "ID Bahan &
-        // Aksesoris" (lihat template) supaya konsisten.
-        // FIX (27 Agt 2026, laporan Guru) — `nama` SEBELUMNYA `item.nama`
-        // POLOS (tanpa warna), jadi kolom "Nama Barang" di tabel List/Nota
-        // Order Belanja (dan Nota cetak) TIDAK bisa bedakan 2+ item nama
-        // sama beda warna — padahal dropdown pemilihannya SUDAH pakai
-        // formatNamaBahan() (nama+warna, lihat opsiNamaBarangMap di atas).
-        // Sekarang disimpan formatNamaBahan(item) juga, konsisten dengan
-        // Alias Pembelian (§25.9). Ini snapshot nama SAAT baris dibuat —
-        // sama seperti field lain di sini (harga, isi_konversi, dst), TIDAK
-        // ikut berubah otomatis kalau nama/warna item diedit belakangan.
         bahan_aksesoris_id: item.id, sku: item.id_tampil || item.id, nama: formatNamaBahan(item),
-        // BARU (26 Agt 2026, §25.11) — nama alias (nota Suplayer) yang
-        // dipakai buat MEMILIH item ini lewat dropdown "Nama Barang",
-        // kalau ada (lihat opsiNamaBarangMap/tambahItemManual di atas) —
-        // kosong kalau dipilih langsung lewat nama+warna internal. Dipakai
-        // kolom baru "Nama Alias" di tabel Daftar Pesanan Pembelian.
         nama_alias: namaAlias || '',
         qty: qty, satuan_bahan: satuanDipakai,
         qty_s: Math.round((qty * isiKonversi) * 100) / 100, satuan: item.satuan_pemakaian || '',
         isi_konversi: isiKonversi,
-        // GANTI (27 Agt 2026, §25.14, permintaan Guru: "harga menurut
-        // satuan awal adalah harga saat pembelian... ada 3 harga dengan
-        // 3 satuan awal") — SEBELUMNYA prefill "Harga Aktual" SELALU dari
-        // `item.harga_pembelian` (harga tingkat TERATAS/satuan_pembelian
-        // saja), walau yang dibeli sekarang PACK atau PCS. Sekarang pakai
-        // hargaUntukSatuan() — ambil harga TINGKAT yang SUNGGUHAN dipilih
-        // (dari konversi_bertingkat item itu), fallback ke Harga Modal
-        // kalau beli langsung di satuan dasar/pemakaian.
-        harga: hargaUntukSatuan(item, satuanDipakai),
+        harga: hargaAwal,
+        // harga_asli — snapshot harga DEFAULT (belum diedit tangan) dipakai
+        // buat mendeteksi "apakah harga baris ini diedit manual" (lihat
+        // mulaiEditHarga di bawah — BARU, tidak ada sebelumnya).
+        harga_asli: hargaAwal,
         keterangan: keterangan || '',
-        // BARU (25 Agt 2026, §25.2) — denormalisasi flag dari Data Bahan &
-        // Aksesoris (item.pakai_lot_tracking) supaya tombol popup "Qty per
-        // Roll/Lot" di tabel tahu harus aktif/tidak TANPA perlu lookup
-        // ulang tiap render. `detail_lot` mulai kosong, diisi lewat popup
-        // (lihat bukaPopupLot/terapkanLot di bawah).
         pakai_lot_tracking: !!item.pakai_lot_tracking,
         detail_lot: []
       };
     }
-
-    function tambahItemManual() {
-      if (!suplayerEntry.value) return alert('Pilih Suplayer dulu.');
-      // GANTI (26 Agt 2026) — resolve lewat opsiNamaBarangMap (bukan
-      // re-matching formatNamaBahan()) — SEKARANG value yang dipilih bisa
-      // berasal dari nama+warna internal ATAU dari label alias (lihat
-      // opsiNamaBarangMap di atas), Map ini yang jadi satu-satunya sumber
-      // kebenaran buat resolve balik ke item bahan yang benar, jadi tidak
-      // ada 2 jalur re-matching yang bisa saling tidak sinkron.
-      const dipilih = opsiNamaBarangMap.value.get(namaBarangEntry.value);
-      if (!dipilih) return alert('Pilih Nama Barang dari daftar dulu (bukan teks bebas). Kalau nama di nota Suplayer beda, catat dulu di menu Alias Pembelian.');
-      // BARU (27 Agt 2026, §25.13) — Satuan sekarang WAJIB dipilih (bukan
-      // otomatis lagi selalu benar) — biasanya sudah ke-isi otomatis
-      // (default satuan_pembelian, lihat watch(namaBarangEntry)), ini
-      // jaring pengaman kalau somehow kosong.
-      if (!satuanEntryManual.value) return alert('Pilih Satuan Beli dulu.');
-      const qty = parseFloat(qtyEntry.value);
-      if (!(qty > 0)) return alert('Isi Qty dengan angka lebih dari 0.');
-      daftarPesanan.value.push(buatBarisPesanan(dipilih.bahan, qty, '', dipilih.namaAlias, satuanEntryManual.value));
-      qtyEntry.value = ''; namaBarangEntry.value = ''; // Suplayer SENGAJA tidak direset (terkunci); satuanEntryManual ikut ke-reset via watch(namaBarangEntry)
-      // BARU (26 Agt 2026, §25.11, permintaan Guru) — fokus balik ke
-      // field Qty begitu Tambah diklik, biar entry item berikutnya lebih
-      // cepat (tidak perlu klik manual ke Qty lagi). nextTick supaya
-      // fokus dipasang SETELAH input Qty ke-render ulang (kosong lagi).
-      nextTick(() => { qtyEntryEl.value?.focus(); });
+    function itemAsliDariBaris(baris) {
+      return daftarBahan.value.find(b => b.id === baris.bahan_aksesoris_id) || null;
     }
 
-    // Khusus Nota Order Belanja: klik (+) di baris Group 1 -> langsung masuk
-    // tabel Daftar Pesanan Pembelian, request terkait ditandai sudah_dipesan.
+    // --- Keyboard-first entry (BARU TOTAL, wireframe 3.2a-3.2e) ---------
+    const elCariItem = ref(null);
+    const cariItemTeks = ref('');
+    const indexSorot = ref(0);
+    const hasilPencarian = computed(() => {
+      const kata = cariItemTeks.value.trim().toLowerCase();
+      if (!kata) return [];
+      const hasil = [];
+      const suplayerAktif = daftarSuplayer.value.find(s => s.nama === suplayerEntry.value);
+      daftarBahan.value.forEach(b => {
+        const label = formatNamaBahan(b);
+        if (label.toLowerCase().includes(kata)) hasil.push({ label, sub: `${b.id_tampil || ''} · ${b.satuan_pembelian || ''}`, bahan: b, namaAlias: '' });
+      });
+      if (suplayerAktif) {
+        daftarAlias.value
+          .filter(a => a.suplayer_id === suplayerAktif.id && (a.nama_di_nota || '').toLowerCase().includes(kata))
+          .forEach(a => {
+            const bahan = daftarBahan.value.find(x => x.id === a.bahan_aksesoris_id);
+            if (!bahan) return;
+            hasil.push({ label: a.nama_di_nota, sub: `alias · ${formatNamaBahan(bahan)}`, bahan, namaAlias: a.nama_di_nota });
+          });
+      }
+      return hasil.slice(0, 8);
+    });
+    watch(cariItemTeks, (val) => {
+      indexSorot.value = 0;
+      if (val) { barisAktifIndex.value = -1; tahapBarisAktif.value = 'selesai'; }
+    });
+
+    // barisAktifIndex/tahapBarisAktif — melacak baris yang BARU saja masuk
+    // supaya Tab (bukan mengetik) bisa lanjut buka pop up berikutnya untuk
+    // baris ITU (qty -> satuan -> harga+PIN), sesuai wireframe 3.2b:
+    // "percabangan ini berlaku di SETIAP titik Enter — ketik selalu cari
+    // lagi, Tab selalu buka pop up berikutnya".
+    const barisAktifIndex = ref(-1);
+    const tahapBarisAktif = ref('selesai'); // 'baru' | 'qty' | 'satuan' | 'selesai'
+
+    function opsiQtyCepatUntuk(baris) {
+      const suplayerAktif = daftarSuplayer.value.find(s => s.nama === suplayerEntry.value);
+      const alias = suplayerAktif && daftarAlias.value.find(a => a.bahan_aksesoris_id === baris.bahan_aksesoris_id && a.suplayer_id === suplayerAktif.id);
+      const moq = alias && parseFloat(alias.moq) > 0 ? parseFloat(alias.moq) : 0;
+      if (moq > 0) return [moq, moq * 2, moq * 5, moq * 10];
+      return [1, 2, 5, 10, 50, 100];
+    }
+
+    function tambahItemDariPencarian(hasil) {
+      if (!suplayerEntry.value) { alert('Pilih Suplayer dulu sebelum menambah item.'); return; }
+      // Duplikat (bahan yang SAMA sudah ada di nota) -> qty++ pada baris
+      // yang sudah ada, MIRROR tambahKeKeranjang() di vue-pesanan.js
+      // (baris ~176-184) — konsisten dengan pola "tambah lagi = qty naik"
+      // yang sudah dipakai di Kasir.
+      const idxAda = daftarPesanan.value.findIndex(b => b.bahan_aksesoris_id === hasil.bahan.id);
+      if (idxAda >= 0) {
+        daftarPesanan.value[idxAda].qty = (parseFloat(daftarPesanan.value[idxAda].qty) || 0) + 1;
+        const item = itemAsliDariBaris(daftarPesanan.value[idxAda]);
+        daftarPesanan.value[idxAda].qty_s = Math.round(daftarPesanan.value[idxAda].qty * faktorKonversiUntukSatuan(item, daftarPesanan.value[idxAda].satuan_bahan) * 100) / 100;
+        barisAktifIndex.value = idxAda;
+      } else {
+        daftarPesanan.value.push(buatBarisPesanan(hasil.bahan, 1, '', hasil.namaAlias, hasil.bahan.satuan_pembelian));
+        barisAktifIndex.value = daftarPesanan.value.length - 1;
+      }
+      tahapBarisAktif.value = 'baru';
+      cariItemTeks.value = '';
+      indexSorot.value = 0;
+      nextTick(() => { elCariItem.value?.focus(); });
+    }
+    function onKeydownCari(e) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); indexSorot.value = Math.min(indexSorot.value + 1, hasilPencarian.value.length - 1); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); indexSorot.value = Math.max(indexSorot.value - 1, 0); return; }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (hasilPencarian.value.length > 0) tambahItemDariPencarian(hasilPencarian.value[indexSorot.value]);
+        return;
+      }
+      if (e.key === 'Tab' && !cariItemTeks.value && barisAktifIndex.value >= 0 && tahapBarisAktif.value !== 'selesai') {
+        e.preventDefault();
+        bukaTahapBerikutnya();
+      }
+    }
+    function bukaTahapBerikutnya() {
+      const baris = daftarPesanan.value[barisAktifIndex.value];
+      if (!baris) { tahapBarisAktif.value = 'selesai'; return; }
+      if (tahapBarisAktif.value === 'baru') {
+        if (baris.pakai_lot_tracking) { bukaPopupLot(barisAktifIndex.value); return; }
+        bukaPopupQty();
+      } else if (tahapBarisAktif.value === 'qty') {
+        bukaPopupSatuan();
+      } else if (tahapBarisAktif.value === 'satuan') {
+        mulaiEditHarga(barisAktifIndex.value, true);
+      }
+    }
+
+    // --- Pop up Qty cepat (BARU) -----------------------------------------
+    const tampilPopupQty = ref(false);
+    const qtyManualInput = ref('');
+    function bukaPopupQty() {
+      const baris = daftarPesanan.value[barisAktifIndex.value];
+      qtyManualInput.value = String(baris.qty);
+      tampilPopupQty.value = true;
+    }
+    function konfirmasiQty(nilai) {
+      const qtyBaru = parseFloat(nilai);
+      if (!(qtyBaru > 0)) { alert('Qty wajib angka lebih dari 0.'); return; }
+      const baris = daftarPesanan.value[barisAktifIndex.value];
+      if (baris) {
+        baris.qty = qtyBaru;
+        const item = itemAsliDariBaris(baris);
+        baris.qty_s = Math.round(qtyBaru * faktorKonversiUntukSatuan(item, baris.satuan_bahan) * 100) / 100;
+      }
+      tampilPopupQty.value = false;
+      tahapBarisAktif.value = 'qty';
+      nextTick(() => { elCariItem.value?.focus(); });
+    }
+    function tutupPopupQtyTanpaUbah() { tampilPopupQty.value = false; tahapBarisAktif.value = 'qty'; nextTick(() => { elCariItem.value?.focus(); }); }
+
+    // --- Pop up Satuan (BARU) --------------------------------------------
+    const tampilPopupSatuan = ref(false);
+    const satuanPilihanAktif = ref('');
+    const opsiSatuanAktif = ref([]);
+    function bukaPopupSatuan() {
+      const baris = daftarPesanan.value[barisAktifIndex.value];
+      const item = itemAsliDariBaris(baris);
+      opsiSatuanAktif.value = item ? opsiSatuanBeliUntuk(item) : [];
+      // Default "satu tingkat dari satuan akhir" (wireframe 3.2d) — BEDA
+      // dari default saat item pertama masuk (yang ikut satuan_pembelian,
+      // tingkat teratas) — ini SENGAJA, mengikuti wireframe persis.
+      satuanPilihanAktif.value = opsiSatuanAktif.value.length >= 2
+        ? opsiSatuanAktif.value[opsiSatuanAktif.value.length - 2]
+        : (opsiSatuanAktif.value[0] || baris.satuan_bahan);
+      tampilPopupSatuan.value = true;
+    }
+    function konfirmasiSatuan(nilai) {
+      const baris = daftarPesanan.value[barisAktifIndex.value];
+      const item = itemAsliDariBaris(baris);
+      if (baris && item && nilai) {
+        baris.satuan_bahan = nilai;
+        const isiKonversi = faktorKonversiUntukSatuan(item, nilai);
+        baris.isi_konversi = isiKonversi;
+        baris.qty_s = Math.round((parseFloat(baris.qty) || 0) * isiKonversi * 100) / 100;
+        // Harga ikut menyesuaikan default tingkat baru (wireframe: "harga
+        // ikut menyesuaikan") — HANYA kalau baris belum pernah diedit
+        // manual (harga masih = harga_asli lama), supaya harga yang SUDAH
+        // dikonfirmasi Owner/di-PIN tidak tertimpa diam-diam.
+        if (Math.round(baris.harga) === Math.round(baris.harga_asli)) {
+          const hargaBaru = hargaUntukSatuan(item, nilai);
+          baris.harga = hargaBaru; baris.harga_asli = hargaBaru;
+        }
+      }
+      tampilPopupSatuan.value = false;
+      tahapBarisAktif.value = 'satuan';
+      nextTick(() => { elCariItem.value?.focus(); });
+    }
+    function tutupPopupSatuanTanpaUbah() { tampilPopupSatuan.value = false; tahapBarisAktif.value = 'satuan'; nextTick(() => { elCariItem.value?.focus(); }); }
+
+    // --- Edit Harga + PIN (wireframe 3.2e) — BARU TOTAL ------------------
+    // Bisa dipicu 2 cara: (a) rantai Tab ketiga sesudah item baru
+    // ditambahkan (dariRantaiTab=true), (b) tombol pensil manual di baris
+    // mana pun selama nota masih draft (dariRantaiTab=false).
+    const tampilEditHarga = ref(false);
+    const indexEditHarga = ref(-1);
+    const hargaBaruInput = ref('');
+    const dariRantaiTabHarga = ref(false);
+    function mulaiEditHarga(i, dariRantaiTab) {
+      const baris = daftarPesanan.value[i];
+      if (!baris) return;
+      indexEditHarga.value = i;
+      hargaBaruInput.value = String(baris.harga);
+      dariRantaiTabHarga.value = !!dariRantaiTab;
+      tampilEditHarga.value = true;
+    }
+    function lewatiEditHarga() {
+      tampilEditHarga.value = false;
+      if (dariRantaiTabHarga.value) { tahapBarisAktif.value = 'selesai'; barisAktifIndex.value = -1; nextTick(() => { elCariItem.value?.focus(); }); }
+    }
+    const tampilPinHarga = ref(false);
+    function ajukanHargaBaru() {
+      const baris = daftarPesanan.value[indexEditHarga.value];
+      if (!baris) return;
+      const nilai = parseFloat(hargaBaruInput.value);
+      if (!(nilai >= 0)) { alert('Harga wajib angka.'); return; }
+      if (Math.round(nilai) === Math.round(baris.harga)) { lewatiEditHarga(); return; } // tidak berubah, tidak perlu PIN
+      tampilPinHarga.value = true; // popup PIN, lihat template
+    }
+    async function pinHargaSukses(user) {
+      tampilPinHarga.value = false;
+      const i = indexEditHarga.value;
+      const baris = daftarPesanan.value[i];
+      const nilaiBaru = parseFloat(hargaBaruInput.value);
+      if (!baris) { tampilEditHarga.value = false; return; }
+      if (tierOwnerKeAtas(user)) {
+        baris.harga = nilaiBaru; baris.diedit_oleh = user.email;
+        alert(`Harga diperbarui oleh ${user.email} (${user.role}).`);
+      } else {
+        // Admin-tier (atau tier lain yang punya PIN) — TIDAK menerapkan ke
+        // baris nota, cuma diqueue ke Riwayat Harga menunggu Owner (wireframe
+        // 3.2e: "PIN admin -> data masuk alert riwayat, menunggu keputusan
+        // Owner"). SENGAJA unconditional (naik ATAU turun) — beda dari
+        // deteksi kenaikan otomatis saat finalisasi (lihat catatan
+        // tandaiHargaPerluKonfirmasi di atas file), karena di sini Admin
+        // memang tidak berwenang ubah harga sama sekali tanpa PIN Owner.
+        const item = itemAsliDariBaris(baris);
+        const isiKonversi = parseFloat(baris.isi_konversi) || 1;
+        const hargaBaruPerSatuanPemakaian = nilaiBaru / isiKonversi;
+        let hargaLama = 0;
+        try {
+          const snapBahan = await getDoc(doc(db, 'master_bahan_aksesoris', baris.bahan_aksesoris_id));
+          hargaLama = snapBahan.exists() ? (parseFloat(snapBahan.data().harga_modal) || 0) : 0;
+        } catch (e) { /* abaikan, tetap lanjut queue dengan harga_lama 0 */ }
+        await tandaiHargaPerluKonfirmasi(baris.bahan_aksesoris_id, {
+          harga_baru: hargaBaruPerSatuanPemakaian, harga_lama: hargaLama,
+          tanggal: tanggal.value, no_pembelian: noPembelianAktif.value || '(draft, belum final)',
+          suplayer: suplayerEntry.value, satuan_asal: baris.satuan_bahan, sumber: 'edit_draft'
+        });
+        alert(`PIN ini bukan PIN Owner/PIC Owner/Superuser (${user.role}). Perubahan harga TIDAK diterapkan ke Nota ini — dicatat sebagai usulan menunggu review Owner di Riwayat Harga Pembelian.`);
+      }
+      tampilEditHarga.value = false;
+      lewatiEditHarga();
+    }
+
+    // --- Sumber permintaan (Persiapan Masalah) ---------------------------
     async function tambahDariPermintaan(p) {
-      if (!suplayerEntry.value) return alert('Pilih Suplayer dulu (di panel "Daftar Order Belanja") sebelum menambah dari daftar ini.');
+      if (!suplayerEntry.value) return alert('Pilih Suplayer dulu (di panel Suplayer) sebelum menambah dari daftar ini.');
       const item = daftarBahan.value.find(b => b.id === p.bahan_aksesoris_id);
       if (!item) return alert('Data Bahan/Aksesoris sumber permintaan ini sudah tidak ditemukan (mungkin sudah dihapus).');
       daftarPesanan.value.push(buatBarisPesanan(item, p.qty, p.keterangan || ''));
@@ -1400,47 +1736,134 @@ const OrderBelanjaScreen = {
       daftarPesanan.value = daftarPesanan.value.filter(i => !i.dicentang);
     }
 
+    // --- Pop up Qty per Roll/Lot (SAMA seperti sebelumnya, TIDAK diubah) -
+    const tampilPopupLot = ref(false);
+    const indexBarisLot = ref(-1);
+    const barisLotSementara = ref([]);
+    function bukaPopupLot(i) {
+      const it = daftarPesanan.value[i];
+      if (!it || !it.pakai_lot_tracking) return;
+      indexBarisLot.value = i;
+      barisLotSementara.value = (it.detail_lot && it.detail_lot.length > 0)
+        ? JSON.parse(JSON.stringify(it.detail_lot))
+        : [{ qty: '', keterangan: '' }];
+      tampilPopupLot.value = true;
+    }
+    function tutupPopupLot() {
+      tampilPopupLot.value = false;
+      // Kalau ini bagian dari rantai Tab keyboard (Tab pertama pada item
+      // lot-tracking), Batal tetap lanjutkan ke tahap satuan (item sudah
+      // masuk qty 1 default) — konsisten dengan tutupPopupQtyTanpaUbah.
+      if (indexBarisLot.value === barisAktifIndex.value) { tahapBarisAktif.value = 'qty'; nextTick(() => { elCariItem.value?.focus(); }); }
+      indexBarisLot.value = -1;
+    }
+    function tambahBarisLot() { barisLotSementara.value.push({ qty: '', keterangan: '' }); }
+    function hapusBarisLot(i) {
+      if (barisLotSementara.value.length <= 1) return;
+      barisLotSementara.value.splice(i, 1);
+    }
+    const totalQtyLot = computed(() => barisLotSementara.value.reduce((t, b) => t + (parseFloat(b.qty) || 0), 0));
+    const barisLotTarget = computed(() => (indexBarisLot.value >= 0 && daftarPesanan.value[indexBarisLot.value]) ? (parseFloat(daftarPesanan.value[indexBarisLot.value].qty_s) || 0) : 0);
+    const barisLotSatuan = computed(() => (indexBarisLot.value >= 0 && daftarPesanan.value[indexBarisLot.value]) ? (daftarPesanan.value[indexBarisLot.value].satuan || '') : '');
+    const barisLotNama = computed(() => (indexBarisLot.value >= 0 && daftarPesanan.value[indexBarisLot.value]) ? (daftarPesanan.value[indexBarisLot.value].nama || '') : '');
+    function terapkanLot() {
+      const tidakLengkap = barisLotSementara.value.some(b => !(parseFloat(b.qty) > 0));
+      if (tidakLengkap) { alert('Isi Qty tiap roll/lot dulu (harus lebih dari 0). Hapus baris yang tidak dipakai.'); return; }
+      const idx = indexBarisLot.value;
+      if (idx >= 0 && daftarPesanan.value[idx]) {
+        daftarPesanan.value[idx].detail_lot = JSON.parse(JSON.stringify(barisLotSementara.value));
+        daftarPesanan.value[idx].qty_s = totalQtyLot.value;
+        daftarPesanan.value[idx].qty = totalQtyLot.value; // item lot: qty beli = qty pakai (1 roll dianggap 1 satuan beli)
+      }
+      tampilPopupLot.value = false;
+      if (idx === barisAktifIndex.value) { tahapBarisAktif.value = 'qty'; nextTick(() => { elCariItem.value?.focus(); }); }
+      indexBarisLot.value = -1;
+    }
+
+    // =====================================================================
+    // Form kosong / muat draft / batal
+    // =====================================================================
     function formKosong() {
       draftDocId.value = null;
       noPembelianAktif.value = '';
+      statusNota.value = 'draft';
       tanggal.value = new Date().toISOString().slice(0, 10);
-      suplayerEntry.value = ''; qtyEntry.value = ''; namaBarangEntry.value = '';
+      suplayerEntry.value = ''; cariItemTeks.value = '';
       daftarPesanan.value = []; sumberPermintaanIds.value = [];
+      orderDriverId.value = null;
+      fotoBonUrlTersimpan.value = ''; fotoBonFile.value = null; fotoBonPreview.value = ''; fotoBonDihapus.value = false;
+      barisAktifIndex.value = -1; tahapBarisAktif.value = 'selesai';
+      lotUntukCetak.value = [];
     }
-
-    function pilihNoPembelian(idDraft) {
-      if (!idDraft) { formKosong(); return; }
-      const d = daftarDraft.value.find(x => x.id === idDraft);
-      if (!d) return;
-      draftDocId.value = d.id;
+    function muatFormDariDoc(id, d) {
+      draftDocId.value = id;
       noPembelianAktif.value = d.no_pembelian || '';
+      statusNota.value = d.status || 'draft';
       tanggal.value = d.tanggal || new Date().toISOString().slice(0, 10);
-      // BARU (25 Agt 2026, §25.2) — fallback pakai_lot_tracking/detail_lot
-      // buat draft LAMA (dibuat sebelum field ini ada) supaya tetap aman
-      // dibuka & tidak error di template.
+      suplayerEntry.value = d.items && d.items[0] ? d.items[0].suplayer_nama : '';
       daftarPesanan.value = JSON.parse(JSON.stringify(d.items || [])).map(i => ({
         ...i, dicentang: false,
-        pakai_lot_tracking: !!i.pakai_lot_tracking, detail_lot: i.detail_lot || []
+        pakai_lot_tracking: !!i.pakai_lot_tracking, detail_lot: i.detail_lot || [],
+        harga_asli: i.harga_asli === undefined ? i.harga : i.harga_asli
       }));
       sumberPermintaanIds.value = d.sumber_permintaan_ids || [];
+      orderDriverId.value = d.order_driver_id || null;
+      fotoBonUrlTersimpan.value = d.foto_bon || ''; fotoBonFile.value = null;
+      fotoBonPreview.value = d.foto_bon || ''; fotoBonDihapus.value = false;
+      barisAktifIndex.value = -1; tahapBarisAktif.value = 'selesai';
+      lotUntukCetak.value = [];
     }
-
     function batal() {
-      if (daftarPesanan.value.length > 0 && !confirm('Batalkan? Data yang belum disimpan (Simpan/Pending) akan hilang.')) return;
+      if (daftarPesanan.value.length > 0 && !confirm('Batalkan? Data yang belum disimpan akan hilang.')) return;
       formKosong();
+      mode.value = 'list';
+      muatDaftarNota();
     }
 
-    async function simpan(statusBaru) {
+    // =====================================================================
+    // Simpan (Draft / Finalkan) — Finalkan SEKARANG digerbangi PIN/role
+    // (TIGHTENED dari sebelumnya: dulu siapa pun dengan izin 'add' menu ini
+    // bisa memfinalkan — lihat instruksi tugas: hanya Owner/PIC Owner/
+    // superuser boleh finalisasi Nota, per tabel peran wireframe).
+    // =====================================================================
+    async function simpanDraft() { await simpan('draft'); }
+    async function klikFinalkan() {
       if (!bolehSimpan.value) return alert('Anda tidak punya izin menyimpan di sini. Hubungi Owner/PIC.');
       if (daftarPesanan.value.length === 0) return alert('Belum ada item di Daftar Pesanan Pembelian.');
+      if (!suplayerEntry.value) return alert('Pilih Suplayer dulu.');
+      if (sayaOwnerKeAtas.value) { await simpan('final'); return; }
+      tampilPinFinalisasi.value = true;
+    }
+    const tampilPinFinalisasi = ref(false);
+    async function pinFinalisasiSukses(user) {
+      tampilPinFinalisasi.value = false;
+      if (!tierOwnerKeAtas(user)) {
+        alert(`PIN ini bukan PIN Owner/PIC Owner/Superuser (peran: ${user.role}). Admin hanya bisa menyimpan Draft, tidak bisa memfinalkan Nota.`);
+        return;
+      }
+      await simpan('final', { difinalisasi_oleh_pin: user.email });
+    }
+
+    async function simpan(statusBaru, opsiTambahan) {
+      if (!bolehSimpan.value) return alert('Anda tidak punya izin menyimpan di sini. Hubungi Owner/PIC.');
+      if (daftarPesanan.value.length === 0) return alert('Belum ada item di Daftar Pesanan Pembelian.');
+      if (!suplayerEntry.value) return alert('Pilih Suplayer dulu.');
       menyimpan.value = true;
       try {
         let noPembelian = noPembelianAktif.value;
         if (!noPembelian) noPembelian = await generateNoPembelian();
-        // `jumlah` di-final-kan di sini (qty*harga saat ini) — SEBELUMNYA
-        // dihitung sekali waktu baris ditambah, SEKARANG dihitung ulang
-        // pas simpan supaya ikut angka Harga Aktual terakhir yang diedit
-        // admin (lihat catatan buatBarisPesanan()).
+
+        // Upload foto_bon (kalau ada file baru dipilih) — path pakai
+        // no_pembelian yang SUDAH pasti ada di titik ini.
+        let fotoBonUrlFinal = fotoBonUrlTersimpan.value;
+        if (fotoBonFile.value) {
+          if (fotoBonUrlTersimpan.value) await hapusFotoBonLama(fotoBonUrlTersimpan.value);
+          fotoBonUrlFinal = await uploadFotoBon(noPembelian, fotoBonFile.value);
+        } else if (fotoBonDihapus.value) {
+          await hapusFotoBonLama(fotoBonUrlTersimpan.value);
+          fotoBonUrlFinal = '';
+        }
+
         const itemsFinal = daftarPesanan.value.map(({ dicentang, ...rest }) => ({
           ...rest, jumlah: Math.round((parseFloat(rest.qty) || 0) * (parseFloat(rest.harga) || 0))
         }));
@@ -1449,10 +1872,13 @@ const OrderBelanjaScreen = {
           tanggal: tanggal.value,
           items: itemsFinal,
           estimasi_biaya_belanja: estimasiBiaya.value,
-          status: statusBaru, // 'draft' (tombol Pending) atau 'final' (tombol Simpan)
+          status: statusBaru,
           sumber_permintaan_ids: sumberPermintaanIds.value,
+          foto_bon: fotoBonUrlFinal, // BARU
+          order_driver_id: orderDriverId.value, // BARU — selalu null sekarang
           dibuat_oleh: window.currentUser?.email || null,
-          diupdate_pada: serverTimestamp()
+          diupdate_pada: serverTimestamp(),
+          ...(opsiTambahan || {})
         };
         if (draftDocId.value) {
           await updateDoc(doc(db, 'pesanan_pembelian', draftDocId.value), payload);
@@ -1462,57 +1888,38 @@ const OrderBelanjaScreen = {
           draftDocId.value = refBaru.id;
         }
         noPembelianAktif.value = noPembelian;
-        // BARU (malam 24 Agt 2026) — begitu pesanan di-FINAL-kan (bukan
-        // draft), catat tiap item jadi 1 baris Riwayat Harga Pembelian +
-        // update otomatis Harga Pembelian di Data Bahan & Aksesoris
-        // (aturan: tanggal terbaru, termahal per Satuan Pemakaian kalau
-        // beda satuan — lihat catatRiwayatHargaDanUpdateMaster()).
-        // SENGAJA di-try/catch TERPISAH — kalau ini gagal, pesanan_
-        // pembelian yang SUDAH tersimpan sukses TIDAK boleh ikut dianggap
-        // gagal ke Guru, cukup dicatat di Console buat ditelusuri nanti.
-        //
-        // DIPERBAIKI (malam 24 Agt 2026, revisi Guru) — SEBELUMNYA jalan
-        // buat KEDUA mode (List & Nota), TERNYATA salah: "List Order
-        // Belanja" itu ESTIMASI belanja dipakai supir + di-approve Owner
-        // (harga di situ CUMA ikut apa adanya dari Data Bahan &
-        // Aksesoris, lihat komentar props modeNota & template Harga di
-        // bawah — read-only). Yang benar-benar jadi CATATAN PEMBELIAN
-        // NYATA (harga aktual sesuai nota) cuma "Nota Order Belanja" —
-        // makanya riwayat & auto-update harga SEKARANG cuma jalan kalau
-        // props.modeNota true.
-        if (statusBaru === 'final' && props.modeNota) {
+        fotoBonUrlTersimpan.value = fotoBonUrlFinal; fotoBonFile.value = null; fotoBonDihapus.value = false;
+        statusNota.value = statusBaru;
+
+        if (statusBaru === 'final') {
           try {
-            const lotBaruDariNota = await catatRiwayatHargaDanUpdateMaster(itemsFinal, tanggal.value, noPembelian);
-            // BARU (Tahap 2) — kalau ada roll/lot baru dibuat dari Nota ini,
-            // tawarkan cetak label (tombol muncul di bawah form, lihat
-            // template) — TIDAK auto-cetak, biar admin yang putuskan kapan.
-            if (Array.isArray(lotBaruDariNota) && lotBaruDariNota.length > 0) {
-              lotUntukCetak.value = lotBaruDariNota;
-            }
+            const lotBaruDariNota = await catatRiwayatHargaDanUpdateMaster(itemsFinal, tanggal.value, noPembelian, suplayerEntry.value);
+            if (Array.isArray(lotBaruDariNota) && lotBaruDariNota.length > 0) lotUntukCetak.value = lotBaruDariNota;
           } catch (e) {
             console.error('Pesanan tersimpan, TAPI gagal catat Riwayat Harga Pembelian:', e);
           }
         }
-        alert(statusBaru === 'final' ? `Pesanan Pembelian ${noPembelian} tersimpan (final).` : `Disimpan sebagai draft (${noPembelian}).`);
-        if (statusBaru === 'final') formKosong();
-        await muatSemua();
+        alert(statusBaru === 'final' ? `Nota ${noPembelian} difinalkan (stok bertambah, tidak bisa diubah lagi).` : `Disimpan sebagai draft (${noPembelian}).`);
+        if (statusBaru === 'final' && lotUntukCetak.value.length === 0) { mode.value = 'list'; muatDaftarNota(); }
       } catch (e) {
-        console.error('Gagal simpan Pesanan Pembelian:', e);
+        console.error('Gagal simpan Nota:', e);
         alert(e.message && e.message.includes('Prefix') ? e.message : 'Gagal menyimpan. Coba lagi.');
       }
       menyimpan.value = false;
     }
 
-    // BARU (malam 24 Agt 2026) — Riwayat Harga Pembelian: 1 baris per item
-    // yang benar-benar dibeli (Nota/List Order Belanja di-final-kan), lalu
-    // otomatis cek ulang & update Harga Pembelian di Data Bahan & Aksesoris
-    // supaya selalu ikut harga TERBARU (dan kalau ada beberapa harga di
-    // tanggal yang sama, dipilih yang TERMAHAL — sengaja konservatif,
-    // supaya modal/harga jual tidak ketinggalan pas harga bahan naik).
-    async function catatRiwayatHargaDanUpdateMaster(items, tanggalPembelian, noPembelianRef) {
-      // BARU (Tahap 2) — kumpulkan lot BARU yang dibuat (dari catatPergerakanKartuStok()
-      // di bawah, param lotBaru) sepanjang loop item ini, supaya simpan() bisa
-      // menawarkan "Cetak Label Roll" begitu Nota selesai di-final-kan.
+    // BARU (7 Sep 2026) — deteksi kenaikan harga saat finalisasi (wireframe
+    // Riwayat Harga §3.4/§4). SEBELUM ini `perbaruiHargaMasterDariRiwayat()`
+    // (di bawah, TIDAK berubah rumusnya) SELALU dipanggil tanpa gerbang apa
+    // pun tiap kali Nota difinalkan — sekarang HANYA dipanggil kalau harga
+    // baru BUKAN kenaikan (sama/turun, auto-refresh seperti dulu, TIDAK
+    // berubah). Kalau harga baru LEBIH TINGGI dari harga_modal master saat
+    // ini -> master TIDAK diupdate dulu ("belum diperbarui", persis teks
+    // wireframe), ditandai `harga_perlu_konfirmasi` + `harga_pending`
+    // (lihat tandaiHargaPerluKonfirmasi di atas file), muncul sebagai alert
+    // di Riwayat Harga Pembelian sampai Owner menekan "Terapkan & buka
+    // blokir" (lewat PIN).
+    async function catatRiwayatHargaDanUpdateMaster(items, tanggalPembelian, noPembelianRef, suplayerNamaRef) {
       const lotDibuatSemua = [];
       for (const it of items) {
         if (!it.bahan_aksesoris_id || !(parseFloat(it.harga) > 0)) continue;
@@ -1529,22 +1936,25 @@ const OrderBelanjaScreen = {
             satuan_pemakaian: it.satuan || '',
             harga_per_satuan_pemakaian: hargaPerSatuanPemakaian,
             no_pembelian: noPembelianRef,
-            suplayer_nama: it.suplayer_nama || '',
+            suplayer_nama: it.suplayer_nama || suplayerNamaRef || '',
             dibuat_pada: serverTimestamp(),
             dibuat_oleh: window.currentUser?.email || null
           });
-          await perbaruiHargaMasterDariRiwayat(it.bahan_aksesoris_id);
+          const snapBahan = await getDoc(doc(db, 'master_bahan_aksesoris', it.bahan_aksesoris_id));
+          const hargaModalSaatIni = snapBahan.exists() ? (parseFloat(snapBahan.data().harga_modal) || 0) : 0;
+          if (hargaModalSaatIni > 0 && hargaPerSatuanPemakaian > hargaModalSaatIni) {
+            await tandaiHargaPerluKonfirmasi(it.bahan_aksesoris_id, {
+              harga_baru: hargaPerSatuanPemakaian, harga_lama: hargaModalSaatIni,
+              tanggal: tanggalPembelian, no_pembelian: noPembelianRef,
+              suplayer: it.suplayer_nama || suplayerNamaRef || '', satuan_asal: it.satuan_bahan || '',
+              sumber: 'finalize'
+            });
+          } else {
+            await perbaruiHargaMasterDariRiwayat(it.bahan_aksesoris_id);
+          }
         } catch (e) {
           console.error(`Gagal catat Riwayat Harga Pembelian / update master untuk "${it.nama}":`, e);
         }
-        // BARU (malam 24 Agt 2026) — Kartu Stok: pembelian (Nota final)
-        // JUGA dicatat sebagai 1 baris "masuk" di kartu_stok_bahan_
-        // aksesoris, dalam satuan_pemakaian (qty_s, sudah dikonversi
-        // waktu baris ditambah) — bukan satuan_bahan, biar stok SATU
-        // satuan konsisten walau tiap pembelian bisa beda satuan beli.
-        // Dibungkus try/catch TERPISAH LAGI dari riwayat harga di atas —
-        // supaya kartu stok gagal tidak ikut menggagalkan riwayat harga
-        // yang sudah berhasil (dan sebaliknya).
         try {
           const qtyMasuk = parseFloat(it.qty_s) || 0;
           if (qtyMasuk > 0) {
@@ -1552,10 +1962,6 @@ const OrderBelanjaScreen = {
               bahanId: it.bahan_aksesoris_id, namaBahan: it.nama, tanggal: tanggalPembelian,
               jenis: 'masuk', qty: qtyMasuk, satuan: it.satuan || '',
               sumber: 'Nota Order Belanja', noPembelian: noPembelianRef, keterangan: '',
-              // BARU (25 Agt 2026, §25.3) — kalau item ini pakai_lot_tracking
-              // DAN sudah diisi lewat popup "Qty per Roll/Lot" (§25.2), ikut
-              // buatkan dokumen lot_bahan_aksesoris (lihat catatan di
-              // catatPergerakanKartuStok() di atas).
               lotBaru: (it.pakai_lot_tracking && Array.isArray(it.detail_lot) && it.detail_lot.length > 0) ? it.detail_lot : undefined
             });
             if (hasilGerak && Array.isArray(hasilGerak.lotDibuat) && hasilGerak.lotDibuat.length > 0) {
@@ -1569,31 +1975,9 @@ const OrderBelanjaScreen = {
       return lotDibuatSemua;
     }
 
-    // Ambil SEMUA riwayat item ini, cari tanggal PALING BARU, di antara
-    // yang tanggalnya sama itu ambil yang harga-per-Satuan-Pemakaian-nya
-    // PALING MAHAL (apple-to-apple meski satuan beli beda-beda tiap
-    // pembelian) — lalu timpa harga_pembelian di master data (dikonversi
-    // balik ke satuan pembelian item itu SEKARANG, supaya harga_modal
-    // hasil bagi tetap konsisten dengan isi_konversi_pembelian yang ada).
-    // GANTI (27 Agt 2026, §25.14, permintaan Guru: "misal ada 3 jenjang
-    // artinya ada 3 harga dengan 3 satuan awal... ternyata ada nota
-    // pembelian 1 dus jadi 1,1jt > artinya update data jg pada data
-    // bahan & aksesoris"). SEBELUMNYA fungsi ini cuma menormalkan SEMUA
-    // riwayat pembelian (apapun satuannya) ke 1 angka `harga_pembelian`
-    // tunggal (di satuan_pembelian/tingkat teratas) — TIDAK PERNAH
-    // menyentuh `konversi_bertingkat` (harga per tingkat di situ TETAP
-    // beku sejak diisi manual lewat popup, walau ada pembelian nyata di
-    // tingkat itu dengan harga BEDA). SEKARANG, item yang PUNYA
-    // `konversi_bertingkat`: tiap TINGKAT di-cek & di-update SENDIRI
-    // (harga NYATA termahal di satuan tingkat itu, kalau ada pembelian
-    // baru) — supaya "1 Dus jadi Rp 1,1jt" BENERAN mengubah data Master,
-    // bukan cuma tercatat di Riwayat doang. `harga_pembelian`/`harga_modal`
-    // lalu dihitung ULANG dari tingkat-tingkat yang SUDAH ter-update itu,
-    // pakai rumus yang SAMA dengan popup Konversi Berjenjang
-    // (hitungHargaPerSatuanAkhir — PALING MAHAL di antara implikasi
-    // semua tingkat, lihat §25.14 di atas). Item LAMA/1-tingkat (TANPA
-    // konversi_bertingkat) TETAP pakai cara lama (normalisasi ke satuan
-    // pemakaian) — TIDAK ADA yang berubah buat data lama.
+    // perbaruiHargaMasterDariRiwayat — TIDAK DIUBAH rumusnya sama sekali
+    // dari versi lama (lihat riwayat komentar §25.14 di atas file ini) —
+    // cuma titik PEMANGGILANNYA sekarang digerbangi (lihat catatan di atas).
     async function perbaruiHargaMasterDariRiwayat(bahanId) {
       const snap = await getDocs(query(collection(db, 'riwayat_harga_pembelian'), where('bahan_aksesoris_id', '==', bahanId)));
       const semua = []; snap.forEach(d => semua.push(d.data()));
@@ -1605,10 +1989,6 @@ const OrderBelanjaScreen = {
       const bahan = snapBahan.data();
       const tingkat = Array.isArray(bahan.konversi_bertingkat) ? bahan.konversi_bertingkat : [];
 
-      // Dari SEMUA riwayat pembelian yang satuannya PERSIS `satuan` ini,
-      // ambil tanggal PALING BARU, lalu di antara yang tanggalnya sama
-      // ambil yang harganya (MENTAH — sudah same-satuan, apple-to-apple
-      // tanpa perlu normalisasi lagi) PALING MAHAL.
       function termahalUntukSatuan(satuan) {
         const cocokSatuan = semua.filter(r => (r.satuan || '') === satuan && parseFloat(r.harga) > 0);
         if (cocokSatuan.length === 0) return null;
@@ -1623,10 +2003,6 @@ const OrderBelanjaScreen = {
           const t2 = termahalUntukSatuan(t.dari);
           return t2 ? { ...t, harga: parseFloat(t2.harga) } : { ...t };
         });
-        // BARU — pembelian langsung di satuan dasar/pemakaian (tidak
-        // lewat kemasan sama sekali, mis. beli Pcs eceran) tidak punya
-        // baris tingkat sendiri, tapi TETAP ikut jadi kandidat "harga per
-        // satuan akhir" (faktor konversinya = 1, sudah di satuan dasar).
         const satuanAkhir = konversiBertingkatBaru[konversiBertingkatBaru.length - 1].ke;
         const satuanAkhirTermahal = termahalUntukSatuan(satuanAkhir);
         const hargaSatuanAkhirBaru = Math.max(
@@ -1637,7 +2013,6 @@ const OrderBelanjaScreen = {
         hargaPembelianBaru = Math.round(hargaSatuanAkhirBaru * isiKonversiSaatIni);
         hargaModalBaru = hargaSatuanAkhirBaru;
       } else {
-        // Item LAMA/1-tingkat — PERSIS perilaku sebelum §25.14, TIDAK berubah.
         const tanggalTerbaru = semua.reduce((max, r) => (r.tanggal > max ? r.tanggal : max), semua[0].tanggal);
         const kandidat = semua.filter(r => r.tanggal === tanggalTerbaru);
         const termahal = kandidat.reduce((max, r) => (r.harga_per_satuan_pemakaian > max.harga_per_satuan_pemakaian ? r : max), kandidat[0]);
@@ -1646,8 +2021,6 @@ const OrderBelanjaScreen = {
         hargaModalBaru = isiKonversiSaatIni > 0 ? hargaPembelianBaru / isiKonversiSaatIni : 0;
       }
 
-      // margin_modal sekarang PERSEN (bukan Rp flat) — lihat vue-bahan-aksesoris.js.
-      // harga_pemakaian = harga_modal + harga_modal * margin_modal / 100.
       const marginModal = parseFloat(bahan.margin_modal) || 0;
       const payload = {
         harga_pembelian: hargaPembelianBaru,
@@ -1665,61 +2038,21 @@ const OrderBelanjaScreen = {
       const w = window.open('', '_blank');
       if (!w) return alert('Popup diblokir browser. Izinkan popup untuk mencetak.');
       const baris = daftarPesanan.value.map((it, i) => `<tr>
-        <td>${i + 1}</td><td>${it.suplayer_nama || '-'}</td><td>${it.sku || '-'}</td><td>${it.nama || '-'}</td>
+        <td>${i + 1}</td><td>${it.sku || '-'}</td><td>${it.nama || '-'}</td>
         <td>${it.qty} ${it.satuan_bahan || ''}</td><td>${formatRupiah(it.harga)}</td><td>${formatRupiah((parseFloat(it.qty) || 0) * (parseFloat(it.harga) || 0))}</td><td>${it.keterangan || ''}</td>
       </tr>`).join('');
-      w.document.write(`<html><head><title>${noPembelianAktif.value || 'Order Belanja'}</title>
+      w.document.write(`<html><head><title>${noPembelianAktif.value || 'Nota'}</title>
         <style>body{font-family:Arial,sans-serif;padding:24px;color:#222;} table{width:100%;border-collapse:collapse;font-size:12px;margin-top:12px;} th,td{border:1px solid #999;padding:6px 8px;text-align:left;} th{background:#f2f2f2;} h2{margin-bottom:2px;}</style>
         </head><body>
         <h2>Nota Order Belanja ${noPembelianAktif.value || '(belum tersimpan)'}</h2>
-        <p>Tanggal: ${tanggal.value}</p>
-        <table><thead><tr><th>No</th><th>Suplayer</th><th>SKU</th><th>Nama Barang</th><th>Qty</th><th>Harga</th><th>Jumlah</th><th>Keterangan</th></tr></thead><tbody>${baris}</tbody></table>
-        <p style="margin-top:16px;"><b>Estimasi Total: ${formatRupiah(estimasiBiaya.value)}</b></p>
+        <p>Tanggal: ${tanggal.value} &middot; Suplayer: ${suplayerEntry.value}</p>
+        <table><thead><tr><th>No</th><th>SKU</th><th>Nama Barang</th><th>Qty</th><th>Harga</th><th>Jumlah</th><th>Keterangan</th></tr></thead><tbody>${baris}</tbody></table>
+        <p style="margin-top:16px;"><b>Total: ${formatRupiah(estimasiBiaya.value)}</b></p>
         <script>window.print();<\/script>
         </body></html>`);
       w.document.close();
     }
 
-    // cetakLabelLot — BARU (Tahap 2). 1 label per roll/lot BARU (kode_lot +
-    // QR + nama/qty/tanggal), dipakai buat ditempel fisik di roll-nya
-    // sendiri supaya nanti bisa di-scan pas "Catat Pemakaian" (vue-kartu-
-    // stok.js).
-    //
-    // FIX §25.8 (Guru lapor: "cetak label roll sudah bisa tapi kode qr nya
-    // ga ada") — versi SEBELUMNYA memuat library `qrcodejs` lewat
-    // <script src="...cdnjs..."> DI DALAM document.write() window print
-    // yang baru dibuka. Sudah dicek: URL library-nya SENDIRI valid (dites
-    // via fetch langsung, isinya benar kode qrcodejs). Tapi pola "muat
-    // script eksternal lewat document.write() di window kosong" itu beda
-    // dari satu-satunya pola yang SUDAH terbukti jalan di app ini (jsQR,
-    // yang dimuat lewat <script> biasa di index.html, BUKAN document.write
-    // di popup) — dan pola document.write() begini punya beberapa cara
-    // gagal nyata: (1) intervensi bawaan Chrome yang BISA membatalkan
-    // eksekusi <script> lintas-domain yang disisipkan lewat document.write
-    // di koneksi lambat, (2) proses internal qrcodejs mengubah canvas jadi
-    // <img> lewat callback ASYNC (canvas.toDataURL -> Image.onload) yang
-    // bisa saja belum selesai saat window.print() keburu jalan.
-    //
-    // PERBAIKAN: qrcodejs sekarang dimuat SEKALI di index.html (sama
-    // seperti jsQR — lihat komentar di sana), lalu tiap kode QR digambar
-    // DI WINDOW UTAMA (bukan di window print) ke sebuah <div> tersembunyi,
-    // diambil hasilnya sebagai gambar base64 (canvas.toDataURL langsung
-    // sesudah new QRCode(), SINKRON — tidak perlu menunggu proses async
-    // internal library), baru dikirim ke window print sebagai <img> statis
-    // biasa. Window print jadi tidak butuh apa pun dari internet lagi, jadi
-    // tidak ada lagi race atau ketergantungan CDN pada saat mencetak.
-    // `buatQrDataUrl()` sendiri DIPINDAH ke level modul (§26.3, Tahap 3,
-    // lihat komentar di sana) — dipakai langsung dari closure di sini,
-    // tidak perlu didefinisikan ulang.
-    // cetakLabelLot — GANTI (28 Agt 2026, §41.2, permintaan Guru: pratinjau
-    // + config sebelum cetak, ukuran fisik 4x2 inch thermal roll). DULU
-    // langsung window.print() dengan kotak dashed banyak-per-halaman kertas
-    // biasa. SEKARANG cuma siapkan `daftarLabelPreview` (kode/nama/info/
-    // qrDataUrl, QR digambar sinkron di sini seperti sebelumnya) lalu buka
-    // `PopupPratinjauCetakLabel` (vue-components.js) — popup itu sendiri
-    // yang urus tampilan pratinjau, checkbox tampil Nama/Info, Jumlah
-    // Salinan, dan cetak sungguhan (CSS `@page 4in 2in`, 1 label = 1
-    // lembar fisik). Lihat komentar panjang di definisi komponennya.
     const popupCetakLabelAktif = ref(false);
     const daftarLabelPreview = ref([]);
     function cetakLabelLot(daftarLot) {
@@ -1736,209 +2069,284 @@ const OrderBelanjaScreen = {
       }));
       popupCetakLabelAktif.value = true;
     }
+    function selesaiSetelahCetakLabel() {
+      popupCetakLabelAktif.value = false;
+      mode.value = 'list';
+      muatDaftarNota();
+    }
 
-    onMounted(async () => { await window.authReady; muatSemua(); });
+    onMounted(async () => { await window.authReady; await muatReferensi(); await muatDaftarNota(); });
     return {
-      daftarPermintaan, daftarDraft, memuat, tampilPengaturan, labelGroup1,
-      draftDocId, noPembelianAktif, tanggal, suplayerEntry, qtyEntry, namaBarangEntry,
-      daftarPesanan, menyimpan, bolehSimpan, bolehHapus, opsiSuplayer, opsiNamaBarang,
-      estimasiBiaya, adaTerpilih, formatRupiah,
-      tambahItemManual, tambahDariPermintaan, hapusTerpilih, pilihNoPembelian, batal, simpan, cetak,
-      // BARU (25 Agt 2026, §25.2) — Popup Qty per Roll/Lot.
+      // referensi & izin
+      memuatReferensi, tampilPengaturan, bolehSimpan, bolehHapus, sayaOwnerKeAtas,
+      tampilTambahSuplayer, onSuplayerBaruTersimpan, daftarPermintaan,
+      // list
+      mode, filterSumber, paginasiNota, bukaNotaBaru, bukaNota, kembaliKeDaftar,
+      // form
+      draftDocId, noPembelianAktif, statusNota, formReadOnly, tanggal, suplayerEntry, suplayerTerkunci,
+      daftarPesanan, opsiSuplayer, opsiNamaBarangMap, estimasiBiaya, adaTerpilih, formatRupiah,
+      tambahDariPermintaan, hapusTerpilih, batal, simpanDraft, klikFinalkan, menyimpan, cetak,
+      orderDriverId,
+      // foto bon
+      fotoBonPreview, pilihFotoBon, hapusFotoBon,
+      // keyboard entry
+      elCariItem, cariItemTeks, hasilPencarian, indexSorot, onKeydownCari, tambahItemDariPencarian,
+      // pop up qty
+      tampilPopupQty, qtyManualInput, opsiQtyCepatUntuk, konfirmasiQty, tutupPopupQtyTanpaUbah, barisAktifIndex,
+      // pop up satuan
+      tampilPopupSatuan, satuanPilihanAktif, opsiSatuanAktif, konfirmasiSatuan, tutupPopupSatuanTanpaUbah,
+      // edit harga + PIN
+      tampilEditHarga, indexEditHarga, hargaBaruInput, mulaiEditHarga, lewatiEditHarga, ajukanHargaBaru,
+      tampilPinHarga, pinHargaSukses,
+      // finalisasi + PIN
+      tampilPinFinalisasi, pinFinalisasiSukses,
+      // pop up lot
       tampilPopupLot, barisLotSementara, totalQtyLot, barisLotTarget, barisLotSatuan, barisLotNama,
       bukaPopupLot, tutupPopupLot, tambahBarisLot, hapusBarisLot, terapkanLot,
-      // BARU (Tahap 2) — Cetak Label Roll.
-      lotUntukCetak, cetakLabelLot, popupCetakLabelAktif, daftarLabelPreview,
-      // BARU (26 Agt 2026, §25.11) — revisi posisi field + kunci Suplayer
-      // Nota + fokus otomatis ke Qty + tampilan Satuan read-only entry.
-      satuanEntryManual, opsiSatuanEntry, suplayerTerkunci, qtyEntryEl,
-      // BARU (27 Agt 2026, §26.1) — shortcut "+" tambah Suplayer cepat.
-      tampilTambahSuplayer, onSuplayerBaruTersimpan
+      // cetak label roll
+      lotUntukCetak, cetakLabelLot, popupCetakLabelAktif, daftarLabelPreview, selesaiSetelahCetakLabel
     };
   },
   template: `
     <div>
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
-        <h3 style="font-weight:700; font-size:16px;"><i class="fas fa-cart-shopping" style="color:var(--burgundy); margin-right:8px;"></i>{{ modeNota ? 'Nota Order Belanja' : 'List Order Belanja' }}</h3>
-        <button @click="tampilPengaturan = true" class="icon-btn" title="Pengaturan"><i class="fas fa-gear"></i></button>
+      <!-- ============================== MODE LIST (wireframe 2+3) ============================== -->
+      <div v-if="mode === 'list'" class="gc-card" style="padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; flex-wrap:wrap; margin-bottom:4px;">
+          <h3 style="font-weight:700; font-size:16px;"><i class="fas fa-receipt" style="color:var(--burgundy); margin-right:8px;"></i>Daftar Nota</h3>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button @click="tampilPengaturan = true" class="icon-btn" title="Pengaturan"><i class="fas fa-gear"></i></button>
+            <button v-if="bolehSimpan" @click="bukaNotaBaru" class="btn-primary" style="padding:8px 16px; font-size:12.5px;"><i class="fas fa-plus" style="margin-right:6px;"></i>Nota Baru</button>
+          </div>
+        </div>
+        <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:12px;">Nota manual DAN nota dari driver (List Order Driver — belum tersedia, lihat chip "Dari Driver" di bawah). Status <b>final</b> = stok sudah bertambah, Riwayat Harga sudah tertulis, tidak bisa diubah. <b>Draft</b> = belum ada efek samping, masih bisa diedit.</p>
+
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
+          <button @click="filterSumber = 'semua'" class="btn-outline" :class="{filled: filterSumber === 'semua'}" style="font-size:11.5px; padding:6px 14px;">Semua</button>
+          <button @click="filterSumber = 'manual'" class="btn-outline" :class="{filled: filterSumber === 'manual'}" style="font-size:11.5px; padding:6px 14px;">Manual</button>
+          <button @click="filterSumber = 'driver'" class="btn-outline" :class="{filled: filterSumber === 'driver'}" style="font-size:11.5px; padding:6px 14px;">Dari Driver</button>
+        </div>
+
+        <div style="position:relative; max-width:320px; margin-bottom:12px;" v-if="filterSumber !== 'driver'">
+          <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:12px;"></i>
+          <input :value="paginasiNota.cariTeks.value" @input="paginasiNota.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari No. Nota (awalan)..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+        </div>
+
+        <div v-if="filterSumber === 'driver'" class="gc-kosong">
+          <div class="lingkaran"><i class="fas fa-truck"></i></div>
+          <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 6px;">Belum ada Nota dari Driver</h3>
+          <p style="font-size:11.5px; color:var(--text-faint); max-width:340px; margin:0 auto;">Fitur "List Order Driver" (Persiapan Produksi &gt; Persiapan Belanja) belum dibangun — sub-tab ini akan otomatis terisi begitu driver klik Beli di fitur itu nanti.</p>
+        </div>
+        <div v-else-if="paginasiNota.memuat.value" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+        <div v-else-if="paginasiNota.errorPaginasi.value" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasiNota.errorPaginasi.value }}</div>
+        <div v-else-if="paginasiNota.dataHalaman.value.length === 0" class="gc-kosong">
+          <div class="lingkaran"><i class="fas fa-receipt"></i></div>
+          <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada Nota</h3>
+          <p style="font-size:11.5px; color:var(--text-faint);">Klik "Nota Baru" untuk mulai mencatat pembelian.</p>
+        </div>
+        <div v-else style="display:flex; flex-direction:column; gap:8px;">
+          <div v-for="n in paginasiNota.dataHalaman.value" :key="n.id" class="gc-card" style="padding:12px 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:160px;">
+              <div style="font-weight:700; font-size:13px;">{{ n.no_pembelian }}</div>
+              <div style="font-size:11px; color:var(--text-muted);">{{ n.tanggal }} &middot; {{ (n.items && n.items[0] && n.items[0].suplayer_nama) || '-' }}</div>
+            </div>
+            <span class="tag neutral">{{ (n.items || []).length }} item</span>
+            <span style="font-weight:700; font-size:12.5px; min-width:100px; text-align:right;">{{ formatRupiah(n.estimasi_biaya_belanja) }}</span>
+            <span class="tag" :class="n.status === 'final' ? 'ok' : 'warn'">{{ n.status === 'final' ? 'final' : 'draft' }}</span>
+            <span class="tag" :class="n.order_driver_id ? 'blue' : 'neutral'">{{ n.order_driver_id ? 'Dari Driver' : 'Manual' }}</span>
+            <button @click="bukaNota(n)" class="btn-outline" style="font-size:11px; padding:6px 12px;">Buka</button>
+          </div>
+        </div>
+        <div v-if="filterSumber !== 'driver' && !paginasiNota.memuat.value && paginasiNota.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
+          <button class="icon-btn" :disabled="paginasiNota.nomorHalaman.value <= 1" @click="paginasiNota.halamanSebelumnya"><i class="fas fa-chevron-left"></i></button>
+          <span style="font-size:12px; color:var(--text-muted);">Halaman {{ paginasiNota.nomorHalaman.value }}</span>
+          <button class="icon-btn" :disabled="!paginasiNota.adaBerikutnya.value" @click="paginasiNota.halamanBerikutnya"><i class="fas fa-chevron-right"></i></button>
+        </div>
       </div>
 
-      <div v-if="memuat" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Memuat...</div>
-      <template v-else>
-        <!-- Group 1: Daftar Permintaan/Pesanan Bahan & Aksesoris (referensi dari Persiapan Masalah) -->
-        <div class="gc-card" style="padding:14px; margin-bottom:14px;">
-          <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">{{ labelGroup1 }} ({{ daftarPermintaan.length }})</label>
-          <div v-if="daftarPermintaan.length === 0" style="font-size:11.5px; color:var(--text-faint);">Tidak ada permintaan menunggu (lihat menu Persiapan Masalah).</div>
-          <!-- REVISI (28 Agt 2026, §40, fix grid mobile) — "List Order Belanja"
-               (tabel Daftar Permintaan ini) SEKARANG Kartu, sesuai keputusan
-               eksplisit Guru (data sederhana 4 kolom). Header kartu = Nama
-               (judul) + tag Qty+Satuan di kanan, kartu-rows = Keterangan,
-               tombol "Tambah ke Daftar Order Belanja" di bawah (khusus Nota,
-               sama seperti tombol tabel asli). -->
-          <div v-else style="display:flex; flex-direction:column; gap:10px;">
-            <div v-for="p in daftarPermintaan" :key="p.id" class="gc-card" style="padding:14px;">
-              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px;">
-                <div style="font-weight:700; font-size:13.5px;">{{ p.nama_bahan }}</div>
-                <span class="tag neutral" style="flex-shrink:0;">{{ p.qty }} {{ p.satuan }}</span>
-              </div>
-              <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px;" :style="{marginBottom: modeNota ? '10px' : '0'}">
-                <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Keterangan</span><span style="font-weight:700;">{{ p.keterangan || '-' }}</span></div>
-              </div>
-              <div v-if="modeNota" style="display:flex; gap:8px;">
-                <button @click="tambahDariPermintaan(p)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px; color:var(--burgundy); border-color:var(--burgundy);"><i class="fas fa-circle-plus" style="margin-right:6px;"></i>Tambah ke Daftar Order Belanja</button>
-              </div>
-            </div>
+      <!-- ============================== MODE FORM (wireframe 3.1 + 3.2) ============================== -->
+      <div v-else>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+          <div>
+            <button @click="kembaliKeDaftar" class="btn-outline" style="font-size:11px; padding:5px 12px; margin-bottom:8px;"><i class="fas fa-arrow-left" style="margin-right:6px;"></i>Daftar Nota</button>
+            <h3 style="font-weight:700; font-size:16px;"><i class="fas fa-receipt" style="color:var(--burgundy); margin-right:8px;"></i>{{ noPembelianAktif || 'Nota Baru' }}
+              <span class="tag" :class="statusNota === 'final' ? 'ok' : 'warn'" style="margin-left:8px;">{{ statusNota }}</span>
+              <span class="tag" :class="orderDriverId ? 'blue' : 'neutral'" style="margin-left:6px;">{{ orderDriverId ? 'Dari Driver' : 'Manual' }}</span>
+            </h3>
           </div>
         </div>
 
-        <!-- Group 2: Daftar Order Belanja (entry + tabel Daftar Pesanan Pembelian) -->
-        <div class="gc-card" style="padding:14px;">
-          <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Daftar Order Belanja</label>
-
-          <!-- REVISI (26 Agt 2026, §25.11, permintaan Guru) — baris 1 SEKARANG
-               No. Pembelian, Tanggal, Suplayer (3 grid) KHUSUS Nota — Suplayer
-               dipindah ke sini dari baris entry di bawah, karena "1 nota = 1
-               suplayer" (lihat suplayerTerkunci). List Order Belanja TETAP
-               boleh multi-Suplayer per dokumen (field per-baris di bawah,
-               TIDAK berubah) — jadi kolom Suplayer di baris 1 ini DIHILANGKAN
-               khusus List (v-else, 2 grid saja). -->
-          <div v-if="modeNota" class="grid-cols-1 md:grid-cols-3" style="display:grid; gap:10px; margin-bottom:14px;">
-            <div class="gc-field" style="margin-bottom:0;">
-              <label>No. Pembelian</label>
-              <select :value="draftDocId" @change="pilihNoPembelian($event.target.value)" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
-                <option value="">+ Buat Baru{{ noPembelianAktif && !draftDocId ? '' : '' }}</option>
-                <option v-for="d in daftarDraft" :key="d.id" :value="d.id">{{ d.no_pembelian }} (draft)</option>
-              </select>
-              <p v-if="noPembelianAktif" style="font-size:10px; color:var(--text-faint); margin-top:4px;">Nomor aktif: <b>{{ noPembelianAktif }}</b></p>
-            </div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Tanggal</label><input v-model="tanggal" type="date" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
-            <div class="gc-field" style="margin-bottom:0;">
-              <label>Suplayer{{ suplayerTerkunci ? ' (terkunci — 1 Nota = 1 Suplayer)' : '' }}</label>
-              <div style="display:flex; gap:6px;">
-                <dropdown-cari v-model="suplayerEntry" :opsi="opsiSuplayer" :disabled="suplayerTerkunci" placeholder="Pilih Suplayer..." />
-                <button v-if="!suplayerTerkunci" @click="tampilTambahSuplayer = true" type="button" class="icon-btn" style="flex-shrink:0;" title="Tambah Suplayer baru"><i class="fas fa-plus"></i></button>
+        <div v-if="memuatReferensi" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Memuat data referensi...</div>
+        <template v-else>
+          <!-- Sumber permintaan (Persiapan Masalah) — hanya relevan waktu masih draft & belum final -->
+          <div v-if="!formReadOnly" class="gc-card" style="padding:14px; margin-bottom:14px;">
+            <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Dari Persiapan Masalah ({{ daftarPermintaan.length }})</label>
+            <div v-if="daftarPermintaan.length === 0" style="font-size:11.5px; color:var(--text-faint);">Tidak ada permintaan menunggu.</div>
+            <div v-else style="display:flex; flex-direction:column; gap:8px;">
+              <div v-for="p in daftarPermintaan" :key="p.id" class="gc-card" style="padding:10px 12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                <div style="flex:1; min-width:120px; font-weight:700; font-size:12.5px;">{{ p.nama_bahan }}</div>
+                <span class="tag neutral">{{ p.qty }} {{ p.satuan }}</span>
+                <button @click="tambahDariPermintaan(p)" class="btn-outline" style="font-size:11px; padding:5px 10px; color:var(--burgundy); border-color:var(--burgundy);"><i class="fas fa-circle-plus" style="margin-right:5px;"></i>Tambah</button>
               </div>
             </div>
           </div>
-          <div v-else class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:10px; margin-bottom:14px;">
-            <div class="gc-field" style="margin-bottom:0;">
-              <label>No. Pembelian</label>
-              <select :value="draftDocId" @change="pilihNoPembelian($event.target.value)" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
-                <option value="">+ Buat Baru{{ noPembelianAktif && !draftDocId ? '' : '' }}</option>
-                <option v-for="d in daftarDraft" :key="d.id" :value="d.id">{{ d.no_pembelian }} (draft)</option>
-              </select>
-              <p v-if="noPembelianAktif" style="font-size:10px; color:var(--text-faint); margin-top:4px;">Nomor aktif: <b>{{ noPembelianAktif }}</b></p>
-            </div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Tanggal</label><input v-model="tanggal" type="date" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
-          </div>
 
-          <!-- REVISI (26 Agt 2026, §25.11) — Estimasi Biaya Belanja SEKARANG
-               baris sendiri (bukan lagi 1 dari 3 kolom grid), ukuran field
-               diperbesar ~1.5x (font-size & padding) sesuai permintaan Guru. -->
-          <div class="gc-field" style="margin-bottom:14px;">
-            <label>Estimasi Biaya Belanja</label>
-            <div style="padding:14px 18px; background:var(--ivory-dim); border-radius:15px; font-weight:700; font-size:19px; color:var(--burgundy);">{{ formatRupiah(estimasiBiaya) }}</div>
-          </div>
-
-          <!-- REVISI (26 Agt 2026, §25.11) — baris entry SEKARANG Qty, Satuan
-               (BARU, read-only — ikut item yang dipilih di Nama Barang),
-               Nama Barang, Tambah — Suplayer DIPINDAH ke baris 1 di atas
-               KHUSUS Nota (lihat catatan di atas); List TETAP punya field
-               Suplayer di sini (per-baris, TIDAK berubah dari sebelumnya). -->
-          <div v-if="modeNota" class="grid-cols-1 md:grid-cols-4" style="display:grid; gap:8px; align-items:end; margin-bottom:16px;">
-            <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input ref="qtyEntryEl" v-model.number="qtyEntry" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari v-model="satuanEntryManual" :opsi="opsiSatuanEntry" :disabled="opsiSatuanEntry.length === 0" placeholder="Satuan..." /></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Nama Barang</label><dropdown-cari v-model="namaBarangEntry" :opsi="opsiNamaBarang" placeholder="Cari & pilih..." /></div>
-            <button @click="tambahItemManual" class="btn-primary" style="padding:0 18px; height:38px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah</button>
-          </div>
-          <!-- REVISI (28 Agt 2026, §40, fix grid mobile) — SEBELUMNYA 5 kolom
-               rata (1fr 100px 100px 1fr auto) tanpa breakpoint (meluber di HP).
-               TIDAK ADA utilitas md:grid-cols-5 di gechoo-design.css (cuma
-               sampai 4), jadi Qty+Satuan (2 field kecil yang memang berpasangan)
-               digabung 1 sub-grid 2-kolom TETAP (muat di HP, keduanya field
-               pendek) supaya baris luar jadi 4 "kolom" & bisa pakai
-               grid-cols-1/md:grid-cols-4 yang sudah ada. -->
-          <div v-else class="grid-cols-1 md:grid-cols-4" style="display:grid; gap:8px; align-items:end; margin-bottom:16px;">
-            <div class="gc-field" style="margin-bottom:0;">
-              <label>Suplayer</label>
-              <div style="display:flex; gap:6px;">
-                <dropdown-cari v-model="suplayerEntry" :opsi="opsiSuplayer" placeholder="Pilih Suplayer..." />
-                <button @click="tampilTambahSuplayer = true" type="button" class="icon-btn" style="flex-shrink:0;" title="Tambah Suplayer baru"><i class="fas fa-plus"></i></button>
+          <div class="gc-card" style="padding:14px;">
+            <!-- Keyboard-first search (wireframe 3.2a-3.2e) -->
+            <div v-if="!formReadOnly" style="margin-bottom:12px;">
+              <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Cari &amp; Tambah Item <span style="font-weight:400; color:var(--text-faint);">(nama internal atau alias suplayer — ketik, ↑↓ pilih, Enter masukkan, Tab lanjut isi qty/satuan/harga)</span></label>
+              <div style="position:relative;">
+                <input ref="elCariItem" v-model="cariItemTeks" @keydown="onKeydownCari" type="text" :disabled="!suplayerEntry"
+                  :placeholder="suplayerEntry ? 'Ketik nama bahan/aksesoris atau nama di nota suplayer...' : 'Pilih Suplayer dulu di bawah...'"
+                  style="width:100%; padding:11px 14px; border:1.5px solid var(--line); border-radius:10px; font-size:13px;">
+                <div v-if="hasilPencarian.length > 0" class="gc-card" style="position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:20; padding:6px; max-height:280px; overflow-y:auto;">
+                  <div v-for="(h, i) in hasilPencarian" :key="i" @mousedown.prevent="tambahItemDariPencarian(h)"
+                    :style="{padding:'8px 10px', borderRadius:'8px', cursor:'pointer', background: i === indexSorot ? 'var(--ivory-dim)' : 'transparent'}">
+                    <div style="font-weight:700; font-size:12.5px;">{{ h.label }}</div>
+                    <div style="font-size:10.5px; color:var(--text-faint);">{{ h.sub }}</div>
+                  </div>
+                </div>
               </div>
             </div>
-            <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
-              <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input ref="qtyEntryEl" v-model.number="qtyEntry" type="number" min="0" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
-              <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari v-model="satuanEntryManual" :opsi="opsiSatuanEntry" :disabled="opsiSatuanEntry.length === 0" placeholder="Satuan..." /></div>
+
+            <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Item Nota ({{ daftarPesanan.length }})</label>
+            <div v-if="daftarPesanan.length === 0" style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Belum ada item.</div>
+            <div v-else style="overflow-x:auto; margin-bottom:14px;">
+              <table class="gc-table" style="width:100%; font-size:11.5px;">
+                <thead><tr>
+                  <th v-if="!formReadOnly" title="Qty per Roll/Lot"><i class="fas fa-layer-group"></i></th>
+                  <th v-if="!formReadOnly"><i class="fas fa-square-check"></i></th><th>No</th><th>ID</th>
+                  <th>Nama Alias</th><th>Nama Barang</th>
+                  <th>Qty Beli</th><th>Satuan Beli</th><th>Qty Pakai</th><th>Satuan Pakai</th><th>Harga</th><th>Jumlah</th>
+                  <th v-if="!formReadOnly">Keterangan</th>
+                </tr></thead>
+                <tbody>
+                  <tr v-for="(it, i) in daftarPesanan" :key="i" :style="{background: i === barisAktifIndex ? 'rgba(110,30,44,.05)' : 'transparent'}">
+                    <td v-if="!formReadOnly">
+                      <button v-if="it.pakai_lot_tracking" @click="bukaPopupLot(i)" class="icon-btn"
+                        :style="{color: (it.detail_lot && it.detail_lot.length) ? 'var(--burgundy)' : 'var(--text-faint)'}"
+                        :title="(it.detail_lot && it.detail_lot.length) ? ('Qty per Roll/Lot: ' + it.detail_lot.length + ' lot terisi') : 'Isi Qty per Roll/Lot'">
+                        <i class="fas fa-layer-group"></i>
+                      </button>
+                      <span v-else style="color:var(--text-faint); font-size:11px;">-</span>
+                    </td>
+                    <td v-if="!formReadOnly"><input type="checkbox" v-model="it.dicentang" style="accent-color:var(--burgundy);"></td>
+                    <td>{{ i + 1 }}</td><td>{{ it.sku }}</td>
+                    <td style="color:var(--text-muted);">{{ it.nama_alias || '-' }}</td><td>{{ it.nama }}</td>
+                    <td>{{ it.qty }}</td><td>{{ it.satuan_bahan }}</td><td>{{ it.qty_s }}</td><td>{{ it.satuan }}</td>
+                    <td>
+                      <span>{{ formatRupiah(it.harga) }}</span>
+                      <button v-if="!formReadOnly" @click="mulaiEditHarga(i, false)" class="icon-btn" style="margin-left:4px;" title="Edit harga (perlu PIN)"><i class="fas fa-pen" style="font-size:10px;"></i></button>
+                    </td>
+                    <td>{{ formatRupiah((parseFloat(it.qty)||0) * (parseFloat(it.harga)||0)) }}</td>
+                    <td v-if="!formReadOnly"><input v-model="it.keterangan" type="text" style="width:100%; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-size:11px;"></td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Nama Barang</label><dropdown-cari v-model="namaBarangEntry" :opsi="opsiNamaBarang" placeholder="Cari & pilih..." /></div>
-            <button @click="tambahItemManual" class="btn-primary" style="padding:0 18px; height:38px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah</button>
-          </div>
 
-          <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Daftar Pesanan Pembelian ({{ daftarPesanan.length }})</label>
-          <div v-if="daftarPesanan.length === 0" style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Belum ada item.</div>
-          <!-- REVISI (26 Agt 2026, §25.11) — urutan kolom tabel sesuai
-               permintaan Guru: Aksi(qty per lot), Checkbox, No, Suplayer
-               (List saja — Nota hilangkan, karena sudah 1 Suplayer di
-               header), ID Bahan & Aksesoris (rename dari "SKU", isinya
-               SEKARANG id_tampil bukan ID dokumen mentah — lihat
-               buatBarisPesanan()), Qty Beli, Satuan Beli, Qty Pakai,
-               Satuan Pakai, Nama Alias (BARU), Nama Barang, Harga, Jumlah,
-               Keterangan. -->
-          <div v-else style="overflow-x:auto; margin-bottom:14px;">
-            <table class="gc-table" style="width:100%; font-size:11.5px;">
-              <thead><tr>
-                <th title="Qty per Roll/Lot"><i class="fas fa-layer-group"></i></th>
-                <th><i class="fas fa-square-check"></i></th><th>No</th><th v-if="!modeNota">Suplayer</th><th>ID Bahan &amp; Aksesoris</th>
-                <th>Qty Beli</th><th>Satuan Beli</th><th>Qty Pakai</th><th>Satuan Pakai</th><th>Nama Alias</th><th>Nama Barang</th><th>Harga</th><th>Jumlah</th><th>Keterangan</th>
-              </tr></thead>
-              <tbody>
-                <tr v-for="(it, i) in daftarPesanan" :key="i">
-                  <td>
-                    <button v-if="it.pakai_lot_tracking" @click="bukaPopupLot(i)" class="icon-btn"
-                      :style="{color: (it.detail_lot && it.detail_lot.length) ? 'var(--burgundy)' : 'var(--text-faint)'}"
-                      :title="(it.detail_lot && it.detail_lot.length) ? ('Qty per Roll/Lot: ' + it.detail_lot.length + ' lot terisi') : 'Isi Qty per Roll/Lot'">
-                      <i class="fas fa-layer-group"></i>
-                    </button>
-                    <span v-else style="color:var(--text-faint); font-size:11px;" title="Item ini tidak ditandai perlu Qty per Roll/Lot (atur di Data Bahan & Aksesoris)">-</span>
-                  </td>
-                  <td><input type="checkbox" v-model="it.dicentang" style="accent-color:var(--burgundy);"></td>
-                  <td>{{ i + 1 }}</td><td v-if="!modeNota">{{ it.suplayer_nama }}</td><td>{{ it.sku }}</td>
-                  <td>{{ it.qty }}</td><td>{{ it.satuan_bahan }}</td><td>{{ it.qty_s }}</td><td>{{ it.satuan }}</td>
-                  <td style="color:var(--text-muted);">{{ it.nama_alias || '-' }}</td><td>{{ it.nama }}</td>
-                  <td>
-                    <input v-if="modeNota" v-model.number="it.harga" type="number" min="0" style="width:90px; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-size:11px;">
-                    <span v-else :title="'Ikut Data Bahan & Aksesoris — List Order Belanja cuma estimasi, harga tidak bisa diedit di sini'">{{ formatRupiah(it.harga) }}</span>
-                  </td>
-                  <td>{{ formatRupiah((parseFloat(it.qty)||0) * (parseFloat(it.harga)||0)) }}</td>
-                  <td><input v-model="it.keterangan" type="text" style="width:100%; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-size:11px;"></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
+            <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:10px; margin-bottom:14px;">
+              <div class="gc-field" style="margin-bottom:0;">
+                <label>Suplayer{{ suplayerTerkunci ? ' (terkunci — 1 Nota = 1 Suplayer)' : '' }} <span style="color:var(--burgundy);">wajib</span></label>
+                <div style="display:flex; gap:6px;">
+                  <dropdown-cari v-model="suplayerEntry" :opsi="opsiSuplayer" :disabled="suplayerTerkunci || formReadOnly" placeholder="Pilih Suplayer..." />
+                  <button v-if="!suplayerTerkunci && !formReadOnly" @click="tampilTambahSuplayer = true" type="button" class="icon-btn" style="flex-shrink:0;" title="Tambah Suplayer baru"><i class="fas fa-plus"></i></button>
+                </div>
+              </div>
+              <div class="gc-field" style="margin-bottom:0;"><label>Tanggal</label><input v-model="tanggal" type="date" :disabled="formReadOnly" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
+            </div>
 
-          <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button @click="simpan('final')" :disabled="menyimpan" class="btn-primary" style="flex:1; min-width:110px;">{{ menyimpan ? 'Menyimpan...' : 'Simpan' }}</button>
-            <button @click="batal" class="btn-outline" style="flex:1; min-width:90px;">Batal</button>
-            <button v-if="bolehHapus" @click="hapusTerpilih" :disabled="!adaTerpilih" class="btn-outline" style="flex:1; min-width:90px; color:var(--danger); border-color:var(--danger);">Hapus Terpilih</button>
-            <button @click="cetak" class="btn-outline" style="flex:1; min-width:90px;">Cetak</button>
-            <button @click="simpan('draft')" :disabled="menyimpan" class="btn-outline" style="flex:1; min-width:90px;">Pending</button>
-          </div>
+            <!-- Foto Bon — BARU -->
+            <div class="gc-field">
+              <label>Foto Bon <span style="font-weight:400; color:var(--text-faint);">(opsional — foto nota fisik)</span></label>
+              <div v-if="fotoBonPreview" style="margin-bottom:8px;">
+                <img :src="fotoBonPreview" style="width:120px; height:120px; object-fit:cover; border-radius:12px; border:1.5px solid var(--line);">
+              </div>
+              <div v-if="!formReadOnly" style="display:flex; gap:8px; align-items:center;">
+                <input type="file" accept="image/*" @change="pilihFotoBon" style="font-size:11.5px;">
+                <button v-if="fotoBonPreview" @click="hapusFotoBon" type="button" class="btn-outline" style="font-size:11px; padding:5px 10px;">Hapus Foto</button>
+              </div>
+            </div>
 
-          <!-- BARU (Tahap 2) — muncul begitu Nota di-final-kan DAN ada
-               roll/lot baru dibuat (item pakai_lot_tracking + detail_lot
-               terisi). TIDAK auto-cetak, admin yang putuskan kapan cetak
-               (mis. sekalian tempel labelnya ke roll fisiknya). -->
-          <div v-if="modeNota && lotUntukCetak.length > 0" style="margin-top:12px; background:var(--ivory-dim); border-radius:10px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-            <span style="font-size:12px;"><i class="fas fa-tags" style="color:var(--burgundy); margin-right:6px;"></i>{{ lotUntukCetak.length }} roll/lot baru dibuat dari Nota ini — cetak labelnya (QR) untuk ditempel ke roll fisiknya.</span>
-            <button @click="cetakLabelLot(lotUntukCetak)" class="btn-primary" style="padding:8px 16px; font-size:12px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label Roll</button>
+            <div class="gc-field" style="margin-bottom:14px;">
+              <label>Total</label>
+              <div style="padding:14px 18px; background:var(--ivory-dim); border-radius:15px; font-weight:700; font-size:19px; color:var(--burgundy);">{{ formatRupiah(estimasiBiaya) }}</div>
+            </div>
+
+            <div v-if="!formReadOnly" style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button v-if="bolehSimpan" @click="klikFinalkan" :disabled="menyimpan" class="btn-primary" style="flex:1; min-width:110px;">{{ menyimpan ? 'Menyimpan...' : 'Finalkan' }}</button>
+              <button @click="batal" class="btn-outline" style="flex:1; min-width:90px;">Batal</button>
+              <button v-if="bolehHapus" @click="hapusTerpilih" :disabled="!adaTerpilih" class="btn-outline" style="flex:1; min-width:90px; color:var(--danger); border-color:var(--danger);">Hapus Terpilih</button>
+              <button @click="cetak" class="btn-outline" style="flex:1; min-width:90px;">Cetak</button>
+              <button v-if="bolehSimpan" @click="simpanDraft" :disabled="menyimpan" class="btn-outline" style="flex:1; min-width:90px;">Simpan Draft</button>
+            </div>
+            <div v-else style="display:flex; gap:8px;">
+              <button @click="cetak" class="btn-outline" style="flex:1;">Cetak</button>
+            </div>
+            <p v-if="!formReadOnly" style="font-size:10.5px; color:var(--text-faint); text-align:center; margin-top:8px;">Finalkan = stok bertambah, Riwayat Harga tertulis, tidak bisa diubah lagi. Hanya Owner/PIC Owner/Superuser yang bisa memfinalkan (Admin butuh PIN Owner).</p>
+
+            <div v-if="lotUntukCetak.length > 0" style="margin-top:12px; background:var(--ivory-dim); border-radius:10px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+              <span style="font-size:12px;"><i class="fas fa-tags" style="color:var(--burgundy); margin-right:6px;"></i>{{ lotUntukCetak.length }} roll/lot baru dibuat dari Nota ini — cetak labelnya (QR) untuk ditempel ke roll fisiknya.</span>
+              <button @click="cetakLabelLot(lotUntukCetak)" class="btn-primary" style="padding:8px 16px; font-size:12px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label Roll</button>
+            </div>
           </div>
-        </div>
-      </template>
+        </template>
+      </div>
+
       <pengaturan-stock-pembelian v-if="tampilPengaturan" @tutup="tampilPengaturan = false" />
+      <popup-tambah-suplayer-cepat v-if="tampilTambahSuplayer" @tersimpan="onSuplayerBaruTersimpan" @tutup="tampilTambahSuplayer = false" />
       <popup-qty-per-lot v-if="tampilPopupLot" :baris="barisLotSementara" :total="totalQtyLot" :target="barisLotTarget" :satuan="barisLotSatuan" :nama-barang="barisLotNama"
         @tambah="tambahBarisLot" @hapus="hapusBarisLot" @terapkan="terapkanLot" @tutup="tutupPopupLot" />
-      <popup-tambah-suplayer-cepat v-if="tampilTambahSuplayer" @tersimpan="onSuplayerBaruTersimpan" @tutup="tampilTambahSuplayer = false" />
-      <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label Roll" :daftar-label="daftarLabelPreview" @tutup="popupCetakLabelAktif = false" />
+      <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label Roll" :daftar-label="daftarLabelPreview" @tutup="selesaiSetelahCetakLabel" />
+
+      <!-- Pop up Qty (wireframe 3.2c) -->
+      <div v-if="tampilPopupQty" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="tutupPopupQtyTanpaUbah">
+        <div class="gc-card" style="max-width:380px; width:100%;">
+          <h3 style="font-weight:700; font-size:14px; margin-bottom:10px;"><i class="fas fa-cubes" style="color:var(--burgundy); margin-right:8px;"></i>Pilih Qty</h3>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
+            <button v-for="q in opsiQtyCepatUntuk(daftarPesanan[barisAktifIndex] || {})" :key="q" @click="konfirmasiQty(q)" class="btn-outline" style="padding:6px 14px; font-size:12.5px;">{{ q }}</button>
+          </div>
+          <div class="gc-field">
+            <label>Atau ketik manual</label>
+            <input v-model="qtyManualInput" @keyup.enter="konfirmasiQty(qtyManualInput)" type="number" min="0" autofocus style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:13px;">
+          </div>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button @click="konfirmasiQty(qtyManualInput)" class="btn-primary" style="flex:1;">Enter · Konfirmasi</button>
+            <button @click="tutupPopupQtyTanpaUbah" class="btn-outline" style="flex:1;">Lewati</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pop up Satuan (wireframe 3.2d) -->
+      <div v-if="tampilPopupSatuan" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="tutupPopupSatuanTanpaUbah">
+        <div class="gc-card" style="max-width:380px; width:100%;">
+          <h3 style="font-weight:700; font-size:14px; margin-bottom:10px;"><i class="fas fa-ruler" style="color:var(--burgundy); margin-right:8px;"></i>Pilih Satuan</h3>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+            <button v-for="s in opsiSatuanAktif" :key="s" @click="satuanPilihanAktif = s" class="btn-outline" :class="{filled: satuanPilihanAktif === s}" style="padding:6px 14px; font-size:12.5px;">{{ s }}</button>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button @click="konfirmasiSatuan(satuanPilihanAktif)" class="btn-primary" style="flex:1;">Enter · Konfirmasi</button>
+            <button @click="tutupPopupSatuanTanpaUbah" class="btn-outline" style="flex:1;">Lewati</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Edit Harga (wireframe 3.2e, langkah 1: input harga baru) -->
+      <div v-if="tampilEditHarga" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="lewatiEditHarga">
+        <div class="gc-card" style="max-width:380px; width:100%;">
+          <h3 style="font-weight:700; font-size:14px; margin-bottom:6px;"><i class="fas fa-pen" style="color:var(--burgundy); margin-right:8px;"></i>Edit Harga</h3>
+          <p style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">Mengubah harga nota memerlukan PIN Owner/PIC Owner. PIN Admin akan masuk sebagai usulan menunggu review Owner di Riwayat Harga Pembelian.</p>
+          <div class="gc-field">
+            <label>Harga baru</label>
+            <input v-model="hargaBaruInput" @keyup.enter="ajukanHargaBaru" type="number" min="0" autofocus style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:13px;">
+          </div>
+          <div style="display:flex; gap:8px; margin-top:6px;">
+            <button @click="ajukanHargaBaru" class="btn-primary" style="flex:1;">Lanjut · PIN</button>
+            <button @click="lewatiEditHarga" class="btn-outline" style="flex:1;">Lewati</button>
+          </div>
+        </div>
+      </div>
+      <popup-pin v-if="tampilPinHarga" judul="PIN Edit Harga" pesan="Owner/PIC Owner/Superuser -> harga langsung berlaku. Peran lain -> usulan masuk Riwayat Harga menunggu review Owner." @sukses="pinHargaSukses" @batal="tampilPinHarga = false" />
+      <popup-pin v-if="tampilPinFinalisasi" judul="PIN Finalisasi Nota" pesan="Hanya PIN Owner/PIC Owner/Superuser yang bisa memfinalkan Nota." @sukses="pinFinalisasiSukses" @batal="tampilPinFinalisasi = false" />
     </div>
   `
 };
@@ -1951,6 +2359,7 @@ const OrderBelanjaScreen = {
 // bahan (awalan), urut tanggal terbaru dulu.
 // ---------------------------------------------------------------------------
 const RiwayatHargaPembelianManager = {
+  components: { PopupPin },
   setup() {
     const paginasi = usePaginasiFirestore(db, 'riwayat_harga_pembelian', {
       perHalaman: 15,
@@ -1959,13 +2368,98 @@ const RiwayatHargaPembelianManager = {
       cariField: 'nama_bahan',
       petakan: (id, d) => ({ id, ...d })
     });
-    onMounted(async () => { await window.authReady; await paginasi.muatUlang(); });
-    return { paginasi, formatRupiah };
+
+    // --- Banner "harga perlu konfirmasi" (BARU, 7 Sep 2026) ---------------
+    // Query TERPISAH dari paginasi riwayat di atas — narrow single-field
+    // equality (`harga_perlu_konfirmasi == true`), TIDAK butuh index
+    // komposit, TIDAK baca seluruh koleksi master_bahan_aksesoris (sesuai
+    // PRINSIP-HEMAT.md). Dimuat sekali saat layar dibuka + dimuat ulang
+    // sesudah tiap "Terapkan" sukses.
+    const daftarPending = ref([]);
+    const memuatPending = ref(true);
+    async function muatDaftarPending() {
+      memuatPending.value = true;
+      try {
+        const snap = await getDocs(query(collection(db, 'master_bahan_aksesoris'), where('harga_perlu_konfirmasi', '==', true)));
+        const list = []; snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        daftarPending.value = list;
+      } catch (e) {
+        console.error('Gagal muat daftar harga_perlu_konfirmasi:', e);
+      }
+      memuatPending.value = false;
+    }
+
+    const tampilPinTerapkan = ref(false);
+    const bahanAktifTerapkan = ref(null);
+    function bukaTerapkan(bahan) { bahanAktifTerapkan.value = bahan; tampilPinTerapkan.value = true; }
+    async function pinTerapkanSukses(user) {
+      tampilPinTerapkan.value = false;
+      const bahan = bahanAktifTerapkan.value;
+      bahanAktifTerapkan.value = null;
+      if (!bahan) return;
+      if (!tierOwnerKeAtas(user)) {
+        alert(`PIN ini bukan PIN Owner/PIC Owner/Superuser (peran: ${user.role}). Tidak berwenang menerapkan harga baru — hubungi Owner/PIC Owner.`);
+        return;
+      }
+      const pending = bahan.harga_pending || {};
+      const hargaModalBaru = parseFloat(pending.harga_baru) || 0;
+      if (!(hargaModalBaru > 0)) { alert('Data harga pending tidak valid, tidak bisa diterapkan.'); return; }
+      const marginModal = parseFloat(bahan.margin_modal) || 0;
+      const isiKonversiSaatIni = parseFloat(bahan.isi_konversi_pembelian) || 1;
+      // CATATAN: untuk bahan dengan konversi_bertingkat, ini HANYA
+      // memperbarui harga_modal di tingkat akhir (basis yang sama dipakai
+      // saat deteksi kenaikan, lihat tandaiHargaPerluKonfirmasi) — TIDAK
+      // menghitung ulang seluruh rantai tingkat seperti
+      // perbaruiHargaMasterDariRiwayat(). Ini penyederhanaan yang disengaja
+      // (dilaporkan ke Guru) karena flag ini hanya pernah dibandingkan
+      // terhadap harga_modal tunggal, bukan per-tingkat.
+      try {
+        await updateDoc(doc(db, 'master_bahan_aksesoris', bahan.id), {
+          harga_modal: hargaModalBaru,
+          harga_pembelian: Math.round(hargaModalBaru * isiKonversiSaatIni),
+          harga_pemakaian: hargaModalBaru + (hargaModalBaru * marginModal / 100),
+          harga_diupdate_dari_riwayat_pada: serverTimestamp(),
+          harga_perlu_konfirmasi: false,
+          harga_pending: null
+        });
+        alert(`Harga "${bahan.nama || bahan.id}" diperbarui & blokir checkout dibuka.`);
+        await muatDaftarPending();
+      } catch (e) {
+        console.error('Gagal menerapkan harga pending:', e);
+        alert('Gagal menerapkan harga. Coba lagi.');
+      }
+    }
+
+    onMounted(async () => { await window.authReady; await paginasi.muatUlang(); await muatDaftarPending(); });
+    return { paginasi, formatRupiah, daftarPending, memuatPending, tampilPinTerapkan, bukaTerapkan, pinTerapkanSukses };
   },
   template: `
-    <div class="gc-card" style="padding:14px;">
+    <div>
+      <!-- Banner harga perlu konfirmasi (wireframe §3.4/§4) — BARU -->
+      <div v-if="!memuatPending && daftarPending.length > 0" class="gc-card" style="padding:14px; margin-bottom:14px; border:1.5px solid var(--warn, #b8860b); background:rgba(184,134,11,.06);">
+        <h3 style="font-weight:700; font-size:13px; margin-bottom:8px;"><i class="fas fa-triangle-exclamation" style="margin-right:8px;"></i>{{ daftarPending.length }} Harga Perlu Konfirmasi Owner</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">Harga baru LEBIH TINGGI dari harga master saat ini — belum diperbarui, dan checkout Pesanan untuk produk yang memakai bahan ini DIBLOKIR sampai diterapkan atau ditolak.</p>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div v-for="b in daftarPending" :key="b.id" class="gc-card" style="padding:10px 12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:140px;">
+              <div style="font-weight:700; font-size:12.5px;">{{ b.nama }}</div>
+              <div style="font-size:10.5px; color:var(--text-faint);">{{ (b.harga_pending && b.harga_pending.no_pembelian) || '-' }} &middot; {{ (b.harga_pending && b.harga_pending.suplayer) || '-' }} &middot; {{ (b.harga_pending && b.harga_pending.tanggal) || '-' }}</div>
+            </div>
+            <div style="text-align:right; font-size:11.5px;">
+              <span style="color:var(--text-faint); text-decoration:line-through;">{{ formatRupiah(b.harga_pending && b.harga_pending.harga_lama) }}</span>
+              <i class="fas fa-arrow-right" style="margin:0 6px; color:var(--text-faint); font-size:10px;"></i>
+              <span style="font-weight:700; color:var(--danger, #b3261e);">{{ formatRupiah(b.harga_pending && b.harga_pending.harga_baru) }}</span>
+            </div>
+            <button @click="bukaTerapkan(b)" class="btn-primary" style="font-size:11px; padding:6px 12px;">Terapkan &amp; Buka Blokir</button>
+          </div>
+        </div>
+      </div>
+
+      <popup-pin v-if="tampilPinTerapkan" judul="PIN Terapkan Harga" pesan="Hanya PIN Owner/PIC Owner/Superuser yang bisa menerapkan harga baru & membuka blokir checkout." @sukses="pinTerapkanSukses" @batal="tampilPinTerapkan = false" />
+
+      <div class="gc-card" style="padding:14px;">
       <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Riwayat Harga Pembelian</label>
-      <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Tercatat otomatis tiap kali Nota / List Order Belanja di-final-kan. Harga Pembelian di Data Bahan &amp; Aksesoris otomatis mengikuti baris dengan tanggal PALING BARU (kalau ada beberapa di tanggal sama, yang PALING MAHAL per Satuan Pemakaian).</p>
+      <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Tercatat otomatis tiap kali Nota / List Order Belanja di-final-kan. Harga Pembelian di Data Bahan &amp; Aksesoris otomatis mengikuti baris dengan tanggal PALING BARU (kalau ada beberapa di tanggal sama, yang PALING MAHAL per Satuan Pemakaian) — KECUALI kalau kenaikan itu sedang menunggu konfirmasi Owner (lihat banner di atas).</p>
 
       <div style="position:relative; max-width:320px; margin-bottom:12px;">
         <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:12px;"></i>
@@ -1996,6 +2490,7 @@ const RiwayatHargaPembelianManager = {
         <span style="font-size:12px; color:var(--text-muted);">Halaman {{ paginasi.nomorHalaman.value }}</span>
         <button class="icon-btn" :disabled="!paginasi.adaBerikutnya.value" @click="paginasi.halamanBerikutnya"><i class="fas fa-chevron-right"></i></button>
       </div>
+      </div>
     </div>
   `
 };
@@ -2011,20 +2506,29 @@ window.pastikanMountAliasPembelian = function() {
   if (mountPoint) vmAliasPembelian = createApp(AppAliasPembelian).mount('#vue-alias-pembelian');
 };
 
-const AppListOrderBelanja = { components: { OrderBelanjaScreen }, template: `<order-belanja-screen :mode-nota="false" />` };
-let vmListOrderBelanja = null;
-window.pastikanMountListOrderBelanja = function() {
-  if (vmListOrderBelanja) return;
-  const mountPoint = document.getElementById('vue-list-order-belanja');
-  if (mountPoint) vmListOrderBelanja = createApp(AppListOrderBelanja).mount('#vue-list-order-belanja');
-};
-
-const AppNotaOrderBelanja = { components: { OrderBelanjaScreen }, template: `<order-belanja-screen :mode-nota="true" />` };
-let vmNotaOrderBelanja = null;
+// DIHAPUS TOTAL (7 Sep 2026, keputusan Guru — hapus SEKARANG walau
+// penggantinya "Persiapan Belanja" belum ada, gap fitur sementara yang
+// disengaja): `AppListOrderBelanja`/`vmListOrderBelanja`/
+// `window.pastikanMountListOrderBelanja`, komponen `OrderBelanjaScreen`
+// dengan `modeNota=false`, div `vue-list-order-belanja`, tab & mount div
+// `sub-zh-stock-listorder` (index.html), entry menu `stock_list_order_belanja`
+// (vue-config-akses.js, DIDEPRESIASI bukan dihapus — lihat file itu), dan
+// entry peta mount/label mobile terkait (js/dashboard.js, js/vue-header-
+// mobile.js). Sub-tab "Nota Order Belanja" DIREKONSTRUKSI TOTAL jadi
+// "Daftar Nota" (DaftarNotaScreen, gabung list+form dalam 1 sub-tab persis
+// SERAH-TERIMA.md §2 "Sub-tab 1 · Daftar Nota (point 2+3)") — id internal
+// div/mount/fungsi SENGAJA DIPERTAHANKAN (`vue-nota-order-belanja`/
+// `pastikanMountNotaOrderBelanja`/`sub-zh-stock-notaorder`) supaya index.html/
+// dashboard.js/vue-header-mobile.js tidak perlu diubah selain menghapus
+// entry List — cuma LABEL tab yang berubah jadi "Daftar Nota" (lihat
+// index.html). menu-id Config Akses tetap `stock_nota_order_belanja` (izin
+// yang Owner sudah atur untuk menu ini tidak ikut ter-reset oleh rename).
+const AppDaftarNota = { components: { DaftarNotaScreen }, template: `<daftar-nota-screen />` };
+let vmDaftarNota = null;
 window.pastikanMountNotaOrderBelanja = function() {
-  if (vmNotaOrderBelanja) return;
+  if (vmDaftarNota) return;
   const mountPoint = document.getElementById('vue-nota-order-belanja');
-  if (mountPoint) vmNotaOrderBelanja = createApp(AppNotaOrderBelanja).mount('#vue-nota-order-belanja');
+  if (mountPoint) vmDaftarNota = createApp(AppDaftarNota).mount('#vue-nota-order-belanja');
 };
 
 const AppRiwayatHargaPembelian = { components: { RiwayatHargaPembelianManager }, template: `<riwayat-harga-pembelian-manager />` };

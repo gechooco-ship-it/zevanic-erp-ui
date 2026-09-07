@@ -440,7 +440,6 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-zh-config-riwayatpin': 'pastikanMountConfigRiwayatPin',
     'sub-zh-databahan-entry': 'pastikanMountBahanAksesorisEntry',
     'sub-zh-databahan-list': 'pastikanMountBahanAksesorisList',
-    'sub-zh-databahan-rak': 'pastikanMountRakPenyimpanan',
     'sub-zevanic-house-persiapan': 'pastikanMountPersiapanMasalah',
     // BARU (5 Sep 2026) — Zevanic House > Master Suplayer (3 sub-tab), lihat
     // js/vue-master-suplayer.js. GANTI TOTAL dari 'sub-zh-stock-alias' di
@@ -449,10 +448,15 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-zh-suplayer-entry': 'pastikanMountSuplayerEntry',
     'sub-zh-suplayer-alias-moq': 'pastikanMountSuplayerAliasMoq',
     'sub-zh-suplayer-petakan': 'pastikanMountSuplayerPetakan',
-    'sub-zh-stock-listorder': 'pastikanMountListOrderBelanja',
+    // DIHAPUS (7 Sep 2026) — 'sub-zh-stock-listorder': 'pastikanMountListOrderBelanja'
+    // (tab & mount "List Order Belanja" dihapus total, lihat vue-stock-pembelian.js).
     'sub-zh-stock-notaorder': 'pastikanMountNotaOrderBelanja',
     'sub-zh-stock-riwayat': 'pastikanMountRiwayatHargaPembelian',
     'sub-zh-stock-kartustok': 'pastikanMountKartuStok',
+    // BARU (7 Sep 2026) — Rak Penyimpanan dipindah ke sini (dulu
+    // 'sub-zh-databahan-rak' di Data Bahan & Aksesoris), lihat js/vue-
+    // rak-penyimpanan.js.
+    'sub-zh-stock-rak': 'pastikanMountRakPenyimpanan',
     // DIPENSIUNKAN (28 Agt 2026, §41.2) — dulu 'sub-zh-stock-cetaklabel':
     // 'pastikanMountCetakLabel' di sini, tab-nya sudah dihapus dari
     // index.html (Cetak Label pindah jadi tombol di List Bahan & Aksesoris).

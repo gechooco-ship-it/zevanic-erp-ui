@@ -1,33 +1,128 @@
 // js/vue-rak-penyimpanan.js
 // ============================================================================
-// Zevanic House > Data Bahan & Aksesoris > "Rak Penyimpanan" — menu BARU
-// (25 Agt 2026, §25), menggantikan pendekatan sebelumnya (§24) yang naruh
-// Kode Rak/Baris Rak/Kolom Rak sebagai 3 dropdown master data LEPAS
-// langsung di form Bahan/Aksesoris (tanpa data dimensi/kapasitas apapun).
+// Stock & Pembelian > "Rak Penyimpanan" — sub-tab ke-4.
 //
-// KEPUTUSAN Hilman (AskUserQuestion, 25 Agt 2026):
-//   1. Field Kode/Baris/Kolom Rak di form Bahan/Aksesoris DIGANTI jadi 1
-//      dropdown "Pilih Rak" yang nunjuk ke RECORD di menu ini (bukan 3
-//      dropdown lepas lagi) — lihat vue-bahan-aksesoris.js.
-//   2. "Volume" di sini BEDA dari "Volume Barang" (§24, di form Bahan/
-//      Aksesoris) — di sini Volume = kapasitas RAK ITU SENDIRI (dimensi
-//      fisik raknya), dipakai nanti buat cek over-stok (bandingkan total
-//      Volume Barang × qty yang ditaruh di 1 rak vs Volume Rak-nya) —
-//      logic itu BELUM dikerjakan di sini, cuma disiapkan datanya.
+// RIWAYAT:
+//   - §24 (lama): Kode/Baris/Kolom Rak = 3 dropdown master data LEPAS
+//     langsung di form Bahan/Aksesoris, tanpa dimensi/kapasitas apapun.
+//   - §25 (25 Agt 2026): dirombak jadi menu tersendiri "Rak Penyimpanan" di
+//     Zevanic House > Data Bahan & Aksesoris. Kode/Baris/Kolom Rak MASIH 3
+//     dropdown master data ('kode_rak'/'baris_rak'/'kolom_rak', dikelola
+//     lewat panel Pengaturan/gear di Entry Bahan & Aksesoris), digabung jadi
+//     `rak_label` dash-joined ("A-2-3") buat ditampilkan & dipakai sebagai
+//     opsi dropdown "Pilih Rak" di form Bahan/Aksesoris (rak_id + rak_label
+//     didenormalisasi ke situ, lihat js/vue-bahan-aksesoris.js).
+//   - §26.1 (27 Agt 2026): panel Pengaturan di Entry Bahan & Aksesoris
+//     DIROMBAK — 3 kategori master_data 'kode_rak'/'baris_rak'/'kolom_rak'
+//     DIHAPUS TOTAL dari panel itu (bukan dipindah), karena sudah dianggap
+//     redundan dengan menu Rak Penyimpanan ini. Makanya waktu ronde INI
+//     (7 Sep 2026) dicek ulang ke kode live, window.ambilMasterList untuk
+//     3 kategori itu SUDAH TIDAK dipanggil dari manapun lagi selain file
+//     ini sendiri — jadi PANGGILANNYA DIHAPUS DI SINI JUGA (lihat poin 3
+//     di bawah). Dokumen master_data/kode_rak, master_data/baris_rak,
+//     master_data/kolom_rak di Firestore (kalau pernah keisi) jadi data
+//     YATIM murni, TIDAK dibaca/ditulis siapapun lagi setelah ronde ini —
+//     aman dibiarkan (bukan tanggung jawab modul ini untuk membersihkannya).
 //
-// Karena belum ada data nyata sama sekali di kolom kode_rak/baris_rak/
-// kolom_rak lama (§24 belum sempat dites), penggantian ini AMAN, bukan
-// migrasi data.
+// RONDE INI (7 Sep 2026, wireframe handoff "04 - Stok dan Pembelian" §6.1,
+// keputusan Guru: "Ikuti wireframe (migrasi model data)"):
+//   1. PINDAH lokasi menu — dari Zevanic House > Data Bahan & Aksesoris ke
+//      Stock & Pembelian (sub-tab ke-4, setelah Kartu Stok). Lihat
+//      index.html, js/dashboard.js (tabel mount), js/vue-config-akses.js
+//      (menu-id baru 'stock_rak_penyimpanan', id lama 'bahan_aksesoris_rak'
+//      dipensiunkan supaya izin lama tidak yatim).
+//   2. MIGRASI MODEL DATA kode rak — SEBELUMNYA 3 dropdown master-list
+//      lepas (kode_rak/baris_rak/kolom_rak, masing-masing dipilih dari
+//      daftar terkelola), digabung jadi `rak_label` dash-joined ("A-2-3").
+//      SEKARANG 3 input TEKS BEBAS (field baru `rak`, plus `baris_rak`/
+//      `kolom_rak` yang sekarang teks bebas juga, bukan lagi dropdown),
+//      digabung LANGSUNG tanpa pemisah jadi 1 `kode_rak` (mis. "E"+"1"+"1"
+//      = "E11") — sesuai wireframe persis ("kode rak otomatis ... rak +
+//      baris + kolom, wajib unik"). `kode_rak` di ronde ini BERUBAH MAKNA:
+//      dulu cuma "segmen rak" (mis. "A"), SEKARANG kode gabungan penuh
+//      (mis. "E11"). `rak_label` DIPERTAHANKAN sebagai alias dari
+//      `kode_rak` baru (SAMA NILAINYA) — field itu masih jadi sumber opsi
+//      dropdown "Pilih Rak" & pengurutan di js/vue-bahan-aksesoris.js,
+//      TIDAK ada perubahan kode di file itu (dicek langsung — cukup ganti
+//      NILAI rak_label, formatnya generik string, bukan diparse).
+//   3. DOKUMEN LAMA (dibuat sebelum ronde ini, field kode_rak = cuma
+//      segmen "A" bukan kode gabungan) — TIDAK dimigrasi otomatis (skrip
+//      migrasi Firestore live TIDAK BISA dijalankan dari sandbox sesi ini,
+//      butuh akses Firestore nyata). Field pembeda: dokumen BARU SELALU
+//      punya field `rak` (input rak baru); dokumen LAMA TIDAK PERNAH punya
+//      field itu. Semua tempat baca di bawah (skemaBaru/kodeRakTampil/
+//      segmenRakTampil) CEK field ini dulu sebelum menafsirkan kode_rak —
+//      dokumen lama TETAP tampil (pakai rak_label dash-joined lama sbg
+//      kode), TIDAK bikin krash, cuma formatnya beda (dash vs gabung
+//      rapat) sampai di-Edit ulang lewat form baru (Edit menulis ulang
+//      SELURUH field pakai skema baru). REKOMENDASI ke Guru: kalau memang
+//      sudah ada data Rak lama di Firestore produksi, jadwalkan sesi
+//      cleanup manual (buka tiap Rak lama lewat Edit, isi ulang field
+//      rak/baris/kolom baru, Simpan) SEBELUM dianggap konsisten penuh —
+//      TIDAK dikerjakan di ronde ini.
+//   4. VOLUME — field `volume_rak` TETAP tersimpan cm³ (TIDAK diubah unit
+//      penyimpanannya) karena field ini juga dibaca js/vue-bahan-
+//      aksesoris.js (hint dimensi rak di dropdown "Pilih Rak", 2 tempat:
+//      Entry & Edit form, teks "Kapasitas: X cm³") — kalau unit simpannya
+//      diganti ke m³ tapi label teks di file itu tidak ikut diubah, angka
+//      yang tampil di sana jadi SALAH (kelihatan cm³ tapi isinya m³).
+//      Opsi diambil: SIMPAN cm³ apa adanya (tidak ada perubahan di file
+//      itu, nol risiko regresi di sana), KONVERSI ke m³ CUMA di layar ini
+//      (÷1.000.000) buat tampilan — sesuai wireframe ("0,48 m³"). Field
+//      `volume_barang` di master_bahan_aksesoris (volume PER SATUAN 1
+//      item, beda konsep dari volume_rak) JUGA tetap cm³ apa adanya,
+//      dipakai bareng buat hitung kapasitas di poin 5.
+//   5. KAPASITAS BAR (terpakai/sisa/%) — BARU, logic-nya SEBELUMNYA
+//      sengaja belum dikerjakan (lihat riwayat §25 & catatan di js/vue-
+//      bahan-aksesoris.js: "Peringatan overstok BELUM dikerjakan di
+//      sini"). FORMULA yang dipakai (BELUM PERNAH dikonfirmasi eksplisit
+//      ke Guru, level risiko tinggi kalau salah asumsi — TOLONG DICEK):
+//        terpakai (1 item, cm³) = stok_akhir(item) × volume_barang(item)
+//        terpakai (1 rak, cm³) = SUM terpakai semua item yang rak_id-nya
+//                                 menunjuk ke rak itu (rak bisa dipakai
+//                                 bareng > 1 item — realistis di gudang
+//                                 nyata; bar kapasitas jadi properti RAK,
+//                                 SAMA nilainya di semua baris item yang
+//                                 berbagi rak yang sama, bukan per-item)
+//        sisa (cm³) = volume_rak − terpakai (rak) — BISA NEGATIF (over
+//                     kapasitas, lihat state ekstrem di bawah)
+//        persen = terpakai / volume_rak × 100 (kalau volume_rak = 0,
+//                 dianggap 100% kalau ada isinya, 0% kalau kosong —
+//                 hindari bagi nol)
+//        warna bar: <50% ok (hijau) · 50–79% warn (kuning/amber) · ≥80%
+//                   danger (merah) — dicocokkan ke contoh warna di
+//                   wireframe (72%→amber, 88%→merah, 45%/30%/15%→hijau).
+//      ASUMSI ini genuinely BARU (bukan port dari logic lama yang memang
+//      belum ada) — kalau Guru punya definisi "terpakai" yang beda (mis.
+//      berdasar qty roll/lot, bukan stok_akhir polos), tolong dikoreksi.
+//   6. Query item-rak — pakai where('rak_id','>','') (bukan fetch SEMUA
+//      master_bahan_aksesoris) supaya HANYA baca dokumen yang benar-benar
+//      punya rak_id terisi (item tanpa Rak tidak ikut kebaca) — selaras
+//      PRINSIP-HEMAT.md (baca Firestore seminim mungkin), sekaligus
+//      menghindari fetch field `foto` (base64) semua item yang tidak
+//      relevan di layar ini. Query 1-filter begini biasanya TIDAK perlu
+//      index komposit baru, tapi tetap dibungkus try/catch dgn pesan
+//      "buat index" (pola sama js/vue-config.js) untuk jaga-jaga.
+//   7. Panel Pengaturan (gear) di Entry Bahan & Aksesoris — DICEK ULANG ke
+//      kode live (js/vue-bahan-aksesoris.js, komponen
+//      PengaturanBahanAksesoris): TERNYATA SUDAH DIROMBAK sejak §26.1 (27
+//      Agt 2026, sebelum ronde ini), SUDAH TIDAK ADA config Rak/Kode/Baris/
+//      Kolom apapun di sana lagi (cuma sisa Prefix ID). Jadi TIDAK ADA
+//      yang perlu dihapus/dipensiunkan di file itu untuk ronde ini — sudah
+//      beres duluan. Catatan lama di komentar file ini/vue-bahan-
+//      aksesoris.js yang masih menyebut "3 kategori master_data dipakai
+//      di panel Pengaturan" itu SENDIRI SUDAH BASI (ketinggalan update
+//      dari §26.1) — dikoreksi di komentar ini.
 // ============================================================================
-import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=2';
-import { usePaginasiFirestore } from './vue-paginasi.js';
+
+const TAMBAH_TAMPIL = 20; // "Muat N lagi", sama seperti wireframe
 
 function formStateKosong() {
   return reactive({
-    kode_rak: '',
+    rak: '',
     baris_rak: '',
     kolom_rak: '',
     tinggi_rak: '',
@@ -36,90 +131,151 @@ function formStateKosong() {
   });
 }
 
-function formatAngka(n) {
+function formatAngka(n, digit = 2) {
   const angka = parseFloat(n) || 0;
-  return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 });
+  return angka.toLocaleString('id-ID', { maximumFractionDigits: digit });
 }
 
-// buatLabelRak — format tampilan gabungan Kode-Baris-Kolom, dipakai
-// sebagai "nama" rak di dropdown vue-bahan-aksesoris.js & tabel di sini.
-function buatLabelRak(kode, baris, kolom) {
-  return [kode, baris, kolom].filter(Boolean).join('-');
+// kodeRakBaru — gabung 3 segmen APA ADANYA (trim, segmen `rak` di-uppercase
+// biar konsisten "E"/"A"/dst, baris & kolom TIDAK diubah casing-nya), TANPA
+// pemisah — persis pola wireframe "E"+"1"+"1" = "E11".
+function kodeRakBaru(rak, baris, kolom) {
+  const r = (rak || '').trim().toUpperCase();
+  const b = (baris || '').trim();
+  const k = (kolom || '').trim();
+  return r + b + k;
+}
+
+// skemaBaru — pembeda dokumen skema BARU (field `rak` ada, meski string
+// kosong) vs skema LAMA (field itu tidak pernah ditulis sama sekali).
+function skemaBaru(rakDoc) {
+  return !!rakDoc && Object.prototype.hasOwnProperty.call(rakDoc, 'rak');
+}
+
+// kodeTampilRak — kode buat badge "kode" di tabel. Skema baru: kode_rak
+// (gabungan rapat, mis. "E11"). Skema lama: rak_label (dash-joined lama,
+// mis. "A-2-3") — DIBIARKAN tampil apa adanya, bukan dipaksa diparse ulang.
+function kodeTampilRak(rakDoc) {
+  if (!rakDoc) return '';
+  return skemaBaru(rakDoc) ? (rakDoc.kode_rak || '') : (rakDoc.rak_label || rakDoc.kode_rak || '');
+}
+
+// segmenRakTampil — 3 kolom rak/baris/kolom di tabel. Skema lama: field
+// `kode_rak` lama cuma menyimpan SEGMEN rak-nya saja (mis. "A"), masih
+// valid dipakai di sini walau `kode_rak` di skema baru artinya sudah beda.
+function segmenRakTampil(rakDoc) {
+  if (!rakDoc) return { rak: '', baris: '', kolom: '' };
+  return {
+    rak: skemaBaru(rakDoc) ? (rakDoc.rak || '') : (rakDoc.kode_rak || ''),
+    baris: rakDoc.baris_rak || '',
+    kolom: rakDoc.kolom_rak || ''
+  };
+}
+
+function pesanErrorMuat(e) {
+  if (e && e.code === 'failed-precondition') {
+    return 'Perlu index Firestore baru — buka Console browser (F12), cari link "Create composite index" dari error ini, klik untuk bikin index-nya sekali, lalu muat ulang halaman ini.';
+  }
+  if (e && e.code === 'permission-denied') {
+    return 'Tidak punya izin membaca data Rak Penyimpanan. Hubungi Owner/Admin kalau ini tidak seharusnya terjadi.';
+  }
+  return 'Gagal memuat data Rak Penyimpanan. Coba lagi.';
 }
 
 const RakPenyimpananManager = {
-  components: { DropdownCari },
   setup() {
+    const memuat = ref(true);
+    const errorMuat = ref('');
+    const racks = ref([]);       // semua dokumen master_rak_penyimpanan
+    const itemsDenganRak = ref([]); // item master_bahan_aksesoris yg rak_id-nya terisi
+
+    const cari = ref('');
+    const batasTampil = ref(TAMBAH_TAMPIL);
+
+    // ------------------------------------------------------------------
+    // Popup Tambah/Edit Rak
+    // ------------------------------------------------------------------
+    const popupTerbuka = ref(false);
     const form = formStateKosong();
-    const opsiKodeRak = ref([]);
-    const opsiBarisRak = ref([]);
-    const opsiKolomRak = ref([]);
     const menyimpan = ref(false);
     const sedangEditId = ref(null);
 
-    async function muatOpsiRak() {
-      [opsiKodeRak.value, opsiBarisRak.value, opsiKolomRak.value] = await Promise.all([
-        window.ambilMasterList ? window.ambilMasterList('kode_rak') : [],
-        window.ambilMasterList ? window.ambilMasterList('baris_rak') : [],
-        window.ambilMasterList ? window.ambilMasterList('kolom_rak') : []
-      ]);
-    }
-
-    const volumeRak = computed(() => {
+    const kodePreview = computed(() => kodeRakBaru(form.rak, form.baris_rak, form.kolom_rak));
+    const volumeRakCm3 = computed(() => {
       const t = parseFloat(form.tinggi_rak) || 0;
       const p = parseFloat(form.panjang_rak) || 0;
       const l = parseFloat(form.lebar_rak) || 0;
       return t * p * l;
     });
-
-    const paginasi = usePaginasiFirestore(db, 'master_rak_penyimpanan', {
-      perHalaman: 15,
-      urutkanField: 'kode_rak',
-      cariField: 'kode_rak',
-      petakan: (id, d) => ({ id, ...d })
-    });
+    const volumeRakM3 = computed(() => volumeRakCm3.value / 1e6);
 
     function resetForm() {
       Object.assign(form, formStateKosong());
       sedangEditId.value = null;
     }
+    function bukaTambah() { resetForm(); popupTerbuka.value = true; }
+    function bukaEdit(rakDoc) {
+      sedangEditId.value = rakDoc.id;
+      const seg = segmenRakTampil(rakDoc);
+      Object.assign(form, {
+        rak: seg.rak, baris_rak: seg.baris, kolom_rak: seg.kolom,
+        tinggi_rak: rakDoc.tinggi_rak || '', panjang_rak: rakDoc.panjang_rak || '', lebar_rak: rakDoc.lebar_rak || ''
+      });
+      popupTerbuka.value = true;
+    }
+    function tutupPopup() { popupTerbuka.value = false; resetForm(); }
 
-    async function cekKombinasiDobel() {
-      const q = query(collection(db, 'master_rak_penyimpanan'),
-        where('kode_rak', '==', form.kode_rak),
-        where('baris_rak', '==', form.baris_rak),
-        where('kolom_rak', '==', form.kolom_rak));
-      const snap = await getDocs(q);
-      // Kalau sedang EDIT, dokumen dirinya sendiri boleh muncul di hasil
-      // query (kombinasinya sendiri belum tentu diubah) — jangan dianggap
-      // dobel kalau yang ketemu cuma dirinya sendiri.
-      return snap.docs.some(d => d.id !== sedangEditId.value);
+    async function muatSemua() {
+      memuat.value = true;
+      errorMuat.value = '';
+      try {
+        const [snapRak, snapItem] = await Promise.all([
+          // Racks: koleksi kecil (realistis puluhan), aman fetch semua —
+          // pola sama seperti ambilDaftarRak() di vue-bahan-aksesoris.js.
+          getDocs(collection(db, 'master_rak_penyimpanan')),
+          // Item: HANYA yang rak_id terisi (lihat catatan poin 6 di atas)
+          // — hemat baca Firestore, hindari fetch foto base64 item yg
+          // tidak relevan di layar ini.
+          getDocs(query(collection(db, 'master_bahan_aksesoris'), where('rak_id', '>', '')))
+        ]);
+        racks.value = snapRak.docs.map(d => ({ id: d.id, ...d.data() }));
+        itemsDenganRak.value = snapItem.docs.map(d => ({ id: d.id, ...d.data() }));
+      } catch (e) {
+        console.error('Gagal muat Rak Penyimpanan:', e);
+        errorMuat.value = pesanErrorMuat(e);
+      }
+      memuat.value = false;
     }
 
     async function simpan() {
-      if (!form.kode_rak) return alert('Pilih Kode Rak dulu.');
-      if (!form.baris_rak) return alert('Pilih Baris Rak dulu.');
-      if (!form.kolom_rak) return alert('Pilih Kolom Rak dulu.');
+      const rakTrim = (form.rak || '').trim();
+      const barisTrim = (form.baris_rak || '').trim();
+      const kolomTrim = (form.kolom_rak || '').trim();
+      if (!rakTrim) return alert('Isi Rak dulu (mis. huruf A/B/C).');
+      if (!barisTrim) return alert('Isi Baris dulu.');
+      if (!kolomTrim) return alert('Isi Kolom dulu.');
       if (!(parseFloat(form.tinggi_rak) > 0)) return alert('Isi Tinggi Rak dulu (harus lebih dari 0).');
       if (!(parseFloat(form.panjang_rak) > 0)) return alert('Isi Panjang Rak dulu (harus lebih dari 0).');
       if (!(parseFloat(form.lebar_rak) > 0)) return alert('Isi Lebar Rak dulu (harus lebih dari 0).');
 
+      const kodeBaru = kodeRakBaru(form.rak, form.baris_rak, form.kolom_rak);
+      const dobel = racks.value.some(r => r.id !== sedangEditId.value && kodeTampilRak(r) === kodeBaru);
+      if (dobel) {
+        return alert(`Kode Rak "${kodeBaru}" sudah terdaftar. Edit yang sudah ada kalau mau ubah dimensinya, atau pakai kombinasi rak/baris/kolom lain.`);
+      }
+
       menyimpan.value = true;
       try {
-        if (await cekKombinasiDobel()) {
-          alert(`Kombinasi Rak "${buatLabelRak(form.kode_rak, form.baris_rak, form.kolom_rak)}" sudah terdaftar. Edit yang sudah ada kalau mau ubah dimensinya, atau pilih kombinasi lain.`);
-          menyimpan.value = false;
-          return;
-        }
         const data = {
-          kode_rak: form.kode_rak,
-          baris_rak: form.baris_rak,
-          kolom_rak: form.kolom_rak,
-          rak_label: buatLabelRak(form.kode_rak, form.baris_rak, form.kolom_rak),
+          rak: rakTrim.toUpperCase(),
+          baris_rak: barisTrim,
+          kolom_rak: kolomTrim,
+          kode_rak: kodeBaru,
+          rak_label: kodeBaru, // alias — dibaca vue-bahan-aksesoris.js (dropdown "Pilih Rak")
           tinggi_rak: parseFloat(form.tinggi_rak) || 0,
           panjang_rak: parseFloat(form.panjang_rak) || 0,
           lebar_rak: parseFloat(form.lebar_rak) || 0,
-          volume_rak: volumeRak.value
+          volume_rak: volumeRakCm3.value // cm³ — lihat catatan poin 4 di atas
         };
         if (sedangEditId.value) {
           await updateDoc(doc(db, 'master_rak_penyimpanan', sedangEditId.value), {
@@ -132,8 +288,8 @@ const RakPenyimpananManager = {
           });
           alert('Rak baru tersimpan.');
         }
-        resetForm();
-        await paginasi.muatUlang();
+        tutupPopup();
+        await muatSemua();
       } catch (e) {
         console.error('Gagal simpan Rak Penyimpanan:', e);
         alert('Gagal menyimpan data Rak. Coba lagi.');
@@ -141,119 +297,270 @@ const RakPenyimpananManager = {
       menyimpan.value = false;
     }
 
-    function bukaEdit(item) {
-      sedangEditId.value = item.id;
-      Object.assign(form, {
-        kode_rak: item.kode_rak || '', baris_rak: item.baris_rak || '', kolom_rak: item.kolom_rak || '',
-        tinggi_rak: item.tinggi_rak || '', panjang_rak: item.panjang_rak || '', lebar_rak: item.lebar_rak || ''
-      });
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-    function batalEdit() { resetForm(); }
-
-    async function hapus(item) {
-      let pesan = `Hapus Rak "${item.rak_label}" secara permanen?`;
-      try {
-        const snapDipakai = await getDocs(query(collection(db, 'master_bahan_aksesoris'), where('rak_id', '==', item.id)));
-        if (!snapDipakai.empty) {
-          pesan += `\n\n⚠️ PERINGATAN: ${snapDipakai.size} data Bahan/Aksesoris SAAT INI masih menunjuk ke Rak ini — kalau dihapus, field Rak di data itu TIDAK otomatis kosong (jadi menunjuk ke Rak yang sudah tidak ada). Pertimbangkan pindahkan dulu data itu ke Rak lain sebelum menghapus.`;
-        }
-      } catch (e) {
-        console.error('Gagal cek pemakaian Rak:', e);
+    async function hapus(rakDoc) {
+      const kode = kodeTampilRak(rakDoc);
+      const jumlahDipakai = itemsDenganRak.value.filter(it => it.rak_id === rakDoc.id).length;
+      let pesan = `Hapus Rak "${kode}" secara permanen?`;
+      if (jumlahDipakai > 0) {
+        pesan += `\n\n⚠️ PERINGATAN: ${jumlahDipakai} data Bahan/Aksesoris SAAT INI masih menunjuk ke Rak ini — kalau dihapus, field Rak di data itu TIDAK otomatis kosong (jadi menunjuk ke Rak yang sudah tidak ada, akan tampil sebagai "Rak tidak ditemukan"). Pertimbangkan pindahkan dulu data itu ke Rak lain (lewat Edit di Data Bahan & Aksesoris) sebelum menghapus.`;
       }
       if (!confirm(pesan)) return;
       try {
-        await deleteDoc(doc(db, 'master_rak_penyimpanan', item.id));
-        await paginasi.muatUlang();
+        await deleteDoc(doc(db, 'master_rak_penyimpanan', rakDoc.id));
+        await muatSemua();
       } catch (e) {
         console.error('Gagal hapus Rak Penyimpanan:', e);
         alert('Gagal menghapus data Rak.');
       }
     }
 
+    // ------------------------------------------------------------------
+    // Baris tabel item-centric + kapasitas bar (lihat formula poin 5 di
+    // catatan atas file).
+    // ------------------------------------------------------------------
+    const terpakaiPerRak = computed(() => {
+      const peta = new Map(); // rak_id -> total terpakai (cm³)
+      itemsDenganRak.value.forEach(it => {
+        const cm3 = (parseFloat(it.stok_akhir) || 0) * (parseFloat(it.volume_barang) || 0);
+        peta.set(it.rak_id, (peta.get(it.rak_id) || 0) + cm3);
+      });
+      return peta;
+    });
+
+    function baseBaris(it) {
+      const rakDoc = racks.value.find(r => r.id === it.rak_id) || null;
+      const rakHilang = !rakDoc;
+      const volumeCm3 = rakDoc ? (parseFloat(rakDoc.volume_rak) || 0) : 0;
+      const terpakaiCm3 = terpakaiPerRak.value.get(it.rak_id) || 0;
+      const sisaCm3 = volumeCm3 - terpakaiCm3;
+      const persen = volumeCm3 > 0 ? (terpakaiCm3 / volumeCm3 * 100) : (terpakaiCm3 > 0 ? 100 : 0);
+      const seg = segmenRakTampil(rakDoc);
+      return {
+        item: it,
+        rakDoc,
+        rakHilang,
+        kodeTampil: rakHilang ? '' : kodeTampilRak(rakDoc),
+        segRak: seg.rak, segBaris: seg.baris, segKolom: seg.kolom,
+        volumeM3: volumeCm3 / 1e6,
+        terpakaiM3: terpakaiCm3 / 1e6,
+        sisaM3: sisaCm3 / 1e6,
+        persen: Math.round(persen),
+        overKapasitas: !rakHilang && sisaCm3 < 0,
+        levelWarna: persen >= 80 ? 'danger' : (persen >= 50 ? 'warn' : 'ok')
+      };
+    }
+
+    const semuaBaris = computed(() => itemsDenganRak.value.map(baseBaris));
+
+    const barisTerfilter = computed(() => {
+      const q = cari.value.trim().toLowerCase();
+      if (!q) return semuaBaris.value;
+      return semuaBaris.value.filter(b =>
+        (b.item.nama || '').toLowerCase().includes(q) ||
+        (b.item.id_tampil || '').toLowerCase().includes(q) ||
+        (b.kodeTampil || '').toLowerCase().includes(q)
+      );
+    });
+
+    const barisTampil = computed(() => barisTerfilter.value.slice(0, batasTampil.value));
+    const adaLebihBanyak = computed(() => barisTerfilter.value.length > batasTampil.value);
+    function muatLebihBanyak() { batasTampil.value += TAMBAH_TAMPIL; }
+
+    // Rak yang belum punya item sama sekali — tetap perlu bisa di-Edit/
+    // Hapus walau tidak muncul di tabel item-centric utama (lihat catatan
+    // "Rak belum terisi" di bawah template).
+    const rakBelumTerisi = computed(() => {
+      const dipakai = new Set(itemsDenganRak.value.map(it => it.rak_id));
+      return racks.value.filter(r => !dipakai.has(r.id));
+    });
+
+    // Ringkasan footer (mengacu ke Rak yang MUNCUL di tabel terfilter,
+    // pola sama seperti footer wireframe "5 rak · total volume ... m³ ·
+    // rata-rata terpakai ...%").
+    const ringkasan = computed(() => {
+      const rakUnik = new Map();
+      barisTerfilter.value.forEach(b => { if (b.rakDoc) rakUnik.set(b.rakDoc.id, b); });
+      const daftar = Array.from(rakUnik.values());
+      const totalVolume = daftar.reduce((s, b) => s + b.volumeM3, 0);
+      const rataPersen = daftar.length ? Math.round(daftar.reduce((s, b) => s + b.persen, 0) / daftar.length) : 0;
+      return { jumlahRak: daftar.length, totalVolume, rataPersen };
+    });
+
     onMounted(async () => {
       await window.authReady;
-      muatOpsiRak();
-      await paginasi.muatUlang();
+      await muatSemua();
     });
 
     return {
-      form, opsiKodeRak, opsiBarisRak, opsiKolomRak, volumeRak, menyimpan, sedangEditId,
-      simpan, bukaEdit, batalEdit, hapus, paginasi, formatAngka
+      memuat, errorMuat, cari,
+      popupTerbuka, form, menyimpan, sedangEditId, kodePreview, volumeRakCm3, volumeRakM3,
+      bukaTambah, bukaEdit, tutupPopup, simpan, hapus,
+      barisTampil, barisTerfilter, adaLebihBanyak, muatLebihBanyak,
+      rakBelumTerisi, ringkasan, muatSemua,
+      formatAngka
     };
   },
   template: `
-    <div class="gc-card" style="margin-bottom:16px;">
-      <h3 style="font-weight:700; font-size:13.5px; margin-bottom:4px;"><i class="fas fa-warehouse" style="color:var(--burgundy); margin-right:8px;"></i>{{ sedangEditId ? 'Edit Rak' : 'Tambah Rak Penyimpanan' }}</h3>
-      <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 12px;">Kode/Baris/Kolom Rak dikelola lewat Pengaturan di menu Entry Bahan &amp; Aksesoris (ikon gear). Dimensi di sini = dimensi FISIK rak itu sendiri (buat hitung kapasitas) — BEDA dari "Volume Barang" di form Bahan/Aksesoris (yang itu dimensi 1 satuan barangnya).</p>
-
-      <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-3">
-        <div class="gc-field">
-          <label>Kode Rak <span style="color:var(--danger);">*</span></label>
-          <dropdown-cari v-model="form.kode_rak" :opsi="opsiKodeRak" placeholder="Cari & pilih Kode Rak..." />
-        </div>
-        <div class="gc-field">
-          <label>Baris Rak <span style="color:var(--danger);">*</span></label>
-          <dropdown-cari v-model="form.baris_rak" :opsi="opsiBarisRak" placeholder="Cari & pilih Baris Rak..." />
-        </div>
-        <div class="gc-field">
-          <label>Kolom Rak <span style="color:var(--danger);">*</span></label>
-          <dropdown-cari v-model="form.kolom_rak" :opsi="opsiKolomRak" placeholder="Cari & pilih Kolom Rak..." />
-        </div>
+    <div class="gc-card" style="margin-bottom:14px;">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <h3 style="font-weight:700; font-size:13.5px; margin:0;"><i class="fas fa-warehouse" style="color:var(--burgundy); margin-right:8px;"></i>Rak Penyimpanan</h3>
+        <button @click="bukaTambah" class="btn-primary" style="margin-left:auto; padding:8px 16px; font-size:12px;"><i class="fas fa-plus" style="margin-right:6px;"></i>Rak</button>
       </div>
-
-      <p style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin:14px 0 8px;"><i class="fas fa-cube" style="margin-right:6px;"></i>Dimensi Rak (untuk estimasi kapasitas)</p>
-      <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-3">
-        <div class="gc-field">
-          <label>Tinggi (cm) <span style="color:var(--danger);">*</span></label>
-          <input v-model.number="form.tinggi_rak" type="number" min="0" placeholder="0">
-        </div>
-        <div class="gc-field">
-          <label>Panjang (cm) <span style="color:var(--danger);">*</span></label>
-          <input v-model.number="form.panjang_rak" type="number" min="0" placeholder="0">
-        </div>
-        <div class="gc-field">
-          <label>Lebar (cm) <span style="color:var(--danger);">*</span></label>
-          <input v-model.number="form.lebar_rak" type="number" min="0" placeholder="0">
-        </div>
-      </div>
-
-      <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; margin:16px 0;">
-        <span style="font-size:10.5px; color:var(--text-faint); display:block;">Estimasi Volume / Kapasitas Rak (otomatis)</span>
-        <b style="font-size:16px; color:var(--burgundy);">{{ formatAngka(volumeRak) }} cm&sup3;</b>
-      </div>
-
-      <div style="display:flex; gap:8px;">
-        <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="flex:1; padding:12px;"><i class="fas fa-floppy-disk" style="margin-right:6px;"></i>{{ menyimpan ? 'Menyimpan...' : (sedangEditId ? 'Simpan Perubahan' : 'Simpan Rak') }}</button>
-        <button v-if="sedangEditId" @click="batalEdit" class="btn-outline" style="flex:1; padding:12px;">Batal Edit</button>
+      <div style="display:flex; align-items:center; gap:9px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:999px; padding:9px 13px; margin-top:12px;">
+        <i class="fas fa-magnifying-glass" style="font-size:14px; color:var(--text-faint);"></i>
+        <input v-model="cari" type="text" placeholder="Cari kode rak / nama item..." style="flex:1; border:none; outline:none; background:none; font-size:12px;">
       </div>
     </div>
 
-    <!-- GANTI (28 Agt 2026) — dulu tabel scroll horizontal (5 kolom), SEKARANG
-         kartu (pola sama seperti List Bahan/Aksesoris), di HP MAUPUN desktop. -->
-    <div v-if="paginasi.memuat.value" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
-    <div v-else-if="paginasi.errorPaginasi.value" class="gc-card" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
-    <div v-else-if="paginasi.dataHalaman.value.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada Rak terdaftar.</div>
-    <div v-else style="display:flex; flex-direction:column; gap:10px;">
-      <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:14px;">
-        <div style="margin-bottom:12px;">
-          <div style="font-weight:700; font-size:13.5px;">{{ item.rak_label }}</div>
-          <div style="font-size:11.5px; color:var(--text-muted); margin-top:2px;">{{ item.kode_rak }} / {{ item.baris_rak }} / {{ item.kolom_rak }}</div>
+    <!-- state: loading -->
+    <div v-if="memuat" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Memuat data Rak Penyimpanan...</div>
+
+    <!-- state: error -->
+    <div v-else-if="errorMuat" class="gc-card" style="padding:20px;">
+      <div style="display:flex; gap:10px; align-items:flex-start;">
+        <i class="fas fa-triangle-exclamation" style="color:var(--danger); font-size:16px; margin-top:2px;"></i>
+        <div style="flex:1;">
+          <div style="font-weight:700; font-size:12.5px; color:var(--danger); margin-bottom:4px;">Gagal memuat data</div>
+          <div style="font-size:11.5px; color:var(--text-muted);">{{ errorMuat }}</div>
+          <button @click="muatSemua" class="btn-outline" style="margin-top:10px; padding:7px 14px; font-size:11.5px;"><i class="fas fa-rotate-right" style="margin-right:6px;"></i>Coba Lagi</button>
         </div>
-        <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
-          <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Dimensi (T&times;P&times;L, cm)</span><span style="font-weight:700;">{{ formatAngka(item.tinggi_rak) }} &times; {{ formatAngka(item.panjang_rak) }} &times; {{ formatAngka(item.lebar_rak) }}</span></div>
-          <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Volume</span><span style="font-weight:700;">{{ formatAngka(item.volume_rak) }} cm&sup3;</span></div>
+      </div>
+    </div>
+
+    <!-- state: kosong -->
+    <div v-else-if="barisTerfilter.length === 0 && rakBelumTerisi.length === 0" class="gc-kosong">
+      <div class="lingkaran"><i class="fas fa-warehouse"></i></div>
+      <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Belum ada Rak terdaftar</h3>
+      <p style="font-size:11.5px; color:var(--text-faint); margin:0;">Tambah Rak dulu, lalu pilih Rak itu di form Data Bahan &amp; Aksesoris supaya muncul di sini.</p>
+    </div>
+    <div v-else-if="barisTerfilter.length === 0" class="gc-kosong">
+      <div class="lingkaran"><i class="fas fa-warehouse"></i></div>
+      <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Belum ada item yang menempati Rak</h3>
+      <p style="font-size:11.5px; color:var(--text-faint); margin:0;">Sudah ada {{ rakBelumTerisi.length }} Rak terdaftar, tapi belum ada item Bahan/Aksesoris yang memilih Rak itu — atur lewat "Pilih Rak" di form Data Bahan &amp; Aksesoris.</p>
+    </div>
+
+    <!-- state: ideal/populated + ekstrem (per-baris) -->
+    <template v-else>
+      <div class="gc-card" style="padding:0; overflow:hidden;">
+        <div class="gc-table-scroll">
+          <table class="gc-table">
+            <thead>
+              <tr>
+                <th>Nama Item</th>
+                <th style="text-align:center;">Rak</th>
+                <th style="text-align:center;">Baris</th>
+                <th style="text-align:center;">Kolom</th>
+                <th style="text-align:center;">Kode</th>
+                <th style="min-width:140px;">Kapasitas</th>
+                <th style="text-align:right;">Terpakai</th>
+                <th style="text-align:right;">Sisa</th>
+                <th style="text-align:right;">Volume</th>
+                <th style="text-align:right;">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="b in barisTampil" :key="b.item.id">
+                <td>
+                  <div style="font-weight:700; font-size:12px;">{{ b.item.nama }}<span v-if="b.item.warna"> · {{ b.item.warna }}</span></div>
+                  <div style="font-size:10.5px; color:var(--text-faint);">{{ b.item.id_tampil || '-' }} · {{ b.item.kategori_utama || '-' }}</div>
+                </td>
+                <template v-if="b.rakHilang">
+                  <td colspan="9">
+                    <span class="tag danger"><i class="fas fa-triangle-exclamation" style="margin-right:5px;"></i>Rak tidak ditemukan (sudah dihapus) — ubah Rak item ini di Data Bahan &amp; Aksesoris.</span>
+                  </td>
+                </template>
+                <template v-else>
+                  <td style="text-align:center; font-size:12px;">{{ b.segRak }}</td>
+                  <td style="text-align:center; font-size:12px;">{{ b.segBaris }}</td>
+                  <td style="text-align:center; font-size:12px;">{{ b.segKolom }}</td>
+                  <td style="text-align:center;"><span class="tag" :class="b.levelWarna" style="font-weight:700;">{{ b.kodeTampil }}</span></td>
+                  <td>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <div style="flex:1; height:6px; border-radius:999px; background:var(--ivory-dim); overflow:hidden; min-width:60px;">
+                        <div :style="{ height:'100%', width: Math.min(100, b.persen) + '%', background: 'var(--' + b.levelWarna + ')' }"></div>
+                      </div>
+                      <span style="font-size:11px; font-weight:700; min-width:32px; text-align:right;">{{ b.persen }}%</span>
+                    </div>
+                    <div v-if="b.overKapasitas" style="font-size:9.5px; color:var(--danger); margin-top:3px;"><i class="fas fa-circle-exclamation" style="margin-right:3px;"></i>Melebihi kapasitas Rak</div>
+                  </td>
+                  <td style="text-align:right; font-size:11.5px;">{{ formatAngka(b.terpakaiM3) }}</td>
+                  <td style="text-align:right; font-size:11.5px;" :style="{ color: b.overKapasitas ? 'var(--danger)' : null }">{{ formatAngka(b.sisaM3) }}</td>
+                  <td style="text-align:right; font-size:11.5px;">{{ formatAngka(b.volumeM3) }} m&sup3;</td>
+                  <td style="text-align:right;">
+                    <div style="display:flex; gap:6px; justify-content:flex-end;">
+                      <button @click="bukaEdit(b.rakDoc)" class="icon-btn" title="Edit Rak"><i class="fas fa-pen"></i></button>
+                      <button @click="hapus(b.rakDoc)" class="icon-btn" style="color:var(--danger);" title="Hapus Rak"><i class="fas fa-trash-alt"></i></button>
+                    </div>
+                  </td>
+                </template>
+              </tr>
+            </tbody>
+          </table>
         </div>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px;">
+        <span style="font-size:10.5px; color:var(--text-faint);">{{ ringkasan.jumlahRak }} rak · total volume {{ formatAngka(ringkasan.totalVolume) }} m&sup3; · rata-rata terpakai {{ ringkasan.rataPersen }}%<span v-if="rakBelumTerisi.length"> · {{ rakBelumTerisi.length }} rak belum terisi item</span></span>
+        <button v-if="adaLebihBanyak" @click="muatLebihBanyak" class="btn-outline" style="margin-left:auto; padding:6px 14px; font-size:11px; border-radius:999px;">Muat 20 lagi</button>
+      </div>
+    </template>
+
+    <!-- Rak yang belum ditempati item apapun — tetap perlu bisa dikelola
+         (Edit/Hapus) walau tidak tampil di tabel item-centric di atas
+         (tabel di atas HANYA menampilkan Rak yang sudah dipilih minimal 1
+         item, sesuai spek "1 baris per item" — bukan celah, ini memang
+         penambahan sengaja supaya Admin tetap bisa membetulkan dimensi
+         Rak yang salah ketik SEBELUM ada item yang memakainya). -->
+    <div v-if="!memuat && !errorMuat && rakBelumTerisi.length > 0" class="gc-card" style="margin-top:14px;">
+      <h4 style="font-weight:700; font-size:12px; margin:0 0 10px; color:var(--text-muted);"><i class="fas fa-inbox" style="margin-right:6px;"></i>Rak belum terisi item ({{ rakBelumTerisi.length }})</h4>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <div v-for="r in rakBelumTerisi" :key="r.id" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; background:var(--ivory-dim);">
+          <span class="tag ok" style="font-weight:700;">{{ r.kode_rak || r.rak_label }}</span>
+          <span style="font-size:11px; color:var(--text-faint); flex:1;">{{ formatAngka(r.volume_rak / 1e6) }} m&sup3; kapasitas</span>
+          <button @click="bukaEdit(r)" class="icon-btn" title="Edit Rak"><i class="fas fa-pen"></i></button>
+          <button @click="hapus(r)" class="icon-btn" style="color:var(--danger);" title="Hapus Rak"><i class="fas fa-trash-alt"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Popup Tambah/Edit Rak -->
+    <div v-if="popupTerbuka" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="tutupPopup">
+      <div class="gc-card" style="max-width:420px; width:100%; max-height:90vh; overflow-y:auto;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+          <h3 style="font-weight:700; font-size:15px; margin:0;">{{ sedangEditId ? 'Edit Rak' : 'Tambah Rak' }}</h3>
+          <span @click="tutupPopup" style="margin-left:auto; font-size:11px; color:var(--burgundy); cursor:pointer;">tutup &times;</span>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px;">
+          <div class="gc-field" style="margin-bottom:0;"><label>Rak</label><input v-model="form.rak" type="text" maxlength="6" placeholder="Mis. E"></div>
+          <div class="gc-field" style="margin-bottom:0;"><label>Baris</label><input v-model="form.baris_rak" type="text" inputmode="numeric" maxlength="6" placeholder="Mis. 1"></div>
+          <div class="gc-field" style="margin-bottom:0;"><label>Kolom</label><input v-model="form.kolom_rak" type="text" inputmode="numeric" maxlength="6" placeholder="Mis. 1"></div>
+        </div>
+        <div style="background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:14px;">
+          <span style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Kode rak otomatis</span>
+          <div style="font-size:18px; font-weight:700; color:var(--burgundy); margin-top:2px;">{{ kodePreview || '—' }}</div>
+          <div style="font-size:9.5px; color:var(--text-faint); margin-top:2px;">rak + baris + kolom · wajib unik</div>
+        </div>
+
+        <div style="height:1px; background:var(--line); margin-bottom:14px;"></div>
+
+        <p style="font-size:11px; font-weight:700; color:var(--text-muted); margin:0 0 8px;"><i class="fas fa-cube" style="margin-right:6px;"></i>Dimensi Rak (untuk estimasi kapasitas)</p>
+        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:10px;">
+          <div class="gc-field" style="margin-bottom:0;"><label>Tinggi (cm)</label><input v-model.number="form.tinggi_rak" type="number" min="0" placeholder="0"></div>
+          <div class="gc-field" style="margin-bottom:0;"><label>Panjang (cm)</label><input v-model.number="form.panjang_rak" type="number" min="0" placeholder="0"></div>
+          <div class="gc-field" style="margin-bottom:0;"><label>Lebar (cm)</label><input v-model.number="form.lebar_rak" type="number" min="0" placeholder="0"></div>
+        </div>
+        <div style="background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:16px;">
+          <span style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Volume rak otomatis</span>
+          <div style="font-size:18px; font-weight:700; color:var(--burgundy); margin-top:2px;">{{ formatAngka(volumeRakM3) }} m&sup3;</div>
+          <div style="font-size:9.5px; color:var(--text-faint); margin-top:2px;">{{ formatAngka(form.tinggi_rak||0,0) }} &times; {{ formatAngka(form.panjang_rak||0,0) }} &times; {{ formatAngka(form.lebar_rak||0,0) }} cm ({{ formatAngka(volumeRakCm3,0) }} cm&sup3;)</div>
+        </div>
+
         <div style="display:flex; gap:8px;">
-          <button @click="bukaEdit(item)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px;"><i class="fas fa-pen" style="margin-right:6px;"></i>Edit</button>
-          <button @click="hapus(item)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
+          <button @click="tutupPopup" class="btn-outline" style="flex:1; padding:11px;">Batal</button>
+          <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="flex:1.4; padding:11px;"><i class="fas fa-floppy-disk" style="margin-right:6px;"></i>{{ menyimpan ? 'Menyimpan...' : 'Simpan' }}</button>
         </div>
       </div>
-    </div>
-    <div v-if="!paginasi.memuat.value && paginasi.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
-      <button class="icon-btn" :disabled="paginasi.nomorHalaman.value <= 1" @click="paginasi.halamanSebelumnya"><i class="fas fa-chevron-left"></i></button>
-      <span style="font-size:12px; color:var(--text-muted);">Halaman {{ paginasi.nomorHalaman.value }}</span>
-      <button class="icon-btn" :disabled="!paginasi.adaBerikutnya.value" @click="paginasi.halamanBerikutnya"><i class="fas fa-chevron-right"></i></button>
     </div>
   `
 };
