@@ -366,6 +366,35 @@
           </button>
         </div>
 
+        <!-- BARU (7 Sep 2026 malam lanjut lagi, Proses Produksi mulai — atas
+             instruksi Guru "retrofit Scan Masalah supaya clear lanjut ke
+             proses produksi"). GRUP TOP-LEVEL BARU (sejajar Persiapan
+             Produksi/Scan & Cetak), 5 sub-menu sejajar (Cutting/Serie/
+             Sewing/Finishing/Gudang Barang Jadi) — SAMA pola Fase 1
+             Persiapan Produksi 29 Agt 2026 (cuma 1 sub-menu fungsional,
+             sisanya placeholder "segera hadir"). Cuma Cutting yang
+             fungsional di commit ini (js/vue-pp-cutting.js, 7 tab). -->
+        <button onclick="toggleNavGroup('navgrp-prosesproduksi')" id="menu-proses-produksi" data-group="navgrp-prosesproduksi" class="hidden gc-nav-item" style="font-weight:700;">
+          <i class="fas fa-industry gc-nav-gico"></i> Proses Produksi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+        </button>
+        <div id="navgrp-prosesproduksi" class="hidden gc-nav-subgroup">
+          <button onclick="pindahTab('tab-proses-produksi'); pindahSubTab('sub-proses-produksi','sub-pr-cutting', this, {catatRiwayat:true}); pindahSubTab('sub-pr-cutting-tahap','sub-pr-cutting-perludiproses', null, {catatRiwayat:true})" id="menu-pr-cutting-btn" data-menu-id="cut_cutting" data-target="sub-pr-cutting" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-scissors" style="width:17px; text-align:center;"></i> Cutting
+          </button>
+          <button onclick="alert('Serie belum dibangun — menyusul setelah Cutting.')" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px; opacity:.55;">
+            <i class="fas fa-shuffle" style="width:17px; text-align:center;"></i> Serie <span style="margin-left:auto; font-size:9.5px;">(segera hadir)</span>
+          </button>
+          <button onclick="alert('Sewing (Proses Produksi) belum dibangun.')" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px; opacity:.55;">
+            <i class="fas fa-thread" style="width:17px; text-align:center;"></i> Sewing <span style="margin-left:auto; font-size:9.5px;">(segera hadir)</span>
+          </button>
+          <button onclick="alert('Finishing (Proses Produksi) belum dibangun.')" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px; opacity:.55;">
+            <i class="fas fa-check-double" style="width:17px; text-align:center;"></i> Finishing <span style="margin-left:auto; font-size:9.5px;">(segera hadir)</span>
+          </button>
+          <button onclick="alert('Gudang Barang Jadi belum dibangun.')" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px; opacity:.55;">
+            <i class="fas fa-warehouse" style="width:17px; text-align:center;"></i> Gudang Barang Jadi <span style="margin-left:auto; font-size:9.5px;">(segera hadir)</span>
+          </button>
+        </div>
+
         <button onclick="toggleNavGroup('navgrp-integrasi')" id="menu-whatsapp" data-group="navgrp-integrasi" class="hidden gc-nav-item" style="font-weight:700;">
           <i class="fas fa-plug gc-nav-gico"></i> Master Integrasi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
@@ -1206,6 +1235,47 @@
           </div>
         </div>
 
+        <!-- BARU (7 Sep 2026 malam lanjut lagi) — grup top-level "Proses
+             Produksi" (sejajar Persiapan Produksi/Scan & Cetak). Cuma
+             Cutting yang fungsional (7 tab), lihat js/vue-pp-cutting.js.
+             Serie/Sewing/Finishing/Gudang Barang Jadi belum punya div
+             konten sama sekali (tombol sidebar-nya sudah nonaktif duluan
+             di navgrp-prosesproduksi, cukup alert placeholder). -->
+        <div id="tab-proses-produksi" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
+          <div id="sub-pr-cutting" class="sub-proses-produksi-content fade-in space-y-4">
+            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+              <button onclick="pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-perludiproses', this, {catatRiwayat:true})" class="sub-pr-cutting-tahap-btn gc-sub-tab-btn active" data-target="sub-pr-cutting-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Di Proses</button>
+              <button onclick="pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-sedangampar', this, {catatRiwayat:true})" class="sub-pr-cutting-tahap-btn gc-sub-tab-btn" data-target="sub-pr-cutting-sedangampar"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Ampar</button>
+              <button onclick="pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-sedangpola', this, {catatRiwayat:true})" class="sub-pr-cutting-tahap-btn gc-sub-tab-btn" data-target="sub-pr-cutting-sedangpola"><i class="fas fa-shapes" style="margin-right:6px;"></i> Sedang Pola</button>
+              <button onclick="pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-sedangcutting', this, {catatRiwayat:true})" class="sub-pr-cutting-tahap-btn gc-sub-tab-btn" data-target="sub-pr-cutting-sedangcutting"><i class="fas fa-scissors" style="margin-right:6px;"></i> Sedang Cutting</button>
+              <button onclick="pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-perludikirim', this, {catatRiwayat:true})" class="sub-pr-cutting-tahap-btn gc-sub-tab-btn" data-target="sub-pr-cutting-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Di Kirim</button>
+              <button onclick="pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-sedangdikirim', this, {catatRiwayat:true})" class="sub-pr-cutting-tahap-btn gc-sub-tab-btn" data-target="sub-pr-cutting-sedangdikirim"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Sedang Di Kirim</button>
+              <button onclick="pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-selesai', this, {catatRiwayat:true})" class="sub-pr-cutting-tahap-btn gc-sub-tab-btn" data-target="sub-pr-cutting-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
+            </div>
+            <div id="sub-pr-cutting-perludiproses" class="sub-pr-cutting-tahap-content fade-in space-y-4">
+              <div id="vue-cutting-perludiproses"></div>
+            </div>
+            <div id="sub-pr-cutting-sedangampar" class="sub-pr-cutting-tahap-content hidden fade-in space-y-4">
+              <div id="vue-cutting-sedangampar"></div>
+            </div>
+            <div id="sub-pr-cutting-sedangpola" class="sub-pr-cutting-tahap-content hidden fade-in space-y-4">
+              <div id="vue-cutting-sedangpola"></div>
+            </div>
+            <div id="sub-pr-cutting-sedangcutting" class="sub-pr-cutting-tahap-content hidden fade-in space-y-4">
+              <div id="vue-cutting-sedangcutting"></div>
+            </div>
+            <div id="sub-pr-cutting-perludikirim" class="sub-pr-cutting-tahap-content hidden fade-in space-y-4">
+              <div id="vue-cutting-perludikirim"></div>
+            </div>
+            <div id="sub-pr-cutting-sedangdikirim" class="sub-pr-cutting-tahap-content hidden fade-in space-y-4">
+              <div id="vue-cutting-sedangdikirim"></div>
+            </div>
+            <div id="sub-pr-cutting-selesai" class="sub-pr-cutting-tahap-content hidden fade-in space-y-4">
+              <div id="vue-cutting-selesai"></div>
+            </div>
+          </div>
+        </div>
+
         <div id="tab-whatsapp" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
           <!-- MIGRASI VUE: lihat js/vue-whatsapp-gateway.js -->
           <div id="vue-whatsapp-gateway"></div>
@@ -1575,5 +1645,9 @@
        Produk form + payload simpan() + kartu List Produk) — dipakai
        Penjualan Kasir, lihat js/vue-pesanan.js. -->
   <script type="module" src="js/vue-master-produk.js?v=19"></script>
+  <!-- BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi > Cutting, 7 tab.
+       Lihat komentar besar di js/vue-pp-cutting.js untuk latar belakang &
+       keputusan arsitektur lengkap. -->
+  <script type="module" src="js/vue-pp-cutting.js?v=1"></script>
 </body>
 </html>

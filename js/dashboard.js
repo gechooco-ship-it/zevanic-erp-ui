@@ -218,6 +218,10 @@ const petaGrupSidebarPerTab = {
   // BARU (7 Sep 2026 malam) — 'tab-scan-cetak' grup top-level BARU (sejajar
   // Zevanic House/Pesanan/Persiapan Produksi), lihat js/vue-scan-cetak.js.
   'tab-scan-cetak': 'navgrp-scancetak',
+  // BARU (7 Sep 2026 malam lanjut lagi) — 'tab-proses-produksi' grup
+  // top-level BARU (sejajar Persiapan Produksi/Scan & Cetak), lihat
+  // js/vue-pp-cutting.js.
+  'tab-proses-produksi': 'navgrp-prosesproduksi',
   'tab-whatsapp': 'navgrp-integrasi',
   'tab-mail-gateway': 'navgrp-integrasi',
   'tab-device-kiosk': 'navgrp-integrasi'
@@ -234,7 +238,7 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
   // BARU (29 Agt 2026) — 'tab-persiapan-produksi' (grup top-level baru,
   // lihat STATUS-PROYEK.md §44.13). BARU (30 Agt 2026) — 'tab-pesanan'
   // (grup top-level baru, lihat js/vue-pesanan.js).
-  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-zevanic-house', 'tab-pesanan', 'tab-persiapan-produksi', 'tab-scan-cetak', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress', 'tab-menu-lengkap', 'tab-atur-favorit'];
+  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-zevanic-house', 'tab-pesanan', 'tab-persiapan-produksi', 'tab-scan-cetak', 'tab-proses-produksi', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress', 'tab-menu-lengkap', 'tab-atur-favorit'];
   const tabSebelumnya = tabs.find(t => {
     const el = document.getElementById(t);
     return el && !el.classList.contains('hidden');
@@ -326,6 +330,16 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
         window.pindahSubTab('sub-scancetak-stok-tahap', 'sub-scancetak-stok-opname', document.querySelectorAll('.sub-scancetak-stok-tahap-btn')[0]);
       }
   }
+  // BARU (7 Sep 2026 malam lanjut lagi) — landing default 'tab-proses-
+  // produksi' (grup top-level baru): "Cutting" > "Perlu Di Proses" (pola
+  // sama seperti tab-scan-cetak di atas — cuma 1 sub-menu fungsional saat
+  // ini, sisanya placeholder alert di sidebar, lihat js/vue-pp-cutting.js).
+  if (tabId === 'tab-proses-produksi') {
+      if (window.pindahSubTab) {
+        window.pindahSubTab('sub-proses-produksi', 'sub-pr-cutting', document.querySelectorAll('.sub-proses-produksi-btn')[0]);
+        window.pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-perludiproses', document.querySelectorAll('.sub-pr-cutting-tahap-btn')[0]);
+      }
+  }
   if (tabId === 'tab-whatsapp') {
       if (window.pastikanMountWhatsapp) window.pastikanMountWhatsapp();
   }
@@ -399,7 +413,13 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // BARU (7 Sep 2026, §5.18) — 'sub-pp-masalah-tahap' -> 'tab-persiapan-
     // produksi' (Masalah, 6 pos sejajar Bahan/Sewing/Webbing/Finishing/
     // Vendor/Disiapkan di grup yang sama, lihat js/vue-pp-masalah.js).
-    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-suplayer': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-pesanan': 'tab-pesanan', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi', 'sub-pp-masalah-tahap': 'tab-persiapan-produksi', 'sub-scan-cetak': 'tab-scan-cetak', 'sub-scancetak-stok-tahap': 'tab-scan-cetak' };
+    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-suplayer': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-pesanan': 'tab-pesanan', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi', 'sub-pp-masalah-tahap': 'tab-persiapan-produksi', 'sub-scan-cetak': 'tab-scan-cetak', 'sub-scancetak-stok-tahap': 'tab-scan-cetak',
+      // BARU (7 Sep 2026 malam lanjut lagi) — 'sub-proses-produksi' +
+      // 'sub-pr-cutting-tahap' -> 'tab-proses-produksi' (grup top-level baru,
+      // lihat js/vue-pp-cutting.js). Cuma Cutting yang punya div konten;
+      // Serie/Sewing/Finishing/Gudang Barang Jadi belum dibangun (placeholder
+      // alert di tombol sidebar, tidak butuh entry di sini).
+      'sub-proses-produksi': 'tab-proses-produksi', 'sub-pr-cutting-tahap': 'tab-proses-produksi' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -561,7 +581,16 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-pesanan-kasir': 'pastikanMountPesananKasir',
     'sub-pesanan-menunggu': 'pastikanMountPesananMenunggu',
     'sub-pesanan-daftar': 'pastikanMountPesananDaftar',
-    'sub-pesanan-transaksi': 'pastikanMountPesananTransaksi'
+    'sub-pesanan-transaksi': 'pastikanMountPesananTransaksi',
+    // BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi > Cutting, 7
+    // tahap, lihat js/vue-pp-cutting.js.
+    'sub-pr-cutting-perludiproses': 'pastikanMountCuttingPerluDiProses',
+    'sub-pr-cutting-sedangampar': 'pastikanMountCuttingSedangAmpar',
+    'sub-pr-cutting-sedangpola': 'pastikanMountCuttingSedangPola',
+    'sub-pr-cutting-sedangcutting': 'pastikanMountCuttingSedangCutting',
+    'sub-pr-cutting-perludikirim': 'pastikanMountCuttingPerluDiKirim',
+    'sub-pr-cutting-sedangdikirim': 'pastikanMountCuttingSedangDiKirim',
+    'sub-pr-cutting-selesai': 'pastikanMountCuttingSelesai'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();

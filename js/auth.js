@@ -846,8 +846,14 @@ window.aturTampilanBerdasarkanRole = function() {
   // ditambahkan ke 2 array di bawah ini, kalau tidak menu tidak pernah
   // muncul untuk role manapun meski class "hidden" cuma bawaan index.html).
   const menuScanCetak = document.getElementById('menu-scan-cetak');
+  // BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi, grup top-level
+  // baru sejajar Zevanic House/Pesanan/Persiapan Produksi/Scan & Cetak.
+  // Gerbang role SAMA (isAdminLevel()) — pola SAMA PERSIS seperti
+  // menuPersiapanProduksi/menuScanCetak di atas, TERMASUK jebakan bug yang
+  // sama (tombolnya wajib ditambahkan ke KEDUA array show/hide di bawah).
+  const menuProsesProduksi = document.getElementById('menu-proses-produksi');
 
-  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuZevanicStockBtn, menuPersiapanProduksi, menuPesanan, menuScanCetak].forEach(el => {
+  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuZevanicStockBtn, menuPersiapanProduksi, menuPesanan, menuScanCetak, menuProsesProduksi].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -867,6 +873,7 @@ window.aturTampilanBerdasarkanRole = function() {
     if (menuPersiapanProduksi) menuPersiapanProduksi.classList.remove('hidden');
     if (menuPesanan) menuPesanan.classList.remove('hidden');
     if (menuScanCetak) menuScanCetak.classList.remove('hidden');
+    if (menuProsesProduksi) menuProsesProduksi.classList.remove('hidden');
     if (navMobileAdmin) {
       navMobileAdmin.classList.remove('hidden');
       navMobileAdmin.classList.add('flex');
@@ -974,6 +981,9 @@ window.terapkanUrutanMenuDesktop = async function() {
     // BARU (7 Sep 2026 malam) — 'Scan & Cetak' grup top-level baru, lihat
     // js/vue-scan-cetak.js.
     'Scan & Cetak': 'navgrp-scancetak',
+    // BARU (7 Sep 2026 malam lanjut lagi) — 'Proses Produksi' grup top-level
+    // baru, lihat js/vue-pp-cutting.js.
+    'Proses Produksi': 'navgrp-prosesproduksi',
     'Master Integrasi': 'navgrp-integrasi'
   };
   if (urutanKategori && urutanKategori.length) {
@@ -1007,6 +1017,11 @@ window.terapkanUrutanMenuDesktop = async function() {
   // (Scan Stok/Referensi Scan/Cetak/PIN), langsung anak navgrp-scancetak
   // (pola sama seperti Persiapan Produksi di atas).
   _urutkanSiblingMenu(document.getElementById('navgrp-scancetak'), perKategori['Scan & Cetak']);
+  // BARU (7 Sep 2026 malam lanjut lagi) — grup 'Proses Produksi' baru: cuma
+  // 1 sub-menu (Cutting) yang punya menu-id sungguhan saat ini (4 lainnya
+  // masih placeholder alert tanpa data-menu-id, jadi tidak ikut diurutkan
+  // di sini) — pola sama seperti Persiapan Produksi di atas.
+  _urutkanSiblingMenu(document.getElementById('navgrp-prosesproduksi'), perKategori['Proses Produksi']);
   const stripParent = (kelas) => { const el = document.querySelector('.' + kelas); return el ? el.parentElement : null; };
   _urutkanSiblingMenu(stripParent('sub-absensi-btn'), perKategori['Master Absensi']);
   _urutkanSiblingMenu(stripParent('sub-keuangan-btn'), perKategori['Master Keuangan']);

@@ -1,25 +1,27 @@
 # STATUS PROYEK (RINGKAS) — Zevanic/Gechoo ERP
 
-> **Terakhir diperbarui: 7 September 2026 (malam lanjut), §5.18.**
-> Persiapan Produksi > **Masalah** (langkah 6 rencana rekonstruksi)
-> **REBUILD TOTAL SELESAI DITULIS**: dari papan manual bebas-teks lama
-> jadi alur 7 tahap (Perlu Diajukan → Menunggu Setuju → Perlu Disiapkan
-> → Sedang Disiapkan → Perlu Di Kirim → Sedang Di Kirim → Selesai), file
-> baru `js/vue-pp-masalah.js`. Konflik arsitektur (nama koleksi
-> `persiapan_masalah` sudah dipakai skema LAMA) dilaporkan & diputuskan
-> Guru via AskUserQuestion SEBELUM kode ditulis — skema baru TETAP pakai
-> nama `persiapan_masalah`, 3 konsumen skema lama DIPINDAH ke koleksi
-> baru `permintaan_bahan_manual`. **SENGAJA BELUM dikerjakan sesi ini**
-> (retrofit Scan Masalah di 4 pos Bahan/Sewing/Webbing/Finishing supaya
-> benar-benar bikin dokumen `persiapan_masalah`) — jadi modul Masalah
-> akan tampil **KOSONG di semua 7 tab**, itu EKSPEKTASI bukan bug, lihat
-> §5.18. `node --check` lolos semua, tag HTML seimbang, **BELUM DITEST
-> BROWSER SAMA SEKALI**. Rules `permintaan_bahan_manual` **BELUM
-> DIPUBLISH** — board manual lama akan `permission-denied` sampai Guru
-> publish rule ini (lihat `firestore.rules` siap-tempel & 
-> `FIRESTORE-RULES-SNAPSHOT.md`). 4 pos Persiapan Produksi (Bahan/Acc
-> Sewing/Acc Webbing/Acc Finishing) refactor `ScanGenerik` (§5.17, sesi
-> sebelumnya) juga **BELUM DITEST BROWSER**. Fitur Pesanan REKONSTRUKSI
+> **Terakhir diperbarui: 7 September 2026 (malam lanjut lagi), §5.19.**
+> Retrofit Scan Masalah **SELESAI** — Scan Masalah di 4 pos Persiapan
+> Produksi (Bahan/Acc Sewing/Acc Webbing/Acc Finishing) SEKARANG benar-
+> benar membuat dokumen `persiapan_masalah` (fungsi baru `ajukanPersiapan
+> Masalah()` di `js/vue-scan-cetak.js`, dipanggil dari popup baru "jumlah
+> kurang + alasan" yang menggantikan `prompt()` tunggal lama) — modul
+> Masalah (§5.18, 7 tahap) SEKARANG bisa mulai terisi data begitu ada
+> Scan Masalah sungguhan, TIDAK lagi otomatis kosong selamanya. Lihat
+> §5.19. `node --check` lolos ke-5 file, tag `<div>` seimbang, **BELUM
+> DITEST BROWSER SAMA SEKALI** (regresi: pastikan badge catatan_masalah
+> di pos asal tidak berubah perilaku). Persiapan Produksi > **Masalah**
+> itu sendiri (§5.18, REBUILD TOTAL 7 tahap: Perlu Diajukan → Menunggu
+> Setuju → Perlu Disiapkan → Sedang Disiapkan → Perlu Di Kirim → Sedang
+> Di Kirim → Selesai, file `js/vue-pp-masalah.js`) juga **BELUM DITEST
+> BROWSER**. Koleksi `persiapan_masalah` (skema BARU) vs `permintaan_
+> bahan_manual` (papan manual lama, dipindah) — lihat §5.18 untuk detail
+> konflik arsitektur & keputusan Guru. Rules `permintaan_bahan_manual`
+> **BELUM DIPUBLISH** — board manual lama akan `permission-denied` sampai
+> Guru publish rule ini (lihat `firestore.rules` siap-tempel &
+> `FIRESTORE-RULES-SNAPSHOT.md`). 4 pos Persiapan Produksi refactor
+> `ScanGenerik` (§5.17, sesi sebelumnya) juga **BELUM DITEST BROWSER**.
+> Fitur Pesanan REKONSTRUKSI
 > BESAR dari handoff "Pesanan dan Transaksi": piutang (Tempo/DP/Cicilan)
 > + koleksi `piutang_pembayaran` BARU **SUDAH DITULIS**, **BELUM DITEST
 > BROWSER/FIRESTORE SAMA SEKALI** — lihat §5.15 & §7 poin 0. Rules
@@ -854,6 +856,78 @@ mengurangi stok dengan benar, (d) alur bagging/tugas kirim (Perlu Di
 Kirim) jalan sama seperti pos Bahan, (e) rule `permintaan_bahan_manual`
 DIPUBLISH sebelum papan manual lama dites lagi.
 
+### 5.19 Retrofit Scan Masalah — 4 pos Persiapan Produksi kini benar-benar mengisi modul Masalah (7 Sep 2026 malam lanjut lagi, kode belum ditest browser)
+
+Instruksi Guru: *"retrofit Scan Masalah supaya clear lanjut ke proses
+produksi"* — menyelesaikan retrofit yang SENGAJA ditunda di §5.18 (Guru
+sebelumnya memilih "Modul Masalah dulu, retrofit menyusul"). SEBELUM ini,
+Scan Masalah di Bahan/Acc Sewing/Acc Webbing/Acc Finishing (Tab 2 "Sedang
+Disiapkan") CUMA menulis `catatan_masalah` teks bebas ke baris `spk_track`
+— TIDAK PERNAH membuat dokumen apapun di `persiapan_masalah`, jadi modul
+Masalah (§5.18) yang sudah lengkap 7 tahapnya selalu tampil kosong walau
+ada kekurangan sungguhan di lapangan.
+
+**Yang ditambahkan (fungsi BARU, bukan pengganti)**: `ajukanPersiapan
+Masalah()` di `js/vue-scan-cetak.js` — SATU fungsi dipakai ke-4 pos
+(konsisten dengan filosofi "1 modul cetak/scan, banyak pos" yang sudah
+dipakai `ScanGenerik`). Dipanggil bersama `updateBaris<Pos>()` yang lama
+(catatan_masalah TETAP ditulis seperti biasa, baris TETAP tampil dengan
+badge merah di pos asalnya, TIDAK berubah status — operator masih bisa
+Scan Entry normal begitu kekurangan itu terpenuhi lewat alur Masalah/stok
+manual manapun). Dokumen baru ditulis dengan `status:'perlu_diajukan'`,
+field snapshot (`bahan_aksesoris_id/bahan_nama/bahan_warna/satuan/no_spk`),
+`qty_kurang` + `qty_entry_asal` (dihitung dari kebutuhan_kain/butuh baris
+dikurangi qty_kurang), `alasan_masalah`, `scan_oleh/scan_pada`, dan
+`tlc_asal`/`sumber_jalur` sesuai pos (`TLC-BHN`/bahan, `TLC-SEW`/sewing,
+`TLC-WEB`/webbing, `TLC-FIN`/finishing) — field-field ini SUDAH
+didokumentasikan di header `js/vue-pp-masalah.js` sejak §5.18 ditulis,
+jadi BUKAN skema baru yang ditebak sekarang, cuma akhirnya benar-benar
+diisi.
+
+**UI BARU (judgment call, didokumentasikan)**: sebelumnya Scan Masalah
+cuma `prompt()` 1 kolom teks (alasan). Skema `persiapan_masalah` butuh
+`qty_kurang` numerik (dipakai hitung kumulatif di Perlu Diajukan/Menunggu
+Setuju §5.18) yang TIDAK ada sebelumnya — jadi ditambah 1 popup kecil
+(pola sama seperti popup "Cetak Ulang" yang sudah ada di 4 file yang sama)
+minta **jumlah kurang** (default = SELURUH kebutuhan baris ini, karena
+baris belum pernah di-entry sama sekali saat masih di Sedang Disiapkan —
+bisa diedit turun kalau operator sempat dapat sebagian) + **alasan**,
+BUKAN 2x `prompt()` berturut, karena input numerik dgn validasi >0 lebih
+aman lewat field `<input type="number">` daripada `parseFloat(prompt())`.
+Ini bukan spek eksplisit manapun (SERAH-TERIMA 4 pos itu tidak menggambar
+ulang popup Scan Masalah) — kalau Guru mau bentuk lain, tinggal disesuaikan.
+
+**SENGAJA TIDAK dikerjakan (di luar cakupan instruksi ini)**: PEDOMAN-
+SERAH-TERIMA.md §4c menyebut "kalau tahap Sedang punya scan masalah, tahap
+Perlu di atasnya wajib ikut ada" — dicek, ke-4 pos ini TIDAK punya tombol
+Masalah di Tab 1 "Perlu Disiapkan" (cuma di Tab 2 "Sedang Disiapkan"),
+kondisi ini SUDAH ADA sejak sebelum sesi ini (bukan regresi baru dari
+retrofit ini) dan TIDAK disentuh sekarang — instruksi Guru spesifik minta
+"retrofit Scan Masalah" (membuat yang sudah ada benar-benar menulis
+dokumen), bukan menambah tombol baru di tab lain. Dicatat sebagai
+kemungkinan gap terpisah, bukan diam-diam dianggap selesai.
+
+**File yang berubah (5 total)**: `js/vue-scan-cetak.js` (fungsi baru
+`ajukanPersiapanMasalah()`), `js/vue-persiapan-bahan.js`, `js/vue-
+persiapan-sewing.js`, `js/vue-persiapan-webbing.js`, `js/vue-persiapan-
+finishing.js` (ke-4nya: import fungsi baru + popup jumlah kurang/alasan
+menggantikan `prompt()` tunggal + panggil `ajukanPersiapanMasalah()`).
+`js/vue-pp-masalah.js` cuma komentar header diperbarui (tidak ada
+perubahan logika — skema yang dipakai sudah benar sejak awal).
+**TIDAK ADA perubahan `firestore.rules`** — koleksi `persiapan_masalah`
+sudah punya rule generik (`isAdminLevel()`) sejak §5.18, field baru di
+dalam dokumen tidak butuh rule tambahan.
+
+**BELUM ditest browser sama sekali** — `node --check` lolos ke-5 file,
+tag `<div>`/`</div>` seimbang (dicek manual, bukan asumsi). Yang WAJIB
+dites begitu Guru scan masalah sungguhan di HP: (a) popup jumlah kurang
+muncul & tervalidasi (tidak bisa submit 0/kosong), (b) dokumen
+`persiapan_masalah` benar-benar muncul di Firestore dengan field yang
+benar, (c) kartu bahan itu benar-benar muncul di tab Perlu Diajukan modul
+Masalah (§5.18) dengan angka kumulatif yang benar, (d) badge merah
+catatan_masalah tetap tampil seperti biasa di pos asal (regresi negatif
+— pastikan perilaku lama tidak rusak).
+
 ## 6. Bug besar & pelajaran (kelas bug yang bisa terulang)
 
 - **Inline `style="display:..."` SELALU menang dari class CSS manapun**
@@ -923,21 +997,24 @@ DIPUBLISH sebelum papan manual lama dites lagi.
 
 ## 7. Yang PALING PENTING diverifikasi sesi berikutnya
 
-00. **BARU (7 Sep 2026 malam) — §5.18 modul Masalah (7 tahap) SELESAI
-    DITULIS TAPI SENGAJA KOSONG SAMPAI 2 PRASYARAT ADA**: (a) retrofit
-    "Scan Masalah" di 4 pos Bahan/Acc Sewing/Webbing/Finishing supaya
-    benar-benar membuat dokumen `persiapan_masalah` skema baru (sesi
-    terpisah, BELUM dikerjakan sesuai keputusan Guru), (b) modul
-    Persiapan Belanja/group 8 (jalur keluar utk "Ajukan Belanja").
+00. **DIPERBARUI (7 Sep 2026 malam lanjut lagi) — §5.18 modul Masalah (7
+    tahap) SELESAI DITULIS, retrofit Scan Masalah (§5.19) JUGA SELESAI**:
+    kedua prasyarat lama tinggal SATU yang masih terbuka — modul
+    Persiapan Belanja/group 8 (jalur keluar utk "Ajukan Belanja", status
+    `diajukan_belanja` sudah disiapkan tapi belum ada yang membacanya).
+    Prasyarat "retrofit Scan Masalah" SUDAH TERPENUHI (§5.19) — modul
+    Masalah SEKARANG bisa mulai terisi data nyata begitu operator scan
+    masalah sungguhan di 4 pos, TIDAK lagi otomatis kosong selamanya.
     **WAJIB sebelum tab manapun bisa dites**: publish rule
     `permintaan_bahan_manual` (lihat §5.18) — tanpa ini board manual
     lama (`vue-persiapan-masalah.js`, `vue-scan-persiapan.js` fungsi
     kekurangan, `vue-stock-pembelian.js` Daftar Permintaan) akan
     `permission-denied` karena nama koleksinya baru saja dipindah.
-    **Untuk test modul Masalah itu sendiri sebelum retrofit ada**:
-    isi manual 1-2 dokumen contoh langsung ke Firestore Console
-    (skema field ada di komentar header `js/vue-pp-masalah.js`) untuk
-    memverifikasi UI 7 tahapnya jalan, sebelum retrofit selesai.
+    **Untuk test alur penuh (Scan Masalah -> modul Masalah)**: scan
+    masalah sungguhan di salah satu dari 4 pos Bahan/Acc Sewing/Webbing/
+    Finishing (Tab 2 "Sedang Disiapkan", tombol "Masalah"), isi popup
+    jumlah kurang + alasan, lalu cek kartu bahan itu muncul di Persiapan
+    Produksi > Masalah > Perlu Diajukan.
 0a. **BARU (7 Sep 2026) — §5.15 rekonstruksi Pesanan dan Transaksi (4
     sub-menu, TERMASUK PIUTANG) BELUM DITEST BROWSER/FIRESTORE SAMA
     SEKALI, dan modul ini menyentuh UANG (kasir, piutang, pembayaran)**:
@@ -1024,8 +1101,11 @@ DIPUBLISH sebelum papan manual lama dites lagi.
 8. Cek `RENCANA-REKONSTRUKSI-2026-09.md` untuk peta lengkap langkah
    rekonstruksi besar yang sedang berjalan — urutan sudah DIGESER 7 Sep
    2026 (Persiapan Produksi lengkap dulu, baru Proses Produksi/Cutting).
-   **Giliran berikutnya sekarang Cutting** (Masalah §5.18 baru saja
-   selesai ditulis).
+   **Giliran berikutnya sekarang Cutting** (Masalah §5.18 SELESAI ditulis
+   DAN retrofit Scan Masalah-nya §5.19 SELESAI juga — instruksi Guru 7
+   Sep 2026 malam lanjut lagi eksplisit: *"retrofit Scan Masalah supaya
+   clear lanjut ke proses produksi"*, jadi Cutting mulai dikerjakan
+   SEKARANG, di sesi yang sama).
 
 ---
 

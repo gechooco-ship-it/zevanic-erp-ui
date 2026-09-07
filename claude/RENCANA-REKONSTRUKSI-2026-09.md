@@ -149,6 +149,23 @@
 > lihat catatan §6: retrofit Scan Masalah (di atas) dan Persiapan Belanja
 > (langkah 8, prasyarat penuh Masalah) masih menyusul, belum tentu Guru
 > mau loncat ke Cutting duluan seperti pola sebelumnya.
+>
+> **UPDATE progres (7 Sep 2026, malam lanjut lagi) — retrofit Scan Masalah
+> SELESAI, langkah 5 tuntas penuh**: instruksi Guru *"retrofit Scan
+> Masalah supaya clear lanjut ke proses produksi"*. Fungsi baru
+> `ajukanPersiapanMasalah()` ditambahkan ke `js/vue-scan-cetak.js`,
+> dipanggil dari popup baru (jumlah kurang + alasan, menggantikan
+> `prompt()` tunggal lama) di ke-4 pos Bahan/Acc Sewing/Webbing/Finishing
+> — SEKARANG Scan Masalah benar-benar membuat dokumen `persiapan_masalah`
+> skema baru (bukan cuma catatan teks lagi). Modul Masalah (§5.18) SUDAH
+> BISA mulai terisi data nyata. Detail lengkap: `STATUS-PROYEK.md` §5.19.
+> **BELUM DITEST BROWSER SAMA SEKALI** — `node --check` lolos ke-5 file,
+> tag `<div>` seimbang. Tidak ada perubahan `firestore.rules` (koleksi
+> `persiapan_masalah` sudah punya rule generik sejak §5.18). Prasyarat
+> Persiapan Belanja (langkah 8, jalur "Ajukan Belanja") TETAP belum
+> dibangun — TIDAK termasuk cakupan retrofit ini. **Guru instruksikan
+> lanjut ke Cutting SEKARANG, di sesi yang sama** — dimulai setelah
+> catatan update ini.
 
 ---
 
@@ -567,7 +584,7 @@ DULU seluruhnya (langkah 5-9 baru di bawah) sebelum masuk Proses Produksi
 | 2 | Publish `firestore.rules` yang tertunda (`transaksi_kasir`, 6 koleksi Bahan/Acc, `master_pelanggan`) | ✅ **SELESAI** | Blocker keras yang sudah ada sebelum paket baru ini pun — semua rules s.d. §5.14 sudah dipublish |
 | 3 | Infrastruktur PIN sungguhan (`verifikasiPIN`, `pin_hash`) | ⏸️ **Sengaja dilewati** (pilihan Guru) | Dipakai banyak modul baru (Persiapan Belanja, Stok edit harga) — kerjakan sekali, pakai ulang. Tunggu Cloud Function/keputusan pendekatan. **Catatan 7 Sep 2026 malam**: Stok & Pembelian (§5.14) DAN Pesanan (§5.15) TIDAK menunggu langkah ini — ternyata sudah ada `users.pin_hash` dari Kiosk yang cukup dipakai ulang untuk kebutuhan modul-modul itu, lihat §2.3. Masalah (§5.18) TIDAK pakai PIN sama sekali (cukup gerbang role) |
 | 4 | Master Pelanggan + Master Suplayer (rebuild) | ✅ **KODE SELESAI KEDUANYA, RULES SELESAI KEDUANYA** (Suplayer §5.12, Pelanggan §5.14) — belum push/uji Guru | Data dasar yang dibutuhkan Pesanan piutang & Persiapan Belanja |
-| 5 | **Modul Scan generik** (Operator/Entry/Masalah/Pack/Kirim/Sampai, BARU §9.3) | 🔶 **FONDASI + RETROFIT BAHAN/ACC SELESAI (7 Sep 2026 malam lanjut, §5.16+§5.17, `STATUS-PROYEK.md`)** — `PopupPinGenerik`/`ScanGenerik` ditulis di `js/vue-scan-cetak.js` + menu "Scan & Cetak" dibangun (§5.16), lalu `ScanGenerik` ditulis ulang interface-nya supaya persis sama `ModalScanQr` dan **4 pos Persiapan Produksi (Bahan/Acc Sewing/Webbing/Finishing) SUDAH diretrofit** memakainya (§5.17). **Retrofit Masalah (5 dokumen `persiapan_masalah` dari scan, di 4 pos) MASIH BELUM DIKERJAKAN** — keputusan Guru eksplisit di §5.18 ("Modul Masalah dulu, retrofit menyusul"), BUKAN terlewat. **Scan "Sampai" ITU SENDIRI (field `sampai_pada`) MASIH BELUM PUNYA PENULIS** — tetap menunggu Cutting | Retrofit Bahan/Acc SELESAI; retrofit Masalah + Scan Sampai masih menyusul |
+| 5 | **Modul Scan generik** (Operator/Entry/Masalah/Pack/Kirim/Sampai, BARU §9.3) | 🔶 **FONDASI + RETROFIT BAHAN/ACC + RETROFIT MASALAH SELESAI (7 Sep 2026 malam lanjut lagi, §5.16-§5.19, `STATUS-PROYEK.md`)** — `PopupPinGenerik`/`ScanGenerik` ditulis di `js/vue-scan-cetak.js` + menu "Scan & Cetak" dibangun (§5.16), lalu `ScanGenerik` ditulis ulang interface-nya supaya persis sama `ModalScanQr` dan **4 pos Persiapan Produksi (Bahan/Acc Sewing/Webbing/Finishing) SUDAH diretrofit** memakainya (§5.17). **Retrofit Masalah (dokumen `persiapan_masalah` dari scan, di 4 pos) SEKARANG JUGA SELESAI (§5.19)** — fungsi baru `ajukanPersiapanMasalah()` di `js/vue-scan-cetak.js`, dipanggil dari popup baru (jumlah kurang + alasan) di ke-4 pos, menggantikan `prompt()` tunggal lama yang cuma catatan teks. Modul Masalah (§5.18) SEKARANG bisa mulai terisi data nyata. **Scan "Sampai" ITU SENDIRI (field `sampai_pada`) MASIH BELUM PUNYA PENULIS** — tetap menunggu Cutting, TIDAK termasuk cakupan retrofit §5.19 | Langkah 5 SELESAI PENUH untuk cakupan Persiapan Produksi; sisanya (Scan Sampai) menyatu dengan pembangunan Cutting (langkah 10) |
 | 6 | **Masalah** (rebuild total, 7 child-menu) | ✅ **SELESAI DITULIS (7 Sep 2026 malam lanjut, §5.18)** — instruksi Guru *"masalah gas"*. `js/vue-pp-masalah.js` baru, 7 tahap lengkap. **BELUM DITEST BROWSER.** Tampil KOSONG sampai retrofit langkah 5 (Scan Masalah di 4 pos) menyusul — keputusan cakupan Guru, bukan gap | Bagian dari "Persiapan Produksi diperbarui dulu" — SELESAI, tapi butuh retrofit langkah 5 supaya benar-benar terisi data |
 | 7 | **Kekurangan Bahan/Acc lain** (ambang tertahan per pos §9.1 + 4 gap kode nyata, ditemukan & DIPUTUSKAN 7 Sep 2026: PIN cetak-ulang belum diverifikasi kriptografis, Bahan belum ada gerbang-batch, Acc Webbing belum ada logic roll-sisa, Acc Finishing belum ada alur vendor-sablon terpisah — dikerjakan SEKALIGUS ke-4nya) | ⏳ Belum mulai, cakupan sudah lengkap | Bagian dari "Persiapan Produksi diperbarui dulu" |
 | 7b | **Zevanic House lain** (List Bahan grid/expand, margin persen, HPP, Riwayat PIN — BARU §9.2, ditemukan 7 Sep 2026) | ✅ Semua 4 keputusan diambil Guru + kode ditulis + `node --check` lolos + sudah dikirim ke `Code\` device (7 Sep 2026) — **BELUM DITEST BROWSER sama sekali**. Rule Firestore `riwayat_pin` **SUDAH dipublish** (7 Sep 2026 malam, bareng `piutang_pembayaran`) dan Riwayat PIN sendiri **PINDAH ke menu Scan & Cetak** (§5.16) — layar Config yang lama sudah dihapus | Master Suplayer/Pelanggan sudah selesai, tapi Master Bahan/Produk/Config di area yang sama ternyata masih ada gap dari wireframe — sekalian selagi di Zevanic House |

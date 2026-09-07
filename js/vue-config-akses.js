@@ -265,6 +265,14 @@ const DAFTAR_MENU = [
   // total, langkah 6 rencana rekonstruksi). Lihat js/vue-pp-masalah.js.
   { id: 'pp_masalah', label: 'Persiapan Produksi - Masalah', kategori: 'Persiapan Produksi', icon: 'fa-triangle-exclamation',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-masalah', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-perludiajukan', null, {catatRiwayat:true}); } },
+  // BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi > Cutting, grup
+  // top-level baru (langkah 10 rencana rekonstruksi, dikerjakan loncat
+  // urutan atas instruksi Guru: "retrofit Scan Masalah supaya clear lanjut
+  // ke proses produksi"). Satu izin menu untuk semua 7 tab Cutting (SAMA
+  // pola seperti pp_bahan/pp_sewing dst yang juga 1 izin untuk 5 tab).
+  // Lihat js/vue-pp-cutting.js.
+  { id: 'cut_cutting', label: 'Proses Produksi - Cutting', kategori: 'Proses Produksi', icon: 'fa-scissors',
+    aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-cutting', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-perludiproses', null, {catatRiwayat:true}); } },
   // BARU (30 Agt 2026) — grup top-level "Pesanan" (sejajar Zevanic House/
   // Persiapan Produksi). REKONSTRUKSI (7 Sep 2026, handoff "Pesanan dan
   // Transaksi") — 3 id lama (pesanan_persiapan/produksi/pengiriman, ringkasan
@@ -317,7 +325,12 @@ const DAFTAR_MENU = [
 // Guru mau urutan lain). 'Proses Produksi' (Cutting/Sewing/Finishing/Serie/
 // Gudang Barang Jadi) akan ditambah SEBELUM 'Scan & Cetak' begitu modul-
 // modul itu mulai dibangun (menyusul, belum di commit ini).
-export const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House', 'Pesanan', 'Persiapan Produksi', 'Scan & Cetak'];
+// BARU (7 Sep 2026 malam lanjut lagi) — 'Proses Produksi' ditambah di ujung
+// (grup top-level baru, lihat js/vue-pp-cutting.js) — TIDAK menyisipkan di
+// tengah supaya urutan kategori yang SUDAH tersimpan Guru di
+// pengaturan_sistem/urutan_menu_home (lihat urutanKategoriArr di bawah)
+// tidak berubah, kategori baru otomatis masuk lewat katBelumAda.
+export const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House', 'Pesanan', 'Persiapan Produksi', 'Scan & Cetak', 'Proses Produksi'];
 export { DAFTAR_MENU };
 const KOSONG_IZIN = () => ({ view: false, add: false, edit: false, delete: false, print: false });
 
