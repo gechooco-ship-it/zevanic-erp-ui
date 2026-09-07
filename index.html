@@ -381,8 +381,8 @@
           <button onclick="pindahTab('tab-proses-produksi'); pindahSubTab('sub-proses-produksi','sub-pr-cutting', this, {catatRiwayat:true}); pindahSubTab('sub-pr-cutting-tahap','sub-pr-cutting-perludiproses', null, {catatRiwayat:true})" id="menu-pr-cutting-btn" data-menu-id="cut_cutting" data-target="sub-pr-cutting" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-scissors" style="width:17px; text-align:center;"></i> Cutting
           </button>
-          <button onclick="alert('Serie belum dibangun — menyusul setelah Cutting.')" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px; opacity:.55;">
-            <i class="fas fa-shuffle" style="width:17px; text-align:center;"></i> Serie <span style="margin-left:auto; font-size:9.5px;">(segera hadir)</span>
+          <button onclick="pindahTab('tab-proses-produksi'); pindahSubTab('sub-proses-produksi','sub-pr-serie', this, {catatRiwayat:true}); pindahSubTab('sub-pr-serie-tahap','sub-pr-serie-perludiproses', null, {catatRiwayat:true})" id="menu-pr-serie-btn" data-menu-id="proses_serie" data-target="sub-pr-serie" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-shuffle" style="width:17px; text-align:center;"></i> Serie
           </button>
           <button onclick="alert('Sewing (Proses Produksi) belum dibangun.')" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px; opacity:.55;">
             <i class="fas fa-thread" style="width:17px; text-align:center;"></i> Sewing <span style="margin-left:auto; font-size:9.5px;">(segera hadir)</span>
@@ -1274,6 +1274,58 @@
               <div id="vue-cutting-selesai"></div>
             </div>
           </div>
+
+          <!-- BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" setelah
+               Cutting) — Serie, 11 tab (hub distribusi antar divisi). Lihat
+               komentar besar di js/vue-pp-serie.js. -->
+          <div id="sub-pr-serie" class="sub-proses-produksi-content hidden fade-in space-y-4">
+            <div class="flex space-x-2 overflow-x-auto no-scrollbar">
+              <button onclick="pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-perludiproses', this, {catatRiwayat:true})" class="sub-pr-serie-tahap-btn gc-sub-tab-btn active" data-target="sub-pr-serie-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Di Proses</button>
+              <button onclick="pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-sedangdiproses', this, {catatRiwayat:true})" class="sub-pr-serie-tahap-btn gc-sub-tab-btn" data-target="sub-pr-serie-sedangdiproses"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Di Proses</button>
+              <button onclick="pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-perludikirim', this, {catatRiwayat:true})" class="sub-pr-serie-tahap-btn gc-sub-tab-btn" data-target="sub-pr-serie-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Di Kirim</button>
+              <button onclick="pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-kirimsewing', this, {catatRiwayat:true})" class="sub-pr-serie-tahap-btn gc-sub-tab-btn" data-target="sub-pr-serie-kirimsewing"><i class="fas fa-paper-plane" style="margin-right:6px;"></i> Kirim Sewing</button>
+              <button onclick="pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-setorsewing', this, {catatRiwayat:true})" class="sub-pr-serie-tahap-btn gc-sub-tab-btn" data-target="sub-pr-serie-setorsewing"><i class="fas fa-eye" style="margin-right:6px;"></i> Setor Sewing</button>
+              <button onclick="pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-terimasewing', this, {catatRiwayat:true})" class="sub-pr-serie-tahap-btn gc-sub-tab-btn" data-target="sub-pr-serie-terimasewing"><i class="fas fa-truck-ramp-box" style="margin-right:6px;"></i> Terima Sewing</button>
+              <button onclick="pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-kirimfinishing', this, {catatRiwayat:true})" class="sub-pr-serie-tahap-btn gc-sub-tab-btn" data-target="sub-pr-serie-kirimfinishing"><i class="fas fa-paper-plane" style="margin-right:6px;"></i> Kirim Finishing</button>
+              <button onclick="pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-setorfinishing', this, {catatRiwayat:true})" class="sub-pr-serie-tahap-btn gc-sub-tab-btn" data-target="sub-pr-serie-setorfinishing"><i class="fas fa-eye" style="margin-right:6px;"></i> Setor Finishing</button>
+              <button onclick="pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-terimafinishing', this, {catatRiwayat:true})" class="sub-pr-serie-tahap-btn gc-sub-tab-btn" data-target="sub-pr-serie-terimafinishing"><i class="fas fa-truck-ramp-box" style="margin-right:6px;"></i> Terima Finishing</button>
+              <button onclick="pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-kirimgudang', this, {catatRiwayat:true})" class="sub-pr-serie-tahap-btn gc-sub-tab-btn" data-target="sub-pr-serie-kirimgudang"><i class="fas fa-warehouse" style="margin-right:6px;"></i> Kirim Gudang</button>
+              <button onclick="pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-selesai', this, {catatRiwayat:true})" class="sub-pr-serie-tahap-btn gc-sub-tab-btn" data-target="sub-pr-serie-selesai"><i class="fas fa-circle-check" style="margin-right:6px;"></i> Selesai</button>
+            </div>
+            <div id="sub-pr-serie-perludiproses" class="sub-pr-serie-tahap-content fade-in space-y-4">
+              <div id="vue-serie-perludiproses"></div>
+            </div>
+            <div id="sub-pr-serie-sedangdiproses" class="sub-pr-serie-tahap-content hidden fade-in space-y-4">
+              <div id="vue-serie-sedangdiproses"></div>
+            </div>
+            <div id="sub-pr-serie-perludikirim" class="sub-pr-serie-tahap-content hidden fade-in space-y-4">
+              <div id="vue-serie-perludikirim"></div>
+            </div>
+            <div id="sub-pr-serie-kirimsewing" class="sub-pr-serie-tahap-content hidden fade-in space-y-4">
+              <div id="vue-serie-kirimsewing"></div>
+            </div>
+            <div id="sub-pr-serie-setorsewing" class="sub-pr-serie-tahap-content hidden fade-in space-y-4">
+              <div id="vue-serie-setorsewing"></div>
+            </div>
+            <div id="sub-pr-serie-terimasewing" class="sub-pr-serie-tahap-content hidden fade-in space-y-4">
+              <div id="vue-serie-terimasewing"></div>
+            </div>
+            <div id="sub-pr-serie-kirimfinishing" class="sub-pr-serie-tahap-content hidden fade-in space-y-4">
+              <div id="vue-serie-kirimfinishing"></div>
+            </div>
+            <div id="sub-pr-serie-setorfinishing" class="sub-pr-serie-tahap-content hidden fade-in space-y-4">
+              <div id="vue-serie-setorfinishing"></div>
+            </div>
+            <div id="sub-pr-serie-terimafinishing" class="sub-pr-serie-tahap-content hidden fade-in space-y-4">
+              <div id="vue-serie-terimafinishing"></div>
+            </div>
+            <div id="sub-pr-serie-kirimgudang" class="sub-pr-serie-tahap-content hidden fade-in space-y-4">
+              <div id="vue-serie-kirimgudang"></div>
+            </div>
+            <div id="sub-pr-serie-selesai" class="sub-pr-serie-tahap-content hidden fade-in space-y-4">
+              <div id="vue-serie-selesai"></div>
+            </div>
+          </div>
         </div>
 
         <div id="tab-whatsapp" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
@@ -1649,5 +1701,10 @@
        Lihat komentar besar di js/vue-pp-cutting.js untuk latar belakang &
        keputusan arsitektur lengkap. -->
   <script type="module" src="js/vue-pp-cutting.js?v=1"></script>
+  <!-- BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" setelah Cutting) —
+       Proses Produksi > Serie, 11 tab (hub distribusi). Lihat komentar besar
+       di js/vue-pp-serie.js untuk latar belakang & keputusan arsitektur
+       lengkap. -->
+  <script type="module" src="js/vue-pp-serie.js?v=1"></script>
 </body>
 </html>

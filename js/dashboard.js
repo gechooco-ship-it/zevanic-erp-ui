@@ -416,10 +416,12 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-suplayer': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-pesanan': 'tab-pesanan', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi', 'sub-pp-masalah-tahap': 'tab-persiapan-produksi', 'sub-scan-cetak': 'tab-scan-cetak', 'sub-scancetak-stok-tahap': 'tab-scan-cetak',
       // BARU (7 Sep 2026 malam lanjut lagi) — 'sub-proses-produksi' +
       // 'sub-pr-cutting-tahap' -> 'tab-proses-produksi' (grup top-level baru,
-      // lihat js/vue-pp-cutting.js). Cuma Cutting yang punya div konten;
-      // Serie/Sewing/Finishing/Gudang Barang Jadi belum dibangun (placeholder
-      // alert di tombol sidebar, tidak butuh entry di sini).
-      'sub-proses-produksi': 'tab-proses-produksi', 'sub-pr-cutting-tahap': 'tab-proses-produksi' };
+      // lihat js/vue-pp-cutting.js). BARU LAGI (7 Sep 2026 malam, "lanjut
+      // lagi" #2) — 'sub-pr-serie-tahap' ditambahkan sekarang Serie sudah
+      // fungsional (js/vue-pp-serie.js, 11 tab). Sewing/Finishing/Gudang
+      // Barang Jadi MASIH belum dibangun (placeholder alert di tombol
+      // sidebar, tidak butuh entry di sini).
+      'sub-proses-produksi': 'tab-proses-produksi', 'sub-pr-cutting-tahap': 'tab-proses-produksi', 'sub-pr-serie-tahap': 'tab-proses-produksi' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -590,7 +592,20 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-pr-cutting-sedangcutting': 'pastikanMountCuttingSedangCutting',
     'sub-pr-cutting-perludikirim': 'pastikanMountCuttingPerluDiKirim',
     'sub-pr-cutting-sedangdikirim': 'pastikanMountCuttingSedangDiKirim',
-    'sub-pr-cutting-selesai': 'pastikanMountCuttingSelesai'
+    'sub-pr-cutting-selesai': 'pastikanMountCuttingSelesai',
+    // BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" #2) — Proses
+    // Produksi > Serie, 11 tahap (hub distribusi), lihat js/vue-pp-serie.js.
+    'sub-pr-serie-perludiproses': 'pastikanMountSeriePerluDiProses',
+    'sub-pr-serie-sedangdiproses': 'pastikanMountSerieSedangDiProses',
+    'sub-pr-serie-perludikirim': 'pastikanMountSeriePerluDiKirim',
+    'sub-pr-serie-kirimsewing': 'pastikanMountSerieKirimSewing',
+    'sub-pr-serie-setorsewing': 'pastikanMountSerieSetorSewing',
+    'sub-pr-serie-terimasewing': 'pastikanMountSerieTerimaSewing',
+    'sub-pr-serie-kirimfinishing': 'pastikanMountSerieKirimFinishing',
+    'sub-pr-serie-setorfinishing': 'pastikanMountSerieSetorFinishing',
+    'sub-pr-serie-terimafinishing': 'pastikanMountSerieTerimaFinishing',
+    'sub-pr-serie-kirimgudang': 'pastikanMountSerieKirimGudang',
+    'sub-pr-serie-selesai': 'pastikanMountSerieSelesai'
   };
   const namaFungsiMount = petaMount[targetId];
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();
