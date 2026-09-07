@@ -215,6 +215,9 @@ const petaGrupSidebarPerTab = {
   // grup top-level BARU (sejajar Zevanic House), lihat STATUS-PROYEK.md
   // §44.13.
   'tab-persiapan-produksi': 'navgrp-persiapanproduksi',
+  // BARU (7 Sep 2026 malam) — 'tab-scan-cetak' grup top-level BARU (sejajar
+  // Zevanic House/Pesanan/Persiapan Produksi), lihat js/vue-scan-cetak.js.
+  'tab-scan-cetak': 'navgrp-scancetak',
   'tab-whatsapp': 'navgrp-integrasi',
   'tab-mail-gateway': 'navgrp-integrasi',
   'tab-device-kiosk': 'navgrp-integrasi'
@@ -231,7 +234,7 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
   // BARU (29 Agt 2026) — 'tab-persiapan-produksi' (grup top-level baru,
   // lihat STATUS-PROYEK.md §44.13). BARU (30 Agt 2026) — 'tab-pesanan'
   // (grup top-level baru, lihat js/vue-pesanan.js).
-  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-zevanic-house', 'tab-pesanan', 'tab-persiapan-produksi', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress', 'tab-menu-lengkap', 'tab-atur-favorit'];
+  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-zevanic-house', 'tab-pesanan', 'tab-persiapan-produksi', 'tab-scan-cetak', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress', 'tab-menu-lengkap', 'tab-atur-favorit'];
   const tabSebelumnya = tabs.find(t => {
     const el = document.getElementById(t);
     return el && !el.classList.contains('hidden');
@@ -315,6 +318,14 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
         window.pindahSubTab('sub-pesanan', 'sub-pesanan-kasir', document.querySelectorAll('.sub-pesanan-btn')[0]);
       }
   }
+  // BARU (7 Sep 2026 malam) — landing default 'tab-scan-cetak' (grup
+  // top-level baru): "Scan Stok" (pola sama seperti tab-pesanan di atas).
+  if (tabId === 'tab-scan-cetak') {
+      if (window.pindahSubTab) {
+        window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-stok', document.querySelectorAll('.sub-scan-cetak-btn')[0]);
+        window.pindahSubTab('sub-scancetak-stok-tahap', 'sub-scancetak-stok-opname', document.querySelectorAll('.sub-scancetak-stok-tahap-btn')[0]);
+      }
+  }
   if (tabId === 'tab-whatsapp') {
       if (window.pastikanMountWhatsapp) window.pastikanMountWhatsapp();
   }
@@ -381,7 +392,11 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // index.html, tidak ada lagi yang memanggilnya.
     // BARU (30 Agt 2026) — 'sub-pesanan' -> 'tab-pesanan' (grup top-level
     // baru, lihat js/vue-pesanan.js).
-    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-suplayer': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-zh-scan': 'tab-zevanic-house', 'sub-pesanan': 'tab-pesanan', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi' };
+    // BARU (7 Sep 2026 malam) — 'sub-scan-cetak' + 'sub-scancetak-stok-tahap'
+    // -> 'tab-scan-cetak' (grup top-level baru, lihat js/vue-scan-cetak.js).
+    // 'sub-zh-scan' (versi LAMA, nested di Zevanic House) DIHAPUS dari peta
+    // ini — Scan Opname/Persiapan sudah pindah keluar dari Zevanic House.
+    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-suplayer': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-pesanan': 'tab-pesanan', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi', 'sub-scan-cetak': 'tab-scan-cetak', 'sub-scancetak-stok-tahap': 'tab-scan-cetak' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -435,9 +450,10 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // (CRUD Suplayer generik, PINDAH ke 3 entry Master Suplayer di bawah).
     // Tab ini sekarang "TLC & Prefix" (AppConfigTlc, koleksi master_tlc BARU).
     'sub-zh-config-tlc': 'pastikanMountConfigTlc',
-    // BARU (7 Sep 2026) — "Riwayat PIN" (SERAH-TERIMA.md §2 grup 4.1), lihat
-    // AppConfigRiwayatPin di js/vue-config.js.
-    'sub-zh-config-riwayatpin': 'pastikanMountConfigRiwayatPin',
+    // DIPINDAH (7 Sep 2026 malam) — 'sub-zh-config-riwayatpin':
+    // 'pastikanMountConfigRiwayatPin' pindah ke 'sub-scan-cetak-pin' di
+    // bawah (lihat js/vue-scan-cetak.js), tombolnya sudah dicopot dari
+    // index.html.
     'sub-zh-databahan-entry': 'pastikanMountBahanAksesorisEntry',
     'sub-zh-databahan-list': 'pastikanMountBahanAksesorisList',
     'sub-zevanic-house-persiapan': 'pastikanMountPersiapanMasalah',
@@ -517,10 +533,15 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-pp-vendor-perludikirim': 'pastikanMountPpVendorPerluDikirim',
     'sub-pp-vendor-sedangdikirim': 'pastikanMountPpVendorSedangDikirim',
     'sub-pp-vendor-selesai': 'pastikanMountPpVendorSelesai',
-    // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname.
-    'sub-zh-scan-opname': 'pastikanMountScanOpname',
-    // BARU (27 Agt 2026, §26.5, Tahap 5 — TAHAP TERAKHIR) — Scan > Scan Persiapan.
-    'sub-zh-scan-persiapan': 'pastikanMountScanPersiapan',
+    // DIPINDAH (7 Sep 2026 malam) — Scan Opname/Persiapan pindah dari
+    // 'sub-zh-scan-opname'/'sub-zh-scan-persiapan' (Zevanic House) ke
+    // 'sub-scancetak-stok-opname'/'sub-scancetak-stok-persiapan' (menu
+    // top-level baru "Scan & Cetak"). Fungsi mount TIDAK berubah.
+    'sub-scancetak-stok-opname': 'pastikanMountScanOpname',
+    'sub-scancetak-stok-persiapan': 'pastikanMountScanPersiapan',
+    // BARU (7 Sep 2026 malam) — Scan & Cetak > PIN (Riwayat PIN, dipindah
+    // dari Zevanic House > Config), lihat js/vue-scan-cetak.js.
+    'sub-scan-cetak-pin': 'pastikanMountScanCetakRiwayatPin',
     // REKONSTRUKSI (7 Sep 2026, lihat js/vue-pesanan.js utk latar belakang
     // lengkap): Penjualan Kasir (1.1/1.2), Menunggu Proses (2.1, keputusan
     // QO Owner/PIC Owner), Daftar Pesanan (3.1-3.2.1, BARU, ganti 3 ringkasan

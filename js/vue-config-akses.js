@@ -274,23 +274,27 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-daftar', null, {catatRiwayat:true}); } },
   { id: 'pesanan_transaksi', label: 'Transaksi Keuangan', kategori: 'Pesanan', icon: 'fa-file-invoice-dollar',
     aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-transaksi', null, {catatRiwayat:true}); } },
-  // BARU (27 Agt 2026, §26.4) — Scan > Scan Opname: lihat js/vue-scan-
-  // opname.js. Aksi catat penyesuaian dicek lewat kolom 'edit'. Gating
-  // "mobile-only untuk non-Owner" TIDAK lewat kolom izin ini — itu
-  // hardcode `window.currentUser.role === 'owner'` di file itu sendiri
-  // (pola sama seperti Config Akses/Hak Akses/Device Kiosk di auth.js),
-  // menu-id ini CUMA buat kontrol boleh/tidaknya menyimpan (di atas
-  // gerbang mobile itu, bukan pengganti).
-  { id: 'scan_opname', label: 'Scan Opname', kategori: 'Zevanic House', icon: 'fa-qrcode',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-scan', null); window.pindahSubTab('sub-zh-scan', 'sub-zh-scan-opname', null); } },
-  // BARU (27 Agt 2026, §26.5, Tahap 5 — TAHAP TERAKHIR) — Scan > Scan
-  // Persiapan: lihat js/vue-scan-persiapan.js. Aksi catat pemakaian dicek
-  // lewat kolom 'edit'. Gating "mobile-only utk non-Owner" TETAP hardcode
-  // role === 'owner' di file itu sendiri (SAMA seperti Scan Opname) —
-  // menu-id ini CUMA buat kontrol boleh/tidaknya menyimpan, bukan
-  // pengganti gerbang mobile itu.
-  { id: 'scan_persiapan', label: 'Scan Persiapan', kategori: 'Zevanic House', icon: 'fa-boxes-stacked',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-scan', null); window.pindahSubTab('sub-zh-scan', 'sub-zh-scan-persiapan', null); } }
+  // DIPINDAH (7 Sep 2026 malam) — Scan Opname/Scan Persiapan pindah dari
+  // kategori 'Zevanic House' ke 'Scan & Cetak' (menu top-level baru,
+  // wireframe "05 - Scan dan Cetak" grup 1 "Scan Stok"), lihat js/vue-
+  // scan-cetak.js. id & izin TIDAK berubah (supaya profil akses yang sudah
+  // diatur sebelumnya tetap berlaku apa adanya) — cuma `kategori` & `aksi`
+  // (target tab/sub-tab baru) yang berubah. Gating "mobile-only untuk
+  // non-Owner" TETAP hardcode role === 'owner' di file masing-masing
+  // (vue-scan-opname.js/vue-scan-persiapan.js, tidak disentuh).
+  { id: 'scan_opname', label: 'Scan Opname', kategori: 'Scan & Cetak', icon: 'fa-qrcode',
+    aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-stok', null); window.pindahSubTab('sub-scancetak-stok-tahap', 'sub-scancetak-stok-opname', null); } },
+  { id: 'scan_persiapan', label: 'Scan Persiapan', kategori: 'Scan & Cetak', icon: 'fa-boxes-stacked',
+    aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-stok', null); window.pindahSubTab('sub-scancetak-stok-tahap', 'sub-scancetak-stok-persiapan', null); } },
+  // BARU (7 Sep 2026 malam) — 3 menu-id baru utk 3 sub-tab Scan & Cetak
+  // lainnya (Riwayat PIN pindah dari 'config_master_data' ke id sendiri,
+  // karena screen ini sekarang di luar Config — beda cakupan izin).
+  { id: 'scan_cetak_referensi', label: 'Scan & Cetak - Referensi Scan', kategori: 'Scan & Cetak', icon: 'fa-list-check',
+    aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-referensi', null); } },
+  { id: 'scan_cetak_cetak', label: 'Scan & Cetak - Cetak', kategori: 'Scan & Cetak', icon: 'fa-print',
+    aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-cetak', null); } },
+  { id: 'scan_cetak_pin', label: 'Scan & Cetak - PIN (Riwayat PIN)', kategori: 'Scan & Cetak', icon: 'fa-key',
+    aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-pin', null); } }
 ];
 
 // BARU (29 Agt 2026, koreksi arsitektur menu) — 'Persiapan Produksi'
@@ -304,7 +308,12 @@ const DAFTAR_MENU = [
 // Pesanan jual -> Persiapan Produksi kerjakan). Posisi ini ASUMSI (belum
 // eksplisit dikonfirmasi Guru soal urutan pastinya) — gampang digeser
 // tinggal ubah array ini kalau Guru mau urutan lain.
-export const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House', 'Pesanan', 'Persiapan Produksi'];
+// BARU (7 Sep 2026 malam) — 'Scan & Cetak' ditambah di AKHIR (posisi ASUMSI,
+// sama seperti 'Pesanan'/'Persiapan Produksi' dulu — gampang digeser kalau
+// Guru mau urutan lain). 'Proses Produksi' (Cutting/Sewing/Finishing/Serie/
+// Gudang Barang Jadi) akan ditambah SEBELUM 'Scan & Cetak' begitu modul-
+// modul itu mulai dibangun (menyusul, belum di commit ini).
+export const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House', 'Pesanan', 'Persiapan Produksi', 'Scan & Cetak'];
 export { DAFTAR_MENU };
 const KOSONG_IZIN = () => ({ view: false, add: false, edit: false, delete: false, print: false });
 

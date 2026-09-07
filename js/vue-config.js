@@ -36,7 +36,7 @@
 // Firestore 6 koleksi sekaligus kalau orang belum pernah buka Config.
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, query, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { MasterDataCategory, MasterDataTabelManager } from './vue-components.js?v=3';
 
@@ -277,156 +277,13 @@ const AppConfigTlc = {
   `
 };
 
-// AppConfigRiwayatPin — BARU (7 Sep 2026). SERAH-TERIMA.md modul ini (§2,
-// grup 4 Config) minta "4.1 Riwayat PIN — siapa pakai PIN di menu mana",
-// dan §8 (acceptance criteria) minta "PIN dicatat di riwayat (group
-// 4.1)". TAPI wireframe.dc.html modul ini TIDAK PUNYA mockup layar untuk
-// ini (dicek langsung, nihil), DAN belum ada infrastruktur "verifikasi
-// PIN + catat siapa pakai di menu mana" di kode live manapun — PIN
-// sekarang cuma dipakai ad-hoc di beberapa tempat (aksi role-gated),
-// TIDAK ADA satupun yang menulis ke sebuah log terpusat. Modul umum
-// "Scan & PIN" yang akan menulis ke log ini rencananya BARU dibangun
-// terpisah nanti — DI LUAR cakupan tugas ini.
-//
-// Keputusan Guru (7 Sep 2026, ditanya langsung): "Bikin sekarang, tapi
-// kosong dulu" — jadi layar ini DIBANGUN SUNGGUHAN sekarang (bukan
-// placeholder statis), nyambung ke koleksi Firestore sungguhan, TAPI
-// SECARA SAH akan tampil kosong terus sampai modul Scan & PIN itu jadi
-// dan mulai menulis ke sini. Ini BUKAN bug, JANGAN "diperbaiki" dengan
-// data contoh/fiktif — kosong itu memang keadaan yang benar untuk saat
-// ini.
-//
-// Koleksi `riwayat_pin` — BARU, dicek dulu (grep) TIDAK dipakai di mana
-// pun di kode live sebelum ini, aman dipakai. Bentuk field di bawah
-// BELUM DIKONFIRMASI (UNCONFIRMED) — tidak ada penulis yang bisa
-// dijadikan acuan, ini tebakan terbaik yang forward-compatible dengan
-// pola field lain di app ini (mis. `dibuat_pada`/serverTimestamp di
-// koleksi log lain seperti wa_log/mail):
-//   { uid: string, nama_pengguna: string, menu: string (nama menu/aksi
-//     tempat PIN dipakai), berhasil: boolean (verifikasi sukses/gagal),
-//     waktu: Timestamp (serverTimestamp saat dicatat) }
-// Kalau modul Scan & PIN nanti ternyata pakai nama field beda, tabel ini
-// TINGGAL disesuaikan (murni tampilan baca, tidak ada penulis lain yang
-// bergantung pada bentuk field ini).
-//
-// Pola ambil data: SAMA seperti "Riwayat pengiriman" di Monitoring
-// WhatsApp Gateway (js/vue-whatsapp-gateway.js, muatMonitoring/
-// muatLagiLog) — getDocs+orderBy+limit, tombol "Muat Lagi" manual
-// (startAfter), BUKAN usePaginasiFirestore (vue-paginasi.js) karena
-// composable itu dipakai utk tabel dgn cari/filter aktif; log kronologis
-// polos begini di app ini konsisten pakai pola manual startAfter itu.
-// Error Firestore (mis. index belum dibuat) ditangkap & ditampilkan
-// dengan pesan yg mengarahkan ke Console browser, pola sama seperti
-// vue-bahan-aksesoris.js/vue-hak-akses.js (errorExpand/errorRingkasan).
-//
-// SENGAJA komponen berdiri sendiri (bukan MasterDataTabelManager) — ini
-// layar BACA SAJA (tidak ada tambah/hapus dari sini), beda kebutuhan
-// dari master data biasa.
-const UKURAN_MUAT_RIWAYAT_PIN = 30;
-const AppConfigRiwayatPin = {
-  setup() {
-    const memuat = ref(true);
-    const memuatLagi = ref(false);
-    const daftar = ref([]);
-    const adaLagi = ref(false);
-    const error = ref('');
-    let cursorTerakhir = null;
-
-    function pesanError(e) {
-      return e && e.code === 'failed-precondition'
-        ? 'Perlu index Firestore baru — buka Console browser (F12), cari link "Create composite index" dari error ini, klik untuk bikin index-nya sekali.'
-        : (e && e.code === 'permission-denied')
-          ? 'Tidak punya izin membaca riwayat PIN. Hubungi Owner/PIC kalau ini tidak seharusnya terjadi.'
-          : 'Gagal memuat riwayat PIN. Coba lagi.';
-    }
-
-    async function muat() {
-      memuat.value = true;
-      error.value = '';
-      daftar.value = [];
-      cursorTerakhir = null;
-      adaLagi.value = false;
-      try {
-        const snap = await getDocs(query(collection(db, 'riwayat_pin'), orderBy('waktu', 'desc'), limit(UKURAN_MUAT_RIWAYAT_PIN)));
-        const docs = snap.docs;
-        daftar.value = docs.map(d => ({ id: d.id, ...d.data() }));
-        if (docs.length > 0) cursorTerakhir = docs[docs.length - 1];
-        adaLagi.value = docs.length === UKURAN_MUAT_RIWAYAT_PIN;
-      } catch (e) {
-        console.error('Gagal muat riwayat_pin:', e);
-        error.value = pesanError(e);
-      }
-      memuat.value = false;
-    }
-
-    async function muatLagi() {
-      if (!cursorTerakhir || memuatLagi.value) return;
-      memuatLagi.value = true;
-      try {
-        const snap = await getDocs(query(collection(db, 'riwayat_pin'), orderBy('waktu', 'desc'), startAfter(cursorTerakhir), limit(UKURAN_MUAT_RIWAYAT_PIN)));
-        const docs = snap.docs;
-        daftar.value = [...daftar.value, ...docs.map(d => ({ id: d.id, ...d.data() }))];
-        if (docs.length > 0) cursorTerakhir = docs[docs.length - 1];
-        adaLagi.value = docs.length === UKURAN_MUAT_RIWAYAT_PIN;
-      } catch (e) {
-        console.error('Gagal muat riwayat_pin (lanjutan):', e);
-        error.value = pesanError(e);
-      }
-      memuatLagi.value = false;
-    }
-
-    function formatWaktu(w) {
-      return (w && typeof w.toDate === 'function') ? w.toDate().toLocaleString('id-ID') : '-';
-    }
-
-    onMounted(async () => { await window.authReady; await muat(); });
-    return { memuat, memuatLagi, daftar, adaLagi, error, muat, muatLagi, formatWaktu };
-  },
-  template: `
-    <div>
-      <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Riwayat PIN</label>
-      <p style="font-size:11px; color:var(--text-faint); margin:-4px 0 10px;">Catatan siapa memakai PIN, di menu/aksi apa, dan hasil verifikasinya (sukses/gagal) — diurut dari yang terbaru.</p>
-
-      <div v-if="error" style="padding:12px 14px; border-radius:10px; background:var(--danger-light); color:var(--danger); font-size:11.5px; margin-bottom:12px;">
-        <i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ error }}
-        <button @click="muat" class="btn-outline" style="margin-left:8px; padding:3px 10px; font-size:11px;">Coba lagi</button>
-      </div>
-
-      <div v-if="memuat" style="text-align:center; padding:16px; color:var(--text-faint); font-size:12px;"><i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i>Memuat riwayat PIN...</div>
-
-      <div v-else-if="!error && daftar.length === 0" class="gc-kosong">
-        <div class="lingkaran"><i class="fas fa-key"></i></div>
-        <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada riwayat PIN tercatat</h3>
-      </div>
-
-      <template v-else-if="!error">
-        <div class="gc-table-scroll">
-          <table class="gc-table">
-            <thead><tr><th style="width:48px;">No</th><th>Waktu</th><th>Nama Pengguna</th><th>Menu</th><th style="width:90px;">Hasil</th></tr></thead>
-            <tbody>
-              <tr v-for="(d, i) in daftar" :key="d.id">
-                <td>{{ i + 1 }}</td>
-                <td class="gc-cell-muted" style="white-space:nowrap;">{{ formatWaktu(d.waktu) }}</td>
-                <td>{{ d.nama_pengguna || '-' }}</td>
-                <td>{{ d.menu || '-' }}</td>
-                <td>
-                  <span v-if="d.berhasil" class="tag ok">Sukses</span>
-                  <span v-else class="tag danger">Gagal</span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div v-if="adaLagi" style="text-align:center; margin-top:14px;">
-          <button @click="muatLagi" :disabled="memuatLagi" class="btn-outline filled">
-            <i class="fas" :class="memuatLagi ? 'fa-spinner fa-spin' : 'fa-rotate-right'" style="margin-right:6px;"></i>
-            {{ memuatLagi ? 'Memuat...' : 'Muat Lagi (30 berikutnya)' }}
-          </button>
-        </div>
-      </template>
-    </div>
-  `
-};
+// AppConfigRiwayatPin — DIPINDAH (7 Sep 2026 malam) ke Scan & Cetak > PIN,
+// lihat AppScanCetakRiwayatPin di js/vue-scan-cetak.js (kode identik, cuma
+// nama komponen/mount point berubah). Ini konsisten dengan wireframe "05 -
+// Scan dan Cetak" §4.1 (Riwayat PIN memang bagian grup PIN, bukan Config) —
+// keputusan Guru saat membangun menu itu. Blok komponen lama DIHAPUS dari
+// sini, bukan cuma dikomentari, supaya tidak ada 2 salinan kode yang bisa
+// menyimpang.
 
 let vmConfigJenisBahan = null;
 let vmConfigJenisAksesoris = null;
@@ -437,7 +294,6 @@ let vmConfigJenisProduk = null;
 let vmConfigKomponen = null;
 let vmConfigTahapPersiapan = null;
 let vmConfigTlc = null;
-let vmConfigRiwayatPin = null;
 
 window.pastikanMountConfigJenisBahan = function() {
   if (vmConfigJenisBahan) return;
@@ -483,9 +339,4 @@ window.pastikanMountConfigTlc = function() {
   if (vmConfigTlc) return;
   const mountPoint = document.getElementById('vue-config-tlc');
   if (mountPoint) vmConfigTlc = createApp(AppConfigTlc).mount('#vue-config-tlc');
-};
-window.pastikanMountConfigRiwayatPin = function() {
-  if (vmConfigRiwayatPin) return;
-  const mountPoint = document.getElementById('vue-config-riwayatpin');
-  if (mountPoint) vmConfigRiwayatPin = createApp(AppConfigRiwayatPin).mount('#vue-config-riwayatpin');
 };

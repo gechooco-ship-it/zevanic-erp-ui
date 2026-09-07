@@ -839,8 +839,15 @@ window.aturTampilanBerdasarkanRole = function() {
   // muncul untuk role manapun (class "hidden" bawaan di index.html tidak
   // pernah dicopot).
   const menuPesanan = document.getElementById('menu-pesanan');
+  // BARU (7 Sep 2026 malam) — Scan & Cetak, grup top-level baru sejajar
+  // Zevanic House/Pesanan/Persiapan Produksi. Gerbang role SAMA
+  // (isAdminLevel()) — pola SAMA PERSIS seperti menuPersiapanProduksi/
+  // menuPesanan di atas, TERMASUK jebakan bug yang sama (tombolnya wajib
+  // ditambahkan ke 2 array di bawah ini, kalau tidak menu tidak pernah
+  // muncul untuk role manapun meski class "hidden" cuma bawaan index.html).
+  const menuScanCetak = document.getElementById('menu-scan-cetak');
 
-  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuZevanicStockBtn, menuPersiapanProduksi, menuPesanan].forEach(el => {
+  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuZevanicStockBtn, menuPersiapanProduksi, menuPesanan, menuScanCetak].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -859,6 +866,7 @@ window.aturTampilanBerdasarkanRole = function() {
     if (menuZevanicStockBtn) menuZevanicStockBtn.classList.remove('hidden');
     if (menuPersiapanProduksi) menuPersiapanProduksi.classList.remove('hidden');
     if (menuPesanan) menuPesanan.classList.remove('hidden');
+    if (menuScanCetak) menuScanCetak.classList.remove('hidden');
     if (navMobileAdmin) {
       navMobileAdmin.classList.remove('hidden');
       navMobileAdmin.classList.add('flex');
@@ -963,6 +971,9 @@ window.terapkanUrutanMenuDesktop = async function() {
     // BARU (29 Agt 2026, koreksi arsitektur menu) — 'Persiapan Produksi'
     // grup top-level baru, lihat STATUS-PROYEK.md §44.13.
     'Persiapan Produksi': 'navgrp-persiapanproduksi',
+    // BARU (7 Sep 2026 malam) — 'Scan & Cetak' grup top-level baru, lihat
+    // js/vue-scan-cetak.js.
+    'Scan & Cetak': 'navgrp-scancetak',
     'Master Integrasi': 'navgrp-integrasi'
   };
   if (urutanKategori && urutanKategori.length) {
@@ -992,14 +1003,22 @@ window.terapkanUrutanMenuDesktop = async function() {
   // ada tab-strip lebih dalam lagi seperti Zevanic House), jadi cukup 1
   // baris ini saja.
   _urutkanSiblingMenu(document.getElementById('navgrp-persiapanproduksi'), perKategori['Persiapan Produksi']);
+  // BARU (7 Sep 2026 malam) — grup 'Scan & Cetak' baru: 4 sub-menu sejajar
+  // (Scan Stok/Referensi Scan/Cetak/PIN), langsung anak navgrp-scancetak
+  // (pola sama seperti Persiapan Produksi di atas).
+  _urutkanSiblingMenu(document.getElementById('navgrp-scancetak'), perKategori['Scan & Cetak']);
   const stripParent = (kelas) => { const el = document.querySelector('.' + kelas); return el ? el.parentElement : null; };
   _urutkanSiblingMenu(stripParent('sub-absensi-btn'), perKategori['Master Absensi']);
   _urutkanSiblingMenu(stripParent('sub-keuangan-btn'), perKategori['Master Keuangan']);
   _urutkanSiblingMenu(stripParent('sub-karyawan-btn'), perKategori['Master Karyawan']);
   // Sub-tab Zevanic House yang lebih dalam lagi (Data Bahan & Aksesoris,
-  // Stock & Pembelian, Scan) — id2 menunya bagian dari kategori 'Zevanic
+  // Stock & Pembelian) — id2 menunya bagian dari kategori 'Zevanic
   // House' yang sama, jadi pakai array urutan yang sama juga.
   _urutkanSiblingMenu(stripParent('sub-zh-databahan-btn'), perKategori['Zevanic House']);
   _urutkanSiblingMenu(stripParent('sub-zh-stock-btn'), perKategori['Zevanic House']);
-  _urutkanSiblingMenu(stripParent('sub-zh-scan-btn'), perKategori['Zevanic House']);
+  // DIPINDAH (7 Sep 2026 malam) — dulu 'sub-zh-scan-btn'/perKategori['Zevanic
+  // House'] (Scan Opname/Persiapan masih di Zevanic House). Sekarang 2 menu
+  // itu di kategori 'Scan & Cetak', tombolnya class 'sub-scancetak-stok-
+  // tahap-btn' (lihat index.html tab-scan-cetak > sub-scan-cetak-stok).
+  _urutkanSiblingMenu(stripParent('sub-scancetak-stok-tahap-btn'), perKategori['Scan & Cetak']);
 };

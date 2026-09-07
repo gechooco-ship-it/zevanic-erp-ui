@@ -62,7 +62,17 @@ const LABEL_TAB = {
   // lihat STATUS-PROYEK.md §44.13. Sama seperti tab-zevanic-house di
   // atas, WAJIB didaftarkan di sini juga (celah yang sama) supaya header
   // mobile tidak nongol kosong.
-  'tab-persiapan-produksi': 'Persiapan Produksi'
+  'tab-persiapan-produksi': 'Persiapan Produksi',
+  // PERBAIKAN (7 Sep 2026 malam, ketemu pas menambah tab-scan-cetak di
+  // bawah) — 'tab-pesanan' ternyata SUDAH LAMA hilang dari peta ini juga
+  // (celah yang sama seperti tab-zevanic-house/tab-persiapan-produksi di
+  // atas), header mobile nongol kosong pas buka menu Pesanan manapun.
+  // Diperbaiki sekalian di sini (drive-by fix, di luar cakupan tugas Scan
+  // & Cetak tapi trivial & aman).
+  'tab-pesanan': 'Pesanan',
+  // BARU (7 Sep 2026 malam) — grup top-level baru "Scan & Cetak", lihat
+  // js/vue-scan-cetak.js.
+  'tab-scan-cetak': 'Scan & Cetak'
 };
 const LABEL_SUBTAB = {
   'sub-absensi-config': 'Config Absensi',
@@ -101,7 +111,6 @@ const LABEL_SUBTAB = {
   // GANTI (5 Sep 2026) — dulu 'sub-zh-config-suplayer': 'Data Suplayer',
   // CRUD Suplayer pindah ke 3 entry 'sub-zh-suplayer-*' di bawah.
   'sub-zh-config-tlc': 'TLC & Prefix',
-  'sub-zh-config-riwayatpin': 'Riwayat PIN',
   'sub-zh-config-tahappersiapan': 'Persiapan Untuk Tahap',
   'sub-zh-databahan-entry': 'Entry Bahan & Aksesoris',
   'sub-zh-databahan-list': 'List Bahan & Aksesoris',
@@ -117,8 +126,15 @@ const LABEL_SUBTAB = {
   'sub-zh-stock-notaorder': 'Daftar Nota',
   'sub-zh-stock-riwayat': 'Riwayat Harga Pembelian',
   'sub-zh-stock-kartustok': 'Kartu Stok',
-  'sub-zh-scan-opname': 'Scan Opname',
-  'sub-zh-scan-persiapan': 'Scan Persiapan',
+  // DIPINDAH (7 Sep 2026 malam) — Scan Opname/Persiapan pindah ke tab-scan-
+  // cetak, lihat entry 'sub-scancetak-stok-*' di bawah.
+  // BARU (7 Sep 2026 malam) — menu top-level "Scan & Cetak".
+  'sub-scan-cetak-stok': 'Scan Stok',
+  'sub-scancetak-stok-opname': 'Scan Opname',
+  'sub-scancetak-stok-persiapan': 'Scan Persiapan',
+  'sub-scan-cetak-referensi': 'Referensi Scan',
+  'sub-scan-cetak-cetak': 'Cetak',
+  'sub-scan-cetak-pin': 'Riwayat PIN',
   // DIPENSIUNKAN (29 Agt 2026, koreksi arsitektur menu) — 5 entry lama
   // 'sub-zh-persiapanproduksi-*' DIHAPUS, sub-tabnya sudah dicopot dari
   // index.html. GANTI oleh grup top-level baru "Persiapan Produksi" di

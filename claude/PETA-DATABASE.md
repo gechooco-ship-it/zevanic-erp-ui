@@ -346,21 +346,32 @@ Ditulis SATU-SATUNYA lewat fungsi di `vue-stock-pembelian.js` (`catatPergerakanK
 
 **Tampilan list BARU** (`vue-rak-penyimpanan.js`, §5.14): item-centric (1 baris = 1 `master_bahan_aksesoris` yang `rak_id`-nya menunjuk rak ini) + bar kapasitas — **formula BARU, BELUM DIKONFIRMASI Guru**: per-item terpakai = `stok_akhir × volume_barang` (dari `master_bahan_aksesoris`), per-rak terpakai = jumlah semua item yang nunjuk rak itu, sisa = `volume_rak − terpakai`, warna <50% hijau / 50-79% kuning / ≥80% merah.
 
-### `riwayat_pin/{autoId}` — BARU (7 Sep 2026, §5.13), KOSONG SENGAJA
-> Dibangun sebagai tab baru "Riwayat PIN" di Config (`AppConfigRiwayatPin`,
-> `js/vue-config.js`) — **belum ada satu modul pun yang menulis ke sini**.
-> Disiapkan menunggu modul Scan & PIN generik (`RENCANA-REKONSTRUKSI-
-> 2026-09.md` §9.3/langkah 5). Skema field BELUM DIKONFIRMASI (tab
-> sekarang cuma baca & tampilkan apa adanya, read-only). **BLOCKER**:
-> rule Firestore `riwayat_pin` TIDAK ADA di `FIRESTORE-RULES-SNAPSHOT.md`
-> (5 Sep 2026) — tanpa match block, default-deny Firestore bikin tab ini
-> tampil error permission-denied (BUKAN kosong seperti seharusnya) sampai
-> Guru publish rule (saran pola: `allow read: if isAdminLevel(); allow
-> create: if login(); allow update, delete: if false;`, sama seperti
-> `cetak_ulang_log`). **JANGAN disamakan dengan `users.pin_hash`** (§5.14)
-> — itu mekanisme PIN VERIFIKASI (dipakai Stok & Pembelian, DAN sekarang
-> Pesanan §5.15), ini cuma tempat CATATAN riwayat pemakaian PIN, keduanya
-> belum terhubung.
+### `riwayat_pin/{autoId}` — BARU (7 Sep 2026, §5.13), PERTAMA KALI ADA PENULISNYA (§5.16)
+> Layar baca (tabel "Riwayat PIN") **PINDAH (7 Sep 2026 malam, §5.16) dari
+> Config ke Scan & Cetak > PIN** — `AppScanCetakRiwayatPin`, sekarang di
+> `js/vue-scan-cetak.js` (kode identik dengan `AppConfigRiwayatPin` lama,
+> cuma nama komponen/lokasi menu). **`PopupPinGenerik` (file yang sama)
+> adalah PENULIS PERTAMA koleksi ini** — mencatat SETIAP percobaan
+> verifikasi PIN (sukses maupun gagal) lewat `catatRiwayatPin()`. Field:
+> `{ uid, nama_pengguna, menu, berhasil, waktu }` — sama seperti tebakan
+> awal §5.13, sekarang benar-benar dipakai. Rule Firestore `riwayat_pin`
+> **SUDAH dipublish** (7 Sep 2026 malam, `allow read: if isAdminLevel();
+> allow create: if login(); allow update, delete: if false;`) — blocker
+> lama SUDAH SELESAI.
+>
+> **Cakupan penulisan MASIH PARSIAL**: `PopupPinGenerik` baru dipakai
+> kode BARU mulai §5.16 (rencana: refactor Persiapan Produksi + modul
+> Proses Produksi baru, BELUM ada satupun yang jadi per commit ini).
+> `PopupPin`/`hashPin` versi LAMA di `vue-pesanan.js`/`vue-stock-
+> pembelian.js`/`vue-absensi-qr.js`/`vue-account-profile.js`/`vue-
+> camera.js` **BELUM dimigrasi** ke `PopupPinGenerik` — pemakaian PIN di
+> modul-modul itu TIDAK tercatat di sini. Tabel Riwayat PIN akan tetap
+> tampak sepi sampai migrasi itu dikerjakan (di luar cakupan §5.16,
+> dicatat sebagai dependensi belum terpenuhi). **JANGAN disamakan dengan
+> `users.pin_hash`** (§5.14) — itu field HASH PIN tersimpan per akun
+> (dibaca `cariUserByPin()`), ini cuma tempat CATATAN riwayat
+> pemakaiannya, keduanya beda tapi saling terhubung (satu nulis PIN-nya,
+> satu nyatat pemakaiannya).
 
 ### `master_satuan/{autoId}`, `master_warna/{autoId}`, `master_ukuran/{autoId}`, `master_jenis_produk/{autoId}`, `master_komponen/{autoId}`, `master_tahap_persiapan/{autoId}`
 6 koleksi POLA SAMA — lewat komponen generic `MasterDataTabelManager` (`vue-components.js`), semua dari tab **Config**:
