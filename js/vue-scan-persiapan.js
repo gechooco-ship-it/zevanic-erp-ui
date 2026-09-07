@@ -500,12 +500,14 @@ const ScanPersiapanManager = {
     }
 
     // ajukanPersiapanMasalahKekurangan — DIPORT dari vue-kartu-stok.js
-    // (skema tulis PERSIS sama, `persiapan_masalah` koleksi yang SUDAH
-    // ADA, TIDAK ada field baru) — cuma keterangan-nya menyertakan No. SPK
-    // aktif (konteks yang tidak ada di form desktop).
+    // (skema tulis PERSIS sama, koleksi board manual — cuma keterangan-nya
+    // menyertakan No. SPK aktif, konteks yang tidak ada di form desktop).
+    // GANTI NAMA KOLEKSI (7 Sep 2026, §5.18): 'persiapan_masalah' ->
+    // 'permintaan_bahan_manual' — nama lama dibebaskan untuk skema TRB baru
+    // pos Masalah (js/vue-pp-masalah.js). Fungsi & skema field TIDAK berubah.
     async function ajukanPersiapanMasalahKekurangan(k) {
       const bahan = target.value.bahan;
-      await addDoc(collection(db, 'persiapan_masalah'), {
+      await addDoc(collection(db, 'permintaan_bahan_manual'), {
         bahan_aksesoris_id: bahan.id,
         kategori_utama: bahan.kategori_utama || '',
         nama_bahan: formatNamaBahan(bahan),

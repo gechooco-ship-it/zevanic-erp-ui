@@ -396,7 +396,10 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // -> 'tab-scan-cetak' (grup top-level baru, lihat js/vue-scan-cetak.js).
     // 'sub-zh-scan' (versi LAMA, nested di Zevanic House) DIHAPUS dari peta
     // ini — Scan Opname/Persiapan sudah pindah keluar dari Zevanic House.
-    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-suplayer': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-pesanan': 'tab-pesanan', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi', 'sub-scan-cetak': 'tab-scan-cetak', 'sub-scancetak-stok-tahap': 'tab-scan-cetak' };
+    // BARU (7 Sep 2026, §5.18) — 'sub-pp-masalah-tahap' -> 'tab-persiapan-
+    // produksi' (Masalah, 6 pos sejajar Bahan/Sewing/Webbing/Finishing/
+    // Vendor/Disiapkan di grup yang sama, lihat js/vue-pp-masalah.js).
+    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-suplayer': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-pesanan': 'tab-pesanan', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi', 'sub-pp-masalah-tahap': 'tab-persiapan-produksi', 'sub-scan-cetak': 'tab-scan-cetak', 'sub-scancetak-stok-tahap': 'tab-scan-cetak' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
@@ -533,6 +536,15 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-pp-vendor-perludikirim': 'pastikanMountPpVendorPerluDikirim',
     'sub-pp-vendor-sedangdikirim': 'pastikanMountPpVendorSedangDikirim',
     'sub-pp-vendor-selesai': 'pastikanMountPpVendorSelesai',
+    // BARU (7 Sep 2026, §5.18) — Persiapan Produksi > Masalah, 7 tahap
+    // (skema TRB baru), lihat js/vue-pp-masalah.js.
+    'sub-pp-masalah-perludiajukan': 'pastikanMountPpMasalahPerluDiajukan',
+    'sub-pp-masalah-menunggusetuju': 'pastikanMountPpMasalahMenungguSetuju',
+    'sub-pp-masalah-perludisiapkan': 'pastikanMountPpMasalahPerluDisiapkan',
+    'sub-pp-masalah-sedangdisiapkan': 'pastikanMountPpMasalahSedangDisiapkan',
+    'sub-pp-masalah-perludikirim': 'pastikanMountPpMasalahPerluDiKirim',
+    'sub-pp-masalah-sedangdikirim': 'pastikanMountPpMasalahSedangDiKirim',
+    'sub-pp-masalah-selesai': 'pastikanMountPpMasalahSelesai',
     // DIPINDAH (7 Sep 2026 malam) — Scan Opname/Persiapan pindah dari
     // 'sub-zh-scan-opname'/'sub-zh-scan-persiapan' (Zevanic House) ke
     // 'sub-scancetak-stok-opname'/'sub-scancetak-stok-persiapan' (menu

@@ -128,7 +128,10 @@ const BerandaDesktop = {
 
     async function muatKpiMasalah() {
       try {
-        const snap = await getCountFromServer(query(collection(db, 'persiapan_masalah'), where('status', '==', 'menunggu')));
+        // GANTI NAMA KOLEKSI (7 Sep 2026, §5.18): 'persiapan_masalah' ->
+        // 'permintaan_bahan_manual' — KPI ini KPI board manual Zevanic
+        // House, BUKAN pos Masalah baru Persiapan Produksi.
+        const snap = await getCountFromServer(query(collection(db, 'permintaan_bahan_manual'), where('status', '==', 'menunggu')));
         kpiMasalah.value = snap.data().count;
       } catch (e) { console.error('KPI Persiapan Masalah gagal dimuat:', e); kpiMasalah.value = null; }
     }

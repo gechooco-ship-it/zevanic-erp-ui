@@ -261,6 +261,10 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-webbing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-perludiproses', null, {catatRiwayat:true}); } },
   { id: 'pp_finishing', label: 'Persiapan Produksi - Acc Finishing', kategori: 'Persiapan Produksi', icon: 'fa-check-double',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-finishing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludiproses', null, {catatRiwayat:true}); } },
+  // BARU (7 Sep 2026, §5.18) — Masalah, 7 tahap, skema TRB baru (rebuild
+  // total, langkah 6 rencana rekonstruksi). Lihat js/vue-pp-masalah.js.
+  { id: 'pp_masalah', label: 'Persiapan Produksi - Masalah', kategori: 'Persiapan Produksi', icon: 'fa-triangle-exclamation',
+    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-masalah', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-perludiajukan', null, {catatRiwayat:true}); } },
   // BARU (30 Agt 2026) — grup top-level "Pesanan" (sejajar Zevanic House/
   // Persiapan Produksi). REKONSTRUKSI (7 Sep 2026, handoff "Pesanan dan
   // Transaksi") — 3 id lama (pesanan_persiapan/produksi/pengiriman, ringkasan

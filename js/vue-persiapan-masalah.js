@@ -17,6 +17,19 @@
 //
 // VERSI SEDERHANA — belum ada: approval sebelum masuk daftar, prioritas/
 // urgensi, upload foto masalah. Bisa ditambah nanti kalau Hilman minta.
+//
+// GANTI NAMA KOLEKSI (7 Sep 2026, §5.18, modul Masalah baru Persiapan
+// Produksi): koleksi Firestore board manual ini DIPINDAH dari
+// `persiapan_masalah` ke `permintaan_bahan_manual` — nama `persiapan_masalah`
+// dibebaskan sepenuhnya untuk skema BARU (TRB/SPK-linked) di
+// js/vue-pp-masalah.js, per keputusan Hilman ("satu koleksi, yang lama
+// hapus total, data aman karena belum ada data juga"). Fitur/UI board
+// manual ini SENDIRI TIDAK dihapus — cuma nama koleksi datanya yang
+// pindah, supaya tidak lagi bentrok skema dengan pos Masalah yang baru.
+// Menu-id Config Akses ('persiapan_masalah', dipakai cekIzinMenu() di
+// bawah) SENGAJA TIDAK ikut diganti — itu namespace izin per-user yang
+// terpisah dari nama koleksi, mengubahnya akan mereset izin akses semua
+// user yang sudah tersimpan tanpa perlu.
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, deleteDoc, getDocs, serverTimestamp, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -69,8 +82,8 @@ const PersiapanMasalahManager = {
       memuat.value = true;
       try {
         const [snapMenunggu, snapSelesai, bahan] = await Promise.all([
-          getDocs(query(collection(db, 'persiapan_masalah'), where('status', '==', 'menunggu'))),
-          getDocs(query(collection(db, 'persiapan_masalah'), where('status', '==', 'sudah_dipesan'))),
+          getDocs(query(collection(db, 'permintaan_bahan_manual'), where('status', '==', 'menunggu'))),
+          getDocs(query(collection(db, 'permintaan_bahan_manual'), where('status', '==', 'sudah_dipesan'))),
           ambilDaftarBahanAksesorisLengkap()
         ]);
         const listMenunggu = []; snapMenunggu.forEach(d => listMenunggu.push({ id: d.id, ...d.data() }));
@@ -98,7 +111,7 @@ const PersiapanMasalahManager = {
       if (!form.satuan.trim()) return alert('Isi Satuan dulu.');
       menyimpan.value = true;
       try {
-        await addDoc(collection(db, 'persiapan_masalah'), {
+        await addDoc(collection(db, 'permintaan_bahan_manual'), {
           bahan_aksesoris_id: item.id,
           kategori_utama: item.kategori_utama || '',
           nama_bahan: item.nama,
@@ -122,7 +135,7 @@ const PersiapanMasalahManager = {
       if (!bolehHapus.value) return alert('Anda tidak punya izin menghapus di sini. Hubungi Owner/PIC.');
       if (!confirm(`Hapus permintaan "${item.nama_bahan}" (${item.qty} ${item.satuan})?`)) return;
       try {
-        await deleteDoc(doc(db, 'persiapan_masalah', item.id));
+        await deleteDoc(doc(db, 'permintaan_bahan_manual', item.id));
         await muatSemua();
       } catch (e) {
         console.error('Gagal hapus Persiapan Masalah:', e);

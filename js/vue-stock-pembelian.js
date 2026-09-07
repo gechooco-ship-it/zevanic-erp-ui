@@ -1357,7 +1357,10 @@ const DaftarNotaScreen = {
         const [bahan, suplayer, snapPermintaan, snapAlias] = await Promise.all([
           ambilDaftarBahanAksesorisLengkap(),
           ambilDaftarSuplayer(),
-          getDocs(query(collection(db, 'persiapan_masalah'), where('status', '==', 'menunggu'))),
+          // GANTI NAMA KOLEKSI (7 Sep 2026, §5.18): 'persiapan_masalah' ->
+          // 'permintaan_bahan_manual' — nama lama dibebaskan utk skema TRB
+          // baru pos Masalah (js/vue-pp-masalah.js). Fungsi tidak berubah.
+          getDocs(query(collection(db, 'permintaan_bahan_manual'), where('status', '==', 'menunggu'))),
           getDocs(collection(db, 'alias_pembelian'))
         ]);
         daftarBahan.value = bahan;
@@ -1723,7 +1726,7 @@ const DaftarNotaScreen = {
       daftarPesanan.value.push(buatBarisPesanan(item, p.qty, p.keterangan || ''));
       sumberPermintaanIds.value.push(p.id);
       try {
-        await updateDoc(doc(db, 'persiapan_masalah', p.id), { status: 'sudah_dipesan' });
+        await updateDoc(doc(db, 'permintaan_bahan_manual', p.id), { status: 'sudah_dipesan' });
         daftarPermintaan.value = daftarPermintaan.value.filter(x => x.id !== p.id);
       } catch (e) {
         console.error('Gagal tandai Persiapan Masalah sudah dipesan:', e);
