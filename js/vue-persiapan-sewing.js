@@ -78,7 +78,7 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=5';
-import { ScanGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr } from './vue-scan-cetak.js?v=2';
+import { ScanGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=2';
 
 // --- Konfigurasi khas pos ini (SATU-SATUNYA tempat yang beda antara file
 // Sewing/Webbing/Finishing untuk bagian generik — field tambahan khas
@@ -521,6 +521,12 @@ const PersiapanSewingPerluDisiapkan = {
 // TAB 2: Sedang Disiapkan (langkah wireframe 2a -> 2b)
 // SAMA pola vue-persiapan-bahan.js Tab 2 — dikelompokkan per operator, aksi
 // per baris (Scan Entry/Masalah/Ganti Operator).
+//
+// DIPERBARUI (7 Sep 2026, retrofit lanjutan §5.18) — Scan Masalah SEKARANG
+// juga membuat dokumen `persiapan_masalah` (via ajukanPersiapanMasalah(),
+// js/vue-scan-cetak.js) lewat popup jumlah kurang + alasan, SAMA persis
+// pola vue-persiapan-bahan.js Tab 2 (lihat komentar besar di sana untuk
+// detail) — tlc_asal='TLC-SEW', sumber_jalur='sewing'.
 // ============================================================================
 const PersiapanSewingSedangDisiapkan = {
   components: { ScanGenerik },
@@ -554,6 +560,36 @@ const PersiapanSewingSedangDisiapkan = {
       modalAksi.mode = mode; modalAksi.baris = b; modalAksi.aktif = true;
     }
     function tutupAksi() { modalAksi.aktif = false; modalAksi.mode = null; modalAksi.baris = null; }
+
+    // --- Popup "jumlah kurang" + alasan (retrofit §5.18 lanjutan) ---
+    const popupMasalah = ref(null); // { baris, jumlahKurang, alasan }
+    function batalMasalah() { popupMasalah.value = null; }
+    async function konfirmasiMasalah() {
+      const p = popupMasalah.value;
+      if (!p) return;
+      const jumlah = parseFloat(p.jumlahKurang);
+      if (!(jumlah > 0)) { alert('Jumlah kurang wajib diisi angka lebih dari 0.'); return; }
+      if (!p.alasan.trim()) { alert('Alasan wajib diisi.'); return; }
+      const b = p.baris;
+      const key = barisKey(b);
+      sedangProses[key] = true;
+      try {
+        const kebutuhan = parseFloat(b.butuh) || 0;
+        await updateBarisSewing(b._trackId, b._lineIdx, () => ({ catatan_masalah: p.alasan.trim() }));
+        await ajukanPersiapanMasalah({
+          tlcAsal: 'TLC-SEW', sumberJalur: 'sewing',
+          trackId: b._trackId, lineIdx: b._lineIdx,
+          bahanAksesorisId: b.bahan_aksesoris_id, bahanNama: b.nama_aksesoris, bahanWarna: b.warna,
+          satuan: b.satuan, noSpk: b.no_spk,
+          qtyKurang: jumlah, qtyEntryAsal: Math.max(0, kebutuhan - jumlah),
+          alasan: p.alasan.trim()
+        });
+        popupMasalah.value = null;
+        await muat();
+      } catch (e) { console.error('Gagal mengajukan masalah:', e); alert('Gagal menyimpan. Coba lagi.'); }
+      sedangProses[key] = false;
+    }
+
     async function hasilScanAksi(kodeMentah) {
       const kode = (kodeMentah || '').trim();
       const b = modalAksi.baris;
@@ -574,14 +610,15 @@ const PersiapanSewingSedangDisiapkan = {
         return;
       }
       if (kode !== b.no_spk) { alert(`Kode yang discan ("${kode}") tidak cocok dengan anak SPK ini (${b.no_spk}).`); return; }
+      if (modalAksi.mode === 'masalah') {
+        tutupAksi();
+        popupMasalah.value = { baris: b, jumlahKurang: b.butuh, alasan: '' };
+        return;
+      }
       const key = barisKey(b); sedangProses[key] = true;
       try {
         if (modalAksi.mode === 'entry') {
           await konfirmasiEntry(b);
-        } else if (modalAksi.mode === 'masalah') {
-          const catatan = prompt('Jelaskan masalahnya:');
-          if (!catatan || !catatan.trim()) { sedangProses[key] = false; return; }
-          await updateBarisSewing(b._trackId, b._lineIdx, () => ({ catatan_masalah: catatan.trim() }));
         }
         tutupAksi(); await muat();
       } catch (e) { console.error('Gagal proses scan:', modalAksi.mode, e); alert('Gagal memproses. Coba lagi.'); }
@@ -593,7 +630,8 @@ const PersiapanSewingSedangDisiapkan = {
     return {
       memuat, kelompokOperator, bolehProses, sedangProses,
       formatQty, formatDiamSejak, tertahan, barisKey,
-      modalAksi, bukaAksi, tutupAksi, hasilScanAksi
+      modalAksi, bukaAksi, tutupAksi, hasilScanAksi,
+      popupMasalah, batalMasalah, konfirmasiMasalah
     };
   },
   template: `
@@ -631,8 +669,21 @@ const PersiapanSewingSedangDisiapkan = {
 
     <scan-generik :aktif="modalAksi.aktif"
       :judul="modalAksi.mode==='ganti' ? 'Scan QR operator pengganti' : ('Scan label ' + (modalAksi.baris?.no_spk || ''))"
-      :subjudul="modalAksi.mode==='entry' ? 'Scan Entry — stok akan berkurang.' : (modalAksi.mode==='masalah' ? 'Scan Masalah — akan diminta catatan.' : '')"
+      :subjudul="modalAksi.mode==='entry' ? 'Scan Entry — stok akan berkurang.' : (modalAksi.mode==='masalah' ? 'Scan Masalah — akan diminta jumlah kurang & alasan.' : '')"
       @hasil="hasilScanAksi" @tutup="tutupAksi" />
+
+    <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;"><i class="fas fa-triangle-exclamation" style="margin-right:8px; color:var(--danger);"></i>Ajukan Masalah — {{ popupMasalah.baris.no_spk }}</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin:0 0 10px;">{{ popupMasalah.baris.nama_aksesoris }} {{ popupMasalah.baris.warna }} — akan masuk ke Persiapan Produksi &gt; Masalah utk diajukan ke Owner.</p>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah kurang ({{ popupMasalah.baris.satuan }})</label><input v-model="popupMasalah.jumlahKurang" type="number" min="0" step="1"></div>
+        <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="Mis. stok fisik kurang/rusak"></div>
+        <div style="display:flex; gap:8px;">
+          <button @click="batalMasalah" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+          <button @click="konfirmasiMasalah" class="btn-primary" style="flex:1; padding:9px;">Ajukan</button>
+        </div>
+      </div>
+    </div>
   `
 };
 

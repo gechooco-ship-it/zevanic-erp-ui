@@ -34,10 +34,15 @@
 //   kode_tugas, tlc_tujuan, sampai_pada (DITULIS MODUL LAIN, lihat TAB 7).
 //
 // SUMBER "Scan Masalah" (retrofit ke 4 pos Persiapan Produksi yang mengisi
-// koleksi ini): SENGAJA BELUM DIKERJAKAN sesi ini (keputusan Hilman,
-// AskUserQuestion — "Modul Masalah dulu, retrofit menyusul"). Modul ini
-// SIAP menerima data begitu retrofit itu ada, tapi SAMPAI SAAT ITU semua
-// 7 tahap di sini akan tampil KOSONG terus — itu BUKAN bug di file ini.
+// koleksi ini): SEMPAT sengaja ditunda sesi §5.18 ("Modul Masalah dulu,
+// retrofit menyusul"), SEKARANG SUDAH DIKERJAKAN (7 Sep 2026, lanjutan,
+// §5.19) — `ajukanPersiapanMasalah()` di js/vue-scan-cetak.js dipanggil
+// dari Scan Masalah di 4 pos (vue-persiapan-{bahan,sewing,webbing,
+// finishing}.js Tab 2 "Sedang Disiapkan"), popup kecil minta jumlah kurang
+// + alasan lalu membuat 1 dokumen BARU di sini (status 'perlu_diajukan').
+// Modul ini SEKARANG benar-benar bisa terisi data begitu ada Scan Masalah
+// sungguhan — TAPI masih 0 data SAMPAI ada pengujian browser/scan nyata
+// (BELUM ditest sama sekali, sama seperti sisi Masalah-nya sendiri).
 //
 // KEPUTUSAN/ASUMSI yang TIDAK eksplisit tertulis di SERAH-TERIMA/wireframe
 // (dicatat di sini biar Hilman bisa koreksi kalau salah tafsir — bukan

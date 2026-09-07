@@ -1,5 +1,11 @@
 // js/vue-scan-cetak.js
 // ============================================================================
+// DIPERBARUI (7 Sep 2026, lanjutan §5.18) — ditambah `ajukanPersiapanMasalah()`,
+// dipakai retrofit Scan Masalah 4 pos Persiapan Produksi supaya benar-benar
+// membuat dokumen `persiapan_masalah` skema baru (lihat komentar di fungsi
+// itu sendiri, di bawah). Bukan bagian dari cakupan asli menu Scan & Cetak,
+// cuma numpang di file ini karena ini FONDASI generik lintas pos.
+// ============================================================================
 // Menu BARU top-level "Scan & Cetak" (7 Sep 2026, handoff "05 - Scan dan
 // Cetak", dikerjakan via /design-terapkan-handoff atas instruksi Guru:
 // "kerjakan terapkan dan seluruh turunannya"). Sejajar Zevanic House/
@@ -192,6 +198,56 @@ export const PopupPinGenerik = {
     </div>
   `
 };
+
+// ---------------------------------------------------------------------------
+// ajukanPersiapanMasalah — retrofit (7 Sep 2026, lanjutan §5.18) — SATU
+// tempat yang benar-benar membuat dokumen `persiapan_masalah` (skema BARU
+// pos Masalah 7-tahap, lihat header js/vue-pp-masalah.js) dari "Scan
+// Masalah" di 4 pos Persiapan Produksi (Bahan/Acc Sewing/Acc Webbing/Acc
+// Finishing). SEBELUM retrofit ini, Scan Masalah di 4 pos itu CUMA
+// mencatat `catatan_masalah` teks bebas di baris spk_track — TIDAK PERNAH
+// membuat dokumen apapun, jadi modul Masalah (§5.18) selalu tampil kosong
+// walau ada kekurangan sungguhan. Ini fungsi TAMBAHAN, dipanggil BERSAMA
+// (bukan menggantikan) updateBaris<Pos>() yang tetap menulis catatan_
+// masalah seperti sebelumnya (baris TETAP tampil dengan badge merah di pos
+// asalnya, TIDAK berubah status — operator masih bisa Scan Entry normal
+// begitu kekurangan itu terpenuhi lewat alur Masalah/stok manual; menghapus
+// catatan_masalah lagi saat itu BUKAN bagian retrofit ini, SERAH-TERIMA
+// tidak memintanya).
+//
+// Field dokumen mengikuti skema yang SUDAH didokumentasikan di header
+// js/vue-pp-masalah.js §5.18 (ditulis SEBELUM retrofit ini, bukan ditebak
+// sekarang): tlc_asal, sumber_jalur, spk_track_id, baris_index,
+// bahan_aksesoris_id/bahan_nama/bahan_warna/satuan/no_spk (snapshot),
+// qty_kurang, qty_entry_asal, alasan_masalah, scan_oleh, scan_pada,
+// status:'perlu_diajukan'. Tiap pemanggil (4 pos) menyuplai tlcAsal/
+// sumberJalur miliknya sendiri (literal, bukan lookup tabel — tiap file
+// pos cuma tahu 1 jalur, tidak perlu peta 4 jalur sekaligus).
+// ---------------------------------------------------------------------------
+export async function ajukanPersiapanMasalah(opsi) {
+  const now = new Date().toISOString();
+  const oleh = window.currentUser?.email || '';
+  const kurang = parseFloat(opsi.qtyKurang) || 0;
+  const entryAsal = (opsi.qtyEntryAsal === null || opsi.qtyEntryAsal === undefined || isNaN(opsi.qtyEntryAsal)) ? null : parseFloat(opsi.qtyEntryAsal);
+  await addDoc(collection(db, 'persiapan_masalah'), {
+    tlc_asal: opsi.tlcAsal || '',
+    sumber_jalur: opsi.sumberJalur || '',
+    spk_track_id: opsi.trackId || '',
+    baris_index: (opsi.lineIdx === undefined || opsi.lineIdx === null) ? null : opsi.lineIdx,
+    bahan_aksesoris_id: opsi.bahanAksesorisId || '',
+    bahan_nama: opsi.bahanNama || '',
+    bahan_warna: opsi.bahanWarna || '',
+    satuan: opsi.satuan || '',
+    no_spk: opsi.noSpk || '',
+    qty_kurang: kurang,
+    qty_entry_asal: entryAsal,
+    alasan_masalah: opsi.alasan || '',
+    scan_oleh: oleh,
+    scan_pada: now,
+    status: 'perlu_diajukan',
+    dibuat_pada: serverTimestamp()
+  });
+}
 
 // ---------------------------------------------------------------------------
 // muatJsQr / buatQrDataUrl / cariKaryawanByQr — DIPINDAH dari js/vue-

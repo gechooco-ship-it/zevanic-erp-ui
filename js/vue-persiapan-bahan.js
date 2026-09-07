@@ -98,7 +98,7 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=5';
-import { ScanGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr } from './vue-scan-cetak.js?v=2';
+import { ScanGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=2';
 
 // --- Format & hitung kecil --------------------------------------------------
 function formatMeter(n) {
@@ -555,8 +555,9 @@ const PersiapanBahanPerluDisiapkan = {
 // Papan dikelompokkan PER OPERATOR (bukan per bahan) — "diam sejak" per
 // baris dihitung dari masuk_tahap_pada (= saat ditunjuk / saat estafet
 // terakhir). Per baris: Scan Entry (mengurangi stok, pindah ke Perlu
-// Dikirim), Scan Masalah (catatan, baris TETAP di sini), Ganti Operator
-// (estafet shift — scan operator baru, riwayat_operator nambah baris baru).
+// Dikirim), Scan Masalah (catatan + BARU ajukan ke modul Masalah, baris
+// TETAP di sini), Ganti Operator (estafet shift — scan operator baru,
+// riwayat_operator nambah baris baru).
 //
 // Penyederhanaan dari wireframe (dicatat biar Guru bisa koreksi kalau perlu):
 // wireframe menggambarkan 1 modal scan 3-field per SPK (kunci baris dulu,
@@ -565,6 +566,20 @@ const PersiapanBahanPerluDisiapkan = {
 // simpel dieksekusi, hasil akhirnya sama (satu scan menutup satu baris,
 // field entry & masalah tidak pernah dipakai bersamaan karena aksinya
 // terpisah).
+//
+// DIPERBARUI (7 Sep 2026, retrofit lanjutan §5.18) — Scan Masalah dulu CUMA
+// nulis `catatan_masalah` teks bebas (baris tidak pernah benar-benar masuk
+// alur Masalah). SEKARANG: setelah scan label dikonfirmasi, popup kecil
+// minta "jumlah kurang" (default = seluruh kebutuhan_kain baris ini, bisa
+// diedit — baris ini belum pernah di-entry sama sekali jadi wajar defaultnya
+// penuh) + alasan, lalu DUA hal terjadi: (1) catatan_masalah tetap ditulis
+// ke baris ini (perilaku lama, badge merah tetap tampil di sini), (2)
+// `ajukanPersiapanMasalah()` (js/vue-scan-cetak.js) membuat 1 dokumen BARU
+// di koleksi `persiapan_masalah` skema 7-tahap (status 'perlu_diajukan'),
+// tlc_asal='TLC-BHN', sumber_jalur='bahan'. Baris TIDAK berubah status —
+// operator masih bisa Scan Entry normal begitu kekurangan itu terpenuhi
+// (via alur Masalah atau stok manual); menghapus catatan_masalah lagi saat
+// itu BUKAN bagian retrofit ini (SERAH-TERIMA tidak memintanya).
 // ============================================================================
 const PersiapanBahanSedangDisiapkan = {
   components: { ScanGenerik },
@@ -600,6 +615,37 @@ const PersiapanBahanSedangDisiapkan = {
       modalAksi.mode = mode; modalAksi.baris = b; modalAksi.aktif = true;
     }
     function tutupAksi() { modalAksi.aktif = false; modalAksi.mode = null; modalAksi.baris = null; }
+
+    // --- Popup "jumlah kurang" + alasan, dibuka SETELAH scan label cocok
+    // (retrofit §5.18 lanjutan — lihat komentar besar TAB 2 di atas) ---
+    const popupMasalah = ref(null); // { baris, jumlahKurang, alasan }
+    function batalMasalah() { popupMasalah.value = null; }
+    async function konfirmasiMasalah() {
+      const p = popupMasalah.value;
+      if (!p) return;
+      const jumlah = parseFloat(p.jumlahKurang);
+      if (!(jumlah > 0)) { alert('Jumlah kurang wajib diisi angka lebih dari 0.'); return; }
+      if (!p.alasan.trim()) { alert('Alasan wajib diisi.'); return; }
+      const b = p.baris;
+      const key = barisKey(b);
+      sedangProses[key] = true;
+      try {
+        const kebutuhan = parseFloat(b.kebutuhan_kain) || 0;
+        await updateBarisBahan(b._trackId, b._lineIdx, () => ({ catatan_masalah: p.alasan.trim() }));
+        await ajukanPersiapanMasalah({
+          tlcAsal: 'TLC-BHN', sumberJalur: 'bahan',
+          trackId: b._trackId, lineIdx: b._lineIdx,
+          bahanAksesorisId: b.bahan_aksesoris_id, bahanNama: b.bahan_nama, bahanWarna: b.bahan_warna,
+          satuan: 'm', noSpk: b.no_spk,
+          qtyKurang: jumlah, qtyEntryAsal: Math.max(0, kebutuhan - jumlah),
+          alasan: p.alasan.trim()
+        });
+        popupMasalah.value = null;
+        await muat();
+      } catch (e) { console.error('Gagal mengajukan masalah:', e); alert('Gagal menyimpan. Coba lagi.'); }
+      sedangProses[key] = false;
+    }
+
     async function hasilScanAksi(kodeMentah) {
       const kode = (kodeMentah || '').trim();
       const b = modalAksi.baris;
@@ -622,14 +668,17 @@ const PersiapanBahanSedangDisiapkan = {
       // entry / masalah: kode HARUS scan label baris ini sendiri (konfirmasi
       // "yang mau diproses memang barang ini").
       if (kode !== b.no_spk) { alert(`Kode yang discan ("${kode}") tidak cocok dengan anak SPK ini (${b.no_spk}).`); return; }
+      if (modalAksi.mode === 'masalah') {
+        // Retrofit §5.18 lanjutan — jangan langsung tulis, buka popup jumlah
+        // kurang + alasan dulu (lihat komentar besar TAB 2 di atas).
+        tutupAksi();
+        popupMasalah.value = { baris: b, jumlahKurang: b.kebutuhan_kain, alasan: '' };
+        return;
+      }
       const key = barisKey(b); sedangProses[key] = true;
       try {
         if (modalAksi.mode === 'entry') {
           await konfirmasiEntry(b);
-        } else if (modalAksi.mode === 'masalah') {
-          const catatan = prompt('Jelaskan masalahnya:');
-          if (!catatan || !catatan.trim()) { sedangProses[key] = false; return; }
-          await updateBarisBahan(b._trackId, b._lineIdx, () => ({ catatan_masalah: catatan.trim() }));
         }
         tutupAksi(); await muat();
       } catch (e) { console.error('Gagal proses scan:', modalAksi.mode, e); alert('Gagal memproses. Coba lagi.'); }
@@ -641,7 +690,8 @@ const PersiapanBahanSedangDisiapkan = {
     return {
       memuat, kelompokOperator, bolehProses, sedangProses,
       formatMeter, formatQty, formatDiamSejak, tertahan, barisKey,
-      modalAksi, bukaAksi, tutupAksi, hasilScanAksi
+      modalAksi, bukaAksi, tutupAksi, hasilScanAksi,
+      popupMasalah, batalMasalah, konfirmasiMasalah
     };
   },
   template: `
@@ -679,8 +729,21 @@ const PersiapanBahanSedangDisiapkan = {
 
     <scan-generik :aktif="modalAksi.aktif"
       :judul="modalAksi.mode==='ganti' ? 'Scan QR operator pengganti' : ('Scan label ' + (modalAksi.baris?.no_spk || ''))"
-      :subjudul="modalAksi.mode==='entry' ? 'Scan Entry — stok akan berkurang.' : (modalAksi.mode==='masalah' ? 'Scan Masalah — akan diminta catatan.' : '')"
+      :subjudul="modalAksi.mode==='entry' ? 'Scan Entry — stok akan berkurang.' : (modalAksi.mode==='masalah' ? 'Scan Masalah — akan diminta jumlah kurang & alasan.' : '')"
       @hasil="hasilScanAksi" @tutup="tutupAksi" />
+
+    <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;"><i class="fas fa-triangle-exclamation" style="margin-right:8px; color:var(--danger);"></i>Ajukan Masalah — {{ popupMasalah.baris.no_spk }}</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin:0 0 10px;">{{ popupMasalah.baris.bahan_nama }} {{ popupMasalah.baris.bahan_warna }} — akan masuk ke Persiapan Produksi &gt; Masalah utk diajukan ke Owner.</p>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah kurang (m)</label><input v-model="popupMasalah.jumlahKurang" type="number" min="0" step="0.1"></div>
+        <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="Mis. roll rusak/stok fisik kurang"></div>
+        <div style="display:flex; gap:8px;">
+          <button @click="batalMasalah" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+          <button @click="konfirmasiMasalah" class="btn-primary" style="flex:1; padding:9px;">Ajukan</button>
+        </div>
+      </div>
+    </div>
   `
 };
 
