@@ -94,6 +94,17 @@ import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=5';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=2';
 
+// picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). Aksi
+// "Tunjuk Operator" WAJIB akun PIC ke atas (pic/pic_owner/owner/superuser)
+// — TANPA popup PIN, cukup akun yang login memang tier itu. Pola SAMA
+// dengan picOwnerKeAtas() di vue-pp-cutting.js/vue-pp-sewing.js/
+// vue-pp-finishing.js/vue-pp-serie.js (Proses Produksi).
+function picOwnerKeAtas(userData) {
+  if (!userData) return false;
+  const role = (userData.role || '').toLowerCase();
+  return role === 'owner' || role === 'superuser' || role === 'pic';
+}
+
 // --- Konfigurasi khas pos ini (SATU-SATUNYA tempat yang beda antara file
 // Sewing/Webbing/Finishing untuk bagian generik — field tambahan khas
 // masing-masing pos ditangani terpisah di komponennya sendiri). -----------
@@ -361,7 +372,10 @@ const PersiapanWebbingPerluDisiapkan = {
     const daftarRollSisa = ref([]); // gap #3 "roll sisa" — read-only, lihat konfirmasiEntry()
     const rollSisaTerbuka = ref(false);
 
-    const bolehProses = computed(() => window.cekIzinMenu(MENU_ID, 'edit') !== false);
+    // REVISI 8 Sep 2026 (keputusan Guru, audit kode) — satu-satunya
+    // pemakai bolehProses di komponen ini adalah tombol "Tunjuk Operator",
+    // jadi digerbang langsung PIC ke atas di sini.
+    const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(MENU_ID, 'edit') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(MENU_ID, 'print') !== false);
 
     async function muat() {
@@ -416,11 +430,25 @@ const PersiapanWebbingPerluDisiapkan = {
       if (!terpilih.length) { alert('Tidak ada baris yang bisa dicetak (stok belum cukup untuk baris manapun, atau sudah dicetak semua).'); return; }
       const perAnak = {};
       terpilih.forEach(b => { (perAnak[b.no_spk] ||= []).push(b); });
+      // rincian.roll/kode_webbing2/kode_webbing3 — BARU (8 Sep 2026, audit
+      // kode proyek, fix bug "data hilang") — sebelumnya 3 field ini SUDAH
+      // ADA di spk_track.webbing_rincian[] tapi TIDAK PERNAH ikut tercetak
+      // di label (cuma nama_aksesoris/warna/qty). Sekarang ikut disiapkan
+      // di sini, TAPI tampil-tidaknya & urutannya diatur Guru dari Scan &
+      // Cetak > Pengaturan Cetak > Label SPK Grouping — Acc Webbing (kalau
+      // Guru belum aktifkan satupun, label tetap sama seperti sebelumnya).
+      // Gabungan >1 baris komponen per anak SPK digabung '|' sama seperti
+      // pola `info` di atas.
       const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => ({
         kode: noSpk,
         nama: k.namaProduk,
         info: barisGrup.map(b => `${b.nama_aksesoris} ${b.warna} &middot; ${formatQty(b.butuh)} ${b.satuan}`).join(' | '),
-        qrDataUrl: buatQrDataUrl(`${noSpk}-${SUFFIX_LABEL}`)
+        qrDataUrl: buatQrDataUrl(`${noSpk}-${SUFFIX_LABEL}`),
+        rincian: {
+          roll: barisGrup.map(b => formatRoll(b.roll)).join(' | '),
+          kode_webbing2: barisGrup.map(b => b.kode_webbing2 || '-').join(' | '),
+          kode_webbing3: barisGrup.map(b => b.kode_webbing3 || '-').join(' | ')
+        }
       }));
       daftarLabelPreview.value = preview;
       _pendingCetak = terpilih;
@@ -473,7 +501,12 @@ const PersiapanWebbingPerluDisiapkan = {
       const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => ({
         kode: noSpk, nama: p.kartu.namaProduk,
         info: 'CETAK ULANG &middot; ' + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna}`).join(' | '),
-        qrDataUrl: buatQrDataUrl(`${noSpk}-${SUFFIX_LABEL}`)
+        qrDataUrl: buatQrDataUrl(`${noSpk}-${SUFFIX_LABEL}`),
+        rincian: {
+          roll: barisGrup.map(b => formatRoll(b.roll)).join(' | '),
+          kode_webbing2: barisGrup.map(b => b.kode_webbing2 || '-').join(' | '),
+          kode_webbing3: barisGrup.map(b => b.kode_webbing3 || '-').join(' | ')
+        }
       }));
       try {
         await addDoc(collection(db, 'cetak_ulang_log'), {
@@ -606,7 +639,7 @@ const PersiapanWebbingPerluDisiapkan = {
       </div>
     </template>
 
-    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Anak SPK" :daftar-label="daftarLabelPreview" @tutup="popupCetakAktif = false" @cetak="onCetakSelesai" />
+    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Anak SPK" :daftar-label="daftarLabelPreview" jenis-cetak="label_spk_acc_webbing" @tutup="popupCetakAktif = false" @cetak="onCetakSelesai" />
 
     <div v-if="popupCetakUlang" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
@@ -906,6 +939,8 @@ const PersiapanWebbingPerluDikirim = {
     }
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
+    // jenisCetakAktif — lihat catatan sama di vue-persiapan-bahan.js.
+    const jenisCetakAktif = ref('kode_bagging');
     async function konfirmasiCetakBagging() {
       const p = popupBagging.value;
       const grup = kelompokSepack.value.find(g => g.key === p.sepackKey);
@@ -923,6 +958,7 @@ const PersiapanWebbingPerluDikirim = {
           preview.push({ kode, nama: grup.label, info: 'Kode Bagging &middot; belum diisi', qrDataUrl: buatQrDataUrl(kode) });
         }
         daftarLabelPreview.value = preview;
+        jenisCetakAktif.value = 'kode_bagging';
         popupBagging.value = null;
         popupCetakAktif.value = true;
         await muat();
@@ -945,6 +981,7 @@ const PersiapanWebbingPerluDikirim = {
           dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
         });
         daftarLabelPreview.value = [{ kode, nama: 'Kode Tugas Kirim', info: `${TLC_ASAL} &rarr; ${p.tlcTujuan}`, qrDataUrl: buatQrDataUrl(kode) }];
+        jenisCetakAktif.value = 'lembar_kode_tugas';
         popupTugas.value = null;
         popupCetakAktif.value = true;
       } catch (e) { console.error('Gagal cetak kode tugas:', e); alert('Gagal membuat kode tugas. Coba lagi.'); }
@@ -1043,7 +1080,7 @@ const PersiapanWebbingPerluDikirim = {
       formatQty, formatDiamSejak, tertahan,
       popupBagging, bukaCetakBagging, konfirmasiCetakBagging,
       popupTugas, bukaCetakTugas, konfirmasiCetakTugas, isiTlcAwal,
-      popupCetakAktif, daftarLabelPreview,
+      popupCetakAktif, daftarLabelPreview, jenisCetakAktif,
       modalPack, bukaScanPack, tutupScanPack, hasilScanPack, tutupBagging,
       modalKirim, bukaScanKirim, tutupScanKirim, hasilScanKirim
     };
@@ -1081,7 +1118,7 @@ const PersiapanWebbingPerluDikirim = {
       </div>
     </template>
 
-    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Kode" :daftar-label="daftarLabelPreview" @tutup="popupCetakAktif = false" />
+    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Kode" :daftar-label="daftarLabelPreview" :jenis-cetak="jenisCetakAktif" @tutup="popupCetakAktif = false" />
 
     <div v-if="popupBagging" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">

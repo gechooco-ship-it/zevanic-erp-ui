@@ -16,6 +16,11 @@ import { db } from "./firebase-config.js";
 // didaftarkan) — bukan disalin tangan lagi. Lihat catatan lengkap di
 // definisi daftarMenuGroups().
 import { DAFTAR_MENU, KATEGORI_URUTAN } from './vue-config-akses.js';
+// BARU (8 Sep 2026, audit kode proyek, fitur Pengaturan Cetak) — dipakai
+// PopupPratinjauCetakLabel di bawah untuk baca ukuran kertas/posisi QR/
+// rincian tambahan per jenis cetak dari koleksi `pengaturan_cetak`, ganti
+// nilai hardcode 4x2 inch yang sebelumnya SAMA untuk semua jenis label.
+import { ambilPengaturanCetak, KATALOG_CETAK } from './vue-pengaturan-cetak.js';
 
 // ---------------------------------------------------------------------------
 // MasterDataCategory — kartu 1 kategori Master Data (tambah/lihat/hapus item).
@@ -1265,33 +1270,47 @@ export const KolomCari = {
 
 // ---------------------------------------------------------------------------
 // PopupPratinjauCetakLabel — BARU (28 Agt 2026, §41.1, permintaan Guru).
+// DIUBAH (8 Sep 2026, audit kode proyek) — ukuran kertas & posisi QR yang
+// SEBELUMNYA hardcode 4x2 inch untuk SEMUA jenis label sekarang dibaca per
+// jenis dari koleksi `pengaturan_cetak` (lihat js/vue-pengaturan-cetak.js),
+// via prop BARU `jenisCetak`. Ini realisasi bagian "Setting cetak
+// terpusat" PEDOMAN-SERAH-TERIMA.md yang belum pernah dibangun — Guru edit
+// 1 config per jenis di menu Scan & Cetak > Pengaturan Cetak, otomatis
+// berlaku ke SEMUA pos yang pakai popup ini dengan jenisCetak yang sama.
+//
+// Kalau pemanggil BELUM di-migrasi (belum kirim prop jenisCetak, string
+// kosong), popup ini FALLBACK ke ukuran lama 101.6x50.8mm (=4x2in) supaya
+// tidak ada pemanggil yang tiba-tiba error/berubah tanpa disengaja.
+//
 // Popup GENERIK pratinjau + konfigurasi SEBELUM cetak label fisik, dipakai
 // BARENG oleh SEMUA tempat cetak label QR di app ini (Cetak Label di List
 // Bahan & Aksesoris [GANTI dari tab tersendiri Stock & Pembelian], Cetak
 // Label Roll di Nota Order Belanja, Cetak Label di Order SPK) — sebelumnya
 // masing-masing LANGSUNG window.print() tanpa pratinjau/pengaturan apapun.
 //
-// Guru eksplisit: ukuran fisik yang dipakai 4x2 inch + kertas thermal
-// roll (1 label = 1 lembar fisik, BUKAN banyak label per lembar kertas
-// biasa seperti sebelumnya) — makanya CSS cetak di sini pakai `@page {
-// size: 4in 2in; }` + `page-break-after` per label (gaya lama pola kotak
-// dashed banyak-per-halaman DIHAPUS, sudah tidak relevan buat thermal).
+// Kontrak props.daftarLabel: array `{kode, nama, info, qrDataUrl, rincian}`
+// — kode TEKS QR (nama_pola/kode_lot/id_tampil/no_spk tergantung
+// pemanggil), nama = judul barang, info = HTML pendek (boleh berisi entity
+// &middot;, dst — makanya pratinjau di sini pakai v-html buat baris info,
+// BUKAN interpolasi teks biasa yang otomatis di-escape Vue), qrDataUrl =
+// hasil `buatQrDataUrl(kode)` yang SUDAH digambar duluan oleh pemanggil
+// (pola generate-QR-sinkron-di-window-utama yang sudah terbukti jalan,
+// lihat komentar panjang `buatQrDataUrl()` di js/vue-stock-pembelian.js —
+// popup ini SENGAJA tidak menggambar QR sendiri, cuma terima gambar jadi).
+// `rincian` (BARU, 8 Sep 2026, opsional) = object `{key: value}` berisi
+// field TAMBAHAN yang tersedia untuk jenis cetak ini (lihat
+// `rincianTersedia` per jenis di KATALOG_CETAK) — mana yang benar-benar
+// TAMPIL & urutannya diatur Guru dari Pengaturan Cetak (`rincian_aktif`),
+// BUKAN ditentukan di sini. Jenis cetak yang rincianTersedia-nya kosong
+// boleh tidak mengisi field ini sama sekali.
 //
-// Kontrak props.daftarLabel: array `{kode, nama, info, qrDataUrl}` — kode
-// TEKS QR (nama_pola/kode_lot/id_tampil/no_spk tergantung pemanggil),
-// nama = judul barang, info = HTML pendek (boleh berisi entity &middot;,
-// dst — makanya pratinjau di sini pakai v-html buat baris info, BUKAN
-// interpolasi teks biasa yang otomatis di-escape Vue), qrDataUrl = hasil
-// `buatQrDataUrl(kode)` yang SUDAH digambar duluan oleh pemanggil (pola
-// generate-QR-sinkron-di-window-utama yang sudah terbukti jalan, lihat
-// komentar panjang `buatQrDataUrl()` di js/vue-stock-pembelian.js — popup
-// ini SENGAJA tidak menggambar QR sendiri, cuma terima gambar jadi).
-//
-// "Config print, data apa yang mau diprint" (permintaan Guru) diwakili 2
-// checkbox tampilNama/tampilInfo — QR+kode SELALU tampil (itu intinya,
-// biar tetap bisa discan). Jumlah Salinan mengulang TIAP label yang
-// dikirim sebanyak N kali di halaman cetak (bukan pakai dialog "copies"
-// bawaan printer — lebih pasti kejadian di printer thermal).
+// "Config print, data apa yang mau diprint" (permintaan Guru) sekarang 2
+// lapis: checkbox tampilNama/tampilInfo (TETAP toggle per-sesi seperti
+// sebelumnya, TIDAK dipindah) + rincian tambahan (BARU, diatur terpusat
+// per jenis, bukan per-sesi). QR+kode SELALU tampil (itu intinya, biar
+// tetap bisa discan). Jumlah Salinan mengulang TIAP label yang dikirim
+// sebanyak N kali di halaman cetak (bukan pakai dialog "copies" bawaan
+// printer — lebih pasti kejadian di printer thermal).
 //
 // Emit 'cetak' (payload {jumlahSalinan, tampilNama, tampilInfo}) SETELAH
 // window cetak dibuka — pemanggil boleh dengarkan buat tindak lanjutnya
@@ -1299,28 +1318,70 @@ export const KolomCari = {
 // semua pemanggil butuh — makanya logging TIDAK dijadikan tanggung jawab
 // popup ini, cuma tugas cetak+pratinjau generik).
 // ---------------------------------------------------------------------------
+const _FALLBACK_PENGATURAN_LABEL = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [] };
+
 export const PopupPratinjauCetakLabel = {
   props: {
     terbuka: { type: Boolean, default: false },
     judul: { type: String, default: 'Cetak Label' },
-    daftarLabel: { type: Array, default: () => [] }
+    daftarLabel: { type: Array, default: () => [] },
+    jenisCetak: { type: String, default: '' } // BARU — id di KATALOG_CETAK (vue-pengaturan-cetak.js)
   },
   emits: ['tutup', 'cetak'],
   setup(props, { emit }) {
     const tampilNama = ref(true);
     const tampilInfo = ref(true);
     const jumlahSalinan = ref(1);
+    const pengaturan = ref(null); // hasil ambilPengaturanCetak(jenisCetak), null = belum/gagal dimuat
+
+    async function muatPengaturan() {
+      if (!props.jenisCetak) { pengaturan.value = null; return; }
+      try { pengaturan.value = await ambilPengaturanCetak(props.jenisCetak); }
+      catch (e) { console.error('Gagal muat pengaturan cetak untuk', props.jenisCetak, e); pengaturan.value = null; }
+    }
+    watch(() => props.terbuka, (v) => { if (v) muatPengaturan(); });
+    if (props.terbuka) muatPengaturan();
+
+    const efektif = computed(() => pengaturan.value || _FALLBACK_PENGATURAN_LABEL);
+    const lebarMm = computed(() => parseFloat(efektif.value.lebar_mm) || _FALLBACK_PENGATURAN_LABEL.lebar_mm);
+    const tinggiMm = computed(() => parseFloat(efektif.value.tinggi_mm) || _FALLBACK_PENGATURAN_LABEL.tinggi_mm);
+    const posisiQr = computed(() => efektif.value.posisi_qr || 'kiri');
+    // Daftar rincian yang benar2 dipilih Guru di Pengaturan Cetak, DIURUTKAN
+    // sesuai rincian_aktif, dengan labelnya diambil dari katalog jenis ini.
+    const rincianAktif = computed(() => {
+      const tersedia = (KATALOG_CETAK[props.jenisCetak] && KATALOG_CETAK[props.jenisCetak].rincianTersedia) || [];
+      const aktifKeys = efektif.value.rincian_aktif || [];
+      return aktifKeys
+        .map(key => tersedia.find(r => r.key === key))
+        .filter(Boolean);
+    });
 
     function tutup() { emit('tutup'); }
 
     function cetakSekarang() {
       if (!props.daftarLabel.length) return;
       const salinan = Math.max(1, parseInt(jumlahSalinan.value) || 1);
+      const lebar = lebarMm.value, tinggi = tinggiMm.value;
+      const sisiPendek = Math.min(lebar, tinggi);
+      const padding = Math.max(1.5, sisiPendek * 0.11).toFixed(2);
+      const gap = Math.max(1.5, sisiPendek * 0.1).toFixed(2);
+      const qrSize = Math.min(lebar, tinggi) * 0.42;
+      const posisi = posisiQr.value;
+      const flexDir = posisi === 'kanan' ? 'row-reverse' : (posisi === 'atas' ? 'column' : 'row');
+      const rincianList = rincianAktif.value;
       let labelsHtml = '';
       for (const l of props.daftarLabel) {
         const qrHtml = l.qrDataUrl
           ? `<img src="${l.qrDataUrl}" alt="QR ${l.kode}">`
           : `<div style="font-size:9px;">(QR gagal dibuat)</div>`;
+        let rincianHtml = '';
+        if (rincianList.length && l.rincian) {
+          for (const r of rincianList) {
+            const nilai = l.rincian[r.key];
+            if (nilai === undefined || nilai === null || nilai === '') continue;
+            rincianHtml += `<div class="rincian"><b>${r.label}:</b> ${nilai}</div>`;
+          }
+        }
         const satuLabel = `
           <div class="label-cetak">
             <div class="qr">${qrHtml}</div>
@@ -1328,6 +1389,7 @@ export const PopupPratinjauCetakLabel = {
               <div class="kode">${l.kode}</div>
               ${(tampilNama.value && l.nama) ? `<div class="nama">${l.nama}</div>` : ''}
               ${(tampilInfo.value && l.info) ? `<div class="info">${l.info}</div>` : ''}
+              ${rincianHtml}
             </div>
           </div>`;
         for (let s = 0; s < salinan; s++) labelsHtml += satuLabel;
@@ -1336,17 +1398,18 @@ export const PopupPratinjauCetakLabel = {
       if (!w) { alert('Popup diblokir browser. Izinkan popup untuk mencetak label.'); return; }
       w.document.write(`<html><head><title>${props.judul}</title>
         <style>
-          @page { size: 4in 2in; margin: 0; }
+          @page { size: ${lebar}mm ${tinggi}mm; margin: 0; }
           *{ box-sizing:border-box; }
           body{ font-family:Arial,sans-serif; margin:0; }
-          .label-cetak{ width:4in; height:2in; padding:0.22in; display:flex; align-items:center; gap:0.2in; page-break-after:always; }
+          .label-cetak{ width:${lebar}mm; height:${tinggi}mm; padding:${padding}mm; display:flex; flex-direction:${flexDir}; align-items:center; ${posisi==='atas' ? 'justify-content:center;' : ''} gap:${gap}mm; page-break-after:always; }
           .label-cetak:last-child{ page-break-after:auto; }
-          .qr{ width:1.5in; height:1.5in; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+          .qr{ width:${qrSize}mm; height:${qrSize}mm; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
           .qr img{ width:100%; height:100%; display:block; }
-          .teks{ font-size:12px; line-height:1.35; min-width:0; overflow:hidden; }
+          .teks{ font-size:12px; line-height:1.35; min-width:0; overflow:hidden; ${posisi==='atas' ? 'text-align:center;' : ''} }
           .kode{ font-weight:700; font-size:17px; margin-bottom:4px; word-break:break-all; }
           .nama{ font-size:13px; }
           .info{ font-size:11px; color:#555; margin-top:2px; }
+          .rincian{ font-size:10.5px; color:#444; margin-top:2px; }
         </style>
         </head><body>
         ${labelsHtml}
@@ -1359,19 +1422,19 @@ export const PopupPratinjauCetakLabel = {
       emit('tutup');
     }
 
-    return { tampilNama, tampilInfo, jumlahSalinan, tutup, cetakSekarang };
+    return { tampilNama, tampilInfo, jumlahSalinan, tutup, cetakSekarang, lebarMm, tinggiMm, posisiQr };
   },
   template: `
     <div v-if="terbuka" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="tutup">
       <div class="gc-card" style="max-width:420px; width:100%; max-height:90vh; overflow-y:auto;">
         <h3 style="font-weight:700; font-size:14px; margin-bottom:4px;">{{ judul }}</h3>
-        <p style="font-size:11px; color:var(--text-faint); margin-bottom:14px;">Pratinjau label ukuran 4x2 inch (thermal roll) &mdash; 1 label = 1 lembar fisik. Atur data yang mau tampil &amp; jumlah salinan sebelum cetak.</p>
+        <p style="font-size:11px; color:var(--text-faint); margin-bottom:14px;">Pratinjau label ukuran {{ lebarMm }}x{{ tinggiMm }}mm, QR di {{ posisiQr }} &mdash; 1 label = 1 lembar fisik. Ukuran diatur di Scan &amp; Cetak &gt; Pengaturan Cetak. Atur data yang mau tampil &amp; jumlah salinan sebelum cetak.</p>
 
         <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px; max-height:260px; overflow-y:auto;">
-          <div v-for="(l, i) in daftarLabel.slice(0,3)" :key="i" style="width:200px; height:100px; border:1.5px dashed var(--line); border-radius:6px; padding:10px; display:flex; align-items:center; gap:10px; background:#fff; margin:0 auto; box-sizing:border-box;">
-            <img v-if="l.qrDataUrl" :src="l.qrDataUrl" style="width:56px; height:56px; flex-shrink:0;">
-            <div v-else style="width:56px; height:56px; flex-shrink:0; background:var(--ivory-dim); border-radius:4px;"></div>
-            <div style="min-width:0; overflow:hidden;">
+          <div v-for="(l, i) in daftarLabel.slice(0,3)" :key="i" :style="{width:'200px', height:'100px', border:'1.5px dashed var(--line)', borderRadius:'6px', padding:'10px', display:'flex', flexDirection: posisiQr==='kanan' ? 'row-reverse' : (posisiQr==='atas' ? 'column' : 'row'), alignItems:'center', justifyContent: posisiQr==='atas' ? 'center' : 'flex-start', gap:'10px', background:'#fff', margin:'0 auto', boxSizing:'border-box'}">
+            <img v-if="l.qrDataUrl" :src="l.qrDataUrl" style="width:44px; height:44px; flex-shrink:0;">
+            <div v-else style="width:44px; height:44px; flex-shrink:0; background:var(--ivory-dim); border-radius:4px;"></div>
+            <div :style="{minWidth:0, overflow:'hidden', textAlign: posisiQr==='atas' ? 'center' : 'left'}">
               <div style="font-weight:700; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#222;">{{ l.kode }}</div>
               <div v-if="tampilNama && l.nama" style="font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#222;">{{ l.nama }}</div>
               <div v-if="tampilInfo && l.info" style="font-size:9.5px; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" v-html="l.info"></div>

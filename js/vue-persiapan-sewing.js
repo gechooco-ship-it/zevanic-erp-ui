@@ -80,6 +80,17 @@ import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=5';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=2';
 
+// picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). Aksi
+// "Tunjuk Operator" WAJIB akun PIC ke atas (pic/pic_owner/owner/superuser)
+// — TANPA popup PIN, cukup akun yang login memang tier itu. Pola SAMA
+// dengan picOwnerKeAtas() di vue-pp-cutting.js/vue-pp-sewing.js/
+// vue-pp-finishing.js/vue-pp-serie.js (Proses Produksi).
+function picOwnerKeAtas(userData) {
+  if (!userData) return false;
+  const role = (userData.role || '').toLowerCase();
+  return role === 'owner' || role === 'superuser' || role === 'pic';
+}
+
 // --- Konfigurasi khas pos ini (SATU-SATUNYA tempat yang beda antara file
 // Sewing/Webbing/Finishing untuk bagian generik — field tambahan khas
 // masing-masing pos ditangani terpisah di komponennya sendiri). -----------
@@ -287,7 +298,10 @@ const PersiapanSewingPerluDisiapkan = {
     const kartuTerbuka = reactive({});
     const pilihanCetak = reactive({}); // barisKey -> bool (override manual)
 
-    const bolehProses = computed(() => window.cekIzinMenu(MENU_ID, 'edit') !== false);
+    // REVISI 8 Sep 2026 (keputusan Guru, audit kode) — satu-satunya
+    // pemakai bolehProses di komponen ini adalah tombol "Tunjuk Operator",
+    // jadi digerbang langsung PIC ke atas di sini.
+    const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(MENU_ID, 'edit') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(MENU_ID, 'print') !== false);
 
     async function muat() {
@@ -510,7 +524,7 @@ const PersiapanSewingPerluDisiapkan = {
       </div>
     </template>
 
-    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Anak SPK" :daftar-label="daftarLabelPreview" @tutup="popupCetakAktif = false" @cetak="onCetakSelesai" />
+    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Anak SPK" :daftar-label="daftarLabelPreview" jenis-cetak="label_spk_acc_sewing" @tutup="popupCetakAktif = false" @cetak="onCetakSelesai" />
 
     <div v-if="popupCetakUlang" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
@@ -807,6 +821,8 @@ const PersiapanSewingPerluDikirim = {
     }
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
+    // jenisCetakAktif — lihat catatan sama di vue-persiapan-bahan.js.
+    const jenisCetakAktif = ref('kode_bagging');
     async function konfirmasiCetakBagging() {
       const p = popupBagging.value;
       const grup = kelompokSepack.value.find(g => g.key === p.sepackKey);
@@ -824,6 +840,7 @@ const PersiapanSewingPerluDikirim = {
           preview.push({ kode, nama: grup.label, info: 'Kode Bagging &middot; belum diisi', qrDataUrl: buatQrDataUrl(kode) });
         }
         daftarLabelPreview.value = preview;
+        jenisCetakAktif.value = 'kode_bagging';
         popupBagging.value = null;
         popupCetakAktif.value = true;
         await muat();
@@ -846,6 +863,7 @@ const PersiapanSewingPerluDikirim = {
           dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
         });
         daftarLabelPreview.value = [{ kode, nama: 'Kode Tugas Kirim', info: `${TLC_ASAL} &rarr; ${p.tlcTujuan}`, qrDataUrl: buatQrDataUrl(kode) }];
+        jenisCetakAktif.value = 'lembar_kode_tugas';
         popupTugas.value = null;
         popupCetakAktif.value = true;
       } catch (e) { console.error('Gagal cetak kode tugas:', e); alert('Gagal membuat kode tugas. Coba lagi.'); }
@@ -944,7 +962,7 @@ const PersiapanSewingPerluDikirim = {
       formatQty, formatDiamSejak, tertahan,
       popupBagging, bukaCetakBagging, konfirmasiCetakBagging,
       popupTugas, bukaCetakTugas, konfirmasiCetakTugas, isiTlcAwal,
-      popupCetakAktif, daftarLabelPreview,
+      popupCetakAktif, daftarLabelPreview, jenisCetakAktif,
       modalPack, bukaScanPack, tutupScanPack, hasilScanPack, tutupBagging,
       modalKirim, bukaScanKirim, tutupScanKirim, hasilScanKirim
     };
@@ -982,7 +1000,7 @@ const PersiapanSewingPerluDikirim = {
       </div>
     </template>
 
-    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Kode" :daftar-label="daftarLabelPreview" @tutup="popupCetakAktif = false" />
+    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Kode" :daftar-label="daftarLabelPreview" :jenis-cetak="jenisCetakAktif" @tutup="popupCetakAktif = false" />
 
     <div v-if="popupBagging" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">

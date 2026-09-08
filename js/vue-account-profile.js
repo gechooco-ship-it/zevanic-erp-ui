@@ -178,20 +178,48 @@ const AppAccountProfile = {
       return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
+    // hashPinUniq — REVISI 8 Sep 2026 (keputusan Guru, audit kode). `hashPin`
+    // di atas di-salt per-email (disengaja, anti rainbow-table) — akibatnya
+    // dua user beda dengan PIN 6-digit yang SAMA selalu hasilkan `pin_hash`
+    // BEDA, jadi tidak bisa dipakai mengecek tabrakan PIN antar user. Field
+    // KEDUA ini ("pin_hash_uniq") sengaja TANPA salt email, HANYA dipakai
+    // untuk query "apakah PIN ini sudah dipakai user lain" — TIDAK PERNAH
+    // dipakai untuk verifikasi login PIN (itu tetap `pin_hash`/`hashPin()`
+    // di atas, cariUserByPin() di vue-scan-cetak.js).
+    async function hashPinUniq(pin) {
+      const data = new TextEncoder().encode('PIN-UNIQ|' + pin);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
     async function simpanPin() {
       if (!/^\d{6}$/.test(pinBaru.value)) return alert("PIN wajib PERSIS 6 angka (0-9 saja).");
       if (pinBaru.value !== konfirmasiPin.value) return alert("Konfirmasi PIN tidak cocok dengan PIN baru.");
       if (!passwordUntukPin.value) return alert("Masukkan password Anda dulu buat konfirmasi.");
       menyimpanPin.value = true;
       try {
+        // Cek tabrakan PIN DULU, SEBELUM reauthenticate — supaya user tidak
+        // diminta password kalau ternyata PIN barunya sudah dipakai orang
+        // lain. Pesan gagal SENGAJA generik — TIDAK menyebut "sudah dipakai
+        // user lain" (privasi PIN orang lain), sama seperti pesan gagal
+        // biasa supaya tidak membocorkan info kalau ada yg lagi nebak PIN.
+        const hashUniqBaru = await hashPinUniq(pinBaru.value);
+        const snapTabrakan = await getDocs(query(collection(db, 'users'), where('pin_hash_uniq', '==', hashUniqBaru)));
+        const sudahDipakaiOrangLain = snapTabrakan.docs.some(d => d.id !== window.currentUser.email);
+        if (sudahDipakaiOrangLain) {
+          alert("Gagal memasang PIN. Coba PIN lain.");
+          menyimpanPin.value = false;
+          return;
+        }
         // Reauthenticate DULU — PERSIS pola updatePasswordKeamanan di atas,
         // supaya orang lain yang kebetulan pegang sesi login tidak bisa
         // ganti PIN tanpa tahu password aslinya.
         const credential = EmailAuthProvider.credential(window.currentUser.email, passwordUntukPin.value);
         await reauthenticateWithCredential(auth.currentUser, credential);
         const hash = await hashPin(pinBaru.value, window.currentUser.email);
-        await updateDoc(doc(db, "users", window.currentUser.email), { pin_hash: hash });
+        await updateDoc(doc(db, "users", window.currentUser.email), { pin_hash: hash, pin_hash_uniq: hashUniqBaru });
         window.currentUser.pin_hash = hash; // biar badge langsung update tanpa reload
+        window.currentUser.pin_hash_uniq = hashUniqBaru;
         // BUG (ditemukan 22 Agt 2026): tanpa baris ini, cache sesi di
         // localStorage (window.simpanKonteksSesi, auth.js) TETAP versi
         // LAMA (belum ada pin_hash) — begitu halaman di-refresh, app

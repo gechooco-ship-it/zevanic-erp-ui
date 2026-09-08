@@ -588,6 +588,10 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // BARU (7 Sep 2026 malam) — Scan & Cetak > PIN (Riwayat PIN, dipindah
     // dari Zevanic House > Config), lihat js/vue-scan-cetak.js.
     'sub-scan-cetak-pin': 'pastikanMountScanCetakRiwayatPin',
+    // BARU (8 Sep 2026, audit kode proyek) — Scan & Cetak > Cetak, sekarang
+    // juga memuat AppPengaturanCetak (ukuran kertas/posisi QR/rincian
+    // tambahan per jenis cetak), lihat js/vue-pengaturan-cetak.js.
+    'sub-scan-cetak-cetak': 'pastikanMountPengaturanCetak',
     // REKONSTRUKSI (7 Sep 2026, lihat js/vue-pesanan.js utk latar belakang
     // lengkap): Penjualan Kasir (1.1/1.2), Menunggu Proses (2.1, keputusan
     // QO Owner/PIC Owner), Daftar Pesanan (3.1-3.2.1, BARU, ganti 3 ringkasan

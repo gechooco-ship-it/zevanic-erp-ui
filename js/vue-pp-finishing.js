@@ -831,7 +831,9 @@ const FinishingPerluDikirim = {
       </div>
     </template>
 
-    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Bagging + Kode Tugas" :daftar-label="daftarLabelPreview" @tutup="popupCetakAktif = false" />
+    <!-- jenis-cetak dipatok 'kode_bagging' — lihat catatan sama di
+         vue-pp-cutting.js (cetak gabungan bagging+tugas 1 job cetak). -->
+    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Bagging + Kode Tugas" :daftar-label="daftarLabelPreview" jenis-cetak="kode_bagging" @tutup="popupCetakAktif = false" />
 
     <scan-generik :aktif="modalPack.aktif" :judul="modalPack.kodeBagging ? ('Scan kode pcs — bagging ' + modalPack.kodeBagging) : 'Scan Kode Bagging'" subjudul="Bisa discan berkali-kali. Tutup lewat tombol di bawah kalau sudah selesai." @hasil="hasilScanPack" @tutup="tutupScanPack" />
     <div v-if="modalPack.aktif && modalPack.kodeBagging" style="position:fixed; left:16px; bottom:16px; z-index:10001; display:flex; flex-direction:column; gap:8px; max-width:260px;">

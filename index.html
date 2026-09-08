@@ -1264,7 +1264,13 @@
                   </tbody>
                 </table>
               </div>
-              <p style="font-size:10.5px; color:var(--text-faint); margin-top:10px;">Pengaturan cetak terpusat (ukuran kertas/printer default dst) — wireframe menandai ini "belum digambar", placeholder menyusul.</p>
+            </div>
+
+            <!-- BARU (8 Sep 2026, audit kode proyek) — realisasi "Pengaturan
+                 cetak terpusat" yang di atas tadinya cuma placeholder teks.
+                 Lihat js/vue-pengaturan-cetak.js. -->
+            <div class="gc-card" style="padding:14px;">
+              <div id="vue-pengaturan-cetak"></div>
             </div>
           </div>
 
@@ -1635,6 +1641,10 @@
   <!-- BARU (7 Sep 2026 malam) — fondasi menu "Scan & Cetak" (PopupPinGenerik/
        ScanGenerik dst), lihat komentar besar di js/vue-scan-cetak.js. -->
   <script type="module" src="js/vue-scan-cetak.js?v=2"></script>
+  <!-- BARU (8 Sep 2026, audit kode proyek) — "Pengaturan Cetak" (ukuran
+       kertas/posisi QR/rincian tambahan per jenis cetak, terpusat), lihat
+       komentar besar di js/vue-pengaturan-cetak.js. -->
+  <script type="module" src="js/vue-pengaturan-cetak.js?v=1"></script>
   <script type="module" src="js/vue-scan-opname.js?v=1"></script>
   <script type="module" src="js/vue-scan-persiapan.js?v=4"></script>
   <script type="module" src="js/vue-config-karyawan.js"></script>

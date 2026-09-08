@@ -719,7 +719,7 @@ const CuttingSedangPola = {
       </div>
     </template>
 
-    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Komponen" :daftar-label="daftarLabelPreview" @tutup="popupCetakAktif = false" />
+    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Komponen" :daftar-label="daftarLabelPreview" jenis-cetak="label_komponen_cutting" @tutup="popupCetakAktif = false" />
     <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.track ? ('Scan Entry Pola — ' + modalEntry.track.kode_spk) : 'Scan Entry Pola'" subjudul="Scan tiap label komponen yang sudah selesai digambar polanya." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
     <div v-if="modalEntry.aktif && modalEntry.log.length" style="position:fixed; left:16px; bottom:16px; z-index:10001; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
       <div v-for="(l,i) in modalEntry.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
@@ -1024,7 +1024,15 @@ const CuttingPerluDiKirim = {
       </div>
     </template>
 
-    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Surat Jalan + Kode Bagging" :daftar-label="daftarLabelPreview" @tutup="popupCetakAktif = false" />
+    <!-- BARU (8 Sep 2026) — jenis-cetak dipatok 'kode_bagging' (bukan
+         dinamis) walau baris terakhir preview-nya "Surat Jalan (Kode
+         Tugas)" (lembar_kode_tugas) — SENGAJA, karena 1x cetak ini
+         mencampur item bagging+tugas dalam 1 job cetak yang sama (dicetak
+         berurutan di printer/roll fisik yang sama), jadi tidak bisa pakai
+         2 ukuran berbeda dalam 1x cetak. Kalau nanti Guru butuh ukuran
+         beda utk baris Surat Jalan di sini, perlu redesain alur ini jadi
+         2x cetak terpisah — belum termasuk cakupan sekarang. -->
+    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Surat Jalan + Kode Bagging" :daftar-label="daftarLabelPreview" jenis-cetak="kode_bagging" @tutup="popupCetakAktif = false" />
 
     <div v-if="popupKirim" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">

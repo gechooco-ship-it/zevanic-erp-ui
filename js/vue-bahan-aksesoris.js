@@ -2174,7 +2174,7 @@ const BahanAksesorisListManager = {
       </div>
     </div>
 
-    <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label" :daftar-label="daftarLabelPreview" @tutup="popupCetakLabelAktif = false" @cetak="saatCetakBerhasil" />
+    <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label" :daftar-label="daftarLabelPreview" jenis-cetak="label_bahan_aksesoris" @tutup="popupCetakLabelAktif = false" @cetak="saatCetakBerhasil" />
 
     <!-- BARU (28 Agt 2026, §41.2) — Riwayat Cetak Label, modal on-demand
          (lihat catatan di tombol toolbar-nya di atas). -->

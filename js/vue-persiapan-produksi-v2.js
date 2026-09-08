@@ -70,6 +70,21 @@ import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, KolomCari } from './vue-components.js?v=5';
 import { ambilSemuaProduk } from './vue-master-produk.js';
 
+// picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). Aksi
+// "Buat SPK Grouping" (menerbitkan) dan "Tunjuk/Scan Operator" (menugaskan)
+// WAJIB akun PIC ke atas (pic/pic_owner/owner/superuser) — TANPA popup PIN,
+// cukup akun yang login memang tier itu dan fiturnya tampil sebagai
+// perintah langsung. Beda dari `tierOwnerKeAtas()` (vue-pesanan.js) yang
+// mewajibkan Owner/PIC Owner SPESIFIK untuk keputusan QO — di sini PIC
+// biasa (bukan cuma PIC Owner) sudah cukup, sama pola dengan
+// `picOwnerKeAtas()` di vue-pp-cutting.js/vue-pp-sewing.js/vue-pp-finishing.js/
+// vue-pp-serie.js (Proses Produksi) yang sudah lama dipakai konsisten.
+function picOwnerKeAtas(userData) {
+  if (!userData) return false;
+  const role = (userData.role || '').toLowerCase();
+  return role === 'owner' || role === 'superuser' || role === 'pic';
+}
+
 // ============================================================================
 // REDESAIN "Perlu Disiapkan" (31 Agt 2026) — handoff wireframe Guru, folder
 // Mockup/handoff/Persiapan Produksi - Perlu Disiapkan/. GANTI TOTAL layar
@@ -565,13 +580,25 @@ const PersiapanDisiapkanManager = {
     const daftarLabelPreview = ref([]);
 
     const menuId = 'pp_disiapkan';
-    const bolehProses = computed(() => window.cekIzinMenu(menuId, 'add') !== false);
+    // REVISI 8 Sep 2026 (keputusan Guru, audit kode) — "Buat SPK Grouping"
+    // WAJIB akun PIC ke atas, bukan cuma izin menu Config Akses generik
+    // (Admin bisa saja diberi izin 'add' lewat Config Akses — gerbang
+    // role ini menutup celah itu, tanpa perlu popup PIN tambahan).
+    const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(menuId, 'add') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
 
     async function muat() {
       memuat.value = true;
       try {
-        const snapOrder = await getDocs(query(collection(db, 'order_spk'), where('status', '==', 'Aktif')));
+        // REVISI 8 Sep 2026 (keputusan Guru, audit kode) — filter
+        // `qo_diproses==true` ditambahkan supaya SPK yang qty-nya masih RO
+        // mentah dari kasir (belum diputus QO oleh Owner/PIC Owner di
+        // Pesanan > Menunggu Proses) tidak ikut muncul di sini. Sebelum
+        // revisi ini, gerbang keputusan QO bisa terlewati total dari sisi
+        // konsumen datanya. SPK lama (sebelum field ini ada) otomatis
+        // dianggap "belum diputuskan" — perlu diproses ulang lewat
+        // Menunggu Proses supaya field ini terisi `true`.
+        const snapOrder = await getDocs(query(collection(db, 'order_spk'), where('status', '==', 'Aktif'), where('qo_diproses', '==', true)));
         const produk = await ambilSemuaProduk();
         const petaProduk = {};
         produk.forEach(p => { if (p.sku) petaProduk[p.sku] = p; });
@@ -986,7 +1013,7 @@ const PersiapanDisiapkanManager = {
       </div>
     </div>
 
-    <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label SPK Grouping" :daftar-label="daftarLabelPreview" @tutup="popupCetakLabelAktif = false" />
+    <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label SPK Grouping" :daftar-label="daftarLabelPreview" jenis-cetak="label_spk_terbit" @tutup="popupCetakLabelAktif = false" />
   `
 };
 
@@ -1043,6 +1070,12 @@ const JalurTahapManager = {
     const menuId = 'pp_' + props.jalur;
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
+    // REVISI 8 Sep 2026 (keputusan Guru, audit kode) — khusus tombol "Scan
+    // Operator" (menugaskan, BUKAN scan entry/pack/kirim biasa yang boleh
+    // siapa saja berwenang di menu ini), WAJIB akun PIC ke atas. Sengaja
+    // computed TERPISAH dari `bolehProses` supaya Scan Entry/Masalah/Pack/
+    // Kirim/Sampai/Cetak di tahap lain TIDAK ikut kena gerbang PIC ke atas.
+    const bolehTunjukOperator = computed(() => picOwnerKeAtas(window.currentUser));
 
     async function muat() {
       memuat.value = true;
@@ -1059,6 +1092,8 @@ const JalurTahapManager = {
     // --- Cetak Label Bagging / Label Tugas (perlu_dikirim / sedang_dikirim) ---
     const popupCetakLabelAktif = ref(false);
     const daftarLabelPreview = ref([]);
+    // jenisCetakAktif — lihat catatan sama di vue-persiapan-bahan.js.
+    const jenisCetakAktif = ref('kode_bagging');
     function cetakLabelBagging(track) {
       if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Coba refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
       const kodeBagging = track.kode_spk + '-BAG';
@@ -1066,6 +1101,7 @@ const JalurTahapManager = {
         .then(muat)
         .catch(e => console.error('Gagal simpan kode_bagging:', e));
       daftarLabelPreview.value = [{ kode: kodeBagging, nama: track.nama_produk, info: `${track.kode_spk} &middot; Bagging`, qrDataUrl: buatQrDataUrl(kodeBagging) }];
+      jenisCetakAktif.value = 'kode_bagging';
       popupCetakLabelAktif.value = true;
     }
     function cetakLabelTugas(track) {
@@ -1075,6 +1111,7 @@ const JalurTahapManager = {
         .then(muat)
         .catch(e => console.error('Gagal simpan kode_tugas:', e));
       daftarLabelPreview.value = [{ kode: kodeTugas, nama: track.nama_produk, info: `${track.kode_spk} &middot; Tugas`, qrDataUrl: buatQrDataUrl(kodeTugas) }];
+      jenisCetakAktif.value = 'lembar_kode_tugas';
       popupCetakLabelAktif.value = true;
     }
 
@@ -1208,8 +1245,8 @@ const JalurTahapManager = {
     onUnmounted(tutupScan);
 
     return {
-      memuat, daftarTrack, sedangProses, bolehProses, bolehCetak,
-      cetakLabelBagging, cetakLabelTugas, popupCetakLabelAktif, daftarLabelPreview,
+      memuat, daftarTrack, sedangProses, bolehProses, bolehCetak, bolehTunjukOperator,
+      cetakLabelBagging, cetakLabelTugas, popupCetakLabelAktif, daftarLabelPreview, jenisCetakAktif,
       modeScan, trackAktifScan, videoScanEl, canvasScanEl, scanMemuatKamera, scanError,
       bukaScan, tutupScan, LABEL_AKSI_SCAN, formatQty
     };
@@ -1236,7 +1273,7 @@ const JalurTahapManager = {
         <div v-if="t.catatan_masalah" style="font-size:11.5px; color:var(--danger); margin-bottom:8px; background:var(--danger-light); border-radius:8px; padding:6px 10px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ t.catatan_masalah }}</div>
 
         <!-- Perlu Diproses -->
-        <button v-if="tahap==='perlu_diproses' && bolehProses" @click="bukaScan('operator', t)" :disabled="sedangProses[t.id]" class="btn-primary" style="width:100%; padding:10px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+        <button v-if="tahap==='perlu_diproses' && bolehProses && bolehTunjukOperator" @click="bukaScan('operator', t)" :disabled="sedangProses[t.id]" class="btn-primary" style="width:100%; padding:10px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
 
         <!-- Sedang Diproses -->
         <div v-if="tahap==='sedang_diproses' && bolehProses" style="display:flex; gap:8px;">
@@ -1284,7 +1321,7 @@ const JalurTahapManager = {
       <button @click="tutupScan" class="btn-outline" style="padding:8px 24px; background:#fff;">Batal</button>
     </div>
 
-    <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label" :daftar-label="daftarLabelPreview" @tutup="popupCetakLabelAktif = false" />
+    <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label" :daftar-label="daftarLabelPreview" :jenis-cetak="jenisCetakAktif" @tutup="popupCetakLabelAktif = false" />
   `
 };
 
