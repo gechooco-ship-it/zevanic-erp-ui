@@ -10,21 +10,27 @@
 //      update massal, export/import Excel) DIPERTAHANKAN UTUH, cuma
 //      dipindah jadi tab kedua, TIDAK ADA logic yang diubah/dihapus.
 //
-// PENTING — batas cakupan sesi ini (WAJIB dibaca sebelum pakai fitur ini):
+// PENTING — status sambungan ke Ontime/Telat (WAJIB dibaca sebelum pakai fitur ini):
 // Kalender BARU menulis ke koleksi BARU `jadwal_shift` (assignment per
 // TANGGAL). Tab lama "Tabel & Excel" tetap menulis ke field lama
 // `users.nama_shift` (SATU shift "default/utama" per karyawan, TANPA
-// tanggal) — field itu jugalah yang dipakai Clock In/Out (js/vue-camera.js)
-// buat menyimpan snapshot shift ke dokumen absensi, dan itu yang menentukan
-// hitungan Ontime/Telat di Antrean Absensi. ARTINYA: kalau Guru pakai
-// Kalender/Template Rotasi utk kasih shift BEDA dari nama_shift default
-// karyawan di tanggal tertentu, Antrean Absensi tanggal itu TETAP menghitung
-// ontime/telat berdasar nama_shift LAMA (default), BUKAN shift hasil
-// rotasi — dua sistem ini BELUM disambungkan. Nyambungkan keduanya berarti
-// mengubah js/vue-camera.js (modul Clock In/Out, di luar cakupan
-// "Penjadwalan Shift" yang diminta sesi ini) — sengaja TIDAK disentuh
-// supaya tidak mengubah alur presensi yang sudah berjalan tanpa
-// persetujuan eksplisit. Lihat juga banner di dalam tab Kalender.
+// tanggal) — dipakai sebagai FALLBACK kalau tanggal itu belum diatur
+// eksplisit lewat Kalender/Template Rotasi.
+//
+// UPDATE (9 Sep 2026, sore) — SUDAH DISAMBUNGKAN: Clock In/Out
+// (js/vue-camera.js) sekarang memanggil window.ambilShiftEfektifHariIni
+// (js/auth.js) di setiap titik tulis, yang mengecek dulu apakah HARI INI
+// sudah diatur beda lewat koleksi `jadwal_shift` sebelum jatuh ke
+// nama_shift default. Jadi kalau Guru pakai Kalender/Template Rotasi utk
+// kasih shift BEDA dari default karyawan di tanggal tertentu, Antrean
+// Absensi tanggal itu SEKARANG ikut menghitung ontime/telat berdasar
+// shift hasil rotasi, bukan lagi shift default lama.
+// Catatan perilaku: kalau sel Kalender diisi "OFF" tapi karyawan tetap
+// Clock In hari itu, nama_shift tersimpan "OFF" apa adanya — Antrean
+// Absensi tidak akan menampilkan badge ontime/telat sama sekali utk
+// baris itu (karena "OFF" tidak cocok dengan entri manapun di
+// master_shift), bukan bug, ini memang disengaja. Lihat juga banner di
+// dalam tab Kalender.
 //
 // Untuk sel yang BELUM pernah diatur eksplisit lewat Kalender, tampilan sel
 // FALLBACK ke nama_shift default karyawan itu (supaya kalender tidak
@@ -799,7 +805,7 @@ const AppPenjadwalan = {
       <!-- ============================ TAB KALENDER ============================ -->
       <div v-if="viewUtama==='kalender'">
         <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:14px;">
-          <p style="font-size:11px; color:#1F5060; margin:0;"><i class="fas fa-circle-info" style="margin-right:6px;"></i> Kalender ini mengatur jadwal PER TANGGAL untuk perencanaan rotasi. Perhitungan Ontime/Telat di Antrean Absensi <b>masih memakai Shift default</b> (kolom "Shift" di tab Tabel &amp; Excel) — belum otomatis mengikuti rotasi harian di sini.</p>
+          <p style="font-size:11px; color:#1F5060; margin:0;"><i class="fas fa-circle-info" style="margin-right:6px;"></i> Kalender ini mengatur jadwal PER TANGGAL untuk perencanaan rotasi. Perhitungan Ontime/Telat di Antrean Absensi <b>sudah mengikuti rotasi di sini</b> — sel yang belum diatur eksplisit (tampil pudar) tetap jatuh ke Shift default (kolom "Shift" di tab Tabel &amp; Excel).</p>
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">

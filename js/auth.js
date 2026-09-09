@@ -173,6 +173,54 @@ window.muatAksesJabatanSaya = async function(jabatan) {
   }
 };
 
+// ============================================================================
+// SHIFT EFEKTIF HARI INI — BARU (9 Sep 2026, permintaan Guru: sambungkan
+// rotasi Kalender Penjadwalan ke Ontime/Telat Antrean Absensi).
+//
+// SEBELUM ini, Clock In/Out (js/vue-camera.js) SELALU menyimpan
+// window.currentUser.nama_shift (shift DEFAULT statis) ke dokumen absensi
+// — walau Kalender Penjadwalan (js/vue-penjadwalan.js) sudah bisa kasih
+// shift BEDA per tanggal lewat koleksi jadwal_shift (manual atau Template
+// Rotasi). Akibatnya karyawan yang shiftnya dirotasi beda dari default di
+// suatu tanggal, Ontime/Telat hari itu SALAH dihitung (pakai jam shift
+// lama, bukan yang sebenarnya dijadwalkan).
+//
+// Fungsi ini WAJIB dipanggil tepat sebelum menyimpan dokumen absensi
+// (bukan disimpan/di-cache di window.currentUser — shift bisa beda tiap
+// hari, jadi harus dicek ulang tiap kejadian Clock In/Out/Izin/Cuti/
+// Lembur). Baca 1 dokumen jadwal_shift/{email}_{YYYY-MM} — SAMA PERSIS
+// skema & docId yang dipakai vue-penjadwalan.js, sengaja TIDAK
+// diduplikasi ke tempat lain. Fallback ke namaShiftDefault (nama_shift
+// statis karyawan) kalau tanggal itu belum pernah diatur eksplisit lewat
+// Kalender/Rotasi — ATURAN FALLBACK INI SENGAJA DIBUAT SAMA PERSIS dengan
+// shiftEfektif() di vue-penjadwalan.js (fungsi tampilan sel Kalender),
+// supaya tampilan Kalender dan hasil yang benar-benar tersimpan ke
+// absensi TIDAK PERNAH bisa berbeda kesimpulan untuk tanggal yang sama.
+//
+// Kalau hasilnya "OFF" (karyawan dijadwalkan libur tapi tetap Clock In),
+// nilai itu SENGAJA tetap disimpan apa adanya ke nama_shift — Antrean
+// Absensi tidak akan menemukan shift "OFF" di master_shift, jadi jam
+// pembanding kosong dan badge Ontime/Telat otomatis tidak muncul (bukan
+// salah hitung — memang tidak ada jadwal untuk dibandingkan, wajar).
+window.ambilShiftEfektifHariIni = async function(email, namaShiftDefault) {
+  try {
+    const sekarang = new Date();
+    const bulanKey = `${sekarang.getFullYear()}-${String(sekarang.getMonth() + 1).padStart(2, '0')}`;
+    const snap = await getDoc(doc(db, "jadwal_shift", `${email}_${bulanKey}`));
+    if (snap.exists()) {
+      const hari = snap.data().hari || {};
+      const nilaiHariIni = hari[String(sekarang.getDate())];
+      if (nilaiHariIni !== undefined) return nilaiHariIni; // eksplisit dari Kalender/Rotasi, termasuk "OFF"
+    }
+  } catch (e) {
+    // Gagal baca (mis. rule belum publish/offline) TIDAK BOLEH menggagalkan
+    // Clock In/Out — jatuh balik senyap ke shift default, sama seperti
+    // perilaku SEBELUM fitur rotasi ada.
+    console.error("Gagal baca jadwal_shift, fallback ke shift default:", email, e);
+  }
+  return namaShiftDefault || '';
+};
+
 // BARU (18 Agt 2026) — cache konteks sesi (window.currentUser +
 // window.aksesConfigSaya) ke localStorage, supaya RELOAD halaman (F5,
 // buka tab baru, dst) TIDAK perlu baca ulang "users/{email}" +

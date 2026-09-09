@@ -395,6 +395,14 @@ const AppKamera = {
             return 'SUDAH_CLOCK_IN';
           }
 
+          // BARU (9 Sep 2026, sambungkan rotasi Kalender Penjadwalan ke
+          // Ontime/Telat) — jangan langsung pakai window.currentUser.
+          // nama_shift (shift default statis), cek dulu apakah HARI INI
+          // sudah diatur beda lewat Kalender/Template Rotasi (koleksi
+          // jadwal_shift). Lihat window.ambilShiftEfektifHariIni di auth.js
+          // untuk aturan fallback lengkapnya.
+          const namaShiftEfektif = await window.ambilShiftEfektifHariIni(email, window.currentUser.nama_shift);
+
           const dataKirim = {
             nama_pegawai: window.currentUser.name,
             jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '', // BARU (19 Agt 2026) - titip dari memori, hindari baca users terpisah
@@ -408,7 +416,9 @@ const AppKamera = {
             // otomatis (19 Agt 2026) — jadi perhitungan itu diam-diam
             // SELALU gagal (jamShift tidak pernah ke-fetch). Titip di
             // sini, pola SAMA seperti jenis_pekerjaan/status_kerja di atas.
-            nama_shift: window.currentUser.nama_shift || '',
+            // (9 Sep 2026) — SEKARANG shift EFEKTIF hari ini (ikut rotasi
+            // Kalender kalau diatur), bukan cuma default statis.
+            nama_shift: namaShiftEfektif || '',
             email, role: window.currentUser.role,
             status: "HADIR", // BUKAN "HADIR (CLOCK IN)" lagi — dokumen ini
                               // mewakili SELURUH hari (masuk+keluar), bukan
@@ -465,12 +475,15 @@ const AppKamera = {
             // (b) Dokumen CLOCK OUT terpisah — skema PERSIS seperti
             // sebelum dirombak 18 Agt 2026 (dokumen Clock In lama ini
             // tetap apa adanya, tidak disentuh/diupdate sama sekali).
+            // (9 Sep 2026) — shift EFEKTIF hari ini, lihat catatan lengkap
+            // di jalur Clock In di atas + window.ambilShiftEfektifHariIni (auth.js).
+            const namaShiftEfektifKeluar = await window.ambilShiftEfektifHariIni(email, window.currentUser.nama_shift);
             const dataKirim = {
               nama_pegawai: window.currentUser.name,
               jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '',
               hp: window.currentUser.hp || '',
               status_kerja: window.currentUser.status_kerja || '',
-              nama_shift: window.currentUser.nama_shift || '', // lihat catatan di dataKirim format baru di atas
+              nama_shift: namaShiftEfektifKeluar || '', // lihat catatan di dataKirim format baru di atas
               email, role: window.currentUser.role,
               status: "CLOCK OUT",
               waktu: new Date().toLocaleString('id-ID'),
@@ -594,13 +607,18 @@ const AppKamera = {
         // ==================================================================
         // JALUR 3: IZIN / CUTI / LEMBUR — TIDAK BERUBAH, tetap 1 dokumen
         // tunggal seperti sebelumnya (tidak ada pasangan masuk/keluar).
+        // (9 Sep 2026) — nama_shift tetap diisi shift EFEKTIF hari ini
+        // (ikut rotasi Kalender kalau diatur) demi konsistensi tampilan,
+        // walau jalur ini bukan dasar hitung Ontime/Telat. Lihat catatan
+        // lengkap di jalur Clock In di atas + window.ambilShiftEfektifHariIni (auth.js).
         // ==================================================================
+        const namaShiftEfektifIzin = await window.ambilShiftEfektifHariIni(email, window.currentUser.nama_shift);
         const dataKirim = {
           nama_pegawai: window.currentUser.name,
           jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '',
           hp: window.currentUser.hp || '',
           status_kerja: window.currentUser.status_kerja || '',
-          nama_shift: window.currentUser.nama_shift || '', // lihat catatan di dataKirim format baru di atas
+          nama_shift: namaShiftEfektifIzin || '', // lihat catatan di dataKirim format baru di atas
           email, role: window.currentUser.role,
           status: statusPilihan,
           waktu: new Date().toLocaleString('id-ID'),
