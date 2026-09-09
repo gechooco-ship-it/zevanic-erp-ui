@@ -25,7 +25,7 @@
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, where, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { MasterDataCategory, KolomCari } from './vue-components.js?v=5';
+import { MasterDataCategory, KolomCari } from './vue-components.js?v=6';
 import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
 
 // Kompresi gambar sisi klien — pola SAMA seperti js/camera.js (foto KTP),

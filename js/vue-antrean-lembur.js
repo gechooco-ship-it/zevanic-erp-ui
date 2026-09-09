@@ -57,7 +57,7 @@ import { collection, getDocs, doc, updateDoc, query, where } from "https://www.g
 import { db } from "./firebase-config.js";
 // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2) — KolomCari
 // (pil, dipakai juga di Antrean Absensi) GANTI kolom cari hand-rolled.
-import { KolomCari } from './vue-components.js?v=5';
+import { KolomCari } from './vue-components.js?v=6';
 
 // Status mentah (field `status` di dokumen `absensi`) yang masuk cakupan
 // tab gabungan ini — lihat header file utk kenapa 3 ini digabung.

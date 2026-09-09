@@ -41,7 +41,7 @@ import { db } from "./firebase-config.js";
 // (dipakai di SEMUA halaman selain Home), jadi perubahan ini otomatis
 // berlaku ke semua halaman sekaligus, bukan cuma Antrean Absensi — itu
 // sudah dikonfirmasi & dicatat di PEDOMAN-GAYA-KERJA.md sebelum diterapkan.
-import { HeaderLayar } from './vue-components.js?v=5';
+import { HeaderLayar } from './vue-components.js?v=6';
 
 const LABEL_TAB = {
   'tab-home': 'Home',

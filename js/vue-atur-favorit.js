@@ -27,7 +27,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { daftarMenuGroups, HeaderLayar, KolomCari } from './vue-components.js?v=5';
+import { daftarMenuGroups, HeaderLayar, KolomCari } from './vue-components.js?v=6';
 
 // REVISI (30 Agt 2026, ronde audit desain mobile) — permintaan Guru
 // eksplisit: Beranda mobile TIDAK LAGI cuma 1 grup, tapi JUGA tidak

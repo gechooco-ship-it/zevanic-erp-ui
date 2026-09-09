@@ -135,7 +135,7 @@ import { db } from "./firebase-config.js";
 // (27 Agt 2026, §26.1) — panel Pengaturan yang dulu pakai keduanya (Jenis
 // Bahan/Aksesoris, Data Satuan/Warna/Ukuran, Data Rak Penyimpanan) sudah
 // dirombak, lihat catatan di atas PengaturanBahanAksesoris di bawah.
-import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=5';
+import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=6';
 import { usePaginasiFirestore } from './vue-paginasi.js';
 // BARU (28 Agt 2026, §41.2, permintaan Guru: "cetak label pindahkan ke
 // Data Bahan & Aksesoris > List Bahan dan Aksesoris") — `ambilSemuaLotByBahan`

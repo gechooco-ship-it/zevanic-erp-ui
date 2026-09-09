@@ -165,6 +165,17 @@ export const MasterDataCategory = {
 };
 
 // ---------------------------------------------------------------------------
+// DIPERBAIKI (9 Sep 2026, laporan Guru "warna dropdown harusnya ikuti
+// warna field juga") — kotak input komponen ini dulu `background:var(
+// --surface)` (putih), beda sendiri dari semua field teks biasa yang
+// sudah `--ivory-dim` (lihat .gc-field di gechoo-design.css). Jadi di
+// layar manapun, field teks & dropdown bersebelahan kelihatan 2 warna
+// beda padahal harus 1 grup visual yang sama. Diganti ke `--ivory-dim`.
+// Panel daftar opsi yang MUNCUL (bukan kotak inputnya) SENGAJA tetap
+// `--surface` — itu panel melayang di atas apapun di belakangnya, sama
+// seperti .gc-overflow-panel/.gc-dialog (lihat FONDASI.md §Design
+// System, tidak ada acuan Hifi buat panel-panel jenis ini).
+// ---------------------------------------------------------------------------
 // DropdownCari — BARU (23 Agt 2026, awalnya buat Master Bahan & Aksesoris,
 // ditaruh di sini karena bentuknya generik & bisa dipakai ulang di menu
 // lain). Pengganti <select> polos: kotak ketik yang MEMFILTER daftar opsi
@@ -275,7 +286,7 @@ export const DropdownCari = {
         :disabled="disabled"
         type="text"
         :placeholder="placeholder"
-        style="width:100%; padding:8px 30px 8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; background:var(--surface); box-sizing:border-box;"
+        style="width:100%; padding:8px 30px 8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; background:var(--ivory-dim); box-sizing:border-box;"
       >
       <i class="fas fa-chevron-down" style="position:absolute; right:12px; top:11px; font-size:10px; color:var(--text-faint); pointer-events:none;"></i>
       <div v-if="tampilDropdown" ref="listEl" style="position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--surface); border:1.5px solid var(--line); border-radius:10px; max-height:220px; overflow-y:auto; z-index:50; box-shadow:0 8px 20px rgba(0,0,0,.14);">
@@ -670,6 +681,10 @@ export const DuaBaris = {
 // ---------------------------------------------------------------------------
 // GudangCheckboxSelect — pilih gudang (bisa lebih dari satu) via checkbox.
 // Dipakai lewat v-model, contoh: <gudang-checkbox-select v-model="gudangTerpilih" />
+// DIPERBAIKI (9 Sep 2026) — tombol pemicu ikut fix warna dropdown yang
+// sama seperti DropdownCari di atas: `--surface` -> `--ivory-dim` biar
+// seragam dengan field teks lain. Panel checkbox yang muncul dibiarkan
+// `--surface` (alasan sama: panel melayang, bukan field).
 // ---------------------------------------------------------------------------
 export const GudangCheckboxSelect = {
   props: {
@@ -713,7 +728,7 @@ export const GudangCheckboxSelect = {
   },
   template: `
     <div style="position:relative;">
-      <button type="button" @click="toggleDropdown" style="width:100%; display:flex; justify-content:space-between; align-items:center; padding:10px 13px; background:var(--surface); border:1.5px solid var(--line); border-radius:12px; font-size:12.5px; cursor:pointer; text-align:left;" :style="modelValue.length === 0 ? 'color:var(--text-faint);' : 'color:var(--text);'">
+      <button type="button" @click="toggleDropdown" style="width:100%; display:flex; justify-content:space-between; align-items:center; padding:10px 13px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; font-size:12.5px; cursor:pointer; text-align:left;" :style="modelValue.length === 0 ? 'color:var(--text-faint);' : 'color:var(--text);'">
         <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ teksRingkasan }}</span>
         <i class="fas" :class="terbuka ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-faint); flex-shrink:0; margin-left:8px;"></i>
       </button>

@@ -38,7 +38,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { usePaginasiFirestore } from './vue-paginasi.js';
-import { PopupPratinjauCetakLabel, DropdownCari } from './vue-components.js?v=5';
+import { PopupPratinjauCetakLabel, DropdownCari } from './vue-components.js?v=6';
 // ambilSemuaProduk — BARU (28 Agt 2026, permintaan Guru: "sambungkan Order
 // SPK dengan Master Produk > SKU"). Impor lintas file (bare, konvensi SAMA
 // seperti impor fungsi baca-koleksi besar lain di app ini, mis. dari

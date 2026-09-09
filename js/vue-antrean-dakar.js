@@ -45,7 +45,7 @@ import { db } from "./firebase-config.js";
 // BARU (29 Agt 2026 v2) — GudangCheckboxSelect DILEPAS dari sini (form
 // approval tidak lagi input Gudang, lihat catatan di AntreanDakarCard di
 // bawah) — KolomCari (pil) dipakai buat baris cari, pola sama modul lain.
-import { KolomCari } from './vue-components.js?v=5';
+import { KolomCari } from './vue-components.js?v=6';
 
 const MASA_BERLAKU_MENIT = 30; // disepakati 18 Agt 2026 — lihat STATUS-PROYEK.md
 

@@ -62,7 +62,7 @@ import { createApp, ref, reactive, computed, onMounted, watch } from 'https://un
 import { collection, doc, setDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=3';
+import { DropdownCari } from './vue-components.js?v=4';
 import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
 import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
 

@@ -55,7 +55,7 @@ import { collection, getDocs, doc, updateDoc, query, where } from "https://www.g
 import { db } from "./firebase-config.js";
 // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic") — KolomCari (pil,
 // dipakai bareng Menu Lengkap/Atur Favorit) GANTI kolom cari hand-rolled.
-import { KolomCari } from './vue-components.js?v=5';
+import { KolomCari } from './vue-components.js?v=6';
 
 // Diekspor juga (dipakai test) — bandingkan JAM aktual (Firestore
 // Timestamp) vs JAM jadwal shift ("HH:MM" dari master_shift).
