@@ -178,18 +178,26 @@ const DAFTAR_MENU = [
   // seperti 'stock_alias_pembelian' di atas), aksi() dihapus, supaya izin
   // lama tidak yatim.
   { id: 'stock_list_order_belanja', label: 'List Order Belanja (DIPENSIUNKAN, lihat Daftar Nota / Persiapan Belanja)', kategori: 'Zevanic House', icon: 'fa-cart-shopping', deprecated: true },
-  { id: 'stock_nota_order_belanja', label: 'Daftar Nota', kategori: 'Zevanic House', icon: 'fa-receipt',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', null, {catatRiwayat:true}); } },
+  // DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang sidebar sesuai
+  // wireframe) — kategori 'Stock & Pembelian' 3 item di bawah GANTI dari
+  // 'Zevanic House' jadi 'Stok dan Pembelian' (grup top-level baru,
+  // DIPISAH dari Zevanic House, lihat index.html). Shortcut aksi() juga
+  // disederhanakan — dulu 2 langkah pindahSubTab (sub-zevanic-house lalu
+  // sub-zh-stock) karena nested 2 level di dalam Zevanic House, sekarang
+  // cuma 1 langkah (sub-zh-stock) karena sudah jadi tab-strip TOP LEVEL di
+  // #tab-stok-pembelian.
+  { id: 'stock_nota_order_belanja', label: 'Daftar Nota', kategori: 'Stok dan Pembelian', icon: 'fa-receipt',
+    aksi: () => { window.pindahTab('tab-stok-pembelian'); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', null, {catatRiwayat:true}); } },
   // BARU (7 Sep 2026, wireframe handoff "04 - Stok dan Pembelian" §6.1) —
   // Rak Penyimpanan DIPINDAH ke sini dari Data Bahan & Aksesoris (id lama
   // 'bahan_aksesoris_rak' dipensiunkan di atas). Lihat js/vue-rak-
   // penyimpanan.js.
-  { id: 'stock_rak_penyimpanan', label: 'Rak Penyimpanan', kategori: 'Zevanic House', icon: 'fa-warehouse',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-rak', null, {catatRiwayat:true}); } },
+  { id: 'stock_rak_penyimpanan', label: 'Rak Penyimpanan', kategori: 'Stok dan Pembelian', icon: 'fa-warehouse',
+    aksi: () => { window.pindahTab('tab-stok-pembelian'); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-rak', null, {catatRiwayat:true}); } },
   // BARU (7 Sep 2026, task #95, TIDAK ADA wireframe — dirancang dari
   // jawaban Guru, lihat js/vue-repack-komponen-acc.js).
-  { id: 'stock_repack', label: 'Repack', kategori: 'Zevanic House', icon: 'fa-box-archive',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-repack', null, {catatRiwayat:true}); } },
+  { id: 'stock_repack', label: 'Repack', kategori: 'Stok dan Pembelian', icon: 'fa-box-archive',
+    aksi: () => { window.pindahTab('tab-stok-pembelian'); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-repack', null, {catatRiwayat:true}); } },
   // DIPENSIUNKAN (28 Agt 2026, §41.2) — dulu tab "Cetak Label" tersendiri
   // di Stock & Pembelian (CetakLabelManager, js/vue-stock-pembelian.js).
   // Guru minta dipindah jadi tombol per-kartu di List Bahan & Aksesoris
@@ -376,7 +384,16 @@ const DAFTAR_MENU = [
 // tengah supaya urutan kategori yang SUDAH tersimpan Guru di
 // pengaturan_sistem/urutan_menu_home (lihat urutanKategoriArr di bawah)
 // tidak berubah, kategori baru otomatis masuk lewat katBelumAda.
-export const KATEGORI_URUTAN = ['Umum', 'Master Absensi', 'Master Keuangan', 'Master Karyawan', 'Master Integrasi', 'Zevanic House', 'Pesanan', 'Persiapan Produksi', 'Scan & Cetak', 'Proses Produksi'];
+// DIURUTKAN ULANG (9 Sep 2026, permintaan Guru: susun ulang sesuai
+// wireframe handoff, sekalian dengan sidebar) — dulu urutannya Master
+// Absensi/Keuangan/Karyawan/Integrasi/Zevanic House duluan. Ini array
+// tampilan KATEGORI PERMISSION di layar Config Akses (accordion) + Home
+// mobile grid, TIDAK diganti namanya (Master Absensi/Keuangan/Karyawan
+// TETAP terpisah di sini, sengaja tidak digabung "Management" — itu cuma
+// penggabungan tampilan SIDEBAR, bukan kategori permission, lihat
+// index.html). Ditambah 1 kategori baru 'Stok dan Pembelian' (dipisah dari
+// Zevanic House, 3 menu id stock_* di atas sudah dipindah kategorinya).
+export const KATEGORI_URUTAN = ['Umum', 'Pesanan', 'Persiapan Produksi', 'Proses Produksi', 'Stok dan Pembelian', 'Scan & Cetak', 'Zevanic House', 'Master Karyawan', 'Master Absensi', 'Master Keuangan', 'Master Integrasi'];
 export { DAFTAR_MENU };
 const KOSONG_IZIN = () => ({ view: false, add: false, edit: false, delete: false, print: false });
 
@@ -636,7 +653,18 @@ const AppConfigAkses = {
       menyimpan.value = false;
     }
 
-    onMounted(async () => { await window.authReady; muat(); muatUrutanMenu(); });
+    // DIBEKUKAN (9 Sep 2026, permintaan Guru langsung: "pengaturan menu
+    // sementara tutup aksesnya... tidak user friendly tampilannya, saya
+    // bingung sendiri pakainya") — panel "Urutan Menu di Home Mobile &
+    // Sidebar Desktop" disembunyikan sementara (lihat fiturUrutanMenuAktif
+    // di template & bagian return di bawah). muatUrutanMenu() TIDAK
+    // dipanggil lagi di onMounted supaya tidak baca Firestore percuma
+    // untuk panel yang disembunyikan. Fungsi-fungsinya TETAP ADA (tidak
+    // dihapus) biar gampang diaktifkan lagi kalau UI-nya sudah dirapikan —
+    // tinggal balikkan fiturUrutanMenuAktif jadi true & panggil lagi
+    // muatUrutanMenu() di sini.
+    const fiturUrutanMenuAktif = false;
+    onMounted(async () => { await window.authReady; muat(); });
 
     return {
       daftarProfil, memuat, menyimpan, muat,
@@ -645,7 +673,7 @@ const AppConfigAkses = {
       menus, KATEGORI_URUTAN, kategoriTerbuka, toggleKategori, menuUntukKategori, cariMenu,
       semuaTercentangKolom, toggleKolomKategori,
       urutanMenu, urutanTerbuka, menyimpanUrutan, labelMenu, naikkanUrutan, turunkanUrutan, simpanUrutanMenu,
-      urutanKategoriArr, naikkanKategori, turunkanKategori
+      urutanKategoriArr, naikkanKategori, turunkanKategori, fiturUrutanMenuAktif
     };
   },
   template: `
@@ -686,7 +714,11 @@ const AppConfigAkses = {
         </button>
       </div>
 
-      <div class="gc-card" style="margin-bottom:16px; border:1.5px solid var(--burgundy);">
+      <!-- DIBEKUKAN (9 Sep 2026, permintaan Guru langsung — lihat komentar
+           fiturUrutanMenuAktif di setup() di atas) — panel ini disembunyikan
+           sementara, UI-nya dinilai membingungkan. Markup TIDAK dihapus,
+           cuma dibungkus v-if, supaya gampang diaktifkan lagi nanti. -->
+      <div v-if="fiturUrutanMenuAktif" class="gc-card" style="margin-bottom:16px; border:1.5px solid var(--burgundy);">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
           <h4 class="gc-heading" style="font-size:12.5px; font-weight:700;"><i class="fas fa-arrow-down-wide-short" style="color:var(--burgundy); margin-right:8px;"></i> Urutan Menu di Home Mobile & Sidebar Desktop</h4>
           <button @click="simpanUrutanMenu" :disabled="menyimpanUrutan" class="btn-primary" style="padding:8px 16px; font-size:11.5px;">

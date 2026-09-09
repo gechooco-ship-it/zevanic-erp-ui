@@ -1822,10 +1822,14 @@ const BahanAksesorisListManager = {
     // pindahSubTab yang SUDAH ADA, lihat js/dashboard.js), admin lanjut
     // cari sendiri lewat kotak cari di sana (sudah ada, prefix-match nama)
     // — BUKAN deep-link otomatis ke kartu item ini.
+    // DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang sidebar sesuai
+    // wireframe) — "Stock & Pembelian" pindah keluar dari Zevanic House
+    // jadi tab top-level sendiri 'tab-stok-pembelian' (lihat index.html).
+    // Dulu 2 langkah pindahSubTab (sub-zevanic-house lalu sub-zh-stock)
+    // karena nested 2 level di Zevanic House, sekarang cukup 1 langkah.
     function lihatKartuStok(item) {
-      if (window.pindahTab) window.pindahTab('tab-zevanic-house');
+      if (window.pindahTab) window.pindahTab('tab-stok-pembelian');
       if (window.pindahSubTab) {
-        window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-stock', document.querySelector('.sub-zevanic-house-btn[data-target="sub-zevanic-house-stock"]'));
         window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-kartustok', document.querySelector('.sub-zh-stock-btn[data-target="sub-zh-stock-kartustok"]'));
       }
     }

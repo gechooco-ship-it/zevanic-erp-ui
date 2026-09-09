@@ -204,10 +204,18 @@ window.toggleNavGroup = function(groupId) {
 // relevan OTOMATIS ikut terbuka — jangan sampai orang pindah halaman tapi
 // sidebar-nya masih nutup/nunjuk ke grup lain, bingung nyarinya.
 const petaGrupSidebarPerTab = {
-  'tab-admin-acc': 'navgrp-absensi',
-  'tab-keuangan': 'navgrp-keuangan',
-  'tab-superuser': 'navgrp-karyawan',
+  // DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang sidebar sesuai
+  // wireframe) — 3 tab ini dulu masing-masing punya grup sidebar sendiri
+  // (navgrp-absensi/navgrp-keuangan/navgrp-karyawan), SEKARANG gabung 1
+  // grup "navgrp-management".
+  'tab-admin-acc': 'navgrp-management',
+  'tab-keuangan': 'navgrp-management',
+  'tab-superuser': 'navgrp-management',
   'tab-zevanic-house': 'navgrp-zevanic',
+  // BARU (9 Sep 2026) — 'tab-stok-pembelian' grup top-level BARU, DIPISAH
+  // dari Zevanic House > Stock & Pembelian (lihat index.html komentar
+  // navgrp-stokpembelian).
+  'tab-stok-pembelian': 'navgrp-stokpembelian',
   // BARU (30 Agt 2026, fitur "Pesanan") — 'tab-pesanan' grup top-level
   // BARU (sejajar Zevanic House/Persiapan Produksi), lihat js/vue-pesanan.js.
   'tab-pesanan': 'navgrp-pesanan',
@@ -238,7 +246,9 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
   // BARU (29 Agt 2026) — 'tab-persiapan-produksi' (grup top-level baru,
   // lihat STATUS-PROYEK.md §44.13). BARU (30 Agt 2026) — 'tab-pesanan'
   // (grup top-level baru, lihat js/vue-pesanan.js).
-  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-zevanic-house', 'tab-pesanan', 'tab-persiapan-produksi', 'tab-scan-cetak', 'tab-proses-produksi', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress', 'tab-menu-lengkap', 'tab-atur-favorit'];
+  // BARU (9 Sep 2026) — 'tab-stok-pembelian' ditambahkan (grup top-level
+  // baru, dipisah dari Zevanic House > Stock & Pembelian).
+  const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-zevanic-house', 'tab-stok-pembelian', 'tab-pesanan', 'tab-persiapan-produksi', 'tab-scan-cetak', 'tab-proses-produksi', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress', 'tab-menu-lengkap', 'tab-atur-favorit'];
   const tabSebelumnya = tabs.find(t => {
     const el = document.getElementById(t);
     return el && !el.classList.contains('hidden');
@@ -304,6 +314,14 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
       if (window.pindahSubTab) {
         window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', document.querySelectorAll('.sub-zevanic-house-btn')[0]);
         window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry');
+      }
+  }
+  // BARU (9 Sep 2026) — landing default 'tab-stok-pembelian' (grup
+  // top-level baru, dipisah dari Zevanic House > Stock & Pembelian): "Daftar
+  // Nota", sub-tab-strip-nya (sub-zh-stock) TIDAK berubah sama sekali.
+  if (tabId === 'tab-stok-pembelian') {
+      if (window.pindahSubTab) {
+        window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', document.querySelectorAll('.sub-zh-stock-btn')[0]);
       }
   }
   // BARU (29 Agt 2026) — landing default 'tab-persiapan-produksi' (grup
@@ -413,7 +431,10 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // BARU (7 Sep 2026, §5.18) — 'sub-pp-masalah-tahap' -> 'tab-persiapan-
     // produksi' (Masalah, 6 pos sejajar Bahan/Sewing/Webbing/Finishing/
     // Vendor/Disiapkan di grup yang sama, lihat js/vue-pp-masalah.js).
-    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-suplayer': 'tab-zevanic-house', 'sub-zh-stock': 'tab-zevanic-house', 'sub-zh-config': 'tab-zevanic-house', 'sub-pesanan': 'tab-pesanan', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi', 'sub-pp-masalah-tahap': 'tab-persiapan-produksi', 'sub-scan-cetak': 'tab-scan-cetak', 'sub-scancetak-stok-tahap': 'tab-scan-cetak',
+    // DIROMBAK (9 Sep 2026) — 'sub-zh-stock' DULU anak 'tab-zevanic-house',
+    // SEKARANG anak 'tab-stok-pembelian' (grup top-level baru, dipisah dari
+    // Zevanic House). Class/id di dalamnya (sub-zh-stock-*) TIDAK berubah.
+    const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-suplayer': 'tab-zevanic-house', 'sub-zh-stock': 'tab-stok-pembelian', 'sub-zh-config': 'tab-zevanic-house', 'sub-pesanan': 'tab-pesanan', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi', 'sub-pp-masalah-tahap': 'tab-persiapan-produksi', 'sub-scan-cetak': 'tab-scan-cetak', 'sub-scancetak-stok-tahap': 'tab-scan-cetak',
       // BARU (7 Sep 2026 malam lanjut lagi) — 'sub-proses-produksi' +
       // 'sub-pr-cutting-tahap' -> 'tab-proses-produksi' (grup top-level baru,
       // lihat js/vue-pp-cutting.js). BARU LAGI (7 Sep 2026 malam, "lanjut

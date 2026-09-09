@@ -888,11 +888,15 @@ window.aturTampilanBerdasarkanRole = function() {
 
   const role = (window.currentUser.role || "operator").toLowerCase();
 
-  const menuAdminAcc = document.getElementById('menu-admin-acc');
+  // DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang sidebar sesuai
+  // wireframe) — menu-admin-acc/menu-keuangan/menu-superuser DULU masing-
+  // masing toggle grup sendiri, SEKARANG cuma tombol ANAK di dalam 1 grup
+  // gabungan "Management" (id toggle baru: menu-management, lihat di
+  // bawah). Elemen *-btn (anak) TIDAK berubah id-nya, gerbang role per
+  // anak juga TETAP SAMA — cuma parent toggle-nya yang disatukan.
+  const menuManagement = document.getElementById('menu-management');
   const menuAdminAccBtn = document.getElementById('menu-admin-acc-btn');
-  const menuSuperUser = document.getElementById('menu-superuser');
   const menuSuperUserBtn = document.getElementById('menu-superuser-btn');
-  const menuKeuangan = document.getElementById('menu-keuangan');
   const menuKeuanganBtn = document.getElementById('menu-keuangan-btn');
   const menuWhatsapp = document.getElementById('menu-whatsapp');
   const menuWhatsappBtn = document.getElementById('menu-whatsapp-btn');
@@ -914,10 +918,18 @@ window.aturTampilanBerdasarkanRole = function() {
   // Hilman lewat AskUserQuestion ("admin ke atas").
   const menuZevanicHouse = document.getElementById('menu-zevanic-house');
   const menuZevanicHouseBtn = document.getElementById('menu-zevanic-house-btn');
-  // BARU (24 Agt 2026) — Zevanic House > Persiapan Masalah + Stock &
-  // Pembelian (sidebar bertingkat). Gerbang role SAMA (isAdminLevel()).
+  // BARU (24 Agt 2026) — Zevanic House > Persiapan Masalah. Gerbang role
+  // SAMA (isAdminLevel()).
   const menuZevanicPersiapanBtn = document.getElementById('menu-zevanic-persiapan-btn');
-  const menuZevanicStockBtn = document.getElementById('menu-zevanic-stock-btn');
+  // DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang sidebar sesuai
+  // wireframe) — "Stock & Pembelian" PINDAH keluar dari Zevanic House jadi
+  // grup top-level sendiri "Stok dan Pembelian" (menu-zevanic-stock-btn
+  // DIHAPUS, GANTI menu-stok-pembelian + menu-stok-pembelian-btn). Gerbang
+  // role TETAP SAMA persis (isAdminLevel() — pic/admin/owner/superuser),
+  // cuma sekarang parent DAN anaknya sepasang baru (dulu cuma 1 tombol
+  // anak nested di navgrp-zevanic).
+  const menuStokPembelian = document.getElementById('menu-stok-pembelian');
+  const menuStokPembelianBtn = document.getElementById('menu-stok-pembelian-btn');
   // BARU (29 Agt 2026, koreksi arsitektur menu) — Persiapan Produksi, grup
   // top-level baru sejajar Zevanic House. Gerbang role SAMA (isAdminLevel()
   // — pic/admin/owner/superuser), domainnya masih persiapan produksi yang
@@ -946,7 +958,7 @@ window.aturTampilanBerdasarkanRole = function() {
   // sama (tombolnya wajib ditambahkan ke KEDUA array show/hide di bawah).
   const menuProsesProduksi = document.getElementById('menu-proses-produksi');
 
-  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnAksesKeamanan, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuZevanicStockBtn, menuPersiapanProduksi, menuPesanan, menuScanCetak, menuProsesProduksi].forEach(el => {
+  [menuManagement, menuAdminAccBtn, menuKeuanganBtn, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnAksesKeamanan, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuStokPembelian, menuStokPembelianBtn, menuPersiapanProduksi, menuPesanan, menuScanCetak, menuProsesProduksi].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -955,14 +967,23 @@ window.aturTampilanBerdasarkanRole = function() {
   // Finance BEDA peran validasi (tahap 1 vs tahap 2), jadi menu-nya
   // ditampilkan ke role yang SAMA persis dengan Master Absensi.
   if (role === 'pic' || role === 'owner' || role === 'admin' || role === 'superuser') {
-    if (menuAdminAcc) menuAdminAcc.classList.remove('hidden');
+    // DIROMBAK (9 Sep 2026) — menu-management SEKARANG 1 parent gabungan
+    // buat Absensi+Keuangan+Karyawan (dulu 3 parent terpisah menuAdminAcc/
+    // menuKeuangan/menuSuperUser). Parent-nya dibuka broadest di sini
+    // (sama seperti Absensi/Keuangan dulu); Karyawan (menuSuperUserBtn)
+    // TETAP digerbang lebih ketat di blok owner/superuser di bawah —
+    // parent boleh kebuka duluan, tapi tombol anaknya sendiri baru nongol
+    // kalau role-nya cocok.
+    if (menuManagement) menuManagement.classList.remove('hidden');
     if (menuAdminAccBtn) menuAdminAccBtn.classList.remove('hidden');
-    if (menuKeuangan) menuKeuangan.classList.remove('hidden');
     if (menuKeuanganBtn) menuKeuanganBtn.classList.remove('hidden');
     if (menuZevanicHouse) menuZevanicHouse.classList.remove('hidden');
     if (menuZevanicHouseBtn) menuZevanicHouseBtn.classList.remove('hidden');
     if (menuZevanicPersiapanBtn) menuZevanicPersiapanBtn.classList.remove('hidden');
-    if (menuZevanicStockBtn) menuZevanicStockBtn.classList.remove('hidden');
+    // DIROMBAK (9 Sep 2026) — Stok dan Pembelian sekarang grup sendiri
+    // (dulu menuZevanicStockBtn, gerbang role TETAP SAMA).
+    if (menuStokPembelian) menuStokPembelian.classList.remove('hidden');
+    if (menuStokPembelianBtn) menuStokPembelianBtn.classList.remove('hidden');
     if (menuPersiapanProduksi) menuPersiapanProduksi.classList.remove('hidden');
     if (menuPesanan) menuPesanan.classList.remove('hidden');
     if (menuScanCetak) menuScanCetak.classList.remove('hidden');
@@ -974,7 +995,6 @@ window.aturTampilanBerdasarkanRole = function() {
   }
 
   if (role === 'owner' || role === 'superuser') {
-    if (menuSuperUser) menuSuperUser.classList.remove('hidden');
     if (menuSuperUserBtn) menuSuperUserBtn.classList.remove('hidden');
     if (navMobileSuper) {
       navMobileSuper.classList.remove('hidden');
@@ -997,12 +1017,20 @@ window.aturTampilanBerdasarkanRole = function() {
     if (menuDeviceKioskBtn) menuDeviceKioskBtn.classList.remove('hidden');
   }
 
-  // BARU (27 Agt 2026, sesi lanjutan §27.2) — samakan urutan sidebar
-  // desktop dengan urutan custom yang diatur Owner lewat Config Akses >
-  // "Urutan Menu di Home Mobile & Sidebar Desktop" (fire-and-forget, tidak
-  // di-await — cuma kosmetik urutan tampil, tidak boleh menunda render
-  // sidebar). Lihat window.terapkanUrutanMenuDesktop di bawah file ini.
-  if (window.terapkanUrutanMenuDesktop) window.terapkanUrutanMenuDesktop();
+  // DIBEKUKAN (9 Sep 2026, permintaan Guru langsung: "pengaturan menu
+  // sementara tutup aksesnya... tidak user friendly tampilannya, saya
+  // bingung sendiri pakainya") — window.terapkanUrutanMenuDesktop() TIDAK
+  // dipanggil lagi sementara. Urutan sidebar SEKARANG murni ikut urutan
+  // statis di index.html (baru disusun ulang sesuai wireframe handoff,
+  // lihat komentar navgrp-* di sana). Fungsinya TETAP ADA di bawah (tidak
+  // dihapus, biar gampang diaktifkan lagi), TAPI catatan: peta petaGrup
+  // di dalamnya sudah TIDAK SINKRON lagi dengan struktur sidebar terbaru
+  // (Master Absensi/Keuangan/Karyawan sekarang 1 grup "Management", ada
+  // grup baru "Stok dan Pembelian") — kalau fitur ini mau diaktifkan lagi
+  // nanti, petaGrup di terapkanUrutanMenuDesktop() DAN panel "Urutan Menu"
+  // di js/vue-config-akses.js (disembunyikan sementara, cari
+  // fiturUrutanMenuAktif) wajib disesuaikan dulu.
+  // if (window.terapkanUrutanMenuDesktop) window.terapkanUrutanMenuDesktop();
 };
 
 // BARU (27 Agt 2026, sesi lanjutan §27.2) — terapkanUrutanMenuDesktop():

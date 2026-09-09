@@ -72,7 +72,10 @@ const LABEL_TAB = {
   'tab-pesanan': 'Pesanan',
   // BARU (7 Sep 2026 malam) — grup top-level baru "Scan & Cetak", lihat
   // js/vue-scan-cetak.js.
-  'tab-scan-cetak': 'Scan & Cetak'
+  'tab-scan-cetak': 'Scan & Cetak',
+  // BARU (9 Sep 2026) — grup top-level baru "Stok dan Pembelian", dipisah
+  // dari Zevanic House > Stock & Pembelian (lihat index.html).
+  'tab-stok-pembelian': 'Stok dan Pembelian'
 };
 const LABEL_SUBTAB = {
   'sub-absensi-config': 'Config Absensi',
@@ -124,6 +127,11 @@ const LABEL_SUBTAB = {
   'sub-zh-stock-notaorder': 'Daftar Nota',
   'sub-zh-stock-riwayat': 'Riwayat Harga Pembelian',
   'sub-zh-stock-kartustok': 'Kartu Stok',
+  // DITAMBAH (9 Sep 2026, drive-by fix — celah lama, sama pola seperti
+  // tab-zevanic-house dulu — 2 sub-tab ini sudah lama live tapi belum
+  // pernah didaftarkan di sini, header mobile nongol kosong pas dibuka).
+  'sub-zh-stock-rak': 'Rak Penyimpanan',
+  'sub-zh-stock-repack': 'Repack',
   // DIPINDAH (7 Sep 2026 malam) — Scan Opname/Persiapan pindah ke tab-scan-
   // cetak, lihat entry 'sub-scancetak-stok-*' di bawah.
   // BARU (7 Sep 2026 malam) — menu top-level "Scan & Cetak".
