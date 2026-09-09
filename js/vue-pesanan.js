@@ -771,9 +771,9 @@ const PesananKasirManager = {
         <div style="display:flex; justify-content:space-between; font-size:12.5px;"><span>Kembalian{{ statusBayar === 'dp' ? ' atas DP' : '' }}</span><span style="font-weight:700;">{{ formatRupiah(kembalian) }}</span></div>
       </div>
 
-      <div v-if="sisaPiutang > 0" class="gc-card" style="border-color:#B8863A; background:rgba(184,134,58,.08); padding:10px 12px; margin-bottom:12px;">
-        <div style="display:flex; justify-content:space-between; font-size:12.5px;"><span>Sisa jadi Piutang</span><span style="font-weight:700; color:#8a6524;">{{ formatRupiah(sisaPiutang) }}</span></div>
-        <div v-if="pelangganTerpilih" style="font-size:10.5px; color:#8a6524; margin-top:4px;">Piutang {{ pelangganTerpilih.nama }} saat ini: {{ formatRupiah(pelangganTerpilih.saldo_piutang || 0) }} dari batas {{ formatRupiah(pelangganTerpilih.limit_piutang || 0) }}</div>
+      <div v-if="sisaPiutang > 0" class="gc-card" style="border-color:var(--warn); background:rgba(184,134,58,.08); padding:10px 12px; margin-bottom:12px;">
+        <div style="display:flex; justify-content:space-between; font-size:12.5px;"><span>Sisa jadi Piutang</span><span style="font-weight:700; color:var(--warn-text);">{{ formatRupiah(sisaPiutang) }}</span></div>
+        <div v-if="pelangganTerpilih" style="font-size:10.5px; color:var(--warn-text); margin-top:4px;">Piutang {{ pelangganTerpilih.nama }} saat ini: {{ formatRupiah(pelangganTerpilih.saldo_piutang || 0) }} dari batas {{ formatRupiah(pelangganTerpilih.limit_piutang || 0) }}</div>
       </div>
 
       <button @click="buatOrder" :disabled="menyimpan" class="btn-primary" style="width:100%; padding:13px;"><i class="fas fa-check" style="margin-right:6px;"></i>{{ menyimpan ? 'Memproses...' : 'Selesai & Cetak' }}</button>
@@ -1112,7 +1112,7 @@ const PesananDaftarManager = {
           <div><div style="font-size:9.5px; color:var(--text-faint);">terkirim</div><div style="font-weight:700; font-size:20px;">{{ ringkasanMenyeluruh.terkirim }} <span style="font-size:10px;">SPK</span></div></div>
           <div><div style="font-size:9.5px; color:var(--text-faint);">menunggu persiapan</div><div style="font-weight:700; font-size:20px;">{{ ringkasanMenyeluruh.menungguPersiapan }} <span style="font-size:10px;">SPK</span></div></div>
           <div><div style="font-size:9.5px; color:var(--text-faint);">menunggu proses</div><div style="font-weight:700; font-size:20px;">{{ ringkasanMenyeluruh.menungguProses || '—' }}</div></div>
-          <div><div style="font-size:9.5px; color:#8a6524;">belum bayar</div><div style="font-weight:700; font-size:20px; color:#8a6524;">{{ formatRupiahJuta(ringkasanMenyeluruh.belumBayar) }}</div></div>
+          <div><div style="font-size:9.5px; color:var(--warn-text);">belum bayar</div><div style="font-weight:700; font-size:20px; color:var(--warn-text);">{{ formatRupiahJuta(ringkasanMenyeluruh.belumBayar) }}</div></div>
         </div>
       </div>
 
@@ -1128,7 +1128,7 @@ const PesananDaftarManager = {
               <div style="font-size:9.5px; color:var(--text-faint);">{{ p.noTransaksiList }}</div>
             </div>
             <span style="font-size:9.5px; color:var(--text-faint);">{{ p.pesanan }} pesanan</span>
-            <span style="font-weight:700; font-size:13px; color:#8a6524;">{{ formatRupiahJuta(p.belumBayar) }}</span>
+            <span style="font-weight:700; font-size:13px; color:var(--warn-text);">{{ formatRupiahJuta(p.belumBayar) }}</span>
             <i class="fas" :class="kartuTerbuka[p.id] ? 'fa-chevron-up' : 'fa-chevron-down'" style="font-size:11px; color:var(--text-faint);"></i>
           </div>
           <div v-if="kartuTerbuka[p.id]" style="display:flex; flex-wrap:wrap; gap:0; border-top:1px solid var(--line);">
@@ -1139,7 +1139,7 @@ const PesananDaftarManager = {
               <div style="display:flex; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); font-size:12px;"><span style="color:var(--text-faint);">terkirim</span><span style="font-weight:700;">{{ p.terkirim }} SPK</span></div>
               <div style="display:flex; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); font-size:12px;"><span style="color:var(--text-faint);">menunggu persiapan</span><span style="font-weight:700;">{{ p.menungguPersiapan }} SPK</span></div>
               <div style="display:flex; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); font-size:12px;"><span style="color:var(--text-faint);">menunggu proses</span><span style="font-weight:700;">{{ p.menungguProses || '—' }}</span></div>
-              <div style="display:flex; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); font-size:12px;"><span style="color:#8a6524;">belum bayar</span><span style="font-weight:700; color:#8a6524;">{{ formatRupiahJuta(p.belumBayar) }}</span></div>
+              <div style="display:flex; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); font-size:12px;"><span style="color:var(--warn-text);">belum bayar</span><span style="font-weight:700; color:var(--warn-text);">{{ formatRupiahJuta(p.belumBayar) }}</span></div>
             </div>
             <div style="flex:1; min-width:260px; padding:14px 16px; display:flex; flex-direction:column; gap:12px;">
               <div>
@@ -1376,7 +1376,7 @@ const PesananTransaksiManager = {
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(100px,1fr)); gap:8px; background:var(--ivory-dim); border-radius:14px; padding:12px; margin-bottom:14px;">
             <div><div style="font-size:9.5px; color:var(--text-faint);">nilai penjualan</div><div style="font-weight:700; font-size:17px;">{{ formatRupiahJuta(totalKasBesar.nilai) }}</div></div>
             <div><div style="font-size:9.5px; color:var(--text-faint);">sudah dibayar</div><div style="font-weight:700; font-size:17px;">{{ formatRupiahJuta(totalKasBesar.sudahDibayar) }}</div></div>
-            <div><div style="font-size:9.5px; color:#8a6524;">sisa piutang</div><div style="font-weight:700; font-size:17px; color:#8a6524;">{{ formatRupiahJuta(totalKasBesar.sisa) }}</div></div>
+            <div><div style="font-size:9.5px; color:var(--warn-text);">sisa piutang</div><div style="font-weight:700; font-size:17px; color:var(--warn-text);">{{ formatRupiahJuta(totalKasBesar.sisa) }}</div></div>
             <div><div style="font-size:9.5px; color:var(--text-faint);">pelanggan</div><div style="font-weight:700; font-size:17px;">{{ kasBesar.length }}</div></div>
           </div>
           <div v-if="kasBesar.length === 0" class="gc-kosong"><div class="lingkaran"><i class="fas fa-sack-dollar"></i></div><h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada transaksi</h3></div>
@@ -1385,7 +1385,7 @@ const PesananTransaksiManager = {
               <div style="flex:1; min-width:160px;"><div style="font-weight:700; font-size:12.5px;">{{ p.nama }}</div><div style="font-size:9.5px; color:var(--text-faint);">{{ p.jumlah }} pesanan</div></div>
               <div style="text-align:right; min-width:100px;"><div style="font-size:9px; color:var(--text-faint);">nilai</div><div style="font-weight:700; font-size:12px;">{{ formatRupiah(p.nilai) }}</div></div>
               <div style="text-align:right; min-width:100px;"><div style="font-size:9px; color:var(--text-faint);">sudah dibayar</div><div style="font-size:11.5px;">{{ formatRupiah(p.sudahDibayar) }}</div></div>
-              <div style="text-align:right; min-width:100px;"><div style="font-size:9px; color:#8a6524;">sisa</div><div style="font-weight:700; font-size:12.5px; color:#8a6524;">{{ formatRupiah(p.sisa) }}</div></div>
+              <div style="text-align:right; min-width:100px;"><div style="font-size:9px; color:var(--warn-text);">sisa</div><div style="font-weight:700; font-size:12.5px; color:var(--warn-text);">{{ formatRupiah(p.sisa) }}</div></div>
               <span class="tag" :class="p.keadaan.kelas" style="font-size:10px;">{{ p.keadaan.label }}</span>
               <button v-if="sayaOwnerKeAtas && p.sisa > 0" @click="bukaCatatPembayaran(p)" class="btn-primary" style="padding:7px 12px; font-size:11px;">Catat pembayaran</button>
             </div>
@@ -1431,7 +1431,7 @@ const PesananTransaksiManager = {
                   <td style="padding:7px 6px;">{{ t.nama_pelanggan }}</td>
                   <td style="padding:7px 6px;">{{ formatRupiah(t.total) }}</td>
                   <td style="padding:7px 6px;">{{ formatRupiah(t.total_dibayar) }}</td>
-                  <td style="padding:7px 6px; font-weight:700; color:#8a6524;">{{ formatRupiah(t.sisa_piutang) }}</td>
+                  <td style="padding:7px 6px; font-weight:700; color:var(--warn-text);">{{ formatRupiah(t.sisa_piutang) }}</td>
                   <td style="padding:7px 6px;"><span class="tag" :class="t.keadaan.kelas">{{ t.keadaan.label }}</span></td>
                 </tr>
               </tbody>
@@ -1485,7 +1485,7 @@ const PesananTransaksiManager = {
           <div class="gc-field" style="flex:1;"><label>Tanggal Terima</label><input v-model="popupBayar.tanggal" type="date"></div>
         </div>
         <div class="gc-field"><label>Catatan / No. Referensi</label><input v-model="popupBayar.catatan" type="text" placeholder="Opsional untuk Tunai"></div>
-        <div class="gc-card" style="background:rgba(94,124,79,.06); border-color:#5E7C4F; padding:9px 11px; margin-bottom:12px;">
+        <div class="gc-card" style="background:rgba(94,124,79,.06); border-color:var(--ok); padding:9px 11px; margin-bottom:12px;">
           <div style="display:flex; justify-content:space-between;"><span style="font-size:10px; color:#4a6540;">sisa sesudah dicatat</span><span style="font-weight:700; font-size:16px;">{{ formatRupiah(sisaSesudahDicatat) }}</span></div>
         </div>
         <div style="display:flex; gap:8px;">

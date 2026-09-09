@@ -2439,7 +2439,7 @@ const RiwayatHargaPembelianManager = {
   template: `
     <div>
       <!-- Banner harga perlu konfirmasi (wireframe §3.4/§4) — BARU -->
-      <div v-if="!memuatPending && daftarPending.length > 0" class="gc-card" style="padding:14px; margin-bottom:14px; border:1.5px solid var(--warn, #b8860b); background:rgba(184,134,11,.06);">
+      <div v-if="!memuatPending && daftarPending.length > 0" class="gc-card" style="padding:14px; margin-bottom:14px; border:1.5px solid var(--warn); background:rgba(184,134,11,.06);">
         <h3 style="font-weight:700; font-size:13px; margin-bottom:8px;"><i class="fas fa-triangle-exclamation" style="margin-right:8px;"></i>{{ daftarPending.length }} Harga Perlu Konfirmasi Owner</h3>
         <p style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">Harga baru LEBIH TINGGI dari harga master saat ini — belum diperbarui, dan checkout Pesanan untuk produk yang memakai bahan ini DIBLOKIR sampai diterapkan atau ditolak.</p>
         <div style="display:flex; flex-direction:column; gap:8px;">
@@ -2451,7 +2451,7 @@ const RiwayatHargaPembelianManager = {
             <div style="text-align:right; font-size:11.5px;">
               <span style="color:var(--text-faint); text-decoration:line-through;">{{ formatRupiah(b.harga_pending && b.harga_pending.harga_lama) }}</span>
               <i class="fas fa-arrow-right" style="margin:0 6px; color:var(--text-faint); font-size:10px;"></i>
-              <span style="font-weight:700; color:var(--danger, #b3261e);">{{ formatRupiah(b.harga_pending && b.harga_pending.harga_baru) }}</span>
+              <span style="font-weight:700; color:var(--danger);">{{ formatRupiah(b.harga_pending && b.harga_pending.harga_baru) }}</span>
             </div>
             <button @click="bukaTerapkan(b)" class="btn-primary" style="font-size:11px; padding:6px 12px;">Terapkan &amp; Buka Blokir</button>
           </div>

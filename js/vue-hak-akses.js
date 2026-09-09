@@ -289,8 +289,8 @@ const AppHakAkses = {
   template: `
     <div>
       <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px;">
-        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:#1F5060;"><i class="fas fa-user-shield" style="margin-right:8px;"></i> Hak Akses</h4>
-        <p style="font-size:11px; color:#1F5060; margin-top:4px; opacity:.85;">Hubungkan karyawan ke Role (izinnya diatur di tab Config Akses). Ubah 1 karyawan langsung lewat dropdown di tabel, atau centang beberapa lalu pakai Update Massal.</p>
+        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:var(--teal-text);"><i class="fas fa-user-shield" style="margin-right:8px;"></i> Hak Akses</h4>
+        <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Hubungkan karyawan ke Role (izinnya diatur di tab Config Akses). Ubah 1 karyawan langsung lewat dropdown di tabel, atau centang beberapa lalu pakai Update Massal.</p>
       </div>
 
       <!-- Rail ringkasan per-role -->

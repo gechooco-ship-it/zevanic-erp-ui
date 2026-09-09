@@ -731,7 +731,7 @@ const AppAccountProfile = {
           <button @click="bukaFormIzin" style="background:var(--warn-light); color:var(--warn); font-weight:700; padding:10px; border-radius:14px; font-size:12px; display:flex; flex-direction:column; align-items:center; gap:4px; border:1px solid #EAD7B0; cursor:pointer;">
             <i class="fas fa-file-signature"></i> Izin
           </button>
-          <button @click="bukaFormCuti" style="background:var(--blue); color:#1F5060; font-weight:700; padding:10px; border-radius:14px; font-size:12px; display:flex; flex-direction:column; align-items:center; gap:4px; border:none; cursor:pointer;">
+          <button @click="bukaFormCuti" style="background:var(--blue); color:var(--teal-text); font-weight:700; padding:10px; border-radius:14px; font-size:12px; display:flex; flex-direction:column; align-items:center; gap:4px; border:none; cursor:pointer;">
             <i class="fas fa-calendar-alt"></i> Cuti
           </button>
           <button @click="bukaFormLembur" style="background:var(--pink); color:var(--burgundy-dark); font-weight:700; padding:10px; border-radius:14px; font-size:12px; display:flex; flex-direction:column; align-items:center; gap:4px; border:none; cursor:pointer;">

@@ -365,8 +365,8 @@ const AppRegistrasi = {
 
       <div style="font-size:13px;">
         <div style="display:grid; gap:14px; background:var(--blue); opacity:.9; padding:16px; border-radius:14px; margin-bottom:20px;" class="grid-cols-1 md:grid-cols-2">
-          <div><label style="display:block; font-weight:700; color:#1F5060; font-size:12px; margin-bottom:4px;">ID Karyawan (Auto)</label><input :value="idKaryawan" readonly style="width:100%; padding:9px 12px; background:var(--surface); border:1px solid var(--blue-deep); border-radius:10px; font-family:'Poppins',sans-serif; color:var(--text);"></div>
-          <div><label style="display:block; font-weight:700; color:#1F5060; font-size:12px; margin-bottom:4px;">ID APP (Auto)</label><input :value="idApp" readonly style="width:100%; padding:9px 12px; background:var(--surface); border:1px solid var(--blue-deep); border-radius:10px; font-family:'Poppins',sans-serif; color:var(--text);"></div>
+          <div><label style="display:block; font-weight:700; color:var(--teal-text); font-size:12px; margin-bottom:4px;">ID Karyawan (Auto)</label><input :value="idKaryawan" readonly style="width:100%; padding:9px 12px; background:var(--surface); border:1px solid var(--blue-deep); border-radius:10px; font-family:'Poppins',sans-serif; color:var(--text);"></div>
+          <div><label style="display:block; font-weight:700; color:var(--teal-text); font-size:12px; margin-bottom:4px;">ID APP (Auto)</label><input :value="idApp" readonly style="width:100%; padding:9px 12px; background:var(--surface); border:1px solid var(--blue-deep); border-radius:10px; font-family:'Poppins',sans-serif; color:var(--text);"></div>
         </div>
 
         <div style="margin-bottom:22px;">

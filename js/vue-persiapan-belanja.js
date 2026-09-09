@@ -486,7 +486,7 @@ const PersiapanAdminBelanja = {
                 <td style="padding:6px 8px;">{{ it.satuan }}</td>
                 <td style="padding:6px 8px;"><input v-model.number="it.harga_estimasi" type="number" min="0" style="width:90px; padding:4px 6px; border-radius:6px; border:1px solid var(--line);"></td>
                 <td style="padding:6px 8px;" class="gc-num">{{ formatRupiah((it.qty||0) * (it.harga_estimasi||0)) }}</td>
-                <td style="padding:6px 8px;"><button @click="hapusBaris(idx)" class="btn-outline" style="padding:3px 8px; font-size:10px; color:var(--danger,#b91c1c);">Hapus</button></td>
+                <td style="padding:6px 8px;"><button @click="hapusBaris(idx)" class="btn-outline" style="padding:3px 8px; font-size:10px; color:var(--danger);">Hapus</button></td>
               </tr>
             </tbody>
           </table>
@@ -608,7 +608,7 @@ const MenungguAccBelanja = {
           <div style="font-size:12px; color:var(--text-faint); margin-bottom:6px;">{{ n.suplayer_nama }} &middot; {{ (n.items||[]).length }} item &middot; est. {{ formatRupiah(n.estimasi_biaya_belanja) }}</div>
           <div style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">diajukan oleh {{ n.diajukan_oleh || '-' }}</div>
           <div v-if="sayaOwnerKeAtas" style="display:flex; gap:8px;">
-            <button @click="tolak(n)" :disabled="sedangProses[n.id]" class="btn-outline" style="flex:1; padding:9px; color:var(--danger,#b91c1c);">Tolak</button>
+            <button @click="tolak(n)" :disabled="sedangProses[n.id]" class="btn-outline" style="flex:1; padding:9px; color:var(--danger);">Tolak</button>
             <button @click="setujui(n)" :disabled="sedangProses[n.id]" class="btn-primary" style="flex:1; padding:9px;">Setujui</button>
           </div>
           <p v-else style="font-size:11px; color:var(--text-faint);">Hanya Owner/PIC Owner yang bisa memutuskan.</p>
@@ -767,7 +767,7 @@ const ListOrderDriver = {
               <div style="display:flex; align-items:center; gap:6px;">
                 <button v-if="bolehProses" @click="kurangiQty(o, it)" class="btn-outline" style="padding:2px 8px; font-size:11px;">-</button>
                 <span class="gc-num">{{ formatQty(it.qty) }} {{ it.satuan }}</span>
-                <button v-if="bolehProses" @click="bukaPending(o, it)" class="btn-outline" style="padding:3px 8px; font-size:10px; color:var(--warn,#b45309);">Pending</button>
+                <button v-if="bolehProses" @click="bukaPending(o, it)" class="btn-outline" style="padding:3px 8px; font-size:10px; color:var(--warn);">Pending</button>
               </div>
             </div>
             <div style="display:flex; justify-content:space-between; margin:10px 0;">

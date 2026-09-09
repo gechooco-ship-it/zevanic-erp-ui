@@ -400,7 +400,7 @@ const GudangPerluDisimpan = {
             <span class="tag" :class="tertahan(b.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(b.masuk_tahap_pada) }}</span>
           </div>
           <div style="font-size:12px; color:var(--text-faint); margin-bottom:10px;">{{ b.nama_produk }} &middot; size {{ b.size || '-' }} &middot; qty {{ formatQty(b.qty) }} &middot; kode tugas {{ b.kode_tugas || '-' }}</div>
-          <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="width:100%; padding:8px; font-size:11px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+          <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="width:100%; padding:8px; font-size:11px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
         </div>
       </div>
 
@@ -745,7 +745,7 @@ const GudangScanOpname = {
             <tr v-for="p in daftarPerluDicari" :key="p.id" style="border-bottom:1px solid var(--border-soft);">
               <td style="padding:6px 8px;" class="gc-num">{{ p.kode_pcs }}</td>
               <td style="padding:6px 8px;">{{ p.nama_produk }} {{ p.size }} {{ p.warna }}</td>
-              <td style="padding:6px 8px;"><button @click="bukaKonfirmasiHilang(p)" class="btn-outline" style="padding:5px 12px; font-size:10.5px; color:var(--danger, #b91c1c);">Konfirmasi Hilang</button></td>
+              <td style="padding:6px 8px;"><button @click="bukaKonfirmasiHilang(p)" class="btn-outline" style="padding:5px 12px; font-size:10.5px; color:var(--danger);">Konfirmasi Hilang</button></td>
             </tr>
           </tbody>
         </table>

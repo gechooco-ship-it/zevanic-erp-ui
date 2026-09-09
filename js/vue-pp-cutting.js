@@ -427,7 +427,7 @@ const CuttingPerluDiProses = {
             <button v-if="bolehProses" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:8px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Sampai</button>
             <button v-if="bolehProses" @click="bukaScanUnpack(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px;"><i class="fas fa-box-open" style="margin-right:4px;"></i>Scan Unpack</button>
             <button v-if="bolehOperator" @click="bukaTunjukAmpar(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px;"><i class="fas fa-user-check" style="margin-right:4px;"></i>Tunjuk Operator Ampar</button>
-            <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+            <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
           </div>
           <div v-if="t.unpack_log && t.unpack_log.length" style="margin-top:8px; font-size:10.5px; color:var(--text-faint);">
             Unpack: <span v-for="(u,i) in t.unpack_log" :key="i" class="tag" :class="u.status==='komplit' ? 'ok' : 'warn'" style="margin-right:4px;">{{ u.kode_bagging }}: {{ u.status }}</span>
@@ -557,7 +557,7 @@ const CuttingSedangAmpar = {
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <button v-if="bolehProses" @click="bukaScanEntry(t)" class="btn-primary" style="flex:1; min-width:120px; padding:8px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
             <button v-if="bolehOperator" @click="bukaTunjukPola(t)" class="btn-outline" style="flex:1; min-width:150px; padding:8px; font-size:11.5px;"><i class="fas fa-user-check" style="margin-right:4px;"></i>Ampar Selesai &amp; Tunjuk Operator Pola</button>
-            <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+            <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
           </div>
         </div>
       </div>
@@ -708,12 +708,12 @@ const CuttingSedangPola = {
           <div v-if="(t.komponen_rincian||[]).length" style="font-size:10.5px; color:var(--text-faint); margin-bottom:10px;">
             <span v-for="(k,i) in t.komponen_rincian" :key="i" class="tag neutral" style="margin-right:4px;">{{ k.nama_komponen }}: {{ k.jumlah_label }} label{{ k.label_dicetak_pada ? ' (dicetak)' : '' }}</span>
           </div>
-          <div v-else style="font-size:10.5px; color:var(--warn, #b45309); margin-bottom:10px;">BOM Pola belum punya rincian Komponen — cek Master Produk.</div>
+          <div v-else style="font-size:10.5px; color:var(--warn); margin-bottom:10px;">BOM Pola belum punya rincian Komponen — cek Master Produk.</div>
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <button v-if="bolehCetak" @click="cetakLabelKomponen(t)" :disabled="sedangCetak" class="btn-outline" style="flex:1; min-width:130px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>Cetak Label Komponen</button>
             <button v-if="bolehProses" @click="bukaScanEntry(t)" class="btn-primary" style="flex:1; min-width:120px; padding:8px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
             <button v-if="bolehOperator" @click="bukaTunjukCutting(t)" class="btn-outline" style="flex:1; min-width:150px; padding:8px; font-size:11.5px;"><i class="fas fa-user-check" style="margin-right:4px;"></i>Pola Selesai &amp; Tunjuk Operator Cutting</button>
-            <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+            <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
           </div>
         </div>
       </div>
@@ -819,7 +819,7 @@ const CuttingSedangCutting = {
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <button v-if="bolehProses" @click="bukaScanEntry(t)" class="btn-primary" style="flex:1; min-width:120px; padding:8px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
             <button v-if="bolehProses" @click="tandaiSelesaiCutting(t)" class="btn-outline" style="flex:1; min-width:140px; padding:8px; font-size:11.5px;"><i class="fas fa-circle-check" style="margin-right:4px;"></i>Cutting Selesai</button>
-            <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+            <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
           </div>
         </div>
       </div>
@@ -1018,7 +1018,7 @@ const CuttingPerluDiKirim = {
           </div>
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <button v-if="bolehCetak" @click="bukaCetakKirim(t)" class="btn-outline" style="flex:1; min-width:170px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>Cetak Surat Jalan + Kode Bagging</button>
-            <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+            <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
           </div>
         </div>
       </div>
@@ -1132,7 +1132,7 @@ const CuttingSedangDiKirim = {
               <span class="gc-num" style="font-weight:700;">{{ t.kode_spk }}</span>
               <span style="color:var(--text-faint);">{{ t.nama_produk }} size {{ t.size || '-' }}</span>
               <span class="gc-num" style="color:var(--text-faint);">diam {{ formatDiamSejak(t.masuk_tahap_pada) }}</span>
-              <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:4px 8px; font-size:10px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation"></i></button>
+              <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:4px 8px; font-size:10px; color:var(--danger);"><i class="fas fa-triangle-exclamation"></i></button>
             </div>
           </div>
         </div>

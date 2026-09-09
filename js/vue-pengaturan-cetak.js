@@ -442,14 +442,14 @@ export const AppPengaturanCetak = {
             </div>
             <div style="display:flex; gap:6px; flex-shrink:0;">
               <button @click="bukaEdit(g)" class="btn-outline" style="padding:7px 12px; font-size:11px;"><i class="fas fa-pen" style="margin-right:5px;"></i>Edit</button>
-              <button @click="hapusGrup(g)" class="icon-btn" style="padding:7px 10px; color:var(--danger, #b3261e);"><i class="fas fa-trash"></i></button>
+              <button @click="hapusGrup(g)" class="icon-btn" style="padding:7px 10px; color:var(--danger);"><i class="fas fa-trash"></i></button>
             </div>
           </div>
         </div>
         <div v-if="!daftarGrup.length" class="gc-kosong">Belum ada grup. Buat 1 grup dulu supaya titik cetak bisa diatur ukurannya.</div>
 
         <div v-if="jenisBelumPunyaGrup.length" class="gc-card" style="padding:12px 14px; background:var(--ivory-dim);">
-          <div style="font-weight:700; font-size:11.5px; margin-bottom:6px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px; color:#b8860b;"></i>Belum masuk grup manapun ({{ jenisBelumPunyaGrup.length }}) — masih pakai ukuran default 4x2 inch:</div>
+          <div style="font-weight:700; font-size:11.5px; margin-bottom:6px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px; color:var(--warn);"></i>Belum masuk grup manapun ({{ jenisBelumPunyaGrup.length }}) — masih pakai ukuran default 4x2 inch:</div>
           <div style="display:flex; flex-wrap:wrap; gap:5px;">
             <span v-for="j in jenisBelumPunyaGrup" :key="j" class="tag neutral" style="font-size:10px;">{{ KATALOG_CETAK[j].label }}</span>
           </div>

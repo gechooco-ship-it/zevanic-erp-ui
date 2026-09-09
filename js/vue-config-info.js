@@ -257,8 +257,8 @@ const AppConfigInfo = {
   template: `
     <div>
       <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px;">
-        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:#1F5060;"><i class="fas fa-bullhorn" style="margin-right:8px;"></i> Config Info</h4>
-        <p style="font-size:11px; color:#1F5060; margin-top:4px; opacity:.85;">Kelola pengumuman yang tampil di Home — desktop maupun mobile. Kosongkan pilihan role = tampil untuk SEMUA orang.</p>
+        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:var(--teal-text);"><i class="fas fa-bullhorn" style="margin-right:8px;"></i> Config Info</h4>
+        <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Kelola pengumuman yang tampil di Home — desktop maupun mobile. Kosongkan pilihan role = tampil untuk SEMUA orang.</p>
       </div>
 
       <div class="gc-card" style="margin-bottom:16px;">
@@ -336,8 +336,8 @@ const AppConfigInfo = {
       </div>
 
       <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px; margin-top:24px;">
-        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:#1F5060;"><i class="fas fa-quote-left" style="margin-right:8px;"></i> Quote Harian</h4>
-        <p style="font-size:11px; color:#1F5060; margin-top:4px; opacity:.85;">Beda dari Pengumuman — 1 Quote tampil per TANGGAL yang dijadwalkan. Kalau tidak ada Quote untuk hari itu, kartunya tidak muncul di Home.</p>
+        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:var(--teal-text);"><i class="fas fa-quote-left" style="margin-right:8px;"></i> Quote Harian</h4>
+        <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Beda dari Pengumuman — 1 Quote tampil per TANGGAL yang dijadwalkan. Kalau tidak ada Quote untuk hari itu, kartunya tidak muncul di Home.</p>
       </div>
 
       <div class="gc-card" style="margin-bottom:16px;">

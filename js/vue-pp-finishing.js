@@ -527,7 +527,7 @@ const FinishingPerluDiProses = {
             <button v-if="bolehProses" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:8px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Sampai</button>
             <button v-if="bolehProses" @click="bukaScanUnpack" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px;"><i class="fas fa-box-open" style="margin-right:4px;"></i>Scan Unpack</button>
             <button v-if="bolehOperator" @click="bukaOperatorQc" class="btn-outline" style="flex:1; min-width:150px; padding:8px; font-size:11.5px;"><i class="fas fa-user-check" style="margin-right:4px;"></i>Tunjuk Operator QC</button>
-            <button v-if="bolehProses" @click="bukaMasalah(g.pcs[0])" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+            <button v-if="bolehProses" @click="bukaMasalah(g.pcs[0])" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
           </div>
         </div>
       </div>
@@ -644,7 +644,7 @@ function buatSubTabFinishing(tahap) {
               <div v-for="t in g.pcs" :key="t.id" style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
                 <span class="gc-num" style="font-weight:700;">{{ t.kode_pcs }}</span>
                 <span style="color:var(--text-faint);">progress {{ t.progress }}/4</span>
-                <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:4px 8px; font-size:10px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation"></i></button>
+                <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:4px 8px; font-size:10px; color:var(--danger);"><i class="fas fa-triangle-exclamation"></i></button>
               </div>
             </div>
           </div>
@@ -825,7 +825,7 @@ const FinishingPerluDikirim = {
           </div>
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <button v-if="bolehCetak" @click="cetakBaggingTugas(g)" :disabled="sedangProses" class="btn-outline" style="flex:1; min-width:170px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>{{ g.sudahKirim ? 'Cetak Ulang' : 'Cetak' }} Bagging + Kode Tugas</button>
-            <button v-if="bolehProses" @click="bukaMasalah(g.pcs[0])" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+            <button v-if="bolehProses" @click="bukaMasalah(g.pcs[0])" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
           </div>
         </div>
       </div>
@@ -909,7 +909,7 @@ const FinishingSedangKirim = {
             <div v-for="t in g.pcs" :key="t.id" style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
               <span class="gc-num" style="font-weight:700;">{{ t.kode_pcs }}</span>
               <span style="color:var(--text-faint);">{{ t.nama_produk }} size {{ t.size || '-' }}</span>
-              <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:4px 8px; font-size:10px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation"></i></button>
+              <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:4px 8px; font-size:10px; color:var(--danger);"><i class="fas fa-triangle-exclamation"></i></button>
             </div>
           </div>
         </div>

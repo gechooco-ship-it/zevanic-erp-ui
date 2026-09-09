@@ -1041,7 +1041,7 @@ export const PengumumanCarousel = {
             <img v-else :src="p.mediaUrl" :alt="p.judul" style="width:100%; height:100%; object-fit:cover; display:block;">
           </div>
           <div style="padding:11px; display:flex; gap:9px;">
-            <div v-if="!p.mediaUrl" style="width:34px; height:34px; border-radius:10px; background:var(--blue); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:#1F5060;"><i class="fas fa-bell"></i></div>
+            <div v-if="!p.mediaUrl" style="width:34px; height:34px; border-radius:10px; background:var(--blue); flex-shrink:0; display:flex; align-items:center; justify-content:center; color:var(--teal-text);"><i class="fas fa-bell"></i></div>
             <div>
               <b style="font-size:13px;">{{ p.judul }}</b>
               <p style="font-size:12px; color:var(--text-muted); margin-top:2px;">{{ p.isi }}</p>

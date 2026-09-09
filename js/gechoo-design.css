@@ -1,0 +1,759 @@
+/* css/gechoo-design.css
+   =============================================================================
+   Sistem desain Gechoo / Zevanic ERP — token warna, tipografi, dan komponen
+   bersama yang dipakai seluruh file Vue.
+
+   Palet (porsi pemakaian yang disepakati): Ivory 55%, Baby Pink 20%,
+   Light Blue 10%, Mahogany 10% (dipakai sebagai warna TEKS/ikon, bukan blok
+   besar), Burgundy 5% (KHUSUS tombol utama & penekanan penting — dijaga
+   ketat, jangan dipakai berlebihan).
+
+   File ini TIDAK menggantikan Tailwind secara langsung — selama masa
+   transisi, keduanya aktif berdampingan. Tailwind baru dicabut setelah
+   SELURUH file Vue selesai dikonversi ke class di file ini.
+   ============================================================================= */
+
+/* =============================================================================
+   RESET DASAR — dulu ini otomatis disediakan Tailwind ("Preflight"), tapi
+   pas Tailwind dicabut kemarin, bagian ini KELUPAAN ikut ditulis ulang.
+   Akibatnya: box (input/textarea) jadi lebih lebar dari kotaknya sendiri
+   (default browser: lebar = isi + padding + border, DITAMBAH, bukan
+   dipotong dari situ), dan <button> tampil dengan border/bayangan bawaan
+   browser (bukan gaya kita) karena belum di-reset.
+   ============================================================================= */
+*, *::before, *::after{box-sizing:border-box;}
+button{border:none; background:none; font:inherit; color:inherit; cursor:pointer; padding:0; margin:0; text-align:inherit;}
+input, select, textarea{font:inherit; color:inherit;}
+
+:root{
+  /* --ivory/--ivory-dim/--line — DIGANTI (29 Agt 2026) ke versi lebih
+     muda/"clean" sesuai permintaan Guru di paket handoff mockup ("Gechoo
+     Mobile Organic") — "ivorynya bikin lebih muda lagi biar clean".
+     Nilai LAMA (sebelum ini): --ivory #FAF4E7, --ivory-dim #F1E8D6,
+     --line #E9DDCE — dicatat di sini kalau perlu dikembalikan. Ini
+     token DASAR dipakai di SELURUH app (bukan cuma layar redesain
+     mobile), jadi efeknya global — desktop & mobile, layar lama & baru. */
+  --ivory:#FDFAF4; --ivory-dim:#F7F1E6;
+  --pink:#F2D2CE; --pink-deep:#E3ADA6;
+  --blue:#ABD1DE; --blue-deep:#82B7C8;
+  --mahogany:#5B3826; --mahogany-soft:#6E4630;
+  --burgundy:#6E1E2C; --burgundy-dark:#551521; --burgundy-light:#F6E4E6;
+  --ok:#5E7C4F; --ok-light:#EAF0E3;
+  --warn:#B8863A; --warn-light:#F7EEDC;
+  --danger:#B33A3A; --danger-light:#F8E5E2;
+  --surface:#FFFFFF; --line:#EFE7DA;
+  --text:#3B2A1F; --text-muted:#8C7A6B; --text-faint:#B3A493;
+  --radius:16px;
+
+  /* --teal-text/--warn-text — BARU (9 Sep 2026, rombak total standarisasi
+     CSS). Ini bukan token baru yang mengubah tampilan — ini MEMBERI NAMA
+     ke 2 warna yang SUDAH lama dipakai di banyak file tapi ditulis ulang
+     sebagai hex mentah tiap kali (bukan var()), jadi waktu tokennya sendiri
+     diganti kemarin, warna-warna ini TIDAK IKUT BERUBAH (Guru: "warna yg
+     tadi di terapkan ternyata tidak ada efek"). --teal-text = warna teks
+     ikon/heading Config di atas var(--blue) (dulu ditulis "#1F5060" apa
+     adanya 23x di banyak file — lihat FONDASI.md §Design System untuk
+     daftar lengkap). --warn-text = warna teks "piutang/belum bayar" di
+     Kasir & Transaksi (dulu ditulis 2 varian hex beda: "#8a6524" DAN
+     "#8a6420" — typo yang tidak disengaja, sekarang disatukan). */
+  --teal-text:#1F5060;
+  --warn-text:#8a6524;
+
+  /* ===========================================================================
+     MODE GELAP — BARU (28 Agt 2026, redesain mobile "Gechoo Mobile Organic").
+     Toggle lewat atribut [data-theme="dark"] di <html> (bukan
+     prefers-color-scheme — ini pilihan EKSPLISIT user lewat sakelar di
+     Bottom Sheet Profil/Profil Lengkap, disimpan localStorage, lihat
+     window.aturTema() di index.html). Default (tanpa atribut / "light") =
+     token lama di atas, TIDAK DIUBAH SAMA SEKALI supaya semua layar yang
+     SUDAH ADA (desktop & mobile) tetap identik seperti sebelumnya.
+
+     KEPUTUSAN PENTING (jangan bikin tebak2, dicatat di sini + STATUS-
+     PROYEK.md): --burgundy/--ok/--warn/--danger SENGAJA TIDAK di-override
+     di mode gelap — itu warna SOLID untuk tombol/isi blok (mis.
+     .btn-primary, .tag.ok), bukan warna teks di atas permukaan yang
+     berubah gelap-terang, jadi tetap kontras di kedua mode apa adanya.
+     Yang BERUBAH di mode gelap cuma token NETRAL (--ivory/--surface/
+     --line/--text/--text-muted/--text-faint) + token BARU di bawah ini
+     (--aksen-ink, --aksen-lembut, --nav, --lens, gradien) — persis
+     mengikuti tabel token README mockup ("Design Tokens"). --aksen-ink
+     dipakai KHUSUS untuk warna teks/ikon aksen di atas permukaan var(--surface)/
+     var(--ivory) (jadi pale pink di mode gelap biar tetap kontras) — BEDA
+     dari --burgundy yang tetap dipakai apa adanya untuk isi blok solid.
+  */
+  --aksen-ink:#6E1E2C;              /* = --burgundy di mode terang, beda di gelap */
+  --aksen-lembut:#F7E2E0;           /* latar lingkaran ikon, kartu aksi cepat, dsb */
+  --nav:rgba(255,255,255,.92);      /* latar nav bawah mobile (blur) */
+  --lens:#6E4630;                   /* latar bingkai kamera Absensi/Scan QR */
+  --grad-shift-a:#5C1A28; --grad-shift-b:#3A1017; /* kartu shift & banner motivasi */
+  --tinta-gradien:#FBEDEC;          /* warna teks di atas kartu gradien maroon */
+  --grad-beranda-a:#FCEFED; --grad-beranda-b:#FDFAF4; /* gradien atas Beranda (belakang sapaan) */
+}
+[data-theme="dark"]{
+  --ivory:#1F1611; --ivory-dim:#2A1E17;
+  --surface:#2E211A; --line:#4A3A30;
+  --text:#F5EDE0; --text-muted:#C6B5A4; --text-faint:#9B8878;
+  --aksen-ink:#F2D2CE;
+  --aksen-lembut:#4A2530;
+  --nav:rgba(31,22,17,.92);
+  --lens:#241a14;
+  --grad-shift-a:#4A2530; --grad-shift-b:#291319;
+  --tinta-gradien:#F7E7E4;
+  --grad-beranda-a:#2E1B1B; --grad-beranda-b:#1F1611;
+  /* --teal-text/--warn-text DI-OVERRIDE di mode gelap (beda dari
+     --burgundy/--ok/--warn/--danger di atas) KARENA keduanya dipakai
+     sebagai warna TEKS di atas permukaan yang berubah gelap-terang
+     (var(--blue)/var(--surface)), bukan isi blok solid — sama alasannya
+     dengan --aksen-ink. Nilai gelap dipilih supaya tetap kontras:
+     --teal-text pakai tint biru lebih terang; --warn-text pakai
+     #E0B84A (emas) — kebetulan sudah dipakai persis buat ikon trofi di
+     vue-account-profile.js, jadi dipastikan sudah cocok di palet gelap. */
+  --teal-text:#9FD1E0;
+  --warn-text:#E0B84A;
+}
+
+/* ---- Dasar ---- */
+.gc-app{font-family:'Nunito Sans',sans-serif; background:var(--ivory); color:var(--text); -webkit-font-smoothing:antialiased;}
+.gc-heading{font-family:'Poppins',sans-serif;}
+.gc-num{font-variant-numeric:tabular-nums;}
+
+/* ---- Scrollbar (sembunyikan scrollbar horizontal di rel sub-tab/kartu) ----
+   PINDAH KE SINI (9 Sep 2026, rombak standarisasi) dari <style> inline di
+   index.html — supaya 1 sumber, bukan tersebar. Sekalian PERBAIKAN BUG:
+   ".hide-scrollbar" dipakai di vue-account-profile.js & index.html tapi
+   SELAMA INI TIDAK PERNAH ada rule CSS-nya sama sekali (class hantu) —
+   digabung jadi alias dari ".no-scrollbar" di sini. */
+.no-scrollbar::-webkit-scrollbar, .hide-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar, .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ---- Tag / badge (elemen ciri khas — pil bulat + titik) ---- */
+.tag{display:inline-flex; align-items:center; gap:6px; font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; padding:4px 12px; border-radius:20px; white-space:nowrap;}
+.tag-dot{width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0;}
+.tag.ok{color:var(--ok); background:var(--ok-light);}
+.tag.warn{color:var(--warn); background:var(--warn-light);}
+.tag.danger{color:var(--danger); background:var(--danger-light);}
+.tag.neutral{color:var(--text-muted); background:var(--ivory-dim);}
+.tag.pink{color:var(--burgundy-dark); background:var(--pink);}
+.tag.blue{color:var(--teal-text); background:var(--blue);}
+
+/* ---- Form ---- */
+.gc-field{margin-bottom:16px;}
+.gc-field label{display:block; font-size:12px; font-weight:700; color:var(--text); margin-bottom:6px; font-family:'Poppins',sans-serif;}
+.gc-field input,.gc-field select,.gc-field textarea{width:100%; padding:12px 15px; border:1.5px solid var(--line); border-radius:12px; font-family:'Nunito Sans',sans-serif; font-size:14px; background:var(--surface); color:var(--text); outline:none; transition:.15s;}
+.gc-field input:focus,.gc-field select:focus,.gc-field textarea:focus{border-color:var(--burgundy); box-shadow:0 0 0 3px var(--burgundy-light);}
+.gc-field input:disabled{background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;}
+
+/* ---- Tombol ---- */
+.btn-primary{padding:12px 20px; background:var(--burgundy); color:#fff; border:none; border-radius:12px; font-family:'Poppins',sans-serif; font-size:14px; font-weight:600; cursor:pointer; transition:.15s;}
+.btn-primary:hover{background:var(--burgundy-dark);}
+.btn-primary:disabled{opacity:.5; cursor:not-allowed;}
+.btn-primary.block{width:100%;}
+.btn-outline.block{width:100%; text-align:center;}
+.btn-outline{padding:9px 16px; border:1.5px solid var(--burgundy); color:var(--burgundy); background:transparent; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer; font-family:'Poppins',sans-serif;}
+.btn-outline.filled{background:var(--burgundy); color:#fff;}
+.btn-outline:disabled{opacity:.5; cursor:not-allowed;}
+.btn-ghost{padding:9px 16px; border:none; background:transparent; color:var(--text-muted); font-weight:600; font-size:13px; cursor:pointer; font-family:'Poppins',sans-serif;}
+.btn-acc{padding:9px 16px; background:var(--ok); color:#fff; border:none; border-radius:10px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:'Poppins',sans-serif;}
+.btn-rej{padding:9px 16px; background:var(--danger-light); color:var(--danger); border:none; border-radius:10px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:'Poppins',sans-serif;}
+.icon-btn{width:30px; height:30px; border-radius:9px; border:1px solid var(--line); background:var(--surface); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-muted);}
+.icon-btn:hover{border-color:var(--burgundy); color:var(--burgundy);}
+.icon-btn:disabled{opacity:.35; cursor:not-allowed; border-color:var(--line); color:var(--text-faint);}
+
+/* ---- appr-btn (Sesuai/Tidak Sesuai/Reject) — BARU (29 Agt 2026, moodboard
+   "Gechoo Mobile Organic", lihat PEDOMAN-GAYA-KERJA.md). Gabung 2 langkah
+   lama (dropdown Seragam + tombol Accept terpisah) jadi 3 tombol sejajar —
+   dipakai bareng dengan class .approve-row sebagai wrapper flex-nya.
+   Pilot pertama: js/vue-antrean-absensi.js — dipakai lagi kalau modul
+   "Daftar + Form bertahap" lain (Antrean Dakar/Lembur/Reimburse) menyusul. */
+.approve-row{display:flex; gap:6px; margin-top:8px;}
+.appr-btn{flex:1; padding:7px 4px; border-radius:12px; font-size:10.5px; font-weight:700; font-family:'Poppins',sans-serif; cursor:pointer; border:none; text-align:center;}
+.appr-btn.ok{background:var(--ok-light); color:var(--ok);}
+.appr-btn.warn{background:var(--warn-light); color:var(--warn);}
+.appr-btn.danger{background:var(--danger-light); color:var(--danger);}
+.appr-btn:disabled{opacity:.5; cursor:not-allowed;}
+
+/* ---- Tombol tutup oval kecil (X) — BARU (29 Agt 2026, Bottom Sheet
+   Profil, lihat js/vue-sheet-profil.js). Warna terang (danger-light/
+   danger) sudah pas di mode terang — TAPI di mode gelap kombinasi itu
+   kepucatan/kekontrasan terlalu mencolok (danger-light JADI SANGAT
+   terang, TIDAK ikut digelapkan — lihat catatan "SENGAJA TIDAK di-
+   override" di :root di atas), jadi khusus mode gelap dipakai burgundy
+   (latar) + pink (ikon) yang lebih redup & menyatu dengan permukaan
+   gelap sekitarnya. */
+.gc-x-tutup{display:flex; align-items:center; justify-content:center; width:34px; height:26px; border-radius:999px; border:1px solid var(--danger-light); background:var(--danger-light); color:var(--danger); cursor:pointer;}
+[data-theme="dark"] .gc-x-tutup{background:var(--burgundy); border-color:var(--burgundy); color:var(--pink);}
+
+/* ---- Menu "lainnya" oval (titik-tiga) — BARU (29 Agt 2026, moodboard
+   "Gechoo Mobile Organic" v2, cek live Guru di HP). GANTI ikon filter
+   bulat lama di baris pencarian Antrean Absensi/Lembur/Dakar/Reimburse —
+   sengaja OVAL (bukan bulat penuh) biar beda dari tombol ikon biasa &
+   nyambung visual sama kolom cari pil di sebelahnya. Nampung Filter
+   Owner (Jenis Pekerjaan/Gudang/Tahap/dst) DAN aksi sekunder (Cek Data
+   Sangat Lama, Refresh) DAN tempat kosong buat fitur nanti (Import CSV,
+   Terapkan Massal). Pola dropdown-nya (trigger+backdrop+panel absolute)
+   NYONTEK PERSIS lonceng notifikasi di js/vue-header-mobile.js — bukan
+   pola baru. */
+.gc-overflow-btn{display:flex; align-items:center; justify-content:center; width:40px; height:38px; border-radius:19px; border:1.5px solid var(--line); background:var(--surface); color:var(--text-muted); cursor:pointer; position:relative; flex-shrink:0;}
+.gc-overflow-btn:hover{border-color:var(--burgundy); color:var(--burgundy);}
+.gc-overflow-dot{position:absolute; top:-2px; right:-2px; width:8px; height:8px; border-radius:50%; background:var(--danger); border:1.5px solid var(--ivory);}
+.gc-overflow-backdrop{position:fixed; inset:0; z-index:60;}
+.gc-overflow-panel{position:absolute; top:44px; right:0; z-index:61; background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:0 14px 34px -10px rgba(31,22,17,.35); padding:8px; min-width:230px;}
+.gc-overflow-label{font-size:9px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; color:var(--text-faint); padding:6px 9px 4px;}
+.gc-overflow-item{width:100%; text-align:left; background:none; border:none; padding:9px 10px; border-radius:10px; font-size:12px; font-weight:600; color:var(--text); cursor:pointer; display:flex; align-items:center; gap:8px;}
+.gc-overflow-item:hover{background:var(--ivory-dim);}
+.gc-overflow-sep{border:none; border-top:1px solid var(--line); margin:6px 2px;}
+
+/* ---- Badge angka kecil di banner ringkas (jumlah antrean) — BARU
+   (29 Agt 2026, moodboard v2) — dipakai di banner pink yang dipadatkan
+   1 baris di bawah kolom cari (gantikan paragraf deskripsi panjang). */
+.gc-badge-count{display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--burgundy); color:#fff; font-size:9.5px; font-weight:700; margin-left:6px;}
+
+/* ---- Kartu / panel ---- */
+.gc-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px;}
+.gc-card-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;}
+.gc-card-head h3{font-size:14.5px; font-weight:700; font-family:'Poppins',sans-serif;}
+.gc-card-head .sub{font-size:11.5px; color:var(--text-muted); margin-top:2px;}
+
+/* ---- Kartu KPI ---- */
+.kpi{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+.kpi .label{font-size:11.5px; color:var(--text-muted); font-weight:700; margin-bottom:10px; font-family:'Poppins',sans-serif;}
+.kpi .val{font-family:'Poppins',sans-serif; font-size:25px; font-weight:700;}
+.kpi .delta{font-size:11.5px; margin-top:6px; font-weight:700;}
+.kpi .delta.up{color:var(--ok);} .kpi .delta.down{color:var(--danger);}
+
+/* ---- Sidebar desktop ---- */
+/* REDESAIN (30 Agt 2026) — dari latar --pink jadi --surface (putih) +
+   header logo --ivory, mengikuti arahan "redesain tampilan DESKTOP saja"
+   (Guru, sesi mockup artefak "Zevanic Desktop Adaptasi"). Tampilan mobile
+   (.gc-mobile-nav dkk) SENGAJA TIDAK disentuh sama sekali. Struktur HTML
+   (.gc-nav-item/onclick/data-menu-id) TIDAK berubah, cuma warnanya.
+   KOREKSI (30 Agt 2026, ronde audit desain lanjutan) — Guru lapor kartu &
+   background "sama warnanya"/kurang kontras. Dicek ULANG ke artefak
+   mockup `mockup-desktop-adaptasi.html`: `.sb` (sidebar) di sana
+   `background:var(--ivory)` (krem), BUKAN `--surface` (putih) — komentar
+   di atas TERNYATA salah asumsi, sidebar & area konten KETUKAR
+   (--surface dipakai di sidebar, --ivory dipakai di konten, padahal
+   mockup sebaliknya: topbar+sidebar KREM membingkai, konten TENGAH
+   PUTIH supaya kartu krem (.gc-pipeline-card dst, background --ivory)
+   kelihatan menonjol/kontras dari konten — sebelumnya kartu & konten
+   SAMA-SAMA --ivory jadi nyaris tidak beda). Dikoreksi ke --ivory
+   (lihat juga .gc-main-desktop di bawah untuk sisi konten). */
+.gc-sidebar{background:var(--ivory); padding:0 14px 22px; display:flex; flex-direction:column; gap:3px; border-right:1px solid var(--line);}
+/* REVISI (30 Agt 2026, sesi lanjutan) — brand block GANTI dari kolom
+   teks-doang ("Gechoo ♥") jadi baris ikon-kotak + teks, persis mockup
+   ("Zevanic ERP" + role). Elemen ini SUDAH desktop-only dari awal
+   (`.gc-sidebar hidden md:flex`) — GANTI teks di sini TIDAK menyentuh
+   branding mobile sama sekali (mobile pakai header terpisah, vue-header-
+   mobile.js, tidak pernah menampilkan blok ini). */
+/* REVISI (30 Agt 2026, sesi lanjutan lagi) — height:80px fixed DICOPOT,
+   Guru lapor header "kepanjangan ke bawah", diganti height:auto (~58px
+   padding-driven). INI SALAH LAGI — Guru laporan berikutnya (30 Agt 2026,
+   ronde audit desain): header sidebar & topbar jadi TIDAK SEJAJAR (garis
+   bawah beda tinggi, 58px vs topbar 52px). Dicek ULANG langsung ke
+   ARTEFAK mockup `mockup-desktop-adaptasi.html` (bukan cuma baca README
+   lagi) — `.sb-head` di mockup itu FIXED `height:52px` (SAMA PERSIS
+   dengan `.topbar{height:52px}`), bukan padding-driven auto. Itu caranya
+   garis bawah header sidebar & topbar SEJAJAR lurus. Dikoreksi balik ke
+   fixed 52px (BUKAN 80px lama, BUKAN auto ~58px kemarin) + padding
+   horizontal saja (vertical center via flex align-items:center),
+   PERSIS mockup. */
+.gc-side-brand{height:52px; box-sizing:border-box; padding:0 14px; margin:0 -14px 14px; background:var(--ivory);
+  border-bottom:1px solid var(--line); display:flex; flex-direction:row; align-items:center; gap:10px;}
+/* REVISI (30 Agt 2026, ronde audit desain) — warna ikon-kotak KETUKAR
+   (reversed) dari artefak mockup: kode sebelumnya pakai latar SOLID
+   `--burgundy` + glyph `--ivory` (kotak burgundy penuh), padahal mockup
+   `.sb-logo` pakai latar LEMBUT `--aksen-lembut` (pink pucat) + glyph
+   `--aksen-ink` (burgundy) — pola "soft accent" yang SAMA dipakai item
+   sidebar aktif (`.gc-nav-item.active`). Dikoreksi supaya konsisten
+   dengan mockup & pola soft-accent yang sudah ada di tempat lain. */
+.gc-side-brand-ico{width:32px; height:32px; border-radius:10px; background:var(--aksen-lembut); color:var(--aksen-ink);
+  display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;}
+.gc-side-brand b{color:var(--mahogany); font-size:15px; font-weight:700; font-family:'Poppins',sans-serif;}
+.gc-side-brand span{display:block; color:var(--burgundy); font-size:9.5px; letter-spacing:.08em; margin-top:1px;}
+/* REVISI (30 Agt 2026, sesi lanjutan) — padding & font-size DIRAPATKAN
+   (dulu 10px 12px/13px, mockup minta 8px 10px/11.5px) supaya sidebar
+   tidak terasa "renggang" dibanding referensi. Ini cuma pengaruh ke item
+   yang TIDAK override inline (Beranda/Profile + 7 tombol kepala grup) —
+   sub-item nested sudah punya inline padding:7px 10px/12.5px sendiri,
+   tidak ikut berubah. */
+.gc-nav-item{display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:9px; color:var(--text-muted); font-size:12.5px; font-weight:600; cursor:pointer; width:100%; border:none; background:none;}
+.gc-nav-item.active{background:var(--aksen-lembut); color:var(--aksen-ink); box-shadow:0 2px 6px rgba(91,56,38,.08);}
+.gc-nav-item:not(.active):hover{background:var(--ivory-dim); color:var(--text);}
+.gc-nav-ico{width:17px; height:17px; flex-shrink:0;}
+/* Ikon 14px di tombol kepala grup (BARU, 30 Agt 2026 sesi lanjutan) —
+   persis mockup: netral text-faint biasa, aksen-ink saat grup terbuka
+   (class .gc-grp-buka ditambah/dicopot js/dashboard.js setGrupSidebarTerbuka()). */
+.gc-nav-gico{width:14px; text-align:center; font-size:13px; color:var(--text-faint); flex-shrink:0;}
+.gc-nav-item.gc-grp-buka{background:var(--ivory-dim); color:var(--aksen-ink);}
+.gc-nav-item.gc-grp-buka .gc-nav-gico{color:var(--aksen-ink);}
+.gc-nav-section{font-size:10px; letter-spacing:.08em; color:var(--text-faint); opacity:.9; text-transform:uppercase; margin:14px 10px 6px; font-family:'Poppins',sans-serif;}
+/* Tombol ganti tema (BARU, 30 Agt 2026, ronde audit desain) — Guru lapor
+   desktop BELUM punya sakelar Terang/Gelap/Otomatis sama sekali (mobile
+   sudah punya, Bottom Sheet Profil/vue-sheet-profil.js). Ditambahkan di
+   footer sidebar desktop, sebaris dengan Logout — PERSIS ukuran/gaya
+   `.theme-btn` di mockup (26x26px, border tipis, ikon berubah sesuai
+   preferensi). Logic ikon (fa-sun/fa-moon/fa-circle-half-stroke) di
+   js/dashboard.js, PAKAI ULANG window.toggleTema()/temaPreferensi() yang
+   sudah ada (index.html) — bukan logic tema baru. */
+.gc-theme-btn{width:26px; height:26px; border-radius:8px; border:1px solid var(--line); background:var(--ivory-dim);
+  color:var(--text-muted); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:11px; cursor:pointer;}
+.gc-theme-btn:hover{background:var(--aksen-lembut); color:var(--aksen-ink); border-color:var(--aksen-lembut);}
+/* Avatar inisial footer sidebar (BARU, 30 Agt 2026, ronde audit desain) —
+   PERSIS `.sb-av` mockup: bulat, gradien maroon sama seperti kartu shift/
+   KPI Beranda desktop (`--grad-shift-a`, lihat pengecualian warna di atas). */
+.gc-side-av{width:30px; height:30px; border-radius:999px; background:var(--grad-shift-a); color:var(--tinta-gradien);
+  display:flex; align-items:center; justify-content:center; font-weight:700; font-size:11px; flex-shrink:0;}
+/* Tombol Export topbar (BARU, 30 Agt 2026, ronde audit desain lanjutan) —
+   permintaan eksplisit Guru: "tampilkan dulu, bangun nanti — fake aja
+   dulu tombol statis tanpa feedback". Ini TOMBOL STATIS/VISUAL SAJA
+   (persis `.btn-export` mockup), TANPA onclick/logic export apapun di
+   baliknya — jangan anggap sudah berfungsi. Ditambah supaya kolom cari
+   & lonceng topbar tidak "mepet" (celah kosong ini yang bikin badge
+   Ctrl K kelihatan menempel sendirian, lihat komentar index.html). */
+.gc-btn-export{display:flex; align-items:center; gap:6px; border:1px solid var(--line); background:transparent;
+  color:var(--text); border-radius:8px; padding:7px 12px; font-size:11.5px; font-weight:600; cursor:default;}
+
+/* ---- Topbar desktop (GANTI header 80px lama "ERP Portal" statis) ----
+   REVISI (30 Agt 2026, sesi lanjutan lagi) — height 80px DIKURANGI jadi
+   52px, Guru lapor header kepanjangan ke bawah. Dicek ke README paket
+   design handoff: spec ASLI explisit "Topbar (tinggi 52px)" — 80px
+   sebelumnya salah, bukan dari spec. Konten di dalamnya (tombol notif
+   36px, kolom cari padding 7px 11px) semuanya masih muat di 52px karena
+   align-items:center, jadi tidak perlu ubah ukuran elemen lain. ---- */
+.gc-topbar-desktop{height:52px; box-sizing:border-box; background:var(--ivory); border-bottom:1px solid var(--line);
+  padding:0 24px; display:flex; align-items:center; gap:14px;}
+/* ---- Breadcrumb topbar (BARU, 30 Agt 2026 — GANTI h2 "ERP Portal" +
+   badge countdown shift lama). Statis "Umum › Beranda" untuk sekarang,
+   lihat komentar di index.html. ---- */
+.gc-crumb{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-faint);}
+.gc-crumb b{font-size:13.5px; font-weight:700; color:var(--text); font-family:'Poppins',sans-serif;}
+.gc-crumb .gc-crumb-mid{font-size:9px;}
+/* ---- Pencarian global / Palet Ctrl K (BARU, 30 Agt 2026, sesi lanjutan)
+   — GANTI dari "sengaja tidak dibangun" (versi awal §5.9) jadi REAL:
+   klik/Ctrl+K buka overlay, hasil diambil LANGSUNG dari DOM sidebar
+   (data-menu-id), klik hasil = trigger .click() tombol sidebar asli.
+   Lihat js/dashboard.js paletPencarianGlobal(). Beda dari mockup yang
+   listener tombol fisiknya belum diikat (README paket handoff) — di sini
+   SUDAH diikat sungguhan, bukan cuma gambar. ---- */
+.gc-search-global{margin-left:auto; width:320px; display:flex; align-items:center; gap:8px; background:var(--ivory-dim);
+  border:1px solid var(--line); border-radius:8px; padding:7px 11px; color:var(--text-faint); font-size:12px; cursor:pointer;}
+.gc-search-global span{flex:1; text-align:left;}
+.gc-search-global kbd{font-size:9.5px; border:1px solid var(--line); border-radius:5px; padding:1px 6px; color:var(--text-faint); font-family:inherit; background:var(--ivory);}
+.gc-palet-overlay{position:fixed; inset:0; z-index:80; background:rgba(31,22,17,.45); display:flex; align-items:flex-start; justify-content:center; padding-top:14vh;}
+/* BUG (30 Agt 2026, ditemukan Guru — popup selalu tampil pas refresh/hard
+   reset, bukan cuma pas dipanggil): elemen overlay pakai atribut asli
+   "hidden" (bukan class ".hidden" custom di atas), tapi rule
+   ".gc-palet-overlay{display:flex}" di atas itu CSS PENULIS (author
+   stylesheet) — author stylesheet SELALU menang mutlak dari default
+   browser "[hidden]{display:none}" (UA stylesheet), berapapun urutan/
+   specificity-nya, KECUALI ditimpa rule lebih spesifik seperti di bawah
+   ini. Makanya overlay full-layar itu SELALU kelihatan dari awal load,
+   padahal atribut hidden-nya sudah benar diisi lewat JS
+   (overlay.hidden=true/false di paletPencarianGlobal()). Kelas bug yang
+   SAMA PERSIS dengan pelajaran ".hidden vs flex" di bawah (~baris 466),
+   cuma di sini bukan salah URUTAN class, tapi salah ORIGIN (UA vs
+   author) — perlu selector lebih spesifik ([hidden]) buat menang. */
+.gc-palet-overlay[hidden]{display:none;}
+.gc-palet-card{width:520px; max-width:92vw; max-height:60vh; background:var(--ivory); border-radius:14px; box-shadow:0 20px 50px -15px rgba(31,22,17,.5); overflow:hidden; display:flex; flex-direction:column;}
+.gc-palet-input{width:100%; box-sizing:border-box; border:none; border-bottom:1px solid var(--line); padding:14px 16px; font-size:13.5px; background:transparent; color:var(--text); outline:none;}
+.gc-palet-results{overflow-y:auto; padding:6px;}
+.gc-palet-item{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:9px 10px; border-radius:9px; cursor:pointer; font-size:12px; color:var(--text);}
+.gc-palet-item:hover, .gc-palet-item.aktif{background:var(--ivory-dim);}
+.gc-palet-label{font-weight:600;}
+.gc-palet-grup{font-size:10px; color:var(--text-faint);}
+.gc-notif-wrap{position:relative; margin-left:auto;}
+.gc-notif-btn{position:relative; width:36px; height:36px; border-radius:10px; border:1px solid var(--line);
+  background:var(--surface); color:var(--text-muted); display:flex; align-items:center; justify-content:center; font-size:14px;}
+.gc-notif-btn .dot{position:absolute; top:-3px; right:-3px; background:var(--danger); color:#fff; font-size:8px; font-weight:700;
+  border-radius:999px; min-width:15px; height:15px; display:flex; align-items:center; justify-content:center; padding:0 2px;}
+.gc-notif-backdrop{position:fixed; inset:0; z-index:60; background:transparent;}
+.gc-notif-panel{position:absolute; top:44px; right:0; width:310px; max-height:380px; overflow-y:auto;
+  background:var(--ivory); border:1px solid var(--line); border-radius:14px;
+  box-shadow:0 16px 36px -12px rgba(59,42,31,.28); z-index:61; padding:6px;}
+.gc-notif-panel-head{padding:9px 10px 7px; font-size:11.5px; font-weight:700; color:var(--text);
+  border-bottom:1px solid var(--line); margin-bottom:4px;}
+.gc-notif-item{padding:9px 10px; border-radius:10px;}
+.gc-notif-item:hover{background:var(--ivory-dim);}
+.gc-notif-item b{font-size:11.5px; color:var(--text); display:block;}
+.gc-notif-item p{font-size:10.5px; color:var(--text-muted); margin:2px 0 0; line-height:1.4;}
+.gc-notif-empty{padding:22px 16px; text-align:center; font-size:11px; color:var(--text-faint);}
+.gc-notif-empty i{display:block; font-size:18px; margin-bottom:6px;}
+
+/* ---- Dashboard Beranda desktop (BARU 30 Agt 2026) ----
+   Warna kartu KPI & Quote SENGAJA pakai .gc-kartu-gradien (maroon, SAMA
+   seperti kartu shift mobile) — PENGECUALIAN dari aturan porsi warna
+   "--burgundy dijaga ketat 5%" di bagian Palet warna atas, KHUSUS layar
+   Beranda desktop (permintaan eksplisit Guru, 30 Agt 2026). Kartu-kartu
+   modul LAIN (bukan Beranda) TETAP ikuti aturan porsi warna asli, jangan
+   dianggap preseden buat treatment ini di layar lain. */
+.gc-dash-grid{display:grid; grid-template-columns:1fr 320px; gap:20px; align-items:start;}
+.gc-kpi-row{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px;}
+.gc-kpi-card{border-radius:14px; padding:14px;}
+.gc-kpi-top{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+.gc-kpi-ico{width:28px; height:28px; border-radius:9px; background:rgba(255,255,255,.15); color:var(--tinta-gradien);
+  display:flex; align-items:center; justify-content:center; font-size:13px;}
+.gc-kpi-chip{font-size:9.5px; font-weight:700; border-radius:999px; padding:3px 8px; background:rgba(255,255,255,.15); color:var(--tinta-gradien);}
+.gc-kpi-val{font-family:'Poppins',sans-serif; font-weight:700; font-size:23px;}
+.gc-kpi-label{font-size:10.5px; opacity:.8; margin-top:2px;}
+.gc-quote-desktop{border-radius:var(--radius); padding:16px; margin-bottom:16px;}
+.gc-quote-desktop h4{font-family:'Poppins',sans-serif; font-size:14px; font-weight:700; display:flex; align-items:center; gap:8px; margin:0;}
+.gc-quote-desktop p{font-size:12px; opacity:.85; margin:6px 0 0; line-height:1.5;}
+.gc-pipeline-card{background:var(--ivory); border:1px solid var(--line); border-radius:var(--radius); padding:16px; margin-bottom:16px;}
+.gc-pipeline-head{display:flex; align-items:center; gap:8px; margin-bottom:2px;}
+.gc-pipeline-head b{font-size:13px; font-weight:700; color:var(--text); flex:1;}
+.gc-pipeline-tot{background:var(--ivory-dim); color:var(--text-muted); font-size:9.5px; font-weight:700; border-radius:999px; padding:3px 9px;}
+.gc-pipeline-desc{font-size:10.5px; color:var(--text-faint); margin:2px 0 12px;}
+.gc-pipeline-steps{display:grid; gap:9px;}
+.gc-pipeline-step{text-align:center;}
+.gc-pipeline-bar{height:3px; border-radius:3px; margin-bottom:8px;}
+.gc-pipeline-n{font-family:'Poppins',sans-serif; font-weight:700; font-size:18px; color:var(--text);}
+.gc-pipeline-lbl{font-size:9.5px; color:var(--text-muted); margin-top:2px;}
+.gc-pipeline-segera{font-size:10px; color:var(--text-faint); font-style:italic;}
+.gc-tindak-row{display:flex; align-items:center; gap:11px; padding:9px 11px; border-radius:10px; background:var(--ivory-dim); margin-bottom:6px;}
+.gc-tindak-ico{width:26px; height:26px; border-radius:8px; background:var(--ivory); border:1px solid var(--line); color:var(--aksen-ink);
+  display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0;}
+.gc-tindak-txt{flex:1; min-width:0;}
+.gc-tindak-txt b{font-size:11.5px; display:block;}
+.gc-tindak-txt span{font-size:10px; color:var(--text-faint);}
+.gc-tindak-chip{background:var(--aksen-ink); color:var(--ivory); font-size:8.5px; font-weight:700; border-radius:999px; padding:2px 8px; margin-right:4px;}
+/* REVISI (30 Agt 2026, sesi lanjutan lagi) — "Perlu Tindakan Anda" dipecah
+   2 grup (Persiapan/Produksi, lihat komentar di vue-home-desktop.js).
+   .gc-tindak-subgrup = label kecil pemisah grup. .gc-tindak-segera =
+   redupkan baris grup Produksi (placeholder, belum ada data real) —
+   opacity sama dengan pola Pipeline Produksi di atasnya (.55) supaya
+   konsisten secara visual: "ini belum data sungguhan". */
+.gc-tindak-subgrup{font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint); margin:0 0 6px 2px;}
+.gc-tindak-subgrup:not(:first-child){margin-top:12px;}
+.gc-tindak-row.gc-tindak-segera{opacity:.55;}
+
+/* ---- Kartu Absen desktop (BARU, 30 Agt 2026 — REAL, "diambil tempel"
+   dari kartu shift mobile: .gc-kartu-gradien/.gc-pil-status/
+   .gc-deco-lingkaran dipakai LAGI, bukan direka ulang. Read-only, tanpa
+   tombol Clock In/Out.) ---- */
+.gc-absen-desktop{border-radius:var(--radius); padding:16px; margin-bottom:16px;}
+.gc-absen-desktop .lbl{font-size:10px; opacity:.8;}
+.gc-absen-desktop .jam{font-family:'Poppins',sans-serif; font-weight:700; font-size:19px; margin:4px 0 10px;}
+.gc-absen-desktop .ket{font-size:10px; opacity:.85; margin-top:10px; line-height:1.5;}
+
+/* ---- Aktivitas Terbaru & Pintasan Papan Tik (BARU, 30 Agt 2026) — kartu
+   pembungkusnya reuse .gc-pipeline-card/.gc-pipeline-head (sama seperti
+   mockup reuse .card/.card-head). Isinya KONTEN STATIS/ILUSTRATIF, lihat
+   komentar di js/vue-home-desktop.js. ---- */
+.gc-aktivitas-row{display:flex; gap:9px; padding:7px 0; border-bottom:1px solid var(--line);}
+.gc-aktivitas-row:last-child{border-bottom:none;}
+.gc-aktivitas-dot{width:7px; height:7px; border-radius:999px; margin-top:5px; flex:0 0 auto;}
+.gc-aktivitas-txt{flex:1; font-size:11px; line-height:1.4; color:var(--text);}
+.gc-aktivitas-jam{font-size:9.5px; color:var(--text-faint); display:block; margin-top:2px;}
+.gc-pintasan-row{display:flex; align-items:center; gap:9px; padding:6px 0; font-size:10.5px; color:var(--text-muted);}
+.gc-pintasan-row kbd{border:1px solid var(--line); border-radius:5px; padding:1px 6px; font-size:9.5px; font-family:inherit; background:var(--ivory-dim); color:var(--text);}
+
+/* ---- Tabel — dengan dukungan kolom freeze (perbaikan bug scroll) ---- */
+.gc-table-scroll{overflow-x:auto; border-radius:var(--radius); position:relative;}
+table.gc-table{width:100%; min-width:760px; border-collapse:collapse; font-size:13px;}
+table.gc-table thead th{text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); font-weight:700; padding:0 12px 12px; border-bottom:1.5px solid var(--line); white-space:nowrap; background:var(--surface);}
+table.gc-table tbody td{padding:12px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap;}
+table.gc-table tbody tr:last-child td{border-bottom:none;}
+table.gc-table tbody tr:hover td{background:var(--ivory);}
+table.gc-table tbody tr:hover td.freeze{background:var(--ivory);}
+.freeze{position:sticky; z-index:2; background:var(--surface);}
+.freeze-left{left:0; box-shadow:2px 0 4px rgba(59,42,31,.06);}
+.freeze-right{right:0; box-shadow:-2px 0 4px rgba(59,42,31,.06); text-align:center;}
+thead .freeze{z-index:3;}
+.gc-emp{display:flex; align-items:center; gap:10px;}
+.gc-emp-av{width:32px; height:32px; border-radius:10px; background:var(--pink); color:var(--burgundy-dark); display:flex; align-items:center; justify-content:center; font-family:'Poppins',sans-serif; font-weight:700; font-size:12px; flex-shrink:0;}
+.gc-emp b{display:block; font-size:13px; font-weight:700;}
+.gc-emp span{display:block; font-size:11.5px; color:var(--text-muted); margin-top:1px;}
+.gc-cell-muted{color:var(--text-muted); font-size:12.5px;}
+
+/* ---- Filter bar ---- */
+.gc-filter-bar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px;}
+.gc-filter-bar input[type=text]{flex:1; min-width:180px; padding:9px 13px; border:1.5px solid var(--line); border-radius:10px; font-family:'Nunito Sans',sans-serif; font-size:13px;}
+.gc-filter-bar select{padding:9px 13px; border:1.5px solid var(--line); border-radius:10px; font-family:'Nunito Sans',sans-serif; font-size:13px; color:var(--text);}
+.gc-chk{width:16px; height:16px; accent-color:var(--burgundy);}
+
+/* ---- Kamera / Scan (latar terang, hanya kotak viewfinder yang gelap) ---- */
+.gc-cam-wrap{min-height:100vh; background:var(--ivory); display:flex; flex-direction:column; align-items:center; justify-content:space-between; padding:40px 20px; position:relative;}
+.gc-cam-close{position:absolute; top:18px; left:18px; width:38px; height:38px; border-radius:50%; background:var(--surface); border:1px solid var(--line); color:var(--mahogany); display:flex; align-items:center; justify-content:center; font-size:15px; cursor:pointer; box-shadow:0 2px 8px rgba(91,56,38,.1); z-index:5;}
+.gc-cam-top{text-align:center;}
+.gc-cam-top h2{color:var(--mahogany); font-size:19px; font-weight:700; font-family:'Poppins',sans-serif;}
+.gc-cam-top .mode{color:var(--burgundy); font-family:'Poppins',sans-serif; font-size:11.5px; font-weight:600; margin-top:6px;}
+/* DISESUAIKAN (28 Agt 2026, redesain "Gechoo Mobile Organic", README.md §8)
+   — aspect-ratio 1/1 -> 3/4 (potret, sesuai orientasi wajah), latar
+   var(--mahogany-soft) -> var(--lens) (token baru gelap netral), radius
+   28px -> 24px. Fungsi kamera (mulaiKamera/ambilFoto/dst di setup())
+   TIDAK disentuh sama sekali. */
+.gc-cam-view{width:100%; max-width:300px; aspect-ratio:3/4; background:var(--lens); border-radius:24px; border:6px solid var(--surface); box-shadow:0 8px 24px rgba(91,56,38,.12); position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; margin:22px 0;}
+.gc-cam-frame{position:absolute; inset:20px; border:3px solid var(--pink); border-radius:18px; opacity:.9; pointer-events:none;}
+/* BARU — garis scan animasi (README §8/"Animasi": gxScanline 2s alternate) */
+.gc-cam-scanline{position:absolute; left:8%; right:8%; height:2px; background:linear-gradient(90deg, transparent, var(--pink), transparent); animation:gxScanline 2s ease-in-out infinite alternate; pointer-events:none;}
+.gc-cam-caption{color:var(--text-muted); font-size:12px; margin-top:14px; text-align:center;}
+.gc-cam-btn{width:72px; height:72px; border-radius:50%; background:var(--surface); border:5px solid var(--pink); cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(91,56,38,.1);}
+.gc-cam-btn-inner{width:52px; height:52px; border-radius:50%; background:var(--burgundy);}
+.scan-result{width:100%; background:var(--surface); border:1px solid var(--line); border-radius:16px; padding:14px;}
+.scan-result .row{display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:.03em;}
+
+/* ---- Mobile bottom nav ----
+   DIPERBARUI (28 Agt 2026, redesain mobile) — latar jadi translucent+blur
+   (var(--nav), lihat token mode gelap di atas) sesuai README mockup
+   ("rgba(255,255,255,.92) / gelap rgba(31,22,17,.92)"), warna aktif pakai
+   --aksen-ink (bukan --burgundy langsung) supaya tetap kontras di mode
+   gelap. Radius/posisi/ukuran tombol Scan QR terangkat TIDAK diubah. */
+.gc-mobile-nav{position:fixed; bottom:0; left:0; right:0; background:var(--nav); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-top:1px solid var(--line); padding:8px 6px calc(14px + env(safe-area-inset-bottom)); display:flex; justify-content:space-around; align-items:flex-end; z-index:40; border-radius:20px 20px 0 0; touch-action:manipulation;}
+.gc-mnav-item{display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--text-faint); font-size:9.5px; font-weight:700; touch-action:manipulation; cursor:pointer;}
+.gc-mnav-item *{pointer-events:none;}
+.gc-mnav-item.active{color:var(--aksen-ink);}
+.gc-mnav-scan{display:flex; flex-direction:column; align-items:center; gap:4px; margin-top:-26px;}
+.gc-mnav-scan-btn{width:52px; height:52px; border-radius:50%; background:var(--burgundy); display:flex; align-items:center; justify-content:center; box-shadow:0 6px 14px rgba(110,30,44,.35); color:#fff; font-size:20px; border:4px solid var(--nav); touch-action:manipulation; cursor:pointer;}
+.gc-mnav-scan-btn *{pointer-events:none;}
+.gc-mnav-scan span{font-size:9.5px; font-weight:700; color:var(--aksen-ink);}
+.gc-mnav-ico{width:20px; height:20px;}
+
+/* ---- Profile Drawer (mobile) ---- */
+.gc-drawer-backdrop{position:fixed; inset:0; background:rgba(59,42,31,.55); z-index:90;}
+.gc-drawer{position:fixed; top:0; right:0; bottom:0; width:82%; max-width:340px; background:var(--ivory); z-index:91; transform:translateX(100%); transition:transform .25s ease; display:flex; flex-direction:column; box-shadow:-8px 0 24px rgba(59,42,31,.15); overflow-y:auto;}
+.gc-drawer.open{transform:translateX(0);}
+.gc-drawer-link{width:100%; display:flex; align-items:center; gap:12px; padding:13px 10px; background:none; border:none; color:var(--text); font-size:12.5px; font-weight:600; cursor:pointer; text-align:left; border-radius:12px;}
+.gc-drawer-link i:first-child{width:18px; color:var(--burgundy);}
+
+/* ---- Login ---- */
+.login-wrap{min-height:100vh; display:grid; grid-template-columns:1fr 1fr;}
+@media(max-width:860px){ .login-wrap{grid-template-columns:1fr;} .login-brand{min-height:220px;} }
+
+/* ---- Sub-tab pill (Config Absensi, Penjadwalan, Antrean, dst) ---- */
+.gc-sub-tab-btn{padding:9px 16px; border-radius:10px; font-family:'Poppins',sans-serif; font-size:12.5px; font-weight:600; white-space:nowrap; background:var(--ivory-dim); color:var(--text-muted); border:none; cursor:pointer; transition:.15s;}
+.gc-sub-tab-btn.active{background:var(--burgundy); color:#fff;}
+.gc-sub-tab-btn:not(.active):hover{background:var(--pink);}
+
+/* =============================================================================
+   UTILITY LAYER — pengganti Tailwind CDN
+   Bukan reimplementasi Tailwind penuh — cuma persis daftar class struktural
+   (bukan warna) yang masih dipakai di seluruh file setelah rebrand Gechoo.
+   Breakpoint disamakan persis dengan default Tailwind: sm=640px, md=768px.
+   ============================================================================= */
+.block{display:block;}
+.flex{display:flex;}
+.fixed{position:fixed;}
+.relative{position:relative;}
+.inset-0{top:0; right:0; bottom:0; left:0;}
+.shrink-0{flex-shrink:0;}
+.flex-1{flex:1 1 0%;}
+.flex-col{flex-direction:column;}
+.items-center{align-items:center;}
+.justify-center{justify-content:center;}
+.justify-between{justify-content:space-between;}
+.justify-start{justify-content:flex-start;}
+.text-center{text-align:center;}
+.space-x-2 > * + *{margin-left:8px;}
+.space-y-4 > * + *{margin-top:16px;}
+.space-y-6 > * + *{margin-top:24px;}
+.mt-4{margin-top:16px;}
+.mb-1{margin-bottom:4px;}
+.mb-8{margin-bottom:32px;}
+.mx-auto{margin-left:auto; margin-right:auto;}
+.p-4{padding:16px;}
+.py-10{padding-top:40px; padding-bottom:40px;}
+.pb-32{padding-bottom:128px;}
+.h-10{height:40px;}
+.h-full{height:100%;}
+.h-auto{height:auto;}
+.h-\[100dvh\]{height:100dvh;}
+.w-10{width:40px;}
+.w-64{width:256px;}
+.w-full{width:100%;}
+.min-h-0{min-height:0;}
+.min-h-screen{min-height:100vh;}
+.max-w-xl{max-width:576px;}
+.max-w-2xl{max-width:672px;}
+.max-w-4xl{max-width:896px;}
+.max-w-5xl{max-width:1024px;}
+.max-w-md{max-width:448px;}
+.overflow-hidden{overflow:hidden;}
+.overflow-x-auto{overflow-x:auto;}
+.overflow-y-auto{overflow-y:auto;}
+.rounded-full{border-radius:9999px;}
+.z-\[110\]{z-index:110;}
+.grid{display:grid;}
+.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr));}
+.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}
+.animate-spin{animation:gc-spin 1s linear infinite;}
+@keyframes gc-spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+/* .gc-nav-subgroup — BARU (30 Agt 2026, fix bug "minimize/maximize sidebar
+   desktop tidak jalan", laporan Guru). Sub-menu tiap grup sidebar (Master
+   Absensi/Keuangan/Karyawan/Zevanic House/Persiapan Produksi/Integrasi) di
+   index.html DULU pakai `class="hidden" style="display:flex; flex-
+   direction:column; gap:2px; padding-left:16px; margin:2px 0 4px;"` —
+   INLINE style di HTML SELALU menang dari class manapun di CSS (beda dari
+   soal urutan .hidden vs .flex di bawah, ini soal inline vs class, inline
+   MUTLAK menang tidak peduli urutan) — jadi toggleNavGroup()/
+   setGrupSidebarTerbuka() di js/dashboard.js SUDAH BENAR pasang/lepas class
+   "hidden"-nya, TAPI div-nya TETAP kelihatan (computedDisplay selalu
+   "flex") karena inline style itu tidak pernah benar-benar ke-override.
+   Akibatnya SEMUA grup sidebar kelihatan terbuka bersamaan terus-menerus,
+   klik parent buat minimize/maximize kelihatan seperti tidak ngefek.
+   Dikonfirmasi LANGSUNG lewat browser (bukan tebakan) sebelum diperbaiki —
+   lihat STATUS-PROYEK.md §44.26. FIX: styling yang sama dipindah ke CLASS
+   ini (BUKAN inline lagi), supaya .hidden (di bawah, urutan CSS-nya
+   SENGAJA taruh SETELAH class ini) bisa benar-benar menang & berfungsi. */
+.gc-nav-subgroup{display:flex;flex-direction:column;gap:2px;padding-left:16px;margin:2px 0 4px;}
+/* .hidden SENGAJA ditulis di sini (bukan di atas) — kalau 1 elemen punya
+   class "hidden" DAN "flex"/"block"/"grid" sekaligus (pola umum: JS cuma
+   lepas/pasang class "hidden", sementara flex/block sudah permanen di situ
+   buat tampilan pas kelihatan), CSS pilih aturan yang ditulis PALING AKHIR
+   kalau bobotnya sama. Taruh di atas tadi bikin .flex menang terus, modal
+   foto & beberapa elemen lain jadi kelihatan padahal harusnya nyembunyi. */
+.hidden{display:none;}
+@media(min-width:640px){
+  .sm\:inline{display:inline;}
+  .sm\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(min-width:768px){
+  .md\:flex{display:flex;}
+  .md\:block{display:block;}
+  .md\:grid{display:grid;} /* BARU (28 Agt 2026, §39) — ketemu dari agen Batch F:
+     class ini KETAHUAN belum pernah ada padahal sudah dipakai (`hidden
+     md:grid`) di PopupKonversiBerjenjang (vue-bahan-aksesoris.js baris
+     ~779, header desktop-only 5-kolom Harga/Satuan Awal/dst). Efeknya
+     header itu SELALU hilang bahkan di desktop (`.hidden{display:none}`
+     tidak pernah ke-override balik jadi grid). Ditambahkan supaya pola
+     "hidden md:grid" + grid-template-columns inline (desktop-only header
+     row asimetris) benar-benar berfungsi seperti maksudnya. */
+  .md\:flex-row{flex-direction:row;}
+  .md\:hidden{display:none;}
+  .md\:items-center{align-items:center;}
+  .md\:justify-between{justify-content:space-between;}
+  .md\:p-8{padding:32px;}
+  .md\:pb-8{padding-bottom:32px;}
+  .md\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .md\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr));}
+  .md\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr));}
+  .md\:col-span-2{grid-column:span 2 / span 2;}
+}
+
+/* ---- Utilitas ---- */
+.gc-safe-bottom{padding-bottom:90px;} /* perbaikan bug: konten tidak lagi ketutupan bottom nav mobile */
+
+/* =============================================================================
+   BARU (28 Agt 2026, §39) — baris grid RESPONSIF buat baris berulang di
+   dalam form/modal (mis. Kelola Komponen, Konversi Berjenjang, BOM Jasa) —
+   dulu semua pola ini pakai grid-template-columns INLINE tanpa breakpoint,
+   jadi tetap multi-kolom sempit di HP (field jadi kecil/meluber). Sekarang
+   1 kolom penuh per field di HP, balik ke kolom aslinya di desktop (≥768px).
+   Label per-field (.gc-row-label) SENGAJA cuma tampil di HP (header kolom
+   di atas baris sudah cukup jelas di desktop, taruh dobel malah berantakan).
+   TIDAK menggantikan grid-cols-1/md:grid-cols-N (itu tetap dipakai buat
+   form section BIASA, kolom rata semua) — INI khusus buat baris yang
+   kolomnya TIDAK rata/campur fixed-px (mis. ada kolom tombol hapus 30px).
+   ============================================================================= */
+.gc-row-nq{display:grid; grid-template-columns:1fr; gap:8px;}
+.gc-row-konversi{display:grid; grid-template-columns:1fr; gap:8px;}
+.gc-row-label{display:block; font-size:10px; font-weight:700; color:var(--text-faint); margin-bottom:3px;}
+@media(min-width:768px){
+  .gc-row-nq{grid-template-columns:2fr 1fr 30px; gap:8px; align-items:center;}
+  .gc-row-konversi{grid-template-columns:1fr 1fr 64px 1fr 30px; gap:6px; align-items:center;}
+  .gc-row-label{display:none;}
+  /* BARU (30 Agt 2026, ronde audit desain lanjutan) — area konten <main>
+     desktop dikasih background PUTIH (--surface) TERPISAH dari
+     #screen-dashboard (yang tetap --ivory, itu punya MOBILE — lihat
+     komentar #tab-home di index.html soal max-w-xl mobile-only). Dicek
+     ke artefak mockup: `.content{background:var(--surface)}`, sedangkan
+     kartu di dalamnya (.gc-pipeline-card dst) tetap --ivory — supaya
+     kartu MENONJOL dari konten, bukan menyatu jadi 1 warna sama seperti
+     sebelumnya (lihat komentar .gc-sidebar di atas untuk detail bug-nya).
+     Class ini SENGAJA di dalam media query (bukan langsung di elemen),
+     supaya <main> versi MOBILE (di bawah 768px, isinya #vue-header-mobile
+     + #tab-home mobile) TIDAK ikut berubah — cuma efeknya nyata begitu
+     layar ≥768px (versi desktop yang tampil). */
+  .gc-main-desktop{background:var(--surface);}
+}
+
+/* =============================================================================
+   BARU (28 Agt 2026) — Redesain Mobile "Gechoo Mobile Organic" (mockup
+   handoff dari Guru, folder Mockup/design_handoff_gechoo_mobile). Kelas
+   BERSAMA dipakai lintas layar: Beranda, Menu Lengkap, Atur Favorit,
+   Bottom Sheet Profil, Profil Lengkap, dialog Akses Terbatas, Form
+   bertahap. Nama kelas `gc-*` (BUKAN `gx-*` yang dipakai prototipe —
+   README mockup eksplisit minta JANGAN dibawa ke repo).
+   ============================================================================= */
+
+/* ---- Kartu gradien maroon (kartu shift Beranda & banner motivasi) ---- */
+.gc-kartu-gradien{background:linear-gradient(120deg, var(--grad-shift-a), var(--grad-shift-b)); color:var(--tinta-gradien); position:relative; overflow:hidden;}
+.gc-kartu-gradien .gc-deco-lingkaran{position:absolute; border-radius:50%; border:1.5px solid rgba(251,237,236,.15); pointer-events:none;}
+
+/* ---- Gradien atas Beranda (belakang baris sapaan) ---- */
+.gc-gradien-atas{background:linear-gradient(180deg, var(--grad-beranda-a) 0%, var(--ivory) 46%);}
+
+/* ---- Pil status (mis. "Belum/Sudah absen masuk" di kartu shift) ---- */
+.gc-pil-status{padding:4px 11px; border-radius:999px; background:rgba(251,237,236,.16); box-shadow:0 6px 15px -6px rgba(0,0,0,.5), inset 0 1px 0 rgba(251,237,236,.24); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:600; color:var(--tinta-gradien);}
+
+/* ---- Kartu statistik (3 kolom, Beranda) ---- */
+.gc-kartu-statistik{display:flex; background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:10px 3px;}
+.gc-kartu-statistik>div{flex:1; text-align:center; border-left:1px solid var(--line);}
+.gc-kartu-statistik>div:first-child{border-left:none;}
+
+/* ---- Backdrop & Bottom Sheet (Profil, dst) ---- */
+.gc-sheet-backdrop{position:fixed; inset:0; background:rgba(31,22,17,.42); z-index:90; animation:gxFade .18s ease;}
+.gc-sheet{position:fixed; left:0; right:0; bottom:0; z-index:91; background:var(--ivory); border-radius:26px 26px 0 0; padding:10px 20px 22px; box-shadow:0 -12px 34px -10px rgba(31,22,17,.4); max-height:88%; overflow-y:auto; animation:gxSheet .26s cubic-bezier(.22,.9,.3,1);}
+.gc-sheet-gagang{width:40px; height:4px; border-radius:999px; background:var(--line); margin:0 auto; cursor:pointer;}
+.gc-sheet-gagang-area{padding:4px 0 12px; display:flex; justify-content:center; cursor:pointer;}
+
+/* ---- Dialog tengah (Akses Terbatas, konfirmasi, dsb) ---- */
+.gc-dialog-backdrop{position:fixed; inset:0; background:rgba(31,22,17,.5); z-index:95; display:flex; align-items:center; justify-content:center; padding:24px; animation:gxFade .18s ease;}
+.gc-dialog{background:var(--surface); border-radius:22px; padding:22px 20px; text-align:center; max-width:340px; width:100%; animation:gxPop .3s ease;}
+
+/* ---- Bar langkah (Form bertahap) ---- */
+.gc-bar-langkah{display:flex; gap:6px;}
+.gc-bar-langkah .langkah{flex:1; display:flex; flex-direction:column; gap:6px;}
+.gc-bar-langkah .garis{height:4px; border-radius:999px; background:var(--line);}
+.gc-bar-langkah .langkah.aktif .garis,.gc-bar-langkah .langkah.selesai .garis{background:var(--burgundy);}
+.gc-bar-langkah .nama-langkah{font-family:'Poppins',sans-serif; font-weight:600; font-size:9px; color:var(--text-faint);}
+.gc-bar-langkah .langkah.aktif .nama-langkah{color:var(--aksen-ink);}
+
+/* ---- Pil pilihan (form: jenis pengajuan, dsb) ---- */
+.gc-pil-pilihan{padding:8px 14px; border-radius:999px; font-size:11px; font-weight:600; background:transparent; color:var(--text-muted); border:1.5px solid var(--line); cursor:pointer;}
+.gc-pil-pilihan.aktif{background:var(--aksen-lembut); color:var(--aksen-ink); border-color:#E7C7C3;}
+
+/* ---- Placeholder kartu kosong (search-x) ---- */
+.gc-kosong{text-align:center; padding:32px 20px;}
+.gc-kosong .lingkaran{width:52px; height:52px; border-radius:50%; background:var(--aksen-lembut); display:flex; align-items:center; justify-content:center; margin:0 auto 12px; color:var(--aksen-ink); font-size:20px;}
+
+/* ---- Persiapan Produksi V2 — "Perlu Disiapkan" (BARU 31 Agt 2026, redesain
+   wireframe handoff Guru) — layout 2 kolom desktop (daftar kiri + panel
+   grouping kanan sticky), 1 kolom + bar mengambang di mobile. Lihat komentar
+   besar di atas js/vue-persiapan-produksi-v2.js untuk keputusan lengkap. */
+.gc-pp-panel{display:none;}
+.gc-pp-panel-mobile{position:fixed; left:12px; right:12px; bottom:calc(70px + env(safe-area-inset-bottom)); z-index:39; background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:12px 14px; box-shadow:0 -10px 28px -8px rgba(31,22,17,.28);}
+@media(min-width:768px){
+  .gc-pp-layout{display:grid; grid-template-columns:1fr 320px; gap:20px; align-items:start;}
+  .gc-pp-panel{display:block; position:sticky; top:16px;}
+  .gc-pp-panel-mobile{display:none;}
+}
+
+/* ---- gc-card-menonjol — BARU (31 Agt 2026, percontohan submenu "Perlu
+   Disiapkan"). Sejak ronde audit desain sebelumnya, area <main> desktop
+   (`.gc-main-desktop`, ≥768px) dikasih latar PUTIH (--surface) supaya
+   kartu di dalamnya (--ivory) menonjol — TAPI itu baru diterapkan ke
+   Beranda (`.gc-pipeline-card`, dst). Submenu lain masih pakai `.gc-card`
+   polos (background:var(--surface), SAMA PUTIH dengan latar <main> di
+   desktop) — jadi kartu MENYATU lagi dengan latar, kembali ke bug yang
+   sama seperti Beranda sebelum dikoreksi (lihat komentar .gc-sidebar).
+   `.gc-card-menonjol` DITAMBAH sebagai kelas kedua (bukan ganti .gc-card)
+   di kartu-kartu "Perlu Disiapkan" (js/vue-persiapan-produksi-v2.js),
+   SENGAJA di dalam @media(min-width:768px) — di mobile TIDAK disentuh
+   (di sana latar <main> masih --ivory dari .gc-app, jadi kartu putih
+   .gc-card sudah kontras dengan sendirinya, tidak perlu diubah). Kalau
+   Guru setuju, pola yang SAMA ini tinggal ditempel ke submenu lain
+   (Bahan/Vendor/Acc Sewing/Acc Webbing/Acc Finishing, dst) — BELUM
+   dikerjakan sesi ini, sengaja cuma 1 submenu dulu sebagai percontohan. */
+@media(min-width:768px){
+  .gc-card-menonjol{background:var(--ivory);}
+}
+
+/* ---- Animasi (nama gx* dipertahankan dari prototipe supaya gampang dicari lintas dokumen, bukan kelas gx- yang dibawa) ---- */
+@keyframes gxFade{from{opacity:0;}to{opacity:1;}}
+@keyframes gxSheet{from{transform:translateY(100%);}to{transform:translateY(0);}}
+@keyframes gxPop{from{opacity:0; transform:scale(.92);}to{opacity:1; transform:scale(1);}}
+@keyframes gxScanline{0%{top:8%;}100%{top:88%;}}
+@keyframes gxPulse{0%,100%{opacity:.35; transform:scale(1);}50%{opacity:.65; transform:scale(1.06);}}
+@media (prefers-reduced-motion:reduce){
+  .gc-sheet,.gc-sheet-backdrop,.gc-dialog,.gc-dialog-backdrop,.gc-cam-scanline{animation:none;}
+}

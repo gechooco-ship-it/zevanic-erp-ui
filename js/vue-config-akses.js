@@ -692,8 +692,8 @@ const AppConfigAkses = {
   template: `
     <div>
       <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px;">
-        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:#1F5060;"><i class="fas fa-shield-halved" style="margin-right:8px;"></i> Config Akses</h4>
-        <p style="font-size:11px; color:#1F5060; margin-top:4px; opacity:.85;">Buat atau ubah profil akses — tiap profil punya izin View/Add/Edit/Delete/Print sendiri per menu. Profil ini nanti dipilih untuk tiap karyawan di tab Hak Akses.</p>
+        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:var(--teal-text);"><i class="fas fa-shield-halved" style="margin-right:8px;"></i> Config Akses</h4>
+        <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Buat atau ubah profil akses — tiap profil punya izin View/Add/Edit/Delete/Print sendiri per menu. Profil ini nanti dipilih untuk tiap karyawan di tab Hak Akses.</p>
       </div>
 
       <div class="gc-card" style="margin-bottom:16px; border:1.5px solid var(--burgundy);">
@@ -999,8 +999,8 @@ const AppJabatanAkses = {
   template: `
     <div>
       <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px;">
-        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:#1F5060;"><i class="fas fa-user-tie" style="margin-right:8px;"></i> Pembatas Tambahan per Jabatan</h4>
-        <p style="font-size:11px; color:#1F5060; margin-top:4px; opacity:.85;">Ini BUKAN pengganti Role — ini pembatas TAMBAHAN (AND). Kotak <b>DICENTANG</b> = tidak ada pembatasan tambahan (ikut izin Role seperti biasa). Kotak <b>DIKOSONGKAN</b> = akses itu DIBLOKIR khusus untuk Jabatan ini, walau Role-nya mengizinkan. Belum pernah diatur = otomatis TIDAK ADA pembatasan sama sekali.</p>
+        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:var(--teal-text);"><i class="fas fa-user-tie" style="margin-right:8px;"></i> Pembatas Tambahan per Jabatan</h4>
+        <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Ini BUKAN pengganti Role — ini pembatas TAMBAHAN (AND). Kotak <b>DICENTANG</b> = tidak ada pembatasan tambahan (ikut izin Role seperti biasa). Kotak <b>DIKOSONGKAN</b> = akses itu DIBLOKIR khusus untuk Jabatan ini, walau Role-nya mengizinkan. Belum pernah diatur = otomatis TIDAK ADA pembatasan sama sekali.</p>
       </div>
 
       <div class="gc-card" style="margin-bottom:16px;">

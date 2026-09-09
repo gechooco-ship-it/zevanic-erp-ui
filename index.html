@@ -42,13 +42,16 @@
   <!-- v=6 (31 Agt 2026) — tambah .gc-pp-layout/.gc-pp-panel/.gc-pp-panel-mobile,
        layout 2 kolom "Persiapan Produksi > Perlu Disiapkan" redesain wireframe
        (lihat komentar besar di js/vue-persiapan-produksi-v2.js). -->
-  <link rel="stylesheet" href="css/gechoo-design.css?v=6">
+  <!-- v=7 (9 Sep 2026, rombak standarisasi CSS) — tambah --teal-text/
+       --warn-text, .tag.blue & .hide-scrollbar dirapikan, lihat komentar
+       di gechoo-design.css & FONDASI.md §Design System. -->
+  <link rel="stylesheet" href="css/gechoo-design.css?v=7">
   <style>
     .fade-in { animation: fadeIn 0.4s ease-in-out; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    /* Sembunyikan scrollbar untuk menu navigasi sub-tab horizontal */
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    /* Aturan scrollbar (.no-scrollbar/.hide-scrollbar) SUDAH PINDAH ke
+       css/gechoo-design.css (9 Sep 2026, rombak standarisasi) — supaya
+       1 sumber, bukan tersebar antara sini dan file CSS. */
   </style>
   <!-- BARU (28 Agt 2026) — Mode Gelap (redesain mobile). Dipasang SEDINI
        MUNGKIN (sebelum <body> dirender) supaya tema langsung benar sejak
@@ -792,17 +795,17 @@
 
           <div id="sub-karyawan-slip" class="sub-karyawan-content hidden fade-in mt-4">
             <div class="gc-card" style="text-align:center; background:var(--blue); border:none;">
-              <i class="fas fa-file-invoice-dollar" style="font-size:34px; color:#1F5060;"></i>
-              <h4 class="gc-heading" style="font-weight:700; font-size:15px; color:#1F5060; margin-top:10px;">Modul Slip Gaji</h4>
-              <p style="font-size:12px; color:#1F5060; margin-top:4px; opacity:.85;">Akan datang pada update pembaruan finansial.</p>
+              <i class="fas fa-file-invoice-dollar" style="font-size:34px; color:var(--teal-text);"></i>
+              <h4 class="gc-heading" style="font-weight:700; font-size:15px; color:var(--teal-text); margin-top:10px;">Modul Slip Gaji</h4>
+              <p style="font-size:12px; color:var(--teal-text); margin-top:4px; opacity:.85;">Akan datang pada update pembaruan finansial.</p>
             </div>
           </div>
 
           <div id="sub-karyawan-payroll" class="sub-karyawan-content hidden fade-in mt-4">
             <div class="gc-card" style="text-align:center; background:var(--blue); border:none;">
-              <i class="fas fa-money-check-alt" style="font-size:34px; color:#1F5060;"></i>
-              <h4 class="gc-heading" style="font-weight:700; font-size:15px; color:#1F5060; margin-top:10px;">Modul Payroll Server</h4>
-              <p style="font-size:12px; color:#1F5060; margin-top:4px; opacity:.85;">Akan datang pada update pembaruan finansial.</p>
+              <i class="fas fa-money-check-alt" style="font-size:34px; color:var(--teal-text);"></i>
+              <h4 class="gc-heading" style="font-weight:700; font-size:15px; color:var(--teal-text); margin-top:10px;">Modul Payroll Server</h4>
+              <p style="font-size:12px; color:var(--teal-text); margin-top:4px; opacity:.85;">Akan datang pada update pembaruan finansial.</p>
             </div>
           </div>
 
@@ -1709,18 +1712,18 @@
        Proses Persiapan/Produksi/Pengiriman (ringkasan read-only dari
        spk_track). Lihat komentar besar atas js/vue-pesanan.js utk latar
        belakang & keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pesanan.js?v=2"></script>
+  <script type="module" src="js/vue-pesanan.js?v=3"></script>
   <!-- BARU (7 Sep 2026 malam) — fondasi menu "Scan & Cetak" (PopupPinGenerik/
        ScanGenerik dst), lihat komentar besar di js/vue-scan-cetak.js. -->
   <script type="module" src="js/vue-scan-cetak.js?v=2"></script>
   <!-- BARU (8 Sep 2026, audit kode proyek) — "Pengaturan Cetak" (ukuran
        kertas/posisi QR/rincian tambahan per jenis cetak, terpusat), lihat
        komentar besar di js/vue-pengaturan-cetak.js. -->
-  <script type="module" src="js/vue-pengaturan-cetak.js?v=1"></script>
+  <script type="module" src="js/vue-pengaturan-cetak.js?v=2"></script>
   <script type="module" src="js/vue-scan-opname.js?v=1"></script>
   <script type="module" src="js/vue-scan-persiapan.js?v=4"></script>
-  <script type="module" src="js/vue-config-karyawan.js"></script>
-  <script type="module" src="js/vue-config-info.js"></script>
+  <script type="module" src="js/vue-config-karyawan.js?v=1"></script>
+  <script type="module" src="js/vue-config-info.js?v=1"></script>
   <script type="module" src="js/vue-config-absensi.js?v=2"></script>
   <script type="module" src="js/vue-daftar-karyawan.js?v=2"></script>
   <!-- v=7 (30 Agt 2026, fitur "Pesanan"): KATEGORI_URUTAN tambah 'Pesanan'
@@ -1728,8 +1731,8 @@
        DAFTAR_MENU baru (pesanan_kasir/menunggu/persiapan/produksi/
        pengiriman), id 'order_spk' DIPENSIUNKAN (deprecated:true). Lihat
        js/vue-pesanan.js. -->
-  <script type="module" src="js/vue-config-akses.js?v=12"></script>
-  <script type="module" src="js/vue-hak-akses.js?v=2"></script>
+  <script type="module" src="js/vue-config-akses.js?v=13"></script>
+  <script type="module" src="js/vue-hak-akses.js?v=3"></script>
   <!-- v=4 (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, permintaan
        Guru — PERUBAHAN LOGIC juga, bukan cuma tampilan) — form approval
        dipangkas jadi cuma Jadwal Shift + Jabatan (dibatasi Operator/
@@ -1760,7 +1763,7 @@
        di vue-riwayat-absensi.js, kolom menyesuaikan mode. -->
   <script type="module" src="js/vue-reimburse.js?v=5"></script>
   <script type="module" src="js/vue-riwayat-absensi.js?v=2"></script>
-  <script type="module" src="js/vue-penjadwalan.js?v=3"></script>
+  <script type="module" src="js/vue-penjadwalan.js?v=4"></script>
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>
   <script type="module" src="js/vue-otp.js"></script>
   <script type="module" src="js/vue-mail-gateway.js"></script>
@@ -1773,7 +1776,7 @@
        dalam ("Daftar modul"/"Form bertahap") ke modul ini MENUNGGU Guru
        approve pola dari 2 modul contoh dulu, sesuai proses yang
        disepakati (lihat STATUS-PROYEK.md §44.2). -->
-  <script type="module" src="js/vue-account-profile.js?v=4"></script>
+  <script type="module" src="js/vue-account-profile.js?v=5"></script>
   <!-- js/vue-profile-drawer.js DIHAPUS 28 Agt 2026 (redesain "Gechoo Mobile
        Organic", keputusan Guru "hapus total, ganti bersih") — GANTI
        js/vue-sheet-profil.js (Bottom Sheet Profil, lihat mount
@@ -1812,8 +1815,8 @@
   <!-- BARU (28 Agt 2026, redesain "Gechoo Mobile Organic") — layar baru,
        lihat mount #vue-menu-lengkap/#vue-atur-favorit di atas. -->
   <script type="module" src="js/vue-menu-lengkap.js"></script>
-  <script type="module" src="js/vue-atur-favorit.js"></script>
-  <script type="module" src="js/vue-registrasi.js?v=2"></script>
+  <script type="module" src="js/vue-atur-favorit.js?v=1"></script>
+  <script type="module" src="js/vue-registrasi.js?v=3"></script>
   <script type="module" src="js/vue-buat-password.js"></script>
   <script type="module" src="js/vue-login.js"></script>
   <script type="module" src="js/vue-absensi-qr.js?v=2"></script>
@@ -1845,7 +1848,7 @@
        v=20 (28 Agt 2026, §37): TIDAK ADA perubahan fungsional di file ini —
        cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
        DropdownCari, tidak dipakai fitur Import Excel §37). -->
-  <script type="module" src="js/vue-stock-pembelian.js?v=23"></script>
+  <script type="module" src="js/vue-stock-pembelian.js?v=24"></script>
   <script type="module" src="js/vue-kartu-stok.js?v=7"></script>
   <!-- BARU (27 Agt 2026, §26.1) — Zevanic House > Config. v=2 (28 Agt 2026):
        tambah tab ke-7 "Jenis Produk" (AppConfigJenisProduk, koleksi
@@ -1924,30 +1927,30 @@
   <!-- BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi > Cutting, 7 tab.
        Lihat komentar besar di js/vue-pp-cutting.js untuk latar belakang &
        keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pp-cutting.js?v=1"></script>
+  <script type="module" src="js/vue-pp-cutting.js?v=2"></script>
   <!-- BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" setelah Cutting) —
        Proses Produksi > Serie, 11 tab (hub distribusi). Lihat komentar besar
        di js/vue-pp-serie.js untuk latar belakang & keputusan arsitektur
        lengkap. -->
-  <script type="module" src="js/vue-pp-serie.js?v=1"></script>
+  <script type="module" src="js/vue-pp-serie.js?v=2"></script>
   <!-- BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" #3, setelah Serie) —
        Proses Produksi > Sewing, 5 tab. Lihat komentar besar di js/vue-pp-
        sewing.js untuk latar belakang & keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pp-sewing.js?v=1"></script>
+  <script type="module" src="js/vue-pp-sewing.js?v=2"></script>
   <!-- BARU ("lanjut lagi" #4, 7 Sep 2026 — sesi ini, setelah Sewing) —
        Proses Produksi > Finishing, 5 tab (per-PCS tracking via
        finishing_track). Lihat komentar besar di js/vue-pp-finishing.js
        untuk latar belakang & keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pp-finishing.js?v=1"></script>
+  <script type="module" src="js/vue-pp-finishing.js?v=2"></script>
   <!-- BARU ("lanjut lagi" #5, 7 Sep 2026 — sesi ini, setelah Finishing) —
        Proses Produksi > Gudang Barang Jadi, 4 tab (titik akhir rantai
        produksi). Lihat komentar besar di js/vue-pp-gudang.js untuk latar
        belakang & keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pp-gudang.js?v=1"></script>
+  <script type="module" src="js/vue-pp-gudang.js?v=2"></script>
   <!-- BARU (7 Sep 2026 — sesi ini) — Persiapan Produksi > Persiapan Belanja,
        folder terakhir grup Persiapan Produksi. Lihat komentar besar di
        js/vue-persiapan-belanja.js untuk latar belakang & keputusan
        arsitektur lengkap. -->
-  <script type="module" src="js/vue-persiapan-belanja.js?v=1"></script>
+  <script type="module" src="js/vue-persiapan-belanja.js?v=2"></script>
 </body>
 </html>

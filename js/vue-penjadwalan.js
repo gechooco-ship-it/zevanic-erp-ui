@@ -70,16 +70,26 @@ const KUNCI_OFF = 'OFF';
 // Palet warna sel kalender — index diambil dari posisi nama shift di daftar
 // yang SUDAH diurutkan A-Z (lihat daftarShiftUrut), BUKAN dari urutan hasil
 // query Firestore (supaya warna tidak berubah-ubah tiap reload).
+// CATATAN (9 Sep 2026, rombak standarisasi): `bg` SENGAJA tetap rgba() hex
+// mentah (dipakai untuk latar TRANSLUSEN, tidak ada token rgb-triplet buat
+// itu). `fg` yang PERSIS SAMA dengan token sudah diganti var() di bawah
+// (burgundy/mahogany/OFF/kosong) — zero perubahan visual. 3 yang TIDAK
+// diganti (sage/biru/pink) sengaja dibiarkan hex: itu varian LEBIH GELAP
+// dari token aslinya (buat kontras teks di atas bg translusen), bukan
+// duplikat murni, jadi diganti var() akan MENGUBAH warnanya — tidak aman
+// dilakukan tanpa tes visual di browser (lihat FONDASI.md §Design System).
+// Amber sempat ditulis 2 hex beda ("#8a6420" vs "#8a6524" di vue-pesanan.js)
+// — sekarang disatukan lewat token --warn-text.
 const PALET_WARNA_SHIFT = [
-  { bg: 'rgba(94,124,79,.22)', fg: '#3f5636' },   // sage, = --ok
-  { bg: 'rgba(184,134,58,.22)', fg: '#8a6420' },  // amber, = --warn
-  { bg: 'rgba(110,30,44,.18)', fg: '#6E1E2C' },   // burgundy
-  { bg: 'rgba(130,183,200,.28)', fg: '#2b5866' }, // biru, = --blue-deep
-  { bg: 'rgba(227,173,166,.32)', fg: '#7a3d36' }, // pink, = --pink-deep
-  { bg: 'rgba(110,70,48,.20)', fg: '#6E4630' }    // mahogany
+  { bg: 'rgba(94,124,79,.22)', fg: '#3f5636' },   // sage, varian gelap dari --ok (SENGAJA hex, lihat catatan atas)
+  { bg: 'rgba(184,134,58,.22)', fg: 'var(--warn-text)' },  // amber
+  { bg: 'rgba(110,30,44,.18)', fg: 'var(--burgundy)' },    // burgundy
+  { bg: 'rgba(130,183,200,.28)', fg: '#2b5866' }, // biru, varian gelap dari --blue-deep (SENGAJA hex)
+  { bg: 'rgba(227,173,166,.32)', fg: '#7a3d36' }, // pink, varian gelap dari --pink-deep (SENGAJA hex)
+  { bg: 'rgba(110,70,48,.20)', fg: 'var(--mahogany-soft)' } // mahogany
 ];
-const WARNA_OFF = { bg: 'rgba(59,42,31,.06)', fg: '#8C7A6B' };
-const WARNA_KOSONG = { bg: 'transparent', fg: '#B3A493' };
+const WARNA_OFF = { bg: 'rgba(59,42,31,.06)', fg: 'var(--text-muted)' };
+const WARNA_KOSONG = { bg: 'transparent', fg: 'var(--text-faint)' };
 
 function pad2(n) { return String(n).padStart(2, '0'); }
 function tanggalISOStr(d) { return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`; }
@@ -805,7 +815,7 @@ const AppPenjadwalan = {
       <!-- ============================ TAB KALENDER ============================ -->
       <div v-if="viewUtama==='kalender'">
         <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:14px;">
-          <p style="font-size:11px; color:#1F5060; margin:0;"><i class="fas fa-circle-info" style="margin-right:6px;"></i> Kalender ini mengatur jadwal PER TANGGAL untuk perencanaan rotasi. Perhitungan Ontime/Telat di Antrean Absensi <b>sudah mengikuti rotasi di sini</b> — sel yang belum diatur eksplisit (tampil pudar) tetap jatuh ke Shift default (kolom "Shift" di tab Tabel &amp; Excel).</p>
+          <p style="font-size:11px; color:var(--teal-text); margin:0;"><i class="fas fa-circle-info" style="margin-right:6px;"></i> Kalender ini mengatur jadwal PER TANGGAL untuk perencanaan rotasi. Perhitungan Ontime/Telat di Antrean Absensi <b>sudah mengikuti rotasi di sini</b> — sel yang belum diatur eksplisit (tampil pudar) tetap jatuh ke Shift default (kolom "Shift" di tab Tabel &amp; Excel).</p>
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">

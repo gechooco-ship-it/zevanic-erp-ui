@@ -584,7 +584,7 @@ const SeriePerluDiProses = {
             <span v-for="(v,k) in sumber(g)" :key="k" class="tag" :class="v.komplit ? 'ok' : 'warn'" style="text-transform:capitalize;">{{ k }}: {{ v.komplit ? 'KOMPLIT' : 'INKOMPLIT' }}</span>
           </div>
           <button v-if="bolehProses" :disabled="!bisaGenerate(g)" @click="bukaGenerate(g)" class="btn-primary" style="width:100%; padding:9px; font-size:11.5px;"><i class="fas fa-object-ungroup" style="margin-right:4px;"></i>Generate Separating</button>
-          <button v-if="bolehProses" @click="bukaMasalah(g)" class="btn-outline" style="width:100%; margin-top:6px; padding:8px; font-size:11px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+          <button v-if="bolehProses" @click="bukaMasalah(g)" class="btn-outline" style="width:100%; margin-top:6px; padding:8px; font-size:11px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
         </div>
       </div>
     </template>
@@ -773,7 +773,7 @@ const SerieSedangDiProses = {
             <button v-if="bolehCetak" @click="cetakIdKomponen(b)" :disabled="sedangCetak" class="btn-outline" style="flex:1; min-width:130px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>Cetak ID Komponen</button>
             <button v-if="bolehOperator" @click="bukaScanOperator(b)" class="btn-outline" style="flex:1; min-width:130px; padding:8px; font-size:11.5px;"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator</button>
             <button v-if="bolehProses" @click="bukaScanEntry(b)" class="btn-primary" style="flex:1; min-width:130px; padding:8px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
-            <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="flex:1; min-width:130px; padding:8px; font-size:11.5px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+            <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="flex:1; min-width:130px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
           </div>
           <div @click="toggleEkspand(b.id)" style="cursor:pointer; font-size:11px; color:var(--accent); margin-bottom:6px;"><i class="fas" :class="ekspand[b.id] ? 'fa-chevron-up' : 'fa-chevron-down'" style="margin-right:4px;"></i>{{ ekspand[b.id] ? 'Sembunyikan' : 'Lihat' }} rincian komponen per sumber</div>
           <div v-if="ekspand[b.id]" style="display:flex; flex-direction:column; gap:8px;">
@@ -933,7 +933,7 @@ const SeriePerluDiKirim = {
           </div>
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <button v-if="bolehCetak" @click="cetakKodeBagging(b)" :disabled="sedangProses" class="btn-outline" style="flex:1; min-width:150px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>Cetak Kode Bagging</button>
-            <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+            <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
           </div>
         </div>
       </div>
@@ -1100,7 +1100,7 @@ function buatTabKirim(cfg) {
             </div>
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
               <button v-if="bolehCetak" @click="bukaCetakTugas(b)" class="btn-outline" style="flex:1; min-width:150px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>Cetak Kode Tugas</button>
-              <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+              <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
             </div>
           </div>
         </div>
@@ -1322,7 +1322,7 @@ function buatTabTerima(cfg) {
               <span class="tag" :class="tertahan(b.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(b.masuk_tahap_pada) }}</span>
             </div>
             <div style="font-size:12px; color:var(--text-faint); margin-bottom:10px;">{{ b.nama_produk }} &middot; size {{ b.size || '-' }} &middot; qty {{ formatQty(b.qty) }} &middot; kode tugas {{ b.kode_tugas || '-' }}</div>
-            <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="width:100%; padding:8px; font-size:11px; color:var(--danger, #b91c1c);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+            <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="width:100%; padding:8px; font-size:11px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
           </div>
         </div>
       </template>

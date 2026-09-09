@@ -213,7 +213,7 @@ const AppAturFavorit = {
               <div style="flex:1; min-width:0;">
                 <p style="font-size:12px; font-weight:600; color:var(--text); margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ item.label }}</p>
               </div>
-              <button @click="toggleFavoritItem(item)" :disabled="kuotaPenuh && !favoritIds.includes(item.menuId)" style="width:36px; height:21px; border-radius:999px; border:none; padding:2px; cursor:pointer; flex-shrink:0; position:relative; transition:background .15s;" :style="favoritIds.includes(item.menuId) ? 'background:var(--burgundy);' : 'background:#E9DDCE;'">
+              <button @click="toggleFavoritItem(item)" :disabled="kuotaPenuh && !favoritIds.includes(item.menuId)" style="width:36px; height:21px; border-radius:999px; border:none; padding:2px; cursor:pointer; flex-shrink:0; position:relative; transition:background .15s;" :style="favoritIds.includes(item.menuId) ? 'background:var(--burgundy);' : 'background:var(--line);'">
                 <span style="display:block; width:15px; height:15px; border-radius:50%; background:var(--surface); transition:transform .15s;" :style="favoritIds.includes(item.menuId) ? 'transform:translateX(15px);' : ''"></span>
               </button>
             </div>
@@ -245,7 +245,7 @@ const AppAturFavorit = {
                 <p style="font-size:9.5px; color:var(--text-faint); margin:2px 0 0;">{{ grup.items.length }} modul</p>
               </div>
               <span class="tag" :class="statusGrup(grup.nama).kelas" style="flex-shrink:0;">{{ statusGrup(grup.nama).teks }}</span>
-              <button @click="toggleGrup(grup.nama)" style="width:40px; height:23px; border-radius:999px; border:none; padding:2px; cursor:pointer; flex-shrink:0; position:relative;" :style="grupUrutan.includes(grup.nama) ? 'background:var(--burgundy);' : 'background:#E9DDCE;'">
+              <button @click="toggleGrup(grup.nama)" style="width:40px; height:23px; border-radius:999px; border:none; padding:2px; cursor:pointer; flex-shrink:0; position:relative;" :style="grupUrutan.includes(grup.nama) ? 'background:var(--burgundy);' : 'background:var(--line);'">
                 <span style="display:block; width:17px; height:17px; border-radius:50%; background:var(--surface); transition:transform .15s;" :style="grupUrutan.includes(grup.nama) ? 'transform:translateX(17px);' : ''"></span>
               </button>
             </div>
