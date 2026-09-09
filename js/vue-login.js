@@ -535,7 +535,7 @@ const AppLogin = {
     </div>
 
     <!-- Modal OTP perangkat baru — EMAIL, bukan WhatsApp lagi -->
-    <div v-if="otpVisible" style="position:fixed; inset:0; z-index:120; background:rgba(59,42,31,.6); display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+    <div v-if="otpVisible" style="position:fixed; inset:0; z-index:120; background:rgba(var(--scrim-rgb),.6); display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
       <div style="background:var(--surface); width:100%; max-width:380px; padding:26px; border-radius:22px; text-align:center;">
         <i class="far fa-envelope" style="font-size:44px; color:var(--burgundy);"></i>
         <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-top:10px;">Verifikasi perangkat baru</h3>

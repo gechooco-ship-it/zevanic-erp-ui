@@ -226,8 +226,8 @@ const AppHome = {
 
       <!-- Kartu shift -->
       <div class="gc-card gc-kartu-gradien" v-if="shift.nama" style="border-radius:24px; padding:12px 15px; margin-top:6px;">
-        <div style="position:absolute; right:-34px; top:-24px; width:160px; height:160px; border-radius:50%; border:1px solid rgba(251,237,236,.13);"></div>
-        <div style="position:absolute; right:2px; top:8px; width:100px; height:100px; border-radius:50%; border:1px solid rgba(251,237,236,.16);"></div>
+        <div style="position:absolute; right:-34px; top:-24px; width:160px; height:160px; border-radius:50%; border:1px solid rgba(var(--tinta-gradien-rgb),.13);"></div>
+        <div style="position:absolute; right:2px; top:8px; width:100px; height:100px; border-radius:50%; border:1px solid rgba(var(--tinta-gradien-rgb),.16);"></div>
         <div style="display:flex; justify-content:space-between; align-items:flex-start; position:relative; z-index:1;">
           <div>
             <p style="font-size:11px; color:var(--tinta-gradien); opacity:.85; margin:0;">Shift hari ini:</p>
@@ -314,12 +314,12 @@ const AppHome = {
 
     <!-- Banner motivasi (statis — konten & tautan asli menyusul dari Guru) -->
     <div class="gc-kartu-gradien" style="border-radius:24px; padding:12px; display:flex; align-items:flex-end; gap:12px; margin-bottom:16px;">
-      <div style="position:absolute; right:-30px; bottom:-30px; width:150px; height:150px; border-radius:50%; background:rgba(251,237,236,.09);"></div>
+      <div style="position:absolute; right:-30px; bottom:-30px; width:150px; height:150px; border-radius:50%; background:rgba(var(--tinta-gradien-rgb),.09);"></div>
       <div style="position:relative; z-index:1; flex:1;">
         <h4 class="gc-heading" style="font-size:17px; font-weight:700; line-height:1.25; margin:0; color:var(--tinta-gradien);">Kerja rapi,<br>hasil maksimal.</h4>
         <p style="font-size:11px; color:var(--tinta-gradien); opacity:.85; margin:5px 0 10px;">Cek panduan kerja & SOP terbaru Zevanic House.</p>
       </div>
-      <span style="position:relative; z-index:1; width:60px; height:60px; border-radius:50%; background:rgba(251,237,236,.16); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><i class="fas fa-medal" style="font-size:24px; color:var(--tinta-gradien);"></i></span>
+      <span style="position:relative; z-index:1; width:60px; height:60px; border-radius:50%; background:rgba(var(--tinta-gradien-rgb),.16); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><i class="fas fa-medal" style="font-size:24px; color:var(--tinta-gradien);"></i></span>
     </div>
 
     <!-- Dialog Detail Shift -->

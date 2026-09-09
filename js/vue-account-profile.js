@@ -78,7 +78,7 @@ const AjuBandingModal = {
     return { alasan, fileInfo, mengirim, pilihFile, kirim };
   },
   template: `
-    <div style="position:fixed; inset:0; background:rgba(59,42,31,.6); z-index:50; display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+    <div style="position:fixed; inset:0; background:rgba(var(--scrim-rgb),.6); z-index:50; display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
       <div style="background:var(--surface); width:100%; max-width:420px; padding:22px; border-radius:20px; max-height:90vh; overflow-y:auto; font-size:12.5px;">
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
           <h3 class="gc-heading" style="font-weight:700; font-size:14px;"><i class="fas fa-gavel" style="color:var(--warn); margin-right:8px;"></i> Form Pengajuan Sanggahan / Aju Banding</h3>

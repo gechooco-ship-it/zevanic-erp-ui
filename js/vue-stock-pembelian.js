@@ -2223,7 +2223,7 @@ const DaftarNotaScreen = {
                   <th v-if="!formReadOnly">Keterangan</th>
                 </tr></thead>
                 <tbody>
-                  <tr v-for="(it, i) in daftarPesanan" :key="i" :style="{background: i === barisAktifIndex ? 'rgba(110,30,44,.05)' : 'transparent'}">
+                  <tr v-for="(it, i) in daftarPesanan" :key="i" :style="{background: i === barisAktifIndex ? 'rgba(var(--burgundy-rgb),.05)' : 'transparent'}">
                     <td v-if="!formReadOnly">
                       <button v-if="it.pakai_lot_tracking" @click="bukaPopupLot(i)" class="icon-btn"
                         :style="{color: (it.detail_lot && it.detail_lot.length) ? 'var(--burgundy)' : 'var(--text-faint)'}"
@@ -2439,7 +2439,7 @@ const RiwayatHargaPembelianManager = {
   template: `
     <div>
       <!-- Banner harga perlu konfirmasi (wireframe §3.4/§4) — BARU -->
-      <div v-if="!memuatPending && daftarPending.length > 0" class="gc-card" style="padding:14px; margin-bottom:14px; border:1.5px solid var(--warn); background:rgba(184,134,11,.06);">
+      <div v-if="!memuatPending && daftarPending.length > 0" class="gc-card" style="padding:14px; margin-bottom:14px; border:1.5px solid var(--warn); background:rgba(var(--warn-rgb),.06);">
         <h3 style="font-weight:700; font-size:13px; margin-bottom:8px;"><i class="fas fa-triangle-exclamation" style="margin-right:8px;"></i>{{ daftarPending.length }} Harga Perlu Konfirmasi Owner</h3>
         <p style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">Harga baru LEBIH TINGGI dari harga master saat ini — belum diperbarui, dan checkout Pesanan untuk produk yang memakai bahan ini DIBLOKIR sampai diterapkan atau ditolak.</p>
         <div style="display:flex; flex-direction:column; gap:8px;">

@@ -115,7 +115,7 @@ const EditAbsensiModal = {
     return { form, opsiStatusKehadiran, menyimpan, simpan };
   },
   template: `
-    <div style="position:fixed; inset:0; z-index:100; background:rgba(59,42,31,.6); display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+    <div style="position:fixed; inset:0; z-index:100; background:rgba(var(--scrim-rgb),.6); display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
       <div style="background:var(--surface); border-radius:22px; padding:22px; width:100%; max-width:380px; font-size:12.5px;">
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
           <h3 class="gc-heading" style="font-weight:700; font-size:14px;"><i class="fas fa-edit" style="color:var(--burgundy); margin-right:8px;"></i> Edit Data Absensi</h3>

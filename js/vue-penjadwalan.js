@@ -81,14 +81,14 @@ const KUNCI_OFF = 'OFF';
 // Amber sempat ditulis 2 hex beda ("#8a6420" vs "#8a6524" di vue-pesanan.js)
 // — sekarang disatukan lewat token --warn-text.
 const PALET_WARNA_SHIFT = [
-  { bg: 'rgba(94,124,79,.22)', fg: '#3f5636' },   // sage, varian gelap dari --ok (SENGAJA hex, lihat catatan atas)
-  { bg: 'rgba(184,134,58,.22)', fg: 'var(--warn-text)' },  // amber
-  { bg: 'rgba(110,30,44,.18)', fg: 'var(--burgundy)' },    // burgundy
-  { bg: 'rgba(130,183,200,.28)', fg: '#2b5866' }, // biru, varian gelap dari --blue-deep (SENGAJA hex)
-  { bg: 'rgba(227,173,166,.32)', fg: '#7a3d36' }, // pink, varian gelap dari --pink-deep (SENGAJA hex)
-  { bg: 'rgba(110,70,48,.20)', fg: 'var(--mahogany-soft)' } // mahogany
+  { bg: 'rgba(var(--ok-rgb),.22)', fg: '#3f5636' },   // sage, varian gelap dari --ok (SENGAJA hex, lihat catatan atas)
+  { bg: 'rgba(var(--warn-rgb),.22)', fg: 'var(--warn-text)' },  // amber
+  { bg: 'rgba(var(--burgundy-rgb),.18)', fg: 'var(--burgundy)' },    // burgundy
+  { bg: 'rgba(var(--blue-deep-rgb),.28)', fg: '#2b5866' }, // biru, varian gelap dari --blue-deep (SENGAJA hex)
+  { bg: 'rgba(var(--pink-deep-rgb),.32)', fg: '#7a3d36' }, // pink, varian gelap dari --pink-deep (SENGAJA hex)
+  { bg: 'rgba(var(--mahogany-soft-rgb),.20)', fg: 'var(--mahogany-soft)' } // mahogany
 ];
-const WARNA_OFF = { bg: 'rgba(59,42,31,.06)', fg: 'var(--text-muted)' };
+const WARNA_OFF = { bg: 'rgba(var(--scrim-rgb),.06)', fg: 'var(--text-muted)' };
 const WARNA_KOSONG = { bg: 'transparent', fg: 'var(--text-faint)' };
 
 function pad2(n) { return String(n).padStart(2, '0'); }
@@ -1015,7 +1015,7 @@ const AppPenjadwalan = {
           <div v-for="k in ringkasanKartu" :key="k.nilaiFilter"
                @click="klikKartuGudang(k.nilaiFilter)"
                style="flex-shrink:0; width:150px; background:var(--surface); padding:14px; border-radius:16px; cursor:pointer; transition:.15s;"
-               :style="filterGudang === k.nilaiFilter ? 'border:2px solid var(--burgundy); box-shadow:0 4px 10px rgba(110,30,44,.1);' : 'border:1px solid var(--line);'">
+               :style="filterGudang === k.nilaiFilter ? 'border:2px solid var(--burgundy); box-shadow:0 4px 10px rgba(var(--burgundy-rgb),.1);' : 'border:1px solid var(--line);'">
             <h4 :title="k.label" style="font-size:11.5px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:8px;">{{ k.label }}</h4>
             <div style="display:flex; flex-direction:column; gap:4px; font-size:10.5px;">
               <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-faint);">Total</span><b>{{ k.angka.total }}</b></div>

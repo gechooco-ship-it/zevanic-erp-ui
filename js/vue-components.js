@@ -717,7 +717,7 @@ export const GudangCheckboxSelect = {
         <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ teksRingkasan }}</span>
         <i class="fas" :class="terbuka ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-faint); flex-shrink:0; margin-left:8px;"></i>
       </button>
-      <div v-if="terbuka" style="position:absolute; z-index:20; top:calc(100% + 4px); left:0; right:0; background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:10px; box-shadow:0 8px 20px rgba(59,42,31,.12); max-height:240px; overflow-y:auto;">
+      <div v-if="terbuka" style="position:absolute; z-index:20; top:calc(100% + 4px); left:0; right:0; background:var(--surface); border:1.5px solid var(--line); border-radius:12px; padding:10px; box-shadow:0 8px 20px rgba(var(--scrim-rgb),.12); max-height:240px; overflow-y:auto;">
         <div v-if="memuat" style="font-size:11px; color:var(--text-faint); padding:6px;">Memuat gudang...</div>
         <div v-else-if="daftarGudang.length === 0" style="font-size:11px; color:var(--text-faint); padding:6px;">Belum ada Master Gudang. Buat dulu di Config Absensi.</div>
         <template v-else>
@@ -847,7 +847,7 @@ export const GudangRingkas = {
     <span>
       {{ teksSingkat }}
       <button v-if="perluPopup" @click="buka" style="background:none; border:none; color:var(--burgundy); font-weight:700; cursor:pointer; font-size:11px; margin-left:4px; text-decoration:underline;">lihat semua</button>
-      <div v-if="popupTerbuka" @click="tutup" style="position:fixed; inset:0; background:rgba(59,42,31,.6); z-index:100; display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+      <div v-if="popupTerbuka" @click="tutup" style="position:fixed; inset:0; background:rgba(var(--scrim-rgb),.6); z-index:100; display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
         <div @click.stop style="background:var(--surface); width:100%; max-width:360px; padding:22px; border-radius:20px;">
           <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
             <h3 class="gc-heading" style="font-weight:700; font-size:13.5px;">Semua gudang{{ nama ? ' — ' + nama : '' }}</h3>

@@ -285,7 +285,7 @@ const AntreanDakarCard = {
   template: `
     <div class="gc-card" style="border-radius:20px;">
       <div style="display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--ivory-dim); padding-bottom:10px; margin-bottom:10px;">
-        <img v-if="data.foto_ktp" :src="data.foto_ktp" @click="lihatFotoBesar" style="width:52px; height:40px; border-radius:12px; object-fit:cover; border:2px solid var(--surface); box-shadow:0 2px 8px rgba(91,56,38,.1); cursor:pointer; flex-shrink:0;">
+        <img v-if="data.foto_ktp" :src="data.foto_ktp" @click="lihatFotoBesar" style="width:52px; height:40px; border-radius:12px; object-fit:cover; border:2px solid var(--surface); box-shadow:0 2px 8px rgba(var(--mahogany-rgb),.1); cursor:pointer; flex-shrink:0;">
         <div v-else style="width:52px; height:40px; background:var(--ivory-dim); border-radius:12px; display:flex; align-items:center; justify-content:center; color:var(--text-faint); flex-shrink:0;"><i class="fas fa-id-card"></i></div>
         <div style="flex:1; min-width:0;">
           <h4 class="gc-heading" style="font-weight:700; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.nama || 'Tanpa Nama' }}</h4>

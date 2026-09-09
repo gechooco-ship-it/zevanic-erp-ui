@@ -771,7 +771,7 @@ const PesananKasirManager = {
         <div style="display:flex; justify-content:space-between; font-size:12.5px;"><span>Kembalian{{ statusBayar === 'dp' ? ' atas DP' : '' }}</span><span style="font-weight:700;">{{ formatRupiah(kembalian) }}</span></div>
       </div>
 
-      <div v-if="sisaPiutang > 0" class="gc-card" style="border-color:var(--warn); background:rgba(184,134,58,.08); padding:10px 12px; margin-bottom:12px;">
+      <div v-if="sisaPiutang > 0" class="gc-card" style="border-color:var(--warn); background:rgba(var(--warn-rgb),.08); padding:10px 12px; margin-bottom:12px;">
         <div style="display:flex; justify-content:space-between; font-size:12.5px;"><span>Sisa jadi Piutang</span><span style="font-weight:700; color:var(--warn-text);">{{ formatRupiah(sisaPiutang) }}</span></div>
         <div v-if="pelangganTerpilih" style="font-size:10.5px; color:var(--warn-text); margin-top:4px;">Piutang {{ pelangganTerpilih.nama }} saat ini: {{ formatRupiah(pelangganTerpilih.saldo_piutang || 0) }} dari batas {{ formatRupiah(pelangganTerpilih.limit_piutang || 0) }}</div>
       </div>
@@ -915,7 +915,7 @@ const PesananMenungguManager = {
             <span style="margin-left:auto; font-size:10px; color:var(--text-faint);">{{ grp.no_transaksi }} &middot; kasir {{ grp.dibuat_oleh }}</span>
           </div>
           <div style="display:flex; flex-direction:column; gap:8px;">
-            <div v-for="baris in grp.baris" :key="baris.id" class="gc-card" style="padding:10px 12px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;" :style="{background: pilihan[baris.id] ? 'rgba(110,30,44,.05)' : 'transparent'}">
+            <div v-for="baris in grp.baris" :key="baris.id" class="gc-card" style="padding:10px 12px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;" :style="{background: pilihan[baris.id] ? 'rgba(var(--burgundy-rgb),.05)' : 'transparent'}">
               <div style="width:16px; height:16px; flex-shrink:0; border-radius:4px; border:1.5px solid var(--line); display:flex; align-items:center; justify-content:center;" :style="{background: pilihan[baris.id] ? 'var(--burgundy)' : 'transparent', borderColor: pilihan[baris.id] ? 'var(--burgundy)' : undefined}">
                 <i v-if="pilihan[baris.id]" class="fas fa-check" style="font-size:9px; color:#fff;"></i>
               </div>
@@ -1457,7 +1457,7 @@ const PesananTransaksiManager = {
           <div class="gc-card" style="flex:1; padding:7px 9px;"><div style="font-size:9px; color:var(--text-faint);">total</div><div style="font-weight:700;">{{ formatRupiah(transaksiTerpilihBayar.total) }}</div></div>
           <div class="gc-card" style="flex:1; padding:7px 9px;"><div style="font-size:9px; color:var(--text-faint);">sudah dibayar</div><div style="font-weight:700;">{{ formatRupiah(transaksiTerpilihBayar.total_dibayar) }}</div></div>
         </div>
-        <div class="gc-card" style="background:rgba(110,30,44,.05); border-color:var(--burgundy); padding:9px 11px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:baseline;">
+        <div class="gc-card" style="background:rgba(var(--burgundy-rgb),.05); border-color:var(--burgundy); padding:9px 11px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:baseline;">
           <span style="font-size:10px; color:var(--text-faint);">sisa piutang</span><span style="font-weight:700; font-size:19px;">{{ formatRupiah(transaksiTerpilihBayar ? transaksiTerpilihBayar.sisa_piutang : 0) }}</span>
         </div>
         <div v-if="riwayatBayarTerpilih.length > 0" style="margin-bottom:12px;">
@@ -1485,7 +1485,7 @@ const PesananTransaksiManager = {
           <div class="gc-field" style="flex:1;"><label>Tanggal Terima</label><input v-model="popupBayar.tanggal" type="date"></div>
         </div>
         <div class="gc-field"><label>Catatan / No. Referensi</label><input v-model="popupBayar.catatan" type="text" placeholder="Opsional untuk Tunai"></div>
-        <div class="gc-card" style="background:rgba(94,124,79,.06); border-color:var(--ok); padding:9px 11px; margin-bottom:12px;">
+        <div class="gc-card" style="background:rgba(var(--ok-rgb),.06); border-color:var(--ok); padding:9px 11px; margin-bottom:12px;">
           <div style="display:flex; justify-content:space-between;"><span style="font-size:10px; color:#4a6540;">sisa sesudah dicatat</span><span style="font-weight:700; font-size:16px;">{{ formatRupiah(sisaSesudahDicatat) }}</span></div>
         </div>
         <div style="display:flex; gap:8px;">

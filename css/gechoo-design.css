@@ -45,6 +45,43 @@ input, select, textarea{font:inherit; color:inherit;}
   --text:#3B2A1F; --text-muted:#8C7A6B; --text-faint:#B3A493;
   --radius:16px;
 
+  /* --teal-text/--warn-text — BARU (9 Sep 2026, rombak total standarisasi
+     CSS). Ini bukan token baru yang mengubah tampilan — ini MEMBERI NAMA
+     ke 2 warna yang SUDAH lama dipakai di banyak file tapi ditulis ulang
+     sebagai hex mentah tiap kali (bukan var()), jadi waktu tokennya sendiri
+     diganti kemarin, warna-warna ini TIDAK IKUT BERUBAH (Guru: "warna yg
+     tadi di terapkan ternyata tidak ada efek"). --teal-text = warna teks
+     ikon/heading Config di atas var(--blue) (dulu ditulis "#1F5060" apa
+     adanya 23x di banyak file — lihat FONDASI.md §Design System untuk
+     daftar lengkap). --warn-text = warna teks "piutang/belum bayar" di
+     Kasir & Transaksi (dulu ditulis 2 varian hex beda: "#8a6524" DAN
+     "#8a6420" — typo yang tidak disengaja, sekarang disatukan). */
+  --teal-text:#1F5060;
+  --warn-text:#8a6524;
+
+  /* ---- Token RGB-triplet — BARU (9 Sep 2026, lanjutan rombak standarisasi).
+     Guru: "37 titik ... masih banyak tampilan yg tidak mengikuti token
+     global" — BENAR, akar masalah KEDUA ketemu: `var(--token)` TIDAK BISA
+     dipakai langsung di dalam rgba() (untuk latar/shadow TRANSLUSEN), jadi
+     140+ tempat nulis rgb mentah lagi di luar hex 6-digit kemarin (mis.
+     "rgba(110,30,44,.05)" alih-alih rgba(var(--burgundy-rgb),.05)). Token
+     di bawah ini adalah versi "R,G,B" (tanpa kurung, tanpa #) dari token
+     solid yang SUDAH SENGAJA TIDAK di-override mode gelap (lihat blok
+     komentar mode gelap di bawah) — jadi convert ke var() di sini 100%
+     AMAN, nilainya identik di kedua mode, BUKAN perubahan visual.
+     --scrim-rgb KHUSUS untuk latar belakang gelap modal/popup — dulu
+     ditulis "rgba(59,42,31,.6)" 9x di 8 file, kebetulan sama dengan
+     --text tapi SENGAJA dipisah jadi token sendiri (scrim harus TETAP
+     gelap di mode gelap, beda dari --text yang berubah jadi terang). */
+  --burgundy-rgb:110,30,44;
+  --mahogany-soft-rgb:110,70,48;
+  --blue-deep-rgb:130,183,200;
+  --pink-deep-rgb:227,173,166;
+  --ok-rgb:94,124,79;
+  --warn-rgb:184,134,58;
+  --mahogany-rgb:91,56,38;
+  --scrim-rgb:59,42,31;
+
   /* ===========================================================================
      MODE GELAP — BARU (28 Agt 2026, redesain mobile "Gechoo Mobile Organic").
      Toggle lewat atribut [data-theme="dark"] di <html> (bukan
@@ -73,35 +110,46 @@ input, select, textarea{font:inherit; color:inherit;}
   --lens:#6E4630;                   /* latar bingkai kamera Absensi/Scan QR */
   --grad-shift-a:#5C1A28; --grad-shift-b:#3A1017; /* kartu shift & banner motivasi */
   --tinta-gradien:#FBEDEC;          /* warna teks di atas kartu gradien maroon */
+  --tinta-gradien-rgb:251,237,236;  /* versi RGB --tinta-gradien, buat rgba() translusen (dekorasi kartu gradien) */
   --grad-beranda-a:#FCEFED; --grad-beranda-b:#FDFAF4; /* gradien atas Beranda (belakang sapaan) */
 }
 [data-theme="dark"]{
   --ivory:#1F1611; --ivory-dim:#2A1E17;
   --surface:#2E211A; --line:#4A3A30;
   --text:#F5EDE0; --text-muted:#C6B5A4; --text-faint:#9B8878;
-  /* --mahogany — DITAMBAHKAN (9 Sep 2026, reconciliation Sample Hifi vs
-     design-tokens.md). Sebelumnya token ini TIDAK di-override di sini sama
-     sekali, jadi mode gelap diam-diam WARISAN nilai mode terang (#5B3826,
-     espresso gelap) — dipakai di teks/ikon seperti .gc-side-brand b dan
-     .gc-cam-top h2, yang harusnya kontras di atas latar gelap tapi malah
-     nyaris menyatu. Sample Hifi.dc.html (diverifikasi PENUH 9 Sep, jadi
-     acuan warna terbaru — lihat arsip-2026-09.md) sudah punya nilai gelap
-     eksplisit untuk token ini; dipakai di sini + disamakan ke design-
-     tokens.md. */
-  --mahogany:#E8DED0;
   --aksen-ink:#F2D2CE;
   --aksen-lembut:#4A2530;
   --nav:rgba(31,22,17,.92);
   --lens:#241a14;
   --grad-shift-a:#4A2530; --grad-shift-b:#291319;
   --tinta-gradien:#F7E7E4;
+  --tinta-gradien-rgb:247,231,228;
   --grad-beranda-a:#2E1B1B; --grad-beranda-b:#1F1611;
+  /* --teal-text/--warn-text DI-OVERRIDE di mode gelap (beda dari
+     --burgundy/--ok/--warn/--danger di atas) KARENA keduanya dipakai
+     sebagai warna TEKS di atas permukaan yang berubah gelap-terang
+     (var(--blue)/var(--surface)), bukan isi blok solid — sama alasannya
+     dengan --aksen-ink. Nilai gelap dipilih supaya tetap kontras:
+     --teal-text pakai tint biru lebih terang; --warn-text pakai
+     #E0B84A (emas) — kebetulan sudah dipakai persis buat ikon trofi di
+     vue-account-profile.js, jadi dipastikan sudah cocok di palet gelap. */
+  --teal-text:#9FD1E0;
+  --warn-text:#E0B84A;
 }
 
 /* ---- Dasar ---- */
 .gc-app{font-family:'Nunito Sans',sans-serif; background:var(--ivory); color:var(--text); -webkit-font-smoothing:antialiased;}
 .gc-heading{font-family:'Poppins',sans-serif;}
 .gc-num{font-variant-numeric:tabular-nums;}
+
+/* ---- Scrollbar (sembunyikan scrollbar horizontal di rel sub-tab/kartu) ----
+   PINDAH KE SINI (9 Sep 2026, rombak standarisasi) dari <style> inline di
+   index.html — supaya 1 sumber, bukan tersebar. Sekalian PERBAIKAN BUG:
+   ".hide-scrollbar" dipakai di vue-account-profile.js & index.html tapi
+   SELAMA INI TIDAK PERNAH ada rule CSS-nya sama sekali (class hantu) —
+   digabung jadi alias dari ".no-scrollbar" di sini. */
+.no-scrollbar::-webkit-scrollbar, .hide-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar, .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ---- Tag / badge (elemen ciri khas — pil bulat + titik) ---- */
 .tag{display:inline-flex; align-items:center; gap:6px; font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; padding:4px 12px; border-radius:20px; white-space:nowrap;}
@@ -111,7 +159,7 @@ input, select, textarea{font:inherit; color:inherit;}
 .tag.danger{color:var(--danger); background:var(--danger-light);}
 .tag.neutral{color:var(--text-muted); background:var(--ivory-dim);}
 .tag.pink{color:var(--burgundy-dark); background:var(--pink);}
-.tag.blue{color:#1F5060; background:var(--blue);}
+.tag.blue{color:var(--teal-text); background:var(--blue);}
 
 /* ---- Form ---- */
 .gc-field{margin-bottom:16px;}
@@ -654,13 +702,13 @@ thead .freeze{z-index:3;}
 
 /* ---- Kartu gradien maroon (kartu shift Beranda & banner motivasi) ---- */
 .gc-kartu-gradien{background:linear-gradient(120deg, var(--grad-shift-a), var(--grad-shift-b)); color:var(--tinta-gradien); position:relative; overflow:hidden;}
-.gc-kartu-gradien .gc-deco-lingkaran{position:absolute; border-radius:50%; border:1.5px solid rgba(251,237,236,.15); pointer-events:none;}
+.gc-kartu-gradien .gc-deco-lingkaran{position:absolute; border-radius:50%; border:1.5px solid rgba(var(--tinta-gradien-rgb),.15); pointer-events:none;}
 
 /* ---- Gradien atas Beranda (belakang baris sapaan) ---- */
 .gc-gradien-atas{background:linear-gradient(180deg, var(--grad-beranda-a) 0%, var(--ivory) 46%);}
 
 /* ---- Pil status (mis. "Belum/Sudah absen masuk" di kartu shift) ---- */
-.gc-pil-status{padding:4px 11px; border-radius:999px; background:rgba(251,237,236,.16); box-shadow:0 6px 15px -6px rgba(0,0,0,.5), inset 0 1px 0 rgba(251,237,236,.24); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:600; color:var(--tinta-gradien);}
+.gc-pil-status{padding:4px 11px; border-radius:999px; background:rgba(var(--tinta-gradien-rgb),.16); box-shadow:0 6px 15px -6px rgba(0,0,0,.5), inset 0 1px 0 rgba(var(--tinta-gradien-rgb),.24); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); display:inline-flex; align-items:center; gap:5px; font-size:10px; font-weight:600; color:var(--tinta-gradien);}
 
 /* ---- Kartu statistik (3 kolom, Beranda) ---- */
 .gc-kartu-statistik{display:flex; background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:10px 3px;}

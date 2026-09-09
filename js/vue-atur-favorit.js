@@ -192,7 +192,7 @@ const AppAturFavorit = {
            simpanFavorit()/simpanGrup() supaya Beranda langsung sinkron
            begitu user kembali ke sana. -->
       <div v-if="menyimpanFavorit || menyimpanGrup" style="position:fixed; left:50%; bottom:28px; transform:translateX(-50%); z-index:70; background:var(--burgundy); color:var(--tinta-gradien); border-radius:999px; padding:9px 16px; display:flex; align-items:center; gap:8px; box-shadow:0 10px 24px -8px rgba(0,0,0,.35);">
-        <div class="animate-spin" style="width:14px; height:14px; border-radius:50%; border:2px solid rgba(251,237,236,.35); border-top-color:var(--tinta-gradien);"></div>
+        <div class="animate-spin" style="width:14px; height:14px; border-radius:50%; border:2px solid rgba(var(--tinta-gradien-rgb),.35); border-top-color:var(--tinta-gradien);"></div>
         <span style="font-size:11px; font-weight:600;">Menyimpan...</span>
       </div>
 

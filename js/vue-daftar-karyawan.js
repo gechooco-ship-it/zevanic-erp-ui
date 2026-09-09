@@ -204,7 +204,7 @@ const EditKaryawanModal = {
     return { form, menyimpan, opsiRole, opsiJenisPekerjaan, opsiJabatan, opsiStatusKerja, opsiStatusKaryawan, simpan, lihatFotoBesar };
   },
   template: `
-    <div style="position:fixed; inset:0; z-index:100; background:rgba(59,42,31,.6); display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+    <div style="position:fixed; inset:0; z-index:100; background:rgba(var(--scrim-rgb),.6); display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
       <div style="background:var(--surface); border-radius:22px; padding:24px; width:100%; max-width:560px; max-height:90vh; overflow-y:auto;">
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:16px;">
           <h3 class="gc-heading" style="font-size:16px; font-weight:700;"><i class="fas fa-user-edit" style="color:var(--burgundy); margin-right:8px;"></i> Detail & edit karyawan</h3>

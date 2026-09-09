@@ -330,7 +330,7 @@ const AppHeaderMobile = {
               <i class="fas fa-bell" style="font-size:18px;"></i>
               <span v-if="jumlahBelumDibaca > 0" style="position:absolute; top:-2px; right:-3px; background:var(--burgundy); color:#fff; font-size:9px; font-weight:700; min-width:16px; height:16px; border-radius:999px; display:flex; align-items:center; justify-content:center; padding:0 3px;">{{ jumlahBelumDibaca > 9 ? '9+' : jumlahBelumDibaca }}</span>
             </button>
-            <span style="width:44px; height:44px; border-radius:50%; background:var(--aksen-lembut); border:2px solid var(--surface); box-shadow:0 3px 10px rgba(110,30,44,.14); display:flex; align-items:center; justify-content:center; color:var(--aksen-ink); font-size:14px; font-weight:700;">{{ inisialNama }}</span>
+            <span style="width:44px; height:44px; border-radius:50%; background:var(--aksen-lembut); border:2px solid var(--surface); box-shadow:0 3px 10px rgba(var(--burgundy-rgb),.14); display:flex; align-items:center; justify-content:center; color:var(--aksen-ink); font-size:14px; font-weight:700;">{{ inisialNama }}</span>
 
             <div v-if="notifTerbuka" @click="tutupNotif" style="position:fixed; inset:0; z-index:60;"></div>
             <div v-if="notifTerbuka" class="fade-in" style="position:absolute; top:42px; right:0; width:280px; max-height:340px; overflow-y:auto; background:var(--surface); border:1px solid var(--line); border-radius:18px; box-shadow:0 14px 34px -10px rgba(31,22,17,.35); z-index:61; padding:6px;">

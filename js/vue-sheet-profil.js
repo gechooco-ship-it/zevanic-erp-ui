@@ -84,7 +84,7 @@ const AppSheetProfil = {
 
         <div class="gc-kartu-gradien" style="border-radius:22px; padding:16px; margin-bottom:14px;">
           <div style="display:flex; align-items:center; gap:14px; position:relative; z-index:1;">
-            <div style="width:78px; height:78px; padding:7px; background:rgba(251,237,236,.16); border-radius:16px; flex-shrink:0;">
+            <div style="width:78px; height:78px; padding:7px; background:rgba(var(--tinta-gradien-rgb),.16); border-radius:16px; flex-shrink:0;">
               <img :src="qrUrl" alt="QR Code" style="width:100%; height:100%; object-fit:contain;">
             </div>
             <div style="min-width:0;">
