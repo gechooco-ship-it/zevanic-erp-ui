@@ -1127,8 +1127,17 @@ window.pastikanMountMasterKendaraan = function() {
 // kerja. Di-scope jenis_pekerjaan+gudang (window.bolehLihatData), SAMA
 // seperti tabel lain di app ini.
 // ============================================================================
+// (9 Sep 2026) — judul mode 'semua' diganti "Riwayat Keuangan" (spek
+// handoff Master Keuangan §3.2 minta 1 tabel gabungan reimburse+bensin+
+// servis, bukan 1 tab per jenis). Data mode 'semua' SUDAH menggabungkan
+// ketiganya SEJAK DULU (lihat muat(), tidak ada filter jenis_entry_
+// kendaraan buat mode ini) — yang baru CUMA tampilannya (badge Jenis +
+// field per-jenis ikut tampil, lihat template). Mode 'bensin'/'servis'
+// TETAP ada di kode (AppRiwayatBensin/AppRiwayatServis di bawah) tapi
+// TIDAK dipasang ke menu manapun lagi — dipertahankan kalau-kalau
+// dibutuhkan lagi nanti, bukan dihapus total.
 const LABEL_MODE = {
-  semua: { judul: 'Riwayat Reimburse', ikon: 'fa-receipt', placeholder: 'Cari nama karyawan...' },
+  semua: { judul: 'Riwayat Keuangan', ikon: 'fa-wallet', placeholder: 'Cari nama karyawan...' },
   bensin: { judul: 'Riwayat Isi Bensin', ikon: 'fa-gas-pump', placeholder: 'Cari nama karyawan atau plat...' },
   servis: { judul: 'Riwayat Servis', ikon: 'fa-wrench', placeholder: 'Cari nama karyawan atau plat...' }
 };
@@ -1297,7 +1306,10 @@ const RiwayatReimburseTable = {
       } else if (props.mode === 'servis') {
         header = ['Nama Pegawai', 'Email', 'Gudang', 'Tanggal Diajukan', 'Kendaraan', 'Rincian Servis', 'Jumlah (Rp)', 'Status', 'Keterangan'];
       } else {
-        header = ['Nama Pegawai', 'Email', 'Gudang', 'Tanggal Diajukan', 'Kategori', 'Jumlah (Rp)', 'Status', 'Keterangan'];
+        // (9 Sep 2026) — kolom Jenis + Kendaraan ditambah supaya baris
+        // Bensin/Servis yang ikut tercampur di mode 'semua' tetap
+        // terbaca jelas di CSV (lihat catatan LABEL_MODE di atas).
+        header = ['Nama Pegawai', 'Email', 'Gudang', 'Tanggal Diajukan', 'Jenis', 'Kategori', 'Kendaraan', 'Jumlah (Rp)', 'Status', 'Keterangan'];
       }
 
       let csvContent = "data:text/csv;charset=utf-8,";
@@ -1318,7 +1330,8 @@ const RiwayatReimburseTable = {
           const rincian = (r.item_servis && r.item_servis.length > 0) ? r.item_servis.map(i => i.nama_barang + ' x' + i.qty).join('; ') : '-';
           baris = [r.nama_pegawai || '-', r.email || '-', r.gudang || '-', tgl, r.kendaraan_plat || '-', rincian, r.jumlah || 0, status, r.keterangan || ''];
         } else {
-          baris = [r.nama_pegawai || '-', r.email || '-', r.gudang || '-', tgl, r.kategori || '-', r.jumlah || 0, status, r.keterangan || ''];
+          const jenis = r.jenis_entry_kendaraan === 'bensin' ? 'Bensin' : (r.jenis_entry_kendaraan === 'servis' ? 'Servis' : 'Umum');
+          baris = [r.nama_pegawai || '-', r.email || '-', r.gudang || '-', tgl, jenis, r.kategori || '-', r.kendaraan_plat || '-', r.jumlah || 0, status, r.keterangan || ''];
         }
         csvContent += baris.map(csvEsc).join(',') + "\n";
       });
@@ -1410,10 +1423,18 @@ const RiwayatReimburseTable = {
         </div>
 
         <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
-          <div v-if="mode !== 'semua'" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Kendaraan</span><span style="font-weight:700;">{{ r.kendaraan_plat || '-' }}</span></div>
-          <div v-if="mode === 'bensin'" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">KM</span><span style="font-weight:700;">{{ r.km_saat_isi ? r.km_saat_isi.toLocaleString('id-ID') + ' km' : '-' }}</span></div>
-          <div v-if="mode === 'semua'" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Kategori</span><span style="font-weight:700;">{{ r.kategori || '-' }}</span></div>
-          <div v-if="mode === 'servis'" style="display:flex; justify-content:space-between; font-size:12px; gap:10px;">
+          <!-- BARU (9 Sep 2026, gabung Riwayat Keuangan) — badge Jenis SELALU
+               tampil di mode "semua" (Umum/Bensin/Servis) supaya jelas asal
+               tiap baris, karena sekarang mode ini menampilkan ketiganya
+               tercampur (datanya SUDAH tercampur dari dulu, tampilannya yang
+               baru dilengkapi). Mode bensin/servis (layar terpisah lama,
+               masih ada sbg kode tapi TIDAK dipasang ke menu manapun lagi)
+               tidak perlu badge ini karena sudah pasti 1 jenis saja. -->
+          <div v-if="mode === 'semua'" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Jenis</span><span style="font-weight:700;">{{ r.jenis_entry_kendaraan === 'bensin' ? 'Bensin' : (r.jenis_entry_kendaraan === 'servis' ? 'Servis' : 'Umum') }}</span></div>
+          <div v-if="mode !== 'semua' || r.jenis_entry_kendaraan === 'bensin' || r.jenis_entry_kendaraan === 'servis'" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Kendaraan</span><span style="font-weight:700;">{{ r.kendaraan_plat || '-' }}</span></div>
+          <div v-if="mode === 'bensin' || (mode === 'semua' && r.jenis_entry_kendaraan === 'bensin')" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">KM</span><span style="font-weight:700;">{{ r.km_saat_isi ? r.km_saat_isi.toLocaleString('id-ID') + ' km' : '-' }}</span></div>
+          <div v-if="mode === 'semua' && (!r.jenis_entry_kendaraan)" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Kategori</span><span style="font-weight:700;">{{ r.kategori || '-' }}</span></div>
+          <div v-if="mode === 'servis' || (mode === 'semua' && r.jenis_entry_kendaraan === 'servis')" style="display:flex; justify-content:space-between; font-size:12px; gap:10px;">
             <span style="color:var(--text-faint); flex-shrink:0;">Rincian</span>
             <span style="font-weight:700; text-align:right;">
               <span v-if="!r.item_servis || r.item_servis.length === 0">-</span>

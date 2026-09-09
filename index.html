@@ -590,7 +590,7 @@
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this, {catatRiwayat:true})" class="sub-absensi-btn gc-sub-tab-btn" data-menu-id="config_absensi" data-target="sub-absensi-config"><i class="fas fa-cogs" style="margin-right:6px;"></i> Config Absensi</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-jadwal', this, {catatRiwayat:true})" class="sub-absensi-btn gc-sub-tab-btn" data-menu-id="penjadwalan" data-target="sub-absensi-jadwal"><i class="fas fa-calendar-alt" style="margin-right:6px;"></i> Penjadwalan</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-accept', this, {catatRiwayat:true})" class="sub-absensi-btn gc-sub-tab-btn active" data-menu-id="antrean_absensi" data-target="sub-absensi-accept"><i class="fas fa-clock" style="margin-right:6px;"></i> Antrean Absensi</button>
-            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-lembur', this, {catatRiwayat:true})" class="sub-absensi-btn gc-sub-tab-btn" data-menu-id="antrean_lembur" data-target="sub-absensi-lembur"><i class="fas fa-business-time" style="margin-right:6px;"></i> Antrean Lembur</button>
+            <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-lembur', this, {catatRiwayat:true})" class="sub-absensi-btn gc-sub-tab-btn" data-menu-id="antrean_lembur" data-target="sub-absensi-lembur"><i class="fas fa-calendar-check" style="margin-right:6px;"></i> Antrean Izin/Cuti/Lembur</button>
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-rekap', this)" class="sub-absensi-btn gc-sub-tab-btn" data-menu-id="riwayat_absensi"><i class="fas fa-chart-bar" style="margin-right:6px;"></i> Riwayat All Absensi</button>
           </div>
         </div>
@@ -612,7 +612,7 @@
         </div>
 
         <div id="sub-absensi-lembur" class="sub-absensi-content hidden fade-in space-y-4">
-           <!-- Antrean Lembur: lihat js/vue-antrean-lembur.js -->
+           <!-- Antrean Izin/Cuti/Lembur (gabungan, 9 Sep 2026): lihat js/vue-antrean-lembur.js -->
            <div id="vue-antrean-lembur"></div>
         </div>
 
@@ -627,9 +627,7 @@
             <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-antrean', this, {catatRiwayat:true})" class="sub-keuangan-btn gc-sub-tab-btn active" data-menu-id="antrean_reimburse" data-target="sub-keuangan-antrean"><i class="fas fa-receipt" style="margin-right:6px;"></i> Antrean Reimburse</button>
             <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-kendaraan', this, {catatRiwayat:true})" class="sub-keuangan-btn gc-sub-tab-btn" data-menu-id="master_kendaraan" data-target="sub-keuangan-kendaraan"><i class="fas fa-truck" style="margin-right:6px;"></i> Master Kendaraan</button>
             <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-kategori', this, {catatRiwayat:true})" class="sub-keuangan-btn gc-sub-tab-btn" data-menu-id="master_keuangan" data-target="sub-keuangan-kategori"><i class="fas fa-tags" style="margin-right:6px;"></i> Kategori Keuangan</button>
-            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-reimburse', this, {catatRiwayat:true})" class="sub-keuangan-btn gc-sub-tab-btn" data-menu-id="riwayat_reimburse" data-target="sub-keuangan-riwayat-reimburse"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i> Riwayat Reimburse</button>
-            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-bensin', this, {catatRiwayat:true})" class="sub-keuangan-btn gc-sub-tab-btn" data-menu-id="riwayat_bensin" data-target="sub-keuangan-riwayat-bensin"><i class="fas fa-gas-pump" style="margin-right:6px;"></i> Riwayat Isi Bensin</button>
-            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-servis', this, {catatRiwayat:true})" class="sub-keuangan-btn gc-sub-tab-btn" data-menu-id="riwayat_servis" data-target="sub-keuangan-riwayat-servis"><i class="fas fa-wrench" style="margin-right:6px;"></i> Riwayat Servis</button>
+            <button onclick="pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-reimburse', this, {catatRiwayat:true})" class="sub-keuangan-btn gc-sub-tab-btn" data-menu-id="riwayat_reimburse" data-target="sub-keuangan-riwayat-reimburse"><i class="fas fa-wallet" style="margin-right:6px;"></i> Riwayat Keuangan</button>
           </div>
 
           <div id="sub-keuangan-antrean" class="sub-keuangan-content fade-in space-y-4">
@@ -648,18 +646,8 @@
           </div>
 
           <div id="sub-keuangan-riwayat-reimburse" class="sub-keuangan-content hidden fade-in space-y-4">
-            <!-- Riwayat Reimburse: lihat js/vue-reimburse.js -->
+            <!-- Riwayat Keuangan (gabungan Umum+Bensin+Servis, 9 Sep 2026): lihat js/vue-reimburse.js -->
             <div id="vue-riwayat-reimburse"></div>
-          </div>
-
-          <div id="sub-keuangan-riwayat-bensin" class="sub-keuangan-content hidden fade-in space-y-4">
-            <!-- Riwayat Isi Bensin: lihat js/vue-reimburse.js -->
-            <div id="vue-riwayat-bensin"></div>
-          </div>
-
-          <div id="sub-keuangan-riwayat-servis" class="sub-keuangan-content hidden fade-in space-y-4">
-            <!-- Riwayat Servis: lihat js/vue-reimburse.js -->
-            <div id="vue-riwayat-servis"></div>
           </div>
       </div>
 
@@ -1575,7 +1563,7 @@
   <script type="module" src="js/camera.js"></script>
   <!-- v=2 (28 Agt 2026): window.bolehLihatData tambah bypass eksplisit
        dimensi gudang untuk profil "pic_owner" (role "PIC Owner"). -->
-  <script type="module" src="js/auth.js?v=5"></script>
+  <script type="module" src="js/auth.js?v=6"></script>
   <!-- v=13 (28 Agt 2026): peta mount tambah 'sub-zh-config-jenisproduk' ->
        pastikanMountConfigJenisProduk (tab Config baru "Jenis Produk").
        v=14 (28 Agt 2026): peta mount tambah 'sub-zh-config-komponen' ->
@@ -1619,7 +1607,7 @@
        butuh entry petaTabIndukPerGrup (tidak ada sub-tab di dalamnya,
        sama seperti 'sub-zevanic-house-persiapan'). Lihat js/vue-master-
        pelanggan.js. -->
-  <script type="module" src="js/dashboard.js?v=24"></script>
+  <script type="module" src="js/dashboard.js?v=25"></script>
   <!-- js/vue-order-spk.js — DITINGGALKAN (30 Agt 2026, fitur "Pesanan",
        keputusan Guru: fungsinya pindah jadi menu "Menunggu Proses" di
        grup baru "Pesanan"). File TIDAK dihapus dari disk (jaga-jaga
@@ -1682,7 +1670,7 @@
        DAFTAR_MENU baru (pesanan_kasir/menunggu/persiapan/produksi/
        pengiriman), id 'order_spk' DIPENSIUNKAN (deprecated:true). Lihat
        js/vue-pesanan.js. -->
-  <script type="module" src="js/vue-config-akses.js?v=8"></script>
+  <script type="module" src="js/vue-config-akses.js?v=9"></script>
   <script type="module" src="js/vue-hak-akses.js?v=2"></script>
   <!-- v=4 (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, permintaan
        Guru — PERUBAHAN LOGIC juga, bukan cuma tampilan) — form approval
@@ -1696,12 +1684,12 @@
        Guru di HP) — header kartu: baris "email" ganti nama Gudang + baris
        baru Shift/jam shift; banner pindah ke bawah kolom cari & dipadatkan;
        ikon filter jadi menu oval titik-tiga "lainnya". -->
-  <script type="module" src="js/vue-antrean-absensi.js?v=6"></script>
+  <script type="module" src="js/vue-antrean-absensi.js?v=7"></script>
   <!-- v=3 (29 Agt 2026, moodboard v2) — redesain LENGKAP pertama kali di
        modul ini: avatar (foto_selfie, BARU ditampilkan), baris "{tanggal}
        - {gudang}", Jam Shift vs Jam Lembur berdampingan, banner/menu
        oval sama pola modul lain. -->
-  <script type="module" src="js/vue-antrean-lembur.js?v=3"></script>
+  <script type="module" src="js/vue-antrean-lembur.js?v=4"></script>
   <!-- v=3 (29 Agt 2026, moodboard v2, PRIORITAS TERAKHIR sesuai catatan
        risiko mockup) — label "Diajukan" dilepas (tanggal polos), foto
        bukti jadi ikon kecil di header; khusus kategori Isi Bensin: field
@@ -1712,7 +1700,7 @@
        BARU di RiwayatReimburseTable (dipakai 3 menu: Riwayat Reimburse/
        Riwayat Isi Bensin/Riwayat Servis) — pola SAMA PERSIS exportCSV()
        di vue-riwayat-absensi.js, kolom menyesuaikan mode. -->
-  <script type="module" src="js/vue-reimburse.js?v=4"></script>
+  <script type="module" src="js/vue-reimburse.js?v=5"></script>
   <script type="module" src="js/vue-riwayat-absensi.js?v=2"></script>
   <script type="module" src="js/vue-penjadwalan.js?v=3"></script>
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>
@@ -1762,7 +1750,7 @@
        notifikasi Pengumuman (badge + dropdown), avatar inisial. Mode
        'tersembunyi' baru untuk layar ber-header sendiri (Menu Lengkap/Atur
        Favorit). -->
-  <script type="module" src="js/vue-header-mobile.js?v=6"></script>
+  <script type="module" src="js/vue-header-mobile.js?v=7"></script>
   <!-- BARU (28 Agt 2026, redesain "Gechoo Mobile Organic") — layar baru,
        lihat mount #vue-menu-lengkap/#vue-atur-favorit di atas. -->
   <script type="module" src="js/vue-menu-lengkap.js"></script>
@@ -1771,7 +1759,7 @@
   <script type="module" src="js/vue-buat-password.js"></script>
   <script type="module" src="js/vue-login.js"></script>
   <script type="module" src="js/vue-absensi-qr.js?v=2"></script>
-  <script type="module" src="js/vue-camera.js?v=3"></script>
+  <script type="module" src="js/vue-camera.js?v=4"></script>
   <script type="module" src="js/vue-scan-qr.js"></script>
   <!-- v=17 (28 Agt 2026, §35): List Bahan & Aksesoris tambah fitur Import/
        Template Excel (upload massal) — tombol "Import / Template Excel" di

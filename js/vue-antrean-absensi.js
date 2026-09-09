@@ -39,6 +39,16 @@
 // SEKARANG dua lookup itu dihitung SEKALI di muat() (induk) buat seluruh
 // daftar sekaligus, chunked where(...,'in',...) — dikirim ke tiap kartu
 // lewat prop shiftInfo/lemburTanggal, kartu TIDAK query apapun lagi.
+//
+// DIROMBAK LAGI (9 Sep 2026) — spek handoff Master Absensi §2.4 minta tab
+// gabungan "Antrean Izin/Cuti/Lembur" terpisah dari Antrean Absensi (yang
+// seharusnya CUMA verifikasi Hadir/seragam/ontime). Sebelumnya dokumen
+// IZIN/CUTI ikut nyasar tampil DI SINI (cuma Lembur yang dikecualikan) —
+// pakai kartu format-lama yang salah label "Hadir" & tidak menampilkan
+// tanggal_pengajuan/keterangan sama sekali (bug laten). Sekarang IZIN &
+// CUTI JUGA dikecualikan dari layar ini, pindah ke
+// js/vue-antrean-lembur.js (nama file TETAP, isinya sekarang gabungan
+// Izin+Cuti+Lembur — lihat header file itu).
 // ============================================================================
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -508,7 +518,15 @@ const AppAntreanAbsensi = {
         // seperti migrasi shift di `vue-riwayat-absensi.js`.
         const semuaDokPending = [];
         snapBaru.forEach(d => semuaDokPending.push(d));
-        snapLama.forEach(d => { if (d.data().status !== "LEMBUR (CLOCK IN)") semuaDokPending.push(d); });
+        // (9 Sep 2026) — IZIN/CUTI SEKARANG JUGA dikecualikan dari sini,
+        // sama seperti LEMBUR (lihat catatan lengkap di loop snapLama.forEach
+        // di bawah) — pindah ke tab gabungan "Antrean Izin/Cuti/Lembur"
+        // (js/vue-antrean-lembur.js, tetap nama file lama).
+        snapLama.forEach(d => {
+          const st = d.data().status;
+          if (st === "LEMBUR (CLOCK IN)" || st === "IZIN" || st === "CUTI") return;
+          semuaDokPending.push(d);
+        });
         const emailPerluJP = [...new Set(
           semuaDokPending.filter(d => !d.data().jenis_pekerjaan && d.data().email).map(d => d.data().email)
         )];
@@ -531,9 +549,17 @@ const AppAntreanAbsensi = {
         snapLama.forEach(docSnap => {
           const d = docSnap.data();
           // Lembur SENGAJA dikecualikan (17 Agt 2026) — ditangani terpisah
-          // di Antrean Lembur (info relevan beda: jam mulai/selesai
-          // diajukan, bukan radius/koordinat seperti di sini).
-          if (d.status === "LEMBUR (CLOCK IN)") return;
+          // di tab "Antrean Izin/Cuti/Lembur" (info relevan beda: jam
+          // mulai/selesai diajukan, bukan radius/koordinat seperti di sini).
+          // (9 Sep 2026) — IZIN & CUTI SEKARANG JUGA dikecualikan, gabung
+          // ke tab yang sama (spek handoff Master Absensi §2.4 minta 1 tab
+          // "Antrean Izin/Cuti/Lembur"; sebelumnya IZIN/CUTI malah nyasar
+          // tampil di sini pakai kartu format-lama yang salah label "Hadir"
+          // dan tidak menampilkan tanggal_pengajuan/keterangan sama sekali
+          // — bug laten, bukan cuma penataan ulang menu). Lihat
+          // js/vue-antrean-lembur.js (tetap nama file lama, sekarang isinya
+          // gabungan ketiganya).
+          if (d.status === "LEMBUR (CLOCK IN)" || d.status === "IZIN" || d.status === "CUTI") return;
           if (!window.bolehLihatData(ambilJP(d), d.gudang)) return;
           list.push({ id: docSnap.id, data: d, jenisPekerjaan: ambilJP(d) });
         });
@@ -603,7 +629,10 @@ const AppAntreanAbsensi = {
         const perluDiperbaiki = [];
         snap.forEach(docSnap => {
           const d = docSnap.data();
-          if (d.status === "LEMBUR (CLOCK IN)") return;
+          // (9 Sep 2026) IZIN/CUTI ikut dikecualikan sama seperti LEMBUR —
+          // diperbaiki lewat "Cek Data Sangat Lama" di tab Antrean
+          // Izin/Cuti/Lembur sendiri (js/vue-antrean-lembur.js), bukan di sini.
+          if (d.status === "LEMBUR (CLOCK IN)" || d.status === "IZIN" || d.status === "CUTI") return;
           const sudahFormatBaru = d.ada_pending !== undefined;
           const sudahFormatLama = d.status_acc !== undefined;
           if (!sudahFormatBaru && !sudahFormatLama) perluDiperbaiki.push(docSnap.id);

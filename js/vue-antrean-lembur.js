@@ -1,23 +1,48 @@
 // js/vue-antrean-lembur.js
 // ============================================================================
-// Master Absensi > Antrean Lembur — validasi/approve pengajuan LEMBUR
-// karyawan (terpisah dari Antrean Absensi biasa, 17 Agt 2026).
+// Master Absensi > Antrean Izin/Cuti/Lembur — validasi/approve pengajuan
+// IZIN, CUTI, dan LEMBUR karyawan (terpisah dari Antrean Absensi biasa,
+// mulai 17 Agt 2026 khusus utk Lembur).
 //
-// KENAPA TERPISAH dari Antrean Absensi: pengajuan Lembur punya info yang
-// beda sama sekali (jam mulai/selesai diajukan, alasan, instruksi) — bukan
-// radius/koordinat/seragam seperti absensi Hadir biasa.
+// DIROMBAK TOTAL (9 Sep 2026) — instruksi Guru "lanjut profile dan
+// management", spek handoff Master Absensi §2.4 minta 1 tab GABUNGAN
+// "Antrean Izin / Cuti / Lembur" (bukan Lembur sendirian seperti
+// sebelumnya). NAMA FILE INI SENGAJA TIDAK DIGANTI (tetap
+// vue-antrean-lembur.js) — Guru upload manual drag-drop ke GitHub, ganti
+// nama file = file lama menggantung di repo sampai dihapus manual lewat
+// tampilan GitHub (lihat FONDASI.md). Nama fungsi global
+// (window.pastikanMountAntreanLembur/refreshAntreanLembur), id mount HTML
+// (#vue-antrean-lembur), DAN id permission (cekIzinMenu('antrean_lembur'))
+// JUGA SENGAJA DIPERTAHANKAN SAMA PERSIS — supaya role yang sudah diberi
+// akses menu "Antrean Lembur" di Akses & Keamanan TIDAK kehilangan
+// aksesnya diam-diam (izin lama jadi yatim). Yang berubah CUMA label
+// tampilan ("Antrean Izin/Cuti/Lembur") + isi/logic di dalam file ini.
 //
-// PENTING — kenapa layar ini nyata dibutuhkan (bukan cuma kerapian UI):
-// js/vue-camera.js (proses Clock Out) MEMBACA status_acc dokumen Lembur
-// ini untuk menentukan batas jam kerja yang dipakai penggajian
-// (jam_keluar_untuk_gaji) — kalau Lembur belum di-ACC di sini, Clock Out
-// lewat jam shift akan otomatis dipotong ke jam shift, BUKAN jam lembur
-// yang diajukan.
+// Field IZIN/CUTI/LEMBUR SEMUA sudah ditulis ke koleksi SAMA "absensi"
+// sejak dulu (js/vue-camera.js, JALUR 3) — TIDAK ada koleksi baru,
+// TIDAK ada migrasi data. Penggabungan ini murni di level query+tampilan:
+//   - IZIN/CUTI: field tanggal_pengajuan + keterangan.
+//   - LEMBUR (CLOCK IN): field lembur_mulai/lembur_selesai/keterangan/
+//     lembur_instruksi + perbandingan Jam Shift vs Jam Lembur.
+// Sebelum rombakan ini, IZIN/CUTI malah nyasar tampil di Antrean Absensi
+// (js/vue-antrean-absensi.js) pakai kartu format-lama yang salah label
+// "Hadir" dan TIDAK menampilkan tanggal_pengajuan/keterangan sama sekali
+// — itu sudah diperbaiki bersamaan (lihat header file itu), IZIN/CUTI
+// SEKARANG dikecualikan dari sana, cuma muncul di sini.
+//
+// PENTING — kenapa layar ini nyata dibutuhkan utk Lembur (bukan cuma
+// kerapian UI): js/vue-camera.js (proses Clock Out) MEMBACA status_acc
+// dokumen Lembur ini untuk menentukan batas jam kerja yang dipakai
+// penggajian (jam_keluar_untuk_gaji) — kalau Lembur belum di-ACC di sini,
+// Clock Out lewat jam shift akan otomatis dipotong ke jam shift, BUKAN
+// jam lembur yang diajukan. TIDAK BERUBAH oleh rombakan ini — field &
+// collection tulisnya (`absensi.status_acc`) SAMA PERSIS.
 //
 // DIROMBAK (18 Agt 2026):
-// 1. HEMAT — where("status_acc","==","PENDING") LANGSUNG (Lembur SELALU
-//    pakai status_acc tunggal, TIDAK ikut rombakan dokumen gabungan
-//    vue-camera.js), bukan fetch semua histori absensi lagi.
+// 1. HEMAT — where("status_acc","==","PENDING") LANGSUNG (IZIN/CUTI/
+//    Lembur SELALU pakai status_acc tunggal, TIDAK ikut rombakan dokumen
+//    gabungan vue-camera.js format Hadir), bukan fetch semua histori
+//    absensi lagi.
 // 2. PEDOMAN KERJA (lihat vue-antrean-absensi.js) — search box selalu
 //    ada, filter Jenis Pekerjaan+Gudang cuma buat Owner/Superuser.
 //
@@ -34,22 +59,41 @@ import { db } from "./firebase-config.js";
 // (pil, dipakai juga di Antrean Absensi) GANTI kolom cari hand-rolled.
 import { KolomCari } from './vue-components.js?v=5';
 
-const AntreanLemburCard = {
+// Status mentah (field `status` di dokumen `absensi`) yang masuk cakupan
+// tab gabungan ini — lihat header file utk kenapa 3 ini digabung.
+const STATUS_DICAKUP = ["IZIN", "CUTI", "LEMBUR (CLOCK IN)"];
+
+function jenisLabel(status) {
+  if (status === "IZIN") return "Izin";
+  if (status === "CUTI") return "Cuti";
+  if (status === "LEMBUR (CLOCK IN)") return "Lembur";
+  return status || "-";
+}
+function jenisWarnaTag(status) {
+  if (status === "LEMBUR (CLOCK IN)") return "blue";
+  return "warn"; // Izin/Cuti pakai warna sama dgn tag "Menunggu" existing
+}
+
+const AntreanIclCard = {
   props: {
     docId: { type: String, required: true },
     data: { type: Object, required: true },
     // BARU (29 Agt 2026, §44.18) — lihat catatan di jamShift di bawah:
     // prop ini GANTI query Firestore yang dulu jalan PER KARTU (N+1),
-    // sekarang dihitung SEKALI di induk (AppAntreanLembur.muat()).
+    // sekarang dihitung SEKALI di induk (AppAntreanIcl.muat()). Cuma
+    // relevan buat kartu jenis Lembur (Izin/Cuti tidak pakai jam shift).
     shiftInfo: { type: Object, default: () => ({ masuk: null, keluar: null }) }
   },
   emits: ['diproses'],
   setup(props, { emit }) {
     const memproses = ref(false);
+    const isLembur = computed(() => props.data.status === "LEMBUR (CLOCK IN)");
 
     async function proses(statusAcc) {
+      // Permission id TETAP 'antrean_lembur' (lihat catatan header file)
+      // supaya role yang sudah diberi akses tidak kehilangan izinnya.
       if (window.cekIzinMenu('antrean_lembur', 'edit') === false) {
-        return alert('Anda tidak punya izin memproses ACC/Reject Lembur di sini. Hubungi Owner/PIC.');
+        return alert('Anda tidak punya izin memproses ACC/Reject di sini. Hubungi Owner/PIC.');
       }
       memproses.value = true;
       try {
@@ -58,10 +102,10 @@ const AntreanLemburCard = {
           validated_at: new Date().toISOString(),
           validated_by: window.currentUser.name || window.currentUser.nama || window.currentUser.email
         });
-        alert(`Pengajuan Lembur berhasil di-${statusAcc}!`);
+        alert(`Pengajuan ${jenisLabel(props.data.status)} berhasil di-${statusAcc}!`);
         emit('diproses');
       } catch (e) {
-        console.error("Gagal update ACC Lembur:", e);
+        console.error("Gagal update ACC:", e);
         alert("Terjadi kesalahan sistem saat memproses validasi.");
       }
       memproses.value = false;
@@ -77,30 +121,15 @@ const AntreanLemburCard = {
     const bolehEdit = computed(() => window.cekIzinMenu('antrean_lembur', 'edit') !== false);
     const bolehHapus = computed(() => window.cekIzinMenu('antrean_lembur', 'delete') !== false);
 
-    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, cek live
-    // Guru di HP) — avatar dari foto_selfie: field INI SUDAH ADA di setiap
-    // dokumen Lembur (dicek langsung di vue-camera.js — kamera yang sama
-    // dipakai Hadir/Clock Out juga dipakai pengajuan Lembur), cuma belum
-    // pernah ditampilkan di kartu ini sebelumnya.
     function lihatFotoBesar() {
       if (props.data.foto_selfie && window.bukaPreviewFoto) window.bukaPreviewFoto(props.data.foto_selfie);
     }
 
     // Jam Shift asli orangnya (buat dibandingkan sama Jam Lembur yang
-    // diajukan) — lookup nama_shift->master_shift.
-    // DIROMBAK (29 Agt 2026, §44.18) — DULU tiap kartu query SENDIRI ke
-    // master_shift begitu di-mount (N+1, bug yang sama ditemukan &
-    // diperbaiki di vue-antrean-absensi.js — kartu dengan nama_shift SAMA
-    // query hal yang SAMA berkali-kali). SEKARANG jam shift buat SEMUA
-    // nama_shift yang kepakai dihitung SEKALI di induk (lihat
-    // muat()/petaShiftInfo di AppAntreanLembur di bawah), dikirim turun
-    // lewat prop shiftInfo — kartu tinggal baca, tidak query lagi.
+    // diajukan) — lookup nama_shift->master_shift. Cuma dipakai kartu
+    // Lembur, lihat catatan lengkap N+1 fix di AppAntreanIcl di bawah.
     const jamShift = computed(() => props.shiftInfo || { masuk: null, keluar: null });
 
-    // Tanggal pengajuan singkat ("28 Agt") dari waktu_ts (Firestore
-    // Timestamp, SUDAH ada di dataKirim vue-camera.js) — dulu dipakai
-    // data.waktu (string toLocaleString mentah, kepanjangan buat baris
-    // padat "{tanggal} - {gudang}" yang baru).
     function formatTglSingkat(ts) {
       if (!ts || typeof ts.toDate !== 'function') return '-';
       return ts.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
@@ -112,23 +141,17 @@ const AntreanLemburCard = {
 
     return {
       memproses, proses, hapus, bolehEdit, bolehHapus, lihatFotoBesar,
-      jamShift, formatTglSingkat, menuAksiTerbuka, toggleMenuAksi, tutupMenuAksi
+      jamShift, formatTglSingkat, menuAksiTerbuka, toggleMenuAksi, tutupMenuAksi,
+      isLembur, jenisLabel, jenisWarnaTag
     };
   },
   // ==========================================================================
-  // TEMPLATE DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2,
-  // dari cek live Guru di HP + mockup gechoo-mobile-organic-rollout.html
-  // §Antrean Lembur) — kartu besar grid 2 kolom + tombol lebar penuh diganti
-  // pola padat SAMA dengan Antrean Absensi: avatar (foto_selfie, BARU
-  // ditampilkan), baris "{tanggal} - {gudang}" gantikan "Diajukan"+"Gudang"
-  // terpisah, baris Jam Shift (kiri) vs Jam Lembur (kanan) buat gampang
-  // dibandingkan, approve-row 2 tombol (Setujui/Tolak — Lembur TIDAK
-  // punya konsep Sesuai/Tidak Sesuai seperti Absensi). Instruksi Kerja
-  // TETAP ditampilkan (baris kecil terpisah) — TIDAK di mockup awal, tapi
-  // sengaja tidak dihilangkan karena info operasional buat penyetuju,
-  // cuma dibikin sekecil mungkin biar tetap padat.
-  // Field/logic Firestore, cekIzinMenu, proses/hapus — TIDAK ada yang
-  // berubah, cuma tampilannya.
+  // Pola kartu padat SAMA dgn Antrean Absensi/Lembur lama (moodboard "Gechoo
+  // Mobile Organic" v2) — cuma badge jenis (Izin/Cuti/Lembur) yang baru, dan
+  // body-nya CABANG per jenis: Lembur tetap tampilkan perbandingan Jam
+  // Shift vs Jam Lembur + Instruksi (persis kartu lama); Izin/Cuti tampilkan
+  // Tanggal Pengajuan + Keterangan (field yang SUDAH ada di dokumen sejak
+  // dulu tapi sebelumnya TIDAK PERNAH ditampilkan di kartu manapun).
   // ==========================================================================
   template: `
     <div class="gc-card" style="border-radius:20px;">
@@ -139,7 +162,7 @@ const AntreanLemburCard = {
           <h4 class="gc-heading" style="font-weight:700; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.nama_pegawai || data.nama || 'Karyawan' }}</h4>
           <p style="font-size:9.5px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ formatTglSingkat(data.waktu_ts) }}<span v-if="data.gudang"> &ndash; {{ data.gudang }}</span></p>
         </div>
-        <span class="tag warn" style="flex-shrink:0;"><span class="tag-dot"></span>Menunggu</span>
+        <span :class="'tag ' + jenisWarnaTag(data.status)" style="flex-shrink:0;"><span class="tag-dot"></span>{{ jenisLabel(data.status) }}</span>
         <div v-if="bolehHapus" style="position:relative; flex-shrink:0;">
           <button @click="toggleMenuAksi" class="icon-btn" style="border-radius:50%; border:none; background:none;" title="Aksi lainnya"><i class="fas fa-ellipsis-vertical"></i></button>
           <div v-if="menuAksiTerbuka" @click="tutupMenuAksi" style="position:fixed; inset:0; z-index:60;"></div>
@@ -149,12 +172,21 @@ const AntreanLemburCard = {
         </div>
       </div>
 
-      <div style="display:flex; align-items:flex-start; gap:8px; padding:2px 0 8px;">
-        <div style="text-align:left;"><span style="font-size:9px; color:var(--text-faint); display:block; text-transform:uppercase; letter-spacing:.04em;">Jam Shift</span><b style="font-size:11px;">{{ (jamShift.masuk && jamShift.keluar) ? (jamShift.masuk + '–' + jamShift.keluar) : '-' }}</b></div>
-        <div style="text-align:right; margin-left:auto;"><span style="font-size:9px; color:var(--text-faint); display:block; text-transform:uppercase; letter-spacing:.04em;">Jam Lembur</span><b style="font-size:11px; color:var(--burgundy);">{{ data.lembur_mulai || '-' }}&ndash;{{ data.lembur_selesai || '-' }}</b></div>
-      </div>
-      <p v-if="data.lembur_instruksi" style="font-size:9.5px; color:var(--text-faint); padding:0 0 3px;"><b>Instruksi:</b> {{ data.lembur_instruksi }}</p>
-      <p style="font-size:9.5px; color:var(--text-muted); padding:0 0 6px;">{{ data.keterangan || '-' }}</p>
+      <template v-if="isLembur">
+        <div style="display:flex; align-items:flex-start; gap:8px; padding:2px 0 8px;">
+          <div style="text-align:left;"><span style="font-size:9px; color:var(--text-faint); display:block; text-transform:uppercase; letter-spacing:.04em;">Jam Shift</span><b style="font-size:11px;">{{ (jamShift.masuk && jamShift.keluar) ? (jamShift.masuk + '–' + jamShift.keluar) : '-' }}</b></div>
+          <div style="text-align:right; margin-left:auto;"><span style="font-size:9px; color:var(--text-faint); display:block; text-transform:uppercase; letter-spacing:.04em;">Jam Lembur</span><b style="font-size:11px; color:var(--burgundy);">{{ data.lembur_mulai || '-' }}&ndash;{{ data.lembur_selesai || '-' }}</b></div>
+        </div>
+        <p v-if="data.lembur_instruksi" style="font-size:9.5px; color:var(--text-faint); padding:0 0 3px;"><b>Instruksi:</b> {{ data.lembur_instruksi }}</p>
+        <p style="font-size:9.5px; color:var(--text-muted); padding:0 0 6px;">{{ data.keterangan || '-' }}</p>
+      </template>
+      <template v-else>
+        <div style="padding:2px 0 8px;">
+          <span style="font-size:9px; color:var(--text-faint); display:block; text-transform:uppercase; letter-spacing:.04em;">Tanggal Pengajuan</span>
+          <b style="font-size:11px;">{{ data.tanggal_pengajuan || '-' }}</b>
+        </div>
+        <p style="font-size:9.5px; color:var(--text-muted); padding:0 0 6px;"><b>Keterangan:</b> {{ data.keterangan || '-' }}</p>
+      </template>
 
       <div v-if="bolehEdit" class="approve-row">
         <button @click="proses('ACC')" :disabled="memproses" class="appr-btn ok"><i class="fas fa-check"></i> Setujui</button>
@@ -164,16 +196,15 @@ const AntreanLemburCard = {
   `
 };
 
-const AppAntreanLembur = {
-  components: { AntreanLemburCard, KolomCari },
+const AppAntreanIcl = {
+  components: { AntreanIclCard, KolomCari },
   setup() {
     const daftarPending = ref([]);
     const memuat = ref(true);
     const errorMuat = ref('');
     // BARU (29 Agt 2026, §44.18) — hasil batch jam shift buat SEMUA kartu
     // (dihitung sekali per muat(), lihat di bawah), dikirim turun ke tiap
-    // AntreanLemburCard lewat prop. Lihat catatan lengkap di komponen
-    // kartu (jamShift).
+    // AntreanIclCard lewat prop. Cuma relevan utk kartu jenis Lembur.
     const petaShiftInfo = ref({});
 
     const cariNama = ref('');
@@ -182,10 +213,14 @@ const AppAntreanLembur = {
     const filterGudangOwner = ref('ALL');
     const opsiJenisPekerjaanOwner = ref([]);
     const opsiGudangOwner = ref([]);
+    // BARU (9 Sep 2026) — filter jenis pengajuan (Semua/Izin/Cuti/Lembur),
+    // berguna karena sekarang 3 jenis tercampur di 1 daftar.
+    const filterJenis = ref('ALL');
     const daftarPendingTersaring = computed(() => {
       let hasil = daftarPending.value;
       const cari = cariNama.value.trim().toLowerCase();
       if (cari) hasil = hasil.filter(item => (item.data.nama_pegawai || item.data.nama || '').toLowerCase().includes(cari));
+      if (filterJenis.value !== 'ALL') hasil = hasil.filter(item => item.data.status === filterJenis.value);
       if (isOwnerRole.value) {
         if (filterJenisPekerjaanOwner.value !== 'ALL') hasil = hasil.filter(item => item.jenisPekerjaan === filterJenisPekerjaanOwner.value);
         if (filterGudangOwner.value !== 'ALL') hasil = hasil.filter(item => item.data.gudang === filterGudangOwner.value);
@@ -198,21 +233,15 @@ const AppAntreanLembur = {
       errorMuat.value = '';
       try {
         const snap = await getDocs(query(collection(db, "absensi"), where("status_acc", "==", "PENDING")));
-        const dokLembur = [];
-        snap.forEach(d => { if (d.data().status === "LEMBUR (CLOCK IN)") dokLembur.push(d); });
+        const dokRelevan = [];
+        snap.forEach(d => { if (STATUS_DICAKUP.includes(d.data().status)) dokRelevan.push(d); });
 
         // DIROMBAK (19 Agt 2026) — sama persis pola vue-antrean-absensi.js:
-        // users CUMA dibaca kalau ada dokumen Lembur pending yang belum
-        // punya field jenis_pekerjaan sendiri (dokumen sangat lama). Lihat
+        // users CUMA dibaca kalau ada dokumen pending yang belum punya
+        // field jenis_pekerjaan sendiri (dokumen sangat lama). Lihat
         // catatan lengkap di sana.
-        //
-        // DIPERBAIKI LAGI (29 Agt 2026, §44.15) — bug BOROS yang sama
-        // ketemu di sini: FULL FETCH `users` kalau satu saja dokumen
-        // Lembur pending belum punya jenis_pekerjaan. Diganti query
-        // bertarget `where("email","in",[...])`, sama seperti perbaikan
-        // di vue-antrean-absensi.js (lihat STATUS-PROYEK.md §44.15).
         const emailPerluJP = [...new Set(
-          dokLembur.filter(d => !d.data().jenis_pekerjaan && d.data().email).map(d => d.data().email)
+          dokRelevan.filter(d => !d.data().jenis_pekerjaan && d.data().email).map(d => d.data().email)
         )];
         let petaJenisPekerjaan = {};
         const UKURAN_POTONGAN_EMAIL = 30; // batas Firestore where(field,'in',[...])
@@ -224,15 +253,17 @@ const AppAntreanLembur = {
         function ambilJP(d) { return d.jenis_pekerjaan || petaJenisPekerjaan[d.email] || ''; }
 
         const list = [];
-        dokLembur.forEach(docSnap => {
+        dokRelevan.forEach(docSnap => {
           const d = docSnap.data();
           if (!window.bolehLihatData(ambilJP(d), d.gudang)) return;
           list.push({ id: docSnap.id, data: d, jenisPekerjaan: ambilJP(d) });
         });
         // BARU (29 Agt 2026, §44.18) — jam shift dihitung SEKALI di sini
         // buat SELURUH daftar sekaligus (bukan per-kartu lagi, lihat
-        // catatan panjang di AntreanLemburCard). Chunked
-        // where(...,'in',...) pola sama seperti petaJenisPekerjaan di atas.
+        // catatan panjang di AntreanIclCard). Chunked where(...,'in',...)
+        // pola sama seperti petaJenisPekerjaan di atas. Cuma dipakai kartu
+        // Lembur, tapi dihitung utk semua nama_shift yg kepakai (murah,
+        // tidak perlu cabang per jenis).
         const UKURAN_POTONGAN_SHIFT = 30; // batas Firestore where(field,'in',[...])
         const distinctShift = [...new Set(list.map(item => item.data.nama_shift).filter(Boolean))];
         const petaShift = {};
@@ -256,7 +287,7 @@ const AppAntreanLembur = {
           opsiGudangOwner.value = listGudang;
         }
       } catch (e) {
-        console.error("Error muat antrean lembur:", e);
+        console.error("Error muat antrean izin/cuti/lembur:", e);
         errorMuat.value = 'Gagal memuat data. Cek Console untuk detail (mungkin perlu index Firestore baru — lihat link di pesan error aslinya).';
       }
       memuat.value = false;
@@ -269,7 +300,7 @@ const AppAntreanLembur = {
     // tampil + 2 tombol lebar penuh di banner.
     const menuTerbuka = ref(false);
     function toggleMenuTerbuka() { menuTerbuka.value = !menuTerbuka.value; }
-    const adaFilterAktif = computed(() => filterJenisPekerjaanOwner.value !== 'ALL' || filterGudangOwner.value !== 'ALL');
+    const adaFilterAktif = computed(() => filterJenisPekerjaanOwner.value !== 'ALL' || filterGudangOwner.value !== 'ALL' || filterJenis.value !== 'ALL');
 
     const memuatDataLama = ref(false);
     const infoDataLama = ref('');
@@ -281,19 +312,19 @@ const AppAntreanLembur = {
         const perluDiperbaiki = [];
         snap.forEach(docSnap => {
           const d = docSnap.data();
-          if (d.status !== "LEMBUR (CLOCK IN)") return;
+          if (!STATUS_DICAKUP.includes(d.status)) return;
           if (d.status_acc === undefined) perluDiperbaiki.push(docSnap.id);
         });
         if (perluDiperbaiki.length === 0) {
-          infoDataLama.value = 'Tidak ada data Lembur sangat lama yang perlu diperbaiki. Aman.';
+          infoDataLama.value = 'Tidak ada data Izin/Cuti/Lembur sangat lama yang perlu diperbaiki. Aman.';
         } else {
           for (const id of perluDiperbaiki) {
             updateDoc(doc(db, "absensi", id), { status_acc: "PENDING" }).catch(() => {});
           }
-          infoDataLama.value = `Ketemu & diperbaiki ${perluDiperbaiki.length} data Lembur sangat lama. Klik Refresh buat lihat di daftar.`;
+          infoDataLama.value = `Ketemu & diperbaiki ${perluDiperbaiki.length} data sangat lama. Klik Refresh buat lihat di daftar.`;
         }
       } catch (e) {
-        console.error("Gagal cek data lembur sangat lama:", e);
+        console.error("Gagal cek data sangat lama:", e);
         infoDataLama.value = 'Gagal memeriksa data sangat lama.';
       }
       memuatDataLama.value = false;
@@ -303,18 +334,15 @@ const AppAntreanLembur = {
     return {
       daftarPending, daftarPendingTersaring, memuat, errorMuat, muat,
       cariNama, isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner,
-      menuTerbuka, toggleMenuTerbuka, adaFilterAktif,
+      filterJenis, menuTerbuka, toggleMenuTerbuka, adaFilterAktif,
       memuatDataLama, infoDataLama, cekDataSangatLama, petaShiftInfo
     };
   },
   // ==========================================================================
-  // DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, dari cek
-  // live Guru di HP) — Lembur BELUM PERNAH ikut redesain sebelumnya, jadi
-  // ini penerapan POLA LENGKAP pertama kalinya di sini: KolomCari (pil),
-  // banner dipadatkan & dipindah ke bawah kolom cari, dropdown filter Owner
-  // + Cek Data Sangat Lama/Refresh masuk ke menu oval titik-tiga
-  // (.gc-overflow-btn) — sama persis pola vue-antrean-absensi.js. Logic
-  // Firestore/query/proses('ACC'/'REJECT') TIDAK berubah sama sekali.
+  // Pola sama persis vue-antrean-absensi.js (moodboard "Gechoo Mobile
+  // Organic" v2). BARU (9 Sep 2026): filter pil jenis (Semua/Izin/Cuti/
+  // Lembur) ditambah di panel "menu lainnya", karena sekarang 3 jenis
+  // tercampur di 1 daftar.
   // ==========================================================================
   template: `
     <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
@@ -325,7 +353,17 @@ const AppAntreanLembur = {
       </button>
       <div v-if="menuTerbuka" @click="toggleMenuTerbuka" class="gc-overflow-backdrop"></div>
       <div v-if="menuTerbuka" class="gc-overflow-panel">
+        <div class="gc-overflow-label">Jenis</div>
+        <div style="padding:2px 6px 8px;">
+          <select v-model="filterJenis" style="width:100%; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+            <option value="ALL">Semua jenis</option>
+            <option value="IZIN">Izin</option>
+            <option value="CUTI">Cuti</option>
+            <option value="LEMBUR (CLOCK IN)">Lembur</option>
+          </select>
+        </div>
         <template v-if="isOwnerRole">
+          <hr class="gc-overflow-sep">
           <div class="gc-overflow-label">Filter</div>
           <div style="padding:2px 6px 8px;">
             <select v-model="filterJenisPekerjaanOwner" style="width:100%; margin-bottom:6px; padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
@@ -337,27 +375,27 @@ const AppAntreanLembur = {
               <option v-for="g in opsiGudangOwner" :key="g" :value="g">{{ g }}</option>
             </select>
           </div>
-          <hr class="gc-overflow-sep">
         </template>
+        <hr class="gc-overflow-sep">
         <button @click="toggleMenuTerbuka(); cekDataSangatLama();" :disabled="memuatDataLama" class="gc-overflow-item"><i class="fas fa-magnifying-glass"></i> Cek Data Sangat Lama</button>
         <button @click="toggleMenuTerbuka(); muat();" class="gc-overflow-item"><i class="fas fa-sync-alt"></i> Refresh</button>
       </div>
     </div>
     <div class="gc-card" style="display:flex; align-items:center; gap:8px; background:var(--pink); border:none; padding:9px 14px; margin-bottom:16px;">
-      <i class="fas fa-business-time" style="color:var(--burgundy-dark); font-size:12px;"></i>
-      <b style="font-size:11px; color:var(--burgundy-dark);">Antrean validasi Lembur</b>
+      <i class="fas fa-calendar-check" style="color:var(--burgundy-dark); font-size:12px;"></i>
+      <b style="font-size:11px; color:var(--burgundy-dark);">Antrean validasi Izin/Cuti/Lembur</b>
       <span class="gc-badge-count">{{ daftarPendingTersaring.length }}</span>
     </div>
     <p v-if="infoDataLama" style="font-size:11px; color:var(--text-muted); margin:-10px 0 16px; padding:8px 12px; background:var(--ivory-dim); border-radius:10px;">{{ infoDataLama }}</p>
 
     <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint);">
-      <i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i><p style="font-size:12px;">Memuat antrean validasi lembur...</p>
+      <i class="fas fa-spinner fa-spin" style="font-size:26px; margin-bottom:10px; display:block;"></i><p style="font-size:12px;">Memuat antrean validasi Izin/Cuti/Lembur...</p>
     </div>
     <div v-else-if="errorMuat" style="text-align:center; padding:40px 0; color:var(--danger); font-size:12px; background:var(--danger-light); border-radius:18px;">{{ errorMuat }}</div>
     <div v-else-if="daftarPending.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
       <i class="fas fa-glass-cheers" style="font-size:40px; color:var(--blue-deep); margin-bottom:12px; display:block;"></i>
-      <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Semua pengajuan lembur telah divalidasi</h4>
-      <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Tidak ada antrean lembur baru yang perlu diperiksa.</p>
+      <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Semua pengajuan Izin/Cuti/Lembur telah divalidasi</h4>
+      <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Tidak ada antrean baru yang perlu diperiksa.</p>
     </div>
     <div v-else-if="daftarPendingTersaring.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
       <i class="fas fa-filter-circle-xmark" style="font-size:34px; color:var(--text-faint); margin-bottom:12px; display:block;"></i>
@@ -365,7 +403,7 @@ const AppAntreanLembur = {
       <p style="font-size:11.5px; color:var(--text-muted); margin-top:4px;">Coba ubah kata kunci pencarian atau filter yang aktif.</p>
     </div>
     <div v-else style="gap:14px;" class="grid grid-cols-1 md:grid-cols-2">
-      <antrean-lembur-card
+      <antrean-icl-card
         v-for="item in daftarPendingTersaring" :key="item.id"
         :doc-id="item.id" :data="item.data"
         :shift-info="petaShiftInfo[item.data.nama_shift] || {masuk:null,keluar:null}"
@@ -375,10 +413,14 @@ const AppAntreanLembur = {
   `
 };
 
-let vmAntreanLembur = null;
+// Nama fungsi global SENGAJA DIPERTAHANKAN (pastikanMountAntreanLembur,
+// bukan diganti pastikanMountAntreanICL) — lihat catatan header file:
+// dashboard.js petaMount['sub-absensi-lembur'] masih memanggil nama ini,
+// tidak perlu diubah.
+let vmAntreanICL = null;
 window.pastikanMountAntreanLembur = function() {
-  if (vmAntreanLembur) return;
+  if (vmAntreanICL) return;
   const mountPoint = document.getElementById('vue-antrean-lembur');
-  if (mountPoint) vmAntreanLembur = createApp(AppAntreanLembur).mount('#vue-antrean-lembur');
+  if (mountPoint) vmAntreanICL = createApp(AppAntreanIcl).mount('#vue-antrean-lembur');
 };
-window.refreshAntreanLembur = function() { if (vmAntreanLembur) vmAntreanLembur.muat(); };
+window.refreshAntreanLembur = function() { if (vmAntreanICL) vmAntreanICL.muat(); };

@@ -460,9 +460,10 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-keuangan-antrean': 'pastikanMountAntreanReimburse',
     'sub-keuangan-kendaraan': 'pastikanMountMasterKendaraan',
     'sub-keuangan-kategori': 'pastikanMountMasterKeuangan',
+    // (9 Sep 2026) — 'sub-keuangan-riwayat-bensin'/'-servis' dihapus dari
+    // sini juga, gabung ke 'sub-keuangan-riwayat-reimburse' (kini "Riwayat
+    // Keuangan"). Lihat index.html + js/vue-reimburse.js.
     'sub-keuangan-riwayat-reimburse': 'pastikanMountRiwayatReimburse',
-    'sub-keuangan-riwayat-bensin': 'pastikanMountRiwayatBensin',
-    'sub-keuangan-riwayat-servis': 'pastikanMountRiwayatServis',
     'sub-karyawan-antrean': 'pastikanMountAntreanDakar',
     'sub-karyawan-config': 'pastikanMountConfigKaryawan',
     'sub-karyawan-info': 'pastikanMountConfigInfo',

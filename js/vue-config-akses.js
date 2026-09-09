@@ -68,18 +68,25 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-jadwal', null, {catatRiwayat:true}); } },
   { id: 'antrean_absensi', label: 'Antrean Absensi', kategori: 'Master Absensi', icon: 'fa-clipboard-check',
     aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-accept', null, {catatRiwayat:true}); } },
-  { id: 'antrean_lembur', label: 'Antrean Lembur', kategori: 'Master Absensi', icon: 'fa-business-time',
+  { id: 'antrean_lembur', label: 'Antrean Izin/Cuti/Lembur', kategori: 'Master Absensi', icon: 'fa-calendar-check',
+    // (9 Sep 2026) id TETAP 'antrean_lembur' walau labelnya sekarang gabungan
+    // Izin/Cuti/Lembur — supaya role yang sudah diberi akses menu ini tidak
+    // kehilangan izinnya (lihat header js/vue-antrean-lembur.js).
     aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-lembur', null, {catatRiwayat:true}); } },
   { id: 'antrean_reimburse', label: 'Antrean Reimburse', kategori: 'Master Keuangan', icon: 'fa-receipt',
     aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-antrean', null, {catatRiwayat:true}); } },
   { id: 'master_kendaraan', label: 'Master Kendaraan', kategori: 'Master Keuangan', icon: 'fa-truck',
     aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-kendaraan', null, {catatRiwayat:true}); } },
-  { id: 'riwayat_reimburse', label: 'Riwayat Reimburse', kategori: 'Master Keuangan', icon: 'fa-clock-rotate-left',
+  // (9 Sep 2026) — id 'riwayat_bensin'/'riwayat_servis' DIHAPUS (bukan
+  // dipertahankan yatim): spek handoff Master Keuangan §3.2 minta 1 tabel
+  // gabungan "Riwayat Keuangan", tombol/tab terpisahnya juga dihapus dari
+  // index.html sekaligus (lihat js/vue-reimburse.js — datanya SUDAH
+  // tergabung dari dulu di mode 'semua', cuma tampilannya yang baru
+  // dilengkapi). Tidak ada tombol lagi yang mengarah ke 2 id itu, jadi
+  // tidak ada permission yang jadi yatim (beda dgn kasus antrean_lembur
+  // yang labelnya diganti tapi id+layarnya tetap ada).
+  { id: 'riwayat_reimburse', label: 'Riwayat Keuangan', kategori: 'Master Keuangan', icon: 'fa-wallet',
     aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-reimburse', null, {catatRiwayat:true}); } },
-  { id: 'riwayat_bensin', label: 'Riwayat Isi Bensin', kategori: 'Master Keuangan', icon: 'fa-gas-pump',
-    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-bensin', null, {catatRiwayat:true}); } },
-  { id: 'riwayat_servis', label: 'Riwayat Servis', kategori: 'Master Keuangan', icon: 'fa-wrench',
-    aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-servis', null, {catatRiwayat:true}); } },
   { id: 'master_keuangan', label: 'Master Keuangan', kategori: 'Master Keuangan', icon: 'fa-tags',
     aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-kategori', null, {catatRiwayat:true}); } },
   { id: 'riwayat_absensi', label: 'Riwayat All Absensi', kategori: 'Master Absensi', icon: 'fa-clock-rotate-left',
