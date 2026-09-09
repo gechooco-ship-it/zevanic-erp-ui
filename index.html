@@ -671,8 +671,13 @@
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="config_karyawan">Config Karyawan</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-info', this)" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="config_info">Config Info</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this, {catatRiwayat:true})" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="daftar_karyawan" data-target="sub-karyawan-data">Daftar Karyawan</button>
-            <button id="btn-sub-karyawan-akses" onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-akses', this)" class="sub-karyawan-btn gc-sub-tab-btn hidden" data-menu-id="config_akses">Config Akses</button>
-            <button id="btn-sub-karyawan-hakakses" onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-hakakses', this, {catatRiwayat:true})" class="sub-karyawan-btn gc-sub-tab-btn hidden" data-menu-id="hak_akses" data-target="sub-karyawan-hakakses">Hak Akses</button>
+            <!-- GABUNG (9 Sep 2026) — Config Akses + Hak Akses jadi 1 sub-tab
+                 "Akses & Keamanan" dengan 3 pill tab di dalamnya (Role/Jabatan/
+                 Assign). Dua layar lama TETAP hidup persis seperti sebelumnya
+                 (div #vue-config-akses & #vue-hak-akses tidak diubah sama
+                 sekali), cuma dibungkus 1 shell + ditambah 1 tab baru
+                 (Jabatan). Lihat js/vue-config-akses.js window.pindahPillAksesKeamanan. -->
+            <button id="btn-sub-karyawan-akseskeamanan" onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-akseskeamanan', this, {catatRiwayat:true})" class="sub-karyawan-btn gc-sub-tab-btn hidden" data-menu-id="akses_keamanan">Akses & Keamanan</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="slip_gaji">Slip Gaji</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="payroll">Payroll</button>
           </div>
@@ -699,16 +704,37 @@
             <div id="vue-daftar-karyawan"></div>
           </div>
 
-          <div id="sub-karyawan-akses" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
-            <!-- Config Akses: definisikan Visibility/Create/Read/Edit/Delete per
-                 Role x Menu/Sub-menu. Lihat js/vue-config-akses.js -->
-            <div id="vue-config-akses"></div>
-          </div>
+          <div id="sub-karyawan-akseskeamanan" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
+            <!-- GABUNG (9 Sep 2026): 3 pill tab — Role (dulu "Config Akses"),
+                 Jabatan (BARU, pembatas tambahan opt-in), Assign (dulu "Hak
+                 Akses"). Toggle plain JS (bukan Vue) di js/vue-config-akses.js
+                 window.pindahPillAksesKeamanan — konsisten dengan pola
+                 pindahSubTab di file ini (cuma toggle .hidden, TIDAK
+                 unmount/remount Vue app di dalamnya). -->
+            <div class="flex gap-2 mb-4">
+              <button id="pill-akses-role" onclick="pindahPillAksesKeamanan('role')" class="gc-sub-tab-btn active">Role</button>
+              <button id="pill-akses-jabatan" onclick="pindahPillAksesKeamanan('jabatan')" class="gc-sub-tab-btn">Jabatan</button>
+              <button id="pill-akses-assign" onclick="pindahPillAksesKeamanan('assign')" class="gc-sub-tab-btn">Assign</button>
+            </div>
 
-          <div id="sub-karyawan-hakakses" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
-            <!-- Hak Akses: hubungkan Karyawan <-> Role (dari Config Akses),
-                 tampilan mirip Penjadwalan. Lihat js/vue-hak-akses.js -->
-            <div id="vue-hak-akses"></div>
+            <div id="pane-akses-role" class="fade-in">
+              <!-- Config Akses (TIDAK DIUBAH): definisikan Visibility/Create/
+                   Read/Edit/Delete per Role x Menu/Sub-menu. Lihat js/vue-config-akses.js -->
+              <div id="vue-config-akses"></div>
+            </div>
+
+            <div id="pane-akses-jabatan" class="hidden fade-in">
+              <!-- BARU (9 Sep 2026): pembatas TAMBAHAN (AND dengan Role) per
+                   Jabatan, opt-in per menu+aksi. Lihat js/vue-config-akses.js
+                   AppJabatanAkses + js/auth.js window.muatAksesJabatanSaya. -->
+              <div id="vue-jabatan-akses"></div>
+            </div>
+
+            <div id="pane-akses-assign" class="hidden fade-in">
+              <!-- Hak Akses (TIDAK DIUBAH): hubungkan Karyawan <-> Role (dari
+                   Config Akses), tampilan mirip Penjadwalan. Lihat js/vue-hak-akses.js -->
+              <div id="vue-hak-akses"></div>
+            </div>
           </div>
 
           <div id="sub-karyawan-slip" class="sub-karyawan-content hidden fade-in mt-4">
@@ -1688,7 +1714,7 @@
        di vue-riwayat-absensi.js, kolom menyesuaikan mode. -->
   <script type="module" src="js/vue-reimburse.js?v=4"></script>
   <script type="module" src="js/vue-riwayat-absensi.js?v=2"></script>
-  <script type="module" src="js/vue-penjadwalan.js?v=2"></script>
+  <script type="module" src="js/vue-penjadwalan.js?v=3"></script>
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>
   <script type="module" src="js/vue-otp.js"></script>
   <script type="module" src="js/vue-mail-gateway.js"></script>

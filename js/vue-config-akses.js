@@ -21,7 +21,7 @@
 // Akses ke layar ini SENGAJA dibatasi khusus Owner (lihat auth.js).
 // ============================================================================
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 const TINGKAT_KEAMANAN_BAKU = ['operator', 'pic', 'admin', 'owner', 'superuser'];
@@ -42,11 +42,11 @@ const TINGKAT_KEAMANAN_BAKU = ['operator', 'pic', 'admin', 'owner', 'superuser']
 // seperti alasan aslinya) — TIDAK butuh icon/aksi.
 // `wajibOwner: true` = TAMBAHAN pengunci di ATAS izin Config Akses biasa —
 // menu ini di Home mobile TETAP terkunci utk siapapun SELAIN role 'owner'
-// asli, APAPUN hasil Config Akses-nya. Dipakai cuma utk 2 menu yang
-// memang sudah lama begini di sidebar desktop (Config Akses & Hak Akses,
-// lihat id="btn-sub-karyawan-akses"/"btn-sub-karyawan-hakakses" di
-// index.html) + Device Kiosk (List Device Kiosk) — supaya perilakunya
-// konsisten sama di mobile.
+// asli, APAPUN hasil Config Akses-nya. Dipakai cuma utk menu yang memang
+// sudah lama begini di sidebar desktop (Akses & Keamanan — GABUNGAN Config
+// Akses + Hak Akses + Jabatan sejak 9 Sep 2026, lihat
+// id="btn-sub-karyawan-akseskeamanan" di index.html) + Device Kiosk (List
+// Device Kiosk) — supaya perilakunya konsisten sama di mobile.
 const DAFTAR_MENU = [
   { id: 'dashboard', label: 'Dashboard', kategori: 'Umum' },
   { id: 'profile', label: 'Profile', kategori: 'Umum' },
@@ -96,10 +96,13 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-slip', null); } },
   { id: 'payroll', label: 'Payroll', kategori: 'Master Karyawan', icon: 'fa-money-check-dollar',
     aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', null); } },
-  { id: 'config_akses', label: 'Config Akses', kategori: 'Master Karyawan', icon: 'fa-shield-halved', wajibOwner: true,
-    aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-akses', null); } },
-  { id: 'hak_akses', label: 'Hak Akses', kategori: 'Master Karyawan', icon: 'fa-user-shield', wajibOwner: true,
-    aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-hakakses', null, {catatRiwayat:true}); } },
+  // GABUNG (9 Sep 2026) — dulu 2 entry terpisah (config_akses, hak_akses),
+  // sekarang 1 layar "Akses & Keamanan" dengan 3 pill tab (Role/Jabatan/
+  // Assign) di dalamnya. id LAMA sengaja TIDAK dipertahankan sebagai alias
+  // — keduanya wajibOwner:true (tidak pernah dikonfigurasi lewat Config
+  // Akses biasa), jadi tidak ada data izin lama yang jadi yatim.
+  { id: 'akses_keamanan', label: 'Akses & Keamanan', kategori: 'Master Karyawan', icon: 'fa-shield-halved', wajibOwner: true,
+    aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-akseskeamanan', null, {catatRiwayat:true}); } },
   { id: 'whatsapp_gateway', label: 'WhatsApp Gateway', kategori: 'Master Integrasi', icon: 'fa-comment-dots',
     aksi: () => { window.pindahTab('tab-whatsapp'); if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('monitor'); } },
   { id: 'mail_gateway', label: 'Mail Gateway', kategori: 'Master Integrasi', icon: 'fa-envelope',
@@ -810,3 +813,253 @@ window.pastikanMountConfigAkses = function() {
   if (mountPoint) vmConfigAkses = createApp(AppConfigAkses).mount('#vue-config-akses');
 };
 window.refreshConfigAkses = function() { if (vmConfigAkses) vmConfigAkses.muat(); };
+
+// ============================================================================
+// BARU (9 Sep 2026) — AppJabatanAkses: dimensi Jabatan, tab "Jabatan" di
+// layar gabungan "Akses & Keamanan" (lihat pill-tab di bawah + index.html).
+// Jawaban Guru (AskUserQuestion): Jabatan ini PEMBATAS TAMBAHAN (AND) —
+// BUKAN pengganti Role, dan BUKAN pilihan "OR" yang bisa melonggarkan izin.
+// Mekanismenya (lihat window.cekIzinMenu di auth.js):
+//   - Kalau kotak DICENTANG (default, belum pernah diatur) -> TIDAK ADA
+//     pembatasan tambahan dari Jabatan, izin akhir 100% ikut Role/Config
+//     Akses seperti biasa.
+//   - Kalau kotak DIKOSONGKAN -> jenis akses itu DIBLOKIR KHUSUS untuk
+//     Jabatan ini, walau Role-nya mengizinkan. Tidak bisa dipakai untuk
+//     MENGIZINKAN sesuatu yang Role-nya sendiri tidak izinkan.
+// KENAPA desain begini (bukan mirror penuh gaya Role/AppConfigAkses di
+// atas): supaya deploy pertama kali (belum ada satupun akses_jabatan/{x}
+// tersimpan) TIDAK mengunci siapapun — default aman. Karena itu juga tidak
+// ada opsi "+ buat profil baru" seperti Role — daftar Jabatan sendiri
+// SUDAH dikelola satu tempat di Master Karyawan > Config Karyawan > Jabatan
+// (master_data/jabatan, field `items`), di sini cuma PILIH salah satu dari
+// situ untuk diatur pembatasannya (single source of truth, tidak duplikat
+// tempat kelola daftar nama Jabatan).
+// ============================================================================
+const KOSONG_IZIN_JABATAN = () => ({ view: true, add: true, edit: true, delete: true, print: true });
+
+const AppJabatanAkses = {
+  setup() {
+    const daftarJabatan = ref([]);
+    const memuat = ref(true);
+    const menyimpan = ref(false);
+    const menghapus = ref(false);
+    const jabatanDipilih = ref('');
+    const adaPembatasanTersimpan = ref(false); // true kalau doc akses_jabatan utk pilihan ini sudah pernah disimpan
+    const menus = reactive({});
+    DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN_JABATAN(); });
+
+    const kategoriTerbuka = reactive({});
+    KATEGORI_URUTAN.forEach(k => { kategoriTerbuka[k] = true; });
+    function toggleKategori(k) { kategoriTerbuka[k] = !kategoriTerbuka[k]; }
+
+    const cariMenu = ref('');
+    function menuUntukKategori(kategori) {
+      const kata = cariMenu.value.trim().toLowerCase();
+      return DAFTAR_MENU.filter(m => m.kategori === kategori && (!kata || m.label.toLowerCase().includes(kata)));
+    }
+    function semuaTercentangKolom(kategori, field) {
+      const daftarMenu = menuUntukKategori(kategori);
+      return daftarMenu.length > 0 && daftarMenu.every(m => menus[m.id][field]);
+    }
+    function toggleKolomKategori(kategori, field) {
+      const nilaiBaru = !semuaTercentangKolom(kategori, field);
+      menuUntukKategori(kategori).forEach(m => { menus[m.id][field] = nilaiBaru; });
+    }
+
+    async function muat() {
+      memuat.value = true;
+      try {
+        const snap = await getDoc(doc(db, 'master_data', 'jabatan'));
+        daftarJabatan.value = snap.exists() ? (snap.data().items || []) : [];
+      } catch (e) {
+        console.error('Gagal muat daftar Jabatan (master_data/jabatan):', e);
+        daftarJabatan.value = [];
+      }
+      if (!jabatanDipilih.value && daftarJabatan.value.length > 0) {
+        await pilihJabatan(daftarJabatan.value[0]);
+      }
+      memuat.value = false;
+    }
+
+    async function pilihJabatan(nama) {
+      jabatanDipilih.value = nama;
+      DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN_JABATAN(); });
+      adaPembatasanTersimpan.value = false;
+      if (!nama) return;
+      try {
+        const j = nama.trim().toLowerCase();
+        const snap = await getDoc(doc(db, 'akses_jabatan', j));
+        if (snap.exists()) {
+          adaPembatasanTersimpan.value = true;
+          const dataMenus = snap.data().menus || {};
+          DAFTAR_MENU.forEach(m => {
+            menus[m.id] = dataMenus[m.id] ? { ...KOSONG_IZIN_JABATAN(), ...dataMenus[m.id] } : KOSONG_IZIN_JABATAN();
+          });
+        }
+      } catch (e) {
+        console.error('Gagal muat akses_jabatan untuk', nama, e);
+      }
+    }
+
+    async function simpan() {
+      if (!jabatanDipilih.value) return alert('Pilih Jabatan dulu.');
+      menyimpan.value = true;
+      try {
+        const j = jabatanDipilih.value.trim().toLowerCase();
+        const menusPolos = {};
+        DAFTAR_MENU.forEach(m => { menusPolos[m.id] = { ...menus[m.id] }; });
+        await setDoc(doc(db, 'akses_jabatan', j), { nama: jabatanDipilih.value, menus: menusPolos });
+        adaPembatasanTersimpan.value = true;
+        alert(`Pembatasan akses untuk Jabatan "${jabatanDipilih.value}" berhasil disimpan!`);
+      } catch (e) {
+        console.error('Gagal simpan akses_jabatan:', e);
+        alert('Gagal menyimpan pembatasan akses Jabatan.');
+      }
+      menyimpan.value = false;
+    }
+
+    async function hapusPembatasan() {
+      if (!jabatanDipilih.value) return;
+      if (!confirm(`Hapus SEMUA pembatasan tambahan untuk Jabatan "${jabatanDipilih.value}"? Jabatan ini akan kembali mengikuti izin Role sepenuhnya (tanpa pembatas tambahan).`)) return;
+      menghapus.value = true;
+      try {
+        const j = jabatanDipilih.value.trim().toLowerCase();
+        await deleteDoc(doc(db, 'akses_jabatan', j));
+        DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN_JABATAN(); });
+        adaPembatasanTersimpan.value = false;
+        alert('Pembatasan berhasil dihapus — Jabatan ini sekarang tidak punya pembatas tambahan.');
+      } catch (e) {
+        console.error('Gagal hapus akses_jabatan:', e);
+        alert('Gagal menghapus pembatasan.');
+      }
+      menghapus.value = false;
+    }
+
+    onMounted(async () => { await window.authReady; muat(); });
+
+    return {
+      daftarJabatan, memuat, menyimpan, menghapus, jabatanDipilih, adaPembatasanTersimpan,
+      pilihJabatan, simpan, hapusPembatasan,
+      menus, KATEGORI_URUTAN, kategoriTerbuka, toggleKategori, menuUntukKategori, cariMenu,
+      semuaTercentangKolom, toggleKolomKategori
+    };
+  },
+  template: `
+    <div>
+      <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px;">
+        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:#1F5060;"><i class="fas fa-user-tie" style="margin-right:8px;"></i> Pembatas Tambahan per Jabatan</h4>
+        <p style="font-size:11px; color:#1F5060; margin-top:4px; opacity:.85;">Ini BUKAN pengganti Role — ini pembatas TAMBAHAN (AND). Kotak <b>DICENTANG</b> = tidak ada pembatasan tambahan (ikut izin Role seperti biasa). Kotak <b>DIKOSONGKAN</b> = akses itu DIBLOKIR khusus untuk Jabatan ini, walau Role-nya mengizinkan. Belum pernah diatur = otomatis TIDAK ADA pembatasan sama sekali.</p>
+      </div>
+
+      <div class="gc-card" style="margin-bottom:16px;">
+        <div class="gc-field" style="margin-bottom:0; max-width:320px;">
+          <label>Pilih Jabatan untuk diatur pembatasannya</label>
+          <select :value="jabatanDipilih" @change="pilihJabatan($event.target.value)">
+            <option value="">— pilih Jabatan —</option>
+            <option v-for="j in daftarJabatan" :key="j" :value="j">{{ j }}</option>
+          </select>
+          <p v-if="!memuat && daftarJabatan.length === 0" style="font-size:11px; color:var(--burgundy); margin-top:8px;">Belum ada data Jabatan. Tambahkan dulu di Master Karyawan &rsaquo; Config Karyawan &rsaquo; Jabatan.</p>
+        </div>
+      </div>
+
+      <div v-if="jabatanDipilih" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
+        <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="flex:1; min-width:200px;">
+          <i class="fas" :class="menyimpan ? 'fa-spinner fa-spin' : 'fa-save'" style="margin-right:8px;"></i>{{ menyimpan ? 'Menyimpan...' : 'Simpan Pembatasan' }}
+        </button>
+        <button v-if="adaPembatasanTersimpan" @click="hapusPembatasan" :disabled="menghapus" style="flex:1; min-width:200px; background:var(--surface); border:1.5px solid var(--burgundy); color:var(--burgundy); border-radius:10px; font-weight:700; font-size:12.5px; cursor:pointer;">
+          <i class="fas" :class="menghapus ? 'fa-spinner fa-spin' : 'fa-trash'" style="margin-right:8px;"></i>{{ menghapus ? 'Menghapus...' : 'Hapus Semua Pembatasan' }}
+        </button>
+      </div>
+
+      <div v-if="jabatanDipilih" style="position:relative; margin-bottom:14px;">
+        <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
+        <input v-model="cariMenu" type="text" placeholder="Cari nama menu..." style="width:100%; max-width:320px; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+      </div>
+
+      <div v-if="jabatanDipilih" v-for="kategori in KATEGORI_URUTAN" :key="kategori" class="gc-card" style="margin-bottom:12px; padding:0; overflow:hidden;">
+        <div @click="toggleKategori(kategori)" style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; cursor:pointer; background:var(--ivory-dim);">
+          <h3 class="gc-heading" style="font-size:13px; font-weight:700;">{{ kategori }}</h3>
+          <i class="fas" :class="kategoriTerbuka[kategori] ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-muted);"></i>
+        </div>
+        <div v-show="kategoriTerbuka[kategori]" class="gc-table-scroll">
+          <table class="gc-table" style="table-layout:fixed; min-width:640px;">
+            <thead>
+              <tr>
+                <th class="freeze freeze-left" style="width:220px;">Nama menu</th>
+                <th style="width:84px; text-align:center;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'view')" @change="toggleKolomKategori(kategori, 'view')" style="accent-color:var(--burgundy); width:14px; height:14px;">
+                    <span>View</span>
+                  </div>
+                </th>
+                <th style="width:84px; text-align:center;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'add')" @change="toggleKolomKategori(kategori, 'add')" style="accent-color:var(--burgundy); width:14px; height:14px;">
+                    <span>Add</span>
+                  </div>
+                </th>
+                <th style="width:84px; text-align:center;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'edit')" @change="toggleKolomKategori(kategori, 'edit')" style="accent-color:var(--burgundy); width:14px; height:14px;">
+                    <span>Edit</span>
+                  </div>
+                </th>
+                <th style="width:84px; text-align:center;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'delete')" @change="toggleKolomKategori(kategori, 'delete')" style="accent-color:var(--burgundy); width:14px; height:14px;">
+                    <span>Delete</span>
+                  </div>
+                </th>
+                <th style="width:84px; text-align:center;">
+                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'print')" @change="toggleKolomKategori(kategori, 'print')" style="accent-color:var(--burgundy); width:14px; height:14px;">
+                    <span>Print</span>
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="m in menuUntukKategori(kategori)" :key="m.id">
+                <td class="freeze freeze-left" style="font-weight:600;">{{ m.label }}</td>
+                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].view" style="accent-color:var(--ok); width:16px; height:16px;"></td>
+                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].add" style="accent-color:var(--ok); width:16px; height:16px;"></td>
+                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].edit" style="accent-color:var(--ok); width:16px; height:16px;"></td>
+                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].delete" style="accent-color:var(--ok); width:16px; height:16px;"></td>
+                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].print" style="accent-color:var(--ok); width:16px; height:16px;"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+let vmJabatanAkses = null;
+window.pastikanMountJabatanAkses = function() {
+  if (vmJabatanAkses) return;
+  const mountPoint = document.getElementById('vue-jabatan-akses');
+  if (mountPoint) vmJabatanAkses = createApp(AppJabatanAkses).mount('#vue-jabatan-akses');
+};
+
+// ============================================================================
+// BARU (9 Sep 2026) — GABUNG "Akses & Keamanan" jadi 1 layar dengan 3 pill
+// tab (Role / Jabatan / Assign), gabungan Config Akses (lama) + tab baru
+// Jabatan + Hak Akses (lama, dipindah tanpa perubahan isi). Lihat index.html
+// utk markup 3 pill button + 3 pane, dan dashboard.js utk petaMount yang
+// mengarah ke window.pastikanMountAksesKeamanan di bawah.
+// ============================================================================
+window.pindahPillAksesKeamanan = function(nama) {
+  const semua = ['role', 'jabatan', 'assign'];
+  semua.forEach(n => {
+    const pane = document.getElementById('pane-akses-' + n);
+    const tombol = document.getElementById('pill-akses-' + n);
+    if (pane) pane.classList.toggle('hidden', n !== nama);
+    if (tombol) tombol.classList.toggle('active', n === nama);
+  });
+};
+window.pastikanMountAksesKeamanan = function() {
+  window.pastikanMountConfigAkses();
+  window.pastikanMountJabatanAkses();
+  if (window.pastikanMountHakAkses) window.pastikanMountHakAkses();
+};

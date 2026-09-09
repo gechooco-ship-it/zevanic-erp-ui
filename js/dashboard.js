@@ -467,8 +467,13 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-karyawan-config': 'pastikanMountConfigKaryawan',
     'sub-karyawan-info': 'pastikanMountConfigInfo',
     'sub-karyawan-data': 'pastikanMountDaftarKaryawan',
-    'sub-karyawan-akses': 'pastikanMountConfigAkses',
-    'sub-karyawan-hakakses': 'pastikanMountHakAkses',
+    // GABUNG (9 Sep 2026) — dulu 2 entry terpisah ('sub-karyawan-akses' ->
+    // pastikanMountConfigAkses, 'sub-karyawan-hakakses' -> pastikanMountHakAkses),
+    // sekarang 1 subtab dengan 3 pill tab di dalamnya (Role/Jabatan/Assign).
+    // pastikanMountAksesKeamanan (js/vue-config-akses.js) memanggil ketiga
+    // fungsi mount lama SEKALIGUS — masing-masing tetap idempoten (aman
+    // dipanggil berkali-kali), jadi tidak ada resiko mount dobel.
+    'sub-karyawan-akseskeamanan': 'pastikanMountAksesKeamanan',
     // BARU (27 Agt 2026, §26.1) — Config (6 tab child). BARU (28 Agt 2026) —
     // tab ke-7 "Jenis Produk", pola sama seperti "Data Ukuran". BARU (28 Agt
     // 2026) — tab ke-8 "Data Komponen", pola sama seperti "Data Warna".

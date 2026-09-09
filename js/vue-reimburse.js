@@ -102,10 +102,100 @@ function warnaTahap(tahap) {
 }
 
 // ============================================================================
+// Aju Banding Reimburse — BARU (9 Sep 2026). Mirror PERSIS pola Aju
+// Banding Absensi (AjuBandingModal di vue-account-profile.js): field
+// catatan_banding/tgl_banding/lampiran_banding(_tipe) langsung di
+// dokumen `reimburse`, TIDAK ada koleksi baru — spek handoff Master
+// Keuangan minta koleksi `aju_banding_reimburse` terpisah, tapi pola
+// yang sudah jalan & teruji di Absensi lebih sederhana dan konsisten,
+// jadi dipakai ulang di sini juga (nama field SAMA PERSIS — beda
+// collection jadi tidak ada resiko tabrakan).
+// Cuma bisa diajukan kalau tahap === 'ditolak' (lihat bolehBandingReimburse
+// di AjukanReimburseTab).
+// ============================================================================
+export const AjuBandingReimburseModal = {
+  props: { docId: { type: String, required: true } },
+  emits: ['tutup', 'terkirim'],
+  setup(props, { emit }) {
+    const alasan = ref('');
+    const fileInfo = ref('');
+    const fileData = ref(null); // { dataUrl, tipe, nama }
+    const mengirim = ref(false);
+    const BATAS_1MB = 1024 * 1024;
+
+    function pilihFile(event) {
+      const file = event.target.files[0];
+      if (!file) { fileData.value = null; fileInfo.value = ''; return; }
+
+      if (file.size > BATAS_1MB) {
+        alert(`File terlalu besar (${Math.round(file.size / 1024)}KB). Maksimal 1MB.`);
+        event.target.value = '';
+        fileData.value = null;
+        fileInfo.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        fileData.value = { dataUrl: e.target.result, tipe: file.type.startsWith('video') ? 'video' : 'foto', nama: file.name };
+        fileInfo.value = `${file.name} (${Math.round(file.size / 1024)}KB) siap diunggah`;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    async function kirim() {
+      if (!alasan.value) return alert("Harap isi alasan sanggahan Anda!");
+      mengirim.value = true;
+      try {
+        const dataBanding = { catatan_banding: alasan.value, tgl_banding: new Date().toISOString() };
+        if (fileData.value) {
+          dataBanding.lampiran_banding = fileData.value.dataUrl;
+          dataBanding.lampiran_banding_tipe = fileData.value.tipe;
+        }
+        await updateDoc(doc(db, "reimburse", props.docId), dataBanding);
+        alert("Sanggahan berhasil dikirimkan untuk ditinjau ulang.");
+        emit('terkirim');
+      } catch (e) {
+        console.error("Gagal kirim banding reimburse:", e);
+        alert("Gagal mengirimkan sanggahan ke server. Kalau ada lampiran, coba kirim tanpa lampiran atau pakai file lebih kecil.");
+      }
+      mengirim.value = false;
+    }
+
+    return { alasan, fileInfo, mengirim, pilihFile, kirim };
+  },
+  template: `
+    <div style="position:fixed; inset:0; background:rgba(59,42,31,.6); z-index:50; display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+      <div style="background:var(--surface); width:100%; max-width:420px; padding:22px; border-radius:20px; max-height:90vh; overflow-y:auto; font-size:12.5px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:14px;">
+          <h3 class="gc-heading" style="font-weight:700; font-size:14px;"><i class="fas fa-gavel" style="color:var(--warn); margin-right:8px;"></i> Form Pengajuan Sanggahan / Aju Banding</h3>
+          <button @click="$emit('tutup')" style="background:none; border:none; color:var(--text-faint); font-size:16px; cursor:pointer;"><i class="fas fa-times"></i></button>
+        </div>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:14px;">Sampaikan alasan sanggahan Anda apabila pengajuan reimburse yang DITOLAK ini perlu ditinjau ulang.</p>
+        <div class="gc-field">
+          <label>Alasan / catatan sanggahan *</label>
+          <textarea v-model="alasan" rows="3" placeholder="Jelaskan alasan atau bukti tambahan..."></textarea>
+        </div>
+        <div class="gc-field">
+          <label>Lampiran foto/video (opsional, maks 1MB)</label>
+          <input type="file" accept="image/*,video/*" @change="pilihFile" style="font-size:11px; color:var(--text-muted);">
+          <p style="font-size:10.5px; color:var(--text-faint); margin-top:5px;"><i v-if="fileInfo" class="fas fa-check-circle" style="color:var(--ok); margin-right:4px;"></i>{{ fileInfo }}</p>
+        </div>
+        <div style="display:flex; gap:10px; padding-top:8px;">
+          <button @click="$emit('tutup')" class="btn-outline" style="flex:1;">Batal</button>
+          <button @click="kirim" :disabled="mengirim" class="btn-primary" style="flex:1; background:var(--warn);">{{ mengirim ? 'Mengirim...' : 'Kirim sanggahan' }}</button>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+// ============================================================================
 // KOMPONEN 1 — Tab "Ajukan Reimburse" (dipasang di Account Profile,
 // diimpor & didaftarkan di vue-account-profile.js, BUKAN app mandiri).
 // ============================================================================
 export const AjukanReimburseTab = {
+  components: { AjuBandingReimburseModal },
   setup() {
     const opsiKategori = ref([]);
     // DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2,
@@ -275,11 +365,20 @@ export const AjukanReimburseTab = {
       if (url && window.bukaPreviewFoto) window.bukaPreviewFoto(url);
     }
 
+    // ---- Aju Banding Reimburse (BARU, 9 Sep 2026) — cuma untuk
+    // pengajuan sendiri yang tahap-nya 'ditolak' & belum pernah dibanding. ----
+    const docIdSedangDibanding = ref(null);
+    function bolehBandingReimburse(item) { return item.tahap === 'ditolak' && !item.catatan_banding; }
+    function bukaBandingReimburse(docId) { docIdSedangDibanding.value = docId; }
+    function tutupBandingReimburse() { docIdSedangDibanding.value = null; }
+    async function selesaiBandingReimburse() { docIdSedangDibanding.value = null; await muatRiwayatSaya(); }
+
     onMounted(async () => { await window.authReady; await muatOpsiKategori(); await muatKendaraanSaya(); await muatRiwayatSaya(); });
     return {
       opsiKategori, form, mengirim, pilihFoto, ajukan, lihatFotoBesar, opsiGudangSaya,
       kendaraanSaya, jenisPengajuan, tambahBarisServis, hapusBarisServis, jumlahBarisServis, totalServis,
-      riwayatSaya, memuatRiwayat, LABEL_TAHAP, warnaTahap, formatRupiah
+      riwayatSaya, memuatRiwayat, LABEL_TAHAP, warnaTahap, formatRupiah,
+      docIdSedangDibanding, bolehBandingReimburse, bukaBandingReimburse, tutupBandingReimburse, selesaiBandingReimburse
     };
   },
   template: `
@@ -399,8 +498,12 @@ export const AjukanReimburseTab = {
             <span class="tag" :class="warnaTahap(r.tahap)">{{ LABEL_TAHAP[r.tahap] || r.tahap }}</span>
             <img v-if="r.foto_bukti" :src="r.foto_bukti" @click="lihatFotoBesar(r.foto_bukti)" style="width:32px; height:32px; object-fit:cover; border-radius:8px; cursor:pointer;">
           </div>
+          <!-- Aju Banding — cuma untuk pengajuan DITOLAK (BARU, 9 Sep 2026) -->
+          <div v-if="r.catatan_banding" style="margin-top:8px; text-align:center; font-size:11px; color:var(--text-muted);"><i class="fas fa-check" style="color:var(--ok); margin-right:4px;"></i>Sanggahan sudah terkirim</div>
+          <button v-else-if="bolehBandingReimburse(r)" @click="bukaBandingReimburse(r.id)" class="btn-outline block" style="margin-top:8px; font-size:11.5px;"><i class="fas fa-gavel" style="margin-right:6px;"></i>Aju Banding</button>
         </div>
       </div>
+      <aju-banding-reimburse-modal v-if="docIdSedangDibanding" :doc-id="docIdSedangDibanding" @tutup="tutupBandingReimburse" @terkirim="selesaiBandingReimburse" />
     </div>
   `
 };
@@ -1147,6 +1250,24 @@ const RiwayatReimburseTable = {
       if (url && window.bukaPreviewFoto) window.bukaPreviewFoto(url);
     }
 
+    // Assign ulang Aju Banding Reimburse — BARU (9 Sep 2026), mirror
+    // PERSIS assignUlang() di vue-riwayat-absensi.js. Restart dari tahap
+    // paling awal (menunggu_admin_finance) — penolakan bisa saja terjadi
+    // di tahap manapun (Admin Finance/PIC/Owner), jadi mulai ulang dari
+    // awal paling aman & konsisten daripada menebak tahap mana yang mau
+    // ditinjau ulang.
+    async function assignUlang(docId) {
+      if (!confirm("Kembalikan pengajuan ini ke Antrean Reimburse (mulai dari Admin Finance lagi) untuk diperiksa ulang?")) return;
+      try {
+        await updateDoc(doc(db, "reimburse", docId), { tahap: 'menunggu_admin_finance' });
+        alert("Pengajuan berhasil di-assign ulang ke Antrean Reimburse.");
+        await muat();
+      } catch (e) {
+        console.error("Gagal assign ulang reimburse:", e);
+        alert("Gagal memproses assign ulang.");
+      }
+    }
+
     // BARU (29 Agt 2026, permintaan Guru) — Download CSV, pola SAMA PERSIS
     // dengan exportCSV() di js/vue-riwayat-absensi.js (data URI + <a
     // download>, tanpa library) — export daftarTersaring (hasil pencarian
@@ -1221,7 +1342,7 @@ const RiwayatReimburseTable = {
     return {
       daftarSemua, daftarTersaring, daftarTerpaginasi, memuat, errorMuat, muat, cariKata, formatTgl, lihatFotoBesar,
       LABEL_TAHAP, warnaTahap, formatRupiah, LABEL_MODE, halamanSaatIni, totalHalaman, gantiHalaman, exportCSV,
-      filterTanggalPreset, tglMulaiCustom, tglSelesaiCustom, captionRentang
+      filterTanggalPreset, tglMulaiCustom, tglSelesaiCustom, captionRentang, assignUlang
     };
   },
   template: `
@@ -1299,12 +1420,18 @@ const RiwayatReimburseTable = {
               <span v-else>{{ r.item_servis.map(i => i.nama_barang).join(', ') }}</span>
             </span>
           </div>
+          <!-- Sanggahan / Aju Banding — BARU (9 Sep 2026), mirror kolom Sanggahan di Riwayat Absensi -->
+          <div v-if="r.catatan_banding" style="display:flex; justify-content:space-between; font-size:12px; gap:10px;">
+            <span style="color:var(--text-faint); flex-shrink:0;">Sanggahan Karyawan</span>
+            <span style="font-weight:700; text-align:right;">{{ r.catatan_banding }}</span>
+          </div>
         </div>
 
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <span style="font-size:11px; color:var(--text-faint);">Jumlah</span>
           <b style="font-size:15px; color:var(--burgundy);">{{ formatRupiah(r.jumlah) }}</b>
         </div>
+        <button v-if="r.catatan_banding" @click="assignUlang(r.id)" class="btn-outline block" style="margin-top:10px; font-size:11px; color:var(--warn); border-color:var(--warn);"><i class="fas fa-undo" style="margin-right:6px;"></i>Assign ulang ke Antrean Reimburse</button>
       </div>
     </div>
     <div v-if="!memuat && daftarTersaring.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">

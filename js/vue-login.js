@@ -375,6 +375,7 @@ const AppLogin = {
       }
 
       await window.muatAksesConfigSaya(window.currentUser.role, window.currentUser.profil_akses);
+      await window.muatAksesJabatanSaya(window.currentUser.jabatan); // BARU (9 Sep 2026) — pembatas tambahan per Jabatan
       window.simpanKonteksSesi(); // biar reload berikutnya (F5, tab baru) tidak baca ulang users/akses_config
 
       // Akun Kiosk BERHENTI DI SINI — tidak pernah ke Dashboard/kamera

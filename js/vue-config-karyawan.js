@@ -23,7 +23,22 @@ const KATEGORI_SEDERHANA = [
   { kategori: 'kabupaten', label: 'Kabupaten/Kota' },
   { kategori: 'alasan_izin', label: 'Alasan Izin' },
   { kategori: 'alasan_cuti', label: 'Alasan Cuti' },
-  { kategori: 'status_kehadiran', label: 'Status Kehadiran' }
+  { kategori: 'status_kehadiran', label: 'Status Kehadiran' },
+  // BARU (9 Sep 2026) — 4 kategori dari spek handoff "Master Karyawan"
+  // yang GENUINELY belum ada sebelumnya. Selaras dengan permintaan Guru
+  // "ikuti persis 8 kategori spek", TAPI 2 item spek (Gudang/Cabang,
+  // Shift) SENGAJA TIDAK diduplikasi ke sini — keduanya sudah punya
+  // rumah sendiri (master_gudang/master_shift, dikelola dari Config
+  // Absensi) dan menaruhnya di 2 tempat melanggar aturan single source
+  // of truth proyek ini. Kategori LAMA yang tidak disebut spek (status_
+  // kerja, kabupaten, alasan_izin, alasan_cuti, status_kehadiran) JUGA
+  // dipertahankan — semuanya aktif dipakai fitur lain (Profile Izin/
+  // Cuti, dropdown alamat, dst); menghapusnya akan mematahkan fitur yang
+  // sudah jalan tanpa pengganti. Detail lengkap ada di STATUS-PROYEK.md.
+  { kategori: 'departemen', label: 'Departemen' },
+  { kategori: 'seragam', label: 'Seragam' },
+  { kategori: 'agama', label: 'Agama' },
+  { kategori: 'pendidikan_terakhir', label: 'Pendidikan Terakhir' }
 ];
 
 const AppConfigKaryawan = {

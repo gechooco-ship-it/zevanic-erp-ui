@@ -118,11 +118,19 @@ window.muatAksesConfigSaya = async function(role, profilAkses) {
 };
 
 window.cekIzinMenu = function(menuId, jenis) {
-  if (window.aksesConfigSaya === 'OWNER_PENUH') return true;
+  if (window.aksesConfigSaya === 'OWNER_PENUH') return true; // Owner/Superuser kebal dari Role MAUPUN Jabatan
   if (!window.aksesConfigSaya) return null; // belum dimuat / tidak ada data -> pemanggil yang putuskan default
   const menu = window.aksesConfigSaya.menus?.[menuId];
-  if (!menu) return null;
-  return menu[jenis] === true ? true : (menu[jenis] === false ? false : null);
+  const hasilRole = !menu ? null : (menu[jenis] === true ? true : (menu[jenis] === false ? false : null));
+
+  // Pembatas tambahan per Jabatan (lihat catatan window.muatAksesJabatanSaya
+  // di atas) — cuma menang kalau ADA entri EKSPLISIT false utk menu+jenis
+  // ini. Tidak ada entri sama sekali (paling umum) = tidak mengubah apapun.
+  if (window.aksesJabatanSaya) {
+    const menuJabatan = window.aksesJabatanSaya.menus?.[menuId];
+    if (menuJabatan && menuJabatan[jenis] === false) return false;
+  }
+  return hasilRole;
 };
 
 window.cekFiturAkses = function(menuId, fiturKey) {
@@ -132,6 +140,37 @@ window.cekFiturAkses = function(menuId, fiturKey) {
   if (!menu || !menu.fitur) return null;
   const nilai = menu.fitur[fiturKey];
   return nilai === true ? true : (nilai === false ? false : null);
+};
+
+// ============================================================================
+// PEMBATAS TAMBAHAN PER JABATAN — BARU (9 Sep 2026, permintaan Guru:
+// tab "Jabatan" di layar Akses & Keamanan gabungan, lihat vue-config-akses.js).
+//
+// Ini BUKAN pengganti Role — ini LAPISAN KEDUA yang mengurangi (AND),
+// tidak pernah menambah. Hasil akhir cekIzinMenu = izin Role DAN izin
+// Jabatan. SENGAJA opt-in per menu+aksi: kalau Jabatan karyawan itu belum
+// pernah dikonfigurasi di akses_jabatan SAMA SEKALI, atau sudah
+// dikonfigurasi tapi menu/aksi tertentu belum disentuh (nilainya
+// undefined, bukan eksplisit false), maka TIDAK ADA PEMBATASAN TAMBAHAN
+// — hasil balik ke izin Role apa adanya. Ini KRUSIAL: sistem punya
+// puluhan nilai Jabatan yang sudah ada duluan sebelum fitur ini dibuat,
+// kalau default-nya "membatasi" alih-alih "tidak membatasi", semua orang
+// bisa mendadak terkunci dari menu yang tadinya bisa begitu fitur ini
+// di-deploy — HANYA Jabatan yang SENGAJA diberi larangan eksplisit lewat
+// tab Jabatan yang efeknya kerasa, sisanya berjalan sama seperti sebelum
+// fitur ini ada.
+window.aksesJabatanSaya = undefined; // undefined = belum sempat dimuat sama sekali
+
+window.muatAksesJabatanSaya = async function(jabatan) {
+  const j = (jabatan || '').trim().toLowerCase();
+  if (!j) { window.aksesJabatanSaya = null; return; }
+  try {
+    const snap = await getDoc(doc(db, "akses_jabatan", j));
+    window.aksesJabatanSaya = snap.exists() ? snap.data() : null;
+  } catch (e) {
+    console.error("Gagal muat akses_jabatan untuk", j, e);
+    window.aksesJabatanSaya = null;
+  }
 };
 
 // BARU (18 Agt 2026) — cache konteks sesi (window.currentUser +
@@ -154,6 +193,7 @@ window.simpanKonteksSesi = function() {
     localStorage.setItem('zevanic_konteks_sesi', JSON.stringify({
       data: ringkas,
       aksesConfig: window.aksesConfigSaya,
+      aksesJabatan: window.aksesJabatanSaya, // BARU (9 Sep 2026) — lihat window.muatAksesJabatanSaya
       disimpan_pada: Date.now()
     }));
   } catch (e) {
@@ -509,6 +549,7 @@ onAuthStateChanged(auth, async (user) => {
     if (cache) {
       d = cache.data;
       window.aksesConfigSaya = cache.aksesConfig;
+      window.aksesJabatanSaya = cache.aksesJabatan; // BARU (9 Sep 2026)
     } else {
       const userSnap = await getDoc(doc(db, "users", user.email));
       if (!userSnap.exists()) {
@@ -605,7 +646,10 @@ onAuthStateChanged(auth, async (user) => {
     // belum keisi sama sekali — baru di titik ini perlu dimuat. Kalau
     // SUDAH dari cache, sudah keisi dari cache.aksesConfig di atas, skip
     // (hemat 1 baca akses_config).
-    if (!cache) await window.muatAksesConfigSaya(roleUser, d.profil_akses);
+    if (!cache) {
+      await window.muatAksesConfigSaya(roleUser, d.profil_akses);
+      await window.muatAksesJabatanSaya(window.currentUser.jabatan); // BARU (9 Sep 2026)
+    }
     window.simpanKonteksSesi(); // simpan/refresh cache buat reload berikutnya
     if (window.aturTampilanBerdasarkanRole) window.aturTampilanBerdasarkanRole();
     if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
@@ -808,12 +852,13 @@ window.aturTampilanBerdasarkanRole = function() {
   const navMobileAdmin = document.getElementById('nav-mobile-admin');
   const navMobileSuper = document.getElementById('nav-mobile-super');
   const navMobileWhatsapp = document.getElementById('nav-mobile-whatsapp');
-  // Config Akses & Hak Akses SENGAJA dipisah dari gerbang owner+superuser di
-  // atas — permintaan eksplisit: dua sub-menu ini khusus Owner saja, bahkan
-  // Superuser (yang sebelumnya setara Owner untuk Master Karyawan lain)
-  // tidak boleh mengaksesnya.
-  const btnKonfigAkses = document.getElementById('btn-sub-karyawan-akses');
-  const btnHakAkses = document.getElementById('btn-sub-karyawan-hakakses');
+  // Akses & Keamanan (GABUNGAN Config Akses + Hak Akses + Jabatan, 9 Sep
+  // 2026) SENGAJA dipisah dari gerbang owner+superuser di atas — permintaan
+  // eksplisit lama: sub-menu ini khusus Owner saja, bahkan Superuser (yang
+  // sebelumnya setara Owner untuk Master Karyawan lain) tidak boleh
+  // mengaksesnya. Dulu 2 tombol terpisah (btnKonfigAkses/btnHakAkses),
+  // sekarang 1 tombol saja karena sudah 1 layar dengan 3 pill tab.
+  const btnAksesKeamanan = document.getElementById('btn-sub-karyawan-akseskeamanan');
   const menuDeviceKioskBtn = document.getElementById('menu-device-kiosk-btn');
   // BARU (23 Agt 2026) — Zevanic House > Master Bahan & Aksesoris. Gerbang
   // role SAMA PERSIS dengan Master Absensi/Keuangan (isAdminLevel() di
@@ -853,7 +898,7 @@ window.aturTampilanBerdasarkanRole = function() {
   // sama (tombolnya wajib ditambahkan ke KEDUA array show/hide di bawah).
   const menuProsesProduksi = document.getElementById('menu-proses-produksi');
 
-  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnKonfigAkses, btnHakAkses, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuZevanicStockBtn, menuPersiapanProduksi, menuPesanan, menuScanCetak, menuProsesProduksi].forEach(el => {
+  [menuAdminAcc, menuAdminAccBtn, menuKeuangan, menuKeuanganBtn, menuSuperUser, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnAksesKeamanan, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuZevanicStockBtn, menuPersiapanProduksi, menuPesanan, menuScanCetak, menuProsesProduksi].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -897,10 +942,9 @@ window.aturTampilanBerdasarkanRole = function() {
   }
 
   if (role === 'owner') {
-    if (btnKonfigAkses) btnKonfigAkses.classList.remove('hidden');
-    if (btnHakAkses) btnHakAkses.classList.remove('hidden');
+    if (btnAksesKeamanan) btnAksesKeamanan.classList.remove('hidden');
     // Device Kiosk (22 Agt 2026) — "hanya owner saja", SENGAJA pola sama
-    // persis Config Akses/Hak Akses (Superuser TIDAK ikut, beda dari
+    // persis Akses & Keamanan (Superuser TIDAK ikut, beda dari
     // WhatsApp/Mail Gateway yang Superuser masih boleh).
     if (menuDeviceKioskBtn) menuDeviceKioskBtn.classList.remove('hidden');
   }
