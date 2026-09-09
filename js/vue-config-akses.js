@@ -393,7 +393,15 @@ const DAFTAR_MENU = [
 // penggabungan tampilan SIDEBAR, bukan kategori permission, lihat
 // index.html). Ditambah 1 kategori baru 'Stok dan Pembelian' (dipisah dari
 // Zevanic House, 3 menu id stock_* di atas sudah dipindah kategorinya).
-export const KATEGORI_URUTAN = ['Umum', 'Pesanan', 'Persiapan Produksi', 'Proses Produksi', 'Stok dan Pembelian', 'Scan & Cetak', 'Zevanic House', 'Master Karyawan', 'Master Absensi', 'Master Keuangan', 'Master Integrasi'];
+// DIURUTKAN ULANG (9 Sep 2026, rombak sidebar ke-2) — mengikuti urutan
+// sidebar terbaru: Management (Karyawan/Absensi/Keuangan) > Zevanic House >
+// Stok dan Pembelian > Pesanan > Persiapan Produksi > Proses Produksi >
+// Scan & Cetak > Integrasi. Kategori Master Karyawan/Absensi/Keuangan
+// SENGAJA TETAP TERPISAH (bukan digabung jadi 1 "Management") — cuma
+// urutan tampil accordion Config Akses & grid Home mobile yang ikut
+// sidebar, izin per role yang sudah tersimpan tetap dirujuk per kategori
+// lama supaya tidak yatim.
+export const KATEGORI_URUTAN = ['Umum', 'Master Karyawan', 'Master Absensi', 'Master Keuangan', 'Zevanic House', 'Stok dan Pembelian', 'Pesanan', 'Persiapan Produksi', 'Proses Produksi', 'Scan & Cetak', 'Master Integrasi'];
 export { DAFTAR_MENU };
 const KOSONG_IZIN = () => ({ view: false, add: false, edit: false, delete: false, print: false });
 

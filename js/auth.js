@@ -924,12 +924,16 @@ window.aturTampilanBerdasarkanRole = function() {
   // DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang sidebar sesuai
   // wireframe) — "Stock & Pembelian" PINDAH keluar dari Zevanic House jadi
   // grup top-level sendiri "Stok dan Pembelian" (menu-zevanic-stock-btn
-  // DIHAPUS, GANTI menu-stok-pembelian + menu-stok-pembelian-btn). Gerbang
-  // role TETAP SAMA persis (isAdminLevel() — pic/admin/owner/superuser),
-  // cuma sekarang parent DAN anaknya sepasang baru (dulu cuma 1 tombol
-  // anak nested di navgrp-zevanic).
+  // DIHAPUS, GANTI menu-stok-pembelian). Gerbang role TETAP SAMA persis
+  // (isAdminLevel() — pic/admin/owner/superuser).
+  // DIROMBAK LAGI (9 Sep 2026, rombak sidebar ke-2) — dulu 1 tombol anak
+  // (menu-stok-pembelian-btn) DIHAPUS, GANTI 5 tombol anak langsung
+  // (Nota Order Belanja/Riwayat Harga/Kartu Stok/Rak Penyimpanan/Repack,
+  // lihat index.html navgrp-stokpembelian) — SAMA seperti Pesanan, 5
+  // tombol anak ini TIDAK digerbang individual di sini, cukup ikut
+  // gerbang parent menuStokPembelian (pola SAMA seperti menuPesanan, yang
+  // 4 tombol anaknya juga tidak pernah muncul sendiri-sendiri di file ini).
   const menuStokPembelian = document.getElementById('menu-stok-pembelian');
-  const menuStokPembelianBtn = document.getElementById('menu-stok-pembelian-btn');
   // BARU (29 Agt 2026, koreksi arsitektur menu) — Persiapan Produksi, grup
   // top-level baru sejajar Zevanic House. Gerbang role SAMA (isAdminLevel()
   // — pic/admin/owner/superuser), domainnya masih persiapan produksi yang
@@ -958,7 +962,7 @@ window.aturTampilanBerdasarkanRole = function() {
   // sama (tombolnya wajib ditambahkan ke KEDUA array show/hide di bawah).
   const menuProsesProduksi = document.getElementById('menu-proses-produksi');
 
-  [menuManagement, menuAdminAccBtn, menuKeuanganBtn, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnAksesKeamanan, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuStokPembelian, menuStokPembelianBtn, menuPersiapanProduksi, menuPesanan, menuScanCetak, menuProsesProduksi].forEach(el => {
+  [menuManagement, menuAdminAccBtn, menuKeuanganBtn, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnAksesKeamanan, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuStokPembelian, menuPersiapanProduksi, menuPesanan, menuScanCetak, menuProsesProduksi].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -983,7 +987,6 @@ window.aturTampilanBerdasarkanRole = function() {
     // DIROMBAK (9 Sep 2026) — Stok dan Pembelian sekarang grup sendiri
     // (dulu menuZevanicStockBtn, gerbang role TETAP SAMA).
     if (menuStokPembelian) menuStokPembelian.classList.remove('hidden');
-    if (menuStokPembelianBtn) menuStokPembelianBtn.classList.remove('hidden');
     if (menuPersiapanProduksi) menuPersiapanProduksi.classList.remove('hidden');
     if (menuPesanan) menuPesanan.classList.remove('hidden');
     if (menuScanCetak) menuScanCetak.classList.remove('hidden');

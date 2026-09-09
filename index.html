@@ -174,17 +174,155 @@
         <button onclick="pindahTab('tab-profil')" class="gc-nav-item">
           <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg> Profile
         </button>
-        <!-- DIROMBAK (9 Sep 2026, permintaan Guru "kerjakan semua biar
-             selesai" — urutan grup sidebar disusun ULANG sesuai urutan 21
-             modul wireframe handoff, lihat SERAH-TERIMA-HANDOFF.md &
-             claude/STATUS-PROYEK.md): Pesanan > Persiapan Produksi > Proses
-             Produksi > Stok dan Pembelian > Scan & Cetak > Zevanic House >
-             Management > Integrasi (Integrasi tidak ada di wireframe,
-             sengaja ditaruh paling akhir). Sebelumnya: Absensi/Keuangan/
-             Karyawan/Zevanic House di paling atas, tidak sesuai wireframe.
-             INI PERUBAHAN SIDEBAR/NAV SAJA — tidak ada tab konten yang
-             dihapus/ditulis ulang, kecuali Stock & Pembelian yang memang
-             sengaja dipisah jadi grup sendiri (lihat komentar di bawah). -->
+        <!-- DIROMBAK KE-2 (9 Sep 2026, permintaan Guru "urutannya masih ada
+             yg ngaco") — urutan grup sidebar disusun ULANG lagi:
+             Management > Zevanic House > Stok dan Pembelian > Pesanan >
+             Persiapan Produksi > Proses Produksi > Scan & Cetak > Integrasi.
+             (Rombak PERTAMA 9 Sep pagi sempat: Pesanan > Persiapan Produksi
+             > Proses Produksi > Stok dan Pembelian > Scan & Cetak >
+             Zevanic House > Management > Integrasi — Guru bilang masih
+             salah.) Perubahan lain sesi ini (lihat juga komentar masing2
+             grup di bawah): (1) Stok dan Pembelian SEKARANG 5 tombol
+             sidebar langsung (Nota Order Belanja/Riwayat Harga/Kartu
+             Stok/Rak Penyimpanan/Repack) — dulu 1 tombol umum yang lempar
+             ke tab, tab-strip 5 pilihan ada DI DALAM halaman (redundan,
+             sudah dicopot). (2) Zevanic House diurut ulang: Data Bahan &
+             Aksesoris > Master Suplayer > Master Produk > Master
+             Pelanggan > Config (Config PALING BAWAH — dulu paling atas).
+             "Persiapan Masalah" DIMINTA Guru dihapus (dikira sudah
+             digantikan Persiapan Produksi > Masalah) TAPI BELUM disentuh
+             sama sekali — verifikasi kode (js/vue-stock-pembelian.js)
+             menemukan koleksinya (`permintaan_bahan_manual`) MASIH aktif
+             jadi sumber Nota Order Belanja, beda fungsi dari Persiapan
+             Produksi > Masalah (itu jalur SPK/scan, koleksi
+             `persiapan_masalah`). Ditaruh paling bawah grup ini
+             sementara, lihat claude/STATUS-PROYEK.md untuk detail &
+             pertanyaan balik ke Guru. -->
+        <!-- DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang urutan
+             sidebar sesuai wireframe handoff, lihat claude/STATUS-PROYEK.md)
+             — Master Absensi/Keuangan/Karyawan GABUNG jadi 1 grup sidebar
+             "Management" (wireframe "07 - Management": 1 folder = 1 grup,
+             3 sub menu Master Karyawan/Master Absensi/Master Keuangan).
+             INI CUMA PENGGABUNGAN TAMPILAN SIDEBAR — tab konten
+             (tab-admin-acc/tab-keuangan/tab-superuser), semua data-menu-id,
+             dan kategori permission di Config Akses (KATEGORI_URUTAN)
+             SENGAJA TIDAK disatukan/diganti, supaya izin per role yang
+             sudah ada tidak yatim. Gerbang role per sub-menu TETAP beda:
+             Absensi & Keuangan pic/admin/owner/superuser, Karyawan KHUSUS
+             owner/superuser (lihat js/auth.js aturTampilanBerdasarkanRole)
+             — makanya toggle lama menu-admin-acc/menu-keuangan/
+             menu-superuser DIHAPUS (diganti 1 toggle menu-management),
+             tapi 3 tombol anak (menu-admin-acc-btn/menu-keuangan-btn/
+             menu-superuser-btn) id-nya TETAP SAMA, cuma dipindah ke dalam
+             1 grup baru navgrp-management. Fitur "Urutan Menu di Home
+             Mobile & Sidebar Desktop" (Config Akses) DIBEKUKAN sementara
+             atas permintaan Guru (UI dinilai membingungkan) — lihat
+             js/auth.js dekat window.terapkanUrutanMenuDesktop dan
+             js/vue-config-akses.js. -->
+        <button onclick="toggleNavGroup('navgrp-management')" id="menu-management" data-group="navgrp-management" class="hidden gc-nav-item" style="font-weight:700;">
+          <i class="fas fa-users-gear gc-nav-gico"></i> Management <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+        </button>
+        <div id="navgrp-management" class="hidden gc-nav-subgroup">
+          <button onclick="pindahTab('tab-superuser')" id="menu-superuser-btn" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg> Karyawan
+          </button>
+          <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc-btn" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> Absensi
+          </button>
+          <button onclick="pindahTab('tab-keuangan')" id="menu-keuangan-btn" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-wallet" style="width:17px; text-align:center;"></i> Keuangan
+          </button>
+        </div>
+
+        <button onclick="toggleNavGroup('navgrp-zevanic')" id="menu-zevanic-house" data-group="navgrp-zevanic" class="hidden gc-nav-item" style="font-weight:700;">
+          <i class="fas fa-shirt gc-nav-gico"></i> Zevanic House <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+        </button>
+        <div id="navgrp-zevanic" class="hidden gc-nav-subgroup">
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-databahan', this, {catatRiwayat:true}); pindahSubTab('sub-zh-databahan','sub-zh-databahan-entry', null, {catatRiwayat:true})" id="menu-zevanic-house-btn" data-menu-ids="bahan_aksesoris_entry,bahan_aksesoris_list" data-target="sub-zevanic-house-databahan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-shirt" style="width:17px; text-align:center;"></i> Data Bahan &amp; Aksesoris
+          </button>
+          <!-- BARU (5 Sep 2026) — Master Suplayer: lihat js/vue-master-
+               suplayer.js. GANTI TOTAL dari 2 tempat lama yang tercerai-
+               berai (Config > Data Suplayer, Stock & Pembelian > Alias
+               Pembelian) — CRUD Suplayer + Alias & MOQ + Petakan Order
+               sekarang SATU tempat di sini. -->
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-suplayer', this, {catatRiwayat:true}); pindahSubTab('sub-zh-suplayer','sub-zh-suplayer-entry', null, {catatRiwayat:true})" id="menu-zevanic-suplayer-btn" data-menu-ids="suplayer_entry,suplayer_alias_moq,suplayer_petakan_order" data-target="sub-zevanic-house-suplayer" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-truck-fast" style="width:17px; text-align:center;"></i> Master Suplayer
+          </button>
+          <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-
+               master-produk.js. -->
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-produk', this, {catatRiwayat:true}); pindahSubTab('sub-zh-produk','sub-zh-produk-entry', null, {catatRiwayat:true})" id="menu-zevanic-produk-btn" data-menu-ids="master_produk_entry,master_produk_list,master_produk_hpp" data-target="sub-zevanic-house-produk" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-layer-group" style="width:17px; text-align:center;"></i> Master Produk
+          </button>
+          <!-- BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4)
+               — Master Pelanggan: koleksi & menu BARU TOTAL, lihat js/vue-
+               master-pelanggan.js. Single-view (list + popup form), tidak
+               ada sub-tab di dalamnya (pola sama seperti Persiapan Masalah). -->
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-pelanggan', this, {catatRiwayat:true})" id="menu-zevanic-pelanggan-btn" data-menu-id="master_pelanggan" data-target="sub-zevanic-house-pelanggan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-address-book" style="width:17px; text-align:center;"></i> Master Pelanggan
+          </button>
+          <!-- DIPINDAH (9 Sep 2026, rombak ke-2, permintaan Guru) — Config
+               GESER ke PALING BAWAH grup ini (dulu paling atas, lihat
+               komentar banner sidebar di atas). Lihat js/vue-config.js. -->
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-config', this); pindahSubTab('sub-zh-config','sub-zh-config-jenisbahan')" id="menu-zevanic-config-btn" data-menu-id="config_master_data" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-sliders" style="width:17px; text-align:center;"></i> Config
+          </button>
+          <!-- DITAHAN, BELUM DIHAPUS (9 Sep 2026, rombak ke-2) — Guru minta
+               ini dihapus karena dikira sudah digantikan Persiapan Produksi
+               > Masalah. Verifikasi kode: BEDA fitur, koleksi
+               `permintaan_bahan_manual` masih aktif dipakai Nota Order
+               Belanja (js/vue-stock-pembelian.js). Ditaruh di bawah sendiri
+               sementara nunggu keputusan Guru — lihat STATUS-PROYEK.md. -->
+          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-persiapan', this, {catatRiwayat:true})" id="menu-zevanic-persiapan-btn" data-menu-id="persiapan_masalah" data-target="sub-zevanic-house-persiapan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-triangle-exclamation" style="width:17px; text-align:center;"></i> Persiapan Masalah
+          </button>
+          <!-- DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan") — Order SPK
+               PINDAH TOTAL ke grup "Pesanan > Menunggu Proses" di bawah
+               (lihat js/vue-pesanan.js, js/vue-config-akses.js id
+               'order_spk' deprecated:true). Tombol & div konten lama
+               DIHAPUS dari sini (bukan cuma disembunyikan) — pola SAMA
+               seperti persiapan_produksi_* lama yang dicopot pas koreksi
+               arsitektur menu 29 Agt 2026. -->
+          <!-- DIPINDAH (7 Sep 2026 malam) — "Scan" (Scan Opname + Scan
+               Persiapan) pindah keluar dari Zevanic House ke menu top-level
+               BARU "Scan & Cetak" (wireframe "05 - Scan dan Cetak" grup 1
+               "Scan Stok" — 2 fitur ini SUDAH LIVE sebelumnya, cuma
+               dipindah lokasinya, logic-nya TIDAK disentuh). Tombol lama
+               DIHAPUS dari sini, lihat navgrp-scancetak di bawah. -->
+        </div>
+        <!-- DIROMBAK (9 Sep 2026, rombak sidebar ke-2, permintaan Guru) — dulu
+             cuma 1 tombol umum ("pola sama seperti Master Absensi/Keuangan/
+             Karyawan dulu") yang lempar ke tab, lalu tab-strip 5 pilihan
+             (Daftar Nota/Riwayat Harga/Kartu Stok/Rak Penyimpanan/Repack)
+             ada DI DALAM halaman. SEKARANG 5 tombol ini naik LANGSUNG ke
+             sidebar (pola sama seperti Pesanan/Persiapan Produksi) — tab-
+             strip lama di dalam halaman DICOPOT (redundan), div konten +
+             id internal (sub-zh-stock-*) TIDAK berubah sama sekali, cuma
+             navigasinya sekarang murni dari sidebar. Class tombol tetap
+             "sub-zh-stock-btn" (SAMA seperti dulu di tab-strip) — pindah-
+             SubTab() class-based, jadi tombol di sidebar & div konten tetap
+             nyambung tanpa kode baru. -->
+        <button onclick="toggleNavGroup('navgrp-stokpembelian')" id="menu-stok-pembelian" data-group="navgrp-stokpembelian" class="hidden gc-nav-item" style="font-weight:700;">
+          <i class="fas fa-truck-ramp-box gc-nav-gico"></i> Stok dan Pembelian <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+        </button>
+        <div id="navgrp-stokpembelian" class="hidden gc-nav-subgroup">
+          <button onclick="pindahTab('tab-stok-pembelian'); pindahSubTab('sub-zh-stock','sub-zh-stock-notaorder', this, {catatRiwayat:true})" id="menu-stok-notaorder-btn" data-menu-id="stock_nota_order_belanja" data-target="sub-zh-stock-notaorder" class="sub-zh-stock-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-receipt" style="width:17px; text-align:center;"></i> Nota Order Belanja
+          </button>
+          <button onclick="pindahTab('tab-stok-pembelian'); pindahSubTab('sub-zh-stock','sub-zh-stock-riwayat', this, {catatRiwayat:true})" id="menu-stok-riwayat-btn" data-target="sub-zh-stock-riwayat" class="sub-zh-stock-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-clock-rotate-left" style="width:17px; text-align:center;"></i> Riwayat Harga
+          </button>
+          <button onclick="pindahTab('tab-stok-pembelian'); pindahSubTab('sub-zh-stock','sub-zh-stock-kartustok', this, {catatRiwayat:true})" id="menu-stok-kartustok-btn" data-target="sub-zh-stock-kartustok" class="sub-zh-stock-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-boxes-stacked" style="width:17px; text-align:center;"></i> Kartu Stok
+          </button>
+          <button onclick="pindahTab('tab-stok-pembelian'); pindahSubTab('sub-zh-stock','sub-zh-stock-rak', this, {catatRiwayat:true})" id="menu-stok-rak-btn" data-menu-id="stock_rak_penyimpanan" data-target="sub-zh-stock-rak" class="sub-zh-stock-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-warehouse" style="width:17px; text-align:center;"></i> Rak Penyimpanan
+          </button>
+          <button onclick="pindahTab('tab-stok-pembelian'); pindahSubTab('sub-zh-stock','sub-zh-stock-repack', this, {catatRiwayat:true})" id="menu-stok-repack-btn" data-menu-id="stock_repack" data-target="sub-zh-stock-repack" class="sub-zh-stock-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-box-archive" style="width:17px; text-align:center;"></i> Repack
+          </button>
+        </div>
+
         <!-- REKONSTRUKSI (7 Sep 2026, handoff "Pesanan dan Transaksi") —
              grup top-level "Pesanan" (sejajar Zevanic House/Persiapan
              Produksi), lihat js/vue-pesanan.js utk latar belakang & 7
@@ -193,8 +331,9 @@
              BUKAN lagi form CRUD SPK manual), Daftar Pesanan (3.1/3.2/3.2.1,
              BARU, GANTI 3 ringkasan lama Proses Persiapan/Produksi/
              Pengiriman yang DIHAPUS TOTAL), Transaksi Keuangan (4.1-4.2.2,
-             BARU TOTAL, piutang). Posisi grup TETAP setelah Zevanic House,
-             sebelum Persiapan Produksi. -->
+             BARU TOTAL, piutang). Posisi grup DIPINDAH (9 Sep, rombak sidebar
+             ke-2, permintaan Guru) — sekarang setelah Stok dan Pembelian,
+             tetap sebelum Persiapan Produksi. -->
         <button onclick="toggleNavGroup('navgrp-pesanan')" id="menu-pesanan" data-group="navgrp-pesanan" class="hidden gc-nav-item" style="font-weight:700;">
           <i class="fas fa-receipt gc-nav-gico"></i> Pesanan <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
@@ -288,30 +427,6 @@
             <i class="fas fa-warehouse" style="width:17px; text-align:center;"></i> Gudang Barang Jadi
           </button>
         </div>
-        <!-- BARU (9 Sep 2026, permintaan Guru: susun ulang sidebar sesuai
-             wireframe handoff "04 - Stok dan Pembelian") — grup top-level
-             BARU (sejajar Zevanic House/Pesanan/dst). Kontennya DIPINDAH
-             (bukan ditulis ulang) dari yang sebelumnya nested di dalam
-             Zevanic House > Stock & Pembelian — semua id internal
-             (isi #sub-zevanic-house-stock, class sub-zh-stock-*, target
-             sub-zh-stock-notaorder/riwayat/kartustok/rak/repack) SENGAJA
-             DIPERTAHANKAN PERSIS, cuma wadah luarnya pindah dari
-             #tab-zevanic-house ke #tab-stok-pembelian di bawah (lihat juga
-             js/dashboard.js petaTabIndukPerGrup & js/vue-config-akses.js
-             3 shortcut menu stock_*). Sidebar cuma 1 tombol (pola sama
-             seperti Master Absensi/Keuangan/Karyawan dulu) — tab-strip 5
-             sub-menunya (Daftar Nota/Riwayat Harga/Kartu Stok/Rak
-             Penyimpanan/Repack) tetap di DALAM halaman, bukan naik ke
-             sidebar. -->
-        <button onclick="toggleNavGroup('navgrp-stokpembelian')" id="menu-stok-pembelian" data-group="navgrp-stokpembelian" class="hidden gc-nav-item" style="font-weight:700;">
-          <i class="fas fa-truck-ramp-box gc-nav-gico"></i> Stok dan Pembelian <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
-        </button>
-        <div id="navgrp-stokpembelian" class="hidden gc-nav-subgroup">
-          <button onclick="pindahTab('tab-stok-pembelian')" id="menu-stok-pembelian-btn" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-warehouse" style="width:17px; text-align:center;"></i> Stok dan Pembelian
-          </button>
-        </div>
-
         <!-- BARU (7 Sep 2026 malam) — grup top-level "Scan & Cetak" (sejajar
              Zevanic House/Pesanan/Persiapan Produksi), handoff "05 - Scan dan
              Cetak", dikerjakan via /design-terapkan-handoff atas instruksi
@@ -341,92 +456,6 @@
             <i class="fas fa-key" style="width:17px; text-align:center;"></i> PIN
           </button>
         </div>
-        <button onclick="toggleNavGroup('navgrp-zevanic')" id="menu-zevanic-house" data-group="navgrp-zevanic" class="hidden gc-nav-item" style="font-weight:700;">
-          <i class="fas fa-shirt gc-nav-gico"></i> Zevanic House <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
-        </button>
-        <div id="navgrp-zevanic" class="hidden gc-nav-subgroup">
-          <!-- BARU (27 Agt 2026, §26.1) — Config: lihat js/vue-config.js. Sengaja
-               PALING ATAS sesuai urutan yang diminta Guru. -->
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-config', this); pindahSubTab('sub-zh-config','sub-zh-config-jenisbahan')" id="menu-zevanic-config-btn" data-menu-id="config_master_data" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-sliders" style="width:17px; text-align:center;"></i> Config
-          </button>
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-databahan', this, {catatRiwayat:true}); pindahSubTab('sub-zh-databahan','sub-zh-databahan-entry', null, {catatRiwayat:true})" id="menu-zevanic-house-btn" data-menu-ids="bahan_aksesoris_entry,bahan_aksesoris_list" data-target="sub-zevanic-house-databahan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-shirt" style="width:17px; text-align:center;"></i> Data Bahan &amp; Aksesoris
-          </button>
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-persiapan', this, {catatRiwayat:true})" id="menu-zevanic-persiapan-btn" data-menu-id="persiapan_masalah" data-target="sub-zevanic-house-persiapan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-triangle-exclamation" style="width:17px; text-align:center;"></i> Persiapan Masalah
-          </button>
-          <!-- BARU (5 Sep 2026) — Master Suplayer: lihat js/vue-master-
-               suplayer.js. GANTI TOTAL dari 2 tempat lama yang tercerai-
-               berai (Config > Data Suplayer, Stock & Pembelian > Alias
-               Pembelian) — CRUD Suplayer + Alias & MOQ + Petakan Order
-               sekarang SATU tempat di sini. -->
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-suplayer', this, {catatRiwayat:true}); pindahSubTab('sub-zh-suplayer','sub-zh-suplayer-entry', null, {catatRiwayat:true})" id="menu-zevanic-suplayer-btn" data-menu-ids="suplayer_entry,suplayer_alias_moq,suplayer_petakan_order" data-target="sub-zevanic-house-suplayer" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-truck-fast" style="width:17px; text-align:center;"></i> Master Suplayer
-          </button>
-          <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-
-               master-produk.js. Posisi SENGAJA setelah Stock & Pembelian,
-               sebelum Order SPK (keputusan Hilman). -->
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-produk', this, {catatRiwayat:true}); pindahSubTab('sub-zh-produk','sub-zh-produk-entry', null, {catatRiwayat:true})" id="menu-zevanic-produk-btn" data-menu-ids="master_produk_entry,master_produk_list,master_produk_hpp" data-target="sub-zevanic-house-produk" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-layer-group" style="width:17px; text-align:center;"></i> Master Produk
-          </button>
-          <!-- BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4)
-               — Master Pelanggan: koleksi & menu BARU TOTAL, lihat js/vue-
-               master-pelanggan.js. Single-view (list + popup form), tidak
-               ada sub-tab di dalamnya (pola sama seperti Persiapan Masalah). -->
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-pelanggan', this, {catatRiwayat:true})" id="menu-zevanic-pelanggan-btn" data-menu-id="master_pelanggan" data-target="sub-zevanic-house-pelanggan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-address-book" style="width:17px; text-align:center;"></i> Master Pelanggan
-          </button>
-          <!-- DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan") — Order SPK
-               PINDAH TOTAL ke grup "Pesanan > Menunggu Proses" di bawah
-               (lihat js/vue-pesanan.js, js/vue-config-akses.js id
-               'order_spk' deprecated:true). Tombol & div konten lama
-               DIHAPUS dari sini (bukan cuma disembunyikan) — pola SAMA
-               seperti persiapan_produksi_* lama yang dicopot pas koreksi
-               arsitektur menu 29 Agt 2026. -->
-          <!-- DIPINDAH (7 Sep 2026 malam) — "Scan" (Scan Opname + Scan
-               Persiapan) pindah keluar dari Zevanic House ke menu top-level
-               BARU "Scan & Cetak" (wireframe "05 - Scan dan Cetak" grup 1
-               "Scan Stok" — 2 fitur ini SUDAH LIVE sebelumnya, cuma
-               dipindah lokasinya, logic-nya TIDAK disentuh). Tombol lama
-               DIHAPUS dari sini, lihat navgrp-scancetak di bawah. -->
-        </div>
-        <!-- DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang urutan
-             sidebar sesuai wireframe handoff, lihat claude/STATUS-PROYEK.md)
-             — Master Absensi/Keuangan/Karyawan GABUNG jadi 1 grup sidebar
-             "Management" (wireframe "07 - Management": 1 folder = 1 grup,
-             3 sub menu Master Karyawan/Master Absensi/Master Keuangan).
-             INI CUMA PENGGABUNGAN TAMPILAN SIDEBAR — tab konten
-             (tab-admin-acc/tab-keuangan/tab-superuser), semua data-menu-id,
-             dan kategori permission di Config Akses (KATEGORI_URUTAN)
-             SENGAJA TIDAK disatukan/diganti, supaya izin per role yang
-             sudah ada tidak yatim. Gerbang role per sub-menu TETAP beda:
-             Absensi & Keuangan pic/admin/owner/superuser, Karyawan KHUSUS
-             owner/superuser (lihat js/auth.js aturTampilanBerdasarkanRole)
-             — makanya toggle lama menu-admin-acc/menu-keuangan/
-             menu-superuser DIHAPUS (diganti 1 toggle menu-management),
-             tapi 3 tombol anak (menu-admin-acc-btn/menu-keuangan-btn/
-             menu-superuser-btn) id-nya TETAP SAMA, cuma dipindah ke dalam
-             1 grup baru navgrp-management. Fitur "Urutan Menu di Home
-             Mobile & Sidebar Desktop" (Config Akses) DIBEKUKAN sementara
-             atas permintaan Guru (UI dinilai membingungkan) — lihat
-             js/auth.js dekat window.terapkanUrutanMenuDesktop dan
-             js/vue-config-akses.js. -->
-        <button onclick="toggleNavGroup('navgrp-management')" id="menu-management" data-group="navgrp-management" class="hidden gc-nav-item" style="font-weight:700;">
-          <i class="fas fa-users-gear gc-nav-gico"></i> Management <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
-        </button>
-        <div id="navgrp-management" class="hidden gc-nav-subgroup">
-          <button onclick="pindahTab('tab-superuser')" id="menu-superuser-btn" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg> Karyawan
-          </button>
-          <button onclick="pindahTab('tab-admin-acc')" id="menu-admin-acc-btn" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> Absensi
-          </button>
-          <button onclick="pindahTab('tab-keuangan')" id="menu-keuangan-btn" class="gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-wallet" style="width:17px; text-align:center;"></i> Keuangan
-          </button>
-        </div>
-
         <button onclick="toggleNavGroup('navgrp-integrasi')" id="menu-whatsapp" data-group="navgrp-integrasi" class="hidden gc-nav-item" style="font-weight:700;">
           <i class="fas fa-plug gc-nav-gico"></i> Master Integrasi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
@@ -927,38 +956,23 @@
              dan Pembelian", sebelumnya nested di Zevanic House > Stock &
              Pembelian). Konten div DIPINDAH APA ADANYA dari #tab-zevanic-house
              (lihat komentar sidebar navgrp-stokpembelian di atas) — semua id
-             internal (sub-zh-stock-*) TIDAK berubah. -->
+             internal (sub-zh-stock-*) TIDAK berubah.
+             DIRAPIKAN (9 Sep 2026, rombak sidebar ke-2) — wadah pembungkus
+             `#sub-zevanic-house-stock` DICOPOT (BUKAN dipertahankan): itu
+             sisa dari waktu blok ini masih salah satu dari banyak panel
+             `sub-zevanic-house-content` di dalam Zevanic House, dan class
+             "hidden"-nya TIDAK PERNAH DICOPOT lagi sejak dipindah ke tab
+             top-level sendiri — TIDAK ada kode manapun yang menyasar grup
+             'sub-zevanic-house' untuk elemen ini lagi, jadi WALAUPUN
+             navigasi sidebar/tab-nya benar, seluruh isi tab ini SELALU
+             tersembunyi (blank) sejak rombak pertama pagi ini. Ditemukan
+             lewat verifikasi kode (bukan laporan Guru) saat mengerjakan
+             rombak ke-2 — belum sempat ketahuan karena Guru belum pernah
+             buka tab ini di browser. Tab-strip pill 5 tombol di dalam
+             halaman JUGA DICOPOT (redundan, navigasinya sekarang dari
+             sidebar — lihat komentar navgrp-stokpembelian). Div konten +
+             id internal (sub-zh-stock-*) TIDAK berubah sama sekali. -->
         <div id="tab-stok-pembelian" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
-          <div id="sub-zevanic-house-stock" class="sub-zevanic-house-content hidden fade-in space-y-4">
-            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
-              <!-- DIPENSIUNKAN (5 Sep 2026) — tab "Alias Pembelian" PINDAH ke
-                   Zevanic House > Master Suplayer > Alias & MOQ (lihat js/vue-
-                   master-suplayer.js). Tab & div konten lama DIHAPUS dari sini
-                   (bukan cuma disembunyikan) — pola sama seperti Cetak Label
-                   dulu.
-                   DIHAPUS TOTAL (7 Sep 2026, keputusan Guru, lihat js/vue-
-                   stock-pembelian.js) — tab & div konten "List Order Belanja"
-                   (`sub-zh-stock-listorder`/`vue-list-order-belanja`),
-                   penggantinya "Persiapan Belanja" belum dibangun (gap fitur
-                   sementara disengaja). "Nota Order Belanja" DIREKONSTRUKSI
-                   TOTAL jadi "Daftar Nota" (gabung daftar+form 1 sub-tab,
-                   DaftarNotaScreen) dan SEKARANG default aktif — id internal
-                   div/tab (`sub-zh-stock-notaorder`/`vue-nota-order-belanja`)
-                   SENGAJA dipertahankan, cuma labelnya berubah. -->
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn active" data-menu-id="stock_nota_order_belanja" data-target="sub-zh-stock-notaorder"><i class="fas fa-receipt" style="margin-right:6px;"></i> Daftar Nota</button>
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-riwayat', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-target="sub-zh-stock-riwayat"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i> Riwayat Harga Pembelian</button>
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-kartustok', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-target="sub-zh-stock-kartustok"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Kartu Stok</button>
-              <!-- BARU (7 Sep 2026) — Rak Penyimpanan DIPINDAH ke sini dari Zevanic
-                   House > Data Bahan & Aksesoris (wireframe handoff "04 - Stok dan
-                   Pembelian" §6.1). Lihat js/vue-rak-penyimpanan.js. menu-id BARU
-                   `stock_rak_penyimpanan` (id lama `bahan_aksesoris_rak` DIPENSIUNKAN,
-                   lihat js/vue-config-akses.js, supaya izin lama tidak yatim). -->
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-rak', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-menu-id="stock_rak_penyimpanan" data-target="sub-zh-stock-rak"><i class="fas fa-warehouse" style="margin-right:6px;"></i> Rak Penyimpanan</button>
-              <!-- BARU (7 Sep 2026, task #95, TIDAK ADA wireframe — dirancang dari
-                   jawaban Guru langsung, Guru menamainya "Repack"). Lihat
-                   js/vue-repack-komponen-acc.js. -->
-              <button onclick="pindahSubTab('sub-zh-stock', 'sub-zh-stock-repack', this, {catatRiwayat:true})" class="sub-zh-stock-btn gc-sub-tab-btn" data-menu-id="stock_repack" data-target="sub-zh-stock-repack"><i class="fas fa-box-archive" style="margin-right:6px;"></i> Repack</button>
-            </div>
             <div id="sub-zh-stock-notaorder" class="sub-zh-stock-content fade-in space-y-4">
               <!-- Daftar Nota (dulu "Nota Order Belanja"): lihat js/vue-stock-pembelian.js (DaftarNotaScreen) -->
               <div id="vue-nota-order-belanja"></div>
@@ -984,7 +998,6 @@
             <!-- DIPENSIUNKAN (28 Agt 2026, §41.2) — tab "Cetak Label" pindah
                  jadi tombol per-kartu di List Bahan & Aksesoris (permintaan
                  Guru). Lihat js/vue-bahan-aksesoris.js & STATUS-PROYEK.md §41.2. -->
-          </div>
         </div>
 
 
@@ -1598,7 +1611,7 @@
   <script type="module" src="js/camera.js"></script>
   <!-- v=2 (28 Agt 2026): window.bolehLihatData tambah bypass eksplisit
        dimensi gudang untuk profil "pic_owner" (role "PIC Owner"). -->
-  <script type="module" src="js/auth.js?v=7"></script>
+  <script type="module" src="js/auth.js?v=8"></script>
   <!-- v=13 (28 Agt 2026): peta mount tambah 'sub-zh-config-jenisproduk' ->
        pastikanMountConfigJenisProduk (tab Config baru "Jenis Produk").
        v=14 (28 Agt 2026): peta mount tambah 'sub-zh-config-komponen' ->
@@ -1705,7 +1718,7 @@
        DAFTAR_MENU baru (pesanan_kasir/menunggu/persiapan/produksi/
        pengiriman), id 'order_spk' DIPENSIUNKAN (deprecated:true). Lihat
        js/vue-pesanan.js. -->
-  <script type="module" src="js/vue-config-akses.js?v=10"></script>
+  <script type="module" src="js/vue-config-akses.js?v=11"></script>
   <script type="module" src="js/vue-hak-akses.js?v=2"></script>
   <!-- v=4 (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, permintaan
        Guru — PERUBAHAN LOGIC juga, bukan cuma tampilan) — form approval
