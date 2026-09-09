@@ -825,6 +825,11 @@ window.refreshAntreanReimburse = function() { if (vmAntreanReimburse) vmAntreanR
 // SUDAH ADA (dipakai ulang, bukan bikin UI baru) — kelola daftar Kategori
 // Pengeluaran (BBM, Tol, Parkir, dst) buat dropdown di form Ajukan Reimburse.
 // ============================================================================
+// GANTI (9 Sep 2026, audit vs wireframe §3.4) — dulu grid-cols-2 (2 kategori
+// berdampingan), SEKARANG 2 section BERTUMPUK vertikal (Pengeluaran di atas,
+// Pemasukan di bawah) sesuai spek handoff Master Keuangan. Isi tiap kategori
+// (MasterDataCategory, CRUD chip) TIDAK diubah sama sekali — cuma layout
+// container-nya (flex-direction:column ganti grid-cols-2).
 const AppMasterKeuangan = {
   components: { MasterDataCategory },
   template: `
@@ -832,7 +837,7 @@ const AppMasterKeuangan = {
       <h3 class="gc-heading" style="font-weight:700; font-size:13.5px;"><i class="fas fa-wallet" style="color:var(--burgundy); margin-right:8px;"></i> Master Keuangan</h3>
       <p style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">Kelola kategori pengeluaran (dipakai form Ajukan Reimburse) dan kategori pemasukan.</p>
     </div>
-    <div style="display:grid; gap:16px;" class="grid-cols-1 md:grid-cols-2">
+    <div style="display:flex; flex-direction:column; gap:16px;">
       <master-data-category kategori="kategori_reimburse" label="Kategori Pengeluaran" menu-id="master_keuangan" />
       <master-data-category kategori="kategori_pemasukan" label="Kategori Pemasukan" menu-id="master_keuangan" />
     </div>
@@ -1142,6 +1147,31 @@ const LABEL_MODE = {
   servis: { judul: 'Riwayat Servis', ikon: 'fa-wrench', placeholder: 'Cari nama karyawan atau plat...' }
 };
 
+// Filter tab (9 Sep 2026, audit vs wireframe §3.3) — "Semua / Reimburse /
+// Bensin / Servis" di ATAS TABEL mode 'semua' (Riwayat Keuangan gabungan).
+// PENTING soal data besar: ini filter CLIENT-SIDE saja (computed di atas
+// array yang SUDAH di-load oleh muat()) — TIDAK menyentuh query Firestore
+// sama sekali. muat() SUDAH dibatasi pakai query rentang tanggal (where
+// diajukan_pada, lihat catatan §44.17 di bawah), jadi baris yang jadi
+// pilihan tab SELALU subset dari baris yang sudah difilter tanggal — ganti
+// tab TIDAK PERNAH menyembunyikan baris yang seharusnya ada di rentang
+// tanggal aktif, cuma mempersempit tampilan dari data yang sudah di tangan.
+// Kalau nanti rentang tanggal dibikin jauh lebih panjang (mis. "1 Tahun")
+// dan koleksi reimburse sudah sangat besar, filter jenis ini seharusnya
+// ikut jadi where() Firestore juga — DICATAT sebagai gap, BUKAN dikerjakan
+// sekarang (field jenis_entry_kendaraan tidak diisi utk reimburse umum,
+// perlu query terpisah per tab kalau mau di server, beda pola dari yang
+// ada sekarang).
+const FILTER_JENIS_TAB = [
+  { value: 'semua', label: 'Semua' },
+  { value: 'reimburse', label: 'Reimburse' },
+  { value: 'bensin', label: 'Bensin' },
+  { value: 'servis', label: 'Servis' }
+];
+function jenisEntriTab(r) {
+  return r.jenis_entry_kendaraan === 'bensin' ? 'bensin' : (r.jenis_entry_kendaraan === 'servis' ? 'servis' : 'reimburse');
+}
+
 const RiwayatReimburseTable = {
   props: { mode: { type: String, default: 'semua' } },
   setup(props) {
@@ -1149,11 +1179,22 @@ const RiwayatReimburseTable = {
     const memuat = ref(true);
     const errorMuat = ref('');
     const cariKata = ref('');
+    const filterJenisTab = ref('semua');
+    const expandedId = ref(null);
+    function toggleExpand(id) { expandedId.value = expandedId.value === id ? null : id; }
+
+    // Tab hanya relevan buat mode 'semua' (Riwayat Keuangan gabungan) —
+    // mode 'bensin'/'servis' (layar lama, sudah tidak dipasang ke menu
+    // manapun) datanya sudah 1 jenis saja, tab jadi tidak berguna di sana.
+    const daftarJenisTersaring = computed(() => {
+      if (props.mode !== 'semua' || filterJenisTab.value === 'semua') return daftarSemua.value;
+      return daftarSemua.value.filter(r => jenisEntriTab(r) === filterJenisTab.value);
+    });
 
     const daftarTersaring = computed(() => {
       const kata = cariKata.value.trim().toLowerCase();
-      if (!kata) return daftarSemua.value;
-      return daftarSemua.value.filter(r =>
+      if (!kata) return daftarJenisTersaring.value;
+      return daftarJenisTersaring.value.filter(r =>
         (r.nama_pegawai || '').toLowerCase().includes(kata) ||
         (r.kendaraan_plat || '').toLowerCase().includes(kata)
       );
@@ -1161,7 +1202,7 @@ const RiwayatReimburseTable = {
     // PEDOMAN KERJA (19 Agt 2026) — setiap menu baru WAJIB paginasi.
     const PER_HALAMAN = 15;
     const halamanSaatIni = ref(1);
-    watch(cariKata, () => { halamanSaatIni.value = 1; });
+    watch([cariKata, filterJenisTab], () => { halamanSaatIni.value = 1; });
     const totalHalaman = computed(() => Math.max(1, Math.ceil(daftarTersaring.value.length / PER_HALAMAN)));
     const daftarTerpaginasi = computed(() => {
       const mulai = (halamanSaatIni.value - 1) * PER_HALAMAN;
@@ -1226,6 +1267,7 @@ const RiwayatReimburseTable = {
     async function muat() {
       memuat.value = true;
       errorMuat.value = '';
+      expandedId.value = null;
       try {
         const { mulai, selesai } = hitungRentangTanggal(filterTanggalPreset.value, tglMulaiCustom.value, tglSelesaiCustom.value);
         const tsMulai = Timestamp.fromDate(mulai);
@@ -1355,7 +1397,8 @@ const RiwayatReimburseTable = {
     return {
       daftarSemua, daftarTersaring, daftarTerpaginasi, memuat, errorMuat, muat, cariKata, formatTgl, lihatFotoBesar,
       LABEL_TAHAP, warnaTahap, formatRupiah, LABEL_MODE, halamanSaatIni, totalHalaman, gantiHalaman, exportCSV,
-      filterTanggalPreset, tglMulaiCustom, tglSelesaiCustom, captionRentang, assignUlang
+      filterTanggalPreset, tglMulaiCustom, tglSelesaiCustom, captionRentang, assignUlang,
+      filterJenisTab, FILTER_JENIS_TAB, expandedId, toggleExpand, hitungEfisiensiCSV
     };
   },
   template: `
@@ -1389,6 +1432,22 @@ const RiwayatReimburseTable = {
       <p style="font-size:11px; color:var(--text-muted); margin-top:10px; font-style:italic;"><i class="fas fa-circle-info" style="margin-right:5px;"></i>{{ captionRentang }}</p>
     </div>
 
+    <!-- BARU (9 Sep 2026, audit vs wireframe §3.3) — filter tab Semua/
+         Reimburse/Bensin/Servis di ATAS TABEL. CLIENT-SIDE saja (lihat
+         catatan FILTER_JENIS_TAB/daftarJenisTersaring di atas) — tidak
+         menyembunyikan baris dari query, cuma mempersempit tampilan.
+         Hanya tampil utk mode 'semua' (Riwayat Keuangan gabungan);
+         mode bensin/servis (layar lama, tidak dipasang ke menu) datanya
+         sudah 1 jenis, tab jadi tidak relevan. -->
+    <div v-if="mode === 'semua' && !memuat && daftarSemua.length > 0" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+      <button v-for="t in FILTER_JENIS_TAB" :key="t.value" @click="filterJenisTab = t.value"
+        class="tag"
+        style="cursor:pointer; border:1.5px solid var(--line); background:var(--surface); font-weight:700;"
+        :style="filterJenisTab === t.value ? 'background:var(--burgundy); color:#fff; border-color:var(--burgundy);' : 'color:var(--text-muted);'">
+        {{ t.label }}
+      </button>
+    </div>
+
     <div v-if="!memuat && daftarSemua.length > 0" style="position:relative; margin-bottom:14px; max-width:320px;">
       <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
       <input v-model="cariKata" type="text" :placeholder="LABEL_MODE[mode].placeholder" style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
@@ -1401,59 +1460,78 @@ const RiwayatReimburseTable = {
       <h4 class="gc-heading" style="font-weight:700; font-size:13.5px;">Belum ada riwayat</h4>
     </div>
     <div v-else-if="daftarTersaring.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
-      <p style="font-size:11.5px; color:var(--text-muted);">Tidak ada yang cocok dicari.</p>
+      <p style="font-size:11.5px; color:var(--text-muted);">Tidak ada yang cocok dicari/filter tab.</p>
     </div>
-    <!-- GANTI (grid-fix mobile §perbaikan grid+kartu) — dulu tabel scroll
-         horizontal (9 kolom, sebagian kondisional lewat v-if mode),
-         SEKARANG kartu supaya tidak perlu geser ke kanan di HP. Semua
-         kolom lama + logic v-if mode (Kendaraan/KM/Kategori/Rincian)
-         tetap PERSIS sama, cuma disusun ulang: header = Nama + tag
-         Status, foto jadi thumbnail di header, Jumlah ditonjolkan di
-         bawah (pola sama seperti "Harga Pakai" di Data Bahan & Aksesoris). -->
-    <div v-else style="display:flex; flex-direction:column; gap:10px;">
-      <div v-for="r in daftarTerpaginasi" :key="r.id" class="gc-card" style="padding:14px;">
-        <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:12px;">
-          <img v-if="r.foto_bukti" :src="r.foto_bukti" @click="lihatFotoBesar(r.foto_bukti)" style="width:52px; height:52px; object-fit:cover; border-radius:10px; flex-shrink:0; cursor:pointer; border:1px solid var(--line);">
-          <div v-else style="width:52px; height:52px; border-radius:10px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><i class="fas fa-image" style="color:var(--text-faint); font-size:15px;"></i></div>
-          <div style="flex:1; min-width:0;">
-            <div style="font-weight:700; font-size:13.5px;">{{ r.nama_pegawai || '-' }}</div>
-            <div style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">{{ formatTgl(r.diajukan_pada) }}</div>
-          </div>
-          <span class="tag" :class="warnaTahap(r.tahap)" style="flex-shrink:0;">{{ LABEL_TAHAP[r.tahap] || r.tahap }}</span>
-        </div>
-
-        <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
-          <!-- BARU (9 Sep 2026, gabung Riwayat Keuangan) — badge Jenis SELALU
-               tampil di mode "semua" (Umum/Bensin/Servis) supaya jelas asal
-               tiap baris, karena sekarang mode ini menampilkan ketiganya
-               tercampur (datanya SUDAH tercampur dari dulu, tampilannya yang
-               baru dilengkapi). Mode bensin/servis (layar terpisah lama,
-               masih ada sbg kode tapi TIDAK dipasang ke menu manapun lagi)
-               tidak perlu badge ini karena sudah pasti 1 jenis saja. -->
-          <div v-if="mode === 'semua'" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Jenis</span><span style="font-weight:700;">{{ r.jenis_entry_kendaraan === 'bensin' ? 'Bensin' : (r.jenis_entry_kendaraan === 'servis' ? 'Servis' : 'Umum') }}</span></div>
-          <div v-if="mode !== 'semua' || r.jenis_entry_kendaraan === 'bensin' || r.jenis_entry_kendaraan === 'servis'" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Kendaraan</span><span style="font-weight:700;">{{ r.kendaraan_plat || '-' }}</span></div>
-          <div v-if="mode === 'bensin' || (mode === 'semua' && r.jenis_entry_kendaraan === 'bensin')" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">KM</span><span style="font-weight:700;">{{ r.km_saat_isi ? r.km_saat_isi.toLocaleString('id-ID') + ' km' : '-' }}</span></div>
-          <div v-if="mode === 'semua' && (!r.jenis_entry_kendaraan)" style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Kategori</span><span style="font-weight:700;">{{ r.kategori || '-' }}</span></div>
-          <div v-if="mode === 'servis' || (mode === 'semua' && r.jenis_entry_kendaraan === 'servis')" style="display:flex; justify-content:space-between; font-size:12px; gap:10px;">
-            <span style="color:var(--text-faint); flex-shrink:0;">Rincian</span>
-            <span style="font-weight:700; text-align:right;">
-              <span v-if="!r.item_servis || r.item_servis.length === 0">-</span>
-              <span v-else>{{ r.item_servis.map(i => i.nama_barang).join(', ') }}</span>
-            </span>
-          </div>
-          <!-- Sanggahan / Aju Banding — BARU (9 Sep 2026), mirror kolom Sanggahan di Riwayat Absensi -->
-          <div v-if="r.catatan_banding" style="display:flex; justify-content:space-between; font-size:12px; gap:10px;">
-            <span style="color:var(--text-faint); flex-shrink:0;">Sanggahan Karyawan</span>
-            <span style="font-weight:700; text-align:right;">{{ r.catatan_banding }}</span>
-          </div>
-        </div>
-
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:11px; color:var(--text-faint);">Jumlah</span>
-          <b style="font-size:15px; color:var(--burgundy);">{{ formatRupiah(r.jumlah) }}</b>
-        </div>
-        <button v-if="r.catatan_banding" @click="assignUlang(r.id)" class="btn-outline block" style="margin-top:10px; font-size:11px; color:var(--warn); border-color:var(--warn);"><i class="fas fa-undo" style="margin-right:6px;"></i>Assign ulang ke Antrean Reimburse</button>
-      </div>
+    <!-- GANTI (9 Sep 2026, audit vs wireframe §3.3) — dulu (grid-fix mobile)
+         jadi kartu bertumpuk, spek handoff minta TABEL dengan filter tab
+         di atas (lihat FILTER_JENIS_TAB) — dikembalikan jadi tabel (pola
+         .gc-table SAMA PERSIS Riwayat All Absensi), scroll horizontal di
+         HP (.gc-table-scroll) bukan kartu. Klik baris = expand detail
+         (odometer BBM / rincian servis / sanggahan) di baris berikutnya,
+         supaya kolom utama tetap ringkas kayak wireframe (7 kolom +
+         Aksi). Kolom "Kategori" pakai r.kategori APA ADANYA (field ini
+         SUDAH diisi 'BBM'/'Servis Kendaraan'/nama kategori pilihan
+         karyawan sejak disimpan — lihat ajukan(), TIDAK ada logic baru
+         di sini, cuma nampilin field yang sudah ada). -->
+    <div v-else class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line);">
+      <table class="gc-table">
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Nama</th>
+            <th>Kategori</th>
+            <th>Kendaraan</th>
+            <th style="text-align:right;">Jumlah</th>
+            <th style="text-align:center;">Foto</th>
+            <th style="text-align:center;">Status</th>
+            <th class="freeze freeze-right">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template v-for="r in daftarTerpaginasi" :key="r.id">
+            <tr @click="toggleExpand(r.id)" style="cursor:pointer;">
+              <td>{{ formatTgl(r.diajukan_pada) }}</td>
+              <td>{{ r.nama_pegawai || '-' }}</td>
+              <td>{{ r.kategori || '-' }}</td>
+              <td>{{ r.kendaraan_plat || '—' }}</td>
+              <td style="text-align:right; font-weight:700; color:var(--burgundy);">{{ formatRupiah(r.jumlah) }}</td>
+              <td style="text-align:center;">
+                <img v-if="r.foto_bukti" :src="r.foto_bukti" @click.stop="lihatFotoBesar(r.foto_bukti)" style="width:32px; height:32px; object-fit:cover; border-radius:7px; cursor:pointer; border:1px solid var(--line);">
+                <span v-else style="color:var(--text-faint);">-</span>
+              </td>
+              <td style="text-align:center;"><span class="tag" :class="warnaTahap(r.tahap)">{{ LABEL_TAHAP[r.tahap] || r.tahap }}</span></td>
+              <td class="freeze freeze-right" @click.stop>
+                <button class="icon-btn" @click="toggleExpand(r.id)" :title="expandedId === r.id ? 'Tutup detail' : 'Lihat detail'"><i class="fas" :class="expandedId === r.id ? 'fa-chevron-up' : 'fa-chevron-down'"></i></button>
+              </td>
+            </tr>
+            <tr v-if="expandedId === r.id">
+              <td colspan="8" style="background:var(--ivory-dim); white-space:normal;">
+                <div style="display:flex; flex-wrap:wrap; gap:18px; font-size:12px; padding:4px 0;">
+                  <div v-if="r.jenis_entry_kendaraan === 'bensin' && r.odo_sebelum && r.odo_sesudah">
+                    <span style="color:var(--text-faint); display:block; font-size:10px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px;">Odometer</span>
+                    <b>{{ r.odo_sebelum.toLocaleString('id-ID') }} &rarr; {{ r.odo_sesudah.toLocaleString('id-ID') }} km<span v-if="hitungEfisiensiCSV(r) !== ''"> &middot; {{ hitungEfisiensiCSV(r) }} km/L</span></b>
+                  </div>
+                  <div v-if="r.jenis_entry_kendaraan === 'servis' && r.item_servis && r.item_servis.length > 0" style="flex:1; min-width:220px;">
+                    <span style="color:var(--text-faint); display:block; font-size:10px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px;">Rincian Servis</span>
+                    <div v-for="(item, idx) in r.item_servis" :key="idx" style="display:flex; justify-content:space-between; gap:10px; padding:2px 0; max-width:340px;">
+                      <span>{{ item.nama_barang }} &times;{{ item.qty }}</span><b>{{ formatRupiah(item.jumlah) }}</b>
+                    </div>
+                  </div>
+                  <div v-if="r.keterangan">
+                    <span style="color:var(--text-faint); display:block; font-size:10px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px;">Keterangan</span>
+                    <span>{{ r.keterangan }}</span>
+                  </div>
+                  <div v-if="r.catatan_banding">
+                    <span style="color:var(--text-faint); display:block; font-size:10px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px;">Sanggahan Karyawan</span>
+                    <span>{{ r.catatan_banding }}</span>
+                  </div>
+                </div>
+                <button v-if="r.catatan_banding" @click="assignUlang(r.id)" class="btn-outline" style="margin-top:8px; font-size:11px; color:var(--warn); border-color:var(--warn);"><i class="fas fa-undo" style="margin-right:6px;"></i>Assign ulang ke Antrean Reimburse</button>
+              </td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
     </div>
     <div v-if="!memuat && daftarTersaring.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
       <button class="icon-btn" :disabled="halamanSaatIni <= 1" @click="gantiHalaman(-1)"><i class="fas fa-chevron-left"></i></button>

@@ -192,85 +192,93 @@ const KartuStokManager = {
   },
   template: `
     <div>
-      <div class="gc-card" style="padding:14px; margin-bottom:14px;">
-        <label class="gc-heading" style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Kartu Stok</label>
-        <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Ledger pergerakan stok per item — masuk otomatis dari Nota Order Belanja yang di-final-kan, keluar dari Scan Persiapan, penyesuaian dari Scan Opname. Read-only di sini.</p>
+      <!-- BARU (9 Sep 2026, audit wireframe §5 "Kartu Stok") — header
+           item-picker + ledger digabung jadi SATU gc-card (dulu 2 gc-card
+           bertumpuk terpisah). Cuma pembungkus yang berubah — isi kolom
+           tabel & semua logic muat/paginasi TIDAK disentuh sama sekali. -->
+      <div class="gc-card" style="padding:0;">
+        <div style="padding:14px 14px 12px; border-bottom:1px solid var(--line);">
+          <label class="gc-heading" style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Kartu Stok</label>
+          <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Ledger pergerakan stok per item — masuk otomatis dari Nota Order Belanja yang di-final-kan, keluar dari Scan Persiapan, penyesuaian dari Scan Opname. Read-only di sini.</p>
 
-        <div class="gc-field" style="max-width:420px; margin-bottom:0;">
-          <label>Ganti Item</label>
-          <dropdown-cari v-model="itemEntry" :opsi="opsiItemNama" placeholder="ganti item ▾ — cari nama item..." :disabled="memuatDaftarItem" />
-        </div>
-        <p v-if="memuatDaftarItem" style="font-size:11px; color:var(--text-faint); margin-top:8px;"><i class="fas fa-spinner fa-spin" style="margin-right:5px;"></i>Memuat daftar item...</p>
-        <p v-else-if="errorDaftarItem" style="font-size:11px; color:var(--danger); margin-top:8px;">
-          <i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>{{ errorDaftarItem }}
-          <button @click="muatDaftarItemLengkap" class="btn-outline" style="padding:3px 10px; font-size:10.5px; margin-left:6px;">Coba lagi</button>
-        </p>
-
-        <div v-if="itemAktif" style="display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-top:14px; padding:12px 14px; border-radius:10px; background:var(--ivory-dim); border:1px solid var(--burgundy);">
-          <div style="flex:1; min-width:160px;">
-            <div style="font-weight:700; font-size:14px;">{{ itemAktif.nama }}<span v-if="itemAktif.warna"> {{ itemAktif.warna }}</span></div>
-            <div style="font-size:10.5px; color:var(--text-faint);">{{ itemAktif.id_tampil || '-' }} · {{ itemAktif.kategori_utama || '-' }}</div>
+          <div class="gc-field" style="max-width:420px; margin-bottom:0;">
+            <label>Ganti Item</label>
+            <dropdown-cari v-model="itemEntry" :opsi="opsiItemNama" placeholder="ganti item ▾ — cari nama item..." :disabled="memuatDaftarItem" />
           </div>
-          <div style="text-align:right;">
-            <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Stok Akhir Saat Ini</div>
-            <div style="font-size:19px; font-weight:700; color:var(--burgundy);">{{ formatQty(itemAktif.stok_akhir || 0) }} <span style="font-size:12px; font-weight:400;">{{ itemAktif.satuan_pemakaian || '' }}</span></div>
+          <p v-if="memuatDaftarItem" style="font-size:11px; color:var(--text-faint); margin-top:8px;"><i class="fas fa-spinner fa-spin" style="margin-right:5px;"></i>Memuat daftar item...</p>
+          <p v-else-if="errorDaftarItem" style="font-size:11px; color:var(--danger); margin-top:8px;">
+            <i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>{{ errorDaftarItem }}
+            <button @click="muatDaftarItemLengkap" class="btn-outline" style="padding:3px 10px; font-size:10.5px; margin-left:6px;">Coba lagi</button>
+          </p>
+
+          <div v-if="itemAktif" style="display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-top:14px; padding:12px 14px; border-radius:10px; background:var(--ivory-dim); border:1px solid var(--burgundy);">
+            <div style="flex:1; min-width:160px;">
+              <div style="font-weight:700; font-size:14px;">{{ itemAktif.nama }}<span v-if="itemAktif.warna"> {{ itemAktif.warna }}</span></div>
+              <div style="font-size:10.5px; color:var(--text-faint);">{{ itemAktif.id_tampil || '-' }} · {{ itemAktif.kategori_utama || '-' }}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Stok Akhir Saat Ini</div>
+              <div style="font-size:19px; font-weight:700; color:var(--burgundy);">{{ formatQty(itemAktif.stok_akhir || 0) }} <span style="font-size:12px; font-weight:400;">{{ itemAktif.satuan_pemakaian || '' }}</span></div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Lot Aktif</div>
+              <div style="font-size:19px; font-weight:700;">{{ memuatLot ? '...' : (lotAktifCount === null ? '-' : lotAktifCount) }} <span style="font-size:12px; font-weight:400;">lot</span></div>
+            </div>
           </div>
-          <div style="text-align:right;">
-            <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Lot Aktif</div>
-            <div style="font-size:19px; font-weight:700;">{{ memuatLot ? '...' : (lotAktifCount === null ? '-' : lotAktifCount) }} <span style="font-size:12px; font-weight:400;">lot</span></div>
+        </div>
+
+        <div style="padding:14px;">
+          <!-- state: belum pilih item -->
+          <div v-if="!itemAktif" class="gc-kosong">
+            <div class="lingkaran"><i class="fas fa-boxes-stacked"></i></div>
+            <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Pilih item dulu</h3>
+            <p style="font-size:11.5px; color:var(--text-faint); margin:0;">Cari &amp; pilih item lewat kotak "Ganti Item" di atas untuk melihat kartu stoknya.</p>
           </div>
-        </div>
-      </div>
 
-      <!-- state: belum pilih item -->
-      <div v-if="!itemAktif" class="gc-card gc-kosong">
-        <div class="lingkaran"><i class="fas fa-boxes-stacked"></i></div>
-        <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Pilih item dulu</h3>
-        <p style="font-size:11.5px; color:var(--text-faint); margin:0;">Cari &amp; pilih item lewat kotak "Ganti Item" di atas untuk melihat kartu stoknya.</p>
-      </div>
+          <!-- ledger 1 item -->
+          <template v-else>
+            <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Riwayat Pergerakan</label>
 
-      <!-- ledger 1 item -->
-      <div v-else class="gc-card" style="padding:14px;">
-        <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Riwayat Pergerakan</label>
+            <div v-if="paginasiDetail.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;"><i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i>Memuat...</div>
 
-        <div v-if="paginasiDetail.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;"><i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i>Memuat...</div>
+            <div v-else-if="paginasiDetail.errorPaginasi.value" style="padding:12px 14px; border-radius:10px; background:var(--danger-light); color:var(--danger); font-size:11.5px;">
+              <i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ paginasiDetail.errorPaginasi.value }}
+              <button @click="paginasiDetail.muatUlang" class="btn-outline" style="margin-left:8px; padding:3px 10px; font-size:11px;">Coba lagi</button>
+            </div>
 
-        <div v-else-if="paginasiDetail.errorPaginasi.value" style="padding:12px 14px; border-radius:10px; background:var(--danger-light); color:var(--danger); font-size:11.5px;">
-          <i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ paginasiDetail.errorPaginasi.value }}
-          <button @click="paginasiDetail.muatUlang" class="btn-outline" style="margin-left:8px; padding:3px 10px; font-size:11px;">Coba lagi</button>
-        </div>
+            <div v-else-if="paginasiDetail.dataHalaman.value.length === 0" class="gc-kosong">
+              <div class="lingkaran"><i class="fas fa-clipboard-list"></i></div>
+              <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada transaksi masuk/keluar untuk item ini</h3>
+            </div>
 
-        <div v-else-if="paginasiDetail.dataHalaman.value.length === 0" class="gc-kosong">
-          <div class="lingkaran"><i class="fas fa-clipboard-list"></i></div>
-          <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada transaksi masuk/keluar untuk item ini</h3>
-        </div>
+            <div v-else style="overflow-x:auto;">
+              <table class="gc-table" style="width:100%; font-size:11.5px;">
+                <thead><tr>
+                  <th>Tanggal</th><th>Jenis</th><th>Jumlah</th><th>Sumber</th><th>No. Pembelian</th><th>Keterangan</th><th>Saldo Setelah</th>
+                </tr></thead>
+                <tbody>
+                  <tr v-for="g in paginasiDetail.dataHalaman.value" :key="g.id">
+                    <td>{{ g.tanggal }}</td>
+                    <td><span :style="{color: g.jenis === 'masuk' ? 'var(--ok)' : 'var(--danger)', fontWeight:700}">{{ g.jenis === 'masuk' ? 'Masuk' : 'Keluar' }}</span></td>
+                    <td>{{ formatQty(g.qty) }} {{ g.satuan }}</td>
+                    <td>{{ g.sumber || '-' }}</td>
+                    <td>{{ g.no_pembelian || '-' }}</td>
+                    <td>{{ g.keterangan || '-' }}
+                      <i v-if="g.rincian_lot && g.rincian_lot.length" class="fas fa-circle-info" style="color:var(--burgundy); margin-left:4px; cursor:help;"
+                        :title="g.rincian_lot.map(r => 'Roll ' + (r.kode_lot || r.lot_id) + ' (masuk ' + r.tanggal_masuk + '): dipotong ' + formatQty(r.dipotong) + ' (sisa ' + formatQty(r.sisa_setelah) + ')').join('\\n')"></i>
+                    </td>
+                    <td style="font-weight:700;">{{ formatQty(g.saldo_setelah) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
 
-        <div v-else style="overflow-x:auto;">
-          <table class="gc-table" style="width:100%; font-size:11.5px;">
-            <thead><tr>
-              <th>Tanggal</th><th>Jenis</th><th>Jumlah</th><th>Sumber</th><th>No. Pembelian</th><th>Keterangan</th><th>Saldo Setelah</th>
-            </tr></thead>
-            <tbody>
-              <tr v-for="g in paginasiDetail.dataHalaman.value" :key="g.id">
-                <td>{{ g.tanggal }}</td>
-                <td><span :style="{color: g.jenis === 'masuk' ? 'var(--ok)' : 'var(--danger)', fontWeight:700}">{{ g.jenis === 'masuk' ? 'Masuk' : 'Keluar' }}</span></td>
-                <td>{{ formatQty(g.qty) }} {{ g.satuan }}</td>
-                <td>{{ g.sumber || '-' }}</td>
-                <td>{{ g.no_pembelian || '-' }}</td>
-                <td>{{ g.keterangan || '-' }}
-                  <i v-if="g.rincian_lot && g.rincian_lot.length" class="fas fa-circle-info" style="color:var(--burgundy); margin-left:4px; cursor:help;"
-                    :title="g.rincian_lot.map(r => 'Roll ' + (r.kode_lot || r.lot_id) + ' (masuk ' + r.tanggal_masuk + '): dipotong ' + formatQty(r.dipotong) + ' (sisa ' + formatQty(r.sisa_setelah) + ')').join('\\n')"></i>
-                </td>
-                <td style="font-weight:700;">{{ formatQty(g.saldo_setelah) }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div v-if="!paginasiDetail.memuat.value && !paginasiDetail.errorPaginasi.value && paginasiDetail.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
-          <button class="icon-btn" :disabled="paginasiDetail.nomorHalaman.value <= 1" @click="paginasiDetail.halamanSebelumnya"><i class="fas fa-chevron-left"></i></button>
-          <span style="font-size:12px; color:var(--text-muted);">Halaman {{ paginasiDetail.nomorHalaman.value }}</span>
-          <button class="icon-btn" :disabled="!paginasiDetail.adaBerikutnya.value" @click="paginasiDetail.halamanBerikutnya"><i class="fas fa-chevron-right"></i></button>
+            <div v-if="!paginasiDetail.memuat.value && !paginasiDetail.errorPaginasi.value && paginasiDetail.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
+              <button class="icon-btn" :disabled="paginasiDetail.nomorHalaman.value <= 1" @click="paginasiDetail.halamanSebelumnya"><i class="fas fa-chevron-left"></i></button>
+              <span style="font-size:12px; color:var(--text-muted);">Halaman {{ paginasiDetail.nomorHalaman.value }}</span>
+              <button class="icon-btn" :disabled="!paginasiDetail.adaBerikutnya.value" @click="paginasiDetail.halamanBerikutnya"><i class="fas fa-chevron-right"></i></button>
+            </div>
+          </template>
         </div>
       </div>
     </div>

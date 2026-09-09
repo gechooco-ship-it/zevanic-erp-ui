@@ -324,6 +324,69 @@ function labelSepack(b) { return `${b.nama_pola} · ${b.bahan_nama} · ${b.produ
 // identik di 4 file Persiapan Produksi) sekarang jadi ScanGenerik di
 // js/vue-scan-cetak.js — genuinely diimpor, interface & perilaku PERSIS
 // SAMA, tidak disalin lagi (refactor 7 Sep 2026).
+
+// ============================================================================
+// RETROFIT 9 Sep 2026 (audit wireframe vs kode live, Guru sudah setuju
+// termasuk alur) — 3 potongan dipakai SEMUA 5 komponen tab di bawah:
+//
+// 1) TAB_DEFS_BAHAN + gantiTabPill()/sembunyikanBarisTabAsli() — wireframe
+//    menaruh pill tab (Perlu Disiapkan/dst) DI DALAM 1 card yang sama
+//    dengan konten (nempel di gc-card-head, css/gechoo-design.css — class
+//    itu SUDAH ADA tapi belum dipakai markup manapun sebelum ini, ini
+//    pemakaian PERTAMA). Baris tombol tab ASLI ada di index.html, DI LUAR
+//    card manapun (sibling sebelum 5 div konten) — index.html TIDAK BOLEH
+//    disentuh sesi ini, jadi baris asli itu TIDAK bisa dipindah beneran.
+//    Solusinya: pill BARU di bawah dirender DI DALAM card tiap
+//    komponen tab, PAKAI CLASS & data-target PERSIS SAMA dengan tombol
+//    asli ('sub-pp-bahan-tahap-btn', data-target sama) — window.
+//    pindahSubTab() (js/dashboard.js) toggle class 'active' lewat
+//    querySelectorAll(class), jadi pill baru & tombol asli OTOMATIS
+//    sinkron tanpa kode tambahan. Baris tombol ASLI lalu disembunyikan
+//    lewat DOM (bukan edit index.html) oleh sembunyikanBarisTabAsli(),
+//    idempoten, dipanggil dari onMounted tiap komponen (siapa pun mount
+//    duluan di antara 5 tab yang lazy-mount). File index.html sendiri
+//    TIDAK berubah sebyte pun — ini manipulasi DOM saat runtime.
+//
+// 2) Header kartu (gc-card-head): judul + hitung ringkas, SAMA pola di
+//    kelima tab. Tombol AKSI GLOBAL (Scan Sampai, Scan Operator) HANYA di
+//    tab Perlu Disiapkan — dicek ke wireframe.dc.html baris ~144-146,
+//    kedua tombol itu cuma muncul di header tab ini, tab lain punya
+//    toolbar kanan yang beda/tanpa toolbar.
+//
+// 3) "Scan Operator" GLOBAL (beda dari tombol "Tunjuk Operator" per-kartu
+//    yang SUDAH ADA — TETAP dipertahankan, tombol global ini TAMBAHAN)
+//    membuka modal penunjukan yang sama tapi tanpa kartu terkunci —
+//    hasilScanTunjuk() mencari baris cocok DI SEMUA kartu tab ini, bukan
+//    cuma 1 kartu (SERAH-TERIMA/wireframe: "bekerja untuk semua kartu").
+//
+// "Scan Sampai" GLOBAL (baru, wireframe baris ~1486: pack balik dari
+// Persiapan Masalah/TLC BHN-TRB ditutup di sini) — ASUMSI JUJUR dicatat di
+// komponen Tab 1 di bawah: diimplementasi KONSERVATIF, cuma membersihkan
+// `catatan_masalah` di baris spk_track yang kode_bagging-nya cocok hasil
+// scan (field itu SUDAH ada & dibaca-tulis file ini). TIDAK menulis balik
+// status dokumen `persiapan_masalah` (koleksi itu single-source-of-truth
+// milik js/vue-pp-masalah.js, sesi ini tidak diberi wewenang mengubah
+// kontrak tulisnya) — rekonsiliasi penuh lintas modul itu perlu keputusan
+// Guru terpisah, dicatat sebagai gap di laporan akhir sesi ini.
+// ============================================================================
+const TAB_DEFS_BAHAN = [
+  { target: 'sub-pp-bahan-perludisiapkan', icon: 'fa-inbox', label: 'Perlu Disiapkan' },
+  { target: 'sub-pp-bahan-sedangdisiapkan', icon: 'fa-gears', label: 'Sedang Disiapkan' },
+  { target: 'sub-pp-bahan-perludikirim', icon: 'fa-box-open', label: 'Perlu Di Kirim' },
+  { target: 'sub-pp-bahan-sedangdikirim', icon: 'fa-truck-fast', label: 'Sedang Di Kirim' },
+  { target: 'sub-pp-bahan-selesai', icon: 'fa-circle-check', label: 'Selesai' }
+];
+function sembunyikanBarisTabAsli(grupKelas) {
+  const contoh = document.querySelector('.' + grupKelas + '-btn');
+  const baris = contoh ? contoh.parentElement : null;
+  if (baris && baris.dataset.gcCardHeadHide !== '1') {
+    baris.style.display = 'none';
+    baris.dataset.gcCardHeadHide = '1';
+  }
+}
+function gantiTabPill(grupKelas, targetId, ev) {
+  if (window.pindahSubTab) window.pindahSubTab(grupKelas, targetId, (ev && ev.currentTarget) || null, { catatRiwayat: true });
+}
 // ============================================================================
 // TAB 1: Perlu Disiapkan (langkah wireframe 1a -> 1b -> 1c)
 // Kartu per bahan+warna. 1a: cek stok + centang baris yang bisa jalan +
@@ -337,16 +400,21 @@ const PersiapanBahanPerluDisiapkan = {
     const daftarTrack = ref([]);
     const petaStokBahan = ref({});
     const cari = ref('');
-    const kartuTerbuka = reactive({});
     const pilihanCetak = reactive({}); // barisKey -> bool (override manual)
     const sedangProses = reactive({});
 
     const menuId = 'pp_bahan';
+    const MY_TARGET = 'sub-pp-bahan-perludisiapkan';
     // REVISI 8 Sep 2026 (keputusan Guru, audit kode) — satu-satunya
     // pemakai bolehProses di komponen ini adalah tombol "Tunjuk Operator",
     // jadi digerbang langsung PIC ke atas di sini.
     const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(menuId, 'edit') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
+    // bolehEdit — RETROFIT 9 Sep 2026, dipakai gerbang tombol "Scan Sampai"
+    // (global, baru): wireframe §"Peran" bilang Admin BOLEH scan masalah/
+    // sampai di tab ini, TIDAK BOLEH scan operator (itu PIC ke atas via
+    // bolehProses) — jadi sengaja dipisah dari bolehProses.
+    const bolehEdit = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
 
     async function muat() {
       memuat.value = true;
@@ -375,7 +443,6 @@ const PersiapanBahanPerluDisiapkan = {
       return kartu;
     });
 
-    function toggleKartu(k) { kartuTerbuka[k.bahanAksesorisId] = !kartuTerbuka[k.bahanAksesorisId]; }
     function isChecked(b) {
       const key = barisKey(b);
       if (key in pilihanCetak) return pilihanCetak[key];
@@ -386,30 +453,65 @@ const PersiapanBahanPerluDisiapkan = {
       pilihanCetak[barisKey(b)] = !isChecked(b);
     }
 
+    // jumlahSiapDicetak — RETROFIT 9 Sep 2026, dipakai subjudul gc-card-head
+    // ("N bahan menunggu · M siap dicetak", wireframe mobile §2.1.1).
+    const jumlahSiapDicetak = computed(() => kartuList.value.filter(k => k.baris.some(b => b._bisa && !b.label_cetak_pada)).length);
+
+    // ringkasanTerpilih — RETROFIT 9 Sep 2026 (temuan #5): dasar bar footer
+    // sticky "terpilih: N anak SPK · X m · Y bahan" (wireframe baris ~348).
+    // Dihitung LINTAS SEMUA kartu yang lagi tampil (bukan cuma 1 kartu).
+    const ringkasanTerpilih = computed(() => {
+      let jumlah = 0, meter = 0; const bahanSet = new Set();
+      kartuList.value.forEach(k => {
+        k.baris.forEach(b => {
+          if (isChecked(b) && b._bisa && !b.label_cetak_pada) { jumlah++; meter += (parseFloat(b.kebutuhan_kain) || 0); bahanSet.add(k.bahanAksesorisId); }
+        });
+      });
+      return { jumlah, meter, bahan: bahanSet.size };
+    });
+
     // --- Cetak label (1a -> 1b) ---
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
     let _pendingCetak = [];
+    // bangunPreviewDariBaris — RETROFIT 9 Sep 2026, diekstrak dari isi lama
+    // cetakLabelKartu() supaya bisa dipakai ULANG oleh cetakSemuaTercentang()
+    // (temuan #5, cetak massal lintas kartu) TANPA duplikasi logic. Kunci
+    // dikelompokkan grouping_id+bahan_aksesoris_id (BUKAN cuma grouping_id)
+    // supaya kalau cetak massal mencakup >1 bahan dalam 1 grouping yang sama,
+    // tetap 1 label PER BAHAN (SERAH-TERIMA §3), bukan tergabung.
+    function bangunPreviewDariBaris(daftarBaris) {
+      const perLabel = {};
+      daftarBaris.forEach(b => { (perLabel[b.grouping_id + '::' + b.bahan_aksesoris_id] ||= []).push(b); });
+      return Object.values(perLabel).map(barisGrup => {
+        const kodeInduk = barisGrup[0].kode_spk;
+        const kodeLabel = `${kodeInduk}-${barisGrup[0].bahan_aksesoris_id}`;
+        return {
+          kode: kodeInduk,
+          nama: `${barisGrup[0].bahan_nama || ''} ${barisGrup[0].bahan_warna || ''}`.trim(),
+          info: `${barisGrup.map(b => b.no_spk).join(', ')} &middot; ${formatMeter(barisGrup.reduce((s, b) => s + (b.kebutuhan_kain || 0), 0))} &middot; ${barisGrup[0].nama_pola || ''}`,
+          qrDataUrl: buatQrDataUrl(kodeLabel)
+        };
+      });
+    }
     function cetakLabelKartu(k) {
       if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
       const terpilih = k.baris.filter(b => isChecked(b) && b._bisa && !b.label_cetak_pada);
       if (!terpilih.length) { alert('Tidak ada baris yang bisa dicetak (stok belum cukup untuk baris manapun, atau sudah dicetak semua).'); return; }
-      // Satu label PER GROUPING (SERAH-TERIMA §3: "kalau satu grouping butuh
-      // 4 bahan, tercetak 4 label" — jadi kalau kartu ini mewakili beberapa
-      // grouping sekaligus, tiap grouping dapat labelnya sendiri).
-      const perGrouping = {};
-      terpilih.forEach(b => { (perGrouping[b.grouping_id] ||= []).push(b); });
-      const preview = Object.values(perGrouping).map(barisGrup => {
-        const kodeInduk = barisGrup[0].kode_spk;
-        const kodeLabel = `${kodeInduk}-${k.bahanAksesorisId}`;
-        return {
-          kode: kodeInduk,
-          nama: `${k.nama} ${k.warna}`.trim(),
-          info: `${barisGrup.map(b => b.no_spk).join(', ')} &middot; ${formatMeter(barisGrup.reduce((s, b) => s + (b.kebutuhan_kain || 0), 0))} &middot; ${k.namaPola || ''}`,
-          qrDataUrl: buatQrDataUrl(kodeLabel)
-        };
-      });
-      daftarLabelPreview.value = preview;
+      daftarLabelPreview.value = bangunPreviewDariBaris(terpilih);
+      _pendingCetak = terpilih;
+      popupCetakAktif.value = true;
+    }
+    // cetakSemuaTercentang — RETROFIT 9 Sep 2026 (temuan #5): versi LINTAS
+    // KARTU dari cetakLabelKartu() di atas, dipicu tombol footer sticky.
+    // Fitur cetak per-kartu yang SUDAH ADA TETAP DIPERTAHANKAN — ini
+    // TAMBAHAN, bukan pengganti.
+    function cetakSemuaTercentang() {
+      if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
+      const terpilih = [];
+      kartuList.value.forEach(k => k.baris.forEach(b => { if (isChecked(b) && b._bisa && !b.label_cetak_pada) terpilih.push(b); }));
+      if (!terpilih.length) { alert('Tidak ada baris tercentang yang bisa dicetak.'); return; }
+      daftarLabelPreview.value = bangunPreviewDariBaris(terpilih);
       _pendingCetak = terpilih;
       popupCetakAktif.value = true;
     }
@@ -471,14 +573,25 @@ const PersiapanBahanPerluDisiapkan = {
     // "Ganti operator" = scan QR operator lain lagi -> operator aktif
     // berganti, baris yang SUDAH kena scan sebelumnya TETAP punya operator
     // lama (tidak ditimpa mundur). ---
-    const modalTunjuk = reactive({ aktif: false, kartu: null, operator: null, tahap: 'operator', log: [] });
+    const modalTunjuk = reactive({ aktif: false, kartu: null, global: false, operator: null, tahap: 'operator', log: [] });
     function bukaPenunjukan(k) {
       const eligible = k.baris.filter(b => b.label_cetak_pada && b.status === 'perlu_disiapkan');
       if (!eligible.length) { alert('Belum ada baris yang sudah dicetak labelnya di kartu ini.'); return; }
-      modalTunjuk.kartu = k; modalTunjuk.operator = null; modalTunjuk.tahap = 'operator'; modalTunjuk.log = [];
+      modalTunjuk.kartu = k; modalTunjuk.global = false; modalTunjuk.operator = null; modalTunjuk.tahap = 'operator'; modalTunjuk.log = [];
       modalTunjuk.aktif = true;
     }
-    function tutupPenunjukan() { modalTunjuk.aktif = false; modalTunjuk.kartu = null; modalTunjuk.operator = null; modalTunjuk.log = []; }
+    // bukaPenunjukanGlobal — RETROFIT 9 Sep 2026 (temuan #1): versi header
+    // toolbar dari "Tunjuk Operator" di atas — TIDAK terkunci ke 1 kartu,
+    // mencari baris cocok DI SEMUA kartu yang lagi tampil di tab ini
+    // (wireframe: tombol "Scan operator" global bekerja lintas kartu).
+    // Tombol per-kartu yang sudah ada TETAP DIPERTAHANKAN, ini tambahan.
+    function bukaPenunjukanGlobal() {
+      const eligible = kartuList.value.some(k => k.baris.some(b => b.label_cetak_pada && b.status === 'perlu_disiapkan'));
+      if (!eligible) { alert('Belum ada baris yang sudah dicetak labelnya di tab ini.'); return; }
+      modalTunjuk.kartu = null; modalTunjuk.global = true; modalTunjuk.operator = null; modalTunjuk.tahap = 'operator'; modalTunjuk.log = [];
+      modalTunjuk.aktif = true;
+    }
+    function tutupPenunjukan() { modalTunjuk.aktif = false; modalTunjuk.kartu = null; modalTunjuk.global = false; modalTunjuk.operator = null; modalTunjuk.log = []; }
     async function hasilScanTunjuk(kodeMentah) {
       const kode = (kodeMentah || '').trim();
       if (!kode) return;
@@ -489,10 +602,12 @@ const PersiapanBahanPerluDisiapkan = {
         modalTunjuk.tahap = 'anak';
         return;
       }
-      // tahap 'anak' — cari baris DI KARTU INI yang no_spk cocok, belum
-      // ditunjuk, labelnya sudah dicetak.
-      const target = (modalTunjuk.kartu?.baris || []).find(b => b.no_spk === kode && b.label_cetak_pada && b.status === 'perlu_disiapkan');
-      if (!target) { alert(`Kode "${kode}" tidak cocok baris manapun di kartu ini (mungkin belum dicetak labelnya, atau sudah ditunjuk).`); return; }
+      // tahap 'anak' — cari baris yang no_spk cocok, belum ditunjuk, labelnya
+      // sudah dicetak. Mode global: cari DI SEMUA kartu; mode per-kartu:
+      // cari DI KARTU ITU SAJA (perilaku lama, tidak berubah).
+      const kolamBaris = modalTunjuk.global ? kartuList.value.flatMap(k => k.baris) : (modalTunjuk.kartu?.baris || []);
+      const target = kolamBaris.find(b => b.no_spk === kode && b.label_cetak_pada && b.status === 'perlu_disiapkan');
+      if (!target) { alert(`Kode "${kode}" tidak cocok baris manapun yang sudah dicetak labelnya (mungkin belum dicetak, atau sudah ditunjuk).`); return; }
       const now = new Date().toISOString();
       try {
         await updateBarisBahan(target._trackId, target._lineIdx, (lama) => ({
@@ -509,20 +624,68 @@ const PersiapanBahanPerluDisiapkan = {
     }
     async function selesaiPenunjukan() { tutupPenunjukan(); await muat(); }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    // --- Scan Sampai GLOBAL (temuan #1, wireframe baris ~144/1486) — "Satu-
+    // satunya scan di sub menu ini yang bukan penunjukan tugas. Pack yang
+    // dikirim balik dari Persiapan Masalah (TLC BHN-TRB) ditutup di sini."
+    // ASUMSI KONSERVATIF (dicatat juga di komentar besar atas file): scan
+    // kode bagging yang balik -> bersihkan `catatan_masalah` baris spk_track
+    // yang kode_bagging-nya cocok (field yang SUDAH dibaca-tulis file ini),
+    // supaya baris itu tidak lagi tertandai bermasalah di Tab 2. TIDAK
+    // menulis balik status dokumen `persiapan_masalah` — itu single-source-
+    // of-truth js/vue-pp-masalah.js, rekonsiliasi penuh perlu keputusan Guru
+    // terpisah (dicatat sebagai gap, bukan diselesaikan diam-diam di sini).
+    const modalScanSampai = reactive({ aktif: false, log: [] });
+    function bukaScanSampaiGlobal() { modalScanSampai.log = []; modalScanSampai.aktif = true; }
+    function tutupScanSampai() { modalScanSampai.aktif = false; modalScanSampai.log = []; muat(); }
+    async function hasilScanSampai(kodeMentah) {
+      const kode = (kodeMentah || '').trim();
+      if (!kode) return;
+      const semuaBaris = daftarBarisDariTrack(daftarTrack.value);
+      const cocok = semuaBaris.filter(b => b.kode_bagging === kode && b.catatan_masalah);
+      if (!cocok.length) { alert(`Kode "${kode}" tidak ditemukan di antara baris yang sedang menunggu kiriman balik Masalah.`); return; }
+      try {
+        const trackIdSet = new Set(cocok.map(b => b._trackId));
+        await Promise.all([...trackIdSet].map(trackId => updateBarisBahanMassal(trackId, (x) => x.kode_bagging === kode && !!x.catatan_masalah, () => ({ catatan_masalah: '' }))));
+        modalScanSampai.log.unshift(`${kode} → ${cocok.length} baris diterima kembali`);
+        await muat();
+      } catch (e) { console.error('Gagal scan sampai:', e); alert('Gagal menyimpan. Coba lagi.'); }
+    }
+
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await muat(); });
 
     return {
-      memuat, kartuList, cari, kartuTerbuka, toggleKartu, isChecked, toggleCheck,
-      bolehProses, bolehCetak, formatMeter, formatQty, formatWaktu,
-      popupCetakAktif, daftarLabelPreview, cetakLabelKartu, onCetakSelesai,
+      memuat, kartuList, cari, isChecked, toggleCheck,
+      bolehProses, bolehCetak, bolehEdit, formatMeter, formatQty, formatWaktu,
+      TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET, jumlahSiapDicetak, ringkasanTerpilih,
+      popupCetakAktif, daftarLabelPreview, cetakLabelKartu, cetakSemuaTercentang, onCetakSelesai,
       popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang,
-      modalTunjuk, bukaPenunjukan, tutupPenunjukan, hasilScanTunjuk, selesaiPenunjukan
+      modalTunjuk, bukaPenunjukan, bukaPenunjukanGlobal, tutupPenunjukan, hasilScanTunjuk, selesaiPenunjukan,
+      modalScanSampai, bukaScanSampaiGlobal, tutupScanSampai, hasilScanSampai
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
-    <template v-else>
+    <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
+      <div class="gc-card-head">
+        <div>
+          <h3 class="gc-heading">Persiapan Bahan</h3>
+          <div class="sub">{{ kartuList.length }} bahan menunggu &middot; {{ jumlahSiapDicetak }} siap dicetak</div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button v-if="bolehEdit" @click="bukaScanSampaiGlobal" class="btn-outline" style="padding:8px 14px;"><i class="fas fa-inbox" style="margin-right:6px;"></i>Scan Sampai</button>
+          <button v-if="bolehProses" @click="bukaPenunjukanGlobal" class="btn-primary" style="padding:8px 14px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+        <button v-for="t in TAB_DEFS_BAHAN" :key="t.target" type="button"
+          :class="['sub-pp-bahan-tahap-btn','gc-sub-tab-btn', t.target===MY_TARGET ? 'active' : '']"
+          :data-target="t.target" @click="gantiTabPill('sub-pp-bahan-tahap', t.target, $event)">
+          <i :class="'fas ' + t.icon" style="margin-right:6px;"></i>{{ t.label }}
+        </button>
+      </div>
+
       <div style="display:flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:9px 13px; margin-bottom:12px;">
         <i class="fas fa-magnifying-glass" style="font-size:15px; color:var(--text-faint); flex-shrink:0;"></i>
         <input v-model="cari" type="text" placeholder="Cari bahan, warna, atau no. SPK..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px; color:var(--text);">
@@ -533,14 +696,13 @@ const PersiapanBahanPerluDisiapkan = {
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada bahan yang perlu disiapkan</h3>
       </div>
 
-      <div v-else style="display:flex; flex-direction:column; gap:10px;">
+      <div v-else style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px,1fr)); gap:12px;">
         <div v-for="k in kartuList" :key="k.bahanAksesorisId" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px; cursor:pointer;" @click="toggleKartu(k)">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
             <div style="min-width:0;">
               <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ k.nama }} <span style="color:var(--text-faint); font-weight:600;">{{ k.warna }}</span></div>
               <div style="font-size:11px; color:var(--text-faint); margin-top:2px;">{{ k.namaPola }} &middot; size {{ k.produkSize || '-' }} &middot; rak {{ k.rakId || '-' }}</div>
             </div>
-            <i class="fas" :class="kartuTerbuka[k.bahanAksesorisId] ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-faint); flex-shrink:0; margin-top:4px;"></i>
           </div>
 
           <div style="display:flex; gap:8px; margin-bottom:10px;">
@@ -559,14 +721,21 @@ const PersiapanBahanPerluDisiapkan = {
             <div :style="{ height:'100%', width: Math.min(100, k.butuh>0 ? (k.stok/k.butuh*100) : 100) + '%', background: k.cukup ? 'var(--ok)' : 'var(--warn)' }"></div>
           </div>
 
-          <div v-if="kartuTerbuka[k.bahanAksesorisId]" style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
+          <!-- RETROFIT 9 Sep 2026 (temuan #4) — tabel anak SPK SELALU
+               TERBUKA sesuai wireframe, collapse "buka rincian" dihapus. -->
+          <div style="display:flex; gap:8px; padding:0 7px 5px; font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.03em;">
+            <span style="flex:1;">anak spk</span>
+            <span style="width:60px; text-align:right;">qty</span>
+            <span style="width:70px; text-align:right;">butuh</span>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
             <label v-for="b in k.baris" :key="b._trackId + '-' + b._lineIdx" style="display:flex; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: b.label_cetak_pada ? 'var(--ok-light)' : (b._bisa ? 'transparent' : 'var(--danger-light)') }">
               <input type="checkbox" :checked="isChecked(b)" :disabled="!b._bisa || !!b.label_cetak_pada" @change="toggleCheck(b)">
-              <span class="gc-num" style="font-weight:700; min-width:110px;">{{ b.no_spk }}</span>
-              <span class="gc-num">{{ formatQty(b.qty) }} pcs</span>
-              <span class="gc-num" style="color:var(--text-faint);">{{ formatMeter(b.kebutuhan_kain) }}</span>
-              <span v-if="b.label_cetak_pada" class="tag ok" style="margin-left:auto;">sudah dicetak</span>
-              <span v-else-if="!b._bisa" class="tag warn" style="margin-left:auto;">stok kurang</span>
+              <span class="gc-num" style="font-weight:700; min-width:110px; flex:1;">{{ b.no_spk }}</span>
+              <span class="gc-num" style="width:60px; text-align:right;">{{ formatQty(b.qty) }} pcs</span>
+              <span class="gc-num" style="width:70px; text-align:right; color:var(--text-faint);">{{ formatMeter(b.kebutuhan_kain) }}</span>
+              <span v-if="b.label_cetak_pada" class="tag ok" style="margin-left:6px;">sudah dicetak</span>
+              <span v-else-if="!b._bisa" class="tag warn" style="margin-left:6px;">stok kurang</span>
             </label>
           </div>
 
@@ -577,9 +746,28 @@ const PersiapanBahanPerluDisiapkan = {
           </div>
         </div>
       </div>
-    </template>
+
+      <!-- RETROFIT 9 Sep 2026 (temuan #5) — bar ringkasan sticky + cetak
+           massal lintas kartu. TAMBAHAN, tombol cetak per-kartu di atas
+           TETAP ADA. Hanya di modul Bahan — dicek ke wireframe.dc.html Acc
+           Sewing, bar sejenis TIDAK ada di sana (checkbox di sana cuma
+           indikator kesiapan, bukan seleksi cetak), jadi TIDAK disalin ke
+           3 file Acc. -->
+      <div v-if="ringkasanTerpilih.jumlah > 0" style="position:sticky; bottom:0; margin:14px -20px -20px; padding:12px 20px; background:var(--ivory); border-top:1px solid var(--line); border-radius:0 0 20px 20px; display:flex; align-items:center; gap:12px; flex-wrap:wrap; z-index:5;">
+        <div>
+          <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">terpilih</div>
+          <div class="gc-num" style="font-size:12.5px; font-weight:700;">{{ ringkasanTerpilih.jumlah }} anak SPK &middot; {{ formatMeter(ringkasanTerpilih.meter) }} &middot; {{ ringkasanTerpilih.bahan }} bahan</div>
+        </div>
+        <button v-if="bolehCetak" @click="cetakSemuaTercentang" class="btn-primary" style="margin-left:auto; padding:10px 18px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Semua yang Tercentang</button>
+      </div>
+    </div>
 
     <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label SPK Grouping" :daftar-label="daftarLabelPreview" jenis-cetak="label_spk_bahan" @tutup="popupCetakAktif = false" @cetak="onCetakSelesai" />
+
+    <scan-generik :aktif="modalScanSampai.aktif" judul="Scan Sampai — kode bagging balik dari Masalah" subjudul="Bisa discan berkali-kali." @hasil="hasilScanSampai" @tutup="tutupScanSampai" />
+    <div v-if="modalScanSampai.aktif && modalScanSampai.log.length" style="position:fixed; left:16px; bottom:16px; z-index:10001; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
+      <div v-for="(l,i) in modalScanSampai.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
+    </div>
 
     <div v-if="popupCetakUlang" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
@@ -650,6 +838,7 @@ const PersiapanBahanSedangDisiapkan = {
     const sedangProses = reactive({});
     const sedangProsesBatch = reactive({});
     const menuId = 'pp_bahan';
+    const MY_TARGET = 'sub-pp-bahan-sedangdisiapkan';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
 
     async function muat() {
@@ -772,19 +961,35 @@ const PersiapanBahanSedangDisiapkan = {
       sedangProses[key] = false;
     }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await muat(); });
 
     return {
       memuat, kelompokOperator, bolehProses, sedangProses, sedangProsesBatch, konfirmasiDisiapkan,
       formatMeter, formatQty, formatDiamSejak, tertahan, barisKey,
       modalAksi, bukaAksi, tutupAksi, hasilScanAksi,
-      popupMasalah, batalMasalah, konfirmasiMasalah
+      popupMasalah, batalMasalah, konfirmasiMasalah,
+      TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
-    <div v-else-if="kelompokOperator.length === 0" class="gc-kosong gc-card">
+    <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
+      <div class="gc-card-head">
+        <div>
+          <h3 class="gc-heading">Persiapan Bahan</h3>
+          <div class="sub">{{ kelompokOperator.length }} operator sedang menyiapkan</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+        <button v-for="t in TAB_DEFS_BAHAN" :key="t.target" type="button"
+          :class="['sub-pp-bahan-tahap-btn','gc-sub-tab-btn', t.target===MY_TARGET ? 'active' : '']"
+          :data-target="t.target" @click="gantiTabPill('sub-pp-bahan-tahap', t.target, $event)">
+          <i :class="'fas ' + t.icon" style="margin-right:6px;"></i>{{ t.label }}
+        </button>
+      </div>
+
+    <div v-if="kelompokOperator.length === 0" class="gc-kosong gc-card">
       <div class="lingkaran"><i class="fas fa-gears"></i></div>
       <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada yang sedang disiapkan</h3>
     </div>
@@ -822,6 +1027,7 @@ const PersiapanBahanSedangDisiapkan = {
           </div>
         </div>
       </div>
+    </div>
     </div>
 
     <scan-generik :aktif="modalAksi.aktif"
@@ -862,6 +1068,7 @@ const PersiapanBahanPerluDikirim = {
     const daftarTlc = ref([]);
     const sedangProses = ref(false);
     const menuId = 'pp_bahan';
+    const MY_TARGET = 'sub-pp-bahan-perludikirim';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
 
@@ -1036,7 +1243,7 @@ const PersiapanBahanPerluDikirim = {
       } catch (e) { console.error('Gagal scan kirim:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await muat(); });
 
     return {
       memuat, kelompokSepack, daftarTlc, bolehProses, bolehCetak, sedangProses,
@@ -1045,13 +1252,28 @@ const PersiapanBahanPerluDikirim = {
       popupTugas, bukaCetakTugas, konfirmasiCetakTugas, isiTlcAwal,
       popupCetakAktif, daftarLabelPreview, jenisCetakAktif,
       modalPack, bukaScanPack, tutupScanPack, hasilScanPack, tutupBagging,
-      modalKirim, bukaScanKirim, tutupScanKirim, hasilScanKirim
+      modalKirim, bukaScanKirim, tutupScanKirim, hasilScanKirim,
+      TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
-    <template v-else>
+    <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
+      <div class="gc-card-head">
+        <div>
+          <h3 class="gc-heading">Persiapan Bahan</h3>
+          <div class="sub">{{ kelompokSepack.length }} produk tertahan di Perlu Di Kirim</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+        <button v-for="t in TAB_DEFS_BAHAN" :key="t.target" type="button"
+          :class="['sub-pp-bahan-tahap-btn','gc-sub-tab-btn', t.target===MY_TARGET ? 'active' : '']"
+          :data-target="t.target" @click="gantiTabPill('sub-pp-bahan-tahap', t.target, $event)">
+          <i :class="'fas ' + t.icon" style="margin-right:6px;"></i>{{ t.label }}
+        </button>
+      </div>
+
       <div v-if="bolehCetak" style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
         <button @click="bukaCetakBagging" class="btn-outline" style="flex:1; min-width:150px; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Kode Bagging</button>
         <button @click="bukaCetakTugas" class="btn-outline" style="flex:1; min-width:150px; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Kode Tugas</button>
@@ -1079,7 +1301,7 @@ const PersiapanBahanPerluDikirim = {
           </div>
         </div>
       </div>
-    </template>
+    </div>
 
     <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Kode" :daftar-label="daftarLabelPreview" :jenis-cetak="jenisCetakAktif" @tutup="popupCetakAktif = false" />
 
@@ -1153,13 +1375,29 @@ const PersiapanBahanSedangDikirim = {
       });
       return Object.values(peta).sort((a, b) => a.kodeTugas.localeCompare(b.kodeTugas));
     });
-    onMounted(async () => { await window.authReady; await muat(); });
-    return { memuat, kelompokTugas, formatMeter, formatQty, formatDiamSejak };
+    const MY_TARGET = 'sub-pp-bahan-sedangdikirim';
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await muat(); });
+    return { memuat, kelompokTugas, formatMeter, formatQty, formatDiamSejak, TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
-    <div v-else-if="kelompokTugas.length === 0" class="gc-kosong gc-card">
+    <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
+      <div class="gc-card-head">
+        <div>
+          <h3 class="gc-heading">Persiapan Bahan</h3>
+          <div class="sub">{{ kelompokTugas.length }} kode tugas sedang di jalan</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+        <button v-for="t in TAB_DEFS_BAHAN" :key="t.target" type="button"
+          :class="['sub-pp-bahan-tahap-btn','gc-sub-tab-btn', t.target===MY_TARGET ? 'active' : '']"
+          :data-target="t.target" @click="gantiTabPill('sub-pp-bahan-tahap', t.target, $event)">
+          <i :class="'fas ' + t.icon" style="margin-right:6px;"></i>{{ t.label }}
+        </button>
+      </div>
+
+    <div v-if="kelompokTugas.length === 0" class="gc-kosong gc-card">
       <div class="lingkaran"><i class="fas fa-truck-fast"></i></div>
       <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada yang sedang dikirim</h3>
     </div>
@@ -1179,6 +1417,7 @@ const PersiapanBahanSedangDikirim = {
           </div>
         </div>
       </div>
+    </div>
     </div>
   `
 };
@@ -1247,16 +1486,22 @@ const PersiapanBahanSelesai = {
 
     function keadaan(b) { return b.catatan_masalah ? 'kurang' : 'lengkap'; }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    const MY_TARGET = 'sub-pp-bahan-selesai';
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await muat(); });
 
     return {
       memuat, isOperatorSaja, barisSaya, daftarUrut, kpi,
-      formatMeter, formatQty, formatWaktu, formatSiklus, siklusJam, keadaan
+      formatMeter, formatQty, formatWaktu, formatSiklus, siklusJam, keadaan,
+      TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
+    <!-- isOperatorSaja: versi mobile "Riwayat Saya" TETAP TANPA gc-card-head/
+         tab pill (wireframe menggambarkannya sbg layar operator tersendiri,
+         "bukti kerja", bukan dashboard bertab — beda dari versi admin di
+         bawah yang memang wireframe-nya bertab). -->
     <template v-else-if="isOperatorSaja">
       <!-- Versi mobile/operator: "Riwayat Saya" — tanpa tombol, tanpa KPI.
            Bukti kerja, bukan tempat memperbaiki (SERAH-TERIMA §2). -->
@@ -1280,7 +1525,20 @@ const PersiapanBahanSelesai = {
       </div>
     </template>
 
-    <template v-else>
+    <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
+      <div class="gc-card-head">
+        <div>
+          <h3 class="gc-heading">Persiapan Bahan</h3>
+          <div class="sub">{{ kpi.selesai }} selesai hari ini</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+        <button v-for="t in TAB_DEFS_BAHAN" :key="t.target" type="button"
+          :class="['sub-pp-bahan-tahap-btn','gc-sub-tab-btn', t.target===MY_TARGET ? 'active' : '']"
+          :data-target="t.target" @click="gantiTabPill('sub-pp-bahan-tahap', t.target, $event)">
+          <i :class="'fas ' + t.icon" style="margin-right:6px;"></i>{{ t.label }}
+        </button>
+      </div>
       <!-- Versi admin/pic: KPI + papan riwayat penuh (SERAH-TERIMA §2). -->
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
         <div style="flex:1; min-width:110px; border:1px dashed var(--line); border-radius:12px; padding:8px 10px; background:var(--ivory-dim);">
@@ -1342,7 +1600,7 @@ const PersiapanBahanSelesai = {
           </tbody>
         </table>
       </div>
-    </template>
+    </div>
   `
 };
 

@@ -1082,160 +1082,163 @@ const BahanAksesorisEntryManager = {
         <h3 style="font-weight:700; font-size:13.5px;"><i class="fas fa-boxes-stacked" style="color:var(--burgundy); margin-right:8px;"></i>Entry Bahan / Aksesoris</h3>
         <button @click="tampilPengaturan = true" class="icon-btn" title="Pengaturan (prefix ID & Jenis)"><i class="fas fa-gear"></i></button>
       </div>
+      <p style="font-size:10.5px; color:var(--text-faint); margin:0 0 14px;">Tanggal Entry & ID akan dibuat OTOMATIS saat disimpan.</p>
 
-      <div class="gc-field">
-        <label>Kategori Utama <span style="color:var(--danger);">*</span></label>
-        <div style="display:flex; gap:16px;">
-          <label v-for="k in KATEGORI_UTAMA_OPSI" :key="k" style="display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer;">
-            <input type="radio" :value="k" v-model="form.kategori_utama" style="accent-color:var(--burgundy);">{{ k }}
-          </label>
+      <!-- RESTRUKTURISASI (9 Sep 2026, audit wireframe §1.1.2) — dulu grid
+           campuran (2-kolom identitas, lalu 4-kolom Harga&Satuan, lalu
+           3-kolom Volume Barang, beda per sub-bagian). SEKARANG 1 baris
+           3-kolom KONSISTEN ikut wireframe: foto (sempit) | identitas
+           (tengah) | Harga & Satuan (kanan) — pakai flex+flex-wrap (BUKAN
+           inline grid-template-columns dibarengi class grid-cols-1
+           md:grid-cols-N, supaya class-nya tetap benar-benar aktif
+           collapse 1 kolom di HP — sama alasan/pola yang dipakai
+           js/vue-master-produk.js). Field, validasi & hitungan (Harga
+           Modal/Pemakaian, Volume) SAMA PERSIS, cuma dipindah taruhnya. -->
+      <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+        <div style="flex:0 0 96px;">
+          <div v-if="form.foto" style="margin-bottom:8px;">
+            <img :src="form.foto" style="width:90px; height:90px; object-fit:cover; border-radius:12px; border:1.5px solid var(--line);">
+            <button @click="hapusFoto" style="display:block; background:none; border:none; color:var(--danger); font-size:10.5px; font-weight:700; cursor:pointer; margin-top:4px; padding:0;">Hapus foto</button>
+          </div>
+          <div v-else style="width:90px; height:90px; border-radius:12px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; margin-bottom:8px;"><span style="font-size:9.5px; color:var(--text-faint); text-align:center; line-height:1.3;">foto<br>item</span></div>
+          <input type="file" accept="image/*" @change="pilihFoto" style="width:90px; font-size:9px;">
         </div>
-      </div>
 
-      <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 12px;">Tanggal Entry & ID akan dibuat OTOMATIS saat disimpan.</p>
-
-      <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">
-        <div class="gc-field">
-          <label>Jenis Bahan / Aksesoris <span style="color:var(--danger);">*</span></label>
-          <dropdown-cari v-model="form.jenis" :opsi="opsiJenis" :disabled="!form.kategori_utama" :placeholder="form.kategori_utama ? 'Cari & pilih Jenis...' : 'Pilih Kategori Utama dulu'" />
-        </div>
-        <div class="gc-field">
-          <label>Foto (opsional)</label>
-          <input type="file" accept="image/*" @change="pilihFoto">
-        </div>
-        <div class="gc-field">
-          <label>Nama Bahan / Aksesoris <span style="color:var(--danger);">*</span></label>
-          <input v-model="form.nama" type="text" placeholder="Contoh: Katun Combed 30s">
-        </div>
-        <div class="gc-field">
-          <label>Warna Bahan / Aksesoris <span style="color:var(--danger);">*</span></label>
-          <dropdown-cari v-model="form.warna" :opsi="opsiWarna" placeholder="Cari & pilih Warna..." />
-        </div>
-      </div>
-      <div v-if="form.foto" style="margin-bottom:12px;">
-        <img :src="form.foto" style="width:80px; height:80px; object-fit:cover; border-radius:10px; border:1.5px solid var(--line);">
-        <button @click="hapusFoto" style="background:none; border:none; color:var(--danger); font-size:11px; font-weight:700; cursor:pointer; margin-left:8px;">Hapus foto</button>
-      </div>
-
-      <hr style="border-color:var(--line); margin:14px 0;">
-
-      <div v-if="!(form.konversi_bertingkat && form.konversi_bertingkat.length > 0)" style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-4">
-        <div class="gc-field">
-          <label>Harga Pembelian (Rp) <span style="color:var(--danger);">*</span></label>
-          <input v-model.number="form.harga_pembelian" type="number" min="0" placeholder="0">
-        </div>
-        <div class="gc-field">
-          <label>Satuan Pembelian <span style="color:var(--danger);">*</span></label>
-          <dropdown-cari v-model="form.satuan_pembelian" :opsi="opsiSatuan" placeholder="Cari & pilih Satuan..." />
-        </div>
-        <div class="gc-field">
-          <label>Isi Konversi Pembelian <span style="color:var(--danger);">*</span></label>
-          <input v-model.number="form.isi_konversi_pembelian" type="number" min="0" placeholder="Contoh: 144">
-        </div>
-        <div class="gc-field">
-          <label>Satuan Pemakaian <span style="color:var(--danger);">*</span></label>
-          <dropdown-cari v-model="form.satuan_pemakaian" :opsi="opsiSatuan" placeholder="Cari & pilih Satuan..." />
-        </div>
-      </div>
-
-      <div v-else style="background:var(--ivory-dim); border-radius:12px; padding:14px 16px; margin-bottom:4px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-          <b style="font-size:12.5px;"><i class="fas fa-calculator" style="color:var(--burgundy); margin-right:6px;"></i>Konversi Banyak Tingkat aktif</b>
-          <div style="display:flex; gap:6px;">
-            <button @click="bukaPopupKonversi" class="icon-btn" title="Ubah Konversi Banyak Tingkat"><i class="fas fa-pen"></i></button>
-            <button @click="hapusKonversiBertingkat" class="icon-btn" style="color:var(--danger);" title="Hapus & isi manual"><i class="fas fa-times"></i></button>
+        <div style="flex:2 1 280px; display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">
+          <div class="gc-field" style="margin-bottom:0;">
+            <label>Kategori Utama <span style="color:var(--danger);">*</span></label>
+            <div style="display:flex; gap:16px; align-items:center; min-height:38px;">
+              <label v-for="k in KATEGORI_UTAMA_OPSI" :key="k" style="display:flex; align-items:center; gap:6px; font-size:12.5px; cursor:pointer;">
+                <input type="radio" :value="k" v-model="form.kategori_utama" style="accent-color:var(--burgundy);">{{ k }}
+              </label>
+            </div>
+          </div>
+          <div class="gc-field" style="margin-bottom:0;">
+            <label>Jenis Bahan / Aksesoris <span style="color:var(--danger);">*</span></label>
+            <dropdown-cari v-model="form.jenis" :opsi="opsiJenis" :disabled="!form.kategori_utama" :placeholder="form.kategori_utama ? 'Cari & pilih Jenis...' : 'Pilih Kategori Utama dulu'" />
+          </div>
+          <div class="gc-field" style="margin-bottom:0;">
+            <label>Nama Bahan / Aksesoris <span style="color:var(--danger);">*</span></label>
+            <input v-model="form.nama" type="text" placeholder="Contoh: Katun Combed 30s">
+          </div>
+          <div class="gc-field" style="margin-bottom:0;">
+            <label>Warna Bahan / Aksesoris <span style="color:var(--danger);">*</span></label>
+            <dropdown-cari v-model="form.warna" :opsi="opsiWarna" placeholder="Cari & pilih Warna..." />
           </div>
         </div>
-        <p style="font-size:11.5px; margin-bottom:4px;">Harga Pembelian: <b>{{ formatRupiah(form.harga_pembelian) }}</b></p>
-        <p style="font-size:11.5px; color:var(--text-muted);">Rincian: {{ form.konversi_bertingkat.map(b => '1 ' + b.dari + ' = ' + b.jumlah + ' ' + b.ke + (b.harga ? ' (' + formatRupiah(b.harga) + '/' + b.dari + ')' : '')).join(', ') }}</p>
-        <p style="font-size:11.5px; margin-top:4px;">Isi Konversi Pembelian: <b>{{ form.isi_konversi_pembelian }}</b> &middot; Satuan Pemakaian: <b>{{ form.satuan_pemakaian }}</b></p>
+
+        <div style="flex:1 1 240px; max-width:280px; display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="width:6px; height:6px; border-radius:50%; background:var(--burgundy); flex-shrink:0;"></span>
+            <span style="font-weight:700; font-size:11.5px;">Harga &amp; Satuan</span>
+          </div>
+
+          <template v-if="!(form.konversi_bertingkat && form.konversi_bertingkat.length > 0)">
+            <div class="gc-field" style="margin-bottom:0;">
+              <label>Harga Pembelian (Rp) <span style="color:var(--danger);">*</span></label>
+              <input v-model.number="form.harga_pembelian" type="number" min="0" placeholder="0">
+            </div>
+            <div class="gc-field" style="margin-bottom:0;">
+              <label>Satuan Pembelian <span style="color:var(--danger);">*</span></label>
+              <dropdown-cari v-model="form.satuan_pembelian" :opsi="opsiSatuan" placeholder="Cari & pilih Satuan..." />
+            </div>
+            <div class="gc-field" style="margin-bottom:0;">
+              <label>Isi Konversi Pembelian <span style="color:var(--danger);">*</span></label>
+              <input v-model.number="form.isi_konversi_pembelian" type="number" min="0" placeholder="Contoh: 144">
+            </div>
+            <div class="gc-field" style="margin-bottom:0;">
+              <label>Satuan Pemakaian <span style="color:var(--danger);">*</span></label>
+              <dropdown-cari v-model="form.satuan_pemakaian" :opsi="opsiSatuan" placeholder="Cari & pilih Satuan..." />
+            </div>
+          </template>
+
+          <div v-else style="background:var(--ivory-dim); border-radius:10px; padding:10px 12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <b style="font-size:11.5px;"><i class="fas fa-calculator" style="color:var(--burgundy); margin-right:5px;"></i>Konversi Bertingkat aktif</b>
+              <div style="display:flex; gap:4px;">
+                <button @click="bukaPopupKonversi" class="icon-btn" title="Ubah Konversi Banyak Tingkat"><i class="fas fa-pen"></i></button>
+                <button @click="hapusKonversiBertingkat" class="icon-btn" style="color:var(--danger);" title="Hapus & isi manual"><i class="fas fa-times"></i></button>
+              </div>
+            </div>
+            <p style="font-size:10.5px; margin-bottom:4px;">Harga Pembelian: <b>{{ formatRupiah(form.harga_pembelian) }}</b></p>
+            <p style="font-size:10px; color:var(--text-muted);">Rincian: {{ form.konversi_bertingkat.map(b => '1 ' + b.dari + ' = ' + b.jumlah + ' ' + b.ke + (b.harga ? ' (' + formatRupiah(b.harga) + '/' + b.dari + ')' : '')).join(', ') }}</p>
+            <p style="font-size:10px; margin-top:4px;">Isi Konversi: <b>{{ form.isi_konversi_pembelian }}</b> &middot; Sat. Pakai: <b>{{ form.satuan_pemakaian }}</b></p>
+          </div>
+
+          <!-- BARU (25 Agt 2026) — tombol Konversi Banyak Tingkat, cuma
+               tampil kalau Konversi Banyak Tingkat BELUM aktif — kalau
+               sudah aktif, kotak ringkasan di atas sudah punya tombol
+               edit/hapus sendiri. -->
+          <button v-if="!(form.konversi_bertingkat && form.konversi_bertingkat.length > 0)" @click="bukaPopupKonversi" type="button" class="btn-outline" style="font-size:11px; padding:7px 12px;"><i class="fas fa-calculator" style="margin-right:6px;"></i>Konversi Banyak Tingkat</button>
+
+          <!-- BARU (25 Agt 2026, §25.2) — flag opsional per item: tandai
+               kalau bahan ini disimpan per roll/kones & perlu qty per roll
+               dicatat saat diterima (Nota Order Belanja). Mengaktifkan
+               tombol popup "Qty per Roll/Lot" di tabel Daftar Pesanan
+               Pembelian (js/vue-stock-pembelian.js) — FIFO/pemakaian
+               per-lot belum dikerjakan (menyusul). -->
+          <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:400; font-size:11px;">
+            <input type="checkbox" v-model="form.pakai_lot_tracking" style="accent-color:var(--burgundy); width:15px; height:15px; flex-shrink:0;">
+            <span>Perlu Qty per Roll/Lot saat diterima</span>
+          </label>
+
+          <!-- GANTI (7 Sep 2026) — Margin Modal SEKARANG PERSEN (%), bukan
+               nominal Rupiah lagi (lihat catatan besar di atas file ini). -->
+          <div class="gc-field" style="margin-bottom:0;">
+            <label>Margin Modal (%) <span style="color:var(--danger);">*</span></label>
+            <div style="position:relative;">
+              <input v-model.number="form.margin_modal" type="number" min="0" step="0.1" placeholder="0" style="padding-right:34px;">
+              <span style="position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:13px; font-weight:700; pointer-events:none;">%</span>
+            </div>
+            <p style="font-size:9.5px; color:var(--text-faint); margin-top:4px;">Dari Harga Modal. Pemakaian = Modal + (Modal &times; Margin% / 100).</p>
+          </div>
+
+          <div style="background:var(--ivory-dim); border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:5px;">
+            <div><span style="font-size:9.5px; color:var(--text-faint); display:block;">Harga Modal (otomatis)</span><b style="font-size:13px;">{{ formatRupiah(hargaModal) }}</b></div>
+            <div><span style="font-size:9.5px; color:var(--text-faint); display:block;">Harga Pemakaian (otomatis)</span><b style="font-size:13px; color:var(--burgundy);">{{ formatRupiah(hargaPemakaian) }}</b></div>
+          </div>
+        </div>
       </div>
 
-      <!-- BARU (25 Agt 2026) — tombol Konversi Banyak Tingkat DIPINDAH ke
-           sini (di bawah field Harga Pembelian/Satuan Pembelian/Isi
-           Konversi/Satuan Pemakaian, sebelum Rak Penyimpanan & Margin
-           Modal) — sebelumnya nempel di sebelah Margin Modal. Cuma
-           tampil kalau Konversi Banyak Tingkat BELUM aktif — kalau
-           sudah aktif, kotak ringkasan di atas sudah punya tombol
-           edit/hapus sendiri. -->
-      <div v-if="!(form.konversi_bertingkat && form.konversi_bertingkat.length > 0)" style="margin-top:10px;">
-        <button @click="bukaPopupKonversi" class="btn-outline" style="white-space:nowrap; padding:0 16px; height:44px;"><i class="fas fa-calculator" style="margin-right:6px;"></i>Konversi Banyak Tingkat</button>
-      </div>
+      <div style="height:1px; background:var(--line); margin:16px 0;"></div>
 
-      <!-- BARU (25 Agt 2026, §25.2) — flag opsional per item: tandai kalau
-           bahan ini disimpan per roll/kones & perlu qty per roll dicatat
-           saat diterima (Nota Order Belanja). Mengaktifkan tombol popup
-           "Qty per Roll/Lot" di tabel Daftar Pesanan Pembelian
-           (js/vue-stock-pembelian.js) — FIFO/pemakaian per-lot belum
-           dikerjakan (menyusul). -->
-      <div class="gc-field" style="margin-top:12px;">
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:400;">
-          <input type="checkbox" v-model="form.pakai_lot_tracking" style="accent-color:var(--burgundy); width:16px; height:16px;">
-          <span>Perlu Qty per Roll/Lot saat diterima (mis. bahan berbentuk Roll/Kones)</span>
-        </label>
+      <!-- Volume & Rak — "boleh menyusul", TIDAK wajib. Pola SAMA seperti
+           wireframe 1.1.2 (baris tersendiri di bawah 3-kolom utama). -->
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+        <span style="width:6px; height:6px; border-radius:50%; background:var(--text-faint); flex-shrink:0;"></span>
+        <span style="font-weight:700; font-size:11.5px;">Volume &amp; Rak</span>
+        <span style="font-size:10px; color:var(--text-faint);">boleh menyusul &middot; stok tidak diisi di sini</span>
       </div>
-
-      <!-- BARU (25 Agt 2026, §25) — Rak Penyimpanan SEKARANG 1 dropdown
-           pilih Rak terdaftar (menu baru "Rak Penyimpanan",
-           js/vue-rak-penyimpanan.js) — BUKAN 3 dropdown lepas lagi. Kalau
-           daftar Rak masih kosong, ada pesan bantu arah ke menu itu.
-           Opsional. -->
-      <p style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin:16px 0 8px;"><i class="fas fa-warehouse" style="margin-right:6px;"></i>Rak Penyimpanan (opsional)</p>
-      <div class="gc-field">
-        <label>Pilih Rak</label>
-        <dropdown-cari v-model="form.rak_label" :opsi="opsiRak" placeholder="Cari & pilih Rak..." />
-        <p v-if="opsiRak.length === 0" style="font-size:10.5px; color:var(--text-faint); margin-top:4px;">Belum ada Rak terdaftar — daftarkan dulu di sub-menu "Rak Penyimpanan".</p>
-        <p v-else-if="rakDipilih" style="font-size:10.5px; color:var(--text-faint); margin-top:4px;">Dimensi Rak: {{ formatQty(rakDipilih.tinggi_rak) }} &times; {{ formatQty(rakDipilih.panjang_rak) }} &times; {{ formatQty(rakDipilih.lebar_rak) }} cm &middot; Kapasitas: {{ formatQty(rakDipilih.volume_rak) }} cm&sup3;</p>
-      </div>
-
-      <!-- BARU (25 Agt 2026) — Volume Barang (Tinggi/Panjang/Lebar dari 1
-           satuan BARANG ini sendiri, BUKAN dimensi rak — lihat catatan
-           arsitektur di atas file ini). Volume dihitung otomatis
-           (readonly), disimpan sebagai field volume_barang. -->
-      <p style="font-size:11.5px; font-weight:700; color:var(--text-muted); margin:14px 0 8px;"><i class="fas fa-cube" style="margin-right:6px;"></i>Volume Barang (opsional) — untuk hitung kapasitas rak, cegah over stok</p>
       <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-3">
-        <div class="gc-field">
-          <label>Tinggi (cm)</label>
-          <input v-model.number="form.tinggi_barang" type="number" min="0" placeholder="0">
+        <!-- BARU (25 Agt 2026, §25) — Rak Penyimpanan 1 dropdown pilih Rak
+             terdaftar (menu "Rak Penyimpanan", js/vue-rak-penyimpanan.js). -->
+        <div class="gc-field" style="margin-bottom:0;">
+          <label>Pilih Rak (opsional)</label>
+          <dropdown-cari v-model="form.rak_label" :opsi="opsiRak" placeholder="Cari & pilih Rak..." />
+          <p v-if="opsiRak.length === 0" style="font-size:10px; color:var(--text-faint); margin-top:4px;">Belum ada Rak terdaftar — daftarkan dulu di sub-menu "Rak Penyimpanan".</p>
+          <p v-else-if="rakDipilih" style="font-size:10px; color:var(--text-faint); margin-top:4px;">Dimensi: {{ formatQty(rakDipilih.tinggi_rak) }}&times;{{ formatQty(rakDipilih.panjang_rak) }}&times;{{ formatQty(rakDipilih.lebar_rak) }}cm &middot; Kapasitas: {{ formatQty(rakDipilih.volume_rak) }}cm&sup3;</p>
         </div>
-        <div class="gc-field">
-          <label>Panjang (cm)</label>
-          <input v-model.number="form.panjang_barang" type="number" min="0" placeholder="0">
+        <!-- BARU (25 Agt 2026) — Volume Barang (Tinggi/Panjang/Lebar dari 1
+             satuan BARANG ini sendiri, BUKAN dimensi rak). Volume dihitung
+             otomatis (readonly), disimpan sebagai field volume_barang. -->
+        <div class="gc-field" style="margin-bottom:0;">
+          <label>Volume Barang (cm) <span style="font-size:9.5px; color:var(--text-faint); font-weight:400;">— T &times; P &times; L</span></label>
+          <div style="display:flex; gap:6px;">
+            <input v-model.number="form.tinggi_barang" type="number" min="0" placeholder="Tinggi">
+            <input v-model.number="form.panjang_barang" type="number" min="0" placeholder="Panjang">
+            <input v-model.number="form.lebar_barang" type="number" min="0" placeholder="Lebar">
+          </div>
+          <p style="font-size:9.5px; color:var(--text-faint); margin-top:4px;">Volume (otomatis): <b>{{ volumeBarang.toLocaleString('id-ID') }} cm&sup3;</b> per {{ form.satuan_pemakaian || 'satuan pemakaian' }}</p>
         </div>
-        <div class="gc-field">
-          <label>Lebar (cm)</label>
-          <input v-model.number="form.lebar_barang" type="number" min="0" placeholder="0">
+        <!-- BARU (1 Sep 2026) — Panjang Roll, dasar hitung kolom "roll" di
+             kartu Acc Webbing. Opsional, cuma relevan buat item webbing/tali. -->
+        <div class="gc-field" style="margin-bottom:0;">
+          <label>Panjang 1 Roll (meter) <span style="font-size:9.5px; color:var(--text-faint); font-weight:400;">— opsional (Acc Webbing)</span></label>
+          <input v-model.number="form.panjang_roll" type="number" min="0" placeholder="0">
         </div>
       </div>
-      <p style="font-size:11px; color:var(--text-faint); margin:2px 0 0;">Volume (otomatis): <b>{{ volumeBarang.toLocaleString('id-ID') }} cm&sup3;</b> per {{ form.satuan_pemakaian || 'satuan pemakaian' }}</p>
 
-      <!-- BARU (1 Sep 2026) — Panjang Roll, dasar hitung kolom "roll" di
-           kartu Acc Webbing. Opsional, cuma relevan buat item webbing/tali. -->
-      <div class="gc-field" style="margin-top:14px;">
-        <label>Panjang 1 Roll (meter) <span style="font-size:10px; color:var(--text-faint); font-weight:400;">— opsional, dasar hitung kolom "roll" Acc Webbing</span></label>
-        <input v-model.number="form.panjang_roll" type="number" min="0" placeholder="0">
-      </div>
-
-      <!-- GANTI (7 Sep 2026) — Margin Modal SEKARANG PERSEN (%), bukan
-           nominal Rupiah lagi (lihat catatan besar di atas file ini).
-           Suffix "%" di dalam input (pola BARU, belum ada preseden field
-           persen lain di file ini) supaya jelas satuannya beda dari field
-           Rupiah lain di sekitarnya. -->
-      <div class="gc-field" style="margin-top:16px;">
-        <label>Margin Modal (%) <span style="color:var(--danger);">*</span></label>
-        <div style="position:relative;">
-          <input v-model.number="form.margin_modal" type="number" min="0" step="0.1" placeholder="0" style="padding-right:34px;">
-          <span style="position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:13px; font-weight:700; pointer-events:none;">%</span>
-        </div>
-        <p style="font-size:10px; color:var(--text-faint); margin-top:4px;">Persen dari Harga Modal (BUKAN Rupiah). Harga Pemakaian = Harga Modal + (Harga Modal &times; Margin% / 100).</p>
-      </div>
-
-      <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0;">
-        <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Modal (otomatis)</span><b style="font-size:14px;">{{ formatRupiah(hargaModal) }}</b></div>
-        <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Pemakaian (otomatis)</span><b style="font-size:14px; color:var(--burgundy);">{{ formatRupiah(hargaPemakaian) }}</b></div>
-      </div>
-
-      <div style="display:flex; gap:8px;">
+      <div style="display:flex; gap:8px; margin-top:16px;">
         <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="flex:1; padding:12px;"><i class="fas fa-floppy-disk" style="margin-right:6px;"></i>{{ menyimpan ? 'Menyimpan...' : 'Simpan' }}</button>
         <button @click="simpanDanDuplikat" :disabled="menyimpan" class="btn-outline" style="flex:1; padding:12px;" title="Simpan sebagai entri baru, TAPI form tidak dikosongkan — tinggal ubah detail yang beda (misal Warna) lalu simpan lagi"><i class="fas fa-copy" style="margin-right:6px;"></i>Simpan &amp; Duplikat</button>
       </div>

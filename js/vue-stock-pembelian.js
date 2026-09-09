@@ -1565,6 +1565,77 @@ const DaftarNotaScreen = {
       indexSorot.value = 0;
       nextTick(() => { elCariItem.value?.focus(); });
     }
+    // --- Katalog grid kiri (BARU, 9 Sep 2026, audit wireframe §3.1 "katalog
+    // + keranjang nota") — split-screen sesuai pola Kasir (vue-pesanan.js,
+    // tambahKeKeranjang()). TIDAK mengganti alur keyboard-first §3.2 di
+    // atas (search box + Enter + Tab qty/satuan/harga TETAP ADA APA
+    // ADANYA, disatukan di panel kiri yang sama) — ini jalur TAMBAHAN buat
+    // klik/browse produk, sama seperti Kasir. Filter grid pakai teks
+    // pencarian YANG SAMA (cariItemTeks) supaya konsisten (ketik = grid
+    // ikut menyempit, kosongkan = grid tampil semua) — TIDAK ada state
+    // pencarian kedua yang terpisah.
+    const daftarBahanTampilGrid = computed(() => {
+      const kata = cariItemTeks.value.trim().toLowerCase();
+      if (!kata) return daftarBahan.value;
+      return daftarBahan.value.filter(b => formatNamaBahan(b).toLowerCase().includes(kata));
+    });
+    // qtyDiNota — badge kecil di kartu produk (grid kiri) kalau item itu
+    // SUDAH ada di Item Nota (kanan), pola sama seperti badge bulat merah
+    // di wireframe 3.1 ("2" di kartu Tafeta Cream).
+    function qtyDiNota(bahanId) {
+      const baris = daftarPesanan.value.find(b => b.bahan_aksesoris_id === bahanId);
+      return baris ? (parseFloat(baris.qty) || 0) : 0;
+    }
+    // tambahItemGrid — klik kartu produk di grid kiri. SAMA PERSIS logic
+    // "tambah/qty++" dengan tambahItemDariPencarian() di atas (duplikat ->
+    // qty++, baru -> buatBarisPesanan qty:1) — TIDAK ada rumus baru, cuma
+    // dipanggil dari klik bukan dari Enter. Item pakai_lot_tracking TETAP
+    // WAJIB lewat popup Qty per Roll/Lot (bukaPopupLot, SUDAH ADA, TIDAK
+    // diubah) — qty item lot SELALU berasal dari total lot, bukan
+    // increment manual, sesuai batasan yang sama seperti alur keyboard.
+    function tambahItemGrid(bahan) {
+      if (!suplayerEntry.value) { alert('Pilih Suplayer dulu sebelum menambah item.'); return; }
+      const idxAda = daftarPesanan.value.findIndex(b => b.bahan_aksesoris_id === bahan.id);
+      if (idxAda >= 0) {
+        const barisAda = daftarPesanan.value[idxAda];
+        if (barisAda.pakai_lot_tracking) { bukaPopupLot(idxAda); return; }
+        barisAda.qty = (parseFloat(barisAda.qty) || 0) + 1;
+        const item = itemAsliDariBaris(barisAda);
+        barisAda.qty_s = Math.round(barisAda.qty * faktorKonversiUntukSatuan(item, barisAda.satuan_bahan) * 100) / 100;
+        return;
+      }
+      daftarPesanan.value.push(buatBarisPesanan(bahan, 1, '', '', bahan.satuan_pembelian));
+      const idxBaru = daftarPesanan.value.length - 1;
+      if (daftarPesanan.value[idxBaru].pakai_lot_tracking) bukaPopupLot(idxBaru);
+    }
+    // tambahQtyKartu/kurangiQtyKartu — tombol +/- di kartu Item Nota (panel
+    // kanan), GANTI tampilan dari sel angka polos di tabel lama. Rumus
+    // qty_s SAMA PERSIS dengan konfirmasiQty() di atas (faktorKonversiUntukSatuan)
+    // — cuma dipanggil langsung tanpa popup buat +/-1 cepat. Item
+    // pakai_lot_tracking DIKECUALIKAN (qty-nya SELALU berasal dari total
+    // Qty per Roll/Lot, bukan +/- manual — tombolnya disembunyikan di
+    // template, fungsi ini jaga-jaga saja kalau terpanggil tetap no-op).
+    function tambahQtyKartu(i) {
+      const baris = daftarPesanan.value[i];
+      if (!baris || baris.pakai_lot_tracking) return;
+      baris.qty = (parseFloat(baris.qty) || 0) + 1;
+      const item = itemAsliDariBaris(baris);
+      baris.qty_s = Math.round(baris.qty * faktorKonversiUntukSatuan(item, baris.satuan_bahan) * 100) / 100;
+    }
+    function kurangiQtyKartu(i) {
+      const baris = daftarPesanan.value[i];
+      if (!baris || baris.pakai_lot_tracking) return;
+      const qtyBaru = (parseFloat(baris.qty) || 0) - 1;
+      if (qtyBaru <= 0) {
+        if (!confirm('Qty jadi 0 — hapus item "' + baris.nama + '" dari nota ini?')) return;
+        daftarPesanan.value.splice(i, 1);
+        if (barisAktifIndex.value === i) { barisAktifIndex.value = -1; tahapBarisAktif.value = 'selesai'; }
+        return;
+      }
+      baris.qty = qtyBaru;
+      const item = itemAsliDariBaris(baris);
+      baris.qty_s = Math.round(qtyBaru * faktorKonversiUntukSatuan(item, baris.satuan_bahan) * 100) / 100;
+    }
     function onKeydownCari(e) {
       if (e.key === 'ArrowDown') { e.preventDefault(); indexSorot.value = Math.min(indexSorot.value + 1, hasilPencarian.value.length - 1); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); indexSorot.value = Math.max(indexSorot.value - 1, 0); return; }
@@ -2094,6 +2165,8 @@ const DaftarNotaScreen = {
       fotoBonPreview, pilihFotoBon, hapusFotoBon,
       // keyboard entry
       elCariItem, cariItemTeks, hasilPencarian, indexSorot, onKeydownCari, tambahItemDariPencarian,
+      // katalog grid kiri (split-screen §3.1) + qty +/- kartu kanan
+      daftarBahanTampilGrid, qtyDiNota, tambahItemGrid, tambahQtyKartu, kurangiQtyKartu,
       // pop up qty
       tampilPopupQty, qtyManualInput, opsiQtyCepatUntuk, konfirmasiQty, tutupPopupQtyTanpaUbah, barisAktifIndex,
       // pop up satuan
@@ -2193,11 +2266,22 @@ const DaftarNotaScreen = {
             </div>
           </div>
 
-          <div class="gc-card" style="padding:14px;">
-            <!-- Keyboard-first search (wireframe 3.2a-3.2e) -->
-            <div v-if="!formReadOnly" style="margin-bottom:12px;">
-              <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Cari &amp; Tambah Item <span style="font-weight:400; color:var(--text-faint);">(nama internal atau alias suplayer — ketik, ↑↓ pilih, Enter masukkan, Tab lanjut isi qty/satuan/harga)</span></label>
-              <div style="position:relative;">
+          <!-- GANTI TOTAL (9 Sep 2026, audit wireframe §3.1 "katalog + keranjang
+               nota") — dulu 1 kartu: search-typeahead + tabel baris. SEKARANG
+               split-screen (pola sama Kasir Pesanan, vue-pesanan.js): KIRI
+               katalog produk (klik = tambah), KANAN Item Nota sebagai kartu
+               (bukan tabel) + qty +/-. Alur keyboard-first §3.2 (search box,
+               ↑↓/Enter/Tab -> pop up qty/satuan/harga) TIDAK dihapus/diubah —
+               tetap ada di panel kiri, cuma sekarang bersanding dengan grid
+               kartu produk yang bisa diklik langsung. Cara hitung total/
+               simpan ke Firestore (estimasiBiaya, simpanDraft, klikFinalkan,
+               dst) TIDAK disentuh sama sekali — cuma cara pilih produk &
+               tampilan item yang berubah. -->
+          <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">
+            <!-- KIRI: katalog produk -->
+            <div v-if="!formReadOnly" class="gc-card" style="flex:1.3; min-width:280px; padding:14px;">
+              <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Cari &amp; Tambah Item <span style="font-weight:400; color:var(--text-faint);">(ketik nama internal/alias suplayer — ↑↓ pilih, Enter masukkan, Tab lanjut isi qty/satuan/harga — atau klik langsung kartu produk di bawah)</span></label>
+              <div style="position:relative; margin-bottom:12px;">
                 <input ref="elCariItem" v-model="cariItemTeks" @keydown="onKeydownCari" type="text" :disabled="!suplayerEntry"
                   :placeholder="suplayerEntry ? 'Ketik nama bahan/aksesoris atau nama di nota suplayer...' : 'Pilih Suplayer dulu di bawah...'"
                   style="width:100%; padding:11px 14px; border:1.5px solid var(--line); border-radius:10px; font-size:13px;">
@@ -2209,87 +2293,105 @@ const DaftarNotaScreen = {
                   </div>
                 </div>
               </div>
+
+              <label style="font-size:11px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Katalog Item ({{ daftarBahanTampilGrid.length }})</label>
+              <div v-if="!suplayerEntry" style="font-size:11.5px; color:var(--text-faint);">Pilih Suplayer dulu sebelum menambah item.</div>
+              <div v-else-if="daftarBahanTampilGrid.length === 0" style="font-size:11.5px; color:var(--text-faint);">Tidak ada item cocok.</div>
+              <div v-else style="display:grid; grid-template-columns:repeat(auto-fill, minmax(118px, 1fr)); gap:8px; max-height:560px; overflow-y:auto; padding-right:2px;">
+                <button v-for="b in daftarBahanTampilGrid" :key="b.id" @click="tambahItemGrid(b)" type="button" class="gc-card" style="position:relative; padding:8px; border-radius:14px; text-align:left; cursor:pointer; border:1.5px solid var(--line);">
+                  <span v-if="qtyDiNota(b.id) > 0" style="position:absolute; top:6px; right:6px; min-width:18px; height:18px; padding:0 4px; border-radius:9px; background:var(--burgundy); color:#fff; font-size:9.5px; font-weight:700; display:flex; align-items:center; justify-content:center;">{{ qtyDiNota(b.id) }}</span>
+                  <div style="width:100%; height:42px; border-radius:8px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; margin-bottom:6px;"><i class="fas fa-box" style="color:var(--text-faint); font-size:16px;"></i></div>
+                  <div style="font-weight:700; font-size:11px; line-height:1.3; margin-bottom:2px;">{{ b.nama }}<span v-if="b.warna"> {{ b.warna }}</span></div>
+                  <div style="font-size:9.5px; color:var(--text-faint);">{{ b.id_tampil || '-' }} &middot; {{ b.satuan_pembelian || '-' }}</div>
+                </button>
+              </div>
             </div>
 
-            <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Item Nota ({{ daftarPesanan.length }})</label>
-            <div v-if="daftarPesanan.length === 0" style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Belum ada item.</div>
-            <div v-else style="overflow-x:auto; margin-bottom:14px;">
-              <table class="gc-table" style="width:100%; font-size:11.5px;">
-                <thead><tr>
-                  <th v-if="!formReadOnly" title="Qty per Roll/Lot"><i class="fas fa-layer-group"></i></th>
-                  <th v-if="!formReadOnly"><i class="fas fa-square-check"></i></th><th>No</th><th>ID</th>
-                  <th>Nama Alias</th><th>Nama Barang</th>
-                  <th>Qty Beli</th><th>Satuan Beli</th><th>Qty Pakai</th><th>Satuan Pakai</th><th>Harga</th><th>Jumlah</th>
-                  <th v-if="!formReadOnly">Keterangan</th>
-                </tr></thead>
-                <tbody>
-                  <tr v-for="(it, i) in daftarPesanan" :key="i" :style="{background: i === barisAktifIndex ? 'rgba(var(--burgundy-rgb),.05)' : 'transparent'}">
-                    <td v-if="!formReadOnly">
-                      <button v-if="it.pakai_lot_tracking" @click="bukaPopupLot(i)" class="icon-btn"
-                        :style="{color: (it.detail_lot && it.detail_lot.length) ? 'var(--burgundy)' : 'var(--text-faint)'}"
-                        :title="(it.detail_lot && it.detail_lot.length) ? ('Qty per Roll/Lot: ' + it.detail_lot.length + ' lot terisi') : 'Isi Qty per Roll/Lot'">
-                        <i class="fas fa-layer-group"></i>
-                      </button>
-                      <span v-else style="color:var(--text-faint); font-size:11px;">-</span>
-                    </td>
-                    <td v-if="!formReadOnly"><input type="checkbox" v-model="it.dicentang" style="accent-color:var(--burgundy);"></td>
-                    <td>{{ i + 1 }}</td><td>{{ it.sku }}</td>
-                    <td style="color:var(--text-muted);">{{ it.nama_alias || '-' }}</td><td>{{ it.nama }}</td>
-                    <td>{{ it.qty }}</td><td>{{ it.satuan_bahan }}</td><td>{{ it.qty_s }}</td><td>{{ it.satuan }}</td>
-                    <td>
-                      <span>{{ formatRupiah(it.harga) }}</span>
-                      <button v-if="!formReadOnly" @click="mulaiEditHarga(i, false)" class="icon-btn" style="margin-left:4px;" title="Edit harga (perlu PIN)"><i class="fas fa-pen" style="font-size:10px;"></i></button>
-                    </td>
-                    <td>{{ formatRupiah((parseFloat(it.qty)||0) * (parseFloat(it.harga)||0)) }}</td>
-                    <td v-if="!formReadOnly"><input v-model="it.keterangan" type="text" style="width:100%; padding:4px 6px; border:1px solid var(--line); border-radius:6px; font-size:11px;"></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+            <!-- KANAN: Item Nota (keranjang) + Suplayer/Tanggal/Foto/Total/Aksi -->
+            <div class="gc-card" style="flex:1; min-width:280px; padding:14px;">
+              <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Item Nota ({{ daftarPesanan.length }})</label>
+              <div v-if="daftarPesanan.length === 0" style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Belum ada item{{ formReadOnly ? '.' : ' — klik produk di kiri atau cari lewat kotak di atas.' }}</div>
+              <div v-else style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
+                <div v-for="(it, i) in daftarPesanan" :key="i" class="gc-card" :style="{padding:'10px 12px', background: i === barisAktifIndex ? 'rgba(var(--burgundy-rgb),.08)' : 'var(--ivory-dim)'}">
+                  <div style="display:flex; align-items:flex-start; gap:8px; margin-bottom:6px;">
+                    <input v-if="!formReadOnly" type="checkbox" v-model="it.dicentang" style="accent-color:var(--burgundy); margin-top:3px; flex-shrink:0;">
+                    <div style="flex:1; min-width:0;">
+                      <div style="font-weight:700; font-size:12px;">{{ it.nama }}</div>
+                      <div style="font-size:10px; color:var(--text-faint);">{{ it.sku }}<span v-if="it.nama_alias"> &middot; alias: {{ it.nama_alias }}</span></div>
+                    </div>
+                    <button v-if="it.pakai_lot_tracking" @click="bukaPopupLot(i)" class="icon-btn" style="flex-shrink:0;"
+                      :style="{color: (it.detail_lot && it.detail_lot.length) ? 'var(--burgundy)' : 'var(--text-faint)'}"
+                      :title="(it.detail_lot && it.detail_lot.length) ? ('Qty per Roll/Lot: ' + it.detail_lot.length + ' lot terisi') : 'Isi Qty per Roll/Lot'">
+                      <i class="fas fa-layer-group"></i>
+                    </button>
+                  </div>
 
-            <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:10px; margin-bottom:14px;">
-              <div class="gc-field" style="margin-bottom:0;">
-                <label>Suplayer{{ suplayerTerkunci ? ' (terkunci — 1 Nota = 1 Suplayer)' : '' }} <span style="color:var(--burgundy);">wajib</span></label>
-                <div style="display:flex; gap:6px;">
-                  <dropdown-cari v-model="suplayerEntry" :opsi="opsiSuplayer" :disabled="suplayerTerkunci || formReadOnly" placeholder="Pilih Suplayer..." />
-                  <button v-if="!suplayerTerkunci && !formReadOnly" @click="tampilTambahSuplayer = true" type="button" class="icon-btn" style="flex-shrink:0;" title="Tambah Suplayer baru"><i class="fas fa-plus"></i></button>
+                  <div v-if="it.pakai_lot_tracking" style="font-size:10.5px; color:var(--text-muted); margin-bottom:6px;">{{ it.detail_lot ? it.detail_lot.length : 0 }} lot &middot; {{ it.qty_s }} {{ it.satuan }}</div>
+                  <div v-else style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+                    <template v-if="!formReadOnly">
+                      <button @click="kurangiQtyKartu(i)" type="button" class="icon-btn" style="width:24px; height:24px;"><i class="fas fa-minus" style="font-size:9px;"></i></button>
+                      <span style="font-size:12.5px; font-weight:700; min-width:26px; text-align:center;">{{ it.qty }}</span>
+                      <button @click="tambahQtyKartu(i)" type="button" class="icon-btn" style="width:24px; height:24px;"><i class="fas fa-plus" style="font-size:9px;"></i></button>
+                    </template>
+                    <span v-else style="font-size:12.5px; font-weight:700;">{{ it.qty }}</span>
+                    <span style="font-size:10.5px; color:var(--text-faint);">{{ it.satuan_bahan }} &middot; = {{ it.qty_s }} {{ it.satuan }}</span>
+                  </div>
+
+                  <div style="display:flex; align-items:baseline; gap:6px; margin-bottom:6px;">
+                    <span style="font-size:10.5px; color:var(--text-faint);">{{ formatRupiah(it.harga) }} / {{ it.satuan_bahan }}</span>
+                    <button v-if="!formReadOnly" @click="mulaiEditHarga(i, false)" class="icon-btn" style="width:20px; height:20px;" title="Edit harga (perlu PIN)"><i class="fas fa-pen" style="font-size:9px;"></i></button>
+                    <span style="margin-left:auto; font-weight:700; font-size:12px;">{{ formatRupiah((parseFloat(it.qty)||0) * (parseFloat(it.harga)||0)) }}</span>
+                  </div>
+
+                  <input v-if="!formReadOnly" v-model="it.keterangan" type="text" placeholder="Keterangan (opsional)" style="width:100%; padding:5px 8px; border:1px solid var(--line); border-radius:6px; font-size:10.5px;">
+                  <div v-else-if="it.keterangan" style="font-size:10px; color:var(--text-faint);">{{ it.keterangan }}</div>
                 </div>
               </div>
-              <div class="gc-field" style="margin-bottom:0;"><label>Tanggal</label><input v-model="tanggal" type="date" :disabled="formReadOnly" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
-            </div>
 
-            <!-- Foto Bon — BARU -->
-            <div class="gc-field">
-              <label>Foto Bon <span style="font-weight:400; color:var(--text-faint);">(opsional — foto nota fisik)</span></label>
-              <div v-if="fotoBonPreview" style="margin-bottom:8px;">
-                <img :src="fotoBonPreview" style="width:120px; height:120px; object-fit:cover; border-radius:12px; border:1.5px solid var(--line);">
+              <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:10px; margin-bottom:14px;">
+                <div class="gc-field" style="margin-bottom:0;">
+                  <label>Suplayer{{ suplayerTerkunci ? ' (terkunci — 1 Nota = 1 Suplayer)' : '' }} <span style="color:var(--burgundy);">wajib</span></label>
+                  <div style="display:flex; gap:6px;">
+                    <dropdown-cari v-model="suplayerEntry" :opsi="opsiSuplayer" :disabled="suplayerTerkunci || formReadOnly" placeholder="Pilih Suplayer..." />
+                    <button v-if="!suplayerTerkunci && !formReadOnly" @click="tampilTambahSuplayer = true" type="button" class="icon-btn" style="flex-shrink:0;" title="Tambah Suplayer baru"><i class="fas fa-plus"></i></button>
+                  </div>
+                </div>
+                <div class="gc-field" style="margin-bottom:0;"><label>Tanggal</label><input v-model="tanggal" type="date" :disabled="formReadOnly" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
               </div>
-              <div v-if="!formReadOnly" style="display:flex; gap:8px; align-items:center;">
-                <input type="file" accept="image/*" @change="pilihFotoBon" style="font-size:11.5px;">
-                <button v-if="fotoBonPreview" @click="hapusFotoBon" type="button" class="btn-outline" style="font-size:11px; padding:5px 10px;">Hapus Foto</button>
+
+              <!-- Foto Bon — BARU -->
+              <div class="gc-field">
+                <label>Foto Bon <span style="font-weight:400; color:var(--text-faint);">(opsional — foto nota fisik)</span></label>
+                <div v-if="fotoBonPreview" style="margin-bottom:8px;">
+                  <img :src="fotoBonPreview" style="width:120px; height:120px; object-fit:cover; border-radius:12px; border:1.5px solid var(--line);">
+                </div>
+                <div v-if="!formReadOnly" style="display:flex; gap:8px; align-items:center;">
+                  <input type="file" accept="image/*" @change="pilihFotoBon" style="font-size:11.5px;">
+                  <button v-if="fotoBonPreview" @click="hapusFotoBon" type="button" class="btn-outline" style="font-size:11px; padding:5px 10px;">Hapus Foto</button>
+                </div>
               </div>
-            </div>
 
-            <div class="gc-field" style="margin-bottom:14px;">
-              <label>Total</label>
-              <div style="padding:14px 18px; background:var(--ivory-dim); border-radius:15px; font-weight:700; font-size:19px; color:var(--burgundy);">{{ formatRupiah(estimasiBiaya) }}</div>
-            </div>
+              <div class="gc-field" style="margin-bottom:14px;">
+                <label>Total</label>
+                <div style="padding:14px 18px; background:var(--ivory-dim); border-radius:15px; font-weight:700; font-size:19px; color:var(--burgundy);">{{ formatRupiah(estimasiBiaya) }}</div>
+              </div>
 
-            <div v-if="!formReadOnly" style="display:flex; gap:8px; flex-wrap:wrap;">
-              <button v-if="bolehSimpan" @click="klikFinalkan" :disabled="menyimpan" class="btn-primary" style="flex:1; min-width:110px;">{{ menyimpan ? 'Menyimpan...' : 'Finalkan' }}</button>
-              <button @click="batal" class="btn-outline" style="flex:1; min-width:90px;">Batal</button>
-              <button v-if="bolehHapus" @click="hapusTerpilih" :disabled="!adaTerpilih" class="btn-outline" style="flex:1; min-width:90px; color:var(--danger); border-color:var(--danger);">Hapus Terpilih</button>
-              <button @click="cetak" class="btn-outline" style="flex:1; min-width:90px;">Cetak</button>
-              <button v-if="bolehSimpan" @click="simpanDraft" :disabled="menyimpan" class="btn-outline" style="flex:1; min-width:90px;">Simpan Draft</button>
-            </div>
-            <div v-else style="display:flex; gap:8px;">
-              <button @click="cetak" class="btn-outline" style="flex:1;">Cetak</button>
-            </div>
-            <p v-if="!formReadOnly" style="font-size:10.5px; color:var(--text-faint); text-align:center; margin-top:8px;">Finalkan = stok bertambah, Riwayat Harga tertulis, tidak bisa diubah lagi. Hanya Owner/PIC Owner/Superuser yang bisa memfinalkan (Admin butuh PIN Owner).</p>
+              <div v-if="!formReadOnly" style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button v-if="bolehSimpan" @click="klikFinalkan" :disabled="menyimpan" class="btn-primary" style="flex:1; min-width:110px;">{{ menyimpan ? 'Menyimpan...' : 'Finalkan' }}</button>
+                <button @click="batal" class="btn-outline" style="flex:1; min-width:90px;">Batal</button>
+                <button v-if="bolehHapus" @click="hapusTerpilih" :disabled="!adaTerpilih" class="btn-outline" style="flex:1; min-width:90px; color:var(--danger); border-color:var(--danger);">Hapus Terpilih</button>
+                <button @click="cetak" class="btn-outline" style="flex:1; min-width:90px;">Cetak</button>
+                <button v-if="bolehSimpan" @click="simpanDraft" :disabled="menyimpan" class="btn-outline" style="flex:1; min-width:90px;">Simpan Draft</button>
+              </div>
+              <div v-else style="display:flex; gap:8px;">
+                <button @click="cetak" class="btn-outline" style="flex:1;">Cetak</button>
+              </div>
+              <p v-if="!formReadOnly" style="font-size:10.5px; color:var(--text-faint); text-align:center; margin-top:8px;">Finalkan = stok bertambah, Riwayat Harga tertulis, tidak bisa diubah lagi. Hanya Owner/PIC Owner/Superuser yang bisa memfinalkan (Admin butuh PIN Owner).</p>
 
-            <div v-if="lotUntukCetak.length > 0" style="margin-top:12px; background:var(--ivory-dim); border-radius:10px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-              <span style="font-size:12px;"><i class="fas fa-tags" style="color:var(--burgundy); margin-right:6px;"></i>{{ lotUntukCetak.length }} roll/lot baru dibuat dari Nota ini — cetak labelnya (QR) untuk ditempel ke roll fisiknya.</span>
-              <button @click="cetakLabelLot(lotUntukCetak)" class="btn-primary" style="padding:8px 16px; font-size:12px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label Roll</button>
+              <div v-if="lotUntukCetak.length > 0" style="margin-top:12px; background:var(--ivory-dim); border-radius:10px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                <span style="font-size:12px;"><i class="fas fa-tags" style="color:var(--burgundy); margin-right:6px;"></i>{{ lotUntukCetak.length }} roll/lot baru dibuat dari Nota ini — cetak labelnya (QR) untuk ditempel ke roll fisiknya.</span>
+                <button @click="cetakLabelLot(lotUntukCetak)" class="btn-primary" style="padding:8px 16px; font-size:12px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label Roll</button>
+              </div>
             </div>
           </div>
         </template>

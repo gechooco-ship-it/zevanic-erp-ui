@@ -163,63 +163,84 @@ const SuplayerEntryList = {
     return { memuat, daftarTampil, cari, form, menyimpan, bolehTambah, bolehEdit, bolehHapus, tambah, bukaEdit, simpanEdit, popupEdit, hapus };
   },
   template: `
-    <div class="gc-card gc-card-menonjol" style="padding:16px;">
-      <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-bottom:4px;"><i class="fas fa-truck-fast" style="color:var(--burgundy); margin-right:8px;"></i>Master Suplayer</h3>
-      <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Data suplayer lengkap — dipakai Alias &amp; MOQ, Petakan Order, dan format order WA ke driver (Persiapan Belanja).</p>
+    <!-- RESTRUKTURISASI (9 Sep 2026, audit wireframe §5.1) — dulu form-tambah
+         inline di ATAS, list kartu DITUMPUK di bawahnya, edit lewat modal
+         popup terpisah. Wireframe minta 2 PANEL BERDAMPINGAN (form kiri,
+         list kanan, klik baris untuk edit). Modal popup DIGANTI jadi inline
+         di panel kiri (bukan cuma layout-nya yang dipindah) — panel kiri
+         menampilkan form Tambah ATAU form Edit tergantung popupEdit terisi
+         atau tidak, PERSIS variabel & fungsi yang SAMA (tambah/bukaEdit/
+         simpanEdit TIDAK diubah sama sekali, cuma markup-nya dipindah dari
+         dalam overlay ke sini). Kolom "alias"/"item" per suplayer di
+         wireframe TIDAK ditambahkan (butuh query koleksi alias_pembelian
+         tambahan di modul ini — di luar scope "cuma ubah tata letak"). -->
+    <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+      <div class="gc-card gc-card-menonjol" style="flex:1 1 300px; max-width:380px; padding:16px;">
+        <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-bottom:2px;"><i class="fas fa-truck-fast" style="color:var(--burgundy); margin-right:8px;"></i>{{ popupEdit ? 'Edit Suplayer' : 'Entry Suplayer' }}</h3>
+        <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">{{ popupEdit ? 'Ubah data pemasok.' : 'Tambah pemasok baru — nama wajib diisi.' }}</p>
 
-      <div v-if="bolehTambah" style="display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; margin-bottom:14px;">
-        <div class="gc-field" style="margin-bottom:0;"><label>Nama Suplayer *</label><input v-model="form.nama" type="text" placeholder="Nama Suplayer"></div>
-        <div class="gc-field" style="margin-bottom:0;"><label>Kontak/Alamat</label><input v-model="form.kontak" type="text" placeholder="Kontak/Alamat"></div>
-        <div class="gc-field" style="margin-bottom:0;"><label>Bank</label><input v-model="form.bank" type="text" placeholder="Mis. BCA"></div>
-        <div class="gc-field" style="margin-bottom:0;"><label>Nama Rekening</label><input v-model="form.namaRek" type="text" placeholder="Atas nama"></div>
-        <div class="gc-field" style="margin-bottom:0;"><label>No. Rekening</label><input v-model="form.noRek" type="text" placeholder="No. rekening"></div>
-        <div class="gc-field" style="margin-bottom:0;"><label>No. WhatsApp</label><input v-model="form.noWa" type="text" placeholder="08..."></div>
-        <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="align-self:end; padding:9px 18px;"><i class="fas fa-plus" style="margin-right:6px;"></i>Tambah</button>
-      </div>
-
-      <div style="display:flex; align-items:center; gap:9px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:999px; padding:9px 13px; margin-bottom:12px;">
-        <i class="fas fa-magnifying-glass" style="font-size:14px; color:var(--text-faint);"></i>
-        <input v-model="cari" type="text" placeholder="Cari nama/kontak..." style="flex:1; border:none; outline:none; background:none; font-size:12px;">
-      </div>
-
-      <div v-if="memuat" style="text-align:center; padding:16px; color:var(--text-faint); font-size:12px;">Memuat...</div>
-      <div v-else-if="daftarTampil.length === 0" class="gc-kosong">
-        <div class="lingkaran"><i class="fas fa-truck-fast"></i></div>
-        <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada Suplayer</h3>
-      </div>
-      <div v-else style="display:flex; flex-direction:column; gap:10px;">
-        <div v-for="s in daftarTampil" :key="s.id" class="gc-card" style="padding:14px;">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:8px;">
-            <div>
-              <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ s.nama }}</div>
-              <div style="font-size:11px; color:var(--text-faint);">{{ s.kontak || '-' }}</div>
-            </div>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px; font-size:12px;">
-            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-faint);">Bank</span><span style="font-weight:600;">{{ s.bank || '-' }}</span></div>
-            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-faint);">Rekening</span><span style="font-weight:600;">{{ s.nama_rek || '-' }} &middot; {{ s.no_rek || '-' }}</span></div>
-            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-faint);">No. WA</span><span class="gc-num" style="font-weight:600;">{{ s.no_wa || '-' }}</span></div>
-          </div>
+        <template v-if="!popupEdit">
+          <div class="gc-field"><label>Nama Suplayer *</label><input v-model="form.nama" type="text" placeholder="Nama Suplayer"></div>
+          <div class="gc-field"><label>Kontak/Alamat</label><input v-model="form.kontak" type="text" placeholder="Kontak/Alamat"></div>
+          <div class="gc-field"><label>Bank</label><input v-model="form.bank" type="text" placeholder="Mis. BCA"></div>
+          <div class="gc-field"><label>Nama Rekening</label><input v-model="form.namaRek" type="text" placeholder="Atas nama"></div>
+          <div class="gc-field"><label>No. Rekening</label><input v-model="form.noRek" type="text" placeholder="No. rekening"></div>
+          <div class="gc-field"><label>No. WhatsApp</label><input v-model="form.noWa" type="text" placeholder="08..."></div>
+          <button v-if="bolehTambah" @click="tambah" :disabled="menyimpan" class="btn-primary block"><i class="fas fa-plus" style="margin-right:6px;"></i>Tambah</button>
+        </template>
+        <template v-else>
+          <div class="gc-field"><label>Nama Suplayer *</label><input v-model="popupEdit.nama" type="text"></div>
+          <div class="gc-field"><label>Kontak/Alamat</label><input v-model="popupEdit.kontak" type="text"></div>
+          <div class="gc-field"><label>Bank</label><input v-model="popupEdit.bank" type="text"></div>
+          <div class="gc-field"><label>Nama Rekening</label><input v-model="popupEdit.namaRek" type="text"></div>
+          <div class="gc-field"><label>No. Rekening</label><input v-model="popupEdit.noRek" type="text"></div>
+          <div class="gc-field"><label>No. WhatsApp</label><input v-model="popupEdit.noWa" type="text"></div>
           <div style="display:flex; gap:8px;">
-            <button v-if="bolehEdit" @click="bukaEdit(s)" class="btn-outline" style="flex:1; padding:7px; font-size:11.5px;"><i class="fas fa-pen" style="margin-right:6px;"></i>Edit</button>
-            <button v-if="bolehHapus" @click="hapus(s)" class="btn-outline" style="flex:1; padding:7px; font-size:11.5px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
+            <button @click="simpanEdit" :disabled="menyimpan" class="btn-primary" style="flex:1;">Simpan</button>
+            <button @click="popupEdit = null" class="btn-outline" style="flex:1;">Batal</button>
+          </div>
+        </template>
+      </div>
+
+      <div class="gc-card" style="flex:2 1 380px; min-width:280px; padding:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:12px;">
+          <div>
+            <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-bottom:2px;">Daftar Suplayer</h3>
+            <p style="font-size:11px; color:var(--text-faint); margin:0;">{{ daftarTampil.length }} pemasok terdaftar &middot; klik baris untuk edit</p>
           </div>
         </div>
-      </div>
-    </div>
 
-    <div v-if="popupEdit" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="popupEdit = null">
-      <div class="gc-card" style="max-width:400px; width:100%; padding:18px;">
-        <h3 class="gc-heading" style="font-weight:700; font-size:14px; margin-bottom:12px;">Edit Suplayer</h3>
-        <div class="gc-field"><label>Nama Suplayer *</label><input v-model="popupEdit.nama" type="text"></div>
-        <div class="gc-field"><label>Kontak/Alamat</label><input v-model="popupEdit.kontak" type="text"></div>
-        <div class="gc-field"><label>Bank</label><input v-model="popupEdit.bank" type="text"></div>
-        <div class="gc-field"><label>Nama Rekening</label><input v-model="popupEdit.namaRek" type="text"></div>
-        <div class="gc-field"><label>No. Rekening</label><input v-model="popupEdit.noRek" type="text"></div>
-        <div class="gc-field"><label>No. WhatsApp</label><input v-model="popupEdit.noWa" type="text"></div>
-        <div style="display:flex; gap:8px; margin-top:6px;">
-          <button @click="simpanEdit" :disabled="menyimpan" class="btn-primary" style="flex:1;">Simpan</button>
-          <button @click="popupEdit = null" class="btn-outline" style="flex:1;">Batal</button>
+        <div style="display:flex; align-items:center; gap:9px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:999px; padding:9px 13px; margin-bottom:12px;">
+          <i class="fas fa-magnifying-glass" style="font-size:14px; color:var(--text-faint);"></i>
+          <input v-model="cari" type="text" placeholder="Cari nama/kontak..." style="flex:1; border:none; outline:none; background:none; font-size:12px;">
+        </div>
+
+        <div v-if="memuat" style="text-align:center; padding:16px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+        <div v-else-if="daftarTampil.length === 0" class="gc-kosong">
+          <div class="lingkaran"><i class="fas fa-truck-fast"></i></div>
+          <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada Suplayer</h3>
+        </div>
+        <div v-else class="gc-table-scroll">
+          <table class="gc-table">
+            <thead>
+              <tr>
+                <th>Nama &middot; Kontak</th>
+                <th>Bank &middot; Rekening</th>
+                <th>No. WA</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="s in daftarTampil" :key="s.id" @click="bukaEdit(s)" :style="{cursor: bolehEdit ? 'pointer' : 'default'}">
+                <td><b>{{ s.nama }}</b><div class="gc-cell-muted" style="font-size:11px;">{{ s.kontak || '-' }}</div></td>
+                <td class="gc-cell-muted">{{ s.bank || '-' }} &middot; {{ s.no_rek || '-' }}</td>
+                <td class="gc-num">{{ s.no_wa || '-' }}</td>
+                <td style="text-align:right;">
+                  <button v-if="bolehHapus" @click.stop="hapus(s)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

@@ -122,9 +122,61 @@
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { db } from "./firebase-config.js";
+// storageRef/uploadBytes/getDownloadURL — DISALIN dari js/vue-stock-pembelian.js
+// (konvensi proyek: salin, jangan impor silang). Dipakai HANYA buat 1 hal baru
+// (audit 9 Sep, poin 6): foto bukti transfer/QRIS di popup Catat Pembayaran
+// (4.1.1) — TIDAK menyentuh perhitungan uang sama sekali, cuma lampiran.
+import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
+import { db, storage } from "./firebase-config.js";
 import { ambilSemuaProduk } from './vue-master-produk.js';
 import { ambilPengaturanCetak } from './vue-pengaturan-cetak.js';
+
+// ============================================================================
+// SUSULAN AUDIT WIREFRAME (9 Sep 2026 malam) — Guru sudah setuju 6 poin di
+// audit `wireframe.dc.html` vs kode live, dikerjakan sekali jalan tanpa
+// menyentuh logic uang/Firestore (query/hitung total/simpan transaksi),
+// HANYA render/susunan tampilan (kecuali poin 6, yang secara eksplisit minta
+// field tangkapan BARU — bukan perhitungan — lihat catatan di titiknya):
+//   S1. 1.1 — indikator STEPPER 2 langkah ("LangkahStepper" di bawah, dipakai
+//       ulang di step 1 & 2) + blok pelanggan diubah dari <select> polos jadi
+//       kotak "terkunci" ber-ikon 🔒 begitu pelanggan sudah dipilih dari
+//       database (tombol "ubah" buat balik ke mode pilih). TIDAK mengubah
+//       jadi 3-panel sejajar (sidebar di wireframe = chrome nav aplikasi, di
+//       luar kendali file ini) — cuma 2 hal yang diminta eksplisit di poin
+//       audit: stepper + kotak pelanggan.
+//   S2. 1.2 — grid nominal cepat (Uang Pas + 5 pecahan umum) di dekat input
+//       "Uang Diterima". ASUMSI: tombol pecahan (50rb/dst) MENAMBAH ke uang
+//       diterima (bukan menimpa) — meniru cara kasir fisik menumpuk lembar
+//       uang, beda dari pola "Lunasi semua" di popup 4.1.1 yang MENIMPA
+//       (itu 1 keputusan nominal, bukan tumpukan lembar).
+//   S3. 2.1 — kolom "jumlah order (Rp)" per baris (qty terpilih × harga
+//       jual), keterangan "dari Rp X" (basis RO) HANYA muncul kalau angkanya
+//       beda dari RO — sebelumnya cuma ada di footer sticky total.
+//   S4. 3.2.1 — baris 5 kotak statistik + 3 tab (lini masa/kebutuhan bahan/
+//       masalah) + timeline SATU KOLOM urut waktu (GANTI TOTAL dari daftar
+//       kartu per jalur). ASUMSI: order_spk tidak punya timestamp "masuk
+//       grouping" sendiri — `qo_diproses_pada` dipakai sebagai proxy titik
+//       masuk "Perlu Disiapkan". "pernah tertahan" dihitung dari jumlah
+//       spk_track grouping ini yang SAAT INI punya `catatan_masalah` terisi
+//       (tidak ada log riwayat "pernah tertahan" terpisah — ini hitungan
+//       kondisi sekarang, bukan akumulasi historis penuh). Tab "kebutuhan
+//       bahan" cuma daftar NAMA bahan/aksesoris dari BOM produk (bukan
+//       kuantitas presisi — rumus kelipatan/panjang/isi_pola_pcs itu logic
+//       Persiapan Produksi di luar lingkup poin audit ini, menyalin mentah
+//       berisiko salah hitung dan menyesatkan).
+//   S5. 4.1/4.2.1/4.2.2 — GANTI dari 3 tab eksklusif jadi 1 halaman scroll
+//       berurutan (Kas Besar → Rincian Transaksi → Rincian Piutang) dengan
+//       filter pelanggan BERSAMA (ref baru `filterPelangganId`) yang mengalir
+//       ke ketiga bagian, plus 3 pil navigasi cepat (anchor scroll, BUKAN tab
+//       exclusive). Semua computed query/hitung total TIDAK disentuh — cuma
+//       ditambah 1 syarat filter pelanggan_id di awal filter yang sudah ada.
+//   S6. 4.1.1 — blok "bukti & catatan" WAJIB (no. referensi + lampirkan
+//       foto) khusus Transfer/QRIS. INI SATU-SATUNYA poin yang menambah
+//       FIELD BARU ke Firestore (`no_referensi`, `bukti_foto_url` di
+//       `piutang_pembayaran`) — bukan perhitungan, cuma lampiran/tangkapan
+//       data tambahan; total_dibayar/sisa_piutang/saldo_piutang TIDAK
+//       tersentuh sama sekali.
+// ============================================================================
 
 function formatQty(n) {
   const angka = parseFloat(n) || 0;
@@ -234,6 +286,43 @@ async function ambilDaftarPelanggan() {
 }
 
 // ---------------------------------------------------------------------------
+// uploadFotoBuktiTransfer — S6, DISALIN dari kompresFotoKeBlob/uploadFotoBon
+// di js/vue-stock-pembelian.js (700px/kualitas 0.7, cukup buat foto bukti
+// transfer, bukan dokumen resolusi tinggi). Path Storage terpisah dari
+// pesanan_pembelian supaya tidak campur folder.
+// ---------------------------------------------------------------------------
+function kompresFotoBuktiKeBlob(file, maxDimensi, kualitas) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        let { width, height } = img;
+        if (width > maxDimensi || height > maxDimensi) {
+          if (width > height) { height = Math.round(height * (maxDimensi / width)); width = maxDimensi; }
+          else { width = Math.round(width * (maxDimensi / height)); height = maxDimensi; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Gagal buat blob foto')), 'image/jpeg', kualitas);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+async function uploadFotoBuktiTransfer(transaksiKasirId, file) {
+  const blob = await kompresFotoBuktiKeBlob(file, 900, 0.7);
+  const pathFile = `piutang_pembayaran/${transaksiKasirId}/bukti_${Date.now()}.jpg`;
+  const refFile = storageRef(storage, pathFile);
+  await uploadBytes(refFile, blob);
+  return await getDownloadURL(refFile);
+}
+
+// ---------------------------------------------------------------------------
 // catatPembayaranSusulan — 1 fungsi dipakai HANYA oleh popup "Catat
 // Pembayaran" (Transaksi Keuangan 4.1.1), untuk pembayaran SESUDAH transaksi
 // checkout (DP saat kasir/Lunas saat kasir DITULIS LANGSUNG oleh buatOrder()
@@ -243,10 +332,14 @@ async function ambilDaftarPelanggan() {
 // titik pengurang saldo_piutang, sesuai SPESIFIKASI-KOLEKSI-BARU.md §2 "JANGAN
 // tulis langsung — update lewat fungsi catat pembayaran").
 // ---------------------------------------------------------------------------
-async function catatPembayaranSusulan({ transaksiKasirId, pelangganId, pelangganNama, noTransaksi, jumlah, metode, tanggal, catatan, dicatatOleh, pinPemilik }) {
+async function catatPembayaranSusulan({ transaksiKasirId, pelangganId, pelangganNama, noTransaksi, jumlah, metode, tanggal, catatan, dicatatOleh, pinPemilik, noReferensi, buktiFotoUrl }) {
+  // S6 — no_referensi/bukti_foto_url FIELD BARU (aditif), TIDAK dipakai di
+  // perhitungan apa pun di bawah ini (total_dibayar/sisa_piutang/saldo_piutang
+  // tetap murni dari `jumlah`, sama persis seperti sebelum poin S6 ada).
   await addDoc(collection(db, 'piutang_pembayaran'), {
     transaksi_kasir_id: transaksiKasirId, pelanggan_id: pelangganId || '', pelanggan_nama: pelangganNama || '',
     no_transaksi: noTransaksi || '', jenis: 'cicilan', jumlah, metode, tanggal, catatan: catatan || '',
+    no_referensi: noReferensi || null, bukti_foto_url: buktiFotoUrl || null,
     dicatat_oleh: dicatatOleh, pin_pemilik: pinPemilik || null, dibuat_pada: serverTimestamp()
   });
   const refTrx = doc(db, 'transaksi_kasir', transaksiKasirId);
@@ -386,8 +479,30 @@ const PopupPratinjauCetakStruk = {
   `
 };
 
+// LangkahStepper — S1, indikator 2 langkah "1 Pilih Barang & Pelanggan ·
+// 2 Bayar & Cetak" (wireframe 1.1/1.2). Dipakai di step 1 (aktif=1) dan step
+// 2 (aktif=2) PesananKasirManager — komponen lokal file ini, TIDAK diekspor
+// (konvensi "salin, jangan impor silang" kalau file lain butuh serupa nanti).
+const LangkahStepper = {
+  props: { aktif: { type: Number, default: 1 } },
+  template: `
+    <div style="display:flex; align-items:center; gap:10px;">
+      <div style="flex:1; display:flex; align-items:center; gap:8px; min-width:0;">
+        <span style="width:20px; height:20px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700;" :style="{background: aktif>=1 ? 'var(--burgundy)' : 'var(--ivory-dim)', color: aktif>=1 ? '#fff' : 'var(--text-faint)'}">1</span>
+        <span style="font-size:11px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" :style="{color: aktif===1 ? 'var(--burgundy)' : 'var(--text-faint)'}">Pilih Barang &amp; Pelanggan</span>
+        <div style="flex:1; height:2px; border-radius:1px; min-width:12px;" :style="{background: aktif>=1 ? 'var(--burgundy)' : 'var(--line)'}"></div>
+      </div>
+      <div style="flex:1; display:flex; align-items:center; gap:8px; min-width:0;">
+        <span style="width:20px; height:20px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700;" :style="{background: aktif>=2 ? 'var(--burgundy)' : 'var(--ivory-dim)', color: aktif>=2 ? '#fff' : 'var(--text-faint)'}">2</span>
+        <span style="font-size:11px; font-weight:600; white-space:nowrap;" :style="{color: aktif===2 ? 'var(--burgundy)' : 'var(--text-faint)'}">Bayar &amp; Cetak</span>
+        <div style="flex:1; height:2px; border-radius:1px; min-width:12px;" :style="{background: aktif>=2 ? 'var(--burgundy)' : 'var(--line)'}"></div>
+      </div>
+    </div>
+  `
+};
+
 const PesananKasirManager = {
-  components: { PopupPratinjauCetakStruk },
+  components: { PopupPratinjauCetakStruk, LangkahStepper },
   setup() {
     const menuId = 'pesanan_kasir';
     const bolehTambah = computed(() => window.cekIzinMenu(menuId, 'add') !== false);
@@ -440,6 +555,9 @@ const PesananKasirManager = {
     const daftarPelanggan = ref([]);
     const cariPelanggan = ref('');
     const pelangganTerpilihId = ref('');
+    // S1 — mode edit pelanggan: false (default) begitu sudah dipilih berarti
+    // TAMPIL sebagai kotak terkunci; klik "ubah" -> true balik ke <select>.
+    const modeGantiPelanggan = ref(false);
     const pelangganTerpilih = computed(() => daftarPelanggan.value.find(p => p.id === pelangganTerpilihId.value) || null);
     const pelangganTampil = computed(() => {
       const kata = cariPelanggan.value.trim().toLowerCase();
@@ -466,6 +584,17 @@ const PesananKasirManager = {
       const acuan = statusBayar.value === 'dp' ? dibayarSekarang.value : (statusBayar.value === 'lunas' ? totalBelanja.value : 0);
       return Math.max(0, (parseFloat(uangDiterima.value) || 0) - acuan);
     });
+
+    // S2 — grid nominal cepat dekat "Uang Diterima". Pecahan MENAMBAH
+    // (bukan menimpa) uang diterima — meniru kasir menumpuk lembar uang
+    // fisik satu-satu (lihat komentar susulan audit di atas file).
+    const NOMINAL_CEPAT = [50000, 100000, 150000, 200000, 500000];
+    function labelNominalRb(n) { return n >= 1000000 ? (n / 1000000) + ' jt' : (n / 1000) + 'rb'; }
+    function tambahNominalUang(n) { uangDiterima.value = (parseFloat(uangDiterima.value) || 0) + n; }
+    function nominalUangPas() {
+      const acuan = statusBayar.value === 'dp' ? dibayarSekarang.value : (statusBayar.value === 'lunas' ? totalBelanja.value : 0);
+      uangDiterima.value = acuan;
+    }
 
     function lanjutKePembayaran() {
       if (daftarKeranjang.value.length === 0) return alert('Keranjang masih kosong. Pilih produk dulu.');
@@ -603,7 +732,7 @@ const PesananKasirManager = {
           lebarMm: parseFloat(pengaturanStruk.value?.lebar_mm) || 80
         };
         kosongkanKeranjang();
-        pelangganTerpilihId.value = ''; metode.value = 'Tunai'; statusBayar.value = 'lunas';
+        pelangganTerpilihId.value = ''; modeGantiPelanggan.value = false; metode.value = 'Tunai'; statusBayar.value = 'lunas';
         uangDiterima.value = 0; dpNominal.value = 0; jatuhTempo.value = tanggalPlusHari(14);
         step.value = 1;
         await muatPelanggan();
@@ -637,8 +766,10 @@ const PesananKasirManager = {
       daftarKategori, produkTampil, keranjang, daftarKeranjang, totalBelanja, totalKotorBelanja, diskonTotalBelanja, totalItem,
       subtotalItem, tambahKeKeranjang, tambahQty, kurangiQty, hapusDariKeranjang, kosongkanKeranjang,
       memuatPelanggan, daftarPelanggan, cariPelanggan, pelangganTerpilihId, pelangganTerpilih, pelangganTampil,
+      modeGantiPelanggan,
       step, metode, METODE_PEMBAYARAN_OPSI, statusBayar, STATUS_BAYAR_OPSI, JATUH_TEMPO_PRESET,
       uangDiterima, dpNominal, jatuhTempo, dibayarSekarang, sisaPiutang, dpPersen, kembalian,
+      NOMINAL_CEPAT, labelNominalRb, tambahNominalUang, nominalUangPas,
       lanjutKePembayaran, kembaliKeKeranjang, menyimpan, buatOrder, strukTampil,
       formatRupiah, tanggalPlusHariHelper: tanggalPlusHari
     };
@@ -647,6 +778,7 @@ const PesananKasirManager = {
     <div v-if="!bolehTambah" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12.5px;">Akun ini tidak punya izin untuk Penjualan Kasir.</div>
     <div v-else-if="step === 1" style="display:flex; flex-direction:column; gap:14px;">
       <div class="gc-card" style="padding:14px; border-radius:20px;">
+        <langkah-stepper :aktif="1" style="margin-bottom:14px;" />
         <div style="display:flex; align-items:center; gap:9px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:999px; padding:9px 13px; margin-bottom:12px; max-width:360px;">
           <i class="fas fa-magnifying-glass" style="font-size:13px; color:var(--text-faint); flex-shrink:0;"></i>
           <input v-model="cariProduk" type="text" placeholder="Cari produk / SKU..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px; color:var(--text);">
@@ -699,12 +831,28 @@ const PesananKasirManager = {
         </div>
 
         <div class="gc-field" style="margin-bottom:14px;">
-          <label>Pelanggan <span style="color:var(--danger);">*</span> <span style="font-weight:400; color:var(--text-faint);">(piutang menempel ke nama ini)</span></label>
-          <select v-model="pelangganTerpilihId">
-            <option value="" disabled>{{ memuatPelanggan ? 'Memuat...' : 'Pilih pelanggan...' }}</option>
-            <option v-for="p in daftarPelanggan" :key="p.id" :value="p.id">{{ p.nama }}{{ p.saldo_piutang > 0 ? ' — piutang ' + formatRupiah(p.saldo_piutang) : '' }}</option>
-          </select>
-          <p v-if="daftarPelanggan.length === 0 && !memuatPelanggan" style="font-size:10.5px; color:var(--danger); margin-top:4px;">Belum ada data Pelanggan — tambah dulu di Zevanic House &gt; Master Pelanggan.</p>
+          <div style="display:flex; align-items:baseline; gap:6px; margin-bottom:4px;">
+            <label style="margin:0;">Pelanggan <span style="color:var(--danger);">*</span></label>
+            <span v-if="pelangganTerpilihId && !modeGantiPelanggan" @click="modeGantiPelanggan = true" style="margin-left:auto; font-size:10.5px; color:var(--burgundy); cursor:pointer; text-decoration:underline;">ubah</span>
+          </div>
+          <!-- S1: begitu pelanggan sudah dipilih DARI DATABASE, tampil sebagai
+               kotak terkunci ber-ikon 🔒 (bukan <select> polos lagi) — persis
+               blok "pelanggan · terkunci" di wireframe 1.1. -->
+          <template v-if="!pelangganTerpilihId || modeGantiPelanggan">
+            <select v-model="pelangganTerpilihId" @change="modeGantiPelanggan = false">
+              <option value="" disabled>{{ memuatPelanggan ? 'Memuat...' : 'Pilih pelanggan...' }}</option>
+              <option v-for="p in daftarPelanggan" :key="p.id" :value="p.id">{{ p.nama }}{{ p.saldo_piutang > 0 ? ' — piutang ' + formatRupiah(p.saldo_piutang) : '' }}</option>
+            </select>
+            <p v-if="daftarPelanggan.length === 0 && !memuatPelanggan" style="font-size:10.5px; color:var(--danger); margin-top:4px;">Belum ada data Pelanggan — tambah dulu di Zevanic House &gt; Master Pelanggan.</p>
+          </template>
+          <div v-else class="gc-card" style="background:rgba(var(--burgundy-rgb),.06); border-color:var(--burgundy); padding:8px 10px; display:flex; align-items:center; gap:8px;">
+            <div style="flex:1; min-width:0;">
+              <div style="font-weight:700; font-size:12px;">{{ pelangganTerpilih.nama }}</div>
+              <div style="font-size:9.5px; color:var(--text-faint);">{{ pelangganTerpilih.saldo_piutang > 0 ? 'piutang berjalan ' + formatRupiah(pelangganTerpilih.saldo_piutang) : 'dari database pelanggan' }}</div>
+            </div>
+            <span title="Dipilih dari database — terkunci, piutang menempel ke nama ini" style="font-size:12px;">🔒</span>
+          </div>
+          <p style="font-size:9px; color:var(--text-faint); margin-top:4px;">piutang menempel ke nama ini</p>
         </div>
 
         <div style="padding-top:12px; border-top:1px solid var(--line); margin-bottom:12px;">
@@ -722,13 +870,14 @@ const PesananKasirManager = {
     </div>
 
     <div v-else class="gc-card" style="padding:16px; border-radius:20px; max-width:560px; margin:0 auto;">
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
         <button @click="kembaliKeKeranjang" class="icon-btn"><i class="fas fa-arrow-left"></i></button>
         <div>
           <h3 style="font-weight:700; font-size:14px; margin:0;">Bayar &amp; Cetak</h3>
           <p style="font-size:10.5px; color:var(--text-faint); margin:0;">{{ totalItem }} item &middot; pelanggan: {{ pelangganTerpilih ? pelangganTerpilih.nama : '-' }}</p>
         </div>
       </div>
+      <langkah-stepper :aktif="2" style="margin-bottom:14px;" />
 
       <div class="gc-field">
         <label>Metode Pembayaran</label>
@@ -765,6 +914,12 @@ const PesananKasirManager = {
       <div v-if="statusBayar !== 'tempo'" class="gc-field">
         <label>Uang Diterima {{ statusBayar === 'dp' ? '(terhadap nominal DP)' : '' }}</label>
         <input v-model.number="uangDiterima" type="number" min="0" placeholder="0">
+        <!-- S2: keypad nominal cepat — Uang Pas + 5 pecahan umum (menambah,
+             bukan menimpa, lihat komentar susulan audit di atas file). -->
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-top:6px;">
+          <button @click="nominalUangPas" type="button" class="btn-outline" style="padding:7px 4px; font-size:10.5px;">Uang Pas</button>
+          <button v-for="n in NOMINAL_CEPAT" :key="n" @click="tambahNominalUang(n)" type="button" class="btn-outline" style="padding:7px 4px; font-size:10.5px;">+{{ labelNominalRb(n) }}</button>
+        </div>
       </div>
 
       <div v-if="statusBayar !== 'tempo'" class="gc-card" style="background:var(--ivory-dim); padding:10px 12px; margin-bottom:12px;">
@@ -839,6 +994,16 @@ const PesananMenungguManager = {
       return { kelipatan, opsi: opsiQO(baris.qty_order, kelipatan) };
     }
     function pilihAngka(id, angka) { pilihan[id] = (pilihan[id] === angka) ? null : angka; }
+    // S3 — "jumlah order (Rp)" per baris: qty terpilih (atau RO kalau belum
+    // dipilih) × harga jual. "dariRo" cuma ditampilkan kalau beda dari RO
+    // (baris belum konsisten dengan angka RO-nya, biar tidak berisik dobel
+    // angka yang sama).
+    function jumlahOrderRp(baris) {
+      const p = produkDari(baris.sku_produk);
+      const harga = p ? (parseFloat(p.harga_jual) || 0) : 0;
+      const qtyPilih = pilihan[baris.id] > 0 ? pilihan[baris.id] : baris.qty_order;
+      return { nilai: qtyPilih * harga, dariRo: baris.qty_order * harga, beda: pilihan[baris.id] > 0 && pilihan[baris.id] !== baris.qty_order };
+    }
     function pilihManual(baris) {
       const jawab = prompt(`Ketik jumlah QO manual untuk "${baris.nama_produk}" (RO: ${formatQty(baris.qty_order)}):`, pilihan[baris.id] || baris.qty_order);
       if (jawab === null) return;
@@ -885,7 +1050,7 @@ const PesananMenungguManager = {
 
     return {
       bolehLihat, sayaOwnerKeAtas, memuat, kelompokTransaksi, pilihan, opsiUntuk, produkDari,
-      pilihAngka, pilihManual, barisTercentang, totalHargaTercentang,
+      pilihAngka, pilihManual, jumlahOrderRp, barisTercentang, totalHargaTercentang,
       popupPinTampil, memproses, klikProsesMasal, pinProsesSukses,
       formatQty, formatRupiah
     };
@@ -932,7 +1097,14 @@ const PesananMenungguManager = {
                 <button @click="pilihManual(baris)" type="button" class="icon-btn" title="Isi manual" style="width:30px; height:30px;"><i class="fas fa-pen" style="font-size:10px;"></i></button>
               </div>
               <div v-else style="font-size:10.5px; color:var(--danger);">Produk belum punya "kelipatan" (BOM Pola belum lengkap) — <button @click="pilihManual(baris)" type="button" style="color:var(--burgundy); text-decoration:underline; background:none; border:none; cursor:pointer; font-size:10.5px;">isi manual</button></div>
-              <div style="width:90px; text-align:right; flex-shrink:0;" v-if="pilihan[baris.id]">
+              <!-- S3 — kolom "jumlah order (Rp)" per baris, dulu cuma ada di
+                   footer sticky total. -->
+              <div style="width:112px; text-align:right; flex-shrink:0;">
+                <div style="font-size:9px; color:var(--text-faint);">jumlah order</div>
+                <div style="font-weight:700; font-size:12px;">{{ formatRupiah(jumlahOrderRp(baris).nilai) }}</div>
+                <div v-if="jumlahOrderRp(baris).beda" style="font-size:8.5px; color:var(--text-faint);">dari {{ formatRupiah(jumlahOrderRp(baris).dariRo) }}</div>
+              </div>
+              <div style="width:60px; text-align:right; flex-shrink:0;" v-if="pilihan[baris.id]">
                 <div style="font-size:9px; color:var(--text-faint);">+{{ formatQty(pilihan[baris.id] - baris.qty_order) }} pcs</div>
               </div>
             </div>
@@ -960,6 +1132,76 @@ const PesananMenungguManager = {
 const JALUR_URUTAN = ['vendor', 'bahan', 'sewing', 'webbing', 'finishing'];
 const JALUR_LABEL_PENDEK = { vendor: 'Vendor', bahan: 'Bahan', sewing: 'Acc Sewing', webbing: 'Acc Webbing', finishing: 'Acc Finishing' };
 
+// --- S4: helper lini masa 3.2.1 (dipakai HANYA di popup timeline) ----------
+// tglFleksibel — riwayat_scan[].pada disimpan sebagai string ISO biasa
+// (lihat pemakaian lama `new Date(r.pada)`), sedangkan order_spk.dibuat_pada/
+// qo_diproses_pada Firestore Timestamp (dari serverTimestamp()). Helper ini
+// menerima keduanya.
+function tglFleksibel(v) {
+  if (!v) return null;
+  if (typeof v.toDate === 'function') return v.toDate();
+  if (typeof v.seconds === 'number') return new Date(v.seconds * 1000);
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? null : d;
+}
+function formatDurasiMs(ms) {
+  if (ms == null || ms < 0) return '-';
+  const totalMenit = Math.floor(ms / 60000);
+  const hari = Math.floor(totalMenit / 1440);
+  const jam = Math.floor((totalMenit % 1440) / 60);
+  const menit = totalMenit % 60;
+  if (hari > 0) return `${hari}h ${jam}j`;
+  if (jam > 0) return `${jam}j ${menit}m`;
+  return `${menit}m`;
+}
+// bangunTimelineSpk — merangkai SATU kolom kejadian urut waktu (wireframe
+// 3.2.1): Pesanan masuk -> Perlu Disiapkan (ASUMSI: pakai qo_diproses_pada
+// sebagai proxy, lihat komentar susulan audit S4 di atas file) -> tiap jalur
+// produksi yang py track -> 2 simpul masa depan tetap (Proses Produksi
+// Cutting, Selesai/terkirim) yang belum dibangun modulnya.
+function bangunTimelineSpk(spk, tracks) {
+  const kejadian = [];
+  kejadian.push({
+    kunci: 'masuk', judul: 'Pesanan masuk', waktu: tglFleksibel(spk.dibuat_pada),
+    keterangan: `${spk.no_transaksi || '-'} &middot; kasir ${spk.dibuat_oleh || '-'}${spk.status_bayar ? ' &middot; ' + spk.status_bayar.toUpperCase() : ''}`,
+    selesai: true, tercapai: true
+  });
+  if (spk.qo_diproses === true) {
+    kejadian.push({
+      kunci: 'perlu_disiapkan', judul: 'Perlu Disiapkan', waktu: tglFleksibel(spk.qo_diproses_pada),
+      keterangan: `QO diputuskan ${spk.qo_oleh || '-'}${spk.status_grouping ? ' · sudah digabung grouping' : ' · menunggu digabung grouping'}`,
+      selesai: !!spk.status_grouping, tercapai: true
+    });
+  }
+  JALUR_URUTAN.forEach(j => {
+    const t = tracks.find(tt => tt.jalur === j);
+    if (t) {
+      const riwayat = t.riwayat_scan || [];
+      const waktuMulai = riwayat.length ? tglFleksibel(riwayat[0].pada) : null;
+      const keterangan = riwayat.length
+        ? riwayat.map(r => `${r.aksi || 'scan'}${r.catatan ? ' — ' + r.catatan : ''} (${r.oleh || '-'})`).join(' · ')
+        : 'belum ada aktivitas scan tercatat';
+      kejadian.push({ kunci: j, judul: JALUR_LABEL_PENDEK[j], waktu: waktuMulai, keterangan, selesai: t.status === 'selesai', tercapai: true, masalah: t.catatan_masalah || null });
+    } else {
+      kejadian.push({ kunci: j, judul: JALUR_LABEL_PENDEK[j], waktu: null, keterangan: 'belum tercapai', selesai: false, tercapai: false });
+    }
+  });
+  kejadian.push({ kunci: 'produksi', judul: 'Proses Produksi · Cutting', waktu: null, keterangan: 'modulnya belum dibangun', selesai: false, tercapai: false, segeraHadir: true });
+  kejadian.push({ kunci: 'terkirim', judul: 'Selesai · terkirim ke pelanggan', waktu: null, keterangan: 'belum tercapai', selesai: false, tercapai: false });
+
+  const idxSekarang = kejadian.findIndex(k => k.tercapai && !k.selesai);
+  const now = new Date();
+  kejadian.forEach((k, i) => {
+    if (!k.tercapai || !k.waktu) return;
+    k.sedang = (i === idxSekarang);
+    let waktuAkhir = null;
+    for (let j = i + 1; j < kejadian.length; j++) { if (kejadian[j].tercapai && kejadian[j].waktu) { waktuAkhir = kejadian[j].waktu; break; } }
+    if (!waktuAkhir && k.sedang) waktuAkhir = now;
+    k.durasi = waktuAkhir ? formatDurasiMs(waktuAkhir - k.waktu) : null;
+  });
+  return kejadian;
+}
+
 const PesananDaftarManager = {
   setup() {
     const menuId = 'pesanan_daftar';
@@ -971,18 +1213,23 @@ const PesananDaftarManager = {
     const semuaTrack = ref([]);
     const cari = ref('');
     const kartuTerbuka = reactive({});
+    // S4 — daftar produk HANYA dipakai buat tab "kebutuhan bahan" di popup
+    // lini masa (nama BOM produk), tidak ikut query/hitung apa pun yang lain.
+    const daftarProdukLini = ref([]);
 
     async function muat() {
       memuat.value = true;
       try {
-        const [snapSpk, snapTrx, snapTrack] = await Promise.all([
+        const [snapSpk, snapTrx, snapTrack, produk] = await Promise.all([
           getDocs(collection(db, 'order_spk')),
           getDocs(collection(db, 'transaksi_kasir')),
-          getDocs(collection(db, 'spk_track'))
+          getDocs(collection(db, 'spk_track')),
+          ambilSemuaProduk()
         ]);
         semuaOrderSpk.value = snapSpk.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.pelanggan_id);
         semuaTransaksi.value = snapTrx.docs.map(d => ({ id: d.id, ...d.data() })).filter(t => t.pelanggan_id);
         semuaTrack.value = snapTrack.docs.map(d => ({ id: d.id, ...d.data() }));
+        daftarProdukLini.value = produk || [];
       } catch (e) { console.error('Gagal muat Daftar Pesanan:', e); }
       memuat.value = false;
     }
@@ -1078,19 +1325,49 @@ const PesananDaftarManager = {
       }).map(s => ({ ...s, pos: posSekarang(s), keadaan: keadaanBaris(s) }));
     });
 
-    // --- 3.2.1 popup lini masa satu anak SPK ----------------------------
-    const popupTimeline = ref(null); // { spk, tracks }
+    // --- 3.2.1 popup lini masa satu anak SPK (S4 — REKONSTRUKSI TOTAL,
+    // lihat komentar susulan audit di atas file) -------------------------
+    const popupTimeline = ref(null); // { spk, tracks, kejadian, stat, bahanList, masalahList, tab }
     function bukaTimeline(spk) {
       const tracks = spk.kode_spk_grouping ? (trackByKode.value.get(spk.kode_spk_grouping) || []) : [];
-      popupTimeline.value = { spk, tracks };
+      const kejadian = bangunTimelineSpk(spk, tracks);
+
+      const now = new Date();
+      const waktuMasuk = tglFleksibel(spk.dibuat_pada);
+      const jalurSelesai = JALUR_URUTAN.filter(j => { const t = tracks.find(tt => tt.jalur === j); return t && t.status === 'selesai'; }).length;
+      const nodeSekarang = kejadian.find(k => k.sedang);
+      const stat = {
+        umur: waktuMasuk ? formatDurasiMs(now - waktuMasuk) : '-',
+        posPersiapan: `${jalurSelesai} dari ${JALUR_URUTAN.length} dilewati`,
+        posSekarang: posSekarang(spk),
+        diPosIni: (nodeSekarang && nodeSekarang.waktu) ? formatDurasiMs(now - nodeSekarang.waktu) : '-',
+        // "pernah tertahan" = jumlah track grouping ini yang SAAT INI py
+        // catatan_masalah (bukan akumulasi historis, lihat asumsi S4).
+        pernahTertahan: tracks.filter(t => t.catatan_masalah).length
+      };
+
+      const produk = daftarProdukLini.value.find(p => p.sku === spk.sku_produk) || null;
+      const bahanList = produk ? [
+        ...(produk.bom_pola || []).filter(b => b.nama_bahan || b.nama_pola).map(b => ({ nama: [b.nama_bahan, b.warna_bahan].filter(Boolean).join(' ') || b.nama_pola, ket: b.tipe === 'vendor' ? 'Vendor' : 'Internal' })),
+        ...(produk.bom_aksesoris || []).filter(a => a.nama_aksesoris).map(a => ({ nama: [a.nama_aksesoris, a.warna].filter(Boolean).join(' '), ket: a.satuan || '-' }))
+      ] : [];
+
+      const masalahList = tracks.filter(t => t.catatan_masalah).map(t => {
+        const riwayat = t.riwayat_scan || [];
+        const terakhir = riwayat[riwayat.length - 1] || null;
+        return { jalur: JALUR_LABEL_PENDEK[t.jalur] || t.jalur, catatan: t.catatan_masalah, oleh: terakhir?.oleh || '-', pada: terakhir?.pada ? new Date(terakhir.pada).toLocaleString('id-ID') : '-' };
+      });
+
+      popupTimeline.value = { spk, tracks, kejadian, stat, bahanList, masalahList, tab: 'lini_masa' };
     }
+    function pindahTabTimeline(tab) { if (popupTimeline.value) popupTimeline.value.tab = tab; }
 
     onMounted(async () => { await window.authReady; await muat(); });
 
     return {
       bolehLihat, memuat, cari, kartuTerbuka, ringkasanMenyeluruh, kartuPelanggan,
       pipelinePersiapan, popupRincian, bukaRincian, rincianBarisTampil,
-      popupTimeline, bukaTimeline, JALUR_URUTAN, JALUR_LABEL_PENDEK,
+      popupTimeline, bukaTimeline, pindahTabTimeline, JALUR_URUTAN, JALUR_LABEL_PENDEK,
       formatQty, formatRupiah, formatRupiahJuta
     };
   },
@@ -1189,21 +1466,71 @@ const PesananDaftarManager = {
       </div>
     </div>
 
+    <!-- S4 — REKONSTRUKSI TOTAL popup lini masa 3.2.1: 5 kotak statistik +
+         3 tab (lini masa/kebutuhan bahan/masalah) + timeline SATU KOLOM urut
+         waktu (dulu: daftar kartu per jalur, tanpa stat/tab). -->
     <div v-if="popupTimeline" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:10001; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="popupTimeline = null">
-      <div class="gc-card" style="max-width:520px; width:100%; max-height:80vh; overflow-y:auto; padding:18px;">
+      <div class="gc-card" style="max-width:600px; width:100%; max-height:86vh; overflow-y:auto; padding:18px;">
         <div style="display:flex; align-items:flex-start; gap:8px; margin-bottom:12px;">
-          <div><h3 style="font-weight:700; font-size:14px; margin:0;">{{ popupTimeline.spk.no_spk }}</h3><p style="font-size:10px; color:var(--text-faint); margin:2px 0 0;">{{ popupTimeline.spk.nama_produk }}</p></div>
+          <div><h3 style="font-weight:700; font-size:14px; margin:0;">{{ popupTimeline.spk.no_spk }}</h3><p style="font-size:10px; color:var(--text-faint); margin:2px 0 0;">{{ popupTimeline.spk.nama_produk }} &middot; {{ formatQty(popupTimeline.spk.qty_order) }} pcs &middot; {{ popupTimeline.spk.pelanggan_nama }} &middot; {{ popupTimeline.spk.no_transaksi }}</p></div>
           <button @click="popupTimeline = null" class="icon-btn" style="margin-left:auto;"><i class="fas fa-xmark"></i></button>
         </div>
-        <div v-if="popupTimeline.tracks.length === 0" class="gc-kosong"><div class="lingkaran"><i class="fas fa-route"></i></div><h3 class="gc-heading" style="font-size:12.5px; font-weight:700; margin:0;">Belum masuk grouping — masih di Perlu Disiapkan</h3></div>
-        <div v-else style="display:flex; flex-direction:column; gap:12px;">
-          <div v-for="t in popupTimeline.tracks" :key="t.id" class="gc-card" style="padding:10px 12px;">
-            <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;"><span class="tag neutral" style="font-size:10px;">{{ JALUR_LABEL_PENDEK[t.jalur] || t.jalur }}</span><span class="tag" :class="t.status === 'selesai' ? 'ok' : 'warn'" style="font-size:10px;">{{ t.status }}</span></div>
-            <div v-if="t.catatan_masalah" style="font-size:11px; color:var(--danger); margin-bottom:6px;"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>{{ t.catatan_masalah }}</div>
-            <div v-for="(r, idx) in (t.riwayat_scan || [])" :key="idx" style="display:flex; gap:8px; font-size:11px; padding:4px 0; border-top:1px solid var(--line);">
-              <span style="color:var(--text-faint); width:70px; flex-shrink:0;">{{ r.aksi }}</span>
-              <span style="flex:1;">{{ r.oleh }}{{ r.catatan ? ' — ' + r.catatan : '' }}</span>
-              <span style="color:var(--text-faint); font-size:10px;">{{ r.pada ? new Date(r.pada).toLocaleString('id-ID') : '' }}</span>
+
+        <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; margin-bottom:12px;">
+          <div class="gc-card" style="padding:7px 9px;"><div style="font-size:8.5px; color:var(--text-faint);">umur SPK</div><div style="font-weight:700; font-size:13px; margin-top:2px;">{{ popupTimeline.stat.umur }}</div></div>
+          <div class="gc-card" style="padding:7px 9px;"><div style="font-size:8.5px; color:var(--text-faint);">pos persiapan</div><div style="font-weight:700; font-size:11px; margin-top:2px;">{{ popupTimeline.stat.posPersiapan }}</div></div>
+          <div class="gc-card" style="padding:7px 9px; border-color:var(--burgundy);"><div style="font-size:8.5px; color:var(--text-faint);">pos sekarang</div><div style="font-weight:700; font-size:11px; margin-top:2px;">{{ popupTimeline.stat.posSekarang }}</div></div>
+          <div class="gc-card" style="padding:7px 9px;"><div style="font-size:8.5px; color:var(--text-faint);">di pos ini</div><div style="font-weight:700; font-size:13px; margin-top:2px;">{{ popupTimeline.stat.diPosIni }}</div></div>
+          <div class="gc-card" style="padding:7px 9px;"><div style="font-size:8.5px; color:var(--text-faint);">pernah tertahan</div><div style="font-weight:700; font-size:13px; margin-top:2px;">{{ popupTimeline.stat.pernahTertahan }} <span style="font-size:9px; font-weight:400;">kali</span></div></div>
+        </div>
+
+        <div style="display:flex; gap:6px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
+          <button @click="pindahTabTimeline('lini_masa')" type="button" class="btn-outline" :class="{filled: popupTimeline.tab === 'lini_masa'}" style="padding:5px 13px; font-size:11px; border-radius:999px;">lini masa</button>
+          <button @click="pindahTabTimeline('kebutuhan_bahan')" type="button" class="btn-outline" :class="{filled: popupTimeline.tab === 'kebutuhan_bahan'}" style="padding:5px 13px; font-size:11px; border-radius:999px;">kebutuhan bahan</button>
+          <button @click="pindahTabTimeline('masalah')" type="button" class="btn-outline" :class="{filled: popupTimeline.tab === 'masalah'}" style="padding:5px 13px; font-size:11px; border-radius:999px;">masalah<span v-if="popupTimeline.masalahList.length" style="margin-left:4px; color:var(--danger);">({{ popupTimeline.masalahList.length }})</span></button>
+          <span style="margin-left:auto; font-size:9px; color:var(--text-faint);">tiap baris lahir dari scan &middot; tidak ada yang diketik</span>
+        </div>
+
+        <div v-if="popupTimeline.tab === 'lini_masa'" style="display:flex; flex-direction:column;">
+          <div v-for="(k, idx) in popupTimeline.kejadian" :key="k.kunci" style="display:flex; gap:10px; align-items:flex-start;">
+            <div style="width:58px; flex-shrink:0; text-align:right; padding-top:2px;">
+              <div style="font-size:9.5px; color:var(--text-faint);">{{ k.waktu ? k.waktu.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit'}) : '—' }}</div>
+              <div style="font-size:8px; color:var(--text-faint);">{{ k.waktu ? k.waktu.toLocaleDateString('id-ID', {day:'numeric', month:'short'}) : '' }}</div>
+            </div>
+            <div style="width:14px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; align-self:stretch;">
+              <div style="width:11px; height:11px; border-radius:50%; flex-shrink:0;" :style="{background: k.sedang ? 'var(--burgundy)' : (k.tercapai ? 'rgba(110,30,44,.35)' : '#fff'), border: !k.tercapai ? '1.5px solid var(--line)' : 'none'}"></div>
+              <div v-if="idx < popupTimeline.kejadian.length - 1" style="flex:1; width:1px; min-height:22px;" :style="{background: k.tercapai ? 'rgba(110,30,44,.3)' : 'var(--line)'}"></div>
+            </div>
+            <div style="flex:1; min-width:0; padding-bottom:14px;">
+              <div style="display:flex; align-items:baseline; gap:7px; flex-wrap:wrap;">
+                <span style="font-weight:700; font-size:11.5px;" :style="{color: k.tercapai ? 'var(--text)' : 'var(--text-faint)'}">{{ k.judul }}</span>
+                <span v-if="k.sedang" class="tag" style="font-size:8.5px;">sedang di sini</span>
+                <span v-if="k.segeraHadir" class="tag neutral" style="font-size:8.5px;">segera hadir</span>
+                <span v-if="k.durasi" style="margin-left:auto; font-size:9px; color:var(--text-faint);">{{ k.durasi }}{{ k.sedang ? ' berjalan' : '' }}</span>
+              </div>
+              <div style="font-size:10px; color:var(--text-faint); margin-top:2px; line-height:1.5;">{{ k.keterangan }}</div>
+              <div v-if="k.masalah" style="font-size:10.5px; color:var(--danger); margin-top:3px;"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>{{ k.masalah }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="popupTimeline.tab === 'kebutuhan_bahan'">
+          <div v-if="popupTimeline.bahanList.length === 0" class="gc-kosong"><div class="lingkaran"><i class="fas fa-swatchbook"></i></div><h3 class="gc-heading" style="font-size:12.5px; font-weight:700; margin:0;">Data BOM produk ini belum lengkap</h3></div>
+          <div v-else style="display:flex; flex-direction:column; gap:6px;">
+            <div v-for="(b, idx) in popupTimeline.bahanList" :key="idx" style="display:flex; align-items:center; gap:8px; padding:7px 10px; background:var(--ivory-dim); border-radius:10px;">
+              <span style="flex:1; font-size:11.5px; font-weight:600;">{{ b.nama || '(tanpa nama)' }}</span>
+              <span class="tag neutral" style="font-size:9.5px;">{{ b.ket }}</span>
+            </div>
+            <p style="font-size:9px; color:var(--text-faint); margin-top:4px;">nama bahan/aksesoris dari BOM produk — rincian kuantitas presisi ada di Persiapan Produksi.</p>
+          </div>
+        </div>
+
+        <div v-else-if="popupTimeline.tab === 'masalah'">
+          <div v-if="popupTimeline.masalahList.length === 0" class="gc-kosong"><div class="lingkaran"><i class="fas fa-check"></i></div><h3 class="gc-heading" style="font-size:12.5px; font-weight:700; margin:0;">Berjalan lancar — tidak pernah tertahan</h3></div>
+          <div v-else style="display:flex; flex-direction:column; gap:8px;">
+            <div v-for="(m, idx) in popupTimeline.masalahList" :key="idx" class="gc-card" style="border-color:var(--danger); background:rgba(179,58,58,.05); padding:9px 11px;">
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;"><span class="tag neutral" style="font-size:9.5px;">{{ m.jalur }}</span><span style="margin-left:auto; font-size:9px; color:var(--text-faint);">{{ m.oleh }} &middot; {{ m.pada }}</span></div>
+              <div style="font-size:11px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:5px;"></i>{{ m.catatan }}</div>
             </div>
           </div>
         </div>
@@ -1226,11 +1553,28 @@ const PesananTransaksiManager = {
     const bolehLihat = computed(() => window.cekIzinMenu(menuId, 'add') !== false);
     const sayaOwnerKeAtas = computed(() => tierOwnerKeAtas(window.currentUser));
 
-    const tabAktif = ref('kasBesar'); // kasBesar | rincianTransaksi | rincianPiutang
+    // S5 — GANTI dari 3 tab eksklusif jadi 1 halaman scroll berurutan (lihat
+    // komentar susulan audit di atas file). `tabAktif` TIDAK dipakai lagi
+    // buat exclusive-render, cuma dipertahankan sebagai target anchor pil
+    // navigasi cepat di header (scroll ke section, bukan ganti tampilan).
     const memuat = ref(true);
     const semuaTransaksi = ref([]);
     const semuaPembayaran = ref([]);
     const cari = ref('');
+    // filterPelangganId — REF BARU (S5), 1 filter pelanggan bersama yang
+    // mengalir ke ketiga bagian (Kas Besar/Rincian Transaksi/Rincian
+    // Piutang). Tidak mengubah computed hitung total yang sudah ada, cuma
+    // ditambah SATU syarat lagi di awal filter masing-masing.
+    const filterPelangganId = ref('');
+    const daftarPelangganTransaksi = computed(() => {
+      const peta = new Map();
+      semuaTransaksi.value.forEach(t => { if (t.pelanggan_id && !peta.has(t.pelanggan_id)) peta.set(t.pelanggan_id, t.nama_pelanggan); });
+      return Array.from(peta.entries()).map(([id, nama]) => ({ id, nama })).sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
+    });
+    function lompatKe(idSeksi) {
+      const el = document.getElementById(idSeksi);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 
     async function muat() {
       memuat.value = true;
@@ -1264,6 +1608,7 @@ const PesananTransaksiManager = {
       const kata = cari.value.trim().toLowerCase();
       const peta = new Map();
       semuaTransaksi.value.forEach(t => {
+        if (filterPelangganId.value && t.pelanggan_id !== filterPelangganId.value) return;
         if (!peta.has(t.pelanggan_id)) peta.set(t.pelanggan_id, { id: t.pelanggan_id, nama: t.nama_pelanggan, transaksi: [] });
         peta.get(t.pelanggan_id).transaksi.push(t);
       });
@@ -1285,22 +1630,35 @@ const PesananTransaksiManager = {
     }));
 
     // --- 4.1.1 popup catat pembayaran ---------------------------------------
-    const popupBayar = ref(null); // { pelanggan, transaksiId, jumlah, metode, tanggal, catatan }
+    const popupBayar = ref(null); // { pelanggan, transaksiId, jumlah, metode, tanggal, catatan, noReferensi, buktiFile, buktiNamaFile }
     function bukaCatatPembayaran(p) {
       const belumLunas = p.transaksi.filter(x => (x.sisa_piutang || 0) > 0);
       if (belumLunas.length === 0) return;
-      popupBayar.value = { pelanggan: p, transaksiId: belumLunas[0].id, jumlah: 0, metode: 'Tunai', tanggal: new Date().toISOString().slice(0, 10), catatan: '', belumLunas };
+      popupBayar.value = { pelanggan: p, transaksiId: belumLunas[0].id, jumlah: 0, metode: 'Tunai', tanggal: new Date().toISOString().slice(0, 10), catatan: '', noReferensi: '', buktiFile: null, buktiNamaFile: '', belumLunas };
     }
     const transaksiTerpilihBayar = computed(() => popupBayar.value ? popupBayar.value.belumLunas.find(x => x.id === popupBayar.value.transaksiId) : null);
     const riwayatBayarTerpilih = computed(() => transaksiTerpilihBayar.value ? semuaPembayaran.value.filter(b => b.transaksi_kasir_id === transaksiTerpilihBayar.value.id) : []);
     const sisaSesudahDicatat = computed(() => transaksiTerpilihBayar.value ? Math.max(0, (transaksiTerpilihBayar.value.sisa_piutang || 0) - (parseFloat(popupBayar.value.jumlah) || 0)) : 0);
     function lunasiSemua() { if (transaksiTerpilihBayar.value) popupBayar.value.jumlah = transaksiTerpilihBayar.value.sisa_piutang; }
+    // S6 — bukti wajib Transfer/QRIS (lihat komentar susulan audit di atas
+    // file). Tunai TETAP boleh kosong, persis wireframe 4.1.1.
+    const buktiWajib = computed(() => !!popupBayar.value && popupBayar.value.metode !== 'Tunai');
+    function pilihFotoBukti(event) {
+      const file = event.target.files && event.target.files[0];
+      if (!file) return;
+      popupBayar.value.buktiFile = file;
+      popupBayar.value.buktiNamaFile = file.name;
+    }
 
     const popupPinBayarTampil = ref(false);
     const menyimpanBayar = ref(false);
     function klikSimpanBayar() {
       if (!(parseFloat(popupBayar.value.jumlah) > 0)) return alert('Isi jumlah dibayar dulu.');
       if (parseFloat(popupBayar.value.jumlah) > (transaksiTerpilihBayar.value.sisa_piutang || 0)) return alert('Jumlah melebihi sisa piutang transaksi ini.');
+      if (buktiWajib.value) {
+        if (!popupBayar.value.noReferensi || !popupBayar.value.noReferensi.trim()) return alert('Isi nomor referensi transfer dulu — wajib untuk Transfer/QRIS.');
+        if (!popupBayar.value.buktiFile) return alert('Lampirkan foto bukti transfer dulu — wajib untuk Transfer/QRIS.');
+      }
       popupPinBayarTampil.value = true;
     }
     async function pinBayarSukses(user) {
@@ -1308,10 +1666,19 @@ const PesananTransaksiManager = {
       if (!tierOwnerKeAtas(user)) { alert(`PIN ini bukan PIN Owner/PIC Owner/Superuser (peran: ${user.role}). Hanya Owner/PIC Owner yang boleh mencatat pembayaran.`); return; }
       menyimpanBayar.value = true;
       try {
+        // S6 — upload foto bukti (kalau ada) SEBELUM catat pembayaran. Ini
+        // lampiran, bukan bagian perhitungan uang — total_dibayar/
+        // sisa_piutang/saldo_piutang di catatPembayaranSusulan tetap murni
+        // dari `jumlah` seperti sebelumnya.
+        let buktiFotoUrl = null;
+        if (popupBayar.value.buktiFile) {
+          buktiFotoUrl = await uploadFotoBuktiTransfer(transaksiTerpilihBayar.value.id, popupBayar.value.buktiFile);
+        }
         await catatPembayaranSusulan({
           transaksiKasirId: transaksiTerpilihBayar.value.id, pelangganId: popupBayar.value.pelanggan.id, pelangganNama: popupBayar.value.pelanggan.nama,
           noTransaksi: transaksiTerpilihBayar.value.no_transaksi, jumlah: parseFloat(popupBayar.value.jumlah), metode: popupBayar.value.metode,
-          tanggal: popupBayar.value.tanggal, catatan: popupBayar.value.catatan, dicatatOleh: user.email, pinPemilik: user.email
+          tanggal: popupBayar.value.tanggal, catatan: popupBayar.value.catatan, dicatatOleh: user.email, pinPemilik: user.email,
+          noReferensi: popupBayar.value.noReferensi, buktiFotoUrl
         });
         alert('Pembayaran tersimpan.');
         popupBayar.value = null;
@@ -1324,6 +1691,7 @@ const PesananTransaksiManager = {
     const rincianTransaksiTampil = computed(() => {
       const kata = cari.value.trim().toLowerCase();
       let list = semuaPembayaran.value;
+      if (filterPelangganId.value) list = list.filter(b => b.pelanggan_id === filterPelangganId.value);
       if (kata) list = list.filter(b => (b.pelanggan_nama || '').toLowerCase().includes(kata) || (b.no_transaksi || '').toLowerCase().includes(kata));
       return list;
     });
@@ -1338,6 +1706,7 @@ const PesananTransaksiManager = {
     const rincianPiutangTampil = computed(() => {
       const kata = cari.value.trim().toLowerCase();
       let list = semuaTransaksi.value.filter(t => (t.sisa_piutang || 0) > 0);
+      if (filterPelangganId.value) list = list.filter(t => t.pelanggan_id === filterPelangganId.value);
       if (kata) list = list.filter(t => (t.nama_pelanggan || '').toLowerCase().includes(kata) || (t.no_transaksi || '').toLowerCase().includes(kata));
       return list.map(t => ({ ...t, keadaan: keadaanTempo(t) })).sort((a, b) => (a.jatuh_tempo || '9999').localeCompare(b.jatuh_tempo || '9999'));
     });
@@ -1345,9 +1714,11 @@ const PesananTransaksiManager = {
     onMounted(async () => { await window.authReady; await muat(); });
 
     return {
-      bolehLihat, sayaOwnerKeAtas, tabAktif, memuat, cari,
+      bolehLihat, sayaOwnerKeAtas, memuat, cari,
+      filterPelangganId, daftarPelangganTransaksi, lompatKe,
       kasBesar, totalKasBesar, bukaCatatPembayaran,
       popupBayar, transaksiTerpilihBayar, riwayatBayarTerpilih, sisaSesudahDicatat, lunasiSemua,
+      buktiWajib, pilihFotoBukti,
       popupPinBayarTampil, menyimpanBayar, klikSimpanBayar, pinBayarSukses,
       rincianTransaksiTampil, totalPerMetode, totalUangMasuk,
       rincianPiutangTampil,
@@ -1358,21 +1729,34 @@ const PesananTransaksiManager = {
   template: `
     <div v-if="!bolehLihat" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12.5px;">Akun ini tidak punya izin untuk Transaksi Keuangan.</div>
     <div v-else style="display:flex; flex-direction:column; gap:14px;">
-      <div class="gc-card" style="padding:8px; border-radius:16px; display:flex; gap:6px; flex-wrap:wrap;">
-        <button @click="tabAktif = 'kasBesar'" class="gc-sub-tab-btn" :class="{active: tabAktif === 'kasBesar'}" style="flex:1; min-width:140px;">Kas Besar</button>
-        <button @click="tabAktif = 'rincianTransaksi'" class="gc-sub-tab-btn" :class="{active: tabAktif === 'rincianTransaksi'}" style="flex:1; min-width:140px;">Rincian Transaksi</button>
-        <button @click="tabAktif = 'rincianPiutang'" class="gc-sub-tab-btn" :class="{active: tabAktif === 'rincianPiutang'}" style="flex:1; min-width:140px;">Rincian Piutang</button>
-      </div>
-
-      <div style="display:flex; align-items:center; gap:9px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:999px; padding:9px 13px; max-width:320px;">
-        <i class="fas fa-magnifying-glass" style="font-size:13px; color:var(--text-faint);"></i>
-        <input v-model="cari" type="text" placeholder="Cari pelanggan / No. transaksi..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px;">
+      <!-- S5: GANTI dari 3 tab eksklusif jadi 1 halaman scroll berurutan
+           (Kas Besar -> Rincian Transaksi -> Rincian Piutang) dengan pil
+           navigasi cepat (anchor scroll, bukan tab exclusive) + 1 filter
+           pelanggan bersama yang mengalir ke ketiga bagian. -->
+      <div class="gc-card" style="padding:12px 14px; border-radius:16px; display:flex; flex-direction:column; gap:10px;">
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button @click="lompatKe('seksi-kas-besar')" type="button" class="btn-outline" style="padding:6px 13px; font-size:11px; border-radius:999px;">↓ Kas Besar</button>
+          <button @click="lompatKe('seksi-rincian-transaksi')" type="button" class="btn-outline" style="padding:6px 13px; font-size:11px; border-radius:999px;">↓ Rincian Transaksi</button>
+          <button @click="lompatKe('seksi-rincian-piutang')" type="button" class="btn-outline" style="padding:6px 13px; font-size:11px; border-radius:999px;">↓ Rincian Piutang</button>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:9px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:999px; padding:9px 13px; flex:1; min-width:220px; max-width:320px;">
+            <i class="fas fa-magnifying-glass" style="font-size:13px; color:var(--text-faint);"></i>
+            <input v-model="cari" type="text" placeholder="Cari pelanggan / No. transaksi..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px;">
+          </div>
+          <select v-model="filterPelangganId" style="flex:1; min-width:180px; max-width:260px; padding:9px 10px; border-radius:999px; border:1px solid var(--line); background:#fff; font-size:11.5px;">
+            <option value="">Semua pelanggan</option>
+            <option v-for="p in daftarPelangganTransaksi" :key="p.id" :value="p.id">{{ p.nama }}</option>
+          </select>
+          <span v-if="filterPelangganId" @click="filterPelangganId = ''" style="font-size:10.5px; color:var(--burgundy); cursor:pointer; text-decoration:underline;">reset filter pelanggan</span>
+        </div>
       </div>
 
       <div v-if="memuat" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
-      <template v-else-if="tabAktif === 'kasBesar'">
-        <div class="gc-card" style="padding:14px 16px; border-radius:20px;">
+      <template v-else>
+        <div id="seksi-kas-besar" class="gc-card" style="padding:14px 16px; border-radius:20px; scroll-margin-top:16px;">
+          <h3 style="font-weight:700; font-size:13.5px; margin-bottom:10px;"><i class="fas fa-sack-dollar" style="color:var(--aksen-ink); margin-right:8px;"></i>Kas Besar</h3>
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(100px,1fr)); gap:8px; background:var(--ivory-dim); border-radius:14px; padding:12px; margin-bottom:14px;">
             <div><div style="font-size:9.5px; color:var(--text-faint);">nilai penjualan</div><div style="font-weight:700; font-size:17px;">{{ formatRupiahJuta(totalKasBesar.nilai) }}</div></div>
             <div><div style="font-size:9.5px; color:var(--text-faint);">sudah dibayar</div><div style="font-weight:700; font-size:17px;">{{ formatRupiahJuta(totalKasBesar.sudahDibayar) }}</div></div>
@@ -1391,10 +1775,9 @@ const PesananTransaksiManager = {
             </div>
           </div>
         </div>
-      </template>
 
-      <template v-else-if="tabAktif === 'rincianTransaksi'">
-        <div class="gc-card" style="padding:14px 16px; border-radius:20px;">
+        <div id="seksi-rincian-transaksi" class="gc-card" style="padding:14px 16px; border-radius:20px; scroll-margin-top:16px;">
+          <h3 style="font-weight:700; font-size:13.5px; margin-bottom:10px;"><i class="fas fa-receipt" style="color:var(--aksen-ink); margin-right:8px;"></i>Rincian Transaksi</h3>
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(90px,1fr)); gap:8px; margin-bottom:14px;">
             <div class="gc-card" style="padding:8px 10px;"><div style="font-size:9px; color:var(--text-faint);">uang masuk</div><div style="font-weight:700; font-size:15px;">{{ formatRupiahJuta(totalUangMasuk) }}</div></div>
             <div class="gc-card" style="padding:8px 10px;"><div style="font-size:9px; color:var(--text-faint);">tunai</div><div style="font-weight:700; font-size:15px;">{{ formatRupiahJuta(totalPerMetode.Tunai) }}</div></div>
@@ -1417,10 +1800,9 @@ const PesananTransaksiManager = {
           </div>
           <p style="font-size:9.5px; color:var(--text-faint); margin-top:10px;">Hanya dibaca — baris lahir otomatis dari Kasir atau popup Catat Pembayaran.</p>
         </div>
-      </template>
 
-      <template v-else-if="tabAktif === 'rincianPiutang'">
-        <div class="gc-card" style="padding:14px 16px; border-radius:20px;">
+        <div id="seksi-rincian-piutang" class="gc-card" style="padding:14px 16px; border-radius:20px; scroll-margin-top:16px;">
+          <h3 style="font-weight:700; font-size:13.5px; margin-bottom:10px;"><i class="fas fa-file-invoice-dollar" style="color:var(--aksen-ink); margin-right:8px;"></i>Rincian Piutang</h3>
           <div v-if="rincianPiutangTampil.length === 0" class="gc-kosong"><div class="lingkaran"><i class="fas fa-check"></i></div><h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada piutang berjalan</h3></div>
           <div v-else class="gc-table-scroll">
             <table style="width:100%; border-collapse:collapse; font-size:12px;">
@@ -1484,7 +1866,21 @@ const PesananTransaksiManager = {
           </div>
           <div class="gc-field" style="flex:1;"><label>Tanggal Terima</label><input v-model="popupBayar.tanggal" type="date"></div>
         </div>
-        <div class="gc-field"><label>Catatan / No. Referensi</label><input v-model="popupBayar.catatan" type="text" placeholder="Opsional untuk Tunai"></div>
+        <div class="gc-field"><label>Catatan</label><input v-model="popupBayar.catatan" type="text" placeholder="Opsional"></div>
+        <!-- S6 — blok "bukti & catatan" WAJIB khusus Transfer/QRIS (no.
+             referensi transfer + lampirkan foto). Tunai TETAP boleh kosong. -->
+        <div class="gc-card" style="padding:9px 11px; margin-bottom:12px;" :style="{borderColor: buktiWajib ? 'var(--burgundy)' : 'var(--line)'}">
+          <label style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); display:block; margin-bottom:6px;">Bukti &amp; Catatan <span v-if="buktiWajib" style="color:var(--danger);">* wajib</span></label>
+          <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+            <input v-model="popupBayar.noReferensi" type="text" placeholder="no. referensi transfer" style="flex:1; min-width:140px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:11.5px;">
+            <label class="btn-outline" :class="{filled: popupBayar.buktiFile}" style="padding:8px 12px; font-size:10.5px; cursor:pointer; margin:0;">
+              <i class="fas fa-camera" style="margin-right:6px;"></i>{{ popupBayar.buktiFile ? 'Foto terpilih' : 'Lampirkan foto' }}
+              <input type="file" accept="image/*" @change="pilihFotoBukti" style="display:none;">
+            </label>
+          </div>
+          <div v-if="popupBayar.buktiNamaFile" style="font-size:9.5px; color:var(--text-faint); margin-top:5px;"><i class="fas fa-paperclip" style="margin-right:4px;"></i>{{ popupBayar.buktiNamaFile }}</div>
+          <p style="font-size:8.5px; color:var(--text-faint); margin-top:5px; margin-bottom:0;">wajib untuk Transfer dan QRIS &middot; Tunai boleh kosong</p>
+        </div>
         <div class="gc-card" style="background:rgba(var(--ok-rgb),.06); border-color:var(--ok); padding:9px 11px; margin-bottom:12px;">
           <div style="display:flex; justify-content:space-between;"><span style="font-size:10px; color:#4a6540;">sisa sesudah dicatat</span><span style="font-weight:700; font-size:16px;">{{ formatRupiah(sisaSesudahDicatat) }}</span></div>
         </div>

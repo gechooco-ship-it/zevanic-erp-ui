@@ -207,25 +207,45 @@ const MasterPelangganManager = {
         <div class="lingkaran"><i class="fas fa-address-book"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada Pelanggan</h3>
       </div>
-      <div v-else style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px;">
-        <div v-for="p in daftarTampil" :key="p.id" class="gc-card" style="padding:14px;">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:8px;">
-            <div>
-              <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ p.nama }}</div>
-              <div style="font-size:11px; color:var(--text-faint);">{{ p.telepon || '-' }}</div>
-            </div>
-            <span :class="kelasTagTipe(p.tipe)" style="font-size:10.5px; flex-shrink:0;">{{ labelTipe(p.tipe) }}</span>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px; font-size:12px;">
-            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-faint);">Saldo Piutang</span><span class="gc-num" :style="{fontWeight:700, color: (p.saldo_piutang||0) > 0 ? 'var(--danger)' : 'inherit'}">{{ formatRupiah(p.saldo_piutang) }}</span></div>
-            <div style="display:flex; justify-content:space-between;"><span style="color:var(--text-faint);">Limit Piutang</span><span class="gc-num" style="font-weight:600;">{{ formatRupiah(p.limit_piutang) }}</span></div>
-            <div v-if="p.alamat" style="display:flex; justify-content:space-between; gap:8px;"><span style="color:var(--text-faint); flex-shrink:0;">Alamat</span><span style="text-align:right;">{{ p.alamat }}</span></div>
-          </div>
-          <div style="display:flex; gap:8px;">
-            <button v-if="bolehEdit" @click="bukaEdit(p)" class="btn-outline" style="flex:1; padding:7px; font-size:11.5px;"><i class="fas fa-pen" style="margin-right:6px;"></i>Edit</button>
-            <button v-if="bolehHapus" @click="hapus(p)" class="btn-outline" style="flex:1; padding:7px; font-size:11.5px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
-          </div>
-        </div>
+      <!-- RESTRUKTURISASI (9 Sep 2026, audit wireframe §4.1) — dulu grid
+           kartu (auto-fill 260px) + tombol Edit/Hapus eksplisit per kartu.
+           Wireframe minta SATU TABEL, klik baris untuk edit. Pakai class
+           .gc-table yang SUDAH ADA di css/gechoo-design.css (dipakai juga
+           modul lain, mis. Stock & Pembelian) — bukan style baru. Kolom
+           "total pesanan"/"status aktif-nonaktif" di wireframe TIDAK ada di
+           koleksi master_pelanggan sekarang (lihat catatan skema di atas
+           file ini) — TIDAK ditambahkan (field/koleksi tidak boleh
+           diubah), kolom tabel di sini cuma pakai field yang SUDAH ADA:
+           nama, telepon, alamat, tipe, limit & saldo piutang. Tombol Edit
+           terpisah DIHAPUS — klik baris manapun langsung buka form edit
+           (sama seperti bukaEdit() yang sudah ada, cuma pemicunya pindah). -->
+      <div v-else class="gc-table-scroll">
+        <table class="gc-table">
+          <thead>
+            <tr>
+              <th>Nama</th>
+              <th>Telepon</th>
+              <th>Alamat</th>
+              <th>Tipe</th>
+              <th style="text-align:right;">Limit Piutang</th>
+              <th style="text-align:right;">Saldo Piutang</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="p in daftarTampil" :key="p.id" @click="bukaEdit(p)" :style="{cursor: bolehEdit ? 'pointer' : 'default'}">
+              <td><b>{{ p.nama }}</b></td>
+              <td class="gc-cell-muted">{{ p.telepon || '-' }}</td>
+              <td class="gc-cell-muted" style="white-space:normal; max-width:220px;">{{ p.alamat || '-' }}</td>
+              <td><span :class="kelasTagTipe(p.tipe)" style="font-size:10.5px;">{{ labelTipe(p.tipe) }}</span></td>
+              <td class="gc-num" style="text-align:right; font-weight:600;">{{ formatRupiah(p.limit_piutang) }}</td>
+              <td class="gc-num" style="text-align:right;" :style="{fontWeight:700, color: (p.saldo_piutang||0) > 0 ? 'var(--danger)' : 'inherit'}">{{ formatRupiah(p.saldo_piutang) }}</td>
+              <td style="text-align:right;">
+                <button v-if="bolehHapus" @click.stop="hapus(p)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 

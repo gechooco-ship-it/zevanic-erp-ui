@@ -5,6 +5,14 @@
 // tampil untuk role apa saja (checkbox). Dibaca oleh js/vue-home.js —
 // pengecekan role-nya dilakukan DI SANA secara lokal (window.currentUser),
 // bukan query where() ke Firestore, supaya hemat baca.
+//
+// REDESIGN (9 Sep 2026) — mengikuti wireframe handoff "07 - Management /
+// 01 - Master Karyawan" butir 1.6: dulu section Pengumuman & Quote Harian
+// ditumpuk vertikal, KEDUANYA selalu tampil sekaligus (scroll panjang).
+// SEKARANG dibungkus 1 card dengan 2 PILL-TAB (Pengumuman / Quote Harian) —
+// cuma 1 section tampil sekaligus, tab lain disembunyikan pakai v-show.
+// Form & logic CRUD masing-masing (muat/simpan/edit/hapus, upload media,
+// dst) TIDAK berubah sama sekali — cuma visibility yang diatur tab.
 // ============================================================================
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, setDoc, deleteDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -18,6 +26,11 @@ const BATAS_UKURAN_BYTE = 1 * 1024 * 1024; // 1MB, sesuai permintaan
 const AppConfigInfo = {
   components: { EmojiPicker },
   setup() {
+    // Pill-tab (wireframe 1.6) — 'pengumuman' atau 'quote'. Kedua section
+    // tetap di-mount bersamaan (data sudah dimuat sekaligus di onMounted di
+    // bawah, sama seperti sebelumnya) — cuma tampilannya yang di-toggle
+    // v-show, supaya pindah tab tidak perlu fetch ulang.
+    const tabAktif = ref('pengumuman');
     const daftarPengumuman = ref([]);
     const memuat = ref(true);
     const menyimpan = ref(false);
@@ -247,6 +260,7 @@ const AppConfigInfo = {
     onMounted(async () => { await window.authReady; muat(); muatQuote(); });
 
     return {
+      tabAktif,
       daftarPengumuman, memuat, menyimpan, mengupload, form, DAFTAR_ROLE,
       fileTerpilih, previewUrl, pilihFile, hapusMediaTerpilih,
       toggleRole, edit, simpan, hapus, formKosong, muat,
@@ -261,6 +275,13 @@ const AppConfigInfo = {
         <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Kelola pengumuman yang tampil di Home — desktop maupun mobile. Kosongkan pilihan role = tampil untuk SEMUA orang.</p>
       </div>
 
+      <!-- Pill-tab: Pengumuman / Quote Harian (wireframe 1.6) -->
+      <div style="display:flex; gap:8px; margin-bottom:16px;">
+        <button type="button" @click="tabAktif = 'pengumuman'" class="gc-sub-tab-btn" :class="{ active: tabAktif === 'pengumuman' }"><i class="fas fa-bullhorn" style="margin-right:6px;"></i> Pengumuman</button>
+        <button type="button" @click="tabAktif = 'quote'" class="gc-sub-tab-btn" :class="{ active: tabAktif === 'quote' }"><i class="fas fa-quote-left" style="margin-right:6px;"></i> Quote Harian</button>
+      </div>
+
+      <div v-show="tabAktif === 'pengumuman'">
       <div class="gc-card" style="margin-bottom:16px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;">{{ form.id ? 'Edit Pengumuman' : 'Buat Pengumuman Baru' }}</h3>
         <div class="gc-field">
@@ -334,8 +355,10 @@ const AppConfigInfo = {
           </div>
         </div>
       </div>
+      </div>
 
-      <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px; margin-top:24px;">
+      <div v-show="tabAktif === 'quote'">
+      <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px;">
         <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:var(--teal-text);"><i class="fas fa-quote-left" style="margin-right:8px;"></i> Quote Harian</h4>
         <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Beda dari Pengumuman — 1 Quote tampil per TANGGAL yang dijadwalkan. Kalau tidak ada Quote untuk hari itu, kartunya tidak muncul di Home.</p>
       </div>
@@ -388,6 +411,7 @@ const AppConfigInfo = {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   `

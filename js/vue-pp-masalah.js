@@ -252,17 +252,48 @@ async function konfirmasiEntryMasalah(item) {
 }
 
 // ============================================================================
-// TAB 1: Perlu Diajukan — papan info, dikelompokkan per bahan dengan
-// kumulatif. Satu-satunya aksi: "Ajukan" per kartu (lihat keputusan §1 di
-// atas) -> semua baris di kartu itu pindah ke Menunggu Setuju sekaligus.
+// TAB 1: Perlu Diajukan — REVISI 9 Sep 2026 (audit wireframe.dc.html "06 -
+// Masalah" §6.1 vs kode live, keputusan Guru). Wireframe: SATU TABEL datar
+// (urut TERTUA di atas — scan_pada ascending) dengan CHECKBOX MULTI-SELECT
+// LINTAS-BAHAN, SATU tombol "Ajukan belanja" di header (bukan per-kartu), dan
+// panel "Kumulatif per bahan" TERPISAH di bawah tabel (bukan kotak kecil di
+// kepala tiap kartu accordion). Kolom tabel PERSIS wireframe: kode grouping
+// child (no_spk), tgl scan, tertahan, TLC asal, scan oleh, alasan masalah,
+// butuh, entry, kurang.
+//   butuh  = qty_kurang + qty_entry_asal (total kebutuhan sebelum kekurangan)
+//   entry  = qty_entry_asal (yang sempat ke-entry di pos asal)
+//   kurang = qty_kurang (field utama yang sudah ada, TIDAK diubah artinya)
+//
+// FUNGSI "AJUKAN" TETAP SAMA PERSIS (HATI-HATI — modul uang/pembelian):
+// tetap patchMasalah(d.id, { status:'menunggu_setuju', diajukan_oleh, ... })
+// untuk tiap baris terpilih — cuma dipicu dari SATU tombol massal (bisa
+// lintas-bahan sekaligus), bukan per-kartu-per-bahan seperti sebelumnya.
+// TAMBAHAN field baru (aman, tidak mengubah hitungan uang/stok apa pun):
+//   kode_pengajuan — SATU kode baru (prefix PGJ, counter HARIAN sendiri)
+//     dibuat SEKALI per klik tombol "Ajukan belanja", ditulis ke SEMUA baris
+//     yang diajukan bersamaan (lintas bahan sekalipun) — dipakai TAB 2 untuk
+//     mengelompokkan jadi "1 kartu = 1 pengajuan" sesuai wireframe §6.2.
+//     Field BARU (belum ada di dokumen lama manapun — modul ini 0 data
+//     produksi per komentar besar file ini), jadi TIDAK ada risiko salah
+//     kelompok data lama (PEDOMAN design-terapkan-handoff: field pengikat
+//     baru boleh ditambah untuk alur MAJU, bukan dipaksakan ke data lama).
+//   catatan_ajuan — teks opsional (wireframe: "catatan (boleh kosong)" di
+//     pop up Ajukan belanja). TIDAK dipakai perhitungan apa pun.
+// "butuh dipakai" (tanggal kebutuhan) di pop up wireframe SENGAJA TIDAK
+// dibangun — tidak ada field tanggal semacam itu di skema persiapan_masalah
+// atau spk_track yang terverifikasi, menebak field baru untuk itu berisiko
+// salah asumsi alur produksi (bukan ranah modul uang, tapi tetap gap yang
+// dilaporkan, bukan ditebak).
 // ============================================================================
+function butuhAwal(d) { return (parseFloat(d.qty_kurang) || 0) + (parseFloat(d.qty_entry_asal) || 0); }
+
 const MasalahPerluDiajukan = {
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
     const cari = ref('');
-    const kartuTerbuka = reactive({});
-    const sedangProses = reactive({});
+    const terpilih = reactive({}); // docId -> boolean
+    const sedangProses = ref(false);
     const menuId = 'pp_masalah';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
 
@@ -273,94 +304,191 @@ const MasalahPerluDiajukan = {
       memuat.value = false;
     }
 
-    const kartuList = computed(() => {
-      let kartu = kelompokKumulatifPerBahan(daftar.value);
+    // Urut TERTUA di atas (scan_pada ascending) — sesuai wireframe §6.1.
+    const daftarTersaring = computed(() => {
       const kata = cari.value.trim().toLowerCase();
-      if (kata) kartu = kartu.filter(k => (k.nama + ' ' + k.warna).toLowerCase().includes(kata) || k.docs.some(d => (d.no_spk || '').toLowerCase().includes(kata) || (d.tlc_asal || '').toLowerCase().includes(kata)));
-      return kartu;
+      let list = daftar.value;
+      if (kata) list = list.filter(d => (d.bahan_nama + ' ' + (d.bahan_warna || '')).toLowerCase().includes(kata) || (d.no_spk || '').toLowerCase().includes(kata) || (d.tlc_asal || '').toLowerCase().includes(kata));
+      return [...list].sort((a, b) => new Date(a.scan_pada || 0) - new Date(b.scan_pada || 0));
     });
-    function toggleKartu(k) { kartuTerbuka[k.bahanAksesorisId] = !kartuTerbuka[k.bahanAksesorisId]; }
 
-    async function ajukanKartu(k) {
+    // Panel "Kumulatif per bahan" — SEMUA baris yang tampil (tidak tergantung
+    // centang), persis fungsi lama, cuma dipindah ke bawah tabel (bukan lagi
+    // kotak kecil di kepala kartu accordion).
+    const kumulatifSemua = computed(() => kelompokKumulatifPerBahan(daftarTersaring.value));
+
+    function toggleSatu(d) { terpilih[d.id] = !terpilih[d.id]; }
+    const jumlahTerpilih = computed(() => daftarTersaring.value.filter(d => terpilih[d.id]).length);
+    const semuaTerpilih = computed(() => daftarTersaring.value.length > 0 && daftarTersaring.value.every(d => terpilih[d.id]));
+    function toggleSemua() {
+      const nilai = !semuaTerpilih.value;
+      daftarTersaring.value.forEach(d => { terpilih[d.id] = nilai; });
+    }
+
+    // --- Pop up Ajukan Belanja (multi-select, bisa lintas bahan) ------------
+    const popupAjukan = ref(null); // { catatan }
+    const dokTerpilih = computed(() => daftarTersaring.value.filter(d => terpilih[d.id]));
+    const kumulatifTerpilih = computed(() => kelompokKumulatifPerBahan(dokTerpilih.value));
+    function bukaPopupAjukan() {
       if (!bolehProses.value) return;
-      if (!confirm(`Ajukan ${k.docs.length} baris kekurangan "${k.nama} ${k.warna || ''}" ke Owner untuk disetujui?`)) return;
-      sedangProses[k.bahanAksesorisId] = true;
+      if (!dokTerpilih.value.length) { alert('Centang minimal satu baris kekurangan dulu.'); return; }
+      popupAjukan.value = { catatan: '' };
+    }
+    async function konfirmasiAjukan() {
+      const terpilihDoc = dokTerpilih.value;
+      if (!terpilihDoc.length) { popupAjukan.value = null; return; }
+      sedangProses.value = true;
       const now = new Date().toISOString();
       const oleh = window.currentUser?.email || '';
+      const catatan = (popupAjukan.value?.catatan || '').trim();
       try {
-        await Promise.all(k.docs.map(d => patchMasalah(d.id, { status: 'menunggu_setuju', diajukan_oleh: oleh, diajukan_pada: now })));
+        // SATU kode_pengajuan dipakai bersama seluruh baris yang diajukan
+        // dalam klik ini (lihat catatan besar §TAB 1 di atas).
+        const kodePengajuan = await generateKodeHarian('PGJ', 'pengaturan_id_persiapan_masalah_pengajuan');
+        await Promise.all(terpilihDoc.map(d => patchMasalah(d.id, {
+          status: 'menunggu_setuju', diajukan_oleh: oleh, diajukan_pada: now,
+          kode_pengajuan: kodePengajuan, catatan_ajuan: catatan
+        })));
+        popupAjukan.value = null;
+        Object.keys(terpilih).forEach(k => delete terpilih[k]);
         await muat();
       } catch (e) { console.error('Gagal ajukan:', e); alert('Gagal mengajukan. Coba lagi.'); }
-      sedangProses[k.bahanAksesorisId] = false;
+      sedangProses.value = false;
     }
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, kartuList, cari, kartuTerbuka, toggleKartu, sedangProses, bolehProses, ajukanKartu, formatQty, formatWaktu, formatDiamSejak, tertahan };
+    return {
+      memuat, daftarTersaring, cari, kumulatifSemua, terpilih, toggleSatu, toggleSemua,
+      jumlahTerpilih, semuaTerpilih, sedangProses, bolehProses,
+      popupAjukan, bukaPopupAjukan, konfirmasiAjukan, kumulatifTerpilih,
+      formatQty, formatWaktu, formatDiamSejak, tertahan, butuhAwal
+    };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <template v-else>
-      <div style="display:flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:9px 13px; margin-bottom:12px;">
-        <i class="fas fa-magnifying-glass" style="font-size:15px; color:var(--text-faint); flex-shrink:0;"></i>
-        <input v-model="cari" type="text" placeholder="Cari bahan, warna, TLC asal, atau no. SPK..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px; color:var(--text);">
+      <div style="display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:9px 13px; flex:1; min-width:200px;">
+          <i class="fas fa-magnifying-glass" style="font-size:15px; color:var(--text-faint); flex-shrink:0;"></i>
+          <input v-model="cari" type="text" placeholder="Cari bahan, warna, TLC asal, atau no. SPK..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px; color:var(--text);">
+        </div>
+        <button v-if="bolehProses" @click="bukaPopupAjukan" :disabled="!jumlahTerpilih" class="btn-primary" style="padding:9px 16px; white-space:nowrap;"><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Ajukan belanja &middot; {{ jumlahTerpilih }} terpilih</button>
       </div>
 
-      <div v-if="kartuList.length === 0" class="gc-kosong gc-card">
+      <div v-if="daftarTersaring.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-triangle-exclamation"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Tidak ada kekurangan yang perlu diajukan</h3>
         <p style="font-size:11px; color:var(--text-faint); margin:0;">Baris muncul otomatis dari Scan Masalah di pos Bahan/Acc Sewing/Webbing/Finishing.</p>
       </div>
 
-      <div v-else style="display:flex; flex-direction:column; gap:10px;">
-        <div v-for="k in kartuList" :key="k.bahanAksesorisId" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px; cursor:pointer;" @click="toggleKartu(k)">
-            <div style="min-width:0;">
-              <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ k.nama }} <span style="color:var(--text-faint); font-weight:600;">{{ k.warna }}</span></div>
-              <div style="font-size:11px; color:var(--text-faint); margin-top:2px;">{{ k.jumlah }} baris kekurangan</div>
-            </div>
-            <i class="fas" :class="kartuTerbuka[k.bahanAksesorisId] ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-faint); flex-shrink:0; margin-top:4px;"></i>
-          </div>
+      <template v-else>
+        <div class="gc-table-scroll" style="margin-bottom:14px;">
+          <table style="width:100%; border-collapse:collapse; font-size:11px;">
+            <thead>
+              <tr style="text-align:left; color:var(--text-faint); border-bottom:1px solid var(--line);">
+                <th style="padding:6px 8px;"><input type="checkbox" :checked="semuaTerpilih" @change="toggleSemua" v-if="bolehProses"></th>
+                <th style="padding:6px 8px;">Kode grouping child</th>
+                <th style="padding:6px 8px;">Tgl scan</th>
+                <th style="padding:6px 8px;">Tertahan</th>
+                <th style="padding:6px 8px;">TLC asal</th>
+                <th style="padding:6px 8px;">Scan oleh</th>
+                <th style="padding:6px 8px;">Alasan masalah</th>
+                <th style="padding:6px 8px; text-align:right;">Butuh</th>
+                <th style="padding:6px 8px; text-align:right;">Entry</th>
+                <th style="padding:6px 8px; text-align:right;">Kurang</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="d in daftarTersaring" :key="d.id" style="border-bottom:1px solid var(--border-soft);" :style="{ background: tertahan(d.scan_pada) ? 'var(--warn-light)' : 'transparent' }">
+                <td style="padding:6px 8px;"><input v-if="bolehProses" type="checkbox" :checked="!!terpilih[d.id]" @change="toggleSatu(d)"></td>
+                <td style="padding:6px 8px;">
+                  <div class="gc-num" style="font-weight:700;">{{ d.no_spk || '-' }}</div>
+                  <div style="color:var(--text-faint); font-size:10px;">{{ d.bahan_nama }} {{ d.bahan_warna }}</div>
+                </td>
+                <td style="padding:6px 8px;" class="gc-num">{{ formatWaktu(d.scan_pada) }}</td>
+                <td style="padding:6px 8px;"><span class="tag" :class="tertahan(d.scan_pada) ? 'warn' : 'neutral'">{{ formatDiamSejak(d.scan_pada) }}</span></td>
+                <td style="padding:6px 8px;">{{ d.tlc_asal || '-' }}</td>
+                <td style="padding:6px 8px;">{{ d.scan_oleh || '-' }}</td>
+                <td style="padding:6px 8px;">{{ d.alasan_masalah || '-' }}</td>
+                <td style="padding:6px 8px; text-align:right;" class="gc-num">{{ formatQty(butuhAwal(d)) }}</td>
+                <td style="padding:6px 8px; text-align:right;" class="gc-num">{{ d.qty_entry_asal != null ? formatQty(d.qty_entry_asal) : '-' }}</td>
+                <td style="padding:6px 8px; text-align:right; color:var(--danger);" class="gc-num">{{ formatQty(d.qty_kurang) }} {{ d.satuan }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-          <div style="border:1px dashed var(--line); border-radius:12px; padding:8px 10px; background:var(--ivory-dim); margin-bottom:10px;">
-            <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Butuh (kumulatif)</div>
-            <div class="gc-num" style="font-size:14px; font-weight:700;">{{ formatQty(k.butuh) }} {{ k.satuan }}</div>
-          </div>
-
-          <div v-if="kartuTerbuka[k.bahanAksesorisId]" style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
-            <div v-for="d in k.docs" :key="d.id" style="font-size:11px; padding:8px; border-radius:10px;" :style="{ background: tertahan(d.scan_pada) ? 'var(--warn-light)' : 'var(--ivory-dim)' }">
-              <div style="display:flex; justify-content:space-between; gap:8px;">
-                <span class="gc-num" style="font-weight:700;">{{ d.no_spk || '-' }}</span>
-                <span class="tag" :class="tertahan(d.scan_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(d.scan_pada) }}</span>
-              </div>
-              <div style="color:var(--text-faint); margin-top:3px;">{{ d.tlc_asal || '-' }} &middot; scan {{ formatWaktu(d.scan_pada) }} &middot; oleh {{ d.scan_oleh || '-' }}</div>
-              <div v-if="d.alasan_masalah" style="margin-top:4px;">{{ d.alasan_masalah }}</div>
-              <div style="display:flex; gap:14px; margin-top:4px; color:var(--text-faint);">
-                <span>Butuh: <b class="gc-num">{{ formatQty(d.qty_kurang) }}</b></span>
-                <span>Entry: <b class="gc-num">{{ d.qty_entry_asal != null ? formatQty(d.qty_entry_asal) : '-' }}</b></span>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="bolehProses" style="border-top:1px solid var(--line); padding-top:10px;">
-            <button @click="ajukanKartu(k)" :disabled="sedangProses[k.bahanAksesorisId]" class="btn-primary" style="width:100%; padding:9px;"><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Ajukan ke Owner</button>
+        <div class="gc-card" style="padding:12px 14px; border-radius:16px; border:1px dashed var(--line);">
+          <div class="gc-heading" style="font-weight:700; font-size:12px; margin-bottom:2px;">Kumulatif per bahan</div>
+          <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:8px;">Bahan yang sama dari SPK berbeda dijumlahkan — ini yang dikirim ke Owner saat diajukan.</div>
+          <div v-for="k in kumulatifSemua" :key="k.bahanAksesorisId" style="display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 8px; border-radius:8px; background:var(--ivory-dim); margin-bottom:5px; font-size:11.5px;">
+            <span>{{ k.nama }} <span style="color:var(--text-faint);">{{ k.warna }}</span></span>
+            <span style="color:var(--text-faint); font-size:10px;">{{ k.jumlah }} SPK</span>
+            <span class="gc-num" style="font-weight:700;">{{ formatQty(k.butuh) }} {{ k.satuan }}</span>
           </div>
         </div>
-      </div>
+      </template>
     </template>
+
+    <div v-if="popupAjukan" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:420px; width:100%; padding:18px; border-radius:18px; max-height:82vh; overflow-y:auto;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 4px;">Ajukan belanja</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin:0 0 10px;">{{ jumlahTerpilih }} kekurangan terpilih &middot; digabung per bahan &middot; {{ kumulatifTerpilih.length }} jenis</p>
+        <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+          <div v-for="k in kumulatifTerpilih" :key="k.bahanAksesorisId" style="display:flex; justify-content:space-between; gap:8px; padding:7px 9px; border-radius:8px; background:var(--ivory-dim); font-size:11.5px;">
+            <div><b>{{ k.nama }}</b> <span style="color:var(--text-faint);">{{ k.warna }}</span><div style="font-size:9.5px; color:var(--text-faint);">{{ k.jumlah }} SPK</div></div>
+            <span class="gc-num" style="font-weight:700;">{{ formatQty(k.butuh) }} {{ k.satuan }}</span>
+          </div>
+        </div>
+        <div class="gc-field" style="margin-bottom:14px;">
+          <label>Catatan (boleh kosong)</label>
+          <textarea v-model="popupAjukan.catatan" rows="2" style="width:100%; padding:8px; border-radius:10px; border:1.5px solid var(--line); font-size:12px;"></textarea>
+        </div>
+        <p style="font-size:10.5px; color:var(--text-faint); margin:0 0 12px;">Pengajuan masuk ke Menunggu Setuju. Yang menyetujui Owner / PIC Owner.</p>
+        <div style="display:flex; gap:8px;">
+          <button @click="popupAjukan = null" :disabled="sedangProses" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+          <button @click="konfirmasiAjukan" :disabled="sedangProses" class="btn-primary" style="flex:1; padding:9px;">Ajukan</button>
+        </div>
+      </div>
+    </div>
   `
 };
 
 // ============================================================================
-// TAB 2: Menunggu Setuju — SATU-SATUNYA layar di seluruh sistem dengan
-// tombol keputusan sungguhan (Setujui/Tolak/Ajukan Belanja), khusus Owner/
-// PIC Owner (tierOwnerKeAtas — sama gerbang seperti approve QO di
-// vue-pesanan.js & approve harga di vue-stock-pembelian.js, TANPA popup PIN
-// karena SERAH-TERIMA modul ini tidak menyebutkannya, beda dari aksi
-// "cetak ulang" di pos lain yang eksplisit minta PIN). 3 tombol per BARIS
-// (bukan per kartu — keputusan per baris sesuai wireframe "swipe kiri/kanan
-// per baris"), lihat catatan keputusan §2 di atas.
+// TAB 2: Menunggu Setuju — REVISI 9 Sep 2026 (audit wireframe.dc.html "06 -
+// Masalah" §6.2 vs kode live, keputusan Guru). Wireframe: SATU KARTU per
+// PENGAJUAN (bisa berisi BEBERAPA baris SPK sekaligus, dikelompokkan lewat
+// kode_pengajuan yang dibuat TAB 1 di atas), Setujui/Tolak menutup SELURUH
+// pengajuan sekaligus (satu klik = satu keputusan untuk semua baris di kartu
+// itu), dan tampilannya dipisah: blok "detail masalah" (apa yang kurang, per
+// SPK) vs panel "Kumulatif per bahan" (MOQ, pakai/minggu, qty beli EDITABLE,
+// estimasi, sisa jadi stok — hitungan belanja, bukan detail masalah).
+//
+// HATI-HATI (modul uang/pembelian) — HITUNGAN PER BARIS TIDAK DIUBAH SAMA
+// SEKALI. Setujui/Tolak/Ajukan Belanja tingkat KARTU cuma me-LOOP fungsi yang
+// PERSIS SAMA seperti sebelum revisi ini (patchMasalah per dokumen dengan
+// qty_disetujui/qty_beli dari infoTambahan[d.id].qtyBeli masing-masing baris)
+// — jadi satu klik "Setujui" di kartu = beberapa kali write per-baris dengan
+// angka yang identik dengan versi sebelumnya, cuma dipicu bareng.
+//
+// KEPUTUSAN TERBUKA (dilaporkan, BUKAN ditebak) — "qty beli" gabungan saat
+// SATU bahan muncul di LEBIH DARI SATU baris DALAM SATU pengajuan yang sama:
+// wireframe menggambarkan qty beli sebagai SATU angka gabungan per bahan
+// (dibulatkan ke kelipatan MOQ), tapi skema data ini menyimpan qty_disetujui/
+// qty_beli PER DOKUMEN (per baris/SPK), dan proses hilir (entry stok di Tab
+// 4, serta item baris di Persiapan Belanja) membaca angka itu PER DOKUMEN.
+// Memecah satu angka gabungan yang diedit Owner kembali jadi pecahan per
+// baris (berapa ke SPK mana) adalah keputusan pembagian uang/stok yang tidak
+// ada dasarnya di skema resmi — TIDAK ditebak. Jadi: kalau sebuah bahan
+// hanya muncul di SATU baris dalam pengajuan itu (kasus paling umum, sesuai
+// contoh wireframe), panel Kumulatif menampilkan qty beli EDITABLE seperti
+// biasa (langsung ke baris itu). Kalau bahan yang sama muncul di BEBERAPA
+// baris dalam satu pengajuan, panel menampilkan TOTAL sebagai angka
+// INFORMASI (read-only) dan mengarahkan Owner mengedit qty beli per baris di
+// blok detail masalah di atasnya (fallback aman, edit tetap ada, tidak ada
+// kalkulasi pembagian yang ditebak).
 // ============================================================================
 const MasalahMenungguSetuju = {
   setup() {
@@ -368,8 +496,7 @@ const MasalahMenungguSetuju = {
     const daftar = ref([]);
     const petaStokBahan = ref({});
     const infoTambahan = reactive({}); // docId -> { moq, moqSatuan, pakaiPerMinggu, qtyBeli }
-    const sedangProses = reactive({});
-    const menuId = 'pp_masalah';
+    const prosesKartu = reactive({}); // groupKey -> boolean
     const sayaOwnerKeAtas = computed(() => tierOwnerKeAtas(window.currentUser));
 
     async function muat() {
@@ -384,7 +511,7 @@ const MasalahMenungguSetuju = {
         daftar.value = list;
         // muat info tambahan (MOQ + pakai/minggu) per bahan UNIK dulu, baru
         // sebar ke tiap baris — hemat query dibanding per-baris kalau ada
-        // beberapa baris bahan yang sama.
+        // beberapa baris bahan yang sama. TIDAK BERUBAH dari versi sebelumnya.
         const bahanUnik = [...new Set(list.map(d => d.bahan_aksesoris_id).filter(Boolean))];
         await Promise.all(bahanUnik.map(async (bahanId) => {
           const docSample = list.find(d => d.bahan_aksesoris_id === bahanId);
@@ -403,11 +530,6 @@ const MasalahMenungguSetuju = {
       memuat.value = false;
     }
 
-    const kumulatifPerBahan = computed(() => {
-      const peta = {};
-      kelompokKumulatifPerBahan(daftar.value).forEach(k => { peta[k.bahanAksesorisId] = k.butuh; });
-      return peta;
-    });
     function stokSaatIni(d) { return parseFloat(petaStokBahan.value[d.bahan_aksesoris_id]?.stok_akhir) || 0; }
     function ubahQtyBeli(d, delta) {
       const info = infoTambahan[d.id]; if (!info) return;
@@ -417,55 +539,98 @@ const MasalahMenungguSetuju = {
     function estimasi(d) { const info = infoTambahan[d.id]; return info ? (stokSaatIni(d) + (parseFloat(info.qtyBeli) || 0)) : null; }
     function sisaJadiStok(d) { const e = estimasi(d); return e === null ? null : (e - (parseFloat(d.qty_kurang) || 0)); }
 
-    async function setujui(d) {
+    // --- Kelompok kartu per PENGAJUAN (kode_pengajuan) ----------------------
+    // Fallback docId sendiri untuk baris tanpa kode_pengajuan (misal dokumen
+    // dari sebelum revisi ini ada) — TIDAK dipaksa gabung, tampil sebagai
+    // kartu tunggal sendiri, aman dari salah kelompok.
+    const kartuPengajuan = computed(() => {
+      const peta = {};
+      daftar.value.forEach(d => {
+        const key = d.kode_pengajuan || ('solo-' + d.id);
+        if (!peta[key]) peta[key] = { key, kodePengajuan: d.kode_pengajuan || null, docs: [] };
+        peta[key].docs.push(d);
+      });
+      return Object.values(peta).map(k => {
+        const diajukanPadaMin = k.docs.reduce((min, d) => {
+          const t = new Date(d.diajukan_pada || d.scan_pada || 0).getTime();
+          return (min === null || t < min) ? t : min;
+        }, null);
+        return {
+          ...k,
+          diajukanOleh: k.docs[0]?.diajukan_oleh || '-',
+          diajukanPadaIso: diajukanPadaMin ? new Date(diajukanPadaMin).toISOString() : null,
+          jumlahBahan: new Set(k.docs.map(d => d.bahan_aksesoris_id)).size,
+          kumulatif: kelompokKumulatifPerBahan(k.docs)
+        };
+      }).sort((a, b) => new Date(a.diajukanPadaIso || 0) - new Date(b.diajukanPadaIso || 0));
+    });
+
+    function qtyBeliBahan(m) {
+      if (m.docs.length === 1) return infoTambahan[m.docs[0].id]?.qtyBeli;
+      return m.docs.reduce((s, d) => s + (parseFloat(infoTambahan[d.id]?.qtyBeli) || 0), 0);
+    }
+    function estimasiBahan(m) {
+      if (m.docs.length === 1) return estimasi(m.docs[0]);
+      const stok = stokSaatIni(m.docs[0]);
+      return stok + qtyBeliBahan(m);
+    }
+    function sisaBahan(m) { return estimasiBahan(m) - m.butuh; }
+
+    async function setujuiKartu(k) {
       if (!sayaOwnerKeAtas.value) return alert('Hanya Owner/PIC Owner yang boleh menyetujui.');
-      const info = infoTambahan[d.id];
-      sedangProses[d.id] = true;
+      if (!confirm(`Setujui pengajuan ${k.kodePengajuan || ''} (${k.docs.length} baris)? Seluruh baris di pengajuan ini akan pindah ke Perlu Disiapkan.`)) return;
+      prosesKartu[k.key] = true;
+      const now = new Date().toISOString();
+      const oleh = window.currentUser?.email || '';
       try {
-        await patchMasalah(d.id, {
+        await Promise.all(k.docs.map(d => patchMasalah(d.id, {
           status: 'perlu_disiapkan',
-          qty_disetujui: parseFloat(info?.qtyBeli) || parseFloat(d.qty_kurang) || 0,
-          disetujui_oleh: window.currentUser?.email || '', disetujui_pada: new Date().toISOString()
-        });
+          qty_disetujui: parseFloat(infoTambahan[d.id]?.qtyBeli) || parseFloat(d.qty_kurang) || 0,
+          disetujui_oleh: oleh, disetujui_pada: now
+        })));
         await muat();
-      } catch (e) { console.error('Gagal setujui:', e); alert('Gagal menyimpan. Coba lagi.'); }
-      sedangProses[d.id] = false;
+      } catch (e) { console.error('Gagal setujui pengajuan:', e); alert('Gagal menyimpan. Coba lagi.'); }
+      prosesKartu[k.key] = false;
     }
-    async function tolak(d) {
+    async function tolakKartu(k) {
       if (!sayaOwnerKeAtas.value) return alert('Hanya Owner/PIC Owner yang boleh menolak.');
-      const catatan = prompt('Alasan ditolak (opsional):') || '';
-      sedangProses[d.id] = true;
+      const catatan = prompt(`Alasan menolak pengajuan ${k.kodePengajuan || ''} (opsional):`) || '';
+      prosesKartu[k.key] = true;
+      const now = new Date().toISOString();
+      const oleh = window.currentUser?.email || '';
       try {
-        await patchMasalah(d.id, {
+        await Promise.all(k.docs.map(d => patchMasalah(d.id, {
           status: 'perlu_diajukan', catatan_tolak: catatan.trim(),
-          ditolak_oleh: window.currentUser?.email || '', ditolak_pada: new Date().toISOString()
-        });
+          ditolak_oleh: oleh, ditolak_pada: now
+        })));
         await muat();
-      } catch (e) { console.error('Gagal tolak:', e); alert('Gagal menyimpan. Coba lagi.'); }
-      sedangProses[d.id] = false;
+      } catch (e) { console.error('Gagal tolak pengajuan:', e); alert('Gagal menyimpan. Coba lagi.'); }
+      prosesKartu[k.key] = false;
     }
-    async function ajukanBelanja(d) {
+    async function ajukanBelanjaKartu(k) {
       if (!sayaOwnerKeAtas.value) return alert('Hanya Owner/PIC Owner yang boleh mengajukan belanja.');
-      const info = infoTambahan[d.id];
-      if (!confirm(`Ajukan belanja ${formatQty(info?.qtyBeli)} ${d.satuan || ''} "${d.bahan_nama}" ke Persiapan Belanja?`)) return;
-      sedangProses[d.id] = true;
+      if (!confirm(`Ajukan belanja seluruh ${k.docs.length} baris di pengajuan ${k.kodePengajuan || ''} ke Persiapan Belanja?`)) return;
+      prosesKartu[k.key] = true;
+      const now = new Date().toISOString();
+      const oleh = window.currentUser?.email || '';
       try {
-        await patchMasalah(d.id, {
+        await Promise.all(k.docs.map(d => patchMasalah(d.id, {
           status: 'diajukan_belanja',
-          qty_beli: parseFloat(info?.qtyBeli) || parseFloat(d.qty_kurang) || 0,
-          diajukan_belanja_oleh: window.currentUser?.email || '', diajukan_belanja_pada: new Date().toISOString()
-        });
+          qty_beli: parseFloat(infoTambahan[d.id]?.qtyBeli) || parseFloat(d.qty_kurang) || 0,
+          diajukan_belanja_oleh: oleh, diajukan_belanja_pada: now
+        })));
         await muat();
-      } catch (e) { console.error('Gagal ajukan belanja:', e); alert('Gagal menyimpan. Coba lagi.'); }
-      sedangProses[d.id] = false;
+      } catch (e) { console.error('Gagal ajukan belanja pengajuan:', e); alert('Gagal menyimpan. Coba lagi.'); }
+      prosesKartu[k.key] = false;
     }
 
     onMounted(async () => { await window.authReady; await muat(); });
 
     return {
-      memuat, daftar, infoTambahan, sedangProses, sayaOwnerKeAtas,
-      kumulatifPerBahan, stokSaatIni, ubahQtyBeli, estimasi, sisaJadiStok,
-      setujui, tolak, ajukanBelanja,
+      memuat, daftar, kartuPengajuan, infoTambahan, prosesKartu, sayaOwnerKeAtas,
+      stokSaatIni, ubahQtyBeli, estimasi, sisaJadiStok,
+      qtyBeliBahan, estimasiBahan, sisaBahan,
+      setujuiKartu, tolakKartu, ajukanBelanjaKartu,
       formatQty, formatWaktu, formatDiamSejak, tertahan
     };
   },
@@ -476,60 +641,76 @@ const MasalahMenungguSetuju = {
       <i class="fas fa-lock" style="margin-right:6px;"></i>Tab ini khusus Owner/PIC Owner — Anda bisa melihat daftarnya tapi tidak bisa memutuskan.
     </div>
 
-    <div v-if="!memuat && daftar.length === 0" class="gc-kosong gc-card">
+    <div v-if="!memuat && kartuPengajuan.length === 0" class="gc-kosong gc-card">
       <div class="lingkaran"><i class="fas fa-hourglass-half"></i></div>
       <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada yang menunggu persetujuan</h3>
     </div>
 
-    <div v-else style="display:flex; flex-direction:column; gap:10px;">
-      <div v-for="d in daftar" :key="d.id" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;" :style="{ borderColor: tertahan(d.diajukan_pada || d.scan_pada) ? 'var(--warn)' : undefined }">
-        <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:4px;">
-          <div class="gc-heading" style="font-weight:700; font-size:13px;">{{ d.bahan_nama }} <span style="color:var(--text-faint); font-weight:600;">{{ d.bahan_warna }}</span></div>
-          <span class="tag" :class="tertahan(d.diajukan_pada || d.scan_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(d.diajukan_pada || d.scan_pada) }}</span>
+    <div v-else style="display:flex; flex-direction:column; gap:12px;">
+      <div v-for="k in kartuPengajuan" :key="k.key" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;" :style="{ borderColor: tertahan(k.diajukanPadaIso) ? 'var(--warn)' : undefined }">
+        <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:2px; flex-wrap:wrap;">
+          <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ k.kodePengajuan || 'Pengajuan (baris tunggal)' }}</div>
+          <span class="tag" :class="tertahan(k.diajukanPadaIso) ? 'warn' : 'neutral'">diajukan {{ formatDiamSejak(k.diajukanPadaIso) }} lalu</span>
         </div>
-        <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:8px;">{{ d.no_spk || '-' }} &middot; {{ d.tlc_asal || '-' }} &middot; scan oleh {{ d.scan_oleh || '-' }} &middot; {{ formatWaktu(d.scan_pada) }}</div>
-        <div v-if="d.alasan_masalah" style="font-size:11px; background:var(--ivory-dim); border-radius:8px; padding:6px 8px; margin-bottom:8px;">{{ d.alasan_masalah }}</div>
+        <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:10px;">diajukan {{ k.diajukanOleh }} &middot; {{ k.docs.length }} SPK &middot; {{ k.jumlahBahan }} bahan</div>
 
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(90px, 1fr)); gap:8px; margin-bottom:10px;">
-          <div style="border:1px dashed var(--line); border-radius:10px; padding:6px 8px;">
-            <div style="font-size:9px; color:var(--text-faint); text-transform:uppercase;">Butuh (kumulatif)</div>
-            <div class="gc-num" style="font-size:12.5px; font-weight:700;">{{ formatQty(kumulatifPerBahan[d.bahan_aksesoris_id]) }}</div>
-          </div>
-          <div style="border:1px dashed var(--line); border-radius:10px; padding:6px 8px;">
-            <div style="font-size:9px; color:var(--text-faint); text-transform:uppercase;">Kurang</div>
-            <div class="gc-num" style="font-size:12.5px; font-weight:700; color:var(--danger);">{{ formatQty(d.qty_kurang) }} {{ d.satuan }}</div>
-          </div>
-          <div style="border:1px dashed var(--line); border-radius:10px; padding:6px 8px;">
-            <div style="font-size:9px; color:var(--text-faint); text-transform:uppercase;">MOQ</div>
-            <div class="gc-num" style="font-size:12.5px; font-weight:700;">{{ infoTambahan[d.id]?.moq > 0 ? formatQty(infoTambahan[d.id].moq) + ' ' + (infoTambahan[d.id].moqSatuan || '') : '-' }}</div>
-          </div>
-          <div style="border:1px dashed var(--line); border-radius:10px; padding:6px 8px;">
-            <div style="font-size:9px; color:var(--text-faint); text-transform:uppercase;">Pakai/minggu</div>
-            <div class="gc-num" style="font-size:12.5px; font-weight:700;">{{ infoTambahan[d.id]?.pakaiPerMinggu != null ? formatQty(infoTambahan[d.id].pakaiPerMinggu) : '-' }}</div>
-          </div>
-          <div style="border:1px dashed var(--line); border-radius:10px; padding:6px 8px;">
-            <div style="font-size:9px; color:var(--text-faint); text-transform:uppercase;">Estimasi</div>
-            <div class="gc-num" style="font-size:12.5px; font-weight:700;">{{ formatQty(estimasi(d)) }}</div>
-          </div>
-          <div style="border:1px dashed var(--line); border-radius:10px; padding:6px 8px;">
-            <div style="font-size:9px; color:var(--text-faint); text-transform:uppercase;">Sisa jadi stok</div>
-            <div class="gc-num" style="font-size:12.5px; font-weight:700; color:var(--ok);">{{ formatQty(sisaJadiStok(d)) }}</div>
+        <!-- Blok detail masalah — per SPK, TANPA kontrol qty beli (pindah ke panel Kumulatif) -->
+        <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
+          <div v-for="d in k.docs" :key="d.id" style="font-size:11px; padding:8px 10px; border-radius:10px; background:var(--ivory-dim);">
+            <div style="display:flex; justify-content:space-between; gap:8px;">
+              <span class="gc-num" style="font-weight:700;">{{ d.no_spk || '-' }}</span>
+              <span style="color:var(--text-faint);">{{ d.bahan_nama }} <span>{{ d.bahan_warna }}</span></span>
+              <span class="gc-num" style="color:var(--danger); font-weight:700;">{{ formatQty(d.qty_kurang) }} {{ d.satuan }}</span>
+            </div>
+            <div style="color:var(--text-faint); margin-top:3px; font-size:10px;">{{ d.tlc_asal || '-' }} &middot; scan {{ formatWaktu(d.scan_pada) }} oleh {{ d.scan_oleh || '-' }}</div>
+            <div v-if="d.alasan_masalah" style="margin-top:3px;">{{ d.alasan_masalah }}</div>
           </div>
         </div>
 
-        <div v-if="infoTambahan[d.id]" style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-          <span style="font-size:10.5px; color:var(--text-faint); flex-shrink:0;">Qty Beli:</span>
-          <button v-if="sayaOwnerKeAtas" @click="ubahQtyBeli(d, -1)" class="btn-outline" style="padding:4px 10px;">-</button>
-          <input v-if="sayaOwnerKeAtas" v-model.number="infoTambahan[d.id].qtyBeli" type="number" class="gc-num" style="width:90px; text-align:center; border:1px solid var(--line); border-radius:8px; padding:5px;">
-          <span v-else class="gc-num">{{ formatQty(infoTambahan[d.id].qtyBeli) }}</span>
-          <button v-if="sayaOwnerKeAtas" @click="ubahQtyBeli(d, 1)" class="btn-outline" style="padding:4px 10px;">+</button>
-          <span style="font-size:10.5px; color:var(--text-faint);">{{ d.satuan }}</span>
+        <!-- Panel Kumulatif per bahan — hitungan belanja, terpisah dari detail masalah -->
+        <div class="gc-card" style="padding:10px 12px; border-radius:14px; border:1px dashed var(--line); margin-bottom:10px;">
+          <div class="gc-heading" style="font-weight:700; font-size:11.5px; margin-bottom:8px;">Kumulatif per bahan</div>
+          <div v-for="m in k.kumulatif" :key="m.bahanAksesorisId" style="border-top:1px solid var(--border-soft); padding-top:8px; margin-top:8px;" :style="{ borderTop: k.kumulatif[0]===m ? 'none' : undefined, marginTop: k.kumulatif[0]===m ? 0 : undefined, paddingTop: k.kumulatif[0]===m ? 0 : undefined }">
+            <div style="font-size:11.5px; font-weight:700; margin-bottom:6px;">{{ m.nama }} <span style="color:var(--text-faint); font-weight:600;">{{ m.warna }}</span> <span style="color:var(--text-faint); font-size:9.5px; font-weight:400;">&middot; {{ m.jumlah }} SPK</span></div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(85px, 1fr)); gap:8px;">
+              <div style="border:1px dashed var(--line); border-radius:10px; padding:6px 8px;">
+                <div style="font-size:9px; color:var(--text-faint); text-transform:uppercase;">Kurang</div>
+                <div class="gc-num" style="font-size:12px; font-weight:700; color:var(--danger);">{{ formatQty(m.butuh) }} {{ m.satuan }}</div>
+              </div>
+              <div style="border:1px dashed var(--line); border-radius:10px; padding:6px 8px;">
+                <div style="font-size:9px; color:var(--text-faint); text-transform:uppercase;">MOQ</div>
+                <div class="gc-num" style="font-size:12px; font-weight:700;">{{ infoTambahan[m.docs[0].id]?.moq > 0 ? formatQty(infoTambahan[m.docs[0].id].moq) + ' ' + (infoTambahan[m.docs[0].id].moqSatuan || '') : '-' }}</div>
+              </div>
+              <div style="border:1px dashed var(--line); border-radius:10px; padding:6px 8px;">
+                <div style="font-size:9px; color:var(--text-faint); text-transform:uppercase;">Pakai/minggu</div>
+                <div class="gc-num" style="font-size:12px; font-weight:700;">{{ infoTambahan[m.docs[0].id]?.pakaiPerMinggu != null ? formatQty(infoTambahan[m.docs[0].id].pakaiPerMinggu) : '-' }}</div>
+              </div>
+              <div style="border:1px dashed var(--line); border-radius:10px; padding:6px 8px;">
+                <div style="font-size:9px; color:var(--text-faint); text-transform:uppercase;">Qty Beli</div>
+                <div v-if="m.docs.length === 1 && sayaOwnerKeAtas" style="display:flex; align-items:center; gap:4px;">
+                  <button @click="ubahQtyBeli(m.docs[0], -1)" class="btn-outline" style="padding:2px 7px; font-size:11px;">-</button>
+                  <input v-model.number="infoTambahan[m.docs[0].id].qtyBeli" type="number" class="gc-num" style="width:56px; text-align:center; border:1px solid var(--line); border-radius:6px; padding:3px; font-size:11px;">
+                  <button @click="ubahQtyBeli(m.docs[0], 1)" class="btn-outline" style="padding:2px 7px; font-size:11px;">+</button>
+                </div>
+                <div v-else class="gc-num" style="font-size:12px; font-weight:700;">{{ formatQty(qtyBeliBahan(m)) }}</div>
+              </div>
+              <div style="border:1px dashed var(--line); border-radius:10px; padding:6px 8px;">
+                <div style="font-size:9px; color:var(--text-faint); text-transform:uppercase;">Estimasi</div>
+                <div class="gc-num" style="font-size:12px; font-weight:700;">{{ formatQty(estimasiBahan(m)) }}</div>
+              </div>
+              <div style="border:1px dashed var(--line); border-radius:10px; padding:6px 8px;">
+                <div style="font-size:9px; color:var(--text-faint); text-transform:uppercase;">Sisa jadi stok</div>
+                <div class="gc-num" style="font-size:12px; font-weight:700; color:var(--ok);">{{ formatQty(sisaBahan(m)) }}</div>
+              </div>
+            </div>
+            <p v-if="m.docs.length > 1" style="font-size:9.5px; color:var(--text-faint); margin:6px 0 0;">Bahan ini ada di {{ m.docs.length }} SPK dalam pengajuan yang sama — qty beli di atas adalah TOTAL (info). Edit per SPK belum didukung di sini (keputusan terbuka, lihat komentar kode) — kalau perlu diedit, tolak dulu lalu ajukan ulang per baris.</p>
+          </div>
         </div>
 
         <div v-if="sayaOwnerKeAtas" style="display:flex; gap:6px;">
-          <button @click="setujui(d)" :disabled="sedangProses[d.id]" class="btn-primary" style="flex:1; padding:8px; font-size:11px;"><i class="fas fa-check" style="margin-right:4px;"></i>Setujui</button>
-          <button @click="ajukanBelanja(d)" :disabled="sedangProses[d.id]" class="btn-outline" style="flex:1; padding:8px; font-size:11px;"><i class="fas fa-cart-shopping" style="margin-right:4px;"></i>Ajukan Belanja</button>
-          <button @click="tolak(d)" :disabled="sedangProses[d.id]" class="btn-outline" style="flex:0 0 auto; padding:8px 12px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-xmark"></i></button>
+          <button @click="setujuiKartu(k)" :disabled="prosesKartu[k.key]" class="btn-primary" style="flex:1; padding:8px; font-size:11px;"><i class="fas fa-check" style="margin-right:4px;"></i>Setujui</button>
+          <button @click="ajukanBelanjaKartu(k)" :disabled="prosesKartu[k.key]" class="btn-outline" style="flex:1; padding:8px; font-size:11px;"><i class="fas fa-cart-shopping" style="margin-right:4px;"></i>Ajukan Belanja</button>
+          <button @click="tolakKartu(k)" :disabled="prosesKartu[k.key]" class="btn-outline" style="flex:0 0 auto; padding:8px 12px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-xmark"></i></button>
         </div>
       </div>
     </div>

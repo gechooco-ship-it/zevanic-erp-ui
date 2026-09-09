@@ -46,6 +46,49 @@
 //    cari lagi, Tab selalu lanjut" (wireframe 3.2b) TETAP dipertahankan —
 //    yang dipangkas cuma JUMLAH langkahnya, bukan pola dasarnya.
 //
+//    REVISI 9 Sep 2026 (audit wireframe.dc.html "08 - Persiapan Belanja"
+//    §8.1 vs kode live, keputusan Guru) — struktur layar 8.1 diganti total
+//    ke pola "Nota Order" wireframe: KIRI grid kartu produk (cari/browse,
+//    chip Semua/Bahan/Aksesoris, klik kartu = tambah), KANAN panel "Item
+//    Nota" berbentuk KARTU per item dengan stepper qty +/- dan chip sumber
+//    ("bahan kurang" dari Cek Pengajuan) — BUKAN lagi tabel HTML datar. Pop
+//    up Qty terpisah (tampilPopupQty/qtyInput/konfirmasiQty) DIHAPUS karena
+//    kartu Item Nota sudah punya stepper qty inline, jadi tidak perlu pop
+//    up lagi — bukan kehilangan fungsi, cuma pindah tempat sesuai wireframe.
+//    Enter di kotak cari tetap menambah match pertama (semangat "keyboard-
+//    first" tetap ada), klik kartu grid = cara tambah utama yang baru.
+//    HITUNGAN item (qty*harga_estimasi=subtotal, totalEstimasi) dan fungsi
+//    simpan()/muat()/bukaCekPengajuan()/masukkanPengajuanTerpilih() TIDAK
+//    DIUBAH SAMA SEKALI — cuma tampilannya yang berubah.
+//
+//    Chip sumber "stok kritis" di wireframe (8.1.1) TIDAK diimplementasikan
+//    — tidak ada field ambang stok minimum (stok_minimum/ambang_stok/dst)
+//    yang terverifikasi ada di master_bahan_aksesoris atau di mana pun di
+//    kode live (sudah digrep, nihil). Menebak angka ambang "kritis" sendiri
+//    berisiko salah untuk modul pembelian — jadi HANYA sumber "bahan
+//    kurang" (dari_masalah_id, dari Cek Pengajuan) yang ditandai chip;
+//    item yang ditambah manual dari grid tidak diberi chip. GAP
+//    DISENGAJA, dilaporkan ke Guru, bukan ditebak.
+//
+//    Suplayer OTOMATIS dari Petakan Order (alias_pembelian.is_default_order,
+//    js/vue-master-suplayer.js — MEKANISME INI SUDAH ADA & SUDAH DIPAKAI
+//    vue-pp-masalah.js untuk MOQ) — DISAMBUNGKAN untuk SARAN, bukan
+//    dipaksakan: begitu item PERTAMA ditambah ke nota kosong, suplayerId
+//    nota di-auto-isi dari alias is_default_order milik bahan itu (kalau
+//    ada). Dropdown suplayer manual TETAP ADA (TIDAK dihapus) untuk koreksi
+//    — field `suplayer_id` di `pesanan_pembelian` TETAP SATU per nota
+//    (arsitektur TIDAK diubah, lihat keputusan #1 di atas). Kalau item
+//    BERIKUTNYA punya default suplayer BEDA dari suplayer nota saat ini,
+//    kartu item itu menampilkan chip peringatan "suplayer beda" — TIDAK
+//    auto-pecah jadi banyak order, karena Tab Menunggu ACC/List Order
+//    Driver di bawah masih berasumsi 1 nota = 1 suplayer (order_belanja_
+//    driver dibuat dari SATU suplayer_id per nota). Wireframe menggambarkan
+//    1 nota bisa berisi item dari BEBERAPA suplayer sekaligus (di-generate
+//    jadi order terpisah per suplayer) — itu PERUBAHAN ARSITEKTUR pembelian
+//    yang lebih besar (pesanan_pembelian/order_belanja_driver perlu pecah
+//    per suplayer saat Generate Order) dan TIDAK ditebak di sesi ini
+//    (modul uang/pembelian) — KEPUTUSAN TERBUKA, dilaporkan ke Guru.
+//
 // 3. Alur status BARU utk `pesanan_pembelian` khusus dokumen yang berasal
 //    dari modul ini (dibedakan dari nota manual Stok lewat field
 //    `order_driver_id` != null SEJAK AWAL — beda dari nota manual Stok yang
@@ -269,6 +312,7 @@ const PersiapanAdminBelanja = {
         daftarSuplayer.value = suplayer;
         daftarBahan.value = bahan;
         daftarAlias.value = alias;
+        muatBadgePengajuan();
       } catch (e) { console.error('Gagal muat Persiapan Belanja > Persiapan Admin:', e); daftarNota.value = []; }
       memuat.value = false;
     }
@@ -283,7 +327,7 @@ const PersiapanAdminBelanja = {
 
     function formKosong() {
       draftDocId.value = null; suplayerId.value = ''; items.value = []; sumberMasalahIds.value = [];
-      cariItemTeks.value = ''; barisAktifIndex.value = -1;
+      cariItemTeks.value = ''; kategoriFilter.value = 'semua';
     }
     function bukaFormBaru() { formKosong(); mode.value = 'form'; }
     function bukaFormEdit(n) {
@@ -299,66 +343,63 @@ const PersiapanAdminBelanja = {
       muat();
     }
 
-    // --- Keyboard-first entry sederhana (keputusan #2) ----------------------
-    const elCari = ref(null);
-    const cariItemTeks = ref('');
-    const indexSorot = ref(0);
-    const hasilPencarian = computed(() => {
-      const kata = cariItemTeks.value.trim().toLowerCase();
-      if (!kata || !suplayerAktif.value) return [];
-      const hasil = [];
-      daftarBahan.value.forEach(b => {
-        const label = formatNamaBahan(b);
-        if (label.toLowerCase().includes(kata)) hasil.push({ label, sub: b.satuan_pembelian || '', bahan: b, namaAlias: '' });
-      });
-      daftarAlias.value
-        .filter(a => a.suplayer_id === suplayerAktif.value.id && (a.nama_di_nota || '').toLowerCase().includes(kata))
-        .forEach(a => {
-          const bahan = daftarBahan.value.find(x => x.id === a.bahan_aksesoris_id);
-          if (!bahan) return;
-          hasil.push({ label: a.nama_di_nota, sub: 'alias · ' + formatNamaBahan(bahan), bahan, namaAlias: a.nama_di_nota });
-        });
-      return hasil.slice(0, 8);
-    });
-    const barisAktifIndex = ref(-1);
-    function tambahDariPencarian(hasil) {
-      if (!suplayerId.value) { alert('Pilih Suplayer dulu.'); return; }
-      const idxAda = items.value.findIndex(it => it.bahan_aksesoris_id === hasil.bahan.id);
+    // --- Petakan Order (alias_pembelian.is_default_order) — SARAN suplayer
+    // otomatis per bahan, lihat catatan besar §REVISI 9 Sep 2026 di atas.
+    // Mekanisme is_default_order SUDAH ADA (dibangun sesi Master Suplayer,
+    // dipakai juga oleh vue-pp-masalah.js untuk MOQ) — di sini cuma dibaca.
+    function suplayerDefaultUntukBahan(bahanId) {
+      // HANYA alias yang EKSPLISIT ditandai is_default_order:true di
+      // Petakan Order yang dipakai — TIDAK menebak dari alias pertama yang
+      // ketemu kalau belum ada yang ditandai default (itu keputusan Admin
+      // di Master Suplayer, bukan urutan sembarang di sini).
+      const dipilih = daftarAlias.value.find(a => a.bahan_aksesoris_id === bahanId && a.is_default_order);
+      return dipilih?.suplayer_id ? { id: dipilih.suplayer_id, nama: dipilih.suplayer_nama || '' } : null;
+    }
+    function tambahBahanKeItem(bahan, qtyTambah, extra) {
+      const idxAda = items.value.findIndex(it => it.bahan_aksesoris_id === bahan.id);
       if (idxAda >= 0) {
-        items.value[idxAda].qty = (parseFloat(items.value[idxAda].qty) || 0) + 1;
-        barisAktifIndex.value = idxAda;
+        items.value[idxAda].qty = (parseFloat(items.value[idxAda].qty) || 0) + qtyTambah;
       } else {
+        const def = suplayerDefaultUntukBahan(bahan.id);
         items.value.push({
-          bahan_aksesoris_id: hasil.bahan.id, nama_internal: formatNamaBahan(hasil.bahan), nama_alias: hasil.namaAlias || '',
-          qty: 1, satuan: hasil.bahan.satuan_pembelian || '', harga_estimasi: parseFloat(hasil.bahan.harga_modal) || 0
+          bahan_aksesoris_id: bahan.id, nama_internal: formatNamaBahan(bahan), nama_alias: extra?.namaAlias || '',
+          qty: qtyTambah, satuan: bahan.satuan_pembelian || '', harga_estimasi: parseFloat(bahan.harga_modal) || 0,
+          suplayer_default_nama: def?.nama || '', ...(extra?.dariMasalahId ? { dari_masalah_id: extra.dariMasalahId } : {})
         });
-        barisAktifIndex.value = items.value.length - 1;
+        // Suplayer nota diisi OTOMATIS dari item PERTAMA saja (nota tetap 1
+        // suplayer — lihat catatan besar di atas). Item berikutnya yang
+        // default-nya beda cuma ditandai (lihat chip "suplayer beda" di
+        // template), TIDAK memaksa ganti suplayer nota.
+        if (!suplayerId.value && def?.id) suplayerId.value = def.id;
       }
-      cariItemTeks.value = ''; indexSorot.value = 0;
-    }
-    function onKeydownCari(e) {
-      if (e.key === 'ArrowDown') { e.preventDefault(); indexSorot.value = Math.min(indexSorot.value + 1, hasilPencarian.value.length - 1); return; }
-      if (e.key === 'ArrowUp') { e.preventDefault(); indexSorot.value = Math.max(indexSorot.value - 1, 0); return; }
-      if (e.key === 'Enter') { e.preventDefault(); if (hasilPencarian.value.length > 0) tambahDariPencarian(hasilPencarian.value[indexSorot.value]); return; }
-      if (e.key === 'Tab' && !cariItemTeks.value && barisAktifIndex.value >= 0) { e.preventDefault(); bukaPopupQty(); }
-    }
-    const tampilPopupQty = ref(false);
-    const qtyInput = ref('');
-    function bukaPopupQty() {
-      const baris = items.value[barisAktifIndex.value];
-      if (!baris) return;
-      qtyInput.value = String(baris.qty);
-      tampilPopupQty.value = true;
-    }
-    function konfirmasiQty() {
-      const q = parseFloat(qtyInput.value);
-      if (!(q > 0)) { alert('Qty wajib lebih dari 0.'); return; }
-      const baris = items.value[barisAktifIndex.value];
-      if (baris) baris.qty = q;
-      tampilPopupQty.value = false;
-      elCari.value?.focus();
     }
     function hapusBaris(idx) { items.value.splice(idx, 1); }
+    function ubahQtyItem(idx, delta) {
+      const it = items.value[idx]; if (!it) return;
+      it.qty = Math.max(0, (parseFloat(it.qty) || 0) + delta);
+    }
+
+    // --- Grid produk kiri (cari/browse, chip kategori) — pengganti tabel
+    // typeahead 1 kolom, sesuai wireframe §8.1 pola "Nota Order". -----------
+    const elCari = ref(null);
+    const cariItemTeks = ref('');
+    const kategoriFilter = ref('semua'); // 'semua' | 'Bahan' | 'Aksesoris'
+    const daftarGrid = computed(() => {
+      const kata = cariItemTeks.value.trim().toLowerCase();
+      return daftarBahan.value.filter(b => {
+        if (kategoriFilter.value !== 'semua' && b.kategori_utama !== kategoriFilter.value) return false;
+        if (!kata) return true;
+        if (formatNamaBahan(b).toLowerCase().includes(kata)) return true;
+        return daftarAlias.value.some(a => a.bahan_aksesoris_id === b.id && (a.nama_di_nota || '').toLowerCase().includes(kata));
+      });
+    });
+    function jumlahDiNota(bahanId) { const it = items.value.find(x => x.bahan_aksesoris_id === bahanId); return it ? (parseFloat(it.qty) || 0) : 0; }
+    function tambahDariGrid(b) { tambahBahanKeItem(b, 1); }
+    function onKeydownCari(e) {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (daftarGrid.value.length > 0) tambahDariGrid(daftarGrid.value[0]);
+    }
 
     // --- Cek Pengajuan (8.1.1, keputusan #5) --------------------------------
     const popupPengajuanAktif = ref(false);
@@ -374,16 +415,33 @@ const PersiapanAdminBelanja = {
         popupPengajuanAktif.value = true;
       } catch (e) { console.error('Gagal muat Cek Pengajuan:', e); alert('Gagal memuat daftar pengajuan.'); }
     }
+    // Preload ringan hitungan badge "Cek Pengajuan" di header grid — TANPA
+    // membuka pop up, cuma menghitung supaya admin lihat ada berapa sebelum
+    // klik (wireframe: badge angka merah di tombol Cek Pengajuan).
+    const badgePengajuan = ref(0);
+    async function muatBadgePengajuan() {
+      try {
+        const [semuaMasalah, semuaNota] = await Promise.all([muatMasalahDiajukanBelanja(), muatSemuaPesananPembelian()]);
+        const notaAktif = semuaNota.filter(n => n.order_driver_id !== undefined && ['draft', 'menunggu_acc', 'disetujui', 'siap_finalisasi'].includes(n.status));
+        const sudahDipakai = new Set(notaAktif.flatMap(n => n.sumber_masalah_ids || []));
+        badgePengajuan.value = semuaMasalah.filter(m => !sudahDipakai.has(m.id)).length;
+      } catch (e) { console.error('Gagal hitung badge Cek Pengajuan:', e); badgePengajuan.value = 0; }
+    }
     function masukkanPengajuanTerpilih() {
       const terpilih = daftarPengajuan.value.filter(m => pengajuanDicentang[m.id]);
       if (!terpilih.length) { popupPengajuanAktif.value = false; return; }
       terpilih.forEach(m => {
         const idxAda = items.value.findIndex(it => it.bahan_aksesoris_id === m.bahan_aksesoris_id);
         if (idxAda >= 0) items.value[idxAda].qty = (parseFloat(items.value[idxAda].qty) || 0) + (parseFloat(m.qty_beli) || 0);
-        else items.value.push({
-          bahan_aksesoris_id: m.bahan_aksesoris_id, nama_internal: m.bahan_nama + (m.bahan_warna ? ' ' + m.bahan_warna : ''),
-          nama_alias: '', qty: parseFloat(m.qty_beli) || 0, satuan: m.satuan || '', harga_estimasi: 0, dari_masalah_id: m.id
-        });
+        else {
+          const def = suplayerDefaultUntukBahan(m.bahan_aksesoris_id);
+          items.value.push({
+            bahan_aksesoris_id: m.bahan_aksesoris_id, nama_internal: m.bahan_nama + (m.bahan_warna ? ' ' + m.bahan_warna : ''),
+            nama_alias: '', qty: parseFloat(m.qty_beli) || 0, satuan: m.satuan || '', harga_estimasi: 0, dari_masalah_id: m.id,
+            suplayer_default_nama: def?.nama || ''
+          });
+          if (!suplayerId.value && def?.id) suplayerId.value = def.id;
+        }
         if (!sumberMasalahIds.value.includes(m.id)) sumberMasalahIds.value.push(m.id);
       });
       popupPengajuanAktif.value = false;
@@ -424,11 +482,10 @@ const PersiapanAdminBelanja = {
     onMounted(async () => { await window.authReady; await muat(); });
 
     return {
-      bolehProses, memuat, mode, daftarNota, daftarSuplayer,
-      draftDocId, suplayerId, items, totalEstimasi, bukaFormBaru, bukaFormEdit, batalForm, hapusBaris,
-      elCari, cariItemTeks, indexSorot, hasilPencarian, onKeydownCari, tambahDariPencarian,
-      tampilPopupQty, qtyInput, konfirmasiQty,
-      popupPengajuanAktif, daftarPengajuan, pengajuanDicentang, bukaCekPengajuan, masukkanPengajuanTerpilih,
+      bolehProses, memuat, mode, daftarNota, daftarSuplayer, suplayerAktif,
+      draftDocId, suplayerId, items, totalEstimasi, bukaFormBaru, bukaFormEdit, batalForm, hapusBaris, ubahQtyItem,
+      elCari, cariItemTeks, kategoriFilter, daftarGrid, jumlahDiNota, tambahDariGrid, onKeydownCari,
+      popupPengajuanAktif, daftarPengajuan, pengajuanDicentang, bukaCekPengajuan, masukkanPengajuanTerpilih, badgePengajuan,
       menyimpan, simpan, formatQty, formatRupiah, formatDiamSejak
     };
   },
@@ -453,66 +510,90 @@ const PersiapanAdminBelanja = {
       </div>
     </template>
     <template v-else>
-      <div class="gc-card" style="padding:14px; margin-bottom:14px;">
-        <div class="gc-field" style="max-width:320px; margin-bottom:12px;">
-          <label>Suplayer</label>
-          <select v-model="suplayerId" style="width:100%; padding:9px; border-radius:10px; border:1.5px solid var(--line);">
-            <option value="">— pilih suplayer —</option>
-            <option v-for="s in daftarSuplayer" :key="s.id" :value="s.id">{{ s.nama }}</option>
-          </select>
-        </div>
-        <div style="display:flex; gap:8px; margin-bottom:6px;">
-          <input ref="elCari" v-model="cariItemTeks" @keydown="onKeydownCari" type="text" placeholder="Cari nama bahan/alias, Enter pilih, Tab ubah qty..." style="flex:1; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line);">
-          <button @click="bukaCekPengajuan" class="btn-outline" style="padding:9px 14px; font-size:11.5px; white-space:nowrap;"><i class="fas fa-inbox" style="margin-right:6px;"></i>Cek Pengajuan</button>
-        </div>
-        <div v-if="hasilPencarian.length" class="gc-card" style="padding:6px; margin-bottom:10px;">
-          <div v-for="(h,i) in hasilPencarian" :key="i" @click="tambahDariPencarian(h)" style="padding:8px 10px; border-radius:8px; cursor:pointer; font-size:12px;" :style="{ background: i === indexSorot ? 'var(--ivory-dim)' : '' }">
-            <b>{{ h.label }}</b> <span style="color:var(--text-faint); font-size:10.5px;">{{ h.sub }}</span>
+      <!-- Layar Nota Order — 2 kolom sesuai wireframe §8.1: kiri grid produk
+      (cari/browse), kanan panel Item Nota berkartu dengan stepper qty.
+      Suplayer TIDAK jadi field pertama yang wajib diisi lagi (otomatis dari
+      Petakan Order saat item pertama ditambah) — dropdown tetap ada di atas
+      panel kanan untuk koreksi manual, lihat catatan besar §REVISI di atas. -->
+      <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">
+        <div style="flex:2; min-width:280px; display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input ref="elCari" v-model="cariItemTeks" @keydown="onKeydownCari" type="text" placeholder="Cari item / scan barcode..." style="flex:1; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line);">
+            <button @click="bukaCekPengajuan" class="btn-outline" style="padding:9px 14px; font-size:11.5px; white-space:nowrap; position:relative;">
+              <i class="fas fa-inbox" style="margin-right:6px;"></i>Cek Pengajuan
+              <span v-if="badgePengajuan > 0" style="position:absolute; top:-6px; right:-6px; min-width:18px; height:18px; padding:0 4px; border-radius:999px; background:var(--danger); color:#fff; font-size:9.5px; font-weight:700; display:flex; align-items:center; justify-content:center;">{{ badgePengajuan }}</span>
+            </button>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button @click="kategoriFilter='semua'" class="btn-outline" :class="{ 'btn-primary': kategoriFilter==='semua' }" style="padding:5px 12px; font-size:11px; border-radius:999px;">Semua</button>
+            <button @click="kategoriFilter='Bahan'" class="btn-outline" :class="{ 'btn-primary': kategoriFilter==='Bahan' }" style="padding:5px 12px; font-size:11px; border-radius:999px;">Bahan</button>
+            <button @click="kategoriFilter='Aksesoris'" class="btn-outline" :class="{ 'btn-primary': kategoriFilter==='Aksesoris' }" style="padding:5px 12px; font-size:11px; border-radius:999px;">Aksesoris</button>
+          </div>
+          <div v-if="daftarGrid.length === 0" class="gc-kosong gc-card" style="padding:16px;">
+            <p style="font-size:11.5px; color:var(--text-faint); margin:0;">Tidak ada bahan/aksesoris yang cocok.</p>
+          </div>
+          <div v-else style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:8px;">
+            <div v-for="b in daftarGrid" :key="b.id" @click="tambahDariGrid(b)" class="gc-card" style="padding:10px; border-radius:14px; cursor:pointer; text-align:center; position:relative;" :style="{ borderColor: jumlahDiNota(b.id) > 0 ? 'var(--burgundy, #6E1E2C)' : undefined }">
+              <span v-if="jumlahDiNota(b.id) > 0" style="position:absolute; top:6px; right:6px; width:18px; height:18px; border-radius:50%; background:var(--burgundy, #6E1E2C); color:#fff; font-size:9.5px; font-weight:700; display:flex; align-items:center; justify-content:center;">{{ formatQty(jumlahDiNota(b.id)) }}</span>
+              <div style="font-size:11px; font-weight:600; margin-bottom:2px;">{{ b.nama }} <span v-if="b.warna" style="color:var(--text-faint); font-weight:400;">{{ b.warna }}</span></div>
+              <div style="font-size:9.5px; color:var(--text-faint);">{{ b.satuan_pembelian || '-' }}</div>
+            </div>
           </div>
         </div>
 
-        <div v-if="items.length === 0" class="gc-kosong gc-card" style="margin-bottom:12px;">
-          <p style="font-size:11.5px; color:var(--text-faint); margin:0;">Belum ada item — cari & Enter di atas.</p>
-        </div>
-        <div v-else class="gc-table-scroll" style="margin-bottom:12px;">
-          <table style="width:100%; border-collapse:collapse; font-size:11.5px;">
-            <thead><tr style="text-align:left; border-bottom:1px solid var(--border-soft);">
-              <th style="padding:6px 8px;">Nama</th><th style="padding:6px 8px;">Qty</th><th style="padding:6px 8px;">Satuan</th><th style="padding:6px 8px;">Harga Est.</th><th style="padding:6px 8px;">Subtotal</th><th></th>
-            </tr></thead>
-            <tbody>
-              <tr v-for="(it,idx) in items" :key="idx" style="border-bottom:1px solid var(--border-soft);">
-                <td style="padding:6px 8px;">{{ it.nama_alias || it.nama_internal }}</td>
-                <td style="padding:6px 8px;"><input v-model.number="it.qty" type="number" min="0" style="width:70px; padding:4px 6px; border-radius:6px; border:1px solid var(--line);"></td>
-                <td style="padding:6px 8px;">{{ it.satuan }}</td>
-                <td style="padding:6px 8px;"><input v-model.number="it.harga_estimasi" type="number" min="0" style="width:90px; padding:4px 6px; border-radius:6px; border:1px solid var(--line);"></td>
-                <td style="padding:6px 8px;" class="gc-num">{{ formatRupiah((it.qty||0) * (it.harga_estimasi||0)) }}</td>
-                <td style="padding:6px 8px;"><button @click="hapusBaris(idx)" class="btn-outline" style="padding:3px 8px; font-size:10px; color:var(--danger);">Hapus</button></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-          <span style="font-size:12px; color:var(--text-faint);">Total Estimasi</span>
-          <span class="gc-num" style="font-weight:700; font-size:15px;">{{ formatRupiah(totalEstimasi) }}</span>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <button @click="simpan('draft')" :disabled="menyimpan" class="btn-outline" style="flex:1; padding:10px;">Simpan Draft</button>
-          <button @click="simpan('menunggu_acc')" :disabled="menyimpan" class="btn-primary" style="flex:1; padding:10px;">Ajukan ACC</button>
-          <button @click="batalForm" :disabled="menyimpan" class="btn-outline" style="padding:10px 16px;">Batal</button>
+        <div style="flex:1; min-width:260px; display:flex; flex-direction:column; gap:9px; position:sticky; top:8px;">
+          <div style="display:flex; align-items:baseline; gap:8px;">
+            <span class="gc-heading" style="font-weight:700; font-size:13px;">Item Nota</span>
+            <span style="padding:2px 8px; border-radius:999px; background:var(--ivory-dim); font-size:10.5px;">{{ items.length }} item</span>
+          </div>
+          <div class="gc-field" style="margin-bottom:0;">
+            <label style="font-size:10px;">Suplayer <span style="font-weight:400; color:var(--text-faint);">(otomatis dari Petakan Order, bisa diganti)</span></label>
+            <select v-model="suplayerId" style="width:100%; padding:8px; border-radius:10px; border:1.5px solid var(--line); font-size:12px;">
+              <option value="">— pilih suplayer —</option>
+              <option v-for="s in daftarSuplayer" :key="s.id" :value="s.id">{{ s.nama }}</option>
+            </select>
+          </div>
+
+          <div v-if="items.length === 0" class="gc-kosong gc-card" style="padding:14px;">
+            <p style="font-size:11.5px; color:var(--text-faint); margin:0;">Belum ada item — klik kartu produk di kiri.</p>
+          </div>
+          <div v-else style="display:flex; flex-direction:column; gap:7px; max-height:52vh; overflow-y:auto;">
+            <div v-for="(it,idx) in items" :key="idx" class="gc-card" style="padding:9px 10px; border-radius:12px;">
+              <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:5px;">
+                <div style="min-width:0;">
+                  <div style="font-size:11.5px; font-weight:600;">{{ it.nama_alias || it.nama_internal }}</div>
+                  <div v-if="it.suplayer_default_nama" style="font-size:9.5px; color:var(--text-faint);">{{ it.suplayer_default_nama }}<span v-if="suplayerAktif && it.suplayer_default_nama !== suplayerAktif.nama" style="color:var(--warn); margin-left:4px;">&middot; suplayer beda dari nota</span></div>
+                </div>
+                <button @click="hapusBaris(idx)" style="border:none; background:none; color:var(--text-faint); cursor:pointer; font-size:12px; flex-shrink:0;"><i class="fas fa-xmark"></i></button>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <button @click="ubahQtyItem(idx, -1)" class="btn-outline" style="padding:3px 9px; font-size:12px;">-</button>
+                <input v-model.number="it.qty" type="number" min="0" class="gc-num" style="width:52px; text-align:center; border:1px solid var(--line); border-radius:7px; padding:4px;">
+                <button @click="ubahQtyItem(idx, 1)" class="btn-outline" style="padding:3px 9px; font-size:12px;">+</button>
+                <span style="font-size:10px; color:var(--text-faint);">{{ it.satuan }}</span>
+                <span style="font-size:10px; color:var(--text-faint); margin-left:auto;">×</span>
+                <input v-model.number="it.harga_estimasi" type="number" min="0" class="gc-num" style="width:78px; text-align:right; border:1px solid var(--line); border-radius:7px; padding:4px; font-size:11px;">
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
+                <span v-if="it.dari_masalah_id" style="display:inline-flex; padding:1px 7px; border:1px dashed var(--burgundy, #6E1E2C); border-radius:999px; font-size:9px; color:var(--burgundy, #6E1E2C);">bahan kurang</span>
+                <span v-else></span>
+                <span class="gc-num" style="font-weight:700; font-size:11.5px;">{{ formatRupiah((it.qty||0) * (it.harga_estimasi||0)) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:baseline; border-top:1.5px solid var(--line); padding-top:9px;">
+            <span style="font-size:11px; color:var(--text-faint);">TOTAL</span>
+            <span class="gc-num" style="font-weight:700; font-size:16px;">{{ formatRupiah(totalEstimasi) }}</span>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button @click="batalForm" :disabled="menyimpan" class="btn-outline" style="flex:1; padding:9px; font-size:11.5px;">Batal</button>
+            <button @click="simpan('draft')" :disabled="menyimpan" class="btn-outline" style="flex:1; padding:9px; font-size:11.5px;">Simpan Draft</button>
+            <button @click="simpan('menunggu_acc')" :disabled="menyimpan" class="btn-primary" style="flex:1; padding:9px; font-size:11.5px;">Generate Order</button>
+          </div>
         </div>
       </div>
     </template>
-
-    <div v-if="tampilPopupQty" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
-      <div class="gc-card" style="max-width:300px; width:100%; padding:18px; border-radius:18px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Qty</h3>
-        <input v-model="qtyInput" @keyup.enter="konfirmasiQty" type="number" min="0" autofocus style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:13px; margin-bottom:12px;">
-        <div style="display:flex; gap:8px;">
-          <button @click="tampilPopupQty = false" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
-          <button @click="konfirmasiQty" class="btn-primary" style="flex:1; padding:9px;">OK</button>
-        </div>
-      </div>
-    </div>
 
     <div v-if="popupPengajuanAktif" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:480px; width:100%; padding:18px; border-radius:18px; max-height:80vh; overflow-y:auto;">

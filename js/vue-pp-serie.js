@@ -310,12 +310,25 @@ async function updateSeparatingBatch(batchId, mutator) {
 }
 
 // --- Keputusan #2: KOMPLIT/INKOMPLIT per sumber, dihitung LIVE --------------
+// BARU (audit wireframe vs live sesi ini): tiap entry sumber sekarang JUGA
+// membawa `.baris` (array sub-baris komponen mentah, dari cutting_track.
+// komponen_rincian utk 'cutting', dari <jalur>_rincian utk 3 Acc) — dipakai
+// tabel expandable Tab 2.1 (wireframe §2.1 "expandable group per sumber,
+// sub-baris per kode komponen"). PURE TAMBAHAN TAMPILAN, tidak mengubah
+// field `ada`/`komplit`/`ref`/`jumlahBaris` yang SUDAH DIPAKAI bisaGenerate()/
+// kumpulkanKomponenUntukBatch() — fungsi-fungsi itu TIDAK diubah.
 function statusSumberGrouping(grouping, cuttingList, spkTrackByJalur) {
   const hasil = {};
   const jalurAktif = Array.isArray(grouping.jalur_aktif) ? grouping.jalur_aktif : [];
   if (jalurAktif.includes('bahan')) {
     const ct = cuttingList.find(c => c.grouping_id === grouping.id);
-    hasil.cutting = { ada: true, komplit: !!ct && ct.status === 'selesai', ref: ct || null };
+    const baris = (ct?.komponen_rincian || []).map((k, idx) => ({
+      idKomponen: `${grouping.kode_spk}-${String(idx + 1).padStart(2, '0')}`,
+      namaKomponen: k.nama_komponen, qtySetor: k.jumlah_label || 0, qtyKomponen: k.qty_per_pola || 0,
+      satuan: 'PCS', entry: k.label_dicetak_pada ? 'sudah' : '–',
+      komplit: !!ct && ct.status === 'selesai'
+    }));
+    hasil.cutting = { ada: true, komplit: !!ct && ct.status === 'selesai', ref: ct || null, baris };
   }
   JALUR_ACC.forEach(jalur => {
     if (!jalurAktif.includes(jalur)) return;
@@ -324,7 +337,12 @@ function statusSumberGrouping(grouping, cuttingList, spkTrackByJalur) {
     const semuaBaris = [];
     tracks.forEach(t => { (t[jalur + '_rincian'] || []).forEach(b => semuaBaris.push(b)); });
     const komplit = semuaBaris.length > 0 && semuaBaris.every(b => !!b.sampai_pada);
-    hasil[jalur] = { ada: true, komplit, jumlahBaris: semuaBaris.length };
+    const baris = semuaBaris.map(b => ({
+      idKomponen: b.no_spk || '-', namaKomponen: b.bahan_nama || '(tanpa nama)',
+      qtySetor: parseFloat(b.qty) || 0, qtyKomponen: 1, satuan: b.satuan || 'PCS',
+      entry: b.sampai_pada ? 'sudah' : '–', komplit: !!b.sampai_pada
+    }));
+    hasil[jalur] = { ada: true, komplit, jumlahBaris: semuaBaris.length, baris };
   });
   return hasil;
 }
@@ -418,6 +436,21 @@ const SeriePerluDiProses = {
     }
     function sumber(g) { return statusSumberGrouping(g, cuttingList.value, spkTrackByJalur); }
     function bisaGenerate(g) { return semuaSumberKomplit(sumber(g)); }
+
+    // --- Baris expandable (BARU, audit wireframe vs live sesi ini): wireframe
+    // §2.1 "tabel expandable per sumber komponen" — baris utama = 1 SPK
+    // Grouping, expand menampilkan group per sumber (Cutting/Acc Sewing/Acc
+    // Webbing/Acc Finishing) + sub-baris per komponen (lihat statusSumber-
+    // Grouping() di atas). State expand murni UI (Set in-memory), tidak
+    // ditulis ke DB. -----------------------------------------------------
+    const expandedIds = ref(new Set());
+    function toggleExpand(id) {
+      const s = new Set(expandedIds.value);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      expandedIds.value = s;
+    }
+    const LABEL_SUMBER = { cutting: 'Cutting', sewing: 'Acc Sewing', webbing: 'Acc Webbing', finishing: 'Acc Finishing' };
+    const ASAL_SUMBER = { cutting: 'dari Cutting', sewing: 'dari Persiapan Sewing', webbing: 'dari Persiapan Webbing', finishing: 'dari Persiapan Acc Finishing' };
 
     // --- Scan Sampai: cari cocok di cutting_track ATAU spk_track 3 jalur Acc,
     // MENUTUP GAP #1 (lihat komentar besar atas file). ------------------------
@@ -555,6 +588,7 @@ const SeriePerluDiProses = {
 
     return {
       memuat, daftarGrouping, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan, sumber, bisaGenerate,
+      expandedIds, toggleExpand, LABEL_SUMBER, ASAL_SUMBER,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
       modalUnpack, popupUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, konfirmasiUnpack,
       popupGenerate, bukaGenerate, batalGenerate, totalQtyCentang, sedangGenerate, konfirmasiGenerate,
@@ -573,19 +607,65 @@ const SeriePerluDiProses = {
         <div class="lingkaran"><i class="fas fa-inbox"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada SPK Grouping yang menunggu di Serie</h3>
       </div>
-      <div v-else style="display:flex; flex-direction:column; gap:10px;">
-        <div v-for="g in daftarGrouping" :key="g.id" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;">
-          <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:6px;">
-            <div class="gc-num" style="font-weight:700; font-size:13px;">{{ g.kode_spk }}</div>
-            <span class="tag" :class="bisaGenerate(g) ? 'ok' : 'warn'">{{ bisaGenerate(g) ? 'KOMPLIT' : 'INKOMPLIT' }}</span>
-          </div>
-          <div style="font-size:12px; color:var(--text-faint); margin-bottom:8px;">{{ g.nama_produk }} &middot; size {{ g.size || '-' }} &middot; qty {{ formatQty(g.qty_total) }}</div>
-          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
-            <span v-for="(v,k) in sumber(g)" :key="k" class="tag" :class="v.komplit ? 'ok' : 'warn'" style="text-transform:capitalize;">{{ k }}: {{ v.komplit ? 'KOMPLIT' : 'INKOMPLIT' }}</span>
-          </div>
-          <button v-if="bolehProses" :disabled="!bisaGenerate(g)" @click="bukaGenerate(g)" class="btn-primary" style="width:100%; padding:9px; font-size:11.5px;"><i class="fas fa-object-ungroup" style="margin-right:4px;"></i>Generate Separating</button>
-          <button v-if="bolehProses" @click="bukaMasalah(g)" class="btn-outline" style="width:100%; margin-top:6px; padding:8px; font-size:11px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
-        </div>
+      <!-- Tabel expandable (BARU) — baris utama per SPK Grouping, expand utk
+           lihat group per sumber (Cutting/Acc Sewing/Acc Webbing/Acc
+           Finishing) + sub-baris per komponen (wireframe §2.1). -->
+      <div v-else class="gc-card" style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:11px; white-space:nowrap;">
+          <thead><tr style="text-align:left; border-bottom:1px solid var(--border-soft);">
+            <th style="padding:6px 8px; width:24px;"></th>
+            <th style="padding:6px 8px;">Kode SPK Grouping</th><th style="padding:6px 8px;" class="gc-num">Qty Order</th>
+            <th style="padding:6px 8px;">SKU Produk</th><th style="padding:6px 8px;">Status</th><th style="padding:6px 8px;">Aksi</th>
+          </tr></thead>
+          <tbody>
+            <template v-for="g in daftarGrouping" :key="g.id">
+              <tr style="border-bottom:1px solid var(--border-soft); cursor:pointer;" @click="toggleExpand(g.id)">
+                <td style="padding:6px 8px; text-align:center;">{{ expandedIds.has(g.id) ? '▼' : '▶' }}</td>
+                <td style="padding:6px 8px; font-weight:700;" class="gc-num">{{ g.kode_spk }}</td>
+                <td style="padding:6px 8px;" class="gc-num">{{ formatQty(g.qty_total) }}</td>
+                <td style="padding:6px 8px;">{{ g.nama_produk }}<span v-if="g.size" style="color:var(--text-faint);"> ({{ g.size }})</span></td>
+                <td style="padding:6px 8px;"><span class="tag" :class="bisaGenerate(g) ? 'ok' : 'warn'">{{ bisaGenerate(g) ? 'KOMPLIT' : 'INKOMPLIT' }}</span></td>
+                <td style="padding:6px 8px;" @click.stop>
+                  <div style="display:flex; gap:4px;">
+                    <button v-if="bolehProses" :disabled="!bisaGenerate(g)" @click="bukaGenerate(g)" class="btn-primary" style="padding:5px 9px; font-size:10.5px;" title="Generate Separating"><i class="fas fa-object-ungroup"></i></button>
+                    <button v-if="bolehProses" @click="bukaMasalah(g)" class="btn-outline" style="padding:5px 9px; font-size:10.5px; color:var(--danger);" title="Scan Masalah"><i class="fas fa-triangle-exclamation"></i></button>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="expandedIds.has(g.id)">
+                <td colspan="6" style="padding:0 8px 10px 32px; border-bottom:1px solid var(--border-soft);">
+                  <div v-for="(v,k) in sumber(g)" :key="k" class="gc-card" style="padding:8px 10px; margin-top:6px; border-radius:10px;">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+                      <b style="font-size:10.5px;">{{ LABEL_SUMBER[k] || k }}</b>
+                      <span style="font-size:10px; color:var(--text-faint);">{{ ASAL_SUMBER[k] || '' }}</span>
+                      <span class="tag" :class="v.komplit ? 'ok' : 'warn'" style="margin-left:auto;">{{ v.komplit ? 'KOMPLIT' : 'INKOMPLIT' }}</span>
+                    </div>
+                    <div v-if="(v.baris||[]).length" style="overflow-x:auto;">
+                      <table style="width:100%; border-collapse:collapse; font-size:10px; white-space:nowrap;">
+                        <thead><tr style="text-align:left; color:var(--text-faint);">
+                          <th style="padding:3px 6px;">id komponen</th><th style="padding:3px 6px;">komponen</th>
+                          <th style="padding:3px 6px;" class="gc-num">qty setor</th><th style="padding:3px 6px;" class="gc-num">qty komp</th>
+                          <th style="padding:3px 6px;">satuan</th><th style="padding:3px 6px;">entry</th><th style="padding:3px 6px;">status</th>
+                        </tr></thead>
+                        <tbody>
+                          <tr v-for="(b,i) in v.baris" :key="i" style="border-top:1px solid var(--border-soft);">
+                            <td style="padding:3px 6px;">{{ b.idKomponen }}</td>
+                            <td style="padding:3px 6px;">{{ b.namaKomponen }}</td>
+                            <td style="padding:3px 6px;" class="gc-num">{{ formatQty(b.qtySetor) }}</td>
+                            <td style="padding:3px 6px;" class="gc-num">{{ formatQty(b.qtyKomponen) }}</td>
+                            <td style="padding:3px 6px;">{{ b.satuan }}</td>
+                            <td style="padding:3px 6px;">{{ b.entry }}</td>
+                            <td style="padding:3px 6px;" :style="{ color: b.komplit ? 'var(--ok, #4a6540)' : 'var(--warn, #8a6420)' }">{{ b.komplit ? 'KOMPLIT' : 'INKOMPLIT' }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
       </div>
     </template>
 
@@ -662,6 +742,14 @@ const SerieSedangDiProses = {
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
     const bolehOperator = computed(() => picOwnerKeAtas(window.currentUser));
+
+    // Sesuai wireframe 2.2: tabel bisa di-expand per baris (bukan kartu polos).
+    const expandedIds = ref(new Set());
+    function toggleExpand(id) {
+      const s = new Set(expandedIds.value);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      expandedIds.value = s;
+    }
 
     async function muat() {
       memuat.value = true;
@@ -743,53 +831,129 @@ const SerieSedangDiProses = {
       await muat();
     });
 
+    // Wireframe 2.2 memindahkan "Scan Operator" & "Scan Entry" ke toolbar atas
+    // (bukan diulang di tiap baris). Karena kedua handler butuh target batch
+    // yang spesifik, tambahkan popup "pilih target dulu" — pola sama seperti
+    // vue-pp-gudang.js/vue-pp-cutting.js — TANPA mengubah handler aslinya.
+    const pilihTarget = ref(null); // { targetId, judul, lanjut(batch) }
+    function bukaPilihTarget(judul, lanjut) {
+      if (!daftar.value.length) { alert('Tidak ada batch di tab ini untuk diproses.'); return; }
+      pilihTarget.value = { targetId: daftar.value[0].id, judul, lanjut };
+    }
+    function batalPilihTarget() { pilihTarget.value = null; }
+    function konfirmasiPilihTarget() {
+      const p = pilihTarget.value;
+      const batch = daftar.value.find(b => b.id === p.targetId);
+      pilihTarget.value = null;
+      if (batch) p.lanjut(batch);
+    }
+    function bukaScanOperatorToolbar() { bukaPilihTarget('Pilih batch untuk Scan Operator', bukaScanOperator); }
+    function bukaScanEntryToolbar() { bukaPilihTarget('Pilih batch untuk Scan Entry', bukaScanEntry); }
+
     onMounted(async () => { await window.authReady; await muat(); });
 
     return {
       memuat, daftar, bolehProses, bolehCetak, bolehOperator, formatQty, formatDiamSejak, tertahan, formatWaktu,
       ekspand, toggleEkspand, perSumber, progres,
+      expandedIds, toggleExpand,
       popupCetakAktif, daftarLabelPreview, sedangCetak, cetakIdKomponen,
       popupPinOperator, bukaScanOperator, pinSuksesOperator,
       modalEntry, bukaScanEntry, tutupScanEntry, hasilScanEntry,
-      popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
+      popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
+      pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget,
+      bukaScanOperatorToolbar, bukaScanEntryToolbar
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+        <button v-if="bolehOperator" @click="bukaScanOperatorToolbar" class="btn-outline" style="padding:9px 14px; font-size:12px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator</button>
+        <button v-if="bolehProses" @click="bukaScanEntryToolbar" class="btn-primary" style="padding:9px 14px; font-size:12px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Entry</button>
+      </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-gears"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada batch yang sedang diproses</h3>
       </div>
-      <div v-else style="display:flex; flex-direction:column; gap:10px;">
-        <div v-for="b in daftar" :key="b.id" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;" :style="{ background: tertahan(b.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
-          <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:6px;">
-            <div class="gc-num" style="font-weight:700; font-size:13px;">{{ b.kode_batch }}</div>
-            <span class="tag" :class="tertahan(b.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(b.masuk_tahap_pada) }}</span>
-          </div>
-          <div style="font-size:12px; color:var(--text-faint); margin-bottom:6px;">{{ b.nama_produk }} &middot; size {{ b.size || '-' }} &middot; qty {{ formatQty(b.qty) }}</div>
-          <div style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">Operator: <b>{{ b.operator_nama || '-' }}</b> &middot; komponen {{ progres(b).done }}/{{ progres(b).total }}</div>
-          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
-            <button v-if="bolehCetak" @click="cetakIdKomponen(b)" :disabled="sedangCetak" class="btn-outline" style="flex:1; min-width:130px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>Cetak ID Komponen</button>
-            <button v-if="bolehOperator" @click="bukaScanOperator(b)" class="btn-outline" style="flex:1; min-width:130px; padding:8px; font-size:11.5px;"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator</button>
-            <button v-if="bolehProses" @click="bukaScanEntry(b)" class="btn-primary" style="flex:1; min-width:130px; padding:8px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
-            <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="flex:1; min-width:130px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
-          </div>
-          <div @click="toggleEkspand(b.id)" style="cursor:pointer; font-size:11px; color:var(--accent); margin-bottom:6px;"><i class="fas" :class="ekspand[b.id] ? 'fa-chevron-up' : 'fa-chevron-down'" style="margin-right:4px;"></i>{{ ekspand[b.id] ? 'Sembunyikan' : 'Lihat' }} rincian komponen per sumber</div>
-          <div v-if="ekspand[b.id]" style="display:flex; flex-direction:column; gap:8px;">
-            <div v-for="(rows, sb) in perSumber(b)" :key="sb" style="background:var(--ivory-dim); border-radius:10px; padding:8px;">
-              <div class="gc-heading" style="font-size:10px; font-weight:700; text-transform:uppercase; margin-bottom:5px;">{{ sb }}</div>
-              <div v-for="k in rows" :key="k.id_komponen" style="display:flex; gap:6px; font-size:10.5px; padding:2px 0; align-items:center;">
-                <span style="flex:1; color:var(--text-faint);">{{ k.id_komponen }}</span>
-                <span style="flex:1;">{{ k.nama_komponen }}</span>
-                <span class="gc-num" style="width:50px; text-align:right;">{{ formatQty(k.qty_setor) }} {{ k.satuan }}</span>
-                <span class="tag" :class="k.status==='selesai' ? 'ok' : 'neutral'">{{ k.status }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div v-else class="gc-card" style="padding:0; overflow-x:auto; border-radius:16px;">
+        <table style="width:100%; border-collapse:collapse; font-size:11.5px; min-width:640px;">
+          <thead>
+            <tr style="text-align:left; border-bottom:1px solid var(--line);">
+              <th style="padding:8px;"></th>
+              <th style="padding:8px;">Kode Batch</th>
+              <th style="padding:8px;">SKU Produk</th>
+              <th style="padding:8px;">Qty</th>
+              <th style="padding:8px;">Operator</th>
+              <th style="padding:8px;">Komponen</th>
+              <th style="padding:8px;">Status</th>
+              <th style="padding:8px;">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template v-for="b in daftar" :key="b.id">
+              <tr style="border-bottom:1px solid var(--line); cursor:pointer;" @click="toggleExpand(b.id)" :style="{ background: tertahan(b.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
+                <td style="padding:8px;"><i class="fas" :class="expandedIds.has(b.id) ? 'fa-chevron-up' : 'fa-chevron-down'"></i></td>
+                <td style="padding:8px;" class="gc-num">{{ b.kode_batch }}</td>
+                <td style="padding:8px;">{{ b.nama_produk }} <span style="color:var(--text-faint);">size {{ b.size || '-' }}</span></td>
+                <td style="padding:8px;" class="gc-num">{{ formatQty(b.qty) }}</td>
+                <td style="padding:8px;">{{ b.operator_nama || '-' }}</td>
+                <td style="padding:8px;" class="gc-num">{{ progres(b).done }}/{{ progres(b).total }}</td>
+                <td style="padding:8px;"><span class="tag" :class="tertahan(b.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(b.masuk_tahap_pada) }}</span></td>
+                <td style="padding:8px;" @click.stop>
+                  <button v-if="bolehCetak" @click="cetakIdKomponen(b)" :disabled="sedangCetak" class="btn-outline" style="padding:5px 8px; font-size:10px;" title="Cetak ID Komponen"><i class="fas fa-print"></i></button>
+                  <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="padding:5px 8px; font-size:10px; color:var(--danger);" title="Scan Masalah"><i class="fas fa-triangle-exclamation"></i></button>
+                </td>
+              </tr>
+              <tr v-if="expandedIds.has(b.id)" :key="b.id + '-detail'">
+                <td colspan="8" style="padding:10px 14px; background:var(--ivory-dim);">
+                  <div v-for="(rows, sb) in perSumber(b)" :key="sb" style="margin-bottom:8px;">
+                    <div class="gc-heading" style="font-size:10px; font-weight:700; text-transform:uppercase; margin-bottom:5px;">{{ sb }}</div>
+                    <table style="width:100%; border-collapse:collapse; font-size:10.5px;">
+                      <thead>
+                        <tr style="text-align:left; color:var(--text-faint);">
+                          <th style="padding:3px 6px;">ID Komponen</th>
+                          <th style="padding:3px 6px;">Komponen</th>
+                          <th style="padding:3px 6px;">Qty Setor</th>
+                          <th style="padding:3px 6px;">Satuan</th>
+                          <th style="padding:3px 6px;">Entry</th>
+                          <th style="padding:3px 6px;">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr v-for="k in rows" :key="k.id_komponen">
+                          <td style="padding:3px 6px; color:var(--text-faint);">{{ k.id_komponen }}</td>
+                          <td style="padding:3px 6px;">{{ k.nama_komponen }}</td>
+                          <td style="padding:3px 6px;" class="gc-num">{{ formatQty(k.qty_setor) }}</td>
+                          <td style="padding:3px 6px;">{{ k.satuan }}</td>
+                          <td style="padding:3px 6px;">{{ k.entry_pada ? 'sudah' : '–' }}</td>
+                          <td style="padding:3px 6px;"><span class="tag" :class="k.status==='selesai' ? 'ok' : 'neutral'">{{ k.status }}</span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
       </div>
     </template>
+
+    <div v-if="pilihTarget" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">{{ pilihTarget.judul }}</h3>
+        <div class="gc-field" style="margin-bottom:14px;">
+          <label>Kode Batch</label>
+          <select v-model="pilihTarget.targetId">
+            <option v-for="b in daftar" :key="b.id" :value="b.id">{{ b.kode_batch }} — {{ b.nama_produk }}</option>
+          </select>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button @click="batalPilihTarget" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+          <button @click="konfirmasiPilihTarget" class="btn-primary" style="flex:1; padding:9px;">Lanjut</button>
+        </div>
+      </div>
+    </div>
 
     <popup-pratinjau-cetak-label v-if="popupCetakAktif" :terbuka="popupCetakAktif" :daftar-label="daftarLabelPreview" judul="Cetak ID Komponen" jenis-cetak="id_komponen_serie" @tutup="popupCetakAktif = false" />
     <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.batch ? ('Scan Entry — ' + modalEntry.batch.kode_batch) : 'Scan Entry'" subjudul="Scan ID komponen satu per satu." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />

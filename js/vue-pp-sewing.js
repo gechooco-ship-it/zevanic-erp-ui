@@ -470,6 +470,29 @@ const SewingPerluDiProses = {
       await muat();
     });
 
+    // --- Toolbar global (BARU, audit wireframe vs live sesi ini): wireframe
+    // §3.1 cuma taruh SATU tombol kontekstual per kartu ("Scan Operator",
+    // mati kalau belum komplit — lihat "role-box"/"Gerbang" wireframe.dc.html)
+    // — Scan Sampai & Scan Unpack SUDAH GLOBAL secara logic sebelumnya (fungsi
+    // tidak menerima parameter track, target dicari sendiri dari kode yang
+    // discan — persis pola Gudang), cuma TAMPILANNYA diulang di tiap kartu.
+    // Scan Masalah butuh target+jumlah spesifik per batch, jadi dipindah ke
+    // toolbar lewat popup "pilih dulu" (SAMA pola pilihTargetMixin milik
+    // js/vue-pp-cutting.js — file ini tidak impor lintas modul, jadi ditulis
+    // ulang ringan di sini). Handler bukaMasalah(track)/hasilScanSampai/
+    // hasilScanUnpack TIDAK diubah. --------------------------------------
+    const pilihMasalah = ref(null); // { targetId }
+    function bukaMasalahToolbar() {
+      if (!daftar.value.length) { alert('Tidak ada batch di tab ini untuk dilaporkan.'); return; }
+      pilihMasalah.value = { targetId: daftar.value[0].id };
+    }
+    function batalPilihMasalah() { pilihMasalah.value = null; }
+    function konfirmasiPilihMasalah() {
+      const t = daftar.value.find(x => x.id === pilihMasalah.value.targetId);
+      pilihMasalah.value = null;
+      if (t) bukaMasalah(t);
+    }
+
     onMounted(async () => { await window.authReady; await muat(); });
 
     return {
@@ -477,12 +500,21 @@ const SewingPerluDiProses = {
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
       modalUnpackScan, popupUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, konfirmasiUnpack,
       popupPinOperator, bukaTunjukOperator, pinSuksesOperator,
-      popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
+      popupMasalah, batalMasalah, konfirmasiMasalah,
+      pilihMasalah, bukaMasalahToolbar, batalPilihMasalah, konfirmasiPilihMasalah
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
+      <!-- Toolbar global (BARU) — Scan Sampai & Scan Unpack sudah global dari
+           sisi logic sebelumnya, cuma dipindah tampilannya ke sini. Scan
+           Masalah lewat popup pilih-target dulu (butuh 1 batch spesifik). -->
+      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+        <button v-if="bolehProses" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
+        <button v-if="bolehProses" @click="bukaScanUnpack" class="btn-outline" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
+        <button v-if="bolehProses" @click="bukaMasalahToolbar" class="btn-outline" style="flex:1; min-width:120px; padding:9px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>Scan Masalah</button>
+      </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-inbox"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada batch yang perlu diproses</h3>
@@ -497,11 +529,11 @@ const SewingPerluDiProses = {
           <div style="font-size:10.5px; margin-bottom:10px;">
             <span class="tag" :class="t.terima_pada ? 'ok' : 'neutral'">{{ t.terima_pada ? 'sudah sampai' : 'belum sampai' }}</span>
           </div>
+          <!-- Satu tombol kontekstual (wireframe §3.1): Scan Operator, mati
+               kalau belum sampai/komplit. Guard alert di bukaTunjukOperator()
+               tetap ada (TIDAK diubah) sebagai jaring kedua. -->
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            <button v-if="bolehProses" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:8px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Sampai</button>
-            <button v-if="bolehProses" @click="bukaScanUnpack" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px;"><i class="fas fa-box-open" style="margin-right:4px;"></i>Scan Unpack</button>
-            <button v-if="bolehOperator" @click="bukaTunjukOperator(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px;"><i class="fas fa-user-check" style="margin-right:4px;"></i>Tunjuk Operator</button>
-            <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
+            <button v-if="bolehOperator" @click="bukaTunjukOperator(t)" :disabled="!t.terima_pada" class="btn-outline" style="flex:1; padding:8px; font-size:11.5px;" :style="{ opacity: t.terima_pada ? 1 : .5 }"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator</button>
           </div>
           <div v-if="t.unpack_log && t.unpack_log.length" style="margin-top:8px; font-size:10.5px; color:var(--text-faint);">
             Unpack: <span v-for="(u,i) in t.unpack_log" :key="i" class="tag" :class="u.status==='komplit' ? 'ok' : 'warn'" style="margin-right:4px;">{{ u.kode_bagging }}: {{ u.status }}</span>
@@ -539,6 +571,19 @@ const SewingPerluDiProses = {
         <div style="display:flex; gap:8px;">
           <button @click="batalMasalah" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
           <button @click="konfirmasiMasalah" class="btn-primary" style="flex:1; padding:9px;">Ajukan</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="pilihMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Pilih Batch — Scan Masalah</h3>
+        <div class="gc-field" style="margin-bottom:14px;"><label>Pilih Batch</label>
+          <select v-model="pilihMasalah.targetId"><option v-for="t in daftar" :key="t.id" :value="t.id">{{ t.kode_batch }} — {{ t.nama_produk }}</option></select>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button @click="batalPilihMasalah" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+          <button @click="konfirmasiPilihMasalah" class="btn-primary" style="flex:1; padding:9px;">Lanjut</button>
         </div>
       </div>
     </div>

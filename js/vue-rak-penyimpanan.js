@@ -440,66 +440,52 @@ const RakPenyimpananManager = {
     </div>
 
     <!-- state: ideal/populated + ekstrem (per-baris) -->
+    <!-- GANTI (9 Sep 2026, audit wireframe §6.1 "grid modern") — dulu
+         <table class="gc-table"> literal, SEKARANG grid kartu rounded per
+         item dengan bar kapasitas berwarna (hijau/kuning/merah). Data yang
+         ditampilkan & formula persen/warna (baseBaris(), levelWarna,
+         overKapasitas, dst di atas) TIDAK diubah sama sekali — cuma
+         pembungkus tampilannya. -->
     <template v-else>
-      <div class="gc-card" style="padding:0; overflow:hidden;">
-        <div class="gc-table-scroll">
-          <table class="gc-table">
-            <thead>
-              <tr>
-                <th>Nama Item</th>
-                <th style="text-align:center;">Rak</th>
-                <th style="text-align:center;">Baris</th>
-                <th style="text-align:center;">Kolom</th>
-                <th style="text-align:center;">Kode</th>
-                <th style="min-width:140px;">Kapasitas</th>
-                <th style="text-align:right;">Terpakai</th>
-                <th style="text-align:right;">Sisa</th>
-                <th style="text-align:right;">Volume</th>
-                <th style="text-align:right;">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="b in barisTampil" :key="b.item.id">
-                <td>
-                  <div style="font-weight:700; font-size:12px;">{{ b.item.nama }}<span v-if="b.item.warna"> · {{ b.item.warna }}</span></div>
-                  <div style="font-size:10.5px; color:var(--text-faint);">{{ b.item.id_tampil || '-' }} · {{ b.item.kategori_utama || '-' }}</div>
-                </td>
-                <template v-if="b.rakHilang">
-                  <td colspan="9">
-                    <span class="tag danger"><i class="fas fa-triangle-exclamation" style="margin-right:5px;"></i>Rak tidak ditemukan (sudah dihapus) — ubah Rak item ini di Data Bahan &amp; Aksesoris.</span>
-                  </td>
-                </template>
-                <template v-else>
-                  <td style="text-align:center; font-size:12px;">{{ b.segRak }}</td>
-                  <td style="text-align:center; font-size:12px;">{{ b.segBaris }}</td>
-                  <td style="text-align:center; font-size:12px;">{{ b.segKolom }}</td>
-                  <td style="text-align:center;"><span class="tag" :class="b.levelWarna" style="font-weight:700;">{{ b.kodeTampil }}</span></td>
-                  <td>
-                    <div style="display:flex; align-items:center; gap:6px;">
-                      <div style="flex:1; height:6px; border-radius:999px; background:var(--ivory-dim); overflow:hidden; min-width:60px;">
-                        <div :style="{ height:'100%', width: Math.min(100, b.persen) + '%', background: 'var(--' + b.levelWarna + ')' }"></div>
-                      </div>
-                      <span style="font-size:11px; font-weight:700; min-width:32px; text-align:right;">{{ b.persen }}%</span>
-                    </div>
-                    <div v-if="b.overKapasitas" style="font-size:9.5px; color:var(--danger); margin-top:3px;"><i class="fas fa-circle-exclamation" style="margin-right:3px;"></i>Melebihi kapasitas Rak</div>
-                  </td>
-                  <td style="text-align:right; font-size:11.5px;">{{ formatAngka(b.terpakaiM3) }}</td>
-                  <td style="text-align:right; font-size:11.5px;" :style="{ color: b.overKapasitas ? 'var(--danger)' : null }">{{ formatAngka(b.sisaM3) }}</td>
-                  <td style="text-align:right; font-size:11.5px;">{{ formatAngka(b.volumeM3) }} m&sup3;</td>
-                  <td style="text-align:right;">
-                    <div style="display:flex; gap:6px; justify-content:flex-end;">
-                      <button @click="bukaEdit(b.rakDoc)" class="icon-btn" title="Edit Rak"><i class="fas fa-pen"></i></button>
-                      <button @click="hapus(b.rakDoc)" class="icon-btn" style="color:var(--danger);" title="Hapus Rak"><i class="fas fa-trash-alt"></i></button>
-                    </div>
-                  </td>
-                </template>
-              </tr>
-            </tbody>
-          </table>
+      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px;">
+        <div v-for="b in barisTampil" :key="b.item.id" class="gc-card" style="padding:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; margin-bottom:6px;">
+            <div style="min-width:0;">
+              <div style="font-weight:700; font-size:12.5px; overflow-wrap:anywhere;">{{ b.item.nama }}<span v-if="b.item.warna"> · {{ b.item.warna }}</span></div>
+              <div style="font-size:10.5px; color:var(--text-faint);">{{ b.item.id_tampil || '-' }} · {{ b.item.kategori_utama || '-' }}</div>
+            </div>
+            <span v-if="!b.rakHilang" class="tag" :class="b.levelWarna" style="font-weight:700; white-space:nowrap;">{{ b.kodeTampil }}</span>
+          </div>
+
+          <template v-if="b.rakHilang">
+            <span class="tag danger" style="display:block; margin-top:6px;"><i class="fas fa-triangle-exclamation" style="margin-right:5px;"></i>Rak tidak ditemukan (sudah dihapus) — ubah Rak item ini di Data Bahan &amp; Aksesoris.</span>
+          </template>
+          <template v-else>
+            <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:10px;">Rak {{ b.segRak }} · Baris {{ b.segBaris }} · Kolom {{ b.segKolom }}</div>
+
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+              <div style="flex:1; height:8px; border-radius:999px; background:var(--ivory-dim); overflow:hidden;">
+                <div :style="{ height:'100%', width: Math.min(100, b.persen) + '%', background: 'var(--' + b.levelWarna + ')' }"></div>
+              </div>
+              <span style="font-size:11.5px; font-weight:700; min-width:34px; text-align:right;">{{ b.persen }}%</span>
+            </div>
+            <div v-if="b.overKapasitas" style="font-size:9.5px; color:var(--danger); margin-bottom:6px;"><i class="fas fa-circle-exclamation" style="margin-right:3px;"></i>Melebihi kapasitas Rak</div>
+
+            <div style="display:flex; flex-wrap:wrap; gap:4px 12px; font-size:10.5px; color:var(--text-faint); margin:8px 0 10px;">
+              <span>Terpakai <b style="color:var(--text-muted);">{{ formatAngka(b.terpakaiM3) }} m&sup3;</b></span>
+              <span :style="{ color: b.overKapasitas ? 'var(--danger)' : null }">Sisa <b>{{ formatAngka(b.sisaM3) }} m&sup3;</b></span>
+              <span>Volume <b style="color:var(--text-muted);">{{ formatAngka(b.volumeM3) }} m&sup3;</b></span>
+            </div>
+
+            <div style="display:flex; gap:6px; justify-content:flex-end; border-top:1px solid var(--line); padding-top:8px;">
+              <button @click="bukaEdit(b.rakDoc)" class="icon-btn" title="Edit Rak"><i class="fas fa-pen"></i></button>
+              <button @click="hapus(b.rakDoc)" class="icon-btn" style="color:var(--danger);" title="Hapus Rak"><i class="fas fa-trash-alt"></i></button>
+            </div>
+          </template>
         </div>
       </div>
 
-      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:10px;">
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:12px;">
         <span style="font-size:10.5px; color:var(--text-faint);">{{ ringkasan.jumlahRak }} rak · total volume {{ formatAngka(ringkasan.totalVolume) }} m&sup3; · rata-rata terpakai {{ ringkasan.rataPersen }}%<span v-if="rakBelumTerisi.length"> · {{ rakBelumTerisi.length }} rak belum terisi item</span></span>
         <button v-if="adaLebihBanyak" @click="muatLebihBanyak" class="btn-outline" style="margin-left:auto; padding:6px 14px; font-size:11px; border-radius:999px;">Muat 20 lagi</button>
       </div>

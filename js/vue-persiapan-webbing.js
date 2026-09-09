@@ -352,6 +352,37 @@ function labelSepack(b) { return `${b.nama_produk} · size ${b.produk_size || '-
 // identik di 4 file Persiapan Produksi) sekarang jadi ScanGenerik di
 // js/vue-scan-cetak.js — genuinely diimpor, interface & perilaku PERSIS
 // SAMA, tidak disalin lagi (refactor 7 Sep 2026).
+
+// ============================================================================
+// RETROFIT 9 Sep 2026 (audit wireframe vs kode live, Guru sudah setuju
+// termasuk alur) — pola & alasan PERSIS SAMA seperti blok sejenis di
+// vue-persiapan-bahan.js/vue-persiapan-sewing.js (baca komentar besar di
+// sana untuk detail lengkap, tidak diulang di sini) — disalin, TIDAK
+// diimpor silang. Beda Webbing dari Sewing yang relevan di sini: grid Tab 1
+// SUDAH 1 kolom dari awal (SAMA wireframe Acc Sewing — dicek, README paket
+// handoff bilang wireframe Acc Sewing/Webbing/Finishing SAMA persis kecuali
+// jenis komponen), dapat TAMBAHAN 4 kotak KPI (temuan #6) SAMA seperti
+// Sewing. Bar ringkasan sticky + cetak massal (temuan #5, khas Bahan)
+// SENGAJA TIDAK disalin ke sini — sama alasan seperti Sewing.
+// ============================================================================
+const TAB_DEFS_WEBBING = [
+  { target: 'sub-pp-webbing-perludisiapkan', icon: 'fa-inbox', label: 'Perlu Disiapkan' },
+  { target: 'sub-pp-webbing-sedangdisiapkan', icon: 'fa-gears', label: 'Sedang Disiapkan' },
+  { target: 'sub-pp-webbing-perludikirim', icon: 'fa-box-open', label: 'Perlu Di Kirim' },
+  { target: 'sub-pp-webbing-sedangdikirim', icon: 'fa-truck-fast', label: 'Sedang Di Kirim' },
+  { target: 'sub-pp-webbing-selesai', icon: 'fa-circle-check', label: 'Selesai' }
+];
+function sembunyikanBarisTabAsli(grupKelas) {
+  const contoh = document.querySelector('.' + grupKelas + '-btn');
+  const baris = contoh ? contoh.parentElement : null;
+  if (baris && baris.dataset.gcCardHeadHide !== '1') {
+    baris.style.display = 'none';
+    baris.dataset.gcCardHeadHide = '1';
+  }
+}
+function gantiTabPill(grupKelas, targetId, ev) {
+  if (window.pindahSubTab) window.pindahSubTab(grupKelas, targetId, (ev && ev.currentTarget) || null, { catatRiwayat: true });
+}
 // ============================================================================
 // TAB 1: Perlu Disiapkan (langkah wireframe 1a -> 1b -> 1c)
 // Kartu per SPK Grouping (bukan per bahan seperti Bahan). 1a: cek stok per
@@ -367,16 +398,19 @@ const PersiapanWebbingPerluDisiapkan = {
     const daftarTrack = ref([]);
     const petaStokBahan = ref({});
     const cari = ref('');
-    const kartuTerbuka = reactive({});
     const pilihanCetak = reactive({}); // barisKey -> bool (override manual)
     const daftarRollSisa = ref([]); // gap #3 "roll sisa" — read-only, lihat konfirmasiEntry()
     const rollSisaTerbuka = ref(false);
 
+    const MY_TARGET = 'sub-pp-webbing-perludisiapkan';
     // REVISI 8 Sep 2026 (keputusan Guru, audit kode) — satu-satunya
     // pemakai bolehProses di komponen ini adalah tombol "Tunjuk Operator",
     // jadi digerbang langsung PIC ke atas di sini.
     const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(MENU_ID, 'edit') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(MENU_ID, 'print') !== false);
+    // bolehEdit — RETROFIT 9 Sep 2026, gerbang tombol "Scan Sampai" global
+    // (lihat catatan sama di vue-persiapan-bahan.js/vue-persiapan-sewing.js).
+    const bolehEdit = computed(() => window.cekIzinMenu(MENU_ID, 'edit') !== false);
 
     async function muat() {
       memuat.value = true;
@@ -408,7 +442,19 @@ const PersiapanWebbingPerluDisiapkan = {
       return kartu;
     });
 
-    function toggleKartu(k) { kartuTerbuka[k.trackId] = !kartuTerbuka[k.trackId]; }
+    // kpiHeader — RETROFIT 9 Sep 2026 (temuan #6, KHUSUS Acc Sewing/Webbing/
+    // Finishing): 4 kotak KPI persis wireframe ("SPK menunggu / baris
+    // komponen / stok kurang / siap dicetak").
+    const kpiHeader = computed(() => {
+      let barisKomponen = 0, stokKurang = 0, siapDicetak = 0;
+      kartuList.value.forEach(k => {
+        barisKomponen += k.baris.length;
+        stokKurang += k.baris.filter(b => !b._bisa).length;
+        if (!k.adaKurang) siapDicetak++;
+      });
+      return { spkMenunggu: kartuList.value.length, barisKomponen, stokKurang, siapDicetak };
+    });
+
     function isChecked(b) {
       const key = barisKey(b);
       if (key in pilihanCetak) return pilihanCetak[key];
@@ -525,14 +571,23 @@ const PersiapanWebbingPerluDisiapkan = {
     // --- Penunjukan (1c): scan operator, lalu scan berkali-kali label anak
     // SPK di kartu ini — 1 scan anak SPK menandai SEMUA baris komponennya
     // sekaligus (beda dari Bahan yang 1 baris per anak SPK). ---
-    const modalTunjuk = reactive({ aktif: false, kartu: null, operator: null, tahap: 'operator', log: [] });
+    const modalTunjuk = reactive({ aktif: false, kartu: null, global: false, operator: null, tahap: 'operator', log: [] });
     function bukaPenunjukan(k) {
       const eligible = k.baris.filter(b => b.label_cetak_pada && b.status === 'perlu_disiapkan');
       if (!eligible.length) { alert('Belum ada baris yang sudah dicetak labelnya di kartu ini.'); return; }
-      modalTunjuk.kartu = k; modalTunjuk.operator = null; modalTunjuk.tahap = 'operator'; modalTunjuk.log = [];
+      modalTunjuk.kartu = k; modalTunjuk.global = false; modalTunjuk.operator = null; modalTunjuk.tahap = 'operator'; modalTunjuk.log = [];
       modalTunjuk.aktif = true;
     }
-    function tutupPenunjukan() { modalTunjuk.aktif = false; modalTunjuk.kartu = null; modalTunjuk.operator = null; modalTunjuk.log = []; }
+    // bukaPenunjukanGlobal — RETROFIT 9 Sep 2026 (temuan #1), lihat catatan
+    // sama di vue-persiapan-bahan.js/vue-persiapan-sewing.js. Tombol
+    // per-kartu TETAP DIPERTAHANKAN.
+    function bukaPenunjukanGlobal() {
+      const eligible = kartuList.value.some(k => k.baris.some(b => b.label_cetak_pada && b.status === 'perlu_disiapkan'));
+      if (!eligible) { alert('Belum ada baris yang sudah dicetak labelnya di tab ini.'); return; }
+      modalTunjuk.kartu = null; modalTunjuk.global = true; modalTunjuk.operator = null; modalTunjuk.tahap = 'operator'; modalTunjuk.log = [];
+      modalTunjuk.aktif = true;
+    }
+    function tutupPenunjukan() { modalTunjuk.aktif = false; modalTunjuk.kartu = null; modalTunjuk.global = false; modalTunjuk.operator = null; modalTunjuk.log = []; }
     async function hasilScanTunjuk(kodeMentah) {
       const kode = (kodeMentah || '').trim();
       if (!kode) return;
@@ -543,13 +598,28 @@ const PersiapanWebbingPerluDisiapkan = {
         modalTunjuk.tahap = 'anak';
         return;
       }
-      const cocok = (modalTunjuk.kartu?.baris || []).filter(b => b.no_spk === kode && b.label_cetak_pada && b.status === 'perlu_disiapkan');
-      if (!cocok.length) { alert(`Kode "${kode}" tidak cocok baris manapun di kartu ini (mungkin belum dicetak labelnya, atau sudah ditunjuk).`); return; }
+      // Mode global: cari DI SEMUA kartu; mode per-kartu: cari DI KARTU ITU
+      // SAJA (perilaku lama, tidak berubah).
+      const kolamBaris = modalTunjuk.global ? kartuList.value.flatMap(k => k.baris) : (modalTunjuk.kartu?.baris || []);
+      const cocok = kolamBaris.filter(b => b.no_spk === kode && b.label_cetak_pada && b.status === 'perlu_disiapkan');
+      if (!cocok.length) { alert(`Kode "${kode}" tidak cocok baris manapun yang sudah dicetak labelnya (mungkin belum dicetak, atau sudah ditunjuk).`); return; }
       const now = new Date().toISOString();
-      const trackId = modalTunjuk.kartu.trackId;
-      const idxSet = new Set(cocok.map(b => b._lineIdx));
+      const trackId = cocok[0]._trackId;
+      // CATATAN BUG (ditemukan 9 Sep 2026 di vue-persiapan-sewing.js saat
+      // generalisasi ke mode global, DIPERBAIKI DI SANA DAN DI SINI): pola
+      // lama di seluruh file ini ("updateBarisWebbingMassal(trackId, (b, i)
+      // => idxSet.has(i), ...)") TIDAK PERNAH cocok — matchFn dipanggil
+      // dengan SATU argumen saja (lihat definisi updateBarisWebbingMassal
+      // di atas, matchFn(arr[i])), jadi parameter kedua "i" selalu undefined
+      // dan idxSet.has(i) selalu false -> tulisan Firestore GAGAL DIAM-DIAM
+      // (kena===0). Fungsi INI sekarang cocok LEWAT NILAI (no_spk+status+
+      // label_cetak_pada) — tidak butuh index sama sekali. Pola idxSet yang
+      // SAMA masih ada di onCetakSelesai()/hasilScanPack()/hasilScanKirim()
+      // pada file ini (di luar cakupan sesi ini, TIDAK disentuh) — dicatat
+      // sebagai gap ke CHECKLIST-TEST.md, bukan diperbaiki diam-diam di
+      // luar delta.
       try {
-        await updateBarisWebbingMassal(trackId, (b, i) => idxSet.has(i), (lama) => ({
+        await updateBarisWebbingMassal(trackId, (x) => x.no_spk === kode && x.status === 'perlu_disiapkan' && !!x.label_cetak_pada, (lama) => ({
           status: 'sedang_disiapkan', masuk_tahap_pada: now,
           operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, ditugaskan_pada: now,
           riwayat_operator: [...(lama.riwayat_operator || []), { operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, mulai_pada: now }]
@@ -563,21 +633,83 @@ const PersiapanWebbingPerluDisiapkan = {
     }
     async function selesaiPenunjukan() { tutupPenunjukan(); await muat(); }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    // --- Scan Sampai GLOBAL (temuan #1) — lihat komentar besar sama di
+    // vue-persiapan-bahan.js untuk ASUMSI lengkap: konservatif, cuma
+    // membersihkan catatan_masalah baris yang kode_bagging-nya cocok, TIDAK
+    // menulis balik koleksi persiapan_masalah. ---
+    const modalScanSampai = reactive({ aktif: false, log: [] });
+    function bukaScanSampaiGlobal() { modalScanSampai.log = []; modalScanSampai.aktif = true; }
+    function tutupScanSampai() { modalScanSampai.aktif = false; modalScanSampai.log = []; muat(); }
+    async function hasilScanSampai(kodeMentah) {
+      const kode = (kodeMentah || '').trim();
+      if (!kode) return;
+      const semuaBaris = daftarBarisDariTrack(daftarTrack.value);
+      const cocok = semuaBaris.filter(b => b.kode_bagging === kode && b.catatan_masalah);
+      if (!cocok.length) { alert(`Kode "${kode}" tidak ditemukan di antara baris yang sedang menunggu kiriman balik Masalah.`); return; }
+      try {
+        const trackIdSet = new Set(cocok.map(b => b._trackId));
+        await Promise.all([...trackIdSet].map(trackId => updateBarisWebbingMassal(trackId, (x) => x.kode_bagging === kode && !!x.catatan_masalah, () => ({ catatan_masalah: '' }))));
+        modalScanSampai.log.unshift(`${kode} → ${cocok.length} baris diterima kembali`);
+        await muat();
+      } catch (e) { console.error('Gagal scan sampai:', e); alert('Gagal menyimpan. Coba lagi.'); }
+    }
+
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await muat(); });
 
     return {
-      memuat, kartuList, cari, kartuTerbuka, toggleKartu, isChecked, toggleCheck,
-      bolehProses, bolehCetak, formatQty, formatWaktu, formatRoll, ICON_KOSONG,
+      memuat, kartuList, cari, isChecked, toggleCheck,
+      bolehProses, bolehCetak, bolehEdit, formatQty, formatWaktu, formatRoll, ICON_KOSONG,
+      TAB_DEFS_WEBBING, gantiTabPill, MY_TARGET, kpiHeader,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, onCetakSelesai,
       popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang,
-      modalTunjuk, bukaPenunjukan, tutupPenunjukan, hasilScanTunjuk, selesaiPenunjukan,
+      modalTunjuk, bukaPenunjukan, bukaPenunjukanGlobal, tutupPenunjukan, hasilScanTunjuk, selesaiPenunjukan,
+      modalScanSampai, bukaScanSampaiGlobal, tutupScanSampai, hasilScanSampai,
       daftarRollSisa, rollSisaTerbuka
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
-    <template v-else>
+    <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
+      <div class="gc-card-head">
+        <div>
+          <h3 class="gc-heading">Persiapan Acc Webbing</h3>
+          <div class="sub">{{ kpiHeader.spkMenunggu }} SPK menunggu &middot; {{ kpiHeader.siapDicetak }} siap dicetak</div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button v-if="bolehEdit" @click="bukaScanSampaiGlobal" class="btn-outline" style="padding:8px 14px;"><i class="fas fa-inbox" style="margin-right:6px;"></i>Scan Sampai</button>
+          <button v-if="bolehProses" @click="bukaPenunjukanGlobal" class="btn-primary" style="padding:8px 14px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+        <button v-for="t in TAB_DEFS_WEBBING" :key="t.target" type="button"
+          :class="['sub-pp-webbing-tahap-btn','gc-sub-tab-btn', t.target===MY_TARGET ? 'active' : '']"
+          :data-target="t.target" @click="gantiTabPill('sub-pp-webbing-tahap', t.target, $event)">
+          <i :class="'fas ' + t.icon" style="margin-right:6px;"></i>{{ t.label }}
+        </button>
+      </div>
+
+      <!-- RETROFIT 9 Sep 2026 (temuan #6) — 4 kotak KPI. -->
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
+        <div style="flex:1; min-width:110px; border:1px dashed var(--line); border-radius:12px; padding:8px 10px; background:var(--ivory-dim);">
+          <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">SPK menunggu</div>
+          <div class="gc-num" style="font-size:16px; font-weight:700;">{{ kpiHeader.spkMenunggu }}</div>
+        </div>
+        <div style="flex:1; min-width:110px; border:1px dashed var(--line); border-radius:12px; padding:8px 10px; background:var(--ivory-dim);">
+          <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Baris komponen</div>
+          <div class="gc-num" style="font-size:16px; font-weight:700;">{{ kpiHeader.barisKomponen }}</div>
+        </div>
+        <div style="flex:1; min-width:110px; border:1px dashed var(--line); border-radius:12px; padding:8px 10px;" :style="{ background: kpiHeader.stokKurang ? 'var(--warn-light)' : 'var(--ivory-dim)' }">
+          <div style="font-size:9.5px; text-transform:uppercase; letter-spacing:.04em;" :style="{ color: kpiHeader.stokKurang ? 'var(--warn)' : 'var(--text-faint)' }">Stok kurang</div>
+          <div class="gc-num" :style="{ fontSize:'16px', fontWeight:700, color: kpiHeader.stokKurang ? 'var(--warn)' : 'inherit' }">{{ kpiHeader.stokKurang }}</div>
+        </div>
+        <div style="flex:1; min-width:110px; border:1px dashed var(--line); border-radius:12px; padding:8px 10px; background:var(--ivory-dim);">
+          <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Siap dicetak</div>
+          <div class="gc-num" style="font-size:16px; font-weight:700;">{{ kpiHeader.siapDicetak }}</div>
+        </div>
+      </div>
+
       <div style="display:flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:9px 13px; margin-bottom:12px;">
         <i class="fas fa-magnifying-glass" style="font-size:15px; color:var(--text-faint); flex-shrink:0;"></i>
         <input v-model="cari" type="text" placeholder="Cari kode SPK, produk, atau no. SPK..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px; color:var(--text);">
@@ -605,17 +737,18 @@ const PersiapanWebbingPerluDisiapkan = {
 
       <div v-else style="display:flex; flex-direction:column; gap:10px;">
         <div v-for="k in kartuList" :key="k.trackId" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px; cursor:pointer;" @click="toggleKartu(k)">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
             <div style="min-width:0;">
               <div class="gc-heading gc-num" style="font-weight:700; font-size:13.5px;">{{ k.kodeSpk }}</div>
               <div style="font-size:11px; color:var(--text-faint); margin-top:2px;">{{ k.namaProduk }} &middot; size {{ k.produkSize || '-' }} &middot; {{ k.baris.length }} komponen</div>
             </div>
             <span v-if="k.adaKurang" class="tag warn" style="flex-shrink:0;">ada stok kurang</span>
             <span v-else class="tag ok" style="flex-shrink:0;">stok cukup</span>
-            <i class="fas" :class="kartuTerbuka[k.trackId] ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-faint); flex-shrink:0; margin-top:4px;"></i>
           </div>
 
-          <div v-if="kartuTerbuka[k.trackId]" style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
+          <!-- RETROFIT 9 Sep 2026 (temuan #4) — tabel SELALU TERBUKA,
+               collapse "buka rincian" dihapus. -->
+          <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
             <label v-for="b in k.baris" :key="barisKey(b)" style="display:flex; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px; flex-wrap:wrap;" :style="{ background: b.label_cetak_pada ? 'var(--ok-light)' : (b._bisa ? 'transparent' : 'var(--danger-light)') }">
               <input type="checkbox" :checked="isChecked(b)" :disabled="!b._bisa || !!b.label_cetak_pada" @change="toggleCheck(b)">
               <span class="gc-num" style="font-weight:700; min-width:90px;">{{ b.no_spk }}</span>
@@ -637,9 +770,14 @@ const PersiapanWebbingPerluDisiapkan = {
           </div>
         </div>
       </div>
-    </template>
+    </div>
 
     <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Anak SPK" :daftar-label="daftarLabelPreview" jenis-cetak="label_spk_acc_webbing" @tutup="popupCetakAktif = false" @cetak="onCetakSelesai" />
+
+    <scan-generik :aktif="modalScanSampai.aktif" judul="Scan Sampai — kode bagging balik dari Masalah" subjudul="Bisa discan berkali-kali." @hasil="hasilScanSampai" @tutup="tutupScanSampai" />
+    <div v-if="modalScanSampai.aktif && modalScanSampai.log.length" style="position:fixed; left:16px; bottom:16px; z-index:10001; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
+      <div v-for="(l,i) in modalScanSampai.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
+    </div>
 
     <div v-if="popupCetakUlang" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
@@ -696,6 +834,7 @@ const PersiapanWebbingSedangDisiapkan = {
     const daftarTrack = ref([]);
     const sedangProses = reactive({});
     const sedangProsesBatch = reactive({});
+    const MY_TARGET = 'sub-pp-webbing-sedangdisiapkan';
     const bolehProses = computed(() => window.cekIzinMenu(MENU_ID, 'edit') !== false);
 
     async function muat() {
@@ -812,19 +951,35 @@ const PersiapanWebbingSedangDisiapkan = {
       sedangProses[key] = false;
     }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await muat(); });
 
     return {
       memuat, kelompokOperator, bolehProses, sedangProses, sedangProsesBatch, konfirmasiDisiapkan,
       formatQty, formatRoll, formatDiamSejak, tertahan, barisKey,
       modalAksi, bukaAksi, tutupAksi, hasilScanAksi,
-      popupMasalah, batalMasalah, konfirmasiMasalah
+      popupMasalah, batalMasalah, konfirmasiMasalah,
+      TAB_DEFS_WEBBING, gantiTabPill, MY_TARGET
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
-    <div v-else-if="kelompokOperator.length === 0" class="gc-kosong gc-card">
+    <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
+      <div class="gc-card-head">
+        <div>
+          <h3 class="gc-heading">Persiapan Acc Webbing</h3>
+          <div class="sub">{{ kelompokOperator.length }} operator sedang menyiapkan</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+        <button v-for="t in TAB_DEFS_WEBBING" :key="t.target" type="button"
+          :class="['sub-pp-webbing-tahap-btn','gc-sub-tab-btn', t.target===MY_TARGET ? 'active' : '']"
+          :data-target="t.target" @click="gantiTabPill('sub-pp-webbing-tahap', t.target, $event)">
+          <i :class="'fas ' + t.icon" style="margin-right:6px;"></i>{{ t.label }}
+        </button>
+      </div>
+
+    <div v-if="kelompokOperator.length === 0" class="gc-kosong gc-card">
       <div class="lingkaran"><i class="fas fa-gears"></i></div>
       <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada yang sedang disiapkan</h3>
     </div>
@@ -863,6 +1018,7 @@ const PersiapanWebbingSedangDisiapkan = {
         </div>
       </div>
     </div>
+    </div>
 
     <scan-generik :aktif="modalAksi.aktif"
       :judul="modalAksi.mode==='ganti' ? 'Scan QR operator pengganti' : ('Scan label ' + (modalAksi.baris?.no_spk || ''))"
@@ -900,6 +1056,7 @@ const PersiapanWebbingPerluDikirim = {
     const daftarBaggingAktif = ref([]);
     const daftarTlc = ref([]);
     const sedangProses = ref(false);
+    const MY_TARGET = 'sub-pp-webbing-perludikirim';
     const bolehProses = computed(() => window.cekIzinMenu(MENU_ID, 'edit') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(MENU_ID, 'print') !== false);
 
@@ -1073,7 +1230,7 @@ const PersiapanWebbingPerluDikirim = {
       } catch (e) { console.error('Gagal scan kirim:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await muat(); });
 
     return {
       memuat, kelompokSepack, daftarTlc, bolehProses, bolehCetak, sedangProses,
@@ -1082,13 +1239,28 @@ const PersiapanWebbingPerluDikirim = {
       popupTugas, bukaCetakTugas, konfirmasiCetakTugas, isiTlcAwal,
       popupCetakAktif, daftarLabelPreview, jenisCetakAktif,
       modalPack, bukaScanPack, tutupScanPack, hasilScanPack, tutupBagging,
-      modalKirim, bukaScanKirim, tutupScanKirim, hasilScanKirim
+      modalKirim, bukaScanKirim, tutupScanKirim, hasilScanKirim,
+      TAB_DEFS_WEBBING, gantiTabPill, MY_TARGET
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
-    <template v-else>
+    <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
+      <div class="gc-card-head">
+        <div>
+          <h3 class="gc-heading">Persiapan Acc Webbing</h3>
+          <div class="sub">{{ kelompokSepack.length }} produk tertahan di Perlu Di Kirim</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+        <button v-for="t in TAB_DEFS_WEBBING" :key="t.target" type="button"
+          :class="['sub-pp-webbing-tahap-btn','gc-sub-tab-btn', t.target===MY_TARGET ? 'active' : '']"
+          :data-target="t.target" @click="gantiTabPill('sub-pp-webbing-tahap', t.target, $event)">
+          <i :class="'fas ' + t.icon" style="margin-right:6px;"></i>{{ t.label }}
+        </button>
+      </div>
+
       <div v-if="bolehCetak" style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
         <button @click="bukaCetakBagging" class="btn-outline" style="flex:1; min-width:150px; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Kode Bagging</button>
         <button @click="bukaCetakTugas" class="btn-outline" style="flex:1; min-width:150px; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Kode Tugas</button>
@@ -1116,7 +1288,7 @@ const PersiapanWebbingPerluDikirim = {
           </div>
         </div>
       </div>
-    </template>
+    </div>
 
     <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Kode" :daftar-label="daftarLabelPreview" :jenis-cetak="jenisCetakAktif" @tutup="popupCetakAktif = false" />
 
@@ -1185,13 +1357,29 @@ const PersiapanWebbingSedangDikirim = {
       });
       return Object.values(peta).sort((a, b) => a.kodeTugas.localeCompare(b.kodeTugas));
     });
-    onMounted(async () => { await window.authReady; await muat(); });
-    return { memuat, kelompokTugas, formatQty, formatDiamSejak, barisKey };
+    const MY_TARGET = 'sub-pp-webbing-sedangdikirim';
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await muat(); });
+    return { memuat, kelompokTugas, formatQty, formatDiamSejak, barisKey, TAB_DEFS_WEBBING, gantiTabPill, MY_TARGET };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
-    <div v-else-if="kelompokTugas.length === 0" class="gc-kosong gc-card">
+    <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
+      <div class="gc-card-head">
+        <div>
+          <h3 class="gc-heading">Persiapan Acc Webbing</h3>
+          <div class="sub">{{ kelompokTugas.length }} kode tugas sedang di jalan</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+        <button v-for="t in TAB_DEFS_WEBBING" :key="t.target" type="button"
+          :class="['sub-pp-webbing-tahap-btn','gc-sub-tab-btn', t.target===MY_TARGET ? 'active' : '']"
+          :data-target="t.target" @click="gantiTabPill('sub-pp-webbing-tahap', t.target, $event)">
+          <i :class="'fas ' + t.icon" style="margin-right:6px;"></i>{{ t.label }}
+        </button>
+      </div>
+
+    <div v-if="kelompokTugas.length === 0" class="gc-kosong gc-card">
       <div class="lingkaran"><i class="fas fa-truck-fast"></i></div>
       <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada yang sedang dikirim</h3>
     </div>
@@ -1211,6 +1399,7 @@ const PersiapanWebbingSedangDikirim = {
           </div>
         </div>
       </div>
+    </div>
     </div>
   `
 };
@@ -1262,11 +1451,13 @@ const PersiapanWebbingSelesai = {
 
     function keadaan(b) { return b.catatan_masalah ? 'kurang' : 'lengkap'; }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    const MY_TARGET = 'sub-pp-webbing-selesai';
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await muat(); });
 
     return {
       memuat, isOperatorSaja, barisSaya, daftarUrut, kpi,
-      formatQty, formatRoll, formatWaktu, formatSiklus, siklusJam, keadaan, barisKey
+      formatQty, formatRoll, formatWaktu, formatSiklus, siklusJam, keadaan, barisKey,
+      TAB_DEFS_WEBBING, gantiTabPill, MY_TARGET
     };
   },
   template: `
@@ -1293,7 +1484,22 @@ const PersiapanWebbingSelesai = {
       </div>
     </template>
 
-    <template v-else>
+    <!-- isOperatorSaja: versi "Riwayat Saya" TETAP tanpa gc-card-head/pill,
+         sama alasan seperti vue-persiapan-bahan.js/vue-persiapan-sewing.js. -->
+    <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
+      <div class="gc-card-head">
+        <div>
+          <h3 class="gc-heading">Persiapan Acc Webbing</h3>
+          <div class="sub">{{ kpi.selesai }} selesai hari ini</div>
+        </div>
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
+        <button v-for="t in TAB_DEFS_WEBBING" :key="t.target" type="button"
+          :class="['sub-pp-webbing-tahap-btn','gc-sub-tab-btn', t.target===MY_TARGET ? 'active' : '']"
+          :data-target="t.target" @click="gantiTabPill('sub-pp-webbing-tahap', t.target, $event)">
+          <i :class="'fas ' + t.icon" style="margin-right:6px;"></i>{{ t.label }}
+        </button>
+      </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
         <div style="flex:1; min-width:110px; border:1px dashed var(--line); border-radius:12px; padding:8px 10px; background:var(--ivory-dim);">
           <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Selesai hari ini</div>
@@ -1358,7 +1564,7 @@ const PersiapanWebbingSelesai = {
           </tbody>
         </table>
       </div>
-    </template>
+    </div>
   `
 };
 

@@ -64,7 +64,11 @@ import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "ht
 import { db, storage } from "./firebase-config.js";
 import { DropdownCari } from './vue-components.js?v=4';
 import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
-import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
+// pakaiRiwayatTabVue — TIDAK dipakai lagi di file ini sejak restrukturisasi
+// tampilan Entry Produk (9 Sep 2026, audit wireframe §2.1): BOM Jasa/Pola/
+// Aksesoris tidak lagi tab bergantian (v-show), sekarang tabel langsung
+// selalu terlihat sekaligus — tidak ada lagi "tab Vue genuine" di layar ini
+// yang perlu diingat tombol back HP.
 
 // ambilDaftarBahanAksesorisLengkap — disalin (bukan diimpor silang) dari
 // pola yang sama di js/vue-persiapan-masalah.js / vue-stock-pembelian.js /
@@ -495,15 +499,6 @@ const FormEntryProdukBOM = {
     const modeEdit = computed(() => !!props.dataAwal);
     const menyimpan = ref(false);
     const mengupload = ref(false);
-    const tabAktif = ref('jasa'); // 'jasa' | 'pola' | 'aksesoris'
-    // BARU (§39) — switch tab BOM Jasa/Pola/Aksesoris di layar Entry Produk
-    // ini adalah tab internal Vue GENUINE (bukan navigasi antar menu), jadi
-    // disambungkan ke riwayat tombol back HP. TIDAK disambungkan untuk
-    // tabAktif milik PopupImportBOM (komponen terpisah di bawah) — itu tab
-    // di DALAM modal transient (buka saat proses Import Excel, langsung
-    // ditutup lagi setelah konfirmasi/batal), bukan tab layar yang perlu
-    // "diingat" lewat tombol back.
-    pakaiRiwayatTabVue('produk-bom-tab', tabAktif);
 
     const daftarBahan = ref([]);
     const opsiNamaBahan = computed(() => daftarBahan.value.map(b => formatNamaBahan(b)));
@@ -673,6 +668,29 @@ const FormEntryProdukBOM = {
     // sekarang input teks manual, tidak ada lagi resolve ke Data Bahan &
     // Aksesoris, jadi tidak perlu handler saat dipilih.
 
+    // idTampilBahan — BARU (9 Sep 2026, restrukturisasi tampilan §2.1):
+    // BOM Pola & BOM Aksesoris sekarang tabel baris langsung (lihat
+    // wireframe.dc.html "2.1 Entry Produk"), kolom "bahan ID"/"item ID"
+    // menampilkan id_tampil (kode sekuensial mis. "BHN-0001", SUDAH ADA di
+    // master_bahan_aksesoris sejak awal — lihat js/vue-bahan-aksesoris.js)
+    // dari item yang sudah ke-resolve lewat bahan_aksesoris_id, BUKAN id
+    // dokumen Firestore mentah (hash panjang, tidak enak dibaca).
+    function idTampilBahan(bahanAksesorisId) {
+      if (!bahanAksesorisId) return '-';
+      const item = daftarBahan.value.find(b => b.id === bahanAksesorisId);
+      return item?.id_tampil || '-';
+    }
+    // pindahKeList — BARU (9 Sep 2026): pill "List" di card-head Entry Produk
+    // (lihat template di bawah). Pakai fungsi navigasi GLOBAL yang sudah ada
+    // (window.pindahSubTab, didefinisikan js/dashboard.js, DIPAKAI juga oleh
+    // tombol tab Entry/List/HPP asli di index.html) — TIDAK ada logika baru,
+    // cuma manggil ulang, supaya index.html tidak perlu disentuh sama sekali.
+    function pindahKeList() {
+      if (typeof window.pindahSubTab === 'function') {
+        window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-list', null, { catatRiwayat: true });
+      }
+    }
+
     function tambahJasa() { form.bom_jasa.push(barisJasaKosong()); }
     function hapusJasa(i) { form.bom_jasa.splice(i, 1); }
     function tambahPola() { form.bom_pola.push(barisPolaKosong()); }
@@ -840,7 +858,7 @@ const FormEntryProdukBOM = {
     }
 
     return {
-      modeEdit, menyimpan, mengupload, tabAktif, form, opsiNamaBahan, opsiWarna, opsiSatuan, opsiJenisProduk, opsiKomponen,
+      modeEdit, menyimpan, mengupload, form, opsiNamaBahan, opsiWarna, opsiSatuan, opsiJenisProduk, opsiKomponen,
       opsiTahapPersiapan,
       kelipatanLive,
       fotoProdukPreview, pilihFotoProduk, hapusFotoProduk,
@@ -848,155 +866,236 @@ const FormEntryProdukBOM = {
       modalKomponenAktif, bukaKomponen, tutupKomponen,
       daftarBahan,
       saatPilihBahanPola, saatPilihAksesoris,
+      idTampilBahan, pindahKeList,
       tambahJasa, hapusJasa, tambahPola, hapusPola, tambahAksesoris, hapusAksesoris,
       simpan
     };
   },
   template: `
     <div>
-      <div class="gc-card" style="margin-bottom:16px;">
-        <h3 style="font-weight:700; font-size:15px; margin-bottom:14px;"><i class="fas fa-shirt" style="color:var(--burgundy); margin-right:8px;"></i>Data Produk Utama</h3>
-        <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap; margin-bottom:4px;">
+      <!-- RESTRUKTURISASI (9 Sep 2026, audit wireframe handoff "06 - Zevanic
+           House" §2.1) — susunan tampilan diganti total ikut wireframe low-fi
+           (breadcrumb+tab dalam 1 card-head, grid 1 baris foto|identitas|BOM
+           Jasa, BOM Pola & Aksesoris jadi tabel baris langsung, bukan tombol
+           collapse). Field, SKU otomatis, kelipatan (KPK), & payload simpan()
+           TIDAK berubah sama sekali — cuma markup/render di bawah ini. -->
+      <style>
+        .mp-row-pola, .mp-row-aksesoris { display:grid; grid-template-columns:1fr; gap:6px; padding:8px; border-radius:8px; }
+        .mp-row-label { display:block; font-size:9px; font-weight:700; color:var(--text-faint); margin-bottom:2px; text-transform:uppercase; letter-spacing:.02em; }
+        .mp-bom-head-row { display:none; }
+        @media (min-width:860px){
+          .mp-row-pola { grid-template-columns:40px 1fr 74px 58px 52px 58px 58px 60px; align-items:center; }
+          .mp-row-aksesoris { grid-template-columns:1.2fr 1fr 46px 70px 34px; align-items:center; }
+          .mp-row-label { display:none; }
+          .mp-bom-head-row { display:grid; padding:0 8px; }
+        }
+        .mp-foto-mini { position:relative; width:34px; height:34px; border-radius:8px; overflow:hidden; background:var(--ivory-dim); border:1px solid var(--line); flex-shrink:0; }
+        .mp-foto-mini img { width:100%; height:100%; object-fit:cover; display:block; }
+        .mp-foto-mini input[type=file] { position:absolute; inset:0; opacity:0; cursor:pointer; }
+        .mp-foto-mini .mp-foto-ic { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:11px; color:var(--text-faint); }
+        .mp-pill-tab { border:none; padding:5px 14px; border-radius:999px; font-size:11.5px; cursor:pointer; }
+        .mp-mini-input { width:100%; border:1.5px solid var(--line); border-radius:6px; padding:4px 6px; font-size:11px; box-sizing:border-box; }
+      </style>
+
+      <div class="gc-card">
+        <!-- Card-head — pola SAMA seperti class .gc-card-head di
+             css/gechoo-design.css (sudah didefinisikan, sebelum ini belum
+             ada modul yang pakai — lihat komentar di CSS-nya). Breadcrumb +
+             pill Entry/List SESUAI wireframe 2.1 (cuma tampil mode create;
+             di modal Edit [dipakai ulang dari List] diganti judul "Edit
+             Produk" biasa, breadcrumb+pill navigasi tidak relevan di dalam
+             modal). Tombol Simpan/Batal JUGA dipindah ke sini (kanan atas,
+             kecil) — bukan lagi full-width sendirian di paling bawah. -->
+        <div class="gc-card-head">
           <div>
-            <div v-if="fotoProdukPreview" style="margin-bottom:8px;">
-              <img :src="fotoProdukPreview" style="width:96px; height:96px; object-fit:cover; border-radius:12px; border:1.5px solid var(--line);">
-            </div>
-            <div class="gc-field" style="margin-bottom:0; width:200px;">
-              <label>Foto Produk</label>
-              <input type="file" accept="image/*" @change="pilihFotoProduk">
-              <button v-if="fotoProdukPreview" @click="hapusFotoProduk" type="button" class="btn-outline" style="font-size:11px; padding:5px 10px; margin-top:6px;">Hapus Foto</button>
-            </div>
+            <h3 style="font-weight:700; font-size:14.5px; margin:0;"><i class="fas fa-box-open" style="color:var(--burgundy); margin-right:8px;"></i>{{ modeEdit ? 'Edit Produk' : 'Zevanic House › Master Produk' }}</h3>
+            <div class="sub">{{ modeEdit ? 'Ubah data produk & BOM.' : 'Identitas produk + BOM Jasa, Pola, Aksesoris — fondasi produksi.' }}</div>
           </div>
-          <div style="flex:1; min-width:240px; display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-4">
+          <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+            <div v-if="!modeEdit" style="display:flex; gap:2px; background:var(--ivory-dim); padding:3px; border-radius:999px;">
+              <button type="button" class="mp-pill-tab" style="background:var(--burgundy); color:#fff;">Entry</button>
+              <button @click="pindahKeList" type="button" class="mp-pill-tab" style="background:none; color:var(--text-muted);">List</button>
+            </div>
+            <button v-if="modeEdit" @click="$emit('batal')" type="button" class="btn-outline" style="font-size:11.5px; padding:6px 14px;">Batal</button>
+            <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="font-size:11.5px; padding:6px 16px;">{{ mengupload ? 'Mengupload foto...' : (menyimpan ? 'Menyimpan...' : (modeEdit ? 'Simpan Perubahan' : 'Simpan Produk')) }}</button>
+          </div>
+        </div>
+
+        <!-- Baris 1 (wireframe 2.1): foto (sempit) | identitas produk (tengah) | BOM Jasa (kanan, langsung, tanpa collapse) -->
+        <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+          <div style="flex:0 0 96px;">
+            <div v-if="fotoProdukPreview" style="margin-bottom:8px;">
+              <img :src="fotoProdukPreview" style="width:90px; height:90px; object-fit:cover; border-radius:12px; border:1.5px solid var(--line);">
+            </div>
+            <div v-else style="width:90px; height:90px; border-radius:12px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; margin-bottom:8px;"><span style="font-size:9.5px; color:var(--text-faint); text-align:center; line-height:1.3;">foto<br>produk</span></div>
+            <input type="file" accept="image/*" @change="pilihFotoProduk" style="font-size:9px; width:90px;">
+            <button v-if="fotoProdukPreview" @click="hapusFotoProduk" type="button" class="btn-outline" style="font-size:10px; padding:4px 8px; margin-top:6px;">Hapus</button>
+          </div>
+
+          <div style="flex:2 1 300px; display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">
             <div class="gc-field" style="margin-bottom:0;"><label>Jenis Produk</label><dropdown-cari v-model="form.jenis_produk_pilih" :opsi="opsiJenisProduk" placeholder="Cari & pilih Jenis Produk..." /></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Nama Produk</label><input v-model="form.nama" type="text" placeholder="Mis. Tas Ransel Kanvas"></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Warna</label><dropdown-cari v-model="form.warna_pilih" :opsi="opsiWarna" placeholder="Cari & pilih Warna..." /></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Size</label><input v-model="form.size" type="text" placeholder="Mis. All Size / L / 30x40cm"></div>
-          </div>
-        </div>
-        <div style="display:flex; gap:16px; flex-wrap:wrap;">
-          <div class="gc-field" style="max-width:320px; flex:1; min-width:220px;">
-            <label>SKU <span style="font-weight:400; color:var(--text-faint);">(otomatis dari Nama-Warna-Size, tidak perlu diisi)</span></label>
-            <input :value="form.sku" type="text" readonly style="text-transform:uppercase; background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;">
-          </div>
-          <!-- Harga Jual — BARU (30 Agt 2026, fitur "Pesanan" > Penjualan
-               Kasir), lihat catatan panjang di form reactive() atas file
-               ini. Opsional (boleh 0/kosong), TIDAK ikut validasi() wajib. -->
-          <div class="gc-field" style="max-width:320px; flex:1; min-width:220px;">
-            <label>Harga Jual <span style="font-weight:400; color:var(--text-faint);">(dipakai Penjualan Kasir)</span></label>
-            <input v-model.number="form.harga_jual" type="number" min="0" placeholder="0">
-          </div>
-          <!-- Kelipatan — BARU (28 Agt 2026, permintaan Guru). Readonly,
-               otomatis dari KPK (Kelipatan Persekutuan Terkecil) semua
-               "Isi Pola (Pcs)" di tab BOM Pola & Vendor bawah — lihat
-               catatan panjang hitungKelipatan() di atas file ini. Ini
-               ACUAN MINIMAL ORDER yang nanti ditampilkan di Order SPK
-               (js/vue-order-spk.js) begitu produk ini dipilih lewat SKU. -->
-          <div class="gc-field" style="max-width:320px; flex:1; min-width:220px;">
-            <label>Kelipatan <span style="font-weight:400; color:var(--text-faint);">(otomatis, acuan minimal order — lihat tab BOM Pola)</span></label>
-            <input :value="kelipatanLive > 0 ? (kelipatanLive + ' pcs') : 'Belum ada Isi Pola (Pcs) terisi'" type="text" readonly style="background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;">
-          </div>
-          <!-- MOQ Pesanan Produk & Kelipatan Isi Pola — BARU (5 Sep 2026,
-               klarifikasi Guru), lihat catatan panjang di form reactive()
-               atas file ini. Input MANUAL, opsional, prasyarat data untuk
-               modul Proses Produksi > Serie (belum dibangun sesi ini). -->
-          <div class="gc-field" style="max-width:320px; flex:1; min-width:220px;">
-            <label>MOQ Pesanan Produk <span style="font-weight:400; color:var(--text-faint);">(untuk modul Serie)</span></label>
-            <input v-model.number="form.moq_serie" type="number" min="0" placeholder="0">
-          </div>
-          <div class="gc-field" style="max-width:320px; flex:1; min-width:220px;">
-            <label>Kelipatan Isi Pola <span style="font-weight:400; color:var(--text-faint);">(untuk modul Serie)</span></label>
-            <input v-model.number="form.kelipatan_isi_pola" type="number" min="0" placeholder="0">
-          </div>
-        </div>
-      </div>
-
-      <div class="gc-card">
-        <div style="display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;">
-          <button @click="tabAktif='jasa'" type="button" class="btn-outline" :class="{filled: tabAktif==='jasa'}" style="font-size:12px;"><i class="fas fa-hand-holding-dollar" style="margin-right:6px;"></i>BOM Jasa ({{ form.bom_jasa.length }})</button>
-          <button @click="tabAktif='pola'" type="button" class="btn-outline" :class="{filled: tabAktif==='pola'}" style="font-size:12px;"><i class="fas fa-scissors" style="margin-right:6px;"></i>BOM Pola &amp; Vendor ({{ form.bom_pola.length }})</button>
-          <button @click="tabAktif='aksesoris'" type="button" class="btn-outline" :class="{filled: tabAktif==='aksesoris'}" style="font-size:12px;"><i class="fas fa-gem" style="margin-right:6px;"></i>BOM Aksesoris ({{ form.bom_aksesoris.length }})</button>
-        </div>
-
-        <!-- BOM Jasa -->
-        <div v-show="tabAktif==='jasa'">
-          <div v-for="(j, i) in form.bom_jasa" :key="i" class="gc-row-nq" style="margin-bottom:8px;">
-            <div class="gc-field" style="margin-bottom:0;"><span class="gc-row-label">Nama Jasa</span><input v-model="j.nama" type="text" placeholder="Nama Jasa (mis. Jasa Jahit)"></div>
-            <div class="gc-field" style="margin-bottom:0;"><span class="gc-row-label">Harga</span><input v-model.number="j.harga" type="number" min="0" placeholder="Harga"></div>
-            <div style="display:flex; justify-content:flex-end; align-items:center;"><button @click="hapusJasa(i)" type="button" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button></div>
-          </div>
-          <button @click="tambahJasa" type="button" class="btn-outline" style="font-size:11.5px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah Jasa</button>
-        </div>
-
-        <!-- BOM Pola & Vendor (digabung, keputusan #3) -->
-        <div v-show="tabAktif==='pola'">
-          <div v-for="(b, i) in form.bom_pola" :key="i" class="gc-card" style="margin-bottom:12px; background:var(--ivory-dim);">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-              <div style="display:flex; gap:6px;">
-                <button @click="b.tipe='internal'" type="button" class="btn-outline" :class="{filled: b.tipe==='internal'}" style="font-size:11px; padding:6px 12px;">Internal (Pola)</button>
-                <button @click="b.tipe='vendor'" type="button" class="btn-outline" :class="{filled: b.tipe==='vendor'}" style="font-size:11px; padding:6px 12px;">Vendor</button>
-              </div>
-              <button @click="hapusPola(i)" type="button" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button>
+            <div class="gc-field" style="margin-bottom:0;">
+              <label>SKU <span style="font-weight:400; color:var(--text-faint);">(otomatis)</span></label>
+              <input :value="form.sku" type="text" readonly style="text-transform:uppercase; background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;">
             </div>
-            <div style="display:flex; gap:14px; flex-wrap:wrap;">
-              <div>
-                <img v-if="!b.fotoDihapus && (b.fotoPreview || b.foto)" :src="b.fotoPreview || b.foto" style="width:76px; height:76px; object-fit:cover; border-radius:10px; border:1.5px solid var(--line); margin-bottom:6px; display:block;">
-                <div class="gc-field" style="margin-bottom:0; width:170px;">
-                  <label>{{ b.tipe==='vendor' ? 'Foto Proses' : 'Foto' }}</label>
-                  <input type="file" accept="image/*" @change="ev => pilihFotoPola(b, ev)">
-                  <button v-if="!b.fotoDihapus && (b.fotoPreview || b.foto)" @click="hapusFotoPola(b)" type="button" class="btn-outline" style="font-size:10.5px; padding:4px 8px; margin-top:5px;">Hapus Foto</button>
+            <!-- Harga Jual — BARU (30 Agt 2026, fitur "Pesanan" > Penjualan
+                 Kasir), lihat catatan panjang di form reactive() atas file
+                 ini. Opsional (boleh 0/kosong), TIDAK ikut validasi() wajib. -->
+            <div class="gc-field" style="margin-bottom:0;"><label>Harga Jual <span style="font-weight:400; color:var(--text-faint);">(Penjualan Kasir)</span></label><input v-model.number="form.harga_jual" type="number" min="0" placeholder="0"></div>
+            <!-- MOQ Pesanan Produk & Kelipatan Isi Pola — BARU (5 Sep 2026,
+                 klarifikasi Guru), lihat catatan panjang di form reactive()
+                 atas file ini. Input MANUAL, opsional, prasyarat data untuk
+                 modul Proses Produksi > Serie (belum dibangun sesi ini).
+                 BUKAN bagian wireframe 2.1 (field ditambah belakangan) —
+                 tetap ditaruh di blok identitas, cuma dipindah render-nya. -->
+            <div class="gc-field" style="margin-bottom:0;"><label>MOQ Pesanan Produk <span style="font-weight:400; color:var(--text-faint);">(modul Serie)</span></label><input v-model.number="form.moq_serie" type="number" min="0" placeholder="0"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Kelipatan Isi Pola <span style="font-weight:400; color:var(--text-faint);">(modul Serie)</span></label><input v-model.number="form.kelipatan_isi_pola" type="number" min="0" placeholder="0"></div>
+          </div>
+
+          <div style="flex:1 1 220px; max-width:280px; display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="width:6px; height:6px; border-radius:50%; background:var(--text-faint); flex-shrink:0;"></span>
+              <span style="font-weight:700; font-size:11.5px;">BOM Jasa</span>
+              <button @click="tambahJasa" type="button" class="btn-outline" style="margin-left:auto; font-size:10px; padding:3px 10px; border-radius:999px;"><i class="fas fa-plus" style="margin-right:4px;"></i>Jasa</button>
+            </div>
+            <div v-for="(j, i) in form.bom_jasa" :key="i" style="display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:8px; background:var(--ivory-dim);">
+              <input v-model="j.nama" type="text" placeholder="Nama Jasa" style="flex:1; min-width:0; border:none; background:transparent; font-size:11px; padding:2px;">
+              <input v-model.number="j.harga" type="number" min="0" placeholder="0" style="width:70px; border:none; background:transparent; font-size:11px; text-align:right; padding:2px;">
+              <button @click="hapusJasa(i)" type="button" class="icon-btn" style="color:var(--danger); font-size:11px;" title="Hapus"><i class="fas fa-times"></i></button>
+            </div>
+            <div v-if="!form.bom_jasa.length" style="font-size:10.5px; color:var(--text-faint); padding:4px 8px;">Belum ada jasa — klik "+ Jasa".</div>
+            <div class="mp-row-label" style="margin-top:-2px;">Cutting &amp; Serie tiap pola otomatis dari BOM Pola.</div>
+          </div>
+        </div>
+
+        <div style="height:1px; background:var(--line); margin:16px 0;"></div>
+
+        <!-- Baris 2 (wireframe 2.1): BOM Pola & BOM Aksesoris — tabel baris langsung, TANPA tombol collapse "+Tambah" -->
+        <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+          <div style="flex:1 1 380px; min-width:300px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+              <span style="width:6px; height:6px; border-radius:50%; background:var(--burgundy); flex-shrink:0;"></span>
+              <span style="font-weight:700; font-size:12px;">BOM Pola</span>
+              <span style="font-size:9.5px; color:var(--text-faint);">&rarr; pos Bahan</span>
+              <button @click="tambahPola" type="button" class="btn-outline" style="margin-left:auto; font-size:10.5px; padding:4px 12px; border-radius:999px;"><i class="fas fa-plus" style="margin-right:4px;"></i>Pola</button>
+            </div>
+
+            <div class="mp-bom-head-row" style="grid-template-columns:40px 1fr 74px 58px 52px 58px 58px 60px;">
+              <span></span>
+              <span class="mp-row-label" style="margin:0;">pola &middot; tipe &middot; bahan</span>
+              <span class="mp-row-label" style="margin:0; text-align:right;">bahan ID</span>
+              <span class="mp-row-label" style="margin:0; text-align:right;">panjang</span>
+              <span class="mp-row-label" style="margin:0; text-align:right;">isi</span>
+              <span class="mp-row-label" style="margin:0; text-align:right;">cutting</span>
+              <span class="mp-row-label" style="margin:0; text-align:right;">serie</span>
+              <span class="mp-row-label" style="margin:0; text-align:right;">aksi</span>
+            </div>
+
+            <div v-for="(b, i) in form.bom_pola" :key="i" class="mp-row-pola" :style="{background: i % 2 ? 'transparent' : 'rgba(59,42,31,.03)'}">
+              <div class="mp-foto-mini">
+                <img v-if="!b.fotoDihapus && (b.fotoPreview || b.foto)" :src="b.fotoPreview || b.foto">
+                <span v-else class="mp-foto-ic"><i class="fas fa-image"></i></span>
+                <input type="file" accept="image/*" @change="ev => pilihFotoPola(b, ev)" title="Ganti foto pola">
+              </div>
+              <div style="min-width:0;">
+                <div style="display:flex; gap:6px; margin-bottom:4px; flex-wrap:wrap;">
+                  <input v-model="b.nama_pola" type="text" placeholder="Nama Pola" class="mp-mini-input" style="flex:1; min-width:90px;">
+                  <div style="display:flex; gap:3px;">
+                    <button @click="b.tipe='internal'" type="button" class="btn-outline" :class="{filled: b.tipe==='internal'}" style="font-size:9px; padding:3px 7px;">Internal</button>
+                    <button @click="b.tipe='vendor'" type="button" class="btn-outline" :class="{filled: b.tipe==='vendor'}" style="font-size:9px; padding:3px 7px;">Vendor</button>
+                  </div>
                 </div>
+                <dropdown-cari v-model="b.bahan_pilih" :opsi="opsiNamaBahan" placeholder="Cari & pilih bahan..." @update:modelValue="saatPilihBahanPola(b)" />
+                <input v-if="b.tipe==='vendor'" v-model="b.jenis_vendor" type="text" placeholder="Jenis Vendor" class="mp-mini-input" style="margin-top:4px;">
               </div>
-              <div style="flex:1; min-width:260px; display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">
-                <div class="gc-field" style="margin-bottom:0;"><label>Nama Pola</label><input v-model="b.nama_pola" type="text"></div>
-                <div class="gc-field" style="margin-bottom:0;"><label>Bahan (Nama + Warna)</label><dropdown-cari v-model="b.bahan_pilih" :opsi="opsiNamaBahan" placeholder="Cari & pilih bahan..." @update:modelValue="saatPilihBahanPola(b)" /></div>
-                <div class="gc-field" style="margin-bottom:0;"><label>Panjang</label><input v-model.number="b.panjang" type="number" min="0"></div>
-                <div class="gc-field" style="margin-bottom:0;"><label>Isi Pola (Pcs)</label><input v-model.number="b.isi_pola_pcs" type="number" min="0" placeholder="Hasil potong per pcs produk"></div>
-                <div class="gc-field" style="margin-bottom:0;"><label>Jasa Cutting</label><input v-model.number="b.jasa_cutting" type="number" min="0"></div>
-                <div class="gc-field" style="margin-bottom:0;"><label>Jasa Serie</label><input v-model.number="b.jasa_serie" type="number" min="0"></div>
-                <div v-if="b.tipe==='vendor'" class="gc-field" style="margin-bottom:0;"><label>Jenis Vendor</label><input v-model="b.jenis_vendor" type="text"></div>
+              <div>
+                <span class="mp-row-label">Bahan ID</span>
+                <div style="text-align:right; font-size:10.5px; color:var(--text-faint);">{{ idTampilBahan(b.bahan_aksesoris_id) }}</div>
+              </div>
+              <div>
+                <span class="mp-row-label">Panjang</span>
+                <input v-model.number="b.panjang" type="number" min="0" class="mp-mini-input" style="text-align:right;">
+              </div>
+              <div>
+                <span class="mp-row-label">Isi (Pcs)</span>
+                <input v-model.number="b.isi_pola_pcs" type="number" min="0" class="mp-mini-input" style="text-align:right;">
+              </div>
+              <div>
+                <span class="mp-row-label">Cutting</span>
+                <input v-model.number="b.jasa_cutting" type="number" min="0" class="mp-mini-input" style="text-align:right;">
+              </div>
+              <div>
+                <span class="mp-row-label">Serie</span>
+                <input v-model.number="b.jasa_serie" type="number" min="0" class="mp-mini-input" style="text-align:right;">
+              </div>
+              <div style="display:flex; gap:4px; justify-content:flex-end; align-items:center;">
+                <button @click="bukaKomponen(i)" type="button" class="icon-btn" :title="'Kelola Komponen (' + b.komponen.length + ')'"><i class="fas fa-puzzle-piece"></i></button>
+                <button @click="hapusPola(i)" type="button" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button>
               </div>
             </div>
-            <button @click="bukaKomponen(i)" type="button" class="btn-outline" style="font-size:11.5px; margin-top:10px;"><i class="fas fa-puzzle-piece" style="margin-right:5px;"></i>Kelola Komponen ({{ b.komponen.length }})</button>
-          </div>
-          <button @click="tambahPola" type="button" class="btn-outline" style="font-size:11.5px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah Baris Pola/Vendor</button>
-        </div>
+            <div v-if="!form.bom_pola.length" style="font-size:10.5px; color:var(--text-faint); padding:8px;">Belum ada baris pola — klik "+ Pola".</div>
 
-        <!-- BOM Aksesoris -->
-        <div v-show="tabAktif==='aksesoris'">
-          <div v-for="(a, i) in form.bom_aksesoris" :key="i" class="gc-card" style="margin-bottom:12px; background:var(--ivory-dim);">
-            <div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
-              <button @click="hapusAksesoris(i)" type="button" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button>
-            </div>
-            <div style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-3">
-              <!-- GANTI (28 Agt 2026, permintaan Guru: "sambungkan dropdown
-                   cari > Persiapan untuk Tahap") — dulu input teks bebas
-                   polos, SEKARANG DropdownCari bersumber Config > Persiapan
-                   Untuk Tahap (master_tahap_persiapan). TETAP nilai teks
-                   bebas (bukan strict-select, lihat catatan opsiTahapPersiapan
-                   di setup() atas komponen ini) — data lama yang belum
-                   persis cocok ejaannya TETAP tampil normal. Field Firestore
-                   TIDAK berubah nama (tetap 'tahap_proses'), dipakai juga
-                   sebagai filter Persiapan Acc Sewing/Webbing/Finishing di
-                   menu Persiapan Produksi V2 (js/vue-persiapan-produksi-v2.js
-                   — nama file dikoreksi 30 Agt 2026, Fase 5 audit; versi
-                   LAMA vue-persiapan-produksi.js sudah ditinggalkan). -->
-              <div class="gc-field" style="margin-bottom:0;"><label>Tahap Proses <span style="font-weight:400; color:var(--text-faint);">(Persiapan Untuk Tahap)</span></label><dropdown-cari v-model="a.tahap_proses" :opsi="opsiTahapPersiapan" placeholder="Cari/isi tahap, mis. Sewing..." /></div>
-              <div class="gc-field" style="margin-bottom:0;"><label>Aksesoris (Nama + Warna)</label><dropdown-cari v-model="a.aksesoris_pilih" :opsi="opsiNamaBahan" placeholder="Cari & pilih..." @update:modelValue="saatPilihAksesoris(a)" /></div>
-              <div class="gc-field" style="margin-bottom:0;"><label>Qty</label><input v-model.number="a.qty" type="number" min="0"></div>
-              <div class="gc-field" style="margin-bottom:0;"><label>Satuan</label><dropdown-cari v-model="a.satuan_pilih" :opsi="opsiSatuan" placeholder="Cari & pilih..." /></div>
-              <div></div>
-              <div class="gc-field" style="margin-bottom:0;"><label>Kode Webbing 2 <span style="font-weight:400; color:var(--text-faint);">(opsional, teks bebas)</span></label><input v-model="a.webbing2" type="text" placeholder="Kode/catatan webbing 2..."></div>
-              <div class="gc-field" style="margin-bottom:0;"><label>Kode Webbing 3 <span style="font-weight:400; color:var(--text-faint);">(opsional, teks bebas)</span></label><input v-model="a.webbing3" type="text" placeholder="Kode/catatan webbing 3..."></div>
+            <!-- Kelipatan — dipindah ke sini (bawah tabel BOM Pola), pola SAMA
+                 seperti wireframe 2.1 ("kelipatan = KPK(...) → dipakai kotak
+                 QO di Pesanan"). Nilai & hitungannya TIDAK berubah, lihat
+                 hitungKelipatan()/kelipatanLive di atas file ini. -->
+            <div style="margin-top:8px; padding:8px 10px; border-radius:8px; background:rgba(110,30,44,.05); display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <span style="font-size:9.5px; font-weight:700; color:var(--text-faint); text-transform:uppercase;">Kelipatan</span>
+              <span style="font-size:15px; font-weight:700; color:var(--burgundy);">{{ kelipatanLive > 0 ? kelipatanLive : '-' }}</span>
+              <span style="font-size:9.5px; color:var(--text-faint);">{{ kelipatanLive > 0 ? 'otomatis dari Isi Pola (Pcs) — acuan minimal order di Pesanan' : 'belum ada Isi Pola (Pcs) terisi' }}</span>
             </div>
           </div>
-          <button @click="tambahAksesoris" type="button" class="btn-outline" style="font-size:11.5px;"><i class="fas fa-plus" style="margin-right:5px;"></i>Tambah Baris Aksesoris</button>
-        </div>
-      </div>
 
-      <div style="display:flex; gap:8px; margin-top:16px;">
-        <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="flex:1;">{{ mengupload ? 'Mengupload foto...' : (menyimpan ? 'Menyimpan...' : (modeEdit ? 'Simpan Perubahan' : 'Simpan Produk')) }}</button>
-        <button v-if="modeEdit" @click="$emit('batal')" type="button" class="btn-outline" style="flex:1;">Batal</button>
+          <div style="width:1px; align-self:stretch; background:var(--line);" class="hidden md:block"></div>
+
+          <div style="flex:1 1 320px; min-width:280px;">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+              <span style="width:6px; height:6px; border-radius:50%; background:#B8863A; flex-shrink:0;"></span>
+              <span style="font-weight:700; font-size:12px;">BOM Aksesoris</span>
+              <span style="font-size:9.5px; color:var(--text-faint);">&rarr; pos Sewing/Webbing/Finishing</span>
+              <button @click="tambahAksesoris" type="button" class="btn-outline" style="margin-left:auto; font-size:10.5px; padding:4px 12px; border-radius:999px;"><i class="fas fa-plus" style="margin-right:4px;"></i>Aksesoris</button>
+            </div>
+
+            <div class="mp-bom-head-row" style="grid-template-columns:1.2fr 1fr 46px 70px 34px;">
+              <span class="mp-row-label" style="margin:0;">item &middot; ID</span>
+              <span class="mp-row-label" style="margin:0;">tahap</span>
+              <span class="mp-row-label" style="margin:0; text-align:right;">qty</span>
+              <span class="mp-row-label" style="margin:0;">satuan</span>
+              <span class="mp-row-label" style="margin:0; text-align:right;">aksi</span>
+            </div>
+
+            <div v-for="(a, i) in form.bom_aksesoris" :key="i" class="mp-row-aksesoris" :style="{background: i % 2 ? 'transparent' : 'rgba(59,42,31,.03)'}">
+              <div style="min-width:0; display:flex; flex-direction:column; gap:3px;">
+                <span class="mp-row-label">Aksesoris</span>
+                <dropdown-cari v-model="a.aksesoris_pilih" :opsi="opsiNamaBahan" placeholder="Cari & pilih aksesoris..." @update:modelValue="saatPilihAksesoris(a)" />
+                <div style="font-size:9.5px; color:var(--text-faint);">{{ idTampilBahan(a.bahan_aksesoris_id) }}</div>
+              </div>
+              <div>
+                <span class="mp-row-label">Tahap Proses</span>
+                <dropdown-cari v-model="a.tahap_proses" :opsi="opsiTahapPersiapan" placeholder="Cari/isi tahap..." />
+              </div>
+              <div>
+                <span class="mp-row-label">Qty</span>
+                <input v-model.number="a.qty" type="number" min="0" class="mp-mini-input" style="text-align:right;">
+              </div>
+              <div>
+                <span class="mp-row-label">Satuan</span>
+                <dropdown-cari v-model="a.satuan_pilih" :opsi="opsiSatuan" placeholder="Satuan..." />
+              </div>
+              <div style="display:flex; justify-content:flex-end;">
+                <button @click="hapusAksesoris(i)" type="button" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button>
+              </div>
+              <div style="grid-column:1/-1; display:flex; gap:8px; flex-wrap:wrap; margin-top:2px;">
+                <input v-model="a.webbing2" type="text" placeholder="Kode Webbing 2 (opsional)" class="mp-mini-input" style="flex:1; min-width:110px; font-size:10.5px;">
+                <input v-model="a.webbing3" type="text" placeholder="Kode Webbing 3 (opsional)" class="mp-mini-input" style="flex:1; min-width:110px; font-size:10.5px;">
+              </div>
+            </div>
+            <div v-if="!form.bom_aksesoris.length" style="font-size:10.5px; color:var(--text-faint); padding:8px;">Belum ada baris aksesoris — klik "+ Aksesoris".</div>
+          </div>
+        </div>
       </div>
 
       <kelola-komponen-modal
@@ -1026,8 +1125,11 @@ const MasterProdukEntryManager = {
   },
   template: `
     <div>
-      <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-bottom:4px;"><i class="fas fa-box-open" style="color:var(--burgundy); margin-right:8px;"></i>Entry Produk (BOM)</h3>
-      <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Data produk jadi konveksi lengkap dengan Bill of Material (Jasa, Pola/Vendor, Aksesoris) — jadi fondasi produksi.</p>
+      <!-- Judul/breadcrumb "Zevanic House › Master Produk" & subjudul SEKARANG
+           dirender di dalam card-head FormEntryProdukBOM sendiri (lihat
+           template-nya di atas file ini) — pola sama seperti wireframe 2.1
+           (breadcrumb+tab jadi satu dengan kartu form, bukan judul terpisah
+           di luar kartu seperti sebelumnya). -->
       <form-entry-produk-b-o-m :key="kunciForm" @tersimpan="saatTersimpan" />
     </div>
   `
