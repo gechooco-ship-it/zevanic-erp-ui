@@ -99,7 +99,8 @@ const LABEL_SUBTAB = {
   // set ini sebelumnya HILANG total (celah lama, bukan cuma soal menu
   // baru §26). Ditambah sekalian semuanya supaya header mobile Zevanic
   // House selalu jelas lagi di mana, bukan cuma yang kepakai dari Home.
-  'sub-zevanic-house-persiapan': 'Persiapan Masalah',
+  // DIHAPUS (9 Sep 2026, rombak ke-2) — 'sub-zevanic-house-persiapan':
+  // 'Persiapan Masalah' (modul dihapus total).
   // BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
   // Master Pelanggan, lihat js/vue-master-pelanggan.js.
   'sub-zevanic-house-pelanggan': 'Master Pelanggan',

@@ -142,9 +142,14 @@ const DAFTAR_MENU = [
   // boleh lihat/kelola Rak) TIDAK yatim. `deprecated: true` supaya tidak
   // ikut nongol sebagai tile basi di grid Home mobile/sidebar.
   { id: 'bahan_aksesoris_rak', label: 'Rak Penyimpanan (DIPENSIUNKAN, lihat Stock & Pembelian)', kategori: 'Zevanic House', icon: 'fa-warehouse', deprecated: true },
-  // BARU (24 Agt 2026) — Persiapan Masalah + Stock & Pembelian.
-  { id: 'persiapan_masalah', label: 'Persiapan Masalah', kategori: 'Zevanic House', icon: 'fa-triangle-exclamation',
-    aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-persiapan', null, {catatRiwayat:true}); } },
+  // DIPENSIUNKAN TOTAL (9 Sep 2026, rombak ke-2, keputusan final Guru) —
+  // board manual lama (koleksi `permintaan_bahan_manual`) dihapus, file
+  // js/vue-persiapan-masalah.js dihapus. Penggantinya: Persiapan Produksi
+  // > Masalah (id 'pp_masalah') -> Persiapan Belanja "Cek Pengajuan" ->
+  // Driver. `deprecated: true` (BUKAN dihapus dari array) supaya izin role
+  // yang sudah tersimpan untuk id ini tidak yatim — pola SAMA seperti
+  // 'bahan_aksesoris_rak'/'order_spk' di atas/bawah.
+  { id: 'persiapan_masalah', label: 'Persiapan Masalah (DIPENSIUNKAN, lihat Persiapan Produksi > Masalah)', kategori: 'Zevanic House', icon: 'fa-triangle-exclamation', deprecated: true },
   // DIPENSIUNKAN (27 Agt 2026, §26.1) — CRUD Suplayer dulu di
   // 'config_master_data' (menu Config). GANTI TOTAL (5 Sep 2026) — CRUD
   // Suplayer sekarang di 3 entry 'suplayer_*' di bawah (Zevanic House >

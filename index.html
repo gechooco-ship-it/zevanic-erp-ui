@@ -267,15 +267,25 @@
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-config', this); pindahSubTab('sub-zh-config','sub-zh-config-jenisbahan')" id="menu-zevanic-config-btn" data-menu-id="config_master_data" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-sliders" style="width:17px; text-align:center;"></i> Config
           </button>
-          <!-- DITAHAN, BELUM DIHAPUS (9 Sep 2026, rombak ke-2) — Guru minta
-               ini dihapus karena dikira sudah digantikan Persiapan Produksi
-               > Masalah. Verifikasi kode: BEDA fitur, koleksi
-               `permintaan_bahan_manual` masih aktif dipakai Nota Order
-               Belanja (js/vue-stock-pembelian.js). Ditaruh di bawah sendiri
-               sementara nunggu keputusan Guru — lihat STATUS-PROYEK.md. -->
-          <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-persiapan', this, {catatRiwayat:true})" id="menu-zevanic-persiapan-btn" data-menu-id="persiapan_masalah" data-target="sub-zevanic-house-persiapan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-triangle-exclamation" style="width:17px; text-align:center;"></i> Persiapan Masalah
-          </button>
+          <!-- DIHAPUS TOTAL (9 Sep 2026, rombak ke-2, keputusan final Guru) —
+               tombol & div konten "Persiapan Masalah" (board manual lama,
+               koleksi `permintaan_bahan_manual`) dihapus. Sempat ditahan
+               karena koleksinya masih dipakai Nota Order Belanja — Guru
+               konfirmasi jalur PENGGANTINYA: Persiapan Produksi > Masalah
+               (persiapan_masalah, status diajukan_belanja) -> Persiapan
+               Belanja "Cek Pengajuan" (SUDAH ADA, lihat js/vue-persiapan-
+               belanja.js baris ~241) -> generate order_belanja_driver saat
+               disetujui -> Driver beli (status 'dibeli' + foto_bon). CATATAN
+               GAP: leg TERAKHIR (order_belanja_driver/pending_driver ->
+               Nota Order Belanja) BELUM ada kode yang menyambungkannya —
+               js/vue-stock-pembelian.js tidak baca 2 koleksi itu sama
+               sekali. Sampai leg itu dibangun, hasil belanja driver TIDAK
+               otomatis nongol di Nota Order Belanja (dulu di path lama,
+               permintaan_bahan_manual otomatis masuk tabel situ). Lihat
+               claude/STATUS-PROYEK.md. File js/vue-persiapan-masalah.js
+               DIHAPUS, id menu 'persiapan_masalah' di Config Akses
+               diset deprecated:true (bukan dihapus, supaya izin role lama
+               tidak yatim, lihat js/vue-config-akses.js). -->
           <!-- DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan") — Order SPK
                PINDAH TOTAL ke grup "Pesanan > Menunggu Proses" di bawah
                (lihat js/vue-pesanan.js, js/vue-config-akses.js id
@@ -886,10 +896,10 @@
             </div>
           </div>
 
-          <div id="sub-zevanic-house-persiapan" class="sub-zevanic-house-content hidden fade-in space-y-4">
-            <!-- Persiapan Masalah: lihat js/vue-persiapan-masalah.js -->
-            <div id="vue-persiapan-masalah"></div>
-          </div>
+          <!-- DIHAPUS TOTAL (9 Sep 2026, rombak ke-2) — div konten
+               "Persiapan Masalah" (dulu di sini, mount id vue-persiapan-
+               masalah) beserta file js/vue-persiapan-masalah.js, lihat
+               komentar sidebar navgrp-zevanic di atas untuk alasan lengkap. -->
 
           <!-- BARU (5 Sep 2026) — Master Suplayer: lihat js/vue-master-suplayer.js.
                GANTI TOTAL dari Config > Data Suplayer (CRUD suplayer, sekarang di
@@ -1611,7 +1621,7 @@
   <script type="module" src="js/camera.js"></script>
   <!-- v=2 (28 Agt 2026): window.bolehLihatData tambah bypass eksplisit
        dimensi gudang untuk profil "pic_owner" (role "PIC Owner"). -->
-  <script type="module" src="js/auth.js?v=8"></script>
+  <script type="module" src="js/auth.js?v=9"></script>
   <!-- v=13 (28 Agt 2026): peta mount tambah 'sub-zh-config-jenisproduk' ->
        pastikanMountConfigJenisProduk (tab Config baru "Jenis Produk").
        v=14 (28 Agt 2026): peta mount tambah 'sub-zh-config-komponen' ->
@@ -1655,7 +1665,7 @@
        butuh entry petaTabIndukPerGrup (tidak ada sub-tab di dalamnya,
        sama seperti 'sub-zevanic-house-persiapan'). Lihat js/vue-master-
        pelanggan.js. -->
-  <script type="module" src="js/dashboard.js?v=26"></script>
+  <script type="module" src="js/dashboard.js?v=27"></script>
   <!-- js/vue-order-spk.js — DITINGGALKAN (30 Agt 2026, fitur "Pesanan",
        keputusan Guru: fungsinya pindah jadi menu "Menunggu Proses" di
        grup baru "Pesanan"). File TIDAK dihapus dari disk (jaga-jaga
@@ -1718,7 +1728,7 @@
        DAFTAR_MENU baru (pesanan_kasir/menunggu/persiapan/produksi/
        pengiriman), id 'order_spk' DIPENSIUNKAN (deprecated:true). Lihat
        js/vue-pesanan.js. -->
-  <script type="module" src="js/vue-config-akses.js?v=11"></script>
+  <script type="module" src="js/vue-config-akses.js?v=12"></script>
   <script type="module" src="js/vue-hak-akses.js?v=2"></script>
   <!-- v=4 (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, permintaan
        Guru — PERUBAHAN LOGIC juga, bukan cuma tampilan) — form approval
@@ -1798,7 +1808,7 @@
        notifikasi Pengumuman (badge + dropdown), avatar inisial. Mode
        'tersembunyi' baru untuk layar ber-header sendiri (Menu Lengkap/Atur
        Favorit). -->
-  <script type="module" src="js/vue-header-mobile.js?v=8"></script>
+  <script type="module" src="js/vue-header-mobile.js?v=9"></script>
   <!-- BARU (28 Agt 2026, redesain "Gechoo Mobile Organic") — layar baru,
        lihat mount #vue-menu-lengkap/#vue-atur-favorit di atas. -->
   <script type="module" src="js/vue-menu-lengkap.js"></script>
@@ -1825,7 +1835,8 @@
   <!-- BARU (7 Sep 2026, task #95) — Repack Komponen Acc, lihat komentar
        besar di file itu untuk detail keputusan Guru (AskUserQuestion). -->
   <script type="module" src="js/vue-repack-komponen-acc.js?v=1"></script>
-  <script type="module" src="js/vue-persiapan-masalah.js?v=4"></script>
+  <!-- DIHAPUS TOTAL (9 Sep 2026, rombak ke-2) — dulu di sini:
+       js/vue-persiapan-masalah.js?v=4. Lihat komentar navgrp-zevanic. -->
   <!-- v=19 (28 Agt 2026): sempat dicoba tag Jenis Pekerjaan per pesanan
        (role "PIC Owner"), DIBATALKAN — Guru konfirmasi grup Zevanic House
        100% ZCO/Konveksi, tidak perlu difilter per-item (lihat STATUS-

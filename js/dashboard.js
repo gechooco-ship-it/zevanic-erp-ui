@@ -517,7 +517,9 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // index.html.
     'sub-zh-databahan-entry': 'pastikanMountBahanAksesorisEntry',
     'sub-zh-databahan-list': 'pastikanMountBahanAksesorisList',
-    'sub-zevanic-house-persiapan': 'pastikanMountPersiapanMasalah',
+    // DIHAPUS (9 Sep 2026, rombak ke-2) — 'sub-zevanic-house-persiapan':
+    // 'pastikanMountPersiapanMasalah' (js/vue-persiapan-masalah.js dihapus
+    // total, lihat komentar index.html navgrp-zevanic).
     // BARU (5 Sep 2026) — Zevanic House > Master Suplayer (3 sub-tab), lihat
     // js/vue-master-suplayer.js. GANTI TOTAL dari 'sub-zh-stock-alias' di
     // bawah (Alias Pembelian, DIPENSIUNKAN dari sini — entry-nya DIHAPUS,

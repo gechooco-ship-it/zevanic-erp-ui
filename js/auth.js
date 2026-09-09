@@ -918,9 +918,9 @@ window.aturTampilanBerdasarkanRole = function() {
   // Hilman lewat AskUserQuestion ("admin ke atas").
   const menuZevanicHouse = document.getElementById('menu-zevanic-house');
   const menuZevanicHouseBtn = document.getElementById('menu-zevanic-house-btn');
-  // BARU (24 Agt 2026) — Zevanic House > Persiapan Masalah. Gerbang role
-  // SAMA (isAdminLevel()).
-  const menuZevanicPersiapanBtn = document.getElementById('menu-zevanic-persiapan-btn');
+  // DIHAPUS (9 Sep 2026, rombak ke-2) — menuZevanicPersiapanBtn
+  // ('menu-zevanic-persiapan-btn'), modul Persiapan Masalah lama dihapus
+  // total dari sidebar (lihat index.html komentar navgrp-zevanic).
   // DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang sidebar sesuai
   // wireframe) — "Stock & Pembelian" PINDAH keluar dari Zevanic House jadi
   // grup top-level sendiri "Stok dan Pembelian" (menu-zevanic-stock-btn
@@ -962,7 +962,7 @@ window.aturTampilanBerdasarkanRole = function() {
   // sama (tombolnya wajib ditambahkan ke KEDUA array show/hide di bawah).
   const menuProsesProduksi = document.getElementById('menu-proses-produksi');
 
-  [menuManagement, menuAdminAccBtn, menuKeuanganBtn, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnAksesKeamanan, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuZevanicPersiapanBtn, menuStokPembelian, menuPersiapanProduksi, menuPesanan, menuScanCetak, menuProsesProduksi].forEach(el => {
+  [menuManagement, menuAdminAccBtn, menuKeuanganBtn, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnAksesKeamanan, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuStokPembelian, menuPersiapanProduksi, menuPesanan, menuScanCetak, menuProsesProduksi].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -983,7 +983,6 @@ window.aturTampilanBerdasarkanRole = function() {
     if (menuKeuanganBtn) menuKeuanganBtn.classList.remove('hidden');
     if (menuZevanicHouse) menuZevanicHouse.classList.remove('hidden');
     if (menuZevanicHouseBtn) menuZevanicHouseBtn.classList.remove('hidden');
-    if (menuZevanicPersiapanBtn) menuZevanicPersiapanBtn.classList.remove('hidden');
     // DIROMBAK (9 Sep 2026) — Stok dan Pembelian sekarang grup sendiri
     // (dulu menuZevanicStockBtn, gerbang role TETAP SAMA).
     if (menuStokPembelian) menuStokPembelian.classList.remove('hidden');
