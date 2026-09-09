@@ -165,7 +165,7 @@ export const KATALOG_CETAK = {
   },
   struk_kasir: {
     label: 'Struk Kasir', kategori: 'Pesanan',
-    keterangan: 'Pesanan > Penjualan Kasir. Kertas roll (lebar saja). BELUM disambungkan ke komponen popup manapun (menyusul) — atur grupnya boleh, tapi belum ada efek cetak sungguhan.',
+    keterangan: 'Pesanan > Penjualan Kasir. Kertas roll (lebar saja). Disambungkan 9 Sep 2026 (js/vue-pesanan.js, PopupPratinjauCetakStruk) — CUMA lebar roll yang ikut setingan grup ini, isi struk (item/total/status bayar) tetap dari template struk sendiri, bukan dari field_tampil grup.',
     rincianTersedia: [],
     strukRoll: true
   }

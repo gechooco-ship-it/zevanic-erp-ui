@@ -55,6 +55,30 @@
 //   D7. `dp_persen` — DIHITUNG OTOMATIS dari nominal DP yang diketik kasir
 //       (bukan diinput manual), dibagi total transaksi.
 //
+// KEPUTUSAN SUSULAN (9 Sep 2026, tindak lanjut audit handoff — 3 item §7
+// "Yang Belum Diputuskan" dijawab lewat AskUserQuestion SEBELUM kode ditulis):
+//   D8. Diskon (§7) — DIBANGUN, PER ITEM keranjang (bukan per transaksi).
+//       Tiap baris punya `diskon_tipe` ('rp'|'persen') + `diskon_nilai`
+//       (default 'rp'/0). Tipe Rp-vs-persen TIDAK ditanyakan eksplisit ke
+//       Guru (pertanyaan cuma "per item atau per transaksi") — dibuat
+//       toggle keduanya supaya kasir bebas pilih, bukan menebak salah satu.
+//   D9. Denda keterlambatan cicilan (§7) — TIDAK dibangun (Guru pilih
+//       "tetap tidak ada denda"). Tidak ada field/logic denda di file ini.
+//   D10. Cetak struk (§7 "format apa") — DISAMBUNGKAN ke sistem Pengaturan
+//       Cetak (`js/vue-pengaturan-cetak.js`, jenis `struk_kasir`, sudah ada
+//       di KATALOG_CETAK sejak 8 Sep tapi belum ada pemanggilnya). Struk
+//       TETAP pakai template khusus struk (`PopupPratinjauCetakStruk`,
+//       bukan `PopupPratinjauCetakLabel`) karena bentuk kontennya beda total
+//       (daftar item + total, bukan 1 kartu per label) — yang disambungkan
+//       CUMA lebar kertas roll (`ambilPengaturanCetak('struk_kasir').
+//       lebar_mm`, default 80mm kalau belum diatur Guru — sama dengan
+//       DEFAULT_STRUK di vue-pengaturan-cetak.js). Cetak juga
+//       DIPERBAIKI dari `window.print()` polos (yang sebelumnya mencetak
+//       SELURUH halaman di belakang popup, bukan cuma struknya — tidak ada
+//       CSS print sama sekali) jadi buka window baru + `@page{size:...}`,
+//       pola SAMA seperti `cetakSekarang()` di `PopupPratinjauCetakLabel`
+//       (vue-components.js) supaya konsisten satu proyek.
+//
 // PENYIMPANGAN/TAMBAHAN TEKNIS YANG BELUM PERNAH EKSPLISIT DIKONFIRMASI GURU
 // (diputuskan sendiri di sini dengan alasan teknis murni, DIFLAG di
 // STATUS-PROYEK.md & pesan laporan — bukan ditebak diam-diam, pola yang sama
@@ -100,6 +124,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { ambilSemuaProduk } from './vue-master-produk.js';
+import { ambilPengaturanCetak } from './vue-pengaturan-cetak.js';
 
 function formatQty(n) {
   const angka = parseFloat(n) || 0;
@@ -282,8 +307,58 @@ function tanggalPlusHari(hari) {
   return d.toISOString().slice(0, 10);
 }
 
-const PesananKasirManager = {
-  components: { PopupPratinjauCetakStruk: { props: ['struk'], emits: ['tutup'], template: `
+// PopupPratinjauCetakStruk — D10 (lihat komentar besar atas file): preview
+// on-screen TETAP template struk khusus (bukan PopupPratinjauCetakLabel,
+// bentuk kontennya beda total), tapi tombol Cetak sekarang buka window baru
+// dengan `@page{size:${lebar}mm auto}` — lebar diambil dari Pengaturan Cetak
+// jenis `struk_kasir` (prop `struk.lebarMm`, diisi PesananKasirManager dari
+// `ambilPengaturanCetak('struk_kasir')`) — pola sama seperti cetakSekarang()
+// di PopupPratinjauCetakLabel (vue-components.js), supaya konsisten dan
+// supaya print SUNGGUHAN cuma berisi struk (bukan seluruh halaman di
+// belakang popup seperti window.print() polos yang lama).
+const PopupPratinjauCetakStruk = {
+  props: ['struk'], emits: ['tutup'],
+  setup(props, { emit }) {
+    function cetakSekarang() {
+      const s = props.struk;
+      const lebar = parseFloat(s.lebarMm) || 80;
+      const w = window.open('', '_blank');
+      if (!w) { alert('Popup diblokir browser. Izinkan popup untuk mencetak struk.'); return; }
+      const itemsHtml = s.items.map(it => `
+        <div class="baris"><span>${it.qty}x ${it.nama_produk}</span><span>${(it.subtotal || 0).toLocaleString('id-ID')}</span></div>
+      `).join('');
+      w.document.write(`<html><head><title>Struk ${s.noTransaksi}</title>
+        <style>
+          @page { size: ${lebar}mm auto; margin: 0; }
+          *{ box-sizing:border-box; }
+          body{ font-family:'Courier New',monospace; font-size:12px; margin:0; padding:2mm 3mm; width:${lebar}mm; }
+          .judul{ text-align:center; font-weight:700; margin-bottom:4px; }
+          .sub{ text-align:center; font-size:10.5px; margin-bottom:8px; }
+          .garis{ border-top:1px dashed #333; margin:6px 0; }
+          .baris{ display:flex; justify-content:space-between; gap:8px; margin-bottom:3px; }
+          .total{ display:flex; justify-content:space-between; font-weight:700; }
+        </style>
+        </head><body>
+          <div class="judul">ZEVANIC</div>
+          <div class="sub">${s.noTransaksi} &middot; ${s.tanggal}</div>
+          <div class="garis"></div>
+          ${itemsHtml}
+          <div class="garis"></div>
+          ${s.diskonTotal > 0 ? `<div class="baris"><span>Diskon</span><span>-${s.diskonTotal.toLocaleString('id-ID')}</span></div>` : ''}
+          <div class="total"><span>TOTAL</span><span>${(s.total || 0).toLocaleString('id-ID')}</span></div>
+          <div class="baris"><span>Status</span><span>${s.statusLabel}</span></div>
+          ${s.dp > 0 ? `<div class="baris"><span>Dibayar (DP)</span><span>${s.dp.toLocaleString('id-ID')}</span></div>` : ''}
+          ${s.sisa > 0 ? `<div class="baris"><span>Sisa Piutang</span><span>${s.sisa.toLocaleString('id-ID')}</span></div>` : ''}
+          ${s.jatuhTempo ? `<div class="baris"><span>Jatuh Tempo</span><span>${s.jatuhTempo}</span></div>` : ''}
+          <div class="sub" style="margin-top:10px;">Pelanggan: ${s.pelanggan}</div>
+          <script>window.onload = function(){ setTimeout(function(){ window.print(); }, 300); };<\/script>
+        </body></html>`);
+      w.document.close();
+      emit('cetak');
+    }
+    return { cetakSekarang };
+  },
+  template: `
     <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="$emit('tutup')">
       <div class="gc-card" style="max-width:340px; width:100%; padding:0; overflow:hidden;">
         <div id="area-cetak-struk" style="padding:18px; font-family: 'Courier New', monospace; font-size:12px;">
@@ -294,6 +369,7 @@ const PesananKasirManager = {
             <span>{{ it.qty }}x {{ it.nama_produk }}</span><span>{{ (it.subtotal||0).toLocaleString('id-ID') }}</span>
           </div>
           <div style="border-top:1px dashed #333; margin:6px 0;"></div>
+          <div v-if="struk.diskonTotal > 0" style="display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted);"><span>Diskon</span><span>-{{ struk.diskonTotal.toLocaleString('id-ID') }}</span></div>
           <div style="display:flex; justify-content:space-between; font-weight:700;"><span>TOTAL</span><span>{{ (struk.total||0).toLocaleString('id-ID') }}</span></div>
           <div style="display:flex; justify-content:space-between;"><span>Status</span><span>{{ struk.statusLabel }}</span></div>
           <div v-if="struk.dp > 0" style="display:flex; justify-content:space-between;"><span>Dibayar (DP)</span><span>{{ struk.dp.toLocaleString('id-ID') }}</span></div>
@@ -302,12 +378,16 @@ const PesananKasirManager = {
           <div style="text-align:center; margin-top:10px; font-size:10px;">Pelanggan: {{ struk.pelanggan }}</div>
         </div>
         <div style="display:flex; gap:8px; padding:12px 18px;">
-          <button onclick="window.print()" class="btn-primary" style="flex:1;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak</button>
+          <button @click="cetakSekarang" class="btn-primary" style="flex:1;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak</button>
           <button @click="$emit('tutup')" class="btn-outline" style="flex:1;">Tutup</button>
         </div>
       </div>
     </div>
-  ` } },
+  `
+};
+
+const PesananKasirManager = {
+  components: { PopupPratinjauCetakStruk },
   setup() {
     const menuId = 'pesanan_kasir';
     const bolehTambah = computed(() => window.cekIzinMenu(menuId, 'add') !== false);
@@ -332,12 +412,23 @@ const PesananKasirManager = {
 
     const keranjang = reactive({});
     const daftarKeranjang = computed(() => Object.values(keranjang));
-    const totalBelanja = computed(() => daftarKeranjang.value.reduce((total, i) => total + (i.qty * i.harga_satuan), 0));
+    // D8 (lihat komentar besar atas file) — diskon PER ITEM, toggle Rp/%.
+    // subtotalItem() = subtotal SETELAH diskon, diklem tidak boleh negatif
+    // (diskon Rp lebih besar dari harga tetap dianggap 0, bukan minus).
+    function subtotalItem(i) {
+      const kotor = i.qty * i.harga_satuan;
+      const nilai = Math.max(0, parseFloat(i.diskon_nilai) || 0);
+      const potongan = i.diskon_tipe === 'persen' ? kotor * (Math.min(100, nilai) / 100) : nilai;
+      return Math.max(0, kotor - potongan);
+    }
+    const totalBelanja = computed(() => daftarKeranjang.value.reduce((total, i) => total + subtotalItem(i), 0));
+    const totalKotorBelanja = computed(() => daftarKeranjang.value.reduce((total, i) => total + (i.qty * i.harga_satuan), 0));
+    const diskonTotalBelanja = computed(() => Math.max(0, totalKotorBelanja.value - totalBelanja.value));
     const totalItem = computed(() => daftarKeranjang.value.reduce((total, i) => total + i.qty, 0));
 
     function tambahKeKeranjang(produk) {
       if (keranjang[produk.sku]) { keranjang[produk.sku].qty++; return; }
-      keranjang[produk.sku] = { sku: produk.sku, nama: formatLabelProduk(produk), harga_satuan: parseFloat(produk.harga_jual) || 0, qty: 1 };
+      keranjang[produk.sku] = { sku: produk.sku, nama: formatLabelProduk(produk), harga_satuan: parseFloat(produk.harga_jual) || 0, qty: 1, diskon_tipe: 'rp', diskon_nilai: 0 };
     }
     function tambahQty(sku) { if (keranjang[sku]) keranjang[sku].qty++; }
     function kurangiQty(sku) { if (!keranjang[sku]) return; keranjang[sku].qty--; if (keranjang[sku].qty <= 0) delete keranjang[sku]; }
@@ -430,8 +521,17 @@ const PesananKasirManager = {
       menyimpan.value = true;
       try {
         const noTransaksi = await generateNoTransaksiKasir();
-        const itemsSiap = daftarKeranjang.value.map(i => ({ sku_produk: i.sku, nama_produk: i.nama, qty: i.qty, harga_satuan: i.harga_satuan, subtotal: i.qty * i.harga_satuan }));
+        // D8 — subtotal per item SUDAH bersih diskon (subtotalItem), snapshot
+        // diskon_tipe/diskon_nilai ikut disimpan supaya struk & histori bisa
+        // menunjukkan rinciannya, bukan cuma angka akhir.
+        const itemsSiap = daftarKeranjang.value.map(i => ({
+          sku_produk: i.sku, nama_produk: i.nama, qty: i.qty, harga_satuan: i.harga_satuan,
+          diskon_tipe: (parseFloat(i.diskon_nilai) || 0) > 0 ? i.diskon_tipe : null,
+          diskon_nilai: (parseFloat(i.diskon_nilai) || 0) > 0 ? (parseFloat(i.diskon_nilai) || 0) : 0,
+          subtotal: subtotalItem(i)
+        }));
         const totalSiap = itemsSiap.reduce((t, i) => t + i.subtotal, 0);
+        const diskonTotalSiap = diskonTotalBelanja.value;
         const pel = pelangganTerpilih.value;
         const sisaSiap = Math.max(0, totalSiap - dibayarSekarang.value);
         const kasirEmail = window.currentUser?.email || null;
@@ -443,6 +543,7 @@ const PesananKasirManager = {
           metode_pembayaran: metode.value,
           items: itemsSiap,
           total: totalSiap,
+          diskon_total: diskonTotalSiap,
           status: 'Aktif',
           status_bayar: statusBayar.value,
           dp_persen: statusBayar.value === 'dp' ? dpPersen.value : 0,
@@ -493,9 +594,13 @@ const PesananKasirManager = {
 
         strukTampil.value = {
           noTransaksi, tanggal: new Date().toLocaleString('id-ID'), items: itemsSiap, total: totalSiap,
+          diskonTotal: diskonTotalSiap,
           statusLabel: STATUS_BAYAR_OPSI.find(s => s.v === statusBayar.value)?.label || '',
           dp: statusBayar.value === 'dp' ? dibayarSekarang.value : 0, sisa: sisaSiap,
-          jatuhTempo: statusBayar.value !== 'lunas' ? jatuhTempo.value : null, pelanggan: pel.nama
+          jatuhTempo: statusBayar.value !== 'lunas' ? jatuhTempo.value : null, pelanggan: pel.nama,
+          // D10 — lebar kertas roll dari Pengaturan Cetak jenis `struk_kasir`,
+          // dimuat sekali saat mount (lihat onMounted di bawah).
+          lebarMm: parseFloat(pengaturanStruk.value?.lebar_mm) || 80
         };
         kosongkanKeranjang();
         pelangganTerpilihId.value = ''; metode.value = 'Tunai'; statusBayar.value = 'lunas';
@@ -511,18 +616,26 @@ const PesananKasirManager = {
 
     async function muatPelanggan() { memuatPelanggan.value = true; daftarPelanggan.value = await ambilDaftarPelanggan(); memuatPelanggan.value = false; }
 
+    // D10 — pengaturan cetak jenis `struk_kasir` (lebar roll), dimuat sekali
+    // per sesi mount (bukan tiap checkout) — cukup, ukuran kertas jarang
+    // ganti di tengah sesi kasir. ambilPengaturanCetak() sendiri sudah punya
+    // cache in-memory (lihat js/vue-pengaturan-cetak.js), jadi tidak nambah
+    // read Firestore kalau layar lain sudah memuatnya duluan.
+    const pengaturanStruk = ref(null);
+
     onMounted(async () => {
       await window.authReady;
       memuatProduk.value = true;
       try { daftarProduk.value = await ambilSemuaProduk(); } catch (e) { console.error('Gagal muat daftar produk buat Kasir:', e); }
       memuatProduk.value = false;
       await muatPelanggan();
+      try { pengaturanStruk.value = await ambilPengaturanCetak('struk_kasir'); } catch (e) { console.error('Gagal muat pengaturan cetak struk_kasir:', e); }
     });
 
     return {
       bolehTambah, memuatProduk, daftarProduk, kategoriAktif, cariProduk,
-      daftarKategori, produkTampil, keranjang, daftarKeranjang, totalBelanja, totalItem,
-      tambahKeKeranjang, tambahQty, kurangiQty, hapusDariKeranjang, kosongkanKeranjang,
+      daftarKategori, produkTampil, keranjang, daftarKeranjang, totalBelanja, totalKotorBelanja, diskonTotalBelanja, totalItem,
+      subtotalItem, tambahKeKeranjang, tambahQty, kurangiQty, hapusDariKeranjang, kosongkanKeranjang,
       memuatPelanggan, daftarPelanggan, cariPelanggan, pelangganTerpilihId, pelangganTerpilih, pelangganTampil,
       step, metode, METODE_PEMBAYARAN_OPSI, statusBayar, STATUS_BAYAR_OPSI, JATUH_TEMPO_PRESET,
       uangDiterima, dpNominal, jatuhTempo, dibayarSekarang, sisaPiutang, dpPersen, kembalian,
@@ -561,16 +674,27 @@ const PesananKasirManager = {
         <h3 style="font-weight:700; font-size:13.5px; margin-bottom:10px;"><i class="fas fa-cash-register" style="color:var(--aksen-ink); margin-right:8px;"></i>Keranjang ({{ totalItem }})</h3>
         <div v-if="daftarKeranjang.length === 0" style="text-align:center; padding:16px; color:var(--text-faint); font-size:12px;">Keranjang masih kosong — klik produk di atas buat menambahkan.</div>
         <div v-else style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
-          <div v-for="i in daftarKeranjang" :key="i.sku" style="display:flex; align-items:center; gap:8px; background:var(--ivory-dim); border-radius:12px; padding:8px 10px;">
-            <div style="flex:1; min-width:0;">
-              <div style="font-weight:700; font-size:12px;">{{ i.nama }}</div>
-              <div style="font-size:10.5px; color:var(--text-muted);">{{ formatRupiah(i.harga_satuan) }} / pcs</div>
+          <div v-for="i in daftarKeranjang" :key="i.sku" style="display:flex; flex-direction:column; gap:6px; background:var(--ivory-dim); border-radius:12px; padding:8px 10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <div style="flex:1; min-width:0;">
+                <div style="font-weight:700; font-size:12px;">{{ i.nama }}</div>
+                <div style="font-size:10.5px; color:var(--text-muted);">{{ formatRupiah(i.harga_satuan) }} / pcs</div>
+              </div>
+              <button @click="kurangiQty(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px;"><i class="fas fa-minus" style="font-size:10px;"></i></button>
+              <span style="font-size:12.5px; font-weight:700; min-width:22px; text-align:center;">{{ i.qty }}</span>
+              <button @click="tambahQty(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px;"><i class="fas fa-plus" style="font-size:10px;"></i></button>
+              <div style="font-weight:700; font-size:12px; min-width:80px; text-align:right;">{{ formatRupiah(subtotalItem(i)) }}</div>
+              <button @click="hapusDariKeranjang(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px; color:var(--danger);"><i class="fas fa-trash-alt" style="font-size:10px;"></i></button>
             </div>
-            <button @click="kurangiQty(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px;"><i class="fas fa-minus" style="font-size:10px;"></i></button>
-            <span style="font-size:12.5px; font-weight:700; min-width:22px; text-align:center;">{{ i.qty }}</span>
-            <button @click="tambahQty(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px;"><i class="fas fa-plus" style="font-size:10px;"></i></button>
-            <div style="font-weight:700; font-size:12px; min-width:80px; text-align:right;">{{ formatRupiah(i.qty * i.harga_satuan) }}</div>
-            <button @click="hapusDariKeranjang(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px; color:var(--danger);"><i class="fas fa-trash-alt" style="font-size:10px;"></i></button>
+            <div style="display:flex; align-items:center; gap:6px; padding-left:2px;">
+              <span style="font-size:10px; color:var(--text-faint); flex-shrink:0;">Diskon</span>
+              <select v-model="i.diskon_tipe" style="font-size:10.5px; padding:3px 6px; border-radius:6px; border:1px solid var(--line); background:#fff;">
+                <option value="rp">Rp</option>
+                <option value="persen">%</option>
+              </select>
+              <input v-model.number="i.diskon_nilai" type="number" min="0" :max="i.diskon_tipe==='persen' ? 100 : null" placeholder="0" style="width:76px; font-size:10.5px; padding:3px 6px; border-radius:6px; border:1px solid var(--line);">
+              <span v-if="i.diskon_nilai > 0" style="font-size:10px; color:var(--text-faint);">hemat {{ formatRupiah((i.qty*i.harga_satuan) - subtotalItem(i)) }}</span>
+            </div>
           </div>
         </div>
 
@@ -583,9 +707,15 @@ const PesananKasirManager = {
           <p v-if="daftarPelanggan.length === 0 && !memuatPelanggan" style="font-size:10.5px; color:var(--danger); margin-top:4px;">Belum ada data Pelanggan — tambah dulu di Zevanic House &gt; Master Pelanggan.</p>
         </div>
 
-        <div style="display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-top:1px solid var(--line); margin-bottom:12px;">
-          <span style="font-weight:700; font-size:13.5px;">Total</span>
-          <span style="font-weight:700; font-size:18px; color:var(--burgundy);">{{ formatRupiah(totalBelanja) }}</span>
+        <div style="padding-top:12px; border-top:1px solid var(--line); margin-bottom:12px;">
+          <div v-if="diskonTotalBelanja > 0" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+            <span style="font-size:11.5px; color:var(--text-faint);">Diskon</span>
+            <span style="font-size:12px; color:var(--text-faint);">-{{ formatRupiah(diskonTotalBelanja) }}</span>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between;">
+            <span style="font-weight:700; font-size:13.5px;">Total</span>
+            <span style="font-weight:700; font-size:18px; color:var(--burgundy);">{{ formatRupiah(totalBelanja) }}</span>
+          </div>
         </div>
         <button @click="lanjutKePembayaran" :disabled="daftarKeranjang.length === 0" class="btn-primary" style="width:100%; padding:13px;"><i class="fas fa-arrow-right" style="margin-right:6px;"></i>Lanjut ke Pembayaran</button>
       </div>
