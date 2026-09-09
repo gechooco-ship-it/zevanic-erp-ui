@@ -79,6 +79,16 @@ input, select, textarea{font:inherit; color:inherit;}
   --ivory:#1F1611; --ivory-dim:#2A1E17;
   --surface:#2E211A; --line:#4A3A30;
   --text:#F5EDE0; --text-muted:#C6B5A4; --text-faint:#9B8878;
+  /* --mahogany — DITAMBAHKAN (9 Sep 2026, reconciliation Sample Hifi vs
+     design-tokens.md). Sebelumnya token ini TIDAK di-override di sini sama
+     sekali, jadi mode gelap diam-diam WARISAN nilai mode terang (#5B3826,
+     espresso gelap) — dipakai di teks/ikon seperti .gc-side-brand b dan
+     .gc-cam-top h2, yang harusnya kontras di atas latar gelap tapi malah
+     nyaris menyatu. Sample Hifi.dc.html (diverifikasi PENUH 9 Sep, jadi
+     acuan warna terbaru — lihat arsip-2026-09.md) sudah punya nilai gelap
+     eksplisit untuk token ini; dipakai di sini + disamakan ke design-
+     tokens.md. */
+  --mahogany:#E8DED0;
   --aksen-ink:#F2D2CE;
   --aksen-lembut:#4A2530;
   --nav:rgba(31,22,17,.92);
