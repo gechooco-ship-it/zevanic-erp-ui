@@ -43,7 +43,7 @@ input, select, textarea{font:inherit; color:inherit;}
   --danger:#B33A3A; --danger-light:#F8E5E2;
   --surface:#FFFFFF; --line:#EFE7DA;
   --text:#3B2A1F; --text-muted:#8C7A6B; --text-faint:#B3A493;
-  --radius:16px;
+  --radius:20px;
 
   /* --teal-text/--warn-text — BARU (9 Sep 2026, rombak total standarisasi
      CSS). Ini bukan token baru yang mengubah tampilan — ini MEMBERI NAMA
@@ -83,56 +83,61 @@ input, select, textarea{font:inherit; color:inherit;}
   --scrim-rgb:59,42,31;
 
   /* ===========================================================================
-     MODE GELAP — BARU (28 Agt 2026, redesain mobile "Gechoo Mobile Organic").
-     Toggle lewat atribut [data-theme="dark"] di <html> (bukan
-     prefers-color-scheme — ini pilihan EKSPLISIT user lewat sakelar di
-     Bottom Sheet Profil/Profil Lengkap, disimpan localStorage, lihat
-     window.aturTema() di index.html). Default (tanpa atribut / "light") =
-     token lama di atas, TIDAK DIUBAH SAMA SEKALI supaya semua layar yang
-     SUDAH ADA (desktop & mobile) tetap identik seperti sebelumnya.
-
-     KEPUTUSAN PENTING (jangan bikin tebak2, dicatat di sini + STATUS-
-     PROYEK.md): --burgundy/--ok/--warn/--danger SENGAJA TIDAK di-override
-     di mode gelap — itu warna SOLID untuk tombol/isi blok (mis.
-     .btn-primary, .tag.ok), bukan warna teks di atas permukaan yang
-     berubah gelap-terang, jadi tetap kontras di kedua mode apa adanya.
-     Yang BERUBAH di mode gelap cuma token NETRAL (--ivory/--surface/
-     --line/--text/--text-muted/--text-faint) + token BARU di bawah ini
-     (--aksen-ink, --aksen-lembut, --nav, --lens, gradien) — persis
-     mengikuti tabel token README mockup ("Design Tokens"). --aksen-ink
-     dipakai KHUSUS untuk warna teks/ikon aksen di atas permukaan var(--surface)/
-     var(--ivory) (jadi pale pink di mode gelap biar tetap kontras) — BEDA
-     dari --burgundy yang tetap dipakai apa adanya untuk isi blok solid.
-  */
+     MODE GELAP — DIROMBAK TOTAL (9 Sep 2026, ikuti Sample Hifi.dc.html
+     persis, keputusan eksplisit Guru). SEBELUMNYA (28 Agt–9 Sep) cuma
+     token NETRAL yang di-override, --burgundy/--ok/--warn/--danger/dkk
+     SENGAJA dibiarkan sama di kedua mode ("supaya tetap kontras apa
+     adanya") — TERNYATA beda jauh dari Sample Hifi, yang justru
+     me-remap SEMUA token (termasuk warna semantik) ke versi gelap
+     sendiri. Guru sudah cek Sample Hifi & konfirmasi: ikuti Hifi,
+     BUKAN keputusan lama. Semua nilai di bawah disalin PERSIS dari
+     `.dark{...}` di Sample Hifi.dc.html (9 Sep 2026), bukan ditebak. */
   --aksen-ink:#6E1E2C;              /* = --burgundy di mode terang, beda di gelap */
   --aksen-lembut:#F7E2E0;           /* latar lingkaran ikon, kartu aksi cepat, dsb */
-  --nav:rgba(255,255,255,.92);      /* latar nav bawah mobile (blur) */
-  --lens:#6E4630;                   /* latar bingkai kamera Absensi/Scan QR */
-  --grad-shift-a:#5C1A28; --grad-shift-b:#3A1017; /* kartu shift & banner motivasi */
-  --tinta-gradien:#FBEDEC;          /* warna teks di atas kartu gradien maroon */
+  --nav:rgba(255,255,255,.92);      /* latar nav bawah mobile (blur) — token proyek sendiri, TIDAK ada di Sample Hifi, tidak disentuh */
+  --lens:#6E4630;                   /* latar bingkai kamera Absensi/Scan QR — token proyek sendiri */
+  --grad-shift-a:#5C1A28; --grad-shift-b:#3A1017; /* kartu shift & banner motivasi — token proyek sendiri */
+  --tinta-gradien:#FBEDEC;          /* warna teks di atas kartu gradien maroon — token proyek sendiri */
   --tinta-gradien-rgb:251,237,236;  /* versi RGB --tinta-gradien, buat rgba() translusen (dekorasi kartu gradien) */
-  --grad-beranda-a:#FCEFED; --grad-beranda-b:#FDFAF4; /* gradien atas Beranda (belakang sapaan) */
+  --grad-beranda-a:#FCEFED; --grad-beranda-b:#FDFAF4; /* gradien atas Beranda (belakang sapaan) — token proyek sendiri */
 }
 [data-theme="dark"]{
-  --ivory:#1F1611; --ivory-dim:#2A1E17;
-  --surface:#2E211A; --line:#4A3A30;
-  --text:#F5EDE0; --text-muted:#C6B5A4; --text-faint:#9B8878;
-  --aksen-ink:#F2D2CE;
-  --aksen-lembut:#4A2530;
+  /* Blok ini disalin PERSIS dari `.dark{...}` Sample Hifi.dc.html. */
+  --ivory:#1E1812; --ivory-dim:#2A2019;
+  --surface:#231C15; --line:#3D3228;
+  --text:#E8DED0; --text-muted:#A89880; --text-faint:#7A6C5C;
+  --mahogany:#E8DED0; --mahogany-soft:#C4B8A6;
+  --burgundy:#D4707E; --burgundy-dark:#E8939E; --burgundy-light:#3A2028;
+  --pink:#3A2525; --pink-deep:#5A3535;
+  --blue:#2A3D45; --blue-deep:#5A8A9A;
+  --ok:#7AA06A; --ok-light:#2A3525;
+  --warn:#D4A050; --warn-light:#3A3020;
+  --danger:#D46A6A; --danger-light:#3A2020;
+  --aksen-ink:#D4707E; --aksen-lembut:#3A2028;
+
+  /* Kembaran RGB-triplet — WAJIB ikut di-override tiap token solid di
+     atas dapat override baru, supaya rgba() translusen (shadow/tint)
+     tetap sinkron dengan versi solidnya di mode gelap (lihat FONDASI.md
+     §Design System, "Aturan wajib nomor 2"). */
+  --burgundy-rgb:212,112,126;
+  --mahogany-soft-rgb:196,184,166;
+  --blue-deep-rgb:90,138,154;
+  --pink-deep-rgb:90,53,53;
+  --ok-rgb:122,160,106;
+  --warn-rgb:212,160,80;
+  --mahogany-rgb:232,222,208;
+
+  /* Token proyek sendiri (di luar Sample Hifi) — TIDAK disentuh rombak ini. */
   --nav:rgba(31,22,17,.92);
   --lens:#241a14;
   --grad-shift-a:#4A2530; --grad-shift-b:#291319;
   --tinta-gradien:#F7E7E4;
   --tinta-gradien-rgb:247,231,228;
   --grad-beranda-a:#2E1B1B; --grad-beranda-b:#1F1611;
-  /* --teal-text/--warn-text DI-OVERRIDE di mode gelap (beda dari
-     --burgundy/--ok/--warn/--danger di atas) KARENA keduanya dipakai
-     sebagai warna TEKS di atas permukaan yang berubah gelap-terang
-     (var(--blue)/var(--surface)), bukan isi blok solid — sama alasannya
-     dengan --aksen-ink. Nilai gelap dipilih supaya tetap kontras:
-     --teal-text pakai tint biru lebih terang; --warn-text pakai
-     #E0B84A (emas) — kebetulan sudah dipakai persis buat ikon trofi di
-     vue-account-profile.js, jadi dipastikan sudah cocok di palet gelap. */
+  /* --teal-text/--warn-text — token sendiri (bukan bagian Sample Hifi),
+     nilai gelap dipilih manual sebelumnya supaya tetap kontras di
+     permukaan yang sekarang lebih gelap (--surface #231C15) — masih
+     kontras baik, tidak perlu diubah. */
   --teal-text:#9FD1E0;
   --warn-text:#E0B84A;
 }
@@ -152,7 +157,7 @@ input, select, textarea{font:inherit; color:inherit;}
 .no-scrollbar, .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
 /* ---- Tag / badge (elemen ciri khas — pil bulat + titik) ---- */
-.tag{display:inline-flex; align-items:center; gap:6px; font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; padding:4px 12px; border-radius:20px; white-space:nowrap;}
+.tag{display:inline-flex; align-items:center; gap:6px; font-family:'Poppins',sans-serif; font-size:10.5px; font-weight:600; padding:3px 10px; border-radius:999px; white-space:nowrap;}
 .tag-dot{width:6px; height:6px; border-radius:50%; background:currentColor; flex-shrink:0;}
 .tag.ok{color:var(--ok); background:var(--ok-light);}
 .tag.warn{color:var(--warn); background:var(--warn-light);}
@@ -164,22 +169,42 @@ input, select, textarea{font:inherit; color:inherit;}
 /* ---- Form ---- */
 .gc-field{margin-bottom:16px;}
 .gc-field label{display:block; font-size:12px; font-weight:700; color:var(--text); margin-bottom:6px; font-family:'Poppins',sans-serif;}
-.gc-field input,.gc-field select,.gc-field textarea{width:100%; padding:12px 15px; border:1.5px solid var(--line); border-radius:12px; font-family:'Nunito Sans',sans-serif; font-size:14px; background:var(--surface); color:var(--text); outline:none; transition:.15s;}
+.gc-field input,.gc-field select,.gc-field textarea{width:100%; padding:10px 14px; border:1.5px solid var(--line); border-radius:12px; font-family:'Nunito Sans',sans-serif; font-size:13px; background:var(--ivory-dim); color:var(--text); outline:none; transition:.15s;}
 .gc-field input:focus,.gc-field select:focus,.gc-field textarea:focus{border-color:var(--burgundy); box-shadow:0 0 0 3px var(--burgundy-light);}
 .gc-field input:disabled{background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;}
 
 /* ---- Tombol ---- */
-.btn-primary{padding:12px 20px; background:var(--burgundy); color:#fff; border:none; border-radius:12px; font-family:'Poppins',sans-serif; font-size:14px; font-weight:600; cursor:pointer; transition:.15s;}
+/* BARU (9 Sep 2026, ikuti Sample Hifi persis, keputusan Guru): padding
+   .btn-primary 12px->10px, warna teks #fff->#FAF4E7 (krem, bukan putih
+   polos), tambah shadow burgundy. .btn-outline TADINYA berwarna burgundy
+   (border+teks burgundy) — di Hifi tombol outline itu NETRAL (bg ivory-
+   dim, border+teks netral), baru berubah warna pink/burgundy saat HOVER.
+   Ini appwide (semua tombol sekunder di app ikut berubah warna). */
+.btn-primary{padding:10px 20px; background:var(--burgundy); color:#FAF4E7; border:none; border-radius:12px; font-family:'Poppins',sans-serif; font-size:14px; font-weight:600; cursor:pointer; transition:.15s; box-shadow:0 2px 8px -4px rgba(var(--burgundy-rgb),.4);}
 .btn-primary:hover{background:var(--burgundy-dark);}
 .btn-primary:disabled{opacity:.5; cursor:not-allowed;}
 .btn-primary.block{width:100%;}
 .btn-outline.block{width:100%; text-align:center;}
-.btn-outline{padding:9px 16px; border:1.5px solid var(--burgundy); color:var(--burgundy); background:transparent; border-radius:10px; font-weight:700; font-size:13px; cursor:pointer; font-family:'Poppins',sans-serif;}
+.btn-outline{padding:8px 16px; border:1.5px solid var(--line); color:var(--text); background:var(--ivory-dim); border-radius:10px; font-weight:700; font-size:13px; cursor:pointer; font-family:'Poppins',sans-serif; transition:.15s;}
+.btn-outline:hover{background:var(--pink); border-color:var(--pink); color:var(--burgundy-dark);}
 .btn-outline.filled{background:var(--burgundy); color:#fff;}
 .btn-outline:disabled{opacity:.5; cursor:not-allowed;}
 .btn-ghost{padding:9px 16px; border:none; background:transparent; color:var(--text-muted); font-weight:600; font-size:13px; cursor:pointer; font-family:'Poppins',sans-serif;}
 .btn-acc{padding:9px 16px; background:var(--ok); color:#fff; border:none; border-radius:10px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:'Poppins',sans-serif;}
 .btn-rej{padding:9px 16px; background:var(--danger-light); color:var(--danger); border:none; border-radius:10px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:'Poppins',sans-serif;}
+/* CATATAN (9 Sep 2026, ronde "samakan ke pola Hifi") — .icon-btn dan
+   beberapa class lain masih --surface (putih) SENGAJA TIDAK diubah ke
+   --ivory di ronde ini: Sample Hifi.dc.html tidak punya contoh untuk
+   tombol ikon/menu overflow/dialog/kamera sama sekali (15 layar demonya
+   cuma cover kartu/tabel/kpi/field/tag/tombol utama), jadi tidak ada
+   acuan Hifi buat elemen-elemen ini — mengubahnya sekarang cuma tebakan,
+   bukan "ikut Hifi". Daftar lengkap yang sengaja dibiarkan: .icon-btn,
+   .gc-overflow-btn/.gc-overflow-panel, .gc-dialog, .scan-result,
+   .gc-cam-close/.gc-cam-view/.gc-cam-btn (kontrol putih di atas latar
+   kamera --ivory, pola ini sudah benar apa adanya). .gc-kartu-statistik
+   dan .gc-pp-panel-mobile beda lagi — dua-duanya punya mockup acuan
+   SENDIRI (bukan Sample Hifi): "Gechoo Mobile Organic" dan redesain
+   Persiapan Produksi V2, lihat komentar masing-masing di bawah. */
 .icon-btn{width:30px; height:30px; border-radius:9px; border:1px solid var(--line); background:var(--surface); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-muted);}
 .icon-btn:hover{border-color:var(--burgundy); color:var(--burgundy);}
 .icon-btn:disabled{opacity:.35; cursor:not-allowed; border-color:var(--line); color:var(--text-faint);}
@@ -191,7 +216,7 @@ input, select, textarea{font:inherit; color:inherit;}
    Pilot pertama: js/vue-antrean-absensi.js — dipakai lagi kalau modul
    "Daftar + Form bertahap" lain (Antrean Dakar/Lembur/Reimburse) menyusul. */
 .approve-row{display:flex; gap:6px; margin-top:8px;}
-.appr-btn{flex:1; padding:7px 4px; border-radius:12px; font-size:10.5px; font-weight:700; font-family:'Poppins',sans-serif; cursor:pointer; border:none; text-align:center;}
+.appr-btn{flex:1; padding:8px; border-radius:10px; font-size:11.5px; font-weight:600; font-family:'Poppins',sans-serif; cursor:pointer; border:none; text-align:center; display:flex; align-items:center; justify-content:center; gap:4px;}
 .appr-btn.ok{background:var(--ok-light); color:var(--ok);}
 .appr-btn.warn{background:var(--warn-light); color:var(--warn);}
 .appr-btn.danger{background:var(--danger-light); color:var(--danger);}
@@ -234,13 +259,26 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-badge-count{display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--burgundy); color:#fff; font-size:9.5px; font-weight:700; margin-left:6px;}
 
 /* ---- Kartu / panel ---- */
-.gc-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:20px;}
-.gc-card-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;}
+/* BARU (9 Sep 2026, ikuti Sample Hifi persis, keputusan Guru): bg
+   surface->ivory. .gc-card-head dulu cuma margin-bottom (nempel di
+   padding 20px kartu) — Hifi punya kepala kartu berpadding sendiri +
+   garis bawah pemisah. Dipakai trik margin negatif (escape padding induk
+   lalu pasang padding sendiri) supaya TIDAK perlu ubah HTML manapun.
+   CATATAN: digrep 9 Sep 2026, class `.gc-card-head` belum dipakai SAMA
+   SEKALI di js manapun — semua "kepala kartu" yang ada sekarang ditulis
+   ad-hoc pakai flex/div biasa, bukan class ini. Jadi perbaikan definisi
+   ini BELUM kelihatan efeknya di layar mana pun sampai ada yang benar-
+   benar retrofit markupnya pakai class ini — itu pekerjaan terpisah
+   yang lebih besar (baca tiap file, tandai mana yang "kepala kartu"),
+   TIDAK dikerjakan sesi ini, dicatat sebagai temuan di FONDASI.md. */
+.gc-card{background:var(--ivory); border:1px solid var(--line); border-radius:var(--radius); padding:20px; box-shadow:0 2px 12px -6px rgba(var(--scrim-rgb),.08);}
+.gc-card-head{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin:-20px -20px 16px; padding:16px 20px; border-bottom:1px solid var(--line);}
 .gc-card-head h3{font-size:14.5px; font-weight:700; font-family:'Poppins',sans-serif;}
 .gc-card-head .sub{font-size:11.5px; color:var(--text-muted); margin-top:2px;}
+.gc-card-body{padding:16px 20px; margin:-20px;}
 
 /* ---- Kartu KPI ---- */
-.kpi{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
+.kpi{background:var(--ivory); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;}
 .kpi .label{font-size:11.5px; color:var(--text-muted); font-weight:700; margin-bottom:10px; font-family:'Poppins',sans-serif;}
 .kpi .val{font-family:'Poppins',sans-serif; font-size:25px; font-weight:700;}
 .kpi .delta{font-size:11.5px; margin-top:6px; font-weight:700;}
@@ -475,15 +513,21 @@ input, select, textarea{font:inherit; color:inherit;}
 /* ---- Tabel — dengan dukungan kolom freeze (perbaikan bug scroll) ---- */
 .gc-table-scroll{overflow-x:auto; border-radius:var(--radius); position:relative;}
 table.gc-table{width:100%; min-width:760px; border-collapse:collapse; font-size:13px;}
-table.gc-table thead th{text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); font-weight:700; padding:0 12px 12px; border-bottom:1.5px solid var(--line); white-space:nowrap; background:var(--surface);}
+table.gc-table thead th{text-align:left; font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); font-weight:700; padding:0 12px 12px; border-bottom:1.5px solid var(--line); white-space:nowrap; background:var(--ivory-dim);}
 table.gc-table tbody td{padding:12px; border-bottom:1px solid var(--line); vertical-align:middle; white-space:nowrap;}
 table.gc-table tbody tr:last-child td{border-bottom:none;}
 table.gc-table tbody tr:hover td{background:var(--ivory);}
 table.gc-table tbody tr:hover td.freeze{background:var(--ivory);}
-.freeze{position:sticky; z-index:2; background:var(--surface);}
+/* DIPERBAIKI (9 Sep 2026, ikuti Sample Hifi) — dulu .freeze selalu putih
+   (--surface), cocok waktu kartu (.gc-card) juga putih. Sekarang .gc-card
+   sudah krem (--ivory) dan thead sudah --ivory-dim, jadi .freeze polos
+   HARUS ikut disesuaikan atau kolom freeze bakal beda warna sendiri dari
+   kolom lain di baris yang sama (persis bug hardcode yang sudah dibenerin
+   di tempat lain sesi ini, cuma bentuknya beda). */
+.freeze{position:sticky; z-index:2; background:var(--ivory);}
 .freeze-left{left:0; box-shadow:2px 0 4px rgba(59,42,31,.06);}
 .freeze-right{right:0; box-shadow:-2px 0 4px rgba(59,42,31,.06); text-align:center;}
-thead .freeze{z-index:3;}
+thead .freeze{z-index:3; background:var(--ivory-dim);}
 .gc-emp{display:flex; align-items:center; gap:10px;}
 .gc-emp-av{width:32px; height:32px; border-radius:10px; background:var(--pink); color:var(--burgundy-dark); display:flex; align-items:center; justify-content:center; font-family:'Poppins',sans-serif; font-weight:700; font-size:12px; flex-shrink:0;}
 .gc-emp b{display:block; font-size:13px; font-weight:700;}
@@ -491,7 +535,7 @@ thead .freeze{z-index:3;}
 .gc-cell-muted{color:var(--text-muted); font-size:12.5px;}
 
 /* ---- Filter bar ---- */
-.gc-filter-bar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:14px;}
+.gc-filter-bar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px; background:var(--ivory); border:1px solid var(--line); border-radius:var(--radius); padding:14px;}
 .gc-filter-bar input[type=text]{flex:1; min-width:180px; padding:9px 13px; border:1.5px solid var(--line); border-radius:10px; font-family:'Nunito Sans',sans-serif; font-size:13px;}
 .gc-filter-bar select{padding:9px 13px; border:1.5px solid var(--line); border-radius:10px; font-family:'Nunito Sans',sans-serif; font-size:13px; color:var(--text);}
 .gc-chk{width:16px; height:16px; accent-color:var(--burgundy);}
@@ -769,6 +813,13 @@ thead .freeze{z-index:3;}
    Guru setuju, pola yang SAMA ini tinggal ditempel ke submenu lain
    (Bahan/Vendor/Acc Sewing/Acc Webbing/Acc Finishing, dst) — BELUM
    dikerjakan sesi ini, sengaja cuma 1 submenu dulu sebagai percontohan. */
+/* CATATAN (9 Sep 2026) — sejak .gc-card sendiri sudah dijadikan --ivory
+   secara global (ikut pola Sample Hifi, lihat komentar di §Kartu/panel di
+   atas), `.gc-card-menonjol` di bawah ini jadi REDUNDAN (nilainya sama
+   persis dengan .gc-card sekarang). Class ini SENGAJA TIDAK dihapus —
+   kalau nanti ada submenu yang perlu bantuan class kedua lagi (mis. kartu
+   di dalam komponen lain yang bukan .gc-card), sudah ada tempatnya. Aman
+   dibiarkan, tidak dobel-render apa pun karena nilai background sama. */
 @media(min-width:768px){
   .gc-card-menonjol{background:var(--ivory);}
 }
