@@ -308,7 +308,69 @@ const AppAccountProfile = {
     });
     const menyimpanForm = ref(false);
 
+    // ---- Data Karyawan: gate PIN (BARU, 10 Sep 2026, audit visual desktop
+    // vs wireframe) — SERAH-TERIMA.md Profile §2 Tab 2 & §3 eksplisit:
+    // "Wajib input PIN sebelum bisa edit dan simpan" + kriteria uji §8.2
+    // "tanpa PIN mode edit tidak aktif (field disabled)". SEBELUM perbaikan
+    // ini, seluruh form Data Karyawan (termasuk NIK & rekening bank) bisa
+    // diedit & disimpan bebas tanpa verifikasi apapun — gap keamanan nyata
+    // pada data pribadi. PIN yang dipakai DI SINI = PIN milik user itu
+    // SENDIRI (field users.pin_hash, dibuat di tab Keamanan lewat simpanPin
+    // di atas) — beda dengan pola PopupPin tier-owner di Stok
+    // Pembelian/Master Produk (itu approval ORANG LAIN atas harga; ini
+    // verifikasi diri sendiri atas datanya sendiri), jadi TIDAK perlu
+    // cariUserByPin/tierOwnerKeAtas — cukup hashPin(pin, email sendiri)
+    // dibandingkan ke window.currentUser.pin_hash.
+    const modeEditDataDiri = ref(false);
+    const tampilPopupPinDataDiri = ref(false);
+    const aksiPinDataDiri = ref(null); // 'buka' | 'simpan'
+    const pinInputDataDiri = ref('');
+    const percobaanPinDataDiri = ref(0);
+    const MAKS_PERCOBAAN_PIN_DATA_DIRI = 3;
+
+    function bukaPopupPinDataDiri(aksi) {
+      if (!window.currentUser?.pin_hash) {
+        alert('Anda belum memasang PIN. Pasang PIN dulu di tab Keamanan sebelum bisa mengedit Data Karyawan.');
+        return;
+      }
+      aksiPinDataDiri.value = aksi;
+      pinInputDataDiri.value = '';
+      percobaanPinDataDiri.value = 0;
+      tampilPopupPinDataDiri.value = true;
+    }
+
+    function tutupPopupPinDataDiri() {
+      tampilPopupPinDataDiri.value = false;
+      aksiPinDataDiri.value = null;
+      pinInputDataDiri.value = '';
+    }
+
+    async function konfirmasiPinDataDiri() {
+      if (!/^\d{6}$/.test(pinInputDataDiri.value)) return alert('PIN wajib PERSIS 6 angka.');
+      const hash = await hashPin(pinInputDataDiri.value, window.currentUser.email);
+      if (hash !== window.currentUser.pin_hash) {
+        percobaanPinDataDiri.value++;
+        if (percobaanPinDataDiri.value >= MAKS_PERCOBAAN_PIN_DATA_DIRI) {
+          alert('PIN salah 3 kali berturut-turut. Coba lagi nanti.');
+          tutupPopupPinDataDiri();
+        } else {
+          alert(`PIN salah. Sisa percobaan: ${MAKS_PERCOBAAN_PIN_DATA_DIRI - percobaanPinDataDiri.value}.`);
+        }
+        return;
+      }
+      const aksi = aksiPinDataDiri.value;
+      tutupPopupPinDataDiri();
+      if (aksi === 'buka') {
+        modeEditDataDiri.value = true;
+      } else if (aksi === 'simpan') {
+        await simpanDataDiri();
+      }
+    }
+
     function muatFormDariCurrentUser() {
+      // Selalu kunci ulang mode edit setiap kali tab ini dibuka/dimuat ulang
+      // — sesuai kriteria uji wireframe: tanpa PIN, field HARUS disabled.
+      modeEditDataDiri.value = false;
       const cu = window.currentUser || {};
       form.nama = cu.name || cu.nama || '';
       form.nik = cu.nik || '';
@@ -352,6 +414,10 @@ const AppAccountProfile = {
         await updateDoc(doc(db, "users", window.currentUser.email), dataUpdate);
         Object.assign(window.currentUser, dataUpdate);
         alert("Seluruh pembaruan data diri Anda berhasil disimpan secara sistem!");
+        // Kunci lagi mode edit setelah tersimpan — konsisten dengan aturan
+        // "tanpa PIN mode edit tidak aktif" (harus minta PIN lagi kalau
+        // mau edit berikutnya, bukan tetap terbuka selamanya).
+        modeEditDataDiri.value = false;
       } catch (e) {
         console.error(e);
         alert("Gagal memperbarui data. Pastikan koneksi internet stabil.");
@@ -576,6 +642,8 @@ const AppAccountProfile = {
       passwordLama, passwordBaruKeamanan, menyimpanPasswordKeamanan, updatePasswordKeamanan,
       subTabKeamanan, pinStatusTerpasang, pinBaru, konfirmasiPin, passwordUntukPin, menyimpanPin, simpanPin,
       form, menyimpanForm, simpanDataDiri,
+      modeEditDataDiri, tampilPopupPinDataDiri, aksiPinDataDiri, pinInputDataDiri,
+      bukaPopupPinDataDiri, tutupPopupPinDataDiri, konfirmasiPinDataDiri,
       formTerbuka, opsiAlasanIzin, opsiAlasanCuti, izin, cuti, lembur,
       bukaFormIzin, tutupFormIzin, ajukanIzin,
       bukaFormCuti, tutupFormCuti, ajukanCuti,
@@ -651,18 +719,18 @@ const AppAccountProfile = {
         <div style="background:var(--ivory-dim); padding:16px; border-radius:16px; margin-bottom:16px;">
           <h4 style="font-weight:700; color:var(--text); margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:6px;">1. Identitas Pribadi</h4>
           <div style="gap:14px;" class="grid grid-cols-1 md:grid-cols-3">
-            <div class="gc-field" style="margin-bottom:0;"><label>Nama Lengkap (Sesuai KTP)</label><input v-model="form.nama" type="text"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>NIK</label><input v-model="form.nik" type="text"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Jenis Kelamin</label><select v-model="form.jk"><option value="">-- Pilih --</option><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Tempat Lahir</label><input v-model="form.tempatLahir" type="text"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Tanggal Lahir</label><input v-model="form.tglLahir" type="date"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Nama Lengkap (Sesuai KTP)</label><input v-model="form.nama" type="text" :disabled="!modeEditDataDiri"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>NIK</label><input v-model="form.nik" type="text" :disabled="!modeEditDataDiri"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Jenis Kelamin</label><select v-model="form.jk" :disabled="!modeEditDataDiri"><option value="">-- Pilih --</option><option value="Laki-laki">Laki-laki</option><option value="Perempuan">Perempuan</option></select></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Tempat Lahir</label><input v-model="form.tempatLahir" type="text" :disabled="!modeEditDataDiri"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Tanggal Lahir</label><input v-model="form.tglLahir" type="date" :disabled="!modeEditDataDiri"></div>
           </div>
         </div>
 
         <div style="background:var(--ivory-dim); padding:16px; border-radius:16px; margin-bottom:16px;">
           <h4 style="font-weight:700; color:var(--text); margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:6px;">2. Informasi Kontak</h4>
           <div style="display:grid; gap:14px;" class="grid-cols-1 md:grid-cols-2">
-            <div class="gc-field" style="margin-bottom:0;"><label>No. Handphone (WhatsApp)</label><input v-model="form.hp" type="text"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>No. Handphone (WhatsApp)</label><input v-model="form.hp" type="text" :disabled="!modeEditDataDiri"></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Email Aktif (Identitas Login)</label><input :value="form.email" disabled style="background:var(--ivory-dim); color:var(--text-faint); cursor:not-allowed;" title="Hubungi Admin untuk ubah Email"></div>
           </div>
         </div>
@@ -672,15 +740,15 @@ const AppAccountProfile = {
           <div style="display:grid; gap:20px;" class="grid-cols-1 md:grid-cols-2">
             <div>
               <label style="display:block; font-weight:700; color:var(--burgundy); margin-bottom:8px;">A. Alamat Sesuai KTP</label>
-              <div class="gc-field"><label>Kabupaten/Kota</label><input v-model="form.ktpKab" type="text"></div>
-              <div class="gc-field"><label>Kecamatan</label><input v-model="form.ktpKec" type="text"></div>
-              <div class="gc-field" style="margin-bottom:0;"><label>Alamat Detail (Jalan/RT/RW)</label><textarea v-model="form.ktpDetail" rows="2"></textarea></div>
+              <div class="gc-field"><label>Kabupaten/Kota</label><input v-model="form.ktpKab" type="text" :disabled="!modeEditDataDiri"></div>
+              <div class="gc-field"><label>Kecamatan</label><input v-model="form.ktpKec" type="text" :disabled="!modeEditDataDiri"></div>
+              <div class="gc-field" style="margin-bottom:0;"><label>Alamat Detail (Jalan/RT/RW)</label><textarea v-model="form.ktpDetail" rows="2" :disabled="!modeEditDataDiri"></textarea></div>
             </div>
             <div>
               <label style="display:block; font-weight:700; color:var(--ok); margin-bottom:8px;">B. Alamat Domisili Saat Ini</label>
-              <div class="gc-field"><label>Kabupaten/Kota</label><input v-model="form.domKab" type="text"></div>
-              <div class="gc-field"><label>Kecamatan</label><input v-model="form.domKec" type="text"></div>
-              <div class="gc-field" style="margin-bottom:0;"><label>Alamat Detail (Jalan/RT/RW)</label><textarea v-model="form.domDetail" rows="2"></textarea></div>
+              <div class="gc-field"><label>Kabupaten/Kota</label><input v-model="form.domKab" type="text" :disabled="!modeEditDataDiri"></div>
+              <div class="gc-field"><label>Kecamatan</label><input v-model="form.domKec" type="text" :disabled="!modeEditDataDiri"></div>
+              <div class="gc-field" style="margin-bottom:0;"><label>Alamat Detail (Jalan/RT/RW)</label><textarea v-model="form.domDetail" rows="2" :disabled="!modeEditDataDiri"></textarea></div>
             </div>
           </div>
         </div>
@@ -688,35 +756,68 @@ const AppAccountProfile = {
         <div style="background:var(--ivory-dim); padding:16px; border-radius:16px; margin-bottom:16px;">
           <h4 style="font-weight:700; color:var(--text); margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:6px;">4. Latar Belakang & Keluarga</h4>
           <div style="gap:14px;" class="grid grid-cols-1 md:grid-cols-3">
-            <div class="gc-field" style="margin-bottom:0;"><label>Pendidikan Terakhir</label><select v-model="form.pendidikan"><option value="">-- Pilih --</option><option value="SD">SD</option><option value="SMP">SMP</option><option value="SMA/SMK">SMA/SMK</option><option value="D3">D3</option><option value="S1">S1</option><option value="S2">S2</option></select></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Nama Sekolah / Kampus</label><input v-model="form.sekolah" type="text"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Jurusan</label><input v-model="form.jurusan" type="text"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Status Pernikahan</label><select v-model="form.nikah"><option value="">-- Pilih --</option><option value="Belum Menikah">Belum Menikah</option><option value="Menikah">Menikah</option><option value="Cerai">Cerai</option></select></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Jumlah Tanggungan (Orang)</label><input v-model="form.tanggungan" type="number" min="0"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Pendidikan Terakhir</label><select v-model="form.pendidikan" :disabled="!modeEditDataDiri"><option value="">-- Pilih --</option><option value="SD">SD</option><option value="SMP">SMP</option><option value="SMA/SMK">SMA/SMK</option><option value="D3">D3</option><option value="S1">S1</option><option value="S2">S2</option></select></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Nama Sekolah / Kampus</label><input v-model="form.sekolah" type="text" :disabled="!modeEditDataDiri"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Jurusan</label><input v-model="form.jurusan" type="text" :disabled="!modeEditDataDiri"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Status Pernikahan</label><select v-model="form.nikah" :disabled="!modeEditDataDiri"><option value="">-- Pilih --</option><option value="Belum Menikah">Belum Menikah</option><option value="Menikah">Menikah</option><option value="Cerai">Cerai</option></select></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Jumlah Tanggungan (Orang)</label><input v-model="form.tanggungan" type="number" min="0" :disabled="!modeEditDataDiri"></div>
           </div>
         </div>
 
         <div style="background:var(--ivory-dim); padding:16px; border-radius:16px; margin-bottom:16px;">
           <h4 style="font-weight:700; color:var(--text); margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:6px;">5. Kontak Darurat</h4>
           <div style="gap:14px;" class="grid grid-cols-1 md:grid-cols-3">
-            <div class="gc-field" style="margin-bottom:0;"><label>Nama Kontak Darurat</label><input v-model="form.daruratNama" type="text"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Hubungan</label><input v-model="form.daruratHub" type="text" placeholder="Ibu / Ayah / Suami / dll"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>No. HP Darurat</label><input v-model="form.daruratHp" type="text"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Nama Kontak Darurat</label><input v-model="form.daruratNama" type="text" :disabled="!modeEditDataDiri"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Hubungan</label><input v-model="form.daruratHub" type="text" placeholder="Ibu / Ayah / Suami / dll" :disabled="!modeEditDataDiri"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>No. HP Darurat</label><input v-model="form.daruratHp" type="text" :disabled="!modeEditDataDiri"></div>
           </div>
         </div>
 
         <div style="background:var(--ivory-dim); padding:16px; border-radius:16px; margin-bottom:18px;">
           <h4 style="font-weight:700; color:var(--text); margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:6px;">6. Data Rekening Bank</h4>
           <div style="gap:14px;" class="grid grid-cols-1 md:grid-cols-3">
-            <div class="gc-field" style="margin-bottom:0;"><label>Nama Bank</label><input v-model="form.bank" type="text" placeholder="BCA / Mandiri / BRI / dll"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>No. Rekening</label><input v-model="form.norek" type="text"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Atas Nama Rekening</label><input v-model="form.namarek" type="text"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Nama Bank</label><input v-model="form.bank" type="text" placeholder="BCA / Mandiri / BRI / dll" :disabled="!modeEditDataDiri"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>No. Rekening</label><input v-model="form.norek" type="text" :disabled="!modeEditDataDiri"></div>
+            <div class="gc-field" style="margin-bottom:0;"><label>Atas Nama Rekening</label><input v-model="form.namarek" type="text" :disabled="!modeEditDataDiri"></div>
           </div>
         </div>
 
-        <button @click="simpanDataDiri" :disabled="menyimpanForm" class="btn-primary block">
-          <i class="fas fa-save" style="margin-right:8px;"></i> {{ menyimpanForm ? 'Menyimpan...' : 'Simpan Seluruh Pembaruan Data' }}
-        </button>
+        <!-- BARU (10 Sep 2026, audit visual desktop vs wireframe Profile
+             §2/§3) — sebelumnya form ini punya SATU tombol "Simpan" yang
+             langsung menyimpan tanpa verifikasi apapun. Sekarang: mode edit
+             HARUS dibuka pakai PIN dulu (field di atas semua :disabled
+             sampai modeEditDataDiri true), lalu tombol Simpan JUGA minta
+             PIN lagi ("Simpan + PIN", istilah persis dari SERAH-TERIMA.md
+             §3) sebelum benar-benar menulis ke Firestore. -->
+        <div style="display:flex; gap:10px;">
+          <button v-if="!modeEditDataDiri" @click="bukaPopupPinDataDiri('buka')" class="btn-primary block">
+            <i class="fas fa-unlock-alt" style="margin-right:8px;"></i> Aktifkan Mode Edit (PIN)
+          </button>
+          <template v-else>
+            <button @click="modeEditDataDiri = false; muatFormDariCurrentUser()" class="btn-outline" style="flex:1;">Batal</button>
+            <button @click="bukaPopupPinDataDiri('simpan')" :disabled="menyimpanForm" class="btn-primary" style="flex:1;">
+              <i class="fas fa-save" style="margin-right:8px;"></i> {{ menyimpanForm ? 'Menyimpan...' : 'Simpan + PIN' }}
+            </button>
+          </template>
+        </div>
+      </div>
+    </div>
+
+    <!-- Popup PIN Data Karyawan (gate buka mode edit & gate simpan) -->
+    <div v-if="tampilPopupPinDataDiri" style="position:fixed; inset:0; background:rgba(var(--scrim-rgb),.6); z-index:60; display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+      <div style="background:var(--surface); width:100%; max-width:340px; padding:22px; border-radius:20px;">
+        <h3 class="gc-heading" style="font-weight:700; font-size:14px; margin-bottom:6px;">
+          <i class="fas fa-lock" style="color:var(--burgundy); margin-right:8px;"></i>
+          {{ aksiPinDataDiri === 'buka' ? 'Masukkan PIN untuk Mengedit' : 'Masukkan PIN untuk Menyimpan' }}
+        </h3>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:14px;">Demi keamanan data pribadi Anda, verifikasi PIN 6 digit milik Anda sendiri (dibuat/diubah di tab Keamanan).</p>
+        <div class="gc-field">
+          <input v-model="pinInputDataDiri" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" style="text-align:center; letter-spacing:6px; font-size:18px;" @keyup.enter="konfirmasiPinDataDiri">
+        </div>
+        <div style="display:flex; gap:10px; padding-top:8px;">
+          <button @click="tutupPopupPinDataDiri" class="btn-outline" style="flex:1;">Batal</button>
+          <button @click="konfirmasiPinDataDiri" class="btn-primary" style="flex:1;">Konfirmasi</button>
+        </div>
       </div>
     </div>
 
