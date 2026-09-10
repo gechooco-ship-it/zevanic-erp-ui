@@ -831,7 +831,21 @@
                `hidden` — landing default tab-zevanic-house TETAP Data Bahan
                & Aksesoris (tidak diubah), sama seperti sebelumnya. -->
           <div id="sub-zevanic-house-config" class="sub-zevanic-house-content hidden fade-in space-y-4">
-            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+            <!-- FIX (10 Sep 2026 malam, audit visual desktop) — bug nyata "TLC &
+                 Prefix menu tidak muncul": strip ini punya 9 tombol (termasuk
+                 label terpanjang "Persiapan Untuk Tahap"), lebih lebar dari
+                 max-w-5xl (1024px) pembungkusnya. Class asli
+                 `overflow-x-auto no-scrollbar` bikin sisa tombol (termasuk TLC
+                 & Prefix, tombol PALING KANAN) ke-scroll keluar layar TANPA
+                 scrollbar terlihat sama sekali — di desktop kelihatan seolah
+                 tombolnya hilang, padahal cuma ke-scroll. Semua wiring JS
+                 (mount/menu-id/permission) sudah dicek BENAR, murni bug
+                 layout. Fix: `flex-wrap:wrap` inline KHUSUS strip ini saja
+                 (tidak menyentuh class `.no-scrollbar`/`.overflow-x-auto`
+                 yang dipakai ~20 strip tab lain di app ini, supaya strip lain
+                 yang MEMANG sengaja horizontal-scroll — mis. Serie 11 tab —
+                 tidak ikut berubah perilakunya tanpa laporan bug di sana). -->
+            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar" style="flex-wrap:wrap; row-gap:8px;">
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-jenisbahan', this)" class="sub-zh-config-btn gc-sub-tab-btn active"><i class="fas fa-shirt" style="margin-right:6px;"></i> Jenis Bahan</button>
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-jenisaksesoris', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-gem" style="margin-right:6px;"></i> Jenis Aksesoris</button>
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-satuan', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-ruler" style="margin-right:6px;"></i> Data Satuan</button>
@@ -1705,9 +1719,9 @@
        README handoff) — jalur Acc Sewing/Webbing/Finishing GANTI TOTAL,
        kartu = 1 spk_track (beda dari Bahan yang kartu = 1 bahan+warna),
        lihat komentar besar di masing-masing file. -->
-  <script type="module" src="js/vue-persiapan-sewing.js?v=6"></script>
-  <script type="module" src="js/vue-persiapan-webbing.js?v=7"></script>
-  <script type="module" src="js/vue-persiapan-finishing.js?v=6"></script>
+  <script type="module" src="js/vue-persiapan-sewing.js?v=7"></script>
+  <script type="module" src="js/vue-persiapan-webbing.js?v=8"></script>
+  <script type="module" src="js/vue-persiapan-finishing.js?v=7"></script>
   <!-- BARU (7 Sep 2026, §5.18) — Persiapan Produksi > Masalah, 7 tahap,
        skema TRB baru (rebuild total dari fitur "Persiapan Masalah" lama,
        yang sekarang cuma papan manual biasa, lihat js/vue-persiapan-
@@ -1728,7 +1742,7 @@
   <script type="module" src="js/vue-pengaturan-cetak.js?v=2"></script>
   <script type="module" src="js/vue-scan-opname.js?v=1"></script>
   <script type="module" src="js/vue-scan-persiapan.js?v=4"></script>
-  <script type="module" src="js/vue-config-karyawan.js?v=2"></script>
+  <script type="module" src="js/vue-config-karyawan.js?v=3"></script>
   <script type="module" src="js/vue-config-info.js?v=2"></script>
   <script type="module" src="js/vue-config-absensi.js?v=3"></script>
   <script type="module" src="js/vue-daftar-karyawan.js?v=3"></script>
@@ -1812,7 +1826,7 @@
        Pengumuman/Quote pindah ke js/vue-header-mobile.js. Lihat
        STATUS-PROYEK.md §44. -->
   <script type="module" src="js/vue-home.js?v=6"></script>
-  <script type="module" src="js/vue-home-desktop.js"></script>
+  <script type="module" src="js/vue-home-desktop.js?v=1"></script>
   <!-- v=4 (28 Agt 2026, redesain) — mode 'home' tambah quote inline, lonceng
        notifikasi Pengumuman (badge + dropdown), avatar inisial. Mode
        'tersembunyi' baru untuk layar ber-header sendiri (Menu Lengkap/Atur
@@ -1875,11 +1889,11 @@
        (5.1) + Alias & MOQ (5.2, eks "Alias Pembelian" Stock & Pembelian,
        DITAMBAH moq/moq_satuan/lead_time_hari) + Petakan Order (5.3, BARU
        total). Lihat komentar panjang di js/vue-master-suplayer.js. -->
-  <script type="module" src="js/vue-master-suplayer.js?v=2"></script>
+  <script type="module" src="js/vue-master-suplayer.js?v=3"></script>
   <!-- BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
        Zevanic House > Master Pelanggan: koleksi & menu BARU TOTAL. Lihat
        komentar panjang di js/vue-master-pelanggan.js. -->
-  <script type="module" src="js/vue-master-pelanggan.js?v=2"></script>
+  <script type="module" src="js/vue-master-pelanggan.js?v=3"></script>
   <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM). v=2 (28 Agt 2026):
        cache-bust setelah fix dropdown Bahan/Aksesoris digabung 1 field.
        v=3 (28 Agt 2026, §28.9): cache-bust setelah tambah fitur Import/
@@ -1929,7 +1943,7 @@
   <!-- v=18 (30 Agt 2026, fitur "Pesanan"): field baru `harga_jual` (Entry
        Produk form + payload simpan() + kartu List Produk) — dipakai
        Penjualan Kasir, lihat js/vue-pesanan.js. -->
-  <script type="module" src="js/vue-master-produk.js?v=20"></script>
+  <script type="module" src="js/vue-master-produk.js?v=21"></script>
   <!-- BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi > Cutting, 7 tab.
        Lihat komentar besar di js/vue-pp-cutting.js untuk latar belakang &
        keputusan arsitektur lengkap. -->
@@ -1957,6 +1971,6 @@
        folder terakhir grup Persiapan Produksi. Lihat komentar besar di
        js/vue-persiapan-belanja.js untuk latar belakang & keputusan
        arsitektur lengkap. -->
-  <script type="module" src="js/vue-persiapan-belanja.js?v=3"></script>
+  <script type="module" src="js/vue-persiapan-belanja.js?v=4"></script>
 </body>
 </html>

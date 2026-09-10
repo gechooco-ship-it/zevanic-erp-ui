@@ -169,11 +169,27 @@ const BerandaDesktop = {
 
     async function muatPerluDisiapkan() {
       try {
-        // SAMA PERSIS logic PersiapanDisiapkanManager (vue-persiapan-produksi-v2.js):
-        // tarik order_spk status Aktif, buang yang SUDAH punya id_spk_grouping.
-        const snap = await getDocs(query(collection(db, 'order_spk'), where('status', '==', 'Aktif')));
+        // FIX (10 Sep 2026 malam, audit visual desktop) — logic di sini
+        // KETINGGALAN dari revisi 8 Sep di PersiapanDisiapkanManager (vue-
+        // persiapan-produksi-v2.js §muat(), lihat komentar "REVISI 8 Sep
+        // 2026" di sana). Dulu comment di sini bilang "SAMA PERSIS" tapi
+        // sebenarnya SUDAH BEDA sejak revisi itu — 2 akibat nyata:
+        // (a) tanpa filter `qo_diproses==true`, SPK yang qty-nya masih RO
+        //     mentah dari kasir (belum diputus QO Owner/PIC Owner di
+        //     Pesanan > Menunggu Proses) ikut kehitung -> KPI KELEBIHAN.
+        // (b) cek lama `!id_spk_grouping` salah untuk SPK yang tergrouping
+        //     SEBAGIAN (`qty_tergrouping` < `qty_order`, `id_spk_grouping`
+        //     sudah terisi dari grouping pertama) -> sisa qty yang
+        //     SEBENARNYA masih perlu disiapkan malah dianggap sudah beres,
+        //     KPI KEKURANGAN. Diperbaiki supaya query & rumus PERSIS sama
+        //     dengan PersiapanDisiapkanManager.muat() lagi.
+        const snap = await getDocs(query(collection(db, 'order_spk'), where('status', '==', 'Aktif'), where('qo_diproses', '==', true)));
         let n = 0;
-        snap.forEach(d => { if (!d.data().id_spk_grouping) n++; });
+        snap.forEach(d => {
+          const data = d.data();
+          const sisaQty = (parseFloat(data.qty_order) || 0) - (parseFloat(data.qty_tergrouping) || 0);
+          if (sisaQty > 0) n++;
+        });
         persiapanDisiapkan.value = n;
       } catch (e) { console.error('Pipeline Perlu Disiapkan gagal dimuat:', e); persiapanDisiapkan.value = null; }
     }

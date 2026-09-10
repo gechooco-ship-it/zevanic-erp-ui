@@ -68,13 +68,21 @@ const KATEGORI_SEDERHANA = [
 // ditulis ulang dua kali (sumber tunggal tetap KATEGORI_SEDERHANA di atas).
 const PETA_LABEL = Object.fromEntries(KATEGORI_SEDERHANA.map(k => [k.kategori, k.label]));
 
-// Pengelompokan tema — PERSIS mengikuti wireframe 1.5 (3 section pertama);
-// section ke-4 adalah tambahan (lihat catatan ASUMSI di atas file).
+// Pengelompokan tema — PERSIS mengikuti wireframe 1.5 (3 section).
+// DIHAPUS (9 Sep 2026 malam, keputusan eksplisit Guru) — section ke-4
+// "Data Tambahan Karyawan" (departemen/seragam/agama/pendidikan_terakhir)
+// yang ditambahkan lanjutan 9 sebagai ASUMSI, TIDAK ada di wireframe asli.
+// PERHATIAN: kategori departemen/seragam/agama/pendidikan_terakhir masih
+// ada di KATEGORI_SEDERHANA di atas dan TIDAK dihapus dari sana — cuma
+// UI kelola (tambah/ubah/hapus nilai)-nya yang hilang di sini. Ini
+// SATU-SATUNYA tempat kategori itu dikelola (dicek: tidak ada file lain
+// yang punya UI untuk 'departemen' dkk) — kalau kategori ini masih
+// dipakai di form Karyawan/dropdown lain, nilai BARU tidak bisa
+// ditambahkan lewat UI sampai ada keputusan lanjutan dari Guru.
 const KELOMPOK_KATEGORI = [
   { key: 'pekerjaan_status', label: 'Pekerjaan & Status', icon: 'fa-briefcase', kategori: ['jenis_pekerjaan', 'status_kerja', 'jabatan', 'status_karyawan'] },
   { key: 'wilayah', label: 'Wilayah', icon: 'fa-map-location-dot', kategori: ['kabupaten'], pakaiKecamatan: true },
-  { key: 'absensi', label: 'Absensi', icon: 'fa-clipboard-list', kategori: ['alasan_izin', 'alasan_cuti', 'status_kehadiran'] },
-  { key: 'lainnya', label: 'Data Tambahan Karyawan', icon: 'fa-id-card', kategori: ['departemen', 'seragam', 'agama', 'pendidikan_terakhir'] }
+  { key: 'absensi', label: 'Absensi', icon: 'fa-clipboard-list', kategori: ['alasan_izin', 'alasan_cuti', 'status_kehadiran'] }
 ];
 
 const AppConfigKaryawan = {

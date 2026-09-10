@@ -420,9 +420,16 @@ const PersiapanSewingPerluDisiapkan = {
         // transaksi terpisah per baris.
         const byTrack = {};
         _pendingCetak.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
+        // DIPERBAIKI (9 Sep 2026 malam) — matchFn lama `(b, i) => idxSet.has(i)`
+        // TIDAK PERNAH benar: updateBarisSewingMassal cuma memanggil
+        // matchFn(arr[i]) TANPA index kedua, jadi `i` selalu undefined dan
+        // baris TIDAK PERNAH tertandai (gagal diam-diam, sama pola bug
+        // "Tunjuk Operator" yang sudah diperbaiki lanjutan 9). Diganti
+        // matching by value (no_spk) — semua baris 1 anak SPK memang
+        // dicetak/ditandai bersamaan, jadi cocok secara semantik juga.
         await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
-          const idxSet = new Set(barisGrup.map(b => b._lineIdx));
-          return updateBarisSewingMassal(trackId, (b, i) => idxSet.has(i), () => ({ label_cetak_pada: now }));
+          const noSpkSet = new Set(barisGrup.map(b => b.no_spk));
+          return updateBarisSewingMassal(trackId, (x) => noSpkSet.has(x.no_spk), () => ({ label_cetak_pada: now }));
         }));
       } catch (e) { console.error('Gagal catat label_cetak_pada:', e); }
       _pendingCetak = [];
@@ -1070,9 +1077,13 @@ const PersiapanSewingPerluDikirim = {
       const byTrack = {};
       cocok.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
       try {
+        // DIPERBAIKI (9 Sep 2026 malam) — matchFn lama pakai idxSet.has(i)
+        // yang selalu undefined (lihat catatan besar di onCetakSelesai di
+        // atas). `cocok` sudah difilter persis pakai kode+!kode_bagging di
+        // atas — dipakai lagi di sini sebagai matchFn (value-based, bukan
+        // index) supaya tidak perlu bikin key baru.
         await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
-          const idxSet = new Set(barisGrup.map(b => b._lineIdx));
-          return updateBarisSewingMassal(trackId, (b, i) => idxSet.has(i), () => ({ kode_bagging: modalPack.bagging.kode }));
+          return updateBarisSewingMassal(trackId, (x) => x.no_spk === kode && !x.kode_bagging, () => ({ kode_bagging: modalPack.bagging.kode }));
         }));
         await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { isi: arrayUnion(kode) });
         modalPack.log.unshift(kode + ` (${cocok.length} komponen) -> ` + modalPack.bagging.kode);
@@ -1105,9 +1116,10 @@ const PersiapanSewingPerluDikirim = {
       const byTrack = {};
       anggota.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
       try {
+        // DIPERBAIKI (9 Sep 2026 malam) — matchFn value-based (kode_bagging),
+        // sama alasan seperti onCetakSelesai/hasilScanPack di atas.
         await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
-          const idxSet = new Set(barisGrup.map(b => b._lineIdx));
-          return updateBarisSewingMassal(trackId, (b, i) => idxSet.has(i), () => ({
+          return updateBarisSewingMassal(trackId, (x) => x.kode_bagging === kode, () => ({
             status: 'sedang_dikirim', masuk_tahap_pada: now, kode_tugas: modalKirim.tugas.kode,
             tlc_tujuan: modalKirim.tugas.tlc_tujuan || ''
           }));

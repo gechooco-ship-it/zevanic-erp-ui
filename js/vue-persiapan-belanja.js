@@ -364,12 +364,18 @@ const PersiapanAdminBelanja = {
         items.value.push({
           bahan_aksesoris_id: bahan.id, nama_internal: formatNamaBahan(bahan), nama_alias: extra?.namaAlias || '',
           qty: qtyTambah, satuan: bahan.satuan_pembelian || '', harga_estimasi: parseFloat(bahan.harga_modal) || 0,
-          suplayer_default_nama: def?.nama || '', ...(extra?.dariMasalahId ? { dari_masalah_id: extra.dariMasalahId } : {})
+          suplayer_default_id: def?.id || '', suplayer_default_nama: def?.nama || '',
+          ...(extra?.dariMasalahId ? { dari_masalah_id: extra.dariMasalahId } : {})
         });
-        // Suplayer nota diisi OTOMATIS dari item PERTAMA saja (nota tetap 1
-        // suplayer — lihat catatan besar di atas). Item berikutnya yang
-        // default-nya beda cuma ditandai (lihat chip "suplayer beda" di
-        // template), TIDAK memaksa ganti suplayer nota.
+        // Suplayer nota (suplayerId) TETAP diisi dari item PERTAMA — dipakai
+        // sebagai suplayer FALLBACK untuk item yang tidak punya default di
+        // Petakan Order (lihat kelompokPerSuplayer/REVISI 9 Sep malam di
+        // bawah). Sejak revisi ini nota BOLEH berisi item multi-suplayer:
+        // tiap item yang PUNYA default sendiri (suplayer_default_id) akan
+        // dikelompokkan ke suplayernya masing-masing saat Setuju ACC —
+        // suplayerId di sini bukan lagi "suplayer satu-satunya", cuma
+        // fallback + nilai default form. Chip "suplayer beda" di template
+        // tetap dipertahankan sebagai indikator visual saat mengisi form.
         if (!suplayerId.value && def?.id) suplayerId.value = def.id;
       }
     }
@@ -438,7 +444,7 @@ const PersiapanAdminBelanja = {
           items.value.push({
             bahan_aksesoris_id: m.bahan_aksesoris_id, nama_internal: m.bahan_nama + (m.bahan_warna ? ' ' + m.bahan_warna : ''),
             nama_alias: '', qty: parseFloat(m.qty_beli) || 0, satuan: m.satuan || '', harga_estimasi: 0, dari_masalah_id: m.id,
-            suplayer_default_nama: def?.nama || ''
+            suplayer_default_id: def?.id || '', suplayer_default_nama: def?.nama || ''
           });
           if (!suplayerId.value && def?.id) suplayerId.value = def.id;
         }
@@ -617,7 +623,38 @@ const PersiapanAdminBelanja = {
 // ============================================================================
 // TAB 2 (8.1.3): Menunggu ACC — Owner/PIC Owner Setuju/Tolak, generate
 // order_belanja_driver saat Setuju (keputusan #3/#4/#10).
+//
+// REVISI (9 Sep 2026 malam, permintaan Guru) — nota BOLEH multi-suplayer.
+// Sebelumnya 1 nota -> 1 order_belanja_driver (suplayer tunggal dari
+// suplayerId nota). Sekarang tiap item dikelompokkan ke suplayer DEFAULT-nya
+// sendiri (suplayer_default_id, dari Petakan Order/alias_pembelian.
+// is_default_order, disnapshot saat item ditambahkan di Persiapan Admin —
+// lihat tambahBahanKeItem/masukkanPengajuanTerpilih). Item TANPA default
+// (suplayer_default_id kosong) jatuh ke kelompok fallback = suplayer nota
+// (suplayerId/suplayer_nama) — supaya tidak ada item yang "hilang" tanpa
+// tujuan. kelompokPerSuplayer() dipakai untuk DUA hal: (a) ringkasan visual
+// di kartu Menunggu ACC (wireframe 8.1.2: "ringkasan per suplayer: jumlah
+// item, total estimasi"), (b) split nyata jadi banyak order_belanja_driver
+// saat Setuju — List Order Driver & Riwayat Belanja SUDAH baca langsung dari
+// koleksi order_belanja_driver (bukan lewat pesanan_pembelian.order_driver_id
+// tunggal), jadi otomatis tampil "kartu per suplayer" begitu displit di sini,
+// TANPA perlu ubah kode di ListOrderDriver/RiwayatBelanja.
 // ============================================================================
+function kelompokPerSuplayer(n) {
+  const map = new Map();
+  (n.items || []).forEach(it => {
+    const pakaiDefault = !!it.suplayer_default_id;
+    const key = pakaiDefault ? it.suplayer_default_id : ('__fallback_' + (n.suplayer_id || ''));
+    const nama = pakaiDefault ? (it.suplayer_default_nama || '-') : (n.suplayer_nama || 'Tanpa suplayer');
+    const suplayerId = pakaiDefault ? it.suplayer_default_id : (n.suplayer_id || '');
+    if (!map.has(key)) map.set(key, { suplayer_id: suplayerId, suplayer_nama: nama, items: [], total: 0, jumlahItem: 0 });
+    const grp = map.get(key);
+    grp.items.push(it);
+    grp.jumlahItem++;
+    grp.total += (parseFloat(it.qty) || 0) * (parseFloat(it.harga_estimasi) || 0);
+  });
+  return Array.from(map.values());
+}
 const MenungguAccBelanja = {
   setup() {
     const memuat = ref(true);
@@ -626,7 +663,12 @@ const MenungguAccBelanja = {
 
     async function muat() {
       memuat.value = true;
-      try { daftar.value = (await muatSemuaPesananPembelian()).filter(n => n.order_driver_id !== undefined && n.status === 'menunggu_acc').sort((a, b) => new Date(a.diajukan_pada || 0) - new Date(b.diajukan_pada || 0)); }
+      try {
+        daftar.value = (await muatSemuaPesananPembelian())
+          .filter(n => n.order_driver_id !== undefined && n.status === 'menunggu_acc')
+          .sort((a, b) => new Date(a.diajukan_pada || 0) - new Date(b.diajukan_pada || 0))
+          .map(n => ({ ...n, _kelompok: kelompokPerSuplayer(n) }));
+      }
       catch (e) { console.error('Gagal muat Menunggu ACC:', e); daftar.value = []; }
       memuat.value = false;
     }
@@ -634,26 +676,43 @@ const MenungguAccBelanja = {
     const sedangProses = reactive({});
     async function setujui(n) {
       if (!sayaOwnerKeAtas.value) return alert('Hanya Owner/PIC Owner yang boleh menyetujui.');
-      if (!confirm(`Setujui nota ${n.no_pembelian} dan generate order ke driver?`)) return;
+      const kelompok = n._kelompok && n._kelompok.length ? n._kelompok : kelompokPerSuplayer(n);
+      const pesanKonfirmasi = kelompok.length > 1
+        ? `Setujui nota ${n.no_pembelian}? Akan dipecah jadi ${kelompok.length} order driver (per suplayer): ${kelompok.map(g => g.suplayer_nama).join(', ')}.`
+        : `Setujui nota ${n.no_pembelian} dan generate order ke driver?`;
+      if (!confirm(pesanKonfirmasi)) return;
       sedangProses[n.id] = true;
       try {
-        const kodeOrder = await generateKodeOrderDriver();
         const now = new Date().toISOString();
-        const refOrder = await addDoc(collection(db, 'order_belanja_driver'), {
-          kode_order: kodeOrder, suplayer_id: n.suplayer_id, suplayer_nama: n.suplayer_nama,
-          items: (n.items || []).map(it => ({
-            bahan_aksesoris_id: it.bahan_aksesoris_id, nama_internal: it.nama_internal, nama_alias: it.nama_alias || '',
-            qty: it.qty, satuan: it.satuan, harga_estimasi: it.harga_estimasi || 0, subtotal: (it.qty || 0) * (it.harga_estimasi || 0)
-          })),
-          total_estimasi: n.estimasi_biaya_belanja || 0,
+        const idOrderBaru = [];
+        // Sengaja SEKUENSIAL (bukan Promise.all) — generateKodeOrderDriver()
+        // pakai runTransaction pada 1 dokumen counter yang sama, aman
+        // dipanggil berurutan tapi TIDAK aman diparalelkan (race condition
+        // pada baca-tulis counter yang sama).
+        for (const g of kelompok) {
+          const kodeOrder = await generateKodeOrderDriver();
+          const refOrder = await addDoc(collection(db, 'order_belanja_driver'), {
+            kode_order: kodeOrder, suplayer_id: g.suplayer_id, suplayer_nama: g.suplayer_nama,
+            items: g.items.map(it => ({
+              bahan_aksesoris_id: it.bahan_aksesoris_id, nama_internal: it.nama_internal, nama_alias: it.nama_alias || '',
+              qty: it.qty, satuan: it.satuan, harga_estimasi: it.harga_estimasi || 0, subtotal: (it.qty || 0) * (it.harga_estimasi || 0)
+            })),
+            total_estimasi: g.total,
+            status: 'disetujui',
+            sumber_masalah_ids: n.sumber_masalah_ids || [],
+            pesanan_pembelian_id: n.id,
+            dibuat_oleh: n.dibuat_oleh || '',
+            disetujui_oleh: window.currentUser?.email || '', disetujui_pada: now,
+            dibuat_pada: serverTimestamp()
+          });
+          idOrderBaru.push(refOrder.id);
+        }
+        await updateDoc(doc(db, 'pesanan_pembelian', n.id), {
           status: 'disetujui',
-          sumber_masalah_ids: n.sumber_masalah_ids || [],
-          pesanan_pembelian_id: n.id,
-          dibuat_oleh: n.dibuat_oleh || '',
-          disetujui_oleh: window.currentUser?.email || '', disetujui_pada: now,
-          dibuat_pada: serverTimestamp()
+          order_driver_id: idOrderBaru[0] || null, // dipertahankan (kompatibel lama, order pertama)
+          order_driver_ids: idOrderBaru, // BARU — daftar LENGKAP kalau displit multi-suplayer
+          disetujui_oleh: window.currentUser?.email || '', disetujui_pada: now
         });
-        await updateDoc(doc(db, 'pesanan_pembelian', n.id), { status: 'disetujui', order_driver_id: refOrder.id, disetujui_oleh: window.currentUser?.email || '', disetujui_pada: now });
         await muat();
       } catch (e) { console.error('Gagal setujui nota belanja:', e); alert('Gagal menyimpan. Coba lagi.'); }
       sedangProses[n.id] = false;
@@ -686,8 +745,14 @@ const MenungguAccBelanja = {
             <div class="gc-num" style="font-weight:700; font-size:13px;">{{ n.no_pembelian }}</div>
             <span class="tag warn">diajukan {{ formatDiamSejak(n.diajukan_pada) }} lalu</span>
           </div>
-          <div style="font-size:12px; color:var(--text-faint); margin-bottom:6px;">{{ n.suplayer_nama }} &middot; {{ (n.items||[]).length }} item &middot; est. {{ formatRupiah(n.estimasi_biaya_belanja) }}</div>
-          <div style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">diajukan oleh {{ n.diajukan_oleh || '-' }}</div>
+          <div v-if="n._kelompok.length > 1" style="margin-bottom:8px; display:flex; flex-direction:column; gap:4px;">
+            <div v-for="g in n._kelompok" :key="g.suplayer_id || g.suplayer_nama" style="display:flex; justify-content:space-between; font-size:11.5px; background:var(--ivory-dim); border-radius:8px; padding:5px 9px;">
+              <span style="font-weight:600;">{{ g.suplayer_nama }}</span>
+              <span style="color:var(--text-faint);">{{ g.jumlahItem }} item &middot; {{ formatRupiah(g.total) }}</span>
+            </div>
+          </div>
+          <div v-else style="font-size:12px; color:var(--text-faint); margin-bottom:6px;">{{ n.suplayer_nama }} &middot; {{ (n.items||[]).length }} item &middot; est. {{ formatRupiah(n.estimasi_biaya_belanja) }}</div>
+          <div style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">diajukan oleh {{ n.diajukan_oleh || '-' }}<span v-if="n._kelompok.length > 1"> &middot; total {{ n._kelompok.length }} suplayer, est. {{ formatRupiah(n.estimasi_biaya_belanja) }}</span></div>
           <div v-if="sayaOwnerKeAtas" style="display:flex; gap:8px;">
             <button @click="tolak(n)" :disabled="sedangProses[n.id]" class="btn-outline" style="flex:1; padding:9px; color:var(--danger);">Tolak</button>
             <button @click="setujui(n)" :disabled="sedangProses[n.id]" class="btn-primary" style="flex:1; padding:9px;">Setujui</button>

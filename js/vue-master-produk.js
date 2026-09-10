@@ -2091,7 +2091,122 @@ const MasterProdukListManager = {
 // yang sama dipakai dropdown Bahan di FormEntryProdukBOM atas file ini) —
 // BUKAN query per baris BOM.
 // ---------------------------------------------------------------------------
+// BARU (10 Sep 2026 malam, keputusan eksplisit Guru: "Nota Order Belanja
+// final ... > riwayat harga > master produk. harga ketika di master produk
+// owner/pic owner bisa putuskan mau di tab master produk. menurut
+// rekomendasi system (perhitungan lama + pembulatan angka)") — banner
+// "Harga Perlu Konfirmasi" DITAMBAHKAN ke tab HPP di sini, SUPAYA Owner/PIC
+// Owner juga bisa memutuskan dari Master Produk, bukan cuma dari Stok &
+// Pembelian > Riwayat Harga Pembelian (mekanisme ITU TIDAK DIHAPUS/DIUBAH —
+// lihat js/vue-stock-pembelian.js `RiwayatHargaPembelianManager` untuk
+// mekanisme aslinya, wireframe "04 - Stok dan Pembelian" §3.4/§4). Ini
+// ADITIF: field Firestore (`harga_perlu_konfirmasi`/`harga_pending` di
+// master_bahan_aksesoris) dan aturan gate (HANYA kenaikan yang di-queue,
+// harga sama/turun tetap auto-apply lewat perbaruiHargaMasterDariRiwayat —
+// TIDAK diubah malam ini, itu perilaku wireframe yang disengaja, mengubahnya
+// jadi "SEMUA perubahan wajib approve" adalah keputusan besar yang butuh
+// konfirmasi Guru dulu, BUKAN ditebak sepihak jam segini) SAMA PERSIS dengan
+// yang sudah ada — cuma ditambah 1 titik UI lagi yang bisa menerapkannya.
+// PIN-gate (PopupPin/cariUserByPin/hashPin/tierOwnerKeAtas) DISALIN persis
+// dari js/vue-stock-pembelian.js (konvensi proyek: disalin per-file, bukan
+// impor silang — sudah 4 titik pakai pola ini sebelum ini).
+//
+// "Rekomendasi system (perhitungan lama + pembulatan angka)" diinterpretasi
+// sebagai: rumus SAMA (harga_modal_baru + margin_modal%), hasilnya DIBULATKAN
+// ke ratusan terdekat (bulatkanRekomendasiHarga) sebelum ditampilkan/
+// diterapkan — supaya harga_pemakaian tidak berakhir angka ganjil (mis.
+// Rp12.345,67). Granularitas "ratusan" adalah ASUMSI (Guru tidak sebut
+// angka pasti) — kalau ternyata maunya ribuan/puluhan, tinggal ganti angka
+// `100` di bulatkanRekomendasiHarga(), 1 titik saja.
+function bulatkanRekomendasiHarga(n) {
+  const angka = parseFloat(n) || 0;
+  return Math.round(angka / 100) * 100;
+}
+async function hashPinHpp(pin, email) {
+  const data = new TextEncoder().encode(pin + '|' + email);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+const MAKS_PERCOBAAN_PIN_HPP = 3;
+function tierOwnerKeAtasHpp(userData) {
+  if (!userData) return false;
+  const role = (userData.role || '').toLowerCase();
+  if (role === 'owner' || role === 'superuser') return true;
+  return role === 'pic' && (userData.profil_akses || '').toLowerCase() === 'pic_owner';
+}
+async function cariUserByPinHpp(pinInput) {
+  const snap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['owner', 'superuser', 'pic', 'admin'])));
+  for (const d of snap.docs) {
+    const u = d.data();
+    if (!u.pin_hash) continue;
+    const hash = await hashPinHpp(pinInput, d.id);
+    if (hash === u.pin_hash) return { email: d.id, ...u };
+  }
+  return null;
+}
+const PopupPinHpp = {
+  props: { judul: { type: String, default: 'Masukkan PIN' }, pesan: { type: String, default: '' } },
+  emits: ['sukses', 'batal'],
+  setup(props, { emit }) {
+    const pin = ref('');
+    const error = ref('');
+    const percobaan = ref(0);
+    const terkunci = ref(false);
+    const memverifikasi = ref(false);
+    async function kirim() {
+      if (terkunci.value) return;
+      if (!/^\d{6}$/.test(pin.value)) { error.value = 'PIN wajib 6 angka.'; return; }
+      memverifikasi.value = true;
+      error.value = '';
+      try {
+        const user = await cariUserByPinHpp(pin.value);
+        if (user) { pin.value = ''; percobaan.value = 0; emit('sukses', user); return; }
+        percobaan.value++;
+        if (percobaan.value >= MAKS_PERCOBAAN_PIN_HPP) {
+          terkunci.value = true;
+          error.value = `PIN salah ${MAKS_PERCOBAAN_PIN_HPP}x berturut-turut. Tutup popup ini dan coba lagi.`;
+        } else {
+          error.value = `PIN salah. Sisa percobaan: ${MAKS_PERCOBAAN_PIN_HPP - percobaan.value}.`;
+        }
+        pin.value = '';
+      } catch (e) {
+        console.error('Gagal verifikasi PIN (HPP):', e);
+        error.value = 'Terjadi kesalahan sistem, coba lagi.';
+      }
+      memverifikasi.value = false;
+    }
+    return { pin, error, percobaan, terkunci, memverifikasi, kirim };
+  },
+  template: `
+    <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:10000; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="!terkunci && $emit('batal')">
+      <div class="gc-card" style="max-width:360px; width:100%;">
+        <h3 style="font-weight:700; font-size:14px; margin-bottom:6px;"><i class="fas fa-lock" style="color:var(--burgundy); margin-right:8px;"></i>{{ judul }}</h3>
+        <p v-if="pesan" style="font-size:11.5px; color:var(--text-faint); margin-bottom:12px; line-height:1.5;">{{ pesan }}</p>
+        <div v-if="!terkunci" class="gc-field">
+          <label>PIN (6 angka)</label>
+          <input v-model="pin" @keyup.enter="kirim" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autofocus style="letter-spacing:6px; text-align:center; font-size:18px;">
+        </div>
+        <p v-if="error" style="color:var(--danger); font-size:11px; margin-bottom:10px;">{{ error }}</p>
+        <div style="display:flex; gap:8px;">
+          <button v-if="!terkunci" @click="kirim" :disabled="memverifikasi || pin.length !== 6" class="btn-primary" style="flex:1;">{{ memverifikasi ? 'Memeriksa...' : 'Kirim' }}</button>
+          <button @click="$emit('batal')" class="btn-outline" style="flex:1;">{{ terkunci ? 'Tutup' : 'Batal' }}</button>
+        </div>
+      </div>
+    </div>
+  `
+};
 const MasterProdukHppManager = {
+  // FIX bug nyata (10 Sep 2026 malam, audit visual desktop) — komponen ini
+  // pakai tag <dropdown-cari> di template (field "Cari Produk / SKU") TAPI
+  // TIDAK PERNAH mendaftarkan DropdownCari secara lokal di `components`
+  // (2 komponen lain di file ini, FormEntryProdukBOM & KelolaKomponenModal,
+  // sudah benar mendaftarkannya). AppMasterProdukHpp (pembungkus mount)
+  // cuma mendaftarkan `master-produk-hpp-manager`, bukan `dropdown-cari` —
+  // jadi tag itu TIDAK PERNAH ter-resolve Vue, search-box "Cari Produk/SKU"
+  // di tab HPP tampil kosong/tidak berfungsi sama sekali sejak fitur ini
+  // dibuat (7 Sep 2026). PopupPinHpp didaftarkan sekalian di sini untuk
+  // banner "Harga Perlu Konfirmasi" BARU di bawah.
+  components: { DropdownCari, PopupPinHpp },
   setup() {
     const MENU_ID = 'master_produk_hpp';
     const memuatAwal = ref(true);
@@ -2189,6 +2304,70 @@ const MasterProdukHppManager = {
 
     const bolehSimpan = computed(() => window.cekIzinMenu(MENU_ID, 'edit') !== false);
 
+    // --- Banner "Harga Perlu Konfirmasi" (BARU, 10 Sep 2026 malam) --------
+    // Query GLOBAL (semua bahan menunggu konfirmasi, tidak dibatasi ke BOM
+    // produk yang lagi dipilih) — sama pola dengan RiwayatHargaPembelianManager
+    // di js/vue-stock-pembelian.js, supaya Owner/PIC Owner bisa lihat &
+    // putuskan SEMUA harga pending dari tab HPP ini juga, bukan cuma yang
+    // kebetulan dipakai produk yang lagi dibuka. Ini TAMBAHAN, bukan
+    // pengganti tab "Riwayat Harga Pembelian" (Stok & Pembelian).
+    const daftarPendingHarga = ref([]);
+    const memuatPendingHarga = ref(true);
+    async function muatDaftarPendingHarga() {
+      memuatPendingHarga.value = true;
+      try {
+        const snap = await getDocs(query(collection(db, 'master_bahan_aksesoris'), where('harga_perlu_konfirmasi', '==', true)));
+        const list = []; snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        daftarPendingHarga.value = list;
+      } catch (e) { console.error('Gagal muat daftar harga_perlu_konfirmasi (HPP):', e); }
+      memuatPendingHarga.value = false;
+    }
+    // rekomendasiUntuk — "rekomendasi system (perhitungan lama + pembulatan
+    // angka)": harga_pemakaian baru = harga_modal_baru + margin_modal% (RUMUS
+    // SAMA seperti perbaruiHargaMasterDariRiwayat/pinTerapkanSukses di
+    // vue-stock-pembelian.js), hasilnya dibulatkan ke ratusan terdekat.
+    function rekomendasiUntuk(b) {
+      const hargaModalBaru = parseFloat(b.harga_pending?.harga_baru) || 0;
+      const marginModal = parseFloat(b.margin_modal) || 0;
+      return bulatkanRekomendasiHarga(hargaModalBaru + (hargaModalBaru * marginModal / 100));
+    }
+
+    const tampilPinTerapkanHpp = ref(false);
+    const bahanAktifTerapkanHpp = ref(null);
+    function bukaTerapkanHpp(bahan) { bahanAktifTerapkanHpp.value = bahan; tampilPinTerapkanHpp.value = true; }
+    async function pinTerapkanSuksesHpp(user) {
+      tampilPinTerapkanHpp.value = false;
+      const bahan = bahanAktifTerapkanHpp.value;
+      bahanAktifTerapkanHpp.value = null;
+      if (!bahan) return;
+      if (!tierOwnerKeAtasHpp(user)) {
+        alert(`PIN ini bukan PIN Owner/PIC Owner/Superuser (peran: ${user.role}). Tidak berwenang menerapkan harga baru — hubungi Owner/PIC Owner.`);
+        return;
+      }
+      const pending = bahan.harga_pending || {};
+      const hargaModalBaru = parseFloat(pending.harga_baru) || 0;
+      if (!(hargaModalBaru > 0)) { alert('Data harga pending tidak valid, tidak bisa diterapkan.'); return; }
+      const isiKonversiSaatIni = parseFloat(bahan.isi_konversi_pembelian) || 1;
+      try {
+        await updateDoc(doc(db, 'master_bahan_aksesoris', bahan.id), {
+          harga_modal: hargaModalBaru,
+          harga_pembelian: Math.round(hargaModalBaru * isiKonversiSaatIni),
+          harga_pemakaian: rekomendasiUntuk(bahan),
+          harga_diupdate_dari_riwayat_pada: serverTimestamp(),
+          harga_perlu_konfirmasi: false,
+          harga_pending: null
+        });
+        alert(`Harga "${bahan.nama || bahan.id}" diperbarui & blokir checkout dibuka.`);
+        await muatDaftarPendingHarga();
+        // mapBahan dipakai rincianBom/hargaBahan() di atas — segarkan biar HPP
+        // yang lagi dibuka langsung ikut angka baru tanpa reload manual.
+        mapBahan.value.set(bahan.id, { ...bahan, harga_pemakaian: rekomendasiUntuk(bahan), harga_perlu_konfirmasi: false, harga_pending: null });
+      } catch (e) {
+        console.error('Gagal menerapkan harga pending (HPP):', e);
+        alert('Gagal menerapkan harga. Coba lagi.');
+      }
+    }
+
     async function simpanBiayaTambahan() {
       if (!produkTerpilih.value) return;
       if (!bolehSimpan.value) { alert('Anda tidak punya izin menyimpan di sini. Hubungi Owner/PIC.'); return; }
@@ -2217,6 +2396,7 @@ const MasterProdukHppManager = {
         console.error('Gagal memuat data awal HPP Master Produk:', e);
       }
       memuatAwal.value = false;
+      await muatDaftarPendingHarga();
     });
 
     return {
@@ -2224,6 +2404,8 @@ const MasterProdukHppManager = {
       biayaTambahan, tambahBiaya, hapusBiaya,
       rincianBom, subtotalTambahan, hppTotal, marginJual, marginPersen,
       sedangSimpan, simpanBiayaTambahan, bolehSimpan,
+      daftarPendingHarga, memuatPendingHarga, rekomendasiUntuk,
+      tampilPinTerapkanHpp, bukaTerapkanHpp, pinTerapkanSuksesHpp,
       formatRupiah
     };
   },
@@ -2231,6 +2413,31 @@ const MasterProdukHppManager = {
     <div>
       <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-bottom:4px;"><i class="fas fa-calculator" style="color:var(--burgundy); margin-right:8px;"></i>HPP (Harga Pokok Produksi)</h3>
       <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Dihitung LIVE dari BOM produk (Bahan, Aksesoris, Jasa) tiap kali dibuka — bukan angka yang disimpan. Cuma "Biaya tambahan" yang benar-benar tersimpan per produk.</p>
+
+      <!-- BARU (10 Sep 2026 malam) — banner "Harga Perlu Konfirmasi", supaya
+           Owner/PIC Owner bisa putuskan dari Master Produk juga (bukan cuma
+           Stok & Pembelian > Riwayat Harga Pembelian, tab itu TETAP ada,
+           tidak dihapus). Lihat komentar besar di atas MasterProdukHppManager. -->
+      <div v-if="!memuatPendingHarga && daftarPendingHarga.length > 0" class="gc-card" style="padding:14px; margin-bottom:16px; border:1.5px solid var(--warn); background:rgba(var(--warn-rgb),.06);">
+        <h3 style="font-weight:700; font-size:13px; margin-bottom:8px;"><i class="fas fa-triangle-exclamation" style="margin-right:8px;"></i>{{ daftarPendingHarga.length }} Harga Perlu Konfirmasi Owner</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">Harga beli baru LEBIH TINGGI dari harga master saat ini — belum dipakai di HPP, dan checkout Pesanan untuk produk yang memakai bahan ini DIBLOKIR sampai diterapkan. Rekomendasi = harga modal baru + margin%, dibulatkan ke ratusan terdekat.</p>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <div v-for="b in daftarPendingHarga" :key="b.id" class="gc-card" style="padding:10px 12px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+            <div style="flex:1; min-width:140px;">
+              <div style="font-weight:700; font-size:12.5px;">{{ b.nama }}</div>
+              <div style="font-size:10.5px; color:var(--text-faint);">{{ (b.harga_pending && b.harga_pending.no_pembelian) || '-' }} &middot; {{ (b.harga_pending && b.harga_pending.suplayer) || '-' }} &middot; {{ (b.harga_pending && b.harga_pending.tanggal) || '-' }}</div>
+            </div>
+            <div style="text-align:right; font-size:11.5px;">
+              <span style="color:var(--text-faint); text-decoration:line-through;">{{ formatRupiah(b.harga_pending && b.harga_pending.harga_lama) }}</span>
+              <i class="fas fa-arrow-right" style="margin:0 6px; color:var(--text-faint); font-size:10px;"></i>
+              <span style="font-weight:700; color:var(--danger);">{{ formatRupiah(rekomendasiUntuk(b)) }}</span>
+              <div style="font-size:9.5px; color:var(--text-faint); font-weight:400;">rekomendasi (dibulatkan)</div>
+            </div>
+            <button @click="bukaTerapkanHpp(b)" class="btn-primary" style="font-size:11px; padding:6px 12px;">Terapkan &amp; Buka Blokir</button>
+          </div>
+        </div>
+      </div>
+      <popup-pin-hpp v-if="tampilPinTerapkanHpp" judul="PIN Terapkan Harga" pesan="Hanya PIN Owner/PIC Owner/Superuser yang bisa menerapkan harga baru & membuka blokir checkout." @sukses="pinTerapkanSuksesHpp" @batal="tampilPinTerapkanHpp = false" />
 
       <div class="gc-card" style="margin-bottom:16px;">
         <div class="gc-field" style="margin-bottom:0;">

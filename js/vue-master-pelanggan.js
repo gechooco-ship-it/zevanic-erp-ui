@@ -54,6 +54,31 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
+// BARU (9 Sep 2026 malam, keputusan eksplisit Guru: "iyah kerjakan sesuai
+// wireframe") — 2 kolom yang tadinya sengaja dilewati (lihat catatan
+// RESTRUKTURISASI di template di bawah): "total pesanan" (dihitung LIVE
+// dari transaksi_kasir, BUKAN field tersimpan — sesuai wireframe 4.1) dan
+// "status aktif/nonaktif" (field BARU `status` di master_pelanggan, TIDAK
+// ada sebelumnya — default 'aktif' kalau kosong/dokumen lama). Dihitung
+// SEKALI (satu query ambil semua transaksi_kasir, dikelompokkan di sisi
+// klien) — BUKAN 1 query per pelanggan, supaya List Pelanggan tidak
+// melambat kalau jumlah pelanggan banyak.
+async function ambilTotalPesananPerPelanggan() {
+  const peta = new Map();
+  try {
+    const snap = await getDocs(collection(db, 'transaksi_kasir'));
+    snap.forEach(d => {
+      const t = d.data();
+      if (!t.pelanggan_id) return;
+      const cur = peta.get(t.pelanggan_id) || { jumlah: 0, total: 0 };
+      cur.jumlah += 1;
+      cur.total += parseFloat(t.total) || 0;
+      peta.set(t.pelanggan_id, cur);
+    });
+  } catch (e) { console.error('Gagal hitung total pesanan per pelanggan:', e); }
+  return peta;
+}
+
 // formatRupiah — disalin persis dari pola yang sama di js/vue-master-
 // suplayer.js/vue-master-produk.js dkk (tiap file vue-*.js di proyek ini
 // punya salinan lokalnya sendiri, tidak ada util currency global).
@@ -95,23 +120,35 @@ const MasterPelangganManager = {
 
     const memuat = ref(true);
     const daftar = ref([]);
+    const petaPesanan = ref(new Map());
     const cari = ref('');
     const menyimpan = ref(false);
-    const popupForm = ref(null); // { mode, id?, nama, telepon, alamat, email, tipe, limitPiutang, catatan, saldo_piutang }
+    const popupForm = ref(null); // { mode, id?, nama, telepon, alamat, email, tipe, limitPiutang, catatan, saldo_piutang, status }
 
     async function muat() {
       memuat.value = true;
-      daftar.value = await ambilDaftarPelanggan();
+      const [pelanggan, petaTx] = await Promise.all([ambilDaftarPelanggan(), ambilTotalPesananPerPelanggan()]);
+      daftar.value = pelanggan;
+      petaPesanan.value = petaTx;
       memuat.value = false;
     }
+    function totalPesanan(p) { return (petaPesanan.value.get(p.id) || { total: 0 }).total; }
+    function jumlahPesanan(p) { return (petaPesanan.value.get(p.id) || { jumlah: 0 }).jumlah; }
+    function statusAktif(p) { return p.status !== 'nonaktif'; } // default aktif kalau field belum ada (dokumen lama)
 
     const daftarTampil = computed(() => {
       const kata = cari.value.trim().toLowerCase();
-      if (!kata) return daftar.value;
-      return daftar.value.filter(p =>
+      let hasil = daftar.value.filter(p =>
         (p.nama || '').toLowerCase().includes(kata) ||
         (p.telepon || '').toLowerCase().includes(kata)
       );
+      // Nonaktif ditampilkan abu DI BAWAH (wireframe 4.1) — bukan
+      // disembunyikan, cuma diurutkan ke akhir + kelas visual beda.
+      return [...hasil].sort((a, b) => {
+        const aa = statusAktif(a) ? 0 : 1, bb = statusAktif(b) ? 0 : 1;
+        if (aa !== bb) return aa - bb;
+        return (a.nama || '').localeCompare(b.nama || '');
+      });
     });
 
     function sudahAda(nama, kecualiId) {
@@ -120,7 +157,7 @@ const MasterPelangganManager = {
 
     function bukaTambah() {
       if (!bolehTambah.value) return alert('Anda tidak punya izin menambah di sini. Hubungi Owner/PIC.');
-      popupForm.value = { mode: 'tambah', nama: '', telepon: '', alamat: '', email: '', tipe: 'retail', limitPiutang: '', catatan: '', saldo_piutang: 0 };
+      popupForm.value = { mode: 'tambah', nama: '', telepon: '', alamat: '', email: '', tipe: 'retail', limitPiutang: '', catatan: '', saldo_piutang: 0, status: 'aktif' };
     }
     function bukaEdit(p) {
       if (!bolehEdit.value) return;
@@ -128,7 +165,7 @@ const MasterPelangganManager = {
         mode: 'edit', id: p.id,
         nama: p.nama || '', telepon: p.telepon || '', alamat: p.alamat || '', email: p.email || '',
         tipe: p.tipe || 'retail', limitPiutang: p.limit_piutang || '', catatan: p.catatan || '',
-        saldo_piutang: p.saldo_piutang || 0
+        saldo_piutang: p.saldo_piutang || 0, status: p.status || 'aktif'
       };
     }
     function tutupPopup() { popupForm.value = null; }
@@ -147,6 +184,7 @@ const MasterPelangganManager = {
           alamat: f.alamat.trim(),
           email: f.email.trim(),
           tipe: f.tipe || 'retail',
+          status: f.status || 'aktif',
           limit_piutang: parseFloat(f.limitPiutang) || 0,
           catatan: f.catatan.trim()
         };
@@ -184,7 +222,7 @@ const MasterPelangganManager = {
       memuat, daftarTampil, cari, menyimpan, popupForm,
       bolehTambah, bolehEdit, bolehHapus,
       bukaTambah, bukaEdit, tutupPopup, simpanPopup, hapus,
-      labelTipe, kelasTagTipe, formatRupiah
+      labelTipe, kelasTagTipe, formatRupiah, totalPesanan, jumlahPesanan, statusAktif
     };
   },
   template: `
@@ -211,14 +249,16 @@ const MasterPelangganManager = {
            kartu (auto-fill 260px) + tombol Edit/Hapus eksplisit per kartu.
            Wireframe minta SATU TABEL, klik baris untuk edit. Pakai class
            .gc-table yang SUDAH ADA di css/gechoo-design.css (dipakai juga
-           modul lain, mis. Stock & Pembelian) — bukan style baru. Kolom
-           "total pesanan"/"status aktif-nonaktif" di wireframe TIDAK ada di
-           koleksi master_pelanggan sekarang (lihat catatan skema di atas
-           file ini) — TIDAK ditambahkan (field/koleksi tidak boleh
-           diubah), kolom tabel di sini cuma pakai field yang SUDAH ADA:
-           nama, telepon, alamat, tipe, limit & saldo piutang. Tombol Edit
-           terpisah DIHAPUS — klik baris manapun langsung buka form edit
-           (sama seperti bukaEdit() yang sudah ada, cuma pemicunya pindah). -->
+           modul lain, mis. Stock & Pembelian) — bukan style baru. Tombol
+           Edit terpisah DIHAPUS — klik baris manapun langsung buka form
+           edit (sama seperti bukaEdit() yang sudah ada, cuma pemicunya
+           pindah).
+           REVISI (9 Sep 2026 malam, keputusan Guru: "iyah kerjakan sesuai
+           wireframe") — kolom "Total Pesanan" (dihitung live dari
+           transaksi_kasir, lihat ambilTotalPesananPerPelanggan di atas
+           file) dan "Status" (field BARU `status` di master_pelanggan)
+           ditambahkan. Pelanggan nonaktif ditampilkan abu di baris
+           (diurutkan ke bawah oleh daftarTampil, bukan disembunyikan). -->
       <div v-else class="gc-table-scroll">
         <table class="gc-table">
           <thead>
@@ -227,19 +267,23 @@ const MasterPelangganManager = {
               <th>Telepon</th>
               <th>Alamat</th>
               <th>Tipe</th>
+              <th style="text-align:right;">Total Pesanan</th>
               <th style="text-align:right;">Limit Piutang</th>
               <th style="text-align:right;">Saldo Piutang</th>
+              <th>Status</th>
               <th></th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="p in daftarTampil" :key="p.id" @click="bukaEdit(p)" :style="{cursor: bolehEdit ? 'pointer' : 'default'}">
+            <tr v-for="p in daftarTampil" :key="p.id" @click="bukaEdit(p)" :style="{cursor: bolehEdit ? 'pointer' : 'default', opacity: statusAktif(p) ? 1 : .55}">
               <td><b>{{ p.nama }}</b></td>
               <td class="gc-cell-muted">{{ p.telepon || '-' }}</td>
               <td class="gc-cell-muted" style="white-space:normal; max-width:220px;">{{ p.alamat || '-' }}</td>
               <td><span :class="kelasTagTipe(p.tipe)" style="font-size:10.5px;">{{ labelTipe(p.tipe) }}</span></td>
+              <td class="gc-num" style="text-align:right;">{{ formatRupiah(totalPesanan(p)) }}<div style="font-size:9.5px; color:var(--text-faint); font-weight:400;">{{ jumlahPesanan(p) }}x</div></td>
               <td class="gc-num" style="text-align:right; font-weight:600;">{{ formatRupiah(p.limit_piutang) }}</td>
               <td class="gc-num" style="text-align:right;" :style="{fontWeight:700, color: (p.saldo_piutang||0) > 0 ? 'var(--danger)' : 'inherit'}">{{ formatRupiah(p.saldo_piutang) }}</td>
+              <td><span class="tag" :class="statusAktif(p) ? 'ok' : 'neutral'" style="font-size:10px;">{{ statusAktif(p) ? 'Aktif' : 'Nonaktif' }}</span></td>
               <td style="text-align:right;">
                 <button v-if="bolehHapus" @click.stop="hapus(p)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
               </td>
@@ -265,6 +309,18 @@ const MasterPelangganManager = {
           </select>
         </div>
         <div class="gc-field"><label>Limit Piutang <span style="font-weight:400; color:var(--text-faint);">(0 = tidak boleh piutang)</span></label><input v-model.number="popupForm.limitPiutang" type="number" min="0" placeholder="0"></div>
+        <!-- BARU (9 Sep 2026 malam, keputusan eksplisit Guru: "iyah kerjakan
+             sesuai wireframe") — toggle Status di sini adalah SATU-SATUNYA
+             tempat popupForm.status bisa diubah user (sebelumnya cuma
+             ditampilkan di tabel, belum ada kontrolnya). Hanya muncul saat
+             edit — pelanggan baru selalu mulai 'aktif' (lihat bukaTambah). -->
+        <div v-if="popupForm.mode === 'edit'" class="gc-field">
+          <label>Status</label>
+          <select v-model="popupForm.status">
+            <option value="aktif">Aktif</option>
+            <option value="nonaktif">Nonaktif</option>
+          </select>
+        </div>
         <div v-if="popupForm.mode === 'edit'" class="gc-field">
           <label>Saldo Piutang <span style="font-weight:400; color:var(--text-faint);">(otomatis, belum aktif)</span></label>
           <input :value="formatRupiah(popupForm.saldo_piutang)" type="text" readonly style="background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;">

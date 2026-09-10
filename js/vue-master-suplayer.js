@@ -72,6 +72,24 @@ async function ambilDaftarSuplayerLengkap() {
     return [];
   }
 }
+// BARU (9 Sep 2026 malam, keputusan eksplisit Guru: "iyah kerjakan sesuai
+// wireframe") — hitung jumlah alias per suplayer untuk kolom "Alias/Item" di
+// List Suplayer (5.1). Query SEKALI (satu getDocs ambil semua alias_pembelian,
+// dikelompokkan di sisi klien per suplayer_id) — sama pola dengan
+// ambilTotalPesananPerPelanggan() di vue-master-pelanggan.js — supaya List
+// Suplayer tidak melambat kalau jumlah alias banyak (BUKAN 1 query per baris).
+async function ambilPetaAliasPerSuplayer() {
+  const peta = new Map();
+  try {
+    const snap = await getDocs(collection(db, 'alias_pembelian'));
+    snap.forEach(d => {
+      const a = d.data();
+      if (!a.suplayer_id) return;
+      peta.set(a.suplayer_id, (peta.get(a.suplayer_id) || 0) + 1);
+    });
+  } catch (e) { console.error('Gagal hitung alias per suplayer:', e); }
+  return peta;
+}
 function formatQty(n) {
   if (n === null || n === undefined || n === '') return '-';
   const angka = parseFloat(n) || 0;
@@ -92,6 +110,9 @@ const SuplayerEntryList = {
     const daftar = ref([]);
     const cari = ref('');
     const menyimpan = ref(false);
+    // BARU (9 Sep 2026 malam) — peta jumlah alias per suplayer_id, dipakai
+    // kolom "Alias/Item" di tabel. Lihat ambilPetaAliasPerSuplayer() di atas.
+    const petaAlias = ref(new Map());
 
     const kosongForm = () => ({ nama: '', kontak: '', bank: '', namaRek: '', noRek: '', noWa: '' });
     const form = reactive(kosongForm());
@@ -99,9 +120,12 @@ const SuplayerEntryList = {
 
     async function muat() {
       memuat.value = true;
-      daftar.value = await ambilDaftarSuplayerLengkap();
+      const [suplayer, peta] = await Promise.all([ambilDaftarSuplayerLengkap(), ambilPetaAliasPerSuplayer()]);
+      daftar.value = suplayer;
+      petaAlias.value = peta;
       memuat.value = false;
     }
+    function jumlahAlias(s) { return petaAlias.value.get(s.id) || 0; }
 
     const daftarTampil = computed(() => {
       const kata = cari.value.trim().toLowerCase();
@@ -160,7 +184,7 @@ const SuplayerEntryList = {
     }
 
     onMounted(async () => { await window.authReady; await muat(); });
-    return { memuat, daftarTampil, cari, form, menyimpan, bolehTambah, bolehEdit, bolehHapus, tambah, bukaEdit, simpanEdit, popupEdit, hapus };
+    return { memuat, daftarTampil, cari, form, menyimpan, bolehTambah, bolehEdit, bolehHapus, tambah, bukaEdit, simpanEdit, popupEdit, hapus, jumlahAlias };
   },
   template: `
     <!-- RESTRUKTURISASI (9 Sep 2026, audit wireframe §5.1) — dulu form-tambah
@@ -171,9 +195,10 @@ const SuplayerEntryList = {
          menampilkan form Tambah ATAU form Edit tergantung popupEdit terisi
          atau tidak, PERSIS variabel & fungsi yang SAMA (tambah/bukaEdit/
          simpanEdit TIDAK diubah sama sekali, cuma markup-nya dipindah dari
-         dalam overlay ke sini). Kolom "alias"/"item" per suplayer di
-         wireframe TIDAK ditambahkan (butuh query koleksi alias_pembelian
-         tambahan di modul ini — di luar scope "cuma ubah tata letak"). -->
+         dalam overlay ke sini). Kolom "Alias/Item" per suplayer (BARU, 9 Sep
+         2026 malam, keputusan eksplisit Guru: "iyah kerjakan sesuai
+         wireframe") — dihitung dari alias_pembelian lewat jumlahAlias(s),
+         lihat ambilPetaAliasPerSuplayer() di atas. -->
     <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
       <div class="gc-card gc-card-menonjol" style="flex:1 1 300px; max-width:380px; padding:16px;">
         <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-bottom:2px;"><i class="fas fa-truck-fast" style="color:var(--burgundy); margin-right:8px;"></i>{{ popupEdit ? 'Edit Suplayer' : 'Entry Suplayer' }}</h3>
@@ -227,6 +252,7 @@ const SuplayerEntryList = {
                 <th>Nama &middot; Kontak</th>
                 <th>Bank &middot; Rekening</th>
                 <th>No. WA</th>
+                <th style="text-align:right;">Alias/Item</th>
                 <th></th>
               </tr>
             </thead>
@@ -235,6 +261,7 @@ const SuplayerEntryList = {
                 <td><b>{{ s.nama }}</b><div class="gc-cell-muted" style="font-size:11px;">{{ s.kontak || '-' }}</div></td>
                 <td class="gc-cell-muted">{{ s.bank || '-' }} &middot; {{ s.no_rek || '-' }}</td>
                 <td class="gc-num">{{ s.no_wa || '-' }}</td>
+                <td class="gc-num" style="text-align:right;">{{ jumlahAlias(s) }}</td>
                 <td style="text-align:right;">
                   <button v-if="bolehHapus" @click.stop="hapus(s)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
                 </td>

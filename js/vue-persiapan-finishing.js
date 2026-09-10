@@ -444,9 +444,15 @@ const PersiapanFinishingPerluDisiapkan = {
         // transaksi terpisah per baris.
         const byTrack = {};
         _pendingCetak.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
+        // DIPERBAIKI (9 Sep 2026 malam) — matchFn lama `(b, i) => idxSet.has(i)`
+        // TIDAK PERNAH benar: updateBarisFinishingMassal cuma memanggil
+        // matchFn(arr[i]) TANPA index kedua, jadi `i` selalu undefined dan
+        // baris TIDAK PERNAH tertandai (gagal diam-diam, sama pola bug
+        // "Tunjuk Operator" yang sudah diperbaiki lanjutan 9). Diganti
+        // matching by value (no_spk).
         await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
-          const idxSet = new Set(barisGrup.map(b => b._lineIdx));
-          return updateBarisFinishingMassal(trackId, (b, i) => idxSet.has(i), () => ({ label_cetak_pada: now }));
+          const noSpkSet = new Set(barisGrup.map(b => b.no_spk));
+          return updateBarisFinishingMassal(trackId, (x) => noSpkSet.has(x.no_spk), () => ({ label_cetak_pada: now }));
         }));
       } catch (e) { console.error('Gagal catat label_cetak_pada:', e); }
       _pendingCetak = [];
@@ -1097,9 +1103,9 @@ const PersiapanFinishingPerluDikirim = {
       const byTrack = {};
       cocok.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
       try {
+        // DIPERBAIKI (9 Sep 2026 malam) — matchFn value-based (no_spk+!kode_bagging).
         await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
-          const idxSet = new Set(barisGrup.map(b => b._lineIdx));
-          return updateBarisFinishingMassal(trackId, (b, i) => idxSet.has(i), () => ({ kode_bagging: modalPack.bagging.kode }));
+          return updateBarisFinishingMassal(trackId, (x) => x.no_spk === kode && !x.kode_bagging, () => ({ kode_bagging: modalPack.bagging.kode }));
         }));
         await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { isi: arrayUnion(kode) });
         modalPack.log.unshift(kode + ` (${cocok.length} komponen) -> ` + modalPack.bagging.kode);
@@ -1132,9 +1138,9 @@ const PersiapanFinishingPerluDikirim = {
       const byTrack = {};
       anggota.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
       try {
+        // DIPERBAIKI (9 Sep 2026 malam) — matchFn value-based (kode_bagging).
         await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
-          const idxSet = new Set(barisGrup.map(b => b._lineIdx));
-          return updateBarisFinishingMassal(trackId, (b, i) => idxSet.has(i), () => ({
+          return updateBarisFinishingMassal(trackId, (x) => x.kode_bagging === kode, () => ({
             status: 'sedang_dikirim', masuk_tahap_pada: now, kode_tugas: modalKirim.tugas.kode,
             tlc_tujuan: modalKirim.tugas.tlc_tujuan || ''
           }));
