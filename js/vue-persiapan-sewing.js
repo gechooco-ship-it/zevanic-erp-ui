@@ -402,10 +402,17 @@ const PersiapanSewingPerluDisiapkan = {
       if (!terpilih.length) { alert('Tidak ada baris yang bisa dicetak (stok belum cukup untuk baris manapun, atau sudah dicetak semua).'); return; }
       const perAnak = {};
       terpilih.forEach(b => { (perAnak[b.no_spk] ||= []).push(b); });
+      // FIX (10 Sep 2026, keputusan Guru — "kode yang tampil pas cetak label
+      // harusnya kode SPK Grouping, biar sama kayak Bahan") — kode BESAR di
+      // label sekarang `kode_spk` (SAMA pola seperti vue-persiapan-bahan.js).
+      // QR & matching TETAP pakai noSpk (unik per anak SPK, TIDAK diubah) —
+      // hasilScanAksi()/onCetakSelesai() di bawah match by no_spk, mengubah
+      // itu beresiko scan salah baris kalau 1 grouping isi >1 anak SPK. Info
+      // dikasih noSpk di depan supaya anak SPK-nya tetap kelihatan di label.
       const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => ({
-        kode: noSpk,
+        kode: barisGrup[0].kode_spk,
         nama: k.namaProduk,
-        info: barisGrup.map(b => `${b.nama_aksesoris} ${b.warna} &middot; ${formatQty(b.butuh)} ${b.satuan}`).join(' | '),
+        info: `${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna} &middot; ${formatQty(b.butuh)} ${b.satuan}`).join(' | '),
         qrDataUrl: buatQrDataUrl(`${noSpk}-${SUFFIX_LABEL}`)
       }));
       daftarLabelPreview.value = preview;
@@ -463,9 +470,11 @@ const PersiapanSewingPerluDisiapkan = {
       const sudahDicetak = p.kartu.baris.filter(b => b.label_cetak_pada);
       const perAnak = {};
       sudahDicetak.forEach(b => { (perAnak[b.no_spk] ||= []).push(b); });
+      // FIX (10 Sep 2026) — sama seperti cetakLabelKartu() di atas: kode
+      // besar = kode_spk, QR tetap noSpk (tidak diubah).
       const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => ({
-        kode: noSpk, nama: p.kartu.namaProduk,
-        info: 'CETAK ULANG &middot; ' + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna}`).join(' | '),
+        kode: barisGrup[0].kode_spk, nama: p.kartu.namaProduk,
+        info: `CETAK ULANG &middot; ${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna}`).join(' | '),
         qrDataUrl: buatQrDataUrl(`${noSpk}-${SUFFIX_LABEL}`)
       }));
       try {

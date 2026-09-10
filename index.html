@@ -1741,9 +1741,16 @@
        setup(), bikin render crash & layar macet "Memuat..." begitu ada
        data (laporan Guru, Acc Sewing/Finishing). Webbing ikut diperbaiki
        sekalian (bug sama, belum kelihatan karena datanya masih kosong). -->
-  <script type="module" src="js/vue-persiapan-sewing.js?v=8"></script>
-  <script type="module" src="js/vue-persiapan-webbing.js?v=9"></script>
-  <script type="module" src="js/vue-persiapan-finishing.js?v=8"></script>
+  <!-- v=9/10/9 (10 Sep 2026 malam, lanjutan) — keputusan Guru: kode BESAR
+       yang tercetak di label "Perlu Disiapkan"/"Cetak Ulang" sekarang kode
+       SPK Grouping (kode_spk), SAMA seperti vue-persiapan-bahan.js — dulu
+       pakai kode order asli (no_spk/TRX...), bikin tidak konsisten antar
+       menu. QR & pencocokan scan TETAP pakai no_spk (tidak diubah, supaya
+       tidak beresiko ke alur scan yang sudah jalan) — no_spk dipindah ke
+       baris info label saja. -->
+  <script type="module" src="js/vue-persiapan-sewing.js?v=9"></script>
+  <script type="module" src="js/vue-persiapan-webbing.js?v=10"></script>
+  <script type="module" src="js/vue-persiapan-finishing.js?v=9"></script>
   <!-- BARU (7 Sep 2026, §5.18) — Persiapan Produksi > Masalah, 7 tahap,
        skema TRB baru (rebuild total dari fitur "Persiapan Masalah" lama,
        yang sekarang cuma papan manual biasa, lihat js/vue-persiapan-
