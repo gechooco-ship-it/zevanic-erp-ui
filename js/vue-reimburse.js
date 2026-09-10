@@ -1215,6 +1215,20 @@ const RiwayatReimburseTable = {
       return ts.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
     }
 
+    // BARU (10 Sep 2026) — badge tanggal 2-baris (hari besar + bulan
+    // singkat kecil) utk kartu mobile di bawah, pola Pola 4 Sample Hifi
+    // mobile (M6 "Riwayat/Tabel") — lihat GAP-MOBILE-10SEP2026.md temuan
+    // #2. `daftarTerpaginasi`/kolom lain TETAP sama, cuma cara tampil di
+    // layar sempit yang beda dari tabel desktop.
+    function formatTglBadge(ts) {
+      if (!ts || !ts.toDate) return { hari: '-', bulan: '' };
+      const d = ts.toDate();
+      return {
+        hari: d.toLocaleDateString('id-ID', { day: 'numeric' }),
+        bulan: d.toLocaleDateString('id-ID', { month: 'short' })
+      };
+    }
+
     // BARU (29 Agt 2026, §44.17) — HEMAT: dulu fetch SELURUH koleksi
     // `reimburse` (terus tumbuh selamanya, tidak ada batas), sekarang
     // filter rentang tanggal jadi QUERY SUNGGUHAN (where() server-side),
@@ -1395,7 +1409,7 @@ const RiwayatReimburseTable = {
     });
     onMounted(async () => { await window.authReady; muat(); });
     return {
-      daftarSemua, daftarTersaring, daftarTerpaginasi, memuat, errorMuat, muat, cariKata, formatTgl, lihatFotoBesar,
+      daftarSemua, daftarTersaring, daftarTerpaginasi, memuat, errorMuat, muat, cariKata, formatTgl, formatTglBadge, lihatFotoBesar,
       LABEL_TAHAP, warnaTahap, formatRupiah, LABEL_MODE, halamanSaatIni, totalHalaman, gantiHalaman, exportCSV,
       filterTanggalPreset, tglMulaiCustom, tglSelesaiCustom, captionRentang, assignUlang,
       filterJenisTab, FILTER_JENIS_TAB, expandedId, toggleExpand, hitungEfisiensiCSV
@@ -1473,7 +1487,13 @@ const RiwayatReimburseTable = {
          SUDAH diisi 'BBM'/'Servis Kendaraan'/nama kategori pilihan
          karyawan sejak disimpan — lihat ajukan(), TIDAK ada logic baru
          di sini, cuma nampilin field yang sudah ada). -->
-    <div v-else class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line);">
+    <!-- BARU (10 Sep 2026) — "hidden md:block" (utility custom proyek,
+         css/gechoo-design.css, Tailwind SUDAH dicabut) supaya tabel ini
+         cuma tampil di layar >=768px; di HP diganti kartu di bawah
+         (lihat GAP-MOBILE-10SEP2026.md temuan #2). Isinya TIDAK diubah
+         sama sekali dari versi tabel yang sudah diaudit vs wireframe
+         9 Sep — cuma dibungkus kelas responsif. -->
+    <div v-else class="gc-table-scroll hidden md:block" style="background:var(--surface); border:1px solid var(--line);">
       <table class="gc-table">
         <thead>
           <tr>
@@ -1532,6 +1552,55 @@ const RiwayatReimburseTable = {
           </template>
         </tbody>
       </table>
+    </div>
+
+    <!-- BARU (10 Sep 2026) — kartu mobile "md:hidden" (kebalikan tabel di
+         atas), pola Pola 4 Sample Hifi mobile (M6 "Riwayat/Tabel"): badge
+         tanggal 2-baris di kiri, judul+sub-judul di tengah, tag status di
+         kanan. Tap kartu = expand detail (odometer/servis/keterangan/
+         sanggahan) sama seperti klik baris tabel desktop — DATA SAMA
+         PERSIS (daftarTerpaginasi), cuma cara tampil beda. Lihat
+         GAP-MOBILE-10SEP2026.md temuan #2. -->
+    <div v-if="!memuat && !errorMuat && daftarSemua.length > 0 && daftarTersaring.length > 0" class="md:hidden" style="display:flex; flex-direction:column; gap:8px;">
+      <template v-for="r in daftarTerpaginasi" :key="r.id">
+        <div class="gc-card" @click="toggleExpand(r.id)" style="padding:9px; border-radius:12px; display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <div style="width:34px; text-align:center; flex-shrink:0; font:700 11px 'Poppins',sans-serif; color:var(--mahogany);">
+            {{ formatTglBadge(r.diajukan_pada).hari }}<br><span style="font:400 8px 'Nunito Sans',sans-serif; color:var(--text-faint);">{{ formatTglBadge(r.diajukan_pada).bulan }}</span>
+          </div>
+          <div style="flex:1; min-width:0;">
+            <div style="font:600 11.5px 'Nunito Sans',sans-serif; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ r.kategori || '-' }} &middot; {{ formatRupiah(r.jumlah) }}</div>
+            <div style="font:400 10px 'Nunito Sans',sans-serif; color:var(--text-muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ r.nama_pegawai || '-' }}<span v-if="r.kendaraan_plat"> &middot; {{ r.kendaraan_plat }}</span></div>
+          </div>
+          <span class="tag" :class="warnaTahap(r.tahap)" style="font-size:8px; padding:2px 7px; flex-shrink:0;">{{ LABEL_TAHAP[r.tahap] || r.tahap }}</span>
+        </div>
+        <div v-if="expandedId === r.id" class="gc-card" style="margin-top:-4px; border-top:none; border-top-left-radius:0; border-top-right-radius:0; padding:10px 12px; background:var(--ivory-dim);">
+          <div style="display:flex; flex-wrap:wrap; gap:14px; font-size:11.5px;">
+            <div v-if="r.foto_bukti">
+              <span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px;">Foto</span>
+              <img :src="r.foto_bukti" @click.stop="lihatFotoBesar(r.foto_bukti)" style="width:40px; height:40px; object-fit:cover; border-radius:8px; border:1px solid var(--line);">
+            </div>
+            <div v-if="r.jenis_entry_kendaraan === 'bensin' && r.odo_sebelum && r.odo_sesudah">
+              <span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px;">Odometer</span>
+              <b>{{ r.odo_sebelum.toLocaleString('id-ID') }} &rarr; {{ r.odo_sesudah.toLocaleString('id-ID') }} km<span v-if="hitungEfisiensiCSV(r) !== ''"> &middot; {{ hitungEfisiensiCSV(r) }} km/L</span></b>
+            </div>
+            <div v-if="r.jenis_entry_kendaraan === 'servis' && r.item_servis && r.item_servis.length > 0" style="flex:1; min-width:180px;">
+              <span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px;">Rincian Servis</span>
+              <div v-for="(item, idx) in r.item_servis" :key="idx" style="display:flex; justify-content:space-between; gap:10px; padding:2px 0;">
+                <span>{{ item.nama_barang }} &times;{{ item.qty }}</span><b>{{ formatRupiah(item.jumlah) }}</b>
+              </div>
+            </div>
+            <div v-if="r.keterangan">
+              <span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px;">Keterangan</span>
+              <span>{{ r.keterangan }}</span>
+            </div>
+            <div v-if="r.catatan_banding">
+              <span style="color:var(--text-faint); display:block; font-size:9.5px; text-transform:uppercase; letter-spacing:.04em; margin-bottom:3px;">Sanggahan Karyawan</span>
+              <span>{{ r.catatan_banding }}</span>
+            </div>
+          </div>
+          <button v-if="r.catatan_banding" @click.stop="assignUlang(r.id)" class="btn-outline block" style="margin-top:8px; font-size:11px; color:var(--warn); border-color:var(--warn);"><i class="fas fa-undo" style="margin-right:6px;"></i>Assign ulang ke Antrean Reimburse</button>
+        </div>
+      </template>
     </div>
     <div v-if="!memuat && daftarTersaring.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
       <button class="icon-btn" :disabled="halamanSaatIni <= 1" @click="gantiHalaman(-1)"><i class="fas fa-chevron-left"></i></button>

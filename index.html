@@ -1624,6 +1624,12 @@
        redesain "Gechoo Mobile Organic"). -->
   <div id="vue-sheet-profil"></div>
 
+  <!-- BARU (10 Sep 2026) — Bottom Sheet Picker "Mau scan apa?" (pola M2),
+       dibuka tombol QR di .gc-mobile-nav (lihat js/app.js, mnavScanQr) —
+       lihat js/vue-popup-scan.js. Di LUAR #screen-dashboard, pola SAMA
+       seperti vue-sheet-profil di atas. -->
+  <div id="vue-popup-scan"></div>
+
   <!-- Modal Edit Karyawan sudah dipindah ke js/vue-daftar-karyawan.js -->
 
   <div id="modal-preview-foto" class="hidden fixed inset-0 z-[110] flex items-center justify-center p-4 fade-in" style="background:rgba(var(--scrim-rgb),.75);" onclick="tutupPreviewFoto()">
@@ -1640,7 +1646,13 @@
   <!-- togglePassword & toggleFormIzin (dulu di sini) sudah jadi bagian reaktif js/vue-login.js -->
 
   <script type="module" src="js/firebase-config.js"></script>
-  <script type="module" src="js/app.js?v=3"></script>
+  <!-- v=4 (10 Sep 2026) — pindahLayar() dapat Browser History API utk
+       screen-camera & screen-absensi-qr (tombol back HP sebelumnya lompat
+       keluar app di 2 layar ini, lihat GAP-MOBILE-10SEP2026.md temuan #3);
+       tombol QR nav (mnavScanQr) sekarang buka Bottom Sheet Picker "Mau
+       scan apa?" (js/vue-popup-scan.js) dulu, bukan langsung ke
+       tab-scan-qr. -->
+  <script type="module" src="js/app.js?v=4"></script>
   <script type="module" src="js/camera.js"></script>
   <!-- v=2 (28 Agt 2026): window.bolehLihatData tambah bypass eksplisit
        dimensi gudang untuk profil "pic_owner" (role "PIC Owner"). -->
@@ -1780,8 +1792,14 @@
        v=4 (29 Agt 2026, sama hari, permintaan Guru) — tombol "Unduh CSV"
        BARU di RiwayatReimburseTable (dipakai 3 menu: Riwayat Reimburse/
        Riwayat Isi Bensin/Riwayat Servis) — pola SAMA PERSIS exportCSV()
-       di vue-riwayat-absensi.js, kolom menyesuaikan mode. -->
-  <script type="module" src="js/vue-reimburse.js?v=8"></script>
+       di vue-riwayat-absensi.js, kolom menyesuaikan mode.
+       v=9 (10 Sep 2026) — RiwayatReimburseTable ("Riwayat Keuangan") dapat
+       kartu mobile (md:hidden) di samping tabel desktop (hidden md:block)
+       — dulu tabel-nya scroll horizontal polos di HP (lihat komentar 9 Sep
+       "dikembalikan jadi tabel" di file ini), SEKARANG tabel itu TETAP ada
+       PERSIS sama di layar >=768px, cuma di HP diganti kartu pola M6
+       Sample Hifi mobile. Data & desktop TIDAK disentuh. -->
+  <script type="module" src="js/vue-reimburse.js?v=9"></script>
   <script type="module" src="js/vue-riwayat-absensi.js?v=4"></script>
   <script type="module" src="js/vue-penjadwalan.js?v=6"></script>
   <script type="module" src="js/vue-whatsapp-gateway.js"></script>
@@ -1820,6 +1838,9 @@
        (gechoo-design.css) — di mode gelap otomatis jadi burgundy+pink
        (lebih redup), bukan danger-light yang kepucatan/mencolok. -->
   <script type="module" src="js/vue-sheet-profil.js?v=5"></script>
+  <!-- BARU (10 Sep 2026) — Bottom Sheet Picker "Mau scan apa?" (pola M2),
+       lihat js/vue-popup-scan.js + mount #vue-popup-scan di atas. -->
+  <script type="module" src="js/vue-popup-scan.js?v=1"></script>
   <!-- v=5 (28 Agt 2026, redesain "Gechoo Mobile Organic") — Beranda dirombak
        total mengikuti mockup: dikunci 1 layar, 1 grup default (bisa diatur
        user lewat layar baru Atur Favorit), mode "Atur" inline dihapus,
