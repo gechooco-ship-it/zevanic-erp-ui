@@ -524,7 +524,22 @@ const PersiapanSewingPerluDisiapkan = {
       // SAJA (perilaku lama, tidak berubah).
       const kolamBaris = modalTunjuk.global ? kartuList.value.flatMap(k => k.baris) : (modalTunjuk.kartu?.baris || []);
       const cocok = kolamBaris.filter(b => b.no_spk === kode && b.label_cetak_pada && b.status === 'perlu_disiapkan');
-      if (!cocok.length) { alert(`Kode "${kode}" tidak cocok baris manapun yang sudah dicetak labelnya (mungkin belum dicetak, atau sudah ditunjuk).`); return; }
+      if (!cocok.length) {
+        // FIX (10 Sep 2026, laporan Guru — masih salah tunjuk setelah fix
+        // dedup kamera) — akar SEBENARNYA: user scan ULANG badge operator
+        // di tahap "anak" (kira harus scan badge lagi), bukan scan label
+        // SPK yang tercetak. Pesan lama tidak bilang itu badge operator,
+        // jadi kelihatan seperti bug padahal salah scan target. Sekarang
+        // dicek eksplisit: kalau kode yang gagal cocok itu TERNYATA id_app
+        // karyawan, kasih pesan yang jelas nunjuk masalahnya.
+        const karyawanTerbaca = await cariKaryawanByQr(kode);
+        if (karyawanTerbaca) {
+          alert(`Kode "${kode}" itu badge OPERATOR (${karyawanTerbaca.nama || karyawanTerbaca.name || kode}), BUKAN label SPK. Scan LABEL SPK anak yang sudah dicetak (bukan badge operator lagi).`);
+          return;
+        }
+        alert(`Kode "${kode}" tidak cocok baris manapun yang sudah dicetak labelnya (mungkin belum dicetak, atau sudah ditunjuk).`);
+        return;
+      }
       const now = new Date().toISOString();
       const trackId = cocok[0]._trackId;
       // CATATAN BUG (ditemukan 9 Sep 2026 saat generalisasi ke mode global,
