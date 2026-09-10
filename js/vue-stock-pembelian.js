@@ -170,7 +170,7 @@ import { db, storage } from "./firebase-config.js";
 // dulu dipakai MasterSuplayerManager (gear Stock & Pembelian), sekarang
 // CRUD Suplayer pindah ke menu Config (vue-config.js). Lihat catatan di
 // PengaturanStockPembelian di bawah.
-import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=6';
+import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=7';
 import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
 
 // --- helper: ambil semua Bahan+Aksesoris (disalin dari vue-bahan-aksesoris.js
@@ -2204,7 +2204,7 @@ const DaftarNotaScreen = {
 
         <div style="position:relative; max-width:320px; margin-bottom:12px;" v-if="filterSumber !== 'driver'">
           <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:12px;"></i>
-          <input :value="paginasiNota.cariTeks.value" @input="paginasiNota.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari No. Nota (awalan)..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+          <input :value="paginasiNota.cariTeks.value" @input="paginasiNota.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari No. Nota (awalan)..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
         </div>
 
         <div v-if="filterSumber === 'driver'" class="gc-kosong">
@@ -2568,7 +2568,7 @@ const RiwayatHargaPembelianManager = {
 
       <div style="position:relative; max-width:320px; margin-bottom:12px;">
         <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:12px;"></i>
-        <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama bahan (awalan)..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+        <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama bahan (awalan)..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
       </div>
 
       <div v-if="paginasi.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>

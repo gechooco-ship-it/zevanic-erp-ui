@@ -505,7 +505,7 @@ const GudangStokTersedia = {
         <div style="font-size:12px; color:var(--text-faint);">Total pcs di gudang</div>
         <div class="gc-num" style="font-weight:700; font-size:16px;">{{ formatQty(totalStok) }}</div>
       </div>
-      <input v-model="kataKunci" type="text" placeholder="Cari produk / SKU..." style="width:100%; margin-bottom:12px; padding:8px; border-radius:10px; border:1px solid var(--border-soft);">
+      <input v-model="kataKunci" type="text" placeholder="Cari produk / SKU..." style="width:100%; margin-bottom:12px; padding:8px; background:var(--ivory-dim); border-radius:10px; border:1px solid var(--line);">
       <div v-if="kelompokTersaring.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-boxes-stacked"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada stok produk jadi di gudang</h3>
@@ -513,12 +513,12 @@ const GudangStokTersedia = {
       </div>
       <div v-else class="gc-card" style="overflow-x:auto;">
         <table style="width:100%; border-collapse:collapse; font-size:11px;">
-          <thead><tr style="text-align:left; border-bottom:1px solid var(--border-soft);">
+          <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
             <th style="padding:6px 8px;">SKU</th><th style="padding:6px 8px;">Produk</th><th style="padding:6px 8px;">Size</th><th style="padding:6px 8px;">Warna</th>
             <th style="padding:6px 8px;">Jumlah</th><th style="padding:6px 8px;">Teralokasi PO</th><th style="padding:6px 8px;">Bebas</th>
           </tr></thead>
           <tbody>
-            <tr v-for="g in kelompokTersaring" :key="g.sku + g.size + g.warna" style="border-bottom:1px solid var(--border-soft);">
+            <tr v-for="g in kelompokTersaring" :key="g.sku + g.size + g.warna" style="border-bottom:1px solid var(--line);">
               <td style="padding:6px 8px;">{{ g.sku }}</td>
               <td style="padding:6px 8px;">{{ g.namaProduk }}</td>
               <td style="padding:6px 8px;">{{ g.size }}</td>
@@ -597,9 +597,9 @@ const GudangRiwayatKeluar = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <input v-model="kataKunci" type="text" placeholder="Cari kode pcs / produk..." style="flex:2; min-width:160px; padding:8px; border-radius:10px; border:1px solid var(--border-soft);">
-        <input v-model="dariTanggal" type="date" style="flex:1; min-width:130px; padding:8px; border-radius:10px; border:1px solid var(--border-soft);">
-        <input v-model="sampaiTanggal" type="date" style="flex:1; min-width:130px; padding:8px; border-radius:10px; border:1px solid var(--border-soft);">
+        <input v-model="kataKunci" type="text" placeholder="Cari kode pcs / produk..." style="flex:2; min-width:160px; padding:8px; background:var(--ivory-dim); border-radius:10px; border:1px solid var(--line);">
+        <input v-model="dariTanggal" type="date" style="flex:1; min-width:130px; padding:8px; border-radius:10px; border:1px solid var(--line);">
+        <input v-model="sampaiTanggal" type="date" style="flex:1; min-width:130px; padding:8px; border-radius:10px; border:1px solid var(--line);">
         <button @click="unduhCsv" class="btn-outline" style="padding:8px 14px; font-size:11.5px;"><i class="fas fa-download" style="margin-right:6px;"></i>Unduh CSV</button>
       </div>
       <div v-if="daftarUrut.length === 0" class="gc-kosong gc-card">
@@ -609,11 +609,11 @@ const GudangRiwayatKeluar = {
       </div>
       <div v-else class="gc-card" style="overflow-x:auto;">
         <table style="width:100%; border-collapse:collapse; font-size:11px;">
-          <thead><tr style="text-align:left; border-bottom:1px solid var(--border-soft);">
+          <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
             <th style="padding:6px 8px;">Kode Pcs</th><th style="padding:6px 8px;">Produk</th><th style="padding:6px 8px;">Transaksi</th><th style="padding:6px 8px;">Terjual Pada</th>
           </tr></thead>
           <tbody>
-            <tr v-for="p in daftarUrut" :key="p.id" style="border-bottom:1px solid var(--border-soft);">
+            <tr v-for="p in daftarUrut" :key="p.id" style="border-bottom:1px solid var(--line);">
               <td style="padding:6px 8px;" class="gc-num">{{ p.kode_pcs }}</td>
               <td style="padding:6px 8px;">{{ p.nama_produk }} {{ p.size }} {{ p.warna }}</td>
               <td style="padding:6px 8px;">{{ infoTransaksi(p) }}</td>
@@ -738,11 +738,11 @@ const GudangScanOpname = {
       </div>
       <div v-else class="gc-card" style="overflow-x:auto;">
         <table style="width:100%; border-collapse:collapse; font-size:11px;">
-          <thead><tr style="text-align:left; border-bottom:1px solid var(--border-soft);">
+          <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
             <th style="padding:6px 8px;">Kode Pcs</th><th style="padding:6px 8px;">Produk</th><th style="padding:6px 8px;"></th>
           </tr></thead>
           <tbody>
-            <tr v-for="p in daftarPerluDicari" :key="p.id" style="border-bottom:1px solid var(--border-soft);">
+            <tr v-for="p in daftarPerluDicari" :key="p.id" style="border-bottom:1px solid var(--line);">
               <td style="padding:6px 8px;" class="gc-num">{{ p.kode_pcs }}</td>
               <td style="padding:6px 8px;">{{ p.nama_produk }} {{ p.size }} {{ p.warna }}</td>
               <td style="padding:6px 8px;"><button @click="bukaKonfirmasiHilang(p)" class="btn-outline" style="padding:5px 12px; font-size:10.5px; color:var(--danger);">Konfirmasi Hilang</button></td>

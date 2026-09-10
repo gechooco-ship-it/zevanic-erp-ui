@@ -174,7 +174,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=6';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=7';
 import { ScanGenerik, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=2';
 
 // --- Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing). --------
@@ -1031,9 +1031,9 @@ const FinishingSelesai = {
         <div class="gc-num" style="font-weight:700; font-size:16px;">{{ selesaiHariIni.length }}</div>
       </div>
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <input v-model="kataKunci" type="text" placeholder="Cari kode pcs / batch / produk..." style="flex:2; min-width:160px; padding:8px; border-radius:10px; border:1px solid var(--border-soft);">
-        <input v-model="dariTanggal" type="date" style="flex:1; min-width:130px; padding:8px; border-radius:10px; border:1px solid var(--border-soft);">
-        <input v-model="sampaiTanggal" type="date" style="flex:1; min-width:130px; padding:8px; border-radius:10px; border:1px solid var(--border-soft);">
+        <input v-model="kataKunci" type="text" placeholder="Cari kode pcs / batch / produk..." style="flex:2; min-width:160px; padding:8px; background:var(--ivory-dim); border-radius:10px; border:1px solid var(--line);">
+        <input v-model="dariTanggal" type="date" style="flex:1; min-width:130px; padding:8px; border-radius:10px; border:1px solid var(--line);">
+        <input v-model="sampaiTanggal" type="date" style="flex:1; min-width:130px; padding:8px; border-radius:10px; border:1px solid var(--line);">
         <button @click="unduhCsv" class="btn-outline" style="padding:8px 14px; font-size:11.5px;"><i class="fas fa-download" style="margin-right:6px;"></i>Unduh CSV</button>
       </div>
 
@@ -1044,13 +1044,13 @@ const FinishingSelesai = {
       </div>
       <div v-else class="gc-card" style="overflow-x:auto;">
         <table style="width:100%; border-collapse:collapse; font-size:11px;">
-          <thead><tr style="text-align:left; border-bottom:1px solid var(--border-soft);">
+          <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
             <th style="padding:6px 8px;">Kode Pcs</th><th style="padding:6px 8px;">Batch</th><th style="padding:6px 8px;">Produk</th>
             <th style="padding:6px 8px;">QC</th><th style="padding:6px 8px;">Steam</th><th style="padding:6px 8px;">Folding</th><th style="padding:6px 8px;">Packing</th>
             <th style="padding:6px 8px;">Selesai</th>
           </tr></thead>
           <tbody>
-            <tr v-for="t in daftarUrut" :key="t.id" style="border-bottom:1px solid var(--border-soft);">
+            <tr v-for="t in daftarUrut" :key="t.id" style="border-bottom:1px solid var(--line);">
               <td style="padding:6px 8px;" class="gc-num">{{ t.kode_pcs }}</td>
               <td style="padding:6px 8px;" class="gc-num">{{ t.kode_batch }}</td>
               <td style="padding:6px 8px;">{{ t.nama_produk }} {{ t.size }}</td>

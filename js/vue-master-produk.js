@@ -62,7 +62,7 @@ import { createApp, ref, reactive, computed, onMounted, watch } from 'https://un
 import { collection, doc, setDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=4';
+import { DropdownCari } from './vue-components.js?v=7';
 import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
 // pakaiRiwayatTabVue — TIDAK dipakai lagi di file ini sejak restrukturisasi
 // tampilan Entry Produk (9 Sep 2026, audit wireframe §2.1): BOM Jasa/Pola/
@@ -1909,7 +1909,7 @@ const MasterProdukListManager = {
 
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; margin-bottom:12px;">
         <div style="max-width:320px; flex:1; min-width:200px;">
-          <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama produk (awalan)..." style="width:100%; padding:10px 14px; border:1.5px solid var(--line); border-radius:12px; font-size:13px; box-sizing:border-box;">
+          <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama produk (awalan)..." style="width:100%; padding:10px 14px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; font-size:13px; box-sizing:border-box;">
         </div>
         <div style="position:relative;">
           <button @click="dropdownImportTerbuka = !dropdownImportTerbuka" type="button" class="btn-outline" style="font-size:12px;">

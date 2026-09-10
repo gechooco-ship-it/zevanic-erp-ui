@@ -163,6 +163,11 @@ export const KATALOG_CETAK = {
     keterangan: 'Stok & Pembelian > Nota Order Belanja, cetak label per roll/lot yang diterima.',
     rincianTersedia: []
   },
+  label_rak_penyimpanan: {
+    label: 'Label Rak Penyimpanan', kategori: 'Stok & Pembelian',
+    keterangan: 'Stok & Pembelian > Rak Penyimpanan — label fisik ditempel di rak (QR kode rak). Otomatis tampil begitu Rak baru disimpan, atau dicetak ulang manual lewat tombol printer per baris (10 Sep 2026).',
+    rincianTersedia: []
+  },
   struk_kasir: {
     label: 'Struk Kasir', kategori: 'Pesanan',
     keterangan: 'Pesanan > Penjualan Kasir. Kertas roll (lebar saja). Disambungkan 9 Sep 2026 (js/vue-pesanan.js, PopupPratinjauCetakStruk) — CUMA lebar roll yang ikut setingan grup ini, isi struk (item/total/status bayar) tetap dari template struk sendiri, bukan dari field_tampil grup.',

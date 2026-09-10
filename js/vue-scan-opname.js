@@ -53,7 +53,7 @@
 import { createApp, ref, computed, onMounted, onUnmounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=3';
+import { DropdownCari } from './vue-components.js?v=7';
 import {
   ambilLotAktif, cariBahanByIdTampil, ambilBahanById, cariLotByKodeSemuaStatus,
   catatPenyesuaianOpnameItem, catatPenyesuaianOpnameLot

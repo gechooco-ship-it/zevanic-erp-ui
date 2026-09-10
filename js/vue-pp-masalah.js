@@ -91,7 +91,7 @@
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=6';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=7';
 import { ScanGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=2';
 
 // picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). BEDA
@@ -401,7 +401,7 @@ const MasalahPerluDiajukan = {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="d in daftarTersaring" :key="d.id" style="border-bottom:1px solid var(--border-soft);" :style="{ background: tertahan(d.scan_pada) ? 'var(--warn-light)' : 'transparent' }">
+              <tr v-for="d in daftarTersaring" :key="d.id" style="border-bottom:1px solid var(--line);" :style="{ background: tertahan(d.scan_pada) ? 'var(--warn-light)' : 'transparent' }">
                 <td style="padding:6px 8px;"><input v-if="bolehProses" type="checkbox" :checked="!!terpilih[d.id]" @change="toggleSatu(d)"></td>
                 <td style="padding:6px 8px;">
                   <div class="gc-num" style="font-weight:700;">{{ d.no_spk || '-' }}</div>
@@ -670,7 +670,7 @@ const MasalahMenungguSetuju = {
         <!-- Panel Kumulatif per bahan — hitungan belanja, terpisah dari detail masalah -->
         <div class="gc-card" style="padding:10px 12px; border-radius:14px; border:1px dashed var(--line); margin-bottom:10px;">
           <div class="gc-heading" style="font-weight:700; font-size:11.5px; margin-bottom:8px;">Kumulatif per bahan</div>
-          <div v-for="m in k.kumulatif" :key="m.bahanAksesorisId" style="border-top:1px solid var(--border-soft); padding-top:8px; margin-top:8px;" :style="{ borderTop: k.kumulatif[0]===m ? 'none' : undefined, marginTop: k.kumulatif[0]===m ? 0 : undefined, paddingTop: k.kumulatif[0]===m ? 0 : undefined }">
+          <div v-for="m in k.kumulatif" :key="m.bahanAksesorisId" style="border-top:1px solid var(--line); padding-top:8px; margin-top:8px;" :style="{ borderTop: k.kumulatif[0]===m ? 'none' : undefined, marginTop: k.kumulatif[0]===m ? 0 : undefined, paddingTop: k.kumulatif[0]===m ? 0 : undefined }">
             <div style="font-size:11.5px; font-weight:700; margin-bottom:6px;">{{ m.nama }} <span style="color:var(--text-faint); font-weight:600;">{{ m.warna }}</span> <span style="color:var(--text-faint); font-size:9.5px; font-weight:400;">&middot; {{ m.jumlah }} SPK</span></div>
             <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(85px, 1fr)); gap:8px;">
               <div style="border:1px dashed var(--line); border-radius:10px; padding:6px 8px;">

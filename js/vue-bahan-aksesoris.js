@@ -135,7 +135,7 @@ import { db } from "./firebase-config.js";
 // (27 Agt 2026, §26.1) — panel Pengaturan yang dulu pakai keduanya (Jenis
 // Bahan/Aksesoris, Data Satuan/Warna/Ukuran, Data Rak Penyimpanan) sudah
 // dirombak, lihat catatan di atas PengaturanBahanAksesoris di bawah.
-import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=6';
+import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=7';
 import { usePaginasiFirestore } from './vue-paginasi.js';
 // BARU (28 Agt 2026, §41.2, permintaan Guru: "cetak label pindahkan ke
 // Data Bahan & Aksesoris > List Bahan dan Aksesoris") — `ambilSemuaLotByBahan`
@@ -1880,7 +1880,7 @@ const BahanAksesorisListManager = {
     <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
       <div style="position:relative; flex:1; min-width:220px;">
         <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
-        <input :value="paginasi.cariTeks.value" @input="cariInput($event.target.value)" type="text" placeholder="Cari nama (awalan)..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+        <input :value="paginasi.cariTeks.value" @input="cariInput($event.target.value)" type="text" placeholder="Cari nama (awalan)..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
       </div>
       <!-- BARU (28 Agt 2026, §35) — Import/Template Excel, pola sama persis
            seperti "Import / Template Excel" di List Produk (Master Produk,
@@ -2193,7 +2193,7 @@ const BahanAksesorisListManager = {
         </div>
         <div style="position:relative; max-width:320px; margin-bottom:12px;">
           <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:12px;"></i>
-          <input :value="paginasiLogCetak.cariTeks.value" @input="paginasiLogCetak.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama barang (awalan)..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+          <input :value="paginasiLogCetak.cariTeks.value" @input="paginasiLogCetak.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama barang (awalan)..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
         </div>
         <div v-if="paginasiLogCetak.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
         <div v-else-if="paginasiLogCetak.errorPaginasi.value" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasiLogCetak.errorPaginasi.value }}</div>

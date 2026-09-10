@@ -583,7 +583,7 @@ const AppRiwayatAbsensi = {
 
     <div v-if="!memuat && listData.length > 0" style="position:relative; margin-bottom:14px; max-width:320px;">
       <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
-      <input v-model="cariNama" type="text" placeholder="Cari nama karyawan..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+      <input v-model="cariNama" type="text" placeholder="Cari nama karyawan..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
     </div>
 
     <div v-if="!memuat" class="gc-table-scroll" style="background:var(--surface); border:1px solid var(--line);">

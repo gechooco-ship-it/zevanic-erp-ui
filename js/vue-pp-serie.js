@@ -183,7 +183,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=6';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=7';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=2';
 
 // --- Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan
@@ -612,14 +612,14 @@ const SeriePerluDiProses = {
            Finishing) + sub-baris per komponen (wireframe §2.1). -->
       <div v-else class="gc-card" style="overflow-x:auto;">
         <table style="width:100%; border-collapse:collapse; font-size:11px; white-space:nowrap;">
-          <thead><tr style="text-align:left; border-bottom:1px solid var(--border-soft);">
+          <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
             <th style="padding:6px 8px; width:24px;"></th>
             <th style="padding:6px 8px;">Kode SPK Grouping</th><th style="padding:6px 8px;" class="gc-num">Qty Order</th>
             <th style="padding:6px 8px;">SKU Produk</th><th style="padding:6px 8px;">Status</th><th style="padding:6px 8px;">Aksi</th>
           </tr></thead>
           <tbody>
             <template v-for="g in daftarGrouping" :key="g.id">
-              <tr style="border-bottom:1px solid var(--border-soft); cursor:pointer;" @click="toggleExpand(g.id)">
+              <tr style="border-bottom:1px solid var(--line); cursor:pointer;" @click="toggleExpand(g.id)">
                 <td style="padding:6px 8px; text-align:center;">{{ expandedIds.has(g.id) ? '▼' : '▶' }}</td>
                 <td style="padding:6px 8px; font-weight:700;" class="gc-num">{{ g.kode_spk }}</td>
                 <td style="padding:6px 8px;" class="gc-num">{{ formatQty(g.qty_total) }}</td>
@@ -633,7 +633,7 @@ const SeriePerluDiProses = {
                 </td>
               </tr>
               <tr v-if="expandedIds.has(g.id)">
-                <td colspan="6" style="padding:0 8px 10px 32px; border-bottom:1px solid var(--border-soft);">
+                <td colspan="6" style="padding:0 8px 10px 32px; border-bottom:1px solid var(--line);">
                   <div v-for="(v,k) in sumber(g)" :key="k" class="gc-card" style="padding:8px 10px; margin-top:6px; border-radius:10px;">
                     <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
                       <b style="font-size:10.5px;">{{ LABEL_SUMBER[k] || k }}</b>
@@ -648,7 +648,7 @@ const SeriePerluDiProses = {
                           <th style="padding:3px 6px;">satuan</th><th style="padding:3px 6px;">entry</th><th style="padding:3px 6px;">status</th>
                         </tr></thead>
                         <tbody>
-                          <tr v-for="(b,i) in v.baris" :key="i" style="border-top:1px solid var(--border-soft);">
+                          <tr v-for="(b,i) in v.baris" :key="i" style="border-top:1px solid var(--line);">
                             <td style="padding:3px 6px;">{{ b.idKomponen }}</td>
                             <td style="padding:3px 6px;">{{ b.namaKomponen }}</td>
                             <td style="padding:3px 6px;" class="gc-num">{{ formatQty(b.qtySetor) }}</td>
@@ -1350,12 +1350,12 @@ function buatTabSetor(cfg) {
         </div>
         <div v-else class="gc-card" style="overflow-x:auto;">
           <table style="width:100%; border-collapse:collapse; font-size:11px;">
-            <thead><tr style="text-align:left; border-bottom:1px solid var(--border-soft);">
+            <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
               <th style="padding:6px 8px;">Batch</th><th style="padding:6px 8px;">Produk</th><th style="padding:6px 8px;">Qty</th>
               <th style="padding:6px 8px;">Operator</th><th style="padding:6px 8px;">Status di {{ cfg.namaAsal }}</th><th style="padding:6px 8px;">Diperbarui</th>
             </tr></thead>
             <tbody>
-              <tr v-for="t in daftar" :key="t.id" style="border-bottom:1px solid var(--border-soft);">
+              <tr v-for="t in daftar" :key="t.id" style="border-bottom:1px solid var(--line);">
                 <td style="padding:6px 8px;" class="gc-num">{{ t.kode_batch || '-' }}</td>
                 <td style="padding:6px 8px;">{{ t.nama_produk }} {{ t.size || '' }}</td>
                 <td style="padding:6px 8px;" class="gc-num">{{ formatQty(t.qty) }}</td>
@@ -1593,9 +1593,9 @@ const SerieSelesai = {
         <div class="gc-num" style="font-weight:700; font-size:16px;">{{ selesaiHariIni.length }}</div>
       </div>
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <input v-model="kataKunci" type="text" placeholder="Cari kode batch / produk..." style="flex:2; min-width:160px; padding:8px; border-radius:10px; border:1px solid var(--border-soft);">
-        <input v-model="dariTanggal" type="date" style="flex:1; min-width:130px; padding:8px; border-radius:10px; border:1px solid var(--border-soft);">
-        <input v-model="sampaiTanggal" type="date" style="flex:1; min-width:130px; padding:8px; border-radius:10px; border:1px solid var(--border-soft);">
+        <input v-model="kataKunci" type="text" placeholder="Cari kode batch / produk..." style="flex:2; min-width:160px; padding:8px; background:var(--ivory-dim); border-radius:10px; border:1px solid var(--line);">
+        <input v-model="dariTanggal" type="date" style="flex:1; min-width:130px; padding:8px; border-radius:10px; border:1px solid var(--line);">
+        <input v-model="sampaiTanggal" type="date" style="flex:1; min-width:130px; padding:8px; border-radius:10px; border:1px solid var(--line);">
         <button @click="unduhCsv" class="btn-outline" style="padding:8px 14px; font-size:11.5px;"><i class="fas fa-download" style="margin-right:6px;"></i>Unduh CSV</button>
       </div>
 
@@ -1606,12 +1606,12 @@ const SerieSelesai = {
       </div>
       <div v-else class="gc-card" style="overflow-x:auto;">
         <table style="width:100%; border-collapse:collapse; font-size:11px;">
-          <thead><tr style="text-align:left; border-bottom:1px solid var(--border-soft);">
+          <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
             <th style="padding:6px 8px;">Kode Batch</th><th style="padding:6px 8px;">Produk</th><th style="padding:6px 8px;">Qty</th>
             <th style="padding:6px 8px;">Operator</th><th style="padding:6px 8px;">Kode Tugas Terakhir</th><th style="padding:6px 8px;">Selesai</th>
           </tr></thead>
           <tbody>
-            <tr v-for="b in daftarUrut" :key="b.id" style="border-bottom:1px solid var(--border-soft);">
+            <tr v-for="b in daftarUrut" :key="b.id" style="border-bottom:1px solid var(--line);">
               <td style="padding:6px 8px;" class="gc-num">{{ b.kode_batch }}</td>
               <td style="padding:6px 8px;">{{ b.nama_produk }} {{ b.size }}</td>
               <td style="padding:6px 8px;" class="gc-num">{{ formatQty(b.qty) }}</td>

@@ -19,7 +19,7 @@
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { daftarMenuGroups, KartuMenu, AksesTerbatasDialog, HeaderLayar, KolomCari } from './vue-components.js?v=6';
+import { daftarMenuGroups, KartuMenu, AksesTerbatasDialog, HeaderLayar, KolomCari } from './vue-components.js?v=7';
 
 const AppMenuLengkap = {
   components: { KartuMenu, AksesTerbatasDialog, HeaderLayar, KolomCari },

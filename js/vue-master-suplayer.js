@@ -39,7 +39,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=6';
+import { DropdownCari } from './vue-components.js?v=7';
 
 // --- Helper kecil, DISALIN dari vue-stock-pembelian.js (konvensi "salin
 // logic kecil per-file" proyek ini — supaya modul ini tidak butuh export

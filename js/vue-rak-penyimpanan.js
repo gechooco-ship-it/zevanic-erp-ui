@@ -45,21 +45,17 @@
 //      dropdown "Pilih Rak" & pengurutan di js/vue-bahan-aksesoris.js,
 //      TIDAK ada perubahan kode di file itu (dicek langsung — cukup ganti
 //      NILAI rak_label, formatnya generik string, bukan diparse).
-//   3. DOKUMEN LAMA (dibuat sebelum ronde ini, field kode_rak = cuma
-//      segmen "A" bukan kode gabungan) — TIDAK dimigrasi otomatis (skrip
-//      migrasi Firestore live TIDAK BISA dijalankan dari sandbox sesi ini,
-//      butuh akses Firestore nyata). Field pembeda: dokumen BARU SELALU
-//      punya field `rak` (input rak baru); dokumen LAMA TIDAK PERNAH punya
-//      field itu. Semua tempat baca di bawah (skemaBaru/kodeRakTampil/
-//      segmenRakTampil) CEK field ini dulu sebelum menafsirkan kode_rak —
-//      dokumen lama TETAP tampil (pakai rak_label dash-joined lama sbg
-//      kode), TIDAK bikin krash, cuma formatnya beda (dash vs gabung
-//      rapat) sampai di-Edit ulang lewat form baru (Edit menulis ulang
-//      SELURUH field pakai skema baru). REKOMENDASI ke Guru: kalau memang
-//      sudah ada data Rak lama di Firestore produksi, jadwalkan sesi
-//      cleanup manual (buka tiap Rak lama lewat Edit, isi ulang field
-//      rak/baris/kolom baru, Simpan) SEBELUM dianggap konsisten penuh —
-//      TIDAK dikerjakan di ronde ini.
+//   3. DOKUMEN LAMA (dibuat sebelum ronde ini, field kode_rak = cuma segmen
+//      "A" bukan kode gabungan) — sempat ditangani via fallback baca
+//      (skemaBaru/kodeTampilRak/segmenRakTampil cek field `rak` dulu
+//      sebelum menafsirkan kode_rak). GURU KONFIRMASI (10 Sep 2026): semua
+//      dokumen Rak lama itu SUDAH DIHAPUS manual dari Firestore produksi —
+//      seluruh dokumen `master_rak_penyimpanan` yang tersisa sekarang pasti
+//      skema baru (field `rak` selalu ada). Fallback skema-lama DIHAPUS di
+//      ronde ini (lihat skemaBaru/kodeTampilRak/segmenRakTampil di bawah —
+//      sekarang baca field baru langsung, tanpa cabang lama) — bukan hilang
+//      diam-diam, memang sengaja disederhanakan karena datanya sudah tidak
+//      ada lagi.
 //   4. VOLUME — field `volume_rak` TETAP tersimpan cm³ (TIDAK diubah unit
 //      penyimpanannya) karena field ini juga dibaca js/vue-bahan-
 //      aksesoris.js (hint dimensi rak di dropdown "Pilih Rak", 2 tempat:
@@ -117,6 +113,29 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=7';
+
+// buatQrDataUrl — copy persis pola SAMA yang sudah dipakai di banyak file
+// lain (vue-bahan-aksesoris.js, vue-stock-pembelian.js, dst) — konvensi
+// proyek ini: fungsi bantu generate-QR kecil DISALIN per file, bukan
+// diimpor lintas file (lihat catatan panjang di vue-bahan-aksesoris.js).
+// `qrcodejs` (global `QRCode`) sudah dimuat sekali di index.html.
+function buatQrDataUrl(teks) {
+  if (typeof QRCode === 'undefined') return '';
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:absolute; left:-9999px; top:-9999px; width:160px; height:160px;';
+  document.body.appendChild(tmp);
+  let dataUrl = '';
+  try {
+    new QRCode(tmp, { text: String(teks || ''), width: 160, height: 160, correctLevel: QRCode.CorrectLevel.M });
+    const canvas = tmp.querySelector('canvas');
+    if (canvas) dataUrl = canvas.toDataURL('image/png');
+  } catch (e) {
+    console.error('Gagal generate QR:', teks, e);
+  }
+  document.body.removeChild(tmp);
+  return dataUrl;
+}
 
 const TAMBAH_TAMPIL = 20; // "Muat N lagi", sama seperti wireframe
 
@@ -146,27 +165,19 @@ function kodeRakBaru(rak, baris, kolom) {
   return r + b + k;
 }
 
-// skemaBaru — pembeda dokumen skema BARU (field `rak` ada, meski string
-// kosong) vs skema LAMA (field itu tidak pernah ditulis sama sekali).
-function skemaBaru(rakDoc) {
-  return !!rakDoc && Object.prototype.hasOwnProperty.call(rakDoc, 'rak');
-}
-
-// kodeTampilRak — kode buat badge "kode" di tabel. Skema baru: kode_rak
-// (gabungan rapat, mis. "E11"). Skema lama: rak_label (dash-joined lama,
-// mis. "A-2-3") — DIBIARKAN tampil apa adanya, bukan dipaksa diparse ulang.
+// kodeTampilRak — kode buat badge "kode" di tabel (gabungan rapat, mis.
+// "E11"). Dokumen Rak lama (skema pra-7 Sep 2026) sudah dihapus semua dari
+// Firestore (Guru konfirmasi 10 Sep 2026) — jadi tidak perlu lagi fallback
+// baca skema lama di sini.
 function kodeTampilRak(rakDoc) {
-  if (!rakDoc) return '';
-  return skemaBaru(rakDoc) ? (rakDoc.kode_rak || '') : (rakDoc.rak_label || rakDoc.kode_rak || '');
+  return rakDoc ? (rakDoc.kode_rak || '') : '';
 }
 
-// segmenRakTampil — 3 kolom rak/baris/kolom di tabel. Skema lama: field
-// `kode_rak` lama cuma menyimpan SEGMEN rak-nya saja (mis. "A"), masih
-// valid dipakai di sini walau `kode_rak` di skema baru artinya sudah beda.
+// segmenRakTampil — 3 kolom rak/baris/kolom di tabel.
 function segmenRakTampil(rakDoc) {
   if (!rakDoc) return { rak: '', baris: '', kolom: '' };
   return {
-    rak: skemaBaru(rakDoc) ? (rakDoc.rak || '') : (rakDoc.kode_rak || ''),
+    rak: rakDoc.rak || '',
     baris: rakDoc.baris_rak || '',
     kolom: rakDoc.kolom_rak || ''
   };
@@ -183,6 +194,7 @@ function pesanErrorMuat(e) {
 }
 
 const RakPenyimpananManager = {
+  components: { PopupPratinjauCetakLabel },
   setup() {
     const memuat = ref(true);
     const errorMuat = ref('');
@@ -224,6 +236,29 @@ const RakPenyimpananManager = {
       popupTerbuka.value = true;
     }
     function tutupPopup() { popupTerbuka.value = false; resetForm(); }
+
+    // ------------------------------------------------------------------
+    // Cetak Label Rak (10 Sep 2026, permintaan Guru poin 4) — pakai sistem
+    // cetak terpusat yang sama dengan modul lain (KATALOG_CETAK di
+    // js/vue-pengaturan-cetak.js, jenis baru 'label_rak_penyimpanan';
+    // PopupPratinjauCetakLabel di js/vue-components.js). Otomatis kebuka
+    // sekali begitu Rak BARU (bukan edit) disimpan, dan bisa dipicu manual
+    // lewat tombol printer per baris (item-centric grid & "Rak belum
+    // terisi").
+    // ------------------------------------------------------------------
+    const popupCetakLabelAktif = ref(false);
+    const daftarLabelPreview = ref([]);
+    function cetakLabelRak(rakDoc) {
+      if (!rakDoc) return;
+      daftarLabelPreview.value = [{
+        kode: rakDoc.kode_rak || '',
+        nama: 'Rak ' + (rakDoc.kode_rak || ''),
+        info: `Baris ${rakDoc.baris_rak || '-'} · Kolom ${rakDoc.kolom_rak || '-'}`,
+        qrDataUrl: buatQrDataUrl(rakDoc.kode_rak || '')
+      }];
+      popupCetakLabelAktif.value = true;
+    }
+    function tutupPopupCetakLabel() { popupCetakLabelAktif.value = false; }
 
     async function muatSemua() {
       memuat.value = true;
@@ -277,6 +312,7 @@ const RakPenyimpananManager = {
           lebar_rak: parseFloat(form.lebar_rak) || 0,
           volume_rak: volumeRakCm3.value // cm³ — lihat catatan poin 4 di atas
         };
+        const rakBaruDibuat = !sedangEditId.value;
         if (sedangEditId.value) {
           await updateDoc(doc(db, 'master_rak_penyimpanan', sedangEditId.value), {
             ...data, diedit_pada: serverTimestamp(), diedit_oleh: window.currentUser?.email || null
@@ -286,10 +322,14 @@ const RakPenyimpananManager = {
           await addDoc(collection(db, 'master_rak_penyimpanan'), {
             ...data, dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
           });
-          alert('Rak baru tersimpan.');
         }
         tutupPopup();
         await muatSemua();
+        // Rak BARU (bukan edit) — langsung buka popup cetak label, sesuai
+        // permintaan Guru: "saat tambah lalu simpan harus cetak label buat
+        // rak". Edit TIDAK memicu ini (rak itu sudah pernah dicetak;
+        // cetak ulang tetap bisa lewat tombol printer manual per baris).
+        if (rakBaruDibuat) cetakLabelRak(data);
       } catch (e) {
         console.error('Gagal simpan Rak Penyimpanan:', e);
         alert('Gagal menyimpan data Rak. Coba lagi.');
@@ -397,6 +437,7 @@ const RakPenyimpananManager = {
       bukaTambah, bukaEdit, tutupPopup, simpan, hapus,
       barisTampil, barisTerfilter, adaLebihBanyak, muatLebihBanyak,
       rakBelumTerisi, ringkasan, muatSemua,
+      popupCetakLabelAktif, daftarLabelPreview, cetakLabelRak, tutupPopupCetakLabel,
       formatAngka
     };
   },
@@ -478,6 +519,7 @@ const RakPenyimpananManager = {
             </div>
 
             <div style="display:flex; gap:6px; justify-content:flex-end; border-top:1px solid var(--line); padding-top:8px;">
+              <button @click="cetakLabelRak(b.rakDoc)" class="icon-btn" title="Cetak Label Rak"><i class="fas fa-print"></i></button>
               <button @click="bukaEdit(b.rakDoc)" class="icon-btn" title="Edit Rak"><i class="fas fa-pen"></i></button>
               <button @click="hapus(b.rakDoc)" class="icon-btn" style="color:var(--danger);" title="Hapus Rak"><i class="fas fa-trash-alt"></i></button>
             </div>
@@ -501,8 +543,9 @@ const RakPenyimpananManager = {
       <h4 style="font-weight:700; font-size:12px; margin:0 0 10px; color:var(--text-muted);"><i class="fas fa-inbox" style="margin-right:6px;"></i>Rak belum terisi item ({{ rakBelumTerisi.length }})</h4>
       <div style="display:flex; flex-direction:column; gap:8px;">
         <div v-for="r in rakBelumTerisi" :key="r.id" style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; background:var(--ivory-dim);">
-          <span class="tag ok" style="font-weight:700;">{{ r.kode_rak || r.rak_label }}</span>
+          <span class="tag ok" style="font-weight:700;">{{ r.kode_rak }}</span>
           <span style="font-size:11px; color:var(--text-faint); flex:1;">{{ formatAngka(r.volume_rak / 1e6) }} m&sup3; kapasitas</span>
+          <button @click="cetakLabelRak(r)" class="icon-btn" title="Cetak Label Rak"><i class="fas fa-print"></i></button>
           <button @click="bukaEdit(r)" class="icon-btn" title="Edit Rak"><i class="fas fa-pen"></i></button>
           <button @click="hapus(r)" class="icon-btn" style="color:var(--danger);" title="Hapus Rak"><i class="fas fa-trash-alt"></i></button>
         </div>
@@ -548,6 +591,16 @@ const RakPenyimpananManager = {
         </div>
       </div>
     </div>
+
+    <!-- Popup Cetak Label Rak — otomatis kebuka setelah Tambah Rak baru,
+         atau dipicu manual lewat tombol printer per baris. -->
+    <popup-pratinjau-cetak-label
+      :terbuka="popupCetakLabelAktif"
+      judul="Cetak Label Rak"
+      :daftar-label="daftarLabelPreview"
+      jenis-cetak="label_rak_penyimpanan"
+      @tutup="tutupPopupCetakLabel"
+    />
   `
 };
 

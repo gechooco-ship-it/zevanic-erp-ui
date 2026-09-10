@@ -120,7 +120,7 @@ export const MasterDataCategory = {
       </div>
       <div v-if="!memuat" style="position:relative; margin-bottom:10px;">
         <i class="fas fa-search" style="position:absolute; left:11px; top:9px; color:var(--text-faint); font-size:11px;"></i>
-        <input v-model="cariItem" type="text" placeholder="Cari item..." style="width:100%; max-width:280px; padding:7px 10px 7px 28px; border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none;">
+        <input v-model="cariItem" type="text" placeholder="Cari item..." style="width:100%; max-width:280px; padding:7px 10px 7px 28px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none;">
       </div>
       <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
       <div v-else class="gc-table-scroll">
@@ -149,7 +149,7 @@ export const MasterDataCategory = {
       </div>
       <div v-if="!memuat && items.length > 5" style="position:relative; margin-bottom:10px;">
         <i class="fas fa-search" style="position:absolute; left:11px; top:9px; color:var(--text-faint); font-size:11px;"></i>
-        <input v-model="cariItem" type="text" placeholder="Cari item..." style="width:100%; max-width:220px; padding:7px 10px 7px 28px; border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none;">
+        <input v-model="cariItem" type="text" placeholder="Cari item..." style="width:100%; max-width:220px; padding:7px 10px 7px 28px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none;">
       </div>
       <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
       <div v-else style="display:flex; flex-wrap:wrap; gap:6px;">
@@ -599,7 +599,7 @@ export const MasterDataTabelManager = {
       <div v-if="!memuat" style="display:flex; gap:10px; flex-wrap:wrap; align-items:flex-start; margin-bottom:10px;">
         <div style="position:relative; flex:1; min-width:200px; max-width:280px;">
           <i class="fas fa-search" style="position:absolute; left:11px; top:9px; color:var(--text-faint); font-size:11px;"></i>
-          <input v-model="cariItem" type="text" placeholder="Cari item..." style="width:100%; padding:7px 10px 7px 28px; border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none; box-sizing:border-box;">
+          <input v-model="cariItem" type="text" placeholder="Cari item..." style="width:100%; padding:7px 10px 7px 28px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none; box-sizing:border-box;">
         </div>
         <div v-if="izinkanImportExcel && bolehTambah" style="position:relative;">
           <button @click="dropdownImportTerbuka = !dropdownImportTerbuka" type="button" class="btn-outline" style="font-size:11.5px;"><i class="fas fa-file-import" style="margin-right:6px;"></i>Import / Template Excel <i class="fas fa-chevron-down" style="margin-left:4px; font-size:9px;"></i></button>

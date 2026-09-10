@@ -524,7 +524,7 @@ const PersiapanAdminBelanja = {
       <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">
         <div style="flex:2; min-width:280px; display:flex; flex-direction:column; gap:10px;">
           <div style="display:flex; gap:8px; align-items:center;">
-            <input ref="elCari" v-model="cariItemTeks" @keydown="onKeydownCari" type="text" placeholder="Cari item / scan barcode..." style="flex:1; padding:9px 12px; border-radius:10px; border:1.5px solid var(--line);">
+            <input ref="elCari" v-model="cariItemTeks" @keydown="onKeydownCari" type="text" placeholder="Cari item / scan barcode..." style="flex:1; padding:9px 12px; background:var(--ivory-dim); border-radius:10px; border:1.5px solid var(--line);">
             <button @click="bukaCekPengajuan" class="btn-outline" style="padding:9px 14px; font-size:11.5px; white-space:nowrap; position:relative;">
               <i class="fas fa-inbox" style="margin-right:6px;"></i>Cek Pengajuan
               <span v-if="badgePengajuan > 0" style="position:absolute; top:-6px; right:-6px; min-width:18px; height:18px; padding:0 4px; border-radius:999px; background:var(--danger); color:#fff; font-size:9.5px; font-weight:700; display:flex; align-items:center; justify-content:center;">{{ badgePengajuan }}</span>
@@ -905,10 +905,10 @@ const ListOrderDriver = {
               <div class="gc-num" style="font-weight:700; font-size:13px;">{{ o.suplayer_nama }}</div>
               <button @click="toggleMenu(o.id)" class="btn-outline" style="padding:4px 10px;"><i class="fas fa-ellipsis-vertical"></i></button>
             </div>
-            <div v-if="menuTerbuka === o.id" style="position:absolute; right:14px; top:44px; z-index:20; background:var(--surface, #fff); border:1px solid var(--border-soft); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.12); overflow:hidden;">
+            <div v-if="menuTerbuka === o.id" style="position:absolute; right:14px; top:44px; z-index:20; background:var(--surface, #fff); border:1px solid var(--line); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.12); overflow:hidden;">
               <button @click="bukaFormatWa(o)" style="display:block; width:100%; text-align:left; padding:10px 16px; font-size:12px; background:none; border:none;"><i class="fab fa-whatsapp" style="margin-right:8px; color:#25D366;"></i>Format WA</button>
             </div>
-            <div v-for="it in o.items" :key="it.bahan_aksesoris_id" style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border-soft); font-size:12px;">
+            <div v-for="it in o.items" :key="it.bahan_aksesoris_id" style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); font-size:12px;">
               <span>{{ it.nama_alias || it.nama_internal }}</span>
               <div style="display:flex; align-items:center; gap:6px;">
                 <button v-if="bolehProses" @click="kurangiQty(o, it)" class="btn-outline" style="padding:2px 8px; font-size:11px;">-</button>
@@ -1011,7 +1011,7 @@ const RiwayatBelanja = {
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
-      <input v-model="kataKunci" type="text" placeholder="Cari kode order / suplayer..." style="width:100%; margin-bottom:12px; padding:8px; border-radius:10px; border:1px solid var(--border-soft);">
+      <input v-model="kataKunci" type="text" placeholder="Cari kode order / suplayer..." style="width:100%; margin-bottom:12px; padding:8px; background:var(--ivory-dim); border-radius:10px; border:1px solid var(--line);">
       <div v-if="daftarTersaring.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-receipt"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada riwayat belanja</h3>

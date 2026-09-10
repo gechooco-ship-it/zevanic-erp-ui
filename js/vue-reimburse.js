@@ -25,7 +25,7 @@
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, where, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { MasterDataCategory, KolomCari } from './vue-components.js?v=6';
+import { MasterDataCategory, KolomCari } from './vue-components.js?v=7';
 import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
 
 // Kompresi gambar sisi klien — pola SAMA seperti js/camera.js (foto KTP),
@@ -1055,7 +1055,7 @@ const MasterKendaraanManager = {
 
     <div style="position:relative; margin-bottom:14px; max-width:320px;">
       <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
-      <input v-model="cariKendaraan" type="text" placeholder="Cari plat, nama, gudang, atau supir..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+      <input v-model="cariKendaraan" type="text" placeholder="Cari plat, nama, gudang, atau supir..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
     </div>
 
     <!-- GANTI (grid-fix mobile §perbaikan grid+kartu) — dulu tabel scroll

@@ -536,7 +536,7 @@ thead .freeze{z-index:3; background:var(--ivory-dim);}
 
 /* ---- Filter bar ---- */
 .gc-filter-bar{display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:16px; background:var(--ivory); border:1px solid var(--line); border-radius:var(--radius); padding:14px;}
-.gc-filter-bar input[type=text]{flex:1; min-width:180px; padding:9px 13px; border:1.5px solid var(--line); border-radius:10px; font-family:'Nunito Sans',sans-serif; font-size:13px;}
+.gc-filter-bar input[type=text]{flex:1; min-width:180px; padding:9px 13px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-family:'Nunito Sans',sans-serif; font-size:13px;}
 .gc-filter-bar select{padding:9px 13px; border:1.5px solid var(--line); border-radius:10px; font-family:'Nunito Sans',sans-serif; font-size:13px; color:var(--text);}
 .gc-chk{width:16px; height:16px; accent-color:var(--burgundy);}
 

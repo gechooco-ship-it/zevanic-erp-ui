@@ -1445,8 +1445,8 @@ const PesananDaftarManager = {
           <button @click="popupRincian = null" class="icon-btn" style="margin-left:auto;"><i class="fas fa-xmark"></i></button>
         </div>
         <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-          <input v-model="popupRincian.cariProduk" type="text" placeholder="Cari produk..." class="gc-field-input" style="flex:1; min-width:160px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:12px;">
-          <input v-model="popupRincian.cariSpk" type="text" placeholder="Cari kode anak SPK..." style="flex:1; min-width:160px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font-size:12px;">
+          <input v-model="popupRincian.cariProduk" type="text" placeholder="Cari produk..." class="gc-field-input" style="flex:1; min-width:160px; padding:8px 10px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:8px; font-size:12px;">
+          <input v-model="popupRincian.cariSpk" type="text" placeholder="Cari kode anak SPK..." style="flex:1; min-width:160px; padding:8px 10px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:8px; font-size:12px;">
         </div>
         <div class="gc-table-scroll">
           <table style="width:100%; border-collapse:collapse; font-size:12px;">

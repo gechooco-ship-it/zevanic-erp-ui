@@ -183,7 +183,7 @@ const AppDeviceKiosk = {
 
     <div style="position:relative; margin-bottom:14px; max-width:320px;">
       <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
-      <input v-model="cariKiosk" type="text" placeholder="Cari nama device atau email..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+      <input v-model="cariKiosk" type="text" placeholder="Cari nama device atau email..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
     </div>
 
     <!-- GANTI (28 Agt 2026) — dulu tabel scroll horizontal (5 kolom),

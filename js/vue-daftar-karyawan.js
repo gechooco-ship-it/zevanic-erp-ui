@@ -9,10 +9,10 @@
 // Penjadwalan, dan layar lain yang belum dimigrasi tetap jalan normal.
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, where, query, orderBy } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DuaBaris, GudangCheckboxSelect, GudangRingkas } from './vue-components.js';
-import { usePaginasiFirestore } from './vue-paginasi.js';
+import { usePaginasiFirestore, bangunConstraintFilterPeran } from './vue-paginasi.js';
 
 // Field kosong default untuk form edit (dipakai untuk reset & memastikan
 // semua field ke-cover, sama seperti window.bukaEditUser versi lama).
@@ -32,9 +32,19 @@ function formKosong() {
 }
 
 const EditKaryawanModal = {
-  components: { GudangCheckboxSelect },
+  components: { GudangCheckboxSelect, GudangRingkas },
   props: {
-    emailId: { type: String, default: null }
+    emailId: { type: String, default: null },
+    // readonly — BARU (10 Sep 2026, wireframe Management > Daftar Karyawan
+    // §2 "Tombol: Preview (read-only modal), Edit (modal form)..." + fl-rule
+    // "Preview: Modal read-only — tampilan sama persis dengan Edit tapi
+    // semua field tidak bisa diedit (disabled/readonly)... Tombol di modal:
+    // hanya 'Tutup'."). SENGAJA reuse komponen INI (bukan modal terpisah)
+    // biar layoutnya persis sama seperti spek minta, tanpa duplikasi form
+    // raksasa ini 2x — cukup 1 prop bikin semua field disabled via
+    // <fieldset disabled> (native HTML, otomatis kunci SEMUA input/select/
+    // textarea di dalamnya tanpa perlu :disabled satu-satu).
+    readonly: { type: Boolean, default: false }
   },
   emits: ['tutup', 'tersimpan'],
   setup(props, { emit }) {
@@ -207,11 +217,11 @@ const EditKaryawanModal = {
     <div style="position:fixed; inset:0; z-index:100; background:rgba(var(--scrim-rgb),.6); display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
       <div style="background:var(--surface); border-radius:22px; padding:24px; width:100%; max-width:560px; max-height:90vh; overflow-y:auto;">
         <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--line); padding-bottom:12px; margin-bottom:16px;">
-          <h3 class="gc-heading" style="font-size:16px; font-weight:700;"><i class="fas fa-user-edit" style="color:var(--burgundy); margin-right:8px;"></i> Detail & edit karyawan</h3>
+          <h3 class="gc-heading" style="font-size:16px; font-weight:700;"><i class="fas" :class="readonly ? 'fa-eye' : 'fa-user-edit'" style="color:var(--burgundy); margin-right:8px;"></i> {{ readonly ? 'Detail karyawan (lihat saja)' : 'Detail & edit karyawan' }}</h3>
           <button @click="$emit('tutup')" style="background:none; border:none; color:var(--text-faint); font-size:20px; cursor:pointer;"><i class="fas fa-times"></i></button>
         </div>
 
-        <div style="font-size:13px;">
+        <fieldset :disabled="readonly" style="border:none; padding:0; margin:0; font-size:13px;">
           <div style="display:flex; flex-direction:column; align-items:center; margin-bottom:16px; background:var(--ivory-dim); padding:14px; border-radius:16px;">
             <span style="font-size:10px; font-weight:700; color:var(--text-faint); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px;">Dokumen KTP karyawan</span>
             <img v-if="form.fotoKtp" :src="form.fotoKtp" @click="lihatFotoBesar" style="height:128px; object-fit:cover; border-radius:12px; border:1px solid var(--line); cursor:pointer;" title="Klik untuk memperbesar KTP">
@@ -261,7 +271,8 @@ const EditKaryawanModal = {
             </div>
             <div class="gc-field" style="margin-bottom:0;">
               <label>Gudang penempatan</label>
-              <gudang-checkbox-select v-model="form.gudang" />
+              <gudang-checkbox-select v-if="!readonly" v-model="form.gudang" />
+              <div v-else style="padding:10px 13px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:12px; font-size:12.5px;"><gudang-ringkas :gudang="form.gudang" :nama="form.nama" /></div>
             </div>
           </div>
 
@@ -323,10 +334,12 @@ const EditKaryawanModal = {
             </div>
           </div>
 
-          <button @click="simpan" :disabled="menyimpan" class="btn-primary block">
-            <i class="fas fa-save" style="margin-right:6px;"></i> {{ menyimpan ? 'Menyimpan...' : 'Simpan perubahan' }}
-          </button>
-        </div>
+        </fieldset>
+
+        <button v-if="!readonly" @click="simpan" :disabled="menyimpan" class="btn-primary block">
+          <i class="fas fa-save" style="margin-right:6px;"></i> {{ menyimpan ? 'Menyimpan...' : 'Simpan perubahan' }}
+        </button>
+        <button v-else @click="$emit('tutup')" class="btn-outline block">Tutup</button>
       </div>
     </div>
   `
@@ -415,6 +428,17 @@ const AppDaftarKaryawan = {
       jendela.document.close();
     }
     const emailSedangDiedit = ref(null);
+    // emailSedangDipreview — BARU (10 Sep 2026, wireframe Management >
+    // Daftar Karyawan §2/fl-rule "Tombol: Preview (read-only modal), Edit
+    // (modal form), Download CSV"). Ref TERPISAH dari emailSedangDiedit
+    // (bukan dipakai bareng + flag boolean) supaya tidak ada celah 1 modal
+    // "diam-diam" berubah antara mode edit/readonly kalau ada bug urutan
+    // klik — 2 ref independen = 2 state yang jelas terpisah.
+    const emailSedangDipreview = ref(null);
+    // bolehPreview — sama pola relaxed-default seperti bolehEdit/bolehHapus
+    // (izin belum diatur = boleh) karena Preview cuma READ-ONLY, risikonya
+    // jauh di bawah Edit/Hapus.
+    const bolehPreview = computed(() => window.cekIzinMenu('daftar_karyawan', 'view') !== false);
     let petaJenisLokasi = {}; // diisi sekali sebelum muat halaman pertama
 
     async function muatPetaGudang() {
@@ -499,6 +523,80 @@ const AppDaftarKaryawan = {
     function tutupEdit() { emailSedangDiedit.value = null; }
     async function selesaiSimpan() { emailSedangDiedit.value = null; await muat(); }
 
+    // bukaPreview/tutupPreview — BARU, lihat catatan emailSedangDipreview
+    // di atas. Tidak ada "selesaiSimpan" karena Preview memang tidak pernah
+    // menulis apapun (fieldset disabled di EditKaryawanModal).
+    function bukaPreview(emailId) {
+      if (!bolehPreview.value) return alert('Anda tidak punya izin melihat detail karyawan. Hubungi Owner/PIC.');
+      emailSedangDipreview.value = emailId;
+    }
+    function tutupPreview() { emailSedangDipreview.value = null; }
+
+    // exportCsv — BARU (10 Sep 2026, wireframe Management > Daftar Karyawan
+    // §2/fl-rule "Download — Tombol CSV — unduh SELURUH data karyawan (yang
+    // terfilter) sebagai file CSV"). "Terfilter" berarti pakai filter YANG
+    // SAMA seperti tabel sedang tampil (cari nama + filter Jenis Pekerjaan/
+    // Gudang Owner-only + filter peran admin biasa) — TAPI tanpa batas 15
+    // per halaman (`perHalaman`), jadi query manual di sini, bukan lewat
+    // paginasi.dataHalaman (yang cuma isi 1 halaman). Constraint filter
+    // peran admin di-reuse dari bangunConstraintFilterPeran (vue-
+    // paginasi.js) — SAMA PERSIS logic yang dipakai paginasi di atas, supaya
+    // admin tetap TIDAK BISA export data lintas gudang/jenis-pekerjaan
+    // sendiri (kalau ini beda dari paginasi, jadi celah kebocoran data).
+    const sedangExportCsv = ref(false);
+    function csvEscape(v) {
+      const s = String(v ?? '');
+      return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    async function exportCsv() {
+      sedangExportCsv.value = true;
+      try {
+        const teks = (paginasi.cariTeks || '').trim();
+        const constraints = [];
+        if (teks) {
+          constraints.push(where('nama', '>=', teks));
+          constraints.push(where('nama', '<=', teks + '\uf8ff'));
+        }
+        constraints.push(...bangunConstraintFilterPeran());
+        if (isOwnerRole.value) {
+          if (filterJenisPekerjaanOwner.value !== 'ALL') constraints.push(where('jenis_pekerjaan', '==', filterJenisPekerjaanOwner.value));
+          if (filterGudangOwner.value !== 'ALL') constraints.push(where('gudang_penempatan', 'array-contains', filterGudangOwner.value));
+        }
+        constraints.push(orderBy('nama'));
+        const snap = await getDocs(query(collection(db, 'users'), ...constraints));
+        // Kolom PERSIS urutan wireframe: nama, email, NIK, jenis pekerjaan,
+        // jabatan, status kerja, gudang, shift, role, HP.
+        const baris = [['Nama', 'Email', 'NIK', 'Jenis Pekerjaan', 'Jabatan', 'Status Kerja', 'Gudang', 'Shift', 'Role', 'No. HP']];
+        snap.forEach(d => {
+          const x = d.data();
+          baris.push([
+            x.nama || '', x.email || d.id || '', x.nik || '',
+            x.jenis_pekerjaan || '', x.jabatan || '', x.status_kerja || '',
+            window.normalisasiGudang(x.gudang_penempatan).join('; '),
+            x.nama_shift || '', x.profil_akses || x.role || '', x.hp || ''
+          ]);
+        });
+        if (baris.length === 1) { alert('Tidak ada data karyawan untuk diekspor (sesuai filter/pencarian saat ini).'); sedangExportCsv.value = false; return; }
+        const csv = baris.map(r => r.map(csvEscape).join(',')).join('\r\n');
+        // BOM (U+FEFF) — wajib supaya Excel baca UTF-8 dengan benar (nama
+        // karyawan bisa berisi karakter non-ASCII).
+        const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const tanggalFile = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = `daftar-karyawan-${tanggalFile}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        console.error('Gagal export CSV Daftar Karyawan:', e);
+        alert('Gagal membuat file CSV. Cek Console untuk detail (mungkin perlu index Firestore baru).');
+      }
+      sedangExportCsv.value = false;
+    }
+
     function badgeApproval(status) {
       if (status === 'PENDING') return { teks: 'MENUNGGU', kelas: 'warn' };
       if (status === 'REJECTED') return { teks: 'DITOLAK', kelas: 'danger' };
@@ -512,6 +610,8 @@ const AppDaftarKaryawan = {
     onMounted(async () => { await window.authReady; muat(); });
     return {
       paginasi, memuat, emailSedangDiedit, muat, hapus, bukaEdit, tutupEdit, selesaiSimpan, badgeApproval, lihatFotoBesar, bolehHapus, bolehEdit, bolehPrint, cetakBarcode,
+      emailSedangDipreview, bolehPreview, bukaPreview, tutupPreview,
+      sedangExportCsv, exportCsv,
       cariNama: computed({ get: () => paginasi.cariTeks, set: (v) => paginasi.cariDenganDebounce(v) }),
       isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner
     };
@@ -522,12 +622,15 @@ const AppDaftarKaryawan = {
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; color:var(--burgundy-dark);"><i class="fas fa-users" style="margin-right:8px;"></i> Daftar karyawan</h3>
         <p style="font-size:10.5px; color:var(--mahogany-soft); margin-top:2px;">Master kontrol HR untuk edit role & status.</p>
       </div>
-      <button @click="muat" class="btn-outline filled">Muat Data</button>
+      <div style="display:flex; gap:8px;">
+        <button @click="exportCsv" :disabled="sedangExportCsv" class="btn-outline filled" title="Unduh data karyawan yang sedang terfilter/tercari sebagai CSV"><i class="fas fa-download" style="margin-right:6px;"></i>{{ sedangExportCsv ? 'Membuat CSV...' : 'CSV' }}</button>
+        <button @click="muat" class="btn-outline filled">Muat Data</button>
+      </div>
     </div>
     <div style="display:flex; flex-wrap:wrap; gap:10px; margin-top:14px;">
       <div style="position:relative; flex:1; min-width:200px;">
         <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
-        <input v-model="cariNama" type="text" placeholder="Cari nama karyawan..." style="width:100%; padding:9px 13px 9px 34px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+        <input v-model="cariNama" type="text" placeholder="Cari nama karyawan..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
       </div>
       <template v-if="isOwnerRole">
         <select v-model="filterJenisPekerjaanOwner" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
@@ -570,7 +673,8 @@ const AppDaftarKaryawan = {
           <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Role / Jenis Lokasi</span><span style="font-weight:700; text-align:right; text-transform:uppercase;">{{ d.profil_akses || d.role }} / {{ d.jenisLokasiGabungan }}</span></div>
         </div>
 
-        <div style="display:flex; gap:8px;">
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button v-if="bolehPreview" @click="bukaPreview(d.id)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px;"><i class="fas fa-eye" style="margin-right:6px;"></i>Preview</button>
           <button v-if="bolehPrint" @click="cetakBarcode(d)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px;"><i class="fas fa-barcode" style="margin-right:6px;"></i>Barcode</button>
           <button v-if="bolehEdit" @click="bukaEdit(d.id)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px;"><i class="fas fa-pen" style="margin-right:6px;"></i>Edit</button>
           <button v-if="bolehHapus" @click="hapus(d.id)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
@@ -587,6 +691,7 @@ const AppDaftarKaryawan = {
     </div>
 
     <edit-karyawan-modal v-if="emailSedangDiedit" :email-id="emailSedangDiedit" @tutup="tutupEdit" @tersimpan="selesaiSimpan" />
+    <edit-karyawan-modal v-if="emailSedangDipreview" :email-id="emailSedangDipreview" :readonly="true" @tutup="tutupPreview" />
   `
 };
 

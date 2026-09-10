@@ -38,7 +38,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { MasterDataCategory, MasterDataTabelManager } from './vue-components.js?v=4';
+import { MasterDataCategory, MasterDataTabelManager } from './vue-components.js?v=7';
 
 const MENU_ID_CONFIG = 'config_master_data';
 
@@ -154,6 +154,24 @@ const AppConfigTahapPersiapan = {
 // — polanya SAMA PERSIS seperti prefixBahan/prefixAksesoris di
 // js/vue-bahan-aksesoris.js dan prefix Pembelian di js/vue-stock-
 // pembelian.js (baca sekali waktu mount, simpan via setDoc merge).
+// Prefix per Menu/Divisi — BARU (10 Sep 2026, permintaan Guru poin 3):
+// "TLC-PTG/SER/JHT/FIN/GBJ wajib ditambah manual ... tidak ada data entry
+// menu/divisi tersebut. harusnya misal ACC SEWING > kode ACS, CUTTING >
+// kode CUT". Koleksi baru `master_prefix_divisi`, field `{divisi, kode}` —
+// data-entry sederhana (nama divisi <-> kode prefix pendek), dikelola di
+// sini karena satu keluarga dengan Prefix Kode SPK di atas.
+//
+// GAP YANG SENGAJA DIBIARKAN (dilaporkan ke Guru, BUKAN lupa): mapping ini
+// BARU sebatas data-entry — BELUM disambungkan ke generateKodeHarian()
+// yang sekarang masih dipanggil dengan prefix HARDCODE literal ('BAG',
+// 'TGS', 'KMP', 'MSL', 'PGJ', 'RS', dst) di 8+ file Proses Produksi
+// (vue-pp-sewing.js, vue-pp-cutting.js, vue-pp-finishing.js, vue-pp-
+// serie.js, vue-pp-gudang.js, vue-pp-masalah.js, dst). Menyambungkan
+// mapping ini ke prefix kode tugas SUNGGUHAN berarti FORMAT KODE TUGAS
+// FISIK (yang sudah dicetak & ditempel di lapangan) bisa berubah begitu
+// Guru mengisi tabel ini — risiko itu TIDAK diambil sepihak di ronde ini,
+// perlu konfirmasi eksplisit Guru per divisi sebelum kode generator-nya
+// ikut diubah.
 const AppConfigTlc = {
   setup() {
     const menuId = MENU_ID_CONFIG;
@@ -165,6 +183,43 @@ const AppConfigTlc = {
     const cari = ref('');
     const menyimpan = ref(false);
     const form = reactive({ kode: '', nama: '', tipe: '' });
+
+    // Prefix per Menu/Divisi (lihat catatan besar di atas komponen ini).
+    const daftarPrefixDivisi = ref([]);
+    const formPrefixDivisi = reactive({ divisi: '', kode: '' });
+    const menyimpanPrefixDivisi = ref(false);
+    async function muatPrefixDivisi() {
+      try {
+        const snap = await getDocs(collection(db, 'master_prefix_divisi'));
+        const list = [];
+        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        list.sort((a, b) => (a.divisi || '').localeCompare(b.divisi || ''));
+        daftarPrefixDivisi.value = list;
+      } catch (e) { console.error('Gagal muat master_prefix_divisi:', e); }
+    }
+    async function tambahPrefixDivisi() {
+      if (!bolehTambah.value) return alert('Anda tidak punya izin menambah di sini. Hubungi Owner/PIC.');
+      const divisi = formPrefixDivisi.divisi.trim();
+      const kode = formPrefixDivisi.kode.trim().toUpperCase();
+      if (!divisi) return alert('Isi nama Menu/Divisi dulu (mis. Acc Sewing).');
+      if (!kode) return alert('Isi Kode Prefix dulu (mis. ACS).');
+      if (daftarPrefixDivisi.value.some(d => (d.divisi || '').toLowerCase() === divisi.toLowerCase())) {
+        return alert(`Divisi "${divisi}" sudah ada prefix-nya. Hapus dulu kalau mau ganti.`);
+      }
+      menyimpanPrefixDivisi.value = true;
+      try {
+        await addDoc(collection(db, 'master_prefix_divisi'), { divisi, kode, dibuat_pada: serverTimestamp() });
+        formPrefixDivisi.divisi = ''; formPrefixDivisi.kode = '';
+        await muatPrefixDivisi();
+      } catch (e) { console.error('Gagal tambah master_prefix_divisi:', e); alert('Gagal menyimpan.'); }
+      menyimpanPrefixDivisi.value = false;
+    }
+    async function hapusPrefixDivisi(item) {
+      if (!bolehHapus.value) return alert('Anda tidak punya izin menghapus di sini. Hubungi Owner/PIC.');
+      if (!confirm(`Hapus prefix divisi "${item.divisi}" (${item.kode})?`)) return;
+      try { await deleteDoc(doc(db, 'master_prefix_divisi', item.id)); await muatPrefixDivisi(); }
+      catch (e) { console.error('Gagal hapus master_prefix_divisi:', e); alert('Gagal menghapus.'); }
+    }
 
     // Prefix Kode SPK — BARU (5 Sep 2026), lihat catatan panjang di atas.
     // Default tampil "SPK" kalau doc config belum pernah dibuat (SAMA
@@ -229,8 +284,12 @@ const AppConfigTlc = {
       catch (e) { console.error('Gagal hapus master_tlc:', e); alert('Gagal menghapus.'); }
     }
 
-    onMounted(async () => { await window.authReady; await Promise.all([muat(), muatPrefixSpk()]); });
-    return { memuat, daftarTersaring, daftar, cari, form, menyimpan, bolehTambah, bolehHapus, tambah, hapus, prefixSpk, menyimpanPrefix, simpanPrefixSpk };
+    onMounted(async () => { await window.authReady; await Promise.all([muat(), muatPrefixSpk(), muatPrefixDivisi()]); });
+    return {
+      memuat, daftarTersaring, daftar, cari, form, menyimpan, bolehTambah, bolehHapus, tambah, hapus,
+      prefixSpk, menyimpanPrefix, simpanPrefixSpk,
+      daftarPrefixDivisi, formPrefixDivisi, menyimpanPrefixDivisi, tambahPrefixDivisi, hapusPrefixDivisi
+    };
   },
   template: `
     <div>
@@ -246,6 +305,24 @@ const AppConfigTlc = {
         </div>
       </div>
 
+      <div class="gc-card" style="margin-bottom:14px; padding:12px 14px;">
+        <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Prefix per Menu/Divisi</label>
+        <p style="font-size:10.5px; color:var(--text-faint); margin:0 0 8px;">Data-entry kode prefix tiap divisi (mis. Acc Sewing &rarr; ACS, Cutting &rarr; CUT). <b>Belum otomatis dipakai</b> di kode tugas yang sudah berjalan — lihat catatan gap di kode, konfirmasi ke Guru dulu sebelum disambungkan.</p>
+        <div v-if="bolehTambah" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+          <input v-model="formPrefixDivisi.divisi" @keyup.enter="tambahPrefixDivisi" type="text" placeholder="Nama Divisi (mis. Acc Sewing)" style="flex:1; min-width:140px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+          <input v-model="formPrefixDivisi.kode" @keyup.enter="tambahPrefixDivisi" type="text" maxlength="6" placeholder="Kode (mis. ACS)" style="width:110px; text-transform:uppercase; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+          <button @click="tambahPrefixDivisi" :disabled="menyimpanPrefixDivisi" class="btn-primary" style="padding:0 16px;"><i class="fas fa-plus"></i></button>
+        </div>
+        <div v-if="daftarPrefixDivisi.length === 0" style="font-size:11px; color:var(--text-faint);">Belum ada prefix divisi terdaftar.</div>
+        <div v-else style="display:flex; flex-direction:column; gap:6px;">
+          <div v-for="d in daftarPrefixDivisi" :key="d.id" style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:9px; background:var(--ivory-dim);">
+            <span style="font-size:12px; flex:1;">{{ d.divisi }}</span>
+            <span class="tag" style="font-weight:700;">{{ d.kode }}</span>
+            <button v-if="bolehHapus" @click="hapusPrefixDivisi(d)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
+          </div>
+        </div>
+      </div>
+
       <div v-if="bolehTambah" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
         <input v-model="form.kode" @keyup.enter="tambah" type="text" placeholder="Kode TLC (mis. TLC-PTG-01)" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
         <input v-model="form.nama" @keyup.enter="tambah" type="text" placeholder="Nama/Deskripsi (mis. Potong - meja 1)" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
@@ -254,7 +331,7 @@ const AppConfigTlc = {
       </div>
       <div style="position:relative; max-width:280px; margin-bottom:10px;">
         <i class="fas fa-search" style="position:absolute; left:11px; top:9px; color:var(--text-faint); font-size:11px;"></i>
-        <input v-model="cari" type="text" placeholder="Cari kode/nama..." style="width:100%; padding:7px 10px 7px 28px; border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none; box-sizing:border-box;">
+        <input v-model="cari" type="text" placeholder="Cari kode/nama..." style="width:100%; padding:7px 10px 7px 28px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none; box-sizing:border-box;">
       </div>
       <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
       <div v-else class="gc-table-scroll">
