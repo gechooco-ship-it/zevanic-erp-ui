@@ -325,8 +325,26 @@ export const ScanGenerik = {
     const videoEl = ref(null), canvasEl = ref(null);
     const memuatKamera = ref(false), error = ref('');
     let stream = null, frameId = null, timeoutId = null;
+    // FIX BUG (10 Sep 2026, laporan Guru — "Tunjuk Operator" salah tunjuk,
+    // muncul "Kode 'ZMS-4733' tidak cocok baris manapun..."). Root cause:
+    // kamera auto-lanjut scan tiap 900ms TANPA cek apakah QR yang kelihatan
+    // MASIH SAMA (badge/label masih di depan kamera, belum sempat diganti).
+    // "ZMS..." adalah prefix id_app KARYAWAN (lihat idAcak('ZMS') di
+    // vue-registrasi.js) — kode operator yang baru dipakai untuk tahap
+    // "operator" ke-scan ULANG 900ms kemudian, tapi tahap sudah pindah ke
+    // "anak" -> dicocokkan ke no_spk, gagal, pesan error jadi membingungkan.
+    // Ini bug di ScanGenerik sendiri (dipakai semua pos scan: Tunjuk
+    // Operator, Scan Pack, Scan Kirim, dst), BUKAN salah kode/data. Fix:
+    // kode yang SAMA dengan hasil scan sebelumnya TIDAK di-emit ulang
+    // selama kamera terus-menerus melihatnya; begitu kamera sempat TIDAK
+    // mendeteksi QR sama sekali (badge/label sudah diangkat/diganti), kode
+    // berikutnya (termasuk kode yang sama, kalau memang sengaja discan
+    // lagi) dianggap scan baru. Interval 900ms & alur multi-scan lain tidak
+    // diubah.
+    let kodeSebelumnya = null;
 
     async function mulai() {
+      kodeSebelumnya = null; // sesi kamera baru -> kode apa pun (termasuk sisa sesi lalu) dianggap scan baru
       memuatKamera.value = true; error.value = '';
       try { await muatJsQr(); } catch (e) {
         error.value = 'Gagal memuat modul pembaca QR. Cek koneksi internet.'; memuatKamera.value = false; return;
@@ -350,11 +368,21 @@ export const ScanGenerik = {
         const gambar = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const kode = window.jsQR(gambar.data, gambar.width, gambar.height, { inversionAttempts: 'dontInvert' });
         if (kode && kode.data) {
+          const teks = kode.data.trim();
+          if (teks === kodeSebelumnya) {
+            // Kode sama, badge/label belum sempat diangkat dari kamera —
+            // JANGAN emit ulang (lihat catatan bug di atas). Tetap lanjut
+            // memindai supaya begitu diganti, langsung kebaca.
+            timeoutId = setTimeout(() => { if (stream) pindai(); }, 900);
+            return;
+          }
+          kodeSebelumnya = teks;
           if (navigator.vibrate) navigator.vibrate(120);
-          emit('hasil', kode.data.trim());
+          emit('hasil', teks);
           timeoutId = setTimeout(() => { if (stream) pindai(); }, 900);
           return;
         }
+        kodeSebelumnya = null; // kamera tidak melihat QR apa pun -> scan berikutnya dianggap baru lagi
       }
       frameId = requestAnimationFrame(pindai);
     }

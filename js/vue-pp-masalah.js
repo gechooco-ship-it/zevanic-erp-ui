@@ -92,7 +92,7 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=7';
-import { ScanGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=2';
+import { ScanGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=3';
 
 // picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). BEDA
 // dari `tierOwnerKeAtas` (diimpor di atas, dipakai Setuju/Tolak/Ajukan

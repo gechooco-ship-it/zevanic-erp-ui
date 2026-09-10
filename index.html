@@ -1763,8 +1763,15 @@
        belakang & keputusan arsitektur lengkap. -->
   <script type="module" src="js/vue-pesanan.js?v=6"></script>
   <!-- BARU (7 Sep 2026 malam) — fondasi menu "Scan & Cetak" (PopupPinGenerik/
-       ScanGenerik dst), lihat komentar besar di js/vue-scan-cetak.js. -->
-  <script type="module" src="js/vue-scan-cetak.js?v=2"></script>
+       ScanGenerik dst), lihat komentar besar di js/vue-scan-cetak.js.
+       v=3 (10 Sep 2026, laporan Guru) — FIX bug ScanGenerik: kamera
+       auto-lanjut scan tiap 900ms sempat scan ULANG kode QR yang SAMA
+       (mis. badge operator prefix "ZMS...") sebelum sempat diganti,
+       menyebabkan pesan error salah tunjuk di Tunjuk Operator/Scan Pack/
+       Scan Kirim dst. Semua file pengimpor vue-scan-cetak.js ikut dibump
+       ke ?v=3 di file masing-masing (bukan cuma di sini) supaya browser
+       memuat versi baru yang sama, bukan dua salinan modul berbeda. -->
+  <script type="module" src="js/vue-scan-cetak.js?v=3"></script>
   <!-- BARU (8 Sep 2026, audit kode proyek) — "Pengaturan Cetak" (ukuran
        kertas/posisi QR/rincian tambahan per jenis cetak, terpusat), lihat
        komentar besar di js/vue-pengaturan-cetak.js. -->
