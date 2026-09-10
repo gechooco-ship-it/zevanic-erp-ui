@@ -1721,7 +1721,11 @@
   <!-- v=2 (31 Agt 2026) — "Perlu Disiapkan" dibangun ulang total sesuai
        wireframe handoff Guru (kunci klaster +size, layout 2 kolom, dukung
        split-qty per SPK). JalurTahapManager (5 jalur/5 tahap) TIDAK disentuh. -->
-  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=3"></script>
+  <!-- v=4 (10 Sep 2026) — fix isu #5 laporan Guru: baris "tanpa_sku" di
+       "Buat Grouping Sendiri" sekarang punya pilihan jalur produksi manual
+       (Bahan/Sewing/Webbing/Finishing), karena order._produk selalu kosong
+       di baris ini sehingga deteksi otomatis dari BOM tidak pernah jalan. -->
+  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=4"></script>
   <!-- BARU (31 Agt 2026, wireframe handoff "Persiapan Produksi - Bahan") —
        jalur Bahan GANTI TOTAL, lihat komentar besar di file ini. -->
   <script type="module" src="js/vue-persiapan-bahan.js?v=7"></script>
@@ -1731,9 +1735,15 @@
        README handoff) — jalur Acc Sewing/Webbing/Finishing GANTI TOTAL,
        kartu = 1 spk_track (beda dari Bahan yang kartu = 1 bahan+warna),
        lihat komentar besar di masing-masing file. -->
-  <script type="module" src="js/vue-persiapan-sewing.js?v=7"></script>
-  <script type="module" src="js/vue-persiapan-webbing.js?v=8"></script>
-  <script type="module" src="js/vue-persiapan-finishing.js?v=7"></script>
+  <!-- v=8/9/8 (10 Sep 2026 malam) — fix "barisKey is not a function" di
+       komponen "Perlu Disiapkan" & "Perlu Dikirim" (3 file ini) — fungsi
+       barisKey() dipakai templat :key v-for tapi lupa di-return dari
+       setup(), bikin render crash & layar macet "Memuat..." begitu ada
+       data (laporan Guru, Acc Sewing/Finishing). Webbing ikut diperbaiki
+       sekalian (bug sama, belum kelihatan karena datanya masih kosong). -->
+  <script type="module" src="js/vue-persiapan-sewing.js?v=8"></script>
+  <script type="module" src="js/vue-persiapan-webbing.js?v=9"></script>
+  <script type="module" src="js/vue-persiapan-finishing.js?v=8"></script>
   <!-- BARU (7 Sep 2026, §5.18) — Persiapan Produksi > Masalah, 7 tahap,
        skema TRB baru (rebuild total dari fitur "Persiapan Masalah" lama,
        yang sekarang cuma papan manual biasa, lihat js/vue-persiapan-

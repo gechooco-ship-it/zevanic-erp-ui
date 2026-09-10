@@ -575,6 +575,19 @@ const PersiapanDisiapkanManager = {
     const sedangProses = reactive({}); // key klaster -> bool
     const sedangProsesSingle = reactive({}); // orderId -> bool ("Buat Grouping Sendiri")
     const vendorManualSingle = reactive({}); // orderId -> bool
+    // BARU (10 Sep 2026, fix isu #5 laporan Guru — SPK260910001 hilang dari
+    // Persiapan Bahan meski BOM produknya lengkap) — baris "tanpa_sku" itu
+    // SENDIRI didefinisikan sebagai SPK yang `_produk`-nya kosong (lihat
+    // daftarBaris di atas), jadi deteksi jalur otomatis dari BOM produk
+    // (jalurOtomatisProduk) TIDAK PERNAH bisa jalan di jalur "Buat Grouping
+    // Sendiri" — linknya (sku_produk di SPK) yang hilang, bukan BOM-nya.
+    // Keputusan Guru: sediakan pilihan jalur MANUAL (checkbox) di baris ini,
+    // bukan wajib hubungkan ke Master Produk dulu — supaya barang custom
+    // yang memang tidak selalu punya Master Produk juga tetap bisa di-track.
+    const jalurManualBahan = reactive({}); // orderId -> bool
+    const jalurManualSewing = reactive({}); // orderId -> bool
+    const jalurManualWebbing = reactive({}); // orderId -> bool
+    const jalurManualFinishing = reactive({}); // orderId -> bool
     const konfirmasiTerbit = ref(null); // {kode, namaProduk, qtyTotal, jalurAktif, groupingId} — tampil SEKALI setelah terbit
     const popupCetakLabelAktif = ref(false);
     const daftarLabelPreview = ref([]);
@@ -813,7 +826,19 @@ const PersiapanDisiapkanManager = {
       sedangProsesSingle[key] = true;
       try {
         const kode = await generateKodeSpkGrouping();
-        const jalurAktif = order._produk ? Array.from(jalurOtomatisProduk(order._produk)) : [];
+        // FIX (10 Sep 2026, isu #5) — order._produk DIJAMIN kosong di sini
+        // (lihat catatan jalurManualBahan/dst di atas), jadi jalurOtomatis di
+        // bawah praktiknya selalu [] untuk baris tanpa_sku — dipertahankan
+        // sebagai jaga-jaga kalau suatu saat definisi baris ini berubah.
+        // jalur_aktif final = gabungan otomatis (kalau ada) + pilihan manual
+        // Guru dari checkbox.
+        const jalurOtomatis = order._produk ? Array.from(jalurOtomatisProduk(order._produk)) : [];
+        const jalurManual = [];
+        if (jalurManualBahan[key]) jalurManual.push('bahan');
+        if (jalurManualSewing[key]) jalurManual.push('sewing');
+        if (jalurManualWebbing[key]) jalurManual.push('webbing');
+        if (jalurManualFinishing[key]) jalurManual.push('finishing');
+        const jalurAktif = Array.from(new Set([...jalurOtomatis, ...jalurManual]));
         if (vendorManualSingle[key]) jalurAktif.push('vendor');
         const jalurUnik = Array.from(new Set(jalurAktif));
         const qty = order._sisaQty;
@@ -848,6 +873,7 @@ const PersiapanDisiapkanManager = {
         await buatSpkTrackUntukGrouping(refGrouping.id, kode, order._namaBase, qty, jalurUnik, bahanRincianSendiri, sewingRincianSendiri, webbingRincianSendiri, finishingRincianSendiri);
         konfirmasiTerbit.value = { kode, namaProduk: order._namaBase, qtyTotal: qty, jalurAktif: jalurUnik, groupingId: refGrouping.id };
         delete vendorManualSingle[key];
+        delete jalurManualBahan[key]; delete jalurManualSewing[key]; delete jalurManualWebbing[key]; delete jalurManualFinishing[key];
         await muat();
       } catch (e) {
         console.error('Gagal buat SPK Grouping (mandiri):', e);
@@ -877,6 +903,7 @@ const PersiapanDisiapkanManager = {
       panelKlasterKey, klasterPanel, anggotaTerpilih, ringkasanPanel, jalurOtomatisPanel,
       pilihanCentang, pilihanQty, vendorManualPanel, previewKode, ubahQtyPilihan, toggleKlasterDipilih,
       sedangProses, sedangProsesSingle, vendorManualSingle, bolehProses, bolehCetak,
+      jalurManualBahan, jalurManualSewing, jalurManualWebbing, jalurManualFinishing,
       buatGroupingDariPanel, buatGroupingSendiri,
       konfirmasiTerbit, cetakLabelDariKonfirmasi,
       popupCetakLabelAktif, daftarLabelPreview,
@@ -934,6 +961,26 @@ const PersiapanDisiapkanManager = {
               </div>
             </div>
 
+            <!-- BARU (10 Sep 2026, fix isu #5) — belum terhubung Master Produk
+                 jadi jalur produksi TIDAK BISA kedeteksi otomatis dari BOM;
+                 Guru pilih sendiri jalur mana yang perlu di-track di sini. -->
+            <div v-if="b.tipe==='tanpa_sku' && bolehProses" style="margin-top:10px;">
+              <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:4px;">Belum terhubung Master Produk — pilih jalur produksi manual:</div>
+              <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:11px; color:var(--text-muted);">
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                  <input type="checkbox" v-model="jalurManualBahan[b.anggota[0].id]" class="gc-chk"> Bahan
+                </label>
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                  <input type="checkbox" v-model="jalurManualSewing[b.anggota[0].id]" class="gc-chk"> Acc Sewing
+                </label>
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                  <input type="checkbox" v-model="jalurManualWebbing[b.anggota[0].id]" class="gc-chk"> Acc Webbing
+                </label>
+                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
+                  <input type="checkbox" v-model="jalurManualFinishing[b.anggota[0].id]" class="gc-chk"> Acc Finishing
+                </label>
+              </div>
+            </div>
             <button v-if="b.tipe==='tanpa_sku' && bolehProses" type="button" @click="buatGroupingSendiri(b.anggota[0])" :disabled="sedangProsesSingle[b.anggota[0].id]" class="btn-outline" style="width:100%; padding:9px; margin-top:10px;">
               <i class="fas fa-layer-group" style="margin-right:6px;"></i>{{ sedangProsesSingle[b.anggota[0].id] ? 'Memproses...' : 'Buat Grouping Sendiri' }}
             </button>

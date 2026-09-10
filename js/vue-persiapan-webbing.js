@@ -665,6 +665,13 @@ const PersiapanWebbingPerluDisiapkan = {
     return {
       memuat, kartuList, cari, isChecked, toggleCheck,
       bolehProses, bolehCetak, bolehEdit, formatQty, formatWaktu, formatRoll, ICON_KOSONG,
+      // FIX (10 Sep 2026, sama seperti bug Acc Sewing/Finishing "stuck
+      // Memuat..." yang dilaporkan Guru — Webbing belum sempat kena karena
+      // kartuList-nya masih kosong sebab gap lain, tapi templat di bawah
+      // JUGA pakai `barisKey(b)` sebagai :key v-for tanpa fungsinya
+      // di-return, jadi begitu Webbing ada data, bug yang SAMA PERSIS akan
+      // muncul di sini juga kalau tidak diperbaiki sekalian sekarang).
+      barisKey,
       TAB_DEFS_WEBBING, gantiTabPill, MY_TARGET, kpiHeader,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, onCetakSelesai,
       popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang,
@@ -1242,7 +1249,9 @@ const PersiapanWebbingPerluDikirim = {
 
     return {
       memuat, kelompokSepack, daftarTlc, bolehProses, bolehCetak, sedangProses,
-      formatQty, formatDiamSejak, tertahan,
+      // FIX (10 Sep 2026) — sama seperti komponen "Perlu Disiapkan" di atas:
+      // barisKey dipakai templat (:key v-for) tapi lupa di-return.
+      formatQty, formatDiamSejak, tertahan, barisKey,
       popupBagging, bukaCetakBagging, konfirmasiCetakBagging,
       popupTugas, bukaCetakTugas, konfirmasiCetakTugas, isiTlcAwal,
       popupCetakAktif, daftarLabelPreview, jenisCetakAktif,

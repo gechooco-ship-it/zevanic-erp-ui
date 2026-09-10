@@ -597,6 +597,14 @@ const PersiapanFinishingPerluDisiapkan = {
     return {
       memuat, kartuList, cari, isChecked, toggleCheck,
       bolehProses, bolehCetak, bolehEdit, formatQty, formatWaktu, ICON_KOSONG,
+      // FIX (10 Sep 2026, laporan Guru "Acc Finishing stuck Memuat...") —
+      // templat di bawah pakai `barisKey(b)` sebagai :key v-for, tapi
+      // fungsinya lupa diikutkan di return setup() ini. Selama kartuList
+      // kosong ini tidak kelihatan — begitu ada data sungguhan, Vue coba
+      // panggil `_ctx.barisKey` yang undefined -> "TypeError: barisKey is
+      // not a function" -> render crash -> Vue TAHAN vnode LAMA (yang
+      // masih nampilkan "Memuat...") di layar selamanya.
+      barisKey,
       TAB_DEFS_FINISHING, gantiTabPill, MY_TARGET, kpiHeader,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, onCetakSelesai,
       popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang,
@@ -1154,7 +1162,9 @@ const PersiapanFinishingPerluDikirim = {
 
     return {
       memuat, kelompokSepack, daftarTlc, bolehProses, bolehCetak, sedangProses,
-      formatQty, formatDiamSejak, tertahan,
+      // FIX (10 Sep 2026) — sama seperti komponen "Perlu Disiapkan" di atas:
+      // barisKey dipakai templat (:key v-for) tapi lupa di-return.
+      formatQty, formatDiamSejak, tertahan, barisKey,
       popupBagging, bukaCetakBagging, konfirmasiCetakBagging,
       popupTugas, bukaCetakTugas, konfirmasiCetakTugas, isiTlcAwal,
       popupCetakAktif, daftarLabelPreview, jenisCetakAktif,
