@@ -1905,7 +1905,10 @@
        GANTI tab "Data Suplayer" jadi "TLC & Prefix" (AppConfigTlc, koleksi
        master_tlc BARU) — cache-bust ikut import baru firestore/firebase-
        config di file ini. -->
-  <script type="module" src="js/vue-config.js?v=8"></script>
+  <!-- v=9 (10 Sep 2026 malam) — fix pesan error tambahPrefixDivisi() ikut
+       tampilkan e.code/e.message (laporan Guru "TLC & Prefix: Gagal
+       menyimpan" generik, dugaan Rules master_prefix_divisi belum publish). -->
+  <script type="module" src="js/vue-config.js?v=9"></script>
   <!-- BARU (5 Sep 2026) — Zevanic House > Master Suplayer: Entry & List
        (5.1) + Alias & MOQ (5.2, eks "Alias Pembelian" Stock & Pembelian,
        DITAMBAH moq/moq_satuan/lead_time_hari) + Petakan Order (5.3, BARU
@@ -1964,7 +1967,10 @@
   <!-- v=18 (30 Agt 2026, fitur "Pesanan"): field baru `harga_jual` (Entry
        Produk form + payload simpan() + kartu List Produk) — dipakai
        Penjualan Kasir, lihat js/vue-pesanan.js. -->
-  <script type="module" src="js/vue-master-produk.js?v=22"></script>
+  <!-- v=23 (10 Sep 2026 malam) — fix rincianBom(): "Harga BOM Pola" HPP
+       dulu cuma Panjang x Harga Bahan, sekarang dibagi Isi Pola (Pcs)
+       (laporan Guru "kemahalan"). -->
+  <script type="module" src="js/vue-master-produk.js?v=23"></script>
   <!-- BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi > Cutting, 7 tab.
        Lihat komentar besar di js/vue-pp-cutting.js untuk latar belakang &
        keputusan arsitektur lengkap. -->

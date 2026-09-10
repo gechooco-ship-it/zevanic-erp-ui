@@ -211,7 +211,17 @@ const AppConfigTlc = {
         await addDoc(collection(db, 'master_prefix_divisi'), { divisi, kode, dibuat_pada: serverTimestamp() });
         formPrefixDivisi.divisi = ''; formPrefixDivisi.kode = '';
         await muatPrefixDivisi();
-      } catch (e) { console.error('Gagal tambah master_prefix_divisi:', e); alert('Gagal menyimpan.'); }
+      } catch (e) {
+        console.error('Gagal tambah master_prefix_divisi:', e);
+        // FIX (10 Sep 2026, laporan Guru "Gagal menyimpan") — dulu pesan
+        // generik, tidak kelihatan sebabnya. Dugaan kuat: koleksi
+        // `master_prefix_divisi` (BARU hari ini) belum ada Firestore Rules-
+        // nya di Firebase Console (lihat FONDASI.md — rules tidak pernah
+        // otomatis ikut kode, wajib publish manual tiap koleksi baru).
+        // Sekarang kode errornya ikut ditampilkan supaya kelihatan jelas
+        // kalau memang `permission-denied`, bukan bug lain.
+        alert('Gagal menyimpan: ' + (e.code || e.message || e) + '\n\nKalau kodenya "permission-denied": Rules Firestore untuk master_prefix_divisi kemungkinan belum di-publish di Firebase Console.');
+      }
       menyimpanPrefixDivisi.value = false;
     }
     async function hapusPrefixDivisi(item) {

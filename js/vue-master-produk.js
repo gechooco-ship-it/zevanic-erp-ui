@@ -2272,7 +2272,18 @@ const MasterProdukHppManager = {
       for (const b of pola) {
         const h = hargaBahan(b.bahan_aksesoris_id);
         if (!h.ditemukan) referensiHilang++;
-        bahanKain += (parseFloat(b.panjang) || 0) * h.harga;
+        // FIX (10 Sep 2026, laporan Guru "Harga BOM Pola kemahalan") — dulu
+        // cuma Panjang x Harga Bahan, TANPA dibagi Isi Pola (Pcs), jadi
+        // biaya 1 pola dihitung seolah semua panjang bahan itu cuma
+        // menghasilkan 1 pcs. Formula benar: (Panjang x Harga Bahan) :
+        // Isi Pola (Pcs) — field `isi_pola_pcs` sudah ada di data (dipakai
+        // hitungKelipatan()), cuma belum disambungkan ke sini. Baris tanpa
+        // isi_pola_pcs (mis. sebagian baris Vendor) sengaja TIDAK dibagi —
+        // tidak ada info pembaginya, lebih aman tampil apa adanya daripada
+        // dianggap 0 (yang malah menghilangkan biayanya sama sekali).
+        const isiPola = parseFloat(b.isi_pola_pcs) || 0;
+        const biayaBahanBaris = (parseFloat(b.panjang) || 0) * h.harga;
+        bahanKain += isiPola > 0 ? biayaBahanBaris / isiPola : biayaBahanBaris;
         jasaCutting += parseFloat(b.jasa_cutting) || 0;
         jasaSerie += parseFloat(b.jasa_serie) || 0;
       }
