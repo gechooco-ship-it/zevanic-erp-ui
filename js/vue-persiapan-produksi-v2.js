@@ -337,6 +337,53 @@ async function ambilPetaBahanAksesoris() {
   return peta;
 }
 
+// ambilPetaKodeTujuanDivisi / tandaiKodeAnakSpk — BARU (12 Sep 2026 lanjutan
+// 6, laporan Guru poin 2/3: ganti tampilan kode TRX di anak SPK dengan kode
+// baru "kode_spk-divisi+counter", dipakai juga cetak label & Scan Operator).
+// Sumber kode_tujuan per jalur = koleksi `master_prefix_divisi` (skema BARU,
+// lihat js/vue-config.js AppConfigTlc) — field `jalur_key` ('bahan'/'sewing'/
+// 'webbing'/'finishing') menentukan baris mana dipakai jalur mana. Guru yang
+// isi baris & kode_tujuan-nya sendiri (keputusan Guru 12 Sep) — kalau BELUM
+// diisi utk suatu jalur, kode_anak_spk baris situ jadi null (tampilan/cetak
+// FALLBACK ke kode lama, TIDAK error) sampai Guru mengisi Config-nya.
+//
+// PENTING (keputusan Guru 12 Sep lanjutan 6, dijawab via AskUserQuestion):
+// - Counter DISIMPAN PERMANEN saat baris dibuat (bukan dihitung ulang dari
+//   urutan tampil) — supaya kode yang sudah dicetak/ditempel/discan operator
+//   TETAP valid walau nanti ada baris lain di grouping yang sama berubah.
+// - Counter dihitung PER KELOMPOK YANG DICETAK JADI SATU LABEL, bukan per
+//   baris BOM mentah — utk jalur 'bahan' itu per `bahan_aksesoris_id` (satu
+//   kartu/label = satu bahan, lihat kelompokKartuBahan() vue-persiapan-
+//   bahan.js), utk jalur sewing/webbing/finishing itu per `no_spk` (satu
+//   label = satu anak SPK, lihat blok `perAnak` di 3 file itu) — SESUAI
+//   granularitas cetak+scan yang SUDAH ADA, supaya 1 kode_anak_spk selalu
+//   mewakili PERSIS 1 label fisik, tidak pernah pecah/tumpang tindih.
+let _cachePetaKodeTujuan = null;
+async function ambilPetaKodeTujuanDivisi() {
+  if (_cachePetaKodeTujuan) return _cachePetaKodeTujuan;
+  const peta = {};
+  try {
+    const snap = await getDocs(collection(db, 'master_prefix_divisi'));
+    snap.forEach(d => {
+      const x = d.data();
+      if (x.jalur_key && x.kode_tujuan) peta[x.jalur_key] = x.kode_tujuan;
+    });
+  } catch (e) { console.error('Gagal ambil master_prefix_divisi (kode tujuan):', e); }
+  _cachePetaKodeTujuan = peta;
+  return peta;
+}
+function tandaiKodeAnakSpk(baris, kodeSpk, kodeTujuan, keyFn) {
+  if (!kodeTujuan) { baris.forEach(b => { b.kode_anak_spk = null; }); return baris; }
+  const urutanKey = [];
+  const peta = {};
+  baris.forEach(b => {
+    const key = keyFn(b);
+    if (!(key in peta)) { peta[key] = urutanKey.length + 1; urutanKey.push(key); }
+    b.kode_anak_spk = `${kodeSpk}-${kodeTujuan}${String(peta[key]).padStart(2, '0')}`;
+  });
+  return baris;
+}
+
 // hitungBahanRincian — BARU (31 Agt 2026, modul Persiapan Produksi > Bahan).
 // Dari daftar anak SPK yang ikut grouping ({order_spk_id, no_spk, qty,
 // _produk}) + peta master_bahan_aksesoris (id -> {nama, warna, ...}),
@@ -350,7 +397,7 @@ async function ambilPetaBahanAksesoris() {
 // Bahan). Rumus dari SERAH-TERIMA Bahan §3 "Aturan khas pos ini":
 //   amparan     = qty anak SPK / isi_pola_pcs, dibulatkan ke ATAS
 //   kebutuhan_kain (meter) = (panjang pola dalam cm / 100) x amparan
-function hitungBahanRincian(anggotaList, petaBahan) {
+function hitungBahanRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
   const baris = [];
   (anggotaList || []).forEach(a => {
     const produk = a._produk || null;
@@ -406,11 +453,12 @@ function hitungBahanRincian(anggotaList, petaBahan) {
         riwayat_operator: [],
         entry_qty: null, entry_oleh: '', entry_pada: null,
         catatan_masalah: '',
-        kode_bagging: '', kode_tugas: ''
+        kode_bagging: '', kode_tugas: '',
+        kode_anak_spk: null // diisi tandaiKodeAnakSpk() di bawah
       });
     });
   });
-  return baris;
+  return tandaiKodeAnakSpk(baris, kodeSpk, kodeTujuan, b => b.bahan_aksesoris_id);
 }
 
 // hitungSewingRincian / hitungWebbingRincian / hitungFinishingRincian — BARU
@@ -449,10 +497,11 @@ function _butuhAksesorisDasar(a, qty) {
     riwayat_operator: [],
     entry_qty: null, entry_oleh: '', entry_pada: null,
     catatan_masalah: '',
-    kode_bagging: '', kode_tugas: ''
+    kode_bagging: '', kode_tugas: '',
+    kode_anak_spk: null // diisi tandaiKodeAnakSpk() di bawah
   };
 }
-function hitungSewingRincian(anggotaList, petaBahan) {
+function hitungSewingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
   const baris = [];
   (anggotaList || []).forEach(a => {
     const produk = a._produk || null;
@@ -476,7 +525,7 @@ function hitungSewingRincian(anggotaList, petaBahan) {
       });
     });
   });
-  return baris;
+  return tandaiKodeAnakSpk(baris, kodeSpk, kodeTujuan, b => b.no_spk);
 }
 // hitungWebbingRincian — sama seperti hitungSewingRincian, TAMBAH kolom
 // khas pos ini (SERAH-TERIMA Acc Webbing §3/§5): panjang_per_pcs/
@@ -485,7 +534,7 @@ function hitungSewingRincian(anggotaList, petaBahan) {
 // belum diisi Guru, BUKAN ditebak jadi angka salah), kode_webbing2/3
 // (snapshot bom_aksesoris.webbing2/.webbing3 SAAT SPK Grouping terbit —
 // teks bebas, boleh kosong, TIDAK menghalangi cetak per SERAH-TERIMA).
-function hitungWebbingRincian(anggotaList, petaBahan) {
+function hitungWebbingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
   const baris = [];
   (anggotaList || []).forEach(a => {
     const produk = a._produk || null;
@@ -512,7 +561,7 @@ function hitungWebbingRincian(anggotaList, petaBahan) {
       });
     });
   });
-  return baris;
+  return tandaiKodeAnakSpk(baris, kodeSpk, kodeTujuan, b => b.no_spk);
 }
 // hitungFinishingRincian — sama seperti hitungSewingRincian, TAMBAH kolom
 // khas pos ini (SERAH-TERIMA Acc Finishing §3/§5): varian_tipe/
@@ -529,7 +578,7 @@ function hitungWebbingRincian(anggotaList, petaBahan) {
 //     bisa basi begitu stok berubah) — dihitung LIVE di js/vue-persiapan-
 //     finishing.js dari stok terkini vs `butuh`, sama pola seperti kolom
 //     "cukup/selisih" Bahan (kelompokKartuBahan()).
-function hitungFinishingRincian(anggotaList, petaBahan) {
+function hitungFinishingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
   const baris = [];
   (anggotaList || []).forEach(a => {
     const produk = a._produk || null;
@@ -552,7 +601,7 @@ function hitungFinishingRincian(anggotaList, petaBahan) {
       });
     });
   });
-  return baris;
+  return tandaiKodeAnakSpk(baris, kodeSpk, kodeTujuan, b => b.no_spk);
 }
 
 // cariKaryawanByQr — DISALIN dari js/vue-absensi-qr.js (prosesHasilScan(),
@@ -822,11 +871,12 @@ const PersiapanDisiapkanManager = {
         let bahanRincian = [], sewingRincian = [], webbingRincian = [], finishingRincian = [];
         if (jalurAktif.some(j => ['bahan', 'sewing', 'webbing', 'finishing'].includes(j))) {
           const petaBahan = await ambilPetaBahanAksesoris();
+          const petaKodeTujuan = await ambilPetaKodeTujuanDivisi();
           const anggotaBaris = anggota.map(o => ({ order_spk_id: o.id, no_spk: o.no_spk, qty: parseFloat(pilihanQty[o.id]) || 0, _produk: o._produk }));
-          if (jalurAktif.includes('bahan')) bahanRincian = hitungBahanRincian(anggotaBaris, petaBahan);
-          if (jalurAktif.includes('sewing')) sewingRincian = hitungSewingRincian(anggotaBaris, petaBahan);
-          if (jalurAktif.includes('webbing')) webbingRincian = hitungWebbingRincian(anggotaBaris, petaBahan);
-          if (jalurAktif.includes('finishing')) finishingRincian = hitungFinishingRincian(anggotaBaris, petaBahan);
+          if (jalurAktif.includes('bahan')) bahanRincian = hitungBahanRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.bahan);
+          if (jalurAktif.includes('sewing')) sewingRincian = hitungSewingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.sewing);
+          if (jalurAktif.includes('webbing')) webbingRincian = hitungWebbingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.webbing);
+          if (jalurAktif.includes('finishing')) finishingRincian = hitungFinishingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.finishing);
         }
         await buatSpkTrackUntukGrouping(refGrouping.id, kode, klaster.namaBase, qtyTotal, jalurAktif, bahanRincian, sewingRincian, webbingRincian, finishingRincian);
         konfirmasiTerbit.value = { kode, namaProduk: klaster.namaBase, qtyTotal, jalurAktif, groupingId: refGrouping.id };
@@ -886,11 +936,12 @@ const PersiapanDisiapkanManager = {
         let bahanRincianSendiri = [], sewingRincianSendiri = [], webbingRincianSendiri = [], finishingRincianSendiri = [];
         if (jalurUnik.some(j => ['bahan', 'sewing', 'webbing', 'finishing'].includes(j))) {
           const petaBahan = await ambilPetaBahanAksesoris();
+          const petaKodeTujuan = await ambilPetaKodeTujuanDivisi();
           const anggotaBaris = [{ order_spk_id: order.id, no_spk: order.no_spk, qty, _produk: order._produk }];
-          if (jalurUnik.includes('bahan')) bahanRincianSendiri = hitungBahanRincian(anggotaBaris, petaBahan);
-          if (jalurUnik.includes('sewing')) sewingRincianSendiri = hitungSewingRincian(anggotaBaris, petaBahan);
-          if (jalurUnik.includes('webbing')) webbingRincianSendiri = hitungWebbingRincian(anggotaBaris, petaBahan);
-          if (jalurUnik.includes('finishing')) finishingRincianSendiri = hitungFinishingRincian(anggotaBaris, petaBahan);
+          if (jalurUnik.includes('bahan')) bahanRincianSendiri = hitungBahanRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.bahan);
+          if (jalurUnik.includes('sewing')) sewingRincianSendiri = hitungSewingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.sewing);
+          if (jalurUnik.includes('webbing')) webbingRincianSendiri = hitungWebbingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.webbing);
+          if (jalurUnik.includes('finishing')) finishingRincianSendiri = hitungFinishingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.finishing);
         }
         await buatSpkTrackUntukGrouping(refGrouping.id, kode, order._namaBase, qty, jalurUnik, bahanRincianSendiri, sewingRincianSendiri, webbingRincianSendiri, finishingRincianSendiri);
         konfirmasiTerbit.value = { kode, namaProduk: order._namaBase, qtyTotal: qty, jalurAktif: jalurUnik, groupingId: refGrouping.id };

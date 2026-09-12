@@ -424,22 +424,23 @@ const PersiapanFinishingPerluDisiapkan = {
       // spk_track.finishing_rincian[] tapi TIDAK PERNAH ikut tercetak.
       // Tampil-tidaknya diatur Guru di Pengaturan Cetak (default nonaktif,
       // label tidak berubah kalau Guru belum aktifkan).
-      // FIX (10 Sep 2026, keputusan Guru — "kode yang tampil pas cetak label
-      // harusnya kode SPK Grouping, biar sama kayak Bahan") — kode BESAR di
-      // label sekarang `kode_spk` (SAMA pola seperti vue-persiapan-bahan.js).
-      // QR & matching TETAP pakai noSpk (unik per anak SPK, TIDAK diubah) —
-      // hasilScanAksi()/onCetakSelesai() di bawah match by no_spk, mengubah
-      // itu beresiko scan salah baris kalau 1 grouping isi >1 anak SPK. Info
-      // dikasih noSpk di depan supaya anak SPK-nya tetap kelihatan di label.
-      const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => ({
-        kode: barisGrup[0].kode_spk,
-        nama: k.namaProduk,
-        info: `${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna} &middot; ${formatQty(b.butuh)} ${b.satuan}`).join(' | '),
-        // FIX (bug live QR cetak-vs-scan): QR balik ke noSpk polos -- suffix
-        // -FIN bikin hasilScanTunjuk/Aksi/Pack (yang cek noSpk polos) gagal terus.
-        qrDataUrl: buatQrDataUrl(noSpk),
-        rincian: { varian: barisGrup.map(b => `${b.varian_tipe || 'tunggal'} x${b.varian_jumlah || 1}`).join(' | ') }
-      }));
+      // FIX (12 Sep 2026 lanjutan 6, laporan Guru poin 2/3) — kode label
+      // (teks besar + isi QR + kunci matching) GANTI dari noSpk polos ke
+      // kode_anak_spk BARU format kode_spk-divisi+counter, lihat
+      // generateKodeAnakSpk() vue-persiapan-produksi-v2.js. FALLBACK ke
+      // noSpk kalau kode_anak_spk belum ada (data lama / Config > TLC &
+      // Prefix > jalur Acc Finishing belum diisi Guru) — hasilScanTunjuk/
+      // hasilScanAksi di bawah dicocokkan ke NILAI YANG SAMA PERSIS ini.
+      const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => {
+        const kodeLabel = barisGrup[0].kode_anak_spk || noSpk;
+        return {
+          kode: kodeLabel,
+          nama: k.namaProduk,
+          info: `${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna} &middot; ${formatQty(b.butuh)} ${b.satuan}`).join(' | '),
+          qrDataUrl: buatQrDataUrl(kodeLabel),
+          rincian: { varian: barisGrup.map(b => `${b.varian_tipe || 'tunggal'} x${b.varian_jumlah || 1}`).join(' | ') }
+        };
+      });
       daftarLabelPreview.value = preview;
       _pendingCetak = terpilih;
       popupCetakAktif.value = true;
@@ -494,14 +495,18 @@ const PersiapanFinishingPerluDisiapkan = {
       const sudahDicetak = p.kartu.baris.filter(b => b.label_cetak_pada);
       const perAnak = {};
       sudahDicetak.forEach(b => { (perAnak[b.no_spk] ||= []).push(b); });
-      // FIX (10 Sep 2026) — sama seperti cetakLabelKartu() di atas: kode
-      // besar = kode_spk, QR tetap noSpk (tidak diubah).
-      const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => ({
-        kode: barisGrup[0].kode_spk, nama: p.kartu.namaProduk,
-        info: `CETAK ULANG &middot; ${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna}`).join(' | '),
-        qrDataUrl: buatQrDataUrl(noSpk),
-        rincian: { varian: barisGrup.map(b => `${b.varian_tipe || 'tunggal'} x${b.varian_jumlah || 1}`).join(' | ') }
-      }));
+      // FIX (12 Sep 2026 lanjutan 6) — SAMA kode dgn cetakLabelKartu() di
+      // atas (kode_anak_spk, fallback noSpk) supaya label cetak-ulang TETAP
+      // cocok dgn hasilScanTunjuk()/hasilScanAksi() yang sudah diperbarui.
+      const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => {
+        const kodeLabel = barisGrup[0].kode_anak_spk || noSpk;
+        return {
+          kode: kodeLabel, nama: p.kartu.namaProduk,
+          info: `CETAK ULANG &middot; ${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna}`).join(' | '),
+          qrDataUrl: buatQrDataUrl(kodeLabel),
+          rincian: { varian: barisGrup.map(b => `${b.varian_tipe || 'tunggal'} x${b.varian_jumlah || 1}`).join(' | ') }
+        };
+      });
       try {
         await addDoc(collection(db, 'cetak_ulang_log'), {
           kode_spk: p.kartu.kodeSpk,
@@ -549,7 +554,9 @@ const PersiapanFinishingPerluDisiapkan = {
       // Mode global: cari DI SEMUA kartu; mode per-kartu: cari DI KARTU ITU
       // SAJA (perilaku lama, tidak berubah).
       const kolamBaris = modalTunjuk.global ? kartuList.value.flatMap(k => k.baris) : (modalTunjuk.kartu?.baris || []);
-      const cocok = kolamBaris.filter(b => b.no_spk === kode && b.label_cetak_pada && b.status === 'perlu_disiapkan');
+      // FIX (12 Sep 2026 lanjutan 6) — cocokkan ke kode_anak_spk (fallback
+      // no_spk utk data lama), SAMA kode yg dicetak (lihat cetakLabelKartu).
+      const cocok = kolamBaris.filter(b => (b.kode_anak_spk || b.no_spk) === kode && b.label_cetak_pada && b.status === 'perlu_disiapkan');
       if (!cocok.length) {
         // FIX (10 Sep 2026, laporan Guru — masih salah tunjuk setelah fix
         // dedup kamera) — akar SEBENARNYA: user scan ULANG badge operator
@@ -706,7 +713,7 @@ const PersiapanFinishingPerluDisiapkan = {
           <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
             <label v-for="b in k.baris" :key="barisKey(b)" style="display:flex; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px; flex-wrap:wrap;" :style="{ background: b.label_cetak_pada ? 'var(--ok-light)' : (b._bisa ? 'transparent' : 'var(--danger-light)') }">
               <input type="checkbox" :checked="isChecked(b)" :disabled="!b._bisa || !!b.label_cetak_pada" @change="toggleCheck(b)">
-              <span class="gc-num" style="font-weight:700; min-width:90px;">{{ b.no_spk }}</span>
+              <span class="gc-num" style="font-weight:700; min-width:90px;">{{ b.kode_anak_spk || b.no_spk }}</span>
               <span>{{ b.nama_aksesoris }} <span style="color:var(--text-faint);">{{ b.warna }}</span></span>
               <span v-if="b.varian_jumlah > 1" class="tag neutral">{{ b.varian_jumlah }} varian</span>
               <span class="gc-num" style="color:var(--text-faint);">butuh {{ formatQty(b.butuh) }} {{ b.satuan }}</span>
@@ -888,7 +895,10 @@ const PersiapanFinishingSedangDisiapkan = {
         sedangProses[key] = false;
         return;
       }
-      if (kode !== b.no_spk) { alert(`Kode yang discan ("${kode}") tidak cocok dengan anak SPK ini (${b.no_spk}).`); return; }
+      // FIX (12 Sep 2026 lanjutan 6) — cocokkan ke kode_anak_spk (fallback
+      // no_spk utk data lama), SAMA kode yg dicetak (lihat cetakLabelKartu).
+      const kodeLabelBaris = b.kode_anak_spk || b.no_spk;
+      if (kode !== kodeLabelBaris) { alert(`Kode yang discan ("${kode}") tidak cocok dengan anak SPK ini (${kodeLabelBaris}).`); return; }
       if (modalAksi.mode === 'masalah') {
         tutupAksi();
         popupMasalah.value = { baris: b, jumlahKurang: b.butuh, alasan: '' };
