@@ -262,6 +262,9 @@ async function pastikanFinishingTrackLengkap() {
       await Promise.all(daftarPcs.map(async (p) => {
         await addDoc(collection(db, 'finishing_track'), {
           kode_pcs: p.kode_pcs, label_pcs_id: p.id, batch_id: b.id, kode_batch: b.kode_batch || '',
+          // kode_spk — BARU (12 Sep 2026, kaitkan root1/root2 ke bagging,
+          // keputusan Guru via chat) — disalin dari separating_batch, array.
+          kode_spk: b.spk_groupings || [],
           nama_produk: p.nama_produk || b.nama_produk || '', size: p.size || b.size || '', warna: p.warna || '',
           status: 'perlu_diproses', tahap_aktif: null, progress: 0,
           op_qc: null, op_steam: null, op_folding: null, op_packing: null,
@@ -765,7 +768,7 @@ const FinishingPerluDikirim = {
       const peta = {};
       daftar.value.forEach(t => {
         const key = t.batch_id;
-        if (!peta[key]) peta[key] = { batchId: key, kodeBatch: t.kode_batch, namaProduk: t.nama_produk, size: t.size, pcs: [], sudahKirim: !!t.kode_tugas, masukTahapPada: t.masuk_tahap_pada };
+        if (!peta[key]) peta[key] = { batchId: key, kodeBatch: t.kode_batch, kodeSpk: t.kode_spk || [], namaProduk: t.nama_produk, size: t.size, pcs: [], sudahKirim: !!t.kode_tugas, masukTahapPada: t.masuk_tahap_pada };
         peta[key].pcs.push(t);
       });
       return Object.values(peta);
@@ -780,8 +783,12 @@ const FinishingPerluDikirim = {
       sedangProses.value = true;
       try {
         const kodeBag = await generateKodeHarianFormat('BAG', 'pengaturan_id_bagging');
+        // kode_spk/kode_batch — BARU (12 Sep 2026, kaitkan root1/root2 ke
+        // bagging, keputusan Guru via chat). Ditulis LANGSUNG saat dibuat —
+        // grup ini sudah pasti 1 batch (kelompokBatch dikunci per batch_id).
         await addDoc(collection(db, 'bagging'), {
           kode: kodeBag, produk_label: `${g.kodeBatch} &middot; ${g.namaProduk}`, isi: [], ditutup_pada: null,
+          kode_spk: g.kodeSpk || [], kode_batch: g.kodeBatch || null,
           dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
         });
         const kodeTugas = await generateKodeHarianFormat('TGS', 'pengaturan_id_tugas_kirim');
@@ -851,7 +858,11 @@ const FinishingPerluDikirim = {
       const g = kelompokBatch.value.find(x => x.pcs[0] && x.pcs[0].kode_tugas === modalKirim.tugas.kode && x.pcs[0].kode_bagging === kode);
       if (!g) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
       try {
-        await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), { pack: arrayUnion({ kode_bagging: kode, pada: new Date().toISOString() }) });
+        // kode_spk/kode_batch ikut disalin ke pack[] — BARU (12 Sep 2026,
+        // keputusan Guru via chat), dilepas oleh Scan Sampai (sampai_pada).
+        await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), {
+          pack: arrayUnion({ kode_bagging: kode, kode_spk: g.kodeSpk || [], kode_batch: g.kodeBatch || null, pada: new Date().toISOString(), sampai_pada: null })
+        });
         const now = new Date().toISOString();
         const olehKirim = window.currentUser?.email || null;
         // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.

@@ -1068,8 +1068,14 @@ const SeriePerluDiKirim = {
         const kodeBaru = [];
         for (const jenis of jenisKomponen) {
           const kode = await generateKodeHarianFormat('BAG', 'pengaturan_id_bagging');
+          // kode_spk/kode_batch — BARU (12 Sep 2026, kaitkan root1/root2 ke
+          // bagging, keputusan Guru via chat). kode_spk TETAP ARRAY di sini
+          // (keputusan Guru) karena batch.spk_groupings bisa >1 kalau hasil
+          // gabungan >1 SPK Grouping sekaligus (lihat komentar Separating
+          // besar di atas file).
           await addDoc(collection(db, 'bagging'), {
             kode, produk_label: `${batch.kode_batch} &middot; ${jenis}`, isi: [], ditutup_pada: null,
+            kode_spk: batch.spk_groupings || [], kode_batch: batch.kode_batch || null,
             dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
           });
           kodeBaru.push(kode);
@@ -1280,7 +1286,12 @@ function buatTabKirim(cfg) {
         const batch = daftar.value.find(b => b.kode_tugas === modalKirim.tugas.kode && (b.kode_bagging || []).includes(kode));
         if (!batch) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
         try {
-          await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), { pack: arrayUnion({ kode_bagging: kode, pada: new Date().toISOString() }) });
+          // kode_spk/kode_batch ikut disalin ke pack[] — BARU (12 Sep 2026,
+          // keputusan Guru via chat: kode_spk TETAP ARRAY di Serie), dilepas
+          // oleh Scan Sampai (sampai_pada).
+          await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), {
+            pack: arrayUnion({ kode_bagging: kode, kode_spk: batch.spk_groupings || [], kode_batch: batch.kode_batch || null, pada: new Date().toISOString(), sampai_pada: null })
+          });
           const tugasSnap = await getDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id));
           const semuaSudah = (batch.kode_bagging || []).every(kb => (tugasSnap.data().pack || []).some(pk => pk.kode_bagging === kb));
           if (semuaSudah) {

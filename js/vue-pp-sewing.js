@@ -313,7 +313,12 @@ async function pastikanSewingTrackLengkap() {
     await Promise.all(belum.map(async (b) => {
       const { sku_produk, warna } = await resolveSkuWarnaBatch(b, petaProduk);
       await addDoc(collection(db, 'sewing_track'), {
-        batch_id: b.id, kode_batch: b.kode_batch || '', nama_produk: b.nama_produk || '', size: b.size || '',
+        batch_id: b.id, kode_batch: b.kode_batch || '',
+        // kode_spk — BARU (12 Sep 2026, kaitkan root1/root2 ke bagging,
+        // keputusan Guru via chat) — disalin dari separating_batch.
+        // Array (bisa >1 grouping kalau batch ini hasil gabungan).
+        kode_spk: b.spk_groupings || [],
+        nama_produk: b.nama_produk || '', size: b.size || '',
         sku_produk, warna, qty: parseFloat(b.qty) || 0,
         status: 'perlu_diproses',
         operator_uid: null, operator_nama: null, riwayat_operator: [],
@@ -814,8 +819,14 @@ const SewingPerluDikirim = {
       sedangProses.value = true;
       try {
         const kodeBag = await generateKodeHarianFormat('BAG', 'pengaturan_id_bagging');
+        // kode_spk/kode_batch — BARU (12 Sep 2026, kaitkan root1/root2 ke
+        // bagging, keputusan Guru via chat). Ditulis LANGSUNG saat dibuat
+        // (bukan lewat validator scan pertama seperti Persiapan) — batch
+        // di sini SUDAH pasti tunggal (layar terkunci ke 1 batch sejak
+        // awal), tidak mungkin campur lewat UI ini.
         await addDoc(collection(db, 'bagging'), {
           kode: kodeBag, produk_label: `${t.kode_batch} &middot; ${t.nama_produk}`, isi: [], ditutup_pada: null,
+          kode_spk: t.kode_spk || [], kode_batch: t.kode_batch || null,
           dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
         });
         const kodeTugas = await generateKodeHarianFormat('TGS', 'pengaturan_id_tugas_kirim');
@@ -895,7 +906,11 @@ const SewingPerluDikirim = {
       if (!t) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
       try {
         const now = new Date().toISOString();
-        await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), { pack: arrayUnion({ kode_bagging: kode, pada: now }) });
+        // kode_spk/kode_batch ikut disalin ke pack[] — BARU (12 Sep 2026,
+        // keputusan Guru via chat), dilepas oleh Scan Sampai (sampai_pada).
+        await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), {
+          pack: arrayUnion({ kode_bagging: kode, kode_spk: t.kode_spk || [], kode_batch: t.kode_batch || null, pada: now, sampai_pada: null })
+        });
         // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
         await updateSewingTrack(t.id, () => ({
           status: 'sedang_dikirim', masuk_tahap_pada: now,
