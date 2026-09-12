@@ -460,6 +460,21 @@ const CuttingPerluDiProses = {
           kena++;
         }
         if (!kena) { alert(`Kode bagging "${kode}" tidak ditemukan / sudah pernah di-Scan Sampai.`); return; }
+        // BARU (12 Sep 2026, keputusan Guru via chat: "scan kirim
+        // mengaitkan kode spk/kode batch/kode bagging pada kode tugas,
+        // untuk melepasnya dengan scan sampai") — begitu kode_bagging ini
+        // dinyatakan sampai, entri pack[] yang cocok di tugas_kirim ditulis
+        // sampai_pada (melepas kaitan root1/root2/bagging yang dicatat
+        // Scan Kirim). Dicari dari data lokal modalSampai.tugas (snapshot
+        // saat kode tugas ini pertama discan), bukan re-fetch.
+        const packArr = Array.isArray(modalSampai.tugas.pack) ? modalSampai.tugas.pack : [];
+        const idxPack = packArr.findIndex(p => p.kode_bagging === kode && !p.sampai_pada);
+        if (idxPack >= 0) {
+          const packBaru = packArr.slice();
+          packBaru[idxPack] = { ...packBaru[idxPack], sampai_pada: now };
+          await updateDoc(doc(db, 'tugas_kirim', modalSampai.tugas.id), { pack: packBaru });
+          modalSampai.tugas.pack = packBaru;
+        }
         modalSampai.log.unshift(kode + ' -> sampai (' + kena + ' baris)');
       } catch (e) { console.error('Gagal scan sampai:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }

@@ -1159,8 +1159,12 @@ const PersiapanBahanPerluDikirim = {
         const preview = [];
         for (let i = 0; i < n; i++) {
           const kode = await generateKodeHarian('BAG', 'pengaturan_id_bagging');
+          // kode_spk/kode_batch — BARU (12 Sep 2026, kaitkan root1/root2 ke
+          // bagging, keputusan Guru via chat) — null dulu, diisi Scan Pack
+          // pertama (lihat hasilScanPack di bawah).
           await addDoc(collection(db, 'bagging'), {
             kode, produk_label: grup.label, isi: [], ditutup_pada: null,
+            kode_spk: null, kode_batch: null,
             dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
           });
           preview.push({ kode, nama: grup.label, info: 'Kode Bagging &middot; belum diisi', qrDataUrl: buatQrDataUrl(kode) });
@@ -1235,9 +1239,26 @@ const PersiapanBahanPerluDikirim = {
         alert(`Kode "${kode}" bukan produk yang sama dengan bagging ini (${modalPack.bagging.produk_label}). Syarat sepack: pola, bahan, dan size harus sama.`);
         return;
       }
+      // BARU (12 Sep 2026, kaitkan root1/root2 ke bagging, keputusan Guru
+      // via chat) — scan PERTAMA ke bagging ini jadi VALIDATOR: kode_spk
+      // anak SPK pertama dikunci ke dokumen `bagging`. Scan berikutnya
+      // WAJIB kode_spk yang SAMA (turunan grouping yang sama) — beda,
+      // DITOLAK (keputusan Guru: "harus ditolak"). Pos Persiapan Bahan
+      // SELALU level grouping (kode_batch baru ada SETELAH Separating di
+      // Serie — tidak pernah ada di baris track pos ini), jadi aturan
+      // "harus sewarna" (khusus level separating/ROOT2) TIDAK berlaku di
+      // sini — warna tetap boleh campur, sama seperti syarat sepack di
+      // atas (dibanding lewat label, bukan bahan_aksesoris_id).
+      if (modalPack.bagging.kode_spk && target.kode_spk !== modalPack.bagging.kode_spk) {
+        alert(`Kode "${kode}" dari SPK Grouping berbeda (${target.kode_spk}) dari bagging ini (${modalPack.bagging.kode_spk}). 1 bagging cuma boleh 1 grouping.`);
+        return;
+      }
       try {
+        const patchBagging = { isi: arrayUnion(target.no_spk) };
+        if (!modalPack.bagging.kode_spk) patchBagging.kode_spk = target.kode_spk || null;
         await updateBarisBahan(target._trackId, target._lineIdx, () => ({ kode_bagging: modalPack.bagging.kode }));
-        await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { isi: arrayUnion(target.no_spk) });
+        await updateDoc(doc(db, 'bagging', modalPack.bagging.id), patchBagging);
+        if (!modalPack.bagging.kode_spk) modalPack.bagging.kode_spk = target.kode_spk || null;
         modalPack.log.unshift(target.no_spk + ' -> ' + modalPack.bagging.kode);
         target.kode_bagging = modalPack.bagging.kode;
       } catch (e) { console.error('Gagal scan pack:', e); alert('Gagal menyimpan. Coba lagi.'); }
@@ -1273,7 +1294,15 @@ const PersiapanBahanPerluDikirim = {
           // query balik ke tugas_kirim buat tampilkan kolom "tujuan TLC".
           tlc_tujuan: modalKirim.tugas.tlc_tujuan || ''
         }))));
-        await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), { pack: arrayUnion({ kode_bagging: kode, pada: now }) });
+        // kode_spk/kode_batch ikut disalin ke tiap entri pack[] — BARU (12
+        // Sep 2026, keputusan Guru via chat: "scan kirim mengaitkan kode
+        // spk/kode batch/kode bagging pada kode tugas, untuk melepasnya
+        // dengan scan sampai"). Diambil dari baris anggota (sudah pasti
+        // sama grouping-nya, dikunci sejak Scan Pack) — pos ini tidak
+        // pernah punya kode_batch (lihat catatan Scan Pack di atas).
+        await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), {
+          pack: arrayUnion({ kode_bagging: kode, kode_spk: anggota[0].kode_spk || null, kode_batch: null, pada: now, sampai_pada: null })
+        });
         modalKirim.log.unshift(kode + ' (' + anggota.length + ' item) -> ' + modalKirim.tugas.kode);
       } catch (e) { console.error('Gagal scan kirim:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }

@@ -1039,8 +1039,11 @@ const PersiapanSewingPerluDikirim = {
         const preview = [];
         for (let i = 0; i < n; i++) {
           const kode = await generateKodeHarian('BAG', 'pengaturan_id_bagging');
+          // kode_spk/kode_batch — BARU (12 Sep 2026, kaitkan root1/root2 ke
+          // bagging, keputusan Guru via chat) — null dulu, diisi Scan Pack.
           await addDoc(collection(db, 'bagging'), {
             kode, produk_label: grup.label, isi: [], ditutup_pada: null,
+            kode_spk: null, kode_batch: null,
             dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
           });
           preview.push({ kode, nama: grup.label, info: 'Kode Bagging &middot; belum diisi', qrDataUrl: buatQrDataUrl(kode) });
@@ -1111,6 +1114,14 @@ const PersiapanSewingPerluDikirim = {
         alert(`Kode "${kode}" bukan produk yang sama dengan bagging ini (${modalPack.bagging.produk_label}). Syarat sepack: produk dan size harus sama.`);
         return;
       }
+      // BARU (12 Sep 2026, kaitkan root1/root2 ke bagging, keputusan Guru
+      // via chat) — scan PERTAMA jadi VALIDATOR: kode_spk dikunci ke
+      // dokumen `bagging`. Scan berikutnya WAJIB kode_spk sama, kalau beda
+      // DITOLAK. Pos ini selalu level grouping, warna tetap boleh campur.
+      if (modalPack.bagging.kode_spk && cocok[0].kode_spk !== modalPack.bagging.kode_spk) {
+        alert(`Kode "${kode}" dari SPK Grouping berbeda (${cocok[0].kode_spk}) dari bagging ini (${modalPack.bagging.kode_spk}). 1 bagging cuma boleh 1 grouping.`);
+        return;
+      }
       const byTrack = {};
       cocok.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
       try {
@@ -1122,7 +1133,10 @@ const PersiapanSewingPerluDikirim = {
         await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
           return updateBarisSewingMassal(trackId, (x) => x.no_spk === kode && !x.kode_bagging, () => ({ kode_bagging: modalPack.bagging.kode }));
         }));
-        await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { isi: arrayUnion(kode) });
+        const patchBagging = { isi: arrayUnion(kode) };
+        if (!modalPack.bagging.kode_spk) patchBagging.kode_spk = cocok[0].kode_spk || null;
+        await updateDoc(doc(db, 'bagging', modalPack.bagging.id), patchBagging);
+        if (!modalPack.bagging.kode_spk) modalPack.bagging.kode_spk = cocok[0].kode_spk || null;
         modalPack.log.unshift(kode + ` (${cocok.length} komponen) -> ` + modalPack.bagging.kode);
         cocok.forEach(b => { b.kode_bagging = modalPack.bagging.kode; });
       } catch (e) { console.error('Gagal scan pack:', e); alert('Gagal menyimpan. Coba lagi.'); }
@@ -1161,7 +1175,11 @@ const PersiapanSewingPerluDikirim = {
             tlc_tujuan: modalKirim.tugas.tlc_tujuan || ''
           }));
         }));
-        await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), { pack: arrayUnion({ kode_bagging: kode, pada: now }) });
+        // kode_spk/kode_batch ikut disalin ke pack[] — BARU (12 Sep 2026,
+        // keputusan Guru via chat), dilepas oleh Scan Sampai (sampai_pada).
+        await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), {
+          pack: arrayUnion({ kode_bagging: kode, kode_spk: anggota[0].kode_spk || null, kode_batch: null, pada: now, sampai_pada: null })
+        });
         modalKirim.log.unshift(kode + ' (' + anggota.length + ' komponen) -> ' + modalKirim.tugas.kode);
       } catch (e) { console.error('Gagal scan kirim:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
