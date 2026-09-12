@@ -1564,7 +1564,7 @@ const CuttingSelesai = {
           </tr></thead>
           <tbody>
             <tr v-for="t in daftarUrut" :key="t.id" style="border-bottom:1px solid var(--line);">
-              <td style="padding:6px 8px;" class="gc-num" style="font-weight:700;">{{ t.kode_spk }}</td>
+              <td style="padding:6px 8px; font-weight:700;" class="gc-num">{{ t.kode_spk }}</td>
               <td style="padding:6px 8px;">{{ t.nama_produk }} {{ t.size }}</td>
               <td style="padding:6px 8px;" class="gc-num">{{ formatQty(t.qty_total) }}</td>
               <td style="padding:6px 8px;">{{ (t.op_ampar && t.op_ampar.nama) || '-' }}</td>

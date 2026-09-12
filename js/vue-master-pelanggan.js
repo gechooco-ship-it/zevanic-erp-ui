@@ -256,7 +256,7 @@ const MasterPelangganManager = {
            REVISI (9 Sep 2026 malam, keputusan Guru: "iyah kerjakan sesuai
            wireframe") — kolom "Total Pesanan" (dihitung live dari
            transaksi_kasir, lihat ambilTotalPesananPerPelanggan di atas
-           file) dan "Status" (field BARU `status` di master_pelanggan)
+           file) dan "Status" (field BARU "status" di master_pelanggan)
            ditambahkan. Pelanggan nonaktif ditampilkan abu di baris
            (diurutkan ke bawah oleh daftarTampil, bukan disembunyikan). -->
       <div v-else class="gc-table-scroll">
