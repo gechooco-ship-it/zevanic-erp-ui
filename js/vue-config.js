@@ -113,83 +113,63 @@ const AppConfigTahapPersiapan = {
   template: `<master-data-tabel-manager koleksi="master_tahap_persiapan" label-singular="Tahap Persiapan" label-nama="Nama Tahap (mis. Sewing, Webbing, Finishing)" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
 };
 
-// AppConfigTlc — GANTI TOTAL (5 Sep 2026, wireframe handoff "Format TLC dan
-// prefix dikelola di Zevanic House › TLC & Prefix" — PEDOMAN-SERAH-TERIMA.md
-// §13) dari AppConfigSuplayer LAMA (CRUD Suplayer sekarang di Zevanic House
-// > Master Suplayer, js/vue-master-suplayer.js — TIDAK lagi di sini, lihat
-// catatan di file itu).
+// AppConfigTlc — REDESAIN TOTAL (12 Sep 2026 lanjutan 8, coretan Guru di
+// screenshot: hapus kartu "Prefix Kode SPK" + tabel CRUD master_tlc lama,
+// "Kode per Divisi" ganti dari form(Group Menu/Sub Menu/dropdown Jalur)
+// jadi SATU TABEL — "namun bukan dropdown tapi table"). GANTI dari versi
+// lanjutan 6 (form input bebas + dropdown Jalur 4 opsi).
 //
-// Koleksi `master_tlc` — dikonfirmasi berulang di 4 wireframe SERAH-TERIMA
-// terpisah (Persiapan Produksi - Bahan/Acc Sewing/Acc Webbing/Acc Finishing,
-// semua mendaftarkan struktur SAMA PERSIS): `{ kode, nama, tipe }`. Contoh
-// isi: TLC-BHN, TLC-SEW, TLC-WEB, TLC-FIN, TLC-VDR, TLC-MSL, TLC-PTG-01,
-// TLC-SEW-01, TLC-FIN-01, TLC-QC — dipakai SEMUA dropdown "tujuan TLC" pas
-// cetak kode tugas di Persiapan Produksi & nanti Proses Produksi (Cutting/
-// Serie/dst).
+// DIHAPUS TOTAL (sesuai coretan, bukan disembunyikan):
+//   - Kartu "Prefix Kode SPK" — sudah tidak dipakai kode manapun sejak
+//     redesain kode_spk 12 Sep pagi (field lama di pengaturan_id_spk_
+//     grouping/config DIBIARKAN apa adanya di Firestore, cuma UI-nya yang
+//     hilang — tidak ada migrasi/hapus data).
+//   - Tabel CRUD master_tlc terpisah (Kode TLC/Nama-Deskripsi/Tipe/Aksi +
+//     form tambahnya) — sekarang entry master_tlc dibuat OTOMATIS lewat
+//     kolom "Nama TLC" di tabel baru (jawaban Guru: "dropdown + bisa buat
+//     baru sekalian", lihat simpanBaris()).
+//   GAP DISENGAJA: karena tabel CRUD lama dihapus, TIDAK ADA LAGI cara
+//   hapus/ubah entry master_tlc yang salah ketik dari layar ini — kalau
+//   perlu, hapus manual lewat Firestore Console (koleksi master_tlc).
+//   Koleksi master_tlc sendiri TIDAK berubah skema ({kode, nama, tipe}) —
+//   tetap dipakai 6+ modul lain apa adanya (dropdown "TLC Tujuan" pas
+//   kirim tugas: Cutting, Persiapan Bahan/Sewing/Webbing/Finishing/Masalah).
 //
-// `kode` (mis. "TLC-PTG-01") = identitas utama yang dicari-cari (SAMA peran
-// seperti "nama" di MasterDataTabelManager lain), `nama` = deskripsi pos
-// (mis. "Potong · meja 1"), `tipe` = kategori pos (bebas isi Owner, mis.
-// "tetap"/"custom" atau "bahan"/"sewing"/"vendor" dst — TIDAK didikte kode,
-// cuma field teks bebas).
+// DAFTAR_MENU_DIVISI — jawaban poin Guru "cek repo yg berkaitan dengan
+// anak grouping, dan anak separating; semua titik tlc" — digrep LANGSUNG
+// dari kode live 12 Sep (bukan ditebak): 4 jalur Persiapan Produksi yang
+// SUDAH aktif dipakai kode_anak_spk (bahan/sewing/webbing/finishing,
+// lihat tandaiKodeAnakSpk()/ambilPetaKodeTujuanDivisi() js/vue-persiapan-
+// produksi-v2.js) + Persiapan Masalah (pakai dropdown master_tlc juga,
+// vue-pp-masalah.js) + 5 titik Proses Produksi yang masing-masing punya
+// TLC_ASAL hardcode SENDIRI di kodenya (Cutting=TLC-PTG, Serie=TLC-SER,
+// Sewing=TLC-JHT, Finishing=TLC-FIN, Gudang Barang Jadi=TLC-GBJ — lihat
+// konstanta TLC_ASAL_*/TLC_TUJUAN_* di masing2 js/vue-pp-*.js).
 //
-// SENGAJA komponen baru sendiri (BUKAN MasterDataTabelManager) — field
-// primer di sana SELALU bernama Firestore `nama` (+ opsional field3Key +
-// `keterangan`), kalau dipaksa dipakai maka `kode` (yang harus dibaca modul
-// lain nanti dengan nama field PERSIS itu) akan tersimpan di bawah key
-// `nama` generik, bukan `kode` — beda dari spesifikasi, berisiko bikin
-// modul Cutting/Proses Produksi nanti salah baca. Makanya CRUD ditulis
-// sendiri di sini, tapi tampilannya tetap ikut pola "entry+searchbox+table"
-// yang sama seperti tab Config lain.
+// PENTING — baris Proses Produksi (jalur_key 'pp_*') MURNI DATA-ENTRY
+// REFERENSI sesi ini: kode hardcode TLC_ASAL_* di vue-pp-cutting/serie/
+// sewing/finishing/gudang.js TIDAK diubah (Guru: "guru sambungkan
+// sendiri" — nyambungkannya ke tabel ini titik lanjutan berikutnya).
+// `ambilPetaKodeTujuanDivisi()` cuma baca key `bahan/sewing/webbing/
+// finishing` dari koleksi ini — baris `pp_*`/`masalah` aman diisi kosong
+// kapan saja, tidak dipakai generator kode manapun, nol resiko regresi.
 //
-// KLARIFIKASI (5 Sep 2026) — Guru sudah konfirmasi langsung ("iyah berkaitan
-// dengan tlc dan pembuatan prefix kode spk") bahwa "Prefix" di nama tab ini
-// BUKAN cuma soal format `kode` TLC (dugaan awal di atas, sudah usang) —
-// ADA pengaturan prefix terpisah: prefix kode SPK yang dipakai
-// generateKodeSpkGrouping() (js/vue-persiapan-produksi-v2.js) waktu bikin
-// `spk_grouping.kode_spk`. Sebelum ini prefix-nya HARDCODE string "SPK" —
-// sekarang dibuat bisa diatur di sini, disimpan di koleksi
-// `pengaturan_id_spk_grouping` doc `config` (key TETAP "config", BEDA dari
-// doc counter harian yang key-nya `{yymmdd}` — supaya tidak pernah tabrakan)
-// — polanya SAMA PERSIS seperti prefixBahan/prefixAksesoris di
-// js/vue-bahan-aksesoris.js dan prefix Pembelian di js/vue-stock-
-// pembelian.js (baca sekali waktu mount, simpan via setDoc merge).
-// Kode per Divisi — GANTI TOTAL (12 Sep 2026 lanjutan 6, laporan Guru poin
-// 4: "saya mulai kebingungan... harusnya kamu sudah menampilkan semua menu
-// perdivisi yg bisa di edit nama tujuan, tlc tujuan, kode tujuan"). GANTI
-// dari "Prefix per Menu/Divisi" LAMA (10 Sep, cuma 2 field nama+kode,
-// TIDAK tersambung kemana-mana) — koleksi Firestore TETAP `master_prefix_
-// divisi` (Rules-nya SUDAH disiapkan Guru per Blocker #3 STATUS-PROYEK.md,
-// ganti nama koleksi akan mubazirkan itu), TAPI skema dokumennya diperluas
-// dari `{divisi, kode}` jadi `{group_menu, sub_menu, jalur_key, nama_
-// tujuan, tlc_tujuan, kode_tujuan}` — AMAN, koleksi lama kosong (0 dokumen
-// per screenshot Guru), tidak ada migrasi data.
-//
-// 3 field yang diminta Guru:
-//   - nama_tujuan & tlc_tujuan — teks bebas, tampil di dropdown+cetak biar
-//     gampang dibaca operator (BELUM ada dropdown yang baca 2 field ini,
-//     ini data-entry dulu — sama seperti master_tlc dulu sebelum dipakai).
-//   - kode_tujuan — 2 digit penomoran, inilah yang JOIN ke kode_spk
-//     grouping (lihat generateKodeAnakSpk() di js/vue-persiapan-produksi-
-//     v2.js, BARU 12 Sep lanjutan 6): `${kode_spk}-${kode_tujuan}${counter}`.
-//
-// `jalur_key` — BARU, field TEKNIS (bukan diminta eksplisit oleh Guru,
-// tapi WAJIB ada supaya kode di atas tahu baris mana yang jadi sumber
-// kode_tujuan buat jalur 'bahan'/'sewing'/'webbing'/'finishing'). Guru
-// bisa isi baris utk divisi yang belum sempat disambungkan ke kode (mis.
-// Vendor) dengan jalur_key kosong "(hanya referensi)" — baris itu tetap
-// tampil di tabel tapi tidak dipakai generator kode manapun.
-//
-// Group Menu/Sub Menu — 2 kolom LABEL BEBAS (Guru isi sendiri sesuai
-// struktur menu app, mis. "Persiapan Produksi" / "Bahan") — SENGAJA tidak
-// di-hardcode dari daftar menu app (menu bisa berubah), juga SENGAJA tidak
-// di-seed dari tabel referensi 18 pos (arsip 10 Sep lanjutan 9) — Guru
-// yang isi sendiri (keputusan Guru via AskUserQuestion, 12 Sep lanjutan 6).
-//
-// GAP YANG SENGAJA DIBIARKAN: baris (group_menu/sub_menu/jalur_key) masih
-// harus ditambah MANUAL satu-satu lewat form di bawah — belum ada tombol
-// "isi semua divisi sekaligus". Kalau nanti Guru mau semua divisi produksi
-// langsung ada barisnya, tinggal minta di-seed dari tabel 18 pos itu.
+// Baris CUSTOM di luar 10 titik tetap ini (mis. Vendor) tetap bisa
+// ditambah manual lewat form kecil di bawah tabel — jalur_key null, murni
+// referensi selamanya, TIDAK pernah dipakai generator.
+const DAFTAR_MENU_DIVISI = [
+  { jalur_key: 'bahan', nama_menu: 'Persiapan Produksi › Bahan', aktif: true },
+  { jalur_key: 'sewing', nama_menu: 'Persiapan Produksi › Acc Sewing', aktif: true },
+  { jalur_key: 'webbing', nama_menu: 'Persiapan Produksi › Acc Webbing', aktif: true },
+  { jalur_key: 'finishing', nama_menu: 'Persiapan Produksi › Acc Finishing', aktif: true },
+  { jalur_key: 'masalah', nama_menu: 'Persiapan Produksi › Masalah', aktif: false },
+  { jalur_key: 'pp_cutting', nama_menu: 'Proses Produksi › Cutting', aktif: false, tlcKodeSekarang: 'TLC-PTG' },
+  { jalur_key: 'pp_serie', nama_menu: 'Proses Produksi › Serie (Separating)', aktif: false, tlcKodeSekarang: 'TLC-SER' },
+  { jalur_key: 'pp_sewing', nama_menu: 'Proses Produksi › Sewing', aktif: false, tlcKodeSekarang: 'TLC-JHT' },
+  { jalur_key: 'pp_finishing', nama_menu: 'Proses Produksi › Finishing', aktif: false, tlcKodeSekarang: 'TLC-FIN' },
+  { jalur_key: 'pp_gudang', nama_menu: 'Proses Produksi › Gudang Barang Jadi', aktif: false, tlcKodeSekarang: 'TLC-GBJ' }
+];
+
 const AppConfigTlc = {
   setup() {
     const menuId = MENU_ID_CONFIG;
@@ -197,234 +177,184 @@ const AppConfigTlc = {
     const bolehHapus = computed(() => window.cekIzinMenu(menuId, 'delete') !== false);
 
     const memuat = ref(true);
-    const daftar = ref([]);
-    const cari = ref('');
-    const menyimpan = ref(false);
-    const form = reactive({ kode: '', nama: '', tipe: '' });
+    const daftarTlc = ref([]); // master_tlc mentah — sumber saran combobox "Nama TLC"
+    const baris = ref([]); // gabungan DAFTAR_MENU_DIVISI (tetap) + baris custom dari Firestore
 
-    // Kode per Divisi (lihat catatan besar di atas komponen ini). Koleksi
-    // TETAP master_prefix_divisi, skema BARU 6 field.
-    const JALUR_OPSI = [
-      { value: '', label: '(hanya referensi, belum disambung kode)' },
-      { value: 'bahan', label: 'Persiapan Bahan' },
-      { value: 'sewing', label: 'Persiapan Acc Sewing' },
-      { value: 'webbing', label: 'Persiapan Acc Webbing' },
-      { value: 'finishing', label: 'Persiapan Acc Finishing' }
-    ];
-    function labelJalur(key) { return (JALUR_OPSI.find(j => j.value === key) || {}).label || '-'; }
-    const daftarPrefixDivisi = ref([]);
-    const formPrefixDivisi = reactive({ group_menu: '', sub_menu: '', jalur_key: '', nama_tujuan: '', tlc_tujuan: '', kode_tujuan: '' });
-    const menyimpanPrefixDivisi = ref(false);
-    const editIdPrefixDivisi = ref(null);
-    async function muatPrefixDivisi() {
-      try {
-        const snap = await getDocs(collection(db, 'master_prefix_divisi'));
-        const list = [];
-        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-        list.sort((a, b) => (a.group_menu || '').localeCompare(b.group_menu || '') || (a.sub_menu || '').localeCompare(b.sub_menu || ''));
-        daftarPrefixDivisi.value = list;
-      } catch (e) { console.error('Gagal muat master_prefix_divisi:', e); }
-    }
-    function batalEditPrefixDivisi() {
-      editIdPrefixDivisi.value = null;
-      formPrefixDivisi.group_menu = ''; formPrefixDivisi.sub_menu = ''; formPrefixDivisi.jalur_key = '';
-      formPrefixDivisi.nama_tujuan = ''; formPrefixDivisi.tlc_tujuan = ''; formPrefixDivisi.kode_tujuan = '';
-    }
-    function bukaEditPrefixDivisi(item) {
-      editIdPrefixDivisi.value = item.id;
-      formPrefixDivisi.group_menu = item.group_menu || ''; formPrefixDivisi.sub_menu = item.sub_menu || '';
-      formPrefixDivisi.jalur_key = item.jalur_key || ''; formPrefixDivisi.nama_tujuan = item.nama_tujuan || '';
-      formPrefixDivisi.tlc_tujuan = item.tlc_tujuan || ''; formPrefixDivisi.kode_tujuan = item.kode_tujuan || '';
-    }
-    async function simpanPrefixDivisi() {
-      if (!bolehTambah.value) return alert('Anda tidak punya izin menambah/mengubah di sini. Hubungi Owner/PIC.');
-      const groupMenu = formPrefixDivisi.group_menu.trim();
-      const subMenu = formPrefixDivisi.sub_menu.trim();
-      if (!groupMenu) return alert('Isi Group Menu dulu (mis. Persiapan Produksi).');
-      if (!subMenu) return alert('Isi Sub Menu dulu (mis. Bahan).');
-      const kodeTujuan = formPrefixDivisi.kode_tujuan.trim();
-      if (kodeTujuan && !/^\d{1,2}$/.test(kodeTujuan)) return alert('Kode Tujuan wajib angka, maks 2 digit (mis. 12).');
-      const kodeTujuanRapi = kodeTujuan ? kodeTujuan.padStart(2, '0') : '';
-      const jalurKey = formPrefixDivisi.jalur_key;
-      const dup = daftarPrefixDivisi.value.find(d => jalurKey && d.jalur_key === jalurKey && d.id !== editIdPrefixDivisi.value);
-      if (dup) return alert(`Jalur "${labelJalur(jalurKey)}" sudah dipakai baris "${dup.sub_menu}". Satu jalur cuma boleh 1 baris aktif (kosongkan jalur baris lama dulu kalau mau pindah).`);
-      menyimpanPrefixDivisi.value = true;
-      try {
-        const data = {
-          group_menu: groupMenu, sub_menu: subMenu, jalur_key: jalurKey,
-          nama_tujuan: formPrefixDivisi.nama_tujuan.trim(), tlc_tujuan: formPrefixDivisi.tlc_tujuan.trim().toUpperCase(),
-          kode_tujuan: kodeTujuanRapi
-        };
-        if (editIdPrefixDivisi.value) {
-          await setDoc(doc(db, 'master_prefix_divisi', editIdPrefixDivisi.value), data, { merge: true });
-        } else {
-          await addDoc(collection(db, 'master_prefix_divisi'), { ...data, dibuat_pada: serverTimestamp() });
-        }
-        batalEditPrefixDivisi();
-        await muatPrefixDivisi();
-      } catch (e) {
-        console.error('Gagal simpan master_prefix_divisi:', e);
-        // Dugaan kuat kalau errornya permission-denied: Rules Firestore utk
-        // master_prefix_divisi belum di-publish (lihat FONDASI.md).
-        alert('Gagal menyimpan: ' + (e.code || e.message || e) + '\n\nKalau kodenya "permission-denied": Rules Firestore untuk master_prefix_divisi kemungkinan belum di-publish di Firebase Console.');
-      }
-      menyimpanPrefixDivisi.value = false;
-    }
-    async function hapusPrefixDivisi(item) {
-      if (!bolehHapus.value) return alert('Anda tidak punya izin menghapus di sini. Hubungi Owner/PIC.');
-      if (!confirm(`Hapus baris "${item.group_menu} > ${item.sub_menu}"?`)) return;
-      try { await deleteDoc(doc(db, 'master_prefix_divisi', item.id)); if (editIdPrefixDivisi.value === item.id) batalEditPrefixDivisi(); await muatPrefixDivisi(); }
-      catch (e) { console.error('Gagal hapus master_prefix_divisi:', e); alert('Gagal menghapus.'); }
-    }
-
-    // Prefix Kode SPK — BARU (5 Sep 2026), lihat catatan panjang di atas.
-    // Default tampil "SPK" kalau doc config belum pernah dibuat (SAMA
-    // seperti fallback yang sudah dipakai generateKodeSpkGrouping()).
-    const prefixSpk = ref('');
-    const menyimpanPrefix = ref(false);
-    async function muatPrefixSpk() {
-      try {
-        const snap = await getDoc(doc(db, 'pengaturan_id_spk_grouping', 'config'));
-        prefixSpk.value = snap.exists() ? (snap.data().prefix || 'SPK') : 'SPK';
-      } catch (e) { console.error('Gagal muat prefix SPK:', e); prefixSpk.value = 'SPK'; }
-    }
-    async function simpanPrefixSpk() {
-      if (!bolehTambah.value) return alert('Anda tidak punya izin mengubah pengaturan ini. Hubungi Owner/PIC.');
-      const nilai = prefixSpk.value.trim().toUpperCase();
-      if (!nilai) return alert('Isi Prefix Kode SPK dulu (contoh: SPK).');
-      menyimpanPrefix.value = true;
-      try {
-        await setDoc(doc(db, 'pengaturan_id_spk_grouping', 'config'), { prefix: nilai }, { merge: true });
-        prefixSpk.value = nilai;
-        alert('Prefix Kode SPK tersimpan.');
-      } catch (e) { console.error('Gagal simpan prefix SPK:', e); alert('Gagal menyimpan.'); }
-      menyimpanPrefix.value = false;
+    function barisKosong(d) {
+      return {
+        jalur_key: d.jalur_key, nama_menu: d.nama_menu, aktif: !!d.aktif,
+        tlcKodeSekarang: d.tlcKodeSekarang || '', custom: false, id: d.jalur_key,
+        namaTlc: '', tlcTujuan: '', kodeTujuan: '', menyimpan: false, cariTerbuka: false, kataCari: ''
+      };
     }
 
     async function muat() {
       memuat.value = true;
       try {
-        const snap = await getDocs(collection(db, 'master_tlc'));
-        const list = [];
-        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-        list.sort((a, b) => (a.kode || '').localeCompare(b.kode || ''));
-        daftar.value = list;
-      } catch (e) { console.error('Gagal muat master_tlc:', e); }
+        const [snapTlc, snapDivisi] = await Promise.all([
+          getDocs(collection(db, 'master_tlc')),
+          getDocs(collection(db, 'master_prefix_divisi'))
+        ]);
+        const listTlc = [];
+        snapTlc.forEach(d => listTlc.push({ id: d.id, ...d.data() }));
+        listTlc.sort((a, b) => (a.kode || '').localeCompare(b.kode || ''));
+        daftarTlc.value = listTlc;
+
+        // Doc id = jalur_key utk 10 baris tetap (deterministik, tidak
+        // pernah duplikat) — doc dengan id LAIN dianggap baris custom.
+        const petaDivisi = {};
+        const customDocs = [];
+        snapDivisi.forEach(d => {
+          const data = d.data();
+          const tetap = DAFTAR_MENU_DIVISI.find(x => x.jalur_key === d.id);
+          if (tetap) petaDivisi[d.id] = data; else customDocs.push({ id: d.id, ...data });
+        });
+
+        const daftarTetap = DAFTAR_MENU_DIVISI.map(d => {
+          const b = barisKosong(d);
+          const data = petaDivisi[d.jalur_key];
+          if (data) { b.namaTlc = data.nama_tlc || ''; b.tlcTujuan = data.tlc_tujuan || ''; b.kodeTujuan = data.kode_tujuan || ''; }
+          return b;
+        });
+        const daftarCustom = customDocs.map(d => ({
+          jalur_key: null, nama_menu: d.nama_menu || '(tanpa nama)', aktif: false, tlcKodeSekarang: '', custom: true, id: d.id,
+          namaTlc: d.nama_tlc || '', tlcTujuan: d.tlc_tujuan || '', kodeTujuan: d.kode_tujuan || '', menyimpan: false, cariTerbuka: false, kataCari: ''
+        }));
+        baris.value = [...daftarTetap, ...daftarCustom];
+      } catch (e) { console.error('Gagal muat TLC & Prefix:', e); }
       memuat.value = false;
     }
 
-    const daftarTersaring = computed(() => {
-      const kata = cari.value.trim().toLowerCase();
-      if (!kata) return daftar.value;
-      return daftar.value.filter(d => (d.kode || '').toLowerCase().includes(kata) || (d.nama || '').toLowerCase().includes(kata));
-    });
+    // --- Combobox "Nama TLC" per baris. DropdownCari (vue-components.js)
+    // TIDAK dipakai — komponen itu strict-select 1 field string, sedangkan
+    // di sini butuh 2 field sekaligus (nama+kode) DAN mode "buat baru
+    // kalau belum ada" (jawaban Guru), jadi ditulis sendiri, pola SAMA
+    // (kotak ketik+filter+panel saran) seperti DropdownCari. ---
+    function saranTlc(row) {
+      const kata = (row.kataCari || '').trim().toLowerCase();
+      if (!kata) return daftarTlc.value;
+      return daftarTlc.value.filter(t => (t.nama || '').toLowerCase().includes(kata) || (t.kode || '').toLowerCase().includes(kata));
+    }
+    function bukaCari(row) { row.kataCari = ''; row.cariTerbuka = true; }
+    function tutupCariTunda(row) {
+      // @mousedown.prevent di opsi (pilihTlc) membuat cariTerbuka sudah
+      // false SEBELUM timeout ini jalan — kalau begitu, jangan timpa lagi
+      // (kataCari sudah dikosongkan pilihTlc). Kalau masih terbuka (user
+      // blur tanpa klik saran), commit teks yang diketik jadi Nama TLC
+      // baru supaya tidak hilang diam-diam (dukung alur "ketik nama baru").
+      setTimeout(() => {
+        if (!row.cariTerbuka) return;
+        const kata = (row.kataCari || '').trim();
+        if (kata) row.namaTlc = kata;
+        row.cariTerbuka = false;
+      }, 150);
+    }
+    function pilihTlc(row, t) {
+      row.namaTlc = t.nama; row.tlcTujuan = t.kode;
+      row.cariTerbuka = false; row.kataCari = '';
+    }
 
-    async function tambah() {
-      if (!bolehTambah.value) return alert('Anda tidak punya izin menambah di sini. Hubungi Owner/PIC.');
-      const kode = form.kode.trim();
-      if (!kode) return alert('Kode TLC wajib diisi (mis. TLC-PTG-01).');
-      if (daftar.value.some(d => (d.kode || '').toLowerCase() === kode.toLowerCase())) return alert(`Kode TLC "${kode}" sudah ada.`);
-      menyimpan.value = true;
+    async function simpanBaris(row) {
+      if (!bolehTambah.value) return alert('Anda tidak punya izin menyimpan di sini. Hubungi Owner/PIC.');
+      // Baca langsung dari kataCari kalau combobox masih terbuka saat
+      // tombol Simpan diklik (blur belum sempat commit, lihat tutupCariTunda).
+      const namaTlc = (row.cariTerbuka ? row.kataCari : row.namaTlc).trim();
+      const tlcTujuan = row.tlcTujuan.trim().toUpperCase();
+      const kodeTujuan = row.kodeTujuan.trim();
+      if (kodeTujuan && !/^\d{1,2}$/.test(kodeTujuan)) return alert('Kode Tujuan wajib angka, maks 2 digit (mis. 12).');
+      const kodeTujuanRapi = kodeTujuan ? kodeTujuan.padStart(2, '0') : '';
+      if ((namaTlc && !tlcTujuan) || (!namaTlc && tlcTujuan)) return alert('Nama TLC dan TLC Tujuan wajib diisi berdua, atau dikosongkan berdua.');
+      row.menyimpan = true;
       try {
-        await addDoc(collection(db, 'master_tlc'), { kode, nama: form.nama.trim(), tipe: form.tipe.trim(), dibuat_pada: serverTimestamp() });
-        form.kode = ''; form.nama = ''; form.tipe = '';
+        // Buat entry master_tlc baru OTOMATIS kalau kode-nya belum ada di
+        // daftar (jawaban Guru: "dropdown + bisa buat baru sekalian").
+        if (tlcTujuan && !daftarTlc.value.some(t => (t.kode || '').toLowerCase() === tlcTujuan.toLowerCase())) {
+          await addDoc(collection(db, 'master_tlc'), { kode: tlcTujuan, nama: namaTlc, tipe: '', dibuat_pada: serverTimestamp() });
+        }
+        const data = { nama_menu: row.nama_menu, nama_tlc: namaTlc, tlc_tujuan: tlcTujuan, kode_tujuan: kodeTujuanRapi };
+        await setDoc(doc(db, 'master_prefix_divisi', row.id), data, { merge: true });
         await muat();
-      } catch (e) { console.error('Gagal tambah master_tlc:', e); alert('Gagal menyimpan.'); }
-      menyimpan.value = false;
+      } catch (e) {
+        console.error('Gagal simpan master_prefix_divisi:', e);
+        alert('Gagal menyimpan: ' + (e.code || e.message || e) + '\n\nKalau kodenya "permission-denied": Rules Firestore untuk master_prefix_divisi kemungkinan belum di-publish di Firebase Console.');
+        row.menyimpan = false;
+      }
     }
 
-    async function hapus(item) {
+    // --- Baris custom di luar 10 titik tetap (mis. Vendor) ---
+    const formCustom = reactive({ nama_menu: '' });
+    const menyimpanCustom = ref(false);
+    async function tambahCustom() {
+      if (!bolehTambah.value) return alert('Anda tidak punya izin menambah di sini. Hubungi Owner/PIC.');
+      const namaMenu = formCustom.nama_menu.trim();
+      if (!namaMenu) return alert('Isi Nama Menu/Divisi dulu.');
+      menyimpanCustom.value = true;
+      try {
+        await addDoc(collection(db, 'master_prefix_divisi'), { nama_menu: namaMenu, nama_tlc: '', tlc_tujuan: '', kode_tujuan: '', dibuat_pada: serverTimestamp() });
+        formCustom.nama_menu = '';
+        await muat();
+      } catch (e) { console.error('Gagal tambah baris custom:', e); alert('Gagal menyimpan.'); }
+      menyimpanCustom.value = false;
+    }
+    async function hapusCustom(row) {
       if (!bolehHapus.value) return alert('Anda tidak punya izin menghapus di sini. Hubungi Owner/PIC.');
-      if (!confirm(`Hapus kode TLC "${item.kode}"? Kode tugas yang SUDAH pernah dicetak memakai kode ini TIDAK ikut berubah.`)) return;
-      try { await deleteDoc(doc(db, 'master_tlc', item.id)); await muat(); }
-      catch (e) { console.error('Gagal hapus master_tlc:', e); alert('Gagal menghapus.'); }
+      if (!confirm(`Hapus baris "${row.nama_menu}"?`)) return;
+      try { await deleteDoc(doc(db, 'master_prefix_divisi', row.id)); await muat(); }
+      catch (e) { console.error('Gagal hapus baris custom:', e); alert('Gagal menghapus.'); }
     }
 
-    onMounted(async () => { await window.authReady; await Promise.all([muat(), muatPrefixSpk(), muatPrefixDivisi()]); });
+    onMounted(async () => { await window.authReady; await muat(); });
     return {
-      memuat, daftarTersaring, daftar, cari, form, menyimpan, bolehTambah, bolehHapus, tambah, hapus,
-      prefixSpk, menyimpanPrefix, simpanPrefixSpk,
-      JALUR_OPSI, labelJalur, daftarPrefixDivisi, formPrefixDivisi, menyimpanPrefixDivisi, editIdPrefixDivisi,
-      simpanPrefixDivisi, hapusPrefixDivisi, bukaEditPrefixDivisi, batalEditPrefixDivisi
+      memuat, baris, bolehTambah, bolehHapus,
+      saranTlc, bukaCari, tutupCariTunda, pilihTlc, simpanBaris,
+      formCustom, menyimpanCustom, tambahCustom, hapusCustom
     };
   },
   template: `
     <div>
       <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">TLC &amp; Prefix</label>
-      <p style="font-size:11px; color:var(--text-faint); margin:-4px 0 10px;">Daftar titik TLC (tempat) yang dipakai sebagai asal/tujuan tiap kode tugas — kode-nya sendiri sudah berformat prefix (mis. TLC-PTG-01).</p>
+      <p style="font-size:11px; color:var(--text-faint); margin:-4px 0 10px;">1 baris = 1 titik/menu yang punya kode tugas sendiri. <b>Nama TLC</b> = cari &amp; pilih titik TLC yang sudah ada, atau ketik nama baru (otomatis dibuatkan entry-nya). <b>TLC Tujuan</b> = kode TLC-nya, muncul di label cetak (di bawahnya diikuti kode tugas). <b>Kode Tujuan</b> (2 digit) dipakai gabung ke kode SPK Grouping utk label+query scan QR (mis. kode_spk <code>G26R0912P001</code> + kode tujuan <code>12</code> + urutan baris &rarr; <code>G26R0912P001-1201</code>) — <b>cuma benar-benar dipakai generator</b> utk 4 baris "Persiapan Produksi" teratas (tanda hijau); baris lain aman diisi/dikosongkan sebagai referensi dulu.</p>
 
-      <div class="gc-card" style="margin-bottom:14px; padding:12px 14px;">
-        <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Prefix Kode SPK <span class="tag warn" style="font-weight:700; margin-left:4px;">tidak dipakai lagi</span></label>
-        <p style="font-size:10.5px; color:var(--text-faint); margin:0 0 8px;">Sejak redesain 12 Sep 2026, format kode SPK Grouping SUDAH TETAP <code>G{{'{'}}YY{{'}'}}R{{'{'}}MMDD{{'}'}}P{{'{'}}counter{{'}'}}</code> (contoh: G26R0912P001) — field prefix di bawah ini TIDAK dibaca kode manapun lagi. Dibiarkan tampil (bukan dihapus) supaya nilai lama tidak hilang diam-diam; aman diabaikan.</p>
-        <div style="display:flex; gap:6px; max-width:280px;">
-          <input v-model="prefixSpk" type="text" placeholder="Contoh: SPK" style="flex:1; text-transform:uppercase; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <button v-if="bolehTambah" @click="simpanPrefixSpk" :disabled="menyimpanPrefix" class="btn-primary" style="padding:0 16px;">Simpan</button>
-        </div>
-      </div>
-
-      <div class="gc-card" style="margin-bottom:14px; padding:12px 14px;">
-        <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Kode per Divisi (nama tujuan · TLC tujuan · kode tujuan)</label>
-        <p style="font-size:10.5px; color:var(--text-faint); margin:0 0 8px;">1 baris = 1 menu/divisi. <b>Nama Tujuan</b> &amp; <b>TLC Tujuan</b> = teks bebas, buat dropdown &amp; cetak biar gampang dibaca operator. <b>Kode Tujuan</b> (2 digit) = penomoran yang JOIN ke kode SPK Grouping (mis. kode_spk <code>G26R0912P001</code> + kode tujuan <code>12</code> + urutan baris &rarr; <code>G26R0912P001-1201</code>). Pilih <b>Jalur</b> kalau baris ini mau otomatis dipakai kode anak SPK di Persiapan Bahan/Acc Sewing/Webbing/Finishing — kosongkan kalau sekadar catatan.</p>
-        <div v-if="bolehTambah" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
-          <input v-model="formPrefixDivisi.group_menu" type="text" placeholder="Group Menu (mis. Persiapan Produksi)" style="flex:1; min-width:150px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <input v-model="formPrefixDivisi.sub_menu" type="text" placeholder="Sub Menu (mis. Bahan)" style="flex:1; min-width:120px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <select v-model="formPrefixDivisi.jalur_key" style="min-width:150px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-            <option v-for="j in JALUR_OPSI" :key="j.value" :value="j.value">{{ j.label }}</option>
-          </select>
-          <input v-model="formPrefixDivisi.nama_tujuan" type="text" placeholder="Nama Tujuan" style="flex:1; min-width:120px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <input v-model="formPrefixDivisi.tlc_tujuan" type="text" maxlength="10" placeholder="TLC Tujuan (mis. PBI)" style="width:130px; text-transform:uppercase; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <input v-model="formPrefixDivisi.kode_tujuan" type="text" maxlength="2" placeholder="Kode (mis. 12)" style="width:90px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-          <button @click="simpanPrefixDivisi" :disabled="menyimpanPrefixDivisi" class="btn-primary" style="padding:0 16px;">{{ editIdPrefixDivisi ? 'Simpan' : 'Tambah' }}</button>
-          <button v-if="editIdPrefixDivisi" @click="batalEditPrefixDivisi" class="btn-outline" style="padding:0 14px;">Batal</button>
-        </div>
-        <div v-if="daftarPrefixDivisi.length === 0" style="font-size:11px; color:var(--text-faint);">Belum ada baris divisi terdaftar.</div>
-        <div v-else class="gc-table-scroll">
-          <table class="gc-table">
-            <thead><tr><th>Group Menu</th><th>Sub Menu</th><th>Jalur</th><th>Nama Tujuan</th><th>TLC Tujuan</th><th>Kode</th><th style="width:70px;">Aksi</th></tr></thead>
-            <tbody>
-              <tr v-for="d in daftarPrefixDivisi" :key="d.id">
-                <td>{{ d.group_menu }}</td>
-                <td>{{ d.sub_menu }}</td>
-                <td><span v-if="d.jalur_key" class="tag ok">{{ labelJalur(d.jalur_key) }}</span><span v-else style="color:var(--text-faint);">-</span></td>
-                <td>{{ d.nama_tujuan || '-' }}</td>
-                <td>{{ d.tlc_tujuan || '-' }}</td>
-                <td style="font-weight:700;">{{ d.kode_tujuan || '-' }}</td>
-                <td style="white-space:nowrap;">
-                  <button @click="bukaEditPrefixDivisi(d)" class="icon-btn" title="Ubah"><i class="fas fa-pen"></i></button>
-                  <button v-if="bolehHapus" @click="hapusPrefixDivisi(d)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div v-if="bolehTambah" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
-        <input v-model="form.kode" @keyup.enter="tambah" type="text" placeholder="Kode TLC (mis. TLC-PTG-01)" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-        <input v-model="form.nama" @keyup.enter="tambah" type="text" placeholder="Nama/Deskripsi (mis. Potong - meja 1)" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-        <input v-model="form.tipe" @keyup.enter="tambah" type="text" placeholder="Tipe (opsional)" style="flex:1; min-width:110px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
-        <button @click="tambah" :disabled="menyimpan" class="btn-primary" style="padding:0 16px;"><i class="fas fa-plus"></i></button>
-      </div>
-      <div style="position:relative; max-width:280px; margin-bottom:10px;">
-        <i class="fas fa-search" style="position:absolute; left:11px; top:9px; color:var(--text-faint); font-size:11px;"></i>
-        <input v-model="cari" type="text" placeholder="Cari kode/nama..." style="width:100%; padding:7px 10px 7px 28px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:11.5px; outline:none; box-sizing:border-box;">
-      </div>
       <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
       <div v-else class="gc-table-scroll">
         <table class="gc-table">
-          <thead><tr><th style="width:48px;">No</th><th>Kode TLC</th><th>Nama/Deskripsi</th><th>Tipe</th><th style="width:70px;">Aksi</th></tr></thead>
+          <thead><tr><th>Nama Menu/Divisi</th><th style="min-width:170px;">Nama TLC</th><th style="width:130px;">TLC Tujuan</th><th style="width:90px;">Kode Tujuan</th><th style="width:90px;">Aksi</th></tr></thead>
           <tbody>
-            <tr v-if="daftar.length === 0"><td colspan="5" style="color:var(--text-faint); font-size:11px;">Belum ada data.</td></tr>
-            <tr v-else-if="daftarTersaring.length === 0"><td colspan="5" style="color:var(--text-faint); font-size:11px;">Tidak ada yang cocok dicari.</td></tr>
-            <tr v-for="(d, i) in daftarTersaring" :key="d.id">
-              <td>{{ i + 1 }}</td>
-              <td style="font-weight:700;">{{ d.kode }}</td>
-              <td>{{ d.nama || '-' }}</td>
-              <td>{{ d.tipe || '-' }}</td>
-              <td><button v-if="bolehHapus" @click="hapus(d)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button></td>
+            <tr v-for="row in baris" :key="row.id">
+              <td>
+                {{ row.nama_menu }}
+                <span v-if="row.aktif" class="tag ok" style="margin-left:6px;">aktif &rarr; kode anak SPK</span>
+                <span v-else-if="!row.custom" class="tag" style="margin-left:6px; color:var(--text-faint);">referensi</span>
+                <div v-if="row.tlcKodeSekarang" style="font-size:9.5px; color:var(--text-faint); margin-top:2px;">kode di app sekarang: <code>{{ row.tlcKodeSekarang }}</code></div>
+              </td>
+              <td style="position:relative;">
+                <input
+                  :value="row.cariTerbuka ? row.kataCari : row.namaTlc"
+                  @input="row.kataCari = $event.target.value"
+                  @focus="bukaCari(row)"
+                  @blur="tutupCariTunda(row)"
+                  type="text" placeholder="Cari/ketik nama TLC..."
+                  style="width:100%; padding:6px 8px; border:1.5px solid var(--line); border-radius:8px; font-size:11.5px; background:var(--ivory-dim); box-sizing:border-box;">
+                <div v-if="row.cariTerbuka && saranTlc(row).length" class="gc-card" style="position:absolute; z-index:20; top:100%; left:0; right:0; max-height:160px; overflow-y:auto; padding:4px; margin-top:2px;">
+                  <div v-for="t in saranTlc(row)" :key="t.id" @mousedown.prevent="pilihTlc(row, t)" style="padding:6px 8px; font-size:11px; cursor:pointer; border-radius:6px;" onmouseover="this.style.background='var(--ivory-dim)'" onmouseout="this.style.background='transparent'">
+                    <b>{{ t.nama }}</b> <span style="color:var(--text-faint);">({{ t.kode }})</span>
+                  </div>
+                </div>
+              </td>
+              <td><input v-model="row.tlcTujuan" type="text" maxlength="14" placeholder="mis. TLC-PBI-01" style="width:100%; text-transform:uppercase; padding:6px 8px; border:1.5px solid var(--line); border-radius:8px; font-size:11.5px; box-sizing:border-box;"></td>
+              <td><input v-model="row.kodeTujuan" type="text" maxlength="2" placeholder="12" style="width:100%; padding:6px 8px; border:1.5px solid var(--line); border-radius:8px; font-size:11.5px; box-sizing:border-box;"></td>
+              <td style="white-space:nowrap;">
+                <button v-if="bolehTambah" @click="simpanBaris(row)" :disabled="row.menyimpan" class="btn-primary" style="padding:5px 10px; font-size:11px;">Simpan</button>
+                <button v-if="row.custom && bolehHapus" @click="hapusCustom(row)" class="icon-btn" style="color:var(--danger);" title="Hapus baris"><i class="fas fa-trash-alt"></i></button>
+              </td>
             </tr>
           </tbody>
         </table>
+      </div>
+
+      <div v-if="bolehTambah" style="display:flex; gap:6px; margin-top:12px; flex-wrap:wrap;">
+        <input v-model="formCustom.nama_menu" @keyup.enter="tambahCustom" type="text" placeholder="Tambah baris lain (mis. Vendor Sablon)" style="flex:1; min-width:200px; padding:7px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+        <button @click="tambahCustom" :disabled="menyimpanCustom" class="btn-primary" style="padding:0 16px;"><i class="fas fa-plus"></i> Baris Lain</button>
       </div>
     </div>
   `
