@@ -203,7 +203,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=7';
-import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal } from './vue-scan-cetak.js?v=4';
+import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=5';
 
 // --- Format & hitung kecil (disalin pola dari Cutting/Serie, belum ada
 // infrastruktur util generik lintas file). ----------------------------------
@@ -388,13 +388,23 @@ const SewingPerluDiProses = {
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
+    // unpackEnrich — BARU (12 Sep lanjutan 3), tutup gap badge "Unpack" yang
+    // selalu kosong sejak buatUnpackUniversal() berhenti menulis t.unpack_log.
+    // Kunci: t.kode_batch (string, sama persis dgn bagging.kode_batch yang
+    // ditulis Serie Tab 2.3 "Kirim Sewing" — lebih presisi drpd t.kode_spk yang
+    // array, bisa >1 grouping kalau batch hasil gabungan). Lihat
+    // ambilStatusUnpackBagging() di vue-scan-cetak.js.
+    const unpackEnrich = ref({});
     const menuId = 'proses_sewing';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
     const bolehOperator = computed(() => picOwnerKeAtas(window.currentUser));
 
     async function muat() {
       memuat.value = true;
-      try { daftar.value = (await pastikanSewingTrackLengkap()).filter(t => t.status === 'perlu_diproses'); }
+      try {
+        daftar.value = (await pastikanSewingTrackLengkap()).filter(t => t.status === 'perlu_diproses');
+        unpackEnrich.value = await ambilStatusUnpackBagging('kode_batch', 'kode_batch_asal', daftar.value.map(t => t.kode_batch));
+      }
       catch (e) { console.error('Gagal muat Sewing > Perlu Di Proses:', e); daftar.value = []; }
       memuat.value = false;
     }
@@ -524,7 +534,7 @@ const SewingPerluDiProses = {
     onMounted(async () => { await window.authReady; await muat(); });
 
     return {
-      memuat, daftar, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
+      memuat, daftar, unpackEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
       modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack,
       popupPinOperator, bukaTunjukOperator, pinSuksesOperator,
@@ -563,8 +573,8 @@ const SewingPerluDiProses = {
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <button v-if="bolehOperator" @click="bukaTunjukOperator(t)" :disabled="!t.terima_pada" class="btn-outline" style="flex:1; padding:8px; font-size:11.5px;" :style="{ opacity: t.terima_pada ? 1 : .5 }"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator</button>
           </div>
-          <div v-if="t.unpack_log && t.unpack_log.length" style="margin-top:8px; font-size:10.5px; color:var(--text-faint);">
-            Unpack: <span v-for="(u,i) in t.unpack_log" :key="i" class="tag" :class="u.status==='komplit' ? 'ok' : 'warn'" style="margin-right:4px;">{{ u.kode_bagging }}: {{ u.status }}</span>
+          <div v-if="(unpackEnrich[t.kode_batch] || []).length" style="margin-top:8px; font-size:10.5px; color:var(--text-faint);">
+            Unpack: <span v-for="(u,i) in unpackEnrich[t.kode_batch]" :key="i" class="tag" :class="u.unpack_hasil==='komplit' ? 'ok' : (u.unpack_hasil==='inkomplit' ? 'warn' : 'neutral')" style="margin-right:4px;">{{ u.kode }}: {{ u.unpack_hasil || 'belum' }}</span>
           </div>
         </div>
       </div>

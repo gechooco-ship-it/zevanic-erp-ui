@@ -184,7 +184,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=7';
-import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal } from './vue-scan-cetak.js?v=4';
+import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal } from './vue-scan-cetak.js?v=5';
 
 // --- Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan
 // Produksi, belum ada infrastruktur util generik lintas file). -------------
@@ -320,6 +320,22 @@ async function ambilPetaProdukBySku() {
   } catch (e) { console.error('Gagal ambil master_produk:', e); }
   _cachePetaProduk = peta;
   return peta;
+}
+// resolveWarnaGrouping — BARU (12 Sep 2026 lanjutan 3, tutup gap "harus
+// sewarna" yang sengaja ditunda di keputusan §6 komentar besar atas file:
+// dulu tidak diimplementasi karena resolve SKU->master_produk dianggap
+// "lebih mahal", sekarang helper itu SUDAH ada (ambilPetaProdukBySku,
+// dipakai konfirmasiGenerate utk cek MOQ) jadi tinggal dipakai ulang.
+// Ambil SKU PERTAMA grouping (pola sama seperti skuContoh di
+// konfirmasiGenerate) -> master_produk.warna. Return '' kalau tidak bisa
+// diresolve (SKU kosong / produk tidak ketemu) -- SENGAJA tidak dianggap
+// "cocok paksa" ataupun "tolak paksa", ditangani di pemanggil (lihat
+// bukaGenerate: kalau warna tidak bisa diresolve, filter warna DILEWATI,
+// bukan bikin daftar kosong karena data induk tidak lengkap).
+function resolveWarnaGrouping(g, petaProduk) {
+  const sku = (g.sku_produk_terlibat || [])[0];
+  const p = sku ? petaProduk[sku] : null;
+  return ((p && p.warna) || '').trim();
 }
 // updateSeparatingBatch — read-modify-write ATOMIK, pola sama seperti
 // updateCuttingTrack()/updateBarisBahan() di modul lain.
@@ -561,11 +577,22 @@ const SeriePerluDiProses = {
     // --- Tunjuk Operator Ampar (SESUNGGUHNYA "Scan Operator" generate
     // separating -- lihat popup 2.1a untuk aksi penuh). Popup Generate
     // Separating (2.1a). ------------------------------------------------------
-    const popupGenerate = ref(null); // { calon:[grouping...], centang:{}, jumlahBatch, isiPcsPerBundle }
-    function bukaGenerate(gAwal) {
-      const calon = daftarGrouping.value.filter(g => g.nama_produk === gAwal.nama_produk && g.size === gAwal.size && bisaGenerate(g));
+    const popupGenerate = ref(null); // { calon:[grouping...], centang:{}, jumlahBatch, isiPcsPerBundle, warna }
+    // bukaGenerate — BARU jadi async (12 Sep lanjutan 3): tutup gap "harus
+    // sewarna" (lihat keputusan §6 komentar besar atas file + resolveWarnaGrouping
+    // di atas). Kalau warna gAwal BISA diresolve, daftar calon disaring JUGA per
+    // warna (di luar nama_produk+size yang sudah ada) -- SPK beda warna jadi
+    // tidak akan pernah muncul buat dicentang, bukan cuma diperingatkan. Kalau
+    // warna gAwal TIDAK bisa diresolve (SKU/produk tidak ketemu), filter warna
+    // DILEWATI (fallback ke perilaku lama nama_produk+size saja) supaya data
+    // induk yang belum lengkap tidak diam-diam menyembunyikan SPK yang valid.
+    async function bukaGenerate(gAwal) {
+      const petaProduk = await ambilPetaProdukBySku();
+      const warnaAwal = resolveWarnaGrouping(gAwal, petaProduk);
+      const calon = daftarGrouping.value.filter(g => g.nama_produk === gAwal.nama_produk && g.size === gAwal.size
+        && (!warnaAwal || resolveWarnaGrouping(g, petaProduk) === warnaAwal) && bisaGenerate(g));
       const centang = {}; calon.forEach(g => { centang[g.id] = (g.id === gAwal.id); });
-      popupGenerate.value = { calon, centang, jumlahBatch: 1, isiPcsPerBundle: 0 };
+      popupGenerate.value = { calon, centang, jumlahBatch: 1, isiPcsPerBundle: 0, warna: warnaAwal };
     }
     function batalGenerate() { popupGenerate.value = null; }
     const totalQtyCentang = computed(() => {
@@ -578,6 +605,15 @@ const SeriePerluDiProses = {
       if (!p) return;
       const dipilih = p.calon.filter(g => p.centang[g.id]);
       if (!dipilih.length) { alert('Pilih minimal 1 SPK Grouping.'); return; }
+      // Jaga-jaga "harus sewarna" (defense-in-depth) -- calon SUDAH disaring per
+      // warna di bukaGenerate, jadi ini seharusnya tidak pernah kena kecuali
+      // popupGenerate dibiarkan terbuka lama & master_produk berubah di tengah
+      // jalan. Cuma jalan kalau p.warna berhasil diresolve (lihat bukaGenerate).
+      if (p.warna) {
+        const petaProdukCekWarna = await ambilPetaProdukBySku();
+        const beda = dipilih.find(g => resolveWarnaGrouping(g, petaProdukCekWarna) !== p.warna);
+        if (beda) { alert(`SPK Grouping "${beda.kode_spk}" warnanya beda dari yang lain (harus sewarna). Batal, buka ulang Generate Separating.`); return; }
+      }
       const jumlahBatch = parseInt(p.jumlahBatch) || 0;
       const isiPcs = parseFloat(p.isiPcsPerBundle) || 0;
       if (jumlahBatch <= 0 || isiPcs <= 0) { alert('Jumlah batch dan isi pcs per bundle wajib diisi (>0).'); return; }
@@ -734,7 +770,7 @@ const SeriePerluDiProses = {
       <div class="gc-card" style="max-width:480px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Generate Separating</h3>
         <div style="background:var(--ivory-dim); border-radius:10px; padding:10px; margin-bottom:10px;">
-          <div style="font-size:10px; color:var(--text-faint); margin-bottom:6px;">SPK TERPILIH (centang yang bahan+warna+size sama)</div>
+          <div style="font-size:10px; color:var(--text-faint); margin-bottom:6px;">SPK TERPILIH (bahan+warna+size sama{{ popupGenerate.warna ? (' — warna: ' + popupGenerate.warna) : '' }})</div>
           <div v-for="g in popupGenerate.calon" :key="g.id" style="display:flex; align-items:center; gap:8px; padding:4px 0; font-size:11.5px;">
             <input type="checkbox" v-model="popupGenerate.centang[g.id]">
             <span style="flex:1;">{{ g.kode_spk }}</span>

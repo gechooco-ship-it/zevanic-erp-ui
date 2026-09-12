@@ -336,9 +336,18 @@ export function buatUnpackUniversal() {
       return false;
     }
     const now = new Date().toISOString();
+    // kode_spk_asal/kode_batch_asal — BARU (12 Sep lanjutan 3, tutup gap badge
+    // "Unpack" pp-cutting.js/pp-sewing.js yang selalu kosong). kode_spk/
+    // kode_batch DINULKAN di sini (melepas kaitan root1/root2, tetap seperti
+    // semula), tapi nilai SEBELUM dinulkan disalin dulu ke *_asal supaya layar
+    // yang mau menampilkan "bagging ini pernah punya SPK/batch apa" (badge
+    // riwayat di track) masih bisa query walau linknya sudah dilepas. *_asal
+    // TIDAK PERNAH dipakai buat validasi/kunci (itu tetap cuma kode_spk/
+    // kode_batch aktif) — murni field baca-saja untuk histori tampilan.
     try {
       await updateDoc(doc(db, 'bagging', b.id), {
         kode_spk: null, kode_batch: null,
+        kode_spk_asal: b.kode_spk ?? null, kode_batch_asal: b.kode_batch ?? null,
         unpack_hasil: cocokSemua ? 'komplit' : 'inkomplit',
         unpack_pada: now, unpack_oleh: window.currentUser?.email || null,
         unpack_dicocokkan: modalUnpack.dicocokkan.slice(),
@@ -346,12 +355,50 @@ export function buatUnpackUniversal() {
         unpack_hilang: hilang
       });
       modalUnpack.log.unshift('Bagging ' + (b.kode || '') + ' ditutup: ' + (cocokSemua ? 'KOMPLIT' : `INKOMPLIT (${hilang.length} hilang, ${modalUnpack.asing.length} asing)`));
-      modalUnpack.bagging = { ...b, kode_spk: null, kode_batch: null, unpack_hasil: cocokSemua ? 'komplit' : 'inkomplit' };
+      modalUnpack.bagging = { ...b, kode_spk: null, kode_batch: null, kode_spk_asal: b.kode_spk ?? null, kode_batch_asal: b.kode_batch ?? null, unpack_hasil: cocokSemua ? 'komplit' : 'inkomplit' };
       return true;
     } catch (e) { console.error('Gagal menutup Scan Unpack:', e); alert('Gagal menyimpan. Coba lagi.'); return false; }
   }
 
   return { modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack };
+}
+
+// ---------------------------------------------------------------------------
+// ambilStatusUnpackBagging — BARU (12 Sep lanjutan 3), dipakai bersama oleh
+// badge "Unpack" pp-cutting.js (kunci: kode_spk, string) & pp-sewing.js
+// (kunci: kode_batch, string) — dua-duanya sama-sama butuh "cari semua bagging
+// yang PERNAH terkait nilai kunci X, aktif ATAU sudah di-unpack" supaya badge
+// tidak balik kosong begitu bagging.kode_spk/kode_batch dinulkan tutupUnpack().
+// Query 2x (field aktif + field *_asal, lihat tutupUnpack di atas), digabung &
+// dedupe by doc id (bagging yang baru saja ditutup bisa kena kedua query kalau
+// race, makanya dedupe). Di-chunk 10 nilai/query (batas Firestore 'in').
+// Return: { [nilaiKunci]: [{kode, unpack_hasil}, ...] } — nilaiKunci yang
+// tidak ketemu bagging apapun tetap ada sebagai array kosong (supaya template
+// tidak perlu `|| []` di tiap pemakaian).
+// ---------------------------------------------------------------------------
+export async function ambilStatusUnpackBagging(fieldAktif, fieldAsal, nilaiList) {
+  const nilaiUnik = [...new Set((nilaiList || []).filter(Boolean))];
+  const peta = {};
+  nilaiUnik.forEach(n => { peta[n] = []; });
+  if (!nilaiUnik.length) return peta;
+  const dedupe = new Map(); // doc.id -> {nilai, kode, unpack_hasil}
+  async function ambil(field) {
+    for (let i = 0; i < nilaiUnik.length; i += 10) {
+      const chunk = nilaiUnik.slice(i, i + 10);
+      try {
+        const snap = await getDocs(query(collection(db, 'bagging'), where(field, 'in', chunk)));
+        snap.forEach(d => {
+          if (dedupe.has(d.id)) return;
+          const data = d.data();
+          dedupe.set(d.id, { nilai: data[field], kode: data.kode, unpack_hasil: data.unpack_hasil || null });
+        });
+      } catch (e) { console.error(`Gagal ambil status unpack bagging (${field}):`, e); }
+    }
+  }
+  await ambil(fieldAktif);
+  await ambil(fieldAsal);
+  dedupe.forEach(({ nilai, kode, unpack_hasil }) => { if (peta[nilai]) peta[nilai].push({ kode, unpack_hasil }); });
+  return peta;
 }
 
 // ---------------------------------------------------------------------------

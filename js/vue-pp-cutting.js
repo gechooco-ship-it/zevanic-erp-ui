@@ -137,7 +137,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=7';
-import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal } from './vue-scan-cetak.js?v=4';
+import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=5';
 
 // --- Format & hitung kecil (disalin pola dari 4 pos Persiapan Produksi,
 // belum dipindah ke helper generik — lihat catatan "belum ada infrastruktur
@@ -408,6 +408,12 @@ const CuttingPerluDiProses = {
     const memuat = ref(true);
     const daftar = ref([]);
     const bahanEnrich = ref({}); // kolom tabel penuh wireframe, lihat enrichBahanUntukTrack()
+    // unpackEnrich — BARU (12 Sep lanjutan 3), tutup gap badge "Unpack" yang
+    // selalu kosong sejak buatUnpackUniversal() berhenti menulis t.unpack_log.
+    // Kunci: t.kode_spk (string di level Cutting) -> [{kode, unpack_hasil}].
+    // Lihat ambilStatusUnpackBagging() di vue-scan-cetak.js utk kenapa perlu
+    // dicari lewat 2 field (kode_spk aktif + kode_spk_asal historis).
+    const unpackEnrich = ref({});
     const menuId = 'cut_cutting';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
     const bolehOperator = computed(() => picOwnerKeAtas(window.currentUser));
@@ -418,6 +424,7 @@ const CuttingPerluDiProses = {
         const [semuaTrack, groupingList] = await Promise.all([pastikanCuttingTrackLengkap(), muatSemuaGrouping()]);
         daftar.value = semuaTrack.filter(t => t.status === 'perlu_diproses');
         bahanEnrich.value = await enrichBahanUntukTrack(daftar.value, groupingList);
+        unpackEnrich.value = await ambilStatusUnpackBagging('kode_spk', 'kode_spk_asal', daftar.value.map(t => t.kode_spk));
       } catch (e) { console.error('Gagal muat Cutting > Perlu Di Proses:', e); daftar.value = []; }
       memuat.value = false;
     }
@@ -518,7 +525,7 @@ const CuttingPerluDiProses = {
     onMounted(async () => { await window.authReady; await muat(); });
 
     return {
-      memuat, daftar, bahanEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
+      memuat, daftar, bahanEnrich, unpackEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
       modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack,
       popupPinAmpar, pinSuksesAmpar,
@@ -563,8 +570,8 @@ const CuttingPerluDiProses = {
               <td style="padding:6px 8px;" class="gc-num">{{ bahanEnrich[t.id] ? formatQty(bahanEnrich[t.id].kebutuhanKain) : '-' }}</td>
               <td style="padding:6px 8px;">{{ bahanEnrich[t.id] ? bahanEnrich[t.id].satuan : '-' }}</td>
               <td style="padding:6px 8px;">
-                <span v-if="!t.unpack_log || !t.unpack_log.length" class="tag neutral">belum</span>
-                <template v-else><span v-for="(u,i) in t.unpack_log" :key="i" class="tag" :class="u.status==='komplit' ? 'ok' : 'warn'" style="margin-right:3px;">{{ u.kode_bagging }}</span></template>
+                <span v-if="!(unpackEnrich[t.kode_spk] || []).length" class="tag neutral">belum</span>
+                <template v-else><span v-for="(u,i) in unpackEnrich[t.kode_spk]" :key="i" class="tag" :class="u.unpack_hasil==='komplit' ? 'ok' : (u.unpack_hasil==='inkomplit' ? 'warn' : 'neutral')" style="margin-right:3px;" :title="u.unpack_hasil || 'belum di-unpack'">{{ u.kode }}</span></template>
               </td>
               <td style="padding:6px 8px;"><span class="tag" :class="tertahan(t.masuk_tahap_pada) ? 'warn' : 'neutral'">{{ formatDiamSejak(t.masuk_tahap_pada) }}</span></td>
               <td style="padding:6px 8px;"><button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:5px 9px; font-size:10.5px; color:var(--danger);" title="Scan Masalah"><i class="fas fa-triangle-exclamation"></i></button></td>
