@@ -49,7 +49,7 @@
 //     salah)', uid = null.
 // ============================================================================
 import { createApp, ref, reactive, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, getDoc, getDocs, query, where, orderBy, limit, startAfter, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, getDoc, getDocs, updateDoc, query, where, orderBy, limit, startAfter, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 // ---------------------------------------------------------------------------
@@ -247,6 +247,111 @@ export async function ajukanPersiapanMasalah(opsi) {
     status: 'perlu_diajukan',
     dibuat_pada: serverTimestamp()
   });
+}
+
+// ---------------------------------------------------------------------------
+// buatUnpackUniversal — Scan Unpack versi BARU, SATU fungsi dipakai SEMUA
+// pos (BARU 12 Sep 2026, keputusan Guru via AskUserQuestion — "satu factory
+// bersama", MENGGANTIKAN SEKALIGUS semua versi lama: popup_unpack milik
+// pp-cutting.js/pp-sewing.js/pp-serie.js (2 titik)/pp-finishing.js/
+// pp-gudang.js yang sebelumnya CUMA popup pilih KOMPLIT/INKOMPLIT tanpa
+// verifikasi sungguhan, ditulis ke unpack_log[] macam-macam koleksi).
+//
+// Desain (persis keputusan Guru: "scan ulang per label, mirip Scan Pack,
+// memastikan barang yg dipack dan unpack sama qty dan barangnya"):
+//   step1: scan kode_bagging -> ambil dokumen `bagging` LANGSUNG (bukan
+//     lewat cutting_track/spk_track/separating_batch/sewing_track/
+//     finishing_track seperti versi lama — bagging.isi[] & bagging.
+//     kode_spk/kode_batch SUDAH cukup, tidak perlu lewat koleksi lain).
+//   step2: scan tiap kode ISI bagging berkali-kali, dicocokkan ke
+//     bagging.isi[] (kode yang TIDAK ada di isi[] = ASING, ditolak/dicatat
+//     terpisah, TIDAK dianggap cocok).
+//   tutup(paksaInkomplit):
+//     - Kalau SEMUA kode di isi[] sudah cocok discan DAN tidak ada yang
+//       asing -> KOMPLIT.
+//     - Kalau belum lengkap/ada asing DAN paksaInkomplit=false -> DITOLAK
+//       (alert, tidak menulis apa-apa) — sama seperti Scan Pack, hard block.
+//     - Kalau paksaInkomplit=true (keputusan Guru: "bisa dipaksa INKOMPLIT")
+//       -> tetap ditutup sbg INKOMPLIT, dicatat kode yang HILANG (di isi[]
+//       tapi tidak sempat discan ulang) + kode ASING, supaya bisa ditelusuri.
+//     Kedua kasus (KOMPLIT/INKOMPLIT) SAMA-SAMA melepas kaitan root1/root2:
+//     kode_spk & kode_batch di dokumen `bagging` di-NULL-kan (persis
+//     keputusan sesi sebelumnya: "release/clear ke null di bagging doc").
+//
+// Field BARU di dokumen `bagging` (menggantikan unpack_log[] lama, yang
+// sekarang berhenti ditulis — field lama dibiarkan apa adanya di dokumen
+// historis, cuma tidak ada tulisan baru lagi ke situ):
+//   unpack_hasil ('komplit'|'inkomplit'), unpack_pada, unpack_oleh,
+//   unpack_dicocokkan[], unpack_asing[], unpack_hilang[].
+//
+// Dipakai: const { modalUnpack, bukaScanUnpack, tutupScanUnpack,
+// hasilScanUnpack, tutupUnpack } = buatUnpackUniversal(); lalu di-spread ke
+// return setup(), dan di template pasang <scan-generik> + panel kecil (lihat
+// contoh pemakaian di pp-cutting.js/pp-sewing.js/pp-serie.js/pp-finishing.js/
+// pp-gudang.js — semua PERSIS pola yang sama, tidak ada parameter cfg sama
+// sekali, karena semua pos cuma perlu bagging.isi[]/kode_spk/kode_batch).
+// ---------------------------------------------------------------------------
+export function buatUnpackUniversal() {
+  const modalUnpack = reactive({ aktif: false, bagging: null, dicocokkan: [], asing: [], log: [] });
+  function resetIsiUnpack() { modalUnpack.bagging = null; modalUnpack.dicocokkan = []; modalUnpack.asing = []; modalUnpack.log = []; }
+  function bukaScanUnpack() { resetIsiUnpack(); modalUnpack.aktif = true; }
+  function tutupScanUnpack() { modalUnpack.aktif = false; resetIsiUnpack(); }
+
+  async function hasilScanUnpack(kodeMentah) {
+    const kode = (kodeMentah || '').trim();
+    if (!modalUnpack.bagging) {
+      try {
+        const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', kode)));
+        if (snap.empty) { alert(`Kode bagging "${kode}" tidak ditemukan.`); return; }
+        const b = { id: snap.docs[0].id, ...snap.docs[0].data() };
+        if (b.unpack_hasil) {
+          if (!confirm(`Bagging "${kode}" sudah pernah di-Unpack sebelumnya (${b.unpack_hasil.toUpperCase()}). Buka lagi cuma untuk lihat isinya (tidak akan menulis ulang)?`)) return;
+        }
+        modalUnpack.bagging = b; modalUnpack.dicocokkan = []; modalUnpack.asing = []; modalUnpack.log = [];
+      } catch (e) { console.error('Gagal cari kode bagging (unpack):', e); alert('Gagal mencari. Coba lagi.'); }
+      return;
+    }
+    const b = modalUnpack.bagging;
+    if (b.unpack_hasil) { alert('Bagging ini sudah ditutup (sudah di-Unpack sebelumnya) — cuma bisa dilihat, tidak bisa discan ulang.'); return; }
+    const isi = Array.isArray(b.isi) ? b.isi : [];
+    if (modalUnpack.dicocokkan.includes(kode) || modalUnpack.asing.includes(kode)) { alert(`"${kode}" sudah discan sebelumnya di sesi unpack ini.`); return; }
+    if (!isi.includes(kode)) {
+      modalUnpack.asing.push(kode);
+      modalUnpack.log.unshift(kode + ' -> ASING (tidak ada di isi bagging saat Scan Pack)');
+      return;
+    }
+    modalUnpack.dicocokkan.push(kode);
+    modalUnpack.log.unshift(kode + ' -> cocok (' + modalUnpack.dicocokkan.length + '/' + isi.length + ')');
+  }
+
+  async function tutupUnpack(paksaInkomplit) {
+    const b = modalUnpack.bagging;
+    if (!b) return false;
+    if (b.unpack_hasil) { tutupScanUnpack(); return false; }
+    const isi = Array.isArray(b.isi) ? b.isi : [];
+    const hilang = isi.filter(k => !modalUnpack.dicocokkan.includes(k));
+    const cocokSemua = hilang.length === 0 && !modalUnpack.asing.length;
+    if (!cocokSemua && !paksaInkomplit) {
+      alert(`Belum lengkap: ${modalUnpack.dicocokkan.length}/${isi.length} cocok` + (modalUnpack.asing.length ? `, ${modalUnpack.asing.length} asing` : '') + '. Scan sisanya, atau pilih "Paksa INKOMPLIT" kalau memang tidak lengkap.');
+      return false;
+    }
+    const now = new Date().toISOString();
+    try {
+      await updateDoc(doc(db, 'bagging', b.id), {
+        kode_spk: null, kode_batch: null,
+        unpack_hasil: cocokSemua ? 'komplit' : 'inkomplit',
+        unpack_pada: now, unpack_oleh: window.currentUser?.email || null,
+        unpack_dicocokkan: modalUnpack.dicocokkan.slice(),
+        unpack_asing: modalUnpack.asing.slice(),
+        unpack_hilang: hilang
+      });
+      modalUnpack.log.unshift('Bagging ' + (b.kode || '') + ' ditutup: ' + (cocokSemua ? 'KOMPLIT' : `INKOMPLIT (${hilang.length} hilang, ${modalUnpack.asing.length} asing)`));
+      modalUnpack.bagging = { ...b, kode_spk: null, kode_batch: null, unpack_hasil: cocokSemua ? 'komplit' : 'inkomplit' };
+      return true;
+    } catch (e) { console.error('Gagal menutup Scan Unpack:', e); alert('Gagal menyimpan. Coba lagi.'); return false; }
+  }
+
+  return { modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack };
 }
 
 // ---------------------------------------------------------------------------

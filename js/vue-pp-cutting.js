@@ -137,7 +137,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=7';
-import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=3';
+import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal } from './vue-scan-cetak.js?v=4';
 
 // --- Format & hitung kecil (disalin pola dari 4 pos Persiapan Produksi,
 // belum dipindah ke helper generik — lihat catatan "belum ada infrastruktur
@@ -479,26 +479,12 @@ const CuttingPerluDiProses = {
       } catch (e) { console.error('Gagal scan sampai:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
-    // --- Scan Unpack: per bagging, KOMPLIT/INKOMPLIT ---
-    const popupUnpack = ref(null); // { track, kodeBagging, hasil }
-    const modalUnpackScan = reactive({ aktif: false, track: null });
-    function bukaScanUnpack(track) { modalUnpackScan.track = track; modalUnpackScan.aktif = true; }
-    function tutupScanUnpack() { modalUnpackScan.aktif = false; modalUnpackScan.track = null; }
-    function hasilScanUnpack(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      popupUnpack.value = { track: modalUnpackScan.track, kodeBagging: kode, hasil: 'komplit' };
-    }
-    async function konfirmasiUnpack() {
-      const p = popupUnpack.value;
-      if (!p) return;
-      try {
-        await updateCuttingTrack(p.track.id, () => ({
-          unpack_log: arrayUnion({ kode_bagging: p.kodeBagging, status: p.hasil, pada: new Date().toISOString() })
-        }));
-        popupUnpack.value = null;
-        await muat();
-      } catch (e) { console.error('Gagal simpan unpack:', e); alert('Gagal menyimpan. Coba lagi.'); }
-    }
+    // --- Scan Unpack: versi BARU (12 Sep 2026, keputusan Guru — MENGGANTIKAN
+    // popup KOMPLIT/INKOMPLIT lama yang cuma konfirmasi tanpa verifikasi).
+    // Sekarang scan ULANG tiap isi bagging, dicocokkan ke bagging.isi[],
+    // lihat buatUnpackUniversal() di vue-scan-cetak.js untuk detail lengkap.
+    // TIDAK perlu pilih target track lagi — cukup scan kode_bagging langsung.
+    const { modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack } = buatUnpackUniversal();
 
     // --- Tunjuk Operator Ampar (PIN, role PIC/PIC Owner/Owner) ---
     const popupPinAmpar = ref(null); // track
@@ -522,12 +508,11 @@ const CuttingPerluDiProses = {
       await muat();
     });
 
-    // --- Toolbar global (BARU, audit sesi ini): Scan Unpack & Scan Operator
-    // Ampar dipindah dari tombol per-kartu jadi toolbar sekali per tab
-    // (wireframe §1.1 "Action bar"). Handler bukaScanUnpack(track)/
-    // bukaTunjukAmpar(track) TIDAK diubah — cuma dipanggil lewat picker. ---
+    // --- Toolbar global: Scan Operator Ampar dipindah dari tombol per-kartu
+    // jadi toolbar sekali per tab (wireframe §1.1 "Action bar"). Scan Unpack
+    // (BARU) tidak butuh picker lagi — bukaScanUnpack() langsung buka kamera,
+    // target ditentukan dari kode_bagging yang discan sendiri. -------------
     const { pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget } = pilihTargetMixin(daftar);
-    function bukaScanUnpackToolbar() { bukaPilihTarget('Pilih SPK — Scan Unpack', (track) => bukaScanUnpack(track)); }
     function bukaTunjukAmparToolbar() { bukaPilihTarget('Pilih SPK — Scan Operator Ampar', (track) => bukaTunjukAmpar(track)); }
 
     onMounted(async () => { await window.authReady; await muat(); });
@@ -535,10 +520,10 @@ const CuttingPerluDiProses = {
     return {
       memuat, daftar, bahanEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
-      popupUnpack, modalUnpackScan, tutupScanUnpack, hasilScanUnpack, konfirmasiUnpack,
+      modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack,
       popupPinAmpar, pinSuksesAmpar,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
-      pilihTarget, batalPilihTarget, konfirmasiPilihTarget, bukaScanUnpackToolbar, bukaTunjukAmparToolbar
+      pilihTarget, batalPilihTarget, konfirmasiPilihTarget, bukaTunjukAmparToolbar
     };
   },
   template: `
@@ -550,7 +535,7 @@ const CuttingPerluDiProses = {
            Gudang yang juga menyisakan Scan Masalah per-kartu). -->
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
         <button v-if="bolehProses" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-barcode" style="margin-right:6px;"></i>Scan Kode Tugas (Sampai)</button>
-        <button v-if="bolehProses" @click="bukaScanUnpackToolbar" class="btn-outline" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
+        <button v-if="bolehProses" @click="bukaScanUnpack" class="btn-outline" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
         <button v-if="bolehOperator" @click="bukaTunjukAmparToolbar" class="btn-outline" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator Ampar</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
@@ -594,17 +579,13 @@ const CuttingPerluDiProses = {
       <div v-for="(l,i) in modalSampai.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
     </div>
 
-    <scan-generik :aktif="modalUnpackScan.aktif" judul="Scan Kode Bagging (Unpack)" subjudul="Scan 1 kode bagging untuk ditandai KOMPLIT/INKOMPLIT." @hasil="hasilScanUnpack" @tutup="tutupScanUnpack" />
-    <div v-if="popupUnpack" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
-      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Hasil Unpack — {{ popupUnpack.kodeBagging }}</h3>
-        <div class="gc-field" style="margin-bottom:14px;"><label>Status</label>
-          <select v-model="popupUnpack.hasil"><option value="komplit">KOMPLIT</option><option value="inkomplit">INKOMPLIT</option></select>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <button @click="popupUnpack = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
-          <button @click="konfirmasiUnpack" class="btn-primary" style="flex:1; padding:9px;">Simpan</button>
-        </div>
+    <scan-generik :aktif="modalUnpack.aktif" :judul="modalUnpack.bagging ? ('Scan ulang isi — bagging ' + modalUnpack.bagging.kode) : 'Scan Kode Bagging (Unpack)'" subjudul="Scan ulang tiap barang di dalam bagging ini satu per satu, sama seperti Scan Pack." @hasil="hasilScanUnpack" @tutup="tutupScanUnpack" />
+    <div v-if="modalUnpack.aktif && modalUnpack.bagging" style="position:fixed; left:16px; bottom:90px; z-index:10001; background:rgba(0,0,0,.82); border-radius:12px; padding:10px 14px; max-width:300px; color:#fff;">
+      <div style="font-size:11.5px; font-weight:700; margin-bottom:6px;">{{ modalUnpack.dicocokkan.length }}/{{ (modalUnpack.bagging.isi||[]).length }} cocok<span v-if="modalUnpack.asing.length"> &middot; {{ modalUnpack.asing.length }} asing</span></div>
+      <div v-for="(l,i) in modalUnpack.log.slice(0,4)" :key="i" style="font-size:10.5px; margin-bottom:2px;">{{ l }}</div>
+      <div v-if="!modalUnpack.bagging.unpack_hasil" style="display:flex; gap:6px; margin-top:8px;">
+        <button @click="tutupUnpack(false)" class="btn-primary" style="flex:1; padding:6px; font-size:10.5px;">Tutup</button>
+        <button @click="tutupUnpack(true)" class="btn-outline" style="flex:1; padding:6px; font-size:10.5px; color:#F2A0A0; border-color:#F2A0A0;">Paksa INKOMPLIT</button>
       </div>
     </div>
 
@@ -1213,18 +1194,30 @@ const CuttingPerluDiKirim = {
       try {
         const preview = [];
         const kodeBaggingBaru = [];
+        // BARU (12 Sep 2026, ditemukan sesi ini: gap root1 belum tertaut di
+        // titik Cutting -> Serie — beda dari 4 titik Persiapan yang sudah
+        // dikerjakan, di sini TIDAK ada Scan Pack terpisah, jadi kode_spk
+        // ditulis LANGSUNG saat cetak, sama pola dengan pp-sewing/pp-serie/
+        // pp-finishing: track.kode_spk sudah pasti 1 grouping/kartu).
         for (const jenis of jenisKomponen) {
           const kode = await generateKodeHarian('BAG', 'pengaturan_id_bagging');
           await addDoc(collection(db, 'bagging'), {
             kode, produk_label: `${track.kode_spk} &middot; ${jenis}`, isi: [], ditutup_pada: null,
+            kode_spk: track.kode_spk || null, kode_batch: null,
             dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
           });
           kodeBaggingBaru.push(kode);
           preview.push({ kode, nama: jenis, info: `Kode Bagging &middot; ${track.kode_spk}`, qrDataUrl: buatQrDataUrl(kode) });
         }
         const kodeTugas = await generateKodeHarian('TGS', 'pengaturan_id_tugas_kirim');
+        // pack[] diisi LANGSUNG di sini (bukan lewat Scan Kirim terpisah
+        // seperti 4 titik Persiapan) — 1 entri per kode bagging yang baru
+        // dicetak, supaya Scan Sampai di Serie (hasilScanSampai grouping,
+        // cabang cutting_track) bisa melepasnya, konsisten dgn titik lain.
+        const nowKirim = new Date().toISOString();
         await addDoc(collection(db, 'tugas_kirim'), {
-          kode: kodeTugas, tlc_asal: 'TLC-PTG', tlc_tujuan: p.tlcTujuan, pack: [],
+          kode: kodeTugas, tlc_asal: 'TLC-PTG', tlc_tujuan: p.tlcTujuan,
+          pack: kodeBaggingBaru.map(kb => ({ kode_bagging: kb, kode_spk: track.kode_spk || null, kode_batch: null, pada: nowKirim, sampai_pada: null })),
           dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
         });
         preview.push({ kode: kodeTugas, nama: 'Surat Jalan (Kode Tugas)', info: `Tujuan: ${p.tujuanAkhir} &middot; TLC-PTG &rarr; ${p.tlcTujuan}`, qrDataUrl: buatQrDataUrl(kodeTugas) });

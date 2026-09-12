@@ -184,7 +184,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=7';
-import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=3';
+import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal } from './vue-scan-cetak.js?v=4';
 
 // --- Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan
 // Produksi, belum ada infrastruktur util generik lintas file). -------------
@@ -490,6 +490,25 @@ const SeriePerluDiProses = {
 
     // --- Scan Sampai: cari cocok di cutting_track ATAU spk_track 3 jalur Acc,
     // MENUTUP GAP #1 (lihat komentar besar atas file). ------------------------
+    // BARU (12 Sep 2026, keputusan Guru: "scan kirim mengaitkan kode
+    // spk/kode batch/kode bagging pada kode tugas, untuk melepasnya dengan
+    // scan sampai") — helper melepas pack[].sampai_pada di tugas_kirim yang
+    // menuju Serie (tlc_tujuan === TLC_ASAL_SERIE, karena kode bagging ini
+    // dikirim OLEH Cutting/3 pos Acc KE Serie). Dipakai kedua cabang di bawah.
+    async function lepasPackTugasKirimSerie(kode, now) {
+      try {
+        const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('tlc_tujuan', '==', TLC_ASAL_SERIE)));
+        for (const d of snapTugas.docs) {
+          const packArr = Array.isArray(d.data().pack) ? d.data().pack : [];
+          const idx = packArr.findIndex(p => p.kode_bagging === kode && !p.sampai_pada);
+          if (idx < 0) continue;
+          const packBaru = packArr.slice();
+          packBaru[idx] = { ...packBaru[idx], sampai_pada: now };
+          await updateDoc(doc(db, 'tugas_kirim', d.id), { pack: packBaru });
+          return;
+        }
+      } catch (e) { console.error('Gagal lepas pack tugas_kirim (Serie, grouping):', e); }
+    }
     const modalSampai = reactive({ aktif: false, log: [] });
     function bukaScanSampai() { modalSampai.log = []; modalSampai.aktif = true; }
     function tutupScanSampai() { modalSampai.aktif = false; modalSampai.log = []; muat(); }
@@ -503,6 +522,7 @@ const SeriePerluDiProses = {
           const d = snapCt.docs[0];
           if (d.data().status === 'selesai') { alert(`Bagging "${kode}" sudah pernah di-Scan Sampai sebelumnya.`); return; }
           await updateDoc(doc(db, 'cutting_track', d.id), { status: 'selesai', sampai_pada: now, diperbarui_pada: serverTimestamp() });
+          await lepasPackTugasKirimSerie(kode, now);
           modalSampai.log.unshift(kode + ' -> Cutting selesai');
           await muat();
           return;
@@ -522,35 +542,21 @@ const SeriePerluDiProses = {
             await updateDoc(doc(db, 'spk_track', d.id), { [key]: barisBaru });
             kena = true;
           }
-          if (kena) { modalSampai.log.unshift(kode + ' -> Acc ' + jalur + ' selesai'); await muat(); return; }
+          if (kena) {
+            await lepasPackTugasKirimSerie(kode, now);
+            modalSampai.log.unshift(kode + ' -> Acc ' + jalur + ' selesai'); await muat(); return;
+          }
         }
         alert(`Kode bagging "${kode}" tidak ditemukan / sudah pernah di-Scan Sampai di Cutting maupun 3 pos Acc.`);
       } catch (e) { console.error('Gagal scan sampai Serie:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
-    // --- Scan Unpack: HANYA untuk barang dari Cutting (reuse unpack_log,
-    // lihat keputusan #3). ----------------------------------------------------
-    const modalUnpack = reactive({ aktif: false });
-    const popupUnpack = ref(null);
-    function bukaScanUnpack() { modalUnpack.aktif = true; }
-    function tutupScanUnpack() { modalUnpack.aktif = false; }
-    function hasilScanUnpack(kodeMentah) {
-      popupUnpack.value = { kodeBagging: (kodeMentah || '').trim(), hasil: 'komplit' };
-    }
-    async function konfirmasiUnpack() {
-      const p = popupUnpack.value;
-      if (!p) return;
-      try {
-        const snapCt = await getDocs(query(collection(db, 'cutting_track'), where('kode_bagging', 'array-contains', p.kodeBagging)));
-        if (snapCt.empty) { alert(`Kode bagging "${p.kodeBagging}" tidak ditemukan di Cutting (Unpack hanya berlaku untuk kiriman dari Cutting, lihat catatan modul).`); popupUnpack.value = null; return; }
-        await updateCuttingTrackLangsung(snapCt.docs[0].id, p.kodeBagging, p.hasil);
-        popupUnpack.value = null;
-        await muat();
-      } catch (e) { console.error('Gagal simpan unpack Serie:', e); alert('Gagal menyimpan. Coba lagi.'); }
-    }
-    async function updateCuttingTrackLangsung(id, kodeBagging, hasil) {
-      await updateDoc(doc(db, 'cutting_track', id), { unpack_log: arrayUnion({ kode_bagging: kodeBagging, status: hasil, pada: new Date().toISOString(), oleh: 'Serie' }) });
-    }
+    // --- Scan Unpack: versi BARU (12 Sep 2026, keputusan Guru — MENGGANTIKAN
+    // popup KOMPLIT/INKOMPLIT lama yang cuma konfirmasi tanpa verifikasi, dan
+    // TIDAK LAGI dibatasi "hanya dari Cutting" — bagging.isi[] berlaku sama
+    // buat kiriman dari Cutting maupun 3 pos Acc). Scan ulang tiap isi
+    // bagging, lihat buatUnpackUniversal() di vue-scan-cetak.js.
+    const { modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack } = buatUnpackUniversal();
 
     // --- Tunjuk Operator Ampar (SESUNGGUHNYA "Scan Operator" generate
     // separating -- lihat popup 2.1a untuk aksi penuh). Popup Generate
@@ -630,7 +636,7 @@ const SeriePerluDiProses = {
       memuat, daftarGrouping, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan, sumber, bisaGenerate,
       expandedIds, toggleExpand, LABEL_SUMBER, ASAL_SUMBER,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
-      modalUnpack, popupUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, konfirmasiUnpack,
+      modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack,
       popupGenerate, bukaGenerate, batalGenerate, totalQtyCentang, sedangGenerate, konfirmasiGenerate,
       popupCetakBatch, daftarLabelBatch,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
@@ -714,17 +720,13 @@ const SeriePerluDiProses = {
       <div v-for="(l,i) in modalSampai.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
     </div>
 
-    <scan-generik :aktif="modalUnpack.aktif" judul="Scan Unpack (dari Cutting)" subjudul="Scan kode bagging yang datang dari Cutting." @hasil="hasilScanUnpack" @tutup="tutupScanUnpack" />
-    <div v-if="popupUnpack" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
-      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Hasil Unpack — {{ popupUnpack.kodeBagging }}</h3>
-        <div class="gc-field" style="margin-bottom:14px;"><label>Status</label>
-          <select v-model="popupUnpack.hasil"><option value="komplit">KOMPLIT</option><option value="inkomplit">INKOMPLIT</option></select>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <button @click="popupUnpack = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
-          <button @click="konfirmasiUnpack" class="btn-primary" style="flex:1; padding:9px;">Simpan</button>
-        </div>
+    <scan-generik :aktif="modalUnpack.aktif" :judul="modalUnpack.bagging ? ('Scan ulang isi — bagging ' + modalUnpack.bagging.kode) : 'Scan Kode Bagging (Unpack)'" subjudul="Scan ulang tiap barang di dalam bagging ini satu per satu, sama seperti Scan Pack." @hasil="hasilScanUnpack" @tutup="tutupScanUnpack" />
+    <div v-if="modalUnpack.aktif && modalUnpack.bagging" style="position:fixed; left:16px; bottom:90px; z-index:10001; background:rgba(0,0,0,.82); border-radius:12px; padding:10px 14px; max-width:300px; color:#fff;">
+      <div style="font-size:11.5px; font-weight:700; margin-bottom:6px;">{{ modalUnpack.dicocokkan.length }}/{{ (modalUnpack.bagging.isi||[]).length }} cocok<span v-if="modalUnpack.asing.length"> &middot; {{ modalUnpack.asing.length }} asing</span></div>
+      <div v-for="(l,i) in modalUnpack.log.slice(0,4)" :key="i" style="font-size:10.5px; margin-bottom:2px;">{{ l }}</div>
+      <div v-if="!modalUnpack.bagging.unpack_hasil" style="display:flex; gap:6px; margin-top:8px;">
+        <button @click="tutupUnpack(false)" class="btn-primary" style="flex:1; padding:6px; font-size:10.5px;">Tutup</button>
+        <button @click="tutupUnpack(true)" class="btn-outline" style="flex:1; padding:6px; font-size:10.5px; color:#F2A0A0; border-color:#F2A0A0;">Paksa INKOMPLIT</button>
       </div>
     </div>
 
@@ -1499,12 +1501,33 @@ function buatTabTerima(cfg) {
           const snap = await getDocs(query(collection(db, cfg.koleksi), where('kode_tugas', '==', kode)));
           if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan di ${cfg.namaAsal} (mungkin modul ${cfg.namaAsal} belum mengirim, atau belum dibangun).`); return; }
           const batchIds = new Set();
+          const kodeBaggingSampai = new Set();
           for (const d of snap.docs) {
             if (d.data().status === 'selesai') continue;
             await updateDoc(doc(db, cfg.koleksi, d.id), { status: 'selesai', sampai_pada: now });
             if (d.data().batch_id) batchIds.add(d.data().batch_id);
+            // kumpulkan kode_bagging milik dokumen ini (array di sewing_track,
+            // string tunggal di finishing_track — lihat cfg.baggingArray).
+            const kb = d.data()[cfg.fieldBagging];
+            (cfg.baggingArray ? (Array.isArray(kb) ? kb : []) : (kb ? [kb] : [])).forEach(k => kodeBaggingSampai.add(k));
           }
           if (!batchIds.size) { alert(`Kode tugas "${kode}" sudah pernah di-Scan Sampai sebelumnya.`); return; }
+          // BARU (12 Sep 2026, keputusan Guru: "scan kirim mengaitkan kode
+          // spk/kode batch/kode bagging pada kode tugas, untuk melepasnya
+          // dengan scan sampai") — leg ${namaAsal} -> Serie: kode di sini
+          // SAMA dengan kode_tugas = tugas_kirim.kode, jadi cari langsung 1
+          // dokumen dan lepas pack[] milik kode_bagging yang baru sampai.
+          if (kodeBaggingSampai.size) {
+            try {
+              const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
+              if (!snapTugas.empty) {
+                const dt = snapTugas.docs[0];
+                const packArr = Array.isArray(dt.data().pack) ? dt.data().pack : [];
+                const packBaru = packArr.map(p => (kodeBaggingSampai.has(p.kode_bagging) && !p.sampai_pada) ? { ...p, sampai_pada: now } : p);
+                await updateDoc(doc(db, 'tugas_kirim', dt.id), { pack: packBaru });
+              }
+            } catch (e) { console.error('Gagal lepas pack tugas_kirim (Terima ' + cfg.namaAsal + '):', e); }
+          }
           const oleh = window.currentUser?.email || null;
           for (const bid of batchIds) {
             try {
@@ -1521,26 +1544,11 @@ function buatTabTerima(cfg) {
         } catch (e) { console.error('Gagal scan sampai ' + cfg.judul + ':', e); alert('Gagal menyimpan. Coba lagi.'); }
       }
 
-      const modalUnpack = reactive({ aktif: false });
-      const popupUnpack = ref(null);
-      function bukaScanUnpack() { modalUnpack.aktif = true; }
-      function tutupScanUnpack() { modalUnpack.aktif = false; }
-      function hasilScanUnpack(kodeMentah) { popupUnpack.value = { kodeBagging: (kodeMentah || '').trim(), hasil: 'komplit' }; }
-      async function konfirmasiUnpack() {
-        const p = popupUnpack.value;
-        if (!p) return;
-        try {
-          const snap = await getDocs(query(collection(db, cfg.koleksi), where(cfg.fieldBagging, cfg.baggingArray ? 'array-contains' : '==', p.kodeBagging)));
-          if (snap.empty) { alert(`Kode bagging "${p.kodeBagging}" tidak ditemukan di ${cfg.namaAsal}.`); popupUnpack.value = null; return; }
-          const bid = snap.docs[0].data().batch_id;
-          if (!bid) { alert('Dokumen ditemukan tapi tidak punya batch_id — tidak bisa dicatat ke Serie.'); popupUnpack.value = null; return; }
-          await updateSeparatingBatch(bid, (data) => ({
-            unpack_log: [...(data.unpack_log || []), { kode_bagging: p.kodeBagging, status: p.hasil, pada: new Date().toISOString(), oleh: cfg.namaAsal }]
-          }));
-          popupUnpack.value = null;
-          await muat();
-        } catch (e) { console.error('Gagal simpan unpack ' + cfg.judul + ':', e); alert('Gagal menyimpan. Coba lagi.'); }
-      }
+      // --- Scan Unpack: versi BARU (12 Sep 2026, keputusan Guru — MENGGANTIKAN
+      // popup KOMPLIT/INKOMPLIT lama). Sekarang lewat bagging.isi[] langsung,
+      // TIDAK perlu lagi lookup cfg.koleksi/batch_id — lihat
+      // buatUnpackUniversal() di vue-scan-cetak.js.
+      const { modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack } = buatUnpackUniversal();
 
       const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
         await kirimMasalahSerie(p.target, p.jumlah, p.alasan);
@@ -1552,7 +1560,7 @@ function buatTabTerima(cfg) {
       return {
         cfg, memuat, daftar, bolehProses, formatQty, formatDiamSejak, tertahan,
         modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
-        modalUnpack, popupUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, konfirmasiUnpack,
+        modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack,
         popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
       };
     },
@@ -1584,17 +1592,13 @@ function buatTabTerima(cfg) {
         <div v-for="(l,i) in modalSampai.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
       </div>
 
-      <scan-generik :aktif="modalUnpack.aktif" :judul="'Scan Unpack — dari ' + cfg.namaAsal" subjudul="Scan kode bagging yang datang." @hasil="hasilScanUnpack" @tutup="tutupScanUnpack" />
-      <div v-if="popupUnpack" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
-        <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
-          <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Hasil Unpack — {{ popupUnpack.kodeBagging }}</h3>
-          <div class="gc-field" style="margin-bottom:14px;"><label>Status</label>
-            <select v-model="popupUnpack.hasil"><option value="komplit">KOMPLIT</option><option value="inkomplit">INKOMPLIT</option></select>
-          </div>
-          <div style="display:flex; gap:8px;">
-            <button @click="popupUnpack = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
-            <button @click="konfirmasiUnpack" class="btn-primary" style="flex:1; padding:9px;">Simpan</button>
-          </div>
+      <scan-generik :aktif="modalUnpack.aktif" :judul="modalUnpack.bagging ? ('Scan ulang isi — bagging ' + modalUnpack.bagging.kode) : 'Scan Kode Bagging (Unpack)'" subjudul="Scan ulang tiap barang di dalam bagging ini satu per satu, sama seperti Scan Pack." @hasil="hasilScanUnpack" @tutup="tutupScanUnpack" />
+      <div v-if="modalUnpack.aktif && modalUnpack.bagging" style="position:fixed; left:16px; bottom:90px; z-index:10001; background:rgba(0,0,0,.82); border-radius:12px; padding:10px 14px; max-width:300px; color:#fff;">
+        <div style="font-size:11.5px; font-weight:700; margin-bottom:6px;">{{ modalUnpack.dicocokkan.length }}/{{ (modalUnpack.bagging.isi||[]).length }} cocok<span v-if="modalUnpack.asing.length"> &middot; {{ modalUnpack.asing.length }} asing</span></div>
+        <div v-for="(l,i) in modalUnpack.log.slice(0,4)" :key="i" style="font-size:10.5px; margin-bottom:2px;">{{ l }}</div>
+        <div v-if="!modalUnpack.bagging.unpack_hasil" style="display:flex; gap:6px; margin-top:8px;">
+          <button @click="tutupUnpack(false)" class="btn-primary" style="flex:1; padding:6px; font-size:10.5px;">Tutup</button>
+          <button @click="tutupUnpack(true)" class="btn-outline" style="flex:1; padding:6px; font-size:10.5px; color:#F2A0A0; border-color:#F2A0A0;">Paksa INKOMPLIT</button>
         </div>
       </div>
 
