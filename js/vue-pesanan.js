@@ -286,7 +286,7 @@ const PopupPin = {
         <p v-if="pesan" style="font-size:11.5px; color:var(--text-faint); margin-bottom:12px; line-height:1.5;">{{ pesan }}</p>
         <div v-if="!terkunci" class="gc-field">
           <label>PIN (6 angka)</label>
-          <input v-model="pin" @keyup.enter="kirim" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" autofocus style="letter-spacing:6px; text-align:center; font-size:18px;">
+          <input v-model="pin" @keyup.enter="kirim" type="text" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" autofocus style="letter-spacing:6px; text-align:center; font-size:18px; -webkit-text-security:disc;">
         </div>
         <p v-if="error" style="color:var(--danger); font-size:11px; margin-bottom:10px;">{{ error }}</p>
         <div style="display:flex; gap:8px;">
@@ -573,9 +573,21 @@ const PesananKasirManager = {
     const diskonTotalBelanja = computed(() => Math.max(0, totalKotorBelanja.value - totalBelanja.value));
     const totalItem = computed(() => daftarKeranjang.value.reduce((total, i) => total + i.qty, 0));
 
+    // Toast "produk ditambahkan" pojok kanan atas — feedback visual saat klik
+    // kartu produk di desktop (sebelumnya klik produk tidak kelihatan efeknya
+    // sampai user scroll ke keranjang). Auto-hilang, tidak butuh diklik tutup.
+    const toastKasir = reactive({ tampil: false, teks: '' });
+    let toastKasirTimer = null;
+    function toastTambahProduk(teks) {
+      toastKasir.teks = teks + ' ditambahkan';
+      toastKasir.tampil = true;
+      clearTimeout(toastKasirTimer);
+      toastKasirTimer = setTimeout(() => { toastKasir.tampil = false; }, 1600);
+    }
     function tambahKeKeranjang(produk) {
-      if (keranjang[produk.sku]) { keranjang[produk.sku].qty++; return; }
+      if (keranjang[produk.sku]) { keranjang[produk.sku].qty++; toastTambahProduk(formatLabelProduk(produk)); return; }
       keranjang[produk.sku] = { sku: produk.sku, nama: formatLabelProduk(produk), harga_satuan: parseFloat(produk.harga_jual) || 0, qty: 1, diskon_tipe: 'rp', diskon_nilai: 0 };
+      toastTambahProduk(formatLabelProduk(produk));
     }
     function tambahQty(sku) { if (keranjang[sku]) keranjang[sku].qty++; }
     function kurangiQty(sku) { if (!keranjang[sku]) return; keranjang[sku].qty--; if (keranjang[sku].qty <= 0) delete keranjang[sku]; }
@@ -808,10 +820,12 @@ const PesananKasirManager = {
       uangDiterima, dpNominal, jatuhTempo, dibayarSekarang, sisaPiutang, dpPersen, kembalian,
       NOMINAL_CEPAT, labelNominalRb, tambahNominalUang, nominalUangPas,
       lanjutKePembayaran, kembaliKeKeranjang, menyimpan, buatOrder, strukTampil,
-      formatRupiah, tanggalPlusHariHelper: tanggalPlusHari
+      formatRupiah, tanggalPlusHariHelper: tanggalPlusHari,
+      toastKasir
     };
   },
   template: `
+    <div v-if="toastKasir.tampil" style="position:fixed; top:18px; right:18px; z-index:200; background:var(--text); color:var(--ivory); padding:10px 16px; border-radius:12px; font-size:12px; font-weight:600; box-shadow:0 8px 20px -8px rgba(0,0,0,.35); display:flex; align-items:center; gap:8px; pointer-events:none;"><i class="fas fa-circle-check" style="color:#8fd19e;"></i>{{ toastKasir.teks }}</div>
     <div v-if="!bolehTambah" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12.5px;">Akun ini tidak punya izin untuk Penjualan Kasir.</div>
     <div v-else-if="step === 1" style="display:flex; flex-direction:column; gap:14px;">
       <div class="gc-card" style="padding:14px; border-radius:20px;">
@@ -1945,10 +1959,23 @@ window.pastikanMountPesananKasir = function() {
   if (mountPoint) vmPesananKasir = createApp(AppPesananKasir).mount('#vue-pesanan-kasir');
 };
 
-const AppPesananMenunggu = { components: { PesananMenungguManager }, template: `<pesanan-menunggu-manager />` };
+const AppPesananMenunggu = { components: { PesananMenungguManager }, template: `<pesanan-menunggu-manager ref="mgr" />` };
 let vmPesananMenunggu = null;
+// FIX #2 (12 Sep 2026, laporan Guru — "Menunggu Proses" tidak update pas
+// pindah tab, harus refresh manual). Arsitektur pastikanMountXxx() SENGAJA
+// mount sekali saja (hemat baca Firestore, lihat komentar besar di
+// dashboard.js dekat petaMount) — efek sampingnya kembali ke sub-tab yang
+// sudah ke-mount jadi no-op total, datanya beku. Di sini SAJA (bukan
+// pastikanMountXxx lain) dipanggil ulang PesananMenungguManager.muat() lewat
+// $refs kalau sudah ke-mount, supaya "pindah tab" = data segar tanpa reload
+// manual. muat() sendiri sudah set memuat=true/false, jadi indikator
+// "Memuat..." yang sudah ada di template otomatis tampil lagi.
 window.pastikanMountPesananMenunggu = function() {
-  if (vmPesananMenunggu) return;
+  if (vmPesananMenunggu) {
+    const mgr = vmPesananMenunggu.$refs && vmPesananMenunggu.$refs.mgr;
+    if (mgr && typeof mgr.muat === 'function') mgr.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-pesanan-menunggu');
   if (mountPoint) vmPesananMenunggu = createApp(AppPesananMenunggu).mount('#vue-pesanan-menunggu');
 };

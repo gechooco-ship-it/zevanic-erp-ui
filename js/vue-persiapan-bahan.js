@@ -292,6 +292,17 @@ function kelompokKartuBahan(barisList, petaStokBahan) {
       const info = petaStokBahan[key] || {};
       peta[key] = {
         bahanAksesorisId: key, nama: b.bahan_nama, warna: b.bahan_warna,
+        // namaProduk — BARU (12 Sep 2026, fix #6 laporan Guru: header kartu
+        // dulu cuma nama+warna BAHAN lalu di bawahnya nama_pola (nama
+        // POTONGAN pola BOM, mis. "Bodi Depan" — BUKAN nama produk,
+        // seringkali kebaca seperti "nama bahan disebut 2x"). Diambil dari
+        // baris pertama kartu ini, SAMA POLA APROKSIMASI seperti namaPola/
+        // produkSize di bawah (kartu ini dikelompokkan per bahan+warna, jadi
+        // BISA berisi anak SPK dari produk/size berbeda — representatif,
+        // bukan jaminan seragam; rincian per-produk yang akurat ada di
+        // masing-masing baris anak SPK, lihat kartu daftar anak SPK di
+        // template).
+        namaProduk: b.nama_produk || '',
         namaPola: b.nama_pola, produkSize: b.produk_size,
         stok: parseFloat(info.stok_akhir) || 0, rakId: info.rak_id || '',
         butuh: 0, jumlahAnak: 0, baris: []
@@ -731,8 +742,13 @@ const PersiapanBahanPerluDisiapkan = {
         <div v-for="k in kartuList" :key="k.bahanAksesorisId" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
             <div style="min-width:0;">
-              <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ k.nama }} <span style="color:var(--text-faint); font-weight:600;">{{ k.warna }}</span></div>
-              <div style="font-size:11px; color:var(--text-faint); margin-top:2px;">{{ k.namaPola }} &middot; size {{ k.produkSize || '-' }} &middot; rak {{ k.rakId || '-' }}</div>
+              <!-- FIX #6 (12 Sep 2026, laporan Guru — header kartu dulu
+                   nama+warna BAHAN di baris atas, nama_pola (potongan pola
+                   BOM, BUKAN nama produk) di bawah, kebaca "nama bahan
+                   disebut 2x". Ditukar: baris atas 1x NAMA PRODUK + size,
+                   baris bawah nama bahan + warna bahan (+rak). -->
+              <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ k.namaProduk || '(tanpa nama produk)' }} <span style="color:var(--text-faint); font-weight:600;">size {{ k.produkSize || '-' }}</span></div>
+              <div style="font-size:11px; color:var(--text-faint); margin-top:2px;">{{ k.nama }} <span style="font-weight:600;">{{ k.warna }}</span> &middot; rak {{ k.rakId || '-' }}</div>
             </div>
           </div>
 
@@ -762,7 +778,16 @@ const PersiapanBahanPerluDisiapkan = {
           <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
             <label v-for="b in k.baris" :key="b._trackId + '-' + b._lineIdx" style="display:flex; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: b.label_cetak_pada ? 'var(--ok-light)' : (b._bisa ? 'transparent' : 'var(--danger-light)') }">
               <input type="checkbox" :checked="isChecked(b)" :disabled="!b._bisa || !!b.label_cetak_pada" @change="toggleCheck(b)">
-              <span class="gc-num" style="font-weight:700; min-width:110px; flex:1;">{{ b.no_spk }}</span>
+              <!-- FIX #7 (12 Sep 2026, laporan Guru — baris anak SPK dulu
+                   cuma no. SPK, harusnya nama produk + warna + size supaya
+                   kelihatan anak SPK yang mana walau kartu ini digabung per
+                   BAHAN (bisa lintas produk/size berbeda). No. SPK TETAP
+                   ditampilkan (baris kecil di bawah) — masih dipakai
+                   operator buat rujukan scan. -->
+              <div style="min-width:110px; flex:1;">
+                <div class="gc-num" style="font-weight:700;">{{ b.nama_produk || '(tanpa nama produk)' }} <span style="font-weight:600; color:var(--text-faint);">{{ b.produk_warna }}</span></div>
+                <div style="font-size:9.5px; color:var(--text-faint);">{{ b.no_spk }} &middot; size {{ b.produk_size || '-' }}</div>
+              </div>
               <span class="gc-num" style="width:60px; text-align:right;">{{ formatQty(b.qty) }} pcs</span>
               <span class="gc-num" style="width:70px; text-align:right; color:var(--text-faint);">{{ formatMeter(b.kebutuhan_kain) }}</span>
               <span v-if="b.label_cetak_pada" class="tag ok" style="margin-left:6px;">sudah dicetak</span>

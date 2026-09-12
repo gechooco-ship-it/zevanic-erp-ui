@@ -812,7 +812,7 @@ const AppAccountProfile = {
         </h3>
         <p style="font-size:11px; color:var(--text-muted); margin-bottom:14px;">Demi keamanan data pribadi Anda, verifikasi PIN 6 digit milik Anda sendiri (dibuat/diubah di tab Keamanan).</p>
         <div class="gc-field">
-          <input v-model="pinInputDataDiri" type="password" inputmode="numeric" maxlength="6" placeholder="••••••" style="text-align:center; letter-spacing:6px; font-size:18px;" @keyup.enter="konfirmasiPinDataDiri">
+          <input v-model="pinInputDataDiri" type="text" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" style="text-align:center; letter-spacing:6px; font-size:18px; -webkit-text-security:disc;" @keyup.enter="konfirmasiPinDataDiri">
         </div>
         <div style="display:flex; gap:10px; padding-top:8px;">
           <button @click="tutupPopupPinDataDiri" class="btn-outline" style="flex:1;">Batal</button>
@@ -1009,8 +1009,8 @@ const AppAccountProfile = {
           <span class="tag" :class="pinStatusTerpasang ? 'ok' : 'warn'" style="margin-left:8px;">{{ pinStatusTerpasang ? 'Terpasang' : 'Belum Terpasang' }}</span>
         </h3>
         <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:14px;">PIN 6 angka ini dipakai buat "Absensi Melalui QR" — waktu barcode Anda di-scan HP Kiosk gudang, PIN ini yang memastikan bukan orang lain yang absen memakainya.</p>
-        <div class="gc-field"><label>PIN Baru (6 angka)</label><input v-model="pinBaru" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div>
-        <div class="gc-field"><label>Konfirmasi PIN Baru</label><input v-model="konfirmasiPin" type="password" inputmode="numeric" maxlength="6" placeholder="••••••"></div>
+        <div class="gc-field"><label>PIN Baru (6 angka)</label><input v-model="pinBaru" type="text" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" style="-webkit-text-security:disc;"></div>
+        <div class="gc-field"><label>Konfirmasi PIN Baru</label><input v-model="konfirmasiPin" type="text" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" style="-webkit-text-security:disc;"></div>
         <div class="gc-field"><label>Password Anda (konfirmasi identitas)</label><input v-model="passwordUntukPin" type="password"></div>
         <button @click="simpanPin" :disabled="menyimpanPin" class="btn-primary block">{{ menyimpanPin ? 'Menyimpan...' : (pinStatusTerpasang ? 'Perbarui PIN' : 'Pasang PIN') }}</button>
       </div>

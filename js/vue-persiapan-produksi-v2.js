@@ -375,6 +375,13 @@ function hitungBahanRincian(anggotaList, petaBahan) {
         // & no SPK boleh beda"). spk_track sendiri TIDAK simpan size (cuma
         // nama_produk), jadi diambil di sini dari produk anak SPK-nya.
         produk_size: (produk && produk.size) || '',
+        // produk_warna — BARU (12 Sep 2026, fix #7 laporan Guru: kartu anak
+        // SPK di js/vue-persiapan-bahan.js harusnya tampil "nama produk +
+        // warna + size", bukan cuma no. SPK). SAMA POLA seperti produk_size
+        // di atas — diambil dari produk anak SPK-nya, bukan dari bahan
+        // (bahan_warna sudah ada terpisah, itu warna KAIN, bukan warna
+        // produknya).
+        produk_warna: (produk && produk.warna) || '',
         panjang_pola: panjangCm, isi_pola_pcs: isiPola,
         amparan, kebutuhan_kain: kebutuhanKain,
         // status per BARIS (bukan per grouping) — inilah yang dipakai
@@ -1079,10 +1086,20 @@ const PersiapanDisiapkanManager = {
   `
 };
 
-const AppPersiapanDisiapkan = { components: { PersiapanDisiapkanManager }, template: `<persiapan-disiapkan-manager />` };
+const AppPersiapanDisiapkan = { components: { PersiapanDisiapkanManager }, template: `<persiapan-disiapkan-manager ref="mgr" />` };
 let vmPpDisiapkan = null;
+// FIX #4 (12 Sep 2026, laporan Guru — "Perlu Disiapkan" harus refresh
+// manual pas pindah tab). Sama pola dengan FIX #2 pastikanMountPesananMenunggu
+// di js/vue-pesanan.js — dipanggil ulang PersiapanDisiapkanManager.muat()
+// lewat $refs kalau sudah ke-mount, BUKAN mengubah pola pastikanMountXxx
+// lain di petaMount (dashboard.js). Loading "Memuat..." di template otomatis
+// tampil lagi karena muat() sendiri yang set memuat=true/false.
 window.pastikanMountPpDisiapkan = function() {
-  if (vmPpDisiapkan) return;
+  if (vmPpDisiapkan) {
+    const mgr = vmPpDisiapkan.$refs && vmPpDisiapkan.$refs.mgr;
+    if (mgr && typeof mgr.muat === 'function') mgr.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-pp-disiapkan');
   if (mountPoint) vmPpDisiapkan = createApp(AppPersiapanDisiapkan).mount('#vue-pp-disiapkan');
 };

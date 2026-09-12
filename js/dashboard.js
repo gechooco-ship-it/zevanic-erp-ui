@@ -399,7 +399,24 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     elTombolAktif = document.querySelector('.' + grupKelas + '-btn[data-target="' + targetId + '"]');
   }
   document.querySelectorAll('.' + grupKelas + '-btn').forEach(btn => btn.classList.remove('active'));
-  if (elTombolAktif) elTombolAktif.classList.add('active');
+  // FIX #5 (12 Sep 2026, laporan Guru — tab aktif Persiapan Produksi > Bahan
+  // tidak burgundy). Root cause: retrofit pill tab DI DALAM tiap kartu
+  // (lihat js/vue-persiapan-bahan.js TAB_DEFS_BAHAN, dipakai juga pola sama
+  // di Sewing/Webbing/Finishing/Vendor/Masalah) bikin >1 SALINAN baris
+  // tombol '.{grupKelas}-btn' hidup bersamaan di DOM (semua Vue app-nya
+  // mount-once, disembunyikan lewat CSS `hidden` di container, bukan
+  // di-unmount) — beda dari asumsi lama "1 baris tombol per grupKelas".
+  // Kode lama cuma nge-add('active') ke SATU node persis yang diklik
+  // (elTombolAktif); kalau yang diklik itu salinan milik tab LAIN, salinan
+  // pill di tab yang BARU jadi aktif tidak pernah kebagian class 'active'
+  // sama sekali (=tidak burgundy). Diperbaiki: kalau tombolnya punya
+  // data-target, samakan 'active' ke SEMUA salinan yang data-target-nya
+  // cocok (menutup celah ini di semua grup, tidak cuma Bahan) — tombol yang
+  // TIDAK punya data-target (mis. "Riwayat All Absensi" di index.html,
+  // sengaja tanpa riwayat) tetap jatuh ke perilaku lama (exact node).
+  const salinanAktif = targetId ? document.querySelectorAll('.' + grupKelas + '-btn[data-target="' + targetId + '"]') : [];
+  if (salinanAktif.length > 0) salinanAktif.forEach(btn => btn.classList.add('active'));
+  else if (elTombolAktif) elTombolAktif.classList.add('active');
 
   if (opsi.catatRiwayat && !opsi._dariPopstate) {
     if (!window._riwayatNavAktif) window._riwayatNavAktif = { tab: null, navKey: null, subTabs: [] };
