@@ -321,6 +321,8 @@ async function pastikanSewingTrackLengkap() {
         unpack_log: [], catatan_masalah: '',
         terima_pada: null, mulai_sewing_pada: null, entry_pada: null, label_pcs_dicetak_pada: null,
         masuk_tahap_pada: now, sampai_pada: null,
+        // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+        riwayat_scan: [],
         dibuat_pada: serverTimestamp(), diperbarui_pada: serverTimestamp()
       });
     }));
@@ -362,6 +364,15 @@ async function kirimMasalahSewing(track, jumlah, alasan) {
     bahanNama: track.nama_produk, bahanWarna: track.size, satuan: 'pcs',
     qtyKurang: jumlah, alasan
   });
+  // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+  // Dipanggil dari SEMUA popup Scan Masalah (Tab 3.1/3.2/3.3/3.4, satu fungsi
+  // dipakai bersama) — dibungkus try/catch supaya kegagalan catat riwayat_scan
+  // tidak menggagalkan pengajuan masalah yang sudah berhasil di atas.
+  try {
+    await updateSewingTrack(track.id, () => ({
+      riwayat_scan: arrayUnion({ aksi: 'masalah', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), catatan: alasan, qty: jumlah ?? null })
+    }));
+  } catch (e) { console.error('Gagal catat riwayat_scan masalah Sewing:', e); }
 }
 
 // ============================================================================
@@ -409,7 +420,12 @@ const SewingPerluDiProses = {
         try {
           const t = daftar.value.find(x => x.batch_id === b.id);
           if (!t) { alert('Bagging cocok, tapi sewing_track untuk batch ini belum ada — coba tutup lalu buka lagi tab ini.'); return; }
-          await updateSewingTrack(t.id, () => ({ terima_pada: new Date().toISOString() }));
+          const now = new Date().toISOString();
+          // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+          await updateSewingTrack(t.id, () => ({
+            terima_pada: now,
+            riwayat_scan: arrayUnion({ aksi: 'sampai', oleh: window.currentUser?.email || null, pada: now, qty: t.qty ?? null, catatan: 'Diterima dari Serie — kode tugas ' + (b.kode_tugas || '') })
+          }));
           modalSampai.log.unshift('SEMUA bagging sampai — batch ' + (b.kode_batch || '') + ' siap ditunjuk operator');
           await muat();
         } catch (e) { console.error('Gagal simpan scan sampai Sewing:', e); alert('Gagal menyimpan. Coba lagi.'); }
@@ -437,6 +453,12 @@ const SewingPerluDiProses = {
       const p = popupUnpack.value;
       if (!p) return;
       try {
+        // TODO(riwayat_scan ambiguous): Scan Unpack tidak punya padanan di
+        // LABEL_AKSI_SCAN (operator/entry/masalah/pack/kirim/sampai) — ini
+        // aksi tambahan khas Sewing (cek isi bagging KOMPLIT/INKOMPLIT saat
+        // datang dari Serie), beda dari 'sampai' (yang sudah dipetakan ke
+        // hasilScanSampai di atas). Tidak menebak pemetaan; dilewati sesuai
+        // instruksi (skip kalau ambigu).
         await updateSewingTrack(p.track.id, () => ({
           unpack_log: arrayUnion({ kode_bagging: p.kodeBagging, status: p.hasil, pada: new Date().toISOString() })
         }));
@@ -456,10 +478,14 @@ const SewingPerluDiProses = {
       const track = popupPinOperator.value;
       popupPinOperator.value = null;
       try {
+        const now = new Date().toISOString();
+        const namaOperator = user.nama || user.name || user.email;
         await updateSewingTrack(track.id, (data) => ({
-          operator_uid: user.email, operator_nama: user.nama || user.name || user.email,
-          riwayat_operator: [...(data.riwayat_operator || []), { uid: user.email, nama: user.nama || user.name || user.email, pada: new Date().toISOString() }],
-          status: 'sedang_sewing', mulai_sewing_pada: new Date().toISOString(), masuk_tahap_pada: new Date().toISOString()
+          operator_uid: user.email, operator_nama: namaOperator,
+          riwayat_operator: [...(data.riwayat_operator || []), { uid: user.email, nama: namaOperator, pada: now }],
+          status: 'sedang_sewing', mulai_sewing_pada: now, masuk_tahap_pada: now,
+          // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+          riwayat_scan: arrayUnion({ aksi: 'operator', oleh: namaOperator, pada: now, qty: data.qty ?? null })
         }));
         await muat();
       } catch (e) { console.error('Gagal tunjuk operator Sewing:', e); alert('Gagal menyimpan. Coba lagi.'); }
@@ -641,7 +667,11 @@ const SewingSedangSewing = {
       if (!t) { alert(`Kode batch "${kode}" tidak ditemukan di Sedang Sewing.`); return; }
       try {
         const now = new Date().toISOString();
-        await updateSewingTrack(t.id, () => ({ status: 'perlu_dikirim', entry_pada: now, masuk_tahap_pada: now }));
+        // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+        await updateSewingTrack(t.id, () => ({
+          status: 'perlu_dikirim', entry_pada: now, masuk_tahap_pada: now,
+          riwayat_scan: arrayUnion({ aksi: 'entry', oleh: window.currentUser?.email || null, pada: now, qty: t.qty ?? null })
+        }));
         modalEntry.log.unshift(kode + ' -> selesai dijahit');
         await muat();
       } catch (e) { console.error('Gagal scan entry Sewing:', e); alert('Gagal menyimpan. Coba lagi.'); }
@@ -827,7 +857,22 @@ const SewingPerluDikirim = {
     }
     async function tutupBaggingPack() {
       if (!modalPack.bagging) return;
-      try { await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() }); } catch (e) { console.error('Gagal tutup bagging:', e); }
+      try {
+        await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() });
+        // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+        // qty dihitung dari log sesi ini yang cocok kode bagging ini saja
+        // (modalPack.log bisa berisi scan dari bagging lain dalam sesi yang
+        // sama kalau operator ganti bagging tanpa menutup modal) — bukan
+        // dari .isi milik dokumen bagging (salinan lokal tidak ikut ter-
+        // update oleh arrayUnion di Firestore), jadi tidak fabricated.
+        if (modalPack.batch) {
+          const kodeBaggingIni = modalPack.bagging.kode;
+          const qtyPack = modalPack.log.filter(l => l.endsWith(' -> ' + kodeBaggingIni)).length || null;
+          await updateSewingTrack(modalPack.batch.id, () => ({
+            riwayat_scan: arrayUnion({ aksi: 'pack', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), qty: qtyPack, catatan: kodeBaggingIni })
+          }));
+        }
+      } catch (e) { console.error('Gagal tutup bagging:', e); }
       modalPack.bagging = null; modalPack.batch = null;
     }
 
@@ -849,8 +894,13 @@ const SewingPerluDikirim = {
       const t = daftar.value.find(x => x.kode_tugas === modalKirim.tugas.kode && (x.kode_bagging || []).includes(kode));
       if (!t) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
       try {
-        await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), { pack: arrayUnion({ kode_bagging: kode, pada: new Date().toISOString() }) });
-        await updateSewingTrack(t.id, () => ({ status: 'sedang_dikirim', masuk_tahap_pada: new Date().toISOString() }));
+        const now = new Date().toISOString();
+        await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), { pack: arrayUnion({ kode_bagging: kode, pada: now }) });
+        // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+        await updateSewingTrack(t.id, () => ({
+          status: 'sedang_dikirim', masuk_tahap_pada: now,
+          riwayat_scan: arrayUnion({ aksi: 'kirim', oleh: window.currentUser?.email || null, pada: now, qty: t.qty ?? null, catatan: 'Kirim ke Serie — kode tugas ' + modalKirim.tugas.kode })
+        }));
         modalKirim.log.unshift(kode + ' -> ' + modalKirim.tugas.kode + ' (status pindah ke Sedang Kirim)');
         await muat();
       } catch (e) { console.error('Gagal scan kirim Sewing:', e); alert('Gagal menyimpan. Coba lagi.'); }

@@ -110,7 +110,6 @@ function picOwnerKeAtas(userData) {
 // masing-masing pos ditangani terpisah di komponennya sendiri). -----------
 const JALUR = 'webbing';
 const FIELD_RINCIAN = 'webbing_rincian';
-const SUFFIX_LABEL = 'WEB';
 const TLC_ASAL = 'TLC-WEB';
 const MENU_ID = 'pp_webbing';
 const ICON_KOSONG = 'fa-ribbon';
@@ -496,7 +495,9 @@ const PersiapanWebbingPerluDisiapkan = {
         kode: barisGrup[0].kode_spk,
         nama: k.namaProduk,
         info: `${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna} &middot; ${formatQty(b.butuh)} ${b.satuan}`).join(' | '),
-        qrDataUrl: buatQrDataUrl(`${noSpk}-${SUFFIX_LABEL}`),
+        // FIX (bug live QR cetak-vs-scan): QR balik ke noSpk polos -- suffix
+        // -WEB bikin hasilScanTunjuk/Aksi/Pack (yang cek noSpk polos) gagal terus.
+        qrDataUrl: buatQrDataUrl(noSpk),
         rincian: {
           roll: barisGrup.map(b => formatRoll(b.roll)).join(' | '),
           kode_webbing2: barisGrup.map(b => b.kode_webbing2 || '-').join(' | '),
@@ -562,7 +563,7 @@ const PersiapanWebbingPerluDisiapkan = {
       const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => ({
         kode: barisGrup[0].kode_spk, nama: p.kartu.namaProduk,
         info: `CETAK ULANG &middot; ${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna}`).join(' | '),
-        qrDataUrl: buatQrDataUrl(`${noSpk}-${SUFFIX_LABEL}`),
+        qrDataUrl: buatQrDataUrl(noSpk),
         rincian: {
           roll: barisGrup.map(b => formatRoll(b.roll)).join(' | '),
           kode_webbing2: barisGrup.map(b => b.kode_webbing2 || '-').join(' | '),

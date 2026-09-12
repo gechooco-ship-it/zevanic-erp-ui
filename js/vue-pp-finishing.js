@@ -268,6 +268,8 @@ async function pastikanFinishingTrackLengkap() {
           scan_qc_pada: null, scan_steam_pada: null, scan_folding_pada: null, scan_packing_pada: null,
           terima_pada: null, kode_bagging: null, kode_tugas: null, catatan_masalah: '',
           masuk_tahap_pada: now, sampai_pada: null,
+          // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+          riwayat_scan: [],
           dibuat_pada: serverTimestamp(), diperbarui_pada: serverTimestamp()
         });
         try { await updateDoc(doc(db, 'label_pcs', p.id), { status: 'di_finishing' }); }
@@ -321,6 +323,14 @@ async function kirimMasalahFinishing(t, jumlah, alasan) {
     bahanNama: t.nama_produk, bahanWarna: t.kode_pcs, satuan: 'pcs',
     qtyKurang: jumlah, alasan
   });
+  // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+  // ajukanPersiapanMasalah() cuma menulis ke koleksi persiapan_masalah (fungsi generik dipakai semua pos,
+  // TIDAK diubah di sini) — riwayat_scan finishing_track dicatat terpisah supaya tidak ganggu jalur yang sudah ada.
+  try {
+    await updateFinishingTrack(t.id, () => ({
+      riwayat_scan: arrayUnion({ aksi: 'masalah', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), catatan: alasan, qty: jumlah })
+    }));
+  } catch (e) { console.error('Gagal catat riwayat_scan masalah Finishing:', e); }
 }
 
 // ============================================================================
@@ -362,9 +372,14 @@ function buatModalTahap(tahap, statusMasuk, statusSetelahSelesai) {
           const idxTahap = URUTAN_TAHAP.indexOf(tahap);
           const tahapBerikut = URUTAN_TAHAP[idxTahap + 1] || 'selesai';
           const progressBaru = idxTahap + 1;
+          // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+          // mode 'operator' (PIC scan QR operator lain lalu scan pcs, keputusan #6/#7) dipetakan ke aksi 'operator';
+          // mode 'sendiri' (operator scan dirinya sendiri, keputusan #8) dipetakan ke aksi 'entry'.
+          const aksiScan = props.mode === 'operator' ? 'operator' : 'entry';
           const patch = {
             ['op_' + tahap]: operatorTerpilih.value, ['scan_' + tahap + '_pada']: now,
-            progress: progressBaru, tahap_aktif: tahapBerikut, masuk_tahap_pada: now
+            progress: progressBaru, tahap_aktif: tahapBerikut, masuk_tahap_pada: now,
+            riwayat_scan: arrayUnion({ aksi: aksiScan, oleh: operatorTerpilih.value.nama || operatorTerpilih.value.uid, pada: now, qty: 1, catatan: 'Tahap ' + LABEL_TAHAP[tahap] })
           };
           if (tahap === 'qc' && t.status === 'perlu_diproses') patch.status = 'sedang_finishing';
           if (progressBaru >= 4) patch.status = 'perlu_dikirim';
@@ -435,7 +450,9 @@ const FinishingPerluDiProses = {
           const pcsBatch = daftar.value.filter(x => x.batch_id === b.id);
           if (!pcsBatch.length) { alert('Bagging cocok, tapi belum ada finishing_track untuk batch ini — coba tutup lalu buka lagi tab ini.'); return; }
           const now = new Date().toISOString();
-          await Promise.all(pcsBatch.map(t => updateFinishingTrack(t.id, () => ({ terima_pada: now }))));
+          const olehSampai = window.currentUser?.email || null;
+          // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+          await Promise.all(pcsBatch.map(t => updateFinishingTrack(t.id, () => ({ terima_pada: now, riwayat_scan: arrayUnion({ aksi: 'sampai', oleh: olehSampai, pada: now, qty: 1 }) }))));
           modalSampai.log.unshift('SEMUA bagging sampai — batch ' + (b.kode_batch || '') + ' (' + pcsBatch.length + ' pcs) siap ditunjuk operator QC');
           await muat();
         } catch (e) { console.error('Gagal simpan scan sampai Finishing:', e); alert('Gagal menyimpan. Coba lagi.'); }
@@ -461,6 +478,12 @@ const FinishingPerluDiProses = {
         popupUnpack.value = { batch: b, jumlahPcs: pcsBatch.length, kodeBagging: kode, hasil: 'komplit' };
       } catch (e) { console.error('Gagal cari kode bagging (unpack):', e); alert('Gagal mencari. Coba lagi.'); }
     }
+    // TODO(riwayat_scan ambiguous): Scan Unpack tidak dipetakan ke riwayat_scan — ini bukan salah satu
+    // dari 6 nilai aksi baku (operator/entry/masalah/pack/kirim/sampai): bukan laporan masalah resmi
+    // (tidak lewat ajukanPersiapanMasalah, cuma nulis catatan_masalah bebas), dan bukan konfirmasi
+    // kedatangan batch (itu sudah dicatat aksi 'sampai' di hasilScanSampai di atas). Field ini sendiri
+    // sudah didokumentasikan di komentar atas sebagai "opsional, tidak ada di SERAH-TERIMA" — dibiarkan
+    // tanpa riwayat_scan daripada menebak aksi yang salah.
     async function konfirmasiUnpack() {
       const p = popupUnpack.value;
       if (!p) return;
@@ -795,6 +818,10 @@ const FinishingPerluDikirim = {
         const snap = await getDocs(query(collection(db, 'finishing_track'), where('kode_bagging', '==', modalPack.kodeBagging), where('kode_pcs', '==', kode)));
         if (snap.empty) { alert(`Kode pcs "${kode}" tidak terkait bagging ini.`); return; }
         await updateDoc(doc(db, 'bagging', (await getDocs(query(collection(db, 'bagging'), where('kode', '==', modalPack.kodeBagging)))).docs[0].id), { isi: arrayUnion(kode) });
+        // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+        await updateFinishingTrack(snap.docs[0].id, () => ({
+          riwayat_scan: arrayUnion({ aksi: 'pack', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), qty: 1 })
+        }));
         modalPack.log.unshift(kode + ' -> ' + modalPack.kodeBagging);
       } catch (e) { console.error('Gagal scan pack Finishing:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
@@ -826,7 +853,9 @@ const FinishingPerluDikirim = {
       try {
         await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), { pack: arrayUnion({ kode_bagging: kode, pada: new Date().toISOString() }) });
         const now = new Date().toISOString();
-        await Promise.all(g.pcs.map(t => updateFinishingTrack(t.id, () => ({ status: 'sedang_dikirim', masuk_tahap_pada: now }))));
+        const olehKirim = window.currentUser?.email || null;
+        // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+        await Promise.all(g.pcs.map(t => updateFinishingTrack(t.id, () => ({ status: 'sedang_dikirim', masuk_tahap_pada: now, riwayat_scan: arrayUnion({ aksi: 'kirim', oleh: olehKirim, pada: now, qty: 1 }) }))));
         modalKirim.log.unshift(kode + ' -> ' + modalKirim.tugas.kode + ' (' + g.pcs.length + ' pcs pindah ke Sedang Kirim)');
         await muat();
       } catch (e) { console.error('Gagal scan kirim Finishing:', e); alert('Gagal menyimpan. Coba lagi.'); }

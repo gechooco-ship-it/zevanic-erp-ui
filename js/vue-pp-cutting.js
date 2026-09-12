@@ -231,6 +231,8 @@ async function pastikanCuttingTrackLengkap() {
       status: 'perlu_diproses',
       op_ampar: null, op_pola: null, op_cutting: null,
       unpack_log: [], entry_ampar_done: 0,
+      // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+      riwayat_scan: [],
       komponen_rincian: [], kode_bagging: [], kode_tugas: '', tlc_tujuan: '', tujuan_akhir: '',
       catatan_masalah: '', masuk_tahap_pada: now, sampai_pada: null,
       dibuat_pada: serverTimestamp(), diperbarui_pada: serverTimestamp()
@@ -302,6 +304,13 @@ async function kirimMasalahCutting(track, jumlah, alasan) {
     bahanNama: track.nama_produk, bahanWarna: track.size, satuan: 'pcs',
     qtyKurang: jumlah, alasan
   });
+  // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+  // Dipanggil dari SEMUA 6 tab (popupMasalahMixin dipakai ulang tiap tab) — 1 titik saja cukup utk cover semua Scan Masalah Cutting.
+  try {
+    await updateCuttingTrack(track.id, (data) => ({
+      riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'masalah', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), catatan: alasan, qty: track.qty_total ?? null }]
+    }));
+  } catch (e) { console.error('Gagal catat riwayat_scan masalah:', e); }
 }
 
 // ============================================================================
@@ -416,6 +425,13 @@ const CuttingPerluDiProses = {
     // --- Scan Sampai: step1 kode_tugas, step2 kode_bagging berkali-kali ---
     // Menutup Persiapan Bahan: tulis sampai_pada ke spk_track.bahan_rincian[]
     // yang kode_bagging-nya cocok (lihat keputusan §2 komentar besar atas file).
+    // TODO(riwayat_scan ambiguous): fungsi ini menulis ke koleksi `spk_track`
+    // (jalur:'bahan'), BUKAN `cutting_track` — satu scan bisa mengenai BANYAK
+    // dokumen spk_track sekaligus lintas SPK/track manapun (loop `kena` di
+    // hasilScanSampai di bawah), jadi TIDAK ada satu cutting_track tunggal yang
+    // bisa dijadikan target riwayat_scan yang wajar di sini. Skip ADITIF —
+    // tidak ditambahkan riwayat_scan supaya tidak menebak/memilih 1 track
+    // secara sewenang-wenang dari banyak kandidat.
     const modalSampai = reactive({ aktif: false, tugas: null, log: [] });
     function bukaScanSampai() { modalSampai.tugas = null; modalSampai.log = []; modalSampai.aktif = true; }
     function tutupScanSampai() { modalSampai.aktif = false; modalSampai.tugas = null; modalSampai.log = []; muat(); }
@@ -478,7 +494,9 @@ const CuttingPerluDiProses = {
       try {
         await updateCuttingTrack(track.id, (data) => ({
           op_ampar: { uid: user.email, nama: user.nama || user.name || user.email, riwayat: [...((data.op_ampar && data.op_ampar.riwayat) || []), { uid: user.email, nama: user.nama || user.name || user.email, pada: new Date().toISOString() }] },
-          status: 'sedang_ampar', masuk_tahap_pada: new Date().toISOString()
+          status: 'sedang_ampar', masuk_tahap_pada: new Date().toISOString(),
+          // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: user.nama || user.name || user.email, pada: new Date().toISOString(), catatan: 'Tunjuk Operator Ampar', qty: track.qty_total ?? null }]
         }));
         await muat();
       } catch (e) { console.error('Gagal tunjuk operator ampar:', e); alert('Gagal menyimpan. Coba lagi.'); }
@@ -636,7 +654,11 @@ const CuttingSedangAmpar = {
       const track = modalEntry.track;
       if (kode !== track.kode_spk) { alert(`Kode "${kode}" tidak cocok dengan SPK ${track.kode_spk}.`); return; }
       try {
-        await updateCuttingTrack(track.id, (data) => ({ entry_ampar_done: (parseFloat(data.entry_ampar_done) || 0) + 1 }));
+        await updateCuttingTrack(track.id, (data) => ({
+          entry_ampar_done: (parseFloat(data.entry_ampar_done) || 0) + 1,
+          // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'entry', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), catatan: 'Entry Ampar', qty: track.qty_total ?? null }]
+        }));
         track.entry_ampar_done = (parseFloat(track.entry_ampar_done) || 0) + 1;
       } catch (e) { console.error('Gagal scan entry ampar:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
@@ -656,7 +678,9 @@ const CuttingSedangAmpar = {
         await updateCuttingTrack(track.id, (data) => ({
           op_pola: { uid: user.email, nama: user.nama || user.name || user.email, riwayat: [...((data.op_pola && data.op_pola.riwayat) || []), { uid: user.email, nama: user.nama || user.name || user.email, pada: new Date().toISOString() }] },
           komponen_rincian: komponen,
-          status: 'sedang_pola', masuk_tahap_pada: new Date().toISOString()
+          status: 'sedang_pola', masuk_tahap_pada: new Date().toISOString(),
+          // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: user.nama || user.name || user.email, pada: new Date().toISOString(), catatan: 'Ampar Selesai & Tunjuk Operator Pola', qty: track.qty_total ?? null }]
         }));
         await muat();
       } catch (e) { console.error('Gagal tunjuk operator pola:', e); alert('Gagal menyimpan. Coba lagi.'); }
@@ -829,6 +853,13 @@ const CuttingSedangPola = {
         await updateDoc(doc(db, 'label_komponen', d.id), { status_pola: 'selesai', pola_pada: new Date().toISOString() });
         modalEntry.log.unshift(kode + ' -> pola selesai');
         semuaLabel.value = semuaLabel.value.map(l => l.id === d.id ? { ...l, status_pola: 'selesai' } : l);
+        // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+        // Ditulis TERPISAH ke cutting_track (bukan label_komponen) supaya riwayat tetap terkumpul di 1 dokumen per SPK Grouping — kegagalan di sini TIDAK membatalkan update status_pola di atas (sudah berhasil), cuma dicatat ke console.
+        try {
+          await updateCuttingTrack(modalEntry.track.id, (data) => ({
+            riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'entry', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), catatan: `Entry Pola — komponen ${d.data().nama_komponen} (label ${kode})`, qty: null }]
+          }));
+        } catch (e2) { console.error('Gagal catat riwayat_scan entry pola:', e2); }
       } catch (e) { console.error('Gagal scan entry pola:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
@@ -845,7 +876,9 @@ const CuttingSedangPola = {
       try {
         await updateCuttingTrack(track.id, (data) => ({
           op_cutting: { uid: user.email, nama: user.nama || user.name || user.email, riwayat: [...((data.op_cutting && data.op_cutting.riwayat) || []), { uid: user.email, nama: user.nama || user.name || user.email, pada: new Date().toISOString() }] },
-          status: 'sedang_cutting', masuk_tahap_pada: new Date().toISOString()
+          status: 'sedang_cutting', masuk_tahap_pada: new Date().toISOString(),
+          // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: user.nama || user.name || user.email, pada: new Date().toISOString(), catatan: 'Pola Selesai & Tunjuk Operator Cutting', qty: track.qty_total ?? null }]
         }));
         await muat();
       } catch (e) { console.error('Gagal tunjuk operator cutting:', e); alert('Gagal menyimpan. Coba lagi.'); }
@@ -994,6 +1027,13 @@ const CuttingSedangCutting = {
         await updateDoc(doc(db, 'label_komponen', d.id), { status_cutting: 'selesai', cutting_pada: new Date().toISOString() });
         modalEntry.log.unshift(kode + ' -> cutting selesai');
         semuaLabel.value = semuaLabel.value.map(l => l.id === d.id ? { ...l, status_cutting: 'selesai' } : l);
+        // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+        // Ditulis TERPISAH ke cutting_track (bukan label_komponen), sama pola dgn Tab 1.3 — kegagalan di sini TIDAK membatalkan update status_cutting di atas.
+        try {
+          await updateCuttingTrack(modalEntry.track.id, (data) => ({
+            riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'entry', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), catatan: `Entry Cutting — komponen ${d.data().nama_komponen} (label ${kode})`, qty: null }]
+          }));
+        } catch (e2) { console.error('Gagal catat riwayat_scan entry cutting:', e2); }
       } catch (e) { console.error('Gagal scan entry cutting:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
@@ -1202,6 +1242,16 @@ const CuttingPerluDiKirim = {
         if (snap.empty) { alert(`Kode "${kode}" bukan label komponen yang dikenali.`); return; }
         await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { isi: arrayUnion(kode) });
         modalPack.log.unshift(kode + ' -> ' + modalPack.bagging.kode);
+        // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+        // Dicatat ke cutting_track milik label ini (via label_komponen.cutting_track_id) — bagging sendiri BUKAN cutting_track, jadi dicari balik dulu. Kegagalan di sini TIDAK membatalkan scan pack di atas (sudah berhasil).
+        try {
+          const cuttingTrackId = snap.docs[0].data().cutting_track_id;
+          if (cuttingTrackId) {
+            await updateCuttingTrack(cuttingTrackId, (data) => ({
+              riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'pack', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), catatan: `Label ${kode} -> bagging ${modalPack.bagging.kode}`, qty: null }]
+            }));
+          }
+        } catch (e2) { console.error('Gagal catat riwayat_scan pack:', e2); }
       } catch (e) { console.error('Gagal scan pack:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
     async function tutupBagging() {
@@ -1230,9 +1280,12 @@ const CuttingPerluDiKirim = {
         await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), { pack: arrayUnion({ kode_bagging: kode, pada: new Date().toISOString() }) });
         const tugasSnap = await getDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id));
         const semuaSudah = (track.kode_bagging || []).every(kb => (tugasSnap.data().pack || []).some(p => p.kode_bagging === kb));
-        if (semuaSudah) {
-          await updateCuttingTrack(track.id, () => ({ status: 'sedang_dikirim', masuk_tahap_pada: new Date().toISOString(), tlc_tujuan: modalKirim.tugas.tlc_tujuan || '' }));
-        }
+        // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi/js/vue-persiapan-produksi-v2.js). Ditambahkan ADITIF.
+        // Dicatat tiap kode bagging discan (bukan cuma pas transisi status) — digabung dalam 1 transaksi yang sama dengan update status supaya tidak nulis 2x ke dokumen yang sama.
+        await updateCuttingTrack(track.id, (data) => ({
+          ...(semuaSudah ? { status: 'sedang_dikirim', masuk_tahap_pada: new Date().toISOString(), tlc_tujuan: modalKirim.tugas.tlc_tujuan || '' } : {}),
+          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'kirim', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), catatan: `Bagging ${kode} -> tugas ${modalKirim.tugas.kode} (tujuan ${modalKirim.tugas.tlc_tujuan || '-'})`, qty: track.qty_total ?? null }]
+        }));
         modalKirim.log.unshift(kode + ' -> ' + modalKirim.tugas.kode + (semuaSudah ? ' (semua pack terkirim, status pindah)' : ''));
         await muat();
       } catch (e) { console.error('Gagal scan kirim:', e); alert('Gagal menyimpan. Coba lagi.'); }

@@ -216,16 +216,41 @@ function hariIniSama(iso) {
   const d = new Date(iso), now = new Date();
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 }
-async function generateKodeHarian(prefix, koleksiCounter) {
-  const now = new Date();
-  const tanggalKey = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-  const refDoc = doc(db, koleksiCounter, tanggalKey);
+// generateKodeBatchPerGrouping — GANTI (12 Sep 2026, redesain penomoran
+// total, lihat dummy-erp-grouping.xlsx). Dulu kode_batch =
+// `${kode_spk}-5{counter GLOBAL per hari}` lewat generateKodeHarian(prefix,
+// koleksiCounter) versi file ini (fungsi itu SEKARANG DIHAPUS — nama yang
+// sama persis dengan generateKodeHarian() versi Cutting tapi ISI BEDA
+// [itu Cutting mengembalikan STRING terformat, ini dulu angka mentah]
+// sempat jadi sumber kebingungan, jadi sekalian dibereskan di sini,
+// bukan cuma diganti isinya). Counter GLOBAL-per-hari (dari koleksi
+// `pengaturan_id_separating/{yymmdd}`) diganti PER GROUPING (keputusan
+// Guru lewat AskUserQuestion: "Ganti ke PER GROUPING (S01, S02 khusus
+// grouping itu)") — supaya nomor S01/S02/dst mencerminkan urutan batch DI
+// DALAM grouping itu sendiri (kasus umum: bahan kurang, 1 grouping
+// dipecah jadi beberapa batch bertahap). Counter-nya disimpan LANGSUNG di
+// dokumen `spk_grouping` (field baru `separating_counter`, ditulis
+// transaksional) — BUKAN lagi di koleksi `pengaturan_id_separating`
+// terpisah (koleksi lama itu TIDAK dihapus/diubah, cuma tidak ditulis
+// lagi dari sini, supaya data lama tidak hilang).
+//
+// Format baru: `${kode_spk}-S{counter:2digit}` (mis. G26R0911P001-S01),
+// gantikan `${kode_spk}-5{counter:3digit}` lama.
+//
+// Catatan penggabungan multi-grouping: kalau Generate Separating
+// menggabungkan >1 SPK Grouping sekaligus (`dipilih.length > 1`), counter
+// dijalankan pada grouping PERTAMA yang dicentang (`dipilih[0]`, sama
+// seperti kode_spk dasar kode_batch-nya) — grouping lain yang ikut
+// digabung TIDAK dapat nomor S sendiri karena kode_batch hasil gabungan
+// itu cuma satu.
+async function generateKodeBatchPerGrouping(groupingId, kodeSpk) {
+  const refGrouping = doc(db, 'spk_grouping', groupingId);
   return await runTransaction(db, async (trx) => {
-    const snap = await trx.get(refDoc);
-    const counterBaru = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
-    if (snap.exists()) trx.update(refDoc, { counter: counterBaru });
-    else trx.set(refDoc, { counter: counterBaru, dibuat_pada: tanggalKey });
-    return counterBaru;
+    const snap = await trx.get(refGrouping);
+    const counterLama = snap.exists() ? (snap.data().separating_counter || 0) : 0;
+    const counterBaru = counterLama + 1;
+    if (snap.exists()) trx.update(refGrouping, { separating_counter: counterBaru });
+    return `${kodeSpk}-S${String(counterBaru).padStart(2, '0')}`;
   });
 }
 // generateKodeHarianFormat — VERSI KEDUA, mengembalikan STRING TERFORMAT
@@ -396,6 +421,17 @@ async function kirimMasalahSerie(batch, jumlah, alasan) {
     bahanNama: batch.nama_produk, bahanWarna: batch.size, satuan: 'pcs',
     qtyKurang: jumlah, alasan
   });
+  // riwayat_scan aksi 'masalah' — BARU (12 Sep 2026, unifikasi log Proses
+  // Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi).
+  // Ditambahkan ADITIF di samping persiapan_masalah (yang sudah ada dan
+  // TIDAK diubah) supaya riwayat_scan tetap jadi 1 log lengkap per batch.
+  try {
+    const oleh = window.currentUser?.email || null;
+    await updateSeparatingBatch(batch.id, (data) => ({
+      catatan_masalah: alasan || data.catatan_masalah || '',
+      riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'masalah', oleh, pada: new Date().toISOString(), catatan: alasan, qty: jumlah }]
+    }));
+  } catch (e) { console.error('Gagal catat riwayat_scan masalah Serie:', e); }
 }
 
 // ============================================================================
@@ -557,14 +593,18 @@ const SeriePerluDiProses = {
         const groupingIds = dipilih.map(g => g.id);
         const preview = [];
         for (let i = 0; i < jumlahBatch; i++) {
-          const counter = await generateKodeHarian('', 'pengaturan_id_separating');
-          const kodeBatch = `${dipilih[0].kode_spk}-5${String(counter).padStart(3, '0')}`;
+          const kodeBatch = await generateKodeBatchPerGrouping(dipilih[0].id, dipilih[0].kode_spk);
           const komponen = kumpulkanKomponenUntukBatch(groupingIds, cuttingList.value, spkTrackByJalur, isiPcs, totalQtyCentang.value)
             .map((k, idx) => ({ ...k, id_komponen: `${kodeBatch}-${String(idx + 1).padStart(2, '0')}`, status: 'belum', entry_oleh: '', entry_pada: null, label_dicetak_pada: null }));
           await addDoc(collection(db, 'separating_batch'), {
             kode_batch: kodeBatch, spk_groupings: groupingIds, nama_produk: dipilih[0].nama_produk, size: dipilih[0].size,
             qty: isiPcs, status: 'perlu_diproses', operator_uid: null, operator_nama: null, riwayat_operator: [],
             komponen_rincian: komponen, kode_bagging: [], kode_tugas: '', tlc_tujuan: '', unpack_log: [], catatan_masalah: '',
+            // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi,
+            // lihat catatan besar di generateKodeBatchPerGrouping() & bagian
+            // "AKSI SCAN" di bawah file ini). Ditambahkan ADITIF, array kosong
+            // di awal sama seperti spk_track di Persiapan Produksi.
+            riwayat_scan: [],
             masuk_tahap_pada: new Date().toISOString(), sampai_pada: null,
             dibuat_pada: serverTimestamp(), diperbarui_pada: serverTimestamp()
           });
@@ -795,9 +835,13 @@ const SerieSedangDiProses = {
       const batch = popupPinOperator.value;
       popupPinOperator.value = null;
       try {
+        const namaOperator = user.nama || user.name || user.email;
+        const pada = new Date().toISOString();
         await updateSeparatingBatch(batch.id, (data) => ({
-          operator_uid: user.email, operator_nama: user.nama || user.name || user.email,
-          riwayat_operator: [...(data.riwayat_operator || []), { uid: user.email, nama: user.nama || user.name || user.email, pada: new Date().toISOString() }]
+          operator_uid: user.email, operator_nama: namaOperator,
+          riwayat_operator: [...(data.riwayat_operator || []), { uid: user.email, nama: namaOperator, pada }],
+          // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi).
+          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: namaOperator, pada, qty: data.qty ?? null }]
         }));
         await muat();
       } catch (e) { console.error('Gagal scan operator Serie:', e); alert('Gagal menyimpan. Coba lagi.'); }
@@ -819,7 +863,13 @@ const SerieSedangDiProses = {
         await updateSeparatingBatch(batch.id, (data) => {
           const arr = (data.komponen_rincian || []).map(k => k.id_komponen === kode ? { ...k, status: 'selesai', entry_oleh: oleh, entry_pada: now } : k);
           const semuaSelesai = arr.length > 0 && arr.every(k => k.status === 'selesai');
-          return { komponen_rincian: arr, ...(semuaSelesai ? { status: 'perlu_dikirim', masuk_tahap_pada: now } : {}) };
+          // riwayat_scan aksi 'entry' — BARU (12 Sep 2026, unifikasi log).
+          // Dicatat SEKALI saat SEMUA komponen selesai (transisi status),
+          // bukan per-scan komponen — granularitas per-komponen sudah ada
+          // sendiri di komponen_rincian[].entry_oleh/entry_pada, jadi tidak
+          // perlu diduplikasi di sini (hindari riwayat_scan membengkak).
+          const riwayatBaru = semuaSelesai ? [...(data.riwayat_scan || []), { aksi: 'entry', oleh, pada: now, qty: data.qty ?? null }] : (data.riwayat_scan || []);
+          return { komponen_rincian: arr, riwayat_scan: riwayatBaru, ...(semuaSelesai ? { status: 'perlu_dikirim', masuk_tahap_pada: now } : {}) };
         });
         batch.komponen_rincian = batch.komponen_rincian.map(k => k.id_komponen === kode ? { ...k, status: 'selesai', entry_oleh: oleh, entry_pada: now } : k);
         modalEntry.log.unshift(kode + ' -> selesai');
@@ -1056,7 +1106,19 @@ const SeriePerluDiKirim = {
     }
     async function tutupBagging() {
       if (!modalPack.bagging) return;
-      try { await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() }); } catch (e) { console.error('Gagal tutup bagging:', e); }
+      try {
+        await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() });
+        // riwayat_scan aksi 'pack' — BARU (12 Sep 2026, unifikasi log Proses
+        // Produksi). Dicatat SEKALI saat 1 bagging ditutup (bukan per
+        // komponen yang di-scan masuk), pasangan dari aksi 'unpack' yang
+        // sudah ada (unpack_log[] milik separating_batch).
+        if (modalPack.batch) {
+          const oleh = window.currentUser?.email || null;
+          await updateSeparatingBatch(modalPack.batch.id, (data) => ({
+            riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'pack', oleh, pada: new Date().toISOString(), catatan: modalPack.bagging.kode, qty: data.qty ?? null }]
+          }));
+        }
+      } catch (e) { console.error('Gagal tutup bagging:', e); }
       modalPack.bagging = null; modalPack.batch = null;
     }
 
@@ -1221,7 +1283,15 @@ function buatTabKirim(cfg) {
           await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), { pack: arrayUnion({ kode_bagging: kode, pada: new Date().toISOString() }) });
           const tugasSnap = await getDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id));
           const semuaSudah = (batch.kode_bagging || []).every(kb => (tugasSnap.data().pack || []).some(pk => pk.kode_bagging === kb));
-          if (semuaSudah) { await updateSeparatingBatch(batch.id, () => ({ status: cfg.statusSetelah, masuk_tahap_pada: new Date().toISOString() })); }
+          if (semuaSudah) {
+            const oleh = window.currentUser?.email || null;
+            const pada = new Date().toISOString();
+            // riwayat_scan aksi 'kirim' — BARU (12 Sep 2026, unifikasi log).
+            await updateSeparatingBatch(batch.id, (data) => ({
+              status: cfg.statusSetelah, masuk_tahap_pada: pada,
+              riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'kirim', oleh, pada, catatan: cfg.namaTujuan, qty: data.qty ?? null }]
+            }));
+          }
           modalKirim.log.unshift(kode + ' -> ' + modalKirim.tugas.kode + (semuaSudah ? ' (semua bagging terkirim, status pindah)' : ''));
           await muat();
         } catch (e) { console.error('Gagal scan kirim Serie:', e); alert('Gagal menyimpan. Coba lagi.'); }
@@ -1424,8 +1494,15 @@ function buatTabTerima(cfg) {
             if (d.data().batch_id) batchIds.add(d.data().batch_id);
           }
           if (!batchIds.size) { alert(`Kode tugas "${kode}" sudah pernah di-Scan Sampai sebelumnya.`); return; }
+          const oleh = window.currentUser?.email || null;
           for (const bid of batchIds) {
-            try { await updateSeparatingBatch(bid, () => ({ status: cfg.statusSetelah, masuk_tahap_pada: now })); }
+            try {
+              // riwayat_scan aksi 'sampai' — BARU (12 Sep 2026, unifikasi log).
+              await updateSeparatingBatch(bid, (data) => ({
+                status: cfg.statusSetelah, masuk_tahap_pada: now,
+                riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'sampai', oleh, pada: now, catatan: cfg.namaAsal, qty: data.qty ?? null }]
+              }));
+            }
             catch (e) { console.error('Gagal update separating_batch dari Terima ' + cfg.namaAsal + ':', e); }
           }
           modalSampai.log.unshift(kode + ' -> ' + cfg.namaAsal + ' selesai (' + batchIds.size + ' batch)');

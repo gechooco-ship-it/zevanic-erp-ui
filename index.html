@@ -1725,14 +1725,14 @@
        "Buat Grouping Sendiri" sekarang punya pilihan jalur produksi manual
        (Bahan/Sewing/Webbing/Finishing), karena order._produk selalu kosong
        di baris ini sehingga deteksi otomatis dari BOM tidak pernah jalan. -->
-  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=4"></script>
+  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=5"></script>
   <!-- BARU (31 Agt 2026, wireframe handoff "Persiapan Produksi - Bahan") —
        jalur Bahan GANTI TOTAL, lihat komentar besar di file ini. -->
   <!-- v=8 (10 Sep 2026 malam, lanjutan) — pesan error hasilScanTunjuk
        diperjelas: kalau kode yang gagal cocok TERNYATA badge operator
        (id_app karyawan), bilang eksplisit "itu badge operator, bukan
        label SPK" — lihat komentar di fungsi hasilScanTunjuk. -->
-  <script type="module" src="js/vue-persiapan-bahan.js?v=8"></script>
+  <script type="module" src="js/vue-persiapan-bahan.js?v=9"></script>
   <!-- BARU (1 Sep 2026, wireframe handoff "Persiapan Produksi - Acc
        Sewing/Webbing/Finishing", 3 pos dikerjakan sekaligus atas instruksi
        eksplisit Guru — menyimpang dari aturan "satu modul per sesi" di
@@ -1755,9 +1755,9 @@
   <!-- v=10/11/10 (10 Sep 2026 malam, lanjutan) — SAMA seperti vue-persiapan-
        bahan.js v=8: pesan error hasilScanTunjuk diperjelas kalau kode yang
        gagal cocok ternyata badge operator, bukan label SPK. -->
-  <script type="module" src="js/vue-persiapan-sewing.js?v=10"></script>
-  <script type="module" src="js/vue-persiapan-webbing.js?v=11"></script>
-  <script type="module" src="js/vue-persiapan-finishing.js?v=10"></script>
+  <script type="module" src="js/vue-persiapan-sewing.js?v=11"></script>
+  <script type="module" src="js/vue-persiapan-webbing.js?v=12"></script>
+  <script type="module" src="js/vue-persiapan-finishing.js?v=11"></script>
   <!-- BARU (7 Sep 2026, §5.18) — Persiapan Produksi > Masalah, 7 tahap,
        skema TRB baru (rebuild total dari fitur "Persiapan Masalah" lama,
        yang sekarang cuma papan manual biasa, lihat js/vue-persiapan-
@@ -1768,7 +1768,7 @@
        Proses Persiapan/Produksi/Pengiriman (ringkasan read-only dari
        spk_track). Lihat komentar besar atas js/vue-pesanan.js utk latar
        belakang & keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pesanan.js?v=6"></script>
+  <script type="module" src="js/vue-pesanan.js?v=7"></script>
   <!-- BARU (7 Sep 2026 malam) — fondasi menu "Scan & Cetak" (PopupPinGenerik/
        ScanGenerik dst), lihat komentar besar di js/vue-scan-cetak.js.
        v=3 (10 Sep 2026, laporan Guru) — FIX bug ScanGenerik: kamera
@@ -2005,21 +2005,21 @@
   <!-- BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi > Cutting, 7 tab.
        Lihat komentar besar di js/vue-pp-cutting.js untuk latar belakang &
        keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pp-cutting.js?v=4"></script>
+  <script type="module" src="js/vue-pp-cutting.js?v=5"></script>
   <!-- BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" setelah Cutting) —
        Proses Produksi > Serie, 11 tab (hub distribusi). Lihat komentar besar
        di js/vue-pp-serie.js untuk latar belakang & keputusan arsitektur
        lengkap. -->
-  <script type="module" src="js/vue-pp-serie.js?v=4"></script>
+  <script type="module" src="js/vue-pp-serie.js?v=5"></script>
   <!-- BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" #3, setelah Serie) —
        Proses Produksi > Sewing, 5 tab. Lihat komentar besar di js/vue-pp-
        sewing.js untuk latar belakang & keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pp-sewing.js?v=4"></script>
+  <script type="module" src="js/vue-pp-sewing.js?v=5"></script>
   <!-- BARU ("lanjut lagi" #4, 7 Sep 2026 — sesi ini, setelah Sewing) —
        Proses Produksi > Finishing, 5 tab (per-PCS tracking via
        finishing_track). Lihat komentar besar di js/vue-pp-finishing.js
        untuk latar belakang & keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pp-finishing.js?v=4"></script>
+  <script type="module" src="js/vue-pp-finishing.js?v=5"></script>
   <!-- BARU ("lanjut lagi" #5, 7 Sep 2026 — sesi ini, setelah Finishing) —
        Proses Produksi > Gudang Barang Jadi, 4 tab (titik akhir rantai
        produksi). Lihat komentar besar di js/vue-pp-gudang.js untuk latar

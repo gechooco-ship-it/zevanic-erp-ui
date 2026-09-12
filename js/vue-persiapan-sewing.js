@@ -96,7 +96,6 @@ function picOwnerKeAtas(userData) {
 // masing-masing pos ditangani terpisah di komponennya sendiri). -----------
 const JALUR = 'sewing';
 const FIELD_RINCIAN = 'sewing_rincian';
-const SUFFIX_LABEL = 'SEW';
 const TLC_ASAL = 'TLC-SEW';
 const MENU_ID = 'pp_sewing';
 const ICON_KOSONG = 'fa-scissors';
@@ -413,7 +412,12 @@ const PersiapanSewingPerluDisiapkan = {
         kode: barisGrup[0].kode_spk,
         nama: k.namaProduk,
         info: `${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna} &middot; ${formatQty(b.butuh)} ${b.satuan}`).join(' | '),
-        qrDataUrl: buatQrDataUrl(`${noSpk}-${SUFFIX_LABEL}`)
+        // FIX (bug live QR cetak-vs-scan, ditemukan ulang saat audit repo):
+        // sebelumnya QR = `${noSpk}-${SUFFIX_LABEL}`, TAPI hasilScanTunjuk/
+        // hasilScanAksi/hasilScanPack di file ini SEMUA mencocokkan ke noSpk
+        // POLOS -- suffix bikin scan TIDAK PERNAH cocok. QR dibalik ke noSpk
+        // polos (sesuai desain asli komentar file ini & keputusan Guru 10 Sep).
+        qrDataUrl: buatQrDataUrl(noSpk)
       }));
       daftarLabelPreview.value = preview;
       _pendingCetak = terpilih;
@@ -475,7 +479,7 @@ const PersiapanSewingPerluDisiapkan = {
       const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => ({
         kode: barisGrup[0].kode_spk, nama: p.kartu.namaProduk,
         info: `CETAK ULANG &middot; ${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna}`).join(' | '),
-        qrDataUrl: buatQrDataUrl(`${noSpk}-${SUFFIX_LABEL}`)
+        qrDataUrl: buatQrDataUrl(noSpk)
       }));
       try {
         await addDoc(collection(db, 'cetak_ulang_log'), {

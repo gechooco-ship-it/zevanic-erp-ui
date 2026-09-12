@@ -113,7 +113,6 @@ function picOwnerKeAtas(userData) {
 // masing-masing pos ditangani terpisah di komponennya sendiri). -----------
 const JALUR = 'finishing';
 const FIELD_RINCIAN = 'finishing_rincian';
-const SUFFIX_LABEL = 'FIN';
 const TLC_ASAL = 'TLC-FIN';
 const MENU_ID = 'pp_finishing';
 const ICON_KOSONG = 'fa-check-double';
@@ -436,7 +435,9 @@ const PersiapanFinishingPerluDisiapkan = {
         kode: barisGrup[0].kode_spk,
         nama: k.namaProduk,
         info: `${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna} &middot; ${formatQty(b.butuh)} ${b.satuan}`).join(' | '),
-        qrDataUrl: buatQrDataUrl(`${noSpk}-${SUFFIX_LABEL}`),
+        // FIX (bug live QR cetak-vs-scan): QR balik ke noSpk polos -- suffix
+        // -FIN bikin hasilScanTunjuk/Aksi/Pack (yang cek noSpk polos) gagal terus.
+        qrDataUrl: buatQrDataUrl(noSpk),
         rincian: { varian: barisGrup.map(b => `${b.varian_tipe || 'tunggal'} x${b.varian_jumlah || 1}`).join(' | ') }
       }));
       daftarLabelPreview.value = preview;
@@ -498,7 +499,7 @@ const PersiapanFinishingPerluDisiapkan = {
       const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => ({
         kode: barisGrup[0].kode_spk, nama: p.kartu.namaProduk,
         info: `CETAK ULANG &middot; ${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna}`).join(' | '),
-        qrDataUrl: buatQrDataUrl(`${noSpk}-${SUFFIX_LABEL}`),
+        qrDataUrl: buatQrDataUrl(noSpk),
         rincian: { varian: barisGrup.map(b => `${b.varian_tipe || 'tunggal'} x${b.varian_jumlah || 1}`).join(' | ') }
       }));
       try {

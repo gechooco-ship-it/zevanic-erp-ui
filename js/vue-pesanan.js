@@ -28,7 +28,35 @@
 //   D2. Format `no_transaksi` — DIPERTAHANKAN (TRX{yymmdd}{counter harian}),
 //       BUKAN diganti format wireframe (TRX-DDMM-{counter global}) — supaya
 //       tidak breaking change ke `pengaturan_id_transaksi_kasir` yang sudah
-//       berjalan.
+//       berjalan. **SUDAH TIDAK BERLAKU** — lihat GANTI 12 Sep 2026 di bawah,
+//       keputusan D2 ini SENGAJA ditimpa sebagai bagian redesain penomoran
+//       total (dikonfirmasi eksplisit lewat AskUserQuestion, "Lanjut redesain
+//       penuh (KSR/TRX timestamp)"), karena tidak ada kode lain yang
+//       mem-parsing bentuk string no_transaksi (dicek ulang repo-wide 12 Sep
+//       2026) — risiko breaking change D2 yang dikhawatirkan dulu TIDAK
+//       terbukti ada secara teknis.
+//
+// GANTI (12 Sep 2026, redesain penomoran total, lihat dummy-erp-grouping.xlsx
+// sheet SIMULASI ALUR GROUPING): D2 di atas DITIMPA.
+//   - `no_transaksi` (nomor struk/transaksi Kasir): format lama
+//     `TRX{yymmdd}{counter harian 3 digit}` (mis. TRX260911001) DIGANTI
+//     `KSR{yymmddHHMMSSmmm}` (mis. KSR260912143205123) — prefix KSR (Kasir),
+//     timestamp PENUH sampai milidetik, TIDAK ADA LAGI counter harian.
+//     Konsekuensi: koleksi counter `pengaturan_id_transaksi_kasir` TIDAK
+//     dipakai lagi di sini (dicek: tidak ada file lain yang membacanya,
+//     aman dihentikan) — datanya TIDAK dihapus, cuma tidak ditulis lagi.
+//   - `order_spk.no_spk` (nomor per baris produk dalam 1 transaksi): dulu
+//     `${no_transaksi}-${urutan item}` (mis. TRX260911001-1), DIGANTI
+//     `TRX{yymmddHHMMSSmmm}{urutan 2 digit}` (mis.
+//     TRX260912143205123-01) — prefix TRX (per baris/anak SPK dari Kasir),
+//     timestamp diambil PERSIS SAAT ITU JUGA (bisa beda milidetik dari
+//     no_transaksi kalau ada jeda proses, TIDAK masalah — keduanya cuma
+//     perlu unik masing-masing, bukan harus identik). Urutan 2 digit TETAP
+//     dipakai (bukan cuma timestamp polos) supaya kalau >1 baris di-generate
+//     PERSIS milidetik yang sama, tetap tidak tabrakan.
+//   - Prefix "ORD" (Web Order) DISIAPKAN di desain tapi TIDAK ADA jalur kode
+//     checkout web di repo ini sama sekali — tidak ada yang perlu diubah di
+//     sini untuk itu, dicatat saja sebagai gap kalau nanti dibangun.
 //   D3. Tombol "Proses" massal di Menunggu Proses (2.1) — SETELAH ditemukan
 //       `order_spk.status_grouping` ternyata field HIDUP milik mesin grouping
 //       Persiapan Produksi (diisi OTOMATIS oleh layar Perlu Disiapkan, nilai
@@ -121,7 +149,7 @@
 //       thermal print asli.
 // ============================================================================
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 // storageRef/uploadBytes/getDownloadURL — DISALIN dari js/vue-stock-pembelian.js
 // (konvensi proyek: salin, jangan impor silang). Dipakai HANYA buat 1 hal baru
 // (audit 9 Sep, poin 6): foto bukti transfer/QRIS di popup Catat Pembayaran
@@ -376,20 +404,24 @@ const JATUH_TEMPO_PRESET = [
   { label: '+7 hari', hari: 7 }, { label: '+14 hari', hari: 14 }, { label: '+30 hari', hari: 30 }
 ];
 
+// formatTimestampPenuh — helper BARU (12 Sep 2026, redesain penomoran):
+// `{yy}{mm}{dd}{HH}{MM}{SS}{mmm}` sampai milidetik, dipakai KSR (no_transaksi)
+// & TRX (no_spk per baris). Tidak ada lagi counter/doc Firestore terpisah —
+// generatenya SEKARANG SINKRON (bukan async transaksional), tapi fungsi
+// pemanggil lama (generateNoTransaksiKasir) TETAP dibiarkan async supaya
+// semua call site yang sudah `await` di file ini tidak perlu diubah.
+function formatTimestampPenuh(d) {
+  const yy = String(d.getFullYear()).slice(-2);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  const HH = String(d.getHours()).padStart(2, '0');
+  const MM = String(d.getMinutes()).padStart(2, '0');
+  const SS = String(d.getSeconds()).padStart(2, '0');
+  const mmm = String(d.getMilliseconds()).padStart(3, '0');
+  return `${yy}${mm}${dd}${HH}${MM}${SS}${mmm}`;
+}
 async function generateNoTransaksiKasir() {
-  const now = new Date();
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  const tanggalKey = `${yy}${mm}${dd}`;
-  const refDoc = doc(db, 'pengaturan_id_transaksi_kasir', tanggalKey);
-  return await runTransaction(db, async (trx) => {
-    const snap = await trx.get(refDoc);
-    const counterBaru = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
-    if (snap.exists()) trx.update(refDoc, { counter: counterBaru });
-    else trx.set(refDoc, { counter: counterBaru, dibuat_pada: tanggalKey });
-    return `TRX${tanggalKey}${String(counterBaru).padStart(3, '0')}`;
-  });
+  return `KSR${formatTimestampPenuh(new Date())}`;
 }
 
 function formatLabelProduk(p) {
@@ -684,8 +716,13 @@ const PesananKasirManager = {
         });
 
         const tanggalHariIni = new Date().toISOString().slice(0, 10);
+        // no_spk — GANTI (12 Sep 2026, redesain penomoran, lihat komentar
+        // besar atas file "GANTI 12 Sep 2026"): dulu `${no_transaksi}-${urutan}`
+        // (menempel ke no_transaksi), sekarang TRX + timestamp SENDIRI per
+        // baris + urutan 2 digit (anti-tabrakan kalau >1 baris ke-generate
+        // di milidetik yang sama).
         await Promise.all(itemsSiap.map((it, idx) => addDoc(collection(db, 'order_spk'), {
-          no_spk: `${noTransaksi}-${idx + 1}`,
+          no_spk: `TRX${formatTimestampPenuh(new Date())}${String(idx + 1).padStart(2, '0')}`,
           sku_produk: it.sku_produk,
           nama_produk: it.nama_produk,
           qty_order: it.qty,

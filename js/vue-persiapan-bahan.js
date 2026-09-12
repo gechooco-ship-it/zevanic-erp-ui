@@ -602,12 +602,23 @@ const PersiapanBahanPerluDisiapkan = {
         modalTunjuk.tahap = 'anak';
         return;
       }
-      // tahap 'anak' — cari baris yang no_spk cocok, belum ditunjuk, labelnya
-      // sudah dicetak. Mode global: cari DI SEMUA kartu; mode per-kartu:
-      // cari DI KARTU ITU SAJA (perilaku lama, tidak berubah).
+      // tahap 'anak' — cari baris yang labelnya cocok, belum ditunjuk, sudah
+      // dicetak. Mode global: cari DI SEMUA kartu; mode per-kartu: cari DI
+      // KARTU ITU SAJA (perilaku lama, tidak berubah).
+      // FIX (bug live QR cetak-vs-scan, ditemukan ulang saat audit repo):
+      // label FISIK yang dicetak (bangunPreviewDariBaris()) berisi
+      // `${kode_spk}-${bahan_aksesoris_id}` (1 label bisa cakup >1 no_spk,
+      // lihat komentar bangunPreviewDariBaris), TAPI kode di sini sebelumnya
+      // dicocokkan ke `b.no_spk` polos — composite tidak akan PERNAH sama
+      // dengan no_spk, jadi Tunjuk Operator Bahan selalu gagal. Diperbaiki:
+      // cocokkan ke komposit yang SAMA dengan yang dicetak, dan terapkan ke
+      // SEMUA baris yang berbagi label itu (bukan cuma baris pertama yang
+      // ketemu) — 1 scan label = 1 tugas operator untuk semua no_spk di
+      // baliknya, sesuai desain "1 label per bahan" yang sudah ada.
       const kolamBaris = modalTunjuk.global ? kartuList.value.flatMap(k => k.baris) : (modalTunjuk.kartu?.baris || []);
-      const target = kolamBaris.find(b => b.no_spk === kode && b.label_cetak_pada && b.status === 'perlu_disiapkan');
-      if (!target) {
+      const cocokLabel = (b) => `${b.kode_spk}-${b.bahan_aksesoris_id}` === kode;
+      const targets = kolamBaris.filter(b => cocokLabel(b) && b.label_cetak_pada && b.status === 'perlu_disiapkan');
+      if (!targets.length) {
         // FIX (10 Sep 2026, laporan Guru — masih salah tunjuk setelah fix
         // dedup kamera) — akar SEBENARNYA: user scan ULANG badge operator
         // di tahap "anak" (kira harus scan badge lagi), bukan scan label
@@ -625,13 +636,18 @@ const PersiapanBahanPerluDisiapkan = {
       }
       const now = new Date().toISOString();
       try {
-        await updateBarisBahan(target._trackId, target._lineIdx, (lama) => ({
-          status: 'sedang_disiapkan', masuk_tahap_pada: now,
-          operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, ditugaskan_pada: now,
-          riwayat_operator: [...(lama.riwayat_operator || []), { operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, mulai_pada: now }]
+        const byTrack = {};
+        targets.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
+        await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
+          const aksesorisId = barisGrup[0].bahan_aksesoris_id;
+          return updateBarisBahanMassal(trackId, (x) => x.bahan_aksesoris_id === aksesorisId && x.label_cetak_pada && x.status === 'perlu_disiapkan', (lama) => ({
+            status: 'sedang_disiapkan', masuk_tahap_pada: now,
+            operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, ditugaskan_pada: now,
+            riwayat_operator: [...(lama.riwayat_operator || []), { operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, mulai_pada: now }]
+          }));
         }));
-        modalTunjuk.log.unshift(`${target.no_spk} -> ${modalTunjuk.operator.nama}`);
-        target.status = 'sedang_disiapkan'; // optimistik, biar kartu di modal langsung update tanpa nunggu muat()
+        modalTunjuk.log.unshift(`${kode} -> ${modalTunjuk.operator.nama} (${targets.length} baris: ${targets.map(b => b.no_spk).join(', ')})`);
+        targets.forEach(b => { b.status = 'sedang_disiapkan'; }); // optimistik, biar kartu di modal langsung update tanpa nunggu muat()
       } catch (e) {
         console.error('Gagal simpan penunjukan:', e);
         alert('Gagal menyimpan penunjukan. Coba lagi.');
@@ -957,8 +973,12 @@ const PersiapanBahanSedangDisiapkan = {
         return;
       }
       // entry / masalah: kode HARUS scan label baris ini sendiri (konfirmasi
-      // "yang mau diproses memang barang ini").
-      if (kode !== b.no_spk) { alert(`Kode yang discan ("${kode}") tidak cocok dengan anak SPK ini (${b.no_spk}).`); return; }
+      // "yang mau diproses memang barang ini"). FIX (bug live QR cetak-vs-
+      // scan): label fisik berisi `${kode_spk}-${bahan_aksesoris_id}`
+      // (komposit, lihat bangunPreviewDariBaris), bukan no_spk polos —
+      // dicocokkan ke sama persis dgn yang dicetak.
+      const kodeLabelBaris = `${b.kode_spk}-${b.bahan_aksesoris_id}`;
+      if (kode !== kodeLabelBaris) { alert(`Kode yang discan ("${kode}") tidak cocok dengan label bahan baris ini (${kodeLabelBaris}).`); return; }
       if (modalAksi.mode === 'masalah') {
         // Retrofit §5.18 lanjutan — jangan langsung tulis, buka popup jumlah
         // kurang + alasan dulu (lihat komentar besar TAB 2 di atas).

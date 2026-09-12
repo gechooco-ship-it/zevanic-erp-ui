@@ -227,14 +227,31 @@ function buatQrDataUrl(teks) {
 // tidak perlu job reset manual apapun karena doc baru dibuat begitu
 // tanggal berganti.
 //
-// GANTI (5 Sep 2026, klarifikasi Guru: "iyah berkaitan dengan tlc dan
-// pembuatan prefix kode spk") — prefix "SPK" yang dulu HARDCODE di sini
-// SEKARANG dibaca dari doc pengaturan (`pengaturan_id_spk_grouping/config`,
-// key TETAP "config" — beda dari doc counter harian yang key-nya
-// `{yymmdd}`, jadi tidak pernah tabrakan), diatur admin di Zevanic House
-// > Config > TLC & Prefix (lihat AppConfigTlc, js/vue-config.js). Kalau
-// doc config belum pernah dibuat/kosong, fallback ke "SPK" (perilaku lama)
-// supaya tidak pernah gagal generate gara-gara belum diatur.
+// GANTI (12 Sep 2026, redesain penomoran total — lihat dummy-erp-grouping.xlsx
+// sheet SIMULASI ALUR GROUPING): format kode_spk diganti dari prefix bebas
+// `{prefix}{yymmdd}{counter}` (mis. SPK260911001) menjadi format TETAP
+// `G{YY}R{MM}{DD}P{counter:3digit}` (mis. G26R0911P001) — G=Grouping,
+// R=tanggal Register, P=urutan Produk hari itu. Tujuannya supaya kode ini
+// bisa DIPARSING/dikenali polanya secara seragam lintas modul (root ID 1
+// dari 2 tingkat: ROOT1=kode_spk, ROOT2=kode_batch turunannya di
+// separating_batch — lihat js/vue-pp-serie.js), jadi strukturnya SENGAJA
+// dibuat baku/tidak bisa diatur lagi.
+//
+// KEPUTUSAN (belum sempat ditanyakan eksplisit ke Guru, diputuskan sendiri
+// sesuai arah redesain — TOLONG DIKONFIRMASI): fitur prefix yang bisa
+// diatur admin (`pengaturan_id_spk_grouping/config`, ditambahkan 5 Sep 2026,
+// lihat AppConfigTlc di js/vue-config.js) TIDAK dipakai lagi di sini karena
+// bertentangan dengan tujuan "format baku/tidak ambigu" dari redesain ini —
+// kalau prefix-nya bisa diganti-ganti, polanya tidak bisa lagi diasumsikan
+// sama di semua kode. Doc config-nya TIDAK dihapus (biar tidak ada data
+// hilang), cuma sudah tidak dibaca lagi di generator ini. Halaman Config
+// > TLC & Prefix di js/vue-config.js masih menampilkan field ini apa
+// adanya — belum diberi keterangan "tidak dipakai lagi", itu PR terpisah
+// kalau Guru setuju arah ini.
+//
+// Counter TETAP per-hari (key `{yymmdd}`, sudah cocok dengan kebutuhan
+// format baru yang reset tiap tanggal berganti) — tidak ada perubahan pada
+// logic counter, cuma bentuk string hasil akhirnya yang berubah.
 async function generateKodeSpkGrouping() {
   const now = new Date();
   const yy = String(now.getFullYear()).slice(-2);
@@ -242,14 +259,12 @@ async function generateKodeSpkGrouping() {
   const dd = String(now.getDate()).padStart(2, '0');
   const tanggalKey = `${yy}${mm}${dd}`;
   const refDoc = doc(db, 'pengaturan_id_spk_grouping', tanggalKey);
-  const refPrefix = doc(db, 'pengaturan_id_spk_grouping', 'config');
   return await runTransaction(db, async (trx) => {
-    const [snap, snapPrefix] = await Promise.all([trx.get(refDoc), trx.get(refPrefix)]);
-    const prefix = (snapPrefix.exists() && snapPrefix.data().prefix) ? snapPrefix.data().prefix : 'SPK';
+    const snap = await trx.get(refDoc);
     const counterBaru = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
     if (snap.exists()) trx.update(refDoc, { counter: counterBaru });
     else trx.set(refDoc, { counter: counterBaru, dibuat_pada: tanggalKey });
-    return `${prefix}${tanggalKey}${String(counterBaru).padStart(3, '0')}`;
+    return `G${yy}R${mm}${dd}P${String(counterBaru).padStart(3, '0')}`;
   });
 }
 
@@ -710,18 +725,18 @@ const PersiapanDisiapkanManager = {
     async function muatPreviewKode() {
       try {
         const now = new Date();
-        const tanggalKey = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
-        // Prefix — BARU (5 Sep 2026): dibaca dari pengaturan_id_spk_grouping/
-        // config, sama seperti generateKodeSpkGrouping() di atas file ini
-        // (fallback "SPK" kalau belum diatur). Ini cuma preview tampilan,
-        // kode SEBENARNYA tetap digenerate transaksional saat submit.
-        const [snap, snapPrefix] = await Promise.all([
-          getDoc(doc(db, 'pengaturan_id_spk_grouping', tanggalKey)),
-          getDoc(doc(db, 'pengaturan_id_spk_grouping', 'config'))
-        ]);
-        const prefix = (snapPrefix.exists() && snapPrefix.data().prefix) ? snapPrefix.data().prefix : 'SPK';
+        const yy = String(now.getFullYear()).slice(-2);
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const dd = String(now.getDate()).padStart(2, '0');
+        const tanggalKey = `${yy}${mm}${dd}`;
+        // GANTI (12 Sep 2026, redesain penomoran): preview sekarang ikut format
+        // baku G{YY}R{MM}{DD}P{counter} — sama seperti generateKodeSpkGrouping()
+        // di atas file ini, prefix yang bisa diatur sudah tidak dipakai lagi.
+        // Ini cuma preview tampilan, kode SEBENARNYA tetap digenerate
+        // transaksional saat submit.
+        const snap = await getDoc(doc(db, 'pengaturan_id_spk_grouping', tanggalKey));
         const nextCounter = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
-        previewKode.value = `${prefix}${tanggalKey}${String(nextCounter).padStart(3, '0')}`;
+        previewKode.value = `G${yy}R${mm}${dd}P${String(nextCounter).padStart(3, '0')}`;
       } catch (e) {
         previewKode.value = ''; // preview gagal dimuat bukan error fatal — kode SEBENARNYA tetap digenerate transaksional saat submit
       }
@@ -1228,6 +1243,14 @@ const JalurTahapManager = {
       try {
         const oleh = window.currentUser?.email || null;
         const pada = new Date().toISOString();
+        // qty — BARU (12 Sep 2026, redesain penomoran & log, lihat
+        // dummy-erp-grouping.xlsx sheet LOG ALUR BATCH kolom QTY). Field
+        // TAMBAHAN yang belum ada sebelumnya di riwayat_scan — ditambahkan
+        // ADITIF (tidak mengubah field lain) supaya audit qty per-scan bisa
+        // dilakukan tanpa perlu join balik ke spk_grouping. Diisi dari
+        // qty_total milik track ini (spk_track belum punya breakdown qty
+        // per-baris di jalur ini, jadi angka totalnya yang dipakai).
+        const qty = track.qty_total ?? null;
 
         if (mode === 'operator') {
           // Gerbang: Label SPK Grouping WAJIB sudah dicetak dulu (Guru:
@@ -1243,13 +1266,13 @@ const JalurTahapManager = {
           await updateDoc(doc(db, 'spk_track', track.id), {
             operator_id: karyawan.id, operator_nama: karyawan.nama || karyawan.name || karyawan.id,
             status: 'sedang_diproses', diperbarui_pada: serverTimestamp(),
-            riwayat_scan: arrayUnion({ aksi: 'operator', oleh: karyawan.nama || karyawan.name || karyawan.id, pada })
+            riwayat_scan: arrayUnion({ aksi: 'operator', oleh: karyawan.nama || karyawan.name || karyawan.id, pada, qty })
           });
         } else if (mode === 'entry') {
           if (kode !== track.kode_spk) { alert(`Kode yang discan ("${kode}") tidak cocok dengan SPK Grouping ini (${track.kode_spk}).`); return; }
           await updateDoc(doc(db, 'spk_track', track.id), {
             status: 'perlu_dikirim', diperbarui_pada: serverTimestamp(),
-            riwayat_scan: arrayUnion({ aksi: 'entry', oleh, pada })
+            riwayat_scan: arrayUnion({ aksi: 'entry', oleh, pada, qty })
           });
         } else if (mode === 'masalah') {
           if (kode !== track.kode_spk) { alert(`Kode yang discan ("${kode}") tidak cocok dengan SPK Grouping ini (${track.kode_spk}).`); return; }
@@ -1257,13 +1280,13 @@ const JalurTahapManager = {
           if (!catatan || !catatan.trim()) return;
           await updateDoc(doc(db, 'spk_track', track.id), {
             catatan_masalah: catatan.trim(), diperbarui_pada: serverTimestamp(),
-            riwayat_scan: arrayUnion({ aksi: 'masalah', oleh, pada, catatan: catatan.trim() })
+            riwayat_scan: arrayUnion({ aksi: 'masalah', oleh, pada, catatan: catatan.trim(), qty })
           });
         } else if (mode === 'pack') {
           if (kode !== track.kode_bagging) { alert(`Kode yang discan ("${kode}") tidak cocok dengan Label Bagging SPK ini (${track.kode_bagging}).`); return; }
           await updateDoc(doc(db, 'spk_track', track.id), {
             status: 'sedang_dikirim', diperbarui_pada: serverTimestamp(),
-            riwayat_scan: arrayUnion({ aksi: 'pack', oleh, pada })
+            riwayat_scan: arrayUnion({ aksi: 'pack', oleh, pada, qty })
           });
         } else if (mode === 'kirim') {
           if (kode !== track.kode_tugas) { alert(`Kode yang discan ("${kode}") tidak cocok dengan Label Tugas SPK ini (${track.kode_tugas}).`); return; }
@@ -1271,13 +1294,13 @@ const JalurTahapManager = {
           // selanjutnya" yang baru mengubah status) — cuma catat riwayat.
           await updateDoc(doc(db, 'spk_track', track.id), {
             diperbarui_pada: serverTimestamp(),
-            riwayat_scan: arrayUnion({ aksi: 'kirim', oleh, pada })
+            riwayat_scan: arrayUnion({ aksi: 'kirim', oleh, pada, qty })
           });
         } else if (mode === 'sampai') {
           if (kode !== track.kode_tugas) { alert(`Kode yang discan ("${kode}") tidak cocok dengan Label Tugas SPK ini (${track.kode_tugas}).`); return; }
           await updateDoc(doc(db, 'spk_track', track.id), {
             status: 'selesai', diperbarui_pada: serverTimestamp(),
-            riwayat_scan: arrayUnion({ aksi: 'sampai', oleh, pada })
+            riwayat_scan: arrayUnion({ aksi: 'sampai', oleh, pada, qty })
           });
         }
         await muat();
