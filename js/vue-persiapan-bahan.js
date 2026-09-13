@@ -277,31 +277,43 @@ async function konfirmasiEntry(b) {
 }
 
 // kelompokKartuBahan — kelompokkan baris (SUDAH difilter status tertentu)
-// jadi kartu per bahan (bahan_aksesoris_id, artinya per bahan+warna sekalian
-// karena 1 warna = 1 dokumen master_bahan_aksesoris sendiri). "butuh" =
-// jumlah kebutuhan_kain SEMUA baris LINTAS grouping/SPK (SERAH-TERIMA §3
-// "Aturan khas pos ini: Kumulatif"). "stok" diambil LIVE dari peta
-// master_bahan_aksesoris (bukan disimpan di baris — stok berubah tiap saat,
-// harus akurat).
+// jadi kartu per bahan+pola (REVISI 13 Sep 2026, koreksi Guru: dulu key
+// cuma bahan_aksesoris_id/bahan+warna, sekarang WAJIB bahan+warna DAN
+// nama_pola sekaligus — 2 anak SPK pakai bahan SAMA tapi pola BEDA TIDAK
+// boleh digabung 1 kartu, karena batch potong beda pola tetap harus
+// dipisah). "butuh" = jumlah kebutuhan_kain SEMUA baris kartu ini (masih
+// LINTAS grouping/SPK selama bahan+pola sama, SERAH-TERIMA §3 "Aturan
+// khas pos ini: Kumulatif"). "stok" diambil LIVE dari peta
+// master_bahan_aksesoris DIKUNCI KE bahan_aksesoris_id MENTAH (bukan
+// komposit) — stok fisik gudang per bahan, bukan per pola, jadi 2 kartu
+// pola berbeda yang berbagi bahan sama akan menunjuk stok yang SAMA
+// (lihat catatan risiko double-counting di bawah, belum diselesaikan).
+//
+// CATATAN RISIKO (belum dikonfirmasi Guru): karena kartu sekarang
+// dipecah per pola, cek "cukup stok" tiap kartu membandingkan butuh
+// kartu ITU SENDIRI vs stok PENUH bahan (bukan stok dikurangi kartu
+// pola lain yang berbagi bahan sama) — jika 2 pola berbeda berebut
+// bahan yang sama, BISA saja kedua kartu sama-sama tampil "stok cukup"
+// padahal gabungan kebutuhan keduanya melebihi stok yang tersedia.
 function kelompokKartuBahan(barisList, petaStokBahan) {
   const peta = {};
   barisList.forEach(b => {
-    const key = b.bahan_aksesoris_id;
-    if (!key) return;
+    const bahanId = b.bahan_aksesoris_id;
+    if (!bahanId) return;
+    const key = bahanId + '::' + (b.nama_pola || '');
     if (!peta[key]) {
-      const info = petaStokBahan[key] || {};
+      const info = petaStokBahan[bahanId] || {};
       peta[key] = {
-        bahanAksesorisId: key, nama: b.bahan_nama, warna: b.bahan_warna,
+        kartuKey: key, bahanAksesorisId: bahanId, nama: b.bahan_nama, warna: b.bahan_warna,
         // namaProduk — BARU (12 Sep 2026, fix #6 laporan Guru: header kartu
         // dulu cuma nama+warna BAHAN lalu di bawahnya nama_pola (nama
         // POTONGAN pola BOM, mis. "Bodi Depan" — BUKAN nama produk,
         // seringkali kebaca seperti "nama bahan disebut 2x"). Diambil dari
-        // baris pertama kartu ini, SAMA POLA APROKSIMASI seperti namaPola/
-        // produkSize di bawah (kartu ini dikelompokkan per bahan+warna, jadi
-        // BISA berisi anak SPK dari produk/size berbeda — representatif,
-        // bukan jaminan seragam; rincian per-produk yang akurat ada di
-        // masing-masing baris anak SPK, lihat kartu daftar anak SPK di
-        // template).
+        // baris pertama kartu ini — sejak revisi bahan+pola di atas, kartu
+        // ini SUDAH pasti 1 pola yang sama (bukan aproksimasi lagi), tapi
+        // produk/size masih bisa beda antar anak SPK dalam 1 pola — rincian
+        // per-produk yang akurat ada di masing-masing baris anak SPK, lihat
+        // kartu daftar anak SPK di template).
         namaProduk: b.nama_produk || '',
         namaPola: b.nama_pola, produkSize: b.produk_size,
         stok: parseFloat(info.stok_akhir) || 0, rakId: info.rak_id || '',
@@ -486,35 +498,33 @@ const PersiapanBahanPerluDisiapkan = {
     const daftarLabelPreview = ref([]);
     let _pendingCetak = [];
     // bangunPreviewDariBaris — RETROFIT 9 Sep 2026, diekstrak dari isi lama
-    // cetakLabelKartu() supaya bisa dipakai ULANG oleh cetakSemuaTercentang()
-    // (temuan #5, cetak massal lintas kartu) TANPA duplikasi logic. Kunci
-    // dikelompokkan grouping_id+bahan_aksesoris_id (BUKAN cuma grouping_id)
-    // supaya kalau cetak massal mencakup >1 bahan dalam 1 grouping yang sama,
-    // tetap 1 label PER BAHAN (SERAH-TERIMA §3), bukan tergabung.
+    // cetakLabelKartu(). REVISI BESAR (13 Sep 2026 lanjutan 11, permintaan
+    // Guru eksplisit): dulu 1 label = 1 KARTU (gabungan bisa >1 anak SPK
+    // digabung jadi 1 label fisik kalau bahan+grouping sama). SEKARANG 1
+    // label = 1 ANAK SPK, TIDAK PERNAH digabung lagi — karena tiap anak SPK
+    // harus dilacak SENDIRI-SENDIRI di lapangan (scan pack/unpack/kirim/
+    // sampai/scan operator per anak SPK, bukan per kartu/bahan). Ini beda
+    // dari kartu di layar (kelompokKartuBahan(), masih boleh gabung banyak
+    // anak SPK per bahan+pola supaya cek stok gampang) — kartu vs label
+    // fisik SEKARANG 2 pengelompokan terpisah dalam modul yang sama.
     function bangunPreviewDariBaris(daftarBaris) {
-      const perLabel = {};
-      daftarBaris.forEach(b => { (perLabel[b.grouping_id + '::' + b.bahan_aksesoris_id] ||= []).push(b); });
-      return Object.values(perLabel).map(barisGrup => {
-        const kodeInduk = barisGrup[0].kode_spk;
-        // FIX (12 Sep 2026 lanjutan 6, laporan Guru poin 2/3; RENAME 13 Sep
-        // lanjutan 9) — kode label (teks besar + isi QR) GANTI dari
-        // `${kodeInduk}-${bahan_aksesoris_id}` (komposit ID Firestore,
-        // panjang & tidak enak dibaca operator) ke `kode_kartu` (dulu
-        // dinamai kode_anak_spk versi lanjutan 6, DINAMAI ULANG 13 Sep krn
-        // sekarang ada level lebih detail di bawahnya — lihat komentar besar
-        // tandaiKodeGrouping() vue-persiapan-produksi-v2.js). SATU KARTU =
-        // SATU LABEL FISIK, walau isinya gabungan >1 anak SPK/order (barisGrup
-        // di sini bisa >1 baris beda no_spk, semua kebagian kode_kartu SAMA
-        // krn dikelompokkan per bahan_aksesoris_id). FALLBACK ke kode lama
-        // kalau kode_kartu belum ada (data lama, atau Config > TLC & Prefix >
-        // jalur Bahan belum diisi Guru) — supaya QR tetap konsisten dgn
-        // cocokLabel/hasilScanAksi di bawah, TIDAK PERNAH beda antara yang
-        // dicetak & yang dicocokkan scan.
-        const kodeLabel = barisGrup[0].kode_kartu || `${kodeInduk}-${barisGrup[0].bahan_aksesoris_id}`;
+      return daftarBaris.map(b => {
+        const kodeInduk = b.kode_spk;
+        // kode label (teks besar + isi QR) — kode_komponen adalah level
+        // PALING DETAIL (per anak SPK, lihat komentar besar
+        // tandaiKodeGrouping() vue-persiapan-produksi-v2.js), fallback
+        // berturut-turut ke level lebih kasar kalau data lama/Config belum
+        // diisi — TIDAK PERNAH beda antara yang dicetak & yang dicocokkan
+        // scan (lihat cocokLabel/hasilScanAksi di bawah, pakai fallback
+        // chain PERSIS SAMA).
+        const kodeLabel = b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${kodeInduk}-${b.bahan_aksesoris_id}`;
         return {
           kode: kodeLabel,
-          nama: `${barisGrup[0].bahan_nama || ''} ${barisGrup[0].bahan_warna || ''}`.trim(),
-          info: `${kodeInduk} &middot; ${barisGrup.map(b => b.kode_anak_spk || b.no_spk).join(', ')} &middot; ${formatMeter(barisGrup.reduce((s, b) => s + (b.kebutuhan_kain || 0), 0))} &middot; ${barisGrup[0].nama_pola || ''}`,
+          nama: `${b.bahan_nama || ''} ${b.bahan_warna || ''}`.trim(),
+          // info — format persis diminta Guru (13 Sep 2026 lanjutan 11):
+          // "kode · Nama Pelanggan · Nama Produk nama warna + size" PER
+          // LABEL (bukan gabungan banyak anak SPK lagi seperti sebelumnya).
+          info: `${kodeInduk} &middot; ${b.pelanggan_nama || '(tanpa pelanggan)'} &middot; ${b.nama_produk || ''} ${b.produk_warna || ''} / ${b.produk_size || '-'} &middot; ${formatMeter(b.kebutuhan_kain || 0)} &middot; ${b.nama_pola || ''}`,
           qrDataUrl: buatQrDataUrl(kodeLabel)
         };
       });
@@ -569,18 +579,16 @@ const PersiapanBahanPerluDisiapkan = {
       const p = popupCetakUlang.value;
       if (!p) return;
       const sudahDicetak = p.kartu.baris.filter(b => b.label_cetak_pada);
-      const perGrouping = {};
-      sudahDicetak.forEach(b => { (perGrouping[b.grouping_id] ||= []).push(b); });
-      const preview = Object.values(perGrouping).map(barisGrup => {
-        const kodeInduk = barisGrup[0].kode_spk;
-        // FIX (12 Sep 2026 lanjutan 6; RENAME 13 Sep lanjutan 9) — SAMA kode
-        // dgn bangunPreviewDariBaris (kode_kartu, fallback komposit lama)
-        // supaya label cetak-ulang TETAP cocok dgn cocokLabel()/
-        // hasilScanAksi() yang sudah diperbarui.
-        const kodeLabel = barisGrup[0].kode_kartu || `${kodeInduk}-${p.kartu.bahanAksesorisId}`;
+      // REVISI (13 Sep 2026 lanjutan 11) — SAMA seperti bangunPreviewDariBaris():
+      // 1 label per anak SPK, TIDAK digabung per grouping_id lagi.
+      const preview = sudahDicetak.map(b => {
+        const kodeInduk = b.kode_spk;
+        // SAMA fallback chain dgn bangunPreviewDariBaris() supaya label
+        // cetak-ulang TETAP cocok dgn cocokLabel()/hasilScanAksi().
+        const kodeLabel = b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${kodeInduk}-${b.bahan_aksesoris_id}`;
         return {
-          kode: kodeLabel, nama: `${p.kartu.nama} ${p.kartu.warna}`.trim(),
-          info: `CETAK ULANG &middot; ${kodeInduk} &middot; ${barisGrup.map(b => b.kode_anak_spk || b.no_spk).join(', ')}`,
+          kode: kodeLabel, nama: `${b.bahan_nama || p.kartu.nama} ${b.bahan_warna || p.kartu.warna}`.trim(),
+          info: `CETAK ULANG &middot; ${kodeInduk} &middot; ${b.pelanggan_nama || '(tanpa pelanggan)'} &middot; ${b.nama_produk || ''} ${b.produk_warna || ''} / ${b.produk_size || '-'}`,
           qrDataUrl: buatQrDataUrl(kodeLabel)
         };
       });
@@ -635,21 +643,14 @@ const PersiapanBahanPerluDisiapkan = {
       // tahap 'anak' — cari baris yang labelnya cocok, belum ditunjuk, sudah
       // dicetak. Mode global: cari DI SEMUA kartu; mode per-kartu: cari DI
       // KARTU ITU SAJA (perilaku lama, tidak berubah).
-      // FIX (bug live QR cetak-vs-scan, ditemukan ulang saat audit repo):
-      // label FISIK yang dicetak (bangunPreviewDariBaris()) berisi
-      // `${kode_spk}-${bahan_aksesoris_id}` (1 label bisa cakup >1 no_spk,
-      // lihat komentar bangunPreviewDariBaris), TAPI kode di sini sebelumnya
-      // dicocokkan ke `b.no_spk` polos — composite tidak akan PERNAH sama
-      // dengan no_spk, jadi Tunjuk Operator Bahan selalu gagal. Diperbaiki:
-      // cocokkan ke komposit yang SAMA dengan yang dicetak, dan terapkan ke
-      // SEMUA baris yang berbagi label itu (bukan cuma baris pertama yang
-      // ketemu) — 1 scan label = 1 tugas operator untuk semua no_spk di
-      // baliknya, sesuai desain "1 label per bahan" yang sudah ada.
+      // REVISI (13 Sep 2026 lanjutan 11) — sejak bangunPreviewDariBaris()
+      // dipecah jadi 1 label PER ANAK SPK (bukan lagi 1 label gabungan per
+      // bahan), tiap kode label sekarang cocok TEPAT 1 baris (kode_komponen
+      // unik per anak SPK) — bukan lagi "banyak baris berbagi 1 label".
+      // Fallback chain PERSIS SAMA dgn bangunPreviewDariBaris() supaya scan
+      // selalu cocok dgn yang dicetak (termasuk utk data lama).
       const kolamBaris = modalTunjuk.global ? kartuList.value.flatMap(k => k.baris) : (modalTunjuk.kartu?.baris || []);
-      // FIX (12 Sep 2026 lanjutan 6; RENAME 13 Sep lanjutan 9) — kode label
-      // sekarang kode_kartu (lihat bangunPreviewDariBaris), fallback ke
-      // komposit lama kalau baris ini belum punya kode_kartu (data lama).
-      const cocokLabel = (b) => (b.kode_kartu || `${b.kode_spk}-${b.bahan_aksesoris_id}`) === kode;
+      const cocokLabel = (b) => (b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${b.kode_spk}-${b.bahan_aksesoris_id}`) === kode;
       const targets = kolamBaris.filter(b => cocokLabel(b) && b.label_cetak_pada && b.status === 'perlu_disiapkan');
       if (!targets.length) {
         // FIX (10 Sep 2026, laporan Guru — masih salah tunjuk setelah fix
@@ -669,16 +670,18 @@ const PersiapanBahanPerluDisiapkan = {
       }
       const now = new Date().toISOString();
       try {
-        const byTrack = {};
-        targets.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
-        await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
-          const aksesorisId = barisGrup[0].bahan_aksesoris_id;
-          return updateBarisBahanMassal(trackId, (x) => x.bahan_aksesoris_id === aksesorisId && x.label_cetak_pada && x.status === 'perlu_disiapkan', (lama) => ({
-            status: 'sedang_disiapkan', masuk_tahap_pada: now,
-            operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, ditugaskan_pada: now,
-            riwayat_operator: [...(lama.riwayat_operator || []), { operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, mulai_pada: now }]
-          }));
-        }));
+        // REVISI (13 Sep 2026 lanjutan 11) — dulu massal-update per
+        // bahan_aksesoris_id (karena 1 label bisa cakup banyak baris bahan
+        // sama dalam 1 track). SEKARANG 1 label = 1 anak SPK = 1 baris
+        // TEPAT (_trackId+_lineIdx), jadi update HARUS presisi ke baris itu
+        // saja — matchFn berbasis aksesorisId lama akan salah kena SEMUA
+        // baris bahan sama di track itu (termasuk anak SPK lain yang TIDAK
+        // discan), makanya diganti updateBarisBahan per-lineIdx.
+        await Promise.all(targets.map(b => updateBarisBahan(b._trackId, b._lineIdx, (lama) => ({
+          status: 'sedang_disiapkan', masuk_tahap_pada: now,
+          operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, ditugaskan_pada: now,
+          riwayat_operator: [...(lama.riwayat_operator || []), { operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, mulai_pada: now }]
+        }))));
         modalTunjuk.log.unshift(`${kode} -> ${modalTunjuk.operator.nama} (${targets.length} baris: ${targets.map(b => b.no_spk).join(', ')})`);
         targets.forEach(b => { b.status = 'sedang_disiapkan'; }); // optimistik, biar kartu di modal langsung update tanpa nunggu muat()
       } catch (e) {
@@ -761,7 +764,7 @@ const PersiapanBahanPerluDisiapkan = {
       </div>
 
       <div v-else style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px,1fr)); gap:12px;">
-        <div v-for="k in kartuList" :key="k.bahanAksesorisId" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;">
+        <div v-for="k in kartuList" :key="k.kartuKey" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
             <div style="min-width:0;">
               <!-- FIX #6 (12 Sep 2026, laporan Guru — header kartu dulu
@@ -805,20 +808,20 @@ const PersiapanBahanPerluDisiapkan = {
                    kelihatan anak SPK yang mana walau kartu ini digabung per
                    BAHAN (bisa lintas produk/size berbeda). -->
               <!-- FIX (12 Sep 2026 lanjutan 6, laporan Guru poin 2 — kode
-                   TRX di-hide dari tampilan, ganti kode_anak_spk baru
-                   (format kode_spk-divisi+counter, lihat generateKodeAnakSpk
-                   di vue-persiapan-produksi-v2.js). no_spk TETAP ada di data
-                   (masih dipakai tracking pesanan/order_spk), CUMA tidak lagi
-                   ditampilkan di sini — fallback ke no_spk kalau kode_anak_spk
-                   belum ada (data lama / Config > TLC & Prefix > jalur Bahan
-                   belum diisi Guru). RENAME 13 Sep lanjutan 9: baris ini 1
-                   baris = 1 anak SPK spesifik di dalam kartu (bisa gabung
-                   banyak anak SPK per bahan yg sama) — kode_anak_spk itu yg
-                   ditampilkan di sini, BUKAN kode_kartu (yg dicetak di label
-                   fisik, lihat cetakLabelKartu). -->
+                   TRX di-hide dari tampilan) + BARU (13 Sep 2026 lanjutan 10,
+                   permintaan Guru) — baris ini SEKARANG tampil kode paling
+                   detail yg sudah tergenerate (kode_komponen, fallback ke
+                   level di atasnya) + nama pelanggan di baris atas (paling
+                   mudah dicari kalau ada order mendesak yg perlu didahulukan),
+                   nama produk+warna+size dipindah ke baris bawah. no_spk
+                   (kode TRX) TIDAK lagi tampil sama sekali kalau salah satu
+                   dari 3 level kode sudah ada — CUMA fallback kalau SEMUA
+                   masih null (data lama / Config > TLC & Prefix > jalur
+                   Bahan > Kode TLC belum diisi Guru, lihat tandaiKodeGrouping
+                   di vue-persiapan-produksi-v2.js). -->
               <div style="min-width:110px; flex:1;">
-                <div class="gc-num" style="font-weight:700;">{{ b.nama_produk || '(tanpa nama produk)' }} <span style="font-weight:600; color:var(--text-faint);">{{ b.produk_warna }}</span></div>
-                <div style="font-size:9.5px; color:var(--text-faint);">{{ b.kode_anak_spk || b.no_spk }} &middot; size {{ b.produk_size || '-' }}</div>
+                <div class="gc-num" style="font-weight:700;">{{ b.kode_komponen || b.kode_anak_spk || b.kode_kartu || b.no_spk }} <span style="font-weight:600; color:var(--text-faint);">&middot; {{ b.pelanggan_nama || '(tanpa pelanggan)' }}</span></div>
+                <div style="font-size:9.5px; color:var(--text-faint);">{{ b.nama_produk || '(tanpa nama produk)' }} {{ b.produk_warna }} &middot; size {{ b.produk_size || '-' }}</div>
               </div>
               <span class="gc-num" style="width:60px; text-align:right;">{{ formatQty(b.qty) }} pcs</span>
               <span class="gc-num" style="width:70px; text-align:right; color:var(--text-faint);">{{ formatMeter(b.kebutuhan_kain) }}</span>
@@ -1030,12 +1033,12 @@ const PersiapanBahanSedangDisiapkan = {
         return;
       }
       // entry / masalah: kode HARUS scan label baris ini sendiri (konfirmasi
-      // "yang mau diproses memang barang ini"). FIX (bug live QR cetak-vs-
-      // scan): label fisik berisi kode_kartu (12 Sep lanjutan 6, DINAMAI ULANG
-      // 13 Sep lanjutan 9 — dulu disebut kode_anak_spk) atau, untuk data lama,
-      // `${kode_spk}-${bahan_aksesoris_id}` (komposit, lihat
-      // bangunPreviewDariBaris) — dicocokkan ke sama persis dgn yang dicetak.
-      const kodeLabelBaris = b.kode_kartu || `${b.kode_spk}-${b.bahan_aksesoris_id}`;
+      // "yang mau diproses memang barang ini"). REVISI (13 Sep 2026 lanjutan
+      // 11) — label fisik sekarang 1 label PER ANAK SPK, kodenya
+      // kode_komponen (level paling detail), fallback berturut-turut ke
+      // level lebih kasar / komposit lama (lihat bangunPreviewDariBaris) —
+      // dicocokkan ke sama persis dgn yang dicetak.
+      const kodeLabelBaris = b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${b.kode_spk}-${b.bahan_aksesoris_id}`;
       if (kode !== kodeLabelBaris) { alert(`Kode yang discan ("${kode}") tidak cocok dengan label bahan baris ini (${kodeLabelBaris}).`); return; }
       if (modalAksi.mode === 'masalah') {
         // Retrofit §5.18 lanjutan — jangan langsung tulis, buka popup jumlah

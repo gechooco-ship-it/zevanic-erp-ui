@@ -460,6 +460,11 @@ function hitungBahanRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
       const bhn = petaBahan[b.bahan_aksesoris_id] || {};
       baris.push({
         order_spk_id: a.order_spk_id, no_spk: a.no_spk, qty,
+        // pelanggan_nama — BARU (13 Sep 2026, permintaan Guru) — snapshot
+        // dari order_spk (lihat anggotaBaris di atas file), dipakai kartu
+        // "ANAK SPK" & label cetak js/vue-persiapan-bahan.js supaya PIC
+        // langsung tahu orderan siapa tanpa perlu tampilkan kode TRX mentah.
+        pelanggan_nama: a.pelanggan_nama || '',
         bahan_aksesoris_id: b.bahan_aksesoris_id,
         bahan_nama: bhn.nama || '', bahan_warna: bhn.warna || '',
         nama_pola: b.nama_pola || '',
@@ -504,7 +509,12 @@ function hitungBahanRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
       });
     });
   });
-  return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.bahan_aksesoris_id, b => b.no_spk);
+  // kartuKeyFn — REVISI (13 Sep 2026, koreksi Guru) — GANTI dari bahan_aksesoris_id
+  // saja jadi bahan+pola: 2 anak SPK pakai bahan SAMA tapi pola BEDA TIDAK
+  // boleh dianggap 1 kartu (batch potong beda pola tetap harus dipisah kode
+  // kartunya), sama seperti kelompokKartuBahan()/bangunPreviewDariBaris() di
+  // vue-persiapan-bahan.js yang ikut diperbarui pola yang sama.
+  return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.bahan_aksesoris_id + '::' + (b.nama_pola || ''), b => b.no_spk);
 }
 
 // hitungSewingRincian / hitungWebbingRincian / hitungFinishingRincian — BARU
@@ -535,6 +545,9 @@ function hitungBahanRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
 function _butuhAksesorisDasar(a, qty) {
   return {
     order_spk_id: a.order_spk_id, no_spk: a.no_spk, qty,
+    // pelanggan_nama — BARU (13 Sep 2026), SAMA POLA seperti hitungBahanRincian()
+    // di atas — dipakai kartu Acc Sewing/Webbing/Finishing kalau nanti perlu.
+    pelanggan_nama: a.pelanggan_nama || '',
     bahan_aksesoris_id: '', nama_aksesoris: '', warna: '',
     status: 'perlu_disiapkan',
     masuk_tahap_pada: new Date().toISOString(),
@@ -918,7 +931,7 @@ const PersiapanDisiapkanManager = {
         if (jalurAktif.some(j => ['bahan', 'sewing', 'webbing', 'finishing'].includes(j))) {
           const petaBahan = await ambilPetaBahanAksesoris();
           const petaKodeTujuan = await ambilPetaKodeTujuanDivisi();
-          const anggotaBaris = anggota.map(o => ({ order_spk_id: o.id, no_spk: o.no_spk, qty: parseFloat(pilihanQty[o.id]) || 0, _produk: o._produk }));
+          const anggotaBaris = anggota.map(o => ({ order_spk_id: o.id, no_spk: o.no_spk, qty: parseFloat(pilihanQty[o.id]) || 0, _produk: o._produk, pelanggan_nama: o.pelanggan_nama || '' }));
           if (jalurAktif.includes('bahan')) bahanRincian = hitungBahanRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.bahan);
           if (jalurAktif.includes('sewing')) sewingRincian = hitungSewingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.sewing);
           if (jalurAktif.includes('webbing')) webbingRincian = hitungWebbingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.webbing);
@@ -983,7 +996,7 @@ const PersiapanDisiapkanManager = {
         if (jalurUnik.some(j => ['bahan', 'sewing', 'webbing', 'finishing'].includes(j))) {
           const petaBahan = await ambilPetaBahanAksesoris();
           const petaKodeTujuan = await ambilPetaKodeTujuanDivisi();
-          const anggotaBaris = [{ order_spk_id: order.id, no_spk: order.no_spk, qty, _produk: order._produk }];
+          const anggotaBaris = [{ order_spk_id: order.id, no_spk: order.no_spk, qty, _produk: order._produk, pelanggan_nama: order.pelanggan_nama || '' }];
           if (jalurUnik.includes('bahan')) bahanRincianSendiri = hitungBahanRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.bahan);
           if (jalurUnik.includes('sewing')) sewingRincianSendiri = hitungSewingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.sewing);
           if (jalurUnik.includes('webbing')) webbingRincianSendiri = hitungWebbingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.webbing);
