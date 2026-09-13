@@ -340,6 +340,18 @@ async function kirimMasalahCutting(track, jumlah, alasan) {
 // bahan di app ini SELALU meter (tidak ada field `satuan` tersimpan di
 // bahan_rincian — hardcode 'm' yang sama juga dipakai js/vue-persiapan-
 // bahan.js baris ~726) — ditulis 'M' murni untuk tampilan kolom.
+// siapDiproses — BARU (13 Sep 2026 lanjutan 19, permintaan Guru): sebelum
+// ini cutting_track SELALU tampil "siap" begitu ada, walau bahan dari
+// Persiapan Bahan belum tentu sudah fisik sampai (Scan Sampai belum
+// dilakukan) — operator bisa lihat pekerjaan yang sebenarnya belum bisa
+// dikerjakan. Ditambahkan `siapDiproses`: true kalau grouping ini TIDAK
+// punya baris bahan_rincian sama sekali (jalur 'bahan' tidak aktif utk
+// grouping ini, tidak ada yang perlu ditunggu), ATAU semua baris cocok
+// SUDAH `sampai_pada` (sudah di-Scan Sampai). Kalau ADA baris cocok tapi
+// belum semua sampai -> false, baris tetap tampil (keputusan Guru: jangan
+// disembunyikan, biar PIC tahu ada pekerjaan yang akan datang) tapi diberi
+// badge "Menunggu Bahan" + tombol Tunjuk Operator Ampar dikunci (lihat
+// bukaTunjukAmpar() di CuttingPerluDiProses).
 async function enrichBahanUntukTrack(daftarTrack, daftarGrouping) {
   const peta = {};
   try {
@@ -352,6 +364,10 @@ async function enrichBahanUntukTrack(daftarTrack, daftarGrouping) {
       const g = petaGrouping[t.grouping_id];
       const noSpkSet = new Set((g && Array.isArray(g.breakdown) ? g.breakdown : []).map(b => b.no_spk));
       const cocok = semuaBahanRincian.filter(b => noSpkSet.has(b.no_spk));
+      // cocok.length===0 -> peta[t.id] TETAP null (bukan {siapDiproses:true})
+      // supaya template lain yang sudah ada (Tab 1.1-1.4, cek `bahanEnrich[t.id]
+      // ? ... : '-'`) tidak berubah perilaku — "siap" utk kasus ini ditangani
+      // terpisah di template lewat helper siapBahan() di bawah.
       if (!cocok.length) { peta[t.id] = null; return; }
       const rep = cocok[0];
       peta[t.id] = {
@@ -360,7 +376,8 @@ async function enrichBahanUntukTrack(daftarTrack, daftarGrouping) {
         isiPola: rep.isi_pola_pcs || 0,
         amparan: cocok.reduce((s, b) => s + (parseFloat(b.amparan) || 0), 0),
         kebutuhanKain: cocok.reduce((s, b) => s + (parseFloat(b.kebutuhan_kain) || 0), 0),
-        satuan: 'M'
+        satuan: 'M',
+        siapDiproses: cocok.every(b => !!b.sampai_pada)
       };
     });
   } catch (e) { console.error('Gagal enrich data bahan utk tabel Cutting:', e); }
@@ -417,6 +434,10 @@ const CuttingPerluDiProses = {
     const menuId = 'cut_cutting';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
     const bolehOperator = computed(() => picOwnerKeAtas(window.currentUser));
+    // siapBahan(t) — BARU (13 Sep lanjutan 19): null/tidak ada entri bahan
+    // (jalur 'bahan' tidak aktif) DIANGGAP siap (tidak ada yang ditunggu);
+    // ada entri tapi siapDiproses===false -> masih menunggu Scan Sampai.
+    function siapBahan(t) { const info = bahanEnrich.value[t.id]; return !info || info.siapDiproses !== false; }
 
     async function muat() {
       memuat.value = true;
@@ -449,7 +470,7 @@ const CuttingPerluDiProses = {
           const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
           if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
           modalSampai.tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
-        } catch (e) { console.error('Gagal cari kode tugas:', e); }
+        } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
         return;
       }
       try {
@@ -495,7 +516,15 @@ const CuttingPerluDiProses = {
 
     // --- Tunjuk Operator Ampar (PIN, role PIC/PIC Owner/Owner) ---
     const popupPinAmpar = ref(null); // track
-    function bukaTunjukAmpar(track) { popupPinAmpar.value = track; }
+    // Gerbang siapBahan() — BARU (13 Sep lanjutan 19, keputusan Guru): kunci
+    // TITIK MASUK pekerjaan fisik (Tunjuk Operator Ampar), bukan Scan Sampai/
+    // Scan Unpack (itu justru aksi yang MEMBUAT baris ini jadi siap — mengunci
+    // keduanya bikin buntu). Tab 1.2-1.4 setelah ini TIDAK perlu cek ulang,
+    // track yang sudah lolos ke situ sudah pasti lolos gerbang ini duluan.
+    function bukaTunjukAmpar(track) {
+      if (!siapBahan(track)) { alert(`SPK ${track.kode_spk} masih menunggu bahan dari Persiapan Bahan (kode bagging belum di-Scan Sampai). Tunjuk Operator belum bisa dilakukan.`); return; }
+      popupPinAmpar.value = track;
+    }
     async function pinSuksesAmpar(user) {
       const track = popupPinAmpar.value;
       popupPinAmpar.value = null;
@@ -525,7 +554,7 @@ const CuttingPerluDiProses = {
     onMounted(async () => { await window.authReady; await muat(); });
 
     return {
-      memuat, daftar, bahanEnrich, unpackEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
+      memuat, daftar, bahanEnrich, unpackEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan, siapBahan,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
       modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack,
       popupPinAmpar, pinSuksesAmpar,
@@ -552,7 +581,7 @@ const CuttingPerluDiProses = {
       <div v-else class="gc-card" style="overflow-x:auto;">
         <table style="width:100%; border-collapse:collapse; font-size:11px; white-space:nowrap;">
           <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
-            <th style="padding:6px 8px;">Kode SPK</th><th style="padding:6px 8px;">SKU Produk</th><th style="padding:6px 8px;">SKU Bahan</th>
+            <th style="padding:6px 8px;">Kode SPK</th><th style="padding:6px 8px;">Status Bahan</th><th style="padding:6px 8px;">SKU Produk</th><th style="padding:6px 8px;">SKU Bahan</th>
             <th style="padding:6px 8px;" class="gc-num">Qty</th><th style="padding:6px 8px;" class="gc-num">Pjg Pola</th>
             <th style="padding:6px 8px;" class="gc-num">Isi Pola</th><th style="padding:6px 8px;" class="gc-num">Amparan</th>
             <th style="padding:6px 8px;" class="gc-num">Kbt Kain</th><th style="padding:6px 8px;">Satuan</th>
@@ -561,6 +590,8 @@ const CuttingPerluDiProses = {
           <tbody>
             <tr v-for="t in daftar" :key="t.id" style="border-bottom:1px solid var(--line);" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
               <td style="padding:6px 8px; font-weight:700;" class="gc-num">{{ t.kode_spk }}</td>
+              <!-- Status Bahan — BARU (13 Sep lanjutan 19): lihat siapBahan() -->
+              <td style="padding:6px 8px;"><span class="tag" :class="siapBahan(t) ? 'ok' : 'warn'">{{ siapBahan(t) ? 'Siap' : 'Menunggu Bahan' }}</span></td>
               <td style="padding:6px 8px;">{{ t.nama_produk }}<span v-if="t.size" style="color:var(--text-faint);"> ({{ t.size }})</span></td>
               <td style="padding:6px 8px; color:var(--text-faint);">{{ (bahanEnrich[t.id] && bahanEnrich[t.id].skuBahan) || '-' }}</td>
               <td style="padding:6px 8px;" class="gc-num">{{ formatQty(t.qty_total) }}</td>
@@ -1271,7 +1302,7 @@ const CuttingPerluDiKirim = {
     }
     async function tutupBagging() {
       if (!modalPack.bagging) return;
-      try { await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() }); } catch (e) { console.error('Gagal tutup bagging:', e); }
+      try { await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() }); } catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       modalPack.bagging = null;
     }
 
@@ -1286,7 +1317,7 @@ const CuttingPerluDiKirim = {
           const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
           if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
           modalKirim.tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
-        } catch (e) { console.error('Gagal cari kode tugas:', e); }
+        } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
         return;
       }
       const track = daftar.value.find(t => t.kode_tugas === modalKirim.tugas.kode && (t.kode_bagging || []).includes(kode));
