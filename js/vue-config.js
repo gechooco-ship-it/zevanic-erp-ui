@@ -261,9 +261,9 @@ const AppConfigTlc = {
       const namaTlc = (row.cariTerbuka ? row.kataCari : row.namaTlc).trim();
       const tlcTujuan = row.tlcTujuan.trim().toUpperCase();
       const kodeTujuan = row.kodeTujuan.trim();
-      if (kodeTujuan && !/^\d{1,2}$/.test(kodeTujuan)) return alert('Kode Tujuan wajib angka, maks 2 digit (mis. 12).');
+      if (kodeTujuan && !/^\d{1,2}$/.test(kodeTujuan)) return alert('Kode TLC wajib angka, maks 2 digit (mis. 12).');
       const kodeTujuanRapi = kodeTujuan ? kodeTujuan.padStart(2, '0') : '';
-      if ((namaTlc && !tlcTujuan) || (!namaTlc && tlcTujuan)) return alert('Nama TLC dan TLC Tujuan wajib diisi berdua, atau dikosongkan berdua.');
+      if ((namaTlc && !tlcTujuan) || (!namaTlc && tlcTujuan)) return alert('Nama TLC dan TLC Divisi wajib diisi berdua, atau dikosongkan berdua.');
       row.menyimpan = true;
       try {
         // Buat entry master_tlc baru OTOMATIS kalau kode-nya belum ada di
@@ -313,12 +313,12 @@ const AppConfigTlc = {
   template: `
     <div>
       <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">TLC &amp; Prefix</label>
-      <p style="font-size:11px; color:var(--text-faint); margin:-4px 0 10px;">1 baris = 1 titik/menu yang punya kode tugas sendiri. <b>Nama TLC</b> = cari &amp; pilih titik TLC yang sudah ada, atau ketik nama baru (otomatis dibuatkan entry-nya). <b>TLC Tujuan</b> = kode TLC-nya, muncul di label cetak (di bawahnya diikuti kode tugas). <b>Kode Tujuan</b> (2 digit) dipakai gabung ke kode SPK Grouping utk label+query scan QR (mis. kode_spk <code>G26R0912P001</code> + kode tujuan <code>12</code> + urutan baris &rarr; <code>G26R0912P001-1201</code>) — <b>cuma benar-benar dipakai generator</b> utk 4 baris "Persiapan Produksi" teratas (tanda hijau); baris lain aman diisi/dikosongkan sebagai referensi dulu.</p>
+      <p style="font-size:11px; color:var(--text-faint); margin:-4px 0 10px;">1 baris = 1 titik/menu yang punya kode tugas sendiri. <b>Nama TLC</b> = cari &amp; pilih titik TLC yang sudah ada, atau ketik nama baru (otomatis dibuatkan entry-nya). <b>TLC Divisi</b> = kode TLC-nya, muncul di label cetak (di bawahnya diikuti kode tugas). <b>Kode TLC</b> (2 digit) dipakai gabung ke kode SPK Grouping utk label+query scan QR (mis. kode_spk <code>G26R0912P001</code> + kode TLC <code>12</code> + urutan bahan+anak SPK+komponen &rarr; <code>G26R0912P001-120101-01</code>) — <b>cuma benar-benar dipakai generator</b> utk 4 baris "Persiapan Produksi" teratas (tanda hijau); baris lain aman diisi/dikosongkan sebagai referensi dulu.</p>
 
       <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
       <div v-else class="gc-table-scroll">
         <table class="gc-table">
-          <thead><tr><th>Nama Menu/Divisi</th><th style="min-width:170px;">Nama TLC</th><th style="width:130px;">TLC Tujuan</th><th style="width:90px;">Kode Tujuan</th><th style="width:90px;">Aksi</th></tr></thead>
+          <thead><tr><th>Nama Menu/Divisi</th><th style="min-width:170px;">Nama TLC</th><th style="width:130px;">TLC Divisi</th><th style="width:90px;">Kode TLC</th><th style="width:90px;">Aksi</th></tr></thead>
           <tbody>
             <tr v-for="row in baris" :key="row.id">
               <td>

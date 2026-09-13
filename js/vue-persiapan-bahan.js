@@ -496,21 +496,25 @@ const PersiapanBahanPerluDisiapkan = {
       daftarBaris.forEach(b => { (perLabel[b.grouping_id + '::' + b.bahan_aksesoris_id] ||= []).push(b); });
       return Object.values(perLabel).map(barisGrup => {
         const kodeInduk = barisGrup[0].kode_spk;
-        // FIX (12 Sep 2026 lanjutan 6, laporan Guru poin 2/3) — kode label
-        // (teks besar + isi QR) GANTI dari `${kodeInduk}-${bahan_aksesoris_id}`
-        // (komposit ID Firestore, panjang & tidak enak dibaca operator) ke
-        // kode_anak_spk BARU format kode_spk-divisi+counter (mis.
-        // G26R0912P001-1201), lihat generateKodeAnakSpk() vue-persiapan-
-        // produksi-v2.js. FALLBACK ke kode lama kalau kode_anak_spk belum
-        // ada (data lama sebelum fix ini, atau Config > TLC & Prefix > jalur
-        // Bahan belum diisi Guru) — supaya QR tetap konsisten dgn cocokLabel/
-        // hasilScanAksi di bawah, TIDAK PERNAH beda antara yang dicetak & yang
-        // dicocokkan scan.
-        const kodeLabel = barisGrup[0].kode_anak_spk || `${kodeInduk}-${barisGrup[0].bahan_aksesoris_id}`;
+        // FIX (12 Sep 2026 lanjutan 6, laporan Guru poin 2/3; RENAME 13 Sep
+        // lanjutan 9) — kode label (teks besar + isi QR) GANTI dari
+        // `${kodeInduk}-${bahan_aksesoris_id}` (komposit ID Firestore,
+        // panjang & tidak enak dibaca operator) ke `kode_kartu` (dulu
+        // dinamai kode_anak_spk versi lanjutan 6, DINAMAI ULANG 13 Sep krn
+        // sekarang ada level lebih detail di bawahnya — lihat komentar besar
+        // tandaiKodeGrouping() vue-persiapan-produksi-v2.js). SATU KARTU =
+        // SATU LABEL FISIK, walau isinya gabungan >1 anak SPK/order (barisGrup
+        // di sini bisa >1 baris beda no_spk, semua kebagian kode_kartu SAMA
+        // krn dikelompokkan per bahan_aksesoris_id). FALLBACK ke kode lama
+        // kalau kode_kartu belum ada (data lama, atau Config > TLC & Prefix >
+        // jalur Bahan belum diisi Guru) — supaya QR tetap konsisten dgn
+        // cocokLabel/hasilScanAksi di bawah, TIDAK PERNAH beda antara yang
+        // dicetak & yang dicocokkan scan.
+        const kodeLabel = barisGrup[0].kode_kartu || `${kodeInduk}-${barisGrup[0].bahan_aksesoris_id}`;
         return {
           kode: kodeLabel,
           nama: `${barisGrup[0].bahan_nama || ''} ${barisGrup[0].bahan_warna || ''}`.trim(),
-          info: `${kodeInduk} &middot; ${barisGrup.map(b => b.no_spk).join(', ')} &middot; ${formatMeter(barisGrup.reduce((s, b) => s + (b.kebutuhan_kain || 0), 0))} &middot; ${barisGrup[0].nama_pola || ''}`,
+          info: `${kodeInduk} &middot; ${barisGrup.map(b => b.kode_anak_spk || b.no_spk).join(', ')} &middot; ${formatMeter(barisGrup.reduce((s, b) => s + (b.kebutuhan_kain || 0), 0))} &middot; ${barisGrup[0].nama_pola || ''}`,
           qrDataUrl: buatQrDataUrl(kodeLabel)
         };
       });
@@ -569,13 +573,14 @@ const PersiapanBahanPerluDisiapkan = {
       sudahDicetak.forEach(b => { (perGrouping[b.grouping_id] ||= []).push(b); });
       const preview = Object.values(perGrouping).map(barisGrup => {
         const kodeInduk = barisGrup[0].kode_spk;
-        // FIX (12 Sep 2026 lanjutan 6) — SAMA kode dgn bangunPreviewDariBaris
-        // (kode_anak_spk, fallback komposit lama) supaya label cetak-ulang
-        // TETAP cocok dgn cocokLabel()/hasilScanAksi() yang sudah diperbarui.
-        const kodeLabel = barisGrup[0].kode_anak_spk || `${kodeInduk}-${p.kartu.bahanAksesorisId}`;
+        // FIX (12 Sep 2026 lanjutan 6; RENAME 13 Sep lanjutan 9) — SAMA kode
+        // dgn bangunPreviewDariBaris (kode_kartu, fallback komposit lama)
+        // supaya label cetak-ulang TETAP cocok dgn cocokLabel()/
+        // hasilScanAksi() yang sudah diperbarui.
+        const kodeLabel = barisGrup[0].kode_kartu || `${kodeInduk}-${p.kartu.bahanAksesorisId}`;
         return {
           kode: kodeLabel, nama: `${p.kartu.nama} ${p.kartu.warna}`.trim(),
-          info: `CETAK ULANG &middot; ${kodeInduk} &middot; ${barisGrup.map(b => b.no_spk).join(', ')}`,
+          info: `CETAK ULANG &middot; ${kodeInduk} &middot; ${barisGrup.map(b => b.kode_anak_spk || b.no_spk).join(', ')}`,
           qrDataUrl: buatQrDataUrl(kodeLabel)
         };
       });
@@ -641,10 +646,10 @@ const PersiapanBahanPerluDisiapkan = {
       // ketemu) — 1 scan label = 1 tugas operator untuk semua no_spk di
       // baliknya, sesuai desain "1 label per bahan" yang sudah ada.
       const kolamBaris = modalTunjuk.global ? kartuList.value.flatMap(k => k.baris) : (modalTunjuk.kartu?.baris || []);
-      // FIX (12 Sep 2026 lanjutan 6) — kode label sekarang kode_anak_spk
-      // (lihat bangunPreviewDariBaris), fallback ke komposit lama kalau
-      // baris ini belum punya kode_anak_spk (data lama).
-      const cocokLabel = (b) => (b.kode_anak_spk || `${b.kode_spk}-${b.bahan_aksesoris_id}`) === kode;
+      // FIX (12 Sep 2026 lanjutan 6; RENAME 13 Sep lanjutan 9) — kode label
+      // sekarang kode_kartu (lihat bangunPreviewDariBaris), fallback ke
+      // komposit lama kalau baris ini belum punya kode_kartu (data lama).
+      const cocokLabel = (b) => (b.kode_kartu || `${b.kode_spk}-${b.bahan_aksesoris_id}`) === kode;
       const targets = kolamBaris.filter(b => cocokLabel(b) && b.label_cetak_pada && b.status === 'perlu_disiapkan');
       if (!targets.length) {
         // FIX (10 Sep 2026, laporan Guru — masih salah tunjuk setelah fix
@@ -806,7 +811,11 @@ const PersiapanBahanPerluDisiapkan = {
                    (masih dipakai tracking pesanan/order_spk), CUMA tidak lagi
                    ditampilkan di sini — fallback ke no_spk kalau kode_anak_spk
                    belum ada (data lama / Config > TLC & Prefix > jalur Bahan
-                   belum diisi Guru). -->
+                   belum diisi Guru). RENAME 13 Sep lanjutan 9: baris ini 1
+                   baris = 1 anak SPK spesifik di dalam kartu (bisa gabung
+                   banyak anak SPK per bahan yg sama) — kode_anak_spk itu yg
+                   ditampilkan di sini, BUKAN kode_kartu (yg dicetak di label
+                   fisik, lihat cetakLabelKartu). -->
               <div style="min-width:110px; flex:1;">
                 <div class="gc-num" style="font-weight:700;">{{ b.nama_produk || '(tanpa nama produk)' }} <span style="font-weight:600; color:var(--text-faint);">{{ b.produk_warna }}</span></div>
                 <div style="font-size:9.5px; color:var(--text-faint);">{{ b.kode_anak_spk || b.no_spk }} &middot; size {{ b.produk_size || '-' }}</div>
@@ -1022,10 +1031,11 @@ const PersiapanBahanSedangDisiapkan = {
       }
       // entry / masalah: kode HARUS scan label baris ini sendiri (konfirmasi
       // "yang mau diproses memang barang ini"). FIX (bug live QR cetak-vs-
-      // scan): label fisik berisi kode_anak_spk (12 Sep lanjutan 6) atau,
-      // untuk data lama, `${kode_spk}-${bahan_aksesoris_id}` (komposit, lihat
+      // scan): label fisik berisi kode_kartu (12 Sep lanjutan 6, DINAMAI ULANG
+      // 13 Sep lanjutan 9 — dulu disebut kode_anak_spk) atau, untuk data lama,
+      // `${kode_spk}-${bahan_aksesoris_id}` (komposit, lihat
       // bangunPreviewDariBaris) — dicocokkan ke sama persis dgn yang dicetak.
-      const kodeLabelBaris = b.kode_anak_spk || `${b.kode_spk}-${b.bahan_aksesoris_id}`;
+      const kodeLabelBaris = b.kode_kartu || `${b.kode_spk}-${b.bahan_aksesoris_id}`;
       if (kode !== kodeLabelBaris) { alert(`Kode yang discan ("${kode}") tidak cocok dengan label bahan baris ini (${kodeLabelBaris}).`); return; }
       if (modalAksi.mode === 'masalah') {
         // Retrofit §5.18 lanjutan — jangan langsung tulis, buka popup jumlah

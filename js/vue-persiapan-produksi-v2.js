@@ -337,27 +337,54 @@ async function ambilPetaBahanAksesoris() {
   return peta;
 }
 
-// ambilPetaKodeTujuanDivisi / tandaiKodeAnakSpk — BARU (12 Sep 2026 lanjutan
+// ambilPetaKodeTujuanDivisi / tandaiKodeGrouping — BARU (12 Sep 2026 lanjutan
 // 6, laporan Guru poin 2/3: ganti tampilan kode TRX di anak SPK dengan kode
-// baru "kode_spk-divisi+counter", dipakai juga cetak label & Scan Operator).
+// baru "kode_spk-divisi+counter"; REDESAIN 3-LEVEL 13 Sep 2026 lanjutan 9,
+// permintaan Guru: "kode grouping ... formatnya kode spk + kode tlc +
+// counter bahan (cek bom pola) + counter anak spk + '-' + counter komponen").
 // Sumber kode_tujuan per jalur = koleksi `master_prefix_divisi` (skema BARU,
 // lihat js/vue-config.js AppConfigTlc) — field `jalur_key` ('bahan'/'sewing'/
 // 'webbing'/'finishing') menentukan baris mana dipakai jalur mana. Guru yang
-// isi baris & kode_tujuan-nya sendiri (keputusan Guru 12 Sep) — kalau BELUM
-// diisi utk suatu jalur, kode_anak_spk baris situ jadi null (tampilan/cetak
-// FALLBACK ke kode lama, TIDAK error) sampai Guru mengisi Config-nya.
+// isi baris & kode TLC-nya sendiri (keputusan Guru 12 Sep) — kalau BELUM
+// diisi utk suatu jalur, kode_kartu/kode_anak_spk/kode_komponen baris situ
+// jadi null (tampilan/cetak FALLBACK ke kode lama, TIDAK error) sampai Guru
+// mengisi Config-nya.
 //
-// PENTING (keputusan Guru 12 Sep lanjutan 6, dijawab via AskUserQuestion):
+// 3 LEVEL (keputusan Guru 13 Sep, dijawab via AskUserQuestion 2 ronde):
+//   kode_kartu    = {kode_spk}-{kodeTlc}{counterBahan:2}          — INI yang
+//                   DICETAK JADI QR/LABEL FISIK & DICOCOKKAN scan (sama
+//                   peran seperti kode_anak_spk versi lanjutan 6 lama, cuma
+//                   dinamai ulang supaya tidak ketuker sama level di bawahnya).
+//   kode_anak_spk = {kode_kartu}{counterAnakSpk:2}                — sub-kode
+//                   PER ANAK SPK/ORDER di dalam 1 kartu, buat rujukan/
+//                   tampilan (bukan dicetak sebagai label fisik terpisah).
+//   kode_komponen = {kode_anak_spk}-{counterKomponen:2}           — sub-kode
+//                   PER BARIS BOM (komponen/item) di dalam 1 anak SPK yang
+//                   sama, buat rujukan baris paling detail (mis. Acc: 1 order
+//                   butuh Zipper DAN Kancing, keduanya berbagi 1 label/QR
+//                   yang sama [kode_kartu = per order], tapi masing2 baris
+//                   tetap py kode_komponen sendiri buat dibedakan di tampilan).
+//
+// PEMETAAN key per jalur (jawaban Guru 13 Sep, AskUserQuestion ronde 2):
+//   - Bahan: kartuKey = bahan_aksesoris_id (1 kartu = 1 material, SAMA
+//     seperti sebelumnya — kelompokKartuBahan() vue-persiapan-bahan.js),
+//     anakSpkKey = no_spk (beda order yg pakai bahan sama, dapat sub-kode
+//     beda — inilah gap yg diperbaiki: dulu 2 order beda bahan sama kebagian
+//     kode_anak_spk yg IDENTIK).
+//   - Sewing/Webbing/Finishing: kartuKey = no_spk (1 kartu = 1 order, SAMA
+//     seperti sebelumnya, TIDAK diganti ikut Bahan — jawaban eksplisit Guru
+//     ronde 2: "Kartu Acc TETAP per order"), anakSpkKey = no_spk juga (sama
+//     dgn kartuKey, jadi counter_anak_spk SELALU "01" krn 1 kartu = 1 order
+//     persis — level pembeda yg sesungguhnya di jalur Acc ada di
+//     counter_komponen, BUKAN di counter_anak_spk).
+//
+// PENTING (keputusan Guru 12 Sep lanjutan 6, MASIH BERLAKU di level kartu):
 // - Counter DISIMPAN PERMANEN saat baris dibuat (bukan dihitung ulang dari
 //   urutan tampil) — supaya kode yang sudah dicetak/ditempel/discan operator
 //   TETAP valid walau nanti ada baris lain di grouping yang sama berubah.
-// - Counter dihitung PER KELOMPOK YANG DICETAK JADI SATU LABEL, bukan per
-//   baris BOM mentah — utk jalur 'bahan' itu per `bahan_aksesoris_id` (satu
-//   kartu/label = satu bahan, lihat kelompokKartuBahan() vue-persiapan-
-//   bahan.js), utk jalur sewing/webbing/finishing itu per `no_spk` (satu
-//   label = satu anak SPK, lihat blok `perAnak` di 3 file itu) — SESUAI
-//   granularitas cetak+scan yang SUDAH ADA, supaya 1 kode_anak_spk selalu
-//   mewakili PERSIS 1 label fisik, tidak pernah pecah/tumpang tindih.
+// - counter_komponen dihitung per KEMUNCULAN BARIS dalam (kartuKey,anakKey)
+//   yang sama — utk Bahan biasanya cuma 1 baris (jadi selalu "-01"), utk Acc
+//   inilah yg membedakan Zipper "-01" vs Kancing "-02" dst di 1 order yg sama.
 let _cachePetaKodeTujuan = null;
 async function ambilPetaKodeTujuanDivisi() {
   if (_cachePetaKodeTujuan) return _cachePetaKodeTujuan;
@@ -372,14 +399,33 @@ async function ambilPetaKodeTujuanDivisi() {
   _cachePetaKodeTujuan = peta;
   return peta;
 }
-function tandaiKodeAnakSpk(baris, kodeSpk, kodeTujuan, keyFn) {
-  if (!kodeTujuan) { baris.forEach(b => { b.kode_anak_spk = null; }); return baris; }
-  const urutanKey = [];
-  const peta = {};
+function tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, kartuKeyFn, anakSpkKeyFn) {
+  if (!kodeTujuan) { baris.forEach(b => { b.kode_kartu = null; b.kode_anak_spk = null; b.kode_komponen = null; }); return baris; }
+  const urutanKartu = [];
+  const petaKartu = {};
+  const infoKartu = {}; // infoKartu[kartuKey] = { urutanAnak: [], petaAnak: {} }
+  const hitungKomponen = {}; // hitungKomponen['kartuKey::anakKey'] = counter berjalan
   baris.forEach(b => {
-    const key = keyFn(b);
-    if (!(key in peta)) { peta[key] = urutanKey.length + 1; urutanKey.push(key); }
-    b.kode_anak_spk = `${kodeSpk}-${kodeTujuan}${String(peta[key]).padStart(2, '0')}`;
+    const kartuKey = kartuKeyFn(b);
+    if (!(kartuKey in petaKartu)) {
+      petaKartu[kartuKey] = urutanKartu.length + 1;
+      urutanKartu.push(kartuKey);
+      infoKartu[kartuKey] = { urutanAnak: [], petaAnak: {} };
+    }
+    const kodeKartu = `${kodeSpk}-${kodeTujuan}${String(petaKartu[kartuKey]).padStart(2, '0')}`;
+
+    const grup = infoKartu[kartuKey];
+    const anakKey = anakSpkKeyFn(b);
+    if (!(anakKey in grup.petaAnak)) { grup.petaAnak[anakKey] = grup.urutanAnak.length + 1; grup.urutanAnak.push(anakKey); }
+    const kodeAnakSpk = `${kodeKartu}${String(grup.petaAnak[anakKey]).padStart(2, '0')}`;
+
+    const kunciKomponen = kartuKey + '::' + anakKey;
+    hitungKomponen[kunciKomponen] = (hitungKomponen[kunciKomponen] || 0) + 1;
+    const kodeKomponen = `${kodeAnakSpk}-${String(hitungKomponen[kunciKomponen]).padStart(2, '0')}`;
+
+    b.kode_kartu = kodeKartu;
+    b.kode_anak_spk = kodeAnakSpk;
+    b.kode_komponen = kodeKomponen;
   });
   return baris;
 }
@@ -454,11 +500,11 @@ function hitungBahanRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
         entry_qty: null, entry_oleh: '', entry_pada: null,
         catatan_masalah: '',
         kode_bagging: '', kode_tugas: '',
-        kode_anak_spk: null // diisi tandaiKodeAnakSpk() di bawah
+        kode_kartu: null, kode_anak_spk: null, kode_komponen: null // diisi tandaiKodeGrouping() di bawah
       });
     });
   });
-  return tandaiKodeAnakSpk(baris, kodeSpk, kodeTujuan, b => b.bahan_aksesoris_id);
+  return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.bahan_aksesoris_id, b => b.no_spk);
 }
 
 // hitungSewingRincian / hitungWebbingRincian / hitungFinishingRincian — BARU
@@ -498,7 +544,7 @@ function _butuhAksesorisDasar(a, qty) {
     entry_qty: null, entry_oleh: '', entry_pada: null,
     catatan_masalah: '',
     kode_bagging: '', kode_tugas: '',
-    kode_anak_spk: null // diisi tandaiKodeAnakSpk() di bawah
+    kode_kartu: null, kode_anak_spk: null, kode_komponen: null // diisi tandaiKodeGrouping() di bawah
   };
 }
 function hitungSewingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
@@ -525,7 +571,7 @@ function hitungSewingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
       });
     });
   });
-  return tandaiKodeAnakSpk(baris, kodeSpk, kodeTujuan, b => b.no_spk);
+  return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.no_spk, b => b.no_spk);
 }
 // hitungWebbingRincian — sama seperti hitungSewingRincian, TAMBAH kolom
 // khas pos ini (SERAH-TERIMA Acc Webbing §3/§5): panjang_per_pcs/
@@ -561,7 +607,7 @@ function hitungWebbingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
       });
     });
   });
-  return tandaiKodeAnakSpk(baris, kodeSpk, kodeTujuan, b => b.no_spk);
+  return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.no_spk, b => b.no_spk);
 }
 // hitungFinishingRincian — sama seperti hitungSewingRincian, TAMBAH kolom
 // khas pos ini (SERAH-TERIMA Acc Finishing §3/§5): varian_tipe/
@@ -601,7 +647,7 @@ function hitungFinishingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
       });
     });
   });
-  return tandaiKodeAnakSpk(baris, kodeSpk, kodeTujuan, b => b.no_spk);
+  return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.no_spk, b => b.no_spk);
 }
 
 // cariKaryawanByQr — DISALIN dari js/vue-absensi-qr.js (prosesHasilScan(),
