@@ -343,8 +343,8 @@ async function ambilPetaBahanAksesoris() {
 // permintaan Guru: "kode grouping ... formatnya kode spk + kode tlc +
 // counter bahan (cek bom pola) + counter anak spk + '-' + counter komponen").
 // Sumber kode_tujuan per jalur = koleksi `master_prefix_divisi` (skema BARU,
-// lihat js/vue-config.js AppConfigTlc) — field `jalur_key` ('bahan'/'sewing'/
-// 'webbing'/'finishing') menentukan baris mana dipakai jalur mana. Guru yang
+// lihat js/vue-config.js AppConfigTlc) — ID dokumen ('bahan'/'sewing'/
+// 'webbing'/'finishing') menentukan jalur mana dipakai baris mana. Guru yang
 // isi baris & kode TLC-nya sendiri (keputusan Guru 12 Sep) — kalau BELUM
 // diisi utk suatu jalur, kode_kartu/kode_anak_spk/kode_komponen baris situ
 // jadi null (tampilan/cetak FALLBACK ke kode lama, TIDAK error) sampai Guru
@@ -365,12 +365,10 @@ async function ambilPetaBahanAksesoris() {
 //                   yang sama [kode_kartu = per order], tapi masing2 baris
 //                   tetap py kode_komponen sendiri buat dibedakan di tampilan).
 //
-// PEMETAAN key per jalur (jawaban Guru 13 Sep, AskUserQuestion ronde 2):
-//   - Bahan: kartuKey = bahan_aksesoris_id (1 kartu = 1 material, SAMA
-//     seperti sebelumnya — kelompokKartuBahan() vue-persiapan-bahan.js),
-//     anakSpkKey = no_spk (beda order yg pakai bahan sama, dapat sub-kode
-//     beda — inilah gap yg diperbaiki: dulu 2 order beda bahan sama kebagian
-//     kode_anak_spk yg IDENTIK).
+// PEMETAAN key per jalur:
+//   - Bahan: kartuKey = bahan_aksesoris_id + '::' + nama_pola (SAMA formula
+//     dgn kelompokKartuBahan() vue-persiapan-bahan.js, wajib disinkron kalau
+//     salah satu diubah), anakSpkKey = no_spk.
 //   - Sewing/Webbing/Finishing: kartuKey = no_spk (1 kartu = 1 order, SAMA
 //     seperti sebelumnya, TIDAK diganti ikut Bahan — jawaban eksplisit Guru
 //     ronde 2: "Kartu Acc TETAP per order"), anakSpkKey = no_spk juga (sama
@@ -391,9 +389,14 @@ async function ambilPetaKodeTujuanDivisi() {
   const peta = {};
   try {
     const snap = await getDocs(collection(db, 'master_prefix_divisi'));
+    // Key = ID dokumen, BUKAN field `jalur_key` di dalam data — vue-config.js
+    // simpanBaris() menulis doc dgn id = jalur_key ('bahan'/'sewing'/dst)
+    // tapi TIDAK menaruh jalur_key sebagai field di dalam data itu sendiri,
+    // jadi baca via x.jalur_key selalu undefined (bug 13 Sep lanjutan 13:
+    // Kode TLC sudah diisi+simpan Guru tapi kode_kartu tetap null).
     snap.forEach(d => {
       const x = d.data();
-      if (x.jalur_key && x.kode_tujuan) peta[x.jalur_key] = x.kode_tujuan;
+      if (x.kode_tujuan) peta[d.id] = x.kode_tujuan;
     });
   } catch (e) { console.error('Gagal ambil master_prefix_divisi (kode tujuan):', e); }
   _cachePetaKodeTujuan = peta;
