@@ -186,19 +186,36 @@ export const SEMUA_FIELD_TERSEDIA = Object.values(KATALOG_CETAK)
   .reduce((acc, f) => (acc.some(x => x.key === f.key) ? acc : [...acc, f]), []);
 
 // PRESET_KERTAS — 4 pilihan sesuai keputusan Guru (sesi 8 Sep 2026).
+// font_kode_mm/font_nama_mm/font_info_mm BARU (13 Sep lanjutan 15) — dulu
+// SEMUA preset pakai 1 ukuran font px hardcode (17/13/11px) di kode cetak,
+// pas-pasan untuk ukuran 101.6x50.8mm tapi KETERLALU BESAR untuk preset
+// kecil (Thermal 4x2cm, ditambah 12 Sep tanpa font disesuaikan) — itu akar
+// laporan Guru "label menumpuk". Sekarang tiap preset punya default font
+// (mm, ikut satuan lebar/tinggi biar ukuran fisik konsisten & bisa dites
+// akurat di pratinjau) yang Guru masih bebas timpa manual per grup.
 export const PRESET_KERTAS = {
   kasir_roll: { label: 'Kasir Roll (lebar saja)', lebar_mm: 80, tinggi_mm: 0, isRoll: true },
-  custom: { label: 'Custom (isi manual mm)', lebar_mm: 101.6, tinggi_mm: 50.8, isRoll: false },
-  thermal_15x10: { label: 'Thermal 15 x 10 cm', lebar_mm: 150, tinggi_mm: 100, isRoll: false },
-  thermal_4x2: { label: 'Thermal 4 x 2 cm', lebar_mm: 40, tinggi_mm: 20, isRoll: false }
+  custom: { label: 'Custom (isi manual mm)', lebar_mm: 101.6, tinggi_mm: 50.8, isRoll: false, font_kode_mm: 4.5, font_nama_mm: 3.5, font_info_mm: 2.9 },
+  thermal_15x10: { label: 'Thermal 15 x 10 cm', lebar_mm: 150, tinggi_mm: 100, isRoll: false, font_kode_mm: 6, font_nama_mm: 4.5, font_info_mm: 3.5 },
+  thermal_4x2: { label: 'Thermal 4 x 2 cm', lebar_mm: 40, tinggi_mm: 20, isRoll: false, font_kode_mm: 2.6, font_nama_mm: 2, font_info_mm: 1.7 }
 };
 
 // Fallback kalau suatu jenisId BELUM dimasukkan ke grup manapun — SAMA
 // PERSIS dengan ukuran yang sudah berjalan sekarang (4x2 inch = 101.6x
 // 50.8mm), supaya tidak ada cetakan berubah tiba-tiba sebelum Guru sempat
 // mengatur grupnya.
-const DEFAULT_PENGATURAN = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [] };
+const DEFAULT_PENGATURAN = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [], font_kode_mm: PRESET_KERTAS.custom.font_kode_mm, font_nama_mm: PRESET_KERTAS.custom.font_nama_mm, font_info_mm: PRESET_KERTAS.custom.font_info_mm };
 const DEFAULT_STRUK = { lebar_mm: 80, tinggi_mm: 0, posisi_qr: 'kiri', rincian_aktif: [] };
+
+// DUMMY_CONTOH_LABEL — data contoh dipakai pratinjau live Edit Grup Cetak
+// (BUKAN data sungguhan) supaya Guru bisa lihat kira-kira hasil cetak
+// SEBELUM simpan, termasuk kasus kode panjang yang paling gampang menumpuk.
+const DUMMY_CONTOH_LABEL = {
+  kode: 'G26R0913P003-120302-01',
+  nama: 'POLYFOAM 5MM PUTIH',
+  info: 'Jahid &middot; SUNNIE',
+  rincian: { roll: '12', kode_webbing2: 'W2-045', kode_webbing3: 'W3-012', varian: 'Hitam x 20' }
+};
 
 // Cache in-memory per sesi (PELAJARAN.md — hemat read Firestore). Koleksi
 // `pengaturan_cetak` kecil (jumlah grup, bukan jumlah titik cetak), jadi 1x
@@ -239,7 +256,10 @@ export async function ambilPengaturanCetak(jenisId) {
     lebar_mm: parseFloat(grup.lebar_mm) || fallback.lebar_mm,
     tinggi_mm: parseFloat(grup.tinggi_mm) || fallback.tinggi_mm,
     posisi_qr: grup.posisi_qr || fallback.posisi_qr,
-    rincian_aktif: grup.field_tampil || []
+    rincian_aktif: grup.field_tampil || [],
+    font_kode_mm: parseFloat(grup.font_kode_mm) || fallback.font_kode_mm || DEFAULT_PENGATURAN.font_kode_mm,
+    font_nama_mm: parseFloat(grup.font_nama_mm) || fallback.font_nama_mm || DEFAULT_PENGATURAN.font_nama_mm,
+    font_info_mm: parseFloat(grup.font_info_mm) || fallback.font_info_mm || DEFAULT_PENGATURAN.font_info_mm
   };
 }
 
@@ -253,7 +273,7 @@ export const AppPengaturanCetak = {
     const memuat = ref(true);
     const daftarGrup = ref([]); // [{id, nama, jenis_kertas, lebar_mm, tinggi_mm, posisi_qr, field_tampil, anggota_jenis}]
     const editAktif = ref(null); // null | '__baru__' | grupId
-    const formEdit = reactive({ nama: '', jenis_kertas: 'custom', lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', field_tampil: [], anggota_jenis: [] });
+    const formEdit = reactive({ nama: '', jenis_kertas: 'custom', lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', field_tampil: [], anggota_jenis: [], font_kode_mm: PRESET_KERTAS.custom.font_kode_mm, font_nama_mm: PRESET_KERTAS.custom.font_nama_mm, font_info_mm: PRESET_KERTAS.custom.font_info_mm });
     const menyimpan = ref(false);
 
     async function muat() {
@@ -299,6 +319,46 @@ export const AppPengaturanCetak = {
       return peta;
     });
 
+    // --- Pratinjau live (BARU 13 Sep lanjutan 15) --------------------------
+    // Kotak pratinjau di form Edit Grup Cetak, DISKALA dari ukuran fisik
+    // form (lebar_mm/tinggi_mm) supaya proporsinya (padding/gap/QR/font)
+    // SAMA PERSIS dengan rumus yang dipakai `PopupPratinjauCetakLabel.
+    // cetakSekarang()` (vue-components.js) saat cetak sungguhan — kalau
+    // teks kelihatan menumpuk/kepotong DI SINI, itu artinya akan menumpuk
+    // juga di kertas beneran, jadi Guru bisa perbaiki (kecilkan font/besarkan
+    // kertas) SEBELUM simpan, bukan ketahuan setelah cetak fisik.
+    const skalaPreview = computed(() => {
+      const lebar = parseFloat(formEdit.lebar_mm) || 1;
+      const tinggiRaw = formEdit.jenis_kertas === 'kasir_roll' ? lebar * 0.6 : (parseFloat(formEdit.tinggi_mm) || 1);
+      const skala = Math.min(260 / lebar, 220 / tinggiRaw);
+      return Math.max(0.5, Math.min(skala, 8));
+    });
+    const previewGeo = computed(() => {
+      const lebar = parseFloat(formEdit.lebar_mm) || 1;
+      const tinggi = formEdit.jenis_kertas === 'kasir_roll' ? lebar * 0.6 : (parseFloat(formEdit.tinggi_mm) || 1);
+      const sisiPendek = Math.min(lebar, tinggi);
+      const padding = Math.max(1.5, sisiPendek * 0.11);
+      const gap = Math.max(1.5, sisiPendek * 0.1);
+      const qrSize = sisiPendek * 0.42;
+      const s = skalaPreview.value;
+      return {
+        lebarPx: lebar * s, tinggiPx: tinggi * s,
+        paddingPx: padding * s, gapPx: gap * s, qrSizePx: qrSize * s,
+        fontKodePx: (parseFloat(formEdit.font_kode_mm) || 1) * s,
+        fontNamaPx: (parseFloat(formEdit.font_nama_mm) || 1) * s,
+        fontInfoPx: (parseFloat(formEdit.font_info_mm) || 1) * s,
+        flexDir: formEdit.posisi_qr === 'kanan' ? 'row-reverse' : (formEdit.posisi_qr === 'atas' ? 'column' : 'row')
+      };
+    });
+    // Rincian contoh dipilih Guru di form ini, diisi nilai DUMMY (bukan data
+    // sungguhan) sekadar simulasi tampilan.
+    const rincianPreviewAktif = computed(() =>
+      formEdit.field_tampil
+        .map(key => SEMUA_FIELD_TERSEDIA.find(r => r.key === key))
+        .filter(Boolean)
+        .map(r => ({ ...r, nilai: DUMMY_CONTOH_LABEL.rincian[r.key] ?? '(contoh)' }))
+    );
+
     function bukaTambah() {
       editAktif.value = '__baru__';
       formEdit.nama = '';
@@ -308,6 +368,9 @@ export const AppPengaturanCetak = {
       formEdit.posisi_qr = 'kiri';
       formEdit.field_tampil = [];
       formEdit.anggota_jenis = [];
+      formEdit.font_kode_mm = PRESET_KERTAS.custom.font_kode_mm;
+      formEdit.font_nama_mm = PRESET_KERTAS.custom.font_nama_mm;
+      formEdit.font_info_mm = PRESET_KERTAS.custom.font_info_mm;
     }
     function bukaEdit(g) {
       editAktif.value = g.id;
@@ -318,17 +381,30 @@ export const AppPengaturanCetak = {
       formEdit.posisi_qr = g.posisi_qr || 'kiri';
       formEdit.field_tampil = [...(g.field_tampil || [])];
       formEdit.anggota_jenis = [...(g.anggota_jenis || [])];
+      // Grup lama (dibuat sebelum font mm ada) belum punya field ini —
+      // fallback ke default preset-nya sendiri, bukan custom, supaya grup
+      // kecil lama tidak tiba-tiba dianggap punya font besar 4x2inch.
+      const presetFont = PRESET_KERTAS[g.jenis_kertas] || PRESET_KERTAS.custom;
+      formEdit.font_kode_mm = parseFloat(g.font_kode_mm) || presetFont.font_kode_mm;
+      formEdit.font_nama_mm = parseFloat(g.font_nama_mm) || presetFont.font_nama_mm;
+      formEdit.font_info_mm = parseFloat(g.font_info_mm) || presetFont.font_info_mm;
     }
     function tutupEdit() { editAktif.value = null; }
 
-    // pilihPreset — pilih preset TIMPA lebar/tinggi dengan nilai presetnya.
-    // Kalau pilih 'custom', nilai lama dibiarkan (supaya Guru bisa isi bebas
-    // tanpa ketimpa balik ke default tiap ganti-ganti pilihan).
+    // pilihPreset — pilih preset TIMPA lebar/tinggi/font dgn nilai presetnya
+    // (font ikut ukuran preset, sudah ditakar biar tidak menumpuk — lihat
+    // komentar PRESET_KERTAS). Kalau pilih 'custom', nilai lama dibiarkan
+    // (supaya Guru bisa isi bebas tanpa ketimpa balik tiap ganti pilihan).
     function pilihPreset(key) {
       formEdit.jenis_kertas = key;
       if (key !== 'custom') {
         formEdit.lebar_mm = PRESET_KERTAS[key].lebar_mm;
         formEdit.tinggi_mm = PRESET_KERTAS[key].tinggi_mm;
+        if (PRESET_KERTAS[key].font_kode_mm) {
+          formEdit.font_kode_mm = PRESET_KERTAS[key].font_kode_mm;
+          formEdit.font_nama_mm = PRESET_KERTAS[key].font_nama_mm;
+          formEdit.font_info_mm = PRESET_KERTAS[key].font_info_mm;
+        }
       }
     }
 
@@ -371,6 +447,9 @@ export const AppPengaturanCetak = {
           posisi_qr: formEdit.posisi_qr,
           field_tampil: [...formEdit.field_tampil],
           anggota_jenis: [...formEdit.anggota_jenis],
+          font_kode_mm: parseFloat(formEdit.font_kode_mm) || PRESET_KERTAS.custom.font_kode_mm,
+          font_nama_mm: parseFloat(formEdit.font_nama_mm) || PRESET_KERTAS.custom.font_nama_mm,
+          font_info_mm: parseFloat(formEdit.font_info_mm) || PRESET_KERTAS.custom.font_info_mm,
           diubah_pada: serverTimestamp(),
           diubah_oleh: (window.currentUser && (window.currentUser.nama || window.currentUser.email)) || '-'
         };
@@ -411,7 +490,8 @@ export const AppPengaturanCetak = {
     return {
       memuat, daftarGrup, editAktif, formEdit, menyimpan,
       jenisBelumPunyaGrup, petaPemilikSaatIni, jenisPerKategori,
-      KATALOG_CETAK, PRESET_KERTAS, SEMUA_FIELD_TERSEDIA,
+      KATALOG_CETAK, PRESET_KERTAS, SEMUA_FIELD_TERSEDIA, DUMMY_CONTOH_LABEL,
+      previewGeo, rincianPreviewAktif,
       bukaTambah, bukaEdit, tutupEdit, pilihPreset,
       toggleField, naikkanField, turunkanField, toggleAnggota,
       simpanGrup, hapusGrup
@@ -494,6 +574,33 @@ export const AppPengaturanCetak = {
               <option value="atas">Atas</option>
             </select>
           </div>
+
+          <template v-if="formEdit.jenis_kertas !== 'kasir_roll'">
+            <div style="margin-bottom:14px;">
+              <label style="font-size:11px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Ukuran Font (mm) — kecilkan kalau teks menumpuk</label>
+              <div style="display:flex; gap:8px;">
+                <div class="gc-field" style="flex:1; margin-bottom:0;"><label style="font-size:10px;">Kode</label><input v-model.number="formEdit.font_kode_mm" type="number" min="1" step="0.1"></div>
+                <div class="gc-field" style="flex:1; margin-bottom:0;"><label style="font-size:10px;">Nama</label><input v-model.number="formEdit.font_nama_mm" type="number" min="1" step="0.1"></div>
+                <div class="gc-field" style="flex:1; margin-bottom:0;"><label style="font-size:10px;">Info & Rincian</label><input v-model.number="formEdit.font_info_mm" type="number" min="1" step="0.1"></div>
+              </div>
+            </div>
+
+            <div style="margin-bottom:16px;">
+              <label style="font-size:11px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:6px;">Pratinjau (contoh data, bukan data sungguhan)</label>
+              <div style="display:flex; justify-content:center; padding:14px; background:var(--surface); border-radius:10px;">
+                <div :style="{width: previewGeo.lebarPx + 'px', height: previewGeo.tinggiPx + 'px', padding: previewGeo.paddingPx + 'px', display:'flex', flexDirection: previewGeo.flexDir, alignItems:'center', justifyContent: formEdit.posisi_qr==='atas' ? 'center' : 'flex-start', gap: previewGeo.gapPx + 'px', background:'#fff', border:'1.5px dashed var(--line)', boxSizing:'border-box', overflow:'hidden'}">
+                  <div :style="{width: previewGeo.qrSizePx + 'px', height: previewGeo.qrSizePx + 'px', flexShrink:0, background:'repeating-linear-gradient(45deg,#222,#222 2px,#fff 2px,#fff 4px)'}"></div>
+                  <div :style="{minWidth:0, overflow:'hidden', lineHeight:1.35, textAlign: formEdit.posisi_qr==='atas' ? 'center' : 'left', fontFamily:'Arial,sans-serif'}">
+                    <div :style="{fontWeight:700, fontSize: previewGeo.fontKodePx + 'px', marginBottom:'2px', wordBreak:'break-all', color:'#111'}">{{ DUMMY_CONTOH_LABEL.kode }}</div>
+                    <div :style="{fontSize: previewGeo.fontNamaPx + 'px', color:'#111'}">{{ DUMMY_CONTOH_LABEL.nama }}</div>
+                    <div :style="{fontSize: previewGeo.fontInfoPx + 'px', color:'#555', marginTop:'1px'}" v-html="DUMMY_CONTOH_LABEL.info"></div>
+                    <div v-for="r in rincianPreviewAktif" :key="r.key" :style="{fontSize: previewGeo.fontInfoPx + 'px', color:'#444', marginTop:'1px'}"><b>{{ r.label }}:</b> {{ r.nilai }}</div>
+                  </div>
+                </div>
+              </div>
+              <p style="font-size:10px; color:var(--text-faint); margin:6px 0 0; text-align:center;">Kotak putus-putus = ukuran label sebenarnya ({{ formEdit.lebar_mm }} x {{ formEdit.jenis_kertas==='kasir_roll' ? '...' : formEdit.tinggi_mm }} mm). Teks yang terpotong/tumpang tindih di sini akan sama persis saat dicetak.</p>
+            </div>
+          </template>
 
           <div style="margin-top:6px; margin-bottom:14px;">
             <label style="font-size:11px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Field tambahan yang ditampilkan (urutan dari atas = urutan cetak)</label>

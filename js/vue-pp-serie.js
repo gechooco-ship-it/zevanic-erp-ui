@@ -38,8 +38,7 @@
 //     setor_finishing -> terima_finishing -> kirim_gudang -> selesai),
 //     operator_uid/nama/riwayat[], komponen_rincian[] ({id_komponen, sumber,
 //     nama_komponen, qty_setor, qty_per_pcs, satuan, status, entry_oleh,
-//     entry_pada, pic_asal, ref_asal — 2 field terakhir BARU 13 Sep 2026,
-//     lihat keputusan #5}), kode_bagging[], kode_tugas, tlc_tujuan, unpack_log[],
+//     entry_pada, pic_asal, ref_asal}), kode_bagging[], kode_tugas, tlc_tujuan, unpack_log[],
 //     catatan_masalah, masuk_tahap_pada, sampai_pada (BELUM ADA PENULIS,
 //     lihat GAP DISENGAJA), dibuat_pada/diperbarui_pada.
 //   pengaturan_id_separating/{yymmdd} — counter harian, {counter,
@@ -104,26 +103,11 @@
 //    wireframe, TIDAK ada contoh SISA/pecahan) -- dibulatkan ke atas
 //    (Math.ceil) supaya tidak kurang.
 //
-//    pic_asal / ref_asal -- BARU (13 Sep 2026, diskusi Guru soal audit
-//    "barang hilang di Sewing itu hasil persiapan siapa?"). Sebelum ini,
-//    komponen_rincian cuma menyimpan qty+nama, TIDAK menyimpan siapa yang
-//    menyiapkan baris itu di divisi asal -- begitu masuk 1 separating_batch,
-//    jejak ke PIC/operator persiapannya hilang. Sekarang tiap baris ikut
-//    membawa: `pic_asal` (nama operator di divisi asal -- utk sumber
-//    'bahan' diambil dari cutting_track.op_pola.nama [SATU operator per
-//    kartu/grouping, sesuai skema Cutting], utk 3 sumber Acc diambil dari
-//    baris <jalur>_rincian[].operator_nama [SATU operator per BARIS,
-//    lebih presisi]) dan `ref_asal` (id dokumen sumbernya -- cutting_track.id
-//    atau spk_track.id -- utk lacak balik manual ke record aslinya kalau
-//    perlu detail lebih, mis. tanggal disiapkan). Field lama (sumber,
-//    nama_komponen, qty_per_pcs, qty_setor, satuan) TIDAK diubah -- ini
-//    ADITIF, murni menambah 2 field baru per baris. CATATAN: kalau qty
-//    baris ini hasil PRORATA gabungan >1 SPK Grouping (poin di atas),
-//    pic_asal yang tercatat adalah PIC dari SATU baris sumber tsb saja
-//    (baris tetap terpisah per grouping/track asal, tidak dilebur jadi 1
-//    baris gabungan) -- jadi kalau 1 batch ternyata hasil gabungan >1
-//    grouping, akan ada >1 baris komponen sejenis dgn pic_asal beda-beda,
-//    BUKAN 1 baris dengan banyak PIC (audit tetap presisi per baris).
+//    pic_asal = operator divisi asal (sumber 'bahan': cutting_track.
+//    op_pola.nama; sumber Acc: <jalur>_rincian[].operator_nama per baris).
+//    ref_asal = id dokumen sumber (cutting_track.id / spk_track.id).
+//    Baris tetap terpisah per grouping/track asal (tidak dilebur), jadi
+//    audit tetap presisi per baris walau qty hasil prorata gabungan.
 // 6. Validasi Generate Separating (2.1a): `jumlah_batch x isi_pcs_per_bundle`
 //    WAJIB PERSIS SAMA DENGAN total qty SPK yang dicentang (keras, diblokir
 //    kalau tidak sama -- ini satu-satunya validasi keras yang eksplisit dari
@@ -205,7 +189,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=7';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=8';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal } from './vue-scan-cetak.js?v=5';
 
 // --- Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan
@@ -422,9 +406,7 @@ function kumpulkanKomponenUntukBatch(groupingIds, cuttingList, spkTrackByJalur, 
   const hasil = [];
   groupingIds.forEach(gid => {
     const ct = cuttingList.find(c => c.grouping_id === gid);
-    // pic_asal/ref_asal — BARU 13 Sep 2026, lihat komentar keputusan #5 di
-    // atas file. Sumber 'bahan': SATU operator per kartu/grouping (op_pola),
-    // jadi sama utk semua baris komponen dari cutting_track ini.
+    // Sumber 'bahan': satu operator per kartu/grouping (op_pola).
     const picBahan = ct?.op_pola?.nama || ct?.op_pola?.uid || null;
     (ct?.komponen_rincian || []).forEach(k => {
       hasil.push({ sumber: 'bahan', nama_komponen: k.nama_komponen, qty_per_pcs: k.qty_per_pola || 0, qty_setor: Math.ceil((k.jumlah_label || 0) * rasio), satuan: 'PCS', pic_asal: picBahan, ref_asal: ct?.id || null });

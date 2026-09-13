@@ -1333,7 +1333,7 @@ export const KolomCari = {
 // semua pemanggil butuh — makanya logging TIDAK dijadikan tanggung jawab
 // popup ini, cuma tugas cetak+pratinjau generik).
 // ---------------------------------------------------------------------------
-const _FALLBACK_PENGATURAN_LABEL = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [] };
+const _FALLBACK_PENGATURAN_LABEL = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [], font_kode_mm: 4.5, font_nama_mm: 3.5, font_info_mm: 2.9 };
 
 export const PopupPratinjauCetakLabel = {
   props: {
@@ -1361,6 +1361,13 @@ export const PopupPratinjauCetakLabel = {
     const lebarMm = computed(() => parseFloat(efektif.value.lebar_mm) || _FALLBACK_PENGATURAN_LABEL.lebar_mm);
     const tinggiMm = computed(() => parseFloat(efektif.value.tinggi_mm) || _FALLBACK_PENGATURAN_LABEL.tinggi_mm);
     const posisiQr = computed(() => efektif.value.posisi_qr || 'kiri');
+    // font_*_mm BARU (13 Sep lanjutan 15) — dulu font cetak fixed px, pas-
+    // pasan untuk 101.6x50.8mm tapi kekecilan labelnya jadi kegedean fontnya
+    // di preset kecil (Thermal 4x2cm) → teks menumpuk. Sekarang ikut Guru
+    // atur per grup (Pengaturan Cetak), satuan mm biar fisiknya presisi.
+    const fontKodeMm = computed(() => parseFloat(efektif.value.font_kode_mm) || _FALLBACK_PENGATURAN_LABEL.font_kode_mm);
+    const fontNamaMm = computed(() => parseFloat(efektif.value.font_nama_mm) || _FALLBACK_PENGATURAN_LABEL.font_nama_mm);
+    const fontInfoMm = computed(() => parseFloat(efektif.value.font_info_mm) || _FALLBACK_PENGATURAN_LABEL.font_info_mm);
     // Daftar rincian yang benar2 dipilih Guru di Pengaturan Cetak, DIURUTKAN
     // sesuai rincian_aktif, dengan labelnya diambil dari katalog jenis ini.
     const rincianAktif = computed(() => {
@@ -1420,11 +1427,11 @@ export const PopupPratinjauCetakLabel = {
           .label-cetak:last-child{ page-break-after:auto; }
           .qr{ width:${qrSize}mm; height:${qrSize}mm; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
           .qr img{ width:100%; height:100%; display:block; }
-          .teks{ font-size:12px; line-height:1.35; min-width:0; overflow:hidden; ${posisi==='atas' ? 'text-align:center;' : ''} }
-          .kode{ font-weight:700; font-size:17px; margin-bottom:4px; word-break:break-all; }
-          .nama{ font-size:13px; }
-          .info{ font-size:11px; color:#555; margin-top:2px; }
-          .rincian{ font-size:10.5px; color:#444; margin-top:2px; }
+          .teks{ line-height:1.35; min-width:0; overflow:hidden; ${posisi==='atas' ? 'text-align:center;' : ''} }
+          .kode{ font-weight:700; font-size:${fontKodeMm.value}mm; margin-bottom:${gap}mm; word-break:break-all; }
+          .nama{ font-size:${fontNamaMm.value}mm; }
+          .info{ font-size:${fontInfoMm.value}mm; color:#555; margin-top:1mm; }
+          .rincian{ font-size:${fontInfoMm.value}mm; color:#444; margin-top:1mm; }
         </style>
         </head><body>
         ${labelsHtml}
@@ -1437,7 +1444,15 @@ export const PopupPratinjauCetakLabel = {
       emit('tutup');
     }
 
-    return { tampilNama, tampilInfo, jumlahSalinan, tutup, cetakSekarang, lebarMm, tinggiMm, posisiQr };
+    // Skala thumbnail pratinjau (kotak tetap ~200px lebar) supaya font contoh
+    // di sini proporsional dgn font_*_mm sungguhan yang akan dicetak — bukan
+    // ukuran fixed lagi, biar tidak menyesatkan (lihat fix menumpuk lanjutan 15).
+    const skalaThumbnail = computed(() => 200 / lebarMm.value);
+    const fontKodePxThumb = computed(() => Math.max(8, fontKodeMm.value * skalaThumbnail.value));
+    const fontNamaPxThumb = computed(() => Math.max(7, fontNamaMm.value * skalaThumbnail.value));
+    const fontInfoPxThumb = computed(() => Math.max(6.5, fontInfoMm.value * skalaThumbnail.value));
+
+    return { tampilNama, tampilInfo, jumlahSalinan, tutup, cetakSekarang, lebarMm, tinggiMm, posisiQr, fontKodePxThumb, fontNamaPxThumb, fontInfoPxThumb };
   },
   template: `
     <div v-if="terbuka" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="tutup">
@@ -1450,9 +1465,9 @@ export const PopupPratinjauCetakLabel = {
             <img v-if="l.qrDataUrl" :src="l.qrDataUrl" style="width:44px; height:44px; flex-shrink:0;">
             <div v-else style="width:44px; height:44px; flex-shrink:0; background:var(--ivory-dim); border-radius:4px;"></div>
             <div :style="{minWidth:0, overflow:'hidden', textAlign: posisiQr==='atas' ? 'center' : 'left'}">
-              <div style="font-weight:700; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#222;">{{ l.kode }}</div>
-              <div v-if="tampilNama && l.nama" style="font-size:10.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#222;">{{ l.nama }}</div>
-              <div v-if="tampilInfo && l.info" style="font-size:9.5px; color:#777; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" v-html="l.info"></div>
+              <div :style="{fontWeight:700, fontSize: fontKodePxThumb+'px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', color:'#222'}">{{ l.kode }}</div>
+              <div v-if="tampilNama && l.nama" :style="{fontSize: fontNamaPxThumb+'px', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', color:'#222'}">{{ l.nama }}</div>
+              <div v-if="tampilInfo && l.info" :style="{fontSize: fontInfoPxThumb+'px', color:'#777', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}" v-html="l.info"></div>
             </div>
           </div>
           <div v-if="daftarLabel.length > 3" style="text-align:center; font-size:11px; color:var(--text-faint);">+ {{ daftarLabel.length - 3 }} label lainnya ikut dicetak</div>

@@ -38,7 +38,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { MasterDataCategory, MasterDataTabelManager } from './vue-components.js?v=7';
+import { MasterDataCategory, MasterDataTabelManager } from './vue-components.js?v=8';
 
 const MENU_ID_CONFIG = 'config_master_data';
 
