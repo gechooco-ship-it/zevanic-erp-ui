@@ -497,6 +497,56 @@ const PersiapanBahanPerluDisiapkan = {
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
     let _pendingCetak = [];
+    // bangunLabelBahan — BARU (13 Sep 2026 lanjutan 16, standarisasi urutan
+    // baris label, permintaan Guru eksplisit: "beda tampilan semua, bantu
+    // standarisasikan"). SEBELUM ini, cetak normal (bangunPreviewDariBaris)
+    // dan cetak ulang (pinCetakUlangSukses) masing-masing punya string
+    // composer SENDIRI dgn format BEDA — itu sebab tampilan label berbeda-
+    // beda tergantung jalur cetaknya. SEKARANG SATU fungsi dipakai KEDUA
+    // jalur supaya hasilnya DIJAMIN identik. Urutan baris PERSIS permintaan
+    // Guru: 1) kode (QR+teks besar, sudah baris terpisah lewat field
+    // `kode`), 2) nama produk + warna produk (`nama`), 3) nama bahan, 4)
+    // warna bahan + kebutuhan + satuan, 5) nama pelanggan (+ keterangan
+    // CETAK ULANG kalau ini cetakan ke-2+) — baris 3-5 digabung jadi 1 blok
+    // HTML di field `info` (3 <div> terpisah) karena komponen bersama
+    // PopupPratinjauCetakLabel cuma sediakan 1 slot info per label (lihat
+    // js/vue-components.js), jadi TIDAK perlu ubah komponen bersama yang
+    // dipakai ~16 titik cetak lain. `rincian.lokasi_rak` dikirim lewat
+    // mekanisme rincian_aktif yang SUDAH ADA (Guru aktifkan sendiri per
+    // grup di Pengaturan Cetak kalau mau tampil — lihat KATALOG_CETAK.
+    // label_spk_bahan.rincianTersedia di js/vue-pengaturan-cetak.js).
+    function bangunLabelBahan(b, opsi = {}) {
+      const kodeInduk = b.kode_spk;
+      // kode label (teks besar + isi QR) — kode_komponen adalah level
+      // PALING DETAIL (per anak SPK, lihat komentar besar
+      // tandaiKodeGrouping() vue-persiapan-produksi-v2.js), fallback
+      // berturut-turut ke level lebih kasar kalau data lama/Config belum
+      // diisi — TIDAK PERNAH beda antara yang dicetak & yang dicocokkan
+      // scan (lihat cocokLabel/hasilScanAksi di bawah, pakai fallback
+      // chain PERSIS SAMA).
+      const kodeLabel = b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${kodeInduk}-${b.bahan_aksesoris_id}`;
+      // Baris 2 — nama_produk BUKAN field baru: sudah disalin dari level
+      // spk_track ke tiap baris oleh daftarBarisDariTrack() di atas file ini
+      // (t.nama_produk, diisi saat SPK Grouping dibuat dari resolusi Master
+      // Produk — lihat buatSpkTrackUntukGrouping()/namaBase di
+      // js/vue-persiapan-produksi-v2.js) — SUDAH nama murni, BUKAN string
+      // komposit "Nama Warna Size" (beda dgn order_spk.nama_produk).
+      const namaProduk = `${b.nama_produk || ''} ${b.produk_warna || ''}`.trim() || kodeInduk;
+      const baris3 = b.bahan_nama || '(tanpa nama bahan)';
+      // Baris 4 — formatMeter() SUDAH menambahkan satuan " m" di belakang
+      // angka, jadi tidak perlu field satuan terpisah (Bahan/kain SELALU
+      // diukur meter di modul ini).
+      const baris4 = `${b.bahan_warna || '-'} &middot; ${formatMeter(b.kebutuhan_kain || 0)}`;
+      const keteranganUlang = opsi.cetakUlang ? ' <b>(CETAK ULANG)</b>' : '';
+      const baris5 = `${b.pelanggan_nama || '(tanpa pelanggan)'}${keteranganUlang}`;
+      return {
+        kode: kodeLabel,
+        nama: namaProduk,
+        info: `<div>${baris3}</div><div>${baris4}</div><div>${baris5}</div>`,
+        rincian: { lokasi_rak: b.rak_label || '' },
+        qrDataUrl: buatQrDataUrl(kodeLabel)
+      };
+    }
     // bangunPreviewDariBaris — RETROFIT 9 Sep 2026, diekstrak dari isi lama
     // cetakLabelKartu(). REVISI BESAR (13 Sep 2026 lanjutan 11, permintaan
     // Guru eksplisit): dulu 1 label = 1 KARTU (gabungan bisa >1 anak SPK
@@ -507,27 +557,10 @@ const PersiapanBahanPerluDisiapkan = {
     // dari kartu di layar (kelompokKartuBahan(), masih boleh gabung banyak
     // anak SPK per bahan+pola supaya cek stok gampang) — kartu vs label
     // fisik SEKARANG 2 pengelompokan terpisah dalam modul yang sama.
+    // REVISI (13 Sep 2026 lanjutan 16) — isi label sekarang dibangun lewat
+    // bangunLabelBahan() bersama, lihat komentar besar di atasnya.
     function bangunPreviewDariBaris(daftarBaris) {
-      return daftarBaris.map(b => {
-        const kodeInduk = b.kode_spk;
-        // kode label (teks besar + isi QR) — kode_komponen adalah level
-        // PALING DETAIL (per anak SPK, lihat komentar besar
-        // tandaiKodeGrouping() vue-persiapan-produksi-v2.js), fallback
-        // berturut-turut ke level lebih kasar kalau data lama/Config belum
-        // diisi — TIDAK PERNAH beda antara yang dicetak & yang dicocokkan
-        // scan (lihat cocokLabel/hasilScanAksi di bawah, pakai fallback
-        // chain PERSIS SAMA).
-        const kodeLabel = b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${kodeInduk}-${b.bahan_aksesoris_id}`;
-        return {
-          kode: kodeLabel,
-          nama: `${b.bahan_nama || ''} ${b.bahan_warna || ''}`.trim(),
-          // info — format persis diminta Guru (13 Sep 2026 lanjutan 11):
-          // "kode · Nama Pelanggan · Nama Produk nama warna + size" PER
-          // LABEL (bukan gabungan banyak anak SPK lagi seperti sebelumnya).
-          info: `${kodeInduk} &middot; ${b.pelanggan_nama || '(tanpa pelanggan)'} &middot; ${b.nama_produk || ''} ${b.produk_warna || ''} / ${b.produk_size || '-'} &middot; ${formatMeter(b.kebutuhan_kain || 0)} &middot; ${b.nama_pola || ''}`,
-          qrDataUrl: buatQrDataUrl(kodeLabel)
-        };
-      });
+      return daftarBaris.map(b => bangunLabelBahan(b));
     }
     function cetakLabelKartu(k) {
       if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
@@ -581,17 +614,11 @@ const PersiapanBahanPerluDisiapkan = {
       const sudahDicetak = p.kartu.baris.filter(b => b.label_cetak_pada);
       // REVISI (13 Sep 2026 lanjutan 11) — SAMA seperti bangunPreviewDariBaris():
       // 1 label per anak SPK, TIDAK digabung per grouping_id lagi.
-      const preview = sudahDicetak.map(b => {
-        const kodeInduk = b.kode_spk;
-        // SAMA fallback chain dgn bangunPreviewDariBaris() supaya label
-        // cetak-ulang TETAP cocok dgn cocokLabel()/hasilScanAksi().
-        const kodeLabel = b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${kodeInduk}-${b.bahan_aksesoris_id}`;
-        return {
-          kode: kodeLabel, nama: `${b.bahan_nama || p.kartu.nama} ${b.bahan_warna || p.kartu.warna}`.trim(),
-          info: `CETAK ULANG &middot; ${kodeInduk} &middot; ${b.pelanggan_nama || '(tanpa pelanggan)'} &middot; ${b.nama_produk || ''} ${b.produk_warna || ''} / ${b.produk_size || '-'}`,
-          qrDataUrl: buatQrDataUrl(kodeLabel)
-        };
-      });
+      // REVISI (13 Sep 2026 lanjutan 16) — dibangun lewat bangunLabelBahan()
+      // bersama (opsi.cetakUlang:true nambah "(CETAK ULANG)" di baris 5,
+      // lihat komentar besar bangunLabelBahan() di atas) supaya format
+      // PERSIS SAMA dgn cetak normal, bukan format sendiri seperti dulu.
+      const preview = sudahDicetak.map(b => bangunLabelBahan(b, { cetakUlang: true }));
       try {
         await addDoc(collection(db, 'cetak_ulang_log'), {
           kode_spk: sudahDicetak.map(b => b.kode_spk).join(', '),

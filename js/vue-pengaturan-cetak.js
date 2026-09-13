@@ -85,7 +85,14 @@ export const KATALOG_CETAK = {
   label_spk_bahan: {
     label: 'Label SPK Grouping — Bahan', kategori: 'Persiapan Produksi',
     keterangan: 'Persiapan Produksi > Bahan, tiap tahap. 1 label per bahan.',
-    rincianTersedia: []
+    // lokasi_rak — BARU (13 Sep lanjutan 16, standarisasi label Bahan,
+    // permintaan Guru: "field ditambahkan harusnya berkaitan dgn poin 5
+    // misal lokasi rak"). Sumber: master_bahan_aksesoris.rak_label, sudah
+    // ada dari fitur Rak Penyimpanan — lihat rak_label di hitungBahanRincian()
+    // (js/vue-persiapan-produksi-v2.js).
+    rincianTersedia: [
+      { key: 'lokasi_rak', label: 'Lokasi Rak' }
+    ]
   },
   label_spk_acc_sewing: {
     label: 'Label SPK Grouping — Acc Sewing', kategori: 'Persiapan Produksi',
@@ -214,7 +221,7 @@ const DUMMY_CONTOH_LABEL = {
   kode: 'G26R0913P003-120302-01',
   nama: 'POLYFOAM 5MM PUTIH',
   info: 'Jahid &middot; SUNNIE',
-  rincian: { roll: '12', kode_webbing2: 'W2-045', kode_webbing3: 'W3-012', varian: 'Hitam x 20' }
+  rincian: { roll: '12', kode_webbing2: 'W2-045', kode_webbing3: 'W3-012', varian: 'Hitam x 20', lokasi_rak: 'A3-02' }
 };
 
 // Cache in-memory per sesi (PELAJARAN.md — hemat read Firestore). Koleksi

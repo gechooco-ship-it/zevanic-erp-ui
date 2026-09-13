@@ -470,6 +470,12 @@ function hitungBahanRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
         pelanggan_nama: a.pelanggan_nama || '',
         bahan_aksesoris_id: b.bahan_aksesoris_id,
         bahan_nama: bhn.nama || '', bahan_warna: bhn.warna || '',
+        // rak_label — BARU (13 Sep 2026, standarisasi label cetak Bahan,
+        // permintaan Guru). Sumber: master_bahan_aksesoris (field sudah ada
+        // dari fitur Rak Penyimpanan, lihat js/vue-rak-penyimpanan.js).
+        // ambilPetaBahanAksesoris() spread seluruh dokumen jadi bhn di atas
+        // SUDAH punya field ini — tinggal disalin ke baris tanpa query baru.
+        rak_label: bhn.rak_label || '',
         nama_pola: b.nama_pola || '',
         // produk_size — BARU, dipakai js/vue-persiapan-bahan.js buat "syarat
         // sepack" (SERAH-TERIMA Bahan §3: "pola, bahan, dan size sama; warna
