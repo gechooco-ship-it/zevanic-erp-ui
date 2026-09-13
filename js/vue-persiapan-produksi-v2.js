@@ -1073,10 +1073,17 @@ const PersiapanDisiapkanManager = {
             <button type="button" @click="toggleRincian(b)" style="background:none; border:none; padding:0; color:var(--aksen-ink); font-size:11px; font-weight:700; cursor:pointer;">
               {{ klasterTerbuka[b.kunciGrup] ? 'Tutup rincian' : 'Buka rincian' }} <i class="fas" :class="klasterTerbuka[b.kunciGrup] ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
             </button>
+            <!-- BARU (13 Sep 2026, permintaan Guru) — nama pelanggan tampil
+                 nempel di baris anak SPK (bukan cuma kode transaksi), supaya
+                 PIC langsung tahu itu orderan siapa saat perlu percepat
+                 SPK tertentu atas permintaan mendesak. pelanggan_nama
+                 snapshot dari order_spk (diisi buatOrder() Kasir) — SPK yang
+                 dibuat manual lewat Order SPK (vue-order-spk.js, tidak
+                 pernah punya field pelanggan) fallback ke '(tanpa pelanggan)'. -->
             <div v-if="klasterTerbuka[b.kunciGrup]" style="display:flex; flex-direction:column; gap:4px; background:var(--ivory-dim); border-radius:10px; padding:8px 12px; margin-top:8px;">
               <div v-for="o in b.anggota" :key="o.id" style="display:flex; justify-content:space-between; gap:10px; font-size:11.5px;">
-                <span style="color:var(--text-faint);">{{ o.no_spk }}</span>
-                <span style="font-weight:700;">{{ formatQty(o._sisaQty) }} pcs</span>
+                <span style="color:var(--text-faint); min-width:0;">{{ o.no_spk }} <span style="color:var(--text-muted); font-weight:700;">&middot; {{ o.pelanggan_nama || '(tanpa pelanggan)' }}</span></span>
+                <span style="font-weight:700; flex-shrink:0;">{{ formatQty(o._sisaQty) }} pcs</span>
               </div>
             </div>
 
