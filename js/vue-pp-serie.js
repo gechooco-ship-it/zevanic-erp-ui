@@ -385,7 +385,16 @@ function statusSumberGrouping(grouping, cuttingList, spkTrackByJalur) {
     tracks.forEach(t => { (t[jalur + '_rincian'] || []).forEach(b => semuaBaris.push(b)); });
     const komplit = semuaBaris.length > 0 && semuaBaris.every(b => !!b.sampai_pada);
     const baris = semuaBaris.map(b => ({
-      idKomponen: b.no_spk || '-', namaKomponen: b.bahan_nama || '(tanpa nama)',
+      // idKomponen/namaKomponen — FIX (13 Sep 2026, laporan Guru screenshot
+      // "id komponen" sama persis & "(tanpa nama)" di semua baris Acc): baris
+      // `<jalur>_rincian[]` dari 3 pos Acc TIDAK PUNYA field `bahan_nama`
+      // (itu field khas hitungBahanRincian/Bahan) atau `no_spk` unik per
+      // komponen (banyak komponen berbagi 1 no_spk/anak SPK) — field yang
+      // benar `nama_aksesoris` (lihat _butuhAksesorisDasar, vue-persiapan-
+      // produksi-v2.js) dan `kode_komponen`/`kode_anak_spk`/`kode_kartu`
+      // (3-level, unik per komponen, diisi tandaiKodeGrouping()).
+      idKomponen: b.kode_komponen || b.kode_anak_spk || b.kode_kartu || b.no_spk || '-',
+      namaKomponen: b.nama_aksesoris || '(tanpa nama)',
       qtySetor: parseFloat(b.qty) || 0, qtyKomponen: 1, satuan: b.satuan || 'PCS',
       entry: b.sampai_pada ? 'sudah' : '–', komplit: !!b.sampai_pada
     }));
@@ -417,7 +426,14 @@ function kumpulkanKomponenUntukBatch(groupingIds, cuttingList, spkTrackByJalur, 
         (t[jalur + '_rincian'] || []).forEach(b => {
           // Sumber Acc: operator_nama tersimpan PER BARIS (lebih presisi
           // dari cutting), jadi diambil dari baris `b` itu sendiri.
-          hasil.push({ sumber: jalur, nama_komponen: b.bahan_nama || '(tanpa nama)', qty_per_pcs: 1, qty_setor: Math.ceil((parseFloat(b.qty) || 0) * rasio), satuan: b.satuan || 'PCS', pic_asal: b.operator_nama || b.operator_uid || null, ref_asal: t?.id || null });
+          // nama_komponen — FIX (13 Sep 2026, sama akar dgn statusSumberGrouping()
+          // di atas): `b.bahan_nama` TIDAK ADA di baris Acc (field yang benar
+          // `nama_aksesoris`), jadi field ini SELALU "(tanpa nama)" utk semua
+          // komponen ber-sumber Acc begitu tersimpan ke separating_batch —
+          // ikut kepakai apa adanya di label "Cetak ID Komponen" (baris 872) &
+          // bundling "Cetak Kode Bagging" per nama_komponen (baris 1113), jadi
+          // BUKAN cuma bug tampilan, data yang benar-benar dicetak & dipakai.
+          hasil.push({ sumber: jalur, nama_komponen: b.nama_aksesoris || '(tanpa nama)', qty_per_pcs: 1, qty_setor: Math.ceil((parseFloat(b.qty) || 0) * rasio), satuan: b.satuan || 'PCS', pic_asal: b.operator_nama || b.operator_uid || null, ref_asal: t?.id || null });
         });
       });
     });
@@ -1174,7 +1190,7 @@ const SeriePerluDiKirim = {
             riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'pack', oleh, pada: new Date().toISOString(), catatan: modalPack.bagging.kode, qty: data.qty ?? null }]
           }));
         }
-      } catch (e) { console.error('Gagal tutup bagging:', e); }
+      } catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       modalPack.bagging = null; modalPack.batch = null;
     }
 
@@ -1330,7 +1346,7 @@ function buatTabKirim(cfg) {
             const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
             if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
             modalKirim.tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
-          } catch (e) { console.error('Gagal cari kode tugas:', e); }
+          } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
           return;
         }
         const batch = daftar.value.find(b => b.kode_tugas === modalKirim.tugas.kode && (b.kode_bagging || []).includes(kode));
