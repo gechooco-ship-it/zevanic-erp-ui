@@ -46,7 +46,7 @@ import { collection, getDocs, doc, getDoc, updateDoc } from "https://www.gstatic
 import { db } from "./firebase-config.js";
 // ?v=5 (redesain) — daftarMenuGroups() TIDAK berubah signature, tapi
 // KartuMenu & AksesTerbatasDialog BARU ditambahkan ke file yang sama.
-import { daftarMenuGroups, KartuMenu, AksesTerbatasDialog } from './vue-components.js?v=12';
+import { daftarMenuGroups, KartuMenu, AksesTerbatasDialog } from './vue-components.js?v=13';
 
 const AppHome = {
   components: { KartuMenu, AksesTerbatasDialog },
@@ -334,7 +334,7 @@ const AppHome = {
       </div>
     </div>
 
-    <akses-terbatas-dialog v-if="dialogTerkunciModul" :nama-modul="dialogTerkunciModul.label" @tutup="dialogTerkunciModul = null" />
+    <akses-terbatas-dialog v-if="dialogTerkunciModul" :nama-modul="dialogTerkunciModul.label" :menu-id="dialogTerkunciModul.menuId" @tutup="dialogTerkunciModul = null" />
   `
 };
 

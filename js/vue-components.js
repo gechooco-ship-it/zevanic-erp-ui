@@ -1203,9 +1203,9 @@ export const KartuMenu = {
 // bareng di Beranda & Menu Lengkap.
 // ---------------------------------------------------------------------------
 export const AksesTerbatasDialog = {
-  props: { namaModul: { type: String, default: '' } },
+  props: { namaModul: { type: String, default: '' }, menuId: { type: String, default: '' } },
   emits: ['tutup'],
-  setup() {
+  setup(props) {
     // Dibaca lewat computed (BUKAN window.currentUser langsung di
     // template) — pola wajib project ini, lihat catatan roleTampil di
     // vue-account-profile.js: Vue tidak reaktif ke window.currentUser
@@ -1213,7 +1213,24 @@ export const AksesTerbatasDialog = {
     // menu terkunci kalau sudah login), jadi cukup dibaca sekali saat
     // komponen ini dibuat — tidak perlu computed penuh, ref cukup.
     const roleSaya = window.currentUser?.role || '-';
-    return { roleSaya };
+
+    // Baris info teknis — supaya Guru/PIC bisa lihat LANGSUNG dari
+    // screenshot dialog ini kenapa satu menu terkunci, tanpa perlu buka
+    // Firestore: profil yang sedang dipakai HP ini, apakah dokumennya
+    // ketemu di Akses & Keamanan, dan hasil akhir izin View untuk menu
+    // yang diklik. Bukan data rahasia — aman terlihat siapa saja yang
+    // bisa membuka dialog ini (karyawan itu sendiri).
+    const profilDipakai = window.currentUser?.profil_akses || ('(tidak diatur, pakai default Role "' + roleSaya + '")');
+    const statusConfig = window.aksesConfigSaya === undefined ? 'belum sempat dimuat'
+      : window.aksesConfigSaya === 'OWNER_PENUH' ? 'Owner/Superuser'
+      : window.aksesConfigSaya === null ? ('profil "' + profilDipakai + '" TIDAK KETEMU')
+      : 'ditemukan';
+    const nilaiIzin = (props.menuId && window.cekIzinMenu) ? window.cekIzinMenu(props.menuId, 'view') : null;
+    const infoTeknis = 'Profil: ' + profilDipakai + ' — Config: ' + statusConfig
+      + ' — Izin View: ' + (nilaiIzin === true ? 'true' : nilaiIzin === false ? 'false' : 'null (belum diatur)')
+      + (props.menuId ? ' — ID menu: ' + props.menuId : '');
+
+    return { roleSaya, infoTeknis };
   },
   template: `
     <div class="gc-dialog-backdrop" @click="$emit('tutup')">
@@ -1222,6 +1239,7 @@ export const AksesTerbatasDialog = {
         <h3 class="gc-heading" style="font-size:17px; font-weight:700; margin:0;">Akses Terbatas</h3>
         <p style="font-size:12px; font-weight:600; margin:8px 0 0;">{{ namaModul }}</p>
         <p style="font-size:11px; color:var(--text-muted); margin:6px 0 18px; line-height:1.5;">Peran Anda saat ini ({{ roleSaya }}) belum diberi akses ke modul ini. Hubungi Owner / PIC Owner kalau perlu.</p>
+        <p style="font-size:9.5px; color:var(--text-faint); margin:0 0 18px; line-height:1.4; font-family:monospace; word-break:break-word;">{{ infoTeknis }}</p>
         <button @click="$emit('tutup')" class="btn-primary" style="border-radius:999px;">Mengerti</button>
       </div>
     </div>

@@ -62,7 +62,7 @@ import { createApp, ref, reactive, computed, onMounted, watch } from 'https://un
 import { collection, doc, setDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=12';
+import { DropdownCari } from './vue-components.js?v=13';
 import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
 // pakaiRiwayatTabVue — TIDAK dipakai lagi di file ini sejak restrukturisasi
 // tampilan Entry Produk (9 Sep 2026, audit wireframe §2.1): BOM Jasa/Pola/
