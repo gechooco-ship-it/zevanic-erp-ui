@@ -348,10 +348,26 @@ async function kirimMasalahCutting(track, jumlah, alasan) {
 // punya baris bahan_rincian sama sekali (jalur 'bahan' tidak aktif utk
 // grouping ini, tidak ada yang perlu ditunggu), ATAU semua baris cocok
 // SUDAH `sampai_pada` (sudah di-Scan Sampai). Kalau ADA baris cocok tapi
-// belum semua sampai -> false, baris tetap tampil (keputusan Guru: jangan
-// disembunyikan, biar PIC tahu ada pekerjaan yang akan datang) tapi diberi
-// badge "Menunggu Bahan" + tombol Tunjuk Operator Ampar dikunci (lihat
-// bukaTunjukAmpar() di CuttingPerluDiProses).
+// belum semua sampai -> false — awalnya baris TETAP tampil dengan badge
+// "Menunggu Bahan" + tombol dikunci (lanjutan 19 asli).
+// sudahDikirim — BARU (13 Sep 2026 lanjutan 20, Guru KOREKSI lanjutan 19):
+// lanjutan 19 bikin baris tetap tampil+badge. Guru minta diubah: baris
+// DISEMBUNYIKAN dari tab "Perlu Di Proses" sampai bahannya minimal sudah
+// di-Scan Kirim dari Persiapan Bahan (kode_tugas diisi hasilScanKirim() di
+// vue-persiapan-bahan.js ~baris 1379 — bagging itu sudah terkait ke kode
+// SPK grouping ini lewat no_spk), BARU muncul di tab ini. Begitu muncul,
+// gerbang Scan Sampai (siapDiproses di atas) TETAP berlaku SAMA seperti
+// lanjutan 19 — cuma TITIK MUNCULNYA baris yang diundur, bukan gerbang
+// Tunjuk Operator-nya yang dihapus (dikonfirmasi via AskUserQuestion).
+// `sudahDikirim`: true HANYA kalau ADA baris bahan_rincian cocok DAN SEMUA
+// (every, konsisten dgn kuantor siapDiproses di atas — bukan ANY/salah
+// satu, supaya "muncul" berarti seluruh bahan grouping ini sudah dikirim,
+// bukan baru sebagian) sudah `kode_tugas`. cocok.length===0 (jalur bahan
+// belum tersentuh Persiapan Bahan SAMA SEKALI, bukan "tidak butuh bahan")
+// -> dianggap BELUM dikirim juga (keputusan Guru eksplisit, kebalikan dari
+// asumsi siapDiproses di atas) — makanya field ini TIDAK ikut ditaruh di
+// null-shortcut di bawah, dibaca via helper terpisah tampilDiProses() di
+// CuttingPerluDiProses yang menganggap null/tidak-ada-entri = belum dikirim.
 async function enrichBahanUntukTrack(daftarTrack, daftarGrouping) {
   const peta = {};
   try {
@@ -366,8 +382,11 @@ async function enrichBahanUntukTrack(daftarTrack, daftarGrouping) {
       const cocok = semuaBahanRincian.filter(b => noSpkSet.has(b.no_spk));
       // cocok.length===0 -> peta[t.id] TETAP null (bukan {siapDiproses:true})
       // supaya template lain yang sudah ada (Tab 1.1-1.4, cek `bahanEnrich[t.id]
-      // ? ... : '-'`) tidak berubah perilaku — "siap" utk kasus ini ditangani
-      // terpisah di template lewat helper siapBahan() di bawah.
+      // ? ... : '-'`) tidak berubah perilaku. Utk gerbang tampil Tab 1.1 (BARU
+      // lanjutan 20), null ini dibaca sebagai "belum dikirim" oleh
+      // tampilDiProses() di CuttingPerluDiProses — LIHAT komentar besar di atas
+      // fungsi ini, JANGAN diubah jadi {sudahDikirim:false} di sini karena
+      // Tab 1.2-1.4 masih butuh null utk fallback '-' pada kolom SKU/pola/dll.
       if (!cocok.length) { peta[t.id] = null; return; }
       const rep = cocok[0];
       peta[t.id] = {
@@ -377,7 +396,8 @@ async function enrichBahanUntukTrack(daftarTrack, daftarGrouping) {
         amparan: cocok.reduce((s, b) => s + (parseFloat(b.amparan) || 0), 0),
         kebutuhanKain: cocok.reduce((s, b) => s + (parseFloat(b.kebutuhan_kain) || 0), 0),
         satuan: 'M',
-        siapDiproses: cocok.every(b => !!b.sampai_pada)
+        siapDiproses: cocok.every(b => !!b.sampai_pada),
+        sudahDikirim: cocok.every(b => !!b.kode_tugas)
       };
     });
   } catch (e) { console.error('Gagal enrich data bahan utk tabel Cutting:', e); }
@@ -437,7 +457,25 @@ const CuttingPerluDiProses = {
     // siapBahan(t) — BARU (13 Sep lanjutan 19): null/tidak ada entri bahan
     // (jalur 'bahan' tidak aktif) DIANGGAP siap (tidak ada yang ditunggu);
     // ada entri tapi siapDiproses===false -> masih menunggu Scan Sampai.
+    // Dipakai SETELAH baris lolos gerbang tampilDiProses() di bawah — utk
+    // baris yang memang tampil, bahanEnrich[t.id] TIDAK PERNAH null lagi
+    // (kalau null, tampilDiProses() sudah menyembunyikannya duluan), jadi
+    // fallback `!info` di sini praktis tidak pernah kepakai lagi, dibiarkan
+    // sebagai jaga-jaga (defensive) — bukan bug.
     function siapBahan(t) { const info = bahanEnrich.value[t.id]; return !info || info.siapDiproses !== false; }
+    // tampilDiProses(t) — BARU (13 Sep lanjutan 20, keputusan Guru, LIHAT
+    // komentar besar `sudahDikirim` di atas enrichBahanUntukTrack()): gerbang
+    // TAMPIL tab ini, beda dari siapBahan() yang gerbang TOMBOL Tunjuk
+    // Operator. null/tidak ada entri bahan -> DIANGGAP BELUM dikirim jadi
+    // DISEMBUNYIKAN (kebalikan siapBahan — sengaja, ini pilihan eksplisit
+    // Guru: grouping yang belum tersentuh Persiapan Bahan sama sekali jangan
+    // dianggap "tidak butuh bahan", tapi "belum siap ditampilkan").
+    function tampilDiProses(t) { const info = bahanEnrich.value[t.id]; return !!(info && info.sudahDikirim); }
+    // daftarTampil — daftar SETELAH gerbang tampilDiProses(); `daftar` mentah
+    // (semua cutting_track status perlu_diproses, TERMASUK yang belum
+    // dikirim) tetap dipertahankan buat referensi internal (mis. kalau nanti
+    // perlu hitung "X menunggu dikirim" — belum diminta Guru, tidak dibuat).
+    const daftarTampil = computed(() => daftar.value.filter(tampilDiProses));
 
     async function muat() {
       memuat.value = true;
@@ -548,13 +586,18 @@ const CuttingPerluDiProses = {
     // jadi toolbar sekali per tab (wireframe §1.1 "Action bar"). Scan Unpack
     // (BARU) tidak butuh picker lagi — bukaScanUnpack() langsung buka kamera,
     // target ditentukan dari kode_bagging yang discan sendiri. -------------
-    const { pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget } = pilihTargetMixin(daftar);
+    // pilihTargetMixin pakai daftarTampil (BUKAN daftar mentah) — BARU
+    // lanjutan 20: dropdown "Pilih SPK" toolbar Scan Operator Ampar jangan
+    // sampai menawarkan grouping yang bahannya belum dikirim sama sekali
+    // (baris begitu memang tidak tampil di tabel, harusnya juga tidak bisa
+    // dipilih dari toolbar).
+    const { pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget } = pilihTargetMixin(daftarTampil);
     function bukaTunjukAmparToolbar() { bukaPilihTarget('Pilih SPK — Scan Operator Ampar', (track) => bukaTunjukAmpar(track)); }
 
     onMounted(async () => { await window.authReady; await muat(); });
 
     return {
-      memuat, daftar, bahanEnrich, unpackEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan, siapBahan,
+      memuat, daftar, daftarTampil, bahanEnrich, unpackEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan, siapBahan,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
       modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack,
       popupPinAmpar, pinSuksesAmpar,
@@ -574,7 +617,12 @@ const CuttingPerluDiProses = {
         <button v-if="bolehProses" @click="bukaScanUnpack" class="btn-outline" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
         <button v-if="bolehOperator" @click="bukaTunjukAmparToolbar" class="btn-outline" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator Ampar</button>
       </div>
-      <div v-if="daftar.length === 0" class="gc-kosong gc-card">
+      <!-- daftarTampil (BUKAN daftar mentah) — BARU lanjutan 20: grouping yg
+           bahannya belum di-Scan Kirim DISEMBUNYIKAN dari tab ini, lihat
+           tampilDiProses() di setup(). "Kosong" di sini juga true kalau ada
+           track menunggu tapi belum satupun dikirim — pesannya generik,
+           belum ada teks pembeda "X menunggu dikirim" (belum diminta Guru). -->
+      <div v-if="daftarTampil.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-inbox"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada SPK Grouping yang perlu diproses</h3>
       </div>
@@ -588,7 +636,7 @@ const CuttingPerluDiProses = {
             <th style="padding:6px 8px;">Unpack</th><th style="padding:6px 8px;">Diam Sejak</th><th style="padding:6px 8px;">Aksi</th>
           </tr></thead>
           <tbody>
-            <tr v-for="t in daftar" :key="t.id" style="border-bottom:1px solid var(--line);" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
+            <tr v-for="t in daftarTampil" :key="t.id" style="border-bottom:1px solid var(--line);" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
               <td style="padding:6px 8px; font-weight:700;" class="gc-num">{{ t.kode_spk }}</td>
               <!-- Status Bahan — BARU (13 Sep lanjutan 19): lihat siapBahan() -->
               <td style="padding:6px 8px;"><span class="tag" :class="siapBahan(t) ? 'ok' : 'warn'">{{ siapBahan(t) ? 'Siap' : 'Menunggu Bahan' }}</span></td>
@@ -645,7 +693,8 @@ const CuttingPerluDiProses = {
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">{{ pilihTarget.judul }}</h3>
         <div class="gc-field" style="margin-bottom:14px;"><label>Pilih SPK Grouping</label>
-          <select v-model="pilihTarget.targetId"><option v-for="t in daftar" :key="t.id" :value="t.id">{{ t.kode_spk }} — {{ t.nama_produk }}</option></select>
+          <!-- daftarTampil (BUKAN daftar) — lanjutan 20, konsisten dgn pilihTargetMixin(daftarTampil) di setup(). -->
+          <select v-model="pilihTarget.targetId"><option v-for="t in daftarTampil" :key="t.id" :value="t.id">{{ t.kode_spk }} — {{ t.nama_produk }}</option></select>
         </div>
         <div style="display:flex; gap:8px;">
           <button @click="batalPilihTarget" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
