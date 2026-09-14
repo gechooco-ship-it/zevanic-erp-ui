@@ -104,9 +104,26 @@ window.muatAksesConfigSaya = async function(role, profilAkses) {
     return;
   }
   // Kunci pencarian akses_config: profil_akses kalau ada (bisa nama
-  // custom, mis. "admin_finance"), fallback ke role untuk data lama yang
+  // custom, mis. "Admin Toko"), fallback ke role untuk data lama yang
   // belum pernah diatur pakai profil custom sama sekali.
-  const kunciCari = (profilAkses || role || '').toLowerCase();
+  //
+  // BUG SEBELUMNYA (ditemukan 14 Sep — "menu HP banyak terkunci padahal
+  // sudah diatur di Akses & Keamanan"): profilAkses di sini SEBELUMNYA
+  // ikut di-lowercase, padahal doc ID akses_config (vue-config-akses.js
+  // `simpan()`) TIDAK PERNAH di-lowercase saat dibuat — tersimpan APA
+  // ADANYA persis yang Guru ketik (mis. "Admin Toko" tetap "Admin Toko",
+  // bukan "admin toko"). Profil dengan huruf besar jadi TIDAK PERNAH
+  // ketemu (snap.exists() selalu false) -> aksesConfigSaya = null ->
+  // SEMUA menu untuk karyawan berprofil itu ikut kena default terkunci
+  // (lihat daftarMenuGroups, vue-components.js). profil_akses di field
+  // karyawan (users/{email}) SENDIRI selalu persis sama dengan doc ID
+  // (dipilih dari dropdown yang datanya sama-sama dari koleksi
+  // akses_config, lihat vue-hak-akses.js) — jadi cara benar menyamakan
+  // keduanya adalah TIDAK mengubah huruf profilAkses sama sekali, bukan
+  // menyamakan gaya penulisan di kedua sisi. role (5 nama baku) tetap
+  // di-lowercase karena field itu sendiri memang selalu tersimpan
+  // lowercase (lihat STATUS-PROYEK.md §6.2).
+  const kunciCari = profilAkses ? profilAkses.trim() : (role || '').toLowerCase();
   if (!kunciCari) { window.aksesConfigSaya = null; return; }
   try {
     const snap = await getDoc(doc(db, "akses_config", kunciCari));
