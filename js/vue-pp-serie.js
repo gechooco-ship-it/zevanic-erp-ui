@@ -408,6 +408,47 @@ function semuaSumberKomplit(sumberMap) {
   return keys.every(k => sumberMap[k].komplit);
 }
 
+// sudahDikirimJalur/sudahAdaProgresPengiriman — BARU (14 Sep 2026 lanjutan
+// 22, keputusan Guru: gerbang yang sama seperti Cutting lanjutan 20/21
+// [lihat komentar besar lanjutan 21 di js/vue-pp-cutting.js] diterapkan juga
+// di Serie Tab 2.1 — "jangan dulu ada baris" sebelum ADA progres nyata dari
+// SALAH SATU sumbernya (Persiapan Bahan ATAU Acc Sewing/Webbing/Finishing)
+// sudah di-Scan Kirim (kode_tugas terisi). Tab 2.1 TIDAK punya masalah
+// "menulis diam-diam" seperti Cutting (muat() di sini CUMA baca — tidak ada
+// addDoc/updateDoc yang jalan otomatis begitu tab dibuka, beda dari
+// pastikanCuttingTrackLengkap() yang lazy-generate; jadi gerbang ini murni
+// FILTER TAMPILAN, tidak ada write yang perlu "dijegat" di sini), tapi
+// filternya tetap ditaruh SEDINI mungkin (di `daftarGrouping` sendiri, satu
+// titik, dipakai ulang oleh template DAN popup "Generate Separating" §618)
+// supaya konsisten dgn niat Guru: baris (dan turunannya) tidak eksis sama
+// sekali di UI manapun sebelum progres itu ada.
+// jalur 'bahan' -> "dikirim" DIBACA dari keberadaan cutting_track itu
+// SENDIRI (cuttingList.some grouping_id cocok), BUKAN re-cek bahan_rincian
+// di sini — sejak lanjutan 21, cutting_track HANYA ADA kalau Bahan sudah
+// di-Scan Kirim (pastikanCuttingTrackLengkap() menolak menulis sebelum
+// itu), jadi keberadaan dokumennya sendiri SUDAH cukup jadi bukti.
+// 3 jalur Acc -> sudahDikirimJalur() pakai join grouping_id (pola SAMA
+// seperti statusSumberGrouping() di atas, BUKAN pola no_spk-breakdown yang
+// dipakai enrichBahanUntukTrack() di modul Cutting — beda modul, ikut pola
+// masing-masing yang sudah ada). Kuantor `every` (SEMUA baris <jalur>_
+// rincian grouping ini harus kode_tugas) — KONSISTEN dgn kuantor
+// `sudahDikirim` di vue-pp-cutting.js (bukan ANY/some), supaya "progres"
+// berarti seluruh bagian jalur itu sudah dikirim, bukan baru sebagian.
+function sudahDikirimJalur(grouping, jalur, spkTrackByJalur) {
+  const tracks = (spkTrackByJalur[jalur] || []).filter(t => t.grouping_id === grouping.id);
+  const semuaBaris = [];
+  tracks.forEach(t => (t[jalur + '_rincian'] || []).forEach(b => semuaBaris.push(b)));
+  return semuaBaris.length > 0 && semuaBaris.every(b => !!b.kode_tugas);
+}
+function sudahAdaProgresPengiriman(grouping, cuttingList, spkTrackByJalur) {
+  const jalurAktif = Array.isArray(grouping.jalur_aktif) ? grouping.jalur_aktif : [];
+  return jalurAktif.some(j => {
+    if (j === 'bahan') return cuttingList.some(c => c.grouping_id === grouping.id);
+    if (JALUR_ACC.includes(j)) return sudahDikirimJalur(grouping, j, spkTrackByJalur);
+    return false;
+  });
+}
+
 // --- Keputusan #5: kumpulkan komponen_rincian dari 4 sumber untuk 1/lebih
 // SPK Grouping yang dicentang, PRORATA ke qty batch ini. ---------------------
 function kumpulkanKomponenUntukBatch(groupingIds, cuttingList, spkTrackByJalur, qtyBatch, qtyTotalDicentang) {
@@ -508,7 +549,10 @@ const SeriePerluDiProses = {
         cuttingList.value = ct;
         spkTrackByJalur.sewing = sew; spkTrackByJalur.webbing = web; spkTrackByJalur.finishing = fin;
         separatingList.value = sep;
-        daftarGrouping.value = grouping.filter(g => !sudahDipisahkanIds.value.has(g.id) && (g.jalur_aktif || []).some(j => j === 'bahan' || JALUR_ACC.includes(j)));
+        // sudahAdaProgresPengiriman(...) — BARU lanjutan 22, LIHAT komentar
+        // besar di atas fungsinya: gerbang tampil, grouping yg belum ada
+        // progres Scan Kirim dari sumber manapun disembunyikan dulu.
+        daftarGrouping.value = grouping.filter(g => !sudahDipisahkanIds.value.has(g.id) && (g.jalur_aktif || []).some(j => j === 'bahan' || JALUR_ACC.includes(j)) && sudahAdaProgresPengiriman(g, ct, spkTrackByJalur));
       } catch (e) { console.error('Gagal muat Serie > Perlu Di Proses:', e); daftarGrouping.value = []; }
       memuat.value = false;
     }
