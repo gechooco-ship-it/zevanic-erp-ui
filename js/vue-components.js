@@ -1333,7 +1333,7 @@ export const KolomCari = {
 // semua pemanggil butuh — makanya logging TIDAK dijadikan tanggung jawab
 // popup ini, cuma tugas cetak+pratinjau generik).
 // ---------------------------------------------------------------------------
-const _FALLBACK_PENGATURAN_LABEL = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [], font_kode_mm: 4.5, font_nama_mm: 3.5, font_info_mm: 2.9 };
+const _FALLBACK_PENGATURAN_LABEL = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [], font_kode_mm: 4.5, font_nama_mm: 3.5, font_info_mm: 2.9, rotasi_90: false };
 
 // bangunInfoLabelAnakSpk — GLOBAL, dipakai SEMUA jalur cetak label SPK
 // Grouping (Bahan, Acc Sewing/Webbing/Finishing) buat menyusun field `info`
@@ -1437,6 +1437,14 @@ export const PopupPratinjauCetakLabel = {
       if (!props.daftarLabel.length) return;
       const salinan = Math.max(1, parseInt(jumlahSalinan.value) || 1);
       const lebar = lebarMm.value, tinggi = tinggiMm.value;
+      // rotasi90 — beberapa printer label kecil punya driver yang cuma bisa
+      // portrait tetap walau ukuran fisik yang dikirim (lebar > tinggi) sudah
+      // benar landscape: PDF-nya sudah benar tapi driver memaksa muat ke
+      // kertas portrait, hasil fisiknya jadi vertical. Kalau grup ini
+      // ditandai rotasi_90 (Pengaturan Cetak), halaman cetak dibalik jadi
+      // tinggi x lebar (sesuai orientasi tetap driver) dan ISI labelnya
+      // diputar 90 derajat supaya tetap terbaca horizontal di kertas fisik.
+      const rotasi90 = !!efektif.value.rotasi_90;
       const sisiPendek = Math.min(lebar, tinggi);
       const padding = Math.max(1.5, sisiPendek * 0.11).toFixed(2);
       const gap = Math.max(1.5, sisiPendek * 0.1).toFixed(2);
@@ -1457,27 +1465,35 @@ export const PopupPratinjauCetakLabel = {
             rincianHtml += `<div class="rincian"><b>${r.label}:</b> ${nilai}</div>`;
           }
         }
-        const satuLabel = `
-          <div class="label-cetak">
+        const isiLabel = `
             <div class="qr">${qrHtml}</div>
             <div class="teks">
               <div class="kode">${l.kode}</div>
               ${(tampilNama.value && l.nama) ? `<div class="nama">${l.nama}</div>` : ''}
               ${(tampilInfo.value && l.info) ? `<div class="info">${l.info}</div>` : ''}
               ${rincianHtml}
-            </div>
-          </div>`;
+            </div>`;
+        const satuLabel = rotasi90
+          ? `<div class="lembar-rot"><div class="label-cetak">${isiLabel}</div></div>`
+          : `<div class="label-cetak">${isiLabel}</div>`;
         for (let s = 0; s < salinan; s++) labelsHtml += satuLabel;
       }
+      const pageW = rotasi90 ? tinggi : lebar;
+      const pageH = rotasi90 ? lebar : tinggi;
+      const cssHalaman = rotasi90
+        ? `.lembar-rot{ width:${pageW}mm; height:${pageH}mm; position:relative; overflow:hidden; page-break-after:always; }
+          .lembar-rot:last-child{ page-break-after:auto; }
+          .label-cetak{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(90deg); width:${lebar}mm; height:${tinggi}mm; padding:${padding}mm; display:flex; flex-direction:${flexDir}; align-items:center; ${posisi==='atas' ? 'justify-content:center;' : ''} gap:${gap}mm; }`
+        : `.label-cetak{ width:${lebar}mm; height:${tinggi}mm; padding:${padding}mm; display:flex; flex-direction:${flexDir}; align-items:center; ${posisi==='atas' ? 'justify-content:center;' : ''} gap:${gap}mm; page-break-after:always; }
+          .label-cetak:last-child{ page-break-after:auto; }`;
       const w = window.open('', '_blank');
       if (!w) { alert('Popup diblokir browser. Izinkan popup untuk mencetak label.'); return; }
       w.document.write(`<html><head><title>${props.judul}</title>
         <style>
-          @page { size: ${lebar}mm ${tinggi}mm; margin: 0; }
+          @page { size: ${pageW}mm ${pageH}mm; margin: 0; }
           *{ box-sizing:border-box; }
           body{ font-family:Arial,sans-serif; margin:0; }
-          .label-cetak{ width:${lebar}mm; height:${tinggi}mm; padding:${padding}mm; display:flex; flex-direction:${flexDir}; align-items:center; ${posisi==='atas' ? 'justify-content:center;' : ''} gap:${gap}mm; page-break-after:always; }
-          .label-cetak:last-child{ page-break-after:auto; }
+          ${cssHalaman}
           .qr{ width:${qrSize}mm; height:${qrSize}mm; flex-shrink:0; display:flex; align-items:center; justify-content:center; }
           .qr img{ width:100%; height:100%; display:block; }
           .teks{ line-height:1.35; min-width:0; overflow:hidden; ${posisi==='atas' ? 'text-align:center;' : ''} }

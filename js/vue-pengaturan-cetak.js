@@ -211,8 +211,8 @@ export const PRESET_KERTAS = {
 // PERSIS dengan ukuran yang sudah berjalan sekarang (4x2 inch = 101.6x
 // 50.8mm), supaya tidak ada cetakan berubah tiba-tiba sebelum Guru sempat
 // mengatur grupnya.
-const DEFAULT_PENGATURAN = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [], font_kode_mm: PRESET_KERTAS.custom.font_kode_mm, font_nama_mm: PRESET_KERTAS.custom.font_nama_mm, font_info_mm: PRESET_KERTAS.custom.font_info_mm };
-const DEFAULT_STRUK = { lebar_mm: 80, tinggi_mm: 0, posisi_qr: 'kiri', rincian_aktif: [] };
+const DEFAULT_PENGATURAN = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [], font_kode_mm: PRESET_KERTAS.custom.font_kode_mm, font_nama_mm: PRESET_KERTAS.custom.font_nama_mm, font_info_mm: PRESET_KERTAS.custom.font_info_mm, rotasi_90: false };
+const DEFAULT_STRUK = { lebar_mm: 80, tinggi_mm: 0, posisi_qr: 'kiri', rincian_aktif: [], rotasi_90: false };
 
 // DUMMY_CONTOH_LABEL — data contoh dipakai pratinjau live Edit Grup Cetak
 // (BUKAN data sungguhan) supaya Guru bisa lihat kira-kira hasil cetak
@@ -266,7 +266,17 @@ export async function ambilPengaturanCetak(jenisId) {
     rincian_aktif: grup.field_tampil || [],
     font_kode_mm: parseFloat(grup.font_kode_mm) || fallback.font_kode_mm || DEFAULT_PENGATURAN.font_kode_mm,
     font_nama_mm: parseFloat(grup.font_nama_mm) || fallback.font_nama_mm || DEFAULT_PENGATURAN.font_nama_mm,
-    font_info_mm: parseFloat(grup.font_info_mm) || fallback.font_info_mm || DEFAULT_PENGATURAN.font_info_mm
+    font_info_mm: parseFloat(grup.font_info_mm) || fallback.font_info_mm || DEFAULT_PENGATURAN.font_info_mm,
+    // rotasi_90 — printer label kecil (mis. 40x30mm) kadang driver-nya cuma
+    // punya orientasi portrait tetap walau ukuran fisik sudah landscape
+    // (lebar > tinggi): PDF yang dikirim browser sudah benar, tapi driver
+    // memaksa muat ke kertas portrait sehingga hasil fisiknya vertical.
+    // Kalau grup ini ditandai rotasi_90, PopupPratinjauCetakLabel (vue-
+    // components.js) membalik ukuran @page jadi tinggi x lebar (sesuai
+    // orientasi tetap driver) lalu memutar ISI label 90 derajat supaya
+    // hasil cetak tetap terbaca horizontal. Default false — tidak
+    // mengubah printer lain yang sudah benar.
+    rotasi_90: !!grup.rotasi_90
   };
 }
 
@@ -280,7 +290,7 @@ export const AppPengaturanCetak = {
     const memuat = ref(true);
     const daftarGrup = ref([]); // [{id, nama, jenis_kertas, lebar_mm, tinggi_mm, posisi_qr, field_tampil, anggota_jenis}]
     const editAktif = ref(null); // null | '__baru__' | grupId
-    const formEdit = reactive({ nama: '', jenis_kertas: 'custom', lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', field_tampil: [], anggota_jenis: [], font_kode_mm: PRESET_KERTAS.custom.font_kode_mm, font_nama_mm: PRESET_KERTAS.custom.font_nama_mm, font_info_mm: PRESET_KERTAS.custom.font_info_mm });
+    const formEdit = reactive({ nama: '', jenis_kertas: 'custom', lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', field_tampil: [], anggota_jenis: [], font_kode_mm: PRESET_KERTAS.custom.font_kode_mm, font_nama_mm: PRESET_KERTAS.custom.font_nama_mm, font_info_mm: PRESET_KERTAS.custom.font_info_mm, rotasi_90: false });
     const menyimpan = ref(false);
 
     async function muat() {
@@ -378,6 +388,7 @@ export const AppPengaturanCetak = {
       formEdit.font_kode_mm = PRESET_KERTAS.custom.font_kode_mm;
       formEdit.font_nama_mm = PRESET_KERTAS.custom.font_nama_mm;
       formEdit.font_info_mm = PRESET_KERTAS.custom.font_info_mm;
+      formEdit.rotasi_90 = false;
     }
     function bukaEdit(g) {
       editAktif.value = g.id;
@@ -395,6 +406,7 @@ export const AppPengaturanCetak = {
       formEdit.font_kode_mm = parseFloat(g.font_kode_mm) || presetFont.font_kode_mm;
       formEdit.font_nama_mm = parseFloat(g.font_nama_mm) || presetFont.font_nama_mm;
       formEdit.font_info_mm = parseFloat(g.font_info_mm) || presetFont.font_info_mm;
+      formEdit.rotasi_90 = !!g.rotasi_90;
     }
     function tutupEdit() { editAktif.value = null; }
 
@@ -457,6 +469,7 @@ export const AppPengaturanCetak = {
           font_kode_mm: parseFloat(formEdit.font_kode_mm) || PRESET_KERTAS.custom.font_kode_mm,
           font_nama_mm: parseFloat(formEdit.font_nama_mm) || PRESET_KERTAS.custom.font_nama_mm,
           font_info_mm: parseFloat(formEdit.font_info_mm) || PRESET_KERTAS.custom.font_info_mm,
+          rotasi_90: isRoll ? false : !!formEdit.rotasi_90,
           diubah_pada: serverTimestamp(),
           diubah_oleh: (window.currentUser && (window.currentUser.nama || window.currentUser.email)) || '-'
         };
@@ -526,6 +539,7 @@ export const AppPengaturanCetak = {
                 <span v-else>{{ g.lebar_mm }} x {{ g.tinggi_mm }} mm</span>
                 &middot; QR di {{ g.posisi_qr }}
                 <span v-if="g.field_tampil.length"> &middot; {{ g.field_tampil.length }} field tambahan</span>
+                <span v-if="g.rotasi_90"> &middot; <i class="fas fa-rotate" style="font-size:9px;"></i> putar 90&deg;</span>
               </div>
               <div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px;">
                 <span v-for="j in g.anggota_jenis" :key="j" class="tag" style="font-size:10px;">{{ KATALOG_CETAK[j]?.label || j }}</span>
@@ -580,6 +594,14 @@ export const AppPengaturanCetak = {
               <option value="kanan">Kanan</option>
               <option value="atas">Atas</option>
             </select>
+          </div>
+
+          <div v-if="formEdit.jenis_kertas !== 'kasir_roll'" style="margin-bottom:14px; padding:10px 12px; background:var(--ivory-dim); border-radius:10px;">
+            <label style="display:flex; align-items:center; gap:8px; font-size:12px; cursor:pointer;">
+              <input type="checkbox" v-model="formEdit.rotasi_90">
+              Putar konten 90&deg; saat cetak
+            </label>
+            <p style="font-size:10px; color:var(--text-faint); margin:6px 0 0;">Aktifkan HANYA kalau printer untuk grup ini selalu mencetak vertical (portrait) walau Lebar/Tinggi di atas sudah benar landscape &mdash; driver printernya yang paksa orientasi tetap, bukan ukurannya yang salah. Tidak mengubah proporsi label, cuma memutar hasil cetaknya.</p>
           </div>
 
           <template v-if="formEdit.jenis_kertas !== 'kasir_roll'">
