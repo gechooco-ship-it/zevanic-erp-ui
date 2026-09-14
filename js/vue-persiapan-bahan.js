@@ -101,7 +101,7 @@
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=9';
+import { PopupPratinjauCetakLabel, bangunInfoLabelAnakSpk } from './vue-components.js?v=10';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=3';
 
 // picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). Aksi
@@ -497,24 +497,15 @@ const PersiapanBahanPerluDisiapkan = {
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
     let _pendingCetak = [];
-    // bangunLabelBahan — BARU (13 Sep 2026 lanjutan 16, standarisasi urutan
-    // baris label, permintaan Guru eksplisit: "beda tampilan semua, bantu
-    // standarisasikan"). SEBELUM ini, cetak normal (bangunPreviewDariBaris)
-    // dan cetak ulang (pinCetakUlangSukses) masing-masing punya string
-    // composer SENDIRI dgn format BEDA — itu sebab tampilan label berbeda-
-    // beda tergantung jalur cetaknya. SEKARANG SATU fungsi dipakai KEDUA
-    // jalur supaya hasilnya DIJAMIN identik. Urutan baris PERSIS permintaan
-    // Guru: 1) kode (QR+teks besar, sudah baris terpisah lewat field
-    // `kode`), 2) nama produk + warna produk (`nama`), 3) nama bahan, 4)
-    // warna bahan + kebutuhan + satuan, 5) nama pelanggan (+ keterangan
-    // CETAK ULANG kalau ini cetakan ke-2+) — baris 3-5 digabung jadi 1 blok
-    // HTML di field `info` (3 <div> terpisah) karena komponen bersama
-    // PopupPratinjauCetakLabel cuma sediakan 1 slot info per label (lihat
-    // js/vue-components.js), jadi TIDAK perlu ubah komponen bersama yang
-    // dipakai ~16 titik cetak lain. `rincian.lokasi_rak` dikirim lewat
-    // mekanisme rincian_aktif yang SUDAH ADA (Guru aktifkan sendiri per
-    // grup di Pengaturan Cetak kalau mau tampil — lihat KATALOG_CETAK.
-    // label_spk_bahan.rincianTersedia di js/vue-pengaturan-cetak.js).
+    // bangunLabelBahan — dipakai KEDUA jalur cetak (normal & ulang) supaya
+    // hasilnya DIJAMIN identik. Isi baris rincian (bahan+warna+kebutuhan)
+    // urusan fungsi ini; STRUKTUR baris (jumlah baris + baris pelanggan
+    // paling bawah) didelegasikan ke bangunInfoLabelAnakSpk() (js/vue-
+    // components.js) — fungsi GLOBAL yang sama dipakai Acc Sewing/Webbing/
+    // Finishing, supaya format label SPK Grouping konsisten lintas modul
+    // tanpa perlu diulang tiap file. `rincian.lokasi_rak` tampil-tidaknya
+    // diatur Guru lewat rincian_aktif di Pengaturan Cetak (KATALOG_CETAK.
+    // label_spk_bahan.rincianTersedia, js/vue-pengaturan-cetak.js).
     function bangunLabelBahan(b, opsi = {}) {
       const kodeInduk = b.kode_spk;
       // kode label (teks besar + isi QR) — kode_komponen adalah level
@@ -525,24 +516,21 @@ const PersiapanBahanPerluDisiapkan = {
       // scan (lihat cocokLabel/hasilScanAksi di bawah, pakai fallback
       // chain PERSIS SAMA).
       const kodeLabel = b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${kodeInduk}-${b.bahan_aksesoris_id}`;
-      // Baris 2 — nama_produk BUKAN field baru: sudah disalin dari level
-      // spk_track ke tiap baris oleh daftarBarisDariTrack() di atas file ini
-      // (t.nama_produk, diisi saat SPK Grouping dibuat dari resolusi Master
-      // Produk — lihat buatSpkTrackUntukGrouping()/namaBase di
-      // js/vue-persiapan-produksi-v2.js) — SUDAH nama murni, BUKAN string
-      // komposit "Nama Warna Size" (beda dgn order_spk.nama_produk).
+      // nama_produk BUKAN field baru: sudah disalin dari level spk_track ke
+      // tiap baris oleh daftarBarisDariTrack() di atas file ini (t.nama_produk,
+      // diisi saat SPK Grouping dibuat dari resolusi Master Produk — lihat
+      // buatSpkTrackUntukGrouping()/namaBase di js/vue-persiapan-produksi-v2.js)
+      // — SUDAH nama murni, BUKAN string komposit "Nama Warna Size" (beda
+      // dgn order_spk.nama_produk).
       const namaProduk = `${b.nama_produk || ''} ${b.produk_warna || ''}`.trim() || kodeInduk;
       const baris3 = b.bahan_nama || '(tanpa nama bahan)';
-      // Baris 4 — formatMeter() SUDAH menambahkan satuan " m" di belakang
-      // angka, jadi tidak perlu field satuan terpisah (Bahan/kain SELALU
-      // diukur meter di modul ini).
+      // formatMeter() SUDAH menambahkan satuan " m" di belakang angka, jadi
+      // tidak perlu field satuan terpisah (Bahan/kain SELALU diukur meter).
       const baris4 = `${b.bahan_warna || '-'} &middot; ${formatMeter(b.kebutuhan_kain || 0)}`;
-      const keteranganUlang = opsi.cetakUlang ? ' <b>(CETAK ULANG)</b>' : '';
-      const baris5 = `${b.pelanggan_nama || '(tanpa pelanggan)'}${keteranganUlang}`;
       return {
         kode: kodeLabel,
         nama: namaProduk,
-        info: `<div>${baris3}</div><div>${baris4}</div><div>${baris5}</div>`,
+        info: bangunInfoLabelAnakSpk([baris3, baris4], b.pelanggan_nama, opsi),
         rincian: { lokasi_rak: b.rak_label || '' },
         qrDataUrl: buatQrDataUrl(kodeLabel)
       };
@@ -557,8 +545,8 @@ const PersiapanBahanPerluDisiapkan = {
     // dari kartu di layar (kelompokKartuBahan(), masih boleh gabung banyak
     // anak SPK per bahan+pola supaya cek stok gampang) — kartu vs label
     // fisik SEKARANG 2 pengelompokan terpisah dalam modul yang sama.
-    // REVISI (13 Sep 2026 lanjutan 16) — isi label sekarang dibangun lewat
-    // bangunLabelBahan() bersama, lihat komentar besar di atasnya.
+    // Isi label dibangun lewat bangunLabelBahan() bersama, lihat komentar
+    // besar di atasnya.
     function bangunPreviewDariBaris(daftarBaris) {
       return daftarBaris.map(b => bangunLabelBahan(b));
     }
@@ -612,12 +600,10 @@ const PersiapanBahanPerluDisiapkan = {
       const p = popupCetakUlang.value;
       if (!p) return;
       const sudahDicetak = p.kartu.baris.filter(b => b.label_cetak_pada);
-      // REVISI (13 Sep 2026 lanjutan 11) — SAMA seperti bangunPreviewDariBaris():
-      // 1 label per anak SPK, TIDAK digabung per grouping_id lagi.
-      // REVISI (13 Sep 2026 lanjutan 16) — dibangun lewat bangunLabelBahan()
-      // bersama (opsi.cetakUlang:true nambah "(CETAK ULANG)" di baris 5,
-      // lihat komentar besar bangunLabelBahan() di atas) supaya format
-      // PERSIS SAMA dgn cetak normal, bukan format sendiri seperti dulu.
+      // 1 label per anak SPK (SAMA seperti bangunPreviewDariBaris(), tidak
+      // digabung per grouping_id), dibangun lewat bangunLabelBahan() bersama
+      // (opsi.cetakUlang:true nambah "(CETAK ULANG)") supaya format PERSIS
+      // SAMA dgn cetak normal.
       const preview = sudahDicetak.map(b => bangunLabelBahan(b, { cetakUlang: true }));
       try {
         await addDoc(collection(db, 'cetak_ulang_log'), {

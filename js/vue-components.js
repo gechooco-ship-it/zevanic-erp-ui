@@ -1335,6 +1335,23 @@ export const KolomCari = {
 // ---------------------------------------------------------------------------
 const _FALLBACK_PENGATURAN_LABEL = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [], font_kode_mm: 4.5, font_nama_mm: 3.5, font_info_mm: 2.9 };
 
+// bangunInfoLabelAnakSpk — GLOBAL, dipakai SEMUA jalur "1 label = 1 anak
+// SPK" (Bahan, Acc Sewing/Webbing/Finishing) buat menyusun field `info`
+// PopupPratinjauCetakLabel di atas, supaya perubahan format cetak cukup
+// diedit SATU tempat ini, tidak diulang tiap modul. Tiap modul TETAP
+// menyusun isi baris rincian ITEM sendiri (beda bentuk: Bahan = bahan +
+// warna + kebutuhan; Acc = daftar aksesoris + qty) — yang distandarkan
+// di sini cuma STRUKTURnya: N baris rincian item lalu 1 baris nama
+// pelanggan paling bawah. `no_spk` (id internal Firestore) TIDAK PERNAH
+// ditampilkan di sini — kode yang tercetak besar/QR tetap tanggung jawab
+// pemanggil (field `kode` terpisah, lihat kontrak props di atas).
+export function bangunInfoLabelAnakSpk(barisItem, pelangganNama, opsi = {}) {
+  const daftar = Array.isArray(barisItem) ? barisItem : [barisItem];
+  const ket = opsi.cetakUlang ? ' <b>(CETAK ULANG)</b>' : '';
+  const barisPelanggan = `${pelangganNama || '(tanpa pelanggan)'}${ket}`;
+  return [...daftar, barisPelanggan].map(l => `<div>${l}</div>`).join('');
+}
+
 export const PopupPratinjauCetakLabel = {
   props: {
     terbuka: { type: Boolean, default: false },

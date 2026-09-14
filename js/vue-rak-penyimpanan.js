@@ -113,7 +113,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=9';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=10';
 
 // buatQrDataUrl — copy persis pola SAMA yang sudah dipakai di banyak file
 // lain (vue-bahan-aksesoris.js, vue-stock-pembelian.js, dst) — konvensi

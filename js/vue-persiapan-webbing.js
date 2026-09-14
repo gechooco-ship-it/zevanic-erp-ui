@@ -94,7 +94,7 @@
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=9';
+import { PopupPratinjauCetakLabel, bangunInfoLabelAnakSpk } from './vue-components.js?v=10';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=3';
 
 // picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). Aksi
@@ -478,34 +478,29 @@ const PersiapanWebbingPerluDisiapkan = {
       if (!terpilih.length) { alert('Tidak ada baris yang bisa dicetak (stok belum cukup untuk baris manapun, atau sudah dicetak semua).'); return; }
       const perAnak = {};
       terpilih.forEach(b => { (perAnak[b.no_spk] ||= []).push(b); });
-      // rincian.roll/kode_webbing2/kode_webbing3 — BARU (8 Sep 2026, audit
-      // kode proyek, fix bug "data hilang") — sebelumnya 3 field ini SUDAH
-      // ADA di spk_track.webbing_rincian[] tapi TIDAK PERNAH ikut tercetak
-      // di label (cuma nama_aksesoris/warna/qty). Sekarang ikut disiapkan
-      // di sini, TAPI tampil-tidaknya & urutannya diatur Guru dari Scan &
-      // Cetak > Pengaturan Cetak > Label SPK Grouping — Acc Webbing (kalau
-      // Guru belum aktifkan satupun, label tetap sama seperti sebelumnya).
-      // Gabungan >1 baris komponen per anak SPK digabung '|' sama seperti
-      // pola `info` di atas.
-      // FIX (12 Sep 2026 lanjutan 6, laporan Guru poin 2/3; RENAME 13 Sep
-      // lanjutan 9) — kode label (teks besar + isi QR + kunci matching) GANTI
-      // dari noSpk polos ke `kode_kartu` (dulu disebut kode_anak_spk versi
-      // lanjutan 6, DINAMAI ULANG 13 Sep krn sekarang ada level lebih detail
-      // di bawahnya — lihat komentar besar tandaiKodeGrouping() vue-
-      // persiapan-produksi-v2.js; utk jalur Acc, kartu = 1 order/no_spk,
-      // TIDAK berubah dari sebelumnya). FALLBACK ke noSpk kalau kode_kartu
-      // belum ada (data lama / Config > TLC & Prefix > jalur Acc Webbing
-      // belum diisi Guru) — hasilScanTunjuk/hasilScanAksi di bawah
-      // dicocokkan ke NILAI YANG SAMA PERSIS ini. Kalau 1 order butuh >1
-      // aksesoris beda, 1 label/QR yang SAMA (kode_kartu) tetap dipakai
-      // bareng, tapi tiap item tetap punya kode_komponen sendiri (-01/-02
-      // dst) supaya kebeda di info label & tampilan.
+      // rincian.roll/kode_webbing2/kode_webbing3 — field TAMBAHAN khas pos
+      // ini, tampil-tidaknya & urutannya diatur Guru dari Scan & Cetak >
+      // Pengaturan Cetak > Label SPK Grouping — Acc Webbing. Kode label
+      // (teks besar + isi QR + kunci matching) = `kode_kartu`, fallback ke
+      // noSpk kalau belum ada (data lama, atau Config > TLC & Prefix jalur
+      // Acc Webbing belum diisi Guru) — hasilScanTunjuk/hasilScanAksi di
+      // bawah dicocokkan ke NILAI YANG SAMA PERSIS ini. 1 order bisa butuh
+      // >1 aksesoris beda — 1 label/QR yang SAMA (kode_kartu) dipakai
+      // bareng, tiap item tetap dirinci baris sendiri + kode_komponen kalau
+      // >1 item. Struktur baris info (item lalu nama pelanggan) didelegasikan
+      // ke bangunInfoLabelAnakSpk() (js/vue-components.js) — fungsi GLOBAL
+      // yang sama dipakai Bahan/Acc Sewing/Finishing, no_spk TIDAK
+      // ditampilkan (id internal, bukan buat dibaca orang).
       const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => {
         const kodeLabel = barisGrup[0].kode_kartu || noSpk;
+        const itemLines = barisGrup.map(b => {
+          const extra = (barisGrup.length > 1 && b.kode_komponen) ? ` (${b.kode_komponen})` : '';
+          return `${b.nama_aksesoris} ${b.warna}${extra} &middot; ${formatQty(b.butuh)} ${b.satuan}`;
+        });
         return {
           kode: kodeLabel,
           nama: k.namaProduk,
-          info: `${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna} (${b.kode_komponen || b.kode_kartu || noSpk}) &middot; ${formatQty(b.butuh)} ${b.satuan}`).join(' | '),
+          info: bangunInfoLabelAnakSpk(itemLines, barisGrup[0].pelanggan_nama),
           qrDataUrl: buatQrDataUrl(kodeLabel),
           rincian: {
             roll: barisGrup.map(b => formatRoll(b.roll)).join(' | '),
@@ -568,14 +563,18 @@ const PersiapanWebbingPerluDisiapkan = {
       const sudahDicetak = p.kartu.baris.filter(b => b.label_cetak_pada);
       const perAnak = {};
       sudahDicetak.forEach(b => { (perAnak[b.no_spk] ||= []).push(b); });
-      // FIX (12 Sep 2026 lanjutan 6; RENAME 13 Sep lanjutan 9) — SAMA kode
-      // dgn cetakLabelKartu() di atas (kode_kartu, fallback noSpk) supaya
-      // label cetak-ulang TETAP cocok dgn hasilScanTunjuk()/hasilScanAksi().
+      // SAMA kode dgn cetakLabelKartu() di atas (kode_kartu, fallback noSpk,
+      // bangunInfoLabelAnakSpk bersama) supaya label cetak-ulang PERSIS
+      // format cetak normal, tetap cocok dgn hasilScanTunjuk()/hasilScanAksi().
       const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => {
         const kodeLabel = barisGrup[0].kode_kartu || noSpk;
+        const itemLines = barisGrup.map(b => {
+          const extra = (barisGrup.length > 1 && b.kode_komponen) ? ` (${b.kode_komponen})` : '';
+          return `${b.nama_aksesoris} ${b.warna}${extra}`;
+        });
         return {
           kode: kodeLabel, nama: p.kartu.namaProduk,
-          info: `CETAK ULANG &middot; ${noSpk} &middot; ` + barisGrup.map(b => `${b.nama_aksesoris} ${b.warna} (${b.kode_komponen || b.kode_kartu || noSpk})`).join(' | '),
+          info: bangunInfoLabelAnakSpk(itemLines, barisGrup[0].pelanggan_nama, { cetakUlang: true }),
           qrDataUrl: buatQrDataUrl(kodeLabel),
           rincian: {
             roll: barisGrup.map(b => formatRoll(b.roll)).join(' | '),
