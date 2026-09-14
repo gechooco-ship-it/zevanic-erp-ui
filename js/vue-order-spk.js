@@ -38,7 +38,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { usePaginasiFirestore } from './vue-paginasi.js';
-import { PopupPratinjauCetakLabel, DropdownCari } from './vue-components.js?v=8';
+import { PopupPratinjauCetakLabel, DropdownCari } from './vue-components.js?v=9';
 // ambilSemuaProduk — BARU (28 Agt 2026, permintaan Guru: "sambungkan Order
 // SPK dengan Master Produk > SKU"). Impor lintas file (bare, konvensi SAMA
 // seperti impor fungsi baca-koleksi besar lain di app ini, mis. dari
@@ -328,17 +328,17 @@ const OrderSpkManager = {
       }
     }
 
-    onMounted(async () => {
-      await window.authReady;
+    async function muat() {
       await paginasi.muatUlang();
-      // daftarProduk — dimuat sekali di sini, BUKAN nunggu user buka
-      // dropdown, supaya label produk yang lagi kepilih (mode Edit) bisa
-      // langsung kerekonstruksi tanpa jeda/loading tambahan.
+      // daftarProduk — dimuat ulang sekalian di sini (bukan cuma sekali),
+      // supaya produk baru dari Master Produk ikut kebaca begitu tab ini
+      // diklik ulang, tanpa perlu reload halaman.
       daftarProduk.value = await ambilSemuaProduk();
-    });
+    }
+    onMounted(async () => { await window.authReady; await muat(); });
 
     return {
-      form, STATUS_SPK_OPSI, menyimpan, sedangEditId,
+      form, STATUS_SPK_OPSI, menyimpan, sedangEditId, muat,
       simpan, bukaEdit, batalEdit, hapus, paginasi, formatQty,
       bolehTambah, bolehHapus, bolehCetak, mencetak,
       dicentangTabel, spkTercentang, toggleSemuaTabel, cetakTerpilih,
@@ -484,10 +484,14 @@ const OrderSpkManager = {
   `
 };
 
-const AppOrderSpk = { components: { OrderSpkManager }, template: `<order-spk-manager />` };
+const AppOrderSpk = { components: { OrderSpkManager }, template: `<order-spk-manager ref="mgr" />` };
 let vmOrderSpk = null;
 window.pastikanMountOrderSpk = function() {
-  if (vmOrderSpk) return;
+  if (vmOrderSpk) {
+    const mgr = vmOrderSpk.$refs && vmOrderSpk.$refs.mgr;
+    if (mgr && typeof mgr.muat === 'function') mgr.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-order-spk');
   if (mountPoint) vmOrderSpk = createApp(AppOrderSpk).mount('#vue-order-spk');
 };

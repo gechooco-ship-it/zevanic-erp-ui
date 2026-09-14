@@ -174,7 +174,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=8';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=9';
 import { ScanGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal } from './vue-scan-cetak.js?v=5';
 
 // --- Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing). --------
@@ -447,7 +447,7 @@ const FinishingPerluDiProses = {
             const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
             modalSampai.tugasKirim = snapTugas.empty ? null : { id: snapTugas.docs[0].id, ...snapTugas.docs[0].data() };
           } catch (e) { console.error('Gagal cari tugas_kirim utk pelepasan sampai:', e); modalSampai.tugasKirim = null; }
-        } catch (e) { console.error('Gagal cari kode tugas:', e); }
+        } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
         return;
       }
       const b = modalSampai.batch;
@@ -540,7 +540,7 @@ const FinishingPerluDiProses = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, kelompokBatch, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
       modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack,
@@ -676,7 +676,7 @@ function buatSubTabFinishing(tahap) {
       onMounted(async () => { await window.authReady; await muat(); });
 
       return {
-        memuat, kelompokBatch, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
+        memuat, muat, kelompokBatch, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
         modalOperatorAktif, bukaOperator, tutupOperator, modalEntriAktif, bukaEntri, tutupEntri,
         popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
         LABEL_TAHAP, tahap
@@ -806,7 +806,7 @@ const FinishingPerluDikirim = {
           const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', kode), where('ditutup_pada', '==', null)));
           if (snap.empty) { alert(`Kode bagging "${kode}" tidak ditemukan atau sudah ditutup.`); return; }
           modalPack.kodeBagging = kode;
-        } catch (e) { console.error('Gagal cari kode bagging:', e); }
+        } catch (e) { console.error('Gagal cari kode bagging:', e); alert('Gagal mencari kode bagging. Coba lagi.'); }
         return;
       }
       try {
@@ -825,7 +825,7 @@ const FinishingPerluDikirim = {
       try {
         const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', modalPack.kodeBagging)));
         if (!snap.empty) await updateDoc(doc(db, 'bagging', snap.docs[0].id), { ditutup_pada: serverTimestamp() });
-      } catch (e) { console.error('Gagal tutup bagging:', e); }
+      } catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       modalPack.kodeBagging = null;
     }
 
@@ -840,7 +840,7 @@ const FinishingPerluDikirim = {
           const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
           if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
           modalKirim.tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
-        } catch (e) { console.error('Gagal cari kode tugas:', e); }
+        } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
         return;
       }
       const g = kelompokBatch.value.find(x => x.pcs[0] && x.pcs[0].kode_tugas === modalKirim.tugas.kode && x.pcs[0].kode_bagging === kode);
@@ -867,7 +867,7 @@ const FinishingPerluDikirim = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, kelompokBatch, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
       popupCetakAktif, daftarLabelPreview, cetakBaggingTugas,
       modalPack, bukaScanPack, tutupScanPack, hasilScanPack, tutupBaggingPack,
@@ -967,7 +967,7 @@ const FinishingSedangKirim = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, kelompokTugas, bolehProses, formatDiamSejak, tertahan, popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah };
+    return { muat, memuat, kelompokTugas, bolehProses, formatDiamSejak, tertahan, popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1049,7 +1049,7 @@ const FinishingSelesai = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, daftarUrut, selesaiHariIni, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, formatWaktu };
+    return { muat, memuat, daftarUrut, selesaiHariIni, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, formatWaktu };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1098,49 +1098,49 @@ const FinishingSelesai = {
 // --- Mount ke index.html — LAZY, SAMA pola Cutting/Serie/Sewing. ------------
 let vmFinishingPerluDiProses = null;
 window.pastikanMountFinishingPerluDiProses = function () {
-  if (vmFinishingPerluDiProses) return;
+  if (vmFinishingPerluDiProses) { if (typeof vmFinishingPerluDiProses.muat === 'function') vmFinishingPerluDiProses.muat(); return; }
   const mountPoint = document.getElementById('vue-finishing-perludiproses');
   if (mountPoint) vmFinishingPerluDiProses = createApp(FinishingPerluDiProses).mount('#vue-finishing-perludiproses');
 };
 let vmFinishingSedangQc = null;
 window.pastikanMountFinishingSedangQc = function () {
-  if (vmFinishingSedangQc) return;
+  if (vmFinishingSedangQc) { if (typeof vmFinishingSedangQc.muat === 'function') vmFinishingSedangQc.muat(); return; }
   const mountPoint = document.getElementById('vue-finishing-sedangqc');
   if (mountPoint) vmFinishingSedangQc = createApp(FinishingSedangQc).mount('#vue-finishing-sedangqc');
 };
 let vmFinishingSedangSteam = null;
 window.pastikanMountFinishingSedangSteam = function () {
-  if (vmFinishingSedangSteam) return;
+  if (vmFinishingSedangSteam) { if (typeof vmFinishingSedangSteam.muat === 'function') vmFinishingSedangSteam.muat(); return; }
   const mountPoint = document.getElementById('vue-finishing-sedangsteam');
   if (mountPoint) vmFinishingSedangSteam = createApp(FinishingSedangSteam).mount('#vue-finishing-sedangsteam');
 };
 let vmFinishingSedangFolding = null;
 window.pastikanMountFinishingSedangFolding = function () {
-  if (vmFinishingSedangFolding) return;
+  if (vmFinishingSedangFolding) { if (typeof vmFinishingSedangFolding.muat === 'function') vmFinishingSedangFolding.muat(); return; }
   const mountPoint = document.getElementById('vue-finishing-sedangfolding');
   if (mountPoint) vmFinishingSedangFolding = createApp(FinishingSedangFolding).mount('#vue-finishing-sedangfolding');
 };
 let vmFinishingSedangPacking = null;
 window.pastikanMountFinishingSedangPacking = function () {
-  if (vmFinishingSedangPacking) return;
+  if (vmFinishingSedangPacking) { if (typeof vmFinishingSedangPacking.muat === 'function') vmFinishingSedangPacking.muat(); return; }
   const mountPoint = document.getElementById('vue-finishing-sedangpacking');
   if (mountPoint) vmFinishingSedangPacking = createApp(FinishingSedangPacking).mount('#vue-finishing-sedangpacking');
 };
 let vmFinishingPerluDikirim = null;
 window.pastikanMountFinishingPerluDikirim = function () {
-  if (vmFinishingPerluDikirim) return;
+  if (vmFinishingPerluDikirim) { if (typeof vmFinishingPerluDikirim.muat === 'function') vmFinishingPerluDikirim.muat(); return; }
   const mountPoint = document.getElementById('vue-finishing-perludikirim');
   if (mountPoint) vmFinishingPerluDikirim = createApp(FinishingPerluDikirim).mount('#vue-finishing-perludikirim');
 };
 let vmFinishingSedangKirim = null;
 window.pastikanMountFinishingSedangKirim = function () {
-  if (vmFinishingSedangKirim) return;
+  if (vmFinishingSedangKirim) { if (typeof vmFinishingSedangKirim.muat === 'function') vmFinishingSedangKirim.muat(); return; }
   const mountPoint = document.getElementById('vue-finishing-sedangkirim');
   if (mountPoint) vmFinishingSedangKirim = createApp(FinishingSedangKirim).mount('#vue-finishing-sedangkirim');
 };
 let vmFinishingSelesai = null;
 window.pastikanMountFinishingSelesai = function () {
-  if (vmFinishingSelesai) return;
+  if (vmFinishingSelesai) { if (typeof vmFinishingSelesai.muat === 'function') vmFinishingSelesai.muat(); return; }
   const mountPoint = document.getElementById('vue-finishing-selesai');
   if (mountPoint) vmFinishingSelesai = createApp(FinishingSelesai).mount('#vue-finishing-selesai');
 };

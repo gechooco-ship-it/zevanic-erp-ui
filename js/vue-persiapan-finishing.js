@@ -71,9 +71,12 @@
 //
 // Label fisik: "1 SPK = 1 label" (SERAH-TERIMA §3/§5) dibaca sebagai 1 LABEL
 // PER ANAK SPK (bukan per grouping) — sama alasan seperti vue-persiapan-
-// sewing.js. Kode yang di-QR-kan cuma jejak cetak (traceability) — yang
-// benar-benar DISCAN BALIK di Tunjuk Operator/Scan Entry/Scan Pack selalu
-// `no_spk` polos.
+// sewing.js. Kode yang di-QR-kan & DISCAN BALIK di Tunjuk Operator/Scan
+// Entry/Scan Pack adalah `kode_kartu || no_spk` (fallback no_spk polos
+// cuma utk baris lama/Config TLC jalur ini belum diisi), SAMA persis field
+// yang dicetak cetakLabelKartu() — WAJIB SAMA di ketiga titik (cetak,
+// validasi scan, matchFn tulis Firestore), pernah lupa disamakan di matchFn
+// tulis (13 Sep lanjutan 17, gagal diam-diam).
 //
 // Satu scan pack/kirim di sini BISA menandai BEBERAPA baris komponen
 // sekaligus (semua komponen milik 1 anak SPK, atau semua baris ber-
@@ -94,7 +97,7 @@
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=8';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=9';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=3';
 
 // picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). Aksi
@@ -578,25 +581,25 @@ const PersiapanFinishingPerluDisiapkan = {
       }
       const now = new Date().toISOString();
       const trackId = cocok[0]._trackId;
-      // CATATAN BUG (ditemukan 9 Sep 2026 di vue-persiapan-sewing.js saat
-      // generalisasi ke mode global, DIPERBAIKI DI SANA DAN DI SINI): pola
-      // lama di seluruh file ini ("updateBarisFinishingMassal(trackId, (b,
-      // i) => idxSet.has(i), ...)") TIDAK PERNAH cocok — matchFn dipanggil
-      // dengan SATU argumen saja (lihat definisi updateBarisFinishingMassal
-      // di atas, matchFn(arr[i])), jadi parameter kedua "i" selalu undefined
-      // dan idxSet.has(i) selalu false -> tulisan Firestore GAGAL DIAM-DIAM
-      // (kena===0). Fungsi INI sekarang cocok LEWAT NILAI (no_spk+status+
-      // label_cetak_pada) — tidak butuh index sama sekali. Pola idxSet yang
-      // SAMA masih ada di onCetakSelesai()/hasilScanPack()/hasilScanKirim()
-      // pada file ini (di luar cakupan sesi ini, TIDAK disentuh) — dicatat
-      // sebagai gap ke CHECKLIST-TEST.md, bukan diperbaiki diam-diam di
-      // luar delta.
+      // FIX (13 Sep 2026 lanjutan 17, bug NYATA ditemukan lewat audit —
+      // BUKAN cuma laporan Guru): matchFn tulis Firestore di sini MASIH
+      // `x.no_spk === kode` polos, padahal validasi `cocok` di atas SUDAH
+      // pakai `kode_kartu || no_spk` sejak rename 13 Sep lanjutan 9. Untuk
+      // data BARU (kode_kartu terisi, beda dari no_spk), validasi LOLOS
+      // (makanya tidak ada alert), tapi matchFn di sini 0 baris cocok ->
+      // `updateBarisFinishingMassal` commit tanpa perubahan (kena=0) ->
+      // operator lihat log "berhasil" padahal status Firestore TETAP
+      // perlu_disiapkan — GAGAL DIAM-DIAM. Fix: matchFn ikut
+      // `kode_kartu || no_spk`, SAMA persis field yang sudah benar di
+      // `cocok`. `kena` juga sekarang dicek eksplisit (bukan cuma andalkan
+      // try/catch) — kena=0 tanpa exception TIDAK melempar error.
       try {
-        await updateBarisFinishingMassal(trackId, (x) => x.no_spk === kode && x.status === 'perlu_disiapkan' && !!x.label_cetak_pada, (lama) => ({
+        const kena = await updateBarisFinishingMassal(trackId, (x) => (x.kode_kartu || x.no_spk) === kode && x.status === 'perlu_disiapkan' && !!x.label_cetak_pada, (lama) => ({
           status: 'sedang_disiapkan', masuk_tahap_pada: now,
           operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, ditugaskan_pada: now,
           riwayat_operator: [...(lama.riwayat_operator || []), { operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, mulai_pada: now }]
         }));
+        if (kena === 0) { alert(`Kode "${kode}" cocok di layar tapi GAGAL disimpan ke database (baris tidak ketemu saat ditulis). Muat ulang halaman lalu coba lagi.`); return; }
         modalTunjuk.log.unshift(`${kode} (${cocok.length} komponen) -> ${modalTunjuk.operator.nama}`);
         cocok.forEach(b => { b.status = 'sedang_disiapkan'; }); // optimistik
       } catch (e) {
@@ -629,7 +632,7 @@ const PersiapanFinishingPerluDisiapkan = {
 
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-finishing-tahap'); await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, kartuList, cari, isChecked, toggleCheck,
       bolehProses, bolehCetak, bolehEdit, formatQty, formatWaktu, ICON_KOSONG,
       // FIX (10 Sep 2026, laporan Guru "Acc Finishing stuck Memuat...") —
@@ -920,7 +923,7 @@ const PersiapanFinishingSedangDisiapkan = {
 
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-finishing-tahap'); await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, kelompokOperator, bolehProses, sedangProses, sedangProsesBatch, konfirmasiDisiapkan,
       formatQty, formatDiamSejak, tertahan, barisKey,
       modalAksi, bukaAksi, tutupAksi, hasilScanAksi,
@@ -1144,7 +1147,12 @@ const PersiapanFinishingPerluDikirim = {
         modalPack.bagging = b;
         return;
       }
-      const cocok = barisTertahan.value.filter(x => x.no_spk === kode && !x.kode_bagging);
+      // FIX (13 Sep 2026 lanjutan 17): dulu `x.no_spk === kode` polos — label
+      // yang discan di sini kartu SAMA yang dicetak Tab 1 (`cetakLabelKartu`,
+      // sudah pakai `kode_kartu || no_spk`), jadi utk data BARU (kode_kartu
+      // terisi) scan valid SELALU ditolak alert ini. Disamakan ke fallback
+      // chain yang sama dgn `hasilScanTunjuk`.
+      const cocok = barisTertahan.value.filter(x => (x.kode_kartu || x.no_spk) === kode && !x.kode_bagging);
       if (!cocok.length) { alert(`Kode "${kode}" tidak cocok anak SPK yang masih tertahan / sudah di-pack.`); return; }
       if (labelSepack(cocok[0]) !== modalPack.bagging.produk_label) {
         alert(`Kode "${kode}" bukan produk yang sama dengan bagging ini (${modalPack.bagging.produk_label}). Syarat sepack: produk dan size harus sama.`);
@@ -1162,10 +1170,13 @@ const PersiapanFinishingPerluDikirim = {
       const byTrack = {};
       cocok.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
       try {
-        // DIPERBAIKI (9 Sep 2026 malam) — matchFn value-based (no_spk+!kode_bagging).
-        await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
-          return updateBarisFinishingMassal(trackId, (x) => x.no_spk === kode && !x.kode_bagging, () => ({ kode_bagging: modalPack.bagging.kode }));
+        // matchFn value-based (kode_kartu||no_spk + !kode_bagging, SAMA
+        // predikat yang dipakai bikin `cocok` di atas — lihat FIX 13 Sep
+        // lanjutan 17 di atas).
+        const hasil = await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
+          return updateBarisFinishingMassal(trackId, (x) => (x.kode_kartu || x.no_spk) === kode && !x.kode_bagging, () => ({ kode_bagging: modalPack.bagging.kode }));
         }));
+        if (hasil.every(k => k === 0)) { alert(`Kode "${kode}" cocok di layar tapi GAGAL disimpan ke database. Muat ulang halaman lalu coba lagi.`); return; }
         const patchBagging = { isi: arrayUnion(kode) };
         if (!modalPack.bagging.kode_spk) patchBagging.kode_spk = cocok[0].kode_spk || null;
         await updateDoc(doc(db, 'bagging', modalPack.bagging.id), patchBagging);
@@ -1176,7 +1187,7 @@ const PersiapanFinishingPerluDikirim = {
     }
     async function tutupBagging() {
       if (!modalPack.bagging) return;
-      try { await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() }); } catch (e) { console.error('Gagal tutup bagging:', e); }
+      try { await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() }); } catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       modalPack.bagging = null;
     }
 
@@ -1191,7 +1202,7 @@ const PersiapanFinishingPerluDikirim = {
           const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
           if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
           modalKirim.tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
-        } catch (e) { console.error('Gagal cari kode tugas:', e); }
+        } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
         return;
       }
       const anggota = barisTertahan.value.filter(x => x.kode_bagging === kode);
@@ -1218,7 +1229,7 @@ const PersiapanFinishingPerluDikirim = {
 
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-finishing-tahap'); await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, kelompokSepack, daftarTlc, bolehProses, bolehCetak, sedangProses,
       // FIX (10 Sep 2026) — sama seperti komponen "Perlu Disiapkan" di atas:
       // barisKey dipakai templat (:key v-for) tapi lupa di-return.
@@ -1347,7 +1358,7 @@ const PersiapanFinishingSedangDikirim = {
     });
     const MY_TARGET = 'sub-pp-finishing-sedangdikirim';
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-finishing-tahap'); await window.authReady; await muat(); });
-    return { memuat, kelompokTugas, formatQty, formatDiamSejak, barisKey, TAB_DEFS_FINISHING, gantiTabPill, MY_TARGET };
+    return { muat, memuat, kelompokTugas, formatQty, formatDiamSejak, barisKey, TAB_DEFS_FINISHING, gantiTabPill, MY_TARGET };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1442,7 +1453,7 @@ const PersiapanFinishingSelesai = {
     const MY_TARGET = 'sub-pp-finishing-selesai';
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-finishing-tahap'); await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, isOperatorSaja, barisSaya, daftarUrut, kpi,
       formatQty, formatWaktu, formatSiklus, siklusJam, keadaan, barisKey,
       TAB_DEFS_FINISHING, gantiTabPill, MY_TARGET
@@ -1559,31 +1570,31 @@ const PersiapanFinishingSelesai = {
 // dashboard.js, peta `petaMount`) PERTAMA KALI tab itu dibuka. --------------
 let vmPpFinishingPerluDisiapkan = null;
 window.pastikanMountPpFinishingPerluDisiapkan = function () {
-  if (vmPpFinishingPerluDisiapkan) return;
+  if (vmPpFinishingPerluDisiapkan) { if (typeof vmPpFinishingPerluDisiapkan.muat === 'function') vmPpFinishingPerluDisiapkan.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-finishing-perludisiapkan');
   if (mountPoint) vmPpFinishingPerluDisiapkan = createApp(PersiapanFinishingPerluDisiapkan).mount('#vue-pp-finishing-perludisiapkan');
 };
 let vmPpFinishingSedangDisiapkan = null;
 window.pastikanMountPpFinishingSedangDisiapkan = function () {
-  if (vmPpFinishingSedangDisiapkan) return;
+  if (vmPpFinishingSedangDisiapkan) { if (typeof vmPpFinishingSedangDisiapkan.muat === 'function') vmPpFinishingSedangDisiapkan.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-finishing-sedangdisiapkan');
   if (mountPoint) vmPpFinishingSedangDisiapkan = createApp(PersiapanFinishingSedangDisiapkan).mount('#vue-pp-finishing-sedangdisiapkan');
 };
 let vmPpFinishingPerluDikirim = null;
 window.pastikanMountPpFinishingPerluDikirim = function () {
-  if (vmPpFinishingPerluDikirim) return;
+  if (vmPpFinishingPerluDikirim) { if (typeof vmPpFinishingPerluDikirim.muat === 'function') vmPpFinishingPerluDikirim.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-finishing-perludikirim');
   if (mountPoint) vmPpFinishingPerluDikirim = createApp(PersiapanFinishingPerluDikirim).mount('#vue-pp-finishing-perludikirim');
 };
 let vmPpFinishingSedangDikirim = null;
 window.pastikanMountPpFinishingSedangDikirim = function () {
-  if (vmPpFinishingSedangDikirim) return;
+  if (vmPpFinishingSedangDikirim) { if (typeof vmPpFinishingSedangDikirim.muat === 'function') vmPpFinishingSedangDikirim.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-finishing-sedangdikirim');
   if (mountPoint) vmPpFinishingSedangDikirim = createApp(PersiapanFinishingSedangDikirim).mount('#vue-pp-finishing-sedangdikirim');
 };
 let vmPpFinishingSelesai = null;
 window.pastikanMountPpFinishingSelesai = function () {
-  if (vmPpFinishingSelesai) return;
+  if (vmPpFinishingSelesai) { if (typeof vmPpFinishingSelesai.muat === 'function') vmPpFinishingSelesai.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-finishing-selesai');
   if (mountPoint) vmPpFinishingSelesai = createApp(PersiapanFinishingSelesai).mount('#vue-pp-finishing-selesai');
 };

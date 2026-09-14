@@ -106,7 +106,7 @@ export const MasterDataCategory = {
       return items.value.filter(i => i.toLowerCase().includes(kata));
     });
 
-    return { items, itemsTersaring, cariItem, inputBaru, memuat, menyimpan, tambah, hapus, bolehTambah, bolehHapus };
+    return { muat, items, itemsTersaring, cariItem, inputBaru, memuat, menyimpan, tambah, hapus, bolehTambah, bolehHapus };
   },
   template: `
     <!-- Mode BARU (27 Agt 2026) — entry+searchbox+table, dipakai menu Config. -->
@@ -580,7 +580,7 @@ export const MasterDataTabelManager = {
     }
 
     onMounted(async () => { await window.authReady; muat(); });
-    return {
+    return { muat,
       daftar, memuat, namaBaru, field3Baru, keteranganBaru, menyimpan, bolehTambah, bolehHapus, tambah, hapus, cariItem, daftarTersaring,
       dropdownImportTerbuka, inputFileImport, popupImportAktif, barisMentahImport, sedangImport, headerImport,
       unduhTemplateImport, pancingFileImport, saatFileImportDipilih, tutupPopupImport, konfirmasiImport

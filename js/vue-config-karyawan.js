@@ -141,7 +141,7 @@ let vmConfigKaryawan = null;
 // dinavigasi pertama kali, supaya 9x MasterDataCategory + KecamatanManager
 // di dalamnya tidak ikut fetch on-load kalau layar ini belum pernah dibuka.
 window.pastikanMountConfigKaryawan = function() {
-  if (vmConfigKaryawan) return;
+  if (vmConfigKaryawan) { vmConfigKaryawan.refreshKey++; return; }
   const mountPoint = document.getElementById('vue-config-karyawan');
   if (mountPoint) vmConfigKaryawan = createApp(AppConfigKaryawan).mount('#vue-config-karyawan');
 };

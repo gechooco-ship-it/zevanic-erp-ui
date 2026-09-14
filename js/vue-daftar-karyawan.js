@@ -706,7 +706,7 @@ let vmDaftarKaryawan = null;
 // yaitu PERSIS saat tab ini pertama kali dibuka, bukan dari awal muat
 // halaman.
 window.pastikanMountDaftarKaryawan = function() {
-  if (vmDaftarKaryawan) return; // sudah pernah di-mount, tidak perlu ulang
+  if (vmDaftarKaryawan) { if (typeof vmDaftarKaryawan.muat === 'function') vmDaftarKaryawan.muat(); return; }
   const mountPoint = document.getElementById('vue-daftar-karyawan');
   if (mountPoint) vmDaftarKaryawan = createApp(AppDaftarKaryawan).mount('#vue-daftar-karyawan');
 };

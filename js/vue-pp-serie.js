@@ -189,7 +189,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=8';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=9';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal } from './vue-scan-cetak.js?v=5';
 
 // --- Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan
@@ -738,7 +738,7 @@ const SeriePerluDiProses = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftarGrouping, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan, sumber, bisaGenerate,
       expandedIds, toggleExpand, LABEL_SUMBER, ASAL_SUMBER,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
@@ -1010,7 +1010,7 @@ const SerieSedangDiProses = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftar, bolehProses, bolehCetak, bolehOperator, formatQty, formatDiamSejak, tertahan, formatWaktu,
       ekspand, toggleEkspand, perSumber, progres,
       expandedIds, toggleExpand,
@@ -1245,7 +1245,7 @@ const SeriePerluDiKirim = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftar, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
       popupCetakAktif, daftarLabelPreview, cetakKodeBagging,
       modalPack, bukaScanPack, tutupScanPack, hasilScanPack, tutupBagging,
@@ -1426,7 +1426,7 @@ function buatTabKirim(cfg) {
       onMounted(async () => { await window.authReady; await muat(); });
 
       return {
-        cfg, memuat, daftar, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
+        cfg, memuat, muat, daftar, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
         popupCetak, bukaCetakTugas, konfirmasiCetakTugas, popupCetakAktif, daftarLabelPreview,
         modalKirim, bukaScanKirim, tutupScanKirim, hasilScanKirim,
         popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
@@ -1526,7 +1526,7 @@ function buatTabSetor(cfg) {
         memuat.value = false;
       }
       onMounted(async () => { await window.authReady; await muat(); });
-      return { cfg, memuat, daftar, formatQty, formatWaktu };
+      return { cfg, memuat, muat, daftar, formatQty, formatWaktu };
     },
     template: `
       <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1666,7 +1666,7 @@ function buatTabTerima(cfg) {
       onMounted(async () => { await window.authReady; await muat(); });
 
       return {
-        cfg, memuat, daftar, bolehProses, formatQty, formatDiamSejak, tertahan,
+        cfg, memuat, muat, daftar, bolehProses, formatQty, formatDiamSejak, tertahan,
         modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
         modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack,
         popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
@@ -1783,7 +1783,7 @@ const SerieSelesai = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, daftarUrut, selesaiHariIni, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, formatQty, formatWaktu };
+    return { muat, memuat, daftarUrut, selesaiHariIni, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, formatQty, formatWaktu };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1831,67 +1831,67 @@ const SerieSelesai = {
 // dashboard.js, peta petaMount) PERTAMA KALI tab itu dibuka. ----------------
 let vmSeriePerluDiProses = null;
 window.pastikanMountSeriePerluDiProses = function () {
-  if (vmSeriePerluDiProses) return;
+  if (vmSeriePerluDiProses) { if (typeof vmSeriePerluDiProses.muat === 'function') vmSeriePerluDiProses.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-perludiproses');
   if (mountPoint) vmSeriePerluDiProses = createApp(SeriePerluDiProses).mount('#vue-serie-perludiproses');
 };
 let vmSerieSedangDiProses = null;
 window.pastikanMountSerieSedangDiProses = function () {
-  if (vmSerieSedangDiProses) return;
+  if (vmSerieSedangDiProses) { if (typeof vmSerieSedangDiProses.muat === 'function') vmSerieSedangDiProses.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-sedangdiproses');
   if (mountPoint) vmSerieSedangDiProses = createApp(SerieSedangDiProses).mount('#vue-serie-sedangdiproses');
 };
 let vmSeriePerluDiKirim = null;
 window.pastikanMountSeriePerluDiKirim = function () {
-  if (vmSeriePerluDiKirim) return;
+  if (vmSeriePerluDiKirim) { if (typeof vmSeriePerluDiKirim.muat === 'function') vmSeriePerluDiKirim.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-perludikirim');
   if (mountPoint) vmSeriePerluDiKirim = createApp(SeriePerluDiKirim).mount('#vue-serie-perludikirim');
 };
 let vmSerieKirimSewing = null;
 window.pastikanMountSerieKirimSewing = function () {
-  if (vmSerieKirimSewing) return;
+  if (vmSerieKirimSewing) { if (typeof vmSerieKirimSewing.muat === 'function') vmSerieKirimSewing.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-kirimsewing');
   if (mountPoint) vmSerieKirimSewing = createApp(SerieKirimSewing).mount('#vue-serie-kirimsewing');
 };
 let vmSerieSetorSewing = null;
 window.pastikanMountSerieSetorSewing = function () {
-  if (vmSerieSetorSewing) return;
+  if (vmSerieSetorSewing) { if (typeof vmSerieSetorSewing.muat === 'function') vmSerieSetorSewing.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-setorsewing');
   if (mountPoint) vmSerieSetorSewing = createApp(SerieSetorSewing).mount('#vue-serie-setorsewing');
 };
 let vmSerieTerimaSewing = null;
 window.pastikanMountSerieTerimaSewing = function () {
-  if (vmSerieTerimaSewing) return;
+  if (vmSerieTerimaSewing) { if (typeof vmSerieTerimaSewing.muat === 'function') vmSerieTerimaSewing.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-terimasewing');
   if (mountPoint) vmSerieTerimaSewing = createApp(SerieTerimaSewing).mount('#vue-serie-terimasewing');
 };
 let vmSerieKirimFinishing = null;
 window.pastikanMountSerieKirimFinishing = function () {
-  if (vmSerieKirimFinishing) return;
+  if (vmSerieKirimFinishing) { if (typeof vmSerieKirimFinishing.muat === 'function') vmSerieKirimFinishing.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-kirimfinishing');
   if (mountPoint) vmSerieKirimFinishing = createApp(SerieKirimFinishing).mount('#vue-serie-kirimfinishing');
 };
 let vmSerieSetorFinishing = null;
 window.pastikanMountSerieSetorFinishing = function () {
-  if (vmSerieSetorFinishing) return;
+  if (vmSerieSetorFinishing) { if (typeof vmSerieSetorFinishing.muat === 'function') vmSerieSetorFinishing.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-setorfinishing');
   if (mountPoint) vmSerieSetorFinishing = createApp(SerieSetorFinishing).mount('#vue-serie-setorfinishing');
 };
 let vmSerieTerimaFinishing = null;
 window.pastikanMountSerieTerimaFinishing = function () {
-  if (vmSerieTerimaFinishing) return;
+  if (vmSerieTerimaFinishing) { if (typeof vmSerieTerimaFinishing.muat === 'function') vmSerieTerimaFinishing.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-terimafinishing');
   if (mountPoint) vmSerieTerimaFinishing = createApp(SerieTerimaFinishing).mount('#vue-serie-terimafinishing');
 };
 let vmSerieKirimGudang = null;
 window.pastikanMountSerieKirimGudang = function () {
-  if (vmSerieKirimGudang) return;
+  if (vmSerieKirimGudang) { if (typeof vmSerieKirimGudang.muat === 'function') vmSerieKirimGudang.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-kirimgudang');
   if (mountPoint) vmSerieKirimGudang = createApp(SerieKirimGudang).mount('#vue-serie-kirimgudang');
 };
 let vmSerieSelesai = null;
 window.pastikanMountSerieSelesai = function () {
-  if (vmSerieSelesai) return;
+  if (vmSerieSelesai) { if (typeof vmSerieSelesai.muat === 'function') vmSerieSelesai.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-selesai');
   if (mountPoint) vmSerieSelesai = createApp(SerieSelesai).mount('#vue-serie-selesai');
 };

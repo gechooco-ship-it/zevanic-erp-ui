@@ -655,7 +655,7 @@ const AppRiwayatAbsensi = {
 
 let vmRiwayatAbsensi = null;
 window.pastikanMountRiwayatAbsensi = function() {
-  if (vmRiwayatAbsensi) return;
+  if (vmRiwayatAbsensi) { if (typeof vmRiwayatAbsensi.muat === 'function') vmRiwayatAbsensi.muat(); return; }
   const mountPoint = document.getElementById('vue-riwayat-absensi');
   if (mountPoint) vmRiwayatAbsensi = createApp(AppRiwayatAbsensi).mount('#vue-riwayat-absensi');
 };

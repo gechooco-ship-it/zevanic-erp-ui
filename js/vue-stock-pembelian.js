@@ -170,7 +170,7 @@ import { db, storage } from "./firebase-config.js";
 // dulu dipakai MasterSuplayerManager (gear Stock & Pembelian), sekarang
 // CRUD Suplayer pindah ke menu Config (vue-config.js). Lihat catatan di
 // PengaturanStockPembelian di bawah.
-import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=8';
+import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=9';
 import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
 
 // --- helper: ambil semua Bahan+Aksesoris (disalin dari vue-bahan-aksesoris.js
@@ -2535,8 +2535,9 @@ const RiwayatHargaPembelianManager = {
       }
     }
 
-    onMounted(async () => { await window.authReady; await paginasi.muatUlang(); await muatDaftarPending(); });
-    return { paginasi, formatRupiah, daftarPending, memuatPending, tampilPinTerapkan, bukaTerapkan, pinTerapkanSukses };
+    async function muat() { await paginasi.muatUlang(); await muatDaftarPending(); }
+    onMounted(async () => { await window.authReady; await muat(); });
+    return { paginasi, muat, formatRupiah, daftarPending, memuatPending, tampilPinTerapkan, bukaTerapkan, pinTerapkanSukses };
   },
   template: `
     <div>
@@ -2636,10 +2637,14 @@ window.pastikanMountNotaOrderBelanja = function() {
   if (mountPoint) vmDaftarNota = createApp(AppDaftarNota).mount('#vue-nota-order-belanja');
 };
 
-const AppRiwayatHargaPembelian = { components: { RiwayatHargaPembelianManager }, template: `<riwayat-harga-pembelian-manager />` };
+const AppRiwayatHargaPembelian = { components: { RiwayatHargaPembelianManager }, template: `<riwayat-harga-pembelian-manager ref="mgr" />` };
 let vmRiwayatHargaPembelian = null;
 window.pastikanMountRiwayatHargaPembelian = function() {
-  if (vmRiwayatHargaPembelian) return;
+  if (vmRiwayatHargaPembelian) {
+    const mgr = vmRiwayatHargaPembelian.$refs && vmRiwayatHargaPembelian.$refs.mgr;
+    if (mgr && typeof mgr.muat === 'function') mgr.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-riwayat-harga-pembelian');
   if (mountPoint) vmRiwayatHargaPembelian = createApp(AppRiwayatHargaPembelian).mount('#vue-riwayat-harga-pembelian');
 };

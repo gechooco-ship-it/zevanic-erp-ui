@@ -443,7 +443,7 @@ let vmConfigAbsensi = null;
 // SEKALIGUS begitu layar ini pertama dibuka — tidak ada lagi penundaan
 // per sub-tab.
 window.pastikanMountConfigAbsensi = function() {
-  if (vmConfigAbsensi) return;
+  if (vmConfigAbsensi) { vmConfigAbsensi.refreshKey++; return; }
   const mountPoint = document.getElementById('vue-config-absensi');
   if (mountPoint) vmConfigAbsensi = createApp(AppConfigAbsensi).mount('#vue-config-absensi');
 };

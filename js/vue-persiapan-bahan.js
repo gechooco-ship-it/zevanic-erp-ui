@@ -101,7 +101,7 @@
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=8';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=9';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=3';
 
 // picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). Aksi
@@ -747,7 +747,7 @@ const PersiapanBahanPerluDisiapkan = {
 
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, kartuList, cari, isChecked, toggleCheck,
       bolehProses, bolehCetak, bolehEdit, formatMeter, formatQty, formatWaktu,
       TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET, jumlahSiapDicetak, ringkasanTerpilih,
@@ -1086,7 +1086,7 @@ const PersiapanBahanSedangDisiapkan = {
 
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, kelompokOperator, bolehProses, sedangProses, sedangProsesBatch, konfirmasiDisiapkan,
       formatMeter, formatQty, formatDiamSejak, tertahan, barisKey,
       modalAksi, bukaAksi, tutupAksi, hasilScanAksi,
@@ -1353,7 +1353,7 @@ const PersiapanBahanPerluDikirim = {
     }
     async function tutupBagging() {
       if (!modalPack.bagging) return;
-      try { await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() }); } catch (e) { console.error('Gagal tutup bagging:', e); }
+      try { await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() }); } catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       modalPack.bagging = null;
     }
 
@@ -1368,7 +1368,7 @@ const PersiapanBahanPerluDikirim = {
           const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
           if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
           modalKirim.tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
-        } catch (e) { console.error('Gagal cari kode tugas:', e); }
+        } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
         return;
       }
       const anggota = barisTertahan.value.filter(x => x.kode_bagging === kode);
@@ -1397,7 +1397,7 @@ const PersiapanBahanPerluDikirim = {
 
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, kelompokSepack, daftarTlc, bolehProses, bolehCetak, sedangProses,
       formatMeter, formatQty, formatDiamSejak, tertahan,
       popupBagging, bukaCetakBagging, konfirmasiCetakBagging,
@@ -1529,7 +1529,7 @@ const PersiapanBahanSedangDikirim = {
     });
     const MY_TARGET = 'sub-pp-bahan-sedangdikirim';
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await muat(); });
-    return { memuat, kelompokTugas, formatMeter, formatQty, formatDiamSejak, TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET };
+    return { muat, memuat, kelompokTugas, formatMeter, formatQty, formatDiamSejak, TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1641,7 +1641,7 @@ const PersiapanBahanSelesai = {
     const MY_TARGET = 'sub-pp-bahan-selesai';
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, isOperatorSaja, barisSaya, daftarUrut, kpi,
       formatMeter, formatQty, formatWaktu, formatSiklus, siklusJam, keadaan,
       TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET
@@ -1763,31 +1763,31 @@ const PersiapanBahanSelesai = {
 // mount semua 5 sekaligus saat halaman dimuat (hemat, konsisten). ---------
 let vmPpBahanPerluDisiapkan = null;
 window.pastikanMountPpBahanPerluDisiapkan = function () {
-  if (vmPpBahanPerluDisiapkan) return;
+  if (vmPpBahanPerluDisiapkan) { if (typeof vmPpBahanPerluDisiapkan.muat === 'function') vmPpBahanPerluDisiapkan.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-bahan-perludisiapkan');
   if (mountPoint) vmPpBahanPerluDisiapkan = createApp(PersiapanBahanPerluDisiapkan).mount('#vue-pp-bahan-perludisiapkan');
 };
 let vmPpBahanSedangDisiapkan = null;
 window.pastikanMountPpBahanSedangDisiapkan = function () {
-  if (vmPpBahanSedangDisiapkan) return;
+  if (vmPpBahanSedangDisiapkan) { if (typeof vmPpBahanSedangDisiapkan.muat === 'function') vmPpBahanSedangDisiapkan.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-bahan-sedangdisiapkan');
   if (mountPoint) vmPpBahanSedangDisiapkan = createApp(PersiapanBahanSedangDisiapkan).mount('#vue-pp-bahan-sedangdisiapkan');
 };
 let vmPpBahanPerluDikirim = null;
 window.pastikanMountPpBahanPerluDikirim = function () {
-  if (vmPpBahanPerluDikirim) return;
+  if (vmPpBahanPerluDikirim) { if (typeof vmPpBahanPerluDikirim.muat === 'function') vmPpBahanPerluDikirim.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-bahan-perludikirim');
   if (mountPoint) vmPpBahanPerluDikirim = createApp(PersiapanBahanPerluDikirim).mount('#vue-pp-bahan-perludikirim');
 };
 let vmPpBahanSedangDikirim = null;
 window.pastikanMountPpBahanSedangDikirim = function () {
-  if (vmPpBahanSedangDikirim) return;
+  if (vmPpBahanSedangDikirim) { if (typeof vmPpBahanSedangDikirim.muat === 'function') vmPpBahanSedangDikirim.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-bahan-sedangdikirim');
   if (mountPoint) vmPpBahanSedangDikirim = createApp(PersiapanBahanSedangDikirim).mount('#vue-pp-bahan-sedangdikirim');
 };
 let vmPpBahanSelesai = null;
 window.pastikanMountPpBahanSelesai = function () {
-  if (vmPpBahanSelesai) return;
+  if (vmPpBahanSelesai) { if (typeof vmPpBahanSelesai.muat === 'function') vmPpBahanSelesai.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-bahan-selesai');
   if (mountPoint) vmPpBahanSelesai = createApp(PersiapanBahanSelesai).mount('#vue-pp-bahan-selesai');
 };

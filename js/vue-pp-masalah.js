@@ -91,7 +91,7 @@
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=8';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=9';
 import { ScanGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=3';
 
 // picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). BEDA
@@ -358,7 +358,7 @@ const MasalahPerluDiajukan = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftarTersaring, cari, kumulatifSemua, terpilih, toggleSatu, toggleSemua,
       jumlahTerpilih, semuaTerpilih, sedangProses, bolehProses,
       popupAjukan, bukaPopupAjukan, konfirmasiAjukan, kumulatifTerpilih,
@@ -626,7 +626,7 @@ const MasalahMenungguSetuju = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftar, kartuPengajuan, infoTambahan, prosesKartu, sayaOwnerKeAtas,
       stokSaatIni, ubahQtyBeli, estimasi, sisaJadiStok,
       qtyBeliBahan, estimasiBahan, sisaBahan,
@@ -805,7 +805,7 @@ const MasalahPerluDisiapkan = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, kartuList, kartuTerbuka, toggleKartu, isChecked, toggleCheck,
       bolehProses, bolehCetak, sedangProses, formatQty, formatWaktu,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu,
@@ -929,7 +929,7 @@ const MasalahSedangDisiapkan = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, kelompokOperator, bolehProses, sedangProses, formatQty, formatDiamSejak, tertahan, modalAksi, bukaAksi, tutupAksi, hasilScanAksi };
+    return { muat, memuat, kelompokOperator, bolehProses, sedangProses, formatQty, formatDiamSejak, tertahan, modalAksi, bukaAksi, tutupAksi, hasilScanAksi };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1106,7 +1106,7 @@ const MasalahPerluDiKirim = {
     }
     async function tutupBagging() {
       if (!modalPack.bagging) return;
-      try { await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() }); } catch (e) { console.error('Gagal tutup bagging:', e); }
+      try { await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() }); } catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       modalPack.bagging = null;
     }
 
@@ -1120,7 +1120,7 @@ const MasalahPerluDiKirim = {
           const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
           if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
           modalKirim.tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
-        } catch (e) { console.error('Gagal cari kode tugas:', e); }
+        } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
         return;
       }
       const anggota = daftar.value.filter(x => x.kode_bagging === kode);
@@ -1138,7 +1138,7 @@ const MasalahPerluDiKirim = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, kelompokTujuan, daftarTlc, bolehProses, bolehCetak, sedangProses, formatQty,
       popupBagging, bukaCetakBagging, konfirmasiCetakBagging,
       popupTugas, bukaCetakTugas, konfirmasiCetakTugas,
@@ -1247,7 +1247,7 @@ const MasalahSedangDiKirim = {
       return Object.values(peta).sort((a, b) => a.kodeTugas.localeCompare(b.kodeTugas));
     });
     onMounted(async () => { await window.authReady; await muat(); });
-    return { memuat, kelompokTugas, formatQty, formatDiamSejak };
+    return { muat, memuat, kelompokTugas, formatQty, formatDiamSejak };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1314,7 +1314,7 @@ const MasalahSelesai = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, isOperatorSaja, barisSaya, daftarUrut, kpi, formatQty, formatWaktu, formatSiklus, siklusJam, keadaan };
+    return { muat, memuat, isOperatorSaja, barisSaya, daftarUrut, kpi, formatQty, formatWaktu, formatSiklus, siklusJam, keadaan };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1412,43 +1412,43 @@ const MasalahSelesai = {
 // dashboard.js, peta petaMount) PERTAMA KALI tab itu dibuka. ---------------
 let vmPpMasalahPerluDiajukan = null;
 window.pastikanMountPpMasalahPerluDiajukan = function () {
-  if (vmPpMasalahPerluDiajukan) return;
+  if (vmPpMasalahPerluDiajukan) { if (typeof vmPpMasalahPerluDiajukan.muat === 'function') vmPpMasalahPerluDiajukan.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-masalah-perludiajukan');
   if (mountPoint) vmPpMasalahPerluDiajukan = createApp(MasalahPerluDiajukan).mount('#vue-pp-masalah-perludiajukan');
 };
 let vmPpMasalahMenungguSetuju = null;
 window.pastikanMountPpMasalahMenungguSetuju = function () {
-  if (vmPpMasalahMenungguSetuju) return;
+  if (vmPpMasalahMenungguSetuju) { if (typeof vmPpMasalahMenungguSetuju.muat === 'function') vmPpMasalahMenungguSetuju.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-masalah-menunggusetuju');
   if (mountPoint) vmPpMasalahMenungguSetuju = createApp(MasalahMenungguSetuju).mount('#vue-pp-masalah-menunggusetuju');
 };
 let vmPpMasalahPerluDisiapkan = null;
 window.pastikanMountPpMasalahPerluDisiapkan = function () {
-  if (vmPpMasalahPerluDisiapkan) return;
+  if (vmPpMasalahPerluDisiapkan) { if (typeof vmPpMasalahPerluDisiapkan.muat === 'function') vmPpMasalahPerluDisiapkan.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-masalah-perludisiapkan');
   if (mountPoint) vmPpMasalahPerluDisiapkan = createApp(MasalahPerluDisiapkan).mount('#vue-pp-masalah-perludisiapkan');
 };
 let vmPpMasalahSedangDisiapkan = null;
 window.pastikanMountPpMasalahSedangDisiapkan = function () {
-  if (vmPpMasalahSedangDisiapkan) return;
+  if (vmPpMasalahSedangDisiapkan) { if (typeof vmPpMasalahSedangDisiapkan.muat === 'function') vmPpMasalahSedangDisiapkan.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-masalah-sedangdisiapkan');
   if (mountPoint) vmPpMasalahSedangDisiapkan = createApp(MasalahSedangDisiapkan).mount('#vue-pp-masalah-sedangdisiapkan');
 };
 let vmPpMasalahPerluDiKirim = null;
 window.pastikanMountPpMasalahPerluDiKirim = function () {
-  if (vmPpMasalahPerluDiKirim) return;
+  if (vmPpMasalahPerluDiKirim) { if (typeof vmPpMasalahPerluDiKirim.muat === 'function') vmPpMasalahPerluDiKirim.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-masalah-perludikirim');
   if (mountPoint) vmPpMasalahPerluDiKirim = createApp(MasalahPerluDiKirim).mount('#vue-pp-masalah-perludikirim');
 };
 let vmPpMasalahSedangDiKirim = null;
 window.pastikanMountPpMasalahSedangDiKirim = function () {
-  if (vmPpMasalahSedangDiKirim) return;
+  if (vmPpMasalahSedangDiKirim) { if (typeof vmPpMasalahSedangDiKirim.muat === 'function') vmPpMasalahSedangDiKirim.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-masalah-sedangdikirim');
   if (mountPoint) vmPpMasalahSedangDiKirim = createApp(MasalahSedangDiKirim).mount('#vue-pp-masalah-sedangdikirim');
 };
 let vmPpMasalahSelesai = null;
 window.pastikanMountPpMasalahSelesai = function () {
-  if (vmPpMasalahSelesai) return;
+  if (vmPpMasalahSelesai) { if (typeof vmPpMasalahSelesai.muat === 'function') vmPpMasalahSelesai.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-masalah-selesai');
   if (mountPoint) vmPpMasalahSelesai = createApp(MasalahSelesai).mount('#vue-pp-masalah-selesai');
 };

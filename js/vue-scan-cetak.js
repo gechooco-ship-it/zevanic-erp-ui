@@ -683,7 +683,7 @@ export const AppScanCetakRiwayatPin = {
 
 let vmScanCetakRiwayatPin = null;
 window.pastikanMountScanCetakRiwayatPin = function() {
-  if (vmScanCetakRiwayatPin) return;
+  if (vmScanCetakRiwayatPin) { if (typeof vmScanCetakRiwayatPin.muat === 'function') vmScanCetakRiwayatPin.muat(); return; }
   const mountPoint = document.getElementById('vue-scan-cetak-riwayatpin');
   if (mountPoint) vmScanCetakRiwayatPin = createApp(AppScanCetakRiwayatPin).mount('#vue-scan-cetak-riwayatpin');
 };

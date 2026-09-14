@@ -860,7 +860,7 @@ let vmConfigAkses = null;
 // yaitu PERSIS saat tab ini pertama kali dibuka, bukan dari awal muat
 // halaman.
 window.pastikanMountConfigAkses = function() {
-  if (vmConfigAkses) return; // sudah pernah di-mount, tidak perlu ulang
+  if (vmConfigAkses) { if (typeof vmConfigAkses.muat === 'function') vmConfigAkses.muat(); return; }
   const mountPoint = document.getElementById('vue-config-akses');
   if (mountPoint) vmConfigAkses = createApp(AppConfigAkses).mount('#vue-config-akses');
 };
@@ -989,7 +989,7 @@ const AppJabatanAkses = {
 
     onMounted(async () => { await window.authReady; muat(); });
 
-    return {
+    return { muat,
       daftarJabatan, memuat, menyimpan, menghapus, jabatanDipilih, adaPembatasanTersimpan,
       pilihJabatan, simpan, hapusPembatasan,
       menus, KATEGORI_URUTAN, kategoriTerbuka, toggleKategori, menuUntukKategori, cariMenu,
@@ -1089,7 +1089,7 @@ const AppJabatanAkses = {
 
 let vmJabatanAkses = null;
 window.pastikanMountJabatanAkses = function() {
-  if (vmJabatanAkses) return;
+  if (vmJabatanAkses) { if (typeof vmJabatanAkses.muat === 'function') vmJabatanAkses.muat(); return; }
   const mountPoint = document.getElementById('vue-jabatan-akses');
   if (mountPoint) vmJabatanAkses = createApp(AppJabatanAkses).mount('#vue-jabatan-akses');
 };

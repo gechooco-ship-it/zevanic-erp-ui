@@ -135,7 +135,7 @@ import { db } from "./firebase-config.js";
 // (27 Agt 2026, §26.1) — panel Pengaturan yang dulu pakai keduanya (Jenis
 // Bahan/Aksesoris, Data Satuan/Warna/Ukuran, Data Rak Penyimpanan) sudah
 // dirombak, lihat catatan di atas PengaturanBahanAksesoris di bawah.
-import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=8';
+import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=9';
 import { usePaginasiFirestore } from './vue-paginasi.js';
 // BARU (28 Agt 2026, §41.2, permintaan Guru: "cetak label pindahkan ke
 // Data Bahan & Aksesoris > List Bahan dan Aksesoris") — `ambilSemuaLotByBahan`
@@ -972,7 +972,15 @@ const BahanAksesorisEntryManager = {
     }
     watch(() => form.kategori_utama, () => { form.jenis = ''; muatOpsiJenis(); });
 
-    onMounted(() => { muatOpsiSatuanWarna(); muatDaftarRak(); });
+    // muat() — refresh 3 sumber dropdown (satuan/warna/rak/jenis), dipanggil
+    // ulang tiap kali tab ini diklik lagi (lihat pastikanMountBahanAksesorisEntry)
+    // supaya opsi baru dari tab/layar lain langsung kelihatan tanpa reload
+    // halaman. Data form yang sedang diisi TIDAK ikut direset.
+    async function muat() {
+      await Promise.all([muatOpsiSatuanWarna(), muatDaftarRak()]);
+      if (form.kategori_utama) await muatOpsiJenis();
+    }
+    onMounted(muat);
 
     function pilihFoto(event) {
       const file = event.target.files[0];
@@ -1072,7 +1080,7 @@ const BahanAksesorisEntryManager = {
     return {
       form, opsiJenis, opsiSatuan, opsiWarna, opsiRak, rakDipilih,
       KATEGORI_UTAMA_OPSI, menyimpan, hargaModal, hargaPemakaian, volumeBarang, formatRupiah, formatQty,
-      pilihFoto, hapusFoto, simpan, simpanDanDuplikat, tampilPengaturan, muatOpsiJenis, muatOpsiSatuanWarna, muatDaftarRak,
+      pilihFoto, hapusFoto, simpan, simpanDanDuplikat, tampilPengaturan, muat, muatOpsiJenis, muatOpsiSatuanWarna, muatDaftarRak,
       ...konversi
     };
   },
@@ -1847,13 +1855,13 @@ const BahanAksesorisListManager = {
       else paginasi.cariDenganDebounce(nilai);
     }
 
-    onMounted(async () => {
-      await window.authReady;
+    async function muat() {
       await Promise.all([paginasi.muatUlang(), muatBadgeDanIncomplete()]);
-    });
+    }
+    onMounted(async () => { await window.authReady; await muat(); });
 
     return {
-      filterTab, daftarTab, paginasi, barisTampil, sedangMemuatList, adaLagiUntukDimuat, muatLagi, cariInput,
+      filterTab, daftarTab, paginasi, muat, barisTampil, sedangMemuatList, adaLagiUntukDimuat, muatLagi, cariInput,
       memuatBadge, errorBadge, formatRupiah, formatQty,
       sedangEditId, formEdit, opsiJenisEdit, opsiSatuanEdit, opsiWarnaEdit,
       opsiRakEdit, rakDipilihEdit, volumeBarangEdit,
@@ -2221,18 +2229,26 @@ const BahanAksesorisListManager = {
   `
 };
 
-const AppBahanAksesorisEntry = { components: { BahanAksesorisEntryManager }, template: `<bahan-aksesoris-entry-manager />` };
+const AppBahanAksesorisEntry = { components: { BahanAksesorisEntryManager }, template: `<bahan-aksesoris-entry-manager ref="mgr" />` };
 let vmBahanAksesorisEntry = null;
 window.pastikanMountBahanAksesorisEntry = function() {
-  if (vmBahanAksesorisEntry) return;
+  if (vmBahanAksesorisEntry) {
+    const mgr = vmBahanAksesorisEntry.$refs && vmBahanAksesorisEntry.$refs.mgr;
+    if (mgr && typeof mgr.muat === 'function') mgr.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-bahan-aksesoris-entry');
   if (mountPoint) vmBahanAksesorisEntry = createApp(AppBahanAksesorisEntry).mount('#vue-bahan-aksesoris-entry');
 };
 
-const AppBahanAksesorisList = { components: { BahanAksesorisListManager }, template: `<bahan-aksesoris-list-manager />` };
+const AppBahanAksesorisList = { components: { BahanAksesorisListManager }, template: `<bahan-aksesoris-list-manager ref="mgr" />` };
 let vmBahanAksesorisList = null;
 window.pastikanMountBahanAksesorisList = function() {
-  if (vmBahanAksesorisList) return;
+  if (vmBahanAksesorisList) {
+    const mgr = vmBahanAksesorisList.$refs && vmBahanAksesorisList.$refs.mgr;
+    if (mgr && typeof mgr.muat === 'function') mgr.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-bahan-aksesoris-list');
   if (mountPoint) vmBahanAksesorisList = createApp(AppBahanAksesorisList).mount('#vue-bahan-aksesoris-list');
 };

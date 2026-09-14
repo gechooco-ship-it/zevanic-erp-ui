@@ -235,7 +235,7 @@ const AppDeviceKiosk = {
 // sampai tab-device-kiosk benar-benar dinavigasi (lihat dashboard.js).
 let vmDeviceKiosk = null;
 window.pastikanMountDeviceKiosk = function() {
-  if (vmDeviceKiosk) return;
+  if (vmDeviceKiosk) { if (typeof vmDeviceKiosk.muat === 'function') vmDeviceKiosk.muat(); return; }
   const mountPoint = document.getElementById('vue-device-kiosk');
   if (mountPoint) vmDeviceKiosk = createApp(AppDeviceKiosk).mount('#vue-device-kiosk');
 };

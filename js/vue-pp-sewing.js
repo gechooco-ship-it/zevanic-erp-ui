@@ -202,7 +202,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=8';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=9';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=5';
 
 // --- Format & hitung kecil (disalin pola dari Cutting/Serie, belum ada
@@ -433,7 +433,7 @@ const SewingPerluDiProses = {
             const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
             modalSampai.tugasKirim = snapTugas.empty ? null : { id: snapTugas.docs[0].id, ...snapTugas.docs[0].data() };
           } catch (e) { console.error('Gagal cari tugas_kirim utk pelepasan sampai:', e); modalSampai.tugasKirim = null; }
-        } catch (e) { console.error('Gagal cari kode tugas:', e); }
+        } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
         return;
       }
       const b = modalSampai.batch;
@@ -533,7 +533,7 @@ const SewingPerluDiProses = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftar, unpackEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
       modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack,
@@ -692,7 +692,7 @@ const SewingSedangSewing = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, kelompokOperator, bolehProses, formatQty, formatDiamSejak, tertahan, formatJamDurasi,
       modalEntry, bukaScanEntry, tutupScanEntry, hasilScanEntry,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
@@ -886,7 +886,7 @@ const SewingPerluDikirim = {
             riwayat_scan: arrayUnion({ aksi: 'pack', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), qty: qtyPack, catatan: kodeBaggingIni })
           }));
         }
-      } catch (e) { console.error('Gagal tutup bagging:', e); }
+      } catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       modalPack.bagging = null; modalPack.batch = null;
     }
 
@@ -902,7 +902,7 @@ const SewingPerluDikirim = {
           const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
           if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
           modalKirim.tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
-        } catch (e) { console.error('Gagal cari kode tugas:', e); }
+        } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
         return;
       }
       const t = daftar.value.find(x => x.kode_tugas === modalKirim.tugas.kode && (x.kode_bagging || []).includes(kode));
@@ -931,7 +931,7 @@ const SewingPerluDikirim = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftar, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
       popupCetakPcsAktif, daftarLabelPcsPreview, cetakLabelPcs,
       popupCetakAktif, daftarLabelPreview, cetakBaggingTugas,
@@ -1037,7 +1037,7 @@ const SewingSedangKirim = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, kelompokTugas, bolehProses, formatQty, formatDiamSejak, tertahan, popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah };
+    return { muat, memuat, kelompokTugas, bolehProses, formatQty, formatDiamSejak, tertahan, popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1125,7 +1125,7 @@ const SewingSelesai = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, daftarUrut, selesaiHariIni, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, formatQty, formatWaktu };
+    return { muat, memuat, daftarUrut, selesaiHariIni, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, formatQty, formatWaktu };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1173,31 +1173,31 @@ const SewingSelesai = {
 // dashboard.js, peta petaMount) PERTAMA KALI tab itu dibuka. ----------------
 let vmSewingPerluDiProses = null;
 window.pastikanMountSewingPerluDiProses = function () {
-  if (vmSewingPerluDiProses) return;
+  if (vmSewingPerluDiProses) { if (typeof vmSewingPerluDiProses.muat === 'function') vmSewingPerluDiProses.muat(); return; }
   const mountPoint = document.getElementById('vue-sewing-perludiproses');
   if (mountPoint) vmSewingPerluDiProses = createApp(SewingPerluDiProses).mount('#vue-sewing-perludiproses');
 };
 let vmSewingSedangSewing = null;
 window.pastikanMountSewingSedangSewing = function () {
-  if (vmSewingSedangSewing) return;
+  if (vmSewingSedangSewing) { if (typeof vmSewingSedangSewing.muat === 'function') vmSewingSedangSewing.muat(); return; }
   const mountPoint = document.getElementById('vue-sewing-sedangsewing');
   if (mountPoint) vmSewingSedangSewing = createApp(SewingSedangSewing).mount('#vue-sewing-sedangsewing');
 };
 let vmSewingPerluDikirim = null;
 window.pastikanMountSewingPerluDikirim = function () {
-  if (vmSewingPerluDikirim) return;
+  if (vmSewingPerluDikirim) { if (typeof vmSewingPerluDikirim.muat === 'function') vmSewingPerluDikirim.muat(); return; }
   const mountPoint = document.getElementById('vue-sewing-perludikirim');
   if (mountPoint) vmSewingPerluDikirim = createApp(SewingPerluDikirim).mount('#vue-sewing-perludikirim');
 };
 let vmSewingSedangKirim = null;
 window.pastikanMountSewingSedangKirim = function () {
-  if (vmSewingSedangKirim) return;
+  if (vmSewingSedangKirim) { if (typeof vmSewingSedangKirim.muat === 'function') vmSewingSedangKirim.muat(); return; }
   const mountPoint = document.getElementById('vue-sewing-sedangkirim');
   if (mountPoint) vmSewingSedangKirim = createApp(SewingSedangKirim).mount('#vue-sewing-sedangkirim');
 };
 let vmSewingSelesai = null;
 window.pastikanMountSewingSelesai = function () {
-  if (vmSewingSelesai) return;
+  if (vmSewingSelesai) { if (typeof vmSewingSelesai.muat === 'function') vmSewingSelesai.muat(); return; }
   const mountPoint = document.getElementById('vue-sewing-selesai');
   if (mountPoint) vmSewingSelesai = createApp(SewingSelesai).mount('#vue-sewing-selesai');
 };

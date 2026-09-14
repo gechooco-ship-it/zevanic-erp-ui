@@ -136,7 +136,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=8';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=9';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=5';
 
 // --- Format & hitung kecil (disalin pola dari 4 pos Persiapan Produksi,
@@ -216,15 +216,56 @@ async function ambilPetaProdukBySku() {
   _cachePetaProduk = peta;
   return peta;
 }
+// ambilSemuaBahanRincian / cocokkanBahanUntukGrouping — BARU (14 Sep 2026
+// lanjutan 21, koreksi Guru lagi atas lanjutan 20): lanjutan 20 cuma
+// menyembunyikan baris di TAMPILAN (daftarTampil di CuttingPerluDiProses)
+// — dokumen `cutting_track`-nya SENDIRI tetap DITULIS via addDoc() di
+// pastikanCuttingTrackLengkap() begitu tab dibuka, TIDAK PEDULI bahannya
+// sudah dikirim atau belum. Guru minta ditegaskan: gerbangnya bukan cuma
+// SEMBUNYIKAN tampilan, tapi memang JANGAN PERNAH DITULIS ke Firestore
+// sampai syaratnya kepenuhi — supaya irit write (biaya Firestore per write,
+// bukan cuma soal tampilan). Dua fungsi ini diékstrak dari logic yang tadinya
+// cuma ada di dalam enrichBahanUntukTrack() (di bawah), supaya bisa dipakai
+// jauh lebih awal di pastikanCuttingTrackLengkap() SEBELUM addDoc() — bukan
+// perubahan logic pencocokan, cuma dipindah jadi fungsi named/reusable.
+async function ambilSemuaBahanRincian() {
+  const snapSpkTrack = await getDocs(query(collection(db, 'spk_track'), where('jalur', '==', 'bahan')));
+  const semuaBahanRincian = [];
+  snapSpkTrack.forEach(d => (d.data().bahan_rincian || []).forEach(b => semuaBahanRincian.push(b)));
+  return semuaBahanRincian;
+}
+function cocokkanBahanUntukGrouping(grouping, semuaBahanRincian) {
+  const noSpkSet = new Set((grouping && Array.isArray(grouping.breakdown) ? grouping.breakdown : []).map(b => b.no_spk));
+  return semuaBahanRincian.filter(b => noSpkSet.has(b.no_spk));
+}
+// sudahDikirimUntukGrouping — kuantor SAMA PERSIS seperti field `sudahDikirim`
+// di enrichBahanUntukTrack() di bawah (every + cocok.length>0 wajib, BUKAN
+// some) — LIHAT komentar besar di sana untuk alasan lengkap kuantor ini.
+function sudahDikirimUntukGrouping(grouping, semuaBahanRincian) {
+  const cocok = cocokkanBahanUntukGrouping(grouping, semuaBahanRincian);
+  return cocok.length > 0 && cocok.every(b => !!b.kode_tugas);
+}
 // pastikanCuttingTrackLengkap — keputusan §1 di komentar besar atas file:
 // buat cutting_track utk grouping yang belum punya, LAZY, idempoten.
+// BARU (lanjutan 21): SEKARANG tambahan syarat kedua sebelum addDoc() —
+// grouping juga harus sudahDikirimUntukGrouping() (bahan minimal sudah
+// di-Scan Kirim). Grouping yang belum dikirim TETAP tidak dibuatkan
+// cutting_track sama sekali (BUKAN dibuat lalu disembunyikan seperti
+// lanjutan 20) — begitu Scan Kirim dilakukan di Persiapan Bahan, panggilan
+// berikutnya ke fungsi ini (tiap kali tab 1.1 dibuka) akan menganggapnya
+// "belum" lagi (masih tidak ada di cutting_track) dan BARU menulisnya saat
+// itu. Pola lazy-idempoten yang sudah ada TIDAK diubah, cuma ditambah 1
+// filter sebelum addDoc().
 async function pastikanCuttingTrackLengkap() {
-  const [groupingList, trackList] = await Promise.all([muatSemuaGrouping(), muatSemuaCuttingTrack()]);
+  const [groupingList, trackList, semuaBahanRincian] = await Promise.all([
+    muatSemuaGrouping(), muatSemuaCuttingTrack(), ambilSemuaBahanRincian()
+  ]);
   const sudahAda = new Set(trackList.map(t => t.grouping_id));
   const belum = groupingList.filter(g => !sudahAda.has(g.id));
-  if (belum.length) {
+  const siapDitulis = belum.filter(g => sudahDikirimUntukGrouping(g, semuaBahanRincian));
+  if (siapDitulis.length) {
     const now = new Date().toISOString();
-    await Promise.all(belum.map(g => addDoc(collection(db, 'cutting_track'), {
+    await Promise.all(siapDitulis.map(g => addDoc(collection(db, 'cutting_track'), {
       grouping_id: g.id, kode_spk: g.kode_spk || '', nama_produk: g.nama_produk || '',
       size: g.size || '', qty_total: parseFloat(g.qty_total) || 0,
       sku_produk_terlibat: g.sku_produk_terlibat || [],
@@ -371,15 +412,17 @@ async function kirimMasalahCutting(track, jumlah, alasan) {
 async function enrichBahanUntukTrack(daftarTrack, daftarGrouping) {
   const peta = {};
   try {
-    const snapSpkTrack = await getDocs(query(collection(db, 'spk_track'), where('jalur', '==', 'bahan')));
-    const semuaBahanRincian = [];
-    snapSpkTrack.forEach(d => (d.data().bahan_rincian || []).forEach(b => semuaBahanRincian.push(b)));
+    // ambilSemuaBahanRincian()/cocokkanBahanUntukGrouping() — sama persis
+    // fungsi yang dipakai pastikanCuttingTrackLengkap() (lihat komentar
+    // besar lanjutan 21 di atasnya) supaya logic pencocokan no_spk TIDAK
+    // dobel-ditulis di 2 tempat (rawan drift kalau salah satu diubah tapi
+    // yang lain lupa).
+    const semuaBahanRincian = await ambilSemuaBahanRincian();
     const petaGrouping = {};
     (daftarGrouping || []).forEach(g => { petaGrouping[g.id] = g; });
     daftarTrack.forEach(t => {
       const g = petaGrouping[t.grouping_id];
-      const noSpkSet = new Set((g && Array.isArray(g.breakdown) ? g.breakdown : []).map(b => b.no_spk));
-      const cocok = semuaBahanRincian.filter(b => noSpkSet.has(b.no_spk));
+      const cocok = cocokkanBahanUntukGrouping(g, semuaBahanRincian);
       // cocok.length===0 -> peta[t.id] TETAP null (bukan {siapDiproses:true})
       // supaya template lain yang sudah ada (Tab 1.1-1.4, cek `bahanEnrich[t.id]
       // ? ... : '-'`) tidak berubah perilaku. Utk gerbang tampil Tab 1.1 (BARU
@@ -596,7 +639,7 @@ const CuttingPerluDiProses = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftar, daftarTampil, bahanEnrich, unpackEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan, siapBahan,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
       modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack,
@@ -783,7 +826,7 @@ const CuttingSedangAmpar = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftar, bahanEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
       modalEntry, tutupScanEntry, hasilScanEntry,
       popupPinPola, pinSuksesPola,
@@ -984,7 +1027,7 @@ const CuttingSedangPola = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftar, bahanEnrich, bolehProses, bolehCetak, bolehOperator, sedangCetak, formatQty, formatDiamSejak, tertahan, progres,
       popupCetakAktif, daftarLabelPreview, cetakLabelKomponen,
       modalEntry, tutupScanEntry, hasilScanEntry,
@@ -1144,7 +1187,7 @@ const CuttingSedangCutting = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftar, bahanEnrich, bolehProses, formatQty, formatDiamSejak, tertahan, progres,
       modalEntry, tutupScanEntry, hasilScanEntry, tandaiSelesaiCutting,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
@@ -1393,7 +1436,7 @@ const CuttingPerluDiKirim = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftar, daftarTlc, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
       popupKirim, bukaCetakKirim, konfirmasiCetakKirim, popupCetakAktif, daftarLabelPreview,
       modalPack, bukaScanPack, tutupScanPack, hasilScanPack, tutupBagging,
@@ -1522,7 +1565,7 @@ const CuttingSedangDiKirim = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, kelompokTugas, bolehProses, formatQty, formatDiamSejak, tertahan, popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah };
+    return { muat, memuat, kelompokTugas, bolehProses, formatQty, formatDiamSejak, tertahan, popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1614,7 +1657,7 @@ const CuttingSelesai = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, daftarUrut, selesaiHariIni, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, formatQty, formatWaktu };
+    return { muat, memuat, daftarUrut, selesaiHariIni, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, formatQty, formatWaktu };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1665,43 +1708,43 @@ const CuttingSelesai = {
 // (js/dashboard.js, peta petaMount) PERTAMA KALI tab itu dibuka. ------------
 let vmCuttingPerluDiProses = null;
 window.pastikanMountCuttingPerluDiProses = function () {
-  if (vmCuttingPerluDiProses) return;
+  if (vmCuttingPerluDiProses) { if (typeof vmCuttingPerluDiProses.muat === 'function') vmCuttingPerluDiProses.muat(); return; }
   const mountPoint = document.getElementById('vue-cutting-perludiproses');
   if (mountPoint) vmCuttingPerluDiProses = createApp(CuttingPerluDiProses).mount('#vue-cutting-perludiproses');
 };
 let vmCuttingSedangAmpar = null;
 window.pastikanMountCuttingSedangAmpar = function () {
-  if (vmCuttingSedangAmpar) return;
+  if (vmCuttingSedangAmpar) { if (typeof vmCuttingSedangAmpar.muat === 'function') vmCuttingSedangAmpar.muat(); return; }
   const mountPoint = document.getElementById('vue-cutting-sedangampar');
   if (mountPoint) vmCuttingSedangAmpar = createApp(CuttingSedangAmpar).mount('#vue-cutting-sedangampar');
 };
 let vmCuttingSedangPola = null;
 window.pastikanMountCuttingSedangPola = function () {
-  if (vmCuttingSedangPola) return;
+  if (vmCuttingSedangPola) { if (typeof vmCuttingSedangPola.muat === 'function') vmCuttingSedangPola.muat(); return; }
   const mountPoint = document.getElementById('vue-cutting-sedangpola');
   if (mountPoint) vmCuttingSedangPola = createApp(CuttingSedangPola).mount('#vue-cutting-sedangpola');
 };
 let vmCuttingSedangCutting = null;
 window.pastikanMountCuttingSedangCutting = function () {
-  if (vmCuttingSedangCutting) return;
+  if (vmCuttingSedangCutting) { if (typeof vmCuttingSedangCutting.muat === 'function') vmCuttingSedangCutting.muat(); return; }
   const mountPoint = document.getElementById('vue-cutting-sedangcutting');
   if (mountPoint) vmCuttingSedangCutting = createApp(CuttingSedangCutting).mount('#vue-cutting-sedangcutting');
 };
 let vmCuttingPerluDiKirim = null;
 window.pastikanMountCuttingPerluDiKirim = function () {
-  if (vmCuttingPerluDiKirim) return;
+  if (vmCuttingPerluDiKirim) { if (typeof vmCuttingPerluDiKirim.muat === 'function') vmCuttingPerluDiKirim.muat(); return; }
   const mountPoint = document.getElementById('vue-cutting-perludikirim');
   if (mountPoint) vmCuttingPerluDiKirim = createApp(CuttingPerluDiKirim).mount('#vue-cutting-perludikirim');
 };
 let vmCuttingSedangDiKirim = null;
 window.pastikanMountCuttingSedangDiKirim = function () {
-  if (vmCuttingSedangDiKirim) return;
+  if (vmCuttingSedangDiKirim) { if (typeof vmCuttingSedangDiKirim.muat === 'function') vmCuttingSedangDiKirim.muat(); return; }
   const mountPoint = document.getElementById('vue-cutting-sedangdikirim');
   if (mountPoint) vmCuttingSedangDiKirim = createApp(CuttingSedangDiKirim).mount('#vue-cutting-sedangdikirim');
 };
 let vmCuttingSelesai = null;
 window.pastikanMountCuttingSelesai = function () {
-  if (vmCuttingSelesai) return;
+  if (vmCuttingSelesai) { if (typeof vmCuttingSelesai.muat === 'function') vmCuttingSelesai.muat(); return; }
   const mountPoint = document.getElementById('vue-cutting-selesai');
   if (mountPoint) vmCuttingSelesai = createApp(CuttingSelesai).mount('#vue-cutting-selesai');
 };

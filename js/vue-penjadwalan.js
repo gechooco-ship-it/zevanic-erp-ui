@@ -1187,7 +1187,7 @@ let vmPenjadwalan = null;
 // yaitu PERSIS saat tab ini pertama kali dibuka, bukan dari awal muat
 // halaman.
 window.pastikanMountPenjadwalan = function() {
-  if (vmPenjadwalan) return; // sudah pernah di-mount, tidak perlu ulang
+  if (vmPenjadwalan) { if (typeof vmPenjadwalan.muat === 'function') vmPenjadwalan.muat(); return; }
   const mountPoint = document.getElementById('vue-penjadwalan');
   if (mountPoint) vmPenjadwalan = createApp(AppPenjadwalan).mount('#vue-penjadwalan');
 };

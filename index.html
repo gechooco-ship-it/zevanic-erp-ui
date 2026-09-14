@@ -1725,14 +1725,14 @@
        "Buat Grouping Sendiri" sekarang punya pilihan jalur produksi manual
        (Bahan/Sewing/Webbing/Finishing), karena order._produk selalu kosong
        di baris ini sehingga deteksi otomatis dari BOM tidak pernah jalan. -->
-  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=12"></script>
+  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=13"></script>
   <!-- BARU (31 Agt 2026, wireframe handoff "Persiapan Produksi - Bahan") —
        jalur Bahan GANTI TOTAL, lihat komentar besar di file ini. -->
   <!-- v=8 (10 Sep 2026 malam, lanjutan) — pesan error hasilScanTunjuk
        diperjelas: kalau kode yang gagal cocok TERNYATA badge operator
        (id_app karyawan), bilang eksplisit "itu badge operator, bukan
        label SPK" — lihat komentar di fungsi hasilScanTunjuk. -->
-  <script type="module" src="js/vue-persiapan-bahan.js?v=14"></script>
+  <script type="module" src="js/vue-persiapan-bahan.js?v=15"></script>
   <!-- BARU (1 Sep 2026, wireframe handoff "Persiapan Produksi - Acc
        Sewing/Webbing/Finishing", 3 pos dikerjakan sekaligus atas instruksi
        eksplisit Guru — menyimpang dari aturan "satu modul per sesi" di
@@ -1755,20 +1755,20 @@
   <!-- v=10/11/10 (10 Sep 2026 malam, lanjutan) — SAMA seperti vue-persiapan-
        bahan.js v=8: pesan error hasilScanTunjuk diperjelas kalau kode yang
        gagal cocok ternyata badge operator, bukan label SPK. -->
-  <script type="module" src="js/vue-persiapan-sewing.js?v=14"></script>
-  <script type="module" src="js/vue-persiapan-webbing.js?v=15"></script>
-  <script type="module" src="js/vue-persiapan-finishing.js?v=14"></script>
+  <script type="module" src="js/vue-persiapan-sewing.js?v=15"></script>
+  <script type="module" src="js/vue-persiapan-webbing.js?v=16"></script>
+  <script type="module" src="js/vue-persiapan-finishing.js?v=15"></script>
   <!-- BARU (7 Sep 2026, §5.18) — Persiapan Produksi > Masalah, 7 tahap,
        skema TRB baru (rebuild total dari fitur "Persiapan Masalah" lama,
        yang sekarang cuma papan manual biasa, lihat js/vue-persiapan-
        masalah.js — koleksinya sudah dipindah ke permintaan_bahan_manual). -->
-  <script type="module" src="js/vue-pp-masalah.js?v=4"></script>
+  <script type="module" src="js/vue-pp-masalah.js?v=5"></script>
   <!-- BARU (30 Agt 2026) — grup top-level "Pesanan": Penjualan Kasir (POS),
        Menunggu Proses (CRUD SPK, DISALIN dari OrderSpkManager lama),
        Proses Persiapan/Produksi/Pengiriman (ringkasan read-only dari
        spk_track). Lihat komentar besar atas js/vue-pesanan.js utk latar
        belakang & keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pesanan.js?v=7"></script>
+  <script type="module" src="js/vue-pesanan.js?v=8"></script>
   <!-- BARU (7 Sep 2026 malam) — fondasi menu "Scan & Cetak" (PopupPinGenerik/
        ScanGenerik dst), lihat komentar besar di js/vue-scan-cetak.js.
        v=3 (10 Sep 2026, laporan Guru) — FIX bug ScanGenerik: kamera
@@ -1778,24 +1778,24 @@
        Scan Kirim dst. Semua file pengimpor vue-scan-cetak.js ikut dibump
        ke ?v=3 di file masing-masing (bukan cuma di sini) supaya browser
        memuat versi baru yang sama, bukan dua salinan modul berbeda. -->
-  <script type="module" src="js/vue-scan-cetak.js?v=3"></script>
+  <script type="module" src="js/vue-scan-cetak.js?v=4"></script>
   <!-- BARU (8 Sep 2026, audit kode proyek) — "Pengaturan Cetak" (ukuran
        kertas/posisi QR/rincian tambahan per jenis cetak, terpusat), lihat
        komentar besar di js/vue-pengaturan-cetak.js. -->
   <script type="module" src="js/vue-pengaturan-cetak.js?v=5"></script>
-  <script type="module" src="js/vue-scan-opname.js?v=1"></script>
-  <script type="module" src="js/vue-scan-persiapan.js?v=4"></script>
-  <script type="module" src="js/vue-config-karyawan.js?v=3"></script>
-  <script type="module" src="js/vue-config-info.js?v=2"></script>
-  <script type="module" src="js/vue-config-absensi.js?v=3"></script>
-  <script type="module" src="js/vue-daftar-karyawan.js?v=4"></script>
+  <script type="module" src="js/vue-scan-opname.js?v=2"></script>
+  <script type="module" src="js/vue-scan-persiapan.js?v=5"></script>
+  <script type="module" src="js/vue-config-karyawan.js?v=4"></script>
+  <script type="module" src="js/vue-config-info.js?v=3"></script>
+  <script type="module" src="js/vue-config-absensi.js?v=4"></script>
+  <script type="module" src="js/vue-daftar-karyawan.js?v=5"></script>
   <!-- v=7 (30 Agt 2026, fitur "Pesanan"): KATEGORI_URUTAN tambah 'Pesanan'
        (posisi setelah Zevanic House, sebelum Persiapan Produksi), 5 entry
        DAFTAR_MENU baru (pesanan_kasir/menunggu/persiapan/produksi/
        pengiriman), id 'order_spk' DIPENSIUNKAN (deprecated:true). Lihat
        js/vue-pesanan.js. -->
-  <script type="module" src="js/vue-config-akses.js?v=14"></script>
-  <script type="module" src="js/vue-hak-akses.js?v=5"></script>
+  <script type="module" src="js/vue-config-akses.js?v=15"></script>
+  <script type="module" src="js/vue-hak-akses.js?v=6"></script>
   <!-- v=4 (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, permintaan
        Guru — PERUBAHAN LOGIC juga, bukan cuma tampilan) — form approval
        dipangkas jadi cuma Jadwal Shift + Jabatan (dibatasi Operator/
@@ -1803,17 +1803,17 @@
        Gudang penempatan DILEPAS dari form ini, jadi Owner-only lewat
        Daftar Karyawan > Edit — lihat catatan risiko di
        STATUS-PROYEK.md. -->
-  <script type="module" src="js/vue-antrean-dakar.js?v=5"></script>
+  <script type="module" src="js/vue-antrean-dakar.js?v=6"></script>
   <!-- v=6 (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, dari cek live
        Guru di HP) — header kartu: baris "email" ganti nama Gudang + baris
        baru Shift/jam shift; banner pindah ke bawah kolom cari & dipadatkan;
        ikon filter jadi menu oval titik-tiga "lainnya". -->
-  <script type="module" src="js/vue-antrean-absensi.js?v=7"></script>
+  <script type="module" src="js/vue-antrean-absensi.js?v=8"></script>
   <!-- v=3 (29 Agt 2026, moodboard v2) — redesain LENGKAP pertama kali di
        modul ini: avatar (foto_selfie, BARU ditampilkan), baris "{tanggal}
        - {gudang}", Jam Shift vs Jam Lembur berdampingan, banner/menu
        oval sama pola modul lain. -->
-  <script type="module" src="js/vue-antrean-lembur.js?v=4"></script>
+  <script type="module" src="js/vue-antrean-lembur.js?v=5"></script>
   <!-- v=3 (29 Agt 2026, moodboard v2, PRIORITAS TERAKHIR sesuai catatan
        risiko mockup) — label "Diajukan" dilepas (tanggal polos), foto
        bukti jadi ikon kecil di header; khusus kategori Isi Bensin: field
@@ -1830,13 +1830,13 @@
        "dikembalikan jadi tabel" di file ini), SEKARANG tabel itu TETAP ada
        PERSIS sama di layar >=768px, cuma di HP diganti kartu pola M6
        Sample Hifi mobile. Data & desktop TIDAK disentuh. -->
-  <script type="module" src="js/vue-reimburse.js?v=9"></script>
-  <script type="module" src="js/vue-riwayat-absensi.js?v=4"></script>
-  <script type="module" src="js/vue-penjadwalan.js?v=6"></script>
-  <script type="module" src="js/vue-whatsapp-gateway.js"></script>
+  <script type="module" src="js/vue-reimburse.js?v=10"></script>
+  <script type="module" src="js/vue-riwayat-absensi.js?v=5"></script>
+  <script type="module" src="js/vue-penjadwalan.js?v=7"></script>
+  <script type="module" src="js/vue-whatsapp-gateway.js?v=1"></script>
   <script type="module" src="js/vue-otp.js"></script>
-  <script type="module" src="js/vue-mail-gateway.js"></script>
-  <script type="module" src="js/vue-device-kiosk.js?v=3"></script>
+  <script type="module" src="js/vue-mail-gateway.js?v=1"></script>
+  <script type="module" src="js/vue-device-kiosk.js?v=4"></script>
   <!-- v=4 (28 Agt 2026, redesain "Gechoo Mobile Organic") — sentuhan gaya
        RINGAN saja pada tab Absensi: empty state Riwayat jadi pola
        `.gc-kosong`, kartu Riwayat jadi border-radius:20px (konsisten
@@ -1877,17 +1877,17 @@
        user lewat layar baru Atur Favorit), mode "Atur" inline dihapus,
        Pengumuman/Quote pindah ke js/vue-header-mobile.js. Lihat
        STATUS-PROYEK.md §44. -->
-  <script type="module" src="js/vue-home.js?v=6"></script>
+  <script type="module" src="js/vue-home.js?v=7"></script>
   <script type="module" src="js/vue-home-desktop.js?v=1"></script>
   <!-- v=4 (28 Agt 2026, redesain) — mode 'home' tambah quote inline, lonceng
        notifikasi Pengumuman (badge + dropdown), avatar inisial. Mode
        'tersembunyi' baru untuk layar ber-header sendiri (Menu Lengkap/Atur
        Favorit). -->
-  <script type="module" src="js/vue-header-mobile.js?v=10"></script>
+  <script type="module" src="js/vue-header-mobile.js?v=11"></script>
   <!-- BARU (28 Agt 2026, redesain "Gechoo Mobile Organic") — layar baru,
        lihat mount #vue-menu-lengkap/#vue-atur-favorit di atas. -->
-  <script type="module" src="js/vue-menu-lengkap.js"></script>
-  <script type="module" src="js/vue-atur-favorit.js?v=2"></script>
+  <script type="module" src="js/vue-menu-lengkap.js?v=1"></script>
+  <script type="module" src="js/vue-atur-favorit.js?v=3"></script>
   <script type="module" src="js/vue-registrasi.js?v=3"></script>
   <script type="module" src="js/vue-buat-password.js"></script>
   <script type="module" src="js/vue-login.js?v=1"></script>
@@ -1905,11 +1905,11 @@
        cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
        DropdownCari, tidak dipakai fitur Import Excel §37 yang ditambah di
        Data Komponen). -->
-  <script type="module" src="js/vue-bahan-aksesoris.js?v=24"></script>
-  <script type="module" src="js/vue-rak-penyimpanan.js?v=7"></script>
+  <script type="module" src="js/vue-bahan-aksesoris.js?v=25"></script>
+  <script type="module" src="js/vue-rak-penyimpanan.js?v=8"></script>
   <!-- BARU (7 Sep 2026, task #95) — Repack Komponen Acc, lihat komentar
        besar di file itu untuk detail keputusan Guru (AskUserQuestion). -->
-  <script type="module" src="js/vue-repack-komponen-acc.js?v=1"></script>
+  <script type="module" src="js/vue-repack-komponen-acc.js?v=2"></script>
   <!-- DIHAPUS TOTAL (9 Sep 2026, rombak ke-2) — dulu di sini:
        js/vue-persiapan-masalah.js?v=4. Lihat komentar navgrp-zevanic. -->
   <!-- v=19 (28 Agt 2026): sempat dicoba tag Jenis Pekerjaan per pesanan
@@ -1920,8 +1920,8 @@
        v=20 (28 Agt 2026, §37): TIDAK ADA perubahan fungsional di file ini —
        cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
        DropdownCari, tidak dipakai fitur Import Excel §37). -->
-  <script type="module" src="js/vue-stock-pembelian.js?v=27"></script>
-  <script type="module" src="js/vue-kartu-stok.js?v=8"></script>
+  <script type="module" src="js/vue-stock-pembelian.js?v=28"></script>
+  <script type="module" src="js/vue-kartu-stok.js?v=9"></script>
   <!-- BARU (27 Agt 2026, §26.1) — Zevanic House > Config. v=2 (28 Agt 2026):
        tambah tab ke-7 "Jenis Produk" (AppConfigJenisProduk, koleksi
        master_jenis_produk), pola sama persis seperti "Data Ukuran".
@@ -1939,16 +1939,16 @@
   <!-- v=9 (10 Sep 2026 malam) — fix pesan error tambahPrefixDivisi() ikut
        tampilkan e.code/e.message (laporan Guru "TLC & Prefix: Gagal
        menyimpan" generik, dugaan Rules master_prefix_divisi belum publish). -->
-  <script type="module" src="js/vue-config.js?v=12"></script>
+  <script type="module" src="js/vue-config.js?v=13"></script>
   <!-- BARU (5 Sep 2026) — Zevanic House > Master Suplayer: Entry & List
        (5.1) + Alias & MOQ (5.2, eks "Alias Pembelian" Stock & Pembelian,
        DITAMBAH moq/moq_satuan/lead_time_hari) + Petakan Order (5.3, BARU
        total). Lihat komentar panjang di js/vue-master-suplayer.js. -->
-  <script type="module" src="js/vue-master-suplayer.js?v=3"></script>
+  <script type="module" src="js/vue-master-suplayer.js?v=4"></script>
   <!-- BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
        Zevanic House > Master Pelanggan: koleksi & menu BARU TOTAL. Lihat
        komentar panjang di js/vue-master-pelanggan.js. -->
-  <script type="module" src="js/vue-master-pelanggan.js?v=3"></script>
+  <script type="module" src="js/vue-master-pelanggan.js?v=4"></script>
   <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM). v=2 (28 Agt 2026):
        cache-bust setelah fix dropdown Bahan/Aksesoris digabung 1 field.
        v=3 (28 Agt 2026, §28.9): cache-bust setelah tambah fitur Import/
@@ -2001,34 +2001,34 @@
   <!-- v=23 (10 Sep 2026 malam) — fix rincianBom(): "Harga BOM Pola" HPP
        dulu cuma Panjang x Harga Bahan, sekarang dibagi Isi Pola (Pcs)
        (laporan Guru "kemahalan"). -->
-  <script type="module" src="js/vue-master-produk.js?v=23"></script>
+  <script type="module" src="js/vue-master-produk.js?v=24"></script>
   <!-- BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi > Cutting, 7 tab.
        Lihat komentar besar di js/vue-pp-cutting.js untuk latar belakang &
        keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pp-cutting.js?v=10"></script>
+  <script type="module" src="js/vue-pp-cutting.js?v=11"></script>
   <!-- BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" setelah Cutting) —
        Proses Produksi > Serie, 11 tab (hub distribusi). Lihat komentar besar
        di js/vue-pp-serie.js untuk latar belakang & keputusan arsitektur
        lengkap. -->
-  <script type="module" src="js/vue-pp-serie.js?v=11"></script>
+  <script type="module" src="js/vue-pp-serie.js?v=12"></script>
   <!-- BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" #3, setelah Serie) —
        Proses Produksi > Sewing, 5 tab. Lihat komentar besar di js/vue-pp-
        sewing.js untuk latar belakang & keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pp-sewing.js?v=7"></script>
+  <script type="module" src="js/vue-pp-sewing.js?v=8"></script>
   <!-- BARU ("lanjut lagi" #4, 7 Sep 2026 — sesi ini, setelah Sewing) —
        Proses Produksi > Finishing, 5 tab (per-PCS tracking via
        finishing_track). Lihat komentar besar di js/vue-pp-finishing.js
        untuk latar belakang & keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pp-finishing.js?v=7"></script>
+  <script type="module" src="js/vue-pp-finishing.js?v=8"></script>
   <!-- BARU ("lanjut lagi" #5, 7 Sep 2026 — sesi ini, setelah Finishing) —
        Proses Produksi > Gudang Barang Jadi, 4 tab (titik akhir rantai
        produksi). Lihat komentar besar di js/vue-pp-gudang.js untuk latar
        belakang & keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pp-gudang.js?v=4"></script>
+  <script type="module" src="js/vue-pp-gudang.js?v=5"></script>
   <!-- BARU (7 Sep 2026 — sesi ini) — Persiapan Produksi > Persiapan Belanja,
        folder terakhir grup Persiapan Produksi. Lihat komentar besar di
        js/vue-persiapan-belanja.js untuk latar belakang & keputusan
        arsitektur lengkap. -->
-  <script type="module" src="js/vue-persiapan-belanja.js?v=5"></script>
+  <script type="module" src="js/vue-persiapan-belanja.js?v=6"></script>
 </body>
 </html>

@@ -46,7 +46,7 @@ import { collection, getDocs, doc, getDoc, updateDoc } from "https://www.gstatic
 import { db } from "./firebase-config.js";
 // ?v=5 (redesain) — daftarMenuGroups() TIDAK berubah signature, tapi
 // KartuMenu & AksesTerbatasDialog BARU ditambahkan ke file yang sama.
-import { daftarMenuGroups, KartuMenu, AksesTerbatasDialog } from './vue-components.js?v=8';
+import { daftarMenuGroups, KartuMenu, AksesTerbatasDialog } from './vue-components.js?v=9';
 
 const AppHome = {
   components: { KartuMenu, AksesTerbatasDialog },

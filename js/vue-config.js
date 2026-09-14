@@ -38,33 +38,33 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { MasterDataCategory, MasterDataTabelManager } from './vue-components.js?v=8';
+import { MasterDataCategory, MasterDataTabelManager } from './vue-components.js?v=9';
 
 const MENU_ID_CONFIG = 'config_master_data';
 
 const AppConfigJenisBahan = {
   components: { MasterDataCategory },
-  template: `<master-data-category kategori="jenis_bahan" label="Jenis Bahan" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
+  template: `<master-data-category ref="mgr" kategori="jenis_bahan" label="Jenis Bahan" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
 };
 
 const AppConfigJenisAksesoris = {
   components: { MasterDataCategory },
-  template: `<master-data-category kategori="jenis_aksesoris" label="Jenis Aksesoris" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
+  template: `<master-data-category ref="mgr" kategori="jenis_aksesoris" label="Jenis Aksesoris" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
 };
 
 const AppConfigSatuan = {
   components: { MasterDataTabelManager },
-  template: `<master-data-tabel-manager koleksi="master_satuan" label-singular="Satuan" label-nama="Nama Satuan" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
+  template: `<master-data-tabel-manager ref="mgr" koleksi="master_satuan" label-singular="Satuan" label-nama="Nama Satuan" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
 };
 
 const AppConfigWarna = {
   components: { MasterDataTabelManager },
-  template: `<master-data-tabel-manager koleksi="master_warna" label-singular="Warna" label-nama="Nama Warna" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
+  template: `<master-data-tabel-manager ref="mgr" koleksi="master_warna" label-singular="Warna" label-nama="Nama Warna" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
 };
 
 const AppConfigUkuran = {
   components: { MasterDataTabelManager },
-  template: `<master-data-tabel-manager koleksi="master_ukuran" label-singular="Ukuran" label-nama="Nama Ukuran" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
+  template: `<master-data-tabel-manager ref="mgr" koleksi="master_ukuran" label-singular="Ukuran" label-nama="Nama Ukuran" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
 };
 
 // AppConfigJenisProduk — BARU (28 Agt 2026). Pola SAMA PERSIS seperti
@@ -74,7 +74,7 @@ const AppConfigUkuran = {
 // (koleksi master_jenis_produk, lihat js/vue-master-produk.js).
 const AppConfigJenisProduk = {
   components: { MasterDataTabelManager },
-  template: `<master-data-tabel-manager koleksi="master_jenis_produk" label-singular="Jenis Produk" label-nama="Nama Jenis Produk" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
+  template: `<master-data-tabel-manager ref="mgr" koleksi="master_jenis_produk" label-singular="Jenis Produk" label-nama="Nama Jenis Produk" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
 };
 
 // AppConfigKomponen — BARU (28 Agt 2026). Permintaan Guru: "tambah tab
@@ -92,7 +92,7 @@ const AppConfigJenisProduk = {
 // di situ.
 const AppConfigKomponen = {
   components: { MasterDataTabelManager },
-  template: `<master-data-tabel-manager koleksi="master_komponen" label-singular="Komponen" label-nama="Nama Komponen" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" :izinkan-import-excel="true" />`
+  template: `<master-data-tabel-manager ref="mgr" koleksi="master_komponen" label-singular="Komponen" label-nama="Nama Komponen" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" :izinkan-import-excel="true" />`
 };
 
 // AppConfigTahapPersiapan — BARU (28 Agt 2026, permintaan Guru: "tambahkan
@@ -110,7 +110,7 @@ const AppConfigKomponen = {
 // panjang di vue-persiapan-produksi-v2.js soal pencocokan tahap.
 const AppConfigTahapPersiapan = {
   components: { MasterDataTabelManager },
-  template: `<master-data-tabel-manager koleksi="master_tahap_persiapan" label-singular="Tahap Persiapan" label-nama="Nama Tahap (mis. Sewing, Webbing, Finishing)" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
+  template: `<master-data-tabel-manager ref="mgr" koleksi="master_tahap_persiapan" label-singular="Tahap Persiapan" label-nama="Nama Tahap (mis. Sewing, Webbing, Finishing)" menu-id="${MENU_ID_CONFIG}" :tampil-tabel="true" />`
 };
 
 // AppConfigTlc — REDESAIN TOTAL (12 Sep 2026 lanjutan 8, coretan Guru di
@@ -304,7 +304,7 @@ const AppConfigTlc = {
     }
 
     onMounted(async () => { await window.authReady; await muat(); });
-    return {
+    return { muat,
       memuat, baris, bolehTambah, bolehHapus,
       saranTlc, bukaCari, tutupCariTunda, pilihTlc, simpanBaris,
       formCustom, menyimpanCustom, tambahCustom, hapusCustom
@@ -379,47 +379,47 @@ let vmConfigTahapPersiapan = null;
 let vmConfigTlc = null;
 
 window.pastikanMountConfigJenisBahan = function() {
-  if (vmConfigJenisBahan) return;
+  if (vmConfigJenisBahan) { const mgr = vmConfigJenisBahan.$refs && vmConfigJenisBahan.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-config-jenisbahan');
   if (mountPoint) vmConfigJenisBahan = createApp(AppConfigJenisBahan).mount('#vue-config-jenisbahan');
 };
 window.pastikanMountConfigJenisAksesoris = function() {
-  if (vmConfigJenisAksesoris) return;
+  if (vmConfigJenisAksesoris) { const mgr = vmConfigJenisAksesoris.$refs && vmConfigJenisAksesoris.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-config-jenisaksesoris');
   if (mountPoint) vmConfigJenisAksesoris = createApp(AppConfigJenisAksesoris).mount('#vue-config-jenisaksesoris');
 };
 window.pastikanMountConfigSatuan = function() {
-  if (vmConfigSatuan) return;
+  if (vmConfigSatuan) { const mgr = vmConfigSatuan.$refs && vmConfigSatuan.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-config-satuan');
   if (mountPoint) vmConfigSatuan = createApp(AppConfigSatuan).mount('#vue-config-satuan');
 };
 window.pastikanMountConfigWarna = function() {
-  if (vmConfigWarna) return;
+  if (vmConfigWarna) { const mgr = vmConfigWarna.$refs && vmConfigWarna.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-config-warna');
   if (mountPoint) vmConfigWarna = createApp(AppConfigWarna).mount('#vue-config-warna');
 };
 window.pastikanMountConfigUkuran = function() {
-  if (vmConfigUkuran) return;
+  if (vmConfigUkuran) { const mgr = vmConfigUkuran.$refs && vmConfigUkuran.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-config-ukuran');
   if (mountPoint) vmConfigUkuran = createApp(AppConfigUkuran).mount('#vue-config-ukuran');
 };
 window.pastikanMountConfigJenisProduk = function() {
-  if (vmConfigJenisProduk) return;
+  if (vmConfigJenisProduk) { const mgr = vmConfigJenisProduk.$refs && vmConfigJenisProduk.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-config-jenisproduk');
   if (mountPoint) vmConfigJenisProduk = createApp(AppConfigJenisProduk).mount('#vue-config-jenisproduk');
 };
 window.pastikanMountConfigKomponen = function() {
-  if (vmConfigKomponen) return;
+  if (vmConfigKomponen) { const mgr = vmConfigKomponen.$refs && vmConfigKomponen.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-config-komponen');
   if (mountPoint) vmConfigKomponen = createApp(AppConfigKomponen).mount('#vue-config-komponen');
 };
 window.pastikanMountConfigTahapPersiapan = function() {
-  if (vmConfigTahapPersiapan) return;
+  if (vmConfigTahapPersiapan) { const mgr = vmConfigTahapPersiapan.$refs && vmConfigTahapPersiapan.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-config-tahappersiapan');
   if (mountPoint) vmConfigTahapPersiapan = createApp(AppConfigTahapPersiapan).mount('#vue-config-tahappersiapan');
 };
 window.pastikanMountConfigTlc = function() {
-  if (vmConfigTlc) return;
+  if (vmConfigTlc) { if (typeof vmConfigTlc.muat === 'function') vmConfigTlc.muat(); return; }
   const mountPoint = document.getElementById('vue-config-tlc');
   if (mountPoint) vmConfigTlc = createApp(AppConfigTlc).mount('#vue-config-tlc');
 };

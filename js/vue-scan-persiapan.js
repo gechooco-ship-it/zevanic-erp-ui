@@ -136,7 +136,7 @@
 import { createApp, ref, computed, onMounted, onUnmounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=8';
+import { DropdownCari } from './vue-components.js?v=9';
 import {
   ambilLotAktif, cariLotByKode, cariBahanByIdTampil, ambilBahanById,
   catatPergerakanKartuStok, catatPemakaianDariAlokasi
@@ -686,8 +686,7 @@ const ScanPersiapanManager = {
       menyimpan.value = false;
     }
 
-    onMounted(async () => {
-      await window.authReady;
+    async function muat() {
       isOwner.value = (window.currentUser?.role || '').toLowerCase() === 'owner';
       siapAkses.value = true;
       memuatSpk.value = true;
@@ -696,11 +695,12 @@ const ScanPersiapanManager = {
       if (isOwner.value) {
         daftarBahan.value = await ambilDaftarBahanAksesorisLengkap();
       }
-    });
+    }
+    onMounted(async () => { await window.authReady; await muat(); });
     onUnmounted(tutupScan);
 
     return {
-      siapAkses, isOwner, isMobileDevice, diblokirDesktop, bolehSimpan,
+      siapAkses, isOwner, muat, isMobileDevice, diblokirDesktop, bolehSimpan,
       daftarSpk, memuatSpk, spkEntry, opsiSpkNama, spkAktif, gantiSpk,
       daftarBahan, bahanEntry, opsiBahanNama,
       bahanUntukPilihRoll, daftarLotUntukPilih, memuatLotPilih, pilihRollUntukPemakaian, batalPilihRoll,
@@ -850,11 +850,15 @@ const ScanPersiapanManager = {
 
 const AppScanPersiapan = {
   components: { ScanPersiapanManager },
-  template: `<scan-persiapan-manager />`
+  template: `<scan-persiapan-manager ref="mgr" />`
 };
 let vmScanPersiapan = null;
 window.pastikanMountScanPersiapan = function() {
-  if (vmScanPersiapan) return;
+  if (vmScanPersiapan) {
+    const mgr = vmScanPersiapan.$refs && vmScanPersiapan.$refs.mgr;
+    if (mgr && typeof mgr.muat === 'function') mgr.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-scan-persiapan');
   if (mountPoint) vmScanPersiapan = createApp(AppScanPersiapan).mount('#vue-scan-persiapan');
 };

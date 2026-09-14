@@ -124,10 +124,18 @@ const AppMailGateway = {
       if (nama === 'monitor') muatMonitoring();
     }
 
+    // muat() — dipanggil ulang tiap tab "Mail Gateway" diklik lagi (lihat
+    // pastikanMountMailGateway). Cuma refresh data pill-tab yang SEDANG
+    // aktif (template/monitor) — pill-tab lain tetap lazy seperti biasa
+    // lewat pindahTab().
+    function muat() {
+      if (tabAktif.value === 'template') muatTemplate();
+      else if (tabAktif.value === 'monitor') muatMonitoring();
+    }
     onMounted(async () => { await window.authReady; });
 
     return {
-      tabAktif, pindahTab,
+      tabAktif, pindahTab, muat,
       emailTes, kodeTes, mengirimTes, memverifikasiTes, hasilTes, kirimKodeTes, verifikasiKodeTes,
       template, menyimpanTemplate, simpanTemplate,
       daftarLog, daftarLogTersaring, filterStatus, memuatLog, muatMonitoring
@@ -265,7 +273,7 @@ let vmMailGateway = null;
 // Sama seperti layar admin lain — mount() ditunda sampai benar-benar
 // dinavigasi pertama kali (lihat catatan panjang di vue-antrean-dakar.js).
 window.pastikanMountMailGateway = function() {
-  if (vmMailGateway) return;
+  if (vmMailGateway) { if (typeof vmMailGateway.muat === 'function') vmMailGateway.muat(); return; }
   const mountPoint = document.getElementById('vue-mail-gateway');
   if (mountPoint) vmMailGateway = createApp(AppMailGateway).mount('#vue-mail-gateway');
 };

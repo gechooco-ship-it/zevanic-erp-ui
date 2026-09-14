@@ -419,7 +419,7 @@ const AppConfigInfo = {
 
 let vmConfigInfo = null;
 window.pastikanMountConfigInfo = function() {
-  if (vmConfigInfo) return;
+  if (vmConfigInfo) { if (typeof vmConfigInfo.muat === 'function') vmConfigInfo.muat(); return; }
   const mountPoint = document.getElementById('vue-config-info');
   if (mountPoint) vmConfigInfo = createApp(AppConfigInfo).mount('#vue-config-info');
 };

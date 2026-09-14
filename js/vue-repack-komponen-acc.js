@@ -52,7 +52,7 @@
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=8';
+import { DropdownCari } from './vue-components.js?v=9';
 
 const MENU_ID = 'stock_repack';
 const TAMBAH_TAMPIL = 20;
@@ -359,10 +359,10 @@ const RepackKomponenAccManager = {
   `
 };
 
-const AppRepackKomponenAcc = { components: { RepackKomponenAccManager }, template: `<repack-komponen-acc-manager />` };
+const AppRepackKomponenAcc = { components: { RepackKomponenAccManager }, template: `<repack-komponen-acc-manager ref="mgr" />` };
 let vmRepackKomponenAcc = null;
 window.pastikanMountRepackKomponenAcc = function() {
-  if (vmRepackKomponenAcc) return;
+  if (vmRepackKomponenAcc) { const mgr = vmRepackKomponenAcc.$refs && vmRepackKomponenAcc.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-repack-komponen-acc');
   if (mountPoint) vmRepackKomponenAcc = createApp(AppRepackKomponenAcc).mount('#vue-repack-komponen-acc');
 };

@@ -487,7 +487,7 @@ const PersiapanAdminBelanja = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       bolehProses, memuat, mode, daftarNota, daftarSuplayer, suplayerAktif,
       draftDocId, suplayerId, items, totalEstimasi, bukaFormBaru, bukaFormEdit, batalForm, hapusBaris, ubahQtyItem,
       elCari, cariItemTeks, kategoriFilter, daftarGrid, jumlahDiNota, tambahDariGrid, onKeydownCari,
@@ -730,7 +730,7 @@ const MenungguAccBelanja = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, daftar, sayaOwnerKeAtas, sedangProses, setujui, tolak, formatRupiah, formatDiamSejak };
+    return { muat, memuat, daftar, sayaOwnerKeAtas, sedangProses, setujui, tolak, formatRupiah, formatDiamSejak };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -877,7 +877,7 @@ const ListOrderDriver = {
       await muat();
     });
 
-    return {
+    return { muat,
       bolehProses, memuat, subTab, daftarOrder, daftarPending, daftarSuplayerSemua,
       menuTerbuka, toggleMenu, bukaFormatWa, kurangiQty,
       popupPending, bukaPending, konfirmasiPending,
@@ -1006,7 +1006,7 @@ const RiwayatBelanja = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, daftarTersaring, kataKunci, formatRupiah, formatWaktu, formatQty };
+    return { muat, memuat, daftarTersaring, kataKunci, formatRupiah, formatWaktu, formatQty };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1034,25 +1034,25 @@ const RiwayatBelanja = {
 // --- Mount ke index.html — LAZY, SAMA pola modul lain. -----------------------
 let vmPpBelanjaPersiapanAdmin = null;
 window.pastikanMountPpBelanjaPersiapanAdmin = function () {
-  if (vmPpBelanjaPersiapanAdmin) return;
+  if (vmPpBelanjaPersiapanAdmin) { if (typeof vmPpBelanjaPersiapanAdmin.muat === 'function') vmPpBelanjaPersiapanAdmin.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-belanja-persiapanadmin');
   if (mountPoint) vmPpBelanjaPersiapanAdmin = createApp(PersiapanAdminBelanja).mount('#vue-pp-belanja-persiapanadmin');
 };
 let vmPpBelanjaMenungguAcc = null;
 window.pastikanMountPpBelanjaMenungguAcc = function () {
-  if (vmPpBelanjaMenungguAcc) return;
+  if (vmPpBelanjaMenungguAcc) { if (typeof vmPpBelanjaMenungguAcc.muat === 'function') vmPpBelanjaMenungguAcc.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-belanja-menungguacc');
   if (mountPoint) vmPpBelanjaMenungguAcc = createApp(MenungguAccBelanja).mount('#vue-pp-belanja-menungguacc');
 };
 let vmPpBelanjaListOrderDriver = null;
 window.pastikanMountPpBelanjaListOrderDriver = function () {
-  if (vmPpBelanjaListOrderDriver) return;
+  if (vmPpBelanjaListOrderDriver) { if (typeof vmPpBelanjaListOrderDriver.muat === 'function') vmPpBelanjaListOrderDriver.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-belanja-listorderdriver');
   if (mountPoint) vmPpBelanjaListOrderDriver = createApp(ListOrderDriver).mount('#vue-pp-belanja-listorderdriver');
 };
 let vmPpBelanjaRiwayat = null;
 window.pastikanMountPpBelanjaRiwayat = function () {
-  if (vmPpBelanjaRiwayat) return;
+  if (vmPpBelanjaRiwayat) { if (typeof vmPpBelanjaRiwayat.muat === 'function') vmPpBelanjaRiwayat.muat(); return; }
   const mountPoint = document.getElementById('vue-pp-belanja-riwayat');
   if (mountPoint) vmPpBelanjaRiwayat = createApp(RiwayatBelanja).mount('#vue-pp-belanja-riwayat');
 };

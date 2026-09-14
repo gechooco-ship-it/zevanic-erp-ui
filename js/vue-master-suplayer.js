@@ -39,7 +39,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=8';
+import { DropdownCari } from './vue-components.js?v=9';
 
 // --- Helper kecil, DISALIN dari vue-stock-pembelian.js (konvensi "salin
 // logic kecil per-file" proyek ini — supaya modul ini tidak butuh export
@@ -184,7 +184,7 @@ const SuplayerEntryList = {
     }
 
     onMounted(async () => { await window.authReady; await muat(); });
-    return { memuat, daftarTampil, cari, form, menyimpan, bolehTambah, bolehEdit, bolehHapus, tambah, bukaEdit, simpanEdit, popupEdit, hapus, jumlahAlias };
+    return { memuat, muat, daftarTampil, cari, form, menyimpan, bolehTambah, bolehEdit, bolehHapus, tambah, bukaEdit, simpanEdit, popupEdit, hapus, jumlahAlias };
   },
   template: `
     <!-- RESTRUKTURISASI (9 Sep 2026, audit wireframe §5.1) — dulu form-tambah
@@ -364,7 +364,7 @@ const AliasMoqManager = {
 
     onMounted(async () => { await window.authReady; await muatSemua(); });
     return {
-      memuat, daftarAlias, form, opsiNamaInternal, opsiSuplayer, bolehTambah, bolehHapus,
+      memuat, muat: muatSemua, daftarAlias, form, opsiNamaInternal, opsiSuplayer, bolehTambah, bolehHapus,
       menyimpan, tambah, hapus, namaInternalTampil, formatQty,
       tampilTambahSuplayer, onSuplayerBaruTersimpan
     };
@@ -488,7 +488,7 @@ const PetakanOrderManager = {
     }
 
     onMounted(async () => { await window.authReady; await muat(); });
-    return { memuat, kelompokItem, bolehProses, sedangProses, jadikanDefault, formatQty };
+    return { memuat, muat, kelompokItem, bolehProses, sedangProses, jadikanDefault, formatQty };
   },
   template: `
     <div class="gc-card gc-card-menonjol" style="padding:16px;">
@@ -525,14 +525,14 @@ const PetakanOrderManager = {
 // ============================================================================
 let vmSuplayerEntry = null, vmSuplayerAlias = null, vmSuplayerPetakan = null;
 window.pastikanMountSuplayerEntry = function () {
-  if (vmSuplayerEntry) return;
+  if (vmSuplayerEntry) { if (typeof vmSuplayerEntry.muat === 'function') vmSuplayerEntry.muat(); return; }
   if (document.getElementById('vue-suplayer-entry')) vmSuplayerEntry = createApp(SuplayerEntryList).mount('#vue-suplayer-entry');
 };
 window.pastikanMountSuplayerAliasMoq = function () {
-  if (vmSuplayerAlias) return;
+  if (vmSuplayerAlias) { if (typeof vmSuplayerAlias.muat === 'function') vmSuplayerAlias.muat(); return; }
   if (document.getElementById('vue-suplayer-alias-moq')) vmSuplayerAlias = createApp(AliasMoqManager).mount('#vue-suplayer-alias-moq');
 };
 window.pastikanMountSuplayerPetakan = function () {
-  if (vmSuplayerPetakan) return;
+  if (vmSuplayerPetakan) { if (typeof vmSuplayerPetakan.muat === 'function') vmSuplayerPetakan.muat(); return; }
   if (document.getElementById('vue-suplayer-petakan')) vmSuplayerPetakan = createApp(PetakanOrderManager).mount('#vue-suplayer-petakan');
 };

@@ -113,7 +113,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=8';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=9';
 
 // buatQrDataUrl — copy persis pola SAMA yang sudah dipakai di banyak file
 // lain (vue-bahan-aksesoris.js, vue-stock-pembelian.js, dst) — konvensi
@@ -436,7 +436,7 @@ const RakPenyimpananManager = {
       popupTerbuka, form, menyimpan, sedangEditId, kodePreview, volumeRakCm3, volumeRakM3,
       bukaTambah, bukaEdit, tutupPopup, simpan, hapus,
       barisTampil, barisTerfilter, adaLebihBanyak, muatLebihBanyak,
-      rakBelumTerisi, ringkasan, muatSemua,
+      rakBelumTerisi, ringkasan, muatSemua, muat: muatSemua,
       popupCetakLabelAktif, daftarLabelPreview, cetakLabelRak, tutupPopupCetakLabel,
       formatAngka
     };
@@ -604,10 +604,14 @@ const RakPenyimpananManager = {
   `
 };
 
-const AppRakPenyimpanan = { components: { RakPenyimpananManager }, template: `<rak-penyimpanan-manager />` };
+const AppRakPenyimpanan = { components: { RakPenyimpananManager }, template: `<rak-penyimpanan-manager ref="mgr" />` };
 let vmRakPenyimpanan = null;
 window.pastikanMountRakPenyimpanan = function() {
-  if (vmRakPenyimpanan) return;
+  if (vmRakPenyimpanan) {
+    const mgr = vmRakPenyimpanan.$refs && vmRakPenyimpanan.$refs.mgr;
+    if (mgr && typeof mgr.muat === 'function') mgr.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-rak-penyimpanan');
   if (mountPoint) vmRakPenyimpanan = createApp(AppRakPenyimpanan).mount('#vue-rak-penyimpanan');
 };

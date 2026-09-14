@@ -374,7 +374,7 @@ const GudangPerluDisimpan = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftarBatch, kelompokSiapDisimpan, bolehProses, formatQty, formatDiamSejak, tertahan,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
       modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack,
@@ -493,7 +493,7 @@ const GudangStokTersedia = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, kelompokTersaring, totalStok, kataKunci, formatQty };
+    return { muat, memuat, kelompokTersaring, totalStok, kataKunci, formatQty };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -588,7 +588,7 @@ const GudangRiwayatKeluar = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { memuat, daftarUrut, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, infoTransaksi, formatWaktu };
+    return { muat, memuat, daftarUrut, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, infoTransaksi, formatWaktu };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -699,7 +699,7 @@ const GudangScanOpname = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       memuat, daftarAktif, daftarPerluDicari, bolehProses,
       sesi, mulaiSesi, modalScanAktif, bukaScan, tutupScan, hasilScanOpname, selesaikanSesi, batalSesi,
       targetHilang, popupPinAktif, bukaKonfirmasiHilang, pinSuksesHilang
@@ -758,25 +758,25 @@ const GudangScanOpname = {
 // --- Mount ke index.html — LAZY, SAMA pola Cutting/Serie/Sewing/Finishing. --
 let vmGudangPerluDisimpan = null;
 window.pastikanMountGudangPerluDisimpan = function () {
-  if (vmGudangPerluDisimpan) return;
+  if (vmGudangPerluDisimpan) { if (typeof vmGudangPerluDisimpan.muat === 'function') vmGudangPerluDisimpan.muat(); return; }
   const mountPoint = document.getElementById('vue-gudang-perludisimpan');
   if (mountPoint) vmGudangPerluDisimpan = createApp(GudangPerluDisimpan).mount('#vue-gudang-perludisimpan');
 };
 let vmGudangStokTersedia = null;
 window.pastikanMountGudangStokTersedia = function () {
-  if (vmGudangStokTersedia) return;
+  if (vmGudangStokTersedia) { if (typeof vmGudangStokTersedia.muat === 'function') vmGudangStokTersedia.muat(); return; }
   const mountPoint = document.getElementById('vue-gudang-stoktersedia');
   if (mountPoint) vmGudangStokTersedia = createApp(GudangStokTersedia).mount('#vue-gudang-stoktersedia');
 };
 let vmGudangRiwayatKeluar = null;
 window.pastikanMountGudangRiwayatKeluar = function () {
-  if (vmGudangRiwayatKeluar) return;
+  if (vmGudangRiwayatKeluar) { if (typeof vmGudangRiwayatKeluar.muat === 'function') vmGudangRiwayatKeluar.muat(); return; }
   const mountPoint = document.getElementById('vue-gudang-riwayatkeluar');
   if (mountPoint) vmGudangRiwayatKeluar = createApp(GudangRiwayatKeluar).mount('#vue-gudang-riwayatkeluar');
 };
 let vmGudangScanOpname = null;
 window.pastikanMountGudangScanOpname = function () {
-  if (vmGudangScanOpname) return;
+  if (vmGudangScanOpname) { if (typeof vmGudangScanOpname.muat === 'function') vmGudangScanOpname.muat(); return; }
   const mountPoint = document.getElementById('vue-gudang-scanopname');
   if (mountPoint) vmGudangScanOpname = createApp(GudangScanOpname).mount('#vue-gudang-scanopname');
 };

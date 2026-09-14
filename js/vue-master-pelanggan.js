@@ -219,7 +219,7 @@ const MasterPelangganManager = {
 
     onMounted(async () => { await window.authReady; await muat(); });
     return {
-      memuat, daftarTampil, cari, menyimpan, popupForm,
+      memuat, muat, daftarTampil, cari, menyimpan, popupForm,
       bolehTambah, bolehEdit, bolehHapus,
       bukaTambah, bukaEdit, tutupPopup, simpanPopup, hapus,
       labelTipe, kelasTagTipe, formatRupiah, totalPesanan, jumlahPesanan, statusAktif
@@ -342,6 +342,6 @@ const MasterPelangganManager = {
 // ============================================================================
 let vmMasterPelanggan = null;
 window.pastikanMountMasterPelanggan = function () {
-  if (vmMasterPelanggan) return;
+  if (vmMasterPelanggan) { if (typeof vmMasterPelanggan.muat === 'function') vmMasterPelanggan.muat(); return; }
   if (document.getElementById('vue-master-pelanggan')) vmMasterPelanggan = createApp(MasterPelangganManager).mount('#vue-master-pelanggan');
 };

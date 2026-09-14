@@ -62,7 +62,7 @@ import { createApp, ref, reactive, computed, onMounted, watch } from 'https://un
 import { collection, doc, setDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=8';
+import { DropdownCari } from './vue-components.js?v=9';
 import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
 // pakaiRiwayatTabVue — TIDAK dipakai lagi di file ini sejak restrukturisasi
 // tampilan Entry Produk (9 Sep 2026, audit wireframe §2.1): BOM Jasa/Pola/
@@ -1889,7 +1889,7 @@ const MasterProdukListManager = {
     }
 
     return {
-      paginasi, sedangEdit, bukaEdit, tutupEdit, saatTersimpanEdit, hapus, bolehHapus,
+      paginasi, muat: () => paginasi.muatUlang(), sedangEdit, bukaEdit, tutupEdit, saatTersimpanEdit, hapus, bolehHapus,
       produkTerpilih, toggleCentang, semuaTercentang, toggleSemua, hapusMassal,
       formatRupiah, hitungBreakdownPola, totalHargaJasa, totalKomponenPola, polaUtama,
       dropdownImportTerbuka, inputFileProdukUtama, inputFileBOM,
@@ -2398,7 +2398,8 @@ const MasterProdukHppManager = {
       sedangSimpan.value = false;
     }
 
-    onMounted(async () => {
+    async function muat() {
+      memuatAwal.value = true;
       try {
         const [produk, bahan] = await Promise.all([ambilSemuaProduk(), ambilDaftarBahanAksesorisLengkap()]);
         daftarProduk.value = produk;
@@ -2408,10 +2409,11 @@ const MasterProdukHppManager = {
       }
       memuatAwal.value = false;
       await muatDaftarPendingHarga();
-    });
+    }
+    onMounted(muat);
 
     return {
-      memuatAwal, opsiProdukLabel, labelTerpilih, produkTerpilih, pilihProduk, lepasProduk,
+      memuatAwal, muat, opsiProdukLabel, labelTerpilih, produkTerpilih, pilihProduk, lepasProduk,
       biayaTambahan, tambahBiaya, hapusBiaya,
       rincianBom, subtotalTambahan, hppTotal, marginJual, marginPersen,
       sedangSimpan, simpanBiayaTambahan, bolehSimpan,
@@ -2570,20 +2572,28 @@ window.pastikanMountProdukEntry = function() {
   if (mountPoint) vmMasterProdukEntry = createApp(AppMasterProdukEntry).mount('#vue-master-produk-entry');
 };
 
-const AppMasterProdukList = { components: { MasterProdukListManager }, template: `<master-produk-list-manager />` };
+const AppMasterProdukList = { components: { MasterProdukListManager }, template: `<master-produk-list-manager ref="mgr" />` };
 let vmMasterProdukList = null;
 window.pastikanMountProdukList = function() {
-  if (vmMasterProdukList) return;
+  if (vmMasterProdukList) {
+    const mgr = vmMasterProdukList.$refs && vmMasterProdukList.$refs.mgr;
+    if (mgr && typeof mgr.muat === 'function') mgr.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-master-produk-list');
   if (mountPoint) vmMasterProdukList = createApp(AppMasterProdukList).mount('#vue-master-produk-list');
 };
 
 // BARU (7 Sep 2026) — tab child ke-3 "HPP", lihat MasterProdukHppManager di
 // atas. Desktop-only per wireframe (peran: Admin/Owner, device: Desktop).
-const AppMasterProdukHpp = { components: { MasterProdukHppManager }, template: `<master-produk-hpp-manager />` };
+const AppMasterProdukHpp = { components: { MasterProdukHppManager }, template: `<master-produk-hpp-manager ref="mgr" />` };
 let vmMasterProdukHpp = null;
 window.pastikanMountProdukHpp = function() {
-  if (vmMasterProdukHpp) return;
+  if (vmMasterProdukHpp) {
+    const mgr = vmMasterProdukHpp.$refs && vmMasterProdukHpp.$refs.mgr;
+    if (mgr && typeof mgr.muat === 'function') mgr.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-master-produk-hpp');
   if (mountPoint) vmMasterProdukHpp = createApp(AppMasterProdukHpp).mount('#vue-master-produk-hpp');
 };

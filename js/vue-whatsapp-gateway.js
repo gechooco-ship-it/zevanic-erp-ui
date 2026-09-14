@@ -202,10 +202,18 @@ const AppWhatsappGateway = {
       if (nama === 'monitor') muatMonitoring();
     }
 
+    // muat() — dipanggil ulang tiap tab "Whatsapp Gateway" diklik lagi
+    // (lihat pastikanMountWhatsapp). Refresh sesuai pill-tab yang sedang
+    // aktif — pill-tab lain tetap lazy seperti biasa lewat pindahTab().
+    function muat() {
+      if (tabAktif.value === 'config') muatKonfig();
+      else if (tabAktif.value === 'template') muatTemplate();
+      else if (tabAktif.value === 'monitor') muatMonitoring();
+    }
     onMounted(async () => { await window.authReady; muatKonfig(); });
 
     return {
-      tabAktif, pindahTab,
+      tabAktif, pindahTab, muat,
       webappUrl, secret, otpAktif, nomorTes, mengujiKirim, menyimpanKonfig, simpanKonfig, tesKirim,
       template, menyimpanTemplate, simpanTemplate,
       daftarLog, daftarLogTersaring, filterStatus, memuatLog, muatMonitoring,
@@ -361,7 +369,7 @@ let vmWhatsapp = null;
 // Sama seperti layar admin lain — mount() ditunda sampai benar-benar
 // dinavigasi pertama kali (lihat catatan panjang di vue-antrean-dakar.js).
 window.pastikanMountWhatsapp = function() {
-  if (vmWhatsapp) return;
+  if (vmWhatsapp) { if (typeof vmWhatsapp.muat === 'function') vmWhatsapp.muat(); return; }
   const mountPoint = document.getElementById('vue-whatsapp-gateway');
   if (mountPoint) vmWhatsapp = createApp(AppWhatsappGateway).mount('#vue-whatsapp-gateway');
 };

@@ -57,7 +57,7 @@ import { collection, getDocs, doc, updateDoc, query, where } from "https://www.g
 import { db } from "./firebase-config.js";
 // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2) — KolomCari
 // (pil, dipakai juga di Antrean Absensi) GANTI kolom cari hand-rolled.
-import { KolomCari } from './vue-components.js?v=8';
+import { KolomCari } from './vue-components.js?v=9';
 
 // Status mentah (field `status` di dokumen `absensi`) yang masuk cakupan
 // tab gabungan ini — lihat header file utk kenapa 3 ini digabung.
@@ -419,7 +419,7 @@ const AppAntreanIcl = {
 // tidak perlu diubah.
 let vmAntreanICL = null;
 window.pastikanMountAntreanLembur = function() {
-  if (vmAntreanICL) return;
+  if (vmAntreanICL) { if (typeof vmAntreanICL.muat === 'function') vmAntreanICL.muat(); return; }
   const mountPoint = document.getElementById('vue-antrean-lembur');
   if (mountPoint) vmAntreanICL = createApp(AppAntreanIcl).mount('#vue-antrean-lembur');
 };

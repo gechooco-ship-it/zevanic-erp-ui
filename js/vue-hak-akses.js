@@ -419,7 +419,7 @@ let vmHakAkses = null;
 // yaitu PERSIS saat tab ini pertama kali dibuka, bukan dari awal muat
 // halaman.
 window.pastikanMountHakAkses = function() {
-  if (vmHakAkses) return; // sudah pernah di-mount, tidak perlu ulang
+  if (vmHakAkses) { if (typeof vmHakAkses.muat === 'function') vmHakAkses.muat(); return; }
   const mountPoint = document.getElementById('vue-hak-akses');
   if (mountPoint) vmHakAkses = createApp(AppHakAkses).mount('#vue-hak-akses');
 };

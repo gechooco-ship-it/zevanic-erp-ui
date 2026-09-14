@@ -53,7 +53,7 @@
 import { createApp, ref, computed, onMounted, onUnmounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=8';
+import { DropdownCari } from './vue-components.js?v=9';
 import {
   ambilLotAktif, cariBahanByIdTampil, ambilBahanById, cariLotByKodeSemuaStatus,
   catatPenyesuaianOpnameItem, catatPenyesuaianOpnameLot
@@ -301,18 +301,18 @@ const ScanOpnameManager = {
       menyimpan.value = false;
     }
 
-    onMounted(async () => {
-      await window.authReady;
+    async function muat() {
       isOwner.value = (window.currentUser?.role || '').toLowerCase() === 'owner';
       siapAkses.value = true;
       if (isOwner.value) {
         daftarBahan.value = await ambilDaftarBahanAksesorisLengkap();
       }
-    });
+    }
+    onMounted(async () => { await window.authReady; await muat(); });
     onUnmounted(tutupScan);
 
     return {
-      siapAkses, isOwner, isMobileDevice, diblokirDesktop, bolehSimpan,
+      siapAkses, isOwner, muat, isMobileDevice, diblokirDesktop, bolehSimpan,
       daftarBahan, bahanEntry, opsiBahanNama,
       bahanUntukPilihRoll, daftarLotUntukPilih, memuatLotPilih, pilihRollUntukOpname, batalPilihRoll,
       scanAktif, videoScanEl, canvasScanEl, scanMemuatKamera, scanError, bukaScan, tutupScan,
@@ -415,11 +415,15 @@ const ScanOpnameManager = {
 
 const AppScanOpname = {
   components: { ScanOpnameManager },
-  template: `<scan-opname-manager />`
+  template: `<scan-opname-manager ref="mgr" />`
 };
 let vmScanOpname = null;
 window.pastikanMountScanOpname = function() {
-  if (vmScanOpname) return;
+  if (vmScanOpname) {
+    const mgr = vmScanOpname.$refs && vmScanOpname.$refs.mgr;
+    if (mgr && typeof mgr.muat === 'function') mgr.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-scan-opname');
   if (mountPoint) vmScanOpname = createApp(AppScanOpname).mount('#vue-scan-opname');
 };

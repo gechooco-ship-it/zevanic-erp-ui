@@ -45,7 +45,7 @@ import { db } from "./firebase-config.js";
 // BARU (29 Agt 2026 v2) — GudangCheckboxSelect DILEPAS dari sini (form
 // approval tidak lagi input Gudang, lihat catatan di AntreanDakarCard di
 // bawah) — KolomCari (pil) dipakai buat baris cari, pola sama modul lain.
-import { KolomCari } from './vue-components.js?v=8';
+import { KolomCari } from './vue-components.js?v=9';
 
 const MASA_BERLAKU_MENIT = 30; // disepakati 18 Agt 2026 — lihat STATUS-PROYEK.md
 
@@ -528,7 +528,7 @@ let vmAntreanDakar = null;
 // window.pastikanMountAntreanDakar() — PERSIS saat tab ini pertama kali
 // dibuka, bukan dari awal muat halaman.
 window.pastikanMountAntreanDakar = function() {
-  if (vmAntreanDakar) return; // sudah pernah di-mount, tidak perlu ulang
+  if (vmAntreanDakar) { if (typeof vmAntreanDakar.muat === 'function') vmAntreanDakar.muat(); return; }
   const mountPoint = document.getElementById('vue-antrean-dakar');
   if (mountPoint) vmAntreanDakar = createApp(AppAntreanDakar).mount('#vue-antrean-dakar');
 };

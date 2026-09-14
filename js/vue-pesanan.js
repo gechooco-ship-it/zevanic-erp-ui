@@ -801,17 +801,17 @@ const PesananKasirManager = {
     // read Firestore kalau layar lain sudah memuatnya duluan.
     const pengaturanStruk = ref(null);
 
-    onMounted(async () => {
-      await window.authReady;
+    async function muat() {
       memuatProduk.value = true;
       try { daftarProduk.value = await ambilSemuaProduk(); } catch (e) { console.error('Gagal muat daftar produk buat Kasir:', e); }
       memuatProduk.value = false;
       await muatPelanggan();
       try { pengaturanStruk.value = await ambilPengaturanCetak('struk_kasir'); } catch (e) { console.error('Gagal muat pengaturan cetak struk_kasir:', e); }
-    });
+    }
+    onMounted(async () => { await window.authReady; await muat(); });
 
     return {
-      bolehTambah, memuatProduk, daftarProduk, kategoriAktif, cariProduk,
+      bolehTambah, muat, memuatProduk, daftarProduk, kategoriAktif, cariProduk,
       daftarKategori, produkTampil, keranjang, daftarKeranjang, totalBelanja, totalKotorBelanja, diskonTotalBelanja, totalItem,
       subtotalItem, tambahKeKeranjang, tambahQty, kurangiQty, hapusDariKeranjang, kosongkanKeranjang,
       memuatPelanggan, daftarPelanggan, cariPelanggan, pelangganTerpilihId, pelangganTerpilih, pelangganTampil,
@@ -1100,7 +1100,7 @@ const PesananMenungguManager = {
     });
 
     return {
-      bolehLihat, sayaOwnerKeAtas, memuat, kelompokTransaksi, pilihan, opsiUntuk, produkDari,
+      bolehLihat, sayaOwnerKeAtas, memuat, muat, kelompokTransaksi, pilihan, opsiUntuk, produkDari,
       pilihAngka, pilihManual, jumlahOrderRp, barisTercentang, totalHargaTercentang,
       popupPinTampil, memproses, klikProsesMasal, pinProsesSukses,
       formatQty, formatRupiah
@@ -1415,7 +1415,7 @@ const PesananDaftarManager = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       bolehLihat, memuat, cari, kartuTerbuka, ringkasanMenyeluruh, kartuPelanggan,
       pipelinePersiapan, popupRincian, bukaRincian, rincianBarisTampil,
       popupTimeline, bukaTimeline, pindahTabTimeline, JALUR_URUTAN, JALUR_LABEL_PENDEK,
@@ -1764,7 +1764,7 @@ const PesananTransaksiManager = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return {
+    return { muat,
       bolehLihat, sayaOwnerKeAtas, memuat, cari,
       filterPelangganId, daftarPelangganTransaksi, lompatKe,
       kasBesar, totalKasBesar, bukaCatatPembayaran,
@@ -1951,10 +1951,14 @@ const PesananTransaksiManager = {
 // js/dashboard.js (petaMount). "Persiapan"/"Produksi"/"Pengiriman" (ringkasan
 // lama) DIHAPUS TOTAL, diganti pastikanMountPesananDaftar/Transaksi.
 // ============================================================================
-const AppPesananKasir = { components: { PesananKasirManager }, template: `<pesanan-kasir-manager />` };
+const AppPesananKasir = { components: { PesananKasirManager }, template: `<pesanan-kasir-manager ref="mgr" />` };
 let vmPesananKasir = null;
 window.pastikanMountPesananKasir = function() {
-  if (vmPesananKasir) return;
+  if (vmPesananKasir) {
+    const mgr = vmPesananKasir.$refs && vmPesananKasir.$refs.mgr;
+    if (mgr && typeof mgr.muat === 'function') mgr.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-pesanan-kasir');
   if (mountPoint) vmPesananKasir = createApp(AppPesananKasir).mount('#vue-pesanan-kasir');
 };
@@ -1980,18 +1984,18 @@ window.pastikanMountPesananMenunggu = function() {
   if (mountPoint) vmPesananMenunggu = createApp(AppPesananMenunggu).mount('#vue-pesanan-menunggu');
 };
 
-const AppPesananDaftar = { components: { PesananDaftarManager }, template: `<pesanan-daftar-manager />` };
+const AppPesananDaftar = { components: { PesananDaftarManager }, template: `<pesanan-daftar-manager ref="mgr" />` };
 let vmPesananDaftar = null;
 window.pastikanMountPesananDaftar = function() {
-  if (vmPesananDaftar) return;
+  if (vmPesananDaftar) { const mgr = vmPesananDaftar.$refs && vmPesananDaftar.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-pesanan-daftar');
   if (mountPoint) vmPesananDaftar = createApp(AppPesananDaftar).mount('#vue-pesanan-daftar');
 };
 
-const AppPesananTransaksi = { components: { PesananTransaksiManager }, template: `<pesanan-transaksi-manager />` };
+const AppPesananTransaksi = { components: { PesananTransaksiManager }, template: `<pesanan-transaksi-manager ref="mgr" />` };
 let vmPesananTransaksi = null;
 window.pastikanMountPesananTransaksi = function() {
-  if (vmPesananTransaksi) return;
+  if (vmPesananTransaksi) { const mgr = vmPesananTransaksi.$refs && vmPesananTransaksi.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-pesanan-transaksi');
   if (mountPoint) vmPesananTransaksi = createApp(AppPesananTransaksi).mount('#vue-pesanan-transaksi');
 };

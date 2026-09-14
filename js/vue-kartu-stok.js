@@ -81,7 +81,7 @@
 import { createApp, ref, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=8';
+import { DropdownCari } from './vue-components.js?v=9';
 import { usePaginasiFirestore } from './vue-paginasi.js';
 import { ambilLotAktif } from './vue-stock-pembelian.js';
 
@@ -177,13 +177,17 @@ const KartuStokManager = {
       petakan: (id, d) => ({ id, ...d })
     });
 
-    onMounted(async () => {
-      await window.authReady;
+    // muat() — dipanggil ulang tiap tab "Kartu Stok" diklik lagi (lihat
+    // pastikanMountKartuStok). Refresh daftar item, dan kalau sedang ada
+    // item aktif dipilih, ikut refresh badge lot + ledgernya juga.
+    async function muat() {
       await muatDaftarItemLengkap();
-    });
+      if (itemAktif.value) { await muatLotAktifCount(); await paginasiDetail.muatUlang(); }
+    }
+    onMounted(async () => { await window.authReady; await muat(); });
 
     return {
-      daftarItemLengkap, memuatDaftarItem, errorDaftarItem, muatDaftarItemLengkap,
+      daftarItemLengkap, memuatDaftarItem, errorDaftarItem, muatDaftarItemLengkap, muat,
       itemEntry, opsiItemNama, itemAktif,
       lotAktifCount, memuatLot,
       paginasiDetail,
@@ -285,10 +289,14 @@ const KartuStokManager = {
   `
 };
 
-const AppKartuStok = { components: { KartuStokManager }, template: `<kartu-stok-manager />` };
+const AppKartuStok = { components: { KartuStokManager }, template: `<kartu-stok-manager ref="mgr" />` };
 let vmKartuStok = null;
 window.pastikanMountKartuStok = function() {
-  if (vmKartuStok) return;
+  if (vmKartuStok) {
+    const mgr = vmKartuStok.$refs && vmKartuStok.$refs.mgr;
+    if (mgr && typeof mgr.muat === 'function') mgr.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-kartu-stok');
   if (mountPoint) vmKartuStok = createApp(AppKartuStok).mount('#vue-kartu-stok');
 };

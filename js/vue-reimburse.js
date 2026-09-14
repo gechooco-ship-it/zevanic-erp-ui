@@ -25,7 +25,7 @@
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, where, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { MasterDataCategory, KolomCari } from './vue-components.js?v=8';
+import { MasterDataCategory, KolomCari } from './vue-components.js?v=9';
 import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
 
 // Kompresi gambar sisi klien — pola SAMA seperti js/camera.js (foto KTP),
@@ -814,7 +814,7 @@ const AppAntreanReimburse = {
 
 let vmAntreanReimburse = null;
 window.pastikanMountAntreanReimburse = function() {
-  if (vmAntreanReimburse) return;
+  if (vmAntreanReimburse) { if (typeof vmAntreanReimburse.muat === 'function') vmAntreanReimburse.muat(); return; }
   const mountPoint = document.getElementById('vue-antrean-reimburse');
   if (mountPoint) vmAntreanReimburse = createApp(AppAntreanReimburse).mount('#vue-antrean-reimburse');
 };
@@ -822,14 +822,10 @@ window.refreshAntreanReimburse = function() { if (vmAntreanReimburse) vmAntreanR
 
 // ============================================================================
 // KOMPONEN 3 — Master Keuangan: cuma bungkus tipis MasterDataCategory yang
-// SUDAH ADA (dipakai ulang, bukan bikin UI baru) — kelola daftar Kategori
-// Pengeluaran (BBM, Tol, Parkir, dst) buat dropdown di form Ajukan Reimburse.
+// Kelola kategori Pengeluaran (dipakai form Ajukan Reimburse) dan kategori
+// Pemasukan, pakai ulang MasterDataCategory (bukan UI baru). 2 section
+// ditumpuk vertikal (bukan berdampingan) sesuai spek Master Keuangan.
 // ============================================================================
-// GANTI (9 Sep 2026, audit vs wireframe §3.4) — dulu grid-cols-2 (2 kategori
-// berdampingan), SEKARANG 2 section BERTUMPUK vertikal (Pengeluaran di atas,
-// Pemasukan di bawah) sesuai spek handoff Master Keuangan. Isi tiap kategori
-// (MasterDataCategory, CRUD chip) TIDAK diubah sama sekali — cuma layout
-// container-nya (flex-direction:column ganti grid-cols-2).
 const AppMasterKeuangan = {
   components: { MasterDataCategory },
   template: `
@@ -838,14 +834,22 @@ const AppMasterKeuangan = {
       <p style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">Kelola kategori pengeluaran (dipakai form Ajukan Reimburse) dan kategori pemasukan.</p>
     </div>
     <div style="display:flex; flex-direction:column; gap:16px;">
-      <master-data-category kategori="kategori_reimburse" label="Kategori Pengeluaran" menu-id="master_keuangan" />
-      <master-data-category kategori="kategori_pemasukan" label="Kategori Pemasukan" menu-id="master_keuangan" />
+      <master-data-category ref="mgr1" kategori="kategori_reimburse" label="Kategori Pengeluaran" menu-id="master_keuangan" />
+      <master-data-category ref="mgr2" kategori="kategori_pemasukan" label="Kategori Pemasukan" menu-id="master_keuangan" />
     </div>
   `
 };
 let vmMasterKeuangan = null;
+// Refresh saat tab diklik ulang (irit baca Firestore, tidak polling) — panggil
+// muat() di 2 ref MasterDataCategory kalau sudah pernah mount.
 window.pastikanMountMasterKeuangan = function() {
-  if (vmMasterKeuangan) return;
+  if (vmMasterKeuangan) {
+    const mgr1 = vmMasterKeuangan.$refs && vmMasterKeuangan.$refs.mgr1;
+    const mgr2 = vmMasterKeuangan.$refs && vmMasterKeuangan.$refs.mgr2;
+    if (mgr1 && typeof mgr1.muat === 'function') mgr1.muat();
+    if (mgr2 && typeof mgr2.muat === 'function') mgr2.muat();
+    return;
+  }
   const mountPoint = document.getElementById('vue-master-keuangan');
   if (mountPoint) vmMasterKeuangan = createApp(AppMasterKeuangan).mount('#vue-master-keuangan');
 };
@@ -1024,7 +1028,7 @@ const MasterKendaraanManager = {
     }
 
     onMounted(async () => { await window.authReady; await muat(); await muatOpsi(); await muatOperator(); });
-    return {
+    return { muat,
       daftarKendaraan, daftarKendaraanTersaring, daftarKendaraanTerpaginasi, cariKendaraan, formatTglSingkat, memuat,
       halamanSaatIni, totalHalaman, gantiHalaman,
       jenisPekerjaanBaru, gudangBaru, platBaru, namaBaru, opsiJenisPekerjaan, opsiGudang, menyimpan,
@@ -1115,10 +1119,10 @@ const MasterKendaraanManager = {
   `
 };
 
-const AppMasterKendaraan = { components: { MasterKendaraanManager }, template: `<master-kendaraan-manager />` };
+const AppMasterKendaraan = { components: { MasterKendaraanManager }, template: `<master-kendaraan-manager ref="mgr" />` };
 let vmMasterKendaraan = null;
 window.pastikanMountMasterKendaraan = function() {
-  if (vmMasterKendaraan) return;
+  if (vmMasterKendaraan) { const mgr = vmMasterKendaraan.$refs && vmMasterKendaraan.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-master-kendaraan');
   if (mountPoint) vmMasterKendaraan = createApp(AppMasterKendaraan).mount('#vue-master-kendaraan');
 };
@@ -1610,25 +1614,25 @@ const RiwayatReimburseTable = {
   `
 };
 
-const AppRiwayatReimburse = { components: { RiwayatReimburseTable }, template: `<riwayat-reimburse-table mode="semua" />` };
-const AppRiwayatBensin = { components: { RiwayatReimburseTable }, template: `<riwayat-reimburse-table mode="bensin" />` };
-const AppRiwayatServis = { components: { RiwayatReimburseTable }, template: `<riwayat-reimburse-table mode="servis" />` };
+const AppRiwayatReimburse = { components: { RiwayatReimburseTable }, template: `<riwayat-reimburse-table mode="semua" ref="mgr" />` };
+const AppRiwayatBensin = { components: { RiwayatReimburseTable }, template: `<riwayat-reimburse-table mode="bensin" ref="mgr" />` };
+const AppRiwayatServis = { components: { RiwayatReimburseTable }, template: `<riwayat-reimburse-table mode="servis" ref="mgr" />` };
 
 let vmRiwayatReimburse = null;
 window.pastikanMountRiwayatReimburse = function() {
-  if (vmRiwayatReimburse) return;
+  if (vmRiwayatReimburse) { const mgr = vmRiwayatReimburse.$refs && vmRiwayatReimburse.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-riwayat-reimburse');
   if (mountPoint) vmRiwayatReimburse = createApp(AppRiwayatReimburse).mount('#vue-riwayat-reimburse');
 };
 let vmRiwayatBensin = null;
 window.pastikanMountRiwayatBensin = function() {
-  if (vmRiwayatBensin) return;
+  if (vmRiwayatBensin) { const mgr = vmRiwayatBensin.$refs && vmRiwayatBensin.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-riwayat-bensin');
   if (mountPoint) vmRiwayatBensin = createApp(AppRiwayatBensin).mount('#vue-riwayat-bensin');
 };
 let vmRiwayatServis = null;
 window.pastikanMountRiwayatServis = function() {
-  if (vmRiwayatServis) return;
+  if (vmRiwayatServis) { const mgr = vmRiwayatServis.$refs && vmRiwayatServis.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
   const mountPoint = document.getElementById('vue-riwayat-servis');
   if (mountPoint) vmRiwayatServis = createApp(AppRiwayatServis).mount('#vue-riwayat-servis');
 };
