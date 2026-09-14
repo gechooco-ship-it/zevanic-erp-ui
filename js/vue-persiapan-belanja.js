@@ -1,176 +1,31 @@
 // js/vue-persiapan-belanja.js
-// ============================================================================
-// BARU (7 Sep 2026 — sesi ini) — Persiapan Produksi > Persiapan Belanja
-// (group 8, folder terakhir per PEDOMAN-SERAH-TERIMA.md §"Urutan yang
-// disarankan"). Alur: admin input nota belanja -> cek pengajuan dari Masalah
-// -> keyboard-first entry -> menunggu ACC Owner -> generate order ke HP
-// driver per suplayer -> driver beli/pending -> nota masuk ke Stok &
-// Pembelian.
+// Persiapan Produksi > Persiapan Belanja. Alur: admin input nota belanja →
+// tarik pengajuan dari Persiapan Masalah → menunggu ACC Owner → generate
+// order ke HP driver → driver beli/pending → nota lanjut ke Stok & Pembelian.
 //
-// SUMBER: handoff/02 - Persiapan Produksi/08 - Persiapan Belanja/SERAH-
-// TERIMA.md (dibaca penuh) + handoff/SPESIFIKASI-KOLEKSI-BARU.md §3 (skema
-// order_belanja_driver/pending_driver, field tambahan pesanan_pembelian/
-// master_suplayer/alias_pembelian) + cross-check LIVE CODE ke js/vue-stock-
-// pembelian.js (skema & alur pesanan_pembelian, keyboard-first entry 3.2a-
-// 3.2e yang jadi acuan §2 "pola sama dengan Stok 3.2") dan js/vue-master-
-// suplayer.js (KABAR BAIK: field bank/nama_rek/no_rek/no_wa di master_
-// suplayer DAN moq/moq_satuan/lead_time_hari/is_default_order di alias_
-// pembelian SUDAH DIBANGUN sesi sebelumnya — persis menyiapkan modul ini,
-// TIDAK perlu ditambah lagi di sini) dan js/vue-pp-masalah.js (status
-// `diajukan_belanja` SUDAH ADA sebagai jalur keluar Masalah -> Persiapan
-// Belanja, field qty_beli sudah dihitung Owner di sana).
+// Koleksi & field:
+// - pesanan_pembelian dipakai BERSAMA modul Stok. Dokumen dari modul ini
+// dibedakan lewat order_driver_id != null sejak awal (nota manual Stok
+// selalu null). Status tambahan: menunggu_acc → disetujui → siap_finalisasi.
+// - order_belanja_driver diberi field pesanan_pembelian_id sebagai link balik;
+// tanpa itu aksi "Beli" driver tidak tahu nota mana yang ditulis.
+// - Counter no_pembelian (pengaturan_id_pembelian) SATU urutan bareng Stok.
+// - Suplayer nota auto-terisi dari alias_pembelian.is_default_order item
+// pertama, hanya sebagai saran; dropdown manual tetap ada.
 //
-// KEPUTUSAN/CATATAN ARSITEKTUR:
-//
-// 1. TIDAK reuse UI Daftar Nota Stok (js/vue-stock-pembelian.js) — SERAH-
-//    TERIMA §2 eksplisit modul ini punya layar SENDIRI (8.1/8.1.2), yang
-//    DIPAKAI ULANG cuma KOLEKSI-nya (`pesanan_pembelian`, field `status`
-//    dapat NILAI BARU 'menunggu_acc'/'disetujui'/'siap_finalisasi' selain
-//    'draft'/'final' yang sudah dipakai Stok — Vue merender string tak
-//    dikenal dengan aman/tanpa error, cuma tanpa styling tag khusus, tidak
-//    breaking) dan `pengaturan_id_pembelian` (counter no_pembelian, counter
-//    SAMA dipakai bersama Stok — SATU urutan nomor, bukan dua paralel).
-//
-// 2. Keyboard-first entry (8.1.2) — DISEDERHANAKAN dari versi penuh Stok
-//    3.2a-3.2e (search -> Enter -> Tab buka Qty -> Tab buka Satuan -> Tab
-//    buka Harga+PIN). Versi Stok penuh berurusan dengan HARGA AKTUAL +
-//    konversi satuan bertingkat + lot tracking — SEMUA itu tugas
-//    "Finalisasi nota (harga aktual)" yang SERAH-TERIMA §4 Scope EKSPLISIT
-//    taruh di luar cakupan modul ini ("di Stok dan Pembelian"). Modul ini
-//    cuma butuh ESTIMASI (qty + satuan pembelian + harga estimasi opsional)
-//    untuk keperluan generate order ke driver — jadi rantai Tab
-//    disederhanakan: search -> Enter tambah (qty 1, satuan_pembelian
-//    default) -> Tab buka pop up Qty -> Enter konfirmasi -> fokus balik ke
-//    search. TIDAK ada popup Satuan/Harga+PIN terpisah (qty & harga
-//    estimasi bisa diedit langsung di baris tabel). Interaksi "ketik selalu
-//    cari lagi, Tab selalu lanjut" (wireframe 3.2b) TETAP dipertahankan —
-//    yang dipangkas cuma JUMLAH langkahnya, bukan pola dasarnya.
-//
-//    REVISI 9 Sep 2026 (audit wireframe.dc.html "08 - Persiapan Belanja"
-//    §8.1 vs kode live, keputusan Guru) — struktur layar 8.1 diganti total
-//    ke pola "Nota Order" wireframe: KIRI grid kartu produk (cari/browse,
-//    chip Semua/Bahan/Aksesoris, klik kartu = tambah), KANAN panel "Item
-//    Nota" berbentuk KARTU per item dengan stepper qty +/- dan chip sumber
-//    ("bahan kurang" dari Cek Pengajuan) — BUKAN lagi tabel HTML datar. Pop
-//    up Qty terpisah (tampilPopupQty/qtyInput/konfirmasiQty) DIHAPUS karena
-//    kartu Item Nota sudah punya stepper qty inline, jadi tidak perlu pop
-//    up lagi — bukan kehilangan fungsi, cuma pindah tempat sesuai wireframe.
-//    Enter di kotak cari tetap menambah match pertama (semangat "keyboard-
-//    first" tetap ada), klik kartu grid = cara tambah utama yang baru.
-//    HITUNGAN item (qty*harga_estimasi=subtotal, totalEstimasi) dan fungsi
-//    simpan()/muat()/bukaCekPengajuan()/masukkanPengajuanTerpilih() TIDAK
-//    DIUBAH SAMA SEKALI — cuma tampilannya yang berubah.
-//
-//    Chip sumber "stok kritis" di wireframe (8.1.1) TIDAK diimplementasikan
-//    — tidak ada field ambang stok minimum (stok_minimum/ambang_stok/dst)
-//    yang terverifikasi ada di master_bahan_aksesoris atau di mana pun di
-//    kode live (sudah digrep, nihil). Menebak angka ambang "kritis" sendiri
-//    berisiko salah untuk modul pembelian — jadi HANYA sumber "bahan
-//    kurang" (dari_masalah_id, dari Cek Pengajuan) yang ditandai chip;
-//    item yang ditambah manual dari grid tidak diberi chip. GAP
-//    DISENGAJA, dilaporkan ke Guru, bukan ditebak.
-//
-//    Suplayer OTOMATIS dari Petakan Order (alias_pembelian.is_default_order,
-//    js/vue-master-suplayer.js — MEKANISME INI SUDAH ADA & SUDAH DIPAKAI
-//    vue-pp-masalah.js untuk MOQ) — DISAMBUNGKAN untuk SARAN, bukan
-//    dipaksakan: begitu item PERTAMA ditambah ke nota kosong, suplayerId
-//    nota di-auto-isi dari alias is_default_order milik bahan itu (kalau
-//    ada). Dropdown suplayer manual TETAP ADA (TIDAK dihapus) untuk koreksi
-//    — field `suplayer_id` di `pesanan_pembelian` TETAP SATU per nota
-//    (arsitektur TIDAK diubah, lihat keputusan #1 di atas). Kalau item
-//    BERIKUTNYA punya default suplayer BEDA dari suplayer nota saat ini,
-//    kartu item itu menampilkan chip peringatan "suplayer beda" — TIDAK
-//    auto-pecah jadi banyak order, karena Tab Menunggu ACC/List Order
-//    Driver di bawah masih berasumsi 1 nota = 1 suplayer (order_belanja_
-//    driver dibuat dari SATU suplayer_id per nota). Wireframe menggambarkan
-//    1 nota bisa berisi item dari BEBERAPA suplayer sekaligus (di-generate
-//    jadi order terpisah per suplayer) — itu PERUBAHAN ARSITEKTUR pembelian
-//    yang lebih besar (pesanan_pembelian/order_belanja_driver perlu pecah
-//    per suplayer saat Generate Order) dan TIDAK ditebak di sesi ini
-//    (modul uang/pembelian) — KEPUTUSAN TERBUKA, dilaporkan ke Guru.
-//
-// 3. Alur status BARU utk `pesanan_pembelian` khusus dokumen yang berasal
-//    dari modul ini (dibedakan dari nota manual Stok lewat field
-//    `order_driver_id` != null SEJAK AWAL — beda dari nota manual Stok yang
-//    field itu SELALU null sampai fitur ini ada, persis seperti yang
-//    diantisipasi komentar besar vue-stock-pembelian.js poin 3): draft (admin
-//    masih edit) -> menunggu_acc (diajukan admin) -> disetujui (Owner ACC,
-//    `order_belanja_driver` DIGENERATE saat ini) -> siap_finalisasi (driver
-//    klik Beli, foto bon terupload, item final). SENGAJA TIDAK memakai
-//    literal 'final' di titik driver-Beli walau SERAH-TERIMA §3 menulis
-//    "Beli (driver) -> pesanan_pembelian (final)" — status Stok sendiri
-//    'final' MEMICU EFEK SAMPING (`catatRiwayatHargaDanUpdateMaster`,
-//    menambah stok_akhir + riwayat harga master) yang HANYA boleh dipanggil
-//    dari vue-stock-pembelian.js sendiri (aturan "JANGAN PERNAH update
-//    stok_akhir langsung dari tempat lain", didokumentasikan di file itu
-//    sendiri) — fungsi itu TIDAK di-export, dan §4 Scope modul ini sendiri
-//    EKSPLISIT mengecualikan "Finalisasi nota (harga aktual)". Jadi 'final'
-//    SUNGGUHAN tetap ditekan lewat tombol Finalkan MILIK Stok sendiri (tidak
-//    diubah), sesudah Owner/Admin membuka nota `siap_finalisasi` itu di sana
-//    dan mengecek harga aktual dari foto bon. Penyimpangan kecil dari kata
-//    "(final)" di tabel SERAH-TERIMA — didokumentasikan di sini, bukan
-//    ditebak diam-diam.
-//
-// 4. `order_belanja_driver` ditambah field `pesanan_pembelian_id` (TIDAK ADA
-//    di SPESIFIKASI-KOLEKSI-BARU.md, judgment call) — link balik wajib
-//    supaya aksi "Beli" driver (§3: item final + foto bon masuk ke
-//    `pesanan_pembelian`) tahu dokumen MANA yang harus ditulis (skema resmi
-//    cuma menyebut order_belanja_driver PUNYA items sendiri, tanpa link
-//    eksplisit ke pesanan_pembelian sumbernya — tanpa field ini alur "Beli"
-//    tidak bisa jalan).
-//
-// 5. "Cek Pengajuan" (8.1.1) — kandidat = `persiapan_masalah` status
-//    'diajukan_belanja' (ditulis modul Masalah, js/vue-pp-masalah.js, sudah
-//    berjalan) DIKURANGI yang id-nya SUDAH tercatat di
-//    `sumber_masalah_ids` milik SALAH SATU nota `pesanan_pembelian` yang
-//    masih aktif (status draft/menunggu_acc/disetujui/siap_finalisasi,
-//    bukan yang sudah lama final) — supaya 1 pengajuan Masalah tidak
-//    tertarik dobel ke 2 nota berbeda. TIDAK menulis status baru ke
-//    persiapan_masalah sendiri (modul Masalah tidak punya tahap ke-8 untuk
-//    itu, `diajukan_belanja` memang status TERMINAL dari sisi Masalah per
-//    komentar besar file itu sendiri) — pengecekan dobel dilakukan di sisi
-//    modul INI saja, bukan mengubah kontrak modul Masalah.
-//
-// 6. Format WA order (§7 "apakah template bisa diedit admin" — BELUM
-//    diputuskan) — didefault FIXED (template tetap, tidak bisa diedit per-
-//    order) — risiko rendah & reversibel, konsisten dengan gaya "format
-//    baku" yang dipakai cetak label/lembar di seluruh app (semua lewat
-//    Scan & Cetak, bukan diedit manual per transaksi).
-//
-// 7. "Apakah driver bisa menambah item di luar order" (§7 — BELUM
-//    diputuskan) — didefault TIDAK BISA. Driver cuma bisa: kurangi qty
-//    (tombol minus), pindah ke Pending, atau Beli apa adanya. Tabel §3
-//    Fungsi modul ini sendiri tidak menyebut aksi "tambah item" milik
-//    driver — konsisten dengan itu, bukan ditambah sendiri.
-//
-// 8. "Batas waktu ACC sebelum auto-cancel" (§7 — BELUM diputuskan) —
-//    TIDAK diimplementasikan (sama alasan seperti auto-eskalasi Masalah:
-//    tidak ada infrastruktur cron/Cloud Functions di app ini). Nota yang
-//    lama menunggu ACC cukup terlihat "diam sejak X hari" di Tab Menunggu
-//    ACC (dihitung dari `dibuat_pada`/`diajukan_pada`) — Owner yang
-//    memutuskan kapan approve/tolak secara manual.
-//
-// 9. "Assign Ulang" (pending_driver.suplayer_baru_id) — diimplementasikan
-//    MINIMAL sesuai field yang ADA di skema resmi: set `suplayer_baru_id` +
-//    `status:'reassigned'`. TIDAK auto-generate order_belanja_driver BARU ke
-//    suplayer baru itu (skema resmi tidak menyebut mekanisme itu, dan tidak
-//    ada wireframe tergambar untuk memverifikasi alurnya) — Admin
-//    menindaklanjuti item yang di-assign-ulang secara manual lewat nota
-//    baru di Tab 8.1 kalau perlu. GAP DISENGAJA, didokumentasikan.
-//
-// 10. Gerbang peran: ACC (Setuju/Tolak) HANYA Owner/PIC Owner/Superuser
-//    (`tierOwnerKeAtas`, diimpor dari js/vue-scan-cetak.js — SUDAH dipakai
-//    js/vue-pp-masalah.js untuk gerbang yang SAMA persis, "Owner / PIC
-//    Owner approve" sesuai SERAH-TERIMA §2). Aksi Admin (input nota, ajukan
-//    ACC) & Driver (List Order Driver) cukup `cekIzinMenu(menuId,'edit')`
-//    biasa — TIDAK ada role sistem terpisah "driver" (preseden Vendor Fase
-//    4, js/vue-persiapan-produksi-v2.js: "driver = akun karyawan biasa").
-//
-// 11. TIDAK ada komponen Scan/QR di modul ini sama sekali (beda dari SEMUA
-//    modul Proses/Persiapan Produksi lain) — SERAH-TERIMA §2/§3 modul ini
-//    tidak menyebut satu pun aksi scan; semua aksi berupa form/tombol
-//    biasa. Konsisten dengan cakupan yang diminta, bukan ditambah sendiri.
-// ============================================================================
+// Jebakan:
+// - JANGAN set status 'final' dari sini. 'final' memicu
+// catatRiwayatHargaDanUpdateMaster (stok_akhir + riwayat harga master)
+// yang hanya boleh dijalankan vue-stock-pembelian.js. Finalisasi harga
+// aktual memang di luar cakupan modul ini.
+// - 1 nota = 1 suplayer_id. Item dengan default suplayer beda cuma diberi
+// chip peringatan, tidak auto-pecah jadi banyak order.
+// - Cek Pengajuan menyaring persiapan_masalah status 'diajukan_belanja' minus
+// id yang sudah ada di sumber_masalah_ids nota aktif, supaya 1 pengajuan
+// tidak tertarik ke 2 nota. Status di persiapan_masalah TIDAK diubah dari
+// sini — 'diajukan_belanja' terminal dari sisi modul Masalah.
+// - Gerbang ACC: tierOwnerKeAtas (impor dari vue-scan-cetak.js). Driver bukan
+// role sistem, cuma akun karyawan biasa dengan cekIzinMenu.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -180,8 +35,8 @@ import { tierOwnerKeAtas } from './vue-scan-cetak.js?v=3';
 
 const MENU_ID = 'pp_belanja';
 
-// --- Format & helper kecil (disalin pola dari modul lain, konvensi "salin
-// logic kecil per-file"). ----------------------------------------------------
+// Format & helper kecil (disalin pola dari modul lain, konvensi "salin logic
+// kecil per-file").
 function formatQty(n) {
   const angka = parseFloat(n) || 0;
   return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 });
@@ -234,7 +89,7 @@ async function ambilDaftarAlias() {
   } catch (e) { console.error('Gagal ambil daftar Alias Pembelian:', e); return []; }
 }
 
-// --- No. Pembelian — SAMA counter dengan Stok & Pembelian (satu urutan). ---
+// No. Pembelian — SAMA counter dengan Stok & Pembelian (satu urutan).
 async function generateNoPembelian() {
   const refDoc = doc(db, 'pengaturan_id_pembelian', 'pembelian');
   return await runTransaction(db, async (trx) => {
@@ -246,8 +101,8 @@ async function generateNoPembelian() {
     return `${data.prefix}${String(counterBaru).padStart(3, '0')}`;
   });
 }
-// --- Kode Order (driver) — counter harian SENDIRI, pola SAMA seperti
-// generateKodeHarianFormat di modul Proses Produksi lain. -------------------
+// Kode Order (driver) — counter harian SENDIRI, pola SAMA seperti
+// generateKodeHarianFormat di modul Proses Produksi lain.
 async function generateKodeOrderDriver() {
   const now = new Date();
   const tanggalKey = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
@@ -267,7 +122,7 @@ async function uploadFotoBonLokal(noPembelianAtauKode, file) {
   return await getDownloadURL(refFile);
 }
 
-// --- Baca koleksi mentah -----------------------------------------------------
+// Baca koleksi mentah
 async function muatSemuaPesananPembelian() {
   const snap = await getDocs(collection(db, 'pesanan_pembelian'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -285,11 +140,11 @@ async function muatMasalahDiajukanBelanja() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-// ============================================================================
-// TAB 1 (8.1): Persiapan Admin — daftar draft/menunggu-acc milik admin +
-// form input nota (keyboard-first sederhana, keputusan #2) + Cek Pengajuan
-// (keputusan #5).
-// ============================================================================
+
+// TAB 1 (8.1): Persiapan Admin — daftar draft/menunggu-acc milik admin + form
+// input nota (keyboard-first sederhana, keputusan #2) + Cek Pengajuan (keputusan
+// #5).
+
 const PersiapanAdminBelanja = {
   setup() {
     const menuId = MENU_ID;
@@ -317,7 +172,7 @@ const PersiapanAdminBelanja = {
       memuat.value = false;
     }
 
-    // --- Form nota ----------------------------------------------------------
+    // Form nota
     const draftDocId = ref(null);
     const suplayerId = ref('');
     const items = ref([]); // {bahan_aksesoris_id, nama_internal, nama_alias, qty, satuan, harga_estimasi, subtotal, dari_masalah_id}
@@ -343,15 +198,15 @@ const PersiapanAdminBelanja = {
       muat();
     }
 
-    // --- Petakan Order (alias_pembelian.is_default_order) — SARAN suplayer
-    // otomatis per bahan, lihat catatan besar §REVISI 9 Sep 2026 di atas.
-    // Mekanisme is_default_order SUDAH ADA (dibangun sesi Master Suplayer,
-    // dipakai juga oleh vue-pp-masalah.js untuk MOQ) — di sini cuma dibaca.
+    // Petakan Order (alias_pembelian.is_default_order) — SARAN suplayer
+    // otomatis per bahan, lihat catatan besar § di atas. Mekanisme
+    // is_default_order SUDAH ADA (dibangun sesi Master Suplayer, dipakai juga
+    // oleh vue-pp-masalah.js untuk MOQ) — di sini cuma dibaca.
     function suplayerDefaultUntukBahan(bahanId) {
-      // HANYA alias yang EKSPLISIT ditandai is_default_order:true di
-      // Petakan Order yang dipakai — TIDAK menebak dari alias pertama yang
-      // ketemu kalau belum ada yang ditandai default (itu keputusan Admin
-      // di Master Suplayer, bukan urutan sembarang di sini).
+      // HANYA alias yang EKSPLISIT ditandai is_default_order:true di Petakan
+      // Order yang dipakai — TIDAK menebak dari alias pertama yang ketemu kalau
+      // belum ada yang ditandai default (itu keputusan Admin di Master Suplayer,
+      // bukan urutan sembarang di sini).
       const dipilih = daftarAlias.value.find(a => a.bahan_aksesoris_id === bahanId && a.is_default_order);
       return dipilih?.suplayer_id ? { id: dipilih.suplayer_id, nama: dipilih.suplayer_nama || '' } : null;
     }
@@ -369,13 +224,13 @@ const PersiapanAdminBelanja = {
         });
         // Suplayer nota (suplayerId) TETAP diisi dari item PERTAMA — dipakai
         // sebagai suplayer FALLBACK untuk item yang tidak punya default di
-        // Petakan Order (lihat kelompokPerSuplayer/REVISI 9 Sep malam di
-        // bawah). Sejak revisi ini nota BOLEH berisi item multi-suplayer:
-        // tiap item yang PUNYA default sendiri (suplayer_default_id) akan
-        // dikelompokkan ke suplayernya masing-masing saat Setuju ACC —
-        // suplayerId di sini bukan lagi "suplayer satu-satunya", cuma
-        // fallback + nilai default form. Chip "suplayer beda" di template
-        // tetap dipertahankan sebagai indikator visual saat mengisi form.
+        // Petakan Order (lihat kelompokPerSuplayer/ 9 Sep malam di bawah). Sejak
+        // revisi ini nota BOLEH berisi item multi-suplayer: tiap item yang PUNYA
+        // default sendiri (suplayer_default_id) akan dikelompokkan ke
+        // suplayernya masing-masing saat Setuju ACC — suplayerId di sini bukan
+        // lagi "suplayer satu-satunya", cuma fallback + nilai default form. Chip
+        // "suplayer beda" di template tetap dipertahankan sebagai indikator
+        // visual saat mengisi form.
         if (!suplayerId.value && def?.id) suplayerId.value = def.id;
       }
     }
@@ -385,8 +240,8 @@ const PersiapanAdminBelanja = {
       it.qty = Math.max(0, (parseFloat(it.qty) || 0) + delta);
     }
 
-    // --- Grid produk kiri (cari/browse, chip kategori) — pengganti tabel
-    // typeahead 1 kolom, sesuai wireframe §8.1 pola "Nota Order". -----------
+    // Grid produk kiri (cari/browse, chip kategori) — pengganti tabel
+    // typeahead 1 kolom, sesuai wireframe §8.1 pola "Nota Order".
     const elCari = ref(null);
     const cariItemTeks = ref('');
     const kategoriFilter = ref('semua'); // 'semua' | 'Bahan' | 'Aksesoris'
@@ -407,7 +262,7 @@ const PersiapanAdminBelanja = {
       if (daftarGrid.value.length > 0) tambahDariGrid(daftarGrid.value[0]);
     }
 
-    // --- Cek Pengajuan (8.1.1, keputusan #5) --------------------------------
+    // Cek Pengajuan (8.1.1, keputusan #5)
     const popupPengajuanAktif = ref(false);
     const daftarPengajuan = ref([]);
     const pengajuanDicentang = reactive({});
@@ -422,8 +277,8 @@ const PersiapanAdminBelanja = {
       } catch (e) { console.error('Gagal muat Cek Pengajuan:', e); alert('Gagal memuat daftar pengajuan.'); }
     }
     // Preload ringan hitungan badge "Cek Pengajuan" di header grid — TANPA
-    // membuka pop up, cuma menghitung supaya admin lihat ada berapa sebelum
-    // klik (wireframe: badge angka merah di tombol Cek Pengajuan).
+    // membuka pop up, cuma menghitung supaya admin lihat ada berapa sebelum klik
+    // (wireframe: badge angka merah di tombol Cek Pengajuan).
     const badgePengajuan = ref(0);
     async function muatBadgePengajuan() {
       try {
@@ -453,7 +308,7 @@ const PersiapanAdminBelanja = {
       popupPengajuanAktif.value = false;
     }
 
-    // --- Simpan Draft / Ajukan ACC ------------------------------------------
+    // Simpan Draft / Ajukan ACC
     const menyimpan = ref(false);
     async function simpan(statusBaru) {
       if (!bolehProses.value) return alert('Anda tidak punya izin di menu ini.');
@@ -516,11 +371,12 @@ const PersiapanAdminBelanja = {
       </div>
     </template>
     <template v-else>
-      <!-- Layar Nota Order — 2 kolom sesuai wireframe §8.1: kiri grid produk
-      (cari/browse), kanan panel Item Nota berkartu dengan stepper qty.
-      Suplayer TIDAK jadi field pertama yang wajib diisi lagi (otomatis dari
-      Petakan Order saat item pertama ditambah) — dropdown tetap ada di atas
-      panel kanan untuk koreksi manual, lihat catatan besar §REVISI di atas. -->
+      <!--
+        Layar Nota Order — 2 kolom sesuai wireframe §8.1: kiri grid produk (cari/browse), kanan
+        panel Item Nota berkartu dengan stepper qty. Suplayer TIDAK jadi field pertama yang wajib
+        diisi lagi (otomatis dari Petakan Order saat item pertama ditambah) — dropdown tetap ada
+        di atas panel kanan untuk koreksi manual, lihat catatan besar § di atas.
+      -->
       <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">
         <div style="flex:2; min-width:280px; display:flex; flex-direction:column; gap:10px;">
           <div style="display:flex; gap:8px; align-items:center;">
@@ -620,26 +476,25 @@ const PersiapanAdminBelanja = {
   `
 };
 
-// ============================================================================
+
 // TAB 2 (8.1.3): Menunggu ACC — Owner/PIC Owner Setuju/Tolak, generate
 // order_belanja_driver saat Setuju (keputusan #3/#4/#10).
 //
-// REVISI (9 Sep 2026 malam, permintaan Guru) — nota BOLEH multi-suplayer.
-// Sebelumnya 1 nota -> 1 order_belanja_driver (suplayer tunggal dari
-// suplayerId nota). Sekarang tiap item dikelompokkan ke suplayer DEFAULT-nya
-// sendiri (suplayer_default_id, dari Petakan Order/alias_pembelian.
-// is_default_order, disnapshot saat item ditambahkan di Persiapan Admin —
-// lihat tambahBahanKeItem/masukkanPengajuanTerpilih). Item TANPA default
-// (suplayer_default_id kosong) jatuh ke kelompok fallback = suplayer nota
-// (suplayerId/suplayer_nama) — supaya tidak ada item yang "hilang" tanpa
-// tujuan. kelompokPerSuplayer() dipakai untuk DUA hal: (a) ringkasan visual
-// di kartu Menunggu ACC (wireframe 8.1.2: "ringkasan per suplayer: jumlah
-// item, total estimasi"), (b) split nyata jadi banyak order_belanja_driver
-// saat Setuju — List Order Driver & Riwayat Belanja SUDAH baca langsung dari
-// koleksi order_belanja_driver (bukan lewat pesanan_pembelian.order_driver_id
-// tunggal), jadi otomatis tampil "kartu per suplayer" begitu displit di sini,
-// TANPA perlu ubah kode di ListOrderDriver/RiwayatBelanja.
-// ============================================================================
+// nota BOLEH multi-suplayer. Sebelumnya 1 nota -> 1 order_belanja_driver
+// (suplayer tunggal dari suplayerId nota). Sekarang tiap item dikelompokkan ke
+// suplayer DEFAULT-nya sendiri (suplayer_default_id, dari Petakan
+// Order/alias_pembelian. is_default_order, disnapshot saat item ditambahkan di
+// Persiapan Admin — lihat tambahBahanKeItem/masukkanPengajuanTerpilih). Item
+// TANPA default (suplayer_default_id kosong) jatuh ke kelompok fallback =
+// suplayer nota (suplayerId/suplayer_nama) — supaya tidak ada item yang "hilang"
+// tanpa tujuan. kelompokPerSuplayer dipakai untuk DUA hal: (a) ringkasan visual
+// di kartu Menunggu ACC (wireframe 8.1.2: "ringkasan per suplayer: jumlah item,
+// total estimasi"), (b) split nyata jadi banyak order_belanja_driver saat Setuju
+// List Order Driver & Riwayat Belanja SUDAH baca langsung dari koleksi
+// order_belanja_driver (bukan lewat pesanan_pembelian.order_driver_id tunggal),
+// jadi otomatis tampil "kartu per suplayer" begitu displit di sini, TANPA perlu
+// ubah kode di ListOrderDriver/RiwayatBelanja.
+
 function kelompokPerSuplayer(n) {
   const map = new Map();
   (n.items || []).forEach(it => {
@@ -685,10 +540,10 @@ const MenungguAccBelanja = {
       try {
         const now = new Date().toISOString();
         const idOrderBaru = [];
-        // Sengaja SEKUENSIAL (bukan Promise.all) — generateKodeOrderDriver()
-        // pakai runTransaction pada 1 dokumen counter yang sama, aman
-        // dipanggil berurutan tapi TIDAK aman diparalelkan (race condition
-        // pada baca-tulis counter yang sama).
+        // Sengaja SEKUENSIAL (bukan Promise.all) — generateKodeOrderDriver pakai
+        // runTransaction pada 1 dokumen counter yang sama, aman dipanggil
+        // berurutan tapi TIDAK aman diparalelkan (race condition pada baca-tulis
+        // counter yang sama).
         for (const g of kelompok) {
           const kodeOrder = await generateKodeOrderDriver();
           const refOrder = await addDoc(collection(db, 'order_belanja_driver'), {
@@ -764,11 +619,11 @@ const MenungguAccBelanja = {
   `
 };
 
-// ============================================================================
-// TAB 3 (8.2): List Order Driver — mobile-first, 2 sub-tab internal (List
-// Order / List Pending). Titik tiga -> format WA (keputusan #6), Pending,
-// Beli (upload bon, keputusan #3).
-// ============================================================================
+
+// TAB 3 (8.2): List Order Driver — mobile-first, 2 sub-tab internal (List Order
+// / List Pending). Titik tiga -> format WA (keputusan #6), Pending, Beli (upload
+// bon, keputusan #3).
+
 const ListOrderDriver = {
   setup() {
     const menuId = MENU_ID;
@@ -793,7 +648,7 @@ const ListOrderDriver = {
     const menuTerbuka = ref(null);
     function toggleMenu(id) { menuTerbuka.value = menuTerbuka.value === id ? null : id; }
 
-    // --- Format WA (keputusan #6, template tetap) ---------------------------
+    // Format WA (keputusan #6, template tetap)
     function bukaFormatWa(o) {
       menuTerbuka.value = null;
       const s = petaSuplayer.value[o.suplayer_id];
@@ -804,14 +659,14 @@ const ListOrderDriver = {
       window.open(`https://wa.me/${nomor}?text=${encodeURIComponent(teks)}`, '_blank');
     }
 
-    // --- Ubah qty (minus, keputusan #7: tidak bisa tambah item baru) --------
+    // Ubah qty (minus, keputusan #7: tidak bisa tambah item baru)
     function kurangiQty(o, it) {
       if (!bolehProses.value) return;
       it.qty = Math.max(0, (parseFloat(it.qty) || 0) - 1);
       updateDoc(doc(db, 'order_belanja_driver', o.id), { items: o.items }).catch(e => console.error('Gagal update qty order driver:', e));
     }
 
-    // --- Pending ---------------------------------------------------------
+    // Pending
     const popupPending = ref(null);
     function bukaPending(o, it) { menuTerbuka.value = null; popupPending.value = { order: o, item: it }; }
     async function konfirmasiPending() {
@@ -830,7 +685,7 @@ const ListOrderDriver = {
       } catch (e) { console.error('Gagal catat pending:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
-    // --- Assign ulang (keputusan #9, minimal) -------------------------------
+    // Assign ulang (keputusan #9, minimal)
     const popupAssign = ref(null);
     const daftarSuplayerSemua = ref([]);
     function bukaAssign(p) { popupAssign.value = { pending: p, suplayerBaruId: '' }; }
@@ -844,7 +699,7 @@ const ListOrderDriver = {
       } catch (e) { console.error('Gagal assign ulang:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
-    // --- Beli (upload bon, keputusan #3) ------------------------------------
+    // Beli (upload bon, keputusan #3)
     const popupBeli = ref(null);
     const fotoBonFile = ref(null);
     const menyimpanBeli = ref(false);
@@ -982,10 +837,10 @@ const ListOrderDriver = {
   `
 };
 
-// ============================================================================
+
 // TAB 4 (8.3): Riwayat Belanja — read-only, kartu per order_belanja_driver
 // berstatus dibeli/selesai.
-// ============================================================================
+
 const RiwayatBelanja = {
   setup() {
     const memuat = ref(true);
@@ -1031,7 +886,7 @@ const RiwayatBelanja = {
   `
 };
 
-// --- Mount ke index.html — LAZY, SAMA pola modul lain. -----------------------
+// Mount ke index.html — LAZY, SAMA pola modul lain.
 let vmPpBelanjaPersiapanAdmin = null;
 window.pastikanMountPpBelanjaPersiapanAdmin = function () {
   if (vmPpBelanjaPersiapanAdmin) { if (typeof vmPpBelanjaPersiapanAdmin.muat === 'function') vmPpBelanjaPersiapanAdmin.muat(); return; }

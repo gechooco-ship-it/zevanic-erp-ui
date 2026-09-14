@@ -1,66 +1,59 @@
 // js/vue-antrean-lembur.js
-// ============================================================================
-// Master Absensi > Antrean Izin/Cuti/Lembur — validasi/approve pengajuan
-// IZIN, CUTI, dan LEMBUR karyawan (terpisah dari Antrean Absensi biasa,
-// mulai 17 Agt 2026 khusus utk Lembur).
+
+// Master Absensi > Antrean Izin/Cuti/Lembur — validasi/approve pengajuan IZIN,
+// CUTI, dan LEMBUR karyawan .
 //
-// DIROMBAK TOTAL (9 Sep 2026) — instruksi Guru "lanjut profile dan
-// management", spek handoff Master Absensi §2.4 minta 1 tab GABUNGAN
-// "Antrean Izin / Cuti / Lembur" (bukan Lembur sendirian seperti
-// sebelumnya). NAMA FILE INI SENGAJA TIDAK DIGANTI (tetap
-// vue-antrean-lembur.js) — Guru upload manual drag-drop ke GitHub, ganti
-// nama file = file lama menggantung di repo sampai dihapus manual lewat
-// tampilan GitHub (lihat FONDASI.md). Nama fungsi global
+// TOTAL —.4 minta 1 tab GABUNGAN "Antrean Izin / Cuti / Lembur" (bukan Lembur
+// sendirian seperti sebelumnya). NAMA FILE INI SENGAJA TIDAK DIGANTI (tetap
+// vue-antrean-lembur.js) — upload manual drag-drop ke GitHub, ganti nama file =
+// file lama menggantung di repo sampai dihapus manual lewat tampilan GitHub
+// (lihat FONDASI.md). Nama fungsi global
 // (window.pastikanMountAntreanLembur/refreshAntreanLembur), id mount HTML
-// (#vue-antrean-lembur), DAN id permission (cekIzinMenu('antrean_lembur'))
-// JUGA SENGAJA DIPERTAHANKAN SAMA PERSIS — supaya role yang sudah diberi
-// akses menu "Antrean Lembur" di Akses & Keamanan TIDAK kehilangan
-// aksesnya diam-diam (izin lama jadi yatim). Yang berubah CUMA label
-// tampilan ("Antrean Izin/Cuti/Lembur") + isi/logic di dalam file ini.
+// (#vue-antrean-lembur), DAN id permission (cekIzinMenu('antrean_lembur')) JUGA
+// SENGAJA DIPERTAHANKAN SAMA PERSIS — supaya role yang sudah diberi akses menu
+// "Antrean Lembur" di Akses & Keamanan TIDAK kehilangan aksesnya diam-diam (izin
+// lama jadi yatim). Yang berubah CUMA label tampilan ("Antrean
+// Izin/Cuti/Lembur") + isi/logic di dalam file ini.
 //
-// Field IZIN/CUTI/LEMBUR SEMUA sudah ditulis ke koleksi SAMA "absensi"
-// sejak dulu (js/vue-camera.js, JALUR 3) — TIDAK ada koleksi baru,
-// TIDAK ada migrasi data. Penggabungan ini murni di level query+tampilan:
-//   - IZIN/CUTI: field tanggal_pengajuan + keterangan.
-//   - LEMBUR (CLOCK IN): field lembur_mulai/lembur_selesai/keterangan/
-//     lembur_instruksi + perbandingan Jam Shift vs Jam Lembur.
-// Sebelum rombakan ini, IZIN/CUTI malah nyasar tampil di Antrean Absensi
-// (js/vue-antrean-absensi.js) pakai kartu format-lama yang salah label
-// "Hadir" dan TIDAK menampilkan tanggal_pengajuan/keterangan sama sekali
-// — itu sudah diperbaiki bersamaan (lihat header file itu), IZIN/CUTI
-// SEKARANG dikecualikan dari sana, cuma muncul di sini.
+// Field IZIN/CUTI/LEMBUR SEMUA sudah ditulis ke koleksi SAMA "absensi" sejak
+// dulu (js/vue-camera.js, JALUR 3) — TIDAK ada koleksi baru, TIDAK ada migrasi
+// data. Penggabungan ini murni di level query+tampilan: - IZIN/CUTI: field
+// tanggal_pengajuan + keterangan. - LEMBUR (CLOCK IN): field
+// lembur_mulai/lembur_selesai/keterangan/ lembur_instruksi + perbandingan Jam
+// Shift vs Jam Lembur. Sebelum rombakan ini, IZIN/CUTI malah nyasar tampil di
+// Antrean Absensi (js/vue-antrean-absensi.js) pakai kartu format-lama yang salah
+// label "Hadir" dan TIDAK menampilkan tanggal_pengajuan/keterangan sama sekali —
+// itu sudah diperbaiki bersamaan (lihat header file itu), IZIN/CUTI SEKARANG
+// dikecualikan dari sana, cuma muncul di sini.
 //
-// PENTING — kenapa layar ini nyata dibutuhkan utk Lembur (bukan cuma
-// kerapian UI): js/vue-camera.js (proses Clock Out) MEMBACA status_acc
-// dokumen Lembur ini untuk menentukan batas jam kerja yang dipakai
-// penggajian (jam_keluar_untuk_gaji) — kalau Lembur belum di-ACC di sini,
-// Clock Out lewat jam shift akan otomatis dipotong ke jam shift, BUKAN
-// jam lembur yang diajukan. TIDAK BERUBAH oleh rombakan ini — field &
-// collection tulisnya (`absensi.status_acc`) SAMA PERSIS.
+// PENTING — kenapa layar ini nyata dibutuhkan utk Lembur (bukan cuma kerapian
+// UI): js/vue-camera.js (proses Clock Out) MEMBACA status_acc dokumen Lembur ini
+// untuk menentukan batas jam kerja yang dipakai penggajian
+// (jam_keluar_untuk_gaji) — kalau Lembur belum di-ACC di sini, Clock Out lewat
+// jam shift akan otomatis dipotong ke jam shift, BUKAN jam lembur yang diajukan.
+// TIDAK BERUBAH oleh rombakan ini — field & collection tulisnya
+// (`absensi.status_acc`) SAMA PERSIS.
 //
-// DIROMBAK (18 Agt 2026):
-// 1. HEMAT — where("status_acc","==","PENDING") LANGSUNG (IZIN/CUTI/
-//    Lembur SELALU pakai status_acc tunggal, TIDAK ikut rombakan dokumen
-//    gabungan vue-camera.js format Hadir), bukan fetch semua histori
-//    absensi lagi.
-// 2. PEDOMAN KERJA (lihat vue-antrean-absensi.js) — search box selalu
-//    ada, filter Jenis Pekerjaan+Gudang cuma buat Owner/Superuser.
+// 1. HEMAT — where("status_acc","==","PENDING") LANGSUNG (IZIN/CUTI/ Lembur
+// SELALU pakai status_acc tunggal, TIDAK ikut rombakan dokumen gabungan
+// vue-camera.js format Hadir), bukan fetch semua histori absensi lagi. 2.
+// PEDOMAN KERJA (lihat vue-antrean-absensi.js) — search box selalu ada, filter
+// Jenis Pekerjaan+Gudang cuma buat Owner/Superuser.
 //
-// DIROMBAK LAGI (29 Agt 2026, §44.18) — bug N+1 SAMA yang ketemu &
-// diperbaiki di vue-antrean-absensi.js: tiap kartu pending dulu query
-// SENDIRI ke master_shift (jam shift) begitu di-mount. Sekarang dihitung
-// SEKALI di muat() (induk) buat seluruh daftar, chunked where(...,'in',...),
-// dikirim ke tiap kartu lewat prop shiftInfo — kartu tidak query lagi.
-// ============================================================================
+// bug N+1 SAMA yang ketemu & diperbaiki di vue-antrean-absensi.js: tiap kartu
+// pending dulu query SENDIRI ke master_shift (jam shift) begitu di-mount.
+// Sekarang dihitung SEKALI di muat (induk) buat seluruh daftar, chunked
+// where(.,'in',..), dikirim ke tiap kartu lewat prop shiftInfo — kartu tidak
+// query lagi.
+
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-// BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2) — KolomCari
-// (pil, dipakai juga di Antrean Absensi) GANTI kolom cari hand-rolled.
+// KolomCari (pil, dipakai juga di Antrean Absensi) GANTI kolom cari hand-rolled.
 import { KolomCari } from './vue-components.js?v=13';
 
-// Status mentah (field `status` di dokumen `absensi`) yang masuk cakupan
-// tab gabungan ini — lihat header file utk kenapa 3 ini digabung.
+// Status mentah (field `status` di dokumen `absensi`) yang masuk cakupan tab
+// gabungan ini — lihat header file utk kenapa 3 ini digabung.
 const STATUS_DICAKUP = ["IZIN", "CUTI", "LEMBUR (CLOCK IN)"];
 
 function jenisLabel(status) {
@@ -78,10 +71,10 @@ const AntreanIclCard = {
   props: {
     docId: { type: String, required: true },
     data: { type: Object, required: true },
-    // BARU (29 Agt 2026, §44.18) — lihat catatan di jamShift di bawah:
-    // prop ini GANTI query Firestore yang dulu jalan PER KARTU (N+1),
-    // sekarang dihitung SEKALI di induk (AppAntreanIcl.muat()). Cuma
-    // relevan buat kartu jenis Lembur (Izin/Cuti tidak pakai jam shift).
+    // lihat catatan di jamShift di bawah: prop ini GANTI query Firestore yang
+    // dulu jalan PER KARTU (N+1), sekarang dihitung SEKALI di induk
+    // (AppAntreanIcl.muat). Cuma relevan buat kartu jenis Lembur (Izin/Cuti
+    // tidak pakai jam shift).
     shiftInfo: { type: Object, default: () => ({ masuk: null, keluar: null }) }
   },
   emits: ['diproses'],
@@ -90,8 +83,8 @@ const AntreanIclCard = {
     const isLembur = computed(() => props.data.status === "LEMBUR (CLOCK IN)");
 
     async function proses(statusAcc) {
-      // Permission id TETAP 'antrean_lembur' (lihat catatan header file)
-      // supaya role yang sudah diberi akses tidak kehilangan izinnya.
+      // Permission id TETAP 'antrean_lembur' (lihat catatan header file) supaya
+      // role yang sudah diberi akses tidak kehilangan izinnya.
       if (window.cekIzinMenu('antrean_lembur', 'edit') === false) {
         return alert('Anda tidak punya izin memproses ACC/Reject di sini. Hubungi Owner/PIC.');
       }
@@ -125,9 +118,9 @@ const AntreanIclCard = {
       if (props.data.foto_selfie && window.bukaPreviewFoto) window.bukaPreviewFoto(props.data.foto_selfie);
     }
 
-    // Jam Shift asli orangnya (buat dibandingkan sama Jam Lembur yang
-    // diajukan) — lookup nama_shift->master_shift. Cuma dipakai kartu
-    // Lembur, lihat catatan lengkap N+1 fix di AppAntreanIcl di bawah.
+    // Jam Shift asli orangnya (buat dibandingkan sama Jam Lembur yang diajukan)
+    // lookup nama_shift->master_shift. Cuma dipakai kartu Lembur, lihat
+    // catatan lengkap N+1 fix di AppAntreanIcl di bawah.
     const jamShift = computed(() => props.shiftInfo || { masuk: null, keluar: null });
 
     function formatTglSingkat(ts) {
@@ -145,14 +138,14 @@ const AntreanIclCard = {
       isLembur, jenisLabel, jenisWarnaTag
     };
   },
-  // ==========================================================================
+
   // Pola kartu padat SAMA dgn Antrean Absensi/Lembur lama (moodboard "Gechoo
   // Mobile Organic" v2) — cuma badge jenis (Izin/Cuti/Lembur) yang baru, dan
-  // body-nya CABANG per jenis: Lembur tetap tampilkan perbandingan Jam
-  // Shift vs Jam Lembur + Instruksi (persis kartu lama); Izin/Cuti tampilkan
-  // Tanggal Pengajuan + Keterangan (field yang SUDAH ada di dokumen sejak
-  // dulu tapi sebelumnya TIDAK PERNAH ditampilkan di kartu manapun).
-  // ==========================================================================
+  // body-nya CABANG per jenis: Lembur tetap tampilkan perbandingan Jam Shift vs
+  // Jam Lembur + Instruksi (persis kartu lama); Izin/Cuti tampilkan Tanggal
+  // Pengajuan + Keterangan (field yang SUDAH ada di dokumen sejak dulu tapi
+  // sebelumnya TIDAK PERNAH ditampilkan di kartu manapun).
+
   template: `
     <div class="gc-card" style="border-radius:20px;">
       <div style="display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--ivory-dim); padding-bottom:10px; margin-bottom:10px;">
@@ -202,9 +195,9 @@ const AppAntreanIcl = {
     const daftarPending = ref([]);
     const memuat = ref(true);
     const errorMuat = ref('');
-    // BARU (29 Agt 2026, §44.18) — hasil batch jam shift buat SEMUA kartu
-    // (dihitung sekali per muat(), lihat di bawah), dikirim turun ke tiap
-    // AntreanIclCard lewat prop. Cuma relevan utk kartu jenis Lembur.
+    // hasil batch jam shift buat SEMUA kartu (dihitung sekali per muat, lihat di
+    // bawah), dikirim turun ke tiap AntreanIclCard lewat prop. Cuma relevan utk
+    // kartu jenis Lembur.
     const petaShiftInfo = ref({});
 
     const cariNama = ref('');
@@ -213,8 +206,8 @@ const AppAntreanIcl = {
     const filterGudangOwner = ref('ALL');
     const opsiJenisPekerjaanOwner = ref([]);
     const opsiGudangOwner = ref([]);
-    // BARU (9 Sep 2026) — filter jenis pengajuan (Semua/Izin/Cuti/Lembur),
-    // berguna karena sekarang 3 jenis tercampur di 1 daftar.
+    // filter jenis pengajuan (Semua/Izin/Cuti/Lembur), berguna karena sekarang 3
+    // jenis tercampur di 1 daftar.
     const filterJenis = ref('ALL');
     const daftarPendingTersaring = computed(() => {
       let hasil = daftarPending.value;
@@ -236,10 +229,9 @@ const AppAntreanIcl = {
         const dokRelevan = [];
         snap.forEach(d => { if (STATUS_DICAKUP.includes(d.data().status)) dokRelevan.push(d); });
 
-        // DIROMBAK (19 Agt 2026) — sama persis pola vue-antrean-absensi.js:
-        // users CUMA dibaca kalau ada dokumen pending yang belum punya
-        // field jenis_pekerjaan sendiri (dokumen sangat lama). Lihat
-        // catatan lengkap di sana.
+        // sama persis pola vue-antrean-absensi.js: users CUMA dibaca kalau ada
+        // dokumen pending yang belum punya field jenis_pekerjaan sendiri
+        // (dokumen sangat lama). Lihat catatan lengkap di sana.
         const emailPerluJP = [...new Set(
           dokRelevan.filter(d => !d.data().jenis_pekerjaan && d.data().email).map(d => d.data().email)
         )];
@@ -258,12 +250,11 @@ const AppAntreanIcl = {
           if (!window.bolehLihatData(ambilJP(d), d.gudang)) return;
           list.push({ id: docSnap.id, data: d, jenisPekerjaan: ambilJP(d) });
         });
-        // BARU (29 Agt 2026, §44.18) — jam shift dihitung SEKALI di sini
-        // buat SELURUH daftar sekaligus (bukan per-kartu lagi, lihat
-        // catatan panjang di AntreanIclCard). Chunked where(...,'in',...)
-        // pola sama seperti petaJenisPekerjaan di atas. Cuma dipakai kartu
-        // Lembur, tapi dihitung utk semua nama_shift yg kepakai (murah,
-        // tidak perlu cabang per jenis).
+        // jam shift dihitung SEKALI di sini buat SELURUH daftar sekaligus (bukan
+        // per-kartu lagi, lihat catatan panjang di AntreanIclCard). Chunked
+        // where(.,'in',..) pola sama seperti petaJenisPekerjaan di atas. Cuma
+        // dipakai kartu Lembur, tapi dihitung utk semua nama_shift yg kepakai
+        // (murah, tidak perlu cabang per jenis).
         const UKURAN_POTONGAN_SHIFT = 30; // batas Firestore where(field,'in',[...])
         const distinctShift = [...new Set(list.map(item => item.data.nama_shift).filter(Boolean))];
         const petaShift = {};
@@ -293,11 +284,10 @@ const AppAntreanIcl = {
       memuat.value = false;
     }
 
-    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2) — dropdown
-    // filter Owner + tombol Cek Data Sangat Lama/Refresh dipindah ke 1
-    // menu "lainnya" oval titik-tiga di sebelah kolom cari (POLA SAMA
-    // PERSIS vue-antrean-absensi.js), gantikan dropdown yang SELALU
-    // tampil + 2 tombol lebar penuh di banner.
+    // dropdown filter Owner + tombol Cek Data Sangat Lama/Refresh dipindah ke 1
+    // menu "lainnya" oval titik-tiga di sebelah kolom cari (POLA SAMA PERSIS
+    // vue-antrean-absensi.js), gantikan dropdown yang SELALU tampil + 2 tombol
+    // lebar penuh di banner.
     const menuTerbuka = ref(false);
     function toggleMenuTerbuka() { menuTerbuka.value = !menuTerbuka.value; }
     const adaFilterAktif = computed(() => filterJenisPekerjaanOwner.value !== 'ALL' || filterGudangOwner.value !== 'ALL' || filterJenis.value !== 'ALL');
@@ -338,12 +328,11 @@ const AppAntreanIcl = {
       memuatDataLama, infoDataLama, cekDataSangatLama, petaShiftInfo
     };
   },
-  // ==========================================================================
-  // Pola sama persis vue-antrean-absensi.js (moodboard "Gechoo Mobile
-  // Organic" v2). BARU (9 Sep 2026): filter pil jenis (Semua/Izin/Cuti/
-  // Lembur) ditambah di panel "menu lainnya", karena sekarang 3 jenis
-  // tercampur di 1 daftar.
-  // ==========================================================================
+
+  // Pola sama persis vue-antrean-absensi.js (moodboard "Gechoo Mobile Organic"
+  // v2). BARU: filter pil jenis (Semua/Izin/Cuti/ Lembur) ditambah di panel
+  // "menu lainnya", karena sekarang 3 jenis tercampur di 1 daftar.
+
   template: `
     <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
       <div style="flex:1; min-width:0;"><kolom-cari v-model="cariNama" placeholder="Cari nama karyawan..." /></div>
@@ -413,10 +402,9 @@ const AppAntreanIcl = {
   `
 };
 
-// Nama fungsi global SENGAJA DIPERTAHANKAN (pastikanMountAntreanLembur,
-// bukan diganti pastikanMountAntreanICL) — lihat catatan header file:
-// dashboard.js petaMount['sub-absensi-lembur'] masih memanggil nama ini,
-// tidak perlu diubah.
+// Nama fungsi global SENGAJA DIPERTAHANKAN (pastikanMountAntreanLembur, bukan
+// diganti pastikanMountAntreanICL) — lihat catatan header file: dashboard.js
+// petaMount['sub-absensi-lembur'] masih memanggil nama ini, tidak perlu diubah.
 let vmAntreanICL = null;
 window.pastikanMountAntreanLembur = function() {
   if (vmAntreanICL) { if (typeof vmAntreanICL.muat === 'function') vmAntreanICL.muat(); return; }

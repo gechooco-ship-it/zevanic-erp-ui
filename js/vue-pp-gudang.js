@@ -1,165 +1,34 @@
 // js/vue-pp-gudang.js
-// ============================================================================
-// BARU ("lanjut lagi" #5, 7 Sep 2026 — sesi ini, setelah Finishing) — Proses
-// Produksi > Gudang Barang Jadi. Titik akhir rantai produksi: 4 tab (5.1
-// Perlu Disimpan, 5.2 Stok Tersedia, 5.3 Riwayat Keluar, 5.4 Scan Opname +
-// popup 5.4a). SERAH-TERIMA §7 "Yang Belum Diputuskan: (Tidak ada.)" — modul
-// ini fully-specified, TIDAK ada keputusan Guru yang perlu ditanya duluan.
+// Proses Produksi > Gudang Barang Jadi — titik akhir rantai produksi.
+// 4 tab: Perlu Disimpan, Stok Tersedia, Riwayat Keluar, Scan Opname.
 //
-// SUMBER: handoff/03 - Proses Produksi/05 - Gudang Barang Jadi/SERAH-TERIMA.md
-// (dibaca penuh sebelum menulis modul ini) + cross-check LIVE CODE ke js/
-// vue-pp-serie.js (kontrak separating_batch/kirim_gudang) dan js/vue-pp-
-// sewing.js (skema label_pcs — koleksi ini DITERBITKAN Sewing, lihat header
-// besar file itu §7/§GAP DISENGAJA) dan js/vue-pesanan.js (skema order_spk
-// utk alokasi FIFO).
+// Koleksi & field:
+// - TIDAK punya koleksi *_track sendiri (beda dari Cutting/Serie/Sewing/
+// Finishing). Modul ini beroperasi langsung di atas label_pcs, koleksi
+// milik Sewing.
+// - opname_produk_jadi: log sesi opname, opsional.
+// - label_pcs.status yang DITULIS modul ini: 'di_gudang' (scan masuk),
+// 'perlu_dicari' (opname tidak ketemu), 'hilang' (butuh PIN Owner).
+// 'hilang' adalah status SOFT — dokumennya tidak pernah dihapus fisik.
+// - label_pcs.sampai_pada: penanda pcs sudah lolos Scan Sampai, dipakai
+// membedakan pcs yang sudah masuk gudang dari yang masih di perjalanan.
+// - Status 'terjual' + terjual_pada + transaksi_kasir_id adalah wewenang
+// modul Kasir, bukan file ini.
 //
-// KEPUTUSAN/CATATAN ARSITEKTUR (didokumentasikan di sini per konvensi proyek
-// "jangan tebak diam-diam, catat alasannya"):
-//
-// 1. TIDAK ADA koleksi tracking baru untuk modul ini (BEDA dari Cutting/
-//    Serie/Sewing/Finishing yang masing-masing punya *_track sendiri) —
-//    SERAH-TERIMA §5 eksplisit: "Stok produk jadi = view collection (derived
-//    dari label_pcs status). Tidak perlu koleksi terpisah." Jadi modul ini
-//    beroperasi LANGSUNG di atas `label_pcs` (koleksi milik Sewing) + field
-//    baru `opname_produk_jadi` (opsional, log sesi opname).
-//
-// 2. `label_pcs.status` 6 nilai (ditetapkan Sewing sendiri, lihat js/vue-pp-
-//    sewing.js keputusan #7): dicetak -> di_finishing -> di_gudang ->
-//    terjual -> perlu_dicari -> hilang. Modul Finishing (SUDAH DIBANGUN sesi
-//    ini) menulis 'di_finishing'. Modul INI menulis 'di_gudang' (scan masuk
-//    gudang), 'perlu_dicari' (opname tidak ketemu), 'hilang' (konfirmasi PIN
-//    Owner — SOFT status, dokumen TIDAK dihapus fisik, konsisten dengan
-//    seluruh app yang TIDAK PERNAH pakai deleteDoc di modul manapun — audit
-//    trail tetap ada). Modul Kasir (BELUM DIBANGUN, di luar cakupan) nanti
-//    menulis 'terjual' + `terjual_pada` + `transaksi_kasir_id`.
-//
-// 3. Field BARU `sampai_pada` ditambah ke `label_pcs` (TIDAK ada di SERAH-
-//    TERIMA, judgment call konsisten dengan preseden Sewing menambah
-//    `label_pcs_dicetak_pada` di sewing_track tanpa diminta spek eksplisit).
-//    Alasan: SERAH-TERIMA §3 memerintahkan urutan "Scan sampai, unpack, scan
-//    masuk gudang per pcs" di Tab 5.1 — scan masuk gudang (per pcs) harus
-//    bisa dibedakan dari pcs yang masih di jalan (belum discan sampai dari
-//    Serie). Karena TIDAK ADA koleksi tracking baru (keputusan #1), field
-//    penanda ini ditaruh LANGSUNG di label_pcs. Diisi begitu batch yang
-//    memuatnya lolos Scan Sampai (lihat #4).
-//
-// 4. Scan Sampai (5.1) MENUTUP GAP yang sudah diperingatkan eksplisit di
-//    js/vue-pp-serie.js (komentar "GAP DISENGAJA" di baris ~167-170 & ~982-
-//    983 & ~1375-1377 file itu): begitu modul ini Scan Sampai dari Kirim
-//    Gudang (Serie Tab 2.10), modul ini WAJIB menulis balik
-//    `separating_batch.status = 'selesai'` + `sampai_pada` — PERSIS pola
-//    yang sama dipakai Serie sendiri menutup gap Cutting/Sewing/Finishing
-//    (baca lewat kode_tugas, filter status:'kirim_gudang', tutup begitu
-//    SEMUA kode_bagging batch itu discan — 2 langkah: kode tugas dulu, lalu
-//    kode bagging berkali-kali, SAMA pola FinishingPerluDiProses.
-//    hasilScanSampai()). `separating_batch` ditulis LANGSUNG (updateDoc),
-//    TIDAK lewat helper transaksi Serie (helper itu module-scoped, tidak
-//    di-export — konsisten dengan Finishing yang juga tidak mengimpor apapun
-//    dari vue-pp-serie.js, cukup baca/tulis koleksi bersama secara langsung).
-//
-//    Sesudah batch ditutup, rantai pencarian pcs miliknya: separating_batch.
-//    id -> sewing_track (match `batch_id`===separating_batch.id) -> label_
-//    pcs (match `batch_id`===sewing_track.id) — SAMA 2-hop yang dipakai
-//    Finishing (lihat header besar file itu). Bedanya: di sini hop ini CUMA
-//    dipakai SEKALI saat Scan Sampai (untuk menandai `sampai_pada` di semua
-//    label_pcs terkait) — sesudah itu Tab 5.1 bekerja LANGSUNG dari `label_
-//    pcs.sampai_pada`/`status`, tidak perlu jalan-jalan hop lagi.
-//
-// 5. Scan Unpack (5.1): TIDAK ada koleksi/field per-pcs baru untuk unpack log
-//    (beda dari Finishing yang menulis ke `finishing_track.catatan_masalah`
-//    karena finishing_track memang ada) — modul ini menumpuk ke field
-//    `separating_batch.unpack_log` yang SUDAH ADA & SUDAH DIPAKAI Serie
-//    sendiri di buatTabTerima() (array generik {kode_bagging, status, pada,
-//    oleh}) — konsisten memakai field bersama yang sudah ada, bukan bikin
-//    field baru untuk hal yang sama.
-//
-// 6. Scan Masalah ditambahkan di seksi "Batch Menunggu Sampai" Tab 5.1
-//    walau tabel ringkas SERAH-TERIMA §2 tidak menulisnya eksplisit untuk
-//    5.1 — PEDOMAN-SERAH-TERIMA.md §4c ("scan masalah wajib di tahap Perlu
-//    kalau tahap Sedang punya") tidak 1:1 berlaku di sini (modul ini tidak
-//    punya tab "Sedang" terpisah), TAPI preseden KONSISTEN dipakai semua tab
-//    "Perlu terima kiriman" lain di app ini (Cutting 1.1, Serie 2.1/2.6/2.9,
-//    Sewing 3.1, Finishing 4.1) — SEMUA punya Scan Masalah untuk laporkan
-//    kekurangan/cacat kiriman saat diterima. Konsisten dengan itu, bukan
-//    ditambah sembarangan.
-//
-// 7. Alokasi PO FIFO (§3 "Alokasi PO FIFO... urut dibuat_pada. Sisa MOQ jadi
-//    stok bebas") — cross-check LIVE CODE ke js/vue-pesanan.js: koleksi
-//    `order_spk` MASIH AKTIF ditulis di sana (Penjualan Kasir, fungsi
-//    checkout) walau ADA entry lama "DIPENSIUNKAN" di DAFTAR_MENU js/vue-
-//    config-akses.js — entry itu cuma menu ADMIN LAMA yang dipensiunkan
-//    (diganti "Pesanan > Menunggu Proses"), BUKAN koleksi Firestore-nya,
-//    yang tetap koleksi hidup. Field yang dipakai: `sku_produk`, `status`
-//    ('Aktif'), `qty_order`, `dibuat_pada`. TIDAK ADA field "sudah
-//    teralokasi berapa" di order_spk — dihitung derived (query label_pcs
-//    where order_spk_id===id, hitung .size) tiap kali alokasi jalan, BUKAN
-//    disimpan counter terpisah — konsisten dengan prinsip "Cara Menilai
-//    Hasilnya Benar #2" milik modul ini sendiri ("angka kumulatif dihitung
-//    ulang dari sumbernya, tidak disimpan ganda"). `order_spk` TIDAK punya
-//    field size/warna terpisah (beda dari label_pcs) — asumsi 1 sku_produk
-//    = 1 kombinasi size+warna spesifik (konsisten dengan cara Sewing mencetak
-//    label_pcs per SKU), jadi `sku_produk` cukup sebagai kunci pencocokan.
-//
-// 8. "Alert PO di kasir" (§3) & "Koneksi ke Pesanan 1.1" (§3) EKSPLISIT DI
-//    LUAR SCOPE modul ini (§4 Scope: "Tidak masuk: ... Kasir UI (canvas
-//    Pesanan)") — modul ini CUMA menulis `label_pcs.order_spk_id` dengan
-//    benar supaya modul Kasir (belum dibangun, di luar cakupan sesi ini)
-//    bisa membaca & menampilkan alert-nya sendiri nanti. TIDAK ada alert
-//    warna kuning di modul ini sendiri.
-//
-// 9. Scan Opname (5.4) — SENGAJA TIDAK memakai ulang js/vue-scan-opname.js
-//    (modul itu domain BEDA: opname bahan/aksesoris per-item/per-roll, pakai
-//    kamera jsQR mentah miliknya sendiri, ditulis SEBELUM konvensi
-//    ScanGenerik ada). Modul ini dibangun baru pakai `ScanGenerik` (popup
-//    scan berulang, SAMA komponen yang dipakai semua tab Proses Produksi
-//    lain) supaya konsisten dengan Cutting/Serie/Sewing/Finishing, BUKAN
-//    dengan Scan Opname bahan yang lebih tua. Alur sesi: buka sesi (in-
-//    memory Set kode_pcs yang sudah discan, SAMA konvensi "riwayat sesi...
-//    in-memory saja" milik vue-scan-opname.js sendiri) -> scan berkali-kali
-//    -> "Selesaikan Sesi" men-diff scan vs `label_pcs` berstatus 'di_gudang'/
-//    'perlu_dicari': yang TIDAK discan (status 'di_gudang') -> 'perlu_dicari'.
-//    Yang discan TAPI berstatus 'perlu_dicari' -> kembali 'di_gudang'
-//    (ditemukan). Log ringkas ditulis ke koleksi opsional
-//    `opname_produk_jadi/{autoId}` (tanggal, oleh, durasi, jumlah dicek/
-//    cocok/perlu dicari/ditemukan kembali) — field "jumlah dihapus" yang
-//    disebut SERAH-TERIMA §5 TIDAK diisi di sini (konfirmasi hilang per pcs
-//    di popup 5.4a adalah aksi TERPISAH & belakangan, jumlahnya tidak
-//    diketahui saat sesi opname selesai) — deviasi kecil, didokumentasikan
-//    di sini, bukan ditebak diam-diam.
-//
-// 10. Popup 5.4a "Konfirmasi Hilang" — pakai `PopupPinGenerik` (SAMA
-//    komponen dipakai Sewing utk Scan Operator) dengan `:roles-diizinkan=
-//    "['owner']"` PERSIS sesuai kalimat SERAH-TERIMA "Konfirmasi hapus per
-//    pcs: PIN Owner" (bukan PIC+ seperti gerbang operator pos lain).
-//
-// 11. Tab 5.3 "Riwayat Keluar" menambah pencarian+rentang tanggal+Unduh CSV
-//    (TIDAK diminta eksplisit di SERAH-TERIMA §2, cuma bilang "read-only")
-//    — preseden KONSISTEN dipakai SEMUA tab riwayat/selesai di app ini
-//    (Sewing 3.5, Finishing 4.5) — bukan fitur baru yang ditebak sendiri.
-//    Ditambah lookup ringan ke `transaksi_kasir` (map id->no_transaksi/
-//    nama_pelanggan) supaya baris riwayat lebih berguna daripada cuma ID
-//    mentah — modul Kasir belum dibangun jadi tab ini realistis akan KOSONG
-//    sampai modul itu ada, bukan bug.
-//
-// 12. Tidak ada Tunjuk Operator/PIN operator di modul ini — SERAH-TERIMA
-//    tidak menyebut konsep operator sama sekali untuk Gudang (beda dari
-//    Cutting/Sewing/Finishing yang semua punya penunjukan operator per
-//    tahap) — semua aksi cukup gerbang `cekIzinMenu(menuId,'edit')` biasa.
-//
-// GAP DISENGAJA (bukan bug):
-// - Tab 5.3 "Riwayat Keluar" & alokasi `order_spk_id` di Tab 5.1 akan
-//   tampak "kosong"/"selalu stok bebas" sampai modul Kasir (Penjualan Kasir
-//   rework, di luar cakupan sesi ini) benar-benar menulis order_spk & scan
-//   label_pcs saat checkout — field-field itu SUDAH DISEDIAKAN modul ini,
-//   tinggal menunggu modul Kasir memakainya.
-// ============================================================================
+// Jebakan:
+// - Scan Sampai di Tab Perlu Disimpan adalah penulis separating_batch
+// .sampai_pada — tab Selesai di Serie kosong selamanya kalau langkah ini
+// tidak pernah dijalankan.
+// - Modul ini membaca koleksi milik modul lain, jadi perubahan skema
+// label_pcs di js/vue-pp-sewing.js langsung berdampak ke sini.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { ScanGenerik, PopupPinGenerik, ajukanPersiapanMasalah, buatUnpackUniversal } from './vue-scan-cetak.js?v=5';
 
-// --- Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing/Finishing). --
+// Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing/Finishing).
+// --
 function formatQty(n) {
   const angka = parseFloat(n) || 0;
   return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 });
@@ -185,7 +54,7 @@ function formatWaktu(iso) {
 }
 const TLC_ASAL_GUDANG = 'TLC-GBJ'; // sama literal dgn TLC_TUJUAN_GUDANG milik Serie (js/vue-pp-serie.js)
 
-// --- Baca koleksi mentah -----------------------------------------------------
+// Baca koleksi mentah
 async function muatSemuaSeparatingBatch() {
   const snap = await getDocs(collection(db, 'separating_batch'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -199,7 +68,7 @@ async function muatSemuaLabelPcs() {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 
-// --- Alokasi FIFO ke order_spk (keputusan #7) --------------------------------
+// Alokasi FIFO ke order_spk (keputusan #7)
 async function alokasikanKePoFifo(pcs) {
   if (!pcs.sku_produk) return null;
   try {
@@ -214,7 +83,7 @@ async function alokasikanKePoFifo(pcs) {
   } catch (e) { console.error('Gagal alokasi FIFO ke order_spk:', e); return null; }
 }
 
-// --- Scan Sampai (keputusan #4): tutup separating_batch + tandai label_pcs --
+// Scan Sampai (keputusan #4): tutup separating_batch + tandai label_pcs --
 async function prosesScanSampaiBatch(batch) {
   const now = new Date().toISOString();
   await updateDoc(doc(db, 'separating_batch', batch.id), { status: 'selesai', sampai_pada: now });
@@ -249,12 +118,12 @@ async function kirimMasalahGudang(b, jumlah, alasan) {
   });
 }
 
-// ============================================================================
+
 // TAB 5.1: Perlu Disimpan — dua seksi: (a) Batch Menunggu Sampai (dari
-// separating_batch status 'kirim_gudang', Scan Sampai + Unpack + Masalah),
-// (b) Pcs Siap Disimpan (dari label_pcs sudah sampai_pada tapi belum
+// separating_batch status 'kirim_gudang', Scan Sampai + Unpack + Masalah), (b)
+// Pcs Siap Disimpan (dari label_pcs sudah sampai_pada tapi belum
 // status:'di_gudang', Scan Masuk Gudang per pcs). Lihat keputusan #3/#4/#5/#6.
-// ============================================================================
+
 const GudangPerluDisimpan = {
   components: { ScanGenerik },
   setup() {
@@ -274,9 +143,9 @@ const GudangPerluDisimpan = {
       memuat.value = false;
     }
 
-    // --- Seksi (b): pcs sudah sampai_pada, belum masuk gudang, dikelompokkan
+    // Seksi (b): pcs sudah sampai_pada, belum masuk gudang, dikelompokkan
     // per kode_batch + hitung progres X/Y dari SELURUH label_pcs batch itu
-    // (bukan cuma yang belum, supaya penyebutnya benar). --------------------
+    // (bukan cuma yang belum, supaya penyebutnya benar).
     const kelompokSiapDisimpan = computed(() => {
       const peta = {};
       semuaLabelPcs.value.forEach(p => {
@@ -290,9 +159,9 @@ const GudangPerluDisimpan = {
       return Object.values(peta).filter(g => g.pending.length > 0);
     });
 
-    // --- Scan Sampai: step1 kode_tugas, step2 kode_bagging berkali-kali,
-    // dicocokkan ke separating_batch (SAMA pola Finishing/Sewing). Begitu
-    // SEMUA kode_bagging cocok discan -> tutup batch (keputusan #4). --------
+    // Scan Sampai: step1 kode_tugas, step2 kode_bagging berkali-kali,
+    // dicocokkan ke separating_batch (SAMA pola Finishing/Sewing). Begitu SEMUA
+    // kode_bagging cocok discan -> tutup batch (keputusan #4).
     const modalSampai = reactive({ aktif: false, batch: null, tugasKirim: null, log: [] });
     function bukaScanSampai() { modalSampai.batch = null; modalSampai.tugasKirim = null; modalSampai.log = []; modalSampai.aktif = true; }
     function tutupScanSampai() { modalSampai.aktif = false; modalSampai.batch = null; modalSampai.tugasKirim = null; modalSampai.log = []; muat(); }
@@ -302,9 +171,7 @@ const GudangPerluDisimpan = {
         const b = daftarBatch.value.find(x => x.kode_tugas === kode);
         if (!b) { alert(`Kode tugas "${kode}" tidak ditemukan di antara batch yang sedang dikirim ke Gudang.`); return; }
         modalSampai.batch = b;
-        // BARU (12 Sep 2026, konsisten dengan pp-sewing.js/pp-finishing.js —
-        // pelepasan kaitan root1/root2/bagging via Scan Sampai, leg terakhir
-        // Serie -> Gudang): cache tugas_kirim (kode sama dengan kode_tugas).
+        // cache tugas_kirim (kode sama dengan kode_tugas).
         try {
           const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
           modalSampai.tugasKirim = snapTugas.empty ? null : { id: snapTugas.docs[0].id, ...snapTugas.docs[0].data() };
@@ -315,8 +182,8 @@ const GudangPerluDisimpan = {
       if (!(b.kode_bagging || []).includes(kode)) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
       if (modalSampai.log.includes(kode)) { alert(`Kode bagging "${kode}" sudah discan sebelumnya di sesi ini.`); return; }
       modalSampai.log.unshift(kode);
-      // BARU (12 Sep 2026): lepas kaitan root1/root2/bagging di
-      // tugas_kirim.pack[] begitu kode_bagging ini dinyatakan sampai.
+      // lepas kaitan root1/root2/bagging di tugas_kirim.pack[] begitu
+      // kode_bagging ini dinyatakan sampai.
       const tk = modalSampai.tugasKirim;
       if (tk) {
         const packArr = Array.isArray(tk.pack) ? tk.pack : [];
@@ -341,12 +208,11 @@ const GudangPerluDisimpan = {
       }
     }
 
-    // --- Scan Unpack: versi BARU (12 Sep 2026, keputusan Guru — MENGGANTIKAN
-    // popup KOMPLIT/INKOMPLIT lama). Scan ulang tiap isi bagging
-    // (bagging.isi[]), lihat buatUnpackUniversal() di vue-scan-cetak.js.
+    // Scan Unpack: versi BARU . Scan ulang tiap isi bagging (bagging.isi[]),
+    // lihat buatUnpackUniversal di vue-scan-cetak.js.
     const { modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack } = buatUnpackUniversal();
 
-    // --- Scan Masuk Gudang: scan 1 kode_pcs, alokasi FIFO, set status. -----
+    // Scan Masuk Gudang: scan 1 kode_pcs, alokasi FIFO, set status.
     const modalMasuk = reactive({ aktif: false, log: [] });
     function bukaScanMasuk() { modalMasuk.log = []; modalMasuk.aktif = true; }
     function tutupScanMasuk() { modalMasuk.aktif = false; modalMasuk.log = []; muat(); }
@@ -458,10 +324,10 @@ const GudangPerluDisimpan = {
   `
 };
 
-// ============================================================================
+
 // TAB 5.2: Stok Tersedia — view read-only, derived dari label_pcs status
 // 'di_gudang', dikelompokkan per produk+size+warna (keputusan #1/#7).
-// ============================================================================
+
 const GudangStokTersedia = {
   setup() {
     const memuat = ref(true);
@@ -531,10 +397,10 @@ const GudangStokTersedia = {
   `
 };
 
-// ============================================================================
+
 // TAB 5.3: Riwayat Keluar — read-only, label_pcs status 'terjual' (keputusan
 // #11). Realistis kosong sampai modul Kasir dibangun (GAP DISENGAJA).
-// ============================================================================
+
 const GudangRiwayatKeluar = {
   setup() {
     const memuat = ref(true);
@@ -623,9 +489,9 @@ const GudangRiwayatKeluar = {
   `
 };
 
-// ============================================================================
+
 // TAB 5.4: Scan Opname + popup 5.4a — sesi scan berulang (keputusan #9/#10).
-// ============================================================================
+
 const GudangScanOpname = {
   components: { ScanGenerik, PopupPinGenerik },
   setup() {
@@ -643,7 +509,7 @@ const GudangScanOpname = {
 
     const daftarPerluDicari = computed(() => daftarAktif.value.filter(p => p.status === 'perlu_dicari'));
 
-    // --- Sesi opname (in-memory, keputusan #9) -----------------------------
+    // Sesi opname (in-memory, keputusan #9)
     const sesi = reactive({ aktif: false, mulaiPada: null, scanned: new Set(), log: [] });
     function mulaiSesi() { sesi.aktif = true; sesi.mulaiPada = Date.now(); sesi.scanned = new Set(); sesi.log = []; }
     const modalScanAktif = ref(false);
@@ -684,7 +550,7 @@ const GudangScanOpname = {
     }
     function batalSesi() { sesi.aktif = false; sesi.mulaiPada = null; sesi.scanned = new Set(); sesi.log = []; }
 
-    // --- Popup 5.4a: Konfirmasi Hilang, PIN Owner (keputusan #10) ----------
+    // Popup 5.4a: Konfirmasi Hilang, PIN Owner (keputusan #10)
     const targetHilang = ref(null);
     const popupPinAktif = ref(false);
     function bukaKonfirmasiHilang(p) { targetHilang.value = p; popupPinAktif.value = true; }
@@ -755,7 +621,7 @@ const GudangScanOpname = {
   `
 };
 
-// --- Mount ke index.html — LAZY, SAMA pola Cutting/Serie/Sewing/Finishing. --
+// Mount ke index.html — LAZY, SAMA pola Cutting/Serie/Sewing/Finishing. --
 let vmGudangPerluDisimpan = null;
 window.pastikanMountGudangPerluDisimpan = function () {
   if (vmGudangPerluDisimpan) { if (typeof vmGudangPerluDisimpan.muat === 'function') vmGudangPerluDisimpan.muat(); return; }

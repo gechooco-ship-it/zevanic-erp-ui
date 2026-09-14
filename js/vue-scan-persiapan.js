@@ -1,138 +1,28 @@
 // js/vue-scan-persiapan.js
-// ============================================================================
-// BARU (27 Agt 2026, §26.5, Tahap 5 — TAHAP TERAKHIR) — Zevanic House >
-// Scan > Scan Persiapan. Bagian dari rencana besar "Config, Cetak Label,
-// Order SPK, Scan" yang diuraikan & disepakati Guru SEBELUM koding di
-// §26.0 (lihat STATUS-PROYEK.md). Tahap 1-4 SUDAH dites Guru di live &
-// jalan normal sebelum Tahap ini mulai dikerjakan.
+// Scan & Cetak > Scan Persiapan — mencatat pemakaian bahan untuk satu SPK
+// lewat scan QR barang/roll, bukan ketik bebas.
 //
-// APA INI (§26.0 poin 8 & 9): jalur BARU buat catat PEMAKAIAN barang,
-// terhubung ke No. SPK (Order SPK, §26.2) — lewat scan QR, bukan ketik
-// bebas. Guru eksplisit: "Scan Persiapan MENGGANTIKAN cuma AKSI catat
-// pemakaian barunya (form qty+keterangan)" — Ringkasan & Detail
-// keluar-masuk di Kartu Stok (js/vue-kartu-stok.js) TIDAK disentuh sama
-// sekali, tetap ada seperti sekarang buat lihat data. Form "Catat
-// Pemakaian" LAMA di Kartu Stok Detail JUGA TIDAK dihapus — tetap jalur
-// yang dipakai kalau pemakaian TIDAK terkait SPK tertentu, atau butuh
-// alokasi FIFO multi-roll otomatis (lihat catatan "Simplifikasi" di
-// bawah).
+// Cara kerja:
+// - SPK dipilih lewat dropdown (SPK tidak punya QR sendiri), berlaku sama
+// untuk semua role.
+// - Identifikasi barang: non-Owner WAJIB scan QR kamera; Owner boleh scan
+// atau pilih dari dropdown, di desktop maupun mobile. Pola gating ini
+// sama persis dengan js/vue-scan-opname.js.
+// - bangunAlokasiFifoScan: ambil dari lot yang discan dulu, sisanya
+// ditarik dari lot aktif lain untuk bahan yang sama (FIFO lewat
+// ambilLotAktif).
+// - Kalau stok kurang, popup 3 opsi: kurangi jumlah, proses sebagian dan
+// ajukan sisa, atau tunggu. Pengajuan sisa ditulis ke koleksi
+// permintaan_bahan_manual.
+// - "Riwayat Sesi Ini" hanya in-memory, tidak disimpan.
 //
-// ALUR:
-//   1. Pilih No. SPK dulu (dropdown, WAJIB, difilter status "Aktif" saja
-//      — sesuai catatan di vue-order-spk.js). No. SPK TIDAK dibuatkan QR/
-//      barcode sendiri (Guru tidak pernah minta ini, beda dari barang/
-//      roll) — jadi dropdown biasa, BUKAN scan, berlaku SAMA untuk semua
-//      role (bukan cuma Owner) — keputusan sepihak, lihat catatan
-//      "KEPUTUSAN SEPIHAK" di bawah.
-//   2. Identifikasi barang (item biasa ATAU 1 roll spesifik utk item
-//      pakai_lot_tracking) yang dipakai buat SPK itu:
-//        - Non-Owner: WAJIB scan QR (kamera) — SAMA PERSIS pola gating
-//          `vue-scan-opname.js` (role !== 'owner' + wajib mobile + wajib
-//          scan, tidak ada jalur ketik/cari manual sama sekali).
-//        - Owner: bebas cari-pilih (dropdown) ATAU scan, desktop maupun
-//          mobile — SAMA PERSIS pola Owner di `vue-scan-opname.js`.
-//   3. Isi Qty yang dipakai/diambil + keterangan (opsional) -> Catat
-//      Pemakaian. Ditulis ke `kartu_stok_bahan_aksesoris` (ledger yang
-//      SUDAH ADA) lewat 2 fungsi shared di vue-stock-pembelian.js:
-//      `catatPergerakanKartuStok()` (item biasa, jenis:'keluar') /
-//      `catatPemakaianDariAlokasi()` (item ber-roll, param BARU `sumber`
-//      supaya kelihatan beda dari pemakaian manual desktop — lihat
-//      catatan di vue-stock-pembelian.js). File INI TIDAK PERNAH tulis
-//      stok_akhir/qty_sisa langsung — aturan "JANGAN PERNAH update
-//      stok_akhir langsung dari tempat lain" TETAP dipegang.
-//   4. Balik ke langkah 2 (No. SPK yang sama tetap terpilih) — 1 sesi bisa
-//      catat banyak barang berturut-turut buat SPK yang sama, sampai
-//      user ganti No. SPK sendiri. "Riwayat Sesi Ini" (in-memory saja,
-//      sama seperti vue-scan-opname.js) nunjukin apa saja yang sudah
-//      dicatat di sesi ini.
-//
-// KEPUTUSAN SEPIHAK (belum eksplisit ditanya ke Guru, catat di sini biar
-// gampang dikoreksi kalau meleset — konsisten dengan pola "keputusan
-// sepihak" proyek ini, mis. §25.11):
-//   a. No. SPK dipilih lewat DROPDOWN (bukan scan) utk SEMUA role —
-//      karena memang tidak ada infrastruktur QR/barcode utk No. SPK
-//      sama sekali (beda dari barang/roll yang sudah punya label QR
-//      lewat Cetak Label §26.3). Gerbang "wajib scan" §26.0 poin 6 & 9
-//      dibaca SPESIFIK utk identifikasi BARANG (yang menentukan APA &
-//      BERAPA stok berubah) — bukan utk metadata No. SPK yang sekadar
-//      label pengelompokan/audit, tidak mengubah logic stok sama sekali.
-//   b. SIMPLIFIKASI alokasi roll: Scan Persiapan CUMA proses 1 roll per
-//      transaksi (qty yang diisi dibatasi maksimal `qty_sisa` roll yang
-//      dipilih/discan) — TIDAK mereplikasi tabel alokasi FIFO multi-roll
-//      + 3 opsi keputusan "kekurangan lot" (kurangi/proses sebagian/
-//      tunggu, terhubung Persiapan Masalah) yang ada di form "Catat
-//      Pemakaian" desktop (vue-kartu-stok.js). Kalau qty yang dibutuhkan
-//      lebih besar dari 1 roll, user cukup scan roll BERIKUTNYA lagi
-//      (natural buat alur fisik "ambil dari roll ini abis, lanjut roll
-//      itu") — form "Catat Pemakaian" lama di Kartu Stok Detail TETAP
-//      ada persis seperti sekarang buat kasus yang butuh alokasi
-//      otomatis multi-roll/kekurangan stok.
-//      ** DIBATALKAN (7 Sep 2026) — lihat blok "PORT DARI KARTU STOK" di
-//      bawah. Poin b ini SUDAH TIDAK BERLAKU: Kartu Stok "Catat
-//      Pemakaian" DIHAPUS TOTAL (jadi read-only sesuai wireframe), jadi
-//      kedua kemampuan yang dulu "TETAP ada di sana" SEKARANG dipindah
-//      ke sini. Dibiarkan di atas (bukan dihapus) sebagai jejak sejarah
-//      keputusan, konsisten pola supersede lain di file ini (lihat
-//      catatan poin a & cariSpkByNoSpk() di bawah).
-//
-// Gating "mobile-only utk non-Owner" & kamera/QR: SAMA PERSIS pola
-// `vue-scan-opname.js` (§26.4) — lihat catatan di file itu, disalin ulang
-// ke sini (konvensi "salin logic kecil per-file" proyek ini).
-//
-// ============================================================================
-// PORT DARI KARTU STOK (7 Sep 2026) — keputusan Guru: "Pindahkan scope ke
-// Scan Persiapan". Kartu Stok "Catat Pemakaian" (form desktop, FIFO
-// multi-roll otomatis + popup 3 opsi "kekurangan lot") DIHAPUS TOTAL dari
-// vue-kartu-stok.js (jadi murni read-only, sesuai wireframe handoff "04 -
-// Stok dan Pembelian"). Supaya kemampuannya TIDAK HILANG, 2 hal berikut
-// dipindah & diadaptasi ke SINI (bukan disalin persis — halaman ini
-// scan-driven/mobile-first, bukan form-driven, jadi UX-nya disesuaikan):
-//
-// 1. FIFO multi-roll OTOMATIS. Dulu: kalau roll yang di-scan/dipilih tidak
-//    cukup, user diminta scan roll LAIN secara manual (1 transaksi = 1
-//    roll, alert saja). SEKARANG: roll yang di-scan/dipilih tetap
-//    diprioritaskan duluan (fisik: operator sudah pegang roll itu di
-//    tangan), TAPI kalau qty_sisa roll itu tidak cukup, SISANYA otomatis
-//    disambung dari roll aktif LAIN milik item yang sama secara FIFO
-//    (tanggal_masuk paling lama duluan, lewat ambilLotAktif() yang
-//    SUDAH terurut FIFO) — TANPA perlu scan ulang. 1 baris Kartu Stok
-//    tetap tercatat (rincian_lot menunjukkan roll mana saja yang
-//    kepotong) — fungsi backend `catatPemakaianDariAlokasi()` di
-//    vue-stock-pembelian.js SUDAH mendukung alokasi multi-lot sejak awal
-//    (dipakai `vue-kartu-stok.js`), DIPAKAI ULANG PERSIS di sini TANPA
-//    perubahan apapun ke file itu — cukup kirim array `alokasi` lebih
-//    dari 1 baris.
-//    ADAPTASI UX (keputusan sepihak, ditandai supaya gampang dikoreksi):
-//    TIDAK ada tabel "Pilih Roll/Lot yang Dipakai" yang bisa diedit manual
-//    seperti versi desktop (cari kode / tombol Scan Roll tambahan) —
-//    alokasi lanjutan 100% OTOMATIS (FIFO murni, tidak bisa dipilih
-//    sendiri). Alasan: halaman ini scan-driven, operator di lapangan,
-//    tidak natural suruh dia buka tabel & edit qty per baris di HP sambil
-//    berdiri di rak. Kalau hasil kepotong dari LEBIH dari 1 roll, alert
-//    sukses menyebutkan roll tambahan yang kepotong (kode roll + qty)
-//    persis seperti rincian_lot desktop, supaya operator tahu harus
-//    ambil fisik dari roll itu juga. TIDAK ada peringatan "roll yang
-//    dipakai bukan yang tertua" (yang ada di form desktop) untuk roll
-//    PERTAMA (yang di-scan/dipilih) — itu memang pilihan fisik operator,
-//    dianggap sah apa adanya (perilaku ini SUDAH ada & disetujui Guru
-//    sejak Tahap 1-4, tidak diubah). Roll TAMBAHAN (penyambung) SELALU
-//    FIFO murni, jadi tidak ada penyimpangan untuk diperingatkan di situ.
-//
-// 2. Popup 3 opsi "Roll/Lot Tidak Cukup" (kurangi jumlah / proses
-//    sebagian & ajukan sisa ke `persiapan_masalah` / tunggu dulu) — DIPORT
-//    hampir 1:1 dari vue-kartu-stok.js (`kekuranganLot`, 3 fungsi
-//    keputusan, `ajukanPersiapanMasalahKekurangan()`), TERPICU kalau
-//    TOTAL semua roll aktif (roll yang di-scan + semua roll FIFO
-//    lainnya) masih < qty yang diminta — genuine kekurangan stok, bukan
-//    cuma kekurangan di 1 roll. Ditulis ULANG di sini (bukan diimpor
-//    lintas file dari vue-kartu-stok.js — file itu TIDAK mengekspor
-//    apapun, konsisten pola "salin logic kecil per-file" proyek ini,
-//    sama seperti kamera/QR di atas). Keterangan yang ditulis ke
-//    `persiapan_masalah` menyertakan No. SPK aktif (konteks yang tidak
-//    ada di form desktop) supaya PIC pembelian tahu ini kekurangan buat
-//    SPK mana. Skema tulis (field & `status:'menunggu'`) PERSIS SAMA
-//    seperti versi Kartu Stok — TIDAK ada field baru.
-// ============================================================================
+// Jebakan:
+// - File ini TIDAK PERNAH menulis stok_akhir atau qty_sisa langsung.
+// Semua pergerakan lewat catatPergerakanKartuStok /
+// catatPemakaianDariAlokasi di js/vue-stock-pembelian.js, yang menulis
+// ke ledger kartu_stok_bahan_aksesoris.
+// - Form "Catat Pemakaian" lama di Kartu Stok sengaja dipertahankan untuk
+// pemakaian yang tidak terkait SPK tertentu.
 import { createApp, ref, computed, onMounted, onUnmounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -171,20 +61,19 @@ function formatQty(n) {
   const angka = parseFloat(n) || 0;
   return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 }
-// ringkasRincianLot — DIPORT dari vue-kartu-stok.js (fungsi kecil, disalin
-// bukan diimpor — file itu tidak mengekspor apapun).
+// ringkasRincianLot — DIPORT dari vue-kartu-stok.js (fungsi kecil, disalin bukan
+// diimpor — file itu tidak mengekspor apapun).
 function ringkasRincianLot(rincian) {
   return rincian.map(r => `Roll ${r.kode_lot || r.lot_id}: dipotong ${formatQty(r.dipotong)} (sisa ${formatQty(r.sisa_setelah)})`).join('\n');
 }
-// bangunAlokasiFifoScan — BARU (7 Sep 2026, port dari vue-kartu-stok.js
-// `bangunAlokasiFifo()`, diadaptasi). BEDA dari versi desktop: versi ini
-// SELALU memprioritaskan `lotAwal` (roll yang di-scan/dipilih operator)
-// duluan sampai qty_sisa-nya habis, BARU sisanya disambung FIFO (paling
-// lama duluan) dari roll aktif LAIN milik item yang sama — bukan FIFO
-// murni dari awal seperti versi desktop (yang tidak punya konsep "roll
-// yang sedang dipegang fisik"). Selalu baca ULANG data lot FRESH lewat
-// ambilLotAktif() (bukan pakai cache yang mungkin sudah basi) — aman
-// dipanggil persis sebelum simpan.
+// bangunAlokasiFifoScan — port dari vue-kartu-stok.js `bangunAlokasiFifo`,
+// diadaptasi). BEDA dari versi desktop: versi ini SELALU memprioritaskan
+// `lotAwal` (roll yang di-scan/dipilih operator) duluan sampai qty_sisa-nya
+// habis, BARU sisanya disambung FIFO (paling lama duluan) dari roll aktif LAIN
+// milik item yang sama — bukan FIFO murni dari awal seperti versi desktop (yang
+// tidak punya konsep "roll yang sedang dipegang fisik"). Selalu baca ULANG data
+// lot FRESH lewat ambilLotAktif (bukan pakai cache yang mungkin sudah basi) —
+// aman dipanggil persis sebelum simpan.
 async function bangunAlokasiFifoScan(bahanId, lotAwal, qty) {
   const semuaAktif = await ambilLotAktif(bahanId);
   const petaFresh = new Map(semuaAktif.map(l => [l.id, l]));
@@ -212,10 +101,10 @@ async function bangunAlokasiFifoScan(bahanId, lotAwal, qty) {
   }
   return { alokasi, totalTersedia, kekurangan: Math.max(0, Math.round(sisa * 100) / 100) };
 }
-// ambilDaftarSpkAktif — baca `order_spk` (§26.2), DIFILTER status "Aktif"
-// saja (sesuai catatan di vue-order-spk.js). Query 1 field where() saja
-// (tidak orderBy field lain) — supaya TIDAK butuh index komposit baru di
-// Firestore, urutan ditentukan di sini (client-side, sort by no_spk).
+// ambilDaftarSpkAktif — baca `order_spk` (§26.2), DIFILTER status "Aktif" saja
+// (sesuai catatan di vue-order-spk.js). Query 1 field where saja (tidak orderBy
+// field lain) — supaya TIDAK butuh index komposit baru di Firestore, urutan
+// ditentukan di sini (client-side, sort by no_spk).
 async function ambilDaftarSpkAktif() {
   try {
     const snap = await getDocs(query(collection(db, 'order_spk'), where('status', '==', 'Aktif')));
@@ -228,13 +117,12 @@ async function ambilDaftarSpkAktif() {
     return [];
   }
 }
-// cariSpkByNoSpk — BARU (27 Agt 2026, §26.6). Order SPK (`vue-order-
-// spk.js`) SEKARANG bisa cetak label fisik ber-QR isi `no_spk`
-// (`cetakSpkList()`, di file itu) — jadi No. SPK SEKARANG JUGA bisa
-// discan, BUKAN cuma dropdown lagi (lihat catatan header file, ini
-// men-SUPERSEDE "keputusan sepihak poin a" §26.5). Query cari status
-// APAPUN (bukan cuma Aktif) — supaya kalau yang discan ternyata SPK
-// "Selesai", user dapat pesan jelas (bukan "kode tidak dikenali").
+// cariSpkByNoSpk — BARU . Order SPK (`vue-order- spk.js`) SEKARANG bisa cetak
+// label fisik ber-QR isi `no_spk` (`cetakSpkList`, di file itu) — jadi No. SPK
+// SEKARANG JUGA bisa discan, BUKAN cuma dropdown lagi (lihat catatan header
+// file, ini men- "keputusan sepihak poin a" §26.5). Query cari status APAPUN
+// (bukan cuma Aktif) — supaya kalau yang discan ternyata SPK "Selesai", user
+// dapat pesan jelas (bukan "kode tidak dikenali").
 async function cariSpkByNoSpk(noSpk) {
   if (!noSpk) return null;
   const snap = await getDocs(query(collection(db, 'order_spk'), where('no_spk', '==', String(noSpk).trim())));
@@ -243,19 +131,17 @@ async function cariSpkByNoSpk(noSpk) {
   return hasil;
 }
 
-// DIHAPUS (30 Agt 2026, Fase 5 audit referensi lama) — dulu ada fungsi
-// tandaiPersiapanDariScan() di sini, INTEGRASI dengan menu Persiapan
-// Produksi versi LAMA (koleksi `persiapan_komponen`, file
-// js/vue-persiapan-produksi.js — sudah ditinggalkan total sejak sistem
-// diganti total ke Persiapan Produksi V2, lihat RENCANA-PERSIAPAN-
-// PRODUKSI-V2.md). Karena koleksi `persiapan_komponen` sudah tidak
-// pernah dibuat lagi, fungsi itu jadi no-op senyap (query selalu
-// kosong) di SETIAP "Catat Pemakaian" — dibungkus try/catch jadi tidak
-// pernah merusak pencatatan pemakaian utama, tapi buang 1 baca Firestore
-// percuma tiap scan & komentarnya menyesatkan. Dihapus atas persetujuan
-// Guru (AskUserQuestion, 30 Agt 2026) — TIDAK ada perubahan pada alur
-// utama Catat Pemakaian/Kartu Stok, cuma fungsi dead-code + 1
-// pemanggilannya di simpanPemakaian() yang dibuang.
+// DIHAPUS — dulu ada fungsi tandaiPersiapanDariScan di sini, INTEGRASI dengan
+// menu Persiapan Produksi versi LAMA (koleksi `persiapan_komponen`, file
+// js/vue-persiapan-produksi.js — sudah ditinggalkan total sejak sistem diganti
+// total ke Persiapan Produksi V2, lihat RENCANA-PERSIAPAN- PRODUKSI-V2.md).
+// Karena koleksi `persiapan_komponen` sudah tidak pernah dibuat lagi, fungsi itu
+// jadi no-op senyap (query selalu kosong) di SETIAP "Catat Pemakaian" —
+// dibungkus try/catch jadi tidak pernah merusak pencatatan pemakaian utama, tapi
+// buang 1 baca Firestore percuma tiap scan & komentarnya menyesatkan. Dihapus
+// atas persetujuan — TIDAK ada perubahan pada alur utama Catat Pemakaian/Kartu
+// Stok, cuma fungsi dead-code + 1 pemanggilannya di simpanPemakaian yang
+// dibuang.
 
 const ScanPersiapanManager = {
   components: { DropdownCari },
@@ -266,13 +152,12 @@ const ScanPersiapanManager = {
     const diblokirDesktop = computed(() => siapAkses.value && !isOwner.value && !isMobileDevice.value);
     const bolehSimpan = computed(() => window.cekIzinMenu(MENU_ID_SCAN_PERSIAPAN, 'edit') !== false);
 
-    // --- Langkah 1: pilih No. SPK — dropdown ATAU scan (BARU §26.6,
-    // lihat catatan header file — men-SUPERSEDE "keputusan sepihak poin
-    // a" §26.5, SEKARANG No. SPK JUGA punya label ber-QR lewat Order
-    // SPK). Tombol scan kecil di sebelah field, tersedia semua role
-    // (BUKAN gerbang mobile-only — itu KHUSUS identifikasi BARANG di
-    // Langkah 2, No. SPK cuma metadata pengelompokan, sama seperti
-    // alasan dropdown tetap ada di semua role). ---
+    // Langkah 1: pilih No. SPK — dropdown ATAU scan (§26.6, lihat
+    // catatan header file — men- "keputusan sepihak poin a" §26.5, SEKARANG No.
+    // SPK JUGA punya label ber-QR lewat Order SPK). Tombol scan kecil di sebelah
+    // field, tersedia semua role (BUKAN gerbang mobile-only — itu KHUSUS
+    // identifikasi BARANG di Langkah 2, No. SPK cuma metadata pengelompokan,
+    // sama seperti alasan dropdown tetap ada di semua role).
     const daftarSpk = ref([]);
     const memuatSpk = ref(false);
     const spkEntry = ref('');
@@ -285,7 +170,7 @@ const ScanPersiapanManager = {
       return map;
     });
     const opsiSpkNama = computed(() => Array.from(opsiSpkMap.value.keys()));
-    const spkAktif = ref(null); // { id, no_spk, nama_produk, ... } | null
+    const spkAktif = ref(null); // { id, no_spk, nama_produk, .. } | null
     function pilihSpk(s) {
       spkAktif.value = s;
       spkEntry.value = '';
@@ -299,8 +184,8 @@ const ScanPersiapanManager = {
       batalTarget();
     }
 
-    // --- Langkah 2: cari & pilih barang langsung (KHUSUS Owner —
-    // non-Owner tidak punya jalur ini sama sekali, WAJIB scan). ---
+    // Langkah 2: cari & pilih barang langsung (KHUSUS Owner — non-Owner
+    // tidak punya jalur ini sama sekali, WAJIB scan).
     const daftarBahan = ref([]);
     const bahanEntry = ref('');
     const opsiBahanMap = computed(() => {
@@ -313,11 +198,11 @@ const ScanPersiapanManager = {
     });
     const opsiBahanNama = computed(() => Array.from(opsiBahanMap.value.keys()));
 
-    // --- Item lot-tracked dipilih Owner lewat dropdown -> pilih 1 roll
-    // AKTIF spesifik (SAMA seperti vue-scan-opname.js, tapi cuma daftar
-    // roll AKTIF — cariLotByKode/ambilLotAktif, BUKAN cariLotByKodeSemua
-    // Status seperti Scan Opname, karena buat PEMAKAIAN roll yang sudah
-    // 'habis' memang seharusnya tidak bisa dipilih lagi). ---
+    // Item lot-tracked dipilih Owner lewat dropdown -> pilih 1 roll AKTIF
+    // spesifik (SAMA seperti vue-scan-opname.js, tapi cuma daftar roll AKTIF —
+    // cariLotByKode/ambilLotAktif, BUKAN cariLotByKodeSemua Status seperti Scan
+    // Opname, karena buat PEMAKAIAN roll yang sudah 'habis' memang seharusnya
+    // tidak bisa dipilih lagi).
     const bahanUntukPilihRoll = ref(null);
     const daftarLotUntukPilih = ref([]);
     const memuatLotPilih = ref(false);
@@ -347,12 +232,11 @@ const ScanPersiapanManager = {
       bahanEntry.value = ''; bahanUntukPilihRoll.value = null; daftarLotUntukPilih.value = [];
     }
 
-    // --- Kamera/QR (SEMUA role) — pola SAMA PERSIS seperti
-    // vue-scan-opname.js / vue-kartu-stok.js. BARU (27 Agt 2026, §26.6):
-    // `scanAktif` (boolean) DIGANTI `modeScan` ('spk'|'barang'|null) —
-    // SEKARANG ada 2 tujuan scan (No. SPK BARU, barang yang SUDAH ada
-    // sejak awal), pola SAMA PERSIS `modeScan` 2-tujuan di
-    // vue-kartu-stok.js ('barang'|'roll'). ---
+    // Kamera/QR (SEMUA role) — pola SAMA PERSIS seperti vue-scan-opname.js /
+    // vue-kartu-stok.js. BARU: `scanAktif` (boolean) DIGANTI `modeScan`
+    // ('spk'|'barang'|null) — SEKARANG ada 2 tujuan scan (No. SPK BARU, barang
+    // yang SUDAH ada sejak awal), pola SAMA PERSIS `modeScan` 2-tujuan di
+    // vue-kartu-stok.js ('barang'|'roll').
     const modeScan = ref(null); // 'spk' | 'barang' | null
     const videoScanEl = ref(null);
     const canvasScanEl = ref(null);
@@ -429,11 +313,10 @@ const ScanPersiapanManager = {
       const kodeBersih = (kode || '').trim();
       if (!kodeBersih) return;
       if (mode === 'spk') {
-        // BARU (27 Agt 2026, §26.6) — scan barcode No. SPK (dicetak lewat
-        // vue-order-spk.js, `cetakSpkList()`). Cari TANPA filter status
-        // dulu (`cariSpkByNoSpk()`) supaya kalau ternyata SPK-nya sudah
-        // "Selesai", user dapat pesan JELAS — bukan "kode tidak dikenali"
-        // yang membingungkan.
+        // scan barcode No. SPK (dicetak lewat vue-order-spk.js, `cetakSpkList`).
+        // Cari TANPA filter status dulu (`cariSpkByNoSpk`) supaya kalau ternyata
+        // SPK-nya sudah "Selesai", user dapat pesan JELAS — bukan "kode tidak
+        // dikenali" yang membingungkan.
         try {
           const s = await cariSpkByNoSpk(kodeBersih);
           if (!s) { alert(`No. SPK "${kodeBersih}" tidak ditemukan.`); return; }
@@ -447,9 +330,9 @@ const ScanPersiapanManager = {
       }
       // mode === 'barang' (jalur LAMA, TIDAK berubah sama sekali dari §26.5)
       try {
-        // Coba dulu sebagai kode_lot (QR label roll, AKTIF saja — roll
-        // 'habis' memang seharusnya tidak bisa dipakai lagi, beda dari
-        // Scan Opname yang sengaja cari semua status).
+        // Coba dulu sebagai kode_lot (QR label roll, AKTIF saja — roll 'habis'
+        // memang seharusnya tidak bisa dipakai lagi, beda dari Scan Opname yang
+        // sengaja cari semua status).
         const lot = await cariLotByKode(kodeBersih);
         if (lot) {
           const bahan = await ambilBahanById(lot.bahan_aksesoris_id);
@@ -458,8 +341,8 @@ const ScanPersiapanManager = {
           qtyDipakai.value = ''; keteranganPemakaian.value = '';
           return;
         }
-        // Bukan kode_lot (atau roll-nya sudah habis) -> coba sebagai
-        // id_tampil item non-lot (QR dari menu Cetak Label, §26.3).
+        // Bukan kode_lot (atau roll-nya sudah habis) -> coba sebagai id_tampil
+        // item non-lot (QR dari menu Cetak Label, §26.3).
         const bahan = await cariBahanByIdTampil(kodeBersih);
         if (!bahan) { alert(`Kode "${kodeBersih}" tidak ditemukan atau roll-nya sudah habis. Scan roll lain, atau minta bantuan Admin/Owner.`); return; }
         if (bahan.pakai_lot_tracking) {
@@ -474,17 +357,16 @@ const ScanPersiapanManager = {
       }
     }
 
-    // --- Target aktif (hasil scan ATAU hasil pilih roll Owner) + form
-    // input qty + simpan. ---
+    // Target aktif (hasil scan ATAU hasil pilih roll Owner) + form input qty
+    // + simpan.
     const target = ref(null); // { tipe:'roll', lot, bahan } | { tipe:'item', bahan }
     const qtyDipakai = ref('');
     const keteranganPemakaian = ref('');
     const menyimpan = ref(false);
     const riwayatSesi = ref([]); // in-memory saja (bukan koleksi baru), sama pola vue-scan-opname.js
 
-    // BARU (7 Sep 2026, port dari vue-kartu-stok.js) — popup 3 opsi
-    // "Roll/Lot Tidak Cukup", muncul kalau TOTAL semua roll aktif item ini
-    // (roll yang di-scan + semua roll FIFO lainnya) masih < qty yang
+    // popup 3 opsi "Roll/Lot Tidak Cukup", muncul kalau TOTAL semua roll aktif
+    // item ini (roll yang di-scan + semua roll FIFO lainnya) masih < qty yang
     // diminta. null = tidak tampil. { totalTersedia, qtyDiminta, kekurangan }.
     const kekuranganLot = ref(null);
     const memprosesKeputusan = ref(false);
@@ -499,12 +381,12 @@ const ScanPersiapanManager = {
       return `No SPK: ${spkAktif.value.no_spk} — ${spkAktif.value.nama_produk}` + (keteranganPemakaian.value.trim() ? ' — ' + keteranganPemakaian.value.trim() : '');
     }
 
-    // ajukanPersiapanMasalahKekurangan — DIPORT dari vue-kartu-stok.js
-    // (skema tulis PERSIS sama, koleksi board manual — cuma keterangan-nya
-    // menyertakan No. SPK aktif, konteks yang tidak ada di form desktop).
-    // GANTI NAMA KOLEKSI (7 Sep 2026, §5.18): 'persiapan_masalah' ->
-    // 'permintaan_bahan_manual' — nama lama dibebaskan untuk skema TRB baru
-    // pos Masalah (js/vue-pp-masalah.js). Fungsi & skema field TIDAK berubah.
+    // ajukanPersiapanMasalahKekurangan — DIPORT dari vue-kartu-stok.js (skema
+    // tulis PERSIS sama, koleksi board manual — cuma keterangan-nya menyertakan
+    // No. SPK aktif, konteks yang tidak ada di form desktop). GANTI NAMA
+    // KOLEKSI: 'persiapan_masalah' -> 'permintaan_bahan_manual' — nama lama
+    // dibebaskan untuk skema TRB baru pos Masalah (js/vue-pp-masalah.js). Fungsi
+    // & skema field TIDAK berubah.
     async function ajukanPersiapanMasalahKekurangan(k) {
       const bahan = target.value.bahan;
       await addDoc(collection(db, 'permintaan_bahan_manual'), {
@@ -520,9 +402,9 @@ const ScanPersiapanManager = {
       });
     }
 
-    // OPSI A — "Kurangi jumlah pemakaian": catat SEJUMLAH yang tersedia
-    // saja (FIFO penuh dari semua roll aktif), tidak ada sisa, tidak ada
-    // entri Persiapan Masalah baru. DIPORT dari vue-kartu-stok.js.
+    // OPSI A — "Kurangi jumlah pemakaian": catat SEJUMLAH yang tersedia saja
+    // (FIFO penuh dari semua roll aktif), tidak ada sisa, tidak ada entri
+    // Persiapan Masalah baru. DIPORT dari vue-kartu-stok.js.
     async function kurangiKeYangTersedia() {
       if (!kekuranganLot.value || !target.value) return;
       const k = kekuranganLot.value;
@@ -548,9 +430,9 @@ const ScanPersiapanManager = {
       memprosesKeputusan.value = false;
     }
 
-    // OPSI B — "Proses sebagian, order sisanya": catat pemakaian sejumlah
-    // yang tersedia LEWAT FIFO PENUH SEKARANG, sisa kekurangan otomatis
-    // masuk Persiapan Masalah. DIPORT dari vue-kartu-stok.js.
+    // OPSI B — "Proses sebagian, order sisanya": catat pemakaian sejumlah yang
+    // tersedia LEWAT FIFO PENUH SEKARANG, sisa kekurangan otomatis masuk
+    // Persiapan Masalah. DIPORT dari vue-kartu-stok.js.
     async function prosesSebagianDanAjukanSisa() {
       if (!kekuranganLot.value || !target.value) return;
       const k = kekuranganLot.value;
@@ -580,9 +462,8 @@ const ScanPersiapanManager = {
       memprosesKeputusan.value = false;
     }
 
-    // OPSI C — "Tunggu dulu": TIDAK ada yang dicatat/dipotong sekarang,
-    // cuma kekurangan yang masuk Persiapan Masalah. DIPORT dari
-    // vue-kartu-stok.js.
+    // OPSI C — "Tunggu dulu": TIDAK ada yang dicatat/dipotong sekarang, cuma
+    // kekurangan yang masuk Persiapan Masalah. DIPORT dari vue-kartu-stok.js.
     async function tundaDanAjukanKekurangan() {
       if (!kekuranganLot.value || !target.value) return;
       const k = kekuranganLot.value;
@@ -598,13 +479,12 @@ const ScanPersiapanManager = {
       memprosesKeputusan.value = false;
     }
 
-    // simpanPemakaianRoll — BARU (7 Sep 2026, port dari vue-kartu-stok.js
-    // `mulaiCatatPemakaian()`+`konfirmasiAlokasi()`, diadaptasi ke alur
-    // scan). Roll yang di-scan/dipilih diprioritaskan duluan, sisanya
-    // (kalau ada) disambung OTOMATIS via FIFO dari roll aktif lain — lihat
-    // `bangunAlokasiFifoScan()` & catatan header file. Kalau bahkan
-    // SEMUA roll aktif tidak cukup -> buka popup 3 opsi (`kekuranganLot`),
-    // BELUM menyimpan apapun dulu.
+    // simpanPemakaianRoll — port dari vue-kartu-stok.js
+    // `mulaiCatatPemakaian`+`konfirmasiAlokasi`, diadaptasi ke alur scan). Roll
+    // yang di-scan/dipilih diprioritaskan duluan, sisanya (kalau ada) disambung
+    // OTOMATIS via FIFO dari roll aktif lain — lihat `bangunAlokasiFifoScan` &
+    // catatan header file. Kalau bahkan SEMUA roll aktif tidak cukup -> buka
+    // popup 3 opsi (`kekuranganLot`), BELUM menyimpan apapun dulu.
     async function simpanPemakaianRoll(qty) {
       menyimpan.value = true;
       try {
@@ -651,8 +531,8 @@ const ScanPersiapanManager = {
         return;
       }
 
-      // tipe 'item' (BUKAN pakai_lot_tracking) — TIDAK berubah dari
-      // sebelumnya (tidak ada konsep roll/FIFO/kekurangan-lot di sini).
+      // tipe 'item' (BUKAN pakai_lot_tracking) — TIDAK berubah dari sebelumnya
+      // (tidak ada konsep roll/FIFO/kekurangan-lot di sini).
       const stokSaatIni = parseFloat(target.value.bahan.stok_akhir) || 0;
       if (qty > stokSaatIni) {
         if (!confirm(`Stok saat ini cuma ${formatQty(stokSaatIni)} ${target.value.bahan.satuan_pemakaian || ''}, tapi mau catat pemakaian ${formatQty(qty)}. Stok akan jadi MINUS. Lanjutkan?`)) return;
@@ -670,10 +550,10 @@ const ScanPersiapanManager = {
           sumber: SUMBER_SCAN_PERSIAPAN, noPembelian: '', keterangan: keteranganGabungSpk()
         });
 
-        // DIHAPUS (30 Agt 2026, Fase 5 audit) — dulu di sini ada
-        // pemanggilan tandaiPersiapanDariScan() (integrasi checklist
-        // Persiapan Produksi versi LAMA, sudah jadi dead-code sejak
-        // sistem diganti ke V2). Lihat komentar di atas file ini.
+        // DIHAPUS — dulu di sini ada pemanggilan tandaiPersiapanDariScan
+        // (integrasi checklist Persiapan Produksi versi LAMA, sudah jadi
+        // dead-code sejak sistem diganti ke V2). Lihat komentar di atas file
+        // ini.
 
         const waktu = new Date().toLocaleTimeString('id-ID');
         riwayatSesi.value.unshift({ waktu, nama: namaBahan, kode: kodeTampil, qty: formatQty(qty) + ' ' + (target.value.bahan.satuan_pemakaian || '') });
@@ -707,8 +587,7 @@ const ScanPersiapanManager = {
       modeScan, videoScanEl, canvasScanEl, scanMemuatKamera, scanError, bukaScan, tutupScan,
       target, qtyDipakai, keteranganPemakaian, menyimpan, batalTarget, simpanPemakaian,
       riwayatSesi, formatQty, formatNamaBahan,
-      // BARU (7 Sep 2026, port dari vue-kartu-stok.js) — popup 3 opsi
-      // "Roll/Lot Tidak Cukup".
+      // popup 3 opsi "Roll/Lot Tidak Cukup".
       kekuranganLot, memprosesKeputusan, tutupKeputusanKekurangan,
       kurangiKeYangTersedia, prosesSebagianDanAjukanSisa, tundaDanAjukanKekurangan
     };
@@ -794,9 +673,10 @@ const ScanPersiapanManager = {
         </div>
       </div>
 
-      <!-- BARU (7 Sep 2026, port dari vue-kartu-stok.js) — popup 3 opsi
-           keputusan saat roll/lot AKTIF (semuanya, bukan cuma yang
-           di-scan) masih kurang dari qty yang diminta. -->
+      <!--
+        popup 3 opsi keputusan saat roll/lot AKTIF (semuanya, bukan cuma yang di-scan) masih
+        kurang dari qty yang diminta.
+      -->
       <div v-if="kekuranganLot" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
         <div class="gc-card" style="max-width:420px; width:100%; max-height:90vh; overflow-y:auto;">
           <h3 style="font-weight:700; font-size:15px; margin-bottom:10px;"><i class="fas fa-triangle-exclamation" style="color:var(--danger); margin-right:8px;"></i>Roll/Lot Tidak Cukup</h3>

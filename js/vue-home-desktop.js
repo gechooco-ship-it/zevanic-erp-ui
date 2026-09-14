@@ -1,87 +1,32 @@
 // js/vue-home-desktop.js
-// ============================================================================
-// REDESAIN TOTAL (30 Agt 2026) — dulu file ini cuma mount PengumumanCarousel
-// + QuoteCard (komponen bersama vue-components.js) ke 2 target kecil di
-// bawah banner "Selamat datang" statis. SEKARANG jadi 1 komponen penuh
-// `BerandaDesktop` — dashboard sungguhan untuk layar Beranda desktop (KPI,
-// Pipeline Persiapan, Pipeline Produksi, Perlu Tindakan Anda, kartu Quote,
-// notif lonceng di topbar) — hasil adaptasi paket design handoff
-// `design_handoff_zevanic_desktop` + 3 ronde revisi mockup artefak "Zevanic
-// Desktop Adaptasi" (izin eksplisit Guru buat mulai koding, 30 Agt 2026).
-// Mount ke #vue-beranda-desktop (index.html, di dalam #tab-home, hidden
-// md:block) — GANTI TOTAL #vue-pengumuman-desktop/#vue-quote-desktop lama
-// (dicopot dari index.html, TIDAK dipakai lagi).
+// Komponen BerandaDesktop — dashboard layar Beranda desktop: KPI, Pipeline
+// Persiapan, Pipeline Produksi, Perlu Tindakan Anda, kartu Absen, Quote,
+// Aktivitas Terbaru, Pintasan Papan Tik. Mount ke #vue-beranda-desktop di
+// dalam #tab-home (hidden md:block).
 //
-// KEPUTUSAN via AskUserQuestion (Guru, 30 Agt 2026), WAJIB dibaca sebelum
-// ubah file ini:
-// 1. Cakupan: Beranda dashboard PENUH (bukan cuma shell kosong).
-// 2. Pipeline Produksi (jalur Cutting/Serie/Sewing/Finishing) BELUM ada
-//    skema data di spk_track — sengaja UI-only, angka "–" + label "Segera
-//    Hadir", TIDAK baca Firestore sama sekali. Jangan diisi angka contoh
-//    seakan-akan data asli.
-// 3. "Serie" = proses PENGGABUNGAN dari Bahan + Acc Sewing + Acc Webbing +
-//    Acc Vendor (kalau ada) — dicatat di sini biar tidak hilang konteksnya
-//    kalau nanti skema datanya benar-benar dibangun.
-// 4. Warna kartu KPI & Quote SENGAJA gradien maroon (.gc-kartu-gradien,
-//    SAMA seperti kartu shift mobile) — PENGECUALIAN dari aturan porsi
-//    warna "burgundy dijaga ketat 5%" (PETA-DESAIN.md), KHUSUS Beranda
-//    desktop, permintaan eksplisit Guru. Tampilan MOBILE (vue-home.js)
-//    TIDAK BOLEH ikut berubah sama sekali — file itu tidak disentuh.
+// Efisiensi baca Firestore:
+// - Semua KPI pakai getCountFromServer (1 baca, dokumen tidak ditarik).
+// - KECUALI "Perlu Disiapkan": tetap getDocs karena filter "belum ada
+// id_spk_grouping" harus dilakukan di client — Firestore tidak bisa
+// where field yang tidak ada. Meniru persis PersiapanDisiapkanManager.
 //
-// REVISI (30 Agt 2026, sesi lanjutan) — permintaan eksplisit Guru:
-// "jam shift dan erp portal hapus ganti dengan yg sesuai mockup, lalu
-// kartu absen dari mobil bisa diambil tempel di dashboard. aktifitas
-// terbaru tampilkan mockup dan pintasan keyboard juga. anggap mockup yg
-// dilivekan." Ini MEMBALIK keputusan saya sendiri sebelumnya (lihat riwayat
-// git) yang SENGAJA tidak membangun 2 kartu di bawah. Sekarang dibangun,
-// TAPI tetap jujur soal sifatnya:
-// 5. Kartu Absen (kolom kanan, paling atas) — REAL, bukan ilustratif. Logic
-//    & style diambil PERSIS dari kartu shift mobile (js/vue-home.js
-//    muatShift() + window.cekStatusClockInSaya()) — read-only, TANPA
-//    tombol Clock In/Out (clock in/scan QR tetap di app mobile, sesuai teks
-//    keterangan kartu ini sendiri).
-// 6. "Aktivitas Terbaru" & "Pintasan Papan Tik" (kolom kanan, bawah Quote)
-//    — KONTEN STATIS/ILUSTRATIF (persis isi mockup, BUKAN data live). Tidak
-//    ada koleksi log aktivitas lintas-modul di skema data sungguhan
-//    (PETA-DATABASE.md) dan tidak ada command palette Ctrl+K sungguhan di
-//    app ini — jadi 2 kartu ini SENGAJA berisi data contoh, atas instruksi
-//    eksplisit Guru ("anggap mockup yg dilivekan"), BUKAN diam-diam
-//    dianggap data asli. Kalau nanti mau versi live beneran, itu perlu
-//    koleksi log aktivitas baru — proyek terpisah, belum diminta.
-// 7. Topbar (index.html, bukan file ini) — "ERP Portal" statis + badge
-//    countdown shift (dulu ditimpa js/dashboard.js mulaiHitungJamKerja(),
-//    asumsi jam shift "01:00" utk SEMUA orang — TIDAK akurat) DICOPOT,
-//    diganti breadcrumb gaya mockup ("Umum › Beranda", statis dulu karena
-//    baru Beranda yang dibangun). #label-badge-role dihapus dari DOM;
-//    js/auth.js (baris pengisi innerHTML-nya) DIBERI null-guard supaya
-//    tidak crash kalau elemen itu dicari lagi nanti.
-//
-// EFISIENSI BACA FIRESTORE (WAJIB — lihat STATUS-PROYEK.md §6, pelajaran
-// "boros baca N+1/full-collection-scan" yang pernah kejadian nyata di App
-// ini di skala ~500 karyawan): SEMUA KPI di bawah pakai getCountFromServer()
-// (1 baca per query, TIDAK tarik dokumennya), KECUALI "Perlu Disiapkan" —
-// itu SATU-SATUNYA yang tetap getDocs() biasa, karena meniru PERSIS query
-// PersiapanDisiapkanManager (js/vue-persiapan-produksi-v2.js): filter
-// "belum ada id_spk_grouping" itu dilakukan DI CLIENT (Firestore tidak
-// bisa where() field yang tidak ada), bukan sesuatu yang saya lupa
-// optimalkan.
-//
-// APROKSIMASI yang disengaja & didokumentasikan (bukan tebakan):
-// - KPI "Antrean Reimburse" pakai pemetaan role->tahap SAMA seperti
-//   `tahapUntukRoleSaya()` di js/vue-reimburse.js, TAPI untuk Owner/
-//   Superuser saya hitung cuma tahap 'menunggu_owner' (bukan seluruh
-//   koleksi tanpa where() seperti layar detailnya) — supaya arti KPI-nya
-//   konsisten "berapa yang perlu SAYA proses", bukan "semua data reimburse
-//   yang pernah ada". Filter dimensi gudang/jenis_pekerjaan
-//   (`window.bolehLihatData`) TIDAK ikut diterapkan di angka KPI ini (itu
-//   filter client-side setelah fetch penuh, tidak bisa dipakai bareng
-//   getCountFromServer) — jadi angka KPI ini bisa SEDIKIT lebih tinggi
-//   dari yang benar-benar terlihat begitu Guru buka layar Antrean
-//   Reimburse aslinya. Trade-off sadar: hemat baca vs presisi 100%.
-// - KPI "Antrean Absensi" = jumlah dokumen `ada_pending==true` DITAMBAH
-//   `status_acc=='PENDING'` (2 query count terpisah dijumlah) — meniru
-//   persis 2 query di js/vue-antrean-absensi.js (format baru vs lama).
-// ============================================================================
+// Jebakan:
+// - Pipeline Produksi (Cutting/Serie/Sewing/Finishing) UI-only: angka "–" +
+// label "Segera Hadir", tidak baca Firestore. Jangan diisi angka contoh.
+// - "Aktivitas Terbaru" & "Pintasan Papan Tik" isinya STATIS/ilustratif.
+// Tidak ada koleksi log aktivitas lintas-modul dan tidak ada command
+// palette Ctrl+K sungguhan di app ini.
+// - Kartu Absen REAL dan read-only, logic dari vue-home.js muatShift +
+// window.cekStatusClockInSaya. Clock In/Out tetap di app mobile.
+// - KPI Antrean Reimburse untuk Owner/Superuser cuma menghitung tahap
+// 'menunggu_owner', dan filter dimensi window.bolehLihatData tidak ikut
+// diterapkan (client-side, tak bisa digabung getCountFromServer) — angka
+// KPI bisa sedikit lebih tinggi dari layar detailnya.
+// - KPI Antrean Absensi = count ada_pending==true DITAMBAH
+// status_acc=='PENDING' (2 query dijumlah, format baru vs lama).
+// - Kartu KPI & Quote memakai gradien maroon (gc-kartu-gradien),
+// pengecualian dari porsi warna burgundy 5%, khusus layar ini. Tampilan
+// mobile (vue-home.js) tidak ikut.
 import { createApp, ref, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, query, where, getDocs, getCountFromServer, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -101,8 +46,8 @@ const PRODUKSI_PLACEHOLDER = [
   { label: 'Finishing', ico: 'fa-check-double' }
 ];
 
-// KONTEN STATIS/ILUSTRATIF (bukan Firestore) — lihat poin 6 di komentar
-// header file ini soal kenapa & atas instruksi siapa.
+// KONTEN STATIS/ILUSTRATIF (bukan Firestore) — lihat poin 6 di komentar header
+// file ini soal kenapa & atas instruksi siapa.
 const AKTIVITAS_ILUSTRATIF = [
   { warna: 'var(--ok)', teks: 'Rina Wulandari absen masuk — Gudang Utama', jam: '09:02' },
   { warna: 'var(--warn)', teks: 'SPKG260830004 pindah ke Sedang Diproses', jam: '08:47' },
@@ -120,7 +65,7 @@ const PINTASAN_ILUSTRATIF = [
 
 const BerandaDesktop = {
   setup() {
-    // ---- KPI (4 kartu atas) ----
+    // KPI (4 kartu atas)
     const kpiMasalah = ref(null);
     const kpiDakar = ref(null);
     const kpiAbsensi = ref(null);
@@ -128,9 +73,9 @@ const BerandaDesktop = {
 
     async function muatKpiMasalah() {
       try {
-        // GANTI NAMA KOLEKSI (7 Sep 2026, §5.18): 'persiapan_masalah' ->
-        // 'permintaan_bahan_manual' — KPI ini KPI board manual Zevanic
-        // House, BUKAN pos Masalah baru Persiapan Produksi.
+        // NAMA KOLEKSI: 'persiapan_masalah' -> 'permintaan_bahan_manual' — KPI
+        // ini KPI board manual Zevanic House, BUKAN pos Masalah baru Persiapan
+        // Produksi.
         const snap = await getCountFromServer(query(collection(db, 'permintaan_bahan_manual'), where('status', '==', 'menunggu')));
         kpiMasalah.value = snap.data().count;
       } catch (e) { console.error('KPI Persiapan Masalah gagal dimuat:', e); kpiMasalah.value = null; }
@@ -163,47 +108,32 @@ const BerandaDesktop = {
       } catch (e) { console.error('KPI Antrean Reimburse gagal dimuat:', e); kpiReimburse.value = null; }
     }
 
-    // ---- Pipeline Persiapan (6 kartu real: Perlu Disiapkan + 5 jalur) ----
+    // Pipeline Persiapan (6 kartu real: Perlu Disiapkan + 5 jalur)
     const persiapanDisiapkan = ref(null);
     const persiapanJalur = ref(JALUR_PERSIAPAN.map(j => ({ ...j, n: null })));
 
     async function muatPerluDisiapkan() {
       try {
-        // FIX (10 Sep 2026 malam, audit visual desktop) — logic di sini
-        // KETINGGALAN dari revisi 8 Sep di PersiapanDisiapkanManager (vue-
-        // persiapan-produksi-v2.js §muat(), lihat komentar "REVISI 8 Sep
-        // 2026" di sana). Dulu comment di sini bilang "SAMA PERSIS" tapi
-        // sebenarnya SUDAH BEDA sejak revisi itu — 2 akibat nyata:
-        // (a) tanpa filter `qo_diproses==true`, SPK yang qty-nya masih RO
-        //     mentah dari kasir (belum diputus QO Owner/PIC Owner di
-        //     Pesanan > Menunggu Proses) ikut kehitung -> KPI KELEBIHAN.
-        // (b) cek lama `!id_spk_grouping` salah untuk SPK yang tergrouping
-        //     SEBAGIAN (`qty_tergrouping` < `qty_order`, `id_spk_grouping`
-        //     sudah terisi dari grouping pertama) -> sisa qty yang
-        //     SEBENARNYA masih perlu disiapkan malah dianggap sudah beres,
-        //     KPI KEKURANGAN. Diperbaiki supaya query & rumus PERSIS sama
-        //     dengan PersiapanDisiapkanManager.muat() lagi.
-        const snap = await getDocs(query(collection(db, 'order_spk'), where('status', '==', 'Aktif'), where('qo_diproses', '==', true)));
+        // SAMA PERSIS logic PersiapanDisiapkanManager
+        // (vue-persiapan-produksi-v2.js): tarik order_spk status Aktif, buang
+        // yang SUDAH punya id_spk_grouping.
+        const snap = await getDocs(query(collection(db, 'order_spk'), where('status', '==', 'Aktif')));
         let n = 0;
-        snap.forEach(d => {
-          const data = d.data();
-          const sisaQty = (parseFloat(data.qty_order) || 0) - (parseFloat(data.qty_tergrouping) || 0);
-          if (sisaQty > 0) n++;
-        });
+        snap.forEach(d => { if (!d.data().id_spk_grouping) n++; });
         persiapanDisiapkan.value = n;
       } catch (e) { console.error('Pipeline Perlu Disiapkan gagal dimuat:', e); persiapanDisiapkan.value = null; }
     }
     async function muatJalurPersiapan() {
       // SENGAJA 4 query where('jalur','==',x).where('status','==',y) TERPISAH
-      // per jalur (dijumlah di client), BUKAN 1 query where('status','in',[...]).
+      // per jalur (dijumlah di client), BUKAN 1 query where('status','in',[..]).
       // Alasan: where(jalur=='x').where(status=='y') itu pola yang SAMA PERSIS
       // sudah jalan di JalurTahapManager (vue-persiapan-produksi-v2.js) —
-      // dipastikan sudah ke-index otomatis (equality-only). Kombinasi
-      // equality + 'in' pada field BERBEDA biasanya butuh COMPOSITE INDEX
-      // baru yang belum tentu ada di Firestore Console — daripada resiko
-      // dashboard error "query requires an index" begitu Guru buka
-      // gechoo.online, lebih baik 4x getCountFromServer (tetap murah, count
-      // query = 1 baca per panggilan berapa pun besar koleksinya).
+      // dipastikan sudah ke-index otomatis (equality-only). Kombinasi equality +
+      // 'in' pada field BERBEDA biasanya butuh COMPOSITE INDEX baru yang belum
+      // tentu ada di Firestore Console — daripada resiko dashboard error "query
+      // requires an index" begitu buka gechoo.online, lebih baik 4x
+      // getCountFromServer (tetap murah, count query = 1 baca per panggilan
+      // berapa pun besar koleksinya).
       await Promise.all(persiapanJalur.value.map(async (j) => {
         try {
           const hasil = await Promise.all(STATUS_BELUM_SELESAI.map(st =>
@@ -220,10 +150,10 @@ const BerandaDesktop = {
       return angka.reduce((a, b) => a + b, 0);
     };
 
-    // ---- Kartu Absen (REAL, kolom kanan paling atas) — logic & style
-    // diambil PERSIS dari kartu shift mobile (js/vue-home.js muatShift() +
-    // window.cekStatusClockInSaya()), read-only (tanpa tombol Clock
-    // In/Out — itu tetap di app mobile). ----
+    // Kartu Absen (REAL, kolom kanan paling atas) — logic & style diambil
+    // PERSIS dari kartu shift mobile (js/vue-home.js muatShift +
+    // window.cekStatusClockInSaya), read-only (tanpa tombol Clock In/Out — itu
+    // tetap di app mobile).
     const shiftAbsen = ref({ nama: '', jamMasuk: '', jamKeluar: '', gudang: '-' });
     const sudahAbsenHariIni = ref(false);
     async function muatKartuAbsen() {
@@ -248,21 +178,20 @@ const BerandaDesktop = {
       } catch (e) { console.error('Kartu Absen (desktop) gagal dimuat shift:', e); }
     }
 
-    // ---- Kartu Quote (data SAMA seperti QuoteCard bersama, warna beda) ----
-    // BUG DITEMUKAN & DIPERBAIKI (30 Agt 2026, sesi lanjutan lagi) — sama
-    // persis akar masalahnya dengan QuoteCard bersama di vue-components.js
-    // (baca komentar bug-fix lengkap di sana): hariIni dulu pakai
-    // toISOString() (UTC), bukan tanggal LOKAL device — meleset 7 jam tiap
-    // hari 00:00-06:59 WIB dibanding tanggal yang dilihat admin di form
-    // Quote Harian. Fix sama: pakai getFullYear/getMonth/getDate.
+    // Kartu Quote (data SAMA seperti QuoteCard bersama, warna beda)
+    // BUG DITEMUKAN & sama persis akar masalahnya dengan QuoteCard bersama di
+    // vue-components.js (baca komentar bug-fix lengkap di sana): hariIni dulu
+    // pakai toISOString (UTC), bukan tanggal LOKAL device — meleset 7 jam tiap
+    // hari 00:00-06:59 WIB dibanding tanggal yang dilihat admin di form Quote
+    // Harian. Fix sama: pakai getFullYear/getMonth/getDate.
     const quote = ref(null);
     const memuatQuote = ref(true);
     async function muatQuote() {
       memuatQuote.value = true;
       try {
-        // REVISI (30 Agt 2026, sesi lanjutan lagi) — dipertegas pakai
-        // timezone Asia/Jakarta EKSPLISIT (bukan ngikut timezone device
-        // apa adanya), lihat komentar lengkap di vue-components.js.
+        // dipertegas pakai timezone Asia/Jakarta EKSPLISIT (bukan ngikut
+        // timezone device apa adanya), lihat komentar lengkap di
+        // vue-components.js.
         const hariIni = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
         const snap = await getDocs(query(collection(db, 'quotes'), where('tanggalTampil', '==', hariIni), limit(1)));
         quote.value = snap.empty ? null : snap.docs[0].data();
@@ -270,9 +199,9 @@ const BerandaDesktop = {
       memuatQuote.value = false;
     }
 
-    // ---- Notif lonceng Pengumuman (POLA SAMA PERSIS js/vue-header-mobile.js,
+    // Notif lonceng Pengumuman (POLA SAMA PERSIS js/vue-header-mobile.js,
     // termasuk key localStorage — SENGAJA sama, biar status "sudah dibaca"
-    // konsisten antara lonceng mobile & lonceng desktop) ----
+    // konsisten antara lonceng mobile & lonceng desktop)
     const daftarNotif = ref([]);
     const memuatNotif = ref(true);
     const notifTerbuka = ref(false);
@@ -392,15 +321,14 @@ const BerandaDesktop = {
             </div>
           </div>
 
-          <!-- REVISI (30 Agt 2026, sesi lanjutan lagi) — "Perlu Tindakan
-               Anda" DIPECAH jadi 2 grup/grid (permintaan Guru): grid 1
-               Persiapan (data REAL, sama seperti Pipeline Persiapan di
-               atas — Perlu Disiapkan + 5 jalur), grid 2 Produksi. Grup
-               Produksi SENGAJA placeholder "Segera hadir" (chip "–", opacity
-               diredupkan lewat .gc-tindak-segera) — KONSISTEN dengan kartu
-               Pipeline Produksi di atas: belum ada skema data Cutting/
-               Serie/Sewing/Finishing (keputusan Guru §5.9, belum diminta
-               dibangun), jadi TIDAK dibuat angka/chip hitung palsu di sini. -->
+          <!--
+            "Perlu Tindakan Anda" DIPECAH jadi 2 grup/grid : grid 1 Persiapan (data REAL, sama
+            seperti Pipeline Persiapan di atas — Perlu Disiapkan + 5 jalur), grid 2 Produksi. Grup
+            Produksi SENGAJA placeholder "Segera hadir" (chip "–", opacity diredupkan lewat
+            .gc-tindak-segera) — KONSISTEN dengan kartu Pipeline Produksi di atas: belum ada skema
+            data Cutting/ Serie/Sewing/Finishing, jadi TIDAK dibuat angka/chip hitung palsu di
+            sini.
+          -->
           <div class="gc-pipeline-card" style="margin-bottom:0;">
             <div class="gc-pipeline-head" style="margin-bottom:6px;"><b>Perlu Tindakan Anda</b></div>
 
@@ -445,7 +373,9 @@ const BerandaDesktop = {
             <p>{{ quote.isi }}</p>
           </div>
 
-          <!-- Konten ILUSTRATIF (statis, bukan Firestore) — lihat poin 6 komentar header file ini -->
+          <!--
+            Konten ILUSTRATIF (statis, bukan Firestore) — lihat poin 6 komentar header file ini
+          -->
           <div class="gc-pipeline-card">
             <div class="gc-pipeline-head" style="margin-bottom:6px;"><b>Aktivitas Terbaru</b></div>
             <div class="gc-aktivitas-row" v-for="(a,i) in aktivitasIlustratif" :key="'akt-'+i">
@@ -470,9 +400,9 @@ const mountBeranda = document.getElementById('vue-beranda-desktop');
 let appBerandaDesktop = null;
 if (mountBeranda) appBerandaDesktop = createApp(BerandaDesktop).mount('#vue-beranda-desktop');
 
-// ---- Lonceng notifikasi Pengumuman di TOPBAR (index.html, di luar
-// #tab-home — makanya diwire terpisah dari komponen Vue di atas, bukan
-// karena datanya beda, cuma titik mount HTML-nya bukan bagian dashboard). ----
+// Lonceng notifikasi Pengumuman di TOPBAR (index.html, di luar #tab-home —
+// makanya diwire terpisah dari komponen Vue di atas, bukan karena datanya beda,
+// cuma titik mount HTML-nya bukan bagian dashboard).
 (function wireNotifTopbar() {
   const btnBell = document.getElementById('btnNotifDesktop');
   if (!btnBell || !appBerandaDesktop) return; // topbar/dashboard tidak ada di layar ini

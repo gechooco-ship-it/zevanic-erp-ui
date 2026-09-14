@@ -1,54 +1,48 @@
 // js/vue-repack-komponen-acc.js
-// ============================================================================
-// Zevanic House > Stock & Pembelian > "Repack" — sub-tab BARU (7 Sep 2026,
-// task #95, TIDAK ADA wireframe/handoff sama sekali untuk modul ini —
-// dirancang langsung dari jawaban Guru lewat AskUserQuestion (bukan
-// tebakan), karena PEDOMAN skill "keputusan kompleks/ambigu -> interupsi
-// Guru saat itu juga" — modul baru tanpa spek apapun jelas masuk kategori
-// itu. Guru sendiri menamainya "Repack".
+
+// Zevanic House > Stock & Pembelian > "Repack" — sub-tab task #95, TIDAK ADA
+// wireframe/handoff sama sekali untuk modul ini — dirancang langsung dari
+// jawaban lewat AskUserQuestion (bukan tebakan), karena PEDOMAN skill "keputusan
+// kompleks/ambigu -> interupsi saat itu juga" — modul baru tanpa spek apapun
+// jelas masuk kategori itu. sendiri menamainya "Repack".
 //
-// APA INI: Gudang sering mengemas ulang stok lepasan aksesoris jadi paket
-// jumlah tetap (mis. 25 pcs/pak) supaya operator produksi tidak perlu
-// menghitung ulang dari nol tiap butuh — tinggal ambil 1 pak yang isinya
-// sudah pasti. Modul ini CUMA mencatat "sudah berapa pak tersedia" per
-// item+ukuran pak.
+// APA INI: Gudang sering mengemas ulang stok lepasan aksesoris jadi paket jumlah
+// tetap (mis. 25 pcs/pak) supaya operator produksi tidak perlu menghitung ulang
+// dari nol tiap butuh — tinggal ambil 1 pak yang isinya sudah pasti. Modul ini
+// CUMA mencatat "sudah berapa pak tersedia" per item+ukuran pak.
 //
-// KEPUTUSAN GURU (AskUserQuestion, 7 Sep 2026) — JANGAN diubah tanpa
-// re-konfirmasi:
-//   1. "Cuma label, stok tidak berubah" — `stok_akhir` di
-//      master_bahan_aksesoris (SATU-SATUNYA sumber kebenaran stok, lihat
-//      js/vue-kartu-stok.js/vue-stock-pembelian.js) TIDAK PERNAH disentuh
-//      file ini. Bikin/buka pak TIDAK menulis stok_akhir sama sekali —
-//      murni lapisan visibilitas "berapa yang sudah dikemas rapi", bukan
-//      transaksi stok. Konsekuensinya: TIDAK butuh runTransaction sama
-//      sekali di file ini (beda dari modul Persiapan Produksi yang
-//      transaksional karena menyentuh stok betulan).
-//   2. "Boleh dipecah" — pak BOLEH dibuka kapan saja, tidak ada gerbang/
-//      approval. "Buka 1 Pak" cuma menandai 1 dokumen jadi status='dibuka'
-//      (histori, TIDAK dihapus — konsisten pola proyek ini: status
-//      berubah, dokumen tetap ada buat jejak).
+// JANGAN diubah tanpa re-konfirmasi: 1. "Cuma label, stok tidak berubah" —
+// `stok_akhir` di master_bahan_aksesoris (SATU-SATUNYA sumber kebenaran stok,
+// lihat js/vue-kartu-stok.js/vue-stock-pembelian.js) TIDAK PERNAH disentuh file
+// ini. Bikin/buka pak TIDAK menulis stok_akhir sama sekali — murni lapisan
+// visibilitas "berapa yang sudah dikemas rapi", bukan transaksi stok.
+// Konsekuensinya: TIDAK butuh runTransaction sama sekali di file ini (beda dari
+// modul Persiapan Produksi yang transaksional karena menyentuh stok betulan). 2.
+// "Boleh dipecah" — pak BOLEH dibuka kapan saja, tidak ada gerbang/ approval.
+// "Buka 1 Pak" cuma menandai 1 dokumen jadi status='dibuka' (histori, TIDAK
+// dihapus — konsisten pola proyek ini: status berubah, dokumen tetap ada buat
+// jejak).
 //
-// SKEMA — koleksi BARU `repack_komponen_acc`, 1 DOKUMEN PER PAK FISIK
-// (bukan 1 dokumen+counter agregat) — sengaja, supaya "Buka 1 Pak" cuma
-// updateDoc 1 dokumen tunggal, tidak perlu transaksi buat hindari race
-// condition di angka bersama (pola sama seperti roll_sisa_webbing,
-// vue-persiapan-webbing.js, yang juga 1 dokumen per unit fisik):
-//   bahan_aksesoris_id, nama_aksesoris, warna, satuan (snapshot
-//   satuan_pemakaian SAAT pak dibuat), isi_per_pak (angka, pcs per pak),
-//   status ('tersedia'|'dibuka'), dibuat_oleh, dibuat_pada,
-//   dibuka_oleh, dibuka_pada (null sampai dibuka).
+// SKEMA — koleksi BARU `repack_komponen_acc`, 1 DOKUMEN PER PAK FISIK (bukan 1
+// dokumen+counter agregat) — sengaja, supaya "Buka 1 Pak" cuma updateDoc 1
+// dokumen tunggal, tidak perlu transaksi buat hindari race condition di angka
+// bersama (pola sama seperti roll_sisa_webbing, vue-persiapan-webbing.js, yang
+// juga 1 dokumen per unit fisik): bahan_aksesoris_id, nama_aksesoris, warna,
+// satuan (snapshot satuan_pemakaian SAAT pak dibuat), isi_per_pak (angka, pcs
+// per pak), status ('tersedia'|'dibuka'), dibuat_oleh, dibuat_pada, dibuka_oleh,
+// dibuka_pada (null sampai dibuka).
 //
-// SCOPE ITEM — "Komponen Acc" dibaca sebagai kategori_utama === 'Aksesoris'
-// SAJA (bukan 'Bahan'/kain) — sesuai nama tugas "Kemasan Komponen Acc".
-// Query bertarget where('kategori_utama','==','Aksesoris') dipakai di
-// picker (bukan fetch semua lalu filter JS — PELAJARAN.md).
+// SCOPE ITEM — "Komponen Acc" dibaca sebagai kategori_utama === 'Aksesoris' SAJA
+// (bukan 'Bahan'/kain) — sesuai nama tugas "Kemasan Komponen Acc". Query
+// bertarget where('kategori_utama','==','Aksesoris') dipakai di picker (bukan
+// fetch semua lalu filter JS — PELAJARAN.md).
 //
-// TIDAK ADA cetak label/QR di v1 ini — modul ini murni visibilitas jumlah
-// pak, bukan flow scan produksi. Kalau nanti Guru mau pak fisik ada label
-// tercetak (supaya gampang dicocokkan ke rak), itu penambahan terpisah
-// (reuse PopupPratinjauCetakLabel + buatQrDataUrl seperti modul lain, pola
-// sudah ada) — SENGAJA belum ditambah sekarang, tidak diminta.
-// ============================================================================
+// TIDAK ADA cetak label/QR di v1 ini — modul ini murni visibilitas jumlah pak,
+// bukan flow scan produksi. Kalau nanti mau pak fisik ada label tercetak (supaya
+// gampang dicocokkan ke rak), itu penambahan terpisah (reuse
+// PopupPratinjauCetakLabel + buatQrDataUrl seperti modul lain, pola sudah ada) —
+// SENGAJA belum ditambah sekarang, tidak diminta.
+
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -78,9 +72,9 @@ function pesanErrorFirestore(e) {
   }
   return 'Gagal memuat data Repack. Coba lagi.';
 }
-// kunciGrup — 1 baris tabel = 1 kombinasi item+isi_per_pak (pak beda isi
-// dari item yang sama TETAP baris terpisah, supaya "isi 25" vs "isi 50"
-// tidak tercampur di 1 angka).
+// kunciGrup — 1 baris tabel = 1 kombinasi item+isi_per_pak (pak beda isi dari
+// item yang sama TETAP baris terpisah, supaya "isi 25" vs "isi 50" tidak
+// tercampur di 1 angka).
 function kunciGrup(d) { return `${d.bahan_aksesoris_id}::${d.isi_per_pak}`; }
 
 const RepackKomponenAccManager = {
@@ -109,7 +103,7 @@ const RepackKomponenAccManager = {
       memuat.value = false;
     }
 
-    // --- Kelompokkan jadi baris tabel (1 baris = 1 item + 1 ukuran pak) ---
+    // Kelompokkan jadi baris tabel (1 baris = 1 item + 1 ukuran pak)
     const kelompok = computed(() => {
       const peta = {};
       daftarPak.value.forEach(d => {
@@ -124,7 +118,8 @@ const RepackKomponenAccManager = {
       });
       const list = Object.values(peta);
       list.forEach(g => {
-        // FIFO — pak yang dibuat lebih dulu diambil lebih dulu saat "Ambil 1 Pak"
+        // FIFO — pak yang dibuat lebih dulu diambil lebih dulu saat "Ambil 1
+        // Pak"
         g.pak.sort((a, b) => (a.dibuat_pada?.toMillis ? a.dibuat_pada.toMillis() : 0) - (b.dibuat_pada?.toMillis ? b.dibuat_pada.toMillis() : 0));
         g.jumlahPak = g.pak.length;
         g.totalPcs = g.jumlahPak * (parseFloat(g.isiPerPak) || 0);
@@ -147,8 +142,7 @@ const RepackKomponenAccManager = {
       totalPak: kelompokTerfilter.value.reduce((s, g) => s + g.jumlahPak, 0)
     }));
 
-    // --- Ambil 1 Pak (buka pak paling lama di grup ini — FIFO, boleh
-    // dipecah kapan saja, keputusan Guru) ---
+    // Ambil 1 Pak
     async function ambilSatuPak(g) {
       if (!bolehProses.value || sedangProses[g.key] || !g.pak.length) return;
       sedangProses[g.key] = true;
@@ -165,9 +159,9 @@ const RepackKomponenAccManager = {
       sedangProses[g.key] = false;
     }
 
-    // ------------------------------------------------------------------
-    // Popup "Buat Pak Baru"
-    // ------------------------------------------------------------------
+    // Popup
+    // "Buat Pak Baru"
+
     const popupTerbuka = ref(false);
     const daftarItemAksesoris = ref([]); // master_bahan_aksesoris, kategori_utama='Aksesoris' saja
     const memuatItem = ref(false);
@@ -209,8 +203,8 @@ const RepackKomponenAccManager = {
     }
     function tutupPopupBuat() { popupTerbuka.value = false; resetFormBuat(); }
     // watch (pola sama seperti vue-kartu-stok.js) — v-model DropdownCari
-    // dicampur listener manual bisa saling timpa 2 arah bindingnya, jadi
-    // pilih item lewat watch terpisah, bukan @update:modelValue di template.
+    // dicampur listener manual bisa saling timpa 2 arah bindingnya, jadi pilih
+    // item lewat watch terpisah, bukan @update:modelValue di template.
     watch(itemEntry, () => {
       const it = opsiItemMap.value.get(itemEntry.value);
       itemTerpilih.value = it || null;

@@ -1,11 +1,11 @@
 // js/vue-whatsapp-gateway.js
-// ============================================================================
+
 // Halaman KEDELAPAN yang dimigrasi ke Vue: WhatsApp Gateway (Config API,
 // Template Pesan, Monitoring Respon).
 //
 // window.kirimPesanWhatsapp (auth.js) TETAP dipanggil apa adanya dari sini —
 // fungsi bersama, juga dipakai alur registrasi/approval yang belum dimigrasi.
-// ============================================================================
+
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -20,7 +20,7 @@ const AppWhatsappGateway = {
   setup() {
     const tabAktif = ref('config');
 
-    // ---- Config API ----
+    // Config API
     const webappUrl = ref('');
     const secret = ref('');
     const otpAktif = ref(false);
@@ -74,7 +74,7 @@ const AppWhatsappGateway = {
       alert(berhasil ? "Pesan tes berhasil dikirim! Cek WhatsApp di nomor tersebut." : "Gagal mengirim pesan tes. Cek kembali URL Web App & Kunci Rahasia, pastikan sudah disimpan, dan cek Script Properties di Apps Script.");
     }
 
-    // ---- Template Pesan ----
+    // Template Pesan
     const template = reactive({ otp: '', aktif: '', pending: '' });
     const menyimpanTemplate = ref(false);
 
@@ -106,26 +106,22 @@ const AppWhatsappGateway = {
       menyimpanTemplate.value = false;
     }
 
-    // ---- Monitoring Respon ----
-    // DIROMBAK (29 Agt 2026, §44.17, hemat) — dulu FULL FETCH seluruh
-    // koleksi wa_log (bisa ribuan dokumen, notifikasi WA terus tercatat
-    // tiap OTP/status akun terkirim) cuma buat tampilkan 50 teratas —
-    // baca ribuan demi tampilkan puluhan, paling boros dari semua yang
-    // ditemukan (STATUS-PROYEK.md §44.16). Sekarang pakai `waktu_ts`
-    // (Timestamp asli, baru ditambahkan di js/auth.js — lihat catatan di
-    // sana) + `orderBy()+limit()` SUNGGUHAN, dengan "Muat Lagi" (cursor
-    // startAfter, nambah ke daftar yang sudah ada — BUKAN ganti halaman)
-    // sesuai permintaan Guru: "boleh dimuat sebagian, muat lagi secara
-    // bertahap tapi irit".
+    // Monitoring Respon — dulu FULL FETCH seluruh koleksi wa_log (bisa
+    // ribuan dokumen, notifikasi WA terus tercatat tiap OTP/status akun
+    // terkirim) cuma buat tampilkan 50 teratas — baca ribuan demi tampilkan
+    // puluhan, paling boros dari semua yang ditemukan (STATUS-PROYEK.md §44.16).
+    // Sekarang pakai `waktu_ts` (Timestamp asli, baru ditambahkan di js/auth.js
+    // lihat catatan di sana) + `orderBy+limit` SUNGGUHAN, dengan "Muat Lagi"
+    // (cursor startAfter, nambah ke daftar yang sudah ada — BUKAN ganti halaman)
+    // sesuai.
     //
-    // KETERBATASAN JUJUR: dokumen wa_log dari SEBELUM perbaikan ini tidak
-    // punya `waktu_ts` sama sekali — Firestore otomatis TIDAK
-    // menyertakan dokumen yang field urutnya kosong dalam query
-    // orderBy(waktu_ts), jadi log LAMA tidak akan muncul di daftar utama
-    // ini lagi. Disediakan tombol terpisah "Lihat Log Sebelum
-    // Pembaruan" (fetch manual, SEKALI diklik, BUKAN otomatis) buat
-    // tetap bisa melihatnya kalau perlu — pola SAMA seperti "Cek Data
-    // Sangat Lama" di Antrean Absensi/Lembur.
+    // KETERBATASAN JUJUR: dokumen wa_log dari SEBELUM perbaikan ini tidak punya
+    // `waktu_ts` sama sekali — Firestore otomatis TIDAK menyertakan dokumen yang
+    // field urutnya kosong dalam query orderBy(waktu_ts), jadi log LAMA tidak
+    // akan muncul di daftar utama ini lagi. Disediakan tombol terpisah "Lihat
+    // Log Sebelum Pembaruan" (fetch manual, SEKALI diklik, BUKAN otomatis) buat
+    // tetap bisa melihatnya kalau perlu — pola SAMA seperti "Cek Data Sangat
+    // Lama" di Antrean Absensi/Lembur.
     const UKURAN_MUAT_LOG = 50;
     const daftarLog = ref([]);
     const memuatLog = ref(true);
@@ -171,9 +167,9 @@ const AppWhatsappGateway = {
       memuatLogLagi.value = false;
     }
 
-    // Jaring pengaman MANUAL (bukan otomatis) — lihat log dari SEBELUM
-    // waktu_ts ada, TIDAK tersentuh oleh orderBy(waktu_ts) di atas. Fetch-
-    // semua SEKALI kalau diklik, sama seperti "Cek Data Sangat Lama".
+    // Jaring pengaman MANUAL (bukan otomatis) — lihat log dari SEBELUM waktu_ts
+    // ada, TIDAK tersentuh oleh orderBy(waktu_ts) di atas. Fetch- semua SEKALI
+    // kalau diklik, sama seperti "Cek Data Sangat Lama".
     const memuatLogLama = ref(false);
     const daftarLogLama = ref([]);
     const sudahCekLogLama = ref(false);
@@ -202,9 +198,9 @@ const AppWhatsappGateway = {
       if (nama === 'monitor') muatMonitoring();
     }
 
-    // muat() — dipanggil ulang tiap tab "Whatsapp Gateway" diklik lagi
-    // (lihat pastikanMountWhatsapp). Refresh sesuai pill-tab yang sedang
-    // aktif — pill-tab lain tetap lazy seperti biasa lewat pindahTab().
+    // muat — dipanggil ulang tiap tab "Whatsapp Gateway" diklik lagi (lihat
+    // pastikanMountWhatsapp). Refresh sesuai pill-tab yang sedang aktif —
+    // pill-tab lain tetap lazy seperti biasa lewat pindahTab.
     function muat() {
       if (tabAktif.value === 'config') muatKonfig();
       else if (tabAktif.value === 'template') muatTemplate();
@@ -336,9 +332,10 @@ const AppWhatsappGateway = {
         </button>
       </div>
 
-      <!-- Jaring pengaman: log dari SEBELUM waktu_ts ada (lihat catatan
-           di muatLogLama(), js/vue-whatsapp-gateway.js) — manual, tidak
-           otomatis. -->
+      <!--
+        Jaring pengaman: log dari SEBELUM waktu_ts ada (lihat catatan di muatLogLama,
+        js/vue-whatsapp-gateway.js) — manual, tidak otomatis.
+      -->
       <div class="gc-card" style="margin-top:16px;">
         <button v-if="!sudahCekLogLama" @click="muatLogLama" :disabled="memuatLogLama" class="btn-outline" style="font-size:11px; padding:7px 12px;" title="Fetch manual sekali — cari log dari sebelum pembaruan hemat ini (tidak otomatis, di luar 'Muat Lagi' di atas)">
           <i class="fas fa-magnifying-glass" style="margin-right:5px;"></i>{{ memuatLogLama ? 'Memeriksa...' : 'Lihat Log Sebelum Pembaruan' }}
@@ -366,8 +363,8 @@ const AppWhatsappGateway = {
 };
 
 let vmWhatsapp = null;
-// Sama seperti layar admin lain — mount() ditunda sampai benar-benar
-// dinavigasi pertama kali (lihat catatan panjang di vue-antrean-dakar.js).
+// Sama seperti layar admin lain — mount ditunda sampai benar-benar dinavigasi
+// pertama kali (lihat catatan panjang di vue-antrean-dakar.js).
 window.pastikanMountWhatsapp = function() {
   if (vmWhatsapp) { if (typeof vmWhatsapp.muat === 'function') vmWhatsapp.muat(); return; }
   const mountPoint = document.getElementById('vue-whatsapp-gateway');

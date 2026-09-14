@@ -1,98 +1,39 @@
 // js/vue-persiapan-finishing.js
-// ============================================================================
-// Persiapan Produksi > Acc Finishing — menu BARU (1 Sep 2026, wireframe
-// handoff "Persiapan Produksi - Acc Finishing", modul ke-5 (terakhir) dari
-// paket F:\ZEVANIC HOUSE\FOUNDATION\Mockup\handoff\). Dikerjakan BERSAMA Acc
-// Sewing & Acc Webbing dalam satu sesi atas instruksi eksplisit Guru (1 Sep
-// 2026) — MENYIMPANG dari aturan "satu modul per sesi, urutan tidak boleh
-// dibalik" yang ditulis README paket handoff. Guru sudah diberi tahu soal
-// penyimpangan ini (lihat STATUS-PROYEK.md). File ini MENUMPANG POLA js/
-// vue-persiapan-sewing.js (dikerjakan lebih dulu dalam sesi yang sama) —
-// SAMA PERSIS strukturnya, baca komentar besar di file itu untuk detail
-// alasan arsitektur yang tidak diulang di sini. Bagian di bawah ini HANYA
-// menyoroti yang BEDA khas pos Finishing.
+// Persiapan Produksi > Acc Finishing. Pos barang cetak & kemasan — hangtag,
+// label merek, kartu ukuran, polybag. Satuan pcs, qty hampir selalu 1 per pcs
+// produk. Yang menahan di pos ini ketersediaan CETAKAN, bukan hitungan.
+// Struktur file sama persis dengan vue-persiapan-sewing.js; di sini cuma yang
+// khas pos Finishing.
 //
-// Pos yang menyiapkan BARANG CETAK DAN KEMASAN — hangtag, label merek, kartu
-// ukuran, polybag. Satuannya pcs, qty-nya hampir selalu 1 per pcs produk.
-// Yang menahan di pos ini BUKAN hitungan, tapi KETERSEDIAAN CETAKAN — dua
-// kolom khas: varian & keadaan cetak.
+// Koleksi & field:
+// - Sumbernya spk_track jalur:'finishing', field finishing_rincian[] (diisi
+// hitungFinishingRincian di vue-persiapan-produksi-v2.js saat SPK
+// Grouping diterbitkan). 1 baris per (komponen aksesoris x anak SPK), BOM
+// dari master_produk.bom_aksesoris[] disaring tahap_proses berisi
+// "finishing".
+// - Field khas pos ini: varian_tipe/varian_jumlah, default 'tunggal'/1.
+// - tlc_asal = 'TLC-FIN'. Koleksi bagging/tugas_kirim/master_tlc/
+// cetak_ulang_log dipakai ulang apa adanya, generik lintas jalur.
 //
-// ARSITEKTUR DATA — PENTING, baca dulu sebelum ubah apapun di sini:
-//
-// SERAH-TERIMA.md modul ini menyebut koleksi `persiapan_komponen` sebagai
-// sumber datanya ("sudah ada di repo"). ITU SUDAH TIDAK BENAR — koleksi itu
-// DITINGGALKAN Guru 29 Agt 2026 tanpa migrasi (lihat komentar besar di
-// js/vue-order-spk.js sekitar baris ~91-103, dan catatan arsitektur di js/
-// vue-persiapan-bahan.js). Sudah diverifikasi ke kode live sebelum modul ini
-// ditulis — BUKAN tebakan (dicek ulang lagi 1 Sep 2026, sesi ini).
-//
-// Yang benar-benar dipakai: `spk_track` (1 dokumen per SPK Grouping per
-// jalur, dibuat js/vue-persiapan-produksi-v2.js function
-// buatSpkTrackUntukGrouping()). Dokumen jalur:'finishing' punya field
-// TAMBAHAN `finishing_rincian[]` (diisi function hitungFinishingRincian() di
-// file itu SAAT SPK Grouping diterbitkan) — SATU BARIS per (komponen
-// aksesoris x anak SPK), sumber BOM-nya `master_produk.bom_aksesoris[]`
-// disaring tahap_proses mengandung "finishing":
-//   order_spk_id, no_spk, qty, bahan_aksesoris_id, nama_aksesoris, warna,
-//   produk_size, qty_per_pcs, satuan, butuh, status, masuk_tahap_pada,
-//   label_cetak_pada, operator_uid, operator_nama, ditugaskan_pada,
-//   riwayat_operator[], entry_qty, entry_oleh, entry_pada, catatan_masalah,
-//   kode_bagging, kode_tugas, tlc_tujuan (ditulis saat Scan Kirim, lihat Tab
-//   3), sampai_pada (ditulis MODUL LAIN, lihat catatan TAB 5 di bawah),
-//   + KHAS POS INI: varian_tipe/varian_jumlah (default 'tunggal'/1 SAAT
-//   GENERATE — lihat KEPUTUSAN di bawah).
-//
-// KEPUTUSAN (Yang Belum Diputuskan §7 SERAH-TERIMA — belum dijawab Guru,
-// dipilih default paling aman dulu, BUKAN final, tanyakan Guru kalau mau
-// diubah):
-//   - varian_tipe/varian_jumlah default 'tunggal'/1 — BOM Aksesoris (js/
-//     vue-master-produk.js) TIDAK (belum) punya field pemisah varian per
-//     warna/size, jadi satu baris BOM dianggap satu varian tunggal sampai
-//     Guru menjawab §7 dan field varian ditambah ke BOM Aksesoris.
-//   - keadaan_cetak/sisa_dicetak (SERAH-TERIMA §2/§3: "sisa … dicetak" bukan
-//     "kurang") SENGAJA TIDAK disimpan statis di rincian (bisa basi begitu
-//     stok berubah) — dihitung LIVE di kelompokKartuSpk() dari stok terkini
-//     vs `butuh`, SAMA pola seperti cek cukup/kurang Bahan & Sewing. Kartu
-//     di sini pakai label "sisa X dicetak" (bukan tag "stok kurang" polos
-//     seperti Sewing/Webbing) — lihat Tab 1 template.
-//   - "Menunggu cetakan jadi alur sendiri atau lewat Persiapan Masalah
-//     seperti biasa" & "kekurangan 1 warna hangtag menahan seluruh SPK atau
-//     cuma baris itu" — BELUM diputuskan Guru, file ini TIDAK membangun alur
-//     baru apapun untuk itu (baris kurang tetap lewat mekanisme "Masalah"
-//     yang sudah ada, sama seperti Sewing/Webbing, sampai Guru memutuskan).
-//
-// PERBEDAAN KARTU dari Bahan — PENTING: Bahan "satu kartu satu bahan+warna"
-// (kartu dikumpulkan LINTAS dokumen spk_track). Pos ini SEBALIKNYA: "satu
-// kartu satu SPK Grouping" (SERAH-TERIMA §2) — kartu = SATU dokumen
-// spk_track itu sendiri (kode kartu berakhiran -FIN), isinya baris-baris
-// komponennya. Konsekuensinya: TIDAK ada "kumulatif butuh/stok lintas
-// grouping" seperti Bahan — cek stok cukup dilakukan PER BARIS independen
-// terhadap stok live (lihat kelompokKartuSpk()).
-//
-// Label fisik: "1 SPK = 1 label" (SERAH-TERIMA §3/§5) dibaca sebagai 1 LABEL
-// PER ANAK SPK (bukan per grouping) — sama alasan seperti vue-persiapan-
-// sewing.js. Kode yang di-QR-kan & DISCAN BALIK di Tunjuk Operator/Scan
-// Entry/Scan Pack adalah `kode_kartu || no_spk` (fallback no_spk polos
-// cuma utk baris lama/Config TLC jalur ini belum diisi), SAMA persis field
-// yang dicetak cetakLabelKartu() — WAJIB SAMA di ketiga titik (cetak,
-// validasi scan, matchFn tulis Firestore), pernah lupa disamakan di matchFn
-// tulis (13 Sep lanjutan 17, gagal diam-diam).
-//
-// Satu scan pack/kirim di sini BISA menandai BEBERAPA baris komponen
-// sekaligus (semua komponen milik 1 anak SPK, atau semua baris ber-
-// kode_bagging sama) — sama pola vue-persiapan-sewing.js, lihat
-// updateBarisFinishingMassal() di bawah.
-//
-// Koleksi bagging/tugas_kirim/master_tlc/cetak_ulang_log — SUDAH ADA di
-// repo (ditambahkan modul Bahan, 31 Agt 2026), DIPAKAI ULANG APA ADANYA
-// (generik lintas jalur, TIDAK perlu tambahan firestore.rules baru).
-// tlc_asal pos ini = 'TLC-FIN' (sudah ada di daftar seed TLC bawaan Bahan).
-//
-// Print label, scan QR, kode harian, ambang tertahan, PIN cetak ulang,
-// estafet operator — SEMUA pola SAMA PERSIS seperti vue-persiapan-bahan.js/
-// vue-persiapan-sewing.js (disalin, konvensi "salin logic kecil per-file"
-// proyek ini).
-// ============================================================================
+// Jebakan:
+// - Koleksi persiapan_komponen SUDAH DITINGGALKAN tanpa migrasi. Kalau ada
+// dokumen yang masih menyebutnya sebagai sumber data, itu basi.
+// - keadaan_cetak/sisa_dicetak sengaja TIDAK disimpan di rincian — dihitung
+// live di kelompokKartuSpk dari stok terkini vs `butuh`, supaya tidak
+// basi saat stok berubah. Label kartunya "sisa X dicetak", bukan tag "stok
+// kurang" seperti Sewing/Webbing.
+// - Satu kartu = satu SPK Grouping (1 dokumen spk_track, kode berakhiran
+// -FIN), kebalikan dari Bahan yang mengumpulkan kartu lintas dokumen. Jadi
+// tidak ada kumulatif butuh/stok lintas grouping; cek stok per baris.
+// - "1 SPK = 1 label" dibaca sebagai 1 label per ANAK SPK, bukan per
+// grouping. Kode di QR cuma jejak cetak — yang discan balik di Tunjuk
+// Operator/Scan Entry/Scan Pack selalu no_spk polos.
+// - 1 scan pack/kirim bisa menandai banyak baris sekaligus (semua komponen 1
+// anak SPK, atau semua baris ber-kode_bagging sama) lewat
+// updateBarisFinishingMassal.
+// - varian_tipe default 'tunggal' karena BOM Aksesoris belum punya field
+// pemisah varian per warna/size. Baris kurang tetap lewat mekanisme
+// Masalah yang sudah ada; tidak ada alur "menunggu cetakan" terpisah.
 
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -100,32 +41,32 @@ import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=13';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=3';
 
-// picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). Aksi
-// "Tunjuk Operator" WAJIB akun PIC ke atas (pic/pic_owner/owner/superuser)
-// — TANPA popup PIN, cukup akun yang login memang tier itu. Pola SAMA
-// dengan picOwnerKeAtas() di vue-pp-cutting.js/vue-pp-sewing.js/
-// vue-pp-finishing.js/vue-pp-serie.js (Proses Produksi).
+// picOwnerKeAtas — Aksi "Tunjuk Operator" WAJIB akun PIC ke atas
+// (pic/pic_owner/owner/superuser) — TANPA popup PIN, cukup akun yang login
+// memang tier itu. Pola SAMA dengan picOwnerKeAtas di
+// vue-pp-cutting.js/vue-pp-sewing.js/ vue-pp-finishing.js/vue-pp-serie.js
+// (Proses Produksi).
 function picOwnerKeAtas(userData) {
   if (!userData) return false;
   const role = (userData.role || '').toLowerCase();
   return role === 'owner' || role === 'superuser' || role === 'pic';
 }
 
-// --- Konfigurasi khas pos ini (SATU-SATUNYA tempat yang beda antara file
+// Konfigurasi khas pos ini (SATU-SATUNYA tempat yang beda antara file
 // Sewing/Webbing/Finishing untuk bagian generik — field tambahan khas
-// masing-masing pos ditangani terpisah di komponennya sendiri). -----------
+// masing-masing pos ditangani terpisah di komponennya sendiri).
 const JALUR = 'finishing';
 const FIELD_RINCIAN = 'finishing_rincian';
 const TLC_ASAL = 'TLC-FIN';
 const MENU_ID = 'pp_finishing';
 const ICON_KOSONG = 'fa-check-double';
 
-// --- Format & hitung kecil --------------------------------------------------
+// Format & hitung kecil
 function formatQty(n) {
   const angka = parseFloat(n) || 0;
   return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 }
-const AMBANG_TERTAHAN_JAM = 6; // keputusan Guru, 31 Agt 2026 — sama semua tab/pos
+const AMBANG_TERTAHAN_JAM = 6; // keputusan, — sama semua tab/pos
 function jamSejak(iso) {
   if (!iso) return null;
   const ms = Date.now() - new Date(iso).getTime();
@@ -160,12 +101,11 @@ function formatSiklus(jam) {
   return jam.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jam';
 }
 
-// buatQrDataUrl/muatJsQr/cariKaryawanByQr DIPINDAH jadi fungsi generik
-// di js/vue-scan-cetak.js (refactor 7 Sep 2026) — sekarang diimpor,
-// bukan disalin lagi. Logic TIDAK berubah.
-// --- Kode harian berurut (bagging/tugas kirim) — SAMA fungsi persis dengan
-// vue-persiapan-bahan.js (counter doc dibagi lintas pos dengan sengaja,
-// supaya kode BAG/TGS tetap unik global, bukan cuma unik per pos). --------
+// buatQrDataUrl/muatJsQr/cariKaryawanByQr DIPINDAH jadi fungsi generik di
+// js/vue-scan-cetak.js — sekarang diimpor, bukan disalin lagi. Logic TIDAK
+// berubah. --- Kode harian berurut (bagging/tugas kirim) — SAMA fungsi persis
+// dengan vue-persiapan-bahan.js (counter doc dibagi lintas pos dengan sengaja,
+// supaya kode BAG/TGS tetap unik global, bukan cuma unik per pos).
 async function generateKodeHarian(prefix, koleksiCounter) {
   const now = new Date();
   const tanggalKey = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
@@ -179,7 +119,7 @@ async function generateKodeHarian(prefix, koleksiCounter) {
   });
 }
 
-// --- Baca & ratakan spk_track jalur='sewing' --------------------------------
+// Baca & ratakan spk_track jalur='sewing'
 async function muatSemuaTrackFinishing() {
   const snap = await getDocs(query(collection(db, 'spk_track'), where('jalur', '==', JALUR)));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -195,10 +135,10 @@ function daftarBarisDariTrack(daftarTrack) {
 }
 function barisKey(b) { return b._trackId + '::' + b._lineIdx; }
 
-// updateBarisFinishing — read-modify-write ATOMIK 1 baris (dipilih lewat
-// index), SAMA pola seperti updateBarisBahan() di vue-persiapan-bahan.js.
-// Dipakai aksi yang menyentuh SATU baris komponen (Tunjuk 1-per-1 kalau
-// sudah dipisah, entry, masalah, ganti operator).
+// updateBarisFinishing — read-modify-write ATOMIK 1 baris (dipilih lewat index),
+// SAMA pola seperti updateBarisBahan di vue-persiapan-bahan.js. Dipakai aksi
+// yang menyentuh SATU baris komponen (Tunjuk 1-per-1 kalau sudah dipisah, entry,
+// masalah, ganti operator).
 async function updateBarisFinishing(trackId, lineIdx, patchFn) {
   const refTrack = doc(db, 'spk_track', trackId);
   await runTransaction(db, async (trx) => {
@@ -210,12 +150,12 @@ async function updateBarisFinishing(trackId, lineIdx, patchFn) {
     trx.update(refTrack, { [FIELD_RINCIAN]: arr, diperbarui_pada: serverTimestamp() });
   });
 }
-// updateBarisFinishingMassal — BARU (beda dari Bahan): patch SEMUA elemen
-// array yang lolos matchFn() dalam SATU transaksi. Diperlukan karena "1
-// kartu = 1 SPK Grouping" (bukan 1 kartu = 1 bahan+warna macam Bahan): 1
-// scan Tunjuk/Pack/Kirim di sini bisa menandai BEBERAPA baris komponen
-// sekaligus (semua komponen milik 1 anak SPK, atau semua baris ber-
-// kode_bagging sama) — SATU dokumen, banyak baris kena sekaligus.
+// updateBarisFinishingMassal — (beda dari Bahan): patch SEMUA elemen array
+// yang lolos matchFn dalam SATU transaksi. Diperlukan karena "1 kartu = 1 SPK
+// Grouping" (bukan 1 kartu = 1 bahan+warna macam Bahan): 1 scan
+// Tunjuk/Pack/Kirim di sini bisa menandai BEBERAPA baris komponen sekaligus
+// (semua komponen milik 1 anak SPK, atau semua baris ber- kode_bagging sama) —
+// SATU dokumen, banyak baris kena sekaligus.
 async function updateBarisFinishingMassal(trackId, matchFn, patchFn) {
   const refTrack = doc(db, 'spk_track', trackId);
   let kena = 0;
@@ -232,14 +172,12 @@ async function updateBarisFinishingMassal(trackId, matchFn, patchFn) {
   return kena;
 }
 
-// konfirmasiEntry — SATU-SATUNYA tempat stok master_bahan_aksesoris
-// berkurang (SERAH-TERIMA §8 uji-terima #3), SAMA pola vue-persiapan-bahan.js.
-// DIPERBAIKI (7 Sep 2026, task #94 "gerbang batch", keputusan Guru: "ubah
-// jadi gerbang per-SPK sesuai wireframe") — dulu baris LANGSUNG pindah
-// 'perlu_dikirim' begitu di-entry sendiri-sendiri (penyederhanaan awal).
-// SEKARANG status TETAP 'sedang_disiapkan' sesudah entry — baris baru
-// benar-benar pindah tahap lewat konfirmasiDisiapkan() (batch SEMUA baris
-// 1 SPK Grouping/trackId sekaligus), lihat komponen Tab 2 di bawah.
+// konfirmasiEntry — SATU-SATUNYA tempat stok master_bahan_aksesoris berkurang,
+// SAMA pola vue-persiapan-bahan.js dulu baris LANGSUNG pindah 'perlu_dikirim'
+// begitu di-entry sendiri-sendiri (penyederhanaan awal). SEKARANG status TETAP
+// 'sedang_disiapkan' sesudah entry — baris baru benar-benar pindah tahap lewat
+// konfirmasiDisiapkan (batch SEMUA baris 1 SPK Grouping/trackId sekaligus),
+// lihat komponen Tab 2 di bawah.
 async function konfirmasiEntry(b) {
   const refTrack = doc(db, 'spk_track', b._trackId);
   const refBahan = doc(db, 'master_bahan_aksesoris', b.bahan_aksesoris_id);
@@ -263,11 +201,9 @@ async function konfirmasiEntry(b) {
 }
 
 // kelompokKartuSpk — kelompokkan baris (SUDAH difilter status tertentu) jadi
-// kartu per SPK TRACK (= per SPK Grouping, SERAH-TERIMA §2). Beda dari
-// kelompokKartuBahan() di vue-persiapan-bahan.js: TIDAK ada alokasi greedy
-// lintas kartu (SERAH-TERIMA Finishing tidak menyebut "kumulatif" sebagai
-// aturan khas) — tiap baris dicek CUKUP/KURANG independen terhadap stok
-// live komponennya sendiri.
+// kartu per SPK TRACK (= per SPK Grouping, ). Beda dari kelompokKartuBahan di
+// vue-persiapan-bahan.js: TIDAK ada alokasi greedy lintas kartu — tiap baris
+// dicek CUKUP/KURANG independen terhadap stok live komponennya sendiri.
 function kelompokKartuSpk(barisList, petaStokBahan) {
   const peta = {};
   barisList.forEach(b => {
@@ -284,8 +220,8 @@ function kelompokKartuSpk(barisList, petaStokBahan) {
       b._bisa = b._stok >= (parseFloat(b.butuh) || 0);
       // keadaan_cetak/sisa_dicetak — KHAS POS INI, dihitung LIVE (lihat
       // KEPUTUSAN di komentar besar atas file): "menunggu cetakan", BUKAN
-      // "kurang", karena kekurangan barang cetak biasanya cuma menunggu
-      // cetakan masuk (SERAH-TERIMA §3).
+      // "kurang", karena kekurangan barang cetak biasanya cuma menunggu cetakan
+      // masuk .
       b._keadaanCetak = b._bisa ? 'stok_tetap' : 'menunggu_cetakan';
       b._sisaDicetak = b._bisa ? 0 : Math.max(0, (parseFloat(b.butuh) || 0) - b._stok);
     });
@@ -295,29 +231,27 @@ function kelompokKartuSpk(barisList, petaStokBahan) {
   return list;
 }
 
-// kunciSepack — "syarat sepack" (SERAH-TERIMA §3 "Aturan khas pos ini"):
-// PRODUK dan SIZE sama (beda dari Bahan — di sini komponennya sudah terikat
-// SPK, jadi bukan pola dan bahan). Warna & no SPK boleh beda.
+// kunciSepack — "syarat sepack" : PRODUK dan SIZE sama (beda dari Bahan — di
+// sini komponennya sudah terikat SPK, jadi bukan pola dan bahan). Warna & no SPK
+// boleh beda.
 function kunciSepack(b) { return `${b.nama_produk}::${b.produk_size}`.toLowerCase(); }
 function labelSepack(b) { return `${b.nama_produk} · size ${b.produk_size || '-'}`; }
 
-// Komponen kamera fullscreen (dulu bernama lokal ModalScanQr, disalin
-// identik di 4 file Persiapan Produksi) sekarang jadi ScanGenerik di
-// js/vue-scan-cetak.js — genuinely diimpor, interface & perilaku PERSIS
-// SAMA, tidak disalin lagi (refactor 7 Sep 2026).
+// Komponen kamera fullscreen (dulu bernama lokal ModalScanQr, disalin identik di
+// 4 file Persiapan Produksi) sekarang jadi ScanGenerik di js/vue-scan-cetak.js —
+// genuinely diimpor, interface & perilaku PERSIS SAMA, tidak disalin lagi .
 
-// ============================================================================
-// RETROFIT 9 Sep 2026 (audit wireframe vs kode live, Guru sudah setuju
-// termasuk alur) — pola & alasan PERSIS SAMA seperti blok sejenis di
-// vue-persiapan-bahan.js/vue-persiapan-sewing.js/vue-persiapan-webbing.js
-// (baca komentar besar di sana, tidak diulang di sini) — disalin, TIDAK
-// diimpor silang. Beda Finishing dari Sewing yang relevan: grid Tab 1 SUDAH
-// 1 kolom dari awal (SAMA wireframe, README paket handoff: wireframe Acc
-// Sewing/Webbing/Finishing SAMA persis kecuali jenis komponen), dapat
-// TAMBAHAN 4 kotak KPI (temuan #6) SAMA seperti Sewing/Webbing. Bar
-// ringkasan sticky + cetak massal (temuan #5, khas Bahan) SENGAJA TIDAK
-// disalin — sama alasan seperti Sewing/Webbing.
-// ============================================================================
+
+// RETROFIT — pola & alasan PERSIS SAMA seperti blok sejenis di
+// vue-persiapan-bahan.js/vue-persiapan-sewing.js/vue-persiapan-webbing.js (baca
+// komentar besar di sana, tidak diulang di sini) — disalin, TIDAK diimpor
+// silang. Beda Finishing dari Sewing yang relevan: grid Tab 1 SUDAH 1 kolom dari
+// awal (SAMA wireframe, README paket handoff: wireframe Acc
+// Sewing/Webbing/Finishing SAMA persis kecuali jenis komponen), dapat TAMBAHAN 4
+// kotak KPI (temuan #6) SAMA seperti Sewing/Webbing. Bar ringkasan sticky +
+// cetak massal (temuan #5, khas Bahan) SENGAJA TIDAK disalin — sama alasan
+// seperti Sewing/Webbing.
+
 const TAB_DEFS_FINISHING = [
   { target: 'sub-pp-finishing-perludisiapkan', icon: 'fa-inbox', label: 'Perlu Disiapkan' },
   { target: 'sub-pp-finishing-sedangdisiapkan', icon: 'fa-gears', label: 'Sedang Disiapkan' },
@@ -336,14 +270,14 @@ function sembunyikanBarisTabAsli(grupKelas) {
 function gantiTabPill(grupKelas, targetId, ev) {
   if (window.pindahSubTab) window.pindahSubTab(grupKelas, targetId, (ev && ev.currentTarget) || null, { catatRiwayat: true });
 }
-// ============================================================================
-// TAB 1: Perlu Disiapkan (langkah wireframe 1a -> 1b -> 1c)
-// Kartu per SPK Grouping (bukan per bahan seperti Bahan). 1a: cek stok per
-// baris + centang baris yang bisa jalan + cetak label (1 label per anak
-// SPK). 1b: badge "sudah dicetak" + cetak ulang (PIN+alasan). 1c: penunjukan
-// (scan operator + scan berkali-kali label anak SPK — 1 scan anak SPK
-// menandai SEMUA baris komponen anak SPK itu sekaligus).
-// ============================================================================
+
+// TAB 1: Perlu Disiapkan (langkah wireframe 1a -> 1b -> 1c) Kartu per SPK
+// Grouping (bukan per bahan seperti Bahan). 1a: cek stok per baris + centang
+// baris yang bisa jalan + cetak label (1 label per anak SPK). 1b: badge "sudah
+// dicetak" + cetak ulang (PIN+alasan). 1c: penunjukan (scan operator + scan
+// berkali-kali label anak SPK — 1 scan anak SPK menandai SEMUA baris komponen
+// anak SPK itu sekaligus).
+
 const PersiapanFinishingPerluDisiapkan = {
   components: { PopupPratinjauCetakLabel, ScanGenerik, PopupPinGenerik },
   setup() {
@@ -354,12 +288,11 @@ const PersiapanFinishingPerluDisiapkan = {
     const pilihanCetak = reactive({}); // barisKey -> bool (override manual)
 
     const MY_TARGET = 'sub-pp-finishing-perludisiapkan';
-    // REVISI 8 Sep 2026 (keputusan Guru, audit kode) — satu-satunya
-    // pemakai bolehProses di komponen ini adalah tombol "Tunjuk Operator",
-    // jadi digerbang langsung PIC ke atas di sini.
+    // satu-satunya pemakai bolehProses di komponen ini adalah tombol "Tunjuk
+    // Operator", jadi digerbang langsung PIC ke atas di sini.
     const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(MENU_ID, 'edit') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(MENU_ID, 'print') !== false);
-    // bolehEdit — RETROFIT 9 Sep 2026, gerbang tombol "Scan Sampai" global.
+    // bolehEdit — RETROFIT, gerbang tombol "Scan Sampai" global.
     const bolehEdit = computed(() => window.cekIzinMenu(MENU_ID, 'edit') !== false);
 
     async function muat() {
@@ -389,8 +322,8 @@ const PersiapanFinishingPerluDisiapkan = {
       return kartu;
     });
 
-    // kpiHeader — RETROFIT 9 Sep 2026 (temuan #6, KHUSUS Acc Sewing/Webbing/
-    // Finishing): 4 kotak KPI persis wireframe.
+    // kpiHeader — RETROFIT (temuan #6, KHUSUS Acc Sewing/Webbing/ Finishing): 4
+    // kotak KPI persis wireframe.
     const kpiHeader = computed(() => {
       let barisKomponen = 0, stokKurang = 0, siapDicetak = 0;
       kartuList.value.forEach(k => {
@@ -411,18 +344,16 @@ const PersiapanFinishingPerluDisiapkan = {
       pilihanCetak[barisKey(b)] = !isChecked(b);
     }
 
-    // --- Cetak label (1a -> 1b): 1 label FISIK per BARIS aksesoris (kode_
-    // komponen), bukan digabung per anak SPK — kalau 1 anak SPK butuh
-    // banyak jenis aksesoris, QR/kode SPK (kode_kartu) yang sama berulang
-    // di tiap labelnya (operator tetap scan kode yang sama di manapun).
-    // Isi label dibangun lewat bangunLabelAksesoris() bersama (js/vue-
-    // components.js) — fungsi GLOBAL yang sama dipakai Acc Sewing/Webbing
-    // DAN kartu di layar (template di bawah). rincian.varian (field
-    // tambahan khas pos ini, tampil-tidaknya diatur Guru dari Pengaturan
-    // Cetak) TETAP dibangun per baris di sini. qrDataUrl ditambah di titik
-    // cetak saja (bukan di dalam bangunLabelAksesoris) supaya QR cuma
-    // digambar 1x per label yang BENAR-BENAR dicetak, bukan tiap kartu
-    // dirender ulang di layar. ---
+    // Cetak label (1a -> 1b): 1 label FISIK per BARIS aksesoris (kode_
+    // komponen), bukan digabung per anak SPK — kalau 1 anak SPK butuh banyak
+    // jenis aksesoris, QR/kode SPK (kode_kartu) yang sama berulang di tiap
+    // labelnya (operator tetap scan kode yang sama di manapun). Isi label
+    // dibangun lewat bangunLabelAksesoris bersama (js/vue- components.js) —
+    // fungsi GLOBAL yang sama dipakai Acc Sewing/Webbing DAN kartu di layar
+    // (template di bawah). rincian.varian TETAP dibangun per baris di sini.
+    // qrDataUrl ditambah di titik cetak saja (bukan di dalam
+    // bangunLabelAksesoris) supaya QR cuma digambar 1x per label yang
+    // BENAR-BENAR dicetak, bukan tiap kartu dirender ulang di layar.
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
     let _pendingCetak = [];
@@ -443,17 +374,15 @@ const PersiapanFinishingPerluDisiapkan = {
     async function onCetakSelesai() {
       const now = new Date().toISOString();
       try {
-        // 1 aksi cetak bisa mencakup >1 baris DI DOKUMEN YANG SAMA (kartu =
-        // 1 dokumen) — cukup 1 updateBarisFinishingMassal per kartu, bukan N
+        // 1 aksi cetak bisa mencakup >1 baris DI DOKUMEN YANG SAMA (kartu = 1
+        // dokumen) — cukup 1 updateBarisFinishingMassal per kartu, bukan N
         // transaksi terpisah per baris.
         const byTrack = {};
         _pendingCetak.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
-        // DIPERBAIKI (9 Sep 2026 malam) — matchFn lama `(b, i) => idxSet.has(i)`
-        // TIDAK PERNAH benar: updateBarisFinishingMassal cuma memanggil
-        // matchFn(arr[i]) TANPA index kedua, jadi `i` selalu undefined dan
-        // baris TIDAK PERNAH tertandai (gagal diam-diam, sama pola bug
-        // "Tunjuk Operator" yang sudah diperbaiki lanjutan 9). Diganti
-        // matching by value (no_spk).
+        // matchFn lama `(b, i) => idxSet.has(i)` TIDAK PERNAH benar:
+        // updateBarisFinishingMassal cuma memanggil matchFn(arr[i]) TANPA index
+        // kedua, jadi `i` selalu undefined dan baris TIDAK PERNAH tertandai .
+        // Diganti matching by value (no_spk).
         await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
           const noSpkSet = new Set(barisGrup.map(b => b.no_spk));
           return updateBarisFinishingMassal(trackId, (x) => noSpkSet.has(x.no_spk), () => ({ label_cetak_pada: now }));
@@ -463,13 +392,12 @@ const PersiapanFinishingPerluDisiapkan = {
       await muat();
     }
 
-    // --- Cetak ulang (alasan + PIN diverifikasi kriptografis, dicatat
-    // cetak_ulang_log). DIPERBAIKI (7 Sep 2026, task #94 "4 gap kekurangan")
-    // — dulu PIN cuma teks bebas tanpa verifikasi (infra belum ada saat modul
-    // ini ditulis). Sekarang pakai `PopupPinGenerik` (js/vue-scan-cetak.js,
-    // rolesDiizinkan=null = semua admin-level), SESUAI SPESIFIKASI-KOLEKSI-
-    // BARU.md §4 poin 3 ("PIN siapa pun diterima, yang dicatat = pemilik
-    // PIN") — sama pola vue-persiapan-bahan.js. ---
+    // Cetak ulang (alasan + PIN diverifikasi kriptografis, dicatat
+    // cetak_ulang_log) dulu PIN cuma teks bebas tanpa verifikasi (infra belum
+    // ada saat modul ini ditulis). Sekarang pakai `PopupPinGenerik`
+    // (js/vue-scan-cetak.js, rolesDiizinkan=null = semua admin-level), SESUAI
+    // SPESIFIKASI-KOLEKSI- BARU.md §4 poin 3 ("PIN siapa pun diterima, yang
+    // dicatat = pemilik PIN") — sama pola vue-persiapan-bahan.js.
     const popupCetakUlang = ref(null); // { kartu, alasan }
     const pinCetakUlangAktif = ref(false);
     function bukaCetakUlang(k) {
@@ -488,9 +416,9 @@ const PersiapanFinishingPerluDisiapkan = {
       const p = popupCetakUlang.value;
       if (!p) return;
       const sudahDicetak = p.kartu.baris.filter(b => b.label_cetak_pada);
-      // Sama fungsi dgn cetakLabelKartu() di atas (bangunLabelAksesoris
-      // bersama) supaya label cetak-ulang PERSIS format cetak normal, tetap
-      // cocok dgn hasilScanTunjuk()/hasilScanAksi().
+      // Sama fungsi dgn cetakLabelKartu di atas (bangunLabelAksesoris bersama)
+      // supaya label cetak-ulang PERSIS format cetak normal, tetap cocok dgn
+      // hasilScanTunjuk/hasilScanAksi.
       const preview = sudahDicetak.map(b => {
         const lbl = bangunLabelAksesoris(b, formatQty, { cetakUlang: true });
         return { ...lbl, qrDataUrl: buatQrDataUrl(lbl.kode), rincian: bangunRincianFinishing(b) };
@@ -509,9 +437,9 @@ const PersiapanFinishingPerluDisiapkan = {
       popupCetakAktif.value = true;
     }
 
-    // --- Penunjukan (1c): scan operator, lalu scan berkali-kali label anak
-    // SPK di kartu ini — 1 scan anak SPK menandai SEMUA baris komponennya
-    // sekaligus (beda dari Bahan yang 1 baris per anak SPK). ---
+    // Penunjukan (1c): scan operator, lalu scan berkali-kali label anak SPK
+    // di kartu ini — 1 scan anak SPK menandai SEMUA baris komponennya sekaligus
+    // (beda dari Bahan yang 1 baris per anak SPK).
     const modalTunjuk = reactive({ aktif: false, kartu: null, global: false, operator: null, tahap: 'operator', log: [] });
     function bukaPenunjukan(k) {
       const eligible = k.baris.filter(b => b.label_cetak_pada && b.status === 'perlu_disiapkan');
@@ -519,9 +447,9 @@ const PersiapanFinishingPerluDisiapkan = {
       modalTunjuk.kartu = k; modalTunjuk.global = false; modalTunjuk.operator = null; modalTunjuk.tahap = 'operator'; modalTunjuk.log = [];
       modalTunjuk.aktif = true;
     }
-    // bukaPenunjukanGlobal — RETROFIT 9 Sep 2026 (temuan #1), lihat catatan
-    // sama di vue-persiapan-bahan.js/vue-persiapan-sewing.js. Tombol
-    // per-kartu TETAP DIPERTAHANKAN.
+    // bukaPenunjukanGlobal — RETROFIT (temuan #1), lihat catatan sama di
+    // vue-persiapan-bahan.js/vue-persiapan-sewing.js. Tombol per-kartu TETAP
+    // DIPERTAHANKAN.
     function bukaPenunjukanGlobal() {
       const eligible = kartuList.value.some(k => k.baris.some(b => b.label_cetak_pada && b.status === 'perlu_disiapkan'));
       if (!eligible) { alert('Belum ada baris yang sudah dicetak labelnya di tab ini.'); return; }
@@ -539,21 +467,19 @@ const PersiapanFinishingPerluDisiapkan = {
         modalTunjuk.tahap = 'anak';
         return;
       }
-      // Mode global: cari DI SEMUA kartu; mode per-kartu: cari DI KARTU ITU
-      // SAJA (perilaku lama, tidak berubah).
+      // Mode global: cari DI SEMUA kartu; mode per-kartu: cari DI KARTU ITU SAJA
+      // (perilaku lama, tidak berubah).
       const kolamBaris = modalTunjuk.global ? kartuList.value.flatMap(k => k.baris) : (modalTunjuk.kartu?.baris || []);
-      // FIX (12 Sep 2026 lanjutan 6; RENAME 13 Sep lanjutan 9) — cocokkan ke
-      // kode_kartu (fallback no_spk utk data lama), SAMA kode yg dicetak
-      // (lihat cetakLabelKartu).
+      // cocokkan ke kode_kartu (fallback no_spk utk data lama), SAMA kode yg
+      // dicetak (lihat cetakLabelKartu).
       const cocok = kolamBaris.filter(b => (b.kode_kartu || b.no_spk) === kode && b.label_cetak_pada && b.status === 'perlu_disiapkan');
       if (!cocok.length) {
-        // FIX (10 Sep 2026, laporan Guru — masih salah tunjuk setelah fix
-        // dedup kamera) — akar SEBENARNYA: user scan ULANG badge operator
-        // di tahap "anak" (kira harus scan badge lagi), bukan scan label
-        // SPK yang tercetak. Pesan lama tidak bilang itu badge operator,
-        // jadi kelihatan seperti bug padahal salah scan target. Sekarang
-        // dicek eksplisit: kalau kode yang gagal cocok itu TERNYATA id_app
-        // karyawan, kasih pesan yang jelas nunjuk masalahnya.
+        // akar SEBENARNYA: user scan ULANG badge operator di tahap "anak" (kira
+        // harus scan badge lagi), bukan scan label SPK yang tercetak. Pesan lama
+        // tidak bilang itu badge operator, jadi kelihatan seperti bug padahal
+        // salah scan target. Sekarang dicek eksplisit: kalau kode yang gagal
+        // cocok itu TERNYATA id_app karyawan, kasih pesan yang jelas nunjuk
+        // masalahnya.
         const karyawanTerbaca = await cariKaryawanByQr(kode);
         if (karyawanTerbaca) {
           alert(`Kode "${kode}" itu badge OPERATOR (${karyawanTerbaca.nama || karyawanTerbaca.name || kode}), BUKAN label SPK. Scan LABEL SPK anak yang sudah dicetak (bukan badge operator lagi).`);
@@ -564,18 +490,16 @@ const PersiapanFinishingPerluDisiapkan = {
       }
       const now = new Date().toISOString();
       const trackId = cocok[0]._trackId;
-      // FIX (13 Sep 2026 lanjutan 17, bug NYATA ditemukan lewat audit —
-      // BUKAN cuma laporan Guru): matchFn tulis Firestore di sini MASIH
-      // `x.no_spk === kode` polos, padahal validasi `cocok` di atas SUDAH
-      // pakai `kode_kartu || no_spk` sejak rename 13 Sep lanjutan 9. Untuk
-      // data BARU (kode_kartu terisi, beda dari no_spk), validasi LOLOS
-      // (makanya tidak ada alert), tapi matchFn di sini 0 baris cocok ->
-      // `updateBarisFinishingMassal` commit tanpa perubahan (kena=0) ->
-      // operator lihat log "berhasil" padahal status Firestore TETAP
-      // perlu_disiapkan — GAGAL DIAM-DIAM. Fix: matchFn ikut
-      // `kode_kartu || no_spk`, SAMA persis field yang sudah benar di
-      // `cocok`. `kena` juga sekarang dicek eksplisit (bukan cuma andalkan
-      // try/catch) — kena=0 tanpa exception TIDAK melempar error.
+      // matchFn tulis Firestore di sini MASIH `x.no_spk === kode` polos, padahal
+      // validasi `cocok` di atas SUDAH pakai `kode_kartu || no_spk` sejak rename
+      // Untuk data (kode_kartu terisi, beda dari no_spk), validasi
+      // LOLOS (makanya tidak ada alert), tapi matchFn di sini 0 baris cocok ->
+      // `updateBarisFinishingMassal` commit tanpa perubahan (kena=0) -> operator
+      // lihat log "berhasil" padahal status Firestore TETAP perlu_disiapkan —
+      // GAGAL DIAM-DIAM. Fix: matchFn ikut `kode_kartu || no_spk`, SAMA persis
+      // field yang sudah benar di `cocok`. `kena` juga sekarang dicek eksplisit
+      // (bukan cuma andalkan try/catch) — kena=0 tanpa exception TIDAK melempar
+      // error.
       try {
         const kena = await updateBarisFinishingMassal(trackId, (x) => (x.kode_kartu || x.no_spk) === kode && x.status === 'perlu_disiapkan' && !!x.label_cetak_pada, (lama) => ({
           status: 'sedang_disiapkan', masuk_tahap_pada: now,
@@ -592,10 +516,10 @@ const PersiapanFinishingPerluDisiapkan = {
     }
     async function selesaiPenunjukan() { tutupPenunjukan(); await muat(); }
 
-    // --- Scan Sampai GLOBAL (temuan #1) — lihat komentar besar sama di
+    // Scan Sampai GLOBAL (temuan #1) — lihat komentar besar sama di
     // vue-persiapan-bahan.js untuk ASUMSI lengkap: konservatif, cuma
     // membersihkan catatan_masalah baris yang kode_bagging-nya cocok, TIDAK
-    // menulis balik koleksi persiapan_masalah. ---
+    // menulis balik koleksi persiapan_masalah.
     const modalScanSampai = reactive({ aktif: false, log: [] });
     function bukaScanSampaiGlobal() { modalScanSampai.log = []; modalScanSampai.aktif = true; }
     function tutupScanSampai() { modalScanSampai.aktif = false; modalScanSampai.log = []; muat(); }
@@ -618,13 +542,12 @@ const PersiapanFinishingPerluDisiapkan = {
     return { muat,
       memuat, kartuList, cari, isChecked, toggleCheck,
       bolehProses, bolehCetak, bolehEdit, formatQty, formatWaktu, ICON_KOSONG,
-      // FIX (10 Sep 2026, laporan Guru "Acc Finishing stuck Memuat...") —
-      // templat di bawah pakai `barisKey(b)` sebagai :key v-for, tapi
-      // fungsinya lupa diikutkan di return setup() ini. Selama kartuList
-      // kosong ini tidak kelihatan — begitu ada data sungguhan, Vue coba
-      // panggil `_ctx.barisKey` yang undefined -> "TypeError: barisKey is
-      // not a function" -> render crash -> Vue TAHAN vnode LAMA (yang
-      // masih nampilkan "Memuat...") di layar selamanya.
+      // templat di bawah pakai `barisKey(b)` sebagai:key v-for, tapi fungsinya
+      // lupa diikutkan di return setup ini. Selama kartuList kosong ini tidak
+      // kelihatan — begitu ada data sungguhan, Vue coba panggil `_ctx.barisKey`
+      // yang undefined -> "TypeError: barisKey is not a function" -> render
+      // crash -> Vue TAHAN vnode LAMA (yang masih nampilkan "Memuat..") di layar
+      // selamanya.
       barisKey, bangunLabelAksesoris,
       TAB_DEFS_FINISHING, gantiTabPill, MY_TARGET, kpiHeader,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, onCetakSelesai,
@@ -656,7 +579,7 @@ const PersiapanFinishingPerluDisiapkan = {
         </button>
       </div>
 
-      <!-- RETROFIT 9 Sep 2026 (temuan #6) — 4 kotak KPI. -->
+      <!-- RETROFIT (temuan #6) — 4 kotak KPI. -->
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px;">
         <div style="flex:1; min-width:110px; border:1px dashed var(--line); border-radius:12px; padding:8px 10px; background:var(--ivory-dim);">
           <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">SPK menunggu</div>
@@ -697,8 +620,7 @@ const PersiapanFinishingPerluDisiapkan = {
             <span v-else class="tag ok" style="flex-shrink:0;">stok cukup</span>
           </div>
 
-          <!-- RETROFIT 9 Sep 2026 (temuan #4) — tabel SELALU TERBUKA,
-               collapse "buka rincian" dihapus. -->
+          <!-- RETROFIT (temuan #4) — tabel SELALU TERBUKA, collapse "buka rincian" dihapus. -->
           <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
             <label v-for="b in k.baris" :key="barisKey(b)" style="display:flex; align-items:flex-start; gap:8px; font-size:11px; padding:8px; border-radius:10px;" :style="{ background: b.label_cetak_pada ? 'var(--ok-light)' : (b._bisa ? 'transparent' : 'var(--danger-light)') }">
               <input type="checkbox" :checked="isChecked(b)" :disabled="!b._bisa || !!b.label_cetak_pada" @change="toggleCheck(b)" style="margin-top:2px;">
@@ -755,31 +677,26 @@ const PersiapanFinishingPerluDisiapkan = {
   `
 };
 
-// ============================================================================
-// TAB 2: Sedang Disiapkan (langkah wireframe 2a -> 2b)
-// SAMA pola vue-persiapan-bahan.js Tab 2 — dikelompokkan per operator, aksi
-// per baris (Scan Entry/Masalah/Ganti Operator).
+
+// TAB 2: Sedang Disiapkan (langkah wireframe 2a -> 2b) SAMA pola
+// vue-persiapan-bahan.js Tab 2 — dikelompokkan per operator, aksi per baris
+// (Scan Entry/Masalah/Ganti Operator).
 //
-// DIPERBARUI (7 Sep 2026, retrofit lanjutan §5.18) — Scan Masalah SEKARANG
-// juga membuat dokumen `persiapan_masalah` (via ajukanPersiapanMasalah(),
-// js/vue-scan-cetak.js) lewat popup jumlah kurang + alasan, SAMA persis
-// pola vue-persiapan-bahan.js Tab 2 — tlc_asal='TLC-FIN', sumber_jalur=
-// 'finishing'.
+// DIPERBARUI — Scan Masalah SEKARANG juga membuat dokumen `persiapan_masalah`
+// (via ajukanPersiapanMasalah, js/vue-scan-cetak.js) lewat popup jumlah kurang +
+// alasan, SAMA persis pola vue-persiapan-bahan.js Tab 2 — tlc_asal='TLC-FIN',
+// sumber_jalur= 'finishing'.
 //
-// DIPERBAIKI LAGI (7 Sep 2026, task #94 "gerbang batch" — keputusan Guru:
-// "ubah jadi gerbang per-SPK sesuai wireframe"): dulu Scan Entry per baris
-// LANGSUNG memindahkan baris itu sendiri ke Perlu Dikirim (penyederhanaan
-// awal). SEKARANG baris per operator dikelompokkan LAGI per SPK Grouping
-// (`_trackId`), Scan Entry cuma menandai baris `entry_qty` tanpa pindah
-// status, dan baru pindah SEMUA baris SPK itu sekaligus ke Perlu Dikirim
-// lewat tombol "Disiapkan" per kelompok SPK — aktif hanya kalau SEMUA baris
-// SPK itu (lintas seluruh trackId) sudah minimal masuk sedang_disiapkan DAN
-// semua yang sedang_disiapkan sudah ber-entry_qty (SERAH-TERIMA §8
-// uji-terima #5, sama pola vue-persiapan-webbing.js). CATATAN: keputusan
-// yang sama (§7 "menunggu cetakan") Guru pilih "tetap lewat Persiapan
-// Masalah biasa" — sudah otomatis terpenuhi, Scan Masalah di pos ini TIDAK
-// perlu diubah.
-// ============================================================================
+// LAGI: dulu Scan Entry per baris LANGSUNG memindahkan baris itu sendiri ke
+// Perlu Dikirim (penyederhanaan awal). SEKARANG baris per operator dikelompokkan
+// LAGI per SPK Grouping (`_trackId`), Scan Entry cuma menandai baris `entry_qty`
+// tanpa pindah status, dan baru pindah SEMUA baris SPK itu sekaligus ke Perlu
+// Dikirim lewat tombol "Disiapkan" per kelompok SPK — aktif hanya kalau SEMUA
+// baris SPK itu (lintas seluruh trackId) sudah minimal masuk sedang_disiapkan
+// DAN semua yang sedang_disiapkan sudah ber-entry_qty . CATATAN: keputusan yang
+// sama (§7 "menunggu cetakan") pilih "tetap lewat Persiapan Masalah biasa" —
+// sudah otomatis terpenuhi, Scan Masalah di pos ini TIDAK perlu diubah.
+
 const PersiapanFinishingSedangDisiapkan = {
   components: { ScanGenerik },
   setup() {
@@ -840,7 +757,7 @@ const PersiapanFinishingSedangDisiapkan = {
     }
     function tutupAksi() { modalAksi.aktif = false; modalAksi.mode = null; modalAksi.baris = null; }
 
-    // --- Popup "jumlah kurang" + alasan (retrofit §5.18 lanjutan) ---
+    // Popup "jumlah kurang" + alasan
     const popupMasalah = ref(null); // { baris, jumlahKurang, alasan }
     function batalMasalah() { popupMasalah.value = null; }
     async function konfirmasiMasalah() {
@@ -888,9 +805,8 @@ const PersiapanFinishingSedangDisiapkan = {
         sedangProses[key] = false;
         return;
       }
-      // FIX (12 Sep 2026 lanjutan 6; RENAME 13 Sep lanjutan 9) — cocokkan ke
-      // kode_kartu (fallback no_spk utk data lama), SAMA kode yg dicetak
-      // (lihat cetakLabelKartu).
+      // cocokkan ke kode_kartu (fallback no_spk utk data lama), SAMA kode yg
+      // dicetak (lihat cetakLabelKartu).
       const kodeLabelBaris = b.kode_kartu || b.no_spk;
       if (kode !== kodeLabelBaris) { alert(`Kode yang discan ("${kode}") tidak cocok dengan anak SPK ini (${kodeLabelBaris}).`); return; }
       if (modalAksi.mode === 'masalah') {
@@ -997,14 +913,14 @@ const PersiapanFinishingSedangDisiapkan = {
   `
 };
 
-// ============================================================================
-// TAB 3: Perlu Di Kirim (langkah wireframe 3a -> 3b)
-// Papan hanya baris berstatus perlu_dikirim. Dua cetak (Kode Bagging tanpa
-// TLC, Kode Tugas dengan tujuan TLC dropdown). Dua scan (Scan Pack, Scan
-// Kirim) — SATU scan bisa menandai BEBERAPA baris komponen sekaligus (semua
-// komponen 1 anak SPK yang di-pack bareng, atau semua baris ber-kode_bagging
-// sama saat kirim) — beda dari Bahan yang 1 scan = 1 baris.
-// ============================================================================
+
+// TAB 3: Perlu Di Kirim (langkah wireframe 3a -> 3b) Papan hanya baris berstatus
+// perlu_dikirim. Dua cetak (Kode Bagging tanpa TLC, Kode Tugas dengan tujuan TLC
+// dropdown). Dua scan (Scan Pack, Scan Kirim) — SATU scan bisa menandai BEBERAPA
+// baris komponen sekaligus (semua komponen 1 anak SPK yang di-pack bareng, atau
+// semua baris ber-kode_bagging sama saat kirim) — beda dari Bahan yang 1 scan =
+// 1 baris.
+
 const PersiapanFinishingPerluDikirim = {
   components: { PopupPratinjauCetakLabel, ScanGenerik },
   setup() {
@@ -1065,8 +981,7 @@ const PersiapanFinishingPerluDikirim = {
         const preview = [];
         for (let i = 0; i < n; i++) {
           const kode = await generateKodeHarian('BAG', 'pengaturan_id_bagging');
-          // kode_spk/kode_batch — BARU (12 Sep 2026, kaitkan root1/root2 ke
-          // bagging, keputusan Guru via chat) — null dulu, diisi Scan Pack.
+          // kode_spk/kode_batch — BARU — null dulu, diisi Scan Pack.
           await addDoc(collection(db, 'bagging'), {
             kode, produk_label: grup.label, isi: [], ditutup_pada: null,
             kode_spk: null, kode_batch: null,
@@ -1120,9 +1035,9 @@ const PersiapanFinishingPerluDikirim = {
       sedangProses.value = false;
     }
 
-    // --- Scan Pack: step1 kode bagging, step2 anak SPK berkali-kali. 1 scan
-    // anak SPK menandai SEMUA baris komponen anak SPK itu (bisa lintas
-    // beberapa baris, tapi selalu di dalam kartu/dokumen yang sama). ---
+    // Scan Pack: step1 kode bagging, step2 anak SPK berkali-kali. 1 scan
+    // anak SPK menandai SEMUA baris komponen anak SPK itu (bisa lintas beberapa
+    // baris, tapi selalu di dalam kartu/dokumen yang sama).
     const modalPack = reactive({ aktif: false, bagging: null, log: [] });
     function bukaScanPack() { modalPack.bagging = null; modalPack.log = []; modalPack.aktif = true; }
     function tutupScanPack() { modalPack.aktif = false; modalPack.bagging = null; modalPack.log = []; muat(); }
@@ -1134,22 +1049,21 @@ const PersiapanFinishingPerluDikirim = {
         modalPack.bagging = b;
         return;
       }
-      // FIX (13 Sep 2026 lanjutan 17): dulu `x.no_spk === kode` polos — label
-      // yang discan di sini kartu SAMA yang dicetak Tab 1 (`cetakLabelKartu`,
-      // sudah pakai `kode_kartu || no_spk`), jadi utk data BARU (kode_kartu
-      // terisi) scan valid SELALU ditolak alert ini. Disamakan ke fallback
-      // chain yang sama dgn `hasilScanTunjuk`.
+      // dulu `x.no_spk === kode` polos — label yang discan di sini kartu SAMA
+      // yang dicetak Tab 1 (`cetakLabelKartu`, sudah pakai `kode_kartu ||
+      // no_spk`), jadi utk data (kode_kartu terisi) scan valid SELALU
+      // ditolak alert ini. Disamakan ke fallback chain yang sama dgn
+      // `hasilScanTunjuk`.
       const cocok = barisTertahan.value.filter(x => (x.kode_kartu || x.no_spk) === kode && !x.kode_bagging);
       if (!cocok.length) { alert(`Kode "${kode}" tidak cocok anak SPK yang masih tertahan / sudah di-pack.`); return; }
       if (labelSepack(cocok[0]) !== modalPack.bagging.produk_label) {
         alert(`Kode "${kode}" bukan produk yang sama dengan bagging ini (${modalPack.bagging.produk_label}). Syarat sepack: produk dan size harus sama.`);
         return;
       }
-      // BARU (12 Sep 2026, kaitkan root1/root2 ke bagging, keputusan Guru
-      // via chat) — scan PERTAMA jadi VALIDATOR: kode_spk dikunci ke
-      // dokumen `bagging`. Scan berikutnya WAJIB kode_spk sama, kalau beda
-      // DITOLAK. Pos ini selalu level grouping (kode_batch baru ada
-      // setelah Separating di Serie), jadi warna tetap boleh campur.
+      // scan PERTAMA jadi VALIDATOR: kode_spk dikunci ke dokumen `bagging`. Scan
+      // berikutnya WAJIB kode_spk sama, kalau beda DITOLAK. Pos ini selalu level
+      // grouping (kode_batch baru ada setelah Separating di Serie), jadi warna
+      // tetap boleh campur.
       if (modalPack.bagging.kode_spk && cocok[0].kode_spk !== modalPack.bagging.kode_spk) {
         alert(`Kode "${kode}" dari SPK Grouping berbeda (${cocok[0].kode_spk}) dari bagging ini (${modalPack.bagging.kode_spk}). 1 bagging cuma boleh 1 grouping.`);
         return;
@@ -1157,9 +1071,7 @@ const PersiapanFinishingPerluDikirim = {
       const byTrack = {};
       cocok.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
       try {
-        // matchFn value-based (kode_kartu||no_spk + !kode_bagging, SAMA
-        // predikat yang dipakai bikin `cocok` di atas — lihat FIX 13 Sep
-        // lanjutan 17 di atas).
+        // matchFn value-based .
         const hasil = await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
           return updateBarisFinishingMassal(trackId, (x) => (x.kode_kartu || x.no_spk) === kode && !x.kode_bagging, () => ({ kode_bagging: modalPack.bagging.kode }));
         }));
@@ -1178,7 +1090,7 @@ const PersiapanFinishingPerluDikirim = {
       modalPack.bagging = null;
     }
 
-    // --- Scan Kirim: step1 kode tugas, step2 kode bagging tiap pack. ---
+    // Scan Kirim: step1 kode tugas, step2 kode bagging tiap pack.
     const modalKirim = reactive({ aktif: false, tugas: null, log: [] });
     function bukaScanKirim() { modalKirim.tugas = null; modalKirim.log = []; modalKirim.aktif = true; }
     function tutupScanKirim() { modalKirim.aktif = false; modalKirim.tugas = null; modalKirim.log = []; muat(); }
@@ -1198,15 +1110,15 @@ const PersiapanFinishingPerluDikirim = {
       const byTrack = {};
       anggota.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
       try {
-        // DIPERBAIKI (9 Sep 2026 malam) — matchFn value-based (kode_bagging).
+        // matchFn value-based (kode_bagging).
         await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
           return updateBarisFinishingMassal(trackId, (x) => x.kode_bagging === kode, () => ({
             status: 'sedang_dikirim', masuk_tahap_pada: now, kode_tugas: modalKirim.tugas.kode,
             tlc_tujuan: modalKirim.tugas.tlc_tujuan || ''
           }));
         }));
-        // kode_spk/kode_batch ikut disalin ke pack[] — BARU (12 Sep 2026,
-        // keputusan Guru via chat), dilepas oleh Scan Sampai (sampai_pada).
+        // kode_spk/kode_batch ikut disalin ke pack[] — BARU, dilepas oleh Scan
+        // Sampai (sampai_pada).
         await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), {
           pack: arrayUnion({ kode_bagging: kode, kode_spk: anggota[0].kode_spk || null, kode_batch: null, pada: now, sampai_pada: null })
         });
@@ -1218,8 +1130,8 @@ const PersiapanFinishingPerluDikirim = {
 
     return { muat,
       memuat, kelompokSepack, daftarTlc, bolehProses, bolehCetak, sedangProses,
-      // FIX (10 Sep 2026) — sama seperti komponen "Perlu Disiapkan" di atas:
-      // barisKey dipakai templat (:key v-for) tapi lupa di-return.
+      // sama seperti komponen "Perlu Disiapkan" di atas: barisKey dipakai
+      // templat (key v-for) tapi lupa di-return.
       formatQty, formatDiamSejak, tertahan, barisKey,
       popupBagging, bukaCetakBagging, konfirmasiCetakBagging,
       popupTugas, bukaCetakTugas, konfirmasiCetakTugas, isiTlcAwal,
@@ -1320,9 +1232,9 @@ const PersiapanFinishingPerluDikirim = {
   `
 };
 
-// ============================================================================
+
 // TAB 4: Sedang Di Kirim — VIEW-ONLY, SAMA pola vue-persiapan-bahan.js.
-// ============================================================================
+
 const PersiapanFinishingSedangDikirim = {
   setup() {
     const memuat = ref(true);
@@ -1390,17 +1302,16 @@ const PersiapanFinishingSedangDikirim = {
   `
 };
 
-// ============================================================================
+
 // TAB 5: Selesai — riwayat. SAMA pola vue-persiapan-bahan.js Tab 5.
 //
-// PENTING — batas tanggung jawab file ini: baris pindah ke status 'selesai'
-// SAAT DIVISI PENERIMA SCAN SAMPAI, BUKAN saat pos ini Scan Kirim. Layar
-// "Scan Sampai" itu SENDIRI di luar lingkup modul ini (SERAH-TERIMA §4) —
-// jadi tab ini HANYA MEMBACA field `status`/`sampai_pada` yang ditulis
-// modul LAIN yang belum dibangun di manapun. Sampai modul itu ada, tab ini
-// akan tampil KOSONG terus — itu BUKAN bug di file ini (SAMA persis catatan
-// di vue-persiapan-bahan.js).
-// ============================================================================
+// PENTING — batas tanggung jawab file ini: baris pindah ke status 'selesai' SAAT
+// DIVISI PENERIMA SCAN SAMPAI, BUKAN saat pos ini Scan Kirim. Layar "Scan
+// Sampai" itu SENDIRI di luar lingkup modul ini — jadi tab ini HANYA MEMBACA
+// field `status`/`sampai_pada` yang ditulis modul LAIN yang belum dibangun di
+// manapun. Sampai modul itu ada, tab ini akan tampil KOSONG terus — itu BUKAN
+// bug di file ini (SAMA persis catatan di vue-persiapan-bahan.js).
+
 const PersiapanFinishingSelesai = {
   setup() {
     const memuat = ref(true);
@@ -1470,8 +1381,10 @@ const PersiapanFinishingSelesai = {
       </div>
     </template>
 
-    <!-- isOperatorSaja: versi "Riwayat Saya" TETAP tanpa gc-card-head/pill,
-         sama alasan seperti vue-persiapan-bahan.js/vue-persiapan-sewing.js. -->
+    <!--
+      isOperatorSaja: versi "Riwayat Saya" TETAP tanpa gc-card-head/pill, sama alasan seperti
+      vue-persiapan-bahan.js/vue-persiapan-sewing.js.
+    -->
     <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
       <div class="gc-card-head">
         <div>
@@ -1552,9 +1465,9 @@ const PersiapanFinishingSelesai = {
   `
 };
 
-// --- Mount ke index.html — LAZY, SAMA pola vue-persiapan-bahan.js: fungsi
-// window.pastikanMountPpFinishingXxx() dipanggil oleh pindahSubTab() (js/
-// dashboard.js, peta `petaMount`) PERTAMA KALI tab itu dibuka. --------------
+// Mount ke index.html — LAZY, SAMA pola vue-persiapan-bahan.js: fungsi
+// window.pastikanMountPpFinishingXxx dipanggil oleh pindahSubTab (js/
+// dashboard.js, peta `petaMount`) PERTAMA KALI tab itu dibuka.
 let vmPpFinishingPerluDisiapkan = null;
 window.pastikanMountPpFinishingPerluDisiapkan = function () {
   if (vmPpFinishingPerluDisiapkan) { if (typeof vmPpFinishingPerluDisiapkan.muat === 'function') vmPpFinishingPerluDisiapkan.muat(); return; }

@@ -1,24 +1,22 @@
 // js/vue-sheet-profil.js
-// ============================================================================
-// Bottom Sheet Profil — GANTI TOTAL js/vue-profile-drawer.js (drawer geser
-// dari kanan), sesuai keputusan Guru "hapus total, ganti bersih"
-// (redesain "Gechoo Mobile Organic", README.md §6). Muncul naik dari bawah
-// saat "Profil" di nav bawah diketuk (lihat js/app.js, mnavProfile).
+
+// Bottom Sheet Profil — js/vue-profile-drawer.js (drawer geser dari kanan),
+// sesuai.md §6). Muncul naik dari bawah saat "Profil" di nav bawah diketuk
+// (lihat js/app.js, mnavProfile).
 //
 // Isi: kartu QR gradien, 3 aksi cepat (Clock in/out, Scan QR, Mode gelap),
 // tautan ke sub-layar Profile, Keluar.
 //
-// CATATAN (perluasan dari mockup, BUKAN kontradiksi) — README cuma sebut
-// "Lima tautan" (Profil lengkap/Absensi saya/Reimburse saya/Pencapaian/
-// Keamanan). Drawer LAMA yang digantikan sheet ini py 6 tujuan (termasuk
-// "Estimasi Gaji", ditambahkan 28 Agt karena SATU-SATUNYA jalan mobile ke
-// situ). Supaya tidak menghilangkan tujuan yang sudah bisa dijangkau
-// (regresi), sheet ini TETAP menyertakan "Estimasi Gaji" sebagai tautan ke-6
-// — gaya visual & 5 label lain PERSIS ikut mockup, cuma jumlah baris beda.
-// "Profil Lengkap" di sini mengarah ke sub-tab 'datadiri' (Data Karyawan) —
-// QR sendiri sudah tidak perlu tautan terpisah karena sudah ditampilkan
-// LANGSUNG di kartu QR sheet ini.
-// ============================================================================
+// CATATAN (perluasan dari mockup, BUKAN kontradiksi) — README cuma sebut "Lima
+// tautan" (Profil lengkap/Absensi saya/Reimburse saya/Pencapaian/ Keamanan).
+// Drawer LAMA yang digantikan sheet ini py 6 tujuan (termasuk "Estimasi Gaji",
+// ditambahkan 28 Agt karena SATU-SATUNYA jalan mobile ke situ). Supaya tidak
+// menghilangkan tujuan yang sudah bisa dijangkau (regresi), sheet ini TETAP
+// menyertakan "Estimasi Gaji" sebagai tautan ke-6 — gaya visual & 5 label lain
+// PERSIS ikut mockup, cuma jumlah baris beda. "Profil Lengkap" di sini mengarah
+// ke sub-tab 'datadiri' (Data Karyawan) — QR sendiri sudah tidak perlu tautan
+// terpisah karena sudah ditampilkan LANGSUNG di kartu QR sheet ini.
+
 import { createApp, ref, computed } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 
 const AppSheetProfil = {
@@ -28,11 +26,10 @@ const AppSheetProfil = {
     const nik = ref('');
     const namaShift = ref('');
     const qrUrl = ref('');
-    // DIROMBAK (29 Agt 2026, permintaan Guru) — dulu boolean terang/gelap
-    // saja. Sekarang preferensi MENTAH ('light'/'dark'/'auto') dari
-    // window.temaPreferensi() (lihat index.html) — bisa 'auto' (ikut
-    // sistem), beda dari window.temaSaatIni() yang cuma 'light'/'dark'
-    // EFEKTIF.
+    // dulu boolean terang/gelap saja. Sekarang preferensi MENTAH
+    // ('light'/'dark'/'auto') dari window.temaPreferensi (lihat index.html) —
+    // bisa 'auto' (ikut sistem), beda dari window.temaSaatIni yang cuma
+    // 'light'/'dark' EFEKTIF.
     const temaPref = ref('light');
     const ikonTema = computed(() => temaPref.value === 'auto' ? 'fa-circle-half-stroke' : (temaPref.value === 'dark' ? 'fa-moon' : 'fa-sun'));
     const labelTema = computed(() => temaPref.value === 'auto' ? 'Otomatis' : (temaPref.value === 'dark' ? 'Mode gelap' : 'Mode terang'));
@@ -68,10 +65,9 @@ const AppSheetProfil = {
       if (window.pindahTabAccountProfile) window.pindahTabAccountProfile(subtab);
     }
 
-    // HARUS lewat fungsi begini, bukan "window.logout()" langsung di
-    // template (pola sama seperti drawer lama — Vue anggap "window"
-    // properti komponen, bukan objek global browser, kalau dipanggil
-    // langsung dari template).
+    // HARUS lewat fungsi begini, bukan "window.logout" langsung di template
+    // (pola sama seperti drawer lama — Vue anggap "window" properti komponen,
+    // bukan objek global browser, kalau dipanggil langsung dari template).
     function keluar() { tutup(); if (window.logout) window.logout(); }
 
     return { terbuka, nama, nik, namaShift, qrUrl, temaPref, ikonTema, labelTema, buka, tutup, klikScanQr, klikModeGelap, navigasi, keluar };
@@ -95,13 +91,12 @@ const AppSheetProfil = {
           </div>
         </div>
 
-        <!-- DIROMBAK (29 Agt 2026, permintaan Guru setelah cek live) — slot
-             pertama tadinya "Clock in/out" (jalan pintas ke kamera), SEKARANG
-             diganti "Keluar" (logout). Clock In/Out TETAP bisa diakses lewat
-             kartu Favorit Saya di Beranda (WAJIB tampil di sana, lihat
-             PETA-MENU.md), jadi bukan regresi — cuma jalan pintas kedua di
-             sini yang dilepas, diganti Keluar karena dianggap lebih sering
-             dicari dari Profil. -->
+        <!--
+          slot pertama tadinya "Clock in/out" (jalan pintas ke kamera), SEKARANG diganti "Keluar"
+          (logout). Clock In/Out TETAP bisa diakses lewat kartu Favorit Saya di Beranda (WAJIB
+          tampil di sana, lihat PETA-MENU.md), jadi bukan regresi — cuma jalan pintas kedua di
+          sini yang dilepas, diganti Keluar karena dianggap lebih sering dicari dari Profil.
+        -->
         <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px;">
           <button @click="keluar" style="background:var(--danger-light); border:none; border-radius:18px; padding:13px 8px; display:flex; flex-direction:column; align-items:center; gap:6px; cursor:pointer;">
             <i class="fas fa-right-from-bracket" style="font-size:20px; color:var(--danger);"></i>
@@ -150,12 +145,11 @@ const AppSheetProfil = {
           </button>
         </div>
 
-        <!-- Tombol Keluar kedua — DIKEMBALIKAN ke bawah (29 Agt 2026, revisi
-             setelah cek live: percobaan pertama sempat dipindah ke ATAS,
-             Guru minta balik ke BAWAH lagi, setelah Keamanan, rata TENGAH).
-             Oval kecil isi ikon X saja (BUKAN lebar penuh seperti sebelum
-             redesain) — sengaja disediakan DUA jalan ke keluar (grid di atas
-             + ini) karena Guru minta keduanya secara eksplisit. -->
+        <!--
+          Tombol Keluar kedua — DIKEMBALIKAN ke bawah . Oval kecil isi ikon X saja (BUKAN lebar
+          penuh seperti sebelum redesain) — sengaja disediakan DUA jalan ke keluar (grid di atas +
+          ini) karena minta keduanya secara eksplisit.
+        -->
         <div style="display:flex; justify-content:center; margin-top:14px;">
           <button @click="keluar" title="Keluar" aria-label="Keluar" style="display:flex; align-items:center; justify-content:center; width:34px; height:26px; border-radius:999px; border:1px solid var(--danger-light); background:var(--danger-light); color:var(--danger); cursor:pointer;">
             <i class="fas fa-xmark" style="font-size:13px;"></i>
@@ -171,8 +165,8 @@ if (mountPoint) {
   const vm = createApp(AppSheetProfil).mount('#vue-sheet-profil');
   window.bukaSheetProfil = function() { vm.buka(); };
   // Sama seperti drawer lama — sheet ini di-mount DI LUAR #screen-dashboard
-  // (lihat komentar js/app.js pindahLayar()), jadi TIDAK ikut otomatis
-  // tersembunyi saat pindah layar (mis. logout -> screen-login). Expose
-  // fungsi tutup supaya pindahLayar() bisa memaksa sheet tertutup.
+  // (lihat komentar js/app.js pindahLayar), jadi TIDAK ikut otomatis tersembunyi
+  // saat pindah layar (mis. logout -> screen-login). Expose fungsi tutup supaya
+  // pindahLayar bisa memaksa sheet tertutup.
   window.tutupSheetProfil = function() { vm.tutup(); };
 }

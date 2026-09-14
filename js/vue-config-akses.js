@@ -1,64 +1,60 @@
 // js/vue-config-akses.js
-// ============================================================================
-// Master Karyawan > Config Akses — buat & atur PROFIL AKSES bernama bebas
-// (bukan cuma 5 role baku). Tiap profil punya izin View/Add/Edit/Delete/
-// Print per menu, dikelompokkan per kategori (bisa dilipat/dibuka).
+
+// Master Karyawan > Config Akses — buat & atur PROFIL AKSES bernama bebas (bukan
+// cuma 5 role baku). Tiap profil punya izin View/Add/Edit/Delete/ Print per
+// menu, dikelompokkan per kategori (bisa dilipat/dibuka).
 //
-// PENERAPAN (update 17 Agt 2026): View menu (Home mobile) dan tombol Add/
-// Edit/Delete/Print di beberapa layar SUDAH menerapkan izin dari sini
-// secara nyata (lihat window.cekIzinMenu/cekFiturAkses di auth.js, dan
-// STATUS-PROYEK.md untuk daftar layar mana saja yang sudah/belum). Ini
-// murni PENERAPAN DI TAMPILAN (client-side) — keputusan sadar, BUKAN
-// jadi batas keamanan Firestore Rules (itu tetap di 4 tingkat role baku,
-// biar tidak nambah biaya baca per operasi tulis).
+// PENERAPAN: View menu (Home mobile) dan tombol Add/ Edit/Delete/Print di
+// beberapa layar SUDAH menerapkan izin dari sini secara nyata (lihat
+// window.cekIzinMenu/cekFiturAkses di auth.js, dan STATUS-PROYEK.md untuk daftar
+// layar mana saja yang sudah/belum). Ini murni PENERAPAN DI TAMPILAN
+// (client-side) — keputusan sadar, BUKAN jadi batas keamanan Firestore Rules
+// (itu tetap di 4 tingkat role baku, biar tidak nambah biaya baca per operasi
+// tulis).
 //
-// KARENA rules tetap di tingkat role baku, tapi profil di sini boleh
-// bernama BEBAS (mis. "admin_finance") — tiap profil WAJIB pilih 1 dari
-// 5 tingkat baku sebagai "tingkatKeamanan"-nya (lihat bagian atas form).
-// Itu yang benar-benar dikirim ke Firestore Rules lewat custom claim;
-// nama profil sendiri cuma dipakai buat cari izin tampilan di sini.
+// KARENA rules tetap di tingkat role baku, tapi profil di sini boleh bernama
+// BEBAS (mis. "admin_finance") — tiap profil WAJIB pilih 1 dari 5 tingkat baku
+// sebagai "tingkatKeamanan"-nya (lihat bagian atas form). Itu yang benar-benar
+// dikirim ke Firestore Rules lewat custom claim; nama profil sendiri cuma
+// dipakai buat cari izin tampilan di sini.
 //
 // Akses ke layar ini SENGAJA dibatasi khusus Owner (lihat auth.js).
-// ============================================================================
+
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 const TINGKAT_KEAMANAN_BAKU = ['operator', 'pic', 'admin', 'owner', 'superuser'];
 
-// BARU (27 Agt 2026, §27 — Redesain Home Mobile) — tiap menu SEKARANG juga
-// punya `icon` (kelas FontAwesome) dan `aksi` (function pindah tab/sub-tab,
-// SAMA PERSIS dengan yang dipanggil tombol sidebar-nya masing-masing di
-// index.html). INI YANG BIKIN DAFTAR_MENU BENERAN "satu sumber kebenaran":
-// grid menu Home mobile (js/vue-home.js, lewat daftarMenuGroups() di
+// tiap menu SEKARANG juga punya `icon` (kelas FontAwesome) dan `aksi` (function
+// pindah tab/sub-tab, SAMA PERSIS dengan yang dipanggil tombol sidebar-nya
+// masing-masing di index.html). INI YANG BIKIN DAFTAR_MENU BENERAN "satu sumber
+// kebenaran": grid menu Home mobile (js/vue-home.js, lewat daftarMenuGroups di
 // vue-components.js) sekarang MEMBACA icon+aksi langsung dari sini, BUKAN
-// disalin tangan ke daftar terpisah lagi seperti sebelumnya (itu yang bikin
-// Home mobile ketinggalan — lihat STATUS-PROYEK.md §27). Tambah menu baru
-// di sini SATU TEMPAT SAJA (kasih icon+aksi-nya sekalian) -> otomatis
-// nongol juga di Home mobile, tanpa perlu file lain diubah.
+// disalin tangan ke daftar terpisah lagi seperti sebelumnya (itu yang bikin Home
+// mobile ketinggalan — lihat STATUS-PROYEK.md §27). Tambah menu baru di sini
+// SATU TEMPAT SAJA (kasih icon+aksi-nya sekalian) -> otomatis nongol juga di
+// Home mobile, tanpa perlu file lain diubah.
 //
 // `deprecated: true` = menu ini SENGAJA disembunyikan dari Home mobile
-// (entry-nya dibiarkan di sini biar data izin lama tidak yatim, sama
-// seperti alasan aslinya) — TIDAK butuh icon/aksi.
-// `wajibOwner: true` = TAMBAHAN pengunci di ATAS izin Config Akses biasa —
-// menu ini di Home mobile TETAP terkunci utk siapapun SELAIN role 'owner'
-// asli, APAPUN hasil Config Akses-nya. Dipakai cuma utk menu yang memang
-// sudah lama begini di sidebar desktop (Akses & Keamanan — GABUNGAN Config
-// Akses + Hak Akses + Jabatan sejak 9 Sep 2026, lihat
-// id="btn-sub-karyawan-akseskeamanan" di index.html) + Device Kiosk (List
-// Device Kiosk) — supaya perilakunya konsisten sama di mobile.
+// (entry-nya dibiarkan di sini biar data izin lama tidak yatim, sama seperti
+// alasan aslinya) — TIDAK butuh icon/aksi. `wajibOwner: true` = TAMBAHAN
+// pengunci di ATAS izin Config Akses biasa — menu ini di Home mobile TETAP
+// terkunci utk siapapun SELAIN role 'owner' asli, APAPUN hasil Config Akses-nya.
+// Dipakai cuma utk menu yang memang sudah lama begini di sidebar desktop +
+// Device Kiosk (List Device Kiosk) — supaya perilakunya konsisten sama di
+// mobile.
 const DAFTAR_MENU = [
   { id: 'dashboard', label: 'Dashboard', kategori: 'Umum' },
   { id: 'profile', label: 'Profile', kategori: 'Umum' },
   // fiturList = kontrol granular OPSIONAL per menu, di luar View/Add/Edit/
-  // Delete/Print baku — dipakai buat kunci field/dropdown SPESIFIK di
-  // dalam form menu itu (bukan seluruh menunya). Contoh nyata: dropdown
-  // "Jenis Lokasi" di form Master Gudang, defaultnya Tetap untuk non-
-  // Owner, cuma Owner yang bisa buka opsi Dinamis. Kalau nanti ada
-  // kebutuhan serupa (kunci field lain), TAMBAHKAN entry baru di
-  // fiturList menu terkait di sini — JANGAN bikin mekanisme baru,
-  // panggil window.cekFiturAkses(menuId, fiturKey) di titik yang mau
-  // dikunci (lihat auth.js untuk definisi fungsinya).
+  // Delete/Print baku — dipakai buat kunci field/dropdown SPESIFIK di dalam form
+  // menu itu (bukan seluruh menunya). Contoh nyata: dropdown "Jenis Lokasi" di
+  // form Master Gudang, defaultnya Tetap untuk non- Owner, cuma Owner yang bisa
+  // buka opsi Dinamis. Kalau nanti ada kebutuhan serupa (kunci field lain),
+  // TAMBAHKAN entry baru di fiturList menu terkait di sini — JANGAN bikin
+  // mekanisme baru, panggil window.cekFiturAkses(menuId, fiturKey) di titik yang
+  // mau dikunci (lihat auth.js untuk definisi fungsinya).
   { id: 'config_absensi', label: 'Config Absensi', kategori: 'Master Absensi', icon: 'fa-gear',
     aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-config', null, {catatRiwayat:true}); },
     fiturList: [
@@ -69,7 +65,7 @@ const DAFTAR_MENU = [
   { id: 'antrean_absensi', label: 'Antrean Absensi', kategori: 'Master Absensi', icon: 'fa-clipboard-check',
     aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-accept', null, {catatRiwayat:true}); } },
   { id: 'antrean_lembur', label: 'Antrean Izin/Cuti/Lembur', kategori: 'Master Absensi', icon: 'fa-calendar-check',
-    // (9 Sep 2026) id TETAP 'antrean_lembur' walau labelnya sekarang gabungan
+    // id TETAP 'antrean_lembur' walau labelnya sekarang gabungan
     // Izin/Cuti/Lembur — supaya role yang sudah diberi akses menu ini tidak
     // kehilangan izinnya (lihat header js/vue-antrean-lembur.js).
     aksi: () => { window.pindahTab('tab-admin-acc'); window.pindahSubTab('sub-absensi', 'sub-absensi-lembur', null, {catatRiwayat:true}); } },
@@ -77,14 +73,13 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-antrean', null, {catatRiwayat:true}); } },
   { id: 'master_kendaraan', label: 'Master Kendaraan', kategori: 'Master Keuangan', icon: 'fa-truck',
     aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-kendaraan', null, {catatRiwayat:true}); } },
-  // (9 Sep 2026) — id 'riwayat_bensin'/'riwayat_servis' DIHAPUS (bukan
-  // dipertahankan yatim): spek handoff Master Keuangan §3.2 minta 1 tabel
-  // gabungan "Riwayat Keuangan", tombol/tab terpisahnya juga dihapus dari
-  // index.html sekaligus (lihat js/vue-reimburse.js — datanya SUDAH
-  // tergabung dari dulu di mode 'semua', cuma tampilannya yang baru
-  // dilengkapi). Tidak ada tombol lagi yang mengarah ke 2 id itu, jadi
-  // tidak ada permission yang jadi yatim (beda dgn kasus antrean_lembur
-  // yang labelnya diganti tapi id+layarnya tetap ada).
+  // id 'riwayat_bensin'/'riwayat_servis' DIHAPUS (bukan dipertahankan yatim):
+  // spek handoff Master Keuangan §3.2 minta 1 tabel gabungan "Riwayat Keuangan",
+  // tombol/tab terpisahnya juga dihapus dari index.html sekaligus (lihat
+  // js/vue-reimburse.js — datanya SUDAH tergabung dari dulu di mode 'semua',
+  // cuma tampilannya yang baru dilengkapi). Tidak ada tombol lagi yang mengarah
+  // ke 2 id itu, jadi tidak ada permission yang jadi yatim (beda dgn kasus
+  // antrean_lembur yang labelnya diganti tapi id+layarnya tetap ada).
   { id: 'riwayat_reimburse', label: 'Riwayat Keuangan', kategori: 'Master Keuangan', icon: 'fa-wallet',
     aksi: () => { window.pindahTab('tab-keuangan'); window.pindahSubTab('sub-keuangan', 'sub-keuangan-riwayat-reimburse', null, {catatRiwayat:true}); } },
   { id: 'master_keuangan', label: 'Master Keuangan', kategori: 'Master Keuangan', icon: 'fa-tags',
@@ -103,11 +98,11 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-slip', null); } },
   { id: 'payroll', label: 'Payroll', kategori: 'Master Karyawan', icon: 'fa-money-check-dollar',
     aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', null); } },
-  // GABUNG (9 Sep 2026) — dulu 2 entry terpisah (config_akses, hak_akses),
-  // sekarang 1 layar "Akses & Keamanan" dengan 3 pill tab (Role/Jabatan/
-  // Assign) di dalamnya. id LAMA sengaja TIDAK dipertahankan sebagai alias
-  // — keduanya wajibOwner:true (tidak pernah dikonfigurasi lewat Config
-  // Akses biasa), jadi tidak ada data izin lama yang jadi yatim.
+  // GABUNG — dulu 2 entry terpisah (config_akses, hak_akses), sekarang 1 layar
+  // "Akses & Keamanan" dengan 3 pill tab (Role/Jabatan/ Assign) di dalamnya. id
+  // LAMA sengaja TIDAK dipertahankan sebagai alias — keduanya wajibOwner:true
+  // (tidak pernah dikonfigurasi lewat Config Akses biasa), jadi tidak ada data
+  // izin lama yang jadi yatim.
   { id: 'akses_keamanan', label: 'Akses & Keamanan', kategori: 'Master Karyawan', icon: 'fa-shield-halved', wajibOwner: true,
     aksi: () => { window.pindahTab('tab-superuser'); window.pindahSubTab('sub-karyawan', 'sub-karyawan-akseskeamanan', null, {catatRiwayat:true}); } },
   { id: 'whatsapp_gateway', label: 'WhatsApp Gateway', kategori: 'Master Integrasi', icon: 'fa-comment-dots',
@@ -116,166 +111,140 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-mail-gateway'); } },
   { id: 'device_kiosk', label: 'List Device Kiosk', kategori: 'Master Integrasi', icon: 'fa-tablet-screen-button', wajibOwner: true,
     aksi: () => { window.pindahTab('tab-device-kiosk'); } },
-  // BARU (23 Agt 2026) — Zevanic House > Master Bahan & Aksesoris. id
-  // SENGAJA TIDAK diubah (masih bahan_aksesoris_entry/list) walau labelnya
-  // di sidebar sekarang "Data Bahan & Aksesoris" — supaya akses_config yang
-  // sudah tersimpan sebelumnya (per-user) TIDAK ikut kereset/hilang.
-  // BARU (27 Agt 2026, §26.1) — Zevanic House > Config (6 tab child: Jenis
+  // Zevanic House > Master Bahan & Aksesoris. id SENGAJA TIDAK diubah (masih
+  // bahan_aksesoris_entry/list) walau labelnya di sidebar sekarang "Data Bahan &
+  // Aksesoris" — supaya akses_config yang sudah tersimpan sebelumnya (per-user)
+  // TIDAK ikut kereset/hilang. BARU — Zevanic House > Config (6 tab child: Jenis
   // Bahan, Jenis Aksesoris, Data Satuan, Data Warna, Data Ukuran, Data
   // Suplayer). 1 menu-id dipakai bareng ke-6nya (pola sama seperti
   // 'config_karyawan'), lihat js/vue-config.js.
   { id: 'config_master_data', label: 'Config', kategori: 'Zevanic House', icon: 'fa-sliders',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-config', null); window.pindahSubTab('sub-zh-config', 'sub-zh-config-jenisbahan', null); } },
-  // BARU (28 Agt 2026, §39) — 3 aksi di bawah ini SEKARANG ikut catatRiwayat:
-  // true (riwayat tombol back HP) — ini jalur PALING SERING dipakai user
-  // mobile buka menu ini (lewat tile Home §27), jadi WAJIB ikut dicatat,
-  // bukan cuma tombol sidebar desktop.
+  // 3 aksi di bawah ini SEKARANG ikut catatRiwayat: true (riwayat tombol back
+  // HP) — ini jalur PALING SERING dipakai user mobile buka menu ini (lewat tile
+  // Home §27), jadi WAJIB ikut dicatat, bukan cuma tombol sidebar desktop.
   { id: 'bahan_aksesoris_entry', label: 'Entry Bahan & Aksesoris', kategori: 'Zevanic House', icon: 'fa-boxes-stacked',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry', null, {catatRiwayat:true}); } },
   { id: 'bahan_aksesoris_list', label: 'List Bahan & Aksesoris', kategori: 'Zevanic House', icon: 'fa-list',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-databahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-list', null, {catatRiwayat:true}); } },
-  // DIPENSIUNKAN (7 Sep 2026, wireframe handoff "04 - Stok dan Pembelian"
-  // §6.1) — Rak Penyimpanan PINDAH TOTAL dari Data Bahan & Aksesoris ke
-  // Stock & Pembelian (menu-id baru 'stock_rak_penyimpanan' di bawah).
-  // Entry ini SENGAJA DIBIARKAN (pola sama seperti 'stock_alias_pembelian'/
-  // 'master_suplayer' di atas), aksi() dihapus, supaya izin lama (siapa
-  // boleh lihat/kelola Rak) TIDAK yatim. `deprecated: true` supaya tidak
-  // ikut nongol sebagai tile basi di grid Home mobile/sidebar.
+  // DIPENSIUNKAN — Rak Penyimpanan PINDAH TOTAL dari Data Bahan & Aksesoris ke
+  // Stock & Pembelian (menu-id baru 'stock_rak_penyimpanan' di bawah). Entry ini
+  // SENGAJA DIBIARKAN (pola sama seperti 'stock_alias_pembelian'/
+  // 'master_suplayer' di atas), aksi dihapus, supaya izin lama (siapa boleh
+  // lihat/kelola Rak) TIDAK yatim. `deprecated: true` supaya tidak ikut nongol
+  // sebagai tile basi di grid Home mobile/sidebar.
   { id: 'bahan_aksesoris_rak', label: 'Rak Penyimpanan (DIPENSIUNKAN, lihat Stock & Pembelian)', kategori: 'Zevanic House', icon: 'fa-warehouse', deprecated: true },
-  // DIPENSIUNKAN TOTAL (9 Sep 2026, rombak ke-2, keputusan final Guru) —
-  // board manual lama (koleksi `permintaan_bahan_manual`) dihapus, file
-  // js/vue-persiapan-masalah.js dihapus. Penggantinya: Persiapan Produksi
-  // > Masalah (id 'pp_masalah') -> Persiapan Belanja "Cek Pengajuan" ->
-  // Driver. `deprecated: true` (BUKAN dihapus dari array) supaya izin role
-  // yang sudah tersimpan untuk id ini tidak yatim — pola SAMA seperti
+  // DIPENSIUNKAN TOTAL — board manual lama (koleksi `permintaan_bahan_manual`)
+  // dihapus, file js/vue-persiapan-masalah.js dihapus. Penggantinya: Persiapan
+  // Produksi > Masalah (id 'pp_masalah') -> Persiapan Belanja "Cek Pengajuan" ->
+  // Driver. `deprecated: true` (BUKAN dihapus dari array) supaya izin role yang
+  // sudah tersimpan untuk id ini tidak yatim — pola SAMA seperti
   // 'bahan_aksesoris_rak'/'order_spk' di atas/bawah.
   { id: 'persiapan_masalah', label: 'Persiapan Masalah (DIPENSIUNKAN, lihat Persiapan Produksi > Masalah)', kategori: 'Zevanic House', icon: 'fa-triangle-exclamation', deprecated: true },
-  // DIPENSIUNKAN (27 Agt 2026, §26.1) — CRUD Suplayer dulu di
-  // 'config_master_data' (menu Config). GANTI TOTAL (5 Sep 2026) — CRUD
-  // Suplayer sekarang di 3 entry 'suplayer_*' di bawah (Zevanic House >
-  // Master Suplayer, js/vue-master-suplayer.js). Entry ini SENGAJA
-  // dibiarkan (bukan dihapus) supaya data izin lama di Firestore tidak
-  // yatim tanpa penjelasan — sudah tidak dipakai komponen manapun.
-  // `deprecated: true` (BARU §27) supaya juga tidak ikut nongol sebagai
-  // tile basi di grid Home mobile.
+  // DIPENSIUNKAN — CRUD Suplayer dulu di 'config_master_data' (menu Config) CRUD
+  // Suplayer sekarang di 3 entry 'suplayer_*' di bawah (Zevanic House > Master
+  // Suplayer, js/vue-master-suplayer.js). Entry ini SENGAJA dibiarkan (bukan
+  // dihapus) supaya data izin lama di Firestore tidak yatim tanpa penjelasan —
+  // sudah tidak dipakai komponen manapun. `deprecated: true` (§27) supaya
+  // juga tidak ikut nongol sebagai tile basi di grid Home mobile.
   { id: 'master_suplayer', label: 'Master Suplayer (DIPENSIUNKAN, lihat Master Suplayer)', kategori: 'Zevanic House', deprecated: true },
-  // BARU (5 Sep 2026, wireframe handoff "Zevanic House" grup 5 +
-  // rekonstruksi Persiapan Produksi) — Master Suplayer: 3 sub-tab, lihat
-  // js/vue-master-suplayer.js. Posisi SENGAJA sebelum Stock & Pembelian
-  // (data Suplayer/Alias/MOQ jadi prasyarat List Order Belanja & Nota).
+  // Master Suplayer: 3 sub-tab, lihat js/vue-master-suplayer.js. Posisi SENGAJA
+  // sebelum Stock & Pembelian (data Suplayer/Alias/MOQ jadi prasyarat List Order
+  // Belanja & Nota).
   { id: 'suplayer_entry', label: 'Master Suplayer - Entry & List', kategori: 'Zevanic House', icon: 'fa-truck-fast',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-suplayer', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-suplayer', 'sub-zh-suplayer-entry', null, {catatRiwayat:true}); } },
   { id: 'suplayer_alias_moq', label: 'Master Suplayer - Alias & MOQ', kategori: 'Zevanic House', icon: 'fa-tags',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-suplayer', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-suplayer', 'sub-zh-suplayer-alias-moq', null, {catatRiwayat:true}); } },
   { id: 'suplayer_petakan_order', label: 'Master Suplayer - Petakan Order', kategori: 'Zevanic House', icon: 'fa-map-location-dot',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-suplayer', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-suplayer', 'sub-zh-suplayer-petakan', null, {catatRiwayat:true}); } },
-  // DIPENSIUNKAN (5 Sep 2026) — Alias Pembelian PINDAH TOTAL ke
-  // 'suplayer_alias_moq' di atas (Zevanic House > Master Suplayer > Alias
-  // & MOQ, DITAMBAH field moq/moq_satuan/lead_time_hari). Entry ini
-  // SENGAJA dibiarkan (pola sama seperti 'master_suplayer' di atas) supaya
-  // data izin lama tidak yatim — tab & mount div lamanya sudah dicopot
-  // dari index.html, aksi() dihapus.
+  // DIPENSIUNKAN — Alias Pembelian PINDAH TOTAL ke 'suplayer_alias_moq' di atas
+  // (Zevanic House > Master Suplayer > Alias & MOQ, DITAMBAH field
+  // moq/moq_satuan/lead_time_hari). Entry ini SENGAJA dibiarkan (pola sama
+  // seperti 'master_suplayer' di atas) supaya data izin lama tidak yatim — tab &
+  // mount div lamanya sudah dicopot dari index.html, aksi dihapus.
   { id: 'stock_alias_pembelian', label: 'Alias Pembelian (DIPENSIUNKAN, lihat Master Suplayer)', kategori: 'Zevanic House', icon: 'fa-tags', deprecated: true },
-  // DIPENSIUNKAN (7 Sep 2026, keputusan Guru) — "List Order Belanja" DIHAPUS
-  // TOTAL dari index.html/vue-stock-pembelian.js SEKARANG walau penggantinya
-  // "Persiapan Belanja" (Persiapan Produksi 8) BELUM dibangun — gap fitur
-  // sementara yang Guru terima sadar. Entry ini SENGAJA DIBIARKAN (pola sama
-  // seperti 'stock_alias_pembelian' di atas), aksi() dihapus, supaya izin
-  // lama tidak yatim.
+  // DIPENSIUNKAN — "List Order Belanja" DIHAPUS TOTAL dari
+  // index.html/vue-stock-pembelian.js SEKARANG walau penggantinya "Persiapan
+  // Belanja" (Persiapan Produksi 8) BELUM dibangun — gap fitur sementara yang
+  // terima sadar. Entry ini SENGAJA DIBIARKAN (pola sama seperti
+  // 'stock_alias_pembelian' di atas), aksi dihapus, supaya izin lama tidak
+  // yatim.
   { id: 'stock_list_order_belanja', label: 'List Order Belanja (DIPENSIUNKAN, lihat Daftar Nota / Persiapan Belanja)', kategori: 'Zevanic House', icon: 'fa-cart-shopping', deprecated: true },
-  // DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang sidebar sesuai
-  // wireframe) — kategori 'Stock & Pembelian' 3 item di bawah GANTI dari
-  // 'Zevanic House' jadi 'Stok dan Pembelian' (grup top-level baru,
-  // DIPISAH dari Zevanic House, lihat index.html). Shortcut aksi() juga
-  // disederhanakan — dulu 2 langkah pindahSubTab (sub-zevanic-house lalu
-  // sub-zh-stock) karena nested 2 level di dalam Zevanic House, sekarang
-  // cuma 1 langkah (sub-zh-stock) karena sudah jadi tab-strip TOP LEVEL di
-  // #tab-stok-pembelian.
+  // kategori 'Stock & Pembelian' 3 item di bawah GANTI dari 'Zevanic House' jadi
+  // 'Stok dan Pembelian' (grup top-level baru, DIPISAH dari Zevanic House, lihat
+  // index.html). Shortcut aksi juga disederhanakan — dulu 2 langkah pindahSubTab
+  // (sub-zevanic-house lalu sub-zh-stock) karena nested 2 level di dalam Zevanic
+  // House, sekarang cuma 1 langkah (sub-zh-stock) karena sudah jadi tab-strip
+  // TOP LEVEL di #tab-stok-pembelian.
   { id: 'stock_nota_order_belanja', label: 'Daftar Nota', kategori: 'Stok dan Pembelian', icon: 'fa-receipt',
     aksi: () => { window.pindahTab('tab-stok-pembelian'); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', null, {catatRiwayat:true}); } },
-  // BARU (7 Sep 2026, wireframe handoff "04 - Stok dan Pembelian" §6.1) —
   // Rak Penyimpanan DIPINDAH ke sini dari Data Bahan & Aksesoris (id lama
   // 'bahan_aksesoris_rak' dipensiunkan di atas). Lihat js/vue-rak-
   // penyimpanan.js.
   { id: 'stock_rak_penyimpanan', label: 'Rak Penyimpanan', kategori: 'Stok dan Pembelian', icon: 'fa-warehouse',
     aksi: () => { window.pindahTab('tab-stok-pembelian'); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-rak', null, {catatRiwayat:true}); } },
-  // BARU (7 Sep 2026, task #95, TIDAK ADA wireframe — dirancang dari
-  // jawaban Guru, lihat js/vue-repack-komponen-acc.js).
   { id: 'stock_repack', label: 'Repack', kategori: 'Stok dan Pembelian', icon: 'fa-box-archive',
     aksi: () => { window.pindahTab('tab-stok-pembelian'); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-repack', null, {catatRiwayat:true}); } },
-  // DIPENSIUNKAN (28 Agt 2026, §41.2) — dulu tab "Cetak Label" tersendiri
-  // di Stock & Pembelian (CetakLabelManager, js/vue-stock-pembelian.js).
-  // Guru minta dipindah jadi tombol per-kartu di List Bahan & Aksesoris
-  // (js/vue-bahan-aksesoris.js) — tab & mount point lamanya SUDAH DIHAPUS
-  // dari index.html. Entry ini SENGAJA DIBIARKAN (bukan dihapus, pola SAMA
-  // seperti 'master_suplayer' di atas) supaya data izin `print` yang SUDAH
-  // Owner atur sebelumnya (siapa boleh cetak) TIDAK yatim — tombol cetak
-  // yang baru di List Bahan & Aksesoris TETAP mengecek menu id INI (lihat
-  // vue-bahan-aksesoris.js). `deprecated: true` supaya tidak lagi nongol
-  // sebagai tile navigasi basi di Home mobile/sidebar (sudah tidak ada
-  // tab tujuan yang bisa dituju lagi, aksi() dihapus).
+  // DIPENSIUNKAN — dulu tab "Cetak Label" tersendiri di Stock & Pembelian
+  // (CetakLabelManager, js/vue-stock-pembelian.js).js) — tab & mount point
+  // lamanya SUDAH DIHAPUS dari index.html. Entry ini SENGAJA DIBIARKAN (bukan
+  // dihapus, pola SAMA seperti 'master_suplayer' di atas) supaya data izin
+  // `print` yang SUDAH Owner atur sebelumnya (siapa boleh cetak) TIDAK yatim —
+  // tombol cetak yang baru di List Bahan & Aksesoris TETAP mengecek menu id INI
+  // (lihat vue-bahan-aksesoris.js). `deprecated: true` supaya tidak lagi nongol
+  // sebagai tile navigasi basi di Home mobile/sidebar (sudah tidak ada tab
+  // tujuan yang bisa dituju lagi, aksi dihapus).
   { id: 'stock_cetak_label', label: 'Cetak Label (DIPENSIUNKAN, lihat List Bahan & Aksesoris)', kategori: 'Zevanic House', icon: 'fa-print', deprecated: true },
-  // BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-master-
-  // produk.js. Posisi SENGAJA setelah Stock & Pembelian, sebelum Order
-  // SPK (keputusan Hilman, AskUserQuestion ronde 4).
+  // Master Produk (BOM): lihat js/vue-master- produk.js. Posisi SENGAJA setelah
+  // Stock & Pembelian, sebelum Order SPK .
   { id: 'master_produk_entry', label: 'Entry Produk', kategori: 'Zevanic House', icon: 'fa-box-open',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-entry', null, {catatRiwayat:true}); } },
   { id: 'master_produk_list', label: 'List Produk', kategori: 'Zevanic House', icon: 'fa-list',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-list', null, {catatRiwayat:true}); } },
-  // BARU (7 Sep 2026) — Master Produk > HPP (wireframe step 2.3, Harga
-  // Pokok Produksi per produk), lihat MasterProdukHppManager di js/vue-
-  // master-produk.js. Menu-id TERPISAH (bukan numpang di master_produk_
-  // entry/list) — konsisten dengan pola tab child lain di Master Produk
-  // (tiap tab punya menu-id sendiri, lihat 2 entry di atas), supaya Owner
-  // bisa atur akses HPP terpisah dari Entry/List kalau perlu (mis. kasih
-  // Admin akses lihat HPP tanpa boleh entry BOM). Default AKSES: HANYA
-  // Owner (kebijakan baku menu baru project ini, lihat catatan di js/vue-
-  // config.js baris ~27) — kalau Guru mau Admin/PIC juga bisa akses,
-  // sama seperti master_produk_entry/list, atur manual lewat Config Akses
-  // sesudah kode ini live (SENGAJA tidak disamakan otomatis di sini,
-  // menu-id ini beda dari master_produk_entry/list jadi tidak ikut warisan
-  // izin yang sudah Guru atur untuk 2 menu itu).
+  // Master Produk > HPP (wireframe step 2.3, Harga Pokok Produksi per produk),
+  // lihat MasterProdukHppManager di js/vue- master-produk.js. Menu-id TERPISAH
+  // (bukan numpang di master_produk_ entry/list) — konsisten dengan pola tab
+  // child lain di Master Produk (tiap tab punya menu-id sendiri, lihat 2 entry
+  // di atas), supaya Owner bisa atur akses HPP terpisah dari Entry/List kalau
+  // perlu (mis. kasih Admin akses lihat HPP tanpa boleh entry BOM). Default
+  // AKSES: HANYA Owner (kebijakan baku menu baru project ini, lihat catatan di
+  // js/vue- config.js baris ~27) — kalau mau Admin/PIC juga bisa akses, sama
+  // seperti master_produk_entry/list, atur manual lewat Config Akses sesudah
+  // kode ini live .
   { id: 'master_produk_hpp', label: 'HPP', kategori: 'Zevanic House', icon: 'fa-calculator',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-hpp', null, {catatRiwayat:true}); } },
-  // BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
   // Master Pelanggan: koleksi & menu BARU TOTAL, lihat js/vue-master-
   // pelanggan.js. Single-view, 1 menu-id saja (tidak ada sub-tab).
   { id: 'master_pelanggan', label: 'Master Pelanggan', kategori: 'Zevanic House', icon: 'fa-address-book',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-pelanggan', null, {catatRiwayat:true}); } },
-  // DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan", keputusan Guru:
-  // "Pesaanan (Menu Group Baru)... 1. Order SPK (ganti nama jadi Penjualan
-  // Kasir)... 2. Menunggu Proses") — fungsi CRUD Order SPK (list/edit/
+  // DIPENSIUNKAN (fitur "Pesanan".. 1. Order SPK (ganti nama jadi Penjualan
+  // Kasir).. 2. Menunggu Proses") — fungsi CRUD Order SPK (list/edit/
   // hapus/cetak label) PINDAH TOTAL ke 'pesanan_menunggu' (kategori baru
   // "Pesanan"), file js/vue-pesanan.js (kode DISALIN & disesuaikan dari
-  // js/vue-order-spk.js, BUKAN diimpor — konvensi proyek ini). Tombol
-  // sidebar & tab-content lama SUDAH DICOPOT dari index.html (js/vue-
-  // order-spk.js TIDAK LAGI dimuat, pola SAMA seperti persiapan_produksi_*
-  // di atas). `deprecated: true` supaya izin lama yang sudah diatur Owner
-  // per akun TIDAK yatim/error, id ini TETAP ADA di daftar tapi tidak lagi
-  // nongol sebagai tile navigasi.
+  // js/vue-order-spk.js, BUKAN diimpor — konvensi proyek ini). Tombol sidebar &
+  // tab-content lama SUDAH DICOPOT dari index.html (js/vue- order-spk.js TIDAK
+  // LAGI dimuat, pola SAMA seperti persiapan_produksi_* di atas). `deprecated:
+  // true` supaya izin lama yang sudah diatur Owner per akun TIDAK yatim/error,
+  // id ini TETAP ADA di daftar tapi tidak lagi nongol sebagai tile navigasi.
   { id: 'order_spk', label: 'Order SPK (DIPENSIUNKAN, lihat Pesanan > Menunggu Proses)', kategori: 'Zevanic House', deprecated: true },
-  // DIPENSIUNKAN (29 Agt 2026, koreksi arsitektur menu Persiapan Produksi
-  // — Guru: "ralat mending bikin group menu baru namanya Persiapan
-  // Produksi supaya tersusun rapih ... sejajar dengan zevanic house").
-  // `deprecated: true` (pola SAMA seperti 'master_suplayer'/
-  // 'stock_cetak_label' di atas) — id-id ini TETAP ADA di daftar (jangan
-  // sampai config akses lama yang sudah terlanjur mengatur izinnya error),
-  // tapi tombolnya sudah dicopot dari index.html jadi tidak lagi bisa
-  // diklik/dituju. GANTI TOTAL oleh 6 menu-id baru kategori "Persiapan
-  // Produksi" di bawah (lihat js/vue-persiapan-produksi-v2.js).
+  // DIPENSIUNKAN . `deprecated: true` (pola SAMA seperti 'master_suplayer'/
+  // 'stock_cetak_label' di atas) — id-id ini TETAP ADA di daftar (jangan sampai
+  // config akses lama yang sudah terlanjur mengatur izinnya error), tapi
+  // tombolnya sudah dicopot dari index.html jadi tidak lagi bisa diklik/dituju
+  // oleh 6 menu-id baru kategori "Persiapan Produksi" di bawah (lihat
+  // js/vue-persiapan-produksi-v2.js).
   { id: 'persiapan_produksi_antrean', label: 'Persiapan Produksi - Perlu Disiapkan (LAMA, lihat kategori Persiapan Produksi)', kategori: 'Zevanic House', deprecated: true },
   { id: 'persiapan_produksi_bahan', label: 'Persiapan Produksi - Persiapan Bahan (LAMA, lihat kategori Persiapan Produksi)', kategori: 'Zevanic House', deprecated: true },
   { id: 'persiapan_produksi_sewing', label: 'Persiapan Produksi - Persiapan Acc Sewing (LAMA, lihat kategori Persiapan Produksi)', kategori: 'Zevanic House', deprecated: true },
   { id: 'persiapan_produksi_webbing', label: 'Persiapan Produksi - Persiapan Acc Webbing (LAMA, lihat kategori Persiapan Produksi)', kategori: 'Zevanic House', deprecated: true },
   { id: 'persiapan_produksi_finishing', label: 'Persiapan Produksi - Persiapan Acc Finishing (LAMA, lihat kategori Persiapan Produksi)', kategori: 'Zevanic House', deprecated: true },
-  // BARU (29 Agt 2026, koreksi arsitektur menu) — Persiapan Produksi V2:
-  // 6 menu-id, kategori SENDIRI "Persiapan Produksi" (BUKAN "Zevanic
-  // House" lagi — sekarang grup sidebar top-level sendiri, sejajar Zevanic
-  // House). Lihat js/vue-persiapan-produksi-v2.js & STATUS-PROYEK.md
-  // §44.13. Fase 1: cuma 'pp_disiapkan' yang fungsional; 5 sisanya
-  // (jalur) sudah bisa diberi izin dari sekarang walau isinya masih
-  // placeholder, supaya Config Akses tidak perlu disentuh lagi nanti pas
-  // Fase 2-5 mengisi logic-nya.
+  // Persiapan Produksi V2: 6 menu-id, kategori SENDIRI "Persiapan Produksi"
+  // (BUKAN "Zevanic House" lagi — sekarang grup sidebar top-level sendiri,
+  // sejajar Zevanic House). Lihat js/vue-persiapan-produksi-v2.js &
+  // STATUS-PROYEK.md §44.13. Fase 1: cuma 'pp_disiapkan' yang fungsional; 5
+  // sisanya (jalur) sudah bisa diberi izin dari sekarang walau isinya masih
+  // placeholder, supaya Config Akses tidak perlu disentuh lagi nanti pas Fase
+  // 2-5 mengisi logic-nya.
   { id: 'pp_disiapkan', label: 'Persiapan Produksi - Perlu Disiapkan', kategori: 'Persiapan Produksi', icon: 'fa-list-check',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-disiapkan', null, {catatRiwayat:true}); } },
   { id: 'pp_vendor', label: 'Persiapan Produksi - Vendor', kategori: 'Persiapan Produksi', icon: 'fa-handshake',
@@ -288,55 +257,47 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-webbing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-perludiproses', null, {catatRiwayat:true}); } },
   { id: 'pp_finishing', label: 'Persiapan Produksi - Acc Finishing', kategori: 'Persiapan Produksi', icon: 'fa-check-double',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-finishing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludiproses', null, {catatRiwayat:true}); } },
-  // BARU (7 Sep 2026, §5.18) — Masalah, 7 tahap, skema TRB baru (rebuild
-  // total, langkah 6 rencana rekonstruksi). Lihat js/vue-pp-masalah.js.
+  // Masalah, 7 tahap, skema TRB baru (rebuild total, langkah 6 rencana
+  // rekonstruksi). Lihat js/vue-pp-masalah.js.
   { id: 'pp_masalah', label: 'Persiapan Produksi - Masalah', kategori: 'Persiapan Produksi', icon: 'fa-triangle-exclamation',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-masalah', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-perludiajukan', null, {catatRiwayat:true}); } },
-  // BARU (7 Sep 2026 — sesi ini) — Persiapan Belanja, folder terakhir grup
-  // Persiapan Produksi. Lihat js/vue-persiapan-belanja.js.
+  // Persiapan Belanja, folder terakhir grup Persiapan Produksi. Lihat
+  // js/vue-persiapan-belanja.js.
   { id: 'pp_belanja', label: 'Persiapan Produksi - Persiapan Belanja', kategori: 'Persiapan Produksi', icon: 'fa-cart-shopping',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-belanja', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-persiapanadmin', null, {catatRiwayat:true}); } },
-  // BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi > Cutting, grup
-  // top-level baru (langkah 10 rencana rekonstruksi, dikerjakan loncat
-  // urutan atas instruksi Guru: "retrofit Scan Masalah supaya clear lanjut
-  // ke proses produksi"). Satu izin menu untuk semua 7 tab Cutting (SAMA
-  // pola seperti pp_bahan/pp_sewing dst yang juga 1 izin untuk 5 tab).
-  // Lihat js/vue-pp-cutting.js.
+  // Proses Produksi > Cutting, grup top-level baru . Satu izin menu untuk semua
+  // 7 tab Cutting (SAMA pola seperti pp_bahan/pp_sewing dst yang juga 1 izin
+  // untuk 5 tab). Lihat js/vue-pp-cutting.js.
   { id: 'cut_cutting', label: 'Proses Produksi - Cutting', kategori: 'Proses Produksi', icon: 'fa-scissors',
     aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-cutting', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-perludiproses', null, {catatRiwayat:true}); } },
-  // BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" #2) — Proses Produksi
-  // > Serie, NESTED di grup top-level "Proses Produksi" yang SUDAH ada dari
-  // Cutting (bukan grup baru) -- satu izin menu untuk semua 11 tab Serie,
-  // sama pola seperti cut_cutting. Lihat js/vue-pp-serie.js.
+  // Proses Produksi > Serie, NESTED di grup top-level "Proses Produksi" yang
+  // SUDAH ada dari Cutting (bukan grup baru) -- satu izin menu untuk semua 11
+  // tab Serie, sama pola seperti cut_cutting. Lihat js/vue-pp-serie.js.
   { id: 'proses_serie', label: 'Proses Produksi - Serie', kategori: 'Proses Produksi', icon: 'fa-shuffle',
     aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-serie', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-perludiproses', null, {catatRiwayat:true}); } },
-  // BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" #3) — Proses Produksi
-  // > Sewing, NESTED di grup top-level "Proses Produksi" yang SUDAH ada dari
-  // Cutting/Serie (bukan grup baru) -- satu izin menu untuk semua 5 tab
-  // Sewing, sama pola seperti cut_cutting/proses_serie. Lihat js/vue-pp-
+  // Proses Produksi > Sewing, NESTED di grup top-level "Proses Produksi" yang
+  // SUDAH ada dari Cutting/Serie (bukan grup baru) -- satu izin menu untuk semua
+  // 5 tab Sewing, sama pola seperti cut_cutting/proses_serie. Lihat js/vue-pp-
   // sewing.js.
   { id: 'proses_sewing', label: 'Proses Produksi - Sewing', kategori: 'Proses Produksi', icon: 'fa-thread',
     aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-sewing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-sewing-tahap', 'sub-pr-sewing-perludiproses', null, {catatRiwayat:true}); } },
-  // BARU ("lanjut lagi" #4, 7 Sep 2026 — sesi ini) — Proses Produksi >
-  // Finishing, NESTED di grup top-level "Proses Produksi" yang SUDAH ada
-  // dari Cutting/Serie/Sewing (bukan grup baru) -- satu izin menu untuk
-  // semua 5 tab Finishing (termasuk 4 sub-tab nested QC/Steam/Folding/
-  // Packing di dalam "Sedang Finishing"), sama pola seperti proses_sewing.
-  // Lihat js/vue-pp-finishing.js.
+  // Proses Produksi > Finishing, NESTED di grup top-level "Proses Produksi" yang
+  // SUDAH ada dari Cutting/Serie/Sewing (bukan grup baru) -- satu izin menu
+  // untuk semua 5 tab Finishing (termasuk 4 sub-tab nested QC/Steam/Folding/
+  // Packing di dalam "Sedang Finishing"), sama pola seperti proses_sewing. Lihat
+  // js/vue-pp-finishing.js.
   { id: 'proses_finishing', label: 'Proses Produksi - Finishing', kategori: 'Proses Produksi', icon: 'fa-check-double',
     aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-finishing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-finishing-tahap', 'sub-pr-finishing-perludiproses', null, {catatRiwayat:true}); } },
-  // BARU ("lanjut lagi" #5, 7 Sep 2026 — sesi ini) — Proses Produksi >
-  // Gudang Barang Jadi, NESTED di grup top-level "Proses Produksi" yang
-  // SUDAH ada dari Cutting/Serie/Sewing/Finishing (bukan grup baru) -- satu
-  // izin menu untuk semua 4 tab Gudang, sama pola seperti proses_finishing.
-  // Lihat js/vue-pp-gudang.js.
+  // Proses Produksi > Gudang Barang Jadi, NESTED di grup top-level "Proses
+  // Produksi" yang SUDAH ada dari Cutting/Serie/Sewing/Finishing (bukan grup
+  // baru) -- satu izin menu untuk semua 4 tab Gudang, sama pola seperti
+  // proses_finishing. Lihat js/vue-pp-gudang.js.
   { id: 'proses_gudang', label: 'Proses Produksi - Gudang Barang Jadi', kategori: 'Proses Produksi', icon: 'fa-warehouse',
     aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-gudang', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-gudang-tahap', 'sub-pr-gudang-perludisimpan', null, {catatRiwayat:true}); } },
-  // BARU (30 Agt 2026) — grup top-level "Pesanan" (sejajar Zevanic House/
-  // Persiapan Produksi). REKONSTRUKSI (7 Sep 2026, handoff "Pesanan dan
-  // Transaksi") — 3 id lama (pesanan_persiapan/produksi/pengiriman, ringkasan
-  // read-only) DIPENSIUNKAN, diganti pesanan_daftar + pesanan_transaksi.
-  // Lihat js/vue-pesanan.js utk 7 keputusan Guru & detail lengkap tiap menu.
+  // grup top-level "Pesanan" (sejajar Zevanic House/ Persiapan Produksi).
+  // REKONSTRUKSI — 3 id lama (pesanan_persiapan/produksi/pengiriman, ringkasan
+  // read-only) DIPENSIUNKAN, diganti pesanan_daftar + pesanan_transaksi. Lihat
+  // js/vue-pesanan.js utk 7.
   { id: 'pesanan_kasir', label: 'Penjualan Kasir', kategori: 'Pesanan', icon: 'fa-cash-register',
     aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-kasir', null, {catatRiwayat:true}); } },
   { id: 'pesanan_menunggu', label: 'Menunggu Proses', kategori: 'Pesanan', icon: 'fa-clipboard-list',
@@ -345,21 +306,20 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-daftar', null, {catatRiwayat:true}); } },
   { id: 'pesanan_transaksi', label: 'Transaksi Keuangan', kategori: 'Pesanan', icon: 'fa-file-invoice-dollar',
     aksi: () => { window.pindahTab('tab-pesanan'); window.pindahSubTab('sub-pesanan', 'sub-pesanan-transaksi', null, {catatRiwayat:true}); } },
-  // DIPINDAH (7 Sep 2026 malam) — Scan Opname/Scan Persiapan pindah dari
-  // kategori 'Zevanic House' ke 'Scan & Cetak' (menu top-level baru,
-  // wireframe "05 - Scan dan Cetak" grup 1 "Scan Stok"), lihat js/vue-
-  // scan-cetak.js. id & izin TIDAK berubah (supaya profil akses yang sudah
-  // diatur sebelumnya tetap berlaku apa adanya) — cuma `kategori` & `aksi`
-  // (target tab/sub-tab baru) yang berubah. Gating "mobile-only untuk
-  // non-Owner" TETAP hardcode role === 'owner' di file masing-masing
-  // (vue-scan-opname.js/vue-scan-persiapan.js, tidak disentuh).
+  // DIPINDAH — Scan Opname/Scan Persiapan pindah dari kategori 'Zevanic House'
+  // ke 'Scan & Cetak' (menu top-level baru, wireframe "05 - Scan dan Cetak" grup
+  // 1 "Scan Stok"), lihat js/vue- scan-cetak.js. id & izin TIDAK berubah (supaya
+  // profil akses yang sudah diatur sebelumnya tetap berlaku apa adanya) — cuma
+  // `kategori` & `aksi` (target tab/sub-tab baru) yang berubah. Gating
+  // "mobile-only untuk non-Owner" TETAP hardcode role === 'owner' di file
+  // masing-masing (vue-scan-opname.js/vue-scan-persiapan.js, tidak disentuh).
   { id: 'scan_opname', label: 'Scan Opname', kategori: 'Scan & Cetak', icon: 'fa-qrcode',
     aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-stok', null); window.pindahSubTab('sub-scancetak-stok-tahap', 'sub-scancetak-stok-opname', null); } },
   { id: 'scan_persiapan', label: 'Scan Persiapan', kategori: 'Scan & Cetak', icon: 'fa-boxes-stacked',
     aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-stok', null); window.pindahSubTab('sub-scancetak-stok-tahap', 'sub-scancetak-stok-persiapan', null); } },
-  // BARU (7 Sep 2026 malam) — 3 menu-id baru utk 3 sub-tab Scan & Cetak
-  // lainnya (Riwayat PIN pindah dari 'config_master_data' ke id sendiri,
-  // karena screen ini sekarang di luar Config — beda cakupan izin).
+  // 3 menu-id baru utk 3 sub-tab Scan & Cetak lainnya (Riwayat PIN pindah dari
+  // 'config_master_data' ke id sendiri, karena screen ini sekarang di luar
+  // Config — beda cakupan izin).
   { id: 'scan_cetak_referensi', label: 'Scan & Cetak - Referensi Scan', kategori: 'Scan & Cetak', icon: 'fa-list-check',
     aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-referensi', null); } },
   { id: 'scan_cetak_cetak', label: 'Scan & Cetak - Cetak', kategori: 'Scan & Cetak', icon: 'fa-print',
@@ -368,51 +328,42 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-pin', null); } }
 ];
 
-// BARU (29 Agt 2026, koreksi arsitektur menu) — 'Persiapan Produksi'
-// kategori BARU, sejajar 'Zevanic House' (dulu sub-menu di dalamnya).
-// Posisi SENGAJA setelah Zevanic House (urutan sidebar desktop & mobile
-// pakai array ini juga, lihat js/vue-components.js daftarMenuGroups()).
-// BARU (30 Agt 2026, fitur "Pesanan") — kategori baru 'Pesanan', posisi
-// SENGAJA setelah 'Zevanic House' dan SEBELUM 'Persiapan Produksi' — Kasir
-// (di 'Pesanan') MENGHASILKAN SPK yang mengalir ke 'Persiapan Produksi',
-// jadi urutan sidebar mengikuti alur kerja (Zevanic House data master ->
-// Pesanan jual -> Persiapan Produksi kerjakan). Posisi ini ASUMSI (belum
-// eksplisit dikonfirmasi Guru soal urutan pastinya) — gampang digeser
-// tinggal ubah array ini kalau Guru mau urutan lain.
-// BARU (7 Sep 2026 malam) — 'Scan & Cetak' ditambah di AKHIR (posisi ASUMSI,
-// sama seperti 'Pesanan'/'Persiapan Produksi' dulu — gampang digeser kalau
-// Guru mau urutan lain). 'Proses Produksi' (Cutting/Sewing/Finishing/Serie/
-// Gudang Barang Jadi) akan ditambah SEBELUM 'Scan & Cetak' begitu modul-
-// modul itu mulai dibangun (menyusul, belum di commit ini).
-// BARU (7 Sep 2026 malam lanjut lagi) — 'Proses Produksi' ditambah di ujung
-// (grup top-level baru, lihat js/vue-pp-cutting.js) — TIDAK menyisipkan di
-// tengah supaya urutan kategori yang SUDAH tersimpan Guru di
-// pengaturan_sistem/urutan_menu_home (lihat urutanKategoriArr di bawah)
-// tidak berubah, kategori baru otomatis masuk lewat katBelumAda.
-// DIURUTKAN ULANG (9 Sep 2026, permintaan Guru: susun ulang sesuai
-// wireframe handoff, sekalian dengan sidebar) — dulu urutannya Master
-// Absensi/Keuangan/Karyawan/Integrasi/Zevanic House duluan. Ini array
-// tampilan KATEGORI PERMISSION di layar Config Akses (accordion) + Home
-// mobile grid, TIDAK diganti namanya (Master Absensi/Keuangan/Karyawan
-// TETAP terpisah di sini, sengaja tidak digabung "Management" — itu cuma
-// penggabungan tampilan SIDEBAR, bukan kategori permission, lihat
-// index.html). Ditambah 1 kategori baru 'Stok dan Pembelian' (dipisah dari
-// Zevanic House, 3 menu id stock_* di atas sudah dipindah kategorinya).
-// DIURUTKAN ULANG (9 Sep 2026, rombak sidebar ke-2) — mengikuti urutan
-// sidebar terbaru: Management (Karyawan/Absensi/Keuangan) > Zevanic House >
-// Stok dan Pembelian > Pesanan > Persiapan Produksi > Proses Produksi >
-// Scan & Cetak > Integrasi. Kategori Master Karyawan/Absensi/Keuangan
-// SENGAJA TETAP TERPISAH (bukan digabung jadi 1 "Management") — cuma
-// urutan tampil accordion Config Akses & grid Home mobile yang ikut
-// sidebar, izin per role yang sudah tersimpan tetap dirujuk per kategori
-// lama supaya tidak yatim.
+// 'Persiapan Produksi' kategori BARU, sejajar 'Zevanic House' (dulu sub-menu di
+// dalamnya). Posisi SENGAJA setelah Zevanic House (urutan sidebar desktop &
+// mobile pakai array ini juga, lihat js/vue-components.js daftarMenuGroups).
+// BARU — kategori baru 'Pesanan', posisi SENGAJA setelah 'Zevanic House' dan
+// SEBELUM 'Persiapan Produksi' — Kasir (di 'Pesanan') MENGHASILKAN SPK yang
+// mengalir ke 'Persiapan Produksi', jadi urutan sidebar mengikuti alur kerja
+// (Zevanic House data master -> Pesanan jual -> Persiapan Produksi kerjakan).
+// Posisi ini ASUMSI — gampang digeser tinggal ubah array ini kalau mau urutan
+// lain. BARU — 'Scan & Cetak' ditambah di AKHIR . 'Proses Produksi'
+// (Cutting/Sewing/Finishing/Serie/ Gudang Barang Jadi) akan ditambah SEBELUM
+// 'Scan & Cetak' begitu modul- modul itu mulai dibangun (menyusul, belum di
+// commit ini). BARU — 'Proses Produksi' ditambah di ujung (grup top-level baru,
+// lihat js/vue-pp-cutting.js) — TIDAK menyisipkan di tengah supaya urutan
+// kategori yang SUDAH tersimpan di pengaturan_sistem/urutan_menu_home (lihat
+// urutanKategoriArr di bawah) tidak berubah, kategori baru otomatis masuk lewat
+// katBelumAda. DIURUTKAN ULANG — dulu urutannya Master
+// Absensi/Keuangan/Karyawan/Integrasi/Zevanic House duluan. Ini array tampilan
+// KATEGORI PERMISSION di layar Config Akses (accordion) + Home mobile grid,
+// TIDAK diganti namanya (Master Absensi/Keuangan/Karyawan TETAP terpisah di
+// sini, sengaja tidak digabung "Management" — itu cuma penggabungan tampilan
+// SIDEBAR, bukan kategori permission, lihat index.html). Ditambah 1 kategori
+// baru 'Stok dan Pembelian' (dipisah dari Zevanic House, 3 menu id stock_* di
+// atas sudah dipindah kategorinya). DIURUTKAN ULANG — mengikuti urutan sidebar
+// terbaru: Management (Karyawan/Absensi/Keuangan) > Zevanic House > Stok dan
+// Pembelian > Pesanan > Persiapan Produksi > Proses Produksi > Scan & Cetak >
+// Integrasi. Kategori Master Karyawan/Absensi/Keuangan SENGAJA TETAP TERPISAH
+// (bukan digabung jadi 1 "Management") — cuma urutan tampil accordion Config
+// Akses & grid Home mobile yang ikut sidebar, izin per role yang sudah tersimpan
+// tetap dirujuk per kategori lama supaya tidak yatim.
 export const KATEGORI_URUTAN = ['Umum', 'Master Karyawan', 'Master Absensi', 'Master Keuangan', 'Zevanic House', 'Stok dan Pembelian', 'Pesanan', 'Persiapan Produksi', 'Proses Produksi', 'Scan & Cetak', 'Master Integrasi'];
 export { DAFTAR_MENU };
 const KOSONG_IZIN = () => ({ view: false, add: false, edit: false, delete: false, print: false });
 
-// Default awal untuk 5 profil baku SENGAJA disamakan dengan perilaku
-// hardcode yang sudah jalan sekarang (lihat auth.js) — supaya profil ini
-// begitu pertama dibuka sudah masuk akal, bukan kosong semua.
+// Default awal untuk 5 profil baku SENGAJA disamakan dengan perilaku hardcode
+// yang sudah jalan sekarang (lihat auth.js) — supaya profil ini begitu pertama
+// dibuka sudah masuk akal, bukan kosong semua.
 function bikinDefaultProfil(namaProfil) {
   const menus = {};
   DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN(); });
@@ -423,31 +374,30 @@ function bikinDefaultProfil(namaProfil) {
   if (namaProfil === 'owner') {
     DAFTAR_MENU.forEach(m => semua(m.id));
   } else if (namaProfil === 'superuser') {
-    // ATURAN TETAP (18 Agt 2026, permintaan eksplisit): menu BARU yang
-    // ditambahkan ke DAFTAR_MENU TIDAK LAGI otomatis ikut ke sini. Dulu
-    // Superuser = Owner untuk SEMUA menu (blanket, ikut DAFTAR_MENU
-    // apapun isinya) — sekarang daftar di bawah ini FIXED/snapshot,
-    // cuma menu yang SUDAH ADA per tanggal ini. Menu baru ke depan
-    // default-nya CUMA Owner yang bisa akses, sampai Owner atur manual
-    // lewat Config Akses kalau memang mau dibagikan ke Superuser juga.
-    // JANGAN tambahkan menu baru ke daftar ini secara otomatis — biarkan
-    // Owner yang putuskan & atur sendiri lewat tampilan Config Akses.
+    // ATURAN TETAP: menu BARU yang ditambahkan ke DAFTAR_MENU TIDAK LAGI
+    // otomatis ikut ke sini. Dulu Superuser = Owner untuk SEMUA menu (blanket,
+    // ikut DAFTAR_MENU apapun isinya) — sekarang daftar di bawah ini
+    // FIXED/snapshot, cuma menu yang SUDAH ADA per tanggal ini. Menu baru ke
+    // depan default-nya CUMA Owner yang bisa akses, sampai Owner atur manual
+    // lewat Config Akses kalau memang mau dibagikan ke Superuser juga. JANGAN
+    // tambahkan menu baru ke daftar ini secara otomatis — biarkan Owner yang
+    // putuskan & atur sendiri lewat tampilan Config Akses.
     [
       'dashboard', 'profile',
       'config_absensi', 'penjadwalan', 'antrean_absensi', 'antrean_lembur', 'riwayat_absensi',
       'antrean_dakar', 'config_karyawan', 'daftar_karyawan', 'config_info', 'slip_gaji', 'payroll',
       'whatsapp_gateway', 'mail_gateway'
-      // SENGAJA TIDAK termasuk: config_akses, hak_akses — khusus Owner
-      // asli, sudah begitu sejak awal fitur ini dibuat, bukan hal baru.
+      // SENGAJA TIDAK termasuk: config_akses, hak_akses — khusus Owner asli,
+      // sudah begitu sejak awal fitur ini dibuat, bukan hal baru.
     ].forEach(semua);
   } else if (namaProfil === 'pic' || namaProfil === 'admin') {
     lihatSaja('dashboard');
     menus.profile = { view: true, add: true, edit: true, delete: false, print: false };
     ['config_absensi', 'penjadwalan', 'antrean_absensi', 'antrean_lembur', 'riwayat_absensi'].forEach(semua);
-    // Contoh nyata pemakaian fitur granular: Admin/PIC boleh kelola
-    // Master Gudang sepenuhnya (view/add/edit/delete/print semua true di
-    // atas), TAPI khusus dropdown "Jenis Lokasi"-nya tetap terkunci ke
-    // Tetap — cuma Owner yang bisa buka opsi Dinamis.
+    // Contoh nyata pemakaian fitur granular: Admin/PIC boleh kelola Master
+    // Gudang sepenuhnya (view/add/edit/delete/print semua true di atas), TAPI
+    // khusus dropdown "Jenis Lokasi"-nya tetap terkunci ke Tetap — cuma Owner
+    // yang bisa buka opsi Dinamis.
     menus.config_absensi.fitur = { ubah_jenis_lokasi: false };
   } else {
     lihatSaja('dashboard');
@@ -466,18 +416,18 @@ const AppConfigAkses = {
 
     const namaAkses = ref('');
     const profilDipilih = ref('');
-    // tingkatKeamanan: 1 dari 5 nama baku, INI yang benar-benar dikirim
-    // ke Firestore Rules lewat custom claim (field "role" di data
-    // karyawan). Nama profil di "namaAkses" cuma dipakai buat cari izin
-    // TAMPILAN, tidak pernah sampai ke Rules. Default 'operator' (paling
-    // rendah) — sengaja bukan default tinggi, biar profil baru yang lupa
-    // diatur tidak tiba-tiba dapat akses tulis luas.
+    // tingkatKeamanan: 1 dari 5 nama baku, INI yang benar-benar dikirim ke
+    // Firestore Rules lewat custom claim (field "role" di data karyawan). Nama
+    // profil di "namaAkses" cuma dipakai buat cari izin TAMPILAN, tidak pernah
+    // sampai ke Rules. Default 'operator' (paling rendah) — sengaja bukan
+    // default tinggi, biar profil baru yang lupa diatur tidak tiba-tiba dapat
+    // akses tulis luas.
     const tingkatKeamanan = ref('operator');
     const menus = reactive({});
     // pastikanFiturAda: kalau menu ini punya fiturList (kontrol granular
-    // tambahan), pastikan menus[id].fitur SELALU ada sebagai objek —
-    // supaya template (v-model="menus[m.id].fitur[f.key]") tidak error
-    // kalau datanya belum pernah tersimpan sama sekali.
+    // tambahan), pastikan menus[id].fitur SELALU ada sebagai objek — supaya
+    // template (v-model="menus[m.id].fitur[f.key]") tidak error kalau datanya
+    // belum pernah tersimpan sama sekali.
     function pastikanFiturAda(menuId) {
       const def = DAFTAR_MENU.find(m => m.id === menuId);
       if (def && def.fiturList && !menus[menuId].fitur) menus[menuId].fitur = {};
@@ -488,25 +438,23 @@ const AppConfigAkses = {
     KATEGORI_URUTAN.forEach(k => { kategoriTerbuka[k] = true; });
     function toggleKategori(k) { kategoriTerbuka[k] = !kategoriTerbuka[k]; }
 
-    // BARU (27 Agt 2026, §27 — Redesain Home Mobile), N diubah 5->4 di
-    // §27.1 — Urutan Menu di Home Mobile. Home mobile cuma nampilkan 4
-    // menu PALING ATAS per kategori (sisanya lewat "Lihat Semua") — urutan
-    // 4 teratas itu diatur di sini, bukan ditebak. Disimpan 1 dokumen
-    // tunggal, dibaca vue-home.js tiap kali Home dimuat (1x getDoc, hemat
-    // baca). Menu yang belum pernah diatur otomatis ikut urutan asli
-    // DAFTAR_MENU di posisi paling akhir (self-healing kalau ada menu baru
-    // ditambah belakangan).
+    // N diubah 5->4 di §27.1 — Urutan Menu di Home Mobile. Home mobile cuma
+    // nampilkan 4 menu PALING ATAS per kategori (sisanya lewat "Lihat Semua") —
+    // urutan 4 teratas itu diatur di sini, bukan ditebak. Disimpan 1 dokumen
+    // tunggal, dibaca vue-home.js tiap kali Home dimuat (1x getDoc, hemat baca).
+    // Menu yang belum pernah diatur otomatis ikut urutan asli DAFTAR_MENU di
+    // posisi paling akhir (self-healing kalau ada menu baru ditambah
+    // belakangan).
     const urutanMenu = reactive({});
     const urutanTerbuka = reactive({});
     const menyimpanUrutan = ref(false);
-    // BARU (27 Agt 2026, sesi lanjutan §27.2) — urutanKategoriArr: urutan
-    // KATEGORI/GRUP itu sendiri (mis. Zevanic House di atas/bawah Master
-    // Absensi), TERPISAH dari urutanMenu (urutan menu DI DALAM 1 kategori,
-    // sudah ada sejak §27.1). Disimpan 1 dokumen yang SAMA (field baru
-    // `urutanKategori`, array nama kategori) — dipakai bareng oleh Home
-    // mobile (urutan grup di grid) DAN sidebar desktop (urutan grup +
-    // urutan tombol tab di dalam halaman Master Absensi/Keuangan/Karyawan/
-    // Zevanic House, lihat window.terapkanUrutanMenuDesktop di auth.js).
+    // urutanKategoriArr: urutan KATEGORI/GRUP itu sendiri (mis. Zevanic House di
+    // atas/bawah Master Absensi), TERPISAH dari urutanMenu (urutan menu DI DALAM
+    // 1 kategori, sudah ada sejak §27.1). Disimpan 1 dokumen yang SAMA (field
+    // baru `urutanKategori`, array nama kategori) — dipakai bareng oleh Home
+    // mobile (urutan grup di grid) DAN sidebar desktop (urutan grup + urutan
+    // tombol tab di dalam halaman Master Absensi/Keuangan/Karyawan/ Zevanic
+    // House, lihat window.terapkanUrutanMenuDesktop di auth.js).
     const urutanKategoriArr = ref([]);
     function labelMenu(id) { const m = DAFTAR_MENU.find(x => x.id === id); return m ? m.label : id; }
     async function muatUrutanMenu() {
@@ -577,8 +525,8 @@ const AppConfigAkses = {
     }
 
     // Checkbox "pilih semua" di header kolom (View/Add/Edit/Delete/Print) —
-    // cakupannya cuma menu-menu di dalam kategori itu saja, tidak ikut
-    // menyentuh kategori lain.
+    // cakupannya cuma menu-menu di dalam kategori itu saja, tidak ikut menyentuh
+    // kategori lain.
     function semuaTercentangKolom(kategori, field) {
       const daftarMenu = menuUntukKategori(kategori);
       return daftarMenu.length > 0 && daftarMenu.every(m => menus[m.id][field]);
@@ -594,11 +542,11 @@ const AppConfigAkses = {
         const snap = await getDocs(collection(db, "akses_config"));
         const namaTersimpan = [];
         snap.forEach(d => namaTersimpan.push(d.id));
-        // Gabungkan dengan profil baku (biar selalu muncul di daftar
-        // pilihan meski belum pernah disimpan sekalipun) — KECUALI "owner",
-        // sengaja disembunyikan dari daftar pilih/edit karena Owner wajib
-        // selalu punya akses penuh ke segalanya, tidak boleh dikonfigurasi
-        // (dikecilkan) lewat layar ini sama sekali.
+        // Gabungkan dengan profil baku (biar selalu muncul di daftar pilihan
+        // meski belum pernah disimpan sekalipun) — KECUALI "owner", sengaja
+        // disembunyikan dari daftar pilih/edit karena Owner wajib selalu punya
+        // akses penuh ke segalanya, tidak boleh dikonfigurasi (dikecilkan) lewat
+        // layar ini sama sekali.
         const gabungan = [...new Set([...PROFIL_BAKU, ...namaTersimpan])]
           .filter(nama => nama !== 'owner')
           .sort();
@@ -621,10 +569,10 @@ const AppConfigAkses = {
         const snap = await getDoc(doc(db, "akses_config", nama));
         const data = snap.exists() ? snap.data() : null;
         const dataMenus = data ? (data.menus || {}) : null;
-        // Profil baku (operator/pic/admin/owner/superuser): tingkat
-        // keamanannya SAMA DENGAN namanya sendiri, kecuali sudah pernah
-        // disimpan beda secara eksplisit. Profil kustom yang belum pernah
-        // diatur: default 'operator' (paling aman/rendah).
+        // Profil baku (operator/pic/admin/owner/superuser): tingkat keamanannya
+        // SAMA DENGAN namanya sendiri, kecuali sudah pernah disimpan beda secara
+        // eksplisit. Profil kustom yang belum pernah diatur: default 'operator'
+        // (paling aman/rendah).
         tingkatKeamanan.value = data?.tingkatKeamanan || (PROFIL_BAKU.includes(nama) ? nama : 'operator');
         DAFTAR_MENU.forEach(m => {
           menus[m.id] = dataMenus && dataMenus[m.id] ? { ...KOSONG_IZIN(), ...dataMenus[m.id] } : (
@@ -666,16 +614,13 @@ const AppConfigAkses = {
       menyimpan.value = false;
     }
 
-    // DIBEKUKAN (9 Sep 2026, permintaan Guru langsung: "pengaturan menu
-    // sementara tutup aksesnya... tidak user friendly tampilannya, saya
-    // bingung sendiri pakainya") — panel "Urutan Menu di Home Mobile &
-    // Sidebar Desktop" disembunyikan sementara (lihat fiturUrutanMenuAktif
-    // di template & bagian return di bawah). muatUrutanMenu() TIDAK
-    // dipanggil lagi di onMounted supaya tidak baca Firestore percuma
-    // untuk panel yang disembunyikan. Fungsi-fungsinya TETAP ADA (tidak
-    // dihapus) biar gampang diaktifkan lagi kalau UI-nya sudah dirapikan —
-    // tinggal balikkan fiturUrutanMenuAktif jadi true & panggil lagi
-    // muatUrutanMenu() di sini.
+    // DIBEKUKAN — panel "Urutan Menu di Home Mobile & Sidebar Desktop"
+    // disembunyikan sementara (lihat fiturUrutanMenuAktif di template & bagian
+    // return di bawah). muatUrutanMenu TIDAK dipanggil lagi di onMounted supaya
+    // tidak baca Firestore percuma untuk panel yang disembunyikan.
+    // Fungsi-fungsinya TETAP ADA (tidak dihapus) biar gampang diaktifkan lagi
+    // kalau UI-nya sudah dirapikan — tinggal balikkan fiturUrutanMenuAktif jadi
+    // true & panggil lagi muatUrutanMenu di sini.
     const fiturUrutanMenuAktif = false;
     onMounted(async () => { await window.authReady; muat(); });
 
@@ -727,10 +672,11 @@ const AppConfigAkses = {
         </button>
       </div>
 
-      <!-- DIBEKUKAN (9 Sep 2026, permintaan Guru langsung — lihat komentar
-           fiturUrutanMenuAktif di setup() di atas) — panel ini disembunyikan
-           sementara, UI-nya dinilai membingungkan. Markup TIDAK dihapus,
-           cuma dibungkus v-if, supaya gampang diaktifkan lagi nanti. -->
+      <!--
+        DIBEKUKAN (— lihat komentar fiturUrutanMenuAktif di setup di atas) — panel ini
+        disembunyikan sementara, UI-nya dinilai membingungkan. Markup TIDAK dihapus, cuma
+        dibungkus v-if, supaya gampang diaktifkan lagi nanti.
+      -->
       <div v-if="fiturUrutanMenuAktif" class="gc-card" style="margin-bottom:16px; border:1.5px solid var(--burgundy);">
         <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
           <h4 class="gc-heading" style="font-size:12.5px; font-weight:700;"><i class="fas fa-arrow-down-wide-short" style="color:var(--burgundy); margin-right:8px;"></i> Urutan Menu di Home Mobile & Sidebar Desktop</h4>
@@ -850,15 +796,14 @@ const AppConfigAkses = {
 };
 
 let vmConfigAkses = null;
-// Perbaikan bug BESAR: komponen ini dulu langsung di-mount() begitu file ini
-// dimuat (artinya SETIAP kali halaman dibuka, oleh SIAPAPUN, termasuk yang
-// tidak punya akses ke layar ini) — onMounted-nya otomatis mencoba fetch
-// Firestore walau orangnya tidak pernah membuka tab ini sama sekali. Itu
-// yang bikin console penuh "Missing or insufficient permissions" dan baca
-// Firestore boros. Sekarang mount() BARU terjadi saat dashboard.js
-// pindahSubTab benar-benar memanggil window.pastikanMountConfigAkses() —
-// yaitu PERSIS saat tab ini pertama kali dibuka, bukan dari awal muat
-// halaman.
+// Perbaikan bug BESAR: komponen ini dulu langsung di-mount begitu file ini
+// dimuat (artinya SETIAP kali halaman dibuka, oleh SIAPAPUN, termasuk yang tidak
+// punya akses ke layar ini) — onMounted-nya otomatis mencoba fetch Firestore
+// walau orangnya tidak pernah membuka tab ini sama sekali. Itu yang bikin
+// console penuh "Missing or insufficient permissions" dan baca Firestore boros.
+// Sekarang mount BARU terjadi saat dashboard.js pindahSubTab benar-benar
+// memanggil window.pastikanMountConfigAkses — yaitu PERSIS saat tab ini pertama
+// kali dibuka, bukan dari awal muat halaman.
 window.pastikanMountConfigAkses = function() {
   if (vmConfigAkses) { if (typeof vmConfigAkses.muat === 'function') vmConfigAkses.muat(); return; }
   const mountPoint = document.getElementById('vue-config-akses');
@@ -866,27 +811,24 @@ window.pastikanMountConfigAkses = function() {
 };
 window.refreshConfigAkses = function() { if (vmConfigAkses) vmConfigAkses.muat(); };
 
-// ============================================================================
-// BARU (9 Sep 2026) — AppJabatanAkses: dimensi Jabatan, tab "Jabatan" di
-// layar gabungan "Akses & Keamanan" (lihat pill-tab di bawah + index.html).
-// Jawaban Guru (AskUserQuestion): Jabatan ini PEMBATAS TAMBAHAN (AND) —
-// BUKAN pengganti Role, dan BUKAN pilihan "OR" yang bisa melonggarkan izin.
-// Mekanismenya (lihat window.cekIzinMenu di auth.js):
-//   - Kalau kotak DICENTANG (default, belum pernah diatur) -> TIDAK ADA
-//     pembatasan tambahan dari Jabatan, izin akhir 100% ikut Role/Config
-//     Akses seperti biasa.
-//   - Kalau kotak DIKOSONGKAN -> jenis akses itu DIBLOKIR KHUSUS untuk
-//     Jabatan ini, walau Role-nya mengizinkan. Tidak bisa dipakai untuk
-//     MENGIZINKAN sesuatu yang Role-nya sendiri tidak izinkan.
-// KENAPA desain begini (bukan mirror penuh gaya Role/AppConfigAkses di
-// atas): supaya deploy pertama kali (belum ada satupun akses_jabatan/{x}
-// tersimpan) TIDAK mengunci siapapun — default aman. Karena itu juga tidak
-// ada opsi "+ buat profil baru" seperti Role — daftar Jabatan sendiri
-// SUDAH dikelola satu tempat di Master Karyawan > Config Karyawan > Jabatan
-// (master_data/jabatan, field `items`), di sini cuma PILIH salah satu dari
-// situ untuk diatur pembatasannya (single source of truth, tidak duplikat
-// tempat kelola daftar nama Jabatan).
-// ============================================================================
+
+// BARU — AppJabatanAkses: dimensi Jabatan, tab "Jabatan" di layar gabungan
+// "Akses & Keamanan" (lihat pill-tab di bawah + index.html). Jawaban
+// (AskUserQuestion): Jabatan ini PEMBATAS TAMBAHAN (AND) — BUKAN pengganti Role,
+// dan BUKAN pilihan "OR" yang bisa melonggarkan izin. Mekanismenya (lihat
+// window.cekIzinMenu di auth.js): - Kalau kotak DICENTANG (default, belum pernah
+// diatur) -> TIDAK ADA pembatasan tambahan dari Jabatan, izin akhir 100% ikut
+// Role/Config Akses seperti biasa. - Kalau kotak DIKOSONGKAN -> jenis akses itu
+// DIBLOKIR KHUSUS untuk Jabatan ini, walau Role-nya mengizinkan. Tidak bisa
+// dipakai untuk MENGIZINKAN sesuatu yang Role-nya sendiri tidak izinkan. KENAPA
+// desain begini (bukan mirror penuh gaya Role/AppConfigAkses di atas): supaya
+// deploy pertama kali (belum ada satupun akses_jabatan/{x} tersimpan) TIDAK
+// mengunci siapapun — default aman. Karena itu juga tidak ada opsi "+ buat
+// profil baru" seperti Role — daftar Jabatan sendiri SUDAH dikelola satu tempat
+// di Master Karyawan > Config Karyawan > Jabatan (master_data/jabatan, field
+// `items`), di sini cuma PILIH salah satu dari situ untuk diatur pembatasannya
+// (single source of truth, tidak duplikat tempat kelola daftar nama Jabatan).
+
 const KOSONG_IZIN_JABATAN = () => ({ view: true, add: true, edit: true, delete: true, print: true });
 
 const AppJabatanAkses = {
@@ -1094,13 +1036,13 @@ window.pastikanMountJabatanAkses = function() {
   if (mountPoint) vmJabatanAkses = createApp(AppJabatanAkses).mount('#vue-jabatan-akses');
 };
 
-// ============================================================================
-// BARU (9 Sep 2026) — GABUNG "Akses & Keamanan" jadi 1 layar dengan 3 pill
-// tab (Role / Jabatan / Assign), gabungan Config Akses (lama) + tab baru
-// Jabatan + Hak Akses (lama, dipindah tanpa perubahan isi). Lihat index.html
-// utk markup 3 pill button + 3 pane, dan dashboard.js utk petaMount yang
-// mengarah ke window.pastikanMountAksesKeamanan di bawah.
-// ============================================================================
+
+// BARU — GABUNG "Akses & Keamanan" jadi 1 layar dengan 3 pill tab (Role /
+// Jabatan / Assign), gabungan Config Akses (lama) + tab baru Jabatan + Hak Akses
+// (lama, dipindah tanpa perubahan isi). Lihat index.html utk markup 3 pill
+// button + 3 pane, dan dashboard.js utk petaMount yang mengarah ke
+// window.pastikanMountAksesKeamanan di bawah.
+
 window.pindahPillAksesKeamanan = function(nama) {
   const semua = ['role', 'jabatan', 'assign'];
   semua.forEach(n => {

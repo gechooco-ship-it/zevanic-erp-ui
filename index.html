@@ -6,51 +6,28 @@
   <title>ZEVANIC HOUSE - ERP System</title>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <!-- jsQR — baca kode QR dari frame kamera, dipakai Absensi Melalui QR (js/vue-absensi-qr.js) -->
+  <!--
+    jsQR — baca kode QR dari frame kamera, dipakai Absensi Melalui QR (js/vue-absensi-qr.js)
+  -->
   <script src="https://unpkg.com/jsqr@1.4.0/dist/jsQR.js"></script>
-  <!-- qrcodejs (davidshimjs) — BUAT/generate kode QR (bukan baca), dipakai
-       Cetak Label Roll (vue-stock-pembelian.js, cetakLabelLot()). Dimuat DI
-       SINI (halaman utama), SAMA seperti pola jsQR di atas — BUKAN lewat
-       document.write() di window print terpisah. Perbaikan §25.8: versi
-       lama memuat lib ini document.write() ke DALAM window print baru, dan
-       QR-nya suka tidak muncul (kemungkinan diblokir intervensi
-       document.write() Chrome dan/atau race async canvas->image saat
-       window.print() terlalu cepat). Sekarang lib ini SELALU sudah siap di
-       window utama, QR digambar+diambil sebagai gambar (base64) DI window
-       utama, baru dikirim sebagai <img> statis ke window print — window
-       print tidak perlu load apa pun dari internet lagi. -->
+  <!--
+    qrcodejs (davidshimjs) — BUAT/generate kode QR (bukan baca), dipakai Cetak Label Roll
+    (vue-stock-pembelian.js, cetakLabelLot). Dimuat DI SINI (halaman utama), SAMA seperti pola
+    jsQR di atas — BUKAN lewat document.write di window print terpisah. Perbaikan §25.8: write
+    ke DALAM window print dan QR-nya suka tidak muncul (kemungkinan diblokir intervensi
+    document.write Chrome dan/atau race async canvas->image saat window.print terlalu cepat).
+    Sekarang lib ini SELALU sudah siap di window utama, QR digambar+diambil sebagai gambar
+    (base64) DI window utama, baru dikirim sebagai <img> statis ke window print — window print
+    tidak perlu load apa pun dari internet lagi.
+  -->
   <script src="https://unpkg.com/qrcodejs@1.0.0/qrcode.min.js"></script>
-  <!-- Rebrand Gechoo: Tailwind CDN sudah DICABUT (30 Agustus) — semua warna
-       DAN struktur layout (flex/grid/spacing/responsif) sekarang murni
-       css/gechoo-design.css, jauh lebih ringan & tanpa compile di browser. -->
+  <!--
+    Rebrand Gechoo: Tailwind CDN sudah DICABUT (30 Agustus) — semua warna DAN struktur layout
+    (flex/grid/spacing/responsif) sekarang murni css/gechoo-design.css, jauh lebih ringan &
+    tanpa compile di browser.
+  -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Nunito+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-  <!-- ?v=1 — BARU (29 Agt 2026): CSS ini sebelumnya TIDAK PERNAH pakai
-       cache-bust query, beda dari file .js lain di app ini. Ditambahkan
-       sekarang karena §44.3 (ganti --ivory/--ivory-dim/--line ke versi
-       lebih muda) adalah perubahan visual GLOBAL — tanpa versi baru,
-       browser Guru berisiko masih pakai CSS lama dari cache walau file
-       di server sudah baru (pola masalah yang sama pernah kejadian di
-       vue-stock-pembelian.js, lihat STATUS-PROYEK.md §25.11). Naikkan
-       angka ini tiap kali gechoo-design.css berubah ke depannya. -->
-  <!-- v=4 (29 Agt 2026, sama hari, revisi lagi) — tambah class .gc-overflow-*
-       (menu "lainnya" oval titik-tiga, dipakai Antrean Absensi/Lembur/
-       Dakar/Reimburse) + .gc-badge-count. -->
-  <!-- v=5 (30 Agt 2026) — tambah class .gc-nav-subgroup, fix bug minimize/
-       maximize sidebar desktop (inline style vs .hidden, lihat komentar
-       .gc-nav-subgroup di gechoo-design.css & STATUS-PROYEK.md §44.26). -->
-  <!-- v=6 (31 Agt 2026) — tambah .gc-pp-layout/.gc-pp-panel/.gc-pp-panel-mobile,
-       layout 2 kolom "Persiapan Produksi > Perlu Disiapkan" redesain wireframe
-       (lihat komentar besar di js/vue-persiapan-produksi-v2.js). -->
-  <!-- v=7 (9 Sep 2026, rombak standarisasi CSS) — tambah --teal-text/
-       --warn-text, .tag.blue & .hide-scrollbar dirapikan, lihat komentar
-       di gechoo-design.css & FONDASI.md §Design System. -->
-  <!-- v=9 (9 Sep 2026, lanjutan besar) — ikuti Sample Hifi persis atas
-       instruksi Guru: mode gelap full-remap semua token (bukan cuma
-       netral), + pola komponen (kartu jadi --ivory + shadow, card-head
-       berpadding+garis, tombol/tag/field/tabel disamakan ukuran & warna
-       ke Hifi). Kartu belum ditest di browser sama sekali — lihat
-       STATUS-PROYEK.md. -->
   <link rel="stylesheet" href="css/gechoo-design.css?v=10">
   <style>
     .fade-in { animation: fadeIn 0.4s ease-in-out; }
@@ -59,25 +36,20 @@
        css/gechoo-design.css (9 Sep 2026, rombak standarisasi) — supaya
        1 sumber, bukan tersebar antara sini dan file CSS. */
   </style>
-  <!-- BARU (28 Agt 2026) — Mode Gelap (redesain mobile). Dipasang SEDINI
-       MUNGKIN (sebelum <body> dirender) supaya tema langsung benar sejak
-       cat pertama, tidak "kedip" terang dulu baru gelap. window.aturTema()/
-       window.toggleTema() dipanggil dari mana saja (Bottom Sheet Profil,
-       Profil Lengkap) — TIDAK butuh Vue, murni atribut data-theme di <html>
-       + localStorage, dibaca token warna di css/gechoo-design.css.
-
-       DIPERLUAS (29 Agt 2026, permintaan Guru) — preferensi sekarang 3
-       pilihan: 'light' / 'dark' / 'auto' (ikut prefers-color-scheme
-       sistem, dan re-apply otomatis kalau sistemnya ganti tema SAAT
-       'auto' aktif). Dibedakan 2 fungsi:
-         - window.temaSaatIni()    -> SELALU 'light'/'dark' EFEKTIF
-           (warna yang SEDANG tampil) — dipakai tempat lama yang cuma
-           peduli warna, tidak berubah perilakunya, tidak perlu disentuh.
-         - window.temaPreferensi() -> preferensi MENTAH user, BISA 'auto'
-           — dipakai UI baru yang perlu tahu apakah user sedang 'auto'
-           atau pin manual (Bottom Sheet Profil).
-       window.toggleTema() sekarang siklus 3 tahap: light -> dark -> auto
-       -> light ..., BUKAN cuma 2 seperti sebelumnya. -->
+  <!--
+    Mode Gelap (redesain mobile). Dipasang SEDINI MUNGKIN (sebelum <body> dirender) supaya
+    tema langsung benar sejak cat pertama, tidak "kedip" terang window.aturTema/
+    window.toggleTema dipanggil dari mana saja (Bottom Sheet Profil, Profil Lengkap) — TIDAK
+    butuh Vue, murni atribut data-theme di <html> + localStorage, dibaca token warna di
+    css/gechoo-design.css. DIPERLUAS — preferensi sekarang 3 pilihan: 'light' / 'dark' /
+    'auto' (ikut prefers-color-scheme sistem, dan re-apply otomatis kalau sistemnya ganti tema
+    SAAT 'auto' aktif). Dibedakan 2 fungsi: - window.temaSaatIni -> SELALU 'light'/'dark'
+    EFEKTIF (warna yang SEDANG tampil) — dipakai tempat lama yang cuma peduli warna, tidak
+    berubah perilakunya, tidak perlu disentuh. - window.temaPreferensi -> preferensi MENTAH
+    user, BISA 'auto' — dipakai UI baru yang perlu tahu apakah user sedang 'auto' atau pin
+    manual (Bottom Sheet Profil). window.toggleTema sekarang siklus 3 tahap: light -> dark ->
+    auto -> light ..., BUKAN cuma 2 seperti
+  -->
   <script>
     (function() {
       var KUNCI = 'zevanic_tema';
@@ -146,29 +118,24 @@
     <div id="vue-registrasi"></div>
   </div>
 
-  <!-- LAYAR BARU: BUAT PASSWORD (dibuka lewat link email dari Antrean Dakar) -->
+  <!-- BUAT PASSWORD (dibuka lewat link email dari Antrean Dakar) -->
   <div id="screen-buat-password" class="hidden h-auto min-h-screen w-full flex flex-col items-center justify-center p-4 fade-in overflow-y-auto" style="background:var(--ivory);">
     <!-- MIGRASI VUE: lihat js/vue-buat-password.js -->
     <div id="vue-buat-password"></div>
   </div>
 
-
   <div id="screen-dashboard" class="hidden h-[100dvh] w-full relative fade-in flex overflow-hidden" style="background:var(--ivory);">
 
     <aside class="gc-sidebar hidden md:flex w-64 flex-col shrink-0" style="z-index:20;">
-      <!-- REVISI (30 Agt 2026, sesi lanjutan) — teks brand GANTI "Gechoo ♥"
-           jadi "Zevanic ERP" + ikon-kotak, persis mockup. Blok ini desktop-
-           only dari awal (`.gc-sidebar hidden md:flex`) — mobile TIDAK
-           pernah menampilkan blok ini (header sendiri, vue-header-mobile.js),
-           jadi ganti teks di sini TIDAK menyentuh branding mobile.
-           REVISI LAGI (30 Agt 2026, sesi lanjutan lagi) — nama brand GANTI
-           lagi jadi "Zevanic Core Optima" (permintaan Guru). Teks lebih
-           panjang dari "Zevanic ERP", jadi h1 ini diberi
-           white-space:nowrap + text-overflow:ellipsis (lihat inline style)
-           supaya TIDAK membungkus 2 baris — box .gc-side-brand dulu WRAP
-           saat teks kepanjangan, bikin tinggi header ikut membengkak ke
-           bawah (ini juga akar masalah kenapa header "kepanjangan" —
-           digabung sekalian jadi 1 perbaikan, lihat catatan height di CSS). -->
+      <!--
+        teks brand GANTI "Gechoo ♥" jadi "Zevanic ERP" + ikon-kotak, persis mockup. Blok ini
+        desktop- only dari awal (`.gc-sidebar hidden md:flex`) — mobile TIDAK pernah
+        menampilkan blok ini (header sendiri, vue-header-mobile.js), jadi ganti teks di sini
+        TIDAK menyentuh branding mobile. LAGI — nama brand GANTI lagi jadi "Zevanic Core
+        Optima" . Teks lebih panjang dari "Zevanic ERP", jadi h1 ini diberi white-space:nowrap
+        + text-overflow:ellipsis (lihat inline style) supaya TIDAK membungkus 2 baris — box
+        .gc-side-brand
+      -->
       <div class="gc-side-brand">
         <div class="gc-side-brand-ico"><i class="fas fa-table-cells-large"></i></div>
         <div style="min-width:0; overflow:hidden;">
@@ -183,51 +150,34 @@
         <button onclick="pindahTab('tab-profil')" class="gc-nav-item">
           <svg class="gc-nav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></svg> Profile
         </button>
-        <!-- DIROMBAK KE-2 (9 Sep 2026, permintaan Guru "urutannya masih ada
-             yg ngaco") — urutan grup sidebar disusun ULANG lagi:
-             Management > Zevanic House > Stok dan Pembelian > Pesanan >
-             Persiapan Produksi > Proses Produksi > Scan & Cetak > Integrasi.
-             (Rombak PERTAMA 9 Sep pagi sempat: Pesanan > Persiapan Produksi
-             > Proses Produksi > Stok dan Pembelian > Scan & Cetak >
-             Zevanic House > Management > Integrasi — Guru bilang masih
-             salah.) Perubahan lain sesi ini (lihat juga komentar masing2
-             grup di bawah): (1) Stok dan Pembelian SEKARANG 5 tombol
-             sidebar langsung (Nota Order Belanja/Riwayat Harga/Kartu
-             Stok/Rak Penyimpanan/Repack) — dulu 1 tombol umum yang lempar
-             ke tab, tab-strip 5 pilihan ada DI DALAM halaman (redundan,
-             sudah dicopot). (2) Zevanic House diurut ulang: Data Bahan &
-             Aksesoris > Master Suplayer > Master Produk > Master
-             Pelanggan > Config (Config PALING BAWAH — dulu paling atas).
-             "Persiapan Masalah" DIMINTA Guru dihapus (dikira sudah
-             digantikan Persiapan Produksi > Masalah) TAPI BELUM disentuh
-             sama sekali — verifikasi kode (js/vue-stock-pembelian.js)
-             menemukan koleksinya (`permintaan_bahan_manual`) MASIH aktif
-             jadi sumber Nota Order Belanja, beda fungsi dari Persiapan
-             Produksi > Masalah (itu jalur SPK/scan, koleksi
-             `persiapan_masalah`). Ditaruh paling bawah grup ini
-             sementara, lihat claude/STATUS-PROYEK.md untuk detail &
-             pertanyaan balik ke Guru. -->
-        <!-- DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang urutan
-             sidebar sesuai wireframe handoff, lihat claude/STATUS-PROYEK.md)
-             — Master Absensi/Keuangan/Karyawan GABUNG jadi 1 grup sidebar
-             "Management" (wireframe "07 - Management": 1 folder = 1 grup,
-             3 sub menu Master Karyawan/Master Absensi/Master Keuangan).
-             INI CUMA PENGGABUNGAN TAMPILAN SIDEBAR — tab konten
-             (tab-admin-acc/tab-keuangan/tab-superuser), semua data-menu-id,
-             dan kategori permission di Config Akses (KATEGORI_URUTAN)
-             SENGAJA TIDAK disatukan/diganti, supaya izin per role yang
-             sudah ada tidak yatim. Gerbang role per sub-menu TETAP beda:
-             Absensi & Keuangan pic/admin/owner/superuser, Karyawan KHUSUS
-             owner/superuser (lihat js/auth.js aturTampilanBerdasarkanRole)
-             — makanya toggle lama menu-admin-acc/menu-keuangan/
-             menu-superuser DIHAPUS (diganti 1 toggle menu-management),
-             tapi 3 tombol anak (menu-admin-acc-btn/menu-keuangan-btn/
-             menu-superuser-btn) id-nya TETAP SAMA, cuma dipindah ke dalam
-             1 grup baru navgrp-management. Fitur "Urutan Menu di Home
-             Mobile & Sidebar Desktop" (Config Akses) DIBEKUKAN sementara
-             atas permintaan Guru (UI dinilai membingungkan) — lihat
-             js/auth.js dekat window.terapkanUrutanMenuDesktop dan
-             js/vue-config-akses.js. -->
+        <!--
+          Urutan grup sidebar: Management > Zevanic House > Stok dan Pembelian >
+          Pesanan > Persiapan Produksi > Proses Produksi > Scan & Cetak > Integrasi.
+          Stok dan Pembelian = 5 tombol sidebar langsung (Nota Order Belanja/Riwayat
+          Harga/Kartu Stok/Rak Penyimpanan/Repack).
+          Zevanic House: Data Bahan & Aksesoris > Master Suplayer > Master Produk >
+          Master Pelanggan > Config.
+          "Persiapan Masalah" masih ada di grup ini dan koleksinya
+          (`permintaan_bahan_manual`) MASIH aktif sebagai sumber Nota Order Belanja —
+          beda fungsi dari Persiapan Produksi > Masalah (jalur SPK/scan, koleksi
+          `persiapan_masalah`). Jangan dihapus tanpa memindahkan sumber Nota dulu.
+        -->
+        <!--
+          Master Absensi/Keuangan/Karyawan GABUNG jadi 1 grup sidebar "Management" (wireframe
+          "07 - Management": 1 folder = 1 grup, 3 sub menu Master Karyawan/Master
+          Absensi/Master Keuangan). INI CUMA PENGGABUNGAN TAMPILAN SIDEBAR — tab konten
+          (tab-admin-acc/tab-keuangan/tab-superuser), semua data-menu-id, dan kategori
+          permission di Config Akses (KATEGORI_URUTAN) SENGAJA TIDAK disatukan/diganti, supaya
+          izin per role yang sudah ada tidak yatim. Gerbang role per sub-menu TETAP beda:
+          Absensi & Keuangan pic/admin/owner/superuser, Karyawan KHUSUS owner/superuser (lihat
+          js/auth.js aturTampilanBerdasarkanRole) — makanya toggle lama
+          menu-admin-acc/menu-keuangan/ menu-superuser DIHAPUS (diganti 1 toggle
+          menu-management), tapi 3 tombol anak (menu-admin-acc-btn/menu-keuangan-btn/
+          menu-superuser-btn) id-nya TETAP SAMA, cuma dipindah ke dalam 1 grup baru
+          navgrp-management. Fitur "Urutan Menu di Home Mobile & Sidebar Desktop" (Config
+          Akses) DIBEKUKAN sementara— lihat js/auth.js dekat window.terapkanUrutanMenuDesktop
+          dan js/vue-config-akses.js.
+        -->
         <button onclick="toggleNavGroup('navgrp-management')" id="menu-management" data-group="navgrp-management" class="hidden gc-nav-item" style="font-weight:700;">
           <i class="fas fa-users-gear gc-nav-gico"></i> Management <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
@@ -250,77 +200,43 @@
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-databahan', this, {catatRiwayat:true}); pindahSubTab('sub-zh-databahan','sub-zh-databahan-entry', null, {catatRiwayat:true})" id="menu-zevanic-house-btn" data-menu-ids="bahan_aksesoris_entry,bahan_aksesoris_list" data-target="sub-zevanic-house-databahan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-shirt" style="width:17px; text-align:center;"></i> Data Bahan &amp; Aksesoris
           </button>
-          <!-- BARU (5 Sep 2026) — Master Suplayer: lihat js/vue-master-
-               suplayer.js. GANTI TOTAL dari 2 tempat lama yang tercerai-
-               berai (Config > Data Suplayer, Stock & Pembelian > Alias
-               Pembelian) — CRUD Suplayer + Alias & MOQ + Petakan Order
-               sekarang SATU tempat di sini. -->
+          <!--
+            Master Suplayer: lihat js/vue-master- suplayer.js. dari 2 tempat lama yang
+            tercerai- berai (Config > Data Suplayer, Stock & Pembelian > Alias Pembelian) —
+            CRUD Suplayer + Alias & MOQ + Petakan Order sekarang SATU tempat di sini.
+          -->
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-suplayer', this, {catatRiwayat:true}); pindahSubTab('sub-zh-suplayer','sub-zh-suplayer-entry', null, {catatRiwayat:true})" id="menu-zevanic-suplayer-btn" data-menu-ids="suplayer_entry,suplayer_alias_moq,suplayer_petakan_order" data-target="sub-zevanic-house-suplayer" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-truck-fast" style="width:17px; text-align:center;"></i> Master Suplayer
           </button>
-          <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-
-               master-produk.js. -->
+          <!-- Master Produk (BOM): lihat js/vue- master-produk.js. -->
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-produk', this, {catatRiwayat:true}); pindahSubTab('sub-zh-produk','sub-zh-produk-entry', null, {catatRiwayat:true})" id="menu-zevanic-produk-btn" data-menu-ids="master_produk_entry,master_produk_list,master_produk_hpp" data-target="sub-zevanic-house-produk" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-layer-group" style="width:17px; text-align:center;"></i> Master Produk
           </button>
-          <!-- BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4)
-               — Master Pelanggan: koleksi & menu BARU TOTAL, lihat js/vue-
-               master-pelanggan.js. Single-view (list + popup form), tidak
-               ada sub-tab di dalamnya (pola sama seperti Persiapan Masalah). -->
+          <!--
+            Master Pelanggan: koleksi & menu lihat js/vue- master-pelanggan.js. Single-view
+            (list + popup form), tidak ada sub-tab di dalamnya (pola sama seperti Persiapan
+            Masalah).
+          -->
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-pelanggan', this, {catatRiwayat:true})" id="menu-zevanic-pelanggan-btn" data-menu-id="master_pelanggan" data-target="sub-zevanic-house-pelanggan" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-address-book" style="width:17px; text-align:center;"></i> Master Pelanggan
           </button>
-          <!-- DIPINDAH (9 Sep 2026, rombak ke-2, permintaan Guru) — Config
-               GESER ke PALING BAWAH grup ini (dulu paling atas, lihat
-               komentar banner sidebar di atas). Lihat js/vue-config.js. -->
+          <!-- Config GESER ke PALING BAWAH grup ini ( Lihat js/vue-config.js. -->
           <button onclick="pindahTab('tab-zevanic-house'); pindahSubTab('sub-zevanic-house','sub-zevanic-house-config', this); pindahSubTab('sub-zh-config','sub-zh-config-jenisbahan')" id="menu-zevanic-config-btn" data-menu-id="config_master_data" class="sub-zevanic-house-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-sliders" style="width:17px; text-align:center;"></i> Config
           </button>
-          <!-- DIHAPUS TOTAL (9 Sep 2026, rombak ke-2, keputusan final Guru) —
-               tombol & div konten "Persiapan Masalah" (board manual lama,
-               koleksi `permintaan_bahan_manual`) dihapus. Sempat ditahan
-               karena koleksinya masih dipakai Nota Order Belanja — Guru
-               konfirmasi jalur PENGGANTINYA: Persiapan Produksi > Masalah
-               (persiapan_masalah, status diajukan_belanja) -> Persiapan
-               Belanja "Cek Pengajuan" (SUDAH ADA, lihat js/vue-persiapan-
-               belanja.js baris ~241) -> generate order_belanja_driver saat
-               disetujui -> Driver beli (status 'dibeli' + foto_bon). CATATAN
-               GAP: leg TERAKHIR (order_belanja_driver/pending_driver ->
-               Nota Order Belanja) BELUM ada kode yang menyambungkannya —
-               js/vue-stock-pembelian.js tidak baca 2 koleksi itu sama
-               sekali. Sampai leg itu dibangun, hasil belanja driver TIDAK
-               otomatis nongol di Nota Order Belanja (dulu di path lama,
-               permintaan_bahan_manual otomatis masuk tabel situ). Lihat
-               claude/STATUS-PROYEK.md. File js/vue-persiapan-masalah.js
-               DIHAPUS, id menu 'persiapan_masalah' di Config Akses
-               diset deprecated:true (bukan dihapus, supaya izin role lama
-               tidak yatim, lihat js/vue-config-akses.js). -->
-          <!-- DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan") — Order SPK
-               PINDAH TOTAL ke grup "Pesanan > Menunggu Proses" di bawah
-               (lihat js/vue-pesanan.js, js/vue-config-akses.js id
-               'order_spk' deprecated:true). Tombol & div konten lama
-               DIHAPUS dari sini (bukan cuma disembunyikan) — pola SAMA
-               seperti persiapan_produksi_* lama yang dicopot pas koreksi
-               arsitektur menu 29 Agt 2026. -->
-          <!-- DIPINDAH (7 Sep 2026 malam) — "Scan" (Scan Opname + Scan
-               Persiapan) pindah keluar dari Zevanic House ke menu top-level
-               BARU "Scan & Cetak" (wireframe "05 - Scan dan Cetak" grup 1
-               "Scan Stok" — 2 fitur ini SUDAH LIVE sebelumnya, cuma
-               dipindah lokasinya, logic-nya TIDAK disentuh). Tombol lama
-               DIHAPUS dari sini, lihat navgrp-scancetak di bawah. -->
+          <!--
+            "Scan" (Scan Opname + Scan Persiapan) pindah keluar dari Zevanic House ke menu
+            top-level "Scan & Cetak" (wireframe "05 - Scan dan Cetak" grup 1 "Scan Stok" — 2
+            fitur ini SUDAH LIVE Tombol lama DIHAPUS dari sini, lihat navgrp-scancetak di
+            bawah.
+          -->
         </div>
-        <!-- DIROMBAK (9 Sep 2026, rombak sidebar ke-2, permintaan Guru) — dulu
-             cuma 1 tombol umum ("pola sama seperti Master Absensi/Keuangan/
-             Karyawan dulu") yang lempar ke tab, lalu tab-strip 5 pilihan
-             (Daftar Nota/Riwayat Harga/Kartu Stok/Rak Penyimpanan/Repack)
-             ada DI DALAM halaman. SEKARANG 5 tombol ini naik LANGSUNG ke
-             sidebar (pola sama seperti Pesanan/Persiapan Produksi) — tab-
-             strip lama di dalam halaman DICOPOT (redundan), div konten +
-             id internal (sub-zh-stock-*) TIDAK berubah sama sekali, cuma
-             navigasinya sekarang murni dari sidebar. Class tombol tetap
-             "sub-zh-stock-btn" (SAMA seperti dulu di tab-strip) — pindah-
-             SubTab() class-based, jadi tombol di sidebar & div konten tetap
-             nyambung tanpa kode baru. -->
+        <!--
+          SEKARANG 5 tombol ini naik LANGSUNG ke sidebar (pola sama seperti Pesanan/Persiapan
+          Produksi) — tab- strip lama di dalam halaman DICOPOT (redundan), div konten + id
+          internal (sub-zh-stock-*) TIDAK berubah sama sekali, cuma navigasinya sekarang murni
+          dari sidebar. Class tombol tetap "sub-zh-stock-btn" (SAMA seperti
+        -->
         <button onclick="toggleNavGroup('navgrp-stokpembelian')" id="menu-stok-pembelian" data-group="navgrp-stokpembelian" class="hidden gc-nav-item" style="font-weight:700;">
           <i class="fas fa-truck-ramp-box gc-nav-gico"></i> Stok dan Pembelian <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
@@ -342,17 +258,15 @@
           </button>
         </div>
 
-        <!-- REKONSTRUKSI (7 Sep 2026, handoff "Pesanan dan Transaksi") —
-             grup top-level "Pesanan" (sejajar Zevanic House/Persiapan
-             Produksi), lihat js/vue-pesanan.js utk latar belakang & 7
-             keputusan Guru lengkap. 4 sub-menu: Penjualan Kasir (1.1/1.2),
-             Menunggu Proses (2.1, KHUSUS Owner/PIC Owner, keputusan QO —
-             BUKAN lagi form CRUD SPK manual), Daftar Pesanan (3.1/3.2/3.2.1,
-             BARU, GANTI 3 ringkasan lama Proses Persiapan/Produksi/
-             Pengiriman yang DIHAPUS TOTAL), Transaksi Keuangan (4.1-4.2.2,
-             BARU TOTAL, piutang). Posisi grup DIPINDAH (9 Sep, rombak sidebar
-             ke-2, permintaan Guru) — sekarang setelah Stok dan Pembelian,
-             tetap sebelum Persiapan Produksi. -->
+        <!--
+          grup top-level "Pesanan" (sejajar Zevanic House/Persiapan Produksi), lihat
+          js/vue-pesanan.js utk latar belakang & 7. 4 sub-menu: Penjualan Kasir (1.1/1.2),
+          Menunggu Proses (2.1, KHUSUS Owner/PIC Owner, keputusan QO — BUKAN lagi form CRUD
+          SPK manual), Daftar Pesanan (3.1/3.2/3.2.1, GANTI 3 ringkasan lama Proses
+          Persiapan/Produksi/ Pengiriman yang DIHAPUS TOTAL), Transaksi Keuangan (4.1-4.2.2,
+          piutang). Posisi grup sekarang setelah Stok dan Pembelian, tetap sebelum Persiapan
+          Produksi.
+        -->
         <button onclick="toggleNavGroup('navgrp-pesanan')" id="menu-pesanan" data-group="navgrp-pesanan" class="hidden gc-nav-item" style="font-weight:700;">
           <i class="fas fa-receipt gc-nav-gico"></i> Pesanan <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
@@ -370,21 +284,16 @@
             <i class="fas fa-file-invoice-dollar" style="width:17px; text-align:center;"></i> Transaksi Keuangan
           </button>
         </div>
-        <!-- BARU (29 Agt 2026, koreksi arsitektur menu — permintaan Guru:
-             "ralat mending bikin group menu baru namanya Persiapan Produksi
-             supaya tersusun rapih ... sejajar dengan zevanic house").
-             GRUP TOP-LEVEL BARU (sejajar Master Absensi/Keuangan/Karyawan/
-             Zevanic House/Integrasi) — GANTI TOTAL dari versi lama yang
-             nested di dalam Zevanic House (js/vue-persiapan-produksi.js,
-             DITINGGALKAN, lihat STATUS-PROYEK.md §44.13 & RENCANA-
-             PERSIAPAN-PRODUKSI-V2.md). 6 sub-menu sejajar (Perlu Disiapkan,
-             Vendor, Bahan, Acc Sewing, Acc Webbing, Acc Finishing) — 5
-             jalur terakhir MASING-MASING punya child-tab 5 tahap pipeline
-             (Perlu Diproses -> Sedang Diproses -> Perlu Dikirim -> Sedang
-             Dikirim -> Selesai), lihat js/vue-persiapan-produksi-v2.js.
-             Fase 1 (SEKARANG): cuma "Perlu Disiapkan" (generator SPK
-             Grouping) yang fungsional — 5 jalur BARU struktur navigasi,
-             isinya placeholder "segera hadir" sampai Fase 2-5. -->
+        <!--
+          (sejajar Master Absensi/Keuangan/Karyawan/ Zevanic House/Integrasi) — dari js, lihat
+          STATUS-PROYEK.md §44.13 & RENCANA- PERSIAPAN-PRODUKSI-V2.md). 6 sub-menu sejajar
+          (Perlu Disiapkan, Vendor, Bahan, Acc Sewing, Acc Webbing, Acc Finishing) — 5 jalur
+          terakhir MASING-MASING punya child-tab 5 tahap pipeline (Perlu Diproses -> Sedang
+          Diproses -> Perlu Dikirim -> Sedang Dikirim -> Selesai), lihat
+          js/vue-persiapan-produksi-v2.js. Fase 1 (SEKARANG): cuma "Perlu Disiapkan"
+          (generator SPK Grouping) yang fungsional — 5 jalur struktur navigasi, isinya
+          placeholder "segera hadir" sampai Fase 2-5.
+        -->
         <button onclick="toggleNavGroup('navgrp-persiapanproduksi')" id="menu-persiapan-produksi" data-group="navgrp-persiapanproduksi" class="hidden gc-nav-item" style="font-weight:700;">
           <i class="fas fa-diagram-project gc-nav-gico"></i> Persiapan Produksi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
@@ -407,25 +316,24 @@
           <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-finishing', this, {catatRiwayat:true}); pindahSubTab('sub-pp-finishing-tahap','sub-pp-finishing-perludisiapkan', null, {catatRiwayat:true})" id="menu-pp-finishing-btn" data-menu-id="pp_finishing" data-target="sub-pp-finishing" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-check-double" style="width:17px; text-align:center;"></i> Acc Finishing
           </button>
-          <!-- BARU (7 Sep 2026, §5.18) — Masalah, langkah 6 rencana rekonstruksi. -->
+          <!-- Masalah, langkah 6 rencana rekonstruksi. -->
           <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-masalah', this, {catatRiwayat:true}); pindahSubTab('sub-pp-masalah-tahap','sub-pp-masalah-perludiajukan', null, {catatRiwayat:true})" id="menu-pp-masalah-btn" data-menu-id="pp_masalah" data-target="sub-pp-masalah" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-triangle-exclamation" style="width:17px; text-align:center;"></i> Masalah
           </button>
-          <!-- BARU (7 Sep 2026) — Persiapan Belanja, folder terakhir grup
-               Persiapan Produksi per PEDOMAN-SERAH-TERIMA.md. Lihat
-               js/vue-persiapan-belanja.js untuk dokumentasi arsitektur. -->
+          <!--
+            Persiapan Belanja, folder terakhir grup Persiapan Produksi per . Lihat
+            js/vue-persiapan-belanja.js untuk dokumentasi arsitektur.
+          -->
           <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-belanja', this, {catatRiwayat:true}); pindahSubTab('sub-pp-belanja-tahap','sub-pp-belanja-persiapanadmin', null, {catatRiwayat:true})" id="menu-pp-belanja-btn" data-menu-id="pp_belanja" data-target="sub-pp-belanja" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-cart-shopping" style="width:17px; text-align:center;"></i> Persiapan Belanja
           </button>
         </div>
-        <!-- BARU (7 Sep 2026 malam lanjut lagi, Proses Produksi mulai — atas
-             instruksi Guru "retrofit Scan Masalah supaya clear lanjut ke
-             proses produksi"). GRUP TOP-LEVEL BARU (sejajar Persiapan
-             Produksi/Scan & Cetak), 5 sub-menu sejajar (Cutting/Serie/
-             Sewing/Finishing/Gudang Barang Jadi) — SAMA pola Fase 1
-             Persiapan Produksi 29 Agt 2026 (cuma 1 sub-menu fungsional,
-             sisanya placeholder "segera hadir"). Cuma Cutting yang
-             fungsional di commit ini (js/vue-pp-cutting.js, 7 tab). -->
+        <!--
+          (sejajar Persiapan Produksi/Scan & Cetak), 5 sub-menu sejajar (Cutting/Serie/
+          Sewing/Finishing/Gudang Barang Jadi) — SAMA pola Fase 1 Persiapan Produksi (cuma 1
+          sub-menu fungsional, sisanya placeholder "segera hadir"). Cuma Cutting yang
+          fungsional di commit ini (js/vue-pp-cutting.js, 7 tab).
+        -->
         <button onclick="toggleNavGroup('navgrp-prosesproduksi')" id="menu-proses-produksi" data-group="navgrp-prosesproduksi" class="hidden gc-nav-item" style="font-weight:700;">
           <i class="fas fa-industry gc-nav-gico"></i> Proses Produksi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
@@ -446,18 +354,16 @@
             <i class="fas fa-warehouse" style="width:17px; text-align:center;"></i> Gudang Barang Jadi
           </button>
         </div>
-        <!-- BARU (7 Sep 2026 malam) — grup top-level "Scan & Cetak" (sejajar
-             Zevanic House/Pesanan/Persiapan Produksi), handoff "05 - Scan dan
-             Cetak", dikerjakan via /design-terapkan-handoff atas instruksi
-             Guru: "kerjakan terapkan dan seluruh turunannya". 4 sub-tab
-             mengikuti 4 grup wireframe: Scan Stok (Scan Opname + Scan
-             Persiapan, DIPINDAH dari Zevanic House, logic tidak berubah),
-             Referensi Scan (katalog baca-saja jenis-jenis scan generik —
-             scan SUNGGUHAN tetap di tiap pos Persiapan/Proses Produksi,
-             lihat js/vue-scan-cetak.js ScanGenerik), Cetak (katalog label/
-             lembar cetak + Cetak Label Produk, sebagian BELUM dibangun —
-             lihat catatan di tab-nya), PIN (Riwayat PIN, DIPINDAH dari
-             Zevanic House > Config). -->
+        <!--
+          grup top-level "Scan & Cetak" (sejajar Zevanic House/Pesanan/Persiapan Produksi),
+          handoff "05 - Scan dan Cetak", dikerjakan via /design-terapkan-handoff. 4 sub-tab
+          mengikuti 4 grup wireframe: Scan Stok (Scan Opname + Scan Persiapan, DIPINDAH dari
+          Zevanic House, logic tidak berubah), Referensi Scan (katalog baca-saja jenis-jenis
+          scan generik — scan SUNGGUHAN tetap di tiap pos Persiapan/Proses Produksi, lihat
+          js/vue-scan-cetak.js ScanGenerik), Cetak (katalog label/ lembar cetak + Cetak Label
+          Produk, sebagian BELUM dibangun — lihat catatan di tab-nya), PIN (Riwayat PIN,
+          DIPINDAH dari Zevanic House > Config).
+        -->
         <button onclick="toggleNavGroup('navgrp-scancetak')" id="menu-scan-cetak" data-group="navgrp-scancetak" class="hidden gc-nav-item" style="font-weight:700;">
           <i class="fas fa-qrcode gc-nav-gico"></i> Scan &amp; Cetak <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
@@ -490,28 +396,20 @@
           </button>
         </div>
       </nav>
-      <!-- BARU (30 Agt 2026, ronde audit desain) — footer sidebar PERSIS
-           pola mockup `.sb-foot`: avatar inisial + nama+subjudul (pindahan
-           #teks-nama-user dari topbar, lihat komentar di atas) + tombol
-           tema, sebaris kiri-bawah. Tombol tema pakai ulang
-           window.toggleTema() yang sudah ada, BUKAN logic tema baru —
-           lihat window.toggleTemaSidebarDesktop()/perbaruiAvatarSidebarDesktop()
-           di js/dashboard.js.
-           REVISI (30 Agt 2026, ronde audit desain lanjutan) — Guru bandingkan
-           screenshot live vs mockup: mockup `.sb-who` punya 2 baris (nama +
-           subjudul "SOG27A · Gudang Utama" = shift · gudang), live cuma 1
-           baris nama + prefix "Hi, " (pas dulu di topbar sebagai sapaan,
-           SEKARANG janggal di sini sebagai chip identitas). Prefix "Hi, "
-           DICOPOT (js/auth.js/dashboard.js), ditambah baris subjudul BARU
-           #teks-info-sidebar-desktop — data-nya PAKAI ULANG field yang
-           SUDAH ADA di window.currentUser (nama_shift, gudang_penempatan
-           via window.normalisasiGudang — SAMA seperti dipakai Kartu Absen
-           `js/vue-home-desktop.js`), BUKAN fetch Firestore baru.
-           REVISI LAGI (30 Agt 2026, ronde audit desain lanjutan lagi) —
-           tombol Logout DICOPOT dari sini (permintaan Guru eksplisit:
-           footer sidebar cukup nama+tema saja), DIPINDAH jadi icon-only
-           di topbar sebelah lonceng (`#btnLogoutDesktop`, lihat header
-           di bawah). -->
+      <!--
+        footer sidebar PERSIS pola mockup `.sb-foot`: avatar inisial + nama+subjudul (pindahan
+        #teks-nama-user dari topbar, lihat komentar di atas) + tombol tema, sebaris
+        kiri-bawah. Tombol tema pakai ulang window.toggleTema yang sudah ada, BUKAN logic tema
+        lihat window.toggleTemaSidebarDesktop/perbaruiAvatarSidebarDesktop di js/dashboard.js.
+        bandingkan screenshot live vs mockup: mockup `.sb-who` punya 2 baris (nama + subjudul
+        "SOG27A · Gudang Utama" = shift · gudang), live cuma 1 baris nama + prefix "Hi, " (pas
+        Prefix "Hi, " DICOPOT (js/auth.js/dashboard.js), ditambah baris subjudul
+        #teks-info-sidebar-desktop — data-nya PAKAI ULANG field yang SUDAH ADA di
+        window.currentUser (nama_shift, gudang_penempatan via window.normalisasiGudang — SAMA
+        seperti dipakai Kartu Absen `js/vue-home-desktop.js`), BUKAN fetch Firestore baru.
+        LAGI — tombol Logout DICOPOT dari sini, DIPINDAH jadi icon-only di topbar sebelah
+        lonceng (`#btnLogoutDesktop`, lihat header di bawah).
+      -->
       <div style="padding-top:14px; border-top:1px solid var(--pink-deep); display:flex; flex-direction:column; gap:9px;">
         <div style="display:flex; align-items:center; gap:9px;">
           <div id="sidebarAvatarInisial" class="gc-side-av">--</div>
@@ -527,39 +425,32 @@
     </aside>
 
     <div class="flex-1 flex flex-col relative h-full overflow-hidden">
-      <!-- REDESAIN (30 Agt 2026) — GANTI header statis "ERP Portal" jadi
-           topbar baru (mengikuti mockup "Zevanic Desktop Adaptasi"):
-           tambah lonceng notifikasi Pengumuman (persis pola
-           js/vue-header-mobile.js — BUKAN carousel lagi di body Beranda,
-           lihat #vue-beranda-desktop).
-           REVISI (30 Agt 2026, sesi lanjutan) — h2 "ERP Portal" +
-           #label-badge-role (badge countdown shift lama, hardcode "01:00"
-           utk semua orang, js/dashboard.js mulaiHitungJamKerja()) DICOPOT
-           dari sini, diganti breadcrumb gaya mockup (.gc-crumb). Statis
-           "Umum › Beranda" dulu — baru Beranda yang punya versi desktop,
-           belum ada routing breadcrumb dinamis per-layar. #teks-nama-user
-           DIPINDAH (30 Agt 2026, ronde audit desain — Guru lapor nama
-           harusnya di pojok KIRI-BAWAH sidebar, persis mockup `.sb-foot`,
-           BUKAN pojok kanan-atas topbar) ke footer sidebar (lihat
-           `.gc-side-av`/#sidebarAvatarInisial di bawah) — id-nya
-           DIPERTAHANKAN persis, cuma pindah lokasi DOM, isi tetap diisi
-           js/auth.js & js/dashboard.js seperti biasa. js/auth.js sudah
-           diberi null-guard kalau #label-badge-role dicari lagi. -->
+      <!--
+        GANTI header statis "ERP Portal" jadi topbar baru (mengikuti mockup "Zevanic Desktop
+        Adaptasi"): tambah lonceng notifikasi Pengumuman (persis pola js/vue-header-mobile.js
+        — BUKAN carousel lagi di body Beranda, lihat #vue-beranda-desktop). h2 "ERP Portal" +
+        #label-badge-role (badge countdown shift lama, hardcode "01:00" utk semua orang,
+        js/dashboard.js mulaiHitungJamKerja) DICOPOT dari sini, diganti breadcrumb gaya mockup
+        (.gc-crumb). Statis "Umum › Beranda" #teks-nama-user DIPINDAH ke footer sidebar (lihat
+        `.gc-side-av`/#sidebarAvatarInisial di bawah) — id-nya DIPERTAHANKAN persis, cuma
+        pindah lokasi DOM, isi tetap diisi js/auth.js & js/dashboard.js seperti biasa.
+        js/auth.js sudah diberi null-guard kalau #label-badge-role dicari lagi.
+      -->
       <header class="gc-topbar-desktop hidden md:flex shrink-0" style="z-index:10;">
         <div class="gc-crumb">
           <span>Umum</span><i class="fas fa-chevron-right gc-crumb-mid"></i><b>Beranda</b>
         </div>
-        <!-- REVISI (30 Agt 2026, sesi lanjutan) — pencarian global REAL
-             (bukan cuma visual), lihat js/dashboard.js paletPencarianGlobal()
-             + komentar `.gc-search-global` di CSS. -->
+        <!--
+          pencarian global REAL (bukan cuma visual), lihat js/dashboard.js
+          paletPencarianGlobal + komentar `.gc-search-global` di CSS.
+        -->
         <button type="button" class="gc-search-global" id="btnPaletDesktop">
           <i class="fas fa-magnifying-glass"></i><span>Cari menu atau data...</span><kbd>Ctrl K</kbd>
         </button>
-        <!-- BARU (30 Agt 2026, ronde audit desain lanjutan) — tombol Export,
-             persis mockup `.btn-export`. STATIS SAJA (tanpa onclick), sesuai
-             permintaan Guru eksplisit: "tampilkan dulu, bangun nanti — fake
-             aja dulu tombol statis tanpa feedback". JANGAN tambah logic
-             export tanpa keputusan lanjutan Guru (mau export apa/dari mana). -->
+        <!--
+          tombol Export, persis mockup `.btn-export`. STATIS SAJA (tanpa onclick), sesuai—
+          fake aja JANGAN tambah logic export tanpa keputusan (mau export apa/dari mana).
+        -->
         <button type="button" class="gc-btn-export" title="Segera hadir">
           <i class="fas fa-arrow-up-from-bracket"></i> Export
         </button>
@@ -571,11 +462,10 @@
             <div id="notifListDesktop"></div>
           </div>
         </div>
-        <!-- BARU (30 Agt 2026, ronde audit desain lanjutan) — Logout
-             DIPINDAH dari footer sidebar ke sini (icon-only, sebelah
-             lonceng, permintaan Guru eksplisit: "logout icon depan
-             samping kanan saja samping lonceng"). Footer sidebar
-             sekarang cuma avatar+nama+tombol tema (lihat di bawah). -->
+        <!--
+          Logout DIPINDAH dari footer sidebar ke sini . Footer sidebar sekarang cuma
+          avatar+nama+tombol tema (lihat di bawah).
+        -->
         <button type="button" class="gc-notif-btn" id="btnLogoutDesktop" onclick="logout()" title="Logout" style="margin-left:8px; color:var(--danger);">
           <i class="fas fa-right-from-bracket"></i>
         </button>
@@ -587,32 +477,32 @@
         </div>
       </div>
 
-      <!-- BARU (30 Agt 2026, ronde audit desain lanjutan) — kelas
-           `gc-main-desktop` DITAMBAH khusus supaya area konten desktop
-           bisa dikasih background putih (`--surface`) TERPISAH dari
-           `#screen-dashboard` (tetap ivory, dipakai MOBILE — TIDAK
-           disentuh). Lihat blok `@media(min-width:768px)` di
-           css/gechoo-design.css. -->
+      <!--
+        kelas `gc-main-desktop` DITAMBAH khusus supaya area konten desktop bisa dikasih
+        background putih (`--surface`) TERPISAH dari `#screen-dashboard` (tetap ivory, dipakai
+        MOBILE — TIDAK disentuh). Lihat blok `@media(min-width:768px)` di
+        css/gechoo-design.css.
+      -->
       <main class="gc-main-desktop flex-1 overflow-y-auto p-4 md:p-8 pb-32 md:pb-8 min-h-0">
 
-        <!-- Header mobile dinamis (Kotak 1) — 1 komponen dipakai di SEMUA
-             tab, isinya berubah otomatis (Home vs halaman lain). Lihat
-             js/vue-header-mobile.js. Tidak dibungkus per-tab karena
-             komponennya sendiri sudah baca window.aturHeaderKonteks. -->
+        <!--
+          Header mobile dinamis (Kotak 1) — 1 komponen dipakai di SEMUA tab, isinya berubah
+          otomatis (Home vs halaman lain). Lihat js/vue-header-mobile.js. Tidak dibungkus
+          per-tab karena komponennya sendiri sudah baca window.aturHeaderKonteks.
+        -->
         <div id="vue-header-mobile" class="max-w-xl mx-auto w-full md:hidden"></div>
 
-        <!-- REDESAIN (30 Agt 2026) — #tab-home SEKARANG TIDAK max-w-xl lagi
-             di level ini (dulu membungkus versi desktop JUGA, bikin
-             dashboard-nya kepaksa selebar mobile). Constraint max-w-xl
-             dipindah TURUN, cuma bungkus blok mobile-nya sendiri. Blok
-             desktop lama (banner sambutan + PengumumanCarousel/QuoteCard,
-             lihat js/vue-home-desktop.js versi lama) GANTI TOTAL jadi
-             dashboard Beranda desktop sungguhan (KPI/Pipeline/Perlu
-             Tindakan/Quote/notif lonceng topbar) — lihat komponen
-             BerandaDesktop di js/vue-home-desktop.js. -->
+        <!--
+          #tab-home SEKARANG TIDAK max-w-xl lagi di level ini ( Constraint max-w-xl dipindah
+          TURUN, cuma bungkus blok mobile-nya sendiri. Blok desktop lama (banner sambutan +
+          PengumumanCarousel/QuoteCard, lihat js/vue-home-desktop.js js.
+        -->
         <div id="tab-home" class="w-full">
           <div id="vue-beranda-desktop" class="hidden md:block"></div>
-          <!-- Mobile: hub menu lengkap (Shortcut + grup menu per role + Pengumuman). Lihat js/vue-home.js -->
+          <!--
+            Mobile: hub menu lengkap (Shortcut + grup menu per role + Pengumuman). Lihat
+            js/vue-home.js
+          -->
           <div class="max-w-xl mx-auto w-full md:hidden">
             <div id="vue-home"></div>
           </div>
@@ -623,9 +513,10 @@
           <div id="vue-scan-qr"></div>
         </div>
 
-        <!-- BARU (28 Agt 2026, redesain "Gechoo Mobile Organic") — layar baru,
-             dibuka dari js/vue-home.js (tombol "Lihat Semua Menu"/"Atur
-             Favorit"). Lihat js/vue-menu-lengkap.js & js/vue-atur-favorit.js. -->
+        <!--
+          dibuka dari js/vue-home.js (tombol "Lihat Semua Menu"/"Atur Favorit"). Lihat
+          js/vue-menu-lengkap.js & js/vue-atur-favorit.js.
+        -->
         <div id="tab-menu-lengkap" class="tab-content hidden fade-in md:hidden">
           <div id="vue-menu-lengkap"></div>
         </div>
@@ -642,23 +533,14 @@
         </div>
 
         <div id="tab-profil" class="tab-content hidden fade-in max-w-5xl mx-auto h-full flex flex-col space-y-4">
-          <!-- MIGRASI VUE: lihat js/vue-account-profile.js (Account, Data Karyawan, Absensi, Pencapaian, Keamanan, Aju Banding) -->
+          <!--
+            MIGRASI VUE: lihat js/vue-account-profile.js (Account, Data Karyawan, Absensi,
+            Pencapaian, Keamanan, Aju Banding)
+          -->
           <div id="vue-account-profile"></div>
         </div>
 
-
         <div id="tab-admin-acc" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
-        <!-- DIHAPUS (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, dari
-             cek live Guru di HP) — kartu deskripsi "Management & validasi
-             absensi" (h2+p) itu leftover header gaya desktop lama, dari
-             awal TIDAK PERNAH ada di rencana desain mobile (HeaderLayar
-             sudah komunikasikan info yang sama), cuma baru ketahuan masih
-             nongol live saat Guru cek langsung di HP. Baris navigasi
-             sub-tab desktop di bawah TETAP DIPERTAHANKAN 100% sama —
-             cuma wrapper .gc-card-nya sekarang IKUT disembunyikan di
-             mobile (hidden md:block) supaya tidak ada kartu kosong nongol
-             di HP begitu h2/p-nya hilang (nav-nya sendiri sudah "hidden
-             md:flex" dari awal, jadi TIDAK PERNAH tampil di mobile). -->
         <div class="gc-card hidden md:block">
           <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar hide-scrollbar">
             <button onclick="pindahSubTab('sub-absensi', 'sub-absensi-config', this, {catatRiwayat:true})" class="sub-absensi-btn gc-sub-tab-btn" data-menu-id="config_absensi" data-target="sub-absensi-config"><i class="fas fa-cogs" style="margin-right:6px;"></i> Config Absensi</button>
@@ -679,14 +561,13 @@
           <div id="vue-penjadwalan"></div>
         </div>
 
-
         <div id="sub-absensi-accept" class="sub-absensi-content fade-in space-y-4">
            <!-- MIGRASI VUE: lihat js/vue-antrean-absensi.js -->
            <div id="vue-antrean-absensi"></div>
         </div>
 
         <div id="sub-absensi-lembur" class="sub-absensi-content hidden fade-in space-y-4">
-           <!-- Antrean Izin/Cuti/Lembur (gabungan, 9 Sep 2026): lihat js/vue-antrean-lembur.js -->
+           <!-- Antrean Izin/Cuti/Lembur : lihat js/vue-antrean-lembur.js -->
            <div id="vue-antrean-lembur"></div>
         </div>
 
@@ -715,12 +596,14 @@
           </div>
 
           <div id="sub-keuangan-kategori" class="sub-keuangan-content hidden fade-in space-y-4">
-            <!-- Master Keuangan (Kategori Pengeluaran & Pemasukan): lihat js/vue-reimburse.js -->
+            <!--
+              Master Keuangan (Kategori Pengeluaran & Pemasukan): lihat js/vue-reimburse.js
+            -->
             <div id="vue-master-keuangan"></div>
           </div>
 
           <div id="sub-keuangan-riwayat-reimburse" class="sub-keuangan-content hidden fade-in space-y-4">
-            <!-- Riwayat Keuangan (gabungan Umum+Bensin+Servis, 9 Sep 2026): lihat js/vue-reimburse.js -->
+            <!-- Riwayat Keuangan : lihat js/vue-reimburse.js -->
             <div id="vue-riwayat-reimburse"></div>
           </div>
       </div>
@@ -733,12 +616,11 @@
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-config', this)" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="config_karyawan">Config Karyawan</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-info', this)" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="config_info">Config Info</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-data', this, {catatRiwayat:true})" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="daftar_karyawan" data-target="sub-karyawan-data">Daftar Karyawan</button>
-            <!-- GABUNG (9 Sep 2026) — Config Akses + Hak Akses jadi 1 sub-tab
-                 "Akses & Keamanan" dengan 3 pill tab di dalamnya (Role/Jabatan/
-                 Assign). Dua layar lama TETAP hidup persis seperti sebelumnya
-                 (div #vue-config-akses & #vue-hak-akses tidak diubah sama
-                 sekali), cuma dibungkus 1 shell + ditambah 1 tab baru
-                 (Jabatan). Lihat js/vue-config-akses.js window.pindahPillAksesKeamanan. -->
+            <!--
+              Config Akses + Hak Akses jadi 1 sub-tab "Akses & Keamanan" dengan 3 pill tab di
+              dalamnya (Role/Jabatan/ Assign). Dua layar lama TETAP hidup persis seperti Lihat
+              js/vue-config-akses.js window.pindahPillAksesKeamanan.
+            -->
             <button id="btn-sub-karyawan-akseskeamanan" onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-akseskeamanan', this, {catatRiwayat:true})" class="sub-karyawan-btn gc-sub-tab-btn hidden" data-menu-id="akses_keamanan">Akses & Keamanan</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-slip', this)" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="slip_gaji">Slip Gaji</button>
             <button onclick="pindahSubTab('sub-karyawan', 'sub-karyawan-payroll', this)" class="sub-karyawan-btn gc-sub-tab-btn" data-menu-id="payroll">Payroll</button>
@@ -750,14 +632,18 @@
           </div>
 
           <div id="sub-karyawan-config" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
-            <!-- MIGRASI VUE: halaman pertama yang pindah dari vanilla JS ke Vue
-                 (CDN, tanpa build). Lihat js/vue-config-karyawan.js -->
+            <!--
+              MIGRASI VUE: halaman pertama yang pindah dari vanilla JS ke Vue (CDN, tanpa
+              build). Lihat js/vue-config-karyawan.js
+            -->
             <div id="vue-config-karyawan"></div>
           </div>
 
           <div id="sub-karyawan-info" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
-            <!-- Config Info: kelola pengumuman yang tampil di Home mobile.
-                 Lihat js/vue-config-info.js -->
+            <!--
+              Config Info: kelola pengumuman yang tampil di Home mobile. Lihat
+              js/vue-config-info.js
+            -->
             <div id="vue-config-info"></div>
           </div>
 
@@ -767,12 +653,11 @@
           </div>
 
           <div id="sub-karyawan-akseskeamanan" class="sub-karyawan-content hidden fade-in mt-4 space-y-4">
-            <!-- GABUNG (9 Sep 2026): 3 pill tab — Role (dulu "Config Akses"),
-                 Jabatan (BARU, pembatas tambahan opt-in), Assign (dulu "Hak
-                 Akses"). Toggle plain JS (bukan Vue) di js/vue-config-akses.js
-                 window.pindahPillAksesKeamanan — konsisten dengan pola
-                 pindahSubTab di file ini (cuma toggle .hidden, TIDAK
-                 unmount/remount Vue app di dalamnya). -->
+            <!--
+              3 pill tab — Role ( Toggle plain JS (bukan Vue) di js/vue-config-akses.js
+              window.pindahPillAksesKeamanan — konsisten dengan pola pindahSubTab di file ini
+              (cuma toggle .hidden, TIDAK unmount/remount Vue app di dalamnya).
+            -->
             <div class="flex gap-2 mb-4">
               <button id="pill-akses-role" onclick="pindahPillAksesKeamanan('role')" class="gc-sub-tab-btn active">Role</button>
               <button id="pill-akses-jabatan" onclick="pindahPillAksesKeamanan('jabatan')" class="gc-sub-tab-btn">Jabatan</button>
@@ -780,21 +665,27 @@
             </div>
 
             <div id="pane-akses-role" class="fade-in">
-              <!-- Config Akses (TIDAK DIUBAH): definisikan Visibility/Create/
-                   Read/Edit/Delete per Role x Menu/Sub-menu. Lihat js/vue-config-akses.js -->
+              <!--
+                Config Akses (TIDAK DIUBAH): definisikan Visibility/Create/ Read/Edit/Delete
+                per Role x Menu/Sub-menu. Lihat js/vue-config-akses.js
+              -->
               <div id="vue-config-akses"></div>
             </div>
 
             <div id="pane-akses-jabatan" class="hidden fade-in">
-              <!-- BARU (9 Sep 2026): pembatas TAMBAHAN (AND dengan Role) per
-                   Jabatan, opt-in per menu+aksi. Lihat js/vue-config-akses.js
-                   AppJabatanAkses + js/auth.js window.muatAksesJabatanSaya. -->
+              <!--
+                pembatas TAMBAHAN (AND dengan Role) per Jabatan, opt-in per menu+aksi. Lihat
+                js/vue-config-akses.js AppJabatanAkses + js/auth.js
+                window.muatAksesJabatanSaya.
+              -->
               <div id="vue-jabatan-akses"></div>
             </div>
 
             <div id="pane-akses-assign" class="hidden fade-in">
-              <!-- Hak Akses (TIDAK DIUBAH): hubungkan Karyawan <-> Role (dari
-                   Config Akses), tampilan mirip Penjadwalan. Lihat js/vue-hak-akses.js -->
+              <!--
+                Hak Akses (TIDAK DIUBAH): hubungkan Karyawan <-> Role (dari Config Akses),
+                tampilan mirip Penjadwalan. Lihat js/vue-hak-akses.js
+              -->
               <div id="vue-hak-akses"></div>
             </div>
           </div>
@@ -818,62 +709,54 @@
         </div>
 
         <div id="tab-zevanic-house" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
-          <!-- DIROMBAK (24 Agt 2026, revisi) — 3 sub-menu (dipilih dari
-               sidebar, grup "sub-zevanic-house"): Data Bahan & Aksesoris,
-               Persiapan Masalah, Stock & Pembelian. 2 di antaranya (Data
-               Bahan & Aksesoris, Stock & Pembelian) punya CHILD MENU
-               sendiri — baris tombol tab DI DALAM halaman ini (pola lama,
-               dikembalikan), BUKAN naik ke sidebar, supaya sidebar tetap
-               rapi. -->
+          <!--
+            3 sub-menu (dipilih dari sidebar, grup "sub-zevanic-house"): Data Bahan &
+            Aksesoris, Persiapan Masalah, Stock & Pembelian. 2 di antaranya (Data Bahan &
+            Aksesoris, Stock & Pembelian) punya CHILD MENU sendiri — baris tombol tab DI DALAM
+            halaman ini (pola lama, dikembalikan), BUKAN naik ke sidebar, supaya sidebar tetap
+            rapi.
+          -->
 
-          <!-- BARU (27 Agt 2026, §26.1) — Config: 6 tab child, masing-masing
-               format entry+searchbox+table (lihat js/vue-config.js). Mulai
-               `hidden` — landing default tab-zevanic-house TETAP Data Bahan
-               & Aksesoris (tidak diubah), sama seperti sebelumnya. -->
+          <!--
+            Config: 6 tab child, masing-masing format entry+searchbox+table (lihat
+            js/vue-config.js). Mulai `hidden` — landing default tab-zevanic-house TETAP Data
+            Bahan & Aksesoris (tidak diubah), sama seperti
+          -->
           <div id="sub-zevanic-house-config" class="sub-zevanic-house-content hidden fade-in space-y-4">
-            <!-- FIX (10 Sep 2026 malam, audit visual desktop) — bug nyata "TLC &
-                 Prefix menu tidak muncul": strip ini punya 9 tombol (termasuk
-                 label terpanjang "Persiapan Untuk Tahap"), lebih lebar dari
-                 max-w-5xl (1024px) pembungkusnya. Class asli
-                 `overflow-x-auto no-scrollbar` bikin sisa tombol (termasuk TLC
-                 & Prefix, tombol PALING KANAN) ke-scroll keluar layar TANPA
-                 scrollbar terlihat sama sekali — di desktop kelihatan seolah
-                 tombolnya hilang, padahal cuma ke-scroll. Semua wiring JS
-                 (mount/menu-id/permission) sudah dicek BENAR, murni bug
-                 layout. Fix: `flex-wrap:wrap` inline KHUSUS strip ini saja
-                 (tidak menyentuh class `.no-scrollbar`/`.overflow-x-auto`
-                 yang dipakai ~20 strip tab lain di app ini, supaya strip lain
-                 yang MEMANG sengaja horizontal-scroll — mis. Serie 11 tab —
-                 tidak ikut berubah perilakunya tanpa laporan bug di sana). -->
+            <!--
+              bug nyata "TLC & Prefix menu tidak muncul": strip ini punya 9 tombol (termasuk
+              label terpanjang "Persiapan Untuk Tahap"), lebih lebar dari max-w-5xl (1024px)
+              pembungkusnya. Class asli `overflow-x-auto no-scrollbar` bikin sisa tombol
+              (termasuk TLC & Prefix, tombol PALING KANAN) ke-scroll keluar layar TANPA
+              scrollbar terlihat sama sekali — di desktop kelihatan seolah tombolnya hilang,
+              padahal cuma ke-scroll. Semua wiring JS (mount/menu-id/permission) sudah dicek
+              BENAR, murni bug layout. Fix: `flex-wrap:wrap` inline KHUSUS strip ini saja
+              (tidak menyentuh class `.no-scrollbar`/`.overflow-x-auto` yang dipakai ~20 strip
+              tab lain di app ini, supaya strip lain yang MEMANG sengaja horizontal-scroll —
+              mis. Serie 11 tab — tidak ikut berubah perilakunya tanpa laporan bug di sana).
+            -->
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar" style="flex-wrap:wrap; row-gap:8px;">
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-jenisbahan', this)" class="sub-zh-config-btn gc-sub-tab-btn active"><i class="fas fa-shirt" style="margin-right:6px;"></i> Jenis Bahan</button>
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-jenisaksesoris', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-gem" style="margin-right:6px;"></i> Jenis Aksesoris</button>
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-satuan', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-ruler" style="margin-right:6px;"></i> Data Satuan</button>
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-warna', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-palette" style="margin-right:6px;"></i> Data Warna</button>
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-ukuran', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-ruler-combined" style="margin-right:6px;"></i> Data Ukuran</button>
-              <!-- BARU (28 Agt 2026) — tab "Jenis Produk", permintaan Guru: "buat
-                   seperti data ukuran" (pola MasterDataTabelManager tampilTabel
-                   sama persis, cuma beda koleksi/label). -->
+              <!-- tab "Jenis Produk". -->
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-jenisproduk', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-shirt" style="margin-right:6px;"></i> Jenis Produk</button>
-              <!-- BARU (28 Agt 2026) — tab "Data Komponen", permintaan Guru: "mirip
-                   seperti Data Warna" (pola MasterDataTabelManager tampilTabel
-                   sama persis, cuma beda koleksi/label). -->
+              <!-- tab "Data Komponen". -->
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-komponen', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-puzzle-piece" style="margin-right:6px;"></i> Data Komponen</button>
-              <!-- BARU (28 Agt 2026) — tab "Persiapan Untuk Tahap" (dulu "Tahap
-                   Proses"), permintaan Guru: sumber DropdownCari field Tahap
-                   Proses di BOM Aksesoris (Master Produk) + filter kartu
-                   Persiapan Acc Sewing/Webbing/Finishing (menu baru Persiapan
-                   Produksi). Pola sama seperti Data Komponen di atas. -->
+              <!-- tab "Persiapan Untuk Tahap" ( Pola sama seperti Data Komponen di atas. -->
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-tahappersiapan', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-layer-group" style="margin-right:6px;"></i> Persiapan Untuk Tahap</button>
-              <!-- GANTI (5 Sep 2026) — dulu "Data Suplayer" (CRUD suplayer generik,
-                   PINDAH ke Zevanic House > Master Suplayer, lihat js/vue-master-
-                   suplayer.js). Sekarang "TLC & Prefix" — daftar titik TLC (asal/
-                   tujuan kode tugas), lihat AppConfigTlc di js/vue-config.js. -->
+              <!--
+                js). Sekarang "TLC & Prefix" — daftar titik TLC (asal/ tujuan kode tugas),
+                lihat AppConfigTlc di js/vue-config.js.
+              -->
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-tlc', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-location-dot" style="margin-right:6px;"></i> TLC &amp; Prefix</button>
-              <!-- DIPINDAH (7 Sep 2026 malam) — "Riwayat PIN" pindah ke Scan &
-                   Cetak > PIN (wireframe "05 - Scan dan Cetak" §4.1 — Riwayat
-                   PIN memang bagian grup PIN, bukan Config). Tombol & div
-                   kontennya DIHAPUS dari sini, lihat tab-scan-cetak di bawah. -->
+              <!--
+                "Riwayat PIN" pindah ke Scan & Cetak > PIN (wireframe "05 - Scan dan Cetak"
+                §4.1 — Riwayat PIN memang bagian grup PIN, bukan Config). Tombol & div
+                kontennya DIHAPUS dari sini, lihat tab-scan-cetak di bawah.
+              -->
             </div>
             <div id="sub-zh-config-jenisbahan" class="sub-zh-config-content fade-in space-y-4">
               <div id="vue-config-jenisbahan"></div>
@@ -919,16 +802,12 @@
             </div>
           </div>
 
-          <!-- DIHAPUS TOTAL (9 Sep 2026, rombak ke-2) — div konten
-               "Persiapan Masalah" (dulu di sini, mount id vue-persiapan-
-               masalah) beserta file js/vue-persiapan-masalah.js, lihat
-               komentar sidebar navgrp-zevanic di atas untuk alasan lengkap. -->
-
-          <!-- BARU (5 Sep 2026) — Master Suplayer: lihat js/vue-master-suplayer.js.
-               GANTI TOTAL dari Config > Data Suplayer (CRUD suplayer, sekarang di
-               5.1 sini) + Stock & Pembelian > Alias Pembelian (sekarang 5.2, DITAMBAH
-               field MOQ/lead time) — keduanya dihapus dari tempat lama. 5.3 Petakan
-               Order BARU total (tandai suplayer default per item). -->
+          <!--
+            Master Suplayer: lihat js/vue-master-suplayer.js. dari Config > Data Suplayer
+            (CRUD suplayer, sekarang di 5.1 sini) + Stock & Pembelian > Alias Pembelian
+            (sekarang 5.2, DITAMBAH field MOQ/lead time) — keduanya dihapus dari tempat lama.
+            5.3 Petakan Order total (tandai suplayer default per item).
+          -->
           <div id="sub-zevanic-house-suplayer" class="sub-zevanic-house-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-zh-suplayer', 'sub-zh-suplayer-entry', this, {catatRiwayat:true})" class="sub-zh-suplayer-btn gc-sub-tab-btn active" data-menu-id="suplayer_entry" data-target="sub-zh-suplayer-entry"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Entry &amp; List</button>
@@ -946,11 +825,10 @@
             </div>
           </div>
 
-
-          <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM): lihat js/vue-
-               master-produk.js. 3 tab child (Entry Produk / List Produk /
-               HPP — HPP BARU 7 Sep 2026, wireframe step 2.3, Desktop-only),
-               pola SAMA seperti Data Bahan & Aksesoris di atas. -->
+          <!--
+            Master Produk (BOM): lihat js/vue- master-produk.js. 3 tab child, pola SAMA
+            seperti Data Bahan & Aksesoris di atas.
+          -->
           <div id="sub-zevanic-house-produk" class="sub-zevanic-house-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-zh-produk', 'sub-zh-produk-entry', this, {catatRiwayat:true})" class="sub-zh-produk-btn gc-sub-tab-btn active" data-menu-id="master_produk_entry" data-target="sub-zh-produk-entry"><i class="fas fa-box-open" style="margin-right:6px;"></i> Entry Produk</button>
@@ -968,88 +846,80 @@
             </div>
           </div>
 
-          <!-- BARU (5 Sep 2026) — Master Pelanggan: lihat js/vue-master-
-               pelanggan.js. Single-view, tidak ada sub-tab bar (pola sama
-               seperti Persiapan Masalah di atas). -->
+          <!--
+            Master Pelanggan: lihat js/vue-master- pelanggan.js. Single-view, tidak ada
+            sub-tab bar (pola sama seperti Persiapan Masalah di atas).
+          -->
           <div id="sub-zevanic-house-pelanggan" class="sub-zevanic-house-content hidden fade-in space-y-4">
             <div id="vue-master-pelanggan"></div>
           </div>
 
-          <!-- DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan") — div konten
-               Order SPK lama DIHAPUS dari sini, GANTI TOTAL oleh
-               #sub-pesanan-menunggu (grup top-level baru "Pesanan", lihat
-               js/vue-pesanan.js). -->
-
-          <!-- DIPINDAH (7 Sep 2026 malam) — Scan Opname + Scan Persiapan
-               pindah ke tab-scan-cetak (menu top-level "Scan & Cetak", grup
-               "Scan Stok"). Blok lama DIHAPUS dari sini. -->
+          <!--
+            Scan Opname + Scan Persiapan pindah ke tab-scan-cetak (menu top-level "Scan &
+            Cetak", grup "Scan Stok"). Blok lama DIHAPUS dari sini.
+          -->
       </div>
-        <!-- BARU (9 Sep 2026, permintaan Guru: pisahkan Stok dan Pembelian
-             jadi grup top-level sendiri sesuai wireframe handoff "04 - Stok
-             dan Pembelian", sebelumnya nested di Zevanic House > Stock &
-             Pembelian). Konten div DIPINDAH APA ADANYA dari #tab-zevanic-house
-             (lihat komentar sidebar navgrp-stokpembelian di atas) — semua id
-             internal (sub-zh-stock-*) TIDAK berubah.
-             DIRAPIKAN (9 Sep 2026, rombak sidebar ke-2) — wadah pembungkus
-             `#sub-zevanic-house-stock` DICOPOT (BUKAN dipertahankan): itu
-             sisa dari waktu blok ini masih salah satu dari banyak panel
-             `sub-zevanic-house-content` di dalam Zevanic House, dan class
-             "hidden"-nya TIDAK PERNAH DICOPOT lagi sejak dipindah ke tab
-             top-level sendiri — TIDAK ada kode manapun yang menyasar grup
-             'sub-zevanic-house' untuk elemen ini lagi, jadi WALAUPUN
-             navigasi sidebar/tab-nya benar, seluruh isi tab ini SELALU
-             tersembunyi (blank) sejak rombak pertama pagi ini. Ditemukan
-             lewat verifikasi kode (bukan laporan Guru) saat mengerjakan
-             rombak ke-2 — belum sempat ketahuan karena Guru belum pernah
-             buka tab ini di browser. Tab-strip pill 5 tombol di dalam
-             halaman JUGA DICOPOT (redundan, navigasinya sekarang dari
-             sidebar — lihat komentar navgrp-stokpembelian). Div konten +
-             id internal (sub-zh-stock-*) TIDAK berubah sama sekali. -->
+        <!--
+          Konten div DIPINDAH APA ADANYA dari #tab-zevanic-house (lihat komentar sidebar
+          navgrp-stokpembelian di atas) — semua id internal (sub-zh-stock-*) TIDAK berubah.
+          DIRAPIKAN — wadah pembungkus `#sub-zevanic-house-stock` DICOPOT (BUKAN
+          dipertahankan): itu sisa dari waktu blok ini masih salah satu dari banyak panel
+          `sub-zevanic-house-content` di dalam Zevanic House, dan class "hidden"-nya TIDAK
+          PERNAH DICOPOT lagi sejak dipindah ke tab top-level sendiri — TIDAK ada kode manapun
+          yang menyasar grup 'sub-zevanic-house' untuk elemen ini lagi, jadi WALAUPUN navigasi
+          sidebar/tab-nya benar, seluruh isi tab ini SELALU tersembunyi (blank) sejak rombak
+          pertama pagi ini. Ditemukan lewat verifikasi kode saat mengerjakan rombak belum
+          sempat ketahuan karena belum pernah buka tab ini di browser. Tab-strip pill 5 tombol
+          di dalam halaman JUGA DICOPOT (redundan, navigasinya sekarang dari sidebar — lihat
+          komentar navgrp-stokpembelian). Div konten + id internal (sub-zh-stock-*) TIDAK
+          berubah sama sekali.
+        -->
         <div id="tab-stok-pembelian" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
             <div id="sub-zh-stock-notaorder" class="sub-zh-stock-content fade-in space-y-4">
-              <!-- Daftar Nota (dulu "Nota Order Belanja"): lihat js/vue-stock-pembelian.js (DaftarNotaScreen) -->
+              <!-- Daftar Nota (js (DaftarNotaScreen) -->
               <div id="vue-nota-order-belanja"></div>
             </div>
-            <!-- BARU (malam 24 Agt 2026) — Riwayat Harga Pembelian: lihat
-                 js/vue-stock-pembelian.js (RiwayatHargaPembelianManager) -->
+            <!--
+              Riwayat Harga Pembelian: lihat js/vue-stock-pembelian.js
+              (RiwayatHargaPembelianManager)
+            -->
             <div id="sub-zh-stock-riwayat" class="sub-zh-stock-content hidden fade-in space-y-4">
               <div id="vue-riwayat-harga-pembelian"></div>
             </div>
-            <!-- BARU (24 Agt 2026) — Kartu Stok Bahan/Aksesoris: lihat js/vue-kartu-stok.js -->
+            <!-- Kartu Stok Bahan/Aksesoris: lihat js/vue-kartu-stok.js -->
             <div id="sub-zh-stock-kartustok" class="sub-zh-stock-content hidden fade-in space-y-4">
               <div id="vue-kartu-stok"></div>
             </div>
-            <!-- BARU (7 Sep 2026) — Rak Penyimpanan (dipindah dari Data Bahan &
-                 Aksesoris): lihat js/vue-rak-penyimpanan.js -->
+            <!--
+              Rak Penyimpanan (dipindah dari Data Bahan & Aksesoris): lihat
+              js/vue-rak-penyimpanan.js
+            -->
             <div id="sub-zh-stock-rak" class="sub-zh-stock-content hidden fade-in space-y-4">
               <div id="vue-rak-penyimpanan"></div>
             </div>
-            <!-- BARU (7 Sep 2026) — Repack Komponen Acc: lihat js/vue-repack-komponen-acc.js -->
+            <!-- Repack Komponen Acc: lihat js/vue-repack-komponen-acc.js -->
             <div id="sub-zh-stock-repack" class="sub-zh-stock-content hidden fade-in space-y-4">
               <div id="vue-repack-komponen-acc"></div>
             </div>
-            <!-- DIPENSIUNKAN (28 Agt 2026, §41.2) — tab "Cetak Label" pindah
-                 jadi tombol per-kartu di List Bahan & Aksesoris (permintaan
-                 Guru). Lihat js/vue-bahan-aksesoris.js & STATUS-PROYEK.md §41.2. -->
         </div>
 
-
         <div id="tab-pesanan" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
-          <!-- BARU (30 Agt 2026) — grup top-level "Pesanan", lihat
-               js/vue-pesanan.js utk latar belakang lengkap. 5 sub-tab
-               sejajar, pola markup SAMA seperti #tab-persiapan-produksi di
-               bawah (1 tab-content, beberapa div class="sub-pesanan-
-               content", tiap satu punya mount point sendiri). -->
+          <!--
+            grup top-level "Pesanan", lihat js/vue-pesanan.js utk latar belakang lengkap. 5
+            sub-tab sejajar, pola markup SAMA seperti #tab-persiapan-produksi di bawah (1
+            tab-content, beberapa div class="sub-pesanan- content", tiap satu punya mount
+            point sendiri).
+          -->
           <div id="sub-pesanan-kasir" class="sub-pesanan-content fade-in space-y-4">
             <div id="vue-pesanan-kasir"></div>
           </div>
           <div id="sub-pesanan-menunggu" class="sub-pesanan-content hidden fade-in space-y-4">
             <div id="vue-pesanan-menunggu"></div>
           </div>
-          <!-- REKONSTRUKSI (7 Sep 2026) — GANTI TOTAL 3 div ringkasan lama
-               (sub-pesanan-persiapan/produksi/pengiriman, DIHAPUS) jadi 2 div
-               baru, lihat js/vue-pesanan.js PesananDaftarManager/
-               PesananTransaksiManager. -->
+          <!--
+            3 div ringkasan lama (sub-pesanan-persiapan/produksi/pengiriman, DIHAPUS) jadi 2
+            div lihat js/vue-pesanan.js PesananDaftarManager/ PesananTransaksiManager.
+          -->
           <div id="sub-pesanan-daftar" class="sub-pesanan-content hidden fade-in space-y-4">
             <div id="vue-pesanan-daftar"></div>
           </div>
@@ -1059,10 +929,9 @@
         </div>
 
         <div id="tab-persiapan-produksi" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
-          <!-- BARU (29 Agt 2026, koreksi arsitektur menu) — layar top-level
-               BARU, GANTI TOTAL versi lama (dulu nested di tab-zevanic-house,
-               lihat js/vue-persiapan-produksi.js, DITINGGALKAN). Lihat
-               STATUS-PROYEK.md §44.13 & RENCANA-PERSIAPAN-PRODUKSI-V2.md. -->
+          <!--
+            Persiapan Produksi V2 — 5 jalur, mount di js/vue-persiapan-produksi-v2.js.
+          -->
           <div id="sub-pp-disiapkan" class="sub-persiapan-produksi-content fade-in space-y-4">
             <div id="vue-pp-disiapkan"></div>
           </div>
@@ -1093,12 +962,12 @@
           </div>
 
           <div id="sub-pp-bahan" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
-            <!-- GANTI TOTAL (31 Agt 2026, wireframe handoff "Persiapan
-                 Produksi - Bahan") — dari JalurTahapManager generik (kartu
-                 per SPK) jadi js/vue-persiapan-bahan.js (kartu per bahan +
-                 warna, 5 komponen Vue sendiri). Label tab JUGA disesuaikan
-                 ("Perlu/Sedang Disiapkan", bukan "Diproses" — PEDOMAN-SERAH-
-                 TERIMA.md §"Aturan yang berlaku di semua modul" #7). -->
+            <!--
+              dari JalurTahapManager generik (kartu per SPK) jadi js/vue-persiapan-bahan.js
+              (kartu per bahan + warna, 5 komponen Vue sendiri). Label tab JUGA disesuaikan
+              ("Perlu/Sedang Disiapkan", bukan "Diproses" — PEDOMAN-SERAH- TERIMA.md §"Aturan
+              yang berlaku di semua modul" #7).
+            -->
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-perludisiapkan', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-bahan-perludisiapkan"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Disiapkan</button>
               <button onclick="pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-sedangdisiapkan', this, {catatRiwayat:true})" class="sub-pp-bahan-tahap-btn gc-sub-tab-btn" data-target="sub-pp-bahan-sedangdisiapkan"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Disiapkan</button>
@@ -1123,15 +992,13 @@
             </div>
           </div>
 
-          <!-- GANTI TOTAL (1 Sep 2026, wireframe handoff "Persiapan Produksi
-               - Acc Sewing/Webbing/Finishing") — dari JalurTahapManager
-               generik (kartu per SPK, tanpa rincian komponen) jadi js/vue-
-               persiapan-{sewing,webbing,finishing}.js (kartu per SPK Grouping
-               + baris per komponen, 5 komponen Vue sendiri tiap pos) — SAMA
-               perlakuan seperti Bahan (31 Agt 2026). Label tab JUGA
-               disesuaikan ("Perlu/Sedang Disiapkan", bukan "Diproses" —
-               PEDOMAN-SERAH-TERIMA.md §"Aturan yang berlaku di semua modul"
-               #7, sama seperti Bahan). -->
+          <!--
+            dari JalurTahapManager generik (kartu per SPK, tanpa rincian komponen) jadi
+            js/vue- persiapan-{sewing,webbing,finishing}.js (kartu per SPK Grouping + baris
+            per komponen, 5 komponen Vue sendiri tiap pos) — SAMA perlakuan seperti Bahan .
+            Label tab JUGA disesuaikan ("Perlu/Sedang Disiapkan", bukan "Diproses" — §"Aturan
+            yang berlaku di semua modul" #7, sama seperti Bahan).
+          -->
           <div id="sub-pp-sewing" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-perludisiapkan', this, {catatRiwayat:true})" class="sub-pp-sewing-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-sewing-perludisiapkan"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Disiapkan</button>
@@ -1207,8 +1074,9 @@
             </div>
           </div>
 
-          <!-- BARU (7 Sep 2026, §5.18) — Masalah, 7 sub-tab (rebuild total
-               dari fitur lama, lihat js/vue-pp-masalah.js). -->
+          <!--
+            Masalah, 7 sub-tab (rebuild total dari fitur lama, lihat js/vue-pp-masalah.js).
+          -->
           <div id="sub-pp-masalah" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-perludiajukan', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-masalah-perludiajukan"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Diajukan</button>
@@ -1242,10 +1110,11 @@
             </div>
           </div>
 
-          <!-- BARU (7 Sep 2026) — Persiapan Belanja. 4 tab: Persiapan Admin
-               (8.1, input nota + keyboard-first entry), Menunggu ACC (8.1.3,
-               owner-gated), List Order Driver (8.2, HP driver: beli/pending),
-               Riwayat Belanja (8.3, read-only). -->
+          <!--
+            Persiapan Belanja. 4 tab: Persiapan Admin (8.1, input nota + keyboard-first
+            entry), Menunggu ACC (8.1.3, owner-gated), List Order Driver (8.2, HP driver:
+            beli/pending), Riwayat Belanja (8.3, read-only).
+          -->
           <div id="sub-pp-belanja" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
             <div class="flex gap-2 flex-wrap border-b border-gray-200 pb-2">
               <button onclick="pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-persiapanadmin', this, {catatRiwayat:true})" class="sub-pp-belanja-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-belanja-persiapanadmin"><i class="fas fa-pen-to-square" style="margin-right:6px;"></i> Persiapan Admin</button>
@@ -1269,12 +1138,12 @@
 
         </div>
 
-        <!-- BARU (7 Sep 2026 malam) — "Scan & Cetak" (grup top-level baru,
-             handoff "05 - Scan dan Cetak"). 4 sub-tab = 4 grup wireframe.
-             Lihat js/vue-scan-cetak.js untuk komponen generik (PopupPinGenerik/
-             ScanGenerik) yang jadi fondasi modul BARU sesudah ini (Cutting/
-             Sewing/Finishing/Serie/Gudang Barang Jadi + refactor Persiapan
-             Produksi) — belum dibangun di commit ini, menyusul bertahap. -->
+        <!--
+          "Scan & Cetak" (handoff "05 - Scan dan Cetak"). 4 sub-tab = 4 grup wireframe. Lihat
+          js/vue-scan-cetak.js untuk komponen generik (PopupPinGenerik/ ScanGenerik) yang jadi
+          fondasi modul sesudah ini (Cutting/ Sewing/Finishing/Serie/Gudang Barang Jadi +
+          refactor Persiapan Produksi) — belum dibangun di commit ini, menyusul bertahap.
+        -->
         <div id="tab-scan-cetak" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
           <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
             <button onclick="pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-stok', this, {catatRiwayat:true})" class="sub-scan-cetak-btn gc-sub-tab-btn active" data-target="sub-scan-cetak-stok"><i class="fas fa-qrcode" style="margin-right:6px;"></i> Scan Stok</button>
@@ -1283,8 +1152,10 @@
             <button onclick="pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-pin', this, {catatRiwayat:true})" class="sub-scan-cetak-btn gc-sub-tab-btn" data-target="sub-scan-cetak-pin"><i class="fas fa-key" style="margin-right:6px;"></i> PIN</button>
           </div>
 
-          <!-- Grup 1: Scan Stok — DIPINDAH dari Zevanic House > Scan, logic
-               vue-scan-opname.js/vue-scan-persiapan.js TIDAK berubah. -->
+          <!--
+            Grup 1: Scan Stok — DIPINDAH dari Zevanic House > Scan, logic
+            vue-scan-opname.js/vue-scan-persiapan.js TIDAK berubah.
+          -->
           <div id="sub-scan-cetak-stok" class="sub-scan-cetak-content fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-scancetak-stok-tahap', 'sub-scancetak-stok-opname', this, {catatRiwayat:true})" class="sub-scancetak-stok-tahap-btn gc-sub-tab-btn active" data-target="sub-scancetak-stok-opname" data-menu-id="scan_opname"><i class="fas fa-qrcode" style="margin-right:6px;"></i> Scan Opname</button>
@@ -1298,13 +1169,13 @@
             </div>
           </div>
 
-          <!-- Grup 2: Referensi Scan — KATALOG BACA SAJA. Wireframe grup 2
-               menyebut "layar mobile tiap jenis scan sudah ada di pos
-               Persiapan Produksi/Proses Produksi (canvas), di sini cuma
-               referensi" — jadi ini SENGAJA statis, bukan titik scan
-               sungguhan. Isi diringkas dari SERAH-TERIMA.md masing-masing
-               modul (bukan disalin persis nomor wireframe, karena sebagian
-               modul belum dibangun/belum ada layarnya). -->
+          <!--
+            Grup 2: Referensi Scan — KATALOG BACA SAJA. Wireframe grup 2 menyebut "layar
+            mobile tiap jenis scan sudah ada di pos Persiapan Produksi/Proses Produksi
+            (canvas), di sini cuma referensi" — jadi ini SENGAJA statis, bukan titik scan
+            sungguhan. Isi diringkas dari masing-masing modul (bukan disalin persis nomor
+            wireframe, karena sebagian modul belum dibangun/belum ada layarnya).
+          -->
           <div id="sub-scan-cetak-referensi" class="sub-scan-cetak-content hidden fade-in space-y-4">
             <div class="gc-card" style="padding:14px;">
               <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px; line-height:1.5;">Katalog jenis-jenis scan yang dipakai di Persiapan Produksi &amp; Proses Produksi. Ini referensi/dokumentasi saja — scan sungguhan dilakukan di layar pos masing-masing (tombol "Scan ..." di tiap kartu), BUKAN dari sini.</p>
@@ -1337,12 +1208,13 @@
             </div>
           </div>
 
-          <!-- Grup 3: Cetak — katalog label/lembar. 3.1-3.5 SUDAH LIVE
-               (tombol cetak tersebar di layar masing-masing) — daftar di
-               sini SEKADAR indeks, bukan pemicu cetak baru. 3.4/setting
-               terpusat & Cetak Label Produk (label pcs Sewing) BELUM
-               dibangun — menyusul setelah modul Sewing selesai (label pcs
-               baru masuk akal kalau sumbernya, Sewing, sudah ada). -->
+          <!--
+            Grup 3: Cetak — katalog label/lembar. 3.1-3.5 SUDAH LIVE (tombol cetak tersebar di
+            layar masing-masing) — daftar di sini SEKADAR indeks, bukan pemicu cetak baru.
+            3.4/setting terpusat & Cetak Label Produk (label pcs Sewing) BELUM dibangun —
+            menyusul setelah modul Sewing selesai (label pcs baru masuk akal kalau sumbernya,
+            Sewing, sudah ada).
+          -->
           <div id="sub-scan-cetak-cetak" class="sub-scan-cetak-content hidden fade-in space-y-4">
             <div class="gc-card" style="padding:14px;">
               <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px; line-height:1.5;">Indeks semua jenis label/lembar cetak di aplikasi ini. Tombol cetak sungguhan ada di layar masing-masing (tidak dicetak dari sini).</p>
@@ -1361,9 +1233,10 @@
               </div>
             </div>
 
-            <!-- BARU (8 Sep 2026, audit kode proyek) — realisasi "Pengaturan
-                 cetak terpusat" yang di atas tadinya cuma placeholder teks.
-                 Lihat js/vue-pengaturan-cetak.js. -->
+            <!--
+              realisasi "Pengaturan cetak terpusat" yang di atas tadinya cuma placeholder
+              teks. Lihat js/vue-pengaturan-cetak.js.
+            -->
             <div class="gc-card" style="padding:14px;">
               <div id="vue-pengaturan-cetak"></div>
             </div>
@@ -1375,12 +1248,13 @@
           </div>
         </div>
 
-        <!-- BARU (7 Sep 2026 malam lanjut lagi) — grup top-level "Proses
-             Produksi" (sejajar Persiapan Produksi/Scan & Cetak). Cuma
-             Cutting yang fungsional (7 tab), lihat js/vue-pp-cutting.js.
-             Serie/Sewing/Finishing/Gudang Barang Jadi belum punya div
-             konten sama sekali (tombol sidebar-nya sudah nonaktif duluan
-             di navgrp-prosesproduksi, cukup alert placeholder). -->
+        <!--
+          grup top-level "Proses Produksi" (sejajar Persiapan Produksi/Scan & Cetak). Cuma
+          Cutting yang fungsional (7 tab), lihat js/vue-pp-cutting.js.
+          Serie/Sewing/Finishing/Gudang Barang Jadi belum punya div konten sama sekali (tombol
+          sidebar-nya sudah nonaktif duluan di navgrp-prosesproduksi, cukup alert
+          placeholder).
+        -->
         <div id="tab-proses-produksi" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
           <div id="sub-pr-cutting" class="sub-proses-produksi-content fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
@@ -1415,9 +1289,10 @@
             </div>
           </div>
 
-          <!-- BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" setelah
-               Cutting) — Serie, 11 tab (hub distribusi antar divisi). Lihat
-               komentar besar di js/vue-pp-serie.js. -->
+          <!--
+            Serie, 11 tab (hub distribusi antar divisi). Lihat komentar besar di
+            js/vue-pp-serie.js.
+          -->
           <div id="sub-pr-serie" class="sub-proses-produksi-content hidden fade-in space-y-4">
             <div class="flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-perludiproses', this, {catatRiwayat:true})" class="sub-pr-serie-tahap-btn gc-sub-tab-btn active" data-target="sub-pr-serie-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Di Proses</button>
@@ -1467,8 +1342,7 @@
             </div>
           </div>
 
-          <!-- BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" #3) — Sewing,
-               5 tab. Lihat komentar besar di js/vue-pp-sewing.js. -->
+          <!-- Sewing, 5 tab. Lihat komentar besar di js/vue-pp-sewing.js. -->
           <div id="sub-pr-sewing" class="sub-proses-produksi-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-pr-sewing-tahap', 'sub-pr-sewing-perludiproses', this, {catatRiwayat:true})" class="sub-pr-sewing-tahap-btn gc-sub-tab-btn active" data-target="sub-pr-sewing-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Di Proses</button>
@@ -1494,11 +1368,11 @@
             </div>
           </div>
 
-          <!-- BARU ("lanjut lagi" #4, 7 Sep 2026 — sesi ini) — Finishing, 5
-               tab. Tab 4.2 "Sedang Finishing" berisi 4 sub-tab nested
-               QC/Steam/Folding/Packing (per-PCS tracking, beda dari
-               Cutting/Serie/Sewing yang per-batch). Lihat komentar besar di
-               js/vue-pp-finishing.js. -->
+          <!--
+            Finishing, 5 tab. Tab 4.2 "Sedang Finishing" berisi 4 sub-tab nested
+            QC/Steam/Folding/Packing (per-PCS tracking, beda dari Cutting/Serie/Sewing yang
+            per-batch). Lihat komentar besar di js/vue-pp-finishing.js.
+          -->
           <div id="sub-pr-finishing" class="sub-proses-produksi-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-pr-finishing-tahap', 'sub-pr-finishing-perludiproses', this, {catatRiwayat:true})" class="sub-pr-finishing-tahap-btn gc-sub-tab-btn active" data-target="sub-pr-finishing-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Di Proses</button>
@@ -1541,10 +1415,11 @@
             </div>
           </div>
 
-          <!-- BARU ("lanjut lagi" #5, 7 Sep 2026 — sesi ini) — Gudang Barang
-               Jadi, 4 tab. Titik akhir rantai produksi, beroperasi langsung
-               di atas koleksi label_pcs (TANPA koleksi tracking baru). Lihat
-               komentar besar di js/vue-pp-gudang.js. -->
+          <!--
+            Gudang Barang Jadi, 4 tab. Titik akhir rantai produksi, beroperasi langsung di
+            atas koleksi label_pcs (TANPA koleksi tracking baru). Lihat komentar besar di
+            js/vue-pp-gudang.js.
+          -->
           <div id="sub-pr-gudang" class="sub-proses-produksi-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-pr-gudang-tahap', 'sub-pr-gudang-perludisimpan', this, {catatRiwayat:true})" class="sub-pr-gudang-tahap-btn gc-sub-tab-btn active" data-target="sub-pr-gudang-perludisimpan"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Disimpan</button>
@@ -1587,12 +1462,10 @@
 
   </div>
 
-  <!-- Nav mobile SENGAJA di LUAR #screen-dashboard (bukan di dalamnya
-       seperti sebelumnya) — #screen-dashboard punya fade-in (animasi
-       transform) + overflow-hidden, kombinasi itu menjebak elemen
-       position:fixed di dalamnya: TERLIHAT normal di layar, tapi area
-       yang bisa disentuh ikut terpotong batas overflow-hidden induknya.
-       Itu penyebab nav ini tidak merespon sentuhan sebelumnya. -->
+  <!--
+    Nav mobile SENGAJA di LUAR #screen-dashboard (bukan di dalamnya seperti Itu penyebab nav
+    ini tidak merespon sentuhan
+  -->
   <nav class="md:hidden gc-mobile-nav hidden" style="width:100%;">
     <button id="mnav-home" data-navtab="tab-home" class="gc-mnav-item active">
       <svg class="gc-mnav-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
@@ -1618,16 +1491,17 @@
     </button>
   </nav>
 
-  <!-- Bottom Sheet Profile khusus mobile — lihat js/vue-sheet-profil.js.
-       GANTI TOTAL drawer geser-dari-kanan lama (js/vue-profile-drawer.js,
-       DIHAPUS 28 Agt 2026, keputusan Guru "hapus total, ganti bersih",
-       redesain "Gechoo Mobile Organic"). -->
+  <!--
+    Bottom Sheet Profile khusus mobile — lihat js/vue-sheet-profil.js. drawer geser-dari-kanan
+    lama .
+  -->
   <div id="vue-sheet-profil"></div>
 
-  <!-- BARU (10 Sep 2026) — Bottom Sheet Picker "Mau scan apa?" (pola M2),
-       dibuka tombol QR di .gc-mobile-nav (lihat js/app.js, mnavScanQr) —
-       lihat js/vue-popup-scan.js. Di LUAR #screen-dashboard, pola SAMA
-       seperti vue-sheet-profil di atas. -->
+  <!--
+    Bottom Sheet Picker "Mau scan apa?" (pola M2), dibuka tombol QR di .gc-mobile-nav (lihat
+    js/app.js, mnavScanQr) — lihat js/vue-popup-scan.js. Di LUAR #screen-dashboard, pola SAMA
+    seperti vue-sheet-profil di atas.
+  -->
   <div id="vue-popup-scan"></div>
 
   <!-- Modal Edit Karyawan sudah dipindah ke js/vue-daftar-karyawan.js -->
@@ -1643,145 +1517,54 @@
 
   <!-- Modal Edit Absensi sudah dipindah ke js/vue-riwayat-absensi.js -->
 
-  <!-- togglePassword & toggleFormIzin (dulu di sini) sudah jadi bagian reaktif js/vue-login.js -->
+  <!-- togglePassword & toggleFormIzin (js -->
 
   <script type="module" src="js/firebase-config.js"></script>
-  <!-- v=4 (10 Sep 2026) — pindahLayar() dapat Browser History API utk
-       screen-camera & screen-absensi-qr (tombol back HP sebelumnya lompat
-       keluar app di 2 layar ini, lihat GAP-MOBILE-10SEP2026.md temuan #3);
-       tombol QR nav (mnavScanQr) sekarang buka Bottom Sheet Picker "Mau
-       scan apa?" (js/vue-popup-scan.js) dulu, bukan langsung ke
-       tab-scan-qr. -->
   <script type="module" src="js/app.js?v=4"></script>
   <script type="module" src="js/camera.js"></script>
-  <!-- v=2 (28 Agt 2026): window.bolehLihatData tambah bypass eksplisit
-       dimensi gudang untuk profil "pic_owner" (role "PIC Owner"). -->
   <script type="module" src="js/auth.js?v=10"></script>
-  <!-- v=13 (28 Agt 2026): peta mount tambah 'sub-zh-config-jenisproduk' ->
-       pastikanMountConfigJenisProduk (tab Config baru "Jenis Produk").
-       v=14 (28 Agt 2026): peta mount tambah 'sub-zh-config-komponen' ->
-       pastikanMountConfigKomponen (tab Config baru "Data Komponen").
-       v=17 (28 Agt 2026): peta mount tambah 'sub-zh-config-tahappersiapan'
-       -> pastikanMountConfigTahapPersiapan + 5 sub-tab menu baru "Persiapan
-       Produksi" (Perlu Disiapkan/Bahan/Acc Sewing/Webbing/Finishing) ->
-       pastikanMountPersiapanProduksiAntrean/Bahan/Sewing/Webbing/Finishing,
-       & petaTabIndukPerGrup tambah 'sub-zh-persiapanproduksi'.
-       v=18 (28 Agt 2026, redesain "Gechoo Mobile Organic"): array `tabs` di
-       window.pindahTab tambah 'tab-menu-lengkap' & 'tab-atur-favorit'
-       (layar baru).
-       v=19 (29 Agt 2026, koreksi arsitektur menu Persiapan Produksi) — tab
-       'tab-persiapan-produksi' BARU (grup top-level, GANTI TOTAL versi
-       lama nested di Zevanic House): tambah ke array `tabs`,
-       petaGrupSidebarPerTab -> navgrp-persiapanproduksi, petaTabIndukPerGrup
-       tambah sub-persiapan-produksi + 5 sub-jalur (vendor/bahan/sewing/
-       webbing/finishing), petaMount tambah pastikanMountPpDisiapkan (5
-       jalur BARU cuma placeholder statis, TIDAK butuh entry petaMount).
-       5 entry petaMount LAMA (persiapan_produksi_antrean/bahan/sewing/
-       webbing/finishing) DIHAPUS. Lihat STATUS-PROYEK.md §44.13.
-       v=20 (30 Agt 2026, fitur "Pesanan") — tab 'tab-pesanan' BARU (grup
-       top-level, sejajar Zevanic House/Persiapan Produksi): tambah ke
-       array `tabs`, petaGrupSidebarPerTab -> navgrp-pesanan,
-       petaTabIndukPerGrup tambah sub-pesanan, petaMount tambah 5 entry
-       (pastikanMountPesananKasir/Menunggu/Persiapan/Produksi/Pengiriman),
-       landing default 'sub-pesanan-kasir'. Entry petaMount LAMA
-       'sub-zevanic-house-orderspk' -> pastikanMountOrderSpk DIHAPUS (lihat
-       js/vue-pesanan.js).
-       v=22 (5 Sep 2026) — Master Suplayer: petaMount tambah 3 entry
-       ('sub-zh-suplayer-entry/alias-moq/petakan' -> pastikanMountSuplayer
-       Entry/AliasMoq/Petakan), petaTabIndukPerGrup tambah 'sub-zh-suplayer'
-       -> tab-zevanic-house. Entry LAMA 'sub-zh-stock-alias' ->
-       pastikanMountAliasPembelian DIHAPUS (Alias Pembelian pindah ke
-       Master Suplayer). 'sub-zh-config-suplayer' -> pastikanMountConfigSuplayer
-       GANTI jadi 'sub-zh-config-tlc' -> pastikanMountConfigTlc (tab "TLC &
-       Prefix"). Lihat js/vue-master-suplayer.js.
-       v=23 (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
-       Master Pelanggan: petaMount tambah 1 entry ('sub-zevanic-house-
-       pelanggan' -> pastikanMountMasterPelanggan). Single-view, TIDAK
-       butuh entry petaTabIndukPerGrup (tidak ada sub-tab di dalamnya,
-       sama seperti 'sub-zevanic-house-persiapan'). Lihat js/vue-master-
-       pelanggan.js. -->
   <script type="module" src="js/dashboard.js?v=27"></script>
-  <!-- js/vue-order-spk.js — DITINGGALKAN (30 Agt 2026, fitur "Pesanan",
-       keputusan Guru: fungsinya pindah jadi menu "Menunggu Proses" di
-       grup baru "Pesanan"). File TIDAK dihapus dari disk (jaga-jaga
-       referensi, pola SAMA seperti vue-persiapan-produksi.js di bawah),
-       tapi SENGAJA tidak lagi dimuat di sini — tombol & div kontennya
-       sudah dicopot dari index.html, GANTI TOTAL oleh js/vue-pesanan.js. -->
-  <!-- js/vue-persiapan-produksi.js — DITINGGALKAN (29 Agt 2026, koreksi
-       arsitektur menu, keputusan Guru "ditulis ulang bersih dari nol").
-       File TIDAK dihapus dari disk (jaga-jaga referensi), tapi SENGAJA
-       tidak lagi dimuat di sini — UI-nya (5 tab nested lama) sudah dicopot
-       dari index.html, GANTI TOTAL oleh grup top-level "Persiapan Produksi"
-       baru (js/vue-persiapan-produksi-v2.js) di bawah. -->
-  <!-- BARU (29 Agt 2026) — Persiapan Produksi V2: grup top-level baru,
-       Fase 1 (Perlu Disiapkan / generator SPK Grouping) fungsional penuh,
-       5 jalur (Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing) BARU
-       struktur navigasi 5-tahap, isinya placeholder sampai Fase 2-5. Lihat
-       STATUS-PROYEK.md §44.13 & RENCANA-PERSIAPAN-PRODUKSI-V2.md. -->
-  <!-- v=2 (31 Agt 2026) — "Perlu Disiapkan" dibangun ulang total sesuai
-       wireframe handoff Guru (kunci klaster +size, layout 2 kolom, dukung
-       split-qty per SPK). JalurTahapManager (5 jalur/5 tahap) TIDAK disentuh. -->
-  <!-- v=4 (10 Sep 2026) — fix isu #5 laporan Guru: baris "tanpa_sku" di
-       "Buat Grouping Sendiri" sekarang punya pilihan jalur produksi manual
-       (Bahan/Sewing/Webbing/Finishing), karena order._produk selalu kosong
-       di baris ini sehingga deteksi otomatis dari BOM tidak pernah jalan. -->
+
+  <!--
+    Persiapan Produksi V2: Fase 1 (Perlu Disiapkan / generator SPK Grouping) fungsional penuh,
+    5 jalur (Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing) struktur navigasi 5-tahap,
+    isinya placeholder sampai Fase 2-5. Lihat STATUS-PROYEK.md §44.13 &
+    RENCANA-PERSIAPAN-PRODUKSI-V2.md.
+  -->
   <script type="module" src="js/vue-persiapan-produksi-v2.js?v=14"></script>
-  <!-- BARU (31 Agt 2026, wireframe handoff "Persiapan Produksi - Bahan") —
-       jalur Bahan GANTI TOTAL, lihat komentar besar di file ini. -->
-  <!-- v=8 (10 Sep 2026 malam, lanjutan) — pesan error hasilScanTunjuk
-       diperjelas: kalau kode yang gagal cocok TERNYATA badge operator
-       (id_app karyawan), bilang eksplisit "itu badge operator, bukan
-       label SPK" — lihat komentar di fungsi hasilScanTunjuk. -->
+  <!-- jalur Bahan, lihat komentar besar di file ini. -->
   <script type="module" src="js/vue-persiapan-bahan.js?v=18"></script>
-  <!-- BARU (1 Sep 2026, wireframe handoff "Persiapan Produksi - Acc
-       Sewing/Webbing/Finishing", 3 pos dikerjakan sekaligus atas instruksi
-       eksplisit Guru — menyimpang dari aturan "satu modul per sesi" di
-       README handoff) — jalur Acc Sewing/Webbing/Finishing GANTI TOTAL,
-       kartu = 1 spk_track (beda dari Bahan yang kartu = 1 bahan+warna),
-       lihat komentar besar di masing-masing file. -->
-  <!-- v=8/9/8 (10 Sep 2026 malam) — fix "barisKey is not a function" di
-       komponen "Perlu Disiapkan" & "Perlu Dikirim" (3 file ini) — fungsi
-       barisKey() dipakai templat :key v-for tapi lupa di-return dari
-       setup(), bikin render crash & layar macet "Memuat..." begitu ada
-       data (laporan Guru, Acc Sewing/Finishing). Webbing ikut diperbaiki
-       sekalian (bug sama, belum kelihatan karena datanya masih kosong). -->
-  <!-- v=9/10/9 (10 Sep 2026 malam, lanjutan) — keputusan Guru: kode BESAR
-       yang tercetak di label "Perlu Disiapkan"/"Cetak Ulang" sekarang kode
-       SPK Grouping (kode_spk), SAMA seperti vue-persiapan-bahan.js — dulu
-       pakai kode order asli (no_spk/TRX...), bikin tidak konsisten antar
-       menu. QR & pencocokan scan TETAP pakai no_spk (tidak diubah, supaya
-       tidak beresiko ke alur scan yang sudah jalan) — no_spk dipindah ke
-       baris info label saja. -->
-  <!-- v=10/11/10 (10 Sep 2026 malam, lanjutan) — SAMA seperti vue-persiapan-
-       bahan.js v=8: pesan error hasilScanTunjuk diperjelas kalau kode yang
-       gagal cocok ternyata badge operator, bukan label SPK. -->
+  <!--
+    jalur Acc Sewing/Webbing/Finishing, kartu = 1 spk_track (beda dari Bahan yang kartu = 1
+    bahan+warna), lihat komentar besar di masing-masing file.
+  -->
   <script type="module" src="js/vue-persiapan-sewing.js?v=18"></script>
   <script type="module" src="js/vue-persiapan-webbing.js?v=19"></script>
   <script type="module" src="js/vue-persiapan-finishing.js?v=18"></script>
-  <!-- BARU (7 Sep 2026, §5.18) — Persiapan Produksi > Masalah, 7 tahap,
-       skema TRB baru (rebuild total dari fitur "Persiapan Masalah" lama,
-       yang sekarang cuma papan manual biasa, lihat js/vue-persiapan-
-       masalah.js — koleksinya sudah dipindah ke permintaan_bahan_manual). -->
+  <!--
+    Persiapan Produksi > Masalah, 7 tahap, skema TRB baru (rebuild total dari fitur "Persiapan
+    Masalah" lama, yang sekarang cuma papan manual biasa, lihat js/vue-persiapan- masalah.js —
+    koleksinya sudah dipindah ke permintaan_bahan_manual).
+  -->
   <script type="module" src="js/vue-pp-masalah.js?v=5"></script>
-  <!-- BARU (30 Agt 2026) — grup top-level "Pesanan": Penjualan Kasir (POS),
-       Menunggu Proses (CRUD SPK, DISALIN dari OrderSpkManager lama),
-       Proses Persiapan/Produksi/Pengiriman (ringkasan read-only dari
-       spk_track). Lihat komentar besar atas js/vue-pesanan.js utk latar
-       belakang & keputusan arsitektur lengkap. -->
+  <!--
+    grup top-level "Pesanan": Penjualan Kasir (POS), Menunggu Proses (CRUD SPK, DISALIN dari
+    OrderSpkManager lama), Proses Persiapan/Produksi/Pengiriman (ringkasan read-only dari
+    spk_track). Lihat komentar besar atas js/vue-pesanan.js utk latar belakang & keputusan
+    arsitektur lengkap.
+  -->
   <script type="module" src="js/vue-pesanan.js?v=8"></script>
-  <!-- BARU (7 Sep 2026 malam) — fondasi menu "Scan & Cetak" (PopupPinGenerik/
-       ScanGenerik dst), lihat komentar besar di js/vue-scan-cetak.js.
-       v=3 (10 Sep 2026, laporan Guru) — FIX bug ScanGenerik: kamera
-       auto-lanjut scan tiap 900ms sempat scan ULANG kode QR yang SAMA
-       (mis. badge operator prefix "ZMS...") sebelum sempat diganti,
-       menyebabkan pesan error salah tunjuk di Tunjuk Operator/Scan Pack/
-       Scan Kirim dst. Semua file pengimpor vue-scan-cetak.js ikut dibump
-       ke ?v=3 di file masing-masing (bukan cuma di sini) supaya browser
-       memuat versi baru yang sama, bukan dua salinan modul berbeda. -->
+  <!--
+    fondasi menu "Scan & Cetak" (PopupPinGenerik/ ScanGenerik dst), lihat komentar besar di
+    js/vue-scan-cetak.js. badge operator prefix "ZMS...") sebelum sempat diganti, menyebabkan
+    pesan error salah tunjuk di Tunjuk Operator/Scan Pack/ Scan Kirim dst. Semua file
+    pengimpor vue-scan-cetak.js ikut dibump ke ?
+  -->
   <script type="module" src="js/vue-scan-cetak.js?v=4"></script>
-  <!-- BARU (8 Sep 2026, audit kode proyek) — "Pengaturan Cetak" (ukuran
-       kertas/posisi QR/rincian tambahan per jenis cetak, terpusat), lihat
-       komentar besar di js/vue-pengaturan-cetak.js. -->
+  <!--
+    "Pengaturan Cetak" (ukuran kertas/posisi QR/rincian tambahan per jenis cetak, terpusat),
+    lihat komentar besar di js/vue-pengaturan-cetak.js.
+  -->
   <script type="module" src="js/vue-pengaturan-cetak.js?v=6"></script>
   <script type="module" src="js/vue-scan-opname.js?v=2"></script>
   <script type="module" src="js/vue-scan-persiapan.js?v=5"></script>
@@ -1789,47 +1572,11 @@
   <script type="module" src="js/vue-config-info.js?v=3"></script>
   <script type="module" src="js/vue-config-absensi.js?v=4"></script>
   <script type="module" src="js/vue-daftar-karyawan.js?v=5"></script>
-  <!-- v=7 (30 Agt 2026, fitur "Pesanan"): KATEGORI_URUTAN tambah 'Pesanan'
-       (posisi setelah Zevanic House, sebelum Persiapan Produksi), 5 entry
-       DAFTAR_MENU baru (pesanan_kasir/menunggu/persiapan/produksi/
-       pengiriman), id 'order_spk' DIPENSIUNKAN (deprecated:true). Lihat
-       js/vue-pesanan.js. -->
   <script type="module" src="js/vue-config-akses.js?v=15"></script>
   <script type="module" src="js/vue-hak-akses.js?v=6"></script>
-  <!-- v=4 (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, permintaan
-       Guru — PERUBAHAN LOGIC juga, bukan cuma tampilan) — form approval
-       dipangkas jadi cuma Jadwal Shift + Jabatan (dibatasi Operator/
-       Admin); Status Kerja auto-'Aktif' saat Setujui; Status Karyawan &
-       Gudang penempatan DILEPAS dari form ini, jadi Owner-only lewat
-       Daftar Karyawan > Edit — lihat catatan risiko di
-       STATUS-PROYEK.md. -->
   <script type="module" src="js/vue-antrean-dakar.js?v=6"></script>
-  <!-- v=6 (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, dari cek live
-       Guru di HP) — header kartu: baris "email" ganti nama Gudang + baris
-       baru Shift/jam shift; banner pindah ke bawah kolom cari & dipadatkan;
-       ikon filter jadi menu oval titik-tiga "lainnya". -->
   <script type="module" src="js/vue-antrean-absensi.js?v=8"></script>
-  <!-- v=3 (29 Agt 2026, moodboard v2) — redesain LENGKAP pertama kali di
-       modul ini: avatar (foto_selfie, BARU ditampilkan), baris "{tanggal}
-       - {gudang}", Jam Shift vs Jam Lembur berdampingan, banner/menu
-       oval sama pola modul lain. -->
   <script type="module" src="js/vue-antrean-lembur.js?v=5"></script>
-  <!-- v=3 (29 Agt 2026, moodboard v2, PRIORITAS TERAKHIR sesuai catatan
-       risiko mockup) — label "Diajukan" dilepas (tanggal polos), foto
-       bukti jadi ikon kecil di header; khusus kategori Isi Bensin: field
-       Odometer Sebelum/Sesudah + Liter BARU, badge efisiensi (km/L)
-       otomatis (rumus dicari referensinya ke Auto2000, bukan tebakan);
-       banner/menu oval sama pola modul lain.
-       v=4 (29 Agt 2026, sama hari, permintaan Guru) — tombol "Unduh CSV"
-       BARU di RiwayatReimburseTable (dipakai 3 menu: Riwayat Reimburse/
-       Riwayat Isi Bensin/Riwayat Servis) — pola SAMA PERSIS exportCSV()
-       di vue-riwayat-absensi.js, kolom menyesuaikan mode.
-       v=9 (10 Sep 2026) — RiwayatReimburseTable ("Riwayat Keuangan") dapat
-       kartu mobile (md:hidden) di samping tabel desktop (hidden md:block)
-       — dulu tabel-nya scroll horizontal polos di HP (lihat komentar 9 Sep
-       "dikembalikan jadi tabel" di file ini), SEKARANG tabel itu TETAP ada
-       PERSIS sama di layar >=768px, cuma di HP diganti kartu pola M6
-       Sample Hifi mobile. Data & desktop TIDAK disentuh. -->
   <script type="module" src="js/vue-reimburse.js?v=10"></script>
   <script type="module" src="js/vue-riwayat-absensi.js?v=5"></script>
   <script type="module" src="js/vue-penjadwalan.js?v=7"></script>
@@ -1837,55 +1584,25 @@
   <script type="module" src="js/vue-otp.js"></script>
   <script type="module" src="js/vue-mail-gateway.js?v=1"></script>
   <script type="module" src="js/vue-device-kiosk.js?v=4"></script>
-  <!-- v=4 (28 Agt 2026, redesain "Gechoo Mobile Organic") — sentuhan gaya
-       RINGAN saja pada tab Absensi: empty state Riwayat jadi pola
-       `.gc-kosong`, kartu Riwayat jadi border-radius:20px (konsisten
-       dengan Persiapan Produksi/Order SPK). SENGAJA TIDAK restyle penuh
-       (form Data Karyawan/Keamanan/dll TETAP tampilan lama) — restyle
-       dalam ("Daftar modul"/"Form bertahap") ke modul ini MENUNGGU Guru
-       approve pola dari 2 modul contoh dulu, sesuai proses yang
-       disepakati (lihat STATUS-PROYEK.md §44.2). -->
   <script type="module" src="js/vue-account-profile.js?v=7"></script>
-  <!-- js/vue-profile-drawer.js DIHAPUS 28 Agt 2026 (redesain "Gechoo Mobile
-       Organic", keputusan Guru "hapus total, ganti bersih") — GANTI
-       js/vue-sheet-profil.js (Bottom Sheet Profil, lihat mount
-       #vue-sheet-profil di atas).
-       v=2 (29 Agt 2026) — toggle Mode Gelap jadi 3-arah Terang/Gelap/
-       Otomatis (ikut window.temaPreferensi() baru, lihat script tema
-       inline di <head>).
-       v=3 (29 Agt 2026, revisi setelah cek live) — percobaan v=2 sempat
-       pindahkan tombol Keluar ke ATAS (dekat gagang) DAN tetap ada slot
-       grid "Clock in/out" — Guru cek langsung di HP, minta dikoreksi:
-       Keluar DIKEMBALIKAN ke BAWAH (oval kecil ikon X, setelah link
-       Keamanan, rata tengah) DAN slot grid pertama (dulu "Clock in/out")
-       DIGANTI jadi tombol Keluar juga (2 jalan ke Keluar, sesuai
-       permintaan eksplisit). Clock In/Out tetap bisa lewat kartu Favorit
-       Saya di Beranda — bukan regresi, cuma jalan pintas kedua yang
-       dilepas dari Profil.
-       v=4 (29 Agt 2026, koreksi lagi hari sama) — tombol (X) di bawah
-       TERNYATA salah paham juga: itu BUKAN Keluar kedua, cuma tombol
-       TUTUP sheet biasa (@click="tutup", sama efeknya dgn klik gagang/
-       backdrop). Warnanya juga dipindah ke class .gc-x-tutup baru
-       (gechoo-design.css) — di mode gelap otomatis jadi burgundy+pink
-       (lebih redup), bukan danger-light yang kepucatan/mencolok. -->
+  <!--
+    js/vue-profile-drawer.js GANTI js/vue-sheet-profil.js (Bottom Sheet Profil, lihat mount
+    #vue-sheet-profil di atas). temaPreferensi lihat script tema inline di <head>). Clock
+    In/Out tetap bisa lewat kartu Favorit Saya di Beranda — bukan regresi, cuma jalan pintas
+    kedua yang dilepas dari Profil. Warnanya juga dipindah ke class .gc-x-tutup baru
+    (gechoo-design.css) — di mode gelap otomatis jadi burgundy+pink (lebih redup), bukan
+    danger-light yang kepucatan/mencolok.
+  -->
   <script type="module" src="js/vue-sheet-profil.js?v=5"></script>
-  <!-- BARU (10 Sep 2026) — Bottom Sheet Picker "Mau scan apa?" (pola M2),
-       lihat js/vue-popup-scan.js + mount #vue-popup-scan di atas. -->
+  <!--
+    Bottom Sheet Picker "Mau scan apa?" (pola M2), lihat js/vue-popup-scan.js + mount
+    #vue-popup-scan di atas.
+  -->
   <script type="module" src="js/vue-popup-scan.js?v=1"></script>
-  <!-- v=5 (28 Agt 2026, redesain "Gechoo Mobile Organic") — Beranda dirombak
-       total mengikuti mockup: dikunci 1 layar, 1 grup default (bisa diatur
-       user lewat layar baru Atur Favorit), mode "Atur" inline dihapus,
-       Pengumuman/Quote pindah ke js/vue-header-mobile.js. Lihat
-       STATUS-PROYEK.md §44. -->
   <script type="module" src="js/vue-home.js?v=7"></script>
   <script type="module" src="js/vue-home-desktop.js?v=1"></script>
-  <!-- v=4 (28 Agt 2026, redesain) — mode 'home' tambah quote inline, lonceng
-       notifikasi Pengumuman (badge + dropdown), avatar inisial. Mode
-       'tersembunyi' baru untuk layar ber-header sendiri (Menu Lengkap/Atur
-       Favorit). -->
   <script type="module" src="js/vue-header-mobile.js?v=11"></script>
-  <!-- BARU (28 Agt 2026, redesain "Gechoo Mobile Organic") — layar baru,
-       lihat mount #vue-menu-lengkap/#vue-atur-favorit di atas. -->
+  <!-- lihat mount #vue-menu-lengkap/#vue-atur-favorit di atas. -->
   <script type="module" src="js/vue-menu-lengkap.js?v=1"></script>
   <script type="module" src="js/vue-atur-favorit.js?v=3"></script>
   <script type="module" src="js/vue-registrasi.js?v=3"></script>
@@ -1894,141 +1611,71 @@
   <script type="module" src="js/vue-absensi-qr.js?v=2"></script>
   <script type="module" src="js/vue-camera.js?v=4"></script>
   <script type="module" src="js/vue-scan-qr.js"></script>
-  <!-- v=17 (28 Agt 2026, §35): List Bahan & Aksesoris tambah fitur Import/
-       Template Excel (upload massal) — tombol "Import / Template Excel" di
-       sebelah filter Kategori, popup verifikasi (PopupImportBahanAksesoris),
-       field wajib saja (Kategori Utama/Jenis/Nama/Warna/Harga Pembelian/
-       Satuan Pembelian/Isi Konversi Pembelian/Satuan Pemakaian/Margin
-       Modal), data yang Kategori+Nama+Warna-nya sudah ada DILEWATI (skip,
-       tidak ditimpa).
-       v=18 (28 Agt 2026, §37): TIDAK ADA perubahan fungsional di file ini —
-       cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
-       DropdownCari, tidak dipakai fitur Import Excel §37 yang ditambah di
-       Data Komponen). -->
   <script type="module" src="js/vue-bahan-aksesoris.js?v=25"></script>
   <script type="module" src="js/vue-rak-penyimpanan.js?v=8"></script>
-  <!-- BARU (7 Sep 2026, task #95) — Repack Komponen Acc, lihat komentar
-       besar di file itu untuk detail keputusan Guru (AskUserQuestion). -->
+  <!-- Repack Komponen Acc, lihat komentar besar di file itu untuk detail. -->
   <script type="module" src="js/vue-repack-komponen-acc.js?v=2"></script>
-  <!-- DIHAPUS TOTAL (9 Sep 2026, rombak ke-2) — dulu di sini:
-       js/vue-persiapan-masalah.js?v=4. Lihat komentar navgrp-zevanic. -->
-  <!-- v=19 (28 Agt 2026): sempat dicoba tag Jenis Pekerjaan per pesanan
-       (role "PIC Owner"), DIBATALKAN — Guru konfirmasi grup Zevanic House
-       100% ZCO/Konveksi, tidak perlu difilter per-item (lihat STATUS-
-       PROYEK.md §29). Cache-bust cuma sisa import vue-paginasi.js?v=1
-       (fungsi bersama yang dipakai Reimburse, tidak dipakai fitur di sini).
-       v=20 (28 Agt 2026, §37): TIDAK ADA perubahan fungsional di file ini —
-       cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
-       DropdownCari, tidak dipakai fitur Import Excel §37). -->
   <script type="module" src="js/vue-stock-pembelian.js?v=28"></script>
   <script type="module" src="js/vue-kartu-stok.js?v=9"></script>
-  <!-- BARU (27 Agt 2026, §26.1) — Zevanic House > Config. v=2 (28 Agt 2026):
-       tambah tab ke-7 "Jenis Produk" (AppConfigJenisProduk, koleksi
-       master_jenis_produk), pola sama persis seperti "Data Ukuran".
-       v=3 (28 Agt 2026): tambah tab ke-8 "Data Komponen" (AppConfigKomponen,
-       koleksi master_komponen), pola sama persis seperti "Data Warna".
-       v=4 (28 Agt 2026, §37): tab "Data Komponen" SEKARANG dapat tombol
-       "Import / Template Excel" (fitur BARU di MasterDataTabelManager,
-       vue-components.js, diaktifkan lewat prop :izinkan-import-excel="true"
-       KHUSUS di AppConfigKomponen — tab Config lain TIDAK ikut berubah).
-       v=5 (5 Sep 2026): AppConfigSuplayer DIHAPUS (CRUD Suplayer pindah ke
-       Zevanic House > Master Suplayer, lihat js/vue-master-suplayer.js),
-       GANTI tab "Data Suplayer" jadi "TLC & Prefix" (AppConfigTlc, koleksi
-       master_tlc BARU) — cache-bust ikut import baru firestore/firebase-
-       config di file ini. -->
-  <!-- v=9 (10 Sep 2026 malam) — fix pesan error tambahPrefixDivisi() ikut
-       tampilkan e.code/e.message (laporan Guru "TLC & Prefix: Gagal
-       menyimpan" generik, dugaan Rules master_prefix_divisi belum publish). -->
+  <!--
+    Zevanic House > Config. js, diaktifkan lewat prop :izinkan-import-excel="true" KHUSUS di
+    AppConfigKomponen — tab Config lain TIDAK ikut berubah). js), GANTI tab "Data Suplayer"
+    jadi "TLC & Prefix" (AppConfigTlc, koleksi master_tlc ) — cache-bust ikut import baru
+    firestore/firebase- config di file ini.
+  -->
   <script type="module" src="js/vue-config.js?v=13"></script>
-  <!-- BARU (5 Sep 2026) — Zevanic House > Master Suplayer: Entry & List
-       (5.1) + Alias & MOQ (5.2, eks "Alias Pembelian" Stock & Pembelian,
-       DITAMBAH moq/moq_satuan/lead_time_hari) + Petakan Order (5.3, BARU
-       total). Lihat komentar panjang di js/vue-master-suplayer.js. -->
+  <!--
+    Zevanic House > Master Suplayer: Entry & List (5.1) + Alias & MOQ (5.2, eks "Alias
+    Pembelian" Stock & Pembelian, DITAMBAH moq/moq_satuan/lead_time_hari) + Petakan Order
+    (5.3, total). Lihat komentar panjang di js/vue-master-suplayer.js.
+  -->
   <script type="module" src="js/vue-master-suplayer.js?v=4"></script>
-  <!-- BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
-       Zevanic House > Master Pelanggan: koleksi & menu BARU TOTAL. Lihat
-       komentar panjang di js/vue-master-pelanggan.js. -->
+  <!--
+    Zevanic House > Master Pelanggan: koleksi & menu TOTAL. Lihat komentar panjang di
+    js/vue-master-pelanggan.js.
+  -->
   <script type="module" src="js/vue-master-pelanggan.js?v=4"></script>
-  <!-- BARU (27 Agt 2026, §28) — Master Produk (BOM). v=2 (28 Agt 2026):
-       cache-bust setelah fix dropdown Bahan/Aksesoris digabung 1 field.
-       v=3 (28 Agt 2026, §28.9): cache-bust setelah tambah fitur Import/
-       Export Excel (Template + Import Produk Utama & BOM, popup verifikasi).
-       v=4 (28 Agt 2026): sempat dicoba tag Jenis Pekerjaan per produk (role
-       "PIC Owner"), DIBATALKAN — Guru konfirmasi Master Produk 100% ZCO/
-       Konveksi (lihat STATUS-PROYEK.md §29). Cache-bust cuma sisa import
-       vue-paginasi.js?v=1 (fungsi bersama, tidak dipakai fitur di sini).
-       v=5 (28 Agt 2026): List Produk — Guru lapor tampilan dobel (tabel
-       desktop + kartu mobile muncul BARENGAN). Tabel desktop DIHAPUS,
-       sekarang cuma SATU tampilan kartu untuk semua ukuran layar (sesuai
-       arahan Guru: "tampilan hanya 1 yang bawah aja"). Sekalian nambah
-       checkbox pilih per produk + tombol "Hapus Massal".
-       v=6 (28 Agt 2026): Entry Produk tambah field "Jenis Produk" (wajib,
-       DropdownCari dari master_jenis_produk, pola sama seperti Warna) +
-       kolom "Jenis Produk" di Template/Import Excel Produk Utama.
-       v=7 (28 Agt 2026): SKU SEKARANG FULL OTOMATIS (user/admin TIDAK
-       entry SKU sama sekali) — field SKU di Entry Produk jadi read-only,
-       kolom "SKU" DIHAPUS dari Template/Import Excel (Produk Utama & BOM),
-       sheet BOM sekarang cocokkan baris ke produk lewat Nama+Warna+Size.
-       v=8 (28 Agt 2026, §34): dropdown "Kelola Komponen" (BOM Pola) SEKARANG
-       ambil dari Data Komponen (Config, master_komponen), BUKAN LAGI dari
-       Data Bahan & Aksesoris — permintaan Guru eksplisit. Excel Import BOM
-       sheet "Komponen" SENGAJA TIDAK ikut berubah (konfirmasi Guru), tetap
-       validasi ke Data Bahan & Aksesoris format Nama+Warna.
-       v=9 (28 Agt 2026, §36): SUPERSEDE catatan v=8 soal Excel — sheet
-       "Komponen" di Template/Import BOM SEKARANG JUGA ikut ganti ke Data
-       Komponen (Config): kolom header "Nama Komponen (Nama + Warna)" -> jadi
-       "Komponen", validasi ke opsiKomponen (bukan Data Bahan & Aksesoris
-       lagi), bahan_aksesoris_id dihapus dari baris ini (sama format dengan
-       form manual §34). Data Produk Utama (Entry/Edit Produk): urutan field
-       diubah jadi Foto Produk - Jenis Produk - Nama Produk - Warna - Size
-       (permintaan Guru), murni urutan tampilan, tidak ada perubahan skema.
-       v=10 (28 Agt 2026, §37): TIDAK ADA perubahan fungsional di file ini —
-       cache-bust cuma ikut import vue-components.js?v=2 -> ?v=3 (import
-       DropdownCari, tidak dipakai fitur Import Excel §37 yang ditambah di
-       Data Komponen/Config).
-       v=11 (28 Agt 2026, §38): Kode Webbing 2 & Kode Webbing 3 (BOM
-       Aksesoris) GANTI dari DropdownCari (wajib pilih dari Data Bahan &
-       Aksesoris) jadi INPUT MANUAL/teks bebas — permintaan Guru, berlaku
-       di form Entry/Edit Produk MAUPUN Template/Import Excel BOM sheet
-       Aksesoris (kolom header disederhanakan jadi "Kode Webbing 2"/"Kode
-       Webbing 3", dulu "...(Nama + Warna)"). Field `webbing2_id`/
-       `webbing3_id`/`webbing2_nama`/`webbing3_nama` DIHAPUS dari skema
-       `master_produk.bom_aksesoris[]`, diganti `webbing2`/`webbing3`
-       (string bebas). -->
-  <!-- v=18 (30 Agt 2026, fitur "Pesanan"): field baru `harga_jual` (Entry
-       Produk form + payload simpan() + kartu List Produk) — dipakai
-       Penjualan Kasir, lihat js/vue-pesanan.js. -->
-  <!-- v=23 (10 Sep 2026 malam) — fix rincianBom(): "Harga BOM Pola" HPP
-       dulu cuma Panjang x Harga Bahan, sekarang dibagi Isi Pola (Pcs)
-       (laporan Guru "kemahalan"). -->
+  <!--
+    Master Produk (BOM). md §29). Cache-bust cuma sisa import vue-paginasi.js? Tabel desktop
+    sekarang cuma SATU tampilan kartu untuk semua ukuran layar . Sekalian nambah checkbox
+    pilih per produk + tombol "Hapus Massal". Excel Import BOM sheet "Komponen" SENGAJA TIDAK
+    ikut berubah, tetap validasi ke Data Bahan & Aksesoris format Nama+Warna. Data Produk
+    Utama (Entry/Edit Produk): urutan field diubah jadi Foto Produk - Jenis Produk - Nama
+    Produk - Warna - Size, murni urutan tampilan, tidak ada perubahan skema. js? ..(Nama +
+    Warna)"). Field `webbing2_id`/ `webbing3_id`/`webbing2_nama`/`webbing3_nama` DIHAPUS dari
+    skema `master_produk.bom_aksesoris[]`, diganti `webbing2`/`webbing3` (string bebas).
+  -->
   <script type="module" src="js/vue-master-produk.js?v=24"></script>
-  <!-- BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi > Cutting, 7 tab.
-       Lihat komentar besar di js/vue-pp-cutting.js untuk latar belakang &
-       keputusan arsitektur lengkap. -->
+  <!--
+    Proses Produksi > Cutting, 7 tab. Lihat komentar besar di js/vue-pp-cutting.js untuk latar
+    belakang & keputusan arsitektur lengkap.
+  -->
   <script type="module" src="js/vue-pp-cutting.js?v=11"></script>
-  <!-- BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" setelah Cutting) —
-       Proses Produksi > Serie, 11 tab (hub distribusi). Lihat komentar besar
-       di js/vue-pp-serie.js untuk latar belakang & keputusan arsitektur
-       lengkap. -->
+  <!--
+    Proses Produksi > Serie, 11 tab (hub distribusi). Lihat komentar besar di
+    js/vue-pp-serie.js untuk latar belakang & keputusan arsitektur lengkap.
+  -->
   <script type="module" src="js/vue-pp-serie.js?v=12"></script>
-  <!-- BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" #3, setelah Serie) —
-       Proses Produksi > Sewing, 5 tab. Lihat komentar besar di js/vue-pp-
-       sewing.js untuk latar belakang & keputusan arsitektur lengkap. -->
+  <!--
+    Proses Produksi > Sewing, 5 tab. Lihat komentar besar di js/vue-pp- sewing.js untuk latar
+    belakang & keputusan arsitektur lengkap.
+  -->
   <script type="module" src="js/vue-pp-sewing.js?v=8"></script>
-  <!-- BARU ("lanjut lagi" #4, 7 Sep 2026 — sesi ini, setelah Sewing) —
-       Proses Produksi > Finishing, 5 tab (per-PCS tracking via
-       finishing_track). Lihat komentar besar di js/vue-pp-finishing.js
-       untuk latar belakang & keputusan arsitektur lengkap. -->
+  <!--
+    Proses Produksi > Finishing, 5 tab (per-PCS tracking via finishing_track). Lihat komentar
+    besar di js/vue-pp-finishing.js untuk latar belakang & keputusan arsitektur lengkap.
+  -->
   <script type="module" src="js/vue-pp-finishing.js?v=8"></script>
-  <!-- BARU ("lanjut lagi" #5, 7 Sep 2026 — sesi ini, setelah Finishing) —
-       Proses Produksi > Gudang Barang Jadi, 4 tab (titik akhir rantai
-       produksi). Lihat komentar besar di js/vue-pp-gudang.js untuk latar
-       belakang & keputusan arsitektur lengkap. -->
+  <!--
+    Proses Produksi > Gudang Barang Jadi, 4 tab (titik akhir rantai produksi). Lihat komentar
+    besar di js/vue-pp-gudang.js untuk latar belakang & keputusan arsitektur lengkap.
+  -->
   <script type="module" src="js/vue-pp-gudang.js?v=5"></script>
-  <!-- BARU (7 Sep 2026 — sesi ini) — Persiapan Produksi > Persiapan Belanja,
-       folder terakhir grup Persiapan Produksi. Lihat komentar besar di
-       js/vue-persiapan-belanja.js untuk latar belakang & keputusan
-       arsitektur lengkap. -->
+  <!--
+    Persiapan Produksi > Persiapan Belanja, folder terakhir grup Persiapan Produksi. Lihat
+    komentar besar di js/vue-persiapan-belanja.js untuk latar belakang & keputusan arsitektur
+    lengkap.
+  -->
   <script type="module" src="js/vue-persiapan-belanja.js?v=6"></script>
 </body>
 </html>

@@ -1,68 +1,56 @@
 // js/vue-master-pelanggan.js
-// ============================================================================
-// Zevanic House > Master Pelanggan — menu BARU TOTAL (5 Sep 2026, wireframe
-// handoff "Zevanic House.dc.html" grup 3 + `RENCANA-REKONSTRUKSI-2026-09.md`
-// §6 langkah 4). Koleksi BARU `master_pelanggan` — TIDAK ADA satupun sisa
-// modul lama yang dipindah/diganti di sini (beda dari Master Suplayer §5.12
-// yang gabungan 2 tempat lama), jadi file ini SEMUANYA baru.
+
+// Zevanic House > Master Pelanggan — menu BARU TOTAL . Koleksi
+// `master_pelanggan` — TIDAK ADA satupun sisa modul lama yang dipindah/diganti
+// di sini (beda dari Master Suplayer §5.12 yang gabungan 2 tempat lama), jadi
+// file ini SEMUANYA baru.
 //
-// Latar: Guru minta lanjut rekonstruksi besar sesuai urutan disarankan di
-// `RENCANA-REKONSTRUKSI-2026-09.md` §6 — langkah 1 (push+uji Bahan/Acc) itu
-// tugas Guru sendiri, langkah 2 (Publish rules) sudah selesai (Guru paste
-// firestore.rules lengkap, dikonfirmasi 5 Sep 2026 — lihat STATUS-PROYEK.md
-// §5.13). Langkah 3 (Infrastruktur PIN sungguhan) SENGAJA DILEWATI dulu atas
-// pilihan eksplisit Guru (AskUserQuestion: "Lewati PIN dulu, lanjut langkah
-// 4") — alasan: hash PIN yang aman butuh Cloud Function di repo TERPISAH
-// (`zevanic-cloud-function`, Claude TIDAK punya akses baca/edit ke situ,
-// lihat `PETA-INFRASTRUKTUR.md`), jadi ditunda sampai ada modul yang BENAR2
-// butuh (Persiapan Belanja/Pesanan piutang, langkah 11-12).
+// Latar:.md` §6 — langkah 1 (push+uji Bahan/Acc) itu tugas sendiri, langkah 2
+// (Publish rules) sudah selesai . Langkah 3 (Infrastruktur PIN sungguhan)
+// SENGAJA DILEWATI dulu atas pilihan eksplisit (AskUserQuestion: "Lewati PIN
+// dulu, lanjut langkah 4") — alasan: hash PIN yang aman butuh Cloud Function di
+// repo TERPISAH, jadi ditunda sampai ada modul yang BENAR2 butuh (Persiapan
+// Belanja/Pesanan piutang, langkah 11-12).
 //
-// Langkah 4 sendiri (`RENCANA-REKONSTRUKSI-2026-09.md` §6): "Master Pelanggan
-// + Master Suplayer (rebuild)". Master Suplayer REBUILD-nya SUDAH SELESAI
-// duluan di §5.12 (lihat js/vue-master-suplayer.js — Entry+List/Alias & MOQ/
-// Petakan Order, sudah dikirim ke folder Code, menunggu push+uji Guru) —
-// JADI file ini HANYA mengerjakan sisa langkah 4 yang benar-benar belum ada:
-// Master Pelanggan.
+// Langkah 4 sendiri (`RENCANA-REKONSTRUKSI-2026-09.md` §6): "Master Pelanggan +
+// Master Suplayer (rebuild)". Master Suplayer REBUILD-nya SUDAH SELESAI duluan
+// di §5.12 — JADI file ini HANYA mengerjakan sisa langkah 4 yang benar-benar
+// belum ada: Master Pelanggan.
 //
 // Skema field mengikuti `Mockup/handoff/SPESIFIKASI-KOLEKSI-BARU.md` §1
 // (master_pelanggan/{autoId}) PERSIS: nama*, telepon, alamat, email, tipe
 // (retail/reseller/grosir), limit_piutang, saldo_piutang, catatan.
 //
-// **`saldo_piutang` SENGAJA TIDAK BISA diedit lewat form ini** (dibiarkan 0
-// pas dibuat, TIDAK PERNAH ditulis ulang manual di sini) — spek eksplisit
-// bilang "Dihitung: total sisa belum bayar. JANGAN tulis langsung — update
-// lewat fungsi catat pembayaran". Fungsi catat pembayaran itu ADALAH bagian
-// dari koleksi `piutang_pembayaran` + fitur Pesanan piutang, yang masuk
-// langkah 12 (BELUM dikerjakan sesi ini) — jadi utang tiap pelanggan di
-// modul ini akan tampil 0 terus sampai langkah 12 jadi, itu memang benar
-// SEMENTARA, bukan bug.
+// **`saldo_piutang` SENGAJA TIDAK BISA diedit lewat form ini** (dibiarkan 0 pas
+// dibuat, TIDAK PERNAH ditulis ulang manual di sini) — spek eksplisit bilang
+// "Dihitung: total sisa belum bayar. JANGAN tulis langsung — update lewat fungsi
+// catat pembayaran". Fungsi catat pembayaran itu ADALAH bagian dari koleksi
+// `piutang_pembayaran` + fitur Pesanan piutang, yang masuk langkah 12 (BELUM
+// dikerjakan sesi ini) — jadi utang tiap pelanggan di modul ini akan tampil 0
+// terus sampai langkah 12 jadi, itu memang benar SEMENTARA, bukan bug.
 //
-// **TIDAK termasuk sesi ini** (di luar scope "data dasar" langkah 4):
-// - Kasir (`js/vue-pesanan.js`) BELUM diubah untuk WAJIB pilih pelanggan
-//   sebelum checkout — itu bagian langkah 12 (Pesanan piutang), butuh
-//   `transaksi_kasir.pelanggan_id` dkk yang belum ada. Kolom `master_
-//   pelanggan` di sini disiapkan berdiri sendiri dulu, siap dipakai nanti.
-// - `transaksi_kasir.nama_pelanggan` (string bebas, sudah ada sejak fitur
-//   Pesanan 30 Agt 2026) TIDAK diganti FK `pelanggan_id` di sini — itu juga
-//   langkah 12.
-// - Field `tipe` (retail/reseller/grosir) murni informasional di form ini —
-//   spek sendiri menandai "Yang Belum Diputuskan: apakah tipe punya limit
-//   piutang beda otomatis" — TIDAK ditebak, `limit_piutang` tetap manual
-//   polos per pelanggan, tidak auto-terisi dari `tipe`.
-// ============================================================================
+// **TIDAK termasuk sesi ini** (di luar scope "data dasar" langkah 4): - Kasir
+// (`js/vue-pesanan.js`) BELUM diubah untuk WAJIB pilih pelanggan sebelum
+// checkout — itu bagian langkah 12 (Pesanan piutang), butuh
+// `transaksi_kasir.pelanggan_id` dkk yang belum ada. Kolom `master_ pelanggan`
+// di sini disiapkan berdiri sendiri dulu, siap dipakai nanti. -
+// `transaksi_kasir.nama_pelanggan` TIDAK diganti FK `pelanggan_id` di sini — itu
+// juga langkah 12. - Field `tipe` (retail/reseller/grosir) murni informasional
+// di form ini — spek sendiri menandai "Yang Belum Diputuskan: apakah tipe punya
+// limit piutang beda otomatis" — TIDAK ditebak, `limit_piutang` tetap manual
+// polos per pelanggan, tidak auto-terisi dari `tipe`.
+
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
-// BARU (9 Sep 2026 malam, keputusan eksplisit Guru: "iyah kerjakan sesuai
-// wireframe") — 2 kolom yang tadinya sengaja dilewati (lihat catatan
-// RESTRUKTURISASI di template di bawah): "total pesanan" (dihitung LIVE
-// dari transaksi_kasir, BUKAN field tersimpan — sesuai wireframe 4.1) dan
-// "status aktif/nonaktif" (field BARU `status` di master_pelanggan, TIDAK
-// ada sebelumnya — default 'aktif' kalau kosong/dokumen lama). Dihitung
-// SEKALI (satu query ambil semua transaksi_kasir, dikelompokkan di sisi
-// klien) — BUKAN 1 query per pelanggan, supaya List Pelanggan tidak
-// melambat kalau jumlah pelanggan banyak.
+// 2 kolom yang tadinya sengaja dilewati (lihat catatan RESTRUKTURISASI di
+// template di bawah): "total pesanan" (dihitung LIVE dari transaksi_kasir, BUKAN
+// field tersimpan — sesuai wireframe 4.1) dan "status aktif/nonaktif" (field
+// BARU `status` di master_pelanggan, TIDAK ada sebelumnya — default 'aktif'
+// kalau kosong/dokumen lama). Dihitung SEKALI (satu query ambil semua
+// transaksi_kasir, dikelompokkan di sisi klien) — BUKAN 1 query per pelanggan,
+// supaya List Pelanggan tidak melambat kalau jumlah pelanggan banyak.
 async function ambilTotalPesananPerPelanggan() {
   const peta = new Map();
   try {
@@ -80,8 +68,8 @@ async function ambilTotalPesananPerPelanggan() {
 }
 
 // formatRupiah — disalin persis dari pola yang sama di js/vue-master-
-// suplayer.js/vue-master-produk.js dkk (tiap file vue-*.js di proyek ini
-// punya salinan lokalnya sendiri, tidak ada util currency global).
+// suplayer.js/vue-master-produk.js dkk (tiap file vue-*.js di proyek ini punya
+// salinan lokalnya sendiri, tidak ada util currency global).
 function formatRupiah(n) {
   const angka = parseFloat(n) || 0;
   return 'Rp ' + Math.round(angka).toLocaleString('id-ID');
@@ -105,12 +93,12 @@ async function ambilDaftarPelanggan() {
   }
 }
 
-// ============================================================================
-// 3.1 + 3.2 — List Pelanggan (kartu per pelanggan, saldo piutang) + Form
-// pop up entry/edit (wireframe: "Form pelanggan — pop up entry/edit", BEDA
-// dari pola Master Suplayer yang tambahnya inline — di sini SEMUA lewat 1
-// popup yang sama, mode `tambah`/`edit` dibedakan lewat popupForm.mode).
-// ============================================================================
+
+// 3.1 + 3.2 — List Pelanggan (kartu per pelanggan, saldo piutang) + Form pop up
+// entry/edit (wireframe: "Form pelanggan — pop up entry/edit", BEDA dari pola
+// Master Suplayer yang tambahnya inline — di sini SEMUA lewat 1 popup yang sama,
+// mode `tambah`/`edit` dibedakan lewat popupForm.mode).
+
 const MasterPelangganManager = {
   setup() {
     const menuId = 'master_pelanggan';
@@ -142,8 +130,8 @@ const MasterPelangganManager = {
         (p.nama || '').toLowerCase().includes(kata) ||
         (p.telepon || '').toLowerCase().includes(kata)
       );
-      // Nonaktif ditampilkan abu DI BAWAH (wireframe 4.1) — bukan
-      // disembunyikan, cuma diurutkan ke akhir + kelas visual beda.
+      // Nonaktif ditampilkan abu DI BAWAH (wireframe 4.1) — bukan disembunyikan,
+      // cuma diurutkan ke akhir + kelas visual beda.
       return [...hasil].sort((a, b) => {
         const aa = statusAktif(a) ? 0 : 1, bb = statusAktif(b) ? 0 : 1;
         if (aa !== bb) return aa - bb;
@@ -245,20 +233,15 @@ const MasterPelangganManager = {
         <div class="lingkaran"><i class="fas fa-address-book"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada Pelanggan</h3>
       </div>
-      <!-- RESTRUKTURISASI (9 Sep 2026, audit wireframe §4.1) — dulu grid
-           kartu (auto-fill 260px) + tombol Edit/Hapus eksplisit per kartu.
-           Wireframe minta SATU TABEL, klik baris untuk edit. Pakai class
-           .gc-table yang SUDAH ADA di css/gechoo-design.css (dipakai juga
-           modul lain, mis. Stock & Pembelian) — bukan style baru. Tombol
-           Edit terpisah DIHAPUS — klik baris manapun langsung buka form
-           edit (sama seperti bukaEdit() yang sudah ada, cuma pemicunya
-           pindah).
-           REVISI (9 Sep 2026 malam, keputusan Guru: "iyah kerjakan sesuai
-           wireframe") — kolom "Total Pesanan" (dihitung live dari
-           transaksi_kasir, lihat ambilTotalPesananPerPelanggan di atas
-           file) dan "Status" (field BARU "status" di master_pelanggan)
-           ditambahkan. Pelanggan nonaktif ditampilkan abu di baris
-           (diurutkan ke bawah oleh daftarTampil, bukan disembunyikan). -->
+      <!--
+        Wireframe minta SATU TABEL, klik baris untuk edit. Pakai class .gc-table yang SUDAH ADA di
+        css/gechoo-design.css (dipakai juga modul lain, mis. Stock & Pembelian) — bukan style
+        baru. Tombol Edit terpisah DIHAPUS — klik baris manapun langsung buka form edit (sama
+        seperti bukaEdit yang sudah ada, cuma pemicunya pindah). kolom "Total Pesanan" (dihitung
+        live dari transaksi_kasir, lihat ambilTotalPesananPerPelanggan di atas file) dan "Status"
+        (field BARU "status" di master_pelanggan) ditambahkan. Pelanggan nonaktif ditampilkan abu
+        di baris (diurutkan ke bawah oleh daftarTampil, bukan disembunyikan).
+      -->
       <div v-else class="gc-table-scroll">
         <table class="gc-table">
           <thead>
@@ -309,11 +292,11 @@ const MasterPelangganManager = {
           </select>
         </div>
         <div class="gc-field"><label>Limit Piutang <span style="font-weight:400; color:var(--text-faint);">(0 = tidak boleh piutang)</span></label><input v-model.number="popupForm.limitPiutang" type="number" min="0" placeholder="0"></div>
-        <!-- BARU (9 Sep 2026 malam, keputusan eksplisit Guru: "iyah kerjakan
-             sesuai wireframe") — toggle Status di sini adalah SATU-SATUNYA
-             tempat popupForm.status bisa diubah user (sebelumnya cuma
-             ditampilkan di tabel, belum ada kontrolnya). Hanya muncul saat
-             edit — pelanggan baru selalu mulai 'aktif' (lihat bukaTambah). -->
+        <!--
+          toggle Status di sini adalah SATU-SATUNYA tempat popupForm.status bisa diubah user
+          (sebelumnya cuma ditampilkan di tabel, belum ada kontrolnya). Hanya muncul saat edit —
+          pelanggan baru selalu mulai 'aktif' (lihat bukaTambah).
+        -->
         <div v-if="popupForm.mode === 'edit'" class="gc-field">
           <label>Status</label>
           <select v-model="popupForm.status">
@@ -335,11 +318,11 @@ const MasterPelangganManager = {
   `
 };
 
-// ============================================================================
-// Mount — lazy, dipanggil dashboard.js pindahSubTab() (pola sama semua
-// child-tab lain di app ini). Single-view (tidak ada sub-tab di dalamnya,
-// sama seperti Persiapan Masalah), jadi cuma 1 fungsi mount.
-// ============================================================================
+
+// Mount — lazy, dipanggil dashboard.js pindahSubTab (pola sama semua child-tab
+// lain di app ini). Single-view (tidak ada sub-tab di dalamnya, sama seperti
+// Persiapan Masalah), jadi cuma 1 fungsi mount.
+
 let vmMasterPelanggan = null;
 window.pastikanMountMasterPelanggan = function () {
   if (vmMasterPelanggan) { if (typeof vmMasterPelanggan.muat === 'function') vmMasterPelanggan.muat(); return; }

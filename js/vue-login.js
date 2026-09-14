@@ -1,31 +1,27 @@
 // js/vue-login.js
-// ============================================================================
-// DIROMBAK LAGI (18 Agt 2026, revisi ke-2 alur registrasi) — modal WAJIB
-// GANTI PASSWORD sudah DIHAPUS dari file ini. Sudah tidak relevan lagi:
-// password sekarang dipilih SENDIRI oleh karyawan sejak awal (lewat layar
-// baru js/vue-buat-password.js, dibuka dari link email Antrean Dakar),
-// bukan lagi dipaksa pakai NIK sebagai password sementara lalu wajib
-// ganti di login pertama. BELUM PERNAH DITES sama sekali, WAJIB dites
-// end-to-end sebelum dipakai karyawan sungguhan.
+
+// modal WAJIB GANTI PASSWORD sudah DIHAPUS dari file ini. Sudah tidak relevan
+// lagi: password sekarang dipilih SENDIRI oleh karyawan sejak awal (lewat layar
+// baru js/vue-buat-password.js, dibuka dari link email Antrean Dakar), bukan
+// lagi dipaksa pakai NIK sebagai password sementara lalu wajib ganti di login
+// pertama. Alur ini belum pernah diuji end-to-end. sebelum
+// dipakai karyawan sungguhan.
 //
-// URUTAN SETELAH EMAIL+PASSWORD BENAR:
-//   1. Device belum pernah diverifikasi (localStorage) DAN toggle OTP aktif
-//      -> modal OTP EMAIL dulu (window.kirimOtpEmail/verifikasiOtpEmail,
-//      konteks 'perangkat_baru').
-//   2. Lanjut langsung ke alur normal (cek status_approval/gudang/jam
-//      kerja, dst — TIDAK diubah dari sebelumnya).
+// URUTAN SETELAH EMAIL+PASSWORD BENAR: 1. Device belum pernah diverifikasi
+// (localStorage) DAN toggle OTP aktif -> modal OTP EMAIL dulu
+// (window.kirimOtpEmail/verifikasiOtpEmail, konteks 'perangkat_baru'). 2. Lanjut
+// langsung ke alur normal (cek status_approval/gudang/jam kerja, dst — TIDAK
+// diubah dari sebelumnya).
 //
-// TIDAK disentuh / tetap murni vanilla di auth.js:
-// - onAuthStateChanged (sesi otomatis)
-// - window.lupaPassword — TETAP membaca document.getElementById('input-email')
-//   secara langsung; makanya input email di Vue ini WAJIB tetap pakai
-//   id="input-email".
-// - window.bukaFormRegistrasi, window.aturTampilanBerdasarkanRole,
-//   window.pindahLayar, window.pindahTab, window.ambilMasterList,
-//   window.pesanErrorAuth — semua dipanggil apa adanya dari sini.
-// - window.kirimOtpEmail / window.verifikasiOtpEmail (vue-otp.js) — fondasi
-//   OTP bersama, SAMA yang dipakai Registrasi.
-// ============================================================================
+// TIDAK disentuh / tetap murni vanilla di auth.js: - onAuthStateChanged (sesi
+// otomatis) - window.lupaPassword — TETAP membaca
+// document.getElementById('input-email') secara langsung; makanya input email di
+// Vue ini WAJIB tetap pakai id="input-email". - window.bukaFormRegistrasi,
+// window.aturTampilanBerdasarkanRole, window.pindahLayar, window.pindahTab,
+// window.ambilMasterList, window.pesanErrorAuth — semua dipanggil apa adanya
+// dari sini. - window.kirimOtpEmail / window.verifikasiOtpEmail (vue-otp.js) —
+// fondasi OTP bersama, SAMA yang dipakai Registrasi.
+
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -35,30 +31,26 @@ function isDesktopBrowser() {
   return !/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
-// Poin 4: cek ke server (bukan localStorage) apakah user ini sudah Clock In
-// hari ini — Clock In terjadi di HP, desktop tidak akan pernah tahu soal itu
-// lewat localStorage-nya sendiri.
-// DIROMBAK TOTAL (19 Agt 2026) — versi LAMA cuma cek d.status ===
-// "HADIR (CLOCK IN)" + d.waktu, yang itu FORMAT LAMA doang. Sejak Clock
-// In/Out digabung jadi 1 dokumen (js/vue-camera.js, 18 Agt 2026),
-// dokumen BARU pakai status:"HADIR" + waktu_masuk (BUKAN "HADIR (CLOCK
-// IN)" / waktu lagi) — akibatnya SIAPAPUN yang Clock In pakai sistem
-// baru TIDAK PERNAH terdeteksi di sini, walau beneran sudah Clock In di
-// HP, login desktop tetap ditolak. Sekaligus dulu fetch SELURUH koleksi
-// absensi tiap kali dicek — boros parah, sekarang query LANGSUNG scoped
-// ke email+tanggal, dan cek KEDUA format (baru & lama) sekaligus.
-// DIROMBAK LAGI (19 Agt 2026) — versi sebelumnya cek "Clock In HARI INI"
-// pakai rentang tanggal kalender (00:00-23:59), yang PERSIS kena bug
-// shift-malam yang sama seperti tombol Home dulu: kalau Clock In malam
-// kemarin dan sekarang sudah lewat tengah malam, "hari ini" versi
-// kalender jadi beda tanggal — walau orangnya masih aktif di shift yang
-// SAMA belum Clock Out. Sekarang PAKAI ULANG window.cekStatusClockInSaya
-// (auth.js) — satu sumber kebenaran yang SAMA dipakai tombol Home &
-// Clock Out, sudah teruji tahan shift-malam & lintas-device. Juga lebih
-// masuk akal secara bisnis: aturan "wajib Clock In dulu" itu maksudnya
-// "sedang aktif di shift sekarang", bukan "pernah Clock In kapan saja
-// hari ini" (kalau sudah Clock Out & pulang, mestinya memang tidak boleh
-// remote-login ke sistem kantor lagi).
+// Poin 4: cek ke server (bukan localStorage) apakah user ini sudah Clock In hari
+// ini — Clock In terjadi di HP, desktop tidak akan pernah tahu soal itu lewat
+// localStorage-nya sendiri versi LAMA cuma cek d.status === "HADIR (CLOCK IN)" +
+// d.waktu, yang itu FORMAT LAMA doang. Sejak Clock In/Out digabung jadi 1
+// dokumen, dokumen BARU pakai status:"HADIR" + waktu_masuk (BUKAN "HADIR (CLOCK
+// IN)" / waktu lagi) — akibatnya SIAPAPUN yang Clock In pakai sistem baru TIDAK
+// PERNAH terdeteksi di sini, walau beneran sudah Clock In di HP, login desktop
+// tetap ditolak. Sekaligus dulu fetch SELURUH koleksi absensi tiap kali dicek —
+// boros parah, sekarang query LANGSUNG scoped ke email+tanggal, dan cek KEDUA
+// format (baru & lama) sekaligus versi sebelumnya cek "Clock In HARI INI" pakai
+// rentang tanggal kalender (00:00-23:59), yang PERSIS kena bug shift-malam yang
+// sama seperti tombol Home dulu: kalau Clock In malam kemarin dan sekarang sudah
+// lewat tengah malam, "hari ini" versi kalender jadi beda tanggal — walau
+// orangnya masih aktif di shift yang SAMA belum Clock Out. Sekarang PAKAI ULANG
+// window.cekStatusClockInSaya (auth.js) — satu sumber kebenaran yang SAMA
+// dipakai tombol Home & Clock Out, sudah teruji tahan shift-malam &
+// lintas-device. Juga lebih masuk akal secara bisnis: aturan "wajib Clock In
+// dulu" itu maksudnya "sedang aktif di shift sekarang", bukan "pernah Clock In
+// kapan saja hari ini" (kalau sudah Clock Out & pulang, mestinya memang tidak
+// boleh remote-login ke sistem kantor lagi).
 async function sudahClockInHariIniServer(email) {
   try {
     const status = await window.cekStatusClockInSaya(email);
@@ -78,15 +70,14 @@ const AppLogin = {
     const statusPilihan = ref('HADIR (CLOCK IN)');
     const memproses = ref(false);
     const isDesktop = ref(isDesktopBrowser());
-    // DIROMBAK (22 Agt 2026, revisi ke-2 dari Hilman) — "Absensi Melalui
-    // QR" TERNYATA bukan layar terpisah dari Login, cuma MODE TAMPILAN
-    // di form Login yang SAMA (email+password yang sama, proses login()
+    // "Absensi Melalui QR" TERNYATA bukan layar terpisah dari Login, cuma MODE
+    // TAMPILAN di form Login yang SAMA (email+password yang sama, proses login
     // yang sama juga) — yang login di sini akun HP KIOSK (email/password
-    // asli-nya, BUKAN PIN karyawan — PIN itu punya konsep beda, dipakai
-    // nanti pas scan barcode di dalam screen-absensi-qr). Begitu akun
-    // KIOSK berhasil login, auth.js YANG deteksi (jenis_akun==='kiosk')
-    // dan otomatis lempar ke screen-absensi-qr — termasuk pas refresh,
-    // karena Firebase Auth inget sesi login, bukan logic tambahan di sini.
+    // asli-nya, BUKAN PIN karyawan — PIN itu punya konsep beda, dipakai nanti
+    // pas scan barcode di dalam screen-absensi-qr). Begitu akun KIOSK berhasil
+    // login, auth.js YANG deteksi (jenis_akun==='kiosk') dan otomatis lempar ke
+    // screen-absensi-qr — termasuk pas refresh, karena Firebase Auth inget sesi
+    // login, bukan logic tambahan di sini.
     const modeKioskLogin = ref(false);
     function bukaAbsensiQr() { modeKioskLogin.value = true; }
     function kembaliKeLoginBiasa() { modeKioskLogin.value = false; }
@@ -94,7 +85,7 @@ const AppLogin = {
     const izin = reactive({ tanggal: '', alasan: '', detail: '' });
     const opsiAlasanIzin = ref([]);
 
-    // ---- OTP perangkat baru (EMAIL, lewat vue-otp.js — bukan WA lagi) ----
+    // OTP perangkat baru (EMAIL, lewat vue-otp.js — bukan WA lagi)
     const otpVisible = ref(false);
     const otpEmailAktif = ref(''); // email yang sedang diverifikasi
     const otpInput = ref('');
@@ -152,10 +143,10 @@ const AppLogin = {
       const emailInput = email.value.trim().toLowerCase();
       const passInput = password.value;
       window.statusPilihanGlobal = isDesktop.value ? 'HADIR (CLOCK IN)' : statusPilihan.value;
-      // Dibaca auth.js setelah login sukses — validasi silang: kalau
-      // orang coba login mode Kiosk pakai akun BUKAN Kiosk (atau
-      // sebaliknya), auth.js yang tolak & logout paksa (lihat catatan
-      // di auth.js kenapa validasi ini WAJIB di sana, bukan di sini).
+      // Dibaca auth.js setelah login sukses — validasi silang: kalau orang coba
+      // login mode Kiosk pakai akun BUKAN Kiosk (atau sebaliknya), auth.js yang
+      // tolak & logout paksa (lihat catatan di auth.js kenapa validasi ini WAJIB
+      // di sana, bukan di sini).
       window._modeLoginKioskDicoba = modeKioskLogin.value;
 
       window.tanggalIzinGlobal = izin.tanggal;
@@ -185,10 +176,9 @@ const AppLogin = {
         return;
       }
 
-      // Tahap 1: verifikasi perangkat baru (kalau perlu) — kode TIDAK
-      // dikirim otomatis di sini, modal tampil dulu, user klik "Kirim
-      // Kode OTP" secara manual (cegah pengiriman email berulang tanpa
-      // sadar/disengaja).
+      // Tahap 1: verifikasi perangkat baru (kalau perlu) — kode TIDAK dikirim
+      // otomatis di sini, modal tampil dulu, user klik "Kirim Kode OTP" secara
+      // manual (cegah pengiriman email berulang tanpa sadar/disengaja).
       const perluOtp = await apakahOtpDiperlukan(emailInput);
       if (perluOtp) {
         otpEmailAktif.value = emailInput;
@@ -197,7 +187,7 @@ const AppLogin = {
         hentikanCountdownOtp();
         otpVisible.value = true;
         memproses.value = false;
-        return; // nunggu interaksi modal OTP — dilanjut dari verifikasiOtpPerangkat()
+        return; // nunggu interaksi modal OTP — dilanjut dari verifikasiOtpPerangkat
       }
 
       await lanjutkanSetelahOtp(emailInput);
@@ -216,8 +206,8 @@ const AppLogin = {
       return !sudahTerverifikasi;
     }
 
-    // Dipanggil dari tombol "Kirim Kode OTP" (pertama kali) MAUPUN "Kirim
-    // Ulang" (setelah countdown 2 menit habis) — logic-nya sama persis.
+    // Dipanggil dari tombol "Kirim Kode OTP" (pertama kali) MAUPUN "Kirim Ulang"
+    // (setelah countdown 2 menit habis) — logic-nya sama persis.
     async function kirimKodeOtpPerangkat() {
       if (otpMengirim.value || otpCountdown.value > 0) return; // jaga-jaga dobel klik
       otpMengirim.value = true;
@@ -259,11 +249,11 @@ const AppLogin = {
       window._manualLoginInProgress = false;
     }
 
-    // Tahap 2: alur normal — SAMA PERSIS seperti versi sebelum perombakan
-    // ini (status_approval, gudang, Clock In desktop/mobile, dst, TIDAK
-    // diubah perilakunya). Nama fungsi dipertahankan "lanjutkanSetelahOtp"
-    // (bukan sekadar alias) supaya titik panggilnya dari verifikasiOtpPerangkat()
-    // tidak perlu ikut berubah.
+    // Tahap 2: alur normal — SAMA PERSIS seperti versi sebelum perombakan ini
+    // (status_approval, gudang, Clock In desktop/mobile, dst, TIDAK diubah
+    // perilakunya). Nama fungsi dipertahankan "lanjutkanSetelahOtp" (bukan
+    // sekadar alias) supaya titik panggilnya dari verifikasiOtpPerangkat tidak
+    // perlu ikut berubah.
     async function lanjutkanSetelahOtp(emailInput) {
       let dataUser = null;
       try {
@@ -286,10 +276,10 @@ const AppLogin = {
       await lanjutkanSetelahLogin(emailInput, dataUser);
     }
 
-    // Tahap 3: alur normal — SAMA PERSIS seperti versi sebelum perombakan
-    // ini (status_approval, gudang, Clock In desktop/mobile, dst, TIDAK
-    // diubah perilakunya). Terima dataUserSudahAda opsional supaya tidak
-    // baca ulang Firestore kalau sudah sempat diambil di lanjutkanSetelahOtp().
+    // Tahap 3: alur normal — SAMA PERSIS seperti versi sebelum perombakan ini
+    // (status_approval, gudang, Clock In desktop/mobile, dst, TIDAK diubah
+    // perilakunya). Terima dataUserSudahAda opsional supaya tidak baca ulang
+    // Firestore kalau sudah sempat diambil di lanjutkanSetelahOtp.
     async function lanjutkanSetelahLogin(emailInput, dataUserSudahAda) {
       if (ingatSaya.value) {
         localStorage.setItem('zevanic_email', emailInput);
@@ -324,11 +314,10 @@ const AppLogin = {
       };
       isOwnerRole = (window.currentUser.role === 'owner' || window.currentUser.role === 'superuser');
 
-      // BARU (22 Agt 2026) — validasi silang mode "Absensi Melalui QR":
-      // 1) Coba mode Kiosk pakai akun BUKAN Kiosk terdaftar -> TOLAK.
-      //    ("hanya device yang terdaftar yang bisa login disini")
-      // 2) Akun Kiosk asli -> SELALU ke screen-absensi-qr, TIDAK PERNAH
-      //    kena gerbang Clock In (kiosk bukan orang, tidak clock in).
+      // validasi silang mode "Absensi Melalui QR": 1) Coba mode Kiosk pakai akun
+      // BUKAN Kiosk terdaftar -> TOLAK. ("hanya device yang terdaftar yang bisa
+      // login disini") 2) Akun Kiosk asli -> SELALU ke screen-absensi-qr, TIDAK
+      // PERNAH kena gerbang Clock In (kiosk bukan orang, tidak clock in).
       const iniAkunKiosk = d.jenis_akun === 'kiosk';
       if (window._modeLoginKioskDicoba && !iniAkunKiosk) {
         alert("Akun ini bukan Device Kiosk terdaftar. Gunakan menu Login biasa, atau hubungi Owner kalau device ini seharusnya terdaftar.");
@@ -346,13 +335,12 @@ const AppLogin = {
         return;
       }
 
-      // BARU (19 Agt 2026, permintaan Hilman) — karyawan yang sudah
-      // resign/nonaktif (status_kerja BUKAN "Aktif") TIDAK BOLEH login
-      // lagi, walau akun & password-nya masih ada di Firebase Auth.
+      // karyawan yang sudah resign/nonaktif (status_kerja BUKAN "Aktif") TIDAK
+      // BOLEH login lagi, walau akun & password-nya masih ada di Firebase Auth.
       // Owner/Superuser SENGAJA dikecualikan — supaya tidak ada resiko
       // kunci-mati total dari sistem sendiri kalau field ini kebetulan
-      // salah/kosong di akun Owner sendiri (tidak ada orang lain yang
-      // bisa perbaiki Firestore-nya kalau itu terjadi).
+      // salah/kosong di akun Owner sendiri (tidak ada orang lain yang bisa
+      // perbaiki Firestore-nya kalau itu terjadi).
       if (!isOwnerRole && window.currentUser.status_kerja !== "Aktif") {
         alert("Akun ini berstatus \"" + window.currentUser.status_kerja + "\" (bukan Aktif) dan tidak bisa dipakai login. Kalau ini keliru, hubungi Admin/Owner.");
         await signOut(auth);
@@ -360,13 +348,12 @@ const AppLogin = {
         return;
       }
 
-      // DIUBAH (19 Agt 2026, permintaan Hilman) — SEBELUMNYA Owner/
-      // Superuser dikecualikan dari syarat gudang ("perannya manajerial").
-      // Sekarang WAJIB juga, tidak ada pengecualian — konsisten dengan
-      // syarat Clock In yang juga sekarang berlaku ke Owner (lihat di
-      // bawah). PENTING: kalau akun Owner belum ada gudang_penempatan
-      // terisi, Owner akan TERKUNCI dari sistemnya sendiri sampai field
-      // ini diisi — WAJIB dicek dulu sebelum file ini dipakai produksi.
+      // DIUBAH — SEBELUMNYA Owner/ Superuser dikecualikan dari syarat gudang
+      // ("perannya manajerial"). Sekarang WAJIB juga, tidak ada pengecualian —
+      // konsisten dengan syarat Clock In yang juga sekarang berlaku ke Owner
+      // (lihat di bawah). PENTING: kalau akun Owner belum ada gudang_penempatan
+      // terisi, Owner akan TERKUNCI dari sistemnya sendiri sampai field ini
+      // diisi — Belum diverifikasi di produksi.
       if (window.currentUser.gudang_penempatan.length === 0) {
         alert("Akun Anda belum ditautkan ke gudang manapun. Silakan hubungi Owner/PIC.");
         await signOut(auth);
@@ -375,15 +362,15 @@ const AppLogin = {
       }
 
       await window.muatAksesConfigSaya(window.currentUser.role, window.currentUser.profil_akses);
-      await window.muatAksesJabatanSaya(window.currentUser.jabatan); // BARU (9 Sep 2026) — pembatas tambahan per Jabatan
+      await window.muatAksesJabatanSaya(window.currentUser.jabatan); // BARU — pembatas tambahan per Jabatan
       window.simpanKonteksSesi(); // biar reload berikutnya (F5, tab baru) tidak baca ulang users/akses_config
 
-      // Akun Kiosk BERHENTI DI SINI — tidak pernah ke Dashboard/kamera
-      // biasa, tidak kena gerbang Clock In apapun (desktop maupun
-      // mobile), karena kiosk bukan orang yang absen buat dirinya
-      // sendiri. "Terkunci" di screen-absensi-qr tercapai otomatis di
-      // SETIAP reload juga — lihat blok serupa di onAuthStateChanged
-      // utama (bawah file ini) buat kasus refresh/auto-reload.
+      // Akun Kiosk BERHENTI DI SINI — tidak pernah ke Dashboard/kamera biasa,
+      // tidak kena gerbang Clock In apapun (desktop maupun mobile), karena kiosk
+      // bukan orang yang absen buat dirinya sendiri. "Terkunci" di
+      // screen-absensi-qr tercapai otomatis di SETIAP reload juga — lihat blok
+      // serupa di onAuthStateChanged utama (bawah file ini) buat kasus
+      // refresh/auto-reload.
       if (iniAkunKiosk) {
         window._manualLoginInProgress = false;
         window.pindahLayar('screen-absensi-qr');
@@ -395,21 +382,17 @@ const AppLogin = {
       if (window.refreshHome) window.refreshHome();
       if (window.refreshHeaderMobile) window.refreshHeaderMobile();
 
-      // DIROMBAK (23 Agt 2026, bug ditemukan Hilman: bisa Clock In berkali-
-      // kali sampai 7x + badge status salah) — SEBELUMNYA jalur MOBILE di
-      // sini (beda dari jalur desktop tepat di bawah) masih cek "sudah
-      // Clock In" pakai localStorage LEGACY 'zevanic_absen_' dibandingkan
-      // STRING TANGGAL HARI INI persis (sudahClockInLokal) — PERSIS pola
-      // lama yang sudah digantikan window.cekStatusClockInSaya() untuk
-      // jalur desktop (rombak 19 Agt 2026), tapi jalur mobile ini KELEWAT
-      // saat itu. Akibatnya: localStorage device-lokal gampang meleset
-      // (device beda/cache dibersihkan/app ditutup-buka) -> dianggap
-      // "belum Clock In" padahal aslinya SUDAH -> user diarahkan ke
-      // screen-camera lagi -> Clock In dobel. Sekarang mobile JUGA pakai
-      // SATU sumber kebenaran yang SAMA persis dengan desktop (Firestore,
-      // tahan shift-malam & lintas-device) — dihitung SEKALI, dipakai
-      // ulang di kedua cabang di bawah supaya tidak bisa "beda pendapat"
-      // lagi ke depan.
+      // SEBELUMNYA jalur MOBILE di sini (beda dari jalur desktop tepat di bawah)
+      // masih cek "sudah Clock In" pakai localStorage LEGACY 'zevanic_absen_'
+      // dibandingkan STRING TANGGAL HARI INI persis (sudahClockInLokal) — PERSIS
+      // pola lama yang sudah digantikan window.cekStatusClockInSaya untuk jalur
+      // desktop, tapi jalur mobile ini KELEWAT saat itu. Akibatnya: localStorage
+      // device-lokal gampang meleset (device beda/cache dibersihkan/app
+      // ditutup-buka) -> dianggap "belum Clock In" padahal aslinya SUDAH -> user
+      // diarahkan ke screen-camera lagi -> Clock In dobel. Sekarang mobile JUGA
+      // pakai SATU sumber kebenaran yang SAMA persis dengan desktop (Firestore,
+      // tahan shift-malam & lintas-device) — dihitung SEKALI, dipakai ulang di
+      // kedua cabang di bawah supaya tidak bisa "beda pendapat" lagi ke depan.
       const sudahClockInServer = await sudahClockInHariIniServer(emailInput);
 
       if (isDesktop.value) {

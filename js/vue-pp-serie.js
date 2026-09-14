@@ -1,190 +1,36 @@
 // js/vue-pp-serie.js
-// ============================================================================
-// Proses Produksi > Serie — menu BARU (7 Sep 2026 malam lanjut lagi, "lanjut
-// lagi" setelah Cutting selesai), wireframe handoff "03 - Proses Produksi /
-// 02 - Serie", dikerjakan via /design-terapkan-handoff. Instruksi Guru
-// singkat ("lanjut lagi") — dilanjutkan sendiri ke folder handoff BERIKUTNYA
-// per urutan penomoran folder (01-Cutting sudah selesai, 02-Serie berikutnya,
-// BUKAN 03-Sewing/04-Finishing — folder Mockup/handoff/03 - Proses Produksi/
-// diberi angka 01/02/03/04/05 = Cutting/Serie/Sewing/Finishing/Gudang Barang
-// Jadi, urutan folder ini yang diikuti, bukan urutan §9.3 RENCANA lama yang
-// sempat menyebut "Cutting -> Sewing -> Finishing -> Serie -> Gudang" — folder
-// asli menaruh Serie di posisi ke-2, dan itu MASUK AKAL secara arsitektur:
-// Serie = hub distribusi yang WAJIB ada sebelum Sewing/Finishing/Gudang bisa
-// menerima apapun dari Cutting/Acc, jadi urutan folder inilah yang benar
-// diikuti, bukan urutan §9.3 (dicatat sebagai koreksi urutan rencana, bukan
-// penyimpangan tanpa alasan).
+// Proses Produksi > Serie — hub distribusi antar pos (11 tab): menerima
+// hasil Cutting & 3 pos Acc, memecahnya jadi batch, lalu merutekan ke
+// Sewing, Finishing, dan Gudang Barang Jadi.
 //
-// ARSITEKTUR — PENTING, baca dulu sebelum ubah apapun di sini:
+// Koleksi & field:
+// - separating_batch: 1 dokumen per batch hasil Generate Separating.
+// kode_batch = {kode_spk}-S{counter}, counternya PER GROUPING lewat field
+// spk_grouping.separating_counter (bukan counter global).
+// - pengaturan_id_separating/{yymmdd}: counter harian, pola sama seperti
+// pengaturan_id_bagging / tugas_kirim.
+// - komponen_rincian[]: digabung dari 4 sumber (cutting, sewing, webbing,
+// finishing), ditandai field sumber, plus pic_asal + ref_asal per baris
+// untuk audit "komponen ini disiapkan siapa".
+// - id_komponen dihitung deterministik {kode_batch}-{urutan 2 digit} dan
+// disimpan inline di komponen_rincian[] — TIDAK ada koleksi label terpisah
+// seperti label_komponen milik Cutting.
 //
-// Serie = HUB DISTRIBUSI, bukan pos kerja biasa. Semua perpindahan antar
-// divisi (Cutting <-> Sewing <-> Finishing <-> Gudang) SELALU lewat Serie
-// (PEDOMAN-SERAH-TERIMA.md aturan #11) — tidak ada jalur langsung. Serie
-// MENERIMA dari 2 arah sekaligus (Cutting untuk komponen kain/pola, DAN
-// langsung dari 3 pos Acc Persiapan Produksi -- Sewing/Webbing/Finishing --
-// untuk komponen aksesoris, karena aksesoris tidak perlu dipotong), gabungkan
-// jadi "batch separating" per produk, lalu estafet ke Sewing -> Finishing ->
-// Gudang Barang Jadi (2 pos terakhir ini DAN Sewing BELUM DIBANGUN, lihat GAP
-// DISENGAJA di bawah).
-//
-// Koleksi BARU (sesuai SERAH-TERIMA.md bagian 5 "Database > Perlu ditambah" —
-// HANYA ini 2, TIDAK ada koleksi label terpisah seperti label_komponen di
-// Cutting, lihat keputusan #4 di bawah):
-//   separating_batch — 1 dokumen per batch hasil Generate Separating. Field:
-//     kode_batch, spk_groupings[] (SPK Grouping sumber, bisa >1 kalau
-//     bahan+warna+size sama digabung), nama_produk, size, qty, status (11
-//     nilai: perlu_diproses -> sedang_diproses -> perlu_dikirim ->
-//     kirim_sewing -> setor_sewing -> terima_sewing -> kirim_finishing ->
-//     setor_finishing -> terima_finishing -> kirim_gudang -> selesai),
-//     operator_uid/nama/riwayat[], komponen_rincian[] ({id_komponen, sumber,
-//     nama_komponen, qty_setor, qty_per_pcs, satuan, status, entry_oleh,
-//     entry_pada, pic_asal, ref_asal}), kode_bagging[], kode_tugas, tlc_tujuan, unpack_log[],
-//     catatan_masalah, masuk_tahap_pada, sampai_pada (BELUM ADA PENULIS,
-//     lihat GAP DISENGAJA), dibuat_pada/diperbarui_pada.
-//   pengaturan_id_separating/{yymmdd} — counter harian, {counter,
-//     dibuat_pada} — pola SAMA seperti pengaturan_id_bagging/tugas_kirim.
-//
-// KEPUTUSAN ARSITEKTUR (judgment call, DIDOKUMENTASIKAN karena SERAH-TERIMA
-// tidak menjawab eksplisit atau baru jelas setelah baca wireframe.dc.html —
-// lihat STATUS-PROYEK.md untuk versi lengkapnya):
-//
-// 1. TAB 2.1 "Perlu Di Proses" adalah PENUTUP EMPAT GAP SEKALIGUS yang
-//    sengaja ditinggalkan modul-modul sebelumnya:
-//      - Scan Sampai kode_bagging yang match `cutting_track.kode_bagging[]`
-//        (array-contains) -> tulis cutting_track.status='selesai' +
-//        sampai_pada=sekarang. INI MENUTUP GAP DISENGAJA Cutting (dicatat di
-//        header js/vue-pp-cutting.js poin 6: "cutting_track.sampai_pada
-//        BELUM ADA PENULIS -- itu tugas modul SERIE").
-//      - Scan Sampai kode_bagging yang match salah satu baris
-//        `spk_track.<sewing|webbing|finishing>_rincian[].kode_bagging` ->
-//        tulis sampai_pada=sekarang di baris itu. INI MENUTUP GAP yang SAMA
-//        di 3 pos Acc (field itu "TETAP BELUM PUNYA PENULIS" per catatan di
-//        js/vue-pp-cutting.js poin 2 -- SEKARANG akhirnya ditutup di sini).
-//    Pencarian dilakukan BERURUTAN (cutting_track dulu, baru 3 jalur Acc)
-//    karena kode_bagging dijamin unik lintas pos (semua pos generate lewat
-//    generateKodeHarian('BAG', 'pengaturan_id_bagging') yang SAMA).
-// 2. Status KOMPLIT/INKOMPLIT per sumber (badge di kartu SPK) DIHITUNG LIVE,
-//    BUKAN field tersimpan -- sama filosofi seperti progresLabel() di
-//    Cutting. Cutting-sumber KOMPLIT kalau cutting_track.status==='selesai';
-//    Acc-sumber KOMPLIT kalau SEMUA baris <jalur>_rincian milik SPK itu sudah
-//    py sampai_pada. Sumber yang TIDAK ada di spk_grouping.jalur_aktif[]
-//    tidak ditampilkan sama sekali (bukan INKOMPLIT -- memang tidak relevan
-//    buat SPK itu, mis. produk tanpa Acc Webbing).
-// 3. Scan Unpack HANYA diimplementasikan untuk barang dari Cutting (reuse
-//    field cutting_track.unpack_log yang SUDAH ADA sejak modul Cutting --
-//    dipakai DUA KALI oleh 2 pos berbeda: Cutting sendiri untuk unpack
-//    kiriman dari Bahan, Serie di sini untuk unpack kiriman dari Cutting,
-//    field yang sama generik "log unpack di titik manapun dokumen itu
-//    diterima"). Barang dari 3 pos Acc TIDAK punya field unpack_log di
-//    skema spk_track (SERAH-TERIMA Serie tidak merinci unpack per-sumber
-//    berbeda) -- untuk Acc, Scan Sampai saja dianggap cukup, TIDAK ada
-//    langkah Unpack terpisah. Kalau Guru menghendaki Unpack juga untuk Acc,
-//    perlu keputusan skema tambahan (field baru di spk_track).
-// 4. TIDAK ADA koleksi label terpisah untuk "ID Komponen" (beda dari Cutting
-//    yang punya koleksi label_komponen sendiri) -- dicek ulang ke SERAH-
-//    TERIMA.md bagian 5 "Database > Perlu ditambah", HANYA separating_batch +
-//    pengaturan_id_separating yang disebutkan. `id_komponen` dihitung
-//    DETERMINISTIK dari `${kode_batch}-${urutan 2 digit}`, disimpan sebagai
-//    field di dalam `komponen_rincian[]` (bukan dokumen terpisah) -- Scan
-//    Entry (2.2) mencocokkan kode yang discan ke id_komponen di array itu,
-//    lalu update statusnya lewat read-modify-write (updateSeparatingBatch(),
-//    pola sama seperti updateCuttingTrack()/updateBarisBahan()).
-// 5. komponen_rincian SEBUAH BATCH digabung dari 4 kemungkinan SUMBER
-//    (bahan/cutting, sewing, webbing, finishing) -- field `sumber` per baris
-//    menandai asalnya. Diisi SEKALI saat Generate Separating (2.1a) dari:
-//    cutting_track.komponen_rincian[] (match grouping via grouping_id) dan
-//    spk_track.<jalur>_rincian[] (match grouping via cocokkan no_spk anggota
-//    spk_grouping.breakdown[]) untuk tiap SPK Grouping yang dicentang. Qty
-//    per baris komponen di-PRORATA sesuai porsi qty batch ini terhadap total
-//    qty SPK Grouping asal (qty_setor = qty_komponen_asal * (qty_batch_ini /
-//    qty_total_grouping_asal)) -- INI JUDGMENT CALL karena SERAH-TERIMA tidak
-//    merinci rumus prorata saat 1 grouping dipecah ke banyak batch, cuma
-//    contoh angka bulat (180 -> 4x25 pas habis dibagi rata per contoh
-//    wireframe, TIDAK ada contoh SISA/pecahan) -- dibulatkan ke atas
-//    (Math.ceil) supaya tidak kurang.
-//
-//    pic_asal = operator divisi asal (sumber 'bahan': cutting_track.
-//    op_pola.nama; sumber Acc: <jalur>_rincian[].operator_nama per baris).
-//    ref_asal = id dokumen sumber (cutting_track.id / spk_track.id).
-//    Baris tetap terpisah per grouping/track asal (tidak dilebur), jadi
-//    audit tetap presisi per baris walau qty hasil prorata gabungan.
-// 6. Validasi Generate Separating (2.1a): `jumlah_batch x isi_pcs_per_bundle`
-//    WAJIB PERSIS SAMA DENGAN total qty SPK yang dicentang (keras, diblokir
-//    kalau tidak sama -- ini satu-satunya validasi keras yang eksplisit dari
-//    contoh wireframe 4x25=100). Validasi `isi_pcs_per_bundle` terhadap
-//    `master_produk.moq_serie`/`kelipatan_isi_pola` HANYA PERINGATAN (bukan
-//    blokir) -- rumus pastinya ("gendongan 2 komponen kiri+kanan, MOQ 25 ->
-//    perlu 50 pcs gendongan") tidak sepenuhnya jelas dari teks SERAH-TERIMA,
-//    jadi tidak dipaksakan jadi validasi keras yang bisa salah blokir kerja
-//    Guru. Pengelompokan SPK yang "bahan+warna+size sama" boleh dicentang
-//    bareng HANYA dicocokkan dari `nama_produk`+`size` (2 field native
-//    spk_grouping) -- kecocokan WARNA butuh resolve lewat sku_produk_terlibat
-//    ke master_produk yang lebih mahal & spk_grouping.nama_produk sendiri
-//    SUDAH tidak menyertakan warna (per PETA-DATABASE.md) -- disederhanakan,
-//    admin tetap yang pilih centang secara manual, sistem cuma menyaring
-//    daftar per nama_produk+size supaya tidak tercampur produk yang jelas
-//    beda.
-// 7. `kode_batch` = `${kode_spk_grouping_pertama_yang_dicentang}-5${counter 3
-//    digit}` -- counter dari `pengaturan_id_separating/{yymmdd}` (GLOBAL per
-//    hari, BUKAN per-transaksi-generate seperti terkesan di contoh wireframe
-//    5001/5002/5003/5004 yang look like nomor lokal per klik) -- dipilih
-//    counter GLOBAL supaya kode_batch DIJAMIN tidak pernah tabrakan meski ada
-//    2 Generate Separating berbeda di hari yang sama, sesuai prinsip "kode
-//    yang diterbitkan tidak pernah dipakai dua kali dalam satu hari"
-//    (PEDOMAN-SERAH-TERIMA.md, "Cara menilai hasilnya sudah benar" #4).
-// 8. Tab 2.5 "Setor Sewing" & 2.8 "Setor Finishing" (read-only) membaca
-//    koleksi `sewing_track`/`finishing_track` -- koleksi ini BUKAN ditulis
-//    modul ini (scope Serie TIDAK termasuk Sewing/Finishing, SERAH-TERIMA
-//    bagian 4 "Tidak masuk"), TAPI skemanya SUDAH didokumentasikan di
-//    wireframe.dc.html milik Serie sendiri (catatan developer lintas-modul,
-//    field: batch_id/kode_batch/nama_produk/qty/status/operator_uid/nama/
-//    entry_pada/kode_bagging[]/kode_tugas/tujuan untuk sewing_track; kode_pcs/
-//    batch_id/nama_produk/size/warna/tahap_aktif/progress/op_qc dst/status/
-//    kode_bagging/kode_tugas untuk finishing_track) -- BUKAN skema yang
-//    ditebak sendiri di sini, disalin dari dokumen desain yang sama.
-//    Modul ini HANYA BACA (getDocs biasa), TIDAK PERNAH menulis ke 2 koleksi
-//    itu. Tab-tab ini akan TAMPIL KOSONG sampai modul Sewing/Finishing
-//    (Proses Produksi, belum dibangun) mulai menulis dokumennya -- BUKAN
-//    bug, EKSPEKTASI (sama pola seperti tab Setor/Selesai yang menunggu
-//    modul lain, lihat GAP DISENGAJA di bawah).
-// 9. Tab 2.6 "Terima Sewing" & 2.9 "Terima Finishing": Scan Sampai mencari
-//    dokumen `sewing_track`/`finishing_track` dengan `kode_tugas` yang cocok,
-//    menulis `status:'selesai'` di dokumen itu (menutup "Sedang Dikirim" di
-//    pos pengirim, PERSIS seperti disebutkan SERAH-TERIMA §3 "Terima balik:
-//    scan sampai dari Sewing/Finishing. Menutup 'Sedang Kirim' di divisi
-//    pengirim -> 'Selesai'"), LALU mengangkat status `separating_batch`
-//    terkait (match lewat `kode_batch`) ke 'terima_sewing'/'terima_finishing'.
-//    Sampai modul Sewing/Finishing benar-benar ada & menulis kode_tugas
-//    miliknya sendiri, scan di sini TIDAK akan menemukan apapun (gap yang
-//    sama seperti poin 8).
-// 10. Peran: Admin bisa cetak+scan (kecuali scan operator); PIC/PIC
-//    Owner/Owner/Superuser SATU-SATUNYA yang bisa scan operator -- pola
-//    IDENTIK Cutting, reuse picOwnerKeAtas() (disalin, bukan diimpor, sama
-//    konvensi semua file pos ini).
-// 11. TLC: `TLC-SER` (asal Serie sendiri) dan `TLC-JHT`/`TLC-FIN`/`TLC-GBJ`
-//    (tujuan Kirim Sewing/Finishing/Gudang) dipakai sebagai KONSTANTA LITERAL
-//    (sama pola Cutting yang pakai 'TLC-PTG' literal, TIDAK di-seed otomatis
-//    ke master_tlc) -- kalau kode-kode ini belum ada di Zevanic House > TLC &
-//    Prefix, Guru WAJIB menambahkannya manual dulu sebelum cetak kode tugas
-//    di modul ini bisa dipakai (sama seperti TLC-PTG untuk Cutting).
-//
-// GAP DISENGAJA (bukan bug, BUKAN yang pertama di app ini -- pola berulang):
-// - `separating_batch.sampai_pada` (penanda Tab 2.11 Selesai) BELUM PUNYA
-//   PENULIS -- tugas modul Gudang Barang Jadi (di luar cakupan SERAH-TERIMA
-//   Serie), akan menulis balik status='selesai' begitu ia Scan Sampai dari
-//   Kirim Gudang (2.10) -- PERSIS pola yang sama seperti Serie menutup gap
-//   Cutting hari ini. Tab 2.11 TAMPIL KOSONG sampai Gudang dibangun.
-// - Tab 2.5/2.8 (Setor Sewing/Finishing) TAMPIL KOSONG sampai modul Sewing/
-//   Finishing (Proses Produksi) ada dan menulis `sewing_track`/
-//   `finishing_track` (lihat poin 8 di atas).
-// - Tab 2.6/2.9 (Terima Sewing/Finishing) TIDAK akan menemukan apapun untuk
-//   di-scan sampai modul Sewing/Finishing bisa mengirim balik dengan
-//   kode_tugas sendiri (lihat poin 9 di atas).
-//
-// Print label & scan QR: PAKAI ULANG PopupPratinjauCetakLabel & ScanGenerik
-// (js/vue-components.js, js/vue-scan-cetak.js) -- TIDAK ada komponen visual
-// baru ditulis di sini, konsisten dengan seluruh app & dengan Cutting.
-// ============================================================================
+// Jebakan:
+// - Scan Sampai Tab 2.1 adalah penulis cutting_track.sampai_pada DAN
+// spk_track.<jalur>_rincian[].sampai_pada untuk 3 jalur Acc.
+// - Scan Unpack hanya berlaku untuk barang dari Cutting (reuse
+// cutting_track.unpack_log). Skema spk_track tidak punya field unpack
+// per-sumber, jadi untuk Acc cukup Scan Sampai.
+// - Validasi KERAS Generate Separating: jumlah_batch x isi_pcs_per_bundle
+// wajib persis sama dengan total qty SPK yang dicentang.
+// - Validasi terhadap master_produk.moq_serie / kelipatan_isi_pola hanya
+// PERINGATAN, bukan blokir.
+// - SPK boleh dicentang bareng kalau nama_produk + size cocok; kecocokan
+// warna diresolve lewat resolveWarnaGrouping, dan kalau gagal resolve
+// filter warna dilewati (bukan menyembunyikan SPK yang valid).
+// - Status KOMPLIT/INKOMPLIT dihitung live saat render, bukan field
+// tersimpan.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -192,8 +38,8 @@ import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal } from './vue-scan-cetak.js?v=5';
 
-// --- Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan
-// Produksi, belum ada infrastruktur util generik lintas file). -------------
+// Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan Produksi,
+// belum ada infrastruktur util generik lintas file).
 function formatQty(n) {
   const angka = parseFloat(n) || 0;
   return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 });
@@ -222,33 +68,29 @@ function hariIniSama(iso) {
   const d = new Date(iso), now = new Date();
   return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
 }
-// generateKodeBatchPerGrouping — GANTI (12 Sep 2026, redesain penomoran
-// total, lihat dummy-erp-grouping.xlsx). Dulu kode_batch =
+// generateKodeBatchPerGrouping — GANTI . Dulu kode_batch =
 // `${kode_spk}-5{counter GLOBAL per hari}` lewat generateKodeHarian(prefix,
-// koleksiCounter) versi file ini (fungsi itu SEKARANG DIHAPUS — nama yang
-// sama persis dengan generateKodeHarian() versi Cutting tapi ISI BEDA
-// [itu Cutting mengembalikan STRING terformat, ini dulu angka mentah]
-// sempat jadi sumber kebingungan, jadi sekalian dibereskan di sini,
-// bukan cuma diganti isinya). Counter GLOBAL-per-hari (dari koleksi
-// `pengaturan_id_separating/{yymmdd}`) diganti PER GROUPING (keputusan
-// Guru lewat AskUserQuestion: "Ganti ke PER GROUPING (S01, S02 khusus
-// grouping itu)") — supaya nomor S01/S02/dst mencerminkan urutan batch DI
-// DALAM grouping itu sendiri (kasus umum: bahan kurang, 1 grouping
-// dipecah jadi beberapa batch bertahap). Counter-nya disimpan LANGSUNG di
-// dokumen `spk_grouping` (field baru `separating_counter`, ditulis
-// transaksional) — BUKAN lagi di koleksi `pengaturan_id_separating`
-// terpisah (koleksi lama itu TIDAK dihapus/diubah, cuma tidak ditulis
-// lagi dari sini, supaya data lama tidak hilang).
+// koleksiCounter) versi file ini (fungsi itu SEKARANG DIHAPUS — nama yang sama
+// persis dengan generateKodeHarian versi Cutting tapi ISI BEDA [itu Cutting
+// mengembalikan STRING terformat, ini dulu angka mentah] sempat jadi sumber
+// kebingungan, jadi sekalian dibereskan di sini, bukan cuma diganti isinya).
+// Counter GLOBAL-per-hari (dari koleksi `pengaturan_id_separating/{yymmdd}`)
+// diganti PER GROUPING (— supaya nomor S01/S02/dst mencerminkan urutan batch DI
+// DALAM grouping itu sendiri (kasus umum: bahan kurang, 1 grouping dipecah jadi
+// beberapa batch bertahap). Counter-nya disimpan LANGSUNG di dokumen
+// `spk_grouping` (field baru `separating_counter`, ditulis transaksional) —
+// BUKAN lagi di koleksi `pengaturan_id_separating` terpisah (koleksi lama itu
+// TIDAK dihapus/diubah, cuma tidak ditulis lagi dari sini, supaya data lama
+// tidak hilang).
 //
-// Format baru: `${kode_spk}-S{counter:2digit}` (mis. G26R0911P001-S01),
-// gantikan `${kode_spk}-5{counter:3digit}` lama.
+// Format baru: `${kode_spk}-S{counter:2digit}` (mis. G26R0911P001-S01), gantikan
+// `${kode_spk}-5{counter:3digit}` lama.
 //
-// Catatan penggabungan multi-grouping: kalau Generate Separating
-// menggabungkan >1 SPK Grouping sekaligus (`dipilih.length > 1`), counter
-// dijalankan pada grouping PERTAMA yang dicentang (`dipilih[0]`, sama
-// seperti kode_spk dasar kode_batch-nya) — grouping lain yang ikut
-// digabung TIDAK dapat nomor S sendiri karena kode_batch hasil gabungan
-// itu cuma satu.
+// Catatan penggabungan multi-grouping: kalau Generate Separating menggabungkan
+// >1 SPK Grouping sekaligus (`dipilih.length > 1`), counter dijalankan pada
+// grouping PERTAMA yang dicentang (`dipilih[0]`, sama seperti kode_spk dasar
+// kode_batch-nya) — grouping lain yang ikut digabung TIDAK dapat nomor S sendiri
+// karena kode_batch hasil gabungan itu cuma satu.
 async function generateKodeBatchPerGrouping(groupingId, kodeSpk) {
   const refGrouping = doc(db, 'spk_grouping', groupingId);
   return await runTransaction(db, async (trx) => {
@@ -259,15 +101,15 @@ async function generateKodeBatchPerGrouping(groupingId, kodeSpk) {
     return `${kodeSpk}-S${String(counterBaru).padStart(2, '0')}`;
   });
 }
-// generateKodeHarianFormat — VERSI KEDUA, mengembalikan STRING TERFORMAT
-// penuh (`${prefix}${tanggalKey}-${counter 3 digit}`), sama persis dengan
-// generateKodeHarian() versi Cutting yang ASLI. Ditambahkan terpisah karena
-// generateKodeHarian() di file INI sudah diubah (keputusan #7 di komentar
-// besar atas file) untuk mengembalikan angka counter MENTAH saja (dipakai
-// khusus membentuk kode_batch custom `${kodeSpk}-5${counter}`). Fungsi kedua
-// ini dipakai di tab 2.3/2.4/2.7/2.10 untuk kode bagging & kode tugas yang
-// TETAP harus berformat standar app (BAG.../TGS...), sama seperti Cutting &
-// pos Persiapan lain, supaya lintas modul konsisten dan gampang dibaca scan.
+// generateKodeHarianFormat — VERSI KEDUA, mengembalikan STRING TERFORMAT penuh
+// (`${prefix}${tanggalKey}-${counter 3 digit}`), sama persis dengan
+// generateKodeHarian versi Cutting yang ASLI. Ditambahkan terpisah karena
+// generateKodeHarian di file INI sudah diubah (keputusan #7 di komentar besar
+// atas file) untuk mengembalikan angka counter MENTAH saja (dipakai khusus
+// membentuk kode_batch custom `${kodeSpk}-5${counter}`). Fungsi kedua ini
+// dipakai di tab 2.3/2.4/2.7/2.10 untuk kode bagging & kode tugas yang TETAP
+// harus berformat standar app (BAG../TGS..), sama seperti Cutting & pos
+// Persiapan lain, supaya lintas modul konsisten dan gampang dibaca scan.
 async function generateKodeHarianFormat(prefix, koleksiCounter) {
   const now = new Date();
   const tanggalKey = `${String(now.getFullYear()).slice(-2)}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
@@ -291,7 +133,7 @@ const TLC_TUJUAN_FINISHING = 'TLC-FIN';
 const TLC_TUJUAN_GUDANG = 'TLC-GBJ';
 const JALUR_ACC = ['sewing', 'webbing', 'finishing'];
 
-// --- Baca koleksi mentah ----------------------------------------------------
+// Baca koleksi mentah
 async function muatSemuaGrouping() {
   const snap = await getDocs(collection(db, 'spk_grouping'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -327,24 +169,23 @@ async function ambilPetaProdukBySku() {
   _cachePetaProduk = peta;
   return peta;
 }
-// resolveWarnaGrouping — BARU (12 Sep 2026 lanjutan 3, tutup gap "harus
-// sewarna" yang sengaja ditunda di keputusan §6 komentar besar atas file:
-// dulu tidak diimplementasi karena resolve SKU->master_produk dianggap
-// "lebih mahal", sekarang helper itu SUDAH ada (ambilPetaProdukBySku,
-// dipakai konfirmasiGenerate utk cek MOQ) jadi tinggal dipakai ulang.
-// Ambil SKU PERTAMA grouping (pola sama seperti skuContoh di
-// konfirmasiGenerate) -> master_produk.warna. Return '' kalau tidak bisa
-// diresolve (SKU kosong / produk tidak ketemu) -- SENGAJA tidak dianggap
-// "cocok paksa" ataupun "tolak paksa", ditangani di pemanggil (lihat
-// bukaGenerate: kalau warna tidak bisa diresolve, filter warna DILEWATI,
-// bukan bikin daftar kosong karena data induk tidak lengkap).
+// resolveWarnaGrouping — tutup gap "harus sewarna" yang sengaja ditunda di
+// keputusan §6 komentar besar atas file: dulu tidak diimplementasi karena
+// resolve SKU->master_produk dianggap "lebih mahal", sekarang helper itu SUDAH
+// ada (ambilPetaProdukBySku, dipakai konfirmasiGenerate utk cek MOQ) jadi
+// tinggal dipakai ulang. Ambil SKU PERTAMA grouping (pola sama seperti skuContoh
+// di konfirmasiGenerate) -> master_produk.warna. Return '' kalau tidak bisa
+// diresolve (SKU kosong / produk tidak ketemu) -- SENGAJA tidak dianggap "cocok
+// paksa" ataupun "tolak paksa", ditangani di pemanggil (lihat bukaGenerate:
+// kalau warna tidak bisa diresolve, filter warna DILEWATI, bukan bikin daftar
+// kosong karena data induk tidak lengkap).
 function resolveWarnaGrouping(g, petaProduk) {
   const sku = (g.sku_produk_terlibat || [])[0];
   const p = sku ? petaProduk[sku] : null;
   return ((p && p.warna) || '').trim();
 }
 // updateSeparatingBatch — read-modify-write ATOMIK, pola sama seperti
-// updateCuttingTrack()/updateBarisBahan() di modul lain.
+// updateCuttingTrack/updateBarisBahan di modul lain.
 async function updateSeparatingBatch(batchId, mutator) {
   const ref = doc(db, 'separating_batch', batchId);
   await runTransaction(db, async (trx) => {
@@ -356,14 +197,14 @@ async function updateSeparatingBatch(batchId, mutator) {
   });
 }
 
-// --- Keputusan #2: KOMPLIT/INKOMPLIT per sumber, dihitung LIVE --------------
-// BARU (audit wireframe vs live sesi ini): tiap entry sumber sekarang JUGA
+// Keputusan #2: KOMPLIT/INKOMPLIT per sumber, dihitung LIVE
+// (audit wireframe vs live sesi ini): tiap entry sumber sekarang JUGA
 // membawa `.baris` (array sub-baris komponen mentah, dari cutting_track.
 // komponen_rincian utk 'cutting', dari <jalur>_rincian utk 3 Acc) — dipakai
 // tabel expandable Tab 2.1 (wireframe §2.1 "expandable group per sumber,
-// sub-baris per kode komponen"). PURE TAMBAHAN TAMPILAN, tidak mengubah
-// field `ada`/`komplit`/`ref`/`jumlahBaris` yang SUDAH DIPAKAI bisaGenerate()/
-// kumpulkanKomponenUntukBatch() — fungsi-fungsi itu TIDAK diubah.
+// sub-baris per kode komponen"). PURE TAMBAHAN TAMPILAN, tidak mengubah field
+// `ada`/`komplit`/`ref`/`jumlahBaris` yang SUDAH DIPAKAI bisaGenerate/
+// kumpulkanKomponenUntukBatch — fungsi-fungsi itu TIDAK diubah.
 function statusSumberGrouping(grouping, cuttingList, spkTrackByJalur) {
   const hasil = {};
   const jalurAktif = Array.isArray(grouping.jalur_aktif) ? grouping.jalur_aktif : [];
@@ -385,14 +226,10 @@ function statusSumberGrouping(grouping, cuttingList, spkTrackByJalur) {
     tracks.forEach(t => { (t[jalur + '_rincian'] || []).forEach(b => semuaBaris.push(b)); });
     const komplit = semuaBaris.length > 0 && semuaBaris.every(b => !!b.sampai_pada);
     const baris = semuaBaris.map(b => ({
-      // idKomponen/namaKomponen — FIX (13 Sep 2026, laporan Guru screenshot
-      // "id komponen" sama persis & "(tanpa nama)" di semua baris Acc): baris
-      // `<jalur>_rincian[]` dari 3 pos Acc TIDAK PUNYA field `bahan_nama`
-      // (itu field khas hitungBahanRincian/Bahan) atau `no_spk` unik per
-      // komponen (banyak komponen berbagi 1 no_spk/anak SPK) — field yang
-      // benar `nama_aksesoris` (lihat _butuhAksesorisDasar, vue-persiapan-
-      // produksi-v2.js) dan `kode_komponen`/`kode_anak_spk`/`kode_kartu`
-      // (3-level, unik per komponen, diisi tandaiKodeGrouping()).
+      // idKomponen/namaKomponen — FIX (— field yang benar `nama_aksesoris`
+      // (lihat _butuhAksesorisDasar, vue-persiapan- produksi-v2.js) dan
+      // `kode_komponen`/`kode_anak_spk`/`kode_kartu` (3-level, unik per
+      // komponen, diisi tandaiKodeGrouping).
       idKomponen: b.kode_komponen || b.kode_anak_spk || b.kode_kartu || b.no_spk || '-',
       namaKomponen: b.nama_aksesoris || '(tanpa nama)',
       qtySetor: parseFloat(b.qty) || 0, qtyKomponen: 1, satuan: b.satuan || 'PCS',
@@ -408,32 +245,28 @@ function semuaSumberKomplit(sumberMap) {
   return keys.every(k => sumberMap[k].komplit);
 }
 
-// sudahDikirimJalur/sudahAdaProgresPengiriman — BARU (14 Sep 2026 lanjutan
-// 22, keputusan Guru: gerbang yang sama seperti Cutting lanjutan 20/21
-// [lihat komentar besar lanjutan 21 di js/vue-pp-cutting.js] diterapkan juga
-// di Serie Tab 2.1 — "jangan dulu ada baris" sebelum ADA progres nyata dari
-// SALAH SATU sumbernya (Persiapan Bahan ATAU Acc Sewing/Webbing/Finishing)
-// sudah di-Scan Kirim (kode_tugas terisi). Tab 2.1 TIDAK punya masalah
-// "menulis diam-diam" seperti Cutting (muat() di sini CUMA baca — tidak ada
-// addDoc/updateDoc yang jalan otomatis begitu tab dibuka, beda dari
-// pastikanCuttingTrackLengkap() yang lazy-generate; jadi gerbang ini murni
-// FILTER TAMPILAN, tidak ada write yang perlu "dijegat" di sini), tapi
-// filternya tetap ditaruh SEDINI mungkin (di `daftarGrouping` sendiri, satu
-// titik, dipakai ulang oleh template DAN popup "Generate Separating" §618)
-// supaya konsisten dgn niat Guru: baris (dan turunannya) tidak eksis sama
-// sekali di UI manapun sebelum progres itu ada.
-// jalur 'bahan' -> "dikirim" DIBACA dari keberadaan cutting_track itu
-// SENDIRI (cuttingList.some grouping_id cocok), BUKAN re-cek bahan_rincian
-// di sini — sejak lanjutan 21, cutting_track HANYA ADA kalau Bahan sudah
-// di-Scan Kirim (pastikanCuttingTrackLengkap() menolak menulis sebelum
-// itu), jadi keberadaan dokumennya sendiri SUDAH cukup jadi bukti.
-// 3 jalur Acc -> sudahDikirimJalur() pakai join grouping_id (pola SAMA
-// seperti statusSumberGrouping() di atas, BUKAN pola no_spk-breakdown yang
-// dipakai enrichBahanUntukTrack() di modul Cutting — beda modul, ikut pola
-// masing-masing yang sudah ada). Kuantor `every` (SEMUA baris <jalur>_
-// rincian grouping ini harus kode_tugas) — KONSISTEN dgn kuantor
-// `sudahDikirim` di vue-pp-cutting.js (bukan ANY/some), supaya "progres"
-// berarti seluruh bagian jalur itu sudah dikirim, bukan baru sebagian.
+// sudahDikirimJalur/sudahAdaProgresPengiriman — js] diterapkan juga di Serie Tab
+// 2.1 — "jangan dulu ada baris" sebelum ADA progres nyata dari SALAH SATU
+// sumbernya (Persiapan Bahan ATAU Acc Sewing/Webbing/Finishing) sudah di-Scan
+// Kirim (kode_tugas terisi). Tab 2.1 TIDAK punya masalah "menulis diam-diam"
+// seperti Cutting (muat di sini CUMA baca — tidak ada addDoc/updateDoc yang
+// jalan otomatis begitu tab dibuka, beda dari pastikanCuttingTrackLengkap yang
+// lazy-generate; jadi gerbang ini murni FILTER TAMPILAN, tidak ada write yang
+// perlu "dijegat" di sini), tapi filternya tetap ditaruh SEDINI mungkin (di
+// `daftarGrouping` sendiri, satu titik, dipakai ulang oleh template DAN popup
+// "Generate Separating" §618) supaya konsisten dgn niat: baris (dan turunannya)
+// tidak eksis sama sekali di UI manapun sebelum progres itu ada. jalur 'bahan'
+// -> "dikirim" DIBACA dari keberadaan cutting_track itu SENDIRI
+// (cuttingList.some grouping_id cocok), BUKAN re-cek bahan_rincian di sini —
+// sejak, cutting_track HANYA ADA kalau Bahan sudah di-Scan Kirim
+// (pastikanCuttingTrackLengkap menolak menulis sebelum itu), jadi keberadaan
+// dokumennya sendiri SUDAH cukup jadi bukti. 3 jalur Acc -> sudahDikirimJalur
+// pakai join grouping_id (pola SAMA seperti statusSumberGrouping di atas, BUKAN
+// pola no_spk-breakdown yang dipakai enrichBahanUntukTrack di modul Cutting —
+// beda modul, ikut pola masing-masing yang sudah ada). Kuantor `every` (SEMUA
+// baris <jalur>_ rincian grouping ini harus kode_tugas) — KONSISTEN dgn kuantor
+// `sudahDikirim` di vue-pp-cutting.js (bukan ANY/some), supaya "progres" berarti
+// seluruh bagian jalur itu sudah dikirim, bukan baru sebagian.
 function sudahDikirimJalur(grouping, jalur, spkTrackByJalur) {
   const tracks = (spkTrackByJalur[jalur] || []).filter(t => t.grouping_id === grouping.id);
   const semuaBaris = [];
@@ -449,8 +282,8 @@ function sudahAdaProgresPengiriman(grouping, cuttingList, spkTrackByJalur) {
   });
 }
 
-// --- Keputusan #5: kumpulkan komponen_rincian dari 4 sumber untuk 1/lebih
-// SPK Grouping yang dicentang, PRORATA ke qty batch ini. ---------------------
+// Keputusan #5: kumpulkan komponen_rincian dari 4 sumber untuk 1/lebih SPK
+// Grouping yang dicentang, PRORATA ke qty batch ini.
 function kumpulkanKomponenUntukBatch(groupingIds, cuttingList, spkTrackByJalur, qtyBatch, qtyTotalDicentang) {
   const rasio = qtyTotalDicentang > 0 ? (qtyBatch / qtyTotalDicentang) : 0;
   const hasil = [];
@@ -465,15 +298,15 @@ function kumpulkanKomponenUntukBatch(groupingIds, cuttingList, spkTrackByJalur, 
       const tracks = (spkTrackByJalur[jalur] || []).filter(t => t.grouping_id === gid);
       tracks.forEach(t => {
         (t[jalur + '_rincian'] || []).forEach(b => {
-          // Sumber Acc: operator_nama tersimpan PER BARIS (lebih presisi
-          // dari cutting), jadi diambil dari baris `b` itu sendiri.
-          // nama_komponen — FIX (13 Sep 2026, sama akar dgn statusSumberGrouping()
-          // di atas): `b.bahan_nama` TIDAK ADA di baris Acc (field yang benar
-          // `nama_aksesoris`), jadi field ini SELALU "(tanpa nama)" utk semua
-          // komponen ber-sumber Acc begitu tersimpan ke separating_batch —
-          // ikut kepakai apa adanya di label "Cetak ID Komponen" (baris 872) &
-          // bundling "Cetak Kode Bagging" per nama_komponen (baris 1113), jadi
-          // BUKAN cuma bug tampilan, data yang benar-benar dicetak & dipakai.
+          // Sumber Acc: operator_nama tersimpan PER BARIS (lebih presisi dari
+          // cutting), jadi diambil dari baris `b` itu sendiri. nama_komponen —
+          // sama akar dgn statusSumberGrouping di atas): `b.bahan_nama` TIDAK
+          // ADA di baris Acc (field yang benar `nama_aksesoris`), jadi field ini
+          // SELALU "(tanpa nama)" utk semua komponen ber-sumber Acc begitu
+          // tersimpan ke separating_batch — ikut kepakai apa adanya di label
+          // "Cetak ID Komponen" (baris 872) & bundling "Cetak Kode Bagging" per
+          // nama_komponen (baris 1113), jadi BUKAN cuma bug tampilan, data yang
+          // benar-benar dicetak & dipakai.
           hasil.push({ sumber: jalur, nama_komponen: b.nama_aksesoris || '(tanpa nama)', qty_per_pcs: 1, qty_setor: Math.ceil((parseFloat(b.qty) || 0) * rasio), satuan: b.satuan || 'PCS', pic_asal: b.operator_nama || b.operator_uid || null, ref_asal: t?.id || null });
         });
       });
@@ -504,10 +337,9 @@ async function kirimMasalahSerie(batch, jumlah, alasan) {
     bahanNama: batch.nama_produk, bahanWarna: batch.size, satuan: 'pcs',
     qtyKurang: jumlah, alasan
   });
-  // riwayat_scan aksi 'masalah' — BARU (12 Sep 2026, unifikasi log Proses
-  // Produksi, pola sama seperti LABEL_AKSI_SCAN di Persiapan Produksi).
-  // Ditambahkan ADITIF di samping persiapan_masalah (yang sudah ada dan
-  // TIDAK diubah) supaya riwayat_scan tetap jadi 1 log lengkap per batch.
+  // riwayat_scan aksi 'masalah' — BARU . Ditambahkan ADITIF di samping
+  // persiapan_masalah (yang sudah ada dan TIDAK diubah) supaya riwayat_scan
+  // tetap jadi 1 log lengkap per batch.
   try {
     const oleh = window.currentUser?.email || null;
     await updateSeparatingBatch(batch.id, (data) => ({
@@ -517,9 +349,9 @@ async function kirimMasalahSerie(batch, jumlah, alasan) {
   } catch (e) { console.error('Gagal catat riwayat_scan masalah Serie:', e); }
 }
 
-// ============================================================================
+
 // TAB 2.1: Perlu Di Proses + Pop up 2.1a Generate Separating
-// ============================================================================
+
 const SeriePerluDiProses = {
   components: { ScanGenerik, PopupPinGenerik, PopupPratinjauCetakLabel },
   setup() {
@@ -549,9 +381,9 @@ const SeriePerluDiProses = {
         cuttingList.value = ct;
         spkTrackByJalur.sewing = sew; spkTrackByJalur.webbing = web; spkTrackByJalur.finishing = fin;
         separatingList.value = sep;
-        // sudahAdaProgresPengiriman(...) — BARU lanjutan 22, LIHAT komentar
-        // besar di atas fungsinya: gerbang tampil, grouping yg belum ada
-        // progres Scan Kirim dari sumber manapun disembunyikan dulu.
+        // sudahAdaProgresPengiriman(.) — BARU, LIHAT komentar besar di atas
+        // fungsinya: gerbang tampil, grouping yg belum ada progres Scan Kirim
+        // dari sumber manapun disembunyikan dulu.
         daftarGrouping.value = grouping.filter(g => !sudahDipisahkanIds.value.has(g.id) && (g.jalur_aktif || []).some(j => j === 'bahan' || JALUR_ACC.includes(j)) && sudahAdaProgresPengiriman(g, ct, spkTrackByJalur));
       } catch (e) { console.error('Gagal muat Serie > Perlu Di Proses:', e); daftarGrouping.value = []; }
       memuat.value = false;
@@ -559,12 +391,12 @@ const SeriePerluDiProses = {
     function sumber(g) { return statusSumberGrouping(g, cuttingList.value, spkTrackByJalur); }
     function bisaGenerate(g) { return semuaSumberKomplit(sumber(g)); }
 
-    // --- Baris expandable (BARU, audit wireframe vs live sesi ini): wireframe
+    // Baris expandable (BARU, audit wireframe vs live sesi ini): wireframe
     // §2.1 "tabel expandable per sumber komponen" — baris utama = 1 SPK
     // Grouping, expand menampilkan group per sumber (Cutting/Acc Sewing/Acc
     // Webbing/Acc Finishing) + sub-baris per komponen (lihat statusSumber-
-    // Grouping() di atas). State expand murni UI (Set in-memory), tidak
-    // ditulis ke DB. -----------------------------------------------------
+    // Grouping di atas). State expand murni UI (Set in-memory), tidak ditulis ke
+    // DB.
     const expandedIds = ref(new Set());
     function toggleExpand(id) {
       const s = new Set(expandedIds.value);
@@ -574,13 +406,11 @@ const SeriePerluDiProses = {
     const LABEL_SUMBER = { cutting: 'Cutting', sewing: 'Acc Sewing', webbing: 'Acc Webbing', finishing: 'Acc Finishing' };
     const ASAL_SUMBER = { cutting: 'dari Cutting', sewing: 'dari Persiapan Sewing', webbing: 'dari Persiapan Webbing', finishing: 'dari Persiapan Acc Finishing' };
 
-    // --- Scan Sampai: cari cocok di cutting_track ATAU spk_track 3 jalur Acc,
-    // MENUTUP GAP #1 (lihat komentar besar atas file). ------------------------
-    // BARU (12 Sep 2026, keputusan Guru: "scan kirim mengaitkan kode
-    // spk/kode batch/kode bagging pada kode tugas, untuk melepasnya dengan
-    // scan sampai") — helper melepas pack[].sampai_pada di tugas_kirim yang
-    // menuju Serie (tlc_tujuan === TLC_ASAL_SERIE, karena kode bagging ini
-    // dikirim OLEH Cutting/3 pos Acc KE Serie). Dipakai kedua cabang di bawah.
+    // Scan Sampai: cari cocok di cutting_track ATAU spk_track 3 jalur Acc,
+    // MENUTUP GAP #1 (lihat komentar besar atas file).
+    // BARU — helper melepas pack[].sampai_pada di tugas_kirim yang menuju Serie
+    // (tlc_tujuan === TLC_ASAL_SERIE, karena kode bagging ini dikirim OLEH
+    // Cutting/3 pos Acc KE Serie). Dipakai kedua cabang di bawah.
     async function lepasPackTugasKirimSerie(kode, now) {
       try {
         const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('tlc_tujuan', '==', TLC_ASAL_SERIE)));
@@ -637,25 +467,22 @@ const SeriePerluDiProses = {
       } catch (e) { console.error('Gagal scan sampai Serie:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
-    // --- Scan Unpack: versi BARU (12 Sep 2026, keputusan Guru — MENGGANTIKAN
-    // popup KOMPLIT/INKOMPLIT lama yang cuma konfirmasi tanpa verifikasi, dan
-    // TIDAK LAGI dibatasi "hanya dari Cutting" — bagging.isi[] berlaku sama
-    // buat kiriman dari Cutting maupun 3 pos Acc). Scan ulang tiap isi
-    // bagging, lihat buatUnpackUniversal() di vue-scan-cetak.js.
+    // Scan Unpack: versi BARU . Scan ulang tiap isi bagging, lihat
+    // buatUnpackUniversal di vue-scan-cetak.js.
     const { modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack } = buatUnpackUniversal();
 
-    // --- Tunjuk Operator Ampar (SESUNGGUHNYA "Scan Operator" generate
+    // Tunjuk Operator Ampar (SESUNGGUHNYA "Scan Operator" generate
     // separating -- lihat popup 2.1a untuk aksi penuh). Popup Generate
-    // Separating (2.1a). ------------------------------------------------------
-    const popupGenerate = ref(null); // { calon:[grouping...], centang:{}, jumlahBatch, isiPcsPerBundle, warna }
-    // bukaGenerate — BARU jadi async (12 Sep lanjutan 3): tutup gap "harus
-    // sewarna" (lihat keputusan §6 komentar besar atas file + resolveWarnaGrouping
-    // di atas). Kalau warna gAwal BISA diresolve, daftar calon disaring JUGA per
-    // warna (di luar nama_produk+size yang sudah ada) -- SPK beda warna jadi
-    // tidak akan pernah muncul buat dicentang, bukan cuma diperingatkan. Kalau
-    // warna gAwal TIDAK bisa diresolve (SKU/produk tidak ketemu), filter warna
-    // DILEWATI (fallback ke perilaku lama nama_produk+size saja) supaya data
-    // induk yang belum lengkap tidak diam-diam menyembunyikan SPK yang valid.
+    // Separating (2.1a).
+    const popupGenerate = ref(null); // { calon:[grouping..], centang:{}, jumlahBatch, isiPcsPerBundle, warna }
+    // bukaGenerate — BARU jadi async: tutup gap "harus sewarna" (lihat keputusan
+    // §6 komentar besar atas file + resolveWarnaGrouping di atas). Kalau warna
+    // gAwal BISA diresolve, daftar calon disaring JUGA per warna (di luar
+    // nama_produk+size yang sudah ada) -- SPK beda warna jadi tidak akan pernah
+    // muncul buat dicentang, bukan cuma diperingatkan. Kalau warna gAwal TIDAK
+    // bisa diresolve (SKU/produk tidak ketemu), filter warna DILEWATI (fallback
+    // ke perilaku lama nama_produk+size saja) supaya data induk yang belum
+    // lengkap tidak diam-diam menyembunyikan SPK yang valid.
     async function bukaGenerate(gAwal) {
       const petaProduk = await ambilPetaProdukBySku();
       const warnaAwal = resolveWarnaGrouping(gAwal, petaProduk);
@@ -712,10 +539,10 @@ const SeriePerluDiProses = {
             kode_batch: kodeBatch, spk_groupings: groupingIds, nama_produk: dipilih[0].nama_produk, size: dipilih[0].size,
             qty: isiPcs, status: 'perlu_diproses', operator_uid: null, operator_nama: null, riwayat_operator: [],
             komponen_rincian: komponen, kode_bagging: [], kode_tugas: '', tlc_tujuan: '', unpack_log: [], catatan_masalah: '',
-            // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi,
-            // lihat catatan besar di generateKodeBatchPerGrouping() & bagian
-            // "AKSI SCAN" di bawah file ini). Ditambahkan ADITIF, array kosong
-            // di awal sama seperti spk_track di Persiapan Produksi.
+            // riwayat_scan — unifikasi log Proses Produksi, lihat catatan besar
+            // di generateKodeBatchPerGrouping & bagian "AKSI SCAN" di bawah file
+            // ini). Ditambahkan ADITIF, array kosong di awal sama seperti
+            // spk_track di Persiapan Produksi.
             riwayat_scan: [],
             masuk_tahap_pada: new Date().toISOString(), sampai_pada: null,
             dibuat_pada: serverTimestamp(), diperbarui_pada: serverTimestamp()
@@ -759,9 +586,10 @@ const SeriePerluDiProses = {
         <div class="lingkaran"><i class="fas fa-inbox"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada SPK Grouping yang menunggu di Serie</h3>
       </div>
-      <!-- Tabel expandable (BARU) — baris utama per SPK Grouping, expand utk
-           lihat group per sumber (Cutting/Acc Sewing/Acc Webbing/Acc
-           Finishing) + sub-baris per komponen (wireframe §2.1). -->
+      <!--
+        Tabel expandable (BARU) — baris utama per SPK Grouping, expand utk lihat group per sumber
+        (Cutting/Acc Sewing/Acc Webbing/Acc Finishing) + sub-baris per komponen (wireframe §2.1).
+      -->
       <div v-else class="gc-card" style="overflow-x:auto;">
         <table style="width:100%; border-collapse:collapse; font-size:11px; white-space:nowrap;">
           <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
@@ -876,10 +704,10 @@ const SeriePerluDiProses = {
   `
 };
 
-// ============================================================================
+
 // TAB 2.2: Sedang Di Proses — batch dikerjakan (cetak ID komponen, scan
 // operator, scan entry per komponen, lintas 4 sumber sekaligus)
-// ============================================================================
+
 const SerieSedangDiProses = {
   components: { ScanGenerik, PopupPinGenerik, PopupPratinjauCetakLabel },
   setup() {
@@ -917,7 +745,7 @@ const SerieSedangDiProses = {
       return { done: selesai, total };
     }
 
-    // --- Cetak ID Komponen ---
+    // Cetak ID Komponen
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
     const sedangCetak = ref(false);
@@ -936,7 +764,7 @@ const SerieSedangDiProses = {
       sedangCetak.value = false;
     }
 
-    // --- Scan Operator (sekali per batch) ---
+    // Scan Operator (sekali per batch)
     const popupPinOperator = ref(null);
     function bukaScanOperator(batch) { popupPinOperator.value = batch; }
     async function pinSuksesOperator(user) {
@@ -948,14 +776,14 @@ const SerieSedangDiProses = {
         await updateSeparatingBatch(batch.id, (data) => ({
           operator_uid: user.email, operator_nama: namaOperator,
           riwayat_operator: [...(data.riwayat_operator || []), { uid: user.email, nama: namaOperator, pada }],
-          // riwayat_scan — BARU (12 Sep 2026, unifikasi log Proses Produksi).
+          // riwayat_scan — BARU .
           riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: namaOperator, pada, qty: data.qty ?? null }]
         }));
         await muat();
       } catch (e) { console.error('Gagal scan operator Serie:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
-    // --- Scan Entry per komponen ---
+    // Scan Entry per komponen
     const modalEntry = reactive({ aktif: false, batch: null, log: [] });
     function bukaScanEntry(batch) { modalEntry.batch = batch; modalEntry.log = []; modalEntry.aktif = true; }
     function tutupScanEntry() { modalEntry.aktif = false; modalEntry.batch = null; modalEntry.log = []; muat(); }
@@ -971,11 +799,11 @@ const SerieSedangDiProses = {
         await updateSeparatingBatch(batch.id, (data) => {
           const arr = (data.komponen_rincian || []).map(k => k.id_komponen === kode ? { ...k, status: 'selesai', entry_oleh: oleh, entry_pada: now } : k);
           const semuaSelesai = arr.length > 0 && arr.every(k => k.status === 'selesai');
-          // riwayat_scan aksi 'entry' — BARU (12 Sep 2026, unifikasi log).
-          // Dicatat SEKALI saat SEMUA komponen selesai (transisi status),
-          // bukan per-scan komponen — granularitas per-komponen sudah ada
-          // sendiri di komponen_rincian[].entry_oleh/entry_pada, jadi tidak
-          // perlu diduplikasi di sini (hindari riwayat_scan membengkak).
+          // riwayat_scan aksi 'entry' — BARU . Dicatat SEKALI saat SEMUA
+          // komponen selesai (transisi status), bukan per-scan komponen —
+          // granularitas per-komponen sudah ada sendiri di
+          // komponen_rincian[].entry_oleh/entry_pada, jadi tidak perlu
+          // diduplikasi di sini (hindari riwayat_scan membengkak).
           const riwayatBaru = semuaSelesai ? [...(data.riwayat_scan || []), { aksi: 'entry', oleh, pada: now, qty: data.qty ?? null }] : (data.riwayat_scan || []);
           return { komponen_rincian: arr, riwayat_scan: riwayatBaru, ...(semuaSelesai ? { status: 'perlu_dikirim', masuk_tahap_pada: now } : {}) };
         });
@@ -1133,13 +961,13 @@ const SerieSedangDiProses = {
   `
 };
 
-// ============================================================================
-// TAB 2.3: Perlu Di Kirim — cetak kode bagging (bundle per nama_komponen,
-// sama pola seperti Cutting cetak surat jalan tapi TANPA kode tugas/tujuan
-// di sini — kode tugas baru dicetak di tab 2.4, lihat keputusan pemisahan
-// di komentar besar atas file) + Scan Pack (isi bagging dengan id_komponen).
-// Reuse koleksi `bagging` yang SAMA dipakai Cutting & Persiapan Bahan.
-// ============================================================================
+
+// TAB 2.3: Perlu Di Kirim — cetak kode bagging (bundle per nama_komponen, sama
+// pola seperti Cutting cetak surat jalan tapi TANPA kode tugas/tujuan di sini —
+// kode tugas baru dicetak di tab 2.4, lihat keputusan pemisahan di komentar
+// besar atas file) + Scan Pack (isi bagging dengan id_komponen). Reuse koleksi
+// `bagging` yang SAMA dipakai Cutting & Persiapan Bahan.
+
 const SeriePerluDiKirim = {
   components: { PopupPratinjauCetakLabel, ScanGenerik },
   setup() {
@@ -1164,8 +992,8 @@ const SeriePerluDiKirim = {
       memuat.value = false;
     }
 
-    // --- Cetak Kode Bagging: bundle per nama_komponen, TIDAK ada popup
-    // pilihan (tidak ada tujuan yang perlu dipilih di tab ini). -------------
+    // Cetak Kode Bagging: bundle per nama_komponen, TIDAK ada popup pilihan
+    // (tidak ada tujuan yang perlu dipilih di tab ini).
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
     async function cetakKodeBagging(batch) {
@@ -1178,11 +1006,9 @@ const SeriePerluDiKirim = {
         const kodeBaru = [];
         for (const jenis of jenisKomponen) {
           const kode = await generateKodeHarianFormat('BAG', 'pengaturan_id_bagging');
-          // kode_spk/kode_batch — BARU (12 Sep 2026, kaitkan root1/root2 ke
-          // bagging, keputusan Guru via chat). kode_spk TETAP ARRAY di sini
-          // (keputusan Guru) karena batch.spk_groupings bisa >1 kalau hasil
-          // gabungan >1 SPK Grouping sekaligus (lihat komentar Separating
-          // besar di atas file).
+          // kode_spk/kode_batch — BARU . kode_spk TETAP ARRAY di sini karena
+          // batch.spk_groupings bisa >1 kalau hasil gabungan >1 SPK Grouping
+          // sekaligus (lihat komentar Separating besar di atas file).
           await addDoc(collection(db, 'bagging'), {
             kode, produk_label: `${batch.kode_batch} &middot; ${jenis}`, isi: [], ditutup_pada: null,
             kode_spk: batch.spk_groupings || [], kode_batch: batch.kode_batch || null,
@@ -1199,7 +1025,7 @@ const SeriePerluDiKirim = {
       sedangProses.value = false;
     }
 
-    // --- Scan Pack: step1 kode bagging, step2 id_komponen berkali-kali ------
+    // Scan Pack: step1 kode bagging, step2 id_komponen berkali-kali
     const modalPack = reactive({ aktif: false, bagging: null, batch: null, log: [] });
     function bukaScanPack() { modalPack.bagging = null; modalPack.batch = null; modalPack.log = []; modalPack.aktif = true; }
     function tutupScanPack() { modalPack.aktif = false; modalPack.bagging = null; modalPack.batch = null; modalPack.log = []; muat(); }
@@ -1224,10 +1050,9 @@ const SeriePerluDiKirim = {
       if (!modalPack.bagging) return;
       try {
         await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() });
-        // riwayat_scan aksi 'pack' — BARU (12 Sep 2026, unifikasi log Proses
-        // Produksi). Dicatat SEKALI saat 1 bagging ditutup (bukan per
-        // komponen yang di-scan masuk), pasangan dari aksi 'unpack' yang
-        // sudah ada (unpack_log[] milik separating_batch).
+        // riwayat_scan aksi 'pack' — BARU . Dicatat SEKALI saat 1 bagging
+        // ditutup (bukan per komponen yang di-scan masuk), pasangan dari aksi
+        // 'unpack' yang sudah ada (unpack_log[] milik separating_batch).
         if (modalPack.batch) {
           const oleh = window.currentUser?.email || null;
           await updateSeparatingBatch(modalPack.batch.id, (data) => ({
@@ -1303,33 +1128,33 @@ const SeriePerluDiKirim = {
   `
 };
 
-// ============================================================================
-// FACTORY: Tab "Kirim <Tujuan>" (2.4 Kirim Sewing, 2.7 Kirim Finishing,
-// 2.10 Kirim Gudang) — pola IDENTIK di 3 tab ini per SERAH-TERIMA/wireframe
-// ("Pola sama dengan 2.4 Kirim Sewing" ditulis eksplisit utk 2.7 & 2.10),
-// jadi ditulis SEKALI sebagai factory function dan dipanggil 3x dengan cfg
-// beda, daripada disalin-tempel 3x nyaris identik (lebih gampang dirawat).
+
+// FACTORY: Tab "Kirim <Tujuan>" (2.4 Kirim Sewing, 2.7 Kirim Finishing, 2.10
+// Kirim Gudang) — pola IDENTIK di 3 tab ini per /wireframe ("Pola sama dengan
+// 2.4 Kirim Sewing" ditulis eksplisit utk 2.7 & 2.10), jadi ditulis SEKALI
+// sebagai factory function dan dipanggil 3x dengan cfg beda, daripada
+// disalin-tempel 3x nyaris identik (lebih gampang dirawat).
 //
-// Keputusan #12 (BARU, didokumentasikan di sini karena baru relevan mulai
-// tab ini): status `setor_sewing`/`setor_finishing` yang ada di enum 11
-// status separating_batch TIDAK PERNAH benar-benar ditulis oleh modul ini.
-// Alasan: tab 2.5/2.8 "Setor Sewing/Finishing" murni read-only (baca
-// sewing_track/finishing_track, SERAH-TERIMA §3 tegas "Serie cuma baca
-// status, TIDAK ADA tombol aksi di situ") -- tidak ada aksi APAPUN di Serie
-// yang logis memicu transisi ke status itu. Jadi alur nyata yang
-// diimplementasikan: perlu_dikirim -> kirim_sewing (scan kirim tab 2.4) ->
-// [lompat 'setor_sewing', Serie tidak pernah menulisnya] -> terima_sewing
-// (scan sampai tab 2.6) -> kirim_finishing (scan kirim tab 2.7) -> [lompat
-// 'setor_finishing'] -> terima_finishing (scan sampai tab 2.9) ->
-// kirim_gudang (scan kirim tab 2.10) -> selesai (GAP DISENGAJA, ditulis
-// modul Gudang Barang Jadi). Kode tugas dicetak ULANG di tiap tab Kirim
-// (kode BEDA tiap leg pengiriman), TAPI kode_bagging dari tab 2.3 DIPAKAI
-// ULANG di semua leg (bundle fisik sama, cuma surat jalan/kode tugas-nya
+// Keputusan #12 (BARU, didokumentasikan di sini karena baru relevan mulai tab
+// ini): status `setor_sewing`/`setor_finishing` yang ada di enum 11 status
+// separating_batch TIDAK PERNAH benar-benar ditulis oleh modul ini. Alasan: tab
+// 2.5/2.8 "Setor Sewing/Finishing" murni read-only (baca
+// sewing_track/finishing_track, tegas "Serie cuma baca status, TIDAK ADA tombol
+// aksi di situ") -- tidak ada aksi APAPUN di Serie yang logis memicu transisi ke
+// status itu. Jadi alur nyata yang diimplementasikan: perlu_dikirim ->
+// kirim_sewing (scan kirim tab 2.4) -> [lompat 'setor_sewing', Serie tidak
+// pernah menulisnya] -> terima_sewing (scan sampai tab 2.6) -> kirim_finishing
+// (scan kirim tab 2.7) -> [lompat 'setor_finishing'] -> terima_finishing (scan
+// sampai tab 2.9) -> kirim_gudang (scan kirim tab 2.10) -> selesai (GAP
+// DISENGAJA, ditulis modul Gudang Barang Jadi). Kode tugas dicetak ULANG di tiap
+// tab Kirim (kode BEDA tiap leg pengiriman), TAPI kode_bagging dari tab 2.3
+// DIPAKAI ULANG di semua leg (bundle fisik sama, cuma surat jalan/kode tugas-nya
 // yang baru tiap kali pindah divisi) -- sesuai wireframe 2.7 "scan kirim per
 // bagging, pola sama dengan 2.4" yang TIDAK menyebut cetak bagging baru.
-// ============================================================================
+
 function buatTabKirim(cfg) {
-  // cfg: { statusFilter, statusSetelah, tlcTujuan, namaTujuan, judul, kosongTeks, icon }
+  // cfg: { statusFilter, statusSetelah, tlcTujuan, namaTujuan, judul,
+  // kosongTeks, icon }
   return {
     components: { PopupPratinjauCetakLabel, ScanGenerik },
     setup() {
@@ -1347,7 +1172,7 @@ function buatTabKirim(cfg) {
         memuat.value = false;
       }
 
-      // --- Cetak Kode Tugas: TIDAK ada pilihan tujuan (sudah pasti per tab
+      // Cetak Kode Tugas: TIDAK ada pilihan tujuan (sudah pasti per tab
       // ini), cuma tgl keberangkatan. Butuh kode_bagging (dicetak di 2.3). --
       const popupCetak = ref(null); // { batch, tglKeberangkatan }
       function bukaCetakTugas(batch) {
@@ -1379,7 +1204,7 @@ function buatTabKirim(cfg) {
         sedangProses.value = false;
       }
 
-      // --- Scan Kirim: step1 kode tugas, step2 kode bagging tiap pack -------
+      // Scan Kirim: step1 kode tugas, step2 kode bagging tiap pack
       const modalKirim = reactive({ aktif: false, tugas: null, log: [] });
       function bukaScanKirim() { modalKirim.tugas = null; modalKirim.log = []; modalKirim.aktif = true; }
       function tutupScanKirim() { modalKirim.aktif = false; modalKirim.tugas = null; modalKirim.log = []; muat(); }
@@ -1396,9 +1221,8 @@ function buatTabKirim(cfg) {
         const batch = daftar.value.find(b => b.kode_tugas === modalKirim.tugas.kode && (b.kode_bagging || []).includes(kode));
         if (!batch) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
         try {
-          // kode_spk/kode_batch ikut disalin ke pack[] — BARU (12 Sep 2026,
-          // keputusan Guru via chat: kode_spk TETAP ARRAY di Serie), dilepas
-          // oleh Scan Sampai (sampai_pada).
+          // kode_spk/kode_batch ikut disalin ke pack[] — BARU, dilepas oleh Scan
+          // Sampai (sampai_pada).
           await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), {
             pack: arrayUnion({ kode_bagging: kode, kode_spk: batch.spk_groupings || [], kode_batch: batch.kode_batch || null, pada: new Date().toISOString(), sampai_pada: null })
           });
@@ -1407,7 +1231,7 @@ function buatTabKirim(cfg) {
           if (semuaSudah) {
             const oleh = window.currentUser?.email || null;
             const pada = new Date().toISOString();
-            // riwayat_scan aksi 'kirim' — BARU (12 Sep 2026, unifikasi log).
+            // riwayat_scan aksi 'kirim' — BARU .
             await updateSeparatingBatch(batch.id, (data) => ({
               status: cfg.statusSetelah, masuk_tahap_pada: pada,
               riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'kirim', oleh, pada, catatan: cfg.namaTujuan, qty: data.qty ?? null }]
@@ -1507,14 +1331,15 @@ const SerieKirimGudang = buatTabKirim({
   judul: 'Kirim Gudang', kosongTeks: 'Tidak ada batch siap kirim ke Gudang', icon: 'fa-warehouse'
 });
 
-// ============================================================================
+
 // FACTORY: Tab "Setor <Asal>" (2.5 Setor Sewing, 2.8 Setor Finishing) —
-// READ-ONLY MURNI, tidak ada tombol aksi apapun (SERAH-TERIMA §3 & §8 butir
-// 2 tegas). Baca sewing_track/finishing_track APA ADANYA, kosong sampai
-// modul Sewing/Finishing dibangun (lihat GAP DISENGAJA di header file).
-// ============================================================================
+// READ-ONLY MURNI, tidak ada tombol aksi apapun . Baca
+// sewing_track/finishing_track APA ADANYA, kosong sampai modul Sewing/Finishing
+// dibangun (lihat GAP DISENGAJA di header file).
+
 function buatTabSetor(cfg) {
-  // cfg: { muatFn, judul, kosongTeks, icon, kolomStatus (fungsi ambil label status per doc) }
+  // cfg: { muatFn, judul, kosongTeks, icon, kolomStatus (fungsi ambil label
+  // status per doc) }
   return {
     setup() {
       const memuat = ref(true);
@@ -1564,26 +1389,26 @@ function buatTabSetor(cfg) {
 const SerieSetorSewing = buatTabSetor({ muatFn: muatSemuaSewingTrack, judul: 'Setor Sewing', namaAsal: 'Sewing', kosongTeks: 'Belum ada batch di Sewing', icon: 'fa-shirt' });
 const SerieSetorFinishing = buatTabSetor({ muatFn: muatSemuaFinishingTrack, judul: 'Setor Finishing', namaAsal: 'Finishing', kosongTeks: 'Belum ada batch di Finishing', icon: 'fa-spray-can-sparkles' });
 
-// ============================================================================
-// FACTORY: Tab "Terima <Asal>" (2.6 Terima Sewing, 2.9 Terima Finishing) —
-// Scan Sampai (cari sewing_track/finishing_track via kode_tugas, tandai
-// status:'selesai' di situ = menutup "Sedang Dikirim" milik pos pengirim,
-// PERSIS bahasa SERAH-TERIMA §3) + Scan Unpack (per kode_bagging, KOMPLIT/
-// INKOMPLIT, dicatat ke separating_batch.unpack_log MILIK SERIE SENDIRI --
-// beda dari tab 2.1 yang harus menulis ke koleksi ASING cutting_track/
-// spk_track, di sini tidak perlu karena field unpack_log sudah ada bawaan
-// separating_batch sejak dibuat). Field penghubung ke separating_batch:
-// `batch_id` (Firestore doc id, ADA di skema sewing_track MAUPUN
-// finishing_track per catatan developer di wireframe.dc.html Serie) --
-// dipakai SERAGAM untuk 2 tab ini, TIDAK pakai kode_batch string (yang
+
+// FACTORY: Tab "Terima <Asal>" (2.6 Terima Sewing, 2.9 Terima Finishing) — Scan
+// Sampai (cari sewing_track/finishing_track via kode_tugas, tandai
+// status:'selesai' di situ = menutup "Sedang Dikirim" milik pos pengirim, PERSIS
+// bahasa ) + Scan Unpack (per kode_bagging, KOMPLIT/ INKOMPLIT, dicatat ke
+// separating_batch.unpack_log MILIK SERIE SENDIRI -- beda dari tab 2.1 yang
+// harus menulis ke koleksi ASING cutting_track/ spk_track, di sini tidak perlu
+// karena field unpack_log sudah ada bawaan separating_batch sejak dibuat). Field
+// penghubung ke separating_batch: `batch_id` (Firestore doc id, ADA di skema
+// sewing_track MAUPUN finishing_track per catatan developer di wireframe.dc.html
+// Serie) -- dipakai SERAGAM untuk 2 tab ini, TIDAK pakai kode_batch string (yang
 // cuma ada eksplisit di skema sewing_track, tidak disebut di finishing_track
 // karena finishing_track granularitasnya per PCS bukan per batch).
-// `kode_bagging` di sewing_track ARRAY, di finishing_track TUNGGAL (per
-// catatan skema masing-masing) -- makanya query dibedakan array-contains
-// vs '==' lewat cfg.baggingArray.
-// ============================================================================
+// `kode_bagging` di sewing_track ARRAY, di finishing_track TUNGGAL (per catatan
+// skema masing-masing) -- makanya query dibedakan array-contains vs '==' lewat
+// cfg.baggingArray.
+
 function buatTabTerima(cfg) {
-  // cfg: { koleksi, statusSetelah, namaAsal, judul, kosongTeks, icon, baggingArray, fieldBagging }
+  // cfg: { koleksi, statusSetelah, namaAsal, judul, kosongTeks, icon,
+  // baggingArray, fieldBagging }
   return {
     components: { ScanGenerik },
     setup() {
@@ -1620,11 +1445,9 @@ function buatTabTerima(cfg) {
             (cfg.baggingArray ? (Array.isArray(kb) ? kb : []) : (kb ? [kb] : [])).forEach(k => kodeBaggingSampai.add(k));
           }
           if (!batchIds.size) { alert(`Kode tugas "${kode}" sudah pernah di-Scan Sampai sebelumnya.`); return; }
-          // BARU (12 Sep 2026, keputusan Guru: "scan kirim mengaitkan kode
-          // spk/kode batch/kode bagging pada kode tugas, untuk melepasnya
-          // dengan scan sampai") — leg ${namaAsal} -> Serie: kode di sini
-          // SAMA dengan kode_tugas = tugas_kirim.kode, jadi cari langsung 1
-          // dokumen dan lepas pack[] milik kode_bagging yang baru sampai.
+          // leg ${namaAsal} -> Serie: kode di sini SAMA dengan kode_tugas =
+          // tugas_kirim.kode, jadi cari langsung 1 dokumen dan lepas pack[]
+          // milik kode_bagging yang baru sampai.
           if (kodeBaggingSampai.size) {
             try {
               const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
@@ -1639,7 +1462,7 @@ function buatTabTerima(cfg) {
           const oleh = window.currentUser?.email || null;
           for (const bid of batchIds) {
             try {
-              // riwayat_scan aksi 'sampai' — BARU (12 Sep 2026, unifikasi log).
+              // riwayat_scan aksi 'sampai' — BARU .
               await updateSeparatingBatch(bid, (data) => ({
                 status: cfg.statusSetelah, masuk_tahap_pada: now,
                 riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'sampai', oleh, pada: now, catatan: cfg.namaAsal, qty: data.qty ?? null }]
@@ -1652,10 +1475,9 @@ function buatTabTerima(cfg) {
         } catch (e) { console.error('Gagal scan sampai ' + cfg.judul + ':', e); alert('Gagal menyimpan. Coba lagi.'); }
       }
 
-      // --- Scan Unpack: versi BARU (12 Sep 2026, keputusan Guru — MENGGANTIKAN
-      // popup KOMPLIT/INKOMPLIT lama). Sekarang lewat bagging.isi[] langsung,
-      // TIDAK perlu lagi lookup cfg.koleksi/batch_id — lihat
-      // buatUnpackUniversal() di vue-scan-cetak.js.
+      // Scan Unpack: versi BARU . Sekarang lewat bagging.isi[] langsung,
+      // TIDAK perlu lagi lookup cfg.koleksi/batch_id — lihat buatUnpackUniversal
+      // di vue-scan-cetak.js.
       const { modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack } = buatUnpackUniversal();
 
       const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
@@ -1735,13 +1557,13 @@ const SerieTerimaFinishing = buatTabTerima({
   baggingArray: false, fieldBagging: 'kode_bagging'
 });
 
-// ============================================================================
-// TAB 2.11: Selesai — riwayat lengkap, read-only. Baris masuk saat Gudang
-// Barang Jadi (belum dibangun) Scan Sampai dari Kirim Gudang (2.10) dan
-// menulis `separating_batch.status = 'selesai'` + `sampai_pada` (GAP
-// DISENGAJA, lihat header file). TAMPIL KOSONG sampai modul itu ada — bukan
-// bug modul ini, pola SAMA seperti CuttingSelesai menunggu Serie.
-// ============================================================================
+
+// TAB 2.11: Selesai — riwayat lengkap, read-only. Baris masuk saat Gudang Barang
+// Jadi (belum dibangun) Scan Sampai dari Kirim Gudang (2.10) dan menulis
+// `separating_batch.status = 'selesai'` + `sampai_pada` (GAP DISENGAJA, lihat
+// header file). TAMPIL KOSONG sampai modul itu ada — bukan bug modul ini, pola
+// SAMA seperti CuttingSelesai menunggu Serie.
+
 const SerieSelesai = {
   setup() {
     const memuat = ref(true);
@@ -1826,9 +1648,9 @@ const SerieSelesai = {
   `
 };
 
-// --- Mount ke index.html — LAZY, SAMA pola seperti Cutting: fungsi
-// window.pastikanMountSerieXxx() dipanggil oleh pindahSubTab() (js/
-// dashboard.js, peta petaMount) PERTAMA KALI tab itu dibuka. ----------------
+// Mount ke index.html — LAZY, SAMA pola seperti Cutting: fungsi
+// window.pastikanMountSerieXxx dipanggil oleh pindahSubTab (js/ dashboard.js,
+// peta petaMount) PERTAMA KALI tab itu dibuka.
 let vmSeriePerluDiProses = null;
 window.pastikanMountSeriePerluDiProses = function () {
   if (vmSeriePerluDiProses) { if (typeof vmSeriePerluDiProses.muat === 'function') vmSeriePerluDiProses.muat(); return; }

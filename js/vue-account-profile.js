@@ -1,8 +1,8 @@
 // js/vue-account-profile.js
-// ============================================================================
-// Halaman KESEMBILAN & TERBESAR yang dimigrasi ke Vue: seluruh Account
-// Profile (Account/QR, Data Karyawan, Absensi dengan Izin/Cuti/Lembur +
-// riwayat + Aju Banding, Pencapaian, Keamanan).
+
+// Halaman KESEMBILAN & TERBESAR yang dimigrasi ke Vue: seluruh Account Profile
+// (Account/QR, Data Karyawan, Absensi dengan Izin/Cuti/Lembur + riwayat + Aju
+// Banding, Pencapaian, Keamanan).
 //
 // PENTING — titik sambung ke bagian yang BELUM dimigrasi (kamera/geofencing,
 // vanilla): window.pindahLayar('screen-camera'), window.statusPilihanGlobal,
@@ -13,7 +13,7 @@
 // window.currentUser (auth.js) tetap jadi satu-satunya sumber data user.
 // window.exportKeCSV & window.dataRiwayatGlobal TETAP dipertahankan di
 // dashboard.js karena dipakai bareng laporan ini.
-// ============================================================================
+
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
@@ -23,9 +23,9 @@ import { formatBaris } from './vue-riwayat-absensi.js';
 import { AjukanReimburseTab } from './vue-reimburse.js';
 import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
 
-// ---------------------------------------------------------------------------
+
 // Aju Banding modal (dipakai dari dalam tab Absensi)
-// ---------------------------------------------------------------------------
+
 const AjuBandingModal = {
   props: { docId: { type: String, required: true } },
   emits: ['tutup', 'terkirim'],
@@ -103,19 +103,19 @@ const AjuBandingModal = {
   `
 };
 
-// ---------------------------------------------------------------------------
+
 // App utama
-// ---------------------------------------------------------------------------
+
 const AppAccountProfile = {
   components: { DuaBaris, AjuBandingModal, AjukanReimburseTab },
   setup() {
     const tabAktif = ref('account');
     // Tab internal genuine (saklar Account/Data Karyawan/Absensi/Reimburse/
-    // Pencapaian/Keamanan dalam 1 komponen) — di-wire ke riwayat tombol back
-    // HP (§39, lihat js/vue-riwayat-tab.js).
+    // Pencapaian/Keamanan dalam 1 komponen) — di-wire ke riwayat tombol back HP
+    // (§39, lihat js/vue-riwayat-tab.js).
     pakaiRiwayatTabVue('akun-profil-tab', tabAktif);
 
-    // ---- Keamanan: Update Password ----
+    // Keamanan: Update Password
     const passwordLama = ref('');
     const passwordBaruKeamanan = ref('');
     const menyimpanPasswordKeamanan = ref(false);
@@ -126,8 +126,8 @@ const AppAccountProfile = {
       menyimpanPasswordKeamanan.value = true;
       try {
         // Reauthenticate DULU pakai password lama — supaya updatePassword tidak
-        // ditolak Firebase karena sesi dianggap "tidak baru login" (sama
-        // seperti risiko auth/requires-recent-login yang dicatat di vue-login.js).
+        // ditolak Firebase karena sesi dianggap "tidak baru login" (sama seperti
+        // risiko auth/requires-recent-login yang dicatat di vue-login.js).
         const credential = EmailAuthProvider.credential(window.currentUser.email, passwordLama.value);
         await reauthenticateWithCredential(auth.currentUser, credential);
         await updatePassword(auth.currentUser, passwordBaruKeamanan.value);
@@ -149,15 +149,14 @@ const AppAccountProfile = {
       menyimpanPasswordKeamanan.value = false;
     }
 
-    // ---- Keamanan: PIN (BARU, 22 Agt 2026, permintaan Hilman) ----
-    // Dipakai buat "Absensi Melalui QR" — HP Kiosk di gudang scan barcode
-    // karyawan, lalu minta PIN buat pastikan bukan orang lain yang absen
-    // pakai barcode yang dipinjam/dicuri. TIDAK PERNAH simpan PIN mentah
-    // — cuma hash SHA-256 (Web Crypto API bawaan browser, tanpa library
-    // tambahan) + di-salt pakai email pemiliknya sendiri, supaya PIN yang
-    // SAMA antar 2 karyawan beda tetap hasilkan hash BEDA (anti rainbow-
-    // table sederhana). WAJIB re-auth password dulu sebelum PIN
-    // dipasang/diubah — sama persis pola Update Password di atas.
+    // Keamanan: PIN — Dipakai buat "Absensi Melalui QR" — HP Kiosk di
+    // gudang scan barcode karyawan, lalu minta PIN buat pastikan bukan orang
+    // lain yang absen pakai barcode yang dipinjam/dicuri. TIDAK PERNAH simpan
+    // PIN mentah — cuma hash SHA-256 (Web Crypto API bawaan browser, tanpa
+    // library tambahan) + di-salt pakai email pemiliknya sendiri, supaya PIN
+    // yang SAMA antar 2 karyawan beda tetap hasilkan hash BEDA (anti rainbow-
+    // table sederhana). WAJIB re-auth password dulu sebelum PIN dipasang/diubah
+    // sama persis pola Update Password di atas.
     const subTabKeamanan = ref('password'); // 'password' | 'pin'
     // Child-tab genuine di dalam tab Keamanan — ikut di-wire (level Child-tab,
     // bukan cuma Sub-menu, sesuai PEDOMAN-GAYA-KERJA §riwayat browser).
@@ -178,14 +177,13 @@ const AppAccountProfile = {
       return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
     }
 
-    // hashPinUniq — REVISI 8 Sep 2026 (keputusan Guru, audit kode). `hashPin`
-    // di atas di-salt per-email (disengaja, anti rainbow-table) — akibatnya
-    // dua user beda dengan PIN 6-digit yang SAMA selalu hasilkan `pin_hash`
-    // BEDA, jadi tidak bisa dipakai mengecek tabrakan PIN antar user. Field
-    // KEDUA ini ("pin_hash_uniq") sengaja TANPA salt email, HANYA dipakai
-    // untuk query "apakah PIN ini sudah dipakai user lain" — TIDAK PERNAH
-    // dipakai untuk verifikasi login PIN (itu tetap `pin_hash`/`hashPin()`
-    // di atas, cariUserByPin() di vue-scan-cetak.js).
+    // hashPinUniq — `hashPin` di atas di-salt per-email (disengaja, anti
+    // rainbow-table) — akibatnya dua user beda dengan PIN 6-digit yang SAMA
+    // selalu hasilkan `pin_hash` BEDA, jadi tidak bisa dipakai mengecek tabrakan
+    // PIN antar user. Field KEDUA ini ("pin_hash_uniq") sengaja TANPA salt
+    // email, HANYA dipakai untuk query "apakah PIN ini sudah dipakai user lain"
+    // TIDAK PERNAH dipakai untuk verifikasi login PIN (itu tetap
+    // `pin_hash`/`hashPin` di atas, cariUserByPin di vue-scan-cetak.js).
     async function hashPinUniq(pin) {
       const data = new TextEncoder().encode('PIN-UNIQ|' + pin);
       const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -199,10 +197,10 @@ const AppAccountProfile = {
       menyimpanPin.value = true;
       try {
         // Cek tabrakan PIN DULU, SEBELUM reauthenticate — supaya user tidak
-        // diminta password kalau ternyata PIN barunya sudah dipakai orang
-        // lain. Pesan gagal SENGAJA generik — TIDAK menyebut "sudah dipakai
-        // user lain" (privasi PIN orang lain), sama seperti pesan gagal
-        // biasa supaya tidak membocorkan info kalau ada yg lagi nebak PIN.
+        // diminta password kalau ternyata PIN barunya sudah dipakai orang lain.
+        // Pesan gagal SENGAJA generik — TIDAK menyebut "sudah dipakai user lain"
+        // (privasi PIN orang lain), sama seperti pesan gagal biasa supaya tidak
+        // membocorkan info kalau ada yg lagi nebak PIN.
         const hashUniqBaru = await hashPinUniq(pinBaru.value);
         const snapTabrakan = await getDocs(query(collection(db, 'users'), where('pin_hash_uniq', '==', hashUniqBaru)));
         const sudahDipakaiOrangLain = snapTabrakan.docs.some(d => d.id !== window.currentUser.email);
@@ -212,22 +210,21 @@ const AppAccountProfile = {
           return;
         }
         // Reauthenticate DULU — PERSIS pola updatePasswordKeamanan di atas,
-        // supaya orang lain yang kebetulan pegang sesi login tidak bisa
-        // ganti PIN tanpa tahu password aslinya.
+        // supaya orang lain yang kebetulan pegang sesi login tidak bisa ganti
+        // PIN tanpa tahu password aslinya.
         const credential = EmailAuthProvider.credential(window.currentUser.email, passwordUntukPin.value);
         await reauthenticateWithCredential(auth.currentUser, credential);
         const hash = await hashPin(pinBaru.value, window.currentUser.email);
         await updateDoc(doc(db, "users", window.currentUser.email), { pin_hash: hash, pin_hash_uniq: hashUniqBaru });
         window.currentUser.pin_hash = hash; // biar badge langsung update tanpa reload
         window.currentUser.pin_hash_uniq = hashUniqBaru;
-        // BUG (ditemukan 22 Agt 2026): tanpa baris ini, cache sesi di
-        // localStorage (window.simpanKonteksSesi, auth.js) TETAP versi
-        // LAMA (belum ada pin_hash) — begitu halaman di-refresh, app
-        // baca dari cache basi itu (bukan Firestore lagi, demi hemat
-        // read), badge balik jadi "Belum Terpasang" walau di Firestore
-        // sebenarnya SUDAH tersimpan benar. WAJIB refresh cache setiap
-        // kali window.currentUser diubah di tengah sesi, bukan cuma pas
-        // login pertama kali.
+        // BUG: tanpa baris ini, cache sesi di localStorage
+        // (window.simpanKonteksSesi, auth.js) TETAP versi LAMA (belum ada
+        // pin_hash) — begitu halaman di-refresh, app baca dari cache basi itu
+        // (bukan Firestore lagi, demi hemat read), badge balik jadi "Belum
+        // Terpasang" walau di Firestore sebenarnya SUDAH tersimpan benar. WAJIB
+        // refresh cache setiap kali window.currentUser diubah di tengah sesi,
+        // bukan cuma pas login pertama kali.
         if (window.simpanKonteksSesi) window.simpanKonteksSesi();
         const sudahAdaSebelumnya = pinStatusTerpasang.value;
         pinStatusTerpasang.value = true;
@@ -246,13 +243,13 @@ const AppAccountProfile = {
       menyimpanPin.value = false;
     }
 
-    // ---- Account (QR/ID) ----
-    // PENTING: window.currentUser adalah objek biasa (bukan reactive Vue),
-    // dan Vue app ini ter-mount di awal load halaman — SEBELUM proses login
-    // selesai. Kalau pakai computed() biasa, nilainya "terkunci" kosong
-    // selamanya (computed cuma jalan sekali, tidak tahu window.currentUser
-    // berubah). Makanya di sini pakai ref() yang di-refresh eksplisit setiap
-    // kali tab ini dibuka (lihat muatAccountDisplay + pindahTab di bawah).
+    // Account (QR/ID) — PENTING: window.currentUser adalah objek biasa
+    // (bukan reactive Vue), dan Vue app ini ter-mount di awal load halaman —
+    // SEBELUM proses login selesai. Kalau pakai computed biasa, nilainya
+    // "terkunci" kosong selamanya (computed cuma jalan sekali, tidak tahu
+    // window.currentUser berubah). Makanya di sini pakai ref yang di-refresh
+    // eksplisit setiap kali tab ini dibuka (lihat muatAccountDisplay + pindahTab
+    // di bawah).
     const namaTampil = ref('User');
     const idAppTampil = ref('ID Tidak Ditemukan');
     const jabatanTampil = ref('Staff');
@@ -262,15 +259,14 @@ const AppAccountProfile = {
       namaTampil.value = window.currentUser?.name || window.currentUser?.nama || 'User';
       idAppTampil.value = window.currentUser?.id_app || 'ID Tidak Ditemukan';
       jabatanTampil.value = window.currentUser?.jabatan || window.currentUser?.role || 'Staff';
-      // DIPERBAIKI (23 Agt 2026) — BUG LAMA baru ketahuan lewat fitur
-      // Kiosk: auth.js/vue-login.js isi window.currentUser.id_app dengan
-      // literal string "N/A" (BUKAN kosong/falsy) kalau field id_app di
-      // Firestore memang kosong (kasus nyata: akun Owner yang dibuat
-      // manual lewat Firebase Console, id_app tidak sempat diisi).
-      // "N/A" itu STRING BENERAN (truthy) — `|| email` TIDAK PERNAH
-      // kepakai, QR jadi isinya literal teks "N/A", tidak bisa ditemukan
-      // di database manapun saat di-scan. WAJIB kecualikan "N/A" secara
-      // eksplisit di sini, bukan cuma cek falsy biasa.
+      // BUG LAMA baru ketahuan lewat fitur Kiosk: auth.js/vue-login.js isi
+      // window.currentUser.id_app dengan literal string "N/A" (BUKAN
+      // kosong/falsy) kalau field id_app di Firestore memang kosong (kasus
+      // nyata: akun Owner yang dibuat manual lewat Firebase Console, id_app
+      // tidak sempat diisi). "N/A" itu STRING BENERAN (truthy) — `|| email`
+      // TIDAK PERNAH kepakai, QR jadi isinya literal teks "N/A", tidak bisa
+      // ditemukan di database manapun saat di-scan. WAJIB kecualikan "N/A"
+      // secara eksplisit di sini, bukan cuma cek falsy biasa.
       const idAppAsli = (window.currentUser?.id_app && window.currentUser.id_app !== 'N/A') ? window.currentUser.id_app : null;
       const qrData = idAppAsli || window.currentUser?.email || '';
       qrUrl.value = qrData ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(qrData)}` : '';
@@ -281,23 +277,22 @@ const AppAccountProfile = {
       if (window.prosesClockOut) window.prosesClockOut();
     }
 
-    // HARUS lewat fungsi begini, bukan "window.logout()" langsung di
-    // template — sama seperti bug yang ditemukan di vue-profile-drawer.js.
+    // HARUS lewat fungsi begini, bukan "window.logout" langsung di template —
+    // sama seperti bug yang ditemukan di vue-profile-drawer.js.
     function keluar() { if (window.logout) window.logout(); }
 
-    // Buat menu pintasan Admin di tab Account (pengganti akses lewat bottom
-    // nav mobile yang sekarang dipakai buat Home/Absensi/Scan QR/Progress
-    // universal semua role) — computed, bukan re-baca window.currentUser
-    // langsung di template (Vue tidak reaktif ke situ, sudah pernah kena
-    // bug ini sebelumnya).
-    // roleTampil masih dipertahankan (dipakai muatRoleTampil di
-    // muatAccountDisplay) sekalipun computed turunan Admin/Owner-nya sudah
-    // tidak dipakai lagi di sini — menu admin sudah pindah ke Home
-    // (js/vue-home.js, lewat daftarMenuGroups).
+    // Buat menu pintasan Admin di tab Account (pengganti akses lewat bottom nav
+    // mobile yang sekarang dipakai buat Home/Absensi/Scan QR/Progress universal
+    // semua role) — computed, bukan re-baca window.currentUser langsung di
+    // template (Vue tidak reaktif ke situ, sudah pernah kena bug ini
+    // sebelumnya). roleTampil masih dipertahankan (dipakai muatRoleTampil di
+    // muatAccountDisplay) sekalipun computed turunan Admin/Owner-nya sudah tidak
+    // dipakai lagi di sini — menu admin sudah pindah ke Home (js/vue-home.js,
+    // lewat daftarMenuGroups).
     const roleTampil = ref('');
     function muatRoleTampil() { roleTampil.value = (window.currentUser?.role || '').toLowerCase(); }
 
-    // ---- Data Karyawan (self-edit) ----
+    // Data Karyawan (self-edit)
     const form = reactive({
       nama: '', nik: '', jk: '', tempatLahir: '', tglLahir: '', hp: '', email: '',
       ktpKab: '', ktpKec: '', ktpDetail: '',
@@ -308,19 +303,17 @@ const AppAccountProfile = {
     });
     const menyimpanForm = ref(false);
 
-    // ---- Data Karyawan: gate PIN (BARU, 10 Sep 2026, audit visual desktop
-    // vs wireframe) — SERAH-TERIMA.md Profile §2 Tab 2 & §3 eksplisit:
-    // "Wajib input PIN sebelum bisa edit dan simpan" + kriteria uji §8.2
-    // "tanpa PIN mode edit tidak aktif (field disabled)". SEBELUM perbaikan
-    // ini, seluruh form Data Karyawan (termasuk NIK & rekening bank) bisa
-    // diedit & disimpan bebas tanpa verifikasi apapun — gap keamanan nyata
-    // pada data pribadi. PIN yang dipakai DI SINI = PIN milik user itu
-    // SENDIRI (field users.pin_hash, dibuat di tab Keamanan lewat simpanPin
-    // di atas) — beda dengan pola PopupPin tier-owner di Stok
-    // Pembelian/Master Produk (itu approval ORANG LAIN atas harga; ini
-    // verifikasi diri sendiri atas datanya sendiri), jadi TIDAK perlu
-    // cariUserByPin/tierOwnerKeAtas — cukup hashPin(pin, email sendiri)
-    // dibandingkan ke window.currentUser.pin_hash.
+    // Data Karyawan: gate PIN — Profile §2 Tab 2 & §3 eksplisit: "Wajib
+    // input PIN sebelum bisa edit dan simpan" + kriteria uji §8.2 "tanpa PIN
+    // mode edit tidak aktif (field disabled)". SEBELUM perbaikan ini, seluruh
+    // form Data Karyawan (termasuk NIK & rekening bank) bisa diedit & disimpan
+    // bebas tanpa verifikasi apapun — gap keamanan nyata pada data pribadi. PIN
+    // yang dipakai DI SINI = PIN milik user itu SENDIRI (field users.pin_hash,
+    // dibuat di tab Keamanan lewat simpanPin di atas) — beda dengan pola
+    // PopupPin tier-owner di Stok Pembelian/Master Produk (itu approval ORANG
+    // LAIN atas harga; ini verifikasi diri sendiri atas datanya sendiri), jadi
+    // TIDAK perlu cariUserByPin/tierOwnerKeAtas — cukup hashPin(pin, email
+    // sendiri) dibandingkan ke window.currentUser.pin_hash.
     const modeEditDataDiri = ref(false);
     const tampilPopupPinDataDiri = ref(false);
     const aksiPinDataDiri = ref(null); // 'buka' | 'simpan'
@@ -368,8 +361,8 @@ const AppAccountProfile = {
     }
 
     function muatFormDariCurrentUser() {
-      // Selalu kunci ulang mode edit setiap kali tab ini dibuka/dimuat ulang
-      // — sesuai kriteria uji wireframe: tanpa PIN, field HARUS disabled.
+      // Selalu kunci ulang mode edit setiap kali tab ini dibuka/dimuat ulang —
+      // sesuai kriteria uji wireframe: tanpa PIN, field HARUS disabled.
       modeEditDataDiri.value = false;
       const cu = window.currentUser || {};
       form.nama = cu.name || cu.nama || '';
@@ -415,8 +408,8 @@ const AppAccountProfile = {
         Object.assign(window.currentUser, dataUpdate);
         alert("Seluruh pembaruan data diri Anda berhasil disimpan secara sistem!");
         // Kunci lagi mode edit setelah tersimpan — konsisten dengan aturan
-        // "tanpa PIN mode edit tidak aktif" (harus minta PIN lagi kalau
-        // mau edit berikutnya, bukan tetap terbuka selamanya).
+        // "tanpa PIN mode edit tidak aktif" (harus minta PIN lagi kalau mau edit
+        // berikutnya, bukan tetap terbuka selamanya).
         modeEditDataDiri.value = false;
       } catch (e) {
         console.error(e);
@@ -425,7 +418,7 @@ const AppAccountProfile = {
       menyimpanForm.value = false;
     }
 
-    // ---- Absensi: Pengajuan Izin/Cuti/Lembur ----
+    // Absensi: Pengajuan Izin/Cuti/Lembur
     const formTerbuka = ref(null); // 'izin' | 'cuti' | 'lembur' | null
     const opsiAlasanIzin = ref([]);
     const opsiAlasanCuti = ref([]);
@@ -489,7 +482,7 @@ const AppAccountProfile = {
       window.pindahLayar('screen-camera');
     }
 
-    // ---- Absensi: Filter, Statistik, Riwayat ----
+    // Absensi: Filter, Statistik, Riwayat
     const filterTglMulai = ref('');
     const filterTglSelesai = ref('');
     const filterGudang = ref('ALL');
@@ -519,14 +512,13 @@ const AppAccountProfile = {
     async function muatRiwayat() {
       memuatRiwayat.value = true;
       try {
-        // PERBAIKAN HEMAT PALING PENTING: dulu ambil SELURUH koleksi
-        // "absensi" (punya SEMUA orang) baru difilter cari punya sendiri
-        // di JavaScript — dipakai oleh SEMUA karyawan (bukan cuma admin),
-        // jadi ini paling boros dan MAKIN MAHAL tiap hari seiring absensi
-        // menumpuk. Sekarang query where(email==...) di Firestore sendiri
-        // — cuma dokumen milik orang ini yang benar-benar ditarik dari
-        // server, siapapun banyaknya karyawan lain / berapa lama app ini
-        // sudah jalan.
+        // PERBAIKAN HEMAT PALING PENTING: dulu ambil SELURUH koleksi "absensi"
+        // (punya SEMUA orang) baru difilter cari punya sendiri di JavaScript —
+        // dipakai oleh SEMUA karyawan (bukan cuma admin), jadi ini paling boros
+        // dan MAKIN MAHAL tiap hari seiring absensi menumpuk. Sekarang query
+        // where(email==..) di Firestore sendiri — cuma dokumen milik orang ini
+        // yang benar-benar ditarik dari server, siapapun banyaknya karyawan lain
+        // / berapa lama app ini sudah jalan.
         const q = query(collection(db, "absensi"), where("email", "==", window.currentUser.email));
         const snap = await getDocs(q);
         let countHadir = 0, countACC = 0, countSeragamBeda = 0, countIzin = 0;
@@ -537,8 +529,8 @@ const AppAccountProfile = {
           data.id = docSnap.id;
           const f = formatBaris(data); // seragamkan format lama/baru — lihat vue-riwayat-absensi.js
 
-          // Waktu buat filter tanggal & sortir: pakai yang PALING AKHIR
-          // terjadi (keluar kalau ada, jatuh-aman ke masuk).
+          // Waktu buat filter tanggal & sortir: pakai yang PALING AKHIR terjadi
+          // (keluar kalau ada, jatuh-aman ke masuk).
           const waktuAcuan = f.waktuKeluar || f.waktuMasuk;
           let lolosTgl = true;
           if (waktuAcuan) {
@@ -595,7 +587,7 @@ const AppAccountProfile = {
       if (window.exportKeCSV) window.exportKeCSV();
     }
 
-    // ---- Navigasi antar sub-tab ----
+    // Navigasi antar sub-tab
     function pindahTab(nama) {
       tabAktif.value = nama;
       muatAccountDisplay(); // selalu refresh — murah (baca objek lokal, tanpa network)
@@ -603,28 +595,23 @@ const AppAccountProfile = {
       if (nama === 'absensi' && listRiwayat.value.length === 0) muatRiwayat();
     }
 
-    // DIPERBAIKI (23 Agt 2026, bug ditemukan Hilman: QR yang di-generate
-    // dari mobile tidak bisa di-scan padahal dari desktop aman — lihat
-    // STATUS-PROYEK.md §19.6) — SEBELUMNYA muatAccountDisplay() (yang
-    // mengisi idAppTampil & qrUrl, sumber QR yang ditampilkan) dipanggil
-    // LANGSUNG di sini begitu komponen mount, TANPA cek window.currentUser
-    // sudah terisi atau belum. Pola ini PERSIS yang sudah dibongkar di
-    // §19.2/§19.5 (window.authReady TIDAK menjamin window.currentUser
-    // sudah lengkap data Firestore, dua hal beda — lihat §10 poin 4).
-    // Kalau mount terjadi SEBELUM window.currentUser terisi (device/
-    // jaringan tertentu lebih lambat resolve auth-nya, makanya mobile
-    // lebih sering kena daripada desktop — timing-dependent, bukan
-    // deterministik), QR ke-generate dari data KOSONG/sebelumnya. Karena
-    // 'account' adalah sub-tab AKTIF DEFAULT (tabAktif='account'), user
-    // yang buka Profile lewat drawer (bukan klik sub-tab manual) TIDAK
-    // PERNAH memicu pindahTab('account') buat refresh ulang — QR yang
-    // salah itu bisa terus tampil sampai user pindah sub-tab lalu balik
-    // lagi. Perbaikannya: SAMA seperti vue-home.js — di sini CUMA muat
-    // kalau window.currentUser SUDAH ada isinya; kalau belum, JANGAN muat
-    // apapun, biarkan window.refreshAccountProfileDisplay() (bridge yang
-    // sudah benar, dipanggil dari auth.js/vue-login.js TEPAT setelah
-    // currentUser lengkap) yang mengisi qrUrl/idAppTampil dengan data
-    // yang benar.
+    // SEBELUMNYA muatAccountDisplay (yang mengisi idAppTampil & qrUrl, sumber QR
+    // yang ditampilkan) dipanggil LANGSUNG di sini begitu komponen mount, TANPA
+    // cek window.currentUser sudah terisi atau belum. Pola ini PERSIS yang sudah
+    // dibongkar di §19.2/§19.5 (window.authReady TIDAK menjamin
+    // window.currentUser sudah lengkap data Firestore, dua hal beda — lihat §10
+    // poin 4). Kalau mount terjadi SEBELUM window.currentUser terisi (device/
+    // jaringan tertentu lebih lambat resolve auth-nya, makanya mobile lebih
+    // sering kena daripada desktop — timing-dependent, bukan deterministik), QR
+    // ke-generate dari data KOSONG/sebelumnya. Karena 'account' adalah sub-tab
+    // AKTIF DEFAULT (tabAktif='account'), user yang buka Profile lewat drawer
+    // (bukan klik sub-tab manual) TIDAK PERNAH memicu pindahTab('account') buat
+    // refresh ulang — QR yang salah itu bisa terus tampil sampai user pindah
+    // sub-tab lalu balik lagi. Perbaikannya: SAMA seperti vue-home.js — di sini
+    // CUMA muat kalau window.currentUser SUDAH ada isinya; kalau belum, JANGAN
+    // muat apapun, biarkan window.refreshAccountProfileDisplay (bridge yang
+    // sudah benar, dipanggil dari auth.js/vue-login.js TEPAT setelah currentUser
+    // lengkap) yang mengisi qrUrl/idAppTampil dengan data yang benar.
     onMounted(async () => {
       if (window.currentUser && window.currentUser.email) {
         muatAccountDisplay();
@@ -782,13 +769,10 @@ const AppAccountProfile = {
           </div>
         </div>
 
-        <!-- BARU (10 Sep 2026, audit visual desktop vs wireframe Profile
-             §2/§3) — sebelumnya form ini punya SATU tombol "Simpan" yang
-             langsung menyimpan tanpa verifikasi apapun. Sekarang: mode edit
-             HARUS dibuka pakai PIN dulu (field di atas semua :disabled
-             sampai modeEditDataDiri true), lalu tombol Simpan JUGA minta
-             PIN lagi ("Simpan + PIN", istilah persis dari SERAH-TERIMA.md
-             §3) sebelum benar-benar menulis ke Firestore. -->
+        <!--
+          sebelumnya form ini punya SATU tombol "Simpan" yang langsung menyimpan tanpa verifikasi
+          apapun. Sekarang: mode edit HARUS dibuka pakai PIN
+        -->
         <div style="display:flex; gap:10px;">
           <button v-if="!modeEditDataDiri" @click="bukaPopupPinDataDiri('buka')" class="btn-primary block">
             <i class="fas fa-unlock-alt" style="margin-right:8px;"></i> Aktifkan Mode Edit (PIN)
@@ -915,15 +899,13 @@ const AppAccountProfile = {
         <div class="lingkaran"><i class="fas fa-folder-open"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada riwayat absensi yang tercatat untuk Anda</h3>
       </div>
-      <!-- GANTI (grid-fix mobile §perbaikan grid+kartu) — dulu tabel scroll
-           horizontal (9 kolom, freeze-right), SEKARANG kartu (pola SAMA
-           seperti Data Bahan & Aksesoris) supaya tidak perlu geser ke
-           kanan di HP. Semua kolom tabel lama tetap ada, cuma disusun
-           ulang: header = Nama/No HP + tag Status Aju Banding, foto jadi
-           thumbnail di header, sisanya di kartu-rows, Aksi di bawah.
-           border-radius:20px — DISESUAIKAN (28 Agt 2026, redesain "Gechoo
-           Mobile Organic") supaya konsisten dengan kartu-baris modul lain
-           yang sudah disentuh round ini (Persiapan Produksi/Order SPK). -->
+      <!--
+        (grid-fix mobile §perbaikan grid+kartu) — Semua kolom tabel lama tetap ada, cuma disusun
+        ulang: header = Nama/No HP + tag Status Aju Banding, foto jadi thumbnail di header,
+        sisanya di kartu-rows, Aksi di bawah. border-radius:20px — DISESUAIKAN supaya konsisten
+        dengan kartu-baris modul lain yang sudah disentuh round ini (Persiapan Produksi/Order
+        SPK).
+      -->
       <div v-else style="display:flex; flex-direction:column; gap:10px;">
         <div v-for="item in listRiwayat" :key="item.id" class="gc-card" style="padding:14px; border-radius:20px;">
           <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:12px;">
@@ -1025,50 +1007,49 @@ if (mountPoint) {
   const vm = createApp(AppAccountProfile).mount('#vue-account-profile');
   // Jembatan ke vanilla: dipanggil dari dashboard.js (kirimDataKeCloud) setelah
   // submit Hadir/Izin/Cuti/Lembur berhasil, supaya user langsung diarahkan ke
-  // tab Absensi dan lihat pengajuannya (menggantikan window.pindahSubProfile lama).
+  // tab Absensi dan lihat pengajuannya (menggantikan window.pindahSubProfile
+  // lama).
   window.bukaTabAbsensiProfile = function() {
     vm.pindahTab('absensi');
     vm.muatRiwayat(); // paksa refresh — bukan cuma buka tab — supaya pengajuan yang baru dikirim langsung kelihatan
   };
   // Jembatan ke vanilla: dipanggil dari auth.js (sesi otomatis) & vue-login.js
-  // (login manual) TEPAT setelah window.currentUser terisi data asli —
-  // supaya nama/ID/jabatan/QR di tab Account tidak "kekunci" kosong/lama
-  // (Vue app ini ter-mount di awal load, sebelum login selesai, dan
-  // window.currentUser bukan objek reactive jadi tidak ke-track otomatis).
+  // (login manual) TEPAT setelah window.currentUser terisi data asli — supaya
+  // nama/ID/jabatan/QR di tab Account tidak "kekunci" kosong/lama (Vue app ini
+  // ter-mount di awal load, sebelum login selesai, dan window.currentUser bukan
+  // objek reactive jadi tidak ke-track otomatis).
   window.refreshAccountProfileDisplay = function() {
     vm.muatAccountDisplay();
-    // DIPERBAIKI (23 Agt 2026) — badge status PIN sempat salah tampil
-    // "Belum Terpasang" pas refresh halaman, walau PIN aslinya sudah
-    // terpasang & berfungsi normal. ROOT CAUSE SEBENARNYA: window.authReady
-    // (dipakai di onMounted komponen ini) cuma nunggu Firebase AUTH tau
-    // siapa yang login (cepat) — TIDAK nunggu window.currentUser BENERAN
-    // terisi data profil Firestore (termasuk pin_hash). Yang mengisi
-    // window.currentUser sungguhan itu proses TERPISAH (sesi-otomatis di
-    // auth.js / login manual di vue-login.js, keduanya ASYNC baca cache
-    // atau Firestore) — dan proses itu SUDAH memanggil jembatan INI
+    // badge status PIN sempat salah tampil "Belum Terpasang" pas refresh
+    // halaman, walau PIN aslinya sudah terpasang & berfungsi normal. ROOT CAUSE
+    // SEBENARNYA: window.authReady (dipakai di onMounted komponen ini) cuma
+    // nunggu Firebase AUTH tau siapa yang login (cepat) — TIDAK nunggu
+    // window.currentUser BENERAN terisi data profil Firestore (termasuk
+    // pin_hash). Yang mengisi window.currentUser sungguhan itu proses TERPISAH
+    // (sesi-otomatis di auth.js / login manual di vue-login.js, keduanya ASYNC
+    // baca cache atau Firestore) — dan proses itu SUDAH memanggil jembatan INI
     // (window.refreshAccountProfileDisplay) TEPAT setelah currentUser
-    // benar-benar lengkap (lihat auth.js baris ~516, komentar
-    // "Jembatan ke vanilla"). Jadi titik paling benar buat baca ulang
-    // status PIN itu DI SINI, bukan di onMounted/authReady. Percobaan
-    // fix pertama (taruh muatStatusPin() kedua setelah authReady di
-    // onMounted) TERBUKTI TIDAK CUKUP — sudah dilepas lagi, jangan
-    // ditambahkan balik. Lihat STATUS-PROYEK.md §19.2 untuk kronologinya.
+    // benar-benar lengkap (lihat auth.js baris ~516, komentar "Jembatan ke
+    // vanilla"). Jadi titik paling benar buat baca ulang status PIN itu DI SINI,
+    // bukan di onMounted/authReady. Percobaan fix pertama (taruh muatStatusPin
+    // kedua setelah authReady di onMounted) TERBUKTI TIDAK CUKUP — sudah dilepas
+    // lagi, jangan ditambahkan balik. Lihat STATUS-PROYEK.md §19.2 untuk
+    // kronologinya.
     vm.muatStatusPin();
   };
   // Jembatan BARU ke layar Home (js/vue-home.js) — pintasan "Izin"/"Cuti"/
-  // "Lembur" di Home langsung buka tab Absensi profil INI dan langsung
-  // munculkan form yang relevan, tanpa orang harus klik 2 kali (buka
-  // Profile dulu, baru klik Absensi, baru klik Izin/dst).
+  // "Lembur" di Home langsung buka tab Absensi profil INI dan langsung munculkan
+  // form yang relevan, tanpa orang harus klik 2 kali (buka Profile dulu, baru
+  // klik Absensi, baru klik Izin/dst).
   window.bukaFormIzinDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('absensi'); vm.bukaFormIzin(); };
   window.bukaFormCutiDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('absensi'); vm.bukaFormCuti(); };
   window.bukaFormLemburDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('absensi'); vm.bukaFormLembur(); };
-  // Reimburse TIDAK perlu "buka form" terpisah kayak Izin/Cuti/Lembur —
-  // form-nya SELALU tampil di atas tab (lihat AjukanReimburseTab di
-  // vue-reimburse.js), jadi cukup pindah ke tab-nya saja.
+  // Reimburse TIDAK perlu "buka form" terpisah kayak Izin/Cuti/Lembur — form-nya
+  // SELALU tampil di atas tab (lihat AjukanReimburseTab di vue-reimburse.js),
+  // jadi cukup pindah ke tab-nya saja.
   window.bukaReimburseDariHome = function() { window.pindahTab('tab-profil'); vm.pindahTab('reimburse'); };
-  // Jembatan ke Bottom Sheet Profil mobile (js/vue-sheet-profil.js, GANTI
-  // js/vue-profile-drawer.js yang dihapus 28 Agt 2026) — dipakai untuk
-  // lompat langsung ke sub-tab manapun (Data Karyawan, Estimasi Gaji,
-  // Pencapaian, Keamanan) dari tautan di sheet.
+  // Jembatan ke Bottom Sheet Profil mobile — dipakai untuk lompat langsung ke
+  // sub-tab manapun (Data Karyawan, Estimasi Gaji, Pencapaian, Keamanan) dari
+  // tautan di sheet.
   window.pindahTabAccountProfile = function(nama) { vm.pindahTab(nama); };
 }

@@ -1,148 +1,99 @@
 // js/vue-persiapan-produksi-v2.js
-// ============================================================================
-// Persiapan Produksi V2 — menu BARU (29 Agt 2026, koreksi arsitektur menu).
-// GANTI TOTAL dari js/vue-persiapan-produksi.js (DITINGGALKAN, tidak lagi
-// dimuat di index.html — file lama TIDAK dihapus dari disk, cuma tidak
-// dipakai lagi, keputusan Guru "ditulis ulang bersih dari nol").
+// Persiapan Produksi V2. Dua hal: (1) "Perlu Disiapkan" mengelompokkan SPK
+// aktif yang produk & polanya sama jadi 1 SPK Grouping (SPKyymmdd + 3 digit,
+// counter GLOBAL per hari lintas produk), (2) dari grouping itu produksi jalan
+// di 5 jalur paralel (Vendor/Bahan/Acc Sewing/Webbing/Finishing), masing-
+// masing 5 tahap, lewat komponen reusable JalurTahapManager.
 //
-// Latar: alur produksi BARU (permintaan Guru, lihat RENCANA-PERSIAPAN-
-// PRODUKSI-V2.md untuk desain lengkap) —
-//   1. "Perlu Disiapkan": SPK-SPK aktif (order_spk) yang PRODUK & POLA-nya
-//      SAMA (nama produk dasar sama, panjang+isi pola BOM sama — supaya
-//      kainnya bisa "gelar bersamaan > potong bersamaan") DIKELOMPOKKAN
-//      jadi 1 kode "SPK Grouping" (format SPKyymmdd + urutan 3 digit,
-//      GLOBAL per hari lintas produk — keputusan Guru, AskUserQuestion).
-//   2. Dari 1 SPK Grouping itu, produksi jalan di 5 JALUR PARALEL independen
-//      (Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing), masing-masing
-//      5 TAHAP (Perlu Diproses -> Sedang Diproses -> Perlu Dikirim -> Sedang
-//      Dikirim -> Selesai), digerakkan lewat cetak label + scan (Label SPK
-//      Grouping -> Scan Operator, Scan Entry/Scan Masalah, Label Bagging ->
-//      Scan Pack, Label Tugas -> Scan Kirim, Scan Sampai -> Selesai).
+// Kunci pengelompokan:
+// - Nama dasar produk diambil dari master_produk.nama lewat sku_produk tiap
+// SPK. JANGAN pakai order_spk.nama_produk — itu STRING GABUNGAN "Nama Warna
+// Size", jadi 2 varian warna tidak akan pernah cocok padahal harus segroup.
+// - SPK tanpa sku_produk (migrasi lama dari spreadsheet) tidak bisa
+// dikelompokkan otomatis; jadi grouping isi 1 SPK sendiri.
+// - Kunci pola dari master_produk.bom_pola[].panjang + .isi_pola_pcs. Field
+// yang sama dipakai `kelipatan`/KPK di vue-master-produk.js, tapi di sini
+// fungsinya tanda tangan SET pola untuk mencocokkan antar SKU.
 //
-// STATUS PER FASE (lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md §7):
-// - Fase 1 — "Perlu Disiapkan" (generator SPK Grouping) — SELESAI.
-// - Fase 2 — jalur Bahan (5 tahap + scan, komponen reusable
-//   `JalurTahapManager`) — SELESAI.
-// - Fase 3 (29 Agt 2026 malam) — 3 jalur Acc (Sewing/Webbing/Finishing) —
-//   SELESAI. TIDAK ADA komponen baru: `JalurTahapManager` dipakai APA
-//   ADANYA, cuma parameter `jalur` beda (persis sesuai rencana §7 poin 3)
-//   — lihat blok mount di bawah `buatAppJalurTahap()`.
-// - Fase 4 (29 Agt 2026 malam) — jalur Vendor — SELESAI. §5.D terjawab
-//   Guru (driver internal yang sudah biasa belanja = juga jadi kurir
-//   kirim+sampai barang vendor, akun+QR yang SAMA, bukan portal terpisah)
-//   — 5-tahap generic yang sudah ada CUKUP, TIDAK ada tahap/label
-//   tambahan. §5.C SEBAGIAN masih terbuka (field BOM buat deteksi
-//   OTOMATIS jalur Vendor + jenis vendor) — jalur Vendor SEMENTARA cuma
-//   bisa diaktifkan MANUAL (checkbox "+ Jalur Vendor (manual)", sudah ada
-//   sejak Fase 1), belum otomatis dari BOM Aksesoris.
-// - Fase 5 — audit menyeluruh referensi lama — belum dimulai.
+// jalur_aktif:
+// - Dideteksi otomatis dari BOM: bom_pola terisi → jalur 'bahan';
+// bom_aksesoris.tahap_proses mengandung Sewing/Webbing/Finishing → jalur itu.
+// - Jalur 'vendor' TIDAK punya sumber BOM (vendor di sini = sublim/sablon/
+// bordir, BUKAN bom_pola.tipe==='vendor'), jadi cuma checkbox MANUAL di form
+// pembuatan grouping.
 //
-// Kunci grouping — CATATAN PENTING (nyaris jadi bug, ketemu lewat riset
-// kode SEBELUM ditulis, lihat STATUS-PROYEK.md §44.13): `order_spk.
-// nama_produk` itu STRING GABUNGAN "Nama Warna Size" (lihat vue-order-
-// spk.js, pilihProdukSpk()) — TIDAK BISA dipakai langsung buat cocokkan
-// "nama produk sama" (2 varian warna beda "nama_produk"-nya walau
-// sebenarnya harus tetap bisa digroup, sesuai Guru: "nama produk sama
-// walau beda asal bahan sama"). Makanya di sini nama dasar diambil dari
-// `master_produk.nama` (field TERPISAH dari warna/size), via `sku_produk`
-// tiap SPK. SPK yang TIDAK terhubung ke Master Produk (sku_produk kosong,
-// migrasi lama dari spreadsheet) TIDAK BISA dikelompokkan otomatis — tetap
-// bisa lanjut sebagai grouping isi 1 SPK sendiri (lihat bagian "Belum Bisa
-// Dikelompokkan Otomatis" di UI).
-//
-// Kunci pola — dari `master_produk.bom_pola[].panjang` + `.isi_pola_pcs`
-// (dipakai JUGA oleh field `kelipatan`/KPK di vue-master-produk.js, field
-// yang SAMA, cuma cara pakainya beda: kelipatan = KPK semua isi_pola_pcs,
-// di sini = tanda-tangan SET pola buat cocokkan antar SKU/produk).
-//
-// jalur_aktif — dideteksi OTOMATIS dari BOM produk (bom_pola ada isi ->
-// jalur 'bahan' aktif; bom_aksesoris.tahap_proses mengandung kata Sewing/
-// Webbing/Finishing -> jalur itu aktif). Jalur 'vendor' TIDAK PUNYA sumber
-// data BOM yang jelas (field BOM utk vendor MASIH pertanyaan terbuka,
-// lihat RENCANA-PERSIAPAN-PRODUKSI-V2.md §5.C — vendor di sini artinya
-// pekerjaan sublim/sablon/bordir, BUKAN bom_pola.tipe==='vendor' yang
-// sempat jadi dugaan awal KELIRU) — makanya jalur Vendor cuma checkbox
-// MANUAL di form pembuatan grouping, bukan hasil deteksi.
-// ============================================================================
+// Jebakan:
+// - buatSpkTrackUntukGrouping dan hitung*Rincian di file ini yang mengisi
+// spk_track semua jalur. Modul pos (Bahan/Sewing/Webbing/Finishing) cuma
+// membaca & mengupdate baris, tidak membuatnya.
+// - JalurTahapManager dipakai apa adanya untuk 4 jalur; yang beda cuma
+// parameter `jalur`. Jangan fork komponennya.
 import { createApp, ref, reactive, computed, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, KolomCari } from './vue-components.js?v=13';
 import { ambilSemuaProduk } from './vue-master-produk.js';
 
-// picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). Aksi
-// "Buat SPK Grouping" (menerbitkan) dan "Tunjuk/Scan Operator" (menugaskan)
-// WAJIB akun PIC ke atas (pic/pic_owner/owner/superuser) — TANPA popup PIN,
-// cukup akun yang login memang tier itu dan fiturnya tampil sebagai
-// perintah langsung. Beda dari `tierOwnerKeAtas()` (vue-pesanan.js) yang
-// mewajibkan Owner/PIC Owner SPESIFIK untuk keputusan QO — di sini PIC
-// biasa (bukan cuma PIC Owner) sudah cukup, sama pola dengan
-// `picOwnerKeAtas()` di vue-pp-cutting.js/vue-pp-sewing.js/vue-pp-finishing.js/
-// vue-pp-serie.js (Proses Produksi) yang sudah lama dipakai konsisten.
+// picOwnerKeAtas — Aksi "Buat SPK Grouping" (menerbitkan) dan "Tunjuk/Scan
+// Operator" (menugaskan) WAJIB akun PIC ke atas (pic/pic_owner/owner/superuser)
+// TANPA popup PIN, cukup akun yang login memang tier itu dan fiturnya tampil
+// sebagai perintah langsung. Beda dari `tierOwnerKeAtas` (vue-pesanan.js) yang
+// mewajibkan Owner/PIC Owner SPESIFIK untuk keputusan QO — di sini PIC biasa
+// (bukan cuma PIC Owner) sudah cukup, sama pola dengan `picOwnerKeAtas` di
+// vue-pp-cutting.js/vue-pp-sewing.js/vue-pp-finishing.js/ vue-pp-serie.js
+// (Proses Produksi) yang sudah lama dipakai konsisten.
 function picOwnerKeAtas(userData) {
   if (!userData) return false;
   const role = (userData.role || '').toLowerCase();
   return role === 'owner' || role === 'superuser' || role === 'pic';
 }
 
-// ============================================================================
-// REDESAIN "Perlu Disiapkan" (31 Agt 2026) — handoff wireframe Guru, folder
-// Mockup/handoff/Persiapan Produksi - Perlu Disiapkan/. GANTI TOTAL layar
-// "Perlu Disiapkan" lama (kartu klaster + tombol langsung) dengan tata letak
-// 2 kolom (desktop 1440: daftar klaster kiri + panel "Grouping baru" kanan
-// sticky; mobile 390: 1 kolom + panel jadi bar mengambang di atas nav).
-// JALUR/TAHAP di bawahnya (JalurTahapManager, jalur Vendor/Bahan/Sewing/
-// Webbing/Finishing, 5 tahap tiap jalur) TIDAK DISENTUH SAMA SEKALI — cuma
-// generator SPK Grouping ini yang dibangun ulang. Keputusan (AskUserQuestion
-// ke Guru sebelum coding, jangan ditebak — 3 "Yang Belum Diputuskan" dari
-// SERAH-TERIMA.md SEMUANYA sudah dijawab langsung):
-//  1. Relasi ke V2 lama -> GANTI TOTAL (bukan modul baru berdampingan).
-//  2. Belum ada data live spk_grouping/spk_track sungguhan -> aman, tidak
-//     perlu migrasi apapun.
-//  3. Riwayat: begitu grouping terbit, baris klaster HILANG TOTAL dari
-//     antrean (TIDAK ada tab Selesai/Riwayat di layar ini) -> section
-//     "SPK Grouping Terbaru" yang PERSISTEN di versi lama DIHAPUS, diganti
-//     dialog konfirmasi SEKALI TAMPIL (konfirmasiTerbit) begitu grouping
-//     berhasil dibuat, sesuai kalimat SERAH-TERIMA.md §3 "kode yang terbit
-//     ditampilkan sekali sebagai konfirmasi".
-//  4. Pembatalan grouping -> DITUNDA, tidak dibangun versi ini.
-//  5. Jalur Vendor -> TETAP ADA (bukan dihapus meski wireframe cuma gambar
-//     4 chip Bahan/Acc Sewing/Acc Webbing/Acc Finishing) — checkbox manual
-//     "+ Jalur Vendor" dipertahankan di panel & di baris "Buat Grouping
-//     Sendiri", cuma dipindah ke bawah kotak 4 chip (bukan hilang).
-//  6. Deteksi 4 pos tujuan -> TETAP otomatis dari BOM (jalurOtomatisProduk,
-//     TIDAK diubah jadi "semua 4 pos selalu", walau kalimat wireframe
-//     "otomatis, bukan pilihan" sekilas menyiratkan itu — Guru konfirmasi
-//     "bukan pilihan" artinya Owner tidak bisa UNCHECK manual, BUKAN semua
-//     pos pasti kebagian).
-//  7. BARU (di luar SERAH-TERIMA.md, kebutuhan tambahan dari Guru saat
-//     diskusi): 1 SPK BOLEH ikut LEBIH DARI 1 SPK Grouping — dipecah
-//     sebagian qty. order_spk dapat 2 field baru: `qty_tergrouping` (number,
-//     akumulatif, BUKAN ditimpa) + `grouping_ids` (array, arrayUnion tiap
-//     ikut grouping baru). `id_spk_grouping`/`kode_spk_grouping` lama TETAP
-//     ditulis (kompatibilitas tampilan lain yang mungkin baca field itu) —
-//     isinya grouping TERAKHIR yang mengambil SPK ini, bukan satu-satunya.
-//     `status_grouping` sekarang 3 nilai: '' (belum) / 'sebagian' / 'tergrouping'
-//     (habis). Antrean (`muat()`) filter berdasarkan sisa qty (qty_order -
-//     qty_tergrouping) > 0, BUKAN lagi berdasarkan id_spk_grouping kosong.
+
+// REDESAIN "Perlu Disiapkan" — handoff wireframe, folder
+// Mockup/handoff/Persiapan Produksi - Perlu Disiapkan/ layar "Perlu Disiapkan"
+// lama (kartu klaster + tombol langsung) dengan tata letak 2 kolom (desktop
+// 1440: daftar klaster kiri + panel "Grouping baru" kanan sticky; mobile 390: 1
+// kolom + panel jadi bar mengambang di atas nav). JALUR/TAHAP di bawahnya
+// (JalurTahapManager, jalur Vendor/Bahan/Sewing/ Webbing/Finishing, 5 tahap tiap
+// jalur) TIDAK DISENTUH SAMA SEKALI — cuma generator SPK Grouping ini yang
+// dibangun ulang. Keputusan: 1. Relasi ke V2 lama -> (bukan modul baru
+// berdampingan). 2. Belum ada data live spk_grouping/spk_track sungguhan ->
+// aman, tidak perlu migrasi apapun. 3. Riwayat: begitu grouping terbit, baris
+// klaster HILANG TOTAL dari antrean (TIDAK ada tab Selesai/Riwayat di layar ini)
+// -> section "SPK Grouping Terbaru" yang PERSISTEN di versi lama DIHAPUS,
+// diganti dialog konfirmasi SEKALI TAMPIL (konfirmasiTerbit) begitu grouping
+// berhasil dibuat, sesuai kalimat "kode yang terbit ditampilkan sekali sebagai
+// konfirmasi". 4. Pembatalan grouping -> DITUNDA, tidak dibangun versi ini. 5.
+// Jalur Vendor -> TETAP ADA (bukan dihapus meski wireframe cuma gambar 4 chip
+// Bahan/Acc Sewing/Acc Webbing/Acc Finishing) — checkbox manual "+ Jalur Vendor"
+// dipertahankan di panel & di baris "Buat Grouping Sendiri", cuma dipindah ke
+// bawah kotak 4 chip (bukan hilang). 6. Deteksi 4 pos tujuan -> TETAP otomatis
+// dari BOM . 7. BARU: 1 SPK BOLEH ikut LEBIH DARI 1 SPK Grouping — dipecah
+// sebagian qty. order_spk dapat 2 field baru: `qty_tergrouping` (number,
+// akumulatif, BUKAN ditimpa) + `grouping_ids` (array, arrayUnion tiap ikut
+// grouping baru). `id_spk_grouping`/`kode_spk_grouping` lama TETAP ditulis
+// (kompatibilitas tampilan lain yang mungkin baca field itu) — isinya grouping
+// TERAKHIR yang mengambil SPK ini, bukan satu-satunya. `status_grouping`
+// sekarang 3 nilai: '' (belum) / 'sebagian' / 'tergrouping' (habis). Antrean
+// (`muat`) filter berdasarkan sisa qty (qty_order - qty_tergrouping) > 0, BUKAN
+// lagi berdasarkan id_spk_grouping kosong.
 //
-// Kunci klaster DITEGASKAN ULANG Guru (31 Agt 2026): "nama_produk + size +
-// panjang pola + isi_pola_pcs" — DICEK LANGSUNG ke kode lama sebelum
-// diedit: versi SEBELUMNYA TERNYATA TIDAK memasukkan `size` sama sekali ke
-// kunci (cuma nama+kunciPola) — gap nyata, bukan cuma persepsi Guru salah.
-// Diperbaiki di sini lewat `kunciGrupProduk()` (BARU, di bawah), field
-// `master_produk.size` (sudah ada, lihat PETA-DATABASE.md) ditambahkan ke
-// tanda-tangan kunci. `kunciPolaProduk()` sendiri (panjang+isi_pola_pcs)
-// TIDAK diubah — dipakai juga oleh JalurTahapManager & jalurOtomatisProduk
-// yang tidak disentuh.
+// Kunci klaster DITEGASKAN ULANG: "nama_produk + size + panjang pola +
+// isi_pola_pcs" — DICEK LANGSUNG ke kode lama sebelum diedit: versi SEBELUMNYA
+// TERNYATA TIDAK memasukkan `size` sama sekali ke kunci (cuma nama+kunciPola) —
+// gap nyata, bukan cuma persepsi salah. Diperbaiki di sini lewat
+// `kunciGrupProduk` (BARU, di bawah), field `master_produk.size` (sudah ada,
+// lihat PETA-DATABASE.md) ditambahkan ke tanda-tangan kunci. `kunciPolaProduk`
+// sendiri (panjang+isi_pola_pcs) TIDAK diubah — dipakai juga oleh
+// JalurTahapManager & jalurOtomatisProduk yang tidak disentuh.
 //
-// Sumber "warna" per baris (wireframe: "Rincian per warna: Burgundy 40 ·
-// Purple 24 · Cream 12") — order_spk TIDAK punya field warna sendiri
-// (nama_produk-nya STRING GABUNGAN "Nama Warna Size", lihat catatan lama di
-// atas file ini) — dipakai `master_produk.warna` (field terpisah, resolve
-// lewat sku_produk) supaya tidak perlu parsing teks yang rapuh. SPK tanpa
-// SKU (tidak resolve ke produk) tidak masuk hitungan rincian warna.
-// ============================================================================
+// Sumber "warna" per baris (wireframe: "Rincian per warna: Burgundy 40 · Purple
+// 24 · Cream 12") — order_spk TIDAK punya field warna sendiri (nama_produk-nya
+// STRING GABUNGAN "Nama Warna Size", lihat catatan lama di atas file ini) —
+// dipakai `master_produk.warna` (field terpisah, resolve lewat sku_produk)
+// supaya tidak perlu parsing teks yang rapuh. SPK tanpa SKU (tidak resolve ke
+// produk) tidak masuk hitungan rincian warna.
+
 
 const PETA_JALUR = {
   vendor: { label: 'Vendor', icon: 'fa-handshake', tag: 'pink' },
@@ -160,7 +111,7 @@ function formatQty(n) {
 // kunciPolaProduk — tanda-tangan SET pola (panjang+isi_pola_pcs, diurutkan
 // supaya urutan input di form Master Produk tidak mempengaruhi hasil
 // cocok/tidaknya), baris kosong (panjang=0 & isi=0) diabaikan sama seperti
-// hitungKelipatan() di vue-master-produk.js.
+// hitungKelipatan di vue-master-produk.js.
 function kunciPolaProduk(produk) {
   const baris = (produk?.bom_pola || [])
     .map(b => ({ p: parseFloat(b.panjang) || 0, i: parseFloat(b.isi_pola_pcs) || 0 }))
@@ -170,11 +121,11 @@ function kunciPolaProduk(produk) {
   return baris.map(b => `${b.p}x${b.i}`).join('|');
 }
 
-// kunciGrupProduk — BARU (31 Agt 2026). Tanda-tangan LENGKAP klaster:
-// nama + SIZE + kunci pola. `size` ditambahkan di sini (lihat catatan
-// besar di atas file ini) — kalau kunci pola kosong (BOM Pola belum
-// lengkap/pola belum dikunci), return '' supaya produk itu TIDAK ikut
-// klaster manapun (ditampilkan terpisah sebagai "pola belum dikunci").
+// kunciGrupProduk — BARU . Tanda-tangan LENGKAP klaster: nama + SIZE + kunci
+// pola. `size` ditambahkan di sini (lihat catatan besar di atas file ini) —
+// kalau kunci pola kosong (BOM Pola belum lengkap/pola belum dikunci), return ''
+// supaya produk itu TIDAK ikut klaster manapun (ditampilkan terpisah sebagai
+// "pola belum dikunci").
 function kunciGrupProduk(produk) {
   const kp = kunciPolaProduk(produk);
   if (!kp) return '';
@@ -183,11 +134,11 @@ function kunciGrupProduk(produk) {
   return `${nama}::${size}::${kp}`;
 }
 
-// jalurOtomatisProduk — lihat catatan panjang "jalur_aktif" di atas file
-// ini. `tahap_proses` field TEKS BEBAS (bukan strict-select, lihat vue-
-// master-produk.js) — dicocokkan longgar (contains, case-insensitive)
-// supaya variasi kecil penulisan ("Sewing"/"sewing "/"SEWING") tetap
-// kena, TIDAK menggagalkan deteksi cuma karena beda kapital/spasi.
+// jalurOtomatisProduk — lihat catatan panjang "jalur_aktif" di atas file ini.
+// `tahap_proses` field TEKS BEBAS (bukan strict-select, lihat vue-
+// master-produk.js) — dicocokkan longgar (contains, case-insensitive) supaya
+// variasi kecil penulisan ("Sewing"/"sewing "/"SEWING") tetap kena, TIDAK
+// menggagalkan deteksi cuma karena beda kapital/spasi.
 function jalurOtomatisProduk(produk) {
   const jalur = new Set();
   const adaBahan = (produk?.bom_pola || []).some(b => (parseFloat(b.panjang) || 0) > 0 || (parseFloat(b.isi_pola_pcs) || 0) > 0);
@@ -219,39 +170,31 @@ function buatQrDataUrl(teks) {
   return dataUrl;
 }
 
-// generateKodeSpkGrouping — pola SAMA seperti generateIdBerurutan() di
-// vue-bahan-aksesoris.js (runTransaction, wajib supaya counter tidak
-// dobel kalau 2 admin generate BERSAMAAN persis di waktu yang sama), TAPI
-// counter doc-nya di-KEY per TANGGAL (bukan per kategori) — otomatis
-// "reset" tiap hari (keputusan Guru: "Global per hari, lintas produk"),
-// tidak perlu job reset manual apapun karena doc baru dibuat begitu
-// tanggal berganti.
+// generateKodeSpkGrouping — pola SAMA seperti generateIdBerurutan di
+// vue-bahan-aksesoris.js (runTransaction, wajib supaya counter tidak dobel kalau
+// 2 admin generate BERSAMAAN persis di waktu yang sama), TAPI counter doc-nya
+// di-KEY per TANGGAL (bukan per kategori) — otomatis "reset" tiap hari, tidak
+// perlu job reset manual apapun karena doc baru dibuat begitu tanggal berganti.
 //
-// GANTI (12 Sep 2026, redesain penomoran total — lihat dummy-erp-grouping.xlsx
-// sheet SIMULASI ALUR GROUPING): format kode_spk diganti dari prefix bebas
-// `{prefix}{yymmdd}{counter}` (mis. SPK260911001) menjadi format TETAP
-// `G{YY}R{MM}{DD}P{counter:3digit}` (mis. G26R0911P001) — G=Grouping,
-// R=tanggal Register, P=urutan Produk hari itu. Tujuannya supaya kode ini
-// bisa DIPARSING/dikenali polanya secara seragam lintas modul (root ID 1
-// dari 2 tingkat: ROOT1=kode_spk, ROOT2=kode_batch turunannya di
-// separating_batch — lihat js/vue-pp-serie.js), jadi strukturnya SENGAJA
-// dibuat baku/tidak bisa diatur lagi.
+// format kode_spk diganti dari prefix bebas `{prefix}{yymmdd}{counter}` (mis.
+// SPK260911001) menjadi format TETAP `G{YY}R{MM}{DD}P{counter:3digit}` (mis.
+// G26R0911P001) — G=Grouping, R=tanggal Register, P=urutan Produk hari itu.
+// Tujuannya supaya kode ini bisa DIPARSING/dikenali polanya secara seragam
+// lintas modul (root ID 1 dari 2 tingkat: ROOT1=kode_spk, ROOT2=kode_batch
+// turunannya di separating_batch — lihat js/vue-pp-serie.js), jadi strukturnya
+// SENGAJA dibuat baku/tidak bisa diatur lagi.
 //
-// KEPUTUSAN (belum sempat ditanyakan eksplisit ke Guru, diputuskan sendiri
-// sesuai arah redesain — TOLONG DIKONFIRMASI): fitur prefix yang bisa
-// diatur admin (`pengaturan_id_spk_grouping/config`, ditambahkan 5 Sep 2026,
-// lihat AppConfigTlc di js/vue-config.js) TIDAK dipakai lagi di sini karena
-// bertentangan dengan tujuan "format baku/tidak ambigu" dari redesain ini —
+// KEPUTUSAN: fitur prefix yang bisa diatur admin TIDAK dipakai lagi di sini
+// karena bertentangan dengan tujuan "format baku/tidak ambigu" dari redesain ini
 // kalau prefix-nya bisa diganti-ganti, polanya tidak bisa lagi diasumsikan
-// sama di semua kode. Doc config-nya TIDAK dihapus (biar tidak ada data
-// hilang), cuma sudah tidak dibaca lagi di generator ini. Halaman Config
-// > TLC & Prefix di js/vue-config.js masih menampilkan field ini apa
-// adanya — belum diberi keterangan "tidak dipakai lagi", itu PR terpisah
-// kalau Guru setuju arah ini.
+// sama di semua kode. Doc config-nya TIDAK dihapus (biar tidak ada data hilang),
+// cuma sudah tidak dibaca lagi di generator ini. Halaman Config > TLC & Prefix
+// di js/vue-config.js masih menampilkan field ini apa adanya — belum diberi
+// keterangan "tidak dipakai lagi", itu PR terpisah kalau setuju arah ini.
 //
-// Counter TETAP per-hari (key `{yymmdd}`, sudah cocok dengan kebutuhan
-// format baru yang reset tiap tanggal berganti) — tidak ada perubahan pada
-// logic counter, cuma bentuk string hasil akhirnya yang berubah.
+// Counter TETAP per-hari (key `{yymmdd}`, sudah cocok dengan kebutuhan format
+// baru yang reset tiap tanggal berganti) — tidak ada perubahan pada logic
+// counter, cuma bentuk string hasil akhirnya yang berubah.
 async function generateKodeSpkGrouping() {
   const now = new Date();
   const yy = String(now.getFullYear()).slice(-2);
@@ -268,19 +211,17 @@ async function generateKodeSpkGrouping() {
   });
 }
 
-// buatSpkTrackUntukGrouping — BARU (Fase 2, 29 Agt 2026 malam). Begitu 1
-// SPK Grouping selesai dibuat, langsung buat 1 dokumen `spk_track` per
-// jalur di `jalur_aktif`-nya (status awal SELALU 'perlu_diproses') —
-// bukan cuma untuk jalur yang UI-nya sudah jadi (Bahan). Alasan: kalau
-// track CUMA dibuat untuk jalur yang kebetulan sudah punya UI saat itu,
-// begitu Fase 3/4 mengisi jalur lain nanti, grouping-grouping LAMA yang
-// dibuat sebelum Fase itu jalan tidak akan punya track-nya — perlu
-// backfill manual. Membuat semua track di awal (murah, cuma beberapa
-// dokumen per grouping) menghindari masalah itu sama sekali. Field
-// ditulis DENORMALISASI (kode_spk/nama_produk/qty_total disalin dari
-// grouping) supaya daftar per-tahap (`JalurTahapManager` di bawah) bisa
-// query+tampilkan langsung tanpa baca balik ke `spk_grouping` per baris
-// (hemat baca Firestore, PRINSIP-HEMAT).
+// buatSpkTrackUntukGrouping — BARU . Begitu 1 SPK Grouping selesai dibuat,
+// langsung buat 1 dokumen `spk_track` per jalur di `jalur_aktif`-nya (status
+// awal SELALU 'perlu_diproses') — bukan cuma untuk jalur yang UI-nya sudah jadi
+// (Bahan). Alasan: kalau track CUMA dibuat untuk jalur yang kebetulan sudah
+// punya UI saat itu, begitu Fase 3/4 mengisi jalur lain nanti, grouping-grouping
+// LAMA yang dibuat sebelum Fase itu jalan tidak akan punya track-nya — perlu
+// backfill manual. Membuat semua track di awal (murah, cuma beberapa dokumen per
+// grouping) menghindari masalah itu sama sekali. Field ditulis DENORMALISASI
+// (kode_spk/nama_produk/qty_total disalin dari grouping) supaya daftar per-tahap
+// (`JalurTahapManager` di bawah) bisa query+tampilkan langsung tanpa baca balik
+// ke `spk_grouping` per baris (hemat baca Firestore, PRINSIP-HEMAT).
 async function buatSpkTrackUntukGrouping(groupingId, kodeSpk, namaProduk, qtyTotal, jalurAktif, bahanRincian, sewingRincian, webbingRincian, finishingRincian) {
   await Promise.all((jalurAktif || []).map(jalur => addDoc(collection(db, 'spk_track'), {
     grouping_id: groupingId,
@@ -295,23 +236,20 @@ async function buatSpkTrackUntukGrouping(groupingId, kodeSpk, namaProduk, qtyTot
     kode_tugas: '',
     riwayat_scan: [],
     catatan_masalah: '',
-    // bahan_rincian — BARU (31 Agt 2026, modul Persiapan Produksi > Bahan,
-    // lihat hitungBahanRincian() di atas). CUMA diisi buat jalur 'bahan' —
-    // rincian kebutuhan kain PER BAHAN PER ANAK SPK, karena tahap Bahan
-    // butuh ketelitian sampai level itu (lihat wireframe.dc.html: "scan
-    // label ANAK SPK berkali-kali", "satu scan menutup SATU BARIS
-    // KOMPONEN") sedangkan spk_track sendiri cuma 1 dokumen per grouping
-    // per jalur.
+    // bahan_rincian — modul Persiapan Produksi > Bahan, lihat hitungBahanRincian
+    // di atas). CUMA diisi buat jalur 'bahan' — rincian kebutuhan kain PER BAHAN
+    // PER ANAK SPK, karena tahap Bahan butuh ketelitian sampai level itu (lihat
+    // wireframe.dc.html: "scan label ANAK SPK berkali-kali", "satu scan menutup
+    // SATU BARIS KOMPONEN") sedangkan spk_track sendiri cuma 1 dokumen per
+    // grouping per jalur.
     bahan_rincian: (jalur === 'bahan' && Array.isArray(bahanRincian)) ? bahanRincian : [],
-    // sewing_rincian / webbing_rincian / finishing_rincian — BARU (1 Sep
-    // 2026, modul Persiapan Produksi > Acc Sewing/Webbing/Finishing).
-    // Field TAMBAHAN yang SAMA POLA seperti bahan_rincian di atas, TAPI
-    // per-jalur sendiri-sendiri (bukan 1 field digilir 4 jalur) supaya tiap
-    // pos hanya baca field miliknya sendiri — pola ini SENGAJA dipilih
-    // (bukan generik `rincian` tunggal) supaya field bahan_rincian yang
-    // sudah ada TIDAK perlu diubah bentuknya (hindari migrasi data yang
-    // sudah terlanjur tersimpan sejak 31 Agt 2026). Jalur 'vendor' tidak
-    // dapat rincian apapun — di luar lingkup 4 modul kartu-per-komponen ini.
+    // sewing_rincian / webbing_rincian / finishing_rincian — BARU . Field
+    // TAMBAHAN yang SAMA POLA seperti bahan_rincian di atas, TAPI per-jalur
+    // sendiri-sendiri (bukan 1 field digilir 4 jalur) supaya tiap pos hanya baca
+    // field miliknya sendiri — pola ini SENGAJA dipilih (bukan generik `rincian`
+    // tunggal) supaya field bahan_rincian yang sudah ada TIDAK perlu diubah
+    // bentuknya . Jalur 'vendor' tidak dapat rincian apapun — di luar lingkup 4
+    // modul kartu-per-komponen ini.
     sewing_rincian: (jalur === 'sewing' && Array.isArray(sewingRincian)) ? sewingRincian : [],
     webbing_rincian: (jalur === 'webbing' && Array.isArray(webbingRincian)) ? webbingRincian : [],
     finishing_rincian: (jalur === 'finishing' && Array.isArray(finishingRincian)) ? finishingRincian : [],
@@ -320,9 +258,9 @@ async function buatSpkTrackUntukGrouping(groupingId, kodeSpk, namaProduk, qtyTot
   })));
 }
 
-// ambilPetaBahanAksesoris — cache modul-level, dipakai hitungBahanRincian()
-// saat grouping jalur 'bahan' diterbitkan. Koleksinya kecil (semua Bahan &
-// Aksesoris toko), pola query DISALIN dari js/vue-scan-persiapan.js.
+// ambilPetaBahanAksesoris — cache modul-level, dipakai hitungBahanRincian saat
+// grouping jalur 'bahan' diterbitkan. Koleksinya kecil (semua Bahan & Aksesoris
+// toko), pola query DISALIN dari js/vue-scan-persiapan.js.
 let _cachePetaBahanAksesoris = null;
 async function ambilPetaBahanAksesoris() {
   if (_cachePetaBahanAksesoris) return _cachePetaBahanAksesoris;
@@ -337,52 +275,39 @@ async function ambilPetaBahanAksesoris() {
   return peta;
 }
 
-// ambilPetaKodeTujuanDivisi / tandaiKodeGrouping — BARU (12 Sep 2026 lanjutan
-// 6, laporan Guru poin 2/3: ganti tampilan kode TRX di anak SPK dengan kode
-// baru "kode_spk-divisi+counter"; REDESAIN 3-LEVEL 13 Sep 2026 lanjutan 9,
-// permintaan Guru: "kode grouping ... formatnya kode spk + kode tlc +
-// counter bahan (cek bom pola) + counter anak spk + '-' + counter komponen").
-// Sumber kode_tujuan per jalur = koleksi `master_prefix_divisi` (skema BARU,
-// lihat js/vue-config.js AppConfigTlc) — ID dokumen ('bahan'/'sewing'/
-// 'webbing'/'finishing') menentukan jalur mana dipakai baris mana. Guru yang
-// isi baris & kode TLC-nya sendiri (keputusan Guru 12 Sep) — kalau BELUM
-// diisi utk suatu jalur, kode_kartu/kode_anak_spk/kode_komponen baris situ
-// jadi null (tampilan/cetak FALLBACK ke kode lama, TIDAK error) sampai Guru
-// mengisi Config-nya.
+// ambilPetaKodeTujuanDivisi / tandaiKodeGrouping — REDESAIN 3-LEVEL .. formatnya
+// kode spk + kode tlc + counter bahan (cek bom pola) + counter anak spk + '-' +
+// counter komponen"). Sumber kode_tujuan per jalur = koleksi
+// `master_prefix_divisi` (skema BARU, lihat js/vue-config.js AppConfigTlc) — ID
+// dokumen ('bahan'/'sewing'/ 'webbing'/'finishing') menentukan jalur mana
+// dipakai baris mana. yang isi baris & kode TLC-nya sendiri — kalau BELUM diisi
+// utk suatu jalur, kode_kartu/kode_anak_spk/kode_komponen baris situ jadi null
+// (tampilan/cetak FALLBACK ke kode lama, TIDAK error) sampai mengisi Config-nya.
 //
-// 3 LEVEL (keputusan Guru 13 Sep, dijawab via AskUserQuestion 2 ronde):
-//   kode_kartu    = {kode_spk}-{kodeTlc}{counterBahan:2}          — INI yang
-//                   DICETAK JADI QR/LABEL FISIK & DICOCOKKAN scan (sama
-//                   peran seperti kode_anak_spk versi lanjutan 6 lama, cuma
-//                   dinamai ulang supaya tidak ketuker sama level di bawahnya).
-//   kode_anak_spk = {kode_kartu}{counterAnakSpk:2}                — sub-kode
-//                   PER ANAK SPK/ORDER di dalam 1 kartu, buat rujukan/
-//                   tampilan (bukan dicetak sebagai label fisik terpisah).
-//   kode_komponen = {kode_anak_spk}-{counterKomponen:2}           — sub-kode
-//                   PER BARIS BOM (komponen/item) di dalam 1 anak SPK yang
-//                   sama, buat rujukan baris paling detail (mis. Acc: 1 order
-//                   butuh Zipper DAN Kancing, keduanya berbagi 1 label/QR
-//                   yang sama [kode_kartu = per order], tapi masing2 baris
-//                   tetap py kode_komponen sendiri buat dibedakan di tampilan).
+// 3 LEVEL: kode_kartu = {kode_spk}-{kodeTlc}{counterBahan:2} — INI yang DICETAK
+// JADI QR/LABEL FISIK & DICOCOKKAN scan . kode_anak_spk =
+// {kode_kartu}{counterAnakSpk:2} — sub-kode PER ANAK SPK/ORDER di dalam 1 kartu,
+// buat rujukan/ tampilan (bukan dicetak sebagai label fisik terpisah).
+// kode_komponen = {kode_anak_spk}-{counterKomponen:2} — sub-kode PER BARIS BOM
+// (komponen/item) di dalam 1 anak SPK yang sama, buat rujukan baris paling
+// detail (mis. Acc: 1 order butuh Zipper DAN Kancing, keduanya berbagi 1
+// label/QR yang sama [kode_kartu = per order], tapi masing2 baris tetap py
+// kode_komponen sendiri buat dibedakan di tampilan).
 //
-// PEMETAAN key per jalur:
-//   - Bahan: kartuKey = bahan_aksesoris_id + '::' + nama_pola (SAMA formula
-//     dgn kelompokKartuBahan() vue-persiapan-bahan.js, wajib disinkron kalau
-//     salah satu diubah), anakSpkKey = no_spk.
-//   - Sewing/Webbing/Finishing: kartuKey = no_spk (1 kartu = 1 order, SAMA
-//     seperti sebelumnya, TIDAK diganti ikut Bahan — jawaban eksplisit Guru
-//     ronde 2: "Kartu Acc TETAP per order"), anakSpkKey = no_spk juga (sama
-//     dgn kartuKey, jadi counter_anak_spk SELALU "01" krn 1 kartu = 1 order
-//     persis — level pembeda yg sesungguhnya di jalur Acc ada di
-//     counter_komponen, BUKAN di counter_anak_spk).
+// PEMETAAN key per jalur: - Bahan: kartuKey = bahan_aksesoris_id + '::' +
+// nama_pola (SAMA formula dgn kelompokKartuBahan vue-persiapan-bahan.js, wajib
+// disinkron kalau salah satu diubah), anakSpkKey = no_spk. -
+// Sewing/Webbing/Finishing: kartuKey = no_spk, anakSpkKey = no_spk juga (sama
+// dgn kartuKey, jadi counter_anak_spk SELALU "01" krn 1 kartu = 1 order persis —
+// level pembeda yg sesungguhnya di jalur Acc ada di counter_komponen, BUKAN di
+// counter_anak_spk).
 //
-// PENTING (keputusan Guru 12 Sep lanjutan 6, MASIH BERLAKU di level kartu):
-// - Counter DISIMPAN PERMANEN saat baris dibuat (bukan dihitung ulang dari
-//   urutan tampil) — supaya kode yang sudah dicetak/ditempel/discan operator
-//   TETAP valid walau nanti ada baris lain di grouping yang sama berubah.
-// - counter_komponen dihitung per KEMUNCULAN BARIS dalam (kartuKey,anakKey)
-//   yang sama — utk Bahan biasanya cuma 1 baris (jadi selalu "-01"), utk Acc
-//   inilah yg membedakan Zipper "-01" vs Kancing "-02" dst di 1 order yg sama.
+// PENTING: - Counter DISIMPAN PERMANEN saat baris dibuat (bukan dihitung ulang
+// dari urutan tampil) — supaya kode yang sudah dicetak/ditempel/discan operator
+// TETAP valid walau nanti ada baris lain di grouping yang sama berubah. -
+// counter_komponen dihitung per KEMUNCULAN BARIS dalam (kartuKey,anakKey) yang
+// sama — utk Bahan biasanya cuma 1 baris (jadi selalu "-01"), utk Acc inilah yg
+// membedakan Zipper "-01" vs Kancing "-02" dst di 1 order yg sama.
 let _cachePetaKodeTujuan = null;
 async function ambilPetaKodeTujuanDivisi() {
   if (_cachePetaKodeTujuan) return _cachePetaKodeTujuan;
@@ -390,10 +315,9 @@ async function ambilPetaKodeTujuanDivisi() {
   try {
     const snap = await getDocs(collection(db, 'master_prefix_divisi'));
     // Key = ID dokumen, BUKAN field `jalur_key` di dalam data — vue-config.js
-    // simpanBaris() menulis doc dgn id = jalur_key ('bahan'/'sewing'/dst)
-    // tapi TIDAK menaruh jalur_key sebagai field di dalam data itu sendiri,
-    // jadi baca via x.jalur_key selalu undefined (bug 13 Sep lanjutan 13:
-    // Kode TLC sudah diisi+simpan Guru tapi kode_kartu tetap null).
+    // simpanBaris menulis doc dgn id = jalur_key ('bahan'/'sewing'/dst) tapi
+    // TIDAK menaruh jalur_key sebagai field di dalam data itu sendiri, jadi baca
+    // via x.jalur_key selalu undefined .
     snap.forEach(d => {
       const x = d.data();
       if (x.kode_tujuan) peta[d.id] = x.kode_tujuan;
@@ -433,19 +357,18 @@ function tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, kartuKeyFn, anakSpkKeyFn
   return baris;
 }
 
-// hitungBahanRincian — BARU (31 Agt 2026, modul Persiapan Produksi > Bahan).
-// Dari daftar anak SPK yang ikut grouping ({order_spk_id, no_spk, qty,
-// _produk}) + peta master_bahan_aksesoris (id -> {nama, warna, ...}),
-// hasilkan satu baris PER BAHAN PER ANAK SPK — inilah yang disimpan
-// denormalisasi di spk_track.bahan_rincian[] (hemat baca Firestore, PRINSIP-
-// HEMAT, pola sama seperti buatSpkTrackUntukGrouping).
+// hitungBahanRincian — BARU . Dari daftar anak SPK yang ikut grouping
+// ({order_spk_id, no_spk, qty, _produk}) + peta master_bahan_aksesoris (id ->
+// {nama, warna, ..}), hasilkan satu baris PER BAHAN PER ANAK SPK — inilah yang
+// disimpan denormalisasi di spk_track.bahan_rincian[] (hemat baca Firestore,
+// PRINSIP- HEMAT, pola sama seperti buatSpkTrackUntukGrouping).
 //
 // Sumber BOM: `master_produk.bom_pola[]` — BUKAN `bom_aksesoris[]` (itu punya
 // Acc Sewing/Webbing/Finishing, bukan kain). Cuma baris tipe:'internal' yang
-// dipakai (tipe:'vendor' dipotong vendor sendiri, tidak lewat gudang/pos
-// Bahan). Rumus dari SERAH-TERIMA Bahan §3 "Aturan khas pos ini":
-//   amparan     = qty anak SPK / isi_pola_pcs, dibulatkan ke ATAS
-//   kebutuhan_kain (meter) = (panjang pola dalam cm / 100) x amparan
+// dipakai (tipe:'vendor' dipotong vendor sendiri, tidak lewat gudang/pos Bahan).
+// Rumus dari Bahan §3 "Aturan khas pos ini": amparan = qty anak SPK /
+// isi_pola_pcs, dibulatkan ke ATAS kebutuhan_kain (meter) = (panjang pola dalam
+// cm / 100) x amparan
 function hitungBahanRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
   const baris = [];
   (anggotaList || []).forEach(a => {
@@ -463,105 +386,91 @@ function hitungBahanRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
       const bhn = petaBahan[b.bahan_aksesoris_id] || {};
       baris.push({
         order_spk_id: a.order_spk_id, no_spk: a.no_spk, qty,
-        // pelanggan_nama — BARU (13 Sep 2026, permintaan Guru) — snapshot
-        // dari order_spk (lihat anggotaBaris di atas file), dipakai kartu
-        // "ANAK SPK" & label cetak js/vue-persiapan-bahan.js supaya PIC
-        // langsung tahu orderan siapa tanpa perlu tampilkan kode TRX mentah.
+        // pelanggan_nama — BARU — snapshot dari order_spk (lihat anggotaBaris di
+        // atas file), dipakai kartu "ANAK SPK" & label cetak
+        // js/vue-persiapan-bahan.js supaya PIC langsung tahu orderan siapa tanpa
+        // perlu tampilkan kode TRX mentah.
         pelanggan_nama: a.pelanggan_nama || '',
         bahan_aksesoris_id: b.bahan_aksesoris_id,
         bahan_nama: bhn.nama || '', bahan_warna: bhn.warna || '',
-        // rak_label — BARU (13 Sep 2026, standarisasi label cetak Bahan,
-        // permintaan Guru). Sumber: master_bahan_aksesoris (field sudah ada
+        // rak_label — BARU . Sumber: master_bahan_aksesoris (field sudah ada
         // dari fitur Rak Penyimpanan, lihat js/vue-rak-penyimpanan.js).
-        // ambilPetaBahanAksesoris() spread seluruh dokumen jadi bhn di atas
-        // SUDAH punya field ini — tinggal disalin ke baris tanpa query baru.
+        // ambilPetaBahanAksesoris spread seluruh dokumen jadi bhn di atas SUDAH
+        // punya field ini — tinggal disalin ke baris tanpa query baru.
         rak_label: bhn.rak_label || '',
         nama_pola: b.nama_pola || '',
         // produk_size — BARU, dipakai js/vue-persiapan-bahan.js buat "syarat
-        // sepack" (SERAH-TERIMA Bahan §3: "pola, bahan, dan size sama; warna
-        // & no SPK boleh beda"). spk_track sendiri TIDAK simpan size (cuma
-        // nama_produk), jadi diambil di sini dari produk anak SPK-nya.
+        // sepack" . spk_track sendiri TIDAK simpan size (cuma nama_produk), jadi
+        // diambil di sini dari produk anak SPK-nya.
         produk_size: (produk && produk.size) || '',
-        // produk_warna — BARU (12 Sep 2026, fix #7 laporan Guru: kartu anak
-        // SPK di js/vue-persiapan-bahan.js harusnya tampil "nama produk +
-        // warna + size", bukan cuma no. SPK). SAMA POLA seperti produk_size
-        // di atas — diambil dari produk anak SPK-nya, bukan dari bahan
-        // (bahan_warna sudah ada terpisah, itu warna KAIN, bukan warna
-        // produknya).
+        // produk_warna — BARU . SAMA POLA seperti produk_size di atas — diambil
+        // dari produk anak SPK-nya, bukan dari bahan (bahan_warna sudah ada
+        // terpisah, itu warna KAIN, bukan warna produknya).
         produk_warna: (produk && produk.warna) || '',
         panjang_pola: panjangCm, isi_pola_pcs: isiPola,
         amparan, kebutuhan_kain: kebutuhanKain,
         // status per BARIS (bukan per grouping) — inilah yang dipakai
         // js/vue-persiapan-bahan.js buat nentuin baris ini ada di tab mana:
-        // perlu_disiapkan -> sedang_disiapkan -> perlu_dikirim ->
-        // sedang_dikirim -> selesai.
+        // perlu_disiapkan -> sedang_disiapkan -> perlu_dikirim -> sedang_dikirim
+        // -> selesai.
         status: 'perlu_disiapkan',
-        // masuk_tahap_pada — string ISO (BUKAN serverTimestamp(): Firestore
-        // tidak izinkan sentinel serverTimestamp() di dalam elemen array,
-        // cuma di field top-level dokumen — sama seperti field `pada` di
-        // riwayat_scan versi lama). Diperbarui tiap kali `status` baris ini
-        // pindah tahap — dasar hitung "diam sejak" / ambang tertahan (>6 jam,
-        // keputusan Guru 31 Agt 2026) di setiap tab.
+        // masuk_tahap_pada — string ISO (BUKAN serverTimestamp: Firestore tidak
+        // izinkan sentinel serverTimestamp di dalam elemen array, cuma di field
+        // top-level dokumen — sama seperti field `pada` di riwayat_scan versi
+        // lama). Diperbarui tiap kali `status` baris ini pindah tahap — dasar
+        // hitung "diam sejak" / ambang tertahan di setiap tab.
         masuk_tahap_pada: new Date().toISOString(),
         label_cetak_pada: null,
         operator_uid: '', operator_nama: '', ditugaskan_pada: null,
-        // riwayat_operator — estafet shift (keputusan Guru 31 Agt 2026:
-        // "boleh diganti operator di tengah jalan, bukan dipegang 2 sekaligus
-        // bersamaan"). Tiap kali baris ini di-scan-tunjuk ulang oleh operator
-        // LAIN sebelum selesai, entry baru ditambah di sini (bukan menimpa)
-        // supaya riwayat siapa-pegang-apa-jam-berapa tetap kebaca di kartu.
+        // riwayat_operator — estafet shift . Tiap kali baris ini di-scan-tunjuk
+        // ulang oleh operator LAIN sebelum selesai, entry baru ditambah di sini
+        // (bukan menimpa) supaya riwayat siapa-pegang-apa-jam-berapa tetap
+        // kebaca di kartu.
         riwayat_operator: [],
         entry_qty: null, entry_oleh: '', entry_pada: null,
         catatan_masalah: '',
         kode_bagging: '', kode_tugas: '',
-        kode_kartu: null, kode_anak_spk: null, kode_komponen: null // diisi tandaiKodeGrouping() di bawah
+        kode_kartu: null, kode_anak_spk: null, kode_komponen: null // diisi tandaiKodeGrouping di bawah
       });
     });
   });
-  // kartuKeyFn — REVISI (13 Sep 2026, koreksi Guru) — GANTI dari bahan_aksesoris_id
-  // saja jadi bahan+pola: 2 anak SPK pakai bahan SAMA tapi pola BEDA TIDAK
-  // boleh dianggap 1 kartu (batch potong beda pola tetap harus dipisah kode
-  // kartunya), sama seperti kelompokKartuBahan()/bangunPreviewDariBaris() di
-  // vue-persiapan-bahan.js yang ikut diperbarui pola yang sama.
+  // kartuKeyFn — GANTI dari bahan_aksesoris_id saja jadi bahan+pola: 2 anak SPK
+  // pakai bahan SAMA tapi pola BEDA TIDAK boleh dianggap 1 kartu (batch potong
+  // beda pola tetap harus dipisah kode kartunya), sama seperti
+  // kelompokKartuBahan/bangunPreviewDariBaris di vue-persiapan-bahan.js yang
+  // ikut diperbarui pola yang sama.
   return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.bahan_aksesoris_id + '::' + (b.nama_pola || ''), b => b.no_spk);
 }
 
-// hitungSewingRincian / hitungWebbingRincian / hitungFinishingRincian — BARU
-// (1 Sep 2026, wireframe handoff "Persiapan Produksi - Acc Sewing/Webbing/
-// Finishing", 3 modul dikerjakan sekaligus atas instruksi Guru 1 Sep 2026,
-// menyimpang dari urutan satu-modul-per-sesi yang ditulis README paket
-// handoff — lihat STATUS-PROYEK.md buat catatan penyimpangan ini).
+// hitungSewingRincian / hitungWebbingRincian / hitungFinishingRincian — BARU .
 //
-// SAMA POLA seperti hitungBahanRincian() di atas (1 baris per komponen per
-// anak SPK, disimpan denormalisasi di spk_track), TAPI sumber BOM-nya
-// `master_produk.bom_aksesoris[]` (BUKAN bom_pola[] — itu punya Bahan),
-// disaring `tahap_proses` (teks bebas, dicocokkan longgar `.includes()` —
-// SAMA seperti jalurOtomatisProduk() di atas, supaya konsisten: kalau
-// sebuah baris BOM Aksesoris kehitung sebagai jalur 'sewing' di sana, baris
-// yang SAMA juga harus muncul di sini, bukan aturan pencocokan berbeda).
+// SAMA POLA seperti hitungBahanRincian di atas (1 baris per komponen per anak
+// SPK, disimpan denormalisasi di spk_track), TAPI sumber BOM-nya
+// `master_produk.bom_aksesoris[]` (BUKAN bom_pola[] — itu punya Bahan), disaring
+// `tahap_proses` (teks bebas, dicocokkan longgar `.includes` — SAMA seperti
+// jalurOtomatisProduk di atas, supaya konsisten: kalau sebuah baris BOM
+// Aksesoris kehitung sebagai jalur 'sewing' di sana, baris yang SAMA juga harus
+// muncul di sini, bukan aturan pencocokan berbeda).
 //
 // PERBEDAAN KARTU dari Bahan — PENTING: pos Bahan "satu kartu satu bahan +
-// warna" (kartu dikumpulkan LINTAS dokumen spk_track, lihat catatan besar
-// di vue-persiapan-bahan.js). 3 pos Acc ini SEBALIKNYA: "satu kartu satu
-// SPK Grouping" (SERAH-TERIMA §2, semua 3 modul) — kartunya = SATU dokumen
-// spk_track itu sendiri, isinya rincian_nya. Makanya di sini TIDAK ada
-// kelompokKartuBahan()-style "kumulatif lintas grouping" — cek stok cukup
-// dilakukan PER BARIS independen terhadap stok live (lihat js/vue-
-// persiapan-{sewing,webbing,finishing}.js), bukan dialokasikan greedy
-// lintas kartu seperti Bahan (SERAH-TERIMA 3 modul ini TIDAK menyebut
-// "kumulatif" sebagai aturan khas, beda dari Bahan yang eksplisit
-// menyebutnya).
+// warna" (kartu dikumpulkan LINTAS dokumen spk_track, lihat catatan besar di
+// vue-persiapan-bahan.js). 3 pos Acc ini SEBALIKNYA: "satu kartu satu SPK
+// Grouping" — kartunya = SATU dokumen spk_track itu sendiri, isinya rincian_nya.
+// Makanya di sini TIDAK ada kelompokKartuBahan-style "kumulatif lintas grouping"
+// cek stok cukup dilakukan PER BARIS independen terhadap stok live (lihat
+// js/vue- persiapan-{sewing,webbing,finishing}.js), bukan dialokasikan greedy
+// lintas kartu seperti Bahan .
 function _butuhAksesorisDasar(a, qty) {
   const produk = a._produk || null;
   return {
     order_spk_id: a.order_spk_id, no_spk: a.no_spk, qty,
-    // pelanggan_nama — sama pola seperti hitungBahanRincian() di atas,
-    // dipakai kartu & label cetak Acc Sewing/Webbing/Finishing.
+    // pelanggan_nama — sama pola seperti hitungBahanRincian di atas, dipakai
+    // kartu & label cetak Acc Sewing/Webbing/Finishing.
     pelanggan_nama: a.pelanggan_nama || '',
-    // produk_warna — sama pola seperti hitungBahanRincian(): diambil dari
-    // produk anak SPK-nya (bukan dari aksesoris), dipakai label cetak
-    // supaya kolom "nama produk + warna produk" konsisten dengan Bahan
-    // (lihat bangunLabelAksesoris di js/vue-components.js).
+    // produk_warna — sama pola seperti hitungBahanRincian: diambil dari produk
+    // anak SPK-nya (bukan dari aksesoris), dipakai label cetak supaya kolom
+    // "nama produk + warna produk" konsisten dengan Bahan (lihat
+    // bangunLabelAksesoris di js/vue-components.js).
     produk_warna: (produk && produk.warna) || '',
     bahan_aksesoris_id: '', nama_aksesoris: '', warna: '',
     status: 'perlu_disiapkan',
@@ -572,7 +481,7 @@ function _butuhAksesorisDasar(a, qty) {
     entry_qty: null, entry_oleh: '', entry_pada: null,
     catatan_masalah: '',
     kode_bagging: '', kode_tugas: '',
-    kode_kartu: null, kode_anak_spk: null, kode_komponen: null // diisi tandaiKodeGrouping() di bawah
+    kode_kartu: null, kode_anak_spk: null, kode_komponen: null // diisi tandaiKodeGrouping di bawah
   };
 }
 function hitungSewingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
@@ -592,7 +501,7 @@ function hitungSewingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
         bahan_aksesoris_id: k.bahan_aksesoris_id,
         nama_aksesoris: bhn.nama || '', warna: bhn.warna || '',
         // produk_size — SAMA alasan seperti hitungBahanRincian: dipakai "syarat
-        // sepack" (SERAH-TERIMA Acc §3: "produk dan size sama").
+        // sepack" .
         produk_size: (produk && produk.size) || '',
         qty_per_pcs: qtyPerPcs, satuan: (k.satuan || 'pcs').trim() || 'pcs',
         butuh: qtyPerPcs * qty
@@ -601,13 +510,10 @@ function hitungSewingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
   });
   return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.no_spk, b => b.no_spk);
 }
-// hitungWebbingRincian — sama seperti hitungSewingRincian, TAMBAH kolom
-// khas pos ini (SERAH-TERIMA Acc Webbing §3/§5): panjang_per_pcs/
-// butuh_meter (meter, bukan pcs), roll (butuh_meter / panjang_roll master
-// bahan, dibulatkan ke atas — NULL kalau master_bahan_aksesoris.panjang_roll
-// belum diisi Guru, BUKAN ditebak jadi angka salah), kode_webbing2/3
-// (snapshot bom_aksesoris.webbing2/.webbing3 SAAT SPK Grouping terbit —
-// teks bebas, boleh kosong, TIDAK menghalangi cetak per SERAH-TERIMA).
+// hitungWebbingRincian — sama seperti hitungSewingRincian, TAMBAH kolom khas pos
+// ini : panjang_per_pcs/ butuh_meter (meter, bukan pcs), roll, kode_webbing2/3
+// (snapshot bom_aksesoris.webbing2/.webbing3 SAAT SPK Grouping terbit — teks
+// bebas, boleh kosong, TIDAK menghalangi cetak per ).
 function hitungWebbingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
   const baris = [];
   (anggotaList || []).forEach(a => {
@@ -637,21 +543,17 @@ function hitungWebbingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
   });
   return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.no_spk, b => b.no_spk);
 }
-// hitungFinishingRincian — sama seperti hitungSewingRincian, TAMBAH kolom
-// khas pos ini (SERAH-TERIMA Acc Finishing §3/§5): varian_tipe/
-// varian_jumlah, keadaan_cetak/sisa_dicetak.
+// hitungFinishingRincian — sama seperti hitungSewingRincian, TAMBAH kolom khas
+// pos ini : varian_tipe/ varian_jumlah, keadaan_cetak/sisa_dicetak.
 //
-// KEPUTUSAN (Yang Belum Diputuskan §7 SERAH-TERIMA — belum dijawab Guru,
-// dipilih default paling aman dulu, JANGAN dianggap final):
-//   - varian_tipe/varian_jumlah default 'tunggal'/1 SAAT GENERATE — BOM
-//     Aksesoris tidak (belum) punya field pemisah varian (§3 vue-master-
-//     produk.js: cuma tahap_proses/bahan_aksesoris_id/nama/warna/qty/satuan/
-//     webbing2/webbing3), jadi satu baris BOM = satu varian tunggal sampai
-//     Guru menjawab §7 dan field varian ditambah ke BOM Aksesoris.
-//   - keadaan_cetak/sisa_dicetak SENGAJA TIDAK disimpan di sini (statis,
-//     bisa basi begitu stok berubah) — dihitung LIVE di js/vue-persiapan-
-//     finishing.js dari stok terkini vs `butuh`, sama pola seperti kolom
-//     "cukup/selisih" Bahan (kelompokKartuBahan()).
+// KEPUTUSAN: - varian_tipe/varian_jumlah default 'tunggal'/1 SAAT GENERATE — BOM
+// Aksesoris tidak (belum) punya field pemisah varian (§3 vue-master- produk.js:
+// cuma tahap_proses/bahan_aksesoris_id/nama/warna/qty/satuan/
+// webbing2/webbing3), jadi satu baris BOM = satu varian tunggal sampai. -
+// keadaan_cetak/sisa_dicetak SENGAJA TIDAK disimpan di sini (statis, bisa basi
+// begitu stok berubah) — dihitung LIVE di js/vue-persiapan- finishing.js dari
+// stok terkini vs `butuh`, sama pola seperti kolom "cukup/selisih" Bahan
+// (kelompokKartuBahan).
 function hitungFinishingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
   const baris = [];
   (anggotaList || []).forEach(a => {
@@ -678,12 +580,12 @@ function hitungFinishingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
   return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.no_spk, b => b.no_spk);
 }
 
-// cariKaryawanByQr — DISALIN dari js/vue-absensi-qr.js (prosesHasilScan(),
-// baris ~190-200; konvensi "salin logic kecil per-file" proyek ini). QR
-// pribadi tiap akun isinya id_app (prioritas) ATAU email (fallback, lihat
-// vue-account-profile.js muatAccountDisplay) — email JUGA jadi document
-// ID koleksi users, makanya dicoba id_app dulu (query), baru fallback
-// getDoc langsung pakai hasil scan sebagai email/doc id.
+// cariKaryawanByQr — DISALIN dari js/vue-absensi-qr.js (prosesHasilScan, baris
+// ~190-200; konvensi "salin logic kecil per-file" proyek ini). QR pribadi tiap
+// akun isinya id_app (prioritas) ATAU email (fallback, lihat
+// vue-account-profile.js muatAccountDisplay) — email JUGA jadi document ID
+// koleksi users, makanya dicoba id_app dulu (query), baru fallback getDoc
+// langsung pakai hasil scan sebagai email/doc id.
 async function cariKaryawanByQr(qrData) {
   const qSnap = await getDocs(query(collection(db, 'users'), where('id_app', '==', qrData)));
   if (!qSnap.empty) return { id: qSnap.docs[0].id, ...qSnap.docs[0].data() };
@@ -720,15 +622,12 @@ const PersiapanDisiapkanManager = {
     const sedangProses = reactive({}); // key klaster -> bool
     const sedangProsesSingle = reactive({}); // orderId -> bool ("Buat Grouping Sendiri")
     const vendorManualSingle = reactive({}); // orderId -> bool
-    // BARU (10 Sep 2026, fix isu #5 laporan Guru — SPK260910001 hilang dari
-    // Persiapan Bahan meski BOM produknya lengkap) — baris "tanpa_sku" itu
-    // SENDIRI didefinisikan sebagai SPK yang `_produk`-nya kosong (lihat
-    // daftarBaris di atas), jadi deteksi jalur otomatis dari BOM produk
-    // (jalurOtomatisProduk) TIDAK PERNAH bisa jalan di jalur "Buat Grouping
-    // Sendiri" — linknya (sku_produk di SPK) yang hilang, bukan BOM-nya.
-    // Keputusan Guru: sediakan pilihan jalur MANUAL (checkbox) di baris ini,
-    // bukan wajib hubungkan ke Master Produk dulu — supaya barang custom
-    // yang memang tidak selalu punya Master Produk juga tetap bisa di-track.
+    // baris "tanpa_sku" itu SENDIRI didefinisikan sebagai SPK yang `_produk`-nya
+    // kosong (lihat daftarBaris di atas), jadi deteksi jalur otomatis dari BOM
+    // produk (jalurOtomatisProduk) TIDAK PERNAH bisa jalan di jalur "Buat
+    // Grouping Sendiri" — linknya (sku_produk di SPK) yang hilang, bukan
+    // BOM-nya.— supaya barang custom yang memang tidak selalu punya Master
+    // Produk juga tetap bisa di-track.
     const jalurManualBahan = reactive({}); // orderId -> bool
     const jalurManualSewing = reactive({}); // orderId -> bool
     const jalurManualWebbing = reactive({}); // orderId -> bool
@@ -738,24 +637,22 @@ const PersiapanDisiapkanManager = {
     const daftarLabelPreview = ref([]);
 
     const menuId = 'pp_disiapkan';
-    // REVISI 8 Sep 2026 (keputusan Guru, audit kode) — "Buat SPK Grouping"
-    // WAJIB akun PIC ke atas, bukan cuma izin menu Config Akses generik
-    // (Admin bisa saja diberi izin 'add' lewat Config Akses — gerbang
-    // role ini menutup celah itu, tanpa perlu popup PIN tambahan).
+    // "Buat SPK Grouping" WAJIB akun PIC ke atas, bukan cuma izin menu Config
+    // Akses generik (Admin bisa saja diberi izin 'add' lewat Config Akses —
+    // gerbang role ini menutup celah itu, tanpa perlu popup PIN tambahan).
     const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(menuId, 'add') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
 
     async function muat() {
       memuat.value = true;
       try {
-        // REVISI 8 Sep 2026 (keputusan Guru, audit kode) — filter
-        // `qo_diproses==true` ditambahkan supaya SPK yang qty-nya masih RO
-        // mentah dari kasir (belum diputus QO oleh Owner/PIC Owner di
-        // Pesanan > Menunggu Proses) tidak ikut muncul di sini. Sebelum
-        // revisi ini, gerbang keputusan QO bisa terlewati total dari sisi
-        // konsumen datanya. SPK lama (sebelum field ini ada) otomatis
-        // dianggap "belum diputuskan" — perlu diproses ulang lewat
-        // Menunggu Proses supaya field ini terisi `true`.
+        // filter `qo_diproses==true` ditambahkan supaya SPK yang qty-nya masih
+        // RO mentah dari kasir (belum diputus QO oleh Owner/PIC Owner di Pesanan
+        // > Menunggu Proses) tidak ikut muncul di sini. Sebelum revisi ini,
+        // gerbang keputusan QO bisa terlewati total dari sisi konsumen datanya.
+        // SPK lama (sebelum field ini ada) otomatis dianggap "belum diputuskan"
+        // perlu diproses ulang lewat Menunggu Proses supaya field ini terisi
+        // `true`.
         const snapOrder = await getDocs(query(collection(db, 'order_spk'), where('status', '==', 'Aktif'), where('qo_diproses', '==', true)));
         const produk = await ambilSemuaProduk();
         const petaProduk = {};
@@ -767,8 +664,8 @@ const PersiapanDisiapkanManager = {
           const qtyTergrouping = parseFloat(data.qty_tergrouping) || 0;
           const sisaQty = qtyOrder - qtyTergrouping;
           // Sudah HABIS dipakai grouping (sebagian atau seluruhnya) -> tidak
-          // ikut antrean lagi. SPK yang baru tergrouping SEBAGIAN (sisaQty
-          // masih > 0) TETAP tampil untuk sisa qty-nya (BARU, dukung split-qty).
+          // ikut antrean lagi. SPK yang baru tergrouping SEBAGIAN (sisaQty masih
+          // > 0) TETAP tampil untuk sisa qty-nya (BARU, dukung split-qty).
           if (sisaQty <= 0) return;
           const p = data.sku_produk ? (petaProduk[data.sku_produk] || null) : null;
           const kp = p ? kunciPolaProduk(p) : '';
@@ -792,8 +689,8 @@ const PersiapanDisiapkanManager = {
       memuat.value = false;
     }
 
-    // rincianWarna — dari SET order (`master_produk.warna`, resolve lewat
-    // SKU) — lihat catatan besar di atas file soal kenapa bukan parsing teks.
+    // rincianWarna — dari SET order (`master_produk.warna`, resolve lewat SKU) —
+    // lihat catatan besar di atas file soal kenapa bukan parsing teks.
     function rincianWarna(anggota) {
       const peta = {};
       anggota.forEach(o => {
@@ -804,11 +701,11 @@ const PersiapanDisiapkanManager = {
     }
 
     // daftarBaris — SATU daftar gabungan (sesuai wireframe: bukan 2 section
-    // terpisah lagi) — 3 jenis baris tercampur, disaring lewat kolom cari +
-    // 2 filter pill ("sepola" / "pola belum dikunci"):
-    //   'groupable'         — >=1 SPK berbagi kunciGrup penuh (nama+size+pola)
-    //   'pola_belum_dikunci'— SKU terhubung TAPI BOM Pola kosong/tidak lengkap
-    //   'tanpa_sku'         — SPK belum terhubung Master Produk sama sekali
+    // terpisah lagi) — 3 jenis baris tercampur, disaring lewat kolom cari + 2
+    // filter pill ("sepola" / "pola belum dikunci"): 'groupable' — >=1 SPK
+    // berbagi kunciGrup penuh (nama+size+pola) 'pola_belum_dikunci'— SKU
+    // terhubung TAPI BOM Pola kosong/tidak lengkap 'tanpa_sku' — SPK belum
+    // terhubung Master Produk sama sekali
     const daftarBaris = computed(() => {
       const petaGroupable = {}, petaBelumDikunci = {};
       const tanpaSku = [];
@@ -851,7 +748,7 @@ const PersiapanDisiapkanManager = {
     function toggleRincian(b) { klasterTerbuka[b.kunciGrup] = !klasterTerbuka[b.kunciGrup]; }
     function toggleFilter(nilai) { filterAktif.value = (filterAktif.value === nilai) ? 'semua' : nilai; }
 
-    // --- Panel "Grouping baru" (kanan desktop / bar mengambang mobile) ---
+    // Panel "Grouping baru" (kanan desktop / bar mengambang mobile)
     async function muatPreviewKode() {
       try {
         const now = new Date();
@@ -859,11 +756,10 @@ const PersiapanDisiapkanManager = {
         const mm = String(now.getMonth() + 1).padStart(2, '0');
         const dd = String(now.getDate()).padStart(2, '0');
         const tanggalKey = `${yy}${mm}${dd}`;
-        // GANTI (12 Sep 2026, redesain penomoran): preview sekarang ikut format
-        // baku G{YY}R{MM}{DD}P{counter} — sama seperti generateKodeSpkGrouping()
-        // di atas file ini, prefix yang bisa diatur sudah tidak dipakai lagi.
-        // Ini cuma preview tampilan, kode SEBENARNYA tetap digenerate
-        // transaksional saat submit.
+        // preview sekarang ikut format baku G{YY}R{MM}{DD}P{counter} — sama
+        // seperti generateKodeSpkGrouping di atas file ini, prefix yang bisa
+        // diatur sudah tidak dipakai lagi. Ini cuma preview tampilan, kode
+        // SEBENARNYA tetap digenerate transaksional saat submit.
         const snap = await getDoc(doc(db, 'pengaturan_id_spk_grouping', tanggalKey));
         const nextCounter = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
         previewKode.value = `G${yy}R${mm}${dd}P${String(nextCounter).padStart(3, '0')}`;
@@ -928,8 +824,8 @@ const PersiapanDisiapkanManager = {
           tanggal_generate: serverTimestamp(),
           dibuat_oleh: window.currentUser?.email || null
         });
-        // qty_tergrouping BERTAMBAH (bukan ditimpa) — dukung split-qty:
-        // 1 order_spk bisa ikut >1 grouping sepanjang sisa qty-nya masih ada.
+        // qty_tergrouping BERTAMBAH (bukan ditimpa) — dukung split-qty: 1
+        // order_spk bisa ikut >1 grouping sepanjang sisa qty-nya masih ada.
         await Promise.all(anggota.map(o => {
           const ambil = parseFloat(pilihanQty[o.id]) || 0;
           const tergroupingBaru = (parseFloat(o.qty_tergrouping) || 0) + ambil;
@@ -963,21 +859,20 @@ const PersiapanDisiapkanManager = {
       sedangProses[key] = false;
     }
 
-    // buatGroupingSendiri — baris "tanpa_sku" (belum terhubung Master
-    // Produk) — tidak lewat panel (tidak ada anggota lain buat dikombinasi),
-    // langsung ambil SELURUH sisa qty SPK itu, sama seperti versi lama.
+    // buatGroupingSendiri — baris "tanpa_sku" (belum terhubung Master Produk) —
+    // tidak lewat panel (tidak ada anggota lain buat dikombinasi), langsung
+    // ambil SELURUH sisa qty SPK itu, sama seperti versi lama.
     async function buatGroupingSendiri(order) {
       const key = order.id;
       if (sedangProsesSingle[key]) return;
       sedangProsesSingle[key] = true;
       try {
         const kode = await generateKodeSpkGrouping();
-        // FIX (10 Sep 2026, isu #5) — order._produk DIJAMIN kosong di sini
-        // (lihat catatan jalurManualBahan/dst di atas), jadi jalurOtomatis di
-        // bawah praktiknya selalu [] untuk baris tanpa_sku — dipertahankan
-        // sebagai jaga-jaga kalau suatu saat definisi baris ini berubah.
-        // jalur_aktif final = gabungan otomatis (kalau ada) + pilihan manual
-        // Guru dari checkbox.
+        // order._produk DIJAMIN kosong di sini (lihat catatan
+        // jalurManualBahan/dst di atas), jadi jalurOtomatis di bawah praktiknya
+        // selalu [] untuk baris tanpa_sku — dipertahankan sebagai jaga-jaga
+        // kalau suatu saat definisi baris ini berubah. jalur_aktif final =
+        // gabungan otomatis (kalau ada) + pilihan manual dari checkbox.
         const jalurOtomatis = order._produk ? Array.from(jalurOtomatisProduk(order._produk)) : [];
         const jalurManual = [];
         if (jalurManualBahan[key]) jalurManual.push('bahan');
@@ -1101,13 +996,13 @@ const PersiapanDisiapkanManager = {
             <button type="button" @click="toggleRincian(b)" style="background:none; border:none; padding:0; color:var(--aksen-ink); font-size:11px; font-weight:700; cursor:pointer;">
               {{ klasterTerbuka[b.kunciGrup] ? 'Tutup rincian' : 'Buka rincian' }} <i class="fas" :class="klasterTerbuka[b.kunciGrup] ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
             </button>
-            <!-- BARU (13 Sep 2026, permintaan Guru) — nama pelanggan tampil
-                 nempel di baris anak SPK (bukan cuma kode transaksi), supaya
-                 PIC langsung tahu itu orderan siapa saat perlu percepat
-                 SPK tertentu atas permintaan mendesak. pelanggan_nama
-                 snapshot dari order_spk (diisi buatOrder() Kasir) — SPK yang
-                 dibuat manual lewat Order SPK (vue-order-spk.js, tidak
-                 pernah punya field pelanggan) fallback ke '(tanpa pelanggan)'. -->
+            <!--
+              nama pelanggan tampil nempel di baris anak SPK (bukan cuma kode transaksi), supaya
+              PIC langsung tahu itu orderan siapa saat perlu percepat SPK tertentu atas permintaan
+              mendesak. pelanggan_nama snapshot dari order_spk (diisi buatOrder Kasir) — SPK yang
+              dibuat manual lewat Order SPK (vue-order-spk.js, tidak pernah punya field pelanggan)
+              fallback ke '(tanpa pelanggan)'.
+            -->
             <div v-if="klasterTerbuka[b.kunciGrup]" style="display:flex; flex-direction:column; gap:4px; background:var(--ivory-dim); border-radius:10px; padding:8px 12px; margin-top:8px;">
               <div v-for="o in b.anggota" :key="o.id" style="display:flex; justify-content:space-between; gap:10px; font-size:11.5px;">
                 <span style="color:var(--text-faint); min-width:0;">{{ o.no_spk }} <span style="color:var(--text-muted); font-weight:700;">&middot; {{ o.pelanggan_nama || '(tanpa pelanggan)' }}</span></span>
@@ -1115,9 +1010,10 @@ const PersiapanDisiapkanManager = {
               </div>
             </div>
 
-            <!-- BARU (10 Sep 2026, fix isu #5) — belum terhubung Master Produk
-                 jadi jalur produksi TIDAK BISA kedeteksi otomatis dari BOM;
-                 Guru pilih sendiri jalur mana yang perlu di-track di sini. -->
+            <!--
+              belum terhubung Master Produk jadi jalur produksi TIDAK BISA kedeteksi otomatis dari
+              BOM; pilih sendiri jalur mana yang perlu di-track di sini.
+            -->
             <div v-if="b.tipe==='tanpa_sku' && bolehProses" style="margin-top:10px;">
               <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:4px;">Belum terhubung Master Produk — pilih jalur produksi manual:</div>
               <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:11px; color:var(--text-muted);">
@@ -1220,12 +1116,11 @@ const PersiapanDisiapkanManager = {
 
 const AppPersiapanDisiapkan = { components: { PersiapanDisiapkanManager }, template: `<persiapan-disiapkan-manager ref="mgr" />` };
 let vmPpDisiapkan = null;
-// FIX #4 (12 Sep 2026, laporan Guru — "Perlu Disiapkan" harus refresh
-// manual pas pindah tab). Sama pola dengan FIX #2 pastikanMountPesananMenunggu
-// di js/vue-pesanan.js — dipanggil ulang PersiapanDisiapkanManager.muat()
-// lewat $refs kalau sudah ke-mount, BUKAN mengubah pola pastikanMountXxx
-// lain di petaMount (dashboard.js). Loading "Memuat..." di template otomatis
-// tampil lagi karena muat() sendiri yang set memuat=true/false.
+// #4 . Sama pola dengan FIX #2 pastikanMountPesananMenunggu di js/vue-pesanan.js
+// dipanggil ulang PersiapanDisiapkanManager.muat lewat $refs kalau sudah
+// ke-mount, BUKAN mengubah pola pastikanMountXxx lain di petaMount
+// (dashboard.js). Loading "Memuat.." di template otomatis tampil lagi karena
+// muat sendiri yang set memuat=true/false.
 window.pastikanMountPpDisiapkan = function() {
   if (vmPpDisiapkan) {
     const mgr = vmPpDisiapkan.$refs && vmPpDisiapkan.$refs.mgr;
@@ -1236,30 +1131,26 @@ window.pastikanMountPpDisiapkan = function() {
   if (mountPoint) vmPpDisiapkan = createApp(AppPersiapanDisiapkan).mount('#vue-pp-disiapkan');
 };
 
-// ============================================================================
-// JalurTahapManager — Fase 2 (29 Agt 2026 malam), jalur Bahan. Komponen
-// REUSABLE (prop `jalur`) — sengaja ditulis generik dari awal (bukan
-// khusus "bahan") supaya Fase 3 (Acc Sewing/Webbing/Finishing) tinggal
-// pasang mount baru dengan `jalur` beda, TIDAK perlu tulis ulang
-// komponen ini (sama semangatnya dengan PersiapanKomponenListManager di
-// sistem lama yang direuse lewat prop `tipe`).
+
+// JalurTahapManager — Fase 2, jalur Bahan. Komponen REUSABLE (prop `jalur`) —
+// sengaja ditulis generik dari awal (bukan khusus "bahan") supaya Fase 3 (Acc
+// Sewing/Webbing/Finishing) tinggal pasang mount baru dengan `jalur` beda, TIDAK
+// perlu tulis ulang komponen ini (sama semangatnya dengan
+// PersiapanKomponenListManager di sistem lama yang direuse lewat prop `tipe`).
 //
-// 1 instance = 1 TAHAP (dipasang 5x independen, 1 per div child-tab,
-// sama pola mount-on-demand seperti Config's 8 tab child) — bukan 1
-// instance mengurus semua 5 tahap sekaligus, supaya tiap tahap cuma
-// query & render kartu yang relevan buat dirinya sendiri.
+// 1 instance = 1 TAHAP (dipasang 5x independen, 1 per div child-tab, sama pola
+// mount-on-demand seperti Config's 8 tab child) — bukan 1 instance mengurus
+// semua 5 tahap sekaligus, supaya tiap tahap cuma query & render kartu yang
+// relevan buat dirinya sendiri.
 //
-// Target scan per aksi (KEPUTUSAN SEPIHAK, catat di sini biar gampang
-// dikoreksi Guru kalau meleset — konsisten pola "keputusan sepihak"
-// proyek ini): SEMUA aksi scan (kecuali Scan Operator) scan LABEL FISIK
-// yang menempel di batch pada tahap itu (Label SPK Grouping utk Entry/
-// Masalah, Label Bagging utk Pack, Label Tugas utk Kirim/Sampai) — bukan
-// scan barang/roll individual seperti Scan Persiapan (vue-scan-
-// persiapan.js). Alasannya: jalur Bahan ini kerjanya per-BATCH gabungan
-// (1 SPK Grouping = 1 hamparan kain), bukan per-item, jadi yang di-scan
-// utk konfirmasi ya label batch itu sendiri, bukan makna "pemakaian
-// barang" seperti Scan Persiapan yang sudah ada.
-// ============================================================================
+// Target scan per aksi: SEMUA aksi scan (kecuali Scan Operator) scan LABEL FISIK
+// yang menempel di batch pada tahap itu (Label SPK Grouping utk Entry/ Masalah,
+// Label Bagging utk Pack, Label Tugas utk Kirim/Sampai) — bukan scan barang/roll
+// individual seperti Scan Persiapan (vue-scan- persiapan.js). Alasannya: jalur
+// Bahan ini kerjanya per-BATCH gabungan (1 SPK Grouping = 1 hamparan kain),
+// bukan per-item, jadi yang di-scan utk konfirmasi ya label batch itu sendiri,
+// bukan makna "pemakaian barang" seperti Scan Persiapan yang sudah ada.
+
 const TAHAP_URUTAN = ['perlu_diproses', 'sedang_diproses', 'perlu_dikirim', 'sedang_dikirim', 'selesai'];
 const LABEL_AKSI_SCAN = {
   operator: 'Scan Operator', entry: 'Scan Entry', masalah: 'Scan Masalah',
@@ -1281,11 +1172,11 @@ const JalurTahapManager = {
     const menuId = 'pp_' + props.jalur;
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
-    // REVISI 8 Sep 2026 (keputusan Guru, audit kode) — khusus tombol "Scan
-    // Operator" (menugaskan, BUKAN scan entry/pack/kirim biasa yang boleh
-    // siapa saja berwenang di menu ini), WAJIB akun PIC ke atas. Sengaja
-    // computed TERPISAH dari `bolehProses` supaya Scan Entry/Masalah/Pack/
-    // Kirim/Sampai/Cetak di tahap lain TIDAK ikut kena gerbang PIC ke atas.
+    // khusus tombol "Scan Operator" (menugaskan, BUKAN scan entry/pack/kirim
+    // biasa yang boleh siapa saja berwenang di menu ini), WAJIB akun PIC ke
+    // atas. Sengaja computed TERPISAH dari `bolehProses` supaya Scan
+    // Entry/Masalah/Pack/ Kirim/Sampai/Cetak di tahap lain TIDAK ikut kena
+    // gerbang PIC ke atas.
     const bolehTunjukOperator = computed(() => picOwnerKeAtas(window.currentUser));
 
     async function muat() {
@@ -1300,7 +1191,7 @@ const JalurTahapManager = {
       memuat.value = false;
     }
 
-    // --- Cetak Label Bagging / Label Tugas (perlu_dikirim / sedang_dikirim) ---
+    // Cetak Label Bagging / Label Tugas (perlu_dikirim / sedang_dikirim)
     const popupCetakLabelAktif = ref(false);
     const daftarLabelPreview = ref([]);
     // jenisCetakAktif — lihat catatan sama di vue-persiapan-bahan.js.
@@ -1326,7 +1217,7 @@ const JalurTahapManager = {
       popupCetakLabelAktif.value = true;
     }
 
-    // --- Kamera/QR — pola SAMA seperti vue-scan-persiapan.js. ---
+    // Kamera/QR — pola SAMA seperti vue-scan-persiapan.js.
     const modeScan = ref(null); // salah satu key LABEL_AKSI_SCAN, atau null
     const trackAktifScan = ref(null);
     const videoScanEl = ref(null);
@@ -1392,19 +1283,16 @@ const JalurTahapManager = {
       try {
         const oleh = window.currentUser?.email || null;
         const pada = new Date().toISOString();
-        // qty — BARU (12 Sep 2026, redesain penomoran & log, lihat
-        // dummy-erp-grouping.xlsx sheet LOG ALUR BATCH kolom QTY). Field
-        // TAMBAHAN yang belum ada sebelumnya di riwayat_scan — ditambahkan
-        // ADITIF (tidak mengubah field lain) supaya audit qty per-scan bisa
-        // dilakukan tanpa perlu join balik ke spk_grouping. Diisi dari
-        // qty_total milik track ini (spk_track belum punya breakdown qty
+        // qty — BARU . Field TAMBAHAN yang belum ada sebelumnya di riwayat_scan
+        // ditambahkan ADITIF (tidak mengubah field lain) supaya audit qty
+        // per-scan bisa dilakukan tanpa perlu join balik ke spk_grouping. Diisi
+        // dari qty_total milik track ini (spk_track belum punya breakdown qty
         // per-baris di jalur ini, jadi angka totalnya yang dipakai).
         const qty = track.qty_total ?? null;
 
         if (mode === 'operator') {
-          // Gerbang: Label SPK Grouping WAJIB sudah dicetak dulu (Guru:
-          // "Label SPK Grouping -> Scan Operator") sebelum operator bisa
-          // ditugaskan.
+          // Gerbang: Label SPK Grouping WAJIB sudah dicetak dulu sebelum
+          // operator bisa ditugaskan.
           const groupSnap = await getDoc(doc(db, 'spk_grouping', track.grouping_id));
           if (!groupSnap.exists() || !groupSnap.data().label_grouping_dicetak) {
             alert('Label SPK Grouping belum dicetak. Cetak dulu di menu "Perlu Disiapkan" sebelum Scan Operator.');
@@ -1439,8 +1327,7 @@ const JalurTahapManager = {
           });
         } else if (mode === 'kirim') {
           if (kode !== track.kode_tugas) { alert(`Kode yang discan ("${kode}") tidak cocok dengan Label Tugas SPK ini (${track.kode_tugas}).`); return; }
-          // Status TETAP "Sedang Dikirim" (Guru: "SCAN SAMPAI pada proses
-          // selanjutnya" yang baru mengubah status) — cuma catat riwayat.
+          // Status TETAP "Sedang Dikirim" — cuma catat riwayat.
           await updateDoc(doc(db, 'spk_track', track.id), {
             diperbarui_pada: serverTimestamp(),
             riwayat_scan: arrayUnion({ aksi: 'kirim', oleh, pada, qty })
@@ -1582,16 +1469,16 @@ window.pastikanMountPpBahanSelesai = function() {
   if (mountPoint) vmPpBahanSelesai = createApp(buatAppJalurTahap('bahan', 'Bahan', 'selesai', 'Selesai')).mount('#vue-pp-bahan-selesai');
 };
 
-// ============================================================================
-// Fase 3 (29 Agt 2026, malam) — 3 jalur Acc (Sewing/Webbing/Finishing).
-// TIDAK ADA komponen baru ditulis — persis seperti diperkirakan di
-// RENCANA-PERSIAPAN-PRODUKSI-V2.md §7 poin 3 ("state machine-nya sama
-// persis dengan Fase 2, tinggal parametrisasi jalur"): JalurTahapManager +
-// buatAppJalurTahap() (di atas) dipakai APA ADANYA, cuma parameter `jalur`/
-// `labelJalur` yang beda. 15 mount function baru (3 jalur x 5 tahap),
-// ditulis eksplisit satu-satu (bukan loop) — konsisten gaya kode proyek
-// ini (gampang di-grep, gampang ditelusuri 1:1 ke index.html/dashboard.js).
-// ============================================================================
+
+// Fase 3 — 3 jalur Acc (Sewing/Webbing/Finishing). TIDAK ADA komponen baru
+// ditulis — persis seperti diperkirakan di RENCANA-PERSIAPAN-PRODUKSI-V2.md §7
+// poin 3 ("state machine-nya sama persis dengan Fase 2, tinggal parametrisasi
+// jalur"): JalurTahapManager + buatAppJalurTahap (di atas) dipakai APA ADANYA,
+// cuma parameter `jalur`/ `labelJalur` yang beda. 15 mount function baru (3
+// jalur x 5 tahap), ditulis eksplisit satu-satu (bukan loop) — konsisten gaya
+// kode proyek ini (gampang di-grep, gampang ditelusuri 1:1 ke
+// index.html/dashboard.js).
+
 let vmPpSewingPerluDiproses = null;
 window.pastikanMountPpSewingPerluDiproses = function() {
   if (vmPpSewingPerluDiproses) { const mgr = vmPpSewingPerluDiproses.$refs && vmPpSewingPerluDiproses.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
@@ -1687,29 +1574,27 @@ window.pastikanMountPpFinishingSelesai = function() {
 // Lihat STATUS-PROYEK.md §44.19 untuk detail Fase 3 (validasi, cross-check
 // mount-div/petaMount, catatan uji manual yang masih diperlukan).
 
-// ============================================================================
-// Fase 4 (29 Agt 2026, malam) — jalur Vendor. SAMA seperti Fase 3: TIDAK
-// ADA komponen baru, `JalurTahapManager` dipakai apa adanya dengan
-// jalur='vendor'. Blocker §5.D RENCANA-PERSIAPAN-PRODUKSI-V2.md
-// (apakah alur 5-tahap tetap sama walau barang fisik keluar lokasi ke
-// vendor luar) SEKARANG TERJAWAB oleh Guru: *"vendor yg scan driver yg
-// biasa belanja, karena dia jg kurir yg kirim dan sampai barang"* —
-// driver INTERNAL (akun karyawan biasa, QR pribadi yang sama, BUKAN akun
-// vendor eksternal terpisah) yang scan SEMUA aksi jalur ini (dia juga
-// yang antar-jemput fisik ke vendor), jadi 5-tahap generic yang sudah ada
-// (Scan Operator/Entry/Pack/Kirim/Sampai) SUDAH CUKUP tanpa tahap/label
-// tambahan — persis pola Bahan/Acc, bukan alur baru.
+
+// Fase 4 — jalur Vendor. SAMA seperti Fase 3: TIDAK ADA komponen baru,
+// `JalurTahapManager` dipakai apa adanya dengan jalur='vendor'. Blocker §5.D
+// RENCANA-PERSIAPAN-PRODUKSI-V2.md (apakah alur 5-tahap tetap sama walau barang
+// fisik keluar lokasi ke vendor luar) SEKARANG TERJAWAB oleh: *"vendor yg scan
+// driver yg biasa belanja, karena dia jg kurir yg kirim dan sampai barang"* —
+// driver INTERNAL (akun karyawan biasa, QR pribadi yang sama, BUKAN akun vendor
+// eksternal terpisah) yang scan SEMUA aksi jalur ini (dia juga yang antar-jemput
+// fisik ke vendor), jadi 5-tahap generic yang sudah ada (Scan
+// Operator/Entry/Pack/Kirim/Sampai) SUDAH CUKUP tanpa tahap/label tambahan —
+// persis pola Bahan/Acc, bukan alur baru.
 //
-// §5.C SEBAGIAN terjawab (siapa yang scan) — TAPI bagian lain §5.C
-// (field baru di BOM Aksesoris Master Produk buat deteksi OTOMATIS jalur
-// Vendor + jenis vendor Sublim/Sablon/Bordir) BELUM dijawab Guru, jadi
-// SENGAJA BELUM dibangun (bukan lupa) — jalur Vendor tetap pakai jalur
-// OPT-IN MANUAL yang sudah ada sejak Fase 1 (checkbox "+ Jalur Vendor
-// (manual)" di form pembuatan grouping, `vendorManual`), BUKAN deteksi
-// otomatis dari BOM. Ini sudah cukup buat jalur Vendor berfungsi
-// end-to-end sekarang — deteksi otomatis BOM cuma kenyamanan tambahan
-// buat nanti kalau Guru mau, bukan syarat wajib.
-// ============================================================================
+// §5.C SEBAGIAN terjawab (siapa yang scan) — TAPI bagian lain §5.C (field baru
+// di BOM Aksesoris Master Produk buat deteksi OTOMATIS jalur Vendor + jenis
+// vendor Sublim/Sablon/Bordir) BELUM dijawab, jadi SENGAJA BELUM dibangun (bukan
+// lupa) — jalur Vendor tetap pakai jalur OPT-IN MANUAL yang sudah ada sejak Fase
+// 1 (checkbox "+ Jalur Vendor (manual)" di form pembuatan grouping,
+// `vendorManual`), BUKAN deteksi otomatis dari BOM. Ini sudah cukup buat jalur
+// Vendor berfungsi end-to-end sekarang — deteksi otomatis BOM cuma kenyamanan
+// tambahan buat nanti kalau mau, bukan syarat wajib.
+
 let vmPpVendorPerluDiproses = null;
 window.pastikanMountPpVendorPerluDiproses = function() {
   if (vmPpVendorPerluDiproses) { const mgr = vmPpVendorPerluDiproses.$refs && vmPpVendorPerluDiproses.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }

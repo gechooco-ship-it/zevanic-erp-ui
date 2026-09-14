@@ -1,125 +1,44 @@
 // js/vue-rak-penyimpanan.js
-// ============================================================================
-// Stock & Pembelian > "Rak Penyimpanan" — sub-tab ke-4.
+// Stok & Pembelian > Rak Penyimpanan (sub-tab ke-4). Menu-id
+// 'stock_rak_penyimpanan'; id lama 'bahan_aksesoris_rak' dipensiunkan supaya
+// izin lama tidak yatim.
 //
-// RIWAYAT:
-//   - §24 (lama): Kode/Baris/Kolom Rak = 3 dropdown master data LEPAS
-//     langsung di form Bahan/Aksesoris, tanpa dimensi/kapasitas apapun.
-//   - §25 (25 Agt 2026): dirombak jadi menu tersendiri "Rak Penyimpanan" di
-//     Zevanic House > Data Bahan & Aksesoris. Kode/Baris/Kolom Rak MASIH 3
-//     dropdown master data ('kode_rak'/'baris_rak'/'kolom_rak', dikelola
-//     lewat panel Pengaturan/gear di Entry Bahan & Aksesoris), digabung jadi
-//     `rak_label` dash-joined ("A-2-3") buat ditampilkan & dipakai sebagai
-//     opsi dropdown "Pilih Rak" di form Bahan/Aksesoris (rak_id + rak_label
-//     didenormalisasi ke situ, lihat js/vue-bahan-aksesoris.js).
-//   - §26.1 (27 Agt 2026): panel Pengaturan di Entry Bahan & Aksesoris
-//     DIROMBAK — 3 kategori master_data 'kode_rak'/'baris_rak'/'kolom_rak'
-//     DIHAPUS TOTAL dari panel itu (bukan dipindah), karena sudah dianggap
-//     redundan dengan menu Rak Penyimpanan ini. Makanya waktu ronde INI
-//     (7 Sep 2026) dicek ulang ke kode live, window.ambilMasterList untuk
-//     3 kategori itu SUDAH TIDAK dipanggil dari manapun lagi selain file
-//     ini sendiri — jadi PANGGILANNYA DIHAPUS DI SINI JUGA (lihat poin 3
-//     di bawah). Dokumen master_data/kode_rak, master_data/baris_rak,
-//     master_data/kolom_rak di Firestore (kalau pernah keisi) jadi data
-//     YATIM murni, TIDAK dibaca/ditulis siapapun lagi setelah ronde ini —
-//     aman dibiarkan (bukan tanggung jawab modul ini untuk membersihkannya).
+// Koleksi & field (master_rak_penyimpanan):
+// - rak / baris_rak / kolom_rak: 3 input TEKS BEBAS, digabung tanpa pemisah
+// jadi kode_rak ("E"+"1"+"1" = "E11"), wajib unik.
+// - rak_label = alias nilai kode_rak yang sama. Field itu yang jadi sumber
+// opsi dropdown "Pilih Rak" dan pengurutan di vue-bahan-aksesoris.js, jadi
+// formatnya bebas string tapi harus tetap terisi.
+// - volume_rak disimpan cm³. Konversi ke m³ (÷1.000.000) cuma di layar ini.
 //
-// RONDE INI (7 Sep 2026, wireframe handoff "04 - Stok dan Pembelian" §6.1,
-// keputusan Guru: "Ikuti wireframe (migrasi model data)"):
-//   1. PINDAH lokasi menu — dari Zevanic House > Data Bahan & Aksesoris ke
-//      Stock & Pembelian (sub-tab ke-4, setelah Kartu Stok). Lihat
-//      index.html, js/dashboard.js (tabel mount), js/vue-config-akses.js
-//      (menu-id baru 'stock_rak_penyimpanan', id lama 'bahan_aksesoris_rak'
-//      dipensiunkan supaya izin lama tidak yatim).
-//   2. MIGRASI MODEL DATA kode rak — SEBELUMNYA 3 dropdown master-list
-//      lepas (kode_rak/baris_rak/kolom_rak, masing-masing dipilih dari
-//      daftar terkelola), digabung jadi `rak_label` dash-joined ("A-2-3").
-//      SEKARANG 3 input TEKS BEBAS (field baru `rak`, plus `baris_rak`/
-//      `kolom_rak` yang sekarang teks bebas juga, bukan lagi dropdown),
-//      digabung LANGSUNG tanpa pemisah jadi 1 `kode_rak` (mis. "E"+"1"+"1"
-//      = "E11") — sesuai wireframe persis ("kode rak otomatis ... rak +
-//      baris + kolom, wajib unik"). `kode_rak` di ronde ini BERUBAH MAKNA:
-//      dulu cuma "segmen rak" (mis. "A"), SEKARANG kode gabungan penuh
-//      (mis. "E11"). `rak_label` DIPERTAHANKAN sebagai alias dari
-//      `kode_rak` baru (SAMA NILAINYA) — field itu masih jadi sumber opsi
-//      dropdown "Pilih Rak" & pengurutan di js/vue-bahan-aksesoris.js,
-//      TIDAK ada perubahan kode di file itu (dicek langsung — cukup ganti
-//      NILAI rak_label, formatnya generik string, bukan diparse).
-//   3. DOKUMEN LAMA (dibuat sebelum ronde ini, field kode_rak = cuma segmen
-//      "A" bukan kode gabungan) — sempat ditangani via fallback baca
-//      (skemaBaru/kodeTampilRak/segmenRakTampil cek field `rak` dulu
-//      sebelum menafsirkan kode_rak). GURU KONFIRMASI (10 Sep 2026): semua
-//      dokumen Rak lama itu SUDAH DIHAPUS manual dari Firestore produksi —
-//      seluruh dokumen `master_rak_penyimpanan` yang tersisa sekarang pasti
-//      skema baru (field `rak` selalu ada). Fallback skema-lama DIHAPUS di
-//      ronde ini (lihat skemaBaru/kodeTampilRak/segmenRakTampil di bawah —
-//      sekarang baca field baru langsung, tanpa cabang lama) — bukan hilang
-//      diam-diam, memang sengaja disederhanakan karena datanya sudah tidak
-//      ada lagi.
-//   4. VOLUME — field `volume_rak` TETAP tersimpan cm³ (TIDAK diubah unit
-//      penyimpanannya) karena field ini juga dibaca js/vue-bahan-
-//      aksesoris.js (hint dimensi rak di dropdown "Pilih Rak", 2 tempat:
-//      Entry & Edit form, teks "Kapasitas: X cm³") — kalau unit simpannya
-//      diganti ke m³ tapi label teks di file itu tidak ikut diubah, angka
-//      yang tampil di sana jadi SALAH (kelihatan cm³ tapi isinya m³).
-//      Opsi diambil: SIMPAN cm³ apa adanya (tidak ada perubahan di file
-//      itu, nol risiko regresi di sana), KONVERSI ke m³ CUMA di layar ini
-//      (÷1.000.000) buat tampilan — sesuai wireframe ("0,48 m³"). Field
-//      `volume_barang` di master_bahan_aksesoris (volume PER SATUAN 1
-//      item, beda konsep dari volume_rak) JUGA tetap cm³ apa adanya,
-//      dipakai bareng buat hitung kapasitas di poin 5.
-//   5. KAPASITAS BAR (terpakai/sisa/%) — BARU, logic-nya SEBELUMNYA
-//      sengaja belum dikerjakan (lihat riwayat §25 & catatan di js/vue-
-//      bahan-aksesoris.js: "Peringatan overstok BELUM dikerjakan di
-//      sini"). FORMULA yang dipakai (BELUM PERNAH dikonfirmasi eksplisit
-//      ke Guru, level risiko tinggi kalau salah asumsi — TOLONG DICEK):
-//        terpakai (1 item, cm³) = stok_akhir(item) × volume_barang(item)
-//        terpakai (1 rak, cm³) = SUM terpakai semua item yang rak_id-nya
-//                                 menunjuk ke rak itu (rak bisa dipakai
-//                                 bareng > 1 item — realistis di gudang
-//                                 nyata; bar kapasitas jadi properti RAK,
-//                                 SAMA nilainya di semua baris item yang
-//                                 berbagi rak yang sama, bukan per-item)
-//        sisa (cm³) = volume_rak − terpakai (rak) — BISA NEGATIF (over
-//                     kapasitas, lihat state ekstrem di bawah)
-//        persen = terpakai / volume_rak × 100 (kalau volume_rak = 0,
-//                 dianggap 100% kalau ada isinya, 0% kalau kosong —
-//                 hindari bagi nol)
-//        warna bar: <50% ok (hijau) · 50–79% warn (kuning/amber) · ≥80%
-//                   danger (merah) — dicocokkan ke contoh warna di
-//                   wireframe (72%→amber, 88%→merah, 45%/30%/15%→hijau).
-//      ASUMSI ini genuinely BARU (bukan port dari logic lama yang memang
-//      belum ada) — kalau Guru punya definisi "terpakai" yang beda (mis.
-//      berdasar qty roll/lot, bukan stok_akhir polos), tolong dikoreksi.
-//   6. Query item-rak — pakai where('rak_id','>','') (bukan fetch SEMUA
-//      master_bahan_aksesoris) supaya HANYA baca dokumen yang benar-benar
-//      punya rak_id terisi (item tanpa Rak tidak ikut kebaca) — selaras
-//      PRINSIP-HEMAT.md (baca Firestore seminim mungkin), sekaligus
-//      menghindari fetch field `foto` (base64) semua item yang tidak
-//      relevan di layar ini. Query 1-filter begini biasanya TIDAK perlu
-//      index komposit baru, tapi tetap dibungkus try/catch dgn pesan
-//      "buat index" (pola sama js/vue-config.js) untuk jaga-jaga.
-//   7. Panel Pengaturan (gear) di Entry Bahan & Aksesoris — DICEK ULANG ke
-//      kode live (js/vue-bahan-aksesoris.js, komponen
-//      PengaturanBahanAksesoris): TERNYATA SUDAH DIROMBAK sejak §26.1 (27
-//      Agt 2026, sebelum ronde ini), SUDAH TIDAK ADA config Rak/Kode/Baris/
-//      Kolom apapun di sana lagi (cuma sisa Prefix ID). Jadi TIDAK ADA
-//      yang perlu dihapus/dipensiunkan di file itu untuk ronde ini — sudah
-//      beres duluan. Catatan lama di komentar file ini/vue-bahan-
-//      aksesoris.js yang masih menyebut "3 kategori master_data dipakai
-//      di panel Pengaturan" itu SENDIRI SUDAH BASI (ketinggalan update
-//      dari §26.1) — dikoreksi di komentar ini.
-// ============================================================================
+// Kapasitas bar:
+// terpakai per item (cm³) = stok_akhir x volume_barang
+// terpakai per rak = SUM semua item yang rak_id-nya menunjuk rak itu
+// sisa = volume_rak − terpakai, BISA NEGATIF kalau over kapasitas
+// persen = terpakai / volume_rak x 100; volume_rak 0 dianggap 100% kalau
+// ada isinya, 0% kalau kosong
+// warna: <50% hijau · 50–79% amber · >=80% merah
+//
+// Jebakan:
+// - Definisi "terpakai" di atas belum pernah dikonfirmasi ke . Kalau
+// ukurannya ternyata qty roll/lot, bukan stok_akhir polos, formulanya salah.
+// - volume_rak JANGAN diubah unit simpannya ke m³. vue-bahan-aksesoris.js
+// menampilkan hint "Kapasitas: X cm³" di 2 tempat tanpa konversi, jadi
+// angkanya langsung bohong kalau unitnya diganti diam-diam.
+// - Bar kapasitas properti RAK, bukan item: baris item yang berbagi rak sama
+// menampilkan angka identik. Itu memang disengaja.
+// - Query item pakai where('rak_id','>','') supaya item tanpa rak tidak
+// terbaca dan field foto base64 tidak ikut ketarik.
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 
-// buatQrDataUrl — copy persis pola SAMA yang sudah dipakai di banyak file
-// lain (vue-bahan-aksesoris.js, vue-stock-pembelian.js, dst) — konvensi
-// proyek ini: fungsi bantu generate-QR kecil DISALIN per file, bukan
-// diimpor lintas file (lihat catatan panjang di vue-bahan-aksesoris.js).
-// `qrcodejs` (global `QRCode`) sudah dimuat sekali di index.html.
+// buatQrDataUrl — copy persis pola SAMA yang sudah dipakai di banyak file lain
+// (vue-bahan-aksesoris.js, vue-stock-pembelian.js, dst) — konvensi proyek ini:
+// fungsi bantu generate-QR kecil DISALIN per file, bukan diimpor lintas file
+// (lihat catatan panjang di vue-bahan-aksesoris.js). `qrcodejs` (global
+// `QRCode`) sudah dimuat sekali di index.html.
 function buatQrDataUrl(teks) {
   if (typeof QRCode === 'undefined') return '';
   const tmp = document.createElement('div');
@@ -155,9 +74,9 @@ function formatAngka(n, digit = 2) {
   return angka.toLocaleString('id-ID', { maximumFractionDigits: digit });
 }
 
-// kodeRakBaru — gabung 3 segmen APA ADANYA (trim, segmen `rak` di-uppercase
-// biar konsisten "E"/"A"/dst, baris & kolom TIDAK diubah casing-nya), TANPA
-// pemisah — persis pola wireframe "E"+"1"+"1" = "E11".
+// kodeRakBaru — gabung 3 segmen APA ADANYA (trim, segmen `rak` di-uppercase biar
+// konsisten "E"/"A"/dst, baris & kolom TIDAK diubah casing-nya), TANPA pemisah —
+// persis pola wireframe "E"+"1"+"1" = "E11".
 function kodeRakBaru(rak, baris, kolom) {
   const r = (rak || '').trim().toUpperCase();
   const b = (baris || '').trim();
@@ -165,10 +84,9 @@ function kodeRakBaru(rak, baris, kolom) {
   return r + b + k;
 }
 
-// kodeTampilRak — kode buat badge "kode" di tabel (gabungan rapat, mis.
-// "E11"). Dokumen Rak lama (skema pra-7 Sep 2026) sudah dihapus semua dari
-// Firestore (Guru konfirmasi 10 Sep 2026) — jadi tidak perlu lagi fallback
-// baca skema lama di sini.
+// kodeTampilRak — kode buat badge "kode" di tabel (gabungan rapat, mis. "E11").
+// Dokumen Rak lama sudah dihapus semua dari Firestore — jadi tidak perlu lagi
+// fallback baca skema lama di sini.
 function kodeTampilRak(rakDoc) {
   return rakDoc ? (rakDoc.kode_rak || '') : '';
 }
@@ -198,15 +116,15 @@ const RakPenyimpananManager = {
   setup() {
     const memuat = ref(true);
     const errorMuat = ref('');
-    const racks = ref([]);       // semua dokumen master_rak_penyimpanan
+    const racks = ref([]); // semua dokumen master_rak_penyimpanan
     const itemsDenganRak = ref([]); // item master_bahan_aksesoris yg rak_id-nya terisi
 
     const cari = ref('');
     const batasTampil = ref(TAMBAH_TAMPIL);
 
-    // ------------------------------------------------------------------
-    // Popup Tambah/Edit Rak
-    // ------------------------------------------------------------------
+    // Popup
+    // Tambah/Edit Rak
+
     const popupTerbuka = ref(false);
     const form = formStateKosong();
     const menyimpan = ref(false);
@@ -237,15 +155,14 @@ const RakPenyimpananManager = {
     }
     function tutupPopup() { popupTerbuka.value = false; resetForm(); }
 
-    // ------------------------------------------------------------------
-    // Cetak Label Rak (10 Sep 2026, permintaan Guru poin 4) — pakai sistem
-    // cetak terpusat yang sama dengan modul lain (KATALOG_CETAK di
-    // js/vue-pengaturan-cetak.js, jenis baru 'label_rak_penyimpanan';
-    // PopupPratinjauCetakLabel di js/vue-components.js). Otomatis kebuka
-    // sekali begitu Rak BARU (bukan edit) disimpan, dan bisa dipicu manual
-    // lewat tombol printer per baris (item-centric grid & "Rak belum
-    // terisi").
-    // ------------------------------------------------------------------
+    // Cetak
+    // Label Rak — pakai sistem cetak terpusat yang sama dengan modul lain
+    // (KATALOG_CETAK di js/vue-pengaturan-cetak.js, jenis baru
+    // 'label_rak_penyimpanan'; PopupPratinjauCetakLabel di
+    // js/vue-components.js). Otomatis kebuka sekali begitu Rak (bukan edit)
+    // disimpan, dan bisa dipicu manual lewat tombol printer per baris
+    // (item-centric grid & "Rak belum terisi").
+
     const popupCetakLabelAktif = ref(false);
     const daftarLabelPreview = ref([]);
     function cetakLabelRak(rakDoc) {
@@ -265,12 +182,12 @@ const RakPenyimpananManager = {
       errorMuat.value = '';
       try {
         const [snapRak, snapItem] = await Promise.all([
-          // Racks: koleksi kecil (realistis puluhan), aman fetch semua —
-          // pola sama seperti ambilDaftarRak() di vue-bahan-aksesoris.js.
+          // Racks: koleksi kecil (realistis puluhan), aman fetch semua — pola
+          // sama seperti ambilDaftarRak di vue-bahan-aksesoris.js.
           getDocs(collection(db, 'master_rak_penyimpanan')),
-          // Item: HANYA yang rak_id terisi (lihat catatan poin 6 di atas)
-          // — hemat baca Firestore, hindari fetch foto base64 item yg
-          // tidak relevan di layar ini.
+          // Item: HANYA yang rak_id terisi (lihat catatan poin 6 di atas) —
+          // hemat baca Firestore, hindari fetch foto base64 item yg tidak
+          // relevan di layar ini.
           getDocs(query(collection(db, 'master_bahan_aksesoris'), where('rak_id', '>', '')))
         ]);
         racks.value = snapRak.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -325,10 +242,9 @@ const RakPenyimpananManager = {
         }
         tutupPopup();
         await muatSemua();
-        // Rak BARU (bukan edit) — langsung buka popup cetak label, sesuai
-        // permintaan Guru: "saat tambah lalu simpan harus cetak label buat
-        // rak". Edit TIDAK memicu ini (rak itu sudah pernah dicetak;
-        // cetak ulang tetap bisa lewat tombol printer manual per baris).
+        // Rak (bukan edit) — langsung buka popup cetak label, sesuai. Edit
+        // TIDAK memicu ini (rak itu sudah pernah dicetak; cetak ulang tetap bisa
+        // lewat tombol printer manual per baris).
         if (rakBaruDibuat) cetakLabelRak(data);
       } catch (e) {
         console.error('Gagal simpan Rak Penyimpanan:', e);
@@ -354,10 +270,9 @@ const RakPenyimpananManager = {
       }
     }
 
-    // ------------------------------------------------------------------
-    // Baris tabel item-centric + kapasitas bar (lihat formula poin 5 di
-    // catatan atas file).
-    // ------------------------------------------------------------------
+    // Baris
+    // tabel item-centric + kapasitas bar (lihat formula poin 5 di catatan atas
+    // file).
     const terpakaiPerRak = computed(() => {
       const peta = new Map(); // rak_id -> total terpakai (cm³)
       itemsDenganRak.value.forEach(it => {
@@ -406,17 +321,17 @@ const RakPenyimpananManager = {
     const adaLebihBanyak = computed(() => barisTerfilter.value.length > batasTampil.value);
     function muatLebihBanyak() { batasTampil.value += TAMBAH_TAMPIL; }
 
-    // Rak yang belum punya item sama sekali — tetap perlu bisa di-Edit/
-    // Hapus walau tidak muncul di tabel item-centric utama (lihat catatan
-    // "Rak belum terisi" di bawah template).
+    // Rak yang belum punya item sama sekali — tetap perlu bisa di-Edit/ Hapus
+    // walau tidak muncul di tabel item-centric utama (lihat catatan "Rak belum
+    // terisi" di bawah template).
     const rakBelumTerisi = computed(() => {
       const dipakai = new Set(itemsDenganRak.value.map(it => it.rak_id));
       return racks.value.filter(r => !dipakai.has(r.id));
     });
 
-    // Ringkasan footer (mengacu ke Rak yang MUNCUL di tabel terfilter,
-    // pola sama seperti footer wireframe "5 rak · total volume ... m³ ·
-    // rata-rata terpakai ...%").
+    // Ringkasan footer (mengacu ke Rak yang MUNCUL di tabel terfilter, pola sama
+    // seperti footer wireframe "5 rak · total volume .. m³ · rata-rata terpakai
+    // ..%").
     const ringkasan = computed(() => {
       const rakUnik = new Map();
       barisTerfilter.value.forEach(b => { if (b.rakDoc) rakUnik.set(b.rakDoc.id, b); });
@@ -481,12 +396,10 @@ const RakPenyimpananManager = {
     </div>
 
     <!-- state: ideal/populated + ekstrem (per-baris) -->
-    <!-- GANTI (9 Sep 2026, audit wireframe §6.1 "grid modern") — dulu
-         <table class="gc-table"> literal, SEKARANG grid kartu rounded per
-         item dengan bar kapasitas berwarna (hijau/kuning/merah). Data yang
-         ditampilkan & formula persen/warna (baseBaris(), levelWarna,
-         overKapasitas, dst di atas) TIDAK diubah sama sekali — cuma
-         pembungkus tampilannya. -->
+    <!--
+      Data yang ditampilkan & formula persen/warna (baseBaris, levelWarna, overKapasitas, dst di
+      atas) TIDAK diubah sama sekali — cuma pembungkus tampilannya.
+    -->
     <template v-else>
       <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(230px, 1fr)); gap:12px;">
         <div v-for="b in barisTampil" :key="b.item.id" class="gc-card" style="padding:14px;">
@@ -533,12 +446,13 @@ const RakPenyimpananManager = {
       </div>
     </template>
 
-    <!-- Rak yang belum ditempati item apapun — tetap perlu bisa dikelola
-         (Edit/Hapus) walau tidak tampil di tabel item-centric di atas
-         (tabel di atas HANYA menampilkan Rak yang sudah dipilih minimal 1
-         item, sesuai spek "1 baris per item" — bukan celah, ini memang
-         penambahan sengaja supaya Admin tetap bisa membetulkan dimensi
-         Rak yang salah ketik SEBELUM ada item yang memakainya). -->
+    <!--
+      Rak yang belum ditempati item apapun — tetap perlu bisa dikelola (Edit/Hapus) walau tidak
+      tampil di tabel item-centric di atas (tabel di atas HANYA menampilkan Rak yang sudah dipilih
+      minimal 1 item, sesuai spek "1 baris per item" — bukan celah, ini memang penambahan sengaja
+      supaya Admin tetap bisa membetulkan dimensi Rak yang salah ketik SEBELUM ada item yang
+      memakainya).
+    -->
     <div v-if="!memuat && !errorMuat && rakBelumTerisi.length > 0" class="gc-card" style="margin-top:14px;">
       <h4 style="font-weight:700; font-size:12px; margin:0 0 10px; color:var(--text-muted);"><i class="fas fa-inbox" style="margin-right:6px;"></i>Rak belum terisi item ({{ rakBelumTerisi.length }})</h4>
       <div style="display:flex; flex-direction:column; gap:8px;">
@@ -592,8 +506,10 @@ const RakPenyimpananManager = {
       </div>
     </div>
 
-    <!-- Popup Cetak Label Rak — otomatis kebuka setelah Tambah Rak baru,
-         atau dipicu manual lewat tombol printer per baris. -->
+    <!--
+      Popup Cetak Label Rak — otomatis kebuka setelah Tambah Rak baru, atau dipicu manual lewat
+      tombol printer per baris.
+    -->
     <popup-pratinjau-cetak-label
       :terbuka="popupCetakLabelAktif"
       judul="Cetak Label Rak"

@@ -1,43 +1,34 @@
 // js/vue-atur-favorit.js
-// ============================================================================
-// Layar BARU (redesain "Gechoo Mobile Organic", README.md §3) — "Atur
-// Favorit". GANTI mode "Atur" inline yang dulu ada langsung di grid
-// Beranda (js/vue-home.js) — data Firestore SAMA PERSIS (users/{email}
-// .menu_favorit, maks 4 id), cuma UI pemilihnya pindah ke sini.
+
+// Layar (redesain "Gechoo Mobile Organic", README.md §3) — "Atur Favorit".
+// GANTI mode "Atur" inline yang dulu ada langsung di grid Beranda
+// (js/vue-home.js) — data Firestore SAMA PERSIS (users/{email} .menu_favorit,
+// maks 4 id), cuma UI pemilihnya pindah ke sini.
 //
-// Dua bagian:
-//   1. Kartu favorit (maks 4) — cari + daftar semua modul + sakelar.
-//   2. Grup menu di beranda — pilih grup mana yang tampil di Beranda +
-//      berapa kartu per grup (dibaca js/vue-home.js).
+// Dua bagian: 1. Kartu favorit (maks 4) — cari + daftar semua modul + sakelar.
+// 2. Grup menu di beranda — pilih grup mana yang tampil di Beranda + berapa
+// kartu per grup (dibaca js/vue-home.js).
 //
-// KEPUTUSAN SEPIHAK (perlu review Guru, lihat STATUS-PROYEK.md §44) —
-// README aslinya taruh bagian #2 di dokumen Owner-global
-// (pengaturan_sistem/urutan_menu_home, field perKategori/urutanKategori),
-// TAPI Guru eksplisit minta "user bisa memilih sendiri" (lihat riwayat
-// chat) — jadi bagian #2 di sini DITULIS PER-USER, field BARU di
-// users/{email}: `beranda_grup_urutan` (array nama kategori, urutan
-// preferensi — yang PALING DEPAN yang benar-benar tampil di Beranda,
-// dibatasi BATAS_GRUP_BERANDA — 1 sesuai default mockup, DINAIKKAN jadi 4
-// di ronde audit desain mobile 30 Agt 2026, permintaan Guru eksplisit)
-// & `beranda_batas_kartu`
-// (jumlah kartu per grup, 2-8, default 4). TIDAK menyentuh
-// pengaturan_sistem/urutan_menu_home sama sekali (dokumen itu TETAP cuma
-// dipakai untuk urutan Owner seperti sebelumnya, dibaca daftarMenuGroups()).
-// ============================================================================
+// KEPUTUSAN SEPIHAK — README aslinya taruh bagian #2 di dokumen Owner-global
+// (pengaturan_sistem/urutan_menu_home, field perKategori/urutanKategori), TAPI
+// eksplisit minta "user bisa memilih sendiri" (lihat riwayat chat) — jadi bagian
+// #2 di sini DITULIS PER-USER, field BARU di users/{email}:
+// `beranda_grup_urutan` & `beranda_batas_kartu` (jumlah kartu per grup, 2-8,
+// default 4). TIDAK menyentuh pengaturan_sistem/urutan_menu_home sama sekali
+// (dokumen itu TETAP cuma dipakai untuk urutan Owner seperti sebelumnya, dibaca
+// daftarMenuGroups).
+
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { daftarMenuGroups, HeaderLayar, KolomCari } from './vue-components.js?v=13';
 
-// REVISI (30 Agt 2026, ronde audit desain mobile) — permintaan Guru
-// eksplisit: Beranda mobile TIDAK LAGI cuma 1 grup, tapi JUGA tidak
-// literally "semua" (rejected) — dikunci maksimal 4 grup ("group menu
-// tampilkan saja semua bukan lagi 1" -> diklarifikasi jadi "maximal di
-// menu kasih 4 group menu saja yg sering dipakai"). Mekanisme toggle di
-// Bagian 2 di bawah (grupUrutan, urutan preferensi user) TETAP DIPAKAI
-// APA ADANYA — cuma batasnya yang naik dari 1 ke 4, user tetap yang
-// pilih grup mana yang dianggap "sering dipakai" lewat toggle ini
-// (tidak ada tracking pemakaian sungguhan). Lihat js/vue-home.js
+// dikunci maksimal 4 grup ("group menu tampilkan saja semua bukan lagi 1" ->
+// diklarifikasi jadi "maximal di menu kasih 4 group menu saja yg sering
+// dipakai"). Mekanisme toggle di Bagian 2 di bawah (grupUrutan, urutan
+// preferensi user) TETAP DIPAKAI APA ADANYA — cuma batasnya yang naik dari 1 ke
+// 4, user tetap yang pilih grup mana yang dianggap "sering dipakai" lewat toggle
+// ini (tidak ada tracking pemakaian sungguhan). Lihat js/vue-home.js
 // grupTampilList untuk sisi tampilnya.
 const BATAS_GRUP_BERANDA = 4;
 
@@ -48,7 +39,7 @@ const AppAturFavorit = {
     const menuGroups = ref([]);
     const semuaItemFlat = computed(() => menuGroups.value.flatMap(g => g.items));
 
-    // ---- Bagian 1: Kartu favorit ----
+    // Bagian 1: Kartu favorit
     const cariFavorit = ref('');
     const favoritIds = ref([]);
     const menyimpanFavorit = ref(false);
@@ -76,15 +67,14 @@ const AppAturFavorit = {
         await updateDoc(doc(db, 'users', window.currentUser.email), { menu_favorit: favoritIds.value });
         window.currentUser.menu_favorit = [...favoritIds.value];
         if (window.simpanKonteksSesi) window.simpanKonteksSesi();
-        // BARU (30 Agt 2026, ronde audit desain mobile) — tidak ada tombol
-        // "Simpan" di layar ini (tiap toggle langsung simpan ke Firestore),
-        // TAPI Beranda (js/vue-home.js) TIDAK reaktif otomatis ke perubahan
-        // window.currentUser (objek JS biasa, bukan Vue ref) — favoritIds di
-        // sana cuma dimuat SEKALI saat mount. Guru lapor tampilan Beranda
-        // tidak langsung update setelah atur favorit. Panggil ulang
-        // window.refreshHome() (SUDAH ADA, di-expose vue-home.js) supaya
-        // begitu user kembali ke Beranda, kartu favorit SUDAH sesuai
-        // pilihan terbaru — bukan nunggu refresh manual/reload halaman.
+        // tidak ada tombol "Simpan" di layar ini (tiap toggle langsung simpan ke
+        // Firestore), TAPI Beranda (js/vue-home.js) TIDAK reaktif otomatis ke
+        // perubahan window.currentUser (objek JS biasa, bukan Vue ref) —
+        // favoritIds di sana cuma dimuat SEKALI saat mount. lapor tampilan
+        // Beranda tidak langsung update setelah atur favorit. Panggil ulang
+        // window.refreshHome (SUDAH ADA, di-expose vue-home.js) supaya begitu
+        // user kembali ke Beranda, kartu favorit SUDAH sesuai pilihan terbaru —
+        // bukan nunggu refresh manual/reload halaman.
         if (window.refreshHome) window.refreshHome();
       } catch (e) {
         console.error('Gagal simpan menu favorit:', e);
@@ -99,7 +89,7 @@ const AppAturFavorit = {
       await simpanFavorit();
     }
 
-    // ---- Bagian 2: Grup menu di beranda ----
+    // Bagian 2: Grup menu di beranda
     const grupUrutan = ref([]); // array nama kategori, urutan preferensi
     const batasKartu = ref(4);
     const menyimpanGrup = ref(false);
@@ -132,8 +122,8 @@ const AppAturFavorit = {
         window.currentUser.beranda_grup = grupUrutan.value[0] || null;
         window.currentUser.beranda_batas_kartu = batasAman;
         if (window.simpanKonteksSesi) window.simpanKonteksSesi();
-        // Sama seperti simpanFavorit() di atas — paksa Beranda muat ulang
-        // grup terbaru, jangan nunggu reload manual.
+        // Sama seperti simpanFavorit di atas — paksa Beranda muat ulang grup
+        // terbaru, jangan nunggu reload manual.
         if (window.refreshHome) window.refreshHome();
       } catch (e) {
         console.error('Gagal simpan grup beranda:', e);
@@ -183,14 +173,13 @@ const AppAturFavorit = {
     <div class="max-w-xl mx-auto w-full" style="padding-bottom:24px;">
       <header-layar kicker="PENGATURAN" judul="Atur Favorit" tab-pulang="tab-home" />
 
-      <!-- BARU (30 Agt 2026, ronde audit desain mobile) — indikator loading
-           singkat pas nyimpan (tiap toggle langsung simpan, TIDAK ADA
-           tombol "Simpan" terpisah di layar ini) — menyimpanFavorit/
-           menyimpanGrup SEBELUMNYA sudah ada di setup() tapi TIDAK PERNAH
-           dipakai di template (dicek langsung, nol pemakaian) — sekarang
-           dipasang, sekalian dengan window.refreshHome() di
-           simpanFavorit()/simpanGrup() supaya Beranda langsung sinkron
-           begitu user kembali ke sana. -->
+      <!--
+        indikator loading singkat pas nyimpan (tiap toggle langsung simpan, TIDAK ADA tombol
+        "Simpan" terpisah di layar ini) — menyimpanFavorit/ menyimpanGrup SEBELUMNYA sudah ada di
+        setup tapi TIDAK PERNAH dipakai di template (dicek langsung, nol pemakaian) — sekarang
+        dipasang, sekalian dengan window.refreshHome di simpanFavorit/simpanGrup supaya Beranda
+        langsung sinkron begitu user kembali ke sana.
+      -->
       <div v-if="menyimpanFavorit || menyimpanGrup" style="position:fixed; left:50%; bottom:28px; transform:translateX(-50%); z-index:70; background:var(--burgundy); color:var(--tinta-gradien); border-radius:999px; padding:9px 16px; display:flex; align-items:center; gap:8px; box-shadow:0 10px 24px -8px rgba(0,0,0,.35);">
         <div class="animate-spin" style="width:14px; height:14px; border-radius:50%; border:2px solid rgba(var(--tinta-gradien-rgb),.35); border-top-color:var(--tinta-gradien);"></div>
         <span style="font-size:11px; font-weight:600;">Menyimpan...</span>

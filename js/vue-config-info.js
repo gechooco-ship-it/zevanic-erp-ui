@@ -1,19 +1,19 @@
 // js/vue-config-info.js
-// ============================================================================
+
 // Master Karyawan > Config Info — kelola pengumuman yang tampil di Home
-// (mobile). Bisa buat banyak pengumuman, tiap pengumuman bisa diatur mau
-// tampil untuk role apa saja (checkbox). Dibaca oleh js/vue-home.js —
-// pengecekan role-nya dilakukan DI SANA secara lokal (window.currentUser),
-// bukan query where() ke Firestore, supaya hemat baca.
+// (mobile). Bisa buat banyak pengumuman, tiap pengumuman bisa diatur mau tampil
+// untuk role apa saja (checkbox). Dibaca oleh js/vue-home.js — pengecekan
+// role-nya dilakukan DI SANA secara lokal (window.currentUser), bukan query
+// where ke Firestore, supaya hemat baca.
 //
-// REDESIGN (9 Sep 2026) — mengikuti wireframe handoff "07 - Management /
-// 01 - Master Karyawan" butir 1.6: dulu section Pengumuman & Quote Harian
-// ditumpuk vertikal, KEDUANYA selalu tampil sekaligus (scroll panjang).
-// SEKARANG dibungkus 1 card dengan 2 PILL-TAB (Pengumuman / Quote Harian) —
-// cuma 1 section tampil sekaligus, tab lain disembunyikan pakai v-show.
-// Form & logic CRUD masing-masing (muat/simpan/edit/hapus, upload media,
-// dst) TIDAK berubah sama sekali — cuma visibility yang diatur tab.
-// ============================================================================
+// REDESIGN — mengikuti wireframe handoff "07 - Management / 01 - Master
+// Karyawan" butir 1.6: dulu section Pengumuman & Quote Harian ditumpuk vertikal,
+// KEDUANYA selalu tampil sekaligus (scroll panjang). SEKARANG dibungkus 1 card
+// dengan 2 PILL-TAB (Pengumuman / Quote Harian) — cuma 1 section tampil
+// sekaligus, tab lain disembunyikan pakai v-show. Form & logic CRUD
+// masing-masing (muat/simpan/edit/hapus, upload media, dst) TIDAK berubah sama
+// sekali — cuma visibility yang diatur tab.
+
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, setDoc, deleteDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
@@ -26,10 +26,10 @@ const BATAS_UKURAN_BYTE = 1 * 1024 * 1024; // 1MB, sesuai permintaan
 const AppConfigInfo = {
   components: { EmojiPicker },
   setup() {
-    // Pill-tab (wireframe 1.6) — 'pengumuman' atau 'quote'. Kedua section
-    // tetap di-mount bersamaan (data sudah dimuat sekaligus di onMounted di
-    // bawah, sama seperti sebelumnya) — cuma tampilannya yang di-toggle
-    // v-show, supaya pindah tab tidak perlu fetch ulang.
+    // Pill-tab (wireframe 1.6) — 'pengumuman' atau 'quote'. Kedua section tetap
+    // di-mount bersamaan (data sudah dimuat sekaligus di onMounted di bawah,
+    // sama seperti sebelumnya) — cuma tampilannya yang di-toggle v-show, supaya
+    // pindah tab tidak perlu fetch ulang.
     const tabAktif = ref('pengumuman');
     const daftarPengumuman = ref([]);
     const memuat = ref(true);
@@ -40,11 +40,11 @@ const AppConfigInfo = {
       judul: '',
       isi: '',
       rolesTampil: [], // kosong = tampil untuk semua role
-      mediaUrl: '',    // URL media yang SUDAH tersimpan (kalau sedang edit)
+      mediaUrl: '', // URL media yang SUDAH tersimpan (kalau sedang edit)
       mediaType: ''    // 'image' atau 'video'
     });
     const fileTerpilih = ref(null); // File baru yang BELUM diupload
-    const previewUrl = ref('');     // preview lokal file baru (blob URL)
+    const previewUrl = ref(''); // preview lokal file baru (blob URL)
     const mengupload = ref(false);
 
     function formKosong() {
@@ -137,8 +137,8 @@ const AppConfigInfo = {
           mediaTypeBaru = fileTerpilih.value.type.startsWith('video/') ? 'video' : 'image';
           mengupload.value = false;
 
-          // Hapus file LAMA (kalau sedang ganti media di pengumuman yang
-          // sudah ada) — supaya tidak numpuk file yatim di Storage.
+          // Hapus file LAMA (kalau sedang ganti media di pengumuman yang sudah
+          // ada) — supaya tidak numpuk file yatim di Storage.
           if (urlLama) {
             try {
               await deleteObject(storageRef(storage, urlLama));
@@ -179,15 +179,14 @@ const AppConfigInfo = {
       }
     }
 
-    // ========================================================================
-    // KOTAK 3 — QUOTE HARIAN (17 Agt 2026)
-    // Beda dari Pengumuman: 1 quote ditampilkan per HARI TERTENTU (dijadwal
-    // di muka, bukan "N terbaru" seperti Pengumuman). Kalau tidak ada quote
-    // yang dijadwalkan untuk hari itu, kartu Quote di Home tidak tampil
-    // sama sekali (bukan kartu kosong yang aneh).
-    // Batas karakter: judul maks 20, isi maks 60 — SESUAI PERMINTAAN, biar
-    // muat rapi di kartu kecil ala prototype (kartu "Giveaway" di Home).
-    // ========================================================================
+
+    // KOTAK 3 — QUOTE HARIAN Beda dari Pengumuman: 1 quote ditampilkan per HARI
+    // TERTENTU (dijadwal di muka, bukan "N terbaru" seperti Pengumuman). Kalau
+    // tidak ada quote yang dijadwalkan untuk hari itu, kartu Quote di Home tidak
+    // tampil sama sekali (bukan kartu kosong yang aneh). Batas karakter: judul
+    // maks 20, isi maks 60 — SESUAI PERMINTAAN, biar muat rapi di kartu kecil
+    // ala prototype (kartu "Giveaway" di Home).
+
     const daftarQuote = ref([]);
     const memuatQuote = ref(true);
     const menyimpanQuote = ref(false);

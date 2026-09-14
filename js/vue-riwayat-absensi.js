@@ -1,38 +1,34 @@
 // js/vue-riwayat-absensi.js
-// ============================================================================
+
 // Halaman KEENAM yang dimigrasi ke Vue: Master Absensi > Riwayat All Absensi
 // (laporan lengkap semua data absensi + edit/hapus/assign ulang + export CSV).
 //
-// DIROMBAK (18 Agt 2026) — tabel ini WAJIB nampilin 2 BENTUK dokumen
-// sekaligus (LAMA: 1 baris = 1 event Clock In ATAU Clock Out terpisah;
-// BARU: 1 baris = gabungan Clock In+Out, lihat js/vue-camera.js). Kolom
-// "Tanggal/Waktu" yang dulu 1 kolom SEKARANG dipecah jadi 2 kolom
-// terpisah — "Tanggal-Waktu Clock In" dan "Tanggal-Waktu Clock Out"
-// (permintaan checklist rebuild 18 Agt 2026) — supaya kelihatan jelas
-// jam masuk & keluar karyawan di 1 baris yang sama untuk dokumen format
-// baru, TANPA kehilangan kompatibilitas ke dokumen format lama (yang
-// otomatis cuma isi SALAH SATU kolom itu, sesuai jenis event-nya).
+// tabel ini WAJIB nampilin 2 BENTUK dokumen sekaligus (LAMA: 1 baris = 1 event
+// Clock In ATAU Clock Out terpisah; BARU: 1 baris = gabungan Clock In+Out, lihat
+// js/vue-camera.js). Kolom "Tanggal/Waktu" yang dulu 1 kolom SEKARANG dipecah
+// jadi 2 kolom terpisah — "Tanggal-Waktu Clock In" dan "Tanggal-Waktu Clock Out"
+// supaya kelihatan jelas jam masuk & keluar karyawan di 1 baris yang sama
+// untuk dokumen format baru, TANPA kehilangan kompatibilitas ke dokumen format
+// lama (yang otomatis cuma isi SALAH SATU kolom itu, sesuai jenis event-nya).
 //
-// formatBaris() di bawah adalah "penerjemah" 1 fungsi tunggal yang
-// menyeragamkan KEDUA bentuk dokumen jadi 1 bentuk tampilan yang sama —
-// SEMUA bagian template baca lewat fungsi ini, TIDAK ada cabang if/else
-// format lama/baru tersebar di banyak tempat template (lebih gampang
-// dirawat & diuji terpisah dari Vue).
+// formatBaris di bawah adalah "penerjemah" 1 fungsi tunggal yang menyeragamkan
+// KEDUA bentuk dokumen jadi 1 bentuk tampilan yang sama — SEMUA bagian template
+// baca lewat fungsi ini, TIDAK ada cabang if/else format lama/baru tersebar di
+// banyak tempat template (lebih gampang dirawat & diuji terpisah dari Vue).
 //
-// Ditambah filter TETAP "Status Kerja = Aktif" (permintaan checklist) —
-// karyawan nonaktif/resign tidak perlu muncul di laporan operasional ini.
+// Ditambah filter TETAP "Status Kerja = Aktif" (permintaan checklist) — karyawan
+// nonaktif/resign tidak perlu muncul di laporan operasional ini.
 //
-// Dipakai ulang: DuaBaris (dari migrasi Daftar Karyawan).
-// window.hapusAbsensi TETAP dipanggil dari sini (fungsi bersama, juga
-// dipakai oleh Antrean Absensi).
-// ============================================================================
+// Dipakai ulang: DuaBaris (dari migrasi Daftar Karyawan). window.hapusAbsensi
+// TETAP dipanggil dari sini (fungsi bersama, juga dipakai oleh Antrean Absensi).
+
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc, writeBatch, Timestamp, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DuaBaris } from './vue-components.js';
 
-// Diekspor juga (dipakai test) — seragamkan dokumen LAMA (1 event/baris)
-// dan BARU (gabungan masuk+keluar) jadi 1 bentuk tampilan yang sama.
+// Diekspor juga (dipakai test) — seragamkan dokumen LAMA (1 event/baris) dan
+// (gabungan masuk+keluar) jadi 1 bentuk tampilan yang sama.
 export function formatBaris(item) {
   const adalahBaru = item.status_acc_masuk !== undefined;
   if (adalahBaru) {
@@ -49,8 +45,8 @@ export function formatBaris(item) {
       seragamKeluar: item.seragam_keluar || null
     };
   }
-  // Format LAMA — 1 baris = 1 event tunggal (Clock In ATAU Clock Out
-  // ATAU Izin/Cuti/Lembur, tidak pernah gabungan).
+  // Format LAMA — 1 baris = 1 event tunggal (Clock In ATAU Clock Out ATAU
+  // Izin/Cuti/Lembur, tidak pernah gabungan).
   const iniKeluar = item.status === 'CLOCK OUT';
   return {
     waktuMasuk: iniKeluar ? null : (item.waktu || null),
@@ -66,8 +62,8 @@ export function formatBaris(item) {
   };
 }
 
-// Waktu sortir gabungan — pakai yang paling akhir terjadi (keluar kalau
-// ada, jatuh-aman ke masuk kalau belum Clock Out).
+// Waktu sortir gabungan — pakai yang paling akhir terjadi (keluar kalau ada,
+// jatuh-aman ke masuk kalau belum Clock Out).
 function waktuUntukSortir(item) {
   if (item.status_acc_masuk !== undefined) return item.waktu_keluar || item.waktu_masuk || '';
   return item.waktu || '';
@@ -95,9 +91,9 @@ const EditAbsensiModal = {
     async function simpan() {
       menyimpan.value = true;
       try {
-        // Dokumen BARU: edit di sini WAJIB ke field_masuk (form Edit cuma
-        // 1 set kolom — kalau butuh edit sisi Keluar, dilakukan lewat
-        // Antrean Absensi sebelum di-ACC, bukan dari sini).
+        // Dokumen BARU: edit di sini WAJIB ke field_masuk (form Edit cuma 1 set
+        // kolom — kalau butuh edit sisi Keluar, dilakukan lewat Antrean Absensi
+        // sebelum di-ACC, bukan dari sini).
         const dataUpdate = adalahBaru
           ? { status_kehadiran_masuk: form.statusKehadiran, seragam_masuk: form.seragam, status_acc_masuk: form.statusAcc }
           : { status_kehadiran: form.statusKehadiran, seragam: form.seragam, status_acc: form.statusAcc };
@@ -152,10 +148,10 @@ const AppRiwayatAbsensi = {
       if (!kata) return listData.value;
       return listData.value.filter(item => (item.nama_pegawai || item.nama || '').toLowerCase().includes(kata));
     });
-    // Paginasi TAMPILAN (bukan re-query Firestore per halaman) — aman
-    // dilakukan di browser karena listData SUDAH dibatasi rentang
-    // tanggal duluan (lihat muat() di bawah), jadi ukurannya sudah wajar
-    // untuk dipotong-potong di sini, bukan ribuan baris sekaligus.
+    // Paginasi TAMPILAN (bukan re-query Firestore per halaman) — aman dilakukan
+    // di browser karena listData SUDAH dibatasi rentang tanggal duluan (lihat
+    // muat di bawah), jadi ukurannya sudah wajar untuk dipotong-potong di sini,
+    // bukan ribuan baris sekaligus.
     const totalHalaman = computed(() => Math.max(1, Math.ceil(listDataTersaring.value.length / PER_HALAMAN)));
     const listDataTerpaginasi = computed(() => {
       const mulai = (halamanSaatIni.value - 1) * PER_HALAMAN;
@@ -167,12 +163,11 @@ const AppRiwayatAbsensi = {
     const memuat = ref(true);
     const itemSedangDiedit = ref(null);
 
-    // ---- BARU (19 Agt 2026) — Filter Tanggal jadi QUERY SUNGGUHAN ----
-    // Defaultnya "Hari Ini" — inilah hemat-nya: buka halaman pertama kali
-    // TIDAK LAGI fetch SELURUH riwayat sepanjang masa, cuma tarik yang
-    // beneran relevan hari itu. Preset lain (Kemarin/7/30 hari) atau
-    // rentang bebas tinggal ganti nilai where() di bawah — TETAP query,
-    // bukan fetch-semua-lalu-buang di JS.
+    // BARU — Filter Tanggal jadi QUERY SUNGGUHAN — Defaultnya "Hari Ini"
+    // inilah hemat-nya: buka halaman pertama kali TIDAK LAGI fetch SELURUH
+    // riwayat sepanjang masa, cuma tarik yang beneran relevan hari itu. Preset
+    // lain (Kemarin/7/30 hari) atau rentang bebas tinggal ganti nilai where di
+    // bawah — TETAP query, bukan fetch-semua-lalu-buang di JS.
     const filterTanggalPreset = ref('hari_ini');
     const tglMulaiCustom = ref('');
     const tglSelesaiCustom = ref('');
@@ -213,13 +208,12 @@ const AppRiwayatAbsensi = {
       return `Menampilkan riwayat: ${LABEL_PRESET[filterTanggalPreset.value] || ''} (${teksTgl})`;
     });
 
-    // ---- Migrasi waktu_ts — SEKARANG jadi pengecekan MANUAL (tombol),
-    // bukan otomatis tiap buka halaman lagi. Kenapa: query rentang
-    // tanggal di bawah TIDAK BISA "melihat" dokumen yang belum punya
-    // waktu_ts/waktu_masuk_ts sama sekali (Firestore tidak bisa cocokkan
-    // rentang tanggal ke field yang tidak ada) — jadi deteksinya perlu
-    // fetch-semua terpisah, SEKALI diklik, bukan dibebankan ke query
-    // utama yang justru mau dibikin hemat.
+    // Migrasi waktu_ts — SEKARANG jadi pengecekan MANUAL (tombol), bukan
+    // otomatis tiap buka halaman lagi. Kenapa: query rentang tanggal di bawah
+    // TIDAK BISA "melihat" dokumen yang belum punya waktu_ts/waktu_masuk_ts sama
+    // sekali (Firestore tidak bisa cocokkan rentang tanggal ke field yang tidak
+    // ada) — jadi deteksinya perlu fetch-semua terpisah, SEKALI diklik, bukan
+    // dibebankan ke query utama yang justru mau dibikin hemat.
     const migrasi = reactive({ totalBelumMigrasi: 0, sedangProses: false, sudahDicek: false, hasilTerakhir: '' });
     let dokumenBelumMigrasi = [];
     async function cekDataBelumMigrasi() {
@@ -240,19 +234,15 @@ const AppRiwayatAbsensi = {
       migrasi.sedangProses = false;
     }
 
-    // BARU (malam 24 Agt 2026) — Migrasi field `nama_shift` (bug ditemukan
-    // Guru: "Shift" tidak pernah tampil di Antrean Absensi/Riwayat All
-    // Absensi/CSV — root cause: field ini TIDAK PERNAH dititip ke dokumen
-    // `absensi` sebelum ronde ini, lihat catatan di js/vue-camera.js).
-    // Pola SAMA PERSIS seperti migrasi waktu_ts di atas — tombol manual,
-    // aman diulang, dokumen yang sudah punya nama_shift dilewati.
+    // Migrasi field `nama_shift` . Pola SAMA PERSIS seperti migrasi waktu_ts di
+    // atas — tombol manual, aman diulang, dokumen yang sudah punya nama_shift
+    // dilewati.
     //
-    // KETERBATASAN JUJUR (WAJIB dikasih tau ke Guru, bukan disembunyikan):
-    // migrasi ini pakai `nama_shift` KARYAWAN SAAT INI (dari users/{email})
-    // sebagai isian dokumen LAMA — BUKAN shift yang sebenarnya berlaku
-    // waktu absensi itu terjadi (sistem tidak pernah mencatat itu, tidak
-    // bisa dipulihkan). Kalau shift karyawan pernah pindah sejak saat itu,
-    // hasil migrasinya BISA MELESET — best-effort, bukan 100% akurat.
+    // KETERBATASAN JUJUR: migrasi ini pakai `nama_shift` KARYAWAN SAAT INI (dari
+    // users/{email}) sebagai isian dokumen LAMA — BUKAN shift yang sebenarnya
+    // berlaku waktu absensi itu terjadi (sistem tidak pernah mencatat itu, tidak
+    // bisa dipulihkan). Kalau shift karyawan pernah pindah sejak saat itu, hasil
+    // migrasinya BISA MELESET — best-effort, bukan 100% akurat.
     const migrasiShift = reactive({ totalBelumMigrasi: 0, sedangProses: false, sudahDicek: false, hasilTerakhir: '' });
     let dokumenBelumMigrasiShift = [];
     async function cekDataBelumMigrasiShift() {
@@ -283,9 +273,9 @@ const AppRiwayatAbsensi = {
       const UKURAN_POTONGAN = 30; // batas Firestore where(field,'in',[...])
 
       try {
-        // 1. Kumpulkan nama_shift TERKINI tiap email yang perlu (1x fetch
-        // batch, bukan 1 getDoc per dokumen — hemat, pola sama seperti
-        // muat() di atas buat jenis_pekerjaan/status_kerja/hp).
+        // 1. Kumpulkan nama_shift TERKINI tiap email yang perlu (1x fetch batch,
+        // bukan 1 getDoc per dokumen — hemat, pola sama seperti muat di atas
+        // buat jenis_pekerjaan/status_kerja/hp).
         const daftarEmail = [...new Set(dokumenBelumMigrasiShift.map(d => d.email))];
         const petaNamaShift = {};
         for (let i = 0; i < daftarEmail.length; i += UKURAN_POTONGAN) {
@@ -294,9 +284,9 @@ const AppRiwayatAbsensi = {
           qUsers.forEach(u => { petaNamaShift[u.data().email] = u.data().nama_shift || ''; });
         }
 
-        // 2. Tulis batch — dokumen yang emailnya TIDAK ketemu nama_shift
-        // apapun (karyawan sudah dihapus, atau memang belum ditugaskan
-        // shift) DILEWATI, bukan dipaksa isi string kosong.
+        // 2. Tulis batch — dokumen yang emailnya TIDAK ketemu nama_shift apapun
+        // (karyawan sudah dihapus, atau memang belum ditugaskan shift) DILEWATI,
+        // bukan dipaksa isi string kosong.
         for (let i = 0; i < dokumenBelumMigrasiShift.length; i += UKURAN_BATCH) {
           const potongan = dokumenBelumMigrasiShift.slice(i, i + UKURAN_BATCH);
           const batch = writeBatch(db);
@@ -324,11 +314,11 @@ const AppRiwayatAbsensi = {
         const tsMulai = Timestamp.fromDate(mulai);
         const tsSelesai = Timestamp.fromDate(selesai);
 
-        // 2 query TERPISAH by DESAIN — dokumen format BARU pakai
-        // waktu_masuk_ts, format LAMA pakai waktu_ts (field beda nama,
-        // Firestore tidak bisa "OR" antar field beda dalam 1 query).
-        // Dokumen yang BELUM py field ini sama sekali (belum migrasi)
-        // OTOMATIS tidak ketemu di sini — itu tugas cekDataBelumMigrasi().
+        // 2 query TERPISAH by DESAIN — dokumen format BARU pakai waktu_masuk_ts,
+        // format LAMA pakai waktu_ts (field beda nama, Firestore tidak bisa "OR"
+        // antar field beda dalam 1 query). Dokumen yang BELUM py field ini sama
+        // sekali (belum migrasi) OTOMATIS tidak ketemu di sini — itu tugas
+        // cekDataBelumMigrasi.
         const [snapBaru, snapLama] = await Promise.all([
           getDocs(query(collection(db, "absensi"), where("waktu_masuk_ts", ">=", tsMulai), where("waktu_masuk_ts", "<=", tsSelesai))),
           getDocs(query(collection(db, "absensi"), where("waktu_ts", ">=", tsMulai), where("waktu_ts", "<=", tsSelesai)))
@@ -337,10 +327,10 @@ const AppRiwayatAbsensi = {
         snapBaru.forEach(d => semuaDok.push(d));
         snapLama.forEach(d => semuaDok.push(d));
 
-        // DIROMBAK (19 Agt 2026) — dulu SELALU fetch-semua "users" duluan.
-        // SEKARANG js/vue-camera.js sudah titip jenis_pekerjaan/status_kerja/
-        // hp LANGSUNG di tiap dokumen absensi baru — jadi users CUMA
-        // dibaca buat email yang dokumennya masih BOLONG (data lama).
+        // dulu SELALU fetch-semua "users" duluan. SEKARANG js/vue-camera.js
+        // sudah titip jenis_pekerjaan/status_kerja/ hp LANGSUNG di tiap dokumen
+        // absensi baru — jadi users CUMA dibaca buat email yang dokumennya masih
+        // BOLONG (data lama).
         const emailPerluDicari = new Set();
         semuaDok.forEach(docSnap => {
           const d = docSnap.data();
@@ -370,8 +360,8 @@ const AppRiwayatAbsensi = {
         semuaDok.forEach(docSnap => {
           const d = docSnap.data();
           if (!window.bolehLihatData(ambilJP(d), d.gudang)) return;
-          // BARU (permintaan checklist) — karyawan nonaktif/resign tidak
-          // perlu muncul di laporan operasional ini.
+          // (permintaan checklist) — karyawan nonaktif/resign tidak perlu muncul
+          // di laporan operasional ini.
           if (ambilStatusKerja(d) !== 'Aktif') return;
           d.id = docSnap.id;
           d.hpDicariDariUsers = ambilHp(d);
@@ -403,12 +393,11 @@ const AppRiwayatAbsensi = {
           potongan.forEach(d => {
             const tanggalTerurai = window.parseWaktuIndo(d.waktu);
             if (!tanggalTerurai) { gagalParsing++; return; }
-            // Field target waktu_ts vs waktu_masuk_ts sudah ditentukan
-            // pas dikumpulkan di cekDataBelumMigrasi() (d.formatBaru) —
-            // JANGAN cari lagi di listData.value, karena sekarang
-            // listData sudah dibatasi rentang tanggal (19 Agt 2026),
-            // dokumen lama yang mau dimigrasi kemungkinan besar TIDAK
-            // ADA di situ (sumber data beda: fetch-semua vs date-scoped).
+            // Field target waktu_ts vs waktu_masuk_ts sudah ditentukan pas
+            // dikumpulkan di cekDataBelumMigrasi (d.formatBaru) — JANGAN cari
+            // lagi di listData.value, karena sekarang listData sudah dibatasi
+            // rentang tanggal, dokumen lama yang mau dimigrasi kemungkinan besar
+            // TIDAK ADA di situ (sumber data beda: fetch-semua vs date-scoped).
             const fieldTarget = d.formatBaru ? 'waktu_masuk_ts' : 'waktu_ts';
             batch.update(doc(db, "absensi", d.id), { [fieldTarget]: Timestamp.fromDate(tanggalTerurai) });
             sukses++;
@@ -446,8 +435,8 @@ const AppRiwayatAbsensi = {
       try {
         const item = listData.value.find(x => x.id === docId);
         const adalahBaru = item && item.status_acc_masuk !== undefined;
-        // Dokumen BARU: assign ulang KEDUA sisi (masuk & keluar kalau
-        // ada) — lebih aman daripada nebak sisi mana yang dimaksud.
+        // Dokumen BARU: assign ulang KEDUA sisi (masuk & keluar kalau ada) —
+        // lebih aman daripada nebak sisi mana yang dimaksud.
         const dataUpdate = adalahBaru
           ? { status_acc_masuk: 'PENDING', ada_pending: true, ...(item.waktu_keluar ? { status_acc_keluar: 'PENDING' } : {}) }
           : { status_acc: 'PENDING' };
@@ -464,9 +453,9 @@ const AppRiwayatAbsensi = {
       if (listDataTersaring.value.length === 0) return alert("Tidak ada data untuk di-export sesuai filter tanggal/cari yang aktif.");
 
       let csvContent = "data:text/csv;charset=utf-8,";
-      // BARU (19 Agt 2026) — baris caption di awal CSV, biar siapapun yang
-      // buka filenya nanti (tanpa lihat aplikasi) tetap tau ini data
-      // rentang tanggal berapa & sedang dicari nama apa (kalau ada).
+      // baris caption di awal CSV, biar siapapun yang buka filenya nanti (tanpa
+      // lihat aplikasi) tetap tau ini data rentang tanggal berapa & sedang
+      // dicari nama apa (kalau ada).
       csvContent += `"${captionRentang.value}${cariNama.value.trim() ? ' | Cari: ' + cariNama.value.trim() : ''}"\n\n`;
       csvContent += "Nama Pegawai,Email,Tipe Absen,Gudang,Shift,Waktu Clock In,Status ACC Masuk,Waktu Clock Out,Status ACC Keluar,Seragam\n";
 
@@ -496,8 +485,8 @@ const AppRiwayatAbsensi = {
 
     watch(cariNama, () => { halamanSaatIni.value = 1; });
     watch([filterTanggalPreset, tglMulaiCustom, tglSelesaiCustom], () => {
-      // Rentang custom: JANGAN re-fetch sebelum DUA tanggal terisi —
-      // hindari query aneh (mis. cuma tglMulai terisi, tglSelesai kosong).
+      // Rentang custom: JANGAN re-fetch sebelum DUA tanggal terisi — hindari
+      // query aneh (mis. cuma tglMulai terisi, tglSelesai kosong).
       if (filterTanggalPreset.value === 'custom' && (!tglMulaiCustom.value || !tglSelesaiCustom.value)) return;
       muat();
     });

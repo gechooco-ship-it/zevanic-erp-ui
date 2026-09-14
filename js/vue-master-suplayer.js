@@ -1,49 +1,44 @@
 // js/vue-master-suplayer.js
-// ============================================================================
-// Zevanic House > Master Suplayer — menu BARU (5 Sep 2026, wireframe handoff
-// "Zevanic House.dc.html" grup 5 + rekonstruksi Persiapan Produksi). Guru:
-// alur Persiapan Produksi (Bahan/Acc Sewing/Webbing/Finishing) tertahan
-// karena data dasar Suplayer belum lengkap — MOQ, Alias, dan "Petakan Order"
-// (suplayer default per item) belum ada tempatnya. Modul ini pusatnya.
+
+// Zevanic House > Master Suplayer — menu BARU .: alur Persiapan Produksi
+// (Bahan/Acc Sewing/Webbing/Finishing) tertahan karena data dasar Suplayer belum
+// lengkap — MOQ, Alias, dan "Petakan Order" (suplayer default per item) belum
+// ada tempatnya. Modul ini pusatnya.
 //
-// GANTI TOTAL dari 2 tempat lama yang tercerai-berai:
-//   - Config > Data Suplayer (js/vue-config.js, generik MasterDataTabelManager
-//     — cuma nama/kontak/keterangan) — TAB ITU DIHAPUS dari Config, CRUD
-//     Suplayer sekarang SATU-SATUNYA di sini (5.1).
-//   - Stock & Pembelian > Alias Pembelian (js/vue-stock-pembelian.js,
-//     AliasPembelianManager) — TAB ITU DIHAPUS dari Stock & Pembelian, PINDAH
-//     ke sini (5.2) + field BARU moq/moq_satuan/lead_time_hari. Fungsi yang
-//     BACA alias_pembelian di Nota/Kasir (vue-stock-pembelian.js) TIDAK
-//     disentuh — struktur dokumen `alias_pembelian` TIDAK BERUBAH, cuma
-//     lokasi UI-nya + field tambahan (dokumen lama tanpa field baru ini
-//     null-safe, tampil "-"/kosong).
+// dari 2 tempat lama yang tercerai-berai: - Config > Data Suplayer
+// (js/vue-config.js, generik MasterDataTabelManager — cuma
+// nama/kontak/keterangan) — TAB ITU DIHAPUS dari Config, CRUD Suplayer sekarang
+// SATU-SATUNYA di sini (5.1). - Stock & Pembelian > Alias Pembelian
+// (js/vue-stock-pembelian.js, AliasPembelianManager) — TAB ITU DIHAPUS dari
+// Stock & Pembelian, PINDAH ke sini (5.2) + field BARU
+// moq/moq_satuan/lead_time_hari. Fungsi yang BACA alias_pembelian di Nota/Kasir
+// (vue-stock-pembelian.js) TIDAK disentuh — struktur dokumen `alias_pembelian`
+// TIDAK BERUBAH, cuma lokasi UI-nya + field tambahan (dokumen lama tanpa field
+// baru ini null-safe, tampil "-"/kosong).
 //
 // 3 sub-tab (field `deprecated: true` menu lama, id BARU didaftarkan di
-// vue-config-akses.js — lihat komentar di sana):
-//   5.1 Entry + List Suplayer (SuplayerEntryList) — CRUD penuh, field BARU
-//       bank/nama_rek/no_rek/no_wa (SPESIFIKASI-KOLEKSI-BARU.md, dipakai
-//       format order WA driver di Persiapan Belanja nanti).
-//   5.2 Alias & MOQ (AliasMoqManager) — eks Alias Pembelian + moq/
-//       moq_satuan/lead_time_hari (dipakai hitung "qty beli" di Persiapan
-//       Masalah & Persiapan Belanja nanti).
-//   5.3 Petakan Order (PetakanOrderManager) — per item, tandai SATU alias
-//       sebagai `is_default_order:true` (suplayer favorit/langganan item
-//       itu) — dipakai auto-assign suplayer default nanti.
+// vue-config-akses.js — lihat komentar di sana): 5.1 Entry + List Suplayer
+// (SuplayerEntryList) — CRUD penuh, field BARU bank/nama_rek/no_rek/no_wa
+// (SPESIFIKASI-KOLEKSI-BARU.md, dipakai format order WA driver di Persiapan
+// Belanja nanti). 5.2 Alias & MOQ (AliasMoqManager) — eks Alias Pembelian + moq/
+// moq_satuan/lead_time_hari (dipakai hitung "qty beli" di Persiapan Masalah &
+// Persiapan Belanja nanti). 5.3 Petakan Order (PetakanOrderManager) — per item,
+// tandai SATU alias sebagai `is_default_order:true` (suplayer favorit/langganan
+// item itu) — dipakai auto-assign suplayer default nanti.
 //
-// TIDAK termasuk sesi ini (di luar scope "MOQ/kelipatan/prefix/TLC" yang
-// diminta Guru): field `master_produk.moq_serie`/`kelipatan_isi_pola` (itu
-// milik modul Serie, Proses Produksi — beda konteks MOQ, jangan dicampur).
-// Kalau ternyata Guru maksudnya TERMASUK itu, tinggal tambah kolom di Entry
-// Produk (js/vue-master-produk.js), bukan di sini.
-// ============================================================================
+// TIDAK termasuk sesi ini: field `master_produk.moq_serie`/`kelipatan_isi_pola`
+// (itu milik modul Serie, Proses Produksi — beda konteks MOQ, jangan dicampur).
+// Kalau ternyata maksudnya TERMASUK itu, tinggal tambah kolom di Entry Produk
+// (js/vue-master-produk.js), bukan di sini.
+
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DropdownCari } from './vue-components.js?v=13';
 
-// --- Helper kecil, DISALIN dari vue-stock-pembelian.js (konvensi "salin
-// logic kecil per-file" proyek ini — supaya modul ini tidak butuh export
-// baru dari file yang sudah stabil). --------------------------------------
+// Helper kecil, DISALIN dari vue-stock-pembelian.js (konvensi "salin logic
+// kecil per-file" proyek ini — supaya modul ini tidak butuh export baru dari
+// file yang sudah stabil).
 async function ambilDaftarBahanAksesorisLengkap() {
   try {
     const snap = await getDocs(collection(db, 'master_bahan_aksesoris'));
@@ -72,11 +67,10 @@ async function ambilDaftarSuplayerLengkap() {
     return [];
   }
 }
-// BARU (9 Sep 2026 malam, keputusan eksplisit Guru: "iyah kerjakan sesuai
-// wireframe") — hitung jumlah alias per suplayer untuk kolom "Alias/Item" di
-// List Suplayer (5.1). Query SEKALI (satu getDocs ambil semua alias_pembelian,
-// dikelompokkan di sisi klien per suplayer_id) — sama pola dengan
-// ambilTotalPesananPerPelanggan() di vue-master-pelanggan.js — supaya List
+// hitung jumlah alias per suplayer untuk kolom "Alias/Item" di List Suplayer
+// (5.1). Query SEKALI (satu getDocs ambil semua alias_pembelian, dikelompokkan
+// di sisi klien per suplayer_id) — sama pola dengan
+// ambilTotalPesananPerPelanggan di vue-master-pelanggan.js — supaya List
 // Suplayer tidak melambat kalau jumlah alias banyak (BUKAN 1 query per baris).
 async function ambilPetaAliasPerSuplayer() {
   const peta = new Map();
@@ -96,9 +90,9 @@ function formatQty(n) {
   return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 }
 
-// ============================================================================
+
 // 5.1 — Entry + List Suplayer
-// ============================================================================
+
 const SuplayerEntryList = {
   setup() {
     const menuId = 'suplayer_entry';
@@ -110,13 +104,13 @@ const SuplayerEntryList = {
     const daftar = ref([]);
     const cari = ref('');
     const menyimpan = ref(false);
-    // BARU (9 Sep 2026 malam) — peta jumlah alias per suplayer_id, dipakai
-    // kolom "Alias/Item" di tabel. Lihat ambilPetaAliasPerSuplayer() di atas.
+    // peta jumlah alias per suplayer_id, dipakai kolom "Alias/Item" di tabel.
+    // Lihat ambilPetaAliasPerSuplayer di atas.
     const petaAlias = ref(new Map());
 
     const kosongForm = () => ({ nama: '', kontak: '', bank: '', namaRek: '', noRek: '', noWa: '' });
     const form = reactive(kosongForm());
-    const popupEdit = ref(null); // { id, ...kosongForm() }
+    const popupEdit = ref(null); // { id, ..kosongForm }
 
     async function muat() {
       memuat.value = true;
@@ -187,18 +181,14 @@ const SuplayerEntryList = {
     return { memuat, muat, daftarTampil, cari, form, menyimpan, bolehTambah, bolehEdit, bolehHapus, tambah, bukaEdit, simpanEdit, popupEdit, hapus, jumlahAlias };
   },
   template: `
-    <!-- RESTRUKTURISASI (9 Sep 2026, audit wireframe §5.1) — dulu form-tambah
-         inline di ATAS, list kartu DITUMPUK di bawahnya, edit lewat modal
-         popup terpisah. Wireframe minta 2 PANEL BERDAMPINGAN (form kiri,
-         list kanan, klik baris untuk edit). Modal popup DIGANTI jadi inline
-         di panel kiri (bukan cuma layout-nya yang dipindah) — panel kiri
-         menampilkan form Tambah ATAU form Edit tergantung popupEdit terisi
-         atau tidak, PERSIS variabel & fungsi yang SAMA (tambah/bukaEdit/
-         simpanEdit TIDAK diubah sama sekali, cuma markup-nya dipindah dari
-         dalam overlay ke sini). Kolom "Alias/Item" per suplayer (BARU, 9 Sep
-         2026 malam, keputusan eksplisit Guru: "iyah kerjakan sesuai
-         wireframe") — dihitung dari alias_pembelian lewat jumlahAlias(s),
-         lihat ambilPetaAliasPerSuplayer() di atas. -->
+    <!--
+      Wireframe minta 2 PANEL BERDAMPINGAN (form kiri, list kanan, klik baris untuk edit). Modal
+      popup DIGANTI jadi inline di panel kiri (bukan cuma layout-nya yang dipindah) — panel kiri
+      menampilkan form Tambah ATAU form Edit tergantung popupEdit terisi atau tidak, PERSIS
+      variabel & fungsi yang SAMA (tambah/bukaEdit/ simpanEdit TIDAK diubah sama sekali, cuma
+      markup-nya dipindah dari dalam overlay ke sini). Kolom "Alias/Item" per suplayer — dihitung
+      dari alias_pembelian lewat jumlahAlias(s), lihat ambilPetaAliasPerSuplayer di atas.
+    -->
     <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
       <div class="gc-card gc-card-menonjol" style="flex:1 1 300px; max-width:380px; padding:16px;">
         <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-bottom:2px;"><i class="fas fa-truck-fast" style="color:var(--burgundy); margin-right:8px;"></i>{{ popupEdit ? 'Edit Suplayer' : 'Entry Suplayer' }}</h3>
@@ -274,12 +264,12 @@ const SuplayerEntryList = {
   `
 };
 
-// ============================================================================
+
 // 5.2 — Alias & MOQ (eks "Alias Pembelian" di Stock & Pembelian, DITAMBAH
-// moq/moq_satuan/lead_time_hari — SPESIFIKASI-KOLEKSI-BARU.md "alias_pembelian
-// — tambah"). Struktur dokumen TIDAK BERUBAH, cuma field bertambah dan lokasi
-// UI pindah — Nota/Kasir yang baca alias_pembelian TIDAK perlu diubah.
-// ============================================================================
+// moq/moq_satuan/lead_time_hari — SPESIFIKASI-KOLEKSI-BARU.md "alias_pembelian —
+// tambah"). Struktur dokumen TIDAK BERUBAH, cuma field bertambah dan lokasi UI
+// pindah — Nota/Kasir yang baca alias_pembelian TIDAK perlu diubah.
+
 const AliasMoqManager = {
   components: { DropdownCari },
   setup() {
@@ -431,12 +421,12 @@ const AliasMoqManager = {
   `
 };
 
-// ============================================================================
+
 // 5.3 — Petakan Order: per item (yang punya >=1 alias), tandai SATU suplayer
-// sebagai default (`is_default_order`). Klik "Jadikan Default" pada 1 baris
-// -> baris itu true, baris LAIN di item yang sama otomatis false (writeBatch,
+// sebagai default (`is_default_order`). Klik "Jadikan Default" pada 1 baris ->
+// baris itu true, baris LAIN di item yang sama otomatis false (writeBatch,
 // atomik, supaya tidak pernah ada 2 default sekaligus per item).
-// ============================================================================
+
 const PetakanOrderManager = {
   setup() {
     const menuId = 'suplayer_petakan_order';
@@ -519,10 +509,10 @@ const PetakanOrderManager = {
   `
 };
 
-// ============================================================================
-// Mount — lazy, dipanggil dashboard.js pindahSubTab() (pola sama semua
-// child-tab lain di app ini).
-// ============================================================================
+
+// Mount — lazy, dipanggil dashboard.js pindahSubTab (pola sama semua child-tab
+// lain di app ini).
+
 let vmSuplayerEntry = null, vmSuplayerAlias = null, vmSuplayerPetakan = null;
 window.pastikanMountSuplayerEntry = function () {
   if (vmSuplayerEntry) { if (typeof vmSuplayerEntry.muat === 'function') vmSuplayerEntry.muat(); return; }

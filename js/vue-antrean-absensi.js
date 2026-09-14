@@ -1,76 +1,66 @@
 // js/vue-antrean-absensi.js
-// ============================================================================
+
 // Halaman KELIMA yang dimigrasi ke Vue: Master Absensi > Antrean Absensi
 // (validasi/approve pengajuan absensi karyawan).
 //
-// DIROMBAK (18 Agt 2026) — dua perubahan besar sekaligus:
+// dua perubahan besar sekaligus:
 //
-// 1. HEMAT: dulu fetch SELURUH histori "absensi" (bisa ribuan dokumen)
-//    lalu difilter di JS cari yang PENDING. Sekarang 2 query LANGSUNG
-//    cari yang pending, tidak baca histori yang sudah selesai:
-//      A. where("ada_pending","==",true) — dokumen format BARU (HADIR
-//         gabungan Clock In+Out, lihat js/vue-camera.js)
-//      B. where("status_acc","==","PENDING") — dokumen format LAMA
-//         (HADIR versi 2-dokumen-terpisah, MASIH ada selama masa
-//         transisi) DAN IZIN/CUTI/LEMBUR yang PERMANEN pakai status_acc
-//         tunggal (jalur itu di vue-camera.js TIDAK ikut dirombak).
-//    Dokumen SANGAT lama yang belum sempat punya field status_acc SAMA
-//    SEKALI (dari sebelum field itu konsisten diisi) TIDAK akan ketemu
-//    lewat where() ini — makanya ada tombol "Cek Data Sangat Lama"
-//    terpisah (fetch-semua, TAPI cuma jalan kalau diklik manual, bukan
-//    otomatis tiap buka halaman) buat jaring-jaring pengaman.
+// 1. HEMAT: dulu fetch SELURUH histori "absensi" (bisa ribuan dokumen) lalu
+// difilter di JS cari yang PENDING. Sekarang 2 query LANGSUNG cari yang pending,
+// tidak baca histori yang sudah selesai: A. where("ada_pending","==",true) —
+// dokumen format (HADIR gabungan Clock In+Out, lihat js/vue-camera.js) B.
+// where("status_acc","==","PENDING") — dokumen format LAMA (HADIR versi
+// 2-dokumen-terpisah, MASIH ada selama masa transisi) DAN IZIN/CUTI/LEMBUR yang
+// PERMANEN pakai status_acc tunggal (jalur itu di vue-camera.js TIDAK ikut
+// dirombak). Dokumen SANGAT lama yang belum sempat punya field status_acc SAMA
+// SEKALI (dari sebelum field itu konsisten diisi) TIDAK akan ketemu lewat where
+// ini — makanya ada tombol "Cek Data Sangat Lama" terpisah (fetch-semua, TAPI
+// cuma jalan kalau diklik manual, bukan otomatis tiap buka halaman) buat
+// jaring-jaring pengaman.
 //
-// 2. Kartu sekarang mendukung 2 BENTUK dokumen: LAMA (1 status_acc, 1
-//    tombol Accept/Reject, TAMPILAN TIDAK BERUBAH) dan BARU (field
-//    ber-akhiran _masuk/_keluar terpisah, kartu punya SAMPAI 2 blok
-//    approve independen — PIC bisa Accept Clock In pagi, Accept Clock
-//    Out sore, terpisah, sesuai kesepakatan 18 Agt 2026).
+// 2. Kartu sekarang mendukung 2 BENTUK dokumen: LAMA (1 status_acc, 1 tombol
+// Accept/Reject, TAMPILAN TIDAK BERUBAH) dan BARU .
 //
-// PENTING: window.hapusAbsensi (dipanggil di sini) juga dipakai oleh Riwayat
-// All Absensi yang belum dimigrasi — TIDAK dihapus dari dashboard.js, tetap
+// PENTING: window.hapusAbsensi (dipanggil di sini) juga dipakai oleh Riwayat All
+// Absensi yang belum dimigrasi — TIDAK dihapus dari dashboard.js, tetap
 // dipanggil apa adanya lewat window.
 //
-// DIROMBAK LAGI (29 Agt 2026, §44.18) — BUG BOROS N+1 ketemu waktu Guru
-// tanya "apa bisa 1 data dipakai 2 menu, bisa dihemat": tiap KARTU pending
-// dulu query Firestore SENDIRI-SENDIRI ke master_shift (jam shift) DAN ke
-// absensi (cek Lembur ter-ACC hari itu) begitu di-mount — kalau ada 200
-// kartu pending, itu s.d. 400 query TERPISAH, banyak di antaranya IDENTIK
-// (kartu shift "Pagi" yang berbeda-beda tetap query "Pagi" berkali-kali).
-// SEKARANG dua lookup itu dihitung SEKALI di muat() (induk) buat seluruh
-// daftar sekaligus, chunked where(...,'in',...) — dikirim ke tiap kartu
+// BUG BOROS N+1 ketemu waktu tanya "apa bisa 1 data dipakai 2 menu, bisa
+// dihemat": tiap KARTU pending dulu query Firestore SENDIRI-SENDIRI ke
+// master_shift (jam shift) DAN ke absensi (cek Lembur ter-ACC hari itu) begitu
+// di-mount — kalau ada 200 kartu pending, itu s.d. 400 query TERPISAH, banyak di
+// antaranya IDENTIK (kartu shift "Pagi" yang berbeda-beda tetap query "Pagi"
+// berkali-kali). SEKARANG dua lookup itu dihitung SEKALI di muat (induk) buat
+// seluruh daftar sekaligus, chunked where(.,'in',..) — dikirim ke tiap kartu
 // lewat prop shiftInfo/lemburTanggal, kartu TIDAK query apapun lagi.
 //
-// DIROMBAK LAGI (9 Sep 2026) — spek handoff Master Absensi §2.4 minta tab
-// gabungan "Antrean Izin/Cuti/Lembur" terpisah dari Antrean Absensi (yang
-// seharusnya CUMA verifikasi Hadir/seragam/ontime). Sebelumnya dokumen
-// IZIN/CUTI ikut nyasar tampil DI SINI (cuma Lembur yang dikecualikan) —
-// pakai kartu format-lama yang salah label "Hadir" & tidak menampilkan
-// tanggal_pengajuan/keterangan sama sekali (bug laten). Sekarang IZIN &
-// CUTI JUGA dikecualikan dari layar ini, pindah ke
+// spek handoff Master Absensi §2.4 minta tab gabungan "Antrean Izin/Cuti/Lembur"
+// terpisah dari Antrean Absensi (yang seharusnya CUMA verifikasi
+// Hadir/seragam/ontime). Sebelumnya dokumen IZIN/CUTI ikut nyasar tampil DI SINI
+// (cuma Lembur yang dikecualikan) — pakai kartu format-lama yang salah label
+// "Hadir" & tidak menampilkan tanggal_pengajuan/keterangan sama sekali (bug
+// laten). Sekarang IZIN & CUTI JUGA dikecualikan dari layar ini, pindah ke
 // js/vue-antrean-lembur.js (nama file TETAP, isinya sekarang gabungan
 // Izin+Cuti+Lembur — lihat header file itu).
-// ============================================================================
+
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-// BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic") — KolomCari (pil,
-// dipakai bareng Menu Lengkap/Atur Favorit) GANTI kolom cari hand-rolled.
+// KolomCari (pil, dipakai bareng Menu Lengkap/Atur Favorit) GANTI kolom cari
+// hand-rolled.
 import { KolomCari } from './vue-components.js?v=13';
 
-// Diekspor juga (dipakai test) — bandingkan JAM aktual (Firestore
-// Timestamp) vs JAM jadwal shift ("HH:MM" dari master_shift).
-// DIROMBAK (19 Agt 2026, revisi ke-2) — versi PERTAMA cuma bandingkan
-// jam-saja (abaikan tanggal), yang ternyata BUG buat shift malam
-// nyebrang tengah malam: orang lembur pulang jam 07:00 (tanggal
-// berikutnya) malah salah dibilang "Pulang Cepat" dibanding jadwal
-// 06:00, padahal itu justru LEMBUR. Sekarang pakai `waktuAnchorTs`
-// (SELALU waktu Clock In, baik lagi hitung status masuk MAUPUN keluar)
-// buat tentukan TANGGAL DASAR yang benar — persis pola yang sama
-// dengan window.cekMasihJamKerja (auth.js) buat shift yang nyebrang
-// tengah malam.
-// tipe: 'masuk' (Ontime/Terlambat) atau 'keluar' (Ontime/Pulang Cepat)
-// — arah perbandingannya BERLAWANAN (masuk: cepat=Ontime; keluar:
-// lambat=Ontime), makanya tidak bisa 1 fungsi generik tanpa parameter ini.
+// Diekspor juga (dipakai test) — bandingkan JAM aktual (Firestore Timestamp) vs
+// JAM jadwal shift ("HH:MM" dari master_shift) versi PERTAMA cuma bandingkan
+// jam-saja (abaikan tanggal), yang ternyata BUG buat shift malam nyebrang tengah
+// malam: orang lembur pulang jam 07:00 (tanggal berikutnya) malah salah dibilang
+// "Pulang Cepat" dibanding jadwal 06:00, padahal itu justru LEMBUR. Sekarang
+// pakai `waktuAnchorTs` (SELALU waktu Clock In, baik lagi hitung status masuk
+// MAUPUN keluar) buat tentukan TANGGAL DASAR yang benar — persis pola yang sama
+// dengan window.cekMasihJamKerja (auth.js) buat shift yang nyebrang tengah
+// malam. tipe: 'masuk' (Ontime/Terlambat) atau 'keluar' (Ontime/Pulang Cepat) —
+// arah perbandingannya BERLAWANAN (masuk: cepat=Ontime; keluar: lambat=Ontime),
+// makanya tidak bisa 1 fungsi generik tanpa parameter ini.
 export function hitungStatusKehadiran(waktuAktualTs, waktuAnchorTs, jamJadwalStr, tipe) {
   if (!waktuAktualTs || typeof waktuAktualTs.toDate !== 'function') return null;
   if (!waktuAnchorTs || typeof waktuAnchorTs.toDate !== 'function') return null;
@@ -84,10 +74,10 @@ export function hitungStatusKehadiran(waktuAktualTs, waktuAnchorTs, jamJadwalStr
   batasJadwal.setHours(jamJadwalH, jamJadwalM, 0, 0);
 
   if (tipe === 'keluar') {
-    // Kalau batas (jam_keluar) yang dibangun di TANGGAL Clock In itu <=
-    // Clock In itu sendiri, berarti shift ini nyebrang tengah malam ->
-    // WAJIB didorong ke hari berikutnya, biar perbandingan kronologis
-    // benar (bukan cuma bandingkan jam mentah 0-23).
+    // Kalau batas (jam_keluar) yang dibangun di TANGGAL Clock In itu <= Clock In
+    // itu sendiri, berarti shift ini nyebrang tengah malam -> WAJIB didorong ke
+    // hari berikutnya, biar perbandingan kronologis benar (bukan cuma bandingkan
+    // jam mentah 0-23).
     if (batasJadwal <= anchor) batasJadwal.setDate(batasJadwal.getDate() + 1);
     return aktual >= batasJadwal ? 'Ontime' : 'Pulang Cepat';
   }
@@ -95,8 +85,8 @@ export function hitungStatusKehadiran(waktuAktualTs, waktuAnchorTs, jamJadwalStr
 }
 
 // Diekspor juga (dipakai test) — hitung ulang ada_pending dari status
-// masuk+keluar TERBARU (bukan dari data lama di props, supaya benar
-// walau salah satu baru saja diproses barengan).
+// masuk+keluar TERBARU (bukan dari data lama di props, supaya benar walau salah
+// satu baru saja diproses barengan).
 export function hitungAdaPending(statusMasuk, statusKeluar) {
   return statusMasuk === "PENDING" || statusKeluar === "PENDING";
 }
@@ -105,25 +95,23 @@ const AntreanAbsensiCard = {
   props: {
     docId: { type: String, required: true },
     data: { type: Object, required: true },
-    // BARU (29 Agt 2026, §44.18) — lihat catatan lengkap di jamShift/
-    // adaLemburApproved di bawah: dua prop ini GANTI 2 query Firestore
-    // yang dulu jalan PER KARTU (N+1), sekarang dihitung SEKALI di induk
-    // (AppAntreanAbsensi.muat()) untuk seluruh daftar sekaligus.
+    // lihat catatan lengkap di jamShift/ adaLemburApproved di bawah: dua prop
+    // ini GANTI 2 query Firestore yang dulu jalan PER KARTU (N+1), sekarang
+    // dihitung SEKALI di induk (AppAntreanAbsensi.muat) untuk seluruh daftar
+    // sekaligus.
     shiftInfo: { type: Object, default: () => ({ masuk: null, keluar: null }) },
     lemburTanggal: { type: Array, default: () => [] }
   },
   emits: ['diproses'],
   setup(props, { emit }) {
-    // Format BARU kalau field ada_pending ADA di dokumennya (cuma dokumen
-    // hasil js/vue-camera.js yang sudah dirombak yang punya field ini).
+    // Format BARU kalau field ada_pending ADA di dokumennya (cuma dokumen hasil
+    // js/vue-camera.js yang sudah dirombak yang punya field ini).
     const adalahFormatBaru = computed(() => props.data.ada_pending !== undefined);
 
-    // JARING PENGAMAN (19 Agt 2026) — kalau karena SEBAB APAPUN item ini
-    // ke-query padahal KEDUA sisi (masuk & keluar) sudah tidak PENDING
-    // lagi, JANGAN render kartu kosong tanpa Accept/Reject sama sekali
-    // (dilaporkan Hilman: kartu "hantu" cuma nampilin Gudang+hapus,
-    // menumpuk di layar). Kartu SEMBUNYI total dari tampilan kalau tidak
-    // ada satupun sisi yang butuh diproses.
+    // JARING PENGAMAN — kalau karena SEBAB APAPUN item ini ke-query padahal
+    // KEDUA sisi (masuk & keluar) sudah tidak PENDING lagi, JANGAN render kartu
+    // kosong tanpa Accept/Reject sama sekali . Kartu SEMBUNYI total dari
+    // tampilan kalau tidak ada satupun sisi yang butuh diproses.
     const adaYangPending = computed(() => {
       if (!adalahFormatBaru.value) return true; // format lama selalu render seperti biasa
       return props.data.status_acc_masuk === 'PENDING' || props.data.status_acc_keluar === 'PENDING';
@@ -135,13 +123,12 @@ const AntreanAbsensiCard = {
     const bolehEdit = computed(() => window.cekIzinMenu('antrean_absensi', 'edit') !== false);
     const bolehHapus = computed(() => window.cekIzinMenu('antrean_absensi', 'delete') !== false);
 
-    // BARU (28 Agt 2026, redesain "Gechoo Mobile Organic", permintaan Guru
-    // "avatar pakai foto terakhir") — avatar ringkasan di header kartu
-    // SEKARANG utamakan foto_selfie_keluar (Clock Out, KRONOLOGIS lebih
-    // baru dari Clock In pada record yang sama) sebelum jatuh ke
-    // foto_selfie_masuk lalu field lama (foto_selfie/foto). Sebelumnya
-    // urutan cuma masuk->lama, foto_selfie_keluar TIDAK PERNAH dipakai di
-    // header ringkasan (padahal sudah tampil di blok Clock Out sendiri).
+    // avatar ringkasan di header kartu SEKARANG utamakan foto_selfie_keluar
+    // (Clock Out, KRONOLOGIS lebih baru dari Clock In pada record yang sama)
+    // sebelum jatuh ke foto_selfie_masuk lalu field lama (foto_selfie/foto).
+    // Sebelumnya urutan cuma masuk->lama, foto_selfie_keluar TIDAK PERNAH
+    // dipakai di header ringkasan (padahal sudah tampil di blok Clock Out
+    // sendiri).
     const fotoAvatar = computed(() =>
       props.data.foto_selfie_keluar || props.data.foto_selfie_masuk || props.data.foto_selfie || props.data.foto || ''
     );
@@ -149,37 +136,32 @@ const AntreanAbsensiCard = {
     function toggleMenuAksi() { menuAksiTerbuka.value = !menuAksiTerbuka.value; }
     function tutupMenuAksi() { menuAksiTerbuka.value = false; }
 
-    // BARU (19 Agt 2026, permintaan Hilman) — Status Kehadiran SEKARANG
-    // dihitung OTOMATIS oleh sistem (bandingkan jam Clock In/Out asli vs
-    // jadwal shift di master_shift), BUKAN dipilih manual admin lagi.
-    // Admin cuma MANUAL cek Seragam (satu-satunya yang butuh mata
-    // manusia — belum ada OCR/pengenalan gambar buat itu). Jam shift
-    // diambil SEKALI per kartu (bukan re-fetch tiap render).
-    // DIROMBAK (29 Agt 2026, §44.18) — DULU tiap kartu query SENDIRI ke
-    // master_shift begitu di-mount (N+1: kalau ada 200 kartu pending dan
-    // semuanya shift "Pagi", itu 200 query Firestore IDENTIK buat 1 baris
-    // data yang sama). Ditemukan pas audit lanjutan setelah Guru tanya
-    // "apa bisa 1 data dipakai 2 menu, bisa dihemat" — jawabannya kartu
-    // yang SAMA-SAMA butuh shift yang SAMA di 1 menu ini justru kasus yang
-    // lebih jelas & lebih besar dampaknya. SEKARANG jam shift buat SEMUA
-    // nama_shift yang kepakai dihitung SEKALI di induk (lihat
-    // muat()/petaShiftInfo di AppAntreanAbsensi di bawah), dikirim turun
-    // lewat prop shiftInfo — kartu tinggal baca, tidak query lagi sama
-    // sekali.
+    // Status Kehadiran SEKARANG dihitung OTOMATIS oleh sistem (bandingkan jam
+    // Clock In/Out asli vs jadwal shift di master_shift), BUKAN dipilih manual
+    // admin lagi. Admin cuma MANUAL cek Seragam (satu-satunya yang butuh mata
+    // manusia — belum ada OCR/pengenalan gambar buat itu). Jam shift diambil
+    // SEKALI per kartu (bukan re-fetch tiap render) DULU tiap kartu query
+    // SENDIRI ke master_shift begitu di-mount (N+1: kalau ada 200 kartu pending
+    // dan semuanya shift "Pagi", itu 200 query Firestore IDENTIK buat 1 baris
+    // data yang sama). Ditemukan pas audit setelah tanya "apa bisa 1 data
+    // dipakai 2 menu, bisa dihemat" — jawabannya kartu yang SAMA-SAMA butuh
+    // shift yang SAMA di 1 menu ini justru kasus yang lebih jelas & lebih besar
+    // dampaknya. SEKARANG jam shift buat SEMUA nama_shift yang kepakai dihitung
+    // SEKALI di induk (lihat muat/petaShiftInfo di AppAntreanAbsensi di bawah),
+    // dikirim turun lewat prop shiftInfo — kartu tinggal baca, tidak query lagi
+    // sama sekali.
     const jamShift = computed(() => props.shiftInfo || { masuk: null, keluar: null });
 
-    // BARU (19 Agt 2026, permintaan Hilman) — kalau ada pengajuan LEMBUR
-    // yang SUDAH DI-ACC buat email+tanggal yang sama dengan Clock In
-    // shift reguler ini, badge Clock Out jadi "Lembur" (bukan Ontime/
-    // Pulang Cepat biasa) — Lembur itu SESI TERPISAH (status "LEMBUR
-    // (CLOCK IN)", collection SAMA "absensi" tapi dokumen beda), jadi
-    // dicek silang, bukan dihitung dari jam shift reguler.
-    // DIROMBAK (29 Agt 2026, §44.18) — SAMA persis masalahnya seperti
-    // jamShift di atas: dulu tiap kartu query SENDIRI ke "absensi" (cari
-    // Lembur ter-ACC email itu) begitu di-mount — N+1 lagi. Sekarang
-    // dihitung SEKALI di induk (petaLemburTanggal: email -> daftar
-    // tanggal Lembur ter-ACC), kartu tinggal cocokkan tanggal anchor-nya
-    // sendiri ke daftar itu lewat prop lemburTanggal, TANPA query.
+    // kalau ada pengajuan LEMBUR yang SUDAH DI-ACC buat email+tanggal yang sama
+    // dengan Clock In shift reguler ini, badge Clock Out jadi "Lembur" (bukan
+    // Ontime/ Pulang Cepat biasa) — Lembur itu SESI TERPISAH (status "LEMBUR
+    // (CLOCK IN)", collection SAMA "absensi" tapi dokumen beda), jadi dicek
+    // silang, bukan dihitung dari jam shift reguler SAMA persis masalahnya
+    // seperti jamShift di atas: dulu tiap kartu query SENDIRI ke "absensi" (cari
+    // Lembur ter-ACC email itu) begitu di-mount — N+1 lagi. Sekarang dihitung
+    // SEKALI di induk (petaLemburTanggal: email -> daftar tanggal Lembur
+    // ter-ACC), kartu tinggal cocokkan tanggal anchor-nya sendiri ke daftar itu
+    // lewat prop lemburTanggal, TANPA query.
     const adaLemburApproved = computed(() => {
       const anchorTs = props.data.waktu_masuk_ts || props.data.waktu_ts;
       if (!anchorTs || typeof anchorTs.toDate !== 'function') return false;
@@ -187,24 +169,21 @@ const AntreanAbsensiCard = {
       return (props.lemburTanggal || []).includes(tglAnchor);
     });
 
-    // ---- FORMAT LAMA: 1 status_acc tunggal — TIDAK DIUBAH SAMA SEKALI
-    // dari versi sebelumnya (juga dipakai IZIN/CUTI/LEMBUR SELAMANYA,
-    // bukan cuma migrasi sementara). ----
-    // Status Kehadiran OTOMATIS — CUMA dihitung kalau ini beneran record
-    // HADIR (Clock In); IZIN/CUTI/LEMBUR tidak relevan buat "ontime/
-    // terlambat" sama sekali, biarkan null (tampil '-').
+    // FORMAT LAMA: 1 status_acc tunggal — TIDAK DIUBAH SAMA SEKALI dari
+    // versi sebelumnya (juga dipakai IZIN/CUTI/LEMBUR SELAMANYA, bukan cuma
+    // migrasi sementara). — Status Kehadiran OTOMATIS — CUMA dihitung kalau
+    // ini beneran record HADIR (Clock In); IZIN/CUTI/LEMBUR tidak relevan buat
+    // "ontime/ terlambat" sama sekali, biarkan null (tampil '-').
     const statusKehadiranOtomatis = computed(() => {
       if (props.data.status !== 'HADIR (CLOCK IN)') return null;
       return hitungStatusKehadiran(props.data.waktu_ts, props.data.waktu_ts, jamShift.value.masuk, 'masuk');
     });
     const seragam = ref(props.data.seragam || 'Sesuai');
     const memproses = ref(false);
-    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic", lihat PEDOMAN-
-    // GAYA-KERJA.md) — dulu pilih Seragam (dropdown) & Accept itu 2 langkah
-    // terpisah. Sekarang 3 tombol sejajar (Sesuai/Tidak Sesuai/Reject) —
-    // 2 yang pertama SAMA-SAMA accept, cuma nilai seragam yang ikut
-    // disimpan beda. Reject TIDAK mengubah seragam (proses('REJECT') apa
-    // adanya, sama seperti sebelumnya).
+    // dulu pilih Seragam (dropdown) & Accept itu 2 langkah terpisah. Sekarang 3
+    // tombol sejajar (Sesuai/Tidak Sesuai/Reject) — 2 yang pertama SAMA-SAMA
+    // accept, cuma nilai seragam yang ikut disimpan beda. Reject TIDAK mengubah
+    // seragam (proses('REJECT') apa adanya, sama seperti sebelumnya).
     function prosesDenganSeragam(statusAcc, nilaiSeragam) {
       if (nilaiSeragam) seragam.value = nilaiSeragam;
       proses(statusAcc);
@@ -230,7 +209,7 @@ const AntreanAbsensiCard = {
       memproses.value = false;
     }
 
-    // ---- FORMAT BARU: masuk & keluar diproses independen ----
+    // FORMAT BARU: masuk & keluar diproses independen
     const statusKehadiranMasukOtomatis = computed(() => hitungStatusKehadiran(props.data.waktu_masuk_ts, props.data.waktu_masuk_ts, jamShift.value.masuk, 'masuk'));
     const seragamMasuk = ref(props.data.seragam_masuk || 'Sesuai');
     const memprosesMasuk = ref(false);
@@ -306,32 +285,28 @@ const AntreanAbsensiCard = {
       statusKehadiranKeluarOtomatis, seragamKeluar, memprosesKeluar, prosesKeluar, prosesKeluarDenganSeragam, adaLemburApproved
     };
   },
-  // ==========================================================================
-  // TEMPLATE DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic", lihat
-  // PEDOMAN-GAYA-KERJA.md — pilot Antrean Absensi, disetujui Guru lewat
-  // mockup "antrean-absensi-clean.html"). Perubahan:
-  //  - Blok Clock In/Clock Out yang tadinya kotak besar (foto besar+grid 2
-  //    kolom+dropdown+2 tombol) diringkas jadi 1 baris "event" (foto kecil+
-  //    label+jam+tag), TANPA menghilangkan info apapun.
-  //  - Dropdown Seragam + tombol Accept (2 langkah) DIGANTI 3 tombol sejajar
-  //    Sesuai/Tidak Sesuai/Reject (pakai prosesDenganSeragam dkk, LIHAT
-  //    setup() di atas — logic Firestore/validasi TIDAK berubah).
-  //  - Sudut kartu/avatar/foto dilebarkan dikit, tombol ikon jadi bulat
-  //    penuh — sesuai moodboard, TAPI tag/tombol aksi TETAP sudut sedang
-  //    (bukan pil semua).
-  // Field/logic Firestore, cekIzinMenu, hapus(), lembur, dst — TIDAK ada
-  // yang berubah, cuma tampilannya.
-  // ==========================================================================
+
+  // Perubahan: - Blok Clock In/Clock Out yang tadinya kotak besar (foto
+  // besar+grid 2 kolom+dropdown+2 tombol) diringkas jadi 1 baris "event" (foto
+  // kecil+ label+jam+tag), TANPA menghilangkan info apapun. - Dropdown Seragam +
+  // tombol Accept (2 langkah) DIGANTI 3 tombol sejajar Sesuai/Tidak
+  // Sesuai/Reject (pakai prosesDenganSeragam dkk, LIHAT setup di atas — logic
+  // Firestore/validasi TIDAK berubah). - Sudut kartu/avatar/foto dilebarkan
+  // dikit, tombol ikon jadi bulat penuh — sesuai moodboard, TAPI tag/tombol aksi
+  // TETAP sudut sedang (bukan pil semua). Field/logic Firestore, cekIzinMenu,
+  // hapus, lembur, dst — TIDAK ada yang berubah, cuma tampilannya.
+
   template: `
     <div v-if="adaYangPending" class="gc-card" style="border-radius:20px;">
       <div style="display:flex; align-items:center; gap:10px;">
         <img :src="fotoAvatar || 'https://via.placeholder.com/150'" @click="lihatFotoBesar(fotoAvatar)" style="width:40px; height:40px; border-radius:14px; object-fit:cover; border:1px solid var(--line); cursor:pointer; flex-shrink:0;">
         <div style="flex:1; min-width:0;">
           <h4 class="gc-heading" style="font-weight:700; font-size:12.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.nama_pegawai || data.nama || 'Karyawan' }}</h4>
-          <!-- BARU (29 Agt 2026, moodboard v2, cek live Guru di HP) — baris
-               "email" dilepas dari tampilan, ganti nama Gudang lalu nama
-               Shift + jam shift (jamShift dari muatJamShift() di atas,
-               SUDAH ada sebelumnya tapi belum dipakai di header). -->
+          <!--
+            baris "email" dilepas dari tampilan, ganti nama Gudang lalu nama Shift + jam shift
+            (jamShift dari muatJamShift di atas, SUDAH ada sebelumnya tapi belum dipakai di
+            header).
+          -->
           <p style="font-size:9.5px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.gudang || '-' }}</p>
           <p style="font-size:9.5px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.nama_shift || '-' }}<span v-if="jamShift.masuk && jamShift.keluar"> &middot; {{ jamShift.masuk }}&ndash;{{ jamShift.keluar }}</span></p>
         </div>
@@ -346,7 +321,7 @@ const AntreanAbsensiCard = {
         <a :href="'https://www.google.com/maps?q=' + data.koordinat.lat + ',' + data.koordinat.lng" target="_blank" style="font-size:9.5px; color:var(--burgundy); font-weight:700;"><i class="fas fa-map-marker-alt"></i> Lihat lokasi di Peta</a>
       </div>
 
-      <!-- ============ FORMAT LAMA — 1 event "Hadir" ============ -->
+      <!-- FORMAT LAMA — 1 event "Hadir" -->
       <template v-if="!adalahFormatBaru">
         <div style="padding-top:8px; margin-top:8px; border-top:1px solid var(--ivory-dim);">
           <div style="display:flex; align-items:center; gap:7px;">
@@ -375,7 +350,7 @@ const AntreanAbsensiCard = {
         </div>
       </template>
 
-      <!-- ============ FORMAT BARU — event Clock In & Clock Out terpisah, independen ============ -->
+      <!-- FORMAT BARU — event Clock In & Clock Out terpisah, independen -->
       <template v-else>
         <div style="padding-top:8px; margin-top:8px; border-top:1px solid var(--ivory-dim);">
           <div style="display:flex; align-items:center; gap:7px;">
@@ -437,37 +412,34 @@ const AppAntreanAbsensi = {
     const errorMuat = ref('');
     const memuatDataLama = ref(false);
     const infoDataLama = ref('');
-    // BARU (29 Agt 2026, §44.18) — hasil batch jam shift & Lembur-approved
-    // buat SEMUA kartu (dihitung sekali per muat(), lihat di bawah),
-    // dikirim turun ke tiap AntreanAbsensiCard lewat prop. Lihat catatan
-    // lengkap di komponen kartu (jamShift/adaLemburApproved).
+    // hasil batch jam shift & Lembur-approved buat SEMUA kartu (dihitung sekali
+    // per muat, lihat di bawah), dikirim turun ke tiap AntreanAbsensiCard lewat
+    // prop. Lihat catatan lengkap di komponen kartu
+    // (jamShift/adaLemburApproved).
     const petaShiftInfo = ref({});
     const petaLemburTanggal = ref({});
 
-    // PEDOMAN KERJA (18 Agt 2026) — Search box SELALU ada. Filter Jenis
-    // Pekerjaan & Gudang CUMA muncul buat Owner/Superuser — Admin biasa
-    // SUDAH otomatis kefilter lewat window.bolehLihatData (1 jenis
-    // pekerjaan + gudang sendiri), jadi dropdown manual buat mereka cuma
-    // bikin bingung/redundan. Owner BISA lihat semua (bypass otomatis),
-    // makanya dikasih kendali MANUAL buat nyaring sendiri kalau datanya
-    // banyak — beda kebutuhan dari Admin biasa. Pola ini WAJIB dicontek
-    // sama persis di tabel/kartu-grid antrean lain (Antrean Dakar,
-    // Antrean Lembur, dst ke depan).
+    // PEDOMAN KERJA — Search box SELALU ada. Filter Jenis Pekerjaan & Gudang
+    // CUMA muncul buat Owner/Superuser — Admin biasa SUDAH otomatis kefilter
+    // lewat window.bolehLihatData (1 jenis pekerjaan + gudang sendiri), jadi
+    // dropdown manual buat mereka cuma bikin bingung/redundan. Owner BISA lihat
+    // semua (bypass otomatis), makanya dikasih kendali MANUAL buat nyaring
+    // sendiri kalau datanya banyak — beda kebutuhan dari Admin biasa. Pola ini
+    // WAJIB dicontek sama persis di tabel/kartu-grid antrean lain (Antrean
+    // Dakar, Antrean Lembur, dst ke depan).
     const cariNama = ref('');
     const isOwnerRole = computed(() => ['owner', 'superuser'].includes((window.currentUser.role || '').toLowerCase()));
     const filterJenisPekerjaanOwner = ref('ALL');
     const filterGudangOwner = ref('ALL');
     const opsiJenisPekerjaanOwner = ref([]);
     const opsiGudangOwner = ref([]);
-    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic") — dropdown
-    // filter Owner yang tadinya SELALU tampil sekarang di belakang 1 ikon
-    // filter (toggle show/hide), biar baris cari lebih ringkas. Cuma
-    // kosmetik — filterJenisPekerjaanOwner/filterGudangOwner & logic
-    // filternya di daftarPendingTersaring TIDAK berubah.
-    // DIROMBAK (29 Agt 2026, revisi v2, cek live Guru di HP) — nama
-    // diganti filterTerbuka -> menuTerbuka karena sekarang panelnya BUKAN
-    // cuma Filter lagi, tapi "menu lainnya" oval titik-tiga yang juga
-    // nampung Cek Data Sangat Lama & Refresh (dipindah dari banner).
+    // dropdown filter Owner yang tadinya SELALU tampil sekarang di belakang 1
+    // ikon filter (toggle show/hide), biar baris cari lebih ringkas. Cuma
+    // kosmetik — filterJenisPekerjaanOwner/filterGudangOwner & logic filternya
+    // di daftarPendingTersaring TIDAK berubah nama diganti filterTerbuka ->
+    // menuTerbuka karena sekarang panelnya BUKAN cuma Filter lagi, tapi "menu
+    // lainnya" oval titik-tiga yang juga nampung Cek Data Sangat Lama & Refresh
+    // (dipindah dari banner).
     const menuTerbuka = ref(false);
     function toggleMenuTerbuka() { menuTerbuka.value = !menuTerbuka.value; }
     const adaFilterAktif = computed(() => filterJenisPekerjaanOwner.value !== 'ALL' || filterGudangOwner.value !== 'ALL');
@@ -486,42 +458,39 @@ const AppAntreanAbsensi = {
       memuat.value = true;
       errorMuat.value = '';
       try {
-        // BARU (18 Agt 2026) — 2 query LANGSUNG cari yang pending, BUKAN
-        // fetch seluruh histori absensi lagi. Lihat catatan lengkap di
-        // header file.
+        // 2 query LANGSUNG cari yang pending, BUKAN fetch seluruh histori
+        // absensi lagi. Lihat catatan lengkap di header file.
         const [snapBaru, snapLama] = await Promise.all([
           getDocs(query(collection(db, "absensi"), where("ada_pending", "==", true))),
           getDocs(query(collection(db, "absensi"), where("status_acc", "==", "PENDING")))
         ]);
 
-        // DIROMBAK (19 Agt 2026) — dulu SELALU fetch-semua "users" duluan
-        // demi peta email->jenis_pekerjaan (dipakai filter §15, absensi
-        // tidak simpan info ini). SEKARANG js/vue-camera.js sudah titip
-        // field jenis_pekerjaan LANGSUNG di tiap dokumen absensi baru —
-        // jadi users CUMA dibaca kalau BENERAN masih ada dokumen PENDING
-        // yang belum punya field ini sendiri (dokumen sangat lama, dari
-        // sebelum perbaikan ini dipasang). Begitu dokumen lama itu habis
-        // diproses (ACC/Reject), baca users di sini akan OTOMATIS
-        // berhenti sepenuhnya — TANPA perlu ubah kode lagi nanti.
+        // dulu SELALU fetch-semua "users" duluan demi peta
+        // email->jenis_pekerjaan (dipakai filter §15, absensi tidak simpan info
+        // ini). SEKARANG js/vue-camera.js sudah titip field jenis_pekerjaan
+        // LANGSUNG di tiap dokumen absensi baru — jadi users CUMA dibaca kalau
+        // BENERAN masih ada dokumen PENDING yang belum punya field ini sendiri
+        // (dokumen sangat lama, dari sebelum perbaikan ini dipasang). Begitu
+        // dokumen lama itu habis diproses (ACC/Reject), baca users di sini akan
+        // OTOMATIS berhenti sepenuhnya — TANPA perlu ubah kode lagi nanti.
         //
-        // DIPERBAIKI LAGI (29 Agt 2026, §44.15) — BUG BOROS ketemu Guru
-        // ("tarik data 942 orang"): baris ini TADINYA masih
-        // `getDocs(collection(db,"users"))` FULL FETCH begitu SATU SAJA
-        // dokumen pending lama ketemu — jadi kalau koleksi `users` sudah
-        // besar (histori karyawan resign/ditolak ikut tersimpan, bukan
-        // cuma ~90-100 karyawan aktif), 1 dokumen absensi lama yang
-        // ketinggalan migrasi = tarik SELURUH koleksi users tiap kali
-        // Antrean Absensi dibuka. Sekarang GANTI ke query bertarget: cuma
-        // `where("email","in",[...])` atas EMAIL yang benar-benar perlu
-        // (dokumen pending yang belum punya jenis_pekerjaan saja), dipotong
-        // 30 per query (batas Firestore utk klausa `in`) — pola SAMA
-        // seperti migrasi shift di `vue-riwayat-absensi.js`.
+        // LAGI — BUG BOROS ketemu ("tarik data 942 orang"): baris ini TADINYA
+        // masih `getDocs(collection(db,"users"))` FULL FETCH begitu SATU SAJA
+        // dokumen pending lama ketemu — jadi kalau koleksi `users` sudah besar
+        // (histori karyawan resign/ditolak ikut tersimpan, bukan cuma ~90-100
+        // karyawan aktif), 1 dokumen absensi lama yang ketinggalan migrasi =
+        // tarik SELURUH koleksi users tiap kali Antrean Absensi dibuka. Sekarang
+        // GANTI ke query bertarget: cuma `where("email","in",[..])` atas EMAIL
+        // yang benar-benar perlu (dokumen pending yang belum punya
+        // jenis_pekerjaan saja), dipotong 30 per query (batas Firestore utk
+        // klausa `in`) — pola SAMA seperti migrasi shift di
+        // `vue-riwayat-absensi.js`.
         const semuaDokPending = [];
         snapBaru.forEach(d => semuaDokPending.push(d));
-        // (9 Sep 2026) — IZIN/CUTI SEKARANG JUGA dikecualikan dari sini,
-        // sama seperti LEMBUR (lihat catatan lengkap di loop snapLama.forEach
-        // di bawah) — pindah ke tab gabungan "Antrean Izin/Cuti/Lembur"
-        // (js/vue-antrean-lembur.js, tetap nama file lama).
+        // IZIN/CUTI SEKARANG JUGA dikecualikan dari sini, sama seperti LEMBUR
+        // (lihat catatan lengkap di loop snapLama.forEach di bawah) — pindah ke
+        // tab gabungan "Antrean Izin/Cuti/Lembur" (js/vue-antrean-lembur.js,
+        // tetap nama file lama).
         snapLama.forEach(d => {
           const st = d.data().status;
           if (st === "LEMBUR (CLOCK IN)" || st === "IZIN" || st === "CUTI") return;
@@ -548,26 +517,24 @@ const AppAntreanAbsensi = {
         });
         snapLama.forEach(docSnap => {
           const d = docSnap.data();
-          // Lembur SENGAJA dikecualikan (17 Agt 2026) — ditangani terpisah
-          // di tab "Antrean Izin/Cuti/Lembur" (info relevan beda: jam
-          // mulai/selesai diajukan, bukan radius/koordinat seperti di sini).
-          // (9 Sep 2026) — IZIN & CUTI SEKARANG JUGA dikecualikan, gabung
-          // ke tab yang sama (spek handoff Master Absensi §2.4 minta 1 tab
-          // "Antrean Izin/Cuti/Lembur"; sebelumnya IZIN/CUTI malah nyasar
-          // tampil di sini pakai kartu format-lama yang salah label "Hadir"
-          // dan tidak menampilkan tanggal_pengajuan/keterangan sama sekali
-          // — bug laten, bukan cuma penataan ulang menu). Lihat
+          // Lembur SENGAJA dikecualikan — ditangani terpisah di tab "Antrean
+          // Izin/Cuti/Lembur" (info relevan beda: jam mulai/selesai diajukan,
+          // bukan radius/koordinat seperti di sini). — IZIN & CUTI SEKARANG JUGA
+          // dikecualikan, gabung ke tab yang sama (spek handoff Master Absensi
+          // §2.4 minta 1 tab "Antrean Izin/Cuti/Lembur"; sebelumnya IZIN/CUTI
+          // malah nyasar tampil di sini pakai kartu format-lama yang salah label
+          // "Hadir" dan tidak menampilkan tanggal_pengajuan/keterangan sama
+          // sekali — bug laten, bukan cuma penataan ulang menu). Lihat
           // js/vue-antrean-lembur.js (tetap nama file lama, sekarang isinya
           // gabungan ketiganya).
           if (d.status === "LEMBUR (CLOCK IN)" || d.status === "IZIN" || d.status === "CUTI") return;
           if (!window.bolehLihatData(ambilJP(d), d.gudang)) return;
           list.push({ id: docSnap.id, data: d, jenisPekerjaan: ambilJP(d) });
         });
-        // BARU (29 Agt 2026, §44.18) — jam shift & status Lembur approved
-        // dihitung SEKALI di sini buat SELURUH daftar sekaligus (bukan
-        // per-kartu lagi, lihat catatan panjang di AntreanAbsensiCard).
-        // Chunked where(...,'in',...) pola sama seperti petaJenisPekerjaan
-        // di atas.
+        // jam shift & status Lembur approved dihitung SEKALI di sini buat
+        // SELURUH daftar sekaligus (bukan per-kartu lagi, lihat catatan panjang
+        // di AntreanAbsensiCard). Chunked where(.,'in',..) pola sama seperti
+        // petaJenisPekerjaan di atas.
         const UKURAN_POTONGAN_SHIFT = 30; // batas Firestore where(field,'in',[...])
         const distinctShift = [...new Set(list.map(item => item.data.nama_shift).filter(Boolean))];
         const petaShift = {};
@@ -601,8 +568,8 @@ const AppAntreanAbsensi = {
 
         daftarPending.value = list;
 
-        // Opsi dropdown filter khusus Owner — cuma dimuat kalau memang
-        // Owner (hemat, Admin biasa tidak pernah butuh ini).
+        // Opsi dropdown filter khusus Owner — cuma dimuat kalau memang Owner
+        // (hemat, Admin biasa tidak pernah butuh ini).
         if (isOwnerRole.value) {
           opsiJenisPekerjaanOwner.value = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
           const qGudang = await getDocs(collection(db, "master_gudang"));
@@ -617,10 +584,10 @@ const AppAntreanAbsensi = {
       memuat.value = false;
     }
 
-    // Jaring pengaman MANUAL (bukan otomatis) — cari dokumen SANGAT lama
-    // yang belum sempat punya status_acc/ada_pending SAMA SEKALI, jadi
-    // tidak akan pernah ketemu lewat where() di muat() di atas. Fetch-semua
-    // SEKALI kalau diklik, bukan default tiap buka halaman.
+    // Jaring pengaman MANUAL (bukan otomatis) — cari dokumen SANGAT lama yang
+    // belum sempat punya status_acc/ada_pending SAMA SEKALI, jadi tidak akan
+    // pernah ketemu lewat where di muat di atas. Fetch-semua SEKALI kalau
+    // diklik, bukan default tiap buka halaman.
     async function cekDataSangatLama() {
       memuatDataLama.value = true;
       infoDataLama.value = '';
@@ -629,9 +596,9 @@ const AppAntreanAbsensi = {
         const perluDiperbaiki = [];
         snap.forEach(docSnap => {
           const d = docSnap.data();
-          // (9 Sep 2026) IZIN/CUTI ikut dikecualikan sama seperti LEMBUR —
-          // diperbaiki lewat "Cek Data Sangat Lama" di tab Antrean
-          // Izin/Cuti/Lembur sendiri (js/vue-antrean-lembur.js), bukan di sini.
+          // IZIN/CUTI ikut dikecualikan sama seperti LEMBUR — diperbaiki lewat
+          // "Cek Data Sangat Lama" di tab Antrean Izin/Cuti/Lembur sendiri
+          // (js/vue-antrean-lembur.js), bukan di sini.
           if (d.status === "LEMBUR (CLOCK IN)" || d.status === "IZIN" || d.status === "CUTI") return;
           const sudahFormatBaru = d.ada_pending !== undefined;
           const sudahFormatLama = d.status_acc !== undefined;
@@ -659,15 +626,13 @@ const AppAntreanAbsensi = {
       menuTerbuka, toggleMenuTerbuka, adaFilterAktif, petaShiftInfo, petaLemburTanggal
     };
   },
-  // ==========================================================================
-  // DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, dari cek
-  // live Guru di HP) — 3 perbaikan "desain global": (1) kartu deskripsi
-  // besar dihapus, (2) banner pink dipindah ke BAWAH kolom cari & dipadatkan
-  // 1 baris, (3) ikon filter bulat ganti tombol oval titik-tiga "menu
-  // lainnya" (.gc-overflow-btn) yang nampung Filter Owner + Cek Data Sangat
-  // Lama + Refresh (dulu 2 tombol lebar penuh di banner). Logic Firestore/
-  // filter/query TIDAK berubah sama sekali.
-  // ==========================================================================
+  // 3
+  // perbaikan "desain global": (1) kartu deskripsi besar dihapus, (2) banner
+  // pink dipindah ke BAWAH kolom cari & dipadatkan 1 baris, (3) ikon filter
+  // bulat ganti tombol oval titik-tiga "menu lainnya" (gc-overflow-btn) yang
+  // nampung Filter Owner + Cek Data Sangat Lama + Refresh (dulu 2 tombol lebar
+  // penuh di banner). Logic Firestore/ filter/query TIDAK berubah sama sekali.
+
   template: `
     <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
       <div style="flex:1; min-width:0;"><kolom-cari v-model="cariNama" placeholder="Cari nama karyawan..." /></div>

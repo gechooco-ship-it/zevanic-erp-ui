@@ -1,50 +1,44 @@
 // js/vue-components.js
-// ============================================================================
+
 // Komponen Vue yang dipakai BARENG di berbagai layar. Ini fondasi migrasi
-// bertahap dari vanilla JS ke Vue — tujuannya supaya pola yang sama (misal
-// "1 kategori master data: tambah/lihat/hapus") tidak ditulis ulang beda-beda
-// di tiap layar seperti pola lama, tapi cukup 1 komponen dipakai berkali-kali.
+// bertahap dari vanilla JS ke Vue — tujuannya supaya pola yang sama (misal "1
+// kategori master data: tambah/lihat/hapus") tidak ditulis ulang beda-beda di
+// tiap layar seperti pola lama, tapi cukup 1 komponen dipakai berkali-kali.
 //
-// Dipakai via CDN (tanpa build step) — import langsung dari unpkg, sama
-// seperti pola import Firebase yang sudah ada di app ini.
-// ============================================================================
+// Dipakai via CDN (tanpa build step) — import langsung dari unpkg, sama seperti
+// pola import Firebase yang sudah ada di app ini.
+
 import { ref, computed, onMounted, onUnmounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, setDoc, getDoc, addDoc, deleteDoc, collection, getDocs, query, orderBy, limit, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-// BARU (27 Agt 2026, §27) — daftarMenuGroups() di bawah sekarang MEMBACA
-// DAFTAR_MENU langsung dari vue-config-akses.js (satu-satunya tempat menu
-// didaftarkan) — bukan disalin tangan lagi. Lihat catatan lengkap di
-// definisi daftarMenuGroups().
+// daftarMenuGroups di bawah sekarang MEMBACA DAFTAR_MENU langsung dari
+// vue-config-akses.js (satu-satunya tempat menu didaftarkan) — bukan disalin
+// tangan lagi. Lihat catatan lengkap di definisi daftarMenuGroups.
 import { DAFTAR_MENU, KATEGORI_URUTAN } from './vue-config-akses.js';
-// BARU (8 Sep 2026, audit kode proyek, fitur Pengaturan Cetak) — dipakai
-// PopupPratinjauCetakLabel di bawah untuk baca ukuran kertas/posisi QR/
-// rincian tambahan per jenis cetak dari koleksi `pengaturan_cetak`, ganti
-// nilai hardcode 4x2 inch yang sebelumnya SAMA untuk semua jenis label.
+// dipakai PopupPratinjauCetakLabel di bawah untuk baca ukuran kertas/posisi QR/
+// rincian tambahan per jenis cetak dari koleksi `pengaturan_cetak`, ganti nilai
+// hardcode 4x2 inch yang sebelumnya SAMA untuk semua jenis label.
 import { ambilPengaturanCetak, KATALOG_CETAK } from './vue-pengaturan-cetak.js';
 
-// ---------------------------------------------------------------------------
+
 // MasterDataCategory — kartu 1 kategori Master Data (tambah/lihat/hapus item).
 // Baca data (termasuk seeding default kalau belum ada) tetap lewat
-// window.ambilMasterList supaya SATU sumber logic dipakai bareng dengan
-// bagian aplikasi yang belum dimigrasi (Antrean Dakar, Edit Karyawan, dll).
-// ---------------------------------------------------------------------------
+// window.ambilMasterList supaya SATU sumber logic dipakai bareng dengan bagian
+// aplikasi yang belum dimigrasi (Antrean Dakar, Edit Karyawan, dll).
+
 export const MasterDataCategory = {
   props: {
     kategori: { type: String, required: true },
     label: { type: String, required: true },
-    // BARU — supaya komponen ini bisa dipakai ulang di menu LAIN (misal
-    // Config Absensi > Jenis Pekerjaan) dengan izin Config Akses yang
-    // benar, bukan selalu dicek ke 'config_karyawan'. Default tetap
-    // 'config_karyawan' — 9 pemakaian lama di vue-config-karyawan.js
-    // TIDAK perlu diubah sama sekali, otomatis tetap jalan sama seperti
-    // sebelumnya.
+    // supaya komponen ini bisa dipakai ulang di menu LAIN (misal Config Absensi
+    // > Jenis Pekerjaan) dengan izin Config Akses yang benar, bukan selalu dicek
+    // ke 'config_karyawan'. Default tetap 'config_karyawan' — 9 pemakaian lama
+    // di vue-config-karyawan.js TIDAK perlu diubah sama sekali, otomatis tetap
+    // jalan sama seperti sebelumnya.
     menuId: { type: String, default: 'config_karyawan' },
-    // BARU (27 Agt 2026) — dipakai pertama kali buat menu "Config" (Zevanic
-    // House). Guru minta format tampilan "entry+searchbox+table" di sana,
-    // BEDA dari tampilan lama (kumpulan tag/chip) yang tetap dipertahankan
-    // di semua pemakaian lama (Config Karyawan dst, default false = TIDAK
-    // berubah). Logic tambah/hapus/cari di bawah TETAP 1 sumber yang sama,
-    // cuma template yang beda per mode.
+    // dipakai pertama kali buat menu "Config" (Zevanic House). Logic
+    // tambah/hapus/cari di bawah TETAP 1 sumber yang sama, cuma template yang
+    // beda per mode.
     tampilTabel: { type: Boolean, default: false }
   },
   setup(props) {
@@ -53,10 +47,10 @@ export const MasterDataCategory = {
     const memuat = ref(true);
     const menyimpan = ref(false);
 
-    // PENERAPAN NYATA Config Akses — komponen ini dipakai buat beberapa
-    // kategori Master Data sekaligus, izinnya dicek ke props.menuId
-    // (menu tempat komponen ini dipasang), BUKAN hardcode lagi. Fallback
-    // aman: kalau belum diatur (null), dianggap boleh.
+    // PENERAPAN NYATA Config Akses — komponen ini dipakai buat beberapa kategori
+    // Master Data sekaligus, izinnya dicek ke props.menuId (menu tempat komponen
+    // ini dipasang), BUKAN hardcode lagi. Fallback aman: kalau belum diatur
+    // (null), dianggap boleh.
     const bolehTambah = computed(() => window.cekIzinMenu(props.menuId, 'add') !== false);
     const bolehHapus = computed(() => window.cekIzinMenu(props.menuId, 'delete') !== false);
 
@@ -109,7 +103,7 @@ export const MasterDataCategory = {
     return { muat, items, itemsTersaring, cariItem, inputBaru, memuat, menyimpan, tambah, hapus, bolehTambah, bolehHapus };
   },
   template: `
-    <!-- Mode BARU (27 Agt 2026) — entry+searchbox+table, dipakai menu Config. -->
+    <!-- Mode BARU — entry+searchbox+table, dipakai menu Config. -->
     <div v-if="tampilTabel" class="gc-card" style="padding:16px;">
       <h4 class="gc-heading" style="font-size:12.5px; font-weight:700; margin-bottom:10px;">{{ label }}</h4>
       <div v-if="bolehTambah" style="display:flex; gap:8px; margin-bottom:10px;">
@@ -164,38 +158,33 @@ export const MasterDataCategory = {
   `
 };
 
-// ---------------------------------------------------------------------------
-// DIPERBAIKI (9 Sep 2026, laporan Guru "warna dropdown harusnya ikuti
-// warna field juga") — kotak input komponen ini dulu `background:var(
-// --surface)` (putih), beda sendiri dari semua field teks biasa yang
-// sudah `--ivory-dim` (lihat .gc-field di gechoo-design.css). Jadi di
-// layar manapun, field teks & dropdown bersebelahan kelihatan 2 warna
-// beda padahal harus 1 grup visual yang sama. Diganti ke `--ivory-dim`.
-// Panel daftar opsi yang MUNCUL (bukan kotak inputnya) SENGAJA tetap
-// `--surface` — itu panel melayang di atas apapun di belakangnya, sama
-// seperti .gc-overflow-panel/.gc-dialog (lihat FONDASI.md §Design
-// System, tidak ada acuan Hifi buat panel-panel jenis ini).
-// ---------------------------------------------------------------------------
-// DropdownCari — BARU (23 Agt 2026, awalnya buat Master Bahan & Aksesoris,
-// ditaruh di sini karena bentuknya generik & bisa dipakai ulang di menu
-// lain). Pengganti <select> polos: kotak ketik yang MEMFILTER daftar opsi
-// sambil diketik (mirip combobox), bukan scroll-cari-manual di dropdown
-// panjang. STRICT-SELECT — cuma bisa pilih dari `opsi` yang dikasih lewat
-// props, TIDAK bisa isi teks bebas (kalau item belum ada di daftar, harus
+
+// kotak input komponen ini dulu `background:var( --surface)` (putih), beda
+// sendiri dari semua field teks biasa yang sudah `--ivory-dim` (lihat .gc-field
+// di gechoo-design.css). Jadi di layar manapun, field teks & dropdown
+// bersebelahan kelihatan 2 warna beda padahal harus 1 grup visual yang sama.
+// Diganti ke `--ivory-dim`. Panel daftar opsi yang MUNCUL (bukan kotak inputnya)
+// SENGAJA tetap `--surface` — itu panel melayang di atas apapun di belakangnya,
+// sama seperti .gc-overflow-panel/.gc-dialog (lihat FONDASI.md §Design System,
+// tidak ada acuan Hifi buat panel-panel jenis ini).
+
+// DropdownCari — BARU . Pengganti <select> polos: kotak ketik yang MEMFILTER
+// daftar opsi sambil diketik (mirip combobox), bukan scroll-cari-manual di
+// dropdown panjang. STRICT-SELECT — cuma bisa pilih dari `opsi` yang dikasih
+// lewat props, TIDAK bisa isi teks bebas (kalau item belum ada di daftar, harus
 // ditambah dulu lewat menu Master Data terkait, konsisten dengan pola
 // MasterDataCategory di atas).
 //
-// KOMPONEN INI 100% BUATAN SENDIRI (bukan dari library/SDK/template Vue
-// manapun) — jadi kalau ada perilaku standar combobox yang belum ada,
-// memang harus ditambah manual di sini, bukan setting yang "kelupaan
-// dinyalakan" dari library luar.
+// KOMPONEN INI 100% BUATAN SENDIRI (bukan dari library/SDK/template Vue manapun)
+// jadi kalau ada perilaku standar combobox yang belum ada, memang harus
+// ditambah manual di sini, bukan setting yang "kelupaan dinyalakan" dari library
+// luar.
 //
-// FIX (27 Agt 2026, laporan Guru): SEBELUM INI navigasi keyboard (panah
-// atas/bawah pas ngetik cari, lalu Enter buat pilih) BELUM ADA SAMA
-// SEKALI — cuma bisa pilih pakai mouse/klik. Ditambah `indexSorot` (state
-// baru) buat highlight 1 opsi yang lagi "disorot" panah, + handler
-// @keydown Arrow Up/Down/Enter/Escape di bawah.
-// ---------------------------------------------------------------------------
+// SEBELUM INI navigasi keyboard (panah atas/bawah pas ngetik cari, lalu Enter
+// buat pilih) BELUM ADA SAMA SEKALI — cuma bisa pilih pakai mouse/klik. Ditambah
+// `indexSorot` (state baru) buat highlight 1 opsi yang lagi "disorot" panah, +
+// handler @keydown Arrow Up/Down/Enter/Escape di bawah.
+
 export const DropdownCari = {
   props: {
     modelValue: { type: String, default: '' },
@@ -207,20 +196,20 @@ export const DropdownCari = {
   setup(props, { emit }) {
     const tampilDropdown = ref(false);
     const kataCari = ref('');
-    const indexSorot = ref(-1); // FIX 27 Agt 2026 — opsi yang sedang disorot panah keyboard
-    const listEl = ref(null); // FIX 27 Agt 2026 — buat auto-scroll pas sorotan geser lewat batas layar
+    const indexSorot = ref(-1); // FIX — opsi yang sedang disorot panah keyboard
+    const listEl = ref(null); // FIX — buat auto-scroll pas sorotan geser lewat batas layar
     const opsiTersaring = computed(() => {
       const kata = kataCari.value.trim().toLowerCase();
       if (!kata) return props.opsi;
       return props.opsi.filter(o => o.toLowerCase().includes(kata));
     });
-    // Reset sorotan tiap kali daftar opsi tersaring berubah (ketik huruf
-    // baru) — mulai dari opsi PALING ATAS, biar Enter langsung pilih hasil
-    // teratas tanpa perlu tekan panah bawah dulu.
+    // Reset sorotan tiap kali daftar opsi tersaring berubah (ketik huruf baru) —
+    // mulai dari opsi PALING ATAS, biar Enter langsung pilih hasil teratas tanpa
+    // perlu tekan panah bawah dulu.
     watch(opsiTersaring, () => { indexSorot.value = opsiTersaring.value.length > 0 ? 0 : -1; });
-    // FIX (27 Agt 2026) — begitu sorotan geser (panah atas/bawah), pastikan
-    // opsi yang disorot ikut ke-scroll ke dalam layar kalau posisinya lagi
-    // di luar area kelihatan (list-nya scrollable, max-height:220px).
+    // begitu sorotan geser (panah atas/bawah), pastikan opsi yang disorot ikut
+    // ke-scroll ke dalam layar kalau posisinya lagi di luar area kelihatan
+    // (list-nya scrollable, max-height:220px).
     watch(indexSorot, (i) => {
       if (i < 0 || !listEl.value) return;
       const el = listEl.value.children[i];
@@ -232,9 +221,9 @@ export const DropdownCari = {
       indexSorot.value = props.opsi.length > 0 ? 0 : -1;
       tampilDropdown.value = true;
     }
-    // @mousedown.prevent di opsi (lihat template) mencegah event 'blur' di
-    // input keburu nutup dropdown SEBELUM klik opsi sempat kedaftar — tetap
-    // pasang jeda kecil di sini sebagai jaring pengaman kedua.
+    // @mousedown.prevent di opsi (lihat template) mencegah event 'blur' di input
+    // keburu nutup dropdown SEBELUM klik opsi sempat kedaftar — tetap pasang
+    // jeda kecil di sini sebagai jaring pengaman kedua.
     function tutupTunda() {
       setTimeout(() => { tampilDropdown.value = false; }, 150);
     }
@@ -244,10 +233,9 @@ export const DropdownCari = {
       kataCari.value = '';
       indexSorot.value = -1;
     }
-    // FIX (27 Agt 2026) — navigasi keyboard: panah bawah/atas geser
-    // sorotan (berhenti di ujung, TIDAK muter balik ke awal/akhir supaya
-    // tidak bikin bingung), Enter pilih opsi yang sedang disorot, Escape
-    // tutup dropdown tanpa memilih apa-apa.
+    // navigasi keyboard: panah bawah/atas geser sorotan (berhenti di ujung,
+    // TIDAK muter balik ke awal/akhir supaya tidak bikin bingung), Enter pilih
+    // opsi yang sedang disorot, Escape tutup dropdown tanpa memilih apa-apa.
     function sorotBerikutnya() {
       if (!tampilDropdown.value) { buka(); return; }
       if (opsiTersaring.value.length === 0) return;
@@ -298,13 +286,13 @@ export const DropdownCari = {
   `
 };
 
-// ---------------------------------------------------------------------------
-// bacaFileExcel / ambilSheet / unduhWorkbook — BARU (28 Agt 2026, §37),
-// DISALIN dari vue-master-produk.js/vue-bahan-aksesoris.js (konvensi
-// proyek "disalin, bukan diimpor silang" antar file) — dipakai fitur
-// Import/Upload Massal Excel di MasterDataTabelManager di bawah. Pakai
-// XLSX global yang sudah dimuat lewat <script> di index.html (SheetJS).
-// ---------------------------------------------------------------------------
+
+// bacaFileExcel / ambilSheet / unduhWorkbook — BARU, DISALIN dari
+// vue-master-produk.js/vue-bahan-aksesoris.js (konvensi proyek "disalin, bukan
+// diimpor silang" antar file) — dipakai fitur Import/Upload Massal Excel di
+// MasterDataTabelManager di bawah. Pakai XLSX global yang sudah dimuat lewat
+// <script> di index.html (SheetJS).
+
 function bacaFileExcel(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -330,18 +318,17 @@ function unduhWorkbook(sheets, namaFile) {
   XLSX.writeFile(wb, namaFile);
 }
 
-// ---------------------------------------------------------------------------
-// PopupImportMasterData — BARU (28 Agt 2026, §37). Popup verifikasi Import
-// Excel buat MasterDataTabelManager (di bawah) — generik, sengaja dibikin
-// SESIMPEL skema aslinya (cuma 2-3 kolom teks bebas: Nama [+ field3
-// opsional] + Keterangan, TIDAK ADA dropdown/foreign-key yang perlu
-// divalidasi seperti Import BOM/Bahan & Aksesoris, jadi TIDAK butuh
-// FieldValidasiInline/Levenshtein). Baris yang Nama-nya SUDAH ADA di
-// daftar (persis sama alasan `tambah()` manual di MasterDataTabelManager
-// menolak nama dobel) ditandai "Sudah ada, dilewati" — TIDAK menimpa,
-// konsisten dengan §35 (Import Bahan & Aksesoris) & karena manual entry
-// di komponen ini MEMANG tidak pernah izinkan 2 nama sama persis.
-// ---------------------------------------------------------------------------
+
+// PopupImportMasterData — BARU . Popup verifikasi Import Excel buat
+// MasterDataTabelManager (di bawah) — generik, sengaja dibikin SESIMPEL skema
+// aslinya (cuma 2-3 kolom teks bebas: Nama [+ field3 opsional] + Keterangan,
+// TIDAK ADA dropdown/foreign-key yang perlu divalidasi seperti Import BOM/Bahan
+// & Aksesoris, jadi TIDAK butuh FieldValidasiInline/Levenshtein). Baris yang
+// Nama-nya SUDAH ADA di daftar (persis sama alasan `tambah` manual di
+// MasterDataTabelManager menolak nama dobel) ditandai "Sudah ada, dilewati" —
+// TIDAK menimpa, konsisten dengan §35 (Import Bahan & Aksesoris) & karena manual
+// entry di komponen ini MEMANG tidak pernah izinkan 2 nama sama persis.
+
 const PopupImportMasterData = {
   props: {
     labelSingular: { type: String, required: true },
@@ -349,7 +336,7 @@ const PopupImportMasterData = {
     field3Key: { type: String, default: '' },
     field3Label: { type: String, default: '' },
     barisMentah: { type: Array, default: () => [] },
-    daftarLama: { type: Array, default: () => [] }, // daftar {nama,...} yang sudah ada di Firestore
+    daftarLama: { type: Array, default: () => [] }, // daftar {nama,..} yang sudah ada di Firestore
     sedangImport: { type: Boolean, default: false }
   },
   emits: ['tutup', 'konfirmasi'],
@@ -363,9 +350,9 @@ const PopupImportMasterData = {
       keterangan: String(b['Keterangan'] || '').trim()
     })));
 
-    // hitung urutan-kemunculan tiap nama (case-insensitive) di dalam file
-    // itu sendiri — dobel DI FILE (bukan cuma dobel vs data lama) juga
-    // harus ditandai, biar tidak 2x addDoc buat nama yang sama persis.
+    // hitung urutan-kemunculan tiap nama (case-insensitive) di dalam file itu
+    // sendiri — dobel DI FILE (bukan cuma dobel vs data lama) juga harus
+    // ditandai, biar tidak 2x addDoc buat nama yang sama persis.
     const indexPertamaKemunculan = computed(() => {
       const peta = {};
       baris.value.forEach((b, i) => {
@@ -425,36 +412,36 @@ const PopupImportMasterData = {
   `
 };
 
-// ---------------------------------------------------------------------------
-// MasterDataTabelManager — BARU (23 Agt 2026). Beda dari MasterDataCategory
-// di atas (yang nyimpan 1 dokumen `master_data/{kategori}` berisi array
-// string polos): komponen ini kelola koleksi Firestore SENDIRI (1 dokumen
-// per item), tiap item punya 2 kolom: `nama` + `keterangan`. Dipakai
-// pertama kali buat Data Satuan/Ukuran/Warna (Master Bahan & Aksesoris) —
-// TAPI ditulis generik (props `koleksi`) supaya bisa dipakai ulang buat
-// master data 2-kolom lain di menu manapun ke depannya.
-// ---------------------------------------------------------------------------
+
+// MasterDataTabelManager — BARU . Beda dari MasterDataCategory di atas (yang
+// nyimpan 1 dokumen `master_data/{kategori}` berisi array string polos):
+// komponen ini kelola koleksi Firestore SENDIRI (1 dokumen per item), tiap item
+// punya 2 kolom: `nama` + `keterangan`. Dipakai pertama kali buat Data
+// Satuan/Ukuran/Warna (Master Bahan & Aksesoris) — TAPI ditulis generik (props
+// `koleksi`) supaya bisa dipakai ulang buat master data 2-kolom lain di menu
+// manapun ke depannya.
+
 export const MasterDataTabelManager = {
   props: {
     koleksi: { type: String, required: true },
     labelSingular: { type: String, required: true }, // "Satuan" / "Ukuran" / "Warna" / "Suplayer"
     labelNama: { type: String, required: true }, // "Nama Satuan" dst — placeholder input
     menuId: { type: String, default: 'bahan_aksesoris_entry' },
-    // BARU (24 Agt 2026) — dipakai pertama kali buat Master Suplayer (field
-    // "Kontak/Alamat", opsional). Kalau field3Key KOSONG (default), komponen
-    // ini persis seperti semula: 2 kolom nama+keterangan. Kalau diisi, input
-    // ke-3 muncul DI ANTARA nama & keterangan, disimpan dengan key custom.
+    // dipakai pertama kali buat Master Suplayer (field "Kontak/Alamat",
+    // opsional). Kalau field3Key KOSONG (default), komponen ini persis seperti
+    // semula: 2 kolom nama+keterangan. Kalau diisi, input ke-3 muncul DI ANTARA
+    // nama & keterangan, disimpan dengan key custom.
     field3Key: { type: String, default: '' },
     field3Label: { type: String, default: '' }, // contoh: "Kontak/Alamat (opsional)"
-    // BARU (27 Agt 2026) — sama seperti MasterDataCategory di atas, dipakai
-    // pertama kali buat menu "Config". Default false = TIDAK berubah untuk
-    // semua pemakaian lama (tag/chip).
+    // sama seperti MasterDataCategory di atas, dipakai pertama kali buat menu
+    // "Config". Default false = TIDAK berubah untuk semua pemakaian lama
+    // (tag/chip).
     tampilTabel: { type: Boolean, default: false },
-    // BARU (28 Agt 2026, §37) — fitur Import/Upload Massal Excel + Template.
-    // Default false = TIDAK berubah untuk semua pemakaian lama/tab lain.
-    // Dipakai pertama kali buat "Data Komponen" (Config) — opt-in per tab,
-    // gampang dinyalakan buat tab lain (Satuan/Ukuran/Warna/dst) nanti
-    // tinggal set prop ini `true`, tidak perlu kode baru.
+    // fitur Import/Upload Massal Excel + Template. Default false = TIDAK berubah
+    // untuk semua pemakaian lama/tab lain. Dipakai pertama kali buat "Data
+    // Komponen" (Config) — opt-in per tab, gampang dinyalakan buat tab lain
+    // (Satuan/Ukuran/Warna/dst) nanti tinggal set prop ini `true`, tidak perlu
+    // kode baru.
     izinkanImportExcel: { type: Boolean, default: false }
   },
   components: { PopupImportMasterData },
@@ -465,8 +452,8 @@ export const MasterDataTabelManager = {
     const field3Baru = ref('');
     const keteranganBaru = ref('');
     const menyimpan = ref(false);
-    // cariItem/daftarTersaring — BARU (27 Agt 2026), cuma dipakai mode
-    // tampilTabel (searchbox). Tidak berpengaruh ke mode tag/chip lama.
+    // cariItem/daftarTersaring — BARU, cuma dipakai mode tampilTabel
+    // (searchbox). Tidak berpengaruh ke mode tag/chip lama.
     const cariItem = ref('');
     const daftarTersaring = computed(() => {
       const kata = cariItem.value.trim().toLowerCase();
@@ -525,7 +512,7 @@ export const MasterDataTabelManager = {
       }
     }
 
-    // --- Import/Upload Massal Excel + Template (BARU 28 Agt 2026, §37) -----
+    // Import/Upload Massal Excel + Template
     const dropdownImportTerbuka = ref(false);
     const inputFileImport = ref(null);
     const popupImportAktif = ref(false);
@@ -587,7 +574,7 @@ export const MasterDataTabelManager = {
     };
   },
   template: `
-    <!-- Mode BARU (27 Agt 2026) — entry+searchbox+table, dipakai menu Config. -->
+    <!-- Mode BARU — entry+searchbox+table, dipakai menu Config. -->
     <div v-if="tampilTabel">
       <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Data {{ labelSingular }}</label>
       <div v-if="bolehTambah" style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
@@ -660,11 +647,11 @@ export const MasterDataTabelManager = {
   `
 };
 
-// ---------------------------------------------------------------------------
-// DuaBaris — pola "2 baris per sel" yang dipakai berulang kali di berbagai
-// tabel (Daftar Karyawan, Antrean Absensi, Riwayat All Absensi): baris atas
+
+// DuaBaris — pola "2 baris per sel" yang dipakai berulang kali di berbagai tabel
+// (Daftar Karyawan, Antrean Absensi, Riwayat All Absensi): baris atas
 // bold/besar, baris bawah kecil/abu-abu. 1 komponen, dipakai di mana-mana.
-// ---------------------------------------------------------------------------
+
 export const DuaBaris = {
   props: {
     a: { type: [String, Number], default: '' },
@@ -678,14 +665,14 @@ export const DuaBaris = {
   `
 };
 
-// ---------------------------------------------------------------------------
+
 // GudangCheckboxSelect — pilih gudang (bisa lebih dari satu) via checkbox.
-// Dipakai lewat v-model, contoh: <gudang-checkbox-select v-model="gudangTerpilih" />
-// DIPERBAIKI (9 Sep 2026) — tombol pemicu ikut fix warna dropdown yang
-// sama seperti DropdownCari di atas: `--surface` -> `--ivory-dim` biar
-// seragam dengan field teks lain. Panel checkbox yang muncul dibiarkan
-// `--surface` (alasan sama: panel melayang, bukan field).
-// ---------------------------------------------------------------------------
+// Dipakai lewat v-model, contoh: <gudang-checkbox-select
+// v-model="gudangTerpilih" /> tombol pemicu ikut fix warna dropdown yang sama
+// seperti DropdownCari di atas: `--surface` -> `--ivory-dim` biar seragam dengan
+// field teks lain. Panel checkbox yang muncul dibiarkan `--surface` (alasan
+// sama: panel melayang, bukan field).
+
 export const GudangCheckboxSelect = {
   props: {
     modelValue: { type: Array, default: () => [] }
@@ -749,9 +736,9 @@ export const GudangCheckboxSelect = {
     </div>
   `
 };
-// ---------------------------------------------------------------------------
+
 // KecamatanManager — khusus, bertingkat per Kabupaten/Kota.
-// ---------------------------------------------------------------------------
+
 export const KecamatanManager = {
   setup() {
     const daftarKabupaten = ref([]);
@@ -831,15 +818,15 @@ export const KecamatanManager = {
   `
 };
 
-// ---------------------------------------------------------------------------
+
 // GudangRingkas — tampilkan daftar gudang karyawan secara ringkas di tabel.
-// Kalau cuma 1-2 gudang, tampil penuh. Kalau lebih, dipersingkat + link
-// "lihat semua" yang buka popup daftar lengkapnya (popup dikelola sendiri
-// di komponen ini, orang tua tidak perlu urus state apa-apa).
-// Dipakai: <gudang-ringkas :gudang="d.gudang_penempatan" :nama="d.nama" />
-// (terima array MAUPUN string lama — dinormalkan otomatis lewat
-// window.normalisasiGudang, jadi aman untuk data lama/baru sekaligus.)
-// ---------------------------------------------------------------------------
+// Kalau cuma 1-2 gudang, tampil penuh. Kalau lebih, dipersingkat + link "lihat
+// semua" yang buka popup daftar lengkapnya (popup dikelola sendiri di komponen
+// ini, orang tua tidak perlu urus state apa-apa). Dipakai:
+// <gudang-ringkas:gudang="d.gudang_penempatan":nama="d.nama" /> (terima array
+// MAUPUN string lama — dinormalkan otomatis lewat window.normalisasiGudang, jadi
+// aman untuk data lama/baru sekaligus.)
+
 export const GudangRingkas = {
   props: {
     gudang: { type: [Array, String], default: () => [] },
@@ -877,37 +864,35 @@ export const GudangRingkas = {
   `
 };
 
-// ---------------------------------------------------------------------------
+
 // daftarMenuGroups(role, urutanKustomPerKategori) — REGISTRY MENU TERPUSAT.
 //
-// DIROMBAK (27 Agt 2026, §27 — Redesain Home Mobile): SEBELUMNYA fungsi ini
-// isinya array grup/menu yang ditulis TANGAN, terpisah dari DAFTAR_MENU
-// (vue-config-akses.js) — itu yang bikin Home mobile ketinggalan jauh dari
-// sidebar (lihat STATUS-PROYEK.md §27, ketauan grup "Zevanic House" di sini
-// cuma ada 2 menu padahal sidebar sudah 12+). SEKARANG fungsi ini MEMBACA
-// DAFTAR_MENU langsung — itu satu-satunya tempat menu didaftarkan (lengkap
-// dengan label/icon/aksi/kategori-nya), jadi menu baru yang ditambah di
-// sana OTOMATIS nongol juga di sini, tidak perlu disalin tangan lagi.
-// Kategori (field `kategori` di DAFTAR_MENU) dipakai APA ADANYA sebagai
-// nama grup di Home mobile — kategori 'Umum' (Dashboard/Profile) SENGAJA
-// tidak diikutkan (bukan menu yang cocok jadi tile grid), begitu juga menu
-// yang ditandai `deprecated: true`.
+// SEBELUMNYA fungsi ini isinya array grup/menu yang ditulis TANGAN, terpisah
+// dari DAFTAR_MENU (vue-config-akses.js) — itu yang bikin Home mobile
+// ketinggalan jauh dari sidebar (lihat STATUS-PROYEK.md §27, ketauan grup
+// "Zevanic House" di sini cuma ada 2 menu padahal sidebar sudah 12+). SEKARANG
+// fungsi ini MEMBACA DAFTAR_MENU langsung — itu satu-satunya tempat menu
+// didaftarkan (lengkap dengan label/icon/aksi/kategori-nya), jadi menu baru yang
+// ditambah di sana OTOMATIS nongol juga di sini, tidak perlu disalin tangan
+// lagi. Kategori (field `kategori` di DAFTAR_MENU) dipakai APA ADANYA sebagai
+// nama grup di Home mobile — kategori 'Umum' (Dashboard/Profile) SENGAJA tidak
+// diikutkan (bukan menu yang cocok jadi tile grid), begitu juga menu yang
+// ditandai `deprecated: true`.
 //
-// `urutanKustomPerKategori` (opsional): { [kategori]: [menuId, ...] } dari
-// Config Akses > "Urutan Menu di Home Mobile" (Owner yang atur). Menentukan
-// urutan tampil per kategori — 5 teratas itu yang muncul duluan di Home
-// sebelum orang ketuk "Lihat Semua" (lihat vue-home.js). Menu yang belum
-// ada di urutan kustom jatuh ke urutan asli DAFTAR_MENU, di posisi paling
-// akhir (self-healing kalau ada menu baru).
+// `urutanKustomPerKategori` (opsional): { [kategori]: [menuId, ..] } dari Config
+// Akses > "Urutan Menu di Home Mobile" (Owner yang atur). Menentukan urutan
+// tampil per kategori — 5 teratas itu yang muncul duluan di Home sebelum orang
+// ketuk "Lihat Semua" (lihat vue-home.js). Menu yang belum ada di urutan kustom
+// jatuh ke urutan asli DAFTAR_MENU, di posisi paling akhir (self-healing kalau
+// ada menu baru).
 //
-// `urutanKustomKategori` (BARU 27 Agt 2026, sesi lanjutan §27.2, opsional):
-// array nama kategori, urutan GRUP-nya sendiri (mis. Zevanic House di atas
-// Master Absensi) — dari panel yang SAMA ("Urutan Kategori (Grup Menu)").
-// Kategori yang belum diatur jatuh ke urutan asli KATEGORI_URUTAN di posisi
-// paling akhir (self-healing sama seperti item). Urutan yang SAMA ini juga
-// dipakai sidebar desktop, lihat window.terapkanUrutanMenuDesktop di
+// `urutanKustomKategori`: array nama kategori, urutan GRUP-nya sendiri (mis.
+// Zevanic House di atas Master Absensi) — dari panel yang SAMA ("Urutan Kategori
+// (Grup Menu)"). Kategori yang belum diatur jatuh ke urutan asli KATEGORI_URUTAN
+// di posisi paling akhir (self-healing sama seperti item). Urutan yang SAMA ini
+// juga dipakai sidebar desktop, lihat window.terapkanUrutanMenuDesktop di
 // js/auth.js.
-// ---------------------------------------------------------------------------
+
 export function daftarMenuGroups(role, urutanKustomPerKategori, urutanKustomKategori) {
   const r = (role || 'operator').toLowerCase();
   const urutanKustom = urutanKustomPerKategori || {};
@@ -942,28 +927,26 @@ export function daftarMenuGroups(role, urutanKustomPerKategori, urutanKustomKate
       return 0;
     });
 
-  // PERUBAHAN 17 Agt 2026 (khusus tampilan Home mobile): dulu grup/menu
-  // yang tidak boleh diakses role ini langsung DIHILANGKAN dari daftar.
-  // Sekarang SEMUA grup & menu tetap DITAMPILKAN untuk siapapun — item
-  // yang sebenarnya tidak boleh diakses cuma ditandai `terkunci: true`,
-  // dan pengecekannya PAKAI ROLE YANG SUDAH ADA DI MEMORI (parameter
-  // `role` ini, dari window.currentUser.role) — BUKAN baca Firestore lagi,
-  // supaya tetap hemat. Halaman pemanggil (vue-home.js) yang tampilkan
-  // pesan "Akses terkunci" kalau item.terkunci true saat diklik.
+  // PERUBAHAN (khusus tampilan Home mobile): dulu grup/menu yang tidak boleh
+  // diakses role ini langsung DIHILANGKAN dari daftar. Sekarang SEMUA grup &
+  // menu tetap DITAMPILKAN untuk siapapun — item yang sebenarnya tidak boleh
+  // diakses cuma ditandai `terkunci: true`, dan pengecekannya PAKAI ROLE YANG
+  // SUDAH ADA DI MEMORI (parameter `role` ini, dari window.currentUser.role) —
+  // BUKAN baca Firestore lagi, supaya tetap hemat. Halaman pemanggil
+  // (vue-home.js) yang tampilkan pesan "Akses terkunci" kalau item.terkunci true
+  // saat diklik.
   //
-  // PENERAPAN NYATA Config Akses (17 Agt 2026, tahap 1): status terkunci
-  // CEK IZIN 'view' SUNGGUHAN dari akses_config lewat
-  // window.cekIzinMenu(menuId, 'view'). Kalau izin BELUM DIATUR untuk role
-  // ini (hasilnya null, misal role itu belum pernah dibuka di Config Akses
-  // sama sekali), JATUH KEMBALI ke default aman: terkunci untuk siapapun
-  // SELAIN owner/superuser — supaya menu yang belum sempat diatur tidak
+  // PENERAPAN NYATA Config Akses: status terkunci CEK IZIN 'view' SUNGGUHAN dari
+  // akses_config lewat window.cekIzinMenu(menuId, 'view'). Kalau izin BELUM
+  // DIATUR untuk role ini (hasilnya null, misal role itu belum pernah dibuka di
+  // Config Akses sama sekali), JATUH KEMBALI ke default aman: terkunci untuk
+  // siapapun SELAIN owner/superuser — supaya menu yang belum sempat diatur tidak
   // tiba-tiba kebuka ke semua orang.
   //
-  // BARU (27 Agt 2026, §27) — `wajibOwner: true` di DAFTAR_MENU (Config
-  // Akses, Hak Akses, List Device Kiosk) jadi pengunci TAMBAHAN di ATAS
-  // hasil cekIzinMenu — TETAP terkunci untuk siapapun selain role 'owner'
-  // asli, APAPUN hasil Config Akses-nya, sama seperti gerbang yang sudah
-  // ada di sidebar desktop untuk 3 menu itu.
+  // `wajibOwner: true` di DAFTAR_MENU (Config Akses, Hak Akses, List Device
+  // Kiosk) jadi pengunci TAMBAHAN di ATAS hasil cekIzinMenu — TETAP terkunci
+  // untuk siapapun selain role 'owner' asli, APAPUN hasil Config Akses-nya, sama
+  // seperti gerbang yang sudah ada di sidebar desktop untuk 3 menu itu.
   return semuaGroup.map(g => ({
     ...g,
     items: g.items.map(m => {
@@ -976,16 +959,15 @@ export function daftarMenuGroups(role, urutanKustomPerKategori, urutanKustomKate
   }));
 }
 
-// ---------------------------------------------------------------------------
-// PengumumanCarousel — komponen bersama, dipakai di desktop DAN mobile
-// (Home) sekaligus, satu sumber kebenaran. Mengambil data sendiri (fetch +
-// filter role lokal, TIDAK query where() ke server — hemat baca), tampil
-// sebagai carousel geser (scroll-snap, otomatis + bisa digeser manual).
-// Lampiran gambar/video (kalau ada) ditampilkan dengan RASIO TETAP 16:9
-// (object-fit:cover) supaya proporsional di layar manapun tanpa gepeng/
-// terpotong aneh, baik di desktop maupun mobile — TIDAK perlu upload 2
-// versi file berbeda untuk itu.
-// ---------------------------------------------------------------------------
+
+// PengumumanCarousel — komponen bersama, dipakai di desktop DAN mobile (Home)
+// sekaligus, satu sumber kebenaran. Mengambil data sendiri (fetch + filter role
+// lokal, TIDAK query where ke server — hemat baca), tampil sebagai carousel
+// geser (scroll-snap, otomatis + bisa digeser manual). Lampiran gambar/video
+// (kalau ada) ditampilkan dengan RASIO TETAP 16:9 (object-fit:cover) supaya
+// proporsional di layar manapun tanpa gepeng/ terpotong aneh, baik di desktop
+// maupun mobile — TIDAK perlu upload 2 versi file berbeda untuk itu.
+
 export const PengumumanCarousel = {
   setup() {
     const daftar = ref([]);
@@ -1071,13 +1053,13 @@ export const PengumumanCarousel = {
   `
 };
 
-// ---------------------------------------------------------------------------
-// EmojiPicker — komponen bersama, tombol kecil + popup grid emoji. Dipakai
-// di field judul/isi Pengumuman & Quote (Config Info), bisa dipakai ulang
-// di form manapun ke depan yang butuh emoji. TIDAK menyimpan state teksnya
-// sendiri — cuma emit karakter emoji yang dipilih (@pilih="target += $event"),
-// pemanggil yang tentukan mau ditambahkan ke field mana.
-// ---------------------------------------------------------------------------
+
+// EmojiPicker — komponen bersama, tombol kecil + popup grid emoji. Dipakai di
+// field judul/isi Pengumuman & Quote (Config Info), bisa dipakai ulang di form
+// manapun ke depan yang butuh emoji. TIDAK menyimpan state teksnya sendiri —
+// cuma emit karakter emoji yang dipilih (@pilih="target += $event"), pemanggil
+// yang tentukan mau ditambahkan ke field mana.
+
 const DAFTAR_EMOJI = [
   '😊','😀','🎉','🎊','✨','🔥','💪','👏','🙏','❤️',
   '📢','📣','⏰','🕐','✅','❌','⚠️','🏆','🎯','📅',
@@ -1103,25 +1085,24 @@ export const EmojiPicker = {
   `
 };
 
-// ---------------------------------------------------------------------------
+
 // QuoteCard — komponen bersama (Kotak 3), dipakai di desktop & mobile Home
-// sekaligus. Ambil QUOTE HARI INI SAJA (query where tanggalTampil==hari
-// ini, limit 1 — paling murah, 0 atau 1 baca), diatur di Config Info >
-// Quote Harian. Kalau tidak ada Quote dijadwalkan untuk hari ini, komponen
-// ini tidak render apapun (tidak ada kartu kosong yang aneh).
+// sekaligus. Ambil QUOTE HARI INI SAJA (query where tanggalTampil==hari ini,
+// limit 1 — paling murah, 0 atau 1 baca), diatur di Config Info > Quote Harian.
+// Kalau tidak ada Quote dijadwalkan untuk hari ini, komponen ini tidak render
+// apapun (tidak ada kartu kosong yang aneh).
 //
-// BUG DITEMUKAN & DIPERBAIKI (30 Agt 2026, sesi lanjutan lagi) — Guru sudah
-// isi Quote hari ini tapi kartu tetap tidak muncul. Akar masalah: hariIni
-// dulu dihitung pakai `new Date().toISOString().split('T')[0]`, ini UTC,
-// BUKAN tanggal lokal device. WIB (Jakarta) = UTC+7, jadi setiap hari jam
-// 00:00-06:59 WIB, tanggal UTC MASIH tanggal KEMARIN — sementara admin
-// yang isi form Quote Harian (input type=date) melihat tanggal LOKAL
-// (sudah hari baru). Query jadi cari tanggal yang salah (kemarin, bukan
-// hari ini versi Jakarta), Quote yang sudah dijadwalkan Guru tidak pernah
-// ketemu. Dicek langsung ke jam server (UTC 18:36 saat bug dilaporkan =
-// 01:36 dini hari WIB) — PERSIS masuk jendela 7 jam bermasalah itu,
-// mengkonfirmasi ini akar masalahnya, bukan tebakan. Fix: pakai komponen
-// tanggal LOKAL (getFullYear/getMonth/getDate), bukan toISOString(). ---
+// BUG DITEMUKAN & sudah isi Quote hari ini tapi kartu tetap tidak muncul. Akar
+// masalah: hariIni dulu dihitung pakai `new Date.toISOString.split('T')[0]`, ini
+// UTC, BUKAN tanggal lokal device. WIB (Jakarta) = UTC+7, jadi setiap hari jam
+// 00:00-06:59 WIB, tanggal UTC MASIH tanggal KEMARIN — sementara admin yang isi
+// form Quote Harian (input type=date) melihat tanggal LOKAL (sudah hari baru).
+// Query jadi cari tanggal yang salah (kemarin, bukan hari ini versi Jakarta),
+// Quote yang sudah dijadwalkan tidak pernah ketemu. Dicek langsung ke jam server
+// (UTC 18:36 saat bug dilaporkan = 01:36 dini hari WIB) — PERSIS masuk jendela 7
+// jam bermasalah itu, mengkonfirmasi ini akar masalahnya, bukan tebakan. Fix:
+// pakai komponen tanggal LOKAL (getFullYear/getMonth/getDate), bukan
+// toISOString.
 export const QuoteCard = {
   setup() {
     const quote = ref(null);
@@ -1130,24 +1111,21 @@ export const QuoteCard = {
     async function muat() {
       memuat.value = true;
       try {
-        // REVISI (30 Agt 2026, sesi lanjutan lagi) — Guru tanya "kalau
-        // pakai tgl internet Jakarta WIB gimana?": fix sebelumnya (tanggal
-        // LOKAL device via getFullYear/getMonth/getDate) sudah benar
-        // secara KALENDER (bukan lagi UTC), tapi masih ikut TIMEZONE apa
-        // pun yang di-set di device — kalau timezone device salah-setting
-        // (jarang, tapi bisa), tanggalnya bisa ikut salah juga. Sekarang
-        // dipertegas: paksa hitung tanggal di zona Asia/Jakarta (WIB)
-        // EKSPLISIT via Intl (`toLocaleDateString` dengan `timeZone`),
-        // bukan ngikut timezone device apa adanya. Locale 'en-CA' dipilih
-        // karena formatnya persis YYYY-MM-DD (sama dengan <input
-        // type="date">), bukan format Indonesia DD/MM/YYYY.
-        // CATATAN: ini masih baca JAM ASLI device (Date.now()), cuma
-        // timezone-nya yang dipaksa Jakarta — TIDAK melindungi dari jam
-        // device yang sengaja dimundurkan/dimajukan (itu beda masalah,
-        // relevan untuk Absensi/Clock In, BUKAN kartu Quote yang cuma
-        // tampilan — lihat STATUS-PROYEK.md §5.9e soal ini, sudah dicek
-        // Absensi/Clock In AMAN karena pakai serverTimestamp() Firestore,
-        // bukan jam device).
+        // tanya "kalau pakai tgl internet Jakarta WIB gimana?": fix sebelumnya
+        // (tanggal LOKAL device via getFullYear/getMonth/getDate) sudah benar
+        // secara KALENDER (bukan lagi UTC), tapi masih ikut TIMEZONE apa pun
+        // yang di-set di device — kalau timezone device salah-setting (jarang,
+        // tapi bisa), tanggalnya bisa ikut salah juga. Sekarang dipertegas:
+        // paksa hitung tanggal di zona Asia/Jakarta (WIB) EKSPLISIT via Intl
+        // (`toLocaleDateString` dengan `timeZone`), bukan ngikut timezone device
+        // apa adanya. Locale 'en-CA' dipilih karena formatnya persis YYYY-MM-DD
+        // (sama dengan <input type="date">), bukan format Indonesia DD/MM/YYYY.
+        // CATATAN: ini masih baca JAM ASLI device (Date.now), cuma timezone-nya
+        // yang dipaksa Jakarta — TIDAK melindungi dari jam device yang sengaja
+        // dimundurkan/dimajukan (itu beda masalah, relevan untuk Absensi/Clock
+        // In, BUKAN kartu Quote yang cuma tampilan — lihat STATUS-PROYEK.md
+        // §5.9e soal ini, sudah dicek Absensi/Clock In AMAN karena pakai
+        // serverTimestamp Firestore, bukan jam device).
         const hariIni = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
         const q = query(collection(db, "quotes"), where("tanggalTampil", "==", hariIni), limit(1));
         const snap = await getDocs(q);
@@ -1172,15 +1150,14 @@ export const QuoteCard = {
   `
 };
 
-// ---------------------------------------------------------------------------
-// KartuMenu — BARU (redesain "Gechoo Mobile Organic", README.md §1.5) —
-// kartu 1 menu (lingkaran ikon + label), dipakai BERSAMA di Favorit Saya,
-// Grup menu (Beranda), dan Menu Lengkap — SATU tempat, bukan disalin 3x.
-// Modul terkunci (wajibOwner / cekIzinMenu view=false) tampil opacity .5 +
-// ikon gembok, TETAP diklik (pemanggil yang urus tampilkan dialog "Akses
-// Terbatas", bukan komponen ini — supaya nama modul & konteks dialog bisa
-// disesuaikan pemanggil).
-// ---------------------------------------------------------------------------
+
+// KartuMenu — (redesain "Gechoo Mobile Organic", README.md §1.5) — kartu 1
+// menu (lingkaran ikon + label), dipakai BERSAMA di Favorit Saya, Grup menu
+// (Beranda), dan Menu Lengkap — SATU tempat, bukan disalin 3x. Modul terkunci
+// (wajibOwner / cekIzinMenu view=false) tampil opacity .5 + ikon gembok, TETAP
+// diklik (pemanggil yang urus tampilkan dialog "Akses Terbatas", bukan komponen
+// ini — supaya nama modul & konteks dialog bisa disesuaikan pemanggil).
+
 export const KartuMenu = {
   props: {
     item: { type: Object, required: true },
@@ -1197,29 +1174,28 @@ export const KartuMenu = {
   `
 };
 
-// ---------------------------------------------------------------------------
-// AksesTerbatasDialog — BARU (redesain, README.md "Interactions") — GANTI
-// alert() polos yang dulu dipakai untuk modul wajibOwner/terkunci. Dipakai
-// bareng di Beranda & Menu Lengkap.
-// ---------------------------------------------------------------------------
+
+// AksesTerbatasDialog — (redesain, README.md "Interactions") — GANTI alert
+// polos yang dulu dipakai untuk modul wajibOwner/terkunci. Dipakai bareng di
+// Beranda & Menu Lengkap.
+
 export const AksesTerbatasDialog = {
   props: { namaModul: { type: String, default: '' }, menuId: { type: String, default: '' } },
   emits: ['tutup'],
   setup(props) {
-    // Dibaca lewat computed (BUKAN window.currentUser langsung di
-    // template) — pola wajib project ini, lihat catatan roleTampil di
-    // vue-account-profile.js: Vue tidak reaktif ke window.currentUser
-    // langsung. Dialog ini SELALU muncul SETELAH login (baru bisa klik
-    // menu terkunci kalau sudah login), jadi cukup dibaca sekali saat
-    // komponen ini dibuat — tidak perlu computed penuh, ref cukup.
+    // Dibaca lewat computed (BUKAN window.currentUser langsung di template) —
+    // pola wajib project ini, lihat catatan roleTampil di
+    // vue-account-profile.js: Vue tidak reaktif ke window.currentUser langsung.
+    // Dialog ini SELALU muncul SETELAH login (baru bisa klik menu terkunci kalau
+    // sudah login), jadi cukup dibaca sekali saat komponen ini dibuat — tidak
+    // perlu computed penuh, ref cukup.
     const roleSaya = window.currentUser?.role || '-';
 
-    // Baris info teknis — supaya Guru/PIC bisa lihat LANGSUNG dari
-    // screenshot dialog ini kenapa satu menu terkunci, tanpa perlu buka
-    // Firestore: profil yang sedang dipakai HP ini, apakah dokumennya
-    // ketemu di Akses & Keamanan, dan hasil akhir izin View untuk menu
-    // yang diklik. Bukan data rahasia — aman terlihat siapa saja yang
-    // bisa membuka dialog ini (karyawan itu sendiri).
+    // Baris info teknis — supaya /PIC bisa lihat LANGSUNG dari screenshot dialog
+    // ini kenapa satu menu terkunci, tanpa perlu buka Firestore: profil yang
+    // sedang dipakai HP ini, apakah dokumennya ketemu di Akses & Keamanan, dan
+    // hasil akhir izin View untuk menu yang diklik. Bukan data rahasia — aman
+    // terlihat siapa saja yang bisa membuka dialog ini (karyawan itu sendiri).
     const profilDipakai = window.currentUser?.profil_akses || ('(tidak diatur, pakai default Role "' + roleSaya + '")');
     const statusConfig = window.aksesConfigSaya === undefined ? 'belum sempat dimuat'
       : window.aksesConfigSaya === 'OWNER_PENUH' ? 'Owner/Superuser'
@@ -1246,14 +1222,14 @@ export const AksesTerbatasDialog = {
   `
 };
 
-// ---------------------------------------------------------------------------
-// HeaderLayar — BARU (redesain "Gechoo Mobile Organic", README.md, dipakai
-// di HAMPIR SEMUA layar baru: tombol kembali bulat + kicker + judul +
-// menuId opsional). Tombol kembali pakai window.pindahTab(tabPulang) kalau
-// prop `tab-pulang` diisi (paling umum), atau emit 'kembali' kalau
-// pemanggil mau urus sendiri (dipakai untuk sub-layar di dalam 1 komponen,
-// misal Profil Lengkap yang isinya banyak tabAktif internal).
-// ---------------------------------------------------------------------------
+
+// HeaderLayar — (redesain "Gechoo Mobile Organic", README.md, dipakai di
+// HAMPIR SEMUA layar baru: tombol kembali bulat + kicker + judul + menuId
+// opsional). Tombol kembali pakai window.pindahTab(tabPulang) kalau prop
+// `tab-pulang` diisi (paling umum), atau emit 'kembali' kalau pemanggil mau urus
+// sendiri (dipakai untuk sub-layar di dalam 1 komponen, misal Profil Lengkap
+// yang isinya banyak tabAktif internal).
+
 export const HeaderLayar = {
   props: {
     kicker: { type: String, default: '' },
@@ -1283,12 +1259,12 @@ export const HeaderLayar = {
   `
 };
 
-// ---------------------------------------------------------------------------
-// KolomCari — BARU (redesain) — kolom cari pil (ikon kaca pembesar + input +
-// tombol X saat terisi), dipakai di Menu Lengkap, Atur Favorit, dan pola
-// Daftar modul. v-model lewat prop `modelValue` + emit 'update:modelValue'
-// (kompatibel v-model bawaan Vue 3).
-// ---------------------------------------------------------------------------
+
+// KolomCari — (redesain) — kolom cari pil (ikon kaca pembesar + input +
+// tombol X saat terisi), dipakai di Menu Lengkap, Atur Favorit, dan pola Daftar
+// modul. v-model lewat prop `modelValue` + emit 'update:modelValue' (kompatibel
+// v-model bawaan Vue 3).
+
 export const KolomCari = {
   props: { modelValue: { type: String, default: '' }, placeholder: { type: String, default: 'Cari...' } },
   emits: ['update:modelValue'],
@@ -1301,69 +1277,65 @@ export const KolomCari = {
   `
 };
 
-// ---------------------------------------------------------------------------
-// PopupPratinjauCetakLabel — BARU (28 Agt 2026, §41.1, permintaan Guru).
-// DIUBAH (8 Sep 2026, audit kode proyek) — ukuran kertas & posisi QR yang
-// SEBELUMNYA hardcode 4x2 inch untuk SEMUA jenis label sekarang dibaca per
-// jenis dari koleksi `pengaturan_cetak` (lihat js/vue-pengaturan-cetak.js),
-// via prop BARU `jenisCetak`. Ini realisasi bagian "Setting cetak
-// terpusat" PEDOMAN-SERAH-TERIMA.md yang belum pernah dibangun — Guru edit
-// 1 config per jenis di menu Scan & Cetak > Pengaturan Cetak, otomatis
-// berlaku ke SEMUA pos yang pakai popup ini dengan jenisCetak yang sama.
+
+// PopupPratinjauCetakLabel — BARU . DIUBAH — ukuran kertas & posisi QR yang
+// SEBELUMNYA hardcode 4x2 inch untuk SEMUA jenis label sekarang dibaca per jenis
+// dari koleksi `pengaturan_cetak` (lihat js/vue-pengaturan-cetak.js), via prop
+// BARU `jenisCetak`. Ini realisasi bagian "Setting cetak terpusat" yang belum
+// pernah dibangun — edit 1 config per jenis di menu Scan & Cetak > Pengaturan
+// Cetak, otomatis berlaku ke SEMUA pos yang pakai popup ini dengan jenisCetak
+// yang sama.
 //
-// Kalau pemanggil BELUM di-migrasi (belum kirim prop jenisCetak, string
-// kosong), popup ini FALLBACK ke ukuran lama 101.6x50.8mm (=4x2in) supaya
-// tidak ada pemanggil yang tiba-tiba error/berubah tanpa disengaja.
+// Kalau pemanggil BELUM di-migrasi (belum kirim prop jenisCetak, string kosong),
+// popup ini FALLBACK ke ukuran lama 101.6x50.8mm (=4x2in) supaya tidak ada
+// pemanggil yang tiba-tiba error/berubah tanpa disengaja.
 //
 // Popup GENERIK pratinjau + konfigurasi SEBELUM cetak label fisik, dipakai
-// BARENG oleh SEMUA tempat cetak label QR di app ini (Cetak Label di List
-// Bahan & Aksesoris [GANTI dari tab tersendiri Stock & Pembelian], Cetak
-// Label Roll di Nota Order Belanja, Cetak Label di Order SPK) — sebelumnya
-// masing-masing LANGSUNG window.print() tanpa pratinjau/pengaturan apapun.
+// BARENG oleh SEMUA tempat cetak label QR di app ini (Cetak Label di List Bahan
+// & Aksesoris [GANTI dari tab tersendiri Stock & Pembelian], Cetak Label Roll di
+// Nota Order Belanja, Cetak Label di Order SPK) — sebelumnya masing-masing
+// LANGSUNG window.print tanpa pratinjau/pengaturan apapun.
 //
-// Kontrak props.daftarLabel: array `{kode, nama, info, qrDataUrl, rincian}`
-// — kode TEKS QR (nama_pola/kode_lot/id_tampil/no_spk tergantung
-// pemanggil), nama = judul barang, info = HTML pendek (boleh berisi entity
-// &middot;, dst — makanya pratinjau di sini pakai v-html buat baris info,
-// BUKAN interpolasi teks biasa yang otomatis di-escape Vue), qrDataUrl =
-// hasil `buatQrDataUrl(kode)` yang SUDAH digambar duluan oleh pemanggil
-// (pola generate-QR-sinkron-di-window-utama yang sudah terbukti jalan,
-// lihat komentar panjang `buatQrDataUrl()` di js/vue-stock-pembelian.js —
-// popup ini SENGAJA tidak menggambar QR sendiri, cuma terima gambar jadi).
-// `rincian` (BARU, 8 Sep 2026, opsional) = object `{key: value}` berisi
-// field TAMBAHAN yang tersedia untuk jenis cetak ini (lihat
-// `rincianTersedia` per jenis di KATALOG_CETAK) — mana yang benar-benar
-// TAMPIL & urutannya diatur Guru dari Pengaturan Cetak (`rincian_aktif`),
-// BUKAN ditentukan di sini. Jenis cetak yang rincianTersedia-nya kosong
-// boleh tidak mengisi field ini sama sekali.
+// Kontrak props.daftarLabel: array `{kode, nama, info, qrDataUrl, rincian}` —
+// kode TEKS QR (nama_pola/kode_lot/id_tampil/no_spk tergantung pemanggil), nama
+// = judul barang, info = HTML pendek (boleh berisi entity &middot, dst — makanya
+// pratinjau di sini pakai v-html buat baris info, BUKAN interpolasi teks biasa
+// yang otomatis di-escape Vue), qrDataUrl = hasil `buatQrDataUrl(kode)` yang
+// SUDAH digambar duluan oleh pemanggil (pola generate-QR-sinkron-di-window-utama
+// yang sudah terbukti jalan, lihat komentar panjang `buatQrDataUrl` di
+// js/vue-stock-pembelian.js — popup ini SENGAJA tidak menggambar QR sendiri,
+// cuma terima gambar jadi). `rincian` = object `{key: value}` berisi field
+// TAMBAHAN yang tersedia untuk jenis cetak ini (lihat `rincianTersedia` per
+// jenis di KATALOG_CETAK) — mana yang benar-benar TAMPIL & urutannya diatur dari
+// Pengaturan Cetak (`rincian_aktif`), BUKAN ditentukan di sini. Jenis cetak yang
+// rincianTersedia-nya kosong boleh tidak mengisi field ini sama sekali.
 //
-// "Config print, data apa yang mau diprint" (permintaan Guru) sekarang 2
-// lapis: checkbox tampilNama/tampilInfo (TETAP toggle per-sesi seperti
-// sebelumnya, TIDAK dipindah) + rincian tambahan (BARU, diatur terpusat
-// per jenis, bukan per-sesi). QR+kode SELALU tampil (itu intinya, biar
-// tetap bisa discan). Jumlah Salinan mengulang TIAP label yang dikirim
-// sebanyak N kali di halaman cetak (bukan pakai dialog "copies" bawaan
-// printer — lebih pasti kejadian di printer thermal).
+// "Config print, data apa yang mau diprint" sekarang 2 lapis: checkbox
+// tampilNama/tampilInfo (TETAP toggle per-sesi seperti sebelumnya, TIDAK
+// dipindah) + rincian tambahan (BARU, diatur terpusat per jenis, bukan
+// per-sesi). QR+kode SELALU tampil (itu intinya, biar tetap bisa discan). Jumlah
+// Salinan mengulang TIAP label yang dikirim sebanyak N kali di halaman cetak
+// (bukan pakai dialog "copies" bawaan printer — lebih pasti kejadian di printer
+// thermal).
 //
-// Emit 'cetak' (payload {jumlahSalinan, tampilNama, tampilInfo}) SETELAH
-// window cetak dibuka — pemanggil boleh dengarkan buat tindak lanjutnya
-// sendiri (misal catat log_cetak_label, BEDA-BEDA per pemanggil, TIDAK
-// semua pemanggil butuh — makanya logging TIDAK dijadikan tanggung jawab
-// popup ini, cuma tugas cetak+pratinjau generik).
-// ---------------------------------------------------------------------------
+// Emit 'cetak' (payload {jumlahSalinan, tampilNama, tampilInfo}) SETELAH window
+// cetak dibuka — pemanggil boleh dengarkan buat tindak lanjutnya sendiri (misal
+// catat log_cetak_label, BEDA-BEDA per pemanggil, TIDAK semua pemanggil butuh —
+// makanya logging TIDAK dijadikan tanggung jawab popup ini, cuma tugas
+// cetak+pratinjau generik).
+
 const _FALLBACK_PENGATURAN_LABEL = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [], font_kode_mm: 4.5, font_nama_mm: 3.5, font_info_mm: 2.9, rotasi_90: false };
 
-// bangunInfoLabelAnakSpk — GLOBAL, dipakai SEMUA jalur cetak label SPK
-// Grouping (Bahan, Acc Sewing/Webbing/Finishing) buat menyusun field `info`
-// PopupPratinjauCetakLabel di atas, supaya perubahan format cetak cukup
-// diedit SATU tempat ini, tidak diulang tiap modul. Tiap modul menyusun isi
-// baris rincian ITEM sendiri (beda bentuk: Bahan = bahan + warna +
-// kebutuhan; Acc = nama aksesoris + warna + kebutuhan, lihat
-// bangunLabelAksesoris di bawah) — yang distandarkan di sini cuma
-// STRUKTURnya: N baris rincian item lalu 1 baris nama pelanggan paling
-// bawah. `no_spk` (id internal Firestore) TIDAK PERNAH ditampilkan di sini
-// — kode yang tercetak besar/QR tetap tanggung jawab pemanggil (field
-// `kode` terpisah, lihat kontrak props di atas).
+// bangunInfoLabelAnakSpk — GLOBAL, dipakai SEMUA jalur cetak label SPK Grouping
+// (Bahan, Acc Sewing/Webbing/Finishing) buat menyusun field `info`
+// PopupPratinjauCetakLabel di atas, supaya perubahan format cetak cukup diedit
+// SATU tempat ini, tidak diulang tiap modul. Tiap modul menyusun isi baris
+// rincian ITEM sendiri (beda bentuk: Bahan = bahan + warna + kebutuhan; Acc =
+// nama aksesoris + warna + kebutuhan, lihat bangunLabelAksesoris di bawah) —
+// yang distandarkan di sini cuma STRUKTURnya: N baris rincian item lalu 1 baris
+// nama pelanggan paling bawah. `no_spk` (id internal Firestore) TIDAK PERNAH
+// ditampilkan di sini — kode yang tercetak besar/QR tetap tanggung jawab
+// pemanggil (field `kode` terpisah, lihat kontrak props di atas).
 export function bangunInfoLabelAnakSpk(barisItem, pelangganNama, opsi = {}) {
   const daftar = Array.isArray(barisItem) ? barisItem : [barisItem];
   const ket = opsi.cetakUlang ? ' <b>(CETAK ULANG)</b>' : '';
@@ -1372,29 +1344,28 @@ export function bangunInfoLabelAnakSpk(barisItem, pelangganNama, opsi = {}) {
 }
 
 // bangunLabelAksesoris — GLOBAL, dipakai Acc Sewing/Webbing/Finishing untuk
-// membangun 1 label FISIK per BARIS aksesoris (persis pola bangunLabelBahan
-// di vue-persiapan-bahan.js: 1 baris = 1 label) DAN dipakai template kartu
-// "Perlu Disiapkan" tiap modul supaya kartu di layar & label fisik SELALU
-// tampil data yang sama persis (operator cocokkan HP vs label saat ambil
-// barang gudang). Sebelumnya semua aksesoris 1 anak SPK digabung jadi 1
-// label — begitu 1 anak SPK butuh banyak jenis aksesoris, isinya kepotong/
-// tumpang-tindih karena ukuran label fisik fixed. Sekarang QR/kode SPK
-// (kode_kartu) yang sama boleh berulang di banyak label kalau 1 anak SPK
-// butuh >1 aksesoris — operator tetap scan kode yang sama di label manapun.
-// `formatQty` diterima dari pemanggil (implementasinya lokal tiap file).
-// TIDAK menyertakan qrDataUrl (butuh DOM+canvas per panggilan, mahal kalau
-// dipanggil ulang tiap render kartu — bisa 1 anak SPK x puluhan komponen) —
-// pemanggil cetak yang menambah `qrDataUrl: buatQrDataUrl(lbl.kode)` sendiri,
-// cukup 1x per label yang BENAR-BENAR dicetak. `rincian` (field tambahan
-// khas tiap pos, mis. roll/varian) TIDAK dibangun di sini — tetap tanggung
-// jawab pemanggil.
+// membangun 1 label FISIK per BARIS aksesoris (persis pola bangunLabelBahan di
+// vue-persiapan-bahan.js: 1 baris = 1 label) DAN dipakai template kartu "Perlu
+// Disiapkan" tiap modul supaya kartu di layar & label fisik SELALU tampil data
+// yang sama persis (operator cocokkan HP vs label saat ambil barang gudang).
+// Sebelumnya semua aksesoris 1 anak SPK digabung jadi 1 label — begitu 1 anak
+// SPK butuh banyak jenis aksesoris, isinya kepotong/ tumpang-tindih karena
+// ukuran label fisik fixed. Sekarang QR/kode SPK (kode_kartu) yang sama boleh
+// berulang di banyak label kalau 1 anak SPK butuh >1 aksesoris — operator tetap
+// scan kode yang sama di label manapun. `formatQty` diterima dari pemanggil
+// (implementasinya lokal tiap file). TIDAK menyertakan qrDataUrl (butuh
+// DOM+canvas per panggilan, mahal kalau dipanggil ulang tiap render kartu — bisa
+// 1 anak SPK x puluhan komponen) — pemanggil cetak yang menambah `qrDataUrl:
+// buatQrDataUrl(lbl.kode)` sendiri, cukup 1x per label yang BENAR-BENAR dicetak.
+// `rincian` (field tambahan khas tiap pos, mis. roll/varian) TIDAK dibangun di
+// sini — tetap tanggung jawab pemanggil.
 export function bangunLabelAksesoris(b, formatQty, opsi = {}) {
-  // kode = kode_kartu (fallback no_spk data lama) — SENGAJA BUKAN
-  // kode_komponen, walau kode_komponen unik per baris. Alur scan Acc
-  // Sewing/Webbing/Finishing (Tunjuk Operator/Aksi/Pack) mencocokkan hasil
-  // scan ke `kode_kartu`, bukan kode_komponen — kode QR di SEMUA label
-  // fisik 1 anak SPK yang sama WAJIB identik supaya scan tetap cocok, walau
-  // sekarang dipecah jadi banyak lembar fisik.
+  // kode = kode_kartu (fallback no_spk data lama) — SENGAJA BUKAN kode_komponen,
+  // walau kode_komponen unik per baris. Alur scan Acc Sewing/Webbing/Finishing
+  // (Tunjuk Operator/Aksi/Pack) mencocokkan hasil scan ke `kode_kartu`, bukan
+  // kode_komponen — kode QR di SEMUA label fisik 1 anak SPK yang sama WAJIB
+  // identik supaya scan tetap cocok, walau sekarang dipecah jadi banyak lembar
+  // fisik.
   const kodeLabel = b.kode_kartu || b.no_spk;
   const namaProduk = `${b.nama_produk || ''} ${b.produk_warna || ''}`.trim() || b.kode_spk || '';
   const baris3 = b.nama_aksesoris || '(tanpa nama aksesoris)';
@@ -1432,15 +1403,15 @@ export const PopupPratinjauCetakLabel = {
     const lebarMm = computed(() => parseFloat(efektif.value.lebar_mm) || _FALLBACK_PENGATURAN_LABEL.lebar_mm);
     const tinggiMm = computed(() => parseFloat(efektif.value.tinggi_mm) || _FALLBACK_PENGATURAN_LABEL.tinggi_mm);
     const posisiQr = computed(() => efektif.value.posisi_qr || 'kiri');
-    // font_*_mm BARU (13 Sep lanjutan 15) — dulu font cetak fixed px, pas-
-    // pasan untuk 101.6x50.8mm tapi kekecilan labelnya jadi kegedean fontnya
-    // di preset kecil (Thermal 4x2cm) → teks menumpuk. Sekarang ikut Guru
-    // atur per grup (Pengaturan Cetak), satuan mm biar fisiknya presisi.
+    // font_*_mm BARU — dulu font cetak fixed px, pas- pasan untuk 101.6x50.8mm
+    // tapi kekecilan labelnya jadi kegedean fontnya di preset kecil (Thermal
+    // 4x2cm) → teks menumpuk. Sekarang ikut atur per grup (Pengaturan Cetak),
+    // satuan mm biar fisiknya presisi.
     const fontKodeMm = computed(() => parseFloat(efektif.value.font_kode_mm) || _FALLBACK_PENGATURAN_LABEL.font_kode_mm);
     const fontNamaMm = computed(() => parseFloat(efektif.value.font_nama_mm) || _FALLBACK_PENGATURAN_LABEL.font_nama_mm);
     const fontInfoMm = computed(() => parseFloat(efektif.value.font_info_mm) || _FALLBACK_PENGATURAN_LABEL.font_info_mm);
-    // Daftar rincian yang benar2 dipilih Guru di Pengaturan Cetak, DIURUTKAN
-    // sesuai rincian_aktif, dengan labelnya diambil dari katalog jenis ini.
+    // Daftar rincian yang benar2 dipilih di Pengaturan Cetak, DIURUTKAN sesuai
+    // rincian_aktif, dengan labelnya diambil dari katalog jenis ini.
     const rincianAktif = computed(() => {
       const tersedia = (KATALOG_CETAK[props.jenisCetak] && KATALOG_CETAK[props.jenisCetak].rincianTersedia) || [];
       const aktifKeys = efektif.value.rincian_aktif || [];
@@ -1457,11 +1428,11 @@ export const PopupPratinjauCetakLabel = {
       const lebar = lebarMm.value, tinggi = tinggiMm.value;
       // rotasi90 — beberapa printer label kecil punya driver yang cuma bisa
       // portrait tetap walau ukuran fisik yang dikirim (lebar > tinggi) sudah
-      // benar landscape: PDF-nya sudah benar tapi driver memaksa muat ke
-      // kertas portrait, hasil fisiknya jadi vertical. Kalau grup ini
-      // ditandai rotasi_90 (Pengaturan Cetak), halaman cetak dibalik jadi
-      // tinggi x lebar (sesuai orientasi tetap driver) dan ISI labelnya
-      // diputar 90 derajat supaya tetap terbaca horizontal di kertas fisik.
+      // benar landscape: PDF-nya sudah benar tapi driver memaksa muat ke kertas
+      // portrait, hasil fisiknya jadi vertical. Kalau grup ini ditandai
+      // rotasi_90 (Pengaturan Cetak), halaman cetak dibalik jadi tinggi x lebar
+      // (sesuai orientasi tetap driver) dan ISI labelnya diputar 90 derajat
+      // supaya tetap terbaca horizontal di kertas fisik.
       const rotasi90 = !!efektif.value.rotasi_90;
       const sisiPendek = Math.min(lebar, tinggi);
       const padding = Math.max(1.5, sisiPendek * 0.11).toFixed(2);
@@ -1531,9 +1502,9 @@ export const PopupPratinjauCetakLabel = {
       emit('tutup');
     }
 
-    // Skala thumbnail pratinjau (kotak tetap ~200px lebar) supaya font contoh
-    // di sini proporsional dgn font_*_mm sungguhan yang akan dicetak — bukan
-    // ukuran fixed lagi, biar tidak menyesatkan (lihat fix menumpuk lanjutan 15).
+    // Skala thumbnail pratinjau (kotak tetap ~200px lebar) supaya font contoh di
+    // sini proporsional dgn font_*_mm sungguhan yang akan dicetak — bukan ukuran
+    // fixed lagi, biar tidak menyesatkan .
     const skalaThumbnail = computed(() => 200 / lebarMm.value);
     const fontKodePxThumb = computed(() => Math.max(8, fontKodeMm.value * skalaThumbnail.value));
     const fontNamaPxThumb = computed(() => Math.max(7, fontNamaMm.value * skalaThumbnail.value));

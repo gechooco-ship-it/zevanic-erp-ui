@@ -1,84 +1,78 @@
 // js/vue-config-karyawan.js
-// ============================================================================
+
 // Halaman PERTAMA yang dimigrasi ke Vue (Master Karyawan > Config Karyawan).
 // Layar lain masih pakai kode lama (vanilla JS) sampai giliran masing-masing
-// dimigrasi — Vue di sini cuma "menempel" di 1 div, tidak mengganggu bagian
-// lain dari aplikasi.
+// dimigrasi — Vue di sini cuma "menempel" di 1 div, tidak mengganggu bagian lain
+// dari aplikasi.
 //
-// REDESIGN (9 Sep 2026) — mengikuti wireframe handoff "07 - Management /
-// 01 - Master Karyawan" butir 1.5: dulu grid 2 kolom FLAT (semua kategori
-// sejajar, tidak dikelompokkan). SEKARANG dibungkus jadi GROUPED SECTIONS
-// (accordion, collapse/expand per section) sesuai tema yang PERSIS disebut
-// di wireframe:
-//   - "Pekerjaan & Status" (4 kategori): Jenis Pekerjaan, Status Kerja,
-//     Jabatan, Status Karyawan
-//   - "Wilayah" (2 kategori): Kabupaten/Kota + Kecamatan (bertingkat)
-//   - "Absensi" (3 kategori): Alasan Izin, Alasan Cuti, Status Kehadiran
-// Wireframe eksplisit bilang "8 kategori" (3 section di atas = 4+2+3 = 9
-// item termasuk Kecamatan, atau 8 kalau Kecamatan dihitung nempel ke
-// Kabupaten) — SAMA PERSIS dengan 8 kategori MasterDataCategory yang lama
-// (tidak termasuk 4 kategori baru di bawah).
+// REDESIGN — mengikuti wireframe handoff "07 - Management / 01 - Master
+// Karyawan" butir 1.5: dulu grid 2 kolom FLAT (semua kategori sejajar, tidak
+// dikelompokkan). SEKARANG dibungkus jadi GROUPED SECTIONS (accordion,
+// collapse/expand per section) sesuai tema yang PERSIS disebut di wireframe: -
+// "Pekerjaan & Status" (4 kategori): Jenis Pekerjaan, Status Kerja, Jabatan,
+// Status Karyawan - "Wilayah" (2 kategori): Kabupaten/Kota + Kecamatan
+// (bertingkat) - "Absensi" (3 kategori): Alasan Izin, Alasan Cuti, Status
+// Kehadiran Wireframe eksplisit bilang "8 kategori" (3 section di atas = 4+2+3 =
+// 9 item termasuk Kecamatan, atau 8 kalau Kecamatan dihitung nempel ke
+// Kabupaten) — SAMA PERSIS dengan 8 kategori MasterDataCategory yang lama (tidak
+// termasuk 4 kategori baru di bawah).
 //
-// ASUMSI (kategori BARU 9 Sep 2026 tidak disebut di wireframe): Departemen,
-// Seragam, Agama, Pendidikan Terakhir ditambahkan SETELAH wireframe ini
-// dibuat, jadi tidak masuk ke 3 tema di atas. Daripada dipaksakan ke tema
-// yang tidak cocok (bukan "Pekerjaan & Status", bukan "Wilayah", bukan
+// ASUMSI: Departemen, Seragam, Agama, Pendidikan Terakhir ditambahkan SETELAH
+// wireframe ini dibuat, jadi tidak masuk ke 3 tema di atas. Daripada dipaksakan
+// ke tema yang tidak cocok (bukan "Pekerjaan & Status", bukan "Wilayah", bukan
 // "Absensi"), 4 kategori ini dikumpulkan di section ke-4 tambahan ("Data
 // Tambahan Karyawan") — section EKSTRA di luar wireframe, bukan pengganti
 // section yang sudah didefinisikan wireframe. Isi/logic tiap kategori TIDAK
 // berubah sama sekali, cuma dibungkus struktur accordion baru.
-// ============================================================================
+
 import { createApp } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { MasterDataCategory, KecamatanManager } from './vue-components.js';
 
 const KATEGORI_SEDERHANA = [
   { kategori: 'jenis_pekerjaan', label: 'Jenis Pekerjaan' },
   { kategori: 'status_kerja', label: 'Status Kerja' },
-  // "Status Pengguna (Role Akses)" SENGAJA dihapus dari sini (17 Agt
-  // 2026) — dulu ini daftar role TERPISAH dan TIDAK SINKRON dengan Config
-  // Akses/Hak Akses, berisiko bentrok (2 tempat kelola "role apa saja
-  // yang ada", tidak saling tahu). Sekarang role dikelola SATU tempat
-  // saja: Config Akses (buat profil baru) + Hak Akses (pasangkan ke
-  // karyawan) — keduanya sudah baca dari koleksi akses_config yang sama,
-  // begitu juga dropdown Role di modal Edit Karyawan (Daftar Karyawan).
+  // "Status Pengguna (Role Akses)" SENGAJA dihapus dari sini — dulu ini daftar
+  // role TERPISAH dan TIDAK SINKRON dengan Config Akses/Hak Akses, berisiko
+  // bentrok (2 tempat kelola "role apa saja yang ada", tidak saling tahu).
+  // Sekarang role dikelola SATU tempat saja: Config Akses (buat profil baru) +
+  // Hak Akses (pasangkan ke karyawan) — keduanya sudah baca dari koleksi
+  // akses_config yang sama, begitu juga dropdown Role di modal Edit Karyawan
+  // (Daftar Karyawan).
   { kategori: 'jabatan', label: 'Jabatan' },
   { kategori: 'status_karyawan', label: 'Status Karyawan' },
   { kategori: 'kabupaten', label: 'Kabupaten/Kota' },
   { kategori: 'alasan_izin', label: 'Alasan Izin' },
   { kategori: 'alasan_cuti', label: 'Alasan Cuti' },
   { kategori: 'status_kehadiran', label: 'Status Kehadiran' },
-  // BARU (9 Sep 2026) — 4 kategori dari spek handoff "Master Karyawan"
-  // yang GENUINELY belum ada sebelumnya. Selaras dengan permintaan Guru
-  // "ikuti persis 8 kategori spek", TAPI 2 item spek (Gudang/Cabang,
-  // Shift) SENGAJA TIDAK diduplikasi ke sini — keduanya sudah punya
-  // rumah sendiri (master_gudang/master_shift, dikelola dari Config
-  // Absensi) dan menaruhnya di 2 tempat melanggar aturan single source
-  // of truth proyek ini. Kategori LAMA yang tidak disebut spek (status_
-  // kerja, kabupaten, alasan_izin, alasan_cuti, status_kehadiran) JUGA
-  // dipertahankan — semuanya aktif dipakai fitur lain (Profile Izin/
-  // Cuti, dropdown alamat, dst); menghapusnya akan mematahkan fitur yang
-  // sudah jalan tanpa pengganti. Detail lengkap ada di STATUS-PROYEK.md.
+  // 4 kategori dari spek handoff "Master Karyawan" yang GENUINELY belum ada
+  // sebelumnya. Selaras dengan— keduanya sudah punya rumah sendiri
+  // (master_gudang/master_shift, dikelola dari Config Absensi) dan menaruhnya di
+  // 2 tempat melanggar aturan single source of truth proyek ini. Kategori LAMA
+  // yang tidak disebut spek (status_ kerja, kabupaten, alasan_izin, alasan_cuti,
+  // status_kehadiran) JUGA dipertahankan — semuanya aktif dipakai fitur lain
+  // (Profile Izin/ Cuti, dropdown alamat, dst); menghapusnya akan mematahkan
+  // fitur yang sudah jalan tanpa pengganti. Detail lengkap ada di
+  // STATUS-PROYEK.md.
   { kategori: 'departemen', label: 'Departemen' },
   { kategori: 'seragam', label: 'Seragam' },
   { kategori: 'agama', label: 'Agama' },
   { kategori: 'pendidikan_terakhir', label: 'Pendidikan Terakhir' }
 ];
 
-// Peta kategori -> label, dipakai grup di bawah supaya label tidak perlu
-// ditulis ulang dua kali (sumber tunggal tetap KATEGORI_SEDERHANA di atas).
+// Peta kategori -> label, dipakai grup di bawah supaya label tidak perlu ditulis
+// ulang dua kali (sumber tunggal tetap KATEGORI_SEDERHANA di atas).
 const PETA_LABEL = Object.fromEntries(KATEGORI_SEDERHANA.map(k => [k.kategori, k.label]));
 
-// Pengelompokan tema — PERSIS mengikuti wireframe 1.5 (3 section).
-// DIHAPUS (9 Sep 2026 malam, keputusan eksplisit Guru) — section ke-4
-// "Data Tambahan Karyawan" (departemen/seragam/agama/pendidikan_terakhir)
-// yang ditambahkan lanjutan 9 sebagai ASUMSI, TIDAK ada di wireframe asli.
-// PERHATIAN: kategori departemen/seragam/agama/pendidikan_terakhir masih
-// ada di KATEGORI_SEDERHANA di atas dan TIDAK dihapus dari sana — cuma
-// UI kelola (tambah/ubah/hapus nilai)-nya yang hilang di sini. Ini
-// SATU-SATUNYA tempat kategori itu dikelola (dicek: tidak ada file lain
-// yang punya UI untuk 'departemen' dkk) — kalau kategori ini masih
-// dipakai di form Karyawan/dropdown lain, nilai BARU tidak bisa
-// ditambahkan lewat UI sampai ada keputusan lanjutan dari Guru.
+// Pengelompokan tema — PERSIS mengikuti wireframe 1.5 (3 section). DIHAPUS —
+// section ke-4 "Data Tambahan Karyawan"
+// (departemen/seragam/agama/pendidikan_terakhir) yang ditambahkan sebagai
+// ASUMSI, TIDAK ada di wireframe asli. PERHATIAN: kategori
+// departemen/seragam/agama/pendidikan_terakhir masih ada di KATEGORI_SEDERHANA
+// di atas dan TIDAK dihapus dari sana — cuma UI kelola (tambah/ubah/hapus
+// nilai)-nya yang hilang di sini. Ini SATU-SATUNYA tempat kategori itu dikelola
+// (dicek: tidak ada file lain yang punya UI untuk 'departemen' dkk) — kalau
+// kategori ini masih dipakai di form Karyawan/dropdown lain, nilai BARU tidak
+// bisa ditambahkan lewat UI sampai ada keputusan dari .
 const KELOMPOK_KATEGORI = [
   { key: 'pekerjaan_status', label: 'Pekerjaan & Status', icon: 'fa-briefcase', kategori: ['jenis_pekerjaan', 'status_kerja', 'jabatan', 'status_karyawan'] },
   { key: 'wilayah', label: 'Wilayah', icon: 'fa-map-location-dot', kategori: ['kabupaten'], pakaiKecamatan: true },
@@ -91,8 +85,8 @@ const AppConfigKaryawan = {
     return {
       kelompok: KELOMPOK_KATEGORI,
       refreshKey: 0,
-      // Semua section default TERBUKA — kolaps cuma buat yang mau
-      // meringkas tampilan, bukan menyembunyikan sesuatu secara default.
+      // Semua section default TERBUKA — kolaps cuma buat yang mau meringkas
+      // tampilan, bukan menyembunyikan sesuatu secara default.
       sectionTerbuka: {
         pekerjaan_status: true,
         wilayah: true,
@@ -134,12 +128,12 @@ const AppConfigKaryawan = {
   `
 };
 
-// Vue cuma mount ke div ini — sisanya (tab switching, dst) tetap dikontrol
-// oleh app.js/dashboard.js seperti biasa.
+// Vue cuma mount ke div ini — sisanya (tab switching, dst) tetap dikontrol oleh
+// app.js/dashboard.js seperti biasa.
 let vmConfigKaryawan = null;
-// Sama seperti Config Absensi — mount() ditunda sampai benar-benar
-// dinavigasi pertama kali, supaya 9x MasterDataCategory + KecamatanManager
-// di dalamnya tidak ikut fetch on-load kalau layar ini belum pernah dibuka.
+// Sama seperti Config Absensi — mount ditunda sampai benar-benar dinavigasi
+// pertama kali, supaya 9x MasterDataCategory + KecamatanManager di dalamnya
+// tidak ikut fetch on-load kalau layar ini belum pernah dibuka.
 window.pastikanMountConfigKaryawan = function() {
   if (vmConfigKaryawan) { vmConfigKaryawan.refreshKey++; return; }
   const mountPoint = document.getElementById('vue-config-karyawan');

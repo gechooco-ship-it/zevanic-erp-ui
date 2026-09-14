@@ -1,44 +1,41 @@
 // js/vue-registrasi.js
-// ============================================================================
-// DIBANGUN ULANG (18 Agt 2026, sesi lanjutan) — versi SEBELUMNYA (1 langkah,
-// pakai password, langsung bikin akun Auth) TERNYATA TIDAK PERNAH BERHASIL
-// ter-push ke GitHub malam itu (lihat STATUS-PROYEK.md §3.5.5). File ini
-// dibangun ulang dari SPESIFIKASI di STATUS-PROYEK.md §3.5.1 — BELUM PERNAH
-// DITES sama sekali, WAJIB dites end-to-end sebelum dipakai karyawan
-// sungguhan (lihat checklist testing).
+
+// DIBANGUN ULANG — versi SEBELUMNYA (1 langkah, pakai password, langsung bikin
+// akun Auth) TERNYATA TIDAK PERNAH BERHASIL ter-push ke GitHub malam itu (lihat
+// STATUS-PROYEK.md §3.5.5). File ini dibangun ulang dari SPESIFIKASI di
+// STATUS-PROYEK.md §3.5.1 — BELUM PERNAH DITES sama sekali, WAJIB dites
+// end-to-end sebelum dipakai karyawan sungguhan (lihat checklist testing).
 //
-// ALUR BARU, 3 tahap — TANPA PASSWORD SAMA SEKALI:
-//   1. Email -> kirim kode OTP (window.kirimOtpEmail, lihat vue-otp.js)
-//   2. Masukkan kode OTP -> verifikasi (window.verifikasiOtpEmail)
-//   3. BARU form data lengkap muncul (NIK, KTP, alamat, dst) -> submit
-//      simpan ke koleksi "pendaftaran_pending", BUKAN "users" — dan BELUM
-//      ADA akun Firebase Auth sama sekali di titik ini. Akun Auth baru
-//      dibuat NANTI oleh Admin di Antrean Dakar (vue-antrean-dakar.js)
-//      SETELAH data ini diperiksa & disetujui.
+// ALUR BARU, 3 tahap — TANPA PASSWORD SAMA SEKALI: 1. Email -> kirim kode OTP
+// (window.kirimOtpEmail, lihat vue-otp.js) 2. Masukkan kode OTP -> verifikasi
+// (window.verifikasiOtpEmail) 3. BARU form data lengkap muncul (NIK, KTP,
+// alamat, dst) -> submit simpan ke koleksi "pendaftaran_pending", BUKAN "users"
+// dan BELUM ADA akun Firebase Auth sama sekali di titik ini. Akun Auth baru
+// dibuat NANTI oleh Admin di Antrean Dakar (vue-antrean-dakar.js) SETELAH data
+// ini diperiksa & disetujui.
 //
 // KENAPA INI MENGHILANGKAN BUG "EMAIL NYANGKUT" LAMA TOTAL: dulu (versi
-// sebelumnya) akun Auth dibuat DULU baru simpan profil — kalau simpan
-// profil gagal, akun Auth bisa "nyangkut" (ada login tapi tanpa profil).
-// Sekarang TIDAK ADA createUserWithEmailAndPassword di file ini sama
-// sekali — kegagalan simpan pendaftaran cuma berarti dokumen
-// "pendaftaran_pending" gagal tersimpan, TIDAK ADA akun Auth yang perlu
-// di-rollback. Kelas bug ini otomatis tidak mungkin terjadi lagi di alur
-// ini.
+// sebelumnya) akun Auth dibuat DULU baru simpan profil — kalau simpan profil
+// gagal, akun Auth bisa "nyangkut" (ada login tapi tanpa profil). Sekarang TIDAK
+// ADA createUserWithEmailAndPassword di file ini sama sekali — kegagalan simpan
+// pendaftaran cuma berarti dokumen "pendaftaran_pending" gagal tersimpan, TIDAK
+// ADA akun Auth yang perlu di-rollback. Kelas bug ini otomatis tidak mungkin
+// terjadi lagi di alur ini.
 //
-// PENTING — titik sambung ke bagian yang masih vanilla:
-// - window.pindahLayar (app.js) untuk pindah layar login <-> register
-// - window.previewKTP / window.ktpBase64Global (camera.js) untuk kompresi
-//   foto KTP — TIDAK diduplikasi di sini, dipanggil apa adanya
-// - window.ambilMasterList, window.ambilKecamatanUntukKabupaten (dashboard.js)
-// - window.bukaPreviewFoto (dashboard.js) untuk klik-perbesar foto KTP
-// - window.kirimOtpEmail / window.verifikasiOtpEmail (vue-otp.js) — fondasi
-//   OTP bersama, JUGA dipakai verifikasi perangkat baru saat Login
+// PENTING — titik sambung ke bagian yang masih vanilla: - window.pindahLayar
+// (app.js) untuk pindah layar login <-> register - window.previewKTP /
+// window.ktpBase64Global (camera.js) untuk kompresi foto KTP — TIDAK diduplikasi
+// di sini, dipanggil apa adanya - window.ambilMasterList,
+// window.ambilKecamatanUntukKabupaten (dashboard.js) - window.bukaPreviewFoto
+// (dashboard.js) untuk klik-perbesar foto KTP - window.kirimOtpEmail /
+// window.verifikasiOtpEmail (vue-otp.js) — fondasi OTP bersama, JUGA dipakai
+// verifikasi perangkat baru saat Login
 //
-// Jembatan ke vanilla: window.resetFormRegistrasi() dipanggil dari
-// auth.js (window.bukaFormRegistrasi, dipicu tombol "Daftar Akun Baru" di
-// layar Login) supaya ID Karyawan/ID APP + tahap form di-reset ulang di
-// dalam state Vue setiap kali form registrasi dibuka.
-// ============================================================================
+// Jembatan ke vanilla: window.resetFormRegistrasi dipanggil dari auth.js
+// (window.bukaFormRegistrasi, dipicu tombol "Daftar Akun Baru" di layar Login)
+// supaya ID Karyawan/ID APP + tahap form di-reset ulang di dalam state Vue
+// setiap kali form registrasi dibuka.
+
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -51,11 +48,11 @@ const AppRegistrasi = {
   setup() {
     const tahap = ref('email'); // 'email' | 'otp' | 'form'
 
-    // ---- Tahap 1: Email ----
+    // Tahap 1: Email
     const emailInput = ref('');
     const mengirimOtp = ref(false);
 
-    // ---- Tahap 2: OTP ----
+    // Tahap 2: OTP
     const kodeOtp = ref('');
     const memverifikasiOtp = ref(false);
     const otpCountdown = ref(0);
@@ -144,7 +141,7 @@ const AppRegistrasi = {
       kodeOtp.value = '';
     }
 
-    // ---- Tahap 3: Form data lengkap (TANPA password) ----
+    // Tahap 3: Form data lengkap (TANPA password)
     const idKaryawan = ref('');
     const idApp = ref('');
     const ktpPreview = ref('');
@@ -210,9 +207,9 @@ const AppRegistrasi = {
         alert("Mohon lengkapi data wajib (Nama, NIK, No HP, dan Foto KTP)!");
         return;
       }
-      // NIK dipakai sebagai PASSWORD SEMENTARA nanti saat Admin approve
-      // (lihat vue-antrean-dakar.js) — WAJIB tepat 16 digit angka, bukan
-      // cuma "ada isinya".
+      // NIK dipakai sebagai PASSWORD SEMENTARA nanti saat Admin approve (lihat
+      // vue-antrean-dakar.js) — WAJIB tepat 16 digit angka, bukan cuma "ada
+      // isinya".
       if (!/^\d{16}$/.test(form.nik.trim())) {
         alert("NIK KTP harus tepat 16 digit angka!");
         return;
@@ -272,11 +269,10 @@ const AppRegistrasi = {
         window.pindahLayar('screen-login');
       } catch (e) {
         console.error("Gagal simpan pendaftaran:", e);
-        // Rule pendaftaran_pending: "allow update: if false" — kalau email
-        // ini SUDAH PERNAH submit sebelumnya (dokumen sudah ada, belum
-        // diproses Admin), percobaan submit ulang ditolak MUTLAK (bukan
-        // soal OTP kadaluarsa, data lama sengaja tidak boleh ditimpa demi
-        // keamanan).
+        // Rule pendaftaran_pending: "allow update: if false" — kalau email ini
+        // SUDAH PERNAH submit sebelumnya (dokumen sudah ada, belum diproses
+        // Admin), percobaan submit ulang ditolak MUTLAK (bukan soal OTP
+        // kadaluarsa, data lama sengaja tidak boleh ditimpa demi keamanan).
         alert("Gagal menyimpan pendaftaran. Kemungkinan email ini SUDAH PERNAH mendaftar sebelumnya dan masih menunggu diproses Admin (data lama tidak bisa ditimpa demi keamanan) — hubungi Admin/Owner untuk ditindaklanjuti. Kalau ini pendaftaran PERTAMA Anda, coba ulangi dari awal (kirim kode OTP baru).");
       }
       menyimpan.value = false;

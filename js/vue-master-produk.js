@@ -1,63 +1,32 @@
 // js/vue-master-produk.js
-// ============================================================================
-// Zevanic House > Master Produk — fitur BARU (27 Agt 2026, §28), Bill of
-// Material (BOM) untuk produksi konveksi. Dasar dari mockup React yang
-// dikirim Hilman (mockupformbomproduk.jsx), diskusikan & disepakati lewat
-// 4 ronde AskUserQuestion sebelum ditulis (lihat STATUS-PROYEK.md §28 untuk
-// catatan lengkap keputusan). Ringkasan keputusan kunci yang membentuk kode
-// di bawah:
-//   1. SEMUA field "Nama Bahan/Aksesoris/Komponen" WAJIB pilih dari Data
-//      Bahan & Aksesoris (master_bahan_aksesoris) lewat DropdownCari —
-//      TIDAK BOLEH teks bebas. Pola resolve nama->id SAMA seperti
-//      js/vue-persiapan-masalah.js. ⚠️ Kode Webbing 2/3 DULU juga ikut
-//      aturan ini — SUPERSEDE (28 Agt 2026, §38): SEKARANG teks bebas
-//      (input manual), lihat catatan poin 6 di bawah.
-//   2. Tujuannya fondasi produksi (nanti dipakai potong stok otomatis) —
-//      BUKAN cuma dokumentasi, makanya link ke master_bahan_aksesoris
-//      di atas WAJIB (bukan opsional) supaya datanya bisa disambung nanti.
-//   3. BOM Pola & BOM Vendor DIGABUNG jadi 1 tab dengan toggle Internal/
-//      Vendor PER BARIS (beda dari mockup yang pisah 2 tab) — field jenis
-//      vendor cuma tampil kalau baris itu ditandai Vendor.
-//   4. Foto (produk & tiap baris Pola/Vendor) pakai Firebase Storage
-//      (path `master_produk/{id}/...`), BUKAN base64-in-Firestore seperti
-//      modul lain — ini modul KEDUA yang pakai Storage (sebelumnya cuma
-//      pengumuman, lihat js/vue-config-info.js buat pola upload yang sama
-//      dipakai di sini). Storage Rules-nya baru (belum ada sebelumnya),
-//      lihat storage.rules di root repo — WAJIB ditempel manual di Firebase
-//      Console > Storage > Rules (sama seperti alur firestore.rules).
-//   5. SKU: field TERSENDIRI (bukan cuma string tampilan turunan seperti di
-//      mockup), WAJIB unik (dicek query sebelum simpan, pola SAMA seperti
-//      cekNoSpkDobel() di js/vue-order-spk.js). SENGAJA TIDAK pakai id_
-//      tampil sekuensial (mis. PRD-0001) seperti master_bahan_aksesoris —
-//      SKU inilah kode utamanya, sesuai desain mockup asli, supaya tidak
-//      dobel-kode yang membingungkan. GANTI (28 Agt 2026, permintaan
-//      Hilman): dulu otomatis dari Nama-Warna-Size TAPI boleh diedit manual
-//      — SEKARANG FULL OTOMATIS, user/admin TIDAK ENTRY SKU SAMA SEKALI
-//      (form Entry Produk maupun Import Excel), field-nya read-only. Kalau
-//      basis Nama-Warna-Size tabrakan dengan produk lain, sistem sendiri
-//      yang nambah akhiran -2/-3/dst (lihat kunciProduk/buatSkuUnikAsync).
-//   6. "Isi Pola (Pcs)" = hasil potong per pcs produk jadi dari 1x potong
-//      pola itu. "Kode Webbing 2/3" DULU referensi ke aksesoris/bahan lain
-//      (DropdownCari, opsional) — SUPERSEDE (28 Agt 2026, §38, permintaan
-//      Guru): SEKARANG input teks manual/bebas, TIDAK ADA LAGI FK ke
-//      master_bahan_aksesoris untuk 2 field ini (form maupun Excel Import
-//      BOM sheet Aksesoris — keduanya ikut diubah, dikonfirmasi Guru).
-//   7. Posisi menu: Zevanic House > setelah "Stock & Pembelian", sebelum
-//      "Order SPK".
-//   8. Dikerjakan SEKALIGUS SEMUA (bukan bertahap) — keputusan eksplisit
-//      Hilman, BUKAN saran default (saran awal Claude adalah bertahap).
+// Zevanic House > Master Produk — Bill of Material (BOM) produksi konveksi.
+// Posisi menu: setelah "Stok & Pembelian", sebelum "Order SPK".
 //
-// CATATAN GRID RESPONSIVE (support mobile+desktop, wajib per permintaan
-// Hilman): modul-modul LAIN di app ini (vue-bahan-aksesoris.js, vue-order-
-// spk.js) pakai `style="display:grid; grid-template-columns:...;"` INLINE
-// BERSAMAAN dengan class `grid-cols-1 md:grid-cols-N` — secara CSS
-// specificity, style inline itu SELALU menang atas class, jadi class
-// grid-cols-nya sebenarnya TIDAK PERNAH benar-benar aktif (grid tetap multi-
-// kolom di HP). Di file INI classnya dipakai TANPA grid-template-columns
-// inline (cuma `display:grid` + `gap` inline, kolom count murni dari class
-// grid-cols-1/md:grid-cols-N) — supaya BENAR-BENAR collapse ke 1 kolom di
-// HP. Lihat STATUS-PROYEK.md §28 kalau mau samakan pola ini ke modul lama.
-// ============================================================================
+// Koleksi & field (master_produk):
+// - SKU field tersendiri, WAJIB unik, FULL OTOMATIS dari Nama-Warna-Size dan
+// read-only di form maupun Import Excel. Kalau basisnya tabrakan, sistem
+// menambah akhiran -2/-3 sendiri (kunciProduk/buatSkuUnikAsync). Tidak ada
+// id sekuensial terpisah — SKU kode utamanya.
+// - Nama Bahan/Aksesoris/Komponen WAJIB pilih dari master_bahan_aksesoris
+// lewat DropdownCari, bukan teks bebas. Pola resolve nama→id sama dengan
+// vue-persiapan-masalah.js.
+// - "Kode Webbing 2/3" PENGECUALIAN: teks bebas, TIDAK punya FK ke
+// master_bahan_aksesoris, di form maupun Import Excel sheet Aksesoris.
+// - BOM Pola & BOM Vendor satu tab dengan toggle Internal/Vendor per baris;
+// field jenis vendor cuma muncul kalau baris itu ditandai Vendor.
+// - "Isi Pola (Pcs)" = hasil potong per pcs produk jadi dari 1x potong pola.
+//
+// Jebakan:
+// - Foto (produk & tiap baris Pola/Vendor) pakai Firebase Storage, path
+// master_produk/{id}/..., BUKAN base64-in-Firestore seperti modul lain.
+// Butuh storage.rules terpasang di Firebase Console; pola upload sama
+// dengan vue-config-info.js.
+// - Grid responsive di file ini sengaja TANPA grid-template-columns inline —
+// cuma display:grid + gap, kolomnya murni dari class grid-cols-1/
+// md:grid-cols-N, supaya benar-benar collapse jadi 1 kolom di HP. Modul
+// lain (vue-bahan-aksesoris.js, vue-order-spk.js) memakai inline
+// grid-template-columns yang menang specificity, jadi class grid-cols-nya
+// di sana tidak pernah aktif.
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, doc, setDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
@@ -65,13 +34,12 @@ import { db, storage } from "./firebase-config.js";
 import { DropdownCari } from './vue-components.js?v=13';
 import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
 // pakaiRiwayatTabVue — TIDAK dipakai lagi di file ini sejak restrukturisasi
-// tampilan Entry Produk (9 Sep 2026, audit wireframe §2.1): BOM Jasa/Pola/
-// Aksesoris tidak lagi tab bergantian (v-show), sekarang tabel langsung
-// selalu terlihat sekaligus — tidak ada lagi "tab Vue genuine" di layar ini
-// yang perlu diingat tombol back HP.
+// tampilan Entry Produk: BOM Jasa/Pola/ Aksesoris tidak lagi tab bergantian
+// (v-show), sekarang tabel langsung selalu terlihat sekaligus — tidak ada lagi
+// "tab Vue genuine" di layar ini yang perlu diingat tombol back HP.
 
-// ambilDaftarBahanAksesorisLengkap — disalin (bukan diimpor silang) dari
-// pola yang sama di js/vue-persiapan-masalah.js / vue-stock-pembelian.js /
+// ambilDaftarBahanAksesorisLengkap — disalin (bukan diimpor silang) dari pola
+// yang sama di js/vue-persiapan-masalah.js / vue-stock-pembelian.js /
 // vue-scan-opname.js / vue-scan-persiapan.js — tiap file berdiri sendiri.
 async function ambilDaftarBahanAksesorisLengkap() {
   try {
@@ -86,8 +54,8 @@ async function ambilDaftarBahanAksesorisLengkap() {
   }
 }
 
-// ambilDaftarNama — pola SAMA seperti js/vue-bahan-aksesoris.js, dipakai
-// buat opsi DropdownCari Warna (master_warna) & Satuan (master_satuan).
+// ambilDaftarNama — pola SAMA seperti js/vue-bahan-aksesoris.js, dipakai buat
+// opsi DropdownCari Warna (master_warna) & Satuan (master_satuan).
 async function ambilDaftarNama(koleksi) {
   try {
     const snap = await getDocs(collection(db, koleksi));
@@ -102,36 +70,34 @@ async function ambilDaftarNama(koleksi) {
 }
 
 // formatNamaBahan — disalin (bukan diimpor silang) dari js/vue-stock-
-// pembelian.js: gabung nama+warna jadi 1 string tampilan/pilihan, mis.
-// "Kain Katun Merah". WAJIB dipakai (bukan b.nama polos) karena item
-// Bahan/Aksesoris yang NAMANYA sama tapi WARNA beda itu NORMAL (warna
-// field terpisah di Data Bahan & Aksesoris) — kalau opsi dropdown &
-// resolveBahan cuma pakai nama polos, varian-varian warna itu TIDAK BISA
-// dibedakan di dropdown, dan .find() selalu ambil hasil PERTAMA yang
-// cocok (silent bug, bisa nyantol ke warna yang salah). DIPERBAIKI
-// (28 Agt 2026, atas masukan Hilman) — sebelumnya modul ini pakai b.nama
-// polos + field "Warna Bahan"/"Warna" terpisah, sekarang digabung jadi 1
-// field pilihan, sama seperti bug yang sudah lebih dulu diperbaiki di
-// vue-stock-pembelian.js (§25.7/§25.11).
+// pembelian.js: gabung nama+warna jadi 1 string tampilan/pilihan, mis. "Kain
+// Katun Merah". WAJIB dipakai (bukan b.nama polos) karena item Bahan/Aksesoris
+// yang NAMANYA sama tapi WARNA beda itu NORMAL (warna field terpisah di Data
+// Bahan & Aksesoris) — kalau opsi dropdown & resolveBahan cuma pakai nama polos,
+// varian-varian warna itu TIDAK BISA dibedakan di dropdown, dan .find selalu
+// ambil hasil PERTAMA yang cocok (silent bug, bisa nyantol ke warna yang salah)
+// sebelumnya modul ini pakai b.nama polos + field "Warna Bahan"/"Warna"
+// terpisah, sekarang digabung jadi 1 field pilihan, sama seperti bug yang sudah
+// lebih dulu diperbaiki di vue-stock-pembelian.js (§25.7/§25.11).
 function formatNamaBahan(b) {
   return (b.nama || '') + (b.warna ? ` ${b.warna}` : '');
 }
 
-// resolveBahan — cari item Bahan/Aksesoris yang KOMBINASI nama+warna-nya
-// (lewat formatNamaBahan) persis cocok dengan teks yang dipilih lewat
-// DropdownCari. Dipakai buat validasi "wajib pilih dari daftar, bukan
-// teks bebas" (keputusan #1) di setiap baris BOM.
+// resolveBahan — cari item Bahan/Aksesoris yang KOMBINASI nama+warna-nya (lewat
+// formatNamaBahan) persis cocok dengan teks yang dipilih lewat DropdownCari.
+// Dipakai buat validasi "wajib pilih dari daftar, bukan teks bebas" (keputusan
+// #1) di setiap baris BOM.
 function resolveBahan(daftarBahan, namaText) {
   if (!namaText) return null;
   return daftarBahan.find(b => formatNamaBahan(b) === namaText) || null;
 }
 
-// --- Kompresi & upload foto ke Firebase Storage --------------------------
-// Kompresi sisi klien pakai <canvas> (pola SAMA seperti kompresGambarBahan
-// di vue-bahan-aksesoris.js — 500px/kualitas 0.65, foto katalog/dokumentasi
-// bukan bukti resolusi tinggi) tapi hasil akhirnya Blob (bukan dataURL)
-// karena tujuannya diupload ke Storage, bukan disimpan langsung di field
-// Firestore (keputusan #4).
+// Kompresi & upload foto ke Firebase Storage
+// Kompresi sisi klien pakai <canvas> (pola SAMA seperti kompresGambarBahan di
+// vue-bahan-aksesoris.js — 500px/kualitas 0.65, foto katalog/dokumentasi bukan
+// bukti resolusi tinggi) tapi hasil akhirnya Blob (bukan dataURL) karena
+// tujuannya diupload ke Storage, bukan disimpan langsung di field Firestore
+// (keputusan #4).
 function kompresFotoKeBlob(file, maxDimensi, kualitas) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -175,34 +141,31 @@ function buatSkuOtomatis(nama, warna, size) {
   return [nama, warna, size].filter(Boolean).join('-').toUpperCase().replace(/\s+/g, '');
 }
 
-// kunciProduk — GANTI (28 Agt 2026, permintaan Hilman): SKU SEKARANG full
-// otomatis, user/admin TIDAK ENTRY SKU SAMA SEKALI (baik di form Entry
-// Produk maupun Import Excel) — dulu boleh diedit manual, sekarang tidak
-// bisa lagi. Konsekuensinya identitas produk yang dipegang USER bergeser
-// dari SKU ke kombinasi Nama+Warna+Size (bahan baku SKU otomatis itu
-// sendiri). Dipakai buat mencocokkan produk yang SAMA (update lama vs buat
-// baru) di form Entry Produk (implisit, lewat idProduk) maupun Import Excel
-// (Produk Utama & BOM) — GANTI TOTAL dari pola lama yang mencocokkan by SKU.
+// kunciProduk — GANTI: SKU SEKARANG full otomatis, user/admin TIDAK ENTRY SKU
+// SAMA SEKALI (baik di form Entry Produk maupun Import Excel) — dulu boleh
+// diedit manual, sekarang tidak bisa lagi. Konsekuensinya identitas produk yang
+// dipegang USER bergeser dari SKU ke kombinasi Nama+Warna+Size (bahan baku SKU
+// otomatis itu sendiri). Dipakai buat mencocokkan produk yang SAMA (update lama
+// vs buat baru) di form Entry Produk (implisit, lewat idProduk) maupun Import
+// Excel (Produk Utama & BOM) — dari pola lama yang mencocokkan by SKU.
 function kunciProduk(nama, warna, size) {
   return [nama, warna, size].map(v => (v || '').toString().trim().toLowerCase()).join('||');
 }
 
-// gcd2/lcm2/hitungKelipatan — BARU (28 Agt 2026, permintaan Guru): field
-// "Kelipatan" di Data Produk Utama. Guru: "kelipatan ini tarikan dari
-// kelipatan terkecil dari isi pola dari semua nama pola" — ini istilah
-// matematika Indonesia "KPK" (Kelipatan Persekutuan Terkecil = LCM),
-// BUKAN FPB/GCD. Tiap baris BOM Pola (`bom_pola`) punya `isi_pola_pcs`
+// gcd2/lcm2/hitungKelipatan — BARU: field "Kelipatan" di Data Produk Utama.:
+// "kelipatan ini tarikan dari kelipatan terkecil dari isi pola dari semua nama
+// pola" — ini istilah matematika Indonesia "KPK" (Kelipatan Persekutuan Terkecil
+// = LCM), BUKAN FPB/GCD. Tiap baris BOM Pola (`bom_pola`) punya `isi_pola_pcs`
 // (hasil potong per pcs produk buat pola itu) — misal Pola A hasil 12
 // pcs/potong, Pola B hasil 8 pcs/potong: order/produksi HARUS kelipatan
-// KPK(12,8) = 24 pcs supaya SEMUA pola bisa dipotong genap tanpa sisa
-// (tidak ada pola yang motong "setengah" karena qty tidak pas). Baris
-// dengan Isi Pola (Pcs) kosong/0 (mis. baris tipe Vendor yang belum
-// diisi, atau baris kosong) DIABAIKAN — tidak ikut dihitung, tidak
-// menggagalkan hitungan baris lain. Dipakai live-preview di form Entry
-// (lihat kelipatanLive di FormEntryProdukBOM) DAN disimpan permanen ke
-// field `kelipatan` (payload simpan()) — sama pola "computed tapi
-// disimpan" seperti volume_barang/harga_modal di tempat lain, supaya
-// Order SPK (js/vue-order-spk.js) bisa BACA LANGSUNG tanpa perlu hitung
+// KPK(12,8) = 24 pcs supaya SEMUA pola bisa dipotong genap tanpa sisa (tidak ada
+// pola yang motong "setengah" karena qty tidak pas). Baris dengan Isi Pola (Pcs)
+// kosong/0 (mis. baris tipe Vendor yang belum diisi, atau baris kosong)
+// DIABAIKAN — tidak ikut dihitung, tidak menggagalkan hitungan baris lain.
+// Dipakai live-preview di form Entry (lihat kelipatanLive di FormEntryProdukBOM)
+// DAN disimpan permanen ke field `kelipatan` (payload simpan) — sama pola
+// "computed tapi disimpan" seperti volume_barang/harga_modal di tempat lain,
+// supaya Order SPK (js/vue-order-spk.js) bisa BACA LANGSUNG tanpa perlu hitung
 // ulang BOM tiap produk cuma buat tampilkan acuan minimal order.
 function gcd2(a, b) {
   a = Math.round(Math.abs(a)); b = Math.round(Math.abs(b));
@@ -219,7 +182,7 @@ function hitungKelipatan(bomPola) {
   return nilai.reduce((a, b) => lcm2(a, b));
 }
 
-// cekSkuDobel — pola SAMA seperti cekNoSpkDobel() di js/vue-order-spk.js.
+// cekSkuDobel — pola SAMA seperti cekNoSpkDobel di js/vue-order-spk.js.
 async function cekSkuDobel(sku, idSedangEdit) {
   const q = query(collection(db, 'master_produk'), where('sku', '==', sku));
   const snap = await getDocs(q);
@@ -229,9 +192,7 @@ async function cekSkuDobel(sku, idSedangEdit) {
 // buatSkuUnikAsync — dipakai form Entry Produk (satu produk, live Firestore
 // check). Kalau SKU dasar (dari Nama-Warna-Size) sudah dipakai produk LAIN,
 // otomatis tambah akhiran -2/-3/dst sampai ketemu yang belum dipakai — user
-// TIDAK diminta ubah apa-apa (GANTI 28 Agt 2026: dulu ditolak+alert minta
-// user ubah SKU manual, SEKARANG SKU tidak lagi bisa diedit manual jadi
-// tabrakan harus diselesaikan sistem sendiri, bukan dilempar ke user).
+// TIDAK diminta ubah apa-apa .
 async function buatSkuUnikAsync(baseSku, idSedangEdit) {
   let sku = baseSku, n = 1;
   while (await cekSkuDobel(sku, idSedangEdit)) {
@@ -241,28 +202,25 @@ async function buatSkuUnikAsync(baseSku, idSedangEdit) {
   return sku;
 }
 
-// ---------------------------------------------------------------------------
+
 // Import/Export Excel (Master Produk) — desain disepakati lewat 2 ronde
 // AskUserQuestion sebelum ditulis (lihat STATUS-PROYEK.md §28.9): 2 tahap
-// (Import Produk Utama dulu, baru Import BOM setelah SKU-nya ada), template
-// BOM 4 sheet dalam 1 file (Jasa/Pola/Komponen/Aksesoris), popup verifikasi
-// dengan saran koreksi (Levenshtein) + boleh dikoreksi inline lewat
-// DropdownCari sebelum Import ditekan, mode "Ganti Total" per SKU per
-// kategori (BUKAN tambah/gabung ke BOM lama), TEKS SAJA (tanpa foto), dan 1
-// tombol dropdown gabungan (Download Template + Import), sesuai konfirmasi
-// akhir Hilman.
-// ---------------------------------------------------------------------------
+// (Import Produk Utama dulu, baru Import BOM setelah SKU-nya ada), template BOM
+// 4 sheet dalam 1 file (Jasa/Pola/Komponen/Aksesoris), popup verifikasi dengan
+// saran koreksi (Levenshtein) + boleh dikoreksi inline lewat DropdownCari
+// sebelum Import ditekan, mode "Ganti Total" per SKU per kategori (BUKAN
+// tambah/gabung ke BOM lama), TEKS SAJA (tanpa foto), dan 1 tombol dropdown
+// gabungan (Download Template + Import), sesuai konfirmasi akhir .
+
 
 // ambilSemuaProduk — ambil SEMUA dokumen master_produk (bukan 1 halaman
-// paginasi) — dipakai buat cek Nama+Warna+Size dobel dalam file, generate
-// SKU baru yang tidak tabrakan, & cek produk yang mau di-import BOM-nya
-// sudah terdaftar di Data Produk.
-// `export` (BARU 28 Agt 2026) — dulu cuma dipakai internal file ini (cek
+// paginasi) — dipakai buat cek Nama+Warna+Size dobel dalam file, generate SKU
+// baru yang tidak tabrakan, & cek produk yang mau di-import BOM-nya sudah
+// terdaftar di Data Produk. `export` — dulu cuma dipakai internal file ini (cek
 // dobel Nama+Warna+Size saat Import Excel). SEKARANG juga diimpor
-// vue-order-spk.js buat dropdown "Pilih Produk (SKU)" — permintaan Guru
-// sambungkan Order SPK ke Master Produk lewat SKU. Fungsi & isinya TIDAK
-// diubah (tetap ambil SEMUA field termasuk `sku`, `kelipatan`), cuma
-// exposed lintas file.
+// vue-order-spk.js buat dropdown "Pilih Produk (SKU)" —. Fungsi & isinya TIDAK
+// diubah (tetap ambil SEMUA field termasuk `sku`, `kelipatan`), cuma exposed
+// lintas file.
 export async function ambilSemuaProduk() {
   try {
     const snap = await getDocs(collection(db, 'master_produk'));
@@ -275,9 +233,9 @@ export async function ambilSemuaProduk() {
   }
 }
 
-// jarakLevenshtein — jarak edit standar (insert/delete/substitute = 1).
-// Tidak ada pola/library sejenis di codebase ini, ditulis dari nol khusus
-// buat saran "maksud Anda...?" di popup verifikasi import.
+// jarakLevenshtein — jarak edit standar (insert/delete/substitute = 1). Tidak
+// ada pola/library sejenis di codebase ini, ditulis dari nol khusus buat saran
+// "maksud Anda..?" di popup verifikasi import.
 function jarakLevenshtein(a, b) {
   a = (a || '').toLowerCase(); b = (b || '').toLowerCase();
   const m = a.length, n = b.length;
@@ -298,8 +256,8 @@ function jarakLevenshtein(a, b) {
 }
 
 // cariSaranTerdekat — cari opsi ter-mirip (jarak Levenshtein terkecil) buat
-// "maksud Anda...?". Ambang batas separuh panjang teks (longgar tapi tetap
-// masuk akal) biar tidak menyarankan sesuatu yang jauh beda.
+// "maksud Anda..?". Ambang batas separuh panjang teks (longgar tapi tetap masuk
+// akal) biar tidak menyarankan sesuatu yang jauh beda.
 function cariSaranTerdekat(teks, daftarOpsi) {
   if (!teks || !daftarOpsi || !daftarOpsi.length) return '';
   let terbaik = '', jarakTerbaik = Infinity;
@@ -313,10 +271,10 @@ function cariSaranTerdekat(teks, daftarOpsi) {
 
 // validasiPilihan — cek 1 nilai teks dari Excel terhadap daftar opsi resmi
 // (opsiNamaBahan/opsiWarna/opsiSatuan dll). Cocok PERSIS (case-insensitive,
-// trim) = valid, nilai dinormalkan ke ejaan resmi di daftar. Tidak cocok =
-// kasih saran (kalau ada) buat dikoreksi inline di popup — TIDAK PERNAH
-// otomatis dianggap benar (sesuai keputusan "kasih saran & bisa dikoreksi
-// langsung di popup", bukan auto-terima tebakan).
+// trim) = valid, nilai dinormalkan ke ejaan resmi di daftar. Tidak cocok = kasih
+// saran (kalau ada) buat dikoreksi inline di popup — TIDAK PERNAH otomatis
+// dianggap benar (sesuai keputusan "kasih saran & bisa dikoreksi langsung di
+// popup", bukan auto-terima tebakan).
 function validasiPilihan(nilaiAsli, daftarOpsi) {
   const teks = (nilaiAsli || '').trim();
   if (!teks) return { valid: false, nilai: '', saran: '' };
@@ -326,9 +284,8 @@ function validasiPilihan(nilaiAsli, daftarOpsi) {
 }
 
 // bacaFileExcel / ambilSheet — pakai XLSX global yang sudah dimuat lewat
-// <script> di index.html (SheetJS, sudah dipakai duluan di
-// js/vue-penjadwalan.js buat fitur export/import serupa) — TIDAK perlu
-// dependency baru.
+// <script> di index.html (SheetJS, sudah dipakai duluan di js/vue-penjadwalan.js
+// buat fitur export/import serupa) — TIDAK perlu dependency baru.
 function bacaFileExcel(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -346,9 +303,9 @@ function ambilSheet(workbook, namaSheet) {
   return XLSX.utils.sheet_to_json(sheet, { defval: '' });
 }
 
-// unduhWorkbook — bikin file .xlsx dari beberapa sheet sekaligus (dipakai
-// buat 2 template: Produk Utama 1 sheet, BOM 4 sheet dalam 1 file — sesuai
-// keputusan "4 sheet terpisah dalam 1 file").
+// unduhWorkbook — bikin file .xlsx dari beberapa sheet sekaligus (dipakai buat 2
+// template: Produk Utama 1 sheet, BOM 4 sheet dalam 1 file — sesuai keputusan "4
+// sheet terpisah dalam 1 file").
 function unduhWorkbook(sheets, namaFile) {
   const wb = XLSX.utils.book_new();
   for (const s of sheets) {
@@ -358,26 +315,24 @@ function unduhWorkbook(sheets, namaFile) {
   XLSX.writeFile(wb, namaFile);
 }
 
-// Header kolom template — string-nya SEKALIGUS jadi nama kolom di Excel,
-// jadi HARUS PERSIS sama dipakai waktu baca file (ambilSheet + akses
-// b['...']) di bawah. Field "Nama + Warna" (Bahan/Aksesoris) diisi TEKS
-// GABUNGAN sama seperti tampilan DropdownCari di form (lihat
-// formatNamaBahan), mis. "Kain Kanvas Merah". ⚠️ Kode Webbing 2/3 & kolom
-// "Komponen" (sheet Komponen) BUKAN bagian aturan ini lagi sejak §36/§38 —
-// keduanya teks bebas, TIDAK perlu format Nama+Warna.
-// GANTI (28 Agt 2026, permintaan Hilman) — kolom "SKU" DIHAPUS dari SEMUA
-// sheet (Produk Utama & BOM). SKU sekarang full otomatis (lihat kunciProduk
-// di atas), jadi TIDAK ADA LAGI kolom SKU yang perlu diisi di Excel. Sheet
-// "Produk Utama" diidentifikasi lewat Nama+Jenis Produk+Warna+Size sendiri
-// (SKU digenerate sistem saat baris itu diimport). Sheet BOM (Jasa/Pola/
-// Komponen/Aksesoris) SEKARANG mencocokkan baris ke produk lewat kolom
-// "Nama"+"Warna"+"Size" (BUKAN SKU lagi — SKU tidak diketahui user sebelum
-// Import Produk Utama selesai jalan).
+// Header kolom template — string-nya SEKALIGUS jadi nama kolom di Excel, jadi
+// HARUS PERSIS sama dipakai waktu baca file (ambilSheet + akses b['..']) di
+// bawah. Field "Nama + Warna" (Bahan/Aksesoris) diisi TEKS GABUNGAN sama seperti
+// tampilan DropdownCari di form (lihat formatNamaBahan), mis. "Kain Kanvas
+// Merah". ⚠️ Kode Webbing 2/3 & kolom "Komponen" (sheet Komponen) BUKAN bagian
+// aturan ini lagi sejak §36/§38 — keduanya teks bebas, TIDAK perlu format
+// Nama+Warna. GANTI — kolom "SKU" DIHAPUS dari SEMUA sheet (Produk Utama & BOM).
+// SKU sekarang full otomatis (lihat kunciProduk di atas), jadi TIDAK ADA LAGI
+// kolom SKU yang perlu diisi di Excel. Sheet "Produk Utama" diidentifikasi lewat
+// Nama+Jenis Produk+Warna+Size sendiri (SKU digenerate sistem saat baris itu
+// diimport). Sheet BOM (Jasa/Pola/ Komponen/Aksesoris) SEKARANG mencocokkan
+// baris ke produk lewat kolom "Nama"+"Warna"+"Size" (BUKAN SKU lagi — SKU tidak
+// diketahui user sebelum Import Produk Utama selesai jalan).
 const HEADER_PRODUK_UTAMA = ['Nama', 'Jenis Produk', 'Warna', 'Size'];
 const HEADER_JASA = ['Nama', 'Warna', 'Size', 'Nama Jasa', 'Harga'];
 const HEADER_POLA = ['Nama', 'Warna', 'Size', 'Tipe (internal/vendor)', 'Nama Pola', 'Bahan (Nama + Warna)', 'Panjang', 'Isi Pola (Pcs)', 'Jasa Cutting', 'Jasa Serie', 'Jenis Vendor'];
-const HEADER_KOMPONEN = ['Nama', 'Warna', 'Size', 'Nama Pola', 'Komponen', 'Qty']; // GANTI (28 Agt 2026, §36): dulu 'Nama Komponen (Nama + Warna)', sekarang 'Komponen' (sumber Data Komponen/Config, plain text)
-const HEADER_AKSESORIS = ['Nama', 'Warna', 'Size', 'Tahap Proses', 'Aksesoris (Nama + Warna)', 'Qty', 'Satuan', 'Kode Webbing 2', 'Kode Webbing 3']; // GANTI (28 Agt 2026, §38): dulu 'Kode Webbing 2/3 (Nama + Warna)', sekarang teks bebas (permintaan Guru), header disederhanakan
+const HEADER_KOMPONEN = ['Nama', 'Warna', 'Size', 'Nama Pola', 'Komponen', 'Qty']; // (§36): dulu 'Nama Komponen (Nama + Warna)', sekarang 'Komponen' (sumber Data Komponen/Config, plain text)
+const HEADER_AKSESORIS = ['Nama', 'Warna', 'Size', 'Tahap Proses', 'Aksesoris (Nama + Warna)', 'Qty', 'Satuan', 'Kode Webbing 2', 'Kode Webbing 3']; // (§38): dulu 'Kode Webbing 2/3 (Nama + Warna)', sekarang teks bebas (permintaan ), header disederhanakan
 
 function unduhTemplateProdukUtama() {
   const contoh = { 'Nama': 'Tas Ransel Kanvas', 'Jenis Produk': 'Tas', 'Warna': 'Merah', 'Size': 'All Size' };
@@ -397,68 +352,62 @@ function unduhTemplateBOM() {
   ], 'Template Import BOM.xlsx');
 }
 
-// --- Baris kosong per kategori BOM ----------------------------------------
+// Baris kosong per kategori BOM
 function barisJasaKosong() { return { nama: '', harga: '' }; }
 function barisPolaKosong() {
   return {
     tipe: 'internal', // 'internal' | 'vendor' — keputusan #3, gabung 1 tab + toggle
     foto: '', fotoFile: null, fotoPreview: '', fotoDihapus: false,
     nama_pola: '',
-    bahan_pilih: '', bahan_aksesoris_id: '', // GANTI (28 Agt 2026): warna_bahan_pilih dihapus, digabung ke bahan_pilih (lihat formatNamaBahan)
+    bahan_pilih: '', bahan_aksesoris_id: '', // GANTI : warna_bahan_pilih dihapus, digabung ke bahan_pilih (lihat formatNamaBahan)
     panjang: '', isi_pola_pcs: '', jasa_cutting: '', jasa_serie: '',
     jenis_vendor: '',
     komponen: []
   };
 }
-// barisKomponenKosong — GANTI (28 Agt 2026, §34, permintaan Guru: dropdown
-// "Kelola Komponen" sekarang ambil dari Data Komponen [Config, koleksi
-// master_komponen], BUKAN LAGI dari Data Bahan & Aksesoris. master_komponen
-// cuma daftar nama polos (pola sama Warna/Jenis Produk, TANPA id/FK) — jadi
-// `bahan_aksesoris_id` DIHAPUS dari baris ini, `pilih` sekarang LANGSUNG
-// jadi nilai final `nama_komponen` (bukan lagi teks buat di-resolve ke item
-// Bahan & Aksesoris). SUPERSEDE (28 Agt 2026, §36, permintaan Guru lewat
-// Template BOM baru): Excel Import BOM sheet "Komponen" SEKARANG JUGA ikut
-// diganti ke Data Komponen (Config) — kolom header jadi "Komponen" (dulu
-// "Nama Komponen (Nama + Warna)"), validasi ke opsiKomponen (master_komponen)
-// bukan lagi Data Bahan & Aksesoris. Baris hasil import SEKARANG format
-// `{ nama_komponen, qty }` — SAMA PERSIS dengan baris dari form manual,
-// TIDAK ADA LAGI `bahan_aksesoris_id` di baris manapun — konsekuensi "2
-// sumber beda" yang dicatat di §34 SUDAH TIDAK BERLAKU LAGI sejak §36,
-// lihat STATUS-PROYEK.md §36.
+// barisKomponenKosong — §34. master_komponen cuma daftar nama polos (pola sama
+// Warna/Jenis Produk, TANPA id/FK) — jadi `bahan_aksesoris_id` DIHAPUS dari
+// baris ini, `pilih` sekarang LANGSUNG jadi nilai final `nama_komponen` (bukan
+// lagi teks buat di-resolve ke item Bahan & Aksesoris) Excel Import BOM sheet
+// "Komponen" SEKARANG JUGA ikut diganti ke Data Komponen (Config) — kolom header
+// jadi "Komponen" (dulu "Nama Komponen (Nama + Warna)"), validasi ke
+// opsiKomponen (master_komponen) bukan lagi Data Bahan & Aksesoris. Baris hasil
+// import SEKARANG format `{ nama_komponen, qty }` — SAMA PERSIS dengan baris
+// dari form manual, TIDAK ADA LAGI `bahan_aksesoris_id` di baris manapun —
+// konsekuensi "2 sumber beda" yang dicatat di §34 SUDAH TIDAK BERLAKU LAGI sejak
+// §36, lihat STATUS-PROYEK.md §36.
 function barisKomponenKosong() { return { pilih: '', qty: '' }; }
-// barisAksesorisKosong — GANTI (28 Agt 2026, §38, permintaan Guru): Kode
-// Webbing 2/3 DULU wajib pilih dari Data Bahan & Aksesoris (DropdownCari,
-// resolve ke bahan_aksesoris_id — lihat komentar poin 6 di atas berkas ini,
-// SEKARANG SUDAH TIDAK BERLAKU). SEKARANG jadi INPUT MANUAL/teks bebas —
-// `webbing2_id`/`webbing3_id` DIHAPUS (tidak ada lagi link ke
-// master_bahan_aksesoris buat 2 field ini), `webbing2_pilih`/`webbing3_pilih`
-// diganti nama jadi `webbing2`/`webbing3` (langsung teks final, bukan lagi
-// teks buat di-resolve — pola sama seperti `pilih` di barisKomponenKosong
-// sejak §34).
+// barisAksesorisKosong — GANTI: Kode Webbing 2/3 DULU wajib pilih dari Data
+// Bahan & Aksesoris (DropdownCari, resolve ke bahan_aksesoris_id — lihat
+// komentar poin 6 di atas berkas ini, SEKARANG SUDAH TIDAK BERLAKU). SEKARANG
+// jadi INPUT MANUAL/teks bebas — `webbing2_id`/`webbing3_id` DIHAPUS (tidak ada
+// lagi link ke master_bahan_aksesoris buat 2 field ini),
+// `webbing2_pilih`/`webbing3_pilih` diganti nama jadi `webbing2`/`webbing3`
+// (langsung teks final, bukan lagi teks buat di-resolve — pola sama seperti
+// `pilih` di barisKomponenKosong sejak §34).
 function barisAksesorisKosong() {
   return {
     tahap_proses: '',
-    aksesoris_pilih: '', bahan_aksesoris_id: '', // GANTI (28 Agt 2026): warna_pilih dihapus, digabung ke aksesoris_pilih (lihat formatNamaBahan)
+    aksesoris_pilih: '', bahan_aksesoris_id: '', // GANTI : warna_pilih dihapus, digabung ke aksesoris_pilih (lihat formatNamaBahan)
     qty: '', satuan_pilih: '',
     webbing2: '',
     webbing3: ''
   };
 }
 
-// ---------------------------------------------------------------------------
-// KelolaKomponenModal — modal "Kelola Komponen" per baris BOM Pola/Vendor.
-// Pola prop SAMA seperti PopupKonversiBerjenjang (vue-bahan-aksesoris.js):
-// `baris` dikirim SEBAGAI REFERENSI (array reactive), dimutasi langsung di
-// sini — tidak perlu event update:modelValue bolak-balik tiap field.
-// ---------------------------------------------------------------------------
+
+// KelolaKomponenModal — modal "Kelola Komponen" per baris BOM Pola/Vendor. Pola
+// prop SAMA seperti PopupKonversiBerjenjang (vue-bahan-aksesoris.js): `baris`
+// dikirim SEBAGAI REFERENSI (array reactive), dimutasi langsung di sini — tidak
+// perlu event update:modelValue bolak-balik tiap field.
+
 const KelolaKomponenModal = {
   components: { DropdownCari },
   props: {
     komponen: { type: Array, required: true },
     namaPola: { type: String, default: '' },
-    // GANTI (28 Agt 2026, §34) — dulu opsiNamaBahan/daftarBahan (Data Bahan
-    // & Aksesoris), SEKARANG opsiKomponen (Data Komponen, Config, koleksi
-    // master_komponen) — permintaan Guru eksplisit.
+    // dulu opsiNamaBahan/daftarBahan (Data Bahan & Aksesoris), SEKARANG
+    // opsiKomponen (Data Komponen, Config, koleksi master_komponen) —.
     opsiKomponen: { type: Array, default: () => [] }
   },
   emits: ['tutup'],
@@ -483,14 +432,14 @@ const KelolaKomponenModal = {
   `
 };
 
-// ---------------------------------------------------------------------------
-// FormEntryProdukBOM — form lengkap Data Produk Utama + 4 kategori BOM.
-// Dipakai DUA tempat: MasterProdukEntryManager (mode create, halaman biasa)
-// & modal edit di MasterProdukListManager (mode edit, dataAwal terisi) —
-// sengaja dipisah jadi 1 komponen (BEDA dari pola lama vue-bahan-
-// aksesoris.js yang duplikat form Entry & modal Edit) karena form BOM ini
-// jauh lebih besar/kompleks, duplikasi ~500 baris bukan pilihan masuk akal.
-// ---------------------------------------------------------------------------
+
+// FormEntryProdukBOM — form lengkap Data Produk Utama + 4 kategori BOM. Dipakai
+// DUA tempat: MasterProdukEntryManager (mode create, halaman biasa) & modal edit
+// di MasterProdukListManager (mode edit, dataAwal terisi) — sengaja dipisah jadi
+// 1 komponen (BEDA dari pola lama vue-bahan- aksesoris.js yang duplikat form
+// Entry & modal Edit) karena form BOM ini jauh lebih besar/kompleks, duplikasi
+// ~500 baris bukan pilihan masuk akal.
+
 const FormEntryProdukBOM = {
   components: { DropdownCari, KelolaKomponenModal },
   props: { dataAwal: { type: Object, default: null } },
@@ -504,28 +453,25 @@ const FormEntryProdukBOM = {
     const opsiNamaBahan = computed(() => daftarBahan.value.map(b => formatNamaBahan(b)));
     const opsiWarna = ref([]);
     const opsiSatuan = ref([]);
-    // BARU (28 Agt 2026) — Jenis Produk (mis. "Kaos", "Celana"), sumbernya
-    // Config > Jenis Produk (master_jenis_produk), pola SAMA seperti Warna:
-    // DropdownCari wajib pilih dari daftar, disimpan sebagai teks (bukan id).
+    // Jenis Produk (mis. "Kaos", "Celana"), sumbernya Config > Jenis Produk
+    // (master_jenis_produk), pola SAMA seperti Warna: DropdownCari wajib pilih
+    // dari daftar, disimpan sebagai teks (bukan id).
     const opsiJenisProduk = ref([]);
-    // BARU (28 Agt 2026, §34) — Data Komponen (Config, master_komponen),
-    // sumber dropdown "Kelola Komponen" (BOM Pola), pola SAMA seperti Warna/
-    // Jenis Produk: DropdownCari wajib pilih dari daftar, disimpan sebagai
-    // teks (bukan id) — GANTI dari sumber lama Data Bahan & Aksesoris,
-    // permintaan Guru eksplisit.
+    // Data Komponen (Config, master_komponen), sumber dropdown "Kelola Komponen"
+    // (BOM Pola), pola SAMA seperti Warna/ Jenis Produk: DropdownCari wajib
+    // pilih dari daftar, disimpan sebagai teks (bukan id) — GANTI dari sumber
+    // lama Data Bahan & Aksesoris.
     const opsiKomponen = ref([]);
-    // opsiTahapPersiapan — BARU (28 Agt 2026, permintaan Guru: "sambungkan
-    // dropdown cari > Persiapan untuk Tahap" di BOM Aksesoris). Sumber
-    // Config > Persiapan Untuk Tahap (koleksi master_tahap_persiapan) —
-    // pola SAMA seperti opsiKomponen/opsiJenisProduk di atas: DropdownCari
-    // BUKAN strict-select (field `tahap_proses` TETAP teks bebas seperti
-    // sebelumnya, dropdown ini cuma bantu SARAN/konsistensi penulisan,
-    // TIDAK mem-validasi harus pilih dari daftar — beda dari Warna/Jenis
-    // Produk/Komponen yang wajib pilih). Alasan: field ini SUDAH ADA lama
-    // sebagai teks bebas (dipakai juga Import Excel BOM Aksesoris sejak
+    // opsiTahapPersiapan — BARU . Sumber Config > Persiapan Untuk Tahap (koleksi
+    // master_tahap_persiapan) — pola SAMA seperti opsiKomponen/opsiJenisProduk
+    // di atas: DropdownCari BUKAN strict-select (field `tahap_proses` TETAP teks
+    // bebas seperti sebelumnya, dropdown ini cuma bantu SARAN/konsistensi
+    // penulisan, TIDAK mem-validasi harus pilih dari daftar — beda dari
+    // Warna/Jenis Produk/Komponen yang wajib pilih). Alasan: field ini SUDAH ADA
+    // lama sebagai teks bebas (dipakai juga Import Excel BOM Aksesoris sejak
     // sebelum menu Config ini ada), mengunci jadi strict-select berisiko
-    // "mengunci keluar" data lama yang tidak persis cocok ejaannya dengan
-    // daftar master baru.
+    // "mengunci keluar" data lama yang tidak persis cocok ejaannya dengan daftar
+    // master baru.
     const opsiTahapPersiapan = ref([]);
 
     const idProduk = props.dataAwal?.id || doc(collection(db, 'master_produk')).id;
@@ -537,83 +483,75 @@ const FormEntryProdukBOM = {
       size: props.dataAwal?.size || '',
       sku: props.dataAwal?.sku || '',
       foto: props.dataAwal?.foto || '',
-      // harga_jual — BARU (30 Agt 2026, fitur "Pesanan" — Penjualan Kasir
-      // butuh harga jual per produk buat isi keranjang, master_produk
-      // SEBELUMNYA cuma punya data BOM/ongkos produksi, TIDAK ADA field
-      // harga jual sama sekali (lihat AskUserQuestion, keputusan Guru:
-      // "Field 'Harga Jual' baru di Master Produk"). Angka polos (bukan
-      // per-varian/promo), opsional — produk lama tanpa harga jual tetap
-      // muncul di Kasir tapi harganya 0 (bisa diedit manual di keranjang
+      // harga_jual — fitur "Pesanan" — Penjualan Kasir butuh harga jual per
+      // produk buat isi keranjang, master_produk SEBELUMNYA cuma punya data
+      // BOM/ongkos produksi, TIDAK ADA field harga jual sama sekali . Angka
+      // polos (bukan per-varian/promo), opsional — produk lama tanpa harga jual
+      // tetap muncul di Kasir tapi harganya 0 (bisa diedit manual di keranjang
       // kalau perlu, lihat js/vue-pesanan.js).
       harga_jual: props.dataAwal?.harga_jual || '',
-      // moq_serie & kelipatan_isi_pola — BARU (5 Sep 2026, klarifikasi Guru
-      // langsung: "moq ada 2 dan keduanya beda jalur, moq pesanan produk
-      // dan moq pembelian bahan & aksesoris... moq pesanan produk berkaitan
-      // dengan master produk"). Ini "MOQ Pesanan Produk" — BEDA dari MOQ
-      // pembelian bahan/aksesoris yang sudah ada di alias_pembelian
-      // (moq/moq_satuan/lead_time_hari, lihat js/vue-master-suplayer.js).
-      // Field ini dikonfirmasi lewat wireframe Mockup/handoff/Proses
-      // Produksi - Serie/SERAH-TERIMA.md §5 ("Field baru master_produk:
-      // moq_serie (number), kelipatan_isi_pola (number)") — DATA LAYER
-      // SAJA di sesi ini; modul konsumennya ("Proses Produksi > Serie",
-      // hub 11-tab) BELUM dibangun, itu langkah terpisah nanti (lihat
-      // RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 6). JANGAN dicampur
-      // dengan field `kelipatan` yang SUDAH ADA (auto-KPK dari Isi Pola
-      // Pcs di BOM Pola, dipakai Order SPK/Kasir sbg "Rekomendasi
-      // Kelipatan Order") — itu konsep lama yang tetap dipakai apa adanya,
-      // moq_serie/kelipatan_isi_pola di sini adalah input MANUAL terpisah
-      // untuk kebutuhan modul Serie nanti.
+      // moq_serie & kelipatan_isi_pola — BARU . Ini "MOQ Pesanan Produk" — BEDA
+      // dari MOQ pembelian bahan/aksesoris yang sudah ada di alias_pembelian
+      // (moq/moq_satuan/lead_time_hari, lihat js/vue-master-suplayer.js). Field
+      // ini dikonfirmasi lewat wireframe Mockup/handoff/Proses Produksi - Serie/
+      // ("Field baru master_produk: moq_serie (number), kelipatan_isi_pola
+      // (number)") — DATA LAYER SAJA di sesi ini; modul konsumennya ("Proses
+      // Produksi > Serie", hub 11-tab) BELUM dibangun, itu langkah terpisah
+      // nanti (lihat RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 6). JANGAN
+      // dicampur dengan field `kelipatan` yang SUDAH ADA (auto-KPK dari Isi Pola
+      // Pcs di BOM Pola, dipakai Order SPK/Kasir sbg "Rekomendasi Kelipatan
+      // Order") — itu konsep lama yang tetap dipakai apa adanya,
+      // moq_serie/kelipatan_isi_pola di sini adalah input MANUAL terpisah untuk
+      // kebutuhan modul Serie nanti.
       moq_serie: props.dataAwal?.moq_serie || '',
       kelipatan_isi_pola: props.dataAwal?.kelipatan_isi_pola || '',
       bom_jasa: props.dataAwal?.bom_jasa ? JSON.parse(JSON.stringify(props.dataAwal.bom_jasa)) : [],
       bom_pola: props.dataAwal?.bom_pola ? JSON.parse(JSON.stringify(props.dataAwal.bom_pola)).map(b => ({
         ...barisPolaKosong(), ...b,
-        // GANTI (28 Agt 2026) — dulu Nama Bahan & Warna Bahan 2 field
-        // terpisah, SEKARANG 1 field gabungan (formatNamaBahan) biar
-        // varian warna beda bisa dibedakan di dropdown. bahan_pilih
-        // direkonstruksi dari nama_bahan+warna_bahan yang TERSIMPAN (2
-        // field itu TETAP disimpan terpisah di Firestore, cuma UI-nya
-        // digabung jadi 1 dropdown).
+        // dulu Nama Bahan & Warna Bahan 2 field terpisah, SEKARANG 1 field
+        // gabungan (formatNamaBahan) biar varian warna beda bisa dibedakan di
+        // dropdown. bahan_pilih direkonstruksi dari nama_bahan+warna_bahan yang
+        // TERSIMPAN (2 field itu TETAP disimpan terpisah di Firestore, cuma
+        // UI-nya digabung jadi 1 dropdown).
         bahan_pilih: formatNamaBahan({ nama: b.nama_bahan, warna: b.warna_bahan }),
         fotoFile: null, fotoPreview: '',
-        // penting: komponen tersimpan cuma punya nama_komponen (bukan
-        // "pilih") — kalau tidak dipetakan ulang, DropdownCari-nya bakal
-        // kosong waktu edit padahal datanya ada, dan validasi() akan
-        // salah kira belum dipilih (nolak simpan padahal cuma tampilan).
+        // penting: komponen tersimpan cuma punya nama_komponen (bukan "pilih") —
+        // kalau tidak dipetakan ulang, DropdownCari-nya bakal kosong waktu edit
+        // padahal datanya ada, dan validasi akan salah kira belum dipilih (nolak
+        // simpan padahal cuma tampilan).
         komponen: (b.komponen || []).map(k => ({ ...barisKomponenKosong(), ...k, pilih: k.nama_komponen || '' }))
       })) : [],
-      // GANTI (28 Agt 2026) — aksesoris_pilih SEKARANG direkonstruksi dari
-      // nama_aksesoris+warna gabungan (sama alasan seperti bom_pola di
-      // atas). GANTI LAGI (28 Agt 2026, §38): webbing2/webbing3 SEKARANG
-      // field teks bebas langsung dari `a.webbing2`/`a.webbing3` (BUKAN
-      // LAGI `webbing2_nama`/`webbing3_nama` hasil resolve FK) — lihat
-      // barisAksesorisKosong() & simpan().
+      // aksesoris_pilih SEKARANG direkonstruksi dari nama_aksesoris+warna
+      // gabungan (sama alasan seperti bom_pola di atas). GANTI LAGI:
+      // webbing2/webbing3 SEKARANG field teks bebas langsung dari
+      // `a.webbing2`/`a.webbing3` (BUKAN LAGI `webbing2_nama`/`webbing3_nama`
+      // hasil resolve FK) — lihat barisAksesorisKosong & simpan.
       bom_aksesoris: props.dataAwal?.bom_aksesoris ? JSON.parse(JSON.stringify(props.dataAwal.bom_aksesoris)).map(a => ({ ...barisAksesorisKosong(), ...a, aksesoris_pilih: formatNamaBahan({ nama: a.nama_aksesoris, warna: a.warna }), satuan_pilih: a.satuan || '', webbing2: a.webbing2 || '', webbing3: a.webbing3 || '' })) : []
     });
 
-    // GANTI (28 Agt 2026, permintaan Hilman) — SKU SEKARANG FULL OTOMATIS,
-    // user/admin TIDAK ENTRY SKU SAMA SEKALI (dulu ada mode "diedit manual"
-    // yang menghentikan auto-isi begitu user ketik langsung — DIHAPUS).
-    // form.sku di sini cuma PREVIEW dasar (live, dari Nama-Warna-Size, tanpa
-    // Firestore check) — SKU FINAL yang benar-benar unik (bisa dapat akhiran
-    // -2/-3 kalau tabrakan) baru ditentukan simpan() lewat buatSkuUnikAsync().
+    // SKU SEKARANG FULL OTOMATIS, user/admin TIDAK ENTRY SKU SAMA SEKALI (dulu
+    // ada mode "diedit manual" yang menghentikan auto-isi begitu user ketik
+    // langsung — DIHAPUS). form.sku di sini cuma PREVIEW dasar (live, dari
+    // Nama-Warna-Size, tanpa Firestore check) — SKU FINAL yang benar-benar unik
+    // (bisa dapat akhiran -2/-3 kalau tabrakan) baru ditentukan simpan lewat
+    // buatSkuUnikAsync.
     watch([() => form.nama, () => form.warna_pilih, () => form.size], () => {
       form.sku = buatSkuOtomatis(form.nama, form.warna_pilih, form.size);
     });
 
-    // kelipatanLive — BARU (28 Agt 2026, permintaan Guru), lihat catatan
-    // panjang hitungKelipatan() di atas file ini. Live-preview (reactive
-    // ke form.bom_pola, update otomatis tiap Isi Pola (Pcs) diketik) —
-    // nilai FINAL yang sama disimpan ke field `kelipatan` di simpan().
+    // kelipatanLive — BARU, lihat catatan panjang hitungKelipatan di atas file
+    // ini. Live-preview (reactive ke form.bom_pola, update otomatis tiap Isi
+    // Pola (Pcs) diketik) — nilai FINAL yang sama disimpan ke field `kelipatan`
+    // di simpan.
     const kelipatanLive = computed(() => hitungKelipatan(form.bom_pola));
 
     const fotoProdukFile = ref(null);
     const fotoProdukPreview = ref(props.dataAwal?.foto || '');
     // fotoProdukDihapus — BARU: tanda "foto lama SENGAJA dihapus, jangan
     // dipertahankan waktu simpan" (beda dari sekadar belum pernah ada foto).
-    // Tanpa ini, klik "Hapus Foto" cuma mengosongkan tampilan, tapi file
-    // lama di Storage tidak pernah ikut dihapus (jadi file yatim) — pola
-    // sama seperti alasan hapus(item) di js/vue-config-info.js.
+    // Tanpa ini, klik "Hapus Foto" cuma mengosongkan tampilan, tapi file lama di
+    // Storage tidak pernah ikut dihapus (jadi file yatim) — pola sama seperti
+    // alasan hapus(item) di js/vue-config-info.js.
     const fotoProdukDihapus = ref(false);
     function pilihFotoProduk(ev) {
       const file = ev.target.files[0];
@@ -664,24 +602,24 @@ const FormEntryProdukBOM = {
       const item = resolveBahan(daftarBahan.value, baris.aksesoris_pilih);
       baris.bahan_aksesoris_id = item ? item.id : '';
     }
-    // saatPilihWebbing() — DIHAPUS (28 Agt 2026, §38): Kode Webbing 2/3
-    // sekarang input teks manual, tidak ada lagi resolve ke Data Bahan &
-    // Aksesoris, jadi tidak perlu handler saat dipilih.
+    // saatPilihWebbing — DIHAPUS: Kode Webbing 2/3 sekarang input teks manual,
+    // tidak ada lagi resolve ke Data Bahan & Aksesoris, jadi tidak perlu handler
+    // saat dipilih.
 
-    // idTampilBahan — BARU (9 Sep 2026, restrukturisasi tampilan §2.1):
-    // BOM Pola & BOM Aksesoris sekarang tabel baris langsung (lihat
-    // wireframe.dc.html "2.1 Entry Produk"), kolom "bahan ID"/"item ID"
-    // menampilkan id_tampil (kode sekuensial mis. "BHN-0001", SUDAH ADA di
-    // master_bahan_aksesoris sejak awal — lihat js/vue-bahan-aksesoris.js)
-    // dari item yang sudah ke-resolve lewat bahan_aksesoris_id, BUKAN id
-    // dokumen Firestore mentah (hash panjang, tidak enak dibaca).
+    // idTampilBahan — BARU: BOM Pola & BOM Aksesoris sekarang tabel baris
+    // langsung (lihat wireframe.dc.html "2.1 Entry Produk"), kolom "bahan
+    // ID"/"item ID" menampilkan id_tampil (kode sekuensial mis. "BHN-0001",
+    // SUDAH ADA di master_bahan_aksesoris sejak awal — lihat
+    // js/vue-bahan-aksesoris.js) dari item yang sudah ke-resolve lewat
+    // bahan_aksesoris_id, BUKAN id dokumen Firestore mentah (hash panjang, tidak
+    // enak dibaca).
     function idTampilBahan(bahanAksesorisId) {
       if (!bahanAksesorisId) return '-';
       const item = daftarBahan.value.find(b => b.id === bahanAksesorisId);
       return item?.id_tampil || '-';
     }
-    // pindahKeList — BARU (9 Sep 2026): pill "List" di card-head Entry Produk
-    // (lihat template di bawah). Pakai fungsi navigasi GLOBAL yang sudah ada
+    // pindahKeList — BARU: pill "List" di card-head Entry Produk (lihat template
+    // di bawah). Pakai fungsi navigasi GLOBAL yang sudah ada
     // (window.pindahSubTab, didefinisikan js/dashboard.js, DIPAKAI juga oleh
     // tombol tab Entry/List/HPP asli di index.html) — TIDAK ada logika baru,
     // cuma manggil ulang, supaya index.html tidak perlu disentuh sama sekali.
@@ -711,9 +649,8 @@ const FormEntryProdukBOM = {
         }
         for (const k of b.komponen) {
           if (!k.pilih && !k.qty) continue;
-          // GANTI (28 Agt 2026, §34) — komponen sekarang divalidasi ke Data
-          // Komponen (opsiKomponen, teks polos), BUKAN LAGI resolveBahan ke
-          // Data Bahan & Aksesoris.
+          // komponen sekarang divalidasi ke Data Komponen (opsiKomponen, teks
+          // polos), BUKAN LAGI resolveBahan ke Data Bahan & Aksesoris.
           if (!opsiKomponen.value.includes(k.pilih)) return `Komponen di BOM "${b.nama_pola || '(tanpa nama)'}": pilih Nama Komponen dari daftar dulu.`;
         }
       }
@@ -723,9 +660,9 @@ const FormEntryProdukBOM = {
         if (!resolveBahan(daftarBahan.value, a.aksesoris_pilih)) {
           return `BOM Aksesoris "${a.tahap_proses || '(tanpa tahap)'}": pilih Nama Aksesoris dari daftar dulu.`;
         }
-        // Kode Webbing 2/3 — DIHAPUS validasinya (28 Agt 2026, §38): SEKARANG
-        // teks bebas/opsional, tidak perlu resolve ke Data Bahan & Aksesoris
-        // lagi (dulu di sini, sebelum §38).
+        // Kode Webbing 2/3 — DIHAPUS validasinya: SEKARANG teks bebas/opsional,
+        // tidak perlu resolve ke Data Bahan & Aksesoris lagi (dulu di sini,
+        // sebelum §38).
       }
       return '';
     }
@@ -735,10 +672,10 @@ const FormEntryProdukBOM = {
       if (pesanError) return alert(pesanError);
       menyimpan.value = true;
       try {
-        // GANTI (28 Agt 2026) — dulu SKU dobel ditolak+alert minta user ubah
-        // manual. SEKARANG SKU tidak lagi bisa diedit manual, jadi tabrakan
-        // diselesaikan sistem sendiri (tambah akhiran -2/-3/dst otomatis,
-        // lihat buatSkuUnikAsync di atas) — user tidak diminta apa-apa.
+        // dulu SKU dobel ditolak+alert minta user ubah manual. SEKARANG SKU
+        // tidak lagi bisa diedit manual, jadi tabrakan diselesaikan sistem
+        // sendiri (tambah akhiran -2/-3/dst otomatis, lihat buatSkuUnikAsync di
+        // atas) — user tidak diminta apa-apa.
         const skuFinal = await buatSkuUnikAsync(form.sku.trim(), props.dataAwal?.id);
 
         mengupload.value = true;
@@ -771,20 +708,20 @@ const FormEntryProdukBOM = {
             nama_pola: (b.nama_pola || '').trim(),
             bahan_aksesoris_id: bahanItem ? bahanItem.id : '',
             nama_bahan: bahanItem ? bahanItem.nama : '',
-            // GANTI (28 Agt 2026) — warna_bahan SEKARANG auto-ikut dari
-            // item yang dipilih (field warna_bahan_pilih terpisah sudah
-            // dihapus), BUKAN dipilih manual lagi.
+            // warna_bahan SEKARANG auto-ikut dari item yang dipilih (field
+            // warna_bahan_pilih terpisah sudah dihapus), BUKAN dipilih manual
+            // lagi.
             warna_bahan: bahanItem ? (bahanItem.warna || '') : '',
             panjang: parseFloat(b.panjang) || 0,
             isi_pola_pcs: parseFloat(b.isi_pola_pcs) || 0,
             jasa_cutting: parseFloat(b.jasa_cutting) || 0,
             jasa_serie: parseFloat(b.jasa_serie) || 0,
             jenis_vendor: b.tipe === 'vendor' ? (b.jenis_vendor || '').trim() : '',
-            // GANTI (28 Agt 2026, §34) — komponen SEKARANG dari Data Komponen
-            // (teks polos, k.pilih = nilai final `nama_komponen` langsung),
-            // BUKAN LAGI di-resolve ke item Data Bahan & Aksesoris — field
-            // `bahan_aksesoris_id` DIHAPUS dari baris komponen (tidak relevan
-            // lagi, master_komponen tidak punya konsep id/FK ke stok).
+            // komponen SEKARANG dari Data Komponen (teks polos, k.pilih = nilai
+            // final `nama_komponen` langsung), BUKAN LAGI di-resolve ke item
+            // Data Bahan & Aksesoris — field `bahan_aksesoris_id` DIHAPUS dari
+            // baris komponen (tidak relevan lagi, master_komponen tidak punya
+            // konsep id/FK ke stok).
             komponen: (b.komponen || []).filter(k => k.pilih).map(k => ({ nama_komponen: k.pilih, qty: parseFloat(k.qty) || 0 }))
           });
         }
@@ -795,16 +732,16 @@ const FormEntryProdukBOM = {
             tahap_proses: (a.tahap_proses || '').trim(),
             bahan_aksesoris_id: item ? item.id : '',
             nama_aksesoris: item ? item.nama : '',
-            // GANTI (28 Agt 2026) — warna SEKARANG auto-ikut dari item yang
-            // dipilih (field warna_pilih terpisah sudah dihapus), BUKAN
-            // dipilih manual lagi — sama alasan seperti warna_bahan di atas.
+            // warna SEKARANG auto-ikut dari item yang dipilih (field warna_pilih
+            // terpisah sudah dihapus), BUKAN dipilih manual lagi — sama alasan
+            // seperti warna_bahan di atas.
             warna: item ? (item.warna || '') : '',
             qty: parseFloat(a.qty) || 0,
             satuan: (a.satuan_pilih || '').trim(),
-            // GANTI (28 Agt 2026, §38, permintaan Guru) — Kode Webbing 2/3
-            // SEKARANG teks bebas langsung dari input manual, BUKAN LAGI
-            // di-resolve ke Data Bahan & Aksesoris. `webbing2_id`/`webbing3_id`
-            // DIHAPUS (tidak ada lagi FK buat 2 field ini).
+            // Kode Webbing 2/3 SEKARANG teks bebas langsung dari input manual,
+            // BUKAN LAGI di-resolve ke Data Bahan & Aksesoris.
+            // `webbing2_id`/`webbing3_id` DIHAPUS (tidak ada lagi FK buat 2
+            // field ini).
             webbing2: (a.webbing2 || '').trim(),
             webbing3: (a.webbing3 || '').trim()
           };
@@ -822,19 +759,19 @@ const FormEntryProdukBOM = {
           bom_jasa: bomJasaSiap,
           bom_pola: bomPolaSiap,
           bom_aksesoris: bomAksesorisSiap,
-          // harga_jual — BARU (30 Agt 2026, fitur "Pesanan"), lihat catatan
-          // panjang di form reactive() atas file ini.
+          // harga_jual — BARU, lihat catatan panjang di form reactive atas file
+          // ini.
           harga_jual: parseFloat(form.harga_jual) || 0,
-          // moq_serie & kelipatan_isi_pola — BARU (5 Sep 2026), lihat catatan
-          // panjang di form reactive() atas file ini. Opsional (boleh
-          // 0/kosong), TIDAK ikut validasi() wajib — prasyarat data buat
-          // modul Serie yang belum dibangun.
+          // moq_serie & kelipatan_isi_pola — BARU, lihat catatan panjang di form
+          // reactive atas file ini. Opsional (boleh 0/kosong), TIDAK ikut
+          // validasi wajib — prasyarat data buat modul Serie yang belum
+          // dibangun.
           moq_serie: parseFloat(form.moq_serie) || 0,
           kelipatan_isi_pola: parseFloat(form.kelipatan_isi_pola) || 0,
-          // kelipatan — BARU (28 Agt 2026, permintaan Guru). Dihitung dari
-          // bomPolaSiap (bukan kelipatanLive.value langsung) supaya pasti
-          // sinkron dengan bom_pola versi FINAL yang benar-benar disimpan
-          // (misal ada baris kosong yang difilter simpan(), dsb).
+          // kelipatan — BARU . Dihitung dari bomPolaSiap (bukan
+          // kelipatanLive.value langsung) supaya pasti sinkron dengan bom_pola
+          // versi FINAL yang benar-benar disimpan (misal ada baris kosong yang
+          // difilter simpan, dsb).
           kelipatan: hitungKelipatan(bomPolaSiap)
         };
 
@@ -873,12 +810,12 @@ const FormEntryProdukBOM = {
   },
   template: `
     <div>
-      <!-- RESTRUKTURISASI (9 Sep 2026, audit wireframe handoff "06 - Zevanic
-           House" §2.1) — susunan tampilan diganti total ikut wireframe low-fi
-           (breadcrumb+tab dalam 1 card-head, grid 1 baris foto|identitas|BOM
-           Jasa, BOM Pola & Aksesoris jadi tabel baris langsung, bukan tombol
-           collapse). Field, SKU otomatis, kelipatan (KPK), & payload simpan()
-           TIDAK berubah sama sekali — cuma markup/render di bawah ini. -->
+      <!--
+        susunan tampilan diganti total ikut wireframe low-fi (breadcrumb+tab dalam 1 card-head,
+        grid 1 baris foto|identitas|BOM Jasa, BOM Pola & Aksesoris jadi tabel baris langsung,
+        bukan tombol collapse). Field, SKU otomatis, kelipatan (KPK), & payload simpan TIDAK
+        berubah sama sekali — cuma markup/render di bawah ini.
+      -->
       <style>
         .mp-row-pola, .mp-row-aksesoris { display:grid; grid-template-columns:1fr; gap:6px; padding:8px; border-radius:8px; }
         .mp-row-label { display:block; font-size:9px; font-weight:700; color:var(--text-faint); margin-bottom:2px; text-transform:uppercase; letter-spacing:.02em; }
@@ -898,14 +835,14 @@ const FormEntryProdukBOM = {
       </style>
 
       <div class="gc-card">
-        <!-- Card-head — pola SAMA seperti class .gc-card-head di
-             css/gechoo-design.css (sudah didefinisikan, sebelum ini belum
-             ada modul yang pakai — lihat komentar di CSS-nya). Breadcrumb +
-             pill Entry/List SESUAI wireframe 2.1 (cuma tampil mode create;
-             di modal Edit [dipakai ulang dari List] diganti judul "Edit
-             Produk" biasa, breadcrumb+pill navigasi tidak relevan di dalam
-             modal). Tombol Simpan/Batal JUGA dipindah ke sini (kanan atas,
-             kecil) — bukan lagi full-width sendirian di paling bawah. -->
+        <!--
+          Card-head — pola SAMA seperti class .gc-card-head di css/gechoo-design.css (sudah
+          didefinisikan, sebelum ini belum ada modul yang pakai — lihat komentar di CSS-nya).
+          Breadcrumb + pill Entry/List SESUAI wireframe 2.1 (cuma tampil mode create; di modal
+          Edit [dipakai ulang dari List] diganti judul "Edit Produk" biasa, breadcrumb+pill
+          navigasi tidak relevan di dalam modal). Tombol Simpan/Batal JUGA dipindah ke sini (kanan
+          atas, kecil) — bukan lagi full-width sendirian di paling bawah.
+        -->
         <div class="gc-card-head">
           <div>
             <h3 style="font-weight:700; font-size:14.5px; margin:0;"><i class="fas fa-box-open" style="color:var(--burgundy); margin-right:8px;"></i>{{ modeEdit ? 'Edit Produk' : 'Zevanic House › Master Produk' }}</h3>
@@ -921,7 +858,10 @@ const FormEntryProdukBOM = {
           </div>
         </div>
 
-        <!-- Baris 1 (wireframe 2.1): foto (sempit) | identitas produk (tengah) | BOM Jasa (kanan, langsung, tanpa collapse) -->
+        <!--
+          Baris 1 (wireframe 2.1): foto (sempit) | identitas produk (tengah) | BOM Jasa (kanan,
+          langsung, tanpa collapse)
+        -->
         <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
           <div style="flex:0 0 96px;">
             <div v-if="fotoProdukPreview" style="margin-bottom:8px;">
@@ -941,16 +881,17 @@ const FormEntryProdukBOM = {
               <label>SKU <span style="font-weight:400; color:var(--text-faint);">(otomatis)</span></label>
               <input :value="form.sku" type="text" readonly style="text-transform:uppercase; background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;">
             </div>
-            <!-- Harga Jual — BARU (30 Agt 2026, fitur "Pesanan" > Penjualan
-                 Kasir), lihat catatan panjang di form reactive() atas file
-                 ini. Opsional (boleh 0/kosong), TIDAK ikut validasi() wajib. -->
+            <!--
+              Harga Jual — BARU, lihat catatan panjang di form reactive atas file ini. Opsional
+              (boleh 0/kosong), TIDAK ikut validasi wajib.
+            -->
             <div class="gc-field" style="margin-bottom:0;"><label>Harga Jual <span style="font-weight:400; color:var(--text-faint);">(Penjualan Kasir)</span></label><input v-model.number="form.harga_jual" type="number" min="0" placeholder="0"></div>
-            <!-- MOQ Pesanan Produk & Kelipatan Isi Pola — BARU (5 Sep 2026,
-                 klarifikasi Guru), lihat catatan panjang di form reactive()
-                 atas file ini. Input MANUAL, opsional, prasyarat data untuk
-                 modul Proses Produksi > Serie (belum dibangun sesi ini).
-                 BUKAN bagian wireframe 2.1 (field ditambah belakangan) —
-                 tetap ditaruh di blok identitas, cuma dipindah render-nya. -->
+            <!--
+              MOQ Pesanan Produk & Kelipatan Isi Pola — BARU, lihat catatan panjang di form
+              reactive atas file ini. Input MANUAL, opsional, prasyarat data untuk modul Proses
+              Produksi > Serie (belum dibangun sesi ini). BUKAN bagian wireframe 2.1 (field
+              ditambah belakangan) — tetap ditaruh di blok identitas, cuma dipindah render-nya.
+            -->
             <div class="gc-field" style="margin-bottom:0;"><label>MOQ Pesanan Produk <span style="font-weight:400; color:var(--text-faint);">(modul Serie)</span></label><input v-model.number="form.moq_serie" type="number" min="0" placeholder="0"></div>
             <div class="gc-field" style="margin-bottom:0;"><label>Kelipatan Isi Pola <span style="font-weight:400; color:var(--text-faint);">(modul Serie)</span></label><input v-model.number="form.kelipatan_isi_pola" type="number" min="0" placeholder="0"></div>
           </div>
@@ -973,7 +914,10 @@ const FormEntryProdukBOM = {
 
         <div style="height:1px; background:var(--line); margin:16px 0;"></div>
 
-        <!-- Baris 2 (wireframe 2.1): BOM Pola & BOM Aksesoris — tabel baris langsung, TANPA tombol collapse "+Tambah" -->
+        <!--
+          Baris 2 (wireframe 2.1): BOM Pola & BOM Aksesoris — tabel baris langsung, TANPA tombol
+          collapse "+Tambah"
+        -->
         <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
           <div style="flex:1 1 380px; min-width:300px;">
             <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
@@ -1038,10 +982,11 @@ const FormEntryProdukBOM = {
             </div>
             <div v-if="!form.bom_pola.length" style="font-size:10.5px; color:var(--text-faint); padding:8px;">Belum ada baris pola — klik "+ Pola".</div>
 
-            <!-- Kelipatan — dipindah ke sini (bawah tabel BOM Pola), pola SAMA
-                 seperti wireframe 2.1 ("kelipatan = KPK(...) → dipakai kotak
-                 QO di Pesanan"). Nilai & hitungannya TIDAK berubah, lihat
-                 hitungKelipatan()/kelipatanLive di atas file ini. -->
+            <!--
+              Kelipatan — dipindah ke sini (bawah tabel BOM Pola), pola SAMA seperti wireframe 2.1
+              ("kelipatan = KPK(...) → dipakai kotak QO di Pesanan"). Nilai & hitungannya TIDAK
+              berubah, lihat hitungKelipatan/kelipatanLive di atas file ini.
+            -->
             <div style="margin-top:8px; padding:8px 10px; border-radius:8px; background:rgba(110,30,44,.05); display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
               <span style="font-size:9.5px; font-weight:700; color:var(--text-faint); text-transform:uppercase;">Kelipatan</span>
               <span style="font-size:15px; font-weight:700; color:var(--burgundy);">{{ kelipatanLive > 0 ? kelipatanLive : '-' }}</span>
@@ -1108,11 +1053,11 @@ const FormEntryProdukBOM = {
   `
 };
 
-// ---------------------------------------------------------------------------
-// MasterProdukEntryManager — halaman "Entry Produk" (selalu mode CREATE,
-// pola sama seperti BahanAksesorisEntryManager: form direset kosong lagi
-// setelah simpan sukses, biar bisa langsung entry produk berikutnya).
-// ---------------------------------------------------------------------------
+
+// MasterProdukEntryManager — halaman "Entry Produk" (selalu mode CREATE, pola
+// sama seperti BahanAksesorisEntryManager: form direset kosong lagi setelah
+// simpan sukses, biar bisa langsung entry produk berikutnya).
+
 const MasterProdukEntryManager = {
   components: { FormEntryProdukBOM },
   setup() {
@@ -1125,22 +1070,23 @@ const MasterProdukEntryManager = {
   },
   template: `
     <div>
-      <!-- Judul/breadcrumb "Zevanic House › Master Produk" & subjudul SEKARANG
-           dirender di dalam card-head FormEntryProdukBOM sendiri (lihat
-           template-nya di atas file ini) — pola sama seperti wireframe 2.1
-           (breadcrumb+tab jadi satu dengan kartu form, bukan judul terpisah
-           di luar kartu seperti sebelumnya). -->
+      <!--
+        Judul/breadcrumb "Zevanic House › Master Produk" & subjudul SEKARANG dirender di dalam
+        card-head FormEntryProdukBOM sendiri (lihat template-nya di atas file ini) — pola sama
+        seperti wireframe 2.1 (breadcrumb+tab jadi satu dengan kartu form, bukan judul terpisah di
+        luar kartu seperti sebelumnya).
+      -->
       <form-entry-produk-b-o-m :key="kunciForm" @tersimpan="saatTersimpan" />
     </div>
   `
 };
 
-// ---------------------------------------------------------------------------
-// FieldValidasiInline — 1 sel tabel di popup verifikasi import: tampilkan
-// nilai teks dari Excel + status valid/tidak, bisa langsung dikoreksi lewat
-// DropdownCari (keputusan "kasih saran & bisa dikoreksi langsung di
-// popup", bukan cuma tampilan baca-saja).
-// ---------------------------------------------------------------------------
+
+// FieldValidasiInline — 1 sel tabel di popup verifikasi import: tampilkan nilai
+// teks dari Excel + status valid/tidak, bisa langsung dikoreksi lewat
+// DropdownCari (keputusan "kasih saran & bisa dikoreksi langsung di popup",
+// bukan cuma tampilan baca-saja).
+
 const FieldValidasiInline = {
   components: { DropdownCari },
   props: {
@@ -1163,14 +1109,14 @@ const FieldValidasiInline = {
   `
 };
 
-// ---------------------------------------------------------------------------
+
 // PopupImportProdukUtama — tahap 1 dari 2. Validasi tiap baris (Nama wajib,
 // Warna wajib cocok Data Warna, Size wajib, kombinasi Nama+Warna+Size tidak
 // boleh dobel dalam 1 file) sebelum tombol Import aktif — SEMUA baris harus
-// valid, TIDAK BISA import sebagian (keputusan "Ganti Total"). GANTI (28 Agt
-// 2026, permintaan Hilman): kolom SKU DIHAPUS — SKU sekarang full otomatis
-// dari sistem, dicocokkan/di-preview lewat kunciProduk (Nama+Warna+Size).
-// ---------------------------------------------------------------------------
+// valid, TIDAK BISA import sebagian (keputusan "Ganti Total"). GANTI: kolom SKU
+// DIHAPUS — SKU sekarang full otomatis dari sistem, dicocokkan/di-preview lewat
+// kunciProduk (Nama+Warna+Size).
+
 const PopupImportProdukUtama = {
   components: { FieldValidasiInline },
   props: {
@@ -1277,15 +1223,15 @@ const PopupImportProdukUtama = {
   `
 };
 
-// ---------------------------------------------------------------------------
+
 // PopupImportBOM — tahap 2 dari 2 (jalan setelah produknya ada lewat Import
 // Produk Utama). 4 tab (Jasa/Pola/Komponen/Aksesoris) dari 1 file, Komponen
-// dicocokkan ke Pola lewat pasangan (Produk, Nama Pola) yang harus ada di
-// sheet Pola. SEMUA baris di SEMUA sheet harus valid sebelum Import aktif.
-// GANTI (28 Agt 2026, permintaan Hilman): dulu tiap baris dicocokkan ke
-// produk lewat kolom SKU — SEKARANG lewat kolom Nama+Warna+Size (kunciProduk)
-// karena SKU sudah tidak lagi diketik user di mana pun (full otomatis).
-// ---------------------------------------------------------------------------
+// dicocokkan ke Pola lewat pasangan (Produk, Nama Pola) yang harus ada di sheet
+// Pola. SEMUA baris di SEMUA sheet harus valid sebelum Import aktif. GANTI: dulu
+// tiap baris dicocokkan ke produk lewat kolom SKU — SEKARANG lewat kolom
+// Nama+Warna+Size (kunciProduk) karena SKU sudah tidak lagi diketik user di mana
+// pun (full otomatis).
+
 const PopupImportBOM = {
   components: { FieldValidasiInline },
   props: {
@@ -1294,7 +1240,7 @@ const PopupImportBOM = {
     barisKomponen: { type: Array, default: () => [] },
     barisAksesoris: { type: Array, default: () => [] },
     opsiNamaBahan: { type: Array, default: () => [] },
-    opsiKomponen: { type: Array, default: () => [] }, // BARU (§36) — Data Komponen (Config), sumber validasi sheet "Komponen" (GANTI dari opsiNamaBahan)
+    opsiKomponen: { type: Array, default: () => [] }, // (§36) — Data Komponen (Config), sumber validasi sheet "Komponen" (GANTI dari opsiNamaBahan)
     opsiSatuan: { type: Array, default: () => [] },
     daftarProdukLama: { type: Array, default: () => [] },
     sedangImport: { type: Boolean, default: false }
@@ -1361,8 +1307,8 @@ const PopupImportBOM = {
       tahap_proses: String(b['Tahap Proses'] || '').trim(),
       aksesoris: String(b['Aksesoris (Nama + Warna)'] || '').trim(),
       qty: b['Qty'], satuan: String(b['Satuan'] || '').trim(),
-      // GANTI (28 Agt 2026, §38): dulu kolom 'Kode Webbing 2/3 (Nama + Warna)',
-      // sekarang teks bebas — kolomnya juga diganti nama jadi 'Kode Webbing 2/3'.
+      // dulu kolom 'Kode Webbing 2/3 (Nama + Warna)', sekarang teks bebas —
+      // kolomnya juga diganti nama jadi 'Kode Webbing 2/3'.
       webbing2: String(b['Kode Webbing 2'] || '').trim(),
       webbing3: String(b['Kode Webbing 3'] || '').trim()
     })));
@@ -1372,8 +1318,8 @@ const PopupImportBOM = {
       if (!validasiPilihan(b.aksesoris, props.opsiNamaBahan).valid) return { valid: false, label: 'Aksesoris belum valid' };
       if (b.qty === '' || isNaN(Number(b.qty))) return { valid: false, label: 'Qty harus angka' };
       if (!validasiPilihan(b.satuan, props.opsiSatuan).valid) return { valid: false, label: 'Satuan belum valid' };
-      // Kode Webbing 2/3 — DIHAPUS validasinya (28 Agt 2026, §38): SEKARANG
-      // teks bebas/opsional, tidak perlu divalidasi ke Data Bahan & Aksesoris.
+      // Kode Webbing 2/3 — DIHAPUS validasinya: SEKARANG teks bebas/opsional,
+      // tidak perlu divalidasi ke Data Bahan & Aksesoris.
       return { valid: true, label: 'OK' };
     }
 
@@ -1492,12 +1438,10 @@ const PopupImportBOM = {
   `
 };
 
-// formatRupiah/hitungBreakdownPola/totalHargaJasa/totalKomponenPola — BARU
-// (28 Agt 2026, redesign kartu List Produk atas permintaan Guru: "bantu
-// redesign kartu list produk, saya takjub dengan kartu list bahan &
-// aksesoris ada foto juga"). formatRupiah sengaja disalin persis dari pola
-// yang sama di js/vue-bahan-aksesoris.js (tiap file vue-*.js di proyek ini
-// punya salinan lokalnya sendiri, tidak ada util currency global).
+// formatRupiah/hitungBreakdownPola/totalHargaJasa/totalKomponenPola — BARU .
+// formatRupiah sengaja disalin persis dari pola yang sama di
+// js/vue-bahan-aksesoris.js (tiap file vue-*.js di proyek ini punya salinan
+// lokalnya sendiri, tidak ada util currency global).
 function formatRupiah(n) {
   const angka = parseFloat(n) || 0;
   return 'Rp ' + Math.round(angka).toLocaleString('id-ID');
@@ -1513,11 +1457,10 @@ function totalHargaJasa(item) {
 function totalKomponenPola(item) {
   return (item.bom_pola || []).reduce((sum, p) => sum + ((p.komponen || []).length), 0);
 }
-// polaUtama — BARU (28 Agt 2026, §41.1). Ambil baris PERTAMA `bom_pola`
-// (nama_pola + tipe internal/vendor + nama_bahan/warna_bahan-nya) buat
-// ditampilkan di blok kartu-rows List Produk (GANTI dari tanggal Dibuat/
-// Diedit yang Guru bilang kurang berguna). Object kosong kalau belum ada
-// baris Pola sama sekali (template pakai `|| '-'` buat itu).
+// polaUtama — BARU . Ambil baris PERTAMA `bom_pola` (nama_pola + tipe
+// internal/vendor + nama_bahan/warna_bahan-nya) buat ditampilkan di blok
+// kartu-rows List Produk . Object kosong kalau belum ada baris Pola sama sekali
+// (template pakai `|| '-'` buat itu).
 function polaUtama(item) {
   const p = (item.bom_pola || [])[0];
   if (!p) return { nama: '', tipe: '', bahan: '' };
@@ -1528,31 +1471,29 @@ function polaUtama(item) {
   };
 }
 
-// ---------------------------------------------------------------------------
-// MasterProdukListManager — halaman "List Produk": cari+paginasi+tabel,
-// modal edit (pakai ulang FormEntryProdukBOM), hapus (termasuk hapus foto
-// di Storage kalau ada, biar tidak numpuk file yatim — pola sama seperti
-// hapus() di js/vue-config-info.js).
-// ---------------------------------------------------------------------------
+
+// MasterProdukListManager — halaman "List Produk": cari+paginasi+tabel, modal
+// edit (pakai ulang FormEntryProdukBOM), hapus (termasuk hapus foto di Storage
+// kalau ada, biar tidak numpuk file yatim — pola sama seperti hapus di
+// js/vue-config-info.js).
+
 const MasterProdukListManager = {
   components: { FormEntryProdukBOM, PopupImportProdukUtama, PopupImportBOM },
   setup() {
     const bolehHapus = computed(() => window.cekIzinMenu('master_produk_list', 'delete') !== false);
 
-    // --- Hitung Ulang Kelipatan Semua Produk (BARU 28 Agt 2026, permintaan
-    // Guru) --------------------------------------------------------------
-    // Field `kelipatan` (§42.2) BARU dihitung & disimpan pas produk
-    // di-SIMPAN — produk LAMA yang sudah ada dari SEBELUM fitur ini belum
-    // pernah tersentuh, jadi `kelipatan`-nya masih kosong sampai dibuka +
-    // Simpan manual satu-satu. Guru minta cara lebih cepat: 1 tombol,
-    // backfill SEMUA produk sekaligus tanpa perlu buka satu-satu.
+    // Hitung Ulang Kelipatan Semua Produk
+    // Field
+    // `kelipatan` (§42.2) BARU dihitung & disimpan pas produk di-SIMPAN — produk
+    // LAMA yang sudah ada dari SEBELUM fitur ini belum pernah tersentuh, jadi
+    // `kelipatan`-nya masih kosong sampai dibuka + Simpan manual satu-satu.
     //
-    // Hemat tulis (PRINSIP-HEMAT.md): kalau `kelipatan` yang SUDAH
-    // tersimpan di suatu produk KEBETULAN sudah sama dengan hasil hitung
-    // ulang (termasuk produk yang memang belum pernah punya BOM Pola sama
-    // sekali, keduanya 0), produk itu DILEWATI — tidak ada `updateDoc()`
-    // percuma. Field LAIN produk (nama/foto/BOM/dst) SAMA SEKALI tidak
-    // disentuh, cuma `kelipatan` yang ditimpa kalau beda.
+    // Hemat tulis (PRINSIP-HEMAT.md): kalau `kelipatan` yang SUDAH tersimpan di
+    // suatu produk KEBETULAN sudah sama dengan hasil hitung ulang (termasuk
+    // produk yang memang belum pernah punya BOM Pola sama sekali, keduanya 0),
+    // produk itu DILEWATI — tidak ada `updateDoc` percuma. Field LAIN produk
+    // (nama/foto/BOM/dst) SAMA SEKALI tidak disentuh, cuma `kelipatan` yang
+    // ditimpa kalau beda.
     const sedangHitungKelipatan = ref(false);
     async function hitungUlangKelipatanSemua() {
       if (!confirm('Hitung ulang field Kelipatan untuk SEMUA produk sekaligus, berdasarkan Isi Pola BOM yang tersimpan saat ini? Field lain tiap produk TIDAK ikut berubah.')) return;
@@ -1575,14 +1516,9 @@ const MasterProdukListManager = {
       sedangHitungKelipatan.value = false;
     }
 
-    // CATATAN (28 Agt 2026, role "PIC Owner") — sempat dicoba tambah
-    // filterPeran jenis_pekerjaan di sini, TAPI DIBATALKAN: Guru
-    // konfirmasi SELURUH grup menu Zevanic House (termasuk Master Produk)
-    // memang 100% bisnis ZCO/Konveksi, jadi filter per-produk tidak ada
-    // gunanya (PIC Owner cukup diberi akses lewat menu, tidak perlu tag
-    // apa-apa). Filter jenis usaha yang BENAR-BENAR perlu cukup di
-    // Reimburse (satu-satunya menu lintas JNT/ZCO) — lihat STATUS-
-    // PROYEK.md §29.
+    // CATATAN — sempat dicoba tambah filterPeran jenis_pekerjaan di sini, TAPI
+    // DIBATALKAN:. Filter jenis usaha yang BENAR-BENAR perlu cukup di Reimburse
+    // (satu-satunya menu lintas JNT/ZCO) — lihat STATUS- PROYEK.md §29.
     const paginasi = usePaginasiFirestore(db, 'master_produk', {
       perHalaman: 15,
       urutkanField: 'nama',
@@ -1613,10 +1549,10 @@ const MasterProdukListManager = {
       }
     }
 
-    // --- Checkbox pilih + Hapus Massal (28 Agt 2026) ------------------------
-    // produkTerpilih menyimpan id produk yang dicentang. SENGAJA tidak
-    // direset saat pindah halaman paginasi, supaya bisa pilih produk dari
-    // beberapa halaman sekaligus sebelum hapus massal.
+    // Checkbox pilih + Hapus Massal — produkTerpilih
+    // menyimpan id produk yang dicentang. SENGAJA tidak direset saat pindah
+    // halaman paginasi, supaya bisa pilih produk dari beberapa halaman sekaligus
+    // sebelum hapus massal.
     const produkTerpilih = ref([]);
     function toggleCentang(id) {
       const i = produkTerpilih.value.indexOf(id);
@@ -1658,13 +1594,13 @@ const MasterProdukListManager = {
 
     onMounted(async () => { await window.authReady; await paginasi.muatUlang(); });
 
-    // --- Import/Export Excel (§28.9) ---------------------------------------
+    // Import/Export Excel (§28.9)
     const dropdownImportTerbuka = ref(false);
     const inputFileProdukUtama = ref(null);
     const inputFileBOM = ref(null);
 
     const opsiNamaBahanImport = ref([]);
-    const opsiKomponenImport = ref([]); // BARU (§36) — Data Komponen (Config), sumber validasi sheet "Komponen"
+    const opsiKomponenImport = ref([]); // (§36) — Data Komponen (Config), sumber validasi sheet "Komponen"
     const opsiWarnaImport = ref([]);
     const opsiSatuanImport = ref([]);
     const opsiJenisProdukImport = ref([]);
@@ -1691,7 +1627,7 @@ const MasterProdukListManager = {
         ambilDaftarNama('master_warna'),
         ambilDaftarNama('master_satuan'),
         ambilDaftarNama('master_jenis_produk'),
-        ambilDaftarNama('master_komponen'), // BARU (§36) — Data Komponen (Config)
+        ambilDaftarNama('master_komponen'), // (§36) — Data Komponen (Config)
         ambilSemuaProduk()
       ]);
       daftarBahanImport.value = bahan;
@@ -1753,17 +1689,16 @@ const MasterProdukListManager = {
     function tutupPopupImportProdukUtama() { popupImportProdukUtamaAktif.value = false; }
     function tutupPopupImportBOM() { popupImportBOMAktif.value = false; }
 
-    // konfirmasiImportProdukUtama — GANTI (28 Agt 2026, permintaan Hilman):
-    // dulu upsert per SKU (kolom SKU wajib diisi user di Excel), SEKARANG
-    // upsert per kombinasi Nama+Warna+Size (kunciProduk) karena SKU sudah
-    // tidak lagi diketik user — produk yang kuncinya sudah ada -> TIMPA nama/
-    // jenis_produk/warna/size-nya (bukan bikin dobel), SKU LAMA DIPERTAHANKAN
-    // (tidak digenerate ulang, biar konsisten dengan SKU yang mungkin sudah
-    // dipakai fisik, mis. label tercetak); kunci belum ada -> dokumen baru
-    // dengan SKU baru digenerate otomatis dari Nama-Warna-Size (tambah
-    // akhiran -2/-3/dst kalau ternyata basis SKU-nya tabrakan — dicek pakai
-    // Set skuTerpakai yang di-seed dari SKU semua produk yang sudah ada,
-    // supaya TIDAK perlu query Firestore berulang tiap baris).
+    // konfirmasiImportProdukUtama — GANTI: dulu upsert per SKU (kolom SKU wajib
+    // diisi user di Excel), SEKARANG upsert per kombinasi Nama+Warna+Size
+    // (kunciProduk) karena SKU sudah tidak lagi diketik user — produk yang
+    // kuncinya sudah ada -> TIMPA nama/ jenis_produk/warna/size-nya (bukan bikin
+    // dobel), SKU LAMA DIPERTAHANKAN (tidak digenerate ulang, biar konsisten
+    // dengan SKU yang mungkin sudah dipakai fisik, mis. label tercetak); kunci
+    // belum ada -> dokumen baru dengan SKU baru digenerate otomatis dari
+    // Nama-Warna-Size (tambah akhiran -2/-3/dst kalau ternyata basis SKU-nya
+    // tabrakan — dicek pakai Set skuTerpakai yang di-seed dari SKU semua produk
+    // yang sudah ada, supaya TIDAK perlu query Firestore berulang tiap baris).
     async function konfirmasiImportProdukUtama(barisSiap) {
       sedangImportProdukUtama.value = true;
       try {
@@ -1796,8 +1731,8 @@ const MasterProdukListManager = {
               dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
             });
             // simpan produk baru ini juga ke petaLama — jaga-jaga kalau ada
-            // baris lain di barisSiap dengan kunci SAMA PERSIS (seharusnya
-            // sudah ditolak validasi "dobel di file" di popup, tapi jaga-jaga).
+            // baris lain di barisSiap dengan kunci SAMA PERSIS (seharusnya sudah
+            // ditolak validasi "dobel di file" di popup, tapi jaga-jaga).
             petaLama[kunci] = { id: idBaru, sku, nama: b.nama, warna: b.warna, size: b.size };
             dibuat++;
           }
@@ -1812,13 +1747,12 @@ const MasterProdukListManager = {
       sedangImportProdukUtama.value = false;
     }
 
-    // konfirmasiImportBOM — GANTI (28 Agt 2026, permintaan Hilman): dulu
-    // dikelompokkan per SKU, SEKARANG per kombinasi Nama+Warna+Size
-    // (kunciProduk) karena SKU sudah tidak lagi diketik user di sheet BOM.
-    // TIMPA TOTAL bom_jasa/bom_pola/bom_aksesoris produk itu (keputusan
-    // "Ganti Total", bukan tambah/gabung dengan BOM lama). Komponen
-    // dicocokkan ke Pola lewat (Produk, Nama Pola) — sudah divalidasi cocok
-    // di popup sebelum sampai sini.
+    // konfirmasiImportBOM — GANTI: dulu dikelompokkan per SKU, SEKARANG per
+    // kombinasi Nama+Warna+Size (kunciProduk) karena SKU sudah tidak lagi
+    // diketik user di sheet BOM. TIMPA TOTAL bom_jasa/bom_pola/bom_aksesoris
+    // produk itu (keputusan "Ganti Total", bukan tambah/gabung dengan BOM lama).
+    // Komponen dicocokkan ke Pola lewat (Produk, Nama Pola) — sudah divalidasi
+    // cocok di popup sebelum sampai sini.
     async function konfirmasiImportBOM(payload) {
       sedangImportBOM.value = true;
       try {
@@ -1843,10 +1777,9 @@ const MasterProdukListManager = {
           const polaUntukProduk = payload.pola.filter(x => kunciProduk(x.prodNama, x.prodWarna, x.prodSize) === kunci);
           const bomPola = polaUntukProduk.map(p => {
             const item = resolveBahan(daftarBahanImport.value, p.bahan);
-            // GANTI (28 Agt 2026, §36): Komponen SEKARANG dari Data Komponen
-            // (Config, plain text) — TIDAK ADA LAGI resolveBahan/
-            // bahan_aksesoris_id di baris ini, sama format dengan baris
-            // Komponen dari form manual (§34).
+            // Komponen SEKARANG dari Data Komponen (Config, plain text) — TIDAK
+            // ADA LAGI resolveBahan/ bahan_aksesoris_id di baris ini, sama
+            // format dengan baris Komponen dari form manual (§34).
             const komponenBaris = payload.komponen
               .filter(k => kunciProduk(k.prodNama, k.prodWarna, k.prodSize) === kunci && k.nama_pola.toLowerCase() === p.nama_pola.toLowerCase())
               .map(k => ({ nama_komponen: k.nama_komponen, qty: k.qty }));
@@ -1859,9 +1792,9 @@ const MasterProdukListManager = {
             };
           });
 
-          // GANTI (28 Agt 2026, §38): Kode Webbing 2/3 SEKARANG teks bebas
-          // langsung dari kolom Excel, TIDAK ADA LAGI resolveBahan()/
-          // webbing2_id/webbing3_id (sama alasan seperti Komponen di §36).
+          // Kode Webbing 2/3 SEKARANG teks bebas langsung dari kolom Excel,
+          // TIDAK ADA LAGI resolveBahan/ webbing2_id/webbing3_id (sama alasan
+          // seperti Komponen di §36).
           const bomAksesoris = payload.aksesoris.filter(x => kunciProduk(x.prodNama, x.prodWarna, x.prodSize) === kunci).map(a => {
             const item = resolveBahan(daftarBahanImport.value, a.aksesoris);
             return {
@@ -1924,11 +1857,12 @@ const MasterProdukListManager = {
             <button @click="pancingFileBOM" type="button" class="btn-ghost" style="text-align:left; padding:8px 10px; font-size:12.5px; border-radius:8px;"><i class="fas fa-upload" style="margin-right:8px; width:14px;"></i>Import BOM</button>
           </div>
         </div>
-        <!-- Hitung Ulang Kelipatan Semua Produk — BARU (28 Agt 2026,
-             permintaan Guru), lihat catatan panjang hitungUlangKelipatanSemua()
-             di atas file ini. 1 tombol, backfill semua produk sekaligus —
-             biar tidak perlu buka satu-satu + klik Simpan cuma buat
-             ngisi field Kelipatan produk lama. -->
+        <!--
+          Hitung Ulang Kelipatan Semua Produk — BARU, lihat catatan panjang
+          hitungUlangKelipatanSemua di atas file ini. 1 tombol, backfill semua produk sekaligus —
+          biar tidak perlu buka satu-satu + klik Simpan cuma buat ngisi field Kelipatan produk
+          lama.
+        -->
         <button @click="hitungUlangKelipatanSemua" :disabled="sedangHitungKelipatan" type="button" class="btn-outline" style="font-size:12px;">
           <i class="fas fa-rotate" style="margin-right:6px;"></i>{{ sedangHitungKelipatan ? 'Menghitung...' : 'Hitung Ulang Kelipatan Semua Produk' }}
         </button>
@@ -1939,10 +1873,10 @@ const MasterProdukListManager = {
       <div v-if="paginasi.memuat.value" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Memuat...</div>
       <div v-else-if="paginasi.errorPaginasi.value" style="text-align:center; padding:24px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
       <template v-else>
-        <!-- 28 Agt 2026: dulu ada 2 tampilan (tabel desktop + kartu mobile)
-             yang gantian muncul lewat CSS responsif. Guru minta disederhanakan
-             jadi SATU tampilan kartu saja untuk semua ukuran layar, sekalian
-             tambah checkbox pilih + Hapus Massal. -->
+        <!--
+          minta disederhanakan jadi SATU tampilan kartu saja untuk semua ukuran layar, sekalian
+          tambah checkbox pilih + Hapus Massal.
+        -->
         <div v-if="bolehHapus" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
           <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-muted); cursor:pointer;">
             <input type="checkbox" :checked="semuaTercentang" @change="toggleSemua" style="accent-color:var(--burgundy); width:15px; height:15px;">
@@ -1953,14 +1887,11 @@ const MasterProdukListManager = {
           </button>
         </div>
 
-        <!-- GANTI (28 Agt 2026, redesign atas permintaan Guru: "bantu redesign
-             kartu list produk, saya takjub dengan kartu list bahan &
-             aksesoris ada foto juga") — dulu kartu flat 1 baris, SEKARANG
-             pola 4-bagian yang SAMA seperti List Bahan & Aksesoris
-             (js/vue-bahan-aksesoris.js §39): header foto+nama+tag, mini-grid
-             stat BOM, blok kartu-rows ivory-dim (tanggal dibuat/diedit), lalu
-             tombol aksi. Checkbox pilih massal (bolehHapus) dipertahankan,
-             sekarang di header row sejajar foto. -->
+        <!--
+          js §39): header foto+nama+tag, mini-grid stat BOM, blok kartu-rows ivory-dim (tanggal
+          dibuat/diedit), lalu tombol aksi. Checkbox pilih massal (bolehHapus) dipertahankan,
+          sekarang di header row sejajar foto.
+        -->
         <div style="display:flex; flex-direction:column; gap:10px;">
           <div v-for="item in paginasi.dataHalaman.value" :key="item.id" class="gc-card" style="padding:14px;">
             <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:12px;">
@@ -1982,26 +1913,23 @@ const MasterProdukListManager = {
               <div><span style="font-size:10px; color:var(--text-faint); display:block;">Komponen</span><b style="font-size:12.5px;">{{ totalKomponenPola(item) }}</b><span style="font-size:10.5px; color:var(--text-muted);"> di semua pola</span></div>
             </div>
 
-            <!-- GANTI (28 Agt 2026, §41.1, permintaan Guru: "untuk text
-                 dibuat dan diedit saya kurang setuju... ganti isinya") —
-                 dulu blok ini isinya tanggal Dibuat/Diedit Terakhir (dinilai
-                 Guru kurang berguna buat kartu ini). SEKARANG isinya info
-                 PRODUKSI: Pola Utama (baris pertama bom_pola, + tipe
-                 internal/vendor) & Bahan Utama (nama+warna bahan pola itu)
-                 — lebih relevan buat kartu Master Produk dibanding metadata
-                 tanggal, dan info ini SEBELUMNYA sama sekali tidak
-                 kelihatan dari List Produk (harus buka Edit dulu buat
-                 tahu). Kalau bom_pola > 1 baris, ditambah "+N lainnya". -->
+            <!--
+              SEKARANG isinya info PRODUKSI: Pola Utama (baris pertama bom_pola, + tipe
+              internal/vendor) & Bahan Utama (nama+warna bahan pola itu) — lebih relevan buat
+              kartu Master Produk dibanding metadata tanggal, dan info ini SEBELUMNYA sama sekali
+              tidak kelihatan dari List Produk (harus buka Edit Kalau bom_pola > 1 baris, ditambah
+              "+N lainnya".
+            -->
             <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
               <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Pola Utama</span><span style="font-weight:700; text-align:right;">{{ polaUtama(item).nama || '-' }}<span v-if="polaUtama(item).nama"> &middot; {{ polaUtama(item).tipe }}</span><span v-if="(item.bom_pola||[]).length > 1"> &middot; +{{ (item.bom_pola||[]).length - 1 }} lainnya</span></span></div>
               <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Bahan Utama</span><span style="font-weight:700; text-align:right;">{{ polaUtama(item).bahan || '-' }}</span></div>
-              <!-- Kelipatan — BARU (28 Agt 2026, permintaan Guru), field
-                   'kelipatan' yang sudah tersimpan (dihitung & disimpan
-                   waktu produk terakhir disimpan, lihat FormEntryProdukBOM
-                   di atas file ini) — di sini CUMA baca, tidak dihitung
-                   ulang. -->
+              <!--
+                Kelipatan — BARU, field 'kelipatan' yang sudah tersimpan (dihitung & disimpan
+                waktu produk terakhir disimpan, lihat FormEntryProdukBOM di atas file ini) — di
+                sini CUMA baca, tidak dihitung ulang.
+              -->
               <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Kelipatan (Acuan Order)</span><span style="font-weight:700; text-align:right;">{{ item.kelipatan > 0 ? (item.kelipatan + ' pcs') : '-' }}</span></div>
-              <!-- Harga Jual — BARU (30 Agt 2026, fitur "Pesanan"). -->
+              <!-- Harga Jual — BARU . -->
               <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Harga Jual</span><span style="font-weight:700; text-align:right;">{{ item.harga_jual > 0 ? formatRupiah(item.harga_jual) : '-' }}</span></div>
             </div>
 
@@ -2053,71 +1981,61 @@ const MasterProdukListManager = {
   `
 };
 
-// ---------------------------------------------------------------------------
-// MasterProdukHppManager — halaman "HPP" (Harga Pokok Produksi per produk),
-// tab child ke-3 Master Produk (BARU 7 Sep 2026, wireframe step 2.3).
+
+// MasterProdukHppManager — halaman "HPP" (Harga Pokok Produksi per produk), tab
+// child ke-3 Master Produk .
 //
-// KEPUTUSAN KUNCI (jangan disederhanakan sendiri kalau lanjut ubah file
-// ini) — dipertanyakan ke Guru lewat wireframe §7 "Yang Belum Diputuskan":
-// "HPP: cache as field, atau always live from BOM?" Guru pilih **"Dihitung
-// live (Recommended)"**. Konsekuensinya:
-//   - `rincianBom` (subtotal Bahan Kain, Aksesoris, Jasa Cutting, Jasa
-//     Serie, Jasa Lain) SELALU dihitung ulang di browser dari `bom_pola`/
-//     `bom_aksesoris`/`bom_jasa` produk + harga_pemakaian TERKINI dari
-//     master_bahan_aksesoris — TIDAK PERNAH dibaca dari field cache.
-//   - `hppTotal`/`marginJual`/`marginPersen` juga SELALU turunan live dari
-//     rincianBom + biayaTambahan saat itu — TIDAK ADA field `hpp`/
-//     `hpp_total` yang ditulis ke Firestore.
-//   - SATU-SATUNYA hal yang benar-benar di-`updateDoc()` oleh tombol
-//     "Simpan" di sini adalah field BARU `biaya_tambahan_hpp` (array
-//     {nama, jumlah}) — input manual per produk (mis. Ongkos Kirim,
-//     Overhead, Packaging, QC/reject — contoh di wireframe, BUKAN kategori
-//     baku, baris & labelnya bebas ditambah/hapus/ubah oleh user). Ini
-//     rekonsiliasi caption wireframe "Simpan HPP tersimpan per produk" vs
-//     metadata aksi wireframe yang lebih spesifik "Simpan biaya tambahan"
-//     — field yang PERSIS disimpan cuma biaya_tambahan_hpp, HPP-nya sendiri
-//     tetap live (tidak kontradiksi dengan keputusan Guru di atas).
+// KEPUTUSAN KUNCI (jangan disederhanakan sendiri kalau lanjut ubah file ini) —
+// dipertanyakan ke lewat wireframe §7 "Yang Belum Diputuskan": "HPP: cache as
+// field, atau always live from BOM?" pilih **"Dihitung live (Recommended)"**.
+// Konsekuensinya: - `rincianBom` (subtotal Bahan Kain, Aksesoris, Jasa Cutting,
+// Jasa Serie, Jasa Lain) SELALU dihitung ulang di browser dari `bom_pola`/
+// `bom_aksesoris`/`bom_jasa` produk + harga_pemakaian TERKINI dari
+// master_bahan_aksesoris — TIDAK PERNAH dibaca dari field cache. -
+// `hppTotal`/`marginJual`/`marginPersen` juga SELALU turunan live dari
+// rincianBom + biayaTambahan saat itu — TIDAK ADA field `hpp`/ `hpp_total` yang
+// ditulis ke Firestore. - SATU-SATUNYA hal yang benar-benar di-`updateDoc` oleh
+// tombol "Simpan" di sini adalah field BARU `biaya_tambahan_hpp` (array {nama,
+// jumlah}) — input manual per produk (mis. Ongkos Kirim, Overhead, Packaging,
+// QC/reject — contoh di wireframe, BUKAN kategori baku, baris & labelnya bebas
+// ditambah/hapus/ubah oleh user). Ini rekonsiliasi caption wireframe "Simpan HPP
+// tersimpan per produk" vs metadata aksi wireframe yang lebih spesifik "Simpan
+// biaya tambahan" — field yang PERSIS disimpan cuma biaya_tambahan_hpp, HPP-nya
+// sendiri tetap live .
 //
 // harga_pemakaian yang dibaca di sini SUDAH otomatis mengikuti perubahan
-// margin_modal berbasis persen di js/vue-bahan-aksesoris.js (diubah sesi
-// yang sama, lihat file itu) — tidak ada logic margin yang diulang di sini,
-// field-nya dibaca APA ADANYA dari master_bahan_aksesoris.
+// margin_modal berbasis persen di js/vue-bahan-aksesoris.js (diubah sesi yang
+// sama, lihat file itu) — tidak ada logic margin yang diulang di sini, field-nya
+// dibaca APA ADANYA dari master_bahan_aksesoris.
 //
 // Pola ambil data SAMA seperti js/vue-order-spk.js ("Pilih Produk (SKU)"):
-// ambilSemuaProduk() (lokal, tidak perlu import krn 1 file) + DropdownCari
-// dengan opsi label string "SKU — Nama Warna Size", resolve balik lewat
-// .find(). Peta harga Bahan/Aksesoris (bahan_aksesoris_id -> dokumen)
-// dibangun SEKALI saat mount dari ambilDaftarBahanAksesorisLengkap() (fungsi
-// yang sama dipakai dropdown Bahan di FormEntryProdukBOM atas file ini) —
-// BUKAN query per baris BOM.
-// ---------------------------------------------------------------------------
-// BARU (10 Sep 2026 malam, keputusan eksplisit Guru: "Nota Order Belanja
-// final ... > riwayat harga > master produk. harga ketika di master produk
-// owner/pic owner bisa putuskan mau di tab master produk. menurut
-// rekomendasi system (perhitungan lama + pembulatan angka)") — banner
-// "Harga Perlu Konfirmasi" DITAMBAHKAN ke tab HPP di sini, SUPAYA Owner/PIC
-// Owner juga bisa memutuskan dari Master Produk, bukan cuma dari Stok &
-// Pembelian > Riwayat Harga Pembelian (mekanisme ITU TIDAK DIHAPUS/DIUBAH —
-// lihat js/vue-stock-pembelian.js `RiwayatHargaPembelianManager` untuk
-// mekanisme aslinya, wireframe "04 - Stok dan Pembelian" §3.4/§4). Ini
-// ADITIF: field Firestore (`harga_perlu_konfirmasi`/`harga_pending` di
-// master_bahan_aksesoris) dan aturan gate (HANYA kenaikan yang di-queue,
-// harga sama/turun tetap auto-apply lewat perbaruiHargaMasterDariRiwayat —
-// TIDAK diubah malam ini, itu perilaku wireframe yang disengaja, mengubahnya
-// jadi "SEMUA perubahan wajib approve" adalah keputusan besar yang butuh
-// konfirmasi Guru dulu, BUKAN ditebak sepihak jam segini) SAMA PERSIS dengan
-// yang sudah ada — cuma ditambah 1 titik UI lagi yang bisa menerapkannya.
-// PIN-gate (PopupPin/cariUserByPin/hashPin/tierOwnerKeAtas) DISALIN persis
-// dari js/vue-stock-pembelian.js (konvensi proyek: disalin per-file, bukan
-// impor silang — sudah 4 titik pakai pola ini sebelum ini).
+// ambilSemuaProduk (lokal, tidak perlu import krn 1 file) + DropdownCari dengan
+// opsi label string "SKU — Nama Warna Size", resolve balik lewat .find. Peta
+// harga Bahan/Aksesoris (bahan_aksesoris_id -> dokumen) dibangun SEKALI saat
+// mount dari ambilDaftarBahanAksesorisLengkap (fungsi yang sama dipakai dropdown
+// Bahan di FormEntryProdukBOM atas file ini) — BUKAN query per baris BOM.
+
+// > riwayat harga > master produk. harga ketika di master produk
+// owner/pic owner bisa putuskan mau di tab master produk. menurut rekomendasi
+// system (perhitungan lama + pembulatan angka)") — banner "Harga Perlu
+// Konfirmasi" DITAMBAHKAN ke tab HPP di sini, SUPAYA Owner/PIC Owner juga bisa
+// memutuskan dari Master Produk, bukan cuma dari Stok & Pembelian > Riwayat
+// Harga Pembelian (mekanisme ITU TIDAK DIHAPUS/DIUBAH — lihat
+// js/vue-stock-pembelian.js `RiwayatHargaPembelianManager` untuk mekanisme
+// aslinya, wireframe "04 - Stok dan Pembelian" §3.4/§4). Ini ADITIF: field
+// Firestore (`harga_perlu_konfirmasi`/`harga_pending` di master_bahan_aksesoris)
+// dan aturan gate SAMA PERSIS dengan yang sudah ada — cuma ditambah 1 titik UI
+// lagi yang bisa menerapkannya. PIN-gate
+// (PopupPin/cariUserByPin/hashPin/tierOwnerKeAtas) DISALIN persis dari
+// js/vue-stock-pembelian.js (konvensi proyek: disalin per-file, bukan impor
+// silang — sudah 4 titik pakai pola ini sebelum ini).
 //
 // "Rekomendasi system (perhitungan lama + pembulatan angka)" diinterpretasi
-// sebagai: rumus SAMA (harga_modal_baru + margin_modal%), hasilnya DIBULATKAN
-// ke ratusan terdekat (bulatkanRekomendasiHarga) sebelum ditampilkan/
-// diterapkan — supaya harga_pemakaian tidak berakhir angka ganjil (mis.
-// Rp12.345,67). Granularitas "ratusan" adalah ASUMSI (Guru tidak sebut
-// angka pasti) — kalau ternyata maunya ribuan/puluhan, tinggal ganti angka
-// `100` di bulatkanRekomendasiHarga(), 1 titik saja.
+// sebagai: rumus SAMA (harga_modal_baru + margin_modal%), hasilnya DIBULATKAN ke
+// ratusan terdekat (bulatkanRekomendasiHarga) sebelum ditampilkan/ diterapkan —
+// supaya harga_pemakaian tidak berakhir angka ganjil (mis. Rp12.345,67).
+// Granularitas "ratusan" adalah ASUMSI — kalau ternyata maunya ribuan/puluhan,
+// tinggal ganti angka `100` di bulatkanRekomendasiHarga, 1 titik saja.
 function bulatkanRekomendasiHarga(n) {
   const angka = parseFloat(n) || 0;
   return Math.round(angka / 100) * 100;
@@ -2196,16 +2114,15 @@ const PopupPinHpp = {
   `
 };
 const MasterProdukHppManager = {
-  // FIX bug nyata (10 Sep 2026 malam, audit visual desktop) — komponen ini
-  // pakai tag <dropdown-cari> di template (field "Cari Produk / SKU") TAPI
-  // TIDAK PERNAH mendaftarkan DropdownCari secara lokal di `components`
-  // (2 komponen lain di file ini, FormEntryProdukBOM & KelolaKomponenModal,
-  // sudah benar mendaftarkannya). AppMasterProdukHpp (pembungkus mount)
-  // cuma mendaftarkan `master-produk-hpp-manager`, bukan `dropdown-cari` —
-  // jadi tag itu TIDAK PERNAH ter-resolve Vue, search-box "Cari Produk/SKU"
-  // di tab HPP tampil kosong/tidak berfungsi sama sekali sejak fitur ini
-  // dibuat (7 Sep 2026). PopupPinHpp didaftarkan sekalian di sini untuk
-  // banner "Harga Perlu Konfirmasi" BARU di bawah.
+  // bug nyata — komponen ini pakai tag <dropdown-cari> di template (field "Cari
+  // Produk / SKU") TAPI TIDAK PERNAH mendaftarkan DropdownCari secara lokal di
+  // `components` (2 komponen lain di file ini, FormEntryProdukBOM &
+  // KelolaKomponenModal, sudah benar mendaftarkannya). AppMasterProdukHpp
+  // (pembungkus mount) cuma mendaftarkan `master-produk-hpp-manager`, bukan
+  // `dropdown-cari` — jadi tag itu TIDAK PERNAH ter-resolve Vue, search-box
+  // "Cari Produk/SKU" di tab HPP tampil kosong/tidak berfungsi sama sekali sejak
+  // fitur ini dibuat . PopupPinHpp didaftarkan sekalian di sini untuk banner
+  // "Harga Perlu Konfirmasi" BARU di bawah.
   components: { DropdownCari, PopupPinHpp },
   setup() {
     const MENU_ID = 'master_produk_hpp';
@@ -2216,9 +2133,9 @@ const MasterProdukHppManager = {
     const labelTerpilih = ref('');
     const produkTerpilih = ref(null);
     // biayaTambahan — draft LOKAL baris "Biaya tambahan" (nama+jumlah),
-    // disinkron dari field tersimpan `biaya_tambahan_hpp` tiap kali ganti
-    // produk / sesudah Simpan sukses. reactive() (bukan ref array) supaya
-    // v-for @input langsung ubah elemen tanpa perlu .value di template.
+    // disinkron dari field tersimpan `biaya_tambahan_hpp` tiap kali ganti produk
+    // / sesudah Simpan sukses. reactive (bukan ref array) supaya v-for @input
+    // langsung ubah elemen tanpa perlu .value di template.
     const biayaTambahan = reactive([]);
     const sedangSimpan = ref(false);
 
@@ -2247,21 +2164,21 @@ const MasterProdukHppManager = {
     function tambahBiaya() { biayaTambahan.push({ nama: '', jumlah: 0 }); }
     function hapusBiaya(i) { biayaTambahan.splice(i, 1); }
 
-    // hargaBahan — resolve 1 bahan_aksesoris_id ke harga_pemakaian TERKINI
-    // lewat mapBahan (dibangun sekali di onMounted). `ditemukan:false` kalau
-    // id-nya TERISI tapi item-nya sudah tidak ada lagi di master_bahan_
-    // aksesoris (dihapus) — dipakai buat banner peringatan, kontribusinya
-    // ke subtotal tetap dianggap 0 (bukan error/crash). id kosong (baris BOM
-    // yang memang belum pernah pilih bahan) BUKAN dianggap "hilang".
+    // hargaBahan — resolve 1 bahan_aksesoris_id ke harga_pemakaian TERKINI lewat
+    // mapBahan (dibangun sekali di onMounted). `ditemukan:false` kalau id-nya
+    // TERISI tapi item-nya sudah tidak ada lagi di master_bahan_ aksesoris
+    // (dihapus) — dipakai buat banner peringatan, kontribusinya ke subtotal
+    // tetap dianggap 0 (bukan error/crash). id kosong (baris BOM yang memang
+    // belum pernah pilih bahan) BUKAN dianggap "hilang".
     function hargaBahan(id) {
       if (!id) return { harga: 0, ditemukan: true };
       const item = mapBahan.value.get(id);
       return item ? { harga: parseFloat(item.harga_pemakaian) || 0, ditemukan: true } : { harga: 0, ditemukan: false };
     }
 
-    // rincianBom — "Komponen otomatis" (panel kiri), read-only, dihitung
-    // ULANG tiap kali computed ini dibaca (live, lihat catatan besar di
-    // atas). null kalau belum ada produk terpilih.
+    // rincianBom — "Komponen otomatis" (panel kiri), read-only, dihitung ULANG
+    // tiap kali computed ini dibaca (live, lihat catatan besar di atas). null
+    // kalau belum ada produk terpilih.
     const rincianBom = computed(() => {
       const p = produkTerpilih.value;
       if (!p) return null;
@@ -2272,15 +2189,14 @@ const MasterProdukHppManager = {
       for (const b of pola) {
         const h = hargaBahan(b.bahan_aksesoris_id);
         if (!h.ditemukan) referensiHilang++;
-        // FIX (10 Sep 2026, laporan Guru "Harga BOM Pola kemahalan") — dulu
-        // cuma Panjang x Harga Bahan, TANPA dibagi Isi Pola (Pcs), jadi
-        // biaya 1 pola dihitung seolah semua panjang bahan itu cuma
-        // menghasilkan 1 pcs. Formula benar: (Panjang x Harga Bahan) :
-        // Isi Pola (Pcs) — field `isi_pola_pcs` sudah ada di data (dipakai
-        // hitungKelipatan()), cuma belum disambungkan ke sini. Baris tanpa
-        // isi_pola_pcs (mis. sebagian baris Vendor) sengaja TIDAK dibagi —
-        // tidak ada info pembaginya, lebih aman tampil apa adanya daripada
-        // dianggap 0 (yang malah menghilangkan biayanya sama sekali).
+        // dulu cuma Panjang x Harga Bahan, TANPA dibagi Isi Pola (Pcs), jadi
+        // biaya 1 pola dihitung seolah semua panjang bahan itu cuma menghasilkan
+        // 1 pcs. Formula benar: (Panjang x Harga Bahan): Isi Pola (Pcs) — field
+        // `isi_pola_pcs` sudah ada di data (dipakai hitungKelipatan), cuma belum
+        // disambungkan ke sini. Baris tanpa isi_pola_pcs (mis. sebagian baris
+        // Vendor) sengaja TIDAK dibagi — tidak ada info pembaginya, lebih aman
+        // tampil apa adanya daripada dianggap 0 (yang malah menghilangkan
+        // biayanya sama sekali).
         const isiPola = parseFloat(b.isi_pola_pcs) || 0;
         const biayaBahanBaris = (parseFloat(b.panjang) || 0) * h.harga;
         bahanKain += isiPola > 0 ? biayaBahanBaris / isiPola : biayaBahanBaris;
@@ -2307,21 +2223,20 @@ const MasterProdukHppManager = {
     const hppTotal = computed(() => (rincianBom.value ? rincianBom.value.subtotal : 0) + subtotalTambahan.value);
     const hargaJualTerpilih = computed(() => parseFloat(produkTerpilih.value?.harga_jual) || 0);
     const marginJual = computed(() => hargaJualTerpilih.value - hppTotal.value);
-    // marginPersen — null kalau Harga Jual belum diisi/0 (dianggap "belum
-    // bisa dihitung", BUKAN 0%/negatif tak terhingga) — template tampilkan
-    // '-' untuk kasus ini, sesuai wireframe (margin % turunan margin/harga
-    // jual).
+    // marginPersen — null kalau Harga Jual belum diisi/0 (dianggap "belum bisa
+    // dihitung", BUKAN 0%/negatif tak terhingga) — template tampilkan '-' untuk
+    // kasus ini, sesuai wireframe (margin % turunan margin/harga jual).
     const marginPersen = computed(() => hargaJualTerpilih.value > 0 ? (marginJual.value / hargaJualTerpilih.value) * 100 : null);
 
     const bolehSimpan = computed(() => window.cekIzinMenu(MENU_ID, 'edit') !== false);
 
-    // --- Banner "Harga Perlu Konfirmasi" (BARU, 10 Sep 2026 malam) --------
-    // Query GLOBAL (semua bahan menunggu konfirmasi, tidak dibatasi ke BOM
-    // produk yang lagi dipilih) — sama pola dengan RiwayatHargaPembelianManager
-    // di js/vue-stock-pembelian.js, supaya Owner/PIC Owner bisa lihat &
-    // putuskan SEMUA harga pending dari tab HPP ini juga, bukan cuma yang
-    // kebetulan dipakai produk yang lagi dibuka. Ini TAMBAHAN, bukan
-    // pengganti tab "Riwayat Harga Pembelian" (Stok & Pembelian).
+    // Banner "Harga Perlu Konfirmasi" — Query GLOBAL (semua bahan
+    // menunggu konfirmasi, tidak dibatasi ke BOM produk yang lagi dipilih) —
+    // sama pola dengan RiwayatHargaPembelianManager di
+    // js/vue-stock-pembelian.js, supaya Owner/PIC Owner bisa lihat & putuskan
+    // SEMUA harga pending dari tab HPP ini juga, bukan cuma yang kebetulan
+    // dipakai produk yang lagi dibuka. Ini TAMBAHAN, bukan pengganti tab
+    // "Riwayat Harga Pembelian" (Stok & Pembelian).
     const daftarPendingHarga = ref([]);
     const memuatPendingHarga = ref(true);
     async function muatDaftarPendingHarga() {
@@ -2370,7 +2285,7 @@ const MasterProdukHppManager = {
         });
         alert(`Harga "${bahan.nama || bahan.id}" diperbarui & blokir checkout dibuka.`);
         await muatDaftarPendingHarga();
-        // mapBahan dipakai rincianBom/hargaBahan() di atas — segarkan biar HPP
+        // mapBahan dipakai rincianBom/hargaBahan di atas — segarkan biar HPP
         // yang lagi dibuka langsung ikut angka baru tanpa reload manual.
         mapBahan.value.set(bahan.id, { ...bahan, harga_pemakaian: rekomendasiUntuk(bahan), harga_perlu_konfirmasi: false, harga_pending: null });
       } catch (e) {
@@ -2427,10 +2342,11 @@ const MasterProdukHppManager = {
       <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-bottom:4px;"><i class="fas fa-calculator" style="color:var(--burgundy); margin-right:8px;"></i>HPP (Harga Pokok Produksi)</h3>
       <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Dihitung LIVE dari BOM produk (Bahan, Aksesoris, Jasa) tiap kali dibuka — bukan angka yang disimpan. Cuma "Biaya tambahan" yang benar-benar tersimpan per produk.</p>
 
-      <!-- BARU (10 Sep 2026 malam) — banner "Harga Perlu Konfirmasi", supaya
-           Owner/PIC Owner bisa putuskan dari Master Produk juga (bukan cuma
-           Stok & Pembelian > Riwayat Harga Pembelian, tab itu TETAP ada,
-           tidak dihapus). Lihat komentar besar di atas MasterProdukHppManager. -->
+      <!--
+        banner "Harga Perlu Konfirmasi", supaya Owner/PIC Owner bisa putuskan dari Master Produk
+        juga (bukan cuma Stok & Pembelian > Riwayat Harga Pembelian, tab itu TETAP ada, tidak
+        dihapus). Lihat komentar besar di atas MasterProdukHppManager.
+      -->
       <div v-if="!memuatPendingHarga && daftarPendingHarga.length > 0" class="gc-card" style="padding:14px; margin-bottom:16px; border:1.5px solid var(--warn); background:rgba(var(--warn-rgb),.06);">
         <h3 style="font-weight:700; font-size:13px; margin-bottom:8px;"><i class="fas fa-triangle-exclamation" style="margin-right:8px;"></i>{{ daftarPendingHarga.length }} Harga Perlu Konfirmasi Owner</h3>
         <p style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">Harga beli baru LEBIH TINGGI dari harga master saat ini — belum dipakai di HPP, dan checkout Pesanan untuk produk yang memakai bahan ini DIBLOKIR sampai diterapkan. Rekomendasi = harga modal baru + margin%, dibulatkan ke ratusan terdekat.</p>
@@ -2563,7 +2479,7 @@ const MasterProdukHppManager = {
   `
 };
 
-// --- Mount, pola SAMA seperti js/vue-order-spk.js / vue-bahan-aksesoris.js -
+// Mount, pola SAMA seperti js/vue-order-spk.js / vue-bahan-aksesoris.js -
 const AppMasterProdukEntry = { components: { MasterProdukEntryManager }, template: `<master-produk-entry-manager />` };
 let vmMasterProdukEntry = null;
 window.pastikanMountProdukEntry = function() {
@@ -2584,8 +2500,8 @@ window.pastikanMountProdukList = function() {
   if (mountPoint) vmMasterProdukList = createApp(AppMasterProdukList).mount('#vue-master-produk-list');
 };
 
-// BARU (7 Sep 2026) — tab child ke-3 "HPP", lihat MasterProdukHppManager di
-// atas. Desktop-only per wireframe (peran: Admin/Owner, device: Desktop).
+// tab child ke-3 "HPP", lihat MasterProdukHppManager di atas. Desktop-only per
+// wireframe (peran: Admin/Owner, device: Desktop).
 const AppMasterProdukHpp = { components: { MasterProdukHppManager }, template: `<master-produk-hpp-manager ref="mgr" />` };
 let vmMasterProdukHpp = null;
 window.pastikanMountProdukHpp = function() {

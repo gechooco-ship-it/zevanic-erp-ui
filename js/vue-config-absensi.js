@@ -1,37 +1,35 @@
 // js/vue-config-absensi.js
-// ============================================================================
+
 // Halaman KEDUA yang dimigrasi ke Vue: Master Absensi > Config Absensi.
 //
-// DIROMBAK (18 Agt 2026) — dulu Master Gudang & Master Shift tampil
-// BARENGAN begitu Config Absensi dibuka (2 kartu sebelahan), jadi KEDUA
-// koleksi ("master_gudang" DAN "master_shift") kebaca sekaligus walau
-// orangnya cuma mau lihat salah satu. Sempat dipecah jadi 3 sub-tab
-// (Master Gudang / Master Shift / Jenis Pekerjaan).
+// dulu Master Gudang & Master Shift tampil BARENGAN begitu Config Absensi dibuka
+// (2 kartu sebelahan), jadi KEDUA koleksi ("master_gudang" DAN "master_shift")
+// kebaca sekaligus walau orangnya cuma mau lihat salah satu. Sempat dipecah jadi
+// 3 sub-tab (Master Gudang / Master Shift / Jenis Pekerjaan).
 //
-// DIROMBAK LAGI (9 Sep 2026) — wireframe handoff "07 - Management / 02 -
-// Master Absensi" butir 2.1 eksplisit minta: "Dua section dalam 1 halaman
-// (BUKAN sub-tab lagi)". Pill sub-tab DIHAPUS, ketiga section (Master
-// Gudang → Master Shift → Jenis Pekerjaan, urutan sesuai wireframe) SEKARANG
-// tampil berurutan di 1 halaman yang di-scroll turun. Ketiganya di-mount
-// SEKALIGUS saat layar ini dibuka pertama kali (bukan lagi ditunda per
-// sub-tab) — trade-off yang disengaja: koleksi master_gudang/master_shift/
-// master_data (jenis_pekerjaan) sama-sama kecil (puluhan baris, bukan
-// ratusan), jadi baca sekaligus tidak boros seperti kekhawatiran awal yang
-// melatarbelakangi pemecahan 18 Agt 2026 di atas. Isi/logic CRUD tiap
+// wireframe handoff "07 - Management / 02 - Master Absensi" butir 2.1 eksplisit
+// minta: "Dua section dalam 1 halaman (BUKAN sub-tab lagi)". Pill sub-tab
+// DIHAPUS, ketiga section (Master Gudang → Master Shift → Jenis Pekerjaan,
+// urutan sesuai wireframe) SEKARANG tampil berurutan di 1 halaman yang di-scroll
+// turun. Ketiganya di-mount SEKALIGUS saat layar ini dibuka pertama kali (bukan
+// lagi ditunda per sub-tab) — trade-off yang disengaja: koleksi
+// master_gudang/master_shift/ master_data (jenis_pekerjaan) sama-sama kecil
+// (puluhan baris, bukan ratusan), jadi baca sekaligus tidak boros seperti
+// kekhawatiran awal yang melatarbelakangi pemecahan di atas. Isi/logic CRUD tiap
 // section (form, simpan, edit inline, hapus) TIDAK berubah sama sekali.
 //
 // Section "Jenis Pekerjaan" PAKAI ULANG komponen bersama MasterDataCategory
-// (vue-components.js, sama yang dipakai kategori lain di Config Karyawan)
-// — BUKAN komponen baru. Prop menuId="config_absensi" WAJIB disertakan
-// supaya izinnya dicek ke menu yang benar (lihat catatan di
-// vue-components.js kenapa prop ini ditambahkan).
+// (vue-components.js, sama yang dipakai kategori lain di Config Karyawan) —
+// BUKAN komponen baru. Prop menuId="config_absensi" WAJIB disertakan supaya
+// izinnya dicek ke menu yang benar (lihat catatan di vue-components.js kenapa
+// prop ini ditambahkan).
 //
-// PENTING: koleksi Firestore "master_gudang" dan "master_shift" dibaca
-// langsung oleh banyak bagian lain yang BELUM dimigrasi (geofencing di
-// camera.js, Penjadwalan, Daftar Karyawan, Antrean Dakar). Skema field di
-// sini SENGAJA dipertahankan identik dengan versi lama supaya bagian-bagian
-// itu tetap jalan normal tanpa perlu ikut diubah.
-// ============================================================================
+// PENTING: koleksi Firestore "master_gudang" dan "master_shift" dibaca langsung
+// oleh banyak bagian lain yang BELUM dimigrasi (geofencing di camera.js,
+// Penjadwalan, Daftar Karyawan, Antrean Dakar). Skema field di sini SENGAJA
+// dipertahankan identik dengan versi lama supaya bagian-bagian itu tetap jalan
+// normal tanpa perlu ikut diubah.
+
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -49,25 +47,25 @@ const MasterGudangManager = {
     const lat = ref('');
     const lng = ref('');
     const radius = ref('');
-    // BARU (18 Agt 2026) — 1 gudang bisa dipakai LEBIH DARI 1 jenis
-    // pekerjaan (misal Operator Gudang & Checker sama-sama kerja di
-    // gudang yang sama), jadi array (checkbox), bukan dropdown 1 pilihan.
-    // Dipakai Penjadwalan/Antrean Dakar buat nyaring dropdown gudang
-    // sesuai jenis pekerjaan Admin yang login (lihat PETA-DATABASE.md).
+    // 1 gudang bisa dipakai LEBIH DARI 1 jenis pekerjaan (misal Operator Gudang
+    // & Checker sama-sama kerja di gudang yang sama), jadi array (checkbox),
+    // bukan dropdown 1 pilihan. Dipakai Penjadwalan/Antrean Dakar buat nyaring
+    // dropdown gudang sesuai jenis pekerjaan Admin yang login (lihat
+    // PETA-DATABASE.md).
     const jenisPekerjaanBaru = ref([]);
 
-    // ---- Edit jenis pekerjaan untuk data yang SUDAH ADA sebelumnya ----
+    // Edit jenis pekerjaan untuk data yang SUDAH ADA sebelumnya
     const sedangEditId = ref(null);
     const editNama = ref('');
     const editJenisPekerjaan = ref([]);
     const menyimpanEdit = ref(false);
 
-    // PENERAPAN NYATA Config Akses — kunci dropdown Jenis Lokasi kalau
-    // role ini SENGAJA dilarang mengubahnya (fitur "ubah_jenis_lokasi" di
-    // menu config_absensi, diatur lewat Config Akses). Sama seperti
-    // pengaman lain: kalau BELUM DIATUR sama sekali (null), dianggap
-    // BOLEH — supaya tidak ada yang tiba-tiba terkunci keluar cuma
-    // karena Config Akses belum sempat dibuat untuk role itu.
+    // PENERAPAN NYATA Config Akses — kunci dropdown Jenis Lokasi kalau role ini
+    // SENGAJA dilarang mengubahnya (fitur "ubah_jenis_lokasi" di menu
+    // config_absensi, diatur lewat Config Akses). Sama seperti pengaman lain:
+    // kalau BELUM DIATUR sama sekali (null), dianggap BOLEH — supaya tidak ada
+    // yang tiba-tiba terkunci keluar cuma karena Config Akses belum sempat
+    // dibuat untuk role itu.
     const bolehUbahJenisLokasi = computed(() => {
       const izin = window.cekFiturAkses('config_absensi', 'ubah_jenis_lokasi');
       return izin === false ? false : true;
@@ -77,10 +75,9 @@ const MasterGudangManager = {
       memuat.value = true;
       const snap = await getDocs(collection(db, "master_gudang"));
       const list = [];
-      // BARU (18 Agt 2026) — PEDOMAN KERJA: Admin cuma lihat gudang yang
-      // jenis pekerjaannya cocok DAN nama gudangnya ada di gudang_penempatan
-      // dia sendiri. Owner/Superuser tetap lihat semua (bypass di dalam
-      // bolehLihatData).
+      // PEDOMAN KERJA: Admin cuma lihat gudang yang jenis pekerjaannya cocok DAN
+      // nama gudangnya ada di gudang_penempatan dia sendiri. Owner/Superuser
+      // tetap lihat semua (bypass di dalam bolehLihatData).
       snap.forEach(d => {
         const g = d.data();
         if (window.bolehLihatData(g.jenis_pekerjaan, [g.nama_gudang])) list.push({ id: d.id, ...g });
@@ -144,11 +141,9 @@ const MasterGudangManager = {
       editNama.value = '';
       editJenisPekerjaan.value = [];
     }
-    // Ganti nama dari "simpanEditJenisPekerjaan" -> "simpanEdit" (sekarang
-    // simpan Nama Gudang JUGA, bukan cuma jenis pekerjaan — permintaan
-    // checklist rebuild 18 Agt 2026). Nama fungsi lama dipertahankan
-    // sebagai alias di bawah biar titik panggil template tidak perlu ikut
-    // berubah semua.
+    // nama dari "simpanEditJenisPekerjaan" -> "simpanEdit" . Nama fungsi lama
+    // dipertahankan sebagai alias di bawah biar titik panggil template tidak
+    // perlu ikut berubah semua.
     async function simpanEdit(id) {
       if (!editNama.value.trim()) return alert("Nama Gudang tidak boleh kosong!");
       menyimpanEdit.value = true;
@@ -261,11 +256,11 @@ const MasterShiftManager = {
     const nama = ref('');
     const jamMasuk = ref('');
     const jamKeluar = ref('');
-    // BARU (18 Agt 2026) — sama seperti Master Gudang: 1 shift bisa
-    // dipakai LEBIH DARI 1 jenis pekerjaan, array bukan dropdown tunggal.
+    // sama seperti Master Gudang: 1 shift bisa dipakai LEBIH DARI 1 jenis
+    // pekerjaan, array bukan dropdown tunggal.
     const jenisPekerjaanBaru = ref([]);
 
-    // ---- Edit jenis pekerjaan untuk data yang SUDAH ADA sebelumnya ----
+    // Edit jenis pekerjaan untuk data yang SUDAH ADA sebelumnya
     const sedangEditId = ref(null);
     const editNama = ref('');
     const editJenisPekerjaan = ref([]);
@@ -275,8 +270,8 @@ const MasterShiftManager = {
       memuat.value = true;
       const snap = await getDocs(collection(db, "master_shift"));
       const list = [];
-      // BARU (18 Agt 2026) — PEDOMAN KERJA: cuma dimensi jenis pekerjaan
-      // (Master Shift tidak punya field gudang sama sekali).
+      // PEDOMAN KERJA: cuma dimensi jenis pekerjaan (Master Shift tidak punya
+      // field gudang sama sekali).
       snap.forEach(d => {
         const s = d.data();
         if (window.bolehLihatJenisPekerjaan(s.jenis_pekerjaan)) list.push({ id: d.id, ...s });
@@ -414,11 +409,10 @@ const MasterShiftManager = {
 const AppConfigAbsensi = {
   components: { MasterGudangManager, MasterShiftManager, MasterDataCategory },
   setup() {
-    // Pill sub-tab DIHAPUS (9 Sep 2026, wireframe 2.1 "bukan sub-tab
-    // lagi") — ketiga section di-mount sekaligus, tidak ada lagi
+    // Pill sub-tab DIHAPUS — ketiga section di-mount sekaligus, tidak ada lagi
     // tabAktif/dibukaSekali untuk ditunda-tunda. refreshKey dipertahankan
-    // (dipakai window.refreshConfigAbsensi untuk force remount ke-3
-    // section sekaligus kalau perlu).
+    // (dipakai window.refreshConfigAbsensi untuk force remount ke-3 section
+    // sekaligus kalau perlu).
     const refreshKey = ref(0);
     return { refreshKey };
   },
@@ -437,11 +431,10 @@ const AppConfigAbsensi = {
 };
 
 let vmConfigAbsensi = null;
-// Sama seperti layar admin lain — mount() ditunda sampai benar-benar
-// dinavigasi pertama kali. Sejak 9 Sep 2026 (wireframe 2.1 "1 halaman,
-// bukan sub-tab"), ketiga section (Gudang/Shift/Jenis Pekerjaan) ikut muat
-// SEKALIGUS begitu layar ini pertama dibuka — tidak ada lagi penundaan
-// per sub-tab.
+// Sama seperti layar admin lain — mount ditunda sampai benar-benar dinavigasi
+// pertama kali. Sejak (wireframe 2.1 "1 halaman, bukan sub-tab"), ketiga section
+// (Gudang/Shift/Jenis Pekerjaan) ikut muat SEKALIGUS begitu layar ini pertama
+// dibuka — tidak ada lagi penundaan per sub-tab.
 window.pastikanMountConfigAbsensi = function() {
   if (vmConfigAbsensi) { vmConfigAbsensi.refreshKey++; return; }
   const mountPoint = document.getElementById('vue-config-absensi');

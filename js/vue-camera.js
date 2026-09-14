@@ -1,5 +1,5 @@
 // js/vue-camera.js
-// ============================================================================
+
 // Migrasi TERAKHIR & PALING SENSITIF: layar Kamera (selfie Hadir/Izin/Cuti/
 // Lembur/Clock Out) + Geofencing GPS. Berbeda dari layar lain yang sudah
 // dimigrasi — ini satu-satunya bagian yang bicara LANGSUNG dengan hardware
@@ -8,54 +8,52 @@
 // bukan lewat reactive binding — memang begitu caranya untuk MediaStream).
 //
 // Semua LOGIC (geofencing, kompresi foto, submit ke Firestore) direplikasi
-// PERSIS SAMA dengan versi vanilla sebelumnya, termasuk desain "GPS di-cek
-// ulang & ditunggu tepat saat submit" yang sudah pernah diperbaiki dari bug
-// race condition sebelumnya.
+// PERSIS SAMA dengan versi vanilla sebelumnya, termasuk desain "GPS di-cek ulang
+// & ditunggu tepat saat submit" yang sudah pernah diperbaiki dari bug race
+// condition sebelumnya.
 //
-// Jembatan ke vanilla: window.mulaiKamera() & window.matikanKamera()
-// DIPERTAHANKAN sebagai fungsi global (dipanggil dari app.js pindahLayar
-// setiap kali pindah layar) — tapi sekarang isinya memanggil method Vue ini.
+// Jembatan ke vanilla: window.mulaiKamera & window.matikanKamera DIPERTAHANKAN
+// sebagai fungsi global (dipanggil dari app.js pindahLayar setiap kali pindah
+// layar) — tapi sekarang isinya memanggil method Vue ini.
 //
-// window.previewKTP / kompresGambar / window.ktpBase64Global TIDAK dipindah
-// ke sini — itu tetap di js/camera.js karena masih dipakai Registrasi
-// (fitur upload foto KTP, bukan bagian dari layar selfie ini).
+// window.previewKTP / kompresGambar / window.ktpBase64Global TIDAK dipindah ke
+// sini — itu tetap di js/camera.js karena masih dipakai Registrasi (fitur upload
+// foto KTP, bukan bagian dari layar selfie ini).
 //
-// DIROMBAK (18 Agt 2026) — Clock In & Clock Out SEKARANG jadi 1 DOKUMEN
-// per orang per hari (dulu 2 dokumen terpisah lewat addDoc() dua kali).
-// Clock In bikin dokumen baru (field *_masuk) DAN simpan ID dokumen itu
-// ke localStorage (zevanic_absensi_doc_id_{email}, pola SAMA seperti
-// zevanic_jam_masuk_{email} yang sudah ada). Clock Out ambil ID itu dari
-// localStorage lalu updateDoc() ke dokumen YANG SAMA (field *_keluar) —
-// TIDAK PERLU baca Firestore sama sekali buat cari dokumennya kalau
-// localStorage-nya ada. Kalau localStorage kosong (cache dibersihkan,
-// device beda), fallback query 1x ke Firestore (email+tanggal+status).
+// Clock In & Clock Out SEKARANG jadi 1 DOKUMEN per orang per hari (dulu 2
+// dokumen terpisah lewat addDoc dua kali). Clock In bikin dokumen baru (field
+// *_masuk) DAN simpan ID dokumen itu ke localStorage
+// (zevanic_absensi_doc_id_{email}, pola SAMA seperti zevanic_jam_masuk_{email}
+// yang sudah ada). Clock Out ambil ID itu dari localStorage lalu updateDoc ke
+// dokumen YANG SAMA (field *_keluar) — TIDAK PERLU baca Firestore sama sekali
+// buat cari dokumennya kalau localStorage-nya ada. Kalau localStorage kosong
+// (cache dibersihkan, device beda), fallback query 1x ke Firestore
+// (email+tanggal+status).
 //
-// status_acc_masuk & status_acc_keluar SENGAJA field TERPISAH (bukan
-// digabung 1 status_acc) — supaya PIC/Admin Finance bisa approve Clock In
-// pagi & Clock Out sore sebagai 2 aksi independen di kartu yang sama,
-// keputusan disepakati bareng Hilman 18 Agt 2026. ada_pending (boolean)
-// jadi 1 field tambahan yang di-update tiap ada perubahan status —
-// dipakai Antrean Absensi query where('ada_pending','==',true) LANGSUNG,
-// tanpa perlu "OR antar-field" yang Firestore tidak bisa lakukan dengan
-// hemat. Lihat STATUS-PROYEK.md buat penjelasan lengkap rancangan ini.
+// status_acc_masuk & status_acc_keluar SENGAJA field TERPISAH (bukan digabung 1
+// status_acc) — supaya PIC/Admin Finance bisa approve Clock In pagi & Clock Out
+// sore sebagai 2 aksi independen di kartu yang sama, keputusan disepakati bareng
+// . ada_pending (boolean) jadi 1 field tambahan yang di-update tiap ada
+// perubahan status — dipakai Antrean Absensi query
+// where('ada_pending','==',true) LANGSUNG, tanpa perlu "OR antar-field" yang
+// Firestore tidak bisa lakukan dengan hemat. Lihat STATUS-PROYEK.md buat
+// penjelasan lengkap rancangan ini.
 //
 // IZIN/CUTI/LEMBUR TIDAK ikut dirombak — tetap 1 dokumen tunggal seperti
 // sebelumnya (tidak ada pasangan "masuk/keluar" buat jenis pengajuan itu).
 //
-// DATA LAMA (dibuat sebelum perombakan ini, format 2-dokumen-terpisah)
-// SENGAJA DIBIARKAN APA ADANYA — Antrean/Riwayat Absensi WAJIB tetap bisa
-// baca kedua format sampai data lama itu naturally phase-out (approved/
-// rejected, tidak pernah jadi dokumen baru lagi). Jangan migrasi paksa.
-// ============================================================================
+// DATA LAMA (dibuat sebelum perombakan ini, format 2-dokumen-terpisah) SENGAJA
+// DIBIARKAN APA ADANYA — Antrean/Riwayat Absensi WAJIB tetap bisa baca kedua
+// format sampai data lama itu naturally phase-out (approved/ rejected, tidak
+// pernah jadi dokumen baru lagi). Jangan migrasi paksa.
+
 import { createApp, ref, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, addDoc, doc, updateDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
-// BARU (23 Agt 2026, permintaan Hilman: PIN Kiosk 2x, yang KEDUA diminta
-// SETELAH foto selfie diambil, tepat sebelum submit) — SAMA PERSIS dengan
-// hashPin di vue-absensi-qr.js/vue-account-profile.js — disalin (bukan
-// diimpor), pola yang sama dipakai di semua file lain yang butuh fungsi
-// kecil ini.
+// SAMA PERSIS dengan hashPin di vue-absensi-qr.js/vue-account-profile.js —
+// disalin (bukan diimpor), pola yang sama dipakai di semua file lain yang butuh
+// fungsi kecil ini.
 async function hashPin(pin, email) {
   const data = new TextEncoder().encode(pin + '|' + email);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -86,25 +84,21 @@ const AppKamera = {
     const mengirim = ref(false);
     const teksTombolKirim = ref('Kirim Pengajuan');
 
-    // BARU (23 Agt 2026) — gerbang PIN kedua, KHUSUS mode Kiosk
-    // (window.modeKioskAktif). Diminta SETELAH foto selfie diambil & tombol
-    // Kirim ditekan, TEPAT SEBELUM data benar-benar ditulis ke Firestore —
-    // sesuai klarifikasi Hilman: "kamera kebuka > PIN kedua > alert". PIN
-    // dicocokkan ke window.currentUser.pin_hash (identitas KARYAWAN yang
-    // di-scan, sudah dioverride vue-absensi-qr.js sebelum masuk sini —
-    // BUKAN identitas asli Kiosk).
+    // gerbang PIN kedua, KHUSUS mode Kiosk (window.modeKioskAktif). Diminta
+    // SETELAH foto selfie diambil & tombol Kirim ditekan, TEPAT SEBELUM data
+    // benar-benar ditulis ke Firestore — sesuai klarifikasi: "kamera kebuka >
+    // PIN kedua > alert". PIN dicocokkan ke window.currentUser.pin_hash
+    // (identitas KARYAWAN yang di-scan, sudah dioverride vue-absensi-qr.js
+    // sebelum masuk sini — BUKAN identitas asli Kiosk).
     const pinKioskDiminta = ref(false);
     const pinKioskInput = ref('');
     const pinKioskError = ref('');
     const percobaanPinKiosk = ref(0);
     const memverifikasiPinKiosk = ref(false);
-    // BARU (23 Agt 2026, ronde 3, permintaan Hilman: kasih sesi loading
-    // sambil nunggu, jangan langsung "diam" dulu sebelum kartu sukses
-    // muncul) — true = PIN kedua SUDAH benar, lagi proses kirim ke
-    // Firestore. Modal PIN (pinKioskDiminta) TETAP terbuka selama ini,
-    // TAPI isinya ganti jadi spinner (lihat template), BUKAN langsung
-    // ditutup — supaya tidak ada jeda "kosong" antara PIN benar & kartu
-    // sukses/alert gagal muncul.
+    // true = PIN kedua SUDAH benar, lagi proses kirim ke Firestore. Modal PIN
+    // (pinKioskDiminta) TETAP terbuka selama ini, TAPI isinya ganti jadi spinner
+    // (lihat template), BUKAN langsung ditutup — supaya tidak ada jeda "kosong"
+    // antara PIN benar & kartu sukses/alert gagal muncul.
     const mengirimPinKiosk = ref(false);
 
     const modeLabel = ref('Mode: Hadir');
@@ -283,14 +277,14 @@ const AppKamera = {
             if (s.nama_shift === namaShift) batasAtas = jamKeStringHariIni(s.jam_keluar);
           });
         }
-        // Tidak ketemu jadwal shift sama sekali -> tidak bisa membatasi
-        // dengan aman, pakai jam Clock Out asli apa adanya (lebih aman
-        // daripada menebak/salah potong jam kerja orang).
+        // Tidak ketemu jadwal shift sama sekali -> tidak bisa membatasi dengan
+        // aman, pakai jam Clock Out asli apa adanya (lebih aman daripada
+        // menebak/salah potong jam kerja orang).
         if (!batasAtas) return sekarang.toLocaleString('id-ID');
 
-        // 2. Cari pengajuan Lembur milik SAYA SENDIRI yang SUDAH di-ACC
-        // untuk hari ini — kalau ada dan jam selesainya lebih lambat dari
-        // jadwal shift, itu yang jadi batas baru (bukan shift lagi).
+        // 2. Cari pengajuan Lembur milik SAYA SENDIRI yang SUDAH di-ACC untuk
+        // hari ini — kalau ada dan jam selesainya lebih lambat dari jadwal
+        // shift, itu yang jadi batas baru (bukan shift lagi).
         const awalHariIni = new Date(sekarang.getFullYear(), sekarang.getMonth(), sekarang.getDate(), 0, 0, 0);
         const hariIni = sekarang.toLocaleDateString('id-ID');
         const qLembur = query(
@@ -304,10 +298,10 @@ const AppKamera = {
           const l = d.data();
           // Cocokkan tanggal pakai waktu_ts (Timestamp asli, andal) kalau
           // dokumennya SUDAH dimigrasi (lihat Riwayat All Absensi > alat
-          // migrasi). Dokumen LAMA yang belum sempat dimigrasi masih
-          // jatuh ke cara lama (cocokkan teks tanggal) sebagai fallback —
-          // supaya proses gaji tetap jalan benar buat data lama juga,
-          // tidak mendadak berhenti berfungsi cuma karena belum dimigrasi.
+          // migrasi). Dokumen LAMA yang belum sempat dimigrasi masih jatuh ke
+          // cara lama (cocokkan teks tanggal) sebagai fallback — supaya proses
+          // gaji tetap jalan benar buat data lama juga, tidak mendadak berhenti
+          // berfungsi cuma karena belum dimigrasi.
           let cocokHariIni;
           if (l.waktu_ts) {
             cocokHariIni = l.waktu_ts.toDate() >= awalHariIni;
@@ -319,8 +313,8 @@ const AppKamera = {
           if (selesaiLembur && selesaiLembur > batasAtas) batasAtas = selesaiLembur;
         });
 
-        // 3. Ambil yang LEBIH KECIL — jam asli Clock Out kalau belum
-        // lewat batas, atau batas atasnya kalau sudah lewat.
+        // 3. Ambil yang LEBIH KECIL — jam asli Clock Out kalau belum lewat
+        // batas, atau batas atasnya kalau sudah lewat.
         const jamDipakai = sekarang <= batasAtas ? sekarang : batasAtas;
         return jamDipakai.toLocaleString('id-ID');
       } catch (e) {
@@ -330,60 +324,57 @@ const AppKamera = {
     }
 
 
-    // Kunci localStorage tempat ID dokumen Clock In disimpan — dibaca lagi
-    // saat Clock Out supaya updateDoc() langsung tahu dokumen mana yang
-    // dituju, TANPA perlu query cari dulu (gratis, bukan baca Firestore).
+    // Kunci localStorage tempat ID dokumen Clock In disimpan — dibaca lagi saat
+    // Clock Out supaya updateDoc langsung tahu dokumen mana yang dituju, TANPA
+    // perlu query cari dulu (gratis, bukan baca Firestore).
     function kunciDocIdAbsensi(email) { return 'zevanic_absensi_doc_id_' + email; }
 
-    // CATATAN (19 Agt 2026) — fallback pencarian dokumen dulu ADA di sini
-    // sendiri (cariDocIdHadirHariIni), tapi DIHAPUS — digantikan
-    // window.cekStatusClockInSaya() di auth.js yang JAUH lebih lengkap
-    // (nangani format lama JUGA, dan bekerja lintas device buat kasus
-    // karyawan nebeng HP). Satu sumber kebenaran, bukan 2 fallback
-    // terpisah yang bisa beda pendapat. Lihat catatan lengkap di auth.js.
+    // CATATAN — fallback pencarian dokumen dulu ADA di sini sendiri
+    // (cariDocIdHadirHariIni), tapi DIHAPUS — digantikan
+    // window.cekStatusClockInSaya di auth.js yang JAUH lebih lengkap (nangani
+    // format lama JUGA, dan bekerja lintas device buat kasus karyawan nebeng
+    // HP). Satu sumber kebenaran, bukan 2 fallback terpisah yang bisa beda
+    // pendapat. Lihat catatan lengkap di auth.js.
 
-    // Return: id dokumen (string) kalau berhasil, atau false kalau gagal —
-    // BEDA dari sebelumnya yang cuma true/false, karena Clock In sekarang
-    // WAJIB tahu ID dokumennya sendiri buat disimpan ke localStorage.
+    // Return: id dokumen (string) kalau berhasil, atau false kalau gagal — BEDA
+    // dari sebelumnya yang cuma true/false, karena Clock In sekarang WAJIB tahu
+    // ID dokumennya sendiri buat disimpan ke localStorage.
     async function simpanKeFirebase(fotoBase64) {
       const email = window.currentUser.email;
       const hariIni = new Date().toLocaleDateString('id-ID');
       const statusPilihan = window.statusPilihanGlobal;
 
       try {
-        // ==================================================================
+
         // JALUR 1: HADIR (CLOCK IN) — bikin dokumen BARU, field ber-akhiran
         // _masuk. ada_pending:true karena status_acc_masuk baru "PENDING".
-        // ==================================================================
+
         if (statusPilihan === "HADIR (CLOCK IN)") {
-          // BARU (23 Agt 2026, bug ditemukan Hilman: bisa Clock In sampai
-          // 7x) — jaring pengaman TERAKHIR tepat di titik TULIS (bukan
-          // cuma andalkan badge/UI di Home & Login sudah benar). Apapun
-          // penyebabnya di sisi UI (race condition, cache, tombol
-          // kepencet dobel, dsb — lihat STATUS-PROYEK.md §19.5), di sini
-          // dicek LANGSUNG ke sumber kebenaran (window.cekStatusClockInSaya)
-          // SEBELUM benar-benar bikin dokumen Clock In baru. Kalau
-          // ternyata SUDAH ada Clock In aktif punya orang ini, TOLAK di
-          // sini — supaya TIDAK PERNAH ada 2 dokumen "sedang_aktif:true"
-          // bersamaan untuk 1 karyawan.
+          // jaring pengaman TERAKHIR tepat di titik TULIS (bukan cuma andalkan
+          // badge/UI di Home & Login sudah benar). Apapun penyebabnya di sisi UI
+          // (race condition, cache, tombol kepencet dobel, dsb — lihat
+          // STATUS-PROYEK.md §19.5), di sini dicek LANGSUNG ke sumber kebenaran
+          // (window.cekStatusClockInSaya) SEBELUM benar-benar bikin dokumen
+          // Clock In baru. Kalau ternyata SUDAH ada Clock In aktif punya orang
+          // ini, TOLAK di sini — supaya TIDAK PERNAH ada 2 dokumen
+          // "sedang_aktif:true" bersamaan untuk 1 karyawan.
           const statusCekDulu = await window.cekStatusClockInSaya(email);
           if (statusCekDulu.aktif) {
-            // Sentinel KHUSUS (bukan `false` biasa) — supaya pemanggil
-            // (di bawah, dekat "Gagal mengirim pengajuan...") tidak
-            // menampilkan alert GENERIK "masalah izin akses/koneksi" di
-            // ATAS alert spesifik ini (dobel alert membingungkan).
+            // Sentinel KHUSUS (bukan `false` biasa) — supaya pemanggil (di
+            // bawah, dekat "Gagal mengirim pengajuan..") tidak menampilkan alert
+            // GENERIK "masalah izin akses/koneksi" di ATAS alert spesifik ini
+            // (dobel alert membingungkan).
             //
-            // DIPERBAIKI (23 Agt 2026, ditemukan Hilman) — SEBELUMNYA di
-            // sini SELALU redirect ke screen-dashboard/tab-home, padahal
-            // kalau ini dipicu dari mode Kiosk (window.modeKioskAktif),
-            // window.currentUser lagi DI-TIMPA SEMENTARA jadi identitas
-            // KARYAWAN yang di-scan (lihat vue-absensi-qr.js) — redirect
-            // ke Dashboard biasa jadi SALAH ARAH (device Kiosk seharusnya
-            // balik ke menu Absensi QR, bukan Dashboard karyawan siapapun
-            // yang kebetulan sedang di-scan). Sekarang pola yang SAMA
-            // dengan batalKamera() di bawah: mode Kiosk -> selesaiModeKiosk()
-            // (pulihkan identitas Kiosk asli + balik ke screen-absensi-qr),
-            // bukan Kiosk -> redirect Dashboard seperti semula.
+            // SEBELUMNYA di sini SELALU redirect ke screen-dashboard/tab-home,
+            // padahal kalau ini dipicu dari mode Kiosk (window.modeKioskAktif),
+            // window.currentUser lagi DI-TIMPA SEMENTARA jadi identitas KARYAWAN
+            // yang di-scan (lihat vue-absensi-qr.js) — redirect ke Dashboard
+            // biasa jadi SALAH ARAH (device Kiosk seharusnya balik ke menu
+            // Absensi QR, bukan Dashboard karyawan siapapun yang kebetulan
+            // sedang di-scan). Sekarang pola yang SAMA dengan batalKamera di
+            // bawah: mode Kiosk -> selesaiModeKiosk (pulihkan identitas Kiosk
+            // asli + balik ke screen-absensi-qr), bukan Kiosk -> redirect
+            // Dashboard seperti semula.
             if (window.modeKioskAktif && window.selesaiModeKiosk) {
               alert("Karyawan ini SUDAH Clock In dan masih aktif (belum Clock Out). Tidak bisa Clock In dua kali. Kembali ke menu Kiosk...");
               window.selesaiModeKiosk();
@@ -395,46 +386,43 @@ const AppKamera = {
             return 'SUDAH_CLOCK_IN';
           }
 
-          // BARU (9 Sep 2026, sambungkan rotasi Kalender Penjadwalan ke
-          // Ontime/Telat) — jangan langsung pakai window.currentUser.
-          // nama_shift (shift default statis), cek dulu apakah HARI INI
-          // sudah diatur beda lewat Kalender/Template Rotasi (koleksi
-          // jadwal_shift). Lihat window.ambilShiftEfektifHariIni di auth.js
-          // untuk aturan fallback lengkapnya.
+          // jangan langsung pakai window.currentUser. nama_shift (shift default
+          // statis), cek dulu apakah HARI INI sudah diatur beda lewat
+          // Kalender/Template Rotasi (koleksi jadwal_shift). Lihat
+          // window.ambilShiftEfektifHariIni di auth.js untuk aturan fallback
+          // lengkapnya.
           const namaShiftEfektif = await window.ambilShiftEfektifHariIni(email, window.currentUser.nama_shift);
 
           const dataKirim = {
             nama_pegawai: window.currentUser.name,
-            jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '', // BARU (19 Agt 2026) - titip dari memori, hindari baca users terpisah
+            jenis_pekerjaan: window.currentUser.jenis_pekerjaan || '', // BARU - titip dari memori, hindari baca users terpisah
             hp: window.currentUser.hp || '',
             status_kerja: window.currentUser.status_kerja || '',
-            // DIPERBAIKI (malam 24 Agt 2026, bug ditemukan Guru: "Shift"
-            // di Antrean Absensi/Riwayat All Absensi tidak pernah tampil)
-            // — root cause: field ini TIDAK PERNAH dititip ke dokumen
-            // absensi sejak awal, padahal vue-antrean-absensi.js SUDAH
-            // baca `data.shift`/`nama_shift` buat hitung Status Kehadiran
-            // otomatis (19 Agt 2026) — jadi perhitungan itu diam-diam
-            // SELALU gagal (jamShift tidak pernah ke-fetch). Titip di
-            // sini, pola SAMA seperti jenis_pekerjaan/status_kerja di atas.
-            // (9 Sep 2026) — SEKARANG shift EFEKTIF hari ini (ikut rotasi
-            // Kalender kalau diatur), bukan cuma default statis.
+            // root cause: field ini TIDAK PERNAH dititip ke dokumen absensi
+            // sejak awal, padahal vue-antrean-absensi.js SUDAH baca
+            // `data.shift`/`nama_shift` buat hitung Status Kehadiran otomatis —
+            // jadi perhitungan itu diam-diam SELALU gagal (jamShift tidak pernah
+            // ke-fetch). Titip di sini, pola SAMA seperti
+            // jenis_pekerjaan/status_kerja di atas. — SEKARANG shift EFEKTIF
+            // hari ini (ikut rotasi Kalender kalau diatur), bukan cuma default
+            // statis.
             nama_shift: namaShiftEfektif || '',
             email, role: window.currentUser.role,
             status: "HADIR", // BUKAN "HADIR (CLOCK IN)" lagi — dokumen ini
-                              // mewakili SELURUH hari (masuk+keluar), bukan
-                              // cuma momen Clock In saja.
-            tanggal: hariIni, // dipakai fallback cariDocIdHadirHariIni() di atas
+                              // mewakili SELURUH hari (masuk+keluar), bukan cuma
+                              // momen Clock In saja.
+            tanggal: hariIni, // dipakai fallback cariDocIdHadirHariIni di atas
             waktu_masuk: new Date().toLocaleString('id-ID'), // dipertahankan (tampilan) — rename dari "waktu"
             waktu_masuk_ts: serverTimestamp(),
             foto_selfie_masuk: fotoBase64,
             status_acc_masuk: "PENDING",
             seragam_masuk: "Sesuai",
             ada_pending: true,
-            // BARU (19 Agt 2026) — dipakai window.cekStatusClockInSaya()
-            // (auth.js) buat tau "masih ada Clock In aktif belum ditutup"
-            // TANPA bergantung ke localStorage device — jadi kebaca benar
-            // walau shift-nya nyebrang tengah malam ATAU dibuka dari HP
-            // yang beda (nebeng). Diset false lagi pas Clock Out.
+            // dipakai window.cekStatusClockInSaya (auth.js) buat tau "masih ada
+            // Clock In aktif belum ditutup" TANPA bergantung ke localStorage
+            // device — jadi kebaca benar walau shift-nya nyebrang tengah malam
+            // ATAU dibuka dari HP yang beda (nebeng). Diset false lagi pas Clock
+            // Out.
             sedang_aktif: true
           };
           if (perluLokasi.value) {
@@ -452,17 +440,16 @@ const AppKamera = {
           return docRef.id;
         }
 
-        // ==================================================================
+
         // JALUR 2: CLOCK OUT — cek dulu status AKTIF-nya (window.
-        // cekStatusClockInSaya di auth.js, bukan localStorage/tanggal
-        // lagi — lihat catatan lengkap di sana). Dua kemungkinan:
-        //   a) formatLama:false -> updateDoc() ke dokumen Clock In yang
-        //      SAMA (field *_keluar), seperti sebelumnya.
-        //   b) formatLama:true -> dokumen Clock In-nya masih pakai skema
-        //      LAMA (dari sebelum 18 Agt 2026) — TIDAK bisa digabung
-        //      tanpa migrasi paksa, jadi addDoc() dokumen CLOCK OUT
-        //      TERPISAH persis seperti perilaku asli sebelum dirombak.
-        // ==================================================================
+        // cekStatusClockInSaya di auth.js, bukan localStorage/tanggal lagi —
+        // lihat catatan lengkap di sana). Dua kemungkinan: a) formatLama:false
+        // -> updateDoc ke dokumen Clock In yang SAMA (field *_keluar), seperti
+        // sebelumnya. b) formatLama:true -> dokumen Clock In-nya masih pakai
+        // skema LAMA — TIDAK bisa digabung tanpa migrasi paksa, jadi addDoc
+        // dokumen CLOCK OUT TERPISAH persis seperti perilaku asli sebelum
+        // dirombak.
+
         if (statusPilihan === "CLOCK OUT") {
           const status = await window.cekStatusClockInSaya(email);
           if (!status.aktif) {
@@ -472,11 +459,11 @@ const AppKamera = {
           }
 
           if (status.formatLama) {
-            // (b) Dokumen CLOCK OUT terpisah — skema PERSIS seperti
-            // sebelum dirombak 18 Agt 2026 (dokumen Clock In lama ini
-            // tetap apa adanya, tidak disentuh/diupdate sama sekali).
-            // (9 Sep 2026) — shift EFEKTIF hari ini, lihat catatan lengkap
-            // di jalur Clock In di atas + window.ambilShiftEfektifHariIni (auth.js).
+            // (b) Dokumen CLOCK OUT terpisah — skema PERSIS seperti sebelum
+            // dirombak (dokumen Clock In lama ini tetap apa adanya, tidak
+            // disentuh/diupdate sama sekali). — shift EFEKTIF hari ini, lihat
+            // catatan lengkap di jalur Clock In di atas +
+            // window.ambilShiftEfektifHariIni (auth.js).
             const namaShiftEfektifKeluar = await window.ambilShiftEfektifHariIni(email, window.currentUser.nama_shift);
             const dataKirim = {
               nama_pegawai: window.currentUser.name,
@@ -509,25 +496,22 @@ const AppKamera = {
             return docRef.id;
           }
 
-          // (a) Format BARU — updateDoc() ke dokumen yang sama.
+          // (a) Format BARU — updateDoc ke dokumen yang sama.
           //
-          // DIPERBAIKI (23 Agt 2026, bug ditemukan Hilman: discan ulang
-          // beberapa menit setelah Clock Out, MASIH dianggap "sedang aktif
-          // Clock In" jadi bisa Clock Out lagi) — SEBELUMNYA cuma nutup 1
-          // dokumen (`status.docId`, dari cekStatusClockInSaya yang query-
-          // nya `limit(1)`). Root cause SEBENARNYA: sebelum bug Clock In
-          // dobel (§19.5) diperbaiki, SATU karyawan bisa ke-generate LEBIH
-          // DARI 1 dokumen "sedang_aktif:true" sekaligus (tiap Clock In
-          // dobel = dokumen baru). Clock Out lewat `limit(1)` cuma nutup
-          // SATU dari dokumen-dokumen zombie itu — sisanya TETAP
-          // "sedang_aktif:true" selamanya, jadi scan berikutnya (walau
-          // beda waktu, bukan race sesaat) masih nemu dokumen LAIN yang
-          // masih aktif -> dikira belum Clock Out. Sekarang query SEMUA
-          // dokumen "sedang_aktif:true" milik email ini (bukan cuma 1) dan
-          // TUTUP SEKALIGUS SEMUANYA di titik Clock Out mana pun terjadi —
-          // supaya tidak mungkin ada zombie tersisa lagi ke depan, apapun
-          // penyebab dokumen dobelnya (jaring pengaman, bukan cuma
-          // mengandalkan data sudah bersih).
+          // SEBELUMNYA cuma nutup 1 dokumen (`status.docId`, dari
+          // cekStatusClockInSaya yang query- nya `limit(1)`). Root cause
+          // SEBENARNYA: sebelum bug Clock In dobel (§19.5) diperbaiki, SATU
+          // karyawan bisa ke-generate LEBIH DARI 1 dokumen "sedang_aktif:true"
+          // sekaligus (tiap Clock In dobel = dokumen baru). Clock Out lewat
+          // `limit(1)` cuma nutup SATU dari dokumen-dokumen zombie itu — sisanya
+          // TETAP "sedang_aktif:true" selamanya, jadi scan berikutnya (walau
+          // beda waktu, bukan race sesaat) masih nemu dokumen LAIN yang masih
+          // aktif -> dikira belum Clock Out. Sekarang query SEMUA dokumen
+          // "sedang_aktif:true" milik email ini (bukan cuma 1) dan TUTUP
+          // SEKALIGUS SEMUANYA di titik Clock Out mana pun terjadi — supaya
+          // tidak mungkin ada zombie tersisa lagi ke depan, apapun penyebab
+          // dokumen dobelnya (jaring pengaman, bukan cuma mengandalkan data
+          // sudah bersih).
           const qSemuaAktif = query(
             collection(db, "absensi"),
             where("email", "==", email),
@@ -556,34 +540,30 @@ const AppKamera = {
             }
           }
           // Kalau karena SESUATU HAL query di atas kosong (harusnya tidak
-          // mungkin, karena status.aktif sudah dipastikan true di atas —
-          // ini cuma jaring pengaman ekstra), jatuh balik ke docId dari
+          // mungkin, karena status.aktif sudah dipastikan true di atas — ini
+          // cuma jaring pengaman ekstra), jatuh balik ke docId dari
           // cekStatusClockInSaya supaya tidak diam-diam gagal total.
           const docIdUtama = snapSemuaAktif.docs[0]?.id || status.docId;
           const semuaDocId = snapSemuaAktif.docs.length > 0 ? snapSemuaAktif.docs.map(d => d.id) : [docIdUtama];
-          // DIPERBAIKI (23 Agt 2026, ronde 2 — dilaporkan Hilman: "sudah
-          // Clock Out, tapi discan lagi malah diminta Clock Out lagi",
-          // dikonfirmasi terjadi disertai alert "Gagal mengirim
-          // pengajuan..." di akun Owner) — root cause KEMUNGKINAN BESAR:
-          // dokumen zombie LAMA (sisa testing 7x Clock In sebelum §19.5
-          // diperbaiki) bisa punya field `gudang` yang TIDAK termasuk
-          // gudang Kiosk INI — Firestore Rules cuma izinkan Kiosk menulis
-          // absensi buat gudang miliknya sendiri (§18.4 poin 9). SEBELUMNYA
-          // pakai Promise.all — kalau SATU SAJA dokumen ditolak Rules
+          // root cause KEMUNGKINAN BESAR: dokumen zombie LAMA (sisa testing 7x
+          // Clock In sebelum §19.5 diperbaiki) bisa punya field `gudang` yang
+          // TIDAK termasuk gudang Kiosk INI — Firestore Rules cuma izinkan Kiosk
+          // menulis absensi buat gudang miliknya sendiri (§18.4 poin 9).
+          // SEBELUMNYA pakai Promise.all — kalau SATU SAJA dokumen ditolak Rules
           // (gudang tidak cocok), SEMUANYA (termasuk dokumen shift yang
-          // SEHARUSNYA berhasil ditutup Kiosk ini) ikut dianggap gagal —
-          // Clock Out selalu gagal & orangnya kelihatan "aktif terus" di
-          // scan berikutnya, TIDAK PERNAH bisa Clock In lagi lewat Kiosk
-          // manapun. Sekarang pakai Promise.allSettled — tiap dokumen
-          // ditutup SENDIRI-SENDIRI, dokumen yang MEMANG boleh ditutup
-          // Kiosk ini tetap berhasil walau ada dokumen lain yang ditolak.
-          // CATATAN: ini belum tentu 100% akar masalahnya (belum bisa
-          // baca firestore.rules dari sesi ini) — kalau dokumen zombie
-          // gudang-tidak-cocok itu MASIH ada setelah fix ini, Kiosk mana
-          // pun TETAP tidak akan bisa menutupnya (itu keterbatasan Rules,
-          // bukan bug kode) — solusinya orangnya WAJIB Clock Out sekali
-          // lewat HP-nya SENDIRI (bukan Kiosk) buat membersihkan sisa
-          // dokumen lama itu, baru Kiosk bisa dipakai normal lagi.
+          // SEHARUSNYA berhasil ditutup Kiosk ini) ikut dianggap gagal — Clock
+          // Out selalu gagal & orangnya kelihatan "aktif terus" di scan
+          // berikutnya, TIDAK PERNAH bisa Clock In lagi lewat Kiosk manapun.
+          // Sekarang pakai Promise.allSettled — tiap dokumen ditutup
+          // SENDIRI-SENDIRI, dokumen yang MEMANG boleh ditutup Kiosk ini tetap
+          // berhasil walau ada dokumen lain yang ditolak. CATATAN: ini belum
+          // tentu 100% akar masalahnya (belum bisa baca firestore.rules dari
+          // sesi ini) — kalau dokumen zombie gudang-tidak-cocok itu MASIH ada
+          // setelah fix ini, Kiosk mana pun TETAP tidak akan bisa menutupnya
+          // (itu keterbatasan Rules, bukan bug kode) — solusinya orangnya WAJIB
+          // Clock Out sekali lewat HP-nya SENDIRI (bukan Kiosk) buat
+          // membersihkan sisa dokumen lama itu, baru Kiosk bisa dipakai normal
+          // lagi.
           const hasilTutup = await Promise.allSettled(semuaDocId.map(id => updateDoc(doc(db, "absensi", id), dataUpdate)));
           const jumlahBerhasil = hasilTutup.filter(h => h.status === 'fulfilled').length;
           const jumlahGagal = hasilTutup.length - jumlahBerhasil;
@@ -595,23 +575,23 @@ const AppKamera = {
             );
           }
           if (jumlahBerhasil === 0) {
-            // Tidak ada SATU PUN yang berhasil ditutup — ini baru benar-
-            // benar gagal total, lempar supaya catch di luar tampilkan
-            // alert gagal seperti biasa (perilaku sebelumnya, TIDAK berubah
-            // untuk kasus ini).
+            // Tidak ada SATU PUN yang berhasil ditutup — ini baru benar- benar
+            // gagal total, lempar supaya catch di luar tampilkan alert gagal
+            // seperti biasa (perilaku sebelumnya, TIDAK berubah untuk kasus
+            // ini).
             throw hasilTutup[0].reason || new Error('Semua percobaan tutup dokumen Clock Out gagal.');
           }
           return docIdUtama;
         }
 
-        // ==================================================================
-        // JALUR 3: IZIN / CUTI / LEMBUR — TIDAK BERUBAH, tetap 1 dokumen
-        // tunggal seperti sebelumnya (tidak ada pasangan masuk/keluar).
-        // (9 Sep 2026) — nama_shift tetap diisi shift EFEKTIF hari ini
-        // (ikut rotasi Kalender kalau diatur) demi konsistensi tampilan,
-        // walau jalur ini bukan dasar hitung Ontime/Telat. Lihat catatan
-        // lengkap di jalur Clock In di atas + window.ambilShiftEfektifHariIni (auth.js).
-        // ==================================================================
+
+        // JALUR 3: IZIN / CUTI / LEMBUR — TIDAK BERUBAH, tetap 1 dokumen tunggal
+        // seperti sebelumnya (tidak ada pasangan masuk/keluar). — nama_shift
+        // tetap diisi shift EFEKTIF hari ini (ikut rotasi Kalender kalau diatur)
+        // demi konsistensi tampilan, walau jalur ini bukan dasar hitung
+        // Ontime/Telat. Lihat catatan lengkap di jalur Clock In di atas +
+        // window.ambilShiftEfektifHariIni (auth.js).
+
         const namaShiftEfektifIzin = await window.ambilShiftEfektifHariIni(email, window.currentUser.nama_shift);
         const dataKirim = {
           nama_pegawai: window.currentUser.name,
@@ -684,22 +664,21 @@ const AppKamera = {
       mengirim.value = false;
       teksTombolKirim.value = 'Kirim Pengajuan';
 
-      // BARU (23 Agt 2026) — sentinel KHUSUS dari jaring pengaman Clock In
-      // dobel (lihat simpanKeFirebase, JALUR 1) — alert-nya SUDAH
-      // ditampilkan & sudah dialihkan ke Dashboard di sana, jadi di sini
-      // CUKUP berhenti diam-diam, JANGAN tampilkan alert generik di bawah
-      // (mencegah dobel alert yang membingungkan).
+      // sentinel KHUSUS dari jaring pengaman Clock In dobel (lihat
+      // simpanKeFirebase, JALUR 1) — alert-nya SUDAH ditampilkan & sudah
+      // dialihkan ke Dashboard di sana, jadi di sini CUKUP berhenti diam-diam,
+      // JANGAN tampilkan alert generik di bawah (mencegah dobel alert yang
+      // membingungkan).
       if (hasilId === 'SUDAH_CLOCK_IN') {
         return;
       }
 
-      // DIPERBAIKI (23 Agt 2026) — BUG LAMA baru ketahuan sekarang:
-      // SEBELUMNYA kalau simpanKeFirebase() gagal (hasilId===false),
-      // TIDAK ADA feedback apapun ke user — cuma diam saja, kelihatan
-      // seperti "tidak ada respon" padahal sebenarnya GAGAL (biasanya
-      // permission denied dari Firestore Rules). Sekarang kasih pesan
-      // jelas, biar orangnya tahu harus hubungi Admin, bukan mengira
-      // app-nya hang/rusak.
+      // BUG LAMA baru ketahuan sekarang: SEBELUMNYA kalau simpanKeFirebase gagal
+      // (hasilId===false), TIDAK ADA feedback apapun ke user — cuma diam saja,
+      // kelihatan seperti "tidak ada respon" padahal sebenarnya GAGAL (biasanya
+      // permission denied dari Firestore Rules). Sekarang kasih pesan jelas,
+      // biar orangnya tahu harus hubungi Admin, bukan mengira app-nya
+      // hang/rusak.
       if (!hasilId) {
         alert("Gagal mengirim pengajuan. Kemungkinan masalah izin akses atau koneksi — coba lagi, atau hubungi Admin/Owner kalau berulang.");
         return;
@@ -709,13 +688,13 @@ const AppKamera = {
         const hariIni = new Date().toLocaleDateString('id-ID');
         if (window.statusPilihanGlobal === "HADIR (CLOCK IN)") {
           localStorage.setItem('zevanic_absen_' + window.currentUser.email, hariIni);
-          // Simpan JAM clock-in juga (bukan cuma tanggal) — dipakai Home
-          // buat tampilkan "Clock in HH:MM - jam berjalan sekarang", cuma
-          // baca localStorage, tidak nambah baca Firestore sama sekali.
+          // Simpan JAM clock-in juga (bukan cuma tanggal) — dipakai Home buat
+          // tampilkan "Clock in HH:MM - jam berjalan sekarang", cuma baca
+          // localStorage, tidak nambah baca Firestore sama sekali.
           localStorage.setItem('zevanic_jam_masuk_' + window.currentUser.email, new Date().toISOString());
-          // BARU (18 Agt 2026) — simpan ID dokumen juga, dibaca lagi saat
-          // Clock Out supaya updateDoc() ke dokumen YANG SAMA (gabungan
-          // masuk+keluar), lihat kunciDocIdAbsensi()/simpanKeFirebase().
+          // simpan ID dokumen juga, dibaca lagi saat Clock Out supaya updateDoc
+          // ke dokumen YANG SAMA (gabungan masuk+keluar), lihat
+          // kunciDocIdAbsensi/simpanKeFirebase.
           localStorage.setItem(kunciDocIdAbsensi(window.currentUser.email), hasilId);
         } else if (window.statusPilihanGlobal === "CLOCK OUT") {
           localStorage.setItem('zevanic_absen_' + window.currentUser.email, "OUT_" + hariIni);
@@ -723,13 +702,12 @@ const AppKamera = {
           localStorage.removeItem(kunciDocIdAbsensi(window.currentUser.email));
         }
         if (window.statusPilihanGlobal === "CLOCK OUT") {
-          // BARU (23 Agt 2026) — mode Kiosk: SEBELUMNYA langsung panggil
-          // selesaiModeKiosk() (reset diam-diam, TANPA feedback apapun
-          // ke orang yang baru submit) — Hilman laporan "kirim pengajuan
-          // tidak ada respon". Sekarang tampilkan kartu sukses dulu
-          // (foto+nama+jam, otomatis tutup 3 detik) lewat
-          // window.tampilkanSuksesKiosk() (vue-absensi-qr.js), BARU
-          // reset ke menu — bukan langsung dari sini.
+          // mode Kiosk: SEBELUMNYA langsung panggil selesaiModeKiosk (reset
+          // diam-diam, TANPA feedback apapun ke orang yang baru submit) —
+          // laporan "kirim pengajuan tidak ada respon". Sekarang tampilkan kartu
+          // sukses dulu (foto+nama+jam, otomatis tutup 3 detik) lewat
+          // window.tampilkanSuksesKiosk (vue-absensi-qr.js), BARU reset ke menu
+          // bukan langsung dari sini.
           if (window.modeKioskAktif && window.tampilkanSuksesKiosk) {
             window.tampilkanSuksesKiosk({ jenis: 'CLOCK OUT', foto: hasilFotoUrl.value });
           } else {
@@ -748,10 +726,10 @@ const AppKamera = {
       }
     }
 
-    // Dipanggil dari tombol "Kirim Pengajuan" — mode Kiosk WAJIB lewat
-    // gerbang PIN kedua dulu (buka modal), mode biasa (karyawan submit
-    // sendiri lewat HP-nya, sudah login Firebase Auth) langsung kirim
-    // seperti sebelumnya, TIDAK berubah.
+    // Dipanggil dari tombol "Kirim Pengajuan" — mode Kiosk WAJIB lewat gerbang
+    // PIN kedua dulu (buka modal), mode biasa (karyawan submit sendiri lewat
+    // HP-nya, sudah login Firebase Auth) langsung kirim seperti sebelumnya,
+    // TIDAK berubah.
     function klikTombolKirim() {
       if (window.modeKioskAktif) {
         pinKioskInput.value = '';
@@ -794,22 +772,20 @@ const AppKamera = {
       memverifikasiPinKiosk.value = true;
       try {
         // Salt = email KARYAWAN yang di-scan (window.currentUser sudah
-        // dioverride vue-absensi-qr.js sebelum masuk screen-camera) —
-        // PERSIS cara PIN pertama dicocokkan di vue-absensi-qr.js.
+        // dioverride vue-absensi-qr.js sebelum masuk screen-camera) — PERSIS
+        // cara PIN pertama dicocokkan di vue-absensi-qr.js.
         const hashInput = await hashPin(pinKioskInput.value, window.currentUser.email);
         if (hashInput === window.currentUser.pin_hash) {
           pinKioskInput.value = ''; pinKioskError.value = ''; percobaanPinKiosk.value = 0;
           memverifikasiPinKiosk.value = false;
-          // BARU (23 Agt 2026, ronde 3, permintaan Hilman) — JANGAN tutup
-          // modal PIN dulu di sini — ganti isinya jadi spinner "Mengirim
-          // Absensi..." (lihat template), supaya tidak ada jeda kosong
-          // antara PIN benar & kartu sukses/alert gagal muncul. Modal
-          // BARU benar-benar ditutup setelah kirimDataKeCloud() selesai
-          // (baik sukses MAUPUN gagal — kalau sukses & mode Kiosk, layar
-          // sudah keburu pindah ke screen-absensi-qr duluan lewat
-          // tampilkanSuksesKiosk, jadi modal ini otomatis ikut hilang
-          // dari pandangan; reset di bawah cuma jaga-jaga/tidak berefek
-          // visual apapun di kasus itu).
+          // JANGAN tutup modal PIN dulu di sini — ganti isinya jadi spinner
+          // "Mengirim Absensi.." (lihat template), supaya tidak ada jeda kosong
+          // antara PIN benar & kartu sukses/alert gagal muncul. Modal BARU
+          // benar-benar ditutup setelah kirimDataKeCloud selesai (baik sukses
+          // MAUPUN gagal — kalau sukses & mode Kiosk, layar sudah keburu pindah
+          // ke screen-absensi-qr duluan lewat tampilkanSuksesKiosk, jadi modal
+          // ini otomatis ikut hilang dari pandangan; reset di bawah cuma
+          // jaga-jaga/tidak berefek visual apapun di kasus itu).
           mengirimPinKiosk.value = true;
           await kirimDataKeCloud();
           mengirimPinKiosk.value = false;
@@ -835,14 +811,14 @@ const AppKamera = {
 
     function batalKamera() {
       matikanKamera();
-      // Mode Kiosk: batal juga WAJIB balik ke menu Absensi Melalui QR,
-      // BUKAN ke screen-dashboard (itu dashboard punya akun KIOSK,
-      // bukan tempat yang relevan buat siapapun yang lagi discan).
+      // Mode Kiosk: batal juga WAJIB balik ke menu Absensi Melalui QR, BUKAN ke
+      // screen-dashboard (itu dashboard punya akun KIOSK, bukan tempat yang
+      // relevan buat siapapun yang lagi discan).
       if (window.modeKioskAktif && window.selesaiModeKiosk) { window.selesaiModeKiosk(); return; }
       // Kembali ke layar sebelum masuk kamera — Login (kalau ini alur Login
       // pertama kali) atau Dashboard (kalau dari shortcut Home saat sudah
-      // login). Dilacak otomatis oleh app.js pindahLayar, fallback ke
-      // Dashboard kalau entah kenapa tidak ke-track.
+      // login). Dilacak otomatis oleh app.js pindahLayar, fallback ke Dashboard
+      // kalau entah kenapa tidak ke-track.
       window.pindahLayar(window._layarSebelumKamera || 'screen-dashboard');
     }
 
@@ -882,8 +858,7 @@ const AppKamera = {
           <span v-else style="font-size:13px;">Meminta akses kamera...</span>
         </div>
         <div v-if="!sedangMemuatKamera && !sudahAmbilFoto" class="gc-cam-frame"></div>
-        <!-- BARU (28 Agt 2026, redesain "Gechoo Mobile Organic", README §8) —
-             garis scan murni dekoratif, tidak ada logic tambahan. -->
+        <!-- garis scan murni dekoratif, tidak ada logic tambahan. -->
         <div v-if="!sedangMemuatKamera && !sudahAmbilFoto" class="gc-cam-scanline"></div>
       </div>
 
@@ -900,15 +875,17 @@ const AppKamera = {
         <p class="gc-cam-caption">{{ sudahAmbilFoto ? '' : 'Ketuk tombol untuk foto' }}</p>
       </div>
 
-      <!-- ============ GERBANG PIN KEDUA (mode Kiosk saja, BARU 23 Agt 2026)
-           — muncul SETELAH foto diambil & Kirim ditekan, TEPAT SEBELUM
-           data ditulis ke Firestore. ============ -->
+      <!--
+        GERBANG PIN KEDUA — muncul SETELAH foto diambil & Kirim ditekan, TEPAT SEBELUM data
+        ditulis ke Firestore.
+      -->
       <div v-if="pinKioskDiminta" style="position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:9999; padding:20px;">
         <div style="background:var(--surface); border-radius:20px; padding:26px 22px; max-width:320px; width:100%; text-align:center;">
-          <!-- BARU (23 Agt 2026, ronde 3) — PIN benar, lagi kirim ke
-               Firestore: modal TETAP terbuka, ganti isi jadi spinner
-               (bukan langsung ditutup begitu saja) supaya tidak ada jeda
-               "kosong" sebelum kartu sukses/alert gagal muncul. -->
+          <!--
+            PIN benar, lagi kirim ke Firestore: modal TETAP terbuka, ganti isi jadi spinner (bukan
+            langsung ditutup begitu saja) supaya tidak ada jeda "kosong" sebelum kartu
+            sukses/alert gagal muncul.
+          -->
           <template v-if="mengirimPinKiosk">
             <i class="fas fa-spinner fa-spin" style="font-size:30px; color:var(--burgundy); margin-bottom:14px; display:block;"></i>
             <h3 style="font-weight:700; font-size:14px; margin-bottom:4px;">Mengirim Absensi...</h3>
@@ -948,8 +925,8 @@ const AppKamera = {
 const mountPoint = document.getElementById('vue-camera');
 if (mountPoint) {
   const vm = createApp(AppKamera).mount('#vue-camera');
-  // Jembatan ke vanilla: dipanggil dari app.js (pindahLayar) setiap kali
-  // pindah layar ke/dari screen-camera.
+  // Jembatan ke vanilla: dipanggil dari app.js (pindahLayar) setiap kali pindah
+  // layar ke/dari screen-camera.
   window.mulaiKamera = function() { vm.mulaiKamera(); };
   window.matikanKamera = function() { vm.matikanKamera(); };
 }

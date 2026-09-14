@@ -1,24 +1,24 @@
 // js/vue-scan-qr.js
-// ============================================================================
+
 // Nav "Scan QR" — pemindai QR SUNGGUHAN pakai kamera (bukan cuma tampilan
 // kosong). Pakai library jsQR (CDN, ringan, khusus baca pola QR dari data
 // gambar) untuk mendeteksi kode dari feed kamera secara langsung.
 //
 // PENTING soal batas fitur ini: alur "scan SPK/produk/bahan/qty untuk
-// perpindahan data produksi" yang direncanakan (lihat percakapan awal
-// proyek ini) BELUM ADA logic pemrosesan datanya di server — itu kerjaan
-// besar terpisah (skema data produksi, workflow tahapan, dst). Layar ini
-// BENERAN bisa baca kode QR apapun dan tampilkan isinya — itu bagian
-// generiknya yang sudah jadi & bisa dipakai; menyambungkannya ke alur
-// produksi spesifik menyusul kalau skema datanya sudah dirancang.
-// ============================================================================
+// perpindahan data produksi" yang direncanakan (lihat percakapan awal proyek
+// ini) BELUM ADA logic pemrosesan datanya di server — itu kerjaan besar terpisah
+// (skema data produksi, workflow tahapan, dst). Layar ini BENERAN bisa baca kode
+// QR apapun dan tampilkan isinya — itu bagian generiknya yang sudah jadi & bisa
+// dipakai; menyambungkannya ke alur produksi spesifik menyusul kalau skema
+// datanya sudah dirancang.
+
 import { createApp, ref, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 
 const AppScanQr = {
   setup() {
     const videoEl = ref(null);
     const canvasEl = ref(null);
-    const sedangMemuatKamera = ref(false); // baru true SAAT mulaiKameraScan() dipanggil, bukan dari awal
+    const sedangMemuatKamera = ref(false); // baru true SAAT mulaiKameraScan dipanggil, bukan dari awal
     const belumDibuka = ref(true); // true = tab ini belum pernah dibuka sejak halaman dimuat
     const kameraError = ref('');
     const hasilScan = ref(null); // { data: "..." } atau null kalau belum ada
@@ -98,11 +98,11 @@ const AppScanQr = {
       pindaiFrame();
     }
 
-    // SENGAJA TIDAK auto-mulai kamera di sini — onMounted() ini jalan SEKALI
-    // saat halaman pertama dimuat (jauh sebelum tab-nya benar-benar dibuka
-    // orang), sama seperti bug "data macet" yang berkali-kali diperbaiki
-    // hari ini. Kamera cuma nyala lewat window.mulaiScanQr() yang dipanggil
-    // dashboard.js TEPAT saat tab Scan QR benar-benar dibuka.
+    // SENGAJA TIDAK auto-mulai kamera di sini — onMounted ini jalan SEKALI saat
+    // halaman pertama dimuat (jauh sebelum tab-nya benar-benar dibuka orang),
+    // sama seperti bug "data macet" yang berkali-kali diperbaiki hari ini.
+    // Kamera cuma nyala lewat window.mulaiScanQr yang dipanggil dashboard.js
+    // TEPAT saat tab Scan QR benar-benar dibuka.
     onUnmounted(matikanKameraScan);
 
     return { videoEl, canvasEl, sedangMemuatKamera, belumDibuka, kameraError, hasilScan, pindaiUlang, mulaiKameraScan, matikanKameraScan };
@@ -121,8 +121,7 @@ const AppScanQr = {
           <span v-if="kameraError" style="color:#F2A0A0; font-size:12px;">{{ kameraError }}</span>
           <span v-else style="font-size:13px;">Menyiapkan kamera...</span>
         </div>
-        <!-- BARU (28 Agt 2026, redesain, README §8) — animasi gxPop murni
-             dekoratif saat kode terdeteksi, tidak ada logic tambahan. -->
+        <!-- animasi gxPop murni dekoratif saat kode terdeteksi, tidak ada logic tambahan. -->
         <div v-if="hasilScan" style="display:flex; flex-direction:column; align-items:center; text-align:center; padding:16px; color:var(--ok); animation:gxPop .3s ease;">
           <i class="fas fa-circle-check" style="font-size:44px; margin-bottom:10px;"></i>
           <span style="font-size:13px; font-weight:700;">Kode terdeteksi!</span>
@@ -149,8 +148,8 @@ const mountPoint = document.getElementById('vue-scan-qr');
 if (mountPoint) {
   const vm = createApp(AppScanQr).mount('#vue-scan-qr');
   // Jembatan: dipanggil dari app.js (pindahLayar/pindahTab) setiap kali
-  // masuk/keluar tab Scan QR, supaya kamera tidak terus menyala boros
-  // baterai saat orang pindah ke tab lain.
+  // masuk/keluar tab Scan QR, supaya kamera tidak terus menyala boros baterai
+  // saat orang pindah ke tab lain.
   window.mulaiScanQr = function() { vm.mulaiKameraScan(); };
   window.matikanScanQr = function() { vm.matikanKameraScan(); };
 }

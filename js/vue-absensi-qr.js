@@ -1,32 +1,28 @@
 // js/vue-absensi-qr.js
-// ============================================================================
-// "Absensi Melalui QR" — dipakai HP Kiosk yang digantung tetap di gudang,
-// buat karyawan yang HP-nya tidak ada/rusak. Alurnya (rencana 5 fase,
-// Hilman 22 Agt 2026):
-//   Fase 1 (SELESAI) — PIN di Profile > Keamanan (vue-account-profile.js)
-//   Fase 2 (FILE INI) — Link di Login + menu 5 pilihan
-//   Fase 3 (BELUM) — Kamera auto-scan QR (timeout 7 detik)
-//   Fase 4 (BELUM) — Keypad PIN + verifikasi hash
-//   Fase 5 (BELUM) — Role 'kiosk' baru di firestore.rules + tulis absensi
-//                     atas nama orang yang di-scan (gudang+radius tetap
-//                     ditegakkan, sama seperti Clock In/Out biasa)
+
+// "Absensi Melalui QR" — dipakai HP Kiosk yang digantung tetap di gudang, buat
+// karyawan yang HP-nya tidak ada/rusak. Alurnya: Fase 1 (SELESAI) — PIN di
+// Profile > Keamanan (vue-account-profile.js) Fase 2 (FILE INI) — Link di Login
+// + menu 5 pilihan Fase 3 (BELUM) — Kamera auto-scan QR (timeout 7 detik) Fase 4
+// (BELUM) — Keypad PIN + verifikasi hash Fase 5 (BELUM) — Role 'kiosk' baru di
+// firestore.rules + tulis absensi atas nama orang yang di-scan (gudang+radius
+// tetap ditegakkan, sama seperti Clock In/Out biasa)
 //
-// File ini BARU bangun tahap MENU (tahap='menu') + kerangka tahap 'scan'
-// (masih placeholder, diisi Fase 3). SENGAJA dipisah dari vue-camera.js
-// (bukan menambah mode baru di situ) — alur otentikasinya beda total
-// (PIN, bukan Firebase Auth email/password), jadi lebih jelas kalau
-// berdiri sendiri.
-// ============================================================================
+// File ini BARU bangun tahap MENU (tahap='menu') + kerangka tahap 'scan' (masih
+// placeholder, diisi Fase 3). SENGAJA dipisah dari vue-camera.js (bukan menambah
+// mode baru di situ) — alur otentikasinya beda total (PIN, bukan Firebase Auth
+// email/password), jadi lebih jelas kalau berdiri sendiri.
+
 import { createApp, ref, onMounted, onBeforeUnmount } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db, auth } from "./firebase-config.js";
 import { signOut } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 
-// SAMA PERSIS dengan hashPin di vue-account-profile.js (Fase 1) — WAJIB
-// identik, kalau beda dikit saja hasil hash tidak akan pernah cocok.
-// Disalin (bukan diimpor) karena ini utilitas kecil berdiri sendiri,
-// pola yang sama dipakai kompresGambarReimburse di vue-reimburse.js.
+// SAMA PERSIS dengan hashPin di vue-account-profile.js (Fase 1) — WAJIB identik,
+// kalau beda dikit saja hasil hash tidak akan pernah cocok. Disalin (bukan
+// diimpor) karena ini utilitas kecil berdiri sendiri, pola yang sama dipakai
+// kompresGambarReimburse di vue-reimburse.js.
 async function hashPin(pin, email) {
   const data = new TextEncoder().encode(pin + '|' + email);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -38,7 +34,8 @@ const MAKS_PERCOBAAN_PIN = 3;
 
 const AppAbsensiQr = {
   setup() {
-    // tahap: 'menu' -> 'scan' -> 'mencari' -> 'pin' (Fase 4) | balik 'menu' kalau gagal
+    // tahap: 'menu' -> 'scan' -> 'mencari' -> 'pin' (Fase 4) | balik 'menu'
+    // kalau gagal
     const tahap = ref('menu');
     const jenisTerpilih = ref('');
     const karyawanTerscan = ref(null);
@@ -47,19 +44,18 @@ const AppAbsensiQr = {
     const pinError = ref('');
     const percobaanPin = ref(0);
     const memverifikasiPin = ref(false);
-    const suksesInfo = ref(null); // { nama, shift, jenis, foto, waktu } — diisi window.tampilkanSuksesKiosk()
+    const suksesInfo = ref(null); // { nama, shift, jenis, foto, waktu } — diisi window.tampilkanSuksesKiosk
 
-    // DIRAMBAK (23 Agt 2026, permintaan Hilman) — SEBELUMNYA 5 tombol
-    // (Clock In & Clock Out terpisah). Sekarang digabung jadi 1 tombol
-    // "Clock In / Out" (total jadi 4 tombol) — arah (Masuk/Keluar)
-    // ditentukan OTOMATIS belakangan, SETELAH orangnya di-scan & PIN
-    // benar (lihat lanjutKeKameraAsli, key 'ABSEN' di bawah), bukan
-    // dipilih manual dari menu ini. Ini SEKALIGUS menutup celah lama:
-    // dulu orang bisa pilih tombol "Clock In" biarpun sebenarnya SUDAH
-    // Clock In aktif (menu tidak tau status orangnya sebelum di-scan) —
-    // sekarang arahnya SELALU dihitung dari status TERKINI orang yang
-    // di-scan (window.cekStatusClockInSaya, sumber kebenaran yang sama
-    // dipakai Home & Login), jadi tidak mungkin salah pilih arah lagi.
+    // DIRAMBAK — SEBELUMNYA 5 tombol (Clock In & Clock Out terpisah). Sekarang
+    // digabung jadi 1 tombol "Clock In / Out" (total jadi 4 tombol) — arah
+    // (Masuk/Keluar) ditentukan OTOMATIS belakangan, SETELAH orangnya di-scan &
+    // PIN benar (lihat lanjutKeKameraAsli, key 'ABSEN' di bawah), bukan dipilih
+    // manual dari menu ini. Ini SEKALIGUS menutup celah lama: dulu orang bisa
+    // pilih tombol "Clock In" biarpun sebenarnya SUDAH Clock In aktif (menu
+    // tidak tau status orangnya sebelum di-scan) — sekarang arahnya SELALU
+    // dihitung dari status TERKINI orang yang di-scan
+    // (window.cekStatusClockInSaya, sumber kebenaran yang sama dipakai Home &
+    // Login), jadi tidak mungkin salah pilih arah lagi.
     const JENIS_MENU = [
       { key: 'ABSEN', label: 'Clock In / Out', icon: 'fa-clock' },
       { key: 'LEMBUR (CLOCK IN)', label: 'Lembur', icon: 'fa-business-time' },
@@ -73,10 +69,9 @@ const AppAbsensiQr = {
       'IZIN': 'Pengajuan Izin Terkirim!',
       'CUTI': 'Pengajuan Cuti Terkirim!',
     };
-    // BARU (23 Agt 2026, permintaan Hilman) — dipakai tahap 'konfirmasi'
-    // (PIN kedua) buat kasih tau dengan jelas tindakan APA yang lagi
-    // dikonfirmasi. Terpisah dari PESAN_SUKSES (yang bahasanya "sudah
-    // terjadi") karena di sini masih "akan terjadi".
+    // dipakai tahap 'konfirmasi' (PIN kedua) buat kasih tau dengan jelas
+    // tindakan APA yang lagi dikonfirmasi. Terpisah dari PESAN_SUKSES (yang
+    // bahasanya "sudah terjadi") karena di sini masih "akan terjadi".
     const LABEL_ARAH = {
       'HADIR (CLOCK IN)': { label: 'Clock In', icon: 'fa-right-to-bracket' },
       'CLOCK OUT': { label: 'Clock Out', icon: 'fa-right-from-bracket' },
@@ -84,18 +79,16 @@ const AppAbsensiQr = {
       'IZIN': { label: 'Izin', icon: 'fa-file-signature' },
       'CUTI': { label: 'Cuti', icon: 'fa-calendar-alt' },
     };
-    // DIKOREKSI (23 Agt 2026, sore — klarifikasi langsung dari Hilman
-    // setelah tes: "kamera kebuka > PIN kedua > alert") — SEBELUMNYA PIN
-    // kedua diminta DI SINI (layar konfirmasi), SEBELUM kamera dibuka.
-    // Urutan yang BENAR: PIN pertama cuma cek identitas + tentukan arah
-    // (Clock In/Out/dst) → layar konfirmasi CUMA tampilkan badge arah
-    // (tanpa minta PIN lagi) → kamera dibuka & foto diambil → PIN KEDUA
-    // baru diminta TEPAT SEBELUM submit ke Firestore (di vue-camera.js,
-    // sebagai gerbang terakhir setelah foto ada, bukan sebelum foto).
-    // arahAbsenTerkonfirmasi: hasil tentuin arah, ditentukan SEKALI pas
-    // PIN pertama benar, dipakai lagi di layar konfirmasi & dikirim ke
-    // vue-camera.js lewat window.statusPilihanGlobal — supaya yang
-    // ditampilkan PASTI sama dengan yang dieksekusi.
+    // DIKOREKSI — SEBELUMNYA PIN kedua diminta DI SINI (layar konfirmasi),
+    // SEBELUM kamera dibuka. Urutan yang BENAR: PIN pertama cuma cek identitas +
+    // tentukan arah (Clock In/Out/dst) → layar konfirmasi CUMA tampilkan badge
+    // arah (tanpa minta PIN lagi) → kamera dibuka & foto diambil → PIN KEDUA
+    // baru diminta TEPAT SEBELUM submit ke Firestore (di vue-camera.js, sebagai
+    // gerbang terakhir setelah foto ada, bukan sebelum foto).
+    // arahAbsenTerkonfirmasi: hasil tentuin arah, ditentukan SEKALI pas PIN
+    // pertama benar, dipakai lagi di layar konfirmasi & dikirim ke vue-camera.js
+    // lewat window.statusPilihanGlobal — supaya yang ditampilkan PASTI sama
+    // dengan yang dieksekusi.
     const arahAbsenTerkonfirmasi = ref('');
 
     let streamKamera = null;
@@ -132,15 +125,15 @@ const AppAbsensiQr = {
       video.srcObject = streamKamera;
       await video.play();
 
-      // Hitung mundur TAMPILAN (per detik, buat UI) — TERPISAH dari
-      // timeout SEBENARNYA (di bawah), biar tidak meleset kalau ada jeda
-      // render antar keduanya.
+      // Hitung mundur TAMPILAN (per detik, buat UI) — TERPISAH dari timeout
+      // SEBENARNYA (di bawah), biar tidak meleset kalau ada jeda render antar
+      // keduanya.
       intervalHitung = setInterval(() => {
         sisaDetik.value = Math.max(0, sisaDetik.value - 1);
       }, 1000);
 
-      // Timeout SEBENARNYA — 7 detik pas, kamera WAJIB berhenti kalau QR
-      // belum ketemu, balik ke menu (sesuai spesifikasi).
+      // Timeout SEBENARNYA — 7 detik pas, kamera WAJIB berhenti kalau QR belum
+      // ketemu, balik ke menu (sesuai spesifikasi).
       timeoutHabis = setTimeout(() => {
         if (sudahKetemu) return; // sudah keduluan ketemu QR, abaikan timeout
         hentikanKamera();
@@ -182,11 +175,11 @@ const AppAbsensiQr = {
       }
     }
 
-    // Cari karyawan pemilik barcode — QR isinya id_app (prioritas) ATAU
-    // email (fallback), PERSIS format yang di-generate Account Profile
-    // (lihat vue-account-profile.js, muatAccountDisplay). Coba id_app
-    // dulu (lebih umum), baru fallback anggap hasil scan itu email
-    // (soalnya email JUGA jadi document ID di collection users).
+    // Cari karyawan pemilik barcode — QR isinya id_app (prioritas) ATAU email
+    // (fallback), PERSIS format yang di-generate Account Profile (lihat
+    // vue-account-profile.js, muatAccountDisplay). Coba id_app dulu (lebih
+    // umum), baru fallback anggap hasil scan itu email (soalnya email JUGA jadi
+    // document ID di collection users).
     async function prosesHasilScan(qrData) {
       tahap.value = 'mencari';
       try {
@@ -209,70 +202,66 @@ const AppAbsensiQr = {
         tahap.value = 'pin'; // Fase 4 yang bangun keypad PIN di tahap ini
       } catch (e) {
         console.error("Gagal cari data karyawan dari hasil scan:", e);
-        // Kemungkinan besar penyebabnya: field jenis_akun='kiosk' belum
-        // terisi di dokumen users akun Kiosk ini (dicek firestore.rules
-        // lewat isKiosk(), BUKAN custom claim role — lihat catatan di
-        // firestore.rules kenapa begitu), atau gudang_penempatan-nya
-        // belum diisi lewat menu Device Kiosk.
+        // Kemungkinan besar penyebabnya: field jenis_akun='kiosk' belum terisi
+        // di dokumen users akun Kiosk ini (dicek firestore.rules lewat isKiosk,
+        // BUKAN custom claim role — lihat catatan di firestore.rules kenapa
+        // begitu), atau gudang_penempatan-nya belum diisi lewat menu Device
+        // Kiosk.
         alert("Gagal mengambil data karyawan. Kemungkinan izin akses HP Kiosk belum diatur di sistem (Fase 5, menyusul).");
         kembaliKeMenu();
       }
     }
 
-    // ---- Setelah PIN benar: DELEGASI PENUH ke screen-camera yang SUDAH
-    // ADA (foto selfie, pilih gudang, cek radius, tulis Firestore — semua
-    // sudah terbukti jalan, TIDAK dibangun ulang di sini). Trik-nya:
-    // override window.currentUser SEMENTARA jadi profil KARYAWAN yang
-    // di-scan (vue-camera.js baca SEMUA datanya dari window.currentUser,
-    // termasuk gudang_penempatan-nya sendiri buat validasi radius) —
-    // identitas ASLI si Kiosk disimpan ke window._kioskUserAsli dulu,
-    // dipulihkan lagi lewat window.selesaiModeKiosk() (lihat onMounted
-    // di bawah) begitu proses selesai/dibatalkan — perubahan terkait
-    // di vue-camera.js (window.modeKioskAktif) yang panggil balik itu. ----
+    // Setelah PIN benar: DELEGASI PENUH ke screen-camera yang SUDAH ADA
+    // (foto selfie, pilih gudang, cek radius, tulis Firestore — semua sudah
+    // terbukti jalan, TIDAK dibangun ulang di sini). Trik-nya: override
+    // window.currentUser SEMENTARA jadi profil KARYAWAN yang di-scan
+    // (vue-camera.js baca SEMUA datanya dari window.currentUser, termasuk
+    // gudang_penempatan-nya sendiri buat validasi radius) — identitas ASLI si
+    // Kiosk disimpan ke window._kioskUserAsli dulu, dipulihkan lagi lewat
+    // window.selesaiModeKiosk (lihat onMounted di bawah) begitu proses
+    // selesai/dibatalkan — perubahan terkait di vue-camera.js
+    // (window.modeKioskAktif) yang panggil balik itu.
     async function lanjutKeKameraAsli() {
       const k = karyawanTerscan.value;
       window._kioskUserAsli = window.currentUser;
-      // DIPERBAIKI (23 Agt 2026) — BUG NYATA ditemukan: SEBELUMNYA
-      // gudang_penempatan karyawan APA ADANYA yang dipakai vue-camera.js
-      // buat pilih gudang — tapi Firestore Rules cuma izinkan Kiosk
-      // tulis absensi buat gudang yang ADA di gudang_penempatan MILIK
-      // KIOSK SENDIRI. Kalau karyawan (terutama Owner, yang biasanya
-      // punya banyak/beda gudang) gudang PERTAMA-nya bukan gudang yang
-      // sama dengan Kiosk ini, tulisan DITOLAK Firestore diam-diam
-      // (persis kejadian scan Owner gagal, kasus lain sukses). Sekarang
-      // dipotong dulu jadi IRISAN gudang karyawan DAN gudang kiosk —
-      // vue-camera.js cuma akan menawarkan/pilih gudang yang PASTI valid
-      // buat kombinasi karyawan+kiosk ini.
+      // BUG NYATA ditemukan: SEBELUMNYA gudang_penempatan karyawan APA ADANYA
+      // yang dipakai vue-camera.js buat pilih gudang — tapi Firestore Rules cuma
+      // izinkan Kiosk tulis absensi buat gudang yang ADA di gudang_penempatan
+      // MILIK KIOSK SENDIRI. Kalau karyawan (terutama Owner, yang biasanya punya
+      // banyak/beda gudang) gudang PERTAMA-nya bukan gudang yang sama dengan
+      // Kiosk ini, tulisan DITOLAK Firestore diam-diam (persis kejadian scan
+      // Owner gagal, kasus lain sukses). Sekarang dipotong dulu jadi IRISAN
+      // gudang karyawan DAN gudang kiosk — vue-camera.js cuma akan
+      // menawarkan/pilih gudang yang PASTI valid buat kombinasi karyawan+kiosk
+      // ini.
       const gudangKaryawan = k.gudang_penempatan || [];
       const gudangKiosk = window._kioskUserAsli.gudang_penempatan || [];
       const gudangIrisan = gudangKaryawan.filter(g => gudangKiosk.includes(g));
       if (gudangIrisan.length === 0) {
         alert(`Karyawan "${k.nama || k.name}" tidak ditempatkan di gudang yang sama dengan Kiosk ini. Absensi tidak bisa diproses lewat Kiosk ini.`);
-        // DITAMBAHKAN (23 Agt 2026) — SEBELUMNYA di sini cuma `return`,
-        // layar tertinggal diam di tahap 'konfirmasi'/'pin' tanpa jalan
-        // keluar (ketahuan pas nambah tahap konfirmasi ekstra). Sekarang
-        // reset balik ke menu, konsisten dengan jalur gagal lainnya.
+        // DITAMBAHKAN — SEBELUMNYA di sini cuma `return`, layar tertinggal diam
+        // di tahap 'konfirmasi'/'pin' tanpa jalan keluar (ketahuan pas nambah
+        // tahap konfirmasi ekstra). Sekarang reset balik ke menu, konsisten
+        // dengan jalur gagal lainnya.
         kembaliKeMenu();
         return;
       }
-      // DIUBAH (23 Agt 2026, PIN dobel — lihat siapkanKonfirmasi) — arah
-      // Clock In/Out SEKARANG sudah ditentukan & ditampilkan DULUAN di
-      // layar konfirmasi (PIN pertama), dipakai lagi di sini APA ADANYA
-      // (BUKAN dihitung ulang) — supaya yang dieksekusi PASTI sama
-      // dengan yang ditunjukkan ke orangnya sebelum PIN kedua.
+      // DIUBAH — arah Clock In/Out SEKARANG sudah ditentukan & ditampilkan
+      // DULUAN di layar konfirmasi (PIN pertama), dipakai lagi di sini APA
+      // ADANYA (BUKAN dihitung ulang) — supaya yang dieksekusi PASTI sama dengan
+      // yang ditunjukkan ke orangnya sebelum PIN kedua.
       window.currentUser = { ...k, email: k.id, gudang_penempatan: gudangIrisan };
       window.statusPilihanGlobal = arahAbsenTerkonfirmasi.value;
       window.modeKioskAktif = true;
       window.pindahLayar('screen-camera');
     }
 
-    // BARU (23 Agt 2026, permintaan Hilman: PIN 2x, yang kedua sebagai
-    // KONFIRMASI) — dipanggil begitu PIN PERTAMA benar. Tentukan arah
-    // Clock In/Out DI SINI (tombol menu 'ABSEN' gabungan, §19.6) — TEPAT
-    // setelah identitas karyawan pasti (PIN pertama benar), pakai
-    // window.cekStatusClockInSaya (satu sumber kebenaran yang sama
-    // dengan Home/Login) supaya arahnya SELALU sesuai status TERKINI
-    // orangnya. Hasilnya ditampilkan di layar konfirmasi, BARU minta PIN
+    // dipanggil begitu PIN PERTAMA benar. Tentukan arah Clock In/Out DI SINI
+    // (tombol menu 'ABSEN' gabungan, §19.6) — TEPAT setelah identitas karyawan
+    // pasti (PIN pertama benar), pakai window.cekStatusClockInSaya (satu sumber
+    // kebenaran yang sama dengan Home/Login) supaya arahnya SELALU sesuai status
+    // TERKINI orangnya. Hasilnya ditampilkan di layar konfirmasi, BARU minta PIN
     // sekali lagi sebelum benar-benar buka kamera.
     async function siapkanKonfirmasi() {
       const k = karyawanTerscan.value;
@@ -294,22 +283,22 @@ const AppAbsensiQr = {
       pinError.value = '';
       percobaanPin.value = 0;
       sudahKetemu = false;
-      // Reset arah yang sempat ditentukan juga, supaya scan berikutnya
-      // SELALU mulai bersih dari PIN pertama lagi.
+      // Reset arah yang sempat ditentukan juga, supaya scan berikutnya SELALU
+      // mulai bersih dari PIN pertama lagi.
       arahAbsenTerkonfirmasi.value = '';
     }
-    // DIUBAH (22 Agt 2026) — SEBELUMNYA cuma pindahLayar('screen-login')
-    // TANPA logout — itu TIDAK CUKUP lagi sekarang: kiosk yang "terkunci"
-    // (lihat auth.js) akan otomatis dilempar BALIK ke screen-absensi-qr
-    // di refresh berikutnya kalau sesi Firebase-nya masih aktif. WAJIB
-    // signOut() sungguhan buat benar-benar keluar dari mode Kiosk.
+    // DIUBAH — SEBELUMNYA cuma pindahLayar('screen-login') TANPA logout — itu
+    // TIDAK CUKUP lagi sekarang: kiosk yang "terkunci" (lihat auth.js) akan
+    // otomatis dilempar BALIK ke screen-absensi-qr di refresh berikutnya kalau
+    // sesi Firebase-nya masih aktif. WAJIB signOut sungguhan buat benar-benar
+    // keluar dari mode Kiosk.
     async function logoutKiosk() {
       hentikanKamera();
       if (!confirm('Logout dari Device Kiosk ini?')) return;
       await signOut(auth);
       if (window.pindahLayar) window.pindahLayar('screen-login');
     }
-    // ---- Keypad PIN (Fase 4) ----
+    // Keypad PIN (Fase 4)
     function tambahDigit(n) {
       pinError.value = '';
       if (pinInput.value.length >= 6) return;
@@ -334,17 +323,17 @@ const AppAbsensiQr = {
       }
       memverifikasiPin.value = true;
       try {
-        // Salt HARUS email pemilik PIN (k.id, document ID = email) — BUKAN
-        // sisi HP Kiosk — persis cara hash dibuat pas dipasang di Profile.
+        // Salt HARUS email pemilik PIN (k.id, document ID = email) — BUKAN sisi
+        // HP Kiosk — persis cara hash dibuat pas dipasang di Profile.
         const hashInput = await hashPin(pinInput.value, k.id);
         if (hashInput === k.pin_hash) {
           pinInput.value = ''; pinError.value = ''; percobaanPin.value = 0;
-          // PIN ini (satu-satunya PIN di file ini) cuma buat pastikan
-          // identitas & tentukan arah (Clock In/Out/dst) — BELUM eksekusi
-          // apapun. Lanjut ke layar konfirmasi (badge arah), lalu kamera.
-          // PIN KEDUA (konfirmasi akhir) diminta belakangan di
-          // vue-camera.js, TEPAT SEBELUM submit — SETELAH foto selfie
-          // diambil (lihat catatan di deklarasi arahAbsenTerkonfirmasi).
+          // PIN ini (satu-satunya PIN di file ini) cuma buat pastikan identitas
+          // & tentukan arah (Clock In/Out/dst) — BELUM eksekusi apapun. Lanjut
+          // ke layar konfirmasi (badge arah), lalu kamera. PIN KEDUA (konfirmasi
+          // akhir) diminta belakangan di vue-camera.js, TEPAT SEBELUM submit —
+          // SETELAH foto selfie diambil (lihat catatan di deklarasi
+          // arahAbsenTerkonfirmasi).
           await siapkanKonfirmasi();
         } else {
           percobaanPin.value++;
@@ -363,17 +352,16 @@ const AppAbsensiQr = {
       memverifikasiPin.value = false;
     }
 
-    // Jaga-jaga — kalau komponen ke-unmount (jarang terjadi di app ini,
-    // tapi tetap wajib) pastikan kamera BENAR-BENAR mati, jangan sampai
-    // lampu kamera nyala terus padahal layarnya sudah pindah.
-    // Jembatan ke vanilla: dipanggil dari vue-camera.js pas proses mode
-    // Kiosk selesai (submit sukses ATAU Batal) — pulihkan identitas ASLI
-    // si Kiosk, reset komponen ini balik ke menu 5 pilihan (siap buat
-    // karyawan berikutnya scan).
+    // Jaga-jaga — kalau komponen ke-unmount (jarang terjadi di app ini, tapi
+    // tetap wajib) pastikan kamera BENAR-BENAR mati, jangan sampai lampu kamera
+    // nyala terus padahal layarnya sudah pindah. Jembatan ke vanilla: dipanggil
+    // dari vue-camera.js pas proses mode Kiosk selesai (submit sukses ATAU
+    // Batal) — pulihkan identitas ASLI si Kiosk, reset komponen ini balik ke
+    // menu 5 pilihan (siap buat karyawan berikutnya scan).
     onMounted(() => {
-      // Reset MURNI (dipakai Batal/dibatalkan — TANPA kartu sukses,
-      // langsung balik ke menu diam-diam, itu memang benar untuk kasus
-      // batal, beda dari kasus BERHASIL di bawah).
+      // Reset MURNI (dipakai Batal/dibatalkan — TANPA kartu sukses, langsung
+      // balik ke menu diam-diam, itu memang benar untuk kasus batal, beda dari
+      // kasus BERHASIL di bawah).
       window.selesaiModeKiosk = function() {
         if (window._kioskUserAsli) {
           window.currentUser = window._kioskUserAsli;
@@ -384,13 +372,12 @@ const AppAbsensiQr = {
         window.pindahLayar('screen-absensi-qr');
       };
 
-      // BARU (23 Agt 2026) — dipanggil vue-camera.js SETELAH submit
-      // BERHASIL (bukan dibatalkan). SEBELUMNYA langsung
-      // selesaiModeKiosk() diam-diam, orang yang baru scan TIDAK PERNAH
-      // lihat konfirmasi apapun ("kirim pengajuan tidak ada respon").
-      // Sekarang tampilkan kartu besar (foto+nama+shift+jenis+jam) 3
-      // detik, BARU reset ke menu — supaya orang yang ngantri di
-      // belakangnya juga tahu gilirannya sudah dekat.
+      // dipanggil vue-camera.js SETELAH submit BERHASIL (bukan dibatalkan).
+      // SEBELUMNYA langsung selesaiModeKiosk diam-diam, orang yang baru scan
+      // TIDAK PERNAH lihat konfirmasi apapun ("kirim pengajuan tidak ada
+      // respon"). Sekarang tampilkan kartu besar (foto+nama+shift+jenis+jam) 3
+      // detik, BARU reset ke menu — supaya orang yang ngantri di belakangnya
+      // juga tahu gilirannya sudah dekat.
       window.tampilkanSuksesKiosk = function({ jenis, foto }) {
         const k = karyawanTerscan.value;
         suksesInfo.value = {
@@ -401,14 +388,12 @@ const AppAbsensiQr = {
           waktu: new Date().toLocaleTimeString('id-ID')
         };
         tahap.value = 'sukses';
-        // BARU (23 Agt 2026, ronde 4, permintaan Hilman) — ucapkan
-        // "Terima kasih" lewat text-to-speech bawaan browser, KHUSUS buat
-        // Clock In/Clock Out (bukan Lembur/Izin/Cuti — permintaan
-        // eksplisit "mau clockin atau clock out"). Dibungkus try/catch +
-        // cek window.speechSynthesis ADA dulu — beberapa
-        // browser/perangkat lama mungkin tidak dukung, jangan sampai
-        // fitur ini bikin seluruh alur submit gagal cuma gara-gara suara
-        // tidak bisa diputar.
+        // ucapkan "Terima kasih" lewat text-to-speech bawaan browser, KHUSUS
+        // buat Clock In/Clock Out (bukan Lembur/Izin/Cuti — permintaan eksplisit
+        // "mau clockin atau clock out"). Dibungkus try/catch + cek
+        // window.speechSynthesis ADA dulu — beberapa browser/perangkat lama
+        // mungkin tidak dukung, jangan sampai fitur ini bikin seluruh alur
+        // submit gagal cuma gara-gara suara tidak bisa diputar.
         if (jenis === 'HADIR (CLOCK IN)' || jenis === 'CLOCK OUT') {
           try {
             if (window.speechSynthesis) {
@@ -421,27 +406,24 @@ const AppAbsensiQr = {
             console.error('Gagal memutar suara "Terima kasih":', e);
           }
         }
-        // DIPERBAIKI (23 Agt 2026, ronde 3 — bug ditemukan Hilman: kartu
-        // sukses TIDAK PERNAH kelihatan sama sekali) — root cause: fungsi
-        // ini dipanggil dari vue-camera.js SAAT layar yang AKTIF masih
-        // 'screen-camera' (bukan 'screen-absensi-qr'), sedangkan kartu
-        // sukses ini adanya di komponen INI (vue-absensi-qr.js), yang
-        // hidup di div 'screen-absensi-qr' — SEBELUMNYA div itu TETAP
-        // 'hidden' (CSS display:none) di titik ini, jadi ganti tahap.value
-        // ke 'sukses' TIDAK ADA EFEK VISUAL sama sekali. 3 detik kemudian
-        // window.selesaiModeKiosk() BARU pindahLayar ke screen-absensi-qr
-        // — TAPI di callback YANG SAMA, suksesInfo.value SUDAH ke-null-kan
-        // duluan (baris tepat di atas pindahLayar itu) — jadi begitu
-        // layarnya akhirnya kelihatan, kartunya sudah "dihapus" lagi,
-        // langsung balik ke tahap 'menu'. Sekarang pindahLayar() dipanggil
-        // SEKARANG JUGA (bukan nunggu 3 detik) — supaya kartu sukses ini
-        // BENAR-BENAR kelihatan selama 3 detik itu. Ini JUGA otomatis
-        // mematikan kamera (lihat app.js pindahLayar — pindah ke layar
-        // selain screen-camera otomatis panggil window.matikanKamera()),
-        // pas karena foto sudah selesai diambil & dikirim.
+        // root cause: fungsi ini dipanggil dari vue-camera.js SAAT layar yang
+        // AKTIF masih 'screen-camera' (bukan 'screen-absensi-qr'), sedangkan
+        // kartu sukses ini adanya di komponen INI (vue-absensi-qr.js), yang
+        // hidup di div 'screen-absensi-qr' — SEBELUMNYA div itu TETAP 'hidden'
+        // (CSS display:none) di titik ini, jadi ganti tahap.value ke 'sukses'
+        // TIDAK ADA EFEK VISUAL sama sekali. 3 detik kemudian
+        // window.selesaiModeKiosk BARU pindahLayar ke screen-absensi-qr — TAPI
+        // di callback YANG SAMA, suksesInfo.value SUDAH ke-null-kan duluan
+        // (baris tepat di atas pindahLayar itu) — jadi begitu layarnya akhirnya
+        // kelihatan, kartunya sudah "dihapus" lagi, langsung balik ke tahap
+        // 'menu'. Sekarang pindahLayar dipanggil SEKARANG JUGA (bukan nunggu 3
+        // detik) — supaya kartu sukses ini BENAR-BENAR kelihatan selama 3 detik
+        // itu. Ini JUGA otomatis mematikan kamera (lihat app.js pindahLayar —
+        // pindah ke layar selain screen-camera otomatis panggil
+        // window.matikanKamera), pas karena foto sudah selesai diambil &
+        // dikirim.
         window.pindahLayar('screen-absensi-qr');
-        // DIUBAH (23 Agt 2026, ronde 4, permintaan Hilman: "terlalu
-        // cepat") — durasi tampil kartu sukses dari 3 detik jadi 7 detik.
+        // DIUBAH — durasi tampil kartu sukses dari 3 detik jadi 7 detik.
         setTimeout(() => {
           suksesInfo.value = null;
           window.selesaiModeKiosk();
@@ -469,7 +451,7 @@ const AppAbsensiQr = {
         <button @click="logoutKiosk" style="background:none; border:1.5px solid var(--line); border-radius:10px; padding:6px 12px; font-size:11px; color:var(--text-muted); cursor:pointer;"><i class="fas fa-right-from-bracket" style="margin-right:4px;"></i>Logout</button>
       </div>
 
-      <!-- ============ TAHAP: MENU (5 pilihan) ============ -->
+      <!-- TAHAP: MENU (5 pilihan) -->
       <div v-if="tahap === 'menu'" style="flex:1; padding:28px 20px; display:flex; flex-direction:column; gap:12px; max-width:420px; margin:0 auto; width:100%;">
         <p style="font-size:12px; color:var(--text-muted); text-align:center; margin-bottom:10px;">Pilih jenis absensi, lalu arahkan kamera ke barcode karyawan.</p>
         <button v-for="m in JENIS_MENU" :key="m.key" @click="pilihJenis(m.key)"
@@ -480,7 +462,7 @@ const AppAbsensiQr = {
         </button>
       </div>
 
-      <!-- ============ TAHAP: SCAN (kamera sungguhan) ============ -->
+      <!-- TAHAP: SCAN (kamera sungguhan) -->
       <div v-else-if="tahap === 'scan'" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center;">
         <h3 style="font-weight:700; font-size:14px; margin-bottom:4px;">{{ JENIS_MENU.find(m => m.key === jenisTerpilih)?.label }}</h3>
         <p style="font-size:11px; color:var(--text-muted); margin-bottom:16px;">Arahkan barcode karyawan ke kamera</p>
@@ -492,13 +474,13 @@ const AppAbsensiQr = {
         <button @click="kembaliKeMenu" class="btn-outline" style="margin-top:22px; padding:9px 20px;">Batal</button>
       </div>
 
-      <!-- ============ TAHAP: MENCARI (loading pas cek database) ============ -->
+      <!-- TAHAP: MENCARI (loading pas cek database) -->
       <div v-else-if="tahap === 'mencari'" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px;">
         <i class="fas fa-spinner fa-spin" style="font-size:30px; color:var(--burgundy); margin-bottom:14px;"></i>
         <p style="font-size:12px; color:var(--text-muted);">Mencari data karyawan...</p>
       </div>
 
-      <!-- ============ TAHAP: PIN (keypad sungguhan) ============ -->
+      <!-- TAHAP: PIN (keypad sungguhan) -->
       <div v-else-if="tahap === 'pin'" style="flex:1; display:flex; flex-direction:column; align-items:center; padding:24px 20px; text-align:center; max-width:340px; margin:0 auto; width:100%;">
         <h3 style="font-weight:700; font-size:14px; margin-bottom:2px;">{{ karyawanTerscan?.nama || karyawanTerscan?.name }}</h3>
         <p style="font-size:11px; color:var(--text-muted); margin-bottom:18px;">Masukkan PIN 6 digit</p>
@@ -527,9 +509,7 @@ const AppAbsensiQr = {
         </div>
       </div>
 
-      <!-- ============ TAHAP: KONFIRMASI (cuma badge arah + tombol lanjut —
-           DIKOREKSI 23 Agt 2026 sore: PIN kedua PINDAH ke vue-camera.js,
-           diminta SETELAH foto selfie diambil, bukan di sini) ============ -->
+      <!-- TAHAP: KONFIRMASI -->
       <div v-else-if="tahap === 'konfirmasi'" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 20px; text-align:center; max-width:340px; margin:0 auto; width:100%;">
         <h3 style="font-weight:700; font-size:15px; margin-bottom:4px;">{{ karyawanTerscan?.nama || karyawanTerscan?.name }}</h3>
         <div style="display:inline-flex; align-items:center; gap:6px; background:var(--pink); color:var(--burgundy); border-radius:20px; padding:7px 16px; font-size:13px; font-weight:700; margin:10px 0 16px;">
@@ -543,21 +523,20 @@ const AppAbsensiQr = {
         </div>
       </div>
 
-      <!-- ============ TAHAP: SUKSES (kartu besar "epic", auto-tutup 7 detik) ============ -->
+      <!-- TAHAP: SUKSES (kartu besar "epic", auto-tutup 7 detik) -->
       <div v-else-if="tahap === 'sukses' && suksesInfo" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; text-align:center; background:var(--ivory);">
-        <!-- BARU (28 Agt 2026, redesain, README §8): animasi gxPop murni
-             dekoratif ditambahkan ke kartu "epic" ini — ukuran/isi/durasi
-             7 detik TIDAK disentuh sama sekali (sudah hasil beberapa ronde
-             feedback Guru, lihat komentar di atas). -->
+        <!--
+          animasi gxPop murni dekoratif ditambahkan ke kartu "epic" ini — ukuran/isi/durasi 7
+          detik TIDAK disentuh sama sekali .
+        -->
         <div style="background:var(--surface); border-radius:28px; padding:40px 32px; max-width:460px; width:100%; box-shadow:0 16px 40px rgba(0,0,0,.14); animation:gxPop .3s ease;">
           <i class="fas fa-circle-check" style="font-size:46px; color:var(--ok); margin-bottom:12px; display:block;"></i>
           <h2 style="font-weight:700; font-size:22px; margin-bottom:6px; color:var(--burgundy-dark);">Selamat, {{ suksesInfo.nama }}!</h2>
           <p style="font-size:15px; color:var(--ok); font-weight:700; margin-bottom:24px;">{{ PESAN_SUKSES[suksesInfo.jenis] }}</p>
-          <!-- DIPERBESAR LAGI 2x LIPAT (23 Agt 2026, ronde 4, permintaan
-               Hilman: "biar epic", proporsional dengan kartunya yang juga
-               diperbesar) — dari 172x172 bingkai ganda jadi 344x344,
-               bingkainya ikut disesuaikan (bukan sekadar 2x mentah,
-               supaya tetap enak dilihat). -->
+          <!--
+            2x LIPAT — dari 172x172 bingkai ganda jadi 344x344, bingkainya ikut disesuaikan (bukan
+            sekadar 2x mentah, supaya tetap enak dilihat).
+          -->
           <img v-if="suksesInfo.foto" :src="suksesInfo.foto" style="width:344px; height:344px; max-width:100%; border-radius:50%; object-fit:cover; margin-bottom:22px; border:6px solid var(--pink); box-shadow:0 0 0 6px var(--burgundy), 0 14px 30px rgba(0,0,0,.2);">
           <div style="text-align:left; background:var(--ivory-dim); border-radius:16px; padding:16px 18px; font-size:14px;">
             <div style="display:flex; justify-content:space-between; margin-bottom:8px;"><span style="color:var(--text-muted);">Shift</span><b>{{ suksesInfo.shift }}</b></div>

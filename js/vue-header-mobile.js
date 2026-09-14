@@ -1,46 +1,39 @@
 // js/vue-header-mobile.js
-// ============================================================================
+
 // Header atas mobile — SATU komponen dipakai di semua halaman, tapi isinya
-// berubah otomatis tergantung sedang di mana:
-//   - Di Home: "Selamat [pagi/siang/sore/malam], [Nama]" (gaya kartu pink,
-//     sama seperti prototype)
-//   - Di halaman LAIN (Master Absensi, Profile, dst): "ERP Zevanic House"
-//     / "[Nama Menu] - [Nama Sub-menu]" — supaya orang selalu tahu lagi
-//     di mana tanpa perlu baca sub-tab (yang di mobile sengaja
-//     disembunyikan, lihat index.html & dashboard.js).
+// berubah otomatis tergantung sedang di mana: - Di Home: "Selamat
+// [pagi/siang/sore/malam], [Nama]" (gaya kartu pink, sama seperti prototype) -
+// Di halaman LAIN (Master Absensi, Profile, dst): "ERP Zevanic House" / "[Nama
+// Menu] - [Nama Sub-menu]" — supaya orang selalu tahu lagi di mana tanpa perlu
+// baca sub-tab (yang di mobile sengaja disembunyikan, lihat index.html &
+// dashboard.js).
 //
-// Diaktifkan lewat window.aturHeaderKonteks(tabId, subTabId) — dipanggil
-// dari pindahTab/pindahSubTab (dashboard.js) tiap kali navigasi terjadi.
-// TIDAK baca Firestore sama sekali untuk ganti konteks (murni cocokkan ID
-// ke daftar label yang sudah ada di memori).
+// Diaktifkan lewat window.aturHeaderKonteks(tabId, subTabId) — dipanggil dari
+// pindahTab/pindahSubTab (dashboard.js) tiap kali navigasi terjadi. TIDAK baca
+// Firestore sama sekali untuk ganti konteks (murni cocokkan ID ke daftar label
+// yang sudah ada di memori).
 //
-// DIROMBAK (28 Agt 2026, redesain "Gechoo Mobile Organic", mode 'home' SAJA)
-// — mengikuti spec mockup (README.md §1 "Baris sapaan"): sekarang ada quote
-// harian inline (dulu kartu QuoteCard terpisah di vue-home.js, DIHAPUS dari
-// sana — lihat catatan di vue-home.js), lonceng notifikasi + badge, dan
-// avatar inisial. Mode 'lainnya' (header di tab selain Home) TIDAK berubah
-// sama sekali.
+// mengikuti spec mockup (README.md §1 "Baris sapaan"): sekarang ada quote harian
+// inline (dulu kartu QuoteCard terpisah di vue-home.js, DIHAPUS dari sana —
+// lihat catatan di vue-home.js), lonceng notifikasi + badge, dan avatar inisial.
+// Mode 'lainnya' (header di tab selain Home) TIDAK berubah sama sekali.
 //
-// Lonceng = Pengumuman (keputusan Guru: Pengumuman TIDAK lagi tampil sebagai
-// carousel di body Beranda, dipindah jadi notifikasi lewat lonceng ini).
-// Baca koleksi "pengumuman" (SAMA seperti PengumumanCarousel di
-// vue-components.js, query sendiri di sini biar tidak perlu import carousel
-// yang sekarang tidak dipakai lagi di mobile). Badge = jumlah pengumuman
-// yang dibuat SETELAH waktu "terakhir dilihat" tersimpan di localStorage
-// per-user (murni device-lokal, TIDAK ada tulis Firestore tambahan sama
-// sekali demi hemat — lihat PRINSIP-HEMAT.md).
-// ============================================================================
+// Lonceng = Pengumuman . Baca koleksi "pengumuman" (SAMA seperti
+// PengumumanCarousel di vue-components.js, query sendiri di sini biar tidak
+// perlu import carousel yang sekarang tidak dipakai lagi di mobile). Badge =
+// jumlah pengumuman yang dibuat SETELAH waktu "terakhir dilihat" tersimpan di
+// localStorage per-user (murni device-lokal, TIDAK ada tulis Firestore tambahan
+// sama sekali demi hemat — lihat PRINSIP-HEMAT.md).
+
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-// BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic", lihat PEDOMAN-GAYA-
-// KERJA.md — pilot Antrean Absensi, disetujui Guru "test dulu Antrean
-// Absensi") — mode 'lainnya' sekarang pakai HeaderLayar yang SAMA persis
-// dipakai Menu Lengkap/Atur Favorit (tombol kembali bulat + kicker + judul),
-// GANTI kartu pink + lingkaran dekoratif yang lama. Komponen ini GLOBAL
-// (dipakai di SEMUA halaman selain Home), jadi perubahan ini otomatis
-// berlaku ke semua halaman sekaligus, bukan cuma Antrean Absensi — itu
-// sudah dikonfirmasi & dicatat di PEDOMAN-GAYA-KERJA.md sebelum diterapkan.
+// mode 'lainnya' sekarang pakai HeaderLayar yang SAMA persis dipakai Menu
+// Lengkap/Atur Favorit (tombol kembali bulat + kicker + judul), GANTI kartu pink
+// + lingkaran dekoratif yang lama. Komponen ini GLOBAL (dipakai di SEMUA halaman
+// selain Home), jadi perubahan ini otomatis berlaku ke semua halaman sekaligus,
+// bukan cuma Antrean Absensi — itu sudah dikonfirmasi & dicatat di
+// PEDOMAN-GAYA-KERJA.md sebelum diterapkan.
 import { HeaderLayar } from './vue-components.js?v=13';
 
 const LABEL_TAB = {
@@ -54,27 +47,24 @@ const LABEL_TAB = {
   'tab-device-kiosk': 'List Device Kiosk',
   'tab-scan-qr': 'Scan QR',
   'tab-progress': 'Progress',
-  // BARU (27 Agt 2026, §27) — sebelumnya HILANG dari sini (celah lama,
-  // ketauan pas Home mobile jadi jalur utama ke Zevanic House). Efeknya:
-  // header mobile nongol kosong pas buka menu Zevanic House manapun.
+  // sebelumnya HILANG dari sini (celah lama, ketauan pas Home mobile jadi jalur
+  // utama ke Zevanic House). Efeknya: header mobile nongol kosong pas buka menu
+  // Zevanic House manapun.
   'tab-zevanic-house': 'Zevanic House',
-  // BARU (29 Agt 2026, koreksi arsitektur menu) — grup top-level baru,
-  // lihat STATUS-PROYEK.md §44.13. Sama seperti tab-zevanic-house di
-  // atas, WAJIB didaftarkan di sini juga (celah yang sama) supaya header
-  // mobile tidak nongol kosong.
+  // grup top-level baru, lihat STATUS-PROYEK.md §44.13. Sama seperti
+  // tab-zevanic-house di atas, WAJIB didaftarkan di sini juga (celah yang sama)
+  // supaya header mobile tidak nongol kosong.
   'tab-persiapan-produksi': 'Persiapan Produksi',
-  // PERBAIKAN (7 Sep 2026 malam, ketemu pas menambah tab-scan-cetak di
-  // bawah) — 'tab-pesanan' ternyata SUDAH LAMA hilang dari peta ini juga
-  // (celah yang sama seperti tab-zevanic-house/tab-persiapan-produksi di
-  // atas), header mobile nongol kosong pas buka menu Pesanan manapun.
-  // Diperbaiki sekalian di sini (drive-by fix, di luar cakupan tugas Scan
-  // & Cetak tapi trivial & aman).
+  // PERBAIKAN — 'tab-pesanan' ternyata SUDAH LAMA hilang dari peta ini juga
+  // (celah yang sama seperti tab-zevanic-house/tab-persiapan-produksi di atas),
+  // header mobile nongol kosong pas buka menu Pesanan manapun. Diperbaiki
+  // sekalian di sini (drive-by fix, di luar cakupan tugas Scan & Cetak tapi
+  // trivial & aman).
   'tab-pesanan': 'Pesanan',
-  // BARU (7 Sep 2026 malam) — grup top-level baru "Scan & Cetak", lihat
-  // js/vue-scan-cetak.js.
+  // grup top-level baru "Scan & Cetak", lihat js/vue-scan-cetak.js.
   'tab-scan-cetak': 'Scan & Cetak',
-  // BARU (9 Sep 2026) — grup top-level baru "Stok dan Pembelian", dipisah
-  // dari Zevanic House > Stock & Pembelian (lihat index.html).
+  // grup top-level baru "Stok dan Pembelian", dipisah dari Zevanic House > Stock
+  // & Pembelian (lihat index.html).
   'tab-stok-pembelian': 'Stok dan Pembelian'
 };
 const LABEL_SUBTAB = {
@@ -95,14 +85,12 @@ const LABEL_SUBTAB = {
   'sub-karyawan-info': 'Config Info',
   'sub-karyawan-hakakses': 'Hak Akses',
   'sub-karyawan-akses': 'Config Akses',
-  // BARU (27 Agt 2026, §27) — sama seperti tab-zevanic-house di atas,
-  // set ini sebelumnya HILANG total (celah lama, bukan cuma soal menu
-  // baru §26). Ditambah sekalian semuanya supaya header mobile Zevanic
-  // House selalu jelas lagi di mana, bukan cuma yang kepakai dari Home.
-  // DIHAPUS (9 Sep 2026, rombak ke-2) — 'sub-zevanic-house-persiapan':
-  // 'Persiapan Masalah' (modul dihapus total).
-  // BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
-  // Master Pelanggan, lihat js/vue-master-pelanggan.js.
+  // sama seperti tab-zevanic-house di atas, set ini sebelumnya HILANG total
+  // (celah lama, bukan cuma soal menu baru §26). Ditambah sekalian semuanya
+  // supaya header mobile Zevanic House selalu jelas lagi di mana, bukan cuma
+  // yang kepakai dari Home. DIHAPUS — 'sub-zevanic-house-persiapan': 'Persiapan
+  // Masalah' (modul dihapus total). BARU — Master Pelanggan, lihat
+  // js/vue-master-pelanggan.js.
   'sub-zevanic-house-pelanggan': 'Master Pelanggan',
   'sub-zevanic-house-orderspk': 'Order SPK',
   'sub-zh-config-jenisbahan': 'Jenis Bahan',
@@ -110,43 +98,39 @@ const LABEL_SUBTAB = {
   'sub-zh-config-satuan': 'Data Satuan',
   'sub-zh-config-warna': 'Data Warna',
   'sub-zh-config-ukuran': 'Data Ukuran',
-  // GANTI (5 Sep 2026) — dulu 'sub-zh-config-suplayer': 'Data Suplayer',
-  // CRUD Suplayer pindah ke 3 entry 'sub-zh-suplayer-*' di bawah.
+  // dulu 'sub-zh-config-suplayer': 'Data Suplayer', CRUD Suplayer pindah ke 3
+  // entry 'sub-zh-suplayer-*' di bawah.
   'sub-zh-config-tlc': 'TLC & Prefix',
   'sub-zh-config-tahappersiapan': 'Persiapan Untuk Tahap',
   'sub-zh-databahan-entry': 'Entry Bahan & Aksesoris',
   'sub-zh-databahan-list': 'List Bahan & Aksesoris',
   'sub-zh-databahan-rak': 'Rak Penyimpanan',
-  // BARU (5 Sep 2026) — Master Suplayer (3 sub-tab), lihat js/vue-master-
-  // suplayer.js. GANTI TOTAL dari 'sub-zh-stock-alias': 'Alias Pembelian'
-  // di bawah (DIHAPUS, pindah ke sini sebagai 'sub-zh-suplayer-alias-moq').
+  // Master Suplayer (3 sub-tab), lihat js/vue-master- suplayer.js dari
+  // 'sub-zh-stock-alias': 'Alias Pembelian' di bawah (DIHAPUS, pindah ke sini
+  // sebagai 'sub-zh-suplayer-alias-moq').
   'sub-zh-suplayer-entry': 'Master Suplayer',
   'sub-zh-suplayer-alias-moq': 'Alias & MOQ',
   'sub-zh-suplayer-petakan': 'Petakan Order',
-  // DIHAPUS (7 Sep 2026) — 'sub-zh-stock-listorder': 'List Order Belanja'
-  // (tab dihapus total, lihat vue-stock-pembelian.js).
+  // DIHAPUS — 'sub-zh-stock-listorder': 'List Order Belanja' (tab dihapus total,
+  // lihat vue-stock-pembelian.js).
   'sub-zh-stock-notaorder': 'Daftar Nota',
   'sub-zh-stock-riwayat': 'Riwayat Harga Pembelian',
   'sub-zh-stock-kartustok': 'Kartu Stok',
-  // DITAMBAH (9 Sep 2026, drive-by fix — celah lama, sama pola seperti
-  // tab-zevanic-house dulu — 2 sub-tab ini sudah lama live tapi belum
-  // pernah didaftarkan di sini, header mobile nongol kosong pas dibuka).
+  // DITAMBAH .
   'sub-zh-stock-rak': 'Rak Penyimpanan',
   'sub-zh-stock-repack': 'Repack',
-  // DIPINDAH (7 Sep 2026 malam) — Scan Opname/Persiapan pindah ke tab-scan-
-  // cetak, lihat entry 'sub-scancetak-stok-*' di bawah.
-  // BARU (7 Sep 2026 malam) — menu top-level "Scan & Cetak".
+  // DIPINDAH — Scan Opname/Persiapan pindah ke tab-scan- cetak, lihat entry
+  // 'sub-scancetak-stok-*' di bawah. BARU — menu top-level "Scan & Cetak".
   'sub-scan-cetak-stok': 'Scan Stok',
   'sub-scancetak-stok-opname': 'Scan Opname',
   'sub-scancetak-stok-persiapan': 'Scan Persiapan',
   'sub-scan-cetak-referensi': 'Referensi Scan',
   'sub-scan-cetak-cetak': 'Cetak',
   'sub-scan-cetak-pin': 'Riwayat PIN',
-  // DIPENSIUNKAN (29 Agt 2026, koreksi arsitektur menu) — 5 entry lama
-  // 'sub-zh-persiapanproduksi-*' DIHAPUS, sub-tabnya sudah dicopot dari
-  // index.html. GANTI oleh grup top-level baru "Persiapan Produksi" di
-  // bawah (6 sub-menu + 25 child-tab 5 jalur x 5 tahap), lihat STATUS-
-  // PROYEK.md §44.13.
+  // DIPENSIUNKAN — 5 entry lama 'sub-zh-persiapanproduksi-*' DIHAPUS, sub-tabnya
+  // sudah dicopot dari index.html. GANTI oleh grup top-level baru "Persiapan
+  // Produksi" di bawah (6 sub-menu + 25 child-tab 5 jalur x 5 tahap), lihat
+  // STATUS- PROYEK.md §44.13.
   'sub-pp-disiapkan': 'Perlu Disiapkan',
   'sub-pp-vendor': 'Vendor',
   'sub-pp-bahan': 'Bahan',
@@ -186,9 +170,9 @@ const AppHeaderMobile = {
     const konteks = reactive({ mode: 'home', menuLabel: '', subMenuLabel: '' });
     const sapaan = ref('Selamat datang');
     const nama = ref('');
-    // Nama dibatasi maksimal 20 karakter di header (kartu kecil, banyak
-    // nama karyawan panjang) — dipotong + "…" kalau lebih panjang dari
-    // itu, nama ASLI tetap utuh di window.currentUser/Profile.
+    // Nama dibatasi maksimal 20 karakter di header (kartu kecil, banyak nama
+    // karyawan panjang) — dipotong + "…" kalau lebih panjang dari itu, nama ASLI
+    // tetap utuh di window.currentUser/Profile.
     const namaTampil = computed(() => nama.value.length > 20 ? nama.value.slice(0, 20).trim() + '…' : nama.value);
 
     function tentukanSapaan() {
@@ -199,21 +183,19 @@ const AppHeaderMobile = {
       return 'Selamat malam';
     }
 
-    // ---- BARU (redesain, mode 'home' saja): quote harian inline ----
-    // SAMA sumber data dengan QuoteCard lama (koleksi "quotes", field
-    // tanggalTampil==hari ini) — cuma ditampilkan sebagai 1 baris kecil di
-    // sini, bukan kartu terpisah lagi. QuoteCard sendiri TETAP ada di
-    // vue-components.js (masih dipakai desktop, lihat vue-home-desktop.js).
-    // BUG DITEMUKAN & DIPERBAIKI (30 Agt 2026, sesi lanjutan lagi) — sama
-    // persis akar masalah dengan QuoteCard (lihat komentar bug-fix lengkap
-    // di vue-components.js): hariIni dulu toISOString() (UTC), meleset dari
-    // tanggal LOKAL device 00:00-06:59 WIB tiap hari. Fix sama.
+    // (redesain, mode 'home' saja): quote harian inline — SAMA
+    // sumber data dengan QuoteCard lama (koleksi "quotes", field
+    // tanggalTampil==hari ini) — cuma ditampilkan sebagai 1 baris kecil di sini,
+    // bukan kartu terpisah lagi. QuoteCard sendiri TETAP ada di
+    // vue-components.js (masih dipakai desktop, lihat vue-home-desktop.js). BUG
+    // DITEMUKAN & sama persis akar masalah dengan QuoteCard (lihat komentar
+    // bug-fix lengkap di vue-components.js): hariIni dulu toISOString (UTC),
+    // meleset dari tanggal LOKAL device 00:00-06:59 WIB tiap hari. Fix sama.
     const quoteHariIni = ref('');
     async function muatQuote() {
       try {
-        // REVISI (30 Agt 2026, sesi lanjutan lagi) — dipertegas pakai
-        // timezone Asia/Jakarta EKSPLISIT, lihat komentar lengkap di
-        // vue-components.js.
+        // dipertegas pakai timezone Asia/Jakarta EKSPLISIT, lihat komentar
+        // lengkap di vue-components.js.
         const hariIni = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
         const q = query(collection(db, "quotes"), where("tanggalTampil", "==", hariIni), limit(1));
         const snap = await getDocs(q);
@@ -223,7 +205,7 @@ const AppHeaderMobile = {
       }
     }
 
-    // ---- BARU: lonceng notifikasi (Pengumuman) + badge ----
+    // BARU: lonceng notifikasi (Pengumuman) + badge
     const daftarNotif = ref([]);
     const memuatNotif = ref(true);
     const notifTerbuka = ref(false);
@@ -282,14 +264,13 @@ const AppHeaderMobile = {
       muatNotif();
     }
 
-    // Dipanggil dari dashboard.js (pindahTab/pindahSubTab) — murni
-    // cocokkan ID ke label, tidak ada baca Firestore.
-    // BARU (28 Agt 2026, redesain) — layar baru "Menu Lengkap"/"Atur
-    // Favorit" (js/vue-menu-lengkap.js, js/vue-atur-favorit.js) sudah py
-    // header sendiri (HeaderLayar: tombol kembali+kicker+judul, lihat
-    // vue-components.js) — kalau banner generik ini TETAP tampil di
-    // atasnya jadi 2 header dobel. Mode 'tersembunyi' = komponen ini
-    // tidak render apapun untuk tab-tab itu.
+    // Dipanggil dari dashboard.js (pindahTab/pindahSubTab) — murni cocokkan ID
+    // ke label, tidak ada baca Firestore. BARU — layar baru "Menu Lengkap"/"Atur
+    // Favorit" (js/vue-menu-lengkap.js, js/vue-atur-favorit.js) sudah py header
+    // sendiri (HeaderLayar: tombol kembali+kicker+judul, lihat
+    // vue-components.js) — kalau banner generik ini TETAP tampil di atasnya jadi
+    // 2 header dobel. Mode 'tersembunyi' = komponen ini tidak render apapun
+    // untuk tab-tab itu.
     const TAB_HEADER_SENDIRI = ['tab-menu-lengkap', 'tab-atur-favorit'];
 
     window.aturHeaderKonteks = function(tabId, subTabId) {
@@ -348,7 +329,9 @@ const AppHeaderMobile = {
       <template v-else-if="konteks.mode === 'lainnya'">
         <header-layar :kicker="konteks.menuLabel" :judul="konteks.subMenuLabel || konteks.menuLabel" tab-pulang="tab-home" />
       </template>
-      <!-- mode 'tersembunyi': layar py header sendiri (HeaderLayar), tidak render apapun di sini -->
+      <!--
+        mode 'tersembunyi': layar py header sendiri (HeaderLayar), tidak render apapun di sini
+      -->
     </div>
   `
 };

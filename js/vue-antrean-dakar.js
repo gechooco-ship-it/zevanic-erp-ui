@@ -1,56 +1,38 @@
 // js/vue-antrean-dakar.js
-// ============================================================================
-// DIROMBAK LAGI (18 Agt 2026, revisi ke-2) — versi SEBELUMNYA di file ini
-// bikin akun Auth LANGSUNG (password sementara = NIK) lewat instance
-// Firebase kedua saat Admin klik "Setujui". SEKARANG diganti total:
-// "Setujui" cuma generate TOKEN RAHASIA + kirim EMAIL berisi LINK
-// "Buat Password" — akun Auth baru benar-benar dibuat NANTI oleh
-// KARYAWAN SENDIRI (lewat js/vue-buat-password.js), begitu mereka klik
-// link itu dan pilih password sendiri. BELUM PERNAH DITES sama sekali,
-// WAJIB dites end-to-end sebelum dipakai karyawan sungguhan.
+// Antrean pendaftaran karyawan. "Setujui" TIDAK membuat akun Auth — cuma
+// generate token rahasia + kirim email berisi link "Buat Password". Akun Auth
+// dibuat KARYAWAN SENDIRI lewat vue-buat-password.js.
 //
-// KENAPA DIROMBAK: supaya karyawan pilih password SENDIRI (bukan
-// dipaksa pakai NIK sebagai password sementara lalu wajib ganti) — lihat
-// diskusi lengkap alasannya di STATUS-PROYEK.md.
+// Alur per dokumen pendaftaran_pending, 3 status:
+// 1. BARU — belum ada token. Tombol: Setujui (isi data kerja, generate
+// token, kirim link) / Tolak.
+// 2. MENUNGGU BUAT PASSWORD — token ada, belum lewat 30 menit. Tombol:
+// Assign Ulang (token baru, kirim ulang) / Tolak.
+// 3. KADALUARSA — token lewat 30 menit. Tombol sama, badge merah.
+// Dokumen dihapus oleh karyawan sendiri begitu password jadi, jadi tidak ada
+// status ke-4 "selesai".
 //
-// INSTANCE FIREBASE KEDUA (buatAkunTanpaGangguSesi) SUDAH DIHAPUS DARI
-// FILE INI — sudah tidak relevan lagi, karena yang bikin akun sekarang
-// KARYAWAN SENDIRI (belum login sebagai siapapun), bukan Admin. Tidak
-// ada sesi Admin yang perlu dilindungi di titik approve ini lagi.
-//
-// ALUR BARU per dokumen pendaftaran_pending, 3 kemungkinan status:
-//   1. BARU — belum ada token sama sekali. Tombol: Setujui (isi data
-//      kerja, generate token, kirim link) / Tolak.
-//   2. MENUNGGU BUAT PASSWORD — token ada & belum kadaluarsa (30 menit).
-//      Tombol: Assign Ulang (generate token baru, kirim ulang link) /
-//      Tolak. AMAN ditolak di status ini karena akun Auth memang belum
-//      pernah dibuat.
-//   3. KADALUARSA — token ada tapi sudah lewat 30 menit. Tombol sama
-//      seperti status 2, cuma ditandai visual beda (badge merah).
-// Begitu karyawan berhasil klik link & buat password, dokumen ini
-// DIHAPUS SENDIRI oleh karyawan (bukan Admin) — jadi otomatis hilang
-// dari daftar ini, tidak perlu status ke-4 "selesai".
-//
-// Verifikasi token pakai pola SAMA PERSIS seperti otp_email (lihat
-// vue-otp.js) — lewat TULIS, bukan baca langsung. Lihat firestore.rules
-// match /pendaftaran_pending/{email} untuk detail lengkapnya.
-//
-// Dipakai ulang: KolomCari (vue-components.js). GudangCheckboxSelect TIDAK
-// dipakai lagi di sini sejak 29 Agt 2026 v2 (lihat catatan di
-// AntreanDakarCard — Gudang penempatan dilepas dari form approval ini).
-// ============================================================================
+// Jebakan:
+// - Aman menolak di status 2 & 3 karena akun Auth memang belum pernah ada.
+// - Verifikasi token lewat TULIS, bukan baca langsung — pola sama dengan
+// otp_email di vue-otp.js. Lihat firestore.rules match
+// /pendaftaran_pending/{email}.
+// - Tidak ada instance Firebase kedua di file ini; tidak ada sesi Admin yang
+// perlu dilindungi di titik approve.
+// - GudangCheckboxSelect tidak dipakai di sini — Gudang penempatan lepas dari
+// form approval (lihat AntreanDakarCard).
 import { createApp, ref, reactive, computed, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, getDoc, setDoc, updateDoc, deleteDoc, addDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-// BARU (29 Agt 2026 v2) — GudangCheckboxSelect DILEPAS dari sini (form
-// approval tidak lagi input Gudang, lihat catatan di AntreanDakarCard di
-// bawah) — KolomCari (pil) dipakai buat baris cari, pola sama modul lain.
+// GudangCheckboxSelect DILEPAS dari sini (form approval tidak lagi input Gudang,
+// lihat catatan di AntreanDakarCard di bawah) — KolomCari (pil) dipakai buat
+// baris cari, pola sama modul lain.
 import { KolomCari } from './vue-components.js?v=13';
 
-const MASA_BERLAKU_MENIT = 30; // disepakati 18 Agt 2026 — lihat STATUS-PROYEK.md
+const MASA_BERLAKU_MENIT = 30; // disepakati — lihat STATUS-PROYEK.md
 
-// Token acak yang cukup panjang (bukan dari Math.random() yang gampang
-// ditebak polanya) — dipakai sebagai "kunci" di link email Buat Password.
+// Token acak yang cukup panjang (bukan dari Math.random yang gampang ditebak
+// polanya) — dipakai sebagai "kunci" di link email Buat Password.
 function buatTokenAcak() {
   const bytes = new Uint8Array(24);
   crypto.getRandomValues(bytes);
@@ -85,15 +67,12 @@ const AntreanDakarCard = {
   },
   emits: ['diproses'],
   setup(props, { emit }) {
-    // DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2,
-    // permintaan Guru — PERUBAHAN LOGIC, bukan cuma tampilan) — form
-    // approval SEKARANG cuma isi Jadwal Shift + Jabatan. Status Kerja
-    // LANGSUNG hardcode 'Aktif' di setujui() (bukan dipilih manual lagi).
-    // Status Karyawan & Gudang penempatan DILEPAS dari form ini SAMA
-    // SEKALI — jadi Owner-only lewat Daftar Karyawan > Edit (menu
-    // Config). Field form.statusKerja/statusKaryawan/gudang DIHAPUS
-    // (bukan cuma disembunyikan) karena memang tidak dipakai input
-    // apapun lagi di sini.
+    // form approval SEKARANG cuma isi Jadwal Shift + Jabatan. Status Kerja
+    // LANGSUNG hardcode 'Aktif' di setujui (bukan dipilih manual lagi). Status
+    // Karyawan & Gudang penempatan DILEPAS dari form ini SAMA SEKALI — jadi
+    // Owner-only lewat Daftar Karyawan > Edit (menu Config). Field
+    // form.statusKerja/statusKaryawan/gudang DIHAPUS (bukan cuma disembunyikan)
+    // karena memang tidak dipakai input apapun lagi di sini.
     const form = reactive({
       shift: '',
       jabatan: ''
@@ -102,9 +81,9 @@ const AntreanDakarCard = {
     const opsiJabatan = ref([]);
     const memproses = ref(false);
 
-    // Status pendaftaran ini — dihitung dari field token di data, BUKAN
-    // disimpan sebagai state Vue terpisah, supaya selalu sinkron sama
-    // Firestore begitu daftar di-refresh.
+    // Status pendaftaran ini — dihitung dari field token di data, BUKAN disimpan
+    // sebagai state Vue terpisah, supaya selalu sinkron sama Firestore begitu
+    // daftar di-refresh.
     const sudahDiSetujui = computed(() => !!props.data.token_buat_password);
     const sudahKadaluarsa = computed(() => {
       if (!props.data.token_kadaluarsa) return false;
@@ -112,9 +91,9 @@ const AntreanDakarCard = {
       return kadaluarsaMs <= detikSekarang.value;
     });
 
-    // Countdown real-time — cuma buat TAMPILAN (bukan sumber kebenaran;
-    // yang menentukan valid/tidaknya token tetap request.time di
-    // Firestore Rules saat karyawan klik link-nya).
+    // Countdown real-time — cuma buat TAMPILAN (bukan sumber kebenaran; yang
+    // menentukan valid/tidaknya token tetap request.time di Firestore Rules saat
+    // karyawan klik link-nya).
     const detikSekarang = ref(Date.now());
     let timerCountdown = null;
     onMounted(() => { timerCountdown = setInterval(() => { detikSekarang.value = Date.now(); }, 1000); });
@@ -138,18 +117,17 @@ const AntreanDakarCard = {
       });
       daftarShift.value = listShift;
 
-      // BARU (29 Agt 2026 v2) — Jabatan DIBATASI cuma Operator/Admin di
-      // form approval ini (permintaan Guru eksplisit). Jabatan lain (mis.
-      // Warehouse, lihat seed default di dashboard.js) TETAP bisa diatur
-      // Owner belakangan lewat Daftar Karyawan > Edit, TIDAK bisa dipilih
-      // di sini.
+      // Jabatan DIBATASI cuma Operator/Admin di form approval ini . Jabatan lain
+      // (mis. Warehouse, lihat seed default di dashboard.js) TETAP bisa diatur
+      // Owner belakangan lewat Daftar Karyawan > Edit, TIDAK bisa dipilih di
+      // sini.
       const semuaJabatan = window.ambilMasterList ? await window.ambilMasterList('jabatan') : [];
       opsiJabatan.value = semuaJabatan.filter(j => j === 'Operator' || j === 'Admin');
       if (opsiJabatan.value.length === 0) {
-        // Jaring pengaman — kalau Master Data > Jabatan TIDAK punya entri
-        // persis "Operator"/"Admin" (ejaan beda dsb), form ini akan
-        // kosong tanpa pilihan sama sekali. Bukan ditebak diam-diam —
-        // sengaja diteriakkan di Console biar ketahuan pas testing.
+        // Jaring pengaman — kalau Master Data > Jabatan TIDAK punya entri persis
+        // "Operator"/"Admin" (ejaan beda dsb), form ini akan kosong tanpa
+        // pilihan sama sekali. Bukan ditebak diam-diam — sengaja diteriakkan di
+        // Console biar ketahuan pas testing.
         console.warn('[Antrean Dakar] Master Data > Jabatan tidak punya entri persis "Operator"/"Admin" — dropdown Jabatan di form approval ini akan kosong. Cek ejaan di Master Data > Jabatan.');
       }
 
@@ -161,9 +139,9 @@ const AntreanDakarCard = {
       if (props.data.foto_ktp && window.bukaPreviewFoto) window.bukaPreviewFoto(props.data.foto_ktp);
     }
 
-    // BARU — link ditampilkan LANGSUNG di kartu (bukan cuma dikirim lewat
-    // email), supaya Admin bisa tes/bagikan manual (WhatsApp, dsb) tanpa
-    // bergantung ke email masuk atau tidak (bisa nyangkut Spam, dsb).
+    // link ditampilkan LANGSUNG di kartu (bukan cuma dikirim lewat email),
+    // supaya Admin bisa tes/bagikan manual (WhatsApp, dsb) tanpa bergantung ke
+    // email masuk atau tidak (bisa nyangkut Spam, dsb).
     const linkTerakhir = ref('');
     const linkTersalin = ref(false);
     function salinLink() {
@@ -173,31 +151,30 @@ const AntreanDakarCard = {
       });
     }
 
-    // "Setujui" — SEKARANG cuma simpan data kerja + generate token + kirim
-    // link. TIDAK bikin akun Auth apapun di titik ini.
+    // "Setujui" — SEKARANG cuma simpan data kerja + generate token + kirim link.
+    // TIDAK bikin akun Auth apapun di titik ini.
     async function setujui() {
       if (window.cekIzinMenu('antrean_dakar', 'add') === false) {
         return alert('Anda tidak punya izin menyetujui karyawan baru. Hubungi Owner/PIC.');
       }
-      // DIHAPUS (29 Agt 2026 v2) — dulu ada confirm() "belum pilih gudang,
-      // lanjutkan?" cuma buat kasus admin LUPA isi. SEKARANG gudang memang
-      // SELALU kosong di titik ini (field-nya dilepas dari form), jadi
-      // confirm() itu akan muncul TIAP KALI approve (mengganggu) — diganti
-      // catatan tetap di dalam form (lihat template, sebelum tombol
-      // Setujui) yang SELALU kelihatan, bukan popup berulang.
+      // DIHAPUS — dulu ada confirm "belum pilih gudang, lanjutkan?" cuma buat
+      // kasus admin LUPA isi. SEKARANG gudang memang SELALU kosong di titik ini
+      // (field-nya dilepas dari form), jadi confirm itu akan muncul TIAP KALI
+      // approve (mengganggu) — diganti catatan tetap di dalam form (lihat
+      // template, sebelum tombol Setujui) yang SELALU kelihatan, bukan popup
+      // berulang.
 
       memproses.value = true;
       try {
         const token = buatTokenAcak();
         const kadaluarsa = new Date(Date.now() + MASA_BERLAKU_MENIT * 60 * 1000);
         await updateDoc(doc(db, "pendaftaran_pending", props.emailId), {
-          // BARU (29 Agt 2026 v2, permintaan Guru eksplisit) — Status
-          // Kerja LANGSUNG 'Aktif' begitu diklik Setujui (tidak dipilih
+          // Status Kerja LANGSUNG 'Aktif' begitu diklik Setujui (tidak dipilih
           // manual lagi). Status Karyawan & Gudang penempatan SENGAJA
-          // dikosongkan di sini — wajib dilengkapi Owner lewat Daftar
-          // Karyawan > Edit SEBELUM karyawan ini bisa login (gerbang
-          // gudang_penempatan.length===0 di js/vue-login.js TIDAK
-          // disentuh/tidak berubah, cuma titik pengisiannya yang pindah).
+          // dikosongkan di sini — wajib dilengkapi Owner lewat Daftar Karyawan >
+          // Edit SEBELUM karyawan ini bisa login (gerbang
+          // gudang_penempatan.length===0 di js/vue-login.js TIDAK disentuh/tidak
+          // berubah, cuma titik pengisiannya yang pindah).
           status_kerja: 'Aktif',
           nama_shift: form.shift,
           jabatan: form.jabatan,
@@ -218,10 +195,10 @@ const AntreanDakarCard = {
       memproses.value = false;
     }
 
-    // "Assign Ulang" — dipakai kalau link lama kadaluarsa atau karyawan
-    // minta dikirim ulang. Data kerja yang SUDAH disimpan (status_kerja,
-    // shift, dst) TIDAK diminta ulang — cuma token & waktu kadaluarsanya
-    // yang di-generate baru.
+    // "Assign Ulang" — dipakai kalau link lama kadaluarsa atau karyawan minta
+    // dikirim ulang. Data kerja yang SUDAH disimpan (status_kerja, shift, dst)
+    // TIDAK diminta ulang — cuma token & waktu kadaluarsanya yang di-generate
+    // baru.
     async function assignUlang() {
       if (window.cekIzinMenu('antrean_dakar', 'add') === false) {
         return alert('Anda tidak punya izin mengirim ulang link. Hubungi Owner/PIC.');
@@ -244,9 +221,9 @@ const AntreanDakarCard = {
       memproses.value = false;
     }
 
-    // "Tolak" — AMAN dipakai di status manapun (BARU maupun MENUNGGU
-    // BUAT PASSWORD/KADALUARSA), karena akun Auth memang belum pernah
-    // dibuat sampai karyawan sendiri klik link & submit password.
+    // "Tolak" — AMAN dipakai di status manapun (BARU maupun MENUNGGU BUAT
+    // PASSWORD/KADALUARSA), karena akun Auth memang belum pernah dibuat sampai
+    // karyawan sendiri klik link & submit password.
     async function tolak() {
       if (window.cekIzinMenu('antrean_dakar', 'delete') === false) {
         return alert('Anda tidak punya izin menolak pendaftaran. Hubungi Owner/PIC.');
@@ -271,17 +248,15 @@ const AntreanDakarCard = {
       lihatFotoBesar, setujui, assignUlang, tolak
     };
   },
-  // ==========================================================================
-  // TEMPLATE DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2,
-  // dari mockup gechoo-mobile-organic-rollout.html §Antrean Dakar) — header
-  // kartu dirapikan (foto KTP 52x40, radius 12px) + badge status ("Baru"
-  // buat yang belum diproses sama sekali). Foto KTP TETAP persegi panjang
-  // (bukan avatar bulat) — ini KTP, bukan foto wajah, TIDAK berubah.
-  // Email/HP TETAP ditampilkan (baris kecil terpisah dari NIK) — mockup
-  // v2 cuma gambar NIK buat hemat ruang, tapi info kontak sengaja TIDAK
-  // dihilangkan dari kartu sungguhan karena masih relevan buat admin yang
-  // approve. Alur token-email-link TIDAK disentuh sama sekali.
-  // ==========================================================================
+
+  // header kartu dirapikan (foto KTP 52x40, radius 12px) + badge status ("Baru"
+  // buat yang belum diproses sama sekali). Foto KTP TETAP persegi panjang (bukan
+  // avatar bulat) — ini KTP, bukan foto wajah, TIDAK berubah. Email/HP TETAP
+  // ditampilkan (baris kecil terpisah dari NIK) — mockup v2 cuma gambar NIK buat
+  // hemat ruang, tapi info kontak sengaja TIDAK dihilangkan dari kartu sungguhan
+  // karena masih relevan buat admin yang approve. Alur token-email-link TIDAK
+  // disentuh sama sekali.
+
   template: `
     <div class="gc-card" style="border-radius:20px;">
       <div style="display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--ivory-dim); padding-bottom:10px; margin-bottom:10px;">
@@ -322,10 +297,11 @@ const AntreanDakarCard = {
             </select>
           </div>
         </div>
-        <!-- BARU (29 Agt 2026 v2) — gantikan confirm() popup lama yang
-             muncul TIAP KALI approve. Sekarang gudang/status karyawan
-             MEMANG selalu dilewatkan di sini (Owner-only, lewat Config),
-             jadi catatannya ditaruh tetap di form, bukan popup berulang. -->
+        <!--
+          gantikan confirm popup lama yang muncul TIAP KALI approve. Sekarang gudang/status
+          karyawan MEMANG selalu dilewatkan di sini (Owner-only, lewat Config), jadi catatannya
+          ditaruh tetap di form, bukan popup berulang.
+        -->
         <p style="font-size:10px; color:var(--warn); background:var(--warn-light); border-radius:10px; padding:8px 10px; margin-bottom:10px;"><i class="fas fa-triangle-exclamation" style="margin-right:5px;"></i>Gudang &amp; Status Karyawan BELUM diisi di sini — karyawan ini TIDAK BISA login sampai Owner melengkapinya lewat <b>Daftar Karyawan &gt; Edit</b>.</p>
         <div class="approve-row" style="margin-top:2px;">
           <button @click="setujui" :disabled="memproses" class="appr-btn ok" style="flex:2;"><i class="fas fa-paper-plane"></i> {{ memproses ? 'Memproses...' : 'Setujui & Kirim Link' }}</button>
@@ -371,16 +347,15 @@ const AppAntreanDakar = {
     const errorMuat = ref('');
     const memprosesUji = ref(false);
 
-    // PEDOMAN KERJA §16 — search box selalu ada, filter Jenis Pekerjaan+
-    // Gudang cuma buat Owner/Superuser (Admin biasa sudah otomatis
-    // kefilter lewat window.bolehLihatData di muat()).
+    // PEDOMAN KERJA §16 — search box selalu ada, filter Jenis Pekerjaan+ Gudang
+    // cuma buat Owner/Superuser (Admin biasa sudah otomatis kefilter lewat
+    // window.bolehLihatData di muat).
     const cariNama = ref('');
     const filterJenisPekerjaanOwner = ref('ALL');
     const filterGudangOwner = ref('ALL');
     const opsiJenisPekerjaanOwner = ref([]);
     const opsiGudangOwner = ref([]);
-    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2) — dropdown
-    // filter Owner + Buat Data Uji dipindah ke 1 menu "lainnya" oval
+    // dropdown filter Owner + Buat Data Uji dipindah ke 1 menu "lainnya" oval
     // titik-tiga di sebelah kolom cari, pola sama Absensi/Lembur.
     const menuTerbuka = ref(false);
     function toggleMenuTerbuka() { menuTerbuka.value = !menuTerbuka.value; }
@@ -391,18 +366,18 @@ const AppAntreanDakar = {
       if (cari) hasil = hasil.filter(item => (item.data.nama || '').toLowerCase().includes(cari));
       if (isOwnerRole.value) {
         if (filterJenisPekerjaanOwner.value !== 'ALL') hasil = hasil.filter(item => item.data.jenis_pekerjaan === filterJenisPekerjaanOwner.value);
-        // Sebelum Setujui, gudang_penempatan BELUM ada sama sekali (baru
-        // diisi Admin saat approve) — item begitu WAJAR tidak cocok
-        // filter gudang manapun, bukan bug.
+        // Sebelum Setujui, gudang_penempatan BELUM ada sama sekali (baru diisi
+        // Admin saat approve) — item begitu WAJAR tidak cocok filter gudang
+        // manapun, bukan bug.
         if (filterGudangOwner.value !== 'ALL') hasil = hasil.filter(item => (item.data.gudang_penempatan || []).includes(filterGudangOwner.value));
       }
       return hasil;
     });
 
-    // BARU — supaya bisa tes alur Setujui -> token -> link "Buat Password"
-    // TANPA perlu tunggu ada orang benar-benar daftar & lolos OTP dulu.
-    // Cuma Owner (dicek juga via Firestore Rules: create pendaftaran_pending
-    // sekarang boleh isAdminLevel() langsung, tidak wajib lolos OTP lagi).
+    // supaya bisa tes alur Setujui -> token -> link "Buat Password" TANPA perlu
+    // tunggu ada orang benar-benar daftar & lolos OTP dulu. Cuma Owner (dicek
+    // juga via Firestore Rules: create pendaftaran_pending sekarang boleh
+    // isAdminLevel langsung, tidak wajib lolos OTP lagi).
     async function buatDataUji() {
       if (!confirm("Buat 1 data pendaftaran PALSU buat testing? Nanti muncul di daftar di bawah, proses Setujui/Tolak SAMA seperti data asli — tinggal dihapus (Tolak) kalau sudah selesai tes.")) return;
       memprosesUji.value = true;
@@ -461,13 +436,12 @@ const AppAntreanDakar = {
       menuTerbuka, toggleMenuTerbuka, adaFilterAktif
     };
   },
-  // ==========================================================================
-  // DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, dari cek
-  // live Guru di HP) — banner dipadatkan & dipindah ke bawah kolom cari,
-  // dropdown filter Owner + Buat Data Uji + Refresh masuk ke menu oval
-  // titik-tiga (.gc-overflow-btn) — pola sama persis Absensi/Lembur. Logic
-  // query/filter/bolehLihatData TIDAK berubah sama sekali.
-  // ==========================================================================
+
+  // banner dipadatkan & dipindah ke bawah kolom cari, dropdown filter Owner +
+  // Buat Data Uji + Refresh masuk ke menu oval titik-tiga (gc-overflow-btn) —
+  // pola sama persis Absensi/Lembur. Logic query/filter/bolehLihatData TIDAK
+  // berubah sama sekali.
+
   template: `
     <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
       <div style="flex:1; min-width:0;"><kolom-cari v-model="cariNama" placeholder="Cari nama pendaftar..." /></div>
@@ -524,9 +498,9 @@ const AppAntreanDakar = {
 
 let vmAntreanDakar = null;
 // Perbaikan bug BESAR (dipertahankan dari versi lama): komponen ini BARU
-// di-mount() saat dashboard.js pindahSubTab benar-benar memanggil
-// window.pastikanMountAntreanDakar() — PERSIS saat tab ini pertama kali
-// dibuka, bukan dari awal muat halaman.
+// di-mount saat dashboard.js pindahSubTab benar-benar memanggil
+// window.pastikanMountAntreanDakar — PERSIS saat tab ini pertama kali dibuka,
+// bukan dari awal muat halaman.
 window.pastikanMountAntreanDakar = function() {
   if (vmAntreanDakar) { if (typeof vmAntreanDakar.muat === 'function') vmAntreanDakar.muat(); return; }
   const mountPoint = document.getElementById('vue-antrean-dakar');

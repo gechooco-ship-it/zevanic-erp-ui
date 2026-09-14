@@ -53,11 +53,11 @@ window.simpanPerubahanProfil = async function() {
   }
 };
 
-// simpanKeFirebase & kirimDataKeCloud (submit selfie ke Firestore) sudah
-// pindah ke js/vue-camera.js.
+// simpanKeFirebase & kirimDataKeCloud (submit selfie ke Firestore) sudah pindah
+// ke js/vue-camera.js.
 
 
-// ====== PANEL ACC PIC & VALIDASI ======
+// PANEL ACC PIC & VALIDASI
 
 window.bukaPreviewFoto = function(src) {
   document.getElementById('img-preview-besar').src = src;
@@ -68,43 +68,43 @@ window.tutupPreviewFoto = function() {
   document.getElementById('img-preview-besar').src = "";
 };
 
-// ====== ZONA KONTROL OWNER ======
-// Tabel Daftar Karyawan (dulu window.muatDataSuperUser/hapusKaryawan) sudah
-// pindah ke js/vue-daftar-karyawan.js.
+// ZONA KONTROL OWNER — Tabel Daftar Karyawan (dulu
+// window.muatDataSuperUser/hapusKaryawan) sudah pindah ke
+// js/vue-daftar-karyawan.js.
 
-// =========================================================================
+
 // ANTREAN KARYAWAN (Antrean Dakar) — sudah pindah ke js/vue-antrean-dakar.js.
 // Dipakai ulang di sana: GudangCheckboxSelect (vue-components.js),
 // window.ambilMasterList, window.ambilTemplateWA, window.kirimPesanWhatsapp.
-// =========================================================================
 
 
-// WhatsApp Gateway (Config API, Template Pesan, Monitoring Respon) sudah
-// pindah ke js/vue-whatsapp-gateway.js. window.kirimPesanWhatsapp (auth.js)
-// TETAP dipertahankan — masih dipakai alur registrasi/approval.
+
+// WhatsApp Gateway (Config API, Template Pesan, Monitoring Respon) sudah pindah
+// ke js/vue-whatsapp-gateway.js. window.kirimPesanWhatsapp (auth.js) TETAP
+// dipertahankan — masih dipakai alur registrasi/approval.
 
 
 // Modal Edit Karyawan (dulu window.isiSelectDariMaster/bukaEditUser/
 // tutupEditUser/simpanEditUser) sudah pindah ke js/vue-daftar-karyawan.js.
 
-// =========================================================================
-// MODUL CONFIG ABSENSI (Master Gudang & Master Shift) — UI-nya sudah pindah
-// ke js/vue-config-absensi.js. Koleksi Firestore "master_gudang" dan
-// "master_shift" TETAP dibaca langsung (skema field sama persis) oleh
-// bagian yang belum dimigrasi: geofencing di camera.js, Penjadwalan,
-// Daftar Karyawan, dan Antrean Dakar.
-// =========================================================================
+
+// MODUL CONFIG ABSENSI (Master Gudang & Master Shift) — UI-nya sudah pindah ke
+// js/vue-config-absensi.js. Koleksi Firestore "master_gudang" dan "master_shift"
+// TETAP dibaca langsung (skema field sama persis) oleh bagian yang belum
+// dimigrasi: geofencing di camera.js, Penjadwalan, Daftar Karyawan, dan Antrean
+// Dakar.
+
 
 
 // Kecamatan dikecualikan (lihat fungsi khusus di bawah) karena strukturnya
 // bertingkat per Kabupaten.
-// =========================================================================
+
 const MASTER_DATA_DEFAULT = {
   jenis_pekerjaan: ["Full Time", "Part Time", "Harian"],
   status_kerja: ["Aktif", "Tidak Aktif", "Resign"],
-  // "status_pengguna" dihapus dari sini (17 Agt 2026) — sudah tidak
-  // dibaca di manapun lagi, role sekarang dikelola lewat Config Akses +
-  // Hak Akses (koleksi akses_config). Lihat catatan di vue-config-karyawan.js.
+  // "status_pengguna" dihapus dari sini — sudah tidak dibaca di manapun lagi,
+  // role sekarang dikelola lewat Config Akses + Hak Akses (koleksi
+  // akses_config). Lihat catatan di vue-config-karyawan.js.
   jabatan: ["Operator", "Admin", "Warehouse"],
   status_karyawan: ["Tetap", "Part Time", "Kontrak"],
   kabupaten: ["Bandung", "Bandung Barat", "Cimahi", "Garut"],
@@ -150,32 +150,31 @@ window.ambilKecamatanUntukKabupaten = async function(kab) {
   }
 };
 
-// Catatan migrasi Vue: fungsi UI Master Data (tambah/lihat/hapus item,
-// termasuk Kecamatan) sudah dipindah ke js/vue-components.js +
-// js/vue-config-karyawan.js. window.ambilMasterList dan
-// window.ambilKecamatanUntukKabupaten TETAP dipertahankan di sini karena
-// masih dipakai layar yang belum dimigrasi (Antrean Dakar, Registrasi).
+// Catatan migrasi Vue: fungsi UI Master Data (tambah/lihat/hapus item, termasuk
+// Kecamatan) sudah dipindah ke js/vue-components.js + js/vue-config-karyawan.js.
+// window.ambilMasterList dan window.ambilKecamatanUntukKabupaten TETAP
+// dipertahankan di sini karena masih dipakai layar yang belum dimigrasi (Antrean
+// Dakar, Registrasi).
 
 
 // Master Shift UI dipindah ke js/vue-config-absensi.js.
 
-// =========================================================================
+
 // Penjadwalan (ringkasan per-gudang, filter, pilih massal, update massal,
 // pagination, export/import Excel) sudah pindah ke js/vue-penjadwalan.js.
-// =========================================================================
 
-// =========================================================================
-// ====== LOGIKA PERPINDAHAN HALAMAN UTAMA (ANTI KETUMPUK) =================
-// =========================================================================
 
-// setGrupSidebarTerbuka / toggleNavGroup / bukaGrupSidebarUntukTab — DIROMBAK
-// (24 Agt 2026, revisi permintaan Guru) — SEKARANG dipakai SEMUA grup
-// sidebar (Master Absensi/Keuangan/Karyawan/Zevanic House/Integrasi), pola
-// SERAGAM: parent (klik = buka/tutup) > sub-menu nested di bawahnya.
-// ACCORDION — buka 1 grup, yang lain otomatis tutup (biar sidebar tetap
-// rapi walau daftarnya panjang) — dicari lewat atribut data-group di tiap
-// tombol parent, BUKAN daftar id di-hardcode di sini, supaya kalau ada
-// grup baru nanti tinggal tambah tombol+data-group di index.html saja.
+
+// LOGIKA PERPINDAHAN HALAMAN UTAMA (ANTI KETUMPUK)
+
+
+// setGrupSidebarTerbuka / toggleNavGroup / bukaGrupSidebarUntukTab — SEKARANG
+// dipakai SEMUA grup sidebar (Master Absensi/Keuangan/Karyawan/Zevanic
+// House/Integrasi), pola SERAGAM: parent (klik = buka/tutup) > sub-menu nested
+// di bawahnya. ACCORDION — buka 1 grup, yang lain otomatis tutup (biar sidebar
+// tetap rapi walau daftarnya panjang) — dicari lewat atribut data-group di tiap
+// tombol parent, BUKAN daftar id di-hardcode di sini, supaya kalau ada grup baru
+// nanti tinggal tambah tombol+data-group di index.html saja.
 function setGrupSidebarTerbuka(groupId) {
   document.querySelectorAll('[data-group]').forEach(btn => {
     const target = document.getElementById(btn.dataset.group);
@@ -186,10 +185,10 @@ function setGrupSidebarTerbuka(groupId) {
       ikon.classList.toggle('fa-chevron-down', !cocok);
       ikon.classList.toggle('fa-chevron-up', cocok);
     }
-    // BARU (30 Agt 2026, sesi lanjutan) — class buat warnai ikon+latar
-    // tombol kepala grup saat grup-nya terbuka (persis mockup, lihat
-    // .gc-grp-buka di css/gechoo-design.css). Dulu tidak ada state ini
-    // sama sekali di tombol parent-nya sendiri, cuma chevron yang berubah.
+    // class buat warnai ikon+latar tombol kepala grup saat grup-nya terbuka
+    // (persis mockup, lihat .gc-grp-buka di css/gechoo-design.css). Dulu tidak
+    // ada state ini sama sekali di tombol parent-nya sendiri, cuma chevron yang
+    // berubah.
     btn.classList.toggle('gc-grp-buka', cocok);
   });
 }
@@ -199,36 +198,32 @@ window.toggleNavGroup = function(groupId) {
   const sedangTerbuka = !el.classList.contains('hidden');
   setGrupSidebarTerbuka(sedangTerbuka ? null : groupId); // klik ulang grup yg sudah terbuka -> tutup semua
 };
-// bukaGrupSidebarUntukTab — dipanggil dari pindahTab() supaya begitu
-// pindah tab (klik sub-menu, tombol back/forward, dsb), grup sidebar yang
-// relevan OTOMATIS ikut terbuka — jangan sampai orang pindah halaman tapi
-// sidebar-nya masih nutup/nunjuk ke grup lain, bingung nyarinya.
+// bukaGrupSidebarUntukTab — dipanggil dari pindahTab supaya begitu pindah tab
+// (klik sub-menu, tombol back/forward, dsb), grup sidebar yang relevan OTOMATIS
+// ikut terbuka — jangan sampai orang pindah halaman tapi sidebar-nya masih
+// nutup/nunjuk ke grup lain, bingung nyarinya.
 const petaGrupSidebarPerTab = {
-  // DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang sidebar sesuai
-  // wireframe) — 3 tab ini dulu masing-masing punya grup sidebar sendiri
-  // (navgrp-absensi/navgrp-keuangan/navgrp-karyawan), SEKARANG gabung 1
-  // grup "navgrp-management".
+  // 3 tab ini dulu masing-masing punya grup sidebar sendiri
+  // (navgrp-absensi/navgrp-keuangan/navgrp-karyawan), SEKARANG gabung 1 grup
+  // "navgrp-management".
   'tab-admin-acc': 'navgrp-management',
   'tab-keuangan': 'navgrp-management',
   'tab-superuser': 'navgrp-management',
   'tab-zevanic-house': 'navgrp-zevanic',
-  // BARU (9 Sep 2026) — 'tab-stok-pembelian' grup top-level BARU, DIPISAH
-  // dari Zevanic House > Stock & Pembelian (lihat index.html komentar
-  // navgrp-stokpembelian).
+  // 'tab-stok-pembelian' grup top-level BARU, DIPISAH dari Zevanic House > Stock
+  // & Pembelian (lihat index.html komentar navgrp-stokpembelian).
   'tab-stok-pembelian': 'navgrp-stokpembelian',
-  // BARU (30 Agt 2026, fitur "Pesanan") — 'tab-pesanan' grup top-level
-  // BARU (sejajar Zevanic House/Persiapan Produksi), lihat js/vue-pesanan.js.
+  // 'tab-pesanan' grup top-level (sejajar Zevanic House/Persiapan
+  // Produksi), lihat js/vue-pesanan.js.
   'tab-pesanan': 'navgrp-pesanan',
-  // BARU (29 Agt 2026, koreksi arsitektur menu) — 'tab-persiapan-produksi'
-  // grup top-level BARU (sejajar Zevanic House), lihat STATUS-PROYEK.md
-  // §44.13.
+  // 'tab-persiapan-produksi' grup top-level (sejajar Zevanic House), lihat
+  // STATUS-PROYEK.md §44.13.
   'tab-persiapan-produksi': 'navgrp-persiapanproduksi',
-  // BARU (7 Sep 2026 malam) — 'tab-scan-cetak' grup top-level BARU (sejajar
-  // Zevanic House/Pesanan/Persiapan Produksi), lihat js/vue-scan-cetak.js.
+  // 'tab-scan-cetak' grup top-level (sejajar Zevanic
+  // House/Pesanan/Persiapan Produksi), lihat js/vue-scan-cetak.js.
   'tab-scan-cetak': 'navgrp-scancetak',
-  // BARU (7 Sep 2026 malam lanjut lagi) — 'tab-proses-produksi' grup
-  // top-level BARU (sejajar Persiapan Produksi/Scan & Cetak), lihat
-  // js/vue-pp-cutting.js.
+  // 'tab-proses-produksi' grup top-level (sejajar Persiapan Produksi/Scan &
+  // Cetak), lihat js/vue-pp-cutting.js.
   'tab-proses-produksi': 'navgrp-prosesproduksi',
   'tab-whatsapp': 'navgrp-integrasi',
   'tab-mail-gateway': 'navgrp-integrasi',
@@ -239,14 +234,12 @@ window.bukaGrupSidebarUntukTab = function(tabId) {
 };
 
 window.pindahTab = function(tabId, navKey, _dariPopstate) {
-  // BARU (28 Agt 2026, redesain "Gechoo Mobile Organic") — 'tab-menu-lengkap'
-  // & 'tab-atur-favorit' (layar baru, lihat js/vue-menu-lengkap.js &
-  // js/vue-atur-favorit.js, dibuka dari js/vue-home.js) didaftarkan di sini
-  // supaya ikut disembunyikan/ditampilkan seperti tab lain.
-  // BARU (29 Agt 2026) — 'tab-persiapan-produksi' (grup top-level baru,
-  // lihat STATUS-PROYEK.md §44.13). BARU (30 Agt 2026) — 'tab-pesanan'
-  // (grup top-level baru, lihat js/vue-pesanan.js).
-  // BARU (9 Sep 2026) — 'tab-stok-pembelian' ditambahkan (grup top-level
+  // 'tab-menu-lengkap' & 'tab-atur-favorit' (layar baru, lihat
+  // js/vue-menu-lengkap.js & js/vue-atur-favorit.js, dibuka dari js/vue-home.js)
+  // didaftarkan di sini supaya ikut disembunyikan/ditampilkan seperti tab lain.
+  // BARU — 'tab-persiapan-produksi' (grup top-level baru, lihat STATUS-PROYEK.md
+  // §44.13). BARU — 'tab-pesanan' (grup top-level baru, lihat
+  // js/vue-pesanan.js). BARU — 'tab-stok-pembelian' ditambahkan (grup top-level
   // baru, dipisah dari Zevanic House > Stock & Pembelian).
   const tabs = ['tab-home', 'tab-profil', 'tab-admin-acc', 'tab-keuangan', 'tab-superuser', 'tab-zevanic-house', 'tab-stok-pembelian', 'tab-pesanan', 'tab-persiapan-produksi', 'tab-scan-cetak', 'tab-proses-produksi', 'tab-whatsapp', 'tab-mail-gateway', 'tab-device-kiosk', 'tab-scan-qr', 'tab-progress', 'tab-menu-lengkap', 'tab-atur-favorit'];
   const tabSebelumnya = tabs.find(t => {
@@ -254,17 +247,16 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
     return el && !el.classList.contains('hidden');
   });
 
-  // BARU (23 Agt 2026) — Browser History API, lihat STATUS-PROYEK.md §19.4.
-  // DIPERLUAS (28 Agt 2026, §39) — sekarang mencatat SATU snapshot
-  // `window._riwayatNavAktif` gabungan (tab + semua sub-tab/child-tab
-  // yang ikut opt-in `catatRiwayat`), bukan cuma {tab,navKey} sendirian
-  // — lihat STATUS-PROYEK.md §22.3/§39 buat desain lengkapnya. Catat
-  // perpindahan tab INI sebagai 1 entry riwayat browser, KECUALI kalau
-  // panggilan ini sendiri HASIL dari tombol back/forward (_dariPopstate,
-  // dipasang oleh listener 'popstate' di bawah — jangan sampai push lagi,
-  // nanti muter/dobel) atau tab tujuannya SAMA dengan yang sudah aktif
-  // (hindari entry kosong berulang). URL tidak berubah (app ini tanpa
-  // routing) — cuma dipakai sebagai "jejak" internal buat tombol back HP.
+  // Browser History API, lihat STATUS-PROYEK.md §19.4. DIPERLUAS — sekarang
+  // mencatat SATU snapshot `window._riwayatNavAktif` gabungan (tab + semua
+  // sub-tab/child-tab yang ikut opt-in `catatRiwayat`), bukan cuma {tab,navKey}
+  // sendirian — lihat STATUS-PROYEK.md §22.3/§39 buat desain lengkapnya. Catat
+  // perpindahan tab INI sebagai 1 entry riwayat browser, KECUALI kalau panggilan
+  // ini sendiri HASIL dari tombol back/forward (_dariPopstate, dipasang oleh
+  // listener 'popstate' di bawah — jangan sampai push lagi, nanti muter/dobel)
+  // atau tab tujuannya SAMA dengan yang sudah aktif (hindari entry kosong
+  // berulang). URL tidak berubah (app ini tanpa routing) — cuma dipakai sebagai
+  // "jejak" internal buat tombol back HP.
   if (!_dariPopstate && tabSebelumnya !== tabId) {
     // Reset snapshot gabungan — pindah ke tab BEDA berarti semua sub-tab/
     // child-tab tab SEBELUMNYA sudah tidak relevan lagi buat riwayat.
@@ -286,18 +278,18 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
   if (window.aturHeaderKonteks) window.aturHeaderKonteks(tabId, null);
   if (window.bukaGrupSidebarUntukTab) window.bukaGrupSidebarUntukTab(tabId);
 
-  // Tandai ikon nav mobile mana yang aktif. navKey opsional — dipakai
-  // khusus untuk kasus 2 tombol berbeda (Absensi & Profile) yang sama-sama
-  // menuju tab-profil, supaya masing-masing tetap tersorot sesuai yang
-  // benar-benar diklik, bukan cuma ikut tabId apa adanya.
+  // Tandai ikon nav mobile mana yang aktif. navKey opsional — dipakai khusus
+  // untuk kasus 2 tombol berbeda (Absensi & Profile) yang sama-sama menuju
+  // tab-profil, supaya masing-masing tetap tersorot sesuai yang benar-benar
+  // diklik, bukan cuma ikut tabId apa adanya.
   document.querySelectorAll('.gc-mnav-item, .gc-mnav-scan').forEach(el => el.classList.remove('active'));
   const navBtn = document.querySelector('[data-navtab="' + (navKey || tabId) + '"]');
   if (navBtn) navBtn.classList.add('active');
 
   // Kamera Scan QR: nyala TEPAT saat tab-nya benar-benar dibuka, mati saat
-  // pindah ke tab lain — bukan otomatis nyala dari awal (boros baterai &
-  // minta izin kamera di waktu yang aneh kalau dilakukan dari awal muat
-  // halaman, sebelum orang benar-benar mau pakai fiturnya).
+  // pindah ke tab lain — bukan otomatis nyala dari awal (boros baterai & minta
+  // izin kamera di waktu yang aneh kalau dilakukan dari awal muat halaman,
+  // sebelum orang benar-benar mau pakai fiturnya).
   if (tabId === 'tab-scan-qr' && window.mulaiScanQr) window.mulaiScanQr();
   if (tabSebelumnya === 'tab-scan-qr' && tabId !== 'tab-scan-qr' && window.matikanScanQr) window.matikanScanQr();
 
@@ -316,42 +308,41 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
         window.pindahSubTab('sub-zh-databahan', 'sub-zh-databahan-entry');
       }
   }
-  // BARU (9 Sep 2026) — landing default 'tab-stok-pembelian' (grup
-  // top-level baru, dipisah dari Zevanic House > Stock & Pembelian): "Daftar
-  // Nota", sub-tab-strip-nya (sub-zh-stock) TIDAK berubah sama sekali.
+  // landing default 'tab-stok-pembelian' (grup top-level baru, dipisah dari
+  // Zevanic House > Stock & Pembelian): "Daftar Nota", sub-tab-strip-nya
+  // (sub-zh-stock) TIDAK berubah sama sekali.
   if (tabId === 'tab-stok-pembelian') {
       if (window.pindahSubTab) {
         window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-notaorder', document.querySelectorAll('.sub-zh-stock-btn')[0]);
       }
   }
-  // BARU (29 Agt 2026) — landing default 'tab-persiapan-produksi' (grup
-  // top-level baru): "Perlu Disiapkan", sama pola seperti tab-zevanic-house
-  // di atas.
+  // landing default 'tab-persiapan-produksi' (grup top-level baru): "Perlu
+  // Disiapkan", sama pola seperti tab-zevanic-house di atas.
   if (tabId === 'tab-persiapan-produksi') {
       if (window.pindahSubTab) {
         window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-disiapkan', document.querySelectorAll('.sub-persiapan-produksi-btn')[0]);
       }
   }
-  // BARU (30 Agt 2026) — landing default 'tab-pesanan' (grup top-level
-  // baru): "Penjualan Kasir" (layar aksi utama sehari-hari, pola sama
-  // seperti tab-zevanic-house/tab-persiapan-produksi di atas).
+  // landing default 'tab-pesanan' (grup top-level baru): "Penjualan Kasir"
+  // (layar aksi utama sehari-hari, pola sama seperti
+  // tab-zevanic-house/tab-persiapan-produksi di atas).
   if (tabId === 'tab-pesanan') {
       if (window.pindahSubTab) {
         window.pindahSubTab('sub-pesanan', 'sub-pesanan-kasir', document.querySelectorAll('.sub-pesanan-btn')[0]);
       }
   }
-  // BARU (7 Sep 2026 malam) — landing default 'tab-scan-cetak' (grup
-  // top-level baru): "Scan Stok" (pola sama seperti tab-pesanan di atas).
+  // landing default 'tab-scan-cetak' (grup top-level baru): "Scan Stok" (pola
+  // sama seperti tab-pesanan di atas).
   if (tabId === 'tab-scan-cetak') {
       if (window.pindahSubTab) {
         window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-stok', document.querySelectorAll('.sub-scan-cetak-btn')[0]);
         window.pindahSubTab('sub-scancetak-stok-tahap', 'sub-scancetak-stok-opname', document.querySelectorAll('.sub-scancetak-stok-tahap-btn')[0]);
       }
   }
-  // BARU (7 Sep 2026 malam lanjut lagi) — landing default 'tab-proses-
-  // produksi' (grup top-level baru): "Cutting" > "Perlu Di Proses" (pola
-  // sama seperti tab-scan-cetak di atas — cuma 1 sub-menu fungsional saat
-  // ini, sisanya placeholder alert di sidebar, lihat js/vue-pp-cutting.js).
+  // landing default 'tab-proses- produksi' (grup top-level baru): "Cutting" >
+  // "Perlu Di Proses" (pola sama seperti tab-scan-cetak di atas — cuma 1
+  // sub-menu fungsional saat ini, sisanya placeholder alert di sidebar, lihat
+  // js/vue-pp-cutting.js).
   if (tabId === 'tab-proses-produksi') {
       if (window.pindahSubTab) {
         window.pindahSubTab('sub-proses-produksi', 'sub-pr-cutting', document.querySelectorAll('.sub-proses-produksi-btn')[0]);
@@ -373,47 +364,45 @@ window.pindahTab = function(tabId, navKey, _dariPopstate) {
 // pindahSubTab: SEBELUMNYA dipanggil di banyak tombol (Config Absensi,
 // Penjadwalan, Daftar Karyawan, dst) tapi definisinya sendiri hilang/kehapus
 // tidak sengaja di masa lalu — tombol-tombol itu praktis mati (klik tidak
-// berbuat apa-apa, cuma error di Console). Diperbaiki di sini, sekalian
-// pindah dari cara lama (gonta-ganti banyak class Tailwind manual) ke class
+// berbuat apa-apa, cuma error di Console). Diperbaiki di sini, sekalian pindah
+// dari cara lama (gonta-ganti banyak class Tailwind manual) ke class
 // gc-sub-tab-btn/active yang lebih sederhana.
 //
-// BARU (28 Agt 2026, §39) — parameter ke-4 `opsi` (opsional, default {}),
-// backward-compatible: TIDAK dikirim = PERSIS perilaku lama, tidak mencatat
-// riwayat apapun (semua pemanggil lama otomatis aman). `opsi.catatRiwayat:
-// true` → sub-tab/child-tab ini opt-in ke riwayat browser (WAJIB tombolnya
-// punya atribut `data-target="<targetId>"`, dipakai buat cari tombol lagi
-// pas restore dari popstate). `opsi._dariPopstate: true` → dipasang
-// INTERNAL oleh listener popstate sendiri, supaya tidak push ulang (cegah
-// loop). Lihat STATUS-PROYEK.md §22.3/§39 buat desain lengkapnya.
+// parameter ke-4 `opsi` (opsional, default {}), backward-compatible: TIDAK
+// dikirim = PERSIS perilaku lama, tidak mencatat riwayat apapun (semua pemanggil
+// lama otomatis aman). `opsi.catatRiwayat: true` → sub-tab/child-tab ini opt-in
+// ke riwayat browser (WAJIB tombolnya punya atribut `data-target="<targetId>"`,
+// dipakai buat cari tombol lagi pas restore dari popstate). `opsi._dariPopstate:
+// true` → dipasang INTERNAL oleh listener popstate sendiri, supaya tidak push
+// ulang (cegah loop). Lihat STATUS-PROYEK.md §22.3/§39 buat desain lengkapnya.
 window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
   opsi = opsi || {};
   document.querySelectorAll('.' + grupKelas + '-content').forEach(el => el.classList.add('hidden'));
   const target = document.getElementById(targetId);
   if (target) target.classList.remove('hidden');
 
-  // Popstate restore: tombolEl dikirim null oleh listener, dicari sendiri
-  // di sini lewat data-target (makanya atribut itu WAJIB buat sub-tab yang
-  // ikut opt-in riwayat).
+  // Popstate restore: tombolEl dikirim null oleh listener, dicari sendiri di
+  // sini lewat data-target (makanya atribut itu WAJIB buat sub-tab yang ikut
+  // opt-in riwayat).
   let elTombolAktif = tombolEl;
   if (!elTombolAktif && opsi._dariPopstate) {
     elTombolAktif = document.querySelector('.' + grupKelas + '-btn[data-target="' + targetId + '"]');
   }
   document.querySelectorAll('.' + grupKelas + '-btn').forEach(btn => btn.classList.remove('active'));
-  // FIX #5 (12 Sep 2026, laporan Guru — tab aktif Persiapan Produksi > Bahan
-  // tidak burgundy). Root cause: retrofit pill tab DI DALAM tiap kartu
-  // (lihat js/vue-persiapan-bahan.js TAB_DEFS_BAHAN, dipakai juga pola sama
-  // di Sewing/Webbing/Finishing/Vendor/Masalah) bikin >1 SALINAN baris
-  // tombol '.{grupKelas}-btn' hidup bersamaan di DOM (semua Vue app-nya
-  // mount-once, disembunyikan lewat CSS `hidden` di container, bukan
-  // di-unmount) — beda dari asumsi lama "1 baris tombol per grupKelas".
-  // Kode lama cuma nge-add('active') ke SATU node persis yang diklik
-  // (elTombolAktif); kalau yang diklik itu salinan milik tab LAIN, salinan
-  // pill di tab yang BARU jadi aktif tidak pernah kebagian class 'active'
-  // sama sekali (=tidak burgundy). Diperbaiki: kalau tombolnya punya
-  // data-target, samakan 'active' ke SEMUA salinan yang data-target-nya
-  // cocok (menutup celah ini di semua grup, tidak cuma Bahan) — tombol yang
-  // TIDAK punya data-target (mis. "Riwayat All Absensi" di index.html,
-  // sengaja tanpa riwayat) tetap jatuh ke perilaku lama (exact node).
+  // #5 . Root cause: retrofit pill tab DI DALAM tiap kartu (lihat
+  // js/vue-persiapan-bahan.js TAB_DEFS_BAHAN, dipakai juga pola sama di
+  // Sewing/Webbing/Finishing/Vendor/Masalah) bikin >1 SALINAN baris tombol
+  // '.{grupKelas}-btn' hidup bersamaan di DOM (semua Vue app-nya mount-once,
+  // disembunyikan lewat CSS `hidden` di container, bukan di-unmount) — beda dari
+  // asumsi lama "1 baris tombol per grupKelas". Kode lama cuma nge-add('active')
+  // ke SATU node persis yang diklik (elTombolAktif); kalau yang diklik itu
+  // salinan milik tab LAIN, salinan pill di tab yang BARU jadi aktif tidak
+  // pernah kebagian class 'active' sama sekali (=tidak burgundy). Diperbaiki:
+  // kalau tombolnya punya data-target, samakan 'active' ke SEMUA salinan yang
+  // data-target-nya cocok (menutup celah ini di semua grup, tidak cuma Bahan) —
+  // tombol yang TIDAK punya data-target (mis. "Riwayat All Absensi" di
+  // index.html, sengaja tanpa riwayat) tetap jatuh ke perilaku lama (exact
+  // node).
   const salinanAktif = targetId ? document.querySelectorAll('.' + grupKelas + '-btn[data-target="' + targetId + '"]') : [];
   if (salinanAktif.length > 0) salinanAktif.forEach(btn => btn.classList.add('active'));
   else if (elTombolAktif) elTombolAktif.classList.add('active');
@@ -434,61 +423,56 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
   }
 
   if (window.aturHeaderKonteks) {
-    // BARU (29 Agt 2026) — 'sub-persiapan-produksi' + 5 sub-jalur (vendor/
+    // 'sub-persiapan-produksi' + 5 sub-jalur (vendor/
     // bahan/sewing/webbing/finishing) -> 'tab-persiapan-produksi' (grup
-    // top-level baru). 'sub-zh-persiapanproduksi' (versi LAMA, nested di
-    // Zevanic House) DIHAPUS dari peta ini — tombolnya sudah dicopot dari
-    // index.html, tidak ada lagi yang memanggilnya.
-    // BARU (30 Agt 2026) — 'sub-pesanan' -> 'tab-pesanan' (grup top-level
-    // baru, lihat js/vue-pesanan.js).
-    // BARU (7 Sep 2026 malam) — 'sub-scan-cetak' + 'sub-scancetak-stok-tahap'
-    // -> 'tab-scan-cetak' (grup top-level baru, lihat js/vue-scan-cetak.js).
-    // 'sub-zh-scan' (versi LAMA, nested di Zevanic House) DIHAPUS dari peta
-    // ini — Scan Opname/Persiapan sudah pindah keluar dari Zevanic House.
-    // BARU (7 Sep 2026, §5.18) — 'sub-pp-masalah-tahap' -> 'tab-persiapan-
-    // produksi' (Masalah, 6 pos sejajar Bahan/Sewing/Webbing/Finishing/
-    // Vendor/Disiapkan di grup yang sama, lihat js/vue-pp-masalah.js).
-    // DIROMBAK (9 Sep 2026) — 'sub-zh-stock' DULU anak 'tab-zevanic-house',
-    // SEKARANG anak 'tab-stok-pembelian' (grup top-level baru, dipisah dari
-    // Zevanic House). Class/id di dalamnya (sub-zh-stock-*) TIDAK berubah.
+    // top-level baru). 'sub-zh-persiapanproduksi' (versi LAMA, nested di Zevanic
+    // House) DIHAPUS dari peta ini — tombolnya sudah dicopot dari index.html,
+    // tidak ada lagi yang memanggilnya. BARU — 'sub-pesanan' -> 'tab-pesanan'
+    // (grup top-level baru, lihat js/vue-pesanan.js). BARU — 'sub-scan-cetak' +
+    // 'sub-scancetak-stok-tahap' -> 'tab-scan-cetak' (grup top-level baru, lihat
+    // js/vue-scan-cetak.js). 'sub-zh-scan' (versi LAMA, nested di Zevanic House)
+    // DIHAPUS dari peta ini — Scan Opname/Persiapan sudah pindah keluar dari
+    // Zevanic House. BARU — 'sub-pp-masalah-tahap' -> 'tab-persiapan- produksi'
+    // (Masalah, 6 pos sejajar Bahan/Sewing/Webbing/Finishing/ Vendor/Disiapkan
+    // di grup yang sama, lihat js/vue-pp-masalah.js) 'sub-zh-stock' DULU anak
+    // 'tab-zevanic-house', SEKARANG anak 'tab-stok-pembelian' (grup top-level
+    // baru, dipisah dari Zevanic House). Class/id di dalamnya (sub-zh-stock-*)
+    // TIDAK berubah.
     const petaTabIndukPerGrup = { 'sub-absensi': 'tab-admin-acc', 'sub-keuangan': 'tab-keuangan', 'sub-karyawan': 'tab-superuser', 'sub-zevanic-house': 'tab-zevanic-house', 'sub-zh-databahan': 'tab-zevanic-house', 'sub-zh-suplayer': 'tab-zevanic-house', 'sub-zh-stock': 'tab-stok-pembelian', 'sub-zh-config': 'tab-zevanic-house', 'sub-pesanan': 'tab-pesanan', 'sub-persiapan-produksi': 'tab-persiapan-produksi', 'sub-pp-vendor-tahap': 'tab-persiapan-produksi', 'sub-pp-bahan-tahap': 'tab-persiapan-produksi', 'sub-pp-sewing-tahap': 'tab-persiapan-produksi', 'sub-pp-webbing-tahap': 'tab-persiapan-produksi', 'sub-pp-finishing-tahap': 'tab-persiapan-produksi', 'sub-pp-masalah-tahap': 'tab-persiapan-produksi', 'sub-scan-cetak': 'tab-scan-cetak', 'sub-scancetak-stok-tahap': 'tab-scan-cetak',
-      // BARU (7 Sep 2026 malam lanjut lagi) — 'sub-proses-produksi' +
-      // 'sub-pr-cutting-tahap' -> 'tab-proses-produksi' (grup top-level baru,
-      // lihat js/vue-pp-cutting.js). BARU LAGI (7 Sep 2026 malam, "lanjut
-      // lagi" #2) — 'sub-pr-serie-tahap' ditambahkan sekarang Serie sudah
-      // fungsional (js/vue-pp-serie.js, 11 tab). BARU LAGI ("lanjut lagi" #3)
-      // — 'sub-pr-sewing-tahap' ditambahkan sekarang Sewing sudah fungsional
-      // (js/vue-pp-sewing.js, 5 tab). BARU LAGI ("lanjut lagi" #4, 7 Sep 2026
-      // — sesi ini) — 'sub-pr-finishing-tahap' (5 tab) + 'sub-pr-finishing-sedang'
-      // (grup nested di dalam tab 4.2 "Sedang Finishing", 4 sub-tab
-      // QC/Steam/Folding/Packing) ditambahkan sekarang Finishing sudah
-      // fungsional (js/vue-pp-finishing.js). BARU LAGI ("lanjut lagi" #5, 7
-      // Sep 2026 — sesi ini) — 'sub-pr-gudang-tahap' (4 tab) ditambahkan
-      // sekarang Gudang Barang Jadi sudah fungsional (js/vue-pp-gudang.js).
-      // BARU LAGI ("lanjut lagi" #6, 7 Sep 2026 — sesi ini) — 'sub-pp-belanja-
+      // 'sub-proses-produksi' + 'sub-pr-cutting-tahap' -> 'tab-proses-produksi'
+      // (grup top-level baru, lihat js/vue-pp-cutting.js). BARU LAGI —
+      // 'sub-pr-serie-tahap' ditambahkan sekarang Serie sudah fungsional
+      // (js/vue-pp-serie.js, 11 tab). BARU LAGI ("lanjut lagi" #3) —
+      // 'sub-pr-sewing-tahap' ditambahkan sekarang Sewing sudah fungsional
+      // (js/vue-pp-sewing.js, 5 tab). BARU LAGI — 'sub-pr-finishing-tahap' (5
+      // tab) + 'sub-pr-finishing-sedang' (grup nested di dalam tab 4.2 "Sedang
+      // Finishing", 4 sub-tab QC/Steam/Folding/Packing) ditambahkan sekarang
+      // Finishing sudah fungsional (js/vue-pp-finishing.js). BARU LAGI —
+      // 'sub-pr-gudang-tahap' (4 tab) ditambahkan sekarang Gudang Barang Jadi
+      // sudah fungsional (js/vue-pp-gudang.js). BARU LAGI — 'sub-pp-belanja-
       // tahap' ditambahkan sekarang Persiapan Belanja sudah fungsional
       // (js/vue-persiapan-belanja.js, folder terakhir grup Persiapan Produksi).
       'sub-proses-produksi': 'tab-proses-produksi', 'sub-pr-cutting-tahap': 'tab-proses-produksi', 'sub-pr-serie-tahap': 'tab-proses-produksi', 'sub-pr-sewing-tahap': 'tab-proses-produksi', 'sub-pr-finishing-tahap': 'tab-proses-produksi', 'sub-pr-finishing-sedang-sub': 'tab-proses-produksi', 'sub-pr-gudang-tahap': 'tab-proses-produksi', 'sub-pp-belanja-tahap': 'tab-persiapan-produksi' };
     window.aturHeaderKonteks(petaTabIndukPerGrup[grupKelas] || 'tab-lainnya', targetId);
   }
 
-  // Perbaikan bug "Memuat data..." macet — TAPI hemat baca Firestore:
-  // ambil data cuma pas sub-tab-nya BENAR-BENAR dibuka orang (bukan buat
-  // SEMUA orang pas login, termasuk operator yang tidak punya akses ke
-  // menu ini sama sekali). Di titik ini juga sudah pasti lama setelah
-  // login berhasil, jadi tidak mungkin lagi kena masalah timing Auth.
+  // Perbaikan bug "Memuat data.." macet — TAPI hemat baca Firestore: ambil data
+  // cuma pas sub-tab-nya BENAR-BENAR dibuka orang (bukan buat SEMUA orang pas
+  // login, termasuk operator yang tidak punya akses ke menu ini sama sekali). Di
+  // titik ini juga sudah pasti lama setelah login berhasil, jadi tidak mungkin
+  // lagi kena masalah timing Auth.
   //
   // PERBAIKAN BESAR (menggantikan cara lama window.subTabSudahDimuat):
-  // sebelumnya komponennya SUDAH ter-mount dari awal (cuma disembunyikan
-  // CSS), jadi onMounted-nya tetap jalan sendiri saat halaman dibuka —
-  // walau ada pelacakan "sekali per sesi" di SINI, itu cuma mencegah
-  // panggilan ULANG, TIDAK mencegah panggilan PERTAMA yang otomatis dari
-  // onMounted saat mount awal. Sekarang componentnya BARU di-mount() lewat
-  // window.pastikanMountXxx() di titik INI — jadi kalau orang tidak pernah
-  // klik ke sub-tab ini, komponennya tidak pernah lahir sama sekali, dan
-  // tidak pernah mencoba baca Firestore sama sekali. pastikanMountXxx()
-  // sendiri sudah idempoten (aman dipanggil berkali-kali, cuma mount()
-  // sekali di panggilan pertama), jadi tidak perlu pelacakan manual lagi.
+  // sebelumnya komponennya SUDAH ter-mount dari awal (cuma disembunyikan CSS),
+  // jadi onMounted-nya tetap jalan sendiri saat halaman dibuka — walau ada
+  // pelacakan "sekali per sesi" di SINI, itu cuma mencegah panggilan ULANG,
+  // TIDAK mencegah panggilan PERTAMA yang otomatis dari onMounted saat mount
+  // awal. Sekarang componentnya BARU di-mount lewat window.pastikanMountXxx di
+  // titik INI — jadi kalau orang tidak pernah klik ke sub-tab ini, komponennya
+  // tidak pernah lahir sama sekali, dan tidak pernah mencoba baca Firestore sama
+  // sekali. pastikanMountXxx sendiri sudah idempoten (aman dipanggil
+  // berkali-kali, cuma mount sekali di panggilan pertama), jadi tidak perlu
+  // pelacakan manual lagi.
   const petaMount = {
     'sub-absensi-config': 'pastikanMountConfigAbsensi',
     'sub-absensi-jadwal': 'pastikanMountPenjadwalan',
@@ -498,24 +482,25 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-keuangan-antrean': 'pastikanMountAntreanReimburse',
     'sub-keuangan-kendaraan': 'pastikanMountMasterKendaraan',
     'sub-keuangan-kategori': 'pastikanMountMasterKeuangan',
-    // (9 Sep 2026) — 'sub-keuangan-riwayat-bensin'/'-servis' dihapus dari
-    // sini juga, gabung ke 'sub-keuangan-riwayat-reimburse' (kini "Riwayat
-    // Keuangan"). Lihat index.html + js/vue-reimburse.js.
+    // 'sub-keuangan-riwayat-bensin'/'-servis' dihapus dari sini juga, gabung ke
+    // 'sub-keuangan-riwayat-reimburse' (kini "Riwayat Keuangan"). Lihat
+    // index.html + js/vue-reimburse.js.
     'sub-keuangan-riwayat-reimburse': 'pastikanMountRiwayatReimburse',
     'sub-karyawan-antrean': 'pastikanMountAntreanDakar',
     'sub-karyawan-config': 'pastikanMountConfigKaryawan',
     'sub-karyawan-info': 'pastikanMountConfigInfo',
     'sub-karyawan-data': 'pastikanMountDaftarKaryawan',
-    // GABUNG (9 Sep 2026) — dulu 2 entry terpisah ('sub-karyawan-akses' ->
-    // pastikanMountConfigAkses, 'sub-karyawan-hakakses' -> pastikanMountHakAkses),
-    // sekarang 1 subtab dengan 3 pill tab di dalamnya (Role/Jabatan/Assign).
-    // pastikanMountAksesKeamanan (js/vue-config-akses.js) memanggil ketiga
-    // fungsi mount lama SEKALIGUS — masing-masing tetap idempoten (aman
-    // dipanggil berkali-kali), jadi tidak ada resiko mount dobel.
+    // GABUNG — dulu 2 entry terpisah ('sub-karyawan-akses' ->
+    // pastikanMountConfigAkses, 'sub-karyawan-hakakses' ->
+    // pastikanMountHakAkses), sekarang 1 subtab dengan 3 pill tab di dalamnya
+    // (Role/Jabatan/Assign). pastikanMountAksesKeamanan (js/vue-config-akses.js)
+    // memanggil ketiga fungsi mount lama SEKALIGUS — masing-masing tetap
+    // idempoten (aman dipanggil berkali-kali), jadi tidak ada resiko mount
+    // dobel.
     'sub-karyawan-akseskeamanan': 'pastikanMountAksesKeamanan',
-    // BARU (27 Agt 2026, §26.1) — Config (6 tab child). BARU (28 Agt 2026) —
-    // tab ke-7 "Jenis Produk", pola sama seperti "Data Ukuran". BARU (28 Agt
-    // 2026) — tab ke-8 "Data Komponen", pola sama seperti "Data Warna".
+    // Config (6 tab child). BARU — tab ke-7 "Jenis Produk", pola sama seperti
+    // "Data Ukuran". BARU — tab ke-8 "Data Komponen", pola sama seperti "Data
+    // Warna".
     'sub-zh-config-jenisbahan': 'pastikanMountConfigJenisBahan',
     'sub-zh-config-jenisaksesoris': 'pastikanMountConfigJenisAksesoris',
     'sub-zh-config-satuan': 'pastikanMountConfigSatuan',
@@ -524,73 +509,61 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-zh-config-jenisproduk': 'pastikanMountConfigJenisProduk',
     'sub-zh-config-komponen': 'pastikanMountConfigKomponen',
     'sub-zh-config-tahappersiapan': 'pastikanMountConfigTahapPersiapan',
-    // GANTI (5 Sep 2026) — dulu 'sub-zh-config-suplayer': 'pastikanMountConfigSuplayer'
-    // (CRUD Suplayer generik, PINDAH ke 3 entry Master Suplayer di bawah).
-    // Tab ini sekarang "TLC & Prefix" (AppConfigTlc, koleksi master_tlc BARU).
+    // dulu 'sub-zh-config-suplayer': 'pastikanMountConfigSuplayer' (CRUD
+    // Suplayer generik, PINDAH ke 3 entry Master Suplayer di bawah). Tab ini
+    // sekarang "TLC & Prefix" (AppConfigTlc, koleksi master_tlc BARU).
     'sub-zh-config-tlc': 'pastikanMountConfigTlc',
-    // DIPINDAH (7 Sep 2026 malam) — 'sub-zh-config-riwayatpin':
-    // 'pastikanMountConfigRiwayatPin' pindah ke 'sub-scan-cetak-pin' di
-    // bawah (lihat js/vue-scan-cetak.js), tombolnya sudah dicopot dari
-    // index.html.
+    // DIPINDAH — 'sub-zh-config-riwayatpin': 'pastikanMountConfigRiwayatPin'
+    // pindah ke 'sub-scan-cetak-pin' di bawah (lihat js/vue-scan-cetak.js),
+    // tombolnya sudah dicopot dari index.html.
     'sub-zh-databahan-entry': 'pastikanMountBahanAksesorisEntry',
     'sub-zh-databahan-list': 'pastikanMountBahanAksesorisList',
-    // DIHAPUS (9 Sep 2026, rombak ke-2) — 'sub-zevanic-house-persiapan':
-    // 'pastikanMountPersiapanMasalah' (js/vue-persiapan-masalah.js dihapus
-    // total, lihat komentar index.html navgrp-zevanic).
-    // BARU (5 Sep 2026) — Zevanic House > Master Suplayer (3 sub-tab), lihat
-    // js/vue-master-suplayer.js. GANTI TOTAL dari 'sub-zh-stock-alias' di
-    // bawah (Alias Pembelian, DIPENSIUNKAN dari sini — entry-nya DIHAPUS,
-    // tab & mount div lamanya sudah dicopot dari index.html).
+    // DIHAPUS — 'sub-zevanic-house-persiapan': 'pastikanMountPersiapanMasalah'
+    // (js/vue-persiapan-masalah.js dihapus total, lihat komentar index.html
+    // navgrp-zevanic). BARU — Zevanic House > Master Suplayer (3 sub-tab), lihat
+    // js/vue-master-suplayer.js dari 'sub-zh-stock-alias' di bawah (Alias
+    // Pembelian, DIPENSIUNKAN dari sini — entry-nya DIHAPUS, tab & mount div
+    // lamanya sudah dicopot dari index.html).
     'sub-zh-suplayer-entry': 'pastikanMountSuplayerEntry',
     'sub-zh-suplayer-alias-moq': 'pastikanMountSuplayerAliasMoq',
     'sub-zh-suplayer-petakan': 'pastikanMountSuplayerPetakan',
-    // DIHAPUS (7 Sep 2026) — 'sub-zh-stock-listorder': 'pastikanMountListOrderBelanja'
-    // (tab & mount "List Order Belanja" dihapus total, lihat vue-stock-pembelian.js).
+    // DIHAPUS — 'sub-zh-stock-listorder': 'pastikanMountListOrderBelanja' (tab &
+    // mount "List Order Belanja" dihapus total, lihat vue-stock-pembelian.js).
     'sub-zh-stock-notaorder': 'pastikanMountNotaOrderBelanja',
     'sub-zh-stock-riwayat': 'pastikanMountRiwayatHargaPembelian',
     'sub-zh-stock-kartustok': 'pastikanMountKartuStok',
-    // BARU (7 Sep 2026) — Rak Penyimpanan dipindah ke sini (dulu
-    // 'sub-zh-databahan-rak' di Data Bahan & Aksesoris), lihat js/vue-
-    // rak-penyimpanan.js.
+    // Rak Penyimpanan dipindah ke sini (dulu 'sub-zh-databahan-rak' di Data
+    // Bahan & Aksesoris), lihat js/vue- rak-penyimpanan.js.
     'sub-zh-stock-rak': 'pastikanMountRakPenyimpanan',
-    // BARU (7 Sep 2026, task #95) — Repack Komponen Acc, lihat js/vue-
-    // repack-komponen-acc.js.
+    // Repack Komponen Acc, lihat js/vue- repack-komponen-acc.js.
     'sub-zh-stock-repack': 'pastikanMountRepackKomponenAcc',
-    // DIPENSIUNKAN (28 Agt 2026, §41.2) — dulu 'sub-zh-stock-cetaklabel':
-    // 'pastikanMountCetakLabel' di sini, tab-nya sudah dihapus dari
-    // index.html (Cetak Label pindah jadi tombol di List Bahan & Aksesoris).
-    // BARU (27 Agt 2026, §28) — Master Produk (BOM).
+    // DIPENSIUNKAN — dulu 'sub-zh-stock-cetaklabel': 'pastikanMountCetakLabel'
+    // di sini, tab-nya sudah dihapus dari index.html (Cetak Label pindah jadi
+    // tombol di List Bahan & Aksesoris). BARU — Master Produk (BOM).
     'sub-zh-produk-entry': 'pastikanMountProdukEntry',
     'sub-zh-produk-list': 'pastikanMountProdukList',
-    // BARU (7 Sep 2026) — Master Produk > HPP (wireframe step 2.3), Desktop-only.
+    // Master Produk > HPP (wireframe step 2.3), Desktop-only.
     'sub-zh-produk-hpp': 'pastikanMountProdukHpp',
-    // BARU (5 Sep 2026, RENCANA-REKONSTRUKSI-2026-09.md §6 langkah 4) —
     // Master Pelanggan, single-view (lihat js/vue-master-pelanggan.js).
     'sub-zevanic-house-pelanggan': 'pastikanMountMasterPelanggan',
-    // DIPENSIUNKAN (30 Agt 2026, fitur "Pesanan") — dulu di sini
-    // 'sub-zevanic-house-orderspk': 'pastikanMountOrderSpk', tombol & div
-    // kontennya sudah dicopot dari index.html, GANTI TOTAL oleh
-    // 'sub-pesanan-menunggu' di bawah (lihat js/vue-pesanan.js).
-    // DIPENSIUNKAN (29 Agt 2026, koreksi arsitektur menu) — 5 entry lama
-    // 'sub-zh-persiapanproduksi-*' -> pastikanMountPersiapanProduksi* DIHAPUS
-    // dari sini, tombolnya sudah dicopot dari index.html (lihat js/vue-
-    // persiapan-produksi.js, DITINGGALKAN tidak lagi dimuat).
-    // BARU (29 Agt 2026) — Persiapan Produksi V2 (grup top-level baru):
-    // "Perlu Disiapkan" (Fase 1) + jalur Bahan (Fase 2) + 3 jalur Acc
-    // Sewing/Webbing/Finishing (Fase 3) + jalur Vendor (Fase 4, 29 Agt
-    // 2026 malam — semua parametrisasi JalurTahapManager yang SAMA, tidak
-    // ada komponen baru) sekarang SEMUA punya komponen Vue sungguhan.
-    // Jalur Vendor deteksi otomatis dari BOM MASIH belum ada (§5.C
-    // RENCANA doc sebagian terbuka) — sementara cuma bisa diaktifkan
-    // manual (checkbox di "Perlu Disiapkan"), tapi tahapnya sendiri
-    // (scan dst) SUDAH fungsional penuh.
-    // Lihat js/vue-persiapan-produksi-v2.js & STATUS-PROYEK.md §44.13/
-    // §44.14/§44.19/§44.20.
+    // DIPENSIUNKAN — dulu di sini 'sub-zevanic-house-orderspk':
+    // 'pastikanMountOrderSpk', tombol & div kontennya sudah dicopot dari
+    // index.html oleh 'sub-pesanan-menunggu' di bawah (lihat js/vue-pesanan.js).
+    // DIPENSIUNKAN — 5 entry lama 'sub-zh-persiapanproduksi-*' ->
+    // pastikanMountPersiapanProduksi* DIHAPUS dari sini, tombolnya sudah dicopot
+    // dari index.html (lihat js/vue- persiapan-produksi.js, DITINGGALKAN tidak
+    // lagi dimuat). BARU — Persiapan Produksi V2 (grup top-level baru): "Perlu
+    // Disiapkan" (Fase 1) + jalur Bahan (Fase 2) + 3 jalur Acc
+    // Sewing/Webbing/Finishing (Fase 3) + jalur Vendor sekarang SEMUA punya
+    // komponen Vue sungguhan. Jalur Vendor deteksi otomatis dari BOM MASIH belum
+    // ada (§5.C RENCANA doc sebagian terbuka) — sementara cuma bisa diaktifkan
+    // manual (checkbox di "Perlu Disiapkan"), tapi tahapnya sendiri (scan dst)
+    // SUDAH fungsional penuh. Lihat js/vue-persiapan-produksi-v2.js &
+    // STATUS-PROYEK.md §44.13/ §44.14/§44.19/§44.20.
     'sub-pp-disiapkan': 'pastikanMountPpDisiapkan',
-    // GANTI (31 Agt 2026, wireframe handoff "Persiapan Produksi - Bahan")
-    // — jalur Bahan sekarang js/vue-persiapan-bahan.js (kartu per bahan +
-    // warna), BUKAN lagi JalurTahapManager generik. 2 tab pertama ganti
-    // nama div (Perlu/Sedang DISIAPKAN, bukan Diproses).
+    // jalur Bahan sekarang js/vue-persiapan-bahan.js (kartu per bahan + warna),
+    // BUKAN lagi JalurTahapManager generik. 2 tab pertama ganti nama div
+    // (Perlu/Sedang DISIAPKAN, bukan Diproses).
     'sub-pp-bahan-perludisiapkan': 'pastikanMountPpBahanPerluDisiapkan',
     'sub-pp-bahan-sedangdisiapkan': 'pastikanMountPpBahanSedangDisiapkan',
     'sub-pp-bahan-perludikirim': 'pastikanMountPpBahanPerluDikirim',
@@ -616,8 +589,8 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-pp-vendor-perludikirim': 'pastikanMountPpVendorPerluDikirim',
     'sub-pp-vendor-sedangdikirim': 'pastikanMountPpVendorSedangDikirim',
     'sub-pp-vendor-selesai': 'pastikanMountPpVendorSelesai',
-    // BARU (7 Sep 2026, §5.18) — Persiapan Produksi > Masalah, 7 tahap
-    // (skema TRB baru), lihat js/vue-pp-masalah.js.
+    // Persiapan Produksi > Masalah, 7 tahap (skema TRB baru), lihat
+    // js/vue-pp-masalah.js.
     'sub-pp-masalah-perludiajukan': 'pastikanMountPpMasalahPerluDiajukan',
     'sub-pp-masalah-menunggusetuju': 'pastikanMountPpMasalahMenungguSetuju',
     'sub-pp-masalah-perludisiapkan': 'pastikanMountPpMasalahPerluDisiapkan',
@@ -625,29 +598,27 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-pp-masalah-perludikirim': 'pastikanMountPpMasalahPerluDiKirim',
     'sub-pp-masalah-sedangdikirim': 'pastikanMountPpMasalahSedangDiKirim',
     'sub-pp-masalah-selesai': 'pastikanMountPpMasalahSelesai',
-    // DIPINDAH (7 Sep 2026 malam) — Scan Opname/Persiapan pindah dari
+    // DIPINDAH — Scan Opname/Persiapan pindah dari
     // 'sub-zh-scan-opname'/'sub-zh-scan-persiapan' (Zevanic House) ke
-    // 'sub-scancetak-stok-opname'/'sub-scancetak-stok-persiapan' (menu
-    // top-level baru "Scan & Cetak"). Fungsi mount TIDAK berubah.
+    // 'sub-scancetak-stok-opname'/'sub-scancetak-stok-persiapan' (menu top-level
+    // baru "Scan & Cetak"). Fungsi mount TIDAK berubah.
     'sub-scancetak-stok-opname': 'pastikanMountScanOpname',
     'sub-scancetak-stok-persiapan': 'pastikanMountScanPersiapan',
-    // BARU (7 Sep 2026 malam) — Scan & Cetak > PIN (Riwayat PIN, dipindah
-    // dari Zevanic House > Config), lihat js/vue-scan-cetak.js.
+    // Scan & Cetak > PIN (Riwayat PIN, dipindah dari Zevanic House > Config),
+    // lihat js/vue-scan-cetak.js.
     'sub-scan-cetak-pin': 'pastikanMountScanCetakRiwayatPin',
-    // BARU (8 Sep 2026, audit kode proyek) — Scan & Cetak > Cetak, sekarang
-    // juga memuat AppPengaturanCetak (ukuran kertas/posisi QR/rincian
-    // tambahan per jenis cetak), lihat js/vue-pengaturan-cetak.js.
+    // Scan & Cetak > Cetak, sekarang juga memuat AppPengaturanCetak (ukuran
+    // kertas/posisi QR/rincian tambahan per jenis cetak), lihat
+    // js/vue-pengaturan-cetak.js.
     'sub-scan-cetak-cetak': 'pastikanMountPengaturanCetak',
-    // REKONSTRUKSI (7 Sep 2026, lihat js/vue-pesanan.js utk latar belakang
-    // lengkap): Penjualan Kasir (1.1/1.2), Menunggu Proses (2.1, keputusan
+    // REKONSTRUKSI: Penjualan Kasir (1.1/1.2), Menunggu Proses (2.1, keputusan
     // QO Owner/PIC Owner), Daftar Pesanan (3.1-3.2.1, BARU, ganti 3 ringkasan
     // lama), Transaksi Keuangan (4.1-4.2.2, BARU TOTAL, piutang).
     'sub-pesanan-kasir': 'pastikanMountPesananKasir',
     'sub-pesanan-menunggu': 'pastikanMountPesananMenunggu',
     'sub-pesanan-daftar': 'pastikanMountPesananDaftar',
     'sub-pesanan-transaksi': 'pastikanMountPesananTransaksi',
-    // BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi > Cutting, 7
-    // tahap, lihat js/vue-pp-cutting.js.
+    // Proses Produksi > Cutting, 7 tahap, lihat js/vue-pp-cutting.js.
     'sub-pr-cutting-perludiproses': 'pastikanMountCuttingPerluDiProses',
     'sub-pr-cutting-sedangampar': 'pastikanMountCuttingSedangAmpar',
     'sub-pr-cutting-sedangpola': 'pastikanMountCuttingSedangPola',
@@ -655,8 +626,8 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-pr-cutting-perludikirim': 'pastikanMountCuttingPerluDiKirim',
     'sub-pr-cutting-sedangdikirim': 'pastikanMountCuttingSedangDiKirim',
     'sub-pr-cutting-selesai': 'pastikanMountCuttingSelesai',
-    // BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" #2) — Proses
-    // Produksi > Serie, 11 tahap (hub distribusi), lihat js/vue-pp-serie.js.
+    // Proses Produksi > Serie, 11 tahap (hub distribusi), lihat
+    // js/vue-pp-serie.js.
     'sub-pr-serie-perludiproses': 'pastikanMountSeriePerluDiProses',
     'sub-pr-serie-sedangdiproses': 'pastikanMountSerieSedangDiProses',
     'sub-pr-serie-perludikirim': 'pastikanMountSeriePerluDiKirim',
@@ -668,16 +639,14 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-pr-serie-terimafinishing': 'pastikanMountSerieTerimaFinishing',
     'sub-pr-serie-kirimgudang': 'pastikanMountSerieKirimGudang',
     'sub-pr-serie-selesai': 'pastikanMountSerieSelesai',
-    // BARU (7 Sep 2026 malam lanjut lagi, "lanjut lagi" #3) — Proses
-    // Produksi > Sewing, 5 tahap, lihat js/vue-pp-sewing.js.
+    // Proses Produksi > Sewing, 5 tahap, lihat js/vue-pp-sewing.js.
     'sub-pr-sewing-perludiproses': 'pastikanMountSewingPerluDiProses',
     'sub-pr-sewing-sedangsewing': 'pastikanMountSewingSedangSewing',
     'sub-pr-sewing-perludikirim': 'pastikanMountSewingPerluDikirim',
     'sub-pr-sewing-sedangkirim': 'pastikanMountSewingSedangKirim',
     'sub-pr-sewing-selesai': 'pastikanMountSewingSelesai',
-    // BARU ("lanjut lagi" #4, 7 Sep 2026 — sesi ini) — Proses Produksi >
-    // Finishing, 5 tab (4.2 "Sedang Finishing" punya 4 sub-tab nested
-    // QC/Steam/Folding/Packing), lihat js/vue-pp-finishing.js.
+    // Proses Produksi > Finishing, 5 tab (4.2 "Sedang Finishing" punya 4 sub-tab
+    // nested QC/Steam/Folding/Packing), lihat js/vue-pp-finishing.js.
     'sub-pr-finishing-perludiproses': 'pastikanMountFinishingPerluDiProses',
     'sub-pr-finishing-sedangqc': 'pastikanMountFinishingSedangQc',
     'sub-pr-finishing-sedangsteam': 'pastikanMountFinishingSedangSteam',
@@ -686,14 +655,13 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     'sub-pr-finishing-perludikirim': 'pastikanMountFinishingPerluDikirim',
     'sub-pr-finishing-sedangkirim': 'pastikanMountFinishingSedangKirim',
     'sub-pr-finishing-selesai': 'pastikanMountFinishingSelesai',
-    // BARU ("lanjut lagi" #5, 7 Sep 2026 — sesi ini) — Proses Produksi >
-    // Gudang Barang Jadi, 4 tab, lihat js/vue-pp-gudang.js.
+    // Proses Produksi > Gudang Barang Jadi, 4 tab, lihat js/vue-pp-gudang.js.
     'sub-pr-gudang-perludisimpan': 'pastikanMountGudangPerluDisimpan',
     'sub-pr-gudang-stoktersedia': 'pastikanMountGudangStokTersedia',
     'sub-pr-gudang-riwayatkeluar': 'pastikanMountGudangRiwayatKeluar',
     'sub-pr-gudang-scanopname': 'pastikanMountGudangScanOpname',
-    // BARU ("lanjut lagi" #6, 7 Sep 2026 — sesi ini) — Persiapan Produksi >
-    // Persiapan Belanja, 4 tab, lihat js/vue-persiapan-belanja.js.
+    // Persiapan Produksi > Persiapan Belanja, 4 tab, lihat
+    // js/vue-persiapan-belanja.js.
     'sub-pp-belanja-persiapanadmin': 'pastikanMountPpBelanjaPersiapanAdmin',
     'sub-pp-belanja-menungguacc': 'pastikanMountPpBelanjaMenungguAcc',
     'sub-pp-belanja-listorderdriver': 'pastikanMountPpBelanjaListOrderDriver',
@@ -703,34 +671,33 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
   if (namaFungsiMount && window[namaFungsiMount]) window[namaFungsiMount]();
 };
 
-// =========================================================================
-// TOMBOL BACK BROWSER/HP (History API) — BARU 23 Agt 2026, lihat
-// STATUS-PROYEK.md §19.4. SEBELUM ini app TIDAK PERNAH pakai Browser
-// History API sama sekali — tombol back HP langsung "keluar" ke riwayat
-// browser SEBELUM app ini dibuka (biasanya hasil pencarian terakhir),
-// alih-alih kembali ke tab yang sebelumnya dibuka DI DALAM app.
+
+// TOMBOL BACK BROWSER/HP (History API) — BARU, lihat STATUS-PROYEK.md §19.4.
+// SEBELUM ini app TIDAK PERNAH pakai Browser History API sama sekali — tombol
+// back HP langsung "keluar" ke riwayat browser SEBELUM app ini dibuka (biasanya
+// hasil pencarian terakhir), alih-alih kembali ke tab yang sebelumnya dibuka DI
+// DALAM app.
 //
-// Cara kerja: setiap window.pindahTab() (di atas) mencatat 1 entry riwayat
-// browser (kecuali dipanggil dari sini sendiri). Listener di bawah ini
-// menangkap event 'popstate' (browser back/forward) dan memanggil balik
-// window.pindahTab() dengan tab yang tersimpan di entry itu, DENGAN flag
-// _dariPopstate=true supaya tidak ikut push lagi (baca komentar di
-// pindahTab). Kalau riwayatnya sudah habis (state null, berarti sudah
-// sampai entry SEBELUM app ini dibuka), tidak ada yang dilakukan di sini —
-// biarkan browser lanjut keluar app seperti biasa, itu sudah benar.
+// Cara kerja: setiap window.pindahTab (di atas) mencatat 1 entry riwayat browser
+// (kecuali dipanggil dari sini sendiri). Listener di bawah ini menangkap event
+// 'popstate' (browser back/forward) dan memanggil balik window.pindahTab dengan
+// tab yang tersimpan di entry itu, DENGAN flag _dariPopstate=true supaya tidak
+// ikut push lagi (baca komentar di pindahTab). Kalau riwayatnya sudah habis
+// (state null, berarti sudah sampai entry SEBELUM app ini dibuka), tidak ada
+// yang dilakukan di sini — biarkan browser lanjut keluar app seperti biasa, itu
+// sudah benar.
 //
-// DIPERLUAS (28 Agt 2026, §39) — sekarang JUGA merestorasi sub-tab/child-
-// tab (`state.subTabs`, array {grupKelas,targetId}, urutan PALING LUAR ke
-// PALING DALAM, disimpan sengaja begitu supaya elemen DOM yang lebih dalam
-// tidak keburu ke-hidden oleh induknya). `window._riwayatNavAktif` DIISI
-// LANGSUNG dari `state` (bukan dibangun ulang) supaya klik berikutnya
-// (bukan dari popstate) melanjutkan dari snapshot yang benar. TETAP TIDAK
-// MENCAKUP (sengaja, lihat §19.4): perpindahan LAYAR/screen (pindahLayar —
-// Login, Kamera, Buat Password, Absensi QR) yang sudah punya alur "Batal"/
-// pengaman sendiri. Kalau back ditekan SAAT sedang di layar selain
-// Dashboard (misal Kamera), listener ini tetap boleh konsumsi 1 langkah
-// riwayat browser di belakang layar (tidak berbahaya, cuma update tab yang
-// sedang tersembunyi) — TIDAK mengubah screen yang sedang tampil.
+// DIPERLUAS — sekarang JUGA merestorasi sub-tab/child- tab (`state.subTabs`,
+// array {grupKelas,targetId}, urutan PALING LUAR ke PALING DALAM, disimpan
+// sengaja begitu supaya elemen DOM yang lebih dalam tidak keburu ke-hidden oleh
+// induknya). `window._riwayatNavAktif` DIISI LANGSUNG dari `state` (bukan
+// dibangun ulang) supaya klik berikutnya (bukan dari popstate) melanjutkan dari
+// snapshot yang benar. TETAP TIDAK MENCAKUP (sengaja, lihat §19.4): perpindahan
+// LAYAR/screen (pindahLayar — Login, Kamera, Buat Password, Absensi QR) yang
+// sudah punya alur "Batal"/ pengaman sendiri. Kalau back ditekan SAAT sedang di
+// layar selain Dashboard (misal Kamera), listener ini tetap boleh konsumsi 1
+// langkah riwayat browser di belakang layar (tidak berbahaya, cuma update tab
+// yang sedang tersembunyi) — TIDAK mengubah screen yang sedang tampil.
 window.addEventListener('popstate', (e) => {
   const state = e.state;
   if (!state) return;
@@ -745,11 +712,10 @@ window.addEventListener('popstate', (e) => {
       }
     });
   }
-  // Level 3 (28 Agt 2026, §39) — tab INTERNAL komponen Vue (lihat
-  // js/vue-riwayat-tab.js). SENGAJA dijalankan PALING TERAKHIR, setelah
-  // subTabs di atas — supaya komponen Vue tujuannya sudah pasti ke-mount
-  // duluan (lewat pastikanMountXxx() yang otomatis terpanggil dari
-  // pindahSubTab) sebelum handler restore-nya dipanggil.
+  // Level 3 — tab INTERNAL komponen Vue (lihat js/vue-riwayat-tab.js). SENGAJA
+  // dijalankan PALING TERAKHIR, setelah subTabs di atas — supaya komponen Vue
+  // tujuannya sudah pasti ke-mount duluan (lewat pastikanMountXxx yang otomatis
+  // terpanggil dari pindahSubTab) sebelum handler restore-nya dipanggil.
   if (Array.isArray(state.vueTabs)) {
     state.vueTabs.forEach(entry => {
       const handler = window['_restoreVueTab_' + entry.nama];
@@ -764,14 +730,14 @@ window.addEventListener('popstate', (e) => {
 
 
 // "Riwayat ACC" (fitur terpisah, tumpang tindih dengan Riwayat All Absensi)
-// sudah dihapus sepenuhnya atas permintaan — window.muatDataRiwayatACC tidak
-// ada lagi.
+// sudah dihapus sepenuhnya atas permintaan — window.muatDataRiwayatACC tidak ada
+// lagi.
 
 // Tabel Riwayat All Absensi (siapkanFilterRekap/bukaEditAbsensi/
 // tutupEditAbsensi/simpanEditAbsensi/assignUlangAbsensi) sudah pindah ke
-// js/vue-riwayat-absensi.js. window.exportKeCSV & window.dataRiwayatGlobal
-// TETAP di sini — masih dipakai laporan personal Account Profile > Absensi
-// yang belum dimigrasi.
+// js/vue-riwayat-absensi.js. window.exportKeCSV & window.dataRiwayatGlobal TETAP
+// di sini — masih dipakai laporan personal Account Profile > Absensi yang belum
+// dimigrasi.
 
 window.exportKeCSV = function() {
   if (!window.dataRiwayatGlobal || window.dataRiwayatGlobal.length === 0) {
@@ -807,30 +773,26 @@ window.exportKeCSV = function() {
 // tutupModalAjuBanding/pilihFileBanding/kirimAjuBanding) sudah pindah ke
 // komponen AjuBandingModal di js/vue-account-profile.js.
 
-// ============================================================================
-// Palet Pencarian Global / Ctrl K (BARU, 30 Agt 2026, sesi lanjutan —
-// permintaan Guru "ada pencarian, terapkan"). REVISI dari keputusan §5.9
-// yang sebelumnya SENGAJA tidak membangun elemen ini karena mockup-nya
-// cuma visual (README paket handoff: "penanganan tombol fisiknya belum
-// diikat — hanya palet Ctrl K yang berfungsi lewat klik. Implementasikan
-// listener sungguhan di repo."). DI SINI DIIKAT SUNGGUHAN:
-// - Daftar hasil pencarian DIBACA LANGSUNG dari DOM sidebar (tiap elemen
-//   ber-atribut data-menu-id/data-menu-ids di dalam .gc-sidebar), BUKAN
-//   daftar hardcode terpisah — otomatis akurat kalau menu berubah, tidak
-//   ada 2 sumber kebenaran yang bisa beda.
-// - Klik hasil = trigger .click() pada tombol sidebar ASLI (bukan
-//   menduplikasi logic pindahTab()/pindahSubTab()), supaya perilakunya
-//   PERSIS sama seperti user klik manual di sidebar (termasuk buka
-//   accordion grup induknya, catatRiwayat, dst — apapun yang sudah
-//   ditempel di onclick tombol itu).
-// - Filter ketikan = contains + tidak peka huruf besar-kecil. Ini AMAN
-//   (beda dari pencarian daftar modul yang wajib prefix-match+peka huruf
-//   besar-kecil demi hemat baca Firestore, PETA-HEMAT.md) karena ini
-//   MURNI filter array di client, sudah dari DOM, nol baca Firestore.
-// - Navigasi panah atas/bawah TIDAK diimplementasi (disederhanakan) —
-//   Enter pilih hasil PALING ATAS yang sedang tampil. Kalau Guru mau
-//   navigasi panah sungguhan nanti, itu penambahan kecil terpisah.
-// ============================================================================
+
+// Palet Pencarian Global / Ctrl K dari keputusan §5.9 yang sebelumnya SENGAJA
+// tidak membangun elemen ini karena mockup-nya cuma visual (README paket
+// handoff: "penanganan tombol fisiknya belum diikat — hanya palet Ctrl K yang
+// berfungsi lewat klik. Implementasikan listener sungguhan di repo."). DI SINI
+// DIIKAT SUNGGUHAN: - Daftar hasil pencarian DIBACA LANGSUNG dari DOM sidebar
+// (tiap elemen ber-atribut data-menu-id/data-menu-ids di dalam .gc-sidebar),
+// BUKAN daftar hardcode terpisah — otomatis akurat kalau menu berubah, tidak ada
+// 2 sumber kebenaran yang bisa beda. - Klik hasil = trigger .click pada tombol
+// sidebar ASLI (bukan menduplikasi logic pindahTab/pindahSubTab), supaya
+// perilakunya PERSIS sama seperti user klik manual di sidebar (termasuk buka
+// accordion grup induknya, catatRiwayat, dst — apapun yang sudah ditempel di
+// onclick tombol itu). - Filter ketikan = contains + tidak peka huruf
+// besar-kecil. Ini AMAN (beda dari pencarian daftar modul yang wajib
+// prefix-match+peka huruf besar-kecil demi hemat baca Firestore, PETA-HEMAT.md)
+// karena ini MURNI filter array di client, sudah dari DOM, nol baca Firestore. -
+// Navigasi panah atas/bawah TIDAK diimplementasi (disederhanakan) — Enter pilih
+// hasil PALING ATAS yang sedang tampil. Kalau mau navigasi panah sungguhan
+// nanti, itu penambahan kecil terpisah.
+
 (function paletPencarianGlobal() {
   const btnBuka = document.getElementById('btnPaletDesktop');
   const overlay = document.getElementById('paletOverlayDesktop');
@@ -915,11 +877,11 @@ window.exportKeCSV = function() {
   });
 })();
 
-// Sinkronisasi ikon tombol tema sidebar desktop (BARU, 30 Agt 2026, ronde
-// audit desain) — sidebar desktop ini murni HTML statis (bukan Vue), jadi
-// ikonnya di-update manual lewat DOM, PAKAI ULANG window.toggleTema()/
-// window.temaPreferensi() yang sudah ada di index.html (BUKAN logic tema
-// baru) — sama seperti pola ikonTema di js/vue-sheet-profil.js (mobile).
+// Sinkronisasi ikon tombol tema sidebar desktop — sidebar desktop ini murni HTML
+// statis (bukan Vue), jadi ikonnya di-update manual lewat DOM, PAKAI ULANG
+// window.toggleTema/ window.temaPreferensi yang sudah ada di index.html (BUKAN
+// logic tema baru) — sama seperti pola ikonTema di js/vue-sheet-profil.js
+// (mobile).
 (function temaSidebarDesktop() {
   function kelasIkon(pref) {
     return pref === 'auto' ? 'fa-circle-half-stroke' : (pref === 'dark' ? 'fa-moon' : 'fa-sun');
@@ -942,11 +904,10 @@ window.exportKeCSV = function() {
   }
 })();
 
-// Avatar inisial footer sidebar desktop (BARU, 30 Agt 2026, ronde audit
-// desain) — #teks-nama-user DIPINDAH dari topbar ke footer sidebar
-// (pojok kiri-bawah, persis mockup .sb-foot), dipasangkan avatar inisial
-// SAMA POLA dengan inisial() di js/vue-header-mobile.js (mobile), cuma
-// versi vanilla JS karena sidebar desktop bukan komponen Vue. Dipanggil
+// Avatar inisial footer sidebar desktop — #teks-nama-user DIPINDAH dari topbar
+// ke footer sidebar (pojok kiri-bawah, persis mockup .sb-foot), dipasangkan
+// avatar inisial SAMA POLA dengan inisial di js/vue-header-mobile.js (mobile),
+// cuma versi vanilla JS karena sidebar desktop bukan komponen Vue. Dipanggil
 // dari js/auth.js & js/dashboard.js persis di titik yang sudah mengisi
 // #teks-nama-user (cek grep "teks-nama-user" sebelum ubah titik panggil).
 window.perbaruiAvatarSidebarDesktop = function () {
@@ -960,10 +921,9 @@ window.perbaruiAvatarSidebarDesktop = function () {
   })();
 };
 
-// Subjudul (shift · gudang) footer sidebar desktop (BARU, 30 Agt 2026,
-// ronde audit desain lanjutan) — Guru bandingkan screenshot live vs
-// mockup: mockup `.sb-who` punya baris ke-2 "SOG27A · Gudang Utama",
-// live sebelumnya cuma 1 baris nama. PAKAI ULANG field yang SUDAH ADA di
+// Subjudul (shift · gudang) footer sidebar desktop — bandingkan screenshot live
+// vs mockup: mockup `.sb-who` punya baris ke-2 "SOG27A · Gudang Utama", live
+// sebelumnya cuma 1 baris nama. PAKAI ULANG field yang SUDAH ADA di
 // window.currentUser (nama_shift, gudang_penempatan lewat
 // window.normalisasiGudang — SAMA persis dipakai Kartu Absen di
 // js/vue-home-desktop.js), BUKAN query Firestore baru.

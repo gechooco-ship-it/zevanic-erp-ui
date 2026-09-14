@@ -1,33 +1,30 @@
 // js/vue-hak-akses.js
-// ============================================================================
-// Master Karyawan > Hak Akses — hubungkan Karyawan ke Role (yang nilai
-// izinnya diatur di Config Akses, js/vue-config-akses.js). Field yang
-// diubah di sini adalah `role` pada dokumen users/{email} — field yang SAMA
-// PERSIS dipakai window.aturTampilanBerdasarkanRole (auth.js) dan Firestore
-// Security Rules — jadi mengubah Role di sini punya efek nyata & langsung,
-// tidak seperti Config Akses yang baru "cetak biru" saja.
+
+// Master Karyawan > Hak Akses — hubungkan Karyawan ke Role (yang nilai izinnya
+// diatur di Config Akses, js/vue-config-akses.js). Field yang diubah di sini
+// adalah `role` pada dokumen users/{email} — field yang SAMA PERSIS dipakai
+// window.aturTampilanBerdasarkanRole (auth.js) dan Firestore Security Rules —
+// jadi mengubah Role di sini punya efek nyata & langsung, tidak seperti Config
+// Akses yang baru "cetak biru" saja.
 //
-// DIROMBAK (18 Agt 2026, revisi ke-2) — sebelumnya fetch-semua koleksi
-// "users" lalu potong halaman + filter di JS. SEKARANG dipecah 2 jalur
-// terpisah (lihat STATUS-PROYEK.md §15 buat penjelasan lengkap kenapa):
-//   1. TABEL — usePaginasiFirestore (cursor Firestore sungguhan, 15/halaman,
-//      filterPeran otomatis + filter Role/Gudang jadi where() beneran).
-//   2. KARTU RINGKASAN — getCountFromServer() TERPISAH per kartu, BUKAN
-//      dihitung dari data tabel (yang cuma 15 baris). Query langsung ke
-//      Firestore per kartu, bukan ke data yang sudah ke-load.
+// sebelumnya fetch-semua koleksi "users" lalu potong halaman + filter di JS.
+// SEKARANG dipecah 2 jalur terpisah (lihat STATUS-PROYEK.md §15 buat penjelasan
+// lengkap kenapa): 1. TABEL — usePaginasiFirestore (cursor Firestore sungguhan,
+// 15/halaman, filterPeran otomatis + filter Role/Gudang jadi where beneran). 2.
+// KARTU RINGKASAN — getCountFromServer TERPISAH per kartu, BUKAN dihitung dari
+// data tabel (yang cuma 15 baris). Query langsung ke Firestore per kartu, bukan
+// ke data yang sudah ke-load.
 //
-// KONSEKUENSI NYATA dari perombakan ini (disepakati 18 Agt 2026):
-//   - "Pilih Semua" SEKARANG cuma pilih baris di HALAMAN YANG TAMPIL, BUKAN
-//     semua yang cocok filter lagi (data di luar halaman ini tidak pernah
-//     di-load ke browser). Update Massal tetap bisa lintas-halaman KALAU
-//     dicentang manual di beberapa halaman berbeda (Set `terpilih` tidak
-//     direset saat pindah halaman).
-//   - Kartu ringkasan per-Role dihitung dari field `role` LANGSUNG (bukan
-//     `profilEfektif` yang punya fallback profil_akses||role) — Firestore
-//     where() tidak bisa meniru logic "field A kalau ada, else field B"
-//     dalam SATU query hemat. Simplifikasi sadar, angka kartu mungkin
-//     sedikit beda dari badge tabel untuk kasus profil_akses custom.
-// ============================================================================
+// KONSEKUENSI NYATA dari perombakan ini: - "Pilih Semua" SEKARANG cuma pilih
+// baris di HALAMAN YANG TAMPIL, BUKAN semua yang cocok filter lagi (data di luar
+// halaman ini tidak pernah di-load ke browser). Update Massal tetap bisa
+// lintas-halaman KALAU dicentang manual di beberapa halaman berbeda (Set
+// `terpilih` tidak direset saat pindah halaman). - Kartu ringkasan per-Role
+// dihitung dari field `role` LANGSUNG (bukan `profilEfektif` yang punya fallback
+// profil_akses||role) — Firestore where tidak bisa meniru logic "field A kalau
+// ada, else field B" dalam SATU query hemat. Simplifikasi sadar, angka kartu
+// mungkin sedikit beda dari badge tabel untuk kasus profil_akses custom.
+
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, query, where, getDocs, getCountFromServer, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -45,12 +42,12 @@ const AppHakAkses = {
   components: { GudangRingkas },
   setup() {
     const daftarGudang = ref([]);
-    const DAFTAR_ROLE = ref([...DAFTAR_ROLE_BAKU]); // diisi ulang dari akses_config saat muat()
+    const DAFTAR_ROLE = ref([...DAFTAR_ROLE_BAKU]); // diisi ulang dari akses_config saat muat
     // petaTingkatKeamanan: profil (nama bebas) -> tingkat keamanan baku
-    // (operator/pic/admin/owner/superuser) — INI yang benar-benar ditulis
-    // ke field "role" karyawan (dipakai Firestore Rules & custom claim).
-    // Nama profil sendiri ditulis terpisah ke field "profil_akses" (dipakai
-    // buat cari izin tampilan). Lihat catatan lengkap di vue-config-akses.js.
+    // (operator/pic/admin/owner/superuser) — INI yang benar-benar ditulis ke
+    // field "role" karyawan (dipakai Firestore Rules & custom claim). Nama
+    // profil sendiri ditulis terpisah ke field "profil_akses" (dipakai buat cari
+    // izin tampilan). Lihat catatan lengkap di vue-config-akses.js.
     const petaTingkatKeamanan = reactive({});
 
     const ringkasanKartu = ref([]);
@@ -65,27 +62,26 @@ const AppHakAkses = {
     const bulkRole = ref('');
     const memprosesBulk = ref(false);
 
-    // ---- Scroll rail ringkasan (sama seperti Penjadwalan) ----
+    // Scroll rail ringkasan (sama seperti Penjadwalan)
     const railRingkasan = ref(null);
     function geserRingkasan(arah) {
       if (railRingkasan.value) railRingkasan.value.scrollBy({ left: arah * 240, behavior: 'smooth' });
     }
 
-    // ---- TABEL: paginasi cursor Firestore sungguhan ----
+    // TABEL: paginasi cursor Firestore sungguhan
     const paginasi = reactive(usePaginasiFirestore(db, 'users', {
       perHalaman: 15,
       urutkanField: 'nama',
       cariField: 'nama',
       constraintTambahan: () => {
         // Dimensi jenis pekerjaan dari filterPeran dipakai manual di sini
-        // (fieldGudang:null) supaya bisa digabung fleksibel dengan
-        // filterGudang tanpa bentrok "cuma boleh 1 operator array per
-        // query" punya Firestore (array-contains DAN array-contains-any
-        // tidak boleh dipakai bersamaan).
+        // (fieldGudang:null) supaya bisa digabung fleksibel dengan filterGudang
+        // tanpa bentrok "cuma boleh 1 operator array per query" punya Firestore
+        // (array-contains DAN array-contains-any tidak boleh dipakai bersamaan).
         const cs = [...bangunConstraintFilterPeran({ fieldGudang: null })];
-        // BARU (18 Agt 2026, permintaan checklist rebuild) — cuma tampilkan
-        // karyawan yang status_kerja-nya "Aktif". Karyawan nonaktif/resign
-        // tidak perlu muncul di Hak Akses (tidak relevan diatur role-nya).
+        // cuma tampilkan karyawan yang status_kerja-nya "Aktif". Karyawan
+        // nonaktif/resign tidak perlu muncul di Hak Akses (tidak relevan diatur
+        // role-nya).
         cs.push(where('status_kerja', '==', 'Aktif'));
         if (filterGudang.value !== 'ALL') {
           cs.push(where('gudang_penempatan', 'array-contains', filterGudang.value));
@@ -94,9 +90,9 @@ const AppHakAkses = {
           if (gudangAdmin.length > 0) cs.push(where('gudang_penempatan', 'array-contains-any', gudangAdmin.slice(0, 10)));
         }
         if (filterRole.value === NILAI_BELUM_DIATUR) {
-          // Keterbatasan: cuma cocok dokumen yang field role-nya PERSIS
-          // string kosong. Dokumen lama yang field role-nya HILANG TOTAL
-          // (bukan string kosong) tidak akan ketemu lewat where() ini.
+          // Keterbatasan: cuma cocok dokumen yang field role-nya PERSIS string
+          // kosong. Dokumen lama yang field role-nya HILANG TOTAL (bukan string
+          // kosong) tidak akan ketemu lewat where ini.
           cs.push(where('role', '==', ''));
         } else if (filterRole.value !== 'ALL') {
           cs.push(where('role', '==', filterRole.value));
@@ -107,7 +103,7 @@ const AppHakAkses = {
     }));
     watch([filterRole, filterGudang], () => paginasi.muatUlang());
 
-    // ---- KARTU RINGKASAN: getCountFromServer() terpisah per kartu ----
+    // KARTU RINGKASAN: getCountFromServer terpisah per kartu
     async function muatRingkasan() {
       memuatRingkasan.value = true;
       errorRingkasan.value = '';
@@ -129,10 +125,10 @@ const AppHakAkses = {
         ringkasanKartu.value = kartu;
       } catch (e) {
         console.error('Gagal muat ringkasan Hak Akses:', e);
-        // SEBELUMNYA cuma console.error — area Ringkasan jadi BLANK TOTAL
-        // tanpa pesan apapun kalau query gagal (paling sering: butuh index
-        // Firestore gabungan yang belum dibuat, karena query di atas gabung
-        // beberapa where() sekaligus). Sekarang WAJIB tampil ke layar.
+        // SEBELUMNYA cuma console.error — area Ringkasan jadi BLANK TOTAL tanpa
+        // pesan apapun kalau query gagal (paling sering: butuh index Firestore
+        // gabungan yang belum dibuat, karena query di atas gabung beberapa where
+        // sekaligus). Sekarang WAJIB tampil ke layar.
         errorRingkasan.value = e.code === 'failed-precondition'
           ? 'Ringkasan gagal dimuat — butuh index Firestore baru. Buka Console browser (F12), cari link "Create composite index" dari error ini, klik untuk bikin index-nya sekali.'
           : 'Ringkasan gagal dimuat (' + (e.code || e.message) + ').';
@@ -151,17 +147,16 @@ const AppHakAkses = {
       qGudang.forEach(docSnap => listGudang.push(docSnap.data().nama_gudang));
       daftarGudang.value = listGudang;
 
-      // Sinkron dengan Config Akses: dulu daftar role di sini hardcode di
-      // kode, jadi profil BARU yang dibuat di Config Akses (mis.
-      // "admin_finance") tidak pernah muncul di sini sampai ada yang ubah
-      // kodenya manual. Sekarang ambil LANGSUNG dari koleksi akses_config
-      // yang sama — begitu ada profil baru dibuat di sana, otomatis ikut
-      // muncul di sini tanpa perlu ubah kode lagi. "owner" SENGAJA selalu
-      // ditambahkan manual di sini meski Config Akses sendiri
-      // mengecualikannya dari daftar yang BISA DIEDIT di sana (Owner wajib
-      // akses penuh, tidak bisa dikonfigurasi) — tapi di SINI (Hak Akses)
-      // "owner" tetap harus bisa DIPILIH sebagai role karyawan, dua hal
-      // yang berbeda.
+      // Sinkron dengan Config Akses: dulu daftar role di sini hardcode di kode,
+      // jadi profil BARU yang dibuat di Config Akses (mis. "admin_finance")
+      // tidak pernah muncul di sini sampai ada yang ubah kodenya manual.
+      // Sekarang ambil LANGSUNG dari koleksi akses_config yang sama — begitu ada
+      // profil baru dibuat di sana, otomatis ikut muncul di sini tanpa perlu
+      // ubah kode lagi. "owner" SENGAJA selalu ditambahkan manual di sini meski
+      // Config Akses sendiri mengecualikannya dari daftar yang BISA DIEDIT di
+      // sana (Owner wajib akses penuh, tidak bisa dikonfigurasi) — tapi di SINI
+      // (Hak Akses) "owner" tetap harus bisa DIPILIH sebagai role karyawan, dua
+      // hal yang berbeda.
       try {
         const qProfil = await getDocs(collection(db, "akses_config"));
         const namaProfil = [];
@@ -173,10 +168,10 @@ const AppHakAkses = {
         qProfil.forEach(d => {
           namaProfil.push(d.id);
           const data = d.data();
-          // Fallback aman: profil lama yang dibuat SEBELUM fitur
-          // tingkatKeamanan ada, anggap 'operator' (paling rendah) —
-          // supaya tidak ada yang tiba-tiba dapat akses tulis lebih
-          // luas dari yang seharusnya cuma karena datanya belum lengkap.
+          // Fallback aman: profil lama yang dibuat SEBELUM fitur tingkatKeamanan
+          // ada, anggap 'operator' (paling rendah) — supaya tidak ada yang
+          // tiba-tiba dapat akses tulis lebih luas dari yang seharusnya cuma
+          // karena datanya belum lengkap.
           petaTingkatKeamanan[d.id] = data.tingkatKeamanan || (DAFTAR_ROLE_BAKU.includes(d.id) ? d.id : 'operator');
         });
         const gabungan = [...new Set([...DAFTAR_ROLE_BAKU, ...namaProfil, 'owner'])].sort();
@@ -192,12 +187,12 @@ const AppHakAkses = {
       await Promise.all([muatRingkasan(), paginasi.muatUlang()]);
     }
 
-    // profilEfektif: nama profil yang SEBENARNYA dipakai buat ditampilkan
-    // di BADGE TABEL (beda dari kartu ringkasan yang cuma pakai field role
-    // langsung, lihat catatan di atas). Karyawan yang SUDAH diatur pakai
-    // sistem baru punya profil_akses tersendiri (bisa custom, mis.
-    // "admin_finance"); karyawan LAMA (dari sebelum perubahan ini) cuma
-    // punya field role — fallback ke situ supaya tetap tampil benar.
+    // profilEfektif: nama profil yang SEBENARNYA dipakai buat ditampilkan di
+    // BADGE TABEL (beda dari kartu ringkasan yang cuma pakai field role
+    // langsung, lihat catatan di atas). Karyawan yang SUDAH diatur pakai sistem
+    // baru punya profil_akses tersendiri (bisa custom, mis. "admin_finance");
+    // karyawan LAMA (dari sebelum perubahan ini) cuma punya field role —
+    // fallback ke situ supaya tetap tampil benar.
     function profilEfektif(d) { return d.profil_akses || d.role || ''; }
 
     const headerDicentang = computed(() =>
@@ -213,22 +208,22 @@ const AppHakAkses = {
         if (dicentangSemua) terpilih.delete(d.email); else terpilih.add(d.email);
       });
     }
-    // Ganti nama dari "pilihSemua" (dulu: semua yang cocok filter, lintas
-    // halaman) -> SEKARANG cuma halaman yang tampil (lihat catatan
-    // perombakan di atas file). Nama fungsi dipertahankan biar titik
-    // panggil di template tidak perlu ikut berubah.
+    // nama dari "pilihSemua" (dulu: semua yang cocok filter, lintas halaman) ->
+    // SEKARANG cuma halaman yang tampil (lihat catatan perombakan di atas file).
+    // Nama fungsi dipertahankan biar titik panggil di template tidak perlu ikut
+    // berubah.
     function pilihSemua() { paginasi.dataHalaman.forEach(d => terpilih.add(d.email)); }
     function bersihkanPilihan() { terpilih.clear(); }
 
-    // Ubah role 1 karyawan langsung dari tabel (tanpa perlu centang+bulk).
-    // Nilai "" (blank) berarti kosongkan/belum diatur.
+    // Ubah role 1 karyawan langsung dari tabel (tanpa perlu centang+bulk). Nilai
+    // "" (blank) berarti kosongkan/belum diatur.
     //
-    // PENTING (17 Agt 2026): "roleBaru" di sini sebenarnya NAMA PROFIL
-    // (bisa custom, mis. "admin_finance"), BUKAN otomatis tingkat
-    // keamanan. Jadi WAJIB tulis 2 field: "role" (tingkat keamanan baku,
-    // dicari dari petaTingkatKeamanan — INI yang dipakai Firestore Rules)
-    // dan "profil_akses" (nama aslinya, dipakai buat cari izin tampilan).
-    // Lihat penjelasan lengkap di vue-config-akses.js.
+    // PENTING: "roleBaru" di sini sebenarnya NAMA PROFIL (bisa custom, mis.
+    // "admin_finance"), BUKAN otomatis tingkat keamanan. Jadi WAJIB tulis 2
+    // field: "role" (tingkat keamanan baku, dicari dari petaTingkatKeamanan —
+    // INI yang dipakai Firestore Rules) dan "profil_akses" (nama aslinya,
+    // dipakai buat cari izin tampilan). Lihat penjelasan lengkap di
+    // vue-config-akses.js.
     async function ubahRoleLangsung(item, profilBaru) {
       const roleLama = item.role;
       const profilLama = item.profil_akses;
@@ -310,7 +305,7 @@ const AppHakAkses = {
         <button @click="geserRingkasan(1)" class="icon-btn" style="flex-shrink:0;" aria-label="Geser kanan"><i class="fas fa-chevron-right"></i></button>
       </div>
 
-      <!-- Update Massal -->
+      <!-- Massal -->
       <div class="gc-card" style="margin-bottom:16px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;"><i class="fas fa-layer-group" style="color:var(--burgundy); margin-right:8px;"></i> Update massal ({{ terpilih.size }} karyawan terpilih)</h3>
         <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
@@ -409,15 +404,14 @@ const AppHakAkses = {
 };
 
 let vmHakAkses = null;
-// Perbaikan bug BESAR: komponen ini dulu langsung di-mount() begitu file ini
-// dimuat (artinya SETIAP kali halaman dibuka, oleh SIAPAPUN, termasuk yang
-// tidak punya akses ke layar ini) — onMounted-nya otomatis mencoba fetch
-// Firestore walau orangnya tidak pernah membuka tab ini sama sekali. Itu
-// yang bikin console penuh "Missing or insufficient permissions" dan baca
-// Firestore boros. Sekarang mount() BARU terjadi saat dashboard.js
-// pindahSubTab benar-benar memanggil window.pastikanMountHakAkses() —
-// yaitu PERSIS saat tab ini pertama kali dibuka, bukan dari awal muat
-// halaman.
+// Perbaikan bug BESAR: komponen ini dulu langsung di-mount begitu file ini
+// dimuat (artinya SETIAP kali halaman dibuka, oleh SIAPAPUN, termasuk yang tidak
+// punya akses ke layar ini) — onMounted-nya otomatis mencoba fetch Firestore
+// walau orangnya tidak pernah membuka tab ini sama sekali. Itu yang bikin
+// console penuh "Missing or insufficient permissions" dan baca Firestore boros.
+// Sekarang mount BARU terjadi saat dashboard.js pindahSubTab benar-benar
+// memanggil window.pastikanMountHakAkses — yaitu PERSIS saat tab ini pertama
+// kali dibuka, bukan dari awal muat halaman.
 window.pastikanMountHakAkses = function() {
   if (vmHakAkses) { if (typeof vmHakAkses.muat === 'function') vmHakAkses.muat(); return; }
   const mountPoint = document.getElementById('vue-hak-akses');

@@ -1,83 +1,30 @@
 // js/vue-kartu-stok.js
-// ============================================================================
-// BARU (malam 24 Agt 2026) — Zevanic House > Stock & Pembelian > Kartu Stok.
-// Menu BARU (permintaan Guru): melacak JUMLAH stok (bukan cuma harga, beda
-// dari Riwayat Harga Pembelian) per bahan/aksesoris — sisi MASUK (pembelian,
-// otomatis dari Nota Order Belanja di-final-kan) dan sisi KELUAR.
+// Stok & Pembelian > Kartu Stok. READ-ONLY total: melacak jumlah stok masuk/
+// keluar per bahan/aksesoris. Tidak ada form entry, tidak ada scan di layar
+// ini. Satu layar dengan item-switcher ("ganti item ▾") di kepala dan ledger
+// di bawahnya yang update di tempat.
 //
-// REKONSTRUKSI TOTAL (7 Sep 2026) — sesuai wireframe handoff "04 - Stok dan
-// Pembelian" (§5 "Kartu Stok"), yang menegaskan layar ini "Read-only di
-// sini, ditulis oleh Nota dan Scan Opname" — TIDAK ADA form entry manual
-// sama sekali di sini pada desain barunya. Ini REDESAIN DISENGAJA (wireframe
-// menggantikan perilaku lama, bukan hal yang direkonsiliasi dengan kode
-// lama), sesuai keputusan Guru (ditanya eksplisit lewat AskUserQuestion,
-// "Pindahkan scope ke Scan Persiapan"):
+// Sumber data:
+// - Combobox item: full fetch master_bahan_aksesoris client-side (master data
+// terbatas, pola sama dengan ambilDaftarBahanAksesorisLengkap).
+// - Ledger kartu_stok_bahan_aksesoris: paginasi cursor-based lewat
+// usePaginasiFirestore, perHalaman 15 — bisa ratusan baris per item, jangan
+// di-full-fetch.
+// - Badge "Lot Aktif" lewat ambilLotAktif yang diekspor
+// vue-stock-pembelian.js, dipakai apa adanya.
 //
-//   1. "Catat Pemakaian" (form desktop, FIFO multi-roll otomatis + popup 3
-//      opsi "kekurangan lot" terhubung `persiapan_masalah`) DIHAPUS TOTAL
-//      dari file ini. BEDA dari pola "gap fitur sementara yang Guru terima
-//      sadar" yang dipakai di modul lain (mis. "List Order Belanja" —
-//      lihat js/vue-stock-pembelian.js) — di sini TIDAK ADA gap: KEDUA
-//      kemampuan itu SUDAH DIPORT & DIPERLUAS lebih dulu ke
-//      `js/vue-scan-persiapan.js` (Zevanic House > Scan > Scan Persiapan,
-//      SUDAH LIVE & dites Guru Tahap 1-4 sebelum port ini) SEBELUM
-//      penghapusan ini dilakukan — catat pemakaian TETAP BISA dilakukan,
-//      cuma pindah menu & jadi scan-driven (bukan form-driven). Lihat
-//      catatan header `vue-scan-persiapan.js` (blok "PORT DARI KARTU
-//      STOK") untuk detail persis apa yang dipindah & adaptasi UX-nya.
-//   2. Layar 2-tingkat lama (Ringkasan [tabel semua item] -> Detail [1
-//      item, tombol "Kembali"]) DIGANTI jadi SATU layar sesuai wireframe:
-//      item-switcher (dropdown cari, "ganti item ▾") di kepala layar,
-//      ledger di bawahnya update di tempat begitu item diganti — TIDAK
-//      ADA lagi navigasi bolak-balik/tombol "Kembali ke Ringkasan".
-//      Sumber combobox: SEMUA `master_bahan_aksesoris` (full fetch client
-//      side, sama pola dgn `ambilDaftarBahanAksesorisLengkap()` di
-//      vue-scan-persiapan.js/vue-stock-pembelian.js — koleksi master
-//      data terbatas, bukan transaksional, jadi full-fetch dianggap aman
-//      "hemat" sesuai PRINSIP-HEMAT.md; BEDA dari ledger-nya sendiri
-//      [`kartu_stok_bahan_aksesoris`, bisa ratusan baris per item] yang
-//      TETAP paginasi cursor-based lewat usePaginasiFirestore, TIDAK
-//      diubah dari sebelumnya).
-//      TIDAK ADA lagi filter Kategori / tabel-list-semua-item terpisah
-//      (yang dulu ada di Ringkasan) — wireframe cuma minta 1 kontrol
-//      ringkas "ganti item ▾", bukan layar browsing dgn filter; pencarian
-//      substring bawaan `DropdownCari` (component yang sudah ada) dianggap
-//      cukup menggantikan peran itu.
-//   3. Header info: "Stok Akhir Saat Ini" (SUDAH ADA sebelumnya) + BARU
-//      "Lot Aktif" (badge jumlah lot AKTIF item terpilih, lewat
-//      `ambilLotAktif()` yang SUDAH diekspor `js/vue-stock-pembelian.js`
-//      — signature/perilakunya DIKONFIRMASI TIDAK BERUBAH sesudah audit
-//      "Daftar Nota" sesi ini, DIPAKAI ULANG PERSIS, TIDAK ada fungsi baru
-//      di file itu).
-//   4. Fitur "Scan Barang" (jalan pintas QR buka Detail lebih cepat, +
-//      kamera/jsQR) DIHAPUS BERSAMAAN — itu cuma jalan pintas ke "Catat
-//      Pemakaian" yang sekarang sudah tidak ada di layar ini, dan
-//      wireframe tidak menggambarkan kontrol scan di layar ini (cuma
-//      kotak cari + dropdown biasa). Kalau nanti ternyata dibutuhkan lagi
-//      (mis. buat mempercepat pilih item read-only), ini keputusan
-//      terpisah yang belum diminta — TIDAK ditambahkan sendiri di sini.
-//   5. 5 state ditegakkan: loading (memuat daftar item / memuat ledger),
-//      kosong (belum pilih item -- DAN item terpilih tapi ledger-nya
-//      kosong, teks PERSIS sesuai wireframe §"Empty state": "Belum ada
-//      transaksi masuk/keluar untuk item ini" -- istilah wajib, TIDAK
-//      diparafrase), error (gagal muat daftar item ATAU gagal muat ledger
-//      -- lewat `paginasiDetail.errorPaginasi` yang SEBENARNYA SUDAH ADA
-//      di composable `usePaginasiFirestore` sejak awal tapi belum pernah
-//      ditampilkan di template Detail versi lama -- CELAH lama, sekalian
-//      diperbaiki di sini, pola pesan sama dgn `AppConfigRiwayatPin` di
-//      js/vue-config.js), ideal (ledger terisi normal), ekstrem (ratusan
-//      baris ledger -- paginasi cursor-based yang SUDAH ADA, perHalaman:15
-//      + tombol Sebelumnya/Berikutnya, TIDAK diubah dari sebelumnya).
-//   6. Export Excel Kartu Stok: SENGAJA TIDAK disentuh sama sekali (masih
-//      "Yang Belum Diputuskan" §7 SERAH-TERIMA.md — bukan ditolak, bukan
-//      ditambah, dibiarkan seperti apa adanya/tidak ada).
-//
-// `stok_akhir` di `master_bahan_aksesoris` TETAP SUMBER KEBENARAN TUNGGAL,
-// TETAP HANYA dihitung lewat `catatPergerakanKartuStok()`/
-// `catatPemakaianDariAlokasi()`/fungsi Scan Opname di vue-stock-pembelian.js
-// (runTransaction, atomik) — file INI (sekarang read-only total) TIDAK
-// PERNAH menulis stok_akhir/qty_sisa, cuma MEMBACA.
-// ============================================================================
+// Jebakan:
+// - stok_akhir di master_bahan_aksesoris sumber kebenaran tunggal dan HANYA
+// ditulis catatPergerakanKartuStok/catatPemakaianDariAlokasi/Scan Opname
+// di vue-stock-pembelian.js lewat runTransaction. File ini tidak pernah
+// menulis stok_akhir/qty_sisa, cuma membaca.
+// - Catat Pemakaian (FIFO multi-roll + popup kekurangan lot) tidak hilang —
+// pindah ke vue-scan-persiapan.js dan jadi scan-driven.
+// - Teks empty state "Belum ada transaksi masuk/keluar untuk item ini" istilah
+// wajib, jangan diparafrase.
+// - paginasiDetail.errorPaginasi harus tetap dirender; di versi lama field itu
+// ada tapi tidak pernah ditampilkan.
+// - Export Excel Kartu Stok memang belum ada, bukan terhapus.
 import { createApp, ref, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -89,9 +36,9 @@ function formatQty(n) {
   const angka = parseFloat(n) || 0;
   return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 }
-// pesanErrorFirestore — disalin dari js/vue-config.js (`AppConfigRiwayatPin`
-// > `pesanError()`), pola "salin logic kecil per-file" proyek ini — bukan
-// diimpor lintas file (fungsi itu privat di komponen tsb).
+// pesanErrorFirestore — disalin dari js/vue-config.js (`AppConfigRiwayatPin` >
+// `pesanError`), pola "salin logic kecil per-file" proyek ini — bukan diimpor
+// lintas file (fungsi itu privat di komponen tsb).
 function pesanErrorFirestore(e) {
   return e && e.code === 'failed-precondition'
     ? 'Perlu index Firestore baru — buka Console browser (F12), cari link "Create composite index" dari error ini, klik untuk bikin index-nya sekali.'
@@ -103,7 +50,7 @@ function pesanErrorFirestore(e) {
 const KartuStokManager = {
   components: { DropdownCari },
   setup() {
-    // ---- Item-switcher (BARU, gantikan tabel Ringkasan lama) ----
+    // Item-switcher (BARU, gantikan tabel Ringkasan lama)
     const daftarItemLengkap = ref([]); // semua master_bahan_aksesoris, combobox "ganti item"
     const memuatDaftarItem = ref(true);
     const errorDaftarItem = ref('');
@@ -146,12 +93,11 @@ const KartuStokManager = {
       if (it) pilihItem(it);
     });
 
-    // ---- Badge "Lot Aktif" (BARU, wireframe kepala layar) — pakai ULANG
-    // ambilLotAktif() yang SUDAH diekspor vue-stock-pembelian.js, TIDAK ada
-    // fungsi baru. Item yang bukan pakai_lot_tracking otomatis akan
-    // menampilkan 0 (tidak ada dokumen lot_bahan_aksesoris untuknya) —
-    // dianggap wajar, bukan disembunyikan (wireframe menampilkannya tanpa
-    // syarat di kepala layar).
+    // Badge "Lot Aktif" (BARU, wireframe kepala layar) — pakai ULANG
+    // ambilLotAktif yang SUDAH diekspor vue-stock-pembelian.js, TIDAK ada fungsi
+    // baru. Item yang bukan pakai_lot_tracking otomatis akan menampilkan 0
+    // (tidak ada dokumen lot_bahan_aksesoris untuknya) — dianggap wajar, bukan
+    // disembunyikan (wireframe menampilkannya tanpa syarat di kepala layar).
     const lotAktifCount = ref(null); // null = belum dimuat/gagal
     const memuatLot = ref(false);
     async function muatLotAktifCount() {
@@ -167,8 +113,8 @@ const KartuStokManager = {
       memuatLot.value = false;
     }
 
-    // ---- Ledger 1 item (SAMA seperti sebelumnya, TIDAK diubah — cuma
-    // dipindah dari sub-tampilan "Detail" ke satu-satunya layar). ----
+    // Ledger 1 item (SAMA seperti sebelumnya, TIDAK diubah — cuma dipindah
+    // dari sub-tampilan "Detail" ke satu-satunya layar).
     const paginasiDetail = usePaginasiFirestore(db, 'kartu_stok_bahan_aksesoris', {
       perHalaman: 15,
       urutkanField: 'dibuat_pada',
@@ -177,9 +123,9 @@ const KartuStokManager = {
       petakan: (id, d) => ({ id, ...d })
     });
 
-    // muat() — dipanggil ulang tiap tab "Kartu Stok" diklik lagi (lihat
-    // pastikanMountKartuStok). Refresh daftar item, dan kalau sedang ada
-    // item aktif dipilih, ikut refresh badge lot + ledgernya juga.
+    // muat — dipanggil ulang tiap tab "Kartu Stok" diklik lagi (lihat
+    // pastikanMountKartuStok). Refresh daftar item, dan kalau sedang ada item
+    // aktif dipilih, ikut refresh badge lot + ledgernya juga.
     async function muat() {
       await muatDaftarItemLengkap();
       if (itemAktif.value) { await muatLotAktifCount(); await paginasiDetail.muatUlang(); }
@@ -196,10 +142,10 @@ const KartuStokManager = {
   },
   template: `
     <div>
-      <!-- BARU (9 Sep 2026, audit wireframe §5 "Kartu Stok") — header
-           item-picker + ledger digabung jadi SATU gc-card (dulu 2 gc-card
-           bertumpuk terpisah). Cuma pembungkus yang berubah — isi kolom
-           tabel & semua logic muat/paginasi TIDAK disentuh sama sekali. -->
+      <!--
+        header item-picker + ledger digabung jadi SATU gc-card ( Cuma pembungkus yang berubah —
+        isi kolom tabel & semua logic muat/paginasi TIDAK disentuh sama sekali.
+      -->
       <div class="gc-card" style="padding:0;">
         <div style="padding:14px 14px 12px; border-bottom:1px solid var(--line);">
           <label class="gc-heading" style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Kartu Stok</label>

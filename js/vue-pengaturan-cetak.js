@@ -1,83 +1,71 @@
 // js/vue-pengaturan-cetak.js
-// ============================================================================
-// Pengaturan Cetak — dibangun 8 Sep 2026 (audit kode proyek), DIROMBAK lagi
-// di sesi yang sama (Guru minta sistem GRUP, bukan 1 setingan per jenis).
+
+// Pengaturan Cetak — dibangun (audit kode proyek) lagi di sesi yang sama .
 //
 // LATAR (versi awal): audit menemukan `PopupPratinjauCetakLabel` (vue-
-// components.js) pakai SATU ukuran fisik hardcode (4x2 inch) untuk SEMUA
-// jenis label di seluruh app — padahal PEDOMAN-SERAH-TERIMA.md §5
-// mendokumentasikan ukuran BERBEDA per jenis (SPK Grouping 10x15cm, label
-// kecil 4x2cm, dst) dan bagian "Setting cetak terpusat" PEDOMAN eksplisit
-// minta 1 config per jenis cetak, diedit dari menu Scan & Cetak, otomatis
-// berlaku ke semua pos pemakainya ("satu modul cetak, banyak pos").
+// components.js) pakai SATU ukuran fisik hardcode (4x2 inch) untuk SEMUA jenis
+// label di seluruh app — padahal mendokumentasikan ukuran BERBEDA per jenis (SPK
+// Grouping 10x15cm, label kecil 4x2cm, dst) dan bagian "Setting cetak terpusat"
+// PEDOMAN eksplisit minta 1 config per jenis cetak, diedit dari menu Scan &
+// Cetak, otomatis berlaku ke semua pos pemakainya ("satu modul cetak, banyak
+// pos").
 //
-// KENAPA DIROMBAK JADI GRUP (bukan 1 config per jenis seperti versi awal):
-// Guru eksplisit minta bisa BIKIN GRUP sendiri dari layar ini — kasih nama,
-// pilih jenis kertas (preset), field yang tampil, posisi QR — LALU petakan
-// menu/titik cetak mana saja yang jadi anggota grup itu. Jadi kalau ada
-// 16 titik cetak tapi cuma butuh beberapa "model" fisik kertas, Guru cukup
-// bikin sedikit grup (bebas jumlahnya, tidak dipatok 4) dan atur SEKALI per
-// grup — bukan 16x konfigurasi terpisah yang isinya sering sama.
+// KENAPA JADI GRUP (bukan 1 config per jenis seperti versi awal): eksplisit
+// minta bisa BIKIN GRUP sendiri dari layar ini — kasih nama, pilih jenis kertas
+// (preset), field yang tampil, posisi QR — LALU petakan menu/titik cetak mana
+// saja yang jadi anggota grup itu. Jadi kalau ada 16 titik cetak tapi cuma butuh
+// beberapa "model" fisik kertas, cukup bikin sedikit grup (bebas jumlahnya,
+// tidak dipatok 4) dan atur SEKALI per grup — bukan 16x konfigurasi terpisah
+// yang isinya sering sama.
 //
-// ARSITEKTUR PENTING:
-// - KATALOG_CETAK di bawah = daftar TETAP 16 titik cetak yang benar-benar
-//   ada di kode (tombol/layar sungguhan, id-nya dipakai persis di prop
-//   `jenis-cetak` tiap pemanggil `PopupPratinjauCetakLabel`). Guru TIDAK
-//   bisa menambah/menghapus/ubah titik cetak dari sini — itu berarti ubah
-//   kode, bukan setingan. Yang BISA Guru atur cuma: grup mana jadi rumah
-//   tiap titik cetak itu, dan setingan fisik grup tersebut.
-// - Koleksi Firestore `pengaturan_cetak/{grupId}` — SEKARANG 1 dokumen =
-//   1 GRUP (bukan 1 dokumen per jenis seperti versi awal sebelum dirombak).
-//   Nama koleksi SENGAJA tidak diganti (masih `pengaturan_cetak`) supaya
-//   rule Firestore yang sudah disiapkan Guru (allow read: login(), allow
-//   write: isAdminLevel()) tetap berlaku tanpa perlu diubah lagi — aturan
-//   itu general untuk id dokumen apapun di koleksi ini.
-// - `ambilPengaturanCetak(jenisId)` — kontrak fungsi ini SENGAJA TIDAK
-//   berubah dari versi awal (nama fungsi sama, bentuk hasil sama: {lebar_mm,
-//   tinggi_mm, posisi_qr, rincian_aktif}) — jadi `PopupPratinjauCetakLabel`
-//   (js/vue-components.js) dan SEMUA 19 file pemanggil yang sudah disambung
-//   kemarin TIDAK PERLU diubah sama sekali. Yang berubah cuma ISI dalam
-//   fungsi ini: sekarang cari dulu grup mana yang punya jenisId itu sebagai
-//   anggota, baru pakai setingan grup itu. Titik cetak yang BELUM masuk grup
-//   manapun tetap fallback ke DEFAULT_PENGATURAN (=ukuran lama 101.6x50.8mm,
-//   supaya tidak ada cetakan yang tiba-tiba berubah sebelum Guru sempat
-//   mengatur grupnya).
+// ARSITEKTUR PENTING: - KATALOG_CETAK di bawah = daftar TETAP 16 titik cetak
+// yang benar-benar ada di kode (tombol/layar sungguhan, id-nya dipakai persis di
+// prop `jenis-cetak` tiap pemanggil `PopupPratinjauCetakLabel`). TIDAK bisa
+// menambah/menghapus/ubah titik cetak dari sini — itu berarti ubah kode, bukan
+// setingan. Yang BISA atur cuma: grup mana jadi rumah tiap titik cetak itu, dan
+// setingan fisik grup tersebut. - Koleksi Firestore `pengaturan_cetak/{grupId}`
+// SEKARANG 1 dokumen = 1 GRUP (bukan 1 dokumen per jenis seperti versi awal
+// sebelum dirombak). Nama koleksi SENGAJA tidak diganti (masih
+// `pengaturan_cetak`) supaya rule Firestore yang sudah disiapkan (allow read:
+// login, allow write: isAdminLevel) tetap berlaku tanpa perlu diubah lagi —
+// aturan itu general untuk id dokumen apapun di koleksi ini. -
+// `ambilPengaturanCetak(jenisId)` — kontrak fungsi ini SENGAJA TIDAK berubah
+// dari versi awal (nama fungsi sama, bentuk hasil sama: {lebar_mm, tinggi_mm,
+// posisi_qr, rincian_aktif}) — jadi `PopupPratinjauCetakLabel`
+// (js/vue-components.js) dan SEMUA 19 file pemanggil yang sudah disambung
+// kemarin TIDAK PERLU diubah sama sekali. Yang berubah cuma ISI dalam fungsi
+// ini: sekarang cari dulu grup mana yang punya jenisId itu sebagai anggota, baru
+// pakai setingan grup itu. Titik cetak yang BELUM masuk grup manapun tetap
+// fallback ke DEFAULT_PENGATURAN .
 //
-// PRESET_KERTAS — 4 pilihan sesuai keputusan Guru (bukan lagi cuma isi mm
-// bebas): Kasir Roll (lebar saja, roll thermal panjang), Custom (isi manual
-// mm, buat ukuran di luar 3 preset lain), Thermal 15x10cm (=150x100mm,
-// sesuai PEDOMAN §5 utk SPK Grouping), Thermal 4x2cm (=40x20mm, sesuai
-// PEDOMAN §5 utk label kecil — CATATAN: ini BEDA dari 4x2 INCH/101.6x50.8mm
-// yang jadi default lama; Guru yang pilih preset ini SADAR itu ukuran cm,
-// bukan inch, kalau salah pilih ukurannya kelihatan jomplang pas pratinjau).
+// PRESET_KERTAS — 4 pilihan sesuai.
 //
 // "Field yang tampil" per grup: daftar field TAMBAHAN opsional (di luar
 // kode/nama/info dasar yang tetap ditentukan kode pemanggil, lihat komentar
 // besar `PopupPratinjauCetakLabel` di vue-components.js) — sumbernya
-// `rincianTersedia` tiap jenis di KATALOG_CETAK, digabung jadi 1 katalog
-// field global (SEMUA_FIELD_TERSEDIA) supaya Guru bisa pilih bebas per grup,
-// TIDAK dibatasi cuma field milik anggota yang KEBETULAN sudah dicentang.
-// Kalau grup itu ada anggota yang datanya TIDAK punya field yang dicentang
-// (mis. grup gabungan Acc Sewing + Acc Webbing, field "Roll" cuma dipunya
-// Acc Webbing), baris itu OTOMATIS DILEWATI saat cetak utk anggota yang
-// tidak punya datanya — BUKAN error, bukan baris kosong. Logika skip ini
-// sudah ada dari awal di `PopupPratinjauCetakLabel.cetakSekarang()`, tidak
-// perlu field "catatan" terpisah (itu yang ditanyakan Guru, dan itu memang
-// sudah jadi perilaku bawaan, bukan sesuatu yang perlu dikonfigurasi).
+// `rincianTersedia` tiap jenis di KATALOG_CETAK, digabung jadi 1 katalog field
+// global (SEMUA_FIELD_TERSEDIA) supaya bisa pilih bebas per grup, TIDAK dibatasi
+// cuma field milik anggota yang KEBETULAN sudah dicentang. Kalau grup itu ada
+// anggota yang datanya TIDAK punya field yang dicentang (mis. grup gabungan Acc
+// Sewing + Acc Webbing, field "Roll" cuma dipunya Acc Webbing), baris itu
+// OTOMATIS DILEWATI saat cetak utk anggota yang tidak punya datanya — BUKAN
+// error, bukan baris kosong. Logika skip ini sudah ada dari awal di
+// `PopupPratinjauCetakLabel.cetakSekarang`, tidak perlu field "catatan" terpisah
+// .
 //
-// Field BARU (belum pernah dicatat sistem sama sekali di collection
-// manapun) TIDAK BISA muncul di sini cuma dengan Guru menyebut namanya —
-// field itu harus ditambah dulu pencatatannya di layar entry terkait
-// (kode), baru bisa didaftarkan sebagai rincianTersedia jenis itu di
-// KATALOG_CETAK, baru muncul sebagai pilihan di SEMUA_FIELD_TERSEDIA.
-// ============================================================================
+// Field (belum pernah dicatat sistem sama sekali di collection manapun)
+// TIDAK BISA muncul di sini cuma dengan menyebut namanya — field itu harus
+// ditambah dulu pencatatannya di layar entry terkait (kode), baru bisa
+// didaftarkan sebagai rincianTersedia jenis itu di KATALOG_CETAK, baru muncul
+// sebagai pilihan di SEMUA_FIELD_TERSEDIA.
+
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, doc, getDocs, setDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 // KATALOG_CETAK — daftar TETAP semua titik cetak di app ini. Menambah titik
 // cetak BARU di kemudian hari = tambah 1 entri di sini (id harus SAMA persis
-// dengan yang dipakai pemanggil `PopupPratinjauCetakLabel :jenis-cetak="..."`).
+// dengan yang dipakai pemanggil `PopupPratinjauCetakLabel:jenis-cetak=".."`).
 // TIDAK berubah dari versi awal — cuma sekarang dipakai juga sebagai sumber
 // checklist "anggota grup" + katalog field global, bukan lagi kunci dokumen
 // setingan langsung.
@@ -85,10 +73,8 @@ export const KATALOG_CETAK = {
   label_spk_bahan: {
     label: 'Label SPK Grouping — Bahan', kategori: 'Persiapan Produksi',
     keterangan: 'Persiapan Produksi > Bahan, tiap tahap. 1 label per bahan.',
-    // lokasi_rak — BARU (13 Sep lanjutan 16, standarisasi label Bahan,
-    // permintaan Guru: "field ditambahkan harusnya berkaitan dgn poin 5
-    // misal lokasi rak"). Sumber: master_bahan_aksesoris.rak_label, sudah
-    // ada dari fitur Rak Penyimpanan — lihat rak_label di hitungBahanRincian()
+    // lokasi_rak — BARU . Sumber: master_bahan_aksesoris.rak_label, sudah ada
+    // dari fitur Rak Penyimpanan — lihat rak_label di hitungBahanRincian
     // (js/vue-persiapan-produksi-v2.js).
     rincianTersedia: [
       { key: 'lokasi_rak', label: 'Lokasi Rak' }
@@ -185,21 +171,20 @@ export const KATALOG_CETAK = {
 
 // SEMUA_FIELD_TERSEDIA — katalog field tambahan GLOBAL, gabungan dari
 // rincianTersedia semua jenis di atas, dedup by key. Dipakai sebagai pilihan
-// "field yang tampil" di form grup — Guru bebas pilih dari sini utk grup
-// manapun, TIDAK dibatasi cuma field milik anggota yang sedang dicentang di
-// grup itu (lihat catatan besar di atas soal kenapa).
+// "field yang tampil" di form grup — bebas pilih dari sini utk grup manapun,
+// TIDAK dibatasi cuma field milik anggota yang sedang dicentang di grup itu
+// (lihat catatan besar di atas soal kenapa).
 export const SEMUA_FIELD_TERSEDIA = Object.values(KATALOG_CETAK)
   .flatMap(j => j.rincianTersedia || [])
   .reduce((acc, f) => (acc.some(x => x.key === f.key) ? acc : [...acc, f]), []);
 
-// PRESET_KERTAS — 4 pilihan sesuai keputusan Guru (sesi 8 Sep 2026).
-// font_kode_mm/font_nama_mm/font_info_mm BARU (13 Sep lanjutan 15) — dulu
-// SEMUA preset pakai 1 ukuran font px hardcode (17/13/11px) di kode cetak,
-// pas-pasan untuk ukuran 101.6x50.8mm tapi KETERLALU BESAR untuk preset
-// kecil (Thermal 4x2cm, ditambah 12 Sep tanpa font disesuaikan) — itu akar
-// laporan Guru "label menumpuk". Sekarang tiap preset punya default font
-// (mm, ikut satuan lebar/tinggi biar ukuran fisik konsisten & bisa dites
-// akurat di pratinjau) yang Guru masih bebas timpa manual per grup.
+// PRESET_KERTAS — 4 pilihan sesuai. font_kode_mm/font_nama_mm/font_info_mm BARU
+// dulu SEMUA preset pakai 1 ukuran font px hardcode (17/13/11px) di kode
+// cetak, pas-pasan untuk ukuran 101.6x50.8mm tapi KETERLALU BESAR untuk preset
+// kecil (Thermal 4x2cm, ditambah 12 Sep tanpa font disesuaikan) — itu akar.
+// Sekarang tiap preset punya default font (mm, ikut satuan lebar/tinggi biar
+// ukuran fisik konsisten & bisa dites akurat di pratinjau) yang masih bebas
+// timpa manual per grup.
 export const PRESET_KERTAS = {
   kasir_roll: { label: 'Kasir Roll (lebar saja)', lebar_mm: 80, tinggi_mm: 0, isRoll: true },
   custom: { label: 'Custom (isi manual mm)', lebar_mm: 101.6, tinggi_mm: 50.8, isRoll: false, font_kode_mm: 4.5, font_nama_mm: 3.5, font_info_mm: 2.9 },
@@ -207,16 +192,15 @@ export const PRESET_KERTAS = {
   thermal_4x2: { label: 'Thermal 4 x 2 cm', lebar_mm: 40, tinggi_mm: 20, isRoll: false, font_kode_mm: 2.6, font_nama_mm: 2, font_info_mm: 1.7 }
 };
 
-// Fallback kalau suatu jenisId BELUM dimasukkan ke grup manapun — SAMA
-// PERSIS dengan ukuran yang sudah berjalan sekarang (4x2 inch = 101.6x
-// 50.8mm), supaya tidak ada cetakan berubah tiba-tiba sebelum Guru sempat
-// mengatur grupnya.
+// Fallback kalau suatu jenisId BELUM dimasukkan ke grup manapun — SAMA PERSIS
+// dengan ukuran yang sudah berjalan sekarang (4x2 inch = 101.6x 50.8mm), supaya
+// tidak ada cetakan berubah tiba-tiba sebelum sempat mengatur grupnya.
 const DEFAULT_PENGATURAN = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [], font_kode_mm: PRESET_KERTAS.custom.font_kode_mm, font_nama_mm: PRESET_KERTAS.custom.font_nama_mm, font_info_mm: PRESET_KERTAS.custom.font_info_mm, rotasi_90: false };
 const DEFAULT_STRUK = { lebar_mm: 80, tinggi_mm: 0, posisi_qr: 'kiri', rincian_aktif: [], rotasi_90: false };
 
-// DUMMY_CONTOH_LABEL — data contoh dipakai pratinjau live Edit Grup Cetak
-// (BUKAN data sungguhan) supaya Guru bisa lihat kira-kira hasil cetak
-// SEBELUM simpan, termasuk kasus kode panjang yang paling gampang menumpuk.
+// DUMMY_CONTOH_LABEL — data contoh dipakai pratinjau live Edit Grup Cetak (BUKAN
+// data sungguhan) supaya bisa lihat kira-kira hasil cetak SEBELUM simpan,
+// termasuk kasus kode panjang yang paling gampang menumpuk.
 const DUMMY_CONTOH_LABEL = {
   kode: 'G26R0913P003-120302-01',
   nama: 'POLYFOAM 5MM PUTIH',
@@ -227,7 +211,7 @@ const DUMMY_CONTOH_LABEL = {
 // Cache in-memory per sesi (PELAJARAN.md — hemat read Firestore). Koleksi
 // `pengaturan_cetak` kecil (jumlah grup, bukan jumlah titik cetak), jadi 1x
 // getDocs cukup utk semua lookup jenisId->grup sepanjang sesi.
-let _cacheGrup = null; // array [{id, ...data}] setelah dimuat, null = belum dimuat
+let _cacheGrup = null; // array [{id, ..data}] setelah dimuat, null = belum dimuat
 let _petaJenisKeGrup = null; // Map jenisId -> grup
 
 async function pastikanCacheGrup() {
@@ -251,9 +235,9 @@ function invalidasiCacheGrup() {
 }
 
 // ambilPengaturanCetak — KONTRAK TIDAK BERUBAH dari versi awal (nama fungsi,
-// parameter, bentuk hasil {lebar_mm, tinggi_mm, posisi_qr, rincian_aktif}
-// SAMA PERSIS) — dipanggil `PopupPratinjauCetakLabel` (vue-components.js).
-// Yang berubah cuma isinya: sekarang cari grup pemilik jenisId dulu.
+// parameter, bentuk hasil {lebar_mm, tinggi_mm, posisi_qr, rincian_aktif} SAMA
+// PERSIS) — dipanggil `PopupPratinjauCetakLabel` (vue-components.js). Yang
+// berubah cuma isinya: sekarang cari grup pemilik jenisId dulu.
 export async function ambilPengaturanCetak(jenisId) {
   await pastikanCacheGrup();
   const grup = _petaJenisKeGrup.get(jenisId);
@@ -268,23 +252,21 @@ export async function ambilPengaturanCetak(jenisId) {
     font_nama_mm: parseFloat(grup.font_nama_mm) || fallback.font_nama_mm || DEFAULT_PENGATURAN.font_nama_mm,
     font_info_mm: parseFloat(grup.font_info_mm) || fallback.font_info_mm || DEFAULT_PENGATURAN.font_info_mm,
     // rotasi_90 — printer label kecil (mis. 40x30mm) kadang driver-nya cuma
-    // punya orientasi portrait tetap walau ukuran fisik sudah landscape
-    // (lebar > tinggi): PDF yang dikirim browser sudah benar, tapi driver
-    // memaksa muat ke kertas portrait sehingga hasil fisiknya vertical.
-    // Kalau grup ini ditandai rotasi_90, PopupPratinjauCetakLabel (vue-
-    // components.js) membalik ukuran @page jadi tinggi x lebar (sesuai
-    // orientasi tetap driver) lalu memutar ISI label 90 derajat supaya
-    // hasil cetak tetap terbaca horizontal. Default false — tidak
-    // mengubah printer lain yang sudah benar.
+    // punya orientasi portrait tetap walau ukuran fisik sudah landscape (lebar >
+    // tinggi): PDF yang dikirim browser sudah benar, tapi driver memaksa muat ke
+    // kertas portrait sehingga hasil fisiknya vertical. Kalau grup ini ditandai
+    // rotasi_90, PopupPratinjauCetakLabel (vue- components.js) membalik ukuran
+    // @page jadi tinggi x lebar (sesuai orientasi tetap driver) lalu memutar ISI
+    // label 90 derajat supaya hasil cetak tetap terbaca horizontal. Default
+    // false — tidak mengubah printer lain yang sudah benar.
     rotasi_90: !!grup.rotasi_90
   };
 }
 
-// ---------------------------------------------------------------------------
+
 // AppPengaturanCetak — layar admin, mount di Scan & Cetak > Cetak. Sekarang
-// kelola GRUP (bikin/edit/hapus bebas, jumlahnya terserah Guru), bukan lagi
-// 1 form per jenis tetap.
-// ---------------------------------------------------------------------------
+// kelola GRUP, bukan lagi 1 form per jenis tetap.
+
 export const AppPengaturanCetak = {
   setup() {
     const memuat = ref(true);
@@ -298,9 +280,9 @@ export const AppPengaturanCetak = {
       try {
         const snap = await getDocs(collection(db, 'pengaturan_cetak'));
         daftarGrup.value = snap.docs.map(d => ({ id: d.id, ...d.data(), anggota_jenis: d.data().anggota_jenis || [], field_tampil: d.data().field_tampil || [] }));
-        // Sinkronkan cache modul (dipakai ambilPengaturanCetak) sekalian,
-        // supaya popup cetak yang dibuka setelah ini langsung dapat data baru
-        // tanpa nunggu reload halaman.
+        // Sinkronkan cache modul (dipakai ambilPengaturanCetak) sekalian, supaya
+        // popup cetak yang dibuka setelah ini langsung dapat data baru tanpa
+        // nunggu reload halaman.
         _cacheGrup = daftarGrup.value;
         _petaJenisKeGrup = new Map();
         for (const g of _cacheGrup) for (const j of g.anggota_jenis) _petaJenisKeGrup.set(j, g);
@@ -311,23 +293,22 @@ export const AppPengaturanCetak = {
       memuat.value = false;
     }
 
-    // Titik cetak yang belum masuk grup manapun — supaya Guru lihat apa
-    // yang masih perlu dipetakan.
+    // Titik cetak yang belum masuk grup manapun — supaya lihat apa yang masih
+    // perlu dipetakan.
     const jenisBelumPunyaGrup = computed(() => {
       const terpakai = new Set(daftarGrup.value.flatMap(g => g.anggota_jenis));
       return Object.keys(KATALOG_CETAK).filter(id => !terpakai.has(id));
     });
 
-    // Peta jenisId -> nama grup pemiliknya (dipakai form edit utk kasih
-    // hint "saat ini di grup X" pas Guru centang anggota).
+    // Peta jenisId -> nama grup pemiliknya .
     const petaPemilikSaatIni = computed(() => {
       const peta = {};
       daftarGrup.value.forEach(g => { g.anggota_jenis.forEach(j => { peta[j] = g; }); });
       return peta;
     });
 
-    // Daftar jenis dikelompokkan per kategori, buat checklist anggota di
-    // form (lebih gampang dibaca daripada 16 baris polos).
+    // Daftar jenis dikelompokkan per kategori, buat checklist anggota di form
+    // (lebih gampang dibaca daripada 16 baris polos).
     const jenisPerKategori = computed(() => {
       const peta = {};
       Object.entries(KATALOG_CETAK).forEach(([id, j]) => {
@@ -336,14 +317,13 @@ export const AppPengaturanCetak = {
       return peta;
     });
 
-    // --- Pratinjau live (BARU 13 Sep lanjutan 15) --------------------------
-    // Kotak pratinjau di form Edit Grup Cetak, DISKALA dari ukuran fisik
-    // form (lebar_mm/tinggi_mm) supaya proporsinya (padding/gap/QR/font)
-    // SAMA PERSIS dengan rumus yang dipakai `PopupPratinjauCetakLabel.
-    // cetakSekarang()` (vue-components.js) saat cetak sungguhan — kalau
-    // teks kelihatan menumpuk/kepotong DI SINI, itu artinya akan menumpuk
-    // juga di kertas beneran, jadi Guru bisa perbaiki (kecilkan font/besarkan
-    // kertas) SEBELUM simpan, bukan ketahuan setelah cetak fisik.
+    // Pratinjau live — Kotak pratinjau di form Edit
+    // Grup Cetak, DISKALA dari ukuran fisik form (lebar_mm/tinggi_mm) supaya
+    // proporsinya (padding/gap/QR/font) SAMA PERSIS dengan rumus yang dipakai
+    // `PopupPratinjauCetakLabel. cetakSekarang` (vue-components.js) saat cetak
+    // sungguhan — kalau teks kelihatan menumpuk/kepotong DI SINI, itu artinya
+    // akan menumpuk juga di kertas beneran, jadi bisa perbaiki (kecilkan
+    // font/besarkan kertas) SEBELUM simpan, bukan ketahuan setelah cetak fisik.
     const skalaPreview = computed(() => {
       const lebar = parseFloat(formEdit.lebar_mm) || 1;
       const tinggiRaw = formEdit.jenis_kertas === 'kasir_roll' ? lebar * 0.6 : (parseFloat(formEdit.tinggi_mm) || 1);
@@ -367,7 +347,7 @@ export const AppPengaturanCetak = {
         flexDir: formEdit.posisi_qr === 'kanan' ? 'row-reverse' : (formEdit.posisi_qr === 'atas' ? 'column' : 'row')
       };
     });
-    // Rincian contoh dipilih Guru di form ini, diisi nilai DUMMY (bukan data
+    // Rincian contoh dipilih di form ini, diisi nilai DUMMY (bukan data
     // sungguhan) sekadar simulasi tampilan.
     const rincianPreviewAktif = computed(() =>
       formEdit.field_tampil
@@ -399,9 +379,9 @@ export const AppPengaturanCetak = {
       formEdit.posisi_qr = g.posisi_qr || 'kiri';
       formEdit.field_tampil = [...(g.field_tampil || [])];
       formEdit.anggota_jenis = [...(g.anggota_jenis || [])];
-      // Grup lama (dibuat sebelum font mm ada) belum punya field ini —
-      // fallback ke default preset-nya sendiri, bukan custom, supaya grup
-      // kecil lama tidak tiba-tiba dianggap punya font besar 4x2inch.
+      // Grup lama (dibuat sebelum font mm ada) belum punya field ini — fallback
+      // ke default preset-nya sendiri, bukan custom, supaya grup kecil lama
+      // tidak tiba-tiba dianggap punya font besar 4x2inch.
       const presetFont = PRESET_KERTAS[g.jenis_kertas] || PRESET_KERTAS.custom;
       formEdit.font_kode_mm = parseFloat(g.font_kode_mm) || presetFont.font_kode_mm;
       formEdit.font_nama_mm = parseFloat(g.font_nama_mm) || presetFont.font_nama_mm;
@@ -412,8 +392,7 @@ export const AppPengaturanCetak = {
 
     // pilihPreset — pilih preset TIMPA lebar/tinggi/font dgn nilai presetnya
     // (font ikut ukuran preset, sudah ditakar biar tidak menumpuk — lihat
-    // komentar PRESET_KERTAS). Kalau pilih 'custom', nilai lama dibiarkan
-    // (supaya Guru bisa isi bebas tanpa ketimpa balik tiap ganti pilihan).
+    // komentar PRESET_KERTAS). Kalau pilih 'custom', nilai lama dibiarkan .
     function pilihPreset(key) {
       formEdit.jenis_kertas = key;
       if (key !== 'custom') {
@@ -441,9 +420,9 @@ export const AppPengaturanCetak = {
       if (idx >= 0 && idx < formEdit.field_tampil.length - 1) { const t = formEdit.field_tampil[idx + 1]; formEdit.field_tampil[idx + 1] = formEdit.field_tampil[idx]; formEdit.field_tampil[idx] = t; }
     }
 
-    // toggleAnggota — 1 titik cetak = 1 grup saja (keputusan Guru). Centang
-    // di sini TIDAK langsung mengeluarkan dari grup lain (baru kejadian pas
-    // Simpan) — supaya Guru masih bisa Batal tanpa efek samping ke grup lain.
+    // toggleAnggota — 1 titik cetak = 1 grup saja . Centang di sini TIDAK
+    // langsung mengeluarkan dari grup lain (baru kejadian pas Simpan) — supaya
+    // masih bisa Batal tanpa efek samping ke grup lain.
     function toggleAnggota(jenisId) {
       const idx = formEdit.anggota_jenis.indexOf(jenisId);
       if (idx >= 0) formEdit.anggota_jenis.splice(idx, 1);

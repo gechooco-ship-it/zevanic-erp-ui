@@ -14,44 +14,42 @@ window.statusPilihanGlobal = "HADIR (CLOCK IN)";
 window.currentUser = { email: "", name: "", role: "operator", id_app: "", id_karyawan: "", jabatan: "", status_kerja: "aktif" };
 window._manualLoginInProgress = false; // dicek oleh onAuthStateChanged, disetel oleh vue-login.js
 
-// BARU (18 Agt 2026, revisi ke-2 alur registrasi) — deteksi link "Buat
-// Password" dari email (?buatpassword=1&email=...&token=...) PALING AWAL,
-// sebelum logic sesi-otomatis di bawah sempat jalan & mungkin melempar ke
-// screen-login duluan. window._modeBuatPassword dicek di listener
+// deteksi link "Buat Password" dari email (?buatpassword=1&email=..&token=..)
+// PALING AWAL, sebelum logic sesi-otomatis di bawah sempat jalan & mungkin
+// melempar ke screen-login duluan. window._modeBuatPassword dicek di listener
 // onAuthStateChanged besar di bawah (pola sama seperti
-// window._manualLoginInProgress) supaya tidak ditimpa balik ke Login/
-// Dashboard. app.js dimuat SEBELUM file ini (urutan <script> di
-// index.html), jadi window.pindahLayar sudah pasti ada di titik ini.
+// window._manualLoginInProgress) supaya tidak ditimpa balik ke Login/ Dashboard.
+// app.js dimuat SEBELUM file ini (urutan <script> di index.html), jadi
+// window.pindahLayar sudah pasti ada di titik ini.
 window._modeBuatPassword = new URLSearchParams(window.location.search).get('buatpassword') === '1';
 if (window._modeBuatPassword && window.pindahLayar) {
   window.pindahLayar('screen-buat-password');
 }
 
-// xx 
-// window.authReady — PERBAIKAN BUG: semua layar Master Absensi/Master
-// Karyawan (Antrean Dakar, Config Karyawan, Config Absensi, Daftar
-// Karyawan, Penjadwalan, Antrean Absensi, Riwayat All Absensi) sebelumnya
-// langsung ambil data Firestore begitu Vue-nya ter-mount (onMounted) — TANPA
-// menunggu Firebase Auth benar-benar selesai memastikan status login. Kalau
-// itu terjadi SEBELUM Auth siap (terutama pas sesi otomatis, yang butuh
-// waktu cek dulu), Firestore Rules menolak baca datanya (karena dianggap
-// belum login), dan karena tidak ada percobaan ulang, tabelnya macet
-// "Memuat data..." selamanya sampai halaman di-reload manual.
+// xx window.authReady — PERBAIKAN BUG: semua layar Master Absensi/Master
+// Karyawan (Antrean Dakar, Config Karyawan, Config Absensi, Daftar Karyawan,
+// Penjadwalan, Antrean Absensi, Riwayat All Absensi) sebelumnya langsung ambil
+// data Firestore begitu Vue-nya ter-mount (onMounted) — TANPA menunggu Firebase
+// Auth benar-benar selesai memastikan status login. Kalau itu terjadi SEBELUM
+// Auth siap (terutama pas sesi otomatis, yang butuh waktu cek dulu), Firestore
+// Rules menolak baca datanya (karena dianggap belum login), dan karena tidak ada
+// percobaan ulang, tabelnya macet "Memuat data.." selamanya sampai halaman
+// di-reload manual.
 //
-// Listener INI SENGAJA terpisah dari onAuthStateChanged besar di bawah
-// (yang urus logic sesi-otomatis/navigasi layar) — supaya tidak mengganggu
-// logic sensitif itu sama sekali. Fungsinya cuma satu: kasih sinyal "Auth
-// sudah pasti tahu jawabannya (login atau tidak)", dipakai semua komponen
-// Vue yang fetch data lewat `await window.authReady` sebelum mulai ambil.
+// Listener INI SENGAJA terpisah dari onAuthStateChanged besar di bawah (yang
+// urus logic sesi-otomatis/navigasi layar) — supaya tidak mengganggu logic
+// sensitif itu sama sekali. Fungsinya cuma satu: kasih sinyal "Auth sudah pasti
+// tahu jawabannya (login atau tidak)", dipakai semua komponen Vue yang fetch
+// data lewat `await window.authReady` sebelum mulai ambil.
 //
-// PENTING (perbaikan putaran kedua): versi PERTAMA bug ini masih ada celah
-// yang SAMA PERSIS dengan yang sudah pernah kita perbaiki di logic
-// sesi-otomatis di bawah — Firebase kadang panggil callback ini DUA KALI:
-// pertama dengan user=null SEMENTARA (bukan berarti belum login, cuma
-// belum selesai cek sesi tersimpan), baru setelah itu dengan user asli.
-// Versi pertama authReady langsung "selesai" di panggilan PERTAMA — kalau
-// itu kebetulan yang null, semua komponen kena sinyal "siap" padahal
-// belum. Sekarang meniru pola toleransi 1200ms yang sama seperti di bawah.
+// PENTING (perbaikan putaran kedua): versi PERTAMA bug ini masih ada celah yang
+// SAMA PERSIS dengan yang sudah pernah kita perbaiki di logic sesi-otomatis di
+// bawah — Firebase kadang panggil callback ini DUA KALI: pertama dengan
+// user=null SEMENTARA (bukan berarti belum login, cuma belum selesai cek sesi
+// tersimpan), baru setelah itu dengan user asli. Versi pertama authReady
+// langsung "selesai" di panggilan PERTAMA — kalau itu kebetulan yang null, semua
+// komponen kena sinyal "siap" padahal belum. Sekarang meniru pola toleransi
+// 1200ms yang sama seperti di bawah.
 window.authReady = new Promise((resolve) => {
   let sudahSelesai = false;
   const lepasListener = onAuthStateChanged(auth, (user) => {
@@ -65,34 +63,32 @@ window.authReady = new Promise((resolve) => {
   });
 });
 
-// ============================================================================
-// SISTEM PENERAPAN IZIN CONFIG AKSES — fondasi bersama (17 Agt 2026)
+
+// SISTEM PENERAPAN IZIN CONFIG AKSES — fondasi bersama
 //
-// Sebelum ini, Config Akses cuma "cetak biru" — tersimpan tapi tidak
-// membatasi apapun. Sekarang izin BENAR-BENAR dibaca & diterapkan lewat
-// 2 fungsi bantu global ini, dipanggil dari MANAPUN di app (Vue atau
-// vanilla JS) tanpa perlu import apapun:
+// Sebelum ini, Config Akses cuma "cetak biru" — tersimpan tapi tidak membatasi
+// apapun. Sekarang izin BENAR-BENAR dibaca & diterapkan lewat 2 fungsi bantu
+// global ini, dipanggil dari MANAPUN di app (Vue atau vanilla JS) tanpa perlu
+// import apapun:
 //
-//   window.cekIzinMenu(menuId, jenis) — jenis: 'view'|'add'|'edit'|'delete'|'print'
-//   window.cekFiturAkses(menuId, fiturKey) — kontrol granular per-field,
-//     misal kunci dropdown tertentu (lihat DAFTAR_MENU di
-//     vue-config-akses.js untuk daftar fitur yang terdaftar per menu)
+// window.cekIzinMenu(menuId, jenis) — jenis:
+// 'view'|'add'|'edit'|'delete'|'print' window.cekFiturAkses(menuId, fiturKey) —
+// kontrol granular per-field, misal kunci dropdown tertentu (lihat DAFTAR_MENU
+// di vue-config-akses.js untuk daftar fitur yang terdaftar per menu)
 //
-// Keduanya baca dari window.aksesConfigSaya — diambil SEKALI saat login
-// (mirip window.currentUser), BUKAN baca Firestore tiap kali dicek, biar
-// hemat. Kalau nanti butuh fitur baru serupa "kunci field X", TIDAK perlu
-// bikin mekanisme baru — cukup daftarkan fiturKey baru di DAFTAR_MENU
-// (vue-config-akses.js), lalu panggil window.cekFiturAkses(...) di titik
-// yang mau dikunci. 1 pola, dipakai berkali-kali — bukan solusi ad-hoc
-// per kasus.
+// Keduanya baca dari window.aksesConfigSaya — diambil SEKALI saat login (mirip
+// window.currentUser), BUKAN baca Firestore tiap kali dicek, biar hemat. Kalau
+// nanti butuh fitur baru serupa "kunci field X", TIDAK perlu bikin mekanisme
+// baru — cukup daftarkan fiturKey baru di DAFTAR_MENU (vue-config-akses.js),
+// lalu panggil window.cekFiturAkses(.) di titik yang mau dikunci. 1 pola,
+// dipakai berkali-kali — bukan solusi ad-hoc per kasus.
 //
-// ATURAN JATUH-AMAN (fallback) — PENTING: kalau akses_config untuk role
-// ini belum ada/gagal dibaca, kedua fungsi INI KEMBALIKAN null (bukan
-// false) — artinya "belum diatur", dan kode PEMANGGIL yang memutuskan
-// defaultnya (biasanya: anggap boleh, supaya tidak ada yang tiba-tiba
-// terkunci keluar cuma karena Config Akses belum lengkap/belum dibuat
-// buat role itu). Cek eksplisit `=== false` untuk "sengaja dilarang",
-// jangan cek falsy biasa.
+// ATURAN JATUH-AMAN (fallback) — PENTING: kalau akses_config untuk role ini
+// belum ada/gagal dibaca, kedua fungsi INI KEMBALIKAN null (bukan false) —
+// artinya "belum diatur", dan kode PEMANGGIL yang memutuskan defaultnya
+// (biasanya: anggap boleh, supaya tidak ada yang tiba-tiba terkunci keluar cuma
+// karena Config Akses belum lengkap/belum dibuat buat role itu). Cek eksplisit
+// `=== false` untuk "sengaja dilarang", jangan cek falsy biasa.
 window.aksesConfigSaya = undefined; // undefined = belum sempat dimuat sama sekali
 
 window.muatAksesConfigSaya = async function(role, profilAkses) {
@@ -103,26 +99,24 @@ window.muatAksesConfigSaya = async function(role, profilAkses) {
     window.aksesConfigSaya = 'OWNER_PENUH';
     return;
   }
-  // Kunci pencarian akses_config: profil_akses kalau ada (bisa nama
-  // custom, mis. "Admin Toko"), fallback ke role untuk data lama yang
-  // belum pernah diatur pakai profil custom sama sekali.
+  // Kunci pencarian akses_config: profil_akses kalau ada (bisa nama custom, mis.
+  // "Admin Toko"), fallback ke role untuk data lama yang belum pernah diatur
+  // pakai profil custom sama sekali.
   //
-  // BUG SEBELUMNYA (ditemukan 14 Sep — "menu HP banyak terkunci padahal
-  // sudah diatur di Akses & Keamanan"): profilAkses di sini SEBELUMNYA
-  // ikut di-lowercase, padahal doc ID akses_config (vue-config-akses.js
-  // `simpan()`) TIDAK PERNAH di-lowercase saat dibuat — tersimpan APA
-  // ADANYA persis yang Guru ketik (mis. "Admin Toko" tetap "Admin Toko",
-  // bukan "admin toko"). Profil dengan huruf besar jadi TIDAK PERNAH
-  // ketemu (snap.exists() selalu false) -> aksesConfigSaya = null ->
-  // SEMUA menu untuk karyawan berprofil itu ikut kena default terkunci
-  // (lihat daftarMenuGroups, vue-components.js). profil_akses di field
-  // karyawan (users/{email}) SENDIRI selalu persis sama dengan doc ID
-  // (dipilih dari dropdown yang datanya sama-sama dari koleksi
-  // akses_config, lihat vue-hak-akses.js) — jadi cara benar menyamakan
-  // keduanya adalah TIDAK mengubah huruf profilAkses sama sekali, bukan
-  // menyamakan gaya penulisan di kedua sisi. role (5 nama baku) tetap
-  // di-lowercase karena field itu sendiri memang selalu tersimpan
-  // lowercase (lihat STATUS-PROYEK.md §6.2).
+  // BUG SEBELUMNYA (ditemukan 14 Sep — "menu HP banyak terkunci padahal sudah
+  // diatur di Akses & Keamanan"): profilAkses di sini SEBELUMNYA ikut
+  // di-lowercase, padahal doc ID akses_config (vue-config-akses.js `simpan`)
+  // TIDAK PERNAH di-lowercase saat dibuat — tersimpan APA ADANYA persis yang
+  // ketik (mis. "Admin Toko" tetap "Admin Toko", bukan "admin toko"). Profil
+  // dengan huruf besar jadi TIDAK PERNAH ketemu (snap.exists selalu false) ->
+  // aksesConfigSaya = null -> SEMUA menu untuk karyawan berprofil itu ikut kena
+  // default terkunci (lihat daftarMenuGroups, vue-components.js). profil_akses
+  // di field karyawan (users/{email}) SENDIRI selalu persis sama dengan doc ID
+  // (dipilih dari dropdown yang datanya sama-sama dari koleksi akses_config,
+  // lihat vue-hak-akses.js) — jadi cara benar menyamakan keduanya adalah TIDAK
+  // mengubah huruf profilAkses sama sekali, bukan menyamakan gaya penulisan di
+  // kedua sisi. role (5 nama baku) tetap di-lowercase karena field itu sendiri
+  // memang selalu tersimpan lowercase (lihat STATUS-PROYEK.md §6.2).
   const kunciCari = profilAkses ? profilAkses.trim() : (role || '').toLowerCase();
   if (!kunciCari) { window.aksesConfigSaya = null; return; }
   try {
@@ -140,9 +134,9 @@ window.cekIzinMenu = function(menuId, jenis) {
   const menu = window.aksesConfigSaya.menus?.[menuId];
   const hasilRole = !menu ? null : (menu[jenis] === true ? true : (menu[jenis] === false ? false : null));
 
-  // Pembatas tambahan per Jabatan (lihat catatan window.muatAksesJabatanSaya
-  // di atas) — cuma menang kalau ADA entri EKSPLISIT false utk menu+jenis
-  // ini. Tidak ada entri sama sekali (paling umum) = tidak mengubah apapun.
+  // Pembatas tambahan per Jabatan (lihat catatan window.muatAksesJabatanSaya di
+  // atas) — cuma menang kalau ADA entri EKSPLISIT false utk menu+jenis ini.
+  // Tidak ada entri sama sekali (paling umum) = tidak mengubah apapun.
   if (window.aksesJabatanSaya) {
     const menuJabatan = window.aksesJabatanSaya.menus?.[menuId];
     if (menuJabatan && menuJabatan[jenis] === false) return false;
@@ -159,23 +153,20 @@ window.cekFiturAkses = function(menuId, fiturKey) {
   return nilai === true ? true : (nilai === false ? false : null);
 };
 
-// ============================================================================
-// PEMBATAS TAMBAHAN PER JABATAN — BARU (9 Sep 2026, permintaan Guru:
-// tab "Jabatan" di layar Akses & Keamanan gabungan, lihat vue-config-akses.js).
+
+// PEMBATAS TAMBAHAN PER JABATAN — BARU .
 //
-// Ini BUKAN pengganti Role — ini LAPISAN KEDUA yang mengurangi (AND),
-// tidak pernah menambah. Hasil akhir cekIzinMenu = izin Role DAN izin
-// Jabatan. SENGAJA opt-in per menu+aksi: kalau Jabatan karyawan itu belum
-// pernah dikonfigurasi di akses_jabatan SAMA SEKALI, atau sudah
-// dikonfigurasi tapi menu/aksi tertentu belum disentuh (nilainya
-// undefined, bukan eksplisit false), maka TIDAK ADA PEMBATASAN TAMBAHAN
-// — hasil balik ke izin Role apa adanya. Ini KRUSIAL: sistem punya
-// puluhan nilai Jabatan yang sudah ada duluan sebelum fitur ini dibuat,
-// kalau default-nya "membatasi" alih-alih "tidak membatasi", semua orang
-// bisa mendadak terkunci dari menu yang tadinya bisa begitu fitur ini
-// di-deploy — HANYA Jabatan yang SENGAJA diberi larangan eksplisit lewat
-// tab Jabatan yang efeknya kerasa, sisanya berjalan sama seperti sebelum
-// fitur ini ada.
+// Ini BUKAN pengganti Role — ini LAPISAN KEDUA yang mengurangi (AND), tidak
+// pernah menambah. Hasil akhir cekIzinMenu = izin Role DAN izin Jabatan. SENGAJA
+// opt-in per menu+aksi: kalau Jabatan karyawan itu belum pernah dikonfigurasi di
+// akses_jabatan SAMA SEKALI, atau sudah dikonfigurasi tapi menu/aksi tertentu
+// belum disentuh (nilainya undefined, bukan eksplisit false), maka TIDAK ADA
+// PEMBATASAN TAMBAHAN — hasil balik ke izin Role apa adanya. Ini KRUSIAL: sistem
+// punya puluhan nilai Jabatan yang sudah ada duluan sebelum fitur ini dibuat,
+// kalau default-nya "membatasi" alih-alih "tidak membatasi", semua orang bisa
+// mendadak terkunci dari menu yang tadinya bisa begitu fitur ini di-deploy —
+// HANYA Jabatan yang SENGAJA diberi larangan eksplisit lewat tab Jabatan yang
+// efeknya kerasa, sisanya berjalan sama seperti sebelum fitur ini ada.
 window.aksesJabatanSaya = undefined; // undefined = belum sempat dimuat sama sekali
 
 window.muatAksesJabatanSaya = async function(jabatan) {
@@ -190,35 +181,33 @@ window.muatAksesJabatanSaya = async function(jabatan) {
   }
 };
 
-// ============================================================================
-// SHIFT EFEKTIF HARI INI — BARU (9 Sep 2026, permintaan Guru: sambungkan
-// rotasi Kalender Penjadwalan ke Ontime/Telat Antrean Absensi).
+
+// SHIFT EFEKTIF HARI INI — BARU .
 //
 // SEBELUM ini, Clock In/Out (js/vue-camera.js) SELALU menyimpan
-// window.currentUser.nama_shift (shift DEFAULT statis) ke dokumen absensi
-// — walau Kalender Penjadwalan (js/vue-penjadwalan.js) sudah bisa kasih
-// shift BEDA per tanggal lewat koleksi jadwal_shift (manual atau Template
-// Rotasi). Akibatnya karyawan yang shiftnya dirotasi beda dari default di
-// suatu tanggal, Ontime/Telat hari itu SALAH dihitung (pakai jam shift
-// lama, bukan yang sebenarnya dijadwalkan).
+// window.currentUser.nama_shift (shift DEFAULT statis) ke dokumen absensi —
+// walau Kalender Penjadwalan (js/vue-penjadwalan.js) sudah bisa kasih shift BEDA
+// per tanggal lewat koleksi jadwal_shift (manual atau Template Rotasi).
+// Akibatnya karyawan yang shiftnya dirotasi beda dari default di suatu tanggal,
+// Ontime/Telat hari itu SALAH dihitung (pakai jam shift lama, bukan yang
+// sebenarnya dijadwalkan).
 //
-// Fungsi ini WAJIB dipanggil tepat sebelum menyimpan dokumen absensi
-// (bukan disimpan/di-cache di window.currentUser — shift bisa beda tiap
-// hari, jadi harus dicek ulang tiap kejadian Clock In/Out/Izin/Cuti/
-// Lembur). Baca 1 dokumen jadwal_shift/{email}_{YYYY-MM} — SAMA PERSIS
-// skema & docId yang dipakai vue-penjadwalan.js, sengaja TIDAK
-// diduplikasi ke tempat lain. Fallback ke namaShiftDefault (nama_shift
-// statis karyawan) kalau tanggal itu belum pernah diatur eksplisit lewat
-// Kalender/Rotasi — ATURAN FALLBACK INI SENGAJA DIBUAT SAMA PERSIS dengan
-// shiftEfektif() di vue-penjadwalan.js (fungsi tampilan sel Kalender),
-// supaya tampilan Kalender dan hasil yang benar-benar tersimpan ke
-// absensi TIDAK PERNAH bisa berbeda kesimpulan untuk tanggal yang sama.
+// Fungsi ini WAJIB dipanggil tepat sebelum menyimpan dokumen absensi (bukan
+// disimpan/di-cache di window.currentUser — shift bisa beda tiap hari, jadi
+// harus dicek ulang tiap kejadian Clock In/Out/Izin/Cuti/ Lembur). Baca 1
+// dokumen jadwal_shift/{email}_{YYYY-MM} — SAMA PERSIS skema & docId yang
+// dipakai vue-penjadwalan.js, sengaja TIDAK diduplikasi ke tempat lain. Fallback
+// ke namaShiftDefault (nama_shift statis karyawan) kalau tanggal itu belum
+// pernah diatur eksplisit lewat Kalender/Rotasi — ATURAN FALLBACK INI SENGAJA
+// DIBUAT SAMA PERSIS dengan shiftEfektif di vue-penjadwalan.js (fungsi tampilan
+// sel Kalender), supaya tampilan Kalender dan hasil yang benar-benar tersimpan
+// ke absensi TIDAK PERNAH bisa berbeda kesimpulan untuk tanggal yang sama.
 //
-// Kalau hasilnya "OFF" (karyawan dijadwalkan libur tapi tetap Clock In),
-// nilai itu SENGAJA tetap disimpan apa adanya ke nama_shift — Antrean
-// Absensi tidak akan menemukan shift "OFF" di master_shift, jadi jam
-// pembanding kosong dan badge Ontime/Telat otomatis tidak muncul (bukan
-// salah hitung — memang tidak ada jadwal untuk dibandingkan, wajar).
+// Kalau hasilnya "OFF" (karyawan dijadwalkan libur tapi tetap Clock In), nilai
+// itu SENGAJA tetap disimpan apa adanya ke nama_shift — Antrean Absensi tidak
+// akan menemukan shift "OFF" di master_shift, jadi jam pembanding kosong dan
+// badge Ontime/Telat otomatis tidak muncul (bukan salah hitung — memang tidak
+// ada jadwal untuk dibandingkan, wajar).
 window.ambilShiftEfektifHariIni = async function(email, namaShiftDefault) {
   try {
     const sekarang = new Date();
@@ -231,34 +220,32 @@ window.ambilShiftEfektifHariIni = async function(email, namaShiftDefault) {
     }
   } catch (e) {
     // Gagal baca (mis. rule belum publish/offline) TIDAK BOLEH menggagalkan
-    // Clock In/Out — jatuh balik senyap ke shift default, sama seperti
-    // perilaku SEBELUM fitur rotasi ada.
+    // Clock In/Out — jatuh balik senyap ke shift default, sama seperti perilaku
+    // SEBELUM fitur rotasi ada.
     console.error("Gagal baca jadwal_shift, fallback ke shift default:", email, e);
   }
   return namaShiftDefault || '';
 };
 
-// BARU (18 Agt 2026) — cache konteks sesi (window.currentUser +
-// window.aksesConfigSaya) ke localStorage, supaya RELOAD halaman (F5,
-// buka tab baru, dst) TIDAK perlu baca ulang "users/{email}" +
-// "akses_config/{profil}" dari Firestore — cukup 1x per sesi LOGIN,
-// bukan 1x per RELOAD. Dibersihkan SENDIRI cuma saat logout (lihat
+// cache konteks sesi (window.currentUser + window.aksesConfigSaya) ke
+// localStorage, supaya RELOAD halaman (F5, buka tab baru, dst) TIDAK perlu baca
+// ulang "users/{email}" + "akses_config/{profil}" dari Firestore — cukup 1x per
+// sesi LOGIN, bukan 1x per RELOAD. Dibersihkan SENDIRI cuma saat logout (lihat
 // window.bersihkanKonteksSesi, dipanggil dari window.logout di bawah).
 //
 // AMAN dipakai localStorage untuk ini — email/role/profil_akses/
-// jenis_pekerjaan/gudang BUKAN rahasia (levelnya sama dengan custom
-// claim yang Firebase Auth sendiri SUDAH simpan permanen di IndexedDB).
-// "Hak akses" (aksesConfig) juga cuma buat TAMPILAN — penegak keamanan
-// SUNGGUHAN tetap Firestore Rules di server, tidak peduli apa isi
-// localStorage. foto_ktp SENGAJA dibuang dari cache (besar, base64,
-// tidak perlu buat kebanyakan layar).
+// jenis_pekerjaan/gudang BUKAN rahasia (levelnya sama dengan custom claim yang
+// Firebase Auth sendiri SUDAH simpan permanen di IndexedDB). "Hak akses"
+// (aksesConfig) juga cuma buat TAMPILAN — penegak keamanan SUNGGUHAN tetap
+// Firestore Rules di server, tidak peduli apa isi localStorage. foto_ktp SENGAJA
+// dibuang dari cache (besar, base64, tidak perlu buat kebanyakan layar).
 window.simpanKonteksSesi = function() {
   try {
     const { foto_ktp, ...ringkas } = window.currentUser;
     localStorage.setItem('zevanic_konteks_sesi', JSON.stringify({
       data: ringkas,
       aksesConfig: window.aksesConfigSaya,
-      aksesJabatan: window.aksesJabatanSaya, // BARU (9 Sep 2026) — lihat window.muatAksesJabatanSaya
+      aksesJabatan: window.aksesJabatanSaya, // BARU — lihat window.muatAksesJabatanSaya
       disimpan_pada: Date.now()
     }));
   } catch (e) {
@@ -266,9 +253,9 @@ window.simpanKonteksSesi = function() {
   }
 };
 
-// Kembalikan {data, aksesConfig} kalau cache ADA dan emailnya COCOK
-// dengan user Firebase Auth yang sedang login sekarang — null kalau
-// tidak ada/tidak cocok (pemanggil WAJIB fallback baca Firestore biasa).
+// Kembalikan {data, aksesConfig} kalau cache ADA dan emailnya COCOK dengan user
+// Firebase Auth yang sedang login sekarang — null kalau tidak ada/tidak cocok
+// (pemanggil WAJIB fallback baca Firestore biasa).
 window.bacaKonteksSesiDariCache = function(email) {
   try {
     const mentah = localStorage.getItem('zevanic_konteks_sesi');
@@ -286,42 +273,39 @@ window.bersihkanKonteksSesi = function() {
   localStorage.removeItem('zevanic_konteks_sesi');
 };
 
-// PEDOMAN KERJA (18 Agt 2026) — SEMUA tabel yang nampilin data karyawan/
-// gudang/shift WAJIB pakai filter ini secara DEFAULT, KECUALI Owner/
-// Superuser (selalu bypass). Kalau nambah tabel BARU ke depan yang
-// nampilin data serupa, WAJIB ikut pola ini juga — sama seperti aturan
-// "menu baru default Owner-only" di §6.8.
+// PEDOMAN KERJA — SEMUA tabel yang nampilin data karyawan/ gudang/shift WAJIB
+// pakai filter ini secara DEFAULT, KECUALI Owner/ Superuser (selalu bypass).
+// Kalau nambah tabel BARU ke depan yang nampilin data serupa, WAJIB ikut pola
+// ini juga — sama seperti aturan "menu baru default Owner-only" di §6.8.
 //
-// Gabungan 2 dimensi (role dicek DI DALAM fungsi ini duluan — Owner/
-// Superuser bypass total, pemanggil TIDAK perlu cek role sendiri,
-// konsisten dengan pola cekIzinMenu/cekFiturAkses di atas):
-// 1. Jenis pekerjaan — HARUS SAMA dengan window.currentUser.jenis_pekerjaan
-// 2. Gudang — HARUS BERIRISAN dengan window.currentUser.gudang_penempatan
-//    (dicek pakai window.normalisasiGudang biar konsisten format array)
-// Dua-duanya harus LOLOS (AND), bukan salah satu (OR).
+// Gabungan 2 dimensi (role dicek DI DALAM fungsi ini duluan — Owner/ Superuser
+// bypass total, pemanggil TIDAK perlu cek role sendiri, konsisten dengan pola
+// cekIzinMenu/cekFiturAkses di atas): 1. Jenis pekerjaan — HARUS SAMA dengan
+// window.currentUser.jenis_pekerjaan 2. Gudang — HARUS BERIRISAN dengan
+// window.currentUser.gudang_penempatan (dicek pakai window.normalisasiGudang
+// biar konsisten format array) Dua-duanya harus LOLOS (AND), bukan salah satu
+// (OR).
 //
-// Aturan jatuh-aman SAMA di kedua dimensi (konsisten dengan §6.3 Config
-// Akses): kalau datanya BELUM ADA tag sama sekali di dimensi itu (field
-// kosong/tidak ada), dimensi itu dianggap LOLOS — supaya data lama yang
-// belum sempat ditag tidak tiba-tiba hilang dari pandangan siapapun.
-// Sama juga kalau ADMIN sendiri belum punya jenis_pekerjaan/gudang di
-// profilnya — jatuh-aman ke LOLOS, bukan malah dikunci total.
+// Aturan jatuh-aman SAMA di kedua dimensi (konsisten dengan §6.3 Config Akses):
+// kalau datanya BELUM ADA tag sama sekali di dimensi itu (field kosong/tidak
+// ada), dimensi itu dianggap LOLOS — supaya data lama yang belum sempat ditag
+// tidak tiba-tiba hilang dari pandangan siapapun. Sama juga kalau ADMIN sendiri
+// belum punya jenis_pekerjaan/gudang di profilnya — jatuh-aman ke LOLOS, bukan
+// malah dikunci total.
 //
-// Dipakai untuk 3 bentuk data field, jenisPekerjaanData/gudangData
-// boleh: string tunggal (karyawan), array (gudang/shift bisa >1 jenis
-// pekerjaan; karyawan bisa >1 gudang), atau null/undefined (field tidak
-// relevan di tabel itu, misal Master Shift tidak punya dimensi gudang).
-// BARU (28 Agt 2026, role "PIC Owner") — profil akses_config khusus
-// `pic_owner` (role baku TETAP 'pic', cuma profil_akses-nya beda) SENGAJA
-// dibuat buat orang yang mengelola 1 jenis pekerjaan/bidang usaha (misal
-// "Konveksi") tapi LINTAS SEMUA gudang — beda dari PIC biasa yang
-// dibatasi ke gudang penempatannya sendiri. Makanya dimensi gudang buat
-// profil ini di-bypass EKSPLISIT lewat pengecekan profil_akses, BUKAN
-// lewat trik "kosongkan gudang_penempatan" (itu ambigu — bisa kebaca
-// "belum diisi" oleh siapapun yang lihat datanya, dan field itu mungkin
-// masih dipakai buat keperluan lain di luar reimburse/produk, misal
-// Kiosk/Absensi — jadi tidak boleh dikorbankan cuma demi trik ini).
-// Dimensi jenis_pekerjaan (jpCocok di bawah) TETAP ditegakkan seperti
+// Dipakai untuk 3 bentuk data field, jenisPekerjaanData/gudangData boleh: string
+// tunggal (karyawan), array (gudang/shift bisa >1 jenis pekerjaan; karyawan bisa
+// >1 gudang), atau null/undefined (field tidak relevan di tabel itu, misal
+// Master Shift tidak punya dimensi gudang). BARU — profil akses_config khusus
+// `pic_owner` (role baku TETAP 'pic', cuma profil_akses-nya beda) SENGAJA dibuat
+// buat orang yang mengelola 1 jenis pekerjaan/bidang usaha (misal "Konveksi")
+// tapi LINTAS SEMUA gudang — beda dari PIC biasa yang dibatasi ke gudang
+// penempatannya sendiri. Makanya dimensi gudang buat profil ini di-bypass
+// EKSPLISIT lewat pengecekan profil_akses, BUKAN lewat trik "kosongkan
+// gudang_penempatan" (itu ambigu — bisa kebaca "belum diisi" oleh siapapun yang
+// lihat datanya, dan field itu mungkin masih dipakai buat keperluan lain di luar
+// reimburse/produk, misal Kiosk/Absensi — jadi tidak boleh dikorbankan cuma demi
+// trik ini). Dimensi jenis_pekerjaan (jpCocok di bawah) TETAP ditegakkan seperti
 // biasa — PIC Owner Konveksi tetap TIDAK bisa lihat data Retail/Logistik.
 window.bolehLihatData = function(jenisPekerjaanData, gudangData) {
   const role = (window.currentUser.role || '').toLowerCase();
@@ -345,16 +329,17 @@ window.bolehLihatData = function(jenisPekerjaanData, gudangData) {
   return jpCocok && gudangCocok;
 };
 
-// Dipertahankan sebagai alias singkat — dipakai di titik yang CUMA
-// relevan dimensi jenis pekerjaan saja (misal Master Shift, tidak ada
-// field gudang sama sekali).
+// Dipertahankan sebagai alias singkat — dipakai di titik yang CUMA relevan
+// dimensi jenis pekerjaan saja (misal Master Shift, tidak ada field gudang sama
+// sekali).
 window.bolehLihatJenisPekerjaan = function(jenisPekerjaanData) {
   return window.bolehLihatData(jenisPekerjaanData, null);
 };
-// ============================================================================
 
 
-// Pesan error Firebase Auth diterjemahkan ke Bahasa Indonesia yang ramah pengguna
+
+// Pesan error Firebase Auth diterjemahkan ke Bahasa Indonesia yang ramah
+// pengguna
 function pesanErrorAuth(kode) {
   const peta = {
     "auth/email-already-in-use": "Email ini sudah terdaftar di sistem. Kalau Anda YAKIN belum pernah daftar sebelumnya (atau pendaftaran sebelumnya sempat gagal di tengah jalan), JANGAN coba daftar ulang berkali-kali — hubungi Owner/Admin untuk dicek dan dibersihkan datanya. Kalau memang sudah pernah daftar, silakan langsung login.",
@@ -380,10 +365,10 @@ window.normalisasiGudang = function(value) {
 
 // Helper bersama (dipakai vue-riwayat-absensi.js, vue-account-profile.js,
 // vue-whatsapp-gateway.js untuk sorting berdasarkan waktu): field `waktu` di
-// Firestore disimpan sebagai string locale Indonesia dari
-// new Date().toLocaleString('id-ID'), formatnya "D/M/YYYY, HH.MM.SS" (titik
-// sebagai pemisah jam, BUKAN titik dua) — new Date(waktuStr) tidak bisa parse
-// ini secara langsung, jadi perlu di-parse manual di sini.
+// Firestore disimpan sebagai string locale Indonesia dari new
+// Date.toLocaleString('id-ID'), formatnya "D/M/YYYY, HH.MM.SS" (titik sebagai
+// pemisah jam, BUKAN titik dua) — new Date(waktuStr) tidak bisa parse ini secara
+// langsung, jadi perlu di-parse manual di sini.
 window.parseWaktuIndo = function(waktuStr) {
   if (!waktuStr || typeof waktuStr !== 'string') return null;
   try {
@@ -408,21 +393,18 @@ window.parseWaktuIndo = function(waktuStr) {
 // isDesktopBrowser & sudahClockInHariIniServer sudah direplikasi di
 // js/vue-login.js (dipakai murni untuk gerbang login).
 
-// Poin 1: cek apakah waktu sekarang masih dalam jam shift yang di-assign ke karyawan ini
+// Poin 1: cek apakah waktu sekarang masih dalam jam shift yang di-assign ke
+// karyawan ini
 //
-// FIX (28 Agt 2026, laporan Guru "refresh biasa pun keluar ke Login" —
-// dilacak lewat log diagnostik sampai ketemu shift "SHIFT OWNER" 09:00-
-// 08:59, direproduksi sekitar jam 01:00 dini hari WIB) — SEBELUMNYA cuma
-// dibangun SATU jendela: [HARI INI jam_masuk, (besok kalau lewat tengah
-// malam) jam_keluar]. Buat shift yang nyebrang tengah malam (jam_keluar
-// <= jam_masuk, mis. 09:00-08:59 = nyaris 24 jam), ini SALAH tepat di
-// jam-jam dini hari SEBELUM jam_masuk hari ini: mulai dihitung "HARI INI
-// jam 09:00" (BELUM terjadi), padahal yang sungguh berlaku saat itu
-// adalah shift yang mulai KEMARIN jam 09:00 dan baru berakhir HARI INI
-// jam 08:59 — jendela lama itu tidak pernah menengok ke belakang. Sekarang
-// dicek DUA jendela sekaligus (hari ini DAN kemarin, yang terakhir ini
-// buat menangkap shift-kemarin yang masih nyambung ke dini hari ini) —
-// lolos kalau waktu sekarang masuk salah satu.
+// SEBELUMNYA cuma dibangun SATU jendela: [HARI INI jam_masuk, (besok kalau lewat
+// tengah malam) jam_keluar]. Buat shift yang nyebrang tengah malam (jam_keluar
+// <= jam_masuk, mis. 09:00-08:59 = nyaris 24 jam), ini SALAH tepat di jam-jam
+// dini hari SEBELUM jam_masuk hari ini: mulai dihitung "HARI INI jam 09:00"
+// (BELUM terjadi), padahal yang sungguh berlaku saat itu adalah shift yang mulai
+// KEMARIN jam 09:00 dan baru berakhir HARI INI jam 08:59 — jendela lama itu
+// tidak pernah menengok ke belakang. Sekarang dicek DUA jendela sekaligus (hari
+// ini DAN kemarin, yang terakhir ini buat menangkap shift-kemarin yang masih
+// nyambung ke dini hari ini) — lolos kalau waktu sekarang masuk salah satu.
 window.cekMasihJamKerja = async function(namaShift) {
   if (!namaShift) return false; // tidak ada shift ter-assign -> tidak bisa dipastikan, wajib login ulang
   try {
@@ -438,10 +420,9 @@ window.cekMasihJamKerja = async function(namaShift) {
     const [jamMasukH, jamMasukM] = shiftData.jam_masuk.split(':').map(Number);
     const [jamKeluarH, jamKeluarM] = shiftData.jam_keluar.split(':').map(Number);
 
-    // Bangun 1 jendela [mulai, selesai] buat shift yang MULAI pada
-    // (sekarang + offsetHari) — offsetHari=0 = mulai hari ini, -1 = mulai
-    // kemarin (buat menangkap shift-nyebrang-tengah-malam yang masih
-    // berjalan pas dini hari).
+    // Bangun 1 jendela [mulai, selesai] buat shift yang MULAI pada (sekarang +
+    // offsetHari) — offsetHari=0 = mulai hari ini, -1 = mulai kemarin (buat
+    // menangkap shift-nyebrang-tengah-malam yang masih berjalan pas dini hari).
     function bikinJendela(offsetHari) {
       const mulai = new Date(sekarang);
       mulai.setDate(mulai.getDate() + offsetHari);
@@ -469,12 +450,12 @@ window.cekMasihJamKerja = async function(namaShift) {
   }
 };
 
-// =========================================================================
+
 // WHATSAPP GATEWAY (Fonnte lewat Google Apps Script sebagai perantara aman).
 // Konfigurasi (URL Apps Script + kunci rahasia) disimpan di Firestore
-// config/whatsapp_gateway, diatur lewat Menu Karyawan > WhatsApp Gateway.
-// Token Fonnte sendiri TIDAK PERNAH ada di kode ini — disimpan di Apps Script.
-// =========================================================================
+// config/whatsapp_gateway, diatur lewat Menu Karyawan > WhatsApp Gateway. Token
+// Fonnte sendiri TIDAK PERNAH ada di kode ini — disimpan di Apps Script.
+
 window.kirimPesanWhatsapp = async function(nomor, pesan, jenis) {
   jenis = jenis || "Lainnya";
   let sukses = false;
@@ -490,12 +471,14 @@ window.kirimPesanWhatsapp = async function(nomor, pesan, jenis) {
         keterangan = "URL Apps Script atau kunci rahasia belum diisi.";
         console.warn(keterangan);
       } else {
-        // Menumpang di Apps Script project WA Gateway yang sudah ada (bot produksi) —
-        // routing pakai query string ?modul=absensi sesuai hook yang sudah disiapkan
-        // di doPost() mereka, supaya satu nomor/token bisa dipakai berdampingan.
+        // Menumpang di Apps Script project WA Gateway yang sudah ada (bot
+        // produksi) — routing pakai query string ?modul=absensi sesuai hook yang
+        // sudah disiapkan di doPost mereka, supaya satu nomor/token bisa dipakai
+        // berdampingan.
         const urlDenganModul = cfg.webapp_url + (cfg.webapp_url.includes('?') ? '&' : '?') + 'modul=absensi';
         // Content-Type text/plain sengaja dipakai supaya browser tidak melakukan
-        // CORS preflight (OPTIONS) yang tidak ditangani baik oleh Apps Script Web App.
+        // CORS preflight (OPTIONS) yang tidak ditangani baik oleh Apps Script
+        // Web App.
         const resp = await fetch(urlDenganModul, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -511,16 +494,16 @@ window.kirimPesanWhatsapp = async function(nomor, pesan, jenis) {
     keterangan = e.message || "Error tidak diketahui.";
   }
 
-  // Catat ke log untuk panel Monitoring Respon (best-effort, tidak menghambat alur utama)
+  // Catat ke log untuk panel Monitoring Respon (best-effort, tidak menghambat
+  // alur utama)
   try {
     await addDoc(collection(db, "wa_log"), {
       waktu: new Date().toLocaleString('id-ID'),
-      // BARU (29 Agt 2026, §44.17, hemat) — Timestamp asli, pola SAMA
-      // PERSIS preseden absensi.waktu_ts (18 Agt 2026): `waktu` (teks
-      // lokal) TIDAK BISA di-orderBy()/limit() Firestore secara andal —
-      // Monitoring Respon sebelumnya kepaksa baca SELURUH wa_log (bisa
-      // ribuan dokumen) cuma buat tampilkan 50 terbaru. waktu_ts
-      // (server, bukan jam device) sekarang jadi field urut yang benar.
+      // Timestamp asli, pola SAMA PERSIS preseden absensi.waktu_ts: `waktu`
+      // (teks lokal) TIDAK BISA di-orderBy/limit Firestore secara andal —
+      // Monitoring Respon sebelumnya kepaksa baca SELURUH wa_log (bisa ribuan
+      // dokumen) cuma buat tampilkan 50 terbaru. waktu_ts (server, bukan jam
+      // device) sekarang jadi field urut yang benar.
       waktu_ts: serverTimestamp(),
       target: nomor,
       jenis: jenis,
@@ -556,14 +539,13 @@ window.ambilTemplateWA = ambilTemplateWA; // dipakai juga oleh dashboard.js
 // OTP login perangkat baru sudah pindah ke js/vue-login.js.
 
 
-// =========================================================================
-// Poin 1: SESI OTOMATIS — kalau browser ditutup lalu dibuka lagi, dan sesi
-// Firebase masih tersimpan, dan user masih dalam jam kerja shift-nya, dan
-// sudah Clock In hari ini -> langsung ke Dashboard tanpa isi ulang email/
-// password. Ini HANYA jalan sekali saat aplikasi pertama kali dimuat, bukan
-// setiap kali status auth berubah (supaya tidak bentrok dengan proses login
-// manual di js/vue-login.js).
-// =========================================================================
+// Poin
+// 1: SESI OTOMATIS — kalau browser ditutup lalu dibuka lagi, dan sesi Firebase
+// masih tersimpan, dan user masih dalam jam kerja shift-nya, dan sudah Clock In
+// hari ini -> langsung ke Dashboard tanpa isi ulang email/ password. Ini HANYA
+// jalan sekali saat aplikasi pertama kali dimuat, bukan setiap kali status auth
+// berubah (supaya tidak bentrok dengan proses login manual di js/vue-login.js).
+
 let sesiOtomatisSudahDicek = false;
 onAuthStateChanged(auth, async (user) => {
   // Jangan proses kalau: sudah pernah selesai diproses SEBELUMNYA dengan user
@@ -575,24 +557,22 @@ onAuthStateChanged(auth, async (user) => {
     // PENTING: TIDAK mengunci di sini. Firebase kadang memanggil callback ini
     // dengan user=null SEMENTARA sebelum sesi tersimpan selesai dicek dari
     // penyimpanan lokal — kalau kita kunci di sini, sesi yang sebenarnya ada
-    // tidak akan pernah diproses saat callback dipanggil ulang dengan user
-    // yang benar. Layar loading tetap tampil untuk saat ini; kalau memang
-    // tidak ada sesi tersimpan, callback ini tidak akan dipanggil lagi — jadi
-    // kita beri sedikit toleransi lalu pindah ke layar Login sebagai fallback.
+    // tidak akan pernah diproses saat callback dipanggil ulang dengan user yang
+    // benar. Layar loading tetap tampil untuk saat ini; kalau memang tidak ada
+    // sesi tersimpan, callback ini tidak akan dipanggil lagi — jadi kita beri
+    // sedikit toleransi lalu pindah ke layar Login sebagai fallback.
     //
-    // FIX (28 Agt 2026, laporan Guru "ctrl+shift+r pasti minta keluar
-    // login") — toleransi 1200ms TETAP itu akar masalahnya: hard refresh
-    // (Ctrl+Shift+R) melewati cache HTTP browser, jadi SEMUA modul (termasuk
-    // SDK Firebase Auth dari CDN) harus diunduh ulang lewat jaringan —
-    // `onAuthStateChanged` jadi lebih lambat mengonfirmasi sesi yang
-    // SEBENARNYA masih ada (tersimpan permanen di IndexedDB Firebase +
-    // localStorage `zevanic_konteks_sesi`, keduanya TIDAK ikut terhapus oleh
-    // hard refresh). Timeout tetap 1200ms itu keburu menyerah duluan dan
-    // paksa ke layar Login walau sesinya sebenarnya valid. Sekarang: kalau
-    // ADA cache sesi tersimpan (`zevanic_konteks_sesi`), kasih toleransi
-    // jauh lebih lama (6000ms, cukup buat unduh ulang modul di koneksi
-    // lambat) sebelum menyerah — kalau TIDAK ADA cache sama sekali (memang
-    // belum pernah login / sudah logout), tetap cepat (1200ms, tidak ada
+    // toleransi 1200ms TETAP itu akar masalahnya: hard refresh (Ctrl+Shift+R)
+    // melewati cache HTTP browser, jadi SEMUA modul (termasuk SDK Firebase Auth
+    // dari CDN) harus diunduh ulang lewat jaringan — `onAuthStateChanged` jadi
+    // lebih lambat mengonfirmasi sesi yang SEBENARNYA masih ada (tersimpan
+    // permanen di IndexedDB Firebase + localStorage `zevanic_konteks_sesi`,
+    // keduanya TIDAK ikut terhapus oleh hard refresh). Timeout tetap 1200ms itu
+    // keburu menyerah duluan dan paksa ke layar Login walau sesinya sebenarnya
+    // valid. Sekarang: kalau ADA cache sesi tersimpan (`zevanic_konteks_sesi`),
+    // kasih toleransi jauh lebih lama (6000ms, cukup buat unduh ulang modul di
+    // koneksi lambat) sebelum menyerah — kalau TIDAK ADA cache sama sekali
+    // (memang belum pernah login / sudah logout), tetap cepat (1200ms, tidak ada
     // yang perlu ditunggu).
     let adaCacheSesiTersimpan = false;
     try { adaCacheSesiTersimpan = !!localStorage.getItem('zevanic_konteks_sesi'); }
@@ -607,14 +587,14 @@ onAuthStateChanged(auth, async (user) => {
   let berhasilMasukDashboard = false;
 
   try {
-    // Coba cache localStorage DULU (lihat window.bacaKonteksSesiDariCache
-    // di atas) — cuma kalau kosong/beda akun baru baca Firestore biasa.
+    // Coba cache localStorage DULU (lihat window.bacaKonteksSesiDariCache di
+    // atas) — cuma kalau kosong/beda akun baru baca Firestore biasa.
     const cache = window.bacaKonteksSesiDariCache(user.email);
     let d;
     if (cache) {
       d = cache.data;
       window.aksesConfigSaya = cache.aksesConfig;
-      window.aksesJabatanSaya = cache.aksesJabatan; // BARU (9 Sep 2026)
+      window.aksesJabatanSaya = cache.aksesJabatan; // BARU
     } else {
       const userSnap = await getDoc(doc(db, "users", user.email));
       if (!userSnap.exists()) {
@@ -634,25 +614,24 @@ onAuthStateChanged(auth, async (user) => {
     const gudangUser = window.normalisasiGudang(d.gudang_penempatan);
     const statusKerjaUser = d.status_kerja || "Aktif";
 
-    // BARU (19 Agt 2026) — SEBELUMNYA status_kerja cuma DISIMPAN di jalur
-    // ini, TIDAK PERNAH DICEK — celah nyata: karyawan resign yang sesi
-    // lamanya masih aktif (Firebase Auth persist) tinggal reload halaman
-    // buat masuk lagi, sama sekali tidak lewat login manual yang sudah
-    // ada penolakannya. Owner/Superuser TETAP dikecualikan (beda urusan
-    // dari Clock In di bawah — ini soal hindari kunci-mati total kalau
-    // field ini kebetulan salah/kosong di akun Owner sendiri).
+    // SEBELUMNYA status_kerja cuma DISIMPAN di jalur ini, TIDAK PERNAH DICEK —
+    // celah nyata: karyawan resign yang sesi lamanya masih aktif (Firebase Auth
+    // persist) tinggal reload halaman buat masuk lagi, sama sekali tidak lewat
+    // login manual yang sudah ada penolakannya. Owner/Superuser TETAP
+    // dikecualikan (beda urusan dari Clock In di bawah — ini soal hindari
+    // kunci-mati total kalau field ini kebetulan salah/kosong di akun Owner
+    // sendiri).
     if (!isOwnerRole && statusKerjaUser !== "Aktif") {
       console.warn("[Sesi Otomatis] GAGAL: role=\"" + roleUser + "\" (bukan owner/superuser) & status_kerja=\"" + statusKerjaUser + "\" (bukan Aktif) -> balik ke Login.");
       return;
     }
 
-    // BARU (22 Agt 2026) — akun Kiosk: BERHENTI DI SINI, langsung ke
-    // screen-absensi-qr, TIDAK PERNAH lewat gerbang gudang/Clock In/jam
-    // kerja di bawah (kiosk bukan orang, tidak "clock in" buat dirinya
-    // sendiri) — ini yang bikin "terkunci" di menu Absensi QR tercapai
-    // di SETIAP refresh/reload otomatis (bukan cuma pas login manual
-    // pertama kali, lihat blok serupa di vue-login.js). status_kerja
-    // TETAP dicek di atas (baris sebelum ini) — "Nonaktifkan" dari
+    // akun Kiosk: BERHENTI DI SINI, langsung ke screen-absensi-qr, TIDAK PERNAH
+    // lewat gerbang gudang/Clock In/jam kerja di bawah (kiosk bukan orang, tidak
+    // "clock in" buat dirinya sendiri) — ini yang bikin "terkunci" di menu
+    // Absensi QR tercapai di SETIAP refresh/reload otomatis (bukan cuma pas
+    // login manual pertama kali, lihat blok serupa di vue-login.js).
+    // status_kerja TETAP dicek di atas (baris sebelum ini) — "Nonaktifkan" dari
     // Device Kiosk TETAP berfungsi blokir login kiosk yang dinonaktifkan.
     if (d.jenis_akun === 'kiosk') {
       window.currentUser = { ...d, email: user.email, role: roleUser };
@@ -663,21 +642,19 @@ onAuthStateChanged(auth, async (user) => {
       return;
     }
 
-    // DIUBAH (19 Agt 2026, permintaan Hilman) — SEBELUMNYA Owner/Superuser
-    // dikecualikan total dari gudang/Clock In/jam kerja ("perannya
-    // manajerial"). Sekarang WAJIB ikut alur SAMA PERSIS, tidak ada
-    // pengecualian — konsisten dengan login manual (vue-login.js) yang
-    // sudah diubah sama. PENTING: Owner WAJIB sudah ada gudang_penempatan
-    // + nama_shift terisi di profilnya, kalau belum akan tertahan di
-    // layar login terus (lihat catatan di vue-login.js).
+    // DIUBAH — SEBELUMNYA Owner/Superuser dikecualikan total dari gudang/Clock
+    // In/jam kerja ("perannya manajerial"). Sekarang WAJIB ikut alur SAMA
+    // PERSIS, tidak ada pengecualian — konsisten dengan login manual
+    // (vue-login.js) yang sudah diubah sama. PENTING: Owner WAJIB sudah ada
+    // gudang_penempatan + nama_shift terisi di profilnya, kalau belum akan
+    // tertahan di layar login terus (lihat catatan di vue-login.js).
     //
-    // Clock In DIROMBAK — SEBELUMNYA cek localStorage 'zevanic_absen_'
-    // (device-lokal, date-string), yang PERSIS kena bug shift-malam:
-    // Clock In malam kemarin + sekarang sudah lewat tengah malam ->
-    // "hari ini" versi kalender beda tanggal, walau masih di shift yang
-    // sama. Sekarang pakai window.cekStatusClockInSaya() — sumber
-    // kebenaran YANG SAMA dipakai tombol Home & login manual, tahan
-    // shift-malam & lintas-device.
+    // Clock In SEBELUMNYA cek localStorage 'zevanic_absen_' (device-lokal,
+    // date-string), yang PERSIS kena bug shift-malam: Clock In malam kemarin +
+    // sekarang sudah lewat tengah malam -> "hari ini" versi kalender beda
+    // tanggal, walau masih di shift yang sama. Sekarang pakai
+    // window.cekStatusClockInSaya — sumber kebenaran YANG SAMA dipakai tombol
+    // Home & login manual, tahan shift-malam & lintas-device.
     if (gudangUser.length === 0) {
       console.warn("[Sesi Otomatis] GAGAL: gudang_penempatan kosong setelah dinormalisasi (mentah: " + JSON.stringify(d.gudang_penempatan) + ") -> balik ke Login. Role: " + roleUser + ".");
       return;
@@ -707,21 +684,21 @@ onAuthStateChanged(auth, async (user) => {
       status_kerja: statusKerjaUser,
       gudang_penempatan: gudangUser
     };
-    // Kalau tadi TIDAK dari cache (fetch Firestore biasa), aksesConfigSaya
-    // belum keisi sama sekali — baru di titik ini perlu dimuat. Kalau
-    // SUDAH dari cache, sudah keisi dari cache.aksesConfig di atas, skip
-    // (hemat 1 baca akses_config).
+    // Kalau tadi TIDAK dari cache (fetch Firestore biasa), aksesConfigSaya belum
+    // keisi sama sekali — baru di titik ini perlu dimuat. Kalau SUDAH dari
+    // cache, sudah keisi dari cache.aksesConfig di atas, skip (hemat 1 baca
+    // akses_config).
     if (!cache) {
       await window.muatAksesConfigSaya(roleUser, d.profil_akses);
-      await window.muatAksesJabatanSaya(window.currentUser.jabatan); // BARU (9 Sep 2026)
+      await window.muatAksesJabatanSaya(window.currentUser.jabatan); // BARU
     }
     window.simpanKonteksSesi(); // simpan/refresh cache buat reload berikutnya
     if (window.aturTampilanBerdasarkanRole) window.aturTampilanBerdasarkanRole();
     if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();
-    // Home itu layar landasan (langsung tampil begitu login, beda dari
-    // layar admin yang baru mount saat dibuka) — jadi butuh refresh SEGERA
-    // di sini juga, sama seperti Account Profile. Tanpa ini, Home sempat
-    // baca window.currentUser SEBELUM terisi data asli (masih fallback
+    // Home itu layar landasan (langsung tampil begitu login, beda dari layar
+    // admin yang baru mount saat dibuka) — jadi butuh refresh SEGERA di sini
+    // juga, sama seperti Account Profile. Tanpa ini, Home sempat baca
+    // window.currentUser SEBELUM terisi data asli (masih fallback
     // kosong/'operator'), bikin grup menu Master Absensi/Karyawan/WhatsApp
     // dianggap tidak berhak muncul walau yang login sebenarnya Owner.
     if (window.refreshHome) window.refreshHome();
@@ -736,17 +713,15 @@ onAuthStateChanged(auth, async (user) => {
     // belum di-approve, belum Clock In, di luar jam shift, error) berakhir di
     // sini — pindah dari layar loading ke layar Login.
     //
-    // DIAGNOSTIK (28 Agt 2026, laporan Guru "refresh biasa pun keluar ke
-    // Login") — SETIAP jalur gagal di atas sekarang punya console.warn
-    // sendiri yang menyebut alasan PERSIS-nya (lihat baris-baris di atas
-    // fungsi ini). Log baris ini adalah RINGKASAN AKHIR — kalau muncul
-    // TANPA ada warning apapun sebelumnya di console, berarti gagalnya di
-    // titik SEBELUM baris ini sempat jalan (jarang, tapi dicatat supaya
-    // tidak ada kondisi tak-terlacak). Guru: kalau bug ini muncul lagi,
-    // buka DevTools (F12) -> tab Console SEBELUM refresh, lalu screenshot/
-    // salin baris yang diawali "[Sesi Otomatis]" — itu yang tunjuk akar
-    // masalah sebenarnya (jangan cuma baris ini, cari yang muncul PALING
-    // ATAS/PERTAMA).
+    // DIAGNOSTIK — SETIAP jalur gagal di atas sekarang punya console.warn
+    // sendiri yang menyebut alasan PERSIS-nya (lihat baris-baris di atas fungsi
+    // ini). Log baris ini adalah RINGKASAN AKHIR — kalau muncul TANPA ada
+    // warning apapun sebelumnya di console, berarti gagalnya di titik SEBELUM
+    // baris ini sempat jalan (jarang, tapi dicatat supaya tidak ada kondisi
+    // tak-terlacak).: kalau bug ini muncul lagi, buka DevTools (F12) -> tab
+    // Console SEBELUM refresh, lalu screenshot/ salin baris yang diawali "[Sesi
+    // Otomatis]" — itu yang tunjuk akar masalah sebenarnya (jangan cuma baris
+    // ini, cari yang muncul PALING ATAS/PERTAMA).
     if (!berhasilMasukDashboard) {
       console.warn("[Sesi Otomatis] RINGKASAN: sesi TIDAK berhasil masuk Dashboard -> dikembalikan ke layar Login. Cari baris \"[Sesi Otomatis] GAGAL: ...\" di atas ini untuk alasan sebenarnya.");
       if (window.pindahLayar) window.pindahLayar('screen-login');
@@ -755,7 +730,7 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // Prefill email "Ingat Saya" + deteksi desktop (sembunyikan dropdown status)
-// sudah dipindah ke onMounted() di js/vue-login.js.
+// sudah dipindah ke onMounted di js/vue-login.js.
 
 window.bukaFormRegistrasi = function() {
   window.pindahLayar('screen-register');
@@ -763,41 +738,38 @@ window.bukaFormRegistrasi = function() {
 };
 
 // Registrasi karyawan baru (form, dropdown Kabupaten/Kecamatan, submit +
-// rollback akun jika simpan profil gagal) sudah pindah ke
-// js/vue-registrasi.js.
+// rollback akun jika simpan profil gagal) sudah pindah ke js/vue-registrasi.js.
 
 
 // LOGIN (prosesLogin, lanjutkanSetelahLogin) + Modal OTP sudah pindah ke
-// js/vue-login.js. window.prosesClockOut TETAP di bawah sini (dipanggil
-// dari Vue Account Profile).
+// js/vue-login.js. window.prosesClockOut TETAP di bawah sini (dipanggil dari Vue
+// Account Profile).
 
 
-// ============================================================================
-// BARU (19 Agt 2026) — satu-satunya sumber kebenaran soal "apakah SAYA
-// sedang Clock In dan belum Clock Out". Dipakai BARENG oleh vue-home.js
-// (tentukan tombol Clock In/Out di Home), fungsi prosesClockOut di bawah,
-// DAN vue-camera.js (submit Clock Out) — supaya ketiganya TIDAK BISA beda
-// pendapat soal status orangnya.
+
+// BARU — satu-satunya sumber kebenaran soal "apakah SAYA sedang Clock In dan
+// belum Clock Out". Dipakai BARENG oleh vue-home.js (tentukan tombol Clock
+// In/Out di Home), fungsi prosesClockOut di bawah, DAN vue-camera.js (submit
+// Clock Out) — supaya ketiganya TIDAK BISA beda pendapat soal status orangnya.
 //
-// 2 BUG NYATA yang melatarbelakangi ini (dilaporkan Hilman 19 Agt 2026):
-// 1. Shift malam (masuk 18:00, pulang besok 06:00) — logic LAMA cocokkan
-//    localStorage['zevanic_absen_'+email] === tanggal HARI INI (string
-//    persis). Begitu lewat tengah malam, tanggalnya beda walau orangnya
-//    masih di shift yang SAMA belum selesai — salah baca status.
-// 2. Karyawan nebeng HP (tidak punya HP sendiri) — localStorage itu
-//    NEMPEL DI PERANGKAT, bukan ke akun. Ganti perangkat = localStorage
-//    kosong = sistem kira "belum pernah Clock In" padahal aslinya sudah
-//    (datanya ADA di Firestore, cuma tidak kebaca dari device yang beda).
+// 2 BUG NYATA yang melatarbelakangi ini: 1. Shift malam (masuk 18:00, pulang
+// besok 06:00) — logic LAMA cocokkan localStorage['zevanic_absen_'+email]
+// tanggal HARI INI (string persis). Begitu lewat tengah malam, tanggalnya beda
+// walau orangnya masih di shift yang SAMA belum selesai — salah baca status. 2.
+// Karyawan nebeng HP (tidak punya HP sendiri) — localStorage itu NEMPEL DI
+// PERANGKAT, bukan ke akun. Ganti perangkat = localStorage kosong = sistem kira
+// "belum pernah Clock In" padahal aslinya sudah (datanya ADA di Firestore, cuma
+// tidak kebaca dari device yang beda).
 //
-// PRINSIP: localStorage cuma JALAN PINTAS (gratis, cepat) — begitu KOSONG
-// atau meragukan, WAJIB tanya Firestore (sumber kebenaran), TIDAK BOLEH
-// langsung disimpulkan "belum Clock In".
+// PRINSIP: localStorage cuma JALAN PINTAS (gratis, cepat) — begitu KOSONG atau
+// meragukan, WAJIB tanya Firestore (sumber kebenaran), TIDAK BOLEH langsung
+// disimpulkan "belum Clock In".
 //
-// Return: { aktif: bool, docId: string|null, formatLama: bool }
-// - formatLama:true dipakai vue-camera.js buat tau harus BIKIN dokumen
-//   CLOCK OUT terpisah (perilaku lama), BUKAN updateDoc ke dokumen
-//   manapun — dokumen format lama TIDAK bisa digabung tanpa migrasi
-//   paksa yang sudah kita hindari (lihat vue-camera.js).
+// Return: { aktif: bool, docId: string|null, formatLama: bool } -
+// formatLama:true dipakai vue-camera.js buat tau harus BIKIN dokumen CLOCK OUT
+// terpisah (perilaku lama), BUKAN updateDoc ke dokumen manapun — dokumen format
+// lama TIDAK bisa digabung tanpa migrasi paksa yang sudah kita hindari (lihat
+// vue-camera.js).
 window.cekStatusClockInSaya = async function(email) {
   // 1. Jalan pintas: localStorage device INI (gratis, tanpa baca Firestore)
   const docIdLokal = localStorage.getItem('zevanic_absensi_doc_id_' + email);
@@ -817,11 +789,11 @@ window.cekStatusClockInSaya = async function(email) {
     console.error("Gagal cek status Clock In (format baru):", e);
   }
 
-  // 3. Jaring pengaman FORMAT LAMA (masa transisi) — bandingkan waktu
-  // Clock In vs Clock Out TERAKHIR. Kalau tidak bisa dipastikan dengan
-  // aman (waktu_ts belum dimigrasi — lihat Riwayat All Absensi), JANGAN
-  // blokir siapapun — anggap tidak aktif, lebih aman daripada memblokir
-  // orang yang sebenarnya sedang tidak aktif.
+  // 3. Jaring pengaman FORMAT LAMA (masa transisi) — bandingkan waktu Clock In
+  // vs Clock Out TERAKHIR. Kalau tidak bisa dipastikan dengan aman (waktu_ts
+  // belum dimigrasi — lihat Riwayat All Absensi), JANGAN blokir siapapun —
+  // anggap tidak aktif, lebih aman daripada memblokir orang yang sebenarnya
+  // sedang tidak aktif.
   try {
     const qMasukLama = query(collection(db, "absensi"), where("email", "==", email), where("status", "==", "HADIR (CLOCK IN)"), orderBy("waktu_ts", "desc"), limit(1));
     const qKeluarLama = query(collection(db, "absensi"), where("email", "==", email), where("status", "==", "CLOCK OUT"), orderBy("waktu_ts", "desc"), limit(1));
@@ -849,16 +821,17 @@ window.prosesClockOut = async function() {
     return;
   }
   window.statusPilihanGlobal = "CLOCK OUT";
-  // Label diatur otomatis oleh vue-camera.js (modeLabel) — lihat catatan di vue-login.js.
+  // Label diatur otomatis oleh vue-camera.js (modeLabel) — lihat catatan di
+  // vue-login.js.
   window.pindahLayar('screen-camera');
 };
 
 // Pengajuan Izin/Cuti/Lembur (form-nya) sudah pindah ke
 // js/vue-account-profile.js. Variabel global (statusPilihanGlobal,
 // tanggalIzinGlobal, keteranganIzinGlobal, lemburMulaiGlobal, dst) dan
-// window.pindahLayar('screen-camera') TETAP dipakai — itu titik sambung ke
-// alur kamera/geofencing yang belum dimigrasi. window.prosesClockOut TETAP
-// di atas sini (dipanggil dari Vue).
+// window.pindahLayar('screen-camera') TETAP dipakai — itu titik sambung ke alur
+// kamera/geofencing yang belum dimigrasi. window.prosesClockOut TETAP di atas
+// sini (dipanggil dari Vue).
 
 // Lupa Password: pakai fitur bawaan Firebase Auth (kirim link reset ke email
 // terdaftar). Tidak butuh WhatsApp/backend tambahan — ini paling aman & simpel.
@@ -896,21 +869,20 @@ window.aturTampilanBerdasarkanRole = function() {
   if (window.perbaruiAvatarSidebarDesktop) window.perbaruiAvatarSidebarDesktop();
   if (window.perbaruiInfoSidebarDesktop) window.perbaruiInfoSidebarDesktop();
   document.getElementById('label-role-sidebar').innerText = "Role: " + window.currentUser.role.toUpperCase();
-  // REDESAIN (30 Agt 2026) — elemen #label-badge-role (badge "ERP Portal" +
-  // countdown shift lama, js/dashboard.js mulaiHitungJamKerja()) DICOPOT
-  // dari topbar desktop (index.html), diganti breadcrumb statis. Elemen ini
-  // mungkin sudah tidak ada di DOM — null-guard supaya tidak crash.
+  // REDESAIN — elemen #label-badge-role (badge "ERP Portal" + countdown shift
+  // lama, js/dashboard.js mulaiHitungJamKerja) DICOPOT dari topbar desktop
+  // (index.html), diganti breadcrumb statis. Elemen ini mungkin sudah tidak ada
+  // di DOM — null-guard supaya tidak crash.
   const elBadgeRole = document.getElementById('label-badge-role');
   if (elBadgeRole) elBadgeRole.innerHTML = `<i class="far fa-clock mr-1.5"></i> ERP Portal - ${window.currentUser.role.toUpperCase()}`;
 
   const role = (window.currentUser.role || "operator").toLowerCase();
 
-  // DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang sidebar sesuai
-  // wireframe) — menu-admin-acc/menu-keuangan/menu-superuser DULU masing-
-  // masing toggle grup sendiri, SEKARANG cuma tombol ANAK di dalam 1 grup
-  // gabungan "Management" (id toggle baru: menu-management, lihat di
-  // bawah). Elemen *-btn (anak) TIDAK berubah id-nya, gerbang role per
-  // anak juga TETAP SAMA — cuma parent toggle-nya yang disatukan.
+  // menu-admin-acc/menu-keuangan/menu-superuser DULU masing- masing toggle grup
+  // sendiri, SEKARANG cuma tombol ANAK di dalam 1 grup gabungan "Management" (id
+  // toggle baru: menu-management, lihat di bawah). Elemen *-btn (anak) TIDAK
+  // berubah id-nya, gerbang role per anak juga TETAP SAMA — cuma parent
+  // toggle-nya yang disatukan.
   const menuManagement = document.getElementById('menu-management');
   const menuAdminAccBtn = document.getElementById('menu-admin-acc-btn');
   const menuSuperUserBtn = document.getElementById('menu-superuser-btn');
@@ -921,87 +893,77 @@ window.aturTampilanBerdasarkanRole = function() {
   const navMobileAdmin = document.getElementById('nav-mobile-admin');
   const navMobileSuper = document.getElementById('nav-mobile-super');
   const navMobileWhatsapp = document.getElementById('nav-mobile-whatsapp');
-  // Akses & Keamanan (GABUNGAN Config Akses + Hak Akses + Jabatan, 9 Sep
-  // 2026) SENGAJA dipisah dari gerbang owner+superuser di atas — permintaan
-  // eksplisit lama: sub-menu ini khusus Owner saja, bahkan Superuser (yang
-  // sebelumnya setara Owner untuk Master Karyawan lain) tidak boleh
-  // mengaksesnya. Dulu 2 tombol terpisah (btnKonfigAkses/btnHakAkses),
-  // sekarang 1 tombol saja karena sudah 1 layar dengan 3 pill tab.
+  // Akses & Keamanan SENGAJA dipisah dari gerbang owner+superuser di atas —
+  // permintaan eksplisit lama: sub-menu ini khusus Owner saja, bahkan Superuser
+  // (yang sebelumnya setara Owner untuk Master Karyawan lain) tidak boleh
+  // mengaksesnya. Dulu 2 tombol terpisah (btnKonfigAkses/btnHakAkses), sekarang
+  // 1 tombol saja karena sudah 1 layar dengan 3 pill tab.
   const btnAksesKeamanan = document.getElementById('btn-sub-karyawan-akseskeamanan');
   const menuDeviceKioskBtn = document.getElementById('menu-device-kiosk-btn');
-  // BARU (23 Agt 2026) — Zevanic House > Master Bahan & Aksesoris. Gerbang
-  // role SAMA PERSIS dengan Master Absensi/Keuangan (isAdminLevel() di
-  // firestore.rules: pic/admin/owner/superuser) — keputusan dikonfirmasi
-  // Hilman lewat AskUserQuestion ("admin ke atas").
+  // Zevanic House > Master Bahan & Aksesoris. Gerbang role SAMA PERSIS dengan
+  // Master Absensi/Keuangan (isAdminLevel di firestore.rules:
+  // pic/admin/owner/superuser) — keputusan di.
   const menuZevanicHouse = document.getElementById('menu-zevanic-house');
   const menuZevanicHouseBtn = document.getElementById('menu-zevanic-house-btn');
-  // DIHAPUS (9 Sep 2026, rombak ke-2) — menuZevanicPersiapanBtn
-  // ('menu-zevanic-persiapan-btn'), modul Persiapan Masalah lama dihapus
-  // total dari sidebar (lihat index.html komentar navgrp-zevanic).
-  // DIROMBAK (9 Sep 2026, permintaan Guru: susun ulang sidebar sesuai
-  // wireframe) — "Stock & Pembelian" PINDAH keluar dari Zevanic House jadi
-  // grup top-level sendiri "Stok dan Pembelian" (menu-zevanic-stock-btn
-  // DIHAPUS, GANTI menu-stok-pembelian). Gerbang role TETAP SAMA persis
-  // (isAdminLevel() — pic/admin/owner/superuser).
-  // DIROMBAK LAGI (9 Sep 2026, rombak sidebar ke-2) — dulu 1 tombol anak
-  // (menu-stok-pembelian-btn) DIHAPUS, GANTI 5 tombol anak langsung
-  // (Nota Order Belanja/Riwayat Harga/Kartu Stok/Rak Penyimpanan/Repack,
-  // lihat index.html navgrp-stokpembelian) — SAMA seperti Pesanan, 5
-  // tombol anak ini TIDAK digerbang individual di sini, cukup ikut
-  // gerbang parent menuStokPembelian (pola SAMA seperti menuPesanan, yang
-  // 4 tombol anaknya juga tidak pernah muncul sendiri-sendiri di file ini).
+  // DIHAPUS — menuZevanicPersiapanBtn ('menu-zevanic-persiapan-btn'), modul
+  // Persiapan Masalah lama dihapus total dari sidebar (lihat index.html komentar
+  // navgrp-zevanic) "Stock & Pembelian" PINDAH keluar dari Zevanic House jadi
+  // grup top-level sendiri "Stok dan Pembelian" (menu-zevanic-stock-btn DIHAPUS,
+  // GANTI menu-stok-pembelian). Gerbang role TETAP SAMA persis (isAdminLevel —
+  // pic/admin/owner/superuser) dulu 1 tombol anak (menu-stok-pembelian-btn)
+  // DIHAPUS, GANTI 5 tombol anak langsung (Nota Order Belanja/Riwayat
+  // Harga/Kartu Stok/Rak Penyimpanan/Repack, lihat index.html
+  // navgrp-stokpembelian) — SAMA seperti Pesanan, 5 tombol anak ini TIDAK
+  // digerbang individual di sini, cukup ikut gerbang parent menuStokPembelian
+  // (pola SAMA seperti menuPesanan, yang 4 tombol anaknya juga tidak pernah
+  // muncul sendiri-sendiri di file ini).
   const menuStokPembelian = document.getElementById('menu-stok-pembelian');
-  // BARU (29 Agt 2026, koreksi arsitektur menu) — Persiapan Produksi, grup
-  // top-level baru sejajar Zevanic House. Gerbang role SAMA (isAdminLevel()
-  // — pic/admin/owner/superuser), domainnya masih persiapan produksi yang
-  // sebelumnya nested di Zevanic House.
+  // Persiapan Produksi, grup top-level baru sejajar Zevanic House. Gerbang role
+  // SAMA (isAdminLevel — pic/admin/owner/superuser), domainnya masih persiapan
+  // produksi yang sebelumnya nested di Zevanic House.
   const menuPersiapanProduksi = document.getElementById('menu-persiapan-produksi');
-  // BARU (30 Agt 2026, fitur "Pesanan") — grup top-level baru sejajar
-  // Zevanic House/Persiapan Produksi (lihat js/vue-pesanan.js). Gerbang
-  // role SAMA (isAdminLevel()) — menggantikan Order SPK lama yang dulu
-  // nested di Zevanic House dengan gerbang role yang sama persis.
-  // PERBAIKAN BUG (30 Agt 2026): tombol #menu-pesanan sempat ketinggalan
-  // ditambahkan ke sini saat fitur ditulis — sebabnya menu tidak pernah
-  // muncul untuk role manapun (class "hidden" bawaan di index.html tidak
-  // pernah dicopot).
+  // grup top-level baru sejajar Zevanic House/Persiapan Produksi (lihat
+  // js/vue-pesanan.js). Gerbang role SAMA (isAdminLevel) — menggantikan Order
+  // SPK lama yang dulu nested di Zevanic House dengan gerbang role yang sama
+  // persis. PERBAIKAN BUG: tombol #menu-pesanan sempat ketinggalan ditambahkan
+  // ke sini saat fitur ditulis — sebabnya menu tidak pernah muncul untuk role
+  // manapun (class "hidden" bawaan di index.html tidak pernah dicopot).
   const menuPesanan = document.getElementById('menu-pesanan');
-  // BARU (7 Sep 2026 malam) — Scan & Cetak, grup top-level baru sejajar
-  // Zevanic House/Pesanan/Persiapan Produksi. Gerbang role SAMA
-  // (isAdminLevel()) — pola SAMA PERSIS seperti menuPersiapanProduksi/
-  // menuPesanan di atas, TERMASUK jebakan bug yang sama (tombolnya wajib
-  // ditambahkan ke 2 array di bawah ini, kalau tidak menu tidak pernah
-  // muncul untuk role manapun meski class "hidden" cuma bawaan index.html).
+  // Scan & Cetak, grup top-level baru sejajar Zevanic House/Pesanan/Persiapan
+  // Produksi. Gerbang role SAMA (isAdminLevel) — pola SAMA PERSIS seperti
+  // menuPersiapanProduksi/ menuPesanan di atas, TERMASUK jebakan bug yang sama
+  // (tombolnya wajib ditambahkan ke 2 array di bawah ini, kalau tidak menu tidak
+  // pernah muncul untuk role manapun meski class "hidden" cuma bawaan
+  // index.html).
   const menuScanCetak = document.getElementById('menu-scan-cetak');
-  // BARU (7 Sep 2026 malam lanjut lagi) — Proses Produksi, grup top-level
-  // baru sejajar Zevanic House/Pesanan/Persiapan Produksi/Scan & Cetak.
-  // Gerbang role SAMA (isAdminLevel()) — pola SAMA PERSIS seperti
-  // menuPersiapanProduksi/menuScanCetak di atas, TERMASUK jebakan bug yang
-  // sama (tombolnya wajib ditambahkan ke KEDUA array show/hide di bawah).
+  // Proses Produksi, grup top-level baru sejajar Zevanic House/Pesanan/Persiapan
+  // Produksi/Scan & Cetak. Gerbang role SAMA (isAdminLevel) — pola SAMA PERSIS
+  // seperti menuPersiapanProduksi/menuScanCetak di atas, TERMASUK jebakan bug
+  // yang sama (tombolnya wajib ditambahkan ke KEDUA array show/hide di bawah).
   const menuProsesProduksi = document.getElementById('menu-proses-produksi');
 
   [menuManagement, menuAdminAccBtn, menuKeuanganBtn, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnAksesKeamanan, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuStokPembelian, menuPersiapanProduksi, menuPesanan, menuScanCetak, menuProsesProduksi].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
-  // Master Keuangan (Antrean Reimburse + Kategori) SEJAJAR Master Absensi
-  // (bukan anak di dalamnya) — dibuka Hilman 19 Agt 2026 karena PIC & Admin
-  // Finance BEDA peran validasi (tahap 1 vs tahap 2), jadi menu-nya
-  // ditampilkan ke role yang SAMA persis dengan Master Absensi.
+  // Master Keuangan (Antrean Reimburse + Kategori) SEJAJAR Master Absensi (bukan
+  // anak di dalamnya) — dibuka karena PIC & Admin Finance BEDA peran validasi
+  // (tahap 1 vs tahap 2), jadi menu-nya ditampilkan ke role yang SAMA persis
+  // dengan Master Absensi.
   if (role === 'pic' || role === 'owner' || role === 'admin' || role === 'superuser') {
-    // DIROMBAK (9 Sep 2026) — menu-management SEKARANG 1 parent gabungan
-    // buat Absensi+Keuangan+Karyawan (dulu 3 parent terpisah menuAdminAcc/
-    // menuKeuangan/menuSuperUser). Parent-nya dibuka broadest di sini
-    // (sama seperti Absensi/Keuangan dulu); Karyawan (menuSuperUserBtn)
-    // TETAP digerbang lebih ketat di blok owner/superuser di bawah —
-    // parent boleh kebuka duluan, tapi tombol anaknya sendiri baru nongol
-    // kalau role-nya cocok.
+    // menu-management SEKARANG 1 parent gabungan buat Absensi+Keuangan+Karyawan
+    // (dulu 3 parent terpisah menuAdminAcc/ menuKeuangan/menuSuperUser).
+    // Parent-nya dibuka broadest di sini (sama seperti Absensi/Keuangan dulu);
+    // Karyawan (menuSuperUserBtn) TETAP digerbang lebih ketat di blok
+    // owner/superuser di bawah — parent boleh kebuka duluan, tapi tombol anaknya
+    // sendiri baru nongol kalau role-nya cocok.
     if (menuManagement) menuManagement.classList.remove('hidden');
     if (menuAdminAccBtn) menuAdminAccBtn.classList.remove('hidden');
     if (menuKeuanganBtn) menuKeuanganBtn.classList.remove('hidden');
     if (menuZevanicHouse) menuZevanicHouse.classList.remove('hidden');
     if (menuZevanicHouseBtn) menuZevanicHouseBtn.classList.remove('hidden');
-    // DIROMBAK (9 Sep 2026) — Stok dan Pembelian sekarang grup sendiri
-    // (dulu menuZevanicStockBtn, gerbang role TETAP SAMA).
+    // Stok dan Pembelian sekarang grup sendiri (dulu menuZevanicStockBtn,
+    // gerbang role TETAP SAMA).
     if (menuStokPembelian) menuStokPembelian.classList.remove('hidden');
     if (menuPersiapanProduksi) menuPersiapanProduksi.classList.remove('hidden');
     if (menuPesanan) menuPesanan.classList.remove('hidden');
@@ -1030,49 +992,44 @@ window.aturTampilanBerdasarkanRole = function() {
 
   if (role === 'owner') {
     if (btnAksesKeamanan) btnAksesKeamanan.classList.remove('hidden');
-    // Device Kiosk (22 Agt 2026) — "hanya owner saja", SENGAJA pola sama
-    // persis Akses & Keamanan (Superuser TIDAK ikut, beda dari
-    // WhatsApp/Mail Gateway yang Superuser masih boleh).
+    // Device Kiosk — "hanya owner saja", SENGAJA pola sama persis Akses &
+    // Keamanan (Superuser TIDAK ikut, beda dari WhatsApp/Mail Gateway yang
+    // Superuser masih boleh).
     if (menuDeviceKioskBtn) menuDeviceKioskBtn.classList.remove('hidden');
   }
 
-  // DIBEKUKAN (9 Sep 2026, permintaan Guru langsung: "pengaturan menu
-  // sementara tutup aksesnya... tidak user friendly tampilannya, saya
-  // bingung sendiri pakainya") — window.terapkanUrutanMenuDesktop() TIDAK
-  // dipanggil lagi sementara. Urutan sidebar SEKARANG murni ikut urutan
-  // statis di index.html (baru disusun ulang sesuai wireframe handoff,
-  // lihat komentar navgrp-* di sana). Fungsinya TETAP ADA di bawah (tidak
-  // dihapus, biar gampang diaktifkan lagi), TAPI catatan: peta petaGrup
-  // di dalamnya sudah TIDAK SINKRON lagi dengan struktur sidebar terbaru
-  // (Master Absensi/Keuangan/Karyawan sekarang 1 grup "Management", ada
-  // grup baru "Stok dan Pembelian") — kalau fitur ini mau diaktifkan lagi
-  // nanti, petaGrup di terapkanUrutanMenuDesktop() DAN panel "Urutan Menu"
-  // di js/vue-config-akses.js (disembunyikan sementara, cari
-  // fiturUrutanMenuAktif) wajib disesuaikan dulu.
-  // if (window.terapkanUrutanMenuDesktop) window.terapkanUrutanMenuDesktop();
+  // DIBEKUKAN — window.terapkanUrutanMenuDesktop TIDAK dipanggil lagi sementara.
+  // Urutan sidebar SEKARANG murni ikut urutan statis di index.html (baru disusun
+  // ulang sesuai wireframe handoff, lihat komentar navgrp-* di sana). Fungsinya
+  // TETAP ADA di bawah (tidak dihapus, biar gampang diaktifkan lagi), TAPI
+  // catatan: peta petaGrup di dalamnya sudah TIDAK SINKRON lagi dengan struktur
+  // sidebar terbaru (Master Absensi/Keuangan/Karyawan sekarang 1 grup
+  // "Management", ada grup baru "Stok dan Pembelian") — kalau fitur ini mau
+  // diaktifkan lagi nanti, petaGrup di terapkanUrutanMenuDesktop DAN panel
+  // "Urutan Menu" di js/vue-config-akses.js (disembunyikan sementara, cari
+  // fiturUrutanMenuAktif) wajib disesuaikan dulu. if
+  // (window.terapkanUrutanMenuDesktop) window.terapkanUrutanMenuDesktop.
 };
 
-// BARU (27 Agt 2026, sesi lanjutan §27.2) — terapkanUrutanMenuDesktop():
-// baca 1 dokumen urutan custom yang SAMA dipakai Home mobile
-// (pengaturan_sistem/urutan_menu_home, field perKategori + urutanKategori),
-// lalu SUSUN ULANG posisi DOM tombol sidebar desktop (termasuk tombol tab
-// DI DALAM halaman Master Absensi/Keuangan/Karyawan/Zevanic House) supaya
-// urutannya sama dengan yang diatur Owner. Dipanggil di akhir
-// aturTampilanBerdasarkanRole() tiap kali sidebar role di-render (login,
-// pulih sesi).
+// terapkanUrutanMenuDesktop: baca 1 dokumen urutan custom yang SAMA dipakai Home
+// mobile (pengaturan_sistem/urutan_menu_home, field perKategori +
+// urutanKategori), lalu SUSUN ULANG posisi DOM tombol sidebar desktop (termasuk
+// tombol tab DI DALAM halaman Master Absensi/Keuangan/Karyawan/Zevanic House)
+// supaya urutannya sama dengan yang diatur Owner. Dipanggil di akhir
+// aturTampilanBerdasarkanRole tiap kali sidebar role di-render (login, pulih
+// sesi).
 //
-// STRATEGI: cuma REORDER node DOM yang SUDAH ADA (bukan render ulang dari
-// data) — jadi TIDAK mengubah cara kerja pindahTab/pindahSubTab/onclick
-// yang sudah ada sama sekali, cuma urutan tampil visualnya. Tombol yang mau
-// ikut diatur ditandai atribut data-menu-id="<id DAFTAR_MENU>" (1 tombol =
-// 1 menu) atau data-menu-ids="id1,id2,..." (1 tombol mewakili BEBERAPA menu
-// sekaligus — kasus grup Zevanic House yang sub-tabnya lebih dalam lagi,
-// mis. "Data Bahan & Aksesoris"/"Stock & Pembelian"/"Scan": posisi tombol
-// itu dihitung dari index PALING KECIL di antara menu yang diwakilinya).
-// Tombol tanpa data-menu-id/data-menu-ids (mis. "Riwayat Harga
-// Pembelian"/"Kartu Stok" yang tidak terdaftar di DAFTAR_MENU) tetap
-// tampil, otomatis jatuh paling belakang (urutan relatif asli
-// dipertahankan, stable sort) — tidak pernah hilang.
+// STRATEGI: cuma REORDER node DOM yang SUDAH ADA (bukan render ulang dari data)
+// jadi TIDAK mengubah cara kerja pindahTab/pindahSubTab/onclick yang sudah ada
+// sama sekali, cuma urutan tampil visualnya. Tombol yang mau ikut diatur
+// ditandai atribut data-menu-id="<id DAFTAR_MENU>" (1 tombol = 1 menu) atau
+// data-menu-ids="id1,id2,.." (1 tombol mewakili BEBERAPA menu sekaligus — kasus
+// grup Zevanic House yang sub-tabnya lebih dalam lagi, mis. "Data Bahan &
+// Aksesoris"/"Stock & Pembelian"/"Scan": posisi tombol itu dihitung dari index
+// PALING KECIL di antara menu yang diwakilinya). Tombol tanpa
+// data-menu-id/data-menu-ids (mis. "Riwayat Harga Pembelian"/"Kartu Stok" yang
+// tidak terdaftar di DAFTAR_MENU) tetap tampil, otomatis jatuh paling belakang
+// (urutan relatif asli dipertahankan, stable sort) — tidak pernah hilang.
 function _urutkanSiblingMenu(containerEl, urutanIds) {
   if (!containerEl) return;
   const posisi = {};
@@ -1114,14 +1071,11 @@ window.terapkanUrutanMenuDesktop = async function() {
     'Master Keuangan': 'navgrp-keuangan',
     'Master Karyawan': 'navgrp-karyawan',
     'Zevanic House': 'navgrp-zevanic',
-    // BARU (29 Agt 2026, koreksi arsitektur menu) — 'Persiapan Produksi'
-    // grup top-level baru, lihat STATUS-PROYEK.md §44.13.
+    // 'Persiapan Produksi' grup top-level baru, lihat STATUS-PROYEK.md §44.13.
     'Persiapan Produksi': 'navgrp-persiapanproduksi',
-    // BARU (7 Sep 2026 malam) — 'Scan & Cetak' grup top-level baru, lihat
-    // js/vue-scan-cetak.js.
+    // 'Scan & Cetak' grup top-level baru, lihat js/vue-scan-cetak.js.
     'Scan & Cetak': 'navgrp-scancetak',
-    // BARU (7 Sep 2026 malam lanjut lagi) — 'Proses Produksi' grup top-level
-    // baru, lihat js/vue-pp-cutting.js.
+    // 'Proses Produksi' grup top-level baru, lihat js/vue-pp-cutting.js.
     'Proses Produksi': 'navgrp-prosesproduksi',
     'Master Integrasi': 'navgrp-integrasi'
   };
@@ -1141,38 +1095,37 @@ window.terapkanUrutanMenuDesktop = async function() {
     }
   }
 
-  // Lapisan B: urutan tombol DI DALAM tiap grup/tab-strip — dipanggil
-  // walaupun urutanKategori belum diatur (biar urutan per-item tetap ikut
-  // walau urutan grup masih default).
+  // Lapisan B: urutan tombol DI DALAM tiap grup/tab-strip — dipanggil walaupun
+  // urutanKategori belum diatur (biar urutan per-item tetap ikut walau urutan
+  // grup masih default).
   _urutkanSiblingMenu(document.getElementById('navgrp-integrasi'), perKategori['Master Integrasi']);
   _urutkanSiblingMenu(document.getElementById('navgrp-zevanic'), perKategori['Zevanic House']);
-  // BARU (29 Agt 2026) — grup 'Persiapan Produksi' baru: 6 sub-menu
-  // sejajar (Perlu Disiapkan/Vendor/Bahan/Acc Sewing/Acc Webbing/Acc
-  // Finishing), semuanya langsung anak navgrp-persiapanproduksi (tidak
-  // ada tab-strip lebih dalam lagi seperti Zevanic House), jadi cukup 1
-  // baris ini saja.
+  // grup 'Persiapan Produksi' baru: 6 sub-menu sejajar (Perlu
+  // Disiapkan/Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing), semuanya
+  // langsung anak navgrp-persiapanproduksi (tidak ada tab-strip lebih dalam lagi
+  // seperti Zevanic House), jadi cukup 1 baris ini saja.
   _urutkanSiblingMenu(document.getElementById('navgrp-persiapanproduksi'), perKategori['Persiapan Produksi']);
-  // BARU (7 Sep 2026 malam) — grup 'Scan & Cetak' baru: 4 sub-menu sejajar
-  // (Scan Stok/Referensi Scan/Cetak/PIN), langsung anak navgrp-scancetak
-  // (pola sama seperti Persiapan Produksi di atas).
+  // grup 'Scan & Cetak' baru: 4 sub-menu sejajar (Scan Stok/Referensi
+  // Scan/Cetak/PIN), langsung anak navgrp-scancetak (pola sama seperti Persiapan
+  // Produksi di atas).
   _urutkanSiblingMenu(document.getElementById('navgrp-scancetak'), perKategori['Scan & Cetak']);
-  // BARU (7 Sep 2026 malam lanjut lagi) — grup 'Proses Produksi' baru: cuma
-  // 1 sub-menu (Cutting) yang punya menu-id sungguhan saat ini (4 lainnya
-  // masih placeholder alert tanpa data-menu-id, jadi tidak ikut diurutkan
-  // di sini) — pola sama seperti Persiapan Produksi di atas.
+  // grup 'Proses Produksi' baru: cuma 1 sub-menu (Cutting) yang punya menu-id
+  // sungguhan saat ini (4 lainnya masih placeholder alert tanpa data-menu-id,
+  // jadi tidak ikut diurutkan di sini) — pola sama seperti Persiapan Produksi di
+  // atas.
   _urutkanSiblingMenu(document.getElementById('navgrp-prosesproduksi'), perKategori['Proses Produksi']);
   const stripParent = (kelas) => { const el = document.querySelector('.' + kelas); return el ? el.parentElement : null; };
   _urutkanSiblingMenu(stripParent('sub-absensi-btn'), perKategori['Master Absensi']);
   _urutkanSiblingMenu(stripParent('sub-keuangan-btn'), perKategori['Master Keuangan']);
   _urutkanSiblingMenu(stripParent('sub-karyawan-btn'), perKategori['Master Karyawan']);
-  // Sub-tab Zevanic House yang lebih dalam lagi (Data Bahan & Aksesoris,
-  // Stock & Pembelian) — id2 menunya bagian dari kategori 'Zevanic
-  // House' yang sama, jadi pakai array urutan yang sama juga.
+  // Sub-tab Zevanic House yang lebih dalam lagi (Data Bahan & Aksesoris, Stock &
+  // Pembelian) — id2 menunya bagian dari kategori 'Zevanic House' yang sama,
+  // jadi pakai array urutan yang sama juga.
   _urutkanSiblingMenu(stripParent('sub-zh-databahan-btn'), perKategori['Zevanic House']);
   _urutkanSiblingMenu(stripParent('sub-zh-stock-btn'), perKategori['Zevanic House']);
-  // DIPINDAH (7 Sep 2026 malam) — dulu 'sub-zh-scan-btn'/perKategori['Zevanic
-  // House'] (Scan Opname/Persiapan masih di Zevanic House). Sekarang 2 menu
-  // itu di kategori 'Scan & Cetak', tombolnya class 'sub-scancetak-stok-
-  // tahap-btn' (lihat index.html tab-scan-cetak > sub-scan-cetak-stok).
+  // DIPINDAH — dulu 'sub-zh-scan-btn'/perKategori['Zevanic House'] (Scan
+  // Opname/Persiapan masih di Zevanic House). Sekarang 2 menu itu di kategori
+  // 'Scan & Cetak', tombolnya class 'sub-scancetak-stok- tahap-btn' (lihat
+  // index.html tab-scan-cetak > sub-scan-cetak-stok).
   _urutkanSiblingMenu(stripParent('sub-scancetak-stok-tahap-btn'), perKategori['Scan & Cetak']);
 };

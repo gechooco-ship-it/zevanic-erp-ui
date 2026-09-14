@@ -1,55 +1,48 @@
 // js/vue-scan-opname.js
-// ============================================================================
-// BARU (27 Agt 2026, §26.4, Tahap 4) — Zevanic House > Scan > Scan Opname.
-// Bagian dari rencana besar "Config, Cetak Label, Order SPK, Scan" yang
-// diuraikan & disepakati Guru SEBELUM koding di §26.0 (lihat STATUS-
-// PROYEK.md). Tahap 1-3 (Config, Order SPK, Cetak Label) SUDAH dites Guru
-// di live & jalan normal sebelum Tahap ini mulai dikerjakan.
+
+// BARU — Zevanic House > Scan > Scan Opname. Bagian dari rencana besar "Config,
+// Cetak Label, Order SPK, Scan" yang diuraikan & disepakati SEBELUM koding di
+// §26.0 (lihat STATUS- PROYEK.md). Tahap 1-3 (Config, Order SPK, Cetak Label)
+// SUDAH dites di live & jalan normal sebelum Tahap ini mulai dikerjakan.
 //
-// APA INI: hitung ulang stok FISIK vs stok SISTEM ("stock opname"), lewat
-// scan QR (barcode) — bukan CRUD bebas. Keputusan Guru (§26.0 poin 5 & 7):
-//   - Item `pakai_lot_tracking` (qty roll): opname PER ROLL — tiap
-//     `kode_lot` dihitung ulang SENDIRI-SENDIRI (bukan 1 angka gabungan per
-//     bahan). Scan label fisik roll (QR-nya SAMA dengan yang dicetak lewat
-//     menu Cetak Label, §26.3) -> langsung ketemu 1 roll spesifik.
-//   - Item BUKAN lot: opname per ITEM, dibandingkan ke `stok_akhir`
-//     langsung. Scan QR item (BARU ada sejak §26.3 — item non-lot
-//     sebelumnya tidak punya kode/QR sama sekali).
-//   - Efek ke stok — Opsi B (Guru pilih setelah diuraikan 2 opsi): SELALU
-//     tercatat sebagai pergerakan "Penyesuaian" di ledger
-//     `kartu_stok_bahan_aksesoris` yang SUDAH ADA (BUKAN override diam-
-//     diam, BUKAN koleksi baru terpisah) — auditable, kelihatan juga di
-//     Kartu Stok > Detail > Riwayat Pergerakan punya item itu.
-//   - Gating "mobile-only untuk non-Owner" — nyambung ke `window.
-//     currentUser.role` yang SUDAH ADA (role === 'owner', pola SAMA
-//     seperti Config Akses/Hak Akses/Device Kiosk di js/auth.js — BUKAN
-//     mekanisme permission baru): Owner bebas di desktop MAUPUN mobile
-//     (boleh cari-pilih item langsung, TIDAK wajib scan). Non-Owner
-//     WAJIB mobile (dideteksi lewat `isDesktopBrowser()`, disalin dari
-//     js/vue-login.js — konvensi "salin logic kecil per-file" proyek
-//     ini) DAN WAJIB scan (tidak ada jalur cari/ketik manual sama sekali
-//     buat non-Owner — kalau bukan mobile, halaman ini diblokir total).
+// APA INI: hitung ulang stok FISIK vs stok SISTEM ("stock opname"), lewat scan
+// QR (barcode) — bukan CRUD bebas.0 poin 5 & 7): - Item `pakai_lot_tracking`
+// (qty roll): opname PER ROLL — tiap `kode_lot` dihitung ulang SENDIRI-SENDIRI
+// (bukan 1 angka gabungan per bahan). Scan label fisik roll (QR-nya SAMA dengan
+// yang dicetak lewat menu Cetak Label, §26.3) -> langsung ketemu 1 roll
+// spesifik. - Item BUKAN lot: opname per ITEM, dibandingkan ke `stok_akhir`
+// langsung. Scan QR item (BARU ada sejak §26.3 — item non-lot sebelumnya tidak
+// punya kode/QR sama sekali). - Efek ke stok — Opsi B: SELALU tercatat sebagai
+// pergerakan "Penyesuaian" di ledger `kartu_stok_bahan_aksesoris` yang SUDAH ADA
+// (BUKAN override diam- diam, BUKAN koleksi baru terpisah) — auditable,
+// kelihatan juga di Kartu Stok > Detail > Riwayat Pergerakan punya item itu. -
+// Gating "mobile-only untuk non-Owner" — nyambung ke `window. currentUser.role`
+// yang SUDAH ADA (role === 'owner', pola SAMA seperti Config Akses/Hak
+// Akses/Device Kiosk di js/auth.js — BUKAN mekanisme permission baru): Owner
+// bebas di desktop MAUPUN mobile (boleh cari-pilih item langsung, TIDAK wajib
+// scan). Non-Owner WAJIB mobile (dideteksi lewat `isDesktopBrowser`, disalin
+// dari js/vue-login.js — konvensi "salin logic kecil per-file" proyek ini) DAN
+// WAJIB scan (tidak ada jalur cari/ketik manual sama sekali buat non-Owner —
+// kalau bukan mobile, halaman ini diblokir total).
 //
 // SEMUA transaksi yang mengubah stok_akhir/qty_sisa (aturan yang SUDAH
 // didokumentasikan di js/vue-stock-pembelian.js: "JANGAN PERNAH update
-// stok_akhir langsung dari tempat lain") lewat 2 fungsi BARU yang
-// diekspor dari sana: `catatPenyesuaianOpnameItem()` &
-// `catatPenyesuaianOpnameLot()` — file INI TIDAK PERNAH tulis stok_akhir/
-// qty_sisa langsung.
+// stok_akhir langsung dari tempat lain") lewat 2 fungsi BARU yang diekspor dari
+// sana: `catatPenyesuaianOpnameItem` & `catatPenyesuaianOpnameLot` — file INI
+// TIDAK PERNAH tulis stok_akhir/ qty_sisa langsung.
 //
-// Kamera/QR pakai `jsQR` (CDN), pola SAMA PERSIS seperti js/vue-kartu-
-// stok.js / js/vue-scan-qr.js — disalin ulang ke sini (konvensi "salin
-// logic kecil per-file" proyek ini, BUKAN diimpor lintas file).
-// `ambilDaftarBahanAksesorisLengkap()`/`formatNamaBahan()` JUGA disalin
-// (sama seperti di vue-stock-pembelian.js sendiri — lihat catatan di
-// sana, "disalin dari vue-bahan-aksesoris.js/vue-persiapan-masalah.js
-// secara sengaja"). Fungsi baca/tulis LOT & stok (`ambilLotAktif`,
-// `cariBahanByIdTampil`, `ambilBahanById`, `cariLotByKodeSemuaStatus`,
-// `catatPenyesuaianOpnameItem`, `catatPenyesuaianOpnameLot`) DIIMPOR dari
-// vue-stock-pembelian.js — itu SATU-SATUNYA file yang boleh nulis
-// stok_akhir/qty_sisa (pola SAMA seperti vue-kartu-stok.js yang sudah
-// duluan impor fungsi-fungsi serupa dari sana).
-// ============================================================================
+// Kamera/QR pakai `jsQR` (CDN), pola SAMA PERSIS seperti js/vue-kartu- stok.js /
+// js/vue-scan-qr.js — disalin ulang ke sini (konvensi "salin logic kecil
+// per-file" proyek ini, BUKAN diimpor lintas file).
+// `ambilDaftarBahanAksesorisLengkap`/`formatNamaBahan` JUGA disalin (sama
+// seperti di vue-stock-pembelian.js sendiri — lihat catatan di sana, "disalin
+// dari vue-bahan-aksesoris.js/vue-persiapan-masalah.js secara sengaja"). Fungsi
+// baca/tulis LOT & stok (`ambilLotAktif`, `cariBahanByIdTampil`,
+// `ambilBahanById`, `cariLotByKodeSemuaStatus`, `catatPenyesuaianOpnameItem`,
+// `catatPenyesuaianOpnameLot`) DIIMPOR dari vue-stock-pembelian.js — itu
+// SATU-SATUNYA file yang boleh nulis stok_akhir/qty_sisa (pola SAMA seperti
+// vue-kartu-stok.js yang sudah duluan impor fungsi-fungsi serupa dari sana).
+
 import { createApp, ref, computed, onMounted, onUnmounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -61,16 +54,16 @@ import {
 
 const MENU_ID_SCAN_OPNAME = 'scan_opname';
 
-// isDesktopBrowser — disalin dari js/vue-login.js (deteksi User-Agent
-// sederhana, dipakai di sana buat gerbang login desktop). TIDAK
-// diimpor lintas file, konsisten dengan konvensi proyek ini.
+// isDesktopBrowser — disalin dari js/vue-login.js (deteksi User-Agent sederhana,
+// dipakai di sana buat gerbang login desktop). TIDAK diimpor lintas file,
+// konsisten dengan konvensi proyek ini.
 function isDesktopBrowser() {
   return !/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 // ambilDaftarBahanAksesorisLengkap/formatNamaBahan — disalin dari
 // vue-stock-pembelian.js (yang sendiri sudah disalin dari vue-bahan-
-// aksesoris.js/vue-persiapan-masalah.js — "disalin secara sengaja",
-// lihat catatan di sana).
+// aksesoris.js/vue-persiapan-masalah.js — "disalin secara sengaja", lihat
+// catatan di sana).
 async function ambilDaftarBahanAksesorisLengkap() {
   try {
     const snap = await getDocs(collection(db, 'master_bahan_aksesoris'));
@@ -100,8 +93,8 @@ const ScanOpnameManager = {
     const diblokirDesktop = computed(() => siapAkses.value && !isOwner.value && !isMobileDevice.value);
     const bolehSimpan = computed(() => window.cekIzinMenu(MENU_ID_SCAN_OPNAME, 'edit') !== false);
 
-    // --- Cari & pilih item langsung (KHUSUS Owner — non-Owner tidak
-    // punya jalur ini sama sekali, WAJIB scan). ---
+    // Cari & pilih item langsung (KHUSUS Owner — non-Owner tidak punya jalur
+    // ini sama sekali, WAJIB scan).
     const daftarBahan = ref([]);
     const bahanEntry = ref('');
     const opsiBahanMap = computed(() => {
@@ -114,9 +107,9 @@ const ScanOpnameManager = {
     });
     const opsiBahanNama = computed(() => Array.from(opsiBahanMap.value.keys()));
 
-    // --- Item lot-tracked dipilih Owner lewat dropdown -> pilih 1 roll
-    // spesifik dari daftar roll AKTIF-nya (opname per roll tetap berlaku
-    // walau lewat jalur cari, bukan cuma scan). ---
+    // Item lot-tracked dipilih Owner lewat dropdown -> pilih 1 roll spesifik
+    // dari daftar roll AKTIF-nya (opname per roll tetap berlaku walau lewat
+    // jalur cari, bukan cuma scan).
     const bahanUntukPilihRoll = ref(null);
     const daftarLotUntukPilih = ref([]);
     const memuatLotPilih = ref(false);
@@ -146,8 +139,8 @@ const ScanOpnameManager = {
       bahanEntry.value = ''; bahanUntukPilihRoll.value = null; daftarLotUntukPilih.value = [];
     }
 
-    // --- Kamera/QR (SEMUA role) — pola SAMA PERSIS seperti js/vue-kartu-
-    // stok.js (lihat catatan header file). ---
+    // Kamera/QR (SEMUA role) — pola SAMA PERSIS seperti js/vue-kartu-
+    // stok.js (lihat catatan header file).
     const scanAktif = ref(false);
     const videoScanEl = ref(null);
     const canvasScanEl = ref(null);
@@ -223,9 +216,9 @@ const ScanOpnameManager = {
       const kodeBersih = (kode || '').trim();
       if (!kodeBersih) return;
       try {
-        // Coba dulu sebagai kode_lot (QR label roll — SEMUA status, bukan
-        // cuma 'aktif', supaya roll yang di sistem sudah 'habis' tapi
-        // ternyata fisiknya masih ada TETAP bisa ditangkap lewat opname).
+        // Coba dulu sebagai kode_lot (QR label roll — SEMUA status, bukan cuma
+        // 'aktif', supaya roll yang di sistem sudah 'habis' tapi ternyata
+        // fisiknya masih ada TETAP bisa ditangkap lewat opname).
         const lot = await cariLotByKodeSemuaStatus(kodeBersih);
         if (lot) {
           const bahan = await ambilBahanById(lot.bahan_aksesoris_id);
@@ -234,15 +227,14 @@ const ScanOpnameManager = {
           qtyFisik.value = ''; keteranganOpname.value = '';
           return;
         }
-        // Bukan kode_lot -> coba sebagai id_tampil item (QR item non-lot,
-        // BARU ada sejak menu Cetak Label, §26.3).
+        // Bukan kode_lot -> coba sebagai id_tampil item (QR item non-lot, BARU
+        // ada sejak menu Cetak Label, §26.3).
         const bahan = await cariBahanByIdTampil(kodeBersih);
         if (!bahan) { alert(`Kode "${kodeBersih}" tidak dikenali — bukan kode roll/lot atau ID Bahan/Aksesoris yang terdaftar.`); return; }
         if (bahan.pakai_lot_tracking) {
-          // Item ini pakai Qty per Roll/Lot — opname WAJIB per roll
-          // (§26.0 poin 5), bukan level item. Kode yang discan adalah
-          // id_tampil ITEM-nya sendiri, bukan roll — kemungkinan salah
-          // scan (label lama/tertukar).
+          // Item ini pakai Qty per Roll/Lot — opname WAJIB per roll (§26.0 poin
+          // 5), bukan level item. Kode yang discan adalah id_tampil ITEM-nya
+          // sendiri, bukan roll — kemungkinan salah scan (label lama/tertukar).
           alert(`"${formatNamaBahan(bahan)}" adalah item Qty per Roll/Lot — opname harus PER ROLL, scan label ROLL-nya (bukan kode item).`);
           return;
         }
@@ -254,8 +246,8 @@ const ScanOpnameManager = {
       }
     }
 
-    // --- Target aktif (hasil scan ATAU hasil pilih roll Owner) + form
-    // input qty fisik + simpan. ---
+    // Target aktif (hasil scan ATAU hasil pilih roll Owner) + form input qty
+    // fisik + simpan.
     const target = ref(null); // { tipe:'roll', lot, bahan } | { tipe:'item', bahan }
     const qtyFisik = ref('');
     const keteranganOpname = ref('');

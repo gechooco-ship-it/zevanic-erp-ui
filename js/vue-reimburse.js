@@ -1,27 +1,26 @@
 // js/vue-reimburse.js
-// ============================================================================
-// Fitur Reimburse — persetujuan berjenjang 3 tahap (rencana Hilman, 19 Agt
-// 2026): Operator ajukan -> Admin Finance (role admin) ACC -> PIC (role
-// pic) ACC -> Owner ACC (final).
+
+// Fitur Reimburse — persetujuan berjenjang 3 tahap: Operator ajukan -> Admin
+// Finance (role admin) ACC -> PIC (role pic) ACC -> Owner ACC (final).
 //
-// DESAIN KUNCI: 1 field `tahap` di dokumen `reimburse` yang jadi penanda
-// tunggal ada di posisi mana pengajuannya — BUKAN 3 field status terpisah
-// kayak Absensi masuk/keluar. Alasannya beda dari Absensi: di Reimburse
-// SELALU cuma 1 tahap yang aktif di satu waktu (berurutan/sequential,
-// tidak pernah 2 tahap sekaligus pending kayak Clock In+Out yang memang
-// BISA bersamaan). Query jadi sesederhana where('tahap','==', tahapSaya).
+// DESAIN KUNCI: 1 field `tahap` di dokumen `reimburse` yang jadi penanda tunggal
+// ada di posisi mana pengajuannya — BUKAN 3 field status terpisah kayak Absensi
+// masuk/keluar. Alasannya beda dari Absensi: di Reimburse SELALU cuma 1 tahap
+// yang aktif di satu waktu (berurutan/sequential, tidak pernah 2 tahap sekaligus
+// pending kayak Clock In+Out yang memang BISA bersamaan). Query jadi sesederhana
+// where('tahap','==', tahapSaya).
 //
-// PENTING: ini fitur PERTAMA di seluruh app yang bikin role 'admin' dan
-// 'pic' BENERAN beda perilaku (sebelumnya SELALU disamakan lewat
-// isAdminLevel() — lihat diskusi sebelumnya di STATUS-PROYEK.md).
-// 'admin' = Admin Finance (validator tahap 1), 'pic' = PIC (validator
-// tahap 2). Keduanya di-scope ke jenis_pekerjaan+gudang (window.bolehLihatData,
-// PERSIS pola yang sudah baku dipakai di Antrean Absensi/Lembur/Dakar.
+// PENTING: ini fitur PERTAMA di seluruh app yang bikin role 'admin' dan 'pic'
+// BENERAN beda perilaku (sebelumnya SELALU disamakan lewat isAdminLevel — lihat
+// diskusi sebelumnya di STATUS-PROYEK.md). 'admin' = Admin Finance (validator
+// tahap 1), 'pic' = PIC (validator tahap 2). Keduanya di-scope ke
+// jenis_pekerjaan+gudang (window.bolehLihatData, PERSIS pola yang sudah baku
+// dipakai di Antrean Absensi/Lembur/Dakar.
 //
-// Keamanan SEBENARNYA (anti-loncat-tahap) ada di firestore.rules —
-// bagian sini cuma UI, kalau ada yang nekat panggil updateDoc() langsung
-// dari Console browser, Firestore Rules yang jadi penjaga terakhir.
-// ============================================================================
+// Keamanan SEBENARNYA (anti-loncat-tahap) ada di firestore.rules — bagian sini
+// cuma UI, kalau ada yang nekat panggil updateDoc langsung dari Console browser,
+// Firestore Rules yang jadi penjaga terakhir.
+
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, where, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -29,8 +28,8 @@ import { MasterDataCategory, KolomCari } from './vue-components.js?v=13';
 import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1';
 
 // Kompresi gambar sisi klien — pola SAMA seperti js/camera.js (foto KTP),
-// disalin di sini (bukan diimpor) karena kompresGambar di camera.js
-// tidak di-export ke window, cuma dipakai internal file itu.
+// disalin di sini (bukan diimpor) karena kompresGambar di camera.js tidak
+// di-export ke window, cuma dipakai internal file itu.
 function kompresGambarReimburse(file, maxDimensi, kualitas) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -55,26 +54,26 @@ function kompresGambarReimburse(file, maxDimensi, kualitas) {
   });
 }
 
-// Diekspor juga (dipakai test + dipakai ulang di kartu antrean) — tentukan
-// tahap SELANJUTNYA berdasar tahap SEKARANG + keputusan Accept/Reject.
+// Diekspor juga (dipakai test + dipakai ulang di kartu antrean) — tentukan tahap
+// SELANJUTNYA berdasar tahap SEKARANG + keputusan Accept/Reject.
 export function tahapSelanjutnya(tahapSekarang, disetujui) {
   const alur = { menunggu_admin_finance: 'menunggu_pic', menunggu_pic: 'menunggu_owner', menunggu_owner: 'disetujui' };
   if (!disetujui) return 'ditolak';
   return alur[tahapSekarang] || null; // null = tahap tidak dikenal, jangan diproses
 }
 
-// Diekspor juga — field mana yang bertanggung jawab di tahap SEKARANG
-// (dipakai buat validated_by_xxx/validated_at_xxx).
+// Diekspor juga — field mana yang bertanggung jawab di tahap SEKARANG (dipakai
+// buat validated_by_xxx/validated_at_xxx).
 export function namaValidatorTahap(tahapSekarang) {
   const peta = { menunggu_admin_finance: 'admin_finance', menunggu_pic: 'pic', menunggu_owner: 'owner' };
   return peta[tahapSekarang] || null;
 }
 
-// Diekspor juga — role APA yang berwenang di tahap SEKARANG (dipakai
-// cocokkan window.currentUser.role, DUPLIKAT sengaja dari firestore.rules
-// supaya tombol Accept/Reject di UI cuma tampil buat yang benar berhak,
-// walau penjaga SEBENARNYA tetap Rules — ini cuma cegah orang bingung
-// lihat tombol yang toh bakal ditolak server).
+// Diekspor juga — role APA yang berwenang di tahap SEKARANG (dipakai cocokkan
+// window.currentUser.role, DUPLIKAT sengaja dari firestore.rules supaya tombol
+// Accept/Reject di UI cuma tampil buat yang benar berhak, walau penjaga
+// SEBENARNYA tetap Rules — ini cuma cegah orang bingung lihat tombol yang toh
+// bakal ditolak server).
 export function rolesBolehProses(tahapSekarang) {
   const peta = {
     menunggu_admin_finance: ['admin', 'owner', 'superuser'],
@@ -101,18 +100,17 @@ function warnaTahap(tahap) {
   return 'warn';
 }
 
-// ============================================================================
-// Aju Banding Reimburse — BARU (9 Sep 2026). Mirror PERSIS pola Aju
-// Banding Absensi (AjuBandingModal di vue-account-profile.js): field
-// catatan_banding/tgl_banding/lampiran_banding(_tipe) langsung di
-// dokumen `reimburse`, TIDAK ada koleksi baru — spek handoff Master
-// Keuangan minta koleksi `aju_banding_reimburse` terpisah, tapi pola
-// yang sudah jalan & teruji di Absensi lebih sederhana dan konsisten,
-// jadi dipakai ulang di sini juga (nama field SAMA PERSIS — beda
-// collection jadi tidak ada resiko tabrakan).
-// Cuma bisa diajukan kalau tahap === 'ditolak' (lihat bolehBandingReimburse
-// di AjukanReimburseTab).
-// ============================================================================
+
+// Aju Banding Reimburse — BARU . Mirror PERSIS pola Aju Banding Absensi
+// (AjuBandingModal di vue-account-profile.js): field
+// catatan_banding/tgl_banding/lampiran_banding(_tipe) langsung di dokumen
+// `reimburse`, TIDAK ada koleksi baru — spek handoff Master Keuangan minta
+// koleksi `aju_banding_reimburse` terpisah, tapi pola yang sudah jalan & teruji
+// di Absensi lebih sederhana dan konsisten, jadi dipakai ulang di sini juga
+// (nama field SAMA PERSIS — beda collection jadi tidak ada resiko tabrakan).
+// Cuma bisa diajukan kalau tahap === 'ditolak' (lihat bolehBandingReimburse di
+// AjukanReimburseTab).
+
 export const AjuBandingReimburseModal = {
   props: { docId: { type: String, required: true } },
   emits: ['tutup', 'terkirim'],
@@ -190,21 +188,20 @@ export const AjuBandingReimburseModal = {
   `
 };
 
-// ============================================================================
-// KOMPONEN 1 — Tab "Ajukan Reimburse" (dipasang di Account Profile,
-// diimpor & didaftarkan di vue-account-profile.js, BUKAN app mandiri).
-// ============================================================================
+
+// KOMPONEN 1 — Tab "Ajukan Reimburse" (dipasang di Account Profile, diimpor &
+// didaftarkan di vue-account-profile.js, BUKAN app mandiri).
+
 export const AjukanReimburseTab = {
   components: { AjuBandingReimburseModal },
   setup() {
     const opsiKategori = ref([]);
-    // DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2,
-    // permintaan Guru) — 1 field kmSaatIsi (odometer tunggal) GANTI jadi
-    // 3 field: odoSebelum, odoSesudah (rentang trip SEJAK isi bensin
-    // terakhir) + literBensin (jumlah BBM dibeli), dipakai hitung
-    // efisiensi (km/L) di ReimburseCard. Rumus & sumbernya lihat
-    // STATUS-PROYEK.md / mockup gechoo-mobile-organic-rollout.html
-    // (dicari referensinya ke Auto2000, BUKAN tebakan).
+    // 1 field kmSaatIsi (odometer tunggal) GANTI jadi 3 field: odoSebelum,
+    // odoSesudah (rentang trip SEJAK isi bensin terakhir) + literBensin (jumlah
+    // BBM dibeli), dipakai hitung efisiensi (km/L) di ReimburseCard. Rumus &
+    // sumbernya lihat STATUS-PROYEK.md / mockup
+    // gechoo-mobile-organic-rollout.html (dicari referensinya ke Auto2000, BUKAN
+    // tebakan).
     const form = reactive({
       kategori: '', jumlah: '', keterangan: '', fotoBukti: '', gudang: '',
       kendaraanId: '', odoSebelum: '', odoSesudah: '', literBensin: '',
@@ -213,10 +210,9 @@ export const AjukanReimburseTab = {
     const opsiGudangSaya = window.normalisasiGudang ? window.normalisasiGudang(window.currentUser.gudang_penempatan) : (window.currentUser.gudang_penempatan || []);
     if (opsiGudangSaya.length === 1) form.gudang = opsiGudangSaya[0]; // 1 gudang saja -> otomatis
 
-    // BARU (19 Agt 2026, permintaan Hilman) — cuma kendaraan yang
-    // DIKAITKAN ke SAYA SENDIRI (via supir_pemegang di Master Kendaraan)
-    // yang muncul di sini. Kalau tidak dikaitkan ke kendaraan APAPUN,
-    // seluruh bagian "Jenis Pengajuan/Bensin/Servis" TIDAK tampil sama
+    // cuma kendaraan yang DIKAITKAN ke SAYA SENDIRI (via supir_pemegang di
+    // Master Kendaraan) yang muncul di sini. Kalau tidak dikaitkan ke kendaraan
+    // APAPUN, seluruh bagian "Jenis Pengajuan/Bensin/Servis" TIDAK tampil sama
     // sekali — cuma dapat form Reimburse Umum biasa.
     const kendaraanSaya = ref([]);
     const jenisPengajuan = ref('umum'); // 'umum' | 'bensin' | 'servis'
@@ -235,9 +231,9 @@ export const AjukanReimburseTab = {
           if (supirArr.some(s => s.email === window.currentUser.email)) list.push({ id: d.id, plat_nomor: data.plat_nomor, nama_kendaraan: data.nama_kendaraan });
         });
         kendaraanSaya.value = list;
-        // 1 kendaraan saja -> otomatis terpilih, tidak perlu ganggu orang
-        // milih (permintaan eksplisit: "gak usah isi plat nomor kecuali
-        // dia multi mobil").
+        // 1 kendaraan saja -> otomatis terpilih, tidak perlu ganggu orang milih
+        // (permintaan eksplisit: "gak usah isi plat nomor kecuali dia multi
+        // mobil").
         if (list.length === 1) form.kendaraanId = list[0].id;
       } catch (e) {
         console.error("Gagal muat kendaraan milik saya:", e);
@@ -275,7 +271,7 @@ export const AjukanReimburseTab = {
       memuatRiwayat.value = false;
     }
 
-    // ---- Item Servis (bisa nambah baris terus ke bawah) ----
+    // Item Servis (bisa nambah baris terus ke bawah)
     function tambahBarisServis() { form.itemServis.push({ namaBarang: '', qty: 1, harga: '' }); }
     function hapusBarisServis(idx) {
       if (form.itemServis.length <= 1) return; // minimal 1 baris tetap ada
@@ -365,8 +361,8 @@ export const AjukanReimburseTab = {
       if (url && window.bukaPreviewFoto) window.bukaPreviewFoto(url);
     }
 
-    // ---- Aju Banding Reimburse (BARU, 9 Sep 2026) — cuma untuk
-    // pengajuan sendiri yang tahap-nya 'ditolak' & belum pernah dibanding. ----
+    // Aju Banding Reimburse — cuma untuk pengajuan sendiri yang tahap-nya
+    // 'ditolak' & belum pernah dibanding.
     const docIdSedangDibanding = ref(null);
     function bolehBandingReimburse(item) { return item.tahap === 'ditolak' && !item.catatan_banding; }
     function bukaBandingReimburse(docId) { docIdSedangDibanding.value = docId; }
@@ -403,16 +399,17 @@ export const AjukanReimburseTab = {
           </div>
         </div>
 
-        <!-- ============ BENSIN ============ -->
+        <!-- BENSIN -->
         <template v-if="jenisPengajuan === 'bensin' && kendaraanSaya.length > 0">
           <div class="gc-field" v-if="kendaraanSaya.length > 1">
             <label>Kendaraan</label>
             <select v-model="form.kendaraanId"><option value="" disabled>Pilih kendaraan...</option><option v-for="k in kendaraanSaya" :key="k.id" :value="k.id">{{ k.plat_nomor }}{{ k.nama_kendaraan ? ' - ' + k.nama_kendaraan : '' }}</option></select>
           </div>
           <p v-else style="font-size:11.5px; color:var(--text-muted); background:var(--ivory-dim); padding:8px 12px; border-radius:10px; margin-bottom:12px;"><i class="fas fa-truck" style="margin-right:6px;"></i>Kendaraan: <b>{{ kendaraanSaya[0].plat_nomor }}</b></p>
-          <!-- DIROMBAK (29 Agt 2026 v2) — KM (Odometer) Saat Mengisi TUNGGAL
-               diganti 2 field (Sebelum/Sesudah) + Liter Dibeli, dipakai
-               ReimburseCard hitung efisiensi BBM (km/L) otomatis. -->
+          <!--
+            KM (Odometer) Saat Mengisi TUNGGAL diganti 2 field (Sebelum/Sesudah) + Liter Dibeli,
+            dipakai ReimburseCard hitung efisiensi BBM (km/L) otomatis.
+          -->
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
             <div class="gc-field">
               <label>Odometer Sebelum (km)</label>
@@ -433,7 +430,7 @@ export const AjukanReimburseTab = {
           </div>
         </template>
 
-        <!-- ============ SERVIS ============ -->
+        <!-- SERVIS -->
         <template v-else-if="jenisPengajuan === 'servis' && kendaraanSaya.length > 0">
           <div class="gc-field" v-if="kendaraanSaya.length > 1">
             <label>Kendaraan</label>
@@ -455,7 +452,7 @@ export const AjukanReimburseTab = {
           </div>
         </template>
 
-        <!-- ============ UMUM (default, atau tidak dikaitkan kendaraan apapun) ============ -->
+        <!-- UMUM (default, atau tidak dikaitkan kendaraan apapun) -->
         <template v-else>
           <div class="gc-field">
             <label>Kategori Pengeluaran</label>
@@ -498,7 +495,7 @@ export const AjukanReimburseTab = {
             <span class="tag" :class="warnaTahap(r.tahap)">{{ LABEL_TAHAP[r.tahap] || r.tahap }}</span>
             <img v-if="r.foto_bukti" :src="r.foto_bukti" @click="lihatFotoBesar(r.foto_bukti)" style="width:32px; height:32px; object-fit:cover; border-radius:8px; cursor:pointer;">
           </div>
-          <!-- Aju Banding — cuma untuk pengajuan DITOLAK (BARU, 9 Sep 2026) -->
+          <!-- Aju Banding — cuma untuk pengajuan DITOLAK -->
           <div v-if="r.catatan_banding" style="margin-top:8px; text-align:center; font-size:11px; color:var(--text-muted);"><i class="fas fa-check" style="color:var(--ok); margin-right:4px;"></i>Sanggahan sudah terkirim</div>
           <button v-else-if="bolehBandingReimburse(r)" @click="bukaBandingReimburse(r.id)" class="btn-outline block" style="margin-top:8px; font-size:11.5px;"><i class="fas fa-gavel" style="margin-right:6px;"></i>Aju Banding</button>
         </div>
@@ -508,20 +505,20 @@ export const AjukanReimburseTab = {
   `
 };
 
-// ============================================================================
-// KOMPONEN 2 — Kartu antrean (dipakai Admin Finance/PIC/Owner, tombolnya
-// SAMA untuk ketiganya, tapi cuma efektif kalau role-nya cocok dengan
-// tahap dokumen ini — dijaga rolesBolehProses() + firestore.rules).
-// ============================================================================
+
+// KOMPONEN 2 — Kartu antrean (dipakai Admin Finance/PIC/Owner, tombolnya SAMA
+// untuk ketiganya, tapi cuma efektif kalau role-nya cocok dengan tahap dokumen
+// ini — dijaga rolesBolehProses + firestore.rules).
+
 const ReimburseCard = {
   props: { docId: { type: String, required: true }, data: { type: Object, required: true } },
   emits: ['diproses'],
   setup(props, { emit }) {
     const memproses = ref(false);
-    // BARU (19 Agt 2026) — cerminan larangan self-approval yang SEBENARNYA
-    // dijaga firestore.rules (lihat catatan di sana). Di sini cuma
-    // supaya tombol Accept/Reject TIDAK MUNCUL buat pengajuan sendiri
-    // (bukan muncul lalu ditolak server, pengalaman lebih jelas).
+    // cerminan larangan self-approval yang SEBENARNYA dijaga firestore.rules
+    // (lihat catatan di sana). Di sini cuma supaya tombol Accept/Reject TIDAK
+    // MUNCUL buat pengajuan sendiri (bukan muncul lalu ditolak server,
+    // pengalaman lebih jelas).
     const punyaSendiri = computed(() => props.data.email === window.currentUser.email);
     const bolehProses = computed(() => {
       if (punyaSendiri.value) return false;
@@ -532,13 +529,12 @@ const ReimburseCard = {
       if (props.data.foto_bukti && window.bukaPreviewFoto) window.bukaPreviewFoto(props.data.foto_bukti);
     }
 
-    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, permintaan
-    // Guru) — efisiensi BBM (km/L) dihitung LANGSUNG di UI dari
+    // efisiensi BBM (km/L) dihitung LANGSUNG di UI dari
     // odo_sebelum/odo_sesudah/liter_bensin (field baru, isi manual saat
-    // pengajuan — lihat AjukanReimburseTab), TIDAK disimpan field
-    // terpisah di Firestore. Rumus: Jarak Tempuh (Odo Sesudah - Odo
-    // Sebelum) / Liter Dibeli — metode "isi penuh ke isi penuh", DICARI
-    // referensinya (bukan tebakan): https://auto2000.co.id/berita-dan-tips/cara-menghitung-bensin-mobil-per-kilometer
+    // pengajuan — lihat AjukanReimburseTab), TIDAK disimpan field terpisah di
+    // Firestore. Rumus: Jarak Tempuh (Odo Sesudah - Odo Sebelum) / Liter Dibeli
+    // metode "isi penuh ke isi penuh", DICARI referensinya (bukan tebakan):
+    // https://auto2000.co.id/berita-dan-tips/cara-menghitung-bensin-mobil-per-kilometer
     const efisiensiBBM = computed(() => {
       const d = props.data;
       if (d.jenis_entry_kendaraan !== 'bensin' || !d.odo_sebelum || !d.odo_sesudah || !d.liter_bensin) return null;
@@ -547,8 +543,7 @@ const ReimburseCard = {
       return Math.round((jarak / d.liter_bensin) * 10) / 10; // 1 desimal
     });
 
-    // Tanggal polos ("29 Agt 2026") gantikan label "Diajukan" di depan
-    // tanggal (permintaan Guru — labelnya dilepas, tanggalnya tetap ada).
+    // Tanggal polos gantikan label "Diajukan" di depan tanggal .
     function formatTgl(ts) {
       if (!ts || !ts.toDate) return '-';
       return ts.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -578,18 +573,15 @@ const ReimburseCard = {
 
     return { memproses, bolehProses, punyaSendiri, lihatFotoBesar, proses, efisiensiBBM, formatTgl, formatRupiah, LABEL_TAHAP, warnaTahap };
   },
-  // ==========================================================================
-  // TEMPLATE DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2,
-  // dari mockup gechoo-mobile-organic-rollout.html §Reimburse) — foto bukti
-  // (dulu thumbnail besar terpisah 64x64) jadi ikon kecil di header kartu
-  // (38x38, tetap bisa diklik lihat besar); label "Diajukan" dilepas,
-  // tanggal polos langsung ("29 Agt 2026"); Accept/Reject ikut
-  // .approve-row ("Setuju"/"Tolak"). Rincian Servis TETAP (nol perubahan).
-  // Badge tahap TETAP jadi info utama (paling penting di modul ini).
-  // Khusus kategori Isi Bensin: blok Odometer + badge efisiensi (km/L)
-  // BARU. Logic Firestore 3-tahap tahapSelanjutnya()/proses() TIDAK
-  // disentuh sama sekali.
-  // ==========================================================================
+
+  // foto bukti (dulu thumbnail besar terpisah 64x64) jadi ikon kecil di header
+  // kartu (38x38, tetap bisa diklik lihat besar); label "Diajukan" dilepas,
+  // tanggal polos langsung; Accept/Reject ikut .approve-row ("Setuju"/"Tolak").
+  // Rincian Servis TETAP (nol perubahan). Badge tahap TETAP jadi info utama
+  // (paling penting di modul ini). Khusus kategori Isi Bensin: blok Odometer +
+  // badge efisiensi (km/L) BARU. Logic Firestore 3-tahap tahapSelanjutnya/proses
+  // TIDAK disentuh sama sekali.
+
   template: `
     <div class="gc-card" style="border-radius:20px;">
       <div style="display:flex; align-items:center; gap:10px; border-bottom:1px solid var(--ivory-dim); padding-bottom:10px; margin-bottom:10px;">
@@ -639,21 +631,20 @@ const AppAntreanReimburse = {
   components: { ReimburseCard, KolomCari },
   setup() {
     const daftarPending = ref([]);
-    const totalMentahSebelumFilter = ref(0); // diagnostik, lihat catatan di muat()
+    const totalMentahSebelumFilter = ref(0); // diagnostik, lihat catatan di muat
     const memuat = ref(true);
     const errorMuat = ref('');
     const isOwnerRole = computed(() => ['owner', 'superuser'].includes((window.currentUser.role || '').toLowerCase()));
 
-    // BARU (19 Agt 2026, permintaan Hilman) — Owner TIDAK dibatasi 1 tahap
-    // lagi (dulu cuma lihat menunggu_owner) — Owner sekarang bisa lihat
-    // SEMUA tahap sekaligus, buat lacak "reimburse ini nyangkut di tahap
-    // mana" pas lagi debug. Admin Finance/PIC TETAP dibatasi 1 tahap
-    // (sesuai wewenang mereka di firestore.rules, tidak berubah).
+    // Owner TIDAK dibatasi 1 tahap lagi (dulu cuma lihat menunggu_owner) — Owner
+    // sekarang bisa lihat SEMUA tahap sekaligus, buat lacak "reimburse ini
+    // nyangkut di tahap mana" pas lagi debug. Admin Finance/PIC TETAP dibatasi 1
+    // tahap (sesuai wewenang mereka di firestore.rules, tidak berubah).
     function tahapUntukRoleSaya() {
       const role = (window.currentUser.role || '').toLowerCase();
       if (role === 'admin') return 'menunggu_admin_finance';
       if (role === 'pic') return 'menunggu_pic';
-      if (isOwnerRole.value) return null; // null = TIDAK dibatasi where(), lihat muat()
+      if (isOwnerRole.value) return null; // null = TIDAK dibatasi where, lihat muat
       return 'TIDAK_BERWENANG'; // Operator dkk — beda dari Owner punya null, biar tidak ketuker
     }
     const labelTahapSaya = computed(() => {
@@ -661,11 +652,11 @@ const AppAntreanReimburse = {
       return LABEL_TAHAP[tahapUntukRoleSaya()] || '';
     });
 
-    // Search box + filter tahap — filter tahap CUMA relevan/tampil buat
-    // Owner (Admin Finance/PIC sudah otomatis di-scope 1 tahap lewat
-    // query, dropdown lagi cuma bikin bingung). Default "Pengajuan PIC"
-    // (menunggu_owner) — itu tahap yang jadi tanggung jawab Owner
-    // sendiri, paling relevan dibuka duluan tanpa perlu ganti-ganti.
+    // Search box + filter tahap — filter tahap CUMA relevan/tampil buat Owner
+    // (Admin Finance/PIC sudah otomatis di-scope 1 tahap lewat query, dropdown
+    // lagi cuma bikin bingung). Default "Pengajuan PIC" (menunggu_owner) — itu
+    // tahap yang jadi tanggung jawab Owner sendiri, paling relevan dibuka duluan
+    // tanpa perlu ganti-ganti.
     const cariNama = ref('');
     const filterTahapOwner = ref('menunggu_owner');
     const OPSI_FILTER_TAHAP = [
@@ -675,10 +666,9 @@ const AppAntreanReimburse = {
       { value: 'menunggu_owner', label: 'Pengajuan PIC (sudah ACC PIC)' }
     ];
 
-    // Filter Kendaraan — buat monitoring biaya per kendaraan (permintaan
-    // Hilman 19 Agt 2026). Client-side, dari data yang SUDAH ketarik
-    // (tidak nambah baca Firestore) — antrean ini kecil (cuma yang
-    // pending), jadi aman disaring di browser.
+    // Filter Kendaraan — buat monitoring biaya per kendaraan . Client-side, dari
+    // data yang SUDAH ketarik (tidak nambah baca Firestore) — antrean ini kecil
+    // (cuma yang pending), jadi aman disaring di browser.
     const filterKendaraan = ref('ALL');
     const opsiKendaraan = computed(() => {
       const set = new Set();
@@ -696,9 +686,8 @@ const AppAntreanReimburse = {
       return hasil;
     });
 
-    // BARU (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2) — dropdown
-    // filter Tahap (Owner) & Kendaraan dipindah ke 1 menu "lainnya" oval
-    // titik-tiga di sebelah kolom cari, pola sama modul lain.
+    // dropdown filter Tahap (Owner) & Kendaraan dipindah ke 1 menu "lainnya"
+    // oval titik-tiga di sebelah kolom cari, pola sama modul lain.
     const menuTerbuka = ref(false);
     function toggleMenuTerbuka() { menuTerbuka.value = !menuTerbuka.value; }
     const adaFilterAktif = computed(() => (isOwnerRole.value && filterTahapOwner.value !== 'SEMUA') || filterKendaraan.value !== 'ALL');
@@ -710,10 +699,10 @@ const AppAntreanReimburse = {
         const tahapSaya = tahapUntukRoleSaya();
         if (tahapSaya === 'TIDAK_BERWENANG') { daftarPending.value = []; memuat.value = false; return; }
 
-        // Owner (tahapSaya === null): fetch SELURUH collection reimburse,
-        // TANPA where() tahap — sengaja, buat diagnostik "lihat semua".
-        // Admin Finance/PIC: tetap query 1 tahap seperti biasa (hemat,
-        // sesuai wewenang mereka).
+        // Owner (tahapSaya === null): fetch SELURUH collection reimburse, TANPA
+        // where tahap — sengaja, buat diagnostik "lihat semua". Admin
+        // Finance/PIC: tetap query 1 tahap seperti biasa (hemat, sesuai wewenang
+        // mereka).
         const snap = tahapSaya === null
           ? await getDocs(collection(db, "reimburse"))
           : await getDocs(query(collection(db, "reimburse"), where("tahap", "==", tahapSaya)));
@@ -722,8 +711,8 @@ const AppAntreanReimburse = {
         snap.forEach(docSnap => {
           const d = docSnap.data();
           // jenis_pekerjaan di app ini = BIDANG USAHA (Konveksi/Retail/
-          // Logistik) — WAJIB dicocokkan, supaya Admin Finance bisnis
-          // Konveksi TIDAK bisa lihat reimburse bisnis Logistik.
+          // Logistik) — WAJIB dicocokkan, supaya Admin Finance bisnis Konveksi
+          // TIDAK bisa lihat reimburse bisnis Logistik.
           if (!window.bolehLihatData(d.jenis_pekerjaan, d.gudang)) return;
           list.push({ id: docSnap.id, data: d });
         });
@@ -742,14 +731,11 @@ const AppAntreanReimburse = {
       menuTerbuka, toggleMenuTerbuka, adaFilterAktif
     };
   },
-  // ==========================================================================
-  // DIROMBAK (29 Agt 2026, moodboard "Gechoo Mobile Organic" v2, dari cek
-  // live Guru di HP — PRIORITAS TERAKHIR, dikerjakan setelah Absensi/Lembur/
-  // Dakar terbukti aman, sesuai catatan risiko mockup) — banner dipadatkan
-  // & dipindah ke bawah kolom cari, dropdown filter Tahap (Owner)+Kendaraan
-  // masuk ke menu oval titik-tiga — pola sama persis 3 modul lain. Logic
-  // query 3-tahap/muat()/bolehLihatData TIDAK berubah sama sekali.
-  // ==========================================================================
+
+  // banner dipadatkan & dipindah ke bawah kolom cari, dropdown filter Tahap
+  // (Owner)+Kendaraan masuk ke menu oval titik-tiga — pola sama persis 3 modul
+  // lain. Logic query 3-tahap/muat/bolehLihatData TIDAK berubah sama sekali.
+
   template: `
     <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
       <div style="flex:1; min-width:0;"><kolom-cari v-model="cariNama" placeholder="Cari nama pemohon..." /></div>
@@ -820,12 +806,12 @@ window.pastikanMountAntreanReimburse = function() {
 };
 window.refreshAntreanReimburse = function() { if (vmAntreanReimburse) vmAntreanReimburse.muat(); };
 
-// ============================================================================
+
 // KOMPONEN 3 — Master Keuangan: cuma bungkus tipis MasterDataCategory yang
 // Kelola kategori Pengeluaran (dipakai form Ajukan Reimburse) dan kategori
-// Pemasukan, pakai ulang MasterDataCategory (bukan UI baru). 2 section
-// ditumpuk vertikal (bukan berdampingan) sesuai spek Master Keuangan.
-// ============================================================================
+// Pemasukan, pakai ulang MasterDataCategory (bukan UI baru). 2 section ditumpuk
+// vertikal (bukan berdampingan) sesuai spek Master Keuangan.
+
 const AppMasterKeuangan = {
   components: { MasterDataCategory },
   template: `
@@ -841,7 +827,7 @@ const AppMasterKeuangan = {
 };
 let vmMasterKeuangan = null;
 // Refresh saat tab diklik ulang (irit baca Firestore, tidak polling) — panggil
-// muat() di 2 ref MasterDataCategory kalau sudah pernah mount.
+// muat di 2 ref MasterDataCategory kalau sudah pernah mount.
 window.pastikanMountMasterKeuangan = function() {
   if (vmMasterKeuangan) {
     const mgr1 = vmMasterKeuangan.$refs && vmMasterKeuangan.$refs.mgr1;
@@ -854,28 +840,27 @@ window.pastikanMountMasterKeuangan = function() {
   if (mountPoint) vmMasterKeuangan = createApp(AppMasterKeuangan).mount('#vue-master-keuangan');
 };
 
-// ============================================================================
-// KOMPONEN 4 — Master Kendaraan: daftar kendaraan + supir pemegang SAAT
-// INI (bisa di-assign ulang kapan saja — rotasi antar supir, permintaan
-// eksplisit Hilman 19 Agt 2026). Dipakai form Ajukan Reimburse supaya
-// Admin Finance/PIC/Owner bisa monitor biaya bensin+servis PER KENDARAAN,
-// bukan cuma per orang (supir bisa gonta-ganti kendaraan dari waktu ke
-// waktu, kendaraan yang jadi acuan biaya, bukan orangnya).
+
+// KOMPONEN 4 — Master Kendaraan: daftar kendaraan + supir pemegang SAAT INI .
+// Dipakai form Ajukan Reimburse supaya Admin Finance/PIC/Owner bisa monitor
+// biaya bensin+servis PER KENDARAAN, bukan cuma per orang (supir bisa
+// gonta-ganti kendaraan dari waktu ke waktu, kendaraan yang jadi acuan biaya,
+// bukan orangnya).
 //
-// SENGAJA 1 dokumen per kendaraan (bukan 1 dokumen array semua kendaraan,
-// pola master_data biasa) — supaya assign ulang supir 1 kendaraan TIDAK
-// perlu baca+tulis ulang SELURUH daftar kendaraan (hindari resiko
-// tabrakan kalau 2 Admin assign kendaraan BEDA di waktu bersamaan),
-// PERSIS alasan yang sama kenapa master_gudang/master_shift juga begitu.
-// ============================================================================
+// SENGAJA 1 dokumen per kendaraan (bukan 1 dokumen array semua kendaraan, pola
+// master_data biasa) — supaya assign ulang supir 1 kendaraan TIDAK perlu
+// baca+tulis ulang SELURUH daftar kendaraan (hindari resiko tabrakan kalau 2
+// Admin assign kendaraan BEDA di waktu bersamaan), PERSIS alasan yang sama
+// kenapa master_gudang/master_shift juga begitu.
+
 const MasterKendaraanManager = {
   setup() {
     const daftarKendaraan = ref([]);
     const memuat = ref(true);
 
-    // Form tambah kendaraan baru — urutan sesuai permintaan: Jenis
-    // Pekerjaan -> Gudang -> Plat Nomor -> (Atur Supir belakangan, lewat
-    // panel terpisah biar konsisten sama alur edit).
+    // Form tambah kendaraan baru — urutan sesuai permintaan: Jenis Pekerjaan ->
+    // Gudang -> Plat Nomor -> (Atur Supir belakangan, lewat panel terpisah biar
+    // konsisten sama alur edit).
     const jenisPekerjaanBaru = ref('');
     const gudangBaru = ref('');
     const platBaru = ref('');
@@ -888,7 +873,7 @@ const MasterKendaraanManager = {
     const sedangEditSupirId = ref(null); // id kendaraan yang panel checkbox-nya lagi kebuka
     const pilihanSementara = ref([]); // array email, draft sebelum disimpan
 
-    // BARU — search box + tabel riwayat
+    // search box + tabel riwayat
     const cariKendaraan = ref('');
     const daftarKendaraanTersaring = computed(() => {
       const kata = cariKendaraan.value.trim().toLowerCase();
@@ -900,9 +885,9 @@ const MasterKendaraanManager = {
         k.supir_pemegang.some(s => (s.nama || '').toLowerCase().includes(kata))
       );
     });
-    // PEDOMAN KERJA (19 Agt 2026) — setiap menu baru WAJIB paginasi.
-    // Client-side (bukan cursor Firestore) karena koleksi kendaraan
-    // biasanya kecil, cukup dipotong di browser.
+    // PEDOMAN KERJA — setiap menu baru WAJIB paginasi. Client-side (bukan cursor
+    // Firestore) karena koleksi kendaraan biasanya kecil, cukup dipotong di
+    // browser.
     const PER_HALAMAN = 15;
     const halamanSaatIni = ref(1);
     watch(cariKendaraan, () => { halamanSaatIni.value = 1; });
@@ -985,8 +970,8 @@ const MasterKendaraanManager = {
       menyimpan.value = false;
     }
 
-    // Panel "Atur Supir" — fitur checklist multi-select yang SUDAH ADA,
-    // dipakai ulang apa adanya (bukan dibangun baru).
+    // Panel "Atur Supir" — fitur checklist multi-select yang SUDAH ADA, dipakai
+    // ulang apa adanya (bukan dibangun baru).
     function bukaEditSupir(k) {
       sedangEditSupirId.value = k.id;
       pilihanSementara.value = k.supir_pemegang.map(s => s.email);
@@ -1004,8 +989,8 @@ const MasterKendaraanManager = {
           supir_pemegang: supirTerpilih,
           supir_pemegang_email: null,
           supir_pemegang_nama: null,
-          // BARU — catat KAPAN pengaitan ini dibuat, ditampilkan sebagai
-          // kolom "Dikaitkan Sejak" di tabel (permintaan riwayat).
+          // catat KAPAN pengaitan ini dibuat, ditampilkan sebagai kolom
+          // "Dikaitkan Sejak" di tabel (permintaan riwayat).
           supir_ditugaskan_pada: serverTimestamp()
         });
         sedangEditSupirId.value = null;
@@ -1062,13 +1047,12 @@ const MasterKendaraanManager = {
       <input v-model="cariKendaraan" type="text" placeholder="Cari plat, nama, gudang, atau supir..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
     </div>
 
-    <!-- GANTI (grid-fix mobile §perbaikan grid+kartu) — dulu tabel scroll
-         horizontal (5 kolom, freeze-right), SEKARANG kartu supaya tidak
-         perlu geser ke kanan di HP. Semua kolom lama tetap ada: header =
-         Plat (judul) + Nama (subjudul), kartu-rows = Jenis Pekerjaan/
-         Gudang, Supir Pemegang, Dikaitkan Sejak, Aksi jadi 2 ikon di
-         header, panel "Atur Supir" tetap muncul DI DALAM kartu yang sama
-         (bukan baris tabel terpisah lagi). -->
+    <!--
+      (grid-fix mobile §perbaikan grid+kartu) — Semua kolom lama tetap ada: header = Plat (judul)
+      + Nama (subjudul), kartu-rows = Jenis Pekerjaan/ Gudang, Supir Pemegang, Dikaitkan Sejak,
+      Aksi jadi 2 ikon di header, panel "Atur Supir" tetap muncul DI DALAM kartu yang sama (bukan
+      baris tabel terpisah lagi).
+    -->
     <div v-if="memuat" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <div v-else-if="daftarKendaraan.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada kendaraan terdaftar.</div>
     <div v-else-if="daftarKendaraanTersaring.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Tidak ada yang cocok dicari.</div>
@@ -1127,23 +1111,21 @@ window.pastikanMountMasterKendaraan = function() {
   if (mountPoint) vmMasterKendaraan = createApp(AppMasterKendaraan).mount('#vue-master-kendaraan');
 };
 
-// ============================================================================
-// KOMPONEN 5 — Riwayat (3 menu: Reimburse/Bensin/Servis, permintaan
-// Hilman 19 Agt 2026). 1 komponen dipakai ULANG buat ketiganya lewat
-// prop `mode` — bukan bikin 3 komponen terpisah yang isinya 90% sama.
-// Beda dari Antrean Reimburse: di sini TAMPILKAN SEMUA tahap (termasuk
-// yang sudah disetujui/ditolak) — ini laporan/riwayat, bukan antrean
-// kerja. Di-scope jenis_pekerjaan+gudang (window.bolehLihatData), SAMA
-// seperti tabel lain di app ini.
-// ============================================================================
-// (9 Sep 2026) — judul mode 'semua' diganti "Riwayat Keuangan" (spek
-// handoff Master Keuangan §3.2 minta 1 tabel gabungan reimburse+bensin+
-// servis, bukan 1 tab per jenis). Data mode 'semua' SUDAH menggabungkan
-// ketiganya SEJAK DULU (lihat muat(), tidak ada filter jenis_entry_
-// kendaraan buat mode ini) — yang baru CUMA tampilannya (badge Jenis +
-// field per-jenis ikut tampil, lihat template). Mode 'bensin'/'servis'
-// TETAP ada di kode (AppRiwayatBensin/AppRiwayatServis di bawah) tapi
-// TIDAK dipasang ke menu manapun lagi — dipertahankan kalau-kalau
+
+// KOMPONEN 5 — Riwayat . 1 komponen dipakai ULANG buat ketiganya lewat prop
+// `mode` — bukan bikin 3 komponen terpisah yang isinya 90% sama. Beda dari
+// Antrean Reimburse: di sini TAMPILKAN SEMUA tahap (termasuk yang sudah
+// disetujui/ditolak) — ini laporan/riwayat, bukan antrean kerja. Di-scope
+// jenis_pekerjaan+gudang (window.bolehLihatData), SAMA seperti tabel lain di app
+// ini.
+// —
+// judul mode 'semua' diganti "Riwayat Keuangan" (spek handoff Master Keuangan
+// §3.2 minta 1 tabel gabungan reimburse+bensin+ servis, bukan 1 tab per jenis).
+// Data mode 'semua' SUDAH menggabungkan ketiganya SEJAK DULU (lihat muat, tidak
+// ada filter jenis_entry_ kendaraan buat mode ini) — yang baru CUMA tampilannya
+// (badge Jenis + field per-jenis ikut tampil, lihat template). Mode
+// 'bensin'/'servis' TETAP ada di kode (AppRiwayatBensin/AppRiwayatServis di
+// bawah) tapi TIDAK dipasang ke menu manapun lagi — dipertahankan kalau-kalau
 // dibutuhkan lagi nanti, bukan dihapus total.
 const LABEL_MODE = {
   semua: { judul: 'Riwayat Keuangan', ikon: 'fa-wallet', placeholder: 'Cari nama karyawan...' },
@@ -1151,21 +1133,19 @@ const LABEL_MODE = {
   servis: { judul: 'Riwayat Servis', ikon: 'fa-wrench', placeholder: 'Cari nama karyawan atau plat...' }
 };
 
-// Filter tab (9 Sep 2026, audit vs wireframe §3.3) — "Semua / Reimburse /
-// Bensin / Servis" di ATAS TABEL mode 'semua' (Riwayat Keuangan gabungan).
-// PENTING soal data besar: ini filter CLIENT-SIDE saja (computed di atas
-// array yang SUDAH di-load oleh muat()) — TIDAK menyentuh query Firestore
-// sama sekali. muat() SUDAH dibatasi pakai query rentang tanggal (where
-// diajukan_pada, lihat catatan §44.17 di bawah), jadi baris yang jadi
-// pilihan tab SELALU subset dari baris yang sudah difilter tanggal — ganti
-// tab TIDAK PERNAH menyembunyikan baris yang seharusnya ada di rentang
-// tanggal aktif, cuma mempersempit tampilan dari data yang sudah di tangan.
-// Kalau nanti rentang tanggal dibikin jauh lebih panjang (mis. "1 Tahun")
-// dan koleksi reimburse sudah sangat besar, filter jenis ini seharusnya
-// ikut jadi where() Firestore juga — DICATAT sebagai gap, BUKAN dikerjakan
-// sekarang (field jenis_entry_kendaraan tidak diisi utk reimburse umum,
-// perlu query terpisah per tab kalau mau di server, beda pola dari yang
-// ada sekarang).
+// Filter tab — "Semua / Reimburse / Bensin / Servis" di ATAS TABEL mode 'semua'
+// (Riwayat Keuangan gabungan). PENTING soal data besar: ini filter CLIENT-SIDE
+// saja (computed di atas array yang SUDAH di-load oleh muat) — TIDAK menyentuh
+// query Firestore sama sekali. muat SUDAH dibatasi pakai query rentang tanggal
+// (where diajukan_pada, lihat catatan §44.17 di bawah), jadi baris yang jadi
+// pilihan tab SELALU subset dari baris yang sudah difilter tanggal — ganti tab
+// TIDAK PERNAH menyembunyikan baris yang seharusnya ada di rentang tanggal
+// aktif, cuma mempersempit tampilan dari data yang sudah di tangan. Kalau nanti
+// rentang tanggal dibikin jauh lebih panjang (mis. "1 Tahun") dan koleksi
+// reimburse sudah sangat besar, filter jenis ini seharusnya ikut jadi where
+// Firestore juga — DICATAT sebagai gap, BUKAN dikerjakan sekarang (field
+// jenis_entry_kendaraan tidak diisi utk reimburse umum, perlu query terpisah per
+// tab kalau mau di server, beda pola dari yang ada sekarang).
 const FILTER_JENIS_TAB = [
   { value: 'semua', label: 'Semua' },
   { value: 'reimburse', label: 'Reimburse' },
@@ -1187,9 +1167,9 @@ const RiwayatReimburseTable = {
     const expandedId = ref(null);
     function toggleExpand(id) { expandedId.value = expandedId.value === id ? null : id; }
 
-    // Tab hanya relevan buat mode 'semua' (Riwayat Keuangan gabungan) —
-    // mode 'bensin'/'servis' (layar lama, sudah tidak dipasang ke menu
-    // manapun) datanya sudah 1 jenis saja, tab jadi tidak berguna di sana.
+    // Tab hanya relevan buat mode 'semua' (Riwayat Keuangan gabungan) — mode
+    // 'bensin'/'servis' (layar lama, sudah tidak dipasang ke menu manapun)
+    // datanya sudah 1 jenis saja, tab jadi tidak berguna di sana.
     const daftarJenisTersaring = computed(() => {
       if (props.mode !== 'semua' || filterJenisTab.value === 'semua') return daftarSemua.value;
       return daftarSemua.value.filter(r => jenisEntriTab(r) === filterJenisTab.value);
@@ -1203,7 +1183,7 @@ const RiwayatReimburseTable = {
         (r.kendaraan_plat || '').toLowerCase().includes(kata)
       );
     });
-    // PEDOMAN KERJA (19 Agt 2026) — setiap menu baru WAJIB paginasi.
+    // PEDOMAN KERJA — setiap menu baru WAJIB paginasi.
     const PER_HALAMAN = 15;
     const halamanSaatIni = ref(1);
     watch([cariKata, filterJenisTab], () => { halamanSaatIni.value = 1; });
@@ -1219,11 +1199,10 @@ const RiwayatReimburseTable = {
       return ts.toDate().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
     }
 
-    // BARU (10 Sep 2026) — badge tanggal 2-baris (hari besar + bulan
-    // singkat kecil) utk kartu mobile di bawah, pola Pola 4 Sample Hifi
-    // mobile (M6 "Riwayat/Tabel") — lihat GAP-MOBILE-10SEP2026.md temuan
-    // #2. `daftarTerpaginasi`/kolom lain TETAP sama, cuma cara tampil di
-    // layar sempit yang beda dari tabel desktop.
+    // badge tanggal 2-baris (hari besar + bulan singkat kecil) utk kartu mobile
+    // di bawah, pola Pola 4 Sample Hifi mobile (M6 "Riwayat/Tabel") — lihat
+    // GAP-MOBILE-10SEP2026.md temuan #2. `daftarTerpaginasi`/kolom lain TETAP
+    // sama, cuma cara tampil di layar sempit yang beda dari tabel desktop.
     function formatTglBadge(ts) {
       if (!ts || !ts.toDate) return { hari: '-', bulan: '' };
       const d = ts.toDate();
@@ -1233,15 +1212,14 @@ const RiwayatReimburseTable = {
       };
     }
 
-    // BARU (29 Agt 2026, §44.17) — HEMAT: dulu fetch SELURUH koleksi
-    // `reimburse` (terus tumbuh selamanya, tidak ada batas), sekarang
-    // filter rentang tanggal jadi QUERY SUNGGUHAN (where() server-side),
-    // pola SAMA PERSIS `vue-riwayat-absensi.js` (duplikasi kecil per-file,
-    // bukan diimpor — konvensi proyek). Field `diajukan_pada` SUDAH
-    // Timestamp asli sejak awal (`serverTimestamp()` di simpan()) — TIDAK
-    // perlu alat migrasi seperti absensi.waktu_ts. Default "30 Hari
-    // Terakhir" (bukan "Hari Ini" seperti Absensi) karena reimburse jauh
-    // lebih jarang diajukan daripada Clock In/Out harian.
+    // HEMAT: dulu fetch SELURUH koleksi `reimburse` (terus tumbuh selamanya,
+    // tidak ada batas), sekarang filter rentang tanggal jadi QUERY SUNGGUHAN
+    // (where server-side), pola SAMA PERSIS `vue-riwayat-absensi.js` (duplikasi
+    // kecil per-file, bukan diimpor — konvensi proyek). Field `diajukan_pada`
+    // SUDAH Timestamp asli sejak awal (`serverTimestamp` di simpan) — TIDAK
+    // perlu alat migrasi seperti absensi.waktu_ts. Default "30 Hari Terakhir"
+    // (bukan "Hari Ini" seperti Absensi) karena reimburse jauh lebih jarang
+    // diajukan daripada Clock In/Out harian.
     const filterTanggalPreset = ref('30_hari');
     const tglMulaiCustom = ref('');
     const tglSelesaiCustom = ref('');
@@ -1290,12 +1268,11 @@ const RiwayatReimburseTable = {
         const { mulai, selesai } = hitungRentangTanggal(filterTanggalPreset.value, tglMulaiCustom.value, tglSelesaiCustom.value);
         const tsMulai = Timestamp.fromDate(mulai);
         const tsSelesai = Timestamp.fromDate(selesai);
-        // Riwayat = SEMUA tahap (bukan cuma pending) dalam rentang tanggal
-        // aktif — ini laporan, bukan antrean kerja. Filter
-        // jenis_entry_kendaraan (bensin/servis) TETAP dilakukan DI CLIENT
-        // (bukan where() Firestore) supaya 1 fetch (yang sekarang sudah
-        // dibatasi tanggal) bisa dipakai ulang oleh ketiga mode tanpa 3x
-        // baca beda-beda.
+        // Riwayat = SEMUA tahap (bukan cuma pending) dalam rentang tanggal aktif
+        // ini laporan, bukan antrean kerja. Filter jenis_entry_kendaraan
+        // (bensin/servis) TETAP dilakukan DI CLIENT (bukan where Firestore)
+        // supaya 1 fetch (yang sekarang sudah dibatasi tanggal) bisa dipakai
+        // ulang oleh ketiga mode tanpa 3x baca beda-beda.
         const snap = await getDocs(query(collection(db, "reimburse"),
           where("diajukan_pada", ">=", tsMulai), where("diajukan_pada", "<=", tsSelesai)));
         const list = [];
@@ -1319,12 +1296,11 @@ const RiwayatReimburseTable = {
       if (url && window.bukaPreviewFoto) window.bukaPreviewFoto(url);
     }
 
-    // Assign ulang Aju Banding Reimburse — BARU (9 Sep 2026), mirror
-    // PERSIS assignUlang() di vue-riwayat-absensi.js. Restart dari tahap
-    // paling awal (menunggu_admin_finance) — penolakan bisa saja terjadi
-    // di tahap manapun (Admin Finance/PIC/Owner), jadi mulai ulang dari
-    // awal paling aman & konsisten daripada menebak tahap mana yang mau
-    // ditinjau ulang.
+    // Assign ulang Aju Banding Reimburse — BARU, mirror PERSIS assignUlang di
+    // vue-riwayat-absensi.js. Restart dari tahap paling awal
+    // (menunggu_admin_finance) — penolakan bisa saja terjadi di tahap manapun
+    // (Admin Finance/PIC/Owner), jadi mulai ulang dari awal paling aman &
+    // konsisten daripada menebak tahap mana yang mau ditinjau ulang.
     async function assignUlang(docId) {
       if (!confirm("Kembalikan pengajuan ini ke Antrean Reimburse (mulai dari Admin Finance lagi) untuk diperiksa ulang?")) return;
       try {
@@ -1337,20 +1313,20 @@ const RiwayatReimburseTable = {
       }
     }
 
-    // BARU (29 Agt 2026, permintaan Guru) — Download CSV, pola SAMA PERSIS
-    // dengan exportCSV() di js/vue-riwayat-absensi.js (data URI + <a
-    // download>, tanpa library) — export daftarTersaring (hasil pencarian
-    // AKTIF, bukan cuma 1 halaman paginasi yang tampil), kolom menyesuaikan
-    // mode (semua/bensin/servis) SAMA PERSIS kolom yang ditampilkan di
-    // kartu (lihat v-if="mode === ..." di template kartu). Jumlah diekspor
-    // sebagai ANGKA MENTAH (bukan string "Rp100.000") supaya bisa
-    // dijumlah langsung di Excel — ini buat Master Keuangan.
+    // Download CSV, pola SAMA PERSIS dengan exportCSV di
+    // js/vue-riwayat-absensi.js (data URI + <a download>, tanpa library) —
+    // export daftarTersaring (hasil pencarian AKTIF, bukan cuma 1 halaman
+    // paginasi yang tampil), kolom menyesuaikan mode (semua/bensin/servis) SAMA
+    // PERSIS kolom yang ditampilkan di kartu (lihat v-if="mode === .." di
+    // template kartu). Jumlah diekspor sebagai ANGKA MENTAH (bukan string
+    // "Rp100.000") supaya bisa dijumlah langsung di Excel — ini buat Master
+    // Keuangan.
     function csvEsc(v) {
       return '"' + String(v === null || v === undefined ? '' : v).replace(/"/g, '""') + '"';
     }
-    // Rumus SAMA PERSIS dengan efisiensiBBM di ReimburseCard (lihat
-    // catatan sumber Auto2000 di sana) — diduplikasi kecil di sini karena
-    // beda komponen, bukan tebakan baru.
+    // Rumus SAMA PERSIS dengan efisiensiBBM di ReimburseCard (lihat catatan
+    // sumber Auto2000 di sana) — diduplikasi kecil di sini karena beda komponen,
+    // bukan tebakan baru.
     function hitungEfisiensiCSV(r) {
       if (r.jenis_entry_kendaraan !== 'bensin' || !r.odo_sebelum || !r.odo_sesudah || !r.liter_bensin) return '';
       const jarak = r.odo_sesudah - r.odo_sebelum;
@@ -1366,9 +1342,9 @@ const RiwayatReimburseTable = {
       } else if (props.mode === 'servis') {
         header = ['Nama Pegawai', 'Email', 'Gudang', 'Tanggal Diajukan', 'Kendaraan', 'Rincian Servis', 'Jumlah (Rp)', 'Status', 'Keterangan'];
       } else {
-        // (9 Sep 2026) — kolom Jenis + Kendaraan ditambah supaya baris
-        // Bensin/Servis yang ikut tercampur di mode 'semua' tetap
-        // terbaca jelas di CSV (lihat catatan LABEL_MODE di atas).
+        // kolom Jenis + Kendaraan ditambah supaya baris Bensin/Servis yang ikut
+        // tercampur di mode 'semua' tetap terbaca jelas di CSV (lihat catatan
+        // LABEL_MODE di atas).
         header = ['Nama Pegawai', 'Email', 'Gudang', 'Tanggal Diajukan', 'Jenis', 'Kategori', 'Kendaraan', 'Jumlah (Rp)', 'Status', 'Keterangan'];
       }
 
@@ -1428,9 +1404,10 @@ const RiwayatReimburseTable = {
       </div>
     </div>
 
-    <!-- BARU (29 Agt 2026, §44.17) — filter rentang tanggal, pola SAMA
-         PERSIS Riwayat All Absensi, supaya koleksi reimburse yang terus
-         tumbuh tidak di-fetch-semua tiap layar ini dibuka. -->
+    <!--
+      filter rentang tanggal, pola SAMA PERSIS Riwayat All Absensi, supaya koleksi reimburse yang
+      terus tumbuh tidak di-fetch-semua tiap layar ini dibuka.
+    -->
     <div class="gc-card" style="margin-bottom:14px;">
       <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
         <select v-model="filterTanggalPreset" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface); font-weight:600;">
@@ -1450,13 +1427,13 @@ const RiwayatReimburseTable = {
       <p style="font-size:11px; color:var(--text-muted); margin-top:10px; font-style:italic;"><i class="fas fa-circle-info" style="margin-right:5px;"></i>{{ captionRentang }}</p>
     </div>
 
-    <!-- BARU (9 Sep 2026, audit vs wireframe §3.3) — filter tab Semua/
-         Reimburse/Bensin/Servis di ATAS TABEL. CLIENT-SIDE saja (lihat
-         catatan FILTER_JENIS_TAB/daftarJenisTersaring di atas) — tidak
-         menyembunyikan baris dari query, cuma mempersempit tampilan.
-         Hanya tampil utk mode 'semua' (Riwayat Keuangan gabungan);
-         mode bensin/servis (layar lama, tidak dipasang ke menu) datanya
-         sudah 1 jenis, tab jadi tidak relevan. -->
+    <!--
+      filter tab Semua/ Reimburse/Bensin/Servis di ATAS TABEL. CLIENT-SIDE saja (lihat catatan
+      FILTER_JENIS_TAB/daftarJenisTersaring di atas) — tidak menyembunyikan baris dari query, cuma
+      mempersempit tampilan. Hanya tampil utk mode 'semua' (Riwayat Keuangan gabungan); mode
+      bensin/servis (layar lama, tidak dipasang ke menu) datanya sudah 1 jenis, tab jadi tidak
+      relevan.
+    -->
     <div v-if="mode === 'semua' && !memuat && daftarSemua.length > 0" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;">
       <button v-for="t in FILTER_JENIS_TAB" :key="t.value" @click="filterJenisTab = t.value"
         class="tag"
@@ -1480,23 +1457,20 @@ const RiwayatReimburseTable = {
     <div v-else-if="daftarTersaring.length === 0" style="text-align:center; padding:56px 0; background:var(--surface); border:1px dashed var(--line); border-radius:18px;">
       <p style="font-size:11.5px; color:var(--text-muted);">Tidak ada yang cocok dicari/filter tab.</p>
     </div>
-    <!-- GANTI (9 Sep 2026, audit vs wireframe §3.3) — dulu (grid-fix mobile)
-         jadi kartu bertumpuk, spek handoff minta TABEL dengan filter tab
-         di atas (lihat FILTER_JENIS_TAB) — dikembalikan jadi tabel (pola
-         .gc-table SAMA PERSIS Riwayat All Absensi), scroll horizontal di
-         HP (.gc-table-scroll) bukan kartu. Klik baris = expand detail
-         (odometer BBM / rincian servis / sanggahan) di baris berikutnya,
-         supaya kolom utama tetap ringkas kayak wireframe (7 kolom +
-         Aksi). Kolom "Kategori" pakai r.kategori APA ADANYA (field ini
-         SUDAH diisi 'BBM'/'Servis Kendaraan'/nama kategori pilihan
-         karyawan sejak disimpan — lihat ajukan(), TIDAK ada logic baru
-         di sini, cuma nampilin field yang sudah ada). -->
-    <!-- BARU (10 Sep 2026) — "hidden md:block" (utility custom proyek,
-         css/gechoo-design.css, Tailwind SUDAH dicabut) supaya tabel ini
-         cuma tampil di layar >=768px; di HP diganti kartu di bawah
-         (lihat GAP-MOBILE-10SEP2026.md temuan #2). Isinya TIDAK diubah
-         sama sekali dari versi tabel yang sudah diaudit vs wireframe
-         9 Sep — cuma dibungkus kelas responsif. -->
+    <!--
+      gc-table SAMA PERSIS Riwayat All Absensi), scroll horizontal di HP (.gc-table-scroll) bukan
+      kartu. Klik baris = expand detail (odometer BBM / rincian servis / sanggahan) di baris
+      berikutnya, supaya kolom utama tetap ringkas kayak wireframe (7 kolom + Aksi). Kolom
+      "Kategori" pakai r.kategori APA ADANYA (field ini SUDAH diisi 'BBM'/'Servis Kendaraan'/nama
+      kategori pilihan karyawan sejak disimpan — lihat ajukan, TIDAK ada logic baru di sini, cuma
+      nampilin field yang sudah ada).
+    -->
+    <!--
+      "hidden md:block" (utility custom proyek, css/gechoo-design.css, Tailwind SUDAH dicabut)
+      supaya tabel ini cuma tampil di layar >=768px; di HP diganti kartu di bawah (lihat
+      GAP-MOBILE-10SEP2026.md temuan #2). Isinya TIDAK diubah sama sekali dari versi tabel yang
+      sudah diaudit vs wireframe 9 Sep — cuma dibungkus kelas responsif.
+    -->
     <div v-else class="gc-table-scroll hidden md:block" style="background:var(--surface); border:1px solid var(--line);">
       <table class="gc-table">
         <thead>
@@ -1558,13 +1532,13 @@ const RiwayatReimburseTable = {
       </table>
     </div>
 
-    <!-- BARU (10 Sep 2026) — kartu mobile "md:hidden" (kebalikan tabel di
-         atas), pola Pola 4 Sample Hifi mobile (M6 "Riwayat/Tabel"): badge
-         tanggal 2-baris di kiri, judul+sub-judul di tengah, tag status di
-         kanan. Tap kartu = expand detail (odometer/servis/keterangan/
-         sanggahan) sama seperti klik baris tabel desktop — DATA SAMA
-         PERSIS (daftarTerpaginasi), cuma cara tampil beda. Lihat
-         GAP-MOBILE-10SEP2026.md temuan #2. -->
+    <!--
+      kartu mobile "md:hidden" (kebalikan tabel di atas), pola Pola 4 Sample Hifi mobile (M6
+      "Riwayat/Tabel"): badge tanggal 2-baris di kiri, judul+sub-judul di tengah, tag status di
+      kanan. Tap kartu = expand detail (odometer/servis/keterangan/ sanggahan) sama seperti klik
+      baris tabel desktop — DATA SAMA PERSIS (daftarTerpaginasi), cuma cara tampil beda. Lihat
+      GAP-MOBILE-10SEP2026.md temuan #2.
+    -->
     <div v-if="!memuat && !errorMuat && daftarSemua.length > 0 && daftarTersaring.length > 0" class="md:hidden" style="display:flex; flex-direction:column; gap:8px;">
       <template v-for="r in daftarTerpaginasi" :key="r.id">
         <div class="gc-card" @click="toggleExpand(r.id)" style="padding:9px; border-radius:12px; display:flex; align-items:center; gap:8px; cursor:pointer;">

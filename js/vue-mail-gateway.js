@@ -1,21 +1,21 @@
 // js/vue-mail-gateway.js
-// ============================================================================
+
 // Mail Gateway — mirip WhatsApp Gateway (3 tab: Config, Template Pesan,
 // Monitoring), tapi urus pengiriman EMAIL (lewat Extension "Trigger Email",
-// bukan Apps Script seperti WhatsApp). Tab Config JUGA jadi tempat uji coba
-// 3 skenario OTP (kode benar/salah/kadaluarsa) — lihat catatan di
-// js/vue-otp.js buat model keamanannya.
+// bukan Apps Script seperti WhatsApp). Tab Config JUGA jadi tempat uji coba 3
+// skenario OTP (kode benar/salah/kadaluarsa) — lihat catatan di js/vue-otp.js
+// buat model keamanannya.
 //
-// window.kirimOtpEmail / window.verifikasiOtpEmail (vue-otp.js) TETAP
-// dipanggil apa adanya dari sini — fungsi bersama, juga dipakai alur
-// Registrasi & login perangkat baru.
+// window.kirimOtpEmail / window.verifikasiOtpEmail (vue-otp.js) TETAP dipanggil
+// apa adanya dari sini — fungsi bersama, juga dipakai alur Registrasi & login
+// perangkat baru.
 //
-// UPDATE (18 Agt 2026): tambah 1 template baru "Aktivasi Akun" — dipakai
-// js/vue-antrean-dakar.js untuk kirim email cara login (email + password
-// sementara = NIK) begitu Admin/Owner approve pendaftaran karyawan baru.
-// Sama seperti template lain di sini: kalau belum pernah diatur di
-// Firestore (config/mail_templates), fallback ke teks baku otomatis.
-// ============================================================================
+// tambah 1 template baru "Aktivasi Akun" — dipakai js/vue-antrean-dakar.js untuk
+// kirim email cara login (email + password sementara = NIK) begitu Admin/Owner
+// approve pendaftaran karyawan baru. Sama seperti template lain di sini: kalau
+// belum pernah diatur di Firestore (config/mail_templates), fallback ke teks
+// baku otomatis.
+
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -33,7 +33,7 @@ const AppMailGateway = {
   setup() {
     const tabAktif = ref('config');
 
-    // ---- Config + Tes OTP ----
+    // Config + Tes OTP
     const emailTes = ref('');
     const kodeTes = ref('');
     const mengirimTes = ref(false);
@@ -61,7 +61,7 @@ const AppMailGateway = {
         : `❌ Kode ditolak: ${hasil.pesan}`;
     }
 
-    // ---- Template Pesan ----
+    // Template Pesan
     const template = reactive({ ...TEMPLATE_DEFAULT });
     const menyimpanTemplate = ref(false);
 
@@ -87,7 +87,7 @@ const AppMailGateway = {
       menyimpanTemplate.value = false;
     }
 
-    // ---- Monitoring ----
+    // Monitoring
     const daftarLog = ref([]);
     const filterStatus = ref('ALL');
     const daftarLogTersaring = computed(() => {
@@ -105,8 +105,8 @@ const AppMailGateway = {
       memuatLog.value = true;
       try {
         // "mail" cuma nyimpan input awal (buat Extension baca) + Extension
-        // sendiri yang nambahkan field "delivery" (status kirim) SETELAH
-        // dicoba. Diurutkan dari yang terbaru dulu, ambil 50 saja.
+        // sendiri yang nambahkan field "delivery" (status kirim) SETELAH dicoba.
+        // Diurutkan dari yang terbaru dulu, ambil 50 saja.
         const q = query(collection(db, "mail"), orderBy("dikirim_pada", "desc"), limit(50));
         const snap = await getDocs(q);
         const list = [];
@@ -124,10 +124,10 @@ const AppMailGateway = {
       if (nama === 'monitor') muatMonitoring();
     }
 
-    // muat() — dipanggil ulang tiap tab "Mail Gateway" diklik lagi (lihat
-    // pastikanMountMailGateway). Cuma refresh data pill-tab yang SEDANG
-    // aktif (template/monitor) — pill-tab lain tetap lazy seperti biasa
-    // lewat pindahTab().
+    // muat — dipanggil ulang tiap tab "Mail Gateway" diklik lagi (lihat
+    // pastikanMountMailGateway). Cuma refresh data pill-tab yang SEDANG aktif
+    // (template/monitor) — pill-tab lain tetap lazy seperti biasa lewat
+    // pindahTab.
     function muat() {
       if (tabAktif.value === 'template') muatTemplate();
       else if (tabAktif.value === 'monitor') muatMonitoring();
@@ -270,8 +270,8 @@ const AppMailGateway = {
 };
 
 let vmMailGateway = null;
-// Sama seperti layar admin lain — mount() ditunda sampai benar-benar
-// dinavigasi pertama kali (lihat catatan panjang di vue-antrean-dakar.js).
+// Sama seperti layar admin lain — mount ditunda sampai benar-benar dinavigasi
+// pertama kali (lihat catatan panjang di vue-antrean-dakar.js).
 window.pastikanMountMailGateway = function() {
   if (vmMailGateway) { if (typeof vmMailGateway.muat === 'function') vmMailGateway.muat(); return; }
   const mountPoint = document.getElementById('vue-mail-gateway');
