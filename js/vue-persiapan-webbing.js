@@ -94,7 +94,7 @@
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel, bangunInfoLabelAnakSpk } from './vue-components.js?v=10';
+import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=11';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=3';
 
 // picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). Aksi
@@ -467,49 +467,26 @@ const PersiapanWebbingPerluDisiapkan = {
       pilihanCetak[barisKey(b)] = !isChecked(b);
     }
 
-    // --- Cetak label (1a -> 1b): 1 label PER ANAK SPK, seluruh komponen
-    // anak SPK itu dirinci di dalamnya (SERAH-TERIMA §5) ---
+    // --- Cetak label (1a -> 1b): 1 label FISIK per BARIS aksesoris (kode_
+    // komponen), bukan digabung per anak SPK — kalau 1 anak SPK butuh
+    // banyak jenis aksesoris, QR/kode SPK (kode_kartu) yang sama berulang
+    // di tiap labelnya (operator tetap scan kode yang sama di manapun).
+    // Isi label dibangun lewat bangunLabelAksesoris() bersama (js/vue-
+    // components.js) — fungsi GLOBAL yang sama dipakai Acc Sewing/
+    // Finishing. rincian.roll/kode_webbing2/kode_webbing3 (field tambahan
+    // khas pos ini, tampil-tidaknya diatur Guru dari Pengaturan Cetak)
+    // TETAP dibangun per baris di sini. ---
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
     let _pendingCetak = [];
+    function bangunRincianWebbing(b) {
+      return { roll: formatRoll(b.roll), kode_webbing2: b.kode_webbing2 || '-', kode_webbing3: b.kode_webbing3 || '-' };
+    }
     function cetakLabelKartu(k) {
       if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
       const terpilih = k.baris.filter(b => isChecked(b) && b._bisa && !b.label_cetak_pada);
       if (!terpilih.length) { alert('Tidak ada baris yang bisa dicetak (stok belum cukup untuk baris manapun, atau sudah dicetak semua).'); return; }
-      const perAnak = {};
-      terpilih.forEach(b => { (perAnak[b.no_spk] ||= []).push(b); });
-      // rincian.roll/kode_webbing2/kode_webbing3 — field TAMBAHAN khas pos
-      // ini, tampil-tidaknya & urutannya diatur Guru dari Scan & Cetak >
-      // Pengaturan Cetak > Label SPK Grouping — Acc Webbing. Kode label
-      // (teks besar + isi QR + kunci matching) = `kode_kartu`, fallback ke
-      // noSpk kalau belum ada (data lama, atau Config > TLC & Prefix jalur
-      // Acc Webbing belum diisi Guru) — hasilScanTunjuk/hasilScanAksi di
-      // bawah dicocokkan ke NILAI YANG SAMA PERSIS ini. 1 order bisa butuh
-      // >1 aksesoris beda — 1 label/QR yang SAMA (kode_kartu) dipakai
-      // bareng, tiap item tetap dirinci baris sendiri + kode_komponen kalau
-      // >1 item. Struktur baris info (item lalu nama pelanggan) didelegasikan
-      // ke bangunInfoLabelAnakSpk() (js/vue-components.js) — fungsi GLOBAL
-      // yang sama dipakai Bahan/Acc Sewing/Finishing, no_spk TIDAK
-      // ditampilkan (id internal, bukan buat dibaca orang).
-      const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => {
-        const kodeLabel = barisGrup[0].kode_kartu || noSpk;
-        const itemLines = barisGrup.map(b => {
-          const extra = (barisGrup.length > 1 && b.kode_komponen) ? ` (${b.kode_komponen})` : '';
-          return `${b.nama_aksesoris} ${b.warna}${extra} &middot; ${formatQty(b.butuh)} ${b.satuan}`;
-        });
-        return {
-          kode: kodeLabel,
-          nama: k.namaProduk,
-          info: bangunInfoLabelAnakSpk(itemLines, barisGrup[0].pelanggan_nama),
-          qrDataUrl: buatQrDataUrl(kodeLabel),
-          rincian: {
-            roll: barisGrup.map(b => formatRoll(b.roll)).join(' | '),
-            kode_webbing2: barisGrup.map(b => b.kode_webbing2 || '-').join(' | '),
-            kode_webbing3: barisGrup.map(b => b.kode_webbing3 || '-').join(' | ')
-          }
-        };
-      });
-      daftarLabelPreview.value = preview;
+      daftarLabelPreview.value = terpilih.map(b => ({ ...bangunLabelAksesoris(b, formatQty, buatQrDataUrl), rincian: bangunRincianWebbing(b) }));
       _pendingCetak = terpilih;
       popupCetakAktif.value = true;
     }
@@ -561,28 +538,10 @@ const PersiapanWebbingPerluDisiapkan = {
       const p = popupCetakUlang.value;
       if (!p) return;
       const sudahDicetak = p.kartu.baris.filter(b => b.label_cetak_pada);
-      const perAnak = {};
-      sudahDicetak.forEach(b => { (perAnak[b.no_spk] ||= []).push(b); });
-      // SAMA kode dgn cetakLabelKartu() di atas (kode_kartu, fallback noSpk,
-      // bangunInfoLabelAnakSpk bersama) supaya label cetak-ulang PERSIS
-      // format cetak normal, tetap cocok dgn hasilScanTunjuk()/hasilScanAksi().
-      const preview = Object.entries(perAnak).map(([noSpk, barisGrup]) => {
-        const kodeLabel = barisGrup[0].kode_kartu || noSpk;
-        const itemLines = barisGrup.map(b => {
-          const extra = (barisGrup.length > 1 && b.kode_komponen) ? ` (${b.kode_komponen})` : '';
-          return `${b.nama_aksesoris} ${b.warna}${extra}`;
-        });
-        return {
-          kode: kodeLabel, nama: p.kartu.namaProduk,
-          info: bangunInfoLabelAnakSpk(itemLines, barisGrup[0].pelanggan_nama, { cetakUlang: true }),
-          qrDataUrl: buatQrDataUrl(kodeLabel),
-          rincian: {
-            roll: barisGrup.map(b => formatRoll(b.roll)).join(' | '),
-            kode_webbing2: barisGrup.map(b => b.kode_webbing2 || '-').join(' | '),
-            kode_webbing3: barisGrup.map(b => b.kode_webbing3 || '-').join(' | ')
-          }
-        };
-      });
+      // Sama fungsi dgn cetakLabelKartu() di atas (bangunLabelAksesoris
+      // bersama) supaya label cetak-ulang PERSIS format cetak normal, tetap
+      // cocok dgn hasilScanTunjuk()/hasilScanAksi().
+      const preview = sudahDicetak.map(b => ({ ...bangunLabelAksesoris(b, formatQty, buatQrDataUrl, { cetakUlang: true }), rincian: bangunRincianWebbing(b) }));
       try {
         await addDoc(collection(db, 'cetak_ulang_log'), {
           kode_spk: p.kartu.kodeSpk,

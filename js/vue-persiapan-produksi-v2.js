@@ -67,7 +67,7 @@
 import { createApp, ref, reactive, computed, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel, KolomCari } from './vue-components.js?v=10';
+import { PopupPratinjauCetakLabel, KolomCari } from './vue-components.js?v=11';
 import { ambilSemuaProduk } from './vue-master-produk.js';
 
 // picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). Aksi
@@ -552,11 +552,17 @@ function hitungBahanRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
 // "kumulatif" sebagai aturan khas, beda dari Bahan yang eksplisit
 // menyebutnya).
 function _butuhAksesorisDasar(a, qty) {
+  const produk = a._produk || null;
   return {
     order_spk_id: a.order_spk_id, no_spk: a.no_spk, qty,
-    // pelanggan_nama — BARU (13 Sep 2026), SAMA POLA seperti hitungBahanRincian()
-    // di atas — dipakai kartu Acc Sewing/Webbing/Finishing kalau nanti perlu.
+    // pelanggan_nama — sama pola seperti hitungBahanRincian() di atas,
+    // dipakai kartu & label cetak Acc Sewing/Webbing/Finishing.
     pelanggan_nama: a.pelanggan_nama || '',
+    // produk_warna — sama pola seperti hitungBahanRincian(): diambil dari
+    // produk anak SPK-nya (bukan dari aksesoris), dipakai label cetak
+    // supaya kolom "nama produk + warna produk" konsisten dengan Bahan
+    // (lihat bangunLabelAksesoris di js/vue-components.js).
+    produk_warna: (produk && produk.warna) || '',
     bahan_aksesoris_id: '', nama_aksesoris: '', warna: '',
     status: 'perlu_disiapkan',
     masuk_tahap_pada: new Date().toISOString(),

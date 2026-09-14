@@ -1335,21 +1335,52 @@ export const KolomCari = {
 // ---------------------------------------------------------------------------
 const _FALLBACK_PENGATURAN_LABEL = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [], font_kode_mm: 4.5, font_nama_mm: 3.5, font_info_mm: 2.9 };
 
-// bangunInfoLabelAnakSpk — GLOBAL, dipakai SEMUA jalur "1 label = 1 anak
-// SPK" (Bahan, Acc Sewing/Webbing/Finishing) buat menyusun field `info`
+// bangunInfoLabelAnakSpk — GLOBAL, dipakai SEMUA jalur cetak label SPK
+// Grouping (Bahan, Acc Sewing/Webbing/Finishing) buat menyusun field `info`
 // PopupPratinjauCetakLabel di atas, supaya perubahan format cetak cukup
-// diedit SATU tempat ini, tidak diulang tiap modul. Tiap modul TETAP
-// menyusun isi baris rincian ITEM sendiri (beda bentuk: Bahan = bahan +
-// warna + kebutuhan; Acc = daftar aksesoris + qty) — yang distandarkan
-// di sini cuma STRUKTURnya: N baris rincian item lalu 1 baris nama
-// pelanggan paling bawah. `no_spk` (id internal Firestore) TIDAK PERNAH
-// ditampilkan di sini — kode yang tercetak besar/QR tetap tanggung jawab
-// pemanggil (field `kode` terpisah, lihat kontrak props di atas).
+// diedit SATU tempat ini, tidak diulang tiap modul. Tiap modul menyusun isi
+// baris rincian ITEM sendiri (beda bentuk: Bahan = bahan + warna +
+// kebutuhan; Acc = nama aksesoris + warna + kebutuhan, lihat
+// bangunLabelAksesoris di bawah) — yang distandarkan di sini cuma
+// STRUKTURnya: N baris rincian item lalu 1 baris nama pelanggan paling
+// bawah. `no_spk` (id internal Firestore) TIDAK PERNAH ditampilkan di sini
+// — kode yang tercetak besar/QR tetap tanggung jawab pemanggil (field
+// `kode` terpisah, lihat kontrak props di atas).
 export function bangunInfoLabelAnakSpk(barisItem, pelangganNama, opsi = {}) {
   const daftar = Array.isArray(barisItem) ? barisItem : [barisItem];
   const ket = opsi.cetakUlang ? ' <b>(CETAK ULANG)</b>' : '';
   const barisPelanggan = `${pelangganNama || '(tanpa pelanggan)'}${ket}`;
   return [...daftar, barisPelanggan].map(l => `<div>${l}</div>`).join('');
+}
+
+// bangunLabelAksesoris — GLOBAL, dipakai Acc Sewing/Webbing/Finishing untuk
+// membangun 1 label FISIK per BARIS aksesoris (persis pola bangunLabelBahan
+// di vue-persiapan-bahan.js: 1 baris = 1 label). Sebelumnya semua aksesoris
+// 1 anak SPK digabung jadi 1 label — begitu 1 anak SPK butuh banyak jenis
+// aksesoris, isinya kepotong/tumpang-tindih karena ukuran label fisik
+// fixed. Sekarang QR/kode SPK (kode_kartu) yang sama boleh berulang di
+// banyak label kalau 1 anak SPK butuh >1 aksesoris — operator tetap scan
+// kode yang sama di label manapun. formatQty/buatQrDataUrl diterima dari
+// pemanggil (implementasinya lokal tiap file) supaya fungsi ini tidak perlu
+// tahu bentuk format angka/QR-nya. `rincian` (field tambahan khas tiap pos,
+// mis. roll/varian) TIDAK dibangun di sini — tetap tanggung jawab pemanggil.
+export function bangunLabelAksesoris(b, formatQty, buatQrDataUrl, opsi = {}) {
+  // kode = kode_kartu (fallback no_spk data lama) — SENGAJA BUKAN
+  // kode_komponen, walau kode_komponen unik per baris. Alur scan Acc
+  // Sewing/Webbing/Finishing (Tunjuk Operator/Aksi/Pack) mencocokkan hasil
+  // scan ke `kode_kartu`, bukan kode_komponen — kode QR di SEMUA label
+  // fisik 1 anak SPK yang sama WAJIB identik supaya scan tetap cocok, walau
+  // sekarang dipecah jadi banyak lembar fisik.
+  const kodeLabel = b.kode_kartu || b.no_spk;
+  const namaProduk = `${b.nama_produk || ''} ${b.produk_warna || ''}`.trim() || b.kode_spk || '';
+  const baris3 = b.nama_aksesoris || '(tanpa nama aksesoris)';
+  const baris4 = `${b.warna || '-'} &middot; ${formatQty(b.butuh)} ${b.satuan || ''}`;
+  return {
+    kode: kodeLabel,
+    nama: namaProduk,
+    info: bangunInfoLabelAnakSpk([baris3, baris4], b.pelanggan_nama, opsi),
+    qrDataUrl: buatQrDataUrl(kodeLabel)
+  };
 }
 
 export const PopupPratinjauCetakLabel = {
