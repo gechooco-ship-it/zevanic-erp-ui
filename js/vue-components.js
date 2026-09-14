@@ -1355,16 +1355,22 @@ export function bangunInfoLabelAnakSpk(barisItem, pelangganNama, opsi = {}) {
 
 // bangunLabelAksesoris — GLOBAL, dipakai Acc Sewing/Webbing/Finishing untuk
 // membangun 1 label FISIK per BARIS aksesoris (persis pola bangunLabelBahan
-// di vue-persiapan-bahan.js: 1 baris = 1 label). Sebelumnya semua aksesoris
-// 1 anak SPK digabung jadi 1 label — begitu 1 anak SPK butuh banyak jenis
-// aksesoris, isinya kepotong/tumpang-tindih karena ukuran label fisik
-// fixed. Sekarang QR/kode SPK (kode_kartu) yang sama boleh berulang di
-// banyak label kalau 1 anak SPK butuh >1 aksesoris — operator tetap scan
-// kode yang sama di label manapun. formatQty/buatQrDataUrl diterima dari
-// pemanggil (implementasinya lokal tiap file) supaya fungsi ini tidak perlu
-// tahu bentuk format angka/QR-nya. `rincian` (field tambahan khas tiap pos,
-// mis. roll/varian) TIDAK dibangun di sini — tetap tanggung jawab pemanggil.
-export function bangunLabelAksesoris(b, formatQty, buatQrDataUrl, opsi = {}) {
+// di vue-persiapan-bahan.js: 1 baris = 1 label) DAN dipakai template kartu
+// "Perlu Disiapkan" tiap modul supaya kartu di layar & label fisik SELALU
+// tampil data yang sama persis (operator cocokkan HP vs label saat ambil
+// barang gudang). Sebelumnya semua aksesoris 1 anak SPK digabung jadi 1
+// label — begitu 1 anak SPK butuh banyak jenis aksesoris, isinya kepotong/
+// tumpang-tindih karena ukuran label fisik fixed. Sekarang QR/kode SPK
+// (kode_kartu) yang sama boleh berulang di banyak label kalau 1 anak SPK
+// butuh >1 aksesoris — operator tetap scan kode yang sama di label manapun.
+// `formatQty` diterima dari pemanggil (implementasinya lokal tiap file).
+// TIDAK menyertakan qrDataUrl (butuh DOM+canvas per panggilan, mahal kalau
+// dipanggil ulang tiap render kartu — bisa 1 anak SPK x puluhan komponen) —
+// pemanggil cetak yang menambah `qrDataUrl: buatQrDataUrl(lbl.kode)` sendiri,
+// cukup 1x per label yang BENAR-BENAR dicetak. `rincian` (field tambahan
+// khas tiap pos, mis. roll/varian) TIDAK dibangun di sini — tetap tanggung
+// jawab pemanggil.
+export function bangunLabelAksesoris(b, formatQty, opsi = {}) {
   // kode = kode_kartu (fallback no_spk data lama) — SENGAJA BUKAN
   // kode_komponen, walau kode_komponen unik per baris. Alur scan Acc
   // Sewing/Webbing/Finishing (Tunjuk Operator/Aksi/Pack) mencocokkan hasil
@@ -1378,8 +1384,7 @@ export function bangunLabelAksesoris(b, formatQty, buatQrDataUrl, opsi = {}) {
   return {
     kode: kodeLabel,
     nama: namaProduk,
-    info: bangunInfoLabelAnakSpk([baris3, baris4], b.pelanggan_nama, opsi),
-    qrDataUrl: buatQrDataUrl(kodeLabel)
+    info: bangunInfoLabelAnakSpk([baris3, baris4], b.pelanggan_nama, opsi)
   };
 }
 

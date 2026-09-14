@@ -94,7 +94,7 @@
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=11';
+import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=12';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=3';
 
 // picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). Aksi
@@ -473,9 +473,12 @@ const PersiapanWebbingPerluDisiapkan = {
     // di tiap labelnya (operator tetap scan kode yang sama di manapun).
     // Isi label dibangun lewat bangunLabelAksesoris() bersama (js/vue-
     // components.js) — fungsi GLOBAL yang sama dipakai Acc Sewing/
-    // Finishing. rincian.roll/kode_webbing2/kode_webbing3 (field tambahan
-    // khas pos ini, tampil-tidaknya diatur Guru dari Pengaturan Cetak)
-    // TETAP dibangun per baris di sini. ---
+    // Finishing DAN kartu di layar (template di bawah). rincian.roll/
+    // kode_webbing2/kode_webbing3 (field tambahan khas pos ini, tampil-
+    // tidaknya diatur Guru dari Pengaturan Cetak) TETAP dibangun per baris
+    // di sini. qrDataUrl ditambah di titik cetak saja (bukan di dalam
+    // bangunLabelAksesoris) supaya QR cuma digambar 1x per label yang
+    // BENAR-BENAR dicetak, bukan tiap kartu dirender ulang di layar. ---
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
     let _pendingCetak = [];
@@ -486,7 +489,10 @@ const PersiapanWebbingPerluDisiapkan = {
       if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
       const terpilih = k.baris.filter(b => isChecked(b) && b._bisa && !b.label_cetak_pada);
       if (!terpilih.length) { alert('Tidak ada baris yang bisa dicetak (stok belum cukup untuk baris manapun, atau sudah dicetak semua).'); return; }
-      daftarLabelPreview.value = terpilih.map(b => ({ ...bangunLabelAksesoris(b, formatQty, buatQrDataUrl), rincian: bangunRincianWebbing(b) }));
+      daftarLabelPreview.value = terpilih.map(b => {
+        const lbl = bangunLabelAksesoris(b, formatQty);
+        return { ...lbl, qrDataUrl: buatQrDataUrl(lbl.kode), rincian: bangunRincianWebbing(b) };
+      });
       _pendingCetak = terpilih;
       popupCetakAktif.value = true;
     }
@@ -541,7 +547,10 @@ const PersiapanWebbingPerluDisiapkan = {
       // Sama fungsi dgn cetakLabelKartu() di atas (bangunLabelAksesoris
       // bersama) supaya label cetak-ulang PERSIS format cetak normal, tetap
       // cocok dgn hasilScanTunjuk()/hasilScanAksi().
-      const preview = sudahDicetak.map(b => ({ ...bangunLabelAksesoris(b, formatQty, buatQrDataUrl, { cetakUlang: true }), rincian: bangunRincianWebbing(b) }));
+      const preview = sudahDicetak.map(b => {
+        const lbl = bangunLabelAksesoris(b, formatQty, { cetakUlang: true });
+        return { ...lbl, qrDataUrl: buatQrDataUrl(lbl.kode), rincian: bangunRincianWebbing(b) };
+      });
       try {
         await addDoc(collection(db, 'cetak_ulang_log'), {
           kode_spk: p.kartu.kodeSpk,
@@ -671,7 +680,7 @@ const PersiapanWebbingPerluDisiapkan = {
       // JUGA pakai `barisKey(b)` sebagai :key v-for tanpa fungsinya
       // di-return, jadi begitu Webbing ada data, bug yang SAMA PERSIS akan
       // muncul di sini juga kalau tidak diperbaiki sekalian sekarang).
-      barisKey,
+      barisKey, bangunLabelAksesoris,
       TAB_DEFS_WEBBING, gantiTabPill, MY_TARGET, kpiHeader,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, onCetakSelesai,
       popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang,
@@ -762,17 +771,21 @@ const PersiapanWebbingPerluDisiapkan = {
           <!-- RETROFIT 9 Sep 2026 (temuan #4) — tabel SELALU TERBUKA,
                collapse "buka rincian" dihapus. -->
           <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
-            <label v-for="b in k.baris" :key="barisKey(b)" style="display:flex; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px; flex-wrap:wrap;" :style="{ background: b.label_cetak_pada ? 'var(--ok-light)' : (b._bisa ? 'transparent' : 'var(--danger-light)') }">
-              <input type="checkbox" :checked="isChecked(b)" :disabled="!b._bisa || !!b.label_cetak_pada" @change="toggleCheck(b)">
-              <span class="gc-num" style="font-weight:700; min-width:90px;">{{ b.kode_komponen || b.kode_kartu || b.no_spk }}</span>
-              <span>{{ b.nama_aksesoris }} <span style="color:var(--text-faint);">{{ b.warna }}</span></span>
-              <span class="gc-num" style="color:var(--text-faint);">butuh {{ formatQty(b.butuh) }} {{ b.satuan }}</span>
-              <span class="gc-num" :class="{ 'tag warn': b.roll === null }" :style="b.roll !== null ? 'color:var(--text-faint);' : ''">{{ formatRoll(b.roll) }}</span>
-              <span v-if="b.kode_webbing2" class="tag neutral">web2: {{ b.kode_webbing2 }}</span>
-              <span v-if="b.kode_webbing3" class="tag neutral">web3: {{ b.kode_webbing3 }}</span>
-              <span class="gc-num" style="color:var(--text-faint);">stok {{ formatQty(b._stok) }}</span>
-              <span v-if="b.label_cetak_pada" class="tag ok" style="margin-left:auto;">sudah dicetak</span>
-              <span v-else-if="!b._bisa" class="tag warn" style="margin-left:auto;">stok kurang</span>
+            <label v-for="b in k.baris" :key="barisKey(b)" style="display:flex; align-items:flex-start; gap:8px; font-size:11px; padding:8px; border-radius:10px;" :style="{ background: b.label_cetak_pada ? 'var(--ok-light)' : (b._bisa ? 'transparent' : 'var(--danger-light)') }">
+              <input type="checkbox" :checked="isChecked(b)" :disabled="!b._bisa || !!b.label_cetak_pada" @change="toggleCheck(b)" style="margin-top:2px;">
+              <div style="min-width:0; flex:1;">
+                <div class="gc-num" style="font-weight:700;">{{ bangunLabelAksesoris(b, formatQty).kode }}</div>
+                <div style="font-weight:600;">{{ bangunLabelAksesoris(b, formatQty).nama }}</div>
+                <div style="color:var(--text-faint);" v-html="bangunLabelAksesoris(b, formatQty).info"></div>
+                <div style="color:var(--text-faint); margin-top:2px;">
+                  <span :class="{ 'tag warn': b.roll === null }">{{ formatRoll(b.roll) }}</span>
+                  <span v-if="b.kode_webbing2" class="tag neutral" style="margin-left:4px;">web2: {{ b.kode_webbing2 }}</span>
+                  <span v-if="b.kode_webbing3" class="tag neutral" style="margin-left:4px;">web3: {{ b.kode_webbing3 }}</span>
+                  <span class="gc-num" style="margin-left:4px;">stok {{ formatQty(b._stok) }}</span>
+                </div>
+              </div>
+              <span v-if="b.label_cetak_pada" class="tag ok" style="margin-left:6px; flex-shrink:0;">sudah dicetak</span>
+              <span v-else-if="!b._bisa" class="tag warn" style="margin-left:6px; flex-shrink:0;">stok kurang</span>
             </label>
           </div>
 

@@ -101,7 +101,7 @@
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel, bangunInfoLabelAnakSpk } from './vue-components.js?v=11';
+import { PopupPratinjauCetakLabel, bangunInfoLabelAnakSpk } from './vue-components.js?v=12';
 import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=3';
 
 // picOwnerKeAtas — REVISI 8 Sep 2026 (keputusan Guru, audit kode). Aksi
@@ -497,15 +497,15 @@ const PersiapanBahanPerluDisiapkan = {
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
     let _pendingCetak = [];
-    // bangunLabelBahan — dipakai KEDUA jalur cetak (normal & ulang) supaya
-    // hasilnya DIJAMIN identik. Isi baris rincian (bahan+warna+kebutuhan)
-    // urusan fungsi ini; STRUKTUR baris (jumlah baris + baris pelanggan
-    // paling bawah) didelegasikan ke bangunInfoLabelAnakSpk() (js/vue-
-    // components.js) — fungsi GLOBAL yang sama dipakai Acc Sewing/Webbing/
-    // Finishing, supaya format label SPK Grouping konsisten lintas modul
-    // tanpa perlu diulang tiap file. `rincian.lokasi_rak` tampil-tidaknya
-    // diatur Guru lewat rincian_aktif di Pengaturan Cetak (KATALOG_CETAK.
-    // label_spk_bahan.rincianTersedia, js/vue-pengaturan-cetak.js).
+    // bangunLabelBahan — dipakai jalur cetak (normal & ulang) SUPAYA hasilnya
+    // DIJAMIN identik, DAN dipakai template kartu "Perlu Disiapkan" di bawah
+    // supaya kartu di layar & label fisik SELALU tampil data yang sama persis
+    // (operator cocokkan HP vs label saat ambil barang gudang). Tidak
+    // menyertakan qrDataUrl (butuh DOM + canvas per panggilan, mahal kalau
+    // dipanggil ulang tiap render kartu) — pemanggil cetak yang menambah
+    // `qrDataUrl: buatQrDataUrl(lbl.kode)` sendiri, cukup 1x per label.
+    // `rincian.lokasi_rak` tampil-tidaknya diatur Guru lewat rincian_aktif di
+    // Pengaturan Cetak (KATALOG_CETAK.label_spk_bahan.rincianTersedia).
     function bangunLabelBahan(b, opsi = {}) {
       const kodeInduk = b.kode_spk;
       // kode label (teks besar + isi QR) — kode_komponen adalah level
@@ -531,24 +531,22 @@ const PersiapanBahanPerluDisiapkan = {
         kode: kodeLabel,
         nama: namaProduk,
         info: bangunInfoLabelAnakSpk([baris3, baris4], b.pelanggan_nama, opsi),
-        rincian: { lokasi_rak: b.rak_label || '' },
-        qrDataUrl: buatQrDataUrl(kodeLabel)
+        rincian: { lokasi_rak: b.rak_label || '' }
       };
     }
-    // bangunPreviewDariBaris — RETROFIT 9 Sep 2026, diekstrak dari isi lama
-    // cetakLabelKartu(). REVISI BESAR (13 Sep 2026 lanjutan 11, permintaan
-    // Guru eksplisit): dulu 1 label = 1 KARTU (gabungan bisa >1 anak SPK
-    // digabung jadi 1 label fisik kalau bahan+grouping sama). SEKARANG 1
-    // label = 1 ANAK SPK, TIDAK PERNAH digabung lagi — karena tiap anak SPK
-    // harus dilacak SENDIRI-SENDIRI di lapangan (scan pack/unpack/kirim/
-    // sampai/scan operator per anak SPK, bukan per kartu/bahan). Ini beda
-    // dari kartu di layar (kelompokKartuBahan(), masih boleh gabung banyak
-    // anak SPK per bahan+pola supaya cek stok gampang) — kartu vs label
-    // fisik SEKARANG 2 pengelompokan terpisah dalam modul yang sama.
-    // Isi label dibangun lewat bangunLabelBahan() bersama, lihat komentar
-    // besar di atasnya.
+    // bangunPreviewDariBaris — 1 label = 1 ANAK SPK, TIDAK PERNAH digabung
+    // (tiap anak SPK dilacak SENDIRI-SENDIRI di lapangan: scan pack/unpack/
+    // kirim/sampai/operator). Ini beda dari kartu di layar
+    // (kelompokKartuBahan(), masih boleh gabung banyak anak SPK per
+    // bahan+pola supaya cek stok gampang) — kartu vs label fisik 2
+    // pengelompokan terpisah dalam modul yang sama. qrDataUrl ditambah di
+    // sini (bukan di bangunLabelBahan) supaya QR cuma digambar 1x per label
+    // yang BENAR-BENAR dicetak, bukan tiap kartu dirender ulang di layar.
     function bangunPreviewDariBaris(daftarBaris) {
-      return daftarBaris.map(b => bangunLabelBahan(b));
+      return daftarBaris.map(b => {
+        const lbl = bangunLabelBahan(b);
+        return { ...lbl, qrDataUrl: buatQrDataUrl(lbl.kode) };
+      });
     }
     function cetakLabelKartu(k) {
       if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
@@ -603,8 +601,12 @@ const PersiapanBahanPerluDisiapkan = {
       // 1 label per anak SPK (SAMA seperti bangunPreviewDariBaris(), tidak
       // digabung per grouping_id), dibangun lewat bangunLabelBahan() bersama
       // (opsi.cetakUlang:true nambah "(CETAK ULANG)") supaya format PERSIS
-      // SAMA dgn cetak normal.
-      const preview = sudahDicetak.map(b => bangunLabelBahan(b, { cetakUlang: true }));
+      // SAMA dgn cetak normal. qrDataUrl ditambah di sini, sama alasan
+      // dgn bangunPreviewDariBaris() di atas.
+      const preview = sudahDicetak.map(b => {
+        const lbl = bangunLabelBahan(b, { cetakUlang: true });
+        return { ...lbl, qrDataUrl: buatQrDataUrl(lbl.kode) };
+      });
       try {
         await addDoc(collection(db, 'cetak_ulang_log'), {
           kode_spk: sudahDicetak.map(b => b.kode_spk).join(', '),
@@ -734,7 +736,7 @@ const PersiapanBahanPerluDisiapkan = {
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await muat(); });
 
     return { muat,
-      memuat, kartuList, cari, isChecked, toggleCheck,
+      memuat, kartuList, cari, isChecked, toggleCheck, bangunLabelBahan,
       bolehProses, bolehCetak, bolehEdit, formatMeter, formatQty, formatWaktu,
       TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET, jumlahSiapDicetak, ringkasanTerpilih,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, cetakSemuaTercentang, onCetakSelesai,
@@ -776,7 +778,7 @@ const PersiapanBahanPerluDisiapkan = {
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada bahan yang perlu disiapkan</h3>
       </div>
 
-      <div v-else style="display:grid; grid-template-columns:repeat(auto-fit, minmax(300px,1fr)); gap:12px;">
+      <div v-else style="display:flex; flex-direction:column; gap:10px;">
         <div v-for="k in kartuList" :key="k.kartuKey" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
             <div style="min-width:0;">
@@ -806,40 +808,21 @@ const PersiapanBahanPerluDisiapkan = {
             <div :style="{ height:'100%', width: Math.min(100, k.butuh>0 ? (k.stok/k.butuh*100) : 100) + '%', background: k.cukup ? 'var(--ok)' : 'var(--warn)' }"></div>
           </div>
 
-          <!-- RETROFIT 9 Sep 2026 (temuan #4) — tabel anak SPK SELALU
-               TERBUKA sesuai wireframe, collapse "buka rincian" dihapus. -->
-          <div style="display:flex; gap:8px; padding:0 7px 5px; font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.03em;">
-            <span style="flex:1;">anak spk</span>
-            <span style="width:60px; text-align:right;">qty</span>
-            <span style="width:70px; text-align:right;">butuh</span>
-          </div>
+          <!-- Baris anak SPK TAMPIL PERSIS urutan bangunLabelBahan() (kode /
+               nama produk+warna / nama bahan / warna+butuh / pelanggan) —
+               SENGAJA sama fungsi dgn yang dipakai cetak label fisik, supaya
+               operator bisa cocokkan HP vs label yang sudah ditempel di
+               gudang tanpa harus menghafal urutan beda antara layar & label. -->
           <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
-            <label v-for="b in k.baris" :key="b._trackId + '-' + b._lineIdx" style="display:flex; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: b.label_cetak_pada ? 'var(--ok-light)' : (b._bisa ? 'transparent' : 'var(--danger-light)') }">
-              <input type="checkbox" :checked="isChecked(b)" :disabled="!b._bisa || !!b.label_cetak_pada" @change="toggleCheck(b)">
-              <!-- FIX #7 (12 Sep 2026, laporan Guru — baris anak SPK dulu
-                   cuma no. SPK, harusnya nama produk + warna + size supaya
-                   kelihatan anak SPK yang mana walau kartu ini digabung per
-                   BAHAN (bisa lintas produk/size berbeda). -->
-              <!-- FIX (12 Sep 2026 lanjutan 6, laporan Guru poin 2 — kode
-                   TRX di-hide dari tampilan) + BARU (13 Sep 2026 lanjutan 10,
-                   permintaan Guru) — baris ini SEKARANG tampil kode paling
-                   detail yg sudah tergenerate (kode_komponen, fallback ke
-                   level di atasnya) + nama pelanggan di baris atas (paling
-                   mudah dicari kalau ada order mendesak yg perlu didahulukan),
-                   nama produk+warna+size dipindah ke baris bawah. no_spk
-                   (kode TRX) TIDAK lagi tampil sama sekali kalau salah satu
-                   dari 3 level kode sudah ada — CUMA fallback kalau SEMUA
-                   masih null (data lama / Config > TLC & Prefix > jalur
-                   Bahan > Kode TLC belum diisi Guru, lihat tandaiKodeGrouping
-                   di vue-persiapan-produksi-v2.js). -->
-              <div style="min-width:110px; flex:1;">
-                <div class="gc-num" style="font-weight:700;">{{ b.kode_komponen || b.kode_anak_spk || b.kode_kartu || b.no_spk }} <span style="font-weight:600; color:var(--text-faint);">&middot; {{ b.pelanggan_nama || '(tanpa pelanggan)' }}</span></div>
-                <div style="font-size:9.5px; color:var(--text-faint);">{{ b.nama_produk || '(tanpa nama produk)' }} {{ b.produk_warna }} &middot; size {{ b.produk_size || '-' }}</div>
+            <label v-for="b in k.baris" :key="b._trackId + '-' + b._lineIdx" style="display:flex; align-items:flex-start; gap:8px; font-size:11px; padding:8px; border-radius:10px;" :style="{ background: b.label_cetak_pada ? 'var(--ok-light)' : (b._bisa ? 'transparent' : 'var(--danger-light)') }">
+              <input type="checkbox" :checked="isChecked(b)" :disabled="!b._bisa || !!b.label_cetak_pada" @change="toggleCheck(b)" style="margin-top:2px;">
+              <div style="min-width:0; flex:1;">
+                <div class="gc-num" style="font-weight:700;">{{ bangunLabelBahan(b).kode }}</div>
+                <div style="font-weight:600;">{{ bangunLabelBahan(b).nama }}</div>
+                <div style="color:var(--text-faint);" v-html="bangunLabelBahan(b).info"></div>
               </div>
-              <span class="gc-num" style="width:60px; text-align:right;">{{ formatQty(b.qty) }} pcs</span>
-              <span class="gc-num" style="width:70px; text-align:right; color:var(--text-faint);">{{ formatMeter(b.kebutuhan_kain) }}</span>
-              <span v-if="b.label_cetak_pada" class="tag ok" style="margin-left:6px;">sudah dicetak</span>
-              <span v-else-if="!b._bisa" class="tag warn" style="margin-left:6px;">stok kurang</span>
+              <span v-if="b.label_cetak_pada" class="tag ok" style="margin-left:6px; flex-shrink:0;">sudah dicetak</span>
+              <span v-else-if="!b._bisa" class="tag warn" style="margin-left:6px; flex-shrink:0;">stok kurang</span>
             </label>
           </div>
 
