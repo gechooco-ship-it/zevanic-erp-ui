@@ -1,26 +1,27 @@
 // js/vue-scan-cetak.js
-// Menu Scan & Cetak, sekaligus FONDASI generik yang diimpor pos lain
-// (Persiapan Produksi dan 5 modul Proses Produksi): PopupPinGenerik,
-// ScanGenerik, buatUnpackUniversal, ajukanPersiapanMasalah, helper QR.
+// Menu Scan & Cetak, sekaligus FONDASI generik yang diimpor pos lain:
+// PopupPinGenerik, ScanGenerik (overlay, alur tulis-langsung lama),
+// ScanTerpaduGenerik+buatScanTerpadu+KameraTersemat (kamera tersemat, alur
+// Draft->Upload baru — lihat KEPUTUSAN.md > Scan & Cetak), buatUnpackUniversal.
 //
 // Koleksi & field:
 // - riwayat_pin: { uid, nama_pengguna, menu, berhasil, waktu }, ditulis tiap
 //   percobaan PIN. PIN cocok tapi role di luar rolesDiizinkan dicatat
 //   berhasil:false dengan nama pemilik PIN; PIN tak dikenali dicatat uid:null.
-// - persiapan_masalah: dibuat HANYA lewat ajukanPersiapanMasalah di sini, 1
-//   dokumen per baris kekurangan, status awal 'perlu_diajukan'.
-// - bagging: unpack_hasil ('komplit'|'inkomplit'), unpack_pada, unpack_oleh,
-//   unpack_dicocokkan[], unpack_asing[], unpack_hilang[].
+// - persiapan_masalah: dibuat HANYA lewat ajukanPersiapanMasalah di sini.
+// - bagging: unpack_hasil ('komplit'|'inkomplit'), unpack_pada/oleh,
+//   unpack_dicocokkan[]/asing[]/hilang[].
 //
 // Jebakan:
-// - ajukanPersiapanMasalah dipanggil BERSAMA updateBaris<Pos>, bukan
-//   menggantikannya — baris asal tetap menyimpan catatan_masalah sendiri.
+// - buatScanTerpadu TIDAK menulis Firestore sendiri — semua tulis lewat
+//   cfg.padaUpload, dipanggil SEKALI saat tombol Upload, bukan per scan.
+//   cfg.twoStep.validasi cuma membuka/mengunci sesi, tidak menulis apa pun.
 // - buatUnpackUniversal menolak menutup bagging yang belum lengkap/ada kode
 //   asing kecuali paksaInkomplit; penutupan me-NULL-kan kode_spk & kode_batch.
 // - catatRiwayatPin best-effort: gagal tulis tidak menggagalkan alur pemanggil.
 
 import { createApp, ref, reactive, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, getDoc, getDocs, updateDoc, query, where, orderBy, limit, startAfter, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, getDoc, getDocs, updateDoc, query, where, orderBy, limit, startAfter, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 
@@ -438,6 +439,234 @@ export const ScanGenerik = {
       <p v-if="subjudul" style="color:#C9B4A4; font-size:11.5px; margin-bottom:14px; text-align:center; max-width:320px;">{{ subjudul }}</p>
       <button @click="tutup" class="btn-outline" style="padding:8px 24px; background:#fff;">Tutup</button>
     </div>
+  `
+};
+
+
+// KameraTersemat — sama pembaca QR dengan ScanGenerik (termasuk anti scan-
+// ganda `kodeSebelumnya`), cuma bungkus tampilannya TERSEMAT di dalam kartu
+// pemanggil (bukan fixed inset:0 penuh layar). Dipakai ScanTerpaduGenerik di
+// bawah; bisa juga dipakai berdiri sendiri kalau ada layar lain yang butuh
+// kamera tersemat tanpa alur Draft->Upload.
+
+export const KameraTersemat = {
+  props: { aktif: { type: Boolean, default: false }, mode: String },
+  emits: ['hasil'],
+  setup(props, { emit }) {
+    const videoEl = ref(null), canvasEl = ref(null);
+    const memuatKamera = ref(false), error = ref('');
+    let stream = null, frameId = null, timeoutId = null;
+    let kodeSebelumnya = null;
+
+    async function mulai() {
+      kodeSebelumnya = null;
+      memuatKamera.value = true; error.value = '';
+      try { await muatJsQr(); } catch (e) {
+        error.value = 'Gagal memuat modul pembaca QR. Cek koneksi internet.'; memuatKamera.value = false; return;
+      }
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+        if (videoEl.value) { videoEl.value.srcObject = stream; await videoEl.value.play(); }
+        memuatKamera.value = false;
+        pindai();
+      } catch (e) {
+        error.value = 'Gagal mengakses kamera. Pastikan izin kamera diaktifkan.'; memuatKamera.value = false;
+      }
+    }
+    function pindai() {
+      if (!stream) return;
+      const video = videoEl.value, canvas = canvasEl.value;
+      if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const gambar = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const kode = window.jsQR(gambar.data, gambar.width, gambar.height, { inversionAttempts: 'dontInvert' });
+        if (kode && kode.data) {
+          const teks = kode.data.trim();
+          if (teks === kodeSebelumnya) {
+            timeoutId = setTimeout(() => { if (stream) pindai(); }, 900);
+            return;
+          }
+          kodeSebelumnya = teks;
+          if (navigator.vibrate) navigator.vibrate(120);
+          emit('hasil', teks);
+          timeoutId = setTimeout(() => { if (stream) pindai(); }, 900);
+          return;
+        }
+        kodeSebelumnya = null;
+      }
+      frameId = requestAnimationFrame(pindai);
+    }
+    function berhenti() {
+      if (frameId) { cancelAnimationFrame(frameId); frameId = null; }
+      if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
+      if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+      error.value = '';
+    }
+    watch(() => props.aktif, (v) => { if (v) mulai(); else berhenti(); });
+    onUnmounted(berhenti);
+    return { videoEl, canvasEl, memuatKamera, error };
+  },
+  template: `
+    <div style="width:100%; height:132px; background:#111; border-radius:12px; overflow:hidden; position:relative;">
+      <video ref="videoEl" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;" :class="{ hidden: memuatKamera }"></video>
+      <canvas ref="canvasEl" class="hidden"></canvas>
+      <div v-if="memuatKamera" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#C9B4A4; text-align:center; padding:8px;">
+        <i class="fas fa-qrcode" style="font-size:22px; margin-bottom:6px;"></i>
+        <span v-if="error" style="color:#F2A0A0; font-size:10.5px;">{{ error }}</span>
+        <span v-else style="font-size:10.5px;">Menyiapkan kamera...</span>
+      </div>
+      <div v-if="mode && !memuatKamera" style="position:absolute; left:8px; bottom:6px; background:rgba(0,0,0,.55); color:#fff; font-size:9.5px; padding:3px 8px; border-radius:8px;">{{ mode }}</div>
+    </div>
+  `
+};
+
+
+// buatScanTerpadu — factory alur Draft->Upload generik, pengganti tulis-
+// langsung per scan (pola lama ScanGenerik). Cfg yang disuplai pemanggil:
+//   judul, subjudul, gated (Boolean, tampilkan hint "sudah dicetak"),
+//   twoStep: { labelPertama, labelKedua, placeholderPertama/Kedua,
+//     camModePertama/Kedua, kosongUtama, kosongSub, validasi(kode) ->
+//     {ok, pesan, data} } — OMIT untuk alur satu-input,
+//   camMode, placeholder — dipakai kalau TIDAK twoStep,
+//   validasiIsi(kode, lockedData, rowsSaatIni) -> {ok, pesan, row},
+//   padaUpload(rows, lockedData) -> {ok, pesan} — SATU-SATUNYA titik tulis,
+//   aksiEkstra: [{label, aksi(lockedData, lockedLabel)}] — tombol tambahan,
+//   tampil hanya saat lockedData terisi (mis. "Tutup Bagging Ini").
+// Factory ini SENGAJA tidak tahu Firestore — lihat Jebakan di atas file ini.
+
+export function buatScanTerpadu(cfg) {
+  const s = reactive({
+    aktif: false, rows: [], lockedData: null, lockedLabel: '',
+    manualInput: '', sedangProses: false, toastTeks: '', toastTampil: false
+  });
+  let toastTimer = null;
+  function toast(teks) {
+    s.toastTeks = teks; s.toastTampil = true;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { s.toastTampil = false; }, 1600);
+  }
+  function reset() { s.rows = []; s.lockedData = null; s.lockedLabel = ''; s.manualInput = ''; }
+  function buka() { reset(); s.aktif = true; }
+  function tutup() { s.aktif = false; reset(); }
+
+  async function terimaKode(kodeMentah) {
+    const kode = (kodeMentah || '').trim();
+    if (!kode || s.sedangProses) return;
+    if (cfg.twoStep && !s.lockedData) {
+      s.sedangProses = true;
+      try {
+        const hasil = await cfg.twoStep.validasi(kode);
+        if (!hasil.ok) { alert(hasil.pesan || `Kode "${kode}" tidak dikenali.`); return; }
+        s.lockedData = hasil.data;
+        s.lockedLabel = kode;
+        toast('✓ ' + cfg.twoStep.labelPertama + ' ' + kode + ' dikunci — lanjut scan ' + cfg.twoStep.labelKedua);
+      } finally { s.sedangProses = false; }
+      return;
+    }
+    if (s.rows.some(r => r.kode === kode)) { alert(`"${kode}" sudah ada di daftar — hapus dulu kalau mau scan ulang.`); return; }
+    s.sedangProses = true;
+    try {
+      const hasil = await cfg.validasiIsi(kode, s.lockedData, s.rows);
+      if (!hasil.ok) { alert(hasil.pesan || `Kode "${kode}" tidak dikenali/ditolak.`); return; }
+      s.rows.push({ ...hasil.row, id: 'r' + Date.now() + Math.random().toString(16).slice(2) });
+      toast('✓ ' + kode + ' ditambahkan');
+    } finally { s.sedangProses = false; }
+  }
+  function hapusBaris(id) { s.rows = s.rows.filter(r => r.id !== id); toast('Baris dihapus'); }
+  function resetLock() {
+    if (!cfg.twoStep) return;
+    s.lockedData = null; s.lockedLabel = ''; s.rows = [];
+    toast(cfg.twoStep.labelPertama + ' direset — scan ulang');
+  }
+  function batal() { reset(); }
+  async function upload() {
+    if (!s.rows.length || s.sedangProses) return;
+    s.sedangProses = true;
+    try {
+      const hasil = await cfg.padaUpload(s.rows.slice(), s.lockedData);
+      if (!hasil || hasil.ok === false) { alert((hasil && hasil.pesan) || 'Gagal upload. Coba lagi.'); return; }
+      toast(`Diupload — ${s.rows.length} kode tersimpan`);
+      reset();
+    } finally { s.sedangProses = false; }
+  }
+  function kirimManual() {
+    if (!s.manualInput.trim()) return;
+    const v = s.manualInput.trim(); s.manualInput = '';
+    terimaKode(v);
+  }
+  return { s, cfg, buka, tutup, terimaKode, hapusBaris, resetLock, batal, upload, kirimManual };
+}
+
+
+// ScanTerpaduGenerik — UI layar penuh utk buatScanTerpadu(): kamera tersemat
+// (KameraTersemat) + chip kunci tahap-1 (twoStep) + input manual (label
+// rusak/tidak terbaca) + daftar draft + footer Batal/Upload. Prop `c` adalah
+// controller dari buatScanTerpadu — komponen ini CUMA baca/panggil methodnya.
+
+export const ScanTerpaduGenerik = {
+  components: { KameraTersemat },
+  props: { c: { type: Object, required: true } },
+  emits: ['tutup'],
+  setup(props, { emit }) {
+    function tutup() { props.c.tutup(); emit('tutup'); }
+    return { tutup };
+  },
+  template: `
+  <div v-if="c.s.aktif" style="position:fixed; inset:0; background:var(--ivory); z-index:9998; display:flex; flex-direction:column; padding:14px; overflow-y:auto;">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      <button @click="tutup" class="btn-outline" style="padding:6px 10px;"><i class="fas fa-arrow-left"></i></button>
+      <div>
+        <div class="gc-heading" style="font-size:13.5px; font-weight:700;">{{ c.cfg.judul }}</div>
+        <div style="font-size:10.5px; color:var(--text-faint);">{{ (c.cfg.twoStep && c.s.lockedLabel) ? (c.cfg.subjudul + ' — ' + c.cfg.twoStep.labelPertama + ' ' + c.s.lockedLabel) : c.cfg.subjudul }}</div>
+      </div>
+    </div>
+
+    <div v-if="c.cfg.twoStep && c.s.lockedLabel" class="gc-card" style="padding:8px 12px; display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; background:var(--ok-light); gap:8px; flex-wrap:wrap;">
+      <div><span class="tag ok" style="margin-right:6px;">{{ c.cfg.twoStep.labelPertama }}</span><b class="gc-num">{{ c.s.lockedLabel }}</b></div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button v-for="a in (c.cfg.aksiEkstra || [])" :key="a.label" @click="a.aksi(c.s.lockedData, c.s.lockedLabel)" class="btn-outline" style="padding:5px 10px; font-size:10.5px;">{{ a.label }}</button>
+        <button @click="c.resetLock()" class="btn-outline" style="padding:5px 10px; font-size:10.5px;">Ganti</button>
+      </div>
+    </div>
+
+    <kamera-tersemat :aktif="c.s.aktif" :mode="c.cfg.twoStep ? (c.s.lockedLabel ? c.cfg.twoStep.camModeKedua : c.cfg.twoStep.camModePertama) : c.cfg.camMode" @hasil="c.terimaKode" style="margin-bottom:8px;" />
+
+    <input v-model="c.s.manualInput" @keydown.enter="c.kirimManual()" type="text"
+      :placeholder="c.cfg.twoStep ? (c.s.lockedLabel ? c.cfg.twoStep.placeholderKedua : c.cfg.twoStep.placeholderPertama) : c.cfg.placeholder"
+      class="gc-field" style="margin-bottom:10px; padding:9px 12px; border-radius:10px; width:100%; box-sizing:border-box;">
+
+    <div v-if="c.cfg.gated" style="font-size:10px; color:var(--text-faint); margin-bottom:8px;">Hanya kode yang labelnya sudah dicetak yang bisa discan di sini — kalau labelnya belum dicetak, scan ditolak.</div>
+
+    <div style="flex:1; overflow-y:auto; margin-bottom:10px;">
+      <div v-if="c.s.rows.length === 0" class="gc-kosong">
+        <div class="lingkaran"><i class="fas fa-qrcode"></i></div>
+        <h3 class="gc-heading" style="font-size:12.5px; font-weight:700; margin:0;">{{ (c.cfg.twoStep && !c.s.lockedLabel) ? c.cfg.twoStep.kosongUtama : 'Belum ada yang di-scan' }}</h3>
+        <p v-if="c.cfg.twoStep && !c.s.lockedLabel" style="font-size:11px; color:var(--text-faint); margin:4px 0 0;">{{ c.cfg.twoStep.kosongSub }}</p>
+      </div>
+      <div v-else style="display:flex; flex-direction:column; gap:6px;">
+        <div v-for="r in c.s.rows" :key="r.id" class="gc-card" style="padding:9px 12px; display:flex; align-items:center; gap:8px;">
+          <div style="flex:1; min-width:0;">
+            <div class="gc-num" style="font-weight:700; font-size:12px;">{{ r.kode }}</div>
+            <div style="font-size:10.5px; color:var(--text-faint);">{{ r.label }}</div>
+          </div>
+          <div v-if="r.meta" style="font-size:10px; color:var(--text-faint); white-space:nowrap;">{{ r.meta }}</div>
+          <span v-if="r.tagTxt" class="tag" :class="r.tagCls || 'ok'">{{ r.tagTxt }}</span>
+          <div v-if="r.qty" class="gc-num" style="font-size:11px; white-space:nowrap;">{{ r.qty }}</div>
+          <button @click="c.hapusBaris(r.id)" class="btn-outline" style="padding:4px 8px; font-size:10px;" title="Hapus, kalau kescan tidak sengaja"><i class="fas fa-xmark"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:8px; align-items:center;">
+      <span v-if="c.s.rows.length" style="font-size:10.5px; color:var(--text-faint); flex:1;">{{ c.s.rows.length }} kode terkumpul — belum tersimpan sampai Upload</span>
+      <button @click="tutup" class="btn-outline" style="padding:9px 16px;">Batal</button>
+      <button @click="c.upload()" :disabled="!c.s.rows.length || c.s.sedangProses" class="btn-primary" style="padding:9px 20px;">{{ c.s.sedangProses ? 'Mengupload...' : 'Upload' }}</button>
+    </div>
+
+    <div v-if="c.s.toastTampil" style="position:fixed; top:18px; left:50%; transform:translateX(-50%); background:var(--text); color:var(--ivory); padding:9px 16px; border-radius:12px; font-size:11.5px; font-weight:600; box-shadow:0 8px 20px -8px rgba(0,0,0,.35); z-index:9999; pointer-events:none;">{{ c.s.toastTeks }}</div>
+  </div>
   `
 };
 

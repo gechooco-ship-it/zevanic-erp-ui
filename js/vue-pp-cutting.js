@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=5';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=6';
 
 // Format & hitung kecil (disalin pola dari 4 pos Persiapan Produksi, belum
 // dipindah ke helper generik — lihat catatan "belum ada infrastruktur util
@@ -1064,7 +1064,7 @@ const CuttingSedangCutting = {
 // tujuan pakai master_tlc, isi TLC dikelola di Zevanic House > TLC & Prefix.
 
 const CuttingPerluDiKirim = {
-  components: { PopupPratinjauCetakLabel, ScanGenerik },
+  components: { PopupPratinjauCetakLabel, ScanGenerik, ScanTerpaduGenerik },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -1142,43 +1142,57 @@ const CuttingPerluDiKirim = {
       sedangProses.value = false;
     }
 
-    // Scan Pack: step1 kode bagging, step2 kode label komponen berkali-kali
-
-    const modalPack = reactive({ aktif: false, bagging: null, log: [] });
-    function bukaScanPack() { modalPack.bagging = null; modalPack.log = []; modalPack.aktif = true; }
-    function tutupScanPack() { modalPack.aktif = false; modalPack.bagging = null; modalPack.log = []; muat(); }
-    async function hasilScanPack(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      if (!modalPack.bagging) {
-        const b = daftarBaggingAktif.value.find(x => x.kode === kode);
-        if (!b) { alert(`Kode bagging "${kode}" tidak ditemukan atau sudah ditutup.`); return; }
-        modalPack.bagging = b;
-        return;
-      }
-      try {
-        const snap = await getDocs(query(collection(db, 'label_komponen'), where('kode', '==', kode)));
-        if (snap.empty) { alert(`Kode "${kode}" bukan label komponen yang dikenali.`); return; }
-        await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { isi: arrayUnion(kode) });
-        modalPack.log.unshift(kode + ' -> ' + modalPack.bagging.kode);
-        // riwayat_scan — dicatat ADITIF. Dicatat ke cutting_track
-        // milik label ini (via label_komponen.cutting_track_id) — bagging
-        // sendiri BUKAN cutting_track, jadi dicari balik dulu. Kegagalan di sini
-        // TIDAK membatalkan scan pack di atas (sudah berhasil).
+    // Scan Pack — PILOT revisi ScanGenerik (lihat KEPUTUSAN.md > Scan & Cetak):
+    // kamera tersemat + Draft->Upload, ganti overlay+tulis-langsung lama.
+    // Step 1 kunci Kode Bagging (existing & belum ditutup), step 2 kumpulkan
+    // Kode Label Komponen sebagai draft; Upload baru menulis isi[] + riwayat_scan
+    // sekali jalan. label_komponen HANYA ada sejak dicetak (lihat
+    // cetakLabelKomponen di atas) jadi "kode ditemukan" = "sudah dicetak" — tidak
+    // perlu field cetak_pada terpisah untuk gerbang cetak_ok/cetak_no.
+    const packTerpadu = buatScanTerpadu({
+      judul: 'Scan Pack — Cutting', subjudul: 'Kaitkan label komponen ke satu kode bagging', gated: true,
+      twoStep: {
+        labelPertama: 'Kode Bagging', labelKedua: 'Kode Label Komponen',
+        placeholderPertama: 'Scan QR Bagging / cari kode (sekali di awal)',
+        placeholderKedua: 'Scan QR label komponen / cari kode (bisa berkali-kali)',
+        camModePertama: 'Mode: Scan Kode Bagging (sekali)', camModeKedua: 'Mode: Scan Label Komponen (berkali-kali)',
+        kosongUtama: 'Scan Kode Bagging dulu', kosongSub: '1x scan untuk membuka sesi pack ini.',
+        validasi: async (kode) => {
+          const b = daftarBaggingAktif.value.find(x => x.kode === kode);
+          if (!b) return { ok: false, pesan: `Kode bagging "${kode}" tidak ditemukan atau sudah ditutup.` };
+          return { ok: true, data: b };
+        }
+      },
+      aksiEkstra: [{ label: 'Tutup Bagging Ini', aksi: async (bagging) => {
+        if (!bagging) return;
+        try { await updateDoc(doc(db, 'bagging', bagging.id), { ditutup_pada: serverTimestamp() }); packTerpadu.tutup(); await muat(); }
+        catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
+      } }],
+      validasiIsi: async (kode) => {
         try {
-          const cuttingTrackId = snap.docs[0].data().cutting_track_id;
-          if (cuttingTrackId) {
-            await updateCuttingTrack(cuttingTrackId, (data) => ({
-              riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'pack', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), catatan: `Label ${kode} -> bagging ${modalPack.bagging.kode}`, qty: null }]
+          const snap = await getDocs(query(collection(db, 'label_komponen'), where('kode', '==', kode)));
+          if (snap.empty) return { ok: false, pesan: `Kode "${kode}" bukan label komponen yang dikenali.` };
+          const d = snap.docs[0];
+          return { ok: true, row: { kode, label: d.data().nama_komponen || '-', qty: '1', tagTxt: 'sudah dicetak', tagCls: 'ok', _cuttingTrackId: d.data().cutting_track_id || null } };
+        } catch (e) { console.error('Gagal cari label komponen (pack):', e); return { ok: false, pesan: 'Gagal mencari. Coba lagi.' }; }
+      },
+      padaUpload: async (rows, bagging) => {
+        try {
+          await updateDoc(doc(db, 'bagging', bagging.id), { isi: arrayUnion(...rows.map(r => r.kode)) });
+          // riwayat_scan ADITIF, digrup per cutting_track supaya 1 track cuma
+          // kena 1x update walau beberapa labelnya discan dalam draft yang sama.
+          const perTrack = {};
+          rows.forEach(r => { if (r._cuttingTrackId) (perTrack[r._cuttingTrackId] = perTrack[r._cuttingTrackId] || []).push(r.kode); });
+          for (const [trackId, kodeList] of Object.entries(perTrack)) {
+            await updateCuttingTrack(trackId, (data) => ({
+              riwayat_scan: [...(data.riwayat_scan || []), ...kodeList.map(k => ({ aksi: 'pack', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), catatan: `Label ${k} -> bagging ${bagging.kode}`, qty: null }))]
             }));
           }
-        } catch (e2) { console.error('Gagal catat riwayat_scan pack:', e2); }
-      } catch (e) { console.error('Gagal scan pack:', e); alert('Gagal menyimpan. Coba lagi.'); }
-    }
-    async function tutupBagging() {
-      if (!modalPack.bagging) return;
-      try { await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() }); } catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
-      modalPack.bagging = null;
-    }
+          await muat();
+          return { ok: true };
+        } catch (e) { console.error('Gagal upload scan pack:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
+      }
+    });
 
     // Scan Kirim: step1 kode tugas, step2 kode bagging tiap pack
     const modalKirim = reactive({ aktif: false, tugas: null, log: [] });
@@ -1223,7 +1237,7 @@ const CuttingPerluDiKirim = {
     return { muat,
       memuat, daftar, daftarTlc, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
       popupKirim, bukaCetakKirim, konfirmasiCetakKirim, popupCetakAktif, daftarLabelPreview,
-      modalPack, bukaScanPack, tutupScanPack, hasilScanPack, tutupBagging,
+      packTerpadu,
       modalKirim, bukaScanKirim, tutupScanKirim, hasilScanKirim,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
     };
@@ -1232,7 +1246,7 @@ const CuttingPerluDiKirim = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button @click="packTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
         <button @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
@@ -1279,11 +1293,7 @@ const CuttingPerluDiKirim = {
       </div>
     </div>
 
-    <scan-generik :aktif="modalPack.aktif" :judul="modalPack.bagging ? ('Scan label komponen — bagging ' + modalPack.bagging.kode) : 'Scan Kode Bagging'" subjudul="Bisa discan berkali-kali. Tutup lewat tombol di bawah kalau sudah selesai." @hasil="hasilScanPack" @tutup="tutupScanPack" />
-    <div v-if="modalPack.aktif && modalPack.bagging" style="position:fixed; left:16px; bottom:16px; z-index:10001; display:flex; flex-direction:column; gap:8px; max-width:260px;">
-      <button @click="tutupBagging" class="btn-primary" style="padding:8px 14px; font-size:11px;">Tutup Bagging Ini</button>
-      <div style="background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px;"><div v-for="(l,i) in modalPack.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div></div>
-    </div>
+    <scan-terpadu-generik :c="packTerpadu" />
 
     <scan-generik :aktif="modalKirim.aktif" :judul="modalKirim.tugas ? ('Scan kode bagging — tugas ' + modalKirim.tugas.kode) : 'Scan Kode Tugas'" subjudul="Bisa discan berkali-kali (tiap kode bagging = 1 pack)." @hasil="hasilScanKirim" @tutup="tutupScanKirim" />
     <div v-if="modalKirim.aktif && modalKirim.tugas && modalKirim.log.length" style="position:fixed; left:16px; bottom:16px; z-index:10001; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
