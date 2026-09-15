@@ -1,19 +1,20 @@
 // js/vue-menu-lengkap.js
-
-// Layar (redesain "Gechoo Mobile Organic", README.md §2) — "Menu Lengkap":
-// semua modul (dari daftarMenuGroups, SATU sumber kebenaran yang sama dipakai
-// Beranda & Config Akses) dalam 1 layar bisa dicari. Diakses lewat tombol "Lihat
-// Semua Menu (N)" di Beranda (js/vue-home.js) dan tombol "Lihat Semua (n)" di
-// grup Beranda kalau grup itu py kartu tersembunyi. Tab: 'tab-menu-lengkap'
-// (lihat index.html + dashboard.js petaMount, tidak perlu mount-on-demand khusus
-// karena datanya sudah ada di memori lewat daftarMenuGroups, TIDAK ada baca
-// Firestore baru selain 1x getDoc urutan_menu_home yang sama seperti Beranda).
+// Komponen AppMenuLengkap — layar "Menu Lengkap": seluruh modul dari
+// daftarMenuGroups (vue-components.js) dalam satu layar yang bisa dicari.
+// Mount ke #vue-menu-lengkap, tab 'tab-menu-lengkap'.
 //
-// Pencarian: client-side, case-INsensitive, "contains" (bukan prefix-match peka
-// huruf besar/kecil seperti pola "Daftar modul" — itu batasan Firestore
-// prefix-query untuk data SERVER, sedangkan di sini murni filter array 35 modul
-// yang SUDAH ada di memori, jadi tidak ada alasan teknis untuk ikut batasan yang
-// sama; UX lebih enak kalau longgar).
+// Koleksi & field:
+// - pengaturan_sistem/urutan_menu_home: 1x getDoc untuk kategori dan urutan
+//   kartu, sama seperti Beranda. Tidak ada baca Firestore lain — daftar
+//   modulnya sudah ada di memori.
+//
+// Jebakan:
+// - daftarMenuGroups satu-satunya sumber kebenaran daftar modul, dipakai
+//   bersama Beranda dan Config Akses; menambah modul di sini saja tidak cukup.
+// - Pencarian client-side, case-insensitive, "contains" — sengaja lebih longgar
+//   daripada prefix-query Firestore yang dipakai layar berbasis server.
+// - Modul terkunci tidak disembunyikan: tetap tampil lalu memunculkan
+//   AksesTerbatasDialog saat diklik.
 
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";

@@ -4,23 +4,20 @@
 //
 // Koleksi & field:
 // - TIDAK punya koleksi *_track sendiri (beda dari Cutting/Serie/Sewing/
-// Finishing). Modul ini beroperasi langsung di atas label_pcs, koleksi
-// milik Sewing.
-// - opname_produk_jadi: log sesi opname, opsional.
+//   Finishing). Modul ini beroperasi langsung di atas label_pcs, koleksi milik
+//   Sewing. opname_produk_jadi: log sesi opname, opsional.
 // - label_pcs.status yang DITULIS modul ini: 'di_gudang' (scan masuk),
-// 'perlu_dicari' (opname tidak ketemu), 'hilang' (butuh PIN Owner).
-// 'hilang' adalah status SOFT — dokumennya tidak pernah dihapus fisik.
+//   'perlu_dicari' (opname tidak ketemu), 'hilang' (butuh PIN Owner).
+//   'hilang' status SOFT — dokumennya tidak pernah dihapus fisik.
 // - label_pcs.sampai_pada: penanda pcs sudah lolos Scan Sampai, dipakai
-// membedakan pcs yang sudah masuk gudang dari yang masih di perjalanan.
-// - Status 'terjual' + terjual_pada + transaksi_kasir_id adalah wewenang
-// modul Kasir, bukan file ini.
+//   membedakan pcs yang sudah masuk gudang dari yang masih di perjalanan.
+// - Status 'terjual' + terjual_pada + transaksi_kasir_id wewenang modul Kasir,
+//   bukan file ini.
 //
 // Jebakan:
 // - Scan Sampai di Tab Perlu Disimpan adalah penulis separating_batch
-// .sampai_pada — tab Selesai di Serie kosong selamanya kalau langkah ini
-// tidak pernah dijalankan.
-// - Modul ini membaca koleksi milik modul lain, jadi perubahan skema
-// label_pcs di js/vue-pp-sewing.js langsung berdampak ke sini.
+//   .sampai_pada — tab Selesai di Serie kosong selamanya kalau langkah ini
+//   tidak pernah dijalankan.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -208,8 +205,8 @@ const GudangPerluDisimpan = {
       }
     }
 
-    // Scan Unpack: versi BARU . Scan ulang tiap isi bagging (bagging.isi[]),
-    // lihat buatUnpackUniversal di vue-scan-cetak.js.
+    // Scan Unpack: scan ulang tiap isi bagging (bagging.isi[]), lihat
+    // buatUnpackUniversal di vue-scan-cetak.js.
     const { modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack } = buatUnpackUniversal();
 
     // Scan Masuk Gudang: scan 1 kode_pcs, alokasi FIFO, set status.

@@ -1,55 +1,23 @@
 // js/vue-persiapan-produksi.js
-
-// BARU — Zevanic House > Persiapan Produksi.— kalau di-Approve, sistem generate
-// id turunan per komponen dari No. SPK (format
-// `SPK-0001-BHN`/`-SEW`/`-WEB`/`-FIN`, disepakati lewat AskUserQuestion) supaya
-// 4 komponen produksi yang sama gampang "disatukan" lagi nanti. Kartu 2-5
-// (Persiapan Bahan / Acc Sewing / Acc Webbing / Acc Finishing) menampilkan
-// checklist per komponen, DIISI OTOMATIS dari BOM Master Produk yang terhubung
-// ke SPK itu (BUKAN diketik manual) — tandai "sudah disiapkan" dilakukan
-// operator/admin LEWAT SCAN (menu Scan Persiapan, js/vue-scan-persiapan.js —
-// lihat integrasinya di sana, fungsi tandaiPersiapanDariScan), BUKAN tombol
-// toggle manual di sini .
+// Zevanic House > Persiapan Produksi: antrean Approve SPK + 4 daftar komponen
+// (Bahan/Sewing/Webbing/Finishing). File ini sudah tidak dimuat di index.html;
+// yang aktif js/vue-persiapan-produksi-v2.js.
 //
-// 4 KEPUTUSAN ARSITEKTUR: 1. Trigger masuk antrean "Perlu Disiapkan": OTOMATIS
-// begitu SPK BARU disimpan (bukan SPK yang diedit) — lihat js/vue-order-spk.js,
-// buatAntreanPersiapanProduksi, dipanggil dari simpan. 2. Isi hasil Approve:
-// Bahan + Acc SESUAI ISI BOM SAJA — kalau BOM Aksesoris SPK itu cuma punya baris
-// ber-tahap "Sewing" (tidak ada Webbing/Finishing), CUMA kartu "SPK-xxxx-SEW"
-// yang dibuat, 2 lainnya TIDAK dibuat sama sekali (bukan dibuat kosong). 3.
-// Format id turunan: `{no_spk}-BHN` (Bahan, dari BOM Pola) / `-SEW` (Acc tahap
-// "Sewing") / `-WEB` (Acc tahap "Webbing") / `-FIN` (Acc tahap "Finishing"). 4.
-// Tandai "sudah disiapkan": lewat scan QR di menu Scan Persiapan (BUKAN tombol
-// manual di kartu-kartu Persiapan Produksi ini).
+// Koleksi & field:
+// - persiapan_produksi: antrean, status 'perlu_disiapkan' -> 'approved'.
+// - persiapan_komponen: hasil Approve, id `{no_spk}-BHN/-SEW/-WEB/-FIN`,
+//   field `tipe` dipakai memfilter daftar per komponen.
+// - master_produk: dicari lewat where('sku','==',item.sku_produk) untuk BOM.
+// - master_bahan_aksesoris: nama item tiap baris BOM.
 //
-// KEPUTUSAN SEPIHAK TAMBAHAN (belum eksplisit ditanya, catat di sini biar
-// gampang dikoreksi kalau meleset — konsisten pola "keputusan sepihak" proyek
-// ini): a. Pencocokan tahap Acc Sewing/Webbing/Finishing dilakukan dengan
-// MENCOCOKKAN TEKS field `tahap_proses` (BOM Aksesoris, Master Produk)
-// case-insensitive & trim, terhadap PERSIS 3 kata: "sewing", "webbing",
-// "finishing". Baris BOM Aksesoris yang tahap_proses-nya TIDAK cocok salah satu
-// dari 3 itu (typo, kosong, atau istilah lain) TIDAK IKUT ke kartu manapun —
-// WAJIB isi field itu (via dropdown "Persiapan Untuk Tahap" di BOM Aksesoris)
-// persis salah satu dari 3 kata itu (boleh beda kapitalisasi) supaya baris itu
-// ikut ter- generate. Kalau ternyata kebutuhan sesungguhnya lebih fleksibel
-// (mis. tiap tahap boleh sub-kategori banyak, bukan cuma 3), ini titik yang
-// perlu direvisi. b. Qty kebutuhan tiap baris = qty PER PCS di BOM (Bahan: field
-// `panjang` per baris BOM Pola; Acc: field `qty` per baris BOM Aksesoris) DIKALI
-// `qty_order` SPK — pola "BOM explosion" standar, SAMA logic dasarnya dengan
-// field `kelipatan` yang sudah dibangun sebelumnya (KPK Isi Pola). BELUM
-// ditanyakan eksplisit ke — kalau formula sesungguhnya beda (mis. ada faktor
-// susut/waste %), titik ini yang perlu direvisi. c. Approve HANYA bisa dilakukan
-// kalau SPK sudah terhubung ke Master Produk lewat `sku_produk` (field opsional
-// di Order SPK) — kalau belum, tombol Approve tetap tampil tapi klik-nya cuma
-// menampilkan pesan jelas ("hubungkan dulu lewat Edit di Order SPK"), TIDAK
-// auto-generate BOM kosong/tebakan. d. Approve BERSIFAT SEKALI JALAN per SPK
-// (tombolnya hilang begitu status sudah 'approved') — supaya progres checklist
-// yang sudah dicatat lewat Scan Persiapan TIDAK PERNAH tertimpa/ke-reset oleh
-// Approve ulang. Kalau BOM produk berubah SETELAH Approve, kartu Persiapan
-// Produksi yang sudah ada TIDAK otomatis ikut berubah .
-//
-// Pola file: campuran vue-order-spk.js (paginasi cursor + form dasar) &
-// vue-config.js .
+// Jebakan:
+// - Tahap acc dicocokkan dari TEKS `tahap_proses` BOM Aksesoris persis ke
+//   "sewing"/"webbing"/"finishing" (case-insensitive, trim); baris di luar
+//   tiga kata itu tidak ikut ter-generate ke kartu manapun.
+// - Approve sekali jalan per SPK dan hanya jalan kalau SPK punya
+//   `sku_produk`; BOM yang berubah setelah Approve tidak menular ke kartu
+//   yang sudah dibuat.
+// - Qty kebutuhan = qty per pcs di BOM (panjang / qty) dikali qty_order SPK.
 
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, doc, getDoc, getDocs, setDoc, updateDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -209,9 +177,8 @@ const PersiapanQueueManager = {
       <h3 style="font-weight:700; font-size:13.5px; margin-bottom:4px;"><i class="fas fa-list-check" style="color:var(--aksen-ink); margin-right:8px;"></i>Perlu Disiapkan</h3>
       <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 12px;">Antrean SPK baru — TERISI OTOMATIS begitu Order SPK disimpan. Approve buat generate kartu Persiapan Bahan/Acc Sewing/Webbing/Finishing sesuai isi BOM produk yang terhubung.</p>
       <!--
-        Kolom cari pil — DISESUAIKAN . Tetap pakai cariDenganDebounce yang sudah ada (bukan
-        komponen KolomCari — itu v-model langsung tanpa debounce, beda kontrak), cuma bungkusnya
-        diganti gaya pil.
+        Kolom cari gaya pil, tetap pakai cariDenganDebounce — BUKAN komponen KolomCari,
+        itu v-model langsung tanpa debounce (beda kontrak).
       -->
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
         <div style="display:flex; align-items:center; gap:9px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:999px; padding:9px 13px; flex:1; min-width:200px; max-width:320px;">

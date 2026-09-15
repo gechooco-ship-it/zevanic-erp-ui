@@ -1,47 +1,23 @@
 // js/vue-scan-opname.js
-
-// BARU — Zevanic House > Scan > Scan Opname. Bagian dari rencana besar "Config,
-// Cetak Label, Order SPK, Scan" yang diuraikan & disepakati SEBELUM koding di
-// §26.0 (lihat STATUS- PROYEK.md). Tahap 1-3 (Config, Order SPK, Cetak Label)
-// SUDAH dites di live & jalan normal sebelum Tahap ini mulai dikerjakan.
+// Zevanic House > Scan > Scan Opname — hitung ulang stok FISIK vs stok SISTEM
+// lewat scan QR (barcode), bukan CRUD bebas.
 //
-// APA INI: hitung ulang stok FISIK vs stok SISTEM ("stock opname"), lewat scan
-// QR (barcode) — bukan CRUD bebas.0 poin 5 & 7): - Item `pakai_lot_tracking`
-// (qty roll): opname PER ROLL — tiap `kode_lot` dihitung ulang SENDIRI-SENDIRI
-// (bukan 1 angka gabungan per bahan). Scan label fisik roll (QR-nya SAMA dengan
-// yang dicetak lewat menu Cetak Label, §26.3) -> langsung ketemu 1 roll
-// spesifik. - Item BUKAN lot: opname per ITEM, dibandingkan ke `stok_akhir`
-// langsung. Scan QR item (BARU ada sejak §26.3 — item non-lot sebelumnya tidak
-// punya kode/QR sama sekali). - Efek ke stok — Opsi B: SELALU tercatat sebagai
-// pergerakan "Penyesuaian" di ledger `kartu_stok_bahan_aksesoris` yang SUDAH ADA
-// (BUKAN override diam- diam, BUKAN koleksi baru terpisah) — auditable,
-// kelihatan juga di Kartu Stok > Detail > Riwayat Pergerakan punya item itu. -
-// Gating "mobile-only untuk non-Owner" — nyambung ke `window. currentUser.role`
-// yang SUDAH ADA (role === 'owner', pola SAMA seperti Config Akses/Hak
-// Akses/Device Kiosk di js/auth.js — BUKAN mekanisme permission baru): Owner
-// bebas di desktop MAUPUN mobile (boleh cari-pilih item langsung, TIDAK wajib
-// scan). Non-Owner WAJIB mobile (dideteksi lewat `isDesktopBrowser`, disalin
-// dari js/vue-login.js — konvensi "salin logic kecil per-file" proyek ini) DAN
-// WAJIB scan (tidak ada jalur cari/ketik manual sama sekali buat non-Owner —
-// kalau bukan mobile, halaman ini diblokir total).
+// Koleksi & field:
+// - Item pakai_lot_tracking: opname PER ROLL, tiap kode_lot dihitung
+//   sendiri-sendiri lawan lot.qty_sisa. Item non-lot: opname per item,
+//   dibandingkan langsung ke stok_akhir.
+// - Selisih SELALU tercatat sebagai pergerakan "Penyesuaian" di ledger
+//   kartu_stok_bahan_aksesoris — auditable, bukan override diam-diam.
 //
-// SEMUA transaksi yang mengubah stok_akhir/qty_sisa (aturan yang SUDAH
-// didokumentasikan di js/vue-stock-pembelian.js: "JANGAN PERNAH update
-// stok_akhir langsung dari tempat lain") lewat 2 fungsi BARU yang diekspor dari
-// sana: `catatPenyesuaianOpnameItem` & `catatPenyesuaianOpnameLot` — file INI
-// TIDAK PERNAH tulis stok_akhir/ qty_sisa langsung.
-//
-// Kamera/QR pakai `jsQR` (CDN), pola SAMA PERSIS seperti js/vue-kartu- stok.js /
-// js/vue-scan-qr.js — disalin ulang ke sini (konvensi "salin logic kecil
-// per-file" proyek ini, BUKAN diimpor lintas file).
-// `ambilDaftarBahanAksesorisLengkap`/`formatNamaBahan` JUGA disalin (sama
-// seperti di vue-stock-pembelian.js sendiri — lihat catatan di sana, "disalin
-// dari vue-bahan-aksesoris.js/vue-persiapan-masalah.js secara sengaja"). Fungsi
-// baca/tulis LOT & stok (`ambilLotAktif`, `cariBahanByIdTampil`,
-// `ambilBahanById`, `cariLotByKodeSemuaStatus`, `catatPenyesuaianOpnameItem`,
-// `catatPenyesuaianOpnameLot`) DIIMPOR dari vue-stock-pembelian.js — itu
-// SATU-SATUNYA file yang boleh nulis stok_akhir/qty_sisa (pola SAMA seperti
-// vue-kartu-stok.js yang sudah duluan impor fungsi-fungsi serupa dari sana).
+// Jebakan:
+// - File ini TIDAK PERNAH menulis stok_akhir/qty_sisa langsung. Semua lewat
+//   catatPenyesuaianOpnameItem / catatPenyesuaianOpnameLot yang diimpor dari
+//   js/vue-stock-pembelian.js, satu-satunya file yang boleh menulis stok.
+// - Scan kode_lot mencari SEMUA status, bukan cuma 'aktif' — roll yang sistem
+//   bilang habis tapi fisiknya masih ada tetap bisa ditangkap. Item lot-tracked
+//   yang discan pakai kode ITEM ditolak, wajib scan label roll-nya.
+// - Gating: Owner bebas desktop/mobile dan boleh pilih lewat dropdown;
+//   non-Owner WAJIB mobile DAN wajib scan, tanpa jalur cari/ketik manual.
 
 import { createApp, ref, computed, onMounted, onUnmounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";

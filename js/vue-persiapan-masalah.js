@@ -1,31 +1,22 @@
 // js/vue-persiapan-masalah.js
-
-// Zevanic House > Persiapan Masalah — fitur BARU, "versi sederhana" per— lihat
-// STATUS-PROYEK.md §21.1).
+// Zevanic House > Persiapan Masalah. Board manual pencatatan kebutuhan atau
+// kekurangan bahan-aksesoris: nama barang, jumlah, satuan, keterangan.
+// Akses level admin ke atas.
 //
-// Fungsinya: tempat siapa saja (level admin ke atas, sama seperti menu Zevanic
-// House lain) mencatat "kebutuhan/masalah bahan-aksesoris yang kurang" — nama
-// barang (WAJIB pilih dari Data Bahan & Aksesoris yang sudah ada, bukan teks
-// bebas, supaya nyambung datanya ke Alias Pembelian & Order Belanja nanti),
-// jumlah, satuan, keterangan. Daftar yang statusnya "menunggu" INILAH yang jadi
-// sumber tabel "Daftar Permintaan/Pesanan Bahan & Aksesoris" di menu Stock &
-// Pembelian > List/Nota Order Belanja (js/vue-stock-pembelian.js) — begitu suatu
-// item benar-benar masuk ke sebuah Pesanan Pembelian lewat Nota Order Belanja,
-// statusnya otomatis pindah jadi "sudah_dipesan" (ditandai di file itu, bukan di
-// sini).
+// Koleksi & field:
+// - permintaan_bahan_manual: nama_barang wajib dipilih dari master (bukan
+//   teks bebas), status 'menunggu' | 'sudah_dipesan'.
+// - master_bahan_aksesoris: sumber pilihan item.
 //
-// VERSI SEDERHANA — belum ada: approval sebelum masuk daftar, prioritas/
-// urgensi, upload foto masalah. Bisa ditambah nanti kalau.
-//
-// NAMA KOLEKSI: koleksi Firestore board manual ini DIPINDAH dari
-// `persiapan_masalah` ke `permintaan_bahan_manual` — nama `persiapan_masalah`
-// dibebaskan sepenuhnya untuk skema (TRB/SPK-linked) di
-// js/vue-pp-masalah.js, per. Fitur/UI board manual ini SENDIRI TIDAK dihapus —
-// cuma nama koleksi datanya yang pindah, supaya tidak lagi bentrok skema dengan
-// pos Masalah yang baru. Menu-id Config Akses ('persiapan_masalah', dipakai
-// cekIzinMenu di bawah) SENGAJA TIDAK ikut diganti — itu namespace izin per-user
-// yang terpisah dari nama koleksi, mengubahnya akan mereset izin akses semua
-// user yang sudah tersimpan tanpa perlu.
+// Jebakan:
+// - Baris berstatus 'menunggu' inilah sumber tabel Daftar Permintaan Bahan
+//   & Aksesoris di Stock & Pembelian > Nota Order Belanja
+//   (js/vue-stock-pembelian.js); perpindahan ke 'sudah_dipesan' ditulis di
+//   file itu, bukan di sini.
+// - Menu-id Config Akses yang dipakai cekIzinMenu tetap 'persiapan_masalah',
+//   beda dari nama koleksinya. Jangan disamakan: mengubah menu-id mereset
+//   izin akses semua user yang sudah tersimpan.
+// - Nama koleksi `persiapan_masalah` milik skema lain (js/vue-pp-masalah.js).
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, deleteDoc, getDocs, serverTimestamp, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";

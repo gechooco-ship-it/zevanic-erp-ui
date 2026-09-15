@@ -1,32 +1,24 @@
 // js/vue-stock-pembelian.js
-// Stok dan Pembelian — Daftar Nota (entry keyboard-first ala kasir),
-// Riwayat Harga Pembelian, dan fungsi bersama pencatatan stok yang dipakai
-// modul lain.
+// Stok dan Pembelian — Daftar Nota (entry keyboard-first ala kasir), Riwayat
+// Harga Pembelian, plus fungsi bersama pencatatan stok untuk modul lain.
 //
 // Koleksi & field:
-// - pesanan_pembelian: items[] disimpan sebagai ARRAY di dalam 1 dokumen
-// (bukan sub-koleksi). status: 'draft' atau 'final'. Field foto_bon
-// (Storage) dan order_driver_id (selalu null sampai modul driver menulis).
-// - pengaturan_id_pembelian: counter nomor nota, naik lewat runTransaction.
-// - lot_bahan_aksesoris: 1 dokumen = 1 roll/lot (qty_awal, qty_sisa,
-// tanggal_masuk). Dibuat otomatis saat nota difinalkan untuk item ber-
-// pakai_lot_tracking yang detail_lot[]-nya terisi.
-// - master_bahan_aksesoris: harga_perlu_konfirmasi (boolean) +
-// harga_pending{} dipakai banner kenaikan harga di Riwayat Harga.
+// - pesanan_pembelian: items[] ARRAY dalam 1 dokumen (bukan sub-koleksi),
+//   status 'draft'/'final'. Counter nomor nota: pengaturan_id_pembelian.
+// - lot_bahan_aksesoris: 1 dokumen = 1 roll/lot, dibuat saat nota difinalkan
+//   untuk item ber-pakai_lot_tracking yang detail_lot[]-nya terisi.
+// - master_bahan_aksesoris: harga_perlu_konfirmasi + harga_pending{} = banner.
 //
 // Jebakan:
-// - harga_pemakaian = harga_modal x (1 + margin_modal/100). margin_modal
-// bersatuan PERSEN. perbaruiHargaMasterDariRiwayat memakai rumus yang
-// sama dan ikut jalan tiap nota difinalkan.
-// - Untuk item konversi_bertingkat, tombol "Terapkan" di Riwayat Harga cuma
-// memperbarui harga_modal di tier terakhir — TIDAK menghitung ulang
-// seluruh rantai konversi seperti alur nota final. Verifikasi manual kalau
-// item jenis ini harganya naik.
-// - Finalisasi nota dan "Terapkan" harga butuh PIN: hash users.pin_hash,
-// dicocokkan cariUserByPin, gerbang tierOwnerKeAtas, kunci 3x salah.
-// User yang belum pernah mengisi pin_hash tidak bisa memakai fungsi ini.
-// - catatPemakaianDariAlokasi dipanggil juga oleh js/vue-scan-persiapan.js
-// jangan ubah tanda tangannya tanpa cek pemanggil itu.
+// - harga_pemakaian = harga_modal x (1 + margin_modal/100), margin_modal
+//   PERSEN; perbaruiHargaMasterDariRiwayat pakai rumus sama tiap nota final.
+// - Item konversi_bertingkat: "Terapkan" di Riwayat Harga cuma memperbarui
+//   harga_modal tier terakhir, TIDAK seluruh rantai. Verifikasi manual.
+// - Finalisasi nota dan "Terapkan" butuh PIN (users.pin_hash, cariUserByPin,
+//   tierOwnerKeAtas, kunci 3x salah); user tanpa pin_hash terkunci.
+// - catatPemakaianDariAlokasi juga dipanggil js/vue-scan-persiapan.js —
+//   jangan ubah tanda tangannya tanpa cek pemanggil itu.
+
 import { createApp, ref, reactive, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, runTransaction, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 // foto_bon diupload ke Firebase Storage, pola SAMA PERSIS seperti
@@ -72,26 +64,16 @@ function formatRupiah(n) {
   const angka = parseFloat(n) || 0;
   return 'Rp ' + Math.round(angka).toLocaleString('id-ID');
 }
-// formatNamaBahan — BARU — gabungkan `nama` + `warna` (mis. "DUSKY CRINKLE BLUSH
-// PINK") buat ditampilkan di dropdown pencarian item (Alias Pembelian, List/Nota
-// Order Belanja — lihat opsiNamaInternal & opsiNamaBarang di bawah). Sebelum ini
-// dropdown cuma tampil `nama` polos — kalau ada beberapa item dengan `nama` SAMA
-// tapi `warna` beda (kasus normal, warna itu field terpisah di Data Bahan &
-// Aksesoris), item-itemnya TIDAK BISA dibedakan di dropdown, DAN pemilihan salah
-// satu bisa nyantol ke varian warna yang SALAH (dulu di-cocokkan cuma dari
-// `nama` lewat `.find`, selalu ambil hasil PERTAMA yang cocok — silent bug,
-// diperbaiki sekalian di sini karena satu akar masalah yang sama).
+// formatNamaBahan — gabung `nama` + `warna` untuk label item di dropdown.
+// Beberapa item bisa punya `nama` SAMA dengan `warna` beda; mencocokkan hanya
+// lewat `nama` (`.find` ambil hasil pertama) menyantolkan pilihan ke varian
+// warna yang salah tanpa error apa pun.
 function formatNamaBahan(b) {
   return (b.nama || '') + (b.warna ? ` ${b.warna}` : '');
 }
-// buatQrDataUrl — DIPINDAH ke level modul dari dalam OrderBelanjaScreen.setup
-// supaya bisa dipakai BARENG oleh cetakLabelLot (di OrderBelanjaScreen, sudah
-// ada) DAN CetakLabelManager (menu baru "Cetak Label", di bawah) — TIDAK ada
-// perubahan logic, cuma posisi (dari closure jadi fungsi modul biasa), karena
-// keduanya di FILE YANG SAMA (bukan pelanggaran konvensi "disalin bukan diimpor
-// silang", itu cuma berlaku ANTAR file .js berbeda). Lihat komentar panjang
-// aslinya (soal kenapa qrcodejs digambar sinkron di window utama, bukan
-// document.write di window print) di dekat cetakLabelLot di bawah.
+// buatQrDataUrl — di level modul supaya dipakai bareng cetakLabelLot dan
+// CetakLabelManager di file ini. Alasan QR digambar sinkron di window utama
+// (bukan document.write di window print) ada di catatan cetakLabelLot.
 function buatQrDataUrl(teks) {
   if (typeof QRCode === 'undefined') return '';
   const tmp = document.createElement('div');
@@ -108,18 +90,10 @@ function buatQrDataUrl(teks) {
   document.body.removeChild(tmp);
   return dataUrl;
 }
-// opsiSatuanBeliUntuk / faktorKonversiUntukSatuan — BARU . Bahan/Aksesoris yang
-// diisi lewat popup "Bantu Hitung Konversi Berjenjang" (vue-bahan-aksesoris.js)
-// NYIMPAN SELURUH rantai tingkatnya di `konversi_bertingkat` (array `{dari,
-// jumlah, ke, harga}` per tingkat, mis. tingkat 1 = {dari:"DUS", jumlah:10,
-// ke:"PACK"}, tingkat 2 = {dari:"PACK", jumlah:12, ke:"PCS"}) — BUKAN cuma 1
-// angka `isi_konversi_pembelian` gabungan seperti yang dipakai selama ini di
-// Order Belanja. Dua fungsi ini baca rantai itu buat kasih PILIHAN satuan beli
-// (tiap `dari` di rantai, PLUS satuan akhir/`satuan_pemakaian` kalau mau beli
-// langsung di satuan dasarnya) & hitung faktor konversi yang BENAR buat satuan
-// manapun yang dipilih (bukan selalu pakai faktor tingkat PALING
-// ATAS/`isi_konversi_pembelian`, yang cuma benar kalau beli di satuan_pembelian
-// aslinya).
+// opsiSatuanBeliUntuk / faktorKonversiUntukSatuan — baca `konversi_bertingkat`
+// (array `{dari, jumlah, ke, harga}` per tingkat). Pilihan satuan beli = tiap
+// `dari` di rantai + `satuan_pemakaian`; faktor dihitung per satuan terpilih.
+// Memakai `isi_konversi_pembelian` saja cuma benar di satuan_pembelian teratas.
 function opsiSatuanBeliUntuk(item) {
   const tingkat = Array.isArray(item.konversi_bertingkat) ? item.konversi_bertingkat : [];
   if (tingkat.length === 0) {
@@ -151,35 +125,26 @@ function faktorKonversiUntukSatuan(item, satuanDipilih) {
   // `isi_konversi_pembelian` polos, yang selalu itung dari tingkat PALING ATAS.
   return tingkat.slice(idx).reduce((total, t) => total * (parseFloat(t.jumlah) || 1), 1);
 }
-// hargaUntukSatuan — BARU . Prefill "Harga Aktual" di baris pesanan SEKARANG
-// ambil harga TINGKAT yang SUNGGUHAN dipilih di field Satuan (dari
-// `konversi_bertingkat`, mis. harga PACK bukan harga DUS kalau yang dipilih
-// PACK) — bukan selalu `harga_pembelian` (harga tingkat teratas) seperti
-// sebelumnya. Field ini TETAP bisa diedit admin di tabel Nota (tidak berubah) —
-// ini cuma nilai DEFAULT/perkiraan awal.
+// hargaUntukSatuan — prefill "Harga Aktual" ambil harga TINGKAT yang dipilih di
+// field Satuan (dari `konversi_bertingkat`), bukan `harga_pembelian` tingkat
+// teratas. Nilai ini cuma default; admin tetap bisa edit di tabel Nota.
 function hargaUntukSatuan(item, satuanDipilih) {
   const tingkat = Array.isArray(item.konversi_bertingkat) ? item.konversi_bertingkat : [];
   if (tingkat.length === 0) return parseFloat(item.harga_pembelian) || 0;
   const cocok = tingkat.find(t => t.dari === satuanDipilih);
   if (cocok && parseFloat(cocok.harga) > 0) return parseFloat(cocok.harga);
-  // Satuan dipilih = satuan akhir/dasar (satuan_pemakaian, tidak punya baris
-  // "dari" sendiri) — pakai Harga Modal (`harga_modal`, sudah dihitung otomatis
-  // di Data Bahan & Aksesoris = harga TERMAHAL di antara implikasi
-  // per-satuan-akhir semua tingkat, lihat §25.14 di
-  // vue-bahan-aksesoris.js/hitungHargaPerSatuanAkhir).
+  // Satuan akhir/dasar (satuan_pemakaian) tidak punya baris "dari" sendiri —
+  // pakai `harga_modal`, yaitu harga TERMAHAL di antara implikasi
+  // per-satuan-akhir semua tingkat (hitungHargaPerSatuanAkhir).
   if (satuanDipilih && satuanDipilih === tingkat[tingkat.length - 1].ke) {
     return Math.round(parseFloat(item.harga_modal) || 0);
   }
   return parseFloat(item.harga_pembelian) || 0; // fallback aman (seharusnya tidak kejadian lewat UI)
 }
-// hitungHargaPerSatuanAkhir — SAMA PERSIS dengan fungsi nama sama di
-// vue-bahan-aksesoris.js (disalin, BUKAN diimpor silang — konvensi yang sudah
-// dipakai di file ini utk ambilDaftarBahanAksesorisLengkap juga, lihat catatan
-// di atas: supaya 2 file ini tetap bisa berdiri sendiri-sendiri kalau salah satu
-// diedit). Dipakai `perbaruiHargaMasterDariRiwayat` di bawah (§25.14) — kalau
-// diubah, WAJIB diubah bareng versi di vue-bahan-aksesoris.js juga supaya
-// rumusnya tetap sama antara popup Konversi Berjenjang & auto-update dari Nota
-// final.
+// hitungHargaPerSatuanAkhir — salinan fungsi bernama sama di
+// vue-bahan-aksesoris.js (disalin, BUKAN diimpor silang). Kalau rumusnya
+// diubah, WAJIB diubah bareng di kedua file supaya popup Konversi Berjenjang
+// dan auto-update harga dari Nota final tidak berbeda hasil.
 function hitungHargaPerSatuanAkhir(baris) {
   let maxHarga = 0;
   baris.forEach((b, i) => {
@@ -193,14 +158,10 @@ function hitungHargaPerSatuanAkhir(baris) {
   return maxHarga;
 }
 
-// PIN per akun — BARU . Mekanisme "PIN per akun": siapa pun boleh mengetik PIN
-// di popup ini, sistem yang mencari TAHU PIN itu milik siapa (bukan selalu
-// dicocokkan ke window.currentUser yang lagi login) — beda dari vue-camera.js
-// (PIN Kiosk, SELALU dicocokkan ke 1 identitas yang SUDAH diketahui). `hashPin`
-// DISALIN PERSIS dari js/vue-account-profile.js (baris ~175-179, fungsi
-// simpanPin) dan js/vue-camera.js (baris ~59-63) — konvensi proyek ini: setiap
-// file yang butuh fungsi kecil ini punya salinannya sendiri, BUKAN impor silang
-// (sudah 3 titik pakai sebelum ini, ini yang ke-4).
+// PIN per akun — siapa pun boleh mengetik PIN di popup ini; sistem yang mencari
+// PIN itu milik siapa, BUKAN dicocokkan ke window.currentUser yang login.
+// `hashPin` disalin persis dari vue-account-profile.js dan vue-camera.js —
+// tiap file punya salinannya sendiri, bukan impor silang.
 async function hashPin(pin, email) {
   const data = new TextEncoder().encode(pin + '|' + email);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -210,11 +171,9 @@ async function hashPin(pin, email) {
 // (batas 3x salah lalu popup dikunci, wajib dibuka ulang).
 const MAKS_PERCOBAAN_PIN = 3;
 
-// tierOwnerKeAtas — role "Owner / PIC Owner / superuser" per tabel peran &
-// wewenang wireframe ini. Role baku Firestore TETAP 'owner'/'superuser'/
-// 'pic'/'admin'/'operator' (lihat vue-config-akses.js TINGKAT_KEAMANAN_BAKU) —
-// "PIC Owner" BUKAN role terpisah, itu role 'pic' dengan `profil_akses
-// 'pic_owner'` .
+// tierOwnerKeAtas — role baku Firestore tetap 'owner'/'superuser'/'pic'/
+// 'admin'/'operator' (vue-config-akses.js TINGKAT_KEAMANAN_BAKU). "PIC Owner"
+// BUKAN role terpisah: itu role 'pic' dengan `profil_akses 'pic_owner'`.
 function tierOwnerKeAtas(userData) {
   if (!userData) return false;
   const role = (userData.role || '').toLowerCase();
@@ -222,18 +181,10 @@ function tierOwnerKeAtas(userData) {
   return role === 'pic' && (userData.profil_akses || '').toLowerCase() === 'pic_owner';
 }
 
-// cariUserByPin — cocokkan PIN yang diketik terhadap SEMUA user ber-role
-// admin-level (owner/superuser/pic/admin — operator dilewati, tidak relevan buat
-// fitur ini) yang SUDAH pasang PIN (`pin_hash` ada), dengan meng-hash ulang PIN
-// itu pakai EMAIL masing-masing kandidat (garam = email sendiri, lihat hashPin
-// di atas) lalu dibandingkan ke `pin_hash` tersimpan. User pertama yang cocok
-// itulah "pemilik PIN". KETERBATASAN YANG DIKETAHUI: user yang belum pernah
-// pasang PIN (pin_hash undefined) TIDAK PERNAH bisa match lewat jalur ini —
-// WAJIB pasang PIN dulu lewat Account Profile > Keamanan > PIN sebelum fitur ini
-// bisa dipakai oleh akun itu. Query `where('role','in',[..])` (bukan getDocs
-// seluruh koleksi users) supaya tidak ikut menghitung-hash akun Operator yang
-// tidak mungkin relevan di sini — TETAP membaca semua dokumen kandidat (tidak
-// ada cara query hash langsung, karena garamnya beda per user).
+// cariUserByPin — PIN yang diketik di-hash ulang pakai EMAIL tiap kandidat
+// (garam = email sendiri) lalu dibanding `pin_hash`; user pertama yang cocok
+// adalah pemilik PIN. User yang belum pasang PIN (pin_hash kosong) TIDAK PERNAH
+// bisa match. Query dibatasi role admin-level; operator dilewati.
 async function cariUserByPin(pinInput) {
   const snap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['owner', 'superuser', 'pic', 'admin'])));
   for (const d of snap.docs) {
@@ -245,23 +196,10 @@ async function cariUserByPin(pinInput) {
   return null;
 }
 
-// tandaiHargaPerluKonfirmasi / bukaBlokirHargaKonfirmasi — BARU . Field BARU di
-// `master_bahan_aksesoris`: `harga_perlu_konfirmasi` (boolean) + `harga_pending`
-// (object, bentuknya didokumentasikan di sini karena field ini genuinely baru,
-// tidak ada di SPESIFIKASI-KOLEGSI-BARU.md): harga_pending = { harga_baru:
-// number, // harga BARU per Satuan Pemakaian (sudah // dinormalisasi, SAMA basis
-// dengan harga_modal) harga_lama: number, // harga_modal saat pending ini dibuat
-// (snapshot // buat hitung selisih di banner alert) tanggal: 'YYYY-MM-DD',
-// no_pembelian: string, // '' kalau berasal dari edit draft yang belum final
-// suplayer: string, satuan_asal: string, // satuan yang dipakai user saat input
-// (tampilan saja) sumber: 'finalize' | 'edit_draft' // dari mana pending ini
-// berasal } Dipanggil dari 2 titik (DaftarNotaScreen, lihat catatan lebih detail
-// di situ): (a) Nota di-final-kan dengan harga yang lebih TINGGI dari
-// harga_modal saat ini, (b) Admin-tier mengedit harga baris draft (PIN yang
-// dimasukkan BUKAN Owner/PIC Owner/superuser) — SELALU diqueue apapun arahnya
-// (naik/turun), karena intinya Admin memang tidak berwenang ubah harga sendiri,
-// beda dengan (a) yang HANYA kalau harga naik (supaya auto-update harga master
-// yang sudah ada sejak §25.14 TIDAK terganggu untuk penurunan harga yang wajar).
+// tandaiHargaPerluKonfirmasi / bukaBlokirHargaKonfirmasi — kelola field
+// `harga_perlu_konfirmasi` (boolean) + `harga_pending` { harga_baru, harga_lama,
+// tanggal, no_pembelian, suplayer, satuan_asal, sumber } di
+// master_bahan_aksesoris. harga_baru & harga_lama SATU basis dengan harga_modal.
 async function tandaiHargaPerluKonfirmasi(bahanId, pending) {
   try {
     await updateDoc(doc(db, 'master_bahan_aksesoris', bahanId), {
@@ -272,17 +210,10 @@ async function tandaiHargaPerluKonfirmasi(bahanId, pending) {
 }
 
 
-// PopupPin — popup generik verifikasi PIN "per akun" (lihat cariUserByPin di
-// atas). Dipakai di 3 titik DaftarNotaScreen/RiwayatHargaPembelianManager:
-// finalisasi Nota (kalau yang login bukan Owner-tier), edit harga baris draft,
-// tombol "Terapkan & buka blokir" di Riwayat Harga. Emit 'sukses' bawa {email,
-// role, profil_akses, ..} user pemilik PIN yang cocok — DAN juga 'sukses'
-// dipanggil untuk PIN yang cocok TAPI bukan Owner-tier (branch admin/alert),
-// pemanggil yang memutuskan cabangnya lewat tierOwnerKeAtas. Kalau PIN tidak
-// cocok SAMA SEKALI dengan siapa pun (termasuk user yang belum pasang PIN —
-// lihat keterbatasan di cariUserByPin) -> hitung sebagai "PIN salah", counter
-// attempt naik, terkunci di percobaan ke-3 (mirror MAKS_PERCOBAAN_PIN_KIOSK,
-// vue-camera.js).
+// PopupPin — popup verifikasi PIN per akun. Emit 'sukses' bawa {email, role,
+// profil_akses, ..} pemilik PIN, TERMASUK saat pemiliknya bukan Owner-tier —
+// pemanggil yang memutuskan cabangnya lewat tierOwnerKeAtas. PIN yang tidak
+// cocok dengan siapa pun menaikkan counter; terkunci di percobaan ke-3.
 
 const PopupPin = {
   props: {
@@ -400,11 +331,9 @@ async function generateNoPembelian() {
 }
 
 
-// PopupTambahSuplayerCepat — BARU . Shortcut "+" nempel di sebelah dropdown-cari
-// Suplayer (Alias Pembelian, List/Nota Order Belanja) —. Begitu simpan sukses,
-// emit 'tersimpan' bawa nama Suplayer baru — komponen pemanggil yang tanggung
-// jawab auto-pilih di dropdown & refresh daftarnya sendiri (lihat
-// onSuplayerBaruTersimpan di AliasPembelianManager/ OrderBelanjaScreen).
+// PopupTambahSuplayerCepat — shortcut "+" di sebelah dropdown-cari Suplayer.
+// Emit 'tersimpan' bawa nama Suplayer baru; komponen pemanggil yang auto-pilih
+// di dropdown & refresh daftarnya sendiri.
 
 const PopupTambahSuplayerCepat = {
   emits: ['tersimpan', 'tutup'],
@@ -455,15 +384,6 @@ const PopupTambahSuplayerCepat = {
 
 
 // PengaturanStockPembelian — panel gear: atur prefix No. Pembelian.
-//
-// RIWAYAT — sebelumnya panel ini JUGA kelola Master Suplayer (dulu lewat
-// MasterSuplayerManager, pembungkus tipis MasterDataTabelManager).js) — TIDAK
-// diimpor silang dari sini (konsisten pola "disalin, bukan diimpor silang"),
-// Config panggil MasterDataTabelManager langsung. Panel gear ini sekarang cuma
-// Prefix No. Pembelian. Sebagai gantinya, form yang butuh tambah Suplayer cepat
-// (Alias Pembelian, List/ Nota Order Belanja) SEKARANG punya tombol "+" shortcut
-// sendiri di sebelah dropdown Suplayer — lihat PopupTambahSuplayerCepat di
-// bawah.
 
 const PengaturanStockPembelian = {
   emits: ['tutup'],
@@ -520,15 +440,9 @@ const PengaturanStockPembelian = {
 };
 
 
-// AliasPembelianManager — menu "Alias Pembelian" DIPENSIUNKAN — tab & mount div
-// "Alias Pembelian" sudah DICOPOT dari index.html,
-// window.pastikanMountAliasPembelian (bawah file ini) TIDAK LAGI dipanggil dari
-// petaMount (js/dashboard.js). Fungsinya PINDAH TOTAL ke AliasMoqManager
-// (js/vue-master-suplayer.js, tab Zevanic House > Master Suplayer > Alias & MOQ
-// struktur dokumen `alias_pembelian` TIDAK berubah, cuma lokasi UI + field
-// moq/moq_satuan/lead_time_hari tambahan). Kode di bawah ini SENGAJA DIBIARKAN
-// (bukan dihapus, konvensi "dead code aman" project ini) — cuma tidak pernah
-// lahir/jalan lagi.
+// AliasPembelianManager — tidak dipakai lagi; tab & mount sudah dicopot dari
+// index.html dan petaMount. Fungsinya ada di AliasMoqManager
+// (js/vue-master-suplayer.js); struktur dokumen `alias_pembelian` tidak berubah.
 
 const AliasPembelianManager = {
   components: { DropdownCari, PengaturanStockPembelian, PopupTambahSuplayerCepat },
@@ -595,14 +509,10 @@ const AliasPembelianManager = {
       try {
         await addDoc(collection(db, 'alias_pembelian'), {
           suplayer_id: suplayer.id, suplayer_nama: suplayer.nama,
-          // SEBELUMNYA `bahan_aksesoris_nama` disimpan dari `bahan.nama` POLOS
-          // (tanpa warna), jadi walau dropdown di atas sudah bisa bedakan
-          // nama+warna, tabel Alias tetap tidak bisa. Sekarang disimpan
-          // `formatNamaBahan(bahan)` (nama+warna) — dipakai sebagai FALLBACK
-          // ARSIP kalau item internalnya suatu saat dihapus (lihat
-          // namaInternalTampil di bawah, yang tampilan utamanya tetap baca LIVE
-          // dari daftarBahan supaya kalau nama/warna item diedit belakangan,
-          // alias lama ikut ke-update tampilannya).
+          // `bahan_aksesoris_nama` disimpan sebagai `formatNamaBahan(bahan)`
+          // (nama+warna) dan dipakai FALLBACK ARSIP kalau item internalnya
+          // dihapus; tampilan utamanya baca LIVE dari daftarBahan (lihat
+          // namaInternalTampil).
           bahan_aksesoris_id: bahan.id, bahan_aksesoris_nama: formatNamaBahan(bahan),
           nama_di_nota: namaDiNota,
           dibuat_pada: serverTimestamp()
@@ -616,12 +526,10 @@ const AliasPembelianManager = {
       menyimpan.value = false;
     }
 
-    // namaInternalTampil — BARU . Cari LIVE ke daftarBahan (bukan baca field
-    // `bahan_aksesoris_nama` yang tersimpan statis) — supaya kalau nama/warna
-    // item internal diedit belakangan di Data Bahan & Aksesoris, alias lama ikut
-    // tampil update, bukan data beku saat alias dibuat. Fallback ke
-    // `bahan_aksesoris_nama` yang tersimpan HANYA kalau item internalnya sudah
-    // tidak ada lagi (terhapus).
+    // namaInternalTampil — cari LIVE ke daftarBahan, bukan field
+    // `bahan_aksesoris_nama` yang tersimpan statis, supaya alias lama ikut
+    // update kalau nama/warna item diedit. Fallback ke field tersimpan HANYA
+    // kalau item internalnya sudah terhapus.
     function namaInternalTampil(a) {
       const b = daftarBahan.value.find(x => x.id === a.bahan_aksesoris_id);
       return b ? formatNamaBahan(b) : (a.bahan_aksesoris_nama || '-');
@@ -649,12 +557,6 @@ const AliasPembelianManager = {
         <button @click="tampilPengaturan = true" class="icon-btn" title="Pengaturan"><i class="fas fa-gear"></i></button>
       </div>
       <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:14px;">Petakan nama barang di nota Suplayer (bisa beda-beda tiap Suplayer) ke 1 item internal di Data Bahan &amp; Aksesoris — supaya pencarian di Order Belanja lebih gampang.</p>
-      <!--
-        urutan field entry SEKARANG Suplayer, Nama di Nota Suplayer, Nama Internal (Nama + Warna),
-        tombol Tambah jadi kolom grid terpisah di akhir (pola sama seperti entry Daftar Pesanan di
-        OrderBelanjaScreen di bawah). SEBELUMNYA urutannya Suplayer, Nama Internal, Nama di Nota
-        (+ tombol nempel di kolom itu).
-      -->
       <div v-if="bolehTambah" class="grid-cols-1 md:grid-cols-4" style="display:grid; gap:8px; align-items:end; margin-bottom:14px;">
         <div class="gc-field" style="margin-bottom:0;">
           <label>Suplayer</label>
@@ -669,11 +571,6 @@ const AliasPembelianManager = {
       </div>
       <div v-if="memuat" style="text-align:center; padding:16px; color:var(--text-faint); font-size:12px;">Memuat...</div>
       <div v-else-if="daftarAlias.length === 0" style="font-size:11.5px; color:var(--text-faint);">Belum ada alias.</div>
-      <!--
-        tabel alias SEKARANG Kartu, BUKAN lagi tabel scroll horizontal. Header kartu = Nama
-        Internal (judul) + Suplayer (subjudul), kartu-rows = Nama di Nota, tombol Hapus di bawah
-        (kalau bolehHapus).
-      -->
       <div v-else style="display:flex; flex-direction:column; gap:10px;">
         <div v-for="a in daftarAlias" :key="a.id" class="gc-card" style="padding:14px;">
           <div style="margin-bottom:10px;">
@@ -695,28 +592,16 @@ const AliasPembelianManager = {
 };
 
 
-// OrderBelanjaScreen — dipakai BARENG oleh "List Order Belanja" (mode-nota
-// false) dan "Nota Order Belanja" (mode-nota true).
-//
-// DIPERTEGAS — 2 mode ini punya MAKNA BISNIS beda, bukan cuma beda label: -
-// "List Order Belanja" (modeNota=false) — ESTIMASI belanja yang dibuat SUPIR,
-// lalu di-approve OWNER, SEBELUM belanja sungguhan terjadi. Harga di sini CUMA
-// ikut Data Bahan & Aksesoris apa adanya (read-only, lihat kolom Harga di
-// template) — TIDAK memicu Riwayat Harga Pembelian atau auto-update harga master
-// (lihat simpan). - "Nota Order Belanja" (modeNota=true) — CATATAN PEMBELIAN
-// NYATA (harga aktual sesuai nota fisik), harga per baris BISA diedit admin, DAN
-// memicu catatRiwayatHargaDanUpdateMaster begitu di-final-kan.
+// OrderBelanjaScreen — modeNota=false ("List Order Belanja") = ESTIMASI supir
+// sebelum belanja: harga read-only, TIDAK memicu Riwayat Harga Pembelian
+// maupun auto-update harga master. modeNota=true ("Nota Order Belanja") =
+// pembelian nyata: harga bisa diedit dan memicu catatRiwayatHargaDanUpdateMaster.
 
 
-// Kartu Stok Bahan/Aksesoris. Module-level (BUKAN di dalam setup manapun) &
-// di-export SUPAYA bisa dipakai BARENG oleh hook pembelian di
-// catatRiwayatHargaDanUpdateMaster (bawah, dalam file yang sama) MAUPUN form
-// "Pemakaian Manual" di js/vue-kartu-stok.js (file terpisah) — 1 fungsi tunggal
-// biar stok_akhir master & saldo_setelah di tiap baris kartu SELALU dihitung
-// dari 1 jalur runTransaction yang sama, tidak ada 2 cara beda yang bisa bikin
-// angkanya meleset satu sama lain. `qty` WAJIB sudah dalam satuan_pemakaian
-// (bukan satuan_pembelian) — stok SATU satuan konsisten walau tiap pembelian
-// bisa beda satuan beli.
+// catatPergerakanKartuStok — Kartu Stok Bahan/Aksesoris. SATU-SATUNYA jalur
+// yang boleh mengubah `stok_akhir` master; dipakai bareng hook pembelian di
+// file ini dan form "Pemakaian Manual" di js/vue-kartu-stok.js lewat
+// runTransaction yang sama. `qty` WAJIB sudah dalam satuan_pemakaian.
 export async function catatPergerakanKartuStok({ bahanId, namaBahan, tanggal, jenis, qty, satuan, sumber, noPembelian, keterangan, lotBaru }) {
   const refBahan = doc(db, 'master_bahan_aksesoris', bahanId);
   const lotDibuat = [];
@@ -734,20 +619,10 @@ export async function catatPergerakanKartuStok({ bahanId, namaBahan, tanggal, je
       keterangan: keterangan || '', saldo_setelah: stokSetelah,
       dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
     });
-    // kalau ada data lot baru (masuk lewat Nota untuk item
-    // `pakai_lot_tracking`), tulis 1 dokumen `lot_bahan_aksesoris` per baris
-    // DALAM transaksi yang SAMA — supaya stok_akhir, ledger kartu stok, dan data
-    // lot SELALU konsisten sekaligus (tidak ada celah antara 1 tulis sukses &
-    // yang lain gagal). `kode_lot` (mis. "BHN-0001-L003") dibuat dari
-    // `id_tampil` BAHAN (field id manusia-terbaca di master_bahan_aksesoris,
-    // mis. "BHN-0001" — BUKAN `bahanId`/ID dokumen Firestore-nya yang
-    // auto-generated dan TIDAK enak dibaca/di-scan, lihat PETA-DATABASE.md) +
-    // counter BARU `lot_counter` di master_bahan_aksesoris, di-increment di
-    // TRANSAKSI YANG SAMA (pakai data snapBahan yang SAMA dengan stok_akhir di
-    // atas — tidak ada baca tambahan) supaya tidak ada 2 lot kebagian kode yang
-    // sama walau dibuat nyaris bersamaan. Fallback ke `bahanId` kalau
-    // `id_tampil` entah kenapa kosong (data lama/rusak) — supaya kode_lot tetap
-    // unik walau kurang rapi tampilannya.
+    // Lot baru (item `pakai_lot_tracking`) ditulis 1 dokumen
+    // `lot_bahan_aksesoris` per baris DALAM transaksi yang SAMA. `kode_lot`
+    // dibentuk dari `id_tampil` bahan (BUKAN ID dokumen Firestore) + counter
+    // `lot_counter` yang di-increment di transaksi ini; fallback ke `bahanId`.
     if (jenis === 'masuk' && Array.isArray(lotBaru) && lotBaru.length > 0) {
       let counterLot = parseInt(dataBahan.lot_counter) || 0;
       const prefixLot = dataBahan.id_tampil || bahanId;
@@ -773,11 +648,9 @@ export async function catatPergerakanKartuStok({ bahanId, namaBahan, tanggal, je
   return { lotDibuat };
 }
 
-// ambilLotAktif — (Tahap 2). Baca semua lot AKTIF milik 1 bahan, urut FIFO
-// (tanggal_masuk ASC, sama seperti bekas catatPemakaianDenganFifo). Dipakai
-// `vue-kartu-stok.js` untuk (a) cek cepat kosong/tidaknya data lot SEBELUM buka
-// tabel alokasi, (b) isi tabel alokasi & saran FIFO default, (c) cari suggestion
-// saat karyawan mengetik kode roll manual.
+// ambilLotAktif — baca lot AKTIF milik 1 bahan, urut FIFO (tanggal_masuk ASC).
+// Dipakai vue-kartu-stok.js: cek kosong/tidaknya data lot, isi tabel alokasi &
+// saran FIFO default, dan suggestion saat karyawan mengetik kode roll.
 export async function ambilLotAktif(bahanId) {
   const snap = await getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('bahan_aksesoris_id', '==', bahanId), where('status', '==', 'aktif')));
   const lots = []; snap.forEach(d => lots.push({ id: d.id, ...d.data() }));
@@ -796,13 +669,9 @@ export async function cariLotByKode(kodeLot) {
   return hasil;
 }
 
-// cariLotByKodeSemuaStatus — BARU . SAMA PERSIS seperti `cariLotByKode` di atas
-// TAPI TANPA filter status — dipakai KHUSUS Scan Opname (`vue-scan-opname.js`),
-// yang justru perlu bisa nemuin roll berstatus 'habis' juga: skenario nyatanya,
-// karyawan scan label fisik roll yang di SISTEM sudah tercatat 'habis', tapi
-// TERNYATA masih ada sisa fisiknya (opname justru buat nangkep selisih kayak
-// gini). Kalau dipakai `cariLotByKode` yang lama (filter aktif saja), roll
-// begini TIDAK AKAN ketemu sama sekali lewat scan.
+// cariLotByKodeSemuaStatus — seperti `cariLotByKode` TAPI TANPA filter status,
+// khusus Scan Opname (`vue-scan-opname.js`): roll yang di sistem sudah 'habis'
+// tapi fisiknya ternyata masih ada harus tetap ketemu saat di-scan.
 export async function cariLotByKodeSemuaStatus(kodeLot) {
   if (!kodeLot) return null;
   const snap = await getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('kode_lot', '==', String(kodeLot).trim())));
@@ -811,13 +680,9 @@ export async function cariLotByKodeSemuaStatus(kodeLot) {
   return hasil;
 }
 
-// ambilSemuaLotByBahan — BEDA dari `ambilLotAktif` di atas (CUMA ambil
-// status:'aktif') — di sini SENGAJA ambil SEMUA status (aktif + habis) karena
-// tujuannya reprint label fisik yang hilang, termasuk buat roll yang datanya
-// sudah habis di sistem. DULU privat di komponen `CetakLabelManager` (menu Cetak
-// Label lama, Stock & Pembelian) — SEKARANG di-`export` karena fitur Cetak Label
-// PINDAH ke tombol per-kartu di `vue-bahan-aksesoris.js`, yang butuh fungsi ini
-// juga.
+// ambilSemuaLotByBahan — SENGAJA ambil SEMUA status (aktif + habis), beda dari
+// `ambilLotAktif`, karena dipakai reprint label roll yang datanya sudah habis
+// di sistem. Di-export untuk `vue-bahan-aksesoris.js`.
 export async function ambilSemuaLotByBahan(bahanId) {
   const snap = await getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('bahan_aksesoris_id', '==', bahanId)));
   const lots = []; snap.forEach(d => lots.push({ id: d.id, ...d.data() }));
@@ -825,11 +690,8 @@ export async function ambilSemuaLotByBahan(bahanId) {
   return lots;
 }
 
-// catatLogCetakLabel — GANTI dari method privat `catatLog` di
-// `CetakLabelManager` lama jadi fungsi modul yang di-`export`, alasan SAMA
-// seperti `ambilSemuaLotByBahan` di atas — koleksi `log_cetak_label` TETAP di
-// sini (file ini sudah "pemilik" koleksi ini sejak awal), cuma dipanggil dari
-// file lain sekarang.
+// catatLogCetakLabel — koleksi `log_cetak_label` tetap dimiliki file ini,
+// di-`export` karena sekarang dipanggil dari file lain.
 export async function catatLogCetakLabel(namaBarang, jumlah, jenis) {
   try {
     await addDoc(collection(db, 'log_cetak_label'), {
@@ -839,15 +701,10 @@ export async function catatLogCetakLabel(namaBarang, jumlah, jenis) {
   } catch (e) { console.error('Gagal catat log Cetak Label:', e); }
 }
 
-// cariBahanByIdTampil — cari 1 dokumen master_bahan_aksesoris lewat field
-// `id_tampil` (ID manusia-terbaca, mis. "BHN-0001", DENORMALISASI/BEDA dari ID
-// dokumen Firestore-nya sendiri yang auto-generated — lihat catatan di
-// catatPergerakanKartuStok di atas & PETA-DATABASE.md). WAJIB query (bukan
-// getDoc langsung) karena id_tampil BUKAN ID dokumennya. Dipakai fitur "Scan
-// Barang" di vue-kartu-stok.js — (a) untuk buka item dari bahan_aksesoris_id
-// hasil cariLotByKode (di situ SUDAH ID dokumen asli, dipetik via getDoc
-// langsung — lihat pemanggilnya), (b) fallback kalau kode yang di-scan BUKAN
-// kode_lot & dicoba sebagai id_tampil bahan itu sendiri.
+// cariBahanByIdTampil — cari master_bahan_aksesoris lewat field `id_tampil`
+// (ID manusia-terbaca, mis. "BHN-0001"), BUKAN ID dokumen Firestore-nya, jadi
+// WAJIB query bukan getDoc. Dipakai "Scan Barang" di vue-kartu-stok.js sebagai
+// fallback kalau kode yang di-scan bukan kode_lot.
 export async function cariBahanByIdTampil(idTampil) {
   if (!idTampil) return null;
   const snap = await getDocs(query(collection(db, 'master_bahan_aksesoris'), where('id_tampil', '==', String(idTampil).trim())));
@@ -856,43 +713,19 @@ export async function cariBahanByIdTampil(idTampil) {
   return hasil;
 }
 
-// ambilBahanById — getDoc LANGSUNG lewat ID dokumen Firestore asli (dipakai
-// utamanya utk resolve `lot.bahan_aksesoris_id` hasil cariLotByKode, yang SUDAH
-// ID dokumen, BUKAN id_tampil — beda dari cariBahanByIdTampil di atas). Export
-// terpisah supaya pemanggil (vue-kartu-stok.js) tidak salah pakai fungsi utk 2
-// jenis ID yang beda ini.
+// ambilBahanById — getDoc LANGSUNG lewat ID dokumen Firestore asli (resolve
+// `lot.bahan_aksesoris_id` hasil cariLotByKode), beda dari cariBahanByIdTampil.
+// Dipisah supaya pemanggil tidak tertukar antara 2 jenis ID ini.
 export async function ambilBahanById(bahanId) {
   if (!bahanId) return null;
   const snap = await getDoc(doc(db, 'master_bahan_aksesoris', bahanId));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
 
-// catatPemakaianDariAlokasi — GANTI (Tahap 2) dari catatPemakaianDenganFifo
-// versi §25.3. `alokasi` (array {lotId, qty}) sudah ditentukan pemanggil
-// (vue-kartu-stok.js) — FIFO cuma jadi SARAN DEFAULT yang otomatis diisi di sana
-// (bangunAlokasiFifo), karyawan boleh ganti/tambah lewat cari kode atau scan QR
-// label roll. Fungsi ini HANYA validasi total alokasi cocok dengan qty
-// pemakaian, lalu eksekusi transaksional — SEMUA lot yang dialokasikan dibaca
-// ULANG lewat tx.get (data FRESH) sebelum ada tulisan apapun (aturan wajib
-// Firestore transaction), sama seperti pola §25.3, supaya tetap aman kalau ada 2
-// orang catat pemakaian bersamaan.
-//
-// Peringatan "bukan roll tertua" DITAMPILKAN vue-kartu-stok.js SEBELUM fungsi
-// ini dipanggil — fungsi backend ini SENGAJA tidak menolak alokasi yang
-// menyimpang dari FIFO, cuma pastikan datanya valid & konsisten.
-//
-// Cek LOT_KOSONG/LOT_KURANG (belum ada data lot / lot aktif < qty diminta)
-// SEKARANG dilakukan vue-kartu-stok.js SENDIRI lewat ambilLotAktif SEBELUM tabel
-// alokasi dibuka — TIDAK dilempar dari sini lagi. `LOT_BERUBAH` tetap dilempar
-// dari sini kalau data lot berubah persis di antara alokasi disusun & transaksi
-// ini dieksekusi (jaga-jaga race).
-//
-// Param BARU — `sumber` (OPSIONAL, default TETAP string lama persis di bawah,
-// supaya pemanggil lama di vue-kartu-stok.js yang TIDAK mengirim param ini
-// otomatis tidak berubah perilakunya sama sekali). Ditambah supaya
-// `vue-scan-persiapan.js` bisa tulis label sumber yang beda ("Pemakaian (Scan
-// Persiapan)") — biar gampang dibedakan di kolom "Sumber" Kartu Stok Detail,
-// bukan cuma lewat baca teks Keterangan.
+// catatPemakaianDariAlokasi — `alokasi` (array {lotId, qty}) ditentukan
+// pemanggil; fungsi ini validasi total alokasi cocok dengan qty pemakaian,
+// lalu SEMUA lot dibaca ULANG lewat tx.get sebelum ada tulisan apa pun. Lempar
+// `LOT_BERUBAH` kalau data lot berubah. Param `sumber` opsional, default lama.
 export async function catatPemakaianDariAlokasi({ bahanId, namaBahan, tanggal, qty, satuan, keterangan, alokasi, sumber }) {
   if (!Array.isArray(alokasi) || alokasi.length === 0) {
     throw new Error('Belum ada roll/lot yang dipilih untuk pemakaian ini.');
@@ -952,28 +785,10 @@ export async function catatPemakaianDariAlokasi({ bahanId, namaBahan, tanggal, q
 }
 
 
-// catatPenyesuaianOpnameItem / catatPenyesuaianOpnameLot — BARU . Dipakai Scan
-// Opname (`vue-scan-opname.js`).
-//
-// .0 poin 5, "Opsi B"): efek Scan Opname ke stok BUKAN override diam-diam —
-// SELALU tercatat sebagai pergerakan "Penyesuaian" di
-// `kartu_stok_bahan_aksesoris` (ledger yang SUDAH ADA, dipakai bareng semua
-// pergerakan lain — masuk dari Nota, keluar dari Pemakaian, sekarang +
-// Penyesuaian dari Opname), supaya auditable & konsisten — BUKAN koleksi baru
-// terpisah.
-//
-// Sesuai aturan yang SUDAH didokumentasikan di `catatPergerakanKartuStok` di
-// atas ("JANGAN PERNAH update stok_akhir langsung dari tempat lain"), KEDUA
-// fungsi ini — BUKAN kode ad-hoc di `vue-scan-opname.js` — adalah SATU-SATUNYA
-// jalur yang boleh mengubah stok_akhir/qty_sisa akibat opname, konsisten dengan
-// `catatPergerakanKartuStok`/ `catatPemakaianDariAlokasi` di atas.
-//
-// Input-nya SENGAJA "qty fisik yang ditemukan" (bukan selisihnya) — lebih
-// natural buat karyawan yang lagi hitung fisik ("saya hitung ketemu 12", bukan
-// "sistem kurang 3 dari fisik") — delta dihitung OTOMATIS di sini (fisik -
-// sistem). Kalau delta 0 (stok sudah sesuai), TIDAK ADA yang ditulis sama sekali
-// (tidak ada baris pergerakan buat "tidak ada perubahan") — pemanggil
-// (vue-scan-opname.js) cukup tampilkan pesan "sudah sesuai" ke user.
+// catatPenyesuaianOpnameItem / catatPenyesuaianOpnameLot — SATU-SATUNYA jalur
+// yang boleh mengubah stok_akhir/qty_sisa akibat opname; selalu tercatat
+// sebagai pergerakan "Penyesuaian" di `kartu_stok_bahan_aksesoris`. Input =
+// qty FISIK yang ditemukan (bukan selisih); delta 0 -> tidak menulis apa pun.
 
 
 // catatPenyesuaianOpnameItem — item BUKAN lot (opname per ITEM, bandingkan ke
@@ -1038,11 +853,9 @@ export async function catatPenyesuaianOpnameLot({ lotId, qtyFisik, keterangan })
 }
 
 
-// PopupQtyPerLot — BARU . Popup isi qty per roll/lot untuk 1 baris di "Daftar
-// Pesanan Pembelian", pola SAMA seperti PopupKonversiBerjenjang di
-// vue-bahan-aksesoris.js (state diedit di komponen induk OrderBelanjaScreen
-// lewat props, emit 'tambah'/'hapus'/ 'terapkan'/'tutup' — bukan disimpan ganda
-// di sini).
+// PopupQtyPerLot — isi qty per roll/lot untuk 1 baris "Daftar Pesanan
+// Pembelian". State diedit di induk OrderBelanjaScreen lewat props + emit
+// 'tambah'/'hapus'/'terapkan'/'tutup', tidak disimpan ganda di sini.
 
 const PopupQtyPerLot = {
   props: {
@@ -1058,17 +871,9 @@ const PopupQtyPerLot = {
       <div class="gc-card" style="max-width:520px; width:100%; max-height:90vh; overflow-y:auto;">
         <h3 style="font-weight:700; font-size:15px; margin-bottom:6px;"><i class="fas fa-layer-group" style="color:var(--burgundy); margin-right:8px;"></i>Qty per Roll/Lot — {{ namaBarang }}</h3>
         <p style="font-size:11px; color:var(--text-faint); margin-bottom:14px;">Isi qty tiap roll/kones satu per satu (qtynya bisa beda-beda tiap roll). Total dijumlah otomatis. Catatan: FIFO/pemakaian per-lot belum aktif — ronde ini baru mencatat qty per roll saat barang diterima.</p>
-        <!--
-          grid-template-columns INLINE dihapus ( Header kolom SEKARANG "hidden md:flex" (pola BAKU
-          dipakai di seluruh app — lihat PETA-DESAIN.md — BUKAN "hidden md:grid" yang dipakai
-          PopupKonversiBerjenjang di vue-bahan-aksesoris.js baris ~779, karena class ".md:grid"
-          itu TIDAK ADA di gechoo-design.css/index.html — dicek langsung, "grid" cuma
-          didefinisikan lewat grid-cols-1/2 & md:grid-cols-2/3/4, tidak ada varian "display:grid"
-          khusus breakpoint md — jadi kalau ditiru persis, header itu permanen display:none bahkan
-          di desktop. Dipakai "hidden md:flex" yang SUDAH terbukti jalan di banyak tempat lain
-          sebagai gantinya). Baris data SEKARANG grid-cols-1 md:grid-cols-4 (1 kolom penuh per
-          field di HP dengan label .gc-row-label, balik ke 4 kolom sejajar di desktop >=768px).
-        -->
+        <!-- Header kolom pakai "hidden md:flex": class ".md:grid" TIDAK ada di
+             gechoo-design.css/index.html, jadi "hidden md:grid" bikin header
+             permanen display:none bahkan di desktop. -->
         <div class="hidden md:flex" style="gap:6px; margin-bottom:4px;">
           <span style="flex:1; font-size:10px; font-weight:700; color:var(--text-faint);">NO</span>
           <span style="flex:1; font-size:10px; font-weight:700; color:var(--text-faint);">QTY ({{ satuan || 'satuan' }})</span>
@@ -1101,43 +906,10 @@ const PopupQtyPerLot = {
 };
 
 
-// DaftarNotaScreen — REKONSTRUKSI TOTAL menggantikan OrderBelanjaScreen (dulu
-// dipakai BARENG oleh "List Order Belanja" + "Nota Order Belanja" lewat prop
-// modeNota). Sesuai wireframe "Stok dan Pembelian" (handoff 04) +
-//
-// 1. "List Order Belanja" DIHAPUS TOTAL SEKARANG (tab/mount/komponen/ entry
-// permission) walau penggantinya ("Persiapan Belanja") belum dibangun — gap
-// fitur sementara yang terima sadar. Makanya prop `modeNota` DIHAPUS (dulu
-// satu-satunya pemakai modeNota=false SEKARANG tidak ada lagi) — komponen ini
-// SELALU berperilaku seperti dulunya "Nota Order Belanja" (harga manual, riwayat
-// harga otomatis, dst), tidak ada lagi percabangan mode. 2. Sub-tab SEKARANG
-// "Daftar Nota" — bukan lagi form permanen tanpa daftar. 3. "Nota dari driver"
-// (wireframe titik 2, "List Order Driver" via Persiapan Belanja) — DIBANGUN
-// SHELL-nya saja: field `order_driver_id` (selalu null sekarang, belum ada fitur
-// yang mengisinya) + chip filter "Manual / Dari Driver" di Daftar Nota (Dari
-// Driver akan SELALU kosong sampai fitur List Order Driver dibangun — ini
-// DISENGAJA, bukan bug). 4. PIN per akun (lihat
-// cariUserByPin/tierOwnerKeAtas/PopupPin di atas file ini) menggerbangi 2 aksi:
-// Finalisasi Nota (hanya Owner/PIC Owner/superuser — kalau yang login BUKAN tier
-// itu, WAJIB pinjam otorisasi lewat PopupPin), dan Edit Harga baris draft
-// (Owner-tier PIN -> langsung berlaku; tier lain -> di-queue ke Riwayat Harga
-// lewat tandaiHargaPerluKonfirmasi, TIDAK mengubah harga baris). 5. Field BARU
-// di `pesanan_pembelian`: `foto_bon` (URL Storage, upload manual lewat form —
-// path upload SAMA pola uploadFotoProduk di vue-master-produk.js, disalin) dan
-// `order_driver_id` (selalu null untuk sekarang, lihat poin 3). 6. Alur entry
-// keyboard-first (wireframe 3.2a-3.2e) — BARU TOTAL, tidak ada sebelumnya (dulu
-// cuma dropdown-cari + tombol Tambah manual, trivial @keyup.enter). Search box
-// tunggal (cocokkan nama internal DAN alias suplayer sekaligus) -> Enter pilih
-// -> item masuk nota qty:1/satuan default -> Tab pertama (fokus masih di search
-// box, kosong) buka pop up Qty -> Enter konfirmasi -> Tab kedua buka pop up
-// Satuan -> Enter konfirmasi -> Tab ketiga buka pop up PIN+Edit Harga ->
-// selesai. Ketik apa pun di search box di titik MANA PUN membatalkan rantai Tab
-// utk baris itu (baris tetap tersimpan dengan nilai yang sudah ke-set) dan mulai
-// cari item berikutnya — sesuai wireframe 3.2b "percabangan berlaku di SETIAP
-// titik Enter: ketik selalu cari lagi, Tab selalu buka pop up berikutnya". Item
-// duplikat (sudah ada di nota, bahan_aksesoris_id sama) -> qty++ pada baris yang
-// sudah ada (MIRROR tambahKeKeranjang vue-pesanan.js baris ~176-184), bukan
-// baris baru.
+// DaftarNotaScreen — Daftar Nota + form dalam 1 sub-tab, selalu berperilaku
+// seperti Nota (harga manual, riwayat harga otomatis). Finalisasi Nota hanya
+// Owner/PIC Owner/superuser; edit harga baris draft: PIN Owner-tier langsung
+// berlaku, tier lain diqueue ke Riwayat Harga tanpa mengubah baris.
 
 const DaftarNotaScreen = {
   components: { DropdownCari, PengaturanStockPembelian, PopupQtyPerLot, PopupTambahSuplayerCepat, PopupPratinjauCetakLabel, PopupPin },
@@ -1243,7 +1015,7 @@ const DaftarNotaScreen = {
     const menyimpan = ref(false);
     const lotUntukCetak = ref([]);
 
-    // foto_bon (BARU)
+    // foto_bon
     const fotoBonUrlTersimpan = ref(''); // URL yang SUDAH di Storage (dari doc lama)
     const fotoBonFile = ref(null); // File baru dipilih, belum diupload
     const fotoBonPreview = ref(''); // Preview lokal (objectURL) ATAU URL tersimpan
@@ -1301,7 +1073,7 @@ const DaftarNotaScreen = {
         harga: hargaAwal,
         // harga_asli — snapshot harga DEFAULT (belum diedit tangan) dipakai buat
         // mendeteksi "apakah harga baris ini diedit manual" (lihat
-        // mulaiEditHarga di bawah — BARU, tidak ada sebelumnya).
+        // mulaiEditHarga di bawah).
         harga_asli: hargaAwal,
         keterangan: keterangan || '',
         pakai_lot_tracking: !!item.pakai_lot_tracking,
@@ -1312,7 +1084,7 @@ const DaftarNotaScreen = {
       return daftarBahan.value.find(b => b.id === baris.bahan_aksesoris_id) || null;
     }
 
-    // Keyboard-first entry (BARU TOTAL, wireframe 3.2a-3.2e)
+    // Keyboard-first entry (wireframe 3.2a-3.2e)
     const elCariItem = ref(null);
     const cariItemTeks = ref('');
     const indexSorot = ref(0);
@@ -1341,11 +1113,9 @@ const DaftarNotaScreen = {
       if (val) { barisAktifIndex.value = -1; tahapBarisAktif.value = 'selesai'; }
     });
 
-    // barisAktifIndex/tahapBarisAktif — melacak baris yang BARU saja masuk
-    // supaya Tab (bukan mengetik) bisa lanjut buka pop up berikutnya untuk baris
-    // ITU (qty -> satuan -> harga+PIN), sesuai wireframe 3.2b: "percabangan ini
-    // berlaku di SETIAP titik Enter — ketik selalu cari lagi, Tab selalu buka
-    // pop up berikutnya".
+    // barisAktifIndex/tahapBarisAktif — melacak baris yang baru masuk supaya
+    // Tab (bukan mengetik) lanjut buka pop up berikutnya untuk baris ITU:
+    // qty -> satuan -> harga+PIN. Mengetik di search box membatalkan rantai.
     const barisAktifIndex = ref(-1);
     const tahapBarisAktif = ref('selesai'); // 'baru' | 'qty' | 'satuan' | 'selesai'
 
@@ -1378,13 +1148,9 @@ const DaftarNotaScreen = {
       indexSorot.value = 0;
       nextTick(() => { elCariItem.value?.focus(); });
     }
-    // Katalog grid kiri — split-screen sesuai pola Kasir (vue-pesanan.js,
-    // tambahKeKeranjang). TIDAK mengganti alur keyboard-first §3.2 di atas
-    // (search box + Enter + Tab qty/satuan/harga TETAP ADA APA ADANYA, disatukan
-    // di panel kiri yang sama) — ini jalur TAMBAHAN buat klik/browse produk,
-    // sama seperti Kasir. Filter grid pakai teks pencarian YANG SAMA
-    // (cariItemTeks) supaya konsisten (ketik = grid ikut menyempit, kosongkan =
-    // grid tampil semua) — TIDAK ada state pencarian kedua yang terpisah.
+    // Katalog grid kiri — jalur TAMBAHAN buat klik/browse produk; alur
+    // keyboard-first di search box TETAP ADA apa adanya. Filter grid pakai
+    // teks pencarian YANG SAMA (cariItemTeks), tidak ada state kedua.
     const daftarBahanTampilGrid = computed(() => {
       const kata = cariItemTeks.value.trim().toLowerCase();
       if (!kata) return daftarBahan.value;
@@ -1397,13 +1163,9 @@ const DaftarNotaScreen = {
       const baris = daftarPesanan.value.find(b => b.bahan_aksesoris_id === bahanId);
       return baris ? (parseFloat(baris.qty) || 0) : 0;
     }
-    // tambahItemGrid — klik kartu produk di grid kiri. SAMA PERSIS logic
-    // "tambah/qty++" dengan tambahItemDariPencarian di atas (duplikat -> qty++,
-    // baru -> buatBarisPesanan qty:1) — TIDAK ada rumus baru, cuma dipanggil
-    // dari klik bukan dari Enter. Item pakai_lot_tracking TETAP WAJIB lewat
-    // popup Qty per Roll/Lot (bukaPopupLot, SUDAH ADA, TIDAK diubah) — qty item
-    // lot SELALU berasal dari total lot, bukan increment manual, sesuai batasan
-    // yang sama seperti alur keyboard.
+    // tambahItemGrid — logic "tambah/qty++" SAMA PERSIS dengan
+    // tambahItemDariPencarian, cuma dipicu klik. Item pakai_lot_tracking TETAP
+    // WAJIB lewat popup Qty per Roll/Lot — qty-nya selalu dari total lot.
     function tambahItemGrid(bahan) {
       if (!suplayerEntry.value) { alert('Pilih Suplayer dulu sebelum menambah item.'); return; }
       const idxAda = daftarPesanan.value.findIndex(b => b.bahan_aksesoris_id === bahan.id);
@@ -1419,13 +1181,10 @@ const DaftarNotaScreen = {
       const idxBaru = daftarPesanan.value.length - 1;
       if (daftarPesanan.value[idxBaru].pakai_lot_tracking) bukaPopupLot(idxBaru);
     }
-    // tambahQtyKartu/kurangiQtyKartu — tombol +/- di kartu Item Nota (panel
-    // kanan), GANTI tampilan dari sel angka polos di tabel lama. Rumus qty_s
-    // SAMA PERSIS dengan konfirmasiQty di atas (faktorKonversiUntukSatuan) —
-    // cuma dipanggil langsung tanpa popup buat +/-1 cepat. Item
-    // pakai_lot_tracking DIKECUALIKAN (qty-nya SELALU berasal dari total Qty per
-    // Roll/Lot, bukan +/- manual — tombolnya disembunyikan di template, fungsi
-    // ini jaga-jaga saja kalau terpanggil tetap no-op).
+    // tambahQtyKartu/kurangiQtyKartu — rumus qty_s SAMA PERSIS dengan
+    // konfirmasiQty (faktorKonversiUntukSatuan), cuma tanpa popup. Item
+    // pakai_lot_tracking DIKECUALIKAN (qty selalu dari total Qty per Roll/Lot);
+    // tombolnya disembunyikan di template, fungsi ini no-op kalau terpanggil.
     function tambahQtyKartu(i) {
       const baris = daftarPesanan.value[i];
       if (!baris || baris.pakai_lot_tracking) return;
@@ -1473,7 +1232,7 @@ const DaftarNotaScreen = {
       }
     }
 
-    // Pop up Qty cepat (BARU)
+    // Pop up Qty cepat
     const tampilPopupQty = ref(false);
     const qtyManualInput = ref('');
     function bukaPopupQty() {
@@ -1496,7 +1255,7 @@ const DaftarNotaScreen = {
     }
     function tutupPopupQtyTanpaUbah() { tampilPopupQty.value = false; tahapBarisAktif.value = 'qty'; nextTick(() => { elCariItem.value?.focus(); }); }
 
-    // Pop up Satuan (BARU)
+    // Pop up Satuan
     const tampilPopupSatuan = ref(false);
     const satuanPilihanAktif = ref('');
     const opsiSatuanAktif = ref([]);
@@ -1535,7 +1294,7 @@ const DaftarNotaScreen = {
     }
     function tutupPopupSatuanTanpaUbah() { tampilPopupSatuan.value = false; tahapBarisAktif.value = 'satuan'; nextTick(() => { elCariItem.value?.focus(); }); }
 
-    // Edit Harga + PIN (wireframe 3.2e) — BARU TOTAL — Bisa
+    // Edit Harga + PIN (wireframe 3.2e) — bisa
     // dipicu 2 cara: (a) rantai Tab ketiga sesudah item baru ditambahkan
     // (dariRantaiTab=true), (b) tombol pensil manual di baris mana pun selama
     // nota masih draft (dariRantaiTab=false).
@@ -1574,13 +1333,9 @@ const DaftarNotaScreen = {
         baris.harga = nilaiBaru; baris.diedit_oleh = user.email;
         alert(`Harga diperbarui oleh ${user.email} (${user.role}).`);
       } else {
-        // Admin-tier (atau tier lain yang punya PIN) — TIDAK menerapkan ke baris
-        // nota, cuma diqueue ke Riwayat Harga menunggu Owner (wireframe 3.2e:
-        // "PIN admin -> data masuk alert riwayat, menunggu keputusan Owner").
-        // SENGAJA unconditional (naik ATAU turun) — beda dari deteksi kenaikan
-        // otomatis saat finalisasi (lihat catatan tandaiHargaPerluKonfirmasi di
-        // atas file), karena di sini Admin memang tidak berwenang ubah harga
-        // sama sekali tanpa PIN Owner.
+        // Admin-tier: harga TIDAK diterapkan ke baris nota, cuma diqueue ke
+        // Riwayat Harga menunggu Owner. SENGAJA unconditional (naik ATAU
+        // turun), beda dari deteksi kenaikan otomatis saat finalisasi.
         const item = itemAsliDariBaris(baris);
         const isiKonversi = parseFloat(baris.isi_konversi) || 1;
         const hargaBaruPerSatuanPemakaian = nilaiBaru / isiKonversi;
@@ -1793,16 +1548,10 @@ const DaftarNotaScreen = {
       menyimpan.value = false;
     }
 
-    // deteksi kenaikan harga saat finalisasi (wireframe Riwayat Harga §3.4/§4).
-    // SEBELUM ini `perbaruiHargaMasterDariRiwayat` (di bawah, TIDAK berubah
-    // rumusnya) SELALU dipanggil tanpa gerbang apa pun tiap kali Nota difinalkan
-    // sekarang HANYA dipanggil kalau harga baru BUKAN kenaikan (sama/turun,
-    // auto-refresh seperti dulu, TIDAK berubah). Kalau harga baru LEBIH TINGGI
-    // dari harga_modal master saat ini -> master TIDAK diupdate dulu ("belum
-    // diperbarui", persis teks wireframe), ditandai `harga_perlu_konfirmasi` +
-    // `harga_pending` (lihat tandaiHargaPerluKonfirmasi di atas file), muncul
-    // sebagai alert di Riwayat Harga Pembelian sampai Owner menekan "Terapkan &
-    // buka blokir" (lewat PIN).
+    // `perbaruiHargaMasterDariRiwayat` HANYA dipanggil kalau harga baru BUKAN
+    // kenaikan (sama/turun). Kalau lebih TINGGI dari harga_modal master ->
+    // master tidak diupdate, ditandai `harga_perlu_konfirmasi` +
+    // `harga_pending` sampai Owner menekan "Terapkan & buka blokir" lewat PIN.
     async function catatRiwayatHargaDanUpdateMaster(items, tanggalPembelian, noPembelianRef, suplayerNamaRef) {
       const lotDibuatSemua = [];
       for (const it of items) {
@@ -2078,15 +1827,9 @@ const DaftarNotaScreen = {
             </div>
           </div>
 
-          <!--
-            SEKARANG split-screen (pola sama Kasir Pesanan, vue-pesanan.js): KIRI katalog produk
-            (klik = tambah), KANAN Item Nota sebagai kartu (bukan tabel) + qty +/-. Alur
-            keyboard-first §3.2 (search box, ↑↓/Enter/Tab -> pop up qty/satuan/harga) TIDAK
-            dihapus/diubah — tetap ada di panel kiri, cuma sekarang bersanding dengan grid kartu
-            produk yang bisa diklik langsung. Cara hitung total/ simpan ke Firestore
-            (estimasiBiaya, simpanDraft, klikFinalkan, dst) TIDAK disentuh sama sekali — cuma cara
-            pilih produk & tampilan item yang berubah.
-          -->
+          <!-- Split-screen: KIRI katalog produk (klik = tambah), KANAN Item Nota
+               sebagai kartu + qty +/-. Alur keyboard-first tetap ada di panel
+               kiri; cara hitung total & simpan ke Firestore tidak disentuh. -->
           <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">
             <!-- KIRI: katalog produk -->
             <div v-if="!formReadOnly" class="gc-card" style="flex:1.3; min-width:280px; padding:14px;">
@@ -2169,7 +1912,7 @@ const DaftarNotaScreen = {
                 <div class="gc-field" style="margin-bottom:0;"><label>Tanggal</label><input v-model="tanggal" type="date" :disabled="formReadOnly" style="width:100%; padding:9px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;"></div>
               </div>
 
-              <!-- Foto Bon — BARU -->
+              <!-- Foto Bon (opsional) -->
               <div class="gc-field">
                 <label>Foto Bon <span style="font-weight:400; color:var(--text-faint);">(opsional — foto nota fisik)</span></label>
                 <div v-if="fotoBonPreview" style="margin-bottom:8px;">
@@ -2267,11 +2010,9 @@ const DaftarNotaScreen = {
 };
 
 
-// RiwayatHargaPembelianManager — menu "Riwayat Harga Pembelian" . Tabel
-// READ-ONLY, cursor-based paginasi (WAJIB sesuai PRINSIP-HEMAT.md), diisi
-// otomatis oleh catatRiwayatHargaDanUpdateMaster tiap kali Nota/List Order
-// Belanja di-final-kan. Cari berdasarkan nama bahan (awalan), urut tanggal
-// terbaru dulu.
+// RiwayatHargaPembelianManager — tabel READ-ONLY, paginasi cursor-based
+// (WAJIB), diisi otomatis oleh catatRiwayatHargaDanUpdateMaster tiap kali Nota
+// difinalkan. Cari berdasarkan nama bahan (awalan), urut dari tanggal terbaru.
 
 const RiwayatHargaPembelianManager = {
   components: { PopupPin },
@@ -2284,11 +2025,9 @@ const RiwayatHargaPembelianManager = {
       petakan: (id, d) => ({ id, ...d })
     });
 
-    // Banner "harga perlu konfirmasi" — Query TERPISAH dari
-    // paginasi riwayat di atas — narrow single-field equality
-    // (`harga_perlu_konfirmasi == true`), TIDAK butuh index komposit, TIDAK baca
-    // seluruh koleksi master_bahan_aksesoris (sesuai PRINSIP-HEMAT.md). Dimuat
-    // sekali saat layar dibuka + dimuat ulang sesudah tiap "Terapkan" sukses.
+    // Banner "harga perlu konfirmasi" — query TERPISAH dari paginasi riwayat:
+    // equality single-field (`harga_perlu_konfirmasi == true`), tidak butuh
+    // index komposit dan tidak membaca seluruh master_bahan_aksesoris.
     const daftarPending = ref([]);
     const memuatPending = ref(true);
     async function muatDaftarPending() {
@@ -2320,12 +2059,10 @@ const RiwayatHargaPembelianManager = {
       if (!(hargaModalBaru > 0)) { alert('Data harga pending tidak valid, tidak bisa diterapkan.'); return; }
       const marginModal = parseFloat(bahan.margin_modal) || 0;
       const isiKonversiSaatIni = parseFloat(bahan.isi_konversi_pembelian) || 1;
-      // CATATAN: untuk bahan dengan konversi_bertingkat, ini HANYA memperbarui
+      // Untuk bahan dengan konversi_bertingkat, ini HANYA memperbarui
       // harga_modal di tingkat akhir (basis yang sama dipakai saat deteksi
-      // kenaikan, lihat tandaiHargaPerluKonfirmasi) — TIDAK menghitung ulang
-      // seluruh rantai tingkat seperti perbaruiHargaMasterDariRiwayat. Ini
-      // penyederhanaan yang disengaja karena flag ini hanya pernah dibandingkan
-      // terhadap harga_modal tunggal, bukan per-tingkat.
+      // kenaikan), TIDAK menghitung ulang seluruh rantai tingkat seperti
+      // perbaruiHargaMasterDariRiwayat.
       try {
         await updateDoc(doc(db, 'master_bahan_aksesoris', bahan.id), {
           harga_modal: hargaModalBaru,
@@ -2349,7 +2086,7 @@ const RiwayatHargaPembelianManager = {
   },
   template: `
     <div>
-      <!-- Banner harga perlu konfirmasi (wireframe §3.4/§4) — BARU -->
+      <!-- Banner harga perlu konfirmasi (wireframe §3.4/§4) -->
       <div v-if="!memuatPending && daftarPending.length > 0" class="gc-card" style="padding:14px; margin-bottom:14px; border:1.5px solid var(--warn); background:rgba(var(--warn-rgb),.06);">
         <h3 style="font-weight:700; font-size:13px; margin-bottom:8px;"><i class="fas fa-triangle-exclamation" style="margin-right:8px;"></i>{{ daftarPending.length }} Harga Perlu Konfirmasi Owner</h3>
         <p style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">Harga baru LEBIH TINGGI dari harga master saat ini — belum diperbarui, dan checkout Pesanan untuk produk yang memakai bahan ini DIBLOKIR sampai diterapkan atau ditolak.</p>
@@ -2420,21 +2157,10 @@ window.pastikanMountAliasPembelian = function() {
   if (mountPoint) vmAliasPembelian = createApp(AppAliasPembelian).mount('#vue-alias-pembelian');
 };
 
-// DIHAPUS TOTAL: `AppListOrderBelanja`/`vmListOrderBelanja`/
-// `window.pastikanMountListOrderBelanja`, komponen `OrderBelanjaScreen` dengan
-// `modeNota=false`, div `vue-list-order-belanja`, tab & mount div
-// `sub-zh-stock-listorder` (index.html), entry menu `stock_list_order_belanja`
-// (vue-config-akses.js, DIDEPRESIASI bukan dihapus — lihat file itu), dan entry
-// peta mount/label mobile terkait (js/dashboard.js, js/vue-header- mobile.js).
-// Sub-tab "Nota Order Belanja" DIREKONSTRUKSI TOTAL jadi "Daftar Nota"
-// (DaftarNotaScreen, gabung list+form dalam 1 sub-tab persis "Sub-tab 1 · Daftar
-// Nota (point 2+3)") — id internal div/mount/fungsi SENGAJA DIPERTAHANKAN
-// (`vue-nota-order-belanja`/
-// `pastikanMountNotaOrderBelanja`/`sub-zh-stock-notaorder`) supaya index.html/
-// dashboard.js/vue-header-mobile.js tidak perlu diubah selain menghapus entry
-// List — cuma LABEL tab yang berubah jadi "Daftar Nota" (lihat index.html).
-// menu-id Config Akses tetap `stock_nota_order_belanja` (izin yang Owner sudah
-// atur untuk menu ini tidak ikut ter-reset oleh rename).
+// id internal `vue-nota-order-belanja` / `pastikanMountNotaOrderBelanja` /
+// `sub-zh-stock-notaorder` SENGAJA dipertahankan walau label tab-nya "Daftar
+// Nota", dan menu-id Config Akses tetap `stock_nota_order_belanja`, supaya izin
+// yang sudah diatur Owner tidak ikut ter-reset.
 const AppDaftarNota = { components: { DaftarNotaScreen }, template: `<daftar-nota-screen />` };
 let vmDaftarNota = null;
 window.pastikanMountNotaOrderBelanja = function() {
@@ -2455,8 +2181,5 @@ window.pastikanMountRiwayatHargaPembelian = function() {
   if (mountPoint) vmRiwayatHargaPembelian = createApp(AppRiwayatHargaPembelian).mount('#vue-riwayat-harga-pembelian');
 };
 
-// DIPENSIUNKAN — dulu ada `AppCetakLabel`/ `window.pastikanMountCetakLabel` di
-// sini (mount komponen `CetakLabelManager`, tab "Cetak Label" tersendiri di
-// Stock & Pembelian). SEKARANG fitur cetak label Bahan/Aksesoris jadi tombol
-// per-kartu di `vue-bahan-aksesoris.js` — tab & mount point lama sudah dihapus
-// dari `index.html` juga (lihat STATUS-PROYEK.md §41.2).
+// Cetak label Bahan/Aksesoris ada di tombol per-kartu di
+// `vue-bahan-aksesoris.js`; tab & mount "Cetak Label" di sini sudah tidak ada.

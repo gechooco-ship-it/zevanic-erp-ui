@@ -1,36 +1,23 @@
 // js/vue-pp-finishing.js
-// Proses Produksi > Finishing. Menerima kiriman dari Serie (Tab 2.7), proses
-// 4 tahap berurutan per PCS (QC → Steam → Folding → Packing), lalu kirim
-// balik ke Serie (Tab 2.9). Tidak mencetak label baru — pakai label_pcs dari
-// Sewing.
+// Proses Produksi > Finishing. Menerima kiriman dari Serie, proses 4 tahap
+// berurutan per PCS (QC → Steam → Folding → Packing), lalu kirim balik ke
+// Serie. Tidak mencetak label baru — pakai label_pcs dari Sewing.
 //
 // Koleksi & field:
-// - finishing_track: 1 dokumen PER PCS, bukan per batch. kode_pcs, batch_id,
-// tahap_aktif (qc/steam/folding/packing/selesai), progress (0-4),
-// op_<tahap>, scan_<tahap>_pada, status 5 nilai (perlu_diproses →
-// sedang_finishing → perlu_dikirim → sedang_dikirim → selesai).
-// - kode_bagging & kode_tugas di sini TUNGGAL/STRING, bukan array seperti
-// sewing_track.
-// - batch_id = id Firestore separating_batch, BUKAN sewing_track. Banyak pcs
-// berbagi batch_id sama; itu disengaja.
-// - Rantai cari pcs 1 batch: separating_batch.id → sewing_track.batch_id →
-// label_pcs.batch_id (= sewing_track.id).
+// - finishing_track: 1 dokumen PER PCS, bukan per batch. tahap_aktif
+//   (qc/steam/folding/packing/selesai), status perlu_diproses →
+//   sedang_finishing → perlu_dikirim → sedang_dikirim → selesai. kode_bagging
+//   & kode_tugas di sini TUNGGAL/STRING, bukan array seperti sewing_track.
+// - batch_id = id Firestore separating_batch, BUKAN sewing_track; banyak pcs
+//   berbagi batch_id yang sama, itu disengaja.
+// - label_pcs.status sesudah 'di_finishing' wewenang Gudang Barang Jadi/Kasir.
 //
 // Jebakan:
-// - kode_tugas WAJIB sama persis di semua dokumen pcs yang dikirim bersamaan,
-// karena Serie Tab 2.9 query where('kode_tugas','==',kode) dan harus
-// menemukan semua pcs sekaligus.
-// - status 'selesai' + sampai_pada TIDAK ditulis modul ini — Serie Tab 2.9
-// yang menutupnya. Tab 4.4 memang menggantung sampai Serie scan.
-// - Lazy-create dipicu separating_batch.status === 'kirim_finishing',
-// idempoten lewat pastikanFinishingTrackLengkap, dicek by batch_id.
-// - QC dipakai popup generik yang sama dengan 4 sub-tab: 1 scan = assign
-// operator + tandai tahap selesai sekaligus. Diblokir kalau terima_pada
-// masih kosong.
-// - Scan Operator (scan QR orang lain) gated PIC ke atas; Scan Entry mandiri
-// (operator = currentUser) terbuka untuk semua yang punya izin edit.
-// - label_pcs.status sesudah 'di_finishing' belum punya penulis — milik modul
-// Gudang Barang Jadi/Kasir.
+// - kode_tugas WAJIB sama persis di semua dokumen pcs yang dikirim bersamaan:
+//   Serie Tab 2.9 query where('kode_tugas','==',kode) dan harus dapat semuanya.
+// - status 'selesai' + sampai_pada TIDAK ditulis modul ini — Serie Tab 2.9 yang
+//   menutupnya, jadi Tab 4.4 memang menggantung sampai Serie scan.
+// - Scan tiap tahap DIBLOKIR selama terima_pada pcs itu masih kosong.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -123,7 +110,7 @@ async function pastikanFinishingTrackLengkap() {
       await Promise.all(daftarPcs.map(async (p) => {
         await addDoc(collection(db, 'finishing_track'), {
           kode_pcs: p.kode_pcs, label_pcs_id: p.id, batch_id: b.id, kode_batch: b.kode_batch || '',
-          // kode_spk — BARU — disalin dari separating_batch, array.
+          // kode_spk disalin dari separating_batch, array.
           kode_spk: b.spk_groupings || [],
           nama_produk: p.nama_produk || b.nama_produk || '', size: p.size || b.size || '', warna: p.warna || '',
           status: 'perlu_diproses', tahap_aktif: null, progress: 0,
@@ -131,7 +118,7 @@ async function pastikanFinishingTrackLengkap() {
           scan_qc_pada: null, scan_steam_pada: null, scan_folding_pada: null, scan_packing_pada: null,
           terima_pada: null, kode_bagging: null, kode_tugas: null, catatan_masalah: '',
           masuk_tahap_pada: now, sampai_pada: null,
-          // riwayat_scan — BARU . Ditambahkan ADITIF.
+          // riwayat_scan ditulis ADITIF.
           riwayat_scan: [],
           dibuat_pada: serverTimestamp(), diperbarui_pada: serverTimestamp()
         });
@@ -154,7 +141,7 @@ async function updateFinishingTrack(trackId, mutator) {
 }
 // cariOperatorByKode — scan QR operator (keputusan #7): cocokkan ke `users` by
 // email (isi QR pribadi karyawan SAMA seperti QR yang dipakai fitur lain, lihat
-// Account > QR code pribadi, PETA-MENU.md).
+// Account > QR code pribadi).
 async function cariOperatorByKode(kode) {
   const emailCoba = (kode || '').trim();
   if (!emailCoba) return null;
@@ -186,7 +173,7 @@ async function kirimMasalahFinishing(t, jumlah, alasan) {
     bahanNama: t.nama_produk, bahanWarna: t.kode_pcs, satuan: 'pcs',
     qtyKurang: jumlah, alasan
   });
-  // riwayat_scan — BARU . Ditambahkan ADITIF. ajukanPersiapanMasalah cuma
+  // riwayat_scan ditulis ADITIF. ajukanPersiapanMasalah cuma
   // menulis ke koleksi persiapan_masalah (fungsi generik dipakai semua pos,
   // TIDAK diubah di sini) — riwayat_scan finishing_track dicatat terpisah supaya
   // tidak ganggu jalur yang sudah ada.
@@ -236,7 +223,7 @@ function buatModalTahap(tahap, statusMasuk, statusSetelahSelesai) {
           const idxTahap = URUTAN_TAHAP.indexOf(tahap);
           const tahapBerikut = URUTAN_TAHAP[idxTahap + 1] || 'selesai';
           const progressBaru = idxTahap + 1;
-          // riwayat_scan — BARU . Ditambahkan ADITIF. mode 'operator' (PIC scan
+          // riwayat_scan ditulis ADITIF. mode 'operator' (PIC scan
           // QR operator lain lalu scan pcs, keputusan #6/#7) dipetakan ke aksi
           // 'operator'; mode 'sendiri' (operator scan dirinya sendiri, keputusan
           // #8) dipetakan ke aksi 'entry'.
@@ -337,7 +324,7 @@ const FinishingPerluDiProses = {
           if (!pcsBatch.length) { alert('Bagging cocok, tapi belum ada finishing_track untuk batch ini — coba tutup lalu buka lagi tab ini.'); return; }
           const now = new Date().toISOString();
           const olehSampai = window.currentUser?.email || null;
-          // riwayat_scan — BARU . Ditambahkan ADITIF.
+          // riwayat_scan ditulis ADITIF.
           await Promise.all(pcsBatch.map(t => updateFinishingTrack(t.id, () => ({ terima_pada: now, riwayat_scan: arrayUnion({ aksi: 'sampai', oleh: olehSampai, pada: now, qty: 1 }) }))));
           modalSampai.log.unshift('SEMUA bagging sampai — batch ' + (b.kode_batch || '') + ' (' + pcsBatch.length + ' pcs) siap ditunjuk operator QC');
           await muat();
@@ -345,8 +332,8 @@ const FinishingPerluDiProses = {
       }
     }
 
-    // Scan Unpack: versi BARU . Sekarang scan ULANG tiap isi bagging
-    // (bagging.isi[]), lihat buatUnpackUniversal di vue-scan-cetak.js.
+    // Scan Unpack: scan ULANG tiap isi bagging (bagging.isi[]), lihat
+    // buatUnpackUniversal di vue-scan-cetak.js.
     const { modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack } = buatUnpackUniversal();
 
     // Tunjuk Operator QC (popup gabungan, keputusan #6)
@@ -372,18 +359,10 @@ const FinishingPerluDiProses = {
       return Object.values(peta);
     });
 
-    // Toolbar global (BARU, audit wireframe vs live sesi ini) — wireframe
-    // §4.1 "Pola sama dengan Sewing 3.1": Scan Sampai & Scan Unpack SUDAH GLOBAL
-    // secara logic (fungsi tidak menerima parameter batch/track), cuma
-    // tampilannya diulang di tiap kartu — dipindah ke toolbar di sini. Scan
-    // Masalah butuh 1 pcs target spesifik (bukaMasalah(pcs)), jadi dipindah
-    // lewat popup "pilih batch dulu" (pola sama js/vue-pp-cutting.js
-    // pilihTargetMixin & js/vue-pp-sewing.js, ditulis ulang ringan di sini —
-    // file-file ini tidak saling impor). "Tunjuk Operator QC" TETAP 1 tombol
-    // kontekstual per kartu (wireframe eksplisit gambar begitu, nonaktif kalau
-    // batch belum sampai) walau secara teknis modal-nya sendiri (Modal- TahapQc)
-    // sudah scan-based & tidak butuh parameter batch — handler bukaOperatorQc
-    // TIDAK diubah.
+    // Toolbar global (wireframe §4.1, pola sama Sewing 3.1): Scan Sampai & Scan
+    // Unpack global secara logic (tanpa parameter batch). Scan Masalah butuh 1
+    // pcs target, jadi lewat popup "pilih batch dulu". "Tunjuk Operator QC"
+    // tetap 1 tombol kontekstual per kartu, nonaktif kalau batch belum sampai.
     const pilihMasalah = ref(null); // { targetId: batchId }
     function bukaMasalahToolbar() {
       if (!kelompokBatch.value.length) { alert('Tidak ada batch di tab ini untuk dilaporkan.'); return; }
@@ -410,10 +389,8 @@ const FinishingPerluDiProses = {
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
-      <!--
-        Toolbar global (BARU) — Scan Sampai & Scan Unpack sudah global dari sisi logic, cuma
-        dipindah tampilannya. Scan Masalah lewat popup pilih-batch
-      -->
+      <!-- Toolbar global — Scan Sampai & Scan Unpack global dari sisi logic, tampilannya
+        dikumpulkan di sini. Scan Masalah lewat popup pilih-batch. -->
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
         <button v-if="bolehProses" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
         <button v-if="bolehProses" @click="bukaScanUnpack" class="btn-outline" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
@@ -631,7 +608,7 @@ const FinishingPerluDikirim = {
       sedangProses.value = true;
       try {
         const kodeBag = await generateKodeHarianFormat('BAG', 'pengaturan_id_bagging');
-        // kode_spk/kode_batch — BARU . Ditulis LANGSUNG saat dibuat — grup ini
+        // kode_spk/kode_batch ditulis LANGSUNG saat dibuat — grup ini
         // sudah pasti 1 batch (kelompokBatch dikunci per batch_id).
         await addDoc(collection(db, 'bagging'), {
           kode: kodeBag, produk_label: `${g.kodeBatch} &middot; ${g.namaProduk}`, isi: [], ditutup_pada: null,
@@ -672,7 +649,7 @@ const FinishingPerluDikirim = {
         const snap = await getDocs(query(collection(db, 'finishing_track'), where('kode_bagging', '==', modalPack.kodeBagging), where('kode_pcs', '==', kode)));
         if (snap.empty) { alert(`Kode pcs "${kode}" tidak terkait bagging ini.`); return; }
         await updateDoc(doc(db, 'bagging', (await getDocs(query(collection(db, 'bagging'), where('kode', '==', modalPack.kodeBagging)))).docs[0].id), { isi: arrayUnion(kode) });
-        // riwayat_scan — BARU . Ditambahkan ADITIF.
+        // riwayat_scan ditulis ADITIF.
         await updateFinishingTrack(snap.docs[0].id, () => ({
           riwayat_scan: arrayUnion({ aksi: 'pack', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), qty: 1 })
         }));
@@ -705,14 +682,14 @@ const FinishingPerluDikirim = {
       const g = kelompokBatch.value.find(x => x.pcs[0] && x.pcs[0].kode_tugas === modalKirim.tugas.kode && x.pcs[0].kode_bagging === kode);
       if (!g) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
       try {
-        // kode_spk/kode_batch ikut disalin ke pack[] — BARU, dilepas oleh Scan
+        // kode_spk/kode_batch ikut disalin ke pack[], dilepas oleh Scan
         // Sampai (sampai_pada).
         await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), {
           pack: arrayUnion({ kode_bagging: kode, kode_spk: g.kodeSpk || [], kode_batch: g.kodeBatch || null, pada: new Date().toISOString(), sampai_pada: null })
         });
         const now = new Date().toISOString();
         const olehKirim = window.currentUser?.email || null;
-        // riwayat_scan — BARU . Ditambahkan ADITIF.
+        // riwayat_scan ditulis ADITIF.
         await Promise.all(g.pcs.map(t => updateFinishingTrack(t.id, () => ({ status: 'sedang_dikirim', masuk_tahap_pada: now, riwayat_scan: arrayUnion({ aksi: 'kirim', oleh: olehKirim, pada: now, qty: 1 }) }))));
         modalKirim.log.unshift(kode + ' -> ' + modalKirim.tugas.kode + ' (' + g.pcs.length + ' pcs pindah ke Sedang Kirim)');
         await muat();

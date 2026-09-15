@@ -1,12 +1,25 @@
 // js/app.js
+// Router layar tingkat atas (bukan tab): menyembunyikan/menampilkan #screen-*
+// dan memasang listener nav bawah mobile. Tanpa Vue, tanpa Firestore.
+//
+// Koleksi & field:
+// - Tidak menyentuh Firestore; murni manipulasi DOM + state global window.
+//
+// Jebakan:
+// - .gc-mobile-nav dan Bottom Sheet Profil di-mount DI LUAR #screen-dashboard,
+//   jadi tidak ikut tersembunyi sendiri — pindahLayar wajib menutup eksplisit.
+// - window._layarSebelumKamera diisi di sini; tombol Batal di vue-camera.js
+//   bergantung penuh padanya untuk tahu harus kembali ke Login atau Dashboard.
+// - Tombol nav diikat lewat addEventListener, BUKAN onclick inline di HTML —
+//   onclick inline tidak merespon di lingkungan produksi. Jangan dikembalikan.
+// - window.pindahTab bukan milik file ini (ada di dashboard.js). Jangan
+//   didefinisikan ulang di sini.
 window.pindahLayar = function(idTujuan) {
   const screens = ['screen-loading', 'screen-login', 'screen-register', 'screen-buat-password', 'screen-camera', 'screen-absensi-qr', 'screen-dashboard'];
 
-  // Ingat layar yang aktif SEBELUM pindah — dipakai tombol Batal/Kembali di
-  // layar kamera (js/vue-camera.js) supaya tahu harus kembali ke mana: ke Login
-  // (kalau masuk kamera dari alur Login pertama kali) atau ke Dashboard (kalau
-  // masuk kamera dari shortcut Clock In/Izin/Cuti/Lembur di Home, yang berarti
-  // sudah dalam sesi Dashboard).
+  // Ingat layar aktif SEBELUM pindah — dipakai tombol Batal/Kembali di layar
+  // kamera (js/vue-camera.js) supaya tahu balik ke Login (masuk dari alur login)
+  // atau ke Dashboard (masuk dari shortcut Clock In/Izin/Cuti/Lembur di Home).
   const layarAktifSaatIni = screens.find(s => {
     const el = document.getElementById(s);
     return el && !el.classList.contains('hidden');
@@ -23,28 +36,19 @@ window.pindahLayar = function(idTujuan) {
   document.getElementById(idTujuan).classList.remove('hidden');
   document.getElementById(idTujuan).classList.add('flex');
 
-  // PERBAIKAN REGRESI: nav mobile sekarang posisinya di LUAR #screen-dashboard
-  // (dipindah untuk perbaikan bug sentuhan sebelumnya) — akibatnya dia TIDAK
-  // LAGI otomatis ikut tersembunyi saat layar lain (Login/Kamera/dst) aktif,
-  // karena dulu itu terjadi otomatis lewat #screen-dashboard yang ditutup.
-  // Sekarang harus diatur eksplisit di sini: nav CUMA muncul kalau tujuannya
-  // screen-dashboard.
+  // Nav mobile di-mount DI LUAR #screen-dashboard, jadi tidak ikut tersembunyi
+  // otomatis saat layar lain aktif. Harus diatur eksplisit di sini: nav cuma
+  // muncul kalau tujuannya screen-dashboard.
   const navMobile = document.querySelector('.gc-mobile-nav');
   if (navMobile) {
     if (idTujuan === 'screen-dashboard') navMobile.classList.remove('hidden');
     else navMobile.classList.add('hidden');
   }
 
-  // Drawer Profile (js/vue-profile-drawer.js) SAMA PERSIS kasusnya dengan
-  // .gc-mobile-nav di atas: di-mount DI LUAR #screen-dashboard, jadi TIDAK ikut
-  // otomatis tersembunyi waktu pindah layar (mis. logout -> screen-login). Kalau
-  // drawer masih terbuka (state Vue `terbuka` internalnya, bukan cuma class
-  // hidden) saat pindahLayar dipanggil ke layar LAIN, paksa tutup di sini —
-  // jaring pengaman buat SEMUA jalur pindah layar, bukan cuma logout (kamera,
-  // absensi QR, dst kalau kelak dibuka juga dari drawer). GANTI — drawer lama
-  // (window.tutupProfileDrawer) DIHAPUS TOTAL, ganti Bottom Sheet Profil
-  // (js/vue-sheet-profil.js, window.tutupSheetProfil). Jaring pengaman SAMA
-  // PERSIS seperti sebelumnya, cuma nama fungsinya beda.
+  // Bottom Sheet Profil (js/vue-sheet-profil.js) di-mount DI LUAR
+  // #screen-dashboard, jadi tidak ikut tersembunyi saat pindah layar. Kalau
+  // masih terbuka (state Vue `terbuka`) saat pindah ke layar lain, paksa tutup
+  // lewat window.tutupSheetProfil — jaring pengaman semua jalur pindah layar.
   if (idTujuan !== 'screen-dashboard' && window.tutupSheetProfil) window.tutupSheetProfil();
 
   // Panggil fungsi kamera jika ke layar kamera
@@ -55,14 +59,10 @@ window.pindahLayar = function(idTujuan) {
   }
 };
 
-// Nav mobile (Home/Absensi/Scan QR/Progress/Profile) — SENGAJA dipasang lewat
-// addEventListener di sini, BUKAN onclick=".." langsung di HTML. Ditemukan lewat
-// pengetesan panjang bersama user: onclick inline di tombol-tombol ini tidak
-// merespon di lingkungan produksi mereka (diduga diblokir aturan keamanan
-// browser/hosting), padahal panggil fungsi yang SAMA lewat Console atau lewat
-// @click Vue selalu berhasil. Memasang listener lewat JS (persis seperti cara
-// Vue mengikat @click di baliknya) menghindari masalah itu sepenuhnya, apapun
-// penyebab pastinya.
+// Nav mobile (Home/Absensi/Scan QR/Progress/Profile) dipasang lewat
+// addEventListener, BUKAN onclick inline di HTML: onclick inline tidak merespon
+// di lingkungan produksi, sedangkan listener via JS selalu jalan. Jangan
+// dikembalikan ke onclick inline.
 window.addEventListener('DOMContentLoaded', () => {
   const mnavHome = document.getElementById('mnav-home');
   if (mnavHome) mnavHome.addEventListener('click', () => window.pindahTab('tab-home'));
@@ -89,8 +89,6 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// Catatan: window.pindahTab sengaja TIDAK didefinisikan di sini. Fungsi ini
-// dimiliki oleh js/dashboard.js (versi yang null-safe dan menangani sub-tab
-// profil/admin-acc/superuser). Dulu ada definisi duplikat di file ini yang masih
-// mereferensikan 'tab-riwayat' tanpa cek null — berbahaya jika dashboard.js
-// gagal/terlambat dimuat.
+// window.pindahTab sengaja TIDAK didefinisikan di sini. Fungsi ini milik
+// js/dashboard.js (versi null-safe yang menangani sub-tab profil/admin-acc/
+// superuser). Definisi duplikat di sini berbahaya kalau dashboard.js telat muat.

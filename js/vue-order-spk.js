@@ -1,45 +1,32 @@
 // js/vue-order-spk.js
-
-// Zevanic House > Order SPK — menu BARU . Master data SPK (Surat Perintah
-// Kerja/produksi) MINIMAL — infokan SPK ini SUDAH JALAN nyata di lapangan tapi
-// masih via spreadsheet, rencana migrasi bertahap ke sistem ini (BUKAN modul
-// produksi lengkap, cuma pencatatan No. SPK + info dasarnya).
+// Komponen OrderSpkManager (dibungkus AppOrderSpk) — Zevanic House > Order SPK.
+// Pencatatan No. SPK + info dasarnya, bukan modul produksi lengkap. Mount lewat
+// window.pastikanMountOrderSpk ke #vue-order-spk.
 //
-// Field: No. SPK (unik, WAJIB dicek dobel — dipakai sebagai kunci pencarian
-// nanti dari Scan Persiapan, §26 Tahap 5), Nama Produk/Keterangan, Qty Order,
-// Tanggal, Status (Aktif/Selesai).
+// Koleksi & field:
+// - order_spk: no_spk (unik, dicek dobel sebelum simpan), sku_produk (FK
+//   opsional ke master_produk.sku), nama_produk, qty_order, tanggal, status
+//   (Aktif/Selesai). Tabel pakai usePaginasiFirestore, urut & cari di no_spk.
+// - master_produk lewat ambilSemuaProduk(): isi dropdown "Pilih Produk (SKU)"
+//   dan angka kelipatan untuk Rekomendasi Kelipatan Order.
 //
-// Kenapa BUKAN sub-menu di dalam Config, walau formatnya sama
-// (entry+searchbox+table) — EKSPLISIT minta sub-menu SENDIRI, sejajar
-// Config/Data Bahan & Aksesoris/dst, langsung di bawah parent Zevanic House
-// (bukan child Config) — beda dari Jenis Bahan/Satuan/dst yang memang murni
-// "data referensi kecil", Order SPK punya bobot lebih besar (bakal jadi sumber
-// utama Scan Persiapan nanti).
-//
-// Pola file: SAMA PERSIS seperti vue-rak-penyimpanan.js (menu CRUD mandiri
-// dengan entry form + tabel paginasi cursor-based via usePaginasiFirestore,
-// cariField aktif buat searchbox) — dipilih karena "Order SPK" butuh field lebih
-// dari 2 kolom (beda dari MasterDataCategory/MasterDataTabelManager yang dipakai
-// Config, itu buat data referensi simpel 1-3 kolom saja).
-//
-// CATATAN buat Scan Persiapan (§26 Tahap 5, SUDAH dikerjakan): dropdown "No SPK"
-// di sana baca koleksi `order_spk` ini, DIFILTER status "Aktif" saja — lihat
-// STATUS-PROYEK.md §26 & §26.2. **BARU **:. SPK (QR berisi `no_spk`, dibaca
-// scan-nya oleh tombol scan BARU di Scan Persiapan) — prasyarat teknis ini yang
-// TADINYA belum ada (§26.5 "keputusan sepihak a" sempat menganggap No. SPK tidak
-// akan pernah punya barcode) SEKARANG ADA, lihat catatan lengkap di dekat
-// `cetakSpkList` di bawah.
+// Jebakan:
+// - Dokumen lama memakai qty_target; fallback `d.qty_order ?? d.qty_target`
+//   wajib dipertahankan selama belum semua dokumen disimpan ulang.
+// - Persiapan Produksi dan Scan Persiapan membaca order_spk dengan filter
+//   status=='Aktif' — jangan ganti nilai status jadi label lain.
+// - cetakSpkList membuat QR berisi no_spk polos; itu yang dipindai tombol scan
+//   di Scan Persiapan, jadi isinya tidak boleh diberi prefiks/format lain.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { usePaginasiFirestore } from './vue-paginasi.js';
 import { PopupPratinjauCetakLabel, DropdownCari } from './vue-components.js?v=13';
-// ambilSemuaProduk — BARU . Impor lintas file (bare, konvensi SAMA seperti impor
-// fungsi baca-koleksi besar lain di app ini, mis. dari vue-stock-pembelian.js) —
-// dipakai isi dropdown "Pilih Produk (SKU)" di bawah, dan field `kelipatan` tiap
-// produk (KPK Isi Pola BOM-nya) dipakai tampilkan "Rekomendasi Kelipatan Order"
-// di samping Qty Order.
+// ambilSemuaProduk — impor lintas file, konvensi sama seperti fungsi
+// baca-koleksi besar lain (mis. vue-stock-pembelian.js). Mengisi dropdown
+// "Pilih Produk (SKU)"; field `kelipatan` tiap produk (KPK Isi Pola BOM)
+// dipakai menampilkan "Rekomendasi Kelipatan Order" di samping Qty Order.
 import { ambilSemuaProduk } from './vue-master-produk.js';
 
 const STATUS_SPK_OPSI = ['Aktif', 'Selesai'];
@@ -47,31 +34,25 @@ const STATUS_SPK_OPSI = ['Aktif', 'Selesai'];
 function formStateKosong() {
   return reactive({
     no_spk: '',
-    // sku_produk — BARU . FK opsional ke master_produk.sku — kalau diisi (lewat
-    // dropdown "Pilih Produk [SKU]"), `nama_produk` di bawah OTOMATIS terisi
-    // dari situ (tetap bisa diedit manual setelahnya) & field `kelipatan` produk
-    // itu dipakai tampilkan "Rekomendasi Kelipatan Order" di samping Qty Order.
-    // SENGAJA opsional (boleh kosong) — SPK migrasi dari spreadsheet lama belum
-    // tentu produknya sudah ada di Master Produk, `nama_produk` manual TETAP
-    // jalan seperti sebelumnya kalau tidak dihubungkan.
+    // sku_produk — FK OPSIONAL ke master_produk.sku. Kalau diisi lewat dropdown
+    // "Pilih Produk [SKU]", `nama_produk` otomatis terisi (masih bisa diedit
+    // manual) dan `kelipatan` produk dipakai untuk "Rekomendasi Kelipatan Order".
+    // Boleh kosong: SPK hasil migrasi spreadsheet jalan dengan nama_produk manual.
     sku_produk: '',
     nama_produk: '',
-    // qty_order — GANTI NAMA dari `qty_target`. Field Firestore-nya JUGA ganti
-    // nama jadi `qty_order` (lihat simpan), TAPI dokumen LAMA yang masih pakai
-    // `qty_target` TETAP kebaca normal lewat fallback di `petakan` paginasi di
-    // bawah (`d.qty_order ?? d.qty_target`) — begitu dokumen lama itu
-    // diedit+disimpan ulang, otomatis pindah ke field baru. Tidak perlu migrasi
-    // manual data lama.
+    // qty_order — nama field Firestore resmi. Dokumen yang masih pakai
+    // `qty_target` tetap kebaca lewat fallback `d.qty_order ?? d.qty_target` di
+    // `petakan` paginasi; begitu dokumen itu disimpan ulang ia ikut pindah
+    // sendiri, jadi tidak perlu migrasi manual.
     qty_order: '',
     tanggal: new Date().toISOString().slice(0, 10),
     status: 'Aktif'
   });
 }
 
-// formatLabelProduk — label tampilan dropdown "Pilih Produk (SKU)": "SKU — Nama
-// Warna Size", dipakai BARENG buat isi opsi & buat merekonstruksi label produk
-// yang lagi kepilih (DropdownCari kerja dengan array string polos, bukan objek —
-// lihat vue-components.js).
+// formatLabelProduk — label dropdown "Pilih Produk (SKU)": "SKU — Nama Warna
+// Size". Dipakai bersama untuk mengisi opsi sekaligus merekonstruksi label yang
+// sedang terpilih (DropdownCari bekerja dengan array string polos, bukan objek).
 function formatLabelProduk(p) {
   return `${p.sku} — ${[p.nama, p.warna, p.size].filter(Boolean).join(' ')}`;
 }
@@ -81,23 +62,15 @@ function formatQty(n) {
   return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 }
 
-// buatAntreanPersiapanProduksi — DIPENSIUNKAN . DULU dipanggil otomatis begitu
-// SPK baru disimpan, menulis ke koleksi `persiapan_produksi` (antrean kartu 1
-// versi LAMA). Koleksi itu (+ `persiapan_komponen`) DITINGGALKAN TANPA MIGRASI —
-// UI-nya sudah dicopot dari index.html, jadi TIDAK ADA LAGI yang membaca koleksi
-// itu. Fungsi & pemanggilannya DIHAPUS dari sini supaya tidak lagi menulis data
-// yang tidak pernah dibaca siapapun (PRINSIP- HEMAT). Alur BARU: SPK aktif
-// dikelompokkan MANUAL lewat menu baru "Persiapan Produksi > Perlu Disiapkan"
-// (js/vue-persiapan-produksi-v2.js, baca `order_spk` where status=='Aktif'
-// langsung, TIDAK butuh antrean terpisah lagi).
+// Simpan SPK TIDAK menulis antrean apa pun. Koleksi `persiapan_produksi` dan
+// `persiapan_komponen` ditinggalkan tanpa migrasi, tidak ada yang membacanya.
+// SPK aktif dikelompokkan MANUAL di menu "Persiapan Produksi > Perlu Disiapkan"
+// (js/vue-persiapan-produksi-v2.js, baca `order_spk` where status=='Aktif').
 
-// buatQrDataUrl — DISALIN dari `vue-stock-pembelian.js` (§26.3 — logic SAMA
-// PERSIS, `qrcodejs` [davidshimjs] sudah dimuat SEKALI secara global di
-// index.html, dipakai lewat variabel global `QRCode`). File INI TIDAK impor dari
-// `vue-stock-pembelian.js` — konvensi "salin logic kecil per-file" proyek ini
-// (fungsi bantu generate-QR bukan termasuk daftar "fungsi shared" yang boleh
-// diimpor lintas file, itu KHUSUS fungsi baca/tulis lot & stok — lihat catatan
-// di `vue-stock-pembelian.js`).
+// buatQrDataUrl — salinan lokal dari vue-stock-pembelian.js, sesuai konvensi
+// "salin logic kecil per-file" (yang boleh diimpor lintas file cuma fungsi
+// baca/tulis lot & stok). `qrcodejs` dimuat SEKALI global di index.html dan
+// dipakai lewat variabel global `QRCode`.
 function buatQrDataUrl(teks) {
   if (typeof QRCode === 'undefined') return '';
   const tmp = document.createElement('div');
@@ -115,16 +88,10 @@ function buatQrDataUrl(teks) {
   return dataUrl;
 }
 
-// cetakSpkList — GANTI . DULU fungsi modul biasa yang LANGSUNG window.print
-// dengan kotak dashed banyak-per- halaman kertas biasa. SEKARANG jadi closure DI
-// DALAM `OrderSpkManager. setup` (butuh set state reactive popup lokal), dipakai
-// 2 tempat SAMA seperti sebelumnya: (a) tombol "Simpan + Cetak", (b) tombol
-// "Cetak" di tabel (banyak SPK dicentang) — cuma siapkan `daftarLabelPreview`
-// (kode/nama/info/qrDataUrl, QR digambar sinkron seperti sebelumnya) lalu buka
-// `PopupPratinjauCetakLabel` (vue-components.js, dipakai BARENG 3 tempat cetak
-// label di app ini — lihat komentar panjang di definisinya). TETAP SENGAJA TIDAK
-// menulis ke `log_cetak_label` (koleksi itu domainnya khusus label
-// Bahan/Aksesoris, field `nama_barang` — beda skema).
+// cetakSpkList closure DI DALAM `OrderSpkManager.setup` (butuh state reactive
+// popup lokal). Dipakai tombol "Simpan + Cetak" dan tombol "Cetak" di tabel:
+// menyiapkan `daftarLabelPreview` (kode/nama/info/qrDataUrl) lalu membuka
+// PopupPratinjauCetakLabel. SENGAJA tidak menulis `log_cetak_label` (beda skema).
 const OrderSpkManager = {
   components: { PopupPratinjauCetakLabel, DropdownCari },
   setup() {
@@ -160,11 +127,10 @@ const OrderSpkManager = {
       perHalaman: 15,
       urutkanField: 'no_spk',
       cariField: 'no_spk',
-      // qty_order — normalisasi SATU TEMPAT di sini (lihat catatan
-      // formStateKosong di atas): dokumen LAMA yang cuma punya `qty_target`
-      // otomatis "kebaca" seolah sudah `qty_order` di semua pemakaian SETELAH
-      // titik ini (tabel, cetakSpkList, bukaEdit) — TIDAK perlu fallback
-      // berulang di tiap tempat pakai.
+      // qty_order — normalisasi SATU TEMPAT: dokumen yang cuma punya
+      // `qty_target` otomatis kebaca sebagai `qty_order` di semua pemakaian
+      // sesudah titik ini (tabel, cetakSpkList, bukaEdit), jadi tidak perlu
+      // fallback berulang.
       petakan: (id, d) => ({ id, ...d, qty_order: d.qty_order ?? d.qty_target ?? 0 })
     });
 
@@ -204,11 +170,10 @@ const OrderSpkManager = {
       return snap.docs.some(d => d.id !== sedangEditId.value);
     }
 
-    // simpan — BARU terima param `jugaCetak` (opsional, default false/undefined
-    // = perilaku LAMA persis). Kalau `true` (tombol "Simpan + Cetak"): lewati
-    // alert "tersimpan" biasa (popup cetak sendiri sudah jadi konfirmasi visual,
-    // 2 interupsi beruntun jadi berlebihan) lalu langsung panggil `cetakSpkList`
-    // dengan data yang BARU disimpan.
+    // simpan — param `jugaCetak` opsional (default false). Kalau true (tombol
+    // "Simpan + Cetak"): lewati alert "tersimpan" karena popup cetak sudah jadi
+    // konfirmasi visual, lalu langsung panggil `cetakSpkList` dengan data yang
+    // barusan disimpan.
     async function simpan(jugaCetak) {
       const noSpkTrim = form.no_spk.trim();
       if (!noSpkTrim) return alert('Isi No. SPK dulu.');
@@ -225,14 +190,11 @@ const OrderSpkManager = {
         }
         const data = {
           no_spk: noSpkTrim,
-          // sku_produk — BARU, lihat catatan formStateKosong di atas file ini.
+          // sku_produk — lihat catatan formStateKosong di atas file ini.
           sku_produk: form.sku_produk || '',
           nama_produk: form.nama_produk.trim(),
-          // qty_order — GANTI NAMA dari qty_target (lihat catatan
-          // formStateKosong & petakan paginasi di atas file ini). Dokumen yang
-          // ditulis/ditimpa MULAI SEKARANG pakai field baru ini saja (dokumen
-          // lama yang masih `qty_target` tetap kebaca normal sampai
-          // diedit+disimpan ulang, otomatis pindah ke field baru).
+          // qty_order — satu-satunya field qty yang ditulis. Dokumen yang masih
+          // `qty_target` tetap kebaca lewat fallback di petakan paginasi.
           qty_order: parseFloat(form.qty_order) || 0,
           tanggal: form.tanggal,
           status: form.status
@@ -243,12 +205,10 @@ const OrderSpkManager = {
           });
           if (!jugaCetak) alert('Perubahan Order SPK tersimpan.');
         } else {
-          // DIPENSIUNKAN — dulu di sini ada panggilan
-          // buatAntreanPersiapanProduksi (auto-masuk antrean lama). SEKARANG SPK
-          // baru otomatis muncul di menu baru "Persiapan Produksi > Perlu
-          // Disiapkan" TANPA perlu tulis apapun di sini — menu itu baca langsung
-          // dari order_spk (status=='Aktif' & belum ada id_spk_grouping). Lihat
-          // js/vue-persiapan-produksi- v2.js & STATUS-PROYEK.md §44.13.
+          // Tidak ada tulisan antrean di sini. SPK yang disimpan otomatis
+          // muncul di menu "Persiapan Produksi > Perlu Disiapkan", yang baca
+          // langsung order_spk (status=='Aktif' & belum ada id_spk_grouping).
+          // Lihat js/vue-persiapan-produksi-v2.js.
           await addDoc(collection(db, 'order_spk'), {
             ...data, dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
           });
@@ -264,13 +224,10 @@ const OrderSpkManager = {
       menyimpan.value = false;
     }
 
-    // BARU — checkbox pilih-banyak di tabel daftar, buat cetak ULANG label
-    // banyak SPK sekaligus (mis. label fisik hilang/rusak, atau baru migrasi
-    // banyak SPK lama dari spreadsheet sekaligus). Dikunci per `item.id`, cuma
-    // berlaku buat baris yang SEDANG TAMPIL di halaman aktif (tabel ini paginasi
-    // cursor-based, bukan load semua data) — pindah halaman/cari TIDAK otomatis
-    // mengosongkan centangan lama (biar bisa "kumpulkan" pilihan dari beberapa
-    // halaman kalau perlu), tombol "Kosongkan" buat reset manual.
+    // Checkbox pilih-banyak di tabel, untuk cetak ulang label banyak SPK
+    // sekaligus. Dikunci per `item.id` dan cuma berlaku untuk baris yang SEDANG
+    // tampil (paginasi cursor-based). Pindah halaman/cari sengaja TIDAK
+    // mengosongkan centangan — reset manual lewat tombol "Kosongkan".
     const dicentangTabel = reactive({});
     const spkTercentang = computed(() => paginasi.dataHalaman.value.filter(s => dicentangTabel[s.id]));
     function toggleSemuaTabel(v) {
@@ -310,9 +267,9 @@ const OrderSpkManager = {
 
     async function muat() {
       await paginasi.muatUlang();
-      // daftarProduk — dimuat ulang sekalian di sini (bukan cuma sekali), supaya
-      // produk baru dari Master Produk ikut kebaca begitu tab ini diklik ulang,
-      // tanpa perlu reload halaman.
+      // daftarProduk dimuat ulang di sini (bukan cuma sekali) supaya tambahan
+      // dari Master Produk ikut kebaca begitu tab ini diklik ulang, tanpa
+      // reload halaman.
       daftarProduk.value = await ambilSemuaProduk();
     }
     onMounted(async () => { await window.authReady; await muat(); });
@@ -332,13 +289,10 @@ const OrderSpkManager = {
       <p style="font-size:10.5px; color:var(--text-faint); margin:2px 0 12px;">Pencatatan No. SPK dasar (migrasi bertahap dari catatan spreadsheet). No. SPK ini nanti dipakai dropdown "No SPK" di menu Scan Persiapan.</p>
 
       <div v-if="bolehTambah" style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">
-        <!--
-          Pilih Produk (SKU) — BARU . OPSIONAL (SPK migrasi spreadsheet lama boleh tetap isi Nama
-          Produk/Keterangan manual tanpa menghubungkan ke SKU manapun). Begitu produk dipilih:
-          Nama Produk/Keterangan OTOMATIS terisi (tetap boleh diedit manual sesudahnya) & kalau
-          produk itu punya field Kelipatan (KPK Isi Pola BOM > 0), muncul info "Rekomendasi
-          Kelipatan Order" di bawah Qty Order.
-        -->
+        <!-- Pilih Produk (SKU) — OPSIONAL: SPK boleh isi Nama Produk/Keterangan manual tanpa
+          terhubung ke SKU manapun. Begitu produk dipilih, Nama Produk/Keterangan otomatis terisi
+          (masih boleh diedit) dan kalau produk punya Kelipatan (KPK Isi Pola BOM > 0) muncul info
+          "Rekomendasi Kelipatan Order" di bawah Qty Order. -->
         <div class="gc-field" style="grid-column:1 / -1;">
           <label>Pilih Produk (SKU) <span style="font-weight:400; color:var(--text-faint);">(opsional — hubungkan ke Master Produk)</span></label>
           <dropdown-cari :model-value="labelProdukTerpilih" :opsi="opsiProdukLabel" placeholder="Cari SKU / Nama / Warna / Size produk..." @update:modelValue="pilihProdukSpk" />
@@ -352,22 +306,15 @@ const OrderSpkManager = {
           <label>Nama Produk / Keterangan <span style="color:var(--danger);">*</span></label>
           <input v-model="form.nama_produk" type="text" placeholder="Contoh: Kaos Polo Navy L">
         </div>
-        <!--
-          Qty Order — GANTI NAMA dari "Qty Target". Lihat catatan lengkap soal field Firestore-nya
-          (juga ganti nama, dengan fallback baca data lama) di formStateKosong & petakan paginasi,
-          atas file ini.
-        -->
+        <!-- Qty Order — field Firestore qty_order; fallback baca dokumen qty_target ada di
+          formStateKosong & petakan paginasi di atas file ini. -->
         <div class="gc-field">
           <label>Qty Order <span style="color:var(--danger);">*</span></label>
           <input v-model.number="form.qty_order" type="number" min="0" placeholder="0">
-          <!--
-            Rekomendasi Kelipatan Order — GANTI LABEL dari "Acuan Minimal Order" sebelumnya, isi &
-            logic TIDAK berubah. Cuma tampil kalau produk terhubung PUNYA kelipatan (>0, ada Isi
-            Pola BOM terisi) — kalau tidak terhubung/belum ada BOM Pola, tidak ada hint sama
-            sekali (bukan dianggap error). Warning lembut (bukan alert/block simpan) kalau Qty
-            Order yang diisi BUKAN kelipatan bulat dari angka rekomendasi — keputusan tetap di
-            tangan, ini cuma pengingat visual.
-          -->
+          <!-- Rekomendasi Kelipatan Order cuma tampil kalau produk terhubung punya kelipatan
+            (>0, Isi Pola BOM terisi); tanpa BOM Pola tidak ada hint sama sekali, bukan error.
+            Qty Order yang bukan kelipatan bulat cuma diberi warning lembut, tidak memblok
+            simpan — keputusan tetap di tangan pengguna. -->
           <p v-if="produkTerpilih && produkTerpilih.kelipatan > 0" style="font-size:10.5px; color:var(--burgundy); margin-top:4px;">
             <i class="fas fa-circle-info" style="margin-right:4px;"></i>Rekomendasi Kelipatan Order: {{ produkTerpilih.kelipatan }} pcs (dari Isi Pola BOM)
             <template v-if="form.qty_order > 0 && (form.qty_order % produkTerpilih.kelipatan) !== 0">
@@ -437,11 +384,8 @@ const OrderSpkManager = {
 
         <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px; margin-bottom:10px;">
           <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Nama Produk / Keterangan</span><span style="font-weight:700; text-align:right;">{{ item.nama_produk }}</span></div>
-          <!--
-            SKU Produk — BARU, cuma tampil kalau SPK ini terhubung ke Master Produk (sku_produk
-            terisi). SPK lama (migrasi spreadsheet) yang belum terhubung TIDAK tampilkan baris ini
-            sama sekali.
-          -->
+          <!-- SKU Produk cuma tampil kalau SPK ini terhubung ke Master Produk (sku_produk
+            terisi). SPK yang belum terhubung tidak menampilkan baris ini sama sekali. -->
           <div v-if="item.sku_produk" style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">SKU Produk</span><span style="font-weight:700; text-align:right;">{{ item.sku_produk }}</span></div>
           <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Qty Order</span><span style="font-weight:700;">{{ formatQty(item.qty_order) }}</span></div>
           <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Tanggal</span><span style="font-weight:700;">{{ item.tanggal }}</span></div>

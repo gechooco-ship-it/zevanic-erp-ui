@@ -1,47 +1,23 @@
 // js/vue-repack-komponen-acc.js
-
-// Zevanic House > Stock & Pembelian > "Repack" — sub-tab task #95, TIDAK ADA
-// wireframe/handoff sama sekali untuk modul ini — dirancang langsung dari
-// jawaban lewat AskUserQuestion (bukan tebakan), karena PEDOMAN skill "keputusan
-// kompleks/ambigu -> interupsi saat itu juga" — modul baru tanpa spek apapun
-// jelas masuk kategori itu. sendiri menamainya "Repack".
+// Stock & Pembelian > Repack. Mencatat berapa pak aksesoris yang sudah dikemas
+// ulang per item + ukuran pak (mis. 25 pcs/pak), plus aksi Buka 1 Pak.
 //
-// APA INI: Gudang sering mengemas ulang stok lepasan aksesoris jadi paket jumlah
-// tetap (mis. 25 pcs/pak) supaya operator produksi tidak perlu menghitung ulang
-// dari nol tiap butuh — tinggal ambil 1 pak yang isinya sudah pasti. Modul ini
-// CUMA mencatat "sudah berapa pak tersedia" per item+ukuran pak.
+// Koleksi & field:
+// - repack_komponen_acc: SATU DOKUMEN PER PAK FISIK. bahan_aksesoris_id,
+//   nama_aksesoris, warna, satuan (snapshot satuan_pemakaian saat dibuat),
+//   isi_per_pak, status 'tersedia'|'dibuka', dibuat_oleh/dibuat_pada,
+//   dibuka_oleh/dibuka_pada.
+// - master_bahan_aksesoris: picker item, query bertarget
+//   where('kategori_utama','==','Aksesoris') — Repack cuma untuk Aksesoris.
 //
-// JANGAN diubah tanpa re-konfirmasi: 1. "Cuma label, stok tidak berubah" —
-// `stok_akhir` di master_bahan_aksesoris (SATU-SATUNYA sumber kebenaran stok,
-// lihat js/vue-kartu-stok.js/vue-stock-pembelian.js) TIDAK PERNAH disentuh file
-// ini. Bikin/buka pak TIDAK menulis stok_akhir sama sekali — murni lapisan
-// visibilitas "berapa yang sudah dikemas rapi", bukan transaksi stok.
-// Konsekuensinya: TIDAK butuh runTransaction sama sekali di file ini (beda dari
-// modul Persiapan Produksi yang transaksional karena menyentuh stok betulan). 2.
-// "Boleh dipecah" — pak BOLEH dibuka kapan saja, tidak ada gerbang/ approval.
-// "Buka 1 Pak" cuma menandai 1 dokumen jadi status='dibuka' (histori, TIDAK
-// dihapus — konsisten pola proyek ini: status berubah, dokumen tetap ada buat
-// jejak).
-//
-// SKEMA — koleksi BARU `repack_komponen_acc`, 1 DOKUMEN PER PAK FISIK (bukan 1
-// dokumen+counter agregat) — sengaja, supaya "Buka 1 Pak" cuma updateDoc 1
-// dokumen tunggal, tidak perlu transaksi buat hindari race condition di angka
-// bersama (pola sama seperti roll_sisa_webbing, vue-persiapan-webbing.js, yang
-// juga 1 dokumen per unit fisik): bahan_aksesoris_id, nama_aksesoris, warna,
-// satuan (snapshot satuan_pemakaian SAAT pak dibuat), isi_per_pak (angka, pcs
-// per pak), status ('tersedia'|'dibuka'), dibuat_oleh, dibuat_pada, dibuka_oleh,
-// dibuka_pada (null sampai dibuka).
-//
-// SCOPE ITEM — "Komponen Acc" dibaca sebagai kategori_utama === 'Aksesoris' SAJA
-// (bukan 'Bahan'/kain) — sesuai nama tugas "Kemasan Komponen Acc". Query
-// bertarget where('kategori_utama','==','Aksesoris') dipakai di picker (bukan
-// fetch semua lalu filter JS — PELAJARAN.md).
-//
-// TIDAK ADA cetak label/QR di v1 ini — modul ini murni visibilitas jumlah pak,
-// bukan flow scan produksi. Kalau nanti mau pak fisik ada label tercetak (supaya
-// gampang dicocokkan ke rak), itu penambahan terpisah (reuse
-// PopupPratinjauCetakLabel + buatQrDataUrl seperti modul lain, pola sudah ada) —
-// SENGAJA belum ditambah sekarang, tidak diminta.
+// Jebakan:
+// - File ini TIDAK PERNAH menyentuh stok_akhir. Murni lapisan visibilitas
+//   kemasan, bukan transaksi stok, jadi tidak butuh runTransaction.
+// - Satu dokumen per pak dipilih supaya Buka 1 Pak cukup updateDoc satu
+//   dokumen tanpa race condition di angka agregat; jangan diubah jadi
+//   dokumen tunggal + counter.
+// - Pak yang dibuka tidak dihapus, cuma status='dibuka' (jejak riwayat).
+// - Belum ada cetak label/QR di modul ini.
 
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";

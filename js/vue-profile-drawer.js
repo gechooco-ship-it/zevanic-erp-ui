@@ -1,29 +1,22 @@
 // js/vue-profile-drawer.js
-
-// Drawer Profile mobile — muncul geser dari kanan saat "Profile" di bottom nav
-// diklik (menggantikan navigasi langsung ke tab-profil untuk mobile). Isinya: QR
-// code (bisa diklik zoom), lalu link teks ke Data Karyawan/
-// Absensi/Reimburse/Estimasi Gaji/Pencapaian/Keamanan — klik salah satu menutup
-// drawer lalu pindah ke tab-profil pada sub-tab yang sesuai (lewat jembatan
-// window.pindahTabAccountProfile di vue-account-profile.js).
+// Komponen AppProfileDrawer — drawer Profile mobile yang geser dari kanan: QR
+// karyawan (klik untuk zoom) + link ke sub-tab Data Karyawan, Absensi,
+// Reimburse, Estimasi Gaji, Pencapaian, Keamanan. FILE YATIM: tidak dimuat
+// index.html dan tidak ada elemen #vue-profile-drawer di sana — perannya
+// dipegang js/vue-sheet-profil.js (Bottom Sheet Profil).
 //
-// HANYA dipakai untuk mobile — di desktop, "Profile" di sidebar tetap langsung
-// ke tab-profil seperti biasa (lihat onclick tombol sidebar di index.html, tidak
-// diubah).
+// Koleksi & field:
+// - Tidak menyentuh Firestore; murni UI navigasi, data dari window.currentUser.
 //
-// sub-tab "Reimburse" (`pindahTab('reimburse')`, tombol "Ajukan Reimburse" di
-// baris tab vue-account-profile.js) TIDAK PERNAH ditambahkan ke daftar link
-// drawer ini waktu fitur itu dibuat. Baris tab desktop
-// (`.gc-card.hidden.md:block` di vue-account-profile.js) memang sengaja
-// disembunyikan di mobile (§5.3 STATUS-PROYEK.md) — drawer inilah SATU-SATUNYA
-// jalan navigasi sub-tab Profile di mobile, jadi kelupaan nambah link di sini =
-// sub-tab itu TIDAK BISA DIBUKA SAMA SEKALI dari mobile (bukan cuma sulit
-// ditemukan, benar-benar buntu). Waktu diperbaiki, ketemu juga "Absensi" kena
-// pola SAMA (kelupaan juga) — ditambahkan sekalian, DAN urutan link disusun
-// ULANG supaya SAMA persis dengan urutan baris tab desktop (Data Karyawan →
-// Absensi → Reimburse → Pencapaian → Keamanan), "Estimasi Gaji" (tidak punya
-// tombol di baris tab desktop, placeholder) diselipkan setelah Reimburse
-// (dikelompokkan bareng topik "uang") —.
+// Jebakan:
+// - Isi file hanya jalan kalau #vue-profile-drawer ada; tanpa elemen itu
+//   window.bukaProfileDrawer/tutupProfileDrawer tidak pernah terdaftar dan
+//   pemanggil di js/app.js melewatinya diam-diam.
+// - Urutan link mengikuti baris tab desktop vue-account-profile.js; sub-tab
+//   yang tidak didaftarkan di sini tidak bisa dibuka dari mobile sama sekali
+//   karena baris tab itu disembunyikan di layar kecil.
+// - Navigasi lewat window.pindahTab + window.pindahTabAccountProfile
+//   (vue-account-profile.js), bukan href.
 
 import { createApp, ref } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 
@@ -53,18 +46,10 @@ const AppProfileDrawer = {
       if (window.pindahTabAccountProfile) window.pindahTabAccountProfile(subtab);
     }
 
-    // HARUS lewat fungsi begini, bukan "window.logout" langsung di template —
-    // itu yang bikin tombol Logout diam tidak merespon (Vue anggap "window"
-    // properti komponen, bukan objek global browser).
-    //
-    // SEBELUMNYA fungsi ini TIDAK memanggil tutup sama sekali, jadi `terbuka`
-    // tetap true sepanjang window.logout berjalan (signOut(auth) itu ASYNC, ada
-    // jeda beneran, bukan instan). Selama jeda itu drawer + semua link
-    // navigasinya masih AKTIF/bisa diklik, sementara user sudah mengira sedang
-    // proses keluar — klik ganda ke link lain di drawer bisa memicu navigasi
-    // yang tabrakan dengan proses logout. Sekarang tutup dipanggil LANGSUNG saat
-    // tombol Logout diklik, beri umpan balik visual instan + drawer tidak lagi
-    // bisa diklik selama proses logout berjalan di belakang layar.
+    // HARUS lewat fungsi, bukan "window.logout" langsung di template — Vue
+    // menganggap "window" properti komponen, tombol jadi diam. tutup() dipanggil
+    // LANGSUNG karena signOut(auth) async: tanpa itu drawer masih bisa diklik
+    // selama logout berjalan dan navigasinya tabrakan dengan proses logout.
     function keluar() { tutup(); if (window.logout) window.logout(); }
 
     return { terbuka, zoomTerbuka, qrUrl, nama, jabatan, buka, tutup, bukaZoom, tutupZoom, navigasi, keluar };
@@ -118,11 +103,9 @@ const mountPoint = document.getElementById('vue-profile-drawer');
 if (mountPoint) {
   const vm = createApp(AppProfileDrawer).mount('#vue-profile-drawer');
   window.bukaProfileDrawer = function() { vm.buka(); };
-  // (sepasang dengan fix di js/app.js pindahLayar) — drawer ini di-mount DI LUAR
-  // #screen-dashboard (lihat komentar header file), jadi TIDAK ikut otomatis
-  // tersembunyi saat pindahLayar ganti layar (mis. ke screen-login pas logout) —
-  // sama persis akar masalah yang sudah pernah diperbaiki untuk .gc-mobile-nav
-  // (lihat komentar di js/app.js). Expose fungsi tutup ini supaya pindahLayar
-  // bisa memaksa drawer tertutup tiap kali pindah ke layar SELAIN dashboard.
+  // Drawer di-mount DI LUAR #screen-dashboard, jadi TIDAK ikut tersembunyi saat
+  // pindahLayar ganti layar (mis. ke screen-login pas logout) — akar masalah
+  // yang sama seperti .gc-mobile-nav. Fungsi tutup diekspos supaya pindahLayar
+  // bisa memaksa drawer tertutup tiap pindah ke layar SELAIN dashboard.
   window.tutupProfileDrawer = function() { vm.tutup(); };
 }

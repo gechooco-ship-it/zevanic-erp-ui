@@ -1,30 +1,23 @@
 // js/vue-kartu-stok.js
-// Stok & Pembelian > Kartu Stok. READ-ONLY total: melacak jumlah stok masuk/
-// keluar per bahan/aksesoris. Tidak ada form entry, tidak ada scan di layar
-// ini. Satu layar dengan item-switcher ("ganti item ▾") di kepala dan ledger
-// di bawahnya yang update di tempat.
+// Stok & Pembelian > Kartu Stok. READ-ONLY total: ledger masuk/keluar per
+// bahan/aksesoris dengan item-switcher di kepala; tanpa form entry & scan.
 //
-// Sumber data:
-// - Combobox item: full fetch master_bahan_aksesoris client-side (master data
-// terbatas, pola sama dengan ambilDaftarBahanAksesorisLengkap).
-// - Ledger kartu_stok_bahan_aksesoris: paginasi cursor-based lewat
-// usePaginasiFirestore, perHalaman 15 — bisa ratusan baris per item, jangan
-// di-full-fetch.
-// - Badge "Lot Aktif" lewat ambilLotAktif yang diekspor
-// vue-stock-pembelian.js, dipakai apa adanya.
+// Koleksi & field:
+// - Combobox item: full fetch master_bahan_aksesoris client-side (master
+//   data terbatas, pola ambilDaftarBahanAksesorisLengkap). Badge "Lot Aktif"
+//   lewat ambilLotAktif dari vue-stock-pembelian.js.
+// - kartu_stok_bahan_aksesoris: paginasi cursor lewat usePaginasiFirestore,
+//   perHalaman 15 — bisa ratusan baris per item, jangan di-full-fetch.
 //
 // Jebakan:
-// - stok_akhir di master_bahan_aksesoris sumber kebenaran tunggal dan HANYA
-// ditulis catatPergerakanKartuStok/catatPemakaianDariAlokasi/Scan Opname
-// di vue-stock-pembelian.js lewat runTransaction. File ini tidak pernah
-// menulis stok_akhir/qty_sisa, cuma membaca.
-// - Catat Pemakaian (FIFO multi-roll + popup kekurangan lot) tidak hilang —
-// pindah ke vue-scan-persiapan.js dan jadi scan-driven.
-// - Teks empty state "Belum ada transaksi masuk/keluar untuk item ini" istilah
-// wajib, jangan diparafrase.
-// - paginasiDetail.errorPaginasi harus tetap dirender; di versi lama field itu
-// ada tapi tidak pernah ditampilkan.
-// - Export Excel Kartu Stok memang belum ada, bukan terhapus.
+// - stok_akhir di master_bahan_aksesoris sumber kebenaran tunggal, HANYA
+//   ditulis catatPergerakanKartuStok/catatPemakaianDariAlokasi/Scan Opname
+//   di vue-stock-pembelian.js lewat runTransaction. File ini tidak pernah
+//   menulis stok_akhir/qty_sisa, cuma membaca.
+// - Catat Pemakaian (FIFO multi-roll) ada di vue-scan-persiapan.js.
+// - Teks empty state "Belum ada transaksi masuk/keluar untuk item ini"
+//   istilah wajib; paginasiDetail.errorPaginasi wajib tetap dirender.
+
 import { createApp, ref, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -50,7 +43,7 @@ function pesanErrorFirestore(e) {
 const KartuStokManager = {
   components: { DropdownCari },
   setup() {
-    // Item-switcher (BARU, gantikan tabel Ringkasan lama)
+    // Item-switcher (menggantikan tabel Ringkasan)
     const daftarItemLengkap = ref([]); // semua master_bahan_aksesoris, combobox "ganti item"
     const memuatDaftarItem = ref(true);
     const errorDaftarItem = ref('');
@@ -93,11 +86,10 @@ const KartuStokManager = {
       if (it) pilihItem(it);
     });
 
-    // Badge "Lot Aktif" (BARU, wireframe kepala layar) — pakai ULANG
-    // ambilLotAktif yang SUDAH diekspor vue-stock-pembelian.js, TIDAK ada fungsi
-    // baru. Item yang bukan pakai_lot_tracking otomatis akan menampilkan 0
-    // (tidak ada dokumen lot_bahan_aksesoris untuknya) — dianggap wajar, bukan
-    // disembunyikan (wireframe menampilkannya tanpa syarat di kepala layar).
+    // Badge "Lot Aktif" memakai ULANG ambilLotAktif yang diekspor
+    // vue-stock-pembelian.js, tidak ada fungsi baru. Item yang bukan
+    // pakai_lot_tracking otomatis menampilkan 0 (tidak ada dokumen
+    // lot_bahan_aksesoris untuknya) dan itu wajar, bukan disembunyikan.
     const lotAktifCount = ref(null); // null = belum dimuat/gagal
     const memuatLot = ref(false);
     async function muatLotAktifCount() {
@@ -113,8 +105,8 @@ const KartuStokManager = {
       memuatLot.value = false;
     }
 
-    // Ledger 1 item (SAMA seperti sebelumnya, TIDAK diubah — cuma dipindah
-    // dari sub-tampilan "Detail" ke satu-satunya layar).
+    // Ledger 1 item — satu-satunya layar menu ini (tidak ada sub-tampilan
+    // "Detail" terpisah).
     const paginasiDetail = usePaginasiFirestore(db, 'kartu_stok_bahan_aksesoris', {
       perHalaman: 15,
       urutkanField: 'dibuat_pada',

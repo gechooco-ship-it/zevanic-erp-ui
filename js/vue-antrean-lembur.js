@@ -1,50 +1,23 @@
 // js/vue-antrean-lembur.js
-
-// Master Absensi > Antrean Izin/Cuti/Lembur — validasi/approve pengajuan IZIN,
-// CUTI, dan LEMBUR karyawan .
+// Master Absensi > Antrean Izin/Cuti/Lembur: validasi ACC/Reject pengajuan
+// IZIN, CUTI, dan LEMBUR karyawan dalam satu layar.
 //
-// TOTAL —.4 minta 1 tab GABUNGAN "Antrean Izin / Cuti / Lembur" (bukan Lembur
-// sendirian seperti sebelumnya). NAMA FILE INI SENGAJA TIDAK DIGANTI (tetap
-// vue-antrean-lembur.js) — upload manual drag-drop ke GitHub, ganti nama file =
-// file lama menggantung di repo sampai dihapus manual lewat tampilan GitHub
-// (lihat FONDASI.md). Nama fungsi global
-// (window.pastikanMountAntreanLembur/refreshAntreanLembur), id mount HTML
-// (#vue-antrean-lembur), DAN id permission (cekIzinMenu('antrean_lembur')) JUGA
-// SENGAJA DIPERTAHANKAN SAMA PERSIS — supaya role yang sudah diberi akses menu
-// "Antrean Lembur" di Akses & Keamanan TIDAK kehilangan aksesnya diam-diam (izin
-// lama jadi yatim). Yang berubah CUMA label tampilan ("Antrean
-// Izin/Cuti/Lembur") + isi/logic di dalam file ini.
+// Koleksi & field:
+// - absensi: where(status_acc=='PENDING'), disaring ke jenis IZIN/CUTI/LEMBUR.
+//   Dibaca: tanggal_pengajuan, keterangan, lembur_mulai/lembur_selesai/
+//   lembur_instruksi. Ditulis: status_acc, validated_at, validated_by.
+// - users (chunked where email 'in'): jenis_pekerjaan & gudang_penempatan.
+// - master_shift (chunked where nama_shift 'in') & master_gudang: jam shift
+//   pembanding dan opsi filter.
 //
-// Field IZIN/CUTI/LEMBUR SEMUA sudah ditulis ke koleksi SAMA "absensi" sejak
-// dulu (js/vue-camera.js, JALUR 3) — TIDAK ada koleksi baru, TIDAK ada migrasi
-// data. Penggabungan ini murni di level query+tampilan: - IZIN/CUTI: field
-// tanggal_pengajuan + keterangan. - LEMBUR (CLOCK IN): field
-// lembur_mulai/lembur_selesai/keterangan/ lembur_instruksi + perbandingan Jam
-// Shift vs Jam Lembur. Sebelum rombakan ini, IZIN/CUTI malah nyasar tampil di
-// Antrean Absensi (js/vue-antrean-absensi.js) pakai kartu format-lama yang salah
-// label "Hadir" dan TIDAK menampilkan tanggal_pengajuan/keterangan sama sekali —
-// itu sudah diperbaiki bersamaan (lihat header file itu), IZIN/CUTI SEKARANG
-// dikecualikan dari sana, cuma muncul di sini.
-//
-// PENTING — kenapa layar ini nyata dibutuhkan utk Lembur (bukan cuma kerapian
-// UI): js/vue-camera.js (proses Clock Out) MEMBACA status_acc dokumen Lembur ini
-// untuk menentukan batas jam kerja yang dipakai penggajian
-// (jam_keluar_untuk_gaji) — kalau Lembur belum di-ACC di sini, Clock Out lewat
-// jam shift akan otomatis dipotong ke jam shift, BUKAN jam lembur yang diajukan.
-// TIDAK BERUBAH oleh rombakan ini — field & collection tulisnya
-// (`absensi.status_acc`) SAMA PERSIS.
-//
-// 1. HEMAT — where("status_acc","==","PENDING") LANGSUNG (IZIN/CUTI/ Lembur
-// SELALU pakai status_acc tunggal, TIDAK ikut rombakan dokumen gabungan
-// vue-camera.js format Hadir), bukan fetch semua histori absensi lagi. 2.
-// PEDOMAN KERJA (lihat vue-antrean-absensi.js) — search box selalu ada, filter
-// Jenis Pekerjaan+Gudang cuma buat Owner/Superuser.
-//
-// bug N+1 SAMA yang ketemu & diperbaiki di vue-antrean-absensi.js: tiap kartu
-// pending dulu query SENDIRI ke master_shift (jam shift) begitu di-mount.
-// Sekarang dihitung SEKALI di muat (induk) buat seluruh daftar, chunked
-// where(.,'in',..), dikirim ke tiap kartu lewat prop shiftInfo — kartu tidak
-// query lagi.
+// Jebakan:
+// - Nama file, window.pastikanMountAntreanLembur/refreshAntreanLembur, id mount
+//   #vue-antrean-lembur, dan cekIzinMenu('antrean_lembur') dipertahankan meski
+//   layarnya gabungan — menggantinya bikin izin role jadi yatim.
+// - vue-camera.js membaca absensi.status_acc Lembur saat Clock Out untuk
+//   jam_keluar_untuk_gaji: Lembur belum ACC = jam kerja dipotong ke jam shift.
+// - shiftInfo dihitung SEKALI di induk dan dioper lewat prop; kartu dilarang
+//   query master_shift sendiri (bug N+1).
 
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -71,10 +44,9 @@ const AntreanIclCard = {
   props: {
     docId: { type: String, required: true },
     data: { type: Object, required: true },
-    // lihat catatan di jamShift di bawah: prop ini GANTI query Firestore yang
-    // dulu jalan PER KARTU (N+1), sekarang dihitung SEKALI di induk
-    // (AppAntreanIcl.muat). Cuma relevan buat kartu jenis Lembur (Izin/Cuti
-    // tidak pakai jam shift).
+    // Lihat catatan di jamShift di bawah: prop ini menghindari query Firestore
+    // per kartu (N+1) — jam shift dihitung SEKALI di induk (AppAntreanIcl.muat).
+    // Cuma relevan untuk kartu jenis Lembur (Izin/Cuti tidak pakai jam shift).
     shiftInfo: { type: Object, default: () => ({ masuk: null, keluar: null }) }
   },
   emits: ['diproses'],
@@ -139,12 +111,9 @@ const AntreanIclCard = {
     };
   },
 
-  // Pola kartu padat SAMA dgn Antrean Absensi/Lembur lama (moodboard "Gechoo
-  // Mobile Organic" v2) — cuma badge jenis (Izin/Cuti/Lembur) yang baru, dan
-  // body-nya CABANG per jenis: Lembur tetap tampilkan perbandingan Jam Shift vs
-  // Jam Lembur + Instruksi (persis kartu lama); Izin/Cuti tampilkan Tanggal
-  // Pengajuan + Keterangan (field yang SUDAH ada di dokumen sejak dulu tapi
-  // sebelumnya TIDAK PERNAH ditampilkan di kartu manapun).
+  // Pola kartu padat dengan badge jenis (Izin/Cuti/Lembur); body-nya bercabang
+  // per jenis: Lembur menampilkan perbandingan Jam Shift vs Jam Lembur +
+  // Instruksi, sedangkan Izin/Cuti menampilkan Tanggal Pengajuan + Keterangan.
 
   template: `
     <div class="gc-card" style="border-radius:20px;">
@@ -250,10 +219,9 @@ const AppAntreanIcl = {
           if (!window.bolehLihatData(ambilJP(d), d.gudang)) return;
           list.push({ id: docSnap.id, data: d, jenisPekerjaan: ambilJP(d) });
         });
-        // jam shift dihitung SEKALI di sini buat SELURUH daftar sekaligus (bukan
-        // per-kartu lagi, lihat catatan panjang di AntreanIclCard). Chunked
+        // Jam shift dihitung SEKALI untuk seluruh daftar, bukan per kartu. Chunked
         // where(.,'in',..) pola sama seperti petaJenisPekerjaan di atas. Cuma
-        // dipakai kartu Lembur, tapi dihitung utk semua nama_shift yg kepakai
+        // dipakai kartu Lembur, tapi dihitung untuk semua nama_shift yang terpakai
         // (murah, tidak perlu cabang per jenis).
         const UKURAN_POTONGAN_SHIFT = 30; // batas Firestore where(field,'in',[...])
         const distinctShift = [...new Set(list.map(item => item.data.nama_shift).filter(Boolean))];
@@ -329,9 +297,8 @@ const AppAntreanIcl = {
     };
   },
 
-  // Pola sama persis vue-antrean-absensi.js (moodboard "Gechoo Mobile Organic"
-  // v2). BARU: filter pil jenis (Semua/Izin/Cuti/ Lembur) ditambah di panel
-  // "menu lainnya", karena sekarang 3 jenis tercampur di 1 daftar.
+  // Pola sama persis vue-antrean-absensi.js. Filter pil jenis (Semua/Izin/Cuti/
+  // Lembur) ada di panel "menu lainnya" karena 3 jenis tercampur di 1 daftar.
 
   template: `
     <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">

@@ -1,54 +1,23 @@
 // js/vue-penjadwalan.js
-
-// REBUILD — Master Absensi > Penjadwalan, mengikuti handoff "Management > Master
-// Absensi" §2.2 . Jawaban (AskUserQuestion): "spek baru
-// (kalender+timeline+rotasi) + bulk-update+Excel, rebuild sesuai spek" — jadi
-// layar ini SEKARANG 2 tab: 1. Kalender — BARU TOTAL, sesuai wireframe (toggle
-// Mingguan/Bulanan, klik sel utk ganti shift, drag utk bulk-assign, Template
-// Rotasi). 2. Tabel & Excel — kode LAMA (ringkasan gudang, filter, checkbox
-// massal, update massal, export/import Excel) DIPERTAHANKAN UTUH, cuma dipindah
-// jadi tab kedua, TIDAK ADA logic yang diubah/dihapus.
+// Master Absensi > Penjadwalan (AppPenjadwalan) — tab Kalender (ganti shift per
+// sel, drag bulk-assign, Template Rotasi) dan tab Tabel & Excel (update massal,
+// export/import). Mount lewat window.pastikanMountPenjadwalan.
 //
-// PENTING — status sambungan ke Ontime/Telat (WAJIB dibaca sebelum pakai fitur
-// ini): Kalender BARU menulis ke koleksi BARU `jadwal_shift` (assignment per
-// TANGGAL). Tab lama "Tabel & Excel" tetap menulis ke field lama
-// `users.nama_shift` (SATU shift "default/utama" per karyawan, TANPA tanggal) —
-// dipakai sebagai FALLBACK kalau tanggal itu belum diatur eksplisit lewat
-// Kalender/Template Rotasi.
+// Koleksi & field:
+// - jadwal_shift/{email}_{YYYY-MM}: { email, bulan, hari:{"1":"Pagi",..} } —
+//   1 dokumen per karyawan per BULAN, dibaca where('email','in') per potongan.
+// - template_rotasi/{nama}: { nama, pola:[{shift,hari}] }.
+// - users: nama_shift (default tanpa tanggal), gudang_penempatan, hari_libur;
+//   master_shift & master_gudang sumber pilihan.
 //
-// SUDAH DISAMBUNGKAN: Clock In/Out (js/vue-camera.js) sekarang memanggil
-// window.ambilShiftEfektifHariIni (js/auth.js) di setiap titik tulis, yang
-// mengecek dulu apakah HARI INI sudah diatur beda lewat koleksi `jadwal_shift`
-// sebelum jatuh ke nama_shift default. Jadi kalau pakai Kalender/Template Rotasi
-// utk kasih shift BEDA dari default karyawan di tanggal tertentu, Antrean
-// Absensi tanggal itu SEKARANG ikut menghitung ontime/telat berdasar shift hasil
-// rotasi, bukan lagi shift default lama. Catatan perilaku: kalau sel Kalender
-// diisi "OFF" tapi karyawan tetap Clock In hari itu, nama_shift tersimpan "OFF"
-// apa adanya — Antrean Absensi tidak akan menampilkan badge ontime/telat sama
-// sekali utk baris itu (karena "OFF" tidak cocok dengan entri manapun di
-// master_shift), bukan bug, ini memang disengaja. Lihat juga banner di dalam tab
-// Kalender.
-//
-// Untuk sel yang BELUM pernah diatur eksplisit lewat Kalender, tampilan sel
-// FALLBACK ke nama_shift default karyawan itu (supaya kalender tidak tampil
-// kosong total di hari pertama pakai) — ditandai lebih pudar (opacity) + label
-// "(default)" di tooltip. Begitu sel itu diklik & diisi, baru jadi data
-// eksplisit `jadwal_shift` utk tanggal itu.
-//
-// Koleksi baru (lihat SPESIFIKASI-KOLEKSI-BARU.md/ + firestore.rules yang sudah
-// ditambah rule utk 2 koleksi ini): - jadwal_shift/{email}_{YYYY-MM}: { email,
-// bulan, hari:{ "1":"Pagi", .. } } 1 dokumen per karyawan PER BULAN (bukan per
-// tanggal) — HEMAT baca, pola sama dengan alasan hemat di tempat lain
-// (STATUS-PROYEK.md §44.17). - template_rotasi/{namaTemplate}: { nama,
-// pola:[{shift,hari}, ..] } — pola rotasi yang disimpan supaya bisa dipakai
-// ulang .
-//
-// Warna shift: OTOMATIS dari urutan nama di master_shift (diurutkan A-Z supaya
-// warnanya STABIL walau urutan hasil query Firestore berubah-ubah), dipetakan ke
-// palet tetap (bukan field warna baru di master_shift — supaya tidak perlu
-// migrasi data shift lama). 3 warna pertama SENGAJA disamakan persis dengan
-// contoh di wireframe (Pagi/Siang/Malam = hijau sage/amber/ burgundy, sama
-// dengan token --ok/--warn/--burgundy proyek ini).
+// Jebakan:
+// - Dua jalur tulis: Kalender ke jadwal_shift, tab Tabel & Excel ke
+//   users.nama_shift yang hanya jadi fallback kalau tanggal belum diatur.
+// - Sel yang belum diatur menampilkan nama_shift default (pudar, "(default)") —
+//   itu tampilan, belum ada dokumen jadwal_shift-nya.
+// - Sel "OFF" tersimpan apa adanya saat Clock In dan tidak dapat badge
+//   ontime/telat, karena "OFF" tidak cocok dengan entri master_shift manapun.
+// - Warna shift dipetakan dari nama master_shift terurut A-Z, bukan field.
 
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, setDoc, updateDoc, deleteField, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -63,18 +32,10 @@ const NILAI_TANPA_GUDANG = '__TANPA_GUDANG__';
 const NAMA_HARI_PENDEK = ['SEN', 'SEL', 'RAB', 'KAM', 'JUM', 'SAB', 'MIN'];
 const NAMA_BULAN_INDO = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const KUNCI_OFF = 'OFF';
-// Palet warna sel kalender — index diambil dari posisi nama shift di daftar yang
-// SUDAH diurutkan A-Z (lihat daftarShiftUrut), BUKAN dari urutan hasil query
-// Firestore (supaya warna tidak berubah-ubah tiap reload). CATATAN: `bg` SENGAJA
-// tetap rgba hex mentah (dipakai untuk latar TRANSLUSEN, tidak ada token
-// rgb-triplet buat itu). `fg` yang PERSIS SAMA dengan token sudah diganti var di
-// bawah (burgundy/mahogany/OFF/kosong) — zero perubahan visual. 3 yang TIDAK
-// diganti (sage/biru/pink) sengaja dibiarkan hex: itu varian LEBIH GELAP dari
-// token aslinya (buat kontras teks di atas bg translusen), bukan duplikat murni,
-// jadi diganti var akan MENGUBAH warnanya — tidak aman dilakukan tanpa tes
-// visual di browser (lihat FONDASI.md §Design System). Amber sempat ditulis 2
-// hex beda ("#8a6420" vs "#8a6524" di vue-pesanan.js) — sekarang disatukan lewat
-// token --warn-text.
+// Palet warna sel kalender — index dari posisi nama shift di daftar yang SUDAH
+// diurutkan A-Z (daftarShiftUrut), BUKAN urutan hasil query Firestore, supaya
+// warna tidak berubah tiap reload. `bg` SENGAJA rgba hex mentah (latar
+// translusen). `fg` sage/biru/pink dibiarkan hex: varian lebih gelap, bukan token.
 const PALET_WARNA_SHIFT = [
   { bg: 'rgba(var(--ok-rgb),.22)', fg: '#3f5636' }, // sage, varian gelap dari --ok (SENGAJA hex, lihat catatan atas)
   { bg: 'rgba(var(--warn-rgb),.22)', fg: 'var(--warn-text)' }, // amber
@@ -98,8 +59,8 @@ const AppPenjadwalan = {
   components: { GudangCheckboxSelect, GudangRingkas },
   setup() {
     // Dipakai buat catatan transparansi filter jenis pekerjaan di template
-    // (LEWAT computed, BUKAN window.xxx langsung di template — lihat
-    // STATUS-PROYEK.md §10.1, sudah pernah kejadian bug diam-diam karena ini).
+    // (LEWAT computed, BUKAN window.xxx langsung di template — window.xxx
+    // tidak reaktif di template Vue, bisa bikin bug diam-diam).
     const isOwnerRole = computed(() => ['owner', 'superuser'].includes((window.currentUser.role || '').toLowerCase()));
 
 
@@ -137,15 +98,10 @@ const AppPenjadwalan = {
     async function muat() {
       memuat.value = true;
       try {
-        // layar ini SECARA FUNGSI memang butuh SEMUA karyawan aktif sekaligus
-        // (kartu ringkasan per gudang, Pilih Semua + Update Massal, Export
-        // Excel, dan SEKARANG kalender — semuanya beroperasi di atas SELURUH
-        // hasil filter, bukan cuma 1 halaman, jadi TIDAK BISA dipotong jadi
-        // paginasi cursor tanpa menghilangkan fitur itu). Yang BISA & AMAN
-        // dihemat: jangan tarik akun NON-AKTIF (resign/ditolak) yang toh dibuang
-        // lagi di JS — pindahkan filter itu ke where Firestore SEKARANG, supaya
-        // dokumen yang memang tidak relevan tidak ikut terbaca dari server sama
-        // sekali.
+        // Layar ini butuh SEMUA karyawan aktif sekaligus: kartu ringkasan per
+        // gudang, Pilih Semua + Update Massal, Export Excel dan kalender semua
+        // bekerja di atas SELURUH hasil filter, jadi tidak bisa dipaginasi.
+        // Penghematannya lewat where Firestore: akun non-aktif tidak ditarik.
         const qKaryawan = await getDocs(query(collection(db, "users"), where("status_kerja", "==", "Aktif")));
         const listKaryawan = [];
         qKaryawan.forEach(docSnap => {
@@ -189,15 +145,13 @@ const AppPenjadwalan = {
       memuat.value = false;
     }
 
-    // Tab utama layar ini — BARU . Default "kalender" (spek baru), tab kedua
-    // "tabel" = fitur lama utuh (bulk update + Excel).
+    // Tab utama layar ini. Default "kalender"; tab kedua "tabel" berisi bulk
+    // update + Excel.
     const viewUtama = ref('kalender');
 
 
-    // TAB 2: TABEL & EXCEL (LAMA)
-    // Kode di bawah ini TIDAK DIUBAH sama sekali dari versi sebelum rebuild
-    // (cuma dipindah jadi 1 tab, bukan satu-satunya tampilan) — beroperasi di
-    // field lama users.nama_shift/gudang_penempatan/hari_libur.
+    // TAB 2: TABEL & EXCEL — beroperasi di field
+    // users.nama_shift/gudang_penempatan/hari_libur.
 
 
     // Filter & pencarian
@@ -289,11 +243,10 @@ const AppPenjadwalan = {
       return kartu;
     });
 
-    // Perbaikan bug yang sama dengan Hak Akses: kartu ringkasan cuma menghitung
-    // berdasarkan Gudang, tidak ikut memperhitungkan filter lain (cariNama,
-    // cekSudah/cekBelum, Jenis Pekerjaan, Shift, Hari Libur) yang mungkin masih
-    // aktif — bisa bikin tabel kosong walau kartu bilang ada datanya. Klik kartu
-    // sekarang reset filter lain juga.
+    // Kartu ringkasan cuma menghitung berdasarkan Gudang, tidak ikut
+    // memperhitungkan filter lain (cariNama, cekSudah/cekBelum, Jenis Pekerjaan,
+    // Shift, Hari Libur) — tabel bisa kosong walau kartu bilang ada datanya.
+    // Karena itu klik kartu ikut mereset filter-filter lain.
     function klikKartuGudang(nilaiFilter) {
       filterGudang.value = nilaiFilter;
       cariNama.value = '';
@@ -432,7 +385,7 @@ const AppPenjadwalan = {
     }
 
 
-    // TAB 1: KALENDER (BARU)
+    // TAB 1: KALENDER
 
     const viewKalender = ref('mingguan'); // 'mingguan' | 'bulanan'
     const tanggalAcuan = ref(new Date());
@@ -783,7 +736,7 @@ const AppPenjadwalan = {
       exportExcel, importExcel,
       statusTerjadwal, tampilkanGudang, jenisLokasiKaryawan,
       HARI_LIBUR_PILIHAN,
-      // -- tab Kalender (baru) --
+      // -- tab Kalender --
       viewKalender, tanggalAcuan, filterGudangKalender, filterPekerjaanKalender, memuatKalender,
       karyawanKalender, daftarShiftUrut, PALET_WARNA_SHIFT, WARNA_OFF,
       hariTampil, labelPeriode, geserPeriode, keHariIni, apakahHariIni,
@@ -1170,14 +1123,10 @@ const AppPenjadwalan = {
 };
 
 let vmPenjadwalan = null;
-// Perbaikan bug BESAR: komponen ini dulu langsung di-mount begitu file ini
-// dimuat (artinya SETIAP kali halaman dibuka, oleh SIAPAPUN, termasuk yang tidak
-// punya akses ke layar ini) — onMounted-nya otomatis mencoba fetch Firestore
-// walau orangnya tidak pernah membuka tab ini sama sekali. Itu yang bikin
-// console penuh "Missing or insufficient permissions" dan baca Firestore boros.
-// Sekarang mount BARU terjadi saat dashboard.js pindahSubTab benar-benar
-// memanggil window.pastikanMountPenjadwalan — yaitu PERSIS saat tab ini pertama
-// kali dibuka, bukan dari awal muat halaman.
+// Mount DITUNDA: komponen ini baru di-mount saat dashboard.js pindahSubTab
+// memanggil window.pastikanMountPenjadwalan, yaitu persis saat tab ini pertama
+// kali dibuka. Mount otomatis saat file dimuat bikin onMounted fetch Firestore
+// untuk SIAPAPUN — console penuh "insufficient permissions" dan baca boros.
 window.pastikanMountPenjadwalan = function() {
   if (vmPenjadwalan) { if (typeof vmPenjadwalan.muat === 'function') vmPenjadwalan.muat(); return; }
   const mountPoint = document.getElementById('vue-penjadwalan');

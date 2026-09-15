@@ -1,59 +1,38 @@
-// js/vue-riwayat-tab.js — BARU
-
-// Composable BERSAMA buat nyambungin tab INTERNAL Vue (ref lokal, mis. `const
-// tab = ref('jasa')` di BOM Jasa/Pola/Aksesoris/Vendor Entry Produk, atau
-// Ringkasan/Detail di Kartu Stok) ke sistem riwayat tombol back HP
-// (`window._riwayatNavAktif`, dibangun di js/dashboard.js §22.3/§39).
+// js/vue-riwayat-tab.js
+// Composable pakaiRiwayatTabVue(namaUnik, tabRef): menyambungkan tab internal
+// Vue (ref lokal, mis. tab BOM Jasa/Pola/Aksesoris, atau Ringkasan/Detail di
+// Kartu Stok) ke riwayat tombol back HP (window._riwayatNavAktif, dibangun di
+// js/dashboard.js).
 //
-// KENAPA FILE TERPISAH (bukan ditulis ulang di tiap file Vue, disalin SEKALI di
-// sini lalu di-IMPORT bareng — beda dari konvensi "disalin, bukan diimpor
-// silang" yang dipakai buat helper Excel dsb): logic-nya HARUS 100% identik di
-// semua tempat (aturan restore/urutan/anti-loop yang presisi) — kalau disalin
-// manual ke belasan file, risiko besar ada yang sedikit beda & bug-nya baru
-// ketahuan pas user pencet back HP, bukan pas development. Sekali benar di sini,
-// semua pemakainya otomatis benar & konsisten.
+// Koleksi & field:
+// - Tidak menyentuh Firestore; murni composable state tab + riwayat navigasi.
 //
-// CARA PAKAI (1 baris di dalam setup, buat SETIAP ref tab yang mau ikut
-// riwayat): import { pakaiRiwayatTabVue } from './vue-riwayat-tab.js?v=1'; ..
-// setup(props) { const tab = ref('jasa'); pakaiRiwayatTabVue('produk-bom-tab',
-// tab); // <-- 1 baris ini .. }
-//
-// `namaUnik` (argumen 1) HARUS unik di SELURUH app (dipakai sebagai kunci di
-// snapshot riwayat + nama handler global) — konvensi: '<menu>-<fungsi tab>',
-// mis. 'produk-bom-tab', 'kartustok-tampilan'.
-//
-// BACKWARD COMPATIBLE / OPT-IN PENUH: komponen yang TIDAK memanggil ini sama
-// sekali TIDAK terpengaruh apapun — tab-nya jalan seperti biasa, cuma tombol
-// back HP tidak akan mundur ke tab sebelumnya (perilaku SAMA seperti sebelum §39
-// ada).
-//
-// CATATAN PENTING soal urutan restore: dipanggil listener `popstate` di
-// dashboard.js SETELAH restore level `subTabs` (DOM/pindahSubTab) selesai —
-// supaya komponen Vue yang jadi tujuan (mis. Entry Produk) SUDAH pasti ke-mount
-// lebih dulu (lewat pastikanMountXxx yang otomatis terpanggil dari pindahSubTab)
-// sebelum bagian INI mencoba mengembalikan tab internalnya. Kalau dipanggil
-// kebalik (vueTabs duluan), restore-nya bisa tidak berefek karena komponennya
-// belum ada sama sekali di titik itu.
+// Jebakan:
+// - namaUnik harus unik SE-APLIKASI: dipakai sebagai kunci snapshot riwayat
+//   sekaligus nama handler global. Konvensi '<menu>-<fungsi tab>'.
+// - Sengaja diimpor bersama, bukan disalin per file seperti helper lain —
+//   aturan restore/urutan/anti-loop harus 100% identik di semua pemakai.
+// - Listener popstate dashboard.js memanggilnya SETELAH restore level subTabs
+//   selesai, supaya komponen Vue tujuan sudah ter-mount. Kalau urutannya
+//   kebalik, restore tab internal tidak berefek sama sekali.
+// - Opt-in: komponen yang tidak memanggilnya tidak terpengaruh apa pun.
 
 import { watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 
 export function pakaiRiwayatTabVue(namaUnik, tabRef) {
-  // 1. Restore kalau snapshot riwayat aktif SUDAH punya nilainya — ini menutup 2
-  // skenario sekaligus: (a) komponen baru PERTAMA kali di-mount tepat sesudah
-  // tombol back ditekan (setup ini baru jalan SEKARANG, snapshotnya sudah lebih
-  // dulu diisi listener popstate), dan (b) sesi biasa yang kebetulan
-  // reload/refresh browser (state riwayat browser tetap ada walau halaman dimuat
-  // ulang).
+  // 1. Restore kalau snapshot riwayat aktif sudah punya nilainya — menutup 2
+  // skenario: (a) komponen PERTAMA kali di-mount tepat sesudah tombol back
+  // ditekan (snapshot sudah lebih dulu diisi listener popstate), dan (b)
+  // reload/refresh browser (state riwayat browser bertahan).
   if (window._riwayatNavAktif && Array.isArray(window._riwayatNavAktif.vueTabs)) {
     const ada = window._riwayatNavAktif.vueTabs.find(v => v.nama === namaUnik);
     if (ada) tabRef.value = ada.nilai;
   }
 
-  // 2. Daftarkan handler restore ke `window` — dipakai listener popstate buat
-  // skenario komponen yang SUDAH ke-mount SEBELUM back ditekan (kasus paling
-  // umum di app ini — komponen Vue di sini sengaja tidak pernah dibongkar-pasang
-  // ulang begitu sekali dibuka, cuma disembunyikan CSS, jadi setup TIDAK jalan
-  // ulang, satu-satunya cara mengembalikan nilainya ya lewat handler ini).
+  // 2. Daftarkan handler restore ke `window` — dipakai listener popstate untuk
+  // komponen yang SUDAH ke-mount SEBELUM back ditekan (kasus paling umum:
+  // komponen cuma disembunyikan CSS, tidak pernah dibongkar-pasang, jadi setup
+  // TIDAK jalan ulang dan handler ini satu-satunya jalan mengembalikan nilai).
   let sedangRestore = false;
   window['_restoreVueTab_' + namaUnik] = function (nilai) {
     sedangRestore = true;

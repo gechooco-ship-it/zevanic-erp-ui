@@ -1,48 +1,33 @@
 // js/vue-pp-masalah.js
 // Persiapan Produksi > Masalah. Alur 7 tahap untuk kekurangan bahan/aksesoris
-// yang terdeteksi lewat Scan Masalah di pos lain (Bahan/Acc Sewing/Webbing/
-// Finishing). Tidak ada form input manual di modul ini.
+// yang terdeteksi lewat Scan Masalah di pos lain. Tidak ada input manual.
 //
 // Koleksi & field (persiapan_masalah):
 // - 1 DOKUMEN = 1 baris kekurangan, bukan array rincian bersarang seperti
-// spk_track. Tulis langsung updateDoc/runTransaction per dokumen.
-// - FK balik ke baris asal: spk_track_id + baris_index, plus tlc_asal,
-// sumber_jalur, bahan_aksesoris_id, bahan_nama/warna, satuan, no_spk,
-// qty_kurang, qty_entry_asal, alasan_masalah, scan_oleh/pada.
+//   spk_track. Tulis langsung updateDoc/runTransaction per dokumen.
+// - FK balik ke baris asal: spk_track_id + baris_index. sumber_jalur generik.
 // - status: perlu_diajukan → menunggu_setuju → (perlu_disiapkan →
-// sedang_disiapkan → perlu_dikirim → sedang_dikirim → selesai) ATAU
-// diajukan_belanja (keluar ke Persiapan Belanja) ATAU balik ke
-// perlu_diajukan kalau ditolak.
-// - sampai_pada ditulis modul lain, bukan di sini.
-// - sumber_jalur dipakai 100% generik (kunci pengelompokan + teks tampilan),
-// tidak ada percabangan yang membatasi nilainya — jalur baru aman masuk.
+//   sedang_disiapkan → perlu_dikirim → sedang_dikirim → selesai) ATAU
+//   diajukan_belanja ATAU balik ke perlu_diajukan. sampai_pada ditulis modul lain.
 //
 // Jebakan:
-// - Dokumen masuk lewat ajukanPersiapanMasalah di vue-scan-cetak.js, bukan
-// dari modul ini.
+// - Dokumen masuk lewat ajukanPersiapanMasalah di js/vue-scan-cetak.js, bukan
+//   dari modul ini. Kolom "estimasi" & "sisa jadi stok" murni QTY, bukan biaya.
 // - Tombol "Ajukan" di 6.1 memindahkan SEMUA baris satu kartu bahan sekaligus
-// (kumulatif). Tidak ada auto-eskalasi terjadwal — app ini tidak punya
-// Cloud Functions/cron.
-// - 6.2 punya 3 tombol, bukan 2: Setujui (dipenuhi dari stok, lanjut 6.3),
-// Ajukan Belanja (keluar ke Persiapan Belanja), Tolak (balik 6.1).
-// - Kolom "estimasi" & "sisa jadi stok" murni QTY, bukan biaya: estimasi =
-// stok saat ini + qty beli; sisa = estimasi − kurang.
+//   (kumulatif). Scan Masalah di 6.3/6.4 HANYA menulis catatan_masalah di baris
+//   yang sama, sengaja tidak membuat dokumen baru supaya tidak rekursif.
 // - "pakai/minggu" dihitung LIVE dari rata-rata entry_qty di
-// spk_track.<jalur>_rincian[] dalam jendela MINGGU_JENDELA_PAKAI, bukan
-// field tersimpan. Lebar jendela masih konstanta sementara.
-// - Scan Masalah di 6.3/6.4 HANYA menulis catatan_masalah di baris yang sama;
-// sengaja tidak membuat dokumen persiapan_masalah baru supaya tidak
-// rekursif.
+//   spk_track.<jalur>_rincian[], BUKAN field tersimpan.
+
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=3';
 
-// picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (diimpor di atas, dipakai
-// Setuju/Tolak/Ajukan Belanja — WAJIB Owner/PIC Owner spesifik): ini untuk aksi
-// "Tunjuk Operator" yang cukup PIC ke atas (pic biasa ikut, bukan cuma PIC
-// Owner) — TANPA popup PIN. Pola SAMA dengan picOwnerKeAtas di
+// picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (dipakai Setuju/Tolak/Ajukan
+// Belanja, WAJIB Owner/PIC Owner + popup PIN). Yang ini untuk "Tunjuk Operator":
+// cukup PIC ke atas, TANPA PIN. Pola sama dengan picOwnerKeAtas di
 // vue-pp-cutting.js/vue-pp-sewing.js/vue-pp-finishing.js/vue-pp-serie.js.
 function picOwnerKeAtas(userData) {
   if (!userData) return false;
@@ -118,7 +103,7 @@ async function patchMasalah(id, patch) {
 }
 
 // kelompokKumulatifPerBahan — SEDERHANA dibanding kelompokKartuBahan pos Bahan:
-// TIDAK ada cek stok/alokasi greedy (itu baru relevan di 6.2 lewat qty beli,
+// TIDAK ada cek stok/alokasi greedy (itu relevannya di 6.2 lewat qty beli,
 // bukan di sini) — cuma jumlah "butuh" (qty_kurang) per bahan, dihitung ULANG
 // dari sumbernya tiap kali dipanggil (PEDOMAN acceptance #3).
 function kelompokKumulatifPerBahan(list) {
@@ -196,34 +181,10 @@ async function konfirmasiEntryMasalah(item) {
 }
 
 
-// TAB 1: Perlu Diajukan — Wireframe: SATU TABEL datar (urut TERTUA di atas —
-// scan_pada ascending) dengan CHECKBOX MULTI-SELECT LINTAS-BAHAN, SATU tombol
-// "Ajukan belanja" di header (bukan per-kartu), dan panel "Kumulatif per bahan"
-// TERPISAH di bawah tabel (bukan kotak kecil di kepala tiap kartu accordion).
-// Kolom tabel PERSIS wireframe: kode grouping child (no_spk), tgl scan,
-// tertahan, TLC asal, scan oleh, alasan masalah, butuh, entry, kurang. butuh =
-// qty_kurang + qty_entry_asal (total kebutuhan sebelum kekurangan) entry =
-// qty_entry_asal (yang sempat ke-entry di pos asal) kurang = qty_kurang (field
-// utama yang sudah ada, TIDAK diubah artinya)
-//
-// FUNGSI "AJUKAN" TETAP SAMA PERSIS (HATI-HATI — modul uang/pembelian): tetap
-// patchMasalah(d.id, { status:'menunggu_setuju', diajukan_oleh, .. }) untuk tiap
-// baris terpilih — cuma dipicu dari SATU tombol massal (bisa lintas-bahan
-// sekaligus), bukan per-kartu-per-bahan seperti sebelumnya. TAMBAHAN field baru
-// (aman, tidak mengubah hitungan uang/stok apa pun): kode_pengajuan — SATU kode
-// baru (prefix PGJ, counter HARIAN sendiri) dibuat SEKALI per klik tombol
-// "Ajukan belanja", ditulis ke SEMUA baris yang diajukan bersamaan (lintas bahan
-// sekalipun) — dipakai TAB 2 untuk mengelompokkan jadi "1 kartu = 1 pengajuan"
-// sesuai wireframe §6.2. Field (belum ada di dokumen lama manapun — modul
-// ini 0 data produksi per komentar besar file ini), jadi TIDAK ada risiko salah
-// kelompok data lama (PEDOMAN design-terapkan-handoff: field pengikat baru boleh
-// ditambah untuk alur MAJU, bukan dipaksakan ke data lama). catatan_ajuan — teks
-// opsional (wireframe: "catatan (boleh kosong)" di pop up Ajukan belanja). TIDAK
-// dipakai perhitungan apa pun. "butuh dipakai" (tanggal kebutuhan) di pop up
-// wireframe SENGAJA TIDAK dibangun — tidak ada field tanggal semacam itu di
-// skema persiapan_masalah atau spk_track yang terverifikasi, menebak field baru
-// untuk itu berisiko salah asumsi alur produksi (bukan ranah modul uang, tapi
-// tetap gap yang dilaporkan, bukan ditebak).
+// TAB 1: Perlu Diajukan — satu tabel datar (scan_pada ascending), multi-select
+// lintas-bahan, satu tombol "Ajukan belanja" massal. butuh = qty_kurang +
+// qty_entry_asal, entry = qty_entry_asal, kurang = qty_kurang. HATI-HATI (modul
+// uang): Ajukan tetap patchMasalah PER DOKUMEN; kode_pengajuan PGJ cuma pengikat.
 
 function butuhAwal(d) { return (parseFloat(d.qty_kurang) || 0) + (parseFloat(d.qty_entry_asal) || 0); }
 
@@ -397,36 +358,10 @@ const MasalahPerluDiajukan = {
 };
 
 
-// TAB 2: Menunggu Setuju — Wireframe: SATU KARTU per PENGAJUAN (bisa berisi
-// BEBERAPA baris SPK sekaligus, dikelompokkan lewat kode_pengajuan yang dibuat
-// TAB 1 di atas), Setujui/Tolak menutup SELURUH pengajuan sekaligus (satu klik =
-// satu keputusan untuk semua baris di kartu itu), dan tampilannya dipisah: blok
-// "detail masalah" (apa yang kurang, per SPK) vs panel "Kumulatif per bahan"
-// (MOQ, pakai/minggu, qty beli EDITABLE, estimasi, sisa jadi stok — hitungan
-// belanja, bukan detail masalah).
-//
-// HATI-HATI (modul uang/pembelian) — HITUNGAN PER BARIS TIDAK DIUBAH SAMA
-// SEKALI. Setujui/Tolak/Ajukan Belanja tingkat KARTU cuma me-LOOP fungsi yang
-// PERSIS SAMA seperti sebelum revisi ini (patchMasalah per dokumen dengan
-// qty_disetujui/qty_beli dari infoTambahan[d.id].qtyBeli masing-masing baris) —
-// jadi satu klik "Setujui" di kartu = beberapa kali write per-baris dengan angka
-// yang identik dengan versi sebelumnya, cuma dipicu bareng.
-//
-// KEPUTUSAN TERBUKA (dilaporkan, BUKAN ditebak) — "qty beli" gabungan saat SATU
-// bahan muncul di LEBIH DARI SATU baris DALAM SATU pengajuan yang sama:
-// wireframe menggambarkan qty beli sebagai SATU angka gabungan per bahan
-// (dibulatkan ke kelipatan MOQ), tapi skema data ini menyimpan qty_disetujui/
-// qty_beli PER DOKUMEN (per baris/SPK), dan proses hilir (entry stok di Tab 4,
-// serta item baris di Persiapan Belanja) membaca angka itu PER DOKUMEN. Memecah
-// satu angka gabungan yang diedit Owner kembali jadi pecahan per baris (berapa
-// ke SPK mana) adalah keputusan pembagian uang/stok yang tidak ada dasarnya di
-// skema resmi — TIDAK ditebak. Jadi: kalau sebuah bahan hanya muncul di SATU
-// baris dalam pengajuan itu (kasus paling umum, sesuai contoh wireframe), panel
-// Kumulatif menampilkan qty beli EDITABLE seperti biasa (langsung ke baris itu).
-// Kalau bahan yang sama muncul di BEBERAPA baris dalam satu pengajuan, panel
-// menampilkan TOTAL sebagai angka INFORMASI (read-only) dan mengarahkan Owner
-// mengedit qty beli per baris di blok detail masalah di atasnya (fallback aman,
-// edit tetap ada, tidak ada kalkulasi pembagian yang ditebak).
+// TAB 2: Menunggu Setuju — SATU KARTU per kode_pengajuan (bisa banyak baris SPK).
+// HATI-HATI (modul uang): Setujui/Tolak/Ajukan Belanja cuma me-LOOP patchMasalah
+// PER DOKUMEN dengan qty_disetujui/qty_beli milik baris masing-masing. Bahan yang
+// muncul di >1 baris: panel Kumulatif tampil TOTAL read-only, edit tetap per baris.
 
 const MasalahMenungguSetuju = {
   setup() {
@@ -447,9 +382,9 @@ const MasalahMenungguSetuju = {
         const peta = {}; stokSnap.forEach(d => { peta[d.id] = d.data(); });
         petaStokBahan.value = peta;
         daftar.value = list;
-        // muat info tambahan (MOQ + pakai/minggu) per bahan UNIK dulu, baru
+        // Muat info tambahan (MOQ + pakai/minggu) per bahan UNIK dulu, baru
         // sebar ke tiap baris — hemat query dibanding per-baris kalau ada
-        // beberapa baris bahan yang sama. TIDAK BERUBAH dari versi sebelumnya.
+        // beberapa baris dengan bahan yang sama.
         const bahanUnik = [...new Set(list.map(d => d.bahan_aksesoris_id).filter(Boolean))];
         await Promise.all(bahanUnik.map(async (bahanId) => {
           const docSample = list.find(d => d.bahan_aksesoris_id === bahanId);
@@ -478,9 +413,8 @@ const MasalahMenungguSetuju = {
     function sisaJadiStok(d) { const e = estimasi(d); return e === null ? null : (e - (parseFloat(d.qty_kurang) || 0)); }
 
     // Kelompok kartu per PENGAJUAN (kode_pengajuan)
-    // Fallback docId sendiri untuk baris tanpa kode_pengajuan (misal dokumen
-    // dari sebelum revisi ini ada) — TIDAK dipaksa gabung, tampil sebagai kartu
-    // tunggal sendiri, aman dari salah kelompok.
+    // Fallback docId sendiri untuk baris tanpa kode_pengajuan — TIDAK dipaksa
+    // gabung, tampil sebagai kartu tunggal, aman dari salah kelompok.
     const kartuPengajuan = computed(() => {
       const peta = {};
       daftar.value.forEach(d => {
@@ -798,7 +732,7 @@ const MasalahPerluDisiapkan = {
 
 // TAB 4: Sedang Disiapkan — mirror pos Bahan tab 2 (per operator, Scan
 // Entry/Masalah/Ganti). Scan Masalah di sini HANYA catat catatan_masalah di
-// baris yang sama, TIDAK rekursif bikin dokumen baru (lihat keputusan §5).
+// baris yang sama, TIDAK rekursif membuat dokumen lain (lihat keputusan §5).
 
 const MasalahSedangDisiapkan = {
   components: { ScanGenerik },
@@ -910,10 +844,9 @@ const MasalahSedangDisiapkan = {
 
 
 // TAB 5: Perlu Di Kirim — mirror pos Bahan tab 3 (cetak Kode Bagging + Kode
-// Tugas, Scan Pack + Scan Kirim), TAPI dikelompokkan per TUJUAN (sumber_jalur +
-// tlc_asal) bukan per pola/bahan/size — karena yang dikirim di sini beragam
-// bahan yang KEMBALI ke pos asal yang sama, bukan produk sejenis yang dipack
-// bersama. Kode Tugas default tujuan = TLC pos asal (JALUR_TLC).
+// Tugas, Scan Pack + Scan Kirim), tapi dikelompokkan per TUJUAN (sumber_jalur +
+// tlc_asal): isinya beragam bahan yang kembali ke pos asal yang sama, bukan
+// produk sejenis. Kode Tugas default tujuan = TLC pos asal (JALUR_TLC).
 
 function kunciKirimMasalah(d) { return (d.sumber_jalur || '') + '::' + (d.tlc_asal || ''); }
 function labelKirimMasalah(d) { return 'Kembali ke ' + (d.tlc_asal || d.sumber_jalur || 'pos asal (tidak diketahui)'); }
@@ -1214,12 +1147,10 @@ const MasalahSedangDiKirim = {
 };
 
 
-// TAB 7: Selesai — riwayat + KPI. Baris pindah ke sini SAAT POS ASAL scan sampai
-// (pop up 2.1.4, BELUM DIBANGUN — dependensi lintas modul yang sama seperti
-// Selesai pos Bahan). Sampai modul itu ada, tab ini akan KOSONG terus — bukan
-// bug di file ini. "Umur" dihitung scan_pada -> sampai_pada (BEDA dari pos Bahan
-// yang pakai label_cetak_pada -> sampai_pada, karena di sini yang mau diukur
-// termasuk lama menunggu keputusan Owner di 6.2).
+// TAB 7: Selesai — riwayat + KPI. Baris masuk sini saat pos asal scan sampai
+// (pop up 2.1.4 belum dibangun, jadi tab ini kosong terus — bukan bug di file
+// ini). "Umur" dihitung scan_pada -> sampai_pada, BEDA dari pos Bahan
+// (label_cetak_pada), supaya lama menunggu keputusan Owner di 6.2 ikut terukur.
 
 const MasalahSelesai = {
   setup() {

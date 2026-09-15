@@ -1,16 +1,21 @@
 // js/vue-device-kiosk.js
-
-// Device Kiosk — kelola akun HP/tablet Kiosk gudang . HANYA OWNER (bukan
-// Superuser) yang bisa buka menu ini — sudah digerbang di auth.js & rules.
+// Device Kiosk — kelola akun HP/tablet kiosk gudang (buat, aktif/nonaktif,
+// hapus). Hanya Owner yang bisa membuka menu ini (digerbang auth.js + rules).
 //
-// Bikin akun Firebase Auth pakai INSTANCE FIREBASE KEDUA (pola yang sama persis
-// dengan buatAkunTanpaGangguSesi yang dulu dipakai vue-antrean-dakar.js sebelum
-// redesign self-registrasi) — supaya createUserWithEmailAndPassword TIDAK
-// "melempar" logout sesi Owner yang sedang aktif di instance UTAMA.
+// Koleksi & field:
+// - users (id dokumen = email): jenis_akun 'kiosk' sebagai penanda, role tetap
+//   'operator', nama, gudang_penempatan (array), status_kerja, status_approval,
+//   dibuat_pada, dibuat_oleh.
 //
-// Nonaktifkan kiosk = ubah status_kerja jadi bukan "Aktif" — REUSE 100% gerbang
-// login yang SUDAH ADA (vue-login.js & auth.js sudah menolak login siapapun yang
-// status_kerja bukan "Aktif"), tidak perlu logic baru.
+// Jebakan:
+// - Pembuatan akun pakai INSTANCE FIREBASE KEDUA lalu deleteApp; kalau pakai
+//   instance utama, createUserWithEmailAndPassword melempar sesi Owner logout.
+// - Daftar dibaca TANPA where jenis_akun (ambil seluruh users, saring di JS) —
+//   query berfilter ke koleksi users ditolak Rules.
+// - Nonaktif = status_kerja bukan 'Aktif'; yang menolak login adalah
+//   vue-login.js/auth.js, tidak ada logika blokir tersendiri di sini.
+// - Hapus cuma membuang dokumen users; akun Firebase Auth-nya tetap ada.
+// - Search + paginasi client-side, 15 baris per halaman.
 
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -26,9 +31,8 @@ const AppDeviceKiosk = {
     const daftarKiosk = ref([]);
     const memuat = ref(true);
     const pesanErrorMuat = ref('');
-    // PEDOMAN §17 (STATUS-PROYEK.md) — search+paginasi WAJIB tiap menu baru
-    // bertabel, pola client-side PERSIS sama dengan Master Kendaraan
-    // (vue-reimburse.js).
+    // Tiap menu bertabel WAJIB punya search + paginasi. Pola client-side
+    // PERSIS sama dengan Master Kendaraan (vue-reimburse.js).
     const cariKiosk = ref('');
     const PER_HALAMAN = 15;
     const halamanSaatIni = ref(1);
@@ -57,13 +61,10 @@ const AppDeviceKiosk = {
       memuat.value = true;
       pesanErrorMuat.value = '';
       try {
-        // SEBELUMNYA pakai query BERFILTER (where jenis_akun=='kiosk') ke
-        // collection `users` — collection itu punya aturan baca lebih rumit
-        // (isKiosk pakai get) dari `master_kendaraan` (aturan simpel: allow
-        // read: if login;). Disamakan PERSIS pola Master Kendaraan yang TERBUKTI
-        // jalan (vue-reimburse.js, MasterKendaraanManager.muat) — baca SELURUH
-        // collection TANPA filter, saring jenis_akun di JavaScript, BUKAN di
-        // query Firestore.
+        // Baca SELURUH collection users TANPA filter lalu saring jenis_akun di
+        // JavaScript, bukan lewat query Firestore. Query berfilter kena aturan baca
+        // users yang rumit (isKiosk pakai get); pola tanpa filter ini sama dengan
+        // Master Kendaraan (vue-reimburse.js, MasterKendaraanManager.muat).
         const snap = await getDocs(collection(db, "users"));
         const list = [];
         snap.forEach(d => {
@@ -94,12 +95,10 @@ const AppDeviceKiosk = {
       const authKedua = getAuth(appKedua);
       try {
         await createUserWithEmailAndPassword(authKedua, form.email.trim(), form.password);
-        // role TETAP 'operator' — WAJIB salah satu dari 5 nama baku
-        // (STATUS-PROYEK.md §6.2, dipakai custom claim/syncRoleClaim +
-        // isAdminLevel/isOwnerLevel di firestore.rules). Penanda kiosk ada di
-        // field TERPISAH `jenis_akun`, dicek firestore.rules lewat
-        // isKiosk/gudangKiosk (get dokumen, bukan custom claim) — supaya TIDAK
-        // menambah nilai ke-6 yang tidak dikenal sistem role manapun.
+        // role TETAP 'operator' — wajib salah satu dari 5 nama baku yang dipakai
+        // custom claim/syncRoleClaim + isAdminLevel/isOwnerLevel di firestore.rules.
+        // Penanda kiosk ada di field TERPISAH `jenis_akun`, dicek firestore.rules
+        // lewat isKiosk/gudangKiosk (get dokumen, bukan custom claim).
         await setDoc(doc(db, "users", form.email.trim()), {
           role: 'operator',
           jenis_akun: 'kiosk',
@@ -123,9 +122,8 @@ const AppDeviceKiosk = {
         } else if (e.code === 'auth/invalid-email') {
           alert("Format email tidak valid.");
         } else {
-          // SEBELUMNYA pesan generik menyembunyikan kode error asli (misal
-          // 'permission-denied' dari Firestore Rules) yang justru paling penting
-          // buat debug.
+          // Tampilkan kode error aslinya (misal 'permission-denied' dari Firestore
+          // Rules); pesan generik menyembunyikan info yang paling penting buat debug.
           alert(`Gagal membuat device kiosk: ${e.code || e.message || 'error tidak diketahui'}`);
         }
       } finally {
@@ -217,14 +215,10 @@ const AppDeviceKiosk = {
   `
 };
 
-// BUG NYATA: SEBELUMNYA mount LANGSUNG di sini (top-level, jalan begitu script
-// ini dimuat browser — BUKAN pas tab-nya diklik). Ini MELANGGAR pola hemat yang
-// dipakai SEMUA layar admin lain (lihat PETA-HEMAT.md, window.pastikanMountXxx)
-// boros 1 baca Firestore di SETIAP pemuatan halaman siapapun yang login (bukan
-// cuma Owner yang buka menu ini), DAN kemungkinan besar jadi penyebab tabel
-// "Memuat.." tidak pernah selesai (component ke-mount lebih awal dari yang
-// diharapkan, race condition dengan window.authReady). Sekarang ditunda sampai
-// tab-device-kiosk benar-benar dinavigasi (lihat dashboard.js).
+// Mount ditunda sampai tab-device-kiosk benar-benar dinavigasi (lihat
+// dashboard.js), mengikuti pola window.pastikanMountXxx di semua layar admin.
+// Mount top-level memboroskan 1 baca Firestore tiap pemuatan halaman siapapun
+// dan memicu race condition dengan window.authReady (tabel "Memuat.." macet).
 let vmDeviceKiosk = null;
 window.pastikanMountDeviceKiosk = function() {
   if (vmDeviceKiosk) { if (typeof vmDeviceKiosk.muat === 'function') vmDeviceKiosk.muat(); return; }

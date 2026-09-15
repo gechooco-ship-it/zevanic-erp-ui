@@ -1,10 +1,23 @@
 // js/vue-whatsapp-gateway.js
-
-// Halaman KEDELAPAN yang dimigrasi ke Vue: WhatsApp Gateway (Config API,
-// Template Pesan, Monitoring Respon).
+// Pengaturan > WhatsApp Gateway. Tiga tab: Config API, Template Pesan, dan
+// Monitoring Respon.
 //
-// window.kirimPesanWhatsapp (auth.js) TETAP dipanggil apa adanya dari sini —
-// fungsi bersama, juga dipakai alur registrasi/approval yang belum dimigrasi.
+// Koleksi & field:
+// - config/whatsapp_gateway: webapp_url, shared_secret, otp_aktif.
+// - config/whatsapp_templates: template_otp/aktif/pending; kalau dokumennya
+//   kosong dipakai TEMPLATE_DEFAULT di file ini. Placeholder {kode}/{nama}
+//   diisi pemanggil, jangan diganti namanya.
+// - wa_log: daftar utama orderBy('waktu_ts','desc') + limit 50, "Muat Lagi"
+//   pakai cursor startAfter dan MENAMBAH ke daftar, bukan ganti halaman.
+//
+// Jebakan:
+// - window.kirimPesanWhatsapp (auth.js) dipakai apa adanya dari sini —
+//   fungsi bersama, juga dipakai alur registrasi/approval di luar Vue.
+// - Dokumen wa_log tanpa field waktu_ts otomatis TIDAK ikut query
+//   orderBy(waktu_ts), jadi tidak muncul di daftar utama. Tombol "Lihat Log
+//   Sebelum Pembaruan" fetch manual SEKALI klik untuk melihatnya.
+// - Jangan full-fetch wa_log demi menampilkan puluhan baris teratas; koleksi
+//   ini tumbuh tiap OTP/notifikasi status akun terkirim.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, limit, startAfter } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -106,22 +119,10 @@ const AppWhatsappGateway = {
       menyimpanTemplate.value = false;
     }
 
-    // Monitoring Respon — dulu FULL FETCH seluruh koleksi wa_log (bisa
-    // ribuan dokumen, notifikasi WA terus tercatat tiap OTP/status akun
-    // terkirim) cuma buat tampilkan 50 teratas — baca ribuan demi tampilkan
-    // puluhan, paling boros dari semua yang ditemukan (STATUS-PROYEK.md §44.16).
-    // Sekarang pakai `waktu_ts` (Timestamp asli, baru ditambahkan di js/auth.js
-    // lihat catatan di sana) + `orderBy+limit` SUNGGUHAN, dengan "Muat Lagi"
-    // (cursor startAfter, nambah ke daftar yang sudah ada — BUKAN ganti halaman)
-    // sesuai.
-    //
-    // KETERBATASAN JUJUR: dokumen wa_log dari SEBELUM perbaikan ini tidak punya
-    // `waktu_ts` sama sekali — Firestore otomatis TIDAK menyertakan dokumen yang
-    // field urutnya kosong dalam query orderBy(waktu_ts), jadi log LAMA tidak
-    // akan muncul di daftar utama ini lagi. Disediakan tombol terpisah "Lihat
-    // Log Sebelum Pembaruan" (fetch manual, SEKALI diklik, BUKAN otomatis) buat
-    // tetap bisa melihatnya kalau perlu — pola SAMA seperti "Cek Data Sangat
-    // Lama" di Antrean Absensi/Lembur.
+    // Monitoring Respon dibaca lewat `waktu_ts` + orderBy+limit sungguhan,
+    // dengan "Muat Lagi" (cursor startAfter, menambah ke daftar) — koleksi
+    // wa_log bisa ribuan dokumen, jangan full fetch. Dokumen wa_log tanpa
+    // `waktu_ts` tidak ikut query ini; ada tombol terpisah untuk membacanya.
     const UKURAN_MUAT_LOG = 50;
     const daftarLog = ref([]);
     const memuatLog = ref(true);

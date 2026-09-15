@@ -1,58 +1,36 @@
 // js/vue-bahan-aksesoris.js
-// Zevanic House > Master Bahan & Aksesoris. Dua komponen:
-// BahanAksesorisEntryManager (form entry) dan BahanAksesorisListManager
-// (tabel paginasi + edit + hapus + import Excel).
-//
-// Perhitungan:
-// - Harga Modal = Harga Pembelian / Isi Konversi Pembelian (readonly)
-// - Harga Pemakaian = Harga Modal x (1 + margin_modal / 100)
-// margin_modal adalah PERSEN. Formula ini dipakai di 4 tempat: computed
-// hargaPemakaian, hargaPemakaianEdit, konfirmasiImportBahanAksesoris, dan
-// perbaruiHargaMasterDariRiwayat di vue-stock-pembelian.js — keempatnya
-// harus ikut berubah bersamaan.
-// - Volume = Tinggi x Panjang x Lebar (dimensi 1 satuan barang, bukan rak),
-// computed client-side lalu disimpan sebagai field biasa.
+// Zevanic House > Master Bahan & Aksesoris: entry, tabel paginasi dengan
+// edit/hapus, dan import Excel.
 //
 // Koleksi & field:
-// - master_bahan_aksesoris. ID sequential lewat runTransaction di koleksi
-// pengaturan_id_bahan_aksesoris (bukan numpang di `config`, yang di
-// firestore.rules cuma bisa ditulis Owner/Superuser).
-// - kategori_utama (Bahan/Aksesoris) menentukan prefix ID dan kategori
-// master_data mana yang muncul di dropdown Jenis (jenis_bahan vs
-// jenis_aksesoris).
-// - rak_id (ref ke master_rak_penyimpanan) + rak_label (denormalisasi, mis.
-// "A-1-3"). Kategori master_data kode_rak/baris_rak/kolom_rak masih ada,
-// tapi sekarang cuma bahan isian saat bikin record Rak, tidak dipilih di
-// sini.
-// - konversi_bertingkat: array tersimpan permanen, bukan kalkulator sekali
-// pakai.
-// - pakai_lot_tracking: flag opt-in per item, dibaca vue-stock-pembelian.js
-// untuk mengaktifkan popup "Qty per Roll/Lot". Tidak ada logic FIFO.
+// - master_bahan_aksesoris; ID sequential lewat runTransaction di koleksi
+//   pengaturan_id_bahan_aksesoris, bukan `config` (rules: Owner/Superuser).
+// - kategori_utama (Bahan/Aksesoris) menentukan prefix ID dan isi dropdown
+//   Jenis; rak_id + rak_label denormalisasi dari master_rak_penyimpanan.
+// - konversi_bertingkat tersimpan permanen; Volume = Tinggi x Panjang x
+//   Lebar per satuan barang, bukan per rak. pakai_lot_tracking memicu popup
+//   "Qty per Roll/Lot" di vue-stock-pembelian.js; tidak ada logic FIFO.
 //
 // Jebakan:
-// - Dokumen lama menyimpan margin_modal sebagai NOMINAL RUPIAH. Field itu
-// sekarang dibaca apa adanya sebagai persen tanpa konversi, jadi item lama
-// menghasilkan Harga Pemakaian ngawur (margin 15000 dibaca 15000%). Tidak
-// ada migrasi otomatis, dan tidak bisa ditebak — "15" bisa 15% baru atau
-// Rp 15 lama.
-// - Satuan Pembelian & Satuan Pemakaian sengaja teks bebas, bukan dropdown.
-// - Belum ada logic peringatan overstok; rencananya di vue-stock-pembelian.js.
+// - margin_modal bersatuan PERSEN: Harga Modal = Harga Pembelian / Isi
+//   Konversi, Harga Pemakaian = Harga Modal x (1 + margin_modal/100). Rumus
+//   kedua kembar di hargaPemakaian, hargaPemakaianEdit, import Excel, dan
+//   perbaruiHargaMasterDariRiwayat (vue-stock-pembelian.js) — ubah serentak.
+// - Sebagian dokumen masih menyimpan margin_modal sebagai NOMINAL RUPIAH dan
+//   dibaca apa adanya tanpa migrasi: harga salah diam-diam, tidak tertebak.
+
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, runTransaction, where, query, orderBy, limit, getCountFromServer } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-// MasterDataCategory/MasterDataTabelManager TIDAK diimpor lagi di sini — panel
-// Pengaturan yang dulu pakai keduanya (Jenis Bahan/Aksesoris, Data
-// Satuan/Warna/Ukuran, Data Rak Penyimpanan) sudah dirombak, lihat catatan di
-// atas PengaturanBahanAksesoris di bawah.
+// MasterDataCategory/MasterDataTabelManager TIDAK diimpor di sini — panel
+// Pengaturan (Jenis Bahan/Aksesoris, Data Satuan/Warna/Ukuran, Data Rak
+// Penyimpanan) tidak memakai keduanya, lihat catatan di atas
+// PengaturanBahanAksesoris di bawah.
 import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { usePaginasiFirestore } from './vue-paginasi.js';
-// `ambilSemuaLotByBahan` dan `catatLogCetakLabel` DULU privat di
-// `CetakLabelManager` (js/vue-stock-pembelian.js, menu "Cetak Label" tersendiri
-// di Stock & Pembelian, SEKARANG DIHAPUS). Koleksi `lot_bahan_aksesoris` &
-// `log_cetak_label` TETAP "dimiliki" vue-stock-pembelian.js (sudah ada beberapa
-// fungsi lot lain yang diimpor lintas file dari sana, pola sama seperti
-// vue-kartu-stok.js/vue-scan-opname.js/vue-scan-persiapan.js) — cuma 2 fungsi
-// INI yang sekarang jadi export supaya bisa dipakai di sini.
+// Koleksi `lot_bahan_aksesoris` & `log_cetak_label` dimiliki
+// js/vue-stock-pembelian.js — semua akses ke keduanya lewat fungsi yang
+// diekspor dari sana, jangan query langsung dari file ini.
 import { ambilSemuaLotByBahan, catatLogCetakLabel, ambilLotAktif } from './vue-stock-pembelian.js';
 
 const KATEGORI_UTAMA_OPSI = ['Bahan', 'Aksesoris'];
@@ -64,11 +42,9 @@ function kunciPengaturanId(kategoriUtama) {
   return kategoriUtama === 'Aksesoris' ? 'aksesoris' : 'bahan';
 }
 
-// ambilDaftarNama — BARU, dipakai buat isi opsi DropdownCari (Warna, Satuan
-// Pembelian, Satuan Pemakaian) dari koleksi MasterDataTabelManager
-// (master_satuan/master_warna, lihat vue-components.js) — beda dari
-// window.ambilMasterList (dashboard.js) yang bacanya dari 1 dokumen
-// `master_data/{kategori}` berisi array, koleksi ini 1 dokumen per item.
+// Sumber opsi DropdownCari (Warna, Satuan Pembelian/Pemakaian) dari koleksi
+// master_satuan/master_warna yang 1 DOKUMEN PER ITEM — beda dari
+// window.ambilMasterList (dashboard.js) yang 1 dokumen berisi array.
 async function ambilDaftarNama(koleksi) {
   try {
     const snap = await getDocs(collection(db, koleksi));
@@ -82,11 +58,9 @@ async function ambilDaftarNama(koleksi) {
   }
 }
 
-// ambilDaftarRak — BARU . Ambil SEMUA record dari menu baru "Rak Penyimpanan"
-// (`master_rak_penyimpanan`, js/vue-rak-penyimpanan.js) buat jadi opsi dropdown
-// "Pilih Rak" di sini — pola sama seperti ambilDaftarNama di atas (fetch semua,
-// TANPA paginasi — ini buat SUMBER dropdown, bukan tabel browsing, jumlah rak
-// realistis kecil, konsisten dengan opsiSatuan/opsiWarna).
+// Sumber dropdown "Pilih Rak" dari `master_rak_penyimpanan`
+// (js/vue-rak-penyimpanan.js). Sengaja fetch semua TANPA paginasi — ini sumber
+// dropdown, bukan tabel browsing, sama seperti opsiSatuan/opsiWarna.
 async function ambilDaftarRak() {
   try {
     const snap = await getDocs(collection(db, 'master_rak_penyimpanan'));
@@ -101,18 +75,10 @@ async function ambilDaftarRak() {
 }
 
 
-// Import/Export Excel . Pola & helper DISALIN dari js/vue-master-produk.js §28.9
-// (bukan diimpor silang — konsisten konvensi proyek ini), disesuaikan buat skema
-// Bahan & Aksesoris. Keputusan cakupan (2 ronde AskUserQuestion, lihat
-// STATUS-PROYEK.md §35): 1. Template CUMA field WAJIB (Kategori Utama, Jenis,
-// Nama, Warna, Harga Pembelian, Satuan Pembelian, Isi Konversi Pembelian, Satuan
-// Pemakaian, Margin Modal) — Rak Penyimpanan, Volume Barang (Tinggi/
-// Panjang/Lebar), flag "Perlu Qty per Roll/Lot", dan Foto TIDAK ikut, diisi
-// menyusul manual lewat Edit kalau perlu. 2. Baris yang kombinasi Kategori
-// Utama+Nama+Warna-nya SUDAH ADA di data tersimpan DILEWATI (skip) — TIDAK
-// ditimpa/diupdate sama sekali, beda dari pola "Ganti Total" di Import Produk
-// Utama (Master Produk). Import Bahan & Aksesoris ini MURNI nambah data baru
-// saja.
+// Import/Export Excel. Template CUMA field wajib (Kategori Utama, Jenis, Nama,
+// Warna, Harga Pembelian, Satuan Pembelian, Isi Konversi Pembelian, Satuan
+// Pemakaian, Margin Modal); Rak, Volume, flag Qty per Roll/Lot & Foto tidak ikut.
+// Import MURNI nambah: baris dgn Kategori+Nama+Warna yang sudah ada DILEWATI.
 
 
 // jarakLevenshtein/cariSaranTerdekat/validasiPilihan — jarak edit standar buat
@@ -238,11 +204,9 @@ const FieldValidasiInline = {
 };
 
 
-// PopupImportBahanAksesoris — popup verifikasi 1 tahap (beda dari Master Produk
-// yang 2 tahap Produk Utama+BOM, di sini cuma 1 jenis data). Kolom "Jenis"
-// opsinya BEDA per baris tergantung Kategori Utama baris itu (Jenis Bahan vs
-// Jenis Aksesoris) — makanya dihitung per-baris, bukan 1 list statis seperti
-// Warna/Satuan.
+// Popup verifikasi import, 1 tahap. Opsi kolom "Jenis" BEDA per baris tergantung
+// Kategori Utama baris itu (Jenis Bahan vs Jenis Aksesoris), jadi dihitung
+// per-baris — bukan satu list statis seperti Warna/Satuan.
 
 const PopupImportBahanAksesoris = {
   components: { FieldValidasiInline, DropdownCari },
@@ -272,11 +236,9 @@ const PopupImportBahanAksesoris = {
       satuan_pembelian: String(b['Satuan Pembelian'] || '').trim(),
       isi_konversi_pembelian: b['Isi Konversi Pembelian'],
       satuan_pemakaian: String(b['Satuan Pemakaian'] || '').trim(),
-      // header Excel sekarang "Margin Modal (%)" (lihat HEADER_BAHAN_AKSESORIS)
-      // fallback ke header LAMA "Margin Modal" tanpa "(%)" supaya file lama
-      // yang mungkin masih beredar (diunduh sebelum perubahan ini) tetap kebaca
-      // kolomnya, TIDAK otomatis dikonversi nilainya (tetap dibaca apa adanya
-      // sebagai persen — lihat catatan kualitas data di atas file ini).
+      // Header "Margin Modal (%)" dengan fallback ke header lama "Margin Modal".
+      // Nilainya TIDAK dikonversi — dibaca apa adanya sebagai PERSEN, padahal
+      // file lama bisa berisi nominal Rupiah. Salah baca = harga salah diam-diam.
       margin_modal: b['Margin Modal (%)'] !== undefined ? b['Margin Modal (%)'] : b['Margin Modal']
     })));
 
@@ -370,12 +332,9 @@ const PopupImportBahanAksesoris = {
   `
 };
 
-// Kompresi gambar sisi klien — pola SAMA seperti js/camera.js (foto KTP) &
-// js/vue-reimburse.js (foto bukti), disalin di sini (bukan diimpor) karena tidak
-// di-export ke window, cuma dipakai internal file masing-masing. Dimensi lebih
-// kecil (500px) & kualitas lebih rendah (0.65) dibanding reimburse — ini foto
-// KATALOG bahan (thumbnail), bukan bukti nota, jadi TIDAK perlu resolusi tinggi,
-// prioritas dokumen tetap kecil (banyak baris).
+// Kompresi gambar sisi klien. Dimensi & kualitas sengaja lebih rendah daripada
+// foto bukti reimburse (500px / 0.65) — ini thumbnail katalog, prioritasnya
+// dokumen Firestore tetap kecil karena barisnya banyak.
 function kompresGambarBahan(file, maxDimensi, kualitas) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -434,39 +393,28 @@ function formStateKosong() {
     // flag opsional, lihat catatan arsitektur di atas file ini (dekat komentar
     // "UPDATE ").
     pakai_lot_tracking: false,
-    // Rak Penyimpanan (Kode/Baris/Kolom) & Volume Barang (Tinggi/Panjang/Lebar,
-    // volume dihitung otomatis = t*p*l). Lihat catatan arsitektur di bawah
-    // PengaturanBahanAksesoris. SEMUA opsional (tidak divalidasi wajib di
-    // simpanData/simpanEdit) — item lama/baru tetap bisa disimpan tanpa data rak
-    // dulu, diisi menyusul. BARU — ref ke record di master_rak_penyimpanan (menu
-    // baru "Rak Penyimpanan"). rak_label = denormalisasi tampilan (mis.
-    // "A-1-3"), dipakai juga jadi v-model DropdownCari (strict-select dari
-    // opsiRak) — rak_id diturunkan otomatis dari rak_label lewat watch.
+    // Rak & Volume Barang SEMUA opsional (tidak divalidasi wajib di
+    // simpanData/simpanEdit); volume = tinggi*panjang*lebar, otomatis. rak_label
+    // denormalisasi tampilan (mis. "A-1-3") sekaligus v-model DropdownCari;
+    // rak_id diturunkan dari rak_label lewat watch, jangan diisi manual.
     rak_id: '',
     rak_label: '',
     tinggi_barang: '',
     panjang_barang: '',
     lebar_barang: '',
-    // panjang 1 roll gudang (meter), opsional, dasar hitung kolom "roll" di
-    // kartu Acc Webbing (butuh_meter / panjang_roll, dibulatkan ke atas).
-    // Kosong/0 = belum diisi, kartu Acc Webbing menampilkan "-" bukan angka
-    // salah tebak. Cuma relevan buat item webbing/tali, tapi field
-    // digeneralisasi (tidak dibatasi per jenis) biar form tetap sederhana — sama
-    // pola seperti Volume Barang di atas.
+    // Panjang 1 roll gudang (meter), opsional. Dasar kolom "roll" di kartu Acc
+    // Webbing: ceil(butuh_meter / panjang_roll). Kosong/0 = belum diisi, kartu
+    // itu menampilkan "-" bukan angka tebakan.
     panjang_roll: '',
     margin_modal: '',
     konversi_bertingkat: []
   });
 }
 
-// hitungLengkap — BARU . SATU sumber kebenaran soal "field wajib apa saja"
-// dipakai bareng oleh simpanData/simpanEdit/konfirmasiImportBahanAksesoris
-// (JANGAN ditulis ulang beda-beda per tempat) — PERSIS sama dengan validasi
-// manual yang SUDAH ADA di ke-3 fungsi itu, cuma dikumpulkan di sini supaya bisa
-// juga dipanggil dari data yang SUDAH tersimpan (buat isi tab "Perlu dilengkapi"
-// di List). Field opsional (Foto, Rak, Volume, Panjang Roll, Pakai Lot Tracking)
-// SENGAJA TIDAK ikut dicek — cuma field yang BENAR-BENAR ditandai wajib (*) di
-// form Entry yang dicek di sini.
+// SATU sumber kebenaran "field wajib apa saja", dipakai bareng oleh
+// simpanData/simpanEdit/konfirmasiImportBahanAksesoris dan tab "Perlu
+// dilengkapi" — JANGAN ditulis ulang beda-beda per tempat. Field opsional (Foto,
+// Rak, Volume, Panjang Roll, Pakai Lot Tracking) sengaja tidak ikut dicek.
 function hitungLengkap(d) {
   return !!(
     d && d.kategori_utama && d.jenis && d.nama && d.warna &&
@@ -477,28 +425,10 @@ function hitungLengkap(d) {
   );
 }
 
-// hitungHargaPerSatuanAkhir — BARU . SEBELUM INI "Harga per Satuan Akhir" (dan
-// Harga Modal turunannya) SELALU dihitung dari baris PALING ATAS saja
-// (baris[0].harga / total-faktor-semua-tingkat) — baris tingkat lain (Pack/Pcs)
-// cuma DICATAT tapi TIDAK ikut menentukan Harga Modal.
-//
-// "kita tarik data saja dari hitung konversi berjenjang. harga menurut satuan
-// awal adalah harga saat pembelian. misal ada 3 jenjang artinya ada 3 harga
-// dengan 3 satuan awal, untuk harga per satuan akhir tetap patokannya pada harga
-// per harga terupdate per satuan" — dicontohkan dengan angka: Dus 900rb, Pack
-// 100rb → hasil akhir per Pcs = 1rb, "menurut data satuan awal yang PALING
-// MAHAL". Jadi SEKARANG: tiap tingkat yang harga-nya diisi (>0) dihitung dulu
-// "harga implikasi per satuan akhir"-nya SENDIRI-SENDIRI (harga tingkat itu
-// dibagi faktor konversi dari tingkat itu SAMPAI akhir rantai — BUKAN dari
-// tingkat paling atas), lalu diambil yang PALING MAHAL di antara semuanya. Ini
-// KONSISTEN dengan prinsip konservatif yang SUDAH dipakai
-// `perbaruiHargaMasterDariRiwayat` di vue-stock-pembelian.js (pilih harga
-// TERMAHAL supaya modal/harga jual tidak "ketinggalan" pas harga bahan naik) —
-// cuma sekarang prinsip yang sama diterapkan juga ke input MANUAL popup ini,
-// bukan cuma ke riwayat pembelian otomatis.
-//
-// Item 1-tingkat (tanpa Konversi Berjenjang, isi manual biasa) TIDAK terpengaruh
-// sama sekali — fungsi ini HANYA dipakai di dalam popup Konversi Berjenjang.
+// Untuk TIAP tingkat yang harga-nya > 0: harga tingkat itu dibagi faktor
+// konversi DARI tingkat itu sampai akhir rantai (BUKAN dari tingkat teratas),
+// lalu diambil hasil yang PALING MAHAL. Prinsip konservatif yang sama dipakai
+// perbaruiHargaMasterDariRiwayat di vue-stock-pembelian.js.
 function hitungHargaPerSatuanAkhir(baris) {
   let maxHarga = 0;
   baris.forEach((b, i) => {
@@ -543,19 +473,10 @@ function useKonversiBerjenjang(form) {
     barisKonversi.value.reduce((total, b) => total * (parseFloat(b.jumlah) || 0), 1)
   );
   function terapkanKonversi() {
-    // Harga Pembelian SEKARANG field di TIAP baris (harga waktu beli di satuan
-    // AWAL baris itu), bukan 1 field tunggal di atas popup lagi. GANTI —
-    // SEBELUMNYA form.harga_pembelian SELALU = baris[0].harga polos (baris lain
-    // cuma tercatat, tidak ikut menentukan Harga Modal). SEKARANG Harga Modal
-    // (form.harga_pembelian / isi_konversi_pembelian, formula TIDAK berubah —
-    // lihat komentar atas file) diturunkan dari hitungHargaPerSatuanAkhir —
-    // harga TERMAHAL di antara implikasi per-satuan-akhir SEMUA tingkat yang
-    // diisi (bukan cuma tingkat teratas). form.harga_pembelian di sini
+    // Harga Pembelian ada di TIAP baris (harga beli pada satuan awal baris itu).
+    // form.harga_pembelian diturunkan dari hitungHargaPerSatuanAkhir lalu
     // DIKONVERSI BALIK ke "per Satuan Pembelian" (dikali isi_konversi_pembelian)
-    // supaya field ini (dan label "Satuan Pembelian"-nya) tetap konsisten
-    // artinya seperti sebelumnya, HANYA angkanya sekarang bisa lebih tinggi dari
-    // yang diketik di baris[0] kalau ada tingkat lain yang implikasinya lebih
-    // mahal.
+    // supaya arti field ini tetap sama; angkanya bisa > yang diketik di baris 0.
     if (!(parseFloat(barisKonversi.value[0]?.harga) > 0)) { alert('Isi Harga Pembelian di baris pertama dulu (harus lebih dari 0).'); return; }
     const tidakLengkap = barisKonversi.value.some(b => !b.dari.trim() || !b.ke.trim() || !(parseFloat(b.jumlah) > 0));
     if (tidakLengkap) { alert('Lengkapi semua baris dulu: satuan awal, jumlah (angka > 0), dan satuan tujuan.'); return; }
@@ -563,24 +484,19 @@ function useKonversiBerjenjang(form) {
     const hargaSatuanAkhirMax = hitungHargaPerSatuanAkhir(barisKonversi.value);
     form.harga_pembelian = Math.round(hargaSatuanAkhirMax * form.isi_konversi_pembelian);
     form.konversi_bertingkat = JSON.parse(JSON.stringify(barisKonversi.value));
-    // Field Satuan Pembelian & Satuan Pemakaian di form utama JADI HILANG begitu
-    // Konversi Banyak Tingkat dipakai (lihat template Entry/Edit) — makanya di
-    // sini WAJIB selalu diisi/ditimpa otomatis dari baris pertama & terakhir
-    // popup, bukan cuma "kalau masih kosong" seperti sebelumnya. Kalau tidak,
-    // field itu bisa jadi kosong tapi tidak kelihatan (karena disembunyikan) dan
-    // Simpan gagal tanpa jelas kenapa.
+    // Satuan Pembelian & Satuan Pemakaian di form utama DISEMBUNYIKAN begitu
+    // Konversi Banyak Tingkat dipakai, jadi WAJIB selalu ditimpa dari baris
+    // pertama & terakhir popup — kalau tidak, field bisa kosong tanpa terlihat
+    // dan Simpan gagal tanpa alasan jelas.
     const barisPertama = barisKonversi.value[0];
     const barisTerakhir = barisKonversi.value[barisKonversi.value.length - 1];
     if (barisPertama && barisPertama.dari) form.satuan_pembelian = barisPertama.dari;
     if (barisTerakhir && barisTerakhir.ke) form.satuan_pemakaian = barisTerakhir.ke;
     tampilPopupKonversi.value = false;
   }
-  // dipakai tombol "Hapus & Isi Manual" yang muncul saat Konversi Banyak Tingkat
-  // sudah diterapkan (form.konversi_bertingkat ada isinya). Nilai Satuan
-  // Pembelian/Isi Konversi/Satuan Pemakaian yang SUDAH terisi dari hasil
-  // konversi SENGAJA tidak ikut dikosongkan — cuma flag konversi_bertingkat-nya
-  // yang dibersihkan, supaya user tinggal edit manual dari situ (bukan mulai
-  // dari nol lagi).
+  // Tombol "Hapus & Isi Manual". Satuan Pembelian/Isi Konversi/Satuan Pemakaian
+  // hasil konversi SENGAJA tidak ikut dikosongkan — cuma konversi_bertingkat
+  // yang dibersihkan, supaya user tinggal mengedit, bukan mulai dari nol.
   function hapusKonversiBertingkat() {
     if (!confirm('Hapus Konversi Banyak Tingkat? Field Satuan Pembelian, Isi Konversi Pembelian & Satuan Pemakaian akan tampil lagi sebagai isian manual (nilai yang sudah ada tetap dipertahankan, tinggal diedit kalau perlu).')) return;
     form.konversi_bertingkat = [];
@@ -601,14 +517,10 @@ function formatQty(n) {
   return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 });
 }
 
-// buatQrDataUrl — BARU . Disalin (BUKAN diimpor lintas file, konvensi proyek ini
-// utk fungsi bantu generate-QR kecil — lihat catatan sama di vue-order-spk.js)
-// dari `buatQrDataUrl` di vue-stock-pembelian.js — LOGIC SAMA PERSIS: gambar QR
-// sinkron ke <div> tersembunyi di window UTAMA (bukan di window print), ambil
-// hasilnya sebagai data URL PNG, baru dikirim ke PopupPratinjauCetakLabel
-// sebagai gambar statis siap pakai — window print tidak perlu apa pun dari
-// internet/library lagi. `qrcodejs` (global `QRCode`) sudah dimuat sekali di
-// index.html.
+// QR digambar sinkron ke <div> tersembunyi di window UTAMA (bukan window print),
+// diambil sebagai data URL PNG, lalu dikirim ke PopupPratinjauCetakLabel sebagai
+// gambar statis — window print tidak boleh butuh library/internet lagi. Global
+// `QRCode` (qrcodejs) dimuat sekali di index.html.
 function buatQrDataUrl(teks) {
   if (typeof QRCode === 'undefined') return '';
   const tmp = document.createElement('div');
@@ -627,19 +539,9 @@ function buatQrDataUrl(teks) {
 }
 
 
-// PengaturanBahanAksesoris — panel (dibuka lewat ikon gear), SEKARANG cuma atur
-// Prefix ID per kategori.
-//
-// RIWAYAT — sebelumnya panel ini JUGA berisi kelola Jenis Bahan/Jenis
-// Aksesoris/Data Satuan/Data Warna/Data Ukuran DAN Data Rak Penyimpanan
-// (Kode/Baris/Kolom Rak).— DIPINDAH ke menu baru "Config" (Zevanic House >
-// Config), lihat js/vue-config.js. TIDAK lagi ada di panel ini. - Data Rak
-// Penyimpanan (Kode/Baris/Kolom Rak) — DIHAPUS TOTAL (bukan dipindah), karena
-// sudah ada menu "Rak Penyimpanan" sendiri yang lebih lengkap
-// (vue-rak-penyimpanan.js), jadi versi mini di sini jadi redundan. - Prefix ID
-// (satu-satunya yang tersisa di sini) TETAP di panel ini, bukan ikut pindah ke
-// Config — sifatnya setting teknis (counter internal per kategori), bukan data
-// referensi yang dicari-cari.
+// Panel gear: HANYA Prefix ID per kategori (setting teknis + counter internal).
+// Data referensi Jenis/Satuan/Warna/Ukuran ada di Zevanic House > Config
+// (js/vue-config.js), rak di js/vue-rak-penyimpanan.js — jangan ditarik ke sini.
 
 const PengaturanBahanAksesoris = {
   emits: ['tutup'],
@@ -734,13 +636,9 @@ const PopupKonversiBerjenjang = {
   },
   emits: ['tambah', 'hapus', 'terapkan', 'tutup'],
   computed: {
-    // admin cuma isi harga NOTA (harga di satuan awal, mis. Rp 1jt per Dus),
-    // sistem yang hitung harga per satuan akhirnya sendiri — tidak perlu admin
-    // hitung manual . GANTI — SEBELUMNYA cuma baca baris[0] (tingkat teratas).
-    // SEKARANG pakai hitungHargaPerSatuanAkhir (fungsi module-level, dipakai
-    // bareng terapkanKonversi di atas) — ambil yang PALING MAHAL di antara
-    // implikasi per-satuan-akhir SEMUA tingkat yang harganya diisi, bukan cuma
-    // tingkat teratas.
+    // Admin cukup isi harga NOTA (harga di satuan awal, mis. Rp 1jt per Dus).
+    // hitungHargaPerSatuanAkhir (module-level, dipakai bareng terapkanKonversi)
+    // yang menurunkan harganya dari SEMUA tingkat yang harganya diisi.
     hargaPerSatuanAkhirFormatted() {
       return formatRupiah(hitungHargaPerSatuanAkhir(this.baris));
     }
@@ -751,15 +649,9 @@ const PopupKonversiBerjenjang = {
         <h3 style="font-weight:700; font-size:15px; margin-bottom:6px;"><i class="fas fa-calculator" style="color:var(--burgundy); margin-right:8px;"></i>Bantu Hitung Konversi Berjenjang</h3>
         <p style="font-size:11px; color:var(--text-faint); margin-bottom:6px;">Contoh: 1 Dus = 12 Pack, 1 Pack = 12 Pcs. Tambah baris kalau tingkatnya lebih dari 1. Hasil akhir akan otomatis mengisi "Isi Konversi Pembelian". Satuan diambil dari Data Satuan — kalau belum ada di daftar, tambah dulu lewat Pengaturan.</p>
         <p style="font-size:11px; color:var(--burgundy); background:var(--burgundy-light); border-radius:8px; padding:8px 10px; margin-bottom:14px;"><i class="fas fa-circle-info" style="margin-right:5px;"></i><b>Tips isi:</b> isi Harga Pembelian per baris PERSIS seperti di nota (harga buat beli 1 Satuan Awal-nya, mis. Rp 1.000.000 per Dus) — <b>tidak perlu dihitung manual</b>, sistem yang bagi ke satuan lebih kecil otomatis. Urutan baris mulai dari satuan yang <b>PALING BESAR</b> dulu (Satuan Pembelian, mis. Dus), baru turun ke yang lebih kecil tiap tambah baris (Pack, lalu Pcs) sampai ke Satuan Pemakaian.</p>
-        <!--
-          Harga Pembelian SEKARANG field di TIAP baris (bukan cuma baris pertama) — merekam harga
-          NYATA waktu beli di satuan awal baris itu (mis. baris 1 beli per Dus Rp 1jt, baris 2
-          kalau suatu saat beli langsung per Pack harganya beda lagi, lebih mahal). Yang dipakai
-          buat Harga Modal TETAP baris PALING ATAS saja (form.harga_pembelian = baris[0].harga,
-          lihat terapkanKonversi) — baris lain SEKARANG DATA NYATA (bukan cuma referensi opsional
-          lagi), disimpan apa adanya di konversi_bertingkat buat dipakai fitur Riwayat Harga
-          Pembelian nanti.
-        -->
+        <!-- Harga Pembelian ada di TIAP baris: harga nyata waktu beli pada satuan awal
+          baris itu. Semua baris disimpan apa adanya di konversi_bertingkat dan ikut
+          menentukan Harga Modal lewat hitungHargaPerSatuanAkhir. -->
         <div class="hidden md:grid" style="grid-template-columns:1fr 1fr 64px 1fr 30px; gap:6px; margin-bottom:4px;">
           <span style="font-size:10px; font-weight:700; color:var(--text-faint);">HARGA PEMBELIAN</span>
           <span style="font-size:10px; font-weight:700; color:var(--text-faint);">SATUAN AWAL</span>
@@ -814,7 +706,7 @@ const BahanAksesorisEntryManager = {
       ]);
     }
 
-    // muatDaftarRak — BARU . Ambil semua record Rak (menu "Rak Penyimpanan")
+    // muatDaftarRak — ambil semua record Rak (menu "Rak Penyimpanan")
     // buat opsi dropdown "Pilih Rak" di bawah.
     async function muatDaftarRak() { daftarRak.value = await ambilDaftarRak(); }
     // rakDipilih — cari record lengkap Rak yang sedang dipilih (buat tampilkan
@@ -838,7 +730,7 @@ const BahanAksesorisEntryManager = {
     // catatan besar di atas file ini. Harga Pemakaian = Harga Modal + (Harga
     // Modal x Margin% / 100).
     const hargaPemakaian = computed(() => hargaModal.value * (1 + (parseFloat(form.margin_modal) || 0) / 100));
-    // volumeBarang — BARU . Volume = Tinggi x Panjang x Lebar (dimensi 1 satuan
+    // volumeBarang — volume = Tinggi x Panjang x Lebar (dimensi 1 satuan
     // barang itu sendiri, bukan dimensi rak — lihat catatan arsitektur poin 2 di
     // atas file ini). 0 kalau salah satu dimensi belum diisi.
     const volumeBarang = computed(() => {
@@ -881,14 +773,10 @@ const BahanAksesorisEntryManager = {
       form.kategori_utama = kategoriDipertahankan; // biar tidak usah pilih ulang tiap entry berturut-turut
     }
 
-    // simpanData(duplikat) — BARU: 1 fungsi dipakai 2 tombol. duplikat=false
-    // (tombol "Simpan"): form direset kosong setelah sukses (perilaku LAMA,
-    // tetap dipertahankan). duplikat=true (tombol "Simpan & Duplikat"): form
-    // TIDAK direset — semua field DIPERTAHANKAN APA ADANYA (kecuali Foto,
-    // sengaja dikosongkan — varian warna baru biasanya butuh foto baru juga)
-    // supaya admin tinggal ubah sedikit detail yang beda (paling umum: Warna,
-    // tapi bisa juga Harga/Satuan/dll — bebas) lalu simpan lagi jadi entri BARU
-    // (ID baru lagi, BUKAN update entri lama).
+    // Satu fungsi untuk 2 tombol. duplikat=false ("Simpan"): form direset kosong
+    // setelah sukses. duplikat=true ("Simpan & Duplikat"): form dipertahankan
+    // apa adanya kecuali Foto, dan simpan berikutnya membuat entri lain dengan
+    // ID sendiri — BUKAN memperbarui entri yang sudah tersimpan.
     async function simpanData(duplikat) {
       if (!form.kategori_utama) return alert('Pilih Kategori Utama (Bahan/Aksesoris) dulu.');
       if (!form.jenis) return alert('Pilih Jenis Bahan/Aksesoris dulu.');
@@ -973,13 +861,9 @@ const BahanAksesorisEntryManager = {
       </div>
       <p style="font-size:10.5px; color:var(--text-faint); margin:0 0 14px;">Tanggal Entry & ID akan dibuat OTOMATIS saat disimpan.</p>
 
-      <!--
-        SEKARANG 1 baris 3-kolom KONSISTEN ikut wireframe: foto (sempit) | identitas (tengah) |
-        Harga & Satuan (kanan) — pakai flex+flex-wrap (BUKAN inline grid-template-columns
-        dibarengi class grid-cols-1 md:grid-cols-N, supaya class-nya tetap benar-benar aktif
-        collapse 1 kolom di HP — sama alasan/pola yang dipakai js/vue-master-produk.js). Field,
-        validasi & hitungan (Harga Modal/Pemakaian, Volume) SAMA PERSIS, cuma dipindah taruhnya.
-      -->
+      <!-- 3 kolom: foto | identitas | Harga & Satuan. Pakai flex+flex-wrap, JANGAN inline
+        grid-template-columns bersama class grid-cols-1 md:grid-cols-N — inline style menang
+        dan kolomnya tidak pernah collapse jadi 1 di HP. -->
       <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
         <div style="flex:0 0 96px;">
           <div v-if="form.foto" style="margin-bottom:8px;">
@@ -1057,21 +941,16 @@ const BahanAksesorisEntryManager = {
           -->
           <button v-if="!(form.konversi_bertingkat && form.konversi_bertingkat.length > 0)" @click="bukaPopupKonversi" type="button" class="btn-outline" style="font-size:11px; padding:7px 12px;"><i class="fas fa-calculator" style="margin-right:6px;"></i>Konversi Banyak Tingkat</button>
 
-          <!--
-            flag opsional per item: tandai kalau bahan ini disimpan per roll/kones & perlu qty per
-            roll dicatat saat diterima (Nota Order Belanja). Mengaktifkan tombol popup "Qty per
-            Roll/Lot" di tabel Daftar Pesanan Pembelian (js/vue-stock-pembelian.js) —
-            FIFO/pemakaian per-lot belum dikerjakan (menyusul).
-          -->
+          <!-- Flag per item: bahan disimpan per roll/kones dan qty per roll dicatat saat
+            diterima. Mengaktifkan popup "Qty per Roll/Lot" di Daftar Pesanan Pembelian
+            (js/vue-stock-pembelian.js). FIFO/pemakaian per-lot belum ada. -->
           <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:400; font-size:11px;">
             <input type="checkbox" v-model="form.pakai_lot_tracking" style="accent-color:var(--burgundy); width:15px; height:15px; flex-shrink:0;">
             <span>Perlu Qty per Roll/Lot saat diterima</span>
           </label>
 
-          <!--
-            Margin Modal SEKARANG PERSEN (%), bukan nominal Rupiah lagi (lihat catatan besar di
-            atas file ini).
-          -->
+          <!-- margin_modal adalah PERSEN (%), bukan nominal Rupiah — sebagian dokumen
+            tersimpan masih berisi nominal dan dibaca apa adanya tanpa migrasi. -->
           <div class="gc-field" style="margin-bottom:0;">
             <label>Margin Modal (%) <span style="color:var(--danger);">*</span></label>
             <div style="position:relative;">
@@ -1147,26 +1026,16 @@ const BahanAksesorisEntryManager = {
 
 
 // BahanAksesorisListManager — menu "List Bahan / Aksesoris" (tabel paginasi
-// cursor-based, WAJIB sesuai PRINSIP-HEMAT.md — bukan fetch-semua-lalu-
+// cursor-based, WAJIB hemat read Firestore — bukan fetch-semua-lalu-
 // potong-di-JS seperti MasterKendaraanManager lama).
 
 const BahanAksesorisListManager = {
   components: { PopupKonversiBerjenjang, DropdownCari, PopupImportBahanAksesoris, PopupPratinjauCetakLabel },
   setup() {
-    // List
-    // Bahan & Aksesoris dari kartu jadi tabel grid + baris bisa expand + tab
-    // filter berbadge + "Muat 20 lagi" (bukan lagi tombol
-    // Sebelumnya/Berikutnya). Lihat catatan per-bagian di bawah.
-    //
-    // filterTab: 'ALL' | 'Bahan' | 'Aksesoris' | 'INCOMPLETE' (tab "Perlu
-    // dilengkapi"). 3 tab pertama TETAP lewat usePaginasiFirestore (cursor,
-    // hemat — where tunggal, konsisten aturan PRINSIP-HEMAT.md). Tab
-    // "INCOMPLETE" BEDA SENDIRI (lihat blok "Tab Perlu dilengkapi" di bawah) —
-    // Firestore TIDAK BISA query "field X kosong ATAU field Y < 1 ATAU field Z
-    // tidak ada sama sekali" (OR lintas field + termasuk dokumen yang field-nya
-    // HILANG TOTAL) dalam 1 query hemat, jadi tab itu dilayani dari 1
-    // fetch-semua terpisah (ambilSemuaBahanAksesoris, fungsi yang SUDAH ADA di
-    // file ini buat fitur Import) yang disaring di JS pakai hitungLengkap.
+    // filterTab: 'ALL' | 'Bahan' | 'Aksesoris' | 'INCOMPLETE'. Tiga tab pertama
+    // lewat usePaginasiFirestore (cursor, where tunggal, hemat). Tab INCOMPLETE
+    // beda sendiri: Firestore tidak bisa query OR lintas field + dokumen yang
+    // field-nya hilang, jadi dilayani fetch-semua lalu disaring hitungLengkap.
     const filterTab = ref('ALL');
     const paginasi = usePaginasiFirestore(db, 'master_bahan_aksesoris', {
       perHalaman: 20, // BARU — "Muat 20 lagi" per wireframe (dulu 15/halaman prev-next)
@@ -1176,14 +1045,10 @@ const BahanAksesorisListManager = {
       petakan: (id, d) => ({ id, ...d })
     });
 
-    // daftarAkumulasi — usePaginasiFirestore BAWAANNYA model halaman prev/next
-    // (dataHalaman SELALU ISI CUMA 1 halaman, ditimpa tiap pindah halaman) —
-    // BUKAN model "Muat Lagi" (nambah ke bawah, halaman lama tetap kelihatan)
-    // yang diminta wireframe. Supaya TIDAK perlu ubah vue-paginasi.js (dipakai
-    // banyak modul lain, di luar cakupan tugas ini), akumulasi dikerjakan DI
-    // SINI SAJA: tiap kali paginasi.dataHalaman berubah, kalau itu halaman 1
-    // (baru mulai/ganti tab/ganti kata kunci cari) isi akumulasi, kalau bukan
-    // (hasil klik "Muat 20 lagi") TAMBAHKAN ke bawah.
+    // usePaginasiFirestore bermodel prev/next: dataHalaman selalu berisi 1
+    // halaman dan ditimpa tiap pindah. Model "Muat Lagi" diakumulasi DI SINI
+    // saja (jangan ubah vue-paginasi.js, dipakai banyak modul lain): halaman 1
+    // mengisi ulang akumulasi, halaman berikutnya ditambahkan ke bawah.
     const daftarAkumulasi = ref([]);
     watch(paginasi.dataHalaman, (baru) => {
       if (paginasi.nomorHalaman.value === 1) daftarAkumulasi.value = [...baru];
@@ -1273,7 +1138,7 @@ const BahanAksesorisListManager = {
       ]);
     }
 
-    // muatDaftarRakEdit — BARU, sama seperti muatDaftarRak di
+    // muatDaftarRakEdit — sama seperti muatDaftarRak di
     // BahanAksesorisEntryManager, dipanggil tiap bukaEdit (bukan sekali saat
     // mounted) supaya selalu ambil daftar Rak terbaru saat modal dibuka.
     async function muatDaftarRakEdit() { daftarRakEdit.value = await ambilDaftarRak(); }
@@ -1291,7 +1156,7 @@ const BahanAksesorisListManager = {
     // sama seperti hargaPemakaian di Entry, margin_modal SEKARANG PERSEN (%),
     // bukan nominal Rupiah lagi.
     const hargaPemakaianEdit = computed(() => hargaModalEdit.value * (1 + (parseFloat(formEdit.margin_modal) || 0) / 100));
-    // volumeBarangEdit — BARU, sama seperti volumeBarang di
+    // volumeBarangEdit — sama seperti volumeBarang di
     // BahanAksesorisEntryManager.
     const volumeBarangEdit = computed(() => {
       const t = parseFloat(formEdit.tinggi_barang) || 0;
@@ -1344,11 +1209,9 @@ const BahanAksesorisListManager = {
       }
       menyimpanEdit.value = true;
       try {
-        // CATATAN: id_tampil, kategori_utama, dan dibuat_pada SENGAJA TIDAK ikut
-        // diupdate di sini — ID & kategori yang menentukan prefix ID tidak boleh
-        // berubah setelah dibuat (kalau kategorinya salah pilih, lebih aman
-        // hapus & entry ulang daripada ID jadi tidak konsisten dengan prefix
-        // kategori aslinya).
+        // id_tampil, kategori_utama & dibuat_pada SENGAJA tidak ikut diupdate:
+        // kategori menentukan prefix ID, jadi salah kategori harus dihapus &
+        // di-entry ulang, bukan diedit — kalau tidak, ID jadi tidak konsisten.
         await updateDoc(doc(db, 'master_bahan_aksesoris', sedangEditId.value), {
           jenis: formEdit.jenis, foto: formEdit.foto || null, nama: formEdit.nama.trim(), warna: formEdit.warna.trim(),
           harga_pembelian: parseFloat(formEdit.harga_pembelian) || 0, satuan_pembelian: formEdit.satuan_pembelian.trim(),
@@ -1393,21 +1256,10 @@ const BahanAksesorisListManager = {
       }
     }
 
-    // Cetak Label — GANTI dari tab tersendiri
-    // "Cetak Label" di Stock & Pembelian (CetakLabelManager, DIHAPUS) jadi
-    // tombol per-kartu di sini —. Logic (roll-tracking vs item biasa, QR, log)
-    // SAMA PERSIS seperti CetakLabelManager lama, cuma dipicu dari tombol kartu
-    // (bukan search-tab terpisah) & pakai popup pratinjau BARU
-    // (PopupPratinjauCetakLabel, vue-components.js — ukuran fisik 4x2 inch
-    // thermal roll, ganti dari cetak langsung tanpa pratinjau).
-    //
-    // Izin cetak TETAP dicek lewat menu id LAMA `stock_cetak_label` (BUKAN
-    // `bahan_aksesoris_list`) — SENGAJA, supaya hak akses yang SUDAH diatur
-    // Owner sebelumnya (siapa boleh cetak) tidak yatim/perlu diatur ulang cuma
-    // gara-gara tombolnya pindah tempat. Entrinya di DAFTAR_MENU
-    // (vue-config-akses.js) ditandai `deprecated:true` (tidak lagi tampil
-    // sebagai menu/tile navigasi), TAPI tetap tampil di tabel permission Config
-    // Akses supaya Owner masih bisa lihat/atur kolom izinnya.
+    // Izin cetak SENGAJA dicek lewat menu id `stock_cetak_label`, BUKAN
+    // `bahan_aksesoris_list`, supaya hak akses yang sudah diatur Owner tidak
+    // yatim. Entri itu ditandai `deprecated:true` di DAFTAR_MENU
+    // (vue-config-akses.js): tidak jadi tile navigasi, tapi tetap bisa diatur.
     const menuIdCetakLabel = 'stock_cetak_label';
     const bolehCetak = computed(() => window.cekIzinMenu(menuIdCetakLabel, 'print') !== false);
 
@@ -1473,13 +1325,9 @@ const BahanAksesorisListManager = {
       if (riwayatCetakDimuat.value) await paginasiLogCetak.muatUlang();
     }
 
-    // Riwayat Cetak Label (modal on-demand, §41.2)
-    // DULU tabel Riwayat SELALU tampil di bawah form Cetak Label (menu
-    // tersendiri). SEKARANG, karena Cetak Label jadi tombol per-kartu (List
-    // Bahan & Aksesoris sudah ramai — searchbox, filter, Import Excel, banyak
-    // kartu), riwayat ini dijadikan modal yang dibuka manual lewat tombol
-    // "Riwayat Cetak Label" di toolbar atas — datanya (koleksi
-    // `log_cetak_label`) TIDAK hilang, cuma cara lihatnya jadi on-demand.
+    // Riwayat Cetak Label (koleksi `log_cetak_label`): modal on-demand dari
+    // tombol toolbar. Datanya baru dibaca saat modalnya pertama kali dibuka —
+    // jangan dipindah ke onMounted, layar ini sudah ramai query.
     const riwayatCetakAktif = ref(false);
     const riwayatCetakDimuat = ref(false);
     const paginasiLogCetak = usePaginasiFirestore(db, 'log_cetak_label', {
@@ -1549,11 +1397,9 @@ const BahanAksesorisListManager = {
 
     function tutupPopupImport() { popupImportAktif.value = false; }
 
-    // konfirmasiImportBahanAksesoris — MURNI nambah data baru: baris yang
-    // kombinasi Kategori+Nama+Warna-nya SUDAH ADA di-SKIP (tidak ditimpa sama
-    // sekali), beda dari pola "Ganti Total" di Import Produk Utama (Master
-    // Produk). ID dibuat lewat generateIdBerurutan yang SAMA dipakai form Entry
-    // manual (runTransaction, aman dari tabrakan counter).
+    // MURNI nambah data baru: baris yang kombinasi Kategori+Nama+Warna-nya sudah
+    // ada di-SKIP, tidak pernah ditimpa. ID dibuat lewat generateIdBerurutan
+    // yang sama dipakai form Entry (runTransaction, aman dari tabrakan counter).
     async function konfirmasiImportBahanAksesoris(barisSiap) {
       sedangImport.value = true;
       try {
@@ -1586,11 +1432,9 @@ const BahanAksesorisListManager = {
             harga_modal: hargaModalBaris,
             margin_modal: marginModal,
             harga_pemakaian: hargaPemakaianBaris,
-            // lihat catatan hitungLengkap. Baris yang lolos verifikasi popup
-            // import (semuaSiap) SELALU lengkap (semua field wajib sudah
-            // divalidasi statusBaris di PopupImportBahanAksesoris) — tetap
-            // dihitung ulang di sini (bukan ditulis `true` langsung) supaya 1
-            // sumber kebenaran.
+            // Baris yang lolos verifikasi popup import selalu lengkap, tapi
+            // tetap dihitung ulang lewat hitungLengkap (bukan ditulis `true`)
+            // supaya sumber kebenaran "field wajib" cuma satu.
             lengkap: hitungLengkap({
               kategori_utama: b.kategori_utama, jenis: b.jenis, nama: b.nama, warna: b.warna,
               harga_pembelian: hargaPembelian, satuan_pembelian: b.satuan_pembelian,
@@ -1619,19 +1463,10 @@ const BahanAksesorisListManager = {
     }
 
 
-    // Baris expand — klik 1 baris tabel buka panel di bawahnya: KIRI "roll/lot
-    // aktif" (chip per lot, ambilLotAktif — SUDAH ADA, diimpor dari
-    // vue-stock-pembelian.js), KANAN "3 harga terakhir" (riwayat_harga_pembelian
-    // koleksi yang SUDAH ADA & SUDAH ditulis oleh
-    // catatRiwayatHargaDanUpdateMaster di vue-stock- pembelian.js tiap Nota
-    // Order Belanja di-final-kan; di sini di-query LANGSUNG, bukan lewat fungsi
-    // impor, karena vue-stock- pembelian.js belum meng-export fungsi baca
-    // riwayat ini — pola query silang-file-tanpa-impor ini SUDAH ADA presedennya
-    // di file ini sendiri, lihat ambilDaftarRak yang baca
-    // 'master_rak_penyimpanan' langsung). ASUMSI: cuma 1 baris expand aktif
-    // sekaligus (klik baris lain otomatis tutup yang sebelumnya) — wireframe
-    // tidak eksplisit menyebut boleh/tidaknya banyak baris terbuka sekaligus,
-    // dipilih yang paling sederhana.
+    // Panel expand per baris: kiri roll/lot aktif (ambilLotAktif, diimpor dari
+    // vue-stock-pembelian.js), kanan 3 harga terakhir dari koleksi
+    // `riwayat_harga_pembelian` yang ditulis catatRiwayatHargaDanUpdateMaster.
+    // Hanya 1 baris boleh expand sekaligus.
     const idExpand = ref(null);
     const expandMemuat = ref(false);
     const expandLot = ref([]);
@@ -1649,13 +1484,10 @@ const BahanAksesorisListManager = {
       return (sisa / awal) < AMBANG_LOT_MENIPIS ? 'warn' : 'ok';
     }
 
-    // errorExpand — query riwayat_harga_pembelian di bawah gabung where+ orderBy
-    // field BEDA (bahan_aksesoris_id + dibuat_pada) — Firestore KEMUNGKINAN
-    // BESAR minta index gabungan baru pertama kali dipakai (pola sama seperti
-    // error index di tempat lain file ini/vue-paginasi.js — bukan bug, errornya
-    // sendiri berisi link "Create composite index"). Ditampilkan ke layar (BUKAN
-    // cuma console.error) supaya /admin tahu harus klik link itu sekali, bukan
-    // mengira fiturnya rusak.
+    // Query riwayat_harga_pembelian di bawah menggabung where + orderBy di field
+    // BEDA (bahan_aksesoris_id + dibuat_pada), jadi Firestore minta composite
+    // index. Errornya ditampilkan ke layar, bukan cuma console, supaya admin
+    // tahu harus klik link "Create composite index" sekali.
     const errorExpand = ref('');
     async function toggleExpand(item) {
       if (idExpand.value === item.id) { idExpand.value = null; return; }
@@ -1674,13 +1506,10 @@ const BahanAksesorisListManager = {
         const daftarHarga = [];
         snapRiwayat.forEach(d => daftarHarga.push({ id: d.id, ...d.data() }));
         expandHarga.value = daftarHarga;
-        // Tandai (pre-select radio) entri riwayat yang harga_per_satuan_
-        // pemakaian-nya PALING DEKAT dengan harga_modal item SAAT INI — itulah
-        // yang "sesungguhnya sedang dipakai" (harga_modal diturunkan dari
-        // riwayat ini lewat perbaruiHargaMasterDariRiwayat, vue-
-        // stock-pembelian.js). CATATAN: radio ini TAMPILAN/INFORMASI SAJA — klik
-        // radio lain TIDAK mengubah data apapun (belum ada aksi "pakai harga
-        // ini" diminta di wireframe).
+        // Pre-select entri riwayat yang harga_per_satuan_pemakaian-nya PALING
+        // DEKAT dengan harga_modal item saat ini — itu yang sedang dipakai
+        // (harga_modal diturunkan perbaruiHargaMasterDariRiwayat di
+        // vue-stock-pembelian.js). Radio ini INFORMASI saja, tidak mengubah data.
         if (daftarHarga.length > 0) {
           const targetModal = Math.round(parseFloat(item.harga_modal) || 0);
           let idxAktif = 0, selisihTerkecil = Infinity;
@@ -1699,18 +1528,9 @@ const BahanAksesorisListManager = {
       expandMemuat.value = false;
     }
 
-    // lihatKartuStok — BARU . ASUMSI/KETERBATASAN: TIDAK ADA mekanisme
-    // siap-pakai untuk "buka Kartu Stok LANGSUNG ke 1 item tertentu" dari LUAR
-    // vue-kartu-stok.js (itemAktif di sana murni state internal komponennya,
-    // tidak di-export ke window) — mengubah itu di luar cakupan tugas ini (cuma
-    // boleh edit file ini). Jadi di sini CUMA pindah ke menu "Kartu Stok" (pola
-    // window.pindahTab/ pindahSubTab yang SUDAH ADA, lihat js/dashboard.js),
-    // admin lanjut cari sendiri lewat kotak cari di sana (sudah ada,
-    // prefix-match nama) — BUKAN deep-link otomatis ke kartu item ini "Stock &
-    // Pembelian" pindah keluar dari Zevanic House jadi tab top-level sendiri
-    // 'tab-stok-pembelian' (lihat index.html). Dulu 2 langkah pindahSubTab
-    // (sub-zevanic-house lalu sub-zh-stock) karena nested 2 level di Zevanic
-    // House, sekarang cukup 1 langkah.
+    // CUMA pindah ke menu "Kartu Stok", BUKAN deep-link ke item ini: itemAktif
+    // di vue-kartu-stok.js state internal komponen, tidak di-export ke window.
+    // Admin lanjut cari sendiri lewat kotak cari di sana.
     function lihatKartuStok(item) {
       if (window.pindahTab) window.pindahTab('tab-stok-pembelian');
       if (window.pindahSubTab) {
@@ -1718,11 +1538,9 @@ const BahanAksesorisListManager = {
       }
     }
 
-    // cariInput — pengganti paginasi.cariDenganDebounce langsung di template: di
-    // tab "INCOMPLETE" pencarian disaring di JS (lihat
-    // daftarIncompleteTersaring), TIDAK PERLU nembak query Firestore lagi tiap
-    // ketukan huruf (paginasi.cariTeks TETAP dipakai sebagai SUMBER kata
-    // kuncinya, cuma tidak memicu ambilHalaman).
+    // Pengganti paginasi.cariDenganDebounce di template: di tab INCOMPLETE
+    // pencarian disaring di JS, jadi tidak menembak Firestore tiap ketukan.
+    // paginasi.cariTeks tetap sumber kata kuncinya, cuma tidak memicu query.
     function cariInput(nilai) {
       if (filterTab.value === 'INCOMPLETE') paginasi.cariTeks.value = nilai;
       else paginasi.cariDenganDebounce(nilai);
@@ -1845,12 +1663,8 @@ const BahanAksesorisListManager = {
                 <span class="tag" :class="item.konversi_bertingkat && item.konversi_bertingkat.length > 0 ? 'ok' : 'neutral'">{{ item.konversi_bertingkat && item.konversi_bertingkat.length > 0 ? 'Ya' : 'Tidak' }}</span>
               </td>
               <td>
-                <!--
-                  Hapus TETAP ada (fungsi sudah ada di file ini, dipakai sejak awal) — TIDAK
-                  disebut di 3 tombol panel expand wireframe ("Edit, Cetak Label, Lihat Kartu
-                  Stok"), jadi sengaja ditaruh terpisah di sini (ikon kecil per baris) supaya
-                  kemampuan hapus data TIDAK hilang.
-                -->
+                <!-- Hapus sengaja ditaruh terpisah dari 3 tombol panel expand (Edit, Cetak
+                  Label, Lihat Kartu Stok) sebagai ikon kecil per baris. -->
                 <button @click.stop="hapus(item.id)" class="icon-btn" style="color:var(--danger); width:26px; height:26px;" title="Hapus"><i class="fas fa-trash-alt" style="font-size:11px;"></i></button>
               </td>
             </tr>
@@ -1865,11 +1679,8 @@ const BahanAksesorisListManager = {
                       <p v-if="!item.pakai_lot_tracking" style="font-size:11.5px; color:var(--text-faint);">Item ini tidak pakai tracking Roll/Lot.</p>
                       <p v-else-if="expandLot.length === 0" style="font-size:11.5px; color:var(--text-faint);">Belum ada roll/lot aktif tercatat.</p>
                       <div v-else style="display:flex; flex-wrap:wrap; gap:6px;">
-                        <!--
-                          Hijau = stok lot masih banyak, Kuning = mulai menipis (ambang sisa <
-                          20%, lihat AMBANG_LOT_ MENIPIS/statusLot di setup — belum ada ketentuan
-                          pasti dari, asumsi awal).
-                        -->
+                        <!-- Hijau = stok lot masih banyak, Kuning = menipis (sisa < 20%,
+                          lihat AMBANG_LOT_MENIPIS/statusLot di setup). -->
                         <span v-for="l in expandLot" :key="l.id" class="tag" :class="statusLot(l)">{{ l.kode_lot }} &middot; {{ formatQty(l.qty_sisa) }}/{{ formatQty(l.qty_awal) }} {{ l.satuan }}</span>
                       </div>
                     </div>
@@ -2025,11 +1836,8 @@ const BahanAksesorisListManager = {
       @tutup="tutupPopupImport"
       @konfirmasi="konfirmasiImportBahanAksesoris" />
 
-    <!--
-      popup pilih roll/lot SEBELUM cetak, cuma muncul buat item 'pakai_lot_tracking'. Item biasa
-      (bukan lot) LANGSUNG lompat ke popup-pratinjau-cetak-label di bawah, tanpa lewat popup ini
-      sama sekali (lihat bukaCetakLabel).
-    -->
+    <!-- Popup pilih roll/lot sebelum cetak, cuma untuk item 'pakai_lot_tracking'. Item
+      biasa langsung lompat ke popup-pratinjau-cetak-label di bawah (lihat bukaCetakLabel). -->
     <div v-if="popupPilihRollAktif" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9998; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="tutupPopupPilihRoll">
       <div class="gc-card" style="max-width:520px; width:100%; max-height:90vh; overflow-y:auto;">
         <h3 style="font-weight:700; font-size:14px; margin-bottom:4px;">Pilih Roll/Lot untuk Dicetak</h3>

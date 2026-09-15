@@ -1,35 +1,22 @@
 // js/vue-master-suplayer.js
-
-// Zevanic House > Master Suplayer — menu BARU .: alur Persiapan Produksi
-// (Bahan/Acc Sewing/Webbing/Finishing) tertahan karena data dasar Suplayer belum
-// lengkap — MOQ, Alias, dan "Petakan Order" (suplayer default per item) belum
-// ada tempatnya. Modul ini pusatnya.
+// Zevanic House > Master Suplayer — 3 sub-tab dengan mount terpisah:
+// SuplayerEntryList (#vue-suplayer-entry), AliasMoqManager
+// (#vue-suplayer-alias-moq), PetakanOrderManager (#vue-suplayer-petakan).
 //
-// dari 2 tempat lama yang tercerai-berai: - Config > Data Suplayer
-// (js/vue-config.js, generik MasterDataTabelManager — cuma
-// nama/kontak/keterangan) — TAB ITU DIHAPUS dari Config, CRUD Suplayer sekarang
-// SATU-SATUNYA di sini (5.1). - Stock & Pembelian > Alias Pembelian
-// (js/vue-stock-pembelian.js, AliasPembelianManager) — TAB ITU DIHAPUS dari
-// Stock & Pembelian, PINDAH ke sini (5.2) + field BARU
-// moq/moq_satuan/lead_time_hari. Fungsi yang BACA alias_pembelian di Nota/Kasir
-// (vue-stock-pembelian.js) TIDAK disentuh — struktur dokumen `alias_pembelian`
-// TIDAK BERUBAH, cuma lokasi UI-nya + field tambahan (dokumen lama tanpa field
-// baru ini null-safe, tampil "-"/kosong).
+// Koleksi & field:
+// - master_suplayer: nama, kontak, bank, nama_rek, no_rek, no_wa (dipakai
+//   format order WA driver di Persiapan Belanja).
+// - alias_pembelian: nama internal/nama di nota + moq, moq_satuan,
+//   lead_time_hari, is_default_order.
+// - master_bahan_aksesoris: sumber daftar item di Petakan Order.
 //
-// 3 sub-tab (field `deprecated: true` menu lama, id BARU didaftarkan di
-// vue-config-akses.js — lihat komentar di sana): 5.1 Entry + List Suplayer
-// (SuplayerEntryList) — CRUD penuh, field BARU bank/nama_rek/no_rek/no_wa
-// (SPESIFIKASI-KOLEKSI-BARU.md, dipakai format order WA driver di Persiapan
-// Belanja nanti). 5.2 Alias & MOQ (AliasMoqManager) — eks Alias Pembelian + moq/
-// moq_satuan/lead_time_hari (dipakai hitung "qty beli" di Persiapan Masalah &
-// Persiapan Belanja nanti). 5.3 Petakan Order (PetakanOrderManager) — per item,
-// tandai SATU alias sebagai `is_default_order:true` (suplayer favorit/langganan
-// item itu) — dipakai auto-assign suplayer default nanti.
-//
-// TIDAK termasuk sesi ini: field `master_produk.moq_serie`/`kelipatan_isi_pola`
-// (itu milik modul Serie, Proses Produksi — beda konteks MOQ, jangan dicampur).
-// Kalau ternyata maksudnya TERMASUK itu, tinggal tambah kolom di Entry Produk
-// (js/vue-master-produk.js), bukan di sini.
+// Jebakan:
+// - Struktur dokumen alias_pembelian TIDAK berubah; pembaca alias di Nota/Kasir
+//   (vue-stock-pembelian.js) bergantung padanya. Dokumen lama tanpa field MOQ
+//   harus tetap null-safe (tampil "-").
+// - Petakan Order menulis is_default_order lewat writeBatch: menandai satu
+//   alias jadi default otomatis mematikan default alias lain di item itu.
+// - CRUD Suplayer & Alias hanya di file ini; tab lama Config/Stock tak ada.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -67,11 +54,10 @@ async function ambilDaftarSuplayerLengkap() {
     return [];
   }
 }
-// hitung jumlah alias per suplayer untuk kolom "Alias/Item" di List Suplayer
-// (5.1). Query SEKALI (satu getDocs ambil semua alias_pembelian, dikelompokkan
-// di sisi klien per suplayer_id) — sama pola dengan
-// ambilTotalPesananPerPelanggan di vue-master-pelanggan.js — supaya List
-// Suplayer tidak melambat kalau jumlah alias banyak (BUKAN 1 query per baris).
+// Hitung jumlah alias per suplayer untuk kolom "Alias/Item" di List Suplayer
+// (5.1). Query SEKALI — satu getDocs semua alias_pembelian lalu dikelompokkan
+// di klien per suplayer_id (BUKAN 1 query per baris), sama pola dengan
+// ambilTotalPesananPerPelanggan di vue-master-pelanggan.js.
 async function ambilPetaAliasPerSuplayer() {
   const peta = new Map();
   try {
@@ -181,14 +167,10 @@ const SuplayerEntryList = {
     return { memuat, muat, daftarTampil, cari, form, menyimpan, bolehTambah, bolehEdit, bolehHapus, tambah, bukaEdit, simpanEdit, popupEdit, hapus, jumlahAlias };
   },
   template: `
-    <!--
-      Wireframe minta 2 PANEL BERDAMPINGAN (form kiri, list kanan, klik baris untuk edit). Modal
-      popup DIGANTI jadi inline di panel kiri (bukan cuma layout-nya yang dipindah) — panel kiri
-      menampilkan form Tambah ATAU form Edit tergantung popupEdit terisi atau tidak, PERSIS
-      variabel & fungsi yang SAMA (tambah/bukaEdit/ simpanEdit TIDAK diubah sama sekali, cuma
-      markup-nya dipindah dari dalam overlay ke sini). Kolom "Alias/Item" per suplayer — dihitung
-      dari alias_pembelian lewat jumlahAlias(s), lihat ambilPetaAliasPerSuplayer di atas.
-    -->
+    <!-- 2 PANEL BERDAMPINGAN: form kiri, list kanan, klik baris untuk edit. Form inline (bukan
+      modal overlay) — panel kiri menampilkan form Tambah ATAU form Edit tergantung popupEdit
+      terisi atau tidak, memakai tambah/bukaEdit/simpanEdit yang sama. Kolom "Alias/Item" per
+      suplayer dihitung dari alias_pembelian lewat jumlahAlias(s). -->
     <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
       <div class="gc-card gc-card-menonjol" style="flex:1 1 300px; max-width:380px; padding:16px;">
         <h3 class="gc-heading" style="font-weight:700; font-size:15px; margin-bottom:2px;"><i class="fas fa-truck-fast" style="color:var(--burgundy); margin-right:8px;"></i>{{ popupEdit ? 'Edit Suplayer' : 'Entry Suplayer' }}</h3>
@@ -265,10 +247,9 @@ const SuplayerEntryList = {
 };
 
 
-// 5.2 — Alias & MOQ (eks "Alias Pembelian" di Stock & Pembelian, DITAMBAH
-// moq/moq_satuan/lead_time_hari — SPESIFIKASI-KOLEKSI-BARU.md "alias_pembelian —
-// tambah"). Struktur dokumen TIDAK BERUBAH, cuma field bertambah dan lokasi UI
-// pindah — Nota/Kasir yang baca alias_pembelian TIDAK perlu diubah.
+// 5.2 — Alias & MOQ. Mengelola koleksi `alias_pembelian` termasuk field
+// moq/moq_satuan/lead_time_hari. Struktur dokumen sama dengan yang dibaca
+// Nota/Kasir, jadi konsumen lain tidak perlu menyesuaikan.
 
 const AliasMoqManager = {
   components: { DropdownCari },

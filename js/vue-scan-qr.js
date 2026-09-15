@@ -1,16 +1,21 @@
 // js/vue-scan-qr.js
-
-// Nav "Scan QR" — pemindai QR SUNGGUHAN pakai kamera (bukan cuma tampilan
-// kosong). Pakai library jsQR (CDN, ringan, khusus baca pola QR dari data
-// gambar) untuk mendeteksi kode dari feed kamera secara langsung.
+// Nav "Scan QR" — pemindai QR generik pakai kamera belakang perangkat. Frame
+// video digambar ke canvas lalu didekode jsQR, isi kode ditampilkan apa adanya.
 //
-// PENTING soal batas fitur ini: alur "scan SPK/produk/bahan/qty untuk
-// perpindahan data produksi" yang direncanakan (lihat percakapan awal proyek
-// ini) BELUM ADA logic pemrosesan datanya di server — itu kerjaan besar terpisah
-// (skema data produksi, workflow tahapan, dst). Layar ini BENERAN bisa baca kode
-// QR apapun dan tampilkan isinya — itu bagian generiknya yang sudah jadi & bisa
-// dipakai; menyambungkannya ke alur produksi spesifik menyusul kalau skema
-// datanya sudah dirancang.
+// Koleksi & field:
+// - Tidak menyentuh Firestore; murni baca kamera dan tampilkan hasil dekode.
+//
+// Jebakan:
+// - Kamera SENGAJA tidak dinyalakan di onMounted (mount terjadi jauh sebelum
+//   tab dibuka). Hidup-matinya lewat window.mulaiScanQr / window.matikanScanQr
+//   yang dipanggil app.js/dashboard.js saat masuk & keluar tab; kalau lupa
+//   dipanggil, kamera nyala terus dan boros baterai.
+// - jsQR dimuat lazy dari CDN saat scan pertama (window.jsQR), bukan import
+//   statis; gagal muat memunculkan pesan koneksi, bukan crash.
+// - pindaiFrame() berhenti begitu hasilScan terisi; lanjut scan berikutnya
+//   hanya lewat pindaiUlang().
+// - Layar ini berhenti di menampilkan isi kode. Scan berkonteks kartu/baris
+//   di modul produksi memakai komponen ScanGenerik, bukan layar ini.
 
 import { createApp, ref, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 
@@ -98,11 +103,10 @@ const AppScanQr = {
       pindaiFrame();
     }
 
-    // SENGAJA TIDAK auto-mulai kamera di sini — onMounted ini jalan SEKALI saat
-    // halaman pertama dimuat (jauh sebelum tab-nya benar-benar dibuka orang),
-    // sama seperti bug "data macet" yang berkali-kali diperbaiki hari ini.
-    // Kamera cuma nyala lewat window.mulaiScanQr yang dipanggil dashboard.js
-    // TEPAT saat tab Scan QR benar-benar dibuka.
+    // SENGAJA TIDAK auto-mulai kamera: onMounted jalan SEKALI saat halaman
+    // pertama dimuat, jauh sebelum tab-nya dibuka orang. Kamera cuma nyala
+    // lewat window.mulaiScanQr yang dipanggil dashboard.js TEPAT saat tab
+    // Scan QR benar-benar dibuka.
     onUnmounted(matikanKameraScan);
 
     return { videoEl, canvasEl, sedangMemuatKamera, belumDibuka, kameraError, hasilScan, pindaiUlang, mulaiKameraScan, matikanKameraScan };

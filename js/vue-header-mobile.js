@@ -1,39 +1,30 @@
 // js/vue-header-mobile.js
-
-// Header atas mobile — SATU komponen dipakai di semua halaman, tapi isinya
-// berubah otomatis tergantung sedang di mana: - Di Home: "Selamat
-// [pagi/siang/sore/malam], [Nama]" (gaya kartu pink, sama seperti prototype) -
-// Di halaman LAIN (Master Absensi, Profile, dst): "ERP Zevanic House" / "[Nama
-// Menu] - [Nama Sub-menu]" — supaya orang selalu tahu lagi di mana tanpa perlu
-// baca sub-tab (yang di mobile sengaja disembunyikan, lihat index.html &
-// dashboard.js).
+// Header atas mobile, satu komponen untuk semua halaman. Mode 'home': sapaan +
+// quote harian inline + lonceng pengumuman + avatar inisial. Mode 'lainnya':
+// komponen HeaderLayar (tombol kembali + kicker + judul menu/sub-menu).
 //
-// Diaktifkan lewat window.aturHeaderKonteks(tabId, subTabId) — dipanggil dari
-// pindahTab/pindahSubTab (dashboard.js) tiap kali navigasi terjadi. TIDAK baca
-// Firestore sama sekali untuk ganti konteks (murni cocokkan ID ke daftar label
-// yang sudah ada di memori).
+// Koleksi & field:
+// - quotes: where tanggalTampil == tanggal hari ini, limit 1 (judul, isi).
+// - pengumuman: orderBy dibuat_pada desc limit 15; rolesTampil disaring lokal
+//   dari window.currentUser.role, bukan lewat where.
 //
-// mengikuti spec mockup (README.md §1 "Baris sapaan"): sekarang ada quote harian
-// inline (dulu kartu QuoteCard terpisah di vue-home.js, DIHAPUS dari sana —
-// lihat catatan di vue-home.js), lonceng notifikasi + badge, dan avatar inisial.
-// Mode 'lainnya' (header di tab selain Home) TIDAK berubah sama sekali.
-//
-// Lonceng = Pengumuman . Baca koleksi "pengumuman" (SAMA seperti
-// PengumumanCarousel di vue-components.js, query sendiri di sini biar tidak
-// perlu import carousel yang sekarang tidak dipakai lagi di mobile). Badge =
-// jumlah pengumuman yang dibuat SETELAH waktu "terakhir dilihat" tersimpan di
-// localStorage per-user (murni device-lokal, TIDAK ada tulis Firestore tambahan
-// sama sekali demi hemat — lihat PRINSIP-HEMAT.md).
+// Jebakan:
+// - Badge lonceng dihitung dari timestamp "terakhir dilihat" di localStorage
+//   per-user; TIDAK ada tulis Firestore sama sekali — jangan diganti jadi
+//   penanda di dokumen users.
+// - Ganti konteks judul lewat window.aturHeaderKonteks(tabId, subTabId) yang
+//   dipanggil dashboard.js; murni cocokkan ID ke LABEL_TAB di memori, menu baru
+//   harus didaftarkan di peta label itu atau judulnya kosong.
+// - Mode 'lainnya' memakai HeaderLayar yang global — mengubahnya berdampak ke
+//   SEMUA halaman selain Home sekaligus.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, query, orderBy, limit, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-// mode 'lainnya' sekarang pakai HeaderLayar yang SAMA persis dipakai Menu
-// Lengkap/Atur Favorit (tombol kembali bulat + kicker + judul), GANTI kartu pink
-// + lingkaran dekoratif yang lama. Komponen ini GLOBAL (dipakai di SEMUA halaman
-// selain Home), jadi perubahan ini otomatis berlaku ke semua halaman sekaligus,
-// bukan cuma Antrean Absensi — itu sudah dikonfirmasi & dicatat di
-// PEDOMAN-GAYA-KERJA.md sebelum diterapkan.
+// mode 'lainnya' memakai HeaderLayar yang sama dengan Menu Lengkap/Atur Favorit
+// (tombol kembali bulat + kicker + judul). Komponen ini GLOBAL, dipakai di semua
+// halaman selain Home, jadi perubahan di sini otomatis berlaku ke semua halaman
+// sekaligus.
 import { HeaderLayar } from './vue-components.js?v=13';
 
 const LABEL_TAB = {
@@ -51,15 +42,11 @@ const LABEL_TAB = {
   // utama ke Zevanic House). Efeknya: header mobile nongol kosong pas buka menu
   // Zevanic House manapun.
   'tab-zevanic-house': 'Zevanic House',
-  // grup top-level baru, lihat STATUS-PROYEK.md §44.13. Sama seperti
-  // tab-zevanic-house di atas, WAJIB didaftarkan di sini juga (celah yang sama)
-  // supaya header mobile tidak nongol kosong.
+  // grup top-level. Sama seperti tab-zevanic-house di atas, WAJIB didaftarkan
+  // di sini juga (celah yang sama) supaya header mobile tidak nongol kosong.
   'tab-persiapan-produksi': 'Persiapan Produksi',
-  // PERBAIKAN — 'tab-pesanan' ternyata SUDAH LAMA hilang dari peta ini juga
-  // (celah yang sama seperti tab-zevanic-house/tab-persiapan-produksi di atas),
-  // header mobile nongol kosong pas buka menu Pesanan manapun. Diperbaiki
-  // sekalian di sini (drive-by fix, di luar cakupan tugas Scan & Cetak tapi
-  // trivial & aman).
+  // 'tab-pesanan' ikut dipetakan di sini; tanpa entri ini header mobile tampil
+  // kosong saat membuka menu Pesanan manapun.
   'tab-pesanan': 'Pesanan',
   // grup top-level baru "Scan & Cetak", lihat js/vue-scan-cetak.js.
   'tab-scan-cetak': 'Scan & Cetak',
@@ -85,11 +72,9 @@ const LABEL_SUBTAB = {
   'sub-karyawan-info': 'Config Info',
   'sub-karyawan-hakakses': 'Hak Akses',
   'sub-karyawan-akses': 'Config Akses',
-  // sama seperti tab-zevanic-house di atas, set ini sebelumnya HILANG total
-  // (celah lama, bukan cuma soal menu baru §26). Ditambah sekalian semuanya
-  // supaya header mobile Zevanic House selalu jelas lagi di mana, bukan cuma
-  // yang kepakai dari Home. DIHAPUS — 'sub-zevanic-house-persiapan': 'Persiapan
-  // Masalah' (modul dihapus total). BARU — Master Pelanggan, lihat
+  // Semua sub-tab Zevanic House dipetakan, bukan cuma yang dipakai dari Home,
+  // supaya header mobile selalu jelas posisinya. 'sub-zevanic-house-persiapan'
+  // tidak ada karena modulnya sudah tidak ada; Master Pelanggan ada di
   // js/vue-master-pelanggan.js.
   'sub-zevanic-house-pelanggan': 'Master Pelanggan',
   'sub-zevanic-house-orderspk': 'Order SPK',
@@ -98,8 +83,7 @@ const LABEL_SUBTAB = {
   'sub-zh-config-satuan': 'Data Satuan',
   'sub-zh-config-warna': 'Data Warna',
   'sub-zh-config-ukuran': 'Data Ukuran',
-  // dulu 'sub-zh-config-suplayer': 'Data Suplayer', CRUD Suplayer pindah ke 3
-  // entry 'sub-zh-suplayer-*' di bawah.
+  // CRUD Suplayer ada di 3 entry 'sub-zh-suplayer-*' di bawah, bukan di Config.
   'sub-zh-config-tlc': 'TLC & Prefix',
   'sub-zh-config-tahappersiapan': 'Persiapan Untuk Tahap',
   'sub-zh-databahan-entry': 'Entry Bahan & Aksesoris',
@@ -119,18 +103,17 @@ const LABEL_SUBTAB = {
   // DITAMBAH .
   'sub-zh-stock-rak': 'Rak Penyimpanan',
   'sub-zh-stock-repack': 'Repack',
-  // DIPINDAH — Scan Opname/Persiapan pindah ke tab-scan- cetak, lihat entry
-  // 'sub-scancetak-stok-*' di bawah. BARU — menu top-level "Scan & Cetak".
+  // Scan Opname/Persiapan ada di bawah menu top-level "Scan & Cetak"
+  // (tab-scan-cetak), lihat entry 'sub-scancetak-stok-*' di bawah.
   'sub-scan-cetak-stok': 'Scan Stok',
   'sub-scancetak-stok-opname': 'Scan Opname',
   'sub-scancetak-stok-persiapan': 'Scan Persiapan',
   'sub-scan-cetak-referensi': 'Referensi Scan',
   'sub-scan-cetak-cetak': 'Cetak',
   'sub-scan-cetak-pin': 'Riwayat PIN',
-  // DIPENSIUNKAN — 5 entry lama 'sub-zh-persiapanproduksi-*' DIHAPUS, sub-tabnya
-  // sudah dicopot dari index.html. GANTI oleh grup top-level baru "Persiapan
-  // Produksi" di bawah (6 sub-menu + 25 child-tab 5 jalur x 5 tahap), lihat
-  // STATUS- PROYEK.md §44.13.
+  // 'sub-zh-persiapanproduksi-*' tidak dipakai lagi — jangan dihidupkan ulang.
+  // Yang berlaku grup top-level "Persiapan Produksi" di bawah (6 sub-menu +
+  // 25 child-tab, 5 jalur x 5 tahap).
   'sub-pp-disiapkan': 'Perlu Disiapkan',
   'sub-pp-vendor': 'Vendor',
   'sub-pp-bahan': 'Bahan',
@@ -183,14 +166,10 @@ const AppHeaderMobile = {
       return 'Selamat malam';
     }
 
-    // (redesain, mode 'home' saja): quote harian inline — SAMA
-    // sumber data dengan QuoteCard lama (koleksi "quotes", field
-    // tanggalTampil==hari ini) — cuma ditampilkan sebagai 1 baris kecil di sini,
-    // bukan kartu terpisah lagi. QuoteCard sendiri TETAP ada di
-    // vue-components.js (masih dipakai desktop, lihat vue-home-desktop.js). BUG
-    // DITEMUKAN & sama persis akar masalah dengan QuoteCard (lihat komentar
-    // bug-fix lengkap di vue-components.js): hariIni dulu toISOString (UTC),
-    // meleset dari tanggal LOKAL device 00:00-06:59 WIB tiap hari. Fix sama.
+    // Quote harian inline (mode 'home'): sumber data sama dengan QuoteCard —
+    // koleksi "quotes", field tanggalTampil == hari ini — cuma ditampilkan sebagai
+    // 1 baris kecil. hariIni WAJIB dari getFullYear/getMonth/getDate, bukan
+    // toISOString (UTC), supaya tidak meleset dari tanggal lokal 00:00-06:59 WIB.
     const quoteHariIni = ref('');
     async function muatQuote() {
       try {
@@ -205,7 +184,7 @@ const AppHeaderMobile = {
       }
     }
 
-    // BARU: lonceng notifikasi (Pengumuman) + badge
+    // Lonceng notifikasi (Pengumuman) + badge
     const daftarNotif = ref([]);
     const memuatNotif = ref(true);
     const notifTerbuka = ref(false);
@@ -264,13 +243,10 @@ const AppHeaderMobile = {
       muatNotif();
     }
 
-    // Dipanggil dari dashboard.js (pindahTab/pindahSubTab) — murni cocokkan ID
-    // ke label, tidak ada baca Firestore. BARU — layar baru "Menu Lengkap"/"Atur
-    // Favorit" (js/vue-menu-lengkap.js, js/vue-atur-favorit.js) sudah py header
-    // sendiri (HeaderLayar: tombol kembali+kicker+judul, lihat
-    // vue-components.js) — kalau banner generik ini TETAP tampil di atasnya jadi
-    // 2 header dobel. Mode 'tersembunyi' = komponen ini tidak render apapun
-    // untuk tab-tab itu.
+    // Dipanggil dari dashboard.js (pindahTab/pindahSubTab) — murni cocokkan ID ke
+    // label, tidak ada baca Firestore. Layar Menu Lengkap/Atur Favorit sudah punya
+    // HeaderLayar sendiri, jadi banner generik ini harus mode 'tersembunyi' untuk
+    // tab-tab itu supaya tidak jadi 2 header dobel.
     const TAB_HEADER_SENDIRI = ['tab-menu-lengkap', 'tab-atur-favorit'];
 
     window.aturHeaderKonteks = function(tabId, subTabId) {

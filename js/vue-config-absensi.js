@@ -1,34 +1,21 @@
 // js/vue-config-absensi.js
-
-// Halaman KEDUA yang dimigrasi ke Vue: Master Absensi > Config Absensi.
+// Master Absensi > Config Absensi. Satu halaman scroll berisi 3 section
+// berurutan: Master Gudang, Master Shift, Jenis Pekerjaan (tanpa sub-tab).
 //
-// dulu Master Gudang & Master Shift tampil BARENGAN begitu Config Absensi dibuka
-// (2 kartu sebelahan), jadi KEDUA koleksi ("master_gudang" DAN "master_shift")
-// kebaca sekaligus walau orangnya cuma mau lihat salah satu. Sempat dipecah jadi
-// 3 sub-tab (Master Gudang / Master Shift / Jenis Pekerjaan).
+// Koleksi & field:
+// - master_gudang: nama_gudang, tipe_lokasi (Tetap/Dinamis), latitude,
+//   longitude, radius, jenis_pekerjaan (array). CRUD penuh di sini.
+// - master_shift: nama_shift, jam masuk/keluar, jenis_pekerjaan. CRUD penuh.
+// - master_data/jenis_pekerjaan: dikelola lewat komponen MasterDataCategory.
 //
-// wireframe handoff "07 - Management / 02 - Master Absensi" butir 2.1 eksplisit
-// minta: "Dua section dalam 1 halaman (BUKAN sub-tab lagi)". Pill sub-tab
-// DIHAPUS, ketiga section (Master Gudang → Master Shift → Jenis Pekerjaan,
-// urutan sesuai wireframe) SEKARANG tampil berurutan di 1 halaman yang di-scroll
-// turun. Ketiganya di-mount SEKALIGUS saat layar ini dibuka pertama kali (bukan
-// lagi ditunda per sub-tab) — trade-off yang disengaja: koleksi
-// master_gudang/master_shift/ master_data (jenis_pekerjaan) sama-sama kecil
-// (puluhan baris, bukan ratusan), jadi baca sekaligus tidak boros seperti
-// kekhawatiran awal yang melatarbelakangi pemecahan di atas. Isi/logic CRUD tiap
-// section (form, simpan, edit inline, hapus) TIDAK berubah sama sekali.
-//
-// Section "Jenis Pekerjaan" PAKAI ULANG komponen bersama MasterDataCategory
-// (vue-components.js, sama yang dipakai kategori lain di Config Karyawan) —
-// BUKAN komponen baru. Prop menuId="config_absensi" WAJIB disertakan supaya
-// izinnya dicek ke menu yang benar (lihat catatan di vue-components.js kenapa
-// prop ini ditambahkan).
-//
-// PENTING: koleksi Firestore "master_gudang" dan "master_shift" dibaca langsung
-// oleh banyak bagian lain yang BELUM dimigrasi (geofencing di camera.js,
-// Penjadwalan, Daftar Karyawan, Antrean Dakar). Skema field di sini SENGAJA
-// dipertahankan identik dengan versi lama supaya bagian-bagian itu tetap jalan
-// normal tanpa perlu ikut diubah.
+// Jebakan:
+// - Skema field master_gudang/master_shift dibaca langsung oleh camera.js
+//   (geofencing), Penjadwalan, Daftar Karyawan, Antrean Dakar. Ganti nama field
+//   di sini = layar-layar itu ikut patah.
+// - Section Jenis Pekerjaan pakai MasterDataCategory bersama; prop
+//   menuId="config_absensi" WAJIB, tanpa itu izin dicek ke menu yang salah.
+// - tipe_lokasi 'Tetap' mewajibkan latitude/longitude/radius terisi; 'Dinamis'
+//   menyimpannya kosong/0.
 
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, getDocs, deleteDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -47,11 +34,10 @@ const MasterGudangManager = {
     const lat = ref('');
     const lng = ref('');
     const radius = ref('');
-    // 1 gudang bisa dipakai LEBIH DARI 1 jenis pekerjaan (misal Operator Gudang
-    // & Checker sama-sama kerja di gudang yang sama), jadi array (checkbox),
-    // bukan dropdown 1 pilihan. Dipakai Penjadwalan/Antrean Dakar buat nyaring
-    // dropdown gudang sesuai jenis pekerjaan Admin yang login (lihat
-    // PETA-DATABASE.md).
+    // 1 gudang bisa dipakai LEBIH DARI 1 jenis pekerjaan (mis. Operator Gudang &
+    // Checker di gudang yang sama), jadi array (checkbox), bukan dropdown 1
+    // pilihan. Dipakai Penjadwalan/Antrean Dakar untuk menyaring dropdown gudang
+    // sesuai jenis pekerjaan Admin yang login.
     const jenisPekerjaanBaru = ref([]);
 
     // Edit jenis pekerjaan untuk data yang SUDAH ADA sebelumnya
@@ -60,12 +46,10 @@ const MasterGudangManager = {
     const editJenisPekerjaan = ref([]);
     const menyimpanEdit = ref(false);
 
-    // PENERAPAN NYATA Config Akses — kunci dropdown Jenis Lokasi kalau role ini
-    // SENGAJA dilarang mengubahnya (fitur "ubah_jenis_lokasi" di menu
-    // config_absensi, diatur lewat Config Akses). Sama seperti pengaman lain:
-    // kalau BELUM DIATUR sama sekali (null), dianggap BOLEH — supaya tidak ada
-    // yang tiba-tiba terkunci keluar cuma karena Config Akses belum sempat
-    // dibuat untuk role itu.
+    // Penerapan Config Akses: kunci dropdown Jenis Lokasi kalau role ini dilarang
+    // mengubahnya (fitur 'ubah_jenis_lokasi' di menu config_absensi). Sama seperti
+    // pengaman lain, kalau belum diatur sama sekali (null) dianggap BOLEH supaya
+    // tidak ada role yang terkunci keluar cuma karena Config Akses belum dibuat.
     const bolehUbahJenisLokasi = computed(() => {
       const izin = window.cekFiturAkses('config_absensi', 'ubah_jenis_lokasi');
       return izin === false ? false : true;

@@ -1,18 +1,22 @@
 // js/vue-config-info.js
-
-// Master Karyawan > Config Info — kelola pengumuman yang tampil di Home
-// (mobile). Bisa buat banyak pengumuman, tiap pengumuman bisa diatur mau tampil
-// untuk role apa saja (checkbox). Dibaca oleh js/vue-home.js — pengecekan
-// role-nya dilakukan DI SANA secara lokal (window.currentUser), bukan query
-// where ke Firestore, supaya hemat baca.
+// Master Karyawan > Config Info. Satu card dengan 2 pill-tab: Pengumuman dan
+// Quote Harian, masing-masing CRUD penuh.
 //
-// REDESIGN — mengikuti wireframe handoff "07 - Management / 01 - Master
-// Karyawan" butir 1.6: dulu section Pengumuman & Quote Harian ditumpuk vertikal,
-// KEDUANYA selalu tampil sekaligus (scroll panjang). SEKARANG dibungkus 1 card
-// dengan 2 PILL-TAB (Pengumuman / Quote Harian) — cuma 1 section tampil
-// sekaligus, tab lain disembunyikan pakai v-show. Form & logic CRUD
-// masing-masing (muat/simpan/edit/hapus, upload media, dst) TIDAK berubah sama
-// sekali — cuma visibility yang diatur tab.
+// Koleksi & field:
+// - pengumuman: judul, isi, rolesTampil (array role; kosong = semua role),
+//   mediaUrl, mediaType ('image'/'video'), dibuat_pada (serverTimestamp).
+// - quotes: judul (maks 20 karakter), isi (maks 60), tanggalTampil (YYYY-MM-DD,
+//   dipakai sebagai kunci pencarian quote hari ini).
+// - Firebase Storage: media pengumuman, batas 1MB per file.
+//
+// Jebakan:
+// - Filter role pengumuman dievaluasi di pembacanya (vue-home.js /
+//   vue-header-mobile.js) secara lokal dari window.currentUser, bukan query
+//   where — menambah field filter di sini tidak otomatis berefek.
+// - Ganti/hapus media wajib ikut deleteObject file lama, kalau tidak file yatim
+//   menumpuk di Storage.
+// - Kedua tab di-mount bersamaan dan datanya dimuat sekaligus di onMounted;
+//   v-show cuma menyembunyikan, pindah tab tidak fetch ulang.
 
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, setDoc, deleteDoc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -27,9 +31,8 @@ const AppConfigInfo = {
   components: { EmojiPicker },
   setup() {
     // Pill-tab (wireframe 1.6) — 'pengumuman' atau 'quote'. Kedua section tetap
-    // di-mount bersamaan (data sudah dimuat sekaligus di onMounted di bawah,
-    // sama seperti sebelumnya) — cuma tampilannya yang di-toggle v-show, supaya
-    // pindah tab tidak perlu fetch ulang.
+    // di-mount bersamaan (data dimuat sekaligus di onMounted di bawah) — cuma
+    // tampilannya yang di-toggle v-show, supaya pindah tab tidak fetch ulang.
     const tabAktif = ref('pengumuman');
     const daftarPengumuman = ref([]);
     const memuat = ref(true);
@@ -180,12 +183,10 @@ const AppConfigInfo = {
     }
 
 
-    // KOTAK 3 — QUOTE HARIAN Beda dari Pengumuman: 1 quote ditampilkan per HARI
-    // TERTENTU (dijadwal di muka, bukan "N terbaru" seperti Pengumuman). Kalau
-    // tidak ada quote yang dijadwalkan untuk hari itu, kartu Quote di Home tidak
-    // tampil sama sekali (bukan kartu kosong yang aneh). Batas karakter: judul
-    // maks 20, isi maks 60 — SESUAI PERMINTAAN, biar muat rapi di kartu kecil
-    // ala prototype (kartu "Giveaway" di Home).
+    // KOTAK 3 — QUOTE HARIAN. Beda dari Pengumuman: 1 quote per HARI TERTENTU
+    // (dijadwal di muka, bukan 'N terbaru'). Kalau tidak ada quote untuk hari itu,
+    // kartu Quote di Home tidak tampil sama sekali. Batas karakter: judul maks 20,
+    // isi maks 60 supaya muat rapi di kartu kecil.
 
     const daftarQuote = ref([]);
     const memuatQuote = ref(true);

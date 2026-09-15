@@ -1,32 +1,23 @@
 // js/vue-home-desktop.js
-// Komponen BerandaDesktop — dashboard layar Beranda desktop: KPI, Pipeline
-// Persiapan, Pipeline Produksi, Perlu Tindakan Anda, kartu Absen, Quote,
-// Aktivitas Terbaru, Pintasan Papan Tik. Mount ke #vue-beranda-desktop di
+// Komponen BerandaDesktop — dashboard Beranda desktop: KPI, Pipeline Persiapan,
+// Perlu Tindakan Anda, kartu Absen, Quote. Mount ke #vue-beranda-desktop di
 // dalam #tab-home (hidden md:block).
 //
-// Efisiensi baca Firestore:
-// - Semua KPI pakai getCountFromServer (1 baca, dokumen tidak ditarik).
-// - KECUALI "Perlu Disiapkan": tetap getDocs karena filter "belum ada
-// id_spk_grouping" harus dilakukan di client — Firestore tidak bisa
-// where field yang tidak ada. Meniru persis PersiapanDisiapkanManager.
+// Koleksi & field:
+// - KPI via getCountFromServer (dokumen tidak ditarik): pendaftaran_pending,
+//   absensi (ada_pending + status_acc, 2 query dijumlah), reimburse,
+//   permintaan_bahan_manual, spk_track.
+// - order_spk: getDocs penuh — filter "belum ada id_spk_grouping" harus di
+//   client, Firestore tidak bisa where field yang tidak ada.
+// - master_shift, pengumuman, quotes: baca ringan untuk kartu Absen & Quote.
 //
 // Jebakan:
-// - Pipeline Produksi (Cutting/Serie/Sewing/Finishing) UI-only: angka "–" +
-// label "Segera Hadir", tidak baca Firestore. Jangan diisi angka contoh.
-// - "Aktivitas Terbaru" & "Pintasan Papan Tik" isinya STATIS/ilustratif.
-// Tidak ada koleksi log aktivitas lintas-modul dan tidak ada command
-// palette Ctrl+K sungguhan di app ini.
-// - Kartu Absen REAL dan read-only, logic dari vue-home.js muatShift +
-// window.cekStatusClockInSaya. Clock In/Out tetap di app mobile.
-// - KPI Antrean Reimburse untuk Owner/Superuser cuma menghitung tahap
-// 'menunggu_owner', dan filter dimensi window.bolehLihatData tidak ikut
-// diterapkan (client-side, tak bisa digabung getCountFromServer) — angka
-// KPI bisa sedikit lebih tinggi dari layar detailnya.
-// - KPI Antrean Absensi = count ada_pending==true DITAMBAH
-// status_acc=='PENDING' (2 query dijumlah, format baru vs lama).
-// - Kartu KPI & Quote memakai gradien maroon (gc-kartu-gradien),
-// pengecualian dari porsi warna burgundy 5%, khusus layar ini. Tampilan
-// mobile (vue-home.js) tidak ikut.
+// - Pipeline Produksi, Aktivitas Terbaru, dan Pintasan Papan Tik UI-only/statis
+//   ("–" + "Segera Hadir"); tidak ada koleksi sumbernya. Jangan diisi angka.
+// - KPI Antrean Reimburse hanya tahap 'menunggu_owner' dan tidak ikut filter
+//   window.bolehLihatData — bisa lebih tinggi dari layar detailnya.
+// - Kartu Absen read-only; Clock In/Out tetap di app mobile.
+
 import { createApp, ref, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, query, where, getDocs, getCountFromServer, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
@@ -124,16 +115,10 @@ const BerandaDesktop = {
       } catch (e) { console.error('Pipeline Perlu Disiapkan gagal dimuat:', e); persiapanDisiapkan.value = null; }
     }
     async function muatJalurPersiapan() {
-      // SENGAJA 4 query where('jalur','==',x).where('status','==',y) TERPISAH
-      // per jalur (dijumlah di client), BUKAN 1 query where('status','in',[..]).
-      // Alasan: where(jalur=='x').where(status=='y') itu pola yang SAMA PERSIS
-      // sudah jalan di JalurTahapManager (vue-persiapan-produksi-v2.js) —
-      // dipastikan sudah ke-index otomatis (equality-only). Kombinasi equality +
-      // 'in' pada field BERBEDA biasanya butuh COMPOSITE INDEX baru yang belum
-      // tentu ada di Firestore Console — daripada resiko dashboard error "query
-      // requires an index" begitu buka gechoo.online, lebih baik 4x
-      // getCountFromServer (tetap murah, count query = 1 baca per panggilan
-      // berapa pun besar koleksinya).
+      // SENGAJA 4 query where('jalur','==',x).where('status','==',y) terpisah per
+      // jalur (dijumlah di client), bukan 1 query where('status','in',[..]): pola
+      // equality-only sudah pasti ter-index, sedangkan equality + 'in' pada field
+      // berbeda butuh composite index yang belum tentu ada. Count query tetap murah.
       await Promise.all(persiapanJalur.value.map(async (j) => {
         try {
           const hasil = await Promise.all(STATUS_BELUM_SELESAI.map(st =>
@@ -178,12 +163,10 @@ const BerandaDesktop = {
       } catch (e) { console.error('Kartu Absen (desktop) gagal dimuat shift:', e); }
     }
 
-    // Kartu Quote (data SAMA seperti QuoteCard bersama, warna beda)
-    // BUG DITEMUKAN & sama persis akar masalahnya dengan QuoteCard bersama di
-    // vue-components.js (baca komentar bug-fix lengkap di sana): hariIni dulu
-    // pakai toISOString (UTC), bukan tanggal LOKAL device — meleset 7 jam tiap
-    // hari 00:00-06:59 WIB dibanding tanggal yang dilihat admin di form Quote
-    // Harian. Fix sama: pakai getFullYear/getMonth/getDate.
+    // Kartu Quote (data sama seperti QuoteCard bersama, warna beda). hariIni WAJIB
+    // dari getFullYear/getMonth/getDate, bukan toISOString (UTC), supaya tidak
+    // meleset 7 jam tiap 00:00-06:59 WIB dibanding tanggal yang dilihat admin di
+    // form Quote Harian.
     const quote = ref(null);
     const memuatQuote = ref(true);
     async function muatQuote() {
@@ -321,14 +304,9 @@ const BerandaDesktop = {
             </div>
           </div>
 
-          <!--
-            "Perlu Tindakan Anda" DIPECAH jadi 2 grup/grid : grid 1 Persiapan (data REAL, sama
-            seperti Pipeline Persiapan di atas — Perlu Disiapkan + 5 jalur), grid 2 Produksi. Grup
-            Produksi SENGAJA placeholder "Segera hadir" (chip "–", opacity diredupkan lewat
-            .gc-tindak-segera) — KONSISTEN dengan kartu Pipeline Produksi di atas: belum ada skema
-            data Cutting/ Serie/Sewing/Finishing, jadi TIDAK dibuat angka/chip hitung palsu di
-            sini.
-          -->
+          <!-- "Perlu Tindakan Anda" dipecah jadi 2 grid: grid 1 Persiapan (data REAL, sama
+            seperti Pipeline Persiapan di atas), grid 2 Produksi placeholder "Segera hadir" karena
+            skema data Cutting/Serie/Sewing/Finishing belum ada — jangan isi angka hitung palsu. -->
           <div class="gc-pipeline-card" style="margin-bottom:0;">
             <div class="gc-pipeline-head" style="margin-bottom:6px;"><b>Perlu Tindakan Anda</b></div>
 

@@ -1,12 +1,22 @@
 // js/vue-daftar-karyawan.js
-
-// Halaman KETIGA yang dimigrasi ke Vue: Master Karyawan > Daftar Karyawan (tabel
-// 8 kolom) + modal Edit Karyawan. Dimigrasi bareng karena keduanya saling
-// terikat erat (tombol Edit di tabel membuka modal ini).
+// Master Karyawan > Daftar Karyawan: tabel 8 kolom + modal Edit/Preview
+// karyawan (satu komponen, dibedakan prop readonly).
 //
-// Koleksi Firestore "users" dan "master_gudang" dibaca langsung dengan skema
-// field yang SAMA PERSIS seperti versi lama — supaya Antrean Dakar, Penjadwalan,
-// dan layar lain yang belum dimigrasi tetap jalan normal.
+// Koleksi & field:
+// - users (id dokumen = email): nama, role, profil_akses, jenis_pekerjaan,
+//   jabatan, status_kerja, status_karyawan, status_approval,
+//   gudang_penempatan (array), plus data pribadi/alamat/bank/kontak darurat.
+// - master_gudang: nama_gudang + tipe_lokasi, dipakai kolom Jenis Lokasi.
+// - akses_config: dropdown Role sekaligus peta profil -> tingkatKeamanan.
+//
+// Jebakan:
+// - Simpan menulis DUA field sekaligus: role diisi tingkatKeamanan baku (yang
+//   dibaca Rules) dan profil_akses diisi nama profil. Menulis salah satunya
+//   saja bikin izin tampilan dan Rules tidak sinkron.
+// - Tabel pakai usePaginasiFirestore (cursor server, 15/halaman, cariField
+//   'nama' prefix-match) + filterPeran; filter Jenis Pekerjaan/Gudang hanya
+//   berefek untuk Owner/Superuser.
+// - Hapus cuma membuang dokumen users; akun Firebase Auth-nya tetap ada.
 
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, where, query, orderBy } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -35,15 +45,10 @@ const EditKaryawanModal = {
   components: { GudangCheckboxSelect, GudangRingkas },
   props: {
     emailId: { type: String, default: null },
-    // readonly — wireframe Management > Daftar Karyawan §2 "Tombol: Preview
-    // (read-only modal), Edit (modal form).." + fl-rule "Preview: Modal
-    // read-only — tampilan sama persis dengan Edit tapi semua field tidak bisa
-    // diedit (disabled/readonly).. Tombol di modal: hanya 'Tutup'."). SENGAJA
-    // reuse komponen INI (bukan modal terpisah) biar layoutnya persis sama
-    // seperti spek minta, tanpa duplikasi form raksasa ini 2x — cukup 1 prop
-    // bikin semua field disabled via <fieldset disabled> (native HTML, otomatis
-    // kunci SEMUA input/select/ textarea di dalamnya tanpa perlu:disabled
-    // satu-satu).
+    // Preview memakai komponen form INI juga (bukan modal terpisah) supaya layout
+    // persis sama dengan Edit tanpa menduplikasi form raksasa. Satu prop readonly
+    // membungkusnya dengan <fieldset disabled> — native HTML, otomatis mengunci
+    // semua input/select/textarea di dalamnya. Tombol di modal cuma "Tutup".
     readonly: { type: Boolean, default: false }
   },
   emits: ['tutup', 'tersimpan'],
@@ -61,10 +66,9 @@ const EditKaryawanModal = {
     const opsiStatusKaryawan = ref([]);
 
     async function muatOpsiMaster() {
-      // Sinkron dengan Config Akses & Hak Akses — dulu ambil dari Master Data
-      // "status_pengguna" (Config Karyawan), sekarang dari koleksi akses_config
-      // yang SAMA dipakai keduanya, biar 1 sumber kebenaran saja untuk "role apa
-      // saja yang ada" di SELURUH aplikasi.
+      // Sinkron dengan Config Akses & Hak Akses: opsi role diambil dari koleksi
+      // akses_config yang SAMA dipakai keduanya, supaya cuma ada 1 sumber kebenaran
+      // untuk "role apa saja yang ada" di seluruh aplikasi.
       try {
         const qProfil = await getDocs(collection(db, "akses_config"));
         const namaProfil = [];
@@ -150,10 +154,9 @@ const EditKaryawanModal = {
       menyimpan.value = true;
       try {
         // form.role sebenarnya NAMA PROFIL (bisa custom, mis. "admin_finance") —
-        // WAJIB tulis 2 field terpisah: "role" (tingkat keamanan baku, dicari
-        // dari petaTingkatKeamanan, dipakai Firestore Rules) dan "profil_akses"
-        // (nama aslinya, dipakai cari izin tampilan). Lihat penjelasan lengkap
-        // di vue-config-akses.js.
+        // WAJIB tulis 2 field terpisah: "role" (tingkat keamanan baku dari
+        // petaTingkatKeamanan, dipakai Firestore Rules) dan "profil_akses" (nama
+        // aslinya, dipakai cari izin tampilan). Lihat vue-config-akses.js.
         const tingkat = petaTingkatKeamanan[form.role] || 'operator';
         await updateDoc(doc(db, 'users', form.emailAsli), {
           role: tingkat,
@@ -353,23 +356,20 @@ const AppDaftarKaryawan = {
     // memang tidak ada. Fallback aman: belum diatur = boleh.
     const bolehHapus = computed(() => window.cekIzinMenu('daftar_karyawan', 'delete') !== false);
     const bolehEdit = computed(() => window.cekIzinMenu('daftar_karyawan', 'edit') !== false);
-    // SEBELUMNYA pakai pola sama seperti bolehEdit/bolehHapus (`!== false`),
-    // yang artinya "izin BELUM diatur" (null) dianggap BOLEH. Buat print
-    // badge/barcode karyawan ini SENGAJA dibalik jadi default DITOLAK — soalnya
-    // ini mencetak identitas fisik, bukan sekadar lihat/edit data.
-    // Owner/Superuser selalu boleh; role lain WAJIB diizinkan eksplisit oleh
-    // Owner lewat Config Akses (centang kolom Print), tidak otomatis ke-allow.
+    // Izin print badge/barcode default DITOLAK, kebalikan dari bolehEdit/bolehHapus
+    // yang menganggap izin belum diatur (null) sebagai BOLEH — ini mencetak
+    // identitas fisik. Owner/Superuser selalu boleh; role lain wajib diizinkan
+    // eksplisit lewat Config Akses (centang kolom Print).
     const bolehPrint = computed(() => {
       const roleSaya = (window.currentUser.role || '').toLowerCase();
       if (['owner', 'superuser'].includes(roleSaya)) return true;
       return window.cekIzinMenu('daftar_karyawan', 'print') === true;
     });
 
-    // cetak barcode karyawan buat absensi fisik, dipakai kalau HP karyawan tidak
-    // ada/rusak (di-scan pakai fitur Scan QR yang sudah ada, tab-scan-qr).
-    // SENGAJA pakai format QR PERSIS SAMA seperti di Account Profile (id_app,
-    // fallback email, lewat api.qrserver.com) — supaya kompatibel dengan Scan QR
-    // yang sudah ada, bukan bikin format baru yang malah tidak kebaca.
+    // Cetak barcode karyawan untuk absensi fisik, dipakai kalau HP karyawan tidak
+    // ada/rusak (di-scan lewat tab-scan-qr). Format QR harus PERSIS SAMA seperti di
+    // Account Profile (id_app, fallback email, lewat api.qrserver.com) supaya tetap
+    // terbaca Scan QR yang sudah ada.
     function cetakBarcode(d) {
       const qrData = d.id_app || d.email || d.id;
       if (!qrData) return alert('Karyawan ini belum punya ID App maupun email, tidak bisa dibuatkan barcode.');
@@ -380,11 +380,10 @@ const AppDaftarKaryawan = {
 
       const jendela = window.open('', '_blank', 'width=420,height=620');
       if (!jendela) return alert('Popup diblokir browser. Izinkan popup buat situs ini, lalu coba cetak lagi.');
-      // Ukuran kertas FISIK 10x15cm (foto ukuran standar) — @page nentuin ukuran
-      // kertas pas dicetak, body match persis biar tidak ada margin
-      // nyasar/terpotong pas print sungguhan. Border putus-putus cuma buat
-      // PREVIEW di layar (hilang otomatis pas print, karena kertas 10x15 aslinya
-      // sudah pas ukurannya, tidak perlu garis batas).
+      // Ukuran kertas FISIK 10x15cm (foto ukuran standar) — @page menentukan ukuran
+      // kertas saat dicetak, body dibuat sama persis supaya tidak ada margin nyasar
+      // atau terpotong. Border putus-putus cuma untuk preview di layar, hilang
+      // otomatis saat print.
       jendela.document.write(`<!DOCTYPE html>
 <html><head><title>Barcode - ${namaTampil}</title>
 <style>
@@ -426,12 +425,10 @@ const AppDaftarKaryawan = {
       jendela.document.close();
     }
     const emailSedangDiedit = ref(null);
-    // emailSedangDipreview — wireframe Management > Daftar Karyawan §2/fl-rule
-    // "Tombol: Preview (read-only modal), Edit (modal form), Download CSV"). Ref
-    // TERPISAH dari emailSedangDiedit (bukan dipakai bareng + flag boolean)
-    // supaya tidak ada celah 1 modal "diam-diam" berubah antara mode
-    // edit/readonly kalau ada bug urutan klik — 2 ref independen = 2 state yang
-    // jelas terpisah.
+    // emailSedangDipreview sengaja ref TERPISAH dari emailSedangDiedit (bukan satu
+    // ref + flag boolean) supaya tidak ada celah satu modal diam-diam berpindah
+    // antara mode edit dan readonly kalau urutan klik bermasalah — 2 ref independen
+    // = 2 state yang jelas terpisah.
     const emailSedangDipreview = ref(null);
     // bolehPreview — sama pola relaxed-default seperti bolehEdit/bolehHapus
     // (izin belum diatur = boleh) karena Preview cuma READ-ONLY, risikonya jauh
@@ -462,8 +459,7 @@ const AppDaftarKaryawan = {
       filterPeran: true, // PEDOMAN KERJA - lihat vue-paginasi.js
       // filter manual Jenis Pekerjaan/Gudang, CUMA berlaku efeknya buat
       // Owner/Superuser (Admin biasa sudah otomatis kefilter lewat filterPeran
-      // di atas, dropdown ini sengaja disembunyikan buat mereka di template —
-      // pola §16, lihat STATUS-PROYEK.md).
+      // di atas, dropdown ini sengaja disembunyikan buat mereka di template).
       constraintTambahan: () => {
         if (!isOwnerRole.value) return [];
         const cs = [];
@@ -521,8 +517,8 @@ const AppDaftarKaryawan = {
     function tutupEdit() { emailSedangDiedit.value = null; }
     async function selesaiSimpan() { emailSedangDiedit.value = null; await muat(); }
 
-    // bukaPreview/tutupPreview — BARU, lihat catatan emailSedangDipreview di
-    // atas. Tidak ada "selesaiSimpan" karena Preview memang tidak pernah menulis
+    // bukaPreview/tutupPreview — lihat catatan emailSedangDipreview di atas.
+    // Tidak ada "selesaiSimpan" karena Preview memang tidak pernah menulis
     // apapun (fieldset disabled di EditKaryawanModal).
     function bukaPreview(emailId) {
       if (!bolehPreview.value) return alert('Anda tidak punya izin melihat detail karyawan. Hubungi Owner/PIC.');
@@ -530,17 +526,10 @@ const AppDaftarKaryawan = {
     }
     function tutupPreview() { emailSedangDipreview.value = null; }
 
-    // exportCsv — wireframe Management > Daftar Karyawan §2/fl-rule "Download —
-    // Tombol CSV — unduh SELURUH data karyawan (yang terfilter) sebagai file
-    // CSV"). "Terfilter" berarti pakai filter YANG SAMA seperti tabel sedang
-    // tampil (cari nama + filter Jenis Pekerjaan/ Gudang Owner-only + filter
-    // peran admin biasa) — TAPI tanpa batas 15 per halaman (`perHalaman`), jadi
-    // query manual di sini, bukan lewat paginasi.dataHalaman (yang cuma isi 1
-    // halaman). Constraint filter peran admin di-reuse dari
-    // bangunConstraintFilterPeran (vue- paginasi.js) — SAMA PERSIS logic yang
-    // dipakai paginasi di atas, supaya admin tetap TIDAK BISA export data lintas
-    // gudang/jenis-pekerjaan sendiri (kalau ini beda dari paginasi, jadi celah
-    // kebocoran data).
+    // exportCsv mengunduh SELURUH data karyawan yang terfilter, memakai filter yang
+    // sama seperti tabel (cari nama + Jenis Pekerjaan/Gudang Owner-only + filter
+    // peran admin) tapi tanpa batas per halaman, jadi query manual. Constraint peran
+    // di-reuse dari bangunConstraintFilterPeran supaya bukan celah kebocoran data.
     const sedangExportCsv = ref(false);
     function csvEscape(v) {
       const s = String(v ?? '');
@@ -690,14 +679,10 @@ const AppDaftarKaryawan = {
 };
 
 let vmDaftarKaryawan = null;
-// Perbaikan bug BESAR: komponen ini dulu langsung di-mount begitu file ini
-// dimuat (artinya SETIAP kali halaman dibuka, oleh SIAPAPUN, termasuk yang tidak
-// punya akses ke layar ini) — onMounted-nya otomatis mencoba fetch Firestore
-// walau orangnya tidak pernah membuka tab ini sama sekali. Itu yang bikin
-// console penuh "Missing or insufficient permissions" dan baca Firestore boros.
-// Sekarang mount BARU terjadi saat dashboard.js pindahSubTab benar-benar
-// memanggil window.pastikanMountDaftarKaryawan — yaitu PERSIS saat tab ini
-// pertama kali dibuka, bukan dari awal muat halaman.
+// Komponen ini TIDAK di-mount saat file dimuat. Mount baru terjadi ketika
+// dashboard.js pindahSubTab memanggil window.pastikanMountDaftarKaryawan, yaitu
+// saat tab ini pertama kali dibuka. Mount di awal membuat onMounted fetch
+// Firestore untuk siapapun: "Missing or insufficient permissions" dan baca boros.
 window.pastikanMountDaftarKaryawan = function() {
   if (vmDaftarKaryawan) { if (typeof vmDaftarKaryawan.muat === 'function') vmDaftarKaryawan.muat(); return; }
   const mountPoint = document.getElementById('vue-daftar-karyawan');

@@ -1,56 +1,32 @@
 // js/vue-scan-cetak.js
-
-// DIPERBARUI — ditambah `ajukanPersiapanMasalah`, dipakai retrofit Scan Masalah
-// 4 pos Persiapan Produksi supaya benar-benar membuat dokumen
-// `persiapan_masalah` skema baru (lihat komentar di fungsi itu sendiri, di
-// bawah). Bukan bagian dari cakupan asli menu Scan & Cetak, cuma numpang di file
-// ini karena ini FONDASI generik lintas pos.
-
-// Menu BARU top-level "Scan & Cetak" . Sejajar Zevanic House/ Pesanan/Persiapan
-// Produksi .
+// Menu Scan & Cetak, sekaligus FONDASI generik yang diimpor pos lain
+// (Persiapan Produksi dan 5 modul Proses Produksi): PopupPinGenerik,
+// ScanGenerik, buatUnpackUniversal, ajukanPersiapanMasalah, helper QR.
 //
-// FILE INI = FONDASI yang dipakai modul lain (Persiapan Produksi yang
-// direfaktor, dan modul Proses Produksi baru: Cutting/Sewing/Finishing/
-// Serie/Gudang Barang Jadi) — bukan cuma isi menu Scan & Cetak itu sendiri.
-// Wireframe grup 4 (PIN) & bagian scan generik grup 2 SECARA EKSPLISIT minta
-// "komponen generik, bikin sekali panggil di mana-mana" — BEDA dari konvensi
-// lama proyek ini yang menyalin fungsi kecil (hashPin dst) di setiap file yang
-// butuh. Ini folder file BARU yang genuinely di-import (pola sama seperti
-// PopupPratinjauCetakLabel/KolomCari di vue- components.js), bukan disalin lagi.
+// Koleksi & field:
+// - riwayat_pin: { uid, nama_pengguna, menu, berhasil, waktu }, ditulis tiap
+//   percobaan PIN. PIN cocok tapi role di luar rolesDiizinkan dicatat
+//   berhasil:false dengan nama pemilik PIN; PIN tak dikenali dicatat uid:null.
+// - persiapan_masalah: dibuat HANYA lewat ajukanPersiapanMasalah di sini, 1
+//   dokumen per baris kekurangan, status awal 'perlu_diajukan'.
+// - bagging: unpack_hasil ('komplit'|'inkomplit'), unpack_pada, unpack_oleh,
+//   unpack_dicocokkan[], unpack_asing[], unpack_hilang[].
 //
-// PENTING (batas cakupan, biar tidak salah paham): PopupPinGenerik & ScanGenerik
-// di file ini WAJIB dipakai oleh semua kode BARU yang ditulis sesudah ini
-// (Persiapan Produksi yang direfaktor, 5 modul Proses Produksi baru). File-file
-// LAMA yang sudah punya PopupPin/hashPin sendiri (vue- pesanan.js,
-// vue-stock-pembelian.js, vue-absensi-qr.js, vue-account- profile.js,
-// vue-camera.js) TIDAK ikut dirombak di sini — migrasi mereka ke komponen
-// generik ini adalah pekerjaan terpisah (disebutkan sebagai dependensi belum
-// terpenuhi di laporan penutup), supaya modul yang sudah stabil & berjalan tidak
-// ikut berisiko disentuh di luar cakupan tugas ini.
-//
-// Koleksi `riwayat_pin` — SUDAH ADA di Firestore (dibuat pagi ini, §5.13,
-// AppConfigRiwayatPin di js/vue-config.js), TAPI belum ada satupun kode yang
-// MENULIS ke situ (dicek: grep "riwayat_pin'" cuma nemu pembaca).
-// PopupPinGenerik di sini PERTAMA KALI benar-benar menulis ke koleksi ini.
-// Bentuk field ikut dokumentasi "tebakan terbaik" yang sudah ditulis di
-// vue-config.js (UNCONFIRMED, forward-compatible): { uid, nama_pengguna, menu,
-// berhasil, waktu } KEPUTUSAN implementasi: - PIN cocok & berwenang ->
-// nama_pengguna = pemilik PIN, berhasil:true. - PIN cocok TAPI role tidak
-// termasuk rolesDiizinkan -> berhasil:false, nama_pengguna = pemilik PIN (biar
-// kelihatan SIAPA yang PIN-nya dipakai tapi ditolak, bukan disamakan dengan "PIN
-// salah total"). - PIN tidak cocok siapapun -> nama_pengguna = 'Tidak dikenali
-// (PIN salah)', uid = null.
+// Jebakan:
+// - ajukanPersiapanMasalah dipanggil BERSAMA updateBaris<Pos>, bukan
+//   menggantikannya — baris asal tetap menyimpan catatan_masalah sendiri.
+// - buatUnpackUniversal menolak menutup bagging yang belum lengkap/ada kode
+//   asing kecuali paksaInkomplit; penutupan me-NULL-kan kode_spk & kode_batch.
+// - catatRiwayatPin best-effort: gagal tulis tidak menggagalkan alur pemanggil.
 
 import { createApp, ref, reactive, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, getDocs, updateDoc, query, where, orderBy, limit, startAfter, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 
-// PIN per akun — DIPINDAH ke sini sebagai SATU-SATUNYA salinan "resmi" baru
-// (lihat catatan besar di atas). Logic identik dengan hashPin/tierOwnerKeAtas/
-// cariUserByPin di js/vue-stock-pembelian.js (disalin, sudah dipakai di 4 titik
-// lain sebelum ini) — TIDAK diubah, cuma dipindah ke modul yang bisa diimpor
-// supaya kode baru selanjutnya tidak perlu salin lagi.
+// PIN per akun — SATU-SATUNYA salinan resmi hashPin/tierOwnerKeAtas/
+// cariUserByPin, ditaruh di modul yang bisa diimpor supaya tidak disalin lagi
+// per file. GERBANG PIN: semua aksi Owner/PIC Owner lewat sini.
 
 export async function hashPin(pin, email) {
   const data = new TextEncoder().encode(pin + '|' + email);
@@ -103,18 +79,10 @@ export async function catatRiwayatPin(menu, berhasil, user) {
 }
 
 
-// PopupPinGenerik — komponen generik verifikasi PIN "per akun" (wireframe "05 -
-// Scan dan Cetak" §4.0, DRAWN — 2 state: bersih & salah). Visual TETAP pakai
-// gc-card/style resmi proyek (BUKAN direka dari warna/ukuran wireframe low-fi) —
-// sama konvensi PopupPin lama, cuma sekarang genuinely importable + mencatat
-// riwayat_pin di setiap percobaan (sukses maupun gagal).
-//
-// Props: judul - default 'Verifikasi PIN' pesan - keterangan tambahan di bawah
-// judul (opsional) konteks - WAJIB, string nama menu/aksi (dicatat sbg field
-// `menu` di riwayat_pin), mis. 'Cutting - Scan Operator' rolesDiizinkan - Array
-// opsional, mis. ['owner','pic_owner']. null/ undefined = semua PIN admin-level
-// (owner/superuser/ pic/admin) diterima (perilaku PopupPin lama). Emits:
-// sukses(user), batal
+// PopupPinGenerik — GERBANG PIN per akun (wireframe "05 - Scan dan Cetak" §4.0,
+// 2 state: bersih & salah). Mencatat riwayat_pin di SETIAP percobaan, sukses
+// maupun gagal. Props: judul, pesan, konteks (WAJIB — nama menu/aksi, ditulis ke
+// field `menu`), rolesDiizinkan (null = semua PIN admin-level). Emits: sukses(user), batal
 
 export const PopupPinGenerik = {
   props: {
@@ -190,27 +158,15 @@ export const PopupPinGenerik = {
 };
 
 
-// ajukanPersiapanMasalah — retrofit — SATU tempat yang benar-benar membuat
-// dokumen `persiapan_masalah` (skema BARU pos Masalah 7-tahap, lihat header
-// js/vue-pp-masalah.js) dari "Scan Masalah" di 4 pos Persiapan Produksi
-// (Bahan/Acc Sewing/Acc Webbing/Acc Finishing). SEBELUM retrofit ini, Scan
-// Masalah di 4 pos itu CUMA mencatat `catatan_masalah` teks bebas di baris
-// spk_track — TIDAK PERNAH membuat dokumen apapun, jadi modul Masalah (§5.18)
-// selalu tampil kosong walau ada kekurangan sungguhan. Ini fungsi TAMBAHAN,
-// dipanggil BERSAMA (bukan menggantikan) updateBaris<Pos> yang tetap menulis
-// catatan_ masalah seperti sebelumnya (baris TETAP tampil dengan badge merah di
-// pos asalnya, TIDAK berubah status — operator masih bisa Scan Entry normal
-// begitu kekurangan itu terpenuhi lewat alur Masalah/stok manual; menghapus
-// catatan_masalah lagi saat itu BUKAN bagian retrofit ini, tidak memintanya).
-//
-// Field dokumen mengikuti skema yang SUDAH didokumentasikan di header
-// js/vue-pp-masalah.js §5.18 (ditulis SEBELUM retrofit ini, bukan ditebak
-// sekarang): tlc_asal, sumber_jalur, spk_track_id, baris_index,
-// bahan_aksesoris_id/bahan_nama/bahan_warna/satuan/no_spk (snapshot),
-// qty_kurang, qty_entry_asal, alasan_masalah, scan_oleh, scan_pada,
-// status:'perlu_diajukan'. Tiap pemanggil (4 pos) menyuplai tlcAsal/ sumberJalur
-// miliknya sendiri (literal, bukan lookup tabel — tiap file pos cuma tahu 1
-// jalur, tidak perlu peta 4 jalur sekaligus).
+// ajukanPersiapanMasalah — SATU-SATUNYA tempat pembuatan dokumen
+// `persiapan_masalah` (skema pos Masalah 7-tahap, header js/vue-pp-masalah.js)
+// dari "Scan Masalah" di 4 pos Persiapan Produksi. Dipanggil BERSAMA
+// updateBaris<Pos> yang tetap menulis catatan_masalah; status baris tidak berubah.
+
+// Field dokumen mengikuti skema di header js/vue-pp-masalah.js §5.18: tlc_asal,
+// sumber_jalur, spk_track_id, baris_index, bahan_aksesoris_id/bahan_nama/
+// bahan_warna/satuan/no_spk (snapshot), qty_kurang, qty_entry_asal,
+// alasan_masalah, scan_oleh, scan_pada, status:'perlu_diajukan'.
 
 export async function ajukanPersiapanMasalah(opsi) {
   const now = new Date().toISOString();
@@ -238,40 +194,15 @@ export async function ajukanPersiapanMasalah(opsi) {
 }
 
 
-// buatUnpackUniversal — Scan Unpack versi BARU, SATU fungsi dipakai SEMUA pos
-// (BARU — "satu factory bersama", MENGGANTIKAN SEKALIGUS semua versi lama:
-// popup_unpack milik pp-cutting.js/pp-sewing.js/pp-serie.js (2
-// titik)/pp-finishing.js/ pp-gudang.js yang sebelumnya CUMA popup pilih
-// KOMPLIT/INKOMPLIT tanpa verifikasi sungguhan, ditulis ke unpack_log[]
-// macam-macam koleksi).
-//
-// Desain: step1: scan kode_bagging -> ambil dokumen `bagging` LANGSUNG (bukan
-// lewat cutting_track/spk_track/separating_batch/sewing_track/ finishing_track
-// seperti versi lama — bagging.isi[] & bagging. kode_spk/kode_batch SUDAH cukup,
-// tidak perlu lewat koleksi lain). step2: scan tiap kode ISI bagging
-// berkali-kali, dicocokkan ke bagging.isi[] (kode yang TIDAK ada di isi[] =
-// ASING, ditolak/dicatat terpisah, TIDAK dianggap cocok). tutup(paksaInkomplit):
-// - Kalau SEMUA kode di isi[] sudah cocok discan DAN tidak ada yang asing ->
-// KOMPLIT. - Kalau belum lengkap/ada asing DAN paksaInkomplit=false -> DITOLAK
-// (alert, tidak menulis apa-apa) — sama seperti Scan Pack, hard block. - Kalau
-// paksaInkomplit=true -> tetap ditutup sbg INKOMPLIT, dicatat kode yang HILANG
-// (di isi[] tapi tidak sempat discan ulang) + kode ASING, supaya bisa
-// ditelusuri. Kedua kasus (KOMPLIT/INKOMPLIT) SAMA-SAMA melepas kaitan
-// root1/root2: kode_spk & kode_batch di dokumen `bagging` di-NULL-kan (persis
-// keputusan sesi sebelumnya: "release/clear ke null di bagging doc").
-//
-// Field BARU di dokumen `bagging` (menggantikan unpack_log[] lama, yang sekarang
-// berhenti ditulis — field lama dibiarkan apa adanya di dokumen historis, cuma
-// tidak ada tulisan baru lagi ke situ): unpack_hasil ('komplit'|'inkomplit'),
-// unpack_pada, unpack_oleh, unpack_dicocokkan[], unpack_asing[],
-// unpack_hilang[].
-//
-// Dipakai: const { modalUnpack, bukaScanUnpack, tutupScanUnpack,
-// hasilScanUnpack, tutupUnpack } = buatUnpackUniversal; lalu di-spread ke return
-// setup, dan di template pasang <scan-generik> + panel kecil (lihat contoh
-// pemakaian di pp-cutting.js/pp-sewing.js/pp-serie.js/pp-finishing.js/
-// pp-gudang.js — semua PERSIS pola yang sama, tidak ada parameter cfg sama
-// sekali, karena semua pos cuma perlu bagging.isi[]/kode_spk/kode_batch).
+// buatUnpackUniversal — satu factory Scan Unpack untuk SEMUA pos. Step 1: scan
+// kode_bagging -> ambil dokumen `bagging` langsung. Step 2: scan tiap kode ISI,
+// dicocokkan ke bagging.isi[]; kode di luar isi[] dihitung ASING. Pakai: spread
+// hasilnya ke return setup, pasang <scan-generik> + panel kecil di template.
+
+// tutup(paksaInkomplit): semua isi[] cocok & tidak ada asing -> KOMPLIT; belum
+// lengkap/ada asing dengan paksaInkomplit=false -> DITOLAK tanpa menulis apa pun
+// (hard block); true -> INKOMPLIT, kode HILANG + ASING dicatat. Keduanya menulis
+// unpack_hasil/pada/oleh/dicocokkan/asing/hilang dan me-NULL kode_spk+kode_batch.
 
 export function buatUnpackUniversal() {
   const modalUnpack = reactive({ aktif: false, bagging: null, dicocokkan: [], asing: [], log: [] });
@@ -318,13 +249,10 @@ export function buatUnpackUniversal() {
       return false;
     }
     const now = new Date().toISOString();
-    // kode_spk_asal/kode_batch_asal — BARU . kode_spk/ kode_batch DINULKAN di
-    // sini (melepas kaitan root1/root2, tetap seperti semula), tapi nilai
-    // SEBELUM dinulkan disalin dulu ke *_asal supaya layar yang mau menampilkan
-    // "bagging ini pernah punya SPK/batch apa" (badge riwayat di track) masih
-    // bisa query walau linknya sudah dilepas. *_asal TIDAK PERNAH dipakai buat
-    // validasi/kunci (itu tetap cuma kode_spk/ kode_batch aktif) — murni field
-    // baca-saja untuk histori tampilan.
+    // kode_spk/kode_batch DINULKAN di sini (melepas kaitan root1/root2), tapi
+    // nilainya disalin dulu ke kode_spk_asal/kode_batch_asal supaya badge
+    // riwayat di track masih bisa query. *_asal TIDAK PERNAH dipakai untuk
+    // validasi/kunci — murni field baca-saja untuk histori tampilan.
     try {
       await updateDoc(doc(db, 'bagging', b.id), {
         kode_spk: null, kode_batch: null,
@@ -345,17 +273,15 @@ export function buatUnpackUniversal() {
 }
 
 
-// ambilStatusUnpackBagging — BARU, dipakai bersama oleh badge "Unpack"
-// pp-cutting.js (kunci: kode_spk, string) & pp-sewing.js (kunci: kode_batch,
-// string) — dua-duanya sama-sama butuh "cari semua bagging yang PERNAH terkait
-// nilai kunci X, aktif ATAU sudah di-unpack" supaya badge tidak balik kosong
-// begitu bagging.kode_spk/kode_batch dinulkan tutupUnpack. Query 2x (field aktif
-// + field *_asal, lihat tutupUnpack di atas), digabung & dedupe by doc id
-// (bagging yang baru saja ditutup bisa kena kedua query kalau race, makanya
-// dedupe). Di-chunk 10 nilai/query (batas Firestore 'in'). Return: {
-// [nilaiKunci]: [{kode, unpack_hasil}, ..] } — nilaiKunci yang tidak ketemu
-// bagging apapun tetap ada sebagai array kosong (supaya template tidak perlu `||
-// []` di tiap pemakaian).
+// ambilStatusUnpackBagging — dipakai badge "Unpack" pp-cutting.js (kunci
+// kode_spk) & pp-sewing.js (kunci kode_batch): cari semua bagging yang PERNAH
+// terkait nilai kunci X, aktif maupun sudah di-unpack, supaya badge tidak kosong
+// setelah tutupUnpack menulis null ke kuncinya.
+
+// Query 2x (field aktif + field *_asal), digabung lalu dedupe by doc id (satu
+// bagging bisa kena dua query kalau race). Di-chunk 10 nilai/query (batas
+// Firestore 'in'). Return { [nilaiKunci]: [{kode, unpack_hasil}, ..] };
+// nilaiKunci tanpa bagging tetap ada sebagai array kosong.
 
 export async function ambilStatusUnpackBagging(fieldAktif, fieldAsal, nilaiList) {
   const nilaiUnik = [...new Set((nilaiList || []).filter(Boolean))];
@@ -383,9 +309,8 @@ export async function ambilStatusUnpackBagging(fieldAktif, fieldAsal, nilaiList)
 }
 
 
-// muatJsQr / buatQrDataUrl / cariKaryawanByQr — DIPINDAH dari js/vue-
-// persiapan-produksi-v2.js (logic identik, cuma sekarang diimpor, bukan disalin
-// lagi oleh modul-modul BARU sesudah ini).
+// muatJsQr / buatQrDataUrl / cariKaryawanByQr — salinan resmi yang diimpor
+// modul lain, jangan disalin ulang per file.
 
 export function muatJsQr() {
   return new Promise((resolve, reject) => {
@@ -422,33 +347,15 @@ export async function cariKaryawanByQr(qrData) {
 }
 
 
-// ScanGenerik — komponen kamera/QR generik (wireframe grup 2, 6 jenis scan
-// Persiapan Produksi + turunannya di Cutting/Serie/Sewing/Finishing/Gudang).
-// SENGAJA tidak tahu apa-apa soal Firestore/mode/validasi kode — cuma "nyalakan
-// kamera, baca QR, kembalikan teksnya" lewat event `hasil`. Pemanggil-lah yang
-// memvalidasi kode (kode_spk/kode_bagging/kode_tugas/ kode_pcs/dst — beda-beda
-// tiap pos) dan menulis ke Firestore-nya sendiri — ini SENGAJA (wireframe 2.2:
-// "Scan Entry = satu-satunya titik pengurangan stok", tiap pos punya aturan
-// sendiri soal APA yang harus terjadi setelah scan, bukan sesuatu yang bisa
-// digeneralisir ke 1 fungsi).
-//
-// INTERFACE: dibuat PERSIS SAMA dengan `ModalScanQr` yang sebelumnya disalin
-// identik di 4 file vue-persiapan-{bahan,sewing,webbing,finishing}.js — BUKAN
-// interface lama (judul/instruksi, emit hasil+batal, single-shot). Alasan:
-// Persiapan Produksi butuh "scan berkali-kali tanpa buka-tutup kamera manual"
-// (mis. Tunjuk Operator lalu scan N anak-SPK berturut-turut, atau Scan Pack/Scan
-// Kirim per bagging/tugas) — interface lama berhenti setelah 1 hasil, tidak
-// cukup. Karena belum ada satupun kode produksi yang memakai interface lama ini
-// (baru didaftarkan, belum diimpor di mana-mana), aman diganti total tanpa
-// breaking change.
-//
-// Props: aktif (Boolean, default false — kontrol on/off kamera dari induk via
-// v-model/computed, BUKAN v-if di induk — video tag di dalam template ini
-// sendiri yang v-if="aktif"), judul (baris tebal), subjudul (opsional, baris
-// kecil di bawahnya). Emits: hasil(kodeTeks) — ditembak SETIAP kali berhasil
-// decode, kamera TETAP menyala (auto-lanjut scan lagi setelah jeda 900ms) selama
-// `aktif` masih true; tutup — user pencet tombol Tutup, induk yang set
-// aktif=false.
+// ScanGenerik — komponen kamera/QR generik untuk semua pos Persiapan Produksi.
+// SENGAJA tidak tahu apa-apa soal Firestore/validasi kode: cuma nyalakan kamera,
+// baca QR, kembalikan teksnya lewat event `hasil`. Pemanggil yang memvalidasi
+// kode dan menulis Firestore — "Scan Entry = satu-satunya titik pengurangan stok".
+
+// Multi-shot: kamera tetap menyala dan auto-lanjut scan tiap 900ms selama
+// `aktif` true. Props: aktif (Boolean; induk yang mengontrol on/off, BUKAN v-if
+// di induk), judul, subjudul. Emits: hasil(kodeTeks) tiap decode berhasil;
+// tutup saat user pencet Tutup (induk yang men-set aktif=false).
 
 export const ScanGenerik = {
   props: { aktif: { type: Boolean, default: false }, judul: String, subjudul: String },
@@ -457,19 +364,10 @@ export const ScanGenerik = {
     const videoEl = ref(null), canvasEl = ref(null);
     const memuatKamera = ref(false), error = ref('');
     let stream = null, frameId = null, timeoutId = null;
-    // BUG . Root cause: kamera auto-lanjut scan tiap 900ms TANPA cek apakah QR
-    // yang kelihatan MASIH SAMA (badge/label masih di depan kamera, belum sempat
-    // diganti). "ZMS.." adalah prefix id_app KARYAWAN (lihat idAcak('ZMS') di
-    // vue-registrasi.js) — kode operator yang baru dipakai untuk tahap
-    // "operator" ke-scan ULANG 900ms kemudian, tapi tahap sudah pindah ke "anak"
-    // -> dicocokkan ke no_spk, gagal, pesan error jadi membingungkan. Ini bug di
-    // ScanGenerik sendiri (dipakai semua pos scan: Tunjuk Operator, Scan Pack,
-    // Scan Kirim, dst), BUKAN salah kode/data. Fix: kode yang SAMA dengan hasil
-    // scan sebelumnya TIDAK di-emit ulang selama kamera terus-menerus
-    // melihatnya; begitu kamera sempat TIDAK mendeteksi QR sama sekali
-    // (badge/label sudah diangkat/diganti), kode berikutnya (termasuk kode yang
-    // sama, kalau memang sengaja discan lagi) dianggap scan baru. Interval 900ms
-    // & alur multi-scan lain tidak diubah.
+    // Anti scan-ganda: kode yang SAMA dengan hasil scan terakhir TIDAK di-emit
+    // ulang selama kamera terus melihatnya. Tanpa ini, badge yang masih di depan
+    // kamera ke-scan lagi 900ms kemudian padahal tahap sudah pindah, dan pesan
+    // error jadi membingungkan. Kode dianggap baru lagi begitu QR hilang sekali.
     let kodeSebelumnya = null;
 
     async function mulai() {
@@ -544,11 +442,8 @@ export const ScanGenerik = {
 };
 
 
-// AppScanCetakRiwayatPin — DIPINDAH APA ADANYA dari js/vue-config.js
-// (AppConfigRiwayatPin, dulu di Zevanic House > Config > Riwayat PIN).1
-// wireframe modul ini), karena Riwayat PIN memang bagian dari grup PIN, bukan
-// Config. Logic TIDAK diubah sama sekali dari versi Config — cuma nama komponen
-// & fungsi mount + id mount point yang berubah.
+// AppScanCetakRiwayatPin — layar Riwayat PIN, bagian dari grup PIN modul ini
+// (bukan Config). Membaca koleksi riwayat_pin yang ditulis PopupPinGenerik.
 
 const UKURAN_MUAT_RIWAYAT_PIN = 30;
 export const AppScanCetakRiwayatPin = {

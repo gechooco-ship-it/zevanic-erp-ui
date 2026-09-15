@@ -3,27 +3,21 @@
 // label pcs, lalu mengirim hasilnya balik ke Serie. 5 tab.
 //
 // Koleksi & field:
-// - sewing_track: 1 dokumen per batch yang masuk Sewing. batch_id (id
-// dokumen separating_batch), kode_batch, nama_produk, size, sku_produk,
-// warna, kode_bagging[], kode_tugas, terima_pada, mulai_sewing_pada,
-// entry_pada, label_pcs_dicetak_pada. Dibuat LAZY dari separating_batch
-// berstatus kirim_sewing tiap Tab 1 dibuka, idempoten.
-// - label_pcs: 1 dokumen per pcs produk jadi. kode_pcs = PCS + yymmdd +
-// counter, dari pengaturan_id_label_pcs/{yymmdd}.
+// - sewing_track: 1 dokumen per batch yang masuk Sewing. batch_id (id dokumen
+//   separating_batch), kode_batch, kode_bagging[], kode_tugas, terima_pada,
+//   mulai_sewing_pada, entry_pada, label_pcs_dicetak_pada. Dibuat LAZY &
+//   idempoten dari separating_batch berstatus kirim_sewing tiap Tab 1 dibuka.
+// - label_pcs: 1 dokumen per pcs jadi. kode_pcs = PCS + yymmdd + counter.
 //
 // Jebakan:
-// - kode_bagging[] dan kode_tugas di sewing_track KHUSUS untuk pengiriman
-// KELUAR (Sewing ke Serie). Kiriman MASUK dari Serie dicocokkan langsung
-// ke koleksi separating_batch, bukan ke field ini — kalau tertukar, Serie
-// Tab Terima tidak akan pernah menemukan dokumennya.
-// - terima_pada (ditulis di sini, Sewing menerima dari Serie) BEDA dari
-// sampai_pada (ditulis Serie saat menerima balik hasil jadi).
-// - status 'selesai' + sampai_pada BUKAN ditulis modul ini — Serie yang
-// menutupnya lewat buatTabTerima. Tab Selesai di sini murni membaca.
-// - Cetak Ulang membaca ulang label_pcs lewat batch_id, tidak addDoc lagi,
-// supaya stok fisik tidak terduplikasi.
-// - Satu bagging membundel semua label_pcs satu batch, jadi Scan Kirim
-// tidak perlu menunggu "semua bagging discan" seperti pos lain.
+// - kode_bagging[] & kode_tugas di sewing_track KHUSUS pengiriman KELUAR
+//   (Sewing ke Serie). Kiriman MASUK dari Serie dicocokkan langsung ke
+//   separating_batch — kalau tertukar, Serie Tab Terima tidak menemukannya.
+// - terima_pada (Sewing menerima dari Serie) BEDA dari sampai_pada. status
+//   'selesai' + sampai_pada ditulis SERIE lewat buatTabTerima, bukan modul ini.
+// - Cetak Ulang membaca ulang label_pcs lewat batch_id, tidak addDoc lagi.
+// - Satu bagging membundel semua label_pcs satu batch, jadi Scan Kirim tidak
+//   perlu menunggu "semua bagging discan" seperti pos lain.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -53,8 +47,8 @@ function formatDiamSejak(iso) {
   return j.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jam';
 }
 // formatJamDurasi — SAMA logika formatDiamSejak, tapi input angka jam MENTAH
-// (hasil selisih 2 timestamp yang sudah dihitung), bukan 1 ISO string vs
-// sekarang — dipakai KPI "rata-rata waktu per batch" Tab 3.2 (keputusan #5).
+// (hasil selisih 2 timestamp yang sudah dihitung), bukan 1 ISO string vs waktu
+// kini — dipakai KPI "rata-rata waktu per batch" Tab 3.2 (keputusan #5).
 function formatJamDurasi(jam) {
   if (jam === null || jam === undefined || isNaN(jam)) return '-';
   if (jam < 1) return Math.max(1, Math.round(jam * 60)) + ' menit';
@@ -140,7 +134,7 @@ async function pastikanSewingTrackLengkap() {
       const { sku_produk, warna } = await resolveSkuWarnaBatch(b, petaProduk);
       await addDoc(collection(db, 'sewing_track'), {
         batch_id: b.id, kode_batch: b.kode_batch || '',
-        // kode_spk — BARU — disalin dari separating_batch. Array (bisa >1
+        // kode_spk disalin dari separating_batch. Array (bisa >1
         // grouping kalau batch ini hasil gabungan).
         kode_spk: b.spk_groupings || [],
         nama_produk: b.nama_produk || '', size: b.size || '',
@@ -151,7 +145,7 @@ async function pastikanSewingTrackLengkap() {
         unpack_log: [], catatan_masalah: '',
         terima_pada: null, mulai_sewing_pada: null, entry_pada: null, label_pcs_dicetak_pada: null,
         masuk_tahap_pada: now, sampai_pada: null,
-        // riwayat_scan — BARU . Ditambahkan ADITIF.
+        // riwayat_scan ditulis ADITIF.
         riwayat_scan: [],
         dibuat_pada: serverTimestamp(), diperbarui_pada: serverTimestamp()
       });
@@ -194,7 +188,7 @@ async function kirimMasalahSewing(track, jumlah, alasan) {
     bahanNama: track.nama_produk, bahanWarna: track.size, satuan: 'pcs',
     qtyKurang: jumlah, alasan
   });
-  // riwayat_scan — BARU . Ditambahkan ADITIF. Dipanggil dari SEMUA popup Scan
+  // riwayat_scan ditulis ADITIF. Dipanggil dari SEMUA popup Scan
   // Masalah (Tab 3.1/3.2/3.3/3.4, satu fungsi dipakai bersama) — dibungkus
   // try/catch supaya kegagalan catat riwayat_scan tidak menggagalkan pengajuan
   // masalah yang sudah berhasil di atas.
@@ -213,12 +207,10 @@ const SewingPerluDiProses = {
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
-    // unpackEnrich — BARU, tutup gap badge "Unpack" yang selalu kosong sejak
-    // buatUnpackUniversal berhenti menulis t.unpack_log. Kunci: t.kode_batch
-    // (string, sama persis dgn bagging.kode_batch yang ditulis Serie Tab 2.3
-    // "Kirim Sewing" — lebih presisi drpd t.kode_spk yang array, bisa >1
-    // grouping kalau batch hasil gabungan). Lihat ambilStatusUnpackBagging di
-    // vue-scan-cetak.js.
+    // unpackEnrich mengisi badge "Unpack" karena buatUnpackUniversal tidak
+    // menulis t.unpack_log. Kunci: t.kode_batch (string, sama persis dengan
+    // bagging.kode_batch dari Serie Tab 2.3 — lebih presisi daripada t.kode_spk
+    // yang array). Lihat ambilStatusUnpackBagging di vue-scan-cetak.js.
     const unpackEnrich = ref({});
     const menuId = 'proses_sewing';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
@@ -248,7 +240,7 @@ const SewingPerluDiProses = {
           const snap = await getDocs(query(collection(db, 'separating_batch'), where('kode_tugas', '==', kode)));
           if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
           modalSampai.batch = { id: snap.docs[0].id, ...snap.docs[0].data() };
-          // cache tugas_kirim (kode-nya SAMA dengan kode_tugas yang baru
+          // cache tugas_kirim (kode-nya SAMA dengan kode_tugas yang sudah
           // dicocokkan di atas) supaya tiap kode_bagging yang lolos di step2
           // bisa langsung melepas pack[].sampai_pada-nya, persis pola
           // pp-cutting.js.
@@ -285,7 +277,7 @@ const SewingPerluDiProses = {
           const t = daftar.value.find(x => x.batch_id === b.id);
           if (!t) { alert('Bagging cocok, tapi sewing_track untuk batch ini belum ada — coba tutup lalu buka lagi tab ini.'); return; }
           const now = new Date().toISOString();
-          // riwayat_scan — BARU . Ditambahkan ADITIF.
+          // riwayat_scan ditulis ADITIF.
           await updateSewingTrack(t.id, () => ({
             terima_pada: now,
             riwayat_scan: arrayUnion({ aksi: 'sampai', oleh: window.currentUser?.email || null, pada: now, qty: t.qty ?? null, catatan: 'Diterima dari Serie — kode tugas ' + (b.kode_tugas || '') })
@@ -296,9 +288,8 @@ const SewingPerluDiProses = {
       }
     }
 
-    // Scan Unpack: versi BARU . Sekarang scan ULANG tiap isi bagging
-    // (bagging.isi[]), lihat buatUnpackUniversal di vue-scan-cetak.js untuk
-    // detail lengkap.
+    // Scan Unpack: scan ULANG tiap isi bagging (bagging.isi[]), lihat
+    // buatUnpackUniversal di vue-scan-cetak.js untuk detail lengkap.
     const { modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack } = buatUnpackUniversal();
 
     // Tunjuk Operator (PIN, role PIC/PIC Owner/Owner) — keputusan #9:
@@ -318,7 +309,7 @@ const SewingPerluDiProses = {
           operator_uid: user.email, operator_nama: namaOperator,
           riwayat_operator: [...(data.riwayat_operator || []), { uid: user.email, nama: namaOperator, pada: now }],
           status: 'sedang_sewing', mulai_sewing_pada: now, masuk_tahap_pada: now,
-          // riwayat_scan — BARU . Ditambahkan ADITIF.
+          // riwayat_scan ditulis ADITIF.
           riwayat_scan: arrayUnion({ aksi: 'operator', oleh: namaOperator, pada: now, qty: data.qty ?? null })
         }));
         await muat();
@@ -330,16 +321,10 @@ const SewingPerluDiProses = {
       await muat();
     });
 
-    // Toolbar global (BARU, audit wireframe vs live sesi ini): wireframe
-    // §3.1 cuma taruh SATU tombol kontekstual per kartu ("Scan Operator", mati
-    // kalau belum komplit — lihat "role-box"/"Gerbang" wireframe.dc.html) — Scan
-    // Sampai & Scan Unpack SUDAH GLOBAL secara logic sebelumnya (fungsi tidak
-    // menerima parameter track, target dicari sendiri dari kode yang discan —
-    // persis pola Gudang), cuma TAMPILANNYA diulang di tiap kartu. Scan Masalah
-    // butuh target+jumlah spesifik per batch, jadi dipindah ke toolbar lewat
-    // popup "pilih dulu" (SAMA pola pilihTargetMixin milik js/vue-pp-cutting.js
-    // file ini tidak impor lintas modul, jadi ditulis ulang ringan di sini).
-    // Handler bukaMasalah(track)/hasilScanSampai/ hasilScanUnpack TIDAK diubah.
+    // Toolbar global (wireframe §3.1): per kartu cuma ada SATU tombol
+    // kontekstual "Scan Operator". Scan Sampai & Scan Unpack global secara logic
+    // (target dicari dari kode yang discan, pola Gudang). Scan Masalah butuh
+    // target+jumlah spesifik, jadi lewat popup "pilih dulu" di toolbar.
 
     const pilihMasalah = ref(null); // { targetId }
     function bukaMasalahToolbar() {
@@ -367,10 +352,8 @@ const SewingPerluDiProses = {
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
-      <!--
-        Toolbar global (BARU) — Scan Sampai & Scan Unpack sudah global dari sisi logic sebelumnya,
-        cuma dipindah tampilannya ke sini. Scan Masalah lewat popup pilih-target
-      -->
+      <!-- Toolbar global — Scan Sampai & Scan Unpack global dari sisi logic, tampilannya
+        dikumpulkan di sini. Scan Masalah lewat popup pilih-target. -->
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
         <button v-if="bolehProses" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
         <button v-if="bolehProses" @click="bukaScanUnpack" class="btn-outline" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
@@ -390,11 +373,8 @@ const SewingPerluDiProses = {
           <div style="font-size:10.5px; margin-bottom:10px;">
             <span class="tag" :class="t.terima_pada ? 'ok' : 'neutral'">{{ t.terima_pada ? 'sudah sampai' : 'belum sampai' }}</span>
           </div>
-          <!--
-            Satu tombol kontekstual (wireframe §3.1): Scan Operator, mati kalau belum
-            sampai/komplit. Guard alert di bukaTunjukOperator tetap ada (TIDAK diubah) sebagai
-            jaring kedua.
-          -->
+          <!-- Satu tombol kontekstual (wireframe §3.1): Scan Operator, mati kalau belum
+            sampai/komplit. Guard alert di bukaTunjukOperator jadi jaring kedua. -->
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <button v-if="bolehOperator" @click="bukaTunjukOperator(t)" :disabled="!t.terima_pada" class="btn-outline" style="flex:1; padding:8px; font-size:11.5px;" :style="{ opacity: t.terima_pada ? 1 : .5 }"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator</button>
           </div>
@@ -500,7 +480,7 @@ const SewingSedangSewing = {
       if (!t) { alert(`Kode batch "${kode}" tidak ditemukan di Sedang Sewing.`); return; }
       try {
         const now = new Date().toISOString();
-        // riwayat_scan — BARU . Ditambahkan ADITIF.
+        // riwayat_scan ditulis ADITIF.
         await updateSewingTrack(t.id, () => ({
           status: 'perlu_dikirim', entry_pada: now, masuk_tahap_pada: now,
           riwayat_scan: arrayUnion({ aksi: 'entry', oleh: window.currentUser?.email || null, pada: now, qty: t.qty ?? null })
@@ -601,8 +581,8 @@ const SewingPerluDikirim = {
       memuat.value = false;
     }
 
-    // Cetak Label Pcs (keputusan #6: sekali cetak, cetak ulang baca yang
-    // sudah ada, tidak addDoc baru).
+    // Cetak Label Pcs (keputusan #6: sekali cetak, cetak ulang membaca dokumen
+    // yang sudah ada, tanpa addDoc).
     const popupCetakPcsAktif = ref(false);
     const daftarLabelPcsPreview = ref([]);
     async function cetakLabelPcs(t) {
@@ -647,7 +627,7 @@ const SewingPerluDikirim = {
       sedangProses.value = true;
       try {
         const kodeBag = await generateKodeHarianFormat('BAG', 'pengaturan_id_bagging');
-        // kode_spk/kode_batch — BARU . Ditulis LANGSUNG saat dibuat (bukan lewat
+        // kode_spk/kode_batch ditulis LANGSUNG saat dibuat (bukan lewat
         // validator scan pertama seperti Persiapan) — batch di sini SUDAH pasti
         // tunggal (layar terkunci ke 1 batch sejak awal), tidak mungkin campur
         // lewat UI ini.
@@ -697,12 +677,10 @@ const SewingPerluDikirim = {
       if (!modalPack.bagging) return;
       try {
         await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() });
-        // riwayat_scan — BARU . Ditambahkan ADITIF. qty dihitung dari log sesi
-        // ini yang cocok kode bagging ini saja (modalPack.log bisa berisi scan
-        // dari bagging lain dalam sesi yang sama kalau operator ganti bagging
-        // tanpa menutup modal) — bukan dari .isi milik dokumen bagging (salinan
-        // lokal tidak ikut ter- update oleh arrayUnion di Firestore), jadi tidak
-        // fabricated.
+        // riwayat_scan ditulis ADITIF. qty dihitung dari log sesi ini yang
+        // cocok kode bagging ini saja (modalPack.log bisa memuat scan bagging
+        // lain kalau operator ganti bagging tanpa menutup modal), bukan dari
+        // .isi dokumen bagging yang salinan lokalnya tidak ikut arrayUnion.
         if (modalPack.batch) {
           const kodeBaggingIni = modalPack.bagging.kode;
           const qtyPack = modalPack.log.filter(l => l.endsWith(' -> ' + kodeBaggingIni)).length || null;
@@ -733,12 +711,12 @@ const SewingPerluDikirim = {
       if (!t) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
       try {
         const now = new Date().toISOString();
-        // kode_spk/kode_batch ikut disalin ke pack[] — BARU, dilepas oleh Scan
+        // kode_spk/kode_batch ikut disalin ke pack[], dilepas oleh Scan
         // Sampai (sampai_pada).
         await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), {
           pack: arrayUnion({ kode_bagging: kode, kode_spk: t.kode_spk || [], kode_batch: t.kode_batch || null, pada: now, sampai_pada: null })
         });
-        // riwayat_scan — BARU . Ditambahkan ADITIF.
+        // riwayat_scan ditulis ADITIF.
         await updateSewingTrack(t.id, () => ({
           status: 'sedang_dikirim', masuk_tahap_pada: now,
           riwayat_scan: arrayUnion({ aksi: 'kirim', oleh: window.currentUser?.email || null, pada: now, qty: t.qty ?? null, catatan: 'Kirim ke Serie — kode tugas ' + modalKirim.tugas.kode })
@@ -904,10 +882,9 @@ const SewingSedangKirim = {
 
 
 // TAB 3.5: Selesai — riwayat, read-only. Baris masuk saat Serie (Tab 2.6 Terima
-// Sewing, SUDAH ADA) Scan Sampai dan menulis `sewing_track.status = 'selesai'` +
-// `sampai_pada` (lihat keputusan #1). TIDAK KOSONG dari awal seperti gap
-// Cutting/Serie — Serie SUDAH BISA menulis ini sejak modul Serie dibangun, jadi
-// begitu siklus pertama selesai, baris akan langsung muncul di sini.
+// Sewing) Scan Sampai dan menulis `sewing_track.status = 'selesai'` +
+// `sampai_pada` (keputusan #1). Serie sudah bisa menulis itu, jadi baris muncul
+// begitu siklus pertama selesai.
 
 const SewingSelesai = {
   setup() {

@@ -1,20 +1,22 @@
 // js/vue-mail-gateway.js
-
-// Mail Gateway — mirip WhatsApp Gateway (3 tab: Config, Template Pesan,
-// Monitoring), tapi urus pengiriman EMAIL (lewat Extension "Trigger Email",
-// bukan Apps Script seperti WhatsApp). Tab Config JUGA jadi tempat uji coba 3
-// skenario OTP (kode benar/salah/kadaluarsa) — lihat catatan di js/vue-otp.js
-// buat model keamanannya.
+// Komponen AppMailGateway — Mail Gateway, 3 tab (Config, Template Pesan,
+// Monitoring) untuk pengiriman EMAIL lewat Extension "Trigger Email". Tab
+// Config juga tempat uji skenario OTP (kode benar/salah/kadaluarsa).
 //
-// window.kirimOtpEmail / window.verifikasiOtpEmail (vue-otp.js) TETAP dipanggil
-// apa adanya dari sini — fungsi bersama, juga dipakai alur Registrasi & login
-// perangkat baru.
+// Koleksi & field:
+// - config/mail_templates: pasangan subjek_/isi_ per jenis (registrasi,
+//   perangkat, aktivasi akun); kalau belum ada, fallback TEMPLATE_DEFAULT.
+// - mail: antrean kirim yang dibaca Extension. Monitoring baca 50 dokumen
+//   terakhir (orderBy dikirim_pada desc) plus field delivery.
 //
-// tambah 1 template baru "Aktivasi Akun" — dipakai js/vue-antrean-dakar.js untuk
-// kirim email cara login (email + password sementara = NIK) begitu Admin/Owner
-// approve pendaftaran karyawan baru. Sama seperti template lain di sini: kalau
-// belum pernah diatur di Firestore (config/mail_templates), fallback ke teks
-// baku otomatis.
+// Jebakan:
+// - Field `delivery` ditulis Extension, BUKAN file ini — jangan diisi sendiri.
+// - window.kirimOtpEmail/verifikasiOtpEmail (vue-otp.js) dipakai apa adanya,
+//   sama dengan alur Registrasi dan login perangkat baru.
+// - Template "Aktivasi Akun" dipakai vue-antrean-dakar.js; mengganti nama
+//   placeholder {kode}/{nama}/{email}/{link}/{menit} memutus pemanggilnya.
+// - Mount lewat window.pastikanMountMailGateway, pindah sub-tab lewat
+//   window.bukaSubTabMailGateway.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, getDoc, setDoc, collection, getDocs, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";

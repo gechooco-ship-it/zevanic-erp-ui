@@ -3,79 +3,38 @@
 // Pesanan, dan Transaksi Keuangan (piutang & kas).
 //
 // Koleksi & field:
-// - transaksi_kasir: pelanggan_id, status_bayar (lunas/dp/tempo), dp_persen,
-// total_dibayar, sisa_piutang, jatuh_tempo. no_transaksi = KSR + timestamp
-// milidetik; no_spk = TRX + timestamp + urutan. Koleksi counter
-// pengaturan_id_transaksi_kasir tidak dipakai lagi di sini.
+// - transaksi_kasir: status_bayar (lunas/dp/tempo), dp_persen, total_dibayar,
+//   sisa_piutang, jatuh_tempo. no_transaksi = KSR + timestamp milidetik,
+//   no_spk = TRX + timestamp + urutan.
 // - piutang_pembayaran: 1 dokumen per pembayaran. catatPembayaranSusulan
-// adalah SATU-SATUNYA titik yang mengurangi master_pelanggan.saldo_piutang;
-// checkout yang menambahnya.
+//   SATU-SATUNYA titik yang mengurangi master_pelanggan.saldo_piutang,
+//   checkout yang menambahnya.
 // - order_spk: qo_diproses, qo_diproses_pada, qo_oleh — penanda baris sudah
-// diputus QO supaya keluar dari antrean Menunggu Proses.
-// - Diskon per baris keranjang: diskon_tipe ('rp'|'persen') + diskon_nilai.
-// Tidak ada logic denda di file ini.
+//   diputus QO supaya keluar dari antrean Menunggu Proses.
 //
 // Jebakan:
-// - order_spk.status_grouping MILIK mesin grouping Persiapan Produksi.
-// JANGAN ditulis dari file ini — tombol Proses massal hanya mengubah
-// qty_order + 3 field qo_* di atas.
-// - Checkout DIBLOKIR TOTAL kalau saldo_piutang + sisa piutang baru melebihi
-// master_pelanggan.limit_piutang.
-// - bahanTerblokirDiKeranjang sengaja fail-OPEN: kalau query pengecekannya
-// sendiri error, checkout tetap jalan supaya kasir tidak berhenti total.
-// - Katalog Kasir membaca master_produk, belum tersambung ke stok Gudang
-// Barang Jadi / scan label_pcs.
-// - Struk dicetak lewat js/vue-pengaturan-cetak.js, jenis struk_kasir.
+// - order_spk.status_grouping MILIK mesin grouping Persiapan Produksi, JANGAN
+//   ditulis dari file ini; tombol Proses massal cuma mengubah qty_order + qo_*.
+// - Checkout DIBLOKIR TOTAL kalau saldo_piutang + piutang baru melebihi
+//   master_pelanggan.limit_piutang. bahanTerblokirDiKeranjang sengaja
+//   fail-OPEN: query pengecekannya sendiri error, checkout tetap jalan.
+
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 // storageRef/uploadBytes/getDownloadURL — DISALIN dari js/vue-stock-pembelian.js
-// (konvensi proyek: salin, jangan impor silang). Dipakai HANYA buat 1 hal baru
-// (audit 9 Sep, poin 6): foto bukti transfer/QRIS di popup Catat Pembayaran
-// (4.1.1) — TIDAK menyentuh perhitungan uang sama sekali, cuma lampiran.
+// (konvensi proyek: salin, jangan impor silang). Dipakai HANYA untuk foto bukti
+// transfer/QRIS di popup Catat Pembayaran (4.1.1) — TIDAK menyentuh perhitungan
+// uang sama sekali, cuma lampiran.
 import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
 import { ambilSemuaProduk } from './vue-master-produk.js';
 import { ambilPengaturanCetak } from './vue-pengaturan-cetak.js';
 
 
-// SUSULAN AUDIT WIREFRAME — sudah setuju 6 poin di audit `wireframe.dc.html` vs
-// kode live, dikerjakan sekali jalan tanpa menyentuh logic uang/Firestore
-// (query/hitung total/simpan transaksi), HANYA render/susunan tampilan (kecuali
-// poin 6, yang secara eksplisit minta field tangkapan BARU — bukan perhitungan —
-// lihat catatan di titiknya): S1. 1.1 — indikator STEPPER 2 langkah
-// ("LangkahStepper" di bawah, dipakai ulang di step 1 & 2) + blok pelanggan
-// diubah dari <select> polos jadi kotak "terkunci" ber-ikon 🔒 begitu pelanggan
-// sudah dipilih dari database (tombol "ubah" buat balik ke mode pilih). TIDAK
-// mengubah jadi 3-panel sejajar (sidebar di wireframe = chrome nav aplikasi, di
-// luar kendali file ini) — cuma 2 hal yang diminta eksplisit di poin audit:
-// stepper + kotak pelanggan. S2. 1.2 — grid nominal cepat (Uang Pas + 5 pecahan
-// umum) di dekat input "Uang Diterima". ASUMSI: tombol pecahan (50rb/dst)
-// MENAMBAH ke uang diterima (bukan menimpa) — meniru cara kasir fisik menumpuk
-// lembar uang, beda dari pola "Lunasi semua" di popup 4.1.1 yang MENIMPA (itu 1
-// keputusan nominal, bukan tumpukan lembar). S3. 2.1 — kolom "jumlah order (Rp)"
-// per baris (qty terpilih × harga jual), keterangan "dari Rp X" (basis RO) HANYA
-// muncul kalau angkanya beda dari RO — sebelumnya cuma ada di footer sticky
-// total. S4. 3.2.1 — baris 5 kotak statistik + 3 tab (lini masa/kebutuhan bahan/
-// masalah) + timeline SATU KOLOM urut waktu ( dari daftar kartu per jalur).
-// ASUMSI: order_spk tidak punya timestamp "masuk grouping" sendiri —
-// `qo_diproses_pada` dipakai sebagai proxy titik masuk "Perlu Disiapkan".
-// "pernah tertahan" dihitung dari jumlah spk_track grouping ini yang SAAT INI
-// punya `catatan_masalah` terisi (tidak ada log riwayat "pernah tertahan"
-// terpisah — ini hitungan kondisi sekarang, bukan akumulasi historis penuh). Tab
-// "kebutuhan bahan" cuma daftar NAMA bahan/aksesoris dari BOM produk (bukan
-// kuantitas presisi — rumus kelipatan/panjang/isi_pola_pcs itu logic Persiapan
-// Produksi di luar lingkup poin audit ini, menyalin mentah berisiko salah hitung
-// dan menyesatkan). S5. 4.1/4.2.1/4.2.2 — GANTI dari 3 tab eksklusif jadi 1
-// halaman scroll berurutan (Kas Besar → Rincian Transaksi → Rincian Piutang)
-// dengan filter pelanggan BERSAMA (ref baru `filterPelangganId`) yang mengalir
-// ke ketiga bagian, plus 3 pil navigasi cepat (anchor scroll, BUKAN tab
-// exclusive). Semua computed query/hitung total TIDAK disentuh — cuma ditambah 1
-// syarat filter pelanggan_id di awal filter yang sudah ada. S6. 4.1.1 — blok
-// "bukti & catatan" WAJIB (no. referensi + lampirkan foto) khusus Transfer/QRIS.
-// INI SATU-SATUNYA poin yang menambah field tambahan ke Firestore (`no_referensi`,
-// `bukti_foto_url` di `piutang_pembayaran`) — bukan perhitungan, cuma
-// lampiran/tangkapan data tambahan; total_dibayar/sisa_piutang/saldo_piutang
-// TIDAK tersentuh sama sekali.
+// Catatan tampilan: 1.1 stepper 2 langkah + kotak pelanggan terkunci; 1.2 grid
+// nominal cepat yang MENAMBAH uang diterima, bukan menimpa; 3.2.1 timeline satu
+// kolom memakai qo_diproses_pada sebagai proxy titik masuk; 4.x satu halaman
+// scroll + filter pelanggan bersama. 4.1.1 cuma menambah no_referensi/bukti_foto_url.
 
 
 function formatQty(n) {
@@ -99,13 +58,10 @@ function formatTanggalPendek(iso) {
 }
 
 
-// PIN per akun — DISALIN PERSIS dari js/vue-stock-pembelian.js (hashPin/
-// tierOwnerKeAtas/cariUserByPin/PopupPin/MAKS_PERCOBAAN_PIN), konvensi proyek
-// ini: tiap file salin sendiri, tidak impor silang. Dipakai di 2 titik file ini:
-// "Proses massal" (Menunggu Proses) dan "Catat pembayaran" (Transaksi Keuangan)
-// KEDUANYA SELALU tampilkan PopupPin (TIDAK ADA jalur skip untuk Owner yang
-// sedang login sendiri, lihat D4 di komentar besar atas file ini — beda dari
-// pola sayaOwnerKeAtas-skip di vue-stock-pembelian.js).
+// PIN per akun — disalin dari js/vue-stock-pembelian.js (hashPin/tierOwnerKeAtas/
+// cariUserByPin/PopupPin/MAKS_PERCOBAAN_PIN); konvensi proyek: tiap file salin
+// sendiri, tidak impor silang. Dipakai di "Proses massal" dan "Catat pembayaran",
+// KEDUANYA SELALU tampilkan PopupPin — tidak ada jalur skip untuk Owner (D4).
 
 async function hashPin(pin, email) {
   const data = new TextEncoder().encode(pin + '|' + email);
@@ -223,14 +179,10 @@ async function uploadFotoBuktiTransfer(transaksiKasirId, file) {
 }
 
 
-// catatPembayaranSusulan — 1 fungsi dipakai HANYA oleh popup "Catat Pembayaran"
-// (Transaksi Keuangan 4.1.1), untuk pembayaran SESUDAH transaksi checkout (DP
-// saat kasir/Lunas saat kasir DITULIS LANGSUNG oleh buatOrder di
-// PesananKasirManager, TIDAK lewat fungsi ini — lihat catatan T di bawah). Efek:
-// 1 dokumen piutang_pembayaran baru + transaksi_kasir.total_dibayar/
-// sisa_piutang/status_bayar + master_pelanggan.saldo_piutang (SATU-SATUNYA titik
-// pengurang saldo_piutang, sesuai SPESIFIKASI-KOLEKSI-BARU.md §2 "JANGAN tulis
-// langsung — update lewat fungsi catat pembayaran").
+// catatPembayaranSusulan — dipakai HANYA oleh popup "Catat Pembayaran" (4.1.1),
+// untuk pembayaran SESUDAH checkout (DP/Lunas saat kasir ditulis langsung oleh
+// buatOrder). Efek: 1 dokumen piutang_pembayaran + transaksi_kasir.total_dibayar/
+// sisa_piutang/status_bayar + master_pelanggan.saldo_piutang (SATU-SATUNYA pengurang).
 
 async function catatPembayaranSusulan({ transaksiKasirId, pelangganId, pelangganNama, noTransaksi, jumlah, metode, tanggal, catatan, dicatatOleh, pinPemilik, noReferensi, buktiFotoUrl }) {
   // S6 — no_referensi/bukti_foto_url FIELD (aditif), TIDAK dipakai di
@@ -276,12 +228,10 @@ const JATUH_TEMPO_PRESET = [
   { label: '+7 hari', hari: 7 }, { label: '+14 hari', hari: 14 }, { label: '+30 hari', hari: 30 }
 ];
 
-// formatTimestampPenuh — helper BARU: `{yy}{mm}{dd}{HH}{MM}{SS}{mmm}` sampai
-// milidetik, dipakai KSR (no_transaksi) & TRX (no_spk per baris). Tidak ada lagi
-// counter/doc Firestore terpisah — generatenya SEKARANG SINKRON (bukan async
-// transaksional), tapi fungsi pemanggil lama (generateNoTransaksiKasir) TETAP
-// dibiarkan async supaya semua call site yang sudah `await` di file ini tidak
-// perlu diubah.
+// formatTimestampPenuh — `{yy}{mm}{dd}{HH}{MM}{SS}{mmm}` sampai milidetik, dipakai
+// KSR (no_transaksi) & TRX (no_spk per baris). Tidak ada counter/doc Firestore
+// terpisah, generatenya sinkron; generateNoTransaksiKasir tetap async supaya call
+// site yang sudah `await` tidak perlu diubah.
 function formatTimestampPenuh(d) {
   const yy = String(d.getFullYear()).slice(-2);
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -304,15 +254,10 @@ function tanggalPlusHari(hari) {
   return d.toISOString().slice(0, 10);
 }
 
-// PopupPratinjauCetakStruk — D10 (lihat komentar besar atas file): preview
-// on-screen TETAP template struk khusus (bukan PopupPratinjauCetakLabel, bentuk
-// kontennya beda total), tapi tombol Cetak sekarang buka window baru dengan
-// `@page{size:${lebar}mm auto}` — lebar diambil dari Pengaturan Cetak jenis
-// `struk_kasir` (prop `struk.lebarMm`, diisi PesananKasirManager dari
-// `ambilPengaturanCetak('struk_kasir')`) — pola sama seperti cetakSekarang di
-// PopupPratinjauCetakLabel (vue-components.js), supaya konsisten dan supaya
-// print SUNGGUHAN cuma berisi struk (bukan seluruh halaman di belakang popup
-// seperti window.print polos yang lama).
+// PopupPratinjauCetakStruk (D10) — preview on-screen pakai template struk khusus,
+// tombol Cetak buka window baru dengan `@page{size:${lebar}mm auto}`. Lebar dari
+// Pengaturan Cetak jenis `struk_kasir` (prop struk.lebarMm), pola sama dengan
+// cetakSekarang di PopupPratinjauCetakLabel supaya print cuma berisi struk.
 const PopupPratinjauCetakStruk = {
   props: ['struk'], emits: ['tutup'],
   setup(props, { emit }) {
@@ -623,11 +568,9 @@ const PesananKasirManager = {
           dibuat_oleh: kasirEmail
         })));
 
-        // Catatan audit trail pembayaran SAAT KASIR (bukan lewat popup Catat
-        // Pembayaran) — TIDAK memanggil catatPembayaranSusulan (itu HANYA untuk
-        // pembayaran SESUDAH checkout) supaya saldo_piutang tidak dikurangi dua
-        // kali. saldo_piutang di sini HANYA bertambah sebesar sisa yang jadi
-        // piutang (kalau ada).
+        // Audit trail pembayaran SAAT KASIR — TIDAK memanggil catatPembayaranSusulan
+        // (itu HANYA untuk pembayaran SESUDAH checkout) supaya saldo_piutang tidak
+        // dikurangi dua kali. Di sini saldo_piutang HANYA bertambah sebesar sisa piutang.
         if (dibayarSekarang.value > 0) {
           await addDoc(collection(db, 'piutang_pembayaran'), {
             transaksi_kasir_id: trxRef.id, pelanggan_id: pel.id, pelanggan_nama: pel.nama, no_transaksi: noTransaksi,
@@ -665,11 +608,9 @@ const PesananKasirManager = {
 
     async function muatPelanggan() { memuatPelanggan.value = true; daftarPelanggan.value = await ambilDaftarPelanggan(); memuatPelanggan.value = false; }
 
-    // D10 — pengaturan cetak jenis `struk_kasir` (lebar roll), dimuat sekali per
-    // sesi mount (bukan tiap checkout) — cukup, ukuran kertas jarang ganti di
-    // tengah sesi kasir. ambilPengaturanCetak sendiri sudah punya cache
-    // in-memory (lihat js/vue-pengaturan-cetak.js), jadi tidak nambah read
-    // Firestore kalau layar lain sudah memuatnya duluan.
+    // D10 — pengaturan cetak `struk_kasir` (lebar roll) dimuat sekali per sesi mount,
+    // bukan tiap checkout; ukuran kertas jarang ganti di tengah sesi kasir. Fungsi
+    // ambilPengaturanCetak sudah punya cache in-memory, jadi tidak menambah read.
     const pengaturanStruk = ref(null);
 
     async function muat() {
@@ -757,11 +698,8 @@ const PesananKasirManager = {
             <label style="margin:0;">Pelanggan <span style="color:var(--danger);">*</span></label>
             <span v-if="pelangganTerpilihId && !modeGantiPelanggan" @click="modeGantiPelanggan = true" style="margin-left:auto; font-size:10.5px; color:var(--burgundy); cursor:pointer; text-decoration:underline;">ubah</span>
           </div>
-          <!--
-            S1: begitu pelanggan sudah dipilih DARI DATABASE, tampil sebagai kotak terkunci
-            ber-ikon 🔒 (bukan <select> polos lagi) — persis blok "pelanggan · terkunci" di
-            wireframe 1.1.
-          -->
+          <!-- S1: begitu pelanggan dipilih DARI DATABASE, tampil sebagai kotak terkunci
+            ber-ikon 🔒 (bukan <select> polos) — blok "pelanggan · terkunci" di wireframe 1.1. -->
           <template v-if="!pelangganTerpilihId || modeGantiPelanggan">
             <select v-model="pelangganTerpilihId" @change="modeGantiPelanggan = false">
               <option value="" disabled>{{ memuatPelanggan ? 'Memuat...' : 'Pilih pelanggan...' }}</option>
@@ -1050,19 +988,15 @@ const PesananMenungguManager = {
 
 
 // 3. DAFTAR PESANAN (3.1 ringkasan per pelanggan, 3.2 rincian anak SPK, 3.2.1
-// lini masa). BARU TOTAL — GANTI 3 sub-menu ringkasan lama (Proses Persiapan/
-// Produksi/Pengiriman, dihapus, lihat mount lama di bagian akhir file versi
-// sebelumnya). Lihat T3 di komentar besar atas file ini untuk keterbatasan
-// pipeline yang disengaja SETELAH SPK masuk grouping campuran.
+// lini masa). Lihat T3 di komentar besar atas file untuk keterbatasan pipeline
+// yang disengaja setelah SPK masuk grouping campuran.
 
 const JALUR_URUTAN = ['vendor', 'bahan', 'sewing', 'webbing', 'finishing'];
 const JALUR_LABEL_PENDEK = { vendor: 'Vendor', bahan: 'Bahan', sewing: 'Acc Sewing', webbing: 'Acc Webbing', finishing: 'Acc Finishing' };
 
-// S4: helper lini masa 3.2.1 (dipakai HANYA di popup timeline)
-// tglFleksibel — riwayat_scan[].pada disimpan sebagai string ISO biasa (lihat
-// pemakaian lama `new Date(r.pada)`), sedangkan order_spk.dibuat_pada/
-// qo_diproses_pada Firestore Timestamp (dari serverTimestamp). Helper ini
-// menerima keduanya.
+// S4: helper lini masa 3.2.1 (dipakai HANYA di popup timeline). tglFleksibel —
+// riwayat_scan[].pada string ISO biasa, sedangkan order_spk.dibuat_pada/
+// qo_diproses_pada Firestore Timestamp; helper ini menerima keduanya.
 function tglFleksibel(v) {
   if (!v) return null;
   if (typeof v.toDate === 'function') return v.toDate();
@@ -1080,11 +1014,10 @@ function formatDurasiMs(ms) {
   if (jam > 0) return `${jam}j ${menit}m`;
   return `${menit}m`;
 }
-// bangunTimelineSpk — merangkai SATU kolom kejadian urut waktu (wireframe
-// 3.2.1): Pesanan masuk -> Perlu Disiapkan (ASUMSI: pakai qo_diproses_pada
-// sebagai proxy, lihat komentar susulan audit S4 di atas file) -> tiap jalur
-// produksi yang py track -> 2 simpul masa depan tetap (Proses Produksi Cutting,
-// Selesai/terkirim) yang belum dibangun modulnya.
+// bangunTimelineSpk — merangkai SATU kolom kejadian urut waktu (wireframe 3.2.1):
+// Pesanan masuk -> Perlu Disiapkan (proxy qo_diproses_pada) -> tiap jalur produksi
+// yang punya track -> 2 simpul masa depan (Proses Produksi Cutting, Selesai/
+// terkirim) yang modulnya belum dibangun.
 function bangunTimelineSpk(spk, tracks) {
   const kejadian = [];
   kejadian.push({
@@ -1222,11 +1155,9 @@ const PesananDaftarManager = {
     });
 
     // Pipeline Persiapan per pelanggan — 5 jalur, dihitung dari DISTINCT
-    // kode_spk_grouping milik pelanggan ini yang punya track aktif di jalur itu
-    // (lihat T3 — angka ini menghitung GROUPING yang tersentuh, BUKAN pecahan
-    // qty per pelanggan dalam grouping campuran; kalau grouping digabung lintas
-    // pelanggan, jalur di sini bisa tampak "aktif" untuk >1 pelanggan
-    // sekaligus).
+    // kode_spk_grouping milik pelanggan ini yang punya track aktif di jalur itu.
+    // Angka ini menghitung GROUPING yang tersentuh, BUKAN pecahan qty per pelanggan;
+    // grouping lintas pelanggan bisa tampak "aktif" untuk >1 pelanggan sekaligus (T3).
     function pipelinePersiapan(p) {
       const kodeSet = new Set(p.spk.filter(s => s.status_grouping && s.kode_spk_grouping).map(s => s.kode_spk_grouping));
       const hasil = {};
@@ -1468,10 +1399,9 @@ const PesananDaftarManager = {
 
 
 // 4. TRANSAKSI KEUANGAN (4.1 kas besar, 4.1.1 catat pembayaran, 4.2.1 rincian
-// transaksi, 4.2.2 rincian piutang). BARU TOTAL — koleksi `piutang_pembayaran`
-// baru (lihat SPESIFIKASI-KOLEKSI-BARU.md §2). "Catat pembayaran" tampil HANYA
-// untuk Owner/PIC Owner (tombolnya sendiri, sesuai teks wireframe 4.1) DAN tetap
-// wajib PopupPin sesudah diklik (D4 — dua lapis, bukan salah satu saja).
+// transaksi, 4.2.2 rincian piutang) di atas koleksi `piutang_pembayaran`. "Catat
+// pembayaran" tampil HANYA untuk Owner/PIC Owner DAN tetap wajib PopupPin sesudah
+// diklik (D4 — dua lapis, bukan salah satu saja).
 
 const PesananTransaksiManager = {
   components: { PopupPin },
@@ -1656,11 +1586,9 @@ const PesananTransaksiManager = {
   template: `
     <div v-if="!bolehLihat" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12.5px;">Akun ini tidak punya izin untuk Transaksi Keuangan.</div>
     <div v-else style="display:flex; flex-direction:column; gap:14px;">
-      <!--
-        S5: GANTI dari 3 tab eksklusif jadi 1 halaman scroll berurutan (Kas Besar -> Rincian
-        Transaksi -> Rincian Piutang) dengan pil navigasi cepat (anchor scroll, bukan tab
-        exclusive) + 1 filter pelanggan bersama yang mengalir ke ketiga bagian.
-      -->
+      <!-- S5: 1 halaman scroll berurutan (Kas Besar -> Rincian Transaksi -> Rincian
+        Piutang) dengan pil navigasi cepat (anchor scroll, bukan tab exclusive) +
+        1 filter pelanggan bersama yang mengalir ke ketiga bagian. -->
       <div class="gc-card" style="padding:12px 14px; border-radius:16px; display:flex; flex-direction:column; gap:10px;">
         <div style="display:flex; gap:6px; flex-wrap:wrap;">
           <button @click="lompatKe('seksi-kas-besar')" type="button" class="btn-outline" style="padding:6px 13px; font-size:11px; border-radius:999px;">↓ Kas Besar</button>
@@ -1844,14 +1772,10 @@ window.pastikanMountPesananKasir = function() {
 
 const AppPesananMenunggu = { components: { PesananMenungguManager }, template: `<pesanan-menunggu-manager ref="mgr" />` };
 let vmPesananMenunggu = null;
-// #2 . Arsitektur pastikanMountXxx SENGAJA mount sekali saja (hemat baca
-// Firestore, lihat komentar besar di dashboard.js dekat petaMount) — efek
-// sampingnya kembali ke sub-tab yang sudah ke-mount jadi no-op total, datanya
-// beku. Di sini SAJA (bukan pastikanMountXxx lain) dipanggil ulang
-// PesananMenungguManager.muat lewat $refs kalau sudah ke-mount, supaya "pindah
-// tab" = data segar tanpa reload manual. muat sendiri sudah set
-// memuat=true/false, jadi indikator "Memuat.." yang sudah ada di template
-// otomatis tampil lagi.
+// Arsitektur pastikanMountXxx mount sekali saja (hemat baca Firestore), jadi
+// kembali ke sub-tab yang sudah ke-mount normalnya no-op dan datanya beku. Di sini
+// SAJA PesananMenungguManager.muat dipanggil ulang lewat $refs kalau sudah
+// ke-mount, supaya pindah tab = data segar tanpa reload manual.
 window.pastikanMountPesananMenunggu = function() {
   if (vmPesananMenunggu) {
     const mgr = vmPesananMenunggu.$refs && vmPesananMenunggu.$refs.mgr;

@@ -1,31 +1,23 @@
 // js/vue-persiapan-belanja.js
-// Persiapan Produksi > Persiapan Belanja. Alur: admin input nota belanja →
-// tarik pengajuan dari Persiapan Masalah → menunggu ACC Owner → generate
-// order ke HP driver → driver beli/pending → nota lanjut ke Stok & Pembelian.
+// Persiapan Produksi > Persiapan Belanja. Alur: admin input nota → tarik
+// pengajuan dari Persiapan Masalah → ACC Owner (tierOwnerKeAtas) → order ke
+// HP driver → driver beli/pending → nota lanjut ke Stok & Pembelian.
 //
 // Koleksi & field:
-// - pesanan_pembelian dipakai BERSAMA modul Stok. Dokumen dari modul ini
-// dibedakan lewat order_driver_id != null sejak awal (nota manual Stok
-// selalu null). Status tambahan: menunggu_acc → disetujui → siap_finalisasi.
-// - order_belanja_driver diberi field pesanan_pembelian_id sebagai link balik;
-// tanpa itu aksi "Beli" driver tidak tahu nota mana yang ditulis.
+// - pesanan_pembelian dipakai BERSAMA modul Stok; dokumen dari sini dibedakan
+//   lewat order_driver_id != null sejak awal (nota manual Stok selalu null).
+//   Status tambahan: menunggu_acc → disetujui → siap_finalisasi.
+// - order_belanja_driver diberi pesanan_pembelian_id sebagai link balik;
+//   tanpa itu aksi "Beli" driver tidak tahu nota mana yang ditulis.
 // - Counter no_pembelian (pengaturan_id_pembelian) SATU urutan bareng Stok.
-// - Suplayer nota auto-terisi dari alias_pembelian.is_default_order item
-// pertama, hanya sebagai saran; dropdown manual tetap ada.
 //
 // Jebakan:
 // - JANGAN set status 'final' dari sini. 'final' memicu
-// catatRiwayatHargaDanUpdateMaster (stok_akhir + riwayat harga master)
-// yang hanya boleh dijalankan vue-stock-pembelian.js. Finalisasi harga
-// aktual memang di luar cakupan modul ini.
-// - 1 nota = 1 suplayer_id. Item dengan default suplayer beda cuma diberi
-// chip peringatan, tidak auto-pecah jadi banyak order.
-// - Cek Pengajuan menyaring persiapan_masalah status 'diajukan_belanja' minus
-// id yang sudah ada di sumber_masalah_ids nota aktif, supaya 1 pengajuan
-// tidak tertarik ke 2 nota. Status di persiapan_masalah TIDAK diubah dari
-// sini — 'diajukan_belanja' terminal dari sisi modul Masalah.
-// - Gerbang ACC: tierOwnerKeAtas (impor dari vue-scan-cetak.js). Driver bukan
-// role sistem, cuma akun karyawan biasa dengan cekIzinMenu.
+//   catatRiwayatHargaDanUpdateMaster (stok_akhir + riwayat harga master) yang
+//   hanya boleh dijalankan vue-stock-pembelian.js.
+// - 1 nota = 1 suplayer_id; suplayer default beda cuma dapat chip peringatan.
+// - Cek Pengajuan menyaring persiapan_masalah 'diajukan_belanja' minus id di
+//   sumber_masalah_ids nota aktif, supaya 1 pengajuan tidak masuk 2 nota.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -222,15 +214,10 @@ const PersiapanAdminBelanja = {
           suplayer_default_id: def?.id || '', suplayer_default_nama: def?.nama || '',
           ...(extra?.dariMasalahId ? { dari_masalah_id: extra.dariMasalahId } : {})
         });
-        // Suplayer nota (suplayerId) TETAP diisi dari item PERTAMA — dipakai
-        // sebagai suplayer FALLBACK untuk item yang tidak punya default di
-        // Petakan Order (lihat kelompokPerSuplayer/ 9 Sep malam di bawah). Sejak
-        // revisi ini nota BOLEH berisi item multi-suplayer: tiap item yang PUNYA
-        // default sendiri (suplayer_default_id) akan dikelompokkan ke
-        // suplayernya masing-masing saat Setuju ACC — suplayerId di sini bukan
-        // lagi "suplayer satu-satunya", cuma fallback + nilai default form. Chip
-        // "suplayer beda" di template tetap dipertahankan sebagai indikator
-        // visual saat mengisi form.
+        // Suplayer nota (suplayerId) diisi dari item PERTAMA dan berperan
+        // sebagai FALLBACK, bukan "suplayer satu-satunya": nota boleh
+        // multi-suplayer, item yang punya suplayer_default_id dikelompokkan ke
+        // suplayernya sendiri saat Setuju ACC (lihat kelompokPerSuplayer).
         if (!suplayerId.value && def?.id) suplayerId.value = def.id;
       }
     }
@@ -371,12 +358,9 @@ const PersiapanAdminBelanja = {
       </div>
     </template>
     <template v-else>
-      <!--
-        Layar Nota Order — 2 kolom sesuai wireframe §8.1: kiri grid produk (cari/browse), kanan
-        panel Item Nota berkartu dengan stepper qty. Suplayer TIDAK jadi field pertama yang wajib
-        diisi lagi (otomatis dari Petakan Order saat item pertama ditambah) — dropdown tetap ada
-        di atas panel kanan untuk koreksi manual, lihat catatan besar § di atas.
-      -->
+      <!-- Layar Nota Order — 2 kolom sesuai wireframe §8.1: kiri grid produk (cari/browse),
+        kanan panel Item Nota berkartu dengan stepper qty. Suplayer terisi otomatis dari Petakan
+        Order saat item pertama ditambah; dropdown di atas panel kanan untuk koreksi manual. -->
       <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">
         <div style="flex:2; min-width:280px; display:flex; flex-direction:column; gap:10px;">
           <div style="display:flex; gap:8px; align-items:center;">
@@ -477,23 +461,10 @@ const PersiapanAdminBelanja = {
 };
 
 
-// TAB 2 (8.1.3): Menunggu ACC — Owner/PIC Owner Setuju/Tolak, generate
-// order_belanja_driver saat Setuju (keputusan #3/#4/#10).
-//
-// nota BOLEH multi-suplayer. Sebelumnya 1 nota -> 1 order_belanja_driver
-// (suplayer tunggal dari suplayerId nota). Sekarang tiap item dikelompokkan ke
-// suplayer DEFAULT-nya sendiri (suplayer_default_id, dari Petakan
-// Order/alias_pembelian. is_default_order, disnapshot saat item ditambahkan di
-// Persiapan Admin — lihat tambahBahanKeItem/masukkanPengajuanTerpilih). Item
-// TANPA default (suplayer_default_id kosong) jatuh ke kelompok fallback =
-// suplayer nota (suplayerId/suplayer_nama) — supaya tidak ada item yang "hilang"
-// tanpa tujuan. kelompokPerSuplayer dipakai untuk DUA hal: (a) ringkasan visual
-// di kartu Menunggu ACC (wireframe 8.1.2: "ringkasan per suplayer: jumlah item,
-// total estimasi"), (b) split nyata jadi banyak order_belanja_driver saat Setuju
-// List Order Driver & Riwayat Belanja SUDAH baca langsung dari koleksi
-// order_belanja_driver (bukan lewat pesanan_pembelian.order_driver_id tunggal),
-// jadi otomatis tampil "kartu per suplayer" begitu displit di sini, TANPA perlu
-// ubah kode di ListOrderDriver/RiwayatBelanja.
+// TAB 2 (8.1.3): Menunggu ACC — Setuju/Tolak oleh Owner, generate
+// order_belanja_driver saat Setuju (keputusan #3/#4/#10). Nota boleh
+// multi-suplayer: kelompokPerSuplayer memakai suplayer_default_id tiap item
+// (fallback ke suplayer nota) untuk ringkasan kartu sekaligus split order.
 
 function kelompokPerSuplayer(n) {
   const map = new Map();
@@ -565,7 +536,7 @@ const MenungguAccBelanja = {
         await updateDoc(doc(db, 'pesanan_pembelian', n.id), {
           status: 'disetujui',
           order_driver_id: idOrderBaru[0] || null, // dipertahankan (kompatibel lama, order pertama)
-          order_driver_ids: idOrderBaru, // BARU — daftar LENGKAP kalau displit multi-suplayer
+          order_driver_ids: idOrderBaru, // daftar LENGKAP kalau displit multi-suplayer
           disetujui_oleh: window.currentUser?.email || '', disetujui_pada: now
         });
         await muat();

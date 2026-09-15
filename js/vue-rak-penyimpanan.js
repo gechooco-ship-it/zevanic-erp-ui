@@ -1,44 +1,33 @@
 // js/vue-rak-penyimpanan.js
-// Stok & Pembelian > Rak Penyimpanan (sub-tab ke-4). Menu-id
-// 'stock_rak_penyimpanan'; id lama 'bahan_aksesoris_rak' dipensiunkan supaya
-// izin lama tidak yatim.
+// Stok & Pembelian > Rak Penyimpanan (sub-tab ke-4), menu-id
+// 'stock_rak_penyimpanan'.
 //
 // Koleksi & field (master_rak_penyimpanan):
 // - rak / baris_rak / kolom_rak: 3 input TEKS BEBAS, digabung tanpa pemisah
-// jadi kode_rak ("E"+"1"+"1" = "E11"), wajib unik.
-// - rak_label = alias nilai kode_rak yang sama. Field itu yang jadi sumber
-// opsi dropdown "Pilih Rak" dan pengurutan di vue-bahan-aksesoris.js, jadi
-// formatnya bebas string tapi harus tetap terisi.
-// - volume_rak disimpan cm³. Konversi ke m³ (÷1.000.000) cuma di layar ini.
-//
-// Kapasitas bar:
-// terpakai per item (cm³) = stok_akhir x volume_barang
-// terpakai per rak = SUM semua item yang rak_id-nya menunjuk rak itu
-// sisa = volume_rak − terpakai, BISA NEGATIF kalau over kapasitas
-// persen = terpakai / volume_rak x 100; volume_rak 0 dianggap 100% kalau
-// ada isinya, 0% kalau kosong
-// warna: <50% hijau · 50–79% amber · >=80% merah
+//   jadi kode_rak ("E"+"1"+"1" = "E11"), wajib unik.
+// - rak_label = alias kode_rak; jadi sumber opsi dropdown "Pilih Rak" dan
+//   pengurutan di vue-bahan-aksesoris.js, format bebas tapi wajib terisi.
+// - volume_rak disimpan cm³ (konversi ke m³ ÷1.000.000 cuma di layar ini).
+// - Kapasitas: terpakai per item = stok_akhir x volume_barang, per rak = SUM
+//   item ber-rak_id sama; sisa = volume_rak − terpakai, BISA NEGATIF.
 //
 // Jebakan:
-// - Definisi "terpakai" di atas belum pernah dikonfirmasi ke . Kalau
-// ukurannya ternyata qty roll/lot, bukan stok_akhir polos, formulanya salah.
 // - volume_rak JANGAN diubah unit simpannya ke m³. vue-bahan-aksesoris.js
-// menampilkan hint "Kapasitas: X cm³" di 2 tempat tanpa konversi, jadi
-// angkanya langsung bohong kalau unitnya diganti diam-diam.
-// - Bar kapasitas properti RAK, bukan item: baris item yang berbagi rak sama
-// menampilkan angka identik. Itu memang disengaja.
-// - Query item pakai where('rak_id','>','') supaya item tanpa rak tidak
-// terbaca dan field foto base64 tidak ikut ketarik.
+//   menampilkan hint "Kapasitas: X cm³" di 2 tempat tanpa konversi, jadi
+//   angkanya langsung bohong kalau unitnya diganti diam-diam.
+// - Definisi "terpakai" di atas belum pernah dikonfirmasi; kalau ukurannya
+//   ternyata qty roll/lot bukan stok_akhir polos, formulanya salah.
+// - Query item where('rak_id','>','') juga mencegah foto base64 ikut ketarik.
+
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 
-// buatQrDataUrl — copy persis pola SAMA yang sudah dipakai di banyak file lain
-// (vue-bahan-aksesoris.js, vue-stock-pembelian.js, dst) — konvensi proyek ini:
-// fungsi bantu generate-QR kecil DISALIN per file, bukan diimpor lintas file
-// (lihat catatan panjang di vue-bahan-aksesoris.js). `qrcodejs` (global
-// `QRCode`) sudah dimuat sekali di index.html.
+// buatQrDataUrl — salinan lokal, konvensi proyek ini: fungsi bantu generate-QR
+// kecil DISALIN per file, bukan diimpor lintas file (lihat catatan di
+// vue-bahan-aksesoris.js). `qrcodejs` (global `QRCode`) dimuat sekali di
+// index.html.
 function buatQrDataUrl(teks) {
   if (typeof QRCode === 'undefined') return '';
   const tmp = document.createElement('div');
@@ -155,13 +144,10 @@ const RakPenyimpananManager = {
     }
     function tutupPopup() { popupTerbuka.value = false; resetForm(); }
 
-    // Cetak
-    // Label Rak — pakai sistem cetak terpusat yang sama dengan modul lain
-    // (KATALOG_CETAK di js/vue-pengaturan-cetak.js, jenis baru
-    // 'label_rak_penyimpanan'; PopupPratinjauCetakLabel di
-    // js/vue-components.js). Otomatis kebuka sekali begitu Rak (bukan edit)
-    // disimpan, dan bisa dipicu manual lewat tombol printer per baris
-    // (item-centric grid & "Rak belum terisi").
+    // Cetak Label Rak lewat sistem cetak terpusat (KATALOG_CETAK di
+    // js/vue-pengaturan-cetak.js jenis 'label_rak_penyimpanan',
+    // PopupPratinjauCetakLabel di js/vue-components.js). Terbuka sekali saat Rak
+    // disimpan (bukan edit), atau manual lewat tombol printer per baris.
 
     const popupCetakLabelAktif = ref(false);
     const daftarLabelPreview = ref([]);
@@ -446,13 +432,10 @@ const RakPenyimpananManager = {
       </div>
     </template>
 
-    <!--
-      Rak yang belum ditempati item apapun — tetap perlu bisa dikelola (Edit/Hapus) walau tidak
-      tampil di tabel item-centric di atas (tabel di atas HANYA menampilkan Rak yang sudah dipilih
-      minimal 1 item, sesuai spek "1 baris per item" — bukan celah, ini memang penambahan sengaja
-      supaya Admin tetap bisa membetulkan dimensi Rak yang salah ketik SEBELUM ada item yang
-      memakainya).
-    -->
+    <!-- Rak yang belum ditempati item apapun tetap perlu bisa dikelola (Edit/Hapus) walau
+      tabel item-centric di atas HANYA menampilkan Rak yang sudah dipilih minimal 1 item (spek
+      "1 baris per item"). Blok ini sengaja ada supaya Admin bisa membetulkan dimensi Rak yang
+      salah ketik sebelum ada item yang memakainya. -->
     <div v-if="!memuat && !errorMuat && rakBelumTerisi.length > 0" class="gc-card" style="margin-top:14px;">
       <h4 style="font-weight:700; font-size:12px; margin:0 0 10px; color:var(--text-muted);"><i class="fas fa-inbox" style="margin-right:6px;"></i>Rak belum terisi item ({{ rakBelumTerisi.length }})</h4>
       <div style="display:flex; flex-direction:column; gap:8px;">

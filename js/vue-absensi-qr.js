@@ -1,17 +1,22 @@
 // js/vue-absensi-qr.js
-
-// "Absensi Melalui QR" — dipakai HP Kiosk yang digantung tetap di gudang, buat
-// karyawan yang HP-nya tidak ada/rusak. Alurnya: Fase 1 (SELESAI) — PIN di
-// Profile > Keamanan (vue-account-profile.js) Fase 2 (FILE INI) — Link di Login
-// + menu 5 pilihan Fase 3 (BELUM) — Kamera auto-scan QR (timeout 7 detik) Fase 4
-// (BELUM) — Keypad PIN + verifikasi hash Fase 5 (BELUM) — Role 'kiosk' baru di
-// firestore.rules + tulis absensi atas nama orang yang di-scan (gudang+radius
-// tetap ditegakkan, sama seperti Clock In/Out biasa)
+// Layar Absensi QR untuk HP Kiosk yang digantung di gudang (karyawan tanpa HP).
+// Alur: menu jenis absen -> auto-scan QR -> PIN -> konfirmasi arah Clock
+// In/Out -> delegasi ke screen-camera -> kartu sukses beberapa detik.
 //
-// File ini BARU bangun tahap MENU (tahap='menu') + kerangka tahap 'scan' (masih
-// placeholder, diisi Fase 3). SENGAJA dipisah dari vue-camera.js (bukan menambah
-// mode baru di situ) — alur otentikasinya beda total (PIN, bukan Firebase Auth
-// email/password), jadi lebih jelas kalau berdiri sendiri.
+// Koleksi & field:
+// - users: dicari lewat where(id_app == hasil scan), fallback doc(users/{email}).
+//   Dipakai: pin_hash, gudang_penempatan, nama_shift, jenis_akun='kiosk'.
+// - Tidak menulis absensi sendiri — penulisan dilakukan vue-camera.js.
+//
+// Jebakan:
+// - hashPin di sini salinan persis dari vue-account-profile.js; beda satu
+//   karakter pun hash tidak akan pernah cocok.
+// - Gudang yang dioper ke kamera adalah IRISAN gudang karyawan dan gudang
+//   kiosk — Rules cuma izinkan kiosk menulis absensi gudang miliknya sendiri.
+// - window.currentUser dioverride sementara jadi karyawan terscan; identitas
+//   kiosk disimpan di window._kioskUserAsli dan WAJIB dipulihkan lewat
+//   window.selesaiModeKiosk (dipanggil balik dari vue-camera.js).
+// - PIN diminta dua kali (identitas, lalu submit), maksimal 3 percobaan.
 
 import { createApp, ref, onMounted, onBeforeUnmount } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, getDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -46,16 +51,10 @@ const AppAbsensiQr = {
     const memverifikasiPin = ref(false);
     const suksesInfo = ref(null); // { nama, shift, jenis, foto, waktu } — diisi window.tampilkanSuksesKiosk
 
-    // DIRAMBAK — SEBELUMNYA 5 tombol (Clock In & Clock Out terpisah). Sekarang
-    // digabung jadi 1 tombol "Clock In / Out" (total jadi 4 tombol) — arah
-    // (Masuk/Keluar) ditentukan OTOMATIS belakangan, SETELAH orangnya di-scan &
-    // PIN benar (lihat lanjutKeKameraAsli, key 'ABSEN' di bawah), bukan dipilih
-    // manual dari menu ini. Ini SEKALIGUS menutup celah lama: dulu orang bisa
-    // pilih tombol "Clock In" biarpun sebenarnya SUDAH Clock In aktif (menu
-    // tidak tau status orangnya sebelum di-scan) — sekarang arahnya SELALU
-    // dihitung dari status TERKINI orang yang di-scan
-    // (window.cekStatusClockInSaya, sumber kebenaran yang sama dipakai Home &
-    // Login), jadi tidak mungkin salah pilih arah lagi.
+    // Menu 4 tombol: Clock In & Clock Out digabung jadi 1 tombol "Clock In / Out".
+    // Arah (Masuk/Keluar) ditentukan OTOMATIS setelah orangnya di-scan & PIN benar
+    // (lihat lanjutKeKameraAsli, key 'ABSEN'), dihitung dari status terkini lewat
+    // window.cekStatusClockInSaya — sumber kebenaran yang sama dipakai Home & Login.
     const JENIS_MENU = [
       { key: 'ABSEN', label: 'Clock In / Out', icon: 'fa-clock' },
       { key: 'LEMBUR (CLOCK IN)', label: 'Lembur', icon: 'fa-business-time' },
@@ -79,16 +78,10 @@ const AppAbsensiQr = {
       'IZIN': { label: 'Izin', icon: 'fa-file-signature' },
       'CUTI': { label: 'Cuti', icon: 'fa-calendar-alt' },
     };
-    // DIKOREKSI — SEBELUMNYA PIN kedua diminta DI SINI (layar konfirmasi),
-    // SEBELUM kamera dibuka. Urutan yang BENAR: PIN pertama cuma cek identitas +
-    // tentukan arah (Clock In/Out/dst) → layar konfirmasi CUMA tampilkan badge
-    // arah (tanpa minta PIN lagi) → kamera dibuka & foto diambil → PIN KEDUA
-    // baru diminta TEPAT SEBELUM submit ke Firestore (di vue-camera.js, sebagai
-    // gerbang terakhir setelah foto ada, bukan sebelum foto).
-    // arahAbsenTerkonfirmasi: hasil tentuin arah, ditentukan SEKALI pas PIN
-    // pertama benar, dipakai lagi di layar konfirmasi & dikirim ke vue-camera.js
-    // lewat window.statusPilihanGlobal — supaya yang ditampilkan PASTI sama
-    // dengan yang dieksekusi.
+    // Urutan PIN: PIN pertama cuma cek identitas + tentukan arah -> layar konfirmasi
+    // cuma tampilkan badge arah -> kamera & foto -> PIN KEDUA diminta TEPAT SEBELUM
+    // submit ke Firestore (di vue-camera.js, gerbang terakhir setelah foto ada).
+    // arahAbsenTerkonfirmasi dikirim ke kamera lewat window.statusPilihanGlobal.
     const arahAbsenTerkonfirmasi = ref('');
 
     let streamKamera = null;
@@ -175,11 +168,9 @@ const AppAbsensiQr = {
       }
     }
 
-    // Cari karyawan pemilik barcode — QR isinya id_app (prioritas) ATAU email
-    // (fallback), PERSIS format yang di-generate Account Profile (lihat
-    // vue-account-profile.js, muatAccountDisplay). Coba id_app dulu (lebih
-    // umum), baru fallback anggap hasil scan itu email (soalnya email JUGA jadi
-    // document ID di collection users).
+    // Cari karyawan pemilik barcode — QR isinya id_app (prioritas) atau email
+    // (fallback), format sama yang di-generate Account Profile. id_app dicoba dulu,
+    // baru fallback anggap hasil scan itu email (email juga document ID users).
     async function prosesHasilScan(qrData) {
       tahap.value = 'mencari';
       try {
@@ -202,48 +193,33 @@ const AppAbsensiQr = {
         tahap.value = 'pin'; // Fase 4 yang bangun keypad PIN di tahap ini
       } catch (e) {
         console.error("Gagal cari data karyawan dari hasil scan:", e);
-        // Kemungkinan besar penyebabnya: field jenis_akun='kiosk' belum terisi
-        // di dokumen users akun Kiosk ini (dicek firestore.rules lewat isKiosk,
-        // BUKAN custom claim role — lihat catatan di firestore.rules kenapa
-        // begitu), atau gudang_penempatan-nya belum diisi lewat menu Device
-        // Kiosk.
+        // Penyebab umum: field jenis_akun='kiosk' belum terisi di dokumen users akun
+        // Kiosk ini (dicek firestore.rules lewat isKiosk, bukan custom claim role),
+        // atau gudang_penempatan-nya belum diisi lewat menu Device Kiosk.
         alert("Gagal mengambil data karyawan. Kemungkinan izin akses HP Kiosk belum diatur di sistem (Fase 5, menyusul).");
         kembaliKeMenu();
       }
     }
 
-    // Setelah PIN benar: DELEGASI PENUH ke screen-camera yang SUDAH ADA
-    // (foto selfie, pilih gudang, cek radius, tulis Firestore — semua sudah
-    // terbukti jalan, TIDAK dibangun ulang di sini). Trik-nya: override
-    // window.currentUser SEMENTARA jadi profil KARYAWAN yang di-scan
-    // (vue-camera.js baca SEMUA datanya dari window.currentUser, termasuk
-    // gudang_penempatan-nya sendiri buat validasi radius) — identitas ASLI si
-    // Kiosk disimpan ke window._kioskUserAsli dulu, dipulihkan lagi lewat
-    // window.selesaiModeKiosk (lihat onMounted di bawah) begitu proses
-    // selesai/dibatalkan — perubahan terkait di vue-camera.js
-    // (window.modeKioskAktif) yang panggil balik itu.
+    // Setelah PIN benar: DELEGASI PENUH ke screen-camera (foto selfie, pilih gudang,
+    // cek radius, tulis Firestore). window.currentUser dioverride sementara jadi
+    // profil karyawan yang di-scan; identitas ASLI Kiosk disimpan di
+    // window._kioskUserAsli dan dipulihkan lewat window.selesaiModeKiosk.
     async function lanjutKeKameraAsli() {
       const k = karyawanTerscan.value;
       window._kioskUserAsli = window.currentUser;
-      // BUG NYATA ditemukan: SEBELUMNYA gudang_penempatan karyawan APA ADANYA
-      // yang dipakai vue-camera.js buat pilih gudang — tapi Firestore Rules cuma
-      // izinkan Kiosk tulis absensi buat gudang yang ADA di gudang_penempatan
-      // MILIK KIOSK SENDIRI. Kalau karyawan (terutama Owner, yang biasanya punya
-      // banyak/beda gudang) gudang PERTAMA-nya bukan gudang yang sama dengan
-      // Kiosk ini, tulisan DITOLAK Firestore diam-diam (persis kejadian scan
-      // Owner gagal, kasus lain sukses). Sekarang dipotong dulu jadi IRISAN
-      // gudang karyawan DAN gudang kiosk — vue-camera.js cuma akan
-      // menawarkan/pilih gudang yang PASTI valid buat kombinasi karyawan+kiosk
-      // ini.
+      // Gudang yang dioper ke kamera adalah IRISAN gudang karyawan dan gudang kiosk:
+      // Firestore Rules cuma izinkan Kiosk menulis absensi untuk gudang miliknya
+      // sendiri, jadi gudang karyawan apa adanya bisa bikin tulisan DITOLAK diam-diam
+      // (kasus Owner yang gudang pertamanya beda dengan gudang kiosk).
       const gudangKaryawan = k.gudang_penempatan || [];
       const gudangKiosk = window._kioskUserAsli.gudang_penempatan || [];
       const gudangIrisan = gudangKaryawan.filter(g => gudangKiosk.includes(g));
       if (gudangIrisan.length === 0) {
         alert(`Karyawan "${k.nama || k.name}" tidak ditempatkan di gudang yang sama dengan Kiosk ini. Absensi tidak bisa diproses lewat Kiosk ini.`);
-        // DITAMBAHKAN — SEBELUMNYA di sini cuma `return`, layar tertinggal diam
-        // di tahap 'konfirmasi'/'pin' tanpa jalan keluar (ketahuan pas nambah
-        // tahap konfirmasi ekstra). Sekarang reset balik ke menu, konsisten
-        // dengan jalur gagal lainnya.
+        // WAJIB reset balik ke menu, bukan cuma `return` — kalau tidak, layar
+        // tertinggal diam di tahap 'konfirmasi'/'pin' tanpa jalan keluar.
+        // Konsisten dengan jalur gagal lainnya.
         kembaliKeMenu();
         return;
       }
@@ -257,12 +233,9 @@ const AppAbsensiQr = {
       window.pindahLayar('screen-camera');
     }
 
-    // dipanggil begitu PIN PERTAMA benar. Tentukan arah Clock In/Out DI SINI
-    // (tombol menu 'ABSEN' gabungan, §19.6) — TEPAT setelah identitas karyawan
-    // pasti (PIN pertama benar), pakai window.cekStatusClockInSaya (satu sumber
-    // kebenaran yang sama dengan Home/Login) supaya arahnya SELALU sesuai status
-    // TERKINI orangnya. Hasilnya ditampilkan di layar konfirmasi, BARU minta PIN
-    // sekali lagi sebelum benar-benar buka kamera.
+    // Dipanggil begitu PIN PERTAMA benar. Arah Clock In/Out ditentukan DI SINI,
+    // tepat setelah identitas karyawan pasti, pakai window.cekStatusClockInSaya
+    // (sumber kebenaran sama dengan Home/Login). Hasilnya tampil di layar konfirmasi.
     async function siapkanKonfirmasi() {
       const k = karyawanTerscan.value;
       let statusFinal = jenisTerpilih.value;
@@ -287,11 +260,9 @@ const AppAbsensiQr = {
       // mulai bersih dari PIN pertama lagi.
       arahAbsenTerkonfirmasi.value = '';
     }
-    // DIUBAH — SEBELUMNYA cuma pindahLayar('screen-login') TANPA logout — itu
-    // TIDAK CUKUP lagi sekarang: kiosk yang "terkunci" (lihat auth.js) akan
-    // otomatis dilempar BALIK ke screen-absensi-qr di refresh berikutnya kalau
-    // sesi Firebase-nya masih aktif. WAJIB signOut sungguhan buat benar-benar
-    // keluar dari mode Kiosk.
+    // logoutKiosk WAJIB signOut sungguhan, bukan cuma pindahLayar('screen-login'):
+    // kiosk yang terkunci (lihat auth.js) akan dilempar BALIK ke screen-absensi-qr
+    // di refresh berikutnya selama sesi Firebase-nya masih aktif.
     async function logoutKiosk() {
       hentikanKamera();
       if (!confirm('Logout dari Device Kiosk ini?')) return;
@@ -328,12 +299,9 @@ const AppAbsensiQr = {
         const hashInput = await hashPin(pinInput.value, k.id);
         if (hashInput === k.pin_hash) {
           pinInput.value = ''; pinError.value = ''; percobaanPin.value = 0;
-          // PIN ini (satu-satunya PIN di file ini) cuma buat pastikan identitas
-          // & tentukan arah (Clock In/Out/dst) — BELUM eksekusi apapun. Lanjut
-          // ke layar konfirmasi (badge arah), lalu kamera. PIN KEDUA (konfirmasi
-          // akhir) diminta belakangan di vue-camera.js, TEPAT SEBELUM submit —
-          // SETELAH foto selfie diambil (lihat catatan di deklarasi
-          // arahAbsenTerkonfirmasi).
+          // PIN ini cuma memastikan identitas & menentukan arah — belum eksekusi apapun.
+          // Lanjut ke layar konfirmasi (badge arah), lalu kamera. PIN KEDUA (gerbang
+          // akhir) diminta di vue-camera.js tepat sebelum submit, setelah foto diambil.
           await siapkanKonfirmasi();
         } else {
           percobaanPin.value++;
@@ -352,12 +320,10 @@ const AppAbsensiQr = {
       memverifikasiPin.value = false;
     }
 
-    // Jaga-jaga — kalau komponen ke-unmount (jarang terjadi di app ini, tapi
-    // tetap wajib) pastikan kamera BENAR-BENAR mati, jangan sampai lampu kamera
-    // nyala terus padahal layarnya sudah pindah. Jembatan ke vanilla: dipanggil
-    // dari vue-camera.js pas proses mode Kiosk selesai (submit sukses ATAU
-    // Batal) — pulihkan identitas ASLI si Kiosk, reset komponen ini balik ke
-    // menu 5 pilihan (siap buat karyawan berikutnya scan).
+    // Kalau komponen ke-unmount, pastikan kamera BENAR-BENAR mati supaya lampu
+    // kamera tidak nyala terus. Jembatan ke vanilla: dipanggil dari vue-camera.js
+    // saat proses mode Kiosk selesai (submit sukses atau Batal) — pulihkan identitas
+    // asli Kiosk, reset komponen ini balik ke menu.
     onMounted(() => {
       // Reset MURNI (dipakai Batal/dibatalkan — TANPA kartu sukses, langsung
       // balik ke menu diam-diam, itu memang benar untuk kasus batal, beda dari
@@ -372,12 +338,9 @@ const AppAbsensiQr = {
         window.pindahLayar('screen-absensi-qr');
       };
 
-      // dipanggil vue-camera.js SETELAH submit BERHASIL (bukan dibatalkan).
-      // SEBELUMNYA langsung selesaiModeKiosk diam-diam, orang yang baru scan
-      // TIDAK PERNAH lihat konfirmasi apapun ("kirim pengajuan tidak ada
-      // respon"). Sekarang tampilkan kartu besar (foto+nama+shift+jenis+jam) 3
-      // detik, BARU reset ke menu — supaya orang yang ngantri di belakangnya
-      // juga tahu gilirannya sudah dekat.
+      // Dipanggil vue-camera.js setelah submit BERHASIL (bukan dibatalkan). Kartu
+      // besar (foto+nama+shift+jenis+jam) tampil 3 detik sebelum reset ke menu, supaya
+      // orang yang baru scan dapat konfirmasi dan yang mengantre tahu gilirannya.
       window.tampilkanSuksesKiosk = function({ jenis, foto }) {
         const k = karyawanTerscan.value;
         suksesInfo.value = {
@@ -388,12 +351,9 @@ const AppAbsensiQr = {
           waktu: new Date().toLocaleTimeString('id-ID')
         };
         tahap.value = 'sukses';
-        // ucapkan "Terima kasih" lewat text-to-speech bawaan browser, KHUSUS
-        // buat Clock In/Clock Out (bukan Lembur/Izin/Cuti — permintaan eksplisit
-        // "mau clockin atau clock out"). Dibungkus try/catch + cek
-        // window.speechSynthesis ADA dulu — beberapa browser/perangkat lama
-        // mungkin tidak dukung, jangan sampai fitur ini bikin seluruh alur
-        // submit gagal cuma gara-gara suara tidak bisa diputar.
+        // Ucapkan "Terima kasih" lewat text-to-speech browser, KHUSUS Clock In/Clock
+        // Out (bukan Lembur/Izin/Cuti). Dibungkus try/catch + cek window.speechSynthesis
+        // ada dulu, supaya perangkat tanpa dukungan suara tidak menggagalkan submit.
         if (jenis === 'HADIR (CLOCK IN)' || jenis === 'CLOCK OUT') {
           try {
             if (window.speechSynthesis) {
@@ -406,22 +366,10 @@ const AppAbsensiQr = {
             console.error('Gagal memutar suara "Terima kasih":', e);
           }
         }
-        // root cause: fungsi ini dipanggil dari vue-camera.js SAAT layar yang
-        // AKTIF masih 'screen-camera' (bukan 'screen-absensi-qr'), sedangkan
-        // kartu sukses ini adanya di komponen INI (vue-absensi-qr.js), yang
-        // hidup di div 'screen-absensi-qr' — SEBELUMNYA div itu TETAP 'hidden'
-        // (CSS display:none) di titik ini, jadi ganti tahap.value ke 'sukses'
-        // TIDAK ADA EFEK VISUAL sama sekali. 3 detik kemudian
-        // window.selesaiModeKiosk BARU pindahLayar ke screen-absensi-qr — TAPI
-        // di callback YANG SAMA, suksesInfo.value SUDAH ke-null-kan duluan
-        // (baris tepat di atas pindahLayar itu) — jadi begitu layarnya akhirnya
-        // kelihatan, kartunya sudah "dihapus" lagi, langsung balik ke tahap
-        // 'menu'. Sekarang pindahLayar dipanggil SEKARANG JUGA (bukan nunggu 3
-        // detik) — supaya kartu sukses ini BENAR-BENAR kelihatan selama 3 detik
-        // itu. Ini JUGA otomatis mematikan kamera (lihat app.js pindahLayar —
-        // pindah ke layar selain screen-camera otomatis panggil
-        // window.matikanKamera), pas karena foto sudah selesai diambil &
-        // dikirim.
+        // pindahLayar dipanggil SEKARANG JUGA, bukan menunggu 3 detik: kartu sukses ini
+        // hidup di div 'screen-absensi-qr' yang masih hidden saat vue-camera.js memanggil
+        // fungsi ini, jadi tahap 'sukses' tidak kelihatan kalau layarnya belum dipindah.
+        // Sekaligus mematikan kamera (app.js pindahLayar panggil window.matikanKamera).
         window.pindahLayar('screen-absensi-qr');
         // DIUBAH — durasi tampil kartu sukses dari 3 detik jadi 7 detik.
         setTimeout(() => {
