@@ -84,13 +84,12 @@ export function bangunConstraintFilterPeran(opsiField = {}) {
   const fieldJenisPekerjaan = opsiField.fieldJenisPekerjaan || 'jenis_pekerjaan';
   const fieldGudang = opsiField.fieldGudang === undefined ? 'gudang_penempatan' : opsiField.fieldGudang; // null = koleksi ini tidak punya dimensi gudang (mis. master_shift)
   const role = (window.currentUser.role || '').toLowerCase();
-  if (role === 'owner' || role === 'superuser') return [];
-  // BARU (28 Agt 2026, role "PIC Owner") — SAMA seperti window.bolehLihatData
-  // (auth.js): profil pic_owner di-bypass EKSPLISIT dari dimensi gudang lewat
-  // profil_akses, BUKAN lewat trik "kosongkan gudang_penempatan" (field itu
-  // mungkin masih dipakai buat keperluan lain, mis. Kiosk/Absensi). Dimensi
-  // jenis_pekerjaan TETAP ditegakkan seperti biasa di bawah.
-  const iniPicOwner = (window.currentUser.profil_akses || '').toLowerCase() === 'pic_owner';
+  if (role === 'owner') return [];
+  // pic_owner di-bypass EKSPLISIT dari dimensi gudang lewat role, BUKAN lewat
+  // trik "kosongkan gudang_penempatan" (field itu masih dipakai keperluan lain,
+  // mis. Kiosk/Absensi). Dimensi jenis_pekerjaan TETAP ditegakkan di bawah --
+  // di situlah batas usaha pic_owner berlaku.
+  const iniPicOwner = role === 'pic_owner';
   const constraints = [];
   if (window.currentUser.jenis_pekerjaan) {
     constraints.push(where(fieldJenisPekerjaan, '==', window.currentUser.jenis_pekerjaan));

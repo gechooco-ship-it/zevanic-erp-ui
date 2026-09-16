@@ -880,12 +880,12 @@ export function daftarMenuGroups(role, urutanKustomPerKategori, urutanKustomKate
   // SEMUA grup & menu tetap DITAMPILKAN untuk siapapun; yang tidak boleh diakses
   // cuma ditandai `terkunci: true` lewat cekIzinMenu(menuId,'view') dengan `role`
   // dari memori (bukan baca Firestore lagi). Izin BELUM DIATUR (null) -> default
-  // aman: terkunci untuk selain owner/superuser; `wajibOwner` mengunci ke owner.
+  // aman: terkunci untuk selain owner/pic_owner; `wajibOwner` mengunci ke owner.
   return semuaGroup.map(g => ({
     ...g,
     items: g.items.map(m => {
       const izinAsli = window.cekIzinMenu(m.id, 'view');
-      const fallbackAman = !(r === 'owner' || r === 'superuser');
+      const fallbackAman = !(r === 'owner' || r === 'pic_owner');
       let terkunci = izinAsli === null ? fallbackAman : !izinAsli;
       if (m.wajibOwner && r !== 'owner') terkunci = true;
       return { label: m.label, menuId: m.id, icon: m.icon, aksi: m.aksi, terkunci };
@@ -1091,15 +1091,14 @@ export const AksesTerbatasDialog = {
     const roleSaya = window.currentUser?.role || '-';
 
     // Baris info teknis supaya PIC bisa lihat langsung dari screenshot kenapa
-    // satu menu terkunci: profil yang dipakai HP ini, apakah dokumennya ketemu,
-    // dan hasil akhir izin View. Bukan data rahasia.
-    const profilDipakai = window.currentUser?.profil_akses || ('(tidak diatur, pakai default Role "' + roleSaya + '")');
+    // satu menu terkunci: role yang dipakai HP ini, apakah dokumen izinnya
+    // ketemu, dan hasil akhir izin View. Bukan data rahasia.
     const statusConfig = window.aksesConfigSaya === undefined ? 'belum sempat dimuat'
-      : window.aksesConfigSaya === 'OWNER_PENUH' ? 'Owner/Superuser'
-      : window.aksesConfigSaya === null ? ('profil "' + profilDipakai + '" TIDAK KETEMU')
+      : window.aksesConfigSaya === 'OWNER_PENUH' ? 'Owner/PIC Owner'
+      : window.aksesConfigSaya === null ? ('akses_config role "' + roleSaya + '" TIDAK KETEMU')
       : 'ditemukan';
     const nilaiIzin = (props.menuId && window.cekIzinMenu) ? window.cekIzinMenu(props.menuId, 'view') : null;
-    const infoTeknis = 'Profil: ' + profilDipakai + ' — Config: ' + statusConfig
+    const infoTeknis = 'Role: ' + roleSaya + ' — Config: ' + statusConfig
       + ' — Izin View: ' + (nilaiIzin === true ? 'true' : nilaiIzin === false ? 'false' : 'null (belum diatur)')
       + (props.menuId ? ' — ID menu: ' + props.menuId : '');
 

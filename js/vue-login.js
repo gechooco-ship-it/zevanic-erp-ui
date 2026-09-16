@@ -4,7 +4,7 @@
 // status_approval/gudang/jam kerja sebelum masuk dashboard.
 //
 // Koleksi & field:
-// - users/{email}: role, jabatan, profil_akses, status_approval,
+// - users/{email}: role (5 role baku), jabatan, status_approval,
 //   gudang_penempatan (dinormalisasi window.normalisasiGudang), nama_shift.
 // - config/whatsapp_gateway: otp_aktif — saklar wajib-OTP perangkat baru.
 //
@@ -285,7 +285,7 @@ const AppLogin = {
         status_kerja: d.status_kerja || "Aktif",
         gudang_penempatan: window.normalisasiGudang(d.gudang_penempatan)
       };
-      isOwnerRole = (window.currentUser.role === 'owner' || window.currentUser.role === 'superuser');
+      isOwnerRole = (window.currentUser.role === 'owner' || window.currentUser.role === 'pic_owner');
 
       // validasi silang mode "Absensi Melalui QR": 1) Coba mode Kiosk pakai akun
       // BUKAN Kiosk terdaftar -> TOLAK. ("hanya device yang terdaftar yang bisa
@@ -330,7 +330,7 @@ const AppLogin = {
         return;
       }
 
-      await window.muatAksesConfigSaya(window.currentUser.role, window.currentUser.profil_akses);
+      await window.muatAksesConfigSaya(window.currentUser.role);
       await window.muatAksesJabatanSaya(window.currentUser.jabatan); // BARU — pembatas tambahan per Jabatan
       window.simpanKonteksSesi(); // biar reload berikutnya (F5, tab baru) tidak baca ulang users/akses_config
 

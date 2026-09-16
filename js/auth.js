@@ -3,21 +3,21 @@
 // cache profil, hak akses menu/fitur/jabatan, helper shift & gateway WhatsApp.
 //
 // Koleksi & field:
-// - users/{email}: role, status_approval, status_kerja, jenis_akun,
-//   gudang_penempatan, nama_shift, jabatan, profil_akses.
-// - akses_config/{profil_akses} & akses_jabatan/{jabatan}: peta izin menu/fitur.
+// - users/{email}: role (5 role baku), status_approval, status_kerja,
+//   jenis_akun, gudang_penempatan, nama_shift, jabatan, jenis_pekerjaan.
+// - akses_config/{role} & akses_jabatan/{jabatan}: peta izin menu/fitur.
 // - jadwal_shift/{email}_{YYYY-MM} & master_shift: shift efektif + jam kerja.
-// - absensi: query sedang_aktif/status untuk cekStatusClockInSaya.
-// - config/whatsapp_gateway & whatsapp_templates, wa_log (log kirim),
-//   pengaturan_sistem/urutan_menu_home.
+// - absensi, config/whatsapp_gateway, whatsapp_templates, wa_log.
 //
 // Jebakan:
 // - onAuthStateChanged bisa memanggil user=null DULU sebelum sesi tersimpan
 //   terbaca; toleransi 6000ms kalau ada cache sesi, 1200ms kalau tidak.
-// - Komponen Vue WAJIB `await window.authReady` sebelum fetch — tanpa itu
-//   Firestore Rules menolak dan tabel macet "Memuat data..".
+// - Komponen Vue WAJIB `await window.authReady` sebelum fetch, kalau tidak
+//   Rules menolak dan tabel macet "Memuat data..".
 // - Tiap window.currentUser berubah di tengah sesi WAJIB simpanKonteksSesi(),
 //   kalau tidak cache localStorage basi dan menimpa balik saat reload.
+// - Sidebar digerbang DUA lapis: role batas terluas, terapkanIzinMenuKeSidebar
+//   mengurangi. Menu sidebar baru wajib punya data-menu-id.
 import { doc, setDoc, getDoc, collection, getDocs, addDoc, query, where, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   createUserWithEmailAndPassword,
@@ -66,31 +66,29 @@ window.authReady = new Promise((resolve) => {
 // yang putuskan default — cek eksplisit `=== false` untuk "sengaja dilarang".
 window.aksesConfigSaya = undefined; // undefined = belum sempat dimuat sama sekali
 
-window.muatAksesConfigSaya = async function(role, profilAkses) {
+window.muatAksesConfigSaya = async function(role) {
   const r = (role || '').toLowerCase();
-  if (r === 'owner') {
-    // Owner SELALU akses penuh, tidak pernah dibatasi — tidak perlu baca
-    // Firestore sama sekali buat role ini.
+  if (r === 'owner' || r === 'pic_owner') {
+    // Owner dan PIC Owner selalu penuh untuk IZIN MENU — tidak perlu baca
+    // Firestore. Batas usaha PIC Owner ditegakkan di bangunConstraintFilterPeran
+    // (js/vue-paginasi.js), bukan di sini.
     window.aksesConfigSaya = 'OWNER_PENUH';
     return;
   }
-  // Kunci akses_config: profilAkses APA ADANYA, JANGAN di-lowercase — doc ID
-  // akses_config (vue-config-akses.js `simpan`) disimpan persis seperti diketik,
-  // jadi profil berhuruf besar tidak akan pernah ketemu dan SEMUA menu karyawan
-  // itu ikut terkunci. role (fallback) tetap lowercase, field itu memang begitu.
-  const kunciCari = profilAkses ? profilAkses.trim() : (role || '').toLowerCase();
-  if (!kunciCari) { window.aksesConfigSaya = null; return; }
+  // Kunci akses_config sekarang ROLE, bukan lagi nama profil bebas. Doc id di
+  // vue-config-akses.js pun cuma 5 role baku, jadi keduanya selalu cocok.
+  if (!r) { window.aksesConfigSaya = null; return; }
   try {
-    const snap = await getDoc(doc(db, "akses_config", kunciCari));
+    const snap = await getDoc(doc(db, "akses_config", r));
     window.aksesConfigSaya = snap.exists() ? snap.data() : null;
   } catch (e) {
-    console.error("Gagal muat akses_config untuk profil", kunciCari, e);
+    console.error("Gagal muat akses_config untuk role", r, e);
     window.aksesConfigSaya = null;
   }
 };
 
 window.cekIzinMenu = function(menuId, jenis) {
-  if (window.aksesConfigSaya === 'OWNER_PENUH') return true; // Owner/Superuser kebal dari Role MAUPUN Jabatan
+  if (window.aksesConfigSaya === 'OWNER_PENUH') return true; // Owner/PIC Owner kebal dari Role MAUPUN Jabatan
   if (!window.aksesConfigSaya) return null; // belum dimuat / tidak ada data -> pemanggil yang putuskan default
   const menu = window.aksesConfigSaya.menus?.[menuId];
   const hasilRole = !menu ? null : (menu[jenis] === true ? true : (menu[jenis] === false ? false : null));
@@ -196,14 +194,13 @@ window.bersihkanKonteksSesi = function() {
 };
 
 // SEMUA tabel yang menampilkan data karyawan/gudang/shift WAJIB lewat filter
-// ini. Dua dimensi di-AND: jenis_pekerjaan SAMA dan gudang BERIRISAN. Owner/
-// superuser bypass total; profil_akses 'pic_owner' bypass dimensi gudang saja.
+// ini. Dua dimensi di-AND: jenis_pekerjaan SAMA dan gudang BERIRISAN. owner dan
+// pic_owner bypass total di sini; batas usaha pic_owner ditegakkan di
+// bangunConstraintFilterPeran (js/vue-paginasi.js), bukan di fungsi ini.
 // Dimensi tanpa tag (di data maupun di profil admin) dianggap LOLOS, bukan kunci.
 window.bolehLihatData = function(jenisPekerjaanData, gudangData) {
   const role = (window.currentUser.role || '').toLowerCase();
-  if (role === 'owner' || role === 'superuser') return true; // bypass total, SAMA seperti cekIzinMenu/cekFiturAkses
-  const profilSaya = (window.currentUser.profil_akses || '').toLowerCase();
-  const iniPicOwner = profilSaya === 'pic_owner';
+  if (role === 'owner' || role === 'pic_owner') return true; // bypass total, SAMA seperti cekIzinMenu/cekFiturAkses
   const jpCocok = (() => {
     if (!jenisPekerjaanData || (Array.isArray(jenisPekerjaanData) && jenisPekerjaanData.length === 0)) return true;
     const jpAdmin = window.currentUser.jenis_pekerjaan;
@@ -211,7 +208,6 @@ window.bolehLihatData = function(jenisPekerjaanData, gudangData) {
     return Array.isArray(jenisPekerjaanData) ? jenisPekerjaanData.includes(jpAdmin) : jenisPekerjaanData === jpAdmin;
   })();
   const gudangCocok = (() => {
-    if (iniPicOwner) return true; // PIC Owner: SEMUA gudang, terlepas dari gudang_penempatan-nya diisi apa
     if (!gudangData || (Array.isArray(gudangData) && gudangData.length === 0)) return true;
     const gudangAdmin = window.normalisasiGudang(window.currentUser.gudang_penempatan);
     if (gudangAdmin.length === 0) return true;
@@ -470,16 +466,16 @@ onAuthStateChanged(auth, async (user) => {
     }
 
     const roleUser = (d.role || "operator").toLowerCase();
-    const isOwnerRole = (roleUser === 'owner' || roleUser === 'superuser');
+    const isOwnerRole = (roleUser === 'owner' || roleUser === 'pic_owner');
     const gudangUser = window.normalisasiGudang(d.gudang_penempatan);
     const statusKerjaUser = d.status_kerja || "Aktif";
 
     // status_kerja WAJIB dicek di jalur ini juga: tanpa itu karyawan resign yang
     // sesi Firebase-nya masih persist tinggal reload untuk masuk lagi, tidak
-    // lewat penolakan login manual. Owner/Superuser dikecualikan supaya tidak
+    // lewat penolakan login manual. Owner/PIC Owner dikecualikan supaya tidak
     // terkunci total kalau field ini kebetulan kosong/salah di akunnya sendiri.
     if (!isOwnerRole && statusKerjaUser !== "Aktif") {
-      console.warn("[Sesi Otomatis] GAGAL: role=\"" + roleUser + "\" (bukan owner/superuser) & status_kerja=\"" + statusKerjaUser + "\" (bukan Aktif) -> balik ke Login.");
+      console.warn("[Sesi Otomatis] GAGAL: role=\"" + roleUser + "\" (bukan owner/pic owner) & status_kerja=\"" + statusKerjaUser + "\" (bukan Aktif) -> balik ke Login.");
       return;
     }
 
@@ -489,7 +485,7 @@ onAuthStateChanged(auth, async (user) => {
     // "Nonaktifkan" dari Device Kiosk tetap memblokir kiosk yang dimatikan.
     if (d.jenis_akun === 'kiosk') {
       window.currentUser = { ...d, email: user.email, role: roleUser };
-      if (!cache) await window.muatAksesConfigSaya(roleUser, d.profil_akses);
+      if (!cache) await window.muatAksesConfigSaya(roleUser);
       window.simpanKonteksSesi();
       berhasilMasukDashboard = true;
       window.pindahLayar('screen-absensi-qr');
@@ -534,7 +530,7 @@ onAuthStateChanged(auth, async (user) => {
     // cache, sudah keisi dari cache.aksesConfig di atas, skip (hemat 1 baca
     // akses_config).
     if (!cache) {
-      await window.muatAksesConfigSaya(roleUser, d.profil_akses);
+      await window.muatAksesConfigSaya(roleUser);
       await window.muatAksesJabatanSaya(window.currentUser.jabatan); // BARU
     }
     window.simpanKonteksSesi(); // simpan/refresh cache buat reload berikutnya
@@ -687,9 +683,9 @@ window.aturTampilanBerdasarkanRole = function() {
 
   const role = (window.currentUser.role || "operator").toLowerCase();
 
-  // menu-admin-acc/menu-keuangan/menu-superuser adalah tombol ANAK di dalam satu
-  // grup "Management" (parent toggle: menu-management); gerbang role tiap anak
-  // tetap dicek sendiri-sendiri di bawah.
+  // menu-admin-acc-btn/menu-keuangan-btn/menu-superuser-btn (id DOM lama, isinya
+  // menu Karyawan) tombol ANAK di dalam grup "Management" (parent toggle:
+  // menu-management); gerbang role tiap anak tetap dicek sendiri-sendiri.
   const menuManagement = document.getElementById('menu-management');
   const menuAdminAccBtn = document.getElementById('menu-admin-acc-btn');
   const menuSuperUserBtn = document.getElementById('menu-superuser-btn');
@@ -700,22 +696,22 @@ window.aturTampilanBerdasarkanRole = function() {
   const navMobileAdmin = document.getElementById('nav-mobile-admin');
   const navMobileSuper = document.getElementById('nav-mobile-super');
   const navMobileWhatsapp = document.getElementById('nav-mobile-whatsapp');
-  // Akses & Keamanan KHUSUS Owner — Superuser pun TIDAK boleh, makanya sengaja
-  // dipisah dari gerbang owner+superuser dan ditaruh di blok role === 'owner'.
+  // Akses & Keamanan KHUSUS Owner — PIC Owner pun TIDAK boleh, makanya sengaja
+  // dipisah dari gerbang owner+pic_owner dan ditaruh di blok role === 'owner'.
   const btnAksesKeamanan = document.getElementById('btn-sub-karyawan-akseskeamanan');
   const menuDeviceKioskBtn = document.getElementById('menu-device-kiosk-btn');
   // Zevanic House > Master Bahan & Aksesoris. Gerbang role SAMA PERSIS dengan
   // Master Absensi/Keuangan (isAdminLevel di firestore.rules:
-  // pic/admin/owner/superuser) — keputusan di.
+  // pic/pic_owner/admin/owner) — keputusan di.
   const menuZevanicHouse = document.getElementById('menu-zevanic-house');
   const menuZevanicHouseBtn = document.getElementById('menu-zevanic-house-btn');
   // Tombol anak grup "Stok dan Pembelian" (Nota Order Belanja/Riwayat
   // Harga/Kartu Stok/Rak Penyimpanan/Repack) TIDAK digerbang satu per satu di
   // sini — cukup ikut gerbang parent menuStokPembelian, pola sama seperti
-  // menuPesanan. Gerbang role-nya isAdminLevel (pic/admin/owner/superuser).
+  // menuPesanan. Gerbang role-nya isAdminLevel (pic/pic_owner/admin/owner).
   const menuStokPembelian = document.getElementById('menu-stok-pembelian');
   // Persiapan Produksi, grup top-level baru sejajar Zevanic House. Gerbang role
-  // SAMA (isAdminLevel — pic/admin/owner/superuser), domainnya masih persiapan
+  // SAMA (isAdminLevel — pic/pic_owner/admin/owner), domainnya masih persiapan
   // produksi yang sebelumnya nested di Zevanic House.
   const menuPersiapanProduksi = document.getElementById('menu-persiapan-produksi');
   // Pesanan (js/vue-pesanan.js), gerbang role isAdminLevel. JEBAKAN: tombolnya
@@ -740,10 +736,10 @@ window.aturTampilanBerdasarkanRole = function() {
   // anak di dalamnya) — dibuka karena PIC & Admin Finance BEDA peran validasi
   // (tahap 1 vs tahap 2), jadi menu-nya ditampilkan ke role yang SAMA persis
   // dengan Master Absensi.
-  if (role === 'pic' || role === 'owner' || role === 'admin' || role === 'superuser') {
+  if (role === 'pic' || role === 'pic_owner' || role === 'owner' || role === 'admin') {
     // Parent menu-management dibuka di gerbang paling longgar ini; tombol anak
     // Karyawan (menuSuperUserBtn) TETAP digerbang lebih ketat di blok
-    // owner/superuser di bawah.
+    // owner/pic_owner di bawah.
     if (menuManagement) menuManagement.classList.remove('hidden');
     if (menuAdminAccBtn) menuAdminAccBtn.classList.remove('hidden');
     if (menuKeuanganBtn) menuKeuanganBtn.classList.remove('hidden');
@@ -762,7 +758,7 @@ window.aturTampilanBerdasarkanRole = function() {
     }
   }
 
-  if (role === 'owner' || role === 'superuser') {
+  if (role === 'owner' || role === 'pic_owner') {
     if (menuSuperUserBtn) menuSuperUserBtn.classList.remove('hidden');
     if (navMobileSuper) {
       navMobileSuper.classList.remove('hidden');
@@ -780,16 +776,48 @@ window.aturTampilanBerdasarkanRole = function() {
   if (role === 'owner') {
     if (btnAksesKeamanan) btnAksesKeamanan.classList.remove('hidden');
     // Device Kiosk — "hanya owner saja", SENGAJA pola sama persis Akses &
-    // Keamanan (Superuser TIDAK ikut, beda dari WhatsApp/Mail Gateway yang
-    // Superuser masih boleh).
+    // Keamanan (PIC Owner TIDAK ikut, beda dari WhatsApp/Mail Gateway yang
+    // PIC Owner masih boleh).
     if (menuDeviceKioskBtn) menuDeviceKioskBtn.classList.remove('hidden');
   }
+
+  // Lapisan pengurang: role di atas cuma menentukan batas TERLUAS. Config Akses
+  // dan Jabatan baru dipakai di sini untuk mencabut menu yang dilarang.
+  terapkanIzinMenuKeSidebar();
 
   // window.terapkanUrutanMenuDesktop sengaja TIDAK dipanggil: urutan sidebar
   // murni ikut urutan statis index.html. Kalau mau diaktifkan lagi, petaGrup di
   // fungsi itu DAN panel "Urutan Menu" di js/vue-config-akses.js
   // (fiturUrutanMenuAktif) wajib disesuaikan — petaGrup tidak sinkron lagi.
 };
+
+// Inilah yang membuat pengaturan di Config Akses & Akses Jabatan terasa di
+// sidebar. Sifatnya CUMA MENGURANGI: tombol disembunyikan hanya kalau
+// cekIzinMenu menjawab false (dilarang eksplisit). Jawaban null "belum diatur"
+// sengaja dibiarkan tampil, supaya profil lama yang izinnya belum pernah diisi
+// tidak terkunci total.
+function terapkanIzinMenuKeSidebar() {
+  document.querySelectorAll('[data-menu-id], [data-menu-ids]').forEach(el => {
+    const ids = el.dataset.menuIds
+      ? el.dataset.menuIds.split(',')
+      : [el.dataset.menuId];
+    // Tombol yang mewakili beberapa menu sekaligus baru hilang kalau SEMUA
+    // menunya dilarang — satu saja yang masih boleh, tombolnya tetap ada.
+    const adaYangBoleh = ids.some(id => window.cekIzinMenu(id.trim(), 'view') !== false);
+    if (!adaYangBoleh) el.classList.add('hidden');
+  });
+
+  // Tombol grup (data-group) tidak punya menu id sendiri. Ia ikut hilang kalau
+  // semua anaknya sudah hilang, supaya tidak ada grup yang dibuka lalu kosong.
+  document.querySelectorAll('[data-group]').forEach(tombol => {
+    const isi = document.getElementById(tombol.dataset.group);
+    if (!isi) return;
+    const anak = Array.from(isi.querySelectorAll('[data-menu-id], [data-menu-ids]'));
+    if (anak.length > 0 && anak.every(a => a.classList.contains('hidden'))) {
+      tombol.classList.add('hidden');
+    }
+  });
+}
 
 // Baca pengaturan_sistem/urutan_menu_home (field perKategori + urutanKategori),
 // lalu CUMA reorder node DOM sidebar yang sudah ada — onclick/pindahTab tidak

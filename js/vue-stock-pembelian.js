@@ -171,14 +171,12 @@ async function hashPin(pin, email) {
 // (batas 3x salah lalu popup dikunci, wajib dibuka ulang).
 const MAKS_PERCOBAAN_PIN = 3;
 
-// tierOwnerKeAtas — role baku Firestore tetap 'owner'/'superuser'/'pic'/
-// 'admin'/'operator' (vue-config-akses.js TINGKAT_KEAMANAN_BAKU). "PIC Owner"
-// BUKAN role terpisah: itu role 'pic' dengan `profil_akses 'pic_owner'`.
+// tierOwnerKeAtas — 5 role baku: owner/pic_owner/pic/admin/operator. pic_owner
+// role sungguhan, bukan lagi profil di atas role 'pic'.
 function tierOwnerKeAtas(userData) {
   if (!userData) return false;
   const role = (userData.role || '').toLowerCase();
-  if (role === 'owner' || role === 'superuser') return true;
-  return role === 'pic' && (userData.profil_akses || '').toLowerCase() === 'pic_owner';
+  return role === 'owner' || role === 'pic_owner';
 }
 
 // cariUserByPin — PIN yang diketik di-hash ulang pakai EMAIL tiap kandidat
@@ -186,7 +184,7 @@ function tierOwnerKeAtas(userData) {
 // adalah pemilik PIN. User yang belum pasang PIN (pin_hash kosong) TIDAK PERNAH
 // bisa match. Query dibatasi role admin-level; operator dilewati.
 async function cariUserByPin(pinInput) {
-  const snap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['owner', 'superuser', 'pic', 'admin'])));
+  const snap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['owner', 'pic_owner', 'pic', 'admin'])));
   for (const d of snap.docs) {
     const u = d.data();
     if (!u.pin_hash) continue;
@@ -211,7 +209,7 @@ async function tandaiHargaPerluKonfirmasi(bahanId, pending) {
 
 
 // PopupPin — popup verifikasi PIN per akun. Emit 'sukses' bawa {email, role,
-// profil_akses, ..} pemilik PIN, TERMASUK saat pemiliknya bukan Owner-tier —
+// ..} pemilik PIN, TERMASUK saat pemiliknya bukan Owner-tier —
 // pemanggil yang memutuskan cabangnya lewat tierOwnerKeAtas. PIN yang tidak
 // cocok dengan siapa pun menaikkan counter; terkunci di percobaan ke-3.
 
@@ -908,7 +906,7 @@ const PopupQtyPerLot = {
 
 // DaftarNotaScreen — Daftar Nota + form dalam 1 sub-tab, selalu berperilaku
 // seperti Nota (harga manual, riwayat harga otomatis). Finalisasi Nota hanya
-// Owner/PIC Owner/superuser; edit harga baris draft: PIN Owner-tier langsung
+// Owner/PIC Owner; edit harga baris draft: PIN Owner-tier langsung
 // berlaku, tier lain diqueue ke Riwayat Harga tanpa mengubah baris.
 
 const DaftarNotaScreen = {
@@ -917,8 +915,8 @@ const DaftarNotaScreen = {
     const menuId = 'stock_nota_order_belanja';
     const bolehSimpan = computed(() => window.cekIzinMenu(menuId, 'add') !== false);
     const bolehHapus = computed(() => window.cekIzinMenu(menuId, 'delete') !== false);
-    // sayaOwnerKeAtas — kalau user yang LOGIN SENDIRI sudah Owner/PIC Owner/
-    // superuser, finalisasi TIDAK perlu minta PIN lagi (sesi login-nya sendiri
+    // sayaOwnerKeAtas — kalau user yang LOGIN SENDIRI sudah Owner/PIC Owner,
+    // finalisasi TIDAK perlu minta PIN lagi (sesi login-nya sendiri
     // sudah membuktikan identitas — lihat instruksi tugas §Part 2 "kalau user
     // yang login sudah punya role itu, boleh skip PIN fresh").
     const sayaOwnerKeAtas = computed(() => tierOwnerKeAtas(window.currentUser));
@@ -1463,8 +1461,8 @@ const DaftarNotaScreen = {
 
     // Simpan (Draft / Finalkan) — Finalkan SEKARANG digerbangi PIN/role
     // (TIGHTENED dari sebelumnya: dulu siapa pun dengan izin 'add' menu ini bisa
-    // memfinalkan — lihat instruksi tugas: hanya Owner/PIC Owner/ superuser
-    // boleh finalisasi Nota, per tabel peran wireframe).
+    // memfinalkan: hanya Owner/PIC Owner boleh finalisasi Nota, per tabel
+    // peran wireframe).
 
     async function simpanDraft() { await simpan('draft'); }
     async function klikFinalkan() {

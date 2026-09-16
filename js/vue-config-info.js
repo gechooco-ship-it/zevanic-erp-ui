@@ -24,7 +24,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "ht
 import { db, storage } from "./firebase-config.js";
 import { EmojiPicker } from './vue-components.js';
 
-const DAFTAR_ROLE = ['operator', 'pic', 'admin', 'owner', 'superuser'];
+const DAFTAR_ROLE = ['operator', 'admin', 'pic', 'pic_owner', 'owner'];
 const BATAS_UKURAN_BYTE = 1 * 1024 * 1024; // 1MB, sesuai permintaan
 
 const AppConfigInfo = {

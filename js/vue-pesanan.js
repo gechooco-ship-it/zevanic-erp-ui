@@ -72,11 +72,10 @@ const MAKS_PERCOBAAN_PIN = 3;
 function tierOwnerKeAtas(userData) {
   if (!userData) return false;
   const role = (userData.role || '').toLowerCase();
-  if (role === 'owner' || role === 'superuser') return true;
-  return role === 'pic' && (userData.profil_akses || '').toLowerCase() === 'pic_owner';
+  return role === 'owner' || role === 'pic_owner';
 }
 async function cariUserByPin(pinInput) {
-  const snap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['owner', 'superuser', 'pic', 'admin'])));
+  const snap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['owner', 'pic_owner', 'pic', 'admin'])));
   for (const d of snap.docs) {
     const u = d.data();
     if (!u.pin_hash) continue;

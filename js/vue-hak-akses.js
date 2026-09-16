@@ -1,22 +1,23 @@
 // js/vue-hak-akses.js
 // Master Karyawan > Akses & Keamanan pill Assign (Hak Akses) — pasangkan
-// karyawan ke Role/profil akses, satuan maupun massal.
+// karyawan ke salah satu dari 5 role baku, satuan maupun massal.
 //
 // Koleksi & field:
-// - users: role (5 tingkat baku, dibaca Rules & auth.js) + profil_akses (nama
-//   profil), id dokumen = email, gudang_penempatan untuk kolom Gudang.
-// - akses_config: daftar profil + tingkatKeamanan-nya; DAFTAR_ROLE_BAKU cuma
-//   cadangan kalau koleksi ini masih kosong.
+// - users: role (5 role baku, dibaca Rules, custom claim, dan auth.js), id
+//   dokumen = email, gudang_penempatan untuk kolom Gudang.
 // - master_gudang: nama_gudang untuk filter dan tampilan ringkas.
 //
 // Jebakan:
-// - Perubahan di sini langsung berefek ke Rules (field role), tidak seperti
-//   Config Akses yang cuma cetak biru izin tampilan.
+// - DAFTAR_ROLE_BAKU adalah satu-satunya nilai sah untuk field role. Nilainya
+//   wajib tanpa spasi (pic_owner) — kalau tidak, Firestore Rules dan
+//   functions/index.js tidak akan pernah cocok.
+// - Perubahan di sini langsung berefek ke Rules, tidak seperti Config Akses
+//   yang cuma cetak biru izin tampilan.
+// - profil_akses SELALU dikosongkan saat menyimpan. Sisa nilai lama di dokumen
+//   membuat auth.js mencari akses_config dengan kunci profil, bukan role, jadi
+//   perubahan role di sini tidak terasa apa-apa di layar.
 // - Tabel pakai usePaginasiFirestore + filterPeran, jadi "Pilih Semua" hanya
-//   mencentang baris di halaman yang tampil; centangan lintas halaman tidak
-//   direset saat pindah halaman.
-// - Kartu ringkasan dihitung getCountFromServer per kartu dari field role saja,
-//   bukan profilEfektif — angkanya bisa beda dari badge di tabel.
+//   mencentang baris di halaman yang tampil.
 
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, query, where, getDocs, getCountFromServer, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -24,23 +25,21 @@ import { db } from "./firebase-config.js";
 import { GudangRingkas } from './vue-components.js';
 import { usePaginasiFirestore, bangunConstraintFilterPeran } from './vue-paginasi.js';
 
-const DAFTAR_ROLE_BAKU = ['operator', 'pic', 'admin', 'owner', 'superuser']; // cadangan kalau koleksi akses_config belum ada isinya sama sekali
+const DAFTAR_ROLE_BAKU = ['operator', 'admin', 'pic', 'pic_owner', 'owner']; // 5 role baku, satu-satunya nilai sah untuk field `role`
 const NILAI_BELUM_DIATUR = '__BELUM_DIATUR__';
 
 function isOwnerRole() {
-  return ['owner', 'superuser'].includes((window.currentUser.role || '').toLowerCase());
+  return ['owner', 'pic_owner'].includes((window.currentUser.role || '').toLowerCase());
 }
 
 const AppHakAkses = {
   components: { GudangRingkas },
   setup() {
     const daftarGudang = ref([]);
-    const DAFTAR_ROLE = ref([...DAFTAR_ROLE_BAKU]); // diisi ulang dari akses_config saat muat
-    // petaTingkatKeamanan: profil (nama bebas) -> tingkat keamanan baku
-    // (operator/pic/admin/owner/superuser) — INI yang ditulis ke field "role"
-    // karyawan (dipakai Firestore Rules & custom claim). Nama profilnya ditulis
-    // terpisah ke "profil_akses" (cari izin tampilan). Lihat vue-config-akses.js.
-    const petaTingkatKeamanan = reactive({});
+    // Daftar role TETAP, tidak lagi dibaca dari akses_config. Menambah nama
+    // bebas di Config Akses tidak boleh melahirkan role baru — izin per menu
+    // diatur di Config Akses, tingkat kuasanya cuma 5 ini.
+    const DAFTAR_ROLE = DAFTAR_ROLE_BAKU;
 
     const ringkasanKartu = ref([]);
     const memuatRingkasan = ref(true);
@@ -108,7 +107,7 @@ const AppHakAkses = {
         }
         const snapSemua = await getCountFromServer(query(collection(db, 'users'), ...csDasar));
         const kartu = [{ label: 'Semua', nilaiFilter: 'ALL', angka: snapSemua.data().count }];
-        for (const r of DAFTAR_ROLE.value) {
+        for (const r of DAFTAR_ROLE) {
           const snap = await getCountFromServer(query(collection(db, 'users'), ...csDasar, where('role', '==', r)));
           kartu.push({ label: r, nilaiFilter: r, angka: snap.data().count });
         }
@@ -138,33 +137,6 @@ const AppHakAkses = {
       const listGudang = [];
       qGudang.forEach(docSnap => listGudang.push(docSnap.data().nama_gudang));
       daftarGudang.value = listGudang;
-
-      // Daftar role diambil LANGSUNG dari koleksi akses_config yang sama dengan
-      // Config Akses, jadi profil baru di sana otomatis muncul di sini tanpa ubah
-      // kode. "owner" ditambahkan manual: Config Akses mengecualikannya dari yang
-      // bisa diedit, tapi di Hak Akses ia tetap harus bisa dipilih sebagai role.
-      try {
-        const qProfil = await getDocs(collection(db, "akses_config"));
-        const namaProfil = [];
-        petaTingkatKeamanan.operator = 'operator';
-        petaTingkatKeamanan.pic = 'pic';
-        petaTingkatKeamanan.admin = 'admin';
-        petaTingkatKeamanan.owner = 'owner';
-        petaTingkatKeamanan.superuser = 'superuser';
-        qProfil.forEach(d => {
-          namaProfil.push(d.id);
-          const data = d.data();
-          // Fallback aman: profil lama yang dibuat SEBELUM fitur tingkatKeamanan
-          // ada, anggap 'operator' (paling rendah) — supaya tidak ada yang
-          // tiba-tiba dapat akses tulis lebih luas dari yang seharusnya cuma
-          // karena datanya belum lengkap.
-          petaTingkatKeamanan[d.id] = data.tingkatKeamanan || (DAFTAR_ROLE_BAKU.includes(d.id) ? d.id : 'operator');
-        });
-        const gabungan = [...new Set([...DAFTAR_ROLE_BAKU, ...namaProfil, 'owner'])].sort();
-        DAFTAR_ROLE.value = gabungan;
-      } catch (e) {
-        console.error("Gagal sinkron daftar role dari Config Akses, pakai daftar baku:", e);
-      }
     }
 
     async function muat() {
@@ -173,11 +145,10 @@ const AppHakAkses = {
       await Promise.all([muatRingkasan(), paginasi.muatUlang()]);
     }
 
-    // profilEfektif: nama profil yang dipakai untuk BADGE TABEL (beda dari kartu
-    // ringkasan yang pakai field role langsung). Karyawan yang sudah diatur punya
-    // profil_akses tersendiri (bisa custom, mis. "admin_finance"); yang belum cuma
-    // punya field role — fallback ke situ supaya tetap tampil benar.
-    function profilEfektif(d) { return d.profil_akses || d.role || ''; }
+    // Badge tabel dan kartu ringkasan sekarang membaca sumber yang SAMA (field
+    // role). profil_akses sengaja diabaikan supaya nilai lama yang belum
+    // tertimpa tidak menampilkan role yang berbeda dari yang dipakai Rules.
+    function roleEfektif(d) { return d.role || ''; }
 
     const headerDicentang = computed(() =>
       paginasi.dataHalaman.length > 0 && paginasi.dataHalaman.every(d => terpilih.has(d.email))
@@ -199,17 +170,16 @@ const AppHakAkses = {
     function bersihkanPilihan() { terpilih.clear(); }
 
     // Ubah role 1 karyawan langsung dari tabel (tanpa centang+bulk); "" berarti
-    // kosongkan. "roleBaru" sebenarnya NAMA PROFIL, bukan tingkat keamanan, jadi
-    // WAJIB tulis 2 field: "role" (dari petaTingkatKeamanan, dipakai Firestore
-    // Rules) dan "profil_akses" (nama aslinya). Lihat vue-config-akses.js.
-    async function ubahRoleLangsung(item, profilBaru) {
+    // kosongkan. roleBaru sudah berupa nilai role baku apa adanya — tidak ada
+    // pemetaan lagi. profil_akses ikut dikosongkan supaya auth.js memakai role
+    // sebagai kunci akses_config (lihat Jebakan di blok atas).
+    async function ubahRoleLangsung(item, roleBaru) {
       const roleLama = item.role;
       const profilLama = item.profil_akses;
-      const tingkat = profilBaru ? (petaTingkatKeamanan[profilBaru] || 'operator') : '';
-      item.role = tingkat;
-      item.profil_akses = profilBaru || '';
+      item.role = roleBaru || '';
+      item.profil_akses = '';
       try {
-        await updateDoc(doc(db, "users", item.email), { role: tingkat, profil_akses: profilBaru || '' });
+        await updateDoc(doc(db, "users", item.email), { role: roleBaru || '', profil_akses: '' });
         muatRingkasan(); // angka kartu ikut berubah, tidak perlu tunggu Refresh manual
       } catch (e) {
         console.error("Gagal ubah role:", e);
@@ -223,16 +193,15 @@ const AppHakAkses = {
       const daftarTerpilih = Array.from(terpilih);
       if (daftarTerpilih.length === 0) return alert("Belum ada karyawan yang dicentang/terpilih.");
       if (bulkRole.value === '__TIDAK_DIUBAH__') return alert("Pilih Role yang ingin diterapkan (atau \"Kosongkan\" untuk hapus role).");
-      const profilBaru = bulkRole.value === '__KOSONGKAN__' ? '' : bulkRole.value;
-      const tingkat = profilBaru ? (petaTingkatKeamanan[profilBaru] || 'operator') : '';
-      const labelKonfirmasi = profilBaru || '(dikosongkan / belum diatur)';
+      const roleBaru = bulkRole.value === '__KOSONGKAN__' ? '' : bulkRole.value;
+      const labelKonfirmasi = roleBaru || '(dikosongkan / belum diatur)';
       if (!confirm(`Ubah Role ${daftarTerpilih.length} karyawan terpilih menjadi "${labelKonfirmasi}"?`)) return;
 
       memprosesBulk.value = true;
       let sukses = 0, gagal = 0;
       for (const email of daftarTerpilih) {
         try {
-          await updateDoc(doc(db, "users", email), { role: tingkat, profil_akses: profilBaru });
+          await updateDoc(doc(db, "users", email), { role: roleBaru, profil_akses: '' });
           sukses++;
         } catch (e) {
           console.error("Gagal ubah role untuk", email, e);
@@ -255,7 +224,7 @@ const AppHakAkses = {
       railRingkasan, geserRingkasan, ringkasanKartu, memuatRingkasan, errorRingkasan, klikKartuRingkasan,
       terpilih, headerDicentang,
       toggleCheckbox, toggleSemuaHalamanIni, pilihSemua, bersihkanPilihan,
-      ubahRoleLangsung, profilEfektif,
+      ubahRoleLangsung, roleEfektif,
       bulkRole, memprosesBulk, terapkanBulkRole
     };
   },
@@ -354,11 +323,11 @@ const AppHakAkses = {
                 <td class="gc-cell-muted">{{ d.jenis_pekerjaan || '-' }}</td>
                 <td class="gc-cell-muted"><gudang-ringkas :gudang="d.gudang_penempatan" :nama="d.nama" /></td>
                 <td style="text-align:center;">
-                  <span v-if="profilEfektif(d)" class="tag pink" style="text-transform:uppercase;">{{ profilEfektif(d) }}</span>
+                  <span v-if="roleEfektif(d)" class="tag pink" style="text-transform:uppercase;">{{ roleEfektif(d) }}</span>
                   <span v-else class="tag neutral">Belum diatur</span>
                 </td>
                 <td>
-                  <select :value="profilEfektif(d)" @change="ubahRoleLangsung(d, $event.target.value)" style="padding:6px 10px; font-size:11.5px; border:1.5px solid var(--line); border-radius:8px; background:var(--surface);">
+                  <select :value="roleEfektif(d)" @change="ubahRoleLangsung(d, $event.target.value)" style="padding:6px 10px; font-size:11.5px; border:1.5px solid var(--line); border-radius:8px; background:var(--surface);">
                     <option value="">(Belum diatur)</option>
                     <option v-for="r in DAFTAR_ROLE" :key="r" :value="r">{{ r }}</option>
                   </select>

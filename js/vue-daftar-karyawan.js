@@ -3,16 +3,15 @@
 // karyawan (satu komponen, dibedakan prop readonly).
 //
 // Koleksi & field:
-// - users (id dokumen = email): nama, role, profil_akses, jenis_pekerjaan,
+// - users (id dokumen = email): nama, role (5 role baku), jenis_pekerjaan,
 //   jabatan, status_kerja, status_karyawan, status_approval,
 //   gudang_penempatan (array), plus data pribadi/alamat/bank/kontak darurat.
 // - master_gudang: nama_gudang + tipe_lokasi, dipakai kolom Jenis Lokasi.
-// - akses_config: dropdown Role sekaligus peta profil -> tingkatKeamanan.
 //
 // Jebakan:
-// - Simpan menulis DUA field sekaligus: role diisi tingkatKeamanan baku (yang
-//   dibaca Rules) dan profil_akses diisi nama profil. Menulis salah satunya
-//   saja bikin izin tampilan dan Rules tidak sinkron.
+// - Dropdown Role TETAP 5 nilai, tidak dibaca dari akses_config. Simpan
+//   menulis role apa adanya dan mengosongkan profil_akses — sisa nilai lama
+//   di field itu membuat auth.js memakai kunci yang salah ke akses_config.
 // - Tabel pakai usePaginasiFirestore (cursor server, 15/halaman, cariField
 //   'nama' prefix-match) + filterPeran; filter Jenis Pekerjaan/Gudang hanya
 //   berefek untuk Owner/Superuser.
@@ -55,39 +54,15 @@ const EditKaryawanModal = {
   setup(props, { emit }) {
     const form = reactive(formKosong());
     const menyimpan = ref(false);
-    const opsiRole = ref([]);
-    // petaTingkatKeamanan: nama profil (form.role, bisa custom) -> tingkat
-    // keamanan baku. Sama persis pola yang dipakai vue-hak-akses.js — lihat
-    // penjelasan lengkap di vue-config-akses.js.
-    const petaTingkatKeamanan = reactive({});
+    // Sama persis daftar di vue-hak-akses.js dan vue-config-akses.js: 5 role
+    // baku, bukan daftar profil bebas.
+    const opsiRole = ref(['operator', 'admin', 'pic', 'pic_owner', 'owner']);
     const opsiJenisPekerjaan = ref([]);
     const opsiJabatan = ref([]);
     const opsiStatusKerja = ref([]);
     const opsiStatusKaryawan = ref([]);
 
     async function muatOpsiMaster() {
-      // Sinkron dengan Config Akses & Hak Akses: opsi role diambil dari koleksi
-      // akses_config yang SAMA dipakai keduanya, supaya cuma ada 1 sumber kebenaran
-      // untuk "role apa saja yang ada" di seluruh aplikasi.
-      try {
-        const qProfil = await getDocs(collection(db, "akses_config"));
-        const namaProfil = [];
-        petaTingkatKeamanan.operator = 'operator';
-        petaTingkatKeamanan.pic = 'pic';
-        petaTingkatKeamanan.admin = 'admin';
-        petaTingkatKeamanan.owner = 'owner';
-        petaTingkatKeamanan.superuser = 'superuser';
-        const bakuMinimal = ['operator', 'pic', 'admin', 'owner', 'superuser'];
-        qProfil.forEach(d => {
-          namaProfil.push(d.id);
-          const data = d.data();
-          petaTingkatKeamanan[d.id] = data.tingkatKeamanan || (bakuMinimal.includes(d.id) ? d.id : 'operator');
-        });
-        opsiRole.value = [...new Set([...bakuMinimal, ...namaProfil])].sort();
-      } catch (e) {
-        console.error("Gagal sinkron daftar role dari Config Akses:", e);
-        opsiRole.value = ['operator', 'pic', 'admin', 'owner', 'superuser'];
-      }
       opsiJenisPekerjaan.value = await window.ambilMasterList('jenis_pekerjaan');
       opsiJabatan.value = await window.ambilMasterList('jabatan');
       opsiStatusKerja.value = await window.ambilMasterList('status_kerja');
@@ -111,7 +86,7 @@ const EditKaryawanModal = {
         nama: d.nama || '',
         email: d.email || '',
         fotoKtp: d.foto_ktp || '',
-        role: d.profil_akses || d.role || 'operator',
+        role: d.role || 'operator',
         jenisPekerjaan: d.jenis_pekerjaan || '',
         jabatan: d.jabatan || '',
         statusKerja: d.status_kerja === 'aktif' ? 'Aktif' : (d.status_kerja || 'Aktif'),
@@ -153,14 +128,12 @@ const EditKaryawanModal = {
     async function simpan() {
       menyimpan.value = true;
       try {
-        // form.role sebenarnya NAMA PROFIL (bisa custom, mis. "admin_finance") —
-        // WAJIB tulis 2 field terpisah: "role" (tingkat keamanan baku dari
-        // petaTingkatKeamanan, dipakai Firestore Rules) dan "profil_akses" (nama
-        // aslinya, dipakai cari izin tampilan). Lihat vue-config-akses.js.
-        const tingkat = petaTingkatKeamanan[form.role] || 'operator';
+        // form.role sudah berupa role baku apa adanya. profil_akses dikosongkan
+        // di setiap simpan supaya sisa nilai lama tidak mengalahkan role saat
+        // auth.js mencari akses_config.
         await updateDoc(doc(db, 'users', form.emailAsli), {
-          role: tingkat,
-          profil_akses: form.role,
+          role: form.role,
+          profil_akses: '',
           jenis_pekerjaan: form.jenisPekerjaan,
           jabatan: form.jabatan,
           status_kerja: form.statusKerja,
@@ -362,7 +335,7 @@ const AppDaftarKaryawan = {
     // eksplisit lewat Config Akses (centang kolom Print).
     const bolehPrint = computed(() => {
       const roleSaya = (window.currentUser.role || '').toLowerCase();
-      if (['owner', 'superuser'].includes(roleSaya)) return true;
+      if (['owner', 'pic_owner'].includes(roleSaya)) return true;
       return window.cekIzinMenu('daftar_karyawan', 'print') === true;
     });
 
@@ -446,7 +419,7 @@ const AppDaftarKaryawan = {
     // js/vue-paginasi.js) — cuma tarik 15 karyawan per halaman dari server,
     // bukan tarik SEMUA lalu potong di JS seperti sebelumnya. Diurutkan
     // berdasarkan nama supaya urutannya stabil & masuk akal.
-    const isOwnerRole = computed(() => ['owner', 'superuser'].includes((window.currentUser.role || '').toLowerCase()));
+    const isOwnerRole = computed(() => ['owner', 'pic_owner'].includes((window.currentUser.role || '').toLowerCase()));
     const filterJenisPekerjaanOwner = ref('ALL');
     const filterGudangOwner = ref('ALL');
     const opsiJenisPekerjaanOwner = ref([]);
@@ -560,7 +533,7 @@ const AppDaftarKaryawan = {
             x.nama || '', x.email || d.id || '', x.nik || '',
             x.jenis_pekerjaan || '', x.jabatan || '', x.status_kerja || '',
             window.normalisasiGudang(x.gudang_penempatan).join('; '),
-            x.nama_shift || '', x.profil_akses || x.role || '', x.hp || ''
+            x.nama_shift || '', x.role || '', x.hp || ''
           ]);
         });
         if (baris.length === 1) { alert('Tidak ada data karyawan untuk diekspor (sesuai filter/pencarian saat ini).'); sedangExportCsv.value = false; return; }
@@ -653,7 +626,7 @@ const AppDaftarKaryawan = {
           <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">No HP / Email</span><span style="font-weight:700; text-align:right;">{{ d.hp || '-' }} / {{ d.email || '-' }}</span></div>
           <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Jabatan</span><span style="font-weight:700; text-align:right;">{{ d.jabatan || '-' }}</span></div>
           <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px; align-items:flex-start;"><span style="color:var(--text-faint); flex-shrink:0;">Penempatan / Shift</span><span style="font-weight:700; text-align:right;"><gudang-ringkas :gudang="d.gudang_penempatan" :nama="d.nama" /> / {{ d.nama_shift || '-' }}</span></div>
-          <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Role / Jenis Lokasi</span><span style="font-weight:700; text-align:right; text-transform:uppercase;">{{ d.profil_akses || d.role }} / {{ d.jenisLokasiGabungan }}</span></div>
+          <div style="display:flex; justify-content:space-between; gap:10px; font-size:12px;"><span style="color:var(--text-faint); flex-shrink:0;">Role / Jenis Lokasi</span><span style="font-weight:700; text-align:right; text-transform:uppercase;">{{ d.role }} / {{ d.jenisLokasiGabungan }}</span></div>
         </div>
 
         <div style="display:flex; gap:8px; flex-wrap:wrap;">

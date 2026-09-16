@@ -1,29 +1,27 @@
 // js/vue-config-akses.js
-// Master Karyawan > Akses & Keamanan, pill Role + Jabatan (pill Assign ada di
-// vue-hak-akses.js): profil akses bernama bebas, izin View/Add/Edit/Delete/
-// Print per menu, plus pengaturan urutan menu Home mobile.
+// Master Karyawan > Akses & Keamanan, pill Role + Jabatan (pill Assign di
+// vue-hak-akses.js): izin View/Add/Edit/Delete/Print per menu tiap role,
+// pembatas per Jabatan, plus urutan menu Home mobile.
 //
 // Koleksi & field:
-// - akses_config/{namaProfil}: nama, tingkatKeamanan (1 dari 5 role baku),
-//   menus (izin per menu + fiturList opsional).
+// - akses_config/{role}: nama, menus (izin per menu + fiturList opsional). Doc
+//   id WAJIB role baku — auth.js mencarinya dengan role.
 // - akses_jabatan/{jabatan}: nama, menus — pembatas TAMBAHAN (AND) di atas Role.
-// - master_data/jabatan (field items): sumber daftar Jabatan, read-only di sini.
-// - pengaturan_sistem/urutan_menu_home: perKategori, urutanKategori.
+// - master_data/jabatan (items): daftar Jabatan, read-only di sini.
+//   pengaturan_sistem/urutan_menu_home: perKategori, urutanKategori.
 //
 // Jebakan:
-// - Izin di sini murni client-side; Firestore Rules tetap pakai 5 role baku,
-//   jadi tiap profil WAJIB punya tingkatKeamanan.
-// - DAFTAR_MENU satu sumber kebenaran: icon+aksi dibaca vue-home.js dan sidebar
-//   desktop; menu baru cukup ditambah di sini.
+// - Izin di sini murni client-side dan hanya menyembunyikan tampilan. Kuasa
+//   simpan sungguhan ditentukan field role lewat Firestore Rules.
+// - owner & pic_owner tidak bisa diedit di sini, keduanya selalu penuh.
+// - DAFTAR_MENU satu sumber kebenaran: icon+aksi dibaca vue-home.js & sidebar.
 // - Jabatan: dicentang = tidak membatasi, dikosongkan = memblokir, tidak pernah
-//   bisa melonggarkan. deprecated:true menyembunyikan menu dari Home,
-//   wajibOwner:true mengunci ke role owner asli. Entry menu lama jangan dihapus.
+//   melonggarkan. deprecated:true menyembunyikan menu dari Home, wajibOwner:true
+//   mengunci ke owner asli. Entry menu lama jangan dihapus.
 
 import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-
-const TINGKAT_KEAMANAN_BAKU = ['operator', 'pic', 'admin', 'owner', 'superuser'];
 
 // Tiap entry punya `icon` (kelas FontAwesome) dan `aksi` (fungsi pindah
 // tab/sub-tab) yang DIBACA langsung oleh grid Home mobile lewat daftarMenuGroups
@@ -255,9 +253,9 @@ export const KATEGORI_URUTAN = ['Umum', 'Master Karyawan', 'Master Absensi', 'Ma
 export { DAFTAR_MENU };
 const KOSONG_IZIN = () => ({ view: false, add: false, edit: false, delete: false, print: false });
 
-// Default awal untuk 5 profil baku SENGAJA disamakan dengan perilaku hardcode
-// yang sudah jalan sekarang (lihat auth.js) — supaya profil ini begitu pertama
-// dibuka sudah masuk akal, bukan kosong semua.
+// Default awal role yang bisa diedit SENGAJA disamakan dengan perilaku hardcode
+// di auth.js — supaya role ini begitu pertama dibuka sudah masuk akal, bukan
+// kosong semua. owner dan pic_owner tidak ada di sini: keduanya selalu penuh.
 function bikinDefaultProfil(namaProfil) {
   const menus = {};
   DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN(); });
@@ -265,24 +263,18 @@ function bikinDefaultProfil(namaProfil) {
   const semua = (id) => { menus[id] = { view: true, add: true, edit: true, delete: true, print: true }; };
   const lihatSaja = (id) => { menus[id].view = true; };
 
-  if (namaProfil === 'owner') {
-    DAFTAR_MENU.forEach(m => semua(m.id));
-  } else if (namaProfil === 'superuser') {
-    // Daftar di bawah FIXED/snapshot — menu yang ditambahkan ke DAFTAR_MENU
-    // TIDAK otomatis ikut ke sini. Default menu baru: cuma Owner, sampai Owner
-    // sendiri membagikannya lewat Config Akses. Jangan tambah menu baru ke sini.
-    [
-      'dashboard', 'profile',
-      'config_absensi', 'penjadwalan', 'antrean_absensi', 'antrean_lembur', 'riwayat_absensi',
-      'antrean_dakar', 'config_karyawan', 'daftar_karyawan', 'config_info', 'slip_gaji', 'payroll',
-      'whatsapp_gateway', 'mail_gateway'
-      // SENGAJA TIDAK termasuk: config_akses, hak_akses — khusus Owner asli,
-      // sudah begitu sejak awal fitur ini dibuat, bukan hal baru.
-    ].forEach(semua);
-  } else if (namaProfil === 'pic' || namaProfil === 'admin') {
+  if (namaProfil === 'pic' || namaProfil === 'admin') {
     lihatSaja('dashboard');
     menus.profile = { view: true, add: true, edit: true, delete: false, print: false };
-    ['config_absensi', 'penjadwalan', 'antrean_absensi', 'antrean_lembur', 'riwayat_absensi'].forEach(semua);
+    // Diturunkan dari KATEGORI, bukan daftar id yang ditulis tangan, supaya
+    // menu baru di kategori yang sama otomatis ikut. Isinya PERSIS kategori
+    // yang tombol sidebarnya digerbang admin-level di auth.js — Master
+    // Karyawan dan Master Integrasi sengaja di luar, itu owner/pic_owner.
+    const kategoriAdmin = ['Master Absensi', 'Master Keuangan', 'Zevanic House',
+      'Stok dan Pembelian', 'Pesanan', 'Persiapan Produksi', 'Proses Produksi', 'Scan & Cetak'];
+    DAFTAR_MENU.forEach(m => {
+      if (!m.deprecated && !m.wajibOwner && kategoriAdmin.includes(m.kategori)) semua(m.id);
+    });
     // Contoh nyata pemakaian fitur granular: Admin/PIC boleh kelola Master
     // Gudang sepenuhnya (view/add/edit/delete/print semua true di atas), TAPI
     // khusus dropdown "Jenis Lokasi"-nya tetap terkunci ke Tetap — cuma Owner
@@ -295,21 +287,15 @@ function bikinDefaultProfil(namaProfil) {
   return menus;
 }
 
-const PROFIL_BAKU = ['operator', 'pic', 'admin', 'owner', 'superuser'];
+const PROFIL_BAKU = ['operator', 'admin', 'pic', 'pic_owner', 'owner'];
 
 const AppConfigAkses = {
   setup() {
-    const daftarProfil = ref([]); // nama-nama profil yang sudah pernah disimpan
+    const daftarProfil = ref([]); // 5 role baku minus owner, diisi di muat()
     const memuat = ref(true);
     const menyimpan = ref(false);
 
-    const namaAkses = ref('');
     const profilDipilih = ref('');
-    // tingkatKeamanan: 1 dari 5 nama baku, INI yang sampai ke Firestore Rules
-    // lewat custom claim (field "role" di data karyawan). namaAkses cuma dipakai
-    // untuk cari izin TAMPILAN. Default 'operator' supaya profil baru yang lupa
-    // diatur tidak langsung dapat akses tulis luas.
-    const tingkatKeamanan = ref('operator');
     const menus = reactive({});
     // pastikanFiturAda: kalau menu ini punya fiturList (kontrol granular
     // tambahan), pastikan menus[id].fitur SELALU ada sebagai objek — supaya
@@ -419,43 +405,28 @@ const AppConfigAkses = {
 
     async function muat() {
       memuat.value = true;
-      try {
-        const snap = await getDocs(collection(db, "akses_config"));
-        const namaTersimpan = [];
-        snap.forEach(d => namaTersimpan.push(d.id));
-        // "owner" sengaja disembunyikan dari daftar pilih/edit — Owner wajib
-        // selalu punya akses penuh, tidak boleh dikecilkan lewat layar ini.
-        const gabungan = [...new Set([...PROFIL_BAKU, ...namaTersimpan])]
-          .filter(nama => nama !== 'owner')
-          .sort();
-        daftarProfil.value = gabungan;
-
-        if (!profilDipilih.value && gabungan.length > 0) {
-          await pilihProfil(gabungan[0]);
-        }
-      } catch (e) {
-        console.error("Gagal muat daftar profil akses:", e);
-      }
+      // Daftar yang bisa diedit TETAP role baku, tidak lagi ditambah nama bebas
+      // dari isi koleksi. owner dan pic_owner sengaja disembunyikan: auth.js
+      // memberi keduanya OWNER_PENUH tanpa baca akses_config, jadi mengeditnya
+      // di sini tidak akan pernah berefek.
+      const gabungan = PROFIL_BAKU.filter(nama => nama !== 'owner' && nama !== 'pic_owner');
+      daftarProfil.value = gabungan;
+      if (!profilDipilih.value && gabungan.length > 0) await pilihProfil(gabungan[0]);
       memuat.value = false;
     }
 
     async function pilihProfil(nama) {
-      if (!nama) { mulaiProfilBaru(); return; }
+      if (!nama) return;
       profilDipilih.value = nama;
-      namaAkses.value = nama;
       try {
         const snap = await getDoc(doc(db, "akses_config", nama));
-        const data = snap.exists() ? snap.data() : null;
-        const dataMenus = data ? (data.menus || {}) : null;
-        // Profil baku (operator/pic/admin/owner/superuser): tingkat keamanannya
-        // SAMA DENGAN namanya sendiri, kecuali sudah pernah disimpan beda secara
-        // eksplisit. Profil kustom yang belum pernah diatur: default 'operator'
-        // (paling aman/rendah).
-        tingkatKeamanan.value = data?.tingkatKeamanan || (PROFIL_BAKU.includes(nama) ? nama : 'operator');
+        const dataMenus = snap.exists() ? (snap.data().menus || {}) : null;
+        // Role yang belum pernah disimpan dimuat dengan izin bawaannya, bukan
+        // kosong — kalau kosong, semua menu langsung hilang begitu disimpan.
         DAFTAR_MENU.forEach(m => {
-          menus[m.id] = dataMenus && dataMenus[m.id] ? { ...KOSONG_IZIN(), ...dataMenus[m.id] } : (
-            PROFIL_BAKU.includes(nama) ? bikinDefaultProfil(nama)[m.id] : KOSONG_IZIN()
-          );
+          menus[m.id] = dataMenus && dataMenus[m.id]
+            ? { ...KOSONG_IZIN(), ...dataMenus[m.id] }
+            : bikinDefaultProfil(nama)[m.id];
           pastikanFiturAda(m.id);
         });
       } catch (e) {
@@ -463,31 +434,19 @@ const AppConfigAkses = {
       }
     }
 
-    function mulaiProfilBaru() {
-      profilDipilih.value = '';
-      namaAkses.value = '';
-      tingkatKeamanan.value = 'operator';
-      DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN(); pastikanFiturAda(m.id); });
-    }
-
     async function simpan() {
-      const nama = namaAkses.value.trim();
-      if (!nama) return alert("Nama Akses harus diisi!");
-      if (nama.toLowerCase() === 'owner') {
-        return alert("Nama \"owner\" tidak boleh dipakai — Owner wajib selalu punya akses penuh dan tidak boleh dikonfigurasi lewat layar ini.");
-      }
+      const nama = profilDipilih.value;
+      if (!nama) return alert("Pilih role yang mau diatur dulu.");
 
       menyimpan.value = true;
       try {
         const menusPolos = {};
         DAFTAR_MENU.forEach(m => { menusPolos[m.id] = { ...menus[m.id] }; });
-        await setDoc(doc(db, "akses_config", nama), { nama, tingkatKeamanan: tingkatKeamanan.value, menus: menusPolos });
-        alert(`Profil akses "${nama}" berhasil disimpan!`);
-        profilDipilih.value = nama;
-        await muat();
+        await setDoc(doc(db, "akses_config", nama), { nama, menus: menusPolos });
+        alert(`Izin role "${nama}" berhasil disimpan!`);
       } catch (e) {
         console.error("Gagal simpan profil akses:", e);
-        alert("Gagal menyimpan profil akses.");
+        alert("Gagal menyimpan izin role.");
       }
       menyimpan.value = false;
     }
@@ -500,8 +459,7 @@ const AppConfigAkses = {
 
     return {
       daftarProfil, memuat, menyimpan, muat,
-      namaAkses, profilDipilih, pilihProfil, mulaiProfilBaru, simpan,
-      tingkatKeamanan, TINGKAT_KEAMANAN_BAKU,
+      profilDipilih, pilihProfil, simpan,
       menus, KATEGORI_URUTAN, kategoriTerbuka, toggleKategori, menuUntukKategori, cariMenu,
       semuaTercentangKolom, toggleKolomKategori,
       urutanMenu, urutanTerbuka, menyimpanUrutan, labelMenu, naikkanUrutan, turunkanUrutan, simpanUrutanMenu,
@@ -512,37 +470,19 @@ const AppConfigAkses = {
     <div>
       <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px;">
         <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:var(--teal-text);"><i class="fas fa-shield-halved" style="margin-right:8px;"></i> Config Akses</h4>
-        <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Buat atau ubah profil akses — tiap profil punya izin View/Add/Edit/Delete/Print sendiri per menu. Profil ini nanti dipilih untuk tiap karyawan di tab Hak Akses.</p>
-      </div>
-
-      <div class="gc-card" style="margin-bottom:16px; border:1.5px solid var(--burgundy);">
-        <h4 class="gc-heading" style="font-size:12.5px; font-weight:700; margin-bottom:6px;"><i class="fas fa-shield-halved" style="color:var(--burgundy); margin-right:8px;"></i> Tingkat Keamanan Dasar</h4>
-        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Profil ini boleh dinamai bebas, tapi untuk KEAMANAN DATA (Firestore Rules), harus setara dengan salah satu dari 5 tingkat baku berikut. Ini yang menentukan bisa/tidaknya karyawan dengan profil ini benar-benar MENYIMPAN data (bukan cuma soal tampil/sembunyi menu).</p>
-        <div class="gc-field" style="margin-bottom:0; max-width:280px;">
-          <label>Setara dengan tingkat</label>
-          <select v-model="tingkatKeamanan">
-            <option v-for="t in TINGKAT_KEAMANAN_BAKU" :key="t" :value="t">{{ t.toUpperCase() }}</option>
-          </select>
-        </div>
+        <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Atur izin View/Add/Edit/Delete/Print per menu untuk tiap role. Role dipasang ke karyawan di tab Hak Akses. Untuk mengurangi akses lebih jauh per posisi kerja, pakai tab Akses Jabatan.</p>
       </div>
 
       <div class="gc-card" style="margin-bottom:16px;">
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;" class="md:grid-cols-2">
-          <div class="gc-field" style="margin-bottom:0;">
-            <label>Pilih profil untuk diedit (atau buat baru)</label>
-            <select :value="profilDipilih" @change="pilihProfil($event.target.value)">
-              <option value="">+ Buat profil baru</option>
-              <option v-for="p in daftarProfil" :key="p" :value="p">{{ p }}</option>
-            </select>
-          </div>
-          <div class="gc-field" style="margin-bottom:0;">
-            <label>Nama akses{{ profilDipilih ? ' (nama profil yang sedang diedit, tidak bisa diganti di sini)' : '' }}</label>
-            <input v-model="namaAkses" type="text" placeholder="Contoh: admin_gudang_utama" :disabled="!!profilDipilih" :style="profilDipilih ? 'background:var(--ivory-dim); color:var(--text-muted); cursor:not-allowed;' : ''">
-          </div>
+        <div class="gc-field" style="margin-bottom:14px; max-width:320px;">
+          <label>Role yang sedang diatur</label>
+          <select :value="profilDipilih" @change="pilihProfil($event.target.value)">
+            <option v-for="p in daftarProfil" :key="p" :value="p">{{ p.toUpperCase() }}</option>
+          </select>
         </div>
         <button @click="simpan" :disabled="menyimpan" class="btn-primary block">
-          <i class="fas" :class="profilDipilih ? 'fa-rotate' : 'fa-save'" style="margin-right:8px;"></i>
-          {{ menyimpan ? 'Menyimpan...' : (profilDipilih ? 'Update profil akses' : 'Simpan profil akses (baru)') }}
+          <i class="fas fa-rotate" style="margin-right:8px;"></i>
+          {{ menyimpan ? 'Menyimpan...' : 'Simpan izin role ini' }}
         </button>
       </div>
 
