@@ -368,6 +368,10 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
   document.querySelectorAll('.' + grupKelas + '-content').forEach(el => el.classList.add('hidden'));
   const target = document.getElementById(targetId);
   if (target) target.classList.remove('hidden');
+  // Target yang salah ketik dulu GAGAL DIAM-DIAM: panel tidak ketemu, layar
+  // kosong, console bersih. Peringatan ini yang membuatnya ketahuan sekali
+  // klik, bukan berbulan-bulan kemudian.
+  else console.error('[pindahSubTab] Target "' + targetId + '" tidak ada di index.html. Grup: ' + grupKelas + '. Layar akan kosong.');
 
   // Popstate restore: tombolEl dikirim null oleh listener, dicari sendiri di
   // sini lewat data-target (makanya atribut itu WAJIB buat sub-tab yang ikut

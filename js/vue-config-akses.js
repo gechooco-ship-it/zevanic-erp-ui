@@ -1,23 +1,23 @@
 // js/vue-config-akses.js
-// Master Karyawan > Akses & Keamanan, pill Jabatan (pill Assign di
-// vue-hak-akses.js). Satu jabatan = role + jenis usaha + menu yang tampil.
-// DAFTAR_MENU di file ini satu-satunya tempat menu aplikasi didaftarkan.
+// Master Karyawan > Akses & Keamanan, pill Petakan Menu + Jabatan (Assign di
+// vue-hak-akses.js). Jabatan = role + jenis usaha + menu yang tampil. DAFTAR_MENU
+// di file ini satu-satunya tempat menu aplikasi didaftarkan.
 //
 // Koleksi & field:
 // - akses_jabatan/{jabatan huruf kecil}: nama, role, jenis_pekerjaan, menus.
-//   Dibaca auth.js window.muatIzinMenuSaya; role & jenis_pekerjaan disalin ke
-//   users saat jabatan dipasang di pill Assign.
-// - master_data/jabatan (items): daftar nama jabatan, ditulis juga dari sini.
+//   Dibaca auth.js muatIzinMenuSaya; role & jenis_pekerjaan disalin ke users
+//   saat jabatan dipasang di pill Assign.
+// - pengaturan_sistem/peta_kategori_usaha: kategori menu -> jenis usaha.
+// - master_data/jabatan (items): daftar nama jabatan, ditulis dari sini juga.
 //
 // Jebakan:
-// - Izin di sini murni client-side dan hanya menyembunyikan tampilan. Kuasa
-//   simpan sungguhan ditentukan field role lewat Firestore Rules.
-// - Kategori milik usaha lain disembunyikan DAN ditulis tertutup saat simpan.
-// - Ubah role/usaha jabatan WAJIB diikuti "Terapkan ke karyawan", kalau tidak
-//   salinan di users basi dan Rules memakai nilai lama.
+// - Izin di sini client-side, hanya menyembunyikan. Kuasa simpan sungguhan
+//   ditentukan field role lewat Firestore Rules.
+// - Kategori milik usaha lain (lihat pill Petakan Menu) disembunyikan DAN
+//   ditulis tertutup saat simpan.
+// - Ubah role/usaha jabatan WAJIB diikuti "Terapkan ke karyawan".
 // - DAFTAR_MENU satu sumber kebenaran: icon+aksi dibaca vue-home.js & sidebar.
-//   deprecated:true menyembunyikan menu, wajibOwner:true mengunci ke owner
-//   asli. Entry menu lama jangan dihapus.
+//   deprecated/wajibOwner berlaku di sini. Entry menu lama jangan dihapus.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -173,13 +173,13 @@ const DAFTAR_MENU = [
   { id: 'pp_vendor', label: 'Persiapan Produksi - Vendor', kategori: 'Persiapan Produksi', icon: 'fa-handshake',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-vendor', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-vendor-tahap', 'sub-pp-vendor-perludiproses', null, {catatRiwayat:true}); } },
   { id: 'pp_bahan', label: 'Persiapan Produksi - Bahan', kategori: 'Persiapan Produksi', icon: 'fa-scroll',
-    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-bahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-perludiproses', null, {catatRiwayat:true}); } },
+    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-bahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-perludisiapkan', null, {catatRiwayat:true}); } },
   { id: 'pp_sewing', label: 'Persiapan Produksi - Acc Sewing', kategori: 'Persiapan Produksi', icon: 'fa-scissors',
-    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-sewing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-perludiproses', null, {catatRiwayat:true}); } },
+    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-sewing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-perludisiapkan', null, {catatRiwayat:true}); } },
   { id: 'pp_webbing', label: 'Persiapan Produksi - Acc Webbing', kategori: 'Persiapan Produksi', icon: 'fa-ribbon',
-    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-webbing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-perludiproses', null, {catatRiwayat:true}); } },
+    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-webbing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-perludisiapkan', null, {catatRiwayat:true}); } },
   { id: 'pp_finishing', label: 'Persiapan Produksi - Acc Finishing', kategori: 'Persiapan Produksi', icon: 'fa-check-double',
-    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-finishing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludiproses', null, {catatRiwayat:true}); } },
+    aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-finishing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludisiapkan', null, {catatRiwayat:true}); } },
   // Masalah, 7 tahap, skema TRB. Lihat js/vue-pp-masalah.js.
   { id: 'pp_masalah', label: 'Persiapan Produksi - Masalah', kategori: 'Persiapan Produksi', icon: 'fa-triangle-exclamation',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-masalah', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-perludiajukan', null, {catatRiwayat:true}); } },
@@ -253,6 +253,137 @@ const DAFTAR_MENU = [
 // Master Karyawan/Absensi/Keuangan tetap terpisah walau sidebar menggabungnya.
 export const KATEGORI_URUTAN = ['Umum', 'Master Karyawan', 'Master Absensi', 'Master Keuangan', 'Zevanic House', 'Stok dan Pembelian', 'Pesanan', 'Persiapan Produksi', 'Proses Produksi', 'Scan & Cetak', 'Master Integrasi'];
 export { DAFTAR_MENU };
+// AppPetaMenu: pill "Petakan Menu". Menentukan kategori menu mana dipakai jenis
+// usaha mana. Dibaca pill Jabatan untuk menyembunyikan kategori yang tidak
+// dipakai usaha jabatan itu, jadi tidak perlu dicentang satu per satu.
+
+const DOC_PETA_USAHA = ['pengaturan_sistem', 'peta_kategori_usaha'];
+
+// Dipakai HANYA kalau dokumen petanya belum pernah disimpan. Kategori yang
+// tidak disebut di sini berarti dipakai SEMUA usaha.
+const PETA_USAHA_BAWAAN = {
+  'Zevanic House': ['ZCO'],
+  'Stok dan Pembelian': ['ZCO'],
+  'Pesanan': ['ZCO'],
+  'Persiapan Produksi': ['ZCO'],
+  'Proses Produksi': ['ZCO'],
+  'Scan & Cetak': ['ZCO']
+};
+
+// Satu-satunya tempat aturan "kategori ini boleh untuk usaha itu" dibaca.
+// Kategori tanpa entri = milik semua usaha (aman untuk kategori yang baru
+// ditambahkan ke DAFTAR_MENU).
+export function kategoriUntukUsaha(peta, usaha) {
+  return KATEGORI_URUTAN.filter(k => {
+    const daftar = peta ? peta[k] : PETA_USAHA_BAWAAN[k];
+    if (!daftar || daftar.length === 0) return true;
+    return daftar.includes(usaha);
+  });
+}
+
+export async function muatPetaKategoriUsaha() {
+  try {
+    const snap = await getDoc(doc(db, ...DOC_PETA_USAHA));
+    return snap.exists() ? (snap.data().peta || {}) : { ...PETA_USAHA_BAWAAN };
+  } catch (e) {
+    console.error('Gagal muat peta kategori-usaha, pakai bawaan:', e);
+    return { ...PETA_USAHA_BAWAAN };
+  }
+}
+
+const AppPetaMenu = {
+  setup() {
+    const daftarUsaha = ref([]);
+    const peta = reactive({});
+    const memuat = ref(true);
+    const menyimpan = ref(false);
+
+    function dipakai(kategori, usaha) {
+      const d = peta[kategori];
+      return !d || d.length === 0 ? true : d.includes(usaha);
+    }
+    // Mencentang SEMUA usaha sama artinya dengan "tidak dibatasi", jadi
+    // entrinya dikosongkan supaya usaha baru otomatis ikut kebagian.
+    function toggle(kategori, usaha) {
+      const sekarang = daftarUsaha.value.filter(u => dipakai(kategori, u));
+      const baru = sekarang.includes(usaha) ? sekarang.filter(u => u !== usaha) : [...sekarang, usaha];
+      peta[kategori] = baru.length === daftarUsaha.value.length ? [] : baru;
+    }
+
+    async function muat() {
+      memuat.value = true;
+      daftarUsaha.value = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
+      const tersimpan = await muatPetaKategoriUsaha();
+      Object.keys(peta).forEach(k => delete peta[k]);
+      KATEGORI_URUTAN.forEach(k => { peta[k] = tersimpan[k] ? [...tersimpan[k]] : []; });
+      memuat.value = false;
+    }
+
+    async function simpan() {
+      menyimpan.value = true;
+      try {
+        const polos = {};
+        KATEGORI_URUTAN.forEach(k => { polos[k] = [...(peta[k] || [])]; });
+        await setDoc(doc(db, ...DOC_PETA_USAHA), { peta: polos });
+        alert('Peta menu tersimpan. Buka pill Jabatan untuk melihat hasilnya.');
+      } catch (e) {
+        console.error('Gagal simpan peta kategori-usaha:', e);
+        alert('Gagal menyimpan peta menu.');
+      }
+      menyimpan.value = false;
+    }
+
+    onMounted(async () => { await window.authReady; muat(); });
+
+    return { daftarUsaha, peta, memuat, menyimpan, KATEGORI_URUTAN, dipakai, toggle, simpan, muat };
+  },
+  template: `
+    <div>
+      <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px;">
+        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:var(--teal-text);"><i class="fas fa-diagram-project" style="margin-right:8px;"></i> Petakan Menu ke Jenis Usaha</h4>
+        <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Tentukan kategori menu mana dipakai usaha mana. Yang <b>tidak dicentang</b> tidak akan muncul sama sekali saat mengatur jabatan usaha itu — jadi tidak perlu mencentang menu satu per satu di sana. Kategori yang dicentang semua usaha berarti menu bersama.</p>
+      </div>
+
+      <div class="gc-card" style="margin-bottom:16px;">
+        <button @click="simpan" :disabled="menyimpan" class="btn-primary block">
+          <i class="fas" :class="menyimpan ? 'fa-spinner fa-spin' : 'fa-save'" style="margin-right:8px;"></i>{{ menyimpan ? 'Menyimpan...' : 'Simpan Peta Menu' }}
+        </button>
+      </div>
+
+      <div v-if="memuat" class="gc-card" style="text-align:center; color:var(--text-faint); font-size:12px;">Memuat...</div>
+      <div v-else-if="daftarUsaha.length === 0" class="gc-card" style="color:var(--burgundy); font-size:11.5px; font-weight:700;">Belum ada Jenis Usaha. Tambahkan dulu di Master Karyawan &rsaquo; Config Karyawan &rsaquo; Jenis Pekerjaan.</div>
+      <div v-else class="gc-card" style="padding:0; overflow:hidden;">
+        <div class="gc-table-scroll">
+          <table class="gc-table" style="min-width:420px;">
+            <thead>
+              <tr>
+                <th class="freeze freeze-left" style="width:220px;">Kategori menu</th>
+                <th v-for="u in daftarUsaha" :key="u" style="text-align:center; width:110px;">{{ u }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="k in KATEGORI_URUTAN" :key="k">
+                <td class="freeze freeze-left" style="font-weight:600;">{{ k }}</td>
+                <td v-for="u in daftarUsaha" :key="u" style="text-align:center;">
+                  <input type="checkbox" :checked="dipakai(k, u)" @change="toggle(k, u)" style="accent-color:var(--ok); width:16px; height:16px;">
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+let vmPetaMenu = null;
+window.pastikanMountPetaMenu = function() {
+  if (vmPetaMenu) { if (typeof vmPetaMenu.muat === 'function') vmPetaMenu.muat(); return; }
+  const mountPoint = document.getElementById('vue-peta-menu');
+  if (mountPoint) vmPetaMenu = createApp(AppPetaMenu).mount('#vue-peta-menu');
+};
+
+
 // AppJabatanAkses: satu-satunya halaman pengatur akses. Jabatan menyimpan role
 // (pengaman di Rules) + jenis_pekerjaan (batas usaha) + menu yang boleh tampil.
 // Keduanya DISALIN ke users saat jabatan dipasang di pill Assign, karena Rules
@@ -261,18 +392,6 @@ export { DAFTAR_MENU };
 const KOSONG_IZIN_JABATAN = () => ({ view: true, add: true, edit: true, delete: true, print: true });
 const TUTUP_IZIN_JABATAN = () => ({ view: false, add: false, edit: false, delete: false, print: false });
 const ROLE_BAKU_JABATAN = ['operator', 'admin', 'pic', 'pic_owner', 'owner'];
-
-// Kategori yang cuma relevan untuk satu jenis usaha. Jabatan usaha lain tidak
-// usah melihat menunya sama sekali — disembunyikan di layar DAN ditulis tertutup
-// saat simpan. Menu baru otomatis ikut lewat kategorinya.
-const KATEGORI_KHUSUS_USAHA = {
-  'Zevanic House': 'ZCO',
-  'Stok dan Pembelian': 'ZCO',
-  'Pesanan': 'ZCO',
-  'Persiapan Produksi': 'ZCO',
-  'Proses Produksi': 'ZCO',
-  'Scan & Cetak': 'ZCO'
-};
 
 const AppJabatanAkses = {
   setup() {
@@ -283,6 +402,7 @@ const AppJabatanAkses = {
     const menghapus = ref(false);
     const menyinkron = ref(false);
 
+    const petaKategori = ref(null); // diisi dari pill Petakan Menu saat muat()
     const jabatanDipilih = ref('');
     const roleJabatan = ref('operator');
     const usahaJabatan = ref('');
@@ -292,11 +412,10 @@ const AppJabatanAkses = {
     const menus = reactive({});
     DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN_JABATAN(); });
 
-    // Kategori yang ditampilkan ikut jenis usaha jabatan ini — Guru tidak perlu
-    // mencentang menu yang memang tidak dipakai usahanya.
-    const kategoriTampil = computed(() =>
-      KATEGORI_URUTAN.filter(k => !KATEGORI_KHUSUS_USAHA[k] || KATEGORI_KHUSUS_USAHA[k] === usahaJabatan.value)
-    );
+    // Kategori yang ditampilkan ikut jenis usaha jabatan ini, menurut peta yang
+    // diatur di pill Petakan Menu — Guru tidak perlu mencentang menu yang memang
+    // tidak dipakai usahanya.
+    const kategoriTampil = computed(() => kategoriUntukUsaha(petaKategori.value, usahaJabatan.value));
 
     const kategoriTerbuka = reactive({});
     KATEGORI_URUTAN.forEach(k => { kategoriTerbuka[k] = true; });
@@ -326,6 +445,7 @@ const AppJabatanAkses = {
         daftarJabatan.value = [];
       }
       daftarUsaha.value = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
+      petaKategori.value = await muatPetaKategoriUsaha();
       if (jabatanDipilih.value) await pilihJabatan(jabatanDipilih.value);
       memuat.value = false;
     }
@@ -563,12 +683,12 @@ window.pastikanMountJabatanAkses = function() {
 };
 
 
-// "Akses & Keamanan" = 1 layar dengan 2 pill (Jabatan/Assign). Markup pill +
-// pane ada di index.html; petaMount di dashboard.js mengarah ke
+// "Akses & Keamanan" = 1 layar dengan 3 pill (Petakan Menu/Jabatan/Assign).
+// Markup pill + pane ada di index.html; petaMount di dashboard.js mengarah ke
 // window.pastikanMountAksesKeamanan di bawah.
 
 window.pindahPillAksesKeamanan = function(nama) {
-  const semua = ['jabatan', 'assign'];
+  const semua = ['petamenu', 'jabatan', 'assign'];
   semua.forEach(n => {
     const pane = document.getElementById('pane-akses-' + n);
     const tombol = document.getElementById('pill-akses-' + n);
@@ -577,6 +697,7 @@ window.pindahPillAksesKeamanan = function(nama) {
   });
 };
 window.pastikanMountAksesKeamanan = function() {
+  window.pastikanMountPetaMenu();
   window.pastikanMountJabatanAkses();
   if (window.pastikanMountHakAkses) window.pastikanMountHakAkses();
 };
