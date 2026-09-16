@@ -530,6 +530,9 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // kertas/posisi QR/rincian tambahan per jenis cetak), lihat
     // js/vue-pengaturan-cetak.js.
     'sub-scan-cetak-cetak': 'pastikanMountPengaturanCetak',
+    // Scan & Cetak > Pilihan Scan — admin atur sheet "Mau scan apa?" per
+    // menu tanpa ubah kode, lihat js/vue-pilihan-scan-config.js.
+    'sub-scan-cetak-pilihanscan': 'pastikanMountPilihanScanConfig',
     // REKONSTRUKSI: Penjualan Kasir (1.1/1.2), Menunggu Proses (2.1, keputusan
     // QO Owner/PIC Owner), Daftar Pesanan (3.1-3.2.1), Transaksi Keuangan
     // (4.1-4.2.2, piutang).

@@ -1,48 +1,98 @@
 // js/vue-popup-scan.js
 // Bottom Sheet Picker "Mau scan apa?" — tombol QR navbar mobile membuka ini
 // dulu, bukan lompat langsung ke tab Scan QR. Nav 5-tombol tetap sama, cuma
-// tombol QR tengah yang jadi kontekstual lewat sheet ini.
+// tombol QR tengah yang jadi kontekstual lewat sheet ini. Ekspor
+// DAFTAR_AKSI_SCAN, DAFTAR_KONTEKS, DEFAULT_PILIHAN, invalidasiCachePilihanScan
+// dipakai layar admin js/vue-pilihan-scan-config.js.
 //
 // Koleksi & field:
-// - Tidak menyentuh Firestore langsung; item PETA_PILIHAN_SCAN memanggil
-//   fungsi window.bukaXxx milik modul lain (lihat file modul terkait).
+// - config_pilihan_scan/{targetId}: 1 dokumen = 1 konteks (sub-tab paling
+//   spesifik) — item_ids[] (urutan tampil), diubah_pada, diubah_oleh. Konteks
+//   TANPA dokumen jatuh ke DEFAULT_PILIHAN di kode. Dibaca 1x getDocs per
+//   sesi lalu dicache (lihat pastikanCachePilihanScan).
+// - Tidak menulis Firestore lain — tiap item cuma memanggil window.bukaXxx
+//   milik modul lain (lihat DAFTAR_AKSI_SCAN.fungsi).
 //
 // Jebakan:
-// - Key PETA_PILIHAN_SCAN = targetId sub-tab paling spesifik di
-//   window._riwayatNavAktif.subTabs (bukan tabId top-level) supaya tahap
+// - Key DEFAULT_PILIHAN/dokumen Firestore = targetId sub-tab paling spesifik
+//   di window._riwayatNavAktif.subTabs (bukan tabId top-level) supaya tahap
 //   yang beda modal (mis. Cutting Perlu Di Proses vs Perlu Di Kirim) dapat
-//   pilihan beda. Konteks tidak match satupun key -> fallback 1 pilihan
-//   "Scan QR" (pilihanDefault), sama seperti perilaku tombol QR lama.
-// - aksi() modul lain bisa belum ke-mount (mount-on-demand) — selalu cek
-//   window.bukaXxx ada dulu sebelum panggil, jangan asumsikan selalu ada.
+//   pilihan beda. Konteks tidak match satupun -> fallback "Scan QR" biasa.
+// - window.bukaXxx modul lain bisa belum ke-mount (mount-on-demand) — selalu
+//   cek fungsinya ada dulu sebelum panggil, jangan asumsikan selalu ada.
+// - Simpan/hapus dari layar admin WAJIB panggil invalidasiCachePilihanScan(),
+//   kalau tidak sheet ini masih pakai cache lama sampai reload halaman.
 import { createApp, ref } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
+import { db } from './firebase-config.js';
 
-// Isi per modul: fungsi window.bukaXxx didefinisikan di file modul masing-
-// masing (dipanggil vm yang sudah ke-mount, lihat komentar di tiap file).
-// Masalah SENGAJA tidak ada di sini — Scan Operator-nya cuma tombol
-// per-kartu, tidak ada varian toolbar global untuk dipanggil tanpa konteks.
-const PETA_PILIHAN_SCAN = {
-  'sub-pp-bahan-perludisiapkan': [
-    { icon: 'user', judul: 'Scan Operator', sub: 'Persiapan Bahan', gaya: 'aksen', aksi: () => window.bukaScanOperatorBahan && window.bukaScanOperatorBahan() }
-  ],
-  'sub-pp-sewing-perludisiapkan': [
-    { icon: 'user', judul: 'Scan Operator', sub: 'Acc Sewing', gaya: 'aksen', aksi: () => window.bukaScanOperatorSewing && window.bukaScanOperatorSewing() }
-  ],
-  'sub-pp-webbing-perludisiapkan': [
-    { icon: 'user', judul: 'Scan Operator', sub: 'Acc Webbing', gaya: 'aksen', aksi: () => window.bukaScanOperatorWebbing && window.bukaScanOperatorWebbing() }
-  ],
-  'sub-pp-finishing-perludisiapkan': [
-    { icon: 'user', judul: 'Scan Operator', sub: 'Acc Finishing', gaya: 'aksen', aksi: () => window.bukaScanOperatorFinishing && window.bukaScanOperatorFinishing() }
-  ],
-  'sub-pr-cutting-perludiproses': [
-    { icon: 'barcode', judul: 'Scan Sampai', sub: 'Terima kiriman bahan', aksi: () => window.bukaScanSampaiCutting && window.bukaScanSampaiCutting() },
-    { icon: 'box-open', judul: 'Scan Unpack', sub: 'Buka isi bagging', aksi: () => window.bukaScanUnpackCutting && window.bukaScanUnpackCutting() }
-  ],
-  'sub-pr-cutting-perludikirim': [
-    { icon: 'qrcode', judul: 'Scan Pack', sub: 'Kaitkan label ke bagging', aksi: () => window.bukaScanPackCutting && window.bukaScanPackCutting() },
-    { icon: 'qrcode', judul: 'Scan Kirim', sub: 'Muat bagging ke tugas kirim', aksi: () => window.bukaScanKirimCutting && window.bukaScanKirimCutting() }
-  ]
+// DAFTAR_AKSI_SCAN — katalog TETAP semua aksi scan yang bisa dimasukkan ke
+// sheet ini. Menambah titik scan baru = tambah 1 entri di sini (fungsi =
+// nama window.bukaXxx yang didefinisikan di file modul terkait) — baru
+// setelah itu bisa dipasang ke konteks manapun lewat layar admin.
+export const DAFTAR_AKSI_SCAN = {
+  operator_bahan: { icon: 'user', judul: 'Scan Operator', sub: 'Persiapan Bahan', gaya: 'aksen', fungsi: 'bukaScanOperatorBahan' },
+  operator_sewing: { icon: 'user', judul: 'Scan Operator', sub: 'Acc Sewing', gaya: 'aksen', fungsi: 'bukaScanOperatorSewing' },
+  operator_webbing: { icon: 'user', judul: 'Scan Operator', sub: 'Acc Webbing', gaya: 'aksen', fungsi: 'bukaScanOperatorWebbing' },
+  operator_finishing: { icon: 'user', judul: 'Scan Operator', sub: 'Acc Finishing', gaya: 'aksen', fungsi: 'bukaScanOperatorFinishing' },
+  cutting_sampai: { icon: 'barcode', judul: 'Scan Sampai', sub: 'Terima kiriman bahan', fungsi: 'bukaScanSampaiCutting' },
+  cutting_unpack: { icon: 'box-open', judul: 'Scan Unpack', sub: 'Buka isi bagging', fungsi: 'bukaScanUnpackCutting' },
+  cutting_pack: { icon: 'qrcode', judul: 'Scan Pack', sub: 'Kaitkan label ke bagging', fungsi: 'bukaScanPackCutting' },
+  cutting_kirim: { icon: 'qrcode', judul: 'Scan Kirim', sub: 'Muat bagging ke tugas kirim', fungsi: 'bukaScanKirimCutting' }
 };
+
+// DAFTAR_KONTEKS — konteks (targetId sub-tab) yang sudah dikenal sheet ini,
+// dengan label jalur menu buat layar admin. Masalah SENGAJA tidak ada di
+// sini — Scan Operator-nya cuma tombol per-kartu, tidak ada varian toolbar
+// global untuk dipanggil tanpa konteks.
+export const DAFTAR_KONTEKS = {
+  'sub-pp-bahan-perludisiapkan': 'Persiapan Produksi > Bahan > Perlu Disiapkan',
+  'sub-pp-sewing-perludisiapkan': 'Persiapan Produksi > Acc Sewing > Perlu Disiapkan',
+  'sub-pp-webbing-perludisiapkan': 'Persiapan Produksi > Acc Webbing > Perlu Disiapkan',
+  'sub-pp-finishing-perludisiapkan': 'Persiapan Produksi > Acc Finishing > Perlu Disiapkan',
+  'sub-pr-cutting-perludiproses': 'Proses Produksi > Cutting > Perlu Di Proses',
+  'sub-pr-cutting-perludikirim': 'Proses Produksi > Cutting > Perlu Di Kirim'
+};
+
+// DEFAULT_PILIHAN — dipakai kalau konteks belum punya dokumen
+// config_pilihan_scan (belum pernah diatur dari layar admin).
+export const DEFAULT_PILIHAN = {
+  'sub-pp-bahan-perludisiapkan': ['operator_bahan'],
+  'sub-pp-sewing-perludisiapkan': ['operator_sewing'],
+  'sub-pp-webbing-perludisiapkan': ['operator_webbing'],
+  'sub-pp-finishing-perludisiapkan': ['operator_finishing'],
+  'sub-pr-cutting-perludiproses': ['cutting_sampai', 'cutting_unpack'],
+  'sub-pr-cutting-perludikirim': ['cutting_pack', 'cutting_kirim']
+};
+
+// Cache in-memory per sesi, hemat read Firestore — koleksinya kecil (jumlah
+// konteks, bukan jumlah scan). null = belum dimuat sekalipun.
+let _cachePilihanScan = null;
+
+async function pastikanCachePilihanScan() {
+  if (_cachePilihanScan) return;
+  _cachePilihanScan = {};
+  try {
+    const snap = await getDocs(collection(db, 'config_pilihan_scan'));
+    snap.docs.forEach(d => { _cachePilihanScan[d.id] = d.data(); });
+  } catch (e) {
+    console.error('Gagal muat config_pilihan_scan, pakai default kode:', e);
+  }
+}
+// Dipanggil js/vue-pilihan-scan-config.js tiap simpan/hapus, supaya sheet ini
+// tidak nyangkut pakai cache lama sampai reload halaman.
+export function invalidasiCachePilihanScan() { _cachePilihanScan = null; }
+
+function ambilItemUntukTarget(targetId) {
+  const dariFirestore = _cachePilihanScan && _cachePilihanScan[targetId];
+  const ids = dariFirestore ? (dariFirestore.item_ids || []) : DEFAULT_PILIHAN[targetId];
+  if (!ids || !ids.length) return null;
+  const item = ids.map(id => DAFTAR_AKSI_SCAN[id]).filter(Boolean).map(a => ({
+    icon: a.icon, judul: a.judul, sub: a.sub, gaya: a.gaya,
+    aksi: () => window[a.fungsi] && window[a.fungsi]()
+  }));
+  return item.length ? item : null;
+}
 
 function pilihanDefault() {
   return [{
@@ -53,17 +103,21 @@ function pilihanDefault() {
   }];
 }
 
-// Cari konteks aktif SEKARANG: sub-tab ter-track (§39, paling spesifik)
-// dulu, baru tab top-level kalau tidak ketemu. Lihat js/dashboard.js utk
-// bentuk window._riwayatNavAktif.
+// Cari konteks aktif SEKARANG: sub-tab ter-track dulu (paling spesifik), baru
+// tab top-level kalau tidak ketemu. Lihat js/dashboard.js utk bentuk
+// window._riwayatNavAktif.
 function ambilPilihanScanUntukKonteks() {
   const aktif = window._riwayatNavAktif;
   if (aktif && Array.isArray(aktif.subTabs)) {
     for (const entry of aktif.subTabs) {
-      if (PETA_PILIHAN_SCAN[entry.targetId]) return PETA_PILIHAN_SCAN[entry.targetId];
+      const item = ambilItemUntukTarget(entry.targetId);
+      if (item) return item;
     }
   }
-  if (aktif && aktif.tab && PETA_PILIHAN_SCAN[aktif.tab]) return PETA_PILIHAN_SCAN[aktif.tab];
+  if (aktif && aktif.tab) {
+    const item = ambilItemUntukTarget(aktif.tab);
+    if (item) return item;
+  }
   return pilihanDefault();
 }
 
@@ -74,12 +128,12 @@ const AppPopupScan = {
     const daftarItem = ref([]);
     // Menandai apakah entry riwayat browser utk sheet ini SEDANG aktif —
     // dipakai supaya tutup() lewat tombol/backdrop (BUKAN tombol back HP)
-    // ikut menetralkan entry itu (lihat tutup() di bawah), konsisten dgn
-    // pola back HP §39/temuan #3 (GAP-MOBILE-10SEP2026.md) — sheet ini
-    // juga ikut tertutup kalau tombol back HP ditekan selagi terbuka.
+    // ikut menetralkan entry itu (lihat tutup() di bawah). Sheet ini juga
+    // ikut tertutup kalau tombol back HP ditekan selagi terbuka.
     let adaEntryHistory = false;
 
-    function buka() {
+    async function buka() {
+      await pastikanCachePilihanScan();
       daftarItem.value = ambilPilihanScanUntukKonteks();
       terbuka.value = true;
       try {
