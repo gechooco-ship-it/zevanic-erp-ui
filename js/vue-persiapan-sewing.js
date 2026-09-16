@@ -569,7 +569,11 @@ const PersiapanSewingPerluDisiapkan = {
                 <div style="color:var(--text-faint);" v-html="bangunLabelAksesoris(b, formatQty).info"></div>
               </div>
               <span v-if="b.label_cetak_pada" class="tag ok" style="margin-left:6px; flex-shrink:0;">sudah dicetak</span>
-              <span v-else-if="!b._bisa" class="tag warn" style="margin-left:6px; flex-shrink:0;">stok kurang</span>
+              <span v-else-if="b.catatan_masalah" class="tag warn" style="margin-left:6px; flex-shrink:0;">sudah diminta</span>
+              <template v-else-if="!b._bisa">
+                <span class="tag warn" style="margin-left:6px; flex-shrink:0;">stok kurang</span>
+                <button @click.prevent.stop="bukaMasalahBaris(b)" class="btn-outline" style="margin-left:6px; flex-shrink:0; padding:3px 9px; font-size:10px; color:var(--danger); border-color:var(--danger);">Masalah</button>
+              </template>
             </label>
           </div>
 
@@ -681,6 +685,15 @@ const PersiapanSewingSedangDisiapkan = {
     // Popup "jumlah kurang" + alasan
     const popupMasalah = ref(null); // { baris, jumlahKurang, alasan }
     function batalMasalah() { popupMasalah.value = null; }
+    // Baris yang stoknya kurang tidak bisa dicetak, jadi tidak bisa discan juga.
+    // Tombol ini satu-satunya jalan keluarnya: buka popup Masalah langsung tanpa
+    // scan. Sekali diajukan `catatan_masalah` terisi dan tombolnya mati, supaya
+    // Persiapan Belanja tidak dapat permintaan dobel untuk baris yang sama.
+    function bukaMasalahBaris(b) {
+      if (b.catatan_masalah || sedangProses[barisKey(b)]) return;
+      const kurang = (parseFloat(b.butuh) || 0) - (parseFloat(b._stok) || 0);
+      popupMasalah.value = { baris: b, jumlahKurang: kurang > 0 ? kurang : b.butuh, alasan: '' };
+    }
     async function konfirmasiMasalah() {
       const p = popupMasalah.value;
       if (!p) return;
@@ -753,7 +766,7 @@ const PersiapanSewingSedangDisiapkan = {
       memuat, kelompokOperator, bolehProses, sedangProses, sedangProsesBatch, konfirmasiDisiapkan,
       formatQty, formatDiamSejak, tertahan, barisKey,
       modalAksi, bukaAksi, tutupAksi, hasilScanAksi,
-      popupMasalah, batalMasalah, konfirmasiMasalah,
+      popupMasalah, batalMasalah, konfirmasiMasalah, bukaMasalahBaris,
       TAB_DEFS_SEWING, gantiTabPill, MY_TARGET
     };
   },
