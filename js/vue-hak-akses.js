@@ -4,7 +4,7 @@
 //
 // Koleksi & field:
 // - users: role (5 role baku, dibaca Rules, custom claim, dan auth.js), id
-//   dokumen = email, gudang_penempatan untuk kolom Gudang.
+//   dokumen = email, gudang_penempatan untuk kolom Gudang, nama_lower (cari).
 // - master_gudang: nama_gudang untuk filter dan tampilan ringkas.
 //
 // Jebakan:
@@ -63,7 +63,8 @@ const AppHakAkses = {
     const paginasi = reactive(usePaginasiFirestore(db, 'users', {
       perHalaman: 15,
       urutkanField: 'nama',
-      cariField: 'nama',
+      cariField: 'nama_lower',
+      cariHurufKecil: true,
       constraintTambahan: () => {
         // Dimensi jenis pekerjaan dari filterPeran dipakai manual di sini
         // (fieldGudang:null) supaya bisa digabung fleksibel dengan filterGudang

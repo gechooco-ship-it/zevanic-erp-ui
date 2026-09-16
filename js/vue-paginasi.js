@@ -22,9 +22,10 @@
 //   - Firestore TIDAK BISA cari "teks di TENGAH nama", cuma "nama yang
 //     DIAWALI teks ini" (mirip autocomplete, bukan mirip Ctrl+F).
 //   - PEKA HURUF BESAR/KECIL (case-sensitive) — cari "budi" TIDAK akan
-//     ketemu kalau tersimpan "Budi". Kalau field yang dicari nilainya
-//     tidak konsisten kapitalisasinya, pertimbangkan simpan field
-//     tambahan huruf-kecil-semua (mis. nama_lower) khusus buat dicari.
+//     ketemu kalau tersimpan "Budi". Jalan keluarnya: simpan field
+//     tambahan huruf-kecil-semua lalu cari ke situ dengan
+//     cariHurufKecil:true. Koleksi users sudah begitu (nama_lower,
+//     ditulis window.namaUntukCari di auth.js).
 //
 // Cara pakai dasar:
 //   import { usePaginasiFirestore } from './vue-paginasi.js';
@@ -109,6 +110,7 @@ export function usePaginasiFirestore(db, namaKoleksi, opsi = {}) {
   const urutkanField = opsi.urutkanField || '__name__';
   const urutkanArah = opsi.urutkanArah || 'asc';
   const cariField = opsi.cariField || null; // null = fitur cari tidak aktif
+  const cariHurufKecil = opsi.cariHurufKecil || false; // true = teks ketikan dikecilkan dulu (field tujuan wajib sudah huruf kecil)
   const ambilConstraintTambahan = opsi.constraintTambahan || (() => []); // filter dropdown, fungsi -> array where()
   const petakan = opsi.petakan || ((id, data) => ({ id, ...data }));
   const filterPeran = opsi.filterPeran || false; // BARU — lihat PEDOMAN KERJA di atas
@@ -125,7 +127,8 @@ export function usePaginasiFirestore(db, namaKoleksi, opsi = {}) {
   let timerDebounce = null;
 
   function bangunConstraints() {
-    const teks = cariTeks.value.trim();
+    const teksMentah = cariTeks.value.trim();
+    const teks = cariHurufKecil ? teksMentah.toLowerCase() : teksMentah;
     const sedangCari = cariField && teks.length > 0;
     // Saat sedang cari-awalan, HARUS urut berdasarkan field yang sama yang
     // dicari (aturan Firestore: field pertama orderBy harus sama dengan

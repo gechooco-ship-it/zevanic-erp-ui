@@ -103,6 +103,7 @@ const AppDeviceKiosk = {
           role: 'operator',
           jenis_akun: 'kiosk',
           nama: form.namaDevice.trim(),
+          nama_lower: window.namaUntukCari(form.namaDevice),
           email: form.email.trim(),
           gudang_penempatan: form.gudang,
           status_kerja: 'Aktif',

@@ -3,11 +3,11 @@
 // cache profil, hak akses menu/fitur/jabatan, helper shift & gateway WhatsApp.
 //
 // Koleksi & field:
-// - users/{email}: role (5 role baku), status_approval, status_kerja,
-//   jenis_akun, gudang_penempatan, nama_shift, jabatan, jenis_pekerjaan.
+// - users/{email}: role (5 role baku), nama + nama_lower (kotak cari),
+//   status_approval, status_kerja, jenis_akun, gudang_penempatan, nama_shift,
+//   jabatan, jenis_pekerjaan.
 // - akses_config/{role} & akses_jabatan/{jabatan}: peta izin menu/fitur.
-// - jadwal_shift/{email}_{YYYY-MM} & master_shift: shift efektif + jam kerja.
-// - absensi, config/whatsapp_gateway, whatsapp_templates, wa_log.
+// - jadwal_shift/{email}_{YYYY-MM} & master_shift, absensi, wa_log, config.
 //
 // Jebakan:
 // - onAuthStateChanged bisa memanggil user=null DULU sebelum sesi tersimpan
@@ -242,6 +242,14 @@ function pesanErrorAuth(kode) {
   return peta[kode] || null;
 }
 window.pesanErrorAuth = pesanErrorAuth; // dipakai juga oleh js/vue-registrasi.js
+
+// Salinan huruf kecil dari field nama, WAJIB ditulis berbarengan tiap kali nama
+// ditulis ke users. Kotak cari memakai field ini supaya pencarian tidak peduli
+// huruf besar-kecil; dokumen yang field ini hilang TIDAK akan pernah muncul di
+// hasil cari, karena orderBy membuangnya.
+window.namaUntukCari = function(nama) {
+  return (nama || '').trim().toLowerCase();
+};
 
 // Helper bersama (dipakai juga oleh dashboard.js): gudang_penempatan dulu string
 // tunggal, sekarang array (mendukung banyak gudang). Ini menormalkan keduanya.

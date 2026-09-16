@@ -3,8 +3,8 @@
 // karyawan (satu komponen, dibedakan prop readonly).
 //
 // Koleksi & field:
-// - users (id dokumen = email): nama, role (5 role baku), jenis_pekerjaan,
-//   jabatan, status_kerja, status_karyawan, status_approval,
+// - users (id dokumen = email): nama + nama_lower, role (5 role baku),
+//   jenis_pekerjaan, jabatan, status_kerja, status_karyawan, status_approval,
 //   gudang_penempatan (array), plus data pribadi/alamat/bank/kontak darurat.
 // - master_gudang: nama_gudang + tipe_lokasi, dipakai kolom Jenis Lokasi.
 //
@@ -12,9 +12,9 @@
 // - Dropdown Role TETAP 5 nilai, tidak dibaca dari akses_config. Simpan
 //   menulis role apa adanya dan mengosongkan profil_akses — sisa nilai lama
 //   di field itu membuat auth.js memakai kunci yang salah ke akses_config.
-// - Tabel pakai usePaginasiFirestore (cursor server, 15/halaman, cariField
-//   'nama' prefix-match) + filterPeran; filter Jenis Pekerjaan/Gudang hanya
-//   berefek untuk Owner/Superuser.
+// - Tabel pakai usePaginasiFirestore (15/halaman) + filterPeran; filter Jenis
+//   Pekerjaan/Gudang hanya berefek untuk Owner/PIC Owner. Kotak cari mencari ke
+//   nama_lower — dokumen tanpa field itu TIDAK akan pernah muncul di hasil.
 // - Hapus cuma membuang dokumen users; akun Firebase Auth-nya tetap ada.
 
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
@@ -428,7 +428,8 @@ const AppDaftarKaryawan = {
     const paginasi = reactive(usePaginasiFirestore(db, 'users', {
       perHalaman: 15,
       urutkanField: 'nama',
-      cariField: 'nama', // BARU — search box prefix-match server-side, hemat (bukan fetch-semua)
+      cariField: 'nama_lower', // prefix-match server-side ke salinan huruf kecil
+      cariHurufKecil: true,    // ketikan dikecilkan dulu, jadi cari tidak peka huruf besar
       filterPeran: true, // PEDOMAN KERJA - lihat vue-paginasi.js
       // filter manual Jenis Pekerjaan/Gudang, CUMA berlaku efeknya buat
       // Owner/Superuser (Admin biasa sudah otomatis kefilter lewat filterPeran

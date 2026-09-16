@@ -59,7 +59,7 @@ window.simpanPerubahanProfil = async function() {
   if (!namaBaru) return alert("Nama tidak boleh kosong!");
   try {
     const userRef = doc(db, "users", window.currentUser.email);
-    await updateDoc(userRef, { nama: namaBaru, hp: hpBaru });
+    await updateDoc(userRef, { nama: namaBaru, nama_lower: window.namaUntukCari(namaBaru), hp: hpBaru });
     window.currentUser.name = namaBaru;
     document.getElementById('teks-nama-user').innerText = namaBaru;
     if (window.perbaruiAvatarSidebarDesktop) window.perbaruiAvatarSidebarDesktop();

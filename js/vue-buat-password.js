@@ -90,6 +90,7 @@ const AppBuatPassword = {
         } = dataKaryawan.value;
         await setDoc(doc(db, "users", emailUrl), {
           ...profilBersih,
+          nama_lower: window.namaUntukCari(profilBersih.nama),
           role: 'operator',
           status_approval: 'APPROVED'
         });

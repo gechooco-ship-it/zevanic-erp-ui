@@ -369,7 +369,8 @@ const AppAccountProfile = {
       menyimpanForm.value = true;
       try {
         const dataUpdate = {
-          nama: form.nama, name: form.nama, nik: form.nik, gender: form.jk,
+          nama: form.nama, nama_lower: window.namaUntukCari(form.nama),
+          name: form.nama, nik: form.nik, gender: form.jk,
           tempatLahir: form.tempatLahir, tglLahir: form.tglLahir, hp: form.hp,
           ktpKab: form.ktpKab, ktpKec: form.ktpKec, ktpDetail: form.ktpDetail,
           tinggalKab: form.domKab, tinggalKec: form.domKec, tinggalDetail: form.domDetail,
