@@ -90,6 +90,13 @@ function picOwnerKeAtas(userData) {
   const role = (userData.role || '').toLowerCase();
   return role === 'owner' || role === 'superuser' || role === 'pic';
 }
+// saringMilikOperator — operator hanya lihat baris yang ditugaskan ke dirinya
+// (lewat Tunjuk Operator); role lain lihat semua baris. Gerbang TAMPILAN,
+// terpisah dari picOwnerKeAtas yang cuma menggerbang tombol aksi.
+function saringMilikOperator(barisList) {
+  if ((window.currentUser?.role || '').toLowerCase() !== 'operator') return barisList;
+  return barisList.filter(b => b.operator_uid && b.operator_uid === window.currentUser?.email);
+}
 const TLC_ASAL_SERIE = 'TLC-SER';
 const TLC_TUJUAN_SEWING = 'TLC-JHT';
 const TLC_TUJUAN_FINISHING = 'TLC-FIN';
@@ -314,7 +321,7 @@ const SeriePerluDiProses = {
         // sudahAdaProgresPengiriman(.) — LIHAT komentar besar di atas
         // fungsinya: gerbang tampil, grouping yg belum ada progres Scan Kirim
         // dari sumber manapun disembunyikan dulu.
-        daftarGrouping.value = grouping.filter(g => !sudahDipisahkanIds.value.has(g.id) && (g.jalur_aktif || []).some(j => j === 'bahan' || JALUR_ACC.includes(j)) && sudahAdaProgresPengiriman(g, ct, spkTrackByJalur));
+        daftarGrouping.value = saringMilikOperator(grouping.filter(g => !sudahDipisahkanIds.value.has(g.id) && (g.jalur_aktif || []).some(j => j === 'bahan' || JALUR_ACC.includes(j)) && sudahAdaProgresPengiriman(g, ct, spkTrackByJalur)));
       } catch (e) { console.error('Gagal muat Serie > Perlu Di Proses:', e); daftarGrouping.value = []; }
       memuat.value = false;
     }
@@ -700,7 +707,7 @@ const SerieSedangDiProses = {
 
     async function muat() {
       memuat.value = true;
-      try { daftar.value = (await muatSemuaSeparatingBatch()).filter(b => b.status === 'sedang_diproses'); }
+      try { daftar.value = saringMilikOperator((await muatSemuaSeparatingBatch()).filter(b => b.status === 'sedang_diproses')); }
       catch (e) { console.error('Gagal muat Serie > Sedang Di Proses:', e); daftar.value = []; }
       memuat.value = false;
     }
@@ -953,7 +960,7 @@ const SeriePerluDiKirim = {
           muatSemuaSeparatingBatch(),
           getDocs(query(collection(db, 'bagging'), where('ditutup_pada', '==', null)))
         ]);
-        daftar.value = batch.filter(b => b.status === 'perlu_dikirim');
+        daftar.value = saringMilikOperator(batch.filter(b => b.status === 'perlu_dikirim'));
         daftarBaggingAktif.value = baggingSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       } catch (e) { console.error('Gagal muat Serie > Perlu Di Kirim:', e); daftar.value = []; daftarBaggingAktif.value = []; }
       memuat.value = false;
@@ -1116,7 +1123,7 @@ function buatTabKirim(cfg) {
 
       async function muat() {
         memuat.value = true;
-        try { daftar.value = (await muatSemuaSeparatingBatch()).filter(b => b.status === cfg.statusFilter); }
+        try { daftar.value = saringMilikOperator((await muatSemuaSeparatingBatch()).filter(b => b.status === cfg.statusFilter)); }
         catch (e) { console.error('Gagal muat Serie > ' + cfg.judul + ':', e); daftar.value = []; }
         memuat.value = false;
       }
@@ -1295,7 +1302,7 @@ function buatTabSetor(cfg) {
       const daftar = ref([]);
       async function muat() {
         memuat.value = true;
-        try { daftar.value = await cfg.muatFn(); }
+        try { daftar.value = saringMilikOperator(await cfg.muatFn()); }
         catch (e) { console.error('Gagal muat Serie > ' + cfg.judul + ':', e); daftar.value = []; }
         memuat.value = false;
       }
@@ -1357,7 +1364,7 @@ function buatTabTerima(cfg) {
 
       async function muat() {
         memuat.value = true;
-        try { daftar.value = (await muatSemuaSeparatingBatch()).filter(b => b.status === cfg.statusMenunggu); }
+        try { daftar.value = saringMilikOperator((await muatSemuaSeparatingBatch()).filter(b => b.status === cfg.statusMenunggu)); }
         catch (e) { console.error('Gagal muat Serie > ' + cfg.judul + ':', e); daftar.value = []; }
         memuat.value = false;
       }
@@ -1559,7 +1566,7 @@ const SerieSelesai = {
 
     async function muat() {
       memuat.value = true;
-      try { semuaSelesai.value = (await muatSemuaSeparatingBatch()).filter(b => b.status === 'selesai').sort((a, b) => new Date(b.sampai_pada || 0) - new Date(a.sampai_pada || 0)); }
+      try { semuaSelesai.value = saringMilikOperator((await muatSemuaSeparatingBatch()).filter(b => b.status === 'selesai')).sort((a, b) => new Date(b.sampai_pada || 0) - new Date(a.sampai_pada || 0)); }
       catch (e) { console.error('Gagal muat Serie > Selesai:', e); semuaSelesai.value = []; }
       memuat.value = false;
     }

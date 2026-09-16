@@ -104,6 +104,13 @@ async function muatSemuaTrackBahan() {
   const snap = await getDocs(query(collection(db, 'spk_track'), where('jalur', '==', 'bahan')));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
+// saringMilikOperator — operator hanya lihat baris yang ditugaskan ke dirinya
+// (lewat Scan Operator); role lain lihat semua baris.
+function saringMilikOperator(barisList) {
+  if ((window.currentUser?.role || '').toLowerCase() !== 'operator') return barisList;
+  return barisList.filter(b => b.operator_uid && b.operator_uid === window.currentUser?.email);
+}
+
 function daftarBarisDariTrack(daftarTrack) {
   const baris = [];
   daftarTrack.forEach(t => {
@@ -293,7 +300,7 @@ const PersiapanBahanPerluDisiapkan = {
     }
 
     const kartuList = computed(() => {
-      const baris = daftarBarisDariTrack(daftarTrack.value).filter(b => b.status === 'perlu_disiapkan');
+      const baris = saringMilikOperator(daftarBarisDariTrack(daftarTrack.value).filter(b => b.status === 'perlu_disiapkan'));
       let kartu = kelompokKartuBahan(baris, petaStokBahan.value);
       const kata = cari.value.trim().toLowerCase();
       if (kata) {
@@ -710,7 +717,7 @@ const PersiapanBahanSedangDisiapkan = {
         if (semua.some(x => x.status === 'perlu_disiapkan')) return false;
         return semua.filter(x => x.status === 'sedang_disiapkan').every(x => x.entry_qty || x.entry_qty === 0);
       }
-      const baris = semuaBaris.filter(b => b.status === 'sedang_disiapkan');
+      const baris = saringMilikOperator(semuaBaris.filter(b => b.status === 'sedang_disiapkan'));
       const peta = {};
       baris.forEach(b => {
         const key = b.operator_uid || b.operator_nama || '-';
@@ -954,7 +961,7 @@ const PersiapanBahanPerluDikirim = {
     const barisTertahan = computed(() => daftarBarisDariTrack(daftarTrack.value).filter(b => b.status === 'perlu_dikirim'));
     const kelompokSepack = computed(() => {
       const peta = {};
-      barisTertahan.value.forEach(b => {
+      saringMilikOperator(barisTertahan.value).forEach(b => {
         const key = kunciSepack(b);
         if (!peta[key]) peta[key] = { key, label: labelSepack(b), baris: [] };
         peta[key].baris.push(b);
@@ -1257,7 +1264,7 @@ const PersiapanBahanSedangDikirim = {
       memuat.value = false;
     }
     const kelompokTugas = computed(() => {
-      const baris = daftarBarisDariTrack(daftarTrack.value).filter(b => b.status === 'sedang_dikirim');
+      const baris = saringMilikOperator(daftarBarisDariTrack(daftarTrack.value).filter(b => b.status === 'sedang_dikirim'));
       const peta = {};
       baris.forEach(b => {
         const key = b.kode_tugas || '(tanpa kode tugas)';

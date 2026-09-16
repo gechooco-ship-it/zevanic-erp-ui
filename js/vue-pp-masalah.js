@@ -102,6 +102,14 @@ async function patchMasalah(id, patch) {
   await updateDoc(doc(db, 'persiapan_masalah', id), { ...patch, diperbarui_pada: serverTimestamp() });
 }
 
+// Operator hanya lihat baris miliknya sendiri (ditugaskan lewat Scan Operator)
+// — role lain (Owner/PIC Owner/PIC/Admin/Superuser) lihat semua.
+function saringOperator(list) {
+  if ((window.currentUser?.role || '').toLowerCase() !== 'operator') return list;
+  const email = window.currentUser?.email;
+  return list.filter(d => d.operator_uid && d.operator_uid === email);
+}
+
 // kelompokKumulatifPerBahan — SEDERHANA dibanding kelompokKartuBahan pos Bahan:
 // TIDAK ada cek stok/alokasi greedy (itu relevannya di 6.2 lewat qty beli,
 // bukan di sini) — cuma jumlah "butuh" (qty_kurang) per bahan, dihitung ULANG
@@ -208,7 +216,7 @@ const MasalahPerluDiajukan = {
     // Urut TERTUA di atas (scan_pada ascending) — sesuai wireframe §6.1.
     const daftarTersaring = computed(() => {
       const kata = cari.value.trim().toLowerCase();
-      let list = daftar.value;
+      let list = saringOperator(daftar.value);
       if (kata) list = list.filter(d => (d.bahan_nama + ' ' + (d.bahan_warna || '')).toLowerCase().includes(kata) || (d.no_spk || '').toLowerCase().includes(kata) || (d.tlc_asal || '').toLowerCase().includes(kata));
       return [...list].sort((a, b) => new Date(a.scan_pada || 0) - new Date(b.scan_pada || 0));
     });
@@ -417,7 +425,7 @@ const MasalahMenungguSetuju = {
     // gabung, tampil sebagai kartu tunggal, aman dari salah kelompok.
     const kartuPengajuan = computed(() => {
       const peta = {};
-      daftar.value.forEach(d => {
+      saringOperator(daftar.value).forEach(d => {
         const key = d.kode_pengajuan || ('solo-' + d.id);
         if (!peta[key]) peta[key] = { key, kodePengajuan: d.kode_pengajuan || null, docs: [] };
         peta[key].docs.push(d);
@@ -614,7 +622,7 @@ const MasalahPerluDisiapkan = {
       catch (e) { console.error('Gagal muat Masalah > Perlu Disiapkan:', e); daftar.value = []; }
       memuat.value = false;
     }
-    const kartuList = computed(() => kelompokKumulatifPerBahan(daftar.value));
+    const kartuList = computed(() => kelompokKumulatifPerBahan(saringOperator(daftar.value)));
     function toggleKartu(k) { kartuTerbuka[k.bahanAksesorisId] = !kartuTerbuka[k.bahanAksesorisId]; }
     function isChecked(d) { return d.id in pilihanCetak ? pilihanCetak[d.id] : !d.label_cetak_pada; }
     function toggleCheck(d) { if (d.label_cetak_pada) return; pilihanCetak[d.id] = !isChecked(d); }
@@ -766,7 +774,7 @@ const MasalahSedangDisiapkan = {
 
     const kelompokOperator = computed(() => {
       const peta = {};
-      daftar.value.forEach(d => {
+      saringOperator(daftar.value).forEach(d => {
         const key = d.operator_uid || d.operator_nama || '-';
         if (!peta[key]) peta[key] = { operatorNama: d.operator_nama || '(tanpa nama)', docs: [] };
         peta[key].docs.push(d);
@@ -897,7 +905,7 @@ const MasalahPerluDiKirim = {
 
     const kelompokTujuan = computed(() => {
       const peta = {};
-      daftar.value.forEach(d => {
+      saringOperator(daftar.value).forEach(d => {
         const key = kunciKirimMasalah(d);
         if (!peta[key]) peta[key] = { key, label: labelKirimMasalah(d), docs: [] };
         peta[key].docs.push(d);
@@ -1141,7 +1149,7 @@ const MasalahSedangDiKirim = {
     }
     const kelompokTugas = computed(() => {
       const peta = {};
-      daftar.value.forEach(d => {
+      saringOperator(daftar.value).forEach(d => {
         const key = d.kode_tugas || '(tanpa kode tugas)';
         if (!peta[key]) peta[key] = { kodeTugas: key, docs: [] };
         peta[key].docs.push(d);

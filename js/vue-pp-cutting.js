@@ -77,6 +77,22 @@ function picOwnerKeAtas(userData) {
   const role = (userData.role || '').toLowerCase();
   return role === 'owner' || role === 'superuser' || role === 'pic';
 }
+// saringMilikOperator — operator hanya lihat baris yang ditugaskan ke dirinya
+// (lewat Tunjuk Operator); role lain lihat semua baris. Gerbang TAMPILAN,
+// terpisah dari picOwnerKeAtas yang cuma menggerbang tombol aksi. Tab per tahap
+// pakai fieldTahap; tab gabungan pakai saringMilikOperatorSemuaTahap.
+const FIELD_OPERATOR_TAHAP = ['op_ampar', 'op_pola', 'op_cutting'];
+function milikUserIni(track, field) {
+  return !!(track[field] && track[field].uid && track[field].uid === window.currentUser?.email);
+}
+function saringMilikOperator(barisList, fieldTahap) {
+  if ((window.currentUser?.role || '').toLowerCase() !== 'operator') return barisList;
+  return barisList.filter(t => milikUserIni(t, fieldTahap));
+}
+function saringMilikOperatorSemuaTahap(barisList) {
+  if ((window.currentUser?.role || '').toLowerCase() !== 'operator') return barisList;
+  return barisList.filter(t => FIELD_OPERATOR_TAHAP.some(f => milikUserIni(t, f)));
+}
 
 // Baca gabungan spk_grouping + cutting_track
 async function muatSemuaGrouping() {
@@ -328,7 +344,7 @@ const CuttingPerluDiProses = {
       memuat.value = true;
       try {
         const [semuaTrack, groupingList] = await Promise.all([pastikanCuttingTrackLengkap(), muatSemuaGrouping()]);
-        daftar.value = semuaTrack.filter(t => t.status === 'perlu_diproses');
+        daftar.value = saringMilikOperatorSemuaTahap(semuaTrack.filter(t => t.status === 'perlu_diproses'));
         bahanEnrich.value = await enrichBahanUntukTrack(daftar.value, groupingList);
         unpackEnrich.value = await ambilStatusUnpackBagging('kode_spk', 'kode_spk_asal', daftar.value.map(t => t.kode_spk));
       } catch (e) { console.error('Gagal muat Cutting > Perlu Di Proses:', e); daftar.value = []; }
@@ -617,7 +633,7 @@ const CuttingSedangAmpar = {
       memuat.value = true;
       try {
         const [semuaTrack, groupingList] = await Promise.all([muatSemuaCuttingTrack(), muatSemuaGrouping()]);
-        daftar.value = semuaTrack.filter(t => t.status === 'sedang_ampar');
+        daftar.value = saringMilikOperator(semuaTrack.filter(t => t.status === 'sedang_ampar'), 'op_ampar');
         bahanEnrich.value = await enrichBahanUntukTrack(daftar.value, groupingList);
       } catch (e) { console.error('Gagal muat Cutting > Sedang Ampar:', e); daftar.value = []; }
       memuat.value = false;
@@ -778,7 +794,7 @@ const CuttingSedangPola = {
       memuat.value = true;
       try {
         const [tracks, label, groupingList] = await Promise.all([muatSemuaCuttingTrack(), muatSemuaLabelKomponen(), muatSemuaGrouping()]);
-        daftar.value = tracks.filter(t => t.status === 'sedang_pola');
+        daftar.value = saringMilikOperator(tracks.filter(t => t.status === 'sedang_pola'), 'op_pola');
         semuaLabel.value = label;
         bahanEnrich.value = await enrichBahanUntukTrack(daftar.value, groupingList);
       } catch (e) { console.error('Gagal muat Cutting > Sedang Pola:', e); daftar.value = []; semuaLabel.value = []; }
@@ -985,7 +1001,7 @@ const CuttingSedangCutting = {
       memuat.value = true;
       try {
         const [tracks, label, groupingList] = await Promise.all([muatSemuaCuttingTrack(), muatSemuaLabelKomponen(), muatSemuaGrouping()]);
-        daftar.value = tracks.filter(t => t.status === 'sedang_cutting');
+        daftar.value = saringMilikOperator(tracks.filter(t => t.status === 'sedang_cutting'), 'op_cutting');
         semuaLabel.value = label;
         bahanEnrich.value = await enrichBahanUntukTrack(daftar.value, groupingList);
       } catch (e) { console.error('Gagal muat Cutting > Sedang Cutting:', e); daftar.value = []; semuaLabel.value = []; }
@@ -1147,7 +1163,7 @@ const CuttingPerluDiKirim = {
           getDocs(query(collection(db, 'bagging'), where('ditutup_pada', '==', null))),
           getDocs(collection(db, 'master_tlc'))
         ]);
-        daftar.value = tracks.filter(t => t.status === 'perlu_dikirim');
+        daftar.value = saringMilikOperatorSemuaTahap(tracks.filter(t => t.status === 'perlu_dikirim'));
         daftarBaggingAktif.value = baggingSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         daftarTlc.value = tlcSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       } catch (e) { console.error('Gagal muat Cutting > Perlu Di Kirim:', e); daftar.value = []; daftarBaggingAktif.value = []; daftarTlc.value = []; }
@@ -1401,7 +1417,7 @@ const CuttingSedangDiKirim = {
 
     async function muat() {
       memuat.value = true;
-      try { daftar.value = (await muatSemuaCuttingTrack()).filter(t => t.status === 'sedang_dikirim'); }
+      try { daftar.value = saringMilikOperatorSemuaTahap((await muatSemuaCuttingTrack()).filter(t => t.status === 'sedang_dikirim')); }
       catch (e) { console.error('Gagal muat Cutting > Sedang Di Kirim:', e); daftar.value = []; }
       memuat.value = false;
     }
@@ -1477,7 +1493,7 @@ const CuttingSelesai = {
 
     async function muat() {
       memuat.value = true;
-      try { semuaSelesai.value = (await muatSemuaCuttingTrack()).filter(t => t.status === 'selesai').sort((a, b) => new Date(b.sampai_pada || 0) - new Date(a.sampai_pada || 0)); }
+      try { semuaSelesai.value = saringMilikOperatorSemuaTahap((await muatSemuaCuttingTrack()).filter(t => t.status === 'selesai')).sort((a, b) => new Date(b.sampai_pada || 0) - new Date(a.sampai_pada || 0)); }
       catch (e) { console.error('Gagal muat Cutting > Selesai:', e); semuaSelesai.value = []; }
       memuat.value = false;
     }

@@ -71,6 +71,21 @@ function picOwnerKeAtas(userData) {
   const role = (userData.role || '').toLowerCase();
   return role === 'owner' || role === 'superuser' || role === 'pic';
 }
+// saringMilikOperator — operator hanya lihat baris yang ditugaskan ke dirinya
+// (lewat Scan Operator); role lain lihat semua baris. Gerbang TAMPILAN,
+// terpisah dari picOwnerKeAtas yang cuma menggerbang tombol aksi. Sub-tab per
+// tahap pakai tahap-nya sendiri; tab gabungan pakai ...SemuaTahap.
+function milikUserIni(track, tahap) {
+  return !!(track['op_' + tahap]?.uid && track['op_' + tahap].uid === window.currentUser?.email);
+}
+function saringMilikOperator(barisList, tahap) {
+  if ((window.currentUser?.role || '').toLowerCase() !== 'operator') return barisList;
+  return barisList.filter(t => milikUserIni(t, tahap));
+}
+function saringMilikOperatorSemuaTahap(barisList) {
+  if ((window.currentUser?.role || '').toLowerCase() !== 'operator') return barisList;
+  return barisList.filter(t => URUTAN_TAHAP.some(tahap => milikUserIni(t, tahap)));
+}
 const TLC_ASAL_FINISHING = 'TLC-FIN';
 const TLC_TUJUAN_SERIE = 'TLC-SER';
 const URUTAN_TAHAP = ['qc', 'steam', 'folding', 'packing'];
@@ -272,7 +287,7 @@ const FinishingPerluDiProses = {
 
     async function muat() {
       memuat.value = true;
-      try { daftar.value = (await pastikanFinishingTrackLengkap()).filter(t => t.status === 'perlu_diproses'); }
+      try { daftar.value = saringMilikOperatorSemuaTahap((await pastikanFinishingTrackLengkap()).filter(t => t.status === 'perlu_diproses')); }
       catch (e) { console.error('Gagal muat Finishing > Perlu Di Proses:', e); daftar.value = []; }
       memuat.value = false;
     }
@@ -533,7 +548,7 @@ function buatSubTabFinishing(tahap) {
 
       async function muat() {
         memuat.value = true;
-        try { daftar.value = (await muatSemuaFinishingTrack()).filter(t => t.status === 'sedang_finishing' && t.tahap_aktif === tahap); }
+        try { daftar.value = saringMilikOperator((await muatSemuaFinishingTrack()).filter(t => t.status === 'sedang_finishing' && t.tahap_aktif === tahap), tahap); }
         catch (e) { console.error('Gagal muat Finishing > Sedang Finishing > ' + tahap + ':', e); daftar.value = []; }
         memuat.value = false;
       }
@@ -635,7 +650,7 @@ const FinishingPerluDikirim = {
 
     async function muat() {
       memuat.value = true;
-      try { daftar.value = (await muatSemuaFinishingTrack()).filter(t => t.status === 'perlu_dikirim'); }
+      try { daftar.value = saringMilikOperatorSemuaTahap((await muatSemuaFinishingTrack()).filter(t => t.status === 'perlu_dikirim')); }
       catch (e) { console.error('Gagal muat Finishing > Perlu Dikirim:', e); daftar.value = []; }
       memuat.value = false;
     }
@@ -834,7 +849,7 @@ const FinishingSedangKirim = {
 
     async function muat() {
       memuat.value = true;
-      try { daftar.value = (await muatSemuaFinishingTrack()).filter(t => t.status === 'sedang_dikirim'); }
+      try { daftar.value = saringMilikOperatorSemuaTahap((await muatSemuaFinishingTrack()).filter(t => t.status === 'sedang_dikirim')); }
       catch (e) { console.error('Gagal muat Finishing > Sedang Kirim:', e); daftar.value = []; }
       memuat.value = false;
     }
@@ -907,7 +922,7 @@ const FinishingSelesai = {
 
     async function muat() {
       memuat.value = true;
-      try { semuaSelesai.value = (await muatSemuaFinishingTrack()).filter(t => t.status === 'selesai').sort((a, b) => new Date(b.sampai_pada || 0) - new Date(a.sampai_pada || 0)); }
+      try { semuaSelesai.value = saringMilikOperatorSemuaTahap((await muatSemuaFinishingTrack()).filter(t => t.status === 'selesai')).sort((a, b) => new Date(b.sampai_pada || 0) - new Date(a.sampai_pada || 0)); }
       catch (e) { console.error('Gagal muat Finishing > Selesai:', e); semuaSelesai.value = []; }
       memuat.value = false;
     }

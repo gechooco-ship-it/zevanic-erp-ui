@@ -996,7 +996,13 @@ const JalurTahapManager = {
       memuat.value = true;
       try {
         const snap = await getDocs(query(collection(db, 'spk_track'), where('jalur', '==', props.jalur), where('status', '==', props.tahap)));
-        daftarTrack.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Operator hanya lihat SPK yang ditugaskan ke dirinya lewat Scan
+        // Operator (operator_id = doc id users = email); role lain lihat semua.
+        const isOperatorSaja = (window.currentUser?.role || '').toLowerCase() === 'operator';
+        daftarTrack.value = isOperatorSaja
+          ? list.filter(t => t.operator_id && t.operator_id === window.currentUser?.email)
+          : list;
       } catch (e) {
         console.error(`Gagal muat spk_track (jalur=${props.jalur}, tahap=${props.tahap}):`, e);
         daftarTrack.value = [];

@@ -82,6 +82,13 @@ function picOwnerKeAtas(userData) {
   const role = (userData.role || '').toLowerCase();
   return role === 'owner' || role === 'superuser' || role === 'pic';
 }
+// saringMilikOperator — operator hanya lihat baris yang ditugaskan ke dirinya
+// (lewat Tunjuk Operator); role lain lihat semua baris. Gerbang TAMPILAN,
+// terpisah dari picOwnerKeAtas yang cuma menggerbang tombol aksi.
+function saringMilikOperator(barisList) {
+  if ((window.currentUser?.role || '').toLowerCase() !== 'operator') return barisList;
+  return barisList.filter(b => b.operator_uid && b.operator_uid === window.currentUser?.email);
+}
 const TLC_ASAL_SEWING = 'TLC-JHT';
 const TLC_TUJUAN_SERIE = 'TLC-SER';
 
@@ -219,7 +226,7 @@ const SewingPerluDiProses = {
     async function muat() {
       memuat.value = true;
       try {
-        daftar.value = (await pastikanSewingTrackLengkap()).filter(t => t.status === 'perlu_diproses');
+        daftar.value = saringMilikOperator((await pastikanSewingTrackLengkap()).filter(t => t.status === 'perlu_diproses'));
         unpackEnrich.value = await ambilStatusUnpackBagging('kode_batch', 'kode_batch_asal', daftar.value.map(t => t.kode_batch));
       }
       catch (e) { console.error('Gagal muat Sewing > Perlu Di Proses:', e); daftar.value = []; }
@@ -495,7 +502,7 @@ const SewingSedangSewing = {
       try {
         const semua = await muatSemuaSewingTrack();
         semuaTrack.value = semua;
-        daftar.value = semua.filter(t => t.status === 'sedang_sewing');
+        daftar.value = saringMilikOperator(semua.filter(t => t.status === 'sedang_sewing'));
       } catch (e) { console.error('Gagal muat Sewing > Sedang Sewing:', e); daftar.value = []; semuaTrack.value = []; }
       memuat.value = false;
     }
@@ -624,7 +631,7 @@ const SewingPerluDikirim = {
           muatSemuaSewingTrack(),
           getDocs(query(collection(db, 'bagging'), where('ditutup_pada', '==', null)))
         ]);
-        daftar.value = tracks.filter(t => t.status === 'perlu_dikirim');
+        daftar.value = saringMilikOperator(tracks.filter(t => t.status === 'perlu_dikirim'));
         daftarBaggingAktif.value = baggingSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       } catch (e) { console.error('Gagal muat Sewing > Perlu Dikirim:', e); daftar.value = []; daftarBaggingAktif.value = []; }
       memuat.value = false;
@@ -868,7 +875,7 @@ const SewingSedangKirim = {
 
     async function muat() {
       memuat.value = true;
-      try { daftar.value = (await muatSemuaSewingTrack()).filter(t => t.status === 'sedang_dikirim'); }
+      try { daftar.value = saringMilikOperator((await muatSemuaSewingTrack()).filter(t => t.status === 'sedang_dikirim')); }
       catch (e) { console.error('Gagal muat Sewing > Sedang Kirim:', e); daftar.value = []; }
       memuat.value = false;
     }
@@ -945,7 +952,7 @@ const SewingSelesai = {
 
     async function muat() {
       memuat.value = true;
-      try { semuaSelesai.value = (await muatSemuaSewingTrack()).filter(t => t.status === 'selesai').sort((a, b) => new Date(b.sampai_pada || 0) - new Date(a.sampai_pada || 0)); }
+      try { semuaSelesai.value = saringMilikOperator((await muatSemuaSewingTrack()).filter(t => t.status === 'selesai')).sort((a, b) => new Date(b.sampai_pada || 0) - new Date(a.sampai_pada || 0)); }
       catch (e) { console.error('Gagal muat Sewing > Selesai:', e); semuaSelesai.value = []; }
       memuat.value = false;
     }
