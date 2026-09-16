@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, buatUnpackUniversal, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=7';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=7';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie, belum ada
 // infrastruktur util generik lintas file).
@@ -203,7 +203,7 @@ async function kirimMasalahSewing(track, jumlah, alasan) {
 // TAB 3.1: Perlu Di Proses
 
 const SewingPerluDiProses = {
-  components: { ScanGenerik, PopupPinGenerik },
+  components: { ScanGenerik, ScanTerpaduGenerik, PopupPinGenerik },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -288,9 +288,66 @@ const SewingPerluDiProses = {
       }
     }
 
-    // Scan Unpack: scan ULANG tiap isi bagging (bagging.isi[]), lihat
-    // buatUnpackUniversal di vue-scan-cetak.js untuk detail lengkap.
-    const { modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack } = buatUnpackUniversal();
+    // Scan Unpack — konversi ke buatScanTerpadu (Draft/Upload), gantikan
+    // buatUnpackUniversal lama. Sama persis pola vue-pp-cutting.js: kunci Kode
+    // Bagging dulu, scan ulang isi berkali-kali, Upload cuma menutup KOMPLIT
+    // kalau semua isi cocok tanpa kode asing — kalau tidak, pakai "Paksa
+    // INKOMPLIT" di chip atas.
+    async function tulisTutupUnpack(b, dicocokkan, asing, hilang, cocokSemua) {
+      const now = new Date().toISOString();
+      try {
+        await updateDoc(doc(db, 'bagging', b.id), {
+          kode_spk: null, kode_batch: null,
+          kode_spk_asal: b.kode_spk ?? null, kode_batch_asal: b.kode_batch ?? null,
+          unpack_hasil: cocokSemua ? 'komplit' : 'inkomplit',
+          unpack_pada: now, unpack_oleh: window.currentUser?.email || null,
+          unpack_dicocokkan: dicocokkan, unpack_asing: asing, unpack_hilang: hilang
+        });
+        await muat();
+        return { ok: true };
+      } catch (e) { console.error('Gagal menutup Scan Unpack:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
+    }
+    const unpackTerpadu = buatScanTerpadu({
+      judul: 'Scan Unpack — Bagging', subjudul: 'Kunci kode bagging, lalu scan ulang tiap isinya',
+      twoStep: {
+        labelPertama: 'Kode Bagging', labelKedua: 'Isi Bagging',
+        placeholderPertama: 'Scan/ketik kode bagging', placeholderKedua: 'Scan ulang tiap barang di dalam bagging',
+        camModePertama: 'Mode: Scan Kode Bagging', camModeKedua: 'Mode: Scan Isi Bagging (berkali-kali)',
+        kosongUtama: 'Scan Kode Bagging dulu', kosongSub: 'Sama seperti kode yang discan waktu Scan Pack.',
+        validasi: async (kode) => {
+          const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', kode)));
+          if (snap.empty) return { ok: false, pesan: `Kode bagging "${kode}" tidak ditemukan.` };
+          return { ok: true, data: { id: snap.docs[0].id, ...snap.docs[0].data() } };
+        }
+      },
+      validasiIsi: async (kode, locked) => {
+        if (locked.unpack_hasil) return { ok: false, pesan: 'Bagging ini sudah ditutup (sudah di-Unpack sebelumnya) — tidak bisa discan ulang.' };
+        const isi = Array.isArray(locked.isi) ? locked.isi : [];
+        if (!isi.includes(kode)) return { ok: true, row: { kode, label: 'ASING — tidak ada di isi bagging saat Scan Pack', tagTxt: 'asing', tagCls: 'warn', asing: true } };
+        return { ok: true, row: { kode, label: 'cocok', tagTxt: 'cocok', tagCls: 'ok', asing: false } };
+      },
+      padaUpload: async (rows, locked) => {
+        const isi = Array.isArray(locked.isi) ? locked.isi : [];
+        const dicocokkan = rows.filter(r => !r.asing).map(r => r.kode);
+        const asingList = rows.filter(r => r.asing).map(r => r.kode);
+        const hilang = isi.filter(k => !dicocokkan.includes(k));
+        if (hilang.length || asingList.length) return { ok: false, pesan: `Belum lengkap: ${dicocokkan.length}/${isi.length} cocok` + (asingList.length ? `, ${asingList.length} asing` : '') + '. Scan sisanya, atau pakai "Paksa INKOMPLIT" di chip atas.' };
+        return tulisTutupUnpack(locked, dicocokkan, asingList, hilang, true);
+      },
+      aksiEkstra: [{
+        label: 'Paksa INKOMPLIT',
+        aksi: async (locked) => {
+          if (locked.unpack_hasil) { alert('Bagging ini sudah ditutup.'); return; }
+          if (!confirm(`Tutup bagging "${locked.kode}" sebagai INKOMPLIT? Kode yang belum cocok akan dicatat hilang.`)) return;
+          const isi = Array.isArray(locked.isi) ? locked.isi : [];
+          const dicocokkan = unpackTerpadu.s.rows.filter(r => !r.asing).map(r => r.kode);
+          const asingList = unpackTerpadu.s.rows.filter(r => r.asing).map(r => r.kode);
+          const hilang = isi.filter(k => !dicocokkan.includes(k));
+          const hasil = await tulisTutupUnpack(locked, dicocokkan, asingList, hilang, false);
+          if (hasil.ok) unpackTerpadu.resetLock(); else alert(hasil.pesan);
+        }
+      }]
+    });
 
     // Tunjuk Operator (PIN, role PIC/PIC Owner/Owner) — keputusan #9:
     // diblokir kalau belum Scan Sampai (terima_pada kosong).
@@ -343,7 +400,7 @@ const SewingPerluDiProses = {
     return { muat,
       memuat, daftar, unpackEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
-      modalUnpack, bukaScanUnpack, tutupScanUnpack, hasilScanUnpack, tutupUnpack,
+      unpackTerpadu,
       popupPinOperator, bukaTunjukOperator, pinSuksesOperator,
       popupMasalah, batalMasalah, konfirmasiMasalah,
       pilihMasalah, bukaMasalahToolbar, batalPilihMasalah, konfirmasiPilihMasalah
@@ -356,7 +413,7 @@ const SewingPerluDiProses = {
         dikumpulkan di sini. Scan Masalah lewat popup pilih-target. -->
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
         <button v-if="bolehProses" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
-        <button v-if="bolehProses" @click="bukaScanUnpack" class="btn-outline" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
+        <button v-if="bolehProses" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
         <button v-if="bolehProses" @click="bukaMasalahToolbar" class="btn-outline" style="flex:1; min-width:120px; padding:9px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>Scan Masalah</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
@@ -390,15 +447,7 @@ const SewingPerluDiProses = {
       <div v-for="(l,i) in modalSampai.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
     </div>
 
-    <scan-generik :aktif="modalUnpack.aktif" :judul="modalUnpack.bagging ? ('Scan ulang isi — bagging ' + modalUnpack.bagging.kode) : 'Scan Kode Bagging (Unpack)'" subjudul="Scan ulang tiap barang di dalam bagging ini satu per satu, sama seperti Scan Pack." @hasil="hasilScanUnpack" @tutup="tutupScanUnpack" />
-    <div v-if="modalUnpack.aktif && modalUnpack.bagging" style="position:fixed; left:16px; bottom:90px; z-index:10001; background:rgba(0,0,0,.82); border-radius:12px; padding:10px 14px; max-width:300px; color:#fff;">
-      <div style="font-size:11.5px; font-weight:700; margin-bottom:6px;">{{ modalUnpack.dicocokkan.length }}/{{ (modalUnpack.bagging.isi||[]).length }} cocok<span v-if="modalUnpack.asing.length"> &middot; {{ modalUnpack.asing.length }} asing</span></div>
-      <div v-for="(l,i) in modalUnpack.log.slice(0,4)" :key="i" style="font-size:10.5px; margin-bottom:2px;">{{ l }}</div>
-      <div v-if="!modalUnpack.bagging.unpack_hasil" style="display:flex; gap:6px; margin-top:8px;">
-        <button @click="tutupUnpack(false)" class="btn-primary" style="flex:1; padding:6px; font-size:10.5px;">Tutup</button>
-        <button @click="tutupUnpack(true)" class="btn-outline" style="flex:1; padding:6px; font-size:10.5px; color:#F2A0A0; border-color:#F2A0A0;">Paksa INKOMPLIT</button>
-      </div>
-    </div>
+    <scan-terpadu-generik :c="unpackTerpadu" />
 
     <popup-pin-generik v-if="popupPinOperator" judul="Verifikasi PIN — Operator Sewing" konteks="Sewing - Scan Operator" :roles-diizinkan="['owner','superuser','pic_owner','pic']" @sukses="pinSuksesOperator" @batal="popupPinOperator = null" />
 
