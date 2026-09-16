@@ -1567,6 +1567,9 @@ window.pastikanMountCuttingPerluDiProses = function () {
   const mountPoint = document.getElementById('vue-cutting-perludiproses');
   if (mountPoint) vmCuttingPerluDiProses = createApp(CuttingPerluDiProses).mount('#vue-cutting-perludiproses');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaScanSampaiCutting = function () { if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.sampaiTerpadu.buka(); };
+window.bukaScanUnpackCutting = function () { if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.unpackTerpadu.buka(); };
 let vmCuttingSedangAmpar = null;
 window.pastikanMountCuttingSedangAmpar = function () {
   if (vmCuttingSedangAmpar) { if (typeof vmCuttingSedangAmpar.muat === 'function') vmCuttingSedangAmpar.muat(); return; }
@@ -1591,6 +1594,9 @@ window.pastikanMountCuttingPerluDiKirim = function () {
   const mountPoint = document.getElementById('vue-cutting-perludikirim');
   if (mountPoint) vmCuttingPerluDiKirim = createApp(CuttingPerluDiKirim).mount('#vue-cutting-perludikirim');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaScanPackCutting = function () { if (vmCuttingPerluDiKirim) vmCuttingPerluDiKirim.packTerpadu.buka(); };
+window.bukaScanKirimCutting = function () { if (vmCuttingPerluDiKirim) vmCuttingPerluDiKirim.kirimTerpadu.buka(); };
 let vmCuttingSedangDiKirim = null;
 window.pastikanMountCuttingSedangDiKirim = function () {
   if (vmCuttingSedangDiKirim) { if (typeof vmCuttingSedangDiKirim.muat === 'function') vmCuttingSedangDiKirim.muat(); return; }

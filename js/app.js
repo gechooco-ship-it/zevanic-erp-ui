@@ -6,8 +6,9 @@
 // - Tidak menyentuh Firestore; murni manipulasi DOM + state global window.
 //
 // Jebakan:
-// - .gc-mobile-nav dan Bottom Sheet Profil di-mount DI LUAR #screen-dashboard,
-//   jadi tidak ikut tersembunyi sendiri — pindahLayar wajib menutup eksplisit.
+// - .gc-mobile-nav, Bottom Sheet Profil, dan Bottom Sheet Pilihan Scan
+//   di-mount DI LUAR #screen-dashboard, jadi tidak ikut tersembunyi sendiri —
+//   pindahLayar wajib menutup ketiganya eksplisit.
 // - window._layarSebelumKamera diisi di sini; tombol Batal di vue-camera.js
 //   bergantung penuh padanya untuk tahu harus kembali ke Login atau Dashboard.
 // - Tombol nav diikat lewat addEventListener, BUKAN onclick inline di HTML —
@@ -51,6 +52,11 @@ window.pindahLayar = function(idTujuan) {
   // lewat window.tutupSheetProfil — jaring pengaman semua jalur pindah layar.
   if (idTujuan !== 'screen-dashboard' && window.tutupSheetProfil) window.tutupSheetProfil();
 
+  // Sama seperti Sheet Profil di atas — Bottom Sheet Pilihan Scan
+  // (js/vue-popup-scan.js) juga di luar #screen-dashboard, jaring pengaman
+  // yang sama supaya tidak nyangkut terbuka saat pindah ke layar kamera dst.
+  if (idTujuan !== 'screen-dashboard' && window.tutupPaksaPopupPilihanScan) window.tutupPaksaPopupPilihanScan();
+
   // Panggil fungsi kamera jika ke layar kamera
   if (idTujuan === 'screen-camera' && window.mulaiKamera) {
     window.mulaiKamera();
@@ -73,8 +79,15 @@ window.addEventListener('DOMContentLoaded', () => {
     if (window.bukaTabAbsensiProfile) window.bukaTabAbsensiProfile();
   });
 
+  // Tombol QR: buka Bottom Sheet "Mau scan apa?" (js/vue-popup-scan.js) dulu,
+  // BUKAN lompat langsung ke tab-scan-qr — sheet itu sendiri yang lanjut ke
+  // tab-scan-qr sebagai pilihan default kalau konteks aktif tidak match
+  // modul manapun di PETA_PILIHAN_SCAN.
   const mnavScanQr = document.getElementById('mnav-scanqr');
-  if (mnavScanQr) mnavScanQr.addEventListener('click', () => window.pindahTab('tab-scan-qr'));
+  if (mnavScanQr) mnavScanQr.addEventListener('click', () => {
+    if (window.bukaPopupPilihanScan) window.bukaPopupPilihanScan();
+    else window.pindahTab('tab-scan-qr');
+  });
 
   const mnavProgress = document.getElementById('mnav-progress');
   if (mnavProgress) mnavProgress.addEventListener('click', () => window.pindahTab('tab-progress'));

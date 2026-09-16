@@ -1457,6 +1457,9 @@ window.pastikanMountPpBahanPerluDisiapkan = function () {
   const mountPoint = document.getElementById('vue-pp-bahan-perludisiapkan');
   if (mountPoint) vmPpBahanPerluDisiapkan = createApp(PersiapanBahanPerluDisiapkan).mount('#vue-pp-bahan-perludisiapkan');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js) — panggil varian
+// toolbar global (kartuAktifTunjuk null), sama seperti klik tombol toolbar.
+window.bukaScanOperatorBahan = function () { if (vmPpBahanPerluDisiapkan) vmPpBahanPerluDisiapkan.bukaPenunjukanGlobal(); };
 let vmPpBahanSedangDisiapkan = null;
 window.pastikanMountPpBahanSedangDisiapkan = function () {
   if (vmPpBahanSedangDisiapkan) { if (typeof vmPpBahanSedangDisiapkan.muat === 'function') vmPpBahanSedangDisiapkan.muat(); return; }

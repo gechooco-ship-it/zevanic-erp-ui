@@ -1,45 +1,47 @@
 // js/vue-popup-scan.js
-// ============================================================================
-// BARU (10 Sep 2026) — Bottom Sheet Picker "Mau scan apa?" (pola M2, lihat
-// Sample Hifi - mobile.dc.html + laporan gap mobile
-// Code\Claude\GAP-MOBILE-10SEP2026.md temuan #1). Permintaan Guru eksplisit:
-// "navbar yg berubah atau dinamis hanya pas tombol QR nya saja. ketika di
-// klik QR muncul mau scan apa?" — jadi SENGAJA BUKAN merombak seluruh
-// .gc-mobile-nav jadi kontekstual per-modul (skala M1 penuh, 5 slot ganti
-// label per modul) — nav 5-tombolnya TETAP SAMA seperti sekarang, CUMA
-// tombol QR tengah yang sekarang membuka sheet ini dulu (bukan langsung
-// lompat ke tab-scan-qr).
+// Bottom Sheet Picker "Mau scan apa?" — tombol QR navbar mobile membuka ini
+// dulu, bukan lompat langsung ke tab Scan QR. Nav 5-tombol tetap sama, cuma
+// tombol QR tengah yang jadi kontekstual lewat sheet ini.
 //
-// STATUS ISI SHEET (WAJIB dibaca sebelum nambah modul baru ke sini):
-// `PETA_PILIHAN_SCAN` di bawah masih KOSONG/generik — SENGAJA belum diisi
-// pilihan spesifik per modul (Persiapan Bahan/Cutting/Masalah/dst, lihat
-// tabel M1 di mockup) karena itu perlu nyambung ke fungsi scan SUNGGUHAN
-// tiap modul (yang sebagian besar belum ada versi mobile-nya sama sekali —
-// lihat laporan gap "Temuan #1"). Kalau konteks aktif TIDAK match satupun
-// key di `PETA_PILIHAN_SCAN`, sheet tetap muncul dengan 1 pilihan default
-// "Scan QR" yang PERSIS sama seperti perilaku tombol QR SEBELUM perubahan
-// ini (buka tab-scan-qr generik) — jadi tidak ada regresi, cuma dibungkus
-// sheet ini dari yang tadinya loncat langsung.
+// Koleksi & field:
+// - Tidak menyentuh Firestore langsung; item PETA_PILIHAN_SCAN memanggil
+//   fungsi window.bukaXxx milik modul lain (lihat file modul terkait).
 //
-// CARA NAMBAH KONTEKS BARU (kalau modul lain sudah siap wired ke sini):
-// isi `PETA_PILIHAN_SCAN[targetId]` (key = targetId sub-tab dari
-// `window._riwayatNavAktif.subTabs`, ATAU tabId top-level kalau modulnya
-// tidak pakai sub-tab) dengan array item {icon, judul, sub, gaya, aksi}:
-//   - icon: nama ikon Font Awesome tanpa prefix "fa-" (mis. 'user')
-//   - judul, sub: teks baris judul & sub-judul (sub opsional)
-//   - gaya: 'default' atau 'aksen' (aksen = disorot, dipakai utk pilihan
-//     "PIC/Owner only" persis pola mockup)
-//   - aksi: function() dipanggil saat item diklik (tutup sheet dulu baru
-//     panggil aksi — lihat pilihItem() di bawah)
-// ============================================================================
+// Jebakan:
+// - Key PETA_PILIHAN_SCAN = targetId sub-tab paling spesifik di
+//   window._riwayatNavAktif.subTabs (bukan tabId top-level) supaya tahap
+//   yang beda modal (mis. Cutting Perlu Di Proses vs Perlu Di Kirim) dapat
+//   pilihan beda. Konteks tidak match satupun key -> fallback 1 pilihan
+//   "Scan QR" (pilihanDefault), sama seperti perilaku tombol QR lama.
+// - aksi() modul lain bisa belum ke-mount (mount-on-demand) — selalu cek
+//   window.bukaXxx ada dulu sebelum panggil, jangan asumsikan selalu ada.
 import { createApp, ref } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 
+// Isi per modul: fungsi window.bukaXxx didefinisikan di file modul masing-
+// masing (dipanggil vm yang sudah ke-mount, lihat komentar di tiap file).
+// Masalah SENGAJA tidak ada di sini — Scan Operator-nya cuma tombol
+// per-kartu, tidak ada varian toolbar global untuk dipanggil tanpa konteks.
 const PETA_PILIHAN_SCAN = {
-  // Kosong sengaja — lihat komentar di atas. Contoh bentuk kalau diisi:
-  // 'sub-tab-persiapan-bahan': [
-  //   { icon: 'triangle-exclamation', judul: 'Scan masalah' },
-  //   { icon: 'user', judul: 'Scan operator', sub: 'PIC/Owner only', gaya: 'aksen', aksi: () => {...} }
-  // ]
+  'sub-pp-bahan-perludisiapkan': [
+    { icon: 'user', judul: 'Scan Operator', sub: 'Persiapan Bahan', gaya: 'aksen', aksi: () => window.bukaScanOperatorBahan && window.bukaScanOperatorBahan() }
+  ],
+  'sub-pp-sewing-perludisiapkan': [
+    { icon: 'user', judul: 'Scan Operator', sub: 'Acc Sewing', gaya: 'aksen', aksi: () => window.bukaScanOperatorSewing && window.bukaScanOperatorSewing() }
+  ],
+  'sub-pp-webbing-perludisiapkan': [
+    { icon: 'user', judul: 'Scan Operator', sub: 'Acc Webbing', gaya: 'aksen', aksi: () => window.bukaScanOperatorWebbing && window.bukaScanOperatorWebbing() }
+  ],
+  'sub-pp-finishing-perludisiapkan': [
+    { icon: 'user', judul: 'Scan Operator', sub: 'Acc Finishing', gaya: 'aksen', aksi: () => window.bukaScanOperatorFinishing && window.bukaScanOperatorFinishing() }
+  ],
+  'sub-pr-cutting-perludiproses': [
+    { icon: 'barcode', judul: 'Scan Sampai', sub: 'Terima kiriman bahan', aksi: () => window.bukaScanSampaiCutting && window.bukaScanSampaiCutting() },
+    { icon: 'box-open', judul: 'Scan Unpack', sub: 'Buka isi bagging', aksi: () => window.bukaScanUnpackCutting && window.bukaScanUnpackCutting() }
+  ],
+  'sub-pr-cutting-perludikirim': [
+    { icon: 'qrcode', judul: 'Scan Pack', sub: 'Kaitkan label ke bagging', aksi: () => window.bukaScanPackCutting && window.bukaScanPackCutting() },
+    { icon: 'qrcode', judul: 'Scan Kirim', sub: 'Muat bagging ke tugas kirim', aksi: () => window.bukaScanKirimCutting && window.bukaScanKirimCutting() }
+  ]
 };
 
 function pilihanDefault() {
