@@ -23,6 +23,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=4';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing/Finishing).
 // --
@@ -293,10 +294,12 @@ const GudangPerluDisimpan = {
       await muat();
     });
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    // aksiAktif gerbang tombol desktop Scan Sampai/Unpack/Masuk Gudang — cache
+    // config WAJIB dimuat sebelum render pertama, lihat vue-popup-scan.js.
+    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
-      memuat, daftarBatch, kelompokSiapDisimpan, bolehProses, formatQty, formatDiamSejak, tertahan,
+      memuat, daftarBatch, kelompokSiapDisimpan, bolehProses, aksiAktif, formatQty, formatDiamSejak, tertahan,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
       unpackTerpadu,
       modalMasuk, bukaScanMasuk, tutupScanMasuk, hasilScanMasuk,
@@ -307,9 +310,9 @@ const GudangPerluDisimpan = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <h3 class="gc-heading" style="font-size:12.5px; font-weight:700; margin:0 0 8px;"><i class="fas fa-truck-ramp-box" style="margin-right:6px;"></i>Batch Menunggu Sampai dari Serie</h3>
-      <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button @click="bukaScanSampai" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
-        <button @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <button v-if="bolehProses && aksiAktif('sub-pr-gudang-perludisimpan','gudang_sampai')" @click="bukaScanSampai" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-gudang-perludisimpan','gudang_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
       </div>
       <div v-if="daftarBatch.length === 0" class="gc-kosong gc-card" style="margin-bottom:16px;">
         <div class="lingkaran"><i class="fas fa-inbox"></i></div>
@@ -327,8 +330,8 @@ const GudangPerluDisimpan = {
       </div>
 
       <h3 class="gc-heading" style="font-size:12.5px; font-weight:700; margin:0 0 8px;"><i class="fas fa-warehouse" style="margin-right:6px;"></i>Pcs Siap Disimpan</h3>
-      <div v-if="bolehProses" style="margin-bottom:12px;">
-        <button @click="bukaScanMasuk" class="btn-primary" style="width:100%; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Masuk Gudang</button>
+      <div style="margin-bottom:12px;">
+        <button v-if="bolehProses && aksiAktif('sub-pr-gudang-perludisimpan','gudang_masuk')" @click="bukaScanMasuk" class="btn-primary" style="width:100%; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Masuk Gudang</button>
       </div>
       <div v-if="kelompokSiapDisimpan.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-box-open"></i></div>
@@ -675,6 +678,10 @@ window.pastikanMountGudangPerluDisimpan = function () {
   const mountPoint = document.getElementById('vue-gudang-perludisimpan');
   if (mountPoint) vmGudangPerluDisimpan = createApp(GudangPerluDisimpan).mount('#vue-gudang-perludisimpan');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaGudangSampai = function () { if (vmGudangPerluDisimpan) vmGudangPerluDisimpan.bukaScanSampai(); };
+window.bukaGudangUnpack = function () { if (vmGudangPerluDisimpan) vmGudangPerluDisimpan.unpackTerpadu.buka(); };
+window.bukaGudangMasuk = function () { if (vmGudangPerluDisimpan) vmGudangPerluDisimpan.bukaScanMasuk(); };
 let vmGudangStokTersedia = null;
 window.pastikanMountGudangStokTersedia = function () {
   if (vmGudangStokTersedia) { if (typeof vmGudangStokTersedia.muat === 'function') vmGudangStokTersedia.muat(); return; }

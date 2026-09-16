@@ -25,6 +25,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, KolomCari } from './vue-components.js?v=13';
 import { ambilSemuaProduk } from './vue-master-produk.js';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=4';
 
 // picOwnerKeAtas — "Buat SPK Grouping" dan "Tunjuk/Scan Operator" wajib akun
 // tier pic/pic_owner/owner/superuser, TANPA popup PIN: cukup tier akun yang
@@ -1164,14 +1165,17 @@ const JalurTahapManager = {
       sedangProses[track.id] = false;
     }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    // pastikanCachePilihanScan WAJIB selesai sebelum render pertama yang
+    // memanggil aksiAktif() di template (tombol Scan Operator/Entry/dst) —
+    // kalau tidak, tombol jatuh ke DEFAULT_PILIHAN walau admin sudah atur beda.
+    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
     onUnmounted(tutupScan);
 
     return {
       memuat, muat, daftarTrack, sedangProses, bolehProses, bolehCetak, bolehTunjukOperator,
       cetakLabelBagging, cetakLabelTugas, popupCetakLabelAktif, daftarLabelPreview, jenisCetakAktif,
       modeScan, trackAktifScan, videoScanEl, canvasScanEl, scanMemuatKamera, scanError,
-      bukaScan, tutupScan, LABEL_AKSI_SCAN, formatQty
+      bukaScan, tutupScan, LABEL_AKSI_SCAN, formatQty, aksiAktif
     };
   },
   template: `
@@ -1196,26 +1200,26 @@ const JalurTahapManager = {
         <div v-if="t.catatan_masalah" style="font-size:11.5px; color:var(--danger); margin-bottom:8px; background:var(--danger-light); border-radius:8px; padding:6px 10px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ t.catatan_masalah }}</div>
 
         <!-- Perlu Diproses -->
-        <button v-if="tahap==='perlu_diproses' && bolehProses && bolehTunjukOperator" @click="bukaScan('operator', t)" :disabled="sedangProses[t.id]" class="btn-primary" style="width:100%; padding:10px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+        <button v-if="tahap==='perlu_diproses' && bolehProses && bolehTunjukOperator && aksiAktif('sub-pp-vendor-perludiproses', 'operator_vendor')" @click="bukaScan('operator', t)" :disabled="sedangProses[t.id]" class="btn-primary" style="width:100%; padding:10px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
 
         <!-- Sedang Diproses -->
         <div v-if="tahap==='sedang_diproses' && bolehProses" style="display:flex; gap:8px;">
-          <button @click="bukaScan('entry', t)" :disabled="sedangProses[t.id]" class="btn-primary" style="flex:1; padding:10px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Entry</button>
-          <button @click="bukaScan('masalah', t)" :disabled="sedangProses[t.id]" class="btn-outline" style="flex:1; padding:10px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>Scan Masalah</button>
+          <button v-if="aksiAktif('sub-pp-vendor-sedangdiproses', 'entry_vendor')" @click="bukaScan('entry', t)" :disabled="sedangProses[t.id]" class="btn-primary" style="flex:1; padding:10px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Entry</button>
+          <button v-if="aksiAktif('sub-pp-vendor-sedangdiproses', 'masalah_vendor')" @click="bukaScan('masalah', t)" :disabled="sedangProses[t.id]" class="btn-outline" style="flex:1; padding:10px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>Scan Masalah</button>
         </div>
 
         <!-- Perlu Dikirim -->
         <template v-if="tahap==='perlu_dikirim' && bolehProses">
           <button v-if="!t.kode_bagging" @click="cetakLabelBagging(t)" class="btn-outline" style="width:100%; padding:10px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label Bagging</button>
-          <button v-else @click="bukaScan('pack', t)" :disabled="sedangProses[t.id]" class="btn-primary" style="width:100%; padding:10px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack ({{ t.kode_bagging }})</button>
+          <button v-else-if="aksiAktif('sub-pp-vendor-perludikirim', 'pack_vendor')" @click="bukaScan('pack', t)" :disabled="sedangProses[t.id]" class="btn-primary" style="width:100%; padding:10px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack ({{ t.kode_bagging }})</button>
         </template>
 
         <!-- Sedang Dikirim -->
         <template v-if="tahap==='sedang_dikirim' && bolehProses">
           <button v-if="!t.kode_tugas" @click="cetakLabelTugas(t)" class="btn-outline" style="width:100%; padding:10px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label Tugas</button>
           <div v-else style="display:flex; gap:8px;">
-            <button @click="bukaScan('kirim', t)" :disabled="sedangProses[t.id]" class="btn-outline" style="flex:1; padding:10px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
-            <button @click="bukaScan('sampai', t)" :disabled="sedangProses[t.id]" class="btn-primary" style="flex:1; padding:10px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
+            <button v-if="aksiAktif('sub-pp-vendor-sedangdikirim', 'kirim_vendor')" @click="bukaScan('kirim', t)" :disabled="sedangProses[t.id]" class="btn-outline" style="flex:1; padding:10px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
+            <button v-if="aksiAktif('sub-pp-vendor-sedangdikirim', 'sampai_vendor')" @click="bukaScan('sampai', t)" :disabled="sedangProses[t.id]" class="btn-primary" style="flex:1; padding:10px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
           </div>
           <p style="font-size:10px; color:var(--text-faint); margin-top:6px;">Scan Kirim = dikirim dari sini. Scan Sampai = dikonfirmasi diterima pihak penerima (dilakukan di sini juga untuk Fase 2 — belum ada layar penerima terpisah).</p>
         </template>
@@ -1296,3 +1300,23 @@ window.pastikanMountPpVendorSelesai = function() {
   const mountPoint = document.getElementById('vue-pp-vendor-selesai');
   if (mountPoint) vmPpVendorSelesai = createApp(buatAppJalurTahap('vendor', 'Vendor', 'selesai', 'Selesai')).mount('#vue-pp-vendor-selesai');
 };
+
+// Bridge "Pilihan Scan" (sheet mobile & tombol desktop js/vue-popup-scan.js) —
+// JalurTahapManager BELUM migrasi ke buatScanTerpadu (beda dari Bahan/Sewing
+// dkk), jadi tidak ada alur identifikasi-dari-scan: bukaScan(mode, track) yang
+// sudah ada WAJIB tahu kartu mana duluan. Kartu tunggal di tab itu langsung
+// jalan; kartu jamak diminta pilih manual dari daftar supaya tidak salah SPK.
+function _bukaScanVendorDariTab(vm, mode, labelTahap, filterFn) {
+  const mgr = vm && vm.$refs && vm.$refs.mgr;
+  if (!mgr) return;
+  const daftar = (mgr.daftarTrack || []).filter(filterFn || (() => true));
+  if (daftar.length === 0) { alert(`Tidak ada SPK Vendor yang siap di tahap ${labelTahap}.`); return; }
+  if (daftar.length > 1) { alert(`Ada ${daftar.length} SPK Vendor di tahap ${labelTahap} — buka dari kartu masing-masing di layar supaya tidak salah SPK.`); return; }
+  mgr.bukaScan(mode, daftar[0]);
+}
+window.bukaOperatorVendor = function () { _bukaScanVendorDariTab(vmPpVendorPerluDiproses, 'operator', 'Perlu Diproses'); };
+window.bukaEntryVendor = function () { _bukaScanVendorDariTab(vmPpVendorSedangDiproses, 'entry', 'Sedang Diproses'); };
+window.bukaMasalahVendor = function () { _bukaScanVendorDariTab(vmPpVendorSedangDiproses, 'masalah', 'Sedang Diproses'); };
+window.bukaPackVendor = function () { _bukaScanVendorDariTab(vmPpVendorPerluDikirim, 'pack', 'Perlu Dikirim', t => !!t.kode_bagging); };
+window.bukaKirimVendor = function () { _bukaScanVendorDariTab(vmPpVendorSedangDikirim, 'kirim', 'Sedang Dikirim', t => !!t.kode_tugas); };
+window.bukaSampaiVendor = function () { _bukaScanVendorDariTab(vmPpVendorSedangDikirim, 'sampai', 'Sedang Dikirim', t => !!t.kode_tugas); };

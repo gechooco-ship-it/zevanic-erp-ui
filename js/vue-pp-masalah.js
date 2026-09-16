@@ -24,6 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=9';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=4';
 
 // picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (dipakai Setuju/Tolak/Ajukan
 // Belanja, WAJIB Owner/PIC Owner + popup PIN). Yang ini untuk "Scan Operator":
@@ -652,9 +653,13 @@ const MasalahPerluDisiapkan = {
     // Scan Operator — disebar dari PILOT #5 vue-persiapan-bahan.js (Draft/Upload),
     // gantikan modalTunjuk lama. TIDAK ADA versi toolbar global di sini (beda dari
     // Bahan/Finishing/Sewing/Webbing) — kartu ini SELALU per-kartu, sama perilaku lama.
+    // kartuAktifTunjuk null = cari di SEMUA kartu tab ini (tombol toolbar/bridge
+    // scan global), object = kartu spesifik (tombol per-kartu) — sama pola
+    // dengan vue-persiapan-sewing.js/vue-persiapan-bahan.js.
     let kartuAktifTunjuk = null;
     function cariDocSiapTunjuk(kode) {
-      return (kartuAktifTunjuk?.docs || []).find(d => d.kode_msl === kode && d.label_cetak_pada && d.status === 'perlu_disiapkan');
+      const kolam = kartuAktifTunjuk ? (kartuAktifTunjuk.docs || []) : kartuList.value.flatMap(k => k.docs);
+      return kolam.find(d => d.kode_msl === kode && d.label_cetak_pada && d.status === 'perlu_disiapkan');
     }
     const scanOperator = buatScanTerpadu({
       judul: 'Scan Operator — Masalah', subjudul: 'Scan QR operator/tim, lalu scan label berkali-kali',
@@ -701,20 +706,32 @@ const MasalahPerluDisiapkan = {
       kartuAktifTunjuk = k;
       scanOperator.buka();
     }
+    // bukaPenunjukanGlobal — versi toolbar/bridge scan: TIDAK terkunci ke 1
+    // kartu, mencari baris cocok di SEMUA kartu tampil di tab ini.
+    function bukaPenunjukanGlobal() {
+      const eligible = kartuList.value.some(k => k.docs.some(d => d.label_cetak_pada && d.status === 'perlu_disiapkan'));
+      if (!eligible) { alert('Belum ada baris yang sudah dicetak labelnya di tab ini.'); return; }
+      kartuAktifTunjuk = null;
+      scanOperator.buka();
+    }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, kartuList, kartuTerbuka, toggleKartu, isChecked, toggleCheck,
-      bolehProses, bolehCetak, sedangProses, formatQty, formatWaktu,
+      bolehProses, bolehCetak, aksiAktif, sedangProses, formatQty, formatWaktu,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu,
-      scanOperator, bukaPenunjukan
+      scanOperator, bukaPenunjukan, bukaPenunjukanGlobal
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <template v-else>
+      <div v-if="bolehProses && aksiAktif('sub-pp-masalah-perludisiapkan','operator_masalah')" style="display:flex; gap:8px; margin-bottom:12px;">
+        <button @click="bukaPenunjukanGlobal" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+      </div>
+
       <div v-if="kartuList.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-list-check"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada yang perlu disiapkan</h3>
@@ -739,7 +756,7 @@ const MasalahPerluDisiapkan = {
 
           <div style="display:flex; gap:8px; border-top:1px solid var(--line); padding-top:10px;">
             <button v-if="bolehCetak" @click="cetakLabelKartu(k)" :disabled="sedangProses" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label</button>
-            <button v-if="bolehProses && k.docs.some(d=>d.label_cetak_pada && d.status==='perlu_disiapkan')" @click="bukaPenunjukan(k)" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+            <button v-if="bolehProses && aksiAktif('sub-pp-masalah-perludisiapkan','operator_masalah') && k.docs.some(d=>d.label_cetak_pada && d.status==='perlu_disiapkan')" @click="bukaPenunjukan(k)" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
           </div>
         </div>
       </div>
@@ -820,9 +837,9 @@ const MasalahSedangDisiapkan = {
       sedangProses[d.id] = false;
     }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
-    return { muat, memuat, kelompokOperator, bolehProses, sedangProses, formatQty, formatDiamSejak, tertahan, modalAksi, bukaAksi, tutupAksi, hasilScanAksi };
+    return { muat, memuat, kelompokOperator, bolehProses, aksiAktif, sedangProses, formatQty, formatDiamSejak, tertahan, modalAksi, bukaAksi, tutupAksi, hasilScanAksi };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -848,8 +865,8 @@ const MasalahSedangDisiapkan = {
             <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ d.bahan_nama }} {{ d.bahan_warna }} &middot; {{ formatQty(d.qty_disetujui || d.qty_kurang) }} {{ d.satuan }} &middot; kembali ke {{ d.tlc_asal || d.sumber_jalur }}</div>
             <div v-if="d.catatan_masalah" style="font-size:10.5px; color:var(--danger); background:var(--danger-light); border-radius:8px; padding:5px 8px; margin-bottom:6px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ d.catatan_masalah }}</div>
             <div v-if="bolehProses" style="display:flex; gap:6px;">
-              <button @click="bukaAksi('entry', d)" :disabled="sedangProses[d.id]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
-              <button @click="bukaAksi('masalah', d)" :disabled="sedangProses[d.id]" class="btn-outline" style="flex:1; padding:7px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Masalah</button>
+              <button v-if="aksiAktif('sub-pp-masalah-sedangdisiapkan','entry_masalah')" @click="bukaAksi('entry', d)" :disabled="sedangProses[d.id]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
+              <button v-if="aksiAktif('sub-pp-masalah-sedangdisiapkan','masalah_masalah')" @click="bukaAksi('masalah', d)" :disabled="sedangProses[d.id]" class="btn-outline" style="flex:1; padding:7px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Masalah</button>
               <button @click="bukaAksi('ganti', d)" :disabled="sedangProses[d.id]" class="btn-outline" style="flex:0 0 auto; padding:7px 9px; font-size:11px;" title="Ganti Operator"><i class="fas fa-arrow-right-arrow-left"></i></button>
             </div>
           </div>
@@ -1055,10 +1072,10 @@ const MasalahPerluDiKirim = {
       }
     });
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
-      memuat, kelompokTujuan, daftarTlc, bolehProses, bolehCetak, sedangProses, formatQty,
+      memuat, kelompokTujuan, daftarTlc, bolehProses, bolehCetak, aksiAktif, sedangProses, formatQty,
       popupBagging, bukaCetakBagging, konfirmasiCetakBagging,
       popupTugas, bukaCetakTugas, konfirmasiCetakTugas,
       popupCetakAktif, daftarLabelPreview, jenisCetakAktif,
@@ -1074,8 +1091,8 @@ const MasalahPerluDiKirim = {
         <button @click="bukaCetakTugas" class="btn-outline" style="flex:1; min-width:150px; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Kode Tugas</button>
       </div>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button @click="packTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
-        <button @click="kirimTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
+        <button v-if="aksiAktif('sub-pp-masalah-perludikirim','pack_masalah')" @click="packTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button v-if="aksiAktif('sub-pp-masalah-perludikirim','kirim_masalah')" @click="kirimTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
       </div>
 
       <div v-if="kelompokTujuan.length === 0" class="gc-kosong gc-card">
@@ -1360,3 +1377,12 @@ window.pastikanMountPpMasalahSelesai = function () {
   const mountPoint = document.getElementById('vue-pp-masalah-selesai');
   if (mountPoint) vmPpMasalahSelesai = createApp(MasalahSelesai).mount('#vue-pp-masalah-selesai');
 };
+
+// Bridge "Pilihan Scan" — window.bukaXxx dipanggil popup scan global
+// (vue-popup-scan.js). entry_masalah/masalah_masalah TIDAK dibuat: keduanya
+// ScanGenerik per-baris yang harus sudah menunjuk 1 dokumen dulu (modalAksi.item),
+// tidak ada pencarian kode lintas-baris di tab itu untuk dijadikan bridge global
+// (sama seperti entry_bahan/masalah_bahan/entry_sewing/dll — belum ada di modul manapun).
+window.bukaOperatorMasalah = function () { if (vmPpMasalahPerluDisiapkan) vmPpMasalahPerluDisiapkan.bukaPenunjukanGlobal(); };
+window.bukaPackMasalah = function () { if (vmPpMasalahPerluDiKirim) vmPpMasalahPerluDiKirim.packTerpadu.buka(); };
+window.bukaKirimMasalah = function () { if (vmPpMasalahPerluDiKirim) vmPpMasalahPerluDiKirim.kirimTerpadu.buka(); };

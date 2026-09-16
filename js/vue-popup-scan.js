@@ -1,35 +1,33 @@
 // js/vue-popup-scan.js
 // Bottom Sheet Picker "Mau scan apa?" — tombol QR navbar mobile membuka ini
-// dulu, bukan lompat langsung ke tab Scan QR. Nav 5-tombol tetap sama, cuma
-// tombol QR tengah yang jadi kontekstual lewat sheet ini. Ekspor
-// DAFTAR_AKSI_SCAN, DAFTAR_KONTEKS, DEFAULT_PILIHAN, invalidasiCachePilihanScan
-// dipakai layar admin js/vue-pilihan-scan-config.js.
+// dulu, bukan lompat langsung ke tab Scan QR. Ekspor DAFTAR_AKSI_SCAN dan
+// STRUKTUR_MENU_SCAN (sumber DAFTAR_KONTEKS+DEFAULT_PILIHAN) dipakai layar
+// admin js/vue-pilihan-scan-config.js DAN tombol scan desktop tiap modul —
+// SATU config Firestore mengatur keduanya, tidak ada jalur terpisah lagi.
 //
 // Koleksi & field:
-// - config_pilihan_scan/{targetId}: 1 dokumen = 1 konteks (sub-tab paling
-//   spesifik) — item_ids[] (urutan tampil), diubah_pada, diubah_oleh. Konteks
-//   TANPA dokumen jatuh ke DEFAULT_PILIHAN di kode. Dibaca 1x getDocs per
-//   sesi lalu dicache (lihat pastikanCachePilihanScan).
+// - config_pilihan_scan/{targetId}: 1 dokumen = 1 child menu — item_ids[]
+//   (urutan+aktif), diubah_pada/oleh. Tanpa dokumen jatuh ke DEFAULT_PILIHAN.
+//   Dibaca 1x getDocs per sesi lalu dicache (pastikanCachePilihanScan).
 // - Tidak menulis Firestore lain — tiap item cuma memanggil window.bukaXxx
 //   milik modul lain (lihat DAFTAR_AKSI_SCAN.fungsi).
 //
 // Jebakan:
-// - Key DEFAULT_PILIHAN/dokumen Firestore = targetId sub-tab paling spesifik
-//   di window._riwayatNavAktif.subTabs (bukan tabId top-level) supaya tahap
-//   yang beda modal (mis. Cutting Perlu Di Proses vs Perlu Di Kirim) dapat
-//   pilihan beda. Konteks tidak match satupun -> fallback "Scan QR" biasa.
-// - window.bukaXxx modul lain bisa belum ke-mount (mount-on-demand) — selalu
-//   cek fungsinya ada dulu sebelum panggil, jangan asumsikan selalu ada.
-// - Simpan/hapus dari layar admin WAJIB panggil invalidasiCachePilihanScan(),
-//   kalau tidak sheet ini masih pakai cache lama sampai reload halaman.
+// - Desktop WAJIB `await pastikanCachePilihanScan()` sebelum render tombol
+//   (pakai `aksiAktif(targetId,id)`) — kalau tidak, render pertama selalu
+//   DEFAULT_PILIHAN walau sudah dikonfigurasi beda.
+// - window.bukaXxx modul lain bisa belum ke-mount — cek dulu sebelum panggil.
+// - Simpan/hapus admin WAJIB panggil invalidasiCachePilihanScan(), kalau
+//   tidak sheet mobile DAN tombol desktop pakai cache lama.
 import { createApp, ref } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import { db } from './firebase-config.js';
 
 // DAFTAR_AKSI_SCAN — katalog TETAP semua aksi scan yang bisa dimasukkan ke
-// sheet ini. Menambah titik scan baru = tambah 1 entri di sini (fungsi =
-// nama window.bukaXxx yang didefinisikan di file modul terkait) — baru
-// setelah itu bisa dipasang ke konteks manapun lewat layar admin.
+// sheet mobile ATAU tombol desktop. Menambah titik scan baru = tambah 1
+// entri di sini (fungsi = nama window.bukaXxx yang didefinisikan di file
+// modul terkait) — baru setelah itu bisa dipasang ke child menu manapun
+// lewat STRUKTUR_MENU_SCAN di bawah dan diatur ulang lewat layar admin.
 export const DAFTAR_AKSI_SCAN = {
   operator_bahan: { icon: 'user', judul: 'Scan Operator', sub: 'Persiapan Bahan', gaya: 'aksen', fungsi: 'bukaScanOperatorBahan' },
   operator_sewing: { icon: 'user', judul: 'Scan Operator', sub: 'Acc Sewing', gaya: 'aksen', fungsi: 'bukaScanOperatorSewing' },
@@ -38,56 +36,243 @@ export const DAFTAR_AKSI_SCAN = {
   cutting_sampai: { icon: 'barcode', judul: 'Scan Sampai', sub: 'Terima kiriman bahan', fungsi: 'bukaScanSampaiCutting' },
   cutting_unpack: { icon: 'box-open', judul: 'Scan Unpack', sub: 'Buka isi bagging', fungsi: 'bukaScanUnpackCutting' },
   cutting_pack: { icon: 'qrcode', judul: 'Scan Pack', sub: 'Kaitkan label ke bagging', fungsi: 'bukaScanPackCutting' },
-  cutting_kirim: { icon: 'qrcode', judul: 'Scan Kirim', sub: 'Muat bagging ke tugas kirim', fungsi: 'bukaScanKirimCutting' }
+  cutting_kirim: { icon: 'qrcode', judul: 'Scan Kirim', sub: 'Muat bagging ke tugas kirim', fungsi: 'bukaScanKirimCutting' },
+  sampai_masalah_bahan: { icon: 'inbox', judul: 'Scan Sampai', sub: 'Terima balik Masalah — Bahan', fungsi: 'bukaSampaiMasalahBahan' },
+  entry_bahan: { icon: 'qrcode', judul: 'Scan Entry', sub: 'Sedang Disiapkan — Bahan', fungsi: 'bukaEntryBahan' },
+  masalah_bahan: { icon: 'triangle-exclamation', judul: 'Scan Masalah', sub: 'Sedang Disiapkan — Bahan', fungsi: 'bukaMasalahBahan' },
+  pack_bahan: { icon: 'qrcode', judul: 'Scan Pack', sub: 'Perlu Dikirim — Bahan', fungsi: 'bukaPackBahan' },
+  kirim_bahan: { icon: 'qrcode', judul: 'Scan Kirim', sub: 'Perlu Dikirim — Bahan', fungsi: 'bukaKirimBahan' },
+  sampai_masalah_sewing: { icon: 'inbox', judul: 'Scan Sampai', sub: 'Terima balik Masalah — Acc Sewing', fungsi: 'bukaSampaiMasalahSewing' },
+  entry_sewing: { icon: 'qrcode', judul: 'Scan Entry', sub: 'Sedang Disiapkan — Acc Sewing', fungsi: 'bukaEntrySewing' },
+  masalah_sewing: { icon: 'triangle-exclamation', judul: 'Scan Masalah', sub: 'Sedang Disiapkan — Acc Sewing', fungsi: 'bukaMasalahSewing' },
+  pack_sewing: { icon: 'qrcode', judul: 'Scan Pack', sub: 'Perlu Dikirim — Acc Sewing', fungsi: 'bukaPackSewing' },
+  kirim_sewing: { icon: 'qrcode', judul: 'Scan Kirim', sub: 'Perlu Dikirim — Acc Sewing', fungsi: 'bukaKirimSewing' },
+  sampai_masalah_webbing: { icon: 'inbox', judul: 'Scan Sampai', sub: 'Terima balik Masalah — Acc Webbing', fungsi: 'bukaSampaiMasalahWebbing' },
+  entry_webbing: { icon: 'qrcode', judul: 'Scan Entry', sub: 'Sedang Disiapkan — Acc Webbing', fungsi: 'bukaEntryWebbing' },
+  masalah_webbing: { icon: 'triangle-exclamation', judul: 'Scan Masalah', sub: 'Sedang Disiapkan — Acc Webbing', fungsi: 'bukaMasalahWebbing' },
+  pack_webbing: { icon: 'qrcode', judul: 'Scan Pack', sub: 'Perlu Dikirim — Acc Webbing', fungsi: 'bukaPackWebbing' },
+  kirim_webbing: { icon: 'qrcode', judul: 'Scan Kirim', sub: 'Perlu Dikirim — Acc Webbing', fungsi: 'bukaKirimWebbing' },
+  sampai_masalah_finishing: { icon: 'inbox', judul: 'Scan Sampai', sub: 'Terima balik Masalah — Acc Finishing', fungsi: 'bukaSampaiMasalahFinishing' },
+  entry_finishing: { icon: 'qrcode', judul: 'Scan Entry', sub: 'Sedang Disiapkan — Acc Finishing', fungsi: 'bukaEntryFinishing' },
+  masalah_finishing: { icon: 'triangle-exclamation', judul: 'Scan Masalah', sub: 'Sedang Disiapkan — Acc Finishing', fungsi: 'bukaMasalahFinishing' },
+  pack_finishing: { icon: 'qrcode', judul: 'Scan Pack', sub: 'Perlu Dikirim — Acc Finishing', fungsi: 'bukaPackFinishing' },
+  kirim_finishing: { icon: 'qrcode', judul: 'Scan Kirim', sub: 'Perlu Dikirim — Acc Finishing', fungsi: 'bukaKirimFinishing' },
+  operator_masalah: { icon: 'user', judul: 'Scan Operator', sub: 'Persiapan Masalah', gaya: 'aksen', fungsi: 'bukaOperatorMasalah' },
+  entry_masalah: { icon: 'qrcode', judul: 'Scan Entry', sub: 'Sedang Disiapkan — Masalah', fungsi: 'bukaEntryMasalah' },
+  masalah_masalah: { icon: 'triangle-exclamation', judul: 'Scan Masalah', sub: 'Sedang Disiapkan — Masalah', fungsi: 'bukaMasalahMasalah' },
+  pack_masalah: { icon: 'qrcode', judul: 'Scan Pack', sub: 'Perlu Dikirim — Masalah', fungsi: 'bukaPackMasalah' },
+  kirim_masalah: { icon: 'qrcode', judul: 'Scan Kirim', sub: 'Perlu Dikirim — Masalah', fungsi: 'bukaKirimMasalah' },
+  operator_vendor: { icon: 'user', judul: 'Scan Operator', sub: 'Jalur Vendor', gaya: 'aksen', fungsi: 'bukaOperatorVendor' },
+  entry_vendor: { icon: 'qrcode', judul: 'Scan Entry', sub: 'Jalur Vendor', fungsi: 'bukaEntryVendor' },
+  masalah_vendor: { icon: 'triangle-exclamation', judul: 'Scan Masalah', sub: 'Jalur Vendor', fungsi: 'bukaMasalahVendor' },
+  pack_vendor: { icon: 'qrcode', judul: 'Scan Pack', sub: 'Jalur Vendor', fungsi: 'bukaPackVendor' },
+  kirim_vendor: { icon: 'qrcode', judul: 'Scan Kirim', sub: 'Jalur Vendor', fungsi: 'bukaKirimVendor' },
+  sampai_vendor: { icon: 'qrcode', judul: 'Scan Sampai', sub: 'Jalur Vendor', fungsi: 'bukaSampaiVendor' },
+  cutting_operator_ampar: { icon: 'user-check', judul: 'Tunjuk Operator Ampar', sub: 'Cutting - Ampar', gaya: 'aksen', fungsi: 'bukaCuttingOperatorAmpar' },
+  cutting_entry_ampar: { icon: 'check', judul: 'Scan Entry Ampar', sub: 'Cutting - Ampar', fungsi: 'bukaCuttingEntryAmpar' },
+  cutting_operator_pola: { icon: 'user-check', judul: 'Tunjuk Operator Pola', sub: 'Cutting - Pola', gaya: 'aksen', fungsi: 'bukaCuttingOperatorPola' },
+  cutting_entry_pola: { icon: 'check', judul: 'Scan Entry Pola', sub: 'Cutting - Pola', fungsi: 'bukaCuttingEntryPola' },
+  cutting_operator_cutting: { icon: 'user-check', judul: 'Tunjuk Operator Cutting', sub: 'Cutting - Potong', gaya: 'aksen', fungsi: 'bukaCuttingOperatorCutting' },
+  cutting_entry_cutting: { icon: 'check', judul: 'Scan Entry Cutting', sub: 'Cutting - Potong', fungsi: 'bukaCuttingEntryCutting' },
+  serie_sampai: { icon: 'qrcode', judul: 'Scan Sampai', sub: 'Terima kiriman bagging', fungsi: 'bukaSerieSampai' },
+  serie_unpack: { icon: 'box-open', judul: 'Scan Unpack', sub: 'Buka isi bagging dari Cutting', fungsi: 'bukaSerieUnpack' },
+  serie_operator: { icon: 'user-check', judul: 'Scan Operator Serie', sub: 'Persiapan Separating', gaya: 'aksen', fungsi: 'bukaSerieOperator' },
+  serie_entry: { icon: 'qrcode', judul: 'Scan Entry Serie', sub: 'Komponen selesai', fungsi: 'bukaSerieEntry' },
+  serie_pack: { icon: 'qrcode', judul: 'Scan Pack', sub: 'Kaitkan komponen ke bagging', fungsi: 'bukaSeriePack' },
+  serie_kirim_sewing: { icon: 'paper-plane', judul: 'Scan Kirim', sub: 'Serie → Sewing', fungsi: 'bukaSerieKirimSewing' },
+  serie_kirim_finishing: { icon: 'paper-plane', judul: 'Scan Kirim', sub: 'Serie → Finishing', fungsi: 'bukaSerieKirimFinishing' },
+  serie_kirim_gudang: { icon: 'paper-plane', judul: 'Scan Kirim', sub: 'Serie → Gudang Barang Jadi', fungsi: 'bukaSerieKirimGudang' },
+  serie_terima_sampai_sewing: { icon: 'qrcode', judul: 'Scan Sampai', sub: 'Terima dari Sewing', fungsi: 'bukaSerieTerimaSampaiSewing' },
+  serie_terima_sampai_finishing: { icon: 'qrcode', judul: 'Scan Sampai', sub: 'Terima dari Finishing', fungsi: 'bukaSerieTerimaSampaiFinishing' },
+  serie_terima_unpack_sewing: { icon: 'box-open', judul: 'Scan Unpack', sub: 'Bagging dari Sewing', fungsi: 'bukaSerieTerimaUnpackSewing' },
+  serie_terima_unpack_finishing: { icon: 'box-open', judul: 'Scan Unpack', sub: 'Bagging dari Finishing', fungsi: 'bukaSerieTerimaUnpackFinishing' },
+  sewing_sampai: { icon: 'qrcode', judul: 'Scan Sampai', sub: 'Terima dari Serie', fungsi: 'bukaSewingSampai' },
+  sewing_unpack: { icon: 'box-open', judul: 'Scan Unpack', sub: 'Buka isi bagging', fungsi: 'bukaSewingUnpack' },
+  sewing_operator: { icon: 'user-check', judul: 'Scan Operator', sub: 'Persiapan Sewing', gaya: 'aksen', fungsi: 'bukaSewingOperator' },
+  sewing_entry: { icon: 'qrcode', judul: 'Scan Entry', sub: 'Batch selesai dijahit', fungsi: 'bukaSewingEntry' },
+  sewing_pack: { icon: 'qrcode', judul: 'Scan Pack', sub: 'Kaitkan pcs ke bagging', fungsi: 'bukaSewingPack' },
+  sewing_kirim: { icon: 'paper-plane', judul: 'Scan Kirim', sub: 'Sewing → Serie', fungsi: 'bukaSewingKirim' },
+  finishing_sampai: { icon: 'qrcode', judul: 'Scan Sampai', sub: 'Terima dari Serie', fungsi: 'bukaFinishingSampai' },
+  finishing_unpack: { icon: 'box-open', judul: 'Scan Unpack', sub: 'Buka isi bagging', fungsi: 'bukaFinishingUnpack' },
+  finishing_operator_qc_persiapan: { icon: 'user-check', judul: 'Scan Operator QC', sub: 'Persiapan QC', gaya: 'aksen', fungsi: 'bukaFinishingOperatorQcPersiapan' },
+  finishing_operator_qc: { icon: 'user-check', judul: 'Scan Operator', sub: 'Tahap QC', gaya: 'aksen', fungsi: 'bukaFinishingOperatorQc' },
+  finishing_entry_qc: { icon: 'qrcode', judul: 'Scan Entry', sub: 'Tahap QC', fungsi: 'bukaFinishingEntryQc' },
+  finishing_operator_steam: { icon: 'user-check', judul: 'Scan Operator', sub: 'Tahap Steam', gaya: 'aksen', fungsi: 'bukaFinishingOperatorSteam' },
+  finishing_entry_steam: { icon: 'qrcode', judul: 'Scan Entry', sub: 'Tahap Steam', fungsi: 'bukaFinishingEntrySteam' },
+  finishing_operator_folding: { icon: 'user-check', judul: 'Scan Operator', sub: 'Tahap Folding', gaya: 'aksen', fungsi: 'bukaFinishingOperatorFolding' },
+  finishing_entry_folding: { icon: 'qrcode', judul: 'Scan Entry', sub: 'Tahap Folding', fungsi: 'bukaFinishingEntryFolding' },
+  finishing_operator_packing: { icon: 'user-check', judul: 'Scan Operator', sub: 'Tahap Packing', gaya: 'aksen', fungsi: 'bukaFinishingOperatorPacking' },
+  finishing_entry_packing: { icon: 'qrcode', judul: 'Scan Entry', sub: 'Tahap Packing', fungsi: 'bukaFinishingEntryPacking' },
+  finishing_pack: { icon: 'qrcode', judul: 'Scan Pack', sub: 'Kaitkan pcs ke bagging', fungsi: 'bukaFinishingPack' },
+  finishing_kirim: { icon: 'paper-plane', judul: 'Scan Kirim', sub: 'Finishing → Serie', fungsi: 'bukaFinishingKirim' },
+  gudang_sampai: { icon: 'qrcode', judul: 'Scan Sampai', sub: 'Terima batch dari Serie', fungsi: 'bukaGudangSampai' },
+  gudang_unpack: { icon: 'box-open', judul: 'Scan Unpack', sub: 'Buka isi bagging', fungsi: 'bukaGudangUnpack' },
+  gudang_masuk: { icon: 'qrcode', judul: 'Scan Masuk Gudang', sub: 'Simpan pcs jadi', fungsi: 'bukaGudangMasuk' },
 };
 
-// DAFTAR_KONTEKS — konteks (targetId sub-tab) yang sudah dikenal sheet ini,
-// dengan label jalur menu buat layar admin. Masalah SENGAJA tidak ada di
-// sini — Scan Operator-nya cuma tombol per-kartu, tidak ada varian toolbar
-// global untuk dipanggil tanpa konteks.
-export const DAFTAR_KONTEKS = {
-  'sub-pp-bahan-perludisiapkan': 'Persiapan Produksi > Bahan > Perlu Disiapkan',
-  'sub-pp-sewing-perludisiapkan': 'Persiapan Produksi > Acc Sewing > Perlu Disiapkan',
-  'sub-pp-webbing-perludisiapkan': 'Persiapan Produksi > Acc Webbing > Perlu Disiapkan',
-  'sub-pp-finishing-perludisiapkan': 'Persiapan Produksi > Acc Finishing > Perlu Disiapkan',
-  'sub-pr-cutting-perludiproses': 'Proses Produksi > Cutting > Perlu Di Proses',
-  'sub-pr-cutting-perludikirim': 'Proses Produksi > Cutting > Perlu Di Kirim'
-};
+// STRUKTUR_MENU_SCAN — SATU sumber untuk 3 hal: hierarki kartu admin (Group Menu >
+// Sub Menu > Child Menu, dipakai vue-pilihan-scan-config.js), DAFTAR_KONTEKS, dan
+// DEFAULT_PILIHAN — DUA terakhir diturunkan otomatis di bawah, jangan didaftar dobel.
+// Child tanpa field `aksi` (atau `aksi:[]`) memang tidak punya scan sama sekali —
+// tetap didaftarkan supaya kartu admin menampilkan child menu itu apa adanya.
+export const STRUKTUR_MENU_SCAN = [
+  { group: 'Persiapan Produksi', subs: [
+    { sub: 'Vendor', childs: [
+      { targetId: 'sub-pp-vendor-perludiproses', label: 'Perlu Diproses', aksi: ['operator_vendor'] },
+      { targetId: 'sub-pp-vendor-sedangdiproses', label: 'Sedang Diproses', aksi: ['entry_vendor', 'masalah_vendor'] },
+      { targetId: 'sub-pp-vendor-perludikirim', label: 'Perlu Dikirim', aksi: ['pack_vendor'] },
+      { targetId: 'sub-pp-vendor-sedangdikirim', label: 'Sedang Dikirim', aksi: ['kirim_vendor', 'sampai_vendor'] },
+      { targetId: 'sub-pp-vendor-selesai', label: 'Selesai' },
+    ] },
+    { sub: 'Perlu Disiapkan', childs: [
+      { targetId: 'sub-pp-disiapkan', label: '(hub grouping SPK)' },
+    ] },
+    { sub: 'Bahan', childs: [
+      { targetId: 'sub-pp-bahan-perludisiapkan', label: 'Perlu Disiapkan', aksi: ['operator_bahan', 'sampai_masalah_bahan'] },
+      { targetId: 'sub-pp-bahan-sedangdisiapkan', label: 'Sedang Disiapkan', aksi: ['entry_bahan', 'masalah_bahan'] },
+      { targetId: 'sub-pp-bahan-perludikirim', label: 'Perlu Dikirim', aksi: ['pack_bahan', 'kirim_bahan'] },
+      { targetId: 'sub-pp-bahan-sedangdikirim', label: 'Sedang Dikirim' },
+      { targetId: 'sub-pp-bahan-selesai', label: 'Selesai' },
+    ] },
+    { sub: 'Acc Sewing', childs: [
+      { targetId: 'sub-pp-sewing-perludisiapkan', label: 'Perlu Disiapkan', aksi: ['operator_sewing', 'sampai_masalah_sewing'] },
+      { targetId: 'sub-pp-sewing-sedangdisiapkan', label: 'Sedang Disiapkan', aksi: ['entry_sewing', 'masalah_sewing'] },
+      { targetId: 'sub-pp-sewing-perludikirim', label: 'Perlu Dikirim', aksi: ['pack_sewing', 'kirim_sewing'] },
+      { targetId: 'sub-pp-sewing-sedangdikirim', label: 'Sedang Dikirim' },
+      { targetId: 'sub-pp-sewing-selesai', label: 'Selesai' },
+    ] },
+    { sub: 'Acc Webbing', childs: [
+      { targetId: 'sub-pp-webbing-perludisiapkan', label: 'Perlu Disiapkan', aksi: ['operator_webbing', 'sampai_masalah_webbing'] },
+      { targetId: 'sub-pp-webbing-sedangdisiapkan', label: 'Sedang Disiapkan', aksi: ['entry_webbing', 'masalah_webbing'] },
+      { targetId: 'sub-pp-webbing-perludikirim', label: 'Perlu Dikirim', aksi: ['pack_webbing', 'kirim_webbing'] },
+      { targetId: 'sub-pp-webbing-sedangdikirim', label: 'Sedang Dikirim' },
+      { targetId: 'sub-pp-webbing-selesai', label: 'Selesai' },
+    ] },
+    { sub: 'Acc Finishing', childs: [
+      { targetId: 'sub-pp-finishing-perludisiapkan', label: 'Perlu Disiapkan', aksi: ['operator_finishing', 'sampai_masalah_finishing'] },
+      { targetId: 'sub-pp-finishing-sedangdisiapkan', label: 'Sedang Disiapkan', aksi: ['entry_finishing', 'masalah_finishing'] },
+      { targetId: 'sub-pp-finishing-perludikirim', label: 'Perlu Dikirim', aksi: ['pack_finishing', 'kirim_finishing'] },
+      { targetId: 'sub-pp-finishing-sedangdikirim', label: 'Sedang Dikirim' },
+      { targetId: 'sub-pp-finishing-selesai', label: 'Selesai' },
+    ] },
+    { sub: 'Masalah', childs: [
+      { targetId: 'sub-pp-masalah-perludiajukan', label: 'Perlu Diajukan' },
+      { targetId: 'sub-pp-masalah-menunggusetuju', label: 'Menunggu Setuju' },
+      { targetId: 'sub-pp-masalah-perludisiapkan', label: 'Perlu Disiapkan', aksi: ['operator_masalah'] },
+      { targetId: 'sub-pp-masalah-sedangdisiapkan', label: 'Sedang Disiapkan', aksi: ['entry_masalah', 'masalah_masalah'] },
+      { targetId: 'sub-pp-masalah-perludikirim', label: 'Perlu Dikirim', aksi: ['pack_masalah', 'kirim_masalah'] },
+      { targetId: 'sub-pp-masalah-sedangdikirim', label: 'Sedang Dikirim' },
+      { targetId: 'sub-pp-masalah-selesai', label: 'Selesai' },
+    ] },
+    { sub: 'Persiapan Belanja', childs: [
+      { targetId: 'sub-pp-belanja-persiapanadmin', label: 'Persiapan Admin' },
+      { targetId: 'sub-pp-belanja-menungguacc', label: 'Menunggu ACC' },
+      { targetId: 'sub-pp-belanja-listorderdriver', label: 'List Order Driver' },
+      { targetId: 'sub-pp-belanja-riwayat', label: 'Riwayat' },
+    ] },
+  ] },
+  { group: 'Proses Produksi', subs: [
+    { sub: 'Cutting', childs: [
+      { targetId: 'sub-pr-cutting-perludiproses', label: 'Perlu Di Proses', aksi: ['cutting_sampai', 'cutting_unpack', 'cutting_operator_ampar'] },
+      { targetId: 'sub-pr-cutting-sedangampar', label: 'Sedang Ampar', aksi: ['cutting_entry_ampar', 'cutting_operator_pola'] },
+      { targetId: 'sub-pr-cutting-sedangpola', label: 'Sedang Pola', aksi: ['cutting_entry_pola', 'cutting_operator_cutting'] },
+      { targetId: 'sub-pr-cutting-sedangcutting', label: 'Sedang Cutting', aksi: ['cutting_entry_cutting'] },
+      { targetId: 'sub-pr-cutting-perludikirim', label: 'Perlu Di Kirim', aksi: ['cutting_pack', 'cutting_kirim'] },
+      { targetId: 'sub-pr-cutting-sedangdikirim', label: 'Sedang Di Kirim' },
+      { targetId: 'sub-pr-cutting-selesai', label: 'Selesai' },
+    ] },
+    { sub: 'Serie', childs: [
+      { targetId: 'sub-pr-serie-perludiproses', label: 'Perlu Di Proses', aksi: ['serie_sampai', 'serie_unpack'] },
+      { targetId: 'sub-pr-serie-sedangdiproses', label: 'Sedang Di Proses', aksi: ['serie_operator', 'serie_entry'] },
+      { targetId: 'sub-pr-serie-perludikirim', label: 'Perlu Di Kirim', aksi: ['serie_pack'] },
+      { targetId: 'sub-pr-serie-kirimsewing', label: 'Kirim Sewing', aksi: ['serie_kirim_sewing'] },
+      { targetId: 'sub-pr-serie-setorsewing', label: 'Setor Sewing' },
+      { targetId: 'sub-pr-serie-terimasewing', label: 'Terima Sewing', aksi: ['serie_terima_sampai_sewing', 'serie_terima_unpack_sewing'] },
+      { targetId: 'sub-pr-serie-kirimfinishing', label: 'Kirim Finishing', aksi: ['serie_kirim_finishing'] },
+      { targetId: 'sub-pr-serie-setorfinishing', label: 'Setor Finishing' },
+      { targetId: 'sub-pr-serie-terimafinishing', label: 'Terima Finishing', aksi: ['serie_terima_sampai_finishing', 'serie_terima_unpack_finishing'] },
+      { targetId: 'sub-pr-serie-kirimgudang', label: 'Kirim Gudang', aksi: ['serie_kirim_gudang'] },
+      { targetId: 'sub-pr-serie-selesai', label: 'Selesai' },
+    ] },
+    { sub: 'Sewing', childs: [
+      { targetId: 'sub-pr-sewing-perludiproses', label: 'Perlu Di Proses', aksi: ['sewing_sampai', 'sewing_unpack', 'sewing_operator'] },
+      { targetId: 'sub-pr-sewing-sedangsewing', label: 'Sedang Sewing', aksi: ['sewing_entry'] },
+      { targetId: 'sub-pr-sewing-perludikirim', label: 'Perlu Dikirim', aksi: ['sewing_pack', 'sewing_kirim'] },
+      { targetId: 'sub-pr-sewing-sedangkirim', label: 'Sedang Kirim' },
+      { targetId: 'sub-pr-sewing-selesai', label: 'Selesai' },
+    ] },
+    { sub: 'Finishing', childs: [
+      { targetId: 'sub-pr-finishing-perludiproses', label: 'Perlu Di Proses', aksi: ['finishing_sampai', 'finishing_unpack', 'finishing_operator_qc_persiapan'] },
+      { targetId: 'sub-pr-finishing-sedangqc', label: 'Sedang QC', aksi: ['finishing_operator_qc', 'finishing_entry_qc'] },
+      { targetId: 'sub-pr-finishing-sedangsteam', label: 'Sedang Steam', aksi: ['finishing_operator_steam', 'finishing_entry_steam'] },
+      { targetId: 'sub-pr-finishing-sedangfolding', label: 'Sedang Folding', aksi: ['finishing_operator_folding', 'finishing_entry_folding'] },
+      { targetId: 'sub-pr-finishing-sedangpacking', label: 'Sedang Packing', aksi: ['finishing_operator_packing', 'finishing_entry_packing'] },
+      { targetId: 'sub-pr-finishing-perludikirim', label: 'Perlu Dikirim', aksi: ['finishing_pack', 'finishing_kirim'] },
+      { targetId: 'sub-pr-finishing-sedangkirim', label: 'Sedang Kirim' },
+      { targetId: 'sub-pr-finishing-selesai', label: 'Selesai' },
+    ] },
+    { sub: 'Gudang Barang Jadi', childs: [
+      { targetId: 'sub-pr-gudang-perludisimpan', label: 'Perlu Disimpan', aksi: ['gudang_sampai', 'gudang_unpack', 'gudang_masuk'] },
+      { targetId: 'sub-pr-gudang-stoktersedia', label: 'Stok Tersedia' },
+      { targetId: 'sub-pr-gudang-riwayatkeluar', label: 'Riwayat Keluar' },
+      { targetId: 'sub-pr-gudang-scanopname', label: 'Scan Opname' },
+    ] },
+  ] },
+];
 
-// DEFAULT_PILIHAN — dipakai kalau konteks belum punya dokumen
-// config_pilihan_scan (belum pernah diatur dari layar admin).
-export const DEFAULT_PILIHAN = {
-  'sub-pp-bahan-perludisiapkan': ['operator_bahan'],
-  'sub-pp-sewing-perludisiapkan': ['operator_sewing'],
-  'sub-pp-webbing-perludisiapkan': ['operator_webbing'],
-  'sub-pp-finishing-perludisiapkan': ['operator_finishing'],
-  'sub-pr-cutting-perludiproses': ['cutting_sampai', 'cutting_unpack'],
-  'sub-pr-cutting-perludikirim': ['cutting_pack', 'cutting_kirim']
-};
+// Diturunkan dari STRUKTUR_MENU_SCAN — JANGAN edit manual, edit strukturnya di atas.
+export const DAFTAR_KONTEKS = {};
+export const DEFAULT_PILIHAN = {};
+STRUKTUR_MENU_SCAN.forEach(g => g.subs.forEach(s => s.childs.forEach(c => {
+  if (!c.aksi || !c.aksi.length) return;
+  DAFTAR_KONTEKS[c.targetId] = `${g.group} > ${s.sub} > ${c.label}`;
+  DEFAULT_PILIHAN[c.targetId] = c.aksi;
+})));
 
 // Cache in-memory per sesi, hemat read Firestore — koleksinya kecil (jumlah
 // konteks, bukan jumlah scan). null = belum dimuat sekalipun.
 let _cachePilihanScan = null;
+let _janjiPilihanScan = null;
 
-async function pastikanCachePilihanScan() {
+// Diekspor — layar admin DAN setiap komponen desktop yang mau menggerbang
+// tombolnya lewat aksiAktif() WAJIB await ini dulu di muat()/onMounted().
+export async function pastikanCachePilihanScan() {
   if (_cachePilihanScan) return;
-  _cachePilihanScan = {};
-  try {
-    const snap = await getDocs(collection(db, 'config_pilihan_scan'));
-    snap.docs.forEach(d => { _cachePilihanScan[d.id] = d.data(); });
-  } catch (e) {
-    console.error('Gagal muat config_pilihan_scan, pakai default kode:', e);
-  }
+  if (_janjiPilihanScan) return _janjiPilihanScan;
+  _janjiPilihanScan = (async () => {
+    _cachePilihanScan = {};
+    try {
+      const snap = await getDocs(collection(db, 'config_pilihan_scan'));
+      snap.docs.forEach(d => { _cachePilihanScan[d.id] = d.data(); });
+    } catch (e) {
+      console.error('Gagal muat config_pilihan_scan, pakai default kode:', e);
+    }
+  })();
+  await _janjiPilihanScan;
+  _janjiPilihanScan = null;
 }
-// Dipanggil js/vue-pilihan-scan-config.js tiap simpan/hapus, supaya sheet ini
-// tidak nyangkut pakai cache lama sampai reload halaman.
+// Dipanggil js/vue-pilihan-scan-config.js tiap simpan/hapus, supaya sheet
+// mobile DAN tombol desktop tidak nyangkut pakai cache lama sampai reload.
 export function invalidasiCachePilihanScan() { _cachePilihanScan = null; }
 
-function ambilItemUntukTarget(targetId) {
+function idAksiUntukTarget(targetId) {
   const dariFirestore = _cachePilihanScan && _cachePilihanScan[targetId];
-  const ids = dariFirestore ? (dariFirestore.item_ids || []) : DEFAULT_PILIHAN[targetId];
-  if (!ids || !ids.length) return null;
-  const item = ids.map(id => DAFTAR_AKSI_SCAN[id]).filter(Boolean).map(a => ({
+  return dariFirestore ? (dariFirestore.item_ids || []) : (DEFAULT_PILIHAN[targetId] || []);
+}
+// aksiAktif — dipakai tombol DESKTOP lewat v-if. WAJIB pastikanCachePilihanScan()
+// sudah selesai (await di muat()) sebelum baris pertama yang memanggil ini
+// dirender, kalau tidak selalu jatuh ke DEFAULT_PILIHAN walau sudah diatur beda.
+export function aksiAktif(targetId, aksiId) {
+  return idAksiUntukTarget(targetId).includes(aksiId);
+}
+
+function ambilItemUntukTarget(targetId) {
+  const ids = idAksiUntukTarget(targetId);
+  if (!ids.length) return null;
+  // Aksi tanpa bridge window.bukaXxx (belum ada fitur globalnya, cuma tombol
+  // per-baris) sengaja disaring di sini — daripada tampil di sheet lalu diam
+  // saat ditekan karena window[fungsi] belum ada.
+  const item = ids.map(id => DAFTAR_AKSI_SCAN[id]).filter(a => a && typeof window[a.fungsi] === 'function').map(a => ({
     icon: a.icon, judul: a.judul, sub: a.sub, gaya: a.gaya,
     aksi: () => window[a.fungsi] && window[a.fungsi]()
   }));

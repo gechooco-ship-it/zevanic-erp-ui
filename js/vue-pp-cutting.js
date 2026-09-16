@@ -24,6 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=9';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=4';
 
 // Format & hitung kecil (disalin pola dari 4 pos Persiapan Produksi, belum
 // dipindah ke helper generik — lihat catatan "belum ada infrastruktur util
@@ -515,10 +516,10 @@ const CuttingPerluDiProses = {
     const { pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget } = pilihTargetMixin(daftarTampil);
     function bukaTunjukAmparToolbar() { bukaPilihTarget('Pilih SPK — Scan Operator Ampar', (track) => bukaTunjukAmpar(track)); }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
-      memuat, daftar, daftarTampil, bahanEnrich, unpackEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan, siapBahan,
+      memuat, daftar, daftarTampil, bahanEnrich, unpackEnrich, bolehProses, bolehOperator, aksiAktif, formatQty, formatDiamSejak, tertahan, siapBahan,
       sampaiTerpadu,
       unpackTerpadu,
       popupPinAmpar, pinSuksesAmpar,
@@ -534,9 +535,9 @@ const CuttingPerluDiProses = {
         Scan Masalah TETAP per-baris (butuh target jumlah/track spesifik).
       -->
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <button v-if="bolehProses" @click="sampaiTerpadu.buka" class="btn-primary" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-barcode" style="margin-right:6px;"></i>Scan Kode Tugas (Sampai)</button>
-        <button v-if="bolehProses" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
-        <button v-if="bolehOperator" @click="bukaTunjukAmparToolbar" class="btn-outline" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator Ampar</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-cutting-perludiproses','cutting_sampai')" @click="sampaiTerpadu.buka" class="btn-primary" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-barcode" style="margin-right:6px;"></i>Scan Kode Tugas (Sampai)</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-cutting-perludiproses','cutting_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
+        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting-perludiproses','cutting_operator_ampar')" @click="bukaTunjukAmparToolbar" class="btn-outline" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator Ampar</button>
       </div>
       <!--
         daftarTampil (bukan daftar mentah) — grouping yang bahannya belum di-Scan Kirim
@@ -693,10 +694,10 @@ const CuttingSedangAmpar = {
     function bukaScanEntryToolbar() { bukaPilihTarget('Pilih SPK — Scan Entry Ampar', (track) => bukaScanEntry(track)); }
     function bukaTunjukPolaToolbar() { bukaPilihTarget('Pilih SPK — Ampar Selesai & Tunjuk Operator Pola', (track) => bukaTunjukPola(track)); }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
-      memuat, daftar, bahanEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
+      memuat, daftar, bahanEnrich, bolehProses, bolehOperator, aksiAktif, formatQty, formatDiamSejak, tertahan,
       modalEntry, tutupScanEntry, hasilScanEntry,
       popupPinPola, pinSuksesPola,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
@@ -707,8 +708,8 @@ const CuttingSedangAmpar = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <button v-if="bolehProses" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
-        <button v-if="bolehOperator" @click="bukaTunjukPolaToolbar" class="btn-outline" style="flex:1; min-width:200px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Ampar Selesai &amp; Tunjuk Operator Pola</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-cutting-sedangampar','cutting_entry_ampar')" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
+        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting-sedangampar','cutting_operator_pola')" @click="bukaTunjukPolaToolbar" class="btn-outline" style="flex:1; min-width:200px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Ampar Selesai &amp; Tunjuk Operator Pola</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-gears"></i></div>
@@ -894,10 +895,10 @@ const CuttingSedangPola = {
     function bukaScanEntryToolbar() { bukaPilihTarget('Pilih SPK — Scan Entry Pola', (track) => bukaScanEntry(track)); }
     function bukaTunjukCuttingToolbar() { bukaPilihTarget('Pilih SPK — Pola Selesai & Tunjuk Operator Cutting', (track) => bukaTunjukCutting(track)); }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
-      memuat, daftar, bahanEnrich, bolehProses, bolehCetak, bolehOperator, sedangCetak, formatQty, formatDiamSejak, tertahan, progres,
+      memuat, daftar, bahanEnrich, bolehProses, bolehCetak, bolehOperator, aksiAktif, sedangCetak, formatQty, formatDiamSejak, tertahan, progres,
       popupCetakAktif, daftarLabelPreview, cetakLabelKomponen,
       modalEntry, tutupScanEntry, hasilScanEntry,
       popupPinCutting, pinSuksesCutting,
@@ -909,8 +910,8 @@ const CuttingSedangPola = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <button v-if="bolehProses" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
-        <button v-if="bolehOperator" @click="bukaTunjukCuttingToolbar" class="btn-outline" style="flex:1; min-width:220px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Pola Selesai &amp; Tunjuk Operator Cutting</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-cutting-sedangpola','cutting_entry_pola')" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
+        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting-sedangpola','cutting_operator_cutting')" @click="bukaTunjukCuttingToolbar" class="btn-outline" style="flex:1; min-width:220px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Pola Selesai &amp; Tunjuk Operator Cutting</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-shapes"></i></div>
@@ -1053,10 +1054,10 @@ const CuttingSedangCutting = {
     const { pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget } = pilihTargetMixin(daftar);
     function bukaScanEntryToolbar() { bukaPilihTarget('Pilih SPK — Scan Entry Cutting', (track) => bukaScanEntry(track)); }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
-      memuat, daftar, bahanEnrich, bolehProses, formatQty, formatDiamSejak, tertahan, progres,
+      memuat, daftar, bahanEnrich, bolehProses, aksiAktif, formatQty, formatDiamSejak, tertahan, progres,
       modalEntry, tutupScanEntry, hasilScanEntry, tandaiSelesaiCutting,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
       pilihTarget, batalPilihTarget, konfirmasiPilihTarget, bukaScanEntryToolbar
@@ -1066,7 +1067,7 @@ const CuttingSedangCutting = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <button v-if="bolehProses" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-cutting-sedangcutting','cutting_entry_cutting')" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-scissors"></i></div>
@@ -1325,10 +1326,10 @@ const CuttingPerluDiKirim = {
       await muat();
     });
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
-      memuat, daftar, daftarTlc, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
+      memuat, daftar, daftarTlc, bolehProses, bolehCetak, aksiAktif, sedangProses, formatQty, formatDiamSejak, tertahan,
       popupKirim, bukaCetakKirim, konfirmasiCetakKirim, popupCetakAktif, daftarLabelPreview,
       packTerpadu, kirimTerpadu,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
@@ -1338,8 +1339,8 @@ const CuttingPerluDiKirim = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button @click="packTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
-        <button @click="kirimTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
+        <button v-if="aksiAktif('sub-pr-cutting-perludikirim','cutting_pack')" @click="packTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button v-if="aksiAktif('sub-pr-cutting-perludikirim','cutting_kirim')" @click="kirimTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-box-open"></i></div>
@@ -1586,24 +1587,33 @@ window.pastikanMountCuttingPerluDiProses = function () {
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
 window.bukaScanSampaiCutting = function () { if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.sampaiTerpadu.buka(); };
 window.bukaScanUnpackCutting = function () { if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.unpackTerpadu.buka(); };
+window.bukaCuttingOperatorAmpar = function () { if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.bukaTunjukAmparToolbar(); };
 let vmCuttingSedangAmpar = null;
 window.pastikanMountCuttingSedangAmpar = function () {
   if (vmCuttingSedangAmpar) { if (typeof vmCuttingSedangAmpar.muat === 'function') vmCuttingSedangAmpar.muat(); return; }
   const mountPoint = document.getElementById('vue-cutting-sedangampar');
   if (mountPoint) vmCuttingSedangAmpar = createApp(CuttingSedangAmpar).mount('#vue-cutting-sedangampar');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaCuttingEntryAmpar = function () { if (vmCuttingSedangAmpar) vmCuttingSedangAmpar.bukaScanEntryToolbar(); };
+window.bukaCuttingOperatorPola = function () { if (vmCuttingSedangAmpar) vmCuttingSedangAmpar.bukaTunjukPolaToolbar(); };
 let vmCuttingSedangPola = null;
 window.pastikanMountCuttingSedangPola = function () {
   if (vmCuttingSedangPola) { if (typeof vmCuttingSedangPola.muat === 'function') vmCuttingSedangPola.muat(); return; }
   const mountPoint = document.getElementById('vue-cutting-sedangpola');
   if (mountPoint) vmCuttingSedangPola = createApp(CuttingSedangPola).mount('#vue-cutting-sedangpola');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaCuttingEntryPola = function () { if (vmCuttingSedangPola) vmCuttingSedangPola.bukaScanEntryToolbar(); };
+window.bukaCuttingOperatorCutting = function () { if (vmCuttingSedangPola) vmCuttingSedangPola.bukaTunjukCuttingToolbar(); };
 let vmCuttingSedangCutting = null;
 window.pastikanMountCuttingSedangCutting = function () {
   if (vmCuttingSedangCutting) { if (typeof vmCuttingSedangCutting.muat === 'function') vmCuttingSedangCutting.muat(); return; }
   const mountPoint = document.getElementById('vue-cutting-sedangcutting');
   if (mountPoint) vmCuttingSedangCutting = createApp(CuttingSedangCutting).mount('#vue-cutting-sedangcutting');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaCuttingEntryCutting = function () { if (vmCuttingSedangCutting) vmCuttingSedangCutting.bukaScanEntryToolbar(); };
 let vmCuttingPerluDiKirim = null;
 window.pastikanMountCuttingPerluDiKirim = function () {
   if (vmCuttingPerluDiKirim) { if (typeof vmCuttingPerluDiKirim.muat === 'function') vmCuttingPerluDiKirim.muat(); return; }

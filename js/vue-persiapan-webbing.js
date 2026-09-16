@@ -24,6 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=13';
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=4';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier
 // pic/pic_owner/owner/superuser, TANPA popup PIN: cukup tier akun yang login.
@@ -545,11 +546,11 @@ const PersiapanWebbingPerluDisiapkan = {
       } catch (e) { console.error('Gagal scan sampai:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
-    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await muat(); });
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, kartuList, cari, isChecked, toggleCheck,
-      bolehProses, bolehCetak, bolehEdit, formatQty, formatWaktu, formatRoll, ICON_KOSONG,
+      bolehProses, bolehCetak, bolehEdit, aksiAktif, formatQty, formatWaktu, formatRoll, ICON_KOSONG,
       // `barisKey` dipakai sebagai :key v-for di template, jadi WAJIB ikut di-return
       // dari setup. Kalau tidak, begitu kartuList terisi Vue memanggil _ctx.barisKey
       // yang undefined -> render crash -> vnode lama ("Memuat..") tertahan di layar.
@@ -572,8 +573,8 @@ const PersiapanWebbingPerluDisiapkan = {
           <div class="sub">{{ kpiHeader.spkMenunggu }} SPK menunggu &middot; {{ kpiHeader.siapDicetak }} siap dicetak</div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button v-if="bolehEdit" @click="bukaScanSampaiGlobal" class="btn-outline" style="padding:8px 14px;"><i class="fas fa-inbox" style="margin-right:6px;"></i>Scan Sampai</button>
-          <button v-if="bolehProses" @click="bukaPenunjukanGlobal" class="btn-primary" style="padding:8px 14px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+          <button v-if="bolehEdit && aksiAktif(MY_TARGET,'sampai_masalah_webbing')" @click="bukaScanSampaiGlobal" class="btn-outline" style="padding:8px 14px;"><i class="fas fa-inbox" style="margin-right:6px;"></i>Scan Sampai</button>
+          <button v-if="bolehProses && aksiAktif(MY_TARGET,'operator_webbing')" @click="bukaPenunjukanGlobal" class="btn-primary" style="padding:8px 14px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
         </div>
       </div>
 
@@ -846,10 +847,10 @@ const PersiapanWebbingSedangDisiapkan = {
       sedangProses[key] = false;
     }
 
-    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await muat(); });
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
-      memuat, kelompokOperator, bolehProses, sedangProses, sedangProsesBatch, konfirmasiDisiapkan,
+      memuat, kelompokOperator, bolehProses, aksiAktif, sedangProses, sedangProsesBatch, konfirmasiDisiapkan,
       formatQty, formatRoll, formatDiamSejak, tertahan, barisKey,
       modalAksi, bukaAksi, tutupAksi, hasilScanAksi,
       popupMasalah, batalMasalah, konfirmasiMasalah, bukaMasalahBaris,
@@ -902,8 +903,8 @@ const PersiapanWebbingSedangDisiapkan = {
                 <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ b.nama_aksesoris }} {{ b.warna }} &middot; {{ formatQty(b.butuh) }} {{ b.satuan }} &middot; {{ formatRoll(b.roll) }} &middot; {{ b.nama_produk }}</div>
                 <div v-if="b.catatan_masalah" style="font-size:10.5px; color:var(--danger); background:var(--danger-light); border-radius:8px; padding:5px 8px; margin-bottom:6px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ b.catatan_masalah }}</div>
                 <div v-if="bolehProses && !(b.entry_qty || b.entry_qty===0)" style="display:flex; gap:6px;">
-                  <button @click="bukaAksi('entry', b)" :disabled="sedangProses[barisKey(b)]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
-                  <button @click="bukaAksi('masalah', b)" :disabled="sedangProses[barisKey(b)]" class="btn-outline" style="flex:1; padding:7px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Masalah</button>
+                  <button v-if="aksiAktif(MY_TARGET,'entry_webbing')" @click="bukaAksi('entry', b)" :disabled="sedangProses[barisKey(b)]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
+                  <button v-if="aksiAktif(MY_TARGET,'masalah_webbing')" @click="bukaAksi('masalah', b)" :disabled="sedangProses[barisKey(b)]" class="btn-outline" style="flex:1; padding:7px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Masalah</button>
                   <button @click="bukaAksi('ganti', b)" :disabled="sedangProses[barisKey(b)]" class="btn-outline" style="flex:0 0 auto; padding:7px 9px; font-size:11px;" title="Ganti Operator (estafet shift)"><i class="fas fa-arrow-right-arrow-left"></i></button>
                 </div>
               </div>
@@ -1163,10 +1164,10 @@ const PersiapanWebbingPerluDikirim = {
       }
     });
 
-    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await muat(); });
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
-      memuat, kelompokSepack, daftarTlc, bolehProses, bolehCetak, sedangProses,
+      memuat, kelompokSepack, daftarTlc, bolehProses, bolehCetak, aksiAktif, sedangProses,
       // sama seperti komponen "Perlu Disiapkan" di atas: barisKey dipakai
       // templat (key v-for) tapi lupa di-return.
       formatQty, formatDiamSejak, tertahan, barisKey,
@@ -1200,8 +1201,8 @@ const PersiapanWebbingPerluDikirim = {
         <button @click="bukaCetakTugas" class="btn-outline" style="flex:1; min-width:150px; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Kode Tugas</button>
       </div>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button @click="packTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
-        <button @click="kirimTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
+        <button v-if="aksiAktif(MY_TARGET,'pack_webbing')" @click="packTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button v-if="aksiAktif(MY_TARGET,'kirim_webbing')" @click="kirimTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
       </div>
 
       <div v-if="kelompokSepack.length === 0" class="gc-kosong gc-card">
@@ -1503,6 +1504,7 @@ window.pastikanMountPpWebbingPerluDisiapkan = function () {
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js) — panggil varian
 // toolbar global (kartuAktifTunjuk null), sama seperti klik tombol toolbar.
 window.bukaScanOperatorWebbing = function () { if (vmPpWebbingPerluDisiapkan) vmPpWebbingPerluDisiapkan.bukaPenunjukanGlobal(); };
+window.bukaSampaiMasalahWebbing = function () { if (vmPpWebbingPerluDisiapkan) vmPpWebbingPerluDisiapkan.bukaScanSampaiGlobal(); };
 let vmPpWebbingSedangDisiapkan = null;
 window.pastikanMountPpWebbingSedangDisiapkan = function () {
   if (vmPpWebbingSedangDisiapkan) { if (typeof vmPpWebbingSedangDisiapkan.muat === 'function') vmPpWebbingSedangDisiapkan.muat(); return; }
@@ -1515,6 +1517,10 @@ window.pastikanMountPpWebbingPerluDikirim = function () {
   const mountPoint = document.getElementById('vue-pp-webbing-perludikirim');
   if (mountPoint) vmPpWebbingPerluDikirim = createApp(PersiapanWebbingPerluDikirim).mount('#vue-pp-webbing-perludikirim');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js) — sama pola
+// bukaScanPackCutting/bukaScanKirimCutting di vue-pp-cutting.js.
+window.bukaPackWebbing = function () { if (vmPpWebbingPerluDikirim) vmPpWebbingPerluDikirim.packTerpadu.buka(); };
+window.bukaKirimWebbing = function () { if (vmPpWebbingPerluDikirim) vmPpWebbingPerluDikirim.kirimTerpadu.buka(); };
 let vmPpWebbingSedangDikirim = null;
 window.pastikanMountPpWebbingSedangDikirim = function () {
   if (vmPpWebbingSedangDikirim) { if (typeof vmPpWebbingSedangDikirim.muat === 'function') vmPpWebbingSedangDikirim.muat(); return; }

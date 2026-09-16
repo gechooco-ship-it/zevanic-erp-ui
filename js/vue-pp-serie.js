@@ -24,6 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=4';
 
 // Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan Produksi,
 // belum ada infrastruktur util generik lintas file).
@@ -549,7 +550,7 @@ const SeriePerluDiProses = {
       await kirimMasalahSerie({ id: p.target.id, kode_batch: p.target.kode_spk, nama_produk: p.target.nama_produk, size: p.target.size }, p.jumlah, p.alasan);
     });
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, daftarGrouping, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan, sumber, bisaGenerate,
@@ -558,15 +559,16 @@ const SeriePerluDiProses = {
       unpackTerpadu,
       popupGenerate, bukaGenerate, batalGenerate, totalQtyCentang, sedangGenerate, konfirmasiGenerate,
       popupCetakBatch, daftarLabelBatch,
-      popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
+      popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
+      aksiAktif
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
-        <button v-if="bolehProses" @click="bukaScanSampai" class="btn-primary" style="padding:8px 12px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Sampai</button>
-        <button v-if="bolehProses" @click="unpackTerpadu.buka" class="btn-outline" style="padding:8px 12px; font-size:11.5px;"><i class="fas fa-box-open" style="margin-right:4px;"></i>Scan Unpack (dari Cutting)</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-serie-perludiproses','serie_sampai')" @click="bukaScanSampai" class="btn-primary" style="padding:8px 12px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Sampai</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-serie-perludiproses','serie_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="padding:8px 12px; font-size:11.5px;"><i class="fas fa-box-open" style="margin-right:4px;"></i>Scan Unpack (dari Cutting)</button>
       </div>
       <div v-if="daftarGrouping.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-inbox"></i></div>
@@ -812,7 +814,7 @@ const SerieSedangDiProses = {
     function bukaScanOperatorToolbar() { bukaPilihTarget('Pilih batch untuk Scan Operator', bukaScanOperator); }
     function bukaScanEntryToolbar() { bukaPilihTarget('Pilih batch untuk Scan Entry', bukaScanEntry); }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, daftar, bolehProses, bolehCetak, bolehOperator, formatQty, formatDiamSejak, tertahan, formatWaktu,
@@ -823,15 +825,16 @@ const SerieSedangDiProses = {
       modalEntry, bukaScanEntry, tutupScanEntry, hasilScanEntry,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
       pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget,
-      bukaScanOperatorToolbar, bukaScanEntryToolbar
+      bukaScanOperatorToolbar, bukaScanEntryToolbar,
+      aksiAktif
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
-        <button v-if="bolehOperator" @click="bukaScanOperatorToolbar" class="btn-outline" style="padding:9px 14px; font-size:12px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator</button>
-        <button v-if="bolehProses" @click="bukaScanEntryToolbar" class="btn-primary" style="padding:9px 14px; font-size:12px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Entry</button>
+        <button v-if="bolehOperator && aksiAktif('sub-pr-serie-sedangdiproses','serie_operator')" @click="bukaScanOperatorToolbar" class="btn-outline" style="padding:9px 14px; font-size:12px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-serie-sedangdiproses','serie_entry')" @click="bukaScanEntryToolbar" class="btn-primary" style="padding:9px 14px; font-size:12px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Entry</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-gears"></i></div>
@@ -1042,20 +1045,21 @@ const SeriePerluDiKirim = {
       await muat();
     });
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, daftar, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
       popupCetakAktif, daftarLabelPreview, cetakKodeBagging,
       modalPack, bukaScanPack, tutupScanPack, hasilScanPack, tutupBagging,
-      popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
+      popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
+      aksiAktif
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button v-if="aksiAktif('sub-pr-serie-perludikirim','serie_pack')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-box"></i></div>
@@ -1110,7 +1114,8 @@ const SeriePerluDiKirim = {
 
 function buatTabKirim(cfg) {
   // cfg: { statusFilter, statusSetelah, tlcTujuan, namaTujuan, judul,
-  // kosongTeks, icon }
+  // kosongTeks, icon, targetIdScan, aksiIdKirim } — 2 field terakhir untuk
+  // gerbang tombol Scan Kirim lewat aksiAktif (beda per tujuan).
   return {
     components: { PopupPratinjauCetakLabel, ScanGenerik },
     setup() {
@@ -1203,20 +1208,21 @@ function buatTabKirim(cfg) {
         await muat();
       });
 
-      onMounted(async () => { await window.authReady; await muat(); });
+      onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
       return {
         cfg, memuat, muat, daftar, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
         popupCetak, bukaCetakTugas, konfirmasiCetakTugas, popupCetakAktif, daftarLabelPreview,
         modalKirim, bukaScanKirim, tutupScanKirim, hasilScanKirim,
-        popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
+        popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
+        aksiAktif
       };
     },
     template: `
       <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
       <template v-else>
         <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-          <button @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Scan Kirim</button>
+          <button v-if="aksiAktif(cfg.targetIdScan, cfg.aksiIdKirim)" @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Scan Kirim</button>
         </div>
         <div v-if="daftar.length === 0" class="gc-kosong gc-card">
           <div class="lingkaran"><i class="fas" :class="cfg.icon"></i></div>
@@ -1276,15 +1282,18 @@ function buatTabKirim(cfg) {
 }
 const SerieKirimSewing = buatTabKirim({
   statusFilter: 'perlu_dikirim', statusSetelah: 'kirim_sewing', tlcTujuan: TLC_TUJUAN_SEWING, namaTujuan: 'Sewing',
-  judul: 'Kirim Sewing', kosongTeks: 'Tidak ada batch siap kirim ke Sewing', icon: 'fa-shirt'
+  judul: 'Kirim Sewing', kosongTeks: 'Tidak ada batch siap kirim ke Sewing', icon: 'fa-shirt',
+  targetIdScan: 'sub-pr-serie-kirimsewing', aksiIdKirim: 'serie_kirim_sewing'
 });
 const SerieKirimFinishing = buatTabKirim({
   statusFilter: 'terima_sewing', statusSetelah: 'kirim_finishing', tlcTujuan: TLC_TUJUAN_FINISHING, namaTujuan: 'Finishing',
-  judul: 'Kirim Finishing', kosongTeks: 'Tidak ada batch siap kirim ke Finishing', icon: 'fa-spray-can-sparkles'
+  judul: 'Kirim Finishing', kosongTeks: 'Tidak ada batch siap kirim ke Finishing', icon: 'fa-spray-can-sparkles',
+  targetIdScan: 'sub-pr-serie-kirimfinishing', aksiIdKirim: 'serie_kirim_finishing'
 });
 const SerieKirimGudang = buatTabKirim({
   statusFilter: 'terima_finishing', statusSetelah: 'kirim_gudang', tlcTujuan: TLC_TUJUAN_GUDANG, namaTujuan: 'Gudang Barang Jadi',
-  judul: 'Kirim Gudang', kosongTeks: 'Tidak ada batch siap kirim ke Gudang', icon: 'fa-warehouse'
+  judul: 'Kirim Gudang', kosongTeks: 'Tidak ada batch siap kirim ke Gudang', icon: 'fa-warehouse',
+  targetIdScan: 'sub-pr-serie-kirimgudang', aksiIdKirim: 'serie_kirim_gudang'
 });
 
 
@@ -1353,7 +1362,8 @@ const SerieSetorFinishing = buatTabSetor({ muatFn: muatSemuaFinishingTrack, judu
 
 function buatTabTerima(cfg) {
   // cfg: { koleksi, statusSetelah, namaAsal, judul, kosongTeks, icon,
-  // baggingArray, fieldBagging }
+  // baggingArray, fieldBagging, targetIdScan, aksiIdSampai, aksiIdUnpack } —
+  // 3 field terakhir untuk gerbang tombol Scan Sampai/Unpack lewat aksiAktif.
   return {
     components: { ScanGenerik, ScanTerpaduGenerik },
     setup() {
@@ -1487,21 +1497,22 @@ function buatTabTerima(cfg) {
         await muat();
       });
 
-      onMounted(async () => { await window.authReady; await muat(); });
+      onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
       return {
         cfg, memuat, muat, daftar, bolehProses, formatQty, formatDiamSejak, tertahan,
         modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
         unpackTerpadu,
-        popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
+        popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
+        aksiAktif
       };
     },
     template: `
       <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
       <template v-else>
         <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-          <button @click="bukaScanSampai" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
-          <button v-if="bolehProses" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
+          <button v-if="aksiAktif(cfg.targetIdScan, cfg.aksiIdSampai)" @click="bukaScanSampai" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
+          <button v-if="aksiAktif(cfg.targetIdScan, cfg.aksiIdUnpack)" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
         </div>
         <div v-if="daftar.length === 0" class="gc-kosong gc-card">
           <div class="lingkaran"><i class="fas" :class="cfg.icon"></i></div>
@@ -1543,12 +1554,14 @@ function buatTabTerima(cfg) {
 const SerieTerimaSewing = buatTabTerima({
   koleksi: 'sewing_track', statusMenunggu: 'kirim_sewing', statusSetelah: 'terima_sewing', namaAsal: 'Sewing',
   judul: 'Terima Sewing', kosongTeks: 'Tidak ada batch yang sedang ditunggu dari Sewing', icon: 'fa-truck-ramp-box',
-  baggingArray: true, fieldBagging: 'kode_bagging'
+  baggingArray: true, fieldBagging: 'kode_bagging',
+  targetIdScan: 'sub-pr-serie-terimasewing', aksiIdSampai: 'serie_terima_sampai_sewing', aksiIdUnpack: 'serie_terima_unpack_sewing'
 });
 const SerieTerimaFinishing = buatTabTerima({
   koleksi: 'finishing_track', statusMenunggu: 'kirim_finishing', statusSetelah: 'terima_finishing', namaAsal: 'Finishing',
   judul: 'Terima Finishing', kosongTeks: 'Tidak ada batch yang sedang ditunggu dari Finishing', icon: 'fa-truck-ramp-box',
-  baggingArray: false, fieldBagging: 'kode_bagging'
+  baggingArray: false, fieldBagging: 'kode_bagging',
+  targetIdScan: 'sub-pr-serie-terimafinishing', aksiIdSampai: 'serie_terima_sampai_finishing', aksiIdUnpack: 'serie_terima_unpack_finishing'
 });
 
 
@@ -1649,24 +1662,34 @@ window.pastikanMountSeriePerluDiProses = function () {
   const mountPoint = document.getElementById('vue-serie-perludiproses');
   if (mountPoint) vmSeriePerluDiProses = createApp(SeriePerluDiProses).mount('#vue-serie-perludiproses');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaSerieSampai = function () { if (vmSeriePerluDiProses) vmSeriePerluDiProses.bukaScanSampai(); };
+window.bukaSerieUnpack = function () { if (vmSeriePerluDiProses) vmSeriePerluDiProses.unpackTerpadu.buka(); };
 let vmSerieSedangDiProses = null;
 window.pastikanMountSerieSedangDiProses = function () {
   if (vmSerieSedangDiProses) { if (typeof vmSerieSedangDiProses.muat === 'function') vmSerieSedangDiProses.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-sedangdiproses');
   if (mountPoint) vmSerieSedangDiProses = createApp(SerieSedangDiProses).mount('#vue-serie-sedangdiproses');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaSerieOperator = function () { if (vmSerieSedangDiProses) vmSerieSedangDiProses.bukaScanOperatorToolbar(); };
+window.bukaSerieEntry = function () { if (vmSerieSedangDiProses) vmSerieSedangDiProses.bukaScanEntryToolbar(); };
 let vmSeriePerluDiKirim = null;
 window.pastikanMountSeriePerluDiKirim = function () {
   if (vmSeriePerluDiKirim) { if (typeof vmSeriePerluDiKirim.muat === 'function') vmSeriePerluDiKirim.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-perludikirim');
   if (mountPoint) vmSeriePerluDiKirim = createApp(SeriePerluDiKirim).mount('#vue-serie-perludikirim');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaSeriePack = function () { if (vmSeriePerluDiKirim) vmSeriePerluDiKirim.bukaScanPack(); };
 let vmSerieKirimSewing = null;
 window.pastikanMountSerieKirimSewing = function () {
   if (vmSerieKirimSewing) { if (typeof vmSerieKirimSewing.muat === 'function') vmSerieKirimSewing.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-kirimsewing');
   if (mountPoint) vmSerieKirimSewing = createApp(SerieKirimSewing).mount('#vue-serie-kirimsewing');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaSerieKirimSewing = function () { if (vmSerieKirimSewing) vmSerieKirimSewing.bukaScanKirim(); };
 let vmSerieSetorSewing = null;
 window.pastikanMountSerieSetorSewing = function () {
   if (vmSerieSetorSewing) { if (typeof vmSerieSetorSewing.muat === 'function') vmSerieSetorSewing.muat(); return; }
@@ -1679,12 +1702,17 @@ window.pastikanMountSerieTerimaSewing = function () {
   const mountPoint = document.getElementById('vue-serie-terimasewing');
   if (mountPoint) vmSerieTerimaSewing = createApp(SerieTerimaSewing).mount('#vue-serie-terimasewing');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaSerieTerimaSampaiSewing = function () { if (vmSerieTerimaSewing) vmSerieTerimaSewing.bukaScanSampai(); };
+window.bukaSerieTerimaUnpackSewing = function () { if (vmSerieTerimaSewing) vmSerieTerimaSewing.unpackTerpadu.buka(); };
 let vmSerieKirimFinishing = null;
 window.pastikanMountSerieKirimFinishing = function () {
   if (vmSerieKirimFinishing) { if (typeof vmSerieKirimFinishing.muat === 'function') vmSerieKirimFinishing.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-kirimfinishing');
   if (mountPoint) vmSerieKirimFinishing = createApp(SerieKirimFinishing).mount('#vue-serie-kirimfinishing');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaSerieKirimFinishing = function () { if (vmSerieKirimFinishing) vmSerieKirimFinishing.bukaScanKirim(); };
 let vmSerieSetorFinishing = null;
 window.pastikanMountSerieSetorFinishing = function () {
   if (vmSerieSetorFinishing) { if (typeof vmSerieSetorFinishing.muat === 'function') vmSerieSetorFinishing.muat(); return; }
@@ -1697,12 +1725,17 @@ window.pastikanMountSerieTerimaFinishing = function () {
   const mountPoint = document.getElementById('vue-serie-terimafinishing');
   if (mountPoint) vmSerieTerimaFinishing = createApp(SerieTerimaFinishing).mount('#vue-serie-terimafinishing');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaSerieTerimaSampaiFinishing = function () { if (vmSerieTerimaFinishing) vmSerieTerimaFinishing.bukaScanSampai(); };
+window.bukaSerieTerimaUnpackFinishing = function () { if (vmSerieTerimaFinishing) vmSerieTerimaFinishing.unpackTerpadu.buka(); };
 let vmSerieKirimGudang = null;
 window.pastikanMountSerieKirimGudang = function () {
   if (vmSerieKirimGudang) { if (typeof vmSerieKirimGudang.muat === 'function') vmSerieKirimGudang.muat(); return; }
   const mountPoint = document.getElementById('vue-serie-kirimgudang');
   if (mountPoint) vmSerieKirimGudang = createApp(SerieKirimGudang).mount('#vue-serie-kirimgudang');
 };
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
+window.bukaSerieKirimGudang = function () { if (vmSerieKirimGudang) vmSerieKirimGudang.bukaScanKirim(); };
 let vmSerieSelesai = null;
 window.pastikanMountSerieSelesai = function () {
   if (vmSerieSelesai) { if (typeof vmSerieSelesai.muat === 'function') vmSerieSelesai.muat(); return; }
