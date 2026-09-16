@@ -338,8 +338,8 @@ const AppDaftarKaryawan = {
     const bolehEdit = computed(() => window.cekIzinMenu('daftar_karyawan', 'edit') !== false);
     // Izin print badge/barcode default DITOLAK, kebalikan dari bolehEdit/bolehHapus
     // yang menganggap izin belum diatur (null) sebagai BOLEH — ini mencetak
-    // identitas fisik. Owner/Superuser selalu boleh; role lain wajib diizinkan
-    // eksplisit lewat Config Akses (centang kolom Print).
+    // identitas fisik. Owner/PIC Owner selalu boleh; role lain wajib diizinkan
+    // eksplisit lewat jabatannya (centang kolom Print).
     const bolehPrint = computed(() => {
       const roleSaya = (window.currentUser.role || '').toLowerCase();
       if (['owner', 'pic_owner'].includes(roleSaya)) return true;
