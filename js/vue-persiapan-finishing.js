@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=8';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier
 // pic/pic_owner/owner/superuser, TANPA popup PIN: cukup tier akun yang login.
@@ -355,16 +355,25 @@ const PersiapanFinishingPerluDisiapkan = {
     // Cetak ulang: alasan + PIN diverifikasi kriptografis lewat `PopupPinGenerik`
     // (js/vue-scan-cetak.js, rolesDiizinkan=null = semua admin-level) dan dicatat di
     // cetak_ulang_log — PIN siapa pun diterima, yang dicatat adalah pemilik PIN.
-    const popupCetakUlang = ref(null); // { kartu, alasan }
+    // Baris yang mau dicetak ulang WAJIB dicentang satu-satu (pilihan mulai
+    // kosong) — supaya tidak semua label kartu ikut tercetak ulang sekaligus
+    // dan boros kertas.
+    const popupCetakUlang = ref(null); // { kartu, alasan, pilihan: {barisKey: boolean} }
     const pinCetakUlangAktif = ref(false);
     function bukaCetakUlang(k) {
       if (!k.baris.some(b => b.label_cetak_pada)) return;
-      popupCetakUlang.value = { kartu: k, alasan: '' };
+      popupCetakUlang.value = { kartu: k, alasan: '', pilihan: {} };
+    }
+    function barisTerpilihCetakUlang() {
+      const p = popupCetakUlang.value;
+      if (!p) return [];
+      return p.kartu.baris.filter(b => b.label_cetak_pada && p.pilihan[barisKey(b)]);
     }
     function lanjutCetakUlang() {
       const p = popupCetakUlang.value;
       if (!p) return;
       if (!p.alasan.trim()) { alert('Alasan cetak ulang wajib diisi.'); return; }
+      if (!barisTerpilihCetakUlang().length) { alert('Pilih minimal 1 label yang mau dicetak ulang.'); return; }
       pinCetakUlangAktif.value = true;
     }
     function batalPinCetakUlang() { pinCetakUlangAktif.value = false; }
@@ -372,7 +381,8 @@ const PersiapanFinishingPerluDisiapkan = {
       pinCetakUlangAktif.value = false;
       const p = popupCetakUlang.value;
       if (!p) return;
-      const sudahDicetak = p.kartu.baris.filter(b => b.label_cetak_pada);
+      const sudahDicetak = barisTerpilihCetakUlang(); // HANYA yang dicentang, bukan semua isi kartu
+      if (!sudahDicetak.length) { popupCetakUlang.value = null; return; }
       // Sama fungsi dgn cetakLabelKartu di atas (bangunLabelAksesoris bersama)
       // supaya label cetak-ulang PERSIS format cetak normal, tetap cocok dgn
       // scanOperator.validasiIsi/hasilScanAksi.
@@ -414,7 +424,8 @@ const PersiapanFinishingPerluDisiapkan = {
         validasi: async (kode) => {
           const karyawan = await cariKaryawanByQr(kode);
           if (!karyawan) return { ok: false, pesan: 'QR tidak dikenali — operator/tim tidak ditemukan.' };
-          return { ok: true, data: { id: karyawan.id, nama: karyawan.nama || karyawan.name || karyawan.id } };
+          const nama = karyawan.nama || karyawan.name || '';
+          return { ok: true, data: { id: karyawan.id, nama: nama || karyawan.id }, label: nama ? (nama + ' (' + kode + ')') : kode };
         }
       },
       validasiIsi: async (kode) => {
@@ -497,7 +508,7 @@ const PersiapanFinishingPerluDisiapkan = {
       barisKey, bangunLabelAksesoris,
       TAB_DEFS_FINISHING, gantiTabPill, MY_TARGET, kpiHeader,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, onCetakSelesai,
-      popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang,
+      popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang, barisTerpilihCetakUlang,
       scanOperator, bukaPenunjukan, bukaPenunjukanGlobal,
       modalScanSampai, bukaScanSampaiGlobal, tutupScanSampai, hasilScanSampai
     };
@@ -607,11 +618,17 @@ const PersiapanFinishingPerluDisiapkan = {
     <div v-if="popupCetakUlang" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;"><i class="fas fa-rotate" style="margin-right:8px; color:var(--warn);"></i>Cetak Ulang Label</h3>
-        <p style="font-size:11px; color:var(--text-faint); margin:0 0 10px;">{{ popupCetakUlang.kartu.kodeSpk }} — dicatat di riwayat cetak ulang.</p>
+        <p style="font-size:11px; color:var(--text-faint); margin:0 0 10px;">{{ popupCetakUlang.kartu.kodeSpk }} — centang label yang mau dicetak ulang, dicatat di riwayat cetak ulang.</p>
+        <div style="display:flex; flex-direction:column; gap:4px; max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:12px; padding:8px; margin-bottom:12px;">
+          <label v-for="b in popupCetakUlang.kartu.baris.filter(x => x.label_cetak_pada)" :key="barisKey(b)" style="display:flex; align-items:center; gap:8px; font-size:11px; padding:4px 2px;">
+            <input type="checkbox" v-model="popupCetakUlang.pilihan[barisKey(b)]">
+            <span class="gc-num" style="font-weight:700;">{{ bangunLabelAksesoris(b, formatQty).kode }}</span>
+          </label>
+        </div>
         <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupCetakUlang.alasan" type="text" placeholder="Mis. label rusak/hilang"></div>
         <div style="display:flex; gap:8px;">
           <button @click="popupCetakUlang = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
-          <button @click="lanjutCetakUlang" class="btn-primary" style="flex:1; padding:9px;">Lanjut Verifikasi PIN</button>
+          <button @click="lanjutCetakUlang" :disabled="!barisTerpilihCetakUlang().length" class="btn-primary" style="flex:1; padding:9px;">Lanjut Verifikasi PIN</button>
         </div>
       </div>
     </div>

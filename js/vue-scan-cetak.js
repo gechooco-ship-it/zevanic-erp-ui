@@ -7,17 +7,17 @@
 // Koleksi & field:
 // - riwayat_pin: { uid, nama_pengguna, menu, berhasil, waktu }, ditulis tiap
 //   percobaan PIN. PIN cocok tapi role di luar rolesDiizinkan dicatat
-//   berhasil:false dengan nama pemilik PIN; PIN tak dikenali dicatat uid:null.
+//   berhasil:false; PIN tak dikenali dicatat uid:null.
 // - persiapan_masalah: dibuat HANYA lewat ajukanPersiapanMasalah di sini.
-// - bagging: unpack_hasil ('komplit'|'inkomplit'), unpack_pada/oleh, unpack_dicocokkan[]/asing[]/hilang[].
+// - bagging: unpack_hasil, unpack_pada/oleh, unpack_dicocokkan[]/asing[]/hilang[].
 //
 // Jebakan:
-// - buatScanTerpadu TIDAK menulis Firestore sendiri — semua tulis lewat
-//   cfg.padaUpload sekali saat Upload. buatUnpackUniversal menolak menutup
-//   bagging tidak lengkap kecuali paksaInkomplit. catatRiwayatPin best-effort.
-// - KameraTersemat WAJIB watch({immediate:true}) — ScanTerpaduGenerik
-//   membungkusnya di v-if, tiap buka() lahir instance BARU dengan aktif=true
-//   sejak awal; tanpa immediate kamera diam hitam tanpa error sama sekali.
+// - buatScanTerpadu TIDAK menulis Firestore — semua lewat cfg.padaUpload saat
+//   Upload. twoStep.validasi boleh isi `label` (dipakai chip jika ada).
+// - KameraTersemat WAJIB watch({immediate:true}) — instance baru tiap buka()
+//   lewat v-if ScanTerpaduGenerik, kamera diam hitam tanpa error tanpa itu.
+// - FRAC_KOTAK_BACA: SATU angka sumber kotak merah DAN area baca jsQR,
+//   jangan duplikasi angka itu di tempat lain.
 
 import { createApp, ref, reactive, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, getDocs, updateDoc, query, where, orderBy, limit, startAfter, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -347,6 +347,28 @@ export async function cariKaryawanByQr(qrData) {
 }
 
 
+// FRAC_KOTAK_BACA + ukurKotakBaca — dipakai ScanGenerik & KameraTersemat.
+// SATU angka ini jadi sumber baik untuk kotak merah yang kelihatan (kotakStyle)
+// maupun area yang benar-benar diberikan ke jsQR (pindai) — QR di luar kotak
+// TIDAK PERNAH ikut kebaca, jadi QR kedua yang nyempil di kamera tidak kebaca
+// bareng QR utama. video.clientWidth/Height dipakai sebagai ukuran tampil
+// (video mengisi penuh container-nya, object-fit:cover).
+const FRAC_KOTAK_BACA = 0.72;
+function ukurKotakBaca(video) {
+  const cw = video.clientWidth, ch = video.clientHeight;
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!cw || !ch || !vw || !vh) return null;
+  const sisiCss = Math.min(cw, ch) * FRAC_KOTAK_BACA;
+  const skala = Math.max(vw / cw, vh / ch); // px video asli per px css (object-fit:cover)
+  const sisiVideo = Math.round(sisiCss * skala);
+  const offX = (vw - cw * skala) / 2, offY = (vh - ch * skala) / 2;
+  return {
+    css: { top: (ch - sisiCss) / 2, left: (cw - sisiCss) / 2, sisi: sisiCss },
+    video: { x: Math.max(0, Math.round(offX + (cw * skala - sisiVideo) / 2)), y: Math.max(0, Math.round(offY + (ch * skala - sisiVideo) / 2)), sisi: sisiVideo }
+  };
+}
+
+
 // ScanGenerik — komponen kamera/QR generik untuk semua pos Persiapan Produksi.
 // SENGAJA tidak tahu apa-apa soal Firestore/validasi kode: cuma nyalakan kamera,
 // baca QR, kembalikan teksnya lewat event `hasil`. Pemanggil yang memvalidasi
@@ -363,12 +385,18 @@ export const ScanGenerik = {
   setup(props, { emit }) {
     const videoEl = ref(null), canvasEl = ref(null);
     const memuatKamera = ref(false), error = ref('');
+    const kotakStyle = ref({});
     let stream = null, frameId = null, timeoutId = null;
     // Anti scan-ganda: kode yang SAMA dengan hasil scan terakhir TIDAK di-emit
     // ulang selama kamera terus melihatnya. Tanpa ini, badge yang masih di depan
     // kamera ke-scan lagi 900ms kemudian padahal tahap sudah pindah, dan pesan
     // error jadi membingungkan. Kode dianggap baru lagi begitu QR hilang sekali.
     let kodeSebelumnya = null;
+
+    function updateKotakStyle() {
+      const k = videoEl.value && ukurKotakBaca(videoEl.value);
+      kotakStyle.value = k ? { top: k.css.top + 'px', left: k.css.left + 'px', width: k.css.sisi + 'px', height: k.css.sisi + 'px' } : {};
+    }
 
     async function mulai() {
       kodeSebelumnya = null; // sesi kamera baru -> kode apa pun (termasuk sisa sesi lalu) dianggap scan baru
@@ -380,6 +408,8 @@ export const ScanGenerik = {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
         if (videoEl.value) { videoEl.value.srcObject = stream; await videoEl.value.play(); }
         memuatKamera.value = false;
+        updateKotakStyle();
+        window.addEventListener('resize', updateKotakStyle);
         pindai();
       } catch (e) {
         error.value = 'Gagal mengakses kamera. Pastikan izin kamera diaktifkan.'; memuatKamera.value = false;
@@ -392,7 +422,12 @@ export const ScanGenerik = {
         canvas.width = video.videoWidth; canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const gambar = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        // Kotak baca: HANYA area kotak merah (ukurKotakBaca) yang diberikan ke
+        // jsQR — QR lain yang ikut nyempil di kamera tidak pernah kebaca.
+        const kotak = ukurKotakBaca(video);
+        const gambar = kotak
+          ? ctx.getImageData(kotak.video.x, kotak.video.y, kotak.video.sisi, kotak.video.sisi)
+          : ctx.getImageData(0, 0, canvas.width, canvas.height);
         const kode = window.jsQR(gambar.data, gambar.width, gambar.height, { inversionAttempts: 'dontInvert' });
         if (kode && kode.data) {
           const teks = kode.data.trim();
@@ -417,17 +452,19 @@ export const ScanGenerik = {
       if (frameId) { cancelAnimationFrame(frameId); frameId = null; }
       if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
       if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+      window.removeEventListener('resize', updateKotakStyle);
       error.value = '';
     }
     watch(() => props.aktif, (v) => { if (v) mulai(); else berhenti(); });
     onUnmounted(berhenti);
-    return { videoEl, canvasEl, memuatKamera, error, tutup: () => emit('tutup') };
+    return { videoEl, canvasEl, memuatKamera, error, kotakStyle, tutup: () => emit('tutup') };
   },
   template: `
     <div v-if="aktif" style="position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:10000; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:16px;">
       <div style="width:100%; max-width:340px; aspect-ratio:1/1; background:#111; border-radius:12px; overflow:hidden; position:relative; margin-bottom:16px;">
         <video ref="videoEl" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;" :class="{ hidden: memuatKamera }"></video>
         <canvas ref="canvasEl" class="hidden"></canvas>
+        <div v-if="!memuatKamera" :style="{ position:'absolute', border:'3px solid #ff3b3b', borderRadius:'10px', boxShadow:'0 0 0 999px rgba(0,0,0,.4)', pointerEvents:'none', ...kotakStyle }"></div>
         <div v-if="memuatKamera" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#C9B4A4; text-align:center; padding:16px;">
           <i class="fas fa-qrcode" style="font-size:36px; margin-bottom:10px;"></i>
           <span v-if="error" style="color:#F2A0A0; font-size:12px;">{{ error }}</span>
@@ -454,8 +491,14 @@ export const KameraTersemat = {
   setup(props, { emit }) {
     const videoEl = ref(null), canvasEl = ref(null);
     const memuatKamera = ref(false), error = ref('');
+    const kotakStyle = ref({});
     let stream = null, frameId = null, timeoutId = null;
     let kodeSebelumnya = null;
+
+    function updateKotakStyle() {
+      const k = videoEl.value && ukurKotakBaca(videoEl.value);
+      kotakStyle.value = k ? { top: k.css.top + 'px', left: k.css.left + 'px', width: k.css.sisi + 'px', height: k.css.sisi + 'px' } : {};
+    }
 
     async function mulai() {
       kodeSebelumnya = null;
@@ -467,6 +510,8 @@ export const KameraTersemat = {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
         if (videoEl.value) { videoEl.value.srcObject = stream; await videoEl.value.play(); }
         memuatKamera.value = false;
+        updateKotakStyle();
+        window.addEventListener('resize', updateKotakStyle);
         pindai();
       } catch (e) {
         error.value = 'Gagal mengakses kamera. Pastikan izin kamera diaktifkan.'; memuatKamera.value = false;
@@ -479,7 +524,12 @@ export const KameraTersemat = {
         canvas.width = video.videoWidth; canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const gambar = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        // Kotak baca: HANYA area kotak merah (ukurKotakBaca) yang diberikan ke
+        // jsQR — QR lain yang ikut nyempil di kamera tidak pernah kebaca.
+        const kotak = ukurKotakBaca(video);
+        const gambar = kotak
+          ? ctx.getImageData(kotak.video.x, kotak.video.y, kotak.video.sisi, kotak.video.sisi)
+          : ctx.getImageData(0, 0, canvas.width, canvas.height);
         const kode = window.jsQR(gambar.data, gambar.width, gambar.height, { inversionAttempts: 'dontInvert' });
         if (kode && kode.data) {
           const teks = kode.data.trim();
@@ -501,6 +551,7 @@ export const KameraTersemat = {
       if (frameId) { cancelAnimationFrame(frameId); frameId = null; }
       if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
       if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+      window.removeEventListener('resize', updateKotakStyle);
       error.value = '';
     }
     // immediate:true WAJIB di sini (beda dari ScanGenerik): ScanTerpaduGenerik
@@ -509,12 +560,13 @@ export const KameraTersemat = {
     // pernah terpicu untuk itu, kamera diam hitam tanpa error.
     watch(() => props.aktif, (v) => { if (v) mulai(); else berhenti(); }, { immediate: true });
     onUnmounted(berhenti);
-    return { videoEl, canvasEl, memuatKamera, error };
+    return { videoEl, canvasEl, memuatKamera, error, kotakStyle };
   },
   template: `
-    <div style="width:100%; height:132px; background:#111; border-radius:12px; overflow:hidden; position:relative;">
+    <div style="width:100%; height:145px; background:#111; border-radius:12px; overflow:hidden; position:relative;">
       <video ref="videoEl" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;" :class="{ hidden: memuatKamera }"></video>
       <canvas ref="canvasEl" class="hidden"></canvas>
+      <div v-if="!memuatKamera" :style="{ position:'absolute', border:'3px solid #ff3b3b', borderRadius:'8px', boxShadow:'0 0 0 999px rgba(0,0,0,.4)', pointerEvents:'none', ...kotakStyle }"></div>
       <div v-if="memuatKamera" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#C9B4A4; text-align:center; padding:8px;">
         <i class="fas fa-qrcode" style="font-size:22px; margin-bottom:6px;"></i>
         <span v-if="error" style="color:#F2A0A0; font-size:10.5px;">{{ error }}</span>
@@ -563,7 +615,7 @@ export function buatScanTerpadu(cfg) {
         const hasil = await cfg.twoStep.validasi(kode);
         if (!hasil.ok) { alert(hasil.pesan || `Kode "${kode}" tidak dikenali.`); return; }
         s.lockedData = hasil.data;
-        s.lockedLabel = kode;
+        s.lockedLabel = hasil.label || kode; // validasi boleh isi label sendiri (mis. nama+kode)
         toast('✓ ' + cfg.twoStep.labelPertama + ' ' + kode + ' dikunci — lanjut scan ' + cfg.twoStep.labelKedua);
       } finally { s.sedangProses = false; }
       return;
