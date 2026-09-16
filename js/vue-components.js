@@ -888,7 +888,8 @@ export function daftarMenuGroups(role, urutanKustomPerKategori, urutanKustomKate
       const fallbackAman = !(r === 'owner' || r === 'pic_owner');
       let terkunci = izinAsli === null ? fallbackAman : !izinAsli;
       if (m.wajibOwner && r !== 'owner') terkunci = true;
-      return { label: m.label, menuId: m.id, icon: m.icon, aksi: m.aksi, terkunci };
+      // labelPendek dipakai kalau ada — kartu HP sempit, label panjang jadi 4 baris.
+      return { label: m.labelPendek || m.label, menuId: m.id, icon: m.icon, aksi: m.aksi, terkunci };
     })
   }));
 }

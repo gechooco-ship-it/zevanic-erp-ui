@@ -27,6 +27,9 @@ import { db } from "./firebase-config.js";
 // tab/sub-tab) yang DIBACA langsung oleh grid Home mobile lewat daftarMenuGroups
 // di vue-components.js — menu baru cukup ditambah di sini lengkap dengan
 // icon+aksi-nya. Entry deprecated tidak butuh icon/aksi.
+// `labelPendek` OPSIONAL: dipakai HANYA di kartu menu HP yang lebarnya sempit.
+// Layar lain (termasuk daftar centang Jabatan) tetap memakai `label` panjang,
+// karena di situ nama yang mirip perlu dibedakan.
 const DAFTAR_MENU = [
   { id: 'dashboard', label: 'Dashboard', kategori: 'Umum' },
   { id: 'profile', label: 'Profile', kategori: 'Umum' },
@@ -108,11 +111,11 @@ const DAFTAR_MENU = [
   // Master Suplayer: 3 sub-tab, lihat js/vue-master-suplayer.js. Posisi SENGAJA
   // sebelum Stock & Pembelian (data Suplayer/Alias/MOQ jadi prasyarat List Order
   // Belanja & Nota).
-  { id: 'suplayer_entry', label: 'Master Suplayer - Entry & List', kategori: 'Zevanic House', icon: 'fa-truck-fast',
+  { id: 'suplayer_entry', label: 'Master Suplayer - Entry & List', labelPendek: 'Entry List Suplayer', kategori: 'Zevanic House', icon: 'fa-truck-fast',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-suplayer', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-suplayer', 'sub-zh-suplayer-entry', null, {catatRiwayat:true}); } },
-  { id: 'suplayer_alias_moq', label: 'Master Suplayer - Alias & MOQ', kategori: 'Zevanic House', icon: 'fa-tags',
+  { id: 'suplayer_alias_moq', label: 'Master Suplayer - Alias & MOQ', labelPendek: 'Alias & MOQ', kategori: 'Zevanic House', icon: 'fa-tags',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-suplayer', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-suplayer', 'sub-zh-suplayer-alias-moq', null, {catatRiwayat:true}); } },
-  { id: 'suplayer_petakan_order', label: 'Master Suplayer - Petakan Order', kategori: 'Zevanic House', icon: 'fa-map-location-dot',
+  { id: 'suplayer_petakan_order', label: 'Master Suplayer - Petakan Order', labelPendek: 'Petakan Order', kategori: 'Zevanic House', icon: 'fa-map-location-dot',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-suplayer', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-suplayer', 'sub-zh-suplayer-petakan', null, {catatRiwayat:true}); } },
   // Alias Pembelian pindah ke 'suplayer_alias_moq' (ditambah field
   // moq/moq_satuan/lead_time_hari). Entry dibiarkan + deprecated supaya izin
@@ -152,7 +155,7 @@ const DAFTAR_MENU = [
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-produk', null, {catatRiwayat:true}); window.pindahSubTab('sub-zh-produk', 'sub-zh-produk-hpp', null, {catatRiwayat:true}); } },
   // Master Pelanggan: single-view, 1 menu-id saja (tidak ada sub-tab). Lihat
   // js/vue-master-pelanggan.js.
-  { id: 'master_pelanggan', label: 'Master Pelanggan', kategori: 'Zevanic House', icon: 'fa-address-book',
+  { id: 'master_pelanggan', label: 'Master Pelanggan', labelPendek: 'Entry Pelanggan', kategori: 'Zevanic House', icon: 'fa-address-book',
     aksi: () => { window.pindahTab('tab-zevanic-house'); window.pindahSubTab('sub-zevanic-house', 'sub-zevanic-house-pelanggan', null, {catatRiwayat:true}); } },
   // CRUD Order SPK pindah ke 'pesanan_menunggu' (js/vue-pesanan.js — kode
   // disalin, BUKAN diimpor, konvensi proyek ini). Entry dibiarkan + deprecated
