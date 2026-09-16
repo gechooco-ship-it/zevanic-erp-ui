@@ -9,9 +9,9 @@
 // - master_gudang: nama_gudang + tipe_lokasi, dipakai kolom Jenis Lokasi.
 //
 // Jebakan:
-// - Dropdown Role TETAP 5 nilai, tidak dibaca dari akses_config. Simpan
-//   menulis role apa adanya dan mengosongkan profil_akses — sisa nilai lama
-//   di field itu membuat auth.js memakai kunci yang salah ke akses_config.
+// - Role dan jenis_pekerjaan TIDAK diketik di sini — keduanya salinan dari
+//   akses_jabatan milik jabatan yang dipilih. Jabatan yang belum diatur di
+//   Akses & Keamanan ditolak saat simpan.
 // - Tabel pakai usePaginasiFirestore (15/halaman) + filterPeran; filter Jenis
 //   Pekerjaan/Gudang hanya berefek untuk Owner/PIC Owner. Kotak cari mencari ke
 //   nama_lower — dokumen tanpa field itu TIDAK akan pernah muncul di hasil.
@@ -54,17 +54,22 @@ const EditKaryawanModal = {
   setup(props, { emit }) {
     const form = reactive(formKosong());
     const menyimpan = ref(false);
-    // Sama persis daftar di vue-hak-akses.js dan vue-config-akses.js: 5 role
-    // baku, bukan daftar profil bebas.
-    const opsiRole = ref(['operator', 'admin', 'pic', 'pic_owner', 'owner']);
-    const opsiJenisPekerjaan = ref([]);
+    // Role dan jenis pekerjaan TIDAK dipilih di sini — keduanya turunan dari
+    // jabatan (akses_jabatan), sama seperti di pill Assign. Ditampilkan sebagai
+    // teks supaya Guru tetap bisa melihat akibat pilihan jabatannya.
+    const petaJabatan = reactive({});
     const opsiJabatan = ref([]);
     const opsiStatusKerja = ref([]);
     const opsiStatusKaryawan = ref([]);
 
     async function muatOpsiMaster() {
-      opsiJenisPekerjaan.value = await window.ambilMasterList('jenis_pekerjaan');
       opsiJabatan.value = await window.ambilMasterList('jabatan');
+      Object.keys(petaJabatan).forEach(k => delete petaJabatan[k]);
+      const snapAkses = await getDocs(collection(db, 'akses_jabatan'));
+      snapAkses.forEach(d => {
+        const x = d.data();
+        if (x.nama && x.role) petaJabatan[x.nama] = { role: x.role, jenis_pekerjaan: x.jenis_pekerjaan || '' };
+      });
       opsiStatusKerja.value = await window.ambilMasterList('status_kerja');
       opsiStatusKaryawan.value = await window.ambilMasterList('status_karyawan');
     }
@@ -118,8 +123,6 @@ const EditKaryawanModal = {
       });
 
       await muatOpsiMaster();
-      pastikanAdaDiOpsi(opsiRole, form.role);
-      pastikanAdaDiOpsi(opsiJenisPekerjaan, form.jenisPekerjaan);
       pastikanAdaDiOpsi(opsiJabatan, form.jabatan);
       pastikanAdaDiOpsi(opsiStatusKerja, form.statusKerja);
       pastikanAdaDiOpsi(opsiStatusKaryawan, form.statusKaryawan);
@@ -128,13 +131,18 @@ const EditKaryawanModal = {
     async function simpan() {
       menyimpan.value = true;
       try {
-        // form.role sudah berupa role baku apa adanya. profil_akses dikosongkan
-        // di setiap simpan supaya sisa nilai lama tidak mengalahkan role saat
-        // auth.js mencari akses_config.
+        // role & jenis_pekerjaan DISALIN dari jabatan. Jabatan yang belum diatur
+        // di Akses & Keamanan tidak punya keduanya, jadi ditolak di sini — kalau
+        // diloloskan, role karyawan jadi kosong dan Rules menolak semuanya.
+        const def = form.jabatan ? petaJabatan[form.jabatan] : null;
+        if (form.jabatan && !def) {
+          menyimpan.value = false;
+          return alert(`Jabatan "${form.jabatan}" belum diatur di Akses & Keamanan > Jabatan (belum punya Role dan Jenis Usaha). Atur dulu di sana.`);
+        }
         await updateDoc(doc(db, 'users', form.emailAsli), {
-          role: form.role,
+          role: def ? def.role : '',
           profil_akses: '',
-          jenis_pekerjaan: form.jenisPekerjaan,
+          jenis_pekerjaan: def ? def.jenis_pekerjaan : '',
           jabatan: form.jabatan,
           status_kerja: form.statusKerja,
           status_karyawan: form.statusKaryawan,
@@ -187,7 +195,13 @@ const EditKaryawanModal = {
       if (emailId) muatDataKaryawan(emailId);
     }, { immediate: true });
 
-    return { form, menyimpan, opsiRole, opsiJenisPekerjaan, opsiJabatan, opsiStatusKerja, opsiStatusKaryawan, simpan, lihatFotoBesar };
+    const ringkasJabatan = computed(() => {
+      if (!form.jabatan) return 'Belum ada jabatan — role dan jenis pekerjaan ikut kosong.';
+      const d = petaJabatan[form.jabatan];
+      return d ? `Role: ${d.role.toUpperCase()} — Jenis usaha: ${d.jenis_pekerjaan || '(belum diisi)'}`
+               : 'Jabatan ini belum diatur di Akses & Keamanan > Jabatan.';
+    });
+    return { form, menyimpan, opsiJabatan, opsiStatusKerja, opsiStatusKaryawan, ringkasJabatan, simpan, lihatFotoBesar };
   },
   template: `
     <div style="position:fixed; inset:0; z-index:100; background:rgba(var(--scrim-rgb),.6); display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
@@ -211,19 +225,12 @@ const EditKaryawanModal = {
 
           <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:14px; margin-bottom:14px;">
             <div class="gc-field" style="margin-bottom:0;">
-              <label>Status pengguna (role akses)</label>
-              <select v-model="form.role"><option v-for="o in opsiRole" :key="o" :value="o">{{ o }}</option></select>
-            </div>
-            <div class="gc-field" style="margin-bottom:0;">
-              <label>Jenis pekerjaan</label>
-              <select v-model="form.jenisPekerjaan"><option v-for="o in opsiJenisPekerjaan" :key="o" :value="o">{{ o }}</option></select>
-            </div>
-          </div>
-
-          <div class="grid-cols-1 md:grid-cols-2" style="display:grid; gap:14px; margin-bottom:14px;">
-            <div class="gc-field" style="margin-bottom:0;">
-              <label>Jabatan</label>
-              <select v-model="form.jabatan"><option v-for="o in opsiJabatan" :key="o" :value="o">{{ o }}</option></select>
+              <label>Jabatan (menentukan role &amp; jenis pekerjaan)</label>
+              <select v-model="form.jabatan">
+                <option value="">(Belum diatur)</option>
+                <option v-for="o in opsiJabatan" :key="o" :value="o">{{ o }}</option>
+              </select>
+              <p style="font-size:11px; color:var(--text-muted); margin-top:6px;">{{ ringkasJabatan }}</p>
             </div>
             <div class="gc-field" style="margin-bottom:0;">
               <label>Status karyawan</label>

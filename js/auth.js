@@ -6,7 +6,7 @@
 // - users/{email}: role (5 role baku), nama + nama_lower (kotak cari),
 //   status_approval, status_kerja, jenis_akun, gudang_penempatan, nama_shift,
 //   jabatan, jenis_pekerjaan.
-// - akses_config/{role} & akses_jabatan/{jabatan}: peta izin menu/fitur.
+// - akses_jabatan/{jabatan}: role + jenis_pekerjaan + peta izin menu/fitur.
 // - jadwal_shift/{email}_{YYYY-MM} & master_shift, absensi, wa_log, config.
 //
 // Jebakan:
@@ -17,7 +17,7 @@
 // - Tiap window.currentUser berubah di tengah sesi WAJIB simpanKonteksSesi(),
 //   kalau tidak cache localStorage basi dan menimpa balik saat reload.
 // - Sidebar digerbang DUA lapis: role batas terluas, terapkanIzinMenuKeSidebar
-//   mengurangi. Menu sidebar baru wajib punya data-menu-id.
+//   mengurangi menurut JABATAN. Menu sidebar baru wajib punya data-menu-id.
 import { doc, setDoc, getDoc, collection, getDocs, addDoc, query, where, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   createUserWithEmailAndPassword,
@@ -61,74 +61,49 @@ window.authReady = new Promise((resolve) => {
 
 
 // window.cekIzinMenu(menuId, 'view'|'add'|'edit'|'delete'|'print') dan
-// window.cekFiturAkses(menuId, fiturKey) baca window.aksesConfigSaya yang
-// diambil SEKALI saat login. Keduanya balik null = "belum diatur", pemanggil
-// yang putuskan default — cek eksplisit `=== false` untuk "sengaja dilarang".
-window.aksesConfigSaya = undefined; // undefined = belum sempat dimuat sama sekali
+// window.cekFiturAkses(menuId, fiturKey) baca window.izinMenuSaya yang diambil
+// SEKALI saat login. Keduanya balik null = "belum diatur", pemanggil yang
+// putuskan default — cek eksplisit `=== false` untuk "sengaja dilarang".
+window.izinMenuSaya = undefined; // undefined = belum sempat dimuat sama sekali
 
-window.muatAksesConfigSaya = async function(role) {
+// Izin menu datang dari JABATAN, bukan role. Role cuma pengaman di Firestore
+// Rules; jabatan yang menentukan apa yang tampil. Dokumen akses_jabatan juga
+// memuat role + jenis_pekerjaan jabatan itu, yang disalin ke users saat
+// di-assign.
+window.muatIzinMenuSaya = async function(role, jabatan) {
   const r = (role || '').toLowerCase();
-  if (r === 'owner' || r === 'pic_owner') {
-    // Owner dan PIC Owner selalu penuh untuk IZIN MENU — tidak perlu baca
-    // Firestore. Batas usaha PIC Owner ditegakkan di bangunConstraintFilterPeran
-    // (js/vue-paginasi.js), bukan di sini.
-    window.aksesConfigSaya = 'OWNER_PENUH';
+  if (r === 'owner') {
+    // Owner asli satu-satunya yang kebal. PIC Owner TIDAK — menunya ikut
+    // jabatan, kuasa tulisnya saja yang setara owner di Rules.
+    window.izinMenuSaya = 'OWNER_PENUH';
     return;
   }
-  // Kunci akses_config sekarang ROLE, bukan lagi nama profil bebas. Doc id di
-  // vue-config-akses.js pun cuma 5 role baku, jadi keduanya selalu cocok.
-  if (!r) { window.aksesConfigSaya = null; return; }
+  const j = (jabatan || '').trim().toLowerCase();
+  if (!j) { window.izinMenuSaya = null; return; }
   try {
-    const snap = await getDoc(doc(db, "akses_config", r));
-    window.aksesConfigSaya = snap.exists() ? snap.data() : null;
+    const snap = await getDoc(doc(db, "akses_jabatan", j));
+    window.izinMenuSaya = snap.exists() ? snap.data() : null;
   } catch (e) {
-    console.error("Gagal muat akses_config untuk role", r, e);
-    window.aksesConfigSaya = null;
+    console.error("Gagal muat akses_jabatan untuk", j, e);
+    window.izinMenuSaya = null;
   }
 };
 
 window.cekIzinMenu = function(menuId, jenis) {
-  if (window.aksesConfigSaya === 'OWNER_PENUH') return true; // Owner/PIC Owner kebal dari Role MAUPUN Jabatan
-  if (!window.aksesConfigSaya) return null; // belum dimuat / tidak ada data -> pemanggil yang putuskan default
-  const menu = window.aksesConfigSaya.menus?.[menuId];
-  const hasilRole = !menu ? null : (menu[jenis] === true ? true : (menu[jenis] === false ? false : null));
-
-  // Pembatas tambahan per Jabatan (lihat catatan window.muatAksesJabatanSaya di
-  // atas) — cuma menang kalau ADA entri EKSPLISIT false utk menu+jenis ini.
-  // Tidak ada entri sama sekali (paling umum) = tidak mengubah apapun.
-  if (window.aksesJabatanSaya) {
-    const menuJabatan = window.aksesJabatanSaya.menus?.[menuId];
-    if (menuJabatan && menuJabatan[jenis] === false) return false;
-  }
-  return hasilRole;
+  if (window.izinMenuSaya === 'OWNER_PENUH') return true;
+  if (!window.izinMenuSaya) return null; // belum dimuat / jabatan belum diatur -> pemanggil yang putuskan default
+  const menu = window.izinMenuSaya.menus?.[menuId];
+  if (!menu) return null;
+  return menu[jenis] === true ? true : (menu[jenis] === false ? false : null);
 };
 
 window.cekFiturAkses = function(menuId, fiturKey) {
-  if (window.aksesConfigSaya === 'OWNER_PENUH') return true;
-  if (!window.aksesConfigSaya) return null;
-  const menu = window.aksesConfigSaya.menus?.[menuId];
+  if (window.izinMenuSaya === 'OWNER_PENUH') return true;
+  if (!window.izinMenuSaya) return null;
+  const menu = window.izinMenuSaya.menus?.[menuId];
   if (!menu || !menu.fitur) return null;
   const nilai = menu.fitur[fiturKey];
   return nilai === true ? true : (nilai === false ? false : null);
-};
-
-
-// Pembatas per Jabatan: LAPISAN KEDUA yang cuma MENGURANGI (hasil cekIzinMenu =
-// izin Role AND izin Jabatan), tidak pernah menambah. Opt-in per menu+aksi —
-// nilai undefined di akses_jabatan berarti TIDAK MEMBATASI apapun. Jangan
-// dibalik jadi default-melarang: puluhan Jabatan lama langsung terkunci.
-window.aksesJabatanSaya = undefined; // undefined = belum sempat dimuat sama sekali
-
-window.muatAksesJabatanSaya = async function(jabatan) {
-  const j = (jabatan || '').trim().toLowerCase();
-  if (!j) { window.aksesJabatanSaya = null; return; }
-  try {
-    const snap = await getDoc(doc(db, "akses_jabatan", j));
-    window.aksesJabatanSaya = snap.exists() ? snap.data() : null;
-  } catch (e) {
-    console.error("Gagal muat akses_jabatan untuk", j, e);
-    window.aksesJabatanSaya = null;
-  }
 };
 
 
@@ -155,17 +130,16 @@ window.ambilShiftEfektifHariIni = async function(email, namaShiftDefault) {
   return namaShiftDefault || '';
 };
 
-// Cache konteks sesi (window.currentUser + aksesConfigSaya) di localStorage
-// supaya reload tidak baca ulang users/{email} + akses_config; dibersihkan cuma
-// saat logout. foto_ktp SENGAJA dibuang dari cache. Isi cache hanya untuk
-// TAMPILAN — penegak keamanan sungguhan tetap Firestore Rules di server.
+// Cache konteks sesi (window.currentUser + izinMenuSaya) di localStorage supaya
+// reload tidak baca ulang users/{email} + akses_jabatan; dibersihkan cuma saat
+// logout. foto_ktp SENGAJA dibuang dari cache. Isi cache hanya untuk TAMPILAN —
+// penegak keamanan sungguhan tetap Firestore Rules di server.
 window.simpanKonteksSesi = function() {
   try {
     const { foto_ktp, ...ringkas } = window.currentUser;
     localStorage.setItem('zevanic_konteks_sesi', JSON.stringify({
       data: ringkas,
-      aksesConfig: window.aksesConfigSaya,
-      aksesJabatan: window.aksesJabatanSaya, // BARU — lihat window.muatAksesJabatanSaya
+      izinMenu: window.izinMenuSaya,
       disimpan_pada: Date.now()
     }));
   } catch (e) {
@@ -173,7 +147,7 @@ window.simpanKonteksSesi = function() {
   }
 };
 
-// Kembalikan {data, aksesConfig} kalau cache ADA dan emailnya COCOK dengan user
+// Kembalikan {data, izinMenu} kalau cache ADA dan emailnya COCOK dengan user
 // Firebase Auth yang sedang login sekarang — null kalau tidak ada/tidak cocok
 // (pemanggil WAJIB fallback baca Firestore biasa).
 window.bacaKonteksSesiDariCache = function(email) {
@@ -194,13 +168,14 @@ window.bersihkanKonteksSesi = function() {
 };
 
 // SEMUA tabel yang menampilkan data karyawan/gudang/shift WAJIB lewat filter
-// ini. Dua dimensi di-AND: jenis_pekerjaan SAMA dan gudang BERIRISAN. owner dan
-// pic_owner bypass total di sini; batas usaha pic_owner ditegakkan di
-// bangunConstraintFilterPeran (js/vue-paginasi.js), bukan di fungsi ini.
+// ini. Dua dimensi di-AND: jenis_pekerjaan SAMA dan gudang BERIRISAN. Cuma owner
+// yang bypass total; pic_owner bebas lintas gudang tapi TETAP terkunci di
+// usahanya sendiri — sama persis dengan bangunConstraintFilterPeran.
 // Dimensi tanpa tag (di data maupun di profil admin) dianggap LOLOS, bukan kunci.
 window.bolehLihatData = function(jenisPekerjaanData, gudangData) {
   const role = (window.currentUser.role || '').toLowerCase();
-  if (role === 'owner' || role === 'pic_owner') return true; // bypass total, SAMA seperti cekIzinMenu/cekFiturAkses
+  if (role === 'owner') return true; // owner asli satu-satunya yang bypass total
+  const iniPicOwner = role === 'pic_owner'; // bebas lintas gudang, TETAP terikat jenis pekerjaan
   const jpCocok = (() => {
     if (!jenisPekerjaanData || (Array.isArray(jenisPekerjaanData) && jenisPekerjaanData.length === 0)) return true;
     const jpAdmin = window.currentUser.jenis_pekerjaan;
@@ -208,6 +183,7 @@ window.bolehLihatData = function(jenisPekerjaanData, gudangData) {
     return Array.isArray(jenisPekerjaanData) ? jenisPekerjaanData.includes(jpAdmin) : jenisPekerjaanData === jpAdmin;
   })();
   const gudangCocok = (() => {
+    if (iniPicOwner) return true; // PIC Owner: semua gudang di dalam usahanya sendiri
     if (!gudangData || (Array.isArray(gudangData) && gudangData.length === 0)) return true;
     const gudangAdmin = window.normalisasiGudang(window.currentUser.gudang_penempatan);
     if (gudangAdmin.length === 0) return true;
@@ -457,8 +433,7 @@ onAuthStateChanged(auth, async (user) => {
     let d;
     if (cache) {
       d = cache.data;
-      window.aksesConfigSaya = cache.aksesConfig;
-      window.aksesJabatanSaya = cache.aksesJabatan; // BARU
+      window.izinMenuSaya = cache.izinMenu;
     } else {
       const userSnap = await getDoc(doc(db, "users", user.email));
       if (!userSnap.exists()) {
@@ -493,7 +468,7 @@ onAuthStateChanged(auth, async (user) => {
     // "Nonaktifkan" dari Device Kiosk tetap memblokir kiosk yang dimatikan.
     if (d.jenis_akun === 'kiosk') {
       window.currentUser = { ...d, email: user.email, role: roleUser };
-      if (!cache) await window.muatAksesConfigSaya(roleUser);
+      if (!cache) await window.muatIzinMenuSaya(roleUser, d.jabatan);
       window.simpanKonteksSesi();
       berhasilMasukDashboard = true;
       window.pindahLayar('screen-absensi-qr');
@@ -533,14 +508,11 @@ onAuthStateChanged(auth, async (user) => {
       status_kerja: statusKerjaUser,
       gudang_penempatan: gudangUser
     };
-    // Kalau tadi TIDAK dari cache (fetch Firestore biasa), aksesConfigSaya belum
+    // Kalau tadi TIDAK dari cache (fetch Firestore biasa), izinMenuSaya belum
     // keisi sama sekali — baru di titik ini perlu dimuat. Kalau SUDAH dari
-    // cache, sudah keisi dari cache.aksesConfig di atas, skip (hemat 1 baca
-    // akses_config).
-    if (!cache) {
-      await window.muatAksesConfigSaya(roleUser);
-      await window.muatAksesJabatanSaya(window.currentUser.jabatan); // BARU
-    }
+    // cache, sudah keisi dari cache.izinMenu di atas, skip (hemat 1 baca
+    // akses_jabatan).
+    if (!cache) await window.muatIzinMenuSaya(roleUser, window.currentUser.jabatan);
     window.simpanKonteksSesi(); // simpan/refresh cache buat reload berikutnya
     if (window.aturTampilanBerdasarkanRole) window.aturTampilanBerdasarkanRole();
     if (window.refreshAccountProfileDisplay) window.refreshAccountProfileDisplay();

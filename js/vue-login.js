@@ -330,9 +330,8 @@ const AppLogin = {
         return;
       }
 
-      await window.muatAksesConfigSaya(window.currentUser.role);
-      await window.muatAksesJabatanSaya(window.currentUser.jabatan); // BARU — pembatas tambahan per Jabatan
-      window.simpanKonteksSesi(); // biar reload berikutnya (F5, tab baru) tidak baca ulang users/akses_config
+      await window.muatIzinMenuSaya(window.currentUser.role, window.currentUser.jabatan);
+      window.simpanKonteksSesi(); // biar reload berikutnya (F5, tab baru) tidak baca ulang users/akses_jabatan
 
       // Akun Kiosk BERHENTI DI SINI — tidak pernah ke Dashboard/kamera biasa dan
       // tidak kena gerbang Clock In apapun, karena kiosk bukan orang yang absen

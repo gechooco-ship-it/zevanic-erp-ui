@@ -1,26 +1,25 @@
 // js/vue-hak-akses.js
-// Master Karyawan > Akses & Keamanan pill Assign (Hak Akses) — pasangkan
-// karyawan ke salah satu dari 5 role baku, satuan maupun massal.
+// Master Karyawan > Akses & Keamanan pill Assign — pasangkan karyawan ke
+// JABATAN, satuan maupun massal. Role tidak dipilih di sini.
 //
 // Koleksi & field:
-// - users: role (5 role baku, dibaca Rules, custom claim, dan auth.js), id
-//   dokumen = email, gudang_penempatan untuk kolom Gudang, nama_lower (cari).
-// - master_gudang: nama_gudang untuk filter dan tampilan ringkas.
+// - users: jabatan, plus role & jenis_pekerjaan yang DISALIN dari jabatan itu
+//   (Rules & custom claim membaca users, bukan jabatan). nama_lower untuk cari.
+// - akses_jabatan/{jabatan}: sumber role + jenis_pekerjaan tiap jabatan.
+// - master_data/jabatan: daftar nama jabatan. master_gudang: kolom Gudang.
 //
 // Jebakan:
-// - DAFTAR_ROLE_BAKU adalah satu-satunya nilai sah untuk field role. Nilainya
-//   wajib tanpa spasi (pic_owner) — kalau tidak, Firestore Rules dan
-//   functions/index.js tidak akan pernah cocok.
-// - Perubahan di sini langsung berefek ke Rules, tidak seperti Config Akses
-//   yang cuma cetak biru izin tampilan.
-// - profil_akses SELALU dikosongkan saat menyimpan. Sisa nilai lama di dokumen
-//   membuat auth.js mencari akses_config dengan kunci profil, bukan role, jadi
-//   perubahan role di sini tidak terasa apa-apa di layar.
+// - Jabatan yang BELUM diatur di pill Jabatan tidak punya role/jenis_pekerjaan,
+//   jadi tidak bisa dipasang di sini — atur dulu di sana, kalau dipaksa role
+//   karyawan jadi kosong dan Firestore Rules menolak semuanya.
+// - Nilai role wajib tanpa spasi (pic_owner), kalau tidak tidak akan pernah
+//   cocok dengan firestore.rules maupun functions/index.js.
+// - profil_akses SELALU dikosongkan saat menyimpan; field itu sudah pensiun.
 // - Tabel pakai usePaginasiFirestore + filterPeran, jadi "Pilih Semua" hanya
 //   mencentang baris di halaman yang tampil.
 
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, query, where, getDocs, getCountFromServer, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, query, where, getDocs, getDoc, getCountFromServer, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { GudangRingkas } from './vue-components.js';
 import { usePaginasiFirestore, bangunConstraintFilterPeran } from './vue-paginasi.js';
@@ -36,10 +35,12 @@ const AppHakAkses = {
   components: { GudangRingkas },
   setup() {
     const daftarGudang = ref([]);
-    // Daftar role TETAP, tidak lagi dibaca dari akses_config. Menambah nama
-    // bebas di Config Akses tidak boleh melahirkan role baru — izin per menu
-    // diatur di Config Akses, tingkat kuasanya cuma 5 ini.
-    const DAFTAR_ROLE = DAFTAR_ROLE_BAKU;
+    const DAFTAR_ROLE = DAFTAR_ROLE_BAKU; // cuma untuk kartu ringkasan & filter role
+    const daftarJabatan = ref([]);
+    // petaJabatan: nama jabatan -> { role, jenis_pekerjaan } dari akses_jabatan.
+    // Jabatan yang belum diatur di pill Jabatan TIDAK masuk peta ini.
+    const petaJabatan = reactive({});
+    const filterJabatan = ref('ALL');
 
     const ringkasanKartu = ref([]);
     const memuatRingkasan = ref(true);
@@ -81,6 +82,7 @@ const AppHakAkses = {
           const gudangAdmin = window.normalisasiGudang(window.currentUser.gudang_penempatan);
           if (gudangAdmin.length > 0) cs.push(where('gudang_penempatan', 'array-contains-any', gudangAdmin.slice(0, 10)));
         }
+        if (filterJabatan.value !== 'ALL') cs.push(where('jabatan', '==', filterJabatan.value));
         if (filterRole.value === NILAI_BELUM_DIATUR) {
           // Keterbatasan: cuma cocok dokumen yang field role-nya PERSIS string
           // kosong. Dokumen lama yang field role-nya HILANG TOTAL (bukan string
@@ -93,7 +95,7 @@ const AppHakAkses = {
       },
       petakan: (id, d) => ({ email: id, ...d })
     }));
-    watch([filterRole, filterGudang], () => paginasi.muatUlang());
+    watch([filterRole, filterGudang, filterJabatan], () => paginasi.muatUlang());
 
     // KARTU RINGKASAN: getCountFromServer terpisah per kartu
     async function muatRingkasan() {
@@ -131,6 +133,7 @@ const AppHakAkses = {
     function klikKartuRingkasan(nilaiFilter) {
       filterRole.value = nilaiFilter;
       filterGudang.value = 'ALL';
+      filterJabatan.value = 'ALL';
     }
 
     async function muatMeta() {
@@ -138,7 +141,19 @@ const AppHakAkses = {
       const listGudang = [];
       qGudang.forEach(docSnap => listGudang.push(docSnap.data().nama_gudang));
       daftarGudang.value = listGudang;
+
+      const snapMaster = await getDoc(doc(db, 'master_data', 'jabatan'));
+      daftarJabatan.value = snapMaster.exists() ? (snapMaster.data().items || []) : [];
+
+      Object.keys(petaJabatan).forEach(k => delete petaJabatan[k]);
+      const snapAkses = await getDocs(collection(db, 'akses_jabatan'));
+      snapAkses.forEach(d => {
+        const x = d.data();
+        if (x.nama && x.role) petaJabatan[x.nama] = { role: x.role, jenis_pekerjaan: x.jenis_pekerjaan || '' };
+      });
     }
+
+    function jabatanSiap(nama) { return !!petaJabatan[nama]; }
 
     async function muat() {
       terpilih.clear();
@@ -146,9 +161,8 @@ const AppHakAkses = {
       await Promise.all([muatRingkasan(), paginasi.muatUlang()]);
     }
 
-    // Badge tabel dan kartu ringkasan sekarang membaca sumber yang SAMA (field
-    // role). profil_akses sengaja diabaikan supaya nilai lama yang belum
-    // tertimpa tidak menampilkan role yang berbeda dari yang dipakai Rules.
+    // Badge tabel dan kartu ringkasan membaca sumber yang SAMA (field role di
+    // users), yaitu salinan dari jabatan. profil_akses sudah pensiun.
     function roleEfektif(d) { return d.role || ''; }
 
     const headerDicentang = computed(() =>
@@ -170,42 +184,55 @@ const AppHakAkses = {
     function pilihSemua() { paginasi.dataHalaman.forEach(d => terpilih.add(d.email)); }
     function bersihkanPilihan() { terpilih.clear(); }
 
-    // Ubah role 1 karyawan langsung dari tabel (tanpa centang+bulk); "" berarti
-    // kosongkan. roleBaru sudah berupa nilai role baku apa adanya — tidak ada
-    // pemetaan lagi. profil_akses ikut dikosongkan supaya auth.js memakai role
-    // sebagai kunci akses_config (lihat Jebakan di blok atas).
-    async function ubahRoleLangsung(item, roleBaru) {
-      const roleLama = item.role;
-      const profilLama = item.profil_akses;
-      item.role = roleBaru || '';
-      item.profil_akses = '';
+    // Ubah jabatan 1 karyawan langsung dari tabel; "" berarti kosongkan. role dan
+    // jenis_pekerjaan DISALIN dari jabatan, tidak pernah diketik di sini.
+    async function ubahJabatanLangsung(item, jabatanBaru) {
+      if (jabatanBaru && !jabatanSiap(jabatanBaru)) {
+        alert(`Jabatan "${jabatanBaru}" belum diatur di pill Jabatan (belum punya Role dan Jenis Usaha). Atur dulu di sana.`);
+        paginasi.muatUlang();
+        return;
+      }
+      const lama = { jabatan: item.jabatan, role: item.role, jenis_pekerjaan: item.jenis_pekerjaan };
+      const def = jabatanBaru ? petaJabatan[jabatanBaru] : { role: '', jenis_pekerjaan: '' };
+      item.jabatan = jabatanBaru || '';
+      item.role = def.role;
+      item.jenis_pekerjaan = def.jenis_pekerjaan;
       try {
-        await updateDoc(doc(db, "users", item.email), { role: roleBaru || '', profil_akses: '' });
+        await updateDoc(doc(db, "users", item.email), {
+          jabatan: jabatanBaru || '', role: def.role, jenis_pekerjaan: def.jenis_pekerjaan, profil_akses: ''
+        });
         muatRingkasan(); // angka kartu ikut berubah, tidak perlu tunggu Refresh manual
       } catch (e) {
-        console.error("Gagal ubah role:", e);
-        item.role = roleLama;
-        item.profil_akses = profilLama;
-        alert("Gagal menyimpan perubahan role.");
+        console.error("Gagal ubah jabatan:", e);
+        item.jabatan = lama.jabatan;
+        item.role = lama.role;
+        item.jenis_pekerjaan = lama.jenis_pekerjaan;
+        alert("Gagal menyimpan perubahan jabatan.");
       }
     }
 
     async function terapkanBulkRole() {
       const daftarTerpilih = Array.from(terpilih);
       if (daftarTerpilih.length === 0) return alert("Belum ada karyawan yang dicentang/terpilih.");
-      if (bulkRole.value === '__TIDAK_DIUBAH__') return alert("Pilih Role yang ingin diterapkan (atau \"Kosongkan\" untuk hapus role).");
-      const roleBaru = bulkRole.value === '__KOSONGKAN__' ? '' : bulkRole.value;
-      const labelKonfirmasi = roleBaru || '(dikosongkan / belum diatur)';
-      if (!confirm(`Ubah Role ${daftarTerpilih.length} karyawan terpilih menjadi "${labelKonfirmasi}"?`)) return;
+      if (bulkRole.value === '__TIDAK_DIUBAH__') return alert("Pilih Jabatan yang ingin diterapkan (atau \"Kosongkan\").");
+      const jabatanBaru = bulkRole.value === '__KOSONGKAN__' ? '' : bulkRole.value;
+      if (jabatanBaru && !jabatanSiap(jabatanBaru)) {
+        return alert(`Jabatan "${jabatanBaru}" belum diatur di pill Jabatan. Atur Role dan Jenis Usaha-nya dulu di sana.`);
+      }
+      const def = jabatanBaru ? petaJabatan[jabatanBaru] : { role: '', jenis_pekerjaan: '' };
+      const labelKonfirmasi = jabatanBaru || '(dikosongkan / belum diatur)';
+      if (!confirm(`Ubah Jabatan ${daftarTerpilih.length} karyawan terpilih menjadi "${labelKonfirmasi}" (role ${def.role || '-'}, usaha ${def.jenis_pekerjaan || '-'})?`)) return;
 
       memprosesBulk.value = true;
       let sukses = 0, gagal = 0;
       for (const email of daftarTerpilih) {
         try {
-          await updateDoc(doc(db, "users", email), { role: roleBaru, profil_akses: '' });
+          await updateDoc(doc(db, "users", email), {
+            jabatan: jabatanBaru, role: def.role, jenis_pekerjaan: def.jenis_pekerjaan, profil_akses: ''
+          });
           sukses++;
         } catch (e) {
-          console.error("Gagal ubah role untuk", email, e);
+          console.error("Gagal ubah jabatan untuk", email, e);
           gagal++;
         }
       }
@@ -221,11 +248,11 @@ const AppHakAkses = {
     return {
       paginasi, daftarGudang,
       cariNama: computed({ get: () => paginasi.cariTeks, set: (v) => paginasi.cariDenganDebounce(v) }),
-      filterRole, filterGudang, DAFTAR_ROLE, NILAI_BELUM_DIATUR,
+      filterRole, filterGudang, filterJabatan, DAFTAR_ROLE, daftarJabatan, jabatanSiap, NILAI_BELUM_DIATUR,
       railRingkasan, geserRingkasan, ringkasanKartu, memuatRingkasan, errorRingkasan, klikKartuRingkasan,
       terpilih, headerDicentang,
       toggleCheckbox, toggleSemuaHalamanIni, pilihSemua, bersihkanPilihan,
-      ubahRoleLangsung, roleEfektif,
+      ubahJabatanLangsung, roleEfektif,
       bulkRole, memprosesBulk, terapkanBulkRole
     };
   },
@@ -233,7 +260,7 @@ const AppHakAkses = {
     <div>
       <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px;">
         <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:var(--teal-text);"><i class="fas fa-user-shield" style="margin-right:8px;"></i> Hak Akses</h4>
-        <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Hubungkan karyawan ke Role (izinnya diatur di tab Config Akses). Ubah 1 karyawan langsung lewat dropdown di tabel, atau centang beberapa lalu pakai Update Massal.</p>
+        <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Pasang <b>Jabatan</b> ke karyawan — Role dan Jenis Usaha ikut otomatis dari jabatan itu. Ubah 1 karyawan langsung lewat dropdown di tabel, atau centang beberapa lalu pakai Update Massal. Jabatan baru diatur dulu di pill Jabatan.</p>
       </div>
 
       <!-- Rail ringkasan per-role -->
@@ -258,11 +285,11 @@ const AppHakAkses = {
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;"><i class="fas fa-layer-group" style="color:var(--burgundy); margin-right:8px;"></i> Update massal ({{ terpilih.size }} karyawan terpilih)</h3>
         <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
           <div class="gc-field" style="margin-bottom:0; flex:1; min-width:200px;">
-            <label>Role baru</label>
+            <label>Jabatan baru</label>
             <select v-model="bulkRole">
-              <option value="__TIDAK_DIUBAH__">-- Pilih role --</option>
+              <option value="__TIDAK_DIUBAH__">-- Pilih jabatan --</option>
               <option value="__KOSONGKAN__">(Kosongkan / belum diatur)</option>
-              <option v-for="r in DAFTAR_ROLE" :key="r" :value="r">{{ r }}</option>
+              <option v-for="j in daftarJabatan" :key="j" :value="j" :disabled="!jabatanSiap(j)">{{ j }}{{ jabatanSiap(j) ? '' : ' — belum diatur' }}</option>
             </select>
           </div>
           <button @click="terapkanBulkRole" :disabled="memprosesBulk" class="btn-primary" style="white-space:nowrap;">
@@ -288,7 +315,11 @@ const AppHakAkses = {
               <button @click="bersihkanPilihan" style="background:none; border:none; color:var(--text-muted); font-weight:700; font-size:11px; cursor:pointer;">Clear All</button>
             </div>
           </div>
-          <div style="display:grid; gap:8px;" class="grid-cols-1 md:grid-cols-2">
+          <div style="display:grid; gap:8px;" class="grid-cols-1 md:grid-cols-3">
+            <select v-model="filterJabatan" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+              <option value="ALL">Semua jabatan</option>
+              <option v-for="j in daftarJabatan" :key="j" :value="j">{{ j }}</option>
+            </select>
             <select v-model="filterRole" style="padding:8px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
               <option value="ALL">Semua role</option>
               <option :value="NILAI_BELUM_DIATUR">(Belum diatur)</option>
@@ -310,8 +341,8 @@ const AppHakAkses = {
                 <th class="freeze freeze-left" style="left:36px;">Karyawan</th>
                 <th>Jenis Pekerjaan</th>
                 <th>Gudang</th>
-                <th style="text-align:center;">Role saat ini</th>
-                <th>Ubah Role</th>
+                <th style="text-align:center;">Jabatan / Role</th>
+                <th>Ubah Jabatan</th>
               </tr>
             </thead>
             <tbody>
@@ -324,13 +355,14 @@ const AppHakAkses = {
                 <td class="gc-cell-muted">{{ d.jenis_pekerjaan || '-' }}</td>
                 <td class="gc-cell-muted"><gudang-ringkas :gudang="d.gudang_penempatan" :nama="d.nama" /></td>
                 <td style="text-align:center;">
-                  <span v-if="roleEfektif(d)" class="tag pink" style="text-transform:uppercase;">{{ roleEfektif(d) }}</span>
+                  <span v-if="d.jabatan" class="tag pink">{{ d.jabatan }}</span>
                   <span v-else class="tag neutral">Belum diatur</span>
+                  <br><span style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">{{ roleEfektif(d) || '-' }}</span>
                 </td>
                 <td>
-                  <select :value="roleEfektif(d)" @change="ubahRoleLangsung(d, $event.target.value)" style="padding:6px 10px; font-size:11.5px; border:1.5px solid var(--line); border-radius:8px; background:var(--surface);">
+                  <select :value="d.jabatan || ''" @change="ubahJabatanLangsung(d, $event.target.value)" style="padding:6px 10px; font-size:11.5px; border:1.5px solid var(--line); border-radius:8px; background:var(--surface);">
                     <option value="">(Belum diatur)</option>
-                    <option v-for="r in DAFTAR_ROLE" :key="r" :value="r">{{ r }}</option>
+                    <option v-for="j in daftarJabatan" :key="j" :value="j" :disabled="!jabatanSiap(j)">{{ j }}{{ jabatanSiap(j) ? '' : ' — belum diatur' }}</option>
                   </select>
                 </td>
               </tr>

@@ -1093,12 +1093,13 @@ export const AksesTerbatasDialog = {
     // Baris info teknis supaya PIC bisa lihat langsung dari screenshot kenapa
     // satu menu terkunci: role yang dipakai HP ini, apakah dokumen izinnya
     // ketemu, dan hasil akhir izin View. Bukan data rahasia.
-    const statusConfig = window.aksesConfigSaya === undefined ? 'belum sempat dimuat'
-      : window.aksesConfigSaya === 'OWNER_PENUH' ? 'Owner/PIC Owner'
-      : window.aksesConfigSaya === null ? ('akses_config role "' + roleSaya + '" TIDAK KETEMU')
+    const jabatanSaya = window.currentUser?.jabatan || '(tidak diisi)';
+    const statusConfig = window.izinMenuSaya === undefined ? 'belum sempat dimuat'
+      : window.izinMenuSaya === 'OWNER_PENUH' ? 'Owner (kebal)'
+      : window.izinMenuSaya === null ? ('akses_jabatan "' + jabatanSaya + '" TIDAK KETEMU')
       : 'ditemukan';
     const nilaiIzin = (props.menuId && window.cekIzinMenu) ? window.cekIzinMenu(props.menuId, 'view') : null;
-    const infoTeknis = 'Role: ' + roleSaya + ' — Config: ' + statusConfig
+    const infoTeknis = 'Role: ' + roleSaya + ' — Jabatan: ' + jabatanSaya + ' — Izin: ' + statusConfig
       + ' — Izin View: ' + (nilaiIzin === true ? 'true' : nilaiIzin === false ? 'false' : 'null (belum diatur)')
       + (props.menuId ? ' — ID menu: ' + props.menuId : '');
 

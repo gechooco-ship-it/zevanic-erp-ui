@@ -119,8 +119,7 @@ const MASTER_DATA_DEFAULT = {
   jenis_pekerjaan: ["Full Time", "Part Time", "Harian"],
   status_kerja: ["Aktif", "Tidak Aktif", "Resign"],
   // "status_pengguna" dihapus dari sini — sudah tidak dibaca di manapun lagi,
-  // role sekarang dikelola lewat Config Akses + Hak Akses (koleksi
-  // akses_config). Lihat catatan di vue-config-karyawan.js.
+  // role sekarang turunan dari Jabatan (koleksi akses_jabatan).
   jabatan: ["Operator", "Admin", "Warehouse"],
   status_karyawan: ["Tetap", "Part Time", "Kontrak"],
   kabupaten: ["Bandung", "Bandung Barat", "Cimahi", "Garut"],

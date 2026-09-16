@@ -1,26 +1,26 @@
 // js/vue-config-akses.js
-// Master Karyawan > Akses & Keamanan, pill Role + Jabatan (pill Assign di
-// vue-hak-akses.js): izin View/Add/Edit/Delete/Print per menu tiap role,
-// pembatas per Jabatan, plus urutan menu Home mobile.
+// Master Karyawan > Akses & Keamanan, pill Jabatan (pill Assign di
+// vue-hak-akses.js). Satu jabatan = role + jenis usaha + menu yang tampil.
+// DAFTAR_MENU di file ini satu-satunya tempat menu aplikasi didaftarkan.
 //
 // Koleksi & field:
-// - akses_config/{role}: nama, menus (izin per menu + fiturList opsional). Doc
-//   id WAJIB role baku — auth.js mencarinya dengan role.
-// - akses_jabatan/{jabatan}: nama, menus — pembatas TAMBAHAN (AND) di atas Role.
-// - master_data/jabatan (items): daftar Jabatan, read-only di sini.
-//   pengaturan_sistem/urutan_menu_home: perKategori, urutanKategori.
+// - akses_jabatan/{jabatan huruf kecil}: nama, role, jenis_pekerjaan, menus.
+//   Dibaca auth.js window.muatIzinMenuSaya; role & jenis_pekerjaan disalin ke
+//   users saat jabatan dipasang di pill Assign.
+// - master_data/jabatan (items): daftar nama jabatan, ditulis juga dari sini.
 //
 // Jebakan:
 // - Izin di sini murni client-side dan hanya menyembunyikan tampilan. Kuasa
 //   simpan sungguhan ditentukan field role lewat Firestore Rules.
-// - owner & pic_owner tidak bisa diedit di sini, keduanya selalu penuh.
+// - Kategori milik usaha lain disembunyikan DAN ditulis tertutup saat simpan.
+// - Ubah role/usaha jabatan WAJIB diikuti "Terapkan ke karyawan", kalau tidak
+//   salinan di users basi dan Rules memakai nilai lama.
 // - DAFTAR_MENU satu sumber kebenaran: icon+aksi dibaca vue-home.js & sidebar.
-// - Jabatan: dicentang = tidak membatasi, dikosongkan = memblokir, tidak pernah
-//   melonggarkan. deprecated:true menyembunyikan menu dari Home, wajibOwner:true
-//   mengunci ke owner asli. Entry menu lama jangan dihapus.
+//   deprecated:true menyembunyikan menu, wajibOwner:true mengunci ke owner
+//   asli. Entry menu lama jangan dihapus.
 
-import { createApp, ref, reactive, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { doc, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { collection, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
 // Tiap entry punya `icon` (kelas FontAwesome) dan `aksi` (fungsi pindah
@@ -83,7 +83,7 @@ const DAFTAR_MENU = [
   { id: 'device_kiosk', label: 'List Device Kiosk', kategori: 'Master Integrasi', icon: 'fa-tablet-screen-button', wajibOwner: true,
     aksi: () => { window.pindahTab('tab-device-kiosk'); } },
   // id 'bahan_aksesoris_*' SENGAJA tidak ikut diubah waktu label sidebar-nya
-  // ganti — akses_config per-user tersimpan memakai id ini.
+  // ganti — izin jabatan tersimpan memakai id ini.
   // 'config_master_data': 1 menu-id dipakai bareng 6 tab child Config (pola sama
   // seperti 'config_karyawan'), lihat js/vue-config.js.
   { id: 'config_master_data', label: 'Config', kategori: 'Zevanic House', icon: 'fa-sliders',
@@ -253,392 +253,50 @@ const DAFTAR_MENU = [
 // Master Karyawan/Absensi/Keuangan tetap terpisah walau sidebar menggabungnya.
 export const KATEGORI_URUTAN = ['Umum', 'Master Karyawan', 'Master Absensi', 'Master Keuangan', 'Zevanic House', 'Stok dan Pembelian', 'Pesanan', 'Persiapan Produksi', 'Proses Produksi', 'Scan & Cetak', 'Master Integrasi'];
 export { DAFTAR_MENU };
-const KOSONG_IZIN = () => ({ view: false, add: false, edit: false, delete: false, print: false });
-
-// Default awal role yang bisa diedit SENGAJA disamakan dengan perilaku hardcode
-// di auth.js — supaya role ini begitu pertama dibuka sudah masuk akal, bukan
-// kosong semua. owner dan pic_owner tidak ada di sini: keduanya selalu penuh.
-function bikinDefaultProfil(namaProfil) {
-  const menus = {};
-  DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN(); });
-
-  const semua = (id) => { menus[id] = { view: true, add: true, edit: true, delete: true, print: true }; };
-  const lihatSaja = (id) => { menus[id].view = true; };
-
-  if (namaProfil === 'pic' || namaProfil === 'admin') {
-    lihatSaja('dashboard');
-    menus.profile = { view: true, add: true, edit: true, delete: false, print: false };
-    // Diturunkan dari KATEGORI, bukan daftar id yang ditulis tangan, supaya
-    // menu baru di kategori yang sama otomatis ikut. Isinya PERSIS kategori
-    // yang tombol sidebarnya digerbang admin-level di auth.js — Master
-    // Karyawan dan Master Integrasi sengaja di luar, itu owner/pic_owner.
-    const kategoriAdmin = ['Master Absensi', 'Master Keuangan', 'Zevanic House',
-      'Stok dan Pembelian', 'Pesanan', 'Persiapan Produksi', 'Proses Produksi', 'Scan & Cetak'];
-    DAFTAR_MENU.forEach(m => {
-      if (!m.deprecated && !m.wajibOwner && kategoriAdmin.includes(m.kategori)) semua(m.id);
-    });
-    // Contoh nyata pemakaian fitur granular: Admin/PIC boleh kelola Master
-    // Gudang sepenuhnya (view/add/edit/delete/print semua true di atas), TAPI
-    // khusus dropdown "Jenis Lokasi"-nya tetap terkunci ke Tetap — cuma Owner
-    // yang bisa buka opsi Dinamis.
-    menus.config_absensi.fitur = { ubah_jenis_lokasi: false };
-  } else {
-    lihatSaja('dashboard');
-    menus.profile = { view: true, add: true, edit: true, delete: false, print: false };
-  }
-  return menus;
-}
-
-const PROFIL_BAKU = ['operator', 'admin', 'pic', 'pic_owner', 'owner'];
-
-const AppConfigAkses = {
-  setup() {
-    const daftarProfil = ref([]); // 5 role baku minus owner, diisi di muat()
-    const memuat = ref(true);
-    const menyimpan = ref(false);
-
-    const profilDipilih = ref('');
-    const menus = reactive({});
-    // pastikanFiturAda: kalau menu ini punya fiturList (kontrol granular
-    // tambahan), pastikan menus[id].fitur SELALU ada sebagai objek — supaya
-    // template (v-model="menus[m.id].fitur[f.key]") tidak error kalau datanya
-    // belum pernah tersimpan sama sekali.
-    function pastikanFiturAda(menuId) {
-      const def = DAFTAR_MENU.find(m => m.id === menuId);
-      if (def && def.fiturList && !menus[menuId].fitur) menus[menuId].fitur = {};
-    }
-    DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN(); pastikanFiturAda(m.id); });
-
-    const kategoriTerbuka = reactive({});
-    KATEGORI_URUTAN.forEach(k => { kategoriTerbuka[k] = true; });
-    function toggleKategori(k) { kategoriTerbuka[k] = !kategoriTerbuka[k]; }
-
-    // Home mobile cuma menampilkan 4 menu teratas per kategori (sisanya lewat
-    // "Lihat Semua"); urutan 4 teratas itu diatur di sini. Disimpan 1 dokumen
-    // tunggal, dibaca vue-home.js 1x getDoc. Menu yang belum pernah diatur
-    // otomatis menempel di akhir (self-healing untuk menu baru).
-    const urutanMenu = reactive({});
-    const urutanTerbuka = reactive({});
-    const menyimpanUrutan = ref(false);
-    // urutanKategoriArr: urutan KATEGORI itu sendiri, TERPISAH dari urutanMenu
-    // (urutan menu DI DALAM 1 kategori). Disimpan di dokumen yang SAMA, field
-    // `urutanKategori`. Dipakai bareng Home mobile dan sidebar desktop (lihat
-    // window.terapkanUrutanMenuDesktop di auth.js).
-    const urutanKategoriArr = ref([]);
-    function labelMenu(id) { const m = DAFTAR_MENU.find(x => x.id === id); return m ? m.label : id; }
-    async function muatUrutanMenu() {
-      const kategoriDipakai = KATEGORI_URUTAN.filter(k => k !== 'Umum');
-      kategoriDipakai.forEach(k => { urutanTerbuka[k] = false; });
-      let perKategoriTersimpan = {};
-      let urutanKategoriTersimpan = [];
-      try {
-        const snap = await getDoc(doc(db, 'pengaturan_sistem', 'urutan_menu_home'));
-        if (snap.exists()) {
-          perKategoriTersimpan = snap.data().perKategori || {};
-          urutanKategoriTersimpan = snap.data().urutanKategori || [];
-        }
-      } catch (e) {
-        console.error('Gagal muat urutan menu Home mobile:', e);
-      }
-      kategoriDipakai.forEach(k => {
-        const idsAsli = DAFTAR_MENU.filter(m => m.kategori === k && !m.deprecated).map(m => m.id);
-        const tersimpan = (perKategoriTersimpan[k] || []).filter(id => idsAsli.includes(id));
-        const belumAda = idsAsli.filter(id => !tersimpan.includes(id));
-        urutanMenu[k] = [...tersimpan, ...belumAda];
-      });
-      // Self-healing sama seperti urutanMenu: kategori tersimpan yang masih
-      // valid dipertahankan urutannya, kategori baru (belum pernah diatur)
-      // otomatis nambah di paling akhir.
-      const katTersimpanValid = urutanKategoriTersimpan.filter(k => kategoriDipakai.includes(k));
-      const katBelumAda = kategoriDipakai.filter(k => !katTersimpanValid.includes(k));
-      urutanKategoriArr.value = [...katTersimpanValid, ...katBelumAda];
-    }
-    function naikkanUrutan(kategori, idx) {
-      if (idx <= 0) return;
-      const arr = urutanMenu[kategori];
-      [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
-    }
-    function turunkanUrutan(kategori, idx) {
-      const arr = urutanMenu[kategori];
-      if (idx >= arr.length - 1) return;
-      [arr[idx + 1], arr[idx]] = [arr[idx], arr[idx + 1]];
-    }
-    function naikkanKategori(idx) {
-      if (idx <= 0) return;
-      const arr = urutanKategoriArr.value;
-      [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
-    }
-    function turunkanKategori(idx) {
-      const arr = urutanKategoriArr.value;
-      if (idx >= arr.length - 1) return;
-      [arr[idx + 1], arr[idx]] = [arr[idx], arr[idx + 1]];
-    }
-    async function simpanUrutanMenu() {
-      menyimpanUrutan.value = true;
-      try {
-        const perKategori = {};
-        KATEGORI_URUTAN.filter(k => k !== 'Umum').forEach(k => { perKategori[k] = urutanMenu[k] || []; });
-        await setDoc(doc(db, 'pengaturan_sistem', 'urutan_menu_home'), { perKategori, urutanKategori: urutanKategoriArr.value });
-        alert('Urutan menu Home mobile & desktop berhasil disimpan!');
-      } catch (e) {
-        console.error('Gagal simpan urutan menu Home mobile:', e);
-        alert('Gagal menyimpan urutan menu.');
-      }
-      menyimpanUrutan.value = false;
-    }
-
-    const cariMenu = ref('');
-    function menuUntukKategori(kategori) {
-      const kata = cariMenu.value.trim().toLowerCase();
-      return DAFTAR_MENU.filter(m => m.kategori === kategori && (!kata || m.label.toLowerCase().includes(kata)));
-    }
-
-    // Checkbox "pilih semua" di header kolom (View/Add/Edit/Delete/Print) —
-    // cakupannya cuma menu-menu di dalam kategori itu saja, tidak ikut menyentuh
-    // kategori lain.
-    function semuaTercentangKolom(kategori, field) {
-      const daftarMenu = menuUntukKategori(kategori);
-      return daftarMenu.length > 0 && daftarMenu.every(m => menus[m.id][field]);
-    }
-    function toggleKolomKategori(kategori, field) {
-      const nilaiBaru = !semuaTercentangKolom(kategori, field);
-      menuUntukKategori(kategori).forEach(m => { menus[m.id][field] = nilaiBaru; });
-    }
-
-    async function muat() {
-      memuat.value = true;
-      // Daftar yang bisa diedit TETAP role baku, tidak lagi ditambah nama bebas
-      // dari isi koleksi. owner dan pic_owner sengaja disembunyikan: auth.js
-      // memberi keduanya OWNER_PENUH tanpa baca akses_config, jadi mengeditnya
-      // di sini tidak akan pernah berefek.
-      const gabungan = PROFIL_BAKU.filter(nama => nama !== 'owner' && nama !== 'pic_owner');
-      daftarProfil.value = gabungan;
-      if (!profilDipilih.value && gabungan.length > 0) await pilihProfil(gabungan[0]);
-      memuat.value = false;
-    }
-
-    async function pilihProfil(nama) {
-      if (!nama) return;
-      profilDipilih.value = nama;
-      try {
-        const snap = await getDoc(doc(db, "akses_config", nama));
-        const dataMenus = snap.exists() ? (snap.data().menus || {}) : null;
-        // Role yang belum pernah disimpan dimuat dengan izin bawaannya, bukan
-        // kosong — kalau kosong, semua menu langsung hilang begitu disimpan.
-        DAFTAR_MENU.forEach(m => {
-          menus[m.id] = dataMenus && dataMenus[m.id]
-            ? { ...KOSONG_IZIN(), ...dataMenus[m.id] }
-            : bikinDefaultProfil(nama)[m.id];
-          pastikanFiturAda(m.id);
-        });
-      } catch (e) {
-        console.error("Gagal muat profil akses:", nama, e);
-      }
-    }
-
-    async function simpan() {
-      const nama = profilDipilih.value;
-      if (!nama) return alert("Pilih role yang mau diatur dulu.");
-
-      menyimpan.value = true;
-      try {
-        const menusPolos = {};
-        DAFTAR_MENU.forEach(m => { menusPolos[m.id] = { ...menus[m.id] }; });
-        await setDoc(doc(db, "akses_config", nama), { nama, menus: menusPolos });
-        alert(`Izin role "${nama}" berhasil disimpan!`);
-      } catch (e) {
-        console.error("Gagal simpan profil akses:", e);
-        alert("Gagal menyimpan izin role.");
-      }
-      menyimpan.value = false;
-    }
-
-    // Panel "Urutan Menu" disembunyikan lewat fiturUrutanMenuAktif = false.
-    // muatUrutanMenu SENGAJA tidak dipanggil di onMounted supaya tidak baca
-    // Firestore untuk panel yang tersembunyi; fungsi-fungsinya dibiarkan utuh.
-    const fiturUrutanMenuAktif = false;
-    onMounted(async () => { await window.authReady; muat(); });
-
-    return {
-      daftarProfil, memuat, menyimpan, muat,
-      profilDipilih, pilihProfil, simpan,
-      menus, KATEGORI_URUTAN, kategoriTerbuka, toggleKategori, menuUntukKategori, cariMenu,
-      semuaTercentangKolom, toggleKolomKategori,
-      urutanMenu, urutanTerbuka, menyimpanUrutan, labelMenu, naikkanUrutan, turunkanUrutan, simpanUrutanMenu,
-      urutanKategoriArr, naikkanKategori, turunkanKategori, fiturUrutanMenuAktif
-    };
-  },
-  template: `
-    <div>
-      <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px;">
-        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:var(--teal-text);"><i class="fas fa-shield-halved" style="margin-right:8px;"></i> Config Akses</h4>
-        <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Atur izin View/Add/Edit/Delete/Print per menu untuk tiap role. Role dipasang ke karyawan di tab Hak Akses. Untuk mengurangi akses lebih jauh per posisi kerja, pakai tab Akses Jabatan.</p>
-      </div>
-
-      <div class="gc-card" style="margin-bottom:16px;">
-        <div class="gc-field" style="margin-bottom:14px; max-width:320px;">
-          <label>Role yang sedang diatur</label>
-          <select :value="profilDipilih" @change="pilihProfil($event.target.value)">
-            <option v-for="p in daftarProfil" :key="p" :value="p">{{ p.toUpperCase() }}</option>
-          </select>
-        </div>
-        <button @click="simpan" :disabled="menyimpan" class="btn-primary block">
-          <i class="fas fa-rotate" style="margin-right:8px;"></i>
-          {{ menyimpan ? 'Menyimpan...' : 'Simpan izin role ini' }}
-        </button>
-      </div>
-
-      <!--
-        Panel disembunyikan lewat v-if fiturUrutanMenuAktif; markup dibiarkan utuh.
-      -->
-      <div v-if="fiturUrutanMenuAktif" class="gc-card" style="margin-bottom:16px; border:1.5px solid var(--burgundy);">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
-          <h4 class="gc-heading" style="font-size:12.5px; font-weight:700;"><i class="fas fa-arrow-down-wide-short" style="color:var(--burgundy); margin-right:8px;"></i> Urutan Menu di Home Mobile & Sidebar Desktop</h4>
-          <button @click="simpanUrutanMenu" :disabled="menyimpanUrutan" class="btn-primary" style="padding:8px 16px; font-size:11.5px;">
-            <i class="fas" :class="menyimpanUrutan ? 'fa-spinner fa-spin' : 'fa-save'" style="margin-right:6px;"></i>{{ menyimpanUrutan ? 'Menyimpan...' : 'Simpan Urutan' }}
-          </button>
-        </div>
-        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Urutan di sini dipakai BARENG untuk grid Home mobile (4 menu paling atas per kategori yang tampil duluan, sisanya lewat "Lihat Semua") DAN posisi tombol di sidebar desktop (termasuk tab di dalam halaman Master Absensi/Keuangan/Karyawan/Zevanic House) — 1x atur, dua-duanya ikut.</p>
-
-        <div style="margin-bottom:14px; border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:var(--ivory-dim);">
-          <p style="font-size:11px; font-weight:700; margin-bottom:8px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em;">Urutan Kategori (Grup Menu)</p>
-          <div v-for="(kategori, idxKat) in urutanKategoriArr" :key="'kat-'+kategori" style="display:flex; align-items:center; justify-content:space-between; padding:6px 8px; border-bottom:1px solid var(--line); gap:8px;">
-            <span style="font-size:12px; flex:1;"><span style="display:inline-block; width:20px; color:var(--text-faint); font-weight:700;">{{ idxKat + 1 }}.</span>{{ kategori }}</span>
-            <span style="display:flex; gap:4px; flex:none;">
-              <button @click="naikkanKategori(idxKat)" :disabled="idxKat===0" style="background:var(--surface); border:1px solid var(--line); border-radius:6px; width:26px; height:26px; cursor:pointer;" :style="idxKat===0 ? 'opacity:.3;' : ''"><i class="fas fa-arrow-up" style="font-size:10px;"></i></button>
-              <button @click="turunkanKategori(idxKat)" :disabled="idxKat === urutanKategoriArr.length - 1" style="background:var(--surface); border:1px solid var(--line); border-radius:6px; width:26px; height:26px; cursor:pointer;" :style="idxKat === urutanKategoriArr.length - 1 ? 'opacity:.3;' : ''"><i class="fas fa-arrow-down" style="font-size:10px;"></i></button>
-            </span>
-          </div>
-        </div>
-
-        <div v-for="kategori in urutanKategoriArr" :key="'urutan-'+kategori" style="margin-bottom:10px; border:1px solid var(--line); border-radius:12px; overflow:hidden;">
-          <div @click="urutanTerbuka[kategori] = !urutanTerbuka[kategori]" style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; cursor:pointer; background:var(--ivory-dim);">
-            <span style="font-size:12px; font-weight:700;">{{ kategori }} <span style="font-size:10px; color:var(--text-faint); font-weight:600;">({{ (urutanMenu[kategori]||[]).length }} menu)</span></span>
-            <i class="fas" :class="urutanTerbuka[kategori] ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-muted); font-size:11px;"></i>
-          </div>
-          <div v-show="urutanTerbuka[kategori]" style="padding:8px 10px;">
-            <div v-for="(id, idx) in (urutanMenu[kategori] || [])" :key="id" style="display:flex; align-items:center; justify-content:space-between; padding:6px 8px; border-bottom:1px solid var(--line); gap:8px;">
-              <span style="font-size:12px; flex:1;">
-                <span style="display:inline-block; width:20px; color:var(--text-faint); font-weight:700;">{{ idx + 1 }}.</span>
-                {{ labelMenu(id) }}
-                <span v-if="idx < 4" style="font-size:9px; font-weight:800; color:var(--ok); background:var(--ok-light); padding:1px 6px; border-radius:999px; margin-left:6px; white-space:nowrap;">tampil duluan</span>
-              </span>
-              <span style="display:flex; gap:4px; flex:none;">
-                <button @click="naikkanUrutan(kategori, idx)" :disabled="idx===0" style="background:var(--surface); border:1px solid var(--line); border-radius:6px; width:26px; height:26px; cursor:pointer;" :style="idx===0 ? 'opacity:.3;' : ''"><i class="fas fa-arrow-up" style="font-size:10px;"></i></button>
-                <button @click="turunkanUrutan(kategori, idx)" :disabled="idx === (urutanMenu[kategori]||[]).length - 1" style="background:var(--surface); border:1px solid var(--line); border-radius:6px; width:26px; height:26px; cursor:pointer;" :style="idx === (urutanMenu[kategori]||[]).length - 1 ? 'opacity:.3;' : ''"><i class="fas fa-arrow-down" style="font-size:10px;"></i></button>
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div v-if="memuat" style="text-align:center; padding:40px 0; color:var(--text-faint);">
-        <i class="fas fa-spinner fa-spin" style="font-size:24px; margin-bottom:8px; display:block;"></i>Memuat...
-      </div>
-
-      <div v-else style="position:relative; margin-bottom:14px;">
-        <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
-        <input v-model="cariMenu" type="text" placeholder="Cari nama menu..." style="width:100%; max-width:320px; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
-      </div>
-
-      <div v-if="!memuat" v-for="kategori in KATEGORI_URUTAN" :key="kategori" class="gc-card" style="margin-bottom:12px; padding:0; overflow:hidden;">
-        <div @click="toggleKategori(kategori)" style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; cursor:pointer; background:var(--ivory-dim);">
-          <h3 class="gc-heading" style="font-size:13px; font-weight:700;">{{ kategori }}</h3>
-          <i class="fas" :class="kategoriTerbuka[kategori] ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-muted);"></i>
-        </div>
-        <div v-show="kategoriTerbuka[kategori]" class="gc-table-scroll">
-          <table class="gc-table" style="table-layout:fixed; min-width:640px;">
-            <thead>
-              <tr>
-                <th class="freeze freeze-left" style="width:220px;">Nama menu</th>
-                <th style="width:84px; text-align:center;">
-                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'view')" @change="toggleKolomKategori(kategori, 'view')" style="accent-color:var(--burgundy); width:14px; height:14px;">
-                    <span>View</span>
-                  </div>
-                </th>
-                <th style="width:84px; text-align:center;">
-                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'add')" @change="toggleKolomKategori(kategori, 'add')" style="accent-color:var(--burgundy); width:14px; height:14px;">
-                    <span>Add</span>
-                  </div>
-                </th>
-                <th style="width:84px; text-align:center;">
-                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'edit')" @change="toggleKolomKategori(kategori, 'edit')" style="accent-color:var(--burgundy); width:14px; height:14px;">
-                    <span>Edit</span>
-                  </div>
-                </th>
-                <th style="width:84px; text-align:center;">
-                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'delete')" @change="toggleKolomKategori(kategori, 'delete')" style="accent-color:var(--burgundy); width:14px; height:14px;">
-                    <span>Delete</span>
-                  </div>
-                </th>
-                <th style="width:84px; text-align:center;">
-                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'print')" @change="toggleKolomKategori(kategori, 'print')" style="accent-color:var(--burgundy); width:14px; height:14px;">
-                    <span>Print</span>
-                  </div>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="m in menuUntukKategori(kategori)" :key="m.id">
-                <td class="freeze freeze-left" style="font-weight:600;">{{ m.label }}</td>
-                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].view" style="accent-color:var(--ok); width:16px; height:16px;"></td>
-                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].add" style="accent-color:var(--ok); width:16px; height:16px;"></td>
-                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].edit" style="accent-color:var(--ok); width:16px; height:16px;"></td>
-                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].delete" style="accent-color:var(--ok); width:16px; height:16px;"></td>
-                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].print" style="accent-color:var(--ok); width:16px; height:16px;"></td>
-              </tr>
-              <tr v-for="m in menuUntukKategori(kategori).filter(x => x.fiturList)" :key="m.id + '-fitur'">
-                <td colspan="6" style="background:var(--ivory-dim); padding:10px 12px;">
-                  <div style="font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.03em; margin-bottom:6px;">Kontrol tambahan — {{ m.label }}</div>
-                  <label v-for="f in m.fiturList" :key="f.key" style="display:flex; align-items:center; gap:8px; font-size:12px; padding:4px 0; cursor:pointer;">
-                    <input type="checkbox" v-model="menus[m.id].fitur[f.key]" style="accent-color:var(--ok); width:15px; height:15px;">
-                    {{ f.label }}
-                  </label>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  `
-};
-
-let vmConfigAkses = null;
-// Mount SENGAJA lewat window.pastikanMountConfigAkses yang dipanggil dashboard.js
-// saat tab ini pertama dibuka. Kalau di-mount begitu file dimuat, onMounted-nya
-// fetch Firestore untuk SIAPAPUN yang buka halaman, termasuk yang tidak punya
-// akses — console penuh "Missing or insufficient permissions" dan baca boros.
-window.pastikanMountConfigAkses = function() {
-  if (vmConfigAkses) { if (typeof vmConfigAkses.muat === 'function') vmConfigAkses.muat(); return; }
-  const mountPoint = document.getElementById('vue-config-akses');
-  if (mountPoint) vmConfigAkses = createApp(AppConfigAkses).mount('#vue-config-akses');
-};
-window.refreshConfigAkses = function() { if (vmConfigAkses) vmConfigAkses.muat(); };
-
-
-// AppJabatanAkses: dimensi Jabatan, pill "Jabatan" di layar Akses & Keamanan.
-// Pembatas TAMBAHAN (AND) di atas Role — dicentang = tidak membatasi,
-// dikosongkan = memblokir, tidak pernah bisa melonggarkan izin yang Role-nya
-// sendiri tolak (lihat window.cekIzinMenu di auth.js).
+// AppJabatanAkses: satu-satunya halaman pengatur akses. Jabatan menyimpan role
+// (pengaman di Rules) + jenis_pekerjaan (batas usaha) + menu yang boleh tampil.
+// Keduanya DISALIN ke users saat jabatan dipasang di pill Assign, karena Rules
+// dan custom claim membaca users, bukan jabatan.
 
 const KOSONG_IZIN_JABATAN = () => ({ view: true, add: true, edit: true, delete: true, print: true });
+const TUTUP_IZIN_JABATAN = () => ({ view: false, add: false, edit: false, delete: false, print: false });
+const ROLE_BAKU_JABATAN = ['operator', 'admin', 'pic', 'pic_owner', 'owner'];
+
+// Kategori yang cuma relevan untuk satu jenis usaha. Jabatan usaha lain tidak
+// usah melihat menunya sama sekali — disembunyikan di layar DAN ditulis tertutup
+// saat simpan. Menu baru otomatis ikut lewat kategorinya.
+const KATEGORI_KHUSUS_USAHA = {
+  'Zevanic House': 'ZCO',
+  'Stok dan Pembelian': 'ZCO',
+  'Pesanan': 'ZCO',
+  'Persiapan Produksi': 'ZCO',
+  'Proses Produksi': 'ZCO',
+  'Scan & Cetak': 'ZCO'
+};
 
 const AppJabatanAkses = {
   setup() {
     const daftarJabatan = ref([]);
+    const daftarUsaha = ref([]);
     const memuat = ref(true);
     const menyimpan = ref(false);
     const menghapus = ref(false);
+    const menyinkron = ref(false);
+
     const jabatanDipilih = ref('');
-    const adaPembatasanTersimpan = ref(false); // true kalau doc akses_jabatan utk pilihan ini sudah pernah disimpan
+    const roleJabatan = ref('operator');
+    const usahaJabatan = ref('');
+    const namaJabatanBaru = ref('');
+    const adaPembatasanTersimpan = ref(false);
+
     const menus = reactive({});
     DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN_JABATAN(); });
+
+    // Kategori yang ditampilkan ikut jenis usaha jabatan ini — Guru tidak perlu
+    // mencentang menu yang memang tidak dipakai usahanya.
+    const kategoriTampil = computed(() =>
+      KATEGORI_URUTAN.filter(k => !KATEGORI_KHUSUS_USAHA[k] || KATEGORI_KHUSUS_USAHA[k] === usahaJabatan.value)
+    );
 
     const kategoriTerbuka = reactive({});
     KATEGORI_URUTAN.forEach(k => { kategoriTerbuka[k] = true; });
@@ -647,11 +305,11 @@ const AppJabatanAkses = {
     const cariMenu = ref('');
     function menuUntukKategori(kategori) {
       const kata = cariMenu.value.trim().toLowerCase();
-      return DAFTAR_MENU.filter(m => m.kategori === kategori && (!kata || m.label.toLowerCase().includes(kata)));
+      return DAFTAR_MENU.filter(m => m.kategori === kategori && !m.deprecated && (!kata || m.label.toLowerCase().includes(kata)));
     }
     function semuaTercentangKolom(kategori, field) {
-      const daftarMenu = menuUntukKategori(kategori);
-      return daftarMenu.length > 0 && daftarMenu.every(m => menus[m.id][field]);
+      const daftar = menuUntukKategori(kategori);
+      return daftar.length > 0 && daftar.every(m => menus[m.id][field]);
     }
     function toggleKolomKategori(kategori, field) {
       const nilaiBaru = !semuaTercentangKolom(kategori, field);
@@ -667,62 +325,129 @@ const AppJabatanAkses = {
         console.error('Gagal muat daftar Jabatan (master_data/jabatan):', e);
         daftarJabatan.value = [];
       }
-      if (!jabatanDipilih.value && daftarJabatan.value.length > 0) {
-        await pilihJabatan(daftarJabatan.value[0]);
-      }
+      daftarUsaha.value = window.ambilMasterList ? await window.ambilMasterList('jenis_pekerjaan') : [];
+      if (jabatanDipilih.value) await pilihJabatan(jabatanDipilih.value);
       memuat.value = false;
     }
 
     async function pilihJabatan(nama) {
       jabatanDipilih.value = nama;
-      DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN_JABATAN(); });
+      roleJabatan.value = 'operator';
+      usahaJabatan.value = '';
       adaPembatasanTersimpan.value = false;
+      DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN_JABATAN(); });
       if (!nama) return;
       try {
-        const j = nama.trim().toLowerCase();
-        const snap = await getDoc(doc(db, 'akses_jabatan', j));
-        if (snap.exists()) {
-          adaPembatasanTersimpan.value = true;
-          const dataMenus = snap.data().menus || {};
-          DAFTAR_MENU.forEach(m => {
-            menus[m.id] = dataMenus[m.id] ? { ...KOSONG_IZIN_JABATAN(), ...dataMenus[m.id] } : KOSONG_IZIN_JABATAN();
-          });
-        }
+        const snap = await getDoc(doc(db, 'akses_jabatan', nama.trim().toLowerCase()));
+        if (!snap.exists()) return;
+        const d = snap.data();
+        adaPembatasanTersimpan.value = true;
+        roleJabatan.value = d.role || 'operator';
+        usahaJabatan.value = d.jenis_pekerjaan || '';
+        const dataMenus = d.menus || {};
+        DAFTAR_MENU.forEach(m => {
+          menus[m.id] = dataMenus[m.id] ? { ...KOSONG_IZIN_JABATAN(), ...dataMenus[m.id] } : KOSONG_IZIN_JABATAN();
+        });
       } catch (e) {
         console.error('Gagal muat akses_jabatan untuk', nama, e);
       }
     }
 
+    // Jabatan baru ditulis ke master_data/jabatan juga, supaya dropdown Jabatan
+    // di Daftar Karyawan dan di sini selalu satu daftar yang sama.
+    async function tambahJabatan() {
+      const nama = namaJabatanBaru.value.trim();
+      if (!nama) return alert('Isi nama jabatan dulu.');
+      if (daftarJabatan.value.some(j => j.toLowerCase() === nama.toLowerCase())) {
+        return alert('Jabatan dengan nama itu sudah ada.');
+      }
+      try {
+        const itemsBaru = [...daftarJabatan.value, nama];
+        await setDoc(doc(db, 'master_data', 'jabatan'), { items: itemsBaru }, { merge: true });
+        daftarJabatan.value = itemsBaru;
+        namaJabatanBaru.value = '';
+        await pilihJabatan(nama);
+      } catch (e) {
+        console.error('Gagal tambah jabatan:', e);
+        alert('Gagal menambah jabatan.');
+      }
+    }
+
     async function simpan() {
-      if (!jabatanDipilih.value) return alert('Pilih Jabatan dulu.');
+      if (!jabatanDipilih.value) return alert('Pilih jabatan dulu.');
+      if (!usahaJabatan.value) return alert('Pilih Jenis Usaha dulu — itu yang menentukan menu mana yang berlaku.');
       menyimpan.value = true;
       try {
-        const j = jabatanDipilih.value.trim().toLowerCase();
+        // Menu di kategori milik usaha lain ditulis TERTUTUP, bukan dibiarkan
+        // terbuka: layarnya tidak menampilkannya, jadi kalau dibiarkan terbuka
+        // Guru tidak punya cara melihat bahwa menu itu masih boleh.
+        const kategoriBoleh = new Set(kategoriTampil.value);
         const menusPolos = {};
-        DAFTAR_MENU.forEach(m => { menusPolos[m.id] = { ...menus[m.id] }; });
-        await setDoc(doc(db, 'akses_jabatan', j), { nama: jabatanDipilih.value, menus: menusPolos });
+        DAFTAR_MENU.forEach(m => {
+          menusPolos[m.id] = kategoriBoleh.has(m.kategori) ? { ...menus[m.id] } : TUTUP_IZIN_JABATAN();
+        });
+        await setDoc(doc(db, 'akses_jabatan', jabatanDipilih.value.trim().toLowerCase()), {
+          nama: jabatanDipilih.value,
+          role: roleJabatan.value,
+          jenis_pekerjaan: usahaJabatan.value,
+          menus: menusPolos
+        });
         adaPembatasanTersimpan.value = true;
-        alert(`Pembatasan akses untuk Jabatan "${jabatanDipilih.value}" berhasil disimpan!`);
+        alert(`Jabatan "${jabatanDipilih.value}" tersimpan.`);
+        await sinkronKaryawan(true);
       } catch (e) {
         console.error('Gagal simpan akses_jabatan:', e);
-        alert('Gagal menyimpan pembatasan akses Jabatan.');
+        alert('Gagal menyimpan jabatan.');
       }
       menyimpan.value = false;
     }
 
-    async function hapusPembatasan() {
+    // role & jenis_pekerjaan di users adalah SALINAN dari jabatan. Tiap definisi
+    // jabatan berubah, salinan itu ikut diperbarui, kalau tidak Rules memakai
+    // nilai lama sampai karyawannya kebetulan diedit satu per satu.
+    async function sinkronKaryawan(otomatis) {
       if (!jabatanDipilih.value) return;
-      if (!confirm(`Hapus SEMUA pembatasan tambahan untuk Jabatan "${jabatanDipilih.value}"? Jabatan ini akan kembali mengikuti izin Role sepenuhnya (tanpa pembatas tambahan).`)) return;
+      menyinkron.value = true;
+      let diperbarui = 0, gagal = 0;
+      try {
+        const snap = await getDocs(query(collection(db, 'users'), where('jabatan', '==', jabatanDipilih.value)));
+        if (snap.empty) {
+          if (!otomatis) alert('Belum ada karyawan dengan jabatan ini.');
+          menyinkron.value = false;
+          return;
+        }
+        if (!otomatis && !confirm(`Terapkan role "${roleJabatan.value}" dan usaha "${usahaJabatan.value}" ke ${snap.size} karyawan berjabatan ini?`)) {
+          menyinkron.value = false;
+          return;
+        }
+        for (const d of snap.docs) {
+          const p = d.data();
+          if (p.role === roleJabatan.value && p.jenis_pekerjaan === usahaJabatan.value) continue;
+          try {
+            await updateDoc(doc(db, 'users', d.id), { role: roleJabatan.value, jenis_pekerjaan: usahaJabatan.value });
+            diperbarui++;
+          } catch (e) { console.error('Gagal sinkron', d.id, e); gagal++; }
+        }
+        alert(`Sinkron selesai. Diperbarui: ${diperbarui}, gagal: ${gagal}. Karyawan yang sedang login perlu login ulang supaya izinnya ikut berubah.`);
+      } catch (e) {
+        console.error('Gagal sinkron karyawan:', e);
+        alert('Gagal menyinkronkan karyawan.');
+      }
+      menyinkron.value = false;
+    }
+
+    async function hapusPengaturan() {
+      if (!jabatanDipilih.value) return;
+      if (!confirm(`Hapus pengaturan akses jabatan "${jabatanDipilih.value}"? Karyawan berjabatan ini kembali tanpa pembatasan menu (mengikuti gerbang role saja).`)) return;
       menghapus.value = true;
       try {
-        const j = jabatanDipilih.value.trim().toLowerCase();
-        await deleteDoc(doc(db, 'akses_jabatan', j));
+        await deleteDoc(doc(db, 'akses_jabatan', jabatanDipilih.value.trim().toLowerCase()));
         DAFTAR_MENU.forEach(m => { menus[m.id] = KOSONG_IZIN_JABATAN(); });
         adaPembatasanTersimpan.value = false;
-        alert('Pembatasan berhasil dihapus — Jabatan ini sekarang tidak punya pembatas tambahan.');
+        alert('Pengaturan jabatan dihapus.');
       } catch (e) {
         console.error('Gagal hapus akses_jabatan:', e);
-        alert('Gagal menghapus pembatasan.');
+        alert('Gagal menghapus pengaturan.');
       }
       menghapus.value = false;
     }
@@ -730,45 +455,74 @@ const AppJabatanAkses = {
     onMounted(async () => { await window.authReady; muat(); });
 
     return { muat,
-      daftarJabatan, memuat, menyimpan, menghapus, jabatanDipilih, adaPembatasanTersimpan,
-      pilihJabatan, simpan, hapusPembatasan,
-      menus, KATEGORI_URUTAN, kategoriTerbuka, toggleKategori, menuUntukKategori, cariMenu,
+      daftarJabatan, daftarUsaha, memuat, menyimpan, menghapus, menyinkron,
+      jabatanDipilih, roleJabatan, usahaJabatan, namaJabatanBaru, adaPembatasanTersimpan,
+      ROLE_BAKU_JABATAN, pilihJabatan, tambahJabatan, simpan, sinkronKaryawan, hapusPengaturan,
+      menus, kategoriTampil, kategoriTerbuka, toggleKategori, menuUntukKategori, cariMenu,
       semuaTercentangKolom, toggleKolomKategori
     };
   },
   template: `
     <div>
       <div class="gc-card" style="background:var(--blue); border:none; margin-bottom:16px;">
-        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:var(--teal-text);"><i class="fas fa-user-tie" style="margin-right:8px;"></i> Pembatas Tambahan per Jabatan</h4>
-        <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Ini BUKAN pengganti Role — ini pembatas TAMBAHAN (AND). Kotak <b>DICENTANG</b> = tidak ada pembatasan tambahan (ikut izin Role seperti biasa). Kotak <b>DIKOSONGKAN</b> = akses itu DIBLOKIR khusus untuk Jabatan ini, walau Role-nya mengizinkan. Belum pernah diatur = otomatis TIDAK ADA pembatasan sama sekali.</p>
+        <h4 class="gc-heading" style="font-weight:700; font-size:13px; color:var(--teal-text);"><i class="fas fa-user-tie" style="margin-right:8px;"></i> Jabatan &amp; Akses</h4>
+        <p style="font-size:11px; color:var(--teal-text); margin-top:4px; opacity:.85;">Satu jabatan menyimpan tiga hal: <b>Role</b> (pengaman, menentukan apa yang boleh disimpan), <b>Jenis Usaha</b> (menentukan data siapa yang terlihat), dan <b>menu</b> yang tampil. Pasang jabatannya ke karyawan di pill Assign — role dan usaha ikut otomatis. Owner tidak terpengaruh, selalu penuh.</p>
       </div>
 
       <div class="gc-card" style="margin-bottom:16px;">
-        <div class="gc-field" style="margin-bottom:0; max-width:320px;">
-          <label>Pilih Jabatan untuk diatur pembatasannya</label>
-          <select :value="jabatanDipilih" @change="pilihJabatan($event.target.value)">
-            <option value="">— pilih Jabatan —</option>
-            <option v-for="j in daftarJabatan" :key="j" :value="j">{{ j }}</option>
-          </select>
-          <p v-if="!memuat && daftarJabatan.length === 0" style="font-size:11px; color:var(--burgundy); margin-top:8px;">Belum ada data Jabatan. Tambahkan dulu di Master Karyawan &rsaquo; Config Karyawan &rsaquo; Jabatan.</p>
+        <div style="display:grid; gap:12px; margin-bottom:12px;" class="grid-cols-1 md:grid-cols-3">
+          <div class="gc-field" style="margin-bottom:0;">
+            <label>Jabatan</label>
+            <select :value="jabatanDipilih" @change="pilihJabatan($event.target.value)">
+              <option value="">— pilih jabatan —</option>
+              <option v-for="j in daftarJabatan" :key="j" :value="j">{{ j }}</option>
+            </select>
+          </div>
+          <div class="gc-field" style="margin-bottom:0;">
+            <label>Role (pengaman)</label>
+            <select v-model="roleJabatan" :disabled="!jabatanDipilih">
+              <option v-for="r in ROLE_BAKU_JABATAN" :key="r" :value="r">{{ r.toUpperCase() }}</option>
+            </select>
+          </div>
+          <div class="gc-field" style="margin-bottom:0;">
+            <label>Jenis Usaha</label>
+            <select v-model="usahaJabatan" :disabled="!jabatanDipilih">
+              <option value="">— pilih usaha —</option>
+              <option v-for="u in daftarUsaha" :key="u" :value="u">{{ u }}</option>
+            </select>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; border-top:1px solid var(--line); padding-top:12px;">
+          <div class="gc-field" style="margin-bottom:0; flex:1; min-width:200px;">
+            <label>Jabatan baru</label>
+            <input v-model="namaJabatanBaru" type="text" placeholder="Contoh: Admin HRD ZCO">
+          </div>
+          <button @click="tambahJabatan" class="btn-outline" style="white-space:nowrap;"><i class="fas fa-plus" style="margin-right:6px;"></i> Tambah</button>
         </div>
       </div>
 
       <div v-if="jabatanDipilih" style="display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap;">
-        <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="flex:1; min-width:200px;">
-          <i class="fas" :class="menyimpan ? 'fa-spinner fa-spin' : 'fa-save'" style="margin-right:8px;"></i>{{ menyimpan ? 'Menyimpan...' : 'Simpan Pembatasan' }}
+        <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="flex:1; min-width:180px;">
+          <i class="fas" :class="menyimpan ? 'fa-spinner fa-spin' : 'fa-save'" style="margin-right:8px;"></i>{{ menyimpan ? 'Menyimpan...' : 'Simpan Jabatan' }}
         </button>
-        <button v-if="adaPembatasanTersimpan" @click="hapusPembatasan" :disabled="menghapus" style="flex:1; min-width:200px; background:var(--surface); border:1.5px solid var(--burgundy); color:var(--burgundy); border-radius:10px; font-weight:700; font-size:12.5px; cursor:pointer;">
-          <i class="fas" :class="menghapus ? 'fa-spinner fa-spin' : 'fa-trash'" style="margin-right:8px;"></i>{{ menghapus ? 'Menghapus...' : 'Hapus Semua Pembatasan' }}
+        <button @click="sinkronKaryawan(false)" :disabled="menyinkron" class="btn-outline" style="flex:1; min-width:180px;">
+          <i class="fas" :class="menyinkron ? 'fa-spinner fa-spin' : 'fa-rotate'" style="margin-right:8px;"></i>{{ menyinkron ? 'Menyinkron...' : 'Terapkan ke karyawan' }}
+        </button>
+        <button v-if="adaPembatasanTersimpan" @click="hapusPengaturan" :disabled="menghapus" class="btn-ghost" style="flex:1; min-width:180px; border:1.5px solid var(--burgundy); color:var(--burgundy);">
+          <i class="fas" :class="menghapus ? 'fa-spinner fa-spin' : 'fa-trash'" style="margin-right:8px;"></i>{{ menghapus ? 'Menghapus...' : 'Hapus Pengaturan' }}
         </button>
       </div>
 
-      <div v-if="jabatanDipilih" style="position:relative; margin-bottom:14px;">
+      <div v-if="jabatanDipilih && !usahaJabatan" class="gc-card" style="margin-bottom:14px; border:1.5px solid var(--burgundy);">
+        <p style="font-size:11.5px; color:var(--burgundy); font-weight:700;">Pilih Jenis Usaha dulu — menu yang berlaku untuk jabatan ini baru muncul setelah itu.</p>
+      </div>
+
+      <div v-if="jabatanDipilih && usahaJabatan" style="position:relative; margin-bottom:14px;">
         <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
         <input v-model="cariMenu" type="text" placeholder="Cari nama menu..." style="width:100%; max-width:320px; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
       </div>
 
-      <div v-if="jabatanDipilih" v-for="kategori in KATEGORI_URUTAN" :key="kategori" class="gc-card" style="margin-bottom:12px; padding:0; overflow:hidden;">
+      <div v-if="jabatanDipilih && usahaJabatan" v-for="kategori in kategoriTampil" :key="kategori" class="gc-card" style="margin-bottom:12px; padding:0; overflow:hidden;">
         <div @click="toggleKategori(kategori)" style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; cursor:pointer; background:var(--ivory-dim);">
           <h3 class="gc-heading" style="font-size:13px; font-weight:700;">{{ kategori }}</h3>
           <i class="fas" :class="kategoriTerbuka[kategori] ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-muted);"></i>
@@ -778,34 +532,10 @@ const AppJabatanAkses = {
             <thead>
               <tr>
                 <th class="freeze freeze-left" style="width:220px;">Nama menu</th>
-                <th style="width:84px; text-align:center;">
+                <th v-for="f in ['view','add','edit','delete','print']" :key="f" style="width:84px; text-align:center;">
                   <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'view')" @change="toggleKolomKategori(kategori, 'view')" style="accent-color:var(--burgundy); width:14px; height:14px;">
-                    <span>View</span>
-                  </div>
-                </th>
-                <th style="width:84px; text-align:center;">
-                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'add')" @change="toggleKolomKategori(kategori, 'add')" style="accent-color:var(--burgundy); width:14px; height:14px;">
-                    <span>Add</span>
-                  </div>
-                </th>
-                <th style="width:84px; text-align:center;">
-                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'edit')" @change="toggleKolomKategori(kategori, 'edit')" style="accent-color:var(--burgundy); width:14px; height:14px;">
-                    <span>Edit</span>
-                  </div>
-                </th>
-                <th style="width:84px; text-align:center;">
-                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'delete')" @change="toggleKolomKategori(kategori, 'delete')" style="accent-color:var(--burgundy); width:14px; height:14px;">
-                    <span>Delete</span>
-                  </div>
-                </th>
-                <th style="width:84px; text-align:center;">
-                  <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, 'print')" @change="toggleKolomKategori(kategori, 'print')" style="accent-color:var(--burgundy); width:14px; height:14px;">
-                    <span>Print</span>
+                    <input type="checkbox" :checked="semuaTercentangKolom(kategori, f)" @change="toggleKolomKategori(kategori, f)" style="accent-color:var(--burgundy); width:14px; height:14px;">
+                    <span>{{ f.charAt(0).toUpperCase() + f.slice(1) }}</span>
                   </div>
                 </th>
               </tr>
@@ -813,11 +543,9 @@ const AppJabatanAkses = {
             <tbody>
               <tr v-for="m in menuUntukKategori(kategori)" :key="m.id">
                 <td class="freeze freeze-left" style="font-weight:600;">{{ m.label }}</td>
-                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].view" style="accent-color:var(--ok); width:16px; height:16px;"></td>
-                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].add" style="accent-color:var(--ok); width:16px; height:16px;"></td>
-                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].edit" style="accent-color:var(--ok); width:16px; height:16px;"></td>
-                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].delete" style="accent-color:var(--ok); width:16px; height:16px;"></td>
-                <td style="text-align:center;"><input type="checkbox" v-model="menus[m.id].print" style="accent-color:var(--ok); width:16px; height:16px;"></td>
+                <td v-for="f in ['view','add','edit','delete','print']" :key="f" style="text-align:center;">
+                  <input type="checkbox" v-model="menus[m.id][f]" style="accent-color:var(--ok); width:16px; height:16px;">
+                </td>
               </tr>
             </tbody>
           </table>
@@ -835,12 +563,12 @@ window.pastikanMountJabatanAkses = function() {
 };
 
 
-// "Akses & Keamanan" = 1 layar dengan 3 pill (Role/Jabatan/Assign). Markup 3
-// pill + 3 pane ada di index.html; petaMount di dashboard.js mengarah ke
+// "Akses & Keamanan" = 1 layar dengan 2 pill (Jabatan/Assign). Markup pill +
+// pane ada di index.html; petaMount di dashboard.js mengarah ke
 // window.pastikanMountAksesKeamanan di bawah.
 
 window.pindahPillAksesKeamanan = function(nama) {
-  const semua = ['role', 'jabatan', 'assign'];
+  const semua = ['jabatan', 'assign'];
   semua.forEach(n => {
     const pane = document.getElementById('pane-akses-' + n);
     const tombol = document.getElementById('pill-akses-' + n);
@@ -849,7 +577,6 @@ window.pindahPillAksesKeamanan = function(nama) {
   });
 };
 window.pastikanMountAksesKeamanan = function() {
-  window.pastikanMountConfigAkses();
   window.pastikanMountJabatanAkses();
   if (window.pastikanMountHakAkses) window.pastikanMountHakAkses();
 };
