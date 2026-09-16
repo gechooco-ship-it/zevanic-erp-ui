@@ -23,9 +23,9 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunInfoLabelAnakSpk } from './vue-components.js?v=13';
-import { ScanGenerik, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=3';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=7';
 
-// picOwnerKeAtas — gerbang aksi "Tunjuk Operator": WAJIB akun tier PIC ke atas
+// picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier PIC ke atas
 // (pic/pic_owner/owner/superuser), TANPA popup PIN — cukup akun yang login
 // memang tier itu.
 function picOwnerKeAtas(userData) {
@@ -255,7 +255,7 @@ function gantiTabPill(grupKelas, targetId, ev) {
 // lalu penunjukan (scan operator + scan label anak SPK berkali-kali).
 
 const PersiapanBahanPerluDisiapkan = {
-  components: { PopupPratinjauCetakLabel, ScanGenerik, PopupPinGenerik },
+  components: { PopupPratinjauCetakLabel, ScanGenerik, ScanTerpaduGenerik, PopupPinGenerik },
   setup() {
     const memuat = ref(true);
     const daftarTrack = ref([]);
@@ -266,7 +266,7 @@ const PersiapanBahanPerluDisiapkan = {
 
     const menuId = 'pp_bahan';
     const MY_TARGET = 'sub-pp-bahan-perludisiapkan';
-    // satu-satunya pemakai bolehProses di komponen ini adalah tombol "Tunjuk
+    // satu-satunya pemakai bolehProses di komponen ini adalah tombol "Scan
     // Operator", jadi digerbang langsung PIC ke atas di sini.
     const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(menuId, 'edit') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
@@ -436,16 +436,63 @@ const PersiapanBahanPerluDisiapkan = {
       popupCetakAktif.value = true;
     }
 
-    // Penunjukan: scan operator, lalu scan label anak SPK di kartu ini
-    // berkali-kali (harus sudah dicetak, status masih perlu_disiapkan). Scan QR
-    // operator lain = ganti operator aktif; baris yang SUDAH discan sebelumnya
-    // TETAP memakai operator lama, tidak ditimpa mundur.
-    const modalTunjuk = reactive({ aktif: false, kartu: null, global: false, operator: null, tahap: 'operator', log: [] });
+    // Scan Operator — PILOT #5 (Draft/Upload), gantikan modalTunjuk lama.
+    // kartuAktifTunjuk null = cari di SEMUA kartu tab ini (tombol toolbar),
+    // object = kartu spesifik (tombol per-kartu) — diset SEBELUM buka() lewat
+    // closure, karena buatScanTerpadu.buka() sendiri tidak menerima parameter.
+    // "Ganti" di chip mengosongkan draft juga (belum ada yang tertulis kalau
+    // belum Upload), beda dari versi lama yang niatnya (tidak pernah jalan)
+    // mempertahankan baris lama saat ganti operator di tengah sesi.
+    let kartuAktifTunjuk = null;
+    function cariBarisSiapTunjuk(kode) {
+      const kolamBaris = kartuAktifTunjuk ? (kartuAktifTunjuk.baris || []) : kartuList.value.flatMap(k => k.baris);
+      const cocokLabel = (b) => (b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${b.kode_spk}-${b.bahan_aksesoris_id}`) === kode;
+      return kolamBaris.filter(b => cocokLabel(b) && b.label_cetak_pada && b.status === 'perlu_disiapkan');
+    }
+    const scanOperator = buatScanTerpadu({
+      judul: 'Scan Operator — Bahan', subjudul: 'Scan QR operator/tim, lalu scan label anak SPK berkali-kali',
+      twoStep: {
+        labelPertama: 'Operator/Tim', labelKedua: 'Label Anak SPK',
+        placeholderPertama: 'Scan QR badge operator/tim / cari kode (sekali di awal)',
+        placeholderKedua: 'Scan label anak SPK yang sudah dicetak / cari kode (bisa berkali-kali)',
+        camModePertama: 'Mode: Scan QR Operator (sekali)', camModeKedua: 'Mode: Scan Label Anak SPK (berkali-kali)',
+        kosongUtama: 'Scan QR Operator/Tim dulu', kosongSub: '1x scan untuk mengunci operator yang ditunjuk.',
+        validasi: async (kode) => {
+          const karyawan = await cariKaryawanByQr(kode);
+          if (!karyawan) return { ok: false, pesan: 'QR tidak dikenali — operator/tim tidak ditemukan.' };
+          return { ok: true, data: { id: karyawan.id, nama: karyawan.nama || karyawan.name || karyawan.id } };
+        }
+      },
+      validasiIsi: async (kode) => {
+        const targets = cariBarisSiapTunjuk(kode);
+        if (!targets.length) {
+          const karyawanTerbaca = await cariKaryawanByQr(kode);
+          if (karyawanTerbaca) return { ok: false, pesan: `Kode "${kode}" itu badge OPERATOR (${karyawanTerbaca.nama || karyawanTerbaca.name || kode}), BUKAN label SPK. Scan LABEL SPK anak yang sudah dicetak.` };
+          return { ok: false, pesan: `Kode "${kode}" tidak cocok baris manapun yang sudah dicetak labelnya (mungkin belum dicetak, sudah ditunjuk, atau sudah ada di draft).` };
+        }
+        return { ok: true, row: { kode, label: targets.length + ' baris: ' + targets.map(b => b.no_spk).join(', '), tagTxt: 'siap', tagCls: 'ok' } };
+      },
+      padaUpload: async (rows, locked) => {
+        try {
+          const now = new Date().toISOString();
+          for (const row of rows) {
+            const targets = cariBarisSiapTunjuk(row.kode);
+            await Promise.all(targets.map(b => updateBarisBahan(b._trackId, b._lineIdx, (lama) => ({
+              status: 'sedang_disiapkan', masuk_tahap_pada: now,
+              operator_uid: locked.id, operator_nama: locked.nama, ditugaskan_pada: now,
+              riwayat_operator: [...(lama.riwayat_operator || []), { operator_uid: locked.id, operator_nama: locked.nama, mulai_pada: now }]
+            }))));
+          }
+          await muat();
+          return { ok: true };
+        } catch (e) { console.error('Gagal simpan Scan Operator:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
+      }
+    });
     function bukaPenunjukan(k) {
       const eligible = k.baris.filter(b => b.label_cetak_pada && b.status === 'perlu_disiapkan');
       if (!eligible.length) { alert('Belum ada baris yang sudah dicetak labelnya di kartu ini.'); return; }
-      modalTunjuk.kartu = k; modalTunjuk.global = false; modalTunjuk.operator = null; modalTunjuk.tahap = 'operator'; modalTunjuk.log = [];
-      modalTunjuk.aktif = true;
+      kartuAktifTunjuk = k;
+      scanOperator.buka();
     }
     // bukaPenunjukanGlobal — versi toolbar header: TIDAK terkunci ke 1 kartu,
     // mencari baris cocok di SEMUA kartu yang tampil di tab ini. Tombol
@@ -453,58 +500,9 @@ const PersiapanBahanPerluDisiapkan = {
     function bukaPenunjukanGlobal() {
       const eligible = kartuList.value.some(k => k.baris.some(b => b.label_cetak_pada && b.status === 'perlu_disiapkan'));
       if (!eligible) { alert('Belum ada baris yang sudah dicetak labelnya di tab ini.'); return; }
-      modalTunjuk.kartu = null; modalTunjuk.global = true; modalTunjuk.operator = null; modalTunjuk.tahap = 'operator'; modalTunjuk.log = [];
-      modalTunjuk.aktif = true;
+      kartuAktifTunjuk = null;
+      scanOperator.buka();
     }
-    function tutupPenunjukan() { modalTunjuk.aktif = false; modalTunjuk.kartu = null; modalTunjuk.global = false; modalTunjuk.operator = null; modalTunjuk.log = []; }
-    async function hasilScanTunjuk(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      if (!kode) return;
-      if (modalTunjuk.tahap === 'operator') {
-        const karyawan = await cariKaryawanByQr(kode);
-        if (!karyawan) { alert('QR tidak dikenali — operator/tim tidak ditemukan.'); return; }
-        modalTunjuk.operator = { id: karyawan.id, nama: karyawan.nama || karyawan.name || karyawan.id };
-        modalTunjuk.tahap = 'anak';
-        return;
-      }
-      // tahap 'anak' — cari baris yang labelnya cocok, belum ditunjuk, sudah
-      // dicetak. Mode global cari di SEMUA kartu, mode per-kartu cuma di kartu
-      // itu. Tiap kode label cocok TEPAT 1 baris (kode_komponen unik per anak
-      // SPK); fallback chain PERSIS SAMA dengan bangunPreviewDariBaris.
-      const kolamBaris = modalTunjuk.global ? kartuList.value.flatMap(k => k.baris) : (modalTunjuk.kartu?.baris || []);
-      const cocokLabel = (b) => (b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${b.kode_spk}-${b.bahan_aksesoris_id}`) === kode;
-      const targets = kolamBaris.filter(b => cocokLabel(b) && b.label_cetak_pada && b.status === 'perlu_disiapkan');
-      if (!targets.length) {
-        // Kalau kode yang gagal cocok ternyata id_app karyawan, user men-scan
-        // ULANG badge operator di tahap "anak". Dicek eksplisit supaya pesannya
-        // menunjuk salah-scan, bukan kelihatan seperti bug.
-        const karyawanTerbaca = await cariKaryawanByQr(kode);
-        if (karyawanTerbaca) {
-          alert(`Kode "${kode}" itu badge OPERATOR (${karyawanTerbaca.nama || karyawanTerbaca.name || kode}), BUKAN label SPK. Scan LABEL SPK anak yang sudah dicetak (bukan badge operator lagi).`);
-          return;
-        }
-        alert(`Kode "${kode}" tidak cocok baris manapun yang sudah dicetak labelnya (mungkin belum dicetak, atau sudah ditunjuk).`);
-        return;
-      }
-      const now = new Date().toISOString();
-      try {
-        // 1 label = 1 anak SPK = 1 baris TEPAT (_trackId+_lineIdx), jadi update
-        // WAJIB presisi per-lineIdx. matchFn berbasis bahan_aksesoris_id akan
-        // salah mengenai SEMUA baris bahan sama di track itu, termasuk anak SPK
-        // yang tidak discan.
-        await Promise.all(targets.map(b => updateBarisBahan(b._trackId, b._lineIdx, (lama) => ({
-          status: 'sedang_disiapkan', masuk_tahap_pada: now,
-          operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, ditugaskan_pada: now,
-          riwayat_operator: [...(lama.riwayat_operator || []), { operator_uid: modalTunjuk.operator.id, operator_nama: modalTunjuk.operator.nama, mulai_pada: now }]
-        }))));
-        modalTunjuk.log.unshift(`${kode} -> ${modalTunjuk.operator.nama} (${targets.length} baris: ${targets.map(b => b.no_spk).join(', ')})`);
-        targets.forEach(b => { b.status = 'sedang_disiapkan'; }); // optimistik, biar kartu di modal langsung update tanpa nunggu muat
-      } catch (e) {
-        console.error('Gagal simpan penunjukan:', e);
-        alert('Gagal menyimpan penunjukan. Coba lagi.');
-      }
-    }
-    async function selesaiPenunjukan() { tutupPenunjukan(); await muat(); }
 
     // Scan Sampai GLOBAL — satu-satunya scan di tab ini yang bukan penunjukan
     // tugas; menutup pack yang dikirim balik dari Masalah (TLC BHN-TRB). Scan
@@ -535,7 +533,7 @@ const PersiapanBahanPerluDisiapkan = {
       TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET, jumlahSiapDicetak, ringkasanTerpilih,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, cetakSemuaTercentang, onCetakSelesai,
       popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang,
-      modalTunjuk, bukaPenunjukan, bukaPenunjukanGlobal, tutupPenunjukan, hasilScanTunjuk, selesaiPenunjukan,
+      scanOperator, bukaPenunjukan, bukaPenunjukanGlobal,
       modalScanSampai, bukaScanSampaiGlobal, tutupScanSampai, hasilScanSampai
     };
   },
@@ -622,7 +620,7 @@ const PersiapanBahanPerluDisiapkan = {
           <div v-if="bolehCetak" style="display:flex; gap:8px; border-top:1px solid var(--line); padding-top:10px;">
             <button @click="cetakLabelKartu(k)" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label</button>
             <button v-if="k.baris.some(b=>b.label_cetak_pada)" @click="bukaCetakUlang(k)" class="btn-outline" style="flex:1; padding:9px; color:var(--warn); border-color:var(--warn);"><i class="fas fa-rotate" style="margin-right:6px;"></i>Cetak Ulang</button>
-            <button v-if="bolehProses && k.baris.some(b=>b.label_cetak_pada && b.status==='perlu_disiapkan')" @click="bukaPenunjukan(k)" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Tunjuk Operator</button>
+            <button v-if="bolehProses && k.baris.some(b=>b.label_cetak_pada && b.status==='perlu_disiapkan')" @click="bukaPenunjukan(k)" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
           </div>
         </div>
       </div>
@@ -659,13 +657,7 @@ const PersiapanBahanPerluDisiapkan = {
     </div>
     <popup-pin-generik v-if="pinCetakUlangAktif" judul="Verifikasi PIN — Cetak Ulang Label" konteks="Persiapan Bahan - Cetak Ulang Label" @sukses="pinCetakUlangSukses" @batal="batalPinCetakUlang" />
 
-    <scan-generik :aktif="modalTunjuk.aktif"
-      :judul="modalTunjuk.tahap==='operator' ? 'Scan QR Operator/Tim' : ('Scan label anak SPK — operator: ' + (modalTunjuk.operator?.nama || ''))"
-      :subjudul="modalTunjuk.tahap==='anak' ? 'Bisa discan berkali-kali. Scan QR operator lain buat ganti operator aktif.' : ''"
-      @hasil="hasilScanTunjuk" @tutup="selesaiPenunjukan" />
-    <div v-if="modalTunjuk.aktif && modalTunjuk.log.length" style="position:fixed; left:16px; bottom:16px; z-index:10001; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
-      <div v-for="(l,i) in modalTunjuk.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
-    </div>
+    <scan-terpadu-generik :c="scanOperator" />
   `
 };
 
