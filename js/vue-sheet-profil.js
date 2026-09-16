@@ -1,7 +1,7 @@
 // js/vue-sheet-profil.js
 // Bottom Sheet Profil, naik dari bawah saat "Profil" di nav bawah diketuk
-// (js/app.js, mnavProfile). Isi: kartu QR gradien, 3 aksi cepat (Clock in/out,
-// Scan QR, Mode gelap), 6 tautan sub-layar Profile, dan Keluar.
+// (js/app.js, mnavProfile). Isi: kartu QR gradien, 3 aksi cepat (Keluar,
+// Scan QR, Mode gelap), 6 tautan sub-layar Profile, dan tombol tutup.
 //
 // Koleksi & field:
 // - Tidak menyentuh Firestore; semua data dibaca dari window.currentUser
@@ -12,6 +12,8 @@
 // - Tautan ke-6 "Estimasi Gaji" sengaja ada walau mockup menyebut lima —
 //   itu satu-satunya jalan mobile ke layar tersebut, menghapusnya regresi.
 // - "Profil Lengkap" mengarah ke sub-tab 'datadiri' (Data Karyawan).
+// - Ketuk kartu QR membuka dialog zoom (gc-dialog-backdrop, z-index di atas
+//   sheet); satu-satunya jalan keluar logout adalah tombol Keluar di grid.
 // - Semua aksi dibungkus fungsi lokal yang mengecek global vanilla dulu
 //   (pindahTab, pindahTabAccountProfile, toggleTema, temaPreferensi, logout)
 //   — jangan panggil window.xxx langsung dari template.
@@ -26,11 +28,11 @@ const AppSheetProfil = {
     const nik = ref('');
     const namaShift = ref('');
     const qrUrl = ref('');
-    // dulu boolean terang/gelap saja. Sekarang preferensi MENTAH
-    // ('light'/'dark'/'auto') dari window.temaPreferensi (lihat index.html) —
-    // bisa 'auto' (ikut sistem), beda dari window.temaSaatIni yang cuma
-    // 'light'/'dark' EFEKTIF.
+    // Preferensi MENTAH ('light'/'dark'/'auto') dari window.temaPreferensi
+    // (lihat index.html) — bisa 'auto' (ikut sistem), beda dari
+    // window.temaSaatIni yang cuma 'light'/'dark' EFEKTIF.
     const temaPref = ref('light');
+    const qrZoom = ref(false);
     const ikonTema = computed(() => temaPref.value === 'auto' ? 'fa-circle-half-stroke' : (temaPref.value === 'dark' ? 'fa-moon' : 'fa-sun'));
     const labelTema = computed(() => temaPref.value === 'auto' ? 'Otomatis' : (temaPref.value === 'dark' ? 'Mode gelap' : 'Mode terang'));
 
@@ -47,7 +49,7 @@ const AppSheetProfil = {
       muatData();
       terbuka.value = true;
     }
-    function tutup() { terbuka.value = false; }
+    function tutup() { qrZoom.value = false; terbuka.value = false; }
 
     function klikScanQr() {
       tutup();
@@ -70,7 +72,7 @@ const AppSheetProfil = {
     // bukan objek global browser, kalau dipanggil langsung dari template).
     function keluar() { tutup(); if (window.logout) window.logout(); }
 
-    return { terbuka, nama, nik, namaShift, qrUrl, temaPref, ikonTema, labelTema, buka, tutup, klikScanQr, klikModeGelap, navigasi, keluar };
+    return { terbuka, nama, nik, namaShift, qrUrl, qrZoom, temaPref, ikonTema, labelTema, buka, tutup, klikScanQr, klikModeGelap, navigasi, keluar };
   },
   template: `
     <div>
@@ -80,9 +82,9 @@ const AppSheetProfil = {
 
         <div class="gc-kartu-gradien" style="border-radius:22px; padding:16px; margin-bottom:14px;">
           <div style="display:flex; align-items:center; gap:14px; position:relative; z-index:1;">
-            <div style="width:78px; height:78px; padding:7px; background:rgba(var(--tinta-gradien-rgb),.16); border-radius:16px; flex-shrink:0;">
-              <img :src="qrUrl" alt="QR Code" style="width:100%; height:100%; object-fit:contain;">
-            </div>
+            <button @click="qrZoom = true" title="Perbesar QR" aria-label="Perbesar QR" style="width:78px; height:78px; padding:7px; background:rgba(var(--tinta-gradien-rgb),.16); border:none; border-radius:16px; flex-shrink:0; cursor:pointer;">
+              <img :src="qrUrl" alt="QR Code" style="width:100%; height:100%; object-fit:contain; display:block;">
+            </button>
             <div style="min-width:0;">
               <h4 class="gc-heading" style="font-size:17px; font-weight:700; color:var(--tinta-gradien); margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ nama }}</h4>
               <p style="font-size:10.5px; color:var(--tinta-gradien); opacity:.85; margin:3px 0 0;">NIK {{ nik }} &middot; {{ namaShift }}</p>
@@ -144,13 +146,25 @@ const AppSheetProfil = {
         </div>
 
         <!--
-          Tombol Keluar kedua: oval kecil ikon X saja. Sengaja ada DUA jalan ke keluar
-          (grid di atas + ini), diminta eksplisit — jangan dihapus salah satunya.
+          Oval kecil ikon X = TUTUP sheet, bukan logout. Logout cuma lewat tombol
+          Keluar di grid atas.
         -->
         <div style="display:flex; justify-content:center; margin-top:14px;">
-          <button @click="keluar" title="Keluar" aria-label="Keluar" style="display:flex; align-items:center; justify-content:center; width:34px; height:26px; border-radius:999px; border:1px solid var(--danger-light); background:var(--danger-light); color:var(--danger); cursor:pointer;">
+          <button @click="tutup" title="Tutup" aria-label="Tutup" style="display:flex; align-items:center; justify-content:center; width:34px; height:26px; border-radius:999px; border:1px solid var(--danger-light); background:var(--danger-light); color:var(--danger); cursor:pointer;">
             <i class="fas fa-xmark" style="font-size:13px;"></i>
           </button>
+        </div>
+      </div>
+
+      <!-- Zoom QR: dialog terpisah dari sheet supaya tetap tampil di atasnya. -->
+      <div v-if="terbuka && qrZoom" class="gc-dialog-backdrop" @click="qrZoom = false">
+        <div class="gc-dialog" @click.stop style="max-width:300px;">
+          <h3 class="gc-heading" style="font-size:15px; font-weight:700; margin:0 0 4px;">{{ nama }}</h3>
+          <p style="font-size:10.5px; color:var(--text-muted); margin:0 0 14px;">NIK {{ nik }} &middot; {{ namaShift }}</p>
+          <div style="background:#fff; border-radius:16px; padding:14px; margin-bottom:14px;">
+            <img :src="qrUrl" alt="QR Code" style="width:100%; height:auto; display:block;">
+          </div>
+          <button @click="qrZoom = false" class="btn-primary" style="border-radius:999px;">Tutup</button>
         </div>
       </div>
     </div>

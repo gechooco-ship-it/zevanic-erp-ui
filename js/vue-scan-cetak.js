@@ -9,16 +9,15 @@
 //   percobaan PIN. PIN cocok tapi role di luar rolesDiizinkan dicatat
 //   berhasil:false dengan nama pemilik PIN; PIN tak dikenali dicatat uid:null.
 // - persiapan_masalah: dibuat HANYA lewat ajukanPersiapanMasalah di sini.
-// - bagging: unpack_hasil ('komplit'|'inkomplit'), unpack_pada/oleh,
-//   unpack_dicocokkan[]/asing[]/hilang[].
+// - bagging: unpack_hasil ('komplit'|'inkomplit'), unpack_pada/oleh, unpack_dicocokkan[]/asing[]/hilang[].
 //
 // Jebakan:
 // - buatScanTerpadu TIDAK menulis Firestore sendiri — semua tulis lewat
-//   cfg.padaUpload, dipanggil SEKALI saat tombol Upload, bukan per scan.
-//   cfg.twoStep.validasi cuma membuka/mengunci sesi, tidak menulis apa pun.
-// - buatUnpackUniversal menolak menutup bagging yang belum lengkap/ada kode
-//   asing kecuali paksaInkomplit; penutupan me-NULL-kan kode_spk & kode_batch.
-// - catatRiwayatPin best-effort: gagal tulis tidak menggagalkan alur pemanggil.
+//   cfg.padaUpload sekali saat Upload. buatUnpackUniversal menolak menutup
+//   bagging tidak lengkap kecuali paksaInkomplit. catatRiwayatPin best-effort.
+// - KameraTersemat WAJIB watch({immediate:true}) — ScanTerpaduGenerik
+//   membungkusnya di v-if, tiap buka() lahir instance BARU dengan aktif=true
+//   sejak awal; tanpa immediate kamera diam hitam tanpa error sama sekali.
 
 import { createApp, ref, reactive, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, getDocs, updateDoc, query, where, orderBy, limit, startAfter, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -504,7 +503,11 @@ export const KameraTersemat = {
       if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
       error.value = '';
     }
-    watch(() => props.aktif, (v) => { if (v) mulai(); else berhenti(); });
+    // immediate:true WAJIB di sini (beda dari ScanGenerik): ScanTerpaduGenerik
+    // membungkus komponen ini di v-if, jadi tiap buka() MEMBUAT instance BARU
+    // dengan aktif=true sejak render pertama — watch tanpa immediate tidak
+    // pernah terpicu untuk itu, kamera diam hitam tanpa error.
+    watch(() => props.aktif, (v) => { if (v) mulai(); else berhenti(); }, { immediate: true });
     onUnmounted(berhenti);
     return { videoEl, canvasEl, memuatKamera, error };
   },
