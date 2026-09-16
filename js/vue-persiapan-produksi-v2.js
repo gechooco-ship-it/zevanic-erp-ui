@@ -1,8 +1,8 @@
 // js/vue-persiapan-produksi-v2.js
 // Persiapan Produksi V2. (1) "Perlu Disiapkan" mengelompokkan SPK aktif yang
 // produk & polanya sama jadi 1 SPK Grouping (SPKyymmdd + 3 digit, counter
-// GLOBAL per hari lintas produk); (2) produksi jalan di 5 jalur paralel
-// (Vendor/Bahan/Sewing/Webbing/Finishing) x 5 tahap lewat JalurTahapManager.
+// GLOBAL per hari lintas produk); (2) JalurTahapManager di file ini cuma
+// dipakai jalur Vendor — Bahan/Sewing/Webbing/Finishing punya file sendiri.
 //
 // Koleksi & field:
 // - Kunci grouping: nama dasar produk dari master_produk.nama lewat
@@ -17,7 +17,8 @@
 // - SPK tanpa sku_produk tidak bisa dikelompokkan otomatis, jadi isi 1 SPK.
 // - buatSpkTrackUntukGrouping dan hitung*Rincian di file ini yang mengisi
 //   spk_track semua jalur; modul pos cuma membaca & mengupdate baris.
-// - JalurTahapManager dipakai apa adanya untuk 4 jalur; jangan fork.
+// - JalurTahapManager TIDAK dipakai Bahan/Sewing/Webbing/Finishing lagi —
+//   window.pastikanMountPpXxxYyy versi jalur itu ditimpa file jalur masing2.
 
 import { createApp, ref, reactive, computed, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -1248,135 +1249,10 @@ function buatAppJalurTahap(jalur, labelJalur, tahap, labelTahap) {
   };
 }
 
-let vmPpBahanPerluDiproses = null;
-window.pastikanMountPpBahanPerluDiproses = function() {
-  if (vmPpBahanPerluDiproses) { const mgr = vmPpBahanPerluDiproses.$refs && vmPpBahanPerluDiproses.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-bahan-perludiproses');
-  if (mountPoint) vmPpBahanPerluDiproses = createApp(buatAppJalurTahap('bahan', 'Bahan', 'perlu_diproses', 'Perlu Diproses')).mount('#vue-pp-bahan-perludiproses');
-};
-let vmPpBahanSedangDiproses = null;
-window.pastikanMountPpBahanSedangDiproses = function() {
-  if (vmPpBahanSedangDiproses) { const mgr = vmPpBahanSedangDiproses.$refs && vmPpBahanSedangDiproses.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-bahan-sedangdiproses');
-  if (mountPoint) vmPpBahanSedangDiproses = createApp(buatAppJalurTahap('bahan', 'Bahan', 'sedang_diproses', 'Sedang Diproses')).mount('#vue-pp-bahan-sedangdiproses');
-};
-let vmPpBahanPerluDikirim = null;
-window.pastikanMountPpBahanPerluDikirim = function() {
-  if (vmPpBahanPerluDikirim) { const mgr = vmPpBahanPerluDikirim.$refs && vmPpBahanPerluDikirim.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-bahan-perludikirim');
-  if (mountPoint) vmPpBahanPerluDikirim = createApp(buatAppJalurTahap('bahan', 'Bahan', 'perlu_dikirim', 'Perlu Dikirim')).mount('#vue-pp-bahan-perludikirim');
-};
-let vmPpBahanSedangDikirim = null;
-window.pastikanMountPpBahanSedangDikirim = function() {
-  if (vmPpBahanSedangDikirim) { const mgr = vmPpBahanSedangDikirim.$refs && vmPpBahanSedangDikirim.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-bahan-sedangdikirim');
-  if (mountPoint) vmPpBahanSedangDikirim = createApp(buatAppJalurTahap('bahan', 'Bahan', 'sedang_dikirim', 'Sedang Dikirim')).mount('#vue-pp-bahan-sedangdikirim');
-};
-let vmPpBahanSelesai = null;
-window.pastikanMountPpBahanSelesai = function() {
-  if (vmPpBahanSelesai) { const mgr = vmPpBahanSelesai.$refs && vmPpBahanSelesai.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-bahan-selesai');
-  if (mountPoint) vmPpBahanSelesai = createApp(buatAppJalurTahap('bahan', 'Bahan', 'selesai', 'Selesai')).mount('#vue-pp-bahan-selesai');
-};
-
-
-// 3 jalur Acc (Sewing/Webbing/Finishing) memakai JalurTahapManager +
-// buatAppJalurTahap apa adanya, hanya parameter `jalur`/`labelJalur` yang beda.
-// 15 mount function (3 jalur x 5 tahap) ditulis eksplisit satu-satu, bukan loop,
-// supaya gampang di-grep dan ditelusuri 1:1 ke index.html/dashboard.js.
-
-let vmPpSewingPerluDiproses = null;
-window.pastikanMountPpSewingPerluDiproses = function() {
-  if (vmPpSewingPerluDiproses) { const mgr = vmPpSewingPerluDiproses.$refs && vmPpSewingPerluDiproses.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-sewing-perludiproses');
-  if (mountPoint) vmPpSewingPerluDiproses = createApp(buatAppJalurTahap('sewing', 'Acc Sewing', 'perlu_diproses', 'Perlu Diproses')).mount('#vue-pp-sewing-perludiproses');
-};
-let vmPpSewingSedangDiproses = null;
-window.pastikanMountPpSewingSedangDiproses = function() {
-  if (vmPpSewingSedangDiproses) { const mgr = vmPpSewingSedangDiproses.$refs && vmPpSewingSedangDiproses.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-sewing-sedangdiproses');
-  if (mountPoint) vmPpSewingSedangDiproses = createApp(buatAppJalurTahap('sewing', 'Acc Sewing', 'sedang_diproses', 'Sedang Diproses')).mount('#vue-pp-sewing-sedangdiproses');
-};
-let vmPpSewingPerluDikirim = null;
-window.pastikanMountPpSewingPerluDikirim = function() {
-  if (vmPpSewingPerluDikirim) { const mgr = vmPpSewingPerluDikirim.$refs && vmPpSewingPerluDikirim.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-sewing-perludikirim');
-  if (mountPoint) vmPpSewingPerluDikirim = createApp(buatAppJalurTahap('sewing', 'Acc Sewing', 'perlu_dikirim', 'Perlu Dikirim')).mount('#vue-pp-sewing-perludikirim');
-};
-let vmPpSewingSedangDikirim = null;
-window.pastikanMountPpSewingSedangDikirim = function() {
-  if (vmPpSewingSedangDikirim) { const mgr = vmPpSewingSedangDikirim.$refs && vmPpSewingSedangDikirim.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-sewing-sedangdikirim');
-  if (mountPoint) vmPpSewingSedangDikirim = createApp(buatAppJalurTahap('sewing', 'Acc Sewing', 'sedang_dikirim', 'Sedang Dikirim')).mount('#vue-pp-sewing-sedangdikirim');
-};
-let vmPpSewingSelesai = null;
-window.pastikanMountPpSewingSelesai = function() {
-  if (vmPpSewingSelesai) { const mgr = vmPpSewingSelesai.$refs && vmPpSewingSelesai.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-sewing-selesai');
-  if (mountPoint) vmPpSewingSelesai = createApp(buatAppJalurTahap('sewing', 'Acc Sewing', 'selesai', 'Selesai')).mount('#vue-pp-sewing-selesai');
-};
-
-let vmPpWebbingPerluDiproses = null;
-window.pastikanMountPpWebbingPerluDiproses = function() {
-  if (vmPpWebbingPerluDiproses) { const mgr = vmPpWebbingPerluDiproses.$refs && vmPpWebbingPerluDiproses.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-webbing-perludiproses');
-  if (mountPoint) vmPpWebbingPerluDiproses = createApp(buatAppJalurTahap('webbing', 'Acc Webbing', 'perlu_diproses', 'Perlu Diproses')).mount('#vue-pp-webbing-perludiproses');
-};
-let vmPpWebbingSedangDiproses = null;
-window.pastikanMountPpWebbingSedangDiproses = function() {
-  if (vmPpWebbingSedangDiproses) { const mgr = vmPpWebbingSedangDiproses.$refs && vmPpWebbingSedangDiproses.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-webbing-sedangdiproses');
-  if (mountPoint) vmPpWebbingSedangDiproses = createApp(buatAppJalurTahap('webbing', 'Acc Webbing', 'sedang_diproses', 'Sedang Diproses')).mount('#vue-pp-webbing-sedangdiproses');
-};
-let vmPpWebbingPerluDikirim = null;
-window.pastikanMountPpWebbingPerluDikirim = function() {
-  if (vmPpWebbingPerluDikirim) { const mgr = vmPpWebbingPerluDikirim.$refs && vmPpWebbingPerluDikirim.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-webbing-perludikirim');
-  if (mountPoint) vmPpWebbingPerluDikirim = createApp(buatAppJalurTahap('webbing', 'Acc Webbing', 'perlu_dikirim', 'Perlu Dikirim')).mount('#vue-pp-webbing-perludikirim');
-};
-let vmPpWebbingSedangDikirim = null;
-window.pastikanMountPpWebbingSedangDikirim = function() {
-  if (vmPpWebbingSedangDikirim) { const mgr = vmPpWebbingSedangDikirim.$refs && vmPpWebbingSedangDikirim.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-webbing-sedangdikirim');
-  if (mountPoint) vmPpWebbingSedangDikirim = createApp(buatAppJalurTahap('webbing', 'Acc Webbing', 'sedang_dikirim', 'Sedang Dikirim')).mount('#vue-pp-webbing-sedangdikirim');
-};
-let vmPpWebbingSelesai = null;
-window.pastikanMountPpWebbingSelesai = function() {
-  if (vmPpWebbingSelesai) { const mgr = vmPpWebbingSelesai.$refs && vmPpWebbingSelesai.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-webbing-selesai');
-  if (mountPoint) vmPpWebbingSelesai = createApp(buatAppJalurTahap('webbing', 'Acc Webbing', 'selesai', 'Selesai')).mount('#vue-pp-webbing-selesai');
-};
-
-let vmPpFinishingPerluDiproses = null;
-window.pastikanMountPpFinishingPerluDiproses = function() {
-  if (vmPpFinishingPerluDiproses) { const mgr = vmPpFinishingPerluDiproses.$refs && vmPpFinishingPerluDiproses.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-finishing-perludiproses');
-  if (mountPoint) vmPpFinishingPerluDiproses = createApp(buatAppJalurTahap('finishing', 'Acc Finishing', 'perlu_diproses', 'Perlu Diproses')).mount('#vue-pp-finishing-perludiproses');
-};
-let vmPpFinishingSedangDiproses = null;
-window.pastikanMountPpFinishingSedangDiproses = function() {
-  if (vmPpFinishingSedangDiproses) { const mgr = vmPpFinishingSedangDiproses.$refs && vmPpFinishingSedangDiproses.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-finishing-sedangdiproses');
-  if (mountPoint) vmPpFinishingSedangDiproses = createApp(buatAppJalurTahap('finishing', 'Acc Finishing', 'sedang_diproses', 'Sedang Diproses')).mount('#vue-pp-finishing-sedangdiproses');
-};
-let vmPpFinishingPerluDikirim = null;
-window.pastikanMountPpFinishingPerluDikirim = function() {
-  if (vmPpFinishingPerluDikirim) { const mgr = vmPpFinishingPerluDikirim.$refs && vmPpFinishingPerluDikirim.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-finishing-perludikirim');
-  if (mountPoint) vmPpFinishingPerluDikirim = createApp(buatAppJalurTahap('finishing', 'Acc Finishing', 'perlu_dikirim', 'Perlu Dikirim')).mount('#vue-pp-finishing-perludikirim');
-};
-let vmPpFinishingSedangDikirim = null;
-window.pastikanMountPpFinishingSedangDikirim = function() {
-  if (vmPpFinishingSedangDikirim) { const mgr = vmPpFinishingSedangDikirim.$refs && vmPpFinishingSedangDikirim.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-finishing-sedangdikirim');
-  if (mountPoint) vmPpFinishingSedangDikirim = createApp(buatAppJalurTahap('finishing', 'Acc Finishing', 'sedang_dikirim', 'Sedang Dikirim')).mount('#vue-pp-finishing-sedangdikirim');
-};
-let vmPpFinishingSelesai = null;
-window.pastikanMountPpFinishingSelesai = function() {
-  if (vmPpFinishingSelesai) { const mgr = vmPpFinishingSelesai.$refs && vmPpFinishingSelesai.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
-  const mountPoint = document.getElementById('vue-pp-finishing-selesai');
-  if (mountPoint) vmPpFinishingSelesai = createApp(buatAppJalurTahap('finishing', 'Acc Finishing', 'selesai', 'Selesai')).mount('#vue-pp-finishing-selesai');
-};
+// Bahan/Sewing/Webbing/Finishing TIDAK mount JalurTahapManager di sini —
+// window.pastikanMountPpXxxYyy versi jalur itu didefinisikan ULANG oleh
+// vue-persiapan-bahan/sewing/webbing/finishing.js (dimuat belakangan di
+// index.html) dan menimpa punya file ini. Sisa pemakai generik: Vendor.
 
 
 // Jalur Vendor memakai `JalurTahapManager` dengan jalur='vendor' tanpa komponen

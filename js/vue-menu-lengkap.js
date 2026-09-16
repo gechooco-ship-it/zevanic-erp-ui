@@ -21,6 +21,13 @@ import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase
 import { db } from "./firebase-config.js";
 import { daftarMenuGroups, KartuMenu, AksesTerbatasDialog, HeaderLayar, KolomCari } from './vue-components.js?v=13';
 
+// Kotak cari dicocokkan ke label pendek DAN label penuh, supaya mengetik nama
+// panjang ("Proses Produksi - Cutting") tetap menemukan kartunya.
+function cocokKata(item, kata) {
+  return (item.label || '').toLowerCase().includes(kata)
+      || (item.labelCari || '').toLowerCase().includes(kata);
+}
+
 const AppMenuLengkap = {
   components: { KartuMenu, AksesTerbatasDialog, HeaderLayar, KolomCari },
   setup() {
@@ -52,7 +59,7 @@ const AppMenuLengkap = {
       const kata = cari.value.trim().toLowerCase();
       if (!kata) return menuGroups.value;
       return menuGroups.value
-        .map(g => ({ ...g, items: g.items.filter(i => i.label.toLowerCase().includes(kata)) }))
+        .map(g => ({ ...g, items: g.items.filter(i => cocokKata(i, kata)) }))
         .filter(g => g.items.length > 0);
     });
     const totalHasil = computed(() => grupTersaring.value.reduce((n, g) => n + g.items.length, 0));

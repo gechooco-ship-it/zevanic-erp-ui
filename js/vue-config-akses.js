@@ -171,51 +171,51 @@ const DAFTAR_MENU = [
   { id: 'persiapan_produksi_finishing', label: 'Persiapan Produksi - Persiapan Acc Finishing (LAMA, lihat kategori Persiapan Produksi)', kategori: 'Zevanic House', deprecated: true },
   // Kategori 'Persiapan Produksi' = grup sidebar top-level sendiri, bukan
   // sub-menu Zevanic House. Lihat js/vue-persiapan-produksi-v2.js.
-  { id: 'pp_disiapkan', label: 'Persiapan Produksi - Perlu Disiapkan', kategori: 'Persiapan Produksi', icon: 'fa-list-check',
+  { id: 'pp_disiapkan', label: 'Persiapan Produksi - Perlu Disiapkan', labelPendek: 'Perlu Disiapkan', kategori: 'Persiapan Produksi', icon: 'fa-list-check',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-disiapkan', null, {catatRiwayat:true}); } },
-  { id: 'pp_vendor', label: 'Persiapan Produksi - Vendor', kategori: 'Persiapan Produksi', icon: 'fa-handshake',
+  { id: 'pp_vendor', label: 'Persiapan Produksi - Vendor', labelPendek: 'Vendor', kategori: 'Persiapan Produksi', icon: 'fa-handshake',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-vendor', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-vendor-tahap', 'sub-pp-vendor-perludiproses', null, {catatRiwayat:true}); } },
-  { id: 'pp_bahan', label: 'Persiapan Produksi - Bahan', kategori: 'Persiapan Produksi', icon: 'fa-scroll',
+  { id: 'pp_bahan', label: 'Persiapan Produksi - Bahan', labelPendek: 'Bahan', kategori: 'Persiapan Produksi', icon: 'fa-scroll',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-bahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-perludisiapkan', null, {catatRiwayat:true}); } },
-  { id: 'pp_sewing', label: 'Persiapan Produksi - Acc Sewing', kategori: 'Persiapan Produksi', icon: 'fa-scissors',
+  { id: 'pp_sewing', label: 'Persiapan Produksi - Acc Sewing', labelPendek: 'Acc Sewing', kategori: 'Persiapan Produksi', icon: 'fa-scissors',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-sewing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-sewing-tahap', 'sub-pp-sewing-perludisiapkan', null, {catatRiwayat:true}); } },
-  { id: 'pp_webbing', label: 'Persiapan Produksi - Acc Webbing', kategori: 'Persiapan Produksi', icon: 'fa-ribbon',
+  { id: 'pp_webbing', label: 'Persiapan Produksi - Acc Webbing', labelPendek: 'Acc Webbing', kategori: 'Persiapan Produksi', icon: 'fa-ribbon',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-webbing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-webbing-tahap', 'sub-pp-webbing-perludisiapkan', null, {catatRiwayat:true}); } },
-  { id: 'pp_finishing', label: 'Persiapan Produksi - Acc Finishing', kategori: 'Persiapan Produksi', icon: 'fa-check-double',
+  { id: 'pp_finishing', label: 'Persiapan Produksi - Acc Finishing', labelPendek: 'Acc Finishing', kategori: 'Persiapan Produksi', icon: 'fa-check-double',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-finishing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-finishing-tahap', 'sub-pp-finishing-perludisiapkan', null, {catatRiwayat:true}); } },
   // Masalah, 7 tahap, skema TRB. Lihat js/vue-pp-masalah.js.
-  { id: 'pp_masalah', label: 'Persiapan Produksi - Masalah', kategori: 'Persiapan Produksi', icon: 'fa-triangle-exclamation',
+  { id: 'pp_masalah', label: 'Persiapan Produksi - Masalah', labelPendek: 'Masalah', kategori: 'Persiapan Produksi', icon: 'fa-triangle-exclamation',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-masalah', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-perludiajukan', null, {catatRiwayat:true}); } },
   // Persiapan Belanja, folder terakhir grup Persiapan Produksi. Lihat
   // js/vue-persiapan-belanja.js.
-  { id: 'pp_belanja', label: 'Persiapan Produksi - Persiapan Belanja', kategori: 'Persiapan Produksi', icon: 'fa-cart-shopping',
+  { id: 'pp_belanja', label: 'Persiapan Produksi - Persiapan Belanja', labelPendek: 'Persiapan Belanja', kategori: 'Persiapan Produksi', icon: 'fa-cart-shopping',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-belanja', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-persiapanadmin', null, {catatRiwayat:true}); } },
   // Proses Produksi > Cutting, grup top-level. Satu izin menu untuk semua
   // 7 tab Cutting (SAMA pola seperti pp_bahan/pp_sewing dst yang juga 1 izin
   // untuk 5 tab). Lihat js/vue-pp-cutting.js.
-  { id: 'cut_cutting', label: 'Proses Produksi - Cutting', kategori: 'Proses Produksi', icon: 'fa-scissors',
+  { id: 'cut_cutting', label: 'Proses Produksi - Cutting', labelPendek: 'Cutting', kategori: 'Proses Produksi', icon: 'fa-scissors',
     aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-cutting', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-perludiproses', null, {catatRiwayat:true}); } },
   // Proses Produksi > Serie, NESTED di grup top-level "Proses Produksi" yang
   // SUDAH ada dari Cutting (bukan grup baru) -- satu izin menu untuk semua 11
   // tab Serie, sama pola seperti cut_cutting. Lihat js/vue-pp-serie.js.
-  { id: 'proses_serie', label: 'Proses Produksi - Serie', kategori: 'Proses Produksi', icon: 'fa-shuffle',
+  { id: 'proses_serie', label: 'Proses Produksi - Serie', labelPendek: 'Serie', kategori: 'Proses Produksi', icon: 'fa-shuffle',
     aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-serie', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-perludiproses', null, {catatRiwayat:true}); } },
   // Proses Produksi > Sewing, NESTED di grup top-level "Proses Produksi" yang
   // SUDAH ada dari Cutting/Serie (bukan grup baru) -- satu izin menu untuk semua
   // 5 tab Sewing, sama pola seperti cut_cutting/proses_serie. Lihat js/vue-pp-
   // sewing.js.
-  { id: 'proses_sewing', label: 'Proses Produksi - Sewing', kategori: 'Proses Produksi', icon: 'fa-thread',
+  { id: 'proses_sewing', label: 'Proses Produksi - Sewing', labelPendek: 'Sewing', kategori: 'Proses Produksi', icon: 'fa-thread',
     aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-sewing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-sewing-tahap', 'sub-pr-sewing-perludiproses', null, {catatRiwayat:true}); } },
   // 1 izin menu untuk semua 5 tab Finishing, termasuk 4 sub-tab nested
   // QC/Steam/Folding/Packing di dalam 'Sedang Finishing'. Lihat
   // js/vue-pp-finishing.js.
-  { id: 'proses_finishing', label: 'Proses Produksi - Finishing', kategori: 'Proses Produksi', icon: 'fa-check-double',
+  { id: 'proses_finishing', label: 'Proses Produksi - Finishing', labelPendek: 'Finishing', kategori: 'Proses Produksi', icon: 'fa-check-double',
     aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-finishing', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-finishing-tahap', 'sub-pr-finishing-perludiproses', null, {catatRiwayat:true}); } },
   // Proses Produksi > Gudang Barang Jadi, NESTED di grup top-level "Proses
   // Produksi" yang SUDAH ada dari Cutting/Serie/Sewing/Finishing (bukan grup
   // baru) -- satu izin menu untuk semua 4 tab Gudang, sama pola seperti
   // proses_finishing. Lihat js/vue-pp-gudang.js.
-  { id: 'proses_gudang', label: 'Proses Produksi - Gudang Barang Jadi', kategori: 'Proses Produksi', icon: 'fa-warehouse',
+  { id: 'proses_gudang', label: 'Proses Produksi - Gudang Barang Jadi', labelPendek: 'Gudang Barang Jadi', kategori: 'Proses Produksi', icon: 'fa-warehouse',
     aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-gudang', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-gudang-tahap', 'sub-pr-gudang-perludisimpan', null, {catatRiwayat:true}); } },
   // grup top-level "Pesanan" (sejajar Zevanic House/ Persiapan Produksi).
   // id pesanan_persiapan/produksi/pengiriman tidak dipakai lagi — jangan
@@ -240,13 +240,13 @@ const DAFTAR_MENU = [
   // 3 menu-id baru utk 3 sub-tab Scan & Cetak lainnya (Riwayat PIN pindah dari
   // 'config_master_data' ke id sendiri, karena screen ini sekarang di luar
   // Config — beda cakupan izin).
-  { id: 'scan_cetak_referensi', label: 'Scan & Cetak - Referensi Scan', kategori: 'Scan & Cetak', icon: 'fa-list-check',
+  { id: 'scan_cetak_referensi', label: 'Scan & Cetak - Referensi Scan', labelPendek: 'Referensi Scan', kategori: 'Scan & Cetak', icon: 'fa-list-check',
     aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-referensi', null); } },
-  { id: 'scan_cetak_cetak', label: 'Scan & Cetak - Cetak', kategori: 'Scan & Cetak', icon: 'fa-print',
+  { id: 'scan_cetak_cetak', label: 'Scan & Cetak - Cetak', labelPendek: 'Cetak', kategori: 'Scan & Cetak', icon: 'fa-print',
     aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-cetak', null); } },
-  { id: 'scan_cetak_pin', label: 'Scan & Cetak - PIN (Riwayat PIN)', kategori: 'Scan & Cetak', icon: 'fa-key',
+  { id: 'scan_cetak_pin', label: 'Scan & Cetak - PIN (Riwayat PIN)', labelPendek: 'Riwayat PIN', kategori: 'Scan & Cetak', icon: 'fa-key',
     aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-pin', null); } },
-  { id: 'scan_pilihan_scan', label: 'Scan & Cetak - Pilihan Scan', kategori: 'Scan & Cetak', icon: 'fa-list-ul',
+  { id: 'scan_pilihan_scan', label: 'Scan & Cetak - Pilihan Scan', labelPendek: 'Pilihan Scan', kategori: 'Scan & Cetak', icon: 'fa-list-ul',
     aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-pilihanscan', null); } }
 ];
 

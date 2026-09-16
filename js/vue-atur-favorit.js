@@ -27,6 +27,13 @@ import { daftarMenuGroups, HeaderLayar, KolomCari } from './vue-components.js?v=
 // grupTampilList.
 const BATAS_GRUP_BERANDA = 4;
 
+// Kotak cari dicocokkan ke label pendek DAN label penuh, supaya mengetik nama
+// panjang ("Proses Produksi - Cutting") tetap menemukan kartunya.
+function cocokKata(item, kata) {
+  return (item.label || '').toLowerCase().includes(kata)
+      || (item.labelCari || '').toLowerCase().includes(kata);
+}
+
 const AppAturFavorit = {
   components: { HeaderLayar, KolomCari },
   setup() {
@@ -42,7 +49,7 @@ const AppAturFavorit = {
       const kata = cariFavorit.value.trim().toLowerCase();
       const semua = semuaItemFlat.value.filter(i => !i.terkunci);
       if (!kata) return semua;
-      return semua.filter(i => i.label.toLowerCase().includes(kata));
+      return semua.filter(i => cocokKata(i, kata));
     });
     const kuotaPenuh = computed(() => favoritIds.value.length >= 4);
 

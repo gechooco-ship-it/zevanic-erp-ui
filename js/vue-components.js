@@ -889,7 +889,8 @@ export function daftarMenuGroups(role, urutanKustomPerKategori, urutanKustomKate
       let terkunci = izinAsli === null ? fallbackAman : !izinAsli;
       if (m.wajibOwner && r !== 'owner') terkunci = true;
       // labelPendek dipakai kalau ada — kartu HP sempit, label panjang jadi 4 baris.
-      return { label: m.labelPendek || m.label, menuId: m.id, icon: m.icon, aksi: m.aksi, terkunci };
+      // labelCari tetap label penuh supaya kotak cari menemukan nama panjangnya.
+      return { label: m.labelPendek || m.label, labelCari: m.label, menuId: m.id, icon: m.icon, aksi: m.aksi, terkunci };
     })
   }));
 }
