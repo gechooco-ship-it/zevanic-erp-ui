@@ -152,7 +152,9 @@ const AppAturFavorit = {
       memuat.value = false;
     }
 
-    onMounted(async () => { await window.authReady; muat(); });
+    // izinSiap, BUKAN authReady — alasannya sama seperti vue-menu-lengkap.js:
+    // daftar menu digembok berdasarkan izin yang belum tentu sudah termuat.
+    onMounted(async () => { await window.izinSiap; muat(); });
 
     return {
       memuat, menuGroups,

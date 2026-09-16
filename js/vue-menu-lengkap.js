@@ -62,7 +62,10 @@ const AppMenuLengkap = {
       item.aksi();
     }
 
-    onMounted(async () => { await window.authReady; muat(); });
+    // izinSiap, BUKAN authReady — komponen ini di-mount begitu file dimuat dan
+    // hasilnya tidak pernah dihitung ulang, jadi kalau jalan sebelum izin
+    // termuat semua kartu tergembok permanen.
+    onMounted(async () => { await window.izinSiap; muat(); });
 
     return { menuGroups, cari, grupTersaring, totalHasil, klikMenu, dialogTerkunciModul, memuat };
   },

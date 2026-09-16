@@ -12,8 +12,8 @@
 // Jebakan:
 // - onAuthStateChanged bisa memanggil user=null DULU sebelum sesi tersimpan
 //   terbaca; toleransi 6000ms kalau ada cache sesi, 1200ms kalau tidak.
-// - Komponen Vue WAJIB `await window.authReady` sebelum fetch, kalau tidak
-//   Rules menolak dan tabel macet "Memuat data..".
+// - Komponen WAJIB `await window.authReady` sebelum fetch; yang menggambar
+//   daftar menu WAJIB `await window.izinSiap` — authReady selesai lebih dulu.
 // - Tiap window.currentUser berubah di tengah sesi WAJIB simpanKonteksSesi(),
 //   kalau tidak cache localStorage basi dan menimpa balik saat reload.
 // - Sidebar digerbang DUA lapis: role batas terluas, terapkanIzinMenuKeSidebar
@@ -59,6 +59,19 @@ window.authReady = new Promise((resolve) => {
   });
 });
 
+// window.izinSiap: sinyal IZIN MENU sudah dimuat — BEDA dari authReady, yang cuma
+// menandakan Auth sudah tahu siapa yang login. Layar yang menggambar daftar menu
+// WAJIB menunggu ini; kalau cuma menunggu authReady, ia menghitung gembok saat
+// izinMenuSaya masih kosong dan hasilnya tidak pernah dihitung ulang.
+let _tandaiIzinSiap = null;
+window.izinSiap = new Promise((resolve) => { _tandaiIzinSiap = resolve; });
+window.tandaiIzinSiap = function() {
+  if (_tandaiIzinSiap) { _tandaiIzinSiap(); _tandaiIzinSiap = null; }
+};
+// Jaring pengaman: kalau ada jalur yang tidak pernah memuat izin (kiosk, buat
+// password, login gagal), layar tidak boleh menggantung selamanya.
+window.authReady.then(() => { setTimeout(window.tandaiIzinSiap, 5000); });
+
 
 // window.cekIzinMenu(menuId, 'view'|'add'|'edit'|'delete'|'print') dan
 // window.cekFiturAkses(menuId, fiturKey) baca window.izinMenuSaya yang diambil
@@ -71,21 +84,27 @@ window.izinMenuSaya = undefined; // undefined = belum sempat dimuat sama sekali
 // memuat role + jenis_pekerjaan jabatan itu, yang disalin ke users saat
 // di-assign.
 window.muatIzinMenuSaya = async function(role, jabatan) {
-  const r = (role || '').toLowerCase();
-  if (r === 'owner') {
-    // Owner asli satu-satunya yang kebal. PIC Owner TIDAK — menunya ikut
-    // jabatan, kuasa tulisnya saja yang setara owner di Rules.
-    window.izinMenuSaya = 'OWNER_PENUH';
-    return;
-  }
-  const j = (jabatan || '').trim().toLowerCase();
-  if (!j) { window.izinMenuSaya = null; return; }
   try {
-    const snap = await getDoc(doc(db, "akses_jabatan", j));
-    window.izinMenuSaya = snap.exists() ? snap.data() : null;
-  } catch (e) {
-    console.error("Gagal muat akses_jabatan untuk", j, e);
-    window.izinMenuSaya = null;
+    const r = (role || '').toLowerCase();
+    if (r === 'owner') {
+      // Owner asli satu-satunya yang kebal. PIC Owner TIDAK — menunya ikut
+      // jabatan, kuasa tulisnya saja yang setara owner di Rules.
+      window.izinMenuSaya = 'OWNER_PENUH';
+      return;
+    }
+    const j = (jabatan || '').trim().toLowerCase();
+    if (!j) { window.izinMenuSaya = null; return; }
+    try {
+      const snap = await getDoc(doc(db, "akses_jabatan", j));
+      window.izinMenuSaya = snap.exists() ? snap.data() : null;
+    } catch (e) {
+      console.error("Gagal muat akses_jabatan untuk", j, e);
+      window.izinMenuSaya = null;
+    }
+  } finally {
+    // WAJIB di finally: cabang owner dan cabang jabatan-kosong pun harus
+    // melepas layar yang sedang menunggu, kalau tidak daftar menu macet.
+    window.tandaiIzinSiap();
   }
 };
 
@@ -434,6 +453,7 @@ onAuthStateChanged(auth, async (user) => {
     if (cache) {
       d = cache.data;
       window.izinMenuSaya = cache.izinMenu;
+      window.tandaiIzinSiap(); // dari cache, muatIzinMenuSaya di bawah tidak dipanggil
     } else {
       const userSnap = await getDoc(doc(db, "users", user.email));
       if (!userSnap.exists()) {

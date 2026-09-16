@@ -167,11 +167,12 @@ const AppHome = {
       await muatShift();
     }
 
-    // CUMA muat kalau window.currentUser SUDAH ada (navigasi dalam SPA); kalau
-    // belum, biarkan window.refreshHome (dipanggil auth.js/vue-login.js) yang
-    // memuat begitu data lengkap.
+    // izinSiap, BUKAN authReady: kartu menu digembok berdasarkan izin, dan
+    // authReady selesai jauh sebelum izinnya termuat. CUMA muat kalau
+    // window.currentUser SUDAH ada (navigasi dalam SPA); kalau belum, biarkan
+    // window.refreshHome (dipanggil auth.js/vue-login.js) yang memuat.
     onMounted(async () => {
-      await window.authReady;
+      await window.izinSiap;
       if (window.currentUser && window.currentUser.email) {
         await muatSemua();
       }
