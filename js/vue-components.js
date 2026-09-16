@@ -879,14 +879,14 @@ export function daftarMenuGroups(role, urutanKustomPerKategori, urutanKustomKate
 
   // SEMUA grup & menu tetap DITAMPILKAN untuk siapapun; yang tidak boleh diakses
   // cuma ditandai `terkunci: true` lewat cekIzinMenu(menuId,'view') dengan `role`
-  // dari memori (bukan baca Firestore lagi). Izin BELUM DIATUR (null) -> default
-  // aman: terkunci untuk selain owner/pic_owner; `wajibOwner` mengunci ke owner.
+  // dari memori (bukan baca Firestore lagi). Digembok HANYA kalau dilarang
+  // EKSPLISIT (false) — sama seperti sidebar; null "belum diatur" tetap terbuka
+  // supaya jabatan yang menunya belum lengkap tidak terkunci total.
+  // `wajibOwner` mengunci ke owner.
   return semuaGroup.map(g => ({
     ...g,
     items: g.items.map(m => {
-      const izinAsli = window.cekIzinMenu(m.id, 'view');
-      const fallbackAman = !(r === 'owner' || r === 'pic_owner');
-      let terkunci = izinAsli === null ? fallbackAman : !izinAsli;
+      let terkunci = window.cekIzinMenu(m.id, 'view') === false;
       if (m.wajibOwner && r !== 'owner') terkunci = true;
       // labelPendek dipakai kalau ada — kartu HP sempit, label panjang jadi 4 baris.
       // labelCari tetap label penuh supaya kotak cari menemukan nama panjangnya.
@@ -1181,7 +1181,7 @@ export const KolomCari = {
 
 const _FALLBACK_PENGATURAN_LABEL = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr: 'kiri', rincian_aktif: [], font_kode_mm: 4.5, font_nama_mm: 3.5, font_info_mm: 2.9, rotasi_90: false };
 
-// bangunInfoLabelAnakSpk — GLOBAL, dipakai SEMUA jalur cetak label SPK Grouping
+// bangunInfoLabelAnakSpk — GLOBAL, dipakai SEMUA jalur cetak label Kode Grouping
 // (Bahan, Acc Sewing/Webbing/Finishing) untuk menyusun field `info`. Yang
 // distandarkan di sini cuma STRUKTUR-nya: N baris rincian item lalu 1 baris nama
 // pelanggan paling bawah. `no_spk` TIDAK PERNAH ditampilkan di sini.

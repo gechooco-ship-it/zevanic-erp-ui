@@ -303,6 +303,12 @@
           <button onclick="pindahTab('tab-scan-cetak'); pindahSubTab('sub-scan-cetak','sub-scan-cetak-pilihanscan', this, {catatRiwayat:true})" id="menu-scancetak-pilihanscan-btn" data-menu-id="scan_pilihan_scan" data-target="sub-scan-cetak-pilihanscan" class="sub-scan-cetak-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-list-ul" style="width:17px; text-align:center;"></i> Pilihan Scan
           </button>
+          <button onclick="pindahTab('tab-scan-cetak'); pindahSubTab('sub-scan-cetak','sub-scan-cetak-bagging', this, {catatRiwayat:true})" id="menu-scancetak-bagging-btn" data-menu-id="scan_cetak_bagging" data-target="sub-scan-cetak-bagging" class="sub-scan-cetak-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-box" style="width:17px; text-align:center;"></i> Cetak Bagging
+          </button>
+          <button onclick="pindahTab('tab-scan-cetak'); pindahSubTab('sub-scan-cetak','sub-scan-cetak-tugas', this, {catatRiwayat:true})" id="menu-scancetak-tugas-btn" data-menu-id="scan_cetak_tugas" data-target="sub-scan-cetak-tugas" class="sub-scan-cetak-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-truck-fast" style="width:17px; text-align:center;"></i> Cetak Kode Tugas
+          </button>
         </div>
         <button onclick="toggleNavGroup('navgrp-integrasi')" id="menu-whatsapp" data-group="navgrp-integrasi" class="hidden gc-nav-item" style="font-weight:700;">
           <i class="fas fa-plug gc-nav-gico"></i> Master Integrasi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
@@ -842,7 +848,7 @@
           </div>
 
           <!-- Acc Sewing/Webbing/Finishing memakai js/vue-persiapan-{sewing,webbing,finishing}.js (kartu
-               per SPK Grouping + baris per komponen, 5 komponen Vue tiap pos), bukan JalurTahapManager generik.
+               per Kode Grouping + baris per komponen, 5 komponen Vue tiap pos), bukan JalurTahapManager generik.
                Label tab memakai "Perlu/Sedang Disiapkan", sama seperti Bahan. -->
           <div id="sub-pp-sewing" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
@@ -991,6 +997,8 @@
             <button onclick="pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-cetak', this, {catatRiwayat:true})" class="sub-scan-cetak-btn gc-sub-tab-btn" data-target="sub-scan-cetak-cetak"><i class="fas fa-print" style="margin-right:6px;"></i> Cetak</button>
             <button onclick="pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-pin', this, {catatRiwayat:true})" class="sub-scan-cetak-btn gc-sub-tab-btn" data-target="sub-scan-cetak-pin"><i class="fas fa-key" style="margin-right:6px;"></i> PIN</button>
             <button onclick="pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-pilihanscan', this, {catatRiwayat:true})" class="sub-scan-cetak-btn gc-sub-tab-btn" data-target="sub-scan-cetak-pilihanscan"><i class="fas fa-list-ul" style="margin-right:6px;"></i> Pilihan Scan</button>
+            <button onclick="pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-bagging', this, {catatRiwayat:true})" class="sub-scan-cetak-btn gc-sub-tab-btn" data-target="sub-scan-cetak-bagging"><i class="fas fa-box" style="margin-right:6px;"></i> Cetak Bagging</button>
+            <button onclick="pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-tugas', this, {catatRiwayat:true})" class="sub-scan-cetak-btn gc-sub-tab-btn" data-target="sub-scan-cetak-tugas"><i class="fas fa-truck-fast" style="margin-right:6px;"></i> Cetak Kode Tugas</button>
           </div>
 
           <!--
@@ -1019,7 +1027,7 @@
               <div style="display:flex; flex-direction:column; gap:12px;">
                 <div>
                   <div class="gc-heading" style="font-weight:700; font-size:12.5px; margin-bottom:4px;">Persiapan Produksi (Bahan/Acc Sewing/Webbing/Finishing/Vendor) — 6 jenis generik</div>
-                  <p style="font-size:11px; color:var(--text-muted); line-height:1.6; margin:0;">Scan Operator (tugaskan karyawan, syarat label SPK Grouping sudah dicetak) &middot; Scan Entry (satu-satunya titik pengurangan stok/naik tahap) &middot; Scan Masalah (catat kendala) &middot; Scan Pack (label bagging) &middot; Scan Kirim &middot; Scan Sampai (konfirmasi diterima penerima).</p>
+                  <p style="font-size:11px; color:var(--text-muted); line-height:1.6; margin:0;">Scan Operator (tugaskan karyawan, syarat label Kode Grouping sudah dicetak) &middot; Scan Entry (satu-satunya titik pengurangan stok/naik tahap) &middot; Scan Masalah (catat kendala) &middot; Scan Pack (label bagging) &middot; Scan Kirim &middot; Scan Sampai (konfirmasi diterima penerima).</p>
                 </div>
                 <div>
                   <div class="gc-heading" style="font-weight:700; font-size:12.5px; margin-bottom:4px;">Cutting <span class="tag" style="margin-left:6px;">Belum dibangun</span></div>
@@ -1055,7 +1063,7 @@
                 <table class="gc-table">
                   <thead><tr><th>Jenis</th><th>Lokasi cetak</th><th style="width:120px;">Status</th></tr></thead>
                   <tbody>
-                    <tr><td>Label SPK Grouping</td><td>Persiapan Produksi &gt; Perlu Disiapkan</td><td><span class="tag ok">Aktif</span></td></tr>
+                    <tr><td>Label Kode Grouping</td><td>Persiapan Produksi &gt; Perlu Disiapkan</td><td><span class="tag ok">Aktif</span></td></tr>
                     <tr><td>Label Kode Bagging</td><td>Persiapan/Proses Produksi &gt; tahap Perlu Dikirim</td><td><span class="tag ok">Aktif</span></td></tr>
                     <tr><td>Lembar Kode Tugas</td><td>Persiapan/Proses Produksi &gt; tahap Sedang Dikirim</td><td><span class="tag ok">Aktif</span></td></tr>
                     <tr><td>Label Bahan/Aksesoris</td><td>Zevanic House &gt; List Bahan &amp; Aksesoris</td><td><span class="tag ok">Aktif</span></td></tr>
@@ -1086,6 +1094,17 @@
             <div class="gc-card" style="padding:14px;">
               <div id="vue-pilihan-scan-config"></div>
             </div>
+          </div>
+
+          <!-- Grup 6 & 7: cetak terpusat Kode Bagging dan Lembar Kode Tugas.
+               Cetak ulang minta alasan + PIN; buat baru digerbang role.
+               Lihat js/vue-cetak-bagging.js dan js/vue-cetak-kode-tugas.js. -->
+          <div id="sub-scan-cetak-bagging" class="sub-scan-cetak-content hidden fade-in space-y-4">
+            <div id="vue-cetak-bagging"></div>
+          </div>
+
+          <div id="sub-scan-cetak-tugas" class="sub-scan-cetak-content hidden fade-in space-y-4">
+            <div id="vue-cetak-kode-tugas"></div>
           </div>
         </div>
 
@@ -1355,7 +1374,7 @@
   <script type="module" src="js/auth.js?v=13"></script>
   <script type="module" src="js/dashboard.js?v=30"></script>
 
-  <!-- Persiapan Produksi V2: Perlu Disiapkan (generator SPK Grouping) fungsional penuh. 5 jalur
+  <!-- Persiapan Produksi V2: Perlu Disiapkan (generator Kode Grouping) fungsional penuh. 5 jalur
        (Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing) sementara hanya struktur navigasi 5 tahap dengan
        isi placeholder. -->
   <script type="module" src="js/vue-persiapan-produksi-v2.js?v=17"></script>
@@ -1384,14 +1403,14 @@
     "Pengaturan Cetak" (ukuran kertas/posisi QR/rincian tambahan per jenis cetak, terpusat),
     lihat komentar besar di js/vue-pengaturan-cetak.js.
   -->
-  <script type="module" src="js/vue-pengaturan-cetak.js?v=6"></script>
+  <script type="module" src="js/vue-pengaturan-cetak.js?v=7"></script>
   <script type="module" src="js/vue-scan-opname.js?v=2"></script>
-  <script type="module" src="js/vue-scan-persiapan.js?v=5"></script>
+  <script type="module" src="js/vue-scan-persiapan.js?v=6"></script>
   <script type="module" src="js/vue-config-karyawan.js?v=4"></script>
   <script type="module" src="js/vue-config-info.js?v=4"></script>
   <script type="module" src="js/vue-config-absensi.js?v=4"></script>
   <script type="module" src="js/vue-daftar-karyawan.js?v=7"></script>
-  <script type="module" src="js/vue-config-akses.js?v=22"></script>
+  <script type="module" src="js/vue-config-akses.js?v=23"></script>
   <script type="module" src="js/vue-hak-akses.js?v=8"></script>
   <script type="module" src="js/vue-antrean-dakar.js?v=6"></script>
   <script type="module" src="js/vue-antrean-absensi.js?v=8"></script>
@@ -1415,6 +1434,8 @@
   -->
   <script type="module" src="js/vue-popup-scan.js?v=4"></script>
   <script type="module" src="js/vue-pilihan-scan-config.js?v=2"></script>
+  <script type="module" src="js/vue-cetak-bagging.js?v=1"></script>
+  <script type="module" src="js/vue-cetak-kode-tugas.js?v=1"></script>
   <script type="module" src="js/vue-home.js?v=8"></script>
   <script type="module" src="js/vue-home-desktop.js?v=1"></script>
   <script type="module" src="js/vue-header-mobile.js?v=11"></script>
@@ -1436,7 +1457,7 @@
   <!-- Zevanic House > Config. Import Excel diaktifkan lewat prop :izinkan-import-excel="true"
        khusus di AppConfigKomponen, tab Config lain tidak ikut. Tab "TLC & Prefix" (AppConfigTlc) memakai
        koleksi master_tlc; cache-bust mengikuti import firestore/firebase-config di file ini. -->
-  <script type="module" src="js/vue-config.js?v=13"></script>
+  <script type="module" src="js/vue-config.js?v=14"></script>
   <!-- Zevanic House > Master Suplayer: Entry & List (5.1), Alias & MOQ (5.2, dengan
        moq/moq_satuan/lead_time_hari), dan Petakan Order (5.3, total). Lihat komentar panjang di
        js/vue-master-suplayer.js. -->

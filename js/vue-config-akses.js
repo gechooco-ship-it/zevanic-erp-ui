@@ -247,7 +247,13 @@ const DAFTAR_MENU = [
   { id: 'scan_cetak_pin', label: 'Scan & Cetak - PIN (Riwayat PIN)', labelPendek: 'Riwayat PIN', kategori: 'Scan & Cetak', icon: 'fa-key',
     aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-pin', null); } },
   { id: 'scan_pilihan_scan', label: 'Scan & Cetak - Pilihan Scan', labelPendek: 'Pilihan Scan', kategori: 'Scan & Cetak', icon: 'fa-list-ul',
-    aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-pilihanscan', null); } }
+    aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-pilihanscan', null); } },
+  // Dua layar cetak terpusat: cetak ulang kode yang sudah ada + buat kode baru
+  // tanpa masuk jalur produksi. Cetaknya digerbang role pic/pic_owner/owner.
+  { id: 'scan_cetak_bagging', label: 'Scan & Cetak - Cetak Bagging', labelPendek: 'Cetak Bagging', kategori: 'Scan & Cetak', icon: 'fa-box',
+    aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-bagging', null); } },
+  { id: 'scan_cetak_tugas', label: 'Scan & Cetak - Cetak Kode Tugas', labelPendek: 'Cetak Kode Tugas', kategori: 'Scan & Cetak', icon: 'fa-truck-fast',
+    aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-tugas', null); } }
 ];
 
 // Urutan tampilan KATEGORI permission: accordion Config Akses, grid Home mobile,
