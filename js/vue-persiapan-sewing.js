@@ -404,12 +404,11 @@ const PersiapanSewingPerluDisiapkan = {
     }
 
     // Scan Operator — disebar dari PILOT #5 vue-persiapan-bahan.js (Draft/Upload),
-    // gantikan modalTunjuk lama. kartuAktifTunjuk null = cari di SEMUA kartu tab ini
-    // (tombol toolbar), object = kartu spesifik — diset SEBELUM buka() lewat closure.
+    // gantikan modalTunjuk lama. Satu sumber kebenaran: cari di SEMUA kartu tab ini
+    // (tombol per-kartu sudah dibuang, lihat bukaPenunjukanGlobal di bawah).
     // 1 scan anak SPK menandai SEMUA baris komponennya (beda dari Bahan 1 baris/anak SPK).
-    let kartuAktifTunjuk = null;
     function cariBarisSiapTunjuk(kode) {
-      const kolamBaris = kartuAktifTunjuk ? (kartuAktifTunjuk.baris || []) : kartuList.value.flatMap(k => k.baris);
+      const kolamBaris = kartuList.value.flatMap(k => k.baris);
       return kolamBaris.filter(b => (b.kode_kartu || b.no_spk) === kode && b.label_cetak_pada && b.status === 'perlu_disiapkan');
     }
     const scanOperator = buatScanTerpadu({
@@ -459,18 +458,12 @@ const PersiapanSewingPerluDisiapkan = {
         } catch (e) { console.error('Gagal simpan Scan Operator:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
       }
     });
-    function bukaPenunjukan(k) {
-      const eligible = k.baris.filter(b => b.label_cetak_pada && b.status === 'perlu_disiapkan');
-      if (!eligible.length) { alert('Belum ada baris yang sudah dicetak labelnya di kartu ini.'); return; }
-      kartuAktifTunjuk = k;
-      scanOperator.buka();
-    }
-    // bukaPenunjukanGlobal — versi toolbar header: TIDAK terkunci ke 1 kartu,
-    // mencari baris cocok di SEMUA kartu tampil di tab ini. Tombol per-kartu TETAP ADA.
+    // bukaPenunjukanGlobal — SATU-SATUNYA pemicu Scan Operator di tab ini:
+    // tombol toolbar (desktop) dan bottom sheet (mobile). Tombol per-kartu
+    // sudah dibuang supaya tidak dobel sumber kebenaran.
     function bukaPenunjukanGlobal() {
       const eligible = kartuList.value.some(k => k.baris.some(b => b.label_cetak_pada && b.status === 'perlu_disiapkan'));
       if (!eligible) { alert('Belum ada baris yang sudah dicetak labelnya di tab ini.'); return; }
-      kartuAktifTunjuk = null;
       scanOperator.buka();
     }
 
@@ -510,7 +503,7 @@ const PersiapanSewingPerluDisiapkan = {
       TAB_DEFS_SEWING, gantiTabPill, MY_TARGET, kpiHeader,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, onCetakSelesai,
       popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang, barisTerpilihCetakUlang,
-      scanOperator, bukaPenunjukan, bukaPenunjukanGlobal,
+      scanOperator, bukaPenunjukanGlobal,
       modalScanSampai, bukaScanSampaiGlobal, tutupScanSampai, hasilScanSampai
     };
   },
@@ -525,7 +518,7 @@ const PersiapanSewingPerluDisiapkan = {
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button v-if="bolehEdit && aksiAktif(MY_TARGET,'sampai_masalah_sewing')" @click="bukaScanSampaiGlobal" class="btn-outline" style="padding:8px 14px;"><i class="fas fa-inbox" style="margin-right:6px;"></i>Scan Sampai</button>
-          <button v-if="bolehProses && aksiAktif(MY_TARGET,'operator_sewing')" @click="bukaPenunjukanGlobal" class="btn-primary" style="padding:8px 14px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+          <button v-if="bolehProses && aksiAktif(MY_TARGET,'operator_sewing')" @click="bukaPenunjukanGlobal" class="btn-primary hidden md:inline-block" style="padding:8px 14px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
         </div>
       </div>
 
@@ -602,7 +595,6 @@ const PersiapanSewingPerluDisiapkan = {
           <div v-if="bolehCetak" style="display:flex; gap:8px; border-top:1px solid var(--line); padding-top:10px;">
             <button @click="cetakLabelKartu(k)" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label</button>
             <button v-if="k.baris.some(b=>b.label_cetak_pada)" @click="bukaCetakUlang(k)" class="btn-outline" style="flex:1; padding:9px; color:var(--warn); border-color:var(--warn);"><i class="fas fa-rotate" style="margin-right:6px;"></i>Cetak Ulang</button>
-            <button v-if="bolehProses && aksiAktif(MY_TARGET,'operator_sewing') && k.baris.some(b=>b.label_cetak_pada && b.status==='perlu_disiapkan')" @click="bukaPenunjukan(k)" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
           </div>
         </div>
       </div>
@@ -1427,8 +1419,8 @@ window.pastikanMountPpSewingPerluDisiapkan = function () {
   const mountPoint = document.getElementById('vue-pp-sewing-perludisiapkan');
   if (mountPoint) vmPpSewingPerluDisiapkan = createApp(PersiapanSewingPerluDisiapkan).mount('#vue-pp-sewing-perludisiapkan');
 };
-// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js) — panggil varian
-// toolbar global (kartuAktifTunjuk null), sama seperti klik tombol toolbar.
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js) — mobile: ini
+// SATU-SATUNYA pemicu (tombol header di-hidden di mobile via CSS).
 window.bukaScanOperatorSewing = function () { window.pastikanMountPpSewingPerluDisiapkan(); if (vmPpSewingPerluDisiapkan) vmPpSewingPerluDisiapkan.bukaPenunjukanGlobal(); };
 window.bukaSampaiMasalahSewing = function () { window.pastikanMountPpSewingPerluDisiapkan(); if (vmPpSewingPerluDisiapkan) vmPpSewingPerluDisiapkan.bukaScanSampaiGlobal(); };
 let vmPpSewingSedangDisiapkan = null;

@@ -454,15 +454,11 @@ const PersiapanBahanPerluDisiapkan = {
     }
 
     // Scan Operator — PILOT #5 (Draft/Upload), gantikan modalTunjuk lama.
-    // kartuAktifTunjuk null = cari di SEMUA kartu tab ini (tombol toolbar),
-    // object = kartu spesifik (tombol per-kartu) — diset SEBELUM buka() lewat
-    // closure, karena buatScanTerpadu.buka() sendiri tidak menerima parameter.
-    // "Ganti" di chip mengosongkan draft juga (belum ada yang tertulis kalau
-    // belum Upload), beda dari versi lama yang niatnya (tidak pernah jalan)
-    // mempertahankan baris lama saat ganti operator di tengah sesi.
-    let kartuAktifTunjuk = null;
+    // Satu sumber kebenaran: cari di SEMUA kartu tab ini (tombol per-kartu
+    // sudah dibuang, lihat bukaPenunjukanGlobal di bawah). "Ganti" di chip
+    // mengosongkan draft juga (belum ada yang tertulis kalau belum Upload).
     function cariBarisSiapTunjuk(kode) {
-      const kolamBaris = kartuAktifTunjuk ? (kartuAktifTunjuk.baris || []) : kartuList.value.flatMap(k => k.baris);
+      const kolamBaris = kartuList.value.flatMap(k => k.baris);
       const cocokLabel = (b) => (b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${b.kode_spk}-${b.bahan_aksesoris_id}`) === kode;
       return kolamBaris.filter(b => cocokLabel(b) && b.label_cetak_pada && b.status === 'perlu_disiapkan');
     }
@@ -506,19 +502,12 @@ const PersiapanBahanPerluDisiapkan = {
         } catch (e) { console.error('Gagal simpan Scan Operator:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
       }
     });
-    function bukaPenunjukan(k) {
-      const eligible = k.baris.filter(b => b.label_cetak_pada && b.status === 'perlu_disiapkan');
-      if (!eligible.length) { alert('Belum ada baris yang sudah dicetak labelnya di kartu ini.'); return; }
-      kartuAktifTunjuk = k;
-      scanOperator.buka();
-    }
-    // bukaPenunjukanGlobal — versi toolbar header: TIDAK terkunci ke 1 kartu,
-    // mencari baris cocok di SEMUA kartu yang tampil di tab ini. Tombol
-    // per-kartu TETAP ADA, ini tambahan.
+    // bukaPenunjukanGlobal — SATU-SATUNYA pemicu Scan Operator di tab ini:
+    // tombol toolbar (desktop) dan bottom sheet (mobile, lewat window.bukaScanOperatorBahan).
+    // Tombol per-kartu sudah dibuang supaya tidak dobel sumber kebenaran.
     function bukaPenunjukanGlobal() {
       const eligible = kartuList.value.some(k => k.baris.some(b => b.label_cetak_pada && b.status === 'perlu_disiapkan'));
       if (!eligible) { alert('Belum ada baris yang sudah dicetak labelnya di tab ini.'); return; }
-      kartuAktifTunjuk = null;
       scanOperator.buka();
     }
 
@@ -551,7 +540,7 @@ const PersiapanBahanPerluDisiapkan = {
       TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET, jumlahSiapDicetak, ringkasanTerpilih,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, cetakSemuaTercentang, onCetakSelesai,
       popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang, barisTerpilihCetakUlang,
-      scanOperator, bukaPenunjukan, bukaPenunjukanGlobal,
+      scanOperator, bukaPenunjukanGlobal,
       modalScanSampai, bukaScanSampaiGlobal, tutupScanSampai, hasilScanSampai
     };
   },
@@ -566,7 +555,7 @@ const PersiapanBahanPerluDisiapkan = {
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
           <button v-if="bolehEdit && aksiAktif(MY_TARGET,'sampai_masalah_bahan')" @click="bukaScanSampaiGlobal" class="btn-outline" style="padding:8px 14px;"><i class="fas fa-inbox" style="margin-right:6px;"></i>Scan Sampai</button>
-          <button v-if="bolehProses && aksiAktif(MY_TARGET,'operator_bahan')" @click="bukaPenunjukanGlobal" class="btn-primary" style="padding:8px 14px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+          <button v-if="bolehProses && aksiAktif(MY_TARGET,'operator_bahan')" @click="bukaPenunjukanGlobal" class="btn-primary hidden md:inline-block" style="padding:8px 14px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
         </div>
       </div>
 
@@ -638,7 +627,6 @@ const PersiapanBahanPerluDisiapkan = {
           <div v-if="bolehCetak" style="display:flex; gap:8px; border-top:1px solid var(--line); padding-top:10px;">
             <button @click="cetakLabelKartu(k)" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label</button>
             <button v-if="k.baris.some(b=>b.label_cetak_pada)" @click="bukaCetakUlang(k)" class="btn-outline" style="flex:1; padding:9px; color:var(--warn); border-color:var(--warn);"><i class="fas fa-rotate" style="margin-right:6px;"></i>Cetak Ulang</button>
-            <button v-if="bolehProses && aksiAktif(MY_TARGET,'operator_bahan') && k.baris.some(b=>b.label_cetak_pada && b.status==='perlu_disiapkan')" @click="bukaPenunjukan(k)" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
           </div>
         </div>
       </div>
@@ -1496,8 +1484,8 @@ window.pastikanMountPpBahanPerluDisiapkan = function () {
   const mountPoint = document.getElementById('vue-pp-bahan-perludisiapkan');
   if (mountPoint) vmPpBahanPerluDisiapkan = createApp(PersiapanBahanPerluDisiapkan).mount('#vue-pp-bahan-perludisiapkan');
 };
-// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js) — panggil varian
-// toolbar global (kartuAktifTunjuk null), sama seperti klik tombol toolbar.
+// Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js) — mobile: ini
+// SATU-SATUNYA pemicu (tombol header di-hidden di mobile via CSS).
 window.bukaScanOperatorBahan = function () { window.pastikanMountPpBahanPerluDisiapkan(); if (vmPpBahanPerluDisiapkan) vmPpBahanPerluDisiapkan.bukaPenunjukanGlobal(); };
 window.bukaSampaiMasalahBahan = function () { window.pastikanMountPpBahanPerluDisiapkan(); if (vmPpBahanPerluDisiapkan) vmPpBahanPerluDisiapkan.bukaScanSampaiGlobal(); };
 let vmPpBahanSedangDisiapkan = null;

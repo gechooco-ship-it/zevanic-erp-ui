@@ -651,14 +651,10 @@ const MasalahPerluDisiapkan = {
     }
 
     // Scan Operator — disebar dari PILOT #5 vue-persiapan-bahan.js (Draft/Upload),
-    // gantikan modalTunjuk lama. TIDAK ADA versi toolbar global di sini (beda dari
-    // Bahan/Finishing/Sewing/Webbing) — kartu ini SELALU per-kartu, sama perilaku lama.
-    // kartuAktifTunjuk null = cari di SEMUA kartu tab ini (tombol toolbar/bridge
-    // scan global), object = kartu spesifik (tombol per-kartu) — sama pola
-    // dengan vue-persiapan-sewing.js/vue-persiapan-bahan.js.
-    let kartuAktifTunjuk = null;
+    // gantikan modalTunjuk lama. Satu sumber kebenaran: cari di SEMUA kartu tab ini
+    // (tombol per-kartu sudah dibuang, lihat bukaPenunjukanGlobal di bawah).
     function cariDocSiapTunjuk(kode) {
-      const kolam = kartuAktifTunjuk ? (kartuAktifTunjuk.docs || []) : kartuList.value.flatMap(k => k.docs);
+      const kolam = kartuList.value.flatMap(k => k.docs);
       return kolam.find(d => d.kode_msl === kode && d.label_cetak_pada && d.status === 'perlu_disiapkan');
     }
     const scanOperator = buatScanTerpadu({
@@ -700,18 +696,12 @@ const MasalahPerluDisiapkan = {
         } catch (e) { console.error('Gagal simpan Scan Operator:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
       }
     });
-    function bukaPenunjukan(k) {
-      const eligible = k.docs.filter(d => d.label_cetak_pada && d.status === 'perlu_disiapkan');
-      if (!eligible.length) { alert('Belum ada baris yang sudah dicetak labelnya di kartu ini.'); return; }
-      kartuAktifTunjuk = k;
-      scanOperator.buka();
-    }
-    // bukaPenunjukanGlobal — versi toolbar/bridge scan: TIDAK terkunci ke 1
-    // kartu, mencari baris cocok di SEMUA kartu tampil di tab ini.
+    // bukaPenunjukanGlobal — SATU-SATUNYA pemicu Scan Operator di tab ini:
+    // tombol toolbar (desktop) dan bottom sheet (mobile). Tombol per-kartu
+    // sudah dibuang supaya tidak dobel sumber kebenaran.
     function bukaPenunjukanGlobal() {
       const eligible = kartuList.value.some(k => k.docs.some(d => d.label_cetak_pada && d.status === 'perlu_disiapkan'));
       if (!eligible) { alert('Belum ada baris yang sudah dicetak labelnya di tab ini.'); return; }
-      kartuAktifTunjuk = null;
       scanOperator.buka();
     }
 
@@ -721,14 +711,14 @@ const MasalahPerluDisiapkan = {
       memuat, kartuList, kartuTerbuka, toggleKartu, isChecked, toggleCheck,
       bolehProses, bolehCetak, aksiAktif, sedangProses, formatQty, formatWaktu,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu,
-      scanOperator, bukaPenunjukan, bukaPenunjukanGlobal
+      scanOperator, bukaPenunjukanGlobal
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <template v-else>
-      <div v-if="bolehProses && aksiAktif('sub-pp-masalah-perludisiapkan','operator_masalah')" style="display:flex; gap:8px; margin-bottom:12px;">
+      <div v-if="bolehProses && aksiAktif('sub-pp-masalah-perludisiapkan','operator_masalah')" class="hidden md:flex" style="gap:8px; margin-bottom:12px;">
         <button @click="bukaPenunjukanGlobal" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
       </div>
 
@@ -756,7 +746,6 @@ const MasalahPerluDisiapkan = {
 
           <div style="display:flex; gap:8px; border-top:1px solid var(--line); padding-top:10px;">
             <button v-if="bolehCetak" @click="cetakLabelKartu(k)" :disabled="sedangProses" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label</button>
-            <button v-if="bolehProses && aksiAktif('sub-pp-masalah-perludisiapkan','operator_masalah') && k.docs.some(d=>d.label_cetak_pada && d.status==='perlu_disiapkan')" @click="bukaPenunjukan(k)" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
           </div>
         </div>
       </div>
