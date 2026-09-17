@@ -28,7 +28,7 @@ import { db } from "./firebase-config.js";
 // "anggota grup" + katalog field global, bukan kunci dokumen setingan.
 export const KATALOG_CETAK = {
   label_spk_bahan: {
-    label: 'Label SPK Grouping — Bahan', kategori: 'Persiapan Produksi',
+    label: 'Label Kode Grouping — Bahan', kategori: 'Persiapan Produksi',
     keterangan: 'Persiapan Produksi > Bahan, tiap tahap. 1 label per bahan.',
     // lokasi_rak — sumbernya master_bahan_aksesoris.rak_label dari fitur Rak
     // Penyimpanan; lihat rak_label di hitungBahanRincian
@@ -38,12 +38,12 @@ export const KATALOG_CETAK = {
     ]
   },
   label_spk_acc_sewing: {
-    label: 'Label SPK Grouping — Acc Sewing', kategori: 'Persiapan Produksi',
+    label: 'Label Kode Grouping — Acc Sewing', kategori: 'Persiapan Produksi',
     keterangan: 'Persiapan Produksi > Acc Sewing. 1 SPK = 1 label.',
     rincianTersedia: []
   },
   label_spk_acc_webbing: {
-    label: 'Label SPK Grouping — Acc Webbing', kategori: 'Persiapan Produksi',
+    label: 'Label Kode Grouping — Acc Webbing', kategori: 'Persiapan Produksi',
     keterangan: 'Persiapan Produksi > Acc Webbing. 1 SPK = 1 label.',
     rincianTersedia: [
       { key: 'roll', label: 'Roll' },
@@ -52,7 +52,7 @@ export const KATALOG_CETAK = {
     ]
   },
   label_spk_acc_finishing: {
-    label: 'Label SPK Grouping — Acc Finishing', kategori: 'Persiapan Produksi',
+    label: 'Label Kode Grouping — Acc Finishing', kategori: 'Persiapan Produksi',
     keterangan: 'Persiapan Produksi > Acc Finishing. 1 SPK = 1 label.',
     rincianTersedia: [
       { key: 'varian', label: 'Varian & Jumlah' }
@@ -104,8 +104,8 @@ export const KATALOG_CETAK = {
     rincianTersedia: []
   },
   label_no_spk: {
-    label: 'Label No. SPK', kategori: 'Zevanic House',
-    keterangan: 'Zevanic House > Order SPK (master data No. SPK dari spreadsheet lama).',
+    label: 'Label ID Order', kategori: 'Zevanic House',
+    keterangan: 'Zevanic House > Order SPK (master data ID Order dari spreadsheet lama).',
     rincianTersedia: []
   },
   label_roll_pembelian: {

@@ -110,7 +110,7 @@ async function ambilDaftarSpkAktif() {
   }
 }
 // cariSpkByNoSpk — Order SPK mencetak label fisik ber-QR berisi `no_spk`
-// (`cetakSpkList` di vue-order-spk.js), jadi No. SPK bisa discan, bukan cuma
+// (`cetakSpkList` di vue-order-spk.js), jadi ID Order bisa discan, bukan cuma
 // dipilih dari dropdown. Query mencari status APAPUN (bukan cuma Aktif) supaya
 // SPK "Selesai" dapat pesan jelas, bukan "kode tidak dikenali".
 async function cariSpkByNoSpk(noSpk) {
@@ -135,10 +135,10 @@ const ScanPersiapanManager = {
     const diblokirDesktop = computed(() => siapAkses.value && !isOwner.value && !isMobileDevice.value);
     const bolehSimpan = computed(() => window.cekIzinMenu(MENU_ID_SCAN_PERSIAPAN, 'edit') !== false);
 
-    // Langkah 1: pilih No. SPK — dropdown ATAU scan (§26.6; Order SPK mencetak
+    // Langkah 1: pilih ID Order — dropdown ATAU scan (§26.6; Order SPK mencetak
     // label ber-QR). Tombol scan kecil di sebelah field, tersedia SEMUA role:
     // gerbang mobile-only cuma berlaku untuk identifikasi BARANG di Langkah 2,
-    // sedangkan No. SPK hanya metadata pengelompokan.
+    // sedangkan ID Order hanya metadata pengelompokan.
     const daftarSpk = ref([]);
     const memuatSpk = ref(false);
     const spkEntry = ref('');
@@ -291,17 +291,17 @@ const ScanPersiapanManager = {
       const kodeBersih = (kode || '').trim();
       if (!kodeBersih) return;
       if (mode === 'spk') {
-        // scan barcode No. SPK (dicetak lewat vue-order-spk.js, `cetakSpkList`).
+        // scan barcode ID Order (dicetak lewat vue-order-spk.js, `cetakSpkList`).
         // Cari TANPA filter status dulu (`cariSpkByNoSpk`) supaya kalau ternyata
         // SPK-nya sudah "Selesai", user dapat pesan JELAS — bukan "kode tidak
         // dikenali" yang membingungkan.
         try {
           const s = await cariSpkByNoSpk(kodeBersih);
-          if (!s) { alert(`No. SPK "${kodeBersih}" tidak ditemukan.`); return; }
-          if (s.status !== 'Aktif') { alert(`No. SPK "${s.no_spk}" berstatus "${s.status}" — cuma No. SPK berstatus Aktif yang bisa dipakai buat Scan Persiapan.`); return; }
+          if (!s) { alert(`ID Order "${kodeBersih}" tidak ditemukan.`); return; }
+          if (s.status !== 'Aktif') { alert(`ID Order "${s.no_spk}" berstatus "${s.status}" — cuma ID Order berstatus Aktif yang bisa dipakai buat Scan Persiapan.`); return; }
           pilihSpk(s);
         } catch (e) {
-          console.error('Gagal cari No. SPK dari hasil scan:', e);
+          console.error('Gagal cari ID Order dari hasil scan:', e);
           alert('Gagal memproses hasil scan. Coba lagi.');
         }
         return;
@@ -356,12 +356,12 @@ const ScanPersiapanManager = {
     function tutupKeputusanKekurangan() { kekuranganLot.value = null; }
 
     function keteranganGabungSpk() {
-      return `No SPK: ${spkAktif.value.no_spk} — ${spkAktif.value.nama_produk}` + (keteranganPemakaian.value.trim() ? ' — ' + keteranganPemakaian.value.trim() : '');
+      return `ID Order: ${spkAktif.value.no_spk} — ${spkAktif.value.nama_produk}` + (keteranganPemakaian.value.trim() ? ' — ' + keteranganPemakaian.value.trim() : '');
     }
 
     // ajukanPersiapanMasalahKekurangan — menulis ke koleksi board manual
     // `permintaan_bahan_manual`, skema field sama dengan vue-kartu-stok.js,
-    // keterangannya menyertakan No. SPK aktif. JANGAN pakai nama
+    // keterangannya menyertakan ID Order aktif. JANGAN pakai nama
     // 'persiapan_masalah' di sini: itu milik pos Masalah (js/vue-pp-masalah.js).
     async function ajukanPersiapanMasalahKekurangan(k) {
       const bahan = target.value.bahan;
@@ -371,7 +371,7 @@ const ScanPersiapanManager = {
         nama_bahan: formatNamaBahan(bahan),
         qty: k.kekurangan,
         satuan: bahan.satuan_pemakaian || '',
-        keterangan: `Kekurangan stok roll/lot saat Scan Persiapan (No SPK: ${spkAktif.value?.no_spk || '-'} — ${spkAktif.value?.nama_produk || '-'}) tanggal ${new Date().toISOString().slice(0, 10)} (tersedia ${formatQty(k.totalTersedia)}, diminta ${formatQty(k.qtyDiminta)})${keteranganPemakaian.value.trim() ? ' — ' + keteranganPemakaian.value.trim() : ''}`,
+        keterangan: `Kekurangan stok roll/lot saat Scan Persiapan (ID Order: ${spkAktif.value?.no_spk || '-'} — ${spkAktif.value?.nama_produk || '-'}) tanggal ${new Date().toISOString().slice(0, 10)} (tersedia ${formatQty(k.totalTersedia)}, diminta ${formatQty(k.qtyDiminta)})${keteranganPemakaian.value.trim() ? ' — ' + keteranganPemakaian.value.trim() : ''}`,
         status: 'menunggu',
         diminta_oleh: window.currentUser?.email || '-',
         dibuat_pada: serverTimestamp()
@@ -429,7 +429,7 @@ const ScanPersiapanManager = {
         }
         await ajukanPersiapanMasalahKekurangan(k);
         kekuranganLot.value = null;
-        alert(`${formatQty(k.totalTersedia)} sudah dicatat sebagai pemakaian (No SPK: ${spkAktif.value.no_spk}). Sisa kekurangan (${formatQty(k.kekurangan)}) otomatis masuk antrean di menu Persiapan Masalah.`);
+        alert(`${formatQty(k.totalTersedia)} sudah dicatat sebagai pemakaian (ID Order: ${spkAktif.value.no_spk}). Sisa kekurangan (${formatQty(k.kekurangan)}) otomatis masuk antrean di menu Persiapan Masalah.`);
         batalTarget();
       } catch (e) {
         console.error('Gagal proses "Proses sebagian, order sisanya" (Scan Persiapan):', e);
@@ -480,9 +480,9 @@ const ScanPersiapanManager = {
         });
         riwayatSesi.value.unshift({ waktu: new Date().toLocaleTimeString('id-ID'), nama: namaBahan, kode: kodeAwal, qty: formatQty(qty) + ' ' + (target.value.bahan.satuan_pemakaian || '') });
         if (alokasi.length > 1) {
-          alert(`Pemakaian tercatat: ${formatQty(qty)} ${target.value.bahan.satuan_pemakaian || ''} — ${namaBahan} (No SPK: ${spkAktif.value.no_spk}).\n\nRoll ${kodeAwal} tidak cukup sendirian — otomatis disambung dari roll lain (FIFO). Rincian per roll:\n${ringkasRincianLot(hasil.rincian)}`);
+          alert(`Pemakaian tercatat: ${formatQty(qty)} ${target.value.bahan.satuan_pemakaian || ''} — ${namaBahan} (ID Order: ${spkAktif.value.no_spk}).\n\nRoll ${kodeAwal} tidak cukup sendirian — otomatis disambung dari roll lain (FIFO). Rincian per roll:\n${ringkasRincianLot(hasil.rincian)}`);
         } else {
-          alert(`Pemakaian tercatat: ${formatQty(qty)} ${target.value.bahan.satuan_pemakaian || ''} — ${namaBahan} (No SPK: ${spkAktif.value.no_spk}).`);
+          alert(`Pemakaian tercatat: ${formatQty(qty)} ${target.value.bahan.satuan_pemakaian || ''} — ${namaBahan} (ID Order: ${spkAktif.value.no_spk}).`);
         }
         batalTarget();
       } catch (e) {
@@ -528,7 +528,7 @@ const ScanPersiapanManager = {
 
         const waktu = new Date().toLocaleTimeString('id-ID');
         riwayatSesi.value.unshift({ waktu, nama: namaBahan, kode: kodeTampil, qty: formatQty(qty) + ' ' + (target.value.bahan.satuan_pemakaian || '') });
-        alert(`Pemakaian tercatat: ${formatQty(qty)} ${target.value.bahan.satuan_pemakaian || ''} — ${namaBahan} (No SPK: ${spkAktif.value.no_spk}).`);
+        alert(`Pemakaian tercatat: ${formatQty(qty)} ${target.value.bahan.satuan_pemakaian || ''} — ${namaBahan} (ID Order: ${spkAktif.value.no_spk}).`);
         batalTarget();
       } catch (e) {
         console.error('Gagal simpan pemakaian (Scan Persiapan):', e);
@@ -575,25 +575,25 @@ const ScanPersiapanManager = {
     <div v-else>
       <div class="gc-card" style="padding:14px; margin-bottom:14px;">
         <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Scan Persiapan</label>
-        <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Catat pemakaian barang buat 1 No. SPK — pilih No. SPK dulu, lalu scan barang/roll berkali-kali sampai selesai. Riwayat lengkap tetap bisa dilihat di menu Kartu Stok (pilih item yang sama) seperti biasa.</p>
+        <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Catat pemakaian barang buat 1 ID Order — pilih ID Order dulu, lalu scan barang/roll berkali-kali sampai selesai. Riwayat lengkap tetap bisa dilihat di menu Kartu Stok (pilih item yang sama) seperti biasa.</p>
 
         <div v-if="!spkAktif">
           <div v-if="memuatSpk" style="font-size:12px; color:var(--text-faint);">Memuat daftar Order SPK aktif...</div>
           <div v-else-if="daftarSpk.length === 0" style="font-size:12px; color:var(--text-faint);">Belum ada Order SPK berstatus "Aktif". Tambah dulu lewat menu Zevanic House &gt; Order SPK.</div>
           <div v-else class="gc-field" style="max-width:420px;">
-            <label>Pilih No. SPK (status Aktif)</label>
+            <label>Pilih ID Order (status Aktif)</label>
             <div style="display:flex; gap:8px; align-items:center;">
-              <div style="flex:1;"><dropdown-cari v-model="spkEntry" :opsi="opsiSpkNama" placeholder="Cari No. SPK / nama produk..." /></div>
-              <button @click="bukaScan('spk')" class="btn-outline" style="padding:9px 12px; font-size:12px; white-space:nowrap;" title="Scan barcode No. SPK (label dari menu Order SPK)"><i class="fas fa-qrcode"></i></button>
+              <div style="flex:1;"><dropdown-cari v-model="spkEntry" :opsi="opsiSpkNama" placeholder="Cari ID Order / nama produk..." /></div>
+              <button @click="bukaScan('spk')" class="btn-outline" style="padding:9px 12px; font-size:12px; white-space:nowrap;" title="Scan barcode ID Order (label dari menu Order SPK)"><i class="fas fa-qrcode"></i></button>
             </div>
-            <p style="font-size:10px; color:var(--text-faint); margin-top:6px;">Bisa cari lewat dropdown, atau scan barcode label No. SPK (dicetak dari menu Order SPK) lewat tombol kamera di sebelahnya.</p>
+            <p style="font-size:10px; color:var(--text-faint); margin-top:6px;">Bisa cari lewat dropdown, atau scan barcode label ID Order (dicetak dari menu Order SPK) lewat tombol kamera di sebelahnya.</p>
           </div>
         </div>
 
         <div v-else>
           <div style="background:var(--ivory-dim); border-radius:10px; padding:10px 14px; margin-bottom:14px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-            <p style="font-size:12.5px;"><i class="fas fa-clipboard-list" style="color:var(--burgundy); margin-right:6px;"></i>No. SPK: <b>{{ spkAktif.no_spk }}</b> — {{ spkAktif.nama_produk }}</p>
-            <button @click="gantiSpk" class="btn-outline" style="padding:5px 12px; font-size:11px;">Ganti No. SPK</button>
+            <p style="font-size:12.5px;"><i class="fas fa-clipboard-list" style="color:var(--burgundy); margin-right:6px;"></i>ID Order: <b>{{ spkAktif.no_spk }}</b> — {{ spkAktif.nama_produk }}</p>
+            <button @click="gantiSpk" class="btn-outline" style="padding:5px 12px; font-size:11px;">Ganti ID Order</button>
           </div>
 
           <div v-if="!target">
@@ -692,7 +692,7 @@ const ScanPersiapanManager = {
             <span v-else style="font-size:12.5px;">Menyiapkan kamera...</span>
           </div>
         </div>
-        <p style="color:#fff; font-size:12.5px; margin-bottom:14px; text-align:center;">{{ modeScan === 'spk' ? 'Arahkan kamera ke barcode label No. SPK' : 'Arahkan kamera ke QR label roll (atau QR item)' }}</p>
+        <p style="color:#fff; font-size:12.5px; margin-bottom:14px; text-align:center;">{{ modeScan === 'spk' ? 'Arahkan kamera ke barcode label ID Order' : 'Arahkan kamera ke QR label roll (atau QR item)' }}</p>
         <button @click="tutupScan" class="btn-outline" style="padding:8px 24px; background:#fff;">Batal</button>
       </div>
     </div>
