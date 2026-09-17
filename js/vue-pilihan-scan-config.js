@@ -1,22 +1,22 @@
 // js/vue-pilihan-scan-config.js
 // Pilihan Scan (Scan & Cetak > Pilihan Scan) — layar admin atur aksi scan apa
-// tampil di sheet mobile "Mau scan apa?" DAN tombol scan desktop tiap modul —
-// satu config Firestore. Kartu berjenjang Group Menu > Sub Menu > Child Menu,
-// sumber hierarki+katalog dari js/vue-popup-scan.js (jangan duplikat di sini).
+// tampil di sheet mobile "Mau scan apa?" DAN tombol scan desktop, SATU
+// pengaturan per MODUL (Sub Menu), bukan per child tab — kartu Group Menu >
+// Sub Menu, child tab cuma info nama. Hierarki+katalog dari vue-popup-scan.js.
 //
 // Koleksi & field:
-// - config_pilihan_scan/{targetId}: item_ids[] (urutan+aktif di sheet DAN di
-//   tombol desktop), diubah_pada/oleh. Tanpa dokumen pakai DEFAULT_PILIHAN.
+// - config_pilihan_scan/{targetId}: targetId = id wrapper modul. item_ids[]
+//   (urutan+aktif), diubah_pada/oleh. Tanpa dokumen pakai DEFAULT_PILIHAN.
 //
 // Jebakan:
 // - Simpan/hapus WAJIB invalidasiCachePilihanScan() supaya sheet mobile dan
 //   tombol desktop langsung pakai data terbaru, tidak nunggu reload.
-// - Child menu baru/aksi baru HANYA lewat kode (STRUKTUR_MENU_SCAN,
-//   vue-popup-scan.js) — layar ini cuma atur yang sudah terdaftar di sana.
+// - Modul/aksi baru HANYA lewat kode (STRUKTUR_MENU_SCAN, vue-popup-scan.js)
+//   — layar ini cuma atur yang sudah terdaftar di sana.
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, doc, getDocs, setDoc, deleteDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import { db } from './firebase-config.js';
-import { DAFTAR_AKSI_SCAN, STRUKTUR_MENU_SCAN, DEFAULT_PILIHAN, invalidasiCachePilihanScan } from './vue-popup-scan.js?v=4';
+import { DAFTAR_AKSI_SCAN, STRUKTUR_MENU_SCAN, DEFAULT_PILIHAN, invalidasiCachePilihanScan } from './vue-popup-scan.js?v=5';
 
 export const AppPilihanScanConfig = {
   setup() {
@@ -40,41 +40,35 @@ export const AppPilihanScanConfig = {
       memuat.value = false;
     }
 
-    // Kartu berjenjang: Group Menu > Sub Menu > Child Menu, LANGSUNG dari
-    // STRUKTUR_MENU_SCAN supaya urutan/label selalu sama dengan yang dipakai
-    // sheet mobile dan tombol desktop. Child tanpa `aksi` tetap tampil (baris
-    // "Tidak ada aksi scan") — supaya kartu memang menampilkan semua child
-    // menu, bukan cuma yang bisa diatur.
+    // Kartu berjenjang: Group Menu > Sub Menu, LANGSUNG dari STRUKTUR_MENU_SCAN
+    // supaya urutan/label selalu sama dengan sheet mobile dan tombol desktop.
+    // "Atur" ada di level SUB MENU (1 modul = 1 pengaturan, dipakai dari tab
+    // manapun di modul itu) — `childs` cuma daftar nama tab, bukan lagi baris
+    // sendiri-sendiri, supaya kartu tetap menunjukkan seluruh child menu.
     const struktur = computed(() =>
       STRUKTUR_MENU_SCAN.map(g => ({
         group: g.group,
-        subs: g.subs.map(s => ({
-          sub: s.sub,
-          childs: s.childs.map(c => {
-            if (!c.aksi || !c.aksi.length) {
-              return { targetId: c.targetId, label: c.label, adaAksi: false };
-            }
-            const dok = daftarDokumen.value[c.targetId];
-            const itemIds = dok ? (dok.item_ids || []) : c.aksi;
-            return {
-              targetId: c.targetId, label: c.label, adaAksi: true,
-              sudahDiatur: !!dok,
-              item: itemIds.map(id => DAFTAR_AKSI_SCAN[id]).filter(Boolean)
-            };
-          })
-        }))
+        subs: g.subs.map(s => {
+          if (!s.targetId || !s.aksi || !s.aksi.length) {
+            return { sub: s.sub, childs: s.childs, adaAksi: false };
+          }
+          const dok = daftarDokumen.value[s.targetId];
+          const itemIds = dok ? (dok.item_ids || []) : s.aksi;
+          return {
+            sub: s.sub, childs: s.childs, adaAksi: true, targetId: s.targetId,
+            sudahDiatur: !!dok,
+            item: itemIds.map(id => DAFTAR_AKSI_SCAN[id]).filter(Boolean)
+          };
+        })
       }))
     );
 
-    // Kandidat checkbox saat Atur dibuka — HANYA aksi yang memang terdaftar
-    // untuk child menu itu (STRUKTUR_MENU_SCAN[...].aksi), bukan seluruh
-    // katalog global (beda konteks beda tombol, tidak semua aksi relevan).
+    // Kandidat checkbox saat Atur dibuka — HANYA aksi milik modul itu
+    // (STRUKTUR_MENU_SCAN[...].aksi), bukan seluruh katalog global.
     function kandidatUntukTarget(targetId) {
       for (const g of STRUKTUR_MENU_SCAN) {
-        for (const s of g.subs) {
-          const c = s.childs.find(x => x.targetId === targetId);
-          if (c) return c.aksi || [];
-        }
+        const s = g.subs.find(x => x.targetId === targetId);
+        if (s) return s.aksi || [];
       }
       return [];
     }
@@ -82,10 +76,8 @@ export const AppPilihanScanConfig = {
     const labelAktif = computed(() => {
       if (!editAktif.value) return '';
       for (const g of STRUKTUR_MENU_SCAN) {
-        for (const s of g.subs) {
-          const c = s.childs.find(x => x.targetId === editAktif.value);
-          if (c) return `${g.group} > ${s.sub} > ${c.label}`;
-        }
+        const s = g.subs.find(x => x.targetId === editAktif.value);
+        if (s) return `${g.group} > ${s.sub}`;
       }
       return editAktif.value;
     });
@@ -153,7 +145,7 @@ export const AppPilihanScanConfig = {
     <div>
       <div style="margin-bottom:14px;">
         <h3 class="gc-heading" style="font-size:14px; font-weight:700; margin:0 0 4px;">Pilihan Scan</h3>
-        <p style="font-size:11px; color:var(--text-faint); margin:0;">Satu pengaturan buat sheet "Mau scan apa?" (mobile) DAN tombol scan di layar desktop — nonaktifkan aksi di sini, hilang juga tombolnya di desktop. Child menu yang belum diatur pakai bawaan kode.</p>
+        <p style="font-size:11px; color:var(--text-faint); margin:0;">Satu pengaturan PER MODUL (Sub Menu) buat sheet "Mau scan apa?" (mobile) DAN tombol scan di layar desktop, berlaku dari tab manapun di modul itu — nonaktifkan aksi di sini, hilang juga tombolnya di desktop. Modul yang belum diatur pakai bawaan kode.</p>
       </div>
 
       <div v-if="memuat" class="gc-kosong">Memuat...</div>
@@ -162,20 +154,20 @@ export const AppPilihanScanConfig = {
           <div style="font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); margin-bottom:8px;">{{ g.group }}</div>
           <div style="display:flex; flex-direction:column; gap:10px;">
             <div v-for="s in g.subs" :key="s.sub" class="gc-card" style="padding:12px 14px;">
-              <div style="font-weight:700; font-size:13px; margin-bottom:8px;">{{ s.sub }}</div>
-              <div style="display:flex; flex-direction:column; gap:6px;">
-                <div v-for="c in s.childs" :key="c.targetId" style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; padding:6px 0; border-top:1px solid var(--ivory-dim);">
-                  <div style="min-width:0;">
-                    <div style="font-size:11.5px; font-weight:600;">{{ c.label }}</div>
-                    <div v-if="c.adaAksi" style="margin-top:3px; display:flex; flex-wrap:wrap; align-items:center; gap:5px;">
-                      <span :class="c.sudahDiatur ? 'tag ok' : 'tag neutral'" style="font-size:9px;">{{ c.sudahDiatur ? 'Sudah diatur' : 'Default' }}</span>
-                      <span v-for="a in c.item" :key="a.fungsi" class="tag" style="font-size:9.5px;"><i class="fas" :class="'fa-' + a.icon" style="margin-right:3px;"></i>{{ a.judul }}</span>
-                      <span v-if="!c.item.length" style="font-size:10px; color:var(--text-faint);">Nonaktif semua (fallback Scan QR).</span>
-                    </div>
-                    <div v-else style="margin-top:3px; font-size:10px; color:var(--text-faint);">Tidak ada aksi scan di child menu ini.</div>
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+                <div style="min-width:0;">
+                  <div style="font-weight:700; font-size:13px;">{{ s.sub }}</div>
+                  <div v-if="s.adaAksi" style="margin-top:5px; display:flex; flex-wrap:wrap; align-items:center; gap:5px;">
+                    <span :class="s.sudahDiatur ? 'tag ok' : 'tag neutral'" style="font-size:9px;">{{ s.sudahDiatur ? 'Sudah diatur' : 'Default' }}</span>
+                    <span v-for="a in s.item" :key="a.fungsi" class="tag" style="font-size:9.5px;"><i class="fas" :class="'fa-' + a.icon" style="margin-right:3px;"></i>{{ a.judul }}</span>
+                    <span v-if="!s.item.length" style="font-size:10px; color:var(--text-faint);">Nonaktif semua (fallback Scan QR).</span>
                   </div>
-                  <button v-if="c.adaAksi" @click="bukaEdit(c.targetId)" class="btn-outline" style="flex-shrink:0; padding:5px 10px; font-size:10.5px;"><i class="fas fa-pen" style="margin-right:4px;"></i>Atur</button>
+                  <div v-else style="margin-top:5px; font-size:10px; color:var(--text-faint);">Tidak ada aksi scan di sub menu ini.</div>
                 </div>
+                <button v-if="s.adaAksi" @click="bukaEdit(s.targetId)" class="btn-outline" style="flex-shrink:0; padding:5px 10px; font-size:10.5px;"><i class="fas fa-pen" style="margin-right:4px;"></i>Atur</button>
+              </div>
+              <div style="margin-top:8px; padding-top:6px; border-top:1px solid var(--ivory-dim); font-size:10px; color:var(--text-faint);">
+                Tab: {{ s.childs.join(', ') }}
               </div>
             </div>
           </div>
