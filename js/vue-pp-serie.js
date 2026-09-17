@@ -24,7 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=4';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=5';
 
 // Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan Produksi,
 // belum ada infrastruktur util generik lintas file).
@@ -567,8 +567,8 @@ const SeriePerluDiProses = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
-        <button v-if="bolehProses && aksiAktif('sub-pr-serie-perludiproses','serie_sampai')" @click="bukaScanSampai" class="btn-primary" style="padding:8px 12px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Sampai</button>
-        <button v-if="bolehProses && aksiAktif('sub-pr-serie-perludiproses','serie_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="padding:8px 12px; font-size:11.5px;"><i class="fas fa-box-open" style="margin-right:4px;"></i>Scan Unpack (dari Cutting)</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-serie','serie_sampai')" @click="bukaScanSampai" class="btn-primary" style="padding:8px 12px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Sampai</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-serie','serie_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="padding:8px 12px; font-size:11.5px;"><i class="fas fa-box-open" style="margin-right:4px;"></i>Scan Unpack (dari Cutting)</button>
       </div>
       <div v-if="daftarGrouping.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-inbox"></i></div>
@@ -833,8 +833,8 @@ const SerieSedangDiProses = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
-        <button v-if="bolehOperator && aksiAktif('sub-pr-serie-sedangdiproses','serie_operator')" @click="bukaScanOperatorToolbar" class="btn-outline" style="padding:9px 14px; font-size:12px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator</button>
-        <button v-if="bolehProses && aksiAktif('sub-pr-serie-sedangdiproses','serie_entry')" @click="bukaScanEntryToolbar" class="btn-primary" style="padding:9px 14px; font-size:12px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Entry</button>
+        <button v-if="bolehOperator && aksiAktif('sub-pr-serie','serie_operator')" @click="bukaScanOperatorToolbar" class="btn-outline" style="padding:9px 14px; font-size:12px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-serie','serie_entry')" @click="bukaScanEntryToolbar" class="btn-primary" style="padding:9px 14px; font-size:12px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Entry</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-gears"></i></div>
@@ -1059,7 +1059,7 @@ const SeriePerluDiKirim = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button v-if="aksiAktif('sub-pr-serie-perludikirim','serie_pack')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button v-if="aksiAktif('sub-pr-serie','serie_pack')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-box"></i></div>
@@ -1663,8 +1663,8 @@ window.pastikanMountSeriePerluDiProses = function () {
   if (mountPoint) vmSeriePerluDiProses = createApp(SeriePerluDiProses).mount('#vue-serie-perludiproses');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaSerieSampai = function () { if (vmSeriePerluDiProses) vmSeriePerluDiProses.bukaScanSampai(); };
-window.bukaSerieUnpack = function () { if (vmSeriePerluDiProses) vmSeriePerluDiProses.unpackTerpadu.buka(); };
+window.bukaSerieSampai = function () { window.pastikanMountSeriePerluDiProses(); if (vmSeriePerluDiProses) vmSeriePerluDiProses.bukaScanSampai(); };
+window.bukaSerieUnpack = function () { window.pastikanMountSeriePerluDiProses(); if (vmSeriePerluDiProses) vmSeriePerluDiProses.unpackTerpadu.buka(); };
 let vmSerieSedangDiProses = null;
 window.pastikanMountSerieSedangDiProses = function () {
   if (vmSerieSedangDiProses) { if (typeof vmSerieSedangDiProses.muat === 'function') vmSerieSedangDiProses.muat(); return; }
@@ -1672,8 +1672,8 @@ window.pastikanMountSerieSedangDiProses = function () {
   if (mountPoint) vmSerieSedangDiProses = createApp(SerieSedangDiProses).mount('#vue-serie-sedangdiproses');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaSerieOperator = function () { if (vmSerieSedangDiProses) vmSerieSedangDiProses.bukaScanOperatorToolbar(); };
-window.bukaSerieEntry = function () { if (vmSerieSedangDiProses) vmSerieSedangDiProses.bukaScanEntryToolbar(); };
+window.bukaSerieOperator = function () { window.pastikanMountSerieSedangDiProses(); if (vmSerieSedangDiProses) vmSerieSedangDiProses.bukaScanOperatorToolbar(); };
+window.bukaSerieEntry = function () { window.pastikanMountSerieSedangDiProses(); if (vmSerieSedangDiProses) vmSerieSedangDiProses.bukaScanEntryToolbar(); };
 let vmSeriePerluDiKirim = null;
 window.pastikanMountSeriePerluDiKirim = function () {
   if (vmSeriePerluDiKirim) { if (typeof vmSeriePerluDiKirim.muat === 'function') vmSeriePerluDiKirim.muat(); return; }
@@ -1681,7 +1681,7 @@ window.pastikanMountSeriePerluDiKirim = function () {
   if (mountPoint) vmSeriePerluDiKirim = createApp(SeriePerluDiKirim).mount('#vue-serie-perludikirim');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaSeriePack = function () { if (vmSeriePerluDiKirim) vmSeriePerluDiKirim.bukaScanPack(); };
+window.bukaSeriePack = function () { window.pastikanMountSeriePerluDiKirim(); if (vmSeriePerluDiKirim) vmSeriePerluDiKirim.bukaScanPack(); };
 let vmSerieKirimSewing = null;
 window.pastikanMountSerieKirimSewing = function () {
   if (vmSerieKirimSewing) { if (typeof vmSerieKirimSewing.muat === 'function') vmSerieKirimSewing.muat(); return; }
@@ -1689,7 +1689,7 @@ window.pastikanMountSerieKirimSewing = function () {
   if (mountPoint) vmSerieKirimSewing = createApp(SerieKirimSewing).mount('#vue-serie-kirimsewing');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaSerieKirimSewing = function () { if (vmSerieKirimSewing) vmSerieKirimSewing.bukaScanKirim(); };
+window.bukaSerieKirimSewing = function () { window.pastikanMountSerieKirimSewing(); if (vmSerieKirimSewing) vmSerieKirimSewing.bukaScanKirim(); };
 let vmSerieSetorSewing = null;
 window.pastikanMountSerieSetorSewing = function () {
   if (vmSerieSetorSewing) { if (typeof vmSerieSetorSewing.muat === 'function') vmSerieSetorSewing.muat(); return; }
@@ -1703,8 +1703,8 @@ window.pastikanMountSerieTerimaSewing = function () {
   if (mountPoint) vmSerieTerimaSewing = createApp(SerieTerimaSewing).mount('#vue-serie-terimasewing');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaSerieTerimaSampaiSewing = function () { if (vmSerieTerimaSewing) vmSerieTerimaSewing.bukaScanSampai(); };
-window.bukaSerieTerimaUnpackSewing = function () { if (vmSerieTerimaSewing) vmSerieTerimaSewing.unpackTerpadu.buka(); };
+window.bukaSerieTerimaSampaiSewing = function () { window.pastikanMountSerieTerimaSewing(); if (vmSerieTerimaSewing) vmSerieTerimaSewing.bukaScanSampai(); };
+window.bukaSerieTerimaUnpackSewing = function () { window.pastikanMountSerieTerimaSewing(); if (vmSerieTerimaSewing) vmSerieTerimaSewing.unpackTerpadu.buka(); };
 let vmSerieKirimFinishing = null;
 window.pastikanMountSerieKirimFinishing = function () {
   if (vmSerieKirimFinishing) { if (typeof vmSerieKirimFinishing.muat === 'function') vmSerieKirimFinishing.muat(); return; }
@@ -1712,7 +1712,7 @@ window.pastikanMountSerieKirimFinishing = function () {
   if (mountPoint) vmSerieKirimFinishing = createApp(SerieKirimFinishing).mount('#vue-serie-kirimfinishing');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaSerieKirimFinishing = function () { if (vmSerieKirimFinishing) vmSerieKirimFinishing.bukaScanKirim(); };
+window.bukaSerieKirimFinishing = function () { window.pastikanMountSerieKirimFinishing(); if (vmSerieKirimFinishing) vmSerieKirimFinishing.bukaScanKirim(); };
 let vmSerieSetorFinishing = null;
 window.pastikanMountSerieSetorFinishing = function () {
   if (vmSerieSetorFinishing) { if (typeof vmSerieSetorFinishing.muat === 'function') vmSerieSetorFinishing.muat(); return; }
@@ -1726,8 +1726,8 @@ window.pastikanMountSerieTerimaFinishing = function () {
   if (mountPoint) vmSerieTerimaFinishing = createApp(SerieTerimaFinishing).mount('#vue-serie-terimafinishing');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaSerieTerimaSampaiFinishing = function () { if (vmSerieTerimaFinishing) vmSerieTerimaFinishing.bukaScanSampai(); };
-window.bukaSerieTerimaUnpackFinishing = function () { if (vmSerieTerimaFinishing) vmSerieTerimaFinishing.unpackTerpadu.buka(); };
+window.bukaSerieTerimaSampaiFinishing = function () { window.pastikanMountSerieTerimaFinishing(); if (vmSerieTerimaFinishing) vmSerieTerimaFinishing.bukaScanSampai(); };
+window.bukaSerieTerimaUnpackFinishing = function () { window.pastikanMountSerieTerimaFinishing(); if (vmSerieTerimaFinishing) vmSerieTerimaFinishing.unpackTerpadu.buka(); };
 let vmSerieKirimGudang = null;
 window.pastikanMountSerieKirimGudang = function () {
   if (vmSerieKirimGudang) { if (typeof vmSerieKirimGudang.muat === 'function') vmSerieKirimGudang.muat(); return; }
@@ -1735,7 +1735,7 @@ window.pastikanMountSerieKirimGudang = function () {
   if (mountPoint) vmSerieKirimGudang = createApp(SerieKirimGudang).mount('#vue-serie-kirimgudang');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaSerieKirimGudang = function () { if (vmSerieKirimGudang) vmSerieKirimGudang.bukaScanKirim(); };
+window.bukaSerieKirimGudang = function () { window.pastikanMountSerieKirimGudang(); if (vmSerieKirimGudang) vmSerieKirimGudang.bukaScanKirim(); };
 let vmSerieSelesai = null;
 window.pastikanMountSerieSelesai = function () {
   if (vmSerieSelesai) { if (typeof vmSerieSelesai.muat === 'function') vmSerieSelesai.muat(); return; }

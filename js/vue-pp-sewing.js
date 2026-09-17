@@ -24,7 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=9';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=4';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=5';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie, belum ada
 // infrastruktur util generik lintas file).
@@ -420,8 +420,8 @@ const SewingPerluDiProses = {
       <!-- Toolbar global — Scan Sampai & Scan Unpack global dari sisi logic, tampilannya
         dikumpulkan di sini. Scan Masalah lewat popup pilih-target. -->
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <button v-if="bolehProses && aksiAktif('sub-pr-sewing-perludiproses','sewing_sampai')" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
-        <button v-if="bolehProses && aksiAktif('sub-pr-sewing-perludiproses','sewing_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-sewing','sewing_sampai')" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-sewing','sewing_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
         <button v-if="bolehProses" @click="bukaMasalahToolbar" class="btn-outline" style="flex:1; min-width:120px; padding:9px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>Scan Masalah</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
@@ -441,7 +441,7 @@ const SewingPerluDiProses = {
           <!-- Satu tombol kontekstual (wireframe §3.1): Scan Operator, mati kalau belum
             sampai/komplit. Guard alert di bukaTunjukOperator jadi jaring kedua. -->
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            <button v-if="bolehOperator && aksiAktif('sub-pr-sewing-perludiproses','sewing_operator')" @click="bukaTunjukOperator(t)" :disabled="!t.terima_pada" class="btn-outline" style="flex:1; padding:8px; font-size:11.5px;" :style="{ opacity: t.terima_pada ? 1 : .5 }"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator</button>
+            <button v-if="bolehOperator && aksiAktif('sub-pr-sewing','sewing_operator')" @click="bukaTunjukOperator(t)" :disabled="!t.terima_pada" class="btn-outline" style="flex:1; padding:8px; font-size:11.5px;" :style="{ opacity: t.terima_pada ? 1 : .5 }"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator</button>
           </div>
           <div v-if="(unpackEnrich[t.kode_batch] || []).length" style="margin-top:8px; font-size:10.5px; color:var(--text-faint);">
             Unpack: <span v-for="(u,i) in unpackEnrich[t.kode_batch]" :key="i" class="tag" :class="u.unpack_hasil==='komplit' ? 'ok' : (u.unpack_hasil==='inkomplit' ? 'warn' : 'neutral')" style="margin-right:4px;">{{ u.kode }}: {{ u.unpack_hasil || 'belum' }}</span>
@@ -563,7 +563,7 @@ const SewingSedangSewing = {
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
-      <div v-if="bolehProses && aksiAktif('sub-pr-sewing-sedangsewing','sewing_entry')" style="display:flex; gap:8px; margin-bottom:12px;">
+      <div v-if="bolehProses && aksiAktif('sub-pr-sewing','sewing_entry')" style="display:flex; gap:8px; margin-bottom:12px;">
         <button @click="bukaScanEntry" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Entry (kode batch)</button>
       </div>
       <div v-if="kelompokOperator.length === 0" class="gc-kosong gc-card">
@@ -803,8 +803,8 @@ const SewingPerluDikirim = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button v-if="aksiAktif('sub-pr-sewing-perludikirim','sewing_pack')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
-        <button v-if="aksiAktif('sub-pr-sewing-perludikirim','sewing_kirim')" @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Scan Kirim</button>
+        <button v-if="aksiAktif('sub-pr-sewing','sewing_pack')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button v-if="aksiAktif('sub-pr-sewing','sewing_kirim')" @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Scan Kirim</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-box-open"></i></div>
@@ -1064,8 +1064,8 @@ window.pastikanMountSewingSelesai = function () {
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js). sewing_operator
 // TIDAK dijembatani — Tunjuk Operator butuh target baris spesifik (tombol per
 // kartu Tab 3.1), tidak ada entri global tanpa memilih batch dulu.
-window.bukaSewingSampai = function () { if (vmSewingPerluDiProses) vmSewingPerluDiProses.bukaScanSampai(); };
-window.bukaSewingUnpack = function () { if (vmSewingPerluDiProses) vmSewingPerluDiProses.unpackTerpadu.buka(); };
-window.bukaSewingEntry = function () { if (vmSewingSedangSewing) vmSewingSedangSewing.bukaScanEntry(); };
-window.bukaSewingPack = function () { if (vmSewingPerluDikirim) vmSewingPerluDikirim.bukaScanPack(); };
-window.bukaSewingKirim = function () { if (vmSewingPerluDikirim) vmSewingPerluDikirim.bukaScanKirim(); };
+window.bukaSewingSampai = function () { window.pastikanMountSewingPerluDiProses(); if (vmSewingPerluDiProses) vmSewingPerluDiProses.bukaScanSampai(); };
+window.bukaSewingUnpack = function () { window.pastikanMountSewingPerluDiProses(); if (vmSewingPerluDiProses) vmSewingPerluDiProses.unpackTerpadu.buka(); };
+window.bukaSewingEntry = function () { window.pastikanMountSewingSedangSewing(); if (vmSewingSedangSewing) vmSewingSedangSewing.bukaScanEntry(); };
+window.bukaSewingPack = function () { window.pastikanMountSewingPerluDikirim(); if (vmSewingPerluDikirim) vmSewingPerluDikirim.bukaScanPack(); };
+window.bukaSewingKirim = function () { window.pastikanMountSewingPerluDikirim(); if (vmSewingPerluDikirim) vmSewingPerluDikirim.bukaScanKirim(); };

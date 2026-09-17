@@ -24,7 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=9';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=4';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=5';
 
 // Format & hitung kecil (disalin pola dari 4 pos Persiapan Produksi, belum
 // dipindah ke helper generik — lihat catatan "belum ada infrastruktur util
@@ -535,9 +535,9 @@ const CuttingPerluDiProses = {
         Scan Masalah TETAP per-baris (butuh target jumlah/track spesifik).
       -->
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <button v-if="bolehProses && aksiAktif('sub-pr-cutting-perludiproses','cutting_sampai')" @click="sampaiTerpadu.buka" class="btn-primary" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-barcode" style="margin-right:6px;"></i>Scan Kode Tugas (Sampai)</button>
-        <button v-if="bolehProses && aksiAktif('sub-pr-cutting-perludiproses','cutting_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
-        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting-perludiproses','cutting_operator_ampar')" @click="bukaTunjukAmparToolbar" class="btn-outline" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator Ampar</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-cutting','cutting_sampai')" @click="sampaiTerpadu.buka" class="btn-primary" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-barcode" style="margin-right:6px;"></i>Scan Kode Tugas (Sampai)</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-cutting','cutting_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
+        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting','cutting_operator_ampar')" @click="bukaTunjukAmparToolbar" class="btn-outline" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator Ampar</button>
       </div>
       <!--
         daftarTampil (bukan daftar mentah) — grouping yang bahannya belum di-Scan Kirim
@@ -708,8 +708,8 @@ const CuttingSedangAmpar = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <button v-if="bolehProses && aksiAktif('sub-pr-cutting-sedangampar','cutting_entry_ampar')" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
-        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting-sedangampar','cutting_operator_pola')" @click="bukaTunjukPolaToolbar" class="btn-outline" style="flex:1; min-width:200px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Ampar Selesai &amp; Tunjuk Operator Pola</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-cutting','cutting_entry_ampar')" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
+        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting','cutting_operator_pola')" @click="bukaTunjukPolaToolbar" class="btn-outline" style="flex:1; min-width:200px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Ampar Selesai &amp; Tunjuk Operator Pola</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-gears"></i></div>
@@ -910,8 +910,8 @@ const CuttingSedangPola = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <button v-if="bolehProses && aksiAktif('sub-pr-cutting-sedangpola','cutting_entry_pola')" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
-        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting-sedangpola','cutting_operator_cutting')" @click="bukaTunjukCuttingToolbar" class="btn-outline" style="flex:1; min-width:220px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Pola Selesai &amp; Tunjuk Operator Cutting</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-cutting','cutting_entry_pola')" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
+        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting','cutting_operator_cutting')" @click="bukaTunjukCuttingToolbar" class="btn-outline" style="flex:1; min-width:220px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Pola Selesai &amp; Tunjuk Operator Cutting</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-shapes"></i></div>
@@ -1067,7 +1067,7 @@ const CuttingSedangCutting = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <button v-if="bolehProses && aksiAktif('sub-pr-cutting-sedangcutting','cutting_entry_cutting')" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-cutting','cutting_entry_cutting')" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-scissors"></i></div>
@@ -1339,8 +1339,8 @@ const CuttingPerluDiKirim = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button v-if="aksiAktif('sub-pr-cutting-perludikirim','cutting_pack')" @click="packTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
-        <button v-if="aksiAktif('sub-pr-cutting-perludikirim','cutting_kirim')" @click="kirimTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
+        <button v-if="aksiAktif('sub-pr-cutting','cutting_pack')" @click="packTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button v-if="aksiAktif('sub-pr-cutting','cutting_kirim')" @click="kirimTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-box-open"></i></div>
@@ -1585,9 +1585,9 @@ window.pastikanMountCuttingPerluDiProses = function () {
   if (mountPoint) vmCuttingPerluDiProses = createApp(CuttingPerluDiProses).mount('#vue-cutting-perludiproses');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaScanSampaiCutting = function () { if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.sampaiTerpadu.buka(); };
-window.bukaScanUnpackCutting = function () { if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.unpackTerpadu.buka(); };
-window.bukaCuttingOperatorAmpar = function () { if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.bukaTunjukAmparToolbar(); };
+window.bukaScanSampaiCutting = function () { window.pastikanMountCuttingPerluDiProses(); if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.sampaiTerpadu.buka(); };
+window.bukaScanUnpackCutting = function () { window.pastikanMountCuttingPerluDiProses(); if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.unpackTerpadu.buka(); };
+window.bukaCuttingOperatorAmpar = function () { window.pastikanMountCuttingPerluDiProses(); if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.bukaTunjukAmparToolbar(); };
 let vmCuttingSedangAmpar = null;
 window.pastikanMountCuttingSedangAmpar = function () {
   if (vmCuttingSedangAmpar) { if (typeof vmCuttingSedangAmpar.muat === 'function') vmCuttingSedangAmpar.muat(); return; }
@@ -1595,8 +1595,8 @@ window.pastikanMountCuttingSedangAmpar = function () {
   if (mountPoint) vmCuttingSedangAmpar = createApp(CuttingSedangAmpar).mount('#vue-cutting-sedangampar');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaCuttingEntryAmpar = function () { if (vmCuttingSedangAmpar) vmCuttingSedangAmpar.bukaScanEntryToolbar(); };
-window.bukaCuttingOperatorPola = function () { if (vmCuttingSedangAmpar) vmCuttingSedangAmpar.bukaTunjukPolaToolbar(); };
+window.bukaCuttingEntryAmpar = function () { window.pastikanMountCuttingSedangAmpar(); if (vmCuttingSedangAmpar) vmCuttingSedangAmpar.bukaScanEntryToolbar(); };
+window.bukaCuttingOperatorPola = function () { window.pastikanMountCuttingSedangAmpar(); if (vmCuttingSedangAmpar) vmCuttingSedangAmpar.bukaTunjukPolaToolbar(); };
 let vmCuttingSedangPola = null;
 window.pastikanMountCuttingSedangPola = function () {
   if (vmCuttingSedangPola) { if (typeof vmCuttingSedangPola.muat === 'function') vmCuttingSedangPola.muat(); return; }
@@ -1604,8 +1604,8 @@ window.pastikanMountCuttingSedangPola = function () {
   if (mountPoint) vmCuttingSedangPola = createApp(CuttingSedangPola).mount('#vue-cutting-sedangpola');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaCuttingEntryPola = function () { if (vmCuttingSedangPola) vmCuttingSedangPola.bukaScanEntryToolbar(); };
-window.bukaCuttingOperatorCutting = function () { if (vmCuttingSedangPola) vmCuttingSedangPola.bukaTunjukCuttingToolbar(); };
+window.bukaCuttingEntryPola = function () { window.pastikanMountCuttingSedangPola(); if (vmCuttingSedangPola) vmCuttingSedangPola.bukaScanEntryToolbar(); };
+window.bukaCuttingOperatorCutting = function () { window.pastikanMountCuttingSedangPola(); if (vmCuttingSedangPola) vmCuttingSedangPola.bukaTunjukCuttingToolbar(); };
 let vmCuttingSedangCutting = null;
 window.pastikanMountCuttingSedangCutting = function () {
   if (vmCuttingSedangCutting) { if (typeof vmCuttingSedangCutting.muat === 'function') vmCuttingSedangCutting.muat(); return; }
@@ -1613,7 +1613,7 @@ window.pastikanMountCuttingSedangCutting = function () {
   if (mountPoint) vmCuttingSedangCutting = createApp(CuttingSedangCutting).mount('#vue-cutting-sedangcutting');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaCuttingEntryCutting = function () { if (vmCuttingSedangCutting) vmCuttingSedangCutting.bukaScanEntryToolbar(); };
+window.bukaCuttingEntryCutting = function () { window.pastikanMountCuttingSedangCutting(); if (vmCuttingSedangCutting) vmCuttingSedangCutting.bukaScanEntryToolbar(); };
 let vmCuttingPerluDiKirim = null;
 window.pastikanMountCuttingPerluDiKirim = function () {
   if (vmCuttingPerluDiKirim) { if (typeof vmCuttingPerluDiKirim.muat === 'function') vmCuttingPerluDiKirim.muat(); return; }
@@ -1621,8 +1621,8 @@ window.pastikanMountCuttingPerluDiKirim = function () {
   if (mountPoint) vmCuttingPerluDiKirim = createApp(CuttingPerluDiKirim).mount('#vue-cutting-perludikirim');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaScanPackCutting = function () { if (vmCuttingPerluDiKirim) vmCuttingPerluDiKirim.packTerpadu.buka(); };
-window.bukaScanKirimCutting = function () { if (vmCuttingPerluDiKirim) vmCuttingPerluDiKirim.kirimTerpadu.buka(); };
+window.bukaScanPackCutting = function () { window.pastikanMountCuttingPerluDiKirim(); if (vmCuttingPerluDiKirim) vmCuttingPerluDiKirim.packTerpadu.buka(); };
+window.bukaScanKirimCutting = function () { window.pastikanMountCuttingPerluDiKirim(); if (vmCuttingPerluDiKirim) vmCuttingPerluDiKirim.kirimTerpadu.buka(); };
 let vmCuttingSedangDiKirim = null;
 window.pastikanMountCuttingSedangDiKirim = function () {
   if (vmCuttingSedangDiKirim) { if (typeof vmCuttingSedangDiKirim.muat === 'function') vmCuttingSedangDiKirim.muat(); return; }

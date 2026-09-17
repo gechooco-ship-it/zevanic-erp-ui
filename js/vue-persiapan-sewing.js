@@ -24,7 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=13';
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=4';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=5';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier
 // pic/pic_owner/owner/superuser, TANPA popup PIN: cukup tier akun yang login.
@@ -524,8 +524,8 @@ const PersiapanSewingPerluDisiapkan = {
           <div class="sub">{{ kpiHeader.spkMenunggu }} SPK menunggu &middot; {{ kpiHeader.siapDicetak }} siap dicetak</div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button v-if="bolehEdit && aksiAktif('sub-pp-sewing-perludisiapkan','sampai_masalah_sewing')" @click="bukaScanSampaiGlobal" class="btn-outline" style="padding:8px 14px;"><i class="fas fa-inbox" style="margin-right:6px;"></i>Scan Sampai</button>
-          <button v-if="bolehProses && aksiAktif('sub-pp-sewing-perludisiapkan','operator_sewing')" @click="bukaPenunjukanGlobal" class="btn-primary" style="padding:8px 14px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+          <button v-if="bolehEdit && aksiAktif('sub-pp-sewing','sampai_masalah_sewing')" @click="bukaScanSampaiGlobal" class="btn-outline" style="padding:8px 14px;"><i class="fas fa-inbox" style="margin-right:6px;"></i>Scan Sampai</button>
+          <button v-if="bolehProses && aksiAktif('sub-pp-sewing','operator_sewing')" @click="bukaPenunjukanGlobal" class="btn-primary" style="padding:8px 14px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
         </div>
       </div>
 
@@ -602,7 +602,7 @@ const PersiapanSewingPerluDisiapkan = {
           <div v-if="bolehCetak" style="display:flex; gap:8px; border-top:1px solid var(--line); padding-top:10px;">
             <button @click="cetakLabelKartu(k)" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label</button>
             <button v-if="k.baris.some(b=>b.label_cetak_pada)" @click="bukaCetakUlang(k)" class="btn-outline" style="flex:1; padding:9px; color:var(--warn); border-color:var(--warn);"><i class="fas fa-rotate" style="margin-right:6px;"></i>Cetak Ulang</button>
-            <button v-if="bolehProses && aksiAktif('sub-pp-sewing-perludisiapkan','operator_sewing') && k.baris.some(b=>b.label_cetak_pada && b.status==='perlu_disiapkan')" @click="bukaPenunjukan(k)" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+            <button v-if="bolehProses && aksiAktif('sub-pp-sewing','operator_sewing') && k.baris.some(b=>b.label_cetak_pada && b.status==='perlu_disiapkan')" @click="bukaPenunjukan(k)" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
           </div>
         </div>
       </div>
@@ -838,8 +838,8 @@ const PersiapanSewingSedangDisiapkan = {
                 <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ b.nama_aksesoris }} {{ b.warna }} &middot; {{ formatQty(b.butuh) }} {{ b.satuan }} &middot; {{ b.nama_produk }}</div>
                 <div v-if="b.catatan_masalah" style="font-size:10.5px; color:var(--danger); background:var(--danger-light); border-radius:8px; padding:5px 8px; margin-bottom:6px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ b.catatan_masalah }}</div>
                 <div v-if="bolehProses && !(b.entry_qty || b.entry_qty===0)" style="display:flex; gap:6px;">
-                  <button v-if="aksiAktif('sub-pp-sewing-sedangdisiapkan','entry_sewing')" @click="bukaAksi('entry', b)" :disabled="sedangProses[barisKey(b)]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
-                  <button v-if="aksiAktif('sub-pp-sewing-sedangdisiapkan','masalah_sewing')" @click="bukaAksi('masalah', b)" :disabled="sedangProses[barisKey(b)]" class="btn-outline" style="flex:1; padding:7px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Masalah</button>
+                  <button v-if="aksiAktif('sub-pp-sewing','entry_sewing')" @click="bukaAksi('entry', b)" :disabled="sedangProses[barisKey(b)]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
+                  <button v-if="aksiAktif('sub-pp-sewing','masalah_sewing')" @click="bukaAksi('masalah', b)" :disabled="sedangProses[barisKey(b)]" class="btn-outline" style="flex:1; padding:7px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Masalah</button>
                   <button @click="bukaAksi('ganti', b)" :disabled="sedangProses[barisKey(b)]" class="btn-outline" style="flex:0 0 auto; padding:7px 9px; font-size:11px;" title="Ganti Operator (estafet shift)"><i class="fas fa-arrow-right-arrow-left"></i></button>
                 </div>
               </div>
@@ -1121,8 +1121,8 @@ const PersiapanSewingPerluDikirim = {
         <button @click="bukaCetakTugas" class="btn-outline" style="flex:1; min-width:150px; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Kode Tugas</button>
       </div>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button v-if="aksiAktif('sub-pp-sewing-perludikirim','pack_sewing')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
-        <button v-if="aksiAktif('sub-pp-sewing-perludikirim','kirim_sewing')" @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
+        <button v-if="aksiAktif('sub-pp-sewing','pack_sewing')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button v-if="aksiAktif('sub-pp-sewing','kirim_sewing')" @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
       </div>
 
       <div v-if="kelompokSepack.length === 0" class="gc-kosong gc-card">
@@ -1429,8 +1429,8 @@ window.pastikanMountPpSewingPerluDisiapkan = function () {
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js) — panggil varian
 // toolbar global (kartuAktifTunjuk null), sama seperti klik tombol toolbar.
-window.bukaScanOperatorSewing = function () { if (vmPpSewingPerluDisiapkan) vmPpSewingPerluDisiapkan.bukaPenunjukanGlobal(); };
-window.bukaSampaiMasalahSewing = function () { if (vmPpSewingPerluDisiapkan) vmPpSewingPerluDisiapkan.bukaScanSampaiGlobal(); };
+window.bukaScanOperatorSewing = function () { window.pastikanMountPpSewingPerluDisiapkan(); if (vmPpSewingPerluDisiapkan) vmPpSewingPerluDisiapkan.bukaPenunjukanGlobal(); };
+window.bukaSampaiMasalahSewing = function () { window.pastikanMountPpSewingPerluDisiapkan(); if (vmPpSewingPerluDisiapkan) vmPpSewingPerluDisiapkan.bukaScanSampaiGlobal(); };
 let vmPpSewingSedangDisiapkan = null;
 window.pastikanMountPpSewingSedangDisiapkan = function () {
   if (vmPpSewingSedangDisiapkan) { if (typeof vmPpSewingSedangDisiapkan.muat === 'function') vmPpSewingSedangDisiapkan.muat(); return; }
@@ -1444,8 +1444,8 @@ window.pastikanMountPpSewingPerluDikirim = function () {
   if (mountPoint) vmPpSewingPerluDikirim = createApp(PersiapanSewingPerluDikirim).mount('#vue-pp-sewing-perludikirim');
 };
 // Jembatan Bottom Sheet Pilihan Scan — Scan Pack/Kirim toolbar global tab Perlu Dikirim.
-window.bukaPackSewing = function () { if (vmPpSewingPerluDikirim) vmPpSewingPerluDikirim.bukaScanPack(); };
-window.bukaKirimSewing = function () { if (vmPpSewingPerluDikirim) vmPpSewingPerluDikirim.bukaScanKirim(); };
+window.bukaPackSewing = function () { window.pastikanMountPpSewingPerluDikirim(); if (vmPpSewingPerluDikirim) vmPpSewingPerluDikirim.bukaScanPack(); };
+window.bukaKirimSewing = function () { window.pastikanMountPpSewingPerluDikirim(); if (vmPpSewingPerluDikirim) vmPpSewingPerluDikirim.bukaScanKirim(); };
 let vmPpSewingSedangDikirim = null;
 window.pastikanMountPpSewingSedangDikirim = function () {
   if (vmPpSewingSedangDikirim) { if (typeof vmPpSewingSedangDikirim.muat === 'function') vmPpSewingSedangDikirim.muat(); return; }

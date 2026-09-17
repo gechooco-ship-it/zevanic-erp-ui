@@ -24,7 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=4';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=5';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing).
 function formatQty(n) {
@@ -472,8 +472,8 @@ const FinishingPerluDiProses = {
       <!-- Toolbar global — Scan Sampai & Scan Unpack global dari sisi logic, tampilannya
         dikumpulkan di sini. Scan Masalah lewat popup pilih-batch. -->
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <button v-if="bolehProses && aksiAktif('sub-pr-finishing-perludiproses','finishing_sampai')" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
-        <button v-if="bolehProses && aksiAktif('sub-pr-finishing-perludiproses','finishing_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-finishing','finishing_sampai')" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-finishing','finishing_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
         <button v-if="bolehProses" @click="bukaMasalahToolbar" class="btn-outline" style="flex:1; min-width:120px; padding:9px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>Scan Masalah</button>
       </div>
       <div v-if="kelompokBatch.length === 0" class="gc-kosong gc-card">
@@ -495,7 +495,7 @@ const FinishingPerluDiProses = {
             sampai (kartu INKOMPLIT wireframe tidak menampilkan tombol apapun).
           -->
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            <button v-if="bolehOperator && aksiAktif('sub-pr-finishing-perludiproses','finishing_operator_qc_persiapan')" @click="bukaOperatorQc" :disabled="!g.terimaPada" class="btn-outline" style="flex:1; padding:8px; font-size:11.5px;" :style="{ opacity: g.terimaPada ? 1 : .5 }"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator QC</button>
+            <button v-if="bolehOperator && aksiAktif('sub-pr-finishing','finishing_operator_qc_persiapan')" @click="bukaOperatorQc" :disabled="!g.terimaPada" class="btn-outline" style="flex:1; padding:8px; font-size:11.5px;" :style="{ opacity: g.terimaPada ? 1 : .5 }"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator QC</button>
           </div>
         </div>
       </div>
@@ -789,8 +789,8 @@ const FinishingPerluDikirim = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button v-if="aksiAktif('sub-pr-finishing-perludikirim','finishing_pack')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
-        <button v-if="aksiAktif('sub-pr-finishing-perludikirim','finishing_kirim')" @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Scan Kirim</button>
+        <button v-if="aksiAktif('sub-pr-finishing','finishing_pack')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button v-if="aksiAktif('sub-pr-finishing','finishing_kirim')" @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Scan Kirim</button>
       </div>
       <div v-if="kelompokBatch.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-box-open"></i></div>
@@ -1015,9 +1015,9 @@ window.pastikanMountFinishingPerluDiProses = function () {
   if (mountPoint) vmFinishingPerluDiProses = createApp(FinishingPerluDiProses).mount('#vue-finishing-perludiproses');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaFinishingSampai = function () { if (vmFinishingPerluDiProses) vmFinishingPerluDiProses.bukaScanSampai(); };
-window.bukaFinishingUnpack = function () { if (vmFinishingPerluDiProses) vmFinishingPerluDiProses.unpackTerpadu.buka(); };
-window.bukaFinishingOperatorQcPersiapan = function () { if (vmFinishingPerluDiProses) vmFinishingPerluDiProses.bukaOperatorQc(); };
+window.bukaFinishingSampai = function () { window.pastikanMountFinishingPerluDiProses(); if (vmFinishingPerluDiProses) vmFinishingPerluDiProses.bukaScanSampai(); };
+window.bukaFinishingUnpack = function () { window.pastikanMountFinishingPerluDiProses(); if (vmFinishingPerluDiProses) vmFinishingPerluDiProses.unpackTerpadu.buka(); };
+window.bukaFinishingOperatorQcPersiapan = function () { window.pastikanMountFinishingPerluDiProses(); if (vmFinishingPerluDiProses) vmFinishingPerluDiProses.bukaOperatorQc(); };
 let vmFinishingSedangQc = null;
 window.pastikanMountFinishingSedangQc = function () {
   if (vmFinishingSedangQc) { if (typeof vmFinishingSedangQc.muat === 'function') vmFinishingSedangQc.muat(); return; }
@@ -1025,8 +1025,8 @@ window.pastikanMountFinishingSedangQc = function () {
   if (mountPoint) vmFinishingSedangQc = createApp(FinishingSedangQc).mount('#vue-finishing-sedangqc');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaFinishingOperatorQc = function () { if (vmFinishingSedangQc) vmFinishingSedangQc.bukaOperator(); };
-window.bukaFinishingEntryQc = function () { if (vmFinishingSedangQc) vmFinishingSedangQc.bukaEntri(); };
+window.bukaFinishingOperatorQc = function () { window.pastikanMountFinishingSedangQc(); if (vmFinishingSedangQc) vmFinishingSedangQc.bukaOperator(); };
+window.bukaFinishingEntryQc = function () { window.pastikanMountFinishingSedangQc(); if (vmFinishingSedangQc) vmFinishingSedangQc.bukaEntri(); };
 let vmFinishingSedangSteam = null;
 window.pastikanMountFinishingSedangSteam = function () {
   if (vmFinishingSedangSteam) { if (typeof vmFinishingSedangSteam.muat === 'function') vmFinishingSedangSteam.muat(); return; }
@@ -1034,8 +1034,8 @@ window.pastikanMountFinishingSedangSteam = function () {
   if (mountPoint) vmFinishingSedangSteam = createApp(FinishingSedangSteam).mount('#vue-finishing-sedangsteam');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaFinishingOperatorSteam = function () { if (vmFinishingSedangSteam) vmFinishingSedangSteam.bukaOperator(); };
-window.bukaFinishingEntrySteam = function () { if (vmFinishingSedangSteam) vmFinishingSedangSteam.bukaEntri(); };
+window.bukaFinishingOperatorSteam = function () { window.pastikanMountFinishingSedangSteam(); if (vmFinishingSedangSteam) vmFinishingSedangSteam.bukaOperator(); };
+window.bukaFinishingEntrySteam = function () { window.pastikanMountFinishingSedangSteam(); if (vmFinishingSedangSteam) vmFinishingSedangSteam.bukaEntri(); };
 let vmFinishingSedangFolding = null;
 window.pastikanMountFinishingSedangFolding = function () {
   if (vmFinishingSedangFolding) { if (typeof vmFinishingSedangFolding.muat === 'function') vmFinishingSedangFolding.muat(); return; }
@@ -1043,8 +1043,8 @@ window.pastikanMountFinishingSedangFolding = function () {
   if (mountPoint) vmFinishingSedangFolding = createApp(FinishingSedangFolding).mount('#vue-finishing-sedangfolding');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaFinishingOperatorFolding = function () { if (vmFinishingSedangFolding) vmFinishingSedangFolding.bukaOperator(); };
-window.bukaFinishingEntryFolding = function () { if (vmFinishingSedangFolding) vmFinishingSedangFolding.bukaEntri(); };
+window.bukaFinishingOperatorFolding = function () { window.pastikanMountFinishingSedangFolding(); if (vmFinishingSedangFolding) vmFinishingSedangFolding.bukaOperator(); };
+window.bukaFinishingEntryFolding = function () { window.pastikanMountFinishingSedangFolding(); if (vmFinishingSedangFolding) vmFinishingSedangFolding.bukaEntri(); };
 let vmFinishingSedangPacking = null;
 window.pastikanMountFinishingSedangPacking = function () {
   if (vmFinishingSedangPacking) { if (typeof vmFinishingSedangPacking.muat === 'function') vmFinishingSedangPacking.muat(); return; }
@@ -1052,8 +1052,8 @@ window.pastikanMountFinishingSedangPacking = function () {
   if (mountPoint) vmFinishingSedangPacking = createApp(FinishingSedangPacking).mount('#vue-finishing-sedangpacking');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaFinishingOperatorPacking = function () { if (vmFinishingSedangPacking) vmFinishingSedangPacking.bukaOperator(); };
-window.bukaFinishingEntryPacking = function () { if (vmFinishingSedangPacking) vmFinishingSedangPacking.bukaEntri(); };
+window.bukaFinishingOperatorPacking = function () { window.pastikanMountFinishingSedangPacking(); if (vmFinishingSedangPacking) vmFinishingSedangPacking.bukaOperator(); };
+window.bukaFinishingEntryPacking = function () { window.pastikanMountFinishingSedangPacking(); if (vmFinishingSedangPacking) vmFinishingSedangPacking.bukaEntri(); };
 let vmFinishingPerluDikirim = null;
 window.pastikanMountFinishingPerluDikirim = function () {
   if (vmFinishingPerluDikirim) { if (typeof vmFinishingPerluDikirim.muat === 'function') vmFinishingPerluDikirim.muat(); return; }
@@ -1061,8 +1061,8 @@ window.pastikanMountFinishingPerluDikirim = function () {
   if (mountPoint) vmFinishingPerluDikirim = createApp(FinishingPerluDikirim).mount('#vue-finishing-perludikirim');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaFinishingPack = function () { if (vmFinishingPerluDikirim) vmFinishingPerluDikirim.bukaScanPack(); };
-window.bukaFinishingKirim = function () { if (vmFinishingPerluDikirim) vmFinishingPerluDikirim.bukaScanKirim(); };
+window.bukaFinishingPack = function () { window.pastikanMountFinishingPerluDikirim(); if (vmFinishingPerluDikirim) vmFinishingPerluDikirim.bukaScanPack(); };
+window.bukaFinishingKirim = function () { window.pastikanMountFinishingPerluDikirim(); if (vmFinishingPerluDikirim) vmFinishingPerluDikirim.bukaScanKirim(); };
 let vmFinishingSedangKirim = null;
 window.pastikanMountFinishingSedangKirim = function () {
   if (vmFinishingSedangKirim) { if (typeof vmFinishingSedangKirim.muat === 'function') vmFinishingSedangKirim.muat(); return; }

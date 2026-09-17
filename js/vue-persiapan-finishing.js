@@ -24,7 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=13';
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=4';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=5';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier
 // pic/pic_owner/owner/superuser, TANPA popup PIN: cukup tier akun yang login.
@@ -531,8 +531,8 @@ const PersiapanFinishingPerluDisiapkan = {
           <div class="sub">{{ kpiHeader.spkMenunggu }} SPK menunggu &middot; {{ kpiHeader.siapDicetak }} siap dicetak</div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-          <button v-if="bolehEdit && aksiAktif(MY_TARGET,'sampai_masalah_finishing')" @click="bukaScanSampaiGlobal" class="btn-outline" style="padding:8px 14px;"><i class="fas fa-inbox" style="margin-right:6px;"></i>Scan Sampai</button>
-          <button v-if="bolehProses && aksiAktif(MY_TARGET,'operator_finishing')" @click="bukaPenunjukanGlobal" class="btn-primary" style="padding:8px 14px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+          <button v-if="bolehEdit && aksiAktif('sub-pp-finishing','sampai_masalah_finishing')" @click="bukaScanSampaiGlobal" class="btn-outline" style="padding:8px 14px;"><i class="fas fa-inbox" style="margin-right:6px;"></i>Scan Sampai</button>
+          <button v-if="bolehProses && aksiAktif('sub-pp-finishing','operator_finishing')" @click="bukaPenunjukanGlobal" class="btn-primary" style="padding:8px 14px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
         </div>
       </div>
 
@@ -610,7 +610,7 @@ const PersiapanFinishingPerluDisiapkan = {
           <div v-if="bolehCetak" style="display:flex; gap:8px; border-top:1px solid var(--line); padding-top:10px;">
             <button @click="cetakLabelKartu(k)" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label</button>
             <button v-if="k.baris.some(b=>b.label_cetak_pada)" @click="bukaCetakUlang(k)" class="btn-outline" style="flex:1; padding:9px; color:var(--warn); border-color:var(--warn);"><i class="fas fa-rotate" style="margin-right:6px;"></i>Cetak Ulang</button>
-            <button v-if="bolehProses && aksiAktif(MY_TARGET,'operator_finishing') && k.baris.some(b=>b.label_cetak_pada && b.status==='perlu_disiapkan')" @click="bukaPenunjukan(k)" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+            <button v-if="bolehProses && aksiAktif('sub-pp-finishing','operator_finishing') && k.baris.some(b=>b.label_cetak_pada && b.status==='perlu_disiapkan')" @click="bukaPenunjukan(k)" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
           </div>
         </div>
       </div>
@@ -844,8 +844,8 @@ const PersiapanFinishingSedangDisiapkan = {
                 <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ b.nama_aksesoris }} {{ b.warna }} &middot; {{ formatQty(b.butuh) }} {{ b.satuan }} &middot; {{ b.nama_produk }}</div>
                 <div v-if="b.catatan_masalah" style="font-size:10.5px; color:var(--danger); background:var(--danger-light); border-radius:8px; padding:5px 8px; margin-bottom:6px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ b.catatan_masalah }}</div>
                 <div v-if="bolehProses && !(b.entry_qty || b.entry_qty===0)" style="display:flex; gap:6px;">
-                  <button v-if="aksiAktif(MY_TARGET,'entry_finishing')" @click="bukaAksi('entry', b)" :disabled="sedangProses[barisKey(b)]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
-                  <button v-if="aksiAktif(MY_TARGET,'masalah_finishing')" @click="bukaAksi('masalah', b)" :disabled="sedangProses[barisKey(b)]" class="btn-outline" style="flex:1; padding:7px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Masalah</button>
+                  <button v-if="aksiAktif('sub-pp-finishing','entry_finishing')" @click="bukaAksi('entry', b)" :disabled="sedangProses[barisKey(b)]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
+                  <button v-if="aksiAktif('sub-pp-finishing','masalah_finishing')" @click="bukaAksi('masalah', b)" :disabled="sedangProses[barisKey(b)]" class="btn-outline" style="flex:1; padding:7px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Masalah</button>
                   <button @click="bukaAksi('ganti', b)" :disabled="sedangProses[barisKey(b)]" class="btn-outline" style="flex:0 0 auto; padding:7px 9px; font-size:11px;" title="Ganti Operator (estafet shift)"><i class="fas fa-arrow-right-arrow-left"></i></button>
                 </div>
               </div>
@@ -1124,8 +1124,8 @@ const PersiapanFinishingPerluDikirim = {
         <button @click="bukaCetakTugas" class="btn-outline" style="flex:1; min-width:150px; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Kode Tugas</button>
       </div>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button v-if="aksiAktif(MY_TARGET,'pack_finishing')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
-        <button v-if="aksiAktif(MY_TARGET,'kirim_finishing')" @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
+        <button v-if="aksiAktif('sub-pp-finishing','pack_finishing')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button v-if="aksiAktif('sub-pp-finishing','kirim_finishing')" @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
       </div>
 
       <div v-if="kelompokSepack.length === 0" class="gc-kosong gc-card">
@@ -1432,8 +1432,8 @@ window.pastikanMountPpFinishingPerluDisiapkan = function () {
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js) — panggil varian
 // toolbar global (kartuAktifTunjuk null), sama seperti klik tombol toolbar.
-window.bukaScanOperatorFinishing = function () { if (vmPpFinishingPerluDisiapkan) vmPpFinishingPerluDisiapkan.bukaPenunjukanGlobal(); };
-window.bukaSampaiMasalahFinishing = function () { if (vmPpFinishingPerluDisiapkan) vmPpFinishingPerluDisiapkan.bukaScanSampaiGlobal(); };
+window.bukaScanOperatorFinishing = function () { window.pastikanMountPpFinishingPerluDisiapkan(); if (vmPpFinishingPerluDisiapkan) vmPpFinishingPerluDisiapkan.bukaPenunjukanGlobal(); };
+window.bukaSampaiMasalahFinishing = function () { window.pastikanMountPpFinishingPerluDisiapkan(); if (vmPpFinishingPerluDisiapkan) vmPpFinishingPerluDisiapkan.bukaScanSampaiGlobal(); };
 let vmPpFinishingSedangDisiapkan = null;
 window.pastikanMountPpFinishingSedangDisiapkan = function () {
   if (vmPpFinishingSedangDisiapkan) { if (typeof vmPpFinishingSedangDisiapkan.muat === 'function') vmPpFinishingSedangDisiapkan.muat(); return; }
@@ -1446,8 +1446,8 @@ window.pastikanMountPpFinishingPerluDikirim = function () {
   const mountPoint = document.getElementById('vue-pp-finishing-perludikirim');
   if (mountPoint) vmPpFinishingPerluDikirim = createApp(PersiapanFinishingPerluDikirim).mount('#vue-pp-finishing-perludikirim');
 };
-window.bukaPackFinishing = function () { if (vmPpFinishingPerluDikirim) vmPpFinishingPerluDikirim.bukaScanPack(); };
-window.bukaKirimFinishing = function () { if (vmPpFinishingPerluDikirim) vmPpFinishingPerluDikirim.bukaScanKirim(); };
+window.bukaPackFinishing = function () { window.pastikanMountPpFinishingPerluDikirim(); if (vmPpFinishingPerluDikirim) vmPpFinishingPerluDikirim.bukaScanPack(); };
+window.bukaKirimFinishing = function () { window.pastikanMountPpFinishingPerluDikirim(); if (vmPpFinishingPerluDikirim) vmPpFinishingPerluDikirim.bukaScanKirim(); };
 let vmPpFinishingSedangDikirim = null;
 window.pastikanMountPpFinishingSedangDikirim = function () {
   if (vmPpFinishingSedangDikirim) { if (typeof vmPpFinishingSedangDikirim.muat === 'function') vmPpFinishingSedangDikirim.muat(); return; }
