@@ -24,7 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=9';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=5';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=6';
 
 // picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (dipakai Setuju/Tolak/Ajukan
 // Belanja, WAJIB Owner/PIC Owner + popup PIN). Yang ini untuk "Scan Operator":
@@ -728,7 +728,7 @@ const MasalahPerluDisiapkan = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <template v-else>
-      <div v-if="bolehProses && aksiAktif('sub-pp-masalah','operator_masalah')" style="display:flex; gap:8px; margin-bottom:12px;">
+      <div v-if="bolehProses && aksiAktif('sub-pp-masalah-perludisiapkan','operator_masalah')" style="display:flex; gap:8px; margin-bottom:12px;">
         <button @click="bukaPenunjukanGlobal" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
       </div>
 
@@ -756,7 +756,7 @@ const MasalahPerluDisiapkan = {
 
           <div style="display:flex; gap:8px; border-top:1px solid var(--line); padding-top:10px;">
             <button v-if="bolehCetak" @click="cetakLabelKartu(k)" :disabled="sedangProses" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label</button>
-            <button v-if="bolehProses && aksiAktif('sub-pp-masalah','operator_masalah') && k.docs.some(d=>d.label_cetak_pada && d.status==='perlu_disiapkan')" @click="bukaPenunjukan(k)" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
+            <button v-if="bolehProses && aksiAktif('sub-pp-masalah-perludisiapkan','operator_masalah') && k.docs.some(d=>d.label_cetak_pada && d.status==='perlu_disiapkan')" @click="bukaPenunjukan(k)" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
           </div>
         </div>
       </div>
@@ -865,8 +865,8 @@ const MasalahSedangDisiapkan = {
             <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ d.bahan_nama }} {{ d.bahan_warna }} &middot; {{ formatQty(d.qty_disetujui || d.qty_kurang) }} {{ d.satuan }} &middot; kembali ke {{ d.tlc_asal || d.sumber_jalur }}</div>
             <div v-if="d.catatan_masalah" style="font-size:10.5px; color:var(--danger); background:var(--danger-light); border-radius:8px; padding:5px 8px; margin-bottom:6px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ d.catatan_masalah }}</div>
             <div v-if="bolehProses" style="display:flex; gap:6px;">
-              <button v-if="aksiAktif('sub-pp-masalah','entry_masalah')" @click="bukaAksi('entry', d)" :disabled="sedangProses[d.id]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
-              <button v-if="aksiAktif('sub-pp-masalah','masalah_masalah')" @click="bukaAksi('masalah', d)" :disabled="sedangProses[d.id]" class="btn-outline" style="flex:1; padding:7px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Masalah</button>
+              <button v-if="aksiAktif('sub-pp-masalah-sedangdisiapkan','entry_masalah')" @click="bukaAksi('entry', d)" :disabled="sedangProses[d.id]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
+              <button v-if="aksiAktif('sub-pp-masalah-sedangdisiapkan','masalah_masalah')" @click="bukaAksi('masalah', d)" :disabled="sedangProses[d.id]" class="btn-outline" style="flex:1; padding:7px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Masalah</button>
               <button @click="bukaAksi('ganti', d)" :disabled="sedangProses[d.id]" class="btn-outline" style="flex:0 0 auto; padding:7px 9px; font-size:11px;" title="Ganti Operator"><i class="fas fa-arrow-right-arrow-left"></i></button>
             </div>
           </div>
@@ -1091,8 +1091,8 @@ const MasalahPerluDiKirim = {
         <button @click="bukaCetakTugas" class="btn-outline" style="flex:1; min-width:150px; padding:9px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Kode Tugas</button>
       </div>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button v-if="aksiAktif('sub-pp-masalah','pack_masalah')" @click="packTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
-        <button v-if="aksiAktif('sub-pp-masalah','kirim_masalah')" @click="kirimTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
+        <button v-if="aksiAktif('sub-pp-masalah-perludikirim','pack_masalah')" @click="packTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button v-if="aksiAktif('sub-pp-masalah-perludikirim','kirim_masalah')" @click="kirimTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Kirim</button>
       </div>
 
       <div v-if="kelompokTujuan.length === 0" class="gc-kosong gc-card">

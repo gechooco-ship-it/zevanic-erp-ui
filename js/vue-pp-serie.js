@@ -24,7 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=5';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=6';
 
 // Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan Produksi,
 // belum ada infrastruktur util generik lintas file).
@@ -567,8 +567,8 @@ const SeriePerluDiProses = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
-        <button v-if="bolehProses && aksiAktif('sub-pr-serie','serie_sampai')" @click="bukaScanSampai" class="btn-primary" style="padding:8px 12px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Sampai</button>
-        <button v-if="bolehProses && aksiAktif('sub-pr-serie','serie_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="padding:8px 12px; font-size:11.5px;"><i class="fas fa-box-open" style="margin-right:4px;"></i>Scan Unpack (dari Cutting)</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-serie-perludiproses','serie_sampai')" @click="bukaScanSampai" class="btn-primary" style="padding:8px 12px; font-size:11.5px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Sampai</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-serie-perludiproses','serie_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="padding:8px 12px; font-size:11.5px;"><i class="fas fa-box-open" style="margin-right:4px;"></i>Scan Unpack (dari Cutting)</button>
       </div>
       <div v-if="daftarGrouping.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-inbox"></i></div>
@@ -833,8 +833,8 @@ const SerieSedangDiProses = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
-        <button v-if="bolehOperator && aksiAktif('sub-pr-serie','serie_operator')" @click="bukaScanOperatorToolbar" class="btn-outline" style="padding:9px 14px; font-size:12px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator</button>
-        <button v-if="bolehProses && aksiAktif('sub-pr-serie','serie_entry')" @click="bukaScanEntryToolbar" class="btn-primary" style="padding:9px 14px; font-size:12px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Entry</button>
+        <button v-if="bolehOperator && aksiAktif('sub-pr-serie-sedangdiproses','serie_operator')" @click="bukaScanOperatorToolbar" class="btn-outline" style="padding:9px 14px; font-size:12px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-serie-sedangdiproses','serie_entry')" @click="bukaScanEntryToolbar" class="btn-primary" style="padding:9px 14px; font-size:12px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Entry</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-gears"></i></div>
@@ -1059,7 +1059,7 @@ const SeriePerluDiKirim = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button v-if="aksiAktif('sub-pr-serie','serie_pack')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button v-if="aksiAktif('sub-pr-serie-perludikirim','serie_pack')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-box"></i></div>

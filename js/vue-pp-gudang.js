@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=5';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=6';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing/Finishing).
 // --
@@ -311,8 +311,8 @@ const GudangPerluDisimpan = {
     <template v-else>
       <h3 class="gc-heading" style="font-size:12.5px; font-weight:700; margin:0 0 8px;"><i class="fas fa-truck-ramp-box" style="margin-right:6px;"></i>Batch Menunggu Sampai dari Serie</h3>
       <div style="display:flex; gap:8px; margin-bottom:12px;">
-        <button v-if="bolehProses && aksiAktif('sub-pr-gudang','gudang_sampai')" @click="bukaScanSampai" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
-        <button v-if="bolehProses && aksiAktif('sub-pr-gudang','gudang_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-gudang-perludisimpan','gudang_sampai')" @click="bukaScanSampai" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-gudang-perludisimpan','gudang_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
       </div>
       <div v-if="daftarBatch.length === 0" class="gc-kosong gc-card" style="margin-bottom:16px;">
         <div class="lingkaran"><i class="fas fa-inbox"></i></div>
@@ -331,7 +331,7 @@ const GudangPerluDisimpan = {
 
       <h3 class="gc-heading" style="font-size:12.5px; font-weight:700; margin:0 0 8px;"><i class="fas fa-warehouse" style="margin-right:6px;"></i>Pcs Siap Disimpan</h3>
       <div style="margin-bottom:12px;">
-        <button v-if="bolehProses && aksiAktif('sub-pr-gudang','gudang_masuk')" @click="bukaScanMasuk" class="btn-primary" style="width:100%; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Masuk Gudang</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-gudang-perludisimpan','gudang_masuk')" @click="bukaScanMasuk" class="btn-primary" style="width:100%; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Masuk Gudang</button>
       </div>
       <div v-if="kelompokSiapDisimpan.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-box-open"></i></div>

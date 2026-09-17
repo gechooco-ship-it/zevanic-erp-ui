@@ -24,7 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=5';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=6';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing).
 function formatQty(n) {
@@ -472,8 +472,8 @@ const FinishingPerluDiProses = {
       <!-- Toolbar global — Scan Sampai & Scan Unpack global dari sisi logic, tampilannya
         dikumpulkan di sini. Scan Masalah lewat popup pilih-batch. -->
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <button v-if="bolehProses && aksiAktif('sub-pr-finishing','finishing_sampai')" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
-        <button v-if="bolehProses && aksiAktif('sub-pr-finishing','finishing_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-finishing-perludiproses','finishing_sampai')" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
+        <button v-if="bolehProses && aksiAktif('sub-pr-finishing-perludiproses','finishing_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
         <button v-if="bolehProses" @click="bukaMasalahToolbar" class="btn-outline" style="flex:1; min-width:120px; padding:9px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>Scan Masalah</button>
       </div>
       <div v-if="kelompokBatch.length === 0" class="gc-kosong gc-card">
@@ -495,7 +495,7 @@ const FinishingPerluDiProses = {
             sampai (kartu INKOMPLIT wireframe tidak menampilkan tombol apapun).
           -->
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            <button v-if="bolehOperator && aksiAktif('sub-pr-finishing','finishing_operator_qc_persiapan')" @click="bukaOperatorQc" :disabled="!g.terimaPada" class="btn-outline" style="flex:1; padding:8px; font-size:11.5px;" :style="{ opacity: g.terimaPada ? 1 : .5 }"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator QC</button>
+            <button v-if="bolehOperator && aksiAktif('sub-pr-finishing-perludiproses','finishing_operator_qc_persiapan')" @click="bukaOperatorQc" :disabled="!g.terimaPada" class="btn-outline" style="flex:1; padding:8px; font-size:11.5px;" :style="{ opacity: g.terimaPada ? 1 : .5 }"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator QC</button>
           </div>
         </div>
       </div>
@@ -789,8 +789,8 @@ const FinishingPerluDikirim = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button v-if="aksiAktif('sub-pr-finishing','finishing_pack')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
-        <button v-if="aksiAktif('sub-pr-finishing','finishing_kirim')" @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Scan Kirim</button>
+        <button v-if="aksiAktif('sub-pr-finishing-perludikirim','finishing_pack')" @click="bukaScanPack" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
+        <button v-if="aksiAktif('sub-pr-finishing-perludikirim','finishing_kirim')" @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Scan Kirim</button>
       </div>
       <div v-if="kelompokBatch.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-box-open"></i></div>
