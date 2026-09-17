@@ -55,11 +55,15 @@ const AppCetakKodeTugas = {
     const dipilih = ref([]);
     const sedangProses = ref(false);
 
-    const bolehCetak = computed(() => ROLE_BOLEH_CETAK.includes((window.currentUser?.role || '').toLowerCase()));
+    // ref, BUKAN computed: window.currentUser objek biasa (tidak reaktif) dan
+    // lahir ber-role 'operator' sebelum login selesai. computed akan terkunci
+    // di nilai pertama itu selamanya. Diisi di muat(), sesudah authReady.
+    const bolehCetak = ref(false);
 
     async function muat() {
       memuat.value = true;
       errorMuat.value = '';
+      bolehCetak.value = ROLE_BOLEH_CETAK.includes((window.currentUser?.role || '').toLowerCase());
       try {
         const [snapTugas, snapTlc] = await Promise.all([
           getDocs(query(collection(db, 'tugas_kirim'), orderBy('dibuat_pada', 'desc'), limit(BATAS_TAMPIL))),
