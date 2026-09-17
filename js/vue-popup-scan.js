@@ -218,9 +218,14 @@ STRUKTUR_MENU_SCAN.forEach(g => g.subs.forEach(s => {
 }));
 
 // Cache in-memory per sesi, hemat read Firestore — koleksinya kecil (jumlah
-// konteks, bukan jumlah scan). null = belum dimuat sekalipun.
+// konteks, bukan jumlah scan). null = belum dimuat sekalipun. _versiCache
+// SENGAJA Vue ref kosong yang dibaca tiap idAksiUntukTarget(): tombol desktop
+// yang sudah lama ter-mount (v-if="aksiAktif(...)" di template) baru ikut
+// re-render otomatis saat versinya berubah — tanpa ini, perubahan admin cuma
+// kepakai kalau layar itu di-reload/di-mount ulang.
 let _cachePilihanScan = null;
 let _janjiPilihanScan = null;
+const _versiCache = ref(0);
 
 // Diekspor — layar admin DAN setiap komponen desktop yang mau menggerbang
 // tombolnya lewat aksiAktif() WAJIB await ini dulu di muat()/onMounted().
@@ -235,15 +240,22 @@ export async function pastikanCachePilihanScan() {
     } catch (e) {
       console.error('Gagal muat config_pilihan_scan, pakai default kode:', e);
     }
+    _versiCache.value++;
   })();
   await _janjiPilihanScan;
   _janjiPilihanScan = null;
 }
-// Dipanggil js/vue-pilihan-scan-config.js tiap simpan/hapus, supaya sheet
-// mobile DAN tombol desktop tidak nyangkut pakai cache lama sampai reload.
-export function invalidasiCachePilihanScan() { _cachePilihanScan = null; }
+// Dipanggil js/vue-pilihan-scan-config.js tiap simpan/hapus — muat ulang di
+// background (bukan cuma null) supaya tombol yang sudah ter-mount ikut update
+// sendiri lewat _versiCache, sheet mobile DAN tombol desktop sama-sama tidak
+// nyangkut pakai cache lama sampai reload.
+export function invalidasiCachePilihanScan() {
+  _cachePilihanScan = null;
+  pastikanCachePilihanScan();
+}
 
 function idAksiUntukTarget(targetId) {
+  _versiCache.value;
   const dariFirestore = _cachePilihanScan && _cachePilihanScan[targetId];
   return dariFirestore ? (dariFirestore.item_ids || []) : (DEFAULT_PILIHAN[targetId] || []);
 }
