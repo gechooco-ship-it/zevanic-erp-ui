@@ -1,19 +1,23 @@
 /*
-  css/gechoo-design.css Sistem desain Gechoo / Zevanic ERP — token warna, tipografi, dan
-  komponen bersama yang dipakai seluruh file Vue. Palet (porsi pemakaian yang disepakati):
-  Ivory 55%, Baby Pink 20%, Light Blue 10%, Mahogany 10% (dipakai sebagai warna TEKS/ikon,
-  bukan blok besar), Burgundy 5% (KHUSUS tombol utama & penekanan penting — dijaga ketat,
-  jangan dipakai berlebihan). File ini TIDAK menggantikan Tailwind secara langsung — selama
-  masa transisi, keduanya aktif berdampingan. Tailwind dicabut setelah SELURUH file Vue
-  selesai dikonversi ke class di file ini.
+  css/gechoo-design.css
+  Sistem desain Gechoo / Zevanic ERP: token warna, tipografi, dan komponen bersama
+  untuk seluruh file Vue. Dipakai berdampingan dengan Tailwind selama masa transisi.
+
+  Token & palet:
+  - Ivory 55%, Baby Pink 20%, Light Blue 10%
+  - Mahogany 10% - hanya untuk warna TEKS/ikon, bukan blok besar
+  - Burgundy 5% - khusus tombol utama & penekanan penting, dijaga ketat
+
+  Jebakan:
+  - Token RGB-triplet (--*-rgb) wajib ada: var() tidak bisa dipakai di dalam rgba()
+  - --teal-text/--warn-text bukan token tampilan, cuma nama untuk hex yang sudah lama dipakai
+  - --scrim-rgb sengaja terpisah dari --text: scrim harus tetap gelap di mode gelap
+  - .hidden dan .gc-palet-overlay[hidden] bergantung pada urutan/spesifisitas, jangan dipindah
 */
 
 /*
-  RESET DASAR — dulu ini otomatis disediakan Tailwind ("Preflight"), tapi pas Tailwind dicabut
-  kemarin, bagian ini KELUPAAN ikut ditulis ulang. Akibatnya: box (input/textarea) jadi lebih
-  lebar dari kotaknya sendiri (default browser: lebar isi + padding + border, DITAMBAH, bukan
-  dipotong dari situ), dan <button> tampil dengan border/bayangan bawaan browser (bukan gaya
-  kita) karena belum di-reset.
+  RESET DASAR - Tailwind tidak dipakai, jadi box-sizing dan reset <button>/<input> ditulis
+  sendiri di sini. Tanpa ini input/textarea melebar (lebar isi + padding + border).
 */
 *, *::before, *::after{box-sizing:border-box;}
 button{border:none; background:none; font:inherit; color:inherit; cursor:pointer; padding:0; margin:0; text-align:inherit;}
@@ -21,11 +25,8 @@ input, select, textarea{font:inherit; color:inherit;}
 
 :root{
   /*
-    --ivory/--ivory-dim/--line — ke versi lebih muda/"clean" sesuai— "ivorynya bikin lebih
-    muda lagi biar clean". Nilai LAMA (sebelum ini): --ivory #FAF4E7, --ivory-dim #F1E8D6,
-    --line #E9DDCE — dicatat di sini kalau perlu dikembalikan. Ini token DASAR dipakai di
-    SELURUH app (bukan cuma layar mobile), jadi efeknya global — desktop & mobile, layar lama
-    &
+    Token dasar dipakai di SELURUH app (desktop & mobile, layar lama & baru), jadi mengubah
+    nilainya berefek global.
   */
   --ivory:#FDFAF4; --ivory-dim:#F7F1E6;
   --pink:#F2D2CE; --pink-deep:#E3ADA6;
@@ -40,29 +41,15 @@ input, select, textarea{font:inherit; color:inherit;}
   --radius:20px;
 
   /*
-    --teal-text/--warn-text — Ini bukan token yang mengubah tampilan — ini MEMBERI NAMA ke 2
-    warna yang SUDAH lama dipakai di banyak file tapi ditulis ulang sebagai hex mentah tiap
-    kali (bukan var), jadi waktu tokennya sendiri kemarin, warna-warna ini TIDAK IKUT BERUBAH
-    . --teal-text warna teks ikon/heading Config di atas var(--blue) (dulu ditulis "#1F5060"
-    apa adanya 23x di banyak file — lihat FONDASI.md §Design System untuk daftar lengkap).
-    --warn-text warna teks "piutang/belum bayar" di Kasir & Transaksi (dulu ditulis 2 varian
-    hex beda: "#8a6524" DAN "#8a6420" — typo yang tidak disengaja, sekarang disatukan).
+    Bukan token tampilan - cuma nama untuk 2 hex lama yang ditulis mentah di banyak file:
+    --teal-text = ikon/heading Config di atas var(--blue); --warn-text = teks piutang/belum bayar.
   */
   --teal-text:#1F5060;
   --warn-text:#8a6524;
 
   /*
-    ---- Token RGB-triplet — : "37 titik ... masih banyak tampilan yg tidak mengikuti token
-    global" — BENAR, akar masalah KEDUA ketemu: `var(--token)` TIDAK BISA dipakai langsung di
-    dalam rgba (untuk latar/shadow TRANSLUSEN), jadi 140+ tempat nulis rgb mentah lagi di luar
-    hex 6-digit kemarin (mis. "rgba(110,30,44,.05)" alih-alih rgba(var(--burgundy-rgb),.05)).
-    Token di bawah ini adalah versi "R,G,B" (tanpa kurung, tanpa #) dari token solid yang
-    SUDAH SENGAJA TIDAK di-override mode gelap (lihat blok komentar mode gelap di bawah) —
-    jadi convert ke var di sini 100% AMAN, nilainya identik di kedua mode, BUKAN perubahan
-    visual. --scrim-rgb KHUSUS untuk latar belakang gelap modal/popup — dulu ditulis
-    "rgba(59,42,31,.6)" 9x di 8 file, kebetulan sama dengan --text tapi SENGAJA dipisah jadi
-    token sendiri (scrim harus TETAP gelap di mode gelap, beda dari --text yang berubah jadi
-    terang).
+    Versi "R,G,B" token solid - var(--token) TIDAK BISA dipakai di dalam rgba(), jadi latar/shadow
+    translusen wajib lewat token ini. --scrim-rgb (latar gelap modal) nilainya sama dengan --text tapi sengaja token sendiri: scrim harus TETAP gelap di mode gelap.
   */
   --burgundy-rgb:110,30,44;
   --mahogany-soft-rgb:110,70,48;
@@ -74,19 +61,12 @@ input, select, textarea{font:inherit; color:inherit;}
   --scrim-rgb:59,42,31;
 
   /*
-    MODE GELAP — SEBELUMNYA (28 Agt–9 Sep) cuma token NETRAL yang di-override,
-    --burgundy/--ok/--warn/--danger/dkk SENGAJA dibiarkan sama di kedua mode ("supaya tetap
-    kontras apa adanya") — TERNYATA beda jauh dari Sample Hifi, yang justru me-remap SEMUA
-    token (termasuk warna semantik) ke versi gelap sendiri. sudah cek Sample Hifi &
-    konfirmasi: ikuti Hifi, BUKAN keputusan lama. Semua nilai di bawah disalin PERSIS dari
-    `.dark{...}` di Sample Hifi.dc.html, bukan ditebak.
+    MODE GELAP me-remap SEMUA token, termasuk warna semantik (--burgundy/--ok/--warn/--danger).
+    Nilai di blok [data-theme="dark"] disalin persis dari `.dark{...}` Sample Hifi.dc.html.
   */
   --aksen-ink:#6E1E2C;              /* --burgundy di mode terang, beda di gelap */
   --aksen-lembut:#F7E2E0;           /* latar lingkaran ikon, kartu aksi cepat, dsb */
-  --nav:rgba(255,255,255,.92);      /*
-        latar nav bawah mobile (blur) — token proyek sendiri, TIDAK ada di Sample Hifi, tidak
-        disentuh
-      */
+  --nav:rgba(255,255,255,.92);      /* latar nav bawah mobile (blur) - token proyek sendiri, tidak ada di Sample Hifi */
   --lens:#6E4630;                   /* latar bingkai kamera Absensi/Scan QR — token proyek sendiri */
   --grad-shift-a:#5C1A28; --grad-shift-b:#3A1017; /* kartu shift & banner motivasi — token proyek sendiri */
   --tinta-gradien:#FBEDEC;          /* warna teks di atas kartu gradien maroon — token proyek sendiri */
@@ -108,9 +88,8 @@ input, select, textarea{font:inherit; color:inherit;}
   --aksen-ink:#D4707E; --aksen-lembut:#3A2028;
 
   /*
-    Kembaran RGB-triplet — WAJIB ikut di-override tiap token solid di atas dapat override
-    supaya rgba translusen (shadow/tint) tetap sinkron dengan versi solidnya di mode gelap
-    (lihat FONDASI.md §Design System, "Aturan wajib nomor 2").
+    Kembaran RGB-triplet WAJIB ikut di-override tiap token solid di-override, supaya rgba
+    translusen (shadow/tint) tetap sinkron dengan versi solidnya di mode gelap.
   */
   --burgundy-rgb:212,112,126;
   --mahogany-soft-rgb:196,184,166;
@@ -120,7 +99,7 @@ input, select, textarea{font:inherit; color:inherit;}
   --warn-rgb:212,160,80;
   --mahogany-rgb:232,222,208;
 
-  /* Token proyek sendiri (di luar Sample Hifi) — TIDAK disentuh rombak ini. */
+  /* Token proyek sendiri, di luar Sample Hifi. */
   --nav:rgba(31,22,17,.92);
   --lens:#241a14;
   --grad-shift-a:#4A2530; --grad-shift-b:#291319;
@@ -128,9 +107,8 @@ input, select, textarea{font:inherit; color:inherit;}
   --tinta-gradien-rgb:247,231,228;
   --grad-beranda-a:#2E1B1B; --grad-beranda-b:#1F1611;
   /*
-    --teal-text/--warn-text — token sendiri (bukan bagian Sample Hifi), nilai gelap dipilih
-    manual sebelumnya supaya tetap kontras di permukaan yang sekarang lebih gelap (--surface
-    #231C15) — masih kontras baik, tidak perlu diubah.
+    --teal-text/--warn-text token sendiri (bukan bagian Sample Hifi) - nilai gelap dipilih
+    manual supaya tetap kontras di atas permukaan gelap (--surface #231C15).
   */
   --teal-text:#9FD1E0;
   --warn-text:#E0B84A;
@@ -142,11 +120,8 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-num{font-variant-numeric:tabular-nums;}
 
 /*
-  ---- Scrollbar (sembunyikan scrollbar horizontal di rel sub-tab/kartu) ---- PINDAH KE SINI
-  dari <style> inline di index.html — supaya 1 sumber, bukan tersebar. Sekalian PERBAIKAN BUG:
-  ".hide-scrollbar" dipakai di vue-account-profile.js & index.html tapi SELAMA INI TIDAK
-  PERNAH ada rule CSS-nya sama sekali (class hantu) — digabung jadi alias dari ".no-scrollbar"
-  di sini.
+  ---- Scrollbar: sembunyikan scrollbar horizontal di rel sub-tab/kartu ----
+  ".hide-scrollbar" (dipakai vue-account-profile.js & index.html) adalah alias ".no-scrollbar".
 */
 .no-scrollbar::-webkit-scrollbar, .hide-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar, .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -170,10 +145,8 @@ input, select, textarea{font:inherit; color:inherit;}
 
 /* ---- Tombol ---- */
 /*
-  padding .btn-primary 12px->10px, warna teks #fff->#FAF4E7 (krem, bukan putih polos), tambah
-  shadow burgundy. .btn-outline TADINYA berwarna burgundy (border+teks burgundy) — di Hifi
-  tombol outline itu NETRAL (bg ivory- dim, border+teks netral), berubah warna pink/burgundy
-  saat HOVER. Ini appwide (semua tombol sekunder di app ikut berubah warna).
+  .btn-outline NETRAL (bg ivory-dim, border + teks netral) dan berubah pink/burgundy saat hover.
+  Berlaku app-wide: semua tombol sekunder di app ikut gaya ini.
 */
 .btn-primary{padding:10px 20px; background:var(--burgundy); color:#FAF4E7; border:none; border-radius:12px; font-family:'Poppins',sans-serif; font-size:14px; font-weight:600; cursor:pointer; transition:.15s; box-shadow:0 2px 8px -4px rgba(var(--burgundy-rgb),.4);}
 .btn-primary:hover{background:var(--burgundy-dark);}
@@ -188,26 +161,16 @@ input, select, textarea{font:inherit; color:inherit;}
 .btn-acc{padding:9px 16px; background:var(--ok); color:#fff; border:none; border-radius:10px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:'Poppins',sans-serif;}
 .btn-rej{padding:9px 16px; background:var(--danger-light); color:var(--danger); border:none; border-radius:10px; font-weight:700; font-size:12.5px; cursor:pointer; font-family:'Poppins',sans-serif;}
 /*
-  CATATAN — .icon-btn dan beberapa class lain masih --surface (putih) SENGAJA TIDAK diubah ke
-  --ivory di ronde ini: Sample Hifi.dc.html tidak punya contoh untuk tombol ikon/menu
-  overflow/dialog/kamera sama sekali (15 layar demonya cuma cover
-  kartu/tabel/kpi/field/tag/tombol utama), jadi tidak ada acuan Hifi buat elemen-elemen ini —
-  mengubahnya sekarang cuma tebakan, bukan "ikut Hifi". Daftar lengkap yang sengaja dibiarkan:
-  .icon-btn, .gc-overflow-btn/.gc-overflow-panel, .gc-dialog, .scan-result,
-  .gc-cam-close/.gc-cam-view/.gc-cam-btn (kontrol putih di atas latar kamera --ivory, pola ini
-  sudah benar apa adanya). .gc-kartu-statistik dan .gc-pp-panel-mobile beda lagi — dua-duanya
-  punya mockup acuan SENDIRI (bukan Sample Hifi): "Gechoo Mobile Organic" dan Persiapan
-  Produksi V2, lihat komentar masing-masing di bawah.
+  Sengaja masih --surface (putih), tidak ada acuan Sample Hifi untuk elemen ini: .icon-btn,
+  .gc-overflow-btn/-panel, .gc-dialog, .scan-result, .gc-cam-close/-view/-btn. .gc-kartu-statistik dan .gc-pp-panel-mobile punya mockup acuan sendiri.
 */
 .icon-btn{width:30px; height:30px; border-radius:9px; border:1px solid var(--line); background:var(--surface); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; color:var(--text-muted);}
 .icon-btn:hover{border-color:var(--burgundy); color:var(--burgundy);}
 .icon-btn:disabled{opacity:.35; cursor:not-allowed; border-color:var(--line); color:var(--text-faint);}
 
 /*
-  ---- appr-btn (Sesuai/Tidak Sesuai/Reject) — Gabung 2 langkah lama (dropdown Seragam +
-  tombol Accept terpisah) jadi 3 tombol sejajar — dipakai bareng dengan class .approve-row
-  sebagai wrapper flex-nya. Pilot pertama: js/vue-antrean-absensi.js — dipakai lagi kalau
-  modul "Daftar + Form bertahap" lain (Antrean Dakar/Lembur/Reimburse) menyusul.
+  ---- appr-btn (Sesuai/Tidak Sesuai/Reject) ---- 3 tombol sejajar di dalam wrapper flex
+  .approve-row. Dipakai di js/vue-antrean-absensi.js dan modul "Daftar + Form bertahap" lain.
 */
 .approve-row{display:flex; gap:6px; margin-top:8px;}
 .appr-btn{flex:1; padding:8px; border-radius:10px; font-size:11.5px; font-weight:600; font-family:'Poppins',sans-serif; cursor:pointer; border:none; text-align:center; display:flex; align-items:center; justify-content:center; gap:4px;}
@@ -217,23 +180,15 @@ input, select, textarea{font:inherit; color:inherit;}
 .appr-btn:disabled{opacity:.5; cursor:not-allowed;}
 
 /*
-  ---- Tombol tutup oval kecil (X) — Warna terang (danger-light/ danger) sudah pas di mode
-  terang — TAPI di mode gelap kombinasi itu kepucatan/kekontrasan terlalu mencolok
-  (danger-light JADI SANGAT terang, TIDAK ikut digelapkan — lihat catatan "SENGAJA TIDAK di-
-  override" di :root di atas), jadi khusus mode gelap dipakai burgundy (latar) + pink (ikon)
-  yang lebih redup & menyatu dengan permukaan gelap sekitarnya.
+  ---- Tombol tutup oval kecil (X) ---- danger-light/danger pas di mode terang; di mode gelap
+  kombinasi itu terlalu mencolok, jadi khusus mode gelap pakai burgundy (latar) + pink (ikon).
 */
 .gc-x-tutup{display:flex; align-items:center; justify-content:center; width:34px; height:26px; border-radius:999px; border:1px solid var(--danger-light); background:var(--danger-light); color:var(--danger); cursor:pointer;}
 [data-theme="dark"] .gc-x-tutup{background:var(--burgundy); border-color:var(--burgundy); color:var(--pink);}
 
 /*
-  ---- Menu "lainnya" oval (titik-tiga) — ikon filter bulat lama di baris pencarian Antrean
-  Absensi/Lembur/Dakar/Reimburse — sengaja OVAL (bukan bulat penuh) biar beda dari tombol ikon
-  biasa & nyambung visual sama kolom cari pil di sebelahnya. Nampung Filter Owner (Jenis
-  Pekerjaan/Gudang/Tahap/dst) DAN aksi sekunder (Cek Data Sangat Lama, Refresh) DAN tempat
-  kosong buat fitur nanti (Import CSV, Terapkan Massal). Pola dropdown-nya
-  (trigger+backdrop+panel absolute) NYONTEK PERSIS lonceng notifikasi di
-  js/vue-header-mobile.js — bukan pola
+  ---- Menu "lainnya" oval (titik-tiga) ---- sengaja OVAL, bukan bulat penuh, supaya menyatu
+  dengan kolom cari pil di sebelahnya. Pola dropdown (trigger + backdrop + panel absolute) sama dengan lonceng notifikasi di js/vue-header-mobile.js.
 */
 .gc-overflow-btn{display:flex; align-items:center; justify-content:center; width:40px; height:38px; border-radius:19px; border:1.5px solid var(--line); background:var(--surface); color:var(--text-muted); cursor:pointer; position:relative; flex-shrink:0;}
 .gc-overflow-btn:hover{border-color:var(--burgundy); color:var(--burgundy);}
@@ -246,22 +201,14 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-overflow-sep{border:none; border-top:1px solid var(--line); margin:6px 2px;}
 
 /*
-  ---- Badge angka kecil di banner ringkas (jumlah antrean) — dipakai di banner pink yang
-  dipadatkan 1 baris di bawah kolom cari (gantikan paragraf deskripsi panjang).
+  ---- Badge angka kecil (jumlah antrean) ---- dipakai di banner pink 1 baris di bawah kolom cari.
 */
 .gc-badge-count{display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--burgundy); color:#fff; font-size:9.5px; font-weight:700; margin-left:6px;}
 
 /* ---- Kartu / panel ---- */
 /*
-  bg surface->ivory. .gc-card-head dulu cuma margin-bottom (nempel di padding 20px kartu) —
-  Hifi punya kepala kartu berpadding sendiri + garis bawah pemisah. Dipakai trik margin
-  negatif (escape padding induk lalu pasang padding sendiri) supaya TIDAK perlu ubah HTML
-  manapun. CATATAN: digrep, class `.gc-card-head` belum dipakai SAMA SEKALI di js manapun —
-  semua "kepala kartu" yang ada sekarang ditulis ad-hoc pakai flex/div biasa, bukan class ini.
-  Jadi perbaikan definisi ini BELUM kelihatan efeknya di layar mana pun sampai ada yang benar-
-  benar retrofit markupnya pakai class ini — itu pekerjaan terpisah yang lebih besar (baca
-  tiap file, tandai mana yang "kepala kartu"), TIDAK dikerjakan sesi ini, dicatat sebagai
-  temuan di FONDASI.md.
+  .gc-card-head pakai margin negatif (escape padding induk lalu pasang padding sendiri) supaya
+  markup HTML tidak perlu diubah. Class ini belum dipakai di js manapun - semua kepala kartu masih ad-hoc flex/div, jadi efeknya belum kelihatan di layar mana pun.
 */
 .gc-card{background:var(--ivory); border:1px solid var(--line); border-radius:var(--radius); padding:20px; box-shadow:0 2px 12px -6px rgba(var(--scrim-rgb),.08);}
 .gc-card-head{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin:-20px -20px 16px; padding:16px 20px; border-bottom:1px solid var(--line);}
@@ -278,114 +225,79 @@ input, select, textarea{font:inherit; color:inherit;}
 
 /* ---- Sidebar desktop ---- */
 /*
-  dari latar --pink jadi --surface (putih) + header logo --ivory, mengikuti arahan " tampilan
-  DESKTOP saja" . Tampilan mobile (.gc-mobile-nav dkk) SENGAJA TIDAK disentuh sama sekali.
-  Struktur HTML (.gc-nav-item/onclick/data-menu-id) TIDAK berubah, cuma warnanya. KOREKSI —
-  lapor kartu & background "sama warnanya"/kurang kontras. Dicek ULANG ke artefak mockup
-  `mockup-desktop-adaptasi.html`: `.sb` (sidebar) di sana `background:var(--ivory)` (krem),
-  BUKAN `--surface` (putih) — komentar di atas TERNYATA salah asumsi, sidebar & area konten
-  KETUKAR (--surface dipakai di sidebar, --ivory dipakai di konten, padahal mockup sebaliknya:
-  topbar+sidebar KREM membingkai, konten TENGAH PUTIH supaya kartu krem (.gc-pipeline-card
-  dst, background --ivory) kelihatan menonjol/kontras dari konten — sebelumnya kartu & konten
-  SAMA-SAMA --ivory jadi nyaris tidak beda). Dikoreksi ke --ivory (lihat juga .gc-main-desktop
-  di bawah untuk sisi konten).
+  Sidebar & topbar KREM (--ivory) membingkai, area konten tengah PUTIH (--surface) supaya kartu
+  krem (.gc-pipeline-card dst) menonjol - gampang ketukar, lihat .gc-main-desktop. Mobile (.gc-mobile-nav dkk) tidak terpengaruh.
 */
 .gc-sidebar{background:var(--ivory); padding:0 14px 22px; display:flex; flex-direction:column; gap:3px; border-right:1px solid var(--line);}
 /*
-  brand block dari kolom teks-doang ("Gechoo ♥") jadi baris ikon-kotak + teks, persis mockup
-  ("Zevanic ERP" + role). Elemen ini SUDAH desktop-only dari awal (`.gc-sidebar hidden
-  md:flex`) — teks di sini TIDAK menyentuh branding mobile sama sekali (mobile pakai header
-  terpisah, vue-header- mobile.js, tidak pernah menampilkan blok ini).
+  Brand block ini desktop-only (`.gc-sidebar hidden md:flex`) - teks di sini tidak menyentuh
+  branding mobile sama sekali (mobile pakai header terpisah, js/vue-header-mobile.js).
 */
 /*
-  height:80px fixed DICOPOT, lapor header "kepanjangan ke bawah", height:auto (~58px
-  padding-driven). INI SALAH LAGI — laporan berikutnya : header sidebar & topbar jadi TIDAK
-  SEJAJAR (garis bawah beda tinggi, 58px vs topbar 52px). Dicek ULANG langsung ke ARTEFAK
-  mockup `mockup-desktop-adaptasi.html` (bukan cuma baca README lagi) — `.sb-head` di mockup
-  itu FIXED `height:52px` (SAMA PERSIS dengan `.topbar{height:52px}`), bukan padding-driven
-  auto. Itu caranya garis bawah header sidebar & topbar SEJAJAR lurus. Dikoreksi balik ke
-  fixed 52px (BUKAN 80px lama, BUKAN auto ~58px kemarin) + padding horizontal saja (vertical
-  center via flex align-items:center), PERSIS mockup.
+  height FIXED 52px, sama persis dengan .gc-topbar-desktop, supaya garis bawah header sidebar
+  dan topbar sejajar lurus. Jangan diganti auto/padding-driven.
 */
 .gc-side-brand{height:52px; box-sizing:border-box; padding:0 14px; margin:0 -14px 14px; background:var(--ivory);
   border-bottom:1px solid var(--line); display:flex; flex-direction:row; align-items:center; gap:10px;}
 /*
-  warna ikon-kotak KETUKAR (reversed) dari artefak mockup: kode sebelumnya pakai latar SOLID
-  `--burgundy` + glyph `--ivory` (kotak burgundy penuh), padahal mockup `.sb-logo` pakai latar
-  LEMBUT `--aksen-lembut` (pink pucat) + glyph `--aksen-ink` (burgundy) — pola "soft accent"
-  yang SAMA dipakai item sidebar aktif (`.gc-nav-item.active`). Dikoreksi supaya konsisten
-  dengan mockup & pola soft-accent yang sudah ada di tempat lain.
+  Ikon-kotak pakai pola "soft accent": latar --aksen-lembut (pink pucat) + glyph --aksen-ink,
+  sama dengan .gc-nav-item.active. Gampang ketukar dengan kebalikannya (latar burgundy solid).
 */
 .gc-side-brand-ico{width:32px; height:32px; border-radius:10px; background:var(--aksen-lembut); color:var(--aksen-ink);
   display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0;}
 .gc-side-brand b{color:var(--mahogany); font-size:15px; font-weight:700; font-family:'Poppins',sans-serif;}
 .gc-side-brand span{display:block; color:var(--burgundy); font-size:9.5px; letter-spacing:.08em; margin-top:1px;}
 /*
-  padding & font-size DIRAPATKAN (dulu 10px 12px/13px, mockup minta 8px 10px/11.5px) supaya
-  sidebar tidak terasa "renggang" dibanding referensi. Ini cuma pengaruh ke item yang TIDAK
-  override inline (Beranda/Profile + 7 tombol kepala grup) — sub-item nested sudah punya
-  inline padding:7px 10px/12.5px sendiri, tidak ikut berubah.
+  Padding/font sidebar dirapatkan. Hanya berlaku untuk item yang TIDAK override inline
+  (Beranda/Profile + 7 tombol kepala grup); sub-item nested punya inline padding sendiri.
 */
 .gc-nav-item{display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:9px; color:var(--text-muted); font-size:12.5px; font-weight:600; cursor:pointer; width:100%; border:none; background:none;}
 .gc-nav-item.active{background:var(--aksen-lembut); color:var(--aksen-ink); box-shadow:0 2px 6px rgba(91,56,38,.08);}
 .gc-nav-item:not(.active):hover{background:var(--ivory-dim); color:var(--text);}
 .gc-nav-ico{width:17px; height:17px; flex-shrink:0;}
 /*
-  Ikon 14px di tombol kepala grup — persis mockup: netral text-faint biasa, aksen-ink saat
-  grup terbuka (class .gc-grp-buka ditambah/dicopot js/dashboard.js setGrupSidebarTerbuka).
+  Ikon 14px di tombol kepala grup: netral --text-faint biasa, --aksen-ink saat grup terbuka
+  (class .gc-grp-buka dipasang/dilepas js/dashboard.js setGrupSidebarTerbuka).
 */
 .gc-nav-gico{width:14px; text-align:center; font-size:13px; color:var(--text-faint); flex-shrink:0;}
 .gc-nav-item.gc-grp-buka{background:var(--ivory-dim); color:var(--aksen-ink);}
 .gc-nav-item.gc-grp-buka .gc-nav-gico{color:var(--aksen-ink);}
 .gc-nav-section{font-size:10px; letter-spacing:.08em; color:var(--text-faint); opacity:.9; text-transform:uppercase; margin:14px 10px 6px; font-family:'Poppins',sans-serif;}
 /*
-  Tombol tema — lapor desktop BELUM punya sakelar Terang/Gelap/Otomatis sama sekali (mobile
-  sudah punya, Bottom Sheet Profil/vue-sheet-profil.js). Ditambahkan di footer sidebar
-  desktop, sebaris dengan Logout — PERSIS ukuran/gaya `.theme-btn` di mockup (26x26px, border
-  tipis, ikon berubah sesuai preferensi). Logic ikon (fa-sun/fa-moon/fa-circle-half-stroke) di
-  js/dashboard.js, PAKAI ULANG window.toggleTema/temaPreferensi yang sudah ada (index.html) —
-  bukan logic tema
+  Sakelar tema desktop di footer sidebar, sebaris dengan Logout (26x26px). Logic ikon
+  fa-sun/fa-moon/fa-circle-half-stroke di js/dashboard.js, pakai ulang window.toggleTema dan temaPreferensi dari index.html.
 */
 .gc-theme-btn{width:26px; height:26px; border-radius:8px; border:1px solid var(--line); background:var(--ivory-dim);
   color:var(--text-muted); display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:11px; cursor:pointer;}
 .gc-theme-btn:hover{background:var(--aksen-lembut); color:var(--aksen-ink); border-color:var(--aksen-lembut);}
 /*
-  Avatar inisial footer sidebar — PERSIS `.sb-av` mockup: bulat, gradien maroon sama seperti
-  kartu shift/ KPI Beranda desktop (`--grad-shift-a`, lihat pengecualian warna di atas).
+  Avatar inisial footer sidebar: bulat, gradien maroon sama seperti kartu shift & KPI Beranda
+  desktop (--grad-shift-a, lihat pengecualian porsi warna di atas).
 */
 .gc-side-av{width:30px; height:30px; border-radius:999px; background:var(--grad-shift-a); color:var(--tinta-gradien);
   display:flex; align-items:center; justify-content:center; font-weight:700; font-size:11px; flex-shrink:0;}
 /*
-  Tombol Export topbar — fake aja dulu tombol statis tanpa feedback". Ini TOMBOL STATIS/VISUAL
-  SAJA (persis `.btn-export` mockup), TANPA onclick/logic export apapun di baliknya — jangan
-  anggap sudah berfungsi. Ditambah supaya kolom cari & lonceng topbar tidak "mepet" (celah
-  kosong ini yang bikin badge Ctrl K kelihatan menempel sendirian, lihat komentar index.html).
+  .gc-btn-export TOMBOL STATIS/VISUAL SAJA - tidak ada onclick/logic export di baliknya, jangan
+  dianggap sudah berfungsi. Ada supaya kolom cari & lonceng topbar tidak mepet.
 */
 .gc-btn-export{display:flex; align-items:center; gap:6px; border:1px solid var(--line); background:transparent;
   color:var(--text); border-radius:8px; padding:7px 12px; font-size:11.5px; font-weight:600; cursor:default;}
 
 /*
-  ---- Topbar desktop ( header 80px lama "ERP Portal" statis) ---- height 80px DIKURANGI jadi
-  52px, lapor header kepanjangan ke bawah. Dicek ke README paket design handoff: spec ASLI
-  explisit "Topbar (tinggi 52px)" — 80px sebelumnya salah, bukan dari spec. Konten di dalamnya
-  (tombol notif 36px, kolom cari padding 7px 11px) semuanya masih muat di 52px karena
-  align-items:center, jadi tidak perlu ubah ukuran elemen lain. ----
+  ---- Topbar desktop ---- tinggi 52px sesuai spec design handoff. Isinya (tombol notif 36px,
+  kolom cari padding 7px 11px) tetap muat karena align-items:center. ----
 */
 .gc-topbar-desktop{height:52px; box-sizing:border-box; background:var(--ivory); border-bottom:1px solid var(--line);
   padding:0 24px; display:flex; align-items:center; gap:14px;}
 /*
-  ---- Breadcrumb topbar . Statis "Umum › Beranda" untuk sekarang, lihat komentar di
-  index.html. ----
+  ---- Breadcrumb topbar ---- statis "Umum > Beranda", lihat komentar di index.html. ----
 */
 .gc-crumb{display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-faint);}
 .gc-crumb b{font-size:13.5px; font-weight:700; color:var(--text); font-family:'Poppins',sans-serif;}
 .gc-crumb .gc-crumb-mid{font-size:9px;}
 /*
-  ---- Pencarian global / Palet Ctrl K — dari "sengaja tidak dibangun" (versi awal §5.9) jadi
-  REAL: klik/Ctrl+K buka overlay, hasil diambil LANGSUNG dari DOM sidebar (data-menu-id), klik
-  hasil trigger .click tombol sidebar asli. Lihat js/dashboard.js paletPencarianGlobal. Beda
-  dari mockup yang listener tombol fisiknya belum diikat (README paket handoff) — di sini
-  SUDAH diikat sungguhan, bukan cuma gambar. ----
+  ---- Pencarian global / Palet Ctrl K ---- klik atau Ctrl+K buka overlay; hasil diambil langsung
+  dari DOM sidebar (data-menu-id), klik hasil men-trigger .click tombol sidebar asli. Logic di js/dashboard.js paletPencarianGlobal. ----
 */
 .gc-search-global{margin-left:auto; width:320px; display:flex; align-items:center; gap:8px; background:var(--ivory-dim);
   border:1px solid var(--line); border-radius:8px; padding:7px 11px; color:var(--text-faint); font-size:12px; cursor:pointer;}
@@ -393,15 +305,8 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-search-global kbd{font-size:9.5px; border:1px solid var(--line); border-radius:5px; padding:1px 6px; color:var(--text-faint); font-family:inherit; background:var(--ivory);}
 .gc-palet-overlay{position:fixed; inset:0; z-index:80; background:rgba(31,22,17,.45); display:flex; align-items:flex-start; justify-content:center; padding-top:14vh;}
 /*
-  BUG : elemen overlay pakai atribut asli "hidden" (bukan class ".hidden" custom di atas),
-  tapi rule ".gc-palet-overlay{display:flex}" di atas itu CSS PENULIS (author stylesheet) —
-  author stylesheet SELALU menang mutlak dari default browser "[hidden]{display:none}" (UA
-  stylesheet), berapapun urutan/ specificity-nya, KECUALI ditimpa rule lebih spesifik seperti
-  di bawah ini. Makanya overlay full-layar itu SELALU kelihatan dari awal load, padahal
-  atribut hidden-nya sudah benar diisi lewat JS (overlay.hiddentrue/false di
-  paletPencarianGlobal). Kelas bug yang SAMA PERSIS dengan pelajaran ".hidden vs flex" di
-  bawah (~baris 466), cuma di sini bukan salah URUTAN class, tapi salah ORIGIN (UA vs author)
-  — perlu selector lebih spesifik ([hidden]) buat menang.
+  .gc-palet-overlay[hidden] WAJIB ada: rule .gc-palet-overlay{display:flex} di atas itu author
+  stylesheet, yang selalu menang dari UA stylesheet [hidden]{display:none} berapapun urutan/spesifisitasnya - tanpa selector [hidden] ini overlay selalu tampil walau JS sudah set hidden.
 */
 .gc-palet-overlay[hidden]{display:none;}
 .gc-palet-card{width:520px; max-width:92vw; max-height:60vh; background:var(--ivory); border-radius:14px; box-shadow:0 20px 50px -15px rgba(31,22,17,.5); overflow:hidden; display:flex; flex-direction:column;}
@@ -430,11 +335,8 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-notif-empty i{display:block; font-size:18px; margin-bottom:6px;}
 
 /*
-  ---- Dashboard Beranda desktop ---- Warna kartu KPI & Quote SENGAJA pakai .gc-kartu-gradien
-  (maroon, SAMA seperti kartu shift mobile) — PENGECUALIAN dari aturan porsi warna "--burgundy
-  dijaga ketat 5%" di bagian Palet warna atas, KHUSUS layar Beranda desktop . Kartu-kartu
-  modul LAIN (bukan Beranda) TETAP ikuti aturan porsi warna asli, jangan dianggap preseden
-  buat treatment ini di layar lain.
+  ---- Dashboard Beranda desktop ---- kartu KPI & Quote pakai .gc-kartu-gradien (maroon):
+  PENGECUALIAN dari aturan porsi --burgundy 5%, khusus layar ini, bukan preseden untuk modul lain.
 */
 .gc-dash-grid{display:grid; grid-template-columns:1fr 320px; gap:20px; align-items:start;}
 .gc-kpi-row{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px;}
@@ -467,11 +369,8 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-tindak-txt span{font-size:10px; color:var(--text-faint);}
 .gc-tindak-chip{background:var(--aksen-ink); color:var(--ivory); font-size:8.5px; font-weight:700; border-radius:999px; padding:2px 8px; margin-right:4px;}
 /*
-  "Perlu Tindakan Anda" dipecah 2 grup (Persiapan/Produksi, lihat komentar di
-  vue-home-desktop.js). .gc-tindak-subgrup label kecil pemisah grup. .gc-tindak-segera
-  redupkan baris grup Produksi (placeholder, belum ada data real) — opacity sama dengan pola
-  Pipeline Produksi di atasnya (.55) supaya konsisten secara visual: "ini belum data
-  sungguhan".
+  "Perlu Tindakan Anda" dipecah 2 grup (lihat js/vue-home-desktop.js). .gc-tindak-subgrup =
+  label kecil pemisah grup; .gc-tindak-segera redup (opacity .55, sama dengan Pipeline Produksi di atasnya) menandai baris placeholder, bukan data sungguhan.
 */
 .gc-tindak-subgrup{font-size:10px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--text-faint); margin:0 0 6px 2px;}
 .gc-tindak-subgrup:not(:first-child){margin-top:12px;}
@@ -484,9 +383,8 @@ input, select, textarea{font:inherit; color:inherit;}
 .gc-absen-desktop .ket{font-size:10px; opacity:.85; margin-top:10px; line-height:1.5;}
 
 /*
-  ---- Aktivitas Terbaru & Pintasan Papan Tik — kartu pembungkusnya reuse
-  .gc-pipeline-card/.gc-pipeline-head (sama seperti mockup reuse .card/.card-head). Isinya
-  KONTEN STATIS/ILUSTRATIF, lihat komentar di js/vue-home-desktop.js. ----
+  ---- Aktivitas Terbaru & Pintasan Papan Tik ---- kartu pembungkusnya reuse .gc-pipeline-card
+  dan .gc-pipeline-head. Isinya konten statis/ilustratif, lihat js/vue-home-desktop.js. ----
 */
 .gc-aktivitas-row{display:flex; gap:9px; padding:7px 0; border-bottom:1px solid var(--line);}
 .gc-aktivitas-row:last-child{border-bottom:none;}
@@ -505,11 +403,8 @@ table.gc-table tbody tr:last-child td{border-bottom:none;}
 table.gc-table tbody tr:hover td{background:var(--ivory);}
 table.gc-table tbody tr:hover td.freeze{background:var(--ivory);}
 /*
-  DIPERBAIKI — dulu .freeze selalu putih (--surface), cocok waktu kartu (.gc-card) juga putih.
-  Sekarang .gc-card sudah krem (--ivory) dan thead sudah --ivory-dim, jadi .freeze polos HARUS
-  ikut disesuaikan atau kolom freeze bakal beda warna sendiri dari kolom lain di baris yang
-  sama (persis bug hardcode yang sudah dibenerin di tempat lain sesi ini, cuma bentuknya
-  beda).
+  .freeze ikut --ivory mengikuti .gc-card, dan thead .freeze ikut --ivory-dim mengikuti thead -
+  kalau tidak, kolom freeze beda warna sendiri dari kolom lain di baris yang sama.
 */
 .freeze{position:sticky; z-index:2; background:var(--ivory);}
 .freeze-left{left:0; box-shadow:2px 0 4px rgba(59,42,31,.06);}
@@ -534,13 +429,12 @@ thead .freeze{z-index:3; background:var(--ivory-dim);}
 .gc-cam-top h2{color:var(--mahogany); font-size:19px; font-weight:700; font-family:'Poppins',sans-serif;}
 .gc-cam-top .mode{color:var(--burgundy); font-family:'Poppins',sans-serif; font-size:11.5px; font-weight:600; margin-top:6px;}
 /*
-  DISESUAIKAN — aspect-ratio 1/1 -> 3/4 (potret, sesuai orientasi wajah), latar
-  var(--mahogany-soft) -> var(--lens) (token gelap netral), radius 28px -> 24px. Fungsi kamera
-  (mulaiKamera/ambilFoto/dst di setup) TIDAK disentuh sama sekali.
+  .gc-cam-view: aspect-ratio 3/4 (potret, sesuai orientasi wajah), latar var(--lens) token gelap
+  netral, radius 24px. Fungsi kamera (mulaiKamera/ambilFoto dst) tidak terkait CSS ini.
 */
 .gc-cam-view{width:100%; max-width:300px; aspect-ratio:3/4; background:var(--lens); border-radius:24px; border:6px solid var(--surface); box-shadow:0 8px 24px rgba(91,56,38,.12); position:relative; overflow:hidden; display:flex; align-items:center; justify-content:center; margin:22px 0;}
 .gc-cam-frame{position:absolute; inset:20px; border:3px solid var(--pink); border-radius:18px; opacity:.9; pointer-events:none;}
-/* garis scan animasi (README §8/"Animasi": gxScanline 2s alternate) */
+/* garis scan animasi: keyframe gxScanline 2s ease-in-out alternate */
 .gc-cam-scanline{position:absolute; left:8%; right:8%; height:2px; background:linear-gradient(90deg, transparent, var(--pink), transparent); animation:gxScanline 2s ease-in-out infinite alternate; pointer-events:none;}
 .gc-cam-caption{color:var(--text-muted); font-size:12px; margin-top:14px; text-align:center;}
 .gc-cam-btn{width:72px; height:72px; border-radius:50%; background:var(--surface); border:5px solid var(--pink); cursor:pointer; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 14px rgba(91,56,38,.1);}
@@ -549,10 +443,8 @@ thead .freeze{z-index:3; background:var(--ivory-dim);}
 .scan-result .row{display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); font-weight:700; text-transform:uppercase; letter-spacing:.03em;}
 
 /*
-  ---- Mobile bottom nav ---- DIPERBARUI — latar jadi translucent+blur (var(--nav), lihat
-  token mode gelap di atas) sesuai README mockup ("rgba(255,255,255,.92) / gelap
-  rgba(31,22,17,.92)"), warna aktif pakai --aksen-ink (bukan --burgundy langsung) supaya tetap
-  kontras di mode gelap. Radius/posisi/ukuran tombol Scan QR terangkat TIDAK diubah.
+  ---- Mobile bottom nav ---- latar translucent + blur lewat var(--nav); warna aktif pakai
+  --aksen-ink (bukan --burgundy langsung) supaya tetap kontras di mode gelap.
 */
 .gc-mobile-nav{position:fixed; bottom:0; left:0; right:0; background:var(--nav); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px); border-top:1px solid var(--line); padding:8px 6px calc(14px + env(safe-area-inset-bottom)); display:flex; justify-content:space-around; align-items:flex-end; z-index:40; border-radius:20px 20px 0 0; touch-action:manipulation;}
 .gc-mnav-item{display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--text-faint); font-size:9.5px; font-weight:700; touch-action:manipulation; cursor:pointer;}
@@ -581,9 +473,8 @@ thead .freeze{z-index:3; background:var(--ivory-dim);}
 .gc-sub-tab-btn:not(.active):hover{background:var(--pink);}
 
 /*
-  UTILITY LAYER — pengganti Tailwind CDN Bukan reimplementasi Tailwind penuh — cuma persis
-  daftar class struktural (bukan warna) yang masih dipakai di seluruh file setelah rebrand
-  Gechoo. Breakpoint disamakan persis dengan default Tailwind: sm640px, md768px.
+  UTILITY LAYER - pengganti Tailwind CDN, bukan reimplementasi penuh: hanya class struktural
+  (bukan warna) yang masih dipakai di file-file Vue. Breakpoint ikut Tailwind: sm 640px, md 768px.
 */
 .block{display:block;}
 .flex{display:flex;}
@@ -633,27 +524,13 @@ thead .freeze{z-index:3; background:var(--ivory-dim);}
 .animate-spin{animation:gc-spin 1s linear infinite;}
 @keyframes gc-spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
 /*
-  gc-nav-subgroup — Sub-menu tiap grup sidebar (Master Absensi/Keuangan/Karyawan/Zevanic
-  House/Persiapan Produksi/Integrasi) di index.html DULU pakai `class"hidden"
-  style"display:flex; flex- direction:column; gap:2px; padding-left:16px; margin:2px 0 4px;"`
-  — INLINE style di HTML SELALU menang dari class manapun di CSS (beda dari soal urutan
-  .hidden vs .flex di bawah, ini soal inline vs class, inline MUTLAK menang tidak peduli
-  urutan) — jadi toggleNavGroup/ setGrupSidebarTerbuka di js/dashboard.js SUDAH BENAR
-  pasang/lepas class "hidden"-nya, TAPI div-nya TETAP kelihatan (computedDisplay selalu
-  "flex") karena inline style itu tidak pernah benar-benar ke-override. Akibatnya SEMUA grup
-  sidebar kelihatan terbuka bersamaan terus-menerus, klik parent buat minimize/maximize
-  kelihatan seperti tidak ngefek. Dikonfirmasi LANGSUNG lewat browser (bukan tebakan) sebelum
-  diperbaiki — lihat STATUS-PROYEK.md §44.26. styling yang sama dipindah ke CLASS ini (BUKAN
-  inline lagi), supaya .hidden (di bawah, urutan CSS-nya SENGAJA taruh SETELAH class ini) bisa
-  benar-benar menang & berfungsi.
+  .gc-nav-subgroup harus CLASS, bukan inline style di index.html: inline style SELALU menang dari
+  class manapun, jadi toggle class "hidden" oleh js/dashboard.js tidak pernah berefek dan semua grup sidebar tampak terbuka terus. Urutan sengaja SEBELUM .hidden di bawah.
 */
 .gc-nav-subgroup{display:flex;flex-direction:column;gap:2px;padding-left:16px;margin:2px 0 4px;}
 /*
-  hidden SENGAJA ditulis di sini (bukan di atas) — kalau 1 elemen punya class "hidden" DAN
-  "flex"/"block"/"grid" sekaligus (pola umum: JS cuma lepas/pasang class "hidden", sementara
-  flex/block sudah permanen di situ buat tampilan pas kelihatan), CSS pilih aturan yang
-  ditulis PALING AKHIR kalau bobotnya sama. Taruh di atas tadi bikin .flex menang terus, modal
-  foto & beberapa elemen lain jadi kelihatan padahal harusnya nyembunyi.
+  .hidden SENGAJA ditulis di sini, setelah .flex/.block/.grid - elemen yang punya class "hidden"
+  DAN "flex" sekaligus mengikuti rule yang ditulis PALING AKHIR karena bobotnya sama.
 */
 .hidden{display:none;}
 @media(min-width:640px){
@@ -663,14 +540,8 @@ thead .freeze{z-index:3; background:var(--ivory-dim);}
 @media(min-width:768px){
   .md\:flex{display:flex;}
   .md\:block{display:block;}
-  .md\:grid{display:grid;} /*
-   ketemu dari agen Batch F: class ini KETAHUAN belum pernah ada padahal sudah dipakai
-   (`hidden md:grid`) di PopupKonversiBerjenjang (vue-bahan-aksesoris.js baris ~779, header
-   desktop-only 5-kolom Harga/Satuan Awal/dst). Efeknya header itu SELALU hilang bahkan di
-   desktop (`.hidden{display:none}` tidak pernah ke-override balik jadi grid). Ditambahkan
-   supaya pola "hidden md:grid" + grid-template-columns inline (desktop-only header row
-   asimetris) benar-benar berfungsi seperti maksudnya.
- */
+  .md\:inline-block{display:inline-block;} /* wajib ada: pola "hidden md:inline-block" tombol toolbar (mis. Scan Operator, js/vue-persiapan-bahan.js) — hidden di HP, tampil di desktop */
+  .md\:grid{display:grid;} /* wajib ada: pola "hidden md:grid" (mis. header 5 kolom PopupKonversiBerjenjang, js/vue-bahan-aksesoris.js) tidak pernah balik jadi grid tanpa rule ini */
   .md\:flex-row{flex-direction:row;}
   .md\:hidden{display:none;}
   .md\:items-center{align-items:center;}
@@ -684,17 +555,11 @@ thead .freeze{z-index:3; background:var(--ivory-dim);}
 }
 
 /* ---- Utilitas ---- */
-.gc-safe-bottom{padding-bottom:90px;} /* perbaikan bug: konten tidak lagi ketutupan bottom nav mobile */
+.gc-safe-bottom{padding-bottom:90px;} /* ruang supaya konten tidak ketutupan bottom nav mobile */
 
 /*
-  baris grid RESPONSIF buat baris berulang di dalam form/modal (mis. Kelola Komponen, Konversi
-  Berjenjang, BOM Jasa) — dulu semua pola ini pakai grid-template-columns INLINE tanpa
-  breakpoint, jadi tetap multi-kolom sempit di HP (field jadi kecil/meluber). Sekarang 1 kolom
-  penuh per field di HP, balik ke kolom aslinya di desktop (≥768px). Label per-field
-  (.gc-row-label) SENGAJA cuma tampil di HP (header kolom di atas baris sudah cukup jelas di
-  desktop, taruh dobel malah berantakan). TIDAK menggantikan grid-cols-1/md:grid-cols-N (itu
-  tetap dipakai buat form section BIASA, kolom rata semua) — INI khusus buat baris yang
-  kolomnya TIDAK rata/campur fixed-px (mis. ada kolom tombol hapus 30px).
+  Baris grid RESPONSIF untuk baris berulang di dalam form/modal (Kelola Komponen, Konversi
+  Berjenjang, BOM Jasa): 1 kolom penuh per field di HP, kolom aslinya di >=768px; .gc-row-label hanya tampil di HP. Khusus baris yang kolomnya TIDAK rata/campur fixed-px, bukan pengganti grid-cols-N.
 */
 .gc-row-nq{display:grid; grid-template-columns:1fr; gap:8px;}
 .gc-row-konversi{display:grid; grid-template-columns:1fr; gap:8px;}
@@ -704,24 +569,15 @@ thead .freeze{z-index:3; background:var(--ivory-dim);}
   .gc-row-konversi{grid-template-columns:1fr 1fr 64px 1fr 30px; gap:6px; align-items:center;}
   .gc-row-label{display:none;}
   /*
-    area konten <main> desktop dikasih background PUTIH (--surface) TERPISAH dari
-    #screen-dashboard (yang tetap --ivory, itu punya MOBILE — lihat komentar #tab-home di
-    index.html soal max-w-xl mobile-only). Dicek ke artefak mockup:
-    `.content{background:var(--surface)}`, sedangkan kartu di dalamnya (.gc-pipeline-card dst)
-    tetap --ivory — supaya kartu MENONJOL dari konten, bukan menyatu jadi 1 warna sama seperti
-    sebelumnya (lihat komentar .gc-sidebar di atas untuk detail bug-nya). Class ini SENGAJA di
-    dalam media query (bukan langsung di elemen), supaya <main> versi MOBILE (di bawah 768px,
-    isinya #vue-header-mobile + #tab-home mobile) TIDAK ikut berubah — cuma efeknya nyata
-    begitu layar ≥768px (versi desktop yang tampil).
+    Area konten <main> desktop berlatar PUTIH (--surface) supaya kartu --ivory menonjol. SENGAJA
+    di dalam media query: <main> versi MOBILE dan #screen-dashboard tetap --ivory dari .gc-app.
   */
   .gc-main-desktop{background:var(--surface);}
 }
 
 /*
-  Mobile "Gechoo Mobile Organic" . Kelas BERSAMA dipakai lintas layar: Beranda, Menu Lengkap,
-  Atur Favorit, Bottom Sheet Profil, Profil Lengkap, dialog Akses Terbatas, Form bertahap.
-  Nama kelas `gc-*` (BUKAN `gx-*` yang dipakai prototipe — README mockup eksplisit minta
-  JANGAN dibawa ke repo).
+  Kelas bersama mobile "Gechoo Mobile Organic": Beranda, Menu Lengkap, Atur Favorit, Bottom Sheet
+  Profil, Profil Lengkap, dialog Akses Terbatas, Form bertahap. Prefix `gc-`, bukan `gx-`.
 */
 
 /* ---- Kartu gradien maroon (kartu shift Beranda & banner motivasi) ---- */
@@ -766,9 +622,8 @@ thead .freeze{z-index:3; background:var(--ivory-dim);}
 .gc-kosong .lingkaran{width:52px; height:52px; border-radius:50%; background:var(--aksen-lembut); display:flex; align-items:center; justify-content:center; margin:0 auto 12px; color:var(--aksen-ink); font-size:20px;}
 
 /*
-  ---- Persiapan Produksi V2 — "Perlu Disiapkan" — layout 2 kolom desktop (daftar kiri + panel
-  grouping kanan sticky), 1 kolom + bar mengambang di mobile. Lihat komentar besar di atas
-  js/vue-persiapan-produksi-v2.js untuk keputusan lengkap.
+  ---- Persiapan Produksi V2 "Perlu Disiapkan" ---- 2 kolom desktop (daftar kiri + panel grouping
+  kanan sticky), 1 kolom + bar mengambang di mobile. Detail: js/vue-persiapan-produksi-v2.js.
 */
 .gc-pp-panel{display:none;}
 .gc-pp-panel-mobile{position:fixed; left:12px; right:12px; bottom:calc(70px + env(safe-area-inset-bottom)); z-index:39; background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:12px 14px; box-shadow:0 -10px 28px -8px rgba(31,22,17,.28);}
@@ -779,34 +634,15 @@ thead .freeze{z-index:3; background:var(--ivory-dim);}
 }
 
 /*
-  ---- gc-card-menonjol — Sejak ronde audit desain sebelumnya, area <main> desktop
-  (`.gc-main-desktop`, ≥768px) dikasih latar PUTIH (--surface) supaya kartu di dalamnya
-  (--ivory) menonjol — TAPI itu diterapkan ke Beranda (`.gc-pipeline-card`, dst). Submenu lain
-  masih pakai `.gc-card` polos (background:var(--surface), SAMA PUTIH dengan latar <main> di
-  desktop) — jadi kartu MENYATU lagi dengan latar, kembali ke bug yang sama seperti Beranda
-  sebelum dikoreksi (lihat komentar .gc-sidebar). `.gc-card-menonjol` DITAMBAH sebagai kelas
-  kedua (bukan gc-card) di kartu-kartu "Perlu Disiapkan" (js/vue-persiapan-produksi-v2.js),
-  SENGAJA di dalam @media(min-width:768px) — di mobile TIDAK disentuh (di sana latar <main>
-  masih --ivory dari .gc-app, jadi kartu putih .gc-card sudah kontras dengan sendirinya, tidak
-  perlu diubah). Kalau setuju, pola yang SAMA ini tinggal ditempel ke submenu lain
-  (Bahan/Vendor/Acc Sewing/Acc Webbing/Acc Finishing, dst) — BELUM dikerjakan sesi ini,
-  sengaja cuma 1 submenu dulu sebagai percontohan.
-*/
-/*
-  CATATAN — sejak .gc-card sendiri sudah dijadikan --ivory secara global (ikut pola Sample
-  Hifi, lihat komentar di §Kartu/panel di atas), `.gc-card-menonjol` di bawah ini jadi
-  REDUNDAN (nilainya sama persis dengan .gc-card sekarang). Class ini SENGAJA TIDAK dihapus —
-  kalau nanti ada submenu yang perlu bantuan class kedua lagi (mis. kartu di dalam komponen
-  lain yang bukan .gc-card), sudah ada tempatnya. Aman dibiarkan, tidak dobel-render apa pun
-  karena nilai background sama.
+  .gc-card-menonjol = class kedua di kartu "Perlu Disiapkan" (js/vue-persiapan-produksi-v2.js),
+  sengaja hanya >=768px; di mobile latar <main> masih --ivory jadi .gc-card sudah kontras. Nilainya kini sama dengan .gc-card (redundan), dibiarkan untuk kartu non-.gc-card nanti.
 */
 @media(min-width:768px){
   .gc-card-menonjol{background:var(--ivory);}
 }
 
 /*
-  ---- Animasi (nama gx* dipertahankan dari prototipe supaya gampang dicari lintas dokumen,
-  bukan kelas gx- yang dibawa) ----
+  ---- Animasi ---- nama keyframe gx* dipertahankan supaya gampang dicari; prefix class tetap gc-. ----
 */
 @keyframes gxFade{from{opacity:0;}to{opacity:1;}}
 @keyframes gxSheet{from{transform:translateY(100%);}to{transform:translateY(0);}}

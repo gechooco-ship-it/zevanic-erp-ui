@@ -111,7 +111,6 @@ export const AppPilihanScanConfig = {
     }
 
     async function simpan() {
-      if (!formItemIds.value.length) return alert('Pilih minimal 1 aksi scan, atau pakai "Kembalikan ke Default" kalau mau kosongkan pengaturan.');
       menyimpan.value = true;
       try {
         await setDoc(doc(db, 'config_pilihan_scan', editAktif.value), {
