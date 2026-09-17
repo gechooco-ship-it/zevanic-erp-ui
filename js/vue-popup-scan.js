@@ -1,21 +1,21 @@
 // js/vue-popup-scan.js
 // Bottom Sheet Picker "Mau scan apa?" — tombol QR navbar mobile. targetId =
-// id wrapper MODUL (mis. 'sub-pp-bahan'), BUKAN per child tab, supaya alur
-// maju-mundur konveksi bisa pakai aksi modul itu dari tab mana pun.
-// STRUKTUR_MENU_SCAN dipakai layar admin vue-pilihan-scan-config.js DAN
-// tombol scan desktop tiap modul.
+// id CHILD TAB (mis. 'sub-pp-bahan-perludisiapkan'), 1 tab = 1 pengaturan
+// sendiri — tiap tab beda tombol, tidak diseragamkan satu modul. Kandidat
+// checkbox tiap child tetap SEMUA aksi milik modulnya (bebas nyalakan aksi
+// apapun di tab manapun). Dipakai layar admin vue-pilihan-scan-config.js
+// DAN tombol scan desktop tiap tab.
 //
 // Koleksi & field:
-// - config_pilihan_scan/{targetId}: 1 dokumen = 1 MODUL — item_ids[]
+// - config_pilihan_scan/{targetId}: 1 dokumen = 1 CHILD TAB — item_ids[]
 //   (urutan+aktif). Tanpa dokumen jatuh ke DEFAULT_PILIHAN, dicache 1x
-//   getDocs/sesi. Tidak menulis Firestore lain — tiap item cuma memanggil
-//   window.bukaXxx modul lain.
+//   getDocs/sesi. Tiap item cuma memanggil window.bukaXxx (boleh beda modul).
 // Jebakan:
 // - Desktop WAJIB `await pastikanCachePilihanScan()` sebelum render tombol
 //   (`aksiAktif(targetId,id)`), kalau tidak selalu jatuh ke DEFAULT_PILIHAN.
 // - Tiap window.bukaXxx WAJIB panggil pastikanMountXxx miliknya sendiri dulu
-//   (idempoten) — dipanggil dari modul manapun, tab pemiliknya belum tentu
-//   pernah dibuka user sesi ini.
+//   (idempoten) — aksi "asing" bisa dipicu dari tab yang belum pernah dibuka
+//   user sesi ini, jadi vm pemiliknya belum tentu ter-mount.
 // - Simpan/hapus admin WAJIB panggil invalidasiCachePilihanScan(), kalau
 //   tidak sheet mobile DAN tombol desktop pakai cache lama.
 import { createApp, ref } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
@@ -110,45 +110,98 @@ export const DAFTAR_AKSI_SCAN = {
 };
 
 // STRUKTUR_MENU_SCAN — SATU sumber untuk 3 hal: hierarki kartu admin (Group Menu >
-// Sub Menu, dipakai vue-pilihan-scan-config.js), DAFTAR_KONTEKS, dan DEFAULT_PILIHAN
-// (DUA terakhir diturunkan otomatis di bawah, jangan didaftar dobel). `targetId`
-// tiap sub adalah id wrapper modul (dipakai pindahSubTab tingkat grup menu, mis.
-// 'sub-pp-bahan') — SENGAJA per-MODUL, bukan per-child-tab, supaya alur maju-mundur
-// konveksi (cacat/kurang balik ke tahap sebelumnya) tetap bisa pakai aksi apa saja
-// milik modul itu dari tab mana pun. `childs` cuma daftar nama tab buat tampilan
-// kartu admin, tidak lagi py `aksi` sendiri. Sub tanpa `targetId`/`aksi` (hub
-// grouping SPK, Persiapan Belanja) memang tidak punya scan sama sekali.
+// Sub Menu > Child Tab, dipakai vue-pilihan-scan-config.js), DAFTAR_KONTEKS, dan
+// DEFAULT_PILIHAN (DUA terakhir diturunkan otomatis di bawah, jangan didaftar dobel).
+// Pengaturan PER CHILD TAB (`childs[].targetId`) — tiap tab beda tombol, tidak bisa
+// diseragamkan satu modul. Kandidat checkbox tiap child TETAP seluruh `aksiModul`
+// (bukan cuma yang "native" ke tab itu) supaya admin bebas aktifkan aksi APA SAJA
+// di tab MANA SAJA (mis. Scan Kirim tetap bisa dinyalakan dari tab Perlu Disiapkan
+// untuk alur maju-mundur konveksi) — default semua aktif, admin yang mempersempit.
+// Sub tanpa `aksiModul` (hub grouping SPK, Persiapan Belanja) memang tidak scan.
 export const STRUKTUR_MENU_SCAN = [
   { group: 'Persiapan Produksi', subs: [
-    { sub: 'Vendor', targetId: 'sub-pp-vendor', aksi: ['operator_vendor', 'entry_vendor', 'masalah_vendor', 'pack_vendor', 'kirim_vendor', 'sampai_vendor'],
-      childs: ['Perlu Diproses', 'Sedang Diproses', 'Perlu Dikirim', 'Sedang Dikirim', 'Selesai'] },
-    { sub: 'Perlu Disiapkan', childs: ['(hub grouping SPK)'] },
-    { sub: 'Bahan', targetId: 'sub-pp-bahan', aksi: ['operator_bahan', 'sampai_masalah_bahan', 'entry_bahan', 'masalah_bahan', 'pack_bahan', 'kirim_bahan'],
-      childs: ['Perlu Disiapkan', 'Sedang Disiapkan', 'Perlu Dikirim', 'Sedang Dikirim', 'Selesai'] },
-    { sub: 'Acc Sewing', targetId: 'sub-pp-sewing', aksi: ['operator_sewing', 'sampai_masalah_sewing', 'entry_sewing', 'masalah_sewing', 'pack_sewing', 'kirim_sewing'],
-      childs: ['Perlu Disiapkan', 'Sedang Disiapkan', 'Perlu Dikirim', 'Sedang Dikirim', 'Selesai'] },
-    { sub: 'Acc Webbing', targetId: 'sub-pp-webbing', aksi: ['operator_webbing', 'sampai_masalah_webbing', 'entry_webbing', 'masalah_webbing', 'pack_webbing', 'kirim_webbing'],
-      childs: ['Perlu Disiapkan', 'Sedang Disiapkan', 'Perlu Dikirim', 'Sedang Dikirim', 'Selesai'] },
-    { sub: 'Acc Finishing', targetId: 'sub-pp-finishing', aksi: ['operator_finishing', 'sampai_masalah_finishing', 'entry_finishing', 'masalah_finishing', 'pack_finishing', 'kirim_finishing'],
-      childs: ['Perlu Disiapkan', 'Sedang Disiapkan', 'Perlu Dikirim', 'Sedang Dikirim', 'Selesai'] },
-    { sub: 'Masalah', targetId: 'sub-pp-masalah', aksi: ['operator_masalah', 'entry_masalah', 'masalah_masalah', 'pack_masalah', 'kirim_masalah'],
-      childs: ['Perlu Diajukan', 'Menunggu Setuju', 'Perlu Disiapkan', 'Sedang Disiapkan', 'Perlu Dikirim', 'Sedang Dikirim', 'Selesai'] },
-    { sub: 'Persiapan Belanja', childs: ['Persiapan Admin', 'Menunggu ACC', 'List Order Driver', 'Riwayat'] },
+    { sub: 'Vendor', aksiModul: ['operator_vendor', 'entry_vendor', 'masalah_vendor', 'pack_vendor', 'kirim_vendor', 'sampai_vendor'], childs: [
+      { label: 'Perlu Diproses', targetId: 'sub-pp-vendor-perludiproses' },
+      { label: 'Sedang Diproses', targetId: 'sub-pp-vendor-sedangdiproses' },
+      { label: 'Perlu Dikirim', targetId: 'sub-pp-vendor-perludikirim' },
+      { label: 'Sedang Dikirim', targetId: 'sub-pp-vendor-sedangdikirim' },
+      { label: 'Selesai', targetId: 'sub-pp-vendor-selesai' } ] },
+    { sub: 'Perlu Disiapkan', childs: [{ label: '(hub grouping SPK)' }] },
+    { sub: 'Bahan', aksiModul: ['operator_bahan', 'sampai_masalah_bahan', 'entry_bahan', 'masalah_bahan', 'pack_bahan', 'kirim_bahan'], childs: [
+      { label: 'Perlu Disiapkan', targetId: 'sub-pp-bahan-perludisiapkan' },
+      { label: 'Sedang Disiapkan', targetId: 'sub-pp-bahan-sedangdisiapkan' },
+      { label: 'Perlu Dikirim', targetId: 'sub-pp-bahan-perludikirim' },
+      { label: 'Sedang Dikirim', targetId: 'sub-pp-bahan-sedangdikirim' },
+      { label: 'Selesai', targetId: 'sub-pp-bahan-selesai' } ] },
+    { sub: 'Acc Sewing', aksiModul: ['operator_sewing', 'sampai_masalah_sewing', 'entry_sewing', 'masalah_sewing', 'pack_sewing', 'kirim_sewing'], childs: [
+      { label: 'Perlu Disiapkan', targetId: 'sub-pp-sewing-perludisiapkan' },
+      { label: 'Sedang Disiapkan', targetId: 'sub-pp-sewing-sedangdisiapkan' },
+      { label: 'Perlu Dikirim', targetId: 'sub-pp-sewing-perludikirim' },
+      { label: 'Sedang Dikirim', targetId: 'sub-pp-sewing-sedangdikirim' },
+      { label: 'Selesai', targetId: 'sub-pp-sewing-selesai' } ] },
+    { sub: 'Acc Webbing', aksiModul: ['operator_webbing', 'sampai_masalah_webbing', 'entry_webbing', 'masalah_webbing', 'pack_webbing', 'kirim_webbing'], childs: [
+      { label: 'Perlu Disiapkan', targetId: 'sub-pp-webbing-perludisiapkan' },
+      { label: 'Sedang Disiapkan', targetId: 'sub-pp-webbing-sedangdisiapkan' },
+      { label: 'Perlu Dikirim', targetId: 'sub-pp-webbing-perludikirim' },
+      { label: 'Sedang Dikirim', targetId: 'sub-pp-webbing-sedangdikirim' },
+      { label: 'Selesai', targetId: 'sub-pp-webbing-selesai' } ] },
+    { sub: 'Acc Finishing', aksiModul: ['operator_finishing', 'sampai_masalah_finishing', 'entry_finishing', 'masalah_finishing', 'pack_finishing', 'kirim_finishing'], childs: [
+      { label: 'Perlu Disiapkan', targetId: 'sub-pp-finishing-perludisiapkan' },
+      { label: 'Sedang Disiapkan', targetId: 'sub-pp-finishing-sedangdisiapkan' },
+      { label: 'Perlu Dikirim', targetId: 'sub-pp-finishing-perludikirim' },
+      { label: 'Sedang Dikirim', targetId: 'sub-pp-finishing-sedangdikirim' },
+      { label: 'Selesai', targetId: 'sub-pp-finishing-selesai' } ] },
+    { sub: 'Masalah', aksiModul: ['operator_masalah', 'entry_masalah', 'masalah_masalah', 'pack_masalah', 'kirim_masalah'], childs: [
+      { label: 'Perlu Diajukan', targetId: 'sub-pp-masalah-perludiajukan' },
+      { label: 'Menunggu Setuju', targetId: 'sub-pp-masalah-menunggusetuju' },
+      { label: 'Perlu Disiapkan', targetId: 'sub-pp-masalah-perludisiapkan' },
+      { label: 'Sedang Disiapkan', targetId: 'sub-pp-masalah-sedangdisiapkan' },
+      { label: 'Perlu Dikirim', targetId: 'sub-pp-masalah-perludikirim' },
+      { label: 'Sedang Dikirim', targetId: 'sub-pp-masalah-sedangdikirim' },
+      { label: 'Selesai', targetId: 'sub-pp-masalah-selesai' } ] },
+    { sub: 'Persiapan Belanja', childs: [{ label: 'Persiapan Admin' }, { label: 'Menunggu ACC' }, { label: 'List Order Driver' }, { label: 'Riwayat' }] },
   ] },
   { group: 'Proses Produksi', subs: [
-    { sub: 'Cutting', targetId: 'sub-pr-cutting',
-      aksi: ['cutting_sampai', 'cutting_unpack', 'cutting_operator_ampar', 'cutting_entry_ampar', 'cutting_operator_pola', 'cutting_entry_pola', 'cutting_operator_cutting', 'cutting_entry_cutting', 'cutting_pack', 'cutting_kirim'],
-      childs: ['Perlu Di Proses', 'Sedang Ampar', 'Sedang Pola', 'Sedang Cutting', 'Perlu Di Kirim', 'Sedang Di Kirim', 'Selesai'] },
-    { sub: 'Serie', targetId: 'sub-pr-serie',
-      aksi: ['serie_sampai', 'serie_unpack', 'serie_operator', 'serie_entry', 'serie_pack', 'serie_kirim_sewing', 'serie_terima_sampai_sewing', 'serie_terima_unpack_sewing', 'serie_kirim_finishing', 'serie_terima_sampai_finishing', 'serie_terima_unpack_finishing', 'serie_kirim_gudang'],
-      childs: ['Perlu Di Proses', 'Sedang Di Proses', 'Perlu Di Kirim', 'Kirim Sewing', 'Setor Sewing', 'Terima Sewing', 'Kirim Finishing', 'Setor Finishing', 'Terima Finishing', 'Kirim Gudang', 'Selesai'] },
-    { sub: 'Sewing', targetId: 'sub-pr-sewing', aksi: ['sewing_sampai', 'sewing_unpack', 'sewing_operator', 'sewing_entry', 'sewing_pack', 'sewing_kirim'],
-      childs: ['Perlu Di Proses', 'Sedang Sewing', 'Perlu Dikirim', 'Sedang Kirim', 'Selesai'] },
-    { sub: 'Finishing', targetId: 'sub-pr-finishing',
-      aksi: ['finishing_sampai', 'finishing_unpack', 'finishing_operator_qc_persiapan', 'finishing_operator_qc', 'finishing_entry_qc', 'finishing_operator_steam', 'finishing_entry_steam', 'finishing_operator_folding', 'finishing_entry_folding', 'finishing_operator_packing', 'finishing_entry_packing', 'finishing_pack', 'finishing_kirim'],
-      childs: ['Perlu Di Proses', 'Sedang QC', 'Sedang Steam', 'Sedang Folding', 'Sedang Packing', 'Perlu Dikirim', 'Sedang Kirim', 'Selesai'] },
-    { sub: 'Gudang Barang Jadi', targetId: 'sub-pr-gudang', aksi: ['gudang_sampai', 'gudang_unpack', 'gudang_masuk'],
-      childs: ['Perlu Disimpan', 'Stok Tersedia', 'Riwayat Keluar', 'Scan Opname'] },
+    { sub: 'Cutting', aksiModul: ['cutting_sampai', 'cutting_unpack', 'cutting_operator_ampar', 'cutting_entry_ampar', 'cutting_operator_pola', 'cutting_entry_pola', 'cutting_operator_cutting', 'cutting_entry_cutting', 'cutting_pack', 'cutting_kirim'], childs: [
+      { label: 'Perlu Di Proses', targetId: 'sub-pr-cutting-perludiproses' },
+      { label: 'Sedang Ampar', targetId: 'sub-pr-cutting-sedangampar' },
+      { label: 'Sedang Pola', targetId: 'sub-pr-cutting-sedangpola' },
+      { label: 'Sedang Cutting', targetId: 'sub-pr-cutting-sedangcutting' },
+      { label: 'Perlu Di Kirim', targetId: 'sub-pr-cutting-perludikirim' },
+      { label: 'Sedang Di Kirim', targetId: 'sub-pr-cutting-sedangdikirim' },
+      { label: 'Selesai', targetId: 'sub-pr-cutting-selesai' } ] },
+    { sub: 'Serie', aksiModul: ['serie_sampai', 'serie_unpack', 'serie_operator', 'serie_entry', 'serie_pack', 'serie_kirim_sewing', 'serie_terima_sampai_sewing', 'serie_terima_unpack_sewing', 'serie_kirim_finishing', 'serie_terima_sampai_finishing', 'serie_terima_unpack_finishing', 'serie_kirim_gudang'], childs: [
+      { label: 'Perlu Di Proses', targetId: 'sub-pr-serie-perludiproses' },
+      { label: 'Sedang Di Proses', targetId: 'sub-pr-serie-sedangdiproses' },
+      { label: 'Perlu Di Kirim', targetId: 'sub-pr-serie-perludikirim' },
+      { label: 'Kirim Sewing', targetId: 'sub-pr-serie-kirimsewing' },
+      { label: 'Setor Sewing', targetId: 'sub-pr-serie-setorsewing' },
+      { label: 'Terima Sewing', targetId: 'sub-pr-serie-terimasewing' },
+      { label: 'Kirim Finishing', targetId: 'sub-pr-serie-kirimfinishing' },
+      { label: 'Setor Finishing', targetId: 'sub-pr-serie-setorfinishing' },
+      { label: 'Terima Finishing', targetId: 'sub-pr-serie-terimafinishing' },
+      { label: 'Kirim Gudang', targetId: 'sub-pr-serie-kirimgudang' },
+      { label: 'Selesai', targetId: 'sub-pr-serie-selesai' } ] },
+    { sub: 'Sewing', aksiModul: ['sewing_sampai', 'sewing_unpack', 'sewing_operator', 'sewing_entry', 'sewing_pack', 'sewing_kirim'], childs: [
+      { label: 'Perlu Di Proses', targetId: 'sub-pr-sewing-perludiproses' },
+      { label: 'Sedang Sewing', targetId: 'sub-pr-sewing-sedangsewing' },
+      { label: 'Perlu Dikirim', targetId: 'sub-pr-sewing-perludikirim' },
+      { label: 'Sedang Kirim', targetId: 'sub-pr-sewing-sedangkirim' },
+      { label: 'Selesai', targetId: 'sub-pr-sewing-selesai' } ] },
+    { sub: 'Finishing', aksiModul: ['finishing_sampai', 'finishing_unpack', 'finishing_operator_qc_persiapan', 'finishing_operator_qc', 'finishing_entry_qc', 'finishing_operator_steam', 'finishing_entry_steam', 'finishing_operator_folding', 'finishing_entry_folding', 'finishing_operator_packing', 'finishing_entry_packing', 'finishing_pack', 'finishing_kirim'], childs: [
+      { label: 'Perlu Di Proses', targetId: 'sub-pr-finishing-perludiproses' },
+      { label: 'Sedang QC', targetId: 'sub-pr-finishing-sedangqc' },
+      { label: 'Sedang Steam', targetId: 'sub-pr-finishing-sedangsteam' },
+      { label: 'Sedang Folding', targetId: 'sub-pr-finishing-sedangfolding' },
+      { label: 'Sedang Packing', targetId: 'sub-pr-finishing-sedangpacking' },
+      { label: 'Perlu Dikirim', targetId: 'sub-pr-finishing-perludikirim' },
+      { label: 'Sedang Kirim', targetId: 'sub-pr-finishing-sedangkirim' },
+      { label: 'Selesai', targetId: 'sub-pr-finishing-selesai' } ] },
+    { sub: 'Gudang Barang Jadi', aksiModul: ['gudang_sampai', 'gudang_unpack', 'gudang_masuk'], childs: [
+      { label: 'Perlu Disimpan', targetId: 'sub-pr-gudang-perludisimpan' },
+      { label: 'Stok Tersedia', targetId: 'sub-pr-gudang-stoktersedia' },
+      { label: 'Riwayat Keluar', targetId: 'sub-pr-gudang-riwayatkeluar' },
+      { label: 'Scan Opname', targetId: 'sub-pr-gudang-scanopname' } ] },
   ] },
 ];
 
@@ -156,9 +209,12 @@ export const STRUKTUR_MENU_SCAN = [
 export const DAFTAR_KONTEKS = {};
 export const DEFAULT_PILIHAN = {};
 STRUKTUR_MENU_SCAN.forEach(g => g.subs.forEach(s => {
-  if (!s.targetId || !s.aksi || !s.aksi.length) return;
-  DAFTAR_KONTEKS[s.targetId] = `${g.group} > ${s.sub}`;
-  DEFAULT_PILIHAN[s.targetId] = s.aksi;
+  if (!s.aksiModul || !s.aksiModul.length) return;
+  s.childs.forEach(c => {
+    if (!c.targetId) return;
+    DAFTAR_KONTEKS[c.targetId] = `${g.group} > ${s.sub} > ${c.label}`;
+    DEFAULT_PILIHAN[c.targetId] = s.aksiModul;
+  });
 }));
 
 // Cache in-memory per sesi, hemat read Firestore — koleksinya kecil (jumlah
