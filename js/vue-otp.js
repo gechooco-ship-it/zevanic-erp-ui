@@ -42,7 +42,7 @@ function buatKodeAcak() {
 }
 
 // window.kirimOtpEmail(email, konteks) — konteks: 'registrasi' | 'perangkat_baru'
-// (dipakai buat teks emailnya beda sedikit). Selalu bikin kode BARU
+// | 'verifikasi_email' (dipakai buat teks emailnya beda sedikit). Selalu bikin kode BARU
 // (menimpa yang lama kalau ada, otomatis "reset" masa berlaku).
 window.kirimOtpEmail = async function(email, konteks) {
   const emailBersih = (email || '').trim().toLowerCase();
@@ -72,10 +72,14 @@ window.kirimOtpEmail = async function(email, konteks) {
 
     const judulEmail = konteks === 'perangkat_baru'
       ? (tpl.subjek_perangkat || 'Kode Verifikasi Login Perangkat Baru - Zevanic ERP')
-      : (tpl.subjek_registrasi || 'Kode Verifikasi Pendaftaran - Zevanic ERP');
+      : konteks === 'verifikasi_email'
+        ? (tpl.subjek_verifikasi || 'Kode Verifikasi Email Akun - Zevanic ERP')
+        : (tpl.subjek_registrasi || 'Kode Verifikasi Pendaftaran - Zevanic ERP');
     const templateIsi = konteks === 'perangkat_baru'
       ? (tpl.isi_perangkat || `Ada percobaan login ke akun Zevanic ERP Anda dari perangkat baru.\n\nKode verifikasi Anda: {kode}\n\nKode berlaku ${MASA_BERLAKU_MENIT} menit. Kalau ini bukan Anda, abaikan email ini dan segera ganti password.`)
-      : (tpl.isi_registrasi || `Terima kasih sudah mendaftar di Zevanic ERP.\n\nKode verifikasi email Anda: {kode}\n\nMasukkan kode ini di aplikasi untuk melanjutkan pendaftaran. Kode berlaku ${MASA_BERLAKU_MENIT} menit.`);
+      : konteks === 'verifikasi_email'
+        ? (tpl.isi_verifikasi || `Anda meminta verifikasi email akun Zevanic ERP dari menu Profile.\n\nKode verifikasi Anda: {kode}\n\nKode berlaku ${MASA_BERLAKU_MENIT} menit. Email yang terverifikasi dipakai untuk link Lupa Password.`)
+        : (tpl.isi_registrasi || `Terima kasih sudah mendaftar di Zevanic ERP.\n\nKode verifikasi email Anda: {kode}\n\nMasukkan kode ini di aplikasi untuk melanjutkan pendaftaran. Kode berlaku ${MASA_BERLAKU_MENIT} menit.`);
     const isiTeksEmail = templateIsi.replace(/\{kode\}/g, kode);
 
     await addDoc(collection(db, "mail"), {

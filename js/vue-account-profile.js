@@ -3,7 +3,8 @@
 // Izin/Cuti/Lembur + riwayat pribadi + Aju Banding), Pencapaian, Keamanan.
 //
 // Koleksi & field:
-// - users/{email}: seluruh data diri, plus pin_hash & pin_hash_uniq.
+// - users/{email}: seluruh data diri, plus pin_hash & pin_hash_uniq, dan
+//   email_terverifikasi (true = email login terbukti lewat OTP email).
 // - absensi: where(email == saya) untuk riwayat & statistik; updateDoc dokumen
 //   terkait saat Aju Banding.
 // - master_gudang.nama_gudang & master_shift.nama_shift: opsi filter riwayat.
@@ -284,6 +285,47 @@ const AppAccountProfile = {
     });
     const menyimpanForm = ref(false);
 
+    // Verifikasi email login — untuk akun lama yang daftar saat OTP masih lewat WA,
+    // jadi emailnya belum pernah dibuktikan. Link Lupa Password dikirim ke email ini.
+    // Rules hanya mengizinkan email_terverifikasi berubah kalau otp_email pemiliknya
+    // sudah terverifikasi — flag tidak bisa dipasang tanpa OTP.
+    const emailTerverifikasi = ref(false);
+    const tampilPopupVerifEmail = ref(false);
+    const kodeVerifEmail = ref('');
+    const prosesVerifEmail = ref(false);
+
+    async function mintaKodeVerifEmail() {
+      prosesVerifEmail.value = true;
+      const hasil = await window.kirimOtpEmail(form.email, 'verifikasi_email');
+      prosesVerifEmail.value = false;
+      if (!hasil.sukses) return alert((hasil.pesan || 'Gagal mengirim kode.') + ' Kalau baru saja minta kode, tunggu 1 menit.');
+      kodeVerifEmail.value = '';
+      tampilPopupVerifEmail.value = true;
+    }
+
+    function tutupPopupVerifEmail() {
+      tampilPopupVerifEmail.value = false;
+      kodeVerifEmail.value = '';
+    }
+
+    async function konfirmasiVerifEmail() {
+      prosesVerifEmail.value = true;
+      const hasil = await window.verifikasiOtpEmail(form.email, kodeVerifEmail.value);
+      if (!hasil.sukses) { prosesVerifEmail.value = false; return alert(hasil.pesan); }
+      try {
+        await updateDoc(doc(db, "users", window.currentUser.email), { email_terverifikasi: true });
+        window.currentUser.email_terverifikasi = true;
+        window.simpanKonteksSesi();
+        emailTerverifikasi.value = true;
+        tutupPopupVerifEmail();
+        alert('Email berhasil diverifikasi. Link Lupa Password akan dikirim ke email ini.');
+      } catch (e) {
+        console.error('Gagal simpan status verifikasi email:', e);
+        alert('Kode benar, tapi status gagal disimpan. Coba lagi.');
+      }
+      prosesVerifEmail.value = false;
+    }
+
     // Data Karyawan: GERBANG PIN — tanpa PIN mode edit tidak aktif (field disabled),
     // termasuk NIK & rekening bank. PIN yang dipakai di sini PIN milik user SENDIRI
     // (users.pin_hash, dibuat di tab Keamanan), jadi cukup hashPin(pin, email sendiri)
@@ -346,6 +388,7 @@ const AppAccountProfile = {
       form.tglLahir = cu.tglLahir || cu.tgl || '';
       form.hp = cu.hp || '';
       form.email = cu.email || '';
+      emailTerverifikasi.value = cu.email_terverifikasi === true;
       form.ktpKab = cu.ktpKab || '';
       form.ktpKec = cu.ktpKec || '';
       form.ktpDetail = cu.ktpDetail || '';
@@ -587,6 +630,8 @@ const AppAccountProfile = {
       passwordLama, passwordBaruKeamanan, menyimpanPasswordKeamanan, updatePasswordKeamanan,
       subTabKeamanan, pinStatusTerpasang, pinBaru, konfirmasiPin, passwordUntukPin, menyimpanPin, simpanPin,
       form, menyimpanForm, simpanDataDiri,
+      emailTerverifikasi, tampilPopupVerifEmail, kodeVerifEmail, prosesVerifEmail,
+      mintaKodeVerifEmail, tutupPopupVerifEmail, konfirmasiVerifEmail,
       modeEditDataDiri, tampilPopupPinDataDiri, aksiPinDataDiri, pinInputDataDiri,
       bukaPopupPinDataDiri, tutupPopupPinDataDiri, konfirmasiPinDataDiri,
       formTerbuka, opsiAlasanIzin, opsiAlasanCuti, izin, cuti, lembur,
@@ -676,7 +721,19 @@ const AppAccountProfile = {
           <h4 style="font-weight:700; color:var(--text); margin-bottom:12px; border-bottom:1px solid var(--line); padding-bottom:6px;">2. Informasi Kontak</h4>
           <div style="display:grid; gap:14px;" class="grid-cols-1 md:grid-cols-2">
             <div class="gc-field" style="margin-bottom:0;"><label>No. Handphone (WhatsApp)</label><input v-model="form.hp" type="text" :disabled="!modeEditDataDiri"></div>
-            <div class="gc-field" style="margin-bottom:0;"><label>Email Aktif (Identitas Login)</label><input :value="form.email" disabled style="background:var(--ivory-dim); color:var(--text-faint); cursor:not-allowed;" title="Hubungi Admin untuk ubah Email"></div>
+            <div class="gc-field" style="margin-bottom:0;">
+              <label>Email Aktif (Identitas Login)
+                <span v-if="emailTerverifikasi" class="tag ok" style="margin-left:6px;"><i class="fas fa-check" style="margin-right:4px;"></i>Terverifikasi</span>
+                <span v-else class="tag warn" style="margin-left:6px;">Belum terverifikasi</span>
+              </label>
+              <input :value="form.email" disabled style="background:var(--ivory-dim); color:var(--text-faint); cursor:not-allowed;" title="Hubungi Admin untuk ubah Email">
+              <div v-if="!emailTerverifikasi" style="display:flex; align-items:center; gap:10px; margin-top:8px;">
+                <button type="button" @click="mintaKodeVerifEmail" :disabled="prosesVerifEmail" class="btn-outline" style="white-space:nowrap;">
+                  <i class="fas fa-envelope" style="margin-right:6px;"></i>{{ prosesVerifEmail ? 'Mengirim...' : 'Verifikasi email' }}
+                </button>
+                <span style="font-size:10.5px; color:var(--text-muted);">Wajib supaya link Lupa Password bisa sampai ke Anda.</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -759,6 +816,22 @@ const AppAccountProfile = {
         <div style="display:flex; gap:10px; padding-top:8px;">
           <button @click="tutupPopupPinDataDiri" class="btn-outline" style="flex:1;">Batal</button>
           <button @click="konfirmasiPinDataDiri" class="btn-primary" style="flex:1;">Konfirmasi</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="tampilPopupVerifEmail" style="position:fixed; inset:0; background:rgba(var(--scrim-rgb),.6); z-index:60; display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+      <div style="background:var(--surface); width:100%; max-width:340px; padding:22px; border-radius:20px;">
+        <h3 class="gc-heading" style="font-weight:700; font-size:14px; margin-bottom:6px;">
+          <i class="fas fa-envelope" style="color:var(--burgundy); margin-right:8px;"></i>Masukkan Kode Verifikasi
+        </h3>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:14px;">Kode 6 angka sudah dikirim ke <b>{{ form.email }}</b>. Cek inbox dan folder Spam. Berlaku 10 menit.</p>
+        <div class="gc-field">
+          <input v-model="kodeVerifEmail" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" style="text-align:center; letter-spacing:6px; font-size:18px;" @keyup.enter="konfirmasiVerifEmail">
+        </div>
+        <div style="display:flex; gap:10px; padding-top:8px;">
+          <button @click="tutupPopupVerifEmail" class="btn-outline" style="flex:1;">Batal</button>
+          <button @click="konfirmasiVerifEmail" :disabled="prosesVerifEmail" class="btn-primary" style="flex:1;">{{ prosesVerifEmail ? 'Memeriksa...' : 'Verifikasi' }}</button>
         </div>
       </div>
     </div>
