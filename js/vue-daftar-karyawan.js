@@ -5,7 +5,8 @@
 // Koleksi & field:
 // - users (id dokumen = email): nama + nama_lower, role (5 role baku),
 //   jenis_pekerjaan, jabatan, status_kerja, status_karyawan, status_approval,
-//   gudang_penempatan (array), plus data pribadi/alamat/bank/kontak darurat.
+//   gudang_penempatan (array), plus data pribadi/alamat/bank/kontak darurat,
+//   email_terverifikasi (true = email login terbukti lewat OTP email).
 // - master_gudang: nama_gudang + tipe_lokasi, dipakai kolom Jenis Lokasi.
 //
 // Jebakan:
@@ -16,10 +17,12 @@
 //   Pekerjaan/Gudang hanya berefek untuk Owner/PIC Owner. Kotak cari mencari ke
 //   nama_lower — dokumen tanpa field itu TIDAK akan pernah muncul di hasil.
 // - Hapus cuma membuang dokumen users; akun Firebase Auth-nya tetap ada.
+// - Verifikasi email & kirim link reset hanya Owner/PIC Owner, akun kiosk dilewati.
 
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, where, query, orderBy } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { db } from "./firebase-config.js";
+import { sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { db, auth } from "./firebase-config.js";
 import { DuaBaris, GudangCheckboxSelect, GudangRingkas } from './vue-components.js';
 import { usePaginasiFirestore, bangunConstraintFilterPeran } from './vue-paginasi.js';
 
@@ -575,13 +578,76 @@ const AppDaftarKaryawan = {
       if (url && window.bukaPreviewFoto) window.bukaPreviewFoto(url);
     }
 
+    // Bantu verifikasi email akun lama (daftar saat OTP masih lewat WA): kode dikirim
+    // ke email karyawan, karyawan menyebutkannya, Owner/PIC Owner yang memasukkan.
+    // Rules: otp_email & users boleh ditulis admin-level, jadi tidak perlu jalur khusus.
+    const karyawanVerif = ref(null); // baris d yang sedang diverifikasi
+    const kodeVerif = ref('');
+    const prosesVerif = ref(false);
+    const jedaKirimUlang = ref(0);
+    let timerJeda = null;
+
+    function mulaiJeda() {
+      jedaKirimUlang.value = 60;
+      clearInterval(timerJeda);
+      timerJeda = setInterval(() => {
+        jedaKirimUlang.value--;
+        if (jedaKirimUlang.value <= 0) clearInterval(timerJeda);
+      }, 1000);
+    }
+
+    async function kirimKodeVerif(d) {
+      prosesVerif.value = true;
+      const hasil = await window.kirimOtpEmail(d.id, 'verifikasi_email');
+      prosesVerif.value = false;
+      if (!hasil.sukses) return alert((hasil.pesan || 'Gagal mengirim kode.') + ' Kalau baru saja minta kode, tunggu 1 menit.');
+      karyawanVerif.value = d;
+      kodeVerif.value = '';
+      mulaiJeda();
+    }
+
+    function tutupVerif() {
+      karyawanVerif.value = null;
+      kodeVerif.value = '';
+    }
+
+    async function konfirmasiVerif() {
+      const d = karyawanVerif.value;
+      if (!d) return;
+      prosesVerif.value = true;
+      const hasil = await window.verifikasiOtpEmail(d.id, kodeVerif.value);
+      if (!hasil.sukses) { prosesVerif.value = false; return alert(hasil.pesan); }
+      try {
+        await updateDoc(doc(db, 'users', d.id), { email_terverifikasi: true });
+        d.email_terverifikasi = true;
+        tutupVerif();
+        alert('Email ' + d.id + ' terverifikasi. Sekarang bisa dikirimi link reset password.');
+      } catch (e) {
+        console.error('Gagal simpan status verifikasi email:', e);
+        alert('Kode benar, tapi status gagal disimpan. Coba lagi.');
+      }
+      prosesVerif.value = false;
+    }
+
+    async function kirimLinkReset(d) {
+      if (!confirm('Kirim link reset password ke ' + d.id + '?')) return;
+      try {
+        await sendPasswordResetEmail(auth, d.id);
+        alert('Link reset password dikirim ke ' + d.id + '. Minta karyawan cek inbox dan folder Spam.');
+      } catch (e) {
+        console.error('Gagal kirim link reset:', e);
+        alert((window.pesanErrorAuth && window.pesanErrorAuth(e.code)) || 'Gagal mengirim link reset: ' + e.message);
+      }
+    }
+
     onMounted(async () => { await window.authReady; muat(); });
     return {
       paginasi, memuat, emailSedangDiedit, muat, hapus, bukaEdit, tutupEdit, selesaiSimpan, badgeApproval, lihatFotoBesar, bolehHapus, bolehEdit, bolehPrint, cetakBarcode,
       emailSedangDipreview, bolehPreview, bukaPreview, tutupPreview,
       sedangExportCsv, exportCsv,
       cariNama: computed({ get: () => paginasi.cariTeks, set: (v) => paginasi.cariDenganDebounce(v) }),
-      isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner
+      isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner,
+      karyawanVerif, kodeVerif, prosesVerif, jedaKirimUlang, kirimKodeVerif, tutupVerif, konfirmasiVerif, kirimLinkReset
     };
   },
   template: `
@@ -626,6 +692,10 @@ const AppDaftarKaryawan = {
           <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex-shrink:0;">
             <span v-if="d.status_karyawan" class="tag neutral">{{ d.status_karyawan }}</span>
             <span v-if="badgeApproval(d.status_approval)" class="tag" :class="badgeApproval(d.status_approval).kelas" style="padding:2px 8px; font-size:9px;">{{ badgeApproval(d.status_approval).teks }}</span>
+            <template v-if="isOwnerRole && d.jenis_akun !== 'kiosk'">
+              <span v-if="d.email_terverifikasi === true" class="tag ok" style="padding:2px 8px; font-size:9px;"><i class="fas fa-check" style="margin-right:3px;"></i>EMAIL OK</span>
+              <span v-else class="tag warn" style="padding:2px 8px; font-size:9px;">EMAIL BELUM</span>
+            </template>
           </div>
         </div>
 
@@ -643,6 +713,10 @@ const AppDaftarKaryawan = {
           <button v-if="bolehEdit" @click="bukaEdit(d.id)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px;"><i class="fas fa-pen" style="margin-right:6px;"></i>Edit</button>
           <button v-if="bolehHapus" @click="hapus(d.id)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
         </div>
+        <div v-if="isOwnerRole && d.jenis_akun !== 'kiosk'" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+          <button v-if="d.email_terverifikasi !== true" @click="kirimKodeVerif(d)" :disabled="prosesVerif" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px;"><i class="fas fa-envelope" style="margin-right:6px;"></i>Verifikasi Email</button>
+          <button @click="kirimLinkReset(d)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px;"><i class="fas fa-key" style="margin-right:6px;"></i>Kirim Link Reset</button>
+        </div>
       </div>
     </div>
 
@@ -651,6 +725,25 @@ const AppDaftarKaryawan = {
       <div style="display:flex; gap:8px;">
         <button @click="paginasi.halamanSebelumnya" :disabled="paginasi.nomorHalaman <= 1 || paginasi.memuat" class="icon-btn"><i class="fas fa-chevron-left"></i></button>
         <button @click="paginasi.halamanBerikutnya" :disabled="!paginasi.adaBerikutnya || paginasi.memuat" class="icon-btn"><i class="fas fa-chevron-right"></i></button>
+      </div>
+    </div>
+
+    <div v-if="karyawanVerif" style="position:fixed; inset:0; background:rgba(var(--scrim-rgb),.6); z-index:60; display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+      <div style="background:var(--surface); width:100%; max-width:360px; padding:22px; border-radius:20px;">
+        <h3 class="gc-heading" style="font-weight:700; font-size:14px; margin-bottom:6px;">
+          <i class="fas fa-envelope" style="color:var(--burgundy); margin-right:8px;"></i>Verifikasi Email Karyawan
+        </h3>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:14px;">Kode 6 angka sudah dikirim ke <b>{{ karyawanVerif.id }}</b> ({{ karyawanVerif.nama }}). Minta karyawan membuka emailnya (cek juga Spam) lalu menyebutkan kodenya. Berlaku 10 menit.</p>
+        <div class="gc-field">
+          <input v-model="kodeVerif" type="text" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="000000" style="text-align:center; letter-spacing:6px; font-size:18px;" @keyup.enter="konfirmasiVerif">
+        </div>
+        <button @click="kirimKodeVerif(karyawanVerif)" :disabled="jedaKirimUlang > 0 || prosesVerif" style="background:none; border:none; color:var(--burgundy); font-size:11.5px; font-weight:700; cursor:pointer; padding:0; margin-bottom:10px;" :style="jedaKirimUlang > 0 ? 'color:var(--text-faint); cursor:default;' : ''">
+          {{ jedaKirimUlang > 0 ? 'Kirim ulang kode (' + jedaKirimUlang + ' dtk)' : 'Kirim ulang kode' }}
+        </button>
+        <div style="display:flex; gap:10px; padding-top:4px;">
+          <button @click="tutupVerif" class="btn-outline" style="flex:1;">Batal</button>
+          <button @click="konfirmasiVerif" :disabled="prosesVerif" class="btn-primary" style="flex:1;">{{ prosesVerif ? 'Memeriksa...' : 'Verifikasi' }}</button>
+        </div>
       </div>
     </div>
 

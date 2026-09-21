@@ -293,6 +293,8 @@ const AppAccountProfile = {
     const tampilPopupVerifEmail = ref(false);
     const kodeVerifEmail = ref('');
     const prosesVerifEmail = ref(false);
+    const jedaKirimUlangEmail = ref(0); // rules otp_email menolak kode baru < 60 detik
+    let timerJedaEmail = null;
 
     async function mintaKodeVerifEmail() {
       prosesVerifEmail.value = true;
@@ -301,6 +303,12 @@ const AppAccountProfile = {
       if (!hasil.sukses) return alert((hasil.pesan || 'Gagal mengirim kode.') + ' Kalau baru saja minta kode, tunggu 1 menit.');
       kodeVerifEmail.value = '';
       tampilPopupVerifEmail.value = true;
+      jedaKirimUlangEmail.value = 60;
+      clearInterval(timerJedaEmail);
+      timerJedaEmail = setInterval(() => {
+        jedaKirimUlangEmail.value--;
+        if (jedaKirimUlangEmail.value <= 0) clearInterval(timerJedaEmail);
+      }, 1000);
     }
 
     function tutupPopupVerifEmail() {
@@ -630,7 +638,7 @@ const AppAccountProfile = {
       passwordLama, passwordBaruKeamanan, menyimpanPasswordKeamanan, updatePasswordKeamanan,
       subTabKeamanan, pinStatusTerpasang, pinBaru, konfirmasiPin, passwordUntukPin, menyimpanPin, simpanPin,
       form, menyimpanForm, simpanDataDiri,
-      emailTerverifikasi, tampilPopupVerifEmail, kodeVerifEmail, prosesVerifEmail,
+      emailTerverifikasi, tampilPopupVerifEmail, kodeVerifEmail, prosesVerifEmail, jedaKirimUlangEmail,
       mintaKodeVerifEmail, tutupPopupVerifEmail, konfirmasiVerifEmail,
       modeEditDataDiri, tampilPopupPinDataDiri, aksiPinDataDiri, pinInputDataDiri,
       bukaPopupPinDataDiri, tutupPopupPinDataDiri, konfirmasiPinDataDiri,
@@ -829,7 +837,10 @@ const AppAccountProfile = {
         <div class="gc-field">
           <input v-model="kodeVerifEmail" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" style="text-align:center; letter-spacing:6px; font-size:18px;" @keyup.enter="konfirmasiVerifEmail">
         </div>
-        <div style="display:flex; gap:10px; padding-top:8px;">
+        <button @click="mintaKodeVerifEmail" :disabled="jedaKirimUlangEmail > 0 || prosesVerifEmail" style="background:none; border:none; color:var(--burgundy); font-size:11.5px; font-weight:700; cursor:pointer; padding:0; margin-bottom:10px;" :style="jedaKirimUlangEmail > 0 ? 'color:var(--text-faint); cursor:default;' : ''">
+          {{ jedaKirimUlangEmail > 0 ? 'Kirim ulang kode (' + jedaKirimUlangEmail + ' dtk)' : 'Kirim ulang kode' }}
+        </button>
+        <div style="display:flex; gap:10px; padding-top:4px;">
           <button @click="tutupPopupVerifEmail" class="btn-outline" style="flex:1;">Batal</button>
           <button @click="konfirmasiVerifEmail" :disabled="prosesVerifEmail" class="btn-primary" style="flex:1;">{{ prosesVerifEmail ? 'Memeriksa...' : 'Verifikasi' }}</button>
         </div>
