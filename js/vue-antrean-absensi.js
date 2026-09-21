@@ -80,10 +80,25 @@ const AntreanAbsensiCard = {
     // KEDUA sisi (masuk & keluar) sudah tidak PENDING lagi, JANGAN render kartu
     // kosong tanpa Accept/Reject sama sekali . Kartu SEMBUNYI total dari
     // tampilan kalau tidak ada satupun sisi yang butuh diproses.
+    // Status KINI per sisi — diisi saat tombol berhasil, supaya kartu langsung
+    // berubah tanpa menunggu muat ulang seluruh antrean (dulu muat ulang ini
+    // lambat, tombol keburu aktif lagi dan terpencet 2-3 kali).
+    const statusLamaKini = ref(props.data.status_acc);
+    const statusMasukKini = ref(props.data.status_acc_masuk);
+    const statusKeluarKini = ref(props.data.status_acc_keluar);
     const adaYangPending = computed(() => {
-      if (!adalahFormatBaru.value) return true; // format lama selalu render seperti biasa
-      return props.data.status_acc_masuk === 'PENDING' || props.data.status_acc_keluar === 'PENDING';
+      if (!adalahFormatBaru.value) return statusLamaKini.value === 'PENDING' || statusLamaKini.value === undefined;
+      return statusMasukKini.value === 'PENDING' || statusKeluarKini.value === 'PENDING';
     });
+    // Badge hasil validasi di sisi yang sudah diproses, beda dari badge Ontime.
+    function teksValidasi(status, nilaiSeragam) {
+      if (status === 'REJECT') return 'Ditolak';
+      return nilaiSeragam === 'Tidak Sesuai' ? 'Seragam tdk sesuai' : 'Seragam sesuai';
+    }
+    function kelasValidasi(status, nilaiSeragam) {
+      if (status === 'REJECT') return 'danger';
+      return nilaiSeragam === 'Tidak Sesuai' ? 'warn' : 'ok';
+    }
 
     function lihatFotoBesar(url) {
       if (url && window.bukaPreviewFoto) window.bukaPreviewFoto(url);
@@ -148,7 +163,8 @@ const AntreanAbsensiCard = {
           validated_at: new Date().toISOString(),
           validated_by: window.currentUser.name || window.currentUser.email
         });
-        emit('diproses');
+        statusLamaKini.value = statusAcc;
+        emit('diproses', { id: props.docId, masihPending: false });
       } catch (e) {
         console.error("Gagal update ACC:", e);
         alert("Terjadi kesalahan sistem saat memproses validasi.");
@@ -176,11 +192,12 @@ const AntreanAbsensiCard = {
           seragam_masuk: seragamMasuk.value,
           validated_at_masuk: new Date().toISOString(),
           validated_by_masuk: window.currentUser.name || window.currentUser.email,
-          // Cek status KELUAR TERBARU dari props.data (bukan diasumsikan) —
-          // supaya ada_pending benar walau keluar sudah diproses duluan.
-          ada_pending: hitungAdaPending(statusAcc, props.data.status_acc_keluar)
+          // Pakai status KELUAR kini (bukan props lama) — benar walau keluar
+          // sudah diproses duluan di kartu yang sama.
+          ada_pending: hitungAdaPending(statusAcc, statusKeluarKini.value)
         });
-        emit('diproses');
+        statusMasukKini.value = statusAcc;
+        emit('diproses', { id: props.docId, masihPending: adaYangPending.value });
       } catch (e) {
         console.error("Gagal update ACC Clock In:", e);
         alert("Terjadi kesalahan sistem saat memproses validasi Clock In.");
@@ -207,9 +224,10 @@ const AntreanAbsensiCard = {
           seragam_keluar: seragamKeluar.value,
           validated_at_keluar: new Date().toISOString(),
           validated_by_keluar: window.currentUser.name || window.currentUser.email,
-          ada_pending: hitungAdaPending(props.data.status_acc_masuk, statusAcc)
+          ada_pending: hitungAdaPending(statusMasukKini.value, statusAcc)
         });
-        emit('diproses');
+        statusKeluarKini.value = statusAcc;
+        emit('diproses', { id: props.docId, masihPending: adaYangPending.value });
       } catch (e) {
         console.error("Gagal update ACC Clock Out:", e);
         alert("Terjadi kesalahan sistem saat memproses validasi Clock Out.");
@@ -221,11 +239,11 @@ const AntreanAbsensiCard = {
       if (window.cekIzinMenu('antrean_absensi', 'delete') === false) {
         return alert('Anda tidak punya izin menghapus data di sini. Hubungi Owner/PIC.');
       }
-      if (window.hapusAbsensi) window.hapusAbsensi(props.docId).then(() => emit('diproses'));
+      if (window.hapusAbsensi) window.hapusAbsensi(props.docId).then(() => emit('diproses', { id: props.docId, masihPending: false }));
     }
 
     return {
-      adalahFormatBaru, adaYangPending, lihatFotoBesar, hapus, bolehEdit, bolehHapus,
+      adalahFormatBaru, adaYangPending, statusMasukKini, statusKeluarKini, teksValidasi, kelasValidasi, lihatFotoBesar, hapus, bolehEdit, bolehHapus,
       fotoAvatar, menuAksiTerbuka, toggleMenuAksi, tutupMenuAksi, jamShift,
       statusKehadiranOtomatis, seragam, memproses, proses, prosesDenganSeragam,
       statusKehadiranMasukOtomatis, seragamMasuk, memprosesMasuk, prosesMasuk, prosesMasukDenganSeragam,
@@ -250,7 +268,7 @@ const AntreanAbsensiCard = {
           <p style="font-size:9.5px; color:var(--text-faint); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ data.nama_shift || '-' }}<span v-if="jamShift.masuk && jamShift.keluar"> &middot; {{ jamShift.masuk }}&ndash;{{ jamShift.keluar }}</span></p>
         </div>
         <template v-if="adalahFormatBaru">
-          <span v-if="data.status_acc_masuk === 'PENDING' && data.status_acc_keluar === 'PENDING'" class="tag warn" style="flex-shrink:0;"><span class="tag-dot"></span>2 menunggu</span>
+          <span v-if="statusMasukKini === 'PENDING' && statusKeluarKini === 'PENDING'" class="tag warn" style="flex-shrink:0;"><span class="tag-dot"></span>2 menunggu</span>
           <span v-else class="tag warn" style="flex-shrink:0;"><span class="tag-dot"></span>1 menunggu</span>
         </template>
         <span v-else class="tag warn" style="flex-shrink:0;"><span class="tag-dot"></span>Menunggu</span>
@@ -300,11 +318,13 @@ const AntreanAbsensiCard = {
             <div style="display:flex; flex-wrap:wrap; gap:4px; margin-left:auto; justify-content:flex-end;">
               <span v-if="statusKehadiranMasukOtomatis === 'Ontime'" class="tag ok">Ontime</span>
               <span v-else-if="statusKehadiranMasukOtomatis === 'Terlambat'" class="tag danger">Terlambat</span>
+              <span v-if="statusMasukKini && statusMasukKini !== 'PENDING'" class="tag" :class="kelasValidasi(statusMasukKini, seragamMasuk)"><i class="fas fa-check-double" style="margin-right:3px;"></i>{{ teksValidasi(statusMasukKini, seragamMasuk) }}</span>
               <span v-if="data.status_radius_masuk === 'DI LUAR RADIUS'" class="tag danger">Radius {{ data.jarak_meter_masuk || 0 }}m</span>
               <span v-else-if="data.status_radius_masuk === 'LOKASI DINAMIS'" class="tag blue">Lokasi dinamis</span>
             </div>
           </div>
-          <div v-if="data.status_acc_masuk === 'PENDING' && bolehEdit" class="approve-row">
+          <p v-if="statusMasukKini === 'PENDING' && bolehEdit" style="font-size:9.5px; font-weight:700; color:var(--text-muted); margin-top:8px;">Validasi Clock Masuk:</p>
+          <div v-if="statusMasukKini === 'PENDING' && bolehEdit" class="approve-row" style="margin-top:4px;">
             <button @click="prosesMasukDenganSeragam('ACC','Sesuai')" :disabled="memprosesMasuk" class="appr-btn ok"><i class="fas fa-check"></i> Sesuai</button>
             <button @click="prosesMasukDenganSeragam('ACC','Tidak Sesuai')" :disabled="memprosesMasuk" class="appr-btn warn"><i class="fas fa-check"></i> Tdk Sesuai</button>
             <button @click="prosesMasuk('REJECT')" :disabled="memprosesMasuk" class="appr-btn danger"><i class="fas fa-times"></i> Reject</button>
@@ -322,13 +342,15 @@ const AntreanAbsensiCard = {
                 <span v-if="adaLemburApproved" class="tag blue">Lembur</span>
                 <span v-else-if="statusKehadiranKeluarOtomatis === 'Ontime'" class="tag ok">Ontime</span>
                 <span v-else-if="statusKehadiranKeluarOtomatis === 'Pulang Cepat'" class="tag warn">Pulang Cepat</span>
+                <span v-if="statusKeluarKini && statusKeluarKini !== 'PENDING'" class="tag" :class="kelasValidasi(statusKeluarKini, seragamKeluar)"><i class="fas fa-check-double" style="margin-right:3px;"></i>{{ teksValidasi(statusKeluarKini, seragamKeluar) }}</span>
                 <span v-if="data.status_radius_keluar === 'DI LUAR RADIUS'" class="tag danger">Radius {{ data.jarak_meter_keluar || 0 }}m</span>
                 <span v-else-if="data.status_radius_keluar === 'LOKASI DINAMIS'" class="tag blue">Lokasi dinamis</span>
               </div>
             </template>
             <span v-else style="font-size:10.5px; color:var(--text-faint); font-style:italic; margin-left:auto;">Belum absen</span>
           </div>
-          <div v-if="data.status_acc_keluar === 'PENDING' && bolehEdit" class="approve-row">
+          <p v-if="statusKeluarKini === 'PENDING' && bolehEdit" style="font-size:9.5px; font-weight:700; color:var(--text-muted); margin-top:8px;">Validasi Clock Keluar:</p>
+          <div v-if="statusKeluarKini === 'PENDING' && bolehEdit" class="approve-row" style="margin-top:4px;">
             <button @click="prosesKeluarDenganSeragam('ACC','Sesuai')" :disabled="memprosesKeluar" class="appr-btn ok"><i class="fas fa-check"></i> Sesuai</button>
             <button @click="prosesKeluarDenganSeragam('ACC','Tidak Sesuai')" :disabled="memprosesKeluar" class="appr-btn warn"><i class="fas fa-check"></i> Tdk Sesuai</button>
             <button @click="prosesKeluar('REJECT')" :disabled="memprosesKeluar" class="appr-btn danger"><i class="fas fa-times"></i> Reject</button>
@@ -479,6 +501,9 @@ const AppAntreanAbsensi = {
         }
         petaLemburTanggal.value = petaLembur;
 
+        // Paling lama di atas, supaya yang tertinggal dikerjakan duluan.
+        const waktuMs = x => { const t = x.data.waktu_masuk_ts || x.data.waktu_ts; return t && typeof t.toMillis === 'function' ? t.toMillis() : 0; };
+        list.sort((a, b) => waktuMs(a) - waktuMs(b));
         daftarPending.value = list;
         // Perbaiki diam-diam, best-effort: gagal (mis. role tanpa izin tulis) tidak
         // mengganggu tampilan karena dokumennya sudah dibuang dari daftar di atas.
@@ -536,8 +561,16 @@ const AppAntreanAbsensi = {
       memuatDataLama.value = false;
     }
 
+    // Kartu selesai dibuang dari daftar lokal saja — tanpa muat ulang seluruh
+    // antrean, yang lambat dan membuat badge/kartu telat berubah.
+    function setelahDiproses(info) {
+      if (!info || info.masihPending) return;
+      daftarPending.value = daftarPending.value.filter(item => item.id !== info.id);
+    }
+
     onMounted(async () => { await window.authReady; muat(); });
     return {
+      setelahDiproses,
       daftarPending, daftarPendingTersaring, memuat, errorMuat, muat, memuatDataLama, infoDataLama, cekDataSangatLama,
       cariNama, isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner,
       menuTerbuka, toggleMenuTerbuka, adaFilterAktif, petaShiftInfo, petaLemburTanggal
@@ -601,7 +634,7 @@ const AppAntreanAbsensi = {
         :doc-id="item.id" :data="item.data"
         :shift-info="petaShiftInfo[item.data.nama_shift] || {masuk:null,keluar:null}"
         :lembur-tanggal="petaLemburTanggal[item.data.email] || []"
-        @diproses="muat"
+        @diproses="setelahDiproses"
       />
     </div>
   `
