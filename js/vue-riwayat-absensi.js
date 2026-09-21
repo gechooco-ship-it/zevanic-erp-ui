@@ -89,8 +89,11 @@ const EditAbsensiModal = {
         // Dokumen format `status_acc_masuk`: edit di sini WAJIB ke field_masuk
         // (form Edit cuma 1 set kolom). Edit sisi Keluar dilakukan lewat Antrean
         // Absensi sebelum di-ACC, bukan dari sini.
+        // ada_pending ikut dihitung ulang — tanpa itu dokumen tersangkut di
+        // query Antrean Absensi walau kedua sisinya sudah diproses.
         const dataUpdate = adalahBaru
-          ? { status_kehadiran_masuk: form.statusKehadiran, seragam_masuk: form.seragam, status_acc_masuk: form.statusAcc }
+          ? { status_kehadiran_masuk: form.statusKehadiran, seragam_masuk: form.seragam, status_acc_masuk: form.statusAcc,
+              ada_pending: form.statusAcc === 'PENDING' || props.item.status_acc_keluar === 'PENDING' }
           : { status_kehadiran: form.statusKehadiran, seragam: form.seragam, status_acc: form.statusAcc };
         await updateDoc(doc(db, "absensi", props.item.id), dataUpdate);
         alert("Data absensi berhasil diperbarui!");

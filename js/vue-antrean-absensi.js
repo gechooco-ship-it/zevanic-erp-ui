@@ -14,7 +14,7 @@
 // Jebakan:
 // - IZIN/CUTI/LEMBUR DIKECUALIKAN di sini — lihat vue-antrean-lembur.js.
 // - ada_pending wajib dihitung ulang dari pasangan status masuk+keluar tiap
-//   update; salah hitung bikin kartu hilang atau nyangkut selamanya.
+//   update; yang tersangkut (dua sisi sudah diproses) diperbaiki di muat().
 // - Lookup shift & Lembur dihitung SEKALI di induk lalu dioper lewat prop
 //   shiftInfo/lemburTanggal — kartu dilarang query sendiri (bug N+1).
 // - "Cek Data Sangat Lama" fetch SELURUH koleksi absensi; sengaja manual.
@@ -426,8 +426,11 @@ const AppAntreanAbsensi = {
         function ambilJP(d) { return d.jenis_pekerjaan || petaJenisPekerjaan[d.email] || ''; }
 
         const list = [];
+        const idTersangkut = [];
         snapBaru.forEach(docSnap => {
           const d = docSnap.data();
+          // Tersangkut: kartunya sembunyi (adaYangPending false) tapi ikut terhitung.
+          if (!hitungAdaPending(d.status_acc_masuk, d.status_acc_keluar)) { idTersangkut.push(docSnap.id); return; }
           if (!window.bolehLihatData(ambilJP(d), d.gudang)) return;
           list.push({ id: docSnap.id, data: d, jenisPekerjaan: ambilJP(d) });
         });
@@ -477,6 +480,10 @@ const AppAntreanAbsensi = {
         petaLemburTanggal.value = petaLembur;
 
         daftarPending.value = list;
+        // Perbaiki diam-diam, best-effort: gagal (mis. role tanpa izin tulis) tidak
+        // mengganggu tampilan karena dokumennya sudah dibuang dari daftar di atas.
+        idTersangkut.forEach(id => updateDoc(doc(db, "absensi", id), { ada_pending: false }).catch(() => {}));
+        if (idTersangkut.length) console.info(`Antrean Absensi: ${idTersangkut.length} dokumen ada_pending tersangkut diperbaiki.`);
 
         // Opsi dropdown filter khusus Owner — cuma dimuat kalau memang Owner
         // (hemat, Admin biasa tidak pernah butuh ini).
