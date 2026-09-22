@@ -5,7 +5,7 @@
 //
 // Koleksi & field:
 // - config/mail_templates: pasangan subjek_/isi_ per jenis (registrasi,
-//   perangkat, verifikasi email, aktivasi akun); fallback TEMPLATE_DEFAULT.
+//   perangkat, verifikasi email, reset password, aktivasi akun).
 // - mail: antrean kirim yang dibaca Extension. Monitoring baca 50 dokumen
 //   terakhir (orderBy dikirim_pada desc) plus field delivery.
 //
@@ -15,7 +15,7 @@
 //   sama dengan alur Registrasi dan login perangkat baru.
 // - Template "Aktivasi Akun" dipakai vue-antrean-dakar.js; mengganti nama
 //   placeholder {kode}/{nama}/{email}/{link}/{menit} memutus pemanggilnya.
-// - Email Lupa Password dikirim Firebase Auth (template di Console), bukan di sini.
+// - Template Lupa Password dibaca Cloud Function; {nama}/{email}/{link} tetap.
 // - Mount lewat window.pastikanMountMailGateway, pindah sub-tab lewat
 //   window.bukaSubTabMailGateway.
 
@@ -30,6 +30,8 @@ const TEMPLATE_DEFAULT = {
   isi_perangkat: "Ada percobaan login ke akun Zevanic ERP Anda dari perangkat baru.\n\nKode verifikasi Anda: {kode}\n\nKode berlaku 10 menit. Kalau ini bukan Anda, abaikan email ini dan segera ganti password.",
   subjek_verifikasi: "Kode Verifikasi Email Akun - Zevanic ERP",
   isi_verifikasi: "Anda meminta verifikasi email akun Zevanic ERP dari menu Profile.\n\nKode verifikasi Anda: {kode}\n\nKode berlaku 10 menit. Email yang terverifikasi dipakai untuk link Lupa Password.",
+  subjek_reset: "Reset Password Akun Zevanic ERP",
+  isi_reset: "Halo {nama},\n\nKami menerima permintaan reset password untuk akun Zevanic ERP Anda ({email}).\n\nKlik link berikut untuk membuat password baru:\n{link}\n\nKalau Anda tidak meminta reset password, abaikan email ini. Password Anda tidak berubah.\n\nSalam,\nTim Zevanic ERP",
   subjek_buat_password: "Buat Password Akun Zevanic ERP Anda",
   isi_buat_password: "Halo {nama},\n\nPendaftaran Anda sudah disetujui! Klik link di bawah untuk membuat password akun Anda sendiri (berlaku {menit} menit):\n\n{link}\n\nKalau link ini kadaluarsa, hubungi Admin/Owner untuk dikirimkan ulang."
 };
@@ -230,11 +232,13 @@ const AppMailGateway = {
         </div>
 
         <div style="font-size:11px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.03em; margin:16px 0 8px;">Lupa Password</div>
-        <div style="background:var(--ivory-dim); border-radius:12px; padding:12px; font-size:11.5px; line-height:1.55; margin-bottom:14px;">
-          Email ini dikirim <b>Firebase Authentication</b>, bukan Mail Gateway, jadi tidak bisa diubah di sini.
-          Atur di Firebase Console &gt; Authentication &gt; Templates &gt; <b>Password reset</b>, dan isi
-          <b>SMTP settings</b> di halaman yang sama supaya pengirimnya sama dengan email OTP.
-          Placeholder di sana: <code>%DISPLAY_NAME%</code>, <code>%EMAIL%</code>, <code>%LINK%</code>, <code>%APP_NAME%</code>.
+        <div class="gc-field">
+          <label>Subjek</label>
+          <input v-model="template.subjek_reset" type="text">
+        </div>
+        <div class="gc-field">
+          <label>Isi pesan <span style="font-weight:400; color:var(--text-faint); text-transform:none;">— placeholder: {nama}, {email}, {link}</span></label>
+          <textarea v-model="template.isi_reset" rows="6" style="font-size:12px;"></textarea>
         </div>
 
         <button @click="simpanTemplate" :disabled="menyimpanTemplate" class="btn-primary block" style="background:var(--ok);">

@@ -24,7 +24,6 @@ import {
   signInWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  sendPasswordResetEmail,
   deleteUser
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { db, auth } from "./firebase-config.js";
@@ -638,8 +637,9 @@ window.prosesClockOut = async function() {
 // lemburMulaiGlobal, dst) + window.pindahLayar('screen-camera') adalah titik
 // sambungnya ke alur kamera/geofencing.
 
-// Lupa Password: pakai fitur bawaan Firebase Auth (kirim link reset ke email
-// terdaftar). Tidak butuh WhatsApp/backend tambahan — ini paling aman & simpel.
+// Lupa Password: tulis permintaan_reset; Cloud Function kirimLinkResetPassword
+// membuat link lalu mengirimnya lewat koleksi mail (SMTP sama dengan OTP).
+// Layar sengaja tidak membedakan email terdaftar/tidak (cegah tebak akun).
 window.lupaPassword = async function() {
   const email = document.getElementById('input-email').value.trim().toLowerCase();
   if (!email) {
@@ -647,8 +647,8 @@ window.lupaPassword = async function() {
     return;
   }
   try {
-    await sendPasswordResetEmail(auth, email);
-    alert("Link reset password sudah dikirim ke " + email + ". Cek inbox (atau folder Spam) email Anda.");
+    await addDoc(collection(db, "permintaan_reset"), { email, dibuat_pada: serverTimestamp() });
+    alert("Kalau " + email + " terdaftar sebagai akun login, link reset password sudah dikirim ke sana. Cek inbox dan folder Spam. Tidak datang dalam 10 menit? Hubungi Owner/Admin untuk dicek akunnya.");
   } catch (e) {
     console.error("Gagal kirim reset password:", e);
     alert(pesanErrorAuth(e.code) || "Gagal mengirim link reset password: " + e.message);

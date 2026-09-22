@@ -20,9 +20,8 @@
 // - Verifikasi email & kirim link reset hanya Owner/PIC Owner, akun kiosk dilewati.
 
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, doc, getDoc, updateDoc, deleteDoc, where, query, orderBy } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
-import { sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
-import { db, auth } from "./firebase-config.js";
+import { collection, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc, where, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { db } from "./firebase-config.js";
 import { DuaBaris, GudangCheckboxSelect, GudangRingkas } from './vue-components.js';
 import { usePaginasiFirestore, bangunConstraintFilterPeran } from './vue-paginasi.js';
 
@@ -629,14 +628,31 @@ const AppDaftarKaryawan = {
       prosesVerif.value = false;
     }
 
+    // Lewat permintaan_reset + Cloud Function (sama dengan tombol Lupa sandi);
+    // Owner boleh membaca hasilnya, jadi ditunggu sebentar supaya jelas terkirim.
+    const PESAN_HASIL_RESET = {
+      terkirim: 'Link reset password dikirim ke {e}. Minta karyawan cek inbox dan folder Spam.',
+      tidak_terdaftar: '{e} tidak punya akun login (belum pernah menyelesaikan Buat Password). Link tidak dikirim.',
+      terlalu_cepat: 'Baru saja ada permintaan untuk {e}. Tunggu 1 menit lalu coba lagi.'
+    };
     async function kirimLinkReset(d) {
       if (!confirm('Kirim link reset password ke ' + d.id + '?')) return;
       try {
-        await sendPasswordResetEmail(auth, d.id);
-        alert('Link reset password dikirim ke ' + d.id + '. Minta karyawan cek inbox dan folder Spam.');
+        const ref = await addDoc(collection(db, 'permintaan_reset'), {
+          email: d.id, dibuat_pada: serverTimestamp(), diminta_oleh: window.currentUser.email || ''
+        });
+        for (let i = 0; i < 10; i++) {
+          await new Promise(r => setTimeout(r, 1500));
+          const snap = await getDoc(ref);
+          const hasil = snap.exists() ? snap.data().hasil : null;
+          if (!hasil) continue;
+          if (PESAN_HASIL_RESET[hasil]) return alert(PESAN_HASIL_RESET[hasil].replace('{e}', d.id));
+          return alert('Gagal mengirim link reset: ' + (snap.data().keterangan || 'sebab tidak diketahui'));
+        }
+        alert('Permintaan tercatat tapi belum diproses. Cek Mail Gateway > Monitoring beberapa saat lagi.');
       } catch (e) {
         console.error('Gagal kirim link reset:', e);
-        alert((window.pesanErrorAuth && window.pesanErrorAuth(e.code)) || 'Gagal mengirim link reset: ' + e.message);
+        alert('Gagal mencatat permintaan reset: ' + e.message);
       }
     }
 
