@@ -24,7 +24,7 @@ import { collection, getDocs, query, where, orderBy, doc, addDoc, updateDoc, del
 import { db } from "./firebase-config.js";
 import { KolomCari } from './vue-components.js?v=13';
 import { hitungStatusKehadiran } from './vue-antrean-absensi.js?v=8';
-import { JENIS_REPORT_WA, TEMPLATE_BAWAAN_WA, jalankanPerintahWa } from './vue-whatsapp-gateway.js?v=4';
+import { JENIS_REPORT_WA, TEMPLATE_BAWAAN_WA, jalankanPerintahWa } from './vue-whatsapp-gateway.js?v=5';
 
 const STATUS_NON_HADIR = ["IZIN", "CUTI", "LEMBUR (CLOCK IN)", "CLOCK OUT"];
 const MAKS_HARI = 31;
@@ -42,7 +42,7 @@ function menitLewat(ts, jamStr) {
   const aktual = ts.toDate();
   const [h, m] = jamStr.split(':').map(Number);
   const batas = new Date(aktual); batas.setHours(h, m, 0, 0);
-  return Math.max(0, Math.round((aktual - batas) / 60000));
+  return Math.max(0, Math.ceil((aktual - batas) / 60000));
 }
 
 // input: { karyawan[], hari[] (kunci YYYY-MM-DD urut), kunciHariIni, sekarang (Date),
@@ -104,7 +104,7 @@ export function rekapAbsensi(input) {
         if (stMasuk === 'Terlambat') {
           const mnt = menitLewat(tsMasuk, sh.jam_masuk);
           r.terlambat++; r.menitTerlambat += mnt; kpi.terlambat++; kpi.menitTerlambat += mnt;
-          if (k === kunciHariIni) daftarTerlambatHariIni.push({ nama: u.nama, gudang: u.gudang, jam: jamDari(tsMasuk), menit: mnt });
+          if (k === kunciHariIni) daftarTerlambatHariIni.push({ email: u.email, nama: u.nama, gudang: u.gudang, gudangAbsen: h.gudang || '', jam: jamDari(tsMasuk), menit: mnt });
         }
         if (stKeluar === 'Pulang Cepat') { r.pulangCepat++; kpi.pulangCepat++; }
         const seragam = baru ? [h.seragam_masuk, h.seragam_keluar] : [h.seragam, kl && kl.seragam];
@@ -124,7 +124,7 @@ export function rekapAbsensi(input) {
         const [hh, mm] = (jm || '00:00').split(':').map(Number);
         if (sekarang.getHours() * 60 + sekarang.getMinutes() < hh * 60 + mm) return;
         kpi.terjadwal++; r.tidakAbsen++; kpi.belumAbsen++;
-        daftarBelumAbsen.push({ nama: u.nama, gudang: u.gudang, shift: namaShiftHari, jamMasuk: jm || '-' });
+        daftarBelumAbsen.push({ email: u.email, nama: u.nama, gudang: u.gudang, shift: namaShiftHari, jamMasuk: jm || '-' });
       }
     });
     if (!shiftFilter.length || hariCocok) baris.push(r);
@@ -457,7 +457,9 @@ const AppReportAbsensi = {
           if (u.jenis_akun === 'kiosk' || !u.email) return;
           const gudang = window.normalisasiGudang(u.gudang_penempatan);
           if (!window.bolehLihatData(u.jenis_pekerjaan, gudang)) return;
-          karyawan.push({ email: u.email, nama: u.name || u.nama || u.email, gudang: gudang.join(', ') || '-',
+          // Karyawan dinamis bisa punya belasan gudang: tampilan cukup gudang pertama + jumlah sisanya.
+          const gudangRingkas = gudang.length > 1 ? `${gudang[0]} +${gudang.length - 1}` : (gudang[0] || '-');
+          karyawan.push({ email: u.email, nama: u.name || u.nama || u.email, gudang: gudangRingkas,
             gudangList: gudang, jenisPekerjaan: u.jenis_pekerjaan || '-', namaShift: u.nama_shift || '' });
         });
         const shift = {};
@@ -533,7 +535,8 @@ const AppReportAbsensi = {
       let csv = q(`Report Absensi: ${captionRentang.value}${filterGudang.value ? ' | Gudang: ' + filterGudang.value : ''}${filterJP.value ? ' | Jenis: ' + filterJP.value : ''}${filterShift.value ? ' | Shift: ' + filterShift.value : ''}`) + "\n\n";
       csv += "Nama,Email,Gudang,Jenis Pekerjaan,Hadir,Terlambat,Menit Terlambat,Pulang Cepat,Izin/Cuti,Tidak Absen,Lembur,Seragam Tidak Sesuai\n";
       rows.forEach(r => {
-        csv += [r.nama, r.email, r.gudang, r.jenisPekerjaan, r.hadir, r.terlambat, r.menitTerlambat, r.pulangCepat, r.izin, r.tidakAbsen, r.lembur, r.seragam].map(q).join(',') + "\n";
+        const kr = bahan.value.karyawan.find(k => k.email === r.email);
+        csv += [r.nama, r.email, kr ? kr.gudangList.join(', ') : r.gudang, r.jenisPekerjaan, r.hadir, r.terlambat, r.menitTerlambat, r.pulangCepat, r.izin, r.tidakAbsen, r.lembur, r.seragam].map(q).join(',') + "\n";
       });
       const link = document.createElement("a");
       link.setAttribute("href", "data:text/csv;charset=utf-8," + encodeURIComponent(csv));
