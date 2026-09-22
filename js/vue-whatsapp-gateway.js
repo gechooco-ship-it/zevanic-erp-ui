@@ -35,7 +35,7 @@ export const MODUL_WA = [
   { key: 'proses', label: 'Proses Produksi' },
   { key: 'belanja', label: 'Belanja' }
 ];
-export const PLACEHOLDER_WA = ['hari', 'tanggal', 'jam', 'gudang', 'jenis_pekerjaan', 'hadir', 'terjadwal', 'terlambat', 'menit_terlambat',
+export const PLACEHOLDER_WA = ['hari', 'tanggal', 'jam', 'gudang', 'jenis_pekerjaan', 'shift', 'hadir', 'terjadwal', 'terlambat', 'menit_terlambat',
   'pulang_cepat', 'belum_absen', 'izin', 'lembur', 'seragam_tdk_sesuai', 'menunggu_validasi', 'menunggu_izin',
   'daftar_terlambat', 'daftar_belum_absen', 'link'];
 export const TEMPLATE_BAWAAN_WA = {
