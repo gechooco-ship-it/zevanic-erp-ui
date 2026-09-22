@@ -5,8 +5,7 @@
 // Koleksi & field:
 // - users (id dokumen = email): nama + nama_lower, role (5 role baku),
 //   jenis_pekerjaan, jabatan, status_kerja, status_karyawan, status_approval,
-//   gudang_penempatan (array), plus data pribadi/alamat/bank/kontak darurat,
-//   email_terverifikasi (true = email login terbukti lewat OTP email).
+//   gudang_penempatan (array), data pribadi/bank/kontak, email_terverifikasi.
 // - master_gudang: nama_gudang + tipe_lokasi, dipakai kolom Jenis Lokasi.
 //
 // Jebakan:
@@ -17,7 +16,8 @@
 //   Pekerjaan/Gudang hanya berefek untuk Owner/PIC Owner. Kotak cari mencari ke
 //   nama_lower — dokumen tanpa field itu TIDAK akan pernah muncul di hasil.
 // - Hapus cuma membuang dokumen users; akun Firebase Auth-nya tetap ada.
-// - Verifikasi email & kirim link reset hanya Owner/PIC Owner, akun kiosk dilewati.
+// - Verifikasi/ganti email & link reset: Owner/PIC Owner, kiosk dilewati; ganti
+//   email dikerjakan Cloud Function lewat permintaan_ganti_email.
 
 import { createApp, ref, reactive, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, getDoc, addDoc, updateDoc, deleteDoc, where, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -656,6 +656,83 @@ const AppDaftarKaryawan = {
       }
     }
 
+    // Ganti email: OTP ke email BARU (karyawan menyebutkan kodenya), lalu Cloud
+    // Function gantiEmailKaryawan memindahkan akun login + data. Tahap: 'isi' ->
+    // 'kode' -> 'proses'.
+    const karyawanGanti = ref(null);
+    const emailBaruGanti = ref('');
+    const kodeGanti = ref('');
+    const tahapGanti = ref('isi');
+    const prosesGanti = ref(false);
+
+    function bukaGantiEmail(d) {
+      karyawanGanti.value = d;
+      emailBaruGanti.value = '';
+      kodeGanti.value = '';
+      tahapGanti.value = 'isi';
+    }
+    function tutupGantiEmail() {
+      if (tahapGanti.value === 'proses') return;
+      karyawanGanti.value = null;
+    }
+    async function kirimKodeGanti() {
+      const baru = emailBaruGanti.value.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(baru)) return alert('Format email baru tidak valid.');
+      if (baru === karyawanGanti.value.id) return alert('Email baru sama dengan email lama.');
+      prosesGanti.value = true;
+      try {
+        const sudahAda = await getDoc(doc(db, 'users', baru));
+        if (sudahAda.exists()) { prosesGanti.value = false; return alert(baru + ' sudah dipakai karyawan lain.'); }
+        const hasil = await window.kirimOtpEmail(baru, 'verifikasi_email');
+        if (!hasil.sukses) { prosesGanti.value = false; return alert((hasil.pesan || 'Gagal mengirim kode.') + ' Kalau baru saja minta kode, tunggu 1 menit.'); }
+        emailBaruGanti.value = baru;
+        tahapGanti.value = 'kode';
+      } catch (e) {
+        console.error('Gagal kirim kode ganti email:', e);
+        alert('Gagal mengirim kode: ' + e.message);
+      }
+      prosesGanti.value = false;
+    }
+    async function jalankanGantiEmail() {
+      const d = karyawanGanti.value;
+      const baru = emailBaruGanti.value;
+      prosesGanti.value = true;
+      const cek = await window.verifikasiOtpEmail(baru, kodeGanti.value);
+      if (!cek.sukses) { prosesGanti.value = false; return alert(cek.pesan); }
+      if (!confirm(`Ganti email ${d.nama} dari ${d.id} ke ${baru}? Data login, jadwal, absensi, dan reimburse dipindah; PIN direset.`)) { prosesGanti.value = false; return; }
+      tahapGanti.value = 'proses';
+      try {
+        const ref = await addDoc(collection(db, 'permintaan_ganti_email'), {
+          email_lama: d.id, email_baru: baru, diminta_oleh: window.currentUser.email, dibuat_pada: serverTimestamp()
+        });
+        for (let i = 0; i < 30; i++) {
+          await new Promise(r => setTimeout(r, 2000));
+          const snap = await getDoc(ref);
+          const x = snap.exists() ? snap.data() : {};
+          if (!x.hasil) continue;
+          prosesGanti.value = false;
+          tahapGanti.value = 'isi';
+          karyawanGanti.value = null;
+          if (x.hasil === 'selesai') {
+            const r = x.rincian || {};
+            alert(`Email berhasil diganti ke ${baru}.\nDipindah: ${r.absensi || 0} absensi, ${r.jadwal_shift || 0} jadwal, ${r.reimburse || 0} reimburse.\nKaryawan login dengan email baru + password lama (link buat password baru juga sudah dikirim). PIN perlu dibuat ulang.`);
+            muat();
+          } else {
+            alert('Ganti email gagal: ' + (x.keterangan || 'sebab tidak diketahui'));
+          }
+          return;
+        }
+        prosesGanti.value = false;
+        tahapGanti.value = 'isi';
+        alert('Permintaan tercatat tapi belum selesai diproses. Klik Muat Data beberapa saat lagi untuk cek hasilnya.');
+      } catch (e) {
+        console.error('Gagal ganti email:', e);
+        prosesGanti.value = false;
+        tahapGanti.value = 'kode';
+        alert('Gagal mencatat permintaan ganti email: ' + e.message);
+      }
+    }
+
     onMounted(async () => { await window.authReady; muat(); });
     return {
       paginasi, memuat, emailSedangDiedit, muat, hapus, bukaEdit, tutupEdit, selesaiSimpan, badgeApproval, lihatFotoBesar, bolehHapus, bolehEdit, bolehPrint, cetakBarcode,
@@ -663,7 +740,8 @@ const AppDaftarKaryawan = {
       sedangExportCsv, exportCsv,
       cariNama: computed({ get: () => paginasi.cariTeks, set: (v) => paginasi.cariDenganDebounce(v) }),
       isOwnerRole, filterJenisPekerjaanOwner, filterGudangOwner, opsiJenisPekerjaanOwner, opsiGudangOwner,
-      karyawanVerif, kodeVerif, prosesVerif, jedaKirimUlang, kirimKodeVerif, tutupVerif, konfirmasiVerif, kirimLinkReset
+      karyawanVerif, kodeVerif, prosesVerif, jedaKirimUlang, kirimKodeVerif, tutupVerif, konfirmasiVerif, kirimLinkReset,
+      karyawanGanti, emailBaruGanti, kodeGanti, tahapGanti, prosesGanti, bukaGantiEmail, tutupGantiEmail, kirimKodeGanti, jalankanGantiEmail
     };
   },
   template: `
@@ -732,6 +810,7 @@ const AppDaftarKaryawan = {
         <div v-if="isOwnerRole && d.jenis_akun !== 'kiosk'" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
           <button v-if="d.email_terverifikasi !== true" @click="kirimKodeVerif(d)" :disabled="prosesVerif" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px;"><i class="fas fa-envelope" style="margin-right:6px;"></i>Verifikasi Email</button>
           <button @click="kirimLinkReset(d)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px;"><i class="fas fa-key" style="margin-right:6px;"></i>Kirim Link Reset</button>
+          <button @click="bukaGantiEmail(d)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 10px;"><i class="fas fa-at" style="margin-right:6px;"></i>Ganti Email</button>
         </div>
       </div>
     </div>
@@ -759,6 +838,40 @@ const AppDaftarKaryawan = {
         <div style="display:flex; gap:10px; padding-top:4px;">
           <button @click="tutupVerif" class="btn-outline" style="flex:1;">Batal</button>
           <button @click="konfirmasiVerif" :disabled="prosesVerif" class="btn-primary" style="flex:1;">{{ prosesVerif ? 'Memeriksa...' : 'Verifikasi' }}</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="karyawanGanti" style="position:fixed; inset:0; background:rgba(var(--scrim-rgb),.6); z-index:60; display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+      <div style="background:var(--surface); width:100%; max-width:380px; padding:22px; border-radius:20px;">
+        <h3 class="gc-heading" style="font-weight:700; font-size:14px; margin-bottom:6px;">
+          <i class="fas fa-at" style="color:var(--burgundy); margin-right:8px;"></i>Ganti Email Login
+        </h3>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;"><b>{{ karyawanGanti.nama }}</b><br>Email sekarang: {{ karyawanGanti.id }}</p>
+        <template v-if="tahapGanti === 'isi'">
+          <div class="gc-field">
+            <label>Email baru</label>
+            <input v-model="emailBaruGanti" type="email" placeholder="nama@gmail.com" autocomplete="off" @keyup.enter="kirimKodeGanti">
+          </div>
+          <p style="font-size:10.5px; color:var(--text-faint); margin-bottom:12px;">Kode verifikasi dikirim ke email baru. Pastikan karyawan bisa membuka email itu sekarang.</p>
+          <div style="display:flex; gap:10px;">
+            <button @click="tutupGantiEmail" class="btn-outline" style="flex:1;">Batal</button>
+            <button @click="kirimKodeGanti" :disabled="prosesGanti" class="btn-primary" style="flex:1;">{{ prosesGanti ? 'Mengirim...' : 'Kirim kode' }}</button>
+          </div>
+        </template>
+        <template v-else-if="tahapGanti === 'kode'">
+          <p style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Kode 6 angka sudah dikirim ke <b>{{ emailBaruGanti }}</b>. Minta karyawan menyebutkannya (cek juga Spam).</p>
+          <div class="gc-field">
+            <input v-model="kodeGanti" type="text" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="000000" style="text-align:center; letter-spacing:6px; font-size:18px;" @keyup.enter="jalankanGantiEmail">
+          </div>
+          <div style="display:flex; gap:10px;">
+            <button @click="tahapGanti = 'isi'" :disabled="prosesGanti" class="btn-outline" style="flex:1;">Kembali</button>
+            <button @click="jalankanGantiEmail" :disabled="prosesGanti" class="btn-primary" style="flex:1;">{{ prosesGanti ? 'Memeriksa...' : 'Ganti email' }}</button>
+          </div>
+        </template>
+        <div v-else style="text-align:center; padding:14px 0; font-size:12px; color:var(--text-muted);">
+          <i class="fas fa-spinner fa-spin" style="font-size:22px; display:block; margin-bottom:10px;"></i>
+          Memindahkan akun dan data ke {{ emailBaruGanti }}... jangan tutup halaman ini.
         </div>
       </div>
     </div>
