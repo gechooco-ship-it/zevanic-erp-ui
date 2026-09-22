@@ -24,7 +24,7 @@ import { collection, getDocs, query, where, orderBy, doc, addDoc, updateDoc, del
 import { db } from "./firebase-config.js";
 import { KolomCari } from './vue-components.js?v=13';
 import { hitungStatusKehadiran } from './vue-antrean-absensi.js?v=8';
-import { JENIS_REPORT_WA, TEMPLATE_BAWAAN_WA, jalankanPerintahWa } from './vue-whatsapp-gateway.js?v=5';
+import { JENIS_REPORT_WA, TEMPLATE_BAWAAN_WA, jalankanPerintahWa } from './vue-whatsapp-gateway.js?v=6';
 
 const STATUS_NON_HADIR = ["IZIN", "CUTI", "LEMBUR (CLOCK IN)", "CLOCK OUT"];
 const MAKS_HARI = 31;
