@@ -1,25 +1,65 @@
 // js/vue-whatsapp-gateway.js
-// Master Integrasi > WhatsApp. Empat tab: Config API (tes kirim), Template
-// Pesan, Monitoring Respon, dan Phonebook (kontak, grup phonebook, WA Group).
+// Master Integrasi > WhatsApp. Tab: Config API (tes kirim), Template Pesan
+// (hub template per jadwal, dikelompokkan per modul), Monitoring Respon, Phonebook.
 //
 // Koleksi & field:
-// - wa_keluar: antrean kirim (lewat window.kirimPesanWhatsapp); Cloud Function
-//   kirimWaKeluar mengirim ke Fonnte dan menulis wa_log.
-// - wa_log: daftar utama orderBy('waktu_ts','desc') + limit 50, Muat Lagi.
+// - wa_keluar: antrean kirim; Cloud Function kirimWaKeluar -> Fonnte + wa_log.
+// - wa_log: orderBy('waktu_ts','desc') + limit 50, Muat Lagi.
 // - wa_kontak: nama, nomor (62...), peran, email_karyawan.
 // - wa_grup_phonebook: nama, anggota (array id wa_kontak).
-// - wa_group: nama, group_id (...@g.us), catatan. wa_perintah 'ambil_grup'.
+// - wa_group: nama, group_id (...@g.us), catatan.
+// - wa_jadwal: template (field di dokumen jadwal, ikut terhapus bersamanya).
+// - wa_perintah: ambil_grup, pratinjau_jadwal, tes_jadwal (jawaban di data).
 //
 // Jebakan:
-// - Token Fonnte TIDAK ada di sini: Secret Manager (FONNTE_TOKEN) milik Cloud
-//   Function. Nomornya sama dengan bot report Apps Script — jangan logout device.
+// - Token Fonnte hanya di Secret Manager (FONNTE_TOKEN) milik Cloud Function.
 // - Nomor disimpan 62xxxx tanpa +/spasi (normalisasiNomor); Fonnte menolak format lain.
-// - Kontak dihapus -> id-nya ikut dicabut dari anggota semua grup phonebook.
-// - Tulis Phonebook hanya Owner/PIC Owner (rules); role lain cuma lihat.
+// - Placeholder diisi di server (renderTemplate di functions); daftar nama yang
+//   kosong ikut membuang satu baris judul tepat di atasnya.
+// - Tulis Phonebook & template hanya Owner/PIC Owner (rules).
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, collection, getDocs, query, orderBy, limit, startAfter, startAt, endAt, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+
+export const JENIS_REPORT_WA = [
+  { key: 'ringkasan_pagi', label: 'Ringkasan pagi (terlambat + belum absen)' },
+  { key: 'rekap_harian', label: 'Rekap harian' },
+  { key: 'pengingat_hrd', label: 'Pengingat validasi HRD' },
+  { key: 'rekap_mingguan', label: 'Rekap mingguan (7 hari terakhir)' },
+  { key: 'rekap_bulanan', label: 'Rekap bulanan (bulan lalu, tiap tanggal 1)' }
+];
+export const MODUL_WA = [
+  { key: 'absensi', label: 'Absensi' },
+  { key: 'persiapan', label: 'Persiapan Produksi' },
+  { key: 'proses', label: 'Proses Produksi' },
+  { key: 'belanja', label: 'Belanja' }
+];
+export const PLACEHOLDER_WA = ['hari', 'tanggal', 'jam', 'gudang', 'hadir', 'terjadwal', 'terlambat', 'menit_terlambat',
+  'pulang_cepat', 'belum_absen', 'izin', 'lembur', 'seragam_tdk_sesuai', 'menunggu_validasi', 'menunggu_izin',
+  'daftar_terlambat', 'daftar_belum_absen', 'link'];
+export const TEMPLATE_BAWAAN_WA = {
+  ringkasan_pagi: '*Ringkasan Absensi {hari}, {tanggal}*\n{gudang} · per jam {jam}\n\nHadir: {hadir} dari {terjadwal} terjadwal\nTerlambat: {terlambat} ({menit_terlambat} menit)\nBelum absen: {belum_absen}\nIzin/Cuti: {izin}\n\n*Terlambat:*\n{daftar_terlambat}\n\n*Belum absen:*\n{daftar_belum_absen}\n\nDetail: {link}',
+  rekap_harian: '*Rekap Absensi {hari}, {tanggal}*\n{gudang}\n\nHadir: {hadir} dari {terjadwal} terjadwal\nTerlambat: {terlambat} ({menit_terlambat} menit)\nPulang cepat: {pulang_cepat}\nTidak absen: {belum_absen}\nIzin/Cuti: {izin}\nLembur: {lembur}\nSeragam tidak sesuai: {seragam_tdk_sesuai}\nMenunggu validasi: {menunggu_validasi}\n\n*Terlambat:*\n{daftar_terlambat}\n\n*Belum absen:*\n{daftar_belum_absen}\n\nDetail: {link}',
+  pengingat_hrd: '*Pengingat Validasi Absensi*\nAda {menunggu_validasi} absensi dan {menunggu_izin} pengajuan izin/cuti/lembur yang menunggu validasi.\n\nMohon segera diproses: {link}',
+  rekap_mingguan: '*Rekap Absensi Mingguan*\n{tanggal} · {gudang}\n\nHadir: {hadir} dari {terjadwal} terjadwal\nTerlambat: {terlambat} ({menit_terlambat} menit)\nPulang cepat: {pulang_cepat}\nTidak absen: {belum_absen}\nIzin/Cuti: {izin}\nLembur: {lembur}\n\n*Paling sering terlambat:*\n{daftar_terlambat}\n\n*Tidak absen:*\n{daftar_belum_absen}\n\nDetail: {link}',
+  rekap_bulanan: '*Rekap Absensi Bulanan*\n{tanggal} · {gudang}\n\nHadir: {hadir} dari {terjadwal} terjadwal\nTerlambat: {terlambat} ({menit_terlambat} menit)\nPulang cepat: {pulang_cepat}\nTidak absen: {belum_absen}\nIzin/Cuti: {izin}\nLembur: {lembur}\n\n*Paling sering terlambat:*\n{daftar_terlambat}\n\n*Tidak absen:*\n{daftar_belum_absen}\n\nDetail: {link}'
+};
+
+// Tulis wa_perintah lalu tunggu jawaban server (maks ~30 detik). Melempar
+// Error berisi keterangan server kalau gagal atau tidak dijawab.
+export async function jalankanPerintahWa(isi) {
+  const ref_ = await addDoc(collection(db, 'wa_perintah'), { ...isi, dibuat_oleh: window.currentUser.email || '', dibuat_pada: serverTimestamp() });
+  for (let i = 0; i < 15; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    const snap = await getDoc(ref_);
+    const x = snap.exists() ? snap.data() : {};
+    if (!x.hasil) continue;
+    if (x.hasil === 'selesai') return x;
+    throw new Error(x.keterangan || 'sebab tidak diketahui');
+  }
+  throw new Error('Server belum menjawab. Coba lagi beberapa saat lagi.');
+}
 
 export function normalisasiNomor(nomor) {
   let n = String(nomor || '').replace(/\D/g, '');
@@ -208,26 +248,79 @@ const AppWhatsappGateway = {
     async function ambilGrupFonnte() {
       mengambilGrup.value = true;
       try {
-        const ref_ = await addDoc(collection(db, 'wa_perintah'), { aksi: 'ambil_grup', dibuat_oleh: window.currentUser.email || '', dibuat_pada: serverTimestamp() });
-        for (let i = 0; i < 15; i++) {
-          await new Promise(r => setTimeout(r, 2000));
-          const snap = await getDoc(ref_);
-          const x = snap.exists() ? snap.data() : {};
-          if (!x.hasil) continue;
-          if (x.hasil === 'selesai') grupFonnte.value = x.data || [];
-          else alert('Gagal mengambil daftar grup dari Fonnte: ' + (x.keterangan || 'sebab tidak diketahui'));
-          mengambilGrup.value = false;
-          return;
-        }
-        alert('Fonnte belum menjawab. Coba lagi beberapa saat lagi.');
+        const x = await jalankanPerintahWa({ aksi: 'ambil_grup' });
+        grupFonnte.value = x.data || [];
       } catch (e) {
         console.error('Gagal ambil grup Fonnte:', e);
-        alert('Gagal mengirim perintah ke server: ' + e.message);
+        alert('Gagal mengambil daftar grup dari Fonnte: ' + e.message);
       }
       mengambilGrup.value = false;
     }
     const sudahTersimpan = gid => waGroup.value.some(w => w.group_id === gid);
     function tambahDariFonnte(g) { bukaWa(null); formWa.nama = g.nama; formWa.group_id = g.id; }
+
+    // ---- Template Pesan (hub): satu template per dokumen wa_jadwal ----
+    const daftarJadwal = ref([]);
+    const memuatJadwal = ref(false);
+    const jadwalDipilih = ref(null);
+    const isiTemplate = ref('');
+    const areaTemplate = ref(null);
+    const pratinjau = ref('');
+    const prosesTemplate = ref('');
+    async function muatTemplate() {
+      memuatJadwal.value = true;
+      try {
+        const snap = await getDocs(query(collection(db, 'wa_jadwal'), orderBy('nama')));
+        daftarJadwal.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (jadwalDipilih.value && !daftarJadwal.value.some(j => j.id === jadwalDipilih.value.id)) jadwalDipilih.value = null;
+      } catch (e) {
+        console.error('Gagal memuat template:', e);
+        alert('Gagal memuat daftar template.');
+      }
+      memuatJadwal.value = false;
+    }
+    const jadwalPerModul = computed(() => MODUL_WA.map(m => ({ ...m, jadwal: daftarJadwal.value.filter(j => (j.modul || 'absensi') === m.key) })));
+    const labelJenis = key => (JENIS_REPORT_WA.find(j => j.key === key) || {}).label || key;
+    function pilihJadwal(j) {
+      jadwalDipilih.value = j;
+      isiTemplate.value = j.template || TEMPLATE_BAWAAN_WA[j.jenis] || '';
+      pratinjau.value = '';
+    }
+    function sisipkan(ph) {
+      const el = areaTemplate.value;
+      const teks = `{${ph}}`;
+      if (!el) { isiTemplate.value += teks; return; }
+      const a = el.selectionStart, b = el.selectionEnd;
+      isiTemplate.value = isiTemplate.value.slice(0, a) + teks + isiTemplate.value.slice(b);
+      requestAnimationFrame(() => { el.focus(); el.selectionStart = el.selectionEnd = a + teks.length; });
+    }
+    function kembalikanBawaan() {
+      if (confirm('Ganti isi template dengan versi bawaan? Perubahan belum disimpan sampai klik Simpan.')) isiTemplate.value = TEMPLATE_BAWAAN_WA[jadwalDipilih.value.jenis] || '';
+    }
+    async function simpanTemplate() {
+      if (!isiTemplate.value.trim()) return alert('Isi template tidak boleh kosong.');
+      prosesTemplate.value = 'simpan';
+      try {
+        await updateDoc(doc(db, 'wa_jadwal', jadwalDipilih.value.id), { template: isiTemplate.value, diubah_pada: serverTimestamp() });
+        jadwalDipilih.value.template = isiTemplate.value;
+        alert('Template tersimpan.');
+      } catch (e) {
+        console.error('Gagal simpan template:', e);
+        alert('Gagal menyimpan template.');
+      }
+      prosesTemplate.value = '';
+    }
+    async function perintahTemplate(aksi) {
+      prosesTemplate.value = aksi;
+      try {
+        const x = await jalankanPerintahWa({ aksi, jadwal_id: jadwalDipilih.value.id, template: isiTemplate.value });
+        pratinjau.value = (x.data && x.data.pesan) || '';
+        if (aksi === 'tes_jadwal') alert('Pesan tes diantrekan. ' + (x.keterangan || ''));
+      } catch (e) {
+        alert((aksi === 'tes_jadwal' ? 'Gagal kirim tes: ' : 'Gagal membuat pratinjau: ') + e.message);
+      }
+      prosesTemplate.value = '';
+    }
 
     // Monitoring Respon dibaca lewat `waktu_ts` + orderBy+limit sungguhan,
     // dengan "Muat Lagi" (cursor startAfter, menambah ke daftar) — koleksi
@@ -306,6 +399,7 @@ const AppWhatsappGateway = {
       tabAktif.value = nama;
       if (nama === 'monitor') muatMonitoring();
       if (nama === 'phonebook') muatPhonebook();
+      if (nama === 'template') muatTemplate();
     }
 
     // muat — dipanggil ulang tiap menu WhatsApp diklik lagi (pastikanMountWhatsapp);
@@ -313,6 +407,7 @@ const AppWhatsappGateway = {
     function muat() {
       if (tabAktif.value === 'monitor') muatMonitoring();
       else if (tabAktif.value === 'phonebook') muatPhonebook();
+      else if (tabAktif.value === 'template') muatTemplate();
     }
     onMounted(async () => { await window.authReady; });
 
@@ -326,7 +421,9 @@ const AppWhatsappGateway = {
       formWa, menyimpanWa, bukaWa, simpanWa, hapusWa, grupFonnte, mengambilGrup, ambilGrupFonnte, sudahTersimpan, tambahDariFonnte,
       daftarLog, daftarLogTersaring, filterStatus, memuatLog, muatMonitoring,
       adaLogBerikutnya, memuatLogLagi, muatLagiLog,
-      memuatLogLama, daftarLogLama, sudahCekLogLama, muatLogLama
+      memuatLogLama, daftarLogLama, sudahCekLogLama, muatLogLama,
+      daftarJadwal, memuatJadwal, jadwalDipilih, isiTemplate, areaTemplate, pratinjau, prosesTemplate, muatTemplate,
+      jadwalPerModul, labelJenis, pilihJadwal, sisipkan, kembalikanBawaan, simpanTemplate, perintahTemplate, PLACEHOLDER_WA
     };
   },
   template: `
@@ -357,10 +454,44 @@ const AppWhatsappGateway = {
       </div>
     </div>
 
-    <div v-show="tabAktif === 'template'" style="margin-top:16px;">
-      <div class="gc-card" style="max-width:560px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin-bottom:6px;">Template Pesan</h3>
-        <p style="font-size:12px; color:var(--text-muted); line-height:1.55;">Setiap jadwal kirim WA punya template sendiri, dikelompokkan per modul (Absensi, lalu Persiapan, Proses, Belanja). Template otomatis muncul di sini saat jadwalnya dibuat di Report Absensi, dan ikut terhapus saat jadwalnya dihapus.</p>
+    <div v-show="tabAktif === 'template'" style="margin-top:16px;" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="gc-card" style="align-self:start;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin-bottom:4px;">Template per jadwal</h3>
+        <p style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Template lahir saat jadwal dibuat di Report Absensi › Jadwal Kirim WA, dan ikut terhapus bersama jadwalnya.</p>
+        <div v-if="memuatJadwal" style="font-size:12px; color:var(--text-faint);">Memuat...</div>
+        <div v-for="m in jadwalPerModul" :key="m.key" style="margin-bottom:12px;">
+          <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; margin-bottom:6px;">{{ m.label }}</div>
+          <div v-if="m.jadwal.length === 0" style="font-size:11.5px; color:var(--text-faint);">{{ m.key === 'absensi' ? 'Belum ada jadwal.' : 'Menyusul.' }}</div>
+          <button v-for="j in m.jadwal" :key="j.id" @click="pilihJadwal(j)" class="btn-outline" :class="{ filled: jadwalDipilih && jadwalDipilih.id === j.id }" style="display:block; width:100%; text-align:left; margin-bottom:6px; padding:8px 12px;">
+            <div style="font-size:12px; font-weight:700;">{{ j.nama }}</div>
+            <div style="font-size:10.5px; opacity:.8;">{{ labelJenis(j.jenis) }}<span v-if="!j.aktif"> · mati</span></div>
+          </button>
+        </div>
+      </div>
+
+      <div class="gc-card md:col-span-2">
+        <div v-if="!jadwalDipilih" style="font-size:12px; color:var(--text-faint); padding:20px 0; text-align:center;">Pilih jadwal di kiri untuk mengubah templatenya.</div>
+        <template v-else>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+            <h3 class="gc-heading" style="font-size:13.5px; font-weight:700;">Template: {{ jadwalDipilih.nama }}</h3>
+            <button v-if="bolehUbah" @click="kembalikanBawaan" class="btn-outline" style="font-size:11px; padding:6px 10px;">Kembalikan ke bawaan</button>
+          </div>
+          <div style="font-size:11px; font-weight:700; margin-bottom:6px;">Sisipkan data (klik untuk menaruh di posisi kursor)</div>
+          <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;">
+            <button v-for="ph in PLACEHOLDER_WA" :key="ph" @click="sisipkan(ph)" :disabled="!bolehUbah" class="tag neutral" style="border:none; cursor:pointer; font-family:'Poppins',sans-serif;">{{ '{' + ph + '}' }}</button>
+          </div>
+          <textarea ref="areaTemplate" v-model="isiTemplate" :readonly="!bolehUbah" rows="14" style="width:100%; padding:10px 12px; border:1.5px solid var(--line); border-radius:12px; font-size:12.5px; line-height:1.5; background:var(--surface); font-family:inherit;"></textarea>
+          <p style="font-size:10.5px; color:var(--text-muted); margin-top:6px; line-height:1.5;">Format WA: *tebal*, _miring_, ~coret~. Daftar nama diisi satu per baris, maksimal 10 lalu "…dan N lainnya". Kalau daftarnya kosong, satu baris judul tepat di atas {daftar_...} ikut disembunyikan. {menunggu_validasi} dan {menunggu_izin} = isi Antrean saat pesan dikirim.</p>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
+            <button @click="perintahTemplate('pratinjau_jadwal')" :disabled="!!prosesTemplate" class="btn-outline">{{ prosesTemplate === 'pratinjau_jadwal' ? 'Menyusun...' : 'Pratinjau dengan data saat ini' }}</button>
+            <button v-if="bolehUbah" @click="perintahTemplate('tes_jadwal')" :disabled="!!prosesTemplate" class="btn-outline">{{ prosesTemplate === 'tes_jadwal' ? 'Mengirim...' : 'Kirim tes ke nomor saya' }}</button>
+            <button v-if="bolehUbah" @click="simpanTemplate" :disabled="!!prosesTemplate" class="btn-primary">{{ prosesTemplate === 'simpan' ? 'Menyimpan...' : 'Simpan template' }}</button>
+          </div>
+          <div v-if="pratinjau" style="margin-top:14px; background:var(--ivory-dim); border-radius:14px; padding:12px;">
+            <div style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:6px;">Pratinjau pesan WA</div>
+            <div style="white-space:pre-wrap; font-size:12.5px; line-height:1.5; background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:10px 12px;">{{ pratinjau }}</div>
+          </div>
+        </template>
       </div>
     </div>
 

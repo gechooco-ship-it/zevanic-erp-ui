@@ -1,28 +1,30 @@
 // js/vue-report-absensi.js
 // Master Absensi > Report Absensi: ringkasan kehadiran per periode (KPI, rekap
-// per karyawan, daftar belum absen & terlambat hari ini) plus Export CSV.
+// per karyawan, belum absen & terlambat hari ini), Export CSV, dan panel
+// Jadwal Kirim WA (report yang dikirim otomatis lewat Fonnte).
 //
 // Koleksi & field:
-// - users (status_kerja=='Aktif'): name, email, jenis_pekerjaan,
-//   gudang_penempatan, nama_shift, jenis_akun (kiosk dilewati).
-// - jadwal_shift (where bulan==YYYY-MM): hari{"1":"Pagi"|"OFF"}.
-// - master_shift: nama_shift, jam_masuk, jam_keluar.
-// - absensi: format baru via waktu_masuk_ts, format lama & lembur via waktu_ts,
-//   izin/cuti via tanggal_pengajuan (YYYY-MM-DD). Hanya dibaca.
+// - users (status_kerja=='Aktif'): name, jenis_pekerjaan, gudang_penempatan,
+//   nama_shift, jenis_akun (kiosk dilewati).
+// - jadwal_shift (where bulan==YYYY-MM): hari{"1":"Pagi"|"OFF"}; master_shift.
+// - absensi: waktu_masuk_ts (format baru), waktu_ts (lama & lembur),
+//   tanggal_pengajuan YYYY-MM-DD (izin/cuti). Hanya dibaca.
+// - wa_jadwal: nama, modul, jenis, hari[0-6], jam[], gudang, penerima[{jenis,id}],
+//   aktif, template. Phonebook (wa_kontak, wa_grup_phonebook, wa_group) dibaca.
 //
 // Jebakan:
-// - rekapAbsensi() murni tanpa Firestore: satu-satunya tempat aturan hitung.
-//   Status yang belum divalidasi dihitung otomatis dari jam shift lewat
-//   hitungStatusKehadiran, jadi angka bisa bergeser setelah HRD validasi.
-// - Belum absen hari ini hanya dihitung kalau jam masuk shiftnya sudah lewat;
-//   hari yang sudah lewat tanpa Clock In/izin jadi "Tidak absen".
-// - Kunci hari selalu tanggal WIB, bukan toISOString (UTC).
+// - rekapAbsensi() satu-satunya aturan hitung di browser; functions/index.js
+//   punya salinannya untuk pesan terjadwal — ubah keduanya bersamaan.
+// - Status belum divalidasi dihitung otomatis dari jam shift. Belum absen hari
+//   ini baru dihitung setelah jam masuk shift lewat. Kunci hari = tanggal WIB.
+// - Jadwal dihapus = templatenya ikut hilang (template field di dokumen jadwal).
 
 import { createApp, ref, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, query, where, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, query, where, orderBy, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { KolomCari } from './vue-components.js?v=13';
 import { hitungStatusKehadiran } from './vue-antrean-absensi.js?v=8';
+import { JENIS_REPORT_WA, TEMPLATE_BAWAAN_WA, jalankanPerintahWa } from './vue-whatsapp-gateway.js?v=2';
 
 const STATUS_NON_HADIR = ["IZIN", "CUTI", "LEMBUR (CLOCK IN)", "CLOCK OUT"];
 const MAKS_HARI = 31;
@@ -130,9 +132,199 @@ export function rekapAbsensi(input) {
   return { kpi, baris, daftarBelumAbsen, daftarTerlambatHariIni };
 }
 
-const AppReportAbsensi = {
-  components: { KolomCari },
+const NAMA_HARI_PENDEK = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+const OPSI_JAM = [];
+for (let h = 0; h < 24; h++) for (let m = 0; m < 60; m += 5) OPSI_JAM.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+
+// Jam dibatasi kelipatan 5 menit karena jadwalKirimWa di server berjalan tiap 5 menit.
+const JadwalKirimWa = {
+  props: { opsiGudang: { type: Array, default: () => [] } },
+  emits: ['tutup'],
   setup() {
+    const bolehUbah = ['owner', 'pic_owner'].includes((window.currentUser?.role || '').toLowerCase());
+    const daftar = ref([]), kontak = ref([]), grup = ref([]), waGroup = ref([]);
+    const memuat = ref(true);
+    const form = ref(null);
+    const menyimpan = ref(false);
+    const mengirimTes = ref('');
+
+    async function muat() {
+      memuat.value = true;
+      try {
+        const [sj, sk, sg, sw] = await Promise.all([
+          getDocs(query(collection(db, 'wa_jadwal'), orderBy('nama'))),
+          getDocs(query(collection(db, 'wa_kontak'), orderBy('nama'))),
+          getDocs(query(collection(db, 'wa_grup_phonebook'), orderBy('nama'))),
+          getDocs(query(collection(db, 'wa_group'), orderBy('nama')))
+        ]);
+        daftar.value = sj.docs.map(d => ({ id: d.id, ...d.data() })).filter(j => (j.modul || 'absensi') === 'absensi');
+        kontak.value = sk.docs.map(d => ({ id: d.id, ...d.data() }));
+        grup.value = sg.docs.map(d => ({ id: d.id, ...d.data() }));
+        waGroup.value = sw.docs.map(d => ({ id: d.id, ...d.data() }));
+      } catch (e) {
+        console.error('Gagal memuat jadwal WA:', e);
+        alert('Gagal memuat jadwal kirim WA.');
+      }
+      memuat.value = false;
+    }
+
+    const opsiPenerima = computed(() => [
+      ...grup.value.map(g => ({ jenis: 'grup', id: g.id, label: `Grup: ${g.nama}` })),
+      ...waGroup.value.map(w => ({ jenis: 'wa_group', id: w.id, label: `WA Group: ${w.nama}` })),
+      ...kontak.value.map(k => ({ jenis: 'kontak', id: k.id, label: `Kontak: ${k.nama}` }))
+    ]);
+    const labelPenerima = p => (opsiPenerima.value.find(o => o.jenis === p.jenis && o.id === p.id) || {}).label || '(terhapus)';
+    const labelJenis = key => (JENIS_REPORT_WA.find(j => j.key === key) || {}).label || key;
+    const teksHari = j => j.jenis === 'rekap_bulanan' ? 'Tanggal 1'
+      : ((j.hari || []).length === 7 ? 'Setiap hari' : (j.hari || []).slice().sort().map(h => NAMA_HARI_PENDEK[h]).join(', '));
+
+    function buka(j) {
+      form.value = j
+        ? { id: j.id, nama: j.nama, jenis: j.jenis, hari: [...(j.hari || [])], jam: [...(j.jam || [])], gudang: j.gudang || '', penerima: [...(j.penerima || [])], aktif: !!j.aktif, jamBaru: '10:00', penerimaBaru: '' }
+        : { id: null, nama: '', jenis: 'ringkasan_pagi', hari: [1, 2, 3, 4, 5, 6], jam: ['10:00'], gudang: '', penerima: [], aktif: true, jamBaru: '16:00', penerimaBaru: '' };
+    }
+    function toggleHari(h) { const i = form.value.hari.indexOf(h); if (i >= 0) form.value.hari.splice(i, 1); else form.value.hari.push(h); }
+    function tambahJam() { const j = form.value.jamBaru; if (j && !form.value.jam.includes(j)) form.value.jam.push(j); form.value.jam.sort(); }
+    function tambahPenerima() {
+      const o = opsiPenerima.value.find(x => `${x.jenis}|${x.id}` === form.value.penerimaBaru);
+      if (o && !form.value.penerima.some(p => p.jenis === o.jenis && p.id === o.id)) form.value.penerima.push({ jenis: o.jenis, id: o.id });
+      form.value.penerimaBaru = '';
+    }
+
+    async function simpan() {
+      const f = form.value;
+      if (!f.nama.trim()) return alert('Nama jadwal wajib diisi.');
+      if (daftar.value.some(j => j.nama.toLowerCase() === f.nama.trim().toLowerCase() && j.id !== f.id)) return alert('Nama jadwal sudah dipakai. Nama ini juga jadi nama templatenya.');
+      if (!f.jam.length) return alert('Tambahkan minimal satu jam kirim.');
+      if (f.jenis !== 'rekap_bulanan' && !f.hari.length) return alert('Pilih minimal satu hari.');
+      if (!f.penerima.length) return alert('Tambahkan minimal satu penerima.');
+      menyimpan.value = true;
+      const data = { nama: f.nama.trim(), modul: 'absensi', jenis: f.jenis, hari: [...f.hari].sort(), jam: [...f.jam], gudang: f.gudang, penerima: f.penerima, aktif: f.aktif, diubah_pada: serverTimestamp() };
+      try {
+        if (f.id) {
+          const lama = daftar.value.find(j => j.id === f.id);
+          if (lama && lama.jenis !== f.jenis && confirm('Jenis report berubah. Ganti template dengan versi bawaan jenis baru?')) data.template = TEMPLATE_BAWAAN_WA[f.jenis];
+          await updateDoc(doc(db, 'wa_jadwal', f.id), data);
+        } else {
+          await addDoc(collection(db, 'wa_jadwal'), { ...data, template: TEMPLATE_BAWAAN_WA[f.jenis], dibuat_oleh: window.currentUser.email || '', dibuat_pada: serverTimestamp() });
+        }
+        form.value = null;
+        await muat();
+      } catch (e) {
+        console.error('Gagal simpan jadwal WA:', e);
+        alert('Gagal menyimpan jadwal.');
+      }
+      menyimpan.value = false;
+    }
+    async function hapus(j) {
+      if (!confirm(`Hapus jadwal "${j.nama}"? Templatenya ikut terhapus.`)) return;
+      try { await deleteDoc(doc(db, 'wa_jadwal', j.id)); await muat(); }
+      catch (e) { console.error('Gagal hapus jadwal WA:', e); alert('Gagal menghapus jadwal.'); }
+    }
+    async function ubahAktif(j) {
+      try { await updateDoc(doc(db, 'wa_jadwal', j.id), { aktif: !j.aktif }); j.aktif = !j.aktif; }
+      catch (e) { console.error('Gagal ubah status jadwal WA:', e); alert('Gagal mengubah status jadwal.'); }
+    }
+    async function kirimTes(j) {
+      mengirimTes.value = j.id;
+      try {
+        const x = await jalankanPerintahWa({ aksi: 'tes_jadwal', jadwal_id: j.id });
+        alert('Pesan tes diantrekan. ' + (x.keterangan || ''));
+      } catch (e) { alert('Gagal kirim tes: ' + e.message); }
+      mengirimTes.value = '';
+    }
+    function bukaTemplate() {
+      window.pindahTab('tab-whatsapp');
+      if (window.bukaSubTabWhatsapp) window.bukaSubTabWhatsapp('template');
+    }
+
+    onMounted(muat);
+    return { bolehUbah, daftar, memuat, form, menyimpan, mengirimTes, opsiPenerima, labelPenerima, labelJenis, teksHari,
+      buka, toggleHari, tambahJam, tambahPenerima, simpan, hapus, ubahAktif, kirimTes, bukaTemplate,
+      JENIS_REPORT_WA, NAMA_HARI_PENDEK, OPSI_JAM };
+  },
+  template: `
+    <div class="gc-card" style="margin-bottom:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+        <div>
+          <h3 class="gc-heading" style="font-weight:700; font-size:13.5px;"><i class="fab fa-whatsapp" style="color:var(--ok); margin-right:8px;"></i>Jadwal Kirim WA</h3>
+          <p style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">Dikirim lewat nomor Fonnte yang sama dengan bot report. Isi pesan diatur di Master Integrasi › WhatsApp › Template Pesan.</p>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button @click="$emit('tutup')" class="btn-outline">Tutup</button>
+          <button v-if="bolehUbah" @click="buka(null)" class="btn-primary"><i class="fas fa-plus" style="margin-right:6px;"></i>Jadwal</button>
+        </div>
+      </div>
+      <div v-if="memuat" style="font-size:12px; color:var(--text-faint);">Memuat jadwal...</div>
+      <div v-else-if="!daftar.length" style="font-size:12px; color:var(--text-faint);">Belum ada jadwal kirim WA.</div>
+      <div v-for="j in daftar" :key="j.id" style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 0; border-top:1px solid var(--line);">
+        <div style="min-width:0;">
+          <div style="font-size:12.5px; font-weight:700;">{{ j.nama }} <span class="tag" :class="j.aktif ? 'ok' : 'neutral'" style="margin-left:4px;">{{ j.aktif ? 'Aktif' : 'Mati' }}</span></div>
+          <div style="font-size:11px; color:var(--text-muted);">{{ labelJenis(j.jenis) }} · {{ teksHari(j) }} · {{ (j.jam || []).join(' & ') }} · {{ j.gudang || 'Semua gudang' }}</div>
+          <div style="font-size:11px; color:var(--text-faint);">{{ (j.penerima || []).map(labelPenerima).join(', ') }}<span v-if="j.hasil_terakhir"> · terakhir: {{ j.hasil_terakhir }}</span></div>
+        </div>
+        <div v-if="bolehUbah" style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button @click="kirimTes(j)" :disabled="mengirimTes === j.id" class="btn-outline" style="padding:5px 10px; font-size:11px;">{{ mengirimTes === j.id ? 'Mengirim...' : 'Tes ke nomor saya' }}</button>
+          <button @click="ubahAktif(j)" class="btn-outline" style="padding:5px 10px; font-size:11px;">{{ j.aktif ? 'Matikan' : 'Aktifkan' }}</button>
+          <button @click="buka(j)" class="btn-outline" style="padding:5px 10px; font-size:11px;">Ubah</button>
+          <button @click="hapus(j)" class="btn-outline" style="padding:5px 10px; font-size:11px; color:var(--danger); border-color:var(--danger);">Hapus</button>
+        </div>
+      </div>
+      <button @click="bukaTemplate" class="btn-outline" style="margin-top:10px; font-size:11px;"><i class="fas fa-comment-dots" style="margin-right:6px;"></i>Atur template pesan</button>
+    </div>
+
+    <div v-if="form" style="position:fixed; inset:0; background:rgba(var(--scrim-rgb),.6); z-index:60; display:flex; align-items:center; justify-content:center; padding:16px;" class="fade-in">
+      <div style="background:var(--surface); width:100%; max-width:480px; max-height:90vh; overflow:auto; padding:22px; border-radius:20px;">
+        <h3 class="gc-heading" style="font-weight:700; font-size:14px; margin-bottom:14px;">{{ form.id ? 'Ubah jadwal' : 'Tambah jadwal' }}</h3>
+        <div class="gc-field"><label>Nama jadwal (juga nama template)</label><input v-model="form.nama" type="text" placeholder="mis. Ringkasan pagi SOG19"></div>
+        <div class="gc-field"><label>Jenis report</label>
+          <select v-model="form.jenis"><option v-for="j in JENIS_REPORT_WA" :key="j.key" :value="j.key">{{ j.label }}</option></select>
+        </div>
+        <div v-if="form.jenis !== 'rekap_bulanan'" style="margin-bottom:12px;">
+          <label style="display:block; font-size:12px; font-weight:700; margin-bottom:6px;">Hari</label>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button v-for="(h, i) in NAMA_HARI_PENDEK" :key="i" @click="toggleHari(i)" class="btn-outline" :class="{ filled: form.hari.includes(i) }" style="padding:5px 10px; font-size:11px;">{{ h }}</button>
+          </div>
+        </div>
+        <p v-else style="font-size:11px; color:var(--text-muted); margin-bottom:12px;">Rekap bulanan dikirim tiap tanggal 1 untuk bulan sebelumnya.</p>
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-size:12px; font-weight:700; margin-bottom:6px;">Jam kirim (WIB)</label>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">
+            <span v-for="(j, i) in form.jam" :key="j" class="tag neutral">{{ j }} <a @click="form.jam.splice(i, 1)" style="cursor:pointer; margin-left:4px;">&times;</a></span>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <select v-model="form.jamBaru" style="padding:6px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);"><option v-for="o in OPSI_JAM" :key="o" :value="o">{{ o }}</option></select>
+            <button @click="tambahJam" class="btn-outline" style="padding:5px 10px; font-size:11px;">+ jam</button>
+          </div>
+        </div>
+        <div class="gc-field"><label>Gudang yang dilaporkan</label>
+          <select v-model="form.gudang"><option value="">Semua gudang</option><option v-for="g in opsiGudang" :key="g" :value="g">{{ g }}</option></select>
+        </div>
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-size:12px; font-weight:700; margin-bottom:6px;">Penerima</label>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">
+            <span v-for="(p, i) in form.penerima" :key="p.jenis + p.id" class="tag neutral">{{ labelPenerima(p) }} <a @click="form.penerima.splice(i, 1)" style="cursor:pointer; margin-left:4px;">&times;</a></span>
+          </div>
+          <select v-model="form.penerimaBaru" @change="tambahPenerima" style="width:100%; padding:7px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+            <option value="">+ Tambah penerima dari Phonebook...</option>
+            <option v-for="o in opsiPenerima" :key="o.jenis + o.id" :value="o.jenis + '|' + o.id">{{ o.label }}</option>
+          </select>
+          <p v-if="form.jenis === 'pengingat_hrd'" style="font-size:10.5px; color:var(--text-muted); margin-top:6px;">Pengingat HRD hanya terkirim kalau ada yang menunggu validasi.</p>
+        </div>
+        <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; margin-bottom:14px; cursor:pointer;"><input type="checkbox" v-model="form.aktif" style="width:15px; height:15px; accent-color:var(--burgundy);"> Aktif</label>
+        <div style="display:flex; gap:10px;">
+          <button @click="form = null" class="btn-outline" style="flex:1;">Batal</button>
+          <button @click="simpan" :disabled="menyimpan" class="btn-primary" style="flex:1;">{{ menyimpan ? 'Menyimpan...' : 'Simpan jadwal' }}</button>
+        </div>
+      </div>
+    </div>
+  `
+};
+
+const AppReportAbsensi = {
+  components: { KolomCari, JadwalKirimWa },
+  setup() {
+    const tampilJadwal = ref(false);
     const preset = ref('hari_ini');
     const tglMulai = ref(''), tglSelesai = ref('');
     const filterGudang = ref(''), filterJP = ref('');
@@ -273,7 +465,7 @@ const AppReportAbsensi = {
 
     return { preset, tglMulai, tglSelesai, filterGudang, filterJP, cari, memuat, errorMuat, muat,
       opsiGudang, opsiJP, kpi, hasil, adaHariIni, barisHalaman, barisTersaring, halaman, totalHalaman,
-      gantiHalaman, captionRentang, bukaAntrean, exportCSV };
+      gantiHalaman, captionRentang, bukaAntrean, exportCSV, tampilJadwal };
   },
   template: `
     <div class="gc-card" style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:16px;">
@@ -282,10 +474,13 @@ const AppReportAbsensi = {
         <p style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">Ringkasan kehadiran karyawan aktif per periode.</p>
       </div>
       <div style="display:flex; gap:8px;">
+        <button @click="tampilJadwal = !tampilJadwal" class="btn-outline" style="display:flex; align-items:center; gap:6px;"><i class="fab fa-whatsapp"></i><span>Jadwal Kirim WA</span></button>
         <button @click="muat" :disabled="memuat" class="btn-outline" style="display:flex; align-items:center; gap:6px;"><i class="fas fa-rotate"></i><span>Muat ulang</span></button>
         <button @click="exportCSV" class="btn-outline filled" style="display:flex; align-items:center; gap:8px;"><i class="fas fa-file-excel"></i><span>Export CSV</span></button>
       </div>
     </div>
+
+    <jadwal-kirim-wa v-if="tampilJadwal" :opsi-gudang="opsiGudang" @tutup="tampilJadwal = false" />
 
     <div class="gc-card" style="margin-bottom:16px;">
       <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
