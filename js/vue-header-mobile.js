@@ -60,6 +60,7 @@ const LABEL_SUBTAB = {
   'sub-absensi-accept': 'Antrean Absensi',
   'sub-absensi-lembur': 'Antrean Izin/Cuti/Lembur',
   'sub-absensi-rekap': 'Riwayat All Absensi',
+  'sub-absensi-report': 'Report Absensi',
   'sub-keuangan-antrean': 'Antrean Reimburse',
   'sub-keuangan-kendaraan': 'Master Kendaraan',
   'sub-keuangan-kategori': 'Kategori Keuangan',
