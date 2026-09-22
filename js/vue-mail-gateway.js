@@ -1,11 +1,11 @@
 // js/vue-mail-gateway.js
 // Komponen AppMailGateway — Mail Gateway, 3 tab (Config, Template Pesan,
-// Monitoring) untuk pengiriman EMAIL lewat Extension "Trigger Email". Tab
-// Config juga tempat uji skenario OTP (kode benar/salah/kadaluarsa).
+// Monitoring) email lewat Extension "Trigger Email"; Config = saklar + uji OTP.
 //
 // Koleksi & field:
 // - config/mail_templates: pasangan subjek_/isi_ per jenis (registrasi,
 //   perangkat, verifikasi email, reset password, aktivasi akun).
+// - config/otp_login.aktif: saklar wajib-OTP email login perangkat baru.
 // - mail: antrean kirim yang dibaca Extension. Monitoring baca 50 dokumen
 //   terakhir (orderBy dikirim_pada desc) plus field delivery.
 //
@@ -46,6 +46,30 @@ const AppMailGateway = {
     const mengirimTes = ref(false);
     const memverifikasiTes = ref(false);
     const hasilTes = ref(''); // teks status terakhir, ditampilkan apa adanya
+
+    // Saklar OTP login perangkat baru. Dokumen belum ada -> nilai lama dari
+    // config/whatsapp_gateway.otp_aktif, supaya perilaku login tidak berubah diam-diam.
+    const otpAktif = ref(false);
+    const menyimpanOtp = ref(false);
+    async function muatSaklarOtp() {
+      try {
+        const snap = await getDoc(doc(db, "config", "otp_login"));
+        if (snap.exists()) { otpAktif.value = !!snap.data().aktif; return; }
+        const lama = await getDoc(doc(db, "config", "whatsapp_gateway"));
+        otpAktif.value = !!(lama.exists() && lama.data().otp_aktif);
+      } catch (e) { console.error("Gagal memuat saklar OTP:", e); }
+    }
+    async function simpanSaklarOtp() {
+      menyimpanOtp.value = true;
+      try {
+        await setDoc(doc(db, "config", "otp_login"), { aktif: otpAktif.value });
+        alert(otpAktif.value ? "OTP email saat login perangkat baru: AKTIF." : "OTP email saat login perangkat baru: MATI.");
+      } catch (e) {
+        console.error("Gagal menyimpan saklar OTP:", e);
+        alert("Gagal menyimpan saklar OTP.");
+      }
+      menyimpanOtp.value = false;
+    }
 
     async function kirimKodeTes() {
       if (!emailTes.value.trim()) return alert("Masukkan email tujuan tes dulu!");
@@ -136,12 +160,14 @@ const AppMailGateway = {
     // (template/monitor) — pill-tab lain tetap lazy seperti biasa lewat
     // pindahTab.
     function muat() {
-      if (tabAktif.value === 'template') muatTemplate();
+      if (tabAktif.value === 'config') muatSaklarOtp();
+      else if (tabAktif.value === 'template') muatTemplate();
       else if (tabAktif.value === 'monitor') muatMonitoring();
     }
-    onMounted(async () => { await window.authReady; });
+    onMounted(async () => { await window.authReady; muatSaklarOtp(); });
 
     return {
+      otpAktif, menyimpanOtp, simpanSaklarOtp,
       tabAktif, pindahTab, muat,
       emailTes, kodeTes, mengirimTes, memverifikasiTes, hasilTes, kirimKodeTes, verifikasiKodeTes,
       template, menyimpanTemplate, simpanTemplate,
@@ -162,6 +188,16 @@ const AppMailGateway = {
     </div>
 
     <div v-show="tabAktif === 'config'" style="margin-top:16px;">
+      <div class="gc-card" style="max-width:480px; margin-bottom:16px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:12px;">OTP Login Perangkat Baru</h3>
+        <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; font-weight:600; margin-bottom:12px; cursor:pointer;">
+          <input v-model="otpAktif" type="checkbox" style="width:16px; height:16px; accent-color:var(--burgundy);">
+          Wajibkan kode OTP email saat login dari perangkat baru
+        </label>
+        <button @click="simpanSaklarOtp" :disabled="menyimpanOtp" class="btn-primary block" style="background:var(--ok);">
+          <i class="fas fa-save" style="margin-right:6px;"></i> {{ menyimpanOtp ? 'Menyimpan...' : 'Simpan' }}
+        </button>
+      </div>
       <div class="gc-card" style="max-width:480px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; border-bottom:1px solid var(--line); padding-bottom:10px; margin-bottom:6px;">Uji Coba OTP</h3>
         <p style="font-size:11px; color:var(--text-muted); margin-bottom:14px;">Tes 3 skenario sebelum dipakai sungguhan: (1) kode benar, (2) kode salah, (3) kode kadaluarsa (tunggu 10 menit lalu coba verifikasi lagi).</p>

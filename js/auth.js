@@ -7,7 +7,7 @@
 //   status_approval, status_kerja, jenis_akun, gudang_penempatan, nama_shift,
 //   jabatan, jenis_pekerjaan.
 // - akses_jabatan/{jabatan}: role + jenis_pekerjaan + peta izin menu/fitur.
-// - jadwal_shift/{email}_{YYYY-MM} & master_shift, absensi, wa_log, config.
+// - jadwal_shift/{email}_{YYYY-MM} & master_shift, absensi, wa_keluar, config.
 //
 // Jebakan:
 // - onAuthStateChanged bisa memanggil user=null DULU sebelum sesi tersimpan
@@ -330,68 +330,25 @@ window.cekMasihJamKerja = async function(namaShift) {
 };
 
 
-// WHATSAPP GATEWAY (Fonnte lewat Google Apps Script sebagai perantara aman).
-// Konfigurasi (URL Apps Script + kunci rahasia) disimpan di Firestore
-// config/whatsapp_gateway, diatur lewat Menu Karyawan > WhatsApp Gateway. Token
-// Fonnte sendiri TIDAK PERNAH ada di kode ini — disimpan di Apps Script.
-
+// WHATSAPP GATEWAY: tulis dokumen wa_keluar; Cloud Function kirimWaKeluar
+// mengirim lewat Fonnte (token di Secret Manager) dan mencatat wa_log sendiri.
+// Hasil ditunggu sebentar supaya pemanggil (tombol Tes) tahu terkirim/gagal.
 window.kirimPesanWhatsapp = async function(nomor, pesan, jenis) {
-  jenis = jenis || "Lainnya";
-  let sukses = false;
-  let keterangan = "";
   try {
-    const configSnap = await getDoc(doc(db, "config", "whatsapp_gateway"));
-    if (!configSnap.exists()) {
-      keterangan = "Konfigurasi WhatsApp Gateway belum diatur.";
-      console.warn(keterangan);
-    } else {
-      const cfg = configSnap.data();
-      if (!cfg.webapp_url || !cfg.shared_secret) {
-        keterangan = "URL Apps Script atau kunci rahasia belum diisi.";
-        console.warn(keterangan);
-      } else {
-        // Menumpang di Apps Script project WA Gateway yang sudah ada (bot
-        // produksi) — routing pakai query string ?modul=absensi sesuai hook yang
-        // sudah disiapkan di doPost mereka, supaya satu nomor/token bisa dipakai
-        // berdampingan.
-        const urlDenganModul = cfg.webapp_url + (cfg.webapp_url.includes('?') ? '&' : '?') + 'modul=absensi';
-        // Content-Type text/plain sengaja dipakai supaya browser tidak melakukan
-        // CORS preflight (OPTIONS) yang tidak ditangani baik oleh Apps Script
-        // Web App.
-        const resp = await fetch(urlDenganModul, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ secret: cfg.shared_secret, target: nomor, message: pesan })
-        });
-        const hasil = await resp.json();
-        sukses = !!hasil.sukses;
-        keterangan = hasil.pesan || (sukses ? "Terkirim." : "Gagal tanpa keterangan.");
-      }
+    const ref = await addDoc(collection(db, "wa_keluar"), {
+      target: String(nomor || '').trim(), pesan: pesan || '', jenis: jenis || "Lainnya",
+      dibuat_oleh: window.currentUser.email || '', dibuat_pada: serverTimestamp()
+    });
+    for (let i = 0; i < 12; i++) {
+      await new Promise(r => setTimeout(r, 1500));
+      const snap = await getDoc(ref);
+      const hasil = snap.exists() ? snap.data().hasil : null;
+      if (hasil) return hasil === 'terkirim';
     }
   } catch (e) {
     console.error("Gagal kirim WhatsApp:", e);
-    keterangan = e.message || "Error tidak diketahui.";
   }
-
-  // Catat ke log untuk panel Monitoring Respon (best-effort, tidak menghambat
-  // alur utama)
-  try {
-    await addDoc(collection(db, "wa_log"), {
-      waktu: new Date().toLocaleString('id-ID'),
-      // Field urut yang benar (jam server, bukan jam device) — `waktu` yang
-      // berupa teks lokal tidak bisa di-orderBy/limit Firestore dengan andal.
-      waktu_ts: serverTimestamp(),
-      target: nomor,
-      jenis: jenis,
-      pesan: pesan,
-      sukses: sukses,
-      keterangan: keterangan
-    });
-  } catch (e) {
-    console.error("Gagal mencatat log WA:", e);
-  }
-
-  return sukses;
+  return false;
 };
 
 // Ambil template pesan yang bisa diedit Owner (Menu WhatsApp Gateway > Template

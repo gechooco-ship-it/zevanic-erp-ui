@@ -6,7 +6,8 @@
 // Koleksi & field:
 // - users/{email}: role (5 role baku), jabatan, status_approval,
 //   gudang_penempatan (dinormalisasi window.normalisasiGudang), nama_shift.
-// - config/whatsapp_gateway: otp_aktif — saklar wajib-OTP perangkat baru.
+// - config/otp_login: aktif — saklar wajib-OTP email perangkat baru (diatur di
+//   Mail Gateway); dokumen belum ada -> fallback config/whatsapp_gateway.otp_aktif.
 //
 // Jebakan:
 // - window.lupaPassword (auth.js) membaca getElementById('input-email')
@@ -172,8 +173,13 @@ const AppLogin = {
 
     async function apakahOtpDiperlukan(emailCek) {
       try {
-        const configSnap = await getDoc(doc(db, "config", "whatsapp_gateway"));
-        if (!configSnap.exists() || !configSnap.data().otp_aktif) return false;
+        const snapOtp = await getDoc(doc(db, "config", "otp_login"));
+        if (snapOtp.exists()) {
+          if (!snapOtp.data().aktif) return false;
+        } else {
+          const snapLama = await getDoc(doc(db, "config", "whatsapp_gateway"));
+          if (!snapLama.exists() || !snapLama.data().otp_aktif) return false;
+        }
       } catch (e) {
         console.error("Gagal cek konfigurasi OTP:", e);
         return false;
