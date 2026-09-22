@@ -9,8 +9,8 @@
 // - jadwal_shift (where bulan==YYYY-MM): hari{"1":"Pagi"|"OFF"}; master_shift.
 // - absensi: waktu_masuk_ts (format baru), waktu_ts (lama & lembur),
 //   tanggal_pengajuan YYYY-MM-DD (izin/cuti). Hanya dibaca.
-// - wa_jadwal: nama, modul, jenis, hari[0-6], jam[], aktif, template, bagian
-//   [{gudang, jenis_pekerjaan, penerima[{jenis,id}]}]. Phonebook hanya dibaca.
+// - wa_jadwal: nama, modul, jenis, hari[0-6], jam[], jenis_pekerjaan, aktif,
+//   template, bagian[{gudang[], penerima[{jenis,id}]}]. Phonebook hanya dibaca.
 //
 // Jebakan:
 // - rekapAbsensi() satu-satunya aturan hitung di browser; functions/index.js
@@ -138,9 +138,9 @@ for (let h = 0; h < 24; h++) for (let m = 0; m < 60; m += 5) OPSI_JAM.push(`${St
 
 // Jam dibatasi kelipatan 5 menit karena jadwalKirimWa di server berjalan tiap 5 menit.
 const JadwalKirimWa = {
-  props: { opsiGudang: { type: Array, default: () => [] }, opsiJp: { type: Array, default: () => [] } },
+  props: { petaGudangJp: { type: Object, default: () => ({}) }, opsiJp: { type: Array, default: () => [] } },
   emits: ['tutup'],
-  setup() {
+  setup(props) {
     const bolehUbah = ['owner', 'pic_owner'].includes((window.currentUser?.role || '').toLowerCase());
     const daftar = ref([]), kontak = ref([]), grup = ref([]), waGroup = ref([]);
     const memuat = ref(true);
@@ -175,20 +175,23 @@ const JadwalKirimWa = {
     ]);
     const labelPenerima = p => (opsiPenerima.value.find(o => o.jenis === p.jenis && o.id === p.id) || {}).label || '(terhapus)';
     const labelJenis = key => (JENIS_REPORT_WA.find(j => j.key === key) || {}).label || key;
-    // Jadwal lama tanpa `bagian` dibaca sebagai satu bagian (sama dengan bagianJadwal di server).
-    const bagianDari = j => (Array.isArray(j.bagian) && j.bagian.length) ? j.bagian
-      : [{ gudang: j.gudang || '', jenis_pekerjaan: '', penerima: j.penerima || [] }];
-    const labelBagian = b => `${b.gudang || 'Semua gudang'} · ${b.jenis_pekerjaan || 'Semua jenis'}`;
+    // Bentuk baku sama dengan bagianJadwal di server: gudang selalu array ([] =
+    // semua), jenis pekerjaan di level jadwal; bentuk lama tetap terbaca.
+    const jpDari = j => j.jenis_pekerjaan !== undefined ? j.jenis_pekerjaan : ((j.bagian || [])[0]?.jenis_pekerjaan || '');
+    const bagianDari = j => ((Array.isArray(j.bagian) && j.bagian.length) ? j.bagian : [{ gudang: j.gudang || '', penerima: j.penerima || [] }])
+      .map(b => ({ gudang: Array.isArray(b.gudang) ? b.gudang.filter(Boolean) : (b.gudang ? [b.gudang] : []), penerima: b.penerima || [] }));
+    const labelGudang = b => b.gudang.length ? b.gudang.join(', ') : 'Semua gudang';
+    const opsiGudangForm = computed(() => form.value ? (props.petaGudangJp[form.value.jenis_pekerjaan] || []) : []);
     const teksHari = j => j.jenis === 'rekap_bulanan' ? 'Tanggal 1'
       : ((j.hari || []).length === 7 ? 'Setiap hari' : (j.hari || []).slice().sort().map(h => NAMA_HARI_PENDEK[h]).join(', '));
 
     function bagianBaru(b) {
-      return { gudang: b ? b.gudang || '' : '', jenis_pekerjaan: b ? b.jenis_pekerjaan || '' : '', penerima: b ? [...(b.penerima || [])] : [], penerimaBaru: '' };
+      return { gudang: b ? [...b.gudang] : [], gudangBaru: '', penerima: b ? [...(b.penerima || [])] : [], penerimaBaru: '' };
     }
     function buka(j) {
       form.value = j
-        ? { id: j.id, nama: j.nama, jenis: j.jenis, hari: [...(j.hari || [])], jam: [...(j.jam || [])], bagian: bagianDari(j).map(bagianBaru), aktif: !!j.aktif, jamBaru: '10:00' }
-        : { id: null, nama: '', jenis: 'ringkasan_pagi', hari: [1, 2, 3, 4, 5, 6], jam: ['10:00'], bagian: [bagianBaru(null)], aktif: true, jamBaru: '16:00' };
+        ? { id: j.id, nama: j.nama, jenis: j.jenis, hari: [...(j.hari || [])], jam: [...(j.jam || [])], jenis_pekerjaan: jpDari(j), bagian: bagianDari(j).map(bagianBaru), aktif: !!j.aktif, jamBaru: '10:00' }
+        : { id: null, nama: '', jenis: 'ringkasan_pagi', hari: [1, 2, 3, 4, 5, 6], jam: ['10:00'], jenis_pekerjaan: '', bagian: [bagianBaru(null)], aktif: true, jamBaru: '16:00' };
     }
     function toggleHari(h) { const i = form.value.hari.indexOf(h); if (i >= 0) form.value.hari.splice(i, 1); else form.value.hari.push(h); }
     function tambahJam() { const j = form.value.jamBaru; if (j && !form.value.jam.includes(j)) form.value.jam.push(j); form.value.jam.sort(); }
@@ -198,6 +201,17 @@ const JadwalKirimWa = {
       b.penerimaBaru = '';
     }
     function tambahBagian() { form.value.bagian.push(bagianBaru(null)); }
+    function tambahGudang(b) {
+      if (b.gudangBaru && !b.gudang.includes(b.gudangBaru)) b.gudang.push(b.gudangBaru);
+      b.gudangBaru = '';
+    }
+    // Ganti jenis pekerjaan di form yang sama: gudang yang bukan milik jenis itu
+    // dicabut. Saat form baru dibuka (id berubah) gudang tersimpan dibiarkan utuh.
+    watch(() => form.value ? [form.value.id, form.value.jenis_pekerjaan] : null, (baru, lama) => {
+      if (!baru || !lama || baru[0] !== lama[0]) return;
+      const boleh = opsiGudangForm.value;
+      form.value.bagian.forEach(b => { b.gudang = b.gudang.filter(g => boleh.includes(g)); });
+    });
 
     async function simpan() {
       const f = form.value;
@@ -206,11 +220,12 @@ const JadwalKirimWa = {
       if (!f.jam.length) return alert('Tambahkan minimal satu jam kirim.');
       if (f.jenis !== 'rekap_bulanan' && !f.hari.length) return alert('Pilih minimal satu hari.');
       if (f.bagian.some(b => !b.penerima.length)) return alert('Setiap bagian wajib punya minimal satu penerima.');
-      const kunciBagian = f.bagian.map(b => `${b.gudang}|${b.jenis_pekerjaan}`);
-      if (new Set(kunciBagian).size !== kunciBagian.length) return alert('Ada dua bagian dengan gudang dan jenis pekerjaan yang sama. Gabungkan penerimanya ke satu bagian.');
+      const semuaGudang = f.bagian.flatMap(b => b.gudang);
+      if (new Set(semuaGudang).size !== semuaGudang.length) return alert('Satu gudang dipilih di lebih dari satu bagian. Tiap gudang cukup ada di satu bagian.');
+      if (f.bagian.length > 1 && f.bagian.some(b => !b.gudang.length)) return alert('Kalau ada lebih dari satu bagian, tiap bagian wajib memilih gudang.');
       menyimpan.value = true;
-      const bagian = f.bagian.map(b => ({ gudang: b.gudang, jenis_pekerjaan: b.jenis_pekerjaan, penerima: b.penerima }));
-      const data = { nama: f.nama.trim(), modul: 'absensi', jenis: f.jenis, hari: [...f.hari].sort(), jam: [...f.jam], bagian, aktif: f.aktif, diubah_pada: serverTimestamp() };
+      const bagian = f.bagian.map(b => ({ gudang: [...b.gudang], penerima: b.penerima }));
+      const data = { nama: f.nama.trim(), modul: 'absensi', jenis: f.jenis, hari: [...f.hari].sort(), jam: [...f.jam], jenis_pekerjaan: f.jenis_pekerjaan, bagian, aktif: f.aktif, diubah_pada: serverTimestamp() };
       try {
         if (f.id) {
           const lama = daftar.value.find(j => j.id === f.id);
@@ -251,7 +266,7 @@ const JadwalKirimWa = {
 
     onMounted(muat);
     return { bolehUbah, daftar, memuat, form, menyimpan, mengirimTes, opsiPenerima, labelPenerima, labelJenis, teksHari,
-      bagianDari, labelBagian, buka, toggleHari, tambahJam, tambahPenerima, tambahBagian, simpan, hapus, ubahAktif, kirimTes, bukaTemplate,
+      jpDari, bagianDari, labelGudang, opsiGudangForm, tambahGudang, buka, toggleHari, tambahJam, tambahPenerima, tambahBagian, simpan, hapus, ubahAktif, kirimTes, bukaTemplate,
       JENIS_REPORT_WA, NAMA_HARI_PENDEK, OPSI_JAM };
   },
   template: `
@@ -271,8 +286,8 @@ const JadwalKirimWa = {
       <div v-for="j in daftar" :key="j.id" style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 0; border-top:1px solid var(--line);">
         <div style="min-width:0;">
           <div style="font-size:12.5px; font-weight:700;">{{ j.nama }} <span class="tag" :class="j.aktif ? 'ok' : 'neutral'" style="margin-left:4px;">{{ j.aktif ? 'Aktif' : 'Mati' }}</span></div>
-          <div style="font-size:11px; color:var(--text-muted);">{{ labelJenis(j.jenis) }} · {{ teksHari(j) }} · {{ (j.jam || []).join(' & ') }}</div>
-          <div v-for="(b, i) in bagianDari(j)" :key="i" style="font-size:11px; color:var(--text-faint);"><b>{{ labelBagian(b) }}</b> → {{ (b.penerima || []).map(labelPenerima).join(', ') }}</div>
+          <div style="font-size:11px; color:var(--text-muted);">{{ labelJenis(j.jenis) }} · {{ teksHari(j) }} · {{ (j.jam || []).join(' & ') }} · {{ jpDari(j) || 'Semua jenis pekerjaan' }}</div>
+          <div v-for="(b, i) in bagianDari(j)" :key="i" style="font-size:11px; color:var(--text-faint);"><b>{{ labelGudang(b) }}</b> → {{ (b.penerima || []).map(labelPenerima).join(', ') }}</div>
           <div v-if="j.hasil_terakhir" style="font-size:10.5px; color:var(--text-faint);">Terakhir: {{ j.hasil_terakhir }}</div>
         </div>
         <div v-if="bolehUbah" style="display:flex; gap:6px; flex-wrap:wrap;">
@@ -309,17 +324,25 @@ const JadwalKirimWa = {
             <button @click="tambahJam" class="btn-outline" style="padding:5px 10px; font-size:11px;">+ jam</button>
           </div>
         </div>
+        <div class="gc-field"><label>Jenis pekerjaan yang dilaporkan</label>
+          <select v-model="form.jenis_pekerjaan"><option value="">Semua jenis pekerjaan</option><option v-for="jp in opsiJp" :key="jp" :value="jp">{{ jp }}</option></select>
+        </div>
         <label style="display:block; font-size:12px; font-weight:700; margin-bottom:4px;">Bagian kirim</label>
-        <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:8px;">Tiap bagian dapat pesan sendiri dengan angka sesuai gudang dan jenis pekerjaannya. Templatenya tetap satu.</p>
+        <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:8px;">Tiap bagian dapat pesan sendiri berisi angka gudang-gudang di bagian itu. Gudang yang muncul hanya yang punya karyawan {{ form.jenis_pekerjaan || 'jenis apa pun' }}. Templatenya tetap satu.</p>
         <div v-for="(b, bi) in form.bagian" :key="bi" style="border:1px solid var(--line); border-radius:14px; padding:10px 12px; margin-bottom:10px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
             <span style="font-size:11.5px; font-weight:700;">Bagian {{ bi + 1 }}</span>
             <a v-if="form.bagian.length > 1" @click="form.bagian.splice(bi, 1)" style="cursor:pointer; font-size:11px; color:var(--danger);">Hapus bagian</a>
           </div>
-          <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
-            <select v-model="b.gudang" style="flex:1; min-width:140px; padding:7px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);"><option value="">Semua gudang</option><option v-for="g in opsiGudang" :key="g" :value="g">{{ g }}</option></select>
-            <select v-model="b.jenis_pekerjaan" style="flex:1; min-width:140px; padding:7px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);"><option value="">Semua jenis pekerjaan</option><option v-for="jp in opsiJp" :key="jp" :value="jp">{{ jp }}</option></select>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">
+            <span v-if="!b.gudang.length" class="tag neutral">Semua gudang</span>
+            <span v-for="(g, gi) in b.gudang" :key="g" class="tag neutral">{{ g }} <a @click="b.gudang.splice(gi, 1)" style="cursor:pointer; margin-left:4px;">&times;</a></span>
           </div>
+          <select v-model="b.gudangBaru" @change="tambahGudang(b)" style="width:100%; padding:7px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface); margin-bottom:10px;">
+            <option value="">+ Tambah gudang...</option>
+            <option v-for="g in opsiGudangForm" :key="g" :value="g" :disabled="form.bagian.some(x => x.gudang.includes(g))">{{ g }}</option>
+          </select>
+          <div style="font-size:11px; font-weight:700; margin-bottom:6px;">Penerima</div>
           <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">
             <span v-for="(p, i) in b.penerima" :key="p.jenis + p.id" class="tag neutral">{{ labelPenerima(p) }} <a @click="b.penerima.splice(i, 1)" style="cursor:pointer; margin-left:4px;">&times;</a></span>
           </div>
@@ -426,6 +449,15 @@ const AppReportAbsensi = {
     }
 
     const opsiGudang = computed(() => [...new Set(bahan.value.karyawan.flatMap(k => k.gudangList))].sort());
+    // Gudang per jenis pekerjaan untuk form Jadwal Kirim WA; kunci '' = semua jenis.
+    const petaGudangJp = computed(() => {
+      const peta = { '': new Set() };
+      bahan.value.karyawan.forEach(k => k.gudangList.forEach(g => {
+        peta[''].add(g);
+        (peta[k.jenisPekerjaan] = peta[k.jenisPekerjaan] || new Set()).add(g);
+      }));
+      return Object.fromEntries(Object.entries(peta).map(([k, v]) => [k, [...v].sort()]));
+    });
     const opsiJP = computed(() => [...new Set(bahan.value.karyawan.map(k => k.jenisPekerjaan).filter(x => x && x !== '-'))].sort());
 
     const hasil = computed(() => {
@@ -483,7 +515,7 @@ const AppReportAbsensi = {
     onMounted(async () => { await window.authReady; muat(); });
 
     return { preset, tglMulai, tglSelesai, filterGudang, filterJP, cari, memuat, errorMuat, muat,
-      opsiGudang, opsiJP, kpi, hasil, adaHariIni, barisHalaman, barisTersaring, halaman, totalHalaman,
+      opsiGudang, opsiJP, petaGudangJp, kpi, hasil, adaHariIni, barisHalaman, barisTersaring, halaman, totalHalaman,
       gantiHalaman, captionRentang, bukaAntrean, exportCSV, tampilJadwal };
   },
   template: `
@@ -499,7 +531,7 @@ const AppReportAbsensi = {
       </div>
     </div>
 
-    <jadwal-kirim-wa v-if="tampilJadwal" :opsi-gudang="opsiGudang" :opsi-jp="opsiJP" @tutup="tampilJadwal = false" />
+    <jadwal-kirim-wa v-if="tampilJadwal" :peta-gudang-jp="petaGudangJp" :opsi-jp="opsiJP" @tutup="tampilJadwal = false" />
 
     <div class="gc-card" style="margin-bottom:16px;">
       <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">
