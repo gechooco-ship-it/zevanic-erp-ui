@@ -9,8 +9,8 @@
 // - jadwal_shift (where bulan==YYYY-MM): hari{"1":"Pagi"|"OFF"}; master_shift.
 // - absensi: waktu_masuk_ts (format baru), waktu_ts (lama & lembur),
 //   tanggal_pengajuan YYYY-MM-DD (izin/cuti). Hanya dibaca.
-// - wa_jadwal: nama, modul, jenis, hari[0-6], jam[], gudang, penerima[{jenis,id}],
-//   aktif, template. Phonebook (wa_kontak, wa_grup_phonebook, wa_group) dibaca.
+// - wa_jadwal: nama, modul, jenis, hari[0-6], jam[], aktif, template, bagian
+//   [{gudang, jenis_pekerjaan, penerima[{jenis,id}]}]. Phonebook hanya dibaca.
 //
 // Jebakan:
 // - rekapAbsensi() satu-satunya aturan hitung di browser; functions/index.js
@@ -20,11 +20,11 @@
 // - Jadwal dihapus = templatenya ikut hilang (template field di dokumen jadwal).
 
 import { createApp, ref, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, query, where, orderBy, doc, addDoc, updateDoc, deleteDoc, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, query, where, orderBy, doc, addDoc, updateDoc, deleteDoc, deleteField, serverTimestamp, Timestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { KolomCari } from './vue-components.js?v=13';
 import { hitungStatusKehadiran } from './vue-antrean-absensi.js?v=8';
-import { JENIS_REPORT_WA, TEMPLATE_BAWAAN_WA, jalankanPerintahWa } from './vue-whatsapp-gateway.js?v=2';
+import { JENIS_REPORT_WA, TEMPLATE_BAWAAN_WA, jalankanPerintahWa } from './vue-whatsapp-gateway.js?v=3';
 
 const STATUS_NON_HADIR = ["IZIN", "CUTI", "LEMBUR (CLOCK IN)", "CLOCK OUT"];
 const MAKS_HARI = 31;
@@ -138,7 +138,7 @@ for (let h = 0; h < 24; h++) for (let m = 0; m < 60; m += 5) OPSI_JAM.push(`${St
 
 // Jam dibatasi kelipatan 5 menit karena jadwalKirimWa di server berjalan tiap 5 menit.
 const JadwalKirimWa = {
-  props: { opsiGudang: { type: Array, default: () => [] } },
+  props: { opsiGudang: { type: Array, default: () => [] }, opsiJp: { type: Array, default: () => [] } },
   emits: ['tutup'],
   setup() {
     const bolehUbah = ['owner', 'pic_owner'].includes((window.currentUser?.role || '').toLowerCase());
@@ -175,21 +175,29 @@ const JadwalKirimWa = {
     ]);
     const labelPenerima = p => (opsiPenerima.value.find(o => o.jenis === p.jenis && o.id === p.id) || {}).label || '(terhapus)';
     const labelJenis = key => (JENIS_REPORT_WA.find(j => j.key === key) || {}).label || key;
+    // Jadwal lama tanpa `bagian` dibaca sebagai satu bagian (sama dengan bagianJadwal di server).
+    const bagianDari = j => (Array.isArray(j.bagian) && j.bagian.length) ? j.bagian
+      : [{ gudang: j.gudang || '', jenis_pekerjaan: '', penerima: j.penerima || [] }];
+    const labelBagian = b => `${b.gudang || 'Semua gudang'} · ${b.jenis_pekerjaan || 'Semua jenis'}`;
     const teksHari = j => j.jenis === 'rekap_bulanan' ? 'Tanggal 1'
       : ((j.hari || []).length === 7 ? 'Setiap hari' : (j.hari || []).slice().sort().map(h => NAMA_HARI_PENDEK[h]).join(', '));
 
+    function bagianBaru(b) {
+      return { gudang: b ? b.gudang || '' : '', jenis_pekerjaan: b ? b.jenis_pekerjaan || '' : '', penerima: b ? [...(b.penerima || [])] : [], penerimaBaru: '' };
+    }
     function buka(j) {
       form.value = j
-        ? { id: j.id, nama: j.nama, jenis: j.jenis, hari: [...(j.hari || [])], jam: [...(j.jam || [])], gudang: j.gudang || '', penerima: [...(j.penerima || [])], aktif: !!j.aktif, jamBaru: '10:00', penerimaBaru: '' }
-        : { id: null, nama: '', jenis: 'ringkasan_pagi', hari: [1, 2, 3, 4, 5, 6], jam: ['10:00'], gudang: '', penerima: [], aktif: true, jamBaru: '16:00', penerimaBaru: '' };
+        ? { id: j.id, nama: j.nama, jenis: j.jenis, hari: [...(j.hari || [])], jam: [...(j.jam || [])], bagian: bagianDari(j).map(bagianBaru), aktif: !!j.aktif, jamBaru: '10:00' }
+        : { id: null, nama: '', jenis: 'ringkasan_pagi', hari: [1, 2, 3, 4, 5, 6], jam: ['10:00'], bagian: [bagianBaru(null)], aktif: true, jamBaru: '16:00' };
     }
     function toggleHari(h) { const i = form.value.hari.indexOf(h); if (i >= 0) form.value.hari.splice(i, 1); else form.value.hari.push(h); }
     function tambahJam() { const j = form.value.jamBaru; if (j && !form.value.jam.includes(j)) form.value.jam.push(j); form.value.jam.sort(); }
-    function tambahPenerima() {
-      const o = opsiPenerima.value.find(x => `${x.jenis}|${x.id}` === form.value.penerimaBaru);
-      if (o && !form.value.penerima.some(p => p.jenis === o.jenis && p.id === o.id)) form.value.penerima.push({ jenis: o.jenis, id: o.id });
-      form.value.penerimaBaru = '';
+    function tambahPenerima(b) {
+      const o = opsiPenerima.value.find(x => `${x.jenis}|${x.id}` === b.penerimaBaru);
+      if (o && !b.penerima.some(p => p.jenis === o.jenis && p.id === o.id)) b.penerima.push({ jenis: o.jenis, id: o.id });
+      b.penerimaBaru = '';
     }
+    function tambahBagian() { form.value.bagian.push(bagianBaru(null)); }
 
     async function simpan() {
       const f = form.value;
@@ -197,14 +205,17 @@ const JadwalKirimWa = {
       if (daftar.value.some(j => j.nama.toLowerCase() === f.nama.trim().toLowerCase() && j.id !== f.id)) return alert('Nama jadwal sudah dipakai. Nama ini juga jadi nama templatenya.');
       if (!f.jam.length) return alert('Tambahkan minimal satu jam kirim.');
       if (f.jenis !== 'rekap_bulanan' && !f.hari.length) return alert('Pilih minimal satu hari.');
-      if (!f.penerima.length) return alert('Tambahkan minimal satu penerima.');
+      if (f.bagian.some(b => !b.penerima.length)) return alert('Setiap bagian wajib punya minimal satu penerima.');
+      const kunciBagian = f.bagian.map(b => `${b.gudang}|${b.jenis_pekerjaan}`);
+      if (new Set(kunciBagian).size !== kunciBagian.length) return alert('Ada dua bagian dengan gudang dan jenis pekerjaan yang sama. Gabungkan penerimanya ke satu bagian.');
       menyimpan.value = true;
-      const data = { nama: f.nama.trim(), modul: 'absensi', jenis: f.jenis, hari: [...f.hari].sort(), jam: [...f.jam], gudang: f.gudang, penerima: f.penerima, aktif: f.aktif, diubah_pada: serverTimestamp() };
+      const bagian = f.bagian.map(b => ({ gudang: b.gudang, jenis_pekerjaan: b.jenis_pekerjaan, penerima: b.penerima }));
+      const data = { nama: f.nama.trim(), modul: 'absensi', jenis: f.jenis, hari: [...f.hari].sort(), jam: [...f.jam], bagian, aktif: f.aktif, diubah_pada: serverTimestamp() };
       try {
         if (f.id) {
           const lama = daftar.value.find(j => j.id === f.id);
           if (lama && lama.jenis !== f.jenis && confirm('Jenis report berubah. Ganti template dengan versi bawaan jenis baru?')) data.template = TEMPLATE_BAWAAN_WA[f.jenis];
-          await updateDoc(doc(db, 'wa_jadwal', f.id), data);
+          await updateDoc(doc(db, 'wa_jadwal', f.id), { ...data, gudang: deleteField(), penerima: deleteField() });
         } else {
           await addDoc(collection(db, 'wa_jadwal'), { ...data, template: TEMPLATE_BAWAAN_WA[f.jenis], dibuat_oleh: window.currentUser.email || '', dibuat_pada: serverTimestamp() });
         }
@@ -240,7 +251,7 @@ const JadwalKirimWa = {
 
     onMounted(muat);
     return { bolehUbah, daftar, memuat, form, menyimpan, mengirimTes, opsiPenerima, labelPenerima, labelJenis, teksHari,
-      buka, toggleHari, tambahJam, tambahPenerima, simpan, hapus, ubahAktif, kirimTes, bukaTemplate,
+      bagianDari, labelBagian, buka, toggleHari, tambahJam, tambahPenerima, tambahBagian, simpan, hapus, ubahAktif, kirimTes, bukaTemplate,
       JENIS_REPORT_WA, NAMA_HARI_PENDEK, OPSI_JAM };
   },
   template: `
@@ -260,8 +271,9 @@ const JadwalKirimWa = {
       <div v-for="j in daftar" :key="j.id" style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 0; border-top:1px solid var(--line);">
         <div style="min-width:0;">
           <div style="font-size:12.5px; font-weight:700;">{{ j.nama }} <span class="tag" :class="j.aktif ? 'ok' : 'neutral'" style="margin-left:4px;">{{ j.aktif ? 'Aktif' : 'Mati' }}</span></div>
-          <div style="font-size:11px; color:var(--text-muted);">{{ labelJenis(j.jenis) }} · {{ teksHari(j) }} · {{ (j.jam || []).join(' & ') }} · {{ j.gudang || 'Semua gudang' }}</div>
-          <div style="font-size:11px; color:var(--text-faint);">{{ (j.penerima || []).map(labelPenerima).join(', ') }}<span v-if="j.hasil_terakhir"> · terakhir: {{ j.hasil_terakhir }}</span></div>
+          <div style="font-size:11px; color:var(--text-muted);">{{ labelJenis(j.jenis) }} · {{ teksHari(j) }} · {{ (j.jam || []).join(' & ') }}</div>
+          <div v-for="(b, i) in bagianDari(j)" :key="i" style="font-size:11px; color:var(--text-faint);"><b>{{ labelBagian(b) }}</b> → {{ (b.penerima || []).map(labelPenerima).join(', ') }}</div>
+          <div v-if="j.hasil_terakhir" style="font-size:10.5px; color:var(--text-faint);">Terakhir: {{ j.hasil_terakhir }}</div>
         </div>
         <div v-if="bolehUbah" style="display:flex; gap:6px; flex-wrap:wrap;">
           <button @click="kirimTes(j)" :disabled="mengirimTes === j.id" class="btn-outline" style="padding:5px 10px; font-size:11px;">{{ mengirimTes === j.id ? 'Mengirim...' : 'Tes ke nomor saya' }}</button>
@@ -297,20 +309,27 @@ const JadwalKirimWa = {
             <button @click="tambahJam" class="btn-outline" style="padding:5px 10px; font-size:11px;">+ jam</button>
           </div>
         </div>
-        <div class="gc-field"><label>Gudang yang dilaporkan</label>
-          <select v-model="form.gudang"><option value="">Semua gudang</option><option v-for="g in opsiGudang" :key="g" :value="g">{{ g }}</option></select>
-        </div>
-        <div style="margin-bottom:12px;">
-          <label style="display:block; font-size:12px; font-weight:700; margin-bottom:6px;">Penerima</label>
-          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">
-            <span v-for="(p, i) in form.penerima" :key="p.jenis + p.id" class="tag neutral">{{ labelPenerima(p) }} <a @click="form.penerima.splice(i, 1)" style="cursor:pointer; margin-left:4px;">&times;</a></span>
+        <label style="display:block; font-size:12px; font-weight:700; margin-bottom:4px;">Bagian kirim</label>
+        <p style="font-size:10.5px; color:var(--text-muted); margin-bottom:8px;">Tiap bagian dapat pesan sendiri dengan angka sesuai gudang dan jenis pekerjaannya. Templatenya tetap satu.</p>
+        <div v-for="(b, bi) in form.bagian" :key="bi" style="border:1px solid var(--line); border-radius:14px; padding:10px 12px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span style="font-size:11.5px; font-weight:700;">Bagian {{ bi + 1 }}</span>
+            <a v-if="form.bagian.length > 1" @click="form.bagian.splice(bi, 1)" style="cursor:pointer; font-size:11px; color:var(--danger);">Hapus bagian</a>
           </div>
-          <select v-model="form.penerimaBaru" @change="tambahPenerima" style="width:100%; padding:7px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
+          <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+            <select v-model="b.gudang" style="flex:1; min-width:140px; padding:7px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);"><option value="">Semua gudang</option><option v-for="g in opsiGudang" :key="g" :value="g">{{ g }}</option></select>
+            <select v-model="b.jenis_pekerjaan" style="flex:1; min-width:140px; padding:7px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);"><option value="">Semua jenis pekerjaan</option><option v-for="jp in opsiJp" :key="jp" :value="jp">{{ jp }}</option></select>
+          </div>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:6px;">
+            <span v-for="(p, i) in b.penerima" :key="p.jenis + p.id" class="tag neutral">{{ labelPenerima(p) }} <a @click="b.penerima.splice(i, 1)" style="cursor:pointer; margin-left:4px;">&times;</a></span>
+          </div>
+          <select v-model="b.penerimaBaru" @change="tambahPenerima(b)" style="width:100%; padding:7px 10px; font-size:12px; border:1.5px solid var(--line); border-radius:10px; background:var(--surface);">
             <option value="">+ Tambah penerima dari Phonebook...</option>
             <option v-for="o in opsiPenerima" :key="o.jenis + o.id" :value="o.jenis + '|' + o.id">{{ o.label }}</option>
           </select>
-          <p v-if="form.jenis === 'pengingat_hrd'" style="font-size:10.5px; color:var(--text-muted); margin-top:6px;">Pengingat HRD hanya terkirim kalau ada yang menunggu validasi.</p>
         </div>
+        <button @click="tambahBagian" class="btn-outline" style="font-size:11px; padding:6px 12px; margin-bottom:12px;">+ Bagian</button>
+        <p v-if="form.jenis === 'pengingat_hrd'" style="font-size:10.5px; color:var(--text-muted); margin-bottom:12px;">Pengingat HRD hanya terkirim ke bagian yang punya absensi menunggu validasi.</p>
         <label style="display:flex; align-items:center; gap:8px; font-size:12.5px; margin-bottom:14px; cursor:pointer;"><input type="checkbox" v-model="form.aktif" style="width:15px; height:15px; accent-color:var(--burgundy);"> Aktif</label>
         <div style="display:flex; gap:10px;">
           <button @click="form = null" class="btn-outline" style="flex:1;">Batal</button>
@@ -480,7 +499,7 @@ const AppReportAbsensi = {
       </div>
     </div>
 
-    <jadwal-kirim-wa v-if="tampilJadwal" :opsi-gudang="opsiGudang" @tutup="tampilJadwal = false" />
+    <jadwal-kirim-wa v-if="tampilJadwal" :opsi-gudang="opsiGudang" :opsi-jp="opsiJP" @tutup="tampilJadwal = false" />
 
     <div class="gc-card" style="margin-bottom:16px;">
       <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center;">

@@ -35,7 +35,7 @@ export const MODUL_WA = [
   { key: 'proses', label: 'Proses Produksi' },
   { key: 'belanja', label: 'Belanja' }
 ];
-export const PLACEHOLDER_WA = ['hari', 'tanggal', 'jam', 'gudang', 'hadir', 'terjadwal', 'terlambat', 'menit_terlambat',
+export const PLACEHOLDER_WA = ['hari', 'tanggal', 'jam', 'gudang', 'jenis_pekerjaan', 'hadir', 'terjadwal', 'terlambat', 'menit_terlambat',
   'pulang_cepat', 'belum_absen', 'izin', 'lembur', 'seragam_tdk_sesuai', 'menunggu_validasi', 'menunggu_izin',
   'daftar_terlambat', 'daftar_belum_absen', 'link'];
 export const TEMPLATE_BAWAAN_WA = {
@@ -481,7 +481,7 @@ const AppWhatsappGateway = {
             <button v-for="ph in PLACEHOLDER_WA" :key="ph" @click="sisipkan(ph)" :disabled="!bolehUbah" class="tag neutral" style="border:none; cursor:pointer; font-family:'Poppins',sans-serif;">{{ '{' + ph + '}' }}</button>
           </div>
           <textarea ref="areaTemplate" v-model="isiTemplate" :readonly="!bolehUbah" rows="14" style="width:100%; padding:10px 12px; border:1.5px solid var(--line); border-radius:12px; font-size:12.5px; line-height:1.5; background:var(--surface); font-family:inherit;"></textarea>
-          <p style="font-size:10.5px; color:var(--text-muted); margin-top:6px; line-height:1.5;">Format WA: *tebal*, _miring_, ~coret~. Daftar nama diisi satu per baris, maksimal 10 lalu "…dan N lainnya". Kalau daftarnya kosong, satu baris judul tepat di atas {daftar_...} ikut disembunyikan. {menunggu_validasi} dan {menunggu_izin} = isi Antrean saat pesan dikirim.</p>
+          <p style="font-size:10.5px; color:var(--text-muted); margin-top:6px; line-height:1.5;">Format WA: *tebal*, _miring_, ~coret~. Daftar nama diisi satu per baris, maksimal 10 lalu "…dan N lainnya". Kalau daftarnya kosong, satu baris judul tepat di atas {daftar_...} ikut disembunyikan. {menunggu_validasi} dan {menunggu_izin} = isi Antrean saat pesan dikirim. Jadwal yang dipecah per bagian memakai template ini untuk tiap bagian.</p>
           <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:12px;">
             <button @click="perintahTemplate('pratinjau_jadwal')" :disabled="!!prosesTemplate" class="btn-outline">{{ prosesTemplate === 'pratinjau_jadwal' ? 'Menyusun...' : 'Pratinjau dengan data saat ini' }}</button>
             <button v-if="bolehUbah" @click="perintahTemplate('tes_jadwal')" :disabled="!!prosesTemplate" class="btn-outline">{{ prosesTemplate === 'tes_jadwal' ? 'Mengirim...' : 'Kirim tes ke nomor saya' }}</button>
