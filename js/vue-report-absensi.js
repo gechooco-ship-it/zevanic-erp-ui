@@ -104,7 +104,7 @@ export function rekapAbsensi(input) {
         if (stMasuk === 'Terlambat') {
           const mnt = menitLewat(tsMasuk, sh.jam_masuk);
           r.terlambat++; r.menitTerlambat += mnt; kpi.terlambat++; kpi.menitTerlambat += mnt;
-          if (k === kunciHariIni) daftarTerlambatHariIni.push({ email: u.email, nama: u.nama, gudang: u.gudang, gudangAbsen: h.gudang || '', jam: jamDari(tsMasuk), menit: mnt });
+          if (k === kunciHariIni) daftarTerlambatHariIni.push({ email: u.email, nama: u.nama, gudang: u.gudang, shift: h.nama_shift || namaShiftHari, jam: jamDari(tsMasuk), menit: mnt });
         }
         if (stKeluar === 'Pulang Cepat') { r.pulangCepat++; kpi.pulangCepat++; }
         const seragam = baru ? [h.seragam_masuk, h.seragam_keluar] : [h.seragam, kl && kl.seragam];
