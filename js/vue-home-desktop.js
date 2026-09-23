@@ -12,8 +12,10 @@
 // - master_shift, pengumuman, quotes: baca ringan untuk kartu Absen & Quote.
 //
 // Jebakan:
-// - Pipeline Produksi, Aktivitas Terbaru, dan Pintasan Papan Tik UI-only/statis
-//   ("–" + "Segera Hadir"); tidak ada koleksi sumbernya. Jangan diisi angka.
+// - Pipeline Produksi LIVE (cutting_track/separating_batch/sewing_track/
+//   finishing_track), status per koleksi BEDA-BEDA vokabuler — lihat
+//   JALUR_PRODUKSI, jangan disamakan ke STATUS_BELUM_SELESAI milik Persiapan.
+// - Aktivitas Terbaru dan Pintasan Papan Tik masih UI-only/statis.
 // - KPI Antrean Reimburse hanya tahap 'menunggu_owner' dan tidak ikut filter
 //   window.bolehLihatData — bisa lebih tinggi dari layar detailnya.
 // - Kartu Absen read-only; Clock In/Out tetap di app mobile.
@@ -30,11 +32,14 @@ const JALUR_PERSIAPAN = [
   { key: 'finishing', label: 'Acc Finishing', ico: 'fa-broom', ket: 'Menunggu diproses jalur Acc Finishing' }
 ];
 const STATUS_BELUM_SELESAI = ['perlu_diproses', 'sedang_diproses', 'perlu_dikirim', 'sedang_dikirim'];
-const PRODUKSI_PLACEHOLDER = [
-  { label: 'Cutting', ico: 'fa-scissors' },
-  { label: 'Serie', ico: 'fa-list-ol' },
-  { label: 'Sewing', ico: 'fa-shirt' },
-  { label: 'Finishing', ico: 'fa-check-double' }
+// JALUR_PRODUKSI — status per koleksi disalin PERSIS dari enum yang ditulis
+// modulnya sendiri (cutting_track/vue-pp-cutting.js dst). Beda vokabuler per
+// pos, sengaja tidak disatukan ke STATUS_BELUM_SELESAI milik Persiapan.
+const JALUR_PRODUKSI = [
+  { key: 'cutting_track', label: 'Cutting', ico: 'fa-scissors', ket: 'Belum selesai di Cutting', status: ['perlu_diproses', 'sedang_ampar', 'sedang_pola', 'sedang_cutting', 'perlu_dikirim', 'sedang_dikirim'] },
+  { key: 'separating_batch', label: 'Serie', ico: 'fa-list-ol', ket: 'Belum selesai di Serie', status: ['perlu_diproses', 'perlu_dikirim', 'kirim_sewing', 'kirim_gudang'] },
+  { key: 'sewing_track', label: 'Sewing', ico: 'fa-shirt', ket: 'Belum selesai di Sewing', status: ['perlu_diproses', 'sedang_sewing', 'perlu_dikirim', 'sedang_dikirim'] },
+  { key: 'finishing_track', label: 'Finishing', ico: 'fa-check-double', ket: 'Belum selesai di Finishing', status: ['perlu_diproses', 'sedang_finishing', 'perlu_dikirim', 'sedang_dikirim'] }
 ];
 
 // KONTEN STATIS/ILUSTRATIF (bukan Firestore) — lihat poin 6 di komentar header
@@ -135,6 +140,24 @@ const BerandaDesktop = {
       return angka.reduce((a, b) => a + b, 0);
     };
 
+    // Pipeline Produksi (4 kartu real: Cutting/Serie/Sewing/Finishing)
+    const produksiJalur = ref(JALUR_PRODUKSI.map(j => ({ ...j, n: null })));
+    async function muatJalurProduksi() {
+      await Promise.all(produksiJalur.value.map(async (j) => {
+        try {
+          const hasil = await Promise.all(j.status.map(st =>
+            getCountFromServer(query(collection(db, j.key), where('status', '==', st)))
+          ));
+          j.n = hasil.reduce((total, snap) => total + snap.data().count, 0);
+        } catch (e) { console.error('Pipeline produksi ' + j.key + ' gagal dimuat:', e); j.n = null; }
+      }));
+    }
+    const totalProduksi = () => {
+      const angka = produksiJalur.value.map(j => j.n);
+      if (angka.some(a => a === null)) return null;
+      return angka.reduce((a, b) => a + b, 0);
+    };
+
     // Kartu Absen (REAL, kolom kanan paling atas) — logic & style diambil
     // PERSIS dari kartu shift mobile (js/vue-home.js muatShift +
     // window.cekStatusClockInSaya), read-only (tanpa tombol Clock In/Out — itu
@@ -226,13 +249,14 @@ const BerandaDesktop = {
     onMounted(async () => {
       await window.authReady;
       muatKpiMasalah(); muatKpiDakar(); muatKpiAbsensi(); muatKpiReimburse();
-      muatPerluDisiapkan(); muatJalurPersiapan();
+      muatPerluDisiapkan(); muatJalurPersiapan(); muatJalurProduksi();
       muatQuote(); muatNotif(); muatKartuAbsen();
     });
 
     return {
       kpiMasalah, kpiDakar, kpiAbsensi, kpiReimburse,
-      persiapanDisiapkan, persiapanJalur, totalPersiapan, produksiPlaceholder: PRODUKSI_PLACEHOLDER,
+      persiapanDisiapkan, persiapanJalur, totalPersiapan,
+      produksiJalur, totalProduksi,
       shiftAbsen, sudahAbsenHariIni,
       quote, memuatQuote,
       aktivitasIlustratif: AKTIVITAS_ILUSTRATIF, pintasanIlustratif: PINTASAN_ILUSTRATIF,
@@ -289,24 +313,23 @@ const BerandaDesktop = {
 
           <div class="gc-pipeline-card">
             <div class="gc-pipeline-head">
-              <i class="fas fa-diagram-project" style="color:var(--text-faint);"></i>
+              <i class="fas fa-diagram-project" style="color:var(--aksen-ink);"></i>
               <b>Pipeline Produksi</b>
-              <span class="gc-pipeline-tot gc-num">Segera Hadir</span>
+              <span class="gc-pipeline-tot gc-num">{{ totalProduksi() === null ? '…' : totalProduksi() + ' berjalan' }}</span>
             </div>
-            <div class="gc-pipeline-desc">Jalur Cutting, Serie, Sewing dan Finishing — diusulkan, skema data &amp; menunya belum dibangun.</div>
-            <div class="gc-pipeline-steps" style="grid-template-columns:repeat(4,minmax(0,1fr)); opacity:.55;">
-              <div class="gc-pipeline-step" v-for="p in produksiPlaceholder" :key="p.label">
-                <div class="gc-pipeline-bar" style="background:var(--line);"></div>
-                <div class="gc-pipeline-n">–</div>
-                <div class="gc-pipeline-lbl">{{ p.label }}</div>
-                <div class="gc-pipeline-segera">Segera hadir</div>
+            <div class="gc-pipeline-desc">Jalur Cutting, Serie, Sewing dan Finishing</div>
+            <div class="gc-pipeline-steps" style="grid-template-columns:repeat(4,minmax(0,1fr));">
+              <div class="gc-pipeline-step" v-for="j in produksiJalur" :key="j.key">
+                <div class="gc-pipeline-bar" :style="{background: j.n ? 'var(--warn)' : 'var(--ok)'}"></div>
+                <div class="gc-pipeline-n gc-num">{{ j.n === null ? '…' : j.n }}</div>
+                <div class="gc-pipeline-lbl">{{ j.label }}</div>
               </div>
             </div>
           </div>
 
-          <!-- "Perlu Tindakan Anda" dipecah jadi 2 grid: grid 1 Persiapan (data REAL, sama
-            seperti Pipeline Persiapan di atas), grid 2 Produksi placeholder "Segera hadir" karena
-            skema data Cutting/Serie/Sewing/Finishing belum ada — jangan isi angka hitung palsu. -->
+          <!-- "Perlu Tindakan Anda" dipecah jadi 2 grup: Persiapan (spk_track) dan
+            Produksi (cutting_track/separating_batch/sewing_track/finishing_track) —
+            keduanya data REAL, sama pola dengan pipeline card di atas. -->
           <div class="gc-pipeline-card" style="margin-bottom:0;">
             <div class="gc-pipeline-head" style="margin-bottom:6px;"><b>Perlu Tindakan Anda</b></div>
 
@@ -323,10 +346,10 @@ const BerandaDesktop = {
             </div>
 
             <div class="gc-tindak-subgrup">Produksi</div>
-            <div class="gc-tindak-row gc-tindak-segera" v-for="p in produksiPlaceholder" :key="'tindak-produksi-'+p.label">
-              <div class="gc-tindak-ico"><i class="fas" :class="p.ico"></i></div>
-              <div class="gc-tindak-txt"><b>{{ p.label }}</b><span>Segera hadir — skema data belum dibangun</span></div>
-              <span class="gc-tindak-chip">–</span>
+            <div class="gc-tindak-row" v-for="j in produksiJalur" :key="'tindak-produksi-'+j.key">
+              <div class="gc-tindak-ico"><i class="fas" :class="j.ico"></i></div>
+              <div class="gc-tindak-txt"><b>{{ j.label }}</b><span>{{ j.ket }}</span></div>
+              <span class="gc-tindak-chip gc-num">{{ j.n === null ? '…' : j.n }}</span>
             </div>
           </div>
         </div>
