@@ -651,4 +651,76 @@ thead .freeze{z-index:3; background:var(--ivory-dim);}
 @keyframes gxPulse{0%,100%{opacity:.35; transform:scale(1);}50%{opacity:.65; transform:scale(1.06);}}
 @media (prefers-reduced-motion:reduce){
   .gc-sheet,.gc-sheet-backdrop,.gc-dialog,.gc-dialog-backdrop,.gc-cam-scanline{animation:none;}
-}
+}/* Kelas dari pola Sample Hifi (handoff/): chip, foto slot, typeahead,
+   avatar operator, dialog form lebar, label cetak, kartu batch, baris
+   operator/progress, kalender, split kasir. Token lama, tanpa warna baru. */
+
+/* ---- Sub-tab kecil level kartu (Pola 9: tab tracking di dalam .gc-card-head) ---- */
+.gc-pill-sm{display:inline-flex; align-items:center; gap:4px; padding:4px 10px; border-radius:8px; font-family:'Poppins',sans-serif; font-size:11px; font-weight:500; cursor:pointer; border:none; color:var(--text-muted); background:transparent;}
+.gc-pill-sm.active{background:var(--burgundy); color:#fff;}
+
+/* ---- Chip input yang bisa dihapus (Pola 3: config accordion) ---- */
+.gc-chip{display:inline-flex; align-items:center; gap:5px; padding:5px 12px; border-radius:999px; background:var(--ivory-dim); font-family:'Nunito Sans',sans-serif; font-size:12px; color:var(--text);}
+.gc-chip.ok{background:var(--ok-light); color:var(--ok);}
+.gc-chip.warn{background:var(--warn-light); color:var(--warn);}
+.gc-chip.danger{background:var(--danger-light); color:var(--danger);}
+.gc-chip-x{font-size:11px; color:var(--danger); cursor:pointer; font-weight:700;}
+.gc-chip-tambah{display:inline-flex; align-items:center; padding:5px 12px; border-radius:999px; border:1.5px dashed var(--line); background:transparent; color:var(--text-faint); font-family:'Nunito Sans',sans-serif; font-size:12px; cursor:pointer;}
+
+/* ---- Slot foto / upload gambar (Pola 7: form entry 3-grid) ---- */
+.gc-photo-slot{border-radius:14px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; color:var(--text-faint); cursor:pointer; flex:none;}
+.gc-photo-slot:hover{background:var(--pink); color:var(--burgundy-dark);}
+
+/* ---- Dropdown pencarian aktif / typeahead (Pola 8: form keyboard-first) ---- */
+.gc-typeahead{border:1.5px solid var(--line); border-radius:12px; overflow:hidden; box-shadow:0 4px 16px -8px rgba(59,42,31,.15); background:var(--surface);}
+.gc-typeahead-item{padding:10px 14px; display:flex; align-items:center; gap:8px; font-family:'Nunito Sans',sans-serif; font-size:12px; color:var(--text); border-top:1px solid var(--line);}
+.gc-typeahead-item:first-child{border-top:none;}
+.gc-typeahead-item.active{background:var(--burgundy-light); font-weight:600; color:var(--burgundy);}
+.gc-typeahead-hint{font-size:11px; color:var(--text-muted); margin-left:auto;}
+
+/* ---- Avatar bulat inisial (Pola 10: papan admin per operator) — beda dari .gc-emp-av (kotak) ---- */
+.gc-op-avatar{width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:'Poppins',sans-serif; font-weight:700; font-size:12px; flex:none;}
+
+/* ---- Dialog form lebar (Pola 12: pop-up form dengan tabel+preview) — beda dari .gc-dialog (sempit, rata tengah) ---- */
+.gc-form-dialog{background:var(--surface); border-radius:20px; width:100%; max-width:420px; text-align:left; overflow:hidden;}
+.gc-form-dialog-head{padding:16px 20px; background:var(--ivory-dim); border-bottom:1px solid var(--line); display:flex; align-items:center; gap:8px;}
+.gc-form-dialog-head b{font-family:'Poppins',sans-serif; font-size:15px; color:var(--mahogany);}
+.gc-form-dialog-body{padding:16px 20px;}
+.gc-form-dialog-preview{margin-top:12px; padding:8px 12px; border-radius:8px; font-size:11px;}
+
+/* ---- Preview label cetak (Pola 13) ---- */
+.gc-label{border:2px solid var(--mahogany); border-radius:10px; background:var(--ivory); display:flex; flex-direction:column; align-items:center;}
+.gc-label-qr{border-radius:8px; border:1.5px solid var(--line); display:flex; align-items:center; justify-content:center; color:var(--mahogany); flex:none;}
+.gc-label-sm{width:200px; height:100px; padding:10px; flex-direction:row; gap:8px; align-items:center;}
+.gc-label-lg{width:150px; height:220px; padding:12px; gap:6px;}
+.gc-label-caption{font-family:'Poppins',sans-serif; font-size:10.5px; font-weight:500; color:var(--text-muted); margin-top:8px;}
+
+/* ---- Kartu batch dengan status scan (Pola 9) ---- */
+.gc-batch-card{padding:14px; border:1.5px solid var(--line); border-radius:14px;}
+.gc-batch-card.inkomplit{opacity:.75;}
+
+/* ---- Baris operator dengan KPI diam-sejak (Pola 10) ---- */
+.gc-operator-row{border:1.5px solid var(--line); border-radius:14px; overflow:hidden;}
+.gc-operator-row-head{padding:12px 16px; background:var(--ivory-dim); display:flex; align-items:center; gap:10px;}
+.gc-operator-idle{text-align:right; flex:none;}
+.gc-operator-idle .lbl{font-family:'Poppins',sans-serif; font-size:9px; font-weight:500; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;}
+.gc-operator-idle .val{font-family:'Poppins',sans-serif; font-size:14px; font-weight:700;}
+
+/* ---- Baris progress KPI per pos (Pola 14) ---- */
+.gc-progress-row{padding:10px 0; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:12px;}
+.gc-progress-row:last-child{border-bottom:none;}
+.gc-progress-ico{width:36px; height:36px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex:none;}
+.gc-progress-track{margin-top:4px; height:5px; border-radius:3px; background:var(--ivory-dim);}
+.gc-progress-fill{height:100%; border-radius:3px;}
+
+/* ---- Panel kalender/timeline bulanan (Pola 5) ---- */
+.gc-cal-legend{display:flex; align-items:center; gap:4px;}
+.gc-cal-swatch{width:12px; height:12px; border-radius:4px;}
+.gc-cal-grid{display:grid; gap:1px; background:var(--line); border-radius:10px; overflow:hidden;}
+.gc-cal-head{background:var(--ivory-dim); padding:4px 0; text-align:center; font-family:'Poppins',sans-serif; font-size:8px; font-weight:500; color:var(--text-faint);}
+.gc-cal-name{background:var(--ivory); padding:5px 8px; font-family:'Poppins',sans-serif; font-size:11px; font-weight:600; color:var(--mahogany);}
+
+/* ---- Layout kasir split-panel (Pola 6) ---- */
+.gc-pos-split{display:flex; min-height:280px;}
+.gc-pos-col{padding:16px;}
+.gc-pos-col + .gc-pos-col{border-left:1px solid var(--line);}
