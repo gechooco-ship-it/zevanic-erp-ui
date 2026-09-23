@@ -638,95 +638,104 @@ const PesananKasirManager = {
   template: `
     <div v-if="toastKasir.tampil" style="position:fixed; top:18px; right:18px; z-index:200; background:var(--text); color:var(--ivory); padding:10px 16px; border-radius:12px; font-size:12px; font-weight:600; box-shadow:0 8px 20px -8px rgba(0,0,0,.35); display:flex; align-items:center; gap:8px; pointer-events:none;"><i class="fas fa-circle-check" style="color:#8fd19e;"></i>{{ toastKasir.teks }}</div>
     <div v-if="!bolehTambah" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12.5px;">Akun ini tidak punya izin untuk Penjualan Kasir.</div>
-    <div v-else-if="step === 1" style="display:flex; flex-direction:column; gap:14px;">
-      <div class="gc-card" style="padding:14px; border-radius:20px;">
-        <langkah-stepper :aktif="1" style="margin-bottom:14px;" />
-        <div style="display:flex; align-items:center; gap:9px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:999px; padding:9px 13px; margin-bottom:12px; max-width:360px;">
-          <i class="fas fa-magnifying-glass" style="font-size:13px; color:var(--text-faint); flex-shrink:0;"></i>
-          <input v-model="cariProduk" type="text" placeholder="Cari produk / SKU..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px; color:var(--text);">
-        </div>
-        <div style="display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; margin-bottom:12px;" class="no-scrollbar">
-          <button v-for="k in daftarKategori" :key="k" @click="kategoriAktif = k" class="btn-outline" :class="{filled: kategoriAktif === k}" style="font-size:11.5px; padding:6px 14px; white-space:nowrap; flex-shrink:0;">{{ k }}</button>
-        </div>
-        <div v-if="memuatProduk" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat produk...</div>
-        <div v-else-if="produkTampil.length === 0" class="gc-kosong">
-          <div class="lingkaran"><i class="fas fa-box-open"></i></div>
-          <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada produk cocok</h3>
-        </div>
-        <div v-else style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
-          <button v-for="p in produkTampil" :key="p.sku" @click="tambahKeKeranjang(p)" type="button" class="gc-card" style="padding:10px; border-radius:16px; text-align:left; cursor:pointer; border:1.5px solid var(--line);">
-            <img v-if="p.foto" :src="p.foto" style="width:100%; height:84px; object-fit:cover; border-radius:10px; margin-bottom:8px;">
-            <div v-else style="width:100%; height:84px; border-radius:10px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; margin-bottom:8px;"><i class="fas fa-tshirt" style="color:var(--text-faint); font-size:20px;"></i></div>
-            <div style="font-weight:700; font-size:12px; line-height:1.3; margin-bottom:2px;">{{ p.nama }}</div>
-            <div style="font-size:10.5px; color:var(--text-muted); margin-bottom:4px;">{{ p.warna }} &middot; {{ p.size }}</div>
-            <div style="font-weight:700; font-size:12.5px; color:var(--burgundy);">{{ p.harga_jual > 0 ? formatRupiah(p.harga_jual) : 'Harga belum diisi' }}</div>
-          </button>
-        </div>
-      </div>
-
-      <div class="gc-card" style="padding:14px; border-radius:20px;">
-        <h3 style="font-weight:700; font-size:13.5px; margin-bottom:10px;"><i class="fas fa-cash-register" style="color:var(--aksen-ink); margin-right:8px;"></i>Keranjang ({{ totalItem }})</h3>
-        <div v-if="daftarKeranjang.length === 0" style="text-align:center; padding:16px; color:var(--text-faint); font-size:12px;">Keranjang masih kosong — klik produk di atas buat menambahkan.</div>
-        <div v-else style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
-          <div v-for="i in daftarKeranjang" :key="i.sku" style="display:flex; flex-direction:column; gap:6px; background:var(--ivory-dim); border-radius:12px; padding:8px 10px;">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <div style="flex:1; min-width:0;">
-                <div style="font-weight:700; font-size:12px;">{{ i.nama }}</div>
-                <div style="font-size:10.5px; color:var(--text-muted);">{{ formatRupiah(i.harga_satuan) }} / pcs</div>
-              </div>
-              <button @click="kurangiQty(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px;"><i class="fas fa-minus" style="font-size:10px;"></i></button>
-              <span style="font-size:12.5px; font-weight:700; min-width:22px; text-align:center;">{{ i.qty }}</span>
-              <button @click="tambahQty(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px;"><i class="fas fa-plus" style="font-size:10px;"></i></button>
-              <div style="font-weight:700; font-size:12px; min-width:80px; text-align:right;">{{ formatRupiah(subtotalItem(i)) }}</div>
-              <button @click="hapusDariKeranjang(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px; color:var(--danger);"><i class="fas fa-trash-alt" style="font-size:10px;"></i></button>
+    <div v-else-if="step === 1" class="gc-card" style="padding:14px; border-radius:20px;">
+      <langkah-stepper :aktif="1" style="margin-bottom:14px;" />
+      <!--
+        PosLayout (design system): .gc-pos-split/.gc-pos-col, 3 kolom di desktop
+        (pelanggan|katalog|keranjang), stack vertikal di HP (flex-col md:flex-row)
+        -- .gc-pos-split sendiri cuma display:flex tanpa breakpoint.
+      -->
+      <div class="gc-pos-split flex-col md:flex-row" style="border:1px solid var(--line); border-radius:14px; overflow:hidden;">
+        <div class="gc-pos-col md:flex-none md:w-60">
+          <div class="gc-field" style="margin-bottom:0;">
+            <div style="display:flex; align-items:baseline; gap:6px; margin-bottom:4px;">
+              <label style="margin:0;">Pelanggan <span style="color:var(--danger);">*</span></label>
+              <span v-if="pelangganTerpilihId && !modeGantiPelanggan" @click="modeGantiPelanggan = true" style="margin-left:auto; font-size:10.5px; color:var(--burgundy); cursor:pointer; text-decoration:underline;">ubah</span>
             </div>
-            <div style="display:flex; align-items:center; gap:6px; padding-left:2px;">
-              <span style="font-size:10px; color:var(--text-faint); flex-shrink:0;">Diskon</span>
-              <select v-model="i.diskon_tipe" style="font-size:10.5px; padding:3px 6px; border-radius:6px; border:1px solid var(--line); background:#fff;">
-                <option value="rp">Rp</option>
-                <option value="persen">%</option>
+            <!-- S1: begitu pelanggan dipilih DARI DATABASE, tampil sebagai kotak terkunci
+              ber-ikon 🔒 (bukan <select> polos) — blok "pelanggan · terkunci" di wireframe 1.1. -->
+            <template v-if="!pelangganTerpilihId || modeGantiPelanggan">
+              <select v-model="pelangganTerpilihId" @change="modeGantiPelanggan = false">
+                <option value="" disabled>{{ memuatPelanggan ? 'Memuat...' : 'Pilih pelanggan...' }}</option>
+                <option v-for="p in daftarPelanggan" :key="p.id" :value="p.id">{{ p.nama }}{{ p.saldo_piutang > 0 ? ' — piutang ' + formatRupiah(p.saldo_piutang) : '' }}</option>
               </select>
-              <input v-model.number="i.diskon_nilai" type="number" min="0" :max="i.diskon_tipe==='persen' ? 100 : null" placeholder="0" style="width:76px; font-size:10.5px; padding:3px 6px; border-radius:6px; border:1px solid var(--line);">
-              <span v-if="i.diskon_nilai > 0" style="font-size:10px; color:var(--text-faint);">hemat {{ formatRupiah((i.qty*i.harga_satuan) - subtotalItem(i)) }}</span>
+              <p v-if="daftarPelanggan.length === 0 && !memuatPelanggan" style="font-size:10.5px; color:var(--danger); margin-top:4px;">Belum ada data Pelanggan — tambah dulu di Zevanic House &gt; Master Pelanggan.</p>
+            </template>
+            <div v-else class="gc-card" style="background:rgba(var(--burgundy-rgb),.06); border-color:var(--burgundy); padding:8px 10px; display:flex; align-items:center; gap:8px;">
+              <div style="flex:1; min-width:0;">
+                <div style="font-weight:700; font-size:12px;">{{ pelangganTerpilih.nama }}</div>
+                <div style="font-size:9.5px; color:var(--text-faint);">{{ pelangganTerpilih.saldo_piutang > 0 ? 'piutang berjalan ' + formatRupiah(pelangganTerpilih.saldo_piutang) : 'dari database pelanggan' }}</div>
+              </div>
+              <span title="Dipilih dari database — terkunci, piutang menempel ke nama ini" style="font-size:12px;">🔒</span>
             </div>
+            <p style="font-size:9px; color:var(--text-faint); margin-top:4px;">piutang menempel ke nama ini</p>
           </div>
         </div>
 
-        <div class="gc-field" style="margin-bottom:14px;">
-          <div style="display:flex; align-items:baseline; gap:6px; margin-bottom:4px;">
-            <label style="margin:0;">Pelanggan <span style="color:var(--danger);">*</span></label>
-            <span v-if="pelangganTerpilihId && !modeGantiPelanggan" @click="modeGantiPelanggan = true" style="margin-left:auto; font-size:10.5px; color:var(--burgundy); cursor:pointer; text-decoration:underline;">ubah</span>
+        <div class="gc-pos-col flex-1" style="min-width:0;">
+          <div style="display:flex; align-items:center; gap:9px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:999px; padding:9px 13px; margin-bottom:12px;">
+            <i class="fas fa-magnifying-glass" style="font-size:13px; color:var(--text-faint); flex-shrink:0;"></i>
+            <input v-model="cariProduk" type="text" placeholder="Cari produk / SKU..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px; color:var(--text);">
           </div>
-          <!-- S1: begitu pelanggan dipilih DARI DATABASE, tampil sebagai kotak terkunci
-            ber-ikon 🔒 (bukan <select> polos) — blok "pelanggan · terkunci" di wireframe 1.1. -->
-          <template v-if="!pelangganTerpilihId || modeGantiPelanggan">
-            <select v-model="pelangganTerpilihId" @change="modeGantiPelanggan = false">
-              <option value="" disabled>{{ memuatPelanggan ? 'Memuat...' : 'Pilih pelanggan...' }}</option>
-              <option v-for="p in daftarPelanggan" :key="p.id" :value="p.id">{{ p.nama }}{{ p.saldo_piutang > 0 ? ' — piutang ' + formatRupiah(p.saldo_piutang) : '' }}</option>
-            </select>
-            <p v-if="daftarPelanggan.length === 0 && !memuatPelanggan" style="font-size:10.5px; color:var(--danger); margin-top:4px;">Belum ada data Pelanggan — tambah dulu di Zevanic House &gt; Master Pelanggan.</p>
-          </template>
-          <div v-else class="gc-card" style="background:rgba(var(--burgundy-rgb),.06); border-color:var(--burgundy); padding:8px 10px; display:flex; align-items:center; gap:8px;">
-            <div style="flex:1; min-width:0;">
-              <div style="font-weight:700; font-size:12px;">{{ pelangganTerpilih.nama }}</div>
-              <div style="font-size:9.5px; color:var(--text-faint);">{{ pelangganTerpilih.saldo_piutang > 0 ? 'piutang berjalan ' + formatRupiah(pelangganTerpilih.saldo_piutang) : 'dari database pelanggan' }}</div>
-            </div>
-            <span title="Dipilih dari database — terkunci, piutang menempel ke nama ini" style="font-size:12px;">🔒</span>
+          <div style="display:flex; gap:6px; overflow-x:auto; padding-bottom:4px; margin-bottom:12px;" class="no-scrollbar">
+            <button v-for="k in daftarKategori" :key="k" @click="kategoriAktif = k" class="btn-outline" :class="{filled: kategoriAktif === k}" style="font-size:11.5px; padding:6px 14px; white-space:nowrap; flex-shrink:0;">{{ k }}</button>
           </div>
-          <p style="font-size:9px; color:var(--text-faint); margin-top:4px;">piutang menempel ke nama ini</p>
+          <div v-if="memuatProduk" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat produk...</div>
+          <div v-else-if="produkTampil.length === 0" class="gc-kosong">
+            <div class="lingkaran"><i class="fas fa-box-open"></i></div>
+            <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada produk cocok</h3>
+          </div>
+          <div v-else style="display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:10px;">
+            <button v-for="p in produkTampil" :key="p.sku" @click="tambahKeKeranjang(p)" type="button" class="gc-card" style="padding:10px; border-radius:16px; text-align:left; cursor:pointer; border:1.5px solid var(--line);">
+              <img v-if="p.foto" :src="p.foto" style="width:100%; height:84px; object-fit:cover; border-radius:10px; margin-bottom:8px;">
+              <div v-else style="width:100%; height:84px; border-radius:10px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; margin-bottom:8px;"><i class="fas fa-tshirt" style="color:var(--text-faint); font-size:20px;"></i></div>
+              <div style="font-weight:700; font-size:12px; line-height:1.3; margin-bottom:2px;">{{ p.nama }}</div>
+              <div style="font-size:10.5px; color:var(--text-muted); margin-bottom:4px;">{{ p.warna }} &middot; {{ p.size }}</div>
+              <div style="font-weight:700; font-size:12.5px; color:var(--burgundy);">{{ p.harga_jual > 0 ? formatRupiah(p.harga_jual) : 'Harga belum diisi' }}</div>
+            </button>
+          </div>
         </div>
 
-        <div style="padding-top:12px; border-top:1px solid var(--line); margin-bottom:12px;">
-          <div v-if="diskonTotalBelanja > 0" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
-            <span style="font-size:11.5px; color:var(--text-faint);">Diskon</span>
-            <span style="font-size:12px; color:var(--text-faint);">-{{ formatRupiah(diskonTotalBelanja) }}</span>
+        <div class="gc-pos-col md:flex-none md:w-80">
+          <h3 style="font-weight:700; font-size:13.5px; margin-bottom:10px;"><i class="fas fa-cash-register" style="color:var(--aksen-ink); margin-right:8px;"></i>Keranjang ({{ totalItem }})</h3>
+          <div v-if="daftarKeranjang.length === 0" style="text-align:center; padding:16px; color:var(--text-faint); font-size:12px;">Keranjang masih kosong — klik produk di tengah buat menambahkan.</div>
+          <div v-else style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
+            <div v-for="i in daftarKeranjang" :key="i.sku" style="display:flex; flex-direction:column; gap:6px; background:var(--ivory-dim); border-radius:12px; padding:8px 10px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <div style="flex:1; min-width:0;">
+                  <div style="font-weight:700; font-size:12px;">{{ i.nama }}</div>
+                  <div style="font-size:10.5px; color:var(--text-muted);">{{ formatRupiah(i.harga_satuan) }} / pcs</div>
+                </div>
+                <button @click="kurangiQty(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px;"><i class="fas fa-minus" style="font-size:10px;"></i></button>
+                <span style="font-size:12.5px; font-weight:700; min-width:22px; text-align:center;">{{ i.qty }}</span>
+                <button @click="tambahQty(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px;"><i class="fas fa-plus" style="font-size:10px;"></i></button>
+                <div style="font-weight:700; font-size:12px; min-width:80px; text-align:right;">{{ formatRupiah(subtotalItem(i)) }}</div>
+                <button @click="hapusDariKeranjang(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px; color:var(--danger);"><i class="fas fa-trash-alt" style="font-size:10px;"></i></button>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; padding-left:2px;">
+                <span style="font-size:10px; color:var(--text-faint); flex-shrink:0;">Diskon</span>
+                <select v-model="i.diskon_tipe" style="font-size:10.5px; padding:3px 6px; border-radius:6px; border:1px solid var(--line); background:#fff;">
+                  <option value="rp">Rp</option>
+                  <option value="persen">%</option>
+                </select>
+                <input v-model.number="i.diskon_nilai" type="number" min="0" :max="i.diskon_tipe==='persen' ? 100 : null" placeholder="0" style="width:76px; font-size:10.5px; padding:3px 6px; border-radius:6px; border:1px solid var(--line);">
+                <span v-if="i.diskon_nilai > 0" style="font-size:10px; color:var(--text-faint);">hemat {{ formatRupiah((i.qty*i.harga_satuan) - subtotalItem(i)) }}</span>
+              </div>
+            </div>
           </div>
-          <div style="display:flex; align-items:center; justify-content:space-between;">
-            <span style="font-weight:700; font-size:13.5px;">Total</span>
-            <span style="font-weight:700; font-size:18px; color:var(--burgundy);">{{ formatRupiah(totalBelanja) }}</span>
+
+          <div style="padding-top:12px; border-top:1px solid var(--line); margin-bottom:12px;">
+            <div v-if="diskonTotalBelanja > 0" style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+              <span style="font-size:11.5px; color:var(--text-faint);">Diskon</span>
+              <span style="font-size:12px; color:var(--text-faint);">-{{ formatRupiah(diskonTotalBelanja) }}</span>
+            </div>
+            <div style="display:flex; align-items:center; justify-content:space-between;">
+              <span style="font-weight:700; font-size:13.5px;">Total</span>
+              <span style="font-weight:700; font-size:18px; color:var(--burgundy);">{{ formatRupiah(totalBelanja) }}</span>
+            </div>
           </div>
+          <button @click="lanjutKePembayaran" :disabled="daftarKeranjang.length === 0" class="btn-primary" style="width:100%; padding:13px;"><i class="fas fa-arrow-right" style="margin-right:6px;"></i>Lanjut ke Pembayaran</button>
         </div>
-        <button @click="lanjutKePembayaran" :disabled="daftarKeranjang.length === 0" class="btn-primary" style="width:100%; padding:13px;"><i class="fas fa-arrow-right" style="margin-right:6px;"></i>Lanjut ke Pembayaran</button>
       </div>
     </div>
 
