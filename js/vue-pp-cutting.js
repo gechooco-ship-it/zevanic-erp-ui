@@ -571,7 +571,12 @@ const CuttingPerluDiProses = {
               <td style="padding:6px 8px;">{{ bahanEnrich[t.id] ? bahanEnrich[t.id].satuan : '-' }}</td>
               <td style="padding:6px 8px;">
                 <span v-if="!(unpackEnrich[t.kode_spk] || []).length" class="tag neutral">belum</span>
-                <template v-else><span v-for="(u,i) in unpackEnrich[t.kode_spk]" :key="i" class="tag" :class="u.unpack_hasil==='komplit' ? 'ok' : (u.unpack_hasil==='inkomplit' ? 'warn' : 'neutral')" style="margin-right:3px;" :title="u.unpack_hasil || 'belum di-unpack'">{{ u.kode }}</span></template>
+                <!-- Kartu Batch (design system): kode bagging + status Unpack, warna dot ikut unpack_hasil -->
+                <div v-else style="display:flex; flex-wrap:wrap; gap:4px;">
+                  <span v-for="(u,i) in unpackEnrich[t.kode_spk]" :key="i" class="gc-batch-card" :class="{ inkomplit: u.unpack_hasil !== 'komplit' }" style="display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; background:var(--ivory-dim);" :title="u.unpack_hasil || 'belum di-unpack'">
+                    <span class="tag-dot" :style="{ color: u.unpack_hasil==='komplit' ? 'var(--ok)' : (u.unpack_hasil==='inkomplit' ? 'var(--warn)' : 'var(--text-faint)') }"></span>{{ u.kode }}
+                  </span>
+                </div>
               </td>
               <td style="padding:6px 8px;"><span class="tag" :class="tertahan(t.masuk_tahap_pada) ? 'warn' : 'neutral'">{{ formatDiamSejak(t.masuk_tahap_pada) }}</span></td>
               <td style="padding:6px 8px;"><button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:5px 9px; font-size:10.5px; color:var(--danger);" title="Scan Masalah"><i class="fas fa-triangle-exclamation"></i></button></td>

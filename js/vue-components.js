@@ -268,10 +268,11 @@ export const DropdownCari = {
         style="width:100%; padding:8px 30px 8px 12px; border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; background:var(--ivory-dim); box-sizing:border-box;"
       >
       <i class="fas fa-chevron-down" style="position:absolute; right:12px; top:11px; font-size:10px; color:var(--text-faint); pointer-events:none;"></i>
-      <div v-if="tampilDropdown" ref="listEl" style="position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--surface); border:1.5px solid var(--line); border-radius:10px; max-height:220px; overflow-y:auto; z-index:50; box-shadow:0 8px 20px rgba(0,0,0,.14);">
-        <div v-if="opsiTersaring.length === 0" style="padding:10px 12px; font-size:11.5px; color:var(--text-faint);">Tidak ada yang cocok.</div>
+      <div v-if="tampilDropdown" ref="listEl" class="gc-typeahead" style="position:absolute; top:calc(100% + 4px); left:0; right:0; max-height:220px; overflow-y:auto; z-index:50;">
+        <div v-if="opsiTersaring.length === 0" class="gc-typeahead-item" style="color:var(--text-faint);">Tidak ada yang cocok.</div>
         <div v-for="(o, i) in opsiTersaring" :key="o" @mousedown.prevent="pilih(o)" @mouseenter="indexSorot = i"
-          :style="{padding:'8px 12px', fontSize:'12.5px', cursor:'pointer', background: (i===indexSorot ? 'var(--burgundy-light)' : (o===modelValue ? 'var(--ivory-dim)' : 'transparent')), fontWeight: (o===modelValue ? '700':'400')}">{{ o }}</div>
+          class="gc-typeahead-item" :class="{ active: i===indexSorot }"
+          :style="{ cursor:'pointer', background: (i!==indexSorot && o===modelValue) ? 'var(--ivory-dim)' : null, fontWeight: (i!==indexSorot && o===modelValue) ? '700' : null }">{{ o }}</div>
       </div>
     </div>
   `

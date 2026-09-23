@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, onMounted, watch } from 'https://un
 import { collection, doc, setDoc, updateDoc, deleteDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=13';
+import { DropdownCari } from './vue-components.js?v=14';
 import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
 // pakaiRiwayatTabVue — TIDAK dipakai lagi di file ini sejak restrukturisasi
 // tampilan Entry Produk: BOM Jasa/Pola/ Aksesoris tidak lagi tab bergantian
@@ -757,12 +757,12 @@ const FormEntryProdukBOM = {
         -->
         <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
           <div style="flex:0 0 96px;">
-            <div v-if="fotoProdukPreview" style="margin-bottom:8px;">
-              <img :src="fotoProdukPreview" style="width:90px; height:90px; object-fit:cover; border-radius:12px; border:1.5px solid var(--line);">
-            </div>
-            <div v-else style="width:90px; height:90px; border-radius:12px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; margin-bottom:8px;"><span style="font-size:9.5px; color:var(--text-faint); text-align:center; line-height:1.3;">foto<br>produk</span></div>
-            <input type="file" accept="image/*" @change="pilihFotoProduk" style="font-size:9px; width:90px;">
-            <button v-if="fotoProdukPreview" @click="hapusFotoProduk" type="button" class="btn-outline" style="font-size:10px; padding:4px 8px; margin-top:6px;">Hapus</button>
+            <label class="gc-photo-slot" style="width:90px; height:90px; margin-bottom:8px; overflow:hidden;" title="Klik untuk pilih/ganti foto">
+              <img v-if="fotoProdukPreview" :src="fotoProdukPreview" style="width:100%; height:100%; object-fit:cover;">
+              <span v-else style="font-size:9.5px; text-align:center; line-height:1.3;"><i class="fas fa-image" style="display:block; font-size:16px; margin-bottom:4px;"></i>foto produk</span>
+              <input type="file" accept="image/*" @change="pilihFotoProduk" style="display:none;">
+            </label>
+            <button v-if="fotoProdukPreview" @click="hapusFotoProduk" type="button" class="btn-outline" style="font-size:10px; padding:4px 8px; width:90px;">Hapus</button>
           </div>
 
           <div style="flex:2 1 300px; display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">

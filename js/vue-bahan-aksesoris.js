@@ -26,7 +26,7 @@ import { db } from "./firebase-config.js";
 // Pengaturan (Jenis Bahan/Aksesoris, Data Satuan/Warna/Ukuran, Data Rak
 // Penyimpanan) tidak memakai keduanya, lihat catatan di atas
 // PengaturanBahanAksesoris di bawah.
-import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=13';
+import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=14';
 import { usePaginasiFirestore } from './vue-paginasi.js';
 // Koleksi `lot_bahan_aksesoris` & `log_cetak_label` dimiliki
 // js/vue-stock-pembelian.js — semua akses ke keduanya lewat fungsi yang
@@ -866,12 +866,12 @@ const BahanAksesorisEntryManager = {
         dan kolomnya tidak pernah collapse jadi 1 di HP. -->
       <div style="display:flex; gap:16px; align-items:flex-start; flex-wrap:wrap;">
         <div style="flex:0 0 96px;">
-          <div v-if="form.foto" style="margin-bottom:8px;">
-            <img :src="form.foto" style="width:90px; height:90px; object-fit:cover; border-radius:12px; border:1.5px solid var(--line);">
-            <button @click="hapusFoto" style="display:block; background:none; border:none; color:var(--danger); font-size:10.5px; font-weight:700; cursor:pointer; margin-top:4px; padding:0;">Hapus foto</button>
-          </div>
-          <div v-else style="width:90px; height:90px; border-radius:12px; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; margin-bottom:8px;"><span style="font-size:9.5px; color:var(--text-faint); text-align:center; line-height:1.3;">foto<br>item</span></div>
-          <input type="file" accept="image/*" @change="pilihFoto" style="width:90px; font-size:9px;">
+          <label class="gc-photo-slot" style="width:90px; height:90px; margin-bottom:8px; overflow:hidden;" title="Klik untuk pilih/ganti foto">
+            <img v-if="form.foto" :src="form.foto" style="width:100%; height:100%; object-fit:cover;">
+            <span v-else style="font-size:9.5px; text-align:center; line-height:1.3;"><i class="fas fa-image" style="display:block; font-size:16px; margin-bottom:4px;"></i>foto item</span>
+            <input type="file" accept="image/*" @change="pilihFoto" style="display:none;">
+          </label>
+          <button v-if="form.foto" @click="hapusFoto" type="button" class="btn-outline" style="font-size:10px; padding:4px 8px; width:90px;">Hapus foto</button>
         </div>
 
         <div style="flex:2 1 280px; display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-2">

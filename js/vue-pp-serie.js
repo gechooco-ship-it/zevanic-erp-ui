@@ -644,26 +644,31 @@ const SeriePerluDiProses = {
 
     <scan-terpadu-generik :c="unpackTerpadu" />
 
-    <div v-if="popupGenerate" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px; overflow:auto;">
-      <div class="gc-card" style="max-width:480px; width:100%; padding:18px; border-radius:18px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Generate Separating</h3>
-        <div style="background:var(--ivory-dim); border-radius:10px; padding:10px; margin-bottom:10px;">
-          <div style="font-size:10px; color:var(--text-faint); margin-bottom:6px;">SPK TERPILIH (bahan+warna+size sama{{ popupGenerate.warna ? (' — warna: ' + popupGenerate.warna) : '' }})</div>
-          <div v-for="g in popupGenerate.calon" :key="g.id" style="display:flex; align-items:center; gap:8px; padding:4px 0; font-size:11.5px;">
-            <input type="checkbox" v-model="popupGenerate.centang[g.id]">
-            <span style="flex:1;">{{ g.kode_spk }}</span>
-            <span class="gc-num">{{ formatQty(g.qty_total) }}</span>
+    <div v-if="popupGenerate" class="gc-dialog-backdrop" style="overflow:auto;">
+      <div class="gc-form-dialog" style="max-width:480px;">
+        <div class="gc-form-dialog-head"><i class="fas fa-object-ungroup"></i><b>Generate Separating</b></div>
+        <div class="gc-form-dialog-body">
+          <div style="background:var(--ivory-dim); border-radius:10px; padding:10px; margin-bottom:10px;">
+            <div style="font-size:10px; color:var(--text-faint); margin-bottom:6px;">SPK TERPILIH (bahan+warna+size sama{{ popupGenerate.warna ? (' — warna: ' + popupGenerate.warna) : '' }})</div>
+            <div v-for="g in popupGenerate.calon" :key="g.id" style="display:flex; align-items:center; gap:8px; padding:4px 0; font-size:11.5px;">
+              <input type="checkbox" v-model="popupGenerate.centang[g.id]">
+              <span style="flex:1;">{{ g.kode_spk }}</span>
+              <span class="gc-num">{{ formatQty(g.qty_total) }}</span>
+            </div>
           </div>
-        </div>
-        <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:12px;"><span>Total qty gabungan</span><b class="gc-num">{{ formatQty(totalQtyCentang) }} PCS</b></div>
-        <div style="display:flex; gap:10px; margin-bottom:12px;">
-          <div class="gc-field" style="flex:1;"><label>Jumlah Batch</label><input v-model.number="popupGenerate.jumlahBatch" type="number" min="1"></div>
-          <div class="gc-field" style="flex:1;"><label>Isi Pcs per Bundle</label><input v-model.number="popupGenerate.isiPcsPerBundle" type="number" min="1"></div>
-        </div>
-        <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:12px;">Jumlah batch &times; isi pcs per bundle harus persis sama dengan total qty gabungan.</div>
-        <div style="display:flex; gap:8px;">
-          <button @click="batalGenerate" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
-          <button @click="konfirmasiGenerate" :disabled="sedangGenerate" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-save" style="margin-right:4px;"></i>Simpan + Cetak</button>
+          <div style="display:flex; gap:10px; margin-bottom:12px;">
+            <div class="gc-field" style="flex:1;"><label>Jumlah Batch</label><input v-model.number="popupGenerate.jumlahBatch" type="number" min="1"></div>
+            <div class="gc-field" style="flex:1;"><label>Isi Pcs per Bundle</label><input v-model.number="popupGenerate.isiPcsPerBundle" type="number" min="1"></div>
+          </div>
+          <!-- Preview live, murni tampilan — cek persis sama dipakai ulang di konfirmasiGenerate saat Simpan -->
+          <div class="gc-form-dialog-preview" :style="{ background: ((popupGenerate.jumlahBatch||0) * (popupGenerate.isiPcsPerBundle||0) === totalQtyCentang) ? 'var(--ok-light)' : 'var(--warn-light)', color: ((popupGenerate.jumlahBatch||0) * (popupGenerate.isiPcsPerBundle||0) === totalQtyCentang) ? 'var(--ok)' : 'var(--warn)' }">
+            {{ popupGenerate.jumlahBatch||0 }} batch &times; {{ formatQty(popupGenerate.isiPcsPerBundle) }} = {{ formatQty((popupGenerate.jumlahBatch||0) * (popupGenerate.isiPcsPerBundle||0)) }} pcs
+            {{ ((popupGenerate.jumlahBatch||0) * (popupGenerate.isiPcsPerBundle||0) === totalQtyCentang) ? '✓ cocok' : ('— total qty gabungan ' + formatQty(totalQtyCentang) + ' PCS') }}
+          </div>
+          <div style="display:flex; gap:8px; margin-top:12px;">
+            <button @click="batalGenerate" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+            <button @click="konfirmasiGenerate" :disabled="sedangGenerate" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-save" style="margin-right:4px;"></i>Simpan + Cetak</button>
+          </div>
         </div>
       </div>
     </div>

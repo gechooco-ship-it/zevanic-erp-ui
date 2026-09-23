@@ -31,7 +31,7 @@ import { db, storage } from "./firebase-config.js";
 // MasterSuplayerManager (gear Stock & Pembelian), sekarang CRUD Suplayer pindah
 // ke menu Config (vue-config.js). Lihat catatan di PengaturanStockPembelian di
 // bawah.
-import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=13';
+import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=14';
 import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
 
 // helper: ambil semua Bahan+Aksesoris (disalin dari vue-bahan-aksesoris.js /
