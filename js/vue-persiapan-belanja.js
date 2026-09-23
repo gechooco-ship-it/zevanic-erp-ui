@@ -16,14 +16,18 @@
 //   catatRiwayatHargaDanUpdateMaster (stok_akhir + riwayat harga master) yang
 //   hanya boleh dijalankan vue-stock-pembelian.js.
 // - 1 nota = 1 suplayer_id; suplayer default beda cuma dapat chip peringatan.
-// - Cek Pengajuan menyaring persiapan_masalah 'diajukan_belanja' minus id di
-//   sumber_masalah_ids nota aktif, supaya 1 pengajuan tidak masuk 2 nota.
+// - Cek Pengajuan gabung 2 sumber: persiapan_masalah 'diajukan_belanja' minus
+//   id di sumber_masalah_ids nota aktif, DAN item Daftar Stok kritis/habis
+//   (muatItemStokKritis, id sintetis 'stokkritis::<bahanId>') minus item yang
+//   bahan_aksesoris_id-nya sudah ada di baris nota aktif manapun. Item stok
+//   kritis TIDAK ditulis ke sumber_masalah_ids (tidak punya dokumen masalah).
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
 import { tierOwnerKeAtas } from './vue-scan-cetak.js?v=9';
+import { hitungTeralokasiSemuaBahan } from './vue-stock-pembelian.js?v=31';
 
 const MENU_ID = 'pp_belanja';
 
@@ -130,6 +134,33 @@ async function muatSemuaPendingDriver() {
 async function muatMasalahDiajukanBelanja() {
   const snap = await getDocs(query(collection(db, 'persiapan_masalah'), where('status', '==', 'diajukan_belanja')));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+// muatItemStokKritis — item Daftar Stok (Kartu Stok) yang status-nya
+// kritis/habis, DILUAR alur Masalah (persiapan_masalah), masuk Cek Pengajuan
+// dengan chip "stok kritis" (spek handoff Stok dan Pembelian §5.1). Rumus
+// status SAMA PERSIS dengan vue-kartu-stok.js (disalin, bukan diimpor —
+// konvensi proyek ini); id sintetis 'stokkritis::<bahanId>' supaya tidak
+// bentrok id persiapan_masalah. Item yang bahan_aksesoris_id-nya SUDAH ada di
+// baris nota aktif manapun disaring keluar (sudah diusulkan, jangan dobel).
+async function muatItemStokKritis(notaAktif) {
+  try {
+    const [semuaBahan, teralokasi] = await Promise.all([ambilDaftarBahanAksesorisLengkap(), hitungTeralokasiSemuaBahan()]);
+    const bahanDiNotaAktif = new Set(notaAktif.flatMap(n => (n.items || []).map(it => it.bahan_aksesoris_id)));
+    const hasil = [];
+    semuaBahan.forEach(b => {
+      const stok = parseFloat(b.stok_akhir) || 0;
+      const bebas = stok - (teralokasi[b.id] || 0);
+      const batasKritis = parseFloat(b.batas_kritis) || 0;
+      const statusStok = bebas <= 0 ? 'habis' : (batasKritis > 0 && bebas <= batasKritis ? 'kritis' : null);
+      if (!statusStok || bahanDiNotaAktif.has(b.id)) return;
+      hasil.push({
+        id: 'stokkritis::' + b.id, bahan_aksesoris_id: b.id, bahan_nama: b.nama, bahan_warna: b.warna || '',
+        qty_beli: Math.max(-bebas, batasKritis - bebas, 0), satuan: b.satuan_pembelian || b.satuan_pemakaian || '',
+        sumber_stok_kritis: true, status_stok: statusStok
+      });
+    });
+    return hasil;
+  } catch (e) { console.error('Gagal hitung item stok kritis:', e); return []; }
 }
 
 
@@ -258,21 +289,24 @@ const PersiapanAdminBelanja = {
         const [semuaMasalah, semuaNota] = await Promise.all([muatMasalahDiajukanBelanja(), muatSemuaPesananPembelian()]);
         const notaAktif = semuaNota.filter(n => n.order_driver_id !== undefined && ['draft', 'menunggu_acc', 'disetujui', 'siap_finalisasi'].includes(n.status));
         const sudahDipakai = new Set(notaAktif.flatMap(n => n.sumber_masalah_ids || []));
-        daftarPengajuan.value = semuaMasalah.filter(m => !sudahDipakai.has(m.id));
+        const stokKritis = await muatItemStokKritis(notaAktif);
+        daftarPengajuan.value = [...semuaMasalah.filter(m => !sudahDipakai.has(m.id)), ...stokKritis];
         Object.keys(pengajuanDicentang).forEach(k => delete pengajuanDicentang[k]);
         popupPengajuanAktif.value = true;
       } catch (e) { console.error('Gagal muat Cek Pengajuan:', e); alert('Gagal memuat daftar pengajuan.'); }
     }
     // Preload ringan hitungan badge "Cek Pengajuan" di header grid — TANPA
     // membuka pop up, cuma menghitung supaya admin lihat ada berapa sebelum klik
-    // (wireframe: badge angka merah di tombol Cek Pengajuan).
+    // (wireframe: badge angka merah di tombol Cek Pengajuan). Ikut menghitung
+    // item stok kritis, sama seperti bukaCekPengajuan.
     const badgePengajuan = ref(0);
     async function muatBadgePengajuan() {
       try {
         const [semuaMasalah, semuaNota] = await Promise.all([muatMasalahDiajukanBelanja(), muatSemuaPesananPembelian()]);
         const notaAktif = semuaNota.filter(n => n.order_driver_id !== undefined && ['draft', 'menunggu_acc', 'disetujui', 'siap_finalisasi'].includes(n.status));
         const sudahDipakai = new Set(notaAktif.flatMap(n => n.sumber_masalah_ids || []));
-        badgePengajuan.value = semuaMasalah.filter(m => !sudahDipakai.has(m.id)).length;
+        const stokKritis = await muatItemStokKritis(notaAktif);
+        badgePengajuan.value = semuaMasalah.filter(m => !sudahDipakai.has(m.id)).length + stokKritis.length;
       } catch (e) { console.error('Gagal hitung badge Cek Pengajuan:', e); badgePengajuan.value = 0; }
     }
     function masukkanPengajuanTerpilih() {
@@ -285,12 +319,15 @@ const PersiapanAdminBelanja = {
           const def = suplayerDefaultUntukBahan(m.bahan_aksesoris_id);
           items.value.push({
             bahan_aksesoris_id: m.bahan_aksesoris_id, nama_internal: m.bahan_nama + (m.bahan_warna ? ' ' + m.bahan_warna : ''),
-            nama_alias: '', qty: parseFloat(m.qty_beli) || 0, satuan: m.satuan || '', harga_estimasi: 0, dari_masalah_id: m.id,
+            nama_alias: '', qty: parseFloat(m.qty_beli) || 0, satuan: m.satuan || '', harga_estimasi: 0,
+            ...(m.sumber_stok_kritis ? {} : { dari_masalah_id: m.id }),
             suplayer_default_id: def?.id || '', suplayer_default_nama: def?.nama || ''
           });
           if (!suplayerId.value && def?.id) suplayerId.value = def.id;
         }
-        if (!sumberMasalahIds.value.includes(m.id)) sumberMasalahIds.value.push(m.id);
+        // Item stok kritis TIDAK punya dokumen persiapan_masalah — jangan ikut
+        // dicatat ke sumber_masalah_ids (itu khusus penanda masalah terpakai).
+        if (!m.sumber_stok_kritis && !sumberMasalahIds.value.includes(m.id)) sumberMasalahIds.value.push(m.id);
       });
       popupPengajuanAktif.value = false;
     }
@@ -443,12 +480,13 @@ const PersiapanAdminBelanja = {
 
     <div v-if="popupPengajuanAktif" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:480px; width:100%; padding:18px; border-radius:18px; max-height:80vh; overflow-y:auto;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Cek Pengajuan dari Masalah</h3>
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Cek Pengajuan</h3>
         <div v-if="daftarPengajuan.length === 0" style="font-size:12px; color:var(--text-faint); margin-bottom:12px;">Tidak ada pengajuan yang menunggu dibelikan.</div>
         <div v-else style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
           <label v-for="m in daftarPengajuan" :key="m.id" style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:8px; background:var(--ivory-dim); font-size:12px;">
             <input type="checkbox" v-model="pengajuanDicentang[m.id]" class="gc-chk">
-            <span>{{ m.bahan_nama }}<span v-if="m.bahan_warna"> {{ m.bahan_warna }}</span> — {{ formatQty(m.qty_beli) }} {{ m.satuan }} <span style="color:var(--text-faint);">({{ m.no_spk }})</span></span>
+            <span style="flex:1;">{{ m.bahan_nama }}<span v-if="m.bahan_warna"> {{ m.bahan_warna }}</span> — {{ formatQty(m.qty_beli) }} {{ m.satuan }} <span v-if="!m.sumber_stok_kritis" style="color:var(--text-faint);">({{ m.no_spk }})</span></span>
+            <span v-if="m.sumber_stok_kritis" class="tag" :class="m.status_stok === 'habis' ? 'danger' : 'warn'">stok {{ m.status_stok }}</span>
           </label>
         </div>
         <div style="display:flex; gap:8px;">

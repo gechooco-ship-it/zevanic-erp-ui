@@ -656,6 +656,34 @@ export async function ambilLotAktif(bahanId) {
   return lots;
 }
 
+// hitungTeralokasiSemuaBahan — kebutuhan SPK Grouping (jalur Bahan + 3 Acc)
+// yang SUDAH terbit tapi baris-nya belum di-scan entry (entry_qty belum
+// ada), dijumlah per bahan_aksesoris_id. Dipakai Daftar Stok
+// (vue-kartu-stok.js). Vendor TIDAK ikut dihitung — jalur itu tanpa sumber
+// BOM/bahan_aksesoris_id (lihat KEPUTUSAN.md > Persiapan Produksi).
+const JALUR_TERALOKASI = [
+  { jalur: 'bahan', field: 'bahan_rincian', qty: 'kebutuhan_kain' },
+  { jalur: 'sewing', field: 'sewing_rincian', qty: 'butuh' },
+  { jalur: 'webbing', field: 'webbing_rincian', qty: 'butuh' },
+  { jalur: 'finishing', field: 'finishing_rincian', qty: 'butuh' }
+];
+export async function hitungTeralokasiSemuaBahan() {
+  const peta = {};
+  const snap = await getDocs(query(collection(db, 'spk_track'), where('jalur', 'in', JALUR_TERALOKASI.map(j => j.jalur))));
+  snap.forEach(d => {
+    const data = d.data();
+    const cfg = JALUR_TERALOKASI.find(j => j.jalur === data.jalur);
+    if (!cfg) return;
+    const arr = Array.isArray(data[cfg.field]) ? data[cfg.field] : [];
+    arr.forEach(b => {
+      if (!b || !b.bahan_aksesoris_id) return;
+      if (b.entry_qty !== undefined && b.entry_qty !== null) return; // sudah discan
+      peta[b.bahan_aksesoris_id] = (peta[b.bahan_aksesoris_id] || 0) + (parseFloat(b[cfg.qty]) || 0);
+    });
+  });
+  return peta;
+}
+
 // cariLotByKode — cari 1 lot AKTIF lewat `kode_lot` PERSIS (hasil scan QR label
 // fisik roll, atau diketik manual). null kalau tidak ketemu/lot itu sudah habis
 // (status bukan 'aktif' lagi, jadi tidak muncul di query ini).
@@ -1573,7 +1601,13 @@ const DaftarNotaScreen = {
           });
           const snapBahan = await getDoc(doc(db, 'master_bahan_aksesoris', it.bahan_aksesoris_id));
           const hargaModalSaatIni = snapBahan.exists() ? (parseFloat(snapBahan.data().harga_modal) || 0) : 0;
-          if (hargaModalSaatIni > 0 && hargaPerSatuanPemakaian > hargaModalSaatIni) {
+          // it.diedit_oleh terisi SATU-SATUNYA saat PIN Owner-tier menyetujui
+          // harga baris ini langsung di layar edit (mulaiEditHarga/pinHargaSukses,
+          // baris tierOwnerKeAtas). Itu ACC Owner yang sah — jangan tandai
+          // harga_perlu_konfirmasi lagi di sini, langsung update master. Kalau
+          // BUKAN diedit_oleh (harga apa adanya dari entry awal, atau usulan PIN
+          // Admin yang baris-nya TIDAK berubah), deteksi kenaikan tetap jalan.
+          if (!it.diedit_oleh && hargaModalSaatIni > 0 && hargaPerSatuanPemakaian > hargaModalSaatIni) {
             await tandaiHargaPerluKonfirmasi(it.bahan_aksesoris_id, {
               harga_baru: hargaPerSatuanPemakaian, harga_lama: hargaModalSaatIni,
               tanggal: tanggalPembelian, no_pembelian: noPembelianRef,
@@ -2008,24 +2042,66 @@ const DaftarNotaScreen = {
 };
 
 
-// RiwayatHargaPembelianManager — tabel READ-ONLY, paginasi cursor-based
-// (WAJIB), diisi otomatis oleh catatRiwayatHargaDanUpdateMaster tiap kali Nota
-// difinalkan. Cari berdasarkan nama bahan (awalan), urut dari tanggal terbaru.
+// RiwayatHargaPembelianManager — DAFTAR ITEM dulu (1 baris per bahan, harga
+// modal terkini + chip pending), klik baris -> RINCIAN riwayat item itu saja
+// (paginasi cursor tetap, sekarang di-scope where bahan_aksesoris_id) dengan
+// kolom Perubahan (naik/turun vs baris sebelumnya DI HALAMAN YANG SAMA — lihat
+// jebakan paginasi di bawah). Read-only total, diisi otomatis oleh
+// catatRiwayatHargaDanUpdateMaster tiap kali Nota difinalkan.
+//
+// Jebakan: delta Perubahan cuma dibanding baris tepat di bawahnya PADA
+// HALAMAN YANG SAMA (array sudah urut tanggal desc) — baris terakhir tiap
+// halaman jadi tanpa delta (bukan bug, batas wajar paginasi cursor).
 
 const RiwayatHargaPembelianManager = {
   components: { PopupPin },
   setup() {
-    const paginasi = usePaginasiFirestore(db, 'riwayat_harga_pembelian', {
+    const view = ref('daftar'); // 'daftar' | 'detail'
+
+    const daftarItemLengkap = ref([]);
+    const memuatDaftarItem = ref(true);
+    async function muatDaftarItemLengkap() {
+      memuatDaftarItem.value = true;
+      try {
+        const snap = await getDocs(collection(db, 'master_bahan_aksesoris'));
+        const list = []; snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+        list.sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
+        daftarItemLengkap.value = list;
+      } catch (e) { console.error('Gagal muat daftar item (Riwayat Harga):', e); }
+      memuatDaftarItem.value = false;
+    }
+    const cariDaftar = ref('');
+    const daftarItemTampil = computed(() => {
+      const q = cariDaftar.value.trim().toLowerCase();
+      if (!q) return daftarItemLengkap.value;
+      return daftarItemLengkap.value.filter(it => (it.nama || '').toLowerCase().includes(q));
+    });
+
+    const itemAktif = ref(null);
+    const paginasiDetail = usePaginasiFirestore(db, 'riwayat_harga_pembelian', {
       perHalaman: 15,
       urutkanField: 'tanggal',
       urutkanArah: 'desc',
-      cariField: 'nama_bahan',
+      constraintTambahan: () => itemAktif.value ? [where('bahan_aksesoris_id', '==', itemAktif.value.id)] : [],
       petakan: (id, d) => ({ id, ...d })
     });
+    function bukaDetail(item) { itemAktif.value = item; view.value = 'detail'; paginasiDetail.muatUlang(); }
+    function kembaliKeDaftar() { view.value = 'daftar'; itemAktif.value = null; }
 
-    // Banner "harga perlu konfirmasi" — query TERPISAH dari paginasi riwayat:
-    // equality single-field (`harga_perlu_konfirmasi == true`), tidak butuh
-    // index komposit dan tidak membaca seluruh master_bahan_aksesoris.
+    const barisDenganDelta = computed(() => {
+      const arr = paginasiDetail.dataHalaman.value;
+      return arr.map((r, i) => {
+        const lama = arr[i + 1];
+        if (!lama) return { ...r, delta: null };
+        const selisih = (r.harga_per_satuan_pemakaian || 0) - (lama.harga_per_satuan_pemakaian || 0);
+        const persen = lama.harga_per_satuan_pemakaian > 0 ? (selisih / lama.harga_per_satuan_pemakaian * 100) : null;
+        return { ...r, delta: { selisih, persen } };
+      });
+    });
+
+    // Banner "harga perlu konfirmasi" — query TERPISAH: equality single-field
+    // (`harga_perlu_konfirmasi == true`), tidak butuh index komposit. Chip
+    // per-baris di Daftar Item (idPending) pakai peta yang sama.
     const daftarPending = ref([]);
     const memuatPending = ref(true);
     async function muatDaftarPending() {
@@ -2039,6 +2115,7 @@ const RiwayatHargaPembelianManager = {
       }
       memuatPending.value = false;
     }
+    const idPending = computed(() => new Set(daftarPending.value.map(b => b.id)));
 
     const tampilPinTerapkan = ref(false);
     const bahanAktifTerapkan = ref(null);
@@ -2072,15 +2149,20 @@ const RiwayatHargaPembelianManager = {
         });
         alert(`Harga "${bahan.nama || bahan.id}" diperbarui & blokir checkout dibuka.`);
         await muatDaftarPending();
+        await muatDaftarItemLengkap();
       } catch (e) {
         console.error('Gagal menerapkan harga pending:', e);
         alert('Gagal menerapkan harga. Coba lagi.');
       }
     }
 
-    async function muat() { await paginasi.muatUlang(); await muatDaftarPending(); }
+    async function muat() { await muatDaftarItemLengkap(); await muatDaftarPending(); }
     onMounted(async () => { await window.authReady; await muat(); });
-    return { paginasi, muat, formatRupiah, daftarPending, memuatPending, tampilPinTerapkan, bukaTerapkan, pinTerapkanSukses };
+    return {
+      view, daftarItemLengkap, memuatDaftarItem, cariDaftar, daftarItemTampil, muat, formatRupiah,
+      itemAktif, paginasiDetail, barisDenganDelta, bukaDetail, kembaliKeDaftar,
+      daftarPending, memuatPending, idPending, tampilPinTerapkan, bukaTerapkan, pinTerapkanSukses
+    };
   },
   template: `
     <div>
@@ -2106,39 +2188,73 @@ const RiwayatHargaPembelianManager = {
 
       <popup-pin v-if="tampilPinTerapkan" judul="PIN Terapkan Harga" pesan="Hanya PIN Owner/PIC Owner/Superuser yang bisa menerapkan harga baru & membuka blokir checkout." @sukses="pinTerapkanSukses" @batal="tampilPinTerapkan = false" />
 
-      <div class="gc-card" style="padding:14px;">
-      <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Riwayat Harga Pembelian</label>
-      <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Tercatat otomatis tiap kali Nota / List Order Belanja di-final-kan. Harga Pembelian di Data Bahan &amp; Aksesoris otomatis mengikuti baris dengan tanggal PALING BARU (kalau ada beberapa di tanggal sama, yang PALING MAHAL per Satuan Pemakaian) — KECUALI kalau kenaikan itu sedang menunggu konfirmasi Owner (lihat banner di atas).</p>
+      <!-- DAFTAR ITEM -->
+      <div v-if="view === 'daftar'" class="gc-card" style="padding:14px;">
+        <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Riwayat Harga Pembelian</label>
+        <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Pilih item untuk lihat rincian naik-turun harganya dari waktu ke waktu. Harga Pembelian di Data Bahan &amp; Aksesoris otomatis mengikuti baris dengan tanggal PALING BARU (kalau ada beberapa di tanggal sama, yang PALING MAHAL per Satuan Pemakaian) — KECUALI kalau kenaikan itu sedang menunggu konfirmasi Owner (lihat banner di atas).</p>
 
-      <div style="position:relative; max-width:320px; margin-bottom:12px;">
-        <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:12px;"></i>
-        <input :value="paginasi.cariTeks.value" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama bahan (awalan)..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+        <div style="position:relative; max-width:320px; margin-bottom:12px;">
+          <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:12px;"></i>
+          <input v-model="cariDaftar" type="text" placeholder="Cari nama bahan..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+        </div>
+
+        <div v-if="memuatDaftarItem" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+        <div v-else-if="daftarItemTampil.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Tidak ada item cocok.</div>
+        <div v-else style="display:flex; flex-direction:column; gap:6px; max-height:560px; overflow-y:auto;">
+          <div v-for="it in daftarItemTampil" :key="it.id" @click="bukaDetail(it)"
+            style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; cursor:pointer;">
+            <div style="flex:1; min-width:120px;">
+              <div style="font-weight:700; font-size:12.5px;">{{ it.nama }}<span v-if="it.warna"> {{ it.warna }}</span></div>
+              <div style="font-size:10px; color:var(--text-faint);">{{ it.id_tampil || '-' }} &middot; {{ it.kategori_utama || '-' }}</div>
+            </div>
+            <span v-if="idPending.has(it.id)" class="tag warn">menunggu konfirmasi</span>
+            <div style="text-align:right;">
+              <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Harga Modal</div>
+              <div style="font-size:13px; font-weight:700; color:var(--burgundy);">{{ formatRupiah(it.harga_modal) }}</div>
+            </div>
+            <i class="fas fa-chevron-right" style="color:var(--text-faint); font-size:11px;"></i>
+          </div>
+        </div>
       </div>
 
-      <div v-if="paginasi.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
-      <div v-else-if="paginasi.errorPaginasi.value" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
-      <div v-else-if="paginasi.dataHalaman.value.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada riwayat pembelian.</div>
-      <div v-else style="overflow-x:auto;">
-        <table class="gc-table" style="width:100%; font-size:11.5px;">
-          <thead><tr>
-            <th>Tanggal</th><th>Nama Bahan</th><th>Suplayer</th><th>Satuan Beli</th><th>Harga</th><th>Isi Konversi</th><th>Satuan Pemakaian</th><th>Harga / Satuan Pemakaian</th><th>No. Pembelian</th>
-          </tr></thead>
-          <tbody>
-            <tr v-for="r in paginasi.dataHalaman.value" :key="r.id">
-              <td>{{ r.tanggal }}</td><td>{{ r.nama_bahan }}</td><td>{{ r.suplayer_nama || '-' }}</td>
-              <td>{{ r.satuan }}</td><td>{{ formatRupiah(r.harga) }}</td><td>{{ r.isi_konversi }}</td>
-              <td>{{ r.satuan_pemakaian }}</td><td style="color:var(--burgundy); font-weight:700;">{{ formatRupiah(r.harga_per_satuan_pemakaian) }}</td>
-              <td>{{ r.no_pembelian || '-' }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <!-- RINCIAN 1 ITEM -->
+      <div v-else class="gc-card" style="padding:14px;">
+        <button @click="kembaliKeDaftar" class="btn-outline" style="font-size:11px; padding:5px 12px; margin-bottom:12px;"><i class="fas fa-arrow-left" style="margin-right:5px;"></i>Daftar Item</button>
+        <div style="margin-bottom:12px;">
+          <div style="font-weight:700; font-size:14px;">{{ itemAktif.nama }}<span v-if="itemAktif.warna"> {{ itemAktif.warna }}</span></div>
+          <div style="font-size:10.5px; color:var(--text-faint);">{{ itemAktif.id_tampil || '-' }} &middot; Harga Modal saat ini: {{ formatRupiah(itemAktif.harga_modal) }}</div>
+        </div>
 
-      <div v-if="!paginasi.memuat.value && paginasi.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
-        <button class="icon-btn" :disabled="paginasi.nomorHalaman.value <= 1" @click="paginasi.halamanSebelumnya"><i class="fas fa-chevron-left"></i></button>
-        <span style="font-size:12px; color:var(--text-muted);">Halaman {{ paginasi.nomorHalaman.value }}</span>
-        <button class="icon-btn" :disabled="!paginasi.adaBerikutnya.value" @click="paginasi.halamanBerikutnya"><i class="fas fa-chevron-right"></i></button>
-      </div>
+        <div v-if="paginasiDetail.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+        <div v-else-if="paginasiDetail.errorPaginasi.value" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasiDetail.errorPaginasi.value }}</div>
+        <div v-else-if="barisDenganDelta.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada riwayat pembelian untuk item ini.</div>
+        <div v-else style="overflow-x:auto;">
+          <table class="gc-table" style="width:100%; font-size:11.5px;">
+            <thead><tr>
+              <th>Tanggal</th><th>Suplayer</th><th>Satuan Beli</th><th>Harga</th><th>Isi Konversi</th><th>Satuan Pemakaian</th><th>Harga / Satuan Pemakaian</th><th>Perubahan</th><th>No. Pembelian</th>
+            </tr></thead>
+            <tbody>
+              <tr v-for="r in barisDenganDelta" :key="r.id">
+                <td>{{ r.tanggal }}</td><td>{{ r.suplayer_nama || '-' }}</td>
+                <td>{{ r.satuan }}</td><td>{{ formatRupiah(r.harga) }}</td><td>{{ r.isi_konversi }}</td>
+                <td>{{ r.satuan_pemakaian }}</td><td style="color:var(--burgundy); font-weight:700;">{{ formatRupiah(r.harga_per_satuan_pemakaian) }}</td>
+                <td>
+                  <span v-if="!r.delta" class="tag neutral">baru</span>
+                  <span v-else-if="r.delta.selisih > 0" class="tag danger"><i class="fas fa-arrow-up"></i> {{ r.delta.persen !== null ? r.delta.persen.toFixed(1) + '%' : '' }}</span>
+                  <span v-else-if="r.delta.selisih < 0" class="tag ok"><i class="fas fa-arrow-down"></i> {{ r.delta.persen !== null ? Math.abs(r.delta.persen).toFixed(1) + '%' : '' }}</span>
+                  <span v-else class="tag neutral">tetap</span>
+                </td>
+                <td>{{ r.no_pembelian || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-if="!paginasiDetail.memuat.value && barisDenganDelta.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
+          <button class="icon-btn" :disabled="paginasiDetail.nomorHalaman.value <= 1" @click="paginasiDetail.halamanSebelumnya"><i class="fas fa-chevron-left"></i></button>
+          <span style="font-size:12px; color:var(--text-muted);">Halaman {{ paginasiDetail.nomorHalaman.value }}</span>
+          <button class="icon-btn" :disabled="!paginasiDetail.adaBerikutnya.value" @click="paginasiDetail.halamanBerikutnya"><i class="fas fa-chevron-right"></i></button>
+        </div>
       </div>
     </div>
   `

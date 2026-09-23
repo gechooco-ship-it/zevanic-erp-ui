@@ -552,6 +552,9 @@ thead .freeze{z-index:3; background:var(--ivory-dim);}
   .md\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr));}
   .md\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr));}
   .md\:col-span-2{grid-column:span 2 / span 2;}
+  .md\:flex-none{flex:none;} /* wajib ada: kolom lebar tetap di layout split (mis. .gc-pos-col, js/vue-pesanan.js) */
+  .md\:w-60{width:240px;}
+  .md\:w-80{width:320px;}
 }
 
 /* ---- Utilitas ---- */

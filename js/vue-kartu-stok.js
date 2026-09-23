@@ -1,11 +1,19 @@
 // js/vue-kartu-stok.js
-// Stok & Pembelian > Kartu Stok. READ-ONLY total: ledger masuk/keluar per
-// bahan/aksesoris dengan item-switcher di kepala; tanpa form entry & scan.
+// Stok & Pembelian > Kartu Stok. DAFTAR STOK dulu (semua bahan+aksesoris:
+// stok/teralokasi/bebas/batas kritis/status/rak/lot, filter kategori+kritis),
+// klik baris -> LEDGER read-only 1 item (masuk/keluar/penyesuaian), tanpa
+// form entry & scan di layar manapun.
 //
 // Koleksi & field:
-// - Combobox item: full fetch master_bahan_aksesoris client-side (master
-//   data terbatas, pola ambilDaftarBahanAksesorisLengkap). Badge "Lot Aktif"
-//   lewat ambilLotAktif dari vue-stock-pembelian.js.
+// - Daftar item: full fetch master_bahan_aksesoris client-side (master data
+//   terbatas, pola ambilDaftarBahanAksesorisLengkap). Badge "Lot Aktif" per
+//   baris dari lot_bahan_aksesoris status=='aktif', dihitung SEKALI (bukan
+//   query per baris) lalu dikelompokkan client-side.
+// - Teralokasi per item: hitungTeralokasiSemuaBahan() dari
+//   vue-stock-pembelian.js (baca spk_track jalur Bahan+3 Acc, baris yang
+//   belum entry_qty). Bebas = stok - teralokasi. Status kritis kalau
+//   bebas <= batas_kritis (field BARU di master_bahan_aksesoris, > 0),
+//   habis kalau bebas <= 0.
 // - kartu_stok_bahan_aksesoris: paginasi cursor lewat usePaginasiFirestore,
 //   perHalaman 15 — bisa ratusan baris per item, jangan di-full-fetch.
 //
@@ -13,17 +21,18 @@
 // - stok_akhir di master_bahan_aksesoris sumber kebenaran tunggal, HANYA
 //   ditulis catatPergerakanKartuStok/catatPemakaianDariAlokasi/Scan Opname
 //   di vue-stock-pembelian.js lewat runTransaction. File ini tidak pernah
-//   menulis stok_akhir/qty_sisa, cuma membaca.
+//   menulis stok_akhir/qty_sisa, cuma membaca. batas_kritis PENGECUALIAN:
+//   satu-satunya field milik menu ini yang ditulis dari sini (popup 5.1a).
 // - Catat Pemakaian (FIFO multi-roll) ada di vue-scan-persiapan.js.
 // - Teks empty state "Belum ada transaksi masuk/keluar untuk item ini"
 //   istilah wajib; paginasiDetail.errorPaginasi wajib tetap dirender.
 
 import { createApp, ref, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DropdownCari } from './vue-components.js?v=13';
 import { usePaginasiFirestore } from './vue-paginasi.js';
-import { ambilLotAktif } from './vue-stock-pembelian.js';
+import { ambilLotAktif, hitungTeralokasiSemuaBahan } from './vue-stock-pembelian.js?v=31';
 
 function formatQty(n) {
   const angka = parseFloat(n) || 0;
@@ -39,12 +48,22 @@ function pesanErrorFirestore(e) {
       ? 'Tidak punya izin membaca data ini. Hubungi Owner/PIC kalau ini tidak seharusnya terjadi.'
       : 'Gagal memuat data. Coba lagi.';
 }
+// adminKeAtas — gerbang popup "Atur Batas Kritis" (spek: Admin/Owner), TANPA
+// PIN — cukup tier akun yang login, pola sama seperti picOwnerKeAtas di
+// file Persiapan Produksi.
+function adminKeAtas(userData) {
+  if (!userData) return false;
+  const role = (userData.role || '').toLowerCase();
+  return ['admin', 'pic', 'pic_owner', 'owner', 'superuser'].includes(role);
+}
 
 const KartuStokManager = {
   components: { DropdownCari },
   setup() {
-    // Item-switcher (menggantikan tabel Ringkasan)
-    const daftarItemLengkap = ref([]); // semua master_bahan_aksesoris, combobox "ganti item"
+    const view = ref('daftar'); // 'daftar' | 'ledger'
+
+    // Item-switcher (Ganti Item di layar Ledger)
+    const daftarItemLengkap = ref([]); // semua master_bahan_aksesoris
     const memuatDaftarItem = ref(true);
     const errorDaftarItem = ref('');
     async function muatDaftarItemLengkap() {
@@ -78,6 +97,7 @@ const KartuStokManager = {
     function pilihItem(item) {
       itemAktif.value = item;
       itemEntry.value = '';
+      view.value = 'ledger';
       muatLotAktifCount();
       paginasiDetail.muatUlang();
     }
@@ -86,8 +106,8 @@ const KartuStokManager = {
       if (it) pilihItem(it);
     });
 
-    // Badge "Lot Aktif" memakai ULANG ambilLotAktif yang diekspor
-    // vue-stock-pembelian.js, tidak ada fungsi baru. Item yang bukan
+    // Badge "Lot Aktif" (layar Ledger) memakai ULANG ambilLotAktif yang
+    // diekspor vue-stock-pembelian.js, tidak ada fungsi baru. Item yang bukan
     // pakai_lot_tracking otomatis menampilkan 0 (tidak ada dokumen
     // lot_bahan_aksesoris untuknya) dan itu wajar, bukan disembunyikan.
     const lotAktifCount = ref(null); // null = belum dimuat/gagal
@@ -105,8 +125,7 @@ const KartuStokManager = {
       memuatLot.value = false;
     }
 
-    // Ledger 1 item — satu-satunya layar menu ini (tidak ada sub-tampilan
-    // "Detail" terpisah).
+    // Ledger 1 item.
     const paginasiDetail = usePaginasiFirestore(db, 'kartu_stok_bahan_aksesoris', {
       perHalaman: 15,
       urutkanField: 'dibuat_pada',
@@ -114,32 +133,194 @@ const KartuStokManager = {
       constraintTambahan: () => itemAktif.value ? [where('bahan_aksesoris_id', '==', itemAktif.value.id)] : [],
       petakan: (id, d) => ({ id, ...d })
     });
+    function kembaliKeDaftarStok() { view.value = 'daftar'; itemAktif.value = null; }
+
+    // DAFTAR STOK (5.1) — teralokasi (semua jalur Bahan+3 Acc) + lot aktif,
+    // dihitung SEKALI per muat (bukan per baris) lalu digabung client-side.
+    const petaTeralokasi = ref({});
+    const petaLotAktif = ref({});
+    const memuatAgregat = ref(true);
+    async function muatAgregatDaftarStok() {
+      memuatAgregat.value = true;
+      try {
+        const [teralokasi, lotSnap] = await Promise.all([
+          hitungTeralokasiSemuaBahan(),
+          getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('status', '==', 'aktif')))
+        ]);
+        petaTeralokasi.value = teralokasi;
+        const peta = {};
+        lotSnap.forEach(d => {
+          const id = d.data().bahan_aksesoris_id;
+          if (id) peta[id] = (peta[id] || 0) + 1;
+        });
+        petaLotAktif.value = peta;
+      } catch (e) {
+        console.error('Gagal hitung agregat Daftar Stok (teralokasi/lot aktif):', e);
+      }
+      memuatAgregat.value = false;
+    }
+    const filterKategori = ref('semua'); // 'semua' | 'Bahan' | 'Aksesoris'
+    const filterKritisHabis = ref(false);
+    const cariDaftarStok = ref('');
+    // gayaFilterAktif — .btn-outline TIDAK punya varian .active di
+    // gechoo-design.css, jadi state terpilih ditandai lewat :style langsung
+    // (bukan bikin class CSS baru untuk kebutuhan sekecil ini).
+    function gayaFilterAktif(aktif) {
+      return aktif ? { borderColor: 'var(--burgundy)', background: 'var(--ivory-dim)', color: 'var(--burgundy)', fontWeight: '700' } : {};
+    }
+
+    const daftarStokBaris = computed(() => {
+      return daftarItemLengkap.value.map(it => {
+        const stok = parseFloat(it.stok_akhir) || 0;
+        const teralokasi = petaTeralokasi.value[it.id] || 0;
+        const bebas = stok - teralokasi;
+        const batasKritis = parseFloat(it.batas_kritis) || 0;
+        let status = 'aman';
+        if (bebas <= 0) status = 'habis';
+        else if (batasKritis > 0 && bebas <= batasKritis) status = 'kritis';
+        return { ...it, stok, teralokasi, bebas, batasKritis, status, lotAktif: petaLotAktif.value[it.id] || 0 };
+      });
+    });
+    const daftarStokTampil = computed(() => {
+      const q = cariDaftarStok.value.trim().toLowerCase();
+      return daftarStokBaris.value.filter(b => {
+        if (filterKategori.value !== 'semua' && b.kategori_utama !== filterKategori.value) return false;
+        if (filterKritisHabis.value && b.status === 'aman') return false;
+        if (q && !(b.nama || '').toLowerCase().includes(q)) return false;
+        return true;
+      });
+    });
+    const jumlahKritisHabis = computed(() => daftarStokBaris.value.filter(b => b.status !== 'aman').length);
+
+    // Popup 5.1a — Atur Batas Kritis. Satuan akhir dikunci (tampil read-only,
+    // BUKAN field yang diedit di sini).
+    const popupBatasKritisAktif = ref(null); // item asli, atau null = tertutup
+    const nilaiBatasKritisInput = ref('');
+    const menyimpanBatasKritis = ref(false);
+    function bukaBatasKritis(item) { popupBatasKritisAktif.value = item; nilaiBatasKritisInput.value = String(item.batas_kritis || ''); }
+    function tutupBatasKritis() { popupBatasKritisAktif.value = null; }
+    async function simpanBatasKritis() {
+      const item = popupBatasKritisAktif.value;
+      if (!item) return;
+      const nilai = parseFloat(nilaiBatasKritisInput.value);
+      if (!(nilai >= 0)) { alert('Batas kritis wajib angka 0 atau lebih.'); return; }
+      menyimpanBatasKritis.value = true;
+      try {
+        await updateDoc(doc(db, 'master_bahan_aksesoris', item.id), { batas_kritis: nilai });
+        item.batas_kritis = nilai; // patch lokal, hindari full reload
+        popupBatasKritisAktif.value = null;
+      } catch (e) {
+        console.error('Gagal simpan batas kritis:', e);
+        alert('Gagal menyimpan batas kritis. Coba lagi.');
+      }
+      menyimpanBatasKritis.value = false;
+    }
 
     // muat — dipanggil ulang tiap tab "Kartu Stok" diklik lagi (lihat
-    // pastikanMountKartuStok). Refresh daftar item, dan kalau sedang ada item
-    // aktif dipilih, ikut refresh badge lot + ledgernya juga.
+    // pastikanMountKartuStok). Refresh daftar item + agregat Daftar Stok; kalau
+    // sedang di Ledger, ikut refresh badge lot + ledgernya juga.
     async function muat() {
       await muatDaftarItemLengkap();
-      if (itemAktif.value) { await muatLotAktifCount(); await paginasiDetail.muatUlang(); }
+      await muatAgregatDaftarStok();
+      if (view.value === 'ledger' && itemAktif.value) { await muatLotAktifCount(); await paginasiDetail.muatUlang(); }
     }
     onMounted(async () => { await window.authReady; await muat(); });
 
     return {
+      view, kembaliKeDaftarStok,
       daftarItemLengkap, memuatDaftarItem, errorDaftarItem, muatDaftarItemLengkap, muat,
-      itemEntry, opsiItemNama, itemAktif,
+      itemEntry, opsiItemNama, itemAktif, pilihItem,
       lotAktifCount, memuatLot,
       paginasiDetail,
-      formatQty
+      formatQty,
+      memuatAgregat, filterKategori, filterKritisHabis, cariDaftarStok, daftarStokTampil, jumlahKritisHabis, gayaFilterAktif,
+      popupBatasKritisAktif, nilaiBatasKritisInput, menyimpanBatasKritis, bukaBatasKritis, tutupBatasKritis, simpanBatasKritis,
+      bolehAturBatasKritis: computed(() => adminKeAtas(window.currentUser))
     };
   },
   template: `
     <div>
-      <!--
-        header item-picker + ledger digabung jadi SATU gc-card ( Cuma pembungkus yang berubah —
-        isi kolom tabel & semua logic muat/paginasi TIDAK disentuh sama sekali.
-      -->
-      <div class="gc-card" style="padding:0;">
+      <!-- DAFTAR STOK (5.1) -->
+      <div v-if="view === 'daftar'" class="gc-card" style="padding:0;">
         <div style="padding:14px 14px 12px; border-bottom:1px solid var(--line);">
+          <label class="gc-heading" style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Daftar Stok</label>
+          <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Stok = stok_akhir saat ini. Teralokasi = kebutuhan SPK Grouping yang sudah terbit tapi belum di-scan entry (Bahan + 3 Acc). Bebas = Stok − Teralokasi. Klik baris untuk lihat ledger pergerakannya.</p>
+
+          <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px;">
+            <button @click="filterKategori='semua'" class="btn-outline" :style="gayaFilterAktif(filterKategori==='semua')" style="font-size:11px; padding:5px 12px;">Semua</button>
+            <button @click="filterKategori='Bahan'" class="btn-outline" :style="gayaFilterAktif(filterKategori==='Bahan')" style="font-size:11px; padding:5px 12px;">Bahan</button>
+            <button @click="filterKategori='Aksesoris'" class="btn-outline" :style="gayaFilterAktif(filterKategori==='Aksesoris')" style="font-size:11px; padding:5px 12px;">Aksesoris</button>
+            <button @click="filterKritisHabis = !filterKritisHabis" class="btn-outline" :style="gayaFilterAktif(filterKritisHabis)" style="font-size:11px; padding:5px 12px;">
+              <i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Kritis/Habis <span v-if="jumlahKritisHabis > 0">({{ jumlahKritisHabis }})</span>
+            </button>
+          </div>
+          <div style="position:relative; max-width:320px;">
+            <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:12px;"></i>
+            <input v-model="cariDaftarStok" type="text" placeholder="Cari nama item..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+          </div>
+        </div>
+
+        <div style="padding:14px;">
+          <div v-if="memuatDaftarItem || memuatAgregat" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;"><i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i>Memuat...</div>
+          <div v-else-if="errorDaftarItem" style="padding:12px 14px; border-radius:10px; background:var(--danger-light); color:var(--danger); font-size:11.5px;">
+            <i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ errorDaftarItem }}
+            <button @click="muat" class="btn-outline" style="padding:3px 10px; font-size:10.5px; margin-left:6px;">Coba lagi</button>
+          </div>
+          <div v-else-if="daftarStokTampil.length === 0" class="gc-kosong">
+            <div class="lingkaran"><i class="fas fa-boxes-stacked"></i></div>
+            <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada item cocok filter ini.</h3>
+          </div>
+          <div v-else style="overflow-x:auto;">
+            <table class="gc-table" style="width:100%; font-size:11.5px;">
+              <thead><tr>
+                <th>Item</th><th>Stok</th><th>Teralokasi</th><th>Bebas</th><th>Batas Kritis</th><th>Status</th><th>Rak</th><th>Lot</th>
+              </tr></thead>
+              <tbody>
+                <tr v-for="b in daftarStokTampil" :key="b.id" style="cursor:pointer;" @click="pilihItem(b)">
+                  <td><div style="font-weight:700;">{{ b.nama }}<span v-if="b.warna"> {{ b.warna }}</span></div><div style="font-size:10px; color:var(--text-faint);">{{ b.id_tampil || '-' }}</div></td>
+                  <td>{{ formatQty(b.stok) }} {{ b.satuan_pemakaian }}</td>
+                  <td>{{ formatQty(b.teralokasi) }}</td>
+                  <td :style="{fontWeight:700, color: b.bebas <= 0 ? 'var(--danger)' : 'inherit'}">{{ formatQty(b.bebas) }}</td>
+                  <td @click.stop>
+                    {{ b.batasKritis > 0 ? formatQty(b.batasKritis) : '-' }}
+                    <button v-if="bolehAturBatasKritis" @click="bukaBatasKritis(b)" class="icon-btn" style="width:18px; height:18px; margin-left:4px;" title="Atur Batas Kritis"><i class="fas fa-pen" style="font-size:8.5px;"></i></button>
+                  </td>
+                  <td>
+                    <span v-if="b.status === 'habis'" class="tag danger">habis</span>
+                    <span v-else-if="b.status === 'kritis'" class="tag warn">kritis</span>
+                    <span v-else class="tag ok">aman</span>
+                  </td>
+                  <td>{{ b.rak_label || '-' }}</td>
+                  <td>{{ b.lotAktif > 0 ? b.lotAktif : '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- Popup 5.1a — Atur Batas Kritis -->
+      <div v-if="popupBatasKritisAktif" class="gc-dialog-backdrop" @click.self="tutupBatasKritis">
+        <div class="gc-form-dialog">
+          <div class="gc-form-dialog-head"><i class="fas fa-triangle-exclamation" style="color:var(--warn);"></i><b>Atur Batas Kritis</b></div>
+          <div class="gc-form-dialog-body">
+            <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px;">{{ popupBatasKritisAktif.nama }}<span v-if="popupBatasKritisAktif.warna"> {{ popupBatasKritisAktif.warna }}</span> — status kritis muncul kalau stok bebas &le; angka ini.</p>
+            <div class="gc-field">
+              <label>Batas Kritis ({{ popupBatasKritisAktif.satuan_pemakaian || 'satuan' }}, satuan terkunci)</label>
+              <input v-model="nilaiBatasKritisInput" type="number" min="0" step="any" style="width:100%; padding:8px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:13px;">
+            </div>
+          </div>
+          <div style="display:flex; gap:8px; padding:0 20px 16px;">
+            <button @click="simpanBatasKritis" :disabled="menyimpanBatasKritis" class="btn-primary" style="flex:1;">{{ menyimpanBatasKritis ? 'Menyimpan...' : 'Simpan' }}</button>
+            <button @click="tutupBatasKritis" class="btn-outline" style="flex:1;">Batal</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEDGER (5.2) 1 item -->
+      <div v-if="view === 'ledger'" class="gc-card" style="padding:0;">
+        <div style="padding:14px 14px 12px; border-bottom:1px solid var(--line);">
+          <button @click="kembaliKeDaftarStok" class="btn-outline" style="font-size:11px; padding:5px 12px; margin-bottom:10px;"><i class="fas fa-arrow-left" style="margin-right:5px;"></i>Daftar Stok</button>
           <label class="gc-heading" style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Kartu Stok</label>
           <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Ledger pergerakan stok per item — masuk otomatis dari Nota Order Belanja yang di-final-kan, keluar dari Scan Persiapan, penyesuaian dari Scan Opname. Read-only di sini.</p>
 
