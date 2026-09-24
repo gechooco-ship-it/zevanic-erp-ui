@@ -1,5 +1,5 @@
 // js/vue-persiapan-produksi-v2.js
-// Persiapan Produksi. (1) Perlu Persiapan: tiap ID Order dipecah per MOQ jadi
+// Persiapan Produksi. (1) Perlu Persiapan: tiap ID Order dipecah per kelipatan order jadi
 // SPK Separating `S{YY}R{MM}{DD}P{nnn}` + kartu ACC/Vendor per separating;
 // (2) PanelGroupingBahan (diekspor, dipasang di Bahan) menggabung separating
 // sepola jadi SPK Grouping `GR{yymmdd}{nn}`; (3) JalurTahapManager = Vendor.
@@ -148,8 +148,8 @@ async function generateKodeGroupingInduk() {
 // supaya kit yang tertukar ditolak saat scan.
 const AKHIRAN_KIT = { sewing: 'SEW', webbing: 'WEB', finishing: 'FIN', vendor: 'VDR' };
 
-// usulPecahanMoq — 100 pcs, MOQ 25 → [25,25,25,25]; sisa di bawah MOQ jadi
-// separating sendiri. MOQ kosong/0 → satu separating berisi semua.
+// usulPecahanMoq — 30 pcs, kelipatan 10 → [10,10,10]; sisa di bawah kelipatan
+// jadi separating sendiri. Kelipatan kosong/0 → satu separating berisi semua.
 export function usulPecahanMoq(qty, moq) {
   const total = Math.max(0, Math.floor(parseFloat(qty) || 0));
   const m = Math.floor(parseFloat(moq) || 0);
@@ -449,9 +449,26 @@ function muatJsQr() {
   });
 }
 
+// cekPecahan — aturan pecahan separating: total WAJIB = qty keputusan QO yang
+// tersisa, tiap pecahan kelipatan acuan order (master_produk.kelipatan). Kalau
+// QO sendiri bukan kelipatan (QO manual), boleh satu pecahan berisi sisanya.
+// MOQ suplayer (master_suplayer) urusan belanja, tidak dipakai di sini.
+export function cekPecahan(pecahan, sisaQo, kelipatan) {
+  const angka = (pecahan || []).map(x => parseFloat(x) || 0);
+  if (!angka.length || angka.some(x => x <= 0 || !Number.isInteger(x))) return 'Tiap pecahan wajib angka bulat lebih dari 0.';
+  const total = angka.reduce((t, x) => t + x, 0);
+  if (total !== sisaQo) return `Total pecahan ${total} harus sama dengan keputusan QO ${sisaQo} pcs.`;
+  const k = Math.floor(parseFloat(kelipatan) || 0);
+  if (!(k > 0)) return '';
+  const bukanKelipatan = angka.filter(x => x % k !== 0).length;
+  const boleh = sisaQo % k === 0 ? 0 : 1;
+  if (bukanKelipatan > boleh) return boleh ? `Hanya satu pecahan boleh bukan kelipatan ${k} (sisa ${sisaQo % k} pcs dari QO).` : `Tiap pecahan wajib kelipatan ${k} (acuan order Master Produk).`;
+  return '';
+}
+
 // PerluPersiapanManager — tab Perlu Persiapan. Satu kartu = satu ID Order
 // (sudah diputus QO) yang masih punya sisa qty. "Buat SPK Separating" memecah
-// qty per moq_serie produk (PIC boleh ubah), lalu tiap separating langsung
+// qty per kelipatan acuan order (cekPecahan), lalu tiap separating langsung
 // dapat kartu ACC/Vendor per jalur. Tidak mencetak label di sini.
 const PerluPersiapanManager = {
   components: { KolomCari },
@@ -481,7 +498,7 @@ const PerluPersiapanManager = {
           const sisa = (parseFloat(data.qty_order) || 0) - (parseFloat(data.qty_terseparating) || 0);
           if (sisa <= 0) return;
           const p = data.sku_produk ? (petaProduk[data.sku_produk] || null) : null;
-          list.push({ id: d.id, ...data, _produk: p, _sisaQty: sisa, _moq: p ? (parseFloat(p.moq_serie) || 0) : 0,
+          list.push({ id: d.id, ...data, _produk: p, _sisaQty: sisa, _kelipatan: p ? (parseFloat(p.kelipatan) || 0) : 0,
             _jalur: p ? Array.from(jalurOtomatisProduk(p)) : [] });
         });
         list.sort((a, b) => (a.id_order || '').localeCompare(b.id_order || ''));
@@ -497,20 +514,21 @@ const PerluPersiapanManager = {
     });
 
     function bukaEditor(o) {
-      editor[o.id] = { pecahan: usulPecahanMoq(o._sisaQty, o._moq), vendor: false };
+      editor[o.id] = { pecahan: usulPecahanMoq(o._sisaQty, o._kelipatan), vendor: false };
     }
     function tutupEditor(o) { delete editor[o.id]; }
     function totalPecahan(o) { return (editor[o.id]?.pecahan || []).reduce((t, x) => t + (parseFloat(x) || 0), 0); }
-    function tambahPecahan(o) { editor[o.id].pecahan.push(0); }
+    function tambahPecahan(o) { editor[o.id].pecahan.push(o._kelipatan || 0); }
+    function galatPecahan(o) { return editor[o.id] ? cekPecahan(editor[o.id].pecahan, o._sisaQty, o._kelipatan) : ''; }
     function hapusPecahan(o, i) { editor[o.id].pecahan.splice(i, 1); }
 
     async function buatSeparating(o) {
       const ed = editor[o.id];
       if (!ed || sedangProses[o.id]) return;
-      const pecahan = ed.pecahan.map(x => Math.floor(parseFloat(x) || 0)).filter(x => x > 0);
+      const galat = cekPecahan(ed.pecahan, o._sisaQty, o._kelipatan);
+      if (galat) { alert(galat); return; }
+      const pecahan = ed.pecahan.map(x => parseFloat(x) || 0);
       const total = pecahan.reduce((t, x) => t + x, 0);
-      if (!pecahan.length) { alert('Isi minimal satu pecahan qty.'); return; }
-      if (total > o._sisaQty) { alert(`Total pecahan ${total} melebihi sisa qty ${o._sisaQty}.`); return; }
       if (!o._produk && !ed.vendor) { alert('Order ini belum terhubung Master Produk: jalur tidak terdeteksi. Hubungkan SKU dulu, atau centang Vendor.'); return; }
       const jalurAktif = Array.from(new Set([...o._jalur, ...(ed.vendor ? ['vendor'] : [])]));
       if (!jalurAktif.length) { alert('Tidak ada jalur produksi terdeteksi dari BOM produk ini.'); return; }
@@ -560,7 +578,7 @@ const PerluPersiapanManager = {
     }
 
     onMounted(async () => { await window.authReady; await muat(); });
-    return { memuat, muat, cari, daftarTampil, editor, bukaEditor, tutupEditor, totalPecahan, tambahPecahan, hapusPecahan,
+    return { memuat, muat, cari, daftarTampil, editor, bukaEditor, tutupEditor, totalPecahan, tambahPecahan, hapusPecahan, galatPecahan,
       buatSeparating, sedangProses, bolehProses, hasilTerbit, formatQty, PETA_JALUR };
   },
   template: `
@@ -577,7 +595,7 @@ const PerluPersiapanManager = {
             <div style="min-width:0;">
               <div class="gc-num" style="font-weight:700; font-size:12.5px;">{{ o.id_order }}</div>
               <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ o.nama_produk }}</div>
-              <div style="font-size:11px; color:var(--text-faint);">{{ o.pelanggan_nama || '(tanpa pelanggan)' }} &middot; sisa {{ formatQty(o._sisaQty) }} pcs &middot; MOQ {{ o._moq || '-' }}</div>
+              <div style="font-size:11px; color:var(--text-faint);">{{ o.pelanggan_nama || '(tanpa pelanggan)' }} &middot; QO {{ formatQty(o._sisaQty) }} pcs &middot; kelipatan order {{ o._kelipatan || '-' }}</div>
             </div>
             <button v-if="bolehProses && !editor[o.id]" type="button" class="btn-primary" style="padding:7px 12px; font-size:11px; flex-shrink:0;" @click="bukaEditor(o)"><i class="fas fa-layer-group" style="margin-right:5px;"></i>Buat SPK Separating</button>
           </div>
@@ -586,7 +604,7 @@ const PerluPersiapanManager = {
             <span v-if="!o._produk" class="tag warn">belum terhubung Master Produk</span>
           </div>
           <div v-if="editor[o.id]" style="margin-top:12px; border:1px dashed var(--line); border-radius:12px; padding:10px 12px;">
-            <div style="font-size:10.5px; color:var(--text-muted); margin-bottom:8px;">Pecahan per MOQ (boleh diubah). Total {{ formatQty(totalPecahan(o)) }} dari sisa {{ formatQty(o._sisaQty) }} pcs.</div>
+            <div style="font-size:10.5px; color:var(--text-muted); margin-bottom:8px;">Pecahan kelipatan {{ o._kelipatan || '-' }} (acuan order Master Produk, boleh diubah). Total {{ formatQty(totalPecahan(o)) }} dari QO {{ formatQty(o._sisaQty) }} pcs.</div>
             <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
               <div v-for="(x, i) in editor[o.id].pecahan" :key="i" style="display:flex; align-items:center; gap:4px;">
                 <span style="font-size:10px; color:var(--text-faint);">#{{ i + 1 }}</span>
@@ -595,12 +613,14 @@ const PerluPersiapanManager = {
               </div>
               <button type="button" @click="tambahPecahan(o)" class="btn-outline" style="padding:4px 10px; font-size:11px;"><i class="fas fa-plus"></i> pecahan</button>
             </div>
+            <div v-if="galatPecahan(o)" style="font-size:10.5px; color:var(--danger); margin-bottom:8px;"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>{{ galatPecahan(o) }}</div>
+            <div v-else-if="!o._kelipatan" style="font-size:10.5px; color:var(--warn-text); margin-bottom:8px;">Produk ini belum punya kelipatan acuan order di Master Produk — pecahan tidak dicek kelipatannya.</div>
             <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer; color:var(--text-muted); margin-bottom:10px;">
               <input type="checkbox" v-model="editor[o.id].vendor" class="gc-chk"> + Jalur Vendor
             </label>
             <div style="display:flex; gap:8px;">
               <button type="button" class="btn-outline" style="flex:1;" @click="tutupEditor(o)">Batal</button>
-              <button type="button" class="btn-primary" style="flex:1.4;" :disabled="sedangProses[o.id]" @click="buatSeparating(o)">{{ sedangProses[o.id] ? 'Memproses...' : 'Terbitkan ' + editor[o.id].pecahan.filter(x => x > 0).length + ' SPK Separating' }}</button>
+              <button type="button" class="btn-primary" style="flex:1.4;" :disabled="sedangProses[o.id] || !!galatPecahan(o)" @click="buatSeparating(o)">{{ sedangProses[o.id] ? 'Memproses...' : 'Terbitkan ' + editor[o.id].pecahan.filter(x => x > 0).length + ' SPK Separating' }}</button>
             </div>
           </div>
         </div>
