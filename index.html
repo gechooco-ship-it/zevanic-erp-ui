@@ -194,9 +194,6 @@
           <button onclick="pindahTab('tab-stok-pembelian'); pindahSubTab('sub-zh-stock','sub-zh-stock-rak', this, {catatRiwayat:true})" id="menu-stok-rak-btn" data-menu-id="stock_rak_penyimpanan" data-target="sub-zh-stock-rak" class="sub-zh-stock-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-warehouse" style="width:17px; text-align:center;"></i> Rak Penyimpanan
           </button>
-          <button onclick="pindahTab('tab-stok-pembelian'); pindahSubTab('sub-zh-stock','sub-zh-stock-repack', this, {catatRiwayat:true})" id="menu-stok-repack-btn" data-menu-id="stock_repack" data-target="sub-zh-stock-repack" class="sub-zh-stock-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-box-archive" style="width:17px; text-align:center;"></i> Repack
-          </button>
         </div>
 
         <!-- Grup top-level "Pesanan" (js/vue-pesanan.js), letaknya setelah Stok dan Pembelian dan sebelum
@@ -771,10 +768,6 @@
             -->
             <div id="sub-zh-stock-rak" class="sub-zh-stock-content hidden fade-in space-y-4">
               <div id="vue-rak-penyimpanan"></div>
-            </div>
-            <!-- Repack Komponen Acc: lihat js/vue-repack-komponen-acc.js -->
-            <div id="sub-zh-stock-repack" class="sub-zh-stock-content hidden fade-in space-y-4">
-              <div id="vue-repack-komponen-acc"></div>
             </div>
         </div>
 
@@ -1388,7 +1381,7 @@
   <script type="module" src="js/app.js?v=5"></script>
   <script type="module" src="js/camera.js"></script>
   <script type="module" src="js/auth.js?v=14"></script>
-  <script type="module" src="js/dashboard.js?v=33"></script>
+  <script type="module" src="js/dashboard.js?v=34"></script>
 
   <!-- Persiapan Produksi V2: Perlu Disiapkan (generator Kode Grouping) fungsional penuh. 5 jalur
        (Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing) sementara hanya struktur navigasi 5 tahap dengan
@@ -1454,7 +1447,7 @@
   <script type="module" src="js/vue-cetak-kode-tugas.js?v=7"></script>
   <script type="module" src="js/vue-home.js?v=8"></script>
   <script type="module" src="js/vue-home-desktop.js?v=3"></script>
-  <script type="module" src="js/vue-header-mobile.js?v=12"></script>
+  <script type="module" src="js/vue-header-mobile.js?v=13"></script>
   <!-- lihat mount #vue-menu-lengkap/#vue-atur-favorit di atas. -->
   <script type="module" src="js/vue-menu-lengkap.js?v=3"></script>
   <script type="module" src="js/vue-atur-favorit.js?v=5"></script>
@@ -1466,10 +1459,8 @@
   <script type="module" src="js/vue-scan-qr.js"></script>
   <script type="module" src="js/vue-bahan-aksesoris.js?v=29"></script>
   <script type="module" src="js/vue-rak-penyimpanan.js?v=8"></script>
-  <!-- Repack Komponen Acc, lihat komentar besar di file itu untuk detail. -->
-  <script type="module" src="js/vue-repack-komponen-acc.js?v=7"></script>
   <script type="module" src="js/vue-stock-pembelian.js?v=34"></script>
-  <script type="module" src="js/vue-kartu-stok.js?v=15"></script>
+  <script type="module" src="js/vue-kartu-stok.js?v=16"></script>
   <!-- Zevanic House > Config. Import Excel diaktifkan lewat prop :izinkan-import-excel="true"
        khusus di AppConfigKomponen, tab Config lain tidak ikut. Tab "TLC & Prefix" (AppConfigTlc) memakai
        koleksi master_tlc; cache-bust mengikuti import firestore/firebase-config di file ini. -->

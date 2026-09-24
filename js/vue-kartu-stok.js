@@ -1,10 +1,11 @@
 // js/vue-kartu-stok.js
 // Stok & Pembelian > Kartu Stok. Daftar stok semua bahan+aksesoris, klik baris
-// -> halaman item: stok per lot/pak (cetak + opname per baris, lot susulan),
-// cetak label ID Item, stok teralokasi, lalu ledger pergerakan.
+// -> halaman item: stok per lot/pak (cetak + opname per baris, lot susulan,
+// repack jadi pak), cetak label ID Item, stok teralokasi, lalu ledger.
 //
 // Koleksi & field:
-// - master_bahan_aksesoris: full fetch client-side; batas_kritis diedit di sini.
+// - master_bahan_aksesoris: full fetch client-side; batas_kritis dan
+//   pak_counter (nomor pak repack) ditulis di sini.
 // - lot_bahan_aksesoris (lot & pak) dan log_cetak_label lewat fungsi ekspor
 //   vue-stock-pembelian.js. Teralokasi: hitungTeralokasiSemuaBahan().
 // - kartu_stok_bahan_aksesoris: paginasi cursor 15 per halaman.
@@ -18,7 +19,7 @@
 //   paginasiDetail.errorPaginasi wajib tetap dirender.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, getDocs, getDoc, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, getDocs, getDoc, doc, updateDoc, query, where, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=15';
 import { usePaginasiFirestore } from './vue-paginasi.js';
@@ -122,6 +123,49 @@ const KartuStokManager = {
         await muatLot();
         cetakLot(lotBaru);
       } catch (e) { console.error('Gagal buat lot susulan:', e); alert(e.message || 'Gagal membuat lot susulan.'); }
+    }
+    // Repack: stok lepasan item tanpa lot dikemas jadi pak berisi tetap. Stok
+    // tidak berubah; nomor pak dari pak_counter di transaksi yang sama.
+    const stokLepasan = computed(() => {
+      const it = itemAktif.value;
+      if (!it || it.pakai_lot_tracking) return 0;
+      const diPak = daftarLot.value.filter(l => l.status === 'aktif' && l.jenis === 'pak').reduce((t, l) => t + (parseFloat(l.qty_sisa) || 0), 0);
+      return Math.round(((parseFloat(it.stok_akhir) || 0) - diPak) * 100) / 100;
+    });
+    const repack = ref(null); // { isi, jumlah, menyimpan }
+    function bukaRepack() { repack.value = { isi: '', jumlah: 1, menyimpan: false }; }
+    async function simpanRepack() {
+      const r = repack.value, it = itemAktif.value;
+      const isi = parseFloat(r.isi), jumlah = parseInt(r.jumlah, 10);
+      if (!(isi > 0)) return alert('Isi per pak wajib angka lebih dari 0.');
+      if (!(jumlah > 0) || jumlah > 200) return alert('Jumlah pak 1 sampai 200.');
+      if (isi * jumlah > stokLepasan.value) return alert(`Total ${formatQty(isi * jumlah)} melebihi stok lepasan ${formatQty(stokLepasan.value)} ${it.satuan_pemakaian || ''}.`);
+      r.menyimpan = true;
+      try {
+        const nama = namaItem(it), satuan = it.satuan_pemakaian || '';
+        const tanggal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+        const refBahan = doc(db, 'master_bahan_aksesoris', it.id);
+        const dibuat = [];
+        await runTransaction(db, async (tx) => {
+          dibuat.length = 0;
+          const data = (await tx.get(refBahan)).data() || {};
+          let counter = parseInt(data.pak_counter) || 0;
+          for (let k = 0; k < jumlah; k++) {
+            counter += 1;
+            const kode = `${data.id_tampil || it.id}-P${String(counter).padStart(3, '0')}`;
+            tx.set(doc(collection(db, 'lot_bahan_aksesoris')), {
+              jenis: 'pak', bahan_aksesoris_id: it.id, nama_bahan: nama, kode_lot: kode,
+              qty_awal: isi, qty_sisa: isi, satuan, tanggal_masuk: tanggal, no_pembelian: '',
+              status: 'aktif', dibuat_oleh: window.currentUser?.email || '', dibuat_pada: serverTimestamp()
+            });
+            dibuat.push({ kode_lot: kode, qty_sisa: isi, satuan, tanggal_masuk: tanggal, status: 'aktif' });
+          }
+          tx.set(refBahan, { pak_counter: counter }, { merge: true });
+        });
+        repack.value = null;
+        await muatLot();
+        cetakLot(dibuat);
+      } catch (e) { console.error('Gagal repack:', e); alert('Gagal menyimpan. Coba lagi.'); r.menyimpan = false; }
     }
     // Deep-link dari Master Bahan: id disimpan dulu kalau daftar belum termuat.
     let idTunggu = null;
@@ -322,6 +366,7 @@ const KartuStokManager = {
       daftarItemLengkap, memuatDaftarItem, errorDaftarItem, muatDaftarItemLengkap, muat,
       itemAktif, pilihItem, bukaById,
       daftarTeralokasi, memuatTeralokasi, totalTeralokasi,
+      stokLepasan, repack, bukaRepack, simpanRepack,
       stokTanpaLot, susulan, pinSusulan, bukaSusulan, buatBarisSusulan, totalSusulan, lanjutSusulan, pinSusulanSukses,
       daftarLot, lotTampil, lotAktifCount, memuatLot, tampilHabis, lotDipilih, lotTerpilih,
       bolehCetak, cetak, cetakItem, cetakLot, saatCetak, riwayatCetak, bukaRiwayatCetak, formatWaktu,
@@ -434,6 +479,7 @@ const KartuStokManager = {
           <div v-if="itemAktif" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
             <button v-if="bolehCetak && !itemAktif.pakai_lot_tracking" @click="cetakItem" class="btn-outline" style="font-size:11.5px; padding:7px 12px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label ID Item</button>
             <button v-if="!itemAktif.pakai_lot_tracking" @click="bukaOpnameItem" class="btn-outline" style="font-size:11.5px; padding:7px 12px;"><i class="fas fa-scale-balanced" style="margin-right:6px;"></i>Stock Opname</button>
+            <button v-if="!itemAktif.pakai_lot_tracking && bolehAturBatasKritis" @click="bukaRepack" class="btn-outline" style="font-size:11.5px; padding:7px 12px;"><i class="fas fa-box-archive" style="margin-right:6px;"></i>Repack jadi Pak</button>
             <button v-if="bolehCetak" @click="bukaRiwayatCetak" class="btn-outline" style="font-size:11.5px; padding:7px 12px;"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i>Riwayat Cetak Label</button>
           </div>
         </div>
@@ -450,7 +496,7 @@ const KartuStokManager = {
               <button v-if="bolehCetak && lotTerpilih.length" @click="cetakLot(lotTerpilih)" class="btn-primary" style="font-size:11px; padding:5px 10px;"><i class="fas fa-print" style="margin-right:4px;"></i>Cetak {{ lotTerpilih.length }} terpilih</button>
             </div>
             <div v-if="memuatLot" style="font-size:11.5px; color:var(--text-faint); padding:8px 0;">Memuat lot...</div>
-            <div v-else-if="lotTampil.length === 0" style="font-size:11.5px; color:var(--text-faint); padding:8px 0 14px;">{{ itemAktif.pakai_lot_tracking ? 'Belum ada lot tercatat.' : 'Item ini tanpa lot; belum ada pak repack.' }}</div>
+            <div v-else-if="lotTampil.length === 0" style="font-size:11.5px; color:var(--text-faint); padding:8px 0 14px;">{{ itemAktif.pakai_lot_tracking ? 'Belum ada lot tercatat.' : 'Item ini tanpa lot; belum ada pak. Pakai tombol Repack jadi Pak.' }}</div>
             <div v-else style="overflow-x:auto; margin-bottom:18px;">
               <table class="gc-table" style="width:100%; font-size:11.5px;">
                 <thead><tr><th style="width:28px;"></th><th>Kode</th><th>Jenis</th><th>Sisa / Awal</th><th>Masuk</th><th>No. Pembelian</th><th>Status</th><th>Aksi</th></tr></thead>
@@ -551,6 +597,22 @@ const KartuStokManager = {
         </div>
       </div>
       <popup-pin-generik v-if="pinSusulan" judul="PIN Owner — Lot Susulan" pesan="Stok dipecah jadi lot baru, jumlah stok tidak berubah." konteks="Kartu Stok - Lot Susulan" :roles-diizinkan="['owner','superuser','pic_owner']" @sukses="pinSusulanSukses" @batal="pinSusulan = false" />
+
+      <div v-if="repack" class="gc-dialog-backdrop" @click.self="repack = null">
+        <div class="gc-card" style="max-width:420px; width:100%; padding:16px;">
+          <b style="font-size:13.5px;"><i class="fas fa-box-archive" style="color:var(--burgundy); margin-right:6px;"></i>Repack jadi Pak — {{ itemAktif && ((itemAktif.nama || '') + ' ' + (itemAktif.warna || '')) }}</b>
+          <p style="font-size:11.5px; color:var(--text-faint); margin:6px 0 12px;">Stok lepasan <b>{{ formatQty(stokLepasan) }} {{ itemAktif && itemAktif.satuan_pemakaian }}</b> dikemas jadi pak berlabel QR. Stok tidak berubah; label langsung dicetak.</p>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px;">
+            <div class="gc-field" style="margin:0;"><label>Isi per Pak</label><input v-model="repack.isi" type="number" min="0" step="any" placeholder="Mis. 25"></div>
+            <div class="gc-field" style="margin:0;"><label>Jumlah Pak</label><input v-model="repack.jumlah" type="number" min="1"></div>
+          </div>
+          <div style="font-size:12px; margin:8px 0 14px;">Total dikemas: <b :style="{ color: (parseFloat(repack.isi)||0) * (parseInt(repack.jumlah)||0) <= stokLepasan ? 'var(--ok)' : 'var(--danger)' }">{{ formatQty((parseFloat(repack.isi)||0) * (parseInt(repack.jumlah)||0)) }}</b> / {{ formatQty(stokLepasan) }}</div>
+          <div style="display:flex; gap:8px;">
+            <button @click="simpanRepack" :disabled="repack.menyimpan" class="btn-primary" style="flex:1;">{{ repack.menyimpan ? 'Menyimpan...' : 'Simpan & Cetak' }}</button>
+            <button @click="repack = null" class="btn-outline" style="flex:1;">Batal</button>
+          </div>
+        </div>
+      </div>
 
       <popup-pratinjau-cetak-label :terbuka="cetak.aktif" judul="Cetak Label" :daftar-label="cetak.daftar" jenis-cetak="label_bahan_aksesoris" @tutup="cetak.aktif = false; muatLot()" @cetak="saatCetak" />
 

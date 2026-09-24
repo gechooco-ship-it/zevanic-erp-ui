@@ -103,7 +103,6 @@ const LABEL_SUBTAB = {
   'sub-zh-stock-kartustok': 'Kartu Stok',
   // DITAMBAH .
   'sub-zh-stock-rak': 'Rak Penyimpanan',
-  'sub-zh-stock-repack': 'Repack',
   // Scan Opname/Persiapan ada di bawah menu top-level "Scan & Cetak"
   // (tab-scan-cetak), lihat entry 'sub-scancetak-stok-*' di bawah.
   'sub-scan-cetak-stok': 'Scan Stok',

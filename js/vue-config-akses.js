@@ -136,8 +136,6 @@ const DAFTAR_MENU = [
   // js/vue-rak-penyimpanan.js.
   { id: 'stock_rak_penyimpanan', label: 'Rak Penyimpanan', kategori: 'Stok dan Pembelian', icon: 'fa-warehouse',
     aksi: () => { window.pindahTab('tab-stok-pembelian'); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-rak', null, {catatRiwayat:true}); } },
-  { id: 'stock_repack', label: 'Repack', kategori: 'Stok dan Pembelian', icon: 'fa-box-archive',
-    aksi: () => { window.pindahTab('tab-stok-pembelian'); window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-repack', null, {catatRiwayat:true}); } },
   // Tab Cetak Label sudah dicopot dari index.html, TAPI tombol cetak di List
   // Bahan & Aksesoris tetap mengecek izin `print` pada menu id INI (lihat
   // vue-bahan-aksesoris.js) — id ini jangan dihapus. deprecated:true cuma

@@ -474,8 +474,6 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // Rak Penyimpanan dipindah ke sini (dulu 'sub-zh-databahan-rak' di Data
     // Bahan & Aksesoris), lihat js/vue- rak-penyimpanan.js.
     'sub-zh-stock-rak': 'pastikanMountRakPenyimpanan',
-    // Repack Komponen Acc, lihat js/vue- repack-komponen-acc.js.
-    'sub-zh-stock-repack': 'pastikanMountRepackKomponenAcc',
     // 'sub-zh-stock-cetaklabel' tidak dipakai lagi — jangan dihidupkan ulang;
     // tab-nya tidak ada di index.html (Cetak Label sekarang tombol di List
     // Bahan & Aksesoris). Di bawah: Master Produk (BOM).
