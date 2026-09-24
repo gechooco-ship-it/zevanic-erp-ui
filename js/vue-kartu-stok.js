@@ -266,7 +266,7 @@ const KartuStokManager = {
     });
     function kembaliKeDaftarStok() { view.value = 'daftar'; itemAktif.value = null; muat(); }
 
-    // DAFTAR STOK (5.1) — teralokasi (semua jalur Bahan+3 Acc) + lot aktif,
+    // DAFTAR STOK (5.1) — teralokasi (semua jalur Bahan+3 Acc) + lot/pak aktif,
     // dihitung SEKALI per muat (bukan per baris) lalu digabung client-side.
     const petaTeralokasi = ref({});
     const petaLotAktif = ref({});
@@ -282,7 +282,7 @@ const KartuStokManager = {
         const peta = {};
         lotSnap.forEach(d => {
           const id = d.data().bahan_aksesoris_id;
-          if (id && d.data().jenis !== 'pak') peta[id] = (peta[id] || 0) + 1;
+          if (id) peta[id] = (peta[id] || 0) + 1;
         });
         petaLotAktif.value = peta;
       } catch (e) {
@@ -324,6 +324,8 @@ const KartuStokManager = {
         return true;
       });
     });
+    // Baris daftar milik item yang dibuka: kolom detail sama dengan daftar.
+    const barisAktif = computed(() => itemAktif.value ? daftarStokBaris.value.find(b => b.id === itemAktif.value.id) || null : null);
     const jumlahKritisHabis = computed(() => daftarStokBaris.value.filter(b => b.status !== 'aman').length);
 
     // Popup 5.1a — Atur Batas Kritis. Satuan akhir dikunci (tampil read-only,
@@ -341,7 +343,10 @@ const KartuStokManager = {
       menyimpanBatasKritis.value = true;
       try {
         await updateDoc(doc(db, 'master_bahan_aksesoris', item.id), { batas_kritis: nilai });
-        item.batas_kritis = nilai; // patch lokal, hindari full reload
+        // patch sumber daftar supaya kolom daftar & detail ikut terhitung ulang
+        const src = daftarItemLengkap.value.find(x => x.id === item.id);
+        if (src) src.batas_kritis = nilai;
+        if (itemAktif.value && itemAktif.value.id === item.id) itemAktif.value.batas_kritis = nilai;
         popupBatasKritisAktif.value = null;
       } catch (e) {
         console.error('Gagal simpan batas kritis:', e);
@@ -373,7 +378,7 @@ const KartuStokManager = {
       opname, pinOpname, menyimpanOpname, bukaOpnameItem, bukaOpnameLot, lanjutOpname, pinOpnameSukses,
       paginasiDetail,
       formatQty,
-      memuatAgregat, filterKategori, filterKritisHabis, cariDaftarStok, daftarStokTampil, jumlahKritisHabis, gayaFilterAktif,
+      barisAktif, memuatAgregat, filterKategori, filterKritisHabis, cariDaftarStok, daftarStokTampil, jumlahKritisHabis, gayaFilterAktif,
       popupBatasKritisAktif, nilaiBatasKritisInput, menyimpanBatasKritis, bukaBatasKritis, tutupBatasKritis, simpanBatasKritis,
       bolehAturBatasKritis: computed(() => adminKeAtas(window.currentUser))
     };
@@ -413,7 +418,7 @@ const KartuStokManager = {
           <div v-else style="overflow-x:auto;">
             <table class="gc-table" style="width:100%; font-size:11.5px;">
               <thead><tr>
-                <th>Item</th><th>Stok</th><th>Teralokasi</th><th>Bebas</th><th>Batas Kritis</th><th>Status</th><th>Rak</th><th>Lot</th>
+                <th>Item</th><th>Stok</th><th>Teralokasi</th><th>Bebas</th><th>Batas Kritis</th><th>Status</th><th>Rak</th><th>Lot/Pak</th>
               </tr></thead>
               <tbody>
                 <tr v-for="b in daftarStokTampil" :key="b.id" style="cursor:pointer;" @click="pilihItem(b)">
@@ -467,13 +472,29 @@ const KartuStokManager = {
               <div style="font-weight:700; font-size:14px;">{{ (itemAktif.nama || '') + (itemAktif.warna ? ' ' + itemAktif.warna : '') }}</div>
               <div style="font-size:10.5px; color:var(--text-faint);">{{ itemAktif.id_tampil || '-' }} · {{ itemAktif.kategori_utama || '-' }}</div>
             </div>
-            <div style="text-align:right;">
-              <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Stok Akhir Saat Ini</div>
-              <div style="font-size:19px; font-weight:700; color:var(--burgundy);">{{ formatQty(itemAktif.stok_akhir || 0) }} <span style="font-size:12px; font-weight:400;">{{ itemAktif.satuan_pemakaian || '' }}</span></div>
-            </div>
-            <div style="text-align:right;">
-              <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Lot Aktif</div>
-              <div style="font-size:19px; font-weight:700;">{{ memuatLot ? '...' : lotAktifCount }} <span style="font-size:12px; font-weight:400;">lot/pak</span></div>
+            <div v-if="barisAktif" style="display:flex; flex-wrap:wrap; gap:6px 18px; width:100%;">
+              <div v-for="k in [['Stok', formatQty(barisAktif.stok) + ' ' + (barisAktif.satuan_pemakaian || '')], ['Teralokasi', formatQty(barisAktif.teralokasi)], ['Bebas', formatQty(barisAktif.bebas)]]" :key="k[0]">
+                <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">{{ k[0] }}</div>
+                <div style="font-size:15px; font-weight:700;" :style="{ color: k[0] === 'Bebas' && barisAktif.bebas <= 0 ? 'var(--danger)' : 'inherit' }">{{ k[1] }}</div>
+              </div>
+              <div>
+                <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Batas Kritis</div>
+                <div style="font-size:15px; font-weight:700;">{{ barisAktif.batasKritis > 0 ? formatQty(barisAktif.batasKritis) : '-' }}<button v-if="bolehAturBatasKritis" @click="bukaBatasKritis(barisAktif)" class="icon-btn" style="width:18px; height:18px; margin-left:4px;" title="Atur Batas Kritis"><i class="fas fa-pen" style="font-size:8.5px;"></i></button></div>
+              </div>
+              <div>
+                <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Status</div>
+                <span v-if="barisAktif.status === 'habis'" class="tag danger">habis</span>
+                <span v-else-if="barisAktif.status === 'kritis'" class="tag warn">kritis</span>
+                <span v-else class="tag ok">aman</span>
+              </div>
+              <div>
+                <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Rak</div>
+                <div style="font-size:15px; font-weight:700;">{{ barisAktif.rak_label || '-' }}</div>
+              </div>
+              <div>
+                <div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em;">Lot/Pak</div>
+                <div style="font-size:15px; font-weight:700;">{{ memuatLot ? '...' : (lotAktifCount || '-') }}</div>
+              </div>
             </div>
           </div>
           <div v-if="itemAktif" style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
