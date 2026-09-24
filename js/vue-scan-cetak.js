@@ -20,7 +20,7 @@
 import { createApp, ref, reactive, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, getDocs, updateDoc, query, where, orderBy, limit, startAfter, serverTimestamp, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { resolveLabelStok, hitungAmbilLabelStok, catatScanEntryStok } from './vue-stock-pembelian.js?v=32';
+import { resolveLabelStok, hitungAmbilLabelStok, catatScanEntryStok } from './vue-stock-pembelian.js?v=33';
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=15';
 
 

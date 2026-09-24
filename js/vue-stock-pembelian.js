@@ -5,15 +5,15 @@
 // Koleksi & field:
 // - pesanan_pembelian: items[] ARRAY dalam 1 dokumen (bukan sub-koleksi),
 //   status 'draft'/'final'. Counter nomor nota: pengaturan_id_pembelian.
-// - lot_bahan_aksesoris: 1 dokumen = 1 roll/lot, dibuat saat nota difinalkan
-//   untuk item ber-pakai_lot_tracking yang detail_lot[]-nya terisi.
+// - lot_bahan_aksesoris: 1 dokumen = 1 roll/lot, dibuat saat nota difinalkan;
+//   item pakai lot WAJIB detail_lot[] (jumlah roll + qty) sebelum final.
 // - master_bahan_aksesoris: harga_perlu_konfirmasi + harga_pending{} = banner.
 //
 // Jebakan:
 // - harga_pemakaian = harga_modal x (1 + margin_modal/100), margin_modal
 //   PERSEN; perbaruiHargaMasterDariRiwayat pakai rumus sama tiap nota final.
-// - Item konversi_bertingkat: "Terapkan" di Riwayat Harga cuma memperbarui
-//   harga_modal tier terakhir, TIDAK seluruh rantai. Verifikasi manual.
+// - konversi_bertingkat: "Terapkan"/"Jadikan Aktif" cuma memperbarui tier akhir.
+// - Harga aktif & margin hanya diatur di Riwayat Harga (PIN Owner-tier).
 // - Finalisasi nota dan "Terapkan" butuh PIN (users.pin_hash, cariUserByPin,
 //   tierOwnerKeAtas, kunci 3x salah); user tanpa pin_hash terkunci.
 // - lot_bahan_aksesoris juga menampung pak repack (jenis 'pak'); query lot
@@ -708,9 +708,9 @@ export async function cariLotByKodeSemuaStatus(kodeLot) {
 // ambilSemuaLotByBahan — SENGAJA ambil SEMUA status (aktif + habis), beda dari
 // `ambilLotAktif`, karena dipakai reprint label roll yang datanya sudah habis
 // di sistem. Di-export untuk `vue-bahan-aksesoris.js`.
-export async function ambilSemuaLotByBahan(bahanId) {
+export async function ambilSemuaLotByBahan(bahanId, opsi = {}) {
   const snap = await getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('bahan_aksesoris_id', '==', bahanId)));
-  const lots = []; snap.forEach(d => { if (d.data().jenis !== 'pak') lots.push({ id: d.id, ...d.data() }); });
+  const lots = []; snap.forEach(d => { if (opsi.termasukPak || d.data().jenis !== 'pak') lots.push({ id: d.id, ...d.data() }); });
   lots.sort((a, b) => (b.tanggal_masuk || '').localeCompare(a.tanggal_masuk || '') || ((b.dibuat_pada?.seconds || 0) - (b.dibuat_pada?.seconds || 0)));
   return lots;
 }
@@ -1000,12 +1000,18 @@ const PopupQtyPerLot = {
     satuan: { type: String, default: '' },
     namaBarang: { type: String, default: '' }
   },
-  emits: ['tambah', 'hapus', 'terapkan', 'tutup'],
+  emits: ['tambah', 'hapus', 'terapkan', 'tutup', 'isi'],
+  data() { return { jumlahRoll: '', qtySama: '' }; },
   template: `
     <div style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="$emit('tutup')">
       <div class="gc-card" style="max-width:520px; width:100%; max-height:90vh; overflow-y:auto;">
         <h3 style="font-weight:700; font-size:15px; margin-bottom:6px;"><i class="fas fa-layer-group" style="color:var(--burgundy); margin-right:8px;"></i>Qty per Roll/Lot — {{ namaBarang }}</h3>
-        <p style="font-size:11px; color:var(--text-faint); margin-bottom:14px;">Isi qty tiap roll/kones satu per satu (qtynya bisa beda-beda tiap roll). Total dijumlah otomatis. Catatan: FIFO/pemakaian per-lot belum aktif — ronde ini baru mencatat qty per roll saat barang diterima.</p>
+        <p style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">Isi jumlah roll dulu, lalu qty tiap roll (boleh beda-beda). Tiap roll jadi 1 Kode Lot dan labelnya langsung dicetak saat nota difinalkan.</p>
+        <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:14px; background:var(--ivory-dim); border-radius:10px; padding:10px;">
+          <div class="gc-field" style="margin:0; flex:1; min-width:110px;"><label>Jumlah roll</label><input v-model.number="jumlahRoll" type="number" min="1" placeholder="mis. 5"></div>
+          <div class="gc-field" style="margin:0; flex:1; min-width:110px;"><label>Qty per roll (opsional)</label><input v-model.number="qtySama" type="number" min="0" placeholder="isi kalau sama"></div>
+          <button @click="$emit('isi', jumlahRoll, qtySama)" :disabled="!(jumlahRoll > 0)" class="btn-primary" style="padding:9px 14px; font-size:11.5px;">Buat baris</button>
+        </div>
         <!-- Header kolom pakai "hidden md:flex": class ".md:grid" TIDAK ada di
              gechoo-design.css/index.html, jadi "hidden md:grid" bikin header
              permanen display:none bahkan di desktop. -->
@@ -1269,6 +1275,9 @@ const DaftarNotaScreen = {
       // konsisten dengan pola "tambah lagi = qty naik" yang sudah dipakai di
       // Kasir.
       const idxAda = daftarPesanan.value.findIndex(b => b.bahan_aksesoris_id === hasil.bahan.id);
+      if (idxAda >= 0 && daftarPesanan.value[idxAda].pakai_lot_tracking) {
+        barisAktifIndex.value = idxAda; cariItemTeks.value = ''; bukaPopupLot(idxAda); return;
+      }
       if (idxAda >= 0) {
         daftarPesanan.value[idxAda].qty = (parseFloat(daftarPesanan.value[idxAda].qty) || 0) + 1;
         const item = itemAsliDariBaris(daftarPesanan.value[idxAda]);
@@ -1277,6 +1286,7 @@ const DaftarNotaScreen = {
       } else {
         daftarPesanan.value.push(buatBarisPesanan(hasil.bahan, 1, '', hasil.namaAlias, hasil.bahan.satuan_pembelian));
         barisAktifIndex.value = daftarPesanan.value.length - 1;
+        if (daftarPesanan.value[barisAktifIndex.value].pakai_lot_tracking) { cariItemTeks.value = ''; bukaPopupLot(barisAktifIndex.value); return; }
       }
       tahapBarisAktif.value = 'baru';
       cariItemTeks.value = '';
@@ -1521,7 +1531,7 @@ const DaftarNotaScreen = {
       indexBarisLot.value = i;
       barisLotSementara.value = (it.detail_lot && it.detail_lot.length > 0)
         ? JSON.parse(JSON.stringify(it.detail_lot))
-        : [{ qty: '', keterangan: '' }];
+        : [];
       tampilPopupLot.value = true;
     }
     function tutupPopupLot() {
@@ -1533,8 +1543,14 @@ const DaftarNotaScreen = {
       indexBarisLot.value = -1;
     }
     function tambahBarisLot() { barisLotSementara.value.push({ qty: '', keterangan: '' }); }
+    function isiBarisLot(n, qty) {
+      const jumlah = Math.max(1, Math.floor(parseFloat(n) || 0));
+      const lama = barisLotSementara.value;
+      barisLotSementara.value = Array.from({ length: jumlah }, (_, i) => ({
+        qty: parseFloat(qty) > 0 ? parseFloat(qty) : (lama[i] ? lama[i].qty : ''), keterangan: lama[i] ? lama[i].keterangan : ''
+      }));
+    }
     function hapusBarisLot(i) {
-      if (barisLotSementara.value.length <= 1) return;
       barisLotSementara.value.splice(i, 1);
     }
     const totalQtyLot = computed(() => barisLotSementara.value.reduce((t, b) => t + (parseFloat(b.qty) || 0), 0));
@@ -1542,6 +1558,7 @@ const DaftarNotaScreen = {
     const barisLotSatuan = computed(() => (indexBarisLot.value >= 0 && daftarPesanan.value[indexBarisLot.value]) ? (daftarPesanan.value[indexBarisLot.value].satuan || '') : '');
     const barisLotNama = computed(() => (indexBarisLot.value >= 0 && daftarPesanan.value[indexBarisLot.value]) ? (daftarPesanan.value[indexBarisLot.value].nama || '') : '');
     function terapkanLot() {
+      if (!barisLotSementara.value.length) { alert('Isi jumlah roll dulu, lalu klik Buat baris.'); return; }
       const tidakLengkap = barisLotSementara.value.some(b => !(parseFloat(b.qty) > 0));
       if (tidakLengkap) { alert('Isi Qty tiap roll/lot dulu (harus lebih dari 0). Hapus baris yang tidak dipakai.'); return; }
       const idx = indexBarisLot.value;
@@ -1606,6 +1623,8 @@ const DaftarNotaScreen = {
       if (!bolehSimpan.value) return alert('Anda tidak punya izin menyimpan di sini. Hubungi Owner/PIC.');
       if (daftarPesanan.value.length === 0) return alert('Belum ada item di Daftar Pesanan Pembelian.');
       if (!suplayerEntry.value) return alert('Pilih Suplayer dulu.');
+      const lotKosong = daftarPesanan.value.findIndex(b => b.pakai_lot_tracking && !((b.detail_lot || []).length && b.detail_lot.every(l => parseFloat(l.qty) > 0)));
+      if (lotKosong >= 0) { alert(`"${daftarPesanan.value[lotKosong].nama}" pakai lot: isi jumlah roll & qty tiap roll dulu.`); bukaPopupLot(lotKosong); return; }
       if (sayaOwnerKeAtas.value) { await simpan('final'); return; }
       tampilPinFinalisasi.value = true;
     }
@@ -1678,6 +1697,7 @@ const DaftarNotaScreen = {
         }
         alert(statusBaru === 'final' ? `Nota ${noPembelian} difinalkan (stok bertambah, tidak bisa diubah lagi).` : `Disimpan sebagai draft (${noPembelian}).`);
         if (statusBaru === 'final' && lotUntukCetak.value.length === 0) { mode.value = 'list'; muatDaftarNota(); }
+        else if (statusBaru === 'final') cetakLabelLot(lotUntukCetak.value);
       } catch (e) {
         console.error('Gagal simpan Nota:', e);
         alert(e.message && e.message.includes('Prefix') ? e.message : 'Gagal menyimpan. Coba lagi.');
@@ -1877,7 +1897,7 @@ const DaftarNotaScreen = {
       // form
       draftDocId, noPembelianAktif, statusNota, formReadOnly, tanggal, suplayerEntry, suplayerTerkunci,
       daftarPesanan, opsiSuplayer, opsiNamaBarangMap, estimasiBiaya, adaTerpilih, formatRupiah,
-      tambahDariPermintaan, hapusTerpilih, batal, simpanDraft, klikFinalkan, menyimpan, cetak,
+      tambahDariPermintaan, isiBarisLot, hapusTerpilih, batal, simpanDraft, klikFinalkan, menyimpan, cetak,
       orderDriverId,
       // foto bon
       fotoBonPreview, pilihFotoBon, hapusFotoBon,
@@ -2100,10 +2120,6 @@ const DaftarNotaScreen = {
               </div>
               <p v-if="!formReadOnly" style="font-size:10.5px; color:var(--text-faint); text-align:center; margin-top:8px;">Finalkan = stok bertambah, Riwayat Harga tertulis, tidak bisa diubah lagi. Hanya Owner/PIC Owner/Superuser yang bisa memfinalkan (Admin butuh PIN Owner).</p>
 
-              <div v-if="lotUntukCetak.length > 0" style="margin-top:12px; background:var(--ivory-dim); border-radius:10px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-                <span style="font-size:12px;"><i class="fas fa-tags" style="color:var(--burgundy); margin-right:6px;"></i>{{ lotUntukCetak.length }} roll/lot baru dibuat dari Nota ini — cetak labelnya (QR) untuk ditempel ke roll fisiknya.</span>
-                <button @click="cetakLabelLot(lotUntukCetak)" class="btn-primary" style="padding:8px 16px; font-size:12px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label Roll</button>
-              </div>
             </div>
           </div>
         </template>
@@ -2112,7 +2128,7 @@ const DaftarNotaScreen = {
       <pengaturan-stock-pembelian v-if="tampilPengaturan" @tutup="tampilPengaturan = false" />
       <popup-tambah-suplayer-cepat v-if="tampilTambahSuplayer" @tersimpan="onSuplayerBaruTersimpan" @tutup="tampilTambahSuplayer = false" />
       <popup-qty-per-lot v-if="tampilPopupLot" :baris="barisLotSementara" :total="totalQtyLot" :target="barisLotTarget" :satuan="barisLotSatuan" :nama-barang="barisLotNama"
-        @tambah="tambahBarisLot" @hapus="hapusBarisLot" @terapkan="terapkanLot" @tutup="tutupPopupLot" />
+        @tambah="tambahBarisLot" @hapus="hapusBarisLot" @terapkan="terapkanLot" @tutup="tutupPopupLot" @isi="isiBarisLot" />
       <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label Roll" :daftar-label="daftarLabelPreview" jenis-cetak="label_roll_pembelian" @tutup="selesaiSetelahCetakLabel" />
 
       <!-- Pop up Qty (wireframe 3.2c) -->
@@ -2171,10 +2187,9 @@ const DaftarNotaScreen = {
 
 // RiwayatHargaPembelianManager — DAFTAR ITEM dulu (1 baris per bahan, harga
 // modal terkini + chip pending), klik baris -> RINCIAN riwayat item itu saja
-// (paginasi cursor tetap, sekarang di-scope where bahan_aksesoris_id) dengan
-// kolom Perubahan (naik/turun vs baris sebelumnya DI HALAMAN YANG SAMA — lihat
-// jebakan paginasi di bawah). Read-only total, diisi otomatis oleh
-// catatRiwayatHargaDanUpdateMaster tiap kali Nota difinalkan.
+// dengan kolom Perubahan. Satu-satunya tempat mengatur harga master: "Jadikan
+// Aktif" per baris riwayat dan Margin %, keduanya PIN Owner-tier. Riwayat
+// sendiri diisi otomatis catatRiwayatHargaDanUpdateMaster saat Nota final.
 //
 // Jebakan: delta Perubahan cuma dibanding baris tepat di bawahnya PADA
 // HALAMAN YANG SAMA (array sudah urut tanggal desc) — baris terakhir tiap
@@ -2212,7 +2227,48 @@ const RiwayatHargaPembelianManager = {
       constraintTambahan: () => itemAktif.value ? [where('bahan_aksesoris_id', '==', itemAktif.value.id)] : [],
       petakan: (id, d) => ({ id, ...d })
     });
-    function bukaDetail(item) { itemAktif.value = item; view.value = 'detail'; paginasiDetail.muatUlang(); }
+    function bukaDetail(item) { itemAktif.value = item; marginInput.value = item.margin_modal ?? 0; view.value = 'detail'; paginasiDetail.muatUlang(); }
+    let idTunggu = null;
+    function bukaById(id) {
+      const it = daftarItemLengkap.value.find(x => x.id === id);
+      if (it) { idTunggu = null; bukaDetail(it); } else idTunggu = id;
+    }
+
+    // Harga aktif & margin: rumus sama dengan Master (Modal x (1 + margin/100)).
+    const marginInput = ref(0);
+    const aksiHarga = ref(null); // { jenis:'aktif', r } | { jenis:'margin' }
+    function bukaJadikanAktif(r) { aksiHarga.value = { jenis: 'aktif', r }; }
+    function bukaSimpanMargin() {
+      const m = parseFloat(marginInput.value);
+      if (isNaN(m) || m < 0) return alert('Margin wajib angka 0 atau lebih.');
+      aksiHarga.value = { jenis: 'margin' };
+    }
+    async function pinHargaSukses(user) {
+      const a = aksiHarga.value; aksiHarga.value = null;
+      if (!a || !itemAktif.value) return;
+      if (!tierOwnerKeAtas(user)) { alert(`PIN ini bukan PIN Owner/PIC Owner/Superuser (peran: ${user.role}).`); return; }
+      const it = itemAktif.value;
+      const margin = a.jenis === 'margin' ? parseFloat(marginInput.value) || 0 : (parseFloat(it.margin_modal) || 0);
+      const patch = { margin_modal: margin, harga_diupdate_dari_riwayat_pada: serverTimestamp(), harga_diatur_oleh: user.email || null };
+      if (a.jenis === 'aktif') {
+        const modal = parseFloat(a.r.harga_per_satuan_pemakaian) || 0;
+        if (!(modal > 0)) return alert('Harga baris ini tidak valid.');
+        patch.harga_modal = modal;
+        patch.harga_pembelian = (a.r.satuan || '') === (it.satuan_pembelian || '') ? (parseFloat(a.r.harga) || 0) : Math.round(modal * (parseFloat(it.isi_konversi_pembelian) || 1));
+        patch.harga_aktif_riwayat_id = a.r.id;
+        patch.harga_perlu_konfirmasi = false; patch.harga_pending = null;
+      }
+      const modalAkhir = patch.harga_modal ?? (parseFloat(it.harga_modal) || 0);
+      patch.harga_pemakaian = modalAkhir * (1 + margin / 100);
+      try {
+        await updateDoc(doc(db, 'master_bahan_aksesoris', it.id), patch);
+        const snap = await getDoc(doc(db, 'master_bahan_aksesoris', it.id));
+        if (snap.exists()) itemAktif.value = { id: snap.id, ...snap.data() };
+        alert(a.jenis === 'aktif' ? 'Harga aktif diperbarui.' : 'Margin disimpan.');
+        await muatDaftarPending();
+        await muatDaftarItemLengkap();
+      } catch (e) { console.error('Gagal atur harga:', e); alert('Gagal menyimpan. Coba lagi.'); }
+    }
     function kembaliKeDaftar() { view.value = 'daftar'; itemAktif.value = null; }
 
     const barisDenganDelta = computed(() => {
@@ -2283,9 +2339,10 @@ const RiwayatHargaPembelianManager = {
       }
     }
 
-    async function muat() { await muatDaftarItemLengkap(); await muatDaftarPending(); }
+    async function muat() { await muatDaftarItemLengkap(); await muatDaftarPending(); if (idTunggu) bukaById(idTunggu); }
     onMounted(async () => { await window.authReady; await muat(); });
     return {
+      bukaById, marginInput, aksiHarga, bukaJadikanAktif, bukaSimpanMargin, pinHargaSukses,
       view, daftarItemLengkap, memuatDaftarItem, cariDaftar, daftarItemTampil, muat, formatRupiah,
       itemAktif, paginasiDetail, barisDenganDelta, bukaDetail, kembaliKeDaftar,
       daftarPending, memuatPending, idPending, tampilPinTerapkan, bukaTerapkan, pinTerapkanSukses
@@ -2313,6 +2370,7 @@ const RiwayatHargaPembelianManager = {
         </div>
       </div>
 
+      <popup-pin v-if="aksiHarga" judul="PIN Atur Harga" pesan="Hanya PIN Owner/PIC Owner/Superuser yang bisa mengubah harga aktif atau margin." @sukses="pinHargaSukses" @batal="aksiHarga = null" />
       <popup-pin v-if="tampilPinTerapkan" judul="PIN Terapkan Harga" pesan="Hanya PIN Owner/PIC Owner/Superuser yang bisa menerapkan harga baru & membuka blokir checkout." @sukses="pinTerapkanSukses" @batal="tampilPinTerapkan = false" />
 
       <!-- DAFTAR ITEM -->
@@ -2349,7 +2407,16 @@ const RiwayatHargaPembelianManager = {
         <button @click="kembaliKeDaftar" class="btn-outline" style="font-size:11px; padding:5px 12px; margin-bottom:12px;"><i class="fas fa-arrow-left" style="margin-right:5px;"></i>Daftar Item</button>
         <div style="margin-bottom:12px;">
           <div style="font-weight:700; font-size:14px;">{{ itemAktif.nama }}<span v-if="itemAktif.warna"> {{ itemAktif.warna }}</span></div>
-          <div style="font-size:10.5px; color:var(--text-faint);">{{ itemAktif.id_tampil || '-' }} &middot; Harga Modal saat ini: {{ formatRupiah(itemAktif.harga_modal) }}</div>
+          <div style="font-size:10.5px; color:var(--text-faint);">{{ itemAktif.id_tampil || '-' }}</div>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; background:var(--ivory-dim); border-radius:12px; padding:12px 14px; margin-bottom:14px;">
+          <div><div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase;">Harga Pembelian</div><b>{{ formatRupiah(itemAktif.harga_pembelian) }} / {{ itemAktif.satuan_pembelian || '-' }}</b></div>
+          <div><div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase;">Harga Modal</div><b>{{ formatRupiah(itemAktif.harga_modal) }} / {{ itemAktif.satuan_pemakaian || '-' }}</b></div>
+          <div><div style="font-size:9.5px; color:var(--text-faint); text-transform:uppercase;">Harga Pemakaian</div><b style="color:var(--burgundy);">{{ formatRupiah(itemAktif.harga_pemakaian) }}</b></div>
+          <div style="display:flex; align-items:flex-end; gap:6px; margin-left:auto;">
+            <div class="gc-field" style="margin:0; width:110px;"><label>Margin (%)</label><input v-model="marginInput" type="number" min="0" step="0.1"></div>
+            <button @click="bukaSimpanMargin" class="btn-primary" style="padding:9px 12px; font-size:11.5px;">Simpan Margin</button>
+          </div>
         </div>
 
         <div v-if="paginasiDetail.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -2358,7 +2425,7 @@ const RiwayatHargaPembelianManager = {
         <div v-else style="overflow-x:auto;">
           <table class="gc-table" style="width:100%; font-size:11.5px;">
             <thead><tr>
-              <th>Tanggal</th><th>Suplayer</th><th>Satuan Beli</th><th>Harga</th><th>Isi Konversi</th><th>Satuan Pemakaian</th><th>Harga / Satuan Pemakaian</th><th>Perubahan</th><th>No. Pembelian</th>
+              <th>Tanggal</th><th>Suplayer</th><th>Satuan Beli</th><th>Harga</th><th>Isi Konversi</th><th>Satuan Pemakaian</th><th>Harga / Satuan Pemakaian</th><th>Perubahan</th><th>No. Pembelian</th><th>Aktif</th>
             </tr></thead>
             <tbody>
               <tr v-for="r in barisDenganDelta" :key="r.id">
@@ -2372,6 +2439,10 @@ const RiwayatHargaPembelianManager = {
                   <span v-else class="tag neutral">tetap</span>
                 </td>
                 <td>{{ r.no_pembelian || '-' }}</td>
+                <td>
+                  <span v-if="itemAktif.harga_aktif_riwayat_id === r.id" class="tag ok">aktif</span>
+                  <button v-else @click="bukaJadikanAktif(r)" class="btn-outline" style="font-size:10.5px; padding:3px 8px;">Jadikan Aktif</button>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -2420,6 +2491,11 @@ window.pastikanMountRiwayatHargaPembelian = function() {
   }
   const mountPoint = document.getElementById('vue-riwayat-harga-pembelian');
   if (mountPoint) vmRiwayatHargaPembelian = createApp(AppRiwayatHargaPembelian).mount('#vue-riwayat-harga-pembelian');
+};
+window.bukaRiwayatHargaItem = function(id) {
+  window.pastikanMountRiwayatHargaPembelian();
+  const mgr = vmRiwayatHargaPembelian && vmRiwayatHargaPembelian.$refs && vmRiwayatHargaPembelian.$refs.mgr;
+  if (mgr && typeof mgr.bukaById === 'function') mgr.bukaById(id);
 };
 
 // Cetak label Bahan/Aksesoris ada di tombol per-kartu di

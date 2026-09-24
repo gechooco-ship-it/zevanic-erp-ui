@@ -1,6 +1,7 @@
 // js/vue-bahan-aksesoris.js
-// Zevanic House > Master Bahan & Aksesoris: entry, tabel paginasi dengan
-// edit/hapus, dan import Excel.
+// Zevanic House > Master Bahan & Aksesoris: data master saja (entry, edit,
+// hapus, import Excel). Stok, lot, cetak label, harga aktif & margin diatur
+// di Stok & Pembelian; di sini hanya ditampilkan (read-only).
 //
 // Koleksi & field:
 // - master_bahan_aksesoris; ID sequential lewat runTransaction di koleksi
@@ -8,8 +9,7 @@
 // - kategori_utama (Bahan/Aksesoris) menentukan prefix ID dan isi dropdown
 //   Jenis; rak_id + rak_label denormalisasi dari master_rak_penyimpanan.
 // - konversi_bertingkat tersimpan permanen; Volume = Tinggi x Panjang x
-//   Lebar per satuan barang, bukan per rak. pakai_lot_tracking memicu popup
-//   "Qty per Roll/Lot" di vue-stock-pembelian.js; tidak ada logic FIFO.
+//   Lebar per satuan barang. pakai_lot_tracking memicu popup lot di Nota.
 //
 // Jebakan:
 // - margin_modal bersatuan PERSEN: Harga Modal = Harga Pembelian / Isi
@@ -31,7 +31,7 @@ import { usePaginasiFirestore } from './vue-paginasi.js';
 // Koleksi `lot_bahan_aksesoris` & `log_cetak_label` dimiliki
 // js/vue-stock-pembelian.js — semua akses ke keduanya lewat fungsi yang
 // diekspor dari sana, jangan query langsung dari file ini.
-import { ambilSemuaLotByBahan, catatLogCetakLabel, ambilLotAktif } from './vue-stock-pembelian.js?v=32';
+import { ambilLotAktif } from './vue-stock-pembelian.js?v=33';
 
 const KATEGORI_UTAMA_OPSI = ['Bahan', 'Aksesoris'];
 
@@ -406,7 +406,7 @@ function formStateKosong() {
     // Webbing: ceil(butuh_meter / panjang_roll). Kosong/0 = belum diisi, kartu
     // itu menampilkan "-" bukan angka tebakan.
     panjang_roll: '',
-    margin_modal: '',
+    margin_modal: 0,
     konversi_bertingkat: []
   });
 }
@@ -782,11 +782,10 @@ const BahanAksesorisEntryManager = {
       if (!form.jenis) return alert('Pilih Jenis Bahan/Aksesoris dulu.');
       if (!form.nama.trim()) return alert('Isi Nama Bahan/Aksesoris dulu.');
       if (!form.warna.trim()) return alert('Pilih Warna dulu.');
-      if (!(parseFloat(form.harga_pembelian) > 0)) return alert('Isi Harga Pembelian dulu (harus lebih dari 0).');
+      if (!(parseFloat(form.harga_pembelian) > 0)) return alert('Isi Harga Awal dulu (harus lebih dari 0). Setelah ada nota, harga diatur di Stok & Pembelian › Riwayat Harga.');
       if (!form.satuan_pembelian.trim()) return alert('Pilih Satuan Pembelian dulu.');
       if (!(parseFloat(form.isi_konversi_pembelian) > 0)) return alert('Isi Isi Konversi Pembelian dulu (harus lebih dari 0) — bisa pakai tombol "Bantu Hitung Konversi Berjenjang" kalau tingkatnya banyak.');
       if (!form.satuan_pemakaian.trim()) return alert('Pilih Satuan Pemakaian dulu.');
-      if (form.margin_modal === '' || form.margin_modal === null) return alert('Isi Margin Modal dulu (boleh 0 kalau memang tidak ada margin).');
 
       menyimpan.value = true;
       try {
@@ -905,8 +904,9 @@ const BahanAksesorisEntryManager = {
 
           <template v-if="!(form.konversi_bertingkat && form.konversi_bertingkat.length > 0)">
             <div class="gc-field" style="margin-bottom:0;">
-              <label>Harga Pembelian (Rp) <span style="color:var(--danger);">*</span></label>
+              <label>Harga Awal (Rp) <span style="color:var(--danger);">*</span></label>
               <input v-model.number="form.harga_pembelian" type="number" min="0" placeholder="0">
+              <p style="font-size:9.5px; color:var(--text-faint); margin-top:4px;">Sekali saat item baru. Setelah ada nota, harga &amp; margin diatur di Stok &amp; Pembelian › Riwayat Harga.</p>
             </div>
             <div class="gc-field" style="margin-bottom:0;">
               <label>Satuan Pembelian <span style="color:var(--danger);">*</span></label>
@@ -948,17 +948,6 @@ const BahanAksesorisEntryManager = {
             <input type="checkbox" v-model="form.pakai_lot_tracking" style="accent-color:var(--burgundy); width:15px; height:15px; flex-shrink:0;">
             <span>Perlu Qty per Roll/Lot saat diterima</span>
           </label>
-
-          <!-- margin_modal adalah PERSEN (%), bukan nominal Rupiah — sebagian dokumen
-            tersimpan masih berisi nominal dan dibaca apa adanya tanpa migrasi. -->
-          <div class="gc-field" style="margin-bottom:0;">
-            <label>Margin Modal (%) <span style="color:var(--danger);">*</span></label>
-            <div style="position:relative;">
-              <input v-model.number="form.margin_modal" type="number" min="0" step="0.1" placeholder="0" style="padding-right:34px;">
-              <span style="position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:13px; font-weight:700; pointer-events:none;">%</span>
-            </div>
-            <p style="font-size:9.5px; color:var(--text-faint); margin-top:4px;">Dari Harga Modal. Pemakaian = Modal + (Modal &times; Margin% / 100).</p>
-          </div>
 
           <div style="background:var(--ivory-dim); border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:5px;">
             <div><span style="font-size:9.5px; color:var(--text-faint); display:block;">Harga Modal (otomatis)</span><b style="font-size:13px;">{{ formatRupiah(hargaModal) }}</b></div>
@@ -1030,7 +1019,7 @@ const BahanAksesorisEntryManager = {
 // potong-di-JS seperti MasterKendaraanManager lama).
 
 const BahanAksesorisListManager = {
-  components: { PopupKonversiBerjenjang, DropdownCari, PopupImportBahanAksesoris, PopupPratinjauCetakLabel },
+  components: { PopupKonversiBerjenjang, DropdownCari, PopupImportBahanAksesoris },
   setup() {
     // filterTab: 'ALL' | 'Bahan' | 'Aksesoris' | 'INCOMPLETE'. Tiga tab pertama
     // lewat usePaginasiFirestore (cursor, where tunggal, hemat). Tab INCOMPLETE
@@ -1057,13 +1046,16 @@ const BahanAksesorisListManager = {
     function muatLagi() {
       if (filterTab.value === 'INCOMPLETE') {
         visibleIncomplete.value = Math.min(visibleIncomplete.value + 20, daftarIncompleteTersaring.value.length);
+      } else if (modeCari.value) {
+        visibleCari.value += 20;
       } else {
         paginasi.halamanBerikutnya();
       }
     }
 
     watch(filterTab, () => {
-      if (filterTab.value !== 'INCOMPLETE') paginasi.muatUlang();
+      visibleCari.value = 20;
+      if (filterTab.value !== 'INCOMPLETE' && !modeCari.value) paginasi.muatUlang();
       else visibleIncomplete.value = 20;
     });
 
@@ -1078,11 +1070,23 @@ const BahanAksesorisListManager = {
     const daftarIncomplete = ref([]); // dokumen LENGKAP (bukan cuma id) hasil saring hitungLengkap
     const visibleIncomplete = ref(20); // "Muat 20 lagi" versi client-side (array sudah di memori)
 
+    const daftarSemua = ref([]);
+    const visibleCari = ref(20);
+    function cocokCari(d, teks) {
+      const hay = [d.nama, d.warna, d.jenis, d.id_tampil, d.kategori_utama].map(x => (x || '').toString().toLowerCase()).join(' ');
+      return teks.split(/\s+/).filter(Boolean).every(k => hay.includes(k));
+    }
     const daftarIncompleteTersaring = computed(() => {
       const teks = paginasi.cariTeks.value.trim().toLowerCase();
       if (!teks) return daftarIncomplete.value;
-      return daftarIncomplete.value.filter(d => (d.nama || '').toLowerCase().includes(teks));
+      return daftarIncomplete.value.filter(d => cocokCari(d, teks));
     });
+    const daftarCari = computed(() => {
+      const teks = paginasi.cariTeks.value.trim().toLowerCase();
+      return daftarSemua.value.filter(d => (filterTab.value === 'ALL' || d.kategori_utama === filterTab.value) && cocokCari(d, teks))
+        .sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
+    });
+    const modeCari = computed(() => filterTab.value !== 'INCOMPLETE' && !!paginasi.cariTeks.value.trim());
 
     async function muatBadgeDanIncomplete() {
       memuatBadge.value = true;
@@ -1098,6 +1102,7 @@ const BahanAksesorisListManager = {
         jumlahSemua.value = snapSemua.data().count;
         jumlahBahanTab.value = snapBahan.data().count;
         jumlahAksesorisTab.value = snapAksesoris.data().count;
+        daftarSemua.value = semuaData;
         daftarIncomplete.value = semuaData.filter(d => !hitungLengkap(d));
       } catch (e) {
         console.error('Gagal muat badge tab List Bahan & Aksesoris:', e);
@@ -1110,11 +1115,11 @@ const BahanAksesorisListManager = {
     // berbeda tergantung tab aktif (lihat catatan filterTab di atas).
     const barisTampil = computed(() => filterTab.value === 'INCOMPLETE'
       ? daftarIncompleteTersaring.value.slice(0, visibleIncomplete.value)
-      : daftarAkumulasi.value);
-    const sedangMemuatList = computed(() => filterTab.value === 'INCOMPLETE' ? memuatBadge.value : paginasi.memuat.value);
+      : (modeCari.value ? daftarCari.value.slice(0, visibleCari.value) : daftarAkumulasi.value));
+    const sedangMemuatList = computed(() => (filterTab.value === 'INCOMPLETE' || modeCari.value) ? memuatBadge.value : paginasi.memuat.value);
     const adaLagiUntukDimuat = computed(() => filterTab.value === 'INCOMPLETE'
       ? visibleIncomplete.value < daftarIncompleteTersaring.value.length
-      : paginasi.adaBerikutnya.value);
+      : (modeCari.value ? visibleCari.value < daftarCari.value.length : paginasi.adaBerikutnya.value));
     const daftarTab = computed(() => [
       { nilai: 'ALL', label: 'Semua', angka: jumlahSemua.value },
       { nilai: 'Bahan', label: 'Bahan', angka: jumlahBahanTab.value },
@@ -1177,7 +1182,7 @@ const BahanAksesorisListManager = {
         kategori_utama: item.kategori_utama || '', jenis: item.jenis || '', foto: item.foto || '',
         nama: item.nama || '', warna: item.warna || '', harga_pembelian: item.harga_pembelian || '',
         satuan_pembelian: item.satuan_pembelian || '', isi_konversi_pembelian: item.isi_konversi_pembelian || '',
-        satuan_pemakaian: item.satuan_pemakaian || '', margin_modal: item.margin_modal ?? '',
+        satuan_pemakaian: item.satuan_pemakaian || '', margin_modal: item.margin_modal ?? 0,
         // flag opsional, lihat catatan arsitektur di atas file ini.
         pakai_lot_tracking: !!item.pakai_lot_tracking,
         // Rak Penyimpanan (ref) & Volume Barang.
@@ -1201,9 +1206,8 @@ const BahanAksesorisListManager = {
     }
 
     async function simpanEdit() {
-      if (!formEdit.jenis || !formEdit.nama.trim() || !formEdit.warna.trim() || !(parseFloat(formEdit.harga_pembelian) > 0) ||
-          !formEdit.satuan_pembelian.trim() || !(parseFloat(formEdit.isi_konversi_pembelian) > 0) || !formEdit.satuan_pemakaian.trim() ||
-          formEdit.margin_modal === '' || formEdit.margin_modal === null) {
+      if (!formEdit.jenis || !formEdit.nama.trim() || !formEdit.warna.trim() ||
+          !formEdit.satuan_pembelian.trim() || !(parseFloat(formEdit.isi_konversi_pembelian) > 0) || !formEdit.satuan_pemakaian.trim()) {
         alert('Lengkapi semua field wajib dulu.');
         return;
       }
@@ -1254,93 +1258,6 @@ const BahanAksesorisListManager = {
         console.error('Gagal hapus Bahan/Aksesoris:', e);
         alert('Gagal menghapus data.');
       }
-    }
-
-    // Izin cetak SENGAJA dicek lewat menu id `stock_cetak_label`, BUKAN
-    // `bahan_aksesoris_list`, supaya hak akses yang sudah diatur Owner tidak
-    // yatim. Entri itu ditandai `deprecated:true` di DAFTAR_MENU
-    // (vue-config-akses.js): tidak jadi tile navigasi, tapi tetap bisa diatur.
-    const menuIdCetakLabel = 'stock_cetak_label';
-    const bolehCetak = computed(() => window.cekIzinMenu(menuIdCetakLabel, 'print') !== false);
-
-    const popupPilihRollAktif = ref(false);
-    const itemUntukCetak = ref(null);
-    const daftarLotUntukCetak = ref([]);
-    const memuatLotCetak = ref(false);
-    const lotDicentangCetak = reactive({});
-    const lotTercentangCetak = computed(() => daftarLotUntukCetak.value.filter(l => lotDicentangCetak[l.id]));
-    function toggleSemuaLotCetak(v) { daftarLotUntukCetak.value.forEach(l => { lotDicentangCetak[l.id] = v; }); }
-
-    const popupCetakLabelAktif = ref(false);
-    const daftarLabelPreview = ref([]);
-    const cetakInfoAktif = ref({ namaBarang: '', jenis: '' }); // dipakai catatLogCetakLabel setelah popup emit 'cetak'
-
-    async function bukaCetakLabel(item) {
-      if (!bolehCetak.value) return;
-      if (typeof QRCode === 'undefined') {
-        alert('Library pembuat QR belum siap dimuat. Coba refresh halaman (Ctrl+Shift+R) lalu ulangi.');
-        return;
-      }
-      const namaLengkap = item.nama + (item.warna ? ' ' + item.warna : '');
-      if (item.pakai_lot_tracking) {
-        itemUntukCetak.value = item;
-        Object.keys(lotDicentangCetak).forEach(k => delete lotDicentangCetak[k]);
-        daftarLotUntukCetak.value = [];
-        popupPilihRollAktif.value = true;
-        memuatLotCetak.value = true;
-        try { daftarLotUntukCetak.value = await ambilSemuaLotByBahan(item.id); }
-        catch (e) { console.error('Gagal ambil daftar lot:', e); daftarLotUntukCetak.value = []; }
-        memuatLotCetak.value = false;
-      } else {
-        if (!item.id_tampil) return alert('Item ini belum punya ID Tampil (id_tampil kosong) — cek ulang data Bahan/Aksesorisnya.');
-        cetakInfoAktif.value = { namaBarang: namaLengkap, jenis: 'item' };
-        daftarLabelPreview.value = [{ kode: item.id_tampil, nama: namaLengkap, info: item.satuan_pemakaian || '', qrDataUrl: buatQrDataUrl(item.id_tampil) }];
-        popupCetakLabelAktif.value = true;
-      }
-    }
-
-    function lanjutCetakDariRoll() {
-      if (lotTercentangCetak.value.length === 0) return alert('Centang minimal 1 roll/lot yang mau dicetak labelnya dulu.');
-      const item = itemUntukCetak.value;
-      const namaLengkap = item.nama + (item.warna ? ' ' + item.warna : '');
-      cetakInfoAktif.value = { namaBarang: namaLengkap, jenis: 'roll' };
-      daftarLabelPreview.value = lotTercentangCetak.value.map(l => ({
-        kode: l.kode_lot,
-        nama: namaLengkap,
-        info: `${l.qty ?? l.qty_sisa ?? ''} ${item.satuan_pemakaian || ''} &middot; ${l.tanggal_masuk || ''}${l.status !== 'aktif' ? ' &middot; SUDAH HABIS (cetak ulang)' : ''}`,
-        qrDataUrl: buatQrDataUrl(l.kode_lot)
-      }));
-      popupPilihRollAktif.value = false;
-      popupCetakLabelAktif.value = true;
-    }
-    function tutupPopupPilihRoll() { popupPilihRollAktif.value = false; }
-
-    // saatCetakBerhasil — dipanggil lewat event 'cetak'
-    // PopupPratinjauCetakLabel, SETELAH window cetak fisik sudah dibuka. Catat 1
-    // baris log `log_cetak_label` — pola SAMA PERSIS
-    // `CetakLabelManager.catatLog` lama.
-    async function saatCetakBerhasil(payload) {
-      const jumlahTotal = daftarLabelPreview.value.length * (payload?.jumlahSalinan || 1);
-      await catatLogCetakLabel(cetakInfoAktif.value.namaBarang, jumlahTotal, cetakInfoAktif.value.jenis);
-      if (riwayatCetakDimuat.value) await paginasiLogCetak.muatUlang();
-    }
-
-    // Riwayat Cetak Label (koleksi `log_cetak_label`): modal on-demand dari
-    // tombol toolbar. Datanya baru dibaca saat modalnya pertama kali dibuka —
-    // jangan dipindah ke onMounted, layar ini sudah ramai query.
-    const riwayatCetakAktif = ref(false);
-    const riwayatCetakDimuat = ref(false);
-    const paginasiLogCetak = usePaginasiFirestore(db, 'log_cetak_label', {
-      perHalaman: 10, urutkanField: 'tanggal', urutkanArah: 'desc', cariField: 'nama_barang',
-      petakan: (id, d) => ({ id, ...d })
-    });
-    async function bukaRiwayatCetak() {
-      riwayatCetakAktif.value = true;
-      if (!riwayatCetakDimuat.value) { riwayatCetakDimuat.value = true; await paginasiLogCetak.muatUlang(); }
-    }
-    function formatTanggalLogCetak(ts) {
-      if (ts && typeof ts.seconds === 'number') return new Date(ts.seconds * 1000).toLocaleString('id-ID');
-      return '-';
     }
 
     // Import/Export Excel
@@ -1463,15 +1380,12 @@ const BahanAksesorisListManager = {
     }
 
 
-    // Panel expand per baris: kiri roll/lot aktif (ambilLotAktif, diimpor dari
-    // vue-stock-pembelian.js), kanan 3 harga terakhir dari koleksi
-    // `riwayat_harga_pembelian` yang ditulis catatRiwayatHargaDanUpdateMaster.
-    // Hanya 1 baris boleh expand sekaligus.
+    // Panel expand per baris: kiri stok + roll/lot aktif, kanan harga aktif.
+    // Semuanya read-only; pengaturannya di Kartu Stok & Riwayat Harga.
     const idExpand = ref(null);
     const expandMemuat = ref(false);
     const expandLot = ref([]);
-    const expandHarga = ref([]);
-    const hargaDipilih = ref(null); // id dokumen riwayat_harga_pembelian yang "dianggap aktif"
+
 
     // AMBANG kuning "roll/lot mulai menipis" — BELUM ada ketentuan dari soal
     // angka pastinya, dipilih ANGKA AMAN 20% sisa (qty_sisa / qty_awal < 0.2)
@@ -1484,66 +1398,43 @@ const BahanAksesorisListManager = {
       return (sisa / awal) < AMBANG_LOT_MENIPIS ? 'warn' : 'ok';
     }
 
-    // Query riwayat_harga_pembelian di bawah menggabung where + orderBy di field
-    // BEDA (bahan_aksesoris_id + dibuat_pada), jadi Firestore minta composite
-    // index. Errornya ditampilkan ke layar, bukan cuma console, supaya admin
-    // tahu harus klik link "Create composite index" sekali.
     const errorExpand = ref('');
     async function toggleExpand(item) {
       if (idExpand.value === item.id) { idExpand.value = null; return; }
       idExpand.value = item.id;
       expandMemuat.value = true;
       expandLot.value = [];
-      expandHarga.value = [];
-      hargaDipilih.value = null;
       errorExpand.value = '';
       try {
-        const [lots, snapRiwayat] = await Promise.all([
-          item.pakai_lot_tracking ? ambilLotAktif(item.id) : Promise.resolve([]),
-          getDocs(query(collection(db, 'riwayat_harga_pembelian'), where('bahan_aksesoris_id', '==', item.id), orderBy('dibuat_pada', 'desc'), limit(3)))
-        ]);
-        expandLot.value = lots;
-        const daftarHarga = [];
-        snapRiwayat.forEach(d => daftarHarga.push({ id: d.id, ...d.data() }));
-        expandHarga.value = daftarHarga;
-        // Pre-select entri riwayat yang harga_per_satuan_pemakaian-nya PALING
-        // DEKAT dengan harga_modal item saat ini — itu yang sedang dipakai
-        // (harga_modal diturunkan perbaruiHargaMasterDariRiwayat di
-        // vue-stock-pembelian.js). Radio ini INFORMASI saja, tidak mengubah data.
-        if (daftarHarga.length > 0) {
-          const targetModal = Math.round(parseFloat(item.harga_modal) || 0);
-          let idxAktif = 0, selisihTerkecil = Infinity;
-          daftarHarga.forEach((h, i) => {
-            const selisih = Math.abs(Math.round(parseFloat(h.harga_per_satuan_pemakaian) || 0) - targetModal);
-            if (selisih < selisihTerkecil) { selisihTerkecil = selisih; idxAktif = i; }
-          });
-          hargaDipilih.value = daftarHarga[idxAktif].id;
-        }
+        expandLot.value = item.pakai_lot_tracking ? await ambilLotAktif(item.id) : [];
       } catch (e) {
-        console.error('Gagal muat detail baris (roll/lot & riwayat harga):', e);
-        errorExpand.value = e.code === 'failed-precondition'
-          ? 'Perlu index Firestore baru — buka Console browser (F12), cari link "Create composite index" dari error ini, klik untuk bikin index-nya sekali.'
-          : 'Gagal memuat detail baris. Coba lagi.';
+        console.error('Gagal muat roll/lot aktif:', e);
+        errorExpand.value = 'Gagal memuat detail baris. Coba lagi.';
       }
       expandMemuat.value = false;
     }
 
-    // CUMA pindah ke menu "Kartu Stok", BUKAN deep-link ke item ini: itemAktif
-    // di vue-kartu-stok.js state internal komponen, tidak di-export ke window.
-    // Admin lanjut cari sendiri lewat kotak cari di sana.
+    // Deep-link ke Kartu Stok / Riwayat Harga item ini (fungsi window diekspos
+    // vue-kartu-stok.js & vue-stock-pembelian.js).
     function lihatKartuStok(item) {
       if (window.pindahTab) window.pindahTab('tab-stok-pembelian');
-      if (window.pindahSubTab) {
-        window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-kartustok', document.querySelector('.sub-zh-stock-btn[data-target="sub-zh-stock-kartustok"]'));
-      }
+      if (window.pindahSubTab) window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-kartustok', document.querySelector('.sub-zh-stock-btn[data-target="sub-zh-stock-kartustok"]'));
+      if (window.bukaKartuStokItem) window.bukaKartuStokItem(item.id);
+    }
+    function lihatRiwayatHarga(item) {
+      if (window.pindahTab) window.pindahTab('tab-stok-pembelian');
+      if (window.pindahSubTab) window.pindahSubTab('sub-zh-stock', 'sub-zh-stock-riwayat', document.querySelector('.sub-zh-stock-btn[data-target="sub-zh-stock-riwayat"]'));
+      if (window.bukaRiwayatHargaItem) window.bukaRiwayatHargaItem(item.id);
     }
 
-    // Pengganti paginasi.cariDenganDebounce di template: di tab INCOMPLETE
-    // pencarian disaring di JS, jadi tidak menembak Firestore tiap ketukan.
-    // paginasi.cariTeks tetap sumber kata kuncinya, cuma tidak memicu query.
+    // Pencarian disaring di JS (cocokCari: semua kata, di posisi mana pun, huruf
+    // besar/kecil bebas) atas daftarSemua; paginasi Firestore hanya dipakai
+    // saat kotak cari kosong.
     function cariInput(nilai) {
-      if (filterTab.value === 'INCOMPLETE') paginasi.cariTeks.value = nilai;
-      else paginasi.cariDenganDebounce(nilai);
+      const kosongSebelum = !paginasi.cariTeks.value.trim();
+      paginasi.cariTeks.value = nilai;
+      visibleCari.value = 20;
+      if (filterTab.value !== 'INCOMPLETE' && !nilai.trim() && !kosongSebelum) paginasi.cariDenganDebounce('');
     }
 
     async function muat() {
@@ -1568,18 +1459,15 @@ const BahanAksesorisListManager = {
       popupImportAktif, barisMentahImport, sedangImport,
       bukaTemplateBahanAksesoris, pancingFileBahanAksesoris, saatFileBahanAksesorisDipilih,
       tutupPopupImport, konfirmasiImportBahanAksesoris,
-      bolehCetak, popupPilihRollAktif, daftarLotUntukCetak, memuatLotCetak, lotDicentangCetak,
-      lotTercentangCetak, toggleSemuaLotCetak, itemUntukCetak,
-      popupCetakLabelAktif, daftarLabelPreview, bukaCetakLabel, lanjutCetakDariRoll, tutupPopupPilihRoll, saatCetakBerhasil,
-      riwayatCetakAktif, paginasiLogCetak, bukaRiwayatCetak, formatTanggalLogCetak,
-      idExpand, expandMemuat, expandLot, expandHarga, hargaDipilih, statusLot, toggleExpand, lihatKartuStok, errorExpand
+      modeCari,
+      idExpand, expandMemuat, expandLot, statusLot, toggleExpand, lihatKartuStok, lihatRiwayatHarga, errorExpand
     };
   },
   template: `
     <div style="display:flex; gap:10px; align-items:center; margin-bottom:12px; flex-wrap:wrap;">
       <div style="position:relative; flex:1; min-width:220px;">
         <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
-        <input :value="paginasi.cariTeks.value" @input="cariInput($event.target.value)" type="text" placeholder="Cari nama (awalan)..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
+        <input :value="paginasi.cariTeks.value" @input="cariInput($event.target.value)" type="text" placeholder="Cari nama, warna, jenis, atau ID..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
       </div>
       <!--
         Import/Template Excel, pola sama persis seperti "Import / Template Excel" di List Produk
@@ -1596,8 +1484,6 @@ const BahanAksesorisListManager = {
         </div>
       </div>
       <input ref="inputFileBahanAksesoris" type="file" accept=".xlsx,.xls" @change="saatFileBahanAksesorisDipilih" style="display:none;">
-      <!-- Riwayat Cetak Label. -->
-      <button v-if="bolehCetak" @click="bukaRiwayatCetak" type="button" class="btn-outline" style="font-size:12px;"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i>Riwayat Cetak Label</button>
     </div>
 
     <!-- Tab filter berbadge ganti dropdown "Semua Kategori" yang lama. -->
@@ -1611,8 +1497,8 @@ const BahanAksesorisListManager = {
     <p v-if="errorBadge" style="font-size:11px; color:var(--danger); margin:-8px 0 12px;">{{ errorBadge }}</p>
 
     <div v-if="sedangMemuatList && barisTampil.length === 0" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
-    <div v-else-if="filterTab !== 'INCOMPLETE' && paginasi.errorPaginasi.value" class="gc-card" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
-    <div v-else-if="barisTampil.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">{{ filterTab === 'INCOMPLETE' ? 'Semua data sudah lengkap.' : 'Belum ada data.' }}</div>
+    <div v-else-if="filterTab !== 'INCOMPLETE' && !modeCari && paginasi.errorPaginasi.value" class="gc-card" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasi.errorPaginasi.value }}</div>
+    <div v-else-if="barisTampil.length === 0" class="gc-card" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">{{ filterTab === 'INCOMPLETE' ? 'Semua data sudah lengkap.' : (modeCari ? 'Tidak ada yang cocok dengan kata cari.' : 'Belum ada data.') }}</div>
     <div v-else class="gc-table-scroll">
       <table class="gc-table" style="width:100%;">
         <thead>
@@ -1675,7 +1561,7 @@ const BahanAksesorisListManager = {
                 <template v-else>
                   <div style="display:grid; gap:16px;" class="grid-cols-1 md:grid-cols-2">
                     <div>
-                      <p style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase;"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i>Roll / Lot Aktif</p>
+                      <p style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase;"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i>Stok {{ formatQty(item.stok_akhir) }} {{ item.satuan_pemakaian || '' }} &middot; Roll / Lot Aktif</p>
                       <p v-if="!item.pakai_lot_tracking" style="font-size:11.5px; color:var(--text-faint);">Item ini tidak pakai tracking Roll/Lot.</p>
                       <p v-else-if="expandLot.length === 0" style="font-size:11.5px; color:var(--text-faint);">Belum ada roll/lot aktif tercatat.</p>
                       <div v-else style="display:flex; flex-wrap:wrap; gap:6px;">
@@ -1685,20 +1571,19 @@ const BahanAksesorisListManager = {
                       </div>
                     </div>
                     <div>
-                      <p style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase;"><i class="fas fa-clock-rotate-left" style="margin-right:6px;"></i>3 Harga Terakhir</p>
-                      <p v-if="expandHarga.length === 0" style="font-size:11.5px; color:var(--text-faint);">Belum ada riwayat pembelian tercatat untuk item ini.</p>
-                      <div v-else style="display:flex; flex-direction:column; gap:2px;">
-                        <label v-for="h in expandHarga" :key="h.id" style="display:flex; align-items:center; gap:8px; padding:5px 0; font-size:11.5px; cursor:pointer;">
-                          <input type="radio" :name="'harga-aktif-' + item.id" :value="h.id" v-model="hargaDipilih" style="accent-color:var(--burgundy); flex-shrink:0;">
-                          <span style="flex:1;">{{ formatRupiah(h.harga_per_satuan_pemakaian) }} / {{ h.satuan_pemakaian || item.satuan_pemakaian }}<span style="color:var(--text-faint);"> &middot; {{ h.tanggal || '-' }}<span v-if="h.suplayer_nama"> &middot; {{ h.suplayer_nama }}</span></span></span>
-                          <span v-if="hargaDipilih === h.id" class="tag ok" style="flex-shrink:0;">Aktif</span>
-                        </label>
+                      <p style="font-size:11px; font-weight:700; color:var(--text-muted); margin-bottom:8px; text-transform:uppercase;"><i class="fas fa-tag" style="margin-right:6px;"></i>Harga Aktif</p>
+                      <div style="display:grid; grid-template-columns:1fr 1fr; gap:4px 12px; font-size:11.5px;">
+                        <span style="color:var(--text-faint);">Pembelian</span><b>{{ formatRupiah(item.harga_pembelian) }} / {{ item.satuan_pembelian || '-' }}</b>
+                        <span style="color:var(--text-faint);">Modal</span><b>{{ formatRupiah(item.harga_modal) }} / {{ item.satuan_pemakaian || '-' }}</b>
+                        <span style="color:var(--text-faint);">Margin</span><b>{{ item.margin_modal || 0 }}%</b>
+                        <span style="color:var(--text-faint);">Pemakaian</span><b style="color:var(--burgundy);">{{ formatRupiah(item.harga_pemakaian) }}</b>
                       </div>
+                      <p style="font-size:10.5px; color:var(--text-faint); margin-top:6px;">Diatur di Stok &amp; Pembelian › Riwayat Harga.</p>
                     </div>
                   </div>
                   <div style="display:flex; gap:8px; margin-top:16px; flex-wrap:wrap;">
                     <button @click.stop="bukaEdit(item)" class="btn-outline" style="flex:1; min-width:120px; font-size:11.5px; padding:7px 12px;"><i class="fas fa-pen" style="margin-right:6px;"></i>Edit</button>
-                    <button v-if="bolehCetak" @click.stop="bukaCetakLabel(item)" class="btn-outline" style="flex:1; min-width:120px; font-size:11.5px; padding:7px 12px;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label</button>
+                    <button @click.stop="lihatRiwayatHarga(item)" class="btn-outline" style="flex:1; min-width:120px; font-size:11.5px; padding:7px 12px;"><i class="fas fa-tag" style="margin-right:6px;"></i>Atur Harga</button>
                     <button @click.stop="lihatKartuStok(item)" class="btn-outline" style="flex:1; min-width:120px; font-size:11.5px; padding:7px 12px;"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i>Lihat Kartu Stok</button>
                   </div>
                 </template>
@@ -1731,7 +1616,7 @@ const BahanAksesorisListManager = {
         </div>
         <div v-if="formEdit.foto" style="margin-bottom:12px;"><img :src="formEdit.foto" style="width:70px; height:70px; object-fit:cover; border-radius:10px; border:1.5px solid var(--line);"></div>
         <div v-if="!(formEdit.konversi_bertingkat && formEdit.konversi_bertingkat.length > 0)" style="display:grid; gap:10px;" class="grid-cols-1 md:grid-cols-4">
-          <div class="gc-field"><label>Harga Pembelian (Rp)</label><input v-model.number="formEdit.harga_pembelian" type="number" min="0"></div>
+          <div class="gc-field"><label>Harga Pembelian</label><input :value="formatRupiah(formEdit.harga_pembelian)" type="text" disabled></div>
           <div class="gc-field"><label>Satuan Pembelian</label><dropdown-cari v-model="formEdit.satuan_pembelian" :opsi="opsiSatuanEdit" placeholder="Cari & pilih Satuan..." /></div>
           <div class="gc-field">
             <label>Isi Konversi Pembelian</label>
@@ -1802,15 +1687,7 @@ const BahanAksesorisListManager = {
           <input v-model.number="formEdit.panjang_roll" type="number" min="0" placeholder="0">
         </div>
 
-        <!-- sama seperti Entry, Margin Modal SEKARANG PERSEN (%), bukan nominal Rupiah lagi. -->
-        <div class="gc-field" style="margin-top:16px;">
-          <label>Margin Modal (%)</label>
-          <div style="position:relative;">
-            <input v-model.number="formEdit.margin_modal" type="number" min="0" step="0.1" style="padding-right:34px;">
-            <span style="position:absolute; right:14px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:13px; font-weight:700; pointer-events:none;">%</span>
-          </div>
-          <p style="font-size:10px; color:var(--text-faint); margin-top:4px;">Persen dari Harga Modal (BUKAN Rupiah). <b>Data item LAMA</b> mungkin masih angka Rupiah peninggalan — cek &amp; betulkan manual kalau Harga Pemakaian di bawah terlihat tidak wajar.</p>
-        </div>
+        <p style="font-size:11px; color:var(--text-faint); margin:16px 0 0;"><i class="fas fa-circle-info" style="margin-right:5px;"></i>Harga &amp; margin ({{ formEdit.margin_modal || 0 }}%) hanya diubah di Stok &amp; Pembelian › Riwayat Harga.</p>
         <div style="background:var(--ivory-dim); border-radius:12px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:16px 0;">
           <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Modal (otomatis)</span><b>{{ formatRupiah(hargaModalEdit) }}</b></div>
           <div><span style="font-size:10.5px; color:var(--text-faint); display:block;">Harga Pemakaian (otomatis)</span><b style="color:var(--burgundy);">{{ formatRupiah(hargaPemakaianEdit) }}</b></div>
@@ -1836,77 +1713,6 @@ const BahanAksesorisListManager = {
       @tutup="tutupPopupImport"
       @konfirmasi="konfirmasiImportBahanAksesoris" />
 
-    <!-- Popup pilih roll/lot sebelum cetak, cuma untuk item 'pakai_lot_tracking'. Item
-      biasa langsung lompat ke popup-pratinjau-cetak-label di bawah (lihat bukaCetakLabel). -->
-    <div v-if="popupPilihRollAktif" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9998; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="tutupPopupPilihRoll">
-      <div class="gc-card" style="max-width:520px; width:100%; max-height:90vh; overflow-y:auto;">
-        <h3 style="font-weight:700; font-size:14px; margin-bottom:4px;">Pilih Roll/Lot untuk Dicetak</h3>
-        <p style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">{{ itemUntukCetak ? (itemUntukCetak.nama + (itemUntukCetak.warna ? ' ' + itemUntukCetak.warna : '')) : '' }} — item ini pakai Qty per Roll/Lot. Centang roll yang mau dicetak labelnya (termasuk yang sudah habis, kalau labelnya hilang dan mau dicetak ulang).</p>
-
-        <div v-if="memuatLotCetak" style="font-size:12px; color:var(--text-faint); padding:8px 0;">Memuat daftar roll/lot...</div>
-        <div v-else-if="daftarLotUntukCetak.length === 0" style="font-size:12px; color:var(--text-faint); padding:8px 0;">Belum ada roll/lot tercatat untuk item ini.</div>
-        <div v-else style="overflow-x:auto; margin-bottom:12px;">
-          <div style="margin-bottom:6px;">
-            <button @click="toggleSemuaLotCetak(true)" class="btn-outline" style="padding:4px 10px; font-size:11px; margin-right:6px;">Pilih Semua</button>
-            <button @click="toggleSemuaLotCetak(false)" class="btn-outline" style="padding:4px 10px; font-size:11px;">Kosongkan</button>
-          </div>
-          <table class="gc-table" style="width:100%; font-size:11.5px;">
-            <thead><tr><th style="width:32px;"></th><th>Kode Lot</th><th>Qty Sisa</th><th>Tanggal Masuk</th><th>Status</th></tr></thead>
-            <tbody>
-              <tr v-for="l in daftarLotUntukCetak" :key="l.id">
-                <td><input type="checkbox" v-model="lotDicentangCetak[l.id]" style="accent-color:var(--burgundy); width:14px; height:14px;"></td>
-                <td>{{ l.kode_lot }}</td>
-                <td>{{ l.qty_sisa ?? l.qty ?? '-' }}</td>
-                <td>{{ l.tanggal_masuk || '-' }}</td>
-                <td><span class="tag" :class="l.status === 'aktif' ? 'ok' : 'neutral'">{{ l.status === 'aktif' ? 'Aktif' : 'Habis' }}</span></td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div style="display:flex; gap:8px;">
-          <button @click="lanjutCetakDariRoll" :disabled="lotTercentangCetak.length === 0" class="btn-primary" style="flex:1;">Lanjut ke Pratinjau ({{ lotTercentangCetak.length }})</button>
-          <button @click="tutupPopupPilihRoll" type="button" class="btn-outline" style="flex:1;">Batal</button>
-        </div>
-      </div>
-    </div>
-
-    <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label" :daftar-label="daftarLabelPreview" jenis-cetak="label_bahan_aksesoris" @tutup="popupCetakLabelAktif = false" @cetak="saatCetakBerhasil" />
-
-    <!-- Riwayat Cetak Label, modal on-demand (lihat catatan di tombol toolbar-nya di atas). -->
-    <div v-if="riwayatCetakAktif" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9997; display:flex; align-items:flex-start; justify-content:center; padding:16px; overflow-y:auto;" @click.self="riwayatCetakAktif = false">
-      <div class="gc-card" style="max-width:560px; width:100%; margin:24px 0;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-          <h3 style="font-weight:700; font-size:14px;">Riwayat Cetak Label</h3>
-          <button @click="riwayatCetakAktif = false" style="background:none; border:none; color:var(--text-faint); font-size:16px; cursor:pointer;"><i class="fas fa-times"></i></button>
-        </div>
-        <div style="position:relative; max-width:320px; margin-bottom:12px;">
-          <i class="fas fa-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-faint); font-size:12px;"></i>
-          <input :value="paginasiLogCetak.cariTeks.value" @input="paginasiLogCetak.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama barang (awalan)..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
-        </div>
-        <div v-if="paginasiLogCetak.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
-        <div v-else-if="paginasiLogCetak.errorPaginasi.value" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasiLogCetak.errorPaginasi.value }}</div>
-        <div v-else-if="paginasiLogCetak.dataHalaman.value.length === 0" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Belum ada riwayat cetak label.</div>
-        <div v-else style="display:flex; flex-direction:column; gap:10px;">
-          <div v-for="r in paginasiLogCetak.dataHalaman.value" :key="r.id" class="gc-card" style="padding:14px;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:10px;">
-              <div style="font-weight:700; font-size:13.5px;">{{ r.nama_barang }}</div>
-              <span class="tag neutral" style="flex-shrink:0;">{{ r.jenis === 'roll' ? 'Roll/Lot' : 'Item' }}</span>
-            </div>
-            <div class="kartu-rows" style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px;">
-              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Tanggal</span><span style="font-weight:700;">{{ formatTanggalLogCetak(r.tanggal) }}</span></div>
-              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Jumlah Label</span><span style="font-weight:700;">{{ r.jumlah_label }}</span></div>
-              <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Dicetak Oleh</span><span style="font-weight:700;">{{ r.dicetak_oleh || '-' }}</span></div>
-            </div>
-          </div>
-        </div>
-        <div v-if="!paginasiLogCetak.memuat.value && paginasiLogCetak.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
-          <button class="icon-btn" :disabled="paginasiLogCetak.nomorHalaman.value <= 1" @click="paginasiLogCetak.halamanSebelumnya"><i class="fas fa-chevron-left"></i></button>
-          <span style="font-size:12px; color:var(--text-muted);">Halaman {{ paginasiLogCetak.nomorHalaman.value }}</span>
-          <button class="icon-btn" :disabled="!paginasiLogCetak.adaBerikutnya.value" @click="paginasiLogCetak.halamanBerikutnya"><i class="fas fa-chevron-right"></i></button>
-        </div>
-      </div>
-    </div>
   `
 };
 

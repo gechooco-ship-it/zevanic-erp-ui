@@ -20,7 +20,7 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas, CetakUlangLabelStok } from './vue-scan-cetak.js?v=10';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas, CetakUlangLabelStok } from './vue-scan-cetak.js?v=11';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
 
 // picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (dipakai Setuju/Tolak/Ajukan
