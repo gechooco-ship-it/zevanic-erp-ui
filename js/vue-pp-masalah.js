@@ -20,8 +20,9 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas, CetakUlangLabelStok } from './vue-scan-cetak.js?v=12';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=12';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
+import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=35';
 
 // picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (dipakai Setuju/Tolak/Ajukan
 // Belanja, WAJIB Owner/PIC Owner + popup PIN). Yang ini untuk "Scan Operator":
@@ -735,7 +736,7 @@ const MasalahPerluDisiapkan = {
 // baris yang sama, TIDAK rekursif membuat dokumen lain (lihat keputusan §5).
 
 const MasalahSedangDisiapkan = {
-  components: { ScanGenerik, ScanTerpaduGenerik, PopupPratinjauCetakLabel, CetakUlangLabelStok },
+  components: { ScanGenerik, ScanTerpaduGenerik, PopupPratinjauCetakLabel },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -802,20 +803,30 @@ const MasalahSedangDisiapkan = {
     const entryStok = buatScanEntryStok({
       pos: 'Persiapan Masalah', sumber: 'Scan Entry Persiapan Masalah',
       ambilBaris: () => itemEntry.value, kodeLabel: (d) => d.kode_msl,
-      bahanId: (d) => d.bahan_aksesoris_id, kebutuhan: (d) => parseFloat(d.qty_disetujui) || parseFloat(d.qty_kurang) || 0,
-      namaBahan: (d) => `${d.bahan_nama || ''} ${d.bahan_warna || ''}`.trim(), satuan: (d) => d.satuan || '',
+      bahanId: (d) => d.bahan_aksesoris_id, kebutuhan: (d) => d._kebutuhanStok,
+      namaBahan: (d) => `${d.bahan_nama || ''} ${d.bahan_warna || ''}`.trim(), satuan: (d) => d._satuanStok,
       jejak: (d) => ({ kode_baris: d.kode_msl, separating_id: d.separating_id || '', spk_track_id: d.spk_track_id || '' }),
       patchTrack: (d, patch) => ({ koleksi: 'persiapan_masalah', docId: d.id, field: null, patch: { ...patch, status: 'perlu_dikirim', masuk_tahap_pada: new Date().toISOString() } }),
       padaSelesai: async () => { itemEntry.value = null; await muat(); }
     });
-    function bukaEntry(d) { if (sedangProses[d.id]) return; itemEntry.value = d; entryStok.buka(); }
+    // Masalah bahan dicatat dalam meter; stok dipotong dalam satuan master.
+    async function bukaEntry(d) {
+      if (sedangProses[d.id]) return;
+      const qty = parseFloat(d.qty_disetujui) || parseFloat(d.qty_kurang) || 0;
+      const snap = await getDoc(doc(db, 'master_bahan_aksesoris', d.bahan_aksesoris_id));
+      const bahan = snap.exists() ? snap.data() : null;
+      const faktor = (!d.satuan || !bahan) ? 1 : faktorKeSatuanStok(bahan, d.satuan);
+      if (!faktor) { alert(`Konversi ${d.satuan} ke satuan stok bahan ini belum ada di Master Bahan & Aksesoris.`); return; }
+      d._kebutuhanStok = Math.round(qty * faktor * 100) / 100;
+      d._satuanStok = (faktor !== 1 && bahan && bahan.satuan_pemakaian) || d.satuan || '';
+      itemEntry.value = d; entryStok.buka();
+    }
 
     onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat, memuat, kelompokOperator, bolehProses, aksiAktif, sedangProses, formatQty, formatDiamSejak, tertahan, modalAksi, bukaAksi, tutupAksi, hasilScanAksi, entryStok, bukaEntry };
   },
   template: `
-    <cetak-ulang-label-stok pos="persiapan_masalah" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <div v-else-if="kelompokOperator.length === 0" class="gc-kosong gc-card">
@@ -1284,7 +1295,7 @@ const MasalahSelesai = {
             <span class="gc-num" style="font-weight:700; font-size:12px;">{{ d.kode_msl || d.id_order }}</span>
             <span class="tag" :class="keadaan(d)==='lengkap' ? 'ok' : 'warn'">{{ keadaan(d) }}</span>
           </div>
-          <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ d.bahan_nama }} {{ d.bahan_warna }} &middot; {{ formatQty(d.entry_qty) }} {{ d.satuan }}</div>
+          <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ d.bahan_nama }} {{ d.bahan_warna }} &middot; {{ formatQty(d.qty_disetujui || d.qty_kurang) }} {{ d.satuan }}</div>
           <div style="display:flex; gap:14px; font-size:10.5px;">
             <div><span style="color:var(--text-faint);">Entry:</span> <span class="gc-num">{{ formatWaktu(d.entry_pada) }}</span></div>
             <div><span style="color:var(--text-faint);">Sampai:</span> <span class="gc-num">{{ formatWaktu(d.sampai_pada) }}</span></div>

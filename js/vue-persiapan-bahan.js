@@ -6,8 +6,8 @@
 // Koleksi & field:
 // - spk_track (jalur=='bahan'), dibaca semua status dokumen. Isi kerjanya di
 //   array bahan_rincian[], 1 baris per (bahan x anak SPK): status, qty,
-//   kebutuhan_kain, masuk_tahap_pada, operator_uid, riwayat_operator[],
-//   entry_qty, kode_bagging, kode_tugas.
+//   kebutuhan_kain (meter), masuk_tahap_pada, operator_uid, riwayat_operator[],
+//   entry_qty (satuan stok master), kode_bagging, kode_tugas.
 // - Scan Entry: label bahan lalu Kode Lot / ID Item; stok, lot, ledger, baris
 //   dan log_scan ditulis catatScanEntryStok (vue-stock-pembelian.js).
 // - bagging, tugas_kirim, master_tlc, cetak_ulang_log: kemasan, kiriman
@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunInfoLabelAnakSpk } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah, CetakUlangLabelStok } from './vue-scan-cetak.js?v=12';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=12';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
 import { PanelGroupingBahan } from './vue-persiapan-produksi-v2.js?v=21';
 
@@ -39,7 +39,27 @@ function picOwnerKeAtas(userData) {
 // Format & hitung kecil
 function formatMeter(n) {
   const angka = parseFloat(n) || 0;
-  return angka.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' m';
+  return angka.toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' m';
+}
+// faktorKeSatuanStok — faktor dari satuan asal ke satuan stok bahan
+// (satuan_pemakaian). Urutan: satuan sama, rantai konversi_bertingkat,
+// isi_konversi_pembelian, lalu tabel panjang standar. null = tidak bisa.
+const PANJANG_CM = { M: 100, CM: 1, MM: 0.1, YARD: 91.44, YD: 91.44, INCH: 2.54 };
+function normSatuan(s) {
+  const u = String(s || '').trim().toUpperCase();
+  return ({ METER: 'M', MTR: 'M', CENTIMETER: 'CM', SENTIMETER: 'CM', MILIMETER: 'MM' })[u] || u;
+}
+export function faktorKeSatuanStok(bahan, satuanAsal) {
+  const asal = normSatuan(satuanAsal), dasar = normSatuan(bahan && bahan.satuan_pemakaian);
+  if (!dasar || asal === dasar) return 1;
+  const tingkat = Array.isArray(bahan.konversi_bertingkat) ? bahan.konversi_bertingkat : [];
+  const idx = tingkat.findIndex(t => normSatuan(t.dari) === asal);
+  if (idx !== -1 && normSatuan(tingkat[tingkat.length - 1].ke) === dasar) {
+    return tingkat.slice(idx).reduce((x, t) => x * (parseFloat(t.jumlah) || 1), 1);
+  }
+  if (!tingkat.length && normSatuan(bahan.satuan_pembelian) === asal && parseFloat(bahan.isi_konversi_pembelian) > 0) return parseFloat(bahan.isi_konversi_pembelian);
+  if (PANJANG_CM[asal] && PANJANG_CM[dasar]) return PANJANG_CM[asal] / PANJANG_CM[dasar];
+  return null;
 }
 function formatQty(n) {
   const angka = parseFloat(n) || 0;
@@ -165,6 +185,29 @@ function kodeLabelBahan(b) {
   return b.kode_baris || b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${b.kode_grouping_induk}-${b.bahan_aksesoris_id}`;
 }
 
+// bangunLabelBahan — dipakai jalur cetak (normal & ulang) DAN template kartu
+// di bawah, supaya kartu di layar & label fisik selalu identik. Sengaja
+// tanpa qrDataUrl (mahal per render) — pemanggil cetak menambah sendiri.
+// `rincian.lokasi_rak` tampil/tidak diatur rincian_aktif di Pengaturan Cetak.
+function bangunLabelBahan(b, opsi = {}) {
+  const kodeInduk = b.kode_grouping_induk;
+  const kodeLabel = kodeLabelBahan(b);
+  // b.nama_produk disalin dari level spk_track oleh daftarBarisDariTrack —
+  // SUDAH nama murni, BUKAN string komposit "Nama Warna Size" seperti
+  // order_spk.nama_produk.
+  const namaProduk = `${b.nama_produk || ''} ${b.produk_warna || ''}`.trim() || kodeInduk;
+  const baris3 = b.bahan_nama || '(tanpa nama bahan)';
+  // Tampilan kain selalu meter; potong stok dikonversi ke satuan master
+  // lewat faktorKeSatuanStok saat Scan Entry.
+  const baris4 = `${b.bahan_warna || '-'} &middot; ${formatMeter(b.kebutuhan_kain || 0)}`;
+  return {
+    kode: kodeLabel,
+    nama: namaProduk,
+    info: bangunInfoLabelAnakSpk([baris3, baris4], b.pelanggan_nama, opsi),
+    rincian: { lokasi_rak: b.rak_label || '' }
+  };
+}
+
 // kelompokKartuBahan — kelompokkan baris (sudah difilter status) jadi kartu per
 // bahan+pola; "butuh" = jumlah kebutuhan_kain kartu itu, kumulatif LINTAS SPK.
 // "stok" dikunci ke bahan_aksesoris_id MENTAH (stok fisik per bahan, bukan per
@@ -177,6 +220,7 @@ function kelompokKartuBahan(barisList, petaStokBahan) {
     const key = bahanId + '::' + (b.nama_pola || '');
     if (!peta[key]) {
       const info = petaStokBahan[bahanId] || {};
+      const faktorM = faktorKeSatuanStok(info, 'M');
       peta[key] = {
         kartuKey: key, bahanAksesorisId: bahanId, nama: b.bahan_nama, warna: b.bahan_warna,
         // namaProduk diambil dari baris pertama kartu — kartu ini pasti 1 pola
@@ -184,7 +228,10 @@ function kelompokKartuBahan(barisList, petaStokBahan) {
         // akurat per-produk ada di baris anak SPK masing-masing.
         namaProduk: b.nama_produk || '',
         namaPola: b.nama_pola, produkSize: b.produk_size,
-        stok: parseFloat(info.stok_akhir) || 0, rakId: info.rak_id || '',
+        // stok disetarakan ke meter (satuan kebutuhan_kain) supaya bisa dibanding
+        stok: faktorM ? (parseFloat(info.stok_akhir) || 0) / faktorM : 0,
+        konversiGagal: faktorM === null, satuanStok: info.satuan_pemakaian || '',
+        rakId: info.rak_id || '',
         butuh: 0, jumlahAnak: 0, baris: []
       };
     }
@@ -320,28 +367,6 @@ const PersiapanBahanPerluDisiapkan = {
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
     let _pendingCetak = [];
-    // bangunLabelBahan — dipakai jalur cetak (normal & ulang) DAN template kartu
-    // di bawah, supaya kartu di layar & label fisik selalu identik. Sengaja
-    // tanpa qrDataUrl (mahal per render) — pemanggil cetak menambah sendiri.
-    // `rincian.lokasi_rak` tampil/tidak diatur rincian_aktif di Pengaturan Cetak.
-    function bangunLabelBahan(b, opsi = {}) {
-      const kodeInduk = b.kode_grouping_induk;
-      const kodeLabel = kodeLabelBahan(b);
-      // b.nama_produk disalin dari level spk_track oleh daftarBarisDariTrack —
-      // SUDAH nama murni, BUKAN string komposit "Nama Warna Size" seperti
-      // order_spk.nama_produk.
-      const namaProduk = `${b.nama_produk || ''} ${b.produk_warna || ''}`.trim() || kodeInduk;
-      const baris3 = b.bahan_nama || '(tanpa nama bahan)';
-      // formatMeter SUDAH menambahkan satuan " m" di belakang angka, jadi tidak
-      // perlu field satuan terpisah (Bahan/kain SELALU diukur meter).
-      const baris4 = `${b.bahan_warna || '-'} &middot; ${formatMeter(b.kebutuhan_kain || 0)}`;
-      return {
-        kode: kodeLabel,
-        nama: namaProduk,
-        info: bangunInfoLabelAnakSpk([baris3, baris4], b.pelanggan_nama, opsi),
-        rincian: { lokasi_rak: b.rak_label || '' }
-      };
-    }
     // bangunPreviewDariBaris — 1 label = 1 ANAK SPK, TIDAK PERNAH digabung (tiap
     // anak SPK dilacak sendiri saat pack/unpack/kirim/sampai/operator). Beda dari
     // kartu di layar (kelompokKartuBahan) yang boleh menggabung banyak anak SPK.
@@ -563,6 +588,8 @@ const PersiapanBahanPerluDisiapkan = {
                 warna bahan (+rak). -->
               <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ k.namaProduk || '(tanpa nama produk)' }} <span style="color:var(--text-faint); font-weight:600;">size {{ k.produkSize || '-' }}</span></div>
               <div style="font-size:11px; color:var(--text-faint); margin-top:2px;">{{ k.nama }} <span style="font-weight:600;">{{ k.warna }}</span> &middot; rak {{ k.rakId || '-' }}</div>
+              <div v-if="k.namaPola" style="font-size:11px; font-weight:700; color:var(--burgundy); margin-top:2px;">Pola: {{ k.namaPola }}</div>
+              <div v-if="k.konversiGagal" style="font-size:10.5px; color:var(--danger); margin-top:2px;">Konversi meter ke {{ k.satuanStok || 'satuan stok' }} belum ada di master bahan — stok dianggap 0.</div>
             </div>
           </div>
 
@@ -592,6 +619,7 @@ const PersiapanBahanPerluDisiapkan = {
                 <div class="gc-num" style="font-weight:700;">{{ bangunLabelBahan(b).kode }}</div>
                 <div style="font-weight:600;">{{ bangunLabelBahan(b).nama }}</div>
                 <div style="color:var(--text-faint);" v-html="bangunLabelBahan(b).info"></div>
+                <div v-if="b.amparan" style="font-size:10px; color:var(--text-faint);">{{ b.kode_separating || b.id_order }} &middot; qty {{ b.qty }} &divide; isi {{ b.isi_pola_pcs }} = {{ b.amparan }} amparan &times; {{ b.panjang_pola }} cm</div>
               </div>
               <span v-if="b.label_cetak_pada" class="tag ok" style="margin-left:6px; flex-shrink:0;">sudah dicetak</span>
               <span v-else-if="b.catatan_masalah" class="tag warn" style="margin-left:6px; flex-shrink:0;">sudah diminta</span>
@@ -658,7 +686,7 @@ const PersiapanBahanPerluDisiapkan = {
 // trackId, syaratnya lihat siapBatch di bawah.
 
 const PersiapanBahanSedangDisiapkan = {
-  components: { ScanGenerik, ScanTerpaduGenerik, PopupPratinjauCetakLabel, CetakUlangLabelStok },
+  components: { ScanGenerik, ScanTerpaduGenerik, PopupPratinjauCetakLabel, PopupPinGenerik },
   setup() {
     const memuat = ref(true);
     const daftarTrack = ref([]);
@@ -667,6 +695,7 @@ const PersiapanBahanSedangDisiapkan = {
     const menuId = 'pp_bahan';
     const MY_TARGET = 'sub-pp-bahan-sedangdisiapkan';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
+    const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
 
     async function muat() {
       memuat.value = true;
@@ -690,7 +719,7 @@ const PersiapanBahanSedangDisiapkan = {
         const key = b.operator_uid || b.operator_nama || '-';
         if (!peta[key]) peta[key] = { operatorNama: b.operator_nama || '(tanpa nama)', kelompokSpk: {} };
         const spkKey = b._trackId;
-        if (!peta[key].kelompokSpk[spkKey]) peta[key].kelompokSpk[spkKey] = { trackId: spkKey, kodeSpk: b.kode_grouping_induk, baris: [] };
+        if (!peta[key].kelompokSpk[spkKey]) peta[key].kelompokSpk[spkKey] = { trackId: spkKey, kodeSpk: b.kode_grouping_induk, produk: ((b.nama_produk || '') + ' ' + (b.produk_warna || '')).trim(), baris: [] };
         peta[key].kelompokSpk[spkKey].baris.push(b);
       });
       return Object.values(peta).map(op => {
@@ -794,15 +823,63 @@ const PersiapanBahanSedangDisiapkan = {
     const entryStok = buatScanEntryStok({
       pos: 'Persiapan Bahan', sumber: 'Scan Entry Persiapan Bahan',
       ambilBaris: () => barisEntry.value, kodeLabel: kodeLabelBahan,
-      bahanId: (b) => b.bahan_aksesoris_id, kebutuhan: (b) => parseFloat(b.kebutuhan_kain) || 0,
-      namaBahan: (b) => `${b.bahan_nama || ''} ${b.bahan_warna || ''}`.trim(), satuan: () => 'm',
+      bahanId: (b) => b.bahan_aksesoris_id, kebutuhan: (b) => b._kebutuhanStok,
+      namaBahan: (b) => `${b.bahan_nama || ''} ${b.bahan_warna || ''}`.trim(), satuan: (b) => b._satuanStok,
       jejak: (b) => ({ kode_baris: kodeLabelBahan(b), separating_id: b.separating_id || '', spk_track_id: b._trackId }),
       patchTrack: (b, patch) => ({ docId: b._trackId, field: 'bahan_rincian', lineIdx: b._lineIdx, patch }),
       padaSelesai: async () => { barisEntry.value = null; await muat(); }
     });
-    function bukaEntry(b) {
+    // kebutuhan_kain tersimpan dalam meter; stok dipotong dalam satuan master
+    // (mis. 2,3 m -> 230 CM) sesuai konversi di master bahan.
+    async function bukaEntry(b) {
       if (sedangProses[barisKey(b)]) return;
+      const snap = await getDoc(doc(db, 'master_bahan_aksesoris', b.bahan_aksesoris_id));
+      const bahan = snap.exists() ? snap.data() : null;
+      const faktor = bahan ? faktorKeSatuanStok(bahan, 'M') : null;
+      if (!faktor) { alert('Konversi meter ke satuan stok bahan ini belum ada di Master Bahan & Aksesoris. Lengkapi konversinya dulu.'); return; }
+      b._kebutuhanStok = Math.round((parseFloat(b.kebutuhan_kain) || 0) * faktor * 100) / 100;
+      b._satuanStok = bahan.satuan_pemakaian || 'm';
       barisEntry.value = b; entryStok.buka();
+    }
+
+    // Cetak ulang label bahan yang hilang/rusak setelah baris pindah ke tahap
+    // ini. Pola sama dengan Perlu Disiapkan: centang, alasan, PIN, dicatat di
+    // cetak_ulang_log. Tidak mengubah data baris.
+    const popupCetakUlang = ref(null); // { grup, alasan, pilihan: {barisKey: boolean} }
+    const pinCetakUlangAktif = ref(false);
+    const popupCetakAktif = ref(false);
+    const daftarLabelPreview = ref([]);
+    function bukaCetakUlang(g) { popupCetakUlang.value = { grup: g, alasan: '', pilihan: {} }; }
+    function barisTerpilihCetakUlang() {
+      const p = popupCetakUlang.value;
+      return p ? p.grup.baris.filter(b => p.pilihan[barisKey(b)]) : [];
+    }
+    function lanjutCetakUlang() {
+      const p = popupCetakUlang.value;
+      if (!p) return;
+      if (!p.alasan.trim()) { alert('Alasan cetak ulang wajib diisi.'); return; }
+      if (!barisTerpilihCetakUlang().length) { alert('Pilih minimal 1 label yang mau dicetak ulang.'); return; }
+      pinCetakUlangAktif.value = true;
+    }
+    async function pinCetakUlangSukses(user) {
+      pinCetakUlangAktif.value = false;
+      const p = popupCetakUlang.value;
+      const terpilih = barisTerpilihCetakUlang();
+      if (!p || !terpilih.length) { popupCetakUlang.value = null; return; }
+      try {
+        await addDoc(collection(db, 'cetak_ulang_log'), {
+          kode_grouping_induk: p.grup.kodeSpk,
+          bahan: [...new Set(terpilih.map(b => `${b.bahan_nama || ''} ${b.bahan_warna || ''}`.trim()))].join(', '),
+          alasan: p.alasan.trim(), pin_oleh: user.nama || user.email || '',
+          pada: serverTimestamp()
+        });
+      } catch (e) { console.error('Gagal catat cetak_ulang_log:', e); }
+      daftarLabelPreview.value = terpilih.map(b => {
+        const lbl = bangunLabelBahan(b, { cetakUlang: true });
+        return { ...lbl, qrDataUrl: buatQrDataUrl(lbl.kode) };
+      });
+      popupCetakUlang.value = null;
+      popupCetakAktif.value = true;
     }
 
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await pastikanCachePilihanScan(); await muat(); });
@@ -812,11 +889,11 @@ const PersiapanBahanSedangDisiapkan = {
       formatMeter, formatQty, formatDiamSejak, tertahan, barisKey,
       modalAksi, bukaAksi, tutupAksi, hasilScanAksi, entryStok, bukaEntry,
       popupMasalah, batalMasalah, konfirmasiMasalah, bukaMasalahBaris,
+      bolehCetak, popupCetakUlang, pinCetakUlangAktif, popupCetakAktif, daftarLabelPreview, bukaCetakUlang, barisTerpilihCetakUlang, lanjutCetakUlang, pinCetakUlangSukses, kodeLabelBahan,
       TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET
     };
   },
   template: `
-    <cetak-ulang-label-stok pos="persiapan_bahan" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
@@ -850,6 +927,7 @@ const PersiapanBahanSedangDisiapkan = {
           <div v-for="g in op.kelompokSpk" :key="g.trackId" style="border:1px solid var(--line); border-radius:14px; padding:10px;" :style="{ background: g.siap ? 'var(--ok-light)' : 'transparent' }">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
               <span class="gc-num" style="font-weight:700; font-size:12px;">{{ g.kodeSpk }}</span>
+              <button v-if="bolehCetak" @click="bukaCetakUlang(g)" class="btn-outline" style="flex:0 0 auto; margin-left:auto; padding:5px 9px; font-size:10.5px; color:var(--warn); border-color:var(--warn);" title="Cetak ulang label yang hilang/rusak"><i class="fas fa-rotate"></i></button>
               <span class="tag" :class="g.siap ? 'ok' : 'neutral'">{{ g.siap ? 'siap Disiapkan' : (g.baris.filter(b => b.entry_qty || b.entry_qty===0).length + '/' + g.baris.length + ' entry') }}</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
@@ -859,7 +937,7 @@ const PersiapanBahanSedangDisiapkan = {
                   <span v-if="b.entry_qty || b.entry_qty===0" class="tag ok">sudah entry</span>
                   <span v-else class="tag" :class="tertahan(b.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(b.masuk_tahap_pada) }}</span>
                 </div>
-                <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ b.bahan_nama }} {{ b.bahan_warna }} &middot; {{ formatMeter(b.kebutuhan_kain) }} &middot; {{ b.kode_separating || b.id_order }}</div>
+                <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ b.bahan_nama }} {{ b.bahan_warna }} &middot; {{ formatMeter(b.kebutuhan_kain) }} &middot; {{ b.kode_separating || b.id_order }}<span v-if="b.nama_pola"> &middot; pola {{ b.nama_pola }}</span></div>
                 <div v-if="b.catatan_masalah" style="font-size:10.5px; color:var(--danger); background:var(--danger-light); border-radius:8px; padding:5px 8px; margin-bottom:6px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ b.catatan_masalah }}</div>
                 <div v-if="bolehProses && !(b.entry_qty || b.entry_qty===0)" style="display:flex; gap:6px;">
                   <button v-if="aksiAktif(MY_TARGET,'entry_bahan')" @click="bukaEntry(b)" :disabled="sedangProses[barisKey(b)]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
@@ -895,6 +973,26 @@ const PersiapanBahanSedangDisiapkan = {
         </div>
       </div>
     </div>
+
+    <div v-if="popupCetakUlang" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;"><i class="fas fa-rotate" style="margin-right:8px; color:var(--warn);"></i>Cetak Ulang Label</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin:0 0 10px;">{{ popupCetakUlang.grup.kodeSpk }} — centang label yang hilang/rusak, dicatat di riwayat cetak ulang.</p>
+        <div style="display:flex; flex-direction:column; gap:4px; max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:12px; padding:8px; margin-bottom:12px;">
+          <label v-for="b in popupCetakUlang.grup.baris" :key="barisKey(b)" style="display:flex; align-items:center; gap:8px; font-size:11px; padding:4px 2px;">
+            <input type="checkbox" v-model="popupCetakUlang.pilihan[barisKey(b)]">
+            <span>{{ b.bahan_nama }} {{ b.bahan_warna }} · <span class="gc-num" style="font-weight:700;">{{ kodeLabelBahan(b) }}</span></span>
+          </label>
+        </div>
+        <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupCetakUlang.alasan" type="text" placeholder="Mis. label rusak/hilang"></div>
+        <div style="display:flex; gap:8px;">
+          <button @click="popupCetakUlang = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+          <button @click="lanjutCetakUlang" :disabled="!barisTerpilihCetakUlang().length" class="btn-primary" style="flex:1; padding:9px;">Lanjut Verifikasi PIN</button>
+        </div>
+      </div>
+    </div>
+    <popup-pin-generik v-if="pinCetakUlangAktif" judul="Verifikasi PIN — Cetak Ulang Label" konteks="Persiapan Bahan - Cetak Ulang Label" @sukses="pinCetakUlangSukses" @batal="pinCetakUlangAktif = false" />
+    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Ulang Label Bahan" :daftar-label="daftarLabelPreview" jenis-cetak="label_spk_bahan" @tutup="popupCetakAktif = false" />
   `
 };
 
@@ -1330,7 +1428,7 @@ const PersiapanBahanSelesai = {
     const selesaiHariIni = computed(() => semuaSelesai.value.filter(b => hariIniSama(b.sampai_pada)));
     const kpi = computed(() => {
       const list = selesaiHariIni.value;
-      const kainTerpakai = list.reduce((s, b) => s + (parseFloat(b.entry_qty) || 0), 0);
+      const kainTerpakai = list.reduce((s, b) => s + (parseFloat(b.kebutuhan_kain) || 0), 0); // meter; entry_qty dalam satuan stok
       const siklusList = list.map(siklusJam).filter(j => j !== null);
       const rataSiklus = siklusList.length ? (siklusList.reduce((a, b) => a + b, 0) / siklusList.length) : null;
       const terpaksaKurang = list.filter(b => !!b.catatan_masalah).length;

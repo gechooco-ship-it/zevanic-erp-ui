@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=15';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah, CetakUlangLabelStok } from './vue-scan-cetak.js?v=12';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=12';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier
@@ -138,7 +138,7 @@ async function updateBarisFinishing(trackId, lineIdx, patchFn) {
   });
 }
 // updateBarisFinishingMassal — BEDA dari versi 1-baris milik Bahan: patch SEMUA
-// elemen array yang lolos matchFn dalam SATU transaksi. Perlu karena "1 kartu =
+// elemen yang lolos matchFn(elemen, index) dalam SATU transaksi. Perlu karena "1 kartu =
 // 1 SPK Grouping", jadi 1 scan Tunjuk/Pack/Kirim bisa menandai banyak baris
 // komponen sekaligus (semua komponen 1 anak SPK, atau semua ber-kode_bagging sama).
 async function updateBarisFinishingMassal(trackId, matchFn, patchFn) {
@@ -149,7 +149,7 @@ async function updateBarisFinishingMassal(trackId, matchFn, patchFn) {
     if (!snap.exists()) throw new Error('SPK Track tidak ditemukan (mungkin sudah dihapus).');
     const arr = Array.isArray(snap.data()[FIELD_RINCIAN]) ? [...snap.data()[FIELD_RINCIAN]] : [];
     for (let i = 0; i < arr.length; i++) {
-      if (matchFn(arr[i])) { arr[i] = { ...arr[i], ...patchFn(arr[i]) }; kena++; }
+      if (matchFn(arr[i], i)) { arr[i] = { ...arr[i], ...patchFn(arr[i]) }; kena++; }
     }
     if (kena === 0) return;
     trx.update(refTrack, { [FIELD_RINCIAN]: arr, diperbarui_pada: serverTimestamp() });
@@ -326,13 +326,12 @@ const PersiapanFinishingPerluDisiapkan = {
         // transaksi terpisah per baris.
         const byTrack = {};
         _pendingCetak.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
-        // matchFn lama `(b, i) => idxSet.has(i)` TIDAK PERNAH benar:
-        // updateBarisFinishingMassal cuma memanggil matchFn(arr[i]) TANPA index
-        // kedua, jadi `i` selalu undefined dan baris TIDAK PERNAH tertandai .
-        // Diganti matching by value (id_order).
+        // Tandai per INDEX baris yang benar-benar dicetak — semua baris 1 kit
+        // punya id_order/kode_kit sama, jadi pencocokan by value ikut menandai
+        // baris yang stoknya belum ada.
         await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
-          const noSpkSet = new Set(barisGrup.map(b => b.id_order));
-          return updateBarisFinishingMassal(trackId, (x) => noSpkSet.has(x.id_order), () => ({ label_cetak_pada: now }));
+          const idxSet = new Set(barisGrup.map(b => b._lineIdx));
+          return updateBarisFinishingMassal(trackId, (x, i) => idxSet.has(i) && !x.label_cetak_pada, () => ({ label_cetak_pada: now }));
         }));
       } catch (e) { console.error('Gagal catat label_cetak_pada:', e); }
       _pendingCetak = [];
@@ -624,7 +623,7 @@ const PersiapanFinishingPerluDisiapkan = {
 // sudah sedang_disiapkan DAN ber-entry_qty. Scan Masalah: tlc_asal='TLC-FIN', jalur 'finishing'.
 
 const PersiapanFinishingSedangDisiapkan = {
-  components: { ScanGenerik, ScanTerpaduGenerik, PopupPratinjauCetakLabel, CetakUlangLabelStok },
+  components: { ScanGenerik, ScanTerpaduGenerik, PopupPratinjauCetakLabel, PopupPinGenerik },
   setup() {
     const memuat = ref(true);
     const daftarTrack = ref([]);
@@ -632,6 +631,7 @@ const PersiapanFinishingSedangDisiapkan = {
     const sedangProsesBatch = reactive({});
     const MY_TARGET = 'sub-pp-finishing-sedangdisiapkan';
     const bolehProses = computed(() => window.cekIzinMenu(MENU_ID, 'edit') !== false);
+    const bolehCetak = computed(() => window.cekIzinMenu(MENU_ID, 'print') !== false);
 
     async function muat() {
       memuat.value = true;
@@ -762,6 +762,45 @@ const PersiapanFinishingSedangDisiapkan = {
       patchTrack: (b, patch) => ({ docId: b._trackId, field: FIELD_RINCIAN, lineIdx: b._lineIdx, patch }),
       padaSelesai: async () => { barisEntry.value = null; await muat(); }
     });
+    // Cetak ulang label kit yang hilang/rusak setelah baris pindah ke tahap ini.
+    // Pola sama dengan cetak ulang di Perlu Disiapkan: centang baris, alasan,
+    // PIN, dicatat di cetak_ulang_log. Tidak mengubah data baris.
+    const popupCetakUlang = ref(null); // { grup, alasan, pilihan: {barisKey: boolean} }
+    const pinCetakUlangAktif = ref(false);
+    const popupCetakAktif = ref(false);
+    const daftarLabelPreview = ref([]);
+    function bukaCetakUlang(g) { popupCetakUlang.value = { grup: g, alasan: '', pilihan: {} }; }
+    function barisTerpilihCetakUlang() {
+      const p = popupCetakUlang.value;
+      return p ? p.grup.baris.filter(b => p.pilihan[barisKey(b)]) : [];
+    }
+    function lanjutCetakUlang() {
+      const p = popupCetakUlang.value;
+      if (!p) return;
+      if (!p.alasan.trim()) { alert('Alasan cetak ulang wajib diisi.'); return; }
+      if (!barisTerpilihCetakUlang().length) { alert('Pilih minimal 1 label yang mau dicetak ulang.'); return; }
+      pinCetakUlangAktif.value = true;
+    }
+    async function pinCetakUlangSukses(user) {
+      pinCetakUlangAktif.value = false;
+      const p = popupCetakUlang.value;
+      const terpilih = barisTerpilihCetakUlang();
+      if (!p || !terpilih.length) { popupCetakUlang.value = null; return; }
+      try {
+        await addDoc(collection(db, 'cetak_ulang_log'), {
+          kode_grouping_induk: p.grup.kodeSpk, bahan: p.grup.produk,
+          alasan: p.alasan.trim(), pin_oleh: user.nama || user.email || '',
+          pada: serverTimestamp()
+        });
+      } catch (e) { console.error('Gagal catat cetak_ulang_log:', e); }
+      daftarLabelPreview.value = terpilih.map(b => {
+        const lbl = bangunLabelAksesoris(b, formatQty, { cetakUlang: true });
+        return { ...lbl, qrDataUrl: buatQrDataUrl(lbl.kode) };
+      });
+      popupCetakUlang.value = null;
+      popupCetakAktif.value = true;
+    }
+
     function bukaEntry(b) {
       if (sedangProses[barisKey(b)]) return;
       barisEntry.value = b; entryStok.buka();
@@ -774,11 +813,11 @@ const PersiapanFinishingSedangDisiapkan = {
       formatQty, formatDiamSejak, tertahan, barisKey, aksiAktif,
       modalAksi, bukaAksi, tutupAksi, hasilScanAksi, entryStok, bukaEntry,
       popupMasalah, batalMasalah, konfirmasiMasalah, bukaMasalahBaris,
+      bolehCetak, popupCetakUlang, pinCetakUlangAktif, popupCetakAktif, daftarLabelPreview, bukaCetakUlang, barisTerpilihCetakUlang, lanjutCetakUlang, pinCetakUlangSukses, bangunLabelAksesoris,
       TAB_DEFS_FINISHING, gantiTabPill, MY_TARGET
     };
   },
   template: `
-    <cetak-ulang-label-stok pos="persiapan_finishing" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
@@ -812,6 +851,7 @@ const PersiapanFinishingSedangDisiapkan = {
           <div v-for="g in op.kelompokSpk" :key="g.trackId" style="border:1px solid var(--line); border-radius:14px; padding:10px;" :style="{ background: g.siap ? 'var(--ok-light)' : 'transparent' }">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
               <div style="min-width:0;"><div class="gc-num" style="font-weight:700; font-size:12px;">{{ g.kodeSpk }}</div><div style="font-weight:700; font-size:13px; color:var(--burgundy);">Untuk: {{ g.produk || '-' }}</div><div style="font-size:10.5px; color:var(--text-faint);">{{ g.idOrder }}<span v-if="g.pelanggan"> &middot; {{ g.pelanggan }}</span></div></div>
+              <button v-if="bolehCetak" @click="bukaCetakUlang(g)" class="btn-outline" style="flex:0 0 auto; margin-left:auto; padding:5px 9px; font-size:10.5px; color:var(--warn); border-color:var(--warn);" title="Cetak ulang label yang hilang/rusak"><i class="fas fa-rotate"></i></button>
               <span class="tag" :class="g.siap ? 'ok' : 'neutral'">{{ g.siap ? 'siap Disiapkan' : (g.baris.filter(b => b.entry_qty || b.entry_qty===0).length + '/' + g.baris.length + ' entry') }}</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
@@ -857,6 +897,26 @@ const PersiapanFinishingSedangDisiapkan = {
         </div>
       </div>
     </div>
+
+    <div v-if="popupCetakUlang" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;"><i class="fas fa-rotate" style="margin-right:8px; color:var(--warn);"></i>Cetak Ulang Label</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin:0 0 10px;">{{ popupCetakUlang.grup.kodeSpk }} — centang label yang hilang/rusak, dicatat di riwayat cetak ulang.</p>
+        <div style="display:flex; flex-direction:column; gap:4px; max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:12px; padding:8px; margin-bottom:12px;">
+          <label v-for="b in popupCetakUlang.grup.baris" :key="barisKey(b)" style="display:flex; align-items:center; gap:8px; font-size:11px; padding:4px 2px;">
+            <input type="checkbox" v-model="popupCetakUlang.pilihan[barisKey(b)]">
+            <span>{{ b.nama_aksesoris }} {{ b.warna }} · <span class="gc-num" style="font-weight:700;">{{ bangunLabelAksesoris(b, formatQty).kode }}</span></span>
+          </label>
+        </div>
+        <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupCetakUlang.alasan" type="text" placeholder="Mis. label rusak/hilang"></div>
+        <div style="display:flex; gap:8px;">
+          <button @click="popupCetakUlang = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+          <button @click="lanjutCetakUlang" :disabled="!barisTerpilihCetakUlang().length" class="btn-primary" style="flex:1; padding:9px;">Lanjut Verifikasi PIN</button>
+        </div>
+      </div>
+    </div>
+    <popup-pin-generik v-if="pinCetakUlangAktif" judul="Verifikasi PIN — Cetak Ulang Label" konteks="Acc Finishing - Cetak Ulang Label" @sukses="pinCetakUlangSukses" @batal="pinCetakUlangAktif = false" />
+    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Ulang Label Anak SPK" :daftar-label="daftarLabelPreview" jenis-cetak="label_spk_acc_finishing" @tutup="popupCetakAktif = false" />
   `
 };
 
@@ -1016,7 +1076,7 @@ const PersiapanFinishingPerluDikirim = {
       try {
         // matchFn value-based .
         const hasil = await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
-          return updateBarisFinishingMassal(trackId, (x) => kodeLabelAcc(x) === kode && !x.kode_bagging, () => ({ kode_bagging: modalPack.bagging.kode }));
+          return updateBarisFinishingMassal(trackId, (x) => kodeLabelAcc(x) === kode && !x.kode_bagging && x.status === 'perlu_dikirim', () => ({ kode_bagging: modalPack.bagging.kode }));
         }));
         if (hasil.every(k => k === 0)) { alert(`Kode "${kode}" cocok di layar tapi GAGAL disimpan ke database. Muat ulang halaman lalu coba lagi.`); return; }
         const patchBagging = { isi: arrayUnion(kode) };
