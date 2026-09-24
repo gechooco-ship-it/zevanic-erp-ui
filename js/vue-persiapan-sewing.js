@@ -647,7 +647,7 @@ const PersiapanSewingSedangDisiapkan = {
         const key = b.operator_uid || b.operator_nama || '-';
         if (!peta[key]) peta[key] = { operatorNama: b.operator_nama || '(tanpa nama)', kelompokSpk: {} };
         const spkKey = b._trackId;
-        if (!peta[key].kelompokSpk[spkKey]) peta[key].kelompokSpk[spkKey] = { trackId: spkKey, kodeSpk: b.kode_kit || b.kode_grouping_induk, baris: [] };
+        if (!peta[key].kelompokSpk[spkKey]) peta[key].kelompokSpk[spkKey] = { trackId: spkKey, kodeSpk: b.kode_kit || b.kode_grouping_induk, produk: ((b.nama_produk || '') + ' ' + (b.produk_warna || '')).trim(), idOrder: b.id_order || '', pelanggan: b.pelanggan_nama || '', baris: [] };
         peta[key].kelompokSpk[spkKey].baris.push(b);
       });
       return Object.values(peta).map(op => {
@@ -805,17 +805,17 @@ const PersiapanSewingSedangDisiapkan = {
         <div style="display:flex; flex-direction:column; gap:10px;">
           <div v-for="g in op.kelompokSpk" :key="g.trackId" style="border:1px solid var(--line); border-radius:14px; padding:10px;" :style="{ background: g.siap ? 'var(--ok-light)' : 'transparent' }">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;">
-              <span class="gc-num" style="font-weight:700; font-size:12px;">{{ g.kodeSpk }}</span>
+              <div style="min-width:0;"><div class="gc-num" style="font-weight:700; font-size:12px;">{{ g.kodeSpk }}</div><div style="font-weight:700; font-size:13px; color:var(--burgundy);">Untuk: {{ g.produk || '-' }}</div><div style="font-size:10.5px; color:var(--text-faint);">{{ g.idOrder }}<span v-if="g.pelanggan"> &middot; {{ g.pelanggan }}</span></div></div>
               <span class="tag" :class="g.siap ? 'ok' : 'neutral'">{{ g.siap ? 'siap Disiapkan' : (g.baris.filter(b => b.entry_qty || b.entry_qty===0).length + '/' + g.baris.length + ' entry') }}</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
               <div v-for="b in g.baris" :key="barisKey(b)" style="border:1px solid var(--line); border-radius:12px; padding:8px;" :style="{ background: tertahan(b.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
                 <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:4px;">
-                  <span class="gc-num" style="font-weight:700; font-size:11.5px;">{{ b.id_order }}</span>
+                  <span style="font-weight:700; font-size:12px;">{{ b.nama_aksesoris }} {{ b.warna }}</span>
                   <span v-if="b.entry_qty || b.entry_qty===0" class="tag ok">sudah entry</span>
                   <span v-else class="tag" :class="tertahan(b.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(b.masuk_tahap_pada) }}</span>
                 </div>
-                <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ b.nama_aksesoris }} {{ b.warna }} &middot; {{ formatQty(b.butuh) }} {{ b.satuan }} &middot; {{ b.nama_produk }}</div>
+                <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ formatQty(b.butuh) }} {{ b.satuan }}</div>
                 <div v-if="b.catatan_masalah" style="font-size:10.5px; color:var(--danger); background:var(--danger-light); border-radius:8px; padding:5px 8px; margin-bottom:6px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ b.catatan_masalah }}</div>
                 <div v-if="bolehProses && !(b.entry_qty || b.entry_qty===0)" style="display:flex; gap:6px;">
                   <button v-if="aksiAktif(MY_TARGET,'entry_sewing')" @click="bukaEntry(b)" :disabled="sedangProses[barisKey(b)]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
@@ -1116,7 +1116,7 @@ const PersiapanSewingPerluDikirim = {
           <div class="gc-heading" style="font-weight:700; font-size:12.5px; margin-bottom:8px;">{{ g.label }}</div>
           <div style="display:flex; flex-direction:column; gap:6px;">
             <div v-for="b in g.baris" :key="barisKey(b)" style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(b.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
-              <span class="gc-num" style="font-weight:700;">{{ b.id_order }}</span>
+              <span style="font-weight:700;">{{ ((b.nama_produk || '') + ' ' + (b.produk_warna || '')).trim() || b.id_order }}</span>
               <span style="color:var(--text-faint);">{{ b.nama_aksesoris }} {{ b.warna }}</span>
               <span v-if="b.kode_bagging" class="tag ok">{{ b.kode_bagging }}</span>
               <span v-else class="tag neutral">belum di-pack</span>
@@ -1229,7 +1229,7 @@ const PersiapanSewingSedangDikirim = {
         </div>
         <div style="display:flex; flex-direction:column; gap:5px;">
           <div v-for="b in g.baris" :key="barisKey(b)" style="display:flex; justify-content:space-between; gap:8px; font-size:11px;">
-            <span class="gc-num" style="font-weight:700;">{{ b.id_order }}</span>
+            <span style="font-weight:700;">{{ ((b.nama_produk || '') + ' ' + (b.produk_warna || '')).trim() || b.id_order }}</span>
             <span style="color:var(--text-faint);">{{ b.nama_aksesoris }} {{ b.warna }} &middot; {{ formatQty(b.butuh) }} {{ b.satuan }}</span>
             <span class="gc-num" style="color:var(--text-faint);">{{ b.kode_bagging }}</span>
           </div>
@@ -1307,7 +1307,7 @@ const PersiapanSewingSelesai = {
       <div v-else style="display:flex; flex-direction:column; gap:8px;">
         <div v-for="b in barisSaya" :key="barisKey(b)" class="gc-card gc-card-menonjol" style="padding:12px; border-radius:16px;">
           <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:4px;">
-            <span class="gc-num" style="font-weight:700; font-size:12px;">{{ b.id_order }}</span>
+            <span style="font-weight:700; font-size:12px;">{{ ((b.nama_produk || '') + ' ' + (b.produk_warna || '')).trim() || b.id_order }}</span>
             <span class="tag" :class="keadaan(b)==='lengkap' ? 'ok' : 'warn'">{{ keadaan(b) }}</span>
           </div>
           <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ b.nama_aksesoris }} {{ b.warna }} &middot; {{ formatQty(b.butuh) }} {{ b.satuan }}</div>
