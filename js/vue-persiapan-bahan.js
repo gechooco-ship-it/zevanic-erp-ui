@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunInfoLabelAnakSpk } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=12';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=13';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
 import { PanelGroupingBahan } from './vue-persiapan-produksi-v2.js?v=21';
 
@@ -958,7 +958,6 @@ const PersiapanBahanSedangDisiapkan = {
       :subjudul="modalAksi.mode==='masalah' ? 'Scan Masalah — akan diminta jumlah kurang & alasan.' : ''"
       @hasil="hasilScanAksi" @tutup="tutupAksi" />
     <scan-terpadu-generik :c="entryStok" />
-    <popup-pratinjau-cetak-label :terbuka="entryStok.cetak.aktif" judul="Cetak Label Sisa" :daftar-label="entryStok.cetak.daftar" jenis-cetak="label_roll_pembelian" @tutup="entryStok.selesaiCetak()" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">

@@ -20,9 +20,9 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=12';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=13';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
-import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=35';
+import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=36';
 
 // picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (dipakai Setuju/Tolak/Ajukan
 // Belanja, WAJIB Owner/PIC Owner + popup PIN). Yang ini untuk "Scan Operator":
@@ -864,7 +864,6 @@ const MasalahSedangDisiapkan = {
       :subjudul="modalAksi.mode==='masalah' ? 'Scan Masalah — akan diminta catatan.' : ''"
       @hasil="hasilScanAksi" @tutup="tutupAksi" />
     <scan-terpadu-generik :c="entryStok" />
-    <popup-pratinjau-cetak-label :terbuka="entryStok.cetak.aktif" judul="Cetak Label Sisa" :daftar-label="entryStok.cetak.daftar" jenis-cetak="label_roll_pembelian" @tutup="entryStok.selesaiCetak()" />
   `
 };
 

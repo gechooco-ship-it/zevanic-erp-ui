@@ -1395,17 +1395,17 @@
        isi placeholder. -->
   <script type="module" src="js/vue-persiapan-produksi-v2.js?v=21"></script>
   <!-- jalur Bahan, lihat komentar besar di file ini. -->
-  <script type="module" src="js/vue-persiapan-bahan.js?v=35"></script>
+  <script type="module" src="js/vue-persiapan-bahan.js?v=36"></script>
   <!--
     jalur Acc Sewing/Webbing/Finishing, kartu = 1 spk_track (beda dari Bahan yang kartu = 1
     bahan+warna), lihat komentar besar di masing-masing file.
   -->
-  <script type="module" src="js/vue-persiapan-sewing.js?v=33"></script>
-  <script type="module" src="js/vue-persiapan-webbing.js?v=34"></script>
-  <script type="module" src="js/vue-persiapan-finishing.js?v=33"></script>
+  <script type="module" src="js/vue-persiapan-sewing.js?v=34"></script>
+  <script type="module" src="js/vue-persiapan-webbing.js?v=35"></script>
+  <script type="module" src="js/vue-persiapan-finishing.js?v=34"></script>
   <!-- Persiapan Produksi > Masalah, 7 tahap, skema TRB. Fitur "Persiapan Masalah" adalah papan
        manual terpisah (js/vue-persiapan-masalah.js) dengan koleksi permintaan_bahan_manual. -->
-  <script type="module" src="js/vue-pp-masalah.js?v=17"></script>
+  <script type="module" src="js/vue-pp-masalah.js?v=18"></script>
   <!-- Grup top-level "Pesanan": Penjualan Kasir (POS), Menunggu Proses (CRUD SPK dari
        OrderSpkManager), dan ringkasan read-only Proses Persiapan/Produksi/Pengiriman dari spk_track. Lihat
        komentar besar di js/vue-pesanan.js untuk latar belakang dan keputusan arsitektur lengkap. -->
@@ -1414,7 +1414,7 @@
        js/vue-scan-cetak.js. Badge operator memakai prefix "ZMS..."; prefix yang salah membuat pesan error
        di Tunjuk Operator/Scan Pack/Scan Kirim ikut salah tunjuk. Semua file pengimpor vue-scan-cetak.js
        memakai cache-bust versi yang sama. -->
-  <script type="module" src="js/vue-scan-cetak.js?v=12"></script>
+  <script type="module" src="js/vue-scan-cetak.js?v=13"></script>
   <!--
     "Pengaturan Cetak" (ukuran kertas/posisi QR/rincian tambahan per jenis cetak, terpusat),
     lihat komentar besar di js/vue-pengaturan-cetak.js.
@@ -1450,8 +1450,8 @@
   -->
   <script type="module" src="js/vue-popup-scan.js?v=7"></script>
   <script type="module" src="js/vue-pilihan-scan-config.js?v=5"></script>
-  <script type="module" src="js/vue-cetak-bagging.js?v=6"></script>
-  <script type="module" src="js/vue-cetak-kode-tugas.js?v=5"></script>
+  <script type="module" src="js/vue-cetak-bagging.js?v=7"></script>
+  <script type="module" src="js/vue-cetak-kode-tugas.js?v=6"></script>
   <script type="module" src="js/vue-home.js?v=8"></script>
   <script type="module" src="js/vue-home-desktop.js?v=3"></script>
   <script type="module" src="js/vue-header-mobile.js?v=12"></script>
@@ -1467,13 +1467,13 @@
   <script type="module" src="js/vue-bahan-aksesoris.js?v=29"></script>
   <script type="module" src="js/vue-rak-penyimpanan.js?v=8"></script>
   <!-- Repack Komponen Acc, lihat komentar besar di file itu untuk detail. -->
-  <script type="module" src="js/vue-repack-komponen-acc.js?v=5"></script>
+  <script type="module" src="js/vue-repack-komponen-acc.js?v=6"></script>
   <script type="module" src="js/vue-stock-pembelian.js?v=34"></script>
-  <script type="module" src="js/vue-kartu-stok.js?v=13"></script>
+  <script type="module" src="js/vue-kartu-stok.js?v=14"></script>
   <!-- Zevanic House > Config. Import Excel diaktifkan lewat prop :izinkan-import-excel="true"
        khusus di AppConfigKomponen, tab Config lain tidak ikut. Tab "TLC & Prefix" (AppConfigTlc) memakai
        koleksi master_tlc; cache-bust mengikuti import firestore/firebase-config di file ini. -->
-  <script type="module" src="js/vue-config.js?v=19"></script>
+  <script type="module" src="js/vue-config.js?v=20"></script>
   <!-- Zevanic House > Master Suplayer: Entry & List (5.1), Alias & MOQ (5.2, dengan
        moq/moq_satuan/lead_time_hari), dan Petakan Order (5.3, total). Lihat komentar panjang di
        js/vue-master-suplayer.js. -->
@@ -1492,29 +1492,29 @@
     Proses Produksi > Cutting, 7 tab. Lihat komentar besar di js/vue-pp-cutting.js untuk latar
     belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-cutting.js?v=24"></script>
+  <script type="module" src="js/vue-pp-cutting.js?v=25"></script>
   <!--
     Proses Produksi > Serie, 11 tab (hub distribusi). Lihat komentar besar di
     js/vue-pp-serie.js untuk latar belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-serie.js?v=23"></script>
+  <script type="module" src="js/vue-pp-serie.js?v=24"></script>
   <!--
     Proses Produksi > Sewing, 5 tab. Lihat komentar besar di js/vue-pp- sewing.js untuk latar
     belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-sewing.js?v=18"></script>
+  <script type="module" src="js/vue-pp-sewing.js?v=19"></script>
   <!--
     Proses Produksi > Finishing, 5 tab (per-PCS tracking via finishing_track). Lihat komentar
     besar di js/vue-pp-finishing.js untuk latar belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-finishing.js?v=18"></script>
+  <script type="module" src="js/vue-pp-finishing.js?v=19"></script>
   <!--
     Proses Produksi > Gudang Barang Jadi, 4 tab (titik akhir rantai produksi). Lihat komentar
     besar di js/vue-pp-gudang.js untuk latar belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-gudang.js?v=14"></script>
+  <script type="module" src="js/vue-pp-gudang.js?v=15"></script>
   <!-- Persiapan Produksi > Persiapan Belanja, folder terakhir grup Persiapan Produksi. Lihat
        komentar besar di js/vue-persiapan-belanja.js untuk latar belakang dan keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-persiapan-belanja.js?v=12"></script>
+  <script type="module" src="js/vue-persiapan-belanja.js?v=13"></script>
 </body>
 </html>

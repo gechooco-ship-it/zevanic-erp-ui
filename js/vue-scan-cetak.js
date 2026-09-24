@@ -2,7 +2,7 @@
 // Menu Scan & Cetak, sekaligus fondasi scan yang diimpor pos lain:
 // PopupPinGenerik, ScanGenerik (overlay tulis-langsung), ScanTerpaduGenerik +
 // buatScanTerpadu + KameraTersemat (Draft lalu Upload), buatScanEntryStok
-// (Scan Entry Persiapan lewat ledger), CetakUlangLabelStok, buatUnpackUniversal.
+// (Scan Entry Persiapan lewat ledger), buatUnpackUniversal.
 //
 // Koleksi & field:
 // - riwayat_pin: { uid, nama_pengguna, menu, berhasil, waktu }, tiap percobaan
@@ -21,7 +21,6 @@ import { createApp, ref, reactive, watch, onMounted, onUnmounted } from 'https:/
 import { collection, addDoc, doc, getDoc, getDocs, updateDoc, query, where, orderBy, limit, startAfter, serverTimestamp, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { resolveLabelStok, hitungAmbilLabelStok, catatScanEntryStok } from './vue-stock-pembelian.js?v=34';
-import { PopupPratinjauCetakLabel } from './vue-components.js?v=15';
 
 
 // PIN per akun — SATU-SATUNYA salinan resmi hashPin/tierOwnerKeAtas/
@@ -676,11 +675,12 @@ export function buatScanTerpadu(cfg) {
 
 // buatScanEntryStok — Scan Entry Persiapan: pembuka = label kerja baris yang
 // dipilih, isi = label barang fisik (Kode Lot / Kode Pak / ID Item) berkali-
-// kali. Sistem hitung ambil per label; roll/pak yang bersisa wajib dicetak
-// label sisanya (popup `cetak`) sebelum Upload diterima.
+// kali. Tiap baris tampil "stok − pakai = sisa"; label fisik TIDAK dicetak
+// ulang, kodenya tetap dan angka sisa cukup dikoreksi tangan.
+function angkaStok(n) { return (Math.round((parseFloat(n) || 0) * 100) / 100).toLocaleString('id-ID', { maximumFractionDigits: 2 }); }
 export function buatScanEntryStok(cfg) {
-  const cetak = reactive({ aktif: false, daftar: [], rows: [] });
   const ctrl = buatScanTerpadu({
+    judul: cfg.judul || ('Scan Entry — ' + cfg.pos), subjudul: 'Scan label kerja, lalu label stok yang dipakai',
     twoStep: {
       labelPertama: 'Label kerja', labelKedua: 'label stok (Kode Lot, Kode Pak, atau ID Item)',
       validasi: async (kode) => {
@@ -696,25 +696,21 @@ export function buatScanEntryStok(cfg) {
       if (hasil.lot && rows.some(r => r._lotId === hasil.lot.id)) return { ok: false, pesan: `${kode} sudah ada di daftar.` };
       const h = hitungAmbilLabelStok({ hasil, bahanIdDibutuhkan: cfg.bahanId(b), kebutuhan: cfg.kebutuhan(b), rows });
       if (!h.ok) return h;
-      const bersisa = h.sisaSetelah !== null && h.sisaSetelah > 0;
+      // stok sebelum = isi lot, atau stok item dikurangi yang sudah diambil baris item lain di sesi ini
+      const stokAwal = hasil.lot ? (parseFloat(hasil.lot.qty_sisa) || 0)
+        : (parseFloat(hasil.bahan.stok_akhir) || 0) - rows.filter(r => r._jenis === 'item').reduce((t, r) => t + (parseFloat(r._ambil) || 0), 0);
+      const sisa = Math.round((stokAwal - h.ambil) * 100) / 100;
+      const satuan = hasil.lot?.satuan || hasil.bahan.satuan_pemakaian || '';
       return { ok: true, row: {
         kode, label: (hasil.bahan.nama || '') + ' · ' + (hasil.jenis === 'item' ? 'ID Item' : hasil.jenis === 'pak' ? 'Pak' : 'Lot'),
-        qty: String(h.ambil), tagTxt: h.sisaSetelah === null ? 'dari stok' : (bersisa ? 'sisa ' + h.sisaSetelah : 'habis'), tagCls: bersisa ? 'warn' : 'ok',
-        _jenis: hasil.jenis, _lotId: hasil.lot ? hasil.lot.id : null, _ambil: h.ambil, _sisaSetelah: h.sisaSetelah,
-        _perluLabelSisa: bersisa, _labelSisaDicetak: false, _satuan: hasil.lot?.satuan || hasil.bahan.satuan_pemakaian || '', _nama: hasil.bahan.nama || ''
+        tagTxt: `stok ${angkaStok(stokAwal)} − pakai ${angkaStok(h.ambil)} = sisa ${angkaStok(sisa)} ${satuan}`.trim(), tagCls: sisa > 0 ? 'warn' : 'ok',
+        _jenis: hasil.jenis, _lotId: hasil.lot ? hasil.lot.id : null, _ambil: h.ambil
       } };
     },
     padaUpload: async (rows, b) => {
       const total = Math.round(rows.reduce((t, r) => t + (parseFloat(r._ambil) || 0), 0) * 100) / 100;
       const butuh = Math.round((parseFloat(cfg.kebutuhan(b)) || 0) * 100) / 100;
       if (total !== butuh) return { ok: false, pesan: `Baru ${total} dari ${butuh}. Scan label stok lain, atau pakai Scan Masalah kalau stoknya memang kurang.` };
-      const belum = rows.filter(r => r._perluLabelSisa && !r._labelSisaDicetak);
-      if (belum.length) {
-        cetak.rows = belum;
-        cetak.daftar = belum.map(r => ({ kode: r.kode, nama: r._nama, info: `sisa ${r._sisaSetelah} ${r._satuan}`, qrDataUrl: buatQrDataUrl(r.kode) }));
-        cetak.aktif = true;
-        return { ok: false, pesan: 'Cetak label sisa dulu (kode sama, angka sisa baru), tempel di roll/pak, lalu tekan Upload lagi.' };
-      }
       try {
         await catatScanEntryStok({
           bahanId: cfg.bahanId(b), namaBahan: cfg.namaBahan(b), satuan: cfg.satuan(b), qty: butuh, rows,
@@ -727,67 +723,8 @@ export function buatScanEntryStok(cfg) {
       return { ok: true };
     }
   });
-  function selesaiCetak() {
-    cetak.rows.forEach(r => { r._labelSisaDicetak = true; r.tagTxt = 'sisa ' + r._sisaSetelah + ' · label dicetak'; });
-    cetak.aktif = false; cetak.daftar = []; cetak.rows = [];
-  }
-  return Object.assign(ctrl, { cetak, selesaiCetak });
+  return ctrl;
 }
-
-// CetakUlangLabelStok — tombol + popup cetak ulang label Kode Lot / Kode Pak /
-// ID Item di Sedang Disiapkan. Kode TETAP sama, angka sisa dibaca ulang dari
-// sistem. Wajib alasan + PIN; dicatat ke log_scan aksi 'cetak_ulang'.
-export const CetakUlangLabelStok = {
-  components: { PopupPinGenerik, PopupPratinjauCetakLabel },
-  props: { pos: { type: String, required: true } },
-  setup(props) {
-    const form = ref(null); // { kode, alasan, hasil }
-    const pinAktif = ref(false);
-    const preview = reactive({ aktif: false, daftar: [] });
-    function buka() { form.value = { kode: '', alasan: '', hasil: null }; }
-    async function lanjut() {
-      const f = form.value;
-      if (!f.kode.trim()) { alert('Scan / ketik kode label dulu.'); return; }
-      if (!f.alasan.trim()) { alert('Alasan cetak ulang wajib diisi.'); return; }
-      const h = await resolveLabelStok(f.kode.trim());
-      if (!h.ok) { alert(h.pesan); return; }
-      f.hasil = h; pinAktif.value = true;
-    }
-    async function pinSukses(user) {
-      pinAktif.value = false;
-      const f = form.value; const h = f.hasil;
-      const sisa = h.lot ? `sisa ${h.lot.qty_sisa} ${h.lot.satuan || ''}` : (h.bahan.satuan_pemakaian || '');
-      try {
-        await addDoc(collection(db, 'log_scan'), {
-          kode: h.kode, pos: props.pos, aksi: 'cetak_ulang', jenis_label: h.jenis, alasan: f.alasan.trim(),
-          pin_oleh: user.nama || user.email || '', operator_email: window.currentUser?.email || null,
-          operator_uid: window.currentUser?.uid || null, pada: serverTimestamp()
-        });
-      } catch (e) { console.error('Gagal catat log cetak ulang:', e); alert('Gagal mencatat log. Coba lagi.'); return; }
-      preview.daftar = [{ kode: h.kode, nama: h.bahan.nama || '', info: sisa.trim() + ' · CETAK ULANG', qrDataUrl: buatQrDataUrl(h.kode) }];
-      form.value = null; preview.aktif = true;
-    }
-    return { form, pinAktif, preview, buka, lanjut, pinSukses };
-  },
-  template: `
-    <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
-      <button @click="buka" class="btn-outline" style="padding:6px 10px; font-size:11px;"><i class="fas fa-rotate-right" style="margin-right:4px;"></i>Cetak Ulang Label Stok</button>
-    </div>
-    <div v-if="form" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
-      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Cetak Ulang Label Stok</h3>
-        <div class="gc-field" style="margin-bottom:8px;"><label>Kode Lot / Kode Pak / ID Item</label><input v-model="form.kode" type="text" placeholder="scan atau ketik kode"></div>
-        <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="form.alasan" type="text" placeholder="mis. label sobek / basah"></div>
-        <div style="display:flex; gap:8px;">
-          <button @click="form = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
-          <button @click="lanjut" class="btn-primary" style="flex:1; padding:9px;">Lanjut PIN</button>
-        </div>
-      </div>
-    </div>
-    <popup-pin-generik v-if="pinAktif" judul="PIN Cetak Ulang" pesan="Kode label tidak berubah. Cetak ulang dicatat." konteks="cetak_ulang_label_stok" @sukses="pinSukses" @batal="pinAktif = false" />
-    <popup-pratinjau-cetak-label :terbuka="preview.aktif" judul="Cetak Ulang Label Stok" :daftar-label="preview.daftar" jenis-cetak="label_roll_pembelian" @tutup="preview.aktif = false" />
-  `
-};
 
 // ScanTerpaduGenerik — UI layar penuh utk buatScanTerpadu(): kamera tersemat
 // (KameraTersemat) + chip kunci tahap-1 (twoStep) + input manual (label
@@ -835,7 +772,7 @@ export const ScanTerpaduGenerik = {
         <p v-if="c.cfg.twoStep && !c.s.lockedLabel" style="font-size:11px; color:var(--text-faint); margin:4px 0 0;">{{ c.cfg.twoStep.kosongSub }}</p>
       </div>
       <div v-else style="display:flex; flex-direction:column; gap:6px;">
-        <div v-for="r in c.s.rows" :key="r.id" class="gc-card" style="padding:9px 12px; display:flex; align-items:center; gap:8px;">
+        <div v-for="r in c.s.rows" :key="r.id" class="gc-card" style="padding:9px 12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <div style="flex:1; min-width:0;">
             <div class="gc-num" style="font-weight:700; font-size:12px;">{{ r.kode }}</div>
             <div style="font-size:10.5px; color:var(--text-faint);">{{ r.label }}</div>
