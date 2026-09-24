@@ -19,7 +19,7 @@ import { createApp, ref, reactive, computed, watch, onMounted } from 'https://un
 import { collection, doc, getDocs, query, where, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=15';
-import { buatQrDataUrl } from './vue-scan-cetak.js?v=11';
+import { buatQrDataUrl } from './vue-scan-cetak.js?v=12';
 
 const MENU_ID = 'stock_repack';
 const TAMBAH_TAMPIL = 20;

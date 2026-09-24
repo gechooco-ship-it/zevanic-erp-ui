@@ -683,6 +683,69 @@ export async function hitungTeralokasiSemuaBahan() {
   return peta;
 }
 
+// rincianTeralokasiBahan — baris per kebutuhan (satu bahan) yang membentuk
+// angka Teralokasi di atas; dipakai halaman item Kartu Stok.
+export async function rincianTeralokasiBahan(bahanId) {
+  const hasil = [];
+  const snap = await getDocs(query(collection(db, 'spk_track'), where('jalur', 'in', JALUR_TERALOKASI.map(j => j.jalur))));
+  snap.forEach(d => {
+    const data = d.data();
+    const cfg = JALUR_TERALOKASI.find(j => j.jalur === data.jalur);
+    if (!cfg) return;
+    (Array.isArray(data[cfg.field]) ? data[cfg.field] : []).forEach(b => {
+      if (!b || b.bahan_aksesoris_id !== bahanId) return;
+      if (b.entry_qty !== undefined && b.entry_qty !== null) return;
+      hasil.push({
+        jalur: data.jalur, kode: b.kode_kit || data.kode_kit || b.kode_baris || b.kode_grouping || '-',
+        produk: ((b.nama_produk || data.nama_produk || '') + ' ' + (b.produk_warna || '')).trim(),
+        id_order: b.id_order || data.id_order || '', qty: parseFloat(b[cfg.qty]) || 0,
+        status: b.status || data.status || '', operator: b.operator_nama || ''
+      });
+    });
+  });
+  return hasil.sort((a, b) => a.jalur.localeCompare(b.jalur) || a.kode.localeCompare(b.kode));
+}
+
+// buatLotSusulan — stok item ber-lot yang belum punya lot (mis. nota lama
+// final tanpa detail roll) dipecah jadi lot. stok_akhir TIDAK berubah; total
+// rincian wajib sama dengan selisih stok_akhir - jumlah qty_sisa lot aktif.
+export async function buatLotSusulan({ bahanId, rincian }) {
+  const lotAktif = await ambilLotAktif(bahanId);
+  const totalLot = lotAktif.reduce((t, l) => t + (parseFloat(l.qty_sisa) || 0), 0);
+  const refBahan = doc(db, 'master_bahan_aksesoris', bahanId);
+  const lotDibuat = [];
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(refBahan);
+    if (!snap.exists()) throw new Error('Item tidak ditemukan.');
+    const data = snap.data();
+    const selisih = Math.round(((parseFloat(data.stok_akhir) || 0) - totalLot) * 100) / 100;
+    const total = Math.round(rincian.reduce((t, r) => t + (parseFloat(r.qty) || 0), 0) * 100) / 100;
+    if (!(selisih > 0)) throw new Error('Tidak ada stok tanpa lot untuk item ini.');
+    if (total !== selisih) throw new Error(`Total roll ${total} harus sama dengan stok tanpa lot ${selisih}.`);
+    let counter = parseInt(data.lot_counter) || 0;
+    const prefix = data.id_tampil || bahanId;
+    const tanggal = new Date().toISOString().slice(0, 10);
+    const nama = (data.nama || '') + (data.warna ? ' ' + data.warna : '');
+    rincian.forEach(r => {
+      const qty = parseFloat(r.qty) || 0;
+      if (qty <= 0) return;
+      counter += 1;
+      const kodeLot = `${prefix}-L${String(counter).padStart(3, '0')}`;
+      const refLot = doc(collection(db, 'lot_bahan_aksesoris'));
+      tx.set(refLot, {
+        bahan_aksesoris_id: bahanId, nama_bahan: nama, kode_lot: kodeLot, jenis: 'lot',
+        qty_awal: qty, qty_sisa: qty, satuan: data.satuan_pemakaian || '',
+        tanggal_masuk: tanggal, no_pembelian: '', sumber: 'lot_susulan',
+        keterangan: r.keterangan || 'Lot susulan', status: 'aktif',
+        dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
+      });
+      lotDibuat.push({ id: refLot.id, kode_lot: kodeLot, qty_sisa: qty, qty_awal: qty, satuan: data.satuan_pemakaian || '', tanggal_masuk: tanggal, status: 'aktif' });
+    });
+    tx.set(refBahan, { lot_counter: counter }, { merge: true });
+  });
+  return lotDibuat;
+}
+
 // cariLotByKode — cari 1 lot AKTIF lewat `kode_lot` PERSIS (hasil scan QR label
 // fisik roll, atau diketik manual). null kalau tidak ketemu/lot itu sudah habis
 // (status bukan 'aktif' lagi, jadi tidak muncul di query ini).
@@ -2389,7 +2452,7 @@ const RiwayatHargaPembelianManager = {
           <div v-for="it in daftarItemTampil" :key="it.id" @click="bukaDetail(it)"
             style="display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid var(--line); border-radius:10px; cursor:pointer;">
             <div style="flex:1; min-width:120px;">
-              <div style="font-weight:700; font-size:12.5px;">{{ it.nama }}<span v-if="it.warna"> {{ it.warna }}</span></div>
+              <div style="font-weight:700; font-size:12.5px;">{{ (it.nama || '') + (it.warna ? ' ' + it.warna : '') }}</div>
               <div style="font-size:10px; color:var(--text-faint);">{{ it.id_tampil || '-' }} &middot; {{ it.kategori_utama || '-' }}</div>
             </div>
             <span v-if="idPending.has(it.id)" class="tag warn">menunggu konfirmasi</span>
@@ -2406,7 +2469,7 @@ const RiwayatHargaPembelianManager = {
       <div v-else class="gc-card" style="padding:14px;">
         <button @click="kembaliKeDaftar" class="btn-outline" style="font-size:11px; padding:5px 12px; margin-bottom:12px;"><i class="fas fa-arrow-left" style="margin-right:5px;"></i>Daftar Item</button>
         <div style="margin-bottom:12px;">
-          <div style="font-weight:700; font-size:14px;">{{ itemAktif.nama }}<span v-if="itemAktif.warna"> {{ itemAktif.warna }}</span></div>
+          <div style="font-weight:700; font-size:14px;">{{ (itemAktif.nama || '') + (itemAktif.warna ? ' ' + itemAktif.warna : '') }}</div>
           <div style="font-size:10.5px; color:var(--text-faint);">{{ itemAktif.id_tampil || '-' }}</div>
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; background:var(--ivory-dim); border-radius:12px; padding:12px 14px; margin-bottom:14px;">

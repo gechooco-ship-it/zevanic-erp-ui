@@ -1,7 +1,7 @@
 // js/vue-kartu-stok.js
 // Stok & Pembelian > Kartu Stok. Daftar stok semua bahan+aksesoris, klik baris
-// -> halaman item: stok per lot/pak (cetak label + opname per baris), cetak
-// label ID Item, riwayat cetak label, lalu ledger pergerakan di bawahnya.
+// -> halaman item: stok per lot/pak (cetak + opname per baris, lot susulan),
+// cetak label ID Item, stok teralokasi, lalu ledger pergerakan.
 //
 // Koleksi & field:
 // - master_bahan_aksesoris: full fetch client-side; batas_kritis diedit di sini.
@@ -22,8 +22,8 @@ import { collection, getDocs, getDoc, doc, updateDoc, query, where } from "https
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=15';
 import { usePaginasiFirestore } from './vue-paginasi.js';
-import { ambilSemuaLotByBahan, hitungTeralokasiSemuaBahan, catatLogCetakLabel, catatPenyesuaianOpnameItem, catatPenyesuaianOpnameLot } from './vue-stock-pembelian.js?v=33';
-import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=11';
+import { ambilSemuaLotByBahan, hitungTeralokasiSemuaBahan, catatLogCetakLabel, catatPenyesuaianOpnameItem, catatPenyesuaianOpnameLot, rincianTeralokasiBahan, buatLotSusulan } from './vue-stock-pembelian.js?v=34';
+import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=12';
 
 function formatQty(n) {
   const angka = parseFloat(n) || 0;
@@ -77,7 +77,51 @@ const KartuStokManager = {
       itemAktif.value = item;
       view.value = 'ledger';
       muatLot();
+      muatTeralokasi();
       paginasiDetail.muatUlang();
+    }
+    // Stok teralokasi item ini: kebutuhan SPK yang belum di-scan entry.
+    const daftarTeralokasi = ref([]);
+    const memuatTeralokasi = ref(false);
+    async function muatTeralokasi() {
+      if (!itemAktif.value) return;
+      memuatTeralokasi.value = true;
+      try { daftarTeralokasi.value = await rincianTeralokasiBahan(itemAktif.value.id); }
+      catch (e) { console.error('Gagal muat rincian teralokasi:', e); daftarTeralokasi.value = []; }
+      memuatTeralokasi.value = false;
+    }
+    const totalTeralokasi = computed(() => daftarTeralokasi.value.reduce((t, r) => t + r.qty, 0));
+
+    // Lot susulan: stok item ber-lot yang belum dipecah jadi lot.
+    const stokTanpaLot = computed(() => {
+      const it = itemAktif.value;
+      if (!it || !it.pakai_lot_tracking) return 0;
+      const totalLot = daftarLot.value.filter(l => l.status === 'aktif' && l.jenis !== 'pak').reduce((t, l) => t + (parseFloat(l.qty_sisa) || 0), 0);
+      return Math.round(((parseFloat(it.stok_akhir) || 0) - totalLot) * 100) / 100;
+    });
+    const susulan = ref(null); // { jumlah, qtySama, baris:[{qty,keterangan}] }
+    const pinSusulan = ref(false);
+    function bukaSusulan() { susulan.value = { jumlah: '', qtySama: '', baris: [] }; }
+    function buatBarisSusulan() {
+      const n = Math.max(1, Math.floor(parseFloat(susulan.value.jumlah) || 0));
+      const q = parseFloat(susulan.value.qtySama) > 0 ? parseFloat(susulan.value.qtySama) : '';
+      susulan.value.baris = Array.from({ length: n }, (_, i) => ({ qty: q !== '' ? q : (susulan.value.baris[i]?.qty ?? ''), keterangan: '' }));
+    }
+    const totalSusulan = computed(() => Math.round((susulan.value?.baris || []).reduce((t, b) => t + (parseFloat(b.qty) || 0), 0) * 100) / 100);
+    function lanjutSusulan() {
+      const b = susulan.value.baris;
+      if (!b.length || b.some(x => !(parseFloat(x.qty) > 0))) return alert('Isi jumlah roll lalu qty tiap roll.');
+      if (totalSusulan.value !== stokTanpaLot.value) return alert(`Total roll ${formatQty(totalSusulan.value)} harus sama dengan stok tanpa lot ${formatQty(stokTanpaLot.value)}.`);
+      pinSusulan.value = true;
+    }
+    async function pinSusulanSukses() {
+      pinSusulan.value = false;
+      try {
+        const lotBaru = await buatLotSusulan({ bahanId: itemAktif.value.id, rincian: susulan.value.baris });
+        susulan.value = null;
+        await muatLot();
+        cetakLot(lotBaru);
+      } catch (e) { console.error('Gagal buat lot susulan:', e); alert(e.message || 'Gagal membuat lot susulan.'); }
     }
     // Deep-link dari Master Bahan: id disimpan dulu kalau daftar belum termuat.
     let idTunggu = null;
@@ -277,6 +321,8 @@ const KartuStokManager = {
       view, kembaliKeDaftarStok,
       daftarItemLengkap, memuatDaftarItem, errorDaftarItem, muatDaftarItemLengkap, muat,
       itemAktif, pilihItem, bukaById,
+      daftarTeralokasi, memuatTeralokasi, totalTeralokasi,
+      stokTanpaLot, susulan, pinSusulan, bukaSusulan, buatBarisSusulan, totalSusulan, lanjutSusulan, pinSusulanSukses,
       daftarLot, lotTampil, lotAktifCount, memuatLot, tampilHabis, lotDipilih, lotTerpilih,
       bolehCetak, cetak, cetakItem, cetakLot, saatCetak, riwayatCetak, bukaRiwayatCetak, formatWaktu,
       opname, pinOpname, menyimpanOpname, bukaOpnameItem, bukaOpnameLot, lanjutOpname, pinOpnameSukses,
@@ -326,7 +372,7 @@ const KartuStokManager = {
               </tr></thead>
               <tbody>
                 <tr v-for="b in daftarStokTampil" :key="b.id" style="cursor:pointer;" @click="pilihItem(b)">
-                  <td><div style="font-weight:700;">{{ b.nama }}<span v-if="b.warna"> {{ b.warna }}</span></div><div style="font-size:10px; color:var(--text-faint);">{{ b.id_tampil || '-' }}</div></td>
+                  <td><div style="font-weight:700;">{{ (b.nama || '') + (b.warna ? ' ' + b.warna : '') }}</div><div style="font-size:10px; color:var(--text-faint);">{{ b.id_tampil || '-' }}</div></td>
                   <td>{{ formatQty(b.stok) }} {{ b.satuan_pemakaian }}</td>
                   <td>{{ formatQty(b.teralokasi) }}</td>
                   <td :style="{fontWeight:700, color: b.bebas <= 0 ? 'var(--danger)' : 'inherit'}">{{ formatQty(b.bebas) }}</td>
@@ -353,7 +399,7 @@ const KartuStokManager = {
         <div class="gc-form-dialog">
           <div class="gc-form-dialog-head"><i class="fas fa-triangle-exclamation" style="color:var(--warn);"></i><b>Atur Batas Kritis</b></div>
           <div class="gc-form-dialog-body">
-            <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px;">{{ popupBatasKritisAktif.nama }}<span v-if="popupBatasKritisAktif.warna"> {{ popupBatasKritisAktif.warna }}</span> — status kritis muncul kalau stok bebas &le; angka ini.</p>
+            <p style="font-size:11.5px; color:var(--text-faint); margin-bottom:10px;">{{ (popupBatasKritisAktif.nama || '') + (popupBatasKritisAktif.warna ? ' ' + popupBatasKritisAktif.warna : '') }} — status kritis muncul kalau stok bebas &le; angka ini.</p>
             <div class="gc-field">
               <label>Batas Kritis ({{ popupBatasKritisAktif.satuan_pemakaian || 'satuan' }}, satuan terkunci)</label>
               <input v-model="nilaiBatasKritisInput" type="number" min="0" step="any" style="width:100%; padding:8px 10px; border:1.5px solid var(--line); border-radius:8px; font-size:13px;">
@@ -373,7 +419,7 @@ const KartuStokManager = {
           <label class="gc-heading" style="font-size:12px; font-weight:700; color:var(--text-muted); display:block;">Kartu Stok</label>
           <div v-if="itemAktif" style="display:flex; flex-wrap:wrap; gap:14px; align-items:center; margin-top:14px; padding:12px 14px; border-radius:10px; background:var(--ivory-dim); border:1px solid var(--burgundy);">
             <div style="flex:1; min-width:160px;">
-              <div style="font-weight:700; font-size:14px;">{{ itemAktif.nama }}<span v-if="itemAktif.warna"> {{ itemAktif.warna }}</span></div>
+              <div style="font-weight:700; font-size:14px;">{{ (itemAktif.nama || '') + (itemAktif.warna ? ' ' + itemAktif.warna : '') }}</div>
               <div style="font-size:10.5px; color:var(--text-faint);">{{ itemAktif.id_tampil || '-' }} · {{ itemAktif.kategori_utama || '-' }}</div>
             </div>
             <div style="text-align:right;">
@@ -394,6 +440,10 @@ const KartuStokManager = {
 
         <div style="padding:14px;">
           <template v-if="itemAktif">
+            <div v-if="stokTanpaLot > 0 && !memuatLot" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 12px; margin-bottom:12px; border-radius:10px; background:var(--warn-light); color:var(--warn-text); font-size:12px;">
+              <span style="flex:1; min-width:180px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i><b>{{ formatQty(stokTanpaLot) }} {{ itemAktif.satuan_pemakaian }}</b> belum punya lot — tidak bisa di-scan di Persiapan.</span>
+              <button @click="bukaSusulan" class="btn-primary" style="font-size:11.5px; padding:7px 12px;"><i class="fas fa-layer-group" style="margin-right:6px;"></i>Buat Lot Susulan</button>
+            </div>
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
               <label style="font-size:12px; font-weight:700; color:var(--text-muted);">Stok per Lot / Pak</label>
               <label style="font-size:11px; color:var(--text-faint); display:flex; align-items:center; gap:4px; margin-left:auto;"><input type="checkbox" v-model="tampilHabis"> tampilkan yang habis</label>
@@ -422,8 +472,20 @@ const KartuStokManager = {
               </table>
             </div>
 
-            <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Riwayat Pergerakan</label>            <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Riwayat Pergerakan</label>
+            <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Stok Teralokasi <span style="font-weight:400; color:var(--text-faint);">— total {{ formatQty(totalTeralokasi) }} {{ itemAktif.satuan_pemakaian }}, bebas {{ formatQty((parseFloat(itemAktif.stok_akhir) || 0) - totalTeralokasi) }}</span></label>
+            <div v-if="memuatTeralokasi" style="font-size:11.5px; color:var(--text-faint); padding:6px 0 14px;">Memuat...</div>
+            <div v-else-if="daftarTeralokasi.length === 0" style="font-size:11.5px; color:var(--text-faint); padding:6px 0 14px;">Tidak ada kebutuhan SPK yang menunggu item ini.</div>
+            <div v-else style="overflow-x:auto; margin-bottom:18px;">
+              <table class="gc-table" style="width:100%; font-size:11.5px;">
+                <thead><tr><th>Jalur</th><th>Kode</th><th>Untuk Produk</th><th>ID Order</th><th>Qty</th><th>Status</th><th>Operator</th></tr></thead>
+                <tbody><tr v-for="(r, i) in daftarTeralokasi" :key="i">
+                  <td style="text-transform:capitalize;">{{ r.jalur }}</td><td class="gc-num">{{ r.kode }}</td><td>{{ r.produk || '-' }}</td>
+                  <td class="gc-num">{{ r.id_order || '-' }}</td><td><b>{{ formatQty(r.qty) }}</b></td><td>{{ (r.status || '-').replace(/_/g, ' ') }}</td><td>{{ r.operator || '-' }}</td>
+                </tr></tbody>
+              </table>
+            </div>
 
+            <label style="font-size:12px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">Riwayat Pergerakan</label>
             <div v-if="paginasiDetail.memuat.value" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;"><i class="fas fa-spinner fa-spin" style="margin-right:6px;"></i>Memuat...</div>
 
             <div v-else-if="paginasiDetail.errorPaginasi.value" style="padding:12px 14px; border-radius:10px; background:var(--danger-light); color:var(--danger); font-size:11.5px;">
@@ -466,6 +528,29 @@ const KartuStokManager = {
           </template>
         </div>
       </div>
+
+      <div v-if="susulan" class="gc-dialog-backdrop" @click.self="susulan = null">
+        <div class="gc-card" style="max-width:480px; width:100%; max-height:88vh; overflow-y:auto; padding:16px;">
+          <b style="font-size:13.5px;"><i class="fas fa-layer-group" style="color:var(--burgundy); margin-right:6px;"></i>Lot Susulan — {{ itemAktif && ((itemAktif.nama || '') + ' ' + (itemAktif.warna || '')) }}</b>
+          <p style="font-size:11.5px; color:var(--text-faint); margin:6px 0 12px;">Stok tanpa lot <b>{{ formatQty(stokTanpaLot) }} {{ itemAktif && itemAktif.satuan_pemakaian }}</b> dipecah jadi roll. Stok tidak berubah; label langsung dicetak.</p>
+          <div style="display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; margin-bottom:12px;">
+            <div class="gc-field" style="margin:0; flex:1; min-width:100px;"><label>Jumlah roll</label><input v-model="susulan.jumlah" type="number" min="1"></div>
+            <div class="gc-field" style="margin:0; flex:1; min-width:100px;"><label>Qty per roll (opsional)</label><input v-model="susulan.qtySama" type="number" min="0" step="any"></div>
+            <button @click="buatBarisSusulan" :disabled="!(susulan.jumlah > 0)" class="btn-outline" style="padding:9px 12px; font-size:11.5px;">Buat baris</button>
+          </div>
+          <div v-for="(b, i) in susulan.baris" :key="i" style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+            <span style="width:26px; font-size:11px; color:var(--text-faint);">#{{ i + 1 }}</span>
+            <input v-model="b.qty" type="number" min="0" step="any" placeholder="qty" style="flex:1; padding:7px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+            <input v-model="b.keterangan" type="text" placeholder="keterangan (opsional)" style="flex:1.4; padding:7px; border:1.5px solid var(--line); border-radius:8px; font-size:12px;">
+          </div>
+          <div style="font-size:12px; margin:10px 0 14px;">Total: <b :style="{ color: totalSusulan === stokTanpaLot ? 'var(--ok)' : 'var(--danger)' }">{{ formatQty(totalSusulan) }}</b> / {{ formatQty(stokTanpaLot) }}</div>
+          <div style="display:flex; gap:8px;">
+            <button @click="lanjutSusulan" class="btn-primary" style="flex:1;">Lanjut PIN</button>
+            <button @click="susulan = null" class="btn-outline" style="flex:1;">Batal</button>
+          </div>
+        </div>
+      </div>
+      <popup-pin-generik v-if="pinSusulan" judul="PIN Owner — Lot Susulan" pesan="Stok dipecah jadi lot baru, jumlah stok tidak berubah." konteks="Kartu Stok - Lot Susulan" :roles-diizinkan="['owner','superuser','pic_owner']" @sukses="pinSusulanSukses" @batal="pinSusulan = false" />
 
       <popup-pratinjau-cetak-label :terbuka="cetak.aktif" judul="Cetak Label" :daftar-label="cetak.daftar" jenis-cetak="label_bahan_aksesoris" @tutup="cetak.aktif = false; muatLot()" @cetak="saatCetak" />
 

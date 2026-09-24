@@ -21,8 +21,8 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
-import { tierOwnerKeAtas } from './vue-scan-cetak.js?v=11';
-import { hitungTeralokasiSemuaBahan } from './vue-stock-pembelian.js?v=33';
+import { tierOwnerKeAtas } from './vue-scan-cetak.js?v=12';
+import { hitungTeralokasiSemuaBahan } from './vue-stock-pembelian.js?v=34';
 
 const MENU_ID = 'pp_belanja';
 
