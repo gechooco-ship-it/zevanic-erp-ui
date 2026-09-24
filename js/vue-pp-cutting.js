@@ -1,16 +1,16 @@
 // js/vue-pp-cutting.js
-// Proses Produksi > Cutting. Bahan datang dari Collection, tiga tahap operator
-// (ampar → pola → cutting), cetak label komponen, lalu kirim balik ke Collection.
-//
+// Proses Produksi > Cutting. Bahan dari Collection, tiga tahap operator (ampar →
+// pola → cutting), cetak label komponen, lalu kirim balik ke Collection.
 // Koleksi & field:
 // - cutting_track: 1 dokumen per SPK Grouping. grouping_id, kode_grouping_induk,
 //   sku_produk_terlibat[] (untuk cari BOM), op_ampar/op_pola/op_cutting,
 //   komponen_rincian[], kode_bagging[], kode_tugas, sampai_pada,
 //   masuk_tahap_pada (dasar ambang tertahan 6 jam). Status: perlu_diproses →
 //   sedang_ampar/pola/cutting → perlu_dikirim → sedang_dikirim → selesai.
-// - label_komponen: kode KMPyymmdd-NNN, status_pola/status_cutting. Jumlah
-//   label per komponen = isi_pola_pcs (bom_pola[0]) x komponen.qty, dicetak
-//   sekali per cutting_track — amparan cuma jumlah lapis kain, bukan pengali.
+// - label_komponen: 1 per komponen per tumpukan, kode {kode_grouping}-{nn}
+//   (GR26092301-1203-01). Jumlah = isi_pola_pcs x komponen.qty; amparan cuma
+//   jumlah lapis. Semua wajib di-scan Cutting sebelum Cutting Selesai.
+// - spk_track.bahan_rincian[].gelar_pada: label bahan di-scan saat digelar.
 //
 // Jebakan:
 // - cutting_track dibuat LAZY & idempoten saat Tab 1.1 dibuka, TAPI ditolak
@@ -206,6 +206,16 @@ function progresLabel(track, semuaLabel, field) {
   const total = (track.komponen_rincian || []).reduce((s, k) => s + (k.jumlah_label || 0), 0);
   const selesai = punya.filter(l => l[field] === 'selesai').length;
   return { done: selesai, total: total || punya.length };
+}
+
+// barisBahanGrouping — baris label bahan milik satu grouping, dibaca fresh dari
+// spk_track jalur bahan. Dipakai Scan Entry Ampar (gelar_pada) dan kode label
+// komponen (kode_grouping per bahan).
+async function barisBahanGrouping(groupingId) {
+  const snap = await getDocs(query(collection(db, 'spk_track'), where('grouping_id', '==', groupingId)));
+  const hasil = [];
+  snap.docs.filter(d => d.data().jalur === 'bahan').forEach(d => (d.data().bahan_rincian || []).forEach((b, idx) => hasil.push({ ...b, _trackId: d.id, _idx: idx })));
+  return hasil;
 }
 
 // Popup Scan Masalah generik (jumlah kurang + alasan) — SAMA persis pola popup
@@ -645,19 +655,31 @@ const CuttingSedangAmpar = {
       memuat.value = false;
     }
 
-    // Scan Entry: gelar kain per SPK, counter naik tiap scan
+    // Scan Entry Ampar: tiap label bahan (Kode Separating-Kode Grouping-bahan)
+    // di-scan saat kainnya digelar. Wajib dari grouping yang sama, sudah sampai
+    // di Cutting, dan belum pernah digelar. Menulis bahan_rincian[].gelar_pada.
     const modalEntry = reactive({ aktif: false, track: null });
     function bukaScanEntry(track) { modalEntry.track = track; modalEntry.aktif = true; }
     function tutupScanEntry() { modalEntry.aktif = false; modalEntry.track = null; muat(); }
     async function hasilScanEntry(kodeMentah) {
       const kode = (kodeMentah || '').trim();
       const track = modalEntry.track;
-      if (kode !== track.kode_grouping_induk) { alert(`Kode "${kode}" tidak cocok dengan SPK ${track.kode_grouping_induk}.`); return; }
       try {
+        const baris = (await barisBahanGrouping(track.grouping_id)).find(b => b.kode_baris === kode);
+        if (!baris) { alert(`"${kode}" bukan label bahan grouping ${track.kode_grouping_induk}.`); return; }
+        if (!baris.sampai_cutting_pada) { alert(`${kode} belum di-Scan Sampai di Cutting.`); return; }
+        if (baris.gelar_pada) { alert(`${kode} sudah digelar.`); return; }
+        const now = new Date().toISOString();
+        await runTransaction(db, async (trx) => {
+          const ref = doc(db, 'spk_track', baris._trackId);
+          const snap = await trx.get(ref);
+          const arr = (snap.data().bahan_rincian || []).slice();
+          arr[baris._idx] = { ...arr[baris._idx], gelar_pada: now, gelar_oleh: window.currentUser?.email || null };
+          trx.update(ref, { bahan_rincian: arr, diperbarui_pada: serverTimestamp() });
+        });
         await updateCuttingTrack(track.id, (data) => ({
           entry_ampar_done: (parseFloat(data.entry_ampar_done) || 0) + 1,
-          // riwayat_scan — dicatat ADITIF.
-          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'entry', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), catatan: 'Entry Ampar', qty: track.qty_total ?? null }]
+          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'entry', oleh: window.currentUser?.email || null, pada: now, catatan: 'Gelar ' + kode, qty: null }]
         }));
         track.entry_ampar_done = (parseFloat(track.entry_ampar_done) || 0) + 1;
       } catch (e) { console.error('Gagal scan entry ampar:', e); alert('Gagal menyimpan. Coba lagi.'); }
@@ -666,7 +688,12 @@ const CuttingSedangAmpar = {
     // Tandai Ampar Selesai & Tunjuk Operator Pola (hitung komponen_rincian
     // dari BOM)
     const popupPinPola = ref(null);
-    function bukaTunjukPola(track) { popupPinPola.value = track; }
+    async function bukaTunjukPola(track) {
+      const baris = await barisBahanGrouping(track.grouping_id);
+      const belum = baris.filter(b => !b.gelar_pada).length;
+      if (belum && !confirm(`${belum} label bahan grouping ini belum digelar (Scan Entry). Lanjut ke Sedang Pola?`)) return;
+      popupPinPola.value = track;
+    }
     async function pinSuksesPola(user) {
       const track = popupPinPola.value;
       popupPinPola.value = null;
@@ -749,7 +776,7 @@ const CuttingSedangAmpar = {
       </div>
     </template>
 
-    <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.track ? ('Scan Entry — ' + modalEntry.track.kode_grouping_induk) : 'Scan Entry'" subjudul="Scan kode SPK tiap kali satu lot kain digelar. Bisa berkali-kali." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
+    <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.track ? ('Scan Entry — ' + modalEntry.track.kode_grouping_induk) : 'Scan Entry'" subjudul="Scan label bahan tiap kali kainnya digelar. Satu label sekali." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
     <popup-pin-generik v-if="popupPinPola" judul="Verifikasi PIN — Operator Pola" konteks="Cutting - Scan Operator Pola" :roles-diizinkan="['owner','superuser','pic_owner','pic']" @sukses="pinSuksesPola" @batal="popupPinPola = null" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
@@ -819,12 +846,16 @@ const CuttingSedangPola = {
       sedangCetak.value = true;
       try {
         const preview = [];
+        const bahan = (await barisBahanGrouping(track.grouping_id))[0];
+        const dasar = (bahan && bahan.kode_grouping) || track.kode_grouping_induk;
+        let urut = semuaLabel.value.filter(l => l.cutting_track_id === track.id).length;
         for (const k of belum) {
           const n = Math.max(1, Math.round(k.jumlah_label || 0));
           for (let i = 0; i < n; i++) {
-            const kode = await generateKodeHarian('KMP', 'pengaturan_id_label_komponen');
+            urut++;
+            const kode = `${dasar}-${String(urut).padStart(2, '0')}`;
             await addDoc(collection(db, 'label_komponen'), {
-              kode, cutting_track_id: track.id, nama_komponen: k.nama_komponen,
+              kode, cutting_track_id: track.id, grouping_id: track.grouping_id || '', nama_komponen: k.nama_komponen,
               status_pola: 'belum', status_cutting: 'belum', pola_pada: null, cutting_pada: null,
               dibuat_pada: serverTimestamp()
             });
@@ -1043,7 +1074,7 @@ const CuttingSedangCutting = {
 
     async function tandaiSelesaiCutting(track) {
       const p = progres(track);
-      if (p.total > 0 && p.done < p.total && !confirm(`Progress cutting baru ${p.done}/${p.total} label. Lanjut ke Perlu Di Kirim sekarang?`)) return;
+      if (p.total > 0 && p.done < p.total) { alert(`Baru ${p.done}/${p.total} label komponen ter-scan. Semua label wajib di-scan sebelum kirim ke Collection.`); return; }
       try {
         await updateCuttingTrack(track.id, () => ({ status: 'perlu_dikirim', masuk_tahap_pada: new Date().toISOString() }));
         await muat();

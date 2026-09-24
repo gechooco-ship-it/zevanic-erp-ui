@@ -258,13 +258,13 @@
           </button>
         </div>
         <!-- Grup top-level "Collection": hub Pengumpulan + Serie. Isinya tetap di
-             tab-proses-produksi (js/vue-pp-serie.js); tombol membuka grup ini lagi
-             setelah pindahTab membuka grup Proses Produksi. -->
+             tab-proses-produksi (js/vue-pp-serie.js); grup sidebar dibuka lewat
+             petaGrupSidebarPerSubTab di js/dashboard.js. -->
         <button onclick="toggleNavGroup('navgrp-collection')" id="menu-collection" data-group="navgrp-collection" class="hidden gc-nav-item" style="font-weight:700;">
           <i class="fas fa-boxes-stacked gc-nav-gico"></i> Collection <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
         <div id="navgrp-collection" class="hidden gc-nav-subgroup">
-          <button onclick="pindahTab('tab-proses-produksi'); pindahSubTab('sub-proses-produksi','sub-pr-serie', this, {catatRiwayat:true}); pindahSubTab('sub-pr-serie-tahap','sub-pr-serie-perludiproses', null, {catatRiwayat:true}); toggleNavGroup('navgrp-collection')" id="menu-pr-serie-btn" data-menu-id="proses_serie" data-target="sub-pr-serie" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-proses-produksi'); pindahSubTab('sub-proses-produksi','sub-pr-serie', this, {catatRiwayat:true}); pindahSubTab('sub-pr-serie-tahap','sub-pr-serie-perludiproses', null, {catatRiwayat:true})" id="menu-pr-serie-btn" data-menu-id="proses_serie" data-target="sub-pr-serie" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-shuffle" style="width:17px; text-align:center;"></i> Pengumpulan + Serie
           </button>
         </div>
@@ -1388,7 +1388,7 @@
   <script type="module" src="js/app.js?v=5"></script>
   <script type="module" src="js/camera.js"></script>
   <script type="module" src="js/auth.js?v=14"></script>
-  <script type="module" src="js/dashboard.js?v=32"></script>
+  <script type="module" src="js/dashboard.js?v=33"></script>
 
   <!-- Persiapan Produksi V2: Perlu Disiapkan (generator Kode Grouping) fungsional penuh. 5 jalur
        (Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing) sementara hanya struktur navigasi 5 tahap dengan
@@ -1473,7 +1473,7 @@
   <!-- Zevanic House > Config. Import Excel diaktifkan lewat prop :izinkan-import-excel="true"
        khusus di AppConfigKomponen, tab Config lain tidak ikut. Tab "TLC & Prefix" (AppConfigTlc) memakai
        koleksi master_tlc; cache-bust mengikuti import firestore/firebase-config di file ini. -->
-  <script type="module" src="js/vue-config.js?v=15"></script>
+  <script type="module" src="js/vue-config.js?v=16"></script>
   <!-- Zevanic House > Master Suplayer: Entry & List (5.1), Alias & MOQ (5.2, dengan
        moq/moq_satuan/lead_time_hari), dan Petakan Order (5.3, total). Lihat komentar panjang di
        js/vue-master-suplayer.js. -->
@@ -1492,7 +1492,7 @@
     Proses Produksi > Cutting, 7 tab. Lihat komentar besar di js/vue-pp-cutting.js untuk latar
     belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-cutting.js?v=21"></script>
+  <script type="module" src="js/vue-pp-cutting.js?v=22"></script>
   <!--
     Proses Produksi > Serie, 11 tab (hub distribusi). Lihat komentar besar di
     js/vue-pp-serie.js untuk latar belakang & keputusan arsitektur lengkap.

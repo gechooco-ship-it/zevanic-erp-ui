@@ -241,6 +241,9 @@ const petaGrupSidebarPerTab = {
 window.bukaGrupSidebarUntukTab = function(tabId) {
   setGrupSidebarTerbuka(petaGrupSidebarPerTab[tabId] || null);
 };
+// Sub-tab yang tombol sidebarnya ada di grup lain dari tab induknya: Serie
+// isinya di tab-proses-produksi, tapi tombolnya di grup Collection.
+const petaGrupSidebarPerSubTab = { 'sub-pr-serie': 'navgrp-collection' };
 
 window.pindahTab = function(tabId, navKey, _dariPopstate) {
   // Tiap tab WAJIB terdaftar di array ini — tab yang tidak terdaftar tidak akan
@@ -372,6 +375,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
   // kosong, console bersih. Peringatan ini yang membuatnya ketahuan sekali
   // klik, bukan berbulan-bulan kemudian.
   else console.error('[pindahSubTab] Target "' + targetId + '" tidak ada di index.html. Grup: ' + grupKelas + '. Layar akan kosong.');
+  if (petaGrupSidebarPerSubTab[targetId]) setGrupSidebarTerbuka(petaGrupSidebarPerSubTab[targetId]);
 
   // Popstate restore: tombolEl dikirim null oleh listener, dicari sendiri di
   // sini lewat data-target (makanya atribut itu WAJIB buat sub-tab yang ikut

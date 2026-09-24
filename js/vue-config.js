@@ -16,11 +16,11 @@
 //   vue-config-akses.js), defaultnya Owner saja.
 // - Mount LAZY per tab lewat window.pastikanMountConfigXxx yang dipanggil
 //   dashboard.js; jangan dipanggil saat load, itu membaca 9 koleksi sekaligus.
-// - Tab Reset Testing menghapus koleksi alur produksi + counter harian. Lot,
-//   stok, kartu stok, pembelian, dan semua master TIDAK termasuk. PIN Owner.
+// - Tab Reset Testing hanya menyentuh data Pesanan/Persiapan/Collection/Proses
+//   (+ koreksi saldo_piutang pelanggan). Zevanic House & Management tidak.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, writeBatch, increment } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { MasterDataCategory, MasterDataTabelManager } from './vue-components.js?v=13';
 import { PopupPinGenerik } from './vue-scan-cetak.js?v=10';
@@ -290,27 +290,40 @@ const AppConfigTlc = {
 // tidak ada 2 versi kode yang bisa menyimpang.
 
 
-// Reset Testing — hapus data alur produksi hasil uji coba. Daftar koleksi di
-// sini SENGAJA tertutup: lot_bahan_aksesoris, kartu_stok, pesanan_pembelian,
-// master_* tidak boleh masuk. Hapus per 400 dokumen (batas batch 500).
+// Reset Testing — hapus data uji coba menu Pesanan, Persiapan Produksi,
+// Collection, dan Proses Produksi SAJA. Zevanic House, Management, Stok dan
+// Pembelian (lot, kartu stok, nota) dan semua master TIDAK boleh masuk daftar.
+// Hapus per 400 dokumen (batas batch 500). bawaan:false = tidak dicentang awal.
 const KOLEKSI_RESET = [
-  { id: 'pesanan', ket: 'Pesanan kasir' }, { id: 'order', ket: 'ID Order' }, { id: 'order_spk', ket: 'Order SPK lama' },
-  { id: 'spk_separating', ket: 'Separating' }, { id: 'spk_grouping', ket: 'Grouping' }, { id: 'spk_track', ket: 'Track persiapan' },
-  { id: 'cutting_track', ket: 'Cutting' }, { id: 'label_komponen', ket: 'Label komponen' }, { id: 'sewing_track', ket: 'Sewing' },
-  { id: 'finishing_track', ket: 'Finishing' }, { id: 'label_pcs', ket: 'Label pcs' }, { id: 'bagging', ket: 'Bagging' },
-  { id: 'tugas_kirim', ket: 'Kode tugas' }, { id: 'persiapan_masalah', ket: 'Masalah' }, { id: 'berita_acara', ket: 'Berita Acara' },
-  { id: 'log_scan', ket: 'Log scan' }, { id: 'cetak_ulang_log', ket: 'Log cetak ulang' },
-  { id: 'pengaturan_id_spk_separating', ket: 'Counter separating' }, { id: 'pengaturan_id_spk_grouping', ket: 'Counter grouping' },
-  { id: 'pengaturan_id_tugas_kirim', ket: 'Counter tugas' }, { id: 'pengaturan_id_bagging', ket: 'Counter bagging' },
-  { id: 'pengaturan_id_label_komponen', ket: 'Counter label komponen' }, { id: 'pengaturan_id_label_pcs', ket: 'Counter label pcs' },
-  { id: 'pengaturan_id_persiapan_masalah', ket: 'Counter MSL' }, { id: 'pengaturan_id_persiapan_masalah_pengajuan', ket: 'Counter pengajuan masalah' },
-  { id: 'pengaturan_id_berita_acara', ket: 'Counter BA' }
+  { id: 'pesanan', grup: 'Pesanan', ket: 'Pesanan kasir' }, { id: 'transaksi_kasir', grup: 'Pesanan', ket: 'Pesanan kasir (nama lama)' },
+  { id: 'piutang_pembayaran', grup: 'Pesanan', ket: 'Pembayaran piutang pesanan' }, { id: 'order', grup: 'Pesanan', ket: 'ID Order' },
+  { id: 'order_spk', grup: 'Pesanan', ket: 'ID Order (nama lama)' },
+  { id: 'spk_separating', grup: 'Persiapan', ket: 'Separating' }, { id: 'spk_grouping', grup: 'Persiapan', ket: 'Grouping' },
+  { id: 'spk_track', grup: 'Persiapan', ket: 'Track Bahan/ACC/Vendor' }, { id: 'persiapan_masalah', grup: 'Persiapan', ket: 'Masalah' },
+  { id: 'roll_sisa_webbing', grup: 'Persiapan', ket: 'Sisa roll webbing (lama)' }, { id: 'persiapan_komponen', grup: 'Persiapan', ket: 'Komponen ACC (lama)' },
+  { id: 'order_belanja_driver', grup: 'Persiapan', ket: 'Order driver — terkait nota pembelian', bawaan: false },
+  { id: 'pending_driver', grup: 'Persiapan', ket: 'Pending driver — terkait nota pembelian', bawaan: false },
+  { id: 'bagging', grup: 'Persiapan/Proses', ket: 'Bagging' }, { id: 'tugas_kirim', grup: 'Persiapan/Proses', ket: 'Kode tugas' },
+  { id: 'log_scan', grup: 'Persiapan/Proses', ket: 'Log scan' }, { id: 'cetak_ulang_log', grup: 'Persiapan/Proses', ket: 'Log cetak ulang' },
+  { id: 'separating_batch', grup: 'Proses', ket: 'Batch Serie (lama)' }, { id: 'cutting_track', grup: 'Proses', ket: 'Cutting' },
+  { id: 'label_komponen', grup: 'Proses', ket: 'Label komponen' }, { id: 'sewing_track', grup: 'Proses', ket: 'Sewing' },
+  { id: 'finishing_track', grup: 'Proses', ket: 'Finishing' }, { id: 'label_pcs', grup: 'Proses', ket: 'Label pcs' },
+  { id: 'berita_acara', grup: 'Proses', ket: 'Berita Acara' }, { id: 'opname_produk_jadi', grup: 'Proses', ket: 'Opname gudang barang jadi' },
+  { id: 'pengaturan_id_spk_separating', grup: 'Counter', ket: 'Separating' }, { id: 'pengaturan_id_spk_grouping', grup: 'Counter', ket: 'Grouping' },
+  { id: 'pengaturan_id_tugas_kirim', grup: 'Counter', ket: 'Kode tugas' }, { id: 'pengaturan_id_bagging', grup: 'Counter', ket: 'Bagging' },
+  { id: 'pengaturan_id_label_komponen', grup: 'Counter', ket: 'Label komponen' }, { id: 'pengaturan_id_label_pcs', grup: 'Counter', ket: 'Label pcs' },
+  { id: 'pengaturan_id_persiapan_masalah', grup: 'Counter', ket: 'MSL' }, { id: 'pengaturan_id_persiapan_masalah_pengajuan', grup: 'Counter', ket: 'Pengajuan masalah' },
+  { id: 'pengaturan_id_berita_acara', grup: 'Counter', ket: 'Berita Acara' },
+  { id: 'pengaturan_id_order_belanja_driver', grup: 'Counter', ket: 'Order driver', bawaan: false }
 ];
+// Pesanan uji coba ikut menaikkan master_pelanggan.saldo_piutang (Zevanic
+// House). Sebelum dihapus, sisa_piutang-nya dikurangkan balik per pelanggan.
+const KOLEKSI_BERPIUTANG = ['pesanan', 'transaksi_kasir'];
 const AppConfigResetTesting = {
   components: { PopupPinGenerik },
   setup() {
     const jumlah = reactive({});
-    const pilih = reactive(Object.fromEntries(KOLEKSI_RESET.map(k => [k.id, true])));
+    const pilih = reactive(Object.fromEntries(KOLEKSI_RESET.map(k => [k.id, k.bawaan !== false])));
     const memuat = ref(false);
     const sedangHapus = ref(false);
     const konfirmasi = ref('');
@@ -333,11 +346,26 @@ const AppConfigResetTesting = {
       for (const k of KOLEKSI_RESET.filter(x => pilih[x.id])) {
         try {
           const snap = await getDocs(collection(db, k.id));
+          // Koreksi saldo ditulis di batch yang SAMA dengan hapusnya (increment),
+          // jadi gagal di tengah tidak membuat saldo terkurang dua kali.
+          const berpiutang = KOLEKSI_BERPIUTANG.includes(k.id);
+          const pelangganAda = new Set();
+          if (berpiutang) {
+            const ids = [...new Set(snap.docs.map(d => d.data().pelanggan_id).filter(Boolean))];
+            for (const pid of ids) { if ((await getDoc(doc(db, 'master_pelanggan', pid))).exists()) pelangganAda.add(pid); }
+          }
           for (let i = 0; i < snap.docs.length; i += 400) {
+            const potong = snap.docs.slice(i, i + 400);
             const batch = writeBatch(db);
-            snap.docs.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+            potong.forEach(d => batch.delete(d.ref));
+            if (berpiutang) {
+              const per = {};
+              potong.forEach(d => { const x = d.data(); const sisa = parseFloat(x.sisa_piutang) || 0; if (pelangganAda.has(x.pelanggan_id) && sisa > 0) per[x.pelanggan_id] = (per[x.pelanggan_id] || 0) + sisa; });
+              Object.entries(per).forEach(([pid, sisa]) => batch.set(doc(db, 'master_pelanggan', pid), { saldo_piutang: increment(-sisa) }, { merge: true }));
+            }
             await batch.commit();
           }
+          if (berpiutang && pelangganAda.size) log.value.push('saldo_piutang ' + pelangganAda.size + ' pelanggan dikoreksi');
           log.value.push(k.id + ': ' + snap.size + ' dihapus');
         } catch (e) { console.error('Gagal reset ' + k.id + ':', e); log.value.push(k.id + ': GAGAL (' + (e.code || e.message) + ')'); }
       }
@@ -350,12 +378,13 @@ const AppConfigResetTesting = {
   template: `
     <div class="gc-card" style="padding:14px;">
       <h3 class="gc-heading" style="font-size:14px; font-weight:700; margin:0 0 4px;">Reset Data Testing</h3>
-      <p style="font-size:11.5px; color:var(--text-faint); margin:0 0 12px;">Menghapus data alur produksi hasil uji coba. Lot, stok, kartu stok, pembelian, dan master data TIDAK ikut dihapus. Tidak bisa dibatalkan.</p>
+      <p style="font-size:11.5px; color:var(--text-faint); margin:0 0 12px;">Hanya data uji coba menu Pesanan, Persiapan Produksi, Collection, dan Proses Produksi. Zevanic House, Management, lot, stok, kartu stok, nota pembelian, dan master data TIDAK ikut. Saldo piutang pelanggan dari pesanan uji coba dikoreksi otomatis. Tidak bisa dibatalkan.</p>
       <div class="gc-table-scroll" style="margin-bottom:12px;">
         <table style="width:100%; border-collapse:collapse; font-size:11.5px;">
           <tbody>
             <tr v-for="k in KOLEKSI_RESET" :key="k.id" style="border-bottom:1px solid var(--line);">
               <td style="padding:5px 8px; width:28px;"><input type="checkbox" v-model="pilih[k.id]"></td>
+              <td style="padding:5px 8px; color:var(--text-faint);">{{ k.grup }}</td>
               <td style="padding:5px 8px;" class="gc-num">{{ k.id }}</td>
               <td style="padding:5px 8px; color:var(--text-faint);">{{ k.ket }}</td>
               <td style="padding:5px 8px; text-align:right;" class="gc-num">{{ memuat ? '...' : jumlah[k.id] }}</td>

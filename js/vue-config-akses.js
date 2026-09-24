@@ -200,7 +200,7 @@ const DAFTAR_MENU = [
   // Collection > Pengumpulan + Serie — grup sidebar sendiri, isinya tetap di
   // tab-proses-produksi. Satu izin menu untuk semua tab. Lihat js/vue-pp-serie.js.
   { id: 'proses_serie', label: 'Collection - Pengumpulan + Serie', labelPendek: 'Pengumpulan + Serie', kategori: 'Collection', icon: 'fa-shuffle',
-    aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-serie', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-perludiproses', null, {catatRiwayat:true}); window.toggleNavGroup && window.toggleNavGroup('navgrp-collection'); } },
+    aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-serie', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-perludiproses', null, {catatRiwayat:true}); } },
   // Proses Produksi > Sewing, NESTED di grup top-level "Proses Produksi" yang
   // SUDAH ada dari Cutting/Serie (bukan grup baru) -- satu izin menu untuk semua
   // 5 tab Sewing, sama pola seperti cut_cutting/proses_serie. Lihat js/vue-pp-
