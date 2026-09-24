@@ -16,8 +16,8 @@
 //   vue-config-akses.js), defaultnya Owner saja.
 // - Mount LAZY per tab lewat window.pastikanMountConfigXxx yang dipanggil
 //   dashboard.js; jangan dipanggil saat load, itu membaca 9 koleksi sekaligus.
-// - Tab Reset Testing hanya menyentuh data Pesanan/Persiapan/Collection/Proses
-//   (+ koreksi saldo_piutang pelanggan). Zevanic House & Management tidak.
+// - Tab Reset Testing: data Pesanan/Persiapan/Collection/Proses; Stok & Piutang
+//   opsional (master tidak dihapus, hanya angka dinolkan). Management tidak.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, writeBatch, increment } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -290,10 +290,10 @@ const AppConfigTlc = {
 // tidak ada 2 versi kode yang bisa menyimpang.
 
 
-// Reset Testing — hapus data uji coba menu Pesanan, Persiapan Produksi,
-// Collection, dan Proses Produksi SAJA. Zevanic House, Management, Stok dan
-// Pembelian (lot, kartu stok, nota) dan semua master TIDAK boleh masuk daftar.
-// Hapus per 400 dokumen (batas batch 500). bawaan:false = tidak dicentang awal.
+// Reset Testing — hapus data uji coba Pesanan, Persiapan, Collection, Proses.
+// Grup "Stok & Piutang" opsional (bawaan:false): master TIDAK dihapus, baris
+// ber-`nol` hanya mengenolkan field-nya. Management tidak pernah masuk daftar.
+// kunci = id checkbox (master yang sama bisa muncul di >1 baris).
 const KOLEKSI_RESET = [
   { id: 'pesanan', grup: 'Pesanan', ket: 'Pesanan kasir' }, { id: 'transaksi_kasir', grup: 'Pesanan', ket: 'Pesanan kasir (nama lama)' },
   { id: 'piutang_pembayaran', grup: 'Pesanan', ket: 'Pembayaran piutang pesanan' }, { id: 'order', grup: 'Pesanan', ket: 'ID Order' },
@@ -314,8 +314,20 @@ const KOLEKSI_RESET = [
   { id: 'pengaturan_id_label_komponen', grup: 'Counter', ket: 'Label komponen' }, { id: 'pengaturan_id_label_pcs', grup: 'Counter', ket: 'Label pcs' },
   { id: 'pengaturan_id_persiapan_masalah', grup: 'Counter', ket: 'MSL' }, { id: 'pengaturan_id_persiapan_masalah_pengajuan', grup: 'Counter', ket: 'Pengajuan masalah' },
   { id: 'pengaturan_id_berita_acara', grup: 'Counter', ket: 'Berita Acara' },
-  { id: 'pengaturan_id_order_belanja_driver', grup: 'Counter', ket: 'Order driver', bawaan: false }
+  { id: 'pengaturan_id_order_belanja_driver', grup: 'Counter', ket: 'Order driver', bawaan: false },
+  { kunci: 'nol_piutang', id: 'master_pelanggan', nol: { saldo_piutang: 0 }, grup: 'Stok & Piutang', ket: 'Hutang: saldo piutang semua pelanggan jadi 0 (data pelanggan tetap)', bawaan: false },
+  { kunci: 'nol_stok', id: 'master_bahan_aksesoris', nol: { stok_akhir: 0 }, grup: 'Stok & Piutang', ket: 'Stok: stok semua bahan & aksesoris jadi 0 (master tetap)', bawaan: false },
+  { id: 'kartu_stok_bahan_aksesoris', grup: 'Stok & Piutang', ket: 'Kartu stok (riwayat masuk/keluar)', bawaan: false },
+  { id: 'lot_bahan_aksesoris', grup: 'Stok & Piutang', ket: 'Lot roll & pak repack', bawaan: false },
+  { id: 'repack_komponen_acc', grup: 'Stok & Piutang', ket: 'Repack (nama lama)', bawaan: false },
+  { id: 'log_cetak_label', grup: 'Stok & Piutang', ket: 'Log cetak label roll', bawaan: false },
+  { kunci: 'nol_counter_lot', id: 'master_bahan_aksesoris', nol: { lot_counter: 0, pak_counter: 0 }, grup: 'Stok & Piutang', ket: 'Nomor lot & pak mulai dari 001 lagi', bawaan: false },
+  { id: 'pesanan_pembelian', grup: 'Stok & Piutang', ket: 'Nota pembelian', bawaan: false },
+  { id: 'pengaturan_id_pembelian', grup: 'Stok & Piutang', ket: 'Counter no. pembelian', bawaan: false }
 ];
+const kunciReset = (k) => k.kunci || k.id;
+// Baris `nol` dihitung dari dokumen yang field-nya belum 0, bukan jumlah master.
+const perluDinolkan = (k, d) => Object.keys(k.nol).some(f => (parseFloat(d.data()[f]) || 0) !== 0);
 // Pesanan uji coba ikut menaikkan master_pelanggan.saldo_piutang (Zevanic
 // House). Sebelum dihapus, sisa_piutang-nya dikurangkan balik per pelanggan.
 const KOLEKSI_BERPIUTANG = ['pesanan', 'transaksi_kasir'];
@@ -323,7 +335,7 @@ const AppConfigResetTesting = {
   components: { PopupPinGenerik },
   setup() {
     const jumlah = reactive({});
-    const pilih = reactive(Object.fromEntries(KOLEKSI_RESET.map(k => [k.id, k.bawaan !== false])));
+    const pilih = reactive(Object.fromEntries(KOLEKSI_RESET.map(k => [kunciReset(k), k.bawaan !== false])));
     const memuat = ref(false);
     const sedangHapus = ref(false);
     const konfirmasi = ref('');
@@ -332,20 +344,33 @@ const AppConfigResetTesting = {
     async function muat() {
       memuat.value = true;
       for (const k of KOLEKSI_RESET) {
-        try { jumlah[k.id] = (await getDocs(collection(db, k.id))).size; } catch (e) { jumlah[k.id] = '?'; }
+        try {
+          const snap = await getDocs(collection(db, k.id));
+          jumlah[kunciReset(k)] = k.nol ? snap.docs.filter(d => perluDinolkan(k, d)).length : snap.size;
+        } catch (e) { jumlah[kunciReset(k)] = '?'; }
       }
       memuat.value = false;
     }
     function mulai() {
       if (konfirmasi.value !== 'RESET') { alert('Ketik RESET (huruf besar) untuk konfirmasi.'); return; }
-      if (!KOLEKSI_RESET.some(k => pilih[k.id])) { alert('Pilih minimal satu koleksi.'); return; }
+      if (!KOLEKSI_RESET.some(k => pilih[kunciReset(k)])) { alert('Pilih minimal satu koleksi.'); return; }
       pinAktif.value = true;
     }
     async function pinSukses() {
       pinAktif.value = false; sedangHapus.value = true; log.value = [];
-      for (const k of KOLEKSI_RESET.filter(x => pilih[x.id])) {
+      for (const k of KOLEKSI_RESET.filter(x => pilih[kunciReset(x)])) {
         try {
           const snap = await getDocs(collection(db, k.id));
+          if (k.nol) {
+            const target = snap.docs.filter(d => perluDinolkan(k, d));
+            for (let i = 0; i < target.length; i += 400) {
+              const batch = writeBatch(db);
+              target.slice(i, i + 400).forEach(d => batch.set(d.ref, k.nol, { merge: true }));
+              await batch.commit();
+            }
+            log.value.push(k.id + ' (' + Object.keys(k.nol).join(', ') + '): ' + target.length + ' dinolkan');
+            continue;
+          }
           // Koreksi saldo ditulis di batch yang SAMA dengan hapusnya (increment),
           // jadi gagal di tengah tidak membuat saldo terkurang dua kali.
           const berpiutang = KOLEKSI_BERPIUTANG.includes(k.id);
@@ -373,25 +398,27 @@ const AppConfigResetTesting = {
       await muat();
     }
     onMounted(async () => { await window.authReady; await muat(); });
-    return { KOLEKSI_RESET, jumlah, pilih, memuat, sedangHapus, konfirmasi, pinAktif, log, muat, mulai, pinSukses };
+    const stokDipilih = computed(() => { const n = ['nol_stok', 'kartu_stok_bahan_aksesoris', 'lot_bahan_aksesoris'].filter(x => pilih[x]).length; return n > 0 && n < 3; });
+    return { KOLEKSI_RESET, kunciReset, stokDipilih, jumlah, pilih, memuat, sedangHapus, konfirmasi, pinAktif, log, muat, mulai, pinSukses };
   },
   template: `
     <div class="gc-card" style="padding:14px;">
       <h3 class="gc-heading" style="font-size:14px; font-weight:700; margin:0 0 4px;">Reset Data Testing</h3>
-      <p style="font-size:11.5px; color:var(--text-faint); margin:0 0 12px;">Hanya data uji coba menu Pesanan, Persiapan Produksi, Collection, dan Proses Produksi. Zevanic House, Management, lot, stok, kartu stok, nota pembelian, dan master data TIDAK ikut. Saldo piutang pelanggan dari pesanan uji coba dikoreksi otomatis. Tidak bisa dibatalkan.</p>
+      <p style="font-size:11.5px; color:var(--text-faint); margin:0 0 12px;">Data uji coba Pesanan, Persiapan Produksi, Collection, dan Proses Produksi. Grup Stok &amp; Piutang tidak dicentang bawaan; master data tidak pernah dihapus, hanya angkanya dinolkan. Management tidak ikut. Tidak bisa dibatalkan.</p>
       <div class="gc-table-scroll" style="margin-bottom:12px;">
         <table style="width:100%; border-collapse:collapse; font-size:11.5px;">
           <tbody>
-            <tr v-for="k in KOLEKSI_RESET" :key="k.id" style="border-bottom:1px solid var(--line);">
-              <td style="padding:5px 8px; width:28px;"><input type="checkbox" v-model="pilih[k.id]"></td>
+            <tr v-for="k in KOLEKSI_RESET" :key="kunciReset(k)" style="border-bottom:1px solid var(--line);" :style="{ background: k.grup === 'Stok & Piutang' ? 'var(--warn-light)' : '' }">
+              <td style="padding:5px 8px; width:28px;"><input type="checkbox" v-model="pilih[kunciReset(k)]"></td>
               <td style="padding:5px 8px; color:var(--text-faint);">{{ k.grup }}</td>
               <td style="padding:5px 8px;" class="gc-num">{{ k.id }}</td>
               <td style="padding:5px 8px; color:var(--text-faint);">{{ k.ket }}</td>
-              <td style="padding:5px 8px; text-align:right;" class="gc-num">{{ memuat ? '...' : jumlah[k.id] }}</td>
+              <td style="padding:5px 8px; text-align:right;" class="gc-num">{{ memuat ? '...' : jumlah[kunciReset(k)] }}</td>
             </tr>
           </tbody>
         </table>
       </div>
+      <p v-if="stokDipilih" style="font-size:11px; color:var(--danger); margin:0 0 10px;">Stok, kartu stok, dan lot sebaiknya dicentang bersamaan supaya angkanya tetap cocok satu sama lain.</p>
       <div class="gc-field" style="margin-bottom:10px;"><label>Ketik RESET untuk konfirmasi</label><input v-model="konfirmasi" type="text" autocomplete="off"></div>
       <div style="display:flex; gap:8px;">
         <button @click="muat" :disabled="memuat || sedangHapus" class="btn-outline" style="flex:1; padding:9px;">Hitung Ulang</button>
