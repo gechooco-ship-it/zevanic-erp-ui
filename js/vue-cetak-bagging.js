@@ -15,9 +15,10 @@
 // - Pilihan produk_label diambil dari bagging yang SUDAH ada; kelompok sepack
 //   baru harus dicetak dari jalurnya sendiri dulu.
 // - Cetak dan cetak ulang digerbang role (pic/pic_owner/owner) DAN PIN.
+// - Hapus hanya untuk bagging yang isi[]-nya kosong, PIN Owner.
 
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, query, where, orderBy, limit, getDocs, addDoc, doc, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, query, where, orderBy, limit, getDocs, addDoc, doc, runTransaction, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, HeaderLayar, KolomCari } from './vue-components.js?v=13';
 import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=10';
@@ -184,6 +185,31 @@ const AppCetakBagging = {
       sedangProses.value = false;
     }
 
+    // ---- Hapus bagging kosong (isi belum ada): PIN Owner, dicatat ke
+    // cetak_ulang_log. Bagging yang sudah berisi tidak pernah ikut terhapus.
+    const pinHapusAktif = ref(false);
+    function bukaHapusKosong() {
+      if (!jumlahKosong.value) return;
+      if (!confirm(`Hapus ${jumlahKosong.value} bagging kosong? Labelnya yang sudah tercetak tidak bisa dipakai lagi.`)) return;
+      pinHapusAktif.value = true;
+    }
+    async function pinHapusSukses(user) {
+      pinHapusAktif.value = false;
+      const kosong = daftar.value.filter(b => !(b.isi || []).length);
+      sedangProses.value = true;
+      try {
+        const batch = writeBatch(db);
+        kosong.forEach(b => batch.delete(doc(db, 'bagging', b.id)));
+        batch.set(doc(collection(db, 'cetak_ulang_log')), {
+          kode_grouping_induk: '-', bahan: kosong.map(b => b.kode).join(', '),
+          alasan: 'Hapus bagging kosong', pin_oleh: user.nama || user.email || '', pada: serverTimestamp()
+        });
+        await batch.commit();
+        await muat();
+      } catch (e) { console.error('Gagal hapus bagging kosong:', e); alert('Gagal menghapus. Coba lagi.'); }
+      sedangProses.value = false;
+    }
+
     onMounted(async () => { await window.authReady; muat(); });
 
     return {
@@ -192,7 +218,8 @@ const AppCetakBagging = {
       rincianTerbuka, toggleRincian, muat,
       popupAlasan, pinAktif, popupCetak, labelPreview,
       bukaCetakUlang, lanjutKePin, pinSukses,
-      popupBaru, daftarLabel, bukaBuatBaru, ubahJumlah, konfirmasiBuatBaru
+      popupBaru, daftarLabel, bukaBuatBaru, ubahJumlah, konfirmasiBuatBaru,
+      pinHapusAktif, bukaHapusKosong, pinHapusSukses
     };
   },
   template: `
@@ -214,7 +241,10 @@ const AppCetakBagging = {
     </div>
 
     <div v-if="jumlahKosong > 0" class="gc-card" style="padding:10px 12px; margin-bottom:10px; background:var(--ok-light); font-size:11px; color:var(--text);">
-      Masih ada <b>{{ jumlahKosong }}</b> bagging kosong yang belum terpakai — pakai itu dulu sebelum mencetak baru.
+      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <span style="flex:1; min-width:180px;">Masih ada <b>{{ jumlahKosong }}</b> bagging kosong yang belum terpakai — pakai itu dulu sebelum mencetak baru.</span>
+        <button @click="bukaHapusKosong" :disabled="sedangProses" class="btn-outline" style="padding:6px 10px; font-size:11px; color:var(--danger);"><i class="fas fa-trash-can" style="margin-right:4px;"></i>Hapus Bagging Kosong</button>
+      </div>
     </div>
 
     <div v-if="memuat" style="text-align:center; padding:30px 0; color:var(--text-faint); font-size:11px;">Memuat...</div>
@@ -277,7 +307,7 @@ const AppCetakBagging = {
           <div class="gc-heading gc-num" style="flex:1; text-align:center; font-size:18px; font-weight:700;">{{ popupBaru.jumlah }}</div>
           <button @click="ubahJumlah(1)" class="btn-outline" style="width:42px; padding:9px;">+</button>
         </div>
-        <p style="font-size:10px; color:var(--warn-text); margin:0 0 12px;">Kode langsung dibuat begitu ditekan dan tidak bisa dihapus, hanya ditutup.</p>
+        <p style="font-size:10px; color:var(--warn-text); margin:0 0 12px;">Kode langsung dibuat begitu ditekan. Yang masih kosong bisa dihapus dengan PIN Owner.</p>
         <div style="display:flex; gap:8px;">
           <button @click="popupBaru = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
           <button @click="konfirmasiBuatBaru" :disabled="sedangProses" class="btn-primary" style="flex:1; padding:9px;">{{ sedangProses ? 'Membuat...' : 'Buat & Cetak' }}</button>
@@ -286,6 +316,8 @@ const AppCetakBagging = {
     </div>
 
     <popup-pin-generik v-if="pinAktif" judul="Verifikasi PIN — Cetak Ulang Bagging" konteks="Cetak Bagging - Cetak Ulang" :roles-diizinkan="['owner','superuser','pic_owner','pic']" @sukses="pinSukses" @batal="pinAktif = false" />
+
+    <popup-pin-generik v-if="pinHapusAktif" judul="PIN Owner — Hapus Bagging Kosong" konteks="Cetak Bagging - Hapus Kosong" :roles-diizinkan="['owner','superuser','pic_owner']" @sukses="pinHapusSukses" @batal="pinHapusAktif = false" />
 
     <popup-pratinjau-cetak-label :terbuka="popupCetak" judul="Cetak Kode Bagging" :daftar-label="labelPreview" jenis-cetak="kode_bagging" @tutup="popupCetak = false" />
   </div>
