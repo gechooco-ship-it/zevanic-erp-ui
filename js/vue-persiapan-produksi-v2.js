@@ -1,24 +1,22 @@
 // js/vue-persiapan-produksi-v2.js
-// Persiapan Produksi V2. (1) "Perlu Disiapkan" mengelompokkan SPK aktif yang
-// produk & polanya sama jadi 1 SPK Grouping (SPKyymmdd + 3 digit, counter
-// GLOBAL per hari lintas produk); (2) JalurTahapManager di file ini cuma
-// dipakai jalur Vendor — Bahan/Sewing/Webbing/Finishing punya file sendiri.
+// Persiapan Produksi. (1) Perlu Persiapan: tiap ID Order dipecah per MOQ jadi
+// SPK Separating `S{YY}R{MM}{DD}P{nnn}` + kartu ACC/Vendor per separating;
+// (2) PanelGroupingBahan (diekspor, dipasang di Bahan) menggabung separating
+// sepola jadi SPK Grouping `GR{yymmdd}{nn}`; (3) JalurTahapManager = Vendor.
 //
 // Koleksi & field:
-// - Kunci grouping: nama dasar produk dari master_produk.nama lewat
-//   sku_produk, plus tanda tangan pola bom_pola[].panjang + .isi_pola_pcs.
-// - jalur_aktif dideteksi dari BOM: bom_pola terisi → 'bahan';
-//   bom_aksesoris.tahap_proses mengandung Sewing/Webbing/Finishing → jalur itu.
-//   Jalur 'vendor' (sublim/sablon/bordir) tanpa sumber BOM: checkbox MANUAL.
+// - order: qty_terseparating (akumulatif), separating_ids[], status_separating.
+// - spk_separating: 1 dokumen per Kode Separating (qty, jalur_aktif, grouping_id,
+//   status: perlu_disiapkan, lalu status Collection sampai selesai di Gudang).
+// - spk_track: ACC/Vendor per separating (kode_kit = kode + -SEW/-WEB/-FIN/-VDR);
+//   Bahan per grouping (separating_ids[], bahan_rincian per separating per bahan).
 //
 // Jebakan:
-// - JANGAN pakai order_spk.nama_produk sebagai kunci grouping — itu STRING
-//   GABUNGAN "Nama Warna Size", 2 varian warna tak akan cocok padahal segroup.
-// - SPK tanpa sku_produk tidak bisa dikelompokkan otomatis, jadi isi 1 SPK.
-// - buatSpkTrackUntukGrouping dan hitung*Rincian di file ini yang mengisi
-//   spk_track semua jalur; modul pos cuma membaca & mengupdate baris.
-// - JalurTahapManager TIDAK dipakai Bahan/Sewing/Webbing/Finishing lagi —
-//   window.pastikanMountPpXxxYyy versi jalur itu ditimpa file jalur masing2.
+// - Kunci grouping = nama + ukuran + pola dari master_produk lewat sku_produk,
+//   BUKAN order.nama_produk (string gabungan nama warna size).
+// - kode_baris adalah isi QR label: Bahan `{S…}-{GR…}-{tujuan}{nn}`, ACC
+//   `{S…}-{tujuan}{nn}`; daftar_kode[] disalin ke spk_track untuk pencarian scan.
+// - Menu-id 'pp_disiapkan' dan id mount lama dipertahankan (izin role tetap).
 
 import { createApp, ref, reactive, computed, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -115,58 +113,73 @@ function buatQrDataUrl(teks) {
   return dataUrl;
 }
 
-// generateKodeSpkGrouping — runTransaction wajib supaya counter tidak dobel saat
-// 2 admin generate bersamaan; counter doc di-key per TANGGAL (yymmdd) jadi reset
-// sendiri tiap hari. Format kode BAKU `G{YY}R{MM}{DD}P{counter:3}` (G26R0911P001)
-// karena dipakai parsing lintas modul — prefix dari Config sengaja tidak dibaca.
-async function generateKodeSpkGrouping() {
-  const now = new Date();
-  const yy = String(now.getFullYear()).slice(-2);
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  const tanggalKey = `${yy}${mm}${dd}`;
-  const refDoc = doc(db, 'pengaturan_id_spk_grouping', tanggalKey);
+// kodeTanggal — yymmdd tanggal WIB, dipakai semua counter harian file ini.
+function kodeTanggal() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }).slice(2).replace(/-/g, '');
+}
+
+// generateKodeSeparating — `S{YY}R{MM}{DD}P{nnn}`, counter per hari di
+// pengaturan_id_spk_separating (transaksi supaya 2 PIC tidak dapat nomor sama).
+async function generateKodeSeparating() {
+  const t = kodeTanggal();
+  const refDoc = doc(db, 'pengaturan_id_spk_separating', t);
   return await runTransaction(db, async (trx) => {
     const snap = await trx.get(refDoc);
-    const counterBaru = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
-    if (snap.exists()) trx.update(refDoc, { counter: counterBaru });
-    else trx.set(refDoc, { counter: counterBaru, dibuat_pada: tanggalKey });
-    return `G${yy}R${mm}${dd}P${String(counterBaru).padStart(3, '0')}`;
+    const n = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
+    if (snap.exists()) trx.update(refDoc, { counter: n }); else trx.set(refDoc, { counter: n, dibuat_pada: t });
+    return `S${t.slice(0, 2)}R${t.slice(2, 4)}${t.slice(4, 6)}P${String(n).padStart(3, '0')}`;
   });
 }
 
-// buatSpkTrackUntukGrouping — buat 1 dokumen `spk_track` per jalur di
-// `jalur_aktif` (status awal selalu 'perlu_diproses') untuk SEMUA jalur, bukan
-// hanya yang UI-nya sudah jadi, supaya grouping lama tidak butuh backfill.
-// kode_spk/nama_produk/qty_total didenormalisasi agar daftar tahap tak baca balik.
-async function buatSpkTrackUntukGrouping(groupingId, kodeSpk, namaProduk, qtyTotal, jalurAktif, bahanRincian, sewingRincian, webbingRincian, finishingRincian) {
-  await Promise.all((jalurAktif || []).map(jalur => addDoc(collection(db, 'spk_track'), {
-    grouping_id: groupingId,
-    kode_spk: kodeSpk,
-    nama_produk: namaProduk,
-    qty_total: qtyTotal,
-    jalur,
-    status: 'perlu_diproses',
-    operator_id: '',
-    operator_nama: '',
-    kode_bagging: '',
-    kode_tugas: '',
-    riwayat_scan: [],
-    catatan_masalah: '',
-    // bahan_rincian — hanya diisi untuk jalur 'bahan': rincian kebutuhan kain PER
-    // BAHAN PER ANAK SPK, karena tahap Bahan discan sampai level baris komponen,
-    // sedangkan spk_track sendiri cuma 1 dokumen per grouping per jalur.
-    bahan_rincian: (jalur === 'bahan' && Array.isArray(bahanRincian)) ? bahanRincian : [],
-    // sewing_rincian / webbing_rincian / finishing_rincian — pola sama dengan
-    // bahan_rincian tapi field PER JALUR sendiri-sendiri (bukan 1 field digilir)
-    // supaya tiap pos hanya membaca fieldnya sendiri dan bentuk bahan_rincian tidak
-    // perlu berubah. Jalur 'vendor' tidak dapat rincian apa pun.
-    sewing_rincian: (jalur === 'sewing' && Array.isArray(sewingRincian)) ? sewingRincian : [],
-    webbing_rincian: (jalur === 'webbing' && Array.isArray(webbingRincian)) ? webbingRincian : [],
-    finishing_rincian: (jalur === 'finishing' && Array.isArray(finishingRincian)) ? finishingRincian : [],
-    dibuat_pada: serverTimestamp(),
-    diperbarui_pada: serverTimestamp()
-  })));
+// generateKodeGroupingInduk — `GR{yymmdd}{nn}`, counter per hari di
+// pengaturan_id_spk_grouping. Hanya jalur Bahan yang digrouping.
+async function generateKodeGroupingInduk() {
+  const t = kodeTanggal();
+  const refDoc = doc(db, 'pengaturan_id_spk_grouping', t);
+  return await runTransaction(db, async (trx) => {
+    const snap = await trx.get(refDoc);
+    const n = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
+    if (snap.exists()) trx.update(refDoc, { counter: n }); else trx.set(refDoc, { counter: n, dibuat_pada: t });
+    return `GR${t}${String(n).padStart(2, '0')}`;
+  });
+}
+
+// AKHIRAN_KIT — akhiran Kode Kit ACC per jalur. Kode kit unik lintas jalur
+// supaya kit yang tertukar ditolak saat scan.
+const AKHIRAN_KIT = { sewing: 'SEW', webbing: 'WEB', finishing: 'FIN', vendor: 'VDR' };
+
+// usulPecahanMoq — 100 pcs, MOQ 25 → [25,25,25,25]; sisa di bawah MOQ jadi
+// separating sendiri. MOQ kosong/0 → satu separating berisi semua.
+export function usulPecahanMoq(qty, moq) {
+  const total = Math.max(0, Math.floor(parseFloat(qty) || 0));
+  const m = Math.floor(parseFloat(moq) || 0);
+  if (!total) return [];
+  if (!(m > 0) || m >= total) return [total];
+  const hasil = [];
+  let sisa = total;
+  while (sisa >= m) { hasil.push(m); sisa -= m; }
+  if (sisa > 0) hasil.push(sisa);
+  return hasil;
+}
+
+// buatSpkTrackSeparating — 1 dokumen spk_track per jalur ACC/Vendor per
+// separating. kode_kit = Kode Separating + akhiran jalur, itu yang dicetak.
+async function buatSpkTrackSeparating(sep, jalur, rincian) {
+  const kodeKit = `${sep.kode_separating}-${AKHIRAN_KIT[jalur] || jalur.toUpperCase()}`;
+  const field = jalur + '_rincian';
+  const baris = (rincian || []).map(b => ({ ...b, kode_kit: kodeKit }));
+  await addDoc(collection(db, 'spk_track'), {
+    jalur, separating_id: sep.id, kode_separating: sep.kode_separating, kode_kit: kodeKit,
+    separating_ids: [sep.id], order_id: sep.order_id, id_order: sep.id_order,
+    grouping_id: '', kode_grouping_induk: '',
+    nama_produk: sep.nama_produk, qty_total: sep.qty,
+    status: 'perlu_diproses', operator_id: '', operator_nama: '',
+    kode_bagging: '', kode_tugas: '', riwayat_scan: [], catatan_masalah: '',
+    bahan_rincian: [], sewing_rincian: [], webbing_rincian: [], finishing_rincian: [],
+    [field]: jalur === 'vendor' ? [] : baris,
+    daftar_kode: [kodeKit, ...baris.map(b => b.kode_baris).filter(Boolean)],
+    dibuat_pada: serverTimestamp(), diperbarui_pada: serverTimestamp()
+  });
 }
 
 // ambilPetaBahanAksesoris — cache modul-level, dipakai hitungBahanRincian saat
@@ -186,55 +199,40 @@ async function ambilPetaBahanAksesoris() {
   return peta;
 }
 
-// ambilPetaKodeTujuanDivisi / tandaiKodeGrouping — kode_tujuan per jalur dari
-// `master_prefix_divisi` (doc id = jalur); 3 level: kode_kartu {kode_spk}-{tlc}{bahan:2}
-// = label QR fisik yang dicocokkan scan, kode_anak_spk +{anak:2}, kode_komponen -{komp:2}
-// (Acc: kartuKey=no_spk, pembeda baris ada di counter_komponen). Counter DISIMPAN permanen.
+// ambilPetaKodeTujuanDivisi — kode_tujuan 2 digit per jalur dari
+// `master_prefix_divisi` (doc id = jalur, BUKAN field jalur_key di data).
 let _cachePetaKodeTujuan = null;
 async function ambilPetaKodeTujuanDivisi() {
   if (_cachePetaKodeTujuan) return _cachePetaKodeTujuan;
   const peta = {};
   try {
     const snap = await getDocs(collection(db, 'master_prefix_divisi'));
-    // Key = ID dokumen, BUKAN field `jalur_key` di dalam data — vue-config.js
-    // simpanBaris menulis doc dgn id = jalur_key ('bahan'/'sewing'/dst) tapi
-    // TIDAK menaruh jalur_key sebagai field di dalam data itu sendiri, jadi baca
-    // via x.jalur_key selalu undefined .
-    snap.forEach(d => {
-      const x = d.data();
-      if (x.kode_tujuan) peta[d.id] = x.kode_tujuan;
-    });
+    snap.forEach(d => { const x = d.data(); if (x.kode_tujuan) peta[d.id] = x.kode_tujuan; });
   } catch (e) { console.error('Gagal ambil master_prefix_divisi (kode tujuan):', e); }
   _cachePetaKodeTujuan = peta;
   return peta;
 }
-function tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, kartuKeyFn, anakSpkKeyFn) {
-  if (!kodeTujuan) { baris.forEach(b => { b.kode_kartu = null; b.kode_anak_spk = null; b.kode_komponen = null; }); return baris; }
-  const urutanKartu = [];
-  const petaKartu = {};
-  const infoKartu = {}; // infoKartu[kartuKey] = { urutanAnak: [], petaAnak: {} }
-  const hitungKomponen = {}; // hitungKomponen['kartuKey::anakKey'] = counter berjalan
+
+// tandaiKodeBahan — kode_grouping `{GR}-{tujuan}{nn}` per bahan+pola dalam satu
+// grouping; kode_baris (label bahan) `{kode_separating}-{kode_grouping}`, satu
+// per separating per bahan. kode_kartu/kode_komponen diisi untuk pembaca lama.
+function tandaiKodeBahan(baris, kodeGr, kodeTujuan) {
+  const urut = {};
   baris.forEach(b => {
-    const kartuKey = kartuKeyFn(b);
-    if (!(kartuKey in petaKartu)) {
-      petaKartu[kartuKey] = urutanKartu.length + 1;
-      urutanKartu.push(kartuKey);
-      infoKartu[kartuKey] = { urutanAnak: [], petaAnak: {} };
-    }
-    const kodeKartu = `${kodeSpk}-${kodeTujuan}${String(petaKartu[kartuKey]).padStart(2, '0')}`;
-
-    const grup = infoKartu[kartuKey];
-    const anakKey = anakSpkKeyFn(b);
-    if (!(anakKey in grup.petaAnak)) { grup.petaAnak[anakKey] = grup.urutanAnak.length + 1; grup.urutanAnak.push(anakKey); }
-    const kodeAnakSpk = `${kodeKartu}${String(grup.petaAnak[anakKey]).padStart(2, '0')}`;
-
-    const kunciKomponen = kartuKey + '::' + anakKey;
-    hitungKomponen[kunciKomponen] = (hitungKomponen[kunciKomponen] || 0) + 1;
-    const kodeKomponen = `${kodeAnakSpk}-${String(hitungKomponen[kunciKomponen]).padStart(2, '0')}`;
-
-    b.kode_kartu = kodeKartu;
-    b.kode_anak_spk = kodeAnakSpk;
-    b.kode_komponen = kodeKomponen;
+    const key = b.bahan_aksesoris_id + '::' + (b.nama_pola || '');
+    if (!(key in urut)) urut[key] = Object.keys(urut).length + 1;
+    b.kode_grouping = `${kodeGr}-${kodeTujuan || '00'}${String(urut[key]).padStart(2, '0')}`;
+    b.kode_baris = `${b.kode_separating}-${b.kode_grouping}`;
+    b.kode_kartu = b.kode_grouping; b.kode_anak_spk = null; b.kode_komponen = b.kode_baris;
+  });
+  return baris;
+}
+// tandaiKodeAcc — kode_baris `{kode_separating}-{tujuan}{nn}` per baris
+// aksesoris satu separating. Label fisik kit memakai kode_kit, bukan ini.
+function tandaiKodeAcc(baris, kodeTujuan) {
+  baris.forEach((b, i) => {
+    b.kode_baris = `${b.kode_separating}-${kodeTujuan || '00'}${String(i + 1).padStart(2, '0')}`;
+    b.kode_kartu = null; b.kode_anak_spk = null; b.kode_komponen = b.kode_baris;
   });
   return baris;
 }
@@ -243,7 +241,7 @@ function tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, kartuKeyFn, anakSpkKeyFn
 // spk_track.bahan_rincian[]. Sumber BOM `master_produk.bom_pola[]` (BUKAN
 // bom_aksesoris[]), hanya baris tipe:'internal'. Rumus: amparan = qty anak SPK /
 // isi_pola_pcs dibulatkan KE ATAS; kebutuhan_kain(m) = (panjang pola cm/100) x amparan.
-function hitungBahanRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
+function hitungBahanRincian(anggotaList, petaBahan, kodeGr, kodeTujuan) {
   const baris = [];
   (anggotaList || []).forEach(a => {
     const produk = a._produk || null;
@@ -259,8 +257,9 @@ function hitungBahanRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
       const kebutuhanKain = (panjangCm / 100) * amparan;
       const bhn = petaBahan[b.bahan_aksesoris_id] || {};
       baris.push({
-        order_spk_id: a.order_spk_id, no_spk: a.no_spk, qty,
-        // pelanggan_nama — snapshot dari order_spk (lihat anggotaBaris di
+        order_id: a.order_id, id_order: a.id_order, qty,
+        separating_id: a.separating_id, kode_separating: a.kode_separating,
+        // pelanggan_nama — snapshot dari order (lihat anggotaBaris di
         // atas file), dipakai kartu "ANAK SPK" & label cetak
         // js/vue-persiapan-bahan.js supaya PIC langsung tahu orderan siapa tanpa
         // perlu tampilkan kode TRX mentah.
@@ -306,10 +305,7 @@ function hitungBahanRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
       });
     });
   });
-  // kartuKeyFn — kunci kartu = bahan + pola, bukan bahan_aksesoris_id saja: 2 anak
-  // SPK dengan bahan sama tapi pola beda tidak boleh jadi 1 kartu. Formula wajib
-  // sama dengan kelompokKartuBahan/bangunPreviewDariBaris vue-persiapan-bahan.js.
-  return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.bahan_aksesoris_id + '::' + (b.nama_pola || ''), b => b.no_spk);
+  return tandaiKodeBahan(baris, kodeGr, kodeTujuan);
 }
 
 // hitungSewingRincian / hitungWebbingRincian / hitungFinishingRincian — pola sama dengan
@@ -319,7 +315,8 @@ function hitungBahanRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
 function _butuhAksesorisDasar(a, qty) {
   const produk = a._produk || null;
   return {
-    order_spk_id: a.order_spk_id, no_spk: a.no_spk, qty,
+    order_id: a.order_id, id_order: a.id_order, qty,
+    separating_id: a.separating_id, kode_separating: a.kode_separating,
     // pelanggan_nama — sama pola seperti hitungBahanRincian di atas, dipakai
     // kartu & label cetak Acc Sewing/Webbing/Finishing.
     pelanggan_nama: a.pelanggan_nama || '',
@@ -340,7 +337,7 @@ function _butuhAksesorisDasar(a, qty) {
     kode_kartu: null, kode_anak_spk: null, kode_komponen: null // diisi tandaiKodeGrouping di bawah
   };
 }
-function hitungSewingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
+function hitungSewingRincian(anggotaList, petaBahan, kodeTujuan) {
   const baris = [];
   (anggotaList || []).forEach(a => {
     const produk = a._produk || null;
@@ -364,13 +361,13 @@ function hitungSewingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
       });
     });
   });
-  return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.no_spk, b => b.no_spk);
+  return tandaiKodeAcc(baris, kodeTujuan);
 }
 // hitungWebbingRincian — sama seperti hitungSewingRincian, TAMBAH kolom khas pos
 // ini : panjang_per_pcs/ butuh_meter (meter, bukan pcs), roll, kode_webbing2/3
 // (snapshot bom_aksesoris.webbing2/.webbing3 SAAT SPK Grouping terbit — teks
 // bebas, boleh kosong, TIDAK menghalangi cetak per ).
-function hitungWebbingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
+function hitungWebbingRincian(anggotaList, petaBahan, kodeTujuan) {
   const baris = [];
   (anggotaList || []).forEach(a => {
     const produk = a._produk || null;
@@ -397,13 +394,13 @@ function hitungWebbingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
       });
     });
   });
-  return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.no_spk, b => b.no_spk);
+  return tandaiKodeAcc(baris, kodeTujuan);
 }
 // hitungFinishingRincian — seperti hitungSewingRincian, tambah kolom khas pos ini:
 // varian_tipe/varian_jumlah (default 'tunggal'/1 saat generate karena BOM Aksesoris
 // belum punya field pemisah varian) dan keadaan_cetak/sisa_dicetak yang SENGAJA
 // tidak disimpan — dihitung live di vue-persiapan-finishing.js dari stok vs `butuh`.
-function hitungFinishingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
+function hitungFinishingRincian(anggotaList, petaBahan, kodeTujuan) {
   const baris = [];
   (anggotaList || []).forEach(a => {
     const produk = a._produk || null;
@@ -426,7 +423,7 @@ function hitungFinishingRincian(anggotaList, petaBahan, kodeSpk, kodeTujuan) {
       });
     });
   });
-  return tandaiKodeGrouping(baris, kodeSpk, kodeTujuan, b => b.no_spk, b => b.no_spk);
+  return tandaiKodeAcc(baris, kodeTujuan);
 }
 
 // cariKaryawanByQr — QR pribadi berisi id_app (prioritas) ATAU email (fallback).
@@ -452,505 +449,286 @@ function muatJsQr() {
   });
 }
 
-const PersiapanDisiapkanManager = {
-  components: { PopupPratinjauCetakLabel, KolomCari },
+// PerluPersiapanManager — tab Perlu Persiapan. Satu kartu = satu ID Order
+// (sudah diputus QO) yang masih punya sisa qty. "Buat SPK Separating" memecah
+// qty per moq_serie produk (PIC boleh ubah), lalu tiap separating langsung
+// dapat kartu ACC/Vendor per jalur. Tidak mencetak label di sini.
+const PerluPersiapanManager = {
+  components: { KolomCari },
   setup() {
     const memuat = ref(true);
     const daftarOrder = ref([]);
     const cari = ref('');
-    const filterAktif = ref('semua'); // 'semua' | 'sepola' | 'belum_terkunci'
-    const klasterTerbuka = reactive({}); // kunciGrup -> bool ("buka rincian")
-    const panelKlasterKey = ref(null); // kunciGrup klaster yang lagi disiapkan di panel kanan/bar mobile
-    const pilihanCentang = reactive({}); // orderId -> bool (ikut/tidak di panel)
-    const pilihanQty = reactive({}); // orderId -> number (qty yang diambil, <= sisa qty SPK itu)
-    const vendorManualPanel = ref(false);
-    const previewKode = ref('');
-    const sedangProses = reactive({}); // key klaster -> bool
-    const sedangProsesSingle = reactive({}); // orderId -> bool ("Buat Grouping Sendiri")
-    const vendorManualSingle = reactive({}); // orderId -> bool
-    // baris "tanpa_sku" didefinisikan sebagai SPK yang `_produk`-nya kosong, jadi
-    // deteksi jalur otomatis dari BOM (jalurOtomatisProduk) tidak pernah jalan di
-    // jalur "Buat Grouping Sendiri" — sku_produk-nya yang hilang, bukan BOM-nya.
-    const jalurManualBahan = reactive({}); // orderId -> bool
-    const jalurManualSewing = reactive({}); // orderId -> bool
-    const jalurManualWebbing = reactive({}); // orderId -> bool
-    const jalurManualFinishing = reactive({}); // orderId -> bool
-    const konfirmasiTerbit = ref(null); // {kode, namaProduk, qtyTotal, jalurAktif, groupingId} — tampil SEKALI setelah terbit
-    const popupCetakLabelAktif = ref(false);
-    const daftarLabelPreview = ref([]);
+    const editor = reactive({}); // orderId -> { pecahan:[number], vendor:bool }
+    const sedangProses = reactive({});
+    const hasilTerbit = ref(null); // { idOrder, kode:[...] }
 
     const menuId = 'pp_disiapkan';
-    // "Buat SPK Grouping" WAJIB akun PIC ke atas, bukan cuma izin menu Config
-    // Akses generik (Admin bisa saja diberi izin 'add' lewat Config Akses —
-    // gerbang role ini menutup celah itu, tanpa perlu popup PIN tambahan).
     const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(menuId, 'add') !== false);
-    const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
 
     async function muat() {
       memuat.value = true;
       try {
-        // filter `qo_diproses==true` supaya SPK yang qty-nya masih RO mentah dari
-        // kasir (belum diputus QO di Pesanan > Menunggu Proses) tidak ikut muncul.
-        // SPK tanpa field ini dianggap belum diputuskan dan harus lewat Menunggu
-        // Proses dulu supaya fieldnya terisi `true`.
-        const snapOrder = await getDocs(query(collection(db, 'order_spk'), where('status', '==', 'Aktif'), where('qo_diproses', '==', true)));
-        const produk = await ambilSemuaProduk();
+        const [snapOrder, produk] = await Promise.all([
+          getDocs(query(collection(db, 'order'), where('status', '==', 'Aktif'), where('qo_diproses', '==', true))),
+          ambilSemuaProduk()
+        ]);
         const petaProduk = {};
         produk.forEach(p => { if (p.sku) petaProduk[p.sku] = p; });
         const list = [];
         snapOrder.forEach(d => {
           const data = d.data();
-          const qtyOrder = parseFloat(data.qty_order) || 0;
-          const qtyTergrouping = parseFloat(data.qty_tergrouping) || 0;
-          const sisaQty = qtyOrder - qtyTergrouping;
-          // Sudah HABIS dipakai grouping (sebagian atau seluruhnya) -> tidak
-          // ikut antrean lagi. SPK yang baru tergrouping SEBAGIAN (sisaQty masih
-          // > 0) TETAP tampil untuk sisa qty-nya (dukung split-qty).
-          if (sisaQty <= 0) return;
+          const sisa = (parseFloat(data.qty_order) || 0) - (parseFloat(data.qty_terseparating) || 0);
+          if (sisa <= 0) return;
           const p = data.sku_produk ? (petaProduk[data.sku_produk] || null) : null;
-          const kp = p ? kunciPolaProduk(p) : '';
-          const namaBase = p ? (p.nama || '').trim() : '';
-          list.push({
-            id: d.id, ...data,
-            _produk: p,
-            _sisaQty: sisaQty,
-            _kunciGrup: p ? kunciGrupProduk(p) : '',
-            _namaBase: namaBase || data.nama_produk || '(tanpa nama)',
-            _size: p ? (p.size || '') : '',
-            _warna: p ? (p.warna || '') : '',
-            _kunciPolaLabel: kp
-          });
+          list.push({ id: d.id, ...data, _produk: p, _sisaQty: sisa, _moq: p ? (parseFloat(p.moq_serie) || 0) : 0,
+            _jalur: p ? Array.from(jalurOtomatisProduk(p)) : [] });
         });
+        list.sort((a, b) => (a.id_order || '').localeCompare(b.id_order || ''));
         daftarOrder.value = list;
-      } catch (e) {
-        console.error('Gagal muat antrean Perlu Disiapkan:', e);
-        daftarOrder.value = [];
-      }
+      } catch (e) { console.error('Gagal muat Perlu Persiapan:', e); alert('Gagal memuat Perlu Persiapan. Coba lagi.'); daftarOrder.value = []; }
       memuat.value = false;
     }
 
-    // rincianWarna — dari SET order (`master_produk.warna`, resolve lewat SKU) —
-    // lihat catatan besar di atas file soal kenapa bukan parsing teks.
-    function rincianWarna(anggota) {
-      const peta = {};
-      anggota.forEach(o => {
-        const w = o._warna || '-';
-        peta[w] = (peta[w] || 0) + o._sisaQty;
-      });
-      return Object.entries(peta).map(([warna, qty]) => ({ warna, qty }));
-    }
-
-    // daftarBaris — satu daftar gabungan berisi 3 jenis baris, disaring kolom cari
-    // + filter pill: 'groupable' (>=1 SPK berbagi kunciGrup penuh nama+size+pola),
-    // 'pola_belum_dikunci' (SKU terhubung tapi BOM Pola kosong), 'tanpa_sku' (SPK
-    // belum terhubung Master Produk).
-    const daftarBaris = computed(() => {
-      const petaGroupable = {}, petaBelumDikunci = {};
-      const tanpaSku = [];
-      daftarOrder.value.forEach(o => {
-        if (o._kunciGrup) {
-          if (!petaGroupable[o._kunciGrup]) petaGroupable[o._kunciGrup] = { tipe: 'groupable', kunciGrup: o._kunciGrup, namaBase: o._namaBase, size: o._size, kunciPolaLabel: o._kunciPolaLabel, anggota: [] };
-          petaGroupable[o._kunciGrup].anggota.push(o);
-        } else if (o._produk) {
-          const key = 'nk::' + o._namaBase.toLowerCase() + '::' + (o._size || '').toLowerCase();
-          if (!petaBelumDikunci[key]) petaBelumDikunci[key] = { tipe: 'pola_belum_dikunci', kunciGrup: key, namaBase: o._namaBase, size: o._size, anggota: [] };
-          petaBelumDikunci[key].anggota.push(o);
-        } else {
-          tanpaSku.push({ tipe: 'tanpa_sku', kunciGrup: 'single-' + o.id, namaBase: o._namaBase, size: '', anggota: [o] });
-        }
-      });
-      const groupable = Object.values(petaGroupable).map(k => ({
-        ...k,
-        qtyTotal: k.anggota.reduce((s, o) => s + o._sisaQty, 0),
-        jalurOtomatis: Array.from(new Set(k.anggota.flatMap(o => Array.from(jalurOtomatisProduk(o._produk))))),
-        rincianWarna: rincianWarna(k.anggota)
-      }));
-      const belumDikunci = Object.values(petaBelumDikunci).map(k => ({
-        ...k, qtyTotal: k.anggota.reduce((s, o) => s + o._sisaQty, 0)
-      }));
-      let semua = [...groupable, ...belumDikunci, ...tanpaSku];
-
+    const daftarTampil = computed(() => {
       const kata = cari.value.trim().toLowerCase();
-      if (kata) {
-        semua = semua.filter(b => b.namaBase.toLowerCase().includes(kata) || b.anggota.some(o => (o.no_spk || '').toLowerCase().includes(kata)));
-      }
-      if (filterAktif.value === 'sepola') semua = semua.filter(b => b.tipe === 'groupable');
-      else if (filterAktif.value === 'belum_terkunci') semua = semua.filter(b => b.tipe !== 'groupable');
-
-      return semua.sort((a, b) => {
-        if (a.tipe !== b.tipe) return a.tipe === 'groupable' ? -1 : (b.tipe === 'groupable' ? 1 : 0);
-        return (b.anggota.length - a.anggota.length) || a.namaBase.localeCompare(b.namaBase);
-      });
+      if (!kata) return daftarOrder.value;
+      return daftarOrder.value.filter(o => (o.id_order || '').toLowerCase().includes(kata) || (o.nama_produk || '').toLowerCase().includes(kata) || (o.pelanggan_nama || '').toLowerCase().includes(kata));
     });
 
-    function toggleRincian(b) { klasterTerbuka[b.kunciGrup] = !klasterTerbuka[b.kunciGrup]; }
-    function toggleFilter(nilai) { filterAktif.value = (filterAktif.value === nilai) ? 'semua' : nilai; }
+    function bukaEditor(o) {
+      editor[o.id] = { pecahan: usulPecahanMoq(o._sisaQty, o._moq), vendor: false };
+    }
+    function tutupEditor(o) { delete editor[o.id]; }
+    function totalPecahan(o) { return (editor[o.id]?.pecahan || []).reduce((t, x) => t + (parseFloat(x) || 0), 0); }
+    function tambahPecahan(o) { editor[o.id].pecahan.push(0); }
+    function hapusPecahan(o, i) { editor[o.id].pecahan.splice(i, 1); }
 
-    // Panel "Grouping baru" (kanan desktop / bar mengambang mobile)
-    async function muatPreviewKode() {
+    async function buatSeparating(o) {
+      const ed = editor[o.id];
+      if (!ed || sedangProses[o.id]) return;
+      const pecahan = ed.pecahan.map(x => Math.floor(parseFloat(x) || 0)).filter(x => x > 0);
+      const total = pecahan.reduce((t, x) => t + x, 0);
+      if (!pecahan.length) { alert('Isi minimal satu pecahan qty.'); return; }
+      if (total > o._sisaQty) { alert(`Total pecahan ${total} melebihi sisa qty ${o._sisaQty}.`); return; }
+      if (!o._produk && !ed.vendor) { alert('Order ini belum terhubung Master Produk: jalur tidak terdeteksi. Hubungkan SKU dulu, atau centang Vendor.'); return; }
+      const jalurAktif = Array.from(new Set([...o._jalur, ...(ed.vendor ? ['vendor'] : [])]));
+      if (!jalurAktif.length) { alert('Tidak ada jalur produksi terdeteksi dari BOM produk ini.'); return; }
+      sedangProses[o.id] = true;
+      const kodeTerbit = [];
       try {
-        const now = new Date();
-        const yy = String(now.getFullYear()).slice(-2);
-        const mm = String(now.getMonth() + 1).padStart(2, '0');
-        const dd = String(now.getDate()).padStart(2, '0');
-        const tanggalKey = `${yy}${mm}${dd}`;
-        // preview ikut format baku G{YY}R{MM}{DD}P{counter}, sama seperti
-        // generateKodeSpkGrouping di atas file ini. Ini cuma preview tampilan;
-        // kode sebenarnya tetap digenerate transaksional saat submit.
-        const snap = await getDoc(doc(db, 'pengaturan_id_spk_grouping', tanggalKey));
-        const nextCounter = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
-        previewKode.value = `G${yy}R${mm}${dd}P${String(nextCounter).padStart(3, '0')}`;
-      } catch (e) {
-        previewKode.value = ''; // preview gagal dimuat bukan error fatal — kode SEBENARNYA tetap digenerate transaksional saat submit
-      }
-    }
-    function bukaPanel(klaster) {
-      panelKlasterKey.value = klaster.kunciGrup;
-      klaster.anggota.forEach(o => { pilihanCentang[o.id] = true; pilihanQty[o.id] = o._sisaQty; });
-      vendorManualPanel.value = false;
-      muatPreviewKode();
-    }
-    function toggleKlasterDipilih(klaster) {
-      if (panelKlasterKey.value === klaster.kunciGrup) panelKlasterKey.value = null;
-      else bukaPanel(klaster);
-    }
-    function ubahQtyPilihan(order, nilai) {
-      let v = parseFloat(nilai) || 0;
-      if (v > order._sisaQty) v = order._sisaQty;
-      if (v < 0) v = 0;
-      pilihanQty[order.id] = v;
-      if (v <= 0) pilihanCentang[order.id] = false;
-    }
-
-    const klasterPanel = computed(() => daftarBaris.value.find(b => b.tipe === 'groupable' && b.kunciGrup === panelKlasterKey.value) || null);
-    const anggotaTerpilih = computed(() => klasterPanel.value ? klasterPanel.value.anggota.filter(o => pilihanCentang[o.id] && (parseFloat(pilihanQty[o.id]) || 0) > 0) : []);
-    const ringkasanPanel = computed(() => {
-      const list = anggotaTerpilih.value;
-      return {
-        jumlahSpk: list.length,
-        qtyTotal: list.reduce((s, o) => s + (parseFloat(pilihanQty[o.id]) || 0), 0),
-        jumlahWarna: new Set(list.map(o => o._warna || '-')).size
-      };
-    });
-    const jalurOtomatisPanel = computed(() => klasterPanel.value ? Array.from(new Set(anggotaTerpilih.value.flatMap(o => Array.from(jalurOtomatisProduk(o._produk))))) : []);
-
-    async function buatGroupingDariPanel() {
-      const klaster = klasterPanel.value;
-      if (!klaster) return;
-      const anggota = anggotaTerpilih.value;
-      if (anggota.length === 0) { alert('Pilih minimal 1 SPK dulu.'); return; }
-      const key = klaster.kunciGrup;
-      if (sedangProses[key]) return;
-      sedangProses[key] = true;
-      try {
-        const kode = await generateKodeSpkGrouping();
-        const jalurAktif = Array.from(new Set([...jalurOtomatisPanel.value, ...(vendorManualPanel.value ? ['vendor'] : [])]));
-        const breakdown = anggota.map(o => ({ order_spk_id: o.id, no_spk: o.no_spk, sku_produk: o.sku_produk || '', nama_produk: o.nama_produk, qty: parseFloat(pilihanQty[o.id]) || 0 }));
-        const qtyTotal = breakdown.reduce((s, b) => s + b.qty, 0);
-        const skuTerlibat = Array.from(new Set(anggota.map(o => o.sku_produk).filter(Boolean)));
-        const refGrouping = await addDoc(collection(db, 'spk_grouping'), {
-          kode_spk: kode,
-          nama_produk: klaster.namaBase,
-          size: klaster.size || '',
-          kunci_pola: klaster.kunciPolaLabel || '',
-          sku_produk_terlibat: skuTerlibat,
-          qty_total: qtyTotal,
-          breakdown,
-          jalur_aktif: jalurAktif,
-          label_grouping_dicetak: false,
-          tanggal_generate: serverTimestamp(),
-          dibuat_oleh: window.currentUser?.email || null
-        });
-        // qty_tergrouping BERTAMBAH (bukan ditimpa) — dukung split-qty: 1
-        // order_spk bisa ikut >1 grouping sepanjang sisa qty-nya masih ada.
-        await Promise.all(anggota.map(o => {
-          const ambil = parseFloat(pilihanQty[o.id]) || 0;
-          const tergroupingBaru = (parseFloat(o.qty_tergrouping) || 0) + ambil;
-          const habis = tergroupingBaru >= (parseFloat(o.qty_order) || 0);
-          return updateDoc(doc(db, 'order_spk', o.id), {
-            qty_tergrouping: tergroupingBaru,
-            grouping_ids: arrayUnion(refGrouping.id),
-            id_spk_grouping: refGrouping.id, // grouping TERAKHIR (kompatibilitas tampilan lama), BUKAN satu-satunya
-            kode_spk_grouping: kode,
-            status_grouping: habis ? 'tergrouping' : 'sebagian'
-          });
-        }));
-        let bahanRincian = [], sewingRincian = [], webbingRincian = [], finishingRincian = [];
-        if (jalurAktif.some(j => ['bahan', 'sewing', 'webbing', 'finishing'].includes(j))) {
-          const petaBahan = await ambilPetaBahanAksesoris();
-          const petaKodeTujuan = await ambilPetaKodeTujuanDivisi();
-          const anggotaBaris = anggota.map(o => ({ order_spk_id: o.id, no_spk: o.no_spk, qty: parseFloat(pilihanQty[o.id]) || 0, _produk: o._produk, pelanggan_nama: o.pelanggan_nama || '' }));
-          if (jalurAktif.includes('bahan')) bahanRincian = hitungBahanRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.bahan);
-          if (jalurAktif.includes('sewing')) sewingRincian = hitungSewingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.sewing);
-          if (jalurAktif.includes('webbing')) webbingRincian = hitungWebbingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.webbing);
-          if (jalurAktif.includes('finishing')) finishingRincian = hitungFinishingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.finishing);
+        const petaBahan = await ambilPetaBahanAksesoris();
+        const petaTujuan = await ambilPetaKodeTujuanDivisi();
+        const idBaru = [];
+        for (let i = 0; i < pecahan.length; i++) {
+          const kode = await generateKodeSeparating();
+          const data = {
+            kode_separating: kode, order_id: o.id, id_order: o.id_order, pesanan_id: o.pesanan_id || '', no_pesanan: o.no_pesanan || '',
+            pelanggan_nama: o.pelanggan_nama || '', sku_produk: o.sku_produk || '', nama_produk: o._produk?.nama || o.nama_produk || '',
+            warna: o._produk?.warna || '', size: o._produk?.size || '',
+            qty: pecahan[i], urutan: i + 1, jumlah_pecahan: pecahan.length, jalur_aktif: jalurAktif,
+            grouping_id: '', kode_grouping_induk: '', status: 'perlu_disiapkan',
+            komponen_rincian: [], label_dicetak_pada: null,
+            dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
+          };
+          const ref = await addDoc(collection(db, 'spk_separating'), data);
+          const sep = { id: ref.id, ...data };
+          idBaru.push(ref.id); kodeTerbit.push(kode);
+          const anggota = [{ order_id: o.id, id_order: o.id_order, qty: pecahan[i], _produk: o._produk, pelanggan_nama: o.pelanggan_nama || '', separating_id: ref.id, kode_separating: kode }];
+          for (const j of jalurAktif) {
+            if (j === 'bahan') continue;
+            let rincian = [];
+            if (j === 'sewing') rincian = hitungSewingRincian(anggota, petaBahan, petaTujuan.sewing);
+            if (j === 'webbing') rincian = hitungWebbingRincian(anggota, petaBahan, petaTujuan.webbing);
+            if (j === 'finishing') rincian = hitungFinishingRincian(anggota, petaBahan, petaTujuan.finishing);
+            await buatSpkTrackSeparating(sep, j, rincian);
+          }
         }
-        await buatSpkTrackUntukGrouping(refGrouping.id, kode, klaster.namaBase, qtyTotal, jalurAktif, bahanRincian, sewingRincian, webbingRincian, finishingRincian);
-        konfirmasiTerbit.value = { kode, namaProduk: klaster.namaBase, qtyTotal, jalurAktif, groupingId: refGrouping.id };
-        panelKlasterKey.value = null;
+        const terseparating = (parseFloat(o.qty_terseparating) || 0) + total;
+        await updateDoc(doc(db, 'order', o.id), {
+          qty_terseparating: terseparating, separating_ids: arrayUnion(...idBaru),
+          status_separating: terseparating >= (parseFloat(o.qty_order) || 0) ? 'terseparating' : 'sebagian'
+        });
+        hasilTerbit.value = { idOrder: o.id_order, kode: kodeTerbit, jalur: jalurAktif };
+        tutupEditor(o);
         await muat();
       } catch (e) {
-        console.error('Gagal buat SPK Grouping:', e);
-        alert('Gagal membuat SPK Grouping. Coba lagi.');
+        console.error('Gagal buat SPK Separating:', e);
+        alert(`Gagal membuat SPK Separating${kodeTerbit.length ? ' (sebagian sudah terbit: ' + kodeTerbit.join(', ') + ')' : ''}. Coba lagi.`);
       }
-      sedangProses[key] = false;
-    }
-
-    // buatGroupingSendiri — baris "tanpa_sku" (belum terhubung Master Produk) —
-    // tidak lewat panel (tidak ada anggota lain buat dikombinasi), langsung
-    // ambil SELURUH sisa qty SPK itu, sama seperti versi lama.
-    async function buatGroupingSendiri(order) {
-      const key = order.id;
-      if (sedangProsesSingle[key]) return;
-      sedangProsesSingle[key] = true;
-      try {
-        const kode = await generateKodeSpkGrouping();
-        // order._produk dijamin kosong di baris tanpa_sku, jadi jalurOtomatis di
-        // bawah praktiknya selalu []. jalur_aktif final = gabungan jalur otomatis
-        // (kalau ada) + pilihan manual dari checkbox.
-        const jalurOtomatis = order._produk ? Array.from(jalurOtomatisProduk(order._produk)) : [];
-        const jalurManual = [];
-        if (jalurManualBahan[key]) jalurManual.push('bahan');
-        if (jalurManualSewing[key]) jalurManual.push('sewing');
-        if (jalurManualWebbing[key]) jalurManual.push('webbing');
-        if (jalurManualFinishing[key]) jalurManual.push('finishing');
-        const jalurAktif = Array.from(new Set([...jalurOtomatis, ...jalurManual]));
-        if (vendorManualSingle[key]) jalurAktif.push('vendor');
-        const jalurUnik = Array.from(new Set(jalurAktif));
-        const qty = order._sisaQty;
-        const refGrouping = await addDoc(collection(db, 'spk_grouping'), {
-          kode_spk: kode,
-          nama_produk: order._namaBase,
-          size: order._size || '',
-          kunci_pola: order._kunciPolaLabel || '',
-          sku_produk_terlibat: order.sku_produk ? [order.sku_produk] : [],
-          qty_total: qty,
-          breakdown: [{ order_spk_id: order.id, no_spk: order.no_spk, sku_produk: order.sku_produk || '', nama_produk: order.nama_produk, qty }],
-          jalur_aktif: jalurUnik,
-          label_grouping_dicetak: false,
-          tanggal_generate: serverTimestamp(),
-          dibuat_oleh: window.currentUser?.email || null
-        });
-        const tergroupingBaru = (parseFloat(order.qty_tergrouping) || 0) + qty;
-        await updateDoc(doc(db, 'order_spk', order.id), {
-          qty_tergrouping: tergroupingBaru,
-          grouping_ids: arrayUnion(refGrouping.id),
-          id_spk_grouping: refGrouping.id, kode_spk_grouping: kode, status_grouping: 'tergrouping'
-        });
-        let bahanRincianSendiri = [], sewingRincianSendiri = [], webbingRincianSendiri = [], finishingRincianSendiri = [];
-        if (jalurUnik.some(j => ['bahan', 'sewing', 'webbing', 'finishing'].includes(j))) {
-          const petaBahan = await ambilPetaBahanAksesoris();
-          const petaKodeTujuan = await ambilPetaKodeTujuanDivisi();
-          const anggotaBaris = [{ order_spk_id: order.id, no_spk: order.no_spk, qty, _produk: order._produk, pelanggan_nama: order.pelanggan_nama || '' }];
-          if (jalurUnik.includes('bahan')) bahanRincianSendiri = hitungBahanRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.bahan);
-          if (jalurUnik.includes('sewing')) sewingRincianSendiri = hitungSewingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.sewing);
-          if (jalurUnik.includes('webbing')) webbingRincianSendiri = hitungWebbingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.webbing);
-          if (jalurUnik.includes('finishing')) finishingRincianSendiri = hitungFinishingRincian(anggotaBaris, petaBahan, kode, petaKodeTujuan.finishing);
-        }
-        await buatSpkTrackUntukGrouping(refGrouping.id, kode, order._namaBase, qty, jalurUnik, bahanRincianSendiri, sewingRincianSendiri, webbingRincianSendiri, finishingRincianSendiri);
-        konfirmasiTerbit.value = { kode, namaProduk: order._namaBase, qtyTotal: qty, jalurAktif: jalurUnik, groupingId: refGrouping.id };
-        delete vendorManualSingle[key];
-        delete jalurManualBahan[key]; delete jalurManualSewing[key]; delete jalurManualWebbing[key]; delete jalurManualFinishing[key];
-        await muat();
-      } catch (e) {
-        console.error('Gagal buat SPK Grouping (mandiri):', e);
-        alert('Gagal membuat SPK Grouping. Coba lagi.');
-      }
-      sedangProsesSingle[key] = false;
-    }
-
-    function cetakLabelDariKonfirmasi() {
-      if (!konfirmasiTerbit.value) return;
-      if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Coba refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
-      const k = konfirmasiTerbit.value;
-      daftarLabelPreview.value = [{
-        kode: k.kode, nama: k.namaProduk,
-        info: `Qty Total: ${formatQty(k.qtyTotal)} &middot; ${(k.jalurAktif || []).map(j => PETA_JALUR[j]?.label || j).join(', ')}`,
-        qrDataUrl: buatQrDataUrl(k.kode)
-      }];
-      popupCetakLabelAktif.value = true;
-      if (k.groupingId) updateDoc(doc(db, 'spk_grouping', k.groupingId), { label_grouping_dicetak: true }).catch(e => console.error('Gagal catat status cetak label SPK Grouping:', e));
-      konfirmasiTerbit.value = null;
+      sedangProses[o.id] = false;
     }
 
     onMounted(async () => { await window.authReady; await muat(); });
-
-    return {
-      memuat, muat, daftarOrder, daftarBaris, cari, filterAktif, klasterTerbuka, toggleRincian, toggleFilter,
-      panelKlasterKey, klasterPanel, anggotaTerpilih, ringkasanPanel, jalurOtomatisPanel,
-      pilihanCentang, pilihanQty, vendorManualPanel, previewKode, ubahQtyPilihan, toggleKlasterDipilih,
-      sedangProses, sedangProsesSingle, vendorManualSingle, bolehProses, bolehCetak,
-      jalurManualBahan, jalurManualSewing, jalurManualWebbing, jalurManualFinishing,
-      buatGroupingDariPanel, buatGroupingSendiri,
-      konfirmasiTerbit, cetakLabelDariKonfirmasi,
-      popupCetakLabelAktif, daftarLabelPreview,
-      formatQty, PETA_JALUR
-    };
+    return { memuat, muat, cari, daftarTampil, editor, bukaEditor, tutupEditor, totalPecahan, tambahPecahan, hapusPecahan,
+      buatSeparating, sedangProses, bolehProses, hasilTerbit, formatQty, PETA_JALUR };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
-
-    <div v-else class="gc-pp-layout">
-      <div style="min-width:0;">
-        <kolom-cari v-model="cari" placeholder="Cari produk / No. SPK..." />
-        <div style="display:flex; gap:8px; margin:-4px 0 12px; flex-wrap:wrap;">
-          <button type="button" class="gc-sub-tab-btn" :class="{active: filterAktif==='sepola'}" @click="toggleFilter('sepola')">Sepola</button>
-          <button type="button" class="gc-sub-tab-btn" :class="{active: filterAktif==='belum_terkunci'}" @click="toggleFilter('belum_terkunci')">Pola belum dikunci</button>
-        </div>
-
-        <div v-if="daftarBaris.length === 0" class="gc-kosong gc-card gc-card-menonjol">
-          <div class="lingkaran"><i class="fas fa-circle-check"></i></div>
-          <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada SPK aktif yang cocok</h3>
-        </div>
-
-        <div v-else style="display:flex; flex-direction:column; gap:10px;">
-          <div v-for="b in daftarBaris" :key="b.kunciGrup" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
-              <div style="min-width:0;">
-                <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ b.namaBase }}<span v-if="b.size"> &middot; ukuran {{ b.size }}</span></div>
-                <div v-if="b.tipe==='groupable'" style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">kunci: nama + ukuran + pola {{ b.kunciPolaLabel }}</div>
-                <div v-else-if="b.tipe==='pola_belum_dikunci'" style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">pola belum ada versi &mdash; tidak bisa digabung sampai pola dikunci</div>
-                <div v-else style="font-size:10.5px; color:var(--text-faint); margin-top:2px;">{{ b.anggota[0].nama_produk }} &middot; belum terhubung Master Produk</div>
-              </div>
-              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0;">
-                <span class="tag" :class="b.tipe==='groupable' ? 'ok' : (b.tipe==='pola_belum_dikunci' ? 'warn' : 'neutral')">
-                  {{ b.tipe==='groupable' ? (b.anggota.length + ' SPK') : (b.tipe==='pola_belum_dikunci' ? 'pola belum dikunci' : 'belum ada SKU') }}
-                </span>
-                <button v-if="b.tipe==='groupable' && bolehProses" type="button" class="btn-outline" :class="{filled: panelKlasterKey===b.kunciGrup}" style="padding:6px 12px; font-size:11px;" @click="toggleKlasterDipilih(b)">
-                  <i class="fas" :class="panelKlasterKey===b.kunciGrup ? 'fa-check' : 'fa-plus'"></i> {{ panelKlasterKey===b.kunciGrup ? 'Dipilih' : 'Pilih' }}
-                </button>
-              </div>
+    <div v-else>
+      <kolom-cari v-model="cari" placeholder="Cari ID Order / produk / pelanggan..." />
+      <div v-if="daftarTampil.length === 0" class="gc-kosong gc-card gc-card-menonjol">
+        <div class="lingkaran"><i class="fas fa-circle-check"></i></div>
+        <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada order yang perlu dipersiapkan</h3>
+      </div>
+      <div v-else style="display:flex; flex-direction:column; gap:10px;">
+        <div v-for="o in daftarTampil" :key="o.id" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;">
+          <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start;">
+            <div style="min-width:0;">
+              <div class="gc-num" style="font-weight:700; font-size:12.5px;">{{ o.id_order }}</div>
+              <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ o.nama_produk }}</div>
+              <div style="font-size:11px; color:var(--text-faint);">{{ o.pelanggan_nama || '(tanpa pelanggan)' }} &middot; sisa {{ formatQty(o._sisaQty) }} pcs &middot; MOQ {{ o._moq || '-' }}</div>
             </div>
-
-            <div style="font-size:11.5px; color:var(--text-muted); margin-bottom:6px;">{{ b.anggota.length }} SPK &middot; {{ formatQty(b.qtyTotal) }} pcs</div>
-            <div v-if="b.tipe==='groupable' && b.rincianWarna.length" style="font-size:11px; color:var(--text-faint); margin-bottom:6px;">{{ b.rincianWarna.map(r => r.warna + ' ' + formatQty(r.qty)).join(' &middot; ') }}</div>
-            <div v-if="b.tipe==='groupable'" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:6px;">
-              <span v-for="j in b.jalurOtomatis" :key="j" class="tag" :class="PETA_JALUR[j].tag"><i class="fas" :class="PETA_JALUR[j].icon"></i> {{ PETA_JALUR[j].label }}</span>
-            </div>
-
-            <button type="button" @click="toggleRincian(b)" style="background:none; border:none; padding:0; color:var(--aksen-ink); font-size:11px; font-weight:700; cursor:pointer;">
-              {{ klasterTerbuka[b.kunciGrup] ? 'Tutup rincian' : 'Buka rincian' }} <i class="fas" :class="klasterTerbuka[b.kunciGrup] ? 'fa-chevron-up' : 'fa-chevron-down'"></i>
-            </button>
-            <!--
-              pelanggan_nama snapshot dari order_spk (diisi buatOrder Kasir). SPK yang dibuat
-              manual lewat vue-order-spk.js tidak punya field itu, fallback '(tanpa pelanggan)'.
-            -->
-            <div v-if="klasterTerbuka[b.kunciGrup]" style="display:flex; flex-direction:column; gap:4px; background:var(--ivory-dim); border-radius:10px; padding:8px 12px; margin-top:8px;">
-              <div v-for="o in b.anggota" :key="o.id" style="display:flex; justify-content:space-between; gap:10px; font-size:11.5px;">
-                <span style="color:var(--text-faint); min-width:0;">{{ o.no_spk }} <span style="color:var(--text-muted); font-weight:700;">&middot; {{ o.pelanggan_nama || '(tanpa pelanggan)' }}</span></span>
-                <span style="font-weight:700; flex-shrink:0;">{{ formatQty(o._sisaQty) }} pcs</span>
+            <button v-if="bolehProses && !editor[o.id]" type="button" class="btn-primary" style="padding:7px 12px; font-size:11px; flex-shrink:0;" @click="bukaEditor(o)"><i class="fas fa-layer-group" style="margin-right:5px;"></i>Buat SPK Separating</button>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;">
+            <span v-for="j in o._jalur" :key="j" class="tag" :class="PETA_JALUR[j].tag"><i class="fas" :class="PETA_JALUR[j].icon"></i> {{ PETA_JALUR[j].label }}</span>
+            <span v-if="!o._produk" class="tag warn">belum terhubung Master Produk</span>
+          </div>
+          <div v-if="editor[o.id]" style="margin-top:12px; border:1px dashed var(--line); border-radius:12px; padding:10px 12px;">
+            <div style="font-size:10.5px; color:var(--text-muted); margin-bottom:8px;">Pecahan per MOQ (boleh diubah). Total {{ formatQty(totalPecahan(o)) }} dari sisa {{ formatQty(o._sisaQty) }} pcs.</div>
+            <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+              <div v-for="(x, i) in editor[o.id].pecahan" :key="i" style="display:flex; align-items:center; gap:4px;">
+                <span style="font-size:10px; color:var(--text-faint);">#{{ i + 1 }}</span>
+                <input type="number" min="1" v-model.number="editor[o.id].pecahan[i]" style="width:64px; padding:5px 7px; border:1.5px solid var(--line); border-radius:8px; font-size:11px; text-align:right;">
+                <button type="button" @click="hapusPecahan(o, i)" class="btn-ghost" style="padding:2px 6px;" title="Hapus"><i class="fas fa-xmark"></i></button>
               </div>
+              <button type="button" @click="tambahPecahan(o)" class="btn-outline" style="padding:4px 10px; font-size:11px;"><i class="fas fa-plus"></i> pecahan</button>
             </div>
-
-            <!--
-              belum terhubung Master Produk jadi jalur produksi TIDAK BISA kedeteksi otomatis dari
-              BOM; pilih sendiri jalur mana yang perlu di-track di sini.
-            -->
-            <div v-if="b.tipe==='tanpa_sku' && bolehProses" style="margin-top:10px;">
-              <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:4px;">Belum terhubung Master Produk — pilih jalur produksi manual:</div>
-              <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:11px; color:var(--text-muted);">
-                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
-                  <input type="checkbox" v-model="jalurManualBahan[b.anggota[0].id]" class="gc-chk"> Bahan
-                </label>
-                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
-                  <input type="checkbox" v-model="jalurManualSewing[b.anggota[0].id]" class="gc-chk"> Acc Sewing
-                </label>
-                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
-                  <input type="checkbox" v-model="jalurManualWebbing[b.anggota[0].id]" class="gc-chk"> Acc Webbing
-                </label>
-                <label style="display:flex; align-items:center; gap:5px; cursor:pointer;">
-                  <input type="checkbox" v-model="jalurManualFinishing[b.anggota[0].id]" class="gc-chk"> Acc Finishing
-                </label>
-              </div>
-            </div>
-            <button v-if="b.tipe==='tanpa_sku' && bolehProses" type="button" @click="buatGroupingSendiri(b.anggota[0])" :disabled="sedangProsesSingle[b.anggota[0].id]" class="btn-outline" style="width:100%; padding:9px; margin-top:10px;">
-              <i class="fas fa-layer-group" style="margin-right:6px;"></i>{{ sedangProsesSingle[b.anggota[0].id] ? 'Memproses...' : 'Buat Grouping Sendiri' }}
-            </button>
-            <label v-if="b.tipe==='tanpa_sku' && bolehProses" style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer; color:var(--text-muted); margin-top:8px;">
-              <input type="checkbox" v-model="vendorManualSingle[b.anggota[0].id]" class="gc-chk"> + Jalur Vendor (manual)
+            <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer; color:var(--text-muted); margin-bottom:10px;">
+              <input type="checkbox" v-model="editor[o.id].vendor" class="gc-chk"> + Jalur Vendor
             </label>
+            <div style="display:flex; gap:8px;">
+              <button type="button" class="btn-outline" style="flex:1;" @click="tutupEditor(o)">Batal</button>
+              <button type="button" class="btn-primary" style="flex:1.4;" :disabled="sedangProses[o.id]" @click="buatSeparating(o)">{{ sedangProses[o.id] ? 'Memproses...' : 'Terbitkan ' + editor[o.id].pecahan.filter(x => x > 0).length + ' SPK Separating' }}</button>
+            </div>
           </div>
         </div>
-      </div>
-
-      <!-- Panel "Grouping baru" — desktop kanan sticky -->
-      <div class="gc-pp-panel gc-card gc-card-menonjol" style="padding:16px; border-radius:20px;" v-if="klasterPanel">
-        <h3 class="gc-heading" style="font-weight:700; font-size:14px; margin:0 0 2px;">Grouping baru</h3>
-        <p style="font-size:11px; color:var(--text-faint); margin:0 0 12px;">{{ ringkasanPanel.jumlahSpk }} SPK dipilih &middot; {{ formatQty(ringkasanPanel.qtyTotal) }} pcs &middot; {{ ringkasanPanel.jumlahWarna }} warna</p>
-
-        <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
-          <div v-for="o in klasterPanel.anggota" :key="o.id" style="display:flex; align-items:center; gap:8px; font-size:11.5px;">
-            <input type="checkbox" v-model="pilihanCentang[o.id]" class="gc-chk">
-            <span style="flex:1; min-width:0; color:var(--text-muted);">{{ o._warna || o.no_spk }}</span>
-            <input type="number" min="0" :max="o._sisaQty" :value="pilihanQty[o.id]" @input="ubahQtyPilihan(o, $event.target.value)" :disabled="!pilihanCentang[o.id]" style="width:58px; padding:5px 7px; border:1.5px solid var(--line); border-radius:8px; font-size:11px; text-align:right; font-family:'Nunito Sans',sans-serif;">
-          </div>
-        </div>
-
-        <div style="border:1px solid var(--burgundy); border-radius:12px; padding:10px 12px; margin-bottom:12px;">
-          <div style="font-size:9.5px; font-weight:700; color:var(--burgundy); text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px;">Kode yang akan diterbitkan</div>
-          <div class="gc-heading gc-num" style="font-size:18px; font-weight:700;">{{ previewKode || '...' }}</div>
-          <p style="font-size:9.5px; color:var(--text-faint); margin:4px 0 0; line-height:1.4;">SPK + tanggal + urut hari ini &middot; nomor anak tiap SPK mengikuti kode ini</p>
-        </div>
-
-        <div style="border:1px dashed var(--line); border-radius:12px; padding:10px 12px; margin-bottom:8px;">
-          <div style="font-size:9.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:6px;">Akan masuk ke &mdash; otomatis</div>
-          <div style="display:flex; flex-wrap:wrap; gap:6px;">
-            <span v-for="j in jalurOtomatisPanel" :key="j" class="tag" :class="PETA_JALUR[j].tag"><i class="fas" :class="PETA_JALUR[j].icon"></i> {{ PETA_JALUR[j].label }}</span>
-            <span v-if="jalurOtomatisPanel.length===0" style="font-size:10.5px; color:var(--text-faint);">-</span>
-          </div>
-          <p style="font-size:9.5px; color:var(--text-faint); margin:6px 0 0;">Terdeteksi otomatis dari BOM produk &middot; bukan pilihan</p>
-          <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer; color:var(--text-muted); margin-top:8px;">
-            <input type="checkbox" v-model="vendorManualPanel" class="gc-chk"> + Jalur Vendor (manual)
-          </label>
-        </div>
-
-        <div style="border:1px dashed var(--line); border-radius:12px; padding:10px 12px; margin-bottom:14px;">
-          <div style="font-size:9.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px;">Tidak dikerjakan di sini</div>
-          <p style="font-size:9.5px; color:var(--text-faint); margin:0;">Cek stok &amp; cetak label ada di tiap pos persiapan</p>
-        </div>
-
-        <button v-if="bolehProses" type="button" @click="buatGroupingDariPanel" :disabled="sedangProses[klasterPanel.kunciGrup] || ringkasanPanel.jumlahSpk===0" class="btn-primary" style="width:100%; padding:11px;">
-          <i class="fas fa-layer-group" style="margin-right:6px;"></i>{{ sedangProses[klasterPanel.kunciGrup] ? 'Memproses...' : 'Buat SPK Grouping' }}
-        </button>
-        <p style="font-size:9.5px; color:var(--text-faint); margin:8px 0 0; text-align:center;">Sekali diterbitkan, kode ini yang dipakai seluruh pos sampai selesai</p>
       </div>
     </div>
-
-    <!-- Bar mengambang — mobile, tampil kalau ada klaster dipilih -->
-    <div v-if="klasterPanel" class="gc-pp-panel-mobile">
-      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px;">
-        <div style="font-size:11px; color:var(--text-muted);">{{ ringkasanPanel.jumlahSpk }} SPK dipilih &middot; {{ formatQty(ringkasanPanel.qtyTotal) }} pcs</div>
-        <button type="button" @click="panelKlasterKey=null" style="background:none; border:none; padding:0; color:var(--text-faint); font-size:14px;"><i class="fas fa-xmark"></i></button>
-      </div>
-      <div class="gc-heading gc-num" style="font-size:15px; font-weight:700; margin-bottom:8px;">{{ previewKode || '...' }}</div>
-      <button v-if="bolehProses" type="button" @click="buatGroupingDariPanel" :disabled="sedangProses[klasterPanel.kunciGrup] || ringkasanPanel.jumlahSpk===0" class="btn-primary" style="width:100%; padding:11px;">
-        {{ sedangProses[klasterPanel.kunciGrup] ? 'Memproses...' : 'Buat SPK Grouping' }}
-      </button>
-    </div>
-
-    <!-- Konfirmasi terbit — tampil SEKALI, tidak ada riwayat persisten -->
-    <div v-if="konfirmasiTerbit" class="gc-dialog-backdrop" @click="konfirmasiTerbit=null">
+    <div v-if="hasilTerbit" class="gc-dialog-backdrop" @click="hasilTerbit=null">
       <div class="gc-dialog" @click.stop>
         <div style="width:56px; height:56px; border-radius:50%; background:var(--ok-light); display:flex; align-items:center; justify-content:center; margin:0 auto 14px; color:var(--ok); font-size:24px;"><i class="fas fa-circle-check"></i></div>
-        <h3 class="gc-heading" style="font-size:16px; font-weight:700; margin:0;">SPK Grouping Diterbitkan</h3>
-        <p class="gc-heading gc-num" style="font-size:19px; font-weight:700; margin:8px 0 2px;">{{ konfirmasiTerbit.kode }}</p>
-        <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 18px;">{{ konfirmasiTerbit.namaProduk }} &middot; {{ formatQty(konfirmasiTerbit.qtyTotal) }} pcs</p>
-        <div style="display:flex; gap:8px;">
-          <button v-if="bolehCetak" @click="cetakLabelDariKonfirmasi" class="btn-primary" style="flex:1;"><i class="fas fa-print" style="margin-right:6px;"></i>Cetak Label</button>
-          <button @click="konfirmasiTerbit=null" class="btn-outline" style="flex:1;">Tutup</button>
-        </div>
+        <h3 class="gc-heading" style="font-size:16px; font-weight:700; margin:0;">SPK Separating Diterbitkan</h3>
+        <p style="font-size:11.5px; color:var(--text-muted); margin:6px 0 10px;">{{ hasilTerbit.idOrder }}</p>
+        <div class="gc-num" style="font-size:13px; font-weight:700; line-height:1.7; margin-bottom:12px;">{{ hasilTerbit.kode.join(' · ') }}</div>
+        <p style="font-size:10.5px; color:var(--text-faint); margin:0 0 14px;">Label dicetak di tiap jalur: {{ hasilTerbit.jalur.map(j => PETA_JALUR[j]?.label || j).join(', ') }}.</p>
+        <button @click="hasilTerbit=null" class="btn-primary" style="width:100%;">Tutup</button>
       </div>
     </div>
-
-    <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label SPK Grouping" :daftar-label="daftarLabelPreview" jenis-cetak="label_spk_terbit" @tutup="popupCetakLabelAktif = false" />
   `
 };
 
-const AppPersiapanDisiapkan = { components: { PersiapanDisiapkanManager }, template: `<persiapan-disiapkan-manager ref="mgr" />` };
+// PanelGroupingBahan — dipasang di Bahan › Disiapkan Bahan. Separating jalur
+// Bahan yang belum digrouping dikelompokkan per nama + ukuran + pola; PIC
+// memilih lalu "Buat SPK Grouping" menerbitkan GR… dan kartu Bahan
+// (bahan_rincian per separating per bahan, label bahan = kode_baris).
+export const PanelGroupingBahan = {
+  components: { KolomCari },
+  emits: ['terbit'],
+  setup(props, { emit }) {
+    const memuat = ref(true);
+    const daftarSep = ref([]);
+    const pilih = reactive({});
+    const sedangProses = ref(false);
+    const hasilTerbit = ref(null);
+    const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu('pp_bahan', 'add') !== false);
+
+    async function muat() {
+      memuat.value = true;
+      try {
+        const [snap, produk] = await Promise.all([
+          getDocs(query(collection(db, 'spk_separating'), where('grouping_id', '==', ''))),
+          ambilSemuaProduk()
+        ]);
+        const petaProduk = {};
+        produk.forEach(p => { if (p.sku) petaProduk[p.sku] = p; });
+        daftarSep.value = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+          .filter(sp => (sp.jalur_aktif || []).includes('bahan'))
+          .map(sp => { const p = petaProduk[sp.sku_produk] || null; return { ...sp, _produk: p, _kunci: p ? kunciGrupProduk(p) : '' }; });
+      } catch (e) { console.error('Gagal muat separating untuk grouping:', e); daftarSep.value = []; }
+      memuat.value = false;
+    }
+    const klaster = computed(() => {
+      const peta = {};
+      daftarSep.value.forEach(sp => {
+        const key = sp._kunci || ('single-' + sp.id);
+        if (!peta[key]) peta[key] = { key, nama: sp.nama_produk, size: sp.size, pola: sp._produk ? kunciPolaProduk(sp._produk) : '', anggota: [] };
+        peta[key].anggota.push(sp);
+      });
+      return Object.values(peta).sort((a, b) => b.anggota.length - a.anggota.length);
+    });
+    function terpilih(k) { return k.anggota.filter(sp => pilih[sp.id]); }
+
+    async function buatGrouping(k) {
+      const anggota = terpilih(k);
+      if (!anggota.length || sedangProses.value) return;
+      sedangProses.value = true;
+      try {
+        const kodeGr = await generateKodeGroupingInduk();
+        const petaBahan = await ambilPetaBahanAksesoris();
+        const petaTujuan = await ambilPetaKodeTujuanDivisi();
+        const qtyTotal = anggota.reduce((t, sp) => t + (parseFloat(sp.qty) || 0), 0);
+        const breakdown = anggota.map(sp => ({ separating_id: sp.id, kode_separating: sp.kode_separating, order_id: sp.order_id, id_order: sp.id_order, sku_produk: sp.sku_produk || '', qty: sp.qty }));
+        const refGr = await addDoc(collection(db, 'spk_grouping'), {
+          kode_grouping_induk: kodeGr, nama_produk: k.nama, size: k.size || '', kunci_pola: k.pola || '',
+          sku_produk_terlibat: Array.from(new Set(anggota.map(sp => sp.sku_produk).filter(Boolean))),
+          separating_ids: anggota.map(sp => sp.id), qty_total: qtyTotal, breakdown, jalur_aktif: ['bahan'],
+          tanggal_generate: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
+        });
+        const anggotaBaris = anggota.map(sp => ({ order_id: sp.order_id, id_order: sp.id_order, qty: parseFloat(sp.qty) || 0, _produk: sp._produk, pelanggan_nama: sp.pelanggan_nama || '', separating_id: sp.id, kode_separating: sp.kode_separating }));
+        const rincian = hitungBahanRincian(anggotaBaris, petaBahan, kodeGr, petaTujuan.bahan);
+        await addDoc(collection(db, 'spk_track'), {
+          jalur: 'bahan', grouping_id: refGr.id, kode_grouping_induk: kodeGr, separating_ids: anggota.map(sp => sp.id),
+          nama_produk: k.nama, qty_total: qtyTotal, status: 'perlu_diproses', operator_id: '', operator_nama: '',
+          kode_bagging: '', kode_tugas: '', riwayat_scan: [], catatan_masalah: '',
+          bahan_rincian: rincian, sewing_rincian: [], webbing_rincian: [], finishing_rincian: [],
+          daftar_kode: rincian.map(b => b.kode_baris), dibuat_pada: serverTimestamp(), diperbarui_pada: serverTimestamp()
+        });
+        await Promise.all(anggota.map(sp => updateDoc(doc(db, 'spk_separating', sp.id), { grouping_id: refGr.id, kode_grouping_induk: kodeGr })));
+        anggota.forEach(sp => { delete pilih[sp.id]; });
+        hasilTerbit.value = { kode: kodeGr, jumlah: anggota.length, label: rincian.length };
+        await muat();
+        emit('terbit');
+      } catch (e) { console.error('Gagal buat SPK Grouping:', e); alert('Gagal membuat SPK Grouping. Coba lagi.'); }
+      sedangProses.value = false;
+    }
+    onMounted(async () => { await window.authReady; await muat(); });
+    return { memuat, muat, klaster, pilih, terpilih, buatGrouping, sedangProses, bolehProses, hasilTerbit, formatQty };
+  },
+  template: `
+    <div class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px; margin-bottom:12px;">
+      <div class="gc-heading" style="font-weight:700; font-size:13.5px; margin-bottom:2px;">Buat SPK Grouping</div>
+      <p style="font-size:10.5px; color:var(--text-faint); margin:0 0 10px;">Separating jalur Bahan yang belum digrouping, dikelompokkan per nama + ukuran + pola.</p>
+      <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
+      <div v-else-if="klaster.length === 0" style="font-size:11px; color:var(--text-faint);">Tidak ada separating yang menunggu grouping.</div>
+      <div v-else style="display:flex; flex-direction:column; gap:8px;">
+        <div v-for="k in klaster" :key="k.key" style="border:1px solid var(--line); border-radius:12px; padding:10px;">
+          <div style="font-weight:700; font-size:12px;">{{ k.nama }}<span v-if="k.size"> &middot; ukuran {{ k.size }}</span></div>
+          <div style="font-size:10px; color:var(--text-faint); margin-bottom:6px;">{{ k.pola ? 'pola ' + k.pola : 'pola belum dikunci — grouping sendiri' }}</div>
+          <label v-for="sp in k.anggota" :key="sp.id" style="display:flex; align-items:center; gap:8px; font-size:11.5px; padding:3px 0; cursor:pointer;">
+            <input type="checkbox" v-model="pilih[sp.id]" class="gc-chk" :disabled="!bolehProses">
+            <span class="gc-num" style="font-weight:700;">{{ sp.kode_separating }}</span>
+            <span style="color:var(--text-faint);">{{ sp.id_order }} &middot; {{ sp.warna }}</span>
+            <span style="margin-left:auto; font-weight:700;">{{ formatQty(sp.qty) }} pcs</span>
+          </label>
+          <button v-if="bolehProses" type="button" class="btn-primary" style="width:100%; margin-top:8px; padding:8px;" :disabled="sedangProses || terpilih(k).length === 0" @click="buatGrouping(k)">
+            <i class="fas fa-layer-group" style="margin-right:6px;"></i>{{ sedangProses ? 'Memproses...' : 'Buat SPK Grouping (' + terpilih(k).length + ' separating)' }}
+          </button>
+        </div>
+      </div>
+      <div v-if="hasilTerbit" style="margin-top:10px; background:var(--ok-light); border-radius:10px; padding:8px 12px; font-size:11.5px;">
+        <b class="gc-num">{{ hasilTerbit.kode }}</b> terbit: {{ hasilTerbit.jumlah }} separating, {{ hasilTerbit.label }} label bahan. Cetak label bahan di kartu di bawah.
+        <button type="button" class="btn-ghost" style="padding:0 6px;" @click="hasilTerbit=null"><i class="fas fa-xmark"></i></button>
+      </div>
+    </div>
+  `
+};
+
+const AppPersiapanDisiapkan = { components: { PerluPersiapanManager }, template: `<perlu-persiapan-manager ref="mgr" />` };
 let vmPpDisiapkan = null;
-// PersiapanDisiapkanManager.muat dipanggil ulang lewat $refs kalau komponennya
-// sudah ke-mount, bukan lewat petaMount di dashboard.js. Loading "Memuat.." di
-// template tampil sendiri karena muat yang men-set memuat=true/false.
+// PerluPersiapanManager.muat dipanggil ulang lewat $refs kalau komponennya
+// sudah ke-mount; menu-id dan id mount lama dipertahankan supaya izin role tetap.
 window.pastikanMountPpDisiapkan = function() {
   if (vmPpDisiapkan) {
     const mgr = vmPpDisiapkan.$refs && vmPpDisiapkan.$refs.mgr;
@@ -1019,23 +797,32 @@ const JalurTahapManager = {
     const daftarLabelPreview = ref([]);
     // jenisCetakAktif — lihat catatan sama di vue-persiapan-bahan.js.
     const jenisCetakAktif = ref('kode_bagging');
+    function cetakLabelKit(track) {
+      if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Coba refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
+      updateDoc(doc(db, 'spk_track', track.id), { label_dicetak_pada: new Date().toISOString(), diperbarui_pada: serverTimestamp() })
+        .then(muat)
+        .catch(e => { console.error('Gagal simpan label_dicetak_pada:', e); alert('Gagal mencatat cetak label. Coba lagi.'); });
+      daftarLabelPreview.value = [{ kode: track.kode_kit, nama: track.nama_produk, info: `${track.kode_separating} &middot; ${track.id_order || ''} &middot; ${formatQty(track.qty_total)} pcs`, qrDataUrl: buatQrDataUrl(track.kode_kit) }];
+      jenisCetakAktif.value = 'label_spk_terbit';
+      popupCetakLabelAktif.value = true;
+    }
     function cetakLabelBagging(track) {
       if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Coba refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
-      const kodeBagging = track.kode_spk + '-BAG';
+      const kodeBagging = track.kode_kit + '-BAG';
       updateDoc(doc(db, 'spk_track', track.id), { kode_bagging: kodeBagging, diperbarui_pada: serverTimestamp() })
         .then(muat)
         .catch(e => console.error('Gagal simpan kode_bagging:', e));
-      daftarLabelPreview.value = [{ kode: kodeBagging, nama: track.nama_produk, info: `${track.kode_spk} &middot; Bagging`, qrDataUrl: buatQrDataUrl(kodeBagging) }];
+      daftarLabelPreview.value = [{ kode: kodeBagging, nama: track.nama_produk, info: `${track.kode_kit} &middot; Bagging`, qrDataUrl: buatQrDataUrl(kodeBagging) }];
       jenisCetakAktif.value = 'kode_bagging';
       popupCetakLabelAktif.value = true;
     }
     function cetakLabelTugas(track) {
       if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Coba refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
-      const kodeTugas = track.kode_spk + '-TGS';
+      const kodeTugas = track.kode_kit + '-TGS';
       updateDoc(doc(db, 'spk_track', track.id), { kode_tugas: kodeTugas, diperbarui_pada: serverTimestamp() })
         .then(muat)
         .catch(e => console.error('Gagal simpan kode_tugas:', e));
-      daftarLabelPreview.value = [{ kode: kodeTugas, nama: track.nama_produk, info: `${track.kode_spk} &middot; Tugas`, qrDataUrl: buatQrDataUrl(kodeTugas) }];
+      daftarLabelPreview.value = [{ kode: kodeTugas, nama: track.nama_produk, info: `${track.kode_kit} &middot; Tugas`, qrDataUrl: buatQrDataUrl(kodeTugas) }];
       jenisCetakAktif.value = 'lembar_kode_tugas';
       popupCetakLabelAktif.value = true;
     }
@@ -1112,13 +899,8 @@ const JalurTahapManager = {
         const qty = track.qty_total ?? null;
 
         if (mode === 'operator') {
-          // Gerbang: Label SPK Grouping WAJIB sudah dicetak dulu sebelum
-          // operator bisa ditugaskan.
-          const groupSnap = await getDoc(doc(db, 'spk_grouping', track.grouping_id));
-          if (!groupSnap.exists() || !groupSnap.data().label_grouping_dicetak) {
-            alert('Label SPK Grouping belum dicetak. Cetak dulu di menu "Perlu Disiapkan" sebelum Scan Operator.');
-            return;
-          }
+          // Gerbang: label Kode Kit WAJIB sudah dicetak sebelum operator ditunjuk.
+          if (!track.label_dicetak_pada) { alert('Label Kode Kit belum dicetak. Cetak dulu sebelum Scan Operator.'); return; }
           const karyawan = await cariKaryawanByQr(kode);
           if (!karyawan) { alert('QR tidak dikenali — karyawan tidak ditemukan.'); return; }
           await updateDoc(doc(db, 'spk_track', track.id), {
@@ -1127,13 +909,13 @@ const JalurTahapManager = {
             riwayat_scan: arrayUnion({ aksi: 'operator', oleh: karyawan.nama || karyawan.name || karyawan.id, pada, qty })
           });
         } else if (mode === 'entry') {
-          if (kode !== track.kode_spk) { alert(`Kode yang discan ("${kode}") tidak cocok dengan SPK Grouping ini (${track.kode_spk}).`); return; }
+          if (kode !== track.kode_kit) { alert(`Kode yang discan ("${kode}") tidak cocok dengan Kode Kit ini (${track.kode_kit}).`); return; }
           await updateDoc(doc(db, 'spk_track', track.id), {
             status: 'perlu_dikirim', diperbarui_pada: serverTimestamp(),
             riwayat_scan: arrayUnion({ aksi: 'entry', oleh, pada, qty })
           });
         } else if (mode === 'masalah') {
-          if (kode !== track.kode_spk) { alert(`Kode yang discan ("${kode}") tidak cocok dengan SPK Grouping ini (${track.kode_spk}).`); return; }
+          if (kode !== track.kode_kit) { alert(`Kode yang discan ("${kode}") tidak cocok dengan Kode Kit ini (${track.kode_kit}).`); return; }
           const catatan = prompt('Jelaskan masalahnya:');
           if (!catatan || !catatan.trim()) return;
           await updateDoc(doc(db, 'spk_track', track.id), {
@@ -1176,7 +958,7 @@ const JalurTahapManager = {
 
     return {
       memuat, muat, daftarTrack, sedangProses, bolehProses, bolehCetak, bolehTunjukOperator,
-      cetakLabelBagging, cetakLabelTugas, popupCetakLabelAktif, daftarLabelPreview, jenisCetakAktif,
+      cetakLabelKit, cetakLabelBagging, cetakLabelTugas, popupCetakLabelAktif, daftarLabelPreview, jenisCetakAktif,
       modeScan, trackAktifScan, videoScanEl, canvasScanEl, scanMemuatKamera, scanError,
       bukaScan, tutupScan, LABEL_AKSI_SCAN, formatQty, aksiAktif, MY_TARGET
     };
@@ -1193,7 +975,7 @@ const JalurTahapManager = {
       <div v-for="t in daftarTrack" :key="t.id" class="gc-card" style="padding:14px; border-radius:20px;">
         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:8px;">
           <div style="min-width:0;">
-            <div class="gc-heading" style="font-weight:700; font-size:13.5px;">{{ t.kode_spk }}</div>
+            <div class="gc-heading gc-num" style="font-weight:700; font-size:13.5px;">{{ t.kode_kit || t.kode_grouping_induk }}</div>
             <div style="font-size:11px; color:var(--text-faint); margin-top:2px;">{{ t.nama_produk }} &middot; {{ formatQty(t.qty_total) }} pcs</div>
           </div>
           <span class="tag pink" style="flex-shrink:0;">{{ labelJalur }}</span>
@@ -1203,6 +985,7 @@ const JalurTahapManager = {
         <div v-if="t.catatan_masalah" style="font-size:11.5px; color:var(--danger); margin-bottom:8px; background:var(--danger-light); border-radius:8px; padding:6px 10px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ t.catatan_masalah }}</div>
 
         <!-- Perlu Diproses -->
+        <button v-if="tahap==='perlu_diproses' && bolehCetak" @click="cetakLabelKit(t)" class="btn-outline" style="width:100%; padding:10px; margin-bottom:8px;"><i class="fas fa-print" style="margin-right:6px;"></i>{{ t.label_dicetak_pada ? 'Cetak Ulang Label Kode Kit' : 'Cetak Label Kode Kit' }}</button>
         <button v-if="tahap==='perlu_diproses' && bolehProses && bolehTunjukOperator && aksiAktif(MY_TARGET, 'operator_vendor')" @click="bukaScan('operator', t)" :disabled="sedangProses[t.id]" class="btn-primary" style="width:100%; padding:10px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
 
         <!-- Sedang Diproses -->

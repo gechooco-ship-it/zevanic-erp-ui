@@ -1,30 +1,26 @@
 // js/vue-cetak-bagging.js
-// Layar "Cetak Bagging" (Scan & Cetak). Satu tempat untuk mencetak ULANG label
-// Kode Bagging yang sudah ada, dan membuat kode baru untuk kelompok sepack yang
-// stok labelnya habis. Mount ke #vue-cetak-bagging.
+// Layar "Cetak Bagging" (Scan & Cetak): cetak ULANG label Kode Bagging yang ada,
+// dan buat kode baru untuk kelompok sepack yang stok labelnya habis.
+// Mount ke #vue-cetak-bagging.
 //
 // Koleksi & field:
 // - bagging: kode, produk_label (pola · bahan · size), isi[], ditutup_pada,
-//   kode_spk, dibuat_pada, dibuat_oleh. Hanya ditutup_pada == null yang tampil.
-// - cetak_ulang_log: kode_spk, bahan, alasan, pin_oleh, pada.
-// - pengaturan_id_bagging: counter harian, dipakai generateKodeHarian.
+//   kode_grouping_induk, dibuat_pada/oleh. Hanya ditutup_pada == null tampil.
+// - cetak_ulang_log: kode_grouping_induk, bahan, alasan, pin_oleh, pada.
+// - pengaturan_id_bagging: counter harian (generateKodeHarian).
 //
 // Jebakan:
-// - produk_label WAJIB terisi. Scan Pack menolak kode yang produk_label-nya
-//   tidak sama persis dengan pola · bahan · size baris yang discan, jadi
-//   bagging tanpa label tidak akan pernah bisa dipakai — kodenya mati.
-// - Pilihan produk_label di sini diambil dari bagging yang SUDAH ada, bukan
-//   dari spk_track. Kelompok sepack yang belum pernah punya bagging harus
-//   dicetak dari jalurnya sendiri dulu.
+// - produk_label WAJIB terisi: Scan Pack menolak kode yang produk_label-nya
+//   tidak sama persis dengan pola · bahan · size baris yang discan.
+// - Pilihan produk_label diambil dari bagging yang SUDAH ada; kelompok sepack
+//   baru harus dicetak dari jalurnya sendiri dulu.
 // - Cetak dan cetak ulang digerbang role (pic/pic_owner/owner) DAN PIN.
-// - Bagging yang sudah ditutup sengaja tidak ditampilkan supaya tidak ikut
-//   tercetak ulang tanpa guna.
 
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, query, where, orderBy, limit, getDocs, addDoc, doc, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, HeaderLayar, KolomCari } from './vue-components.js?v=13';
-import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=7';
+import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=10';
 
 const BATAS_TAMPIL = 30;
 const MAKS_BUAT_SEKALIGUS = 10;
@@ -87,7 +83,7 @@ const AppCetakBagging = {
       return daftar.value.filter(b =>
         (b.kode || '').toLowerCase().includes(kata) ||
         (b.produk_label || '').toLowerCase().includes(kata) ||
-        (b.kode_spk || '').toLowerCase().includes(kata)
+        (b.kode_grouping_induk || '').toLowerCase().includes(kata)
       );
     });
     const jumlahKosong = computed(() => daftar.value.filter(b => !(b.isi || []).length).length);
@@ -99,7 +95,7 @@ const AppCetakBagging = {
     function terpilih(kode) { return dipilih.value.includes(kode); }
     function ringkasIsi(b) {
       const n = (b.isi || []).length;
-      const grouping = b.kode_spk ? `Kode Grouping ${b.kode_spk}` : 'belum diisi';
+      const grouping = b.kode_grouping_induk ? `Kode Grouping ${b.kode_grouping_induk}` : 'belum diisi';
       return `${grouping} · ${n} isi`;
     }
     const rincianTerbuka = ref({});
@@ -126,7 +122,7 @@ const AppCetakBagging = {
       const terpilihObj = daftar.value.filter(b => dipilih.value.includes(b.kode));
       try {
         await addDoc(collection(db, 'cetak_ulang_log'), {
-          kode_spk: terpilihObj.map(b => b.kode_spk || '-').join(', '),
+          kode_grouping_induk: terpilihObj.map(b => b.kode_grouping_induk || '-').join(', '),
           bahan: terpilihObj.map(b => b.kode).join(', '),
           alasan, pin_oleh: user.nama || user.email || '',
           pada: serverTimestamp()
@@ -169,10 +165,10 @@ const AppCetakBagging = {
         const preview = [];
         for (let i = 0; i < p.jumlah; i++) {
           const kode = await generateKodeHarian('BAG', 'pengaturan_id_bagging');
-          // kode_spk sengaja null: terkunci sendiri pada Scan Pack pertama.
+          // kode_grouping_induk sengaja null: terkunci sendiri pada Scan Pack pertama.
           await addDoc(collection(db, 'bagging'), {
             kode, produk_label: p.label, isi: [], ditutup_pada: null,
-            kode_spk: null, kode_batch: null,
+            kode_grouping_induk: null, kode_separating: null,
             dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
           });
           preview.push({ kode, nama: p.label, info: 'Kode Bagging &middot; belum diisi', qrDataUrl: buatQrDataUrl(kode) });

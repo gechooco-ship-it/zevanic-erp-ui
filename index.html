@@ -228,10 +228,10 @@
         </button>
         <div id="navgrp-persiapanproduksi" class="hidden gc-nav-subgroup">
           <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-disiapkan', this, {catatRiwayat:true})" id="menu-pp-disiapkan-btn" data-menu-id="pp_disiapkan" data-target="sub-pp-disiapkan" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-list-check" style="width:17px; text-align:center;"></i> Perlu Disiapkan
+            <i class="fas fa-list-check" style="width:17px; text-align:center;"></i> Perlu Persiapan
           </button>
           <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-vendor', this, {catatRiwayat:true}); pindahSubTab('sub-pp-vendor-tahap','sub-pp-vendor-perludiproses', null, {catatRiwayat:true})" id="menu-pp-vendor-btn" data-menu-id="pp_vendor" data-target="sub-pp-vendor" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-handshake" style="width:17px; text-align:center;"></i> Vendor
+            <i class="fas fa-handshake" style="width:17px; text-align:center;"></i> Persiapan Vendor
           </button>
           <button onclick="pindahTab('tab-persiapan-produksi'); pindahSubTab('sub-persiapan-produksi','sub-pp-bahan', this, {catatRiwayat:true}); pindahSubTab('sub-pp-bahan-tahap','sub-pp-bahan-perludisiapkan', null, {catatRiwayat:true})" id="menu-pp-bahan-btn" data-menu-id="pp_bahan" data-target="sub-pp-bahan" class="sub-persiapan-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-scroll" style="width:17px; text-align:center;"></i> Bahan
@@ -257,18 +257,24 @@
             <i class="fas fa-cart-shopping" style="width:17px; text-align:center;"></i> Persiapan Belanja
           </button>
         </div>
-        <!-- Grup top-level "Proses Produksi", 5 sub-menu: Cutting, Serie, Sewing, Finishing, Gudang
-             Barang Jadi. Hanya Cutting yang fungsional (js/vue-pp-cutting.js, 7 tab), sisanya placeholder
-             "segera hadir", pola sama seperti Persiapan Produksi. -->
+        <!-- Grup top-level "Collection": hub Pengumpulan + Serie. Isinya tetap di
+             tab-proses-produksi (js/vue-pp-serie.js); tombol membuka grup ini lagi
+             setelah pindahTab membuka grup Proses Produksi. -->
+        <button onclick="toggleNavGroup('navgrp-collection')" id="menu-collection" data-group="navgrp-collection" class="hidden gc-nav-item" style="font-weight:700;">
+          <i class="fas fa-boxes-stacked gc-nav-gico"></i> Collection <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
+        </button>
+        <div id="navgrp-collection" class="hidden gc-nav-subgroup">
+          <button onclick="pindahTab('tab-proses-produksi'); pindahSubTab('sub-proses-produksi','sub-pr-serie', this, {catatRiwayat:true}); pindahSubTab('sub-pr-serie-tahap','sub-pr-serie-perludiproses', null, {catatRiwayat:true}); toggleNavGroup('navgrp-collection')" id="menu-pr-serie-btn" data-menu-id="proses_serie" data-target="sub-pr-serie" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+            <i class="fas fa-shuffle" style="width:17px; text-align:center;"></i> Pengumpulan + Serie
+          </button>
+        </div>
+        <!-- Grup top-level "Proses Produksi": Cutting, Sewing, Finishing, Gudang Barang Jadi. -->
         <button onclick="toggleNavGroup('navgrp-prosesproduksi')" id="menu-proses-produksi" data-group="navgrp-prosesproduksi" class="hidden gc-nav-item" style="font-weight:700;">
           <i class="fas fa-industry gc-nav-gico"></i> Proses Produksi <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
         <div id="navgrp-prosesproduksi" class="hidden gc-nav-subgroup">
           <button onclick="pindahTab('tab-proses-produksi'); pindahSubTab('sub-proses-produksi','sub-pr-cutting', this, {catatRiwayat:true}); pindahSubTab('sub-pr-cutting-tahap','sub-pr-cutting-perludiproses', null, {catatRiwayat:true})" id="menu-pr-cutting-btn" data-menu-id="cut_cutting" data-target="sub-pr-cutting" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-scissors" style="width:17px; text-align:center;"></i> Cutting
-          </button>
-          <button onclick="pindahTab('tab-proses-produksi'); pindahSubTab('sub-proses-produksi','sub-pr-serie', this, {catatRiwayat:true}); pindahSubTab('sub-pr-serie-tahap','sub-pr-serie-perludiproses', null, {catatRiwayat:true})" id="menu-pr-serie-btn" data-menu-id="proses_serie" data-target="sub-pr-serie" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
-            <i class="fas fa-shuffle" style="width:17px; text-align:center;"></i> Serie
           </button>
           <button onclick="pindahTab('tab-proses-produksi'); pindahSubTab('sub-proses-produksi','sub-pr-sewing', this, {catatRiwayat:true}); pindahSubTab('sub-pr-sewing-tahap','sub-pr-sewing-perludiproses', null, {catatRiwayat:true})" id="menu-pr-sewing-btn" data-menu-id="proses_sewing" data-target="sub-pr-sewing" class="sub-proses-produksi-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-thread" style="width:17px; text-align:center;"></i> Sewing
@@ -288,7 +294,7 @@
           <i class="fas fa-qrcode gc-nav-gico"></i> Scan &amp; Cetak <i class="fas fa-chevron-down gc-nav-chevron" style="margin-left:auto; font-size:10px;"></i>
         </button>
         <div id="navgrp-scancetak" class="hidden gc-nav-subgroup">
-          <button onclick="pindahTab('tab-scan-cetak'); pindahSubTab('sub-scan-cetak','sub-scan-cetak-stok', this, {catatRiwayat:true}); pindahSubTab('sub-scancetak-stok-tahap','sub-scancetak-stok-opname', null, {catatRiwayat:true})" id="menu-scancetak-stok-btn" data-menu-ids="scan_opname,scan_persiapan" data-target="sub-scan-cetak-stok" class="sub-scan-cetak-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
+          <button onclick="pindahTab('tab-scan-cetak'); pindahSubTab('sub-scan-cetak','sub-scan-cetak-stok', this, {catatRiwayat:true}); pindahSubTab('sub-scancetak-stok-tahap','sub-scancetak-stok-opname', null, {catatRiwayat:true})" id="menu-scancetak-stok-btn" data-menu-ids="scan_opname" data-target="sub-scan-cetak-stok" class="sub-scan-cetak-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
             <i class="fas fa-qrcode" style="width:17px; text-align:center;"></i> Scan Stok
           </button>
           <button onclick="pindahTab('tab-scan-cetak'); pindahSubTab('sub-scan-cetak','sub-scan-cetak-referensi', this, {catatRiwayat:true})" id="menu-scancetak-referensi-btn" data-menu-id="scan_cetak_referensi" data-target="sub-scan-cetak-referensi" class="sub-scan-cetak-btn gc-nav-item" style="font-size:12.5px; padding:7px 10px;">
@@ -634,6 +640,8 @@
                 lihat AppConfigTlc di js/vue-config.js.
               -->
               <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-tlc', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-location-dot" style="margin-right:6px;"></i> TLC &amp; Prefix</button>
+              <!-- Reset Testing: hapus data alur produksi uji coba, PIN Owner (AppConfigResetTesting). -->
+              <button onclick="pindahSubTab('sub-zh-config', 'sub-zh-config-resettesting', this)" class="sub-zh-config-btn gc-sub-tab-btn"><i class="fas fa-trash-can" style="margin-right:6px;"></i> Reset Testing</button>
               <!-- Riwayat PIN berada di Scan & Cetak > PIN, bukan di Config. Tombol dan div kontennya ada di
                    tab-scan-cetak di bawah. -->
             </div>
@@ -663,6 +671,9 @@
             </div>
             <div id="sub-zh-config-tlc" class="sub-zh-config-content hidden fade-in space-y-4">
               <div id="vue-config-tlc"></div>
+            </div>
+            <div id="sub-zh-config-resettesting" class="sub-zh-config-content hidden fade-in space-y-4">
+              <div id="vue-config-resettesting"></div>
             </div>
           </div>
 
@@ -931,12 +942,13 @@
           </div>
 
           <!--
-            Masalah, 7 sub-tab (lihat js/vue-pp-masalah.js).
+            Masalah, 8 sub-tab (lihat js/vue-pp-masalah.js).
           -->
           <div id="sub-pp-masalah" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-perludiajukan', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-masalah-perludiajukan"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Diajukan</button>
               <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-menunggusetuju', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn" data-target="sub-pp-masalah-menunggusetuju"><i class="fas fa-hourglass-half" style="margin-right:6px;"></i> Menunggu Setuju</button>
+              <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-diajukanbelanja', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn" data-target="sub-pp-masalah-diajukanbelanja"><i class="fas fa-cart-shopping" style="margin-right:6px;"></i> Diajukan Belanja</button>
               <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-perludisiapkan', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn" data-target="sub-pp-masalah-perludisiapkan"><i class="fas fa-list-check" style="margin-right:6px;"></i> Perlu Disiapkan</button>
               <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-sedangdisiapkan', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn" data-target="sub-pp-masalah-sedangdisiapkan"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Disiapkan</button>
               <button onclick="pindahSubTab('sub-pp-masalah-tahap', 'sub-pp-masalah-perludikirim', this, {catatRiwayat:true})" class="sub-pp-masalah-tahap-btn gc-sub-tab-btn" data-target="sub-pp-masalah-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Di Kirim</button>
@@ -948,6 +960,9 @@
             </div>
             <div id="sub-pp-masalah-menunggusetuju" class="sub-pp-masalah-tahap-content hidden fade-in space-y-4">
               <div id="vue-pp-masalah-menunggusetuju"></div>
+            </div>
+            <div id="sub-pp-masalah-diajukanbelanja" class="sub-pp-masalah-tahap-content hidden fade-in space-y-4">
+              <div id="vue-pp-masalah-diajukanbelanja"></div>
             </div>
             <div id="sub-pp-masalah-perludisiapkan" class="sub-pp-masalah-tahap-content hidden fade-in space-y-4">
               <div id="vue-pp-masalah-perludisiapkan"></div>
@@ -1007,19 +1022,15 @@
           </div>
 
           <!--
-            Grup 1: Scan Stok — DIPINDAH dari Zevanic House > Scan, logic
-            vue-scan-opname.js/vue-scan-persiapan.js TIDAK berubah.
+            Grup 1: Scan Stok — Scan Opname (js/vue-scan-opname.js). Scan Entry
+            Persiapan ada di tiap pos Persiapan, bukan di sini.
           -->
           <div id="sub-scan-cetak-stok" class="sub-scan-cetak-content fade-in space-y-4">
             <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-scancetak-stok-tahap', 'sub-scancetak-stok-opname', this, {catatRiwayat:true})" class="sub-scancetak-stok-tahap-btn gc-sub-tab-btn active" data-target="sub-scancetak-stok-opname" data-menu-id="scan_opname"><i class="fas fa-qrcode" style="margin-right:6px;"></i> Scan Opname</button>
-              <button onclick="pindahSubTab('sub-scancetak-stok-tahap', 'sub-scancetak-stok-persiapan', this, {catatRiwayat:true})" class="sub-scancetak-stok-tahap-btn gc-sub-tab-btn" data-target="sub-scancetak-stok-persiapan" data-menu-id="scan_persiapan"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Scan Persiapan</button>
             </div>
             <div id="sub-scancetak-stok-opname" class="sub-scancetak-stok-tahap-content fade-in space-y-4">
               <div id="vue-scan-opname"></div>
-            </div>
-            <div id="sub-scancetak-stok-persiapan" class="sub-scancetak-stok-tahap-content hidden fade-in space-y-4">
-              <div id="vue-scan-persiapan"></div>
             </div>
           </div>
 
@@ -1376,46 +1387,45 @@
   <script type="module" src="js/firebase-config.js"></script>
   <script type="module" src="js/app.js?v=5"></script>
   <script type="module" src="js/camera.js"></script>
-  <script type="module" src="js/auth.js?v=13"></script>
-  <script type="module" src="js/dashboard.js?v=31"></script>
+  <script type="module" src="js/auth.js?v=14"></script>
+  <script type="module" src="js/dashboard.js?v=32"></script>
 
   <!-- Persiapan Produksi V2: Perlu Disiapkan (generator Kode Grouping) fungsional penuh. 5 jalur
        (Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing) sementara hanya struktur navigasi 5 tahap dengan
        isi placeholder. -->
-  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=19"></script>
+  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=20"></script>
   <!-- jalur Bahan, lihat komentar besar di file ini. -->
-  <script type="module" src="js/vue-persiapan-bahan.js?v=29"></script>
+  <script type="module" src="js/vue-persiapan-bahan.js?v=30"></script>
   <!--
     jalur Acc Sewing/Webbing/Finishing, kartu = 1 spk_track (beda dari Bahan yang kartu = 1
     bahan+warna), lihat komentar besar di masing-masing file.
   -->
-  <script type="module" src="js/vue-persiapan-sewing.js?v=28"></script>
-  <script type="module" src="js/vue-persiapan-webbing.js?v=29"></script>
-  <script type="module" src="js/vue-persiapan-finishing.js?v=28"></script>
+  <script type="module" src="js/vue-persiapan-sewing.js?v=29"></script>
+  <script type="module" src="js/vue-persiapan-webbing.js?v=30"></script>
+  <script type="module" src="js/vue-persiapan-finishing.js?v=29"></script>
   <!-- Persiapan Produksi > Masalah, 7 tahap, skema TRB. Fitur "Persiapan Masalah" adalah papan
        manual terpisah (js/vue-persiapan-masalah.js) dengan koleksi permintaan_bahan_manual. -->
-  <script type="module" src="js/vue-pp-masalah.js?v=13"></script>
+  <script type="module" src="js/vue-pp-masalah.js?v=14"></script>
   <!-- Grup top-level "Pesanan": Penjualan Kasir (POS), Menunggu Proses (CRUD SPK dari
        OrderSpkManager), dan ringkasan read-only Proses Persiapan/Produksi/Pengiriman dari spk_track. Lihat
        komentar besar di js/vue-pesanan.js untuk latar belakang dan keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pesanan.js?v=10"></script>
+  <script type="module" src="js/vue-pesanan.js?v=11"></script>
   <!-- Fondasi menu "Scan & Cetak" (PopupPinGenerik/ScanGenerik dst), lihat komentar besar di
        js/vue-scan-cetak.js. Badge operator memakai prefix "ZMS..."; prefix yang salah membuat pesan error
        di Tunjuk Operator/Scan Pack/Scan Kirim ikut salah tunjuk. Semua file pengimpor vue-scan-cetak.js
        memakai cache-bust versi yang sama. -->
-  <script type="module" src="js/vue-scan-cetak.js?v=9"></script>
+  <script type="module" src="js/vue-scan-cetak.js?v=10"></script>
   <!--
     "Pengaturan Cetak" (ukuran kertas/posisi QR/rincian tambahan per jenis cetak, terpusat),
     lihat komentar besar di js/vue-pengaturan-cetak.js.
   -->
-  <script type="module" src="js/vue-pengaturan-cetak.js?v=7"></script>
-  <script type="module" src="js/vue-scan-opname.js?v=2"></script>
-  <script type="module" src="js/vue-scan-persiapan.js?v=6"></script>
+  <script type="module" src="js/vue-pengaturan-cetak.js?v=8"></script>
+  <script type="module" src="js/vue-scan-opname.js?v=3"></script>
   <script type="module" src="js/vue-config-karyawan.js?v=4"></script>
   <script type="module" src="js/vue-config-info.js?v=4"></script>
   <script type="module" src="js/vue-config-absensi.js?v=4"></script>
   <script type="module" src="js/vue-daftar-karyawan.js?v=7"></script>
-  <script type="module" src="js/vue-config-akses.js?v=24"></script>
+  <script type="module" src="js/vue-config-akses.js?v=25"></script>
   <script type="module" src="js/vue-hak-akses.js?v=8"></script>
   <script type="module" src="js/vue-antrean-dakar.js?v=6"></script>
   <script type="module" src="js/vue-antrean-absensi.js?v=8"></script>
@@ -1440,10 +1450,10 @@
   -->
   <script type="module" src="js/vue-popup-scan.js?v=7"></script>
   <script type="module" src="js/vue-pilihan-scan-config.js?v=5"></script>
-  <script type="module" src="js/vue-cetak-bagging.js?v=2"></script>
-  <script type="module" src="js/vue-cetak-kode-tugas.js?v=2"></script>
+  <script type="module" src="js/vue-cetak-bagging.js?v=3"></script>
+  <script type="module" src="js/vue-cetak-kode-tugas.js?v=3"></script>
   <script type="module" src="js/vue-home.js?v=8"></script>
-  <script type="module" src="js/vue-home-desktop.js?v=2"></script>
+  <script type="module" src="js/vue-home-desktop.js?v=3"></script>
   <script type="module" src="js/vue-header-mobile.js?v=12"></script>
   <!-- lihat mount #vue-menu-lengkap/#vue-atur-favorit di atas. -->
   <script type="module" src="js/vue-menu-lengkap.js?v=3"></script>
@@ -1454,16 +1464,16 @@
   <script type="module" src="js/vue-absensi-qr.js?v=2"></script>
   <script type="module" src="js/vue-camera.js?v=4"></script>
   <script type="module" src="js/vue-scan-qr.js"></script>
-  <script type="module" src="js/vue-bahan-aksesoris.js?v=26"></script>
+  <script type="module" src="js/vue-bahan-aksesoris.js?v=27"></script>
   <script type="module" src="js/vue-rak-penyimpanan.js?v=8"></script>
   <!-- Repack Komponen Acc, lihat komentar besar di file itu untuk detail. -->
-  <script type="module" src="js/vue-repack-komponen-acc.js?v=2"></script>
-  <script type="module" src="js/vue-stock-pembelian.js?v=31"></script>
-  <script type="module" src="js/vue-kartu-stok.js?v=10"></script>
+  <script type="module" src="js/vue-repack-komponen-acc.js?v=3"></script>
+  <script type="module" src="js/vue-stock-pembelian.js?v=32"></script>
+  <script type="module" src="js/vue-kartu-stok.js?v=11"></script>
   <!-- Zevanic House > Config. Import Excel diaktifkan lewat prop :izinkan-import-excel="true"
        khusus di AppConfigKomponen, tab Config lain tidak ikut. Tab "TLC & Prefix" (AppConfigTlc) memakai
        koleksi master_tlc; cache-bust mengikuti import firestore/firebase-config di file ini. -->
-  <script type="module" src="js/vue-config.js?v=14"></script>
+  <script type="module" src="js/vue-config.js?v=15"></script>
   <!-- Zevanic House > Master Suplayer: Entry & List (5.1), Alias & MOQ (5.2, dengan
        moq/moq_satuan/lead_time_hari), dan Petakan Order (5.3, total). Lihat komentar panjang di
        js/vue-master-suplayer.js. -->
@@ -1472,7 +1482,7 @@
     Zevanic House > Master Pelanggan: koleksi & menu TOTAL. Lihat komentar panjang di
     js/vue-master-pelanggan.js.
   -->
-  <script type="module" src="js/vue-master-pelanggan.js?v=4"></script>
+  <script type="module" src="js/vue-master-pelanggan.js?v=5"></script>
   <!-- Master Produk (BOM). Satu tampilan kartu untuk semua ukuran layar, plus checkbox pilih per
        produk dan tombol "Hapus Massal". Excel Import BOM sheet "Komponen" divalidasi ke Data Bahan &
        Aksesoris format Nama+Warna. Urutan field Entry/Edit Produk: Foto, Jenis, Nama, Warna, Size. Skema
@@ -1482,29 +1492,29 @@
     Proses Produksi > Cutting, 7 tab. Lihat komentar besar di js/vue-pp-cutting.js untuk latar
     belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-cutting.js?v=20"></script>
+  <script type="module" src="js/vue-pp-cutting.js?v=21"></script>
   <!--
     Proses Produksi > Serie, 11 tab (hub distribusi). Lihat komentar besar di
     js/vue-pp-serie.js untuk latar belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-serie.js?v=20"></script>
+  <script type="module" src="js/vue-pp-serie.js?v=21"></script>
   <!--
     Proses Produksi > Sewing, 5 tab. Lihat komentar besar di js/vue-pp- sewing.js untuk latar
     belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-sewing.js?v=15"></script>
+  <script type="module" src="js/vue-pp-sewing.js?v=16"></script>
   <!--
     Proses Produksi > Finishing, 5 tab (per-PCS tracking via finishing_track). Lihat komentar
     besar di js/vue-pp-finishing.js untuk latar belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-finishing.js?v=15"></script>
+  <script type="module" src="js/vue-pp-finishing.js?v=16"></script>
   <!--
     Proses Produksi > Gudang Barang Jadi, 4 tab (titik akhir rantai produksi). Lihat komentar
     besar di js/vue-pp-gudang.js untuk latar belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-gudang.js?v=11"></script>
+  <script type="module" src="js/vue-pp-gudang.js?v=12"></script>
   <!-- Persiapan Produksi > Persiapan Belanja, folder terakhir grup Persiapan Produksi. Lihat
        komentar besar di js/vue-persiapan-belanja.js untuk latar belakang dan keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-persiapan-belanja.js?v=9"></script>
+  <script type="module" src="js/vue-persiapan-belanja.js?v=10"></script>
 </body>
 </html>

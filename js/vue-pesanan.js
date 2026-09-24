@@ -1,23 +1,22 @@
 // js/vue-pesanan.js
 // Menu Pesanan: Penjualan Kasir, Menunggu Proses (antrian QO), Daftar
-// Pesanan, dan Transaksi Keuangan (piutang & kas).
+// Pesanan, dan Transaksi Keuangan (piutang & kas). Tidak ada kata SPK di
+// menu ini: SPK baru lahir di Perlu Persiapan.
 //
 // Koleksi & field:
-// - transaksi_kasir: status_bayar (lunas/dp/tempo), dp_persen, total_dibayar,
-//   sisa_piutang, jatuh_tempo. no_transaksi = KSR + timestamp milidetik,
-//   no_spk = TRX + timestamp + urutan.
+// - pesanan: no_pesanan KSR + timestamp milidetik (ORD untuk pesanan
+//   customer), sumber 'kasir'|'customer', status_bayar, dp_persen,
+//   total_dibayar, sisa_piutang, jatuh_tempo.
+// - order: 1 dokumen per produk, id_order = `{no_pesanan}-{nn}`, pesanan_id,
+//   qo_diproses/_pada/qo_oleh (penanda sudah diputus QO).
 // - piutang_pembayaran: 1 dokumen per pembayaran. catatPembayaranSusulan
-//   SATU-SATUNYA titik yang mengurangi master_pelanggan.saldo_piutang,
-//   checkout yang menambahnya.
-// - order_spk: qo_diproses, qo_diproses_pada, qo_oleh — penanda baris sudah
-//   diputus QO supaya keluar dari antrean Menunggu Proses.
+//   SATU-SATUNYA titik yang mengurangi master_pelanggan.saldo_piutang.
 //
 // Jebakan:
-// - order_spk.status_grouping MILIK mesin grouping Persiapan Produksi, JANGAN
-//   ditulis dari file ini; tombol Proses massal cuma mengubah qty_order + qo_*.
+// - order.status_separating/qty_terseparating/separating_ids MILIK Perlu
+//   Persiapan; tombol Proses massal cuma mengubah qty_order + qo_*.
 // - Checkout DIBLOKIR TOTAL kalau saldo_piutang + piutang baru melebihi
-//   master_pelanggan.limit_piutang. bahanTerblokirDiKeranjang sengaja
-//   fail-OPEN: query pengecekannya sendiri error, checkout tetap jalan.
+//   master_pelanggan.limit_piutang. bahanTerblokirDiKeranjang fail-OPEN.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -28,7 +27,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, serv
 import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
 import { ambilSemuaProduk } from './vue-master-produk.js';
-import { ambilPengaturanCetak } from './vue-pengaturan-cetak.js';
+import { ambilPengaturanCetak } from './vue-pengaturan-cetak.js?v=8';
 
 
 // Catatan tampilan: 1.1 stepper 2 langkah + kotak pelanggan terkunci; 1.2 grid
@@ -180,7 +179,7 @@ async function uploadFotoBuktiTransfer(transaksiKasirId, file) {
 
 // catatPembayaranSusulan — dipakai HANYA oleh popup "Catat Pembayaran" (4.1.1),
 // untuk pembayaran SESUDAH checkout (DP/Lunas saat kasir ditulis langsung oleh
-// buatOrder). Efek: 1 dokumen piutang_pembayaran + transaksi_kasir.total_dibayar/
+// buatOrder). Efek: 1 dokumen piutang_pembayaran + pesanan.total_dibayar/
 // sisa_piutang/status_bayar + master_pelanggan.saldo_piutang (SATU-SATUNYA pengurang).
 
 async function catatPembayaranSusulan({ transaksiKasirId, pelangganId, pelangganNama, noTransaksi, jumlah, metode, tanggal, catatan, dicatatOleh, pinPemilik, noReferensi, buktiFotoUrl }) {
@@ -188,12 +187,12 @@ async function catatPembayaranSusulan({ transaksiKasirId, pelangganId, pelanggan
   // perhitungan apa pun di bawah ini (total_dibayar/sisa_piutang/saldo_piutang
   // tetap murni dari `jumlah`, sama persis seperti sebelum poin S6 ada).
   await addDoc(collection(db, 'piutang_pembayaran'), {
-    transaksi_kasir_id: transaksiKasirId, pelanggan_id: pelangganId || '', pelanggan_nama: pelangganNama || '',
-    no_transaksi: noTransaksi || '', jenis: 'cicilan', jumlah, metode, tanggal, catatan: catatan || '',
+    pesanan_id: transaksiKasirId, pelanggan_id: pelangganId || '', pelanggan_nama: pelangganNama || '',
+    no_pesanan: noTransaksi || '', jenis: 'cicilan', jumlah, metode, tanggal, catatan: catatan || '',
     no_referensi: noReferensi || null, bukti_foto_url: buktiFotoUrl || null,
     dicatat_oleh: dicatatOleh, pin_pemilik: pinPemilik || null, dibuat_pada: serverTimestamp()
   });
-  const refTrx = doc(db, 'transaksi_kasir', transaksiKasirId);
+  const refTrx = doc(db, 'pesanan', transaksiKasirId);
   const snapTrx = await getDoc(refTrx);
   if (snapTrx.exists()) {
     const d = snapTrx.data();
@@ -227,10 +226,9 @@ const JATUH_TEMPO_PRESET = [
   { label: '+7 hari', hari: 7 }, { label: '+14 hari', hari: 14 }, { label: '+30 hari', hari: 30 }
 ];
 
-// formatTimestampPenuh — `{yy}{mm}{dd}{HH}{MM}{SS}{mmm}` sampai milidetik, dipakai
-// KSR (no_transaksi) & TRX (no_spk per baris). Tidak ada counter/doc Firestore
-// terpisah, generatenya sinkron; generateNoTransaksiKasir tetap async supaya call
-// site yang sudah `await` tidak perlu diubah.
+// formatTimestampPenuh — `{yy}{mm}{dd}{HH}{MM}{SS}{mmm}` sampai milidetik untuk
+// No. Pesanan KSR; ID Order per produk = `{no_pesanan}-{nn}`. Tanpa counter
+// Firestore; generateNoTransaksiKasir tetap async supaya call site tidak berubah.
 function formatTimestampPenuh(d) {
   const yy = String(d.getFullYear()).slice(-2);
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -525,8 +523,9 @@ const PesananKasirManager = {
         const sisaSiap = Math.max(0, totalSiap - dibayarSekarang.value);
         const kasirEmail = window.currentUser?.email || null;
 
-        const trxRef = await addDoc(collection(db, 'transaksi_kasir'), {
-          no_transaksi: noTransaksi,
+        const trxRef = await addDoc(collection(db, 'pesanan'), {
+          no_pesanan: noTransaksi,
+          sumber: 'kasir',
           pelanggan_id: pel.id,
           nama_pelanggan: pel.nama,
           metode_pembayaran: metode.value,
@@ -544,22 +543,19 @@ const PesananKasirManager = {
         });
 
         const tanggalHariIni = new Date().toISOString().slice(0, 10);
-        // no_spk — GANTI: dulu `${no_transaksi}-${urutan}` (menempel ke
-        // no_transaksi), sekarang TRX + timestamp SENDIRI per baris + urutan 2
-        // digit (anti-tabrakan kalau >1 baris ke-generate di milidetik yang
-        // sama).
-        await Promise.all(itemsSiap.map((it, idx) => addDoc(collection(db, 'order_spk'), {
-          no_spk: `TRX${formatTimestampPenuh(new Date())}${String(idx + 1).padStart(2, '0')}`,
+        // id_order = No. Pesanan + urutan produk 2 digit: dari kodenya langsung
+        // kelihatan pesanan mana dan produk ke berapa.
+        await Promise.all(itemsSiap.map((it, idx) => addDoc(collection(db, 'order'), {
+          id_order: `${noTransaksi}-${String(idx + 1).padStart(2, '0')}`,
           sku_produk: it.sku_produk,
           nama_produk: it.nama_produk,
           qty_order: it.qty,
           tanggal: tanggalHariIni,
           status: 'Aktif',
-          // T1/T2 (lihat komentar besar atas file) — field baru, TIDAK menyentuh
-          // status_grouping (milik Persiapan Produksi).
-          qo_diproses: false,
-          transaksi_kasir_id: trxRef.id,
-          no_transaksi: noTransaksi,
+          // status_separating & qty_terseparating milik Perlu Persiapan.
+          qo_diproses: false, qty_terseparating: 0, separating_ids: [], status_separating: '',
+          pesanan_id: trxRef.id,
+          no_pesanan: noTransaksi,
           pelanggan_id: pel.id,
           pelanggan_nama: pel.nama,
           status_bayar: statusBayar.value,
@@ -572,7 +568,7 @@ const PesananKasirManager = {
         // dikurangi dua kali. Di sini saldo_piutang HANYA bertambah sebesar sisa piutang.
         if (dibayarSekarang.value > 0) {
           await addDoc(collection(db, 'piutang_pembayaran'), {
-            transaksi_kasir_id: trxRef.id, pelanggan_id: pel.id, pelanggan_nama: pel.nama, no_transaksi: noTransaksi,
+            pesanan_id: trxRef.id, pelanggan_id: pel.id, pelanggan_nama: pel.nama, no_pesanan: noTransaksi,
             jenis: statusBayar.value === 'lunas' ? 'tunai_lunas' : 'dp', jumlah: dibayarSekarang.value, metode: metode.value,
             tanggal: tanggalHariIni, catatan: 'Dibayar saat kasir', dicatat_oleh: kasirEmail, pin_pemilik: null, dibuat_pada: serverTimestamp()
           });
@@ -836,7 +832,7 @@ const PesananMenungguManager = {
     async function muat() {
       memuat.value = true;
       try {
-        const snap = await getDocs(query(collection(db, 'order_spk'), where('status', '==', 'Aktif')));
+        const snap = await getDocs(query(collection(db, 'order'), where('status', '==', 'Aktif')));
         daftarSpk.value = snap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter(s => s.qo_diproses !== true); // T1 — baris yg sudah diputus QO keluar dari antrean
@@ -846,16 +842,16 @@ const PesananMenungguManager = {
 
     function produkDari(sku) { return daftarProduk.value.find(p => p.sku === sku) || null; }
 
-    // Kelompok per TRANSAKSI (sesuai tampilan wireframe 2.1 — 1 header per TRX,
+    // Kelompok per PESANAN (1 header per No. Pesanan,
     // bisa berisi >1 baris produk).
     const kelompokTransaksi = computed(() => {
       const peta = new Map();
       daftarSpk.value.forEach(s => {
-        const key = s.transaksi_kasir_id || s.no_transaksi || s.id;
-        if (!peta.has(key)) peta.set(key, { key, no_transaksi: s.no_transaksi || '-', pelanggan_nama: s.pelanggan_nama || '(tanpa pelanggan)', status_bayar: s.status_bayar || '', dibuat_oleh: s.dibuat_oleh || '', dibuat_pada: s.dibuat_pada, baris: [] });
+        const key = s.pesanan_id || s.no_pesanan || s.id;
+        if (!peta.has(key)) peta.set(key, { key, no_pesanan: s.no_pesanan || '-', pelanggan_nama: s.pelanggan_nama || '(tanpa pelanggan)', status_bayar: s.status_bayar || '', dibuat_oleh: s.dibuat_oleh || '', dibuat_pada: s.dibuat_pada, baris: [] });
         peta.get(key).baris.push(s);
       });
-      return Array.from(peta.values()).sort((a, b) => (a.no_transaksi || '').localeCompare(b.no_transaksi || ''));
+      return Array.from(peta.values()).sort((a, b) => (a.no_pesanan || '').localeCompare(b.no_pesanan || ''));
     });
 
     // pilihan[id] = angka QO terpilih (truthy = baris tercentang), null/0 =
@@ -902,14 +898,14 @@ const PesananMenungguManager = {
       if (!tierOwnerKeAtas(user)) { alert(`PIN ini bukan PIN Owner/PIC Owner/Superuser (peran: ${user.role}). Hanya Owner/PIC Owner yang boleh memproses QO.`); return; }
       memproses.value = true;
       try {
-        await Promise.all(barisTercentang.value.map(s => updateDoc(doc(db, 'order_spk', s.id), {
+        await Promise.all(barisTercentang.value.map(s => updateDoc(doc(db, 'order', s.id), {
           qty_order: pilihan[s.id],
           qo_diproses: true,
           qo_diproses_pada: serverTimestamp(),
           qo_oleh: user.email
         })));
         Object.keys(pilihan).forEach(k => delete pilihan[k]);
-        alert(`${barisTercentang.value.length} SPK diproses — QO terkunci, masuk antrean "menunggu persiapan" di Daftar Pesanan & siap digrouping di Persiapan Produksi.`);
+        alert(`${barisTercentang.value.length} order diproses — QO terkunci, masuk Persiapan Produksi › Perlu Persiapan untuk dibuat SPK Separating.`);
         await muat();
       } catch (e) { console.error('Gagal memproses QO massal:', e); alert('Gagal memproses. Coba lagi.'); }
       memproses.value = false;
@@ -943,14 +939,14 @@ const PesananMenungguManager = {
       <div v-if="memuat" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
       <div v-else-if="kelompokTransaksi.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-clipboard-check"></i></div>
-        <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada SPK menunggu keputusan QO</h3>
+        <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada order menunggu keputusan QO</h3>
       </div>
       <div v-else style="display:flex; flex-direction:column; gap:16px;">
         <div v-for="grp in kelompokTransaksi" :key="grp.key" class="gc-card" style="padding:14px; border-radius:18px;">
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-bottom:10px; margin-bottom:10px; border-bottom:1px dashed var(--line);">
             <span style="font-weight:700; font-size:13px;">{{ grp.pelanggan_nama }}</span>
             <span v-if="grp.status_bayar" class="tag neutral" style="font-size:10px;">{{ grp.status_bayar.toUpperCase() }}</span>
-            <span style="margin-left:auto; font-size:10px; color:var(--text-faint);">{{ grp.no_transaksi }} &middot; kasir {{ grp.dibuat_oleh }}</span>
+            <span style="margin-left:auto; font-size:10px; color:var(--text-faint);">{{ grp.no_pesanan }} &middot; kasir {{ grp.dibuat_oleh }}</span>
           </div>
           <div style="display:flex; flex-direction:column; gap:8px;">
             <div v-for="baris in grp.baris" :key="baris.id" class="gc-card" style="padding:10px 12px; display:flex; flex-wrap:wrap; gap:10px; align-items:center;" :style="{background: pilihan[baris.id] ? 'rgba(var(--burgundy-rgb),.05)' : 'transparent'}">
@@ -995,7 +991,7 @@ const PesananMenungguManager = {
 };
 
 
-// 3. DAFTAR PESANAN (3.1 ringkasan per pelanggan, 3.2 rincian anak SPK, 3.2.1
+// 3. DAFTAR PESANAN (3.1 ringkasan per pelanggan, 3.2 rincian per ID Order, 3.2.1
 // lini masa). Lihat T3 di komentar besar atas file untuk keterbatasan pipeline
 // yang disengaja setelah SPK masuk grouping campuran.
 
@@ -1003,7 +999,7 @@ const JALUR_URUTAN = ['vendor', 'bahan', 'sewing', 'webbing', 'finishing'];
 const JALUR_LABEL_PENDEK = { vendor: 'Vendor', bahan: 'Bahan', sewing: 'Acc Sewing', webbing: 'Acc Webbing', finishing: 'Acc Finishing' };
 
 // S4: helper lini masa 3.2.1 (dipakai HANYA di popup timeline). tglFleksibel —
-// riwayat_scan[].pada string ISO biasa, sedangkan order_spk.dibuat_pada/
+// riwayat_scan[].pada string ISO biasa, sedangkan order.dibuat_pada/
 // qo_diproses_pada Firestore Timestamp; helper ini menerima keduanya.
 function tglFleksibel(v) {
   if (!v) return null;
@@ -1030,14 +1026,14 @@ function bangunTimelineSpk(spk, tracks) {
   const kejadian = [];
   kejadian.push({
     kunci: 'masuk', judul: 'Pesanan masuk', waktu: tglFleksibel(spk.dibuat_pada),
-    keterangan: `${spk.no_transaksi || '-'} &middot; kasir ${spk.dibuat_oleh || '-'}${spk.status_bayar ? ' &middot; ' + spk.status_bayar.toUpperCase() : ''}`,
+    keterangan: `${spk.no_pesanan || '-'} &middot; kasir ${spk.dibuat_oleh || '-'}${spk.status_bayar ? ' &middot; ' + spk.status_bayar.toUpperCase() : ''}`,
     selesai: true, tercapai: true
   });
   if (spk.qo_diproses === true) {
     kejadian.push({
       kunci: 'perlu_disiapkan', judul: 'Perlu Disiapkan', waktu: tglFleksibel(spk.qo_diproses_pada),
-      keterangan: `QO diputuskan ${spk.qo_oleh || '-'}${spk.status_grouping ? ' · sudah digabung grouping' : ' · menunggu digabung grouping'}`,
-      selesai: !!spk.status_grouping, tercapai: true
+      keterangan: `QO diputuskan ${spk.qo_oleh || '-'}${spk.status_separating ? ' · sudah jadi SPK Separating' : ' · menunggu SPK Separating'}`,
+      selesai: !!spk.status_separating, tercapai: true
     });
   }
   JALUR_URUTAN.forEach(j => {
@@ -1053,8 +1049,10 @@ function bangunTimelineSpk(spk, tracks) {
       kejadian.push({ kunci: j, judul: JALUR_LABEL_PENDEK[j], waktu: null, keterangan: 'belum tercapai', selesai: false, tercapai: false });
     }
   });
-  kejadian.push({ kunci: 'produksi', judul: 'Proses Produksi · Cutting', waktu: null, keterangan: 'modulnya belum dibangun', selesai: false, tercapai: false, segeraHadir: true });
-  kejadian.push({ kunci: 'terkirim', judul: 'Selesai · terkirim ke pelanggan', waktu: null, keterangan: 'belum tercapai', selesai: false, tercapai: false });
+  const seps = spk._separating || [];
+  const diProduksi = seps.filter(sp => sp.status && sp.status !== 'perlu_disiapkan').length;
+  kejadian.push({ kunci: 'produksi', judul: 'Collection · Proses Produksi', waktu: null, keterangan: seps.length ? `${diProduksi} dari ${seps.length} separating` : 'belum tercapai', selesai: seps.length > 0 && seps.every(sp => sp.status === 'selesai'), tercapai: diProduksi > 0 });
+  kejadian.push({ kunci: 'terkirim', judul: 'Selesai · Berita Acara', waktu: null, keterangan: spk.kode_ba ? spk.kode_ba : 'belum tercapai', selesai: !!spk.kode_ba, tercapai: !!spk.kode_ba });
 
   const idxSekarang = kejadian.findIndex(k => k.tercapai && !k.selesai);
   const now = new Date();
@@ -1078,6 +1076,7 @@ const PesananDaftarManager = {
     const semuaOrderSpk = ref([]);
     const semuaTransaksi = ref([]);
     const semuaTrack = ref([]);
+    const semuaSeparating = ref([]);
     const cari = ref('');
     const kartuTerbuka = reactive({});
     // S4 — daftar produk HANYA dipakai buat tab "kebutuhan bahan" di popup lini
@@ -1087,12 +1086,14 @@ const PesananDaftarManager = {
     async function muat() {
       memuat.value = true;
       try {
-        const [snapSpk, snapTrx, snapTrack, produk] = await Promise.all([
-          getDocs(collection(db, 'order_spk')),
-          getDocs(collection(db, 'transaksi_kasir')),
+        const [snapSpk, snapTrx, snapTrack, snapSep, produk] = await Promise.all([
+          getDocs(collection(db, 'order')),
+          getDocs(collection(db, 'pesanan')),
           getDocs(collection(db, 'spk_track')),
+          getDocs(collection(db, 'spk_separating')),
           ambilSemuaProduk()
         ]);
+        semuaSeparating.value = snapSep.docs.map(d => ({ id: d.id, ...d.data() }));
         semuaOrderSpk.value = snapSpk.docs.map(d => ({ id: d.id, ...d.data() })).filter(s => s.pelanggan_id);
         semuaTransaksi.value = snapTrx.docs.map(d => ({ id: d.id, ...d.data() })).filter(t => t.pelanggan_id);
         semuaTrack.value = snapTrack.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1101,26 +1102,38 @@ const PesananDaftarManager = {
       memuat.value = false;
     }
 
-    const trackByKode = computed(() => {
+    // sepByOrder / trackByOrder — status order dibaca lewat Kode Separating-nya:
+    // spk_track ACC/Vendor punya separating_id, spk_track Bahan punya
+    // separating_ids[] (satu grouping menampung banyak separating).
+    const sepByOrder = computed(() => {
       const peta = new Map();
-      semuaTrack.value.forEach(t => { if (!peta.has(t.kode_spk)) peta.set(t.kode_spk, []); peta.get(t.kode_spk).push(t); });
+      semuaSeparating.value.forEach(sp => { if (!peta.has(sp.order_id)) peta.set(sp.order_id, []); peta.get(sp.order_id).push(sp); });
+      return peta;
+    });
+    const trackByOrder = computed(() => {
+      const orderDariSep = new Map(semuaSeparating.value.map(sp => [sp.id, sp.order_id]));
+      const peta = new Map();
+      semuaTrack.value.forEach(t => {
+        const ids = Array.isArray(t.separating_ids) && t.separating_ids.length ? t.separating_ids : (t.separating_id ? [t.separating_id] : []);
+        new Set(ids.map(id => orderDariSep.get(id)).filter(Boolean)).forEach(oid => { if (!peta.has(oid)) peta.set(oid, []); peta.get(oid).push(t); });
+      });
       return peta;
     });
 
-    // posSekarang / keadaanBaris — lihat T3: pendekatan disederhanakan.
     function posSekarang(spk) {
       if (spk.qo_diproses !== true) return 'Menunggu Proses';
-      if (!spk.status_grouping) return 'Perlu Disiapkan';
-      const tracks = trackByKode.value.get(spk.kode_spk_grouping) || [];
-      if (tracks.length === 0) return 'Perlu Disiapkan';
+      const seps = sepByOrder.value.get(spk.id) || [];
+      if (seps.length === 0) return 'Perlu Disiapkan';
+      if (spk.kode_ba || seps.every(sp => sp.status === 'selesai')) return 'Terkirim';
+      const tracks = trackByOrder.value.get(spk.id) || [];
       for (const j of JALUR_URUTAN) {
-        const t = tracks.find(tt => tt.jalur === j);
-        if (t && t.status !== 'selesai') return JALUR_LABEL_PENDEK[j];
+        const t = tracks.filter(tt => tt.jalur === j);
+        if (t.some(tt => tt.status !== 'selesai')) return JALUR_LABEL_PENDEK[j];
       }
-      return 'Terkirim';
+      return 'Collection';
     }
     function keadaanBaris(spk) {
-      const tracks = trackByKode.value.get(spk.kode_spk_grouping) || [];
+      const tracks = trackByOrder.value.get(spk.id) || [];
       const tertahan = tracks.find(t => t.status !== 'selesai' && t.catatan_masalah);
       if (tertahan) return { label: 'tertahan · ' + tertahan.catatan_masalah, kelas: 'warn' };
       const pos = posSekarang(spk);
@@ -1138,7 +1151,7 @@ const PesananDaftarManager = {
         pesanan: new Set(daftarTrx.map(t => t.id)).size,
         produkTerjual: daftarSpk.reduce((t, s) => t + (parseFloat(s.qty_order) || 0), 0),
         terkirim: daftarSpk.filter(s => posSekarang(s) === 'Terkirim').length,
-        menungguPersiapan: daftarSpk.filter(s => s.qo_diproses === true && !s.status_grouping).length,
+        menungguPersiapan: daftarSpk.filter(s => s.qo_diproses === true && !s.status_separating).length,
         menungguProses: daftarSpk.filter(s => s.qo_diproses !== true).length,
         belumBayar: daftarTrx.reduce((t, tr) => t + (parseFloat(tr.sisa_piutang) || 0), 0)
       };
@@ -1156,24 +1169,20 @@ const PesananDaftarManager = {
         if (!peta.has(s.pelanggan_id)) peta.set(s.pelanggan_id, { id: s.pelanggan_id, nama: s.pelanggan_nama, transaksi: [], spk: [] });
         peta.get(s.pelanggan_id).spk.push(s);
       });
-      let list = Array.from(peta.values()).map(p => ({ ...p, ...hitungRingkasan(p.spk, p.transaksi), noTransaksiList: p.transaksi.map(t => t.no_transaksi).join(' · ') }));
+      let list = Array.from(peta.values()).map(p => ({ ...p, ...hitungRingkasan(p.spk, p.transaksi), noTransaksiList: p.transaksi.map(t => t.no_pesanan).join(' · ') }));
       if (kata) list = list.filter(p => (p.nama || '').toLowerCase().includes(kata) || p.noTransaksiList.toLowerCase().includes(kata));
       list.sort((a, b) => b.belumBayar - a.belumBayar);
       return list;
     });
 
-    // Pipeline Persiapan per pelanggan — 5 jalur, dihitung dari DISTINCT
-    // kode_spk_grouping milik pelanggan ini yang punya track aktif di jalur itu.
-    // Angka ini menghitung GROUPING yang tersentuh, BUKAN pecahan qty per pelanggan;
-    // grouping lintas pelanggan bisa tampak "aktif" untuk >1 pelanggan sekaligus (T3).
+    // Pipeline Persiapan per pelanggan — per jalur, jumlah kartu (spk_track)
+    // aktif milik order pelanggan ini. Kartu Bahan satu grouping bisa terhitung
+    // di lebih dari satu pelanggan kalau grouping-nya lintas pelanggan.
     function pipelinePersiapan(p) {
-      const kodeSet = new Set(p.spk.filter(s => s.status_grouping && s.kode_spk_grouping).map(s => s.kode_spk_grouping));
+      const trackSet = new Set();
+      p.spk.forEach(s => (trackByOrder.value.get(s.id) || []).forEach(t => trackSet.add(t)));
       const hasil = {};
-      JALUR_URUTAN.forEach(j => {
-        let n = 0;
-        kodeSet.forEach(kode => { const t = (trackByKode.value.get(kode) || []).find(tt => tt.jalur === j); if (t && t.status !== 'selesai') n++; });
-        hasil[j] = n;
-      });
+      JALUR_URUTAN.forEach(j => { hasil[j] = Array.from(trackSet).filter(t => t.jalur === j && t.status !== 'selesai').length; });
       return hasil;
     }
 
@@ -1185,17 +1194,17 @@ const PesananDaftarManager = {
       const p = popupRincian.value;
       return p.pelanggan.spk.filter(s => {
         if (p.cariProduk && !(s.nama_produk || '').toLowerCase().includes(p.cariProduk.toLowerCase())) return false;
-        if (p.cariSpk && !(s.no_spk || '').toLowerCase().includes(p.cariSpk.toLowerCase())) return false;
+        if (p.cariSpk && !(s.id_order || '').toLowerCase().includes(p.cariSpk.toLowerCase())) return false;
         return true;
       }).map(s => ({ ...s, pos: posSekarang(s), keadaan: keadaanBaris(s) }));
     });
 
-    // 3.2.1 popup lini masa satu anak SPK (S4 — REKONSTRUKSI TOTAL, lihat
+    // 3.2.1 popup lini masa satu ID Order (S4 — REKONSTRUKSI TOTAL, lihat
     // komentar susulan audit di atas file)
     const popupTimeline = ref(null); // { spk, tracks, kejadian, stat, bahanList, masalahList, tab }
     function bukaTimeline(spk) {
-      const tracks = spk.kode_spk_grouping ? (trackByKode.value.get(spk.kode_spk_grouping) || []) : [];
-      const kejadian = bangunTimelineSpk(spk, tracks);
+      const tracks = trackByOrder.value.get(spk.id) || [];
+      const kejadian = bangunTimelineSpk({ ...spk, _separating: sepByOrder.value.get(spk.id) || [] }, tracks);
 
       const now = new Date();
       const waktuMasuk = tglFleksibel(spk.dibuat_pada);
@@ -1251,8 +1260,8 @@ const PesananDaftarManager = {
         <div v-else style="display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:8px; background:var(--ivory-dim); border-radius:14px; padding:12px;">
           <div><div style="font-size:9.5px; color:var(--text-faint);">pesanan</div><div style="font-weight:700; font-size:20px;">{{ ringkasanMenyeluruh.pesanan }}</div></div>
           <div><div style="font-size:9.5px; color:var(--text-faint);">produk terjual</div><div style="font-weight:700; font-size:20px;">{{ formatQty(ringkasanMenyeluruh.produkTerjual) }} <span style="font-size:10px;">pcs</span></div></div>
-          <div><div style="font-size:9.5px; color:var(--text-faint);">terkirim</div><div style="font-weight:700; font-size:20px;">{{ ringkasanMenyeluruh.terkirim }} <span style="font-size:10px;">SPK</span></div></div>
-          <div><div style="font-size:9.5px; color:var(--text-faint);">menunggu persiapan</div><div style="font-weight:700; font-size:20px;">{{ ringkasanMenyeluruh.menungguPersiapan }} <span style="font-size:10px;">SPK</span></div></div>
+          <div><div style="font-size:9.5px; color:var(--text-faint);">terkirim</div><div style="font-weight:700; font-size:20px;">{{ ringkasanMenyeluruh.terkirim }} <span style="font-size:10px;">order</span></div></div>
+          <div><div style="font-size:9.5px; color:var(--text-faint);">menunggu persiapan</div><div style="font-weight:700; font-size:20px;">{{ ringkasanMenyeluruh.menungguPersiapan }} <span style="font-size:10px;">order</span></div></div>
           <div><div style="font-size:9.5px; color:var(--text-faint);">menunggu proses</div><div style="font-weight:700; font-size:20px;">{{ ringkasanMenyeluruh.menungguProses || '—' }}</div></div>
           <div><div style="font-size:9.5px; color:var(--warn-text);">belum bayar</div><div style="font-weight:700; font-size:20px; color:var(--warn-text);">{{ formatRupiahJuta(ringkasanMenyeluruh.belumBayar) }}</div></div>
         </div>
@@ -1278,14 +1287,14 @@ const PesananDaftarManager = {
               <div style="font-size:9.5px; color:var(--text-faint); margin-bottom:6px;">keadaan pelanggan ini</div>
               <div style="display:flex; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); font-size:12px;"><span style="color:var(--text-faint);">pesanan</span><span style="font-weight:700;">{{ p.pesanan }}</span></div>
               <div style="display:flex; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); font-size:12px;"><span style="color:var(--text-faint);">produk terjual</span><span style="font-weight:700;">{{ formatQty(p.produkTerjual) }} pcs</span></div>
-              <div style="display:flex; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); font-size:12px;"><span style="color:var(--text-faint);">terkirim</span><span style="font-weight:700;">{{ p.terkirim }} SPK</span></div>
-              <div style="display:flex; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); font-size:12px;"><span style="color:var(--text-faint);">menunggu persiapan</span><span style="font-weight:700;">{{ p.menungguPersiapan }} SPK</span></div>
+              <div style="display:flex; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); font-size:12px;"><span style="color:var(--text-faint);">terkirim</span><span style="font-weight:700;">{{ p.terkirim }} order</span></div>
+              <div style="display:flex; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); font-size:12px;"><span style="color:var(--text-faint);">menunggu persiapan</span><span style="font-weight:700;">{{ p.menungguPersiapan }} order</span></div>
               <div style="display:flex; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); font-size:12px;"><span style="color:var(--text-faint);">menunggu proses</span><span style="font-weight:700;">{{ p.menungguProses || '—' }}</span></div>
               <div style="display:flex; justify-content:space-between; padding:5px 0; border-top:1px solid var(--line); font-size:12px;"><span style="color:var(--warn-text);">belum bayar</span><span style="font-weight:700; color:var(--warn-text);">{{ formatRupiahJuta(p.belumBayar) }}</span></div>
             </div>
             <div style="flex:1; min-width:260px; padding:14px 16px; display:flex; flex-direction:column; gap:12px;">
               <div>
-                <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:10px;"><span style="font-weight:700; font-size:12px;">Pipeline Persiapan</span><span class="tag neutral" style="font-size:9.5px;">{{ p.menungguPersiapan }} SPK menunggu</span></div>
+                <div style="display:flex; align-items:baseline; gap:8px; margin-bottom:10px;"><span style="font-weight:700; font-size:12px;">Pipeline Persiapan</span><span class="tag neutral" style="font-size:9.5px;">{{ p.menungguPersiapan }} order menunggu</span></div>
                 <div style="display:flex; gap:8px; flex-wrap:wrap;">
                   <div style="text-align:center; flex:1; min-width:70px;"><div style="width:34px; height:34px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; margin:0 auto 4px; font-weight:700;">{{ p.menungguPersiapan }}</div><div style="font-size:9px; color:var(--text-faint);">Perlu Disiapkan</div></div>
                   <div v-for="j in JALUR_URUTAN" :key="j" style="text-align:center; flex:1; min-width:70px;"><div style="width:34px; height:34px; border-radius:50%; background:var(--ivory-dim); display:flex; align-items:center; justify-content:center; margin:0 auto 4px; font-weight:700;">{{ pipelinePersiapan(p)[j] || '—' }}</div><div style="font-size:9px; color:var(--text-faint);">{{ JALUR_LABEL_PENDEK[j] }}</div></div>
@@ -1306,19 +1315,19 @@ const PesananDaftarManager = {
     <div v-if="popupRincian" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="popupRincian = null">
       <div class="gc-card" style="max-width:900px; width:100%; max-height:88vh; overflow-y:auto; padding:18px;">
         <div style="display:flex; align-items:flex-start; gap:8px; margin-bottom:12px;">
-          <div><h3 style="font-weight:700; font-size:14px; margin:0;">Rincian pesanan &middot; {{ popupRincian.pelanggan.nama }}</h3><p style="font-size:10px; color:var(--text-faint); margin:2px 0 0;">{{ rincianBarisTampil.length }} anak SPK &middot; barangnya, bukan uangnya</p></div>
+          <div><h3 style="font-weight:700; font-size:14px; margin:0;">Rincian pesanan &middot; {{ popupRincian.pelanggan.nama }}</h3><p style="font-size:10px; color:var(--text-faint); margin:2px 0 0;">{{ rincianBarisTampil.length }} ID Order &middot; barangnya, bukan uangnya</p></div>
           <button @click="popupRincian = null" class="icon-btn" style="margin-left:auto;"><i class="fas fa-xmark"></i></button>
         </div>
         <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
           <input v-model="popupRincian.cariProduk" type="text" placeholder="Cari produk..." class="gc-field-input" style="flex:1; min-width:160px; padding:8px 10px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:8px; font-size:12px;">
-          <input v-model="popupRincian.cariSpk" type="text" placeholder="Cari kode anak SPK..." style="flex:1; min-width:160px; padding:8px 10px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:8px; font-size:12px;">
+          <input v-model="popupRincian.cariSpk" type="text" placeholder="Cari ID Order..." style="flex:1; min-width:160px; padding:8px 10px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:8px; font-size:12px;">
         </div>
         <div class="gc-table-scroll">
           <table style="width:100%; border-collapse:collapse; font-size:12px;">
-            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10px;"><th style="padding:6px;">anak SPK</th><th style="padding:6px;">qty</th><th style="padding:6px;">pos sekarang</th><th style="padding:6px;">keadaan</th><th></th></tr></thead>
+            <thead><tr style="text-align:left; color:var(--text-faint); font-size:10px;"><th style="padding:6px;">ID Order</th><th style="padding:6px;">qty</th><th style="padding:6px;">pos sekarang</th><th style="padding:6px;">keadaan</th><th></th></tr></thead>
             <tbody>
               <tr v-for="b in rincianBarisTampil" :key="b.id" style="border-top:1px solid var(--line); cursor:pointer;" @click="bukaTimeline(b)">
-                <td style="padding:7px 6px;"><div style="font-weight:700;">{{ b.no_spk }}</div><div style="font-size:10px; color:var(--text-faint);">{{ b.nama_produk }}</div></td>
+                <td style="padding:7px 6px;"><div style="font-weight:700;">{{ b.id_order }}</div><div style="font-size:10px; color:var(--text-faint);">{{ b.nama_produk }}</div></td>
                 <td style="padding:7px 6px;">{{ formatQty(b.qty_order) }}</td>
                 <td style="padding:7px 6px;">{{ b.pos }}</td>
                 <td style="padding:7px 6px;"><span class="tag" :class="b.keadaan.kelas">{{ b.keadaan.label }}</span></td>
@@ -1338,12 +1347,12 @@ const PesananDaftarManager = {
     <div v-if="popupTimeline" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:10001; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="popupTimeline = null">
       <div class="gc-card" style="max-width:600px; width:100%; max-height:86vh; overflow-y:auto; padding:18px;">
         <div style="display:flex; align-items:flex-start; gap:8px; margin-bottom:12px;">
-          <div><h3 style="font-weight:700; font-size:14px; margin:0;">{{ popupTimeline.spk.no_spk }}</h3><p style="font-size:10px; color:var(--text-faint); margin:2px 0 0;">{{ popupTimeline.spk.nama_produk }} &middot; {{ formatQty(popupTimeline.spk.qty_order) }} pcs &middot; {{ popupTimeline.spk.pelanggan_nama }} &middot; {{ popupTimeline.spk.no_transaksi }}</p></div>
+          <div><h3 style="font-weight:700; font-size:14px; margin:0;">{{ popupTimeline.spk.id_order }}</h3><p style="font-size:10px; color:var(--text-faint); margin:2px 0 0;">{{ popupTimeline.spk.nama_produk }} &middot; {{ formatQty(popupTimeline.spk.qty_order) }} pcs &middot; {{ popupTimeline.spk.pelanggan_nama }} &middot; {{ popupTimeline.spk.no_pesanan }}</p></div>
           <button @click="popupTimeline = null" class="icon-btn" style="margin-left:auto;"><i class="fas fa-xmark"></i></button>
         </div>
 
         <div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; margin-bottom:12px;">
-          <div class="gc-card" style="padding:7px 9px;"><div style="font-size:8.5px; color:var(--text-faint);">umur SPK</div><div style="font-weight:700; font-size:13px; margin-top:2px;">{{ popupTimeline.stat.umur }}</div></div>
+          <div class="gc-card" style="padding:7px 9px;"><div style="font-size:8.5px; color:var(--text-faint);">umur order</div><div style="font-weight:700; font-size:13px; margin-top:2px;">{{ popupTimeline.stat.umur }}</div></div>
           <div class="gc-card" style="padding:7px 9px;"><div style="font-size:8.5px; color:var(--text-faint);">pos persiapan</div><div style="font-weight:700; font-size:11px; margin-top:2px;">{{ popupTimeline.stat.posPersiapan }}</div></div>
           <div class="gc-card" style="padding:7px 9px; border-color:var(--burgundy);"><div style="font-size:8.5px; color:var(--text-faint);">pos sekarang</div><div style="font-weight:700; font-size:11px; margin-top:2px;">{{ popupTimeline.stat.posSekarang }}</div></div>
           <div class="gc-card" style="padding:7px 9px;"><div style="font-size:8.5px; color:var(--text-faint);">di pos ini</div><div style="font-weight:700; font-size:13px; margin-top:2px;">{{ popupTimeline.stat.diPosIni }}</div></div>
@@ -1445,7 +1454,7 @@ const PesananTransaksiManager = {
       memuat.value = true;
       try {
         const [snapTrx, snapBayar] = await Promise.all([
-          getDocs(collection(db, 'transaksi_kasir')),
+          getDocs(collection(db, 'pesanan')),
           getDocs(collection(db, 'piutang_pembayaran'))
         ]);
         semuaTransaksi.value = snapTrx.docs.map(d => ({ id: d.id, ...d.data() })).filter(t => t.pelanggan_id);
@@ -1502,7 +1511,7 @@ const PesananTransaksiManager = {
       popupBayar.value = { pelanggan: p, transaksiId: belumLunas[0].id, jumlah: 0, metode: 'Tunai', tanggal: new Date().toISOString().slice(0, 10), catatan: '', noReferensi: '', buktiFile: null, buktiNamaFile: '', belumLunas };
     }
     const transaksiTerpilihBayar = computed(() => popupBayar.value ? popupBayar.value.belumLunas.find(x => x.id === popupBayar.value.transaksiId) : null);
-    const riwayatBayarTerpilih = computed(() => transaksiTerpilihBayar.value ? semuaPembayaran.value.filter(b => b.transaksi_kasir_id === transaksiTerpilihBayar.value.id) : []);
+    const riwayatBayarTerpilih = computed(() => transaksiTerpilihBayar.value ? semuaPembayaran.value.filter(b => b.pesanan_id === transaksiTerpilihBayar.value.id) : []);
     const sisaSesudahDicatat = computed(() => transaksiTerpilihBayar.value ? Math.max(0, (transaksiTerpilihBayar.value.sisa_piutang || 0) - (parseFloat(popupBayar.value.jumlah) || 0)) : 0);
     function lunasiSemua() { if (transaksiTerpilihBayar.value) popupBayar.value.jumlah = transaksiTerpilihBayar.value.sisa_piutang; }
     // S6 — bukti wajib Transfer/QRIS (lihat komentar susulan audit di atas
@@ -1541,7 +1550,7 @@ const PesananTransaksiManager = {
         }
         await catatPembayaranSusulan({
           transaksiKasirId: transaksiTerpilihBayar.value.id, pelangganId: popupBayar.value.pelanggan.id, pelangganNama: popupBayar.value.pelanggan.nama,
-          noTransaksi: transaksiTerpilihBayar.value.no_transaksi, jumlah: parseFloat(popupBayar.value.jumlah), metode: popupBayar.value.metode,
+          noTransaksi: transaksiTerpilihBayar.value.no_pesanan, jumlah: parseFloat(popupBayar.value.jumlah), metode: popupBayar.value.metode,
           tanggal: popupBayar.value.tanggal, catatan: popupBayar.value.catatan, dicatatOleh: user.email, pinPemilik: user.email,
           noReferensi: popupBayar.value.noReferensi, buktiFotoUrl
         });
@@ -1557,7 +1566,7 @@ const PesananTransaksiManager = {
       const kata = cari.value.trim().toLowerCase();
       let list = semuaPembayaran.value;
       if (filterPelangganId.value) list = list.filter(b => b.pelanggan_id === filterPelangganId.value);
-      if (kata) list = list.filter(b => (b.pelanggan_nama || '').toLowerCase().includes(kata) || (b.no_transaksi || '').toLowerCase().includes(kata));
+      if (kata) list = list.filter(b => (b.pelanggan_nama || '').toLowerCase().includes(kata) || (b.no_pesanan || '').toLowerCase().includes(kata));
       return list;
     });
     const totalPerMetode = computed(() => {
@@ -1572,7 +1581,7 @@ const PesananTransaksiManager = {
       const kata = cari.value.trim().toLowerCase();
       let list = semuaTransaksi.value.filter(t => (t.sisa_piutang || 0) > 0);
       if (filterPelangganId.value) list = list.filter(t => t.pelanggan_id === filterPelangganId.value);
-      if (kata) list = list.filter(t => (t.nama_pelanggan || '').toLowerCase().includes(kata) || (t.no_transaksi || '').toLowerCase().includes(kata));
+      if (kata) list = list.filter(t => (t.nama_pelanggan || '').toLowerCase().includes(kata) || (t.no_pesanan || '').toLowerCase().includes(kata));
       return list.map(t => ({ ...t, keadaan: keadaanTempo(t) })).sort((a, b) => (a.jatuh_tempo || '9999').localeCompare(b.jatuh_tempo || '9999'));
     });
 
@@ -1654,7 +1663,7 @@ const PesananTransaksiManager = {
               <thead><tr style="text-align:left; color:var(--text-faint); font-size:10px;"><th style="padding:6px;">pelanggan &amp; pesanan</th><th style="padding:6px;">cara</th><th style="padding:6px;">nilai</th><th style="padding:6px;">dicatat oleh</th></tr></thead>
               <tbody>
                 <tr v-for="b in rincianTransaksiTampil" :key="b.id" style="border-top:1px solid var(--line);">
-                  <td style="padding:7px 6px;"><div style="font-weight:700;">{{ b.pelanggan_nama }}</div><div style="font-size:10px; color:var(--text-faint);">{{ b.no_transaksi }} &middot; {{ b.jenis }}</div></td>
+                  <td style="padding:7px 6px;"><div style="font-weight:700;">{{ b.pelanggan_nama }}</div><div style="font-size:10px; color:var(--text-faint);">{{ b.no_pesanan }} &middot; {{ b.jenis }}</div></td>
                   <td style="padding:7px 6px;">{{ b.metode }}</td>
                   <td style="padding:7px 6px; font-weight:700;">{{ formatRupiah(b.jumlah) }}</td>
                   <td style="padding:7px 6px; color:var(--text-faint);">{{ b.dicatat_oleh }}</td>
@@ -1673,7 +1682,7 @@ const PesananTransaksiManager = {
               <thead><tr style="text-align:left; color:var(--text-faint); font-size:10px;"><th style="padding:6px;">no. pesanan</th><th style="padding:6px;">pelanggan</th><th style="padding:6px;">total</th><th style="padding:6px;">dibayar</th><th style="padding:6px;">sisa</th><th style="padding:6px;">keadaan</th></tr></thead>
               <tbody>
                 <tr v-for="t in rincianPiutangTampil" :key="t.id" style="border-top:1px solid var(--line);">
-                  <td style="padding:7px 6px; font-weight:700;">{{ t.no_transaksi }}</td>
+                  <td style="padding:7px 6px; font-weight:700;">{{ t.no_pesanan }}</td>
                   <td style="padding:7px 6px;">{{ t.nama_pelanggan }}</td>
                   <td style="padding:7px 6px;">{{ formatRupiah(t.total) }}</td>
                   <td style="padding:7px 6px;">{{ formatRupiah(t.total_dibayar) }}</td>
@@ -1696,7 +1705,7 @@ const PesananTransaksiManager = {
         </div>
         <div class="gc-field"><label>Pilih Transaksi</label>
           <select v-model="popupBayar.transaksiId">
-            <option v-for="t in popupBayar.belumLunas" :key="t.id" :value="t.id">{{ t.no_transaksi }} — sisa {{ formatRupiah(t.sisa_piutang) }}</option>
+            <option v-for="t in popupBayar.belumLunas" :key="t.id" :value="t.id">{{ t.no_pesanan }} — sisa {{ formatRupiah(t.sisa_piutang) }}</option>
           </select>
         </div>
         <div v-if="transaksiTerpilihBayar" style="display:flex; gap:8px; margin-bottom:10px;">

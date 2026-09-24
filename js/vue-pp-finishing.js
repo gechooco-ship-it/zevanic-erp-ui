@@ -8,8 +8,8 @@
 //   (qc/steam/folding/packing/selesai), status perlu_diproses →
 //   sedang_finishing → perlu_dikirim → sedang_dikirim → selesai. kode_bagging
 //   & kode_tugas di sini TUNGGAL/STRING, bukan array seperti sewing_track.
-// - batch_id = id Firestore separating_batch, BUKAN sewing_track; banyak pcs
-//   berbagi batch_id yang sama, itu disengaja.
+// - separating_id = id Firestore spk_separating, BUKAN sewing_track; banyak pcs
+//   berbagi separating_id yang sama, itu disengaja.
 // - label_pcs.status sesudah 'di_finishing' wewenang Gudang Barang Jadi/Kasir.
 //
 // Jebakan:
@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=10';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing).
@@ -100,7 +100,7 @@ const AKSI_ENTRY_SEDANG_TAHAP = { qc: 'finishing_entry_qc', steam: 'finishing_en
 
 // Baca koleksi mentah
 async function muatSemuaSeparatingBatch() {
-  const snap = await getDocs(collection(db, 'separating_batch'));
+  const snap = await getDocs(collection(db, 'spk_separating'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 async function muatSemuaFinishingTrack() {
@@ -111,28 +111,27 @@ async function muatSemuaSewingTrack() {
   const snap = await getDocs(collection(db, 'sewing_track'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
-// pastikanFinishingTrackLengkap — keputusan #3/#4/#5: rantai separating_batch ->
-// sewing_track (batch_id cocok) -> label_pcs (batch_id cocok ke sewing_ track),
+// pastikanFinishingTrackLengkap — keputusan #3/#4/#5: rantai spk_separating ->
+// sewing_track (separating_id cocok) -> label_pcs (sewing_track_id cocok),
 // 1 finishing_track per label_pcs, idempoten.
 async function pastikanFinishingTrackLengkap() {
   const [batchList, trackList, sewingList] = await Promise.all([
     muatSemuaSeparatingBatch(), muatSemuaFinishingTrack(), muatSemuaSewingTrack()
   ]);
   const masuk = batchList.filter(b => b.status === 'kirim_finishing');
-  const sudahAda = new Set(trackList.map(t => t.batch_id));
+  const sudahAda = new Set(trackList.map(t => t.separating_id));
   const belum = masuk.filter(b => !sudahAda.has(b.id));
   for (const b of belum) {
     try {
-      const sewingCocok = sewingList.filter(s => s.batch_id === b.id);
+      const sewingCocok = sewingList.filter(s => s.separating_id === b.id);
       if (!sewingCocok.length) continue; // belum ada sewing_track terkait — coba lagi lain kali
-      const pcsSnaps = await Promise.all(sewingCocok.map(s => getDocs(query(collection(db, 'label_pcs'), where('batch_id', '==', s.id)))));
+      const pcsSnaps = await Promise.all(sewingCocok.map(s => getDocs(query(collection(db, 'label_pcs'), where('sewing_track_id', '==', s.id)))));
       const daftarPcs = pcsSnaps.flatMap(snap => snap.docs.map(d => ({ id: d.id, ...d.data() })));
       const now = new Date().toISOString();
       await Promise.all(daftarPcs.map(async (p) => {
         await addDoc(collection(db, 'finishing_track'), {
-          kode_pcs: p.kode_pcs, label_pcs_id: p.id, batch_id: b.id, kode_batch: b.kode_batch || '',
-          // kode_spk disalin dari separating_batch, array.
-          kode_spk: b.spk_groupings || [],
+          kode_pcs: p.kode_pcs, label_pcs_id: p.id, separating_id: b.id, kode_separating: b.kode_separating || '',
+          kode_grouping_induk: b.kode_grouping_induk || '',
           nama_produk: p.nama_produk || b.nama_produk || '', size: p.size || b.size || '', warna: p.warna || '',
           status: 'perlu_diproses', tahap_aktif: null, progress: 0,
           op_qc: null, op_steam: null, op_folding: null, op_packing: null,
@@ -146,7 +145,7 @@ async function pastikanFinishingTrackLengkap() {
         try { await updateDoc(doc(db, 'label_pcs', p.id), { status: 'di_finishing' }); }
         catch (e) { console.error('Gagal update label_pcs.status ke di_finishing:', e); }
       }));
-    } catch (e) { console.error('Gagal lazy-create finishing_track utk batch ' + (b.kode_batch || b.id) + ':', e); }
+    } catch (e) { console.error('Gagal lazy-create finishing_track utk batch ' + (b.kode_separating || b.id) + ':', e); }
   }
   return await muatSemuaFinishingTrack();
 }
@@ -176,7 +175,7 @@ async function cariOperatorByKode(kode) {
 // Popup Scan Masalah generik (jumlah kurang + alasan) — sumberJalur:'finishing'.
 function popupMasalahMixin(kirimFn) {
   const popupMasalah = ref(null);
-  function bukaMasalah(target) { popupMasalah.value = { target, jumlah: 1, alasan: '' }; }
+  function bukaMasalah(target) { popupMasalah.value = { target, jumlah: 1, alasan: '', jenis: 'kurang' }; }
   function batalMasalah() { popupMasalah.value = null; }
   async function konfirmasiMasalah() {
     const p = popupMasalah.value;
@@ -187,12 +186,13 @@ function popupMasalahMixin(kirimFn) {
   }
   return { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah };
 }
-async function kirimMasalahFinishing(t, jumlah, alasan) {
+async function kirimMasalahFinishing(t, jumlah, alasan, jenis) {
   await ajukanPersiapanMasalah({
     tlcAsal: TLC_ASAL_FINISHING, sumberJalur: 'finishing',
-    trackId: t.id, noSpk: t.kode_batch,
+    trackId: t.id, noSpk: t.kode_separating,
     bahanNama: t.nama_produk, bahanWarna: t.kode_pcs, satuan: 'pcs',
-    qtyKurang: jumlah, alasan
+    qtyKurang: jumlah, alasan, jenisMasalah: jenis || 'kurang', kodeLabelAsal: t.kode_pcs || '',
+    separatingId: t.separating_id || '', kodeSeparating: t.kode_separating || '', idOrder: t.id_order || ''
   });
   // riwayat_scan ditulis ADITIF. ajukanPersiapanMasalah cuma
   // menulis ke koleksi persiapan_masalah (fungsi generik dipakai semua pos,
@@ -299,7 +299,7 @@ const FinishingPerluDiProses = {
     }
 
     // Scan Sampai: step1 kode_tugas, step2 kode_bagging berkali-kali,
-    // dicocokkan ke `separating_batch` (mengikuti pola Sewing keputusan #2).
+    // dicocokkan ke `spk_separating` (mengikuti pola Sewing keputusan #2).
     const modalSampai = reactive({ aktif: false, batch: null, tugasKirim: null, log: [] });
     function bukaScanSampai() { modalSampai.batch = null; modalSampai.tugasKirim = null; modalSampai.log = []; modalSampai.aktif = true; }
     function tutupScanSampai() { modalSampai.aktif = false; modalSampai.batch = null; modalSampai.tugasKirim = null; modalSampai.log = []; muat(); }
@@ -307,7 +307,7 @@ const FinishingPerluDiProses = {
       const kode = (kodeMentah || '').trim();
       if (!modalSampai.batch) {
         try {
-          const snap = await getDocs(query(collection(db, 'separating_batch'), where('kode_tugas', '==', kode)));
+          const snap = await getDocs(query(collection(db, 'spk_separating'), where('kode_tugas', '==', kode)));
           if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
           modalSampai.batch = { id: snap.docs[0].id, ...snap.docs[0].data() };
           // cache tugas_kirim (kode sama dengan kode_tugas ini).
@@ -341,13 +341,13 @@ const FinishingPerluDiProses = {
       const sudahSemua = (b.kode_bagging || []).every(kb => modalSampai.log.includes(kb));
       if (sudahSemua) {
         try {
-          const pcsBatch = daftar.value.filter(x => x.batch_id === b.id);
+          const pcsBatch = daftar.value.filter(x => x.separating_id === b.id);
           if (!pcsBatch.length) { alert('Bagging cocok, tapi belum ada finishing_track untuk batch ini — coba tutup lalu buka lagi tab ini.'); return; }
           const now = new Date().toISOString();
           const olehSampai = window.currentUser?.email || null;
           // riwayat_scan ditulis ADITIF.
           await Promise.all(pcsBatch.map(t => updateFinishingTrack(t.id, () => ({ terima_pada: now, riwayat_scan: arrayUnion({ aksi: 'sampai', oleh: olehSampai, pada: now, qty: 1 }) }))));
-          modalSampai.log.unshift('SEMUA bagging sampai — batch ' + (b.kode_batch || '') + ' (' + pcsBatch.length + ' pcs) siap ditunjuk operator QC');
+          modalSampai.log.unshift('SEMUA bagging sampai — batch ' + (b.kode_separating || '') + ' (' + pcsBatch.length + ' pcs) siap ditunjuk operator QC');
           await muat();
         } catch (e) { console.error('Gagal simpan scan sampai Finishing:', e); alert('Gagal menyimpan. Coba lagi.'); }
       }
@@ -363,8 +363,8 @@ const FinishingPerluDiProses = {
       const now = new Date().toISOString();
       try {
         await updateDoc(doc(db, 'bagging', b.id), {
-          kode_spk: null, kode_batch: null,
-          kode_spk_asal: b.kode_spk ?? null, kode_batch_asal: b.kode_batch ?? null,
+          kode_grouping_induk: null, kode_separating: null,
+          kode_grouping_induk_asal: b.kode_grouping_induk ?? null, kode_separating_asal: b.kode_separating ?? null,
           unpack_hasil: cocokSemua ? 'komplit' : 'inkomplit',
           unpack_pada: now, unpack_oleh: window.currentUser?.email || null,
           unpack_dicocokkan: dicocokkan, unpack_asing: asing, unpack_hilang: hilang
@@ -421,7 +421,7 @@ const FinishingPerluDiProses = {
     function tutupOperatorQc() { modalOperatorQcAktif.value = false; muat(); }
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
-      await kirimMasalahFinishing(p.target, p.jumlah, p.alasan);
+      await kirimMasalahFinishing(p.target, p.jumlah, p.alasan, p.jenis);
       await muat();
     });
 
@@ -431,8 +431,8 @@ const FinishingPerluDiProses = {
     const kelompokBatch = computed(() => {
       const peta = {};
       daftar.value.forEach(t => {
-        const key = t.batch_id;
-        if (!peta[key]) peta[key] = { batchId: key, kodeBatch: t.kode_batch, namaProduk: t.nama_produk, size: t.size, pcs: [], terimaPada: t.terima_pada, masukTahapPada: t.masuk_tahap_pada };
+        const key = t.separating_id;
+        if (!peta[key]) peta[key] = { batchId: key, kodeBatch: t.kode_separating, namaProduk: t.nama_produk, size: t.size, pcs: [], terimaPada: t.terima_pada, masukTahapPada: t.masuk_tahap_pada };
         peta[key].pcs.push(t);
       });
       return Object.values(peta);
@@ -512,8 +512,9 @@ const FinishingPerluDiProses = {
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.target.kode_batch }}</h3>
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.target.kode_separating }}</h3>
         <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah (pcs)</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Jenis Masalah</label><select v-model="popupMasalah.jenis"><option value="kurang">Kurang</option><option value="cacat">Cacat</option><option value="hilang">Hilang</option></select></div>
         <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="mis. kiriman dari Serie cacat"></div>
         <div style="display:flex; gap:8px;">
           <button @click="batalMasalah" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
@@ -563,8 +564,8 @@ function buatSubTabFinishing(tahap) {
       const kelompokBatch = computed(() => {
         const peta = {};
         daftar.value.forEach(t => {
-          const key = t.batch_id;
-          if (!peta[key]) peta[key] = { batchId: key, kodeBatch: t.kode_batch, namaProduk: t.nama_produk, size: t.size, pcs: [], masukTahapPada: t.masuk_tahap_pada };
+          const key = t.separating_id;
+          if (!peta[key]) peta[key] = { batchId: key, kodeBatch: t.kode_separating, namaProduk: t.nama_produk, size: t.size, pcs: [], masukTahapPada: t.masuk_tahap_pada };
           peta[key].pcs.push(t);
         });
         return Object.values(peta);
@@ -578,7 +579,7 @@ function buatSubTabFinishing(tahap) {
       function tutupEntri() { modalEntriAktif.value = false; muat(); }
 
       const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
-        await kirimMasalahFinishing(p.target, p.jumlah, p.alasan);
+        await kirimMasalahFinishing(p.target, p.jumlah, p.alasan, p.jenis);
         await muat();
       });
 
@@ -628,6 +629,7 @@ function buatSubTabFinishing(tahap) {
         <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
           <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.target.kode_pcs }}</h3>
           <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah (pcs)</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
+          <div class="gc-field" style="margin-bottom:8px;"><label>Jenis Masalah</label><select v-model="popupMasalah.jenis"><option value="kurang">Kurang</option><option value="cacat">Cacat</option><option value="hilang">Hilang</option></select></div>
           <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="mis. QC gagal - jahitan cacat"></div>
           <div style="display:flex; gap:8px;">
             <button @click="batalMasalah" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
@@ -665,8 +667,8 @@ const FinishingPerluDikirim = {
     const kelompokBatch = computed(() => {
       const peta = {};
       daftar.value.forEach(t => {
-        const key = t.batch_id;
-        if (!peta[key]) peta[key] = { batchId: key, kodeBatch: t.kode_batch, kodeSpk: t.kode_spk || [], namaProduk: t.nama_produk, size: t.size, pcs: [], sudahKirim: !!t.kode_tugas, masukTahapPada: t.masuk_tahap_pada };
+        const key = t.separating_id;
+        if (!peta[key]) peta[key] = { batchId: key, kodeBatch: t.kode_separating, kodeSpk: t.kode_grouping_induk || [], namaProduk: t.nama_produk, size: t.size, pcs: [], sudahKirim: !!t.kode_tugas, masukTahapPada: t.masuk_tahap_pada };
         peta[key].pcs.push(t);
       });
       return Object.values(peta);
@@ -681,11 +683,11 @@ const FinishingPerluDikirim = {
       sedangProses.value = true;
       try {
         const kodeBag = await generateKodeHarianFormat('BAG', 'pengaturan_id_bagging');
-        // kode_spk/kode_batch ditulis LANGSUNG saat dibuat — grup ini
-        // sudah pasti 1 batch (kelompokBatch dikunci per batch_id).
+        // kode_grouping_induk/kode_separating ditulis LANGSUNG saat dibuat — grup ini
+        // sudah pasti 1 batch (kelompokBatch dikunci per separating_id).
         await addDoc(collection(db, 'bagging'), {
           kode: kodeBag, produk_label: `${g.kodeBatch} &middot; ${g.namaProduk}`, isi: [], ditutup_pada: null,
-          kode_spk: g.kodeSpk || [], kode_batch: g.kodeBatch || null,
+          kode_grouping_induk: g.kodeSpk || [], kode_separating: g.kodeBatch || null,
           dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
         });
         const kodeTugas = await generateKodeHarianFormat('TGS', 'pengaturan_id_tugas_kirim');
@@ -755,10 +757,10 @@ const FinishingPerluDikirim = {
       const g = kelompokBatch.value.find(x => x.pcs[0] && x.pcs[0].kode_tugas === modalKirim.tugas.kode && x.pcs[0].kode_bagging === kode);
       if (!g) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
       try {
-        // kode_spk/kode_batch ikut disalin ke pack[], dilepas oleh Scan
+        // kode_grouping_induk/kode_separating ikut disalin ke pack[], dilepas oleh Scan
         // Sampai (sampai_pada).
         await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), {
-          pack: arrayUnion({ kode_bagging: kode, kode_spk: g.kodeSpk || [], kode_batch: g.kodeBatch || null, pada: new Date().toISOString(), sampai_pada: null })
+          pack: arrayUnion({ kode_bagging: kode, kode_grouping_induk: g.kodeSpk || [], kode_separating: g.kodeBatch || null, pada: new Date().toISOString(), sampai_pada: null })
         });
         const now = new Date().toISOString();
         const olehKirim = window.currentUser?.email || null;
@@ -770,7 +772,7 @@ const FinishingPerluDikirim = {
     }
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
-      await kirimMasalahFinishing(p.target, p.jumlah, p.alasan);
+      await kirimMasalahFinishing(p.target, p.jumlah, p.alasan, p.jenis);
       await muat();
     });
 
@@ -834,8 +836,9 @@ const FinishingPerluDikirim = {
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.target.kode_batch }}</h3>
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.target.kode_separating }}</h3>
         <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah (pcs)</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Jenis Masalah</label><select v-model="popupMasalah.jenis"><option value="kurang">Kurang</option><option value="cacat">Cacat</option><option value="hilang">Hilang</option></select></div>
         <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="mis. label pcs rusak"></div>
         <div style="display:flex; gap:8px;">
           <button @click="batalMasalah" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
@@ -873,7 +876,7 @@ const FinishingSedangKirim = {
     });
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
-      await kirimMasalahFinishing(p.target, p.jumlah, p.alasan);
+      await kirimMasalahFinishing(p.target, p.jumlah, p.alasan, p.jenis);
       await muat();
     });
 
@@ -907,6 +910,7 @@ const FinishingSedangKirim = {
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.target.kode_pcs }}</h3>
         <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Jenis Masalah</label><select v-model="popupMasalah.jenis"><option value="kurang">Kurang</option><option value="cacat">Cacat</option><option value="hilang">Hilang</option></select></div>
         <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="mis. bagging rusak dalam perjalanan"></div>
         <div style="display:flex; gap:8px;">
           <button @click="batalMasalah" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
@@ -940,7 +944,7 @@ const FinishingSelesai = {
     const daftarUrut = computed(() => {
       let hasil = semuaSelesai.value;
       const kata = kataKunci.value.trim().toLowerCase();
-      if (kata) hasil = hasil.filter(t => (t.kode_pcs || '').toLowerCase().includes(kata) || (t.kode_batch || '').toLowerCase().includes(kata) || (t.nama_produk || '').toLowerCase().includes(kata));
+      if (kata) hasil = hasil.filter(t => (t.kode_pcs || '').toLowerCase().includes(kata) || (t.kode_separating || '').toLowerCase().includes(kata) || (t.nama_produk || '').toLowerCase().includes(kata));
       if (dariTanggal.value) hasil = hasil.filter(t => t.sampai_pada && new Date(t.sampai_pada) >= new Date(dariTanggal.value));
       if (sampaiTanggal.value) hasil = hasil.filter(t => t.sampai_pada && new Date(t.sampai_pada) <= new Date(sampaiTanggal.value + 'T23:59:59'));
       return hasil;
@@ -949,7 +953,7 @@ const FinishingSelesai = {
     function unduhCsv() {
       if (!daftarUrut.value.length) { alert('Tidak ada data untuk diunduh.'); return; }
       const header = ['Kode Pcs', 'Kode Batch', 'Produk', 'Size', 'Op QC', 'Op Steam', 'Op Folding', 'Op Packing', 'Kode Tugas', 'Selesai Pada'];
-      const baris = daftarUrut.value.map(t => [t.kode_pcs, t.kode_batch, t.nama_produk, t.size, t.op_qc?.nama, t.op_steam?.nama, t.op_folding?.nama, t.op_packing?.nama, t.kode_tugas, formatWaktu(t.sampai_pada)]);
+      const baris = daftarUrut.value.map(t => [t.kode_pcs, t.kode_separating, t.nama_produk, t.size, t.op_qc?.nama, t.op_steam?.nama, t.op_folding?.nama, t.op_packing?.nama, t.kode_tugas, formatWaktu(t.sampai_pada)]);
       const csv = [header, ...baris].map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
@@ -992,7 +996,7 @@ const FinishingSelesai = {
           <tbody>
             <tr v-for="t in daftarUrut" :key="t.id" style="border-bottom:1px solid var(--line);">
               <td style="padding:6px 8px;" class="gc-num">{{ t.kode_pcs }}</td>
-              <td style="padding:6px 8px;" class="gc-num">{{ t.kode_batch }}</td>
+              <td style="padding:6px 8px;" class="gc-num">{{ t.kode_separating }}</td>
               <td style="padding:6px 8px;">{{ t.nama_produk }} {{ t.size }}</td>
               <td style="padding:6px 8px;">{{ t.op_qc?.nama || '-' }}</td>
               <td style="padding:6px 8px;">{{ t.op_steam?.nama || '-' }}</td>

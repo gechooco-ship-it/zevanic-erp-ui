@@ -7,7 +7,7 @@
 // - master_pelanggan/{autoId}: nama*, telepon, alamat, email, tipe
 //   (retail/reseller/grosir), limit_piutang, saldo_piutang, catatan, status
 //   (kosong = 'aktif').
-// - transaksi_kasir: dibaca sekali lalu dikelompokkan di client untuk kolom
+// - pesanan: dibaca sekali lalu dikelompokkan di client untuk kolom
 //   "Total Pesanan" (pakai pelanggan_id), bukan 1 query per pelanggan.
 //
 // Jebakan:
@@ -15,21 +15,21 @@
 //   lewat fungsi catat pembayaran (koleksi piutang_pembayaran).
 // - Utang pelanggan tampil 0 selama koleksi itu belum ada — bukan bug.
 // - Kasir (vue-pesanan.js) belum wajib memilih pelanggan dan masih menyimpan
-//   transaksi_kasir.nama_pelanggan, bukan FK pelanggan_id.
+//   pesanan.nama_pelanggan, bukan FK pelanggan_id.
 // - tipe murni informasional: limit_piutang tetap manual, tidak auto dari tipe.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDocs, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 
-// Dua kolom tabel: "total pesanan" (dihitung LIVE dari transaksi_kasir, BUKAN
+// Dua kolom tabel: "total pesanan" (dihitung LIVE dari pesanan, BUKAN
 // field tersimpan) dan "status aktif/nonaktif" (`status` di master_pelanggan,
 // default 'aktif' kalau kosong). Total dihitung SEKALI — satu query ambil semua
-// transaksi_kasir lalu dikelompokkan di klien, BUKAN 1 query per pelanggan.
+// pesanan lalu dikelompokkan di klien, BUKAN 1 query per pelanggan.
 async function ambilTotalPesananPerPelanggan() {
   const peta = new Map();
   try {
-    const snap = await getDocs(collection(db, 'transaksi_kasir'));
+    const snap = await getDocs(collection(db, 'pesanan'));
     snap.forEach(d => {
       const t = d.data();
       if (!t.pelanggan_id) return;
@@ -209,7 +209,7 @@ const MasterPelangganManager = {
       </div>
       <!-- SATU TABEL, klik baris manapun langsung buka form edit (tidak ada tombol Edit terpisah).
         Pakai class .gc-table dari css/gechoo-design.css, bukan style sendiri. Kolom "Total Pesanan"
-        live dari transaksi_kasir (ambilTotalPesananPerPelanggan), kolom "Status" dari field status.
+        live dari pesanan (ambilTotalPesananPerPelanggan), kolom "Status" dari field status.
         Pelanggan nonaktif tampil abu dan diurutkan ke bawah, bukan disembunyikan. -->
       <div v-else class="gc-table-scroll">
         <table class="gc-table">

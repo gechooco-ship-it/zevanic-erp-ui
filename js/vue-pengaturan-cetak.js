@@ -113,6 +113,16 @@ export const KATALOG_CETAK = {
     keterangan: 'Stok & Pembelian > Nota Order Belanja, cetak label per roll/lot yang diterima.',
     rincianTersedia: []
   },
+  berita_acara: {
+    label: 'Berita Acara Barang Jadi', kategori: 'Proses Produksi',
+    keterangan: 'Gudang Barang Jadi, 1 per ID Order saat semua separating-nya diterima.',
+    rincianTersedia: []
+  },
+  label_pak_repack: {
+    label: 'Label Pak Repack', kategori: 'Stok & Pembelian',
+    keterangan: 'Stok & Pembelian > Repack, label QR Kode Pak ditempel di tiap pak.',
+    rincianTersedia: []
+  },
   label_rak_penyimpanan: {
     label: 'Label Rak Penyimpanan', kategori: 'Stok & Pembelian',
     keterangan: 'Stok & Pembelian > Rak Penyimpanan — label fisik ditempel di rak (QR kode rak). Otomatis tampil begitu Rak baru disimpan, atau dicetak ulang manual lewat tombol printer per baris (10 Sep 2026).',

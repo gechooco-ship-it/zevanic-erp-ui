@@ -31,7 +31,7 @@ import { usePaginasiFirestore } from './vue-paginasi.js';
 // Koleksi `lot_bahan_aksesoris` & `log_cetak_label` dimiliki
 // js/vue-stock-pembelian.js — semua akses ke keduanya lewat fungsi yang
 // diekspor dari sana, jangan query langsung dari file ini.
-import { ambilSemuaLotByBahan, catatLogCetakLabel, ambilLotAktif } from './vue-stock-pembelian.js';
+import { ambilSemuaLotByBahan, catatLogCetakLabel, ambilLotAktif } from './vue-stock-pembelian.js?v=32';
 
 const KATEGORI_UTAMA_OPSI = ['Bahan', 'Aksesoris'];
 

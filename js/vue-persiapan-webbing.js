@@ -9,8 +9,8 @@
 //   (komponen aksesoris x anak SPK) dari bom_aksesoris tahap "webbing".
 // - Khas pos ini: panjang_per_pcs, butuh_meter, roll, kode_webbing2/3
 //   (snapshot bom_aksesoris, teks bebas, boleh kosong, tak menghalangi cetak).
-// - roll_sisa_webbing + pengaturan_id_roll_sisa koleksi sendiri, butuh entri
-//   firestore.rules pola isAdminLevel (lihat konfirmasiEntry).
+// - Sisa roll setelah Scan Entry dicatat di lot itu sendiri (label sisa, kode
+//   sama), bukan koleksi terpisah.
 //
 // Jebakan:
 // - roll = butuh_meter / master_bahan_aksesoris.panjang_roll dibulatkan ke
@@ -22,8 +22,8 @@
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
+import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=15';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah, CetakUlangLabelStok } from './vue-scan-cetak.js?v=10';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier
@@ -120,7 +120,7 @@ function daftarBarisDariTrack(daftarTrack) {
   const baris = [];
   daftarTrack.forEach(t => {
     (t[FIELD_RINCIAN] || []).forEach((b, idx) => {
-      baris.push({ ...b, _trackId: t.id, _lineIdx: idx, kode_spk: t.kode_spk, grouping_id: t.grouping_id, nama_produk: t.nama_produk });
+      baris.push({ ...b, _trackId: t.id, _lineIdx: idx, kode_grouping_induk: t.kode_grouping_induk, kode_kit: t.kode_kit || b.kode_kit, kode_separating: t.kode_separating || b.kode_separating, separating_id: t.separating_id || b.separating_id, grouping_id: t.grouping_id, nama_produk: t.nama_produk });
     });
   });
   return baris;
@@ -162,67 +162,9 @@ async function updateBarisWebbingMassal(trackId, matchFn, patchFn) {
   return kena;
 }
 
-// konfirmasiEntry — SATU-SATUNYA tempat stok master_bahan_aksesoris berkurang;
-// stok_akhir dikurangi PERSIS sebesar butuh_meter, BUKAN b.roll x panjang_roll. Sisa
-// pembulatan roll (> 0,01 m) cuma dicatat di `roll_sisa_webbing` (prefix 'RS') sebagai
-// traceability, bukan koreksi stok. Status sesudah entry tetap 'sedang_disiapkan'.
-async function konfirmasiEntry(b) {
-  const refTrack = doc(db, 'spk_track', b._trackId);
-  const refBahan = doc(db, 'master_bahan_aksesoris', b.bahan_aksesoris_id);
-  const now = new Date().toISOString();
-  const oleh = window.currentUser?.email || '';
-
-  // Hitung & siapkan kode roll sisa DI LUAR transaksi utama (generateKodeHarian
-  // punya transaksi counter sendiri — Firestore tidak boleh nested transaction).
-  // refRollSisa juga dibuat di luar supaya kalau transaksi utama di bawah retry
-  // (kontensi), doc ref-nya tetap SAMA (idempotent), tidak dobel.
-  let kodeRollSisa = null;
-  let sisaMeterHitung = 0;
-  let refRollSisa = null;
-  if (b.roll !== null && b.roll !== undefined) {
-    try {
-      const snapBahanAwal = await getDoc(refBahan);
-      const panjangRoll = parseFloat(snapBahanAwal.data()?.panjang_roll) || 0;
-      if (panjangRoll > 0) {
-        sisaMeterHitung = Math.round(((b.roll * panjangRoll) - (parseFloat(b.butuh) || 0)) * 100) / 100;
-        if (sisaMeterHitung > 0.01) {
-          kodeRollSisa = await generateKodeHarian('RS', 'pengaturan_id_roll_sisa');
-          refRollSisa = doc(collection(db, 'roll_sisa_webbing'));
-        }
-      }
-    } catch (e) { console.error('Gagal hitung roll sisa (tidak menghalangi entry):', e); }
-  }
-
-  await runTransaction(db, async (trx) => {
-    const [snapTrack, snapBahan] = await Promise.all([trx.get(refTrack), trx.get(refBahan)]);
-    if (!snapTrack.exists()) throw new Error('SPK Track tidak ditemukan.');
-    const arr = Array.isArray(snapTrack.data()[FIELD_RINCIAN]) ? [...snapTrack.data()[FIELD_RINCIAN]] : [];
-    if (!arr[b._lineIdx]) throw new Error('Baris sudah berubah — muat ulang halaman.');
-    arr[b._lineIdx] = {
-      ...arr[b._lineIdx],
-      entry_qty: arr[b._lineIdx].butuh, entry_oleh: oleh, entry_pada: now
-    };
-    trx.update(refTrack, { [FIELD_RINCIAN]: arr, diperbarui_pada: serverTimestamp() });
-    if (snapBahan.exists()) {
-      const stokBaru = (parseFloat(snapBahan.data().stok_akhir) || 0) - (parseFloat(b.butuh) || 0);
-      trx.update(refBahan, { stok_akhir: stokBaru });
-    }
-    if (refRollSisa) {
-      trx.set(refRollSisa, {
-        kode: kodeRollSisa,
-        bahan_aksesoris_id: b.bahan_aksesoris_id,
-        nama_aksesoris: b.nama_aksesoris || '',
-        warna: b.warna || '',
-        sisa_meter: sisaMeterHitung,
-        asal_no_spk: b.no_spk || '',
-        asal_trackId: b._trackId,
-        status: 'tersedia',
-        dibuat_oleh: oleh,
-        dibuat_pada: serverTimestamp()
-      });
-    }
-  });
-}
+// kodeLabelAcc — isi QR label kit/kartu jalur ini; dipakai cetak dan
+// pencocokan scan. kode_kit lebih dulu, sisanya untuk data lama.
+function kodeLabelAcc(b) { return b.kode_kit || b.kode_kartu || b.id_order; }
 
 // kelompokKartuSpk — kelompokkan baris (SUDAH difilter status tertentu) jadi
 // kartu per SPK TRACK (= per SPK Grouping, ). Beda dari kelompokKartuBahan di
@@ -232,7 +174,7 @@ function kelompokKartuSpk(barisList, petaStokBahan) {
   const peta = {};
   barisList.forEach(b => {
     const key = b._trackId;
-    if (!peta[key]) peta[key] = { trackId: key, kodeSpk: b.kode_spk, namaProduk: b.nama_produk, produkSize: b.produk_size, baris: [] };
+    if (!peta[key]) peta[key] = { trackId: key, kodeSpk: b.kode_kit || b.kode_grouping_induk, namaProduk: b.nama_produk, produkSize: b.produk_size, baris: [] };
     peta[key].baris.push(b);
   });
   const list = Object.values(peta);
@@ -296,8 +238,6 @@ const PersiapanWebbingPerluDisiapkan = {
     const petaStokBahan = ref({});
     const cari = ref('');
     const pilihanCetak = reactive({}); // barisKey -> bool (override manual)
-    const daftarRollSisa = ref([]); // gap #3 "roll sisa" — read-only, lihat konfirmasiEntry
-    const rollSisaTerbuka = ref(false);
 
     const MY_TARGET = 'sub-pp-webbing-perludisiapkan';
     // satu-satunya pemakai bolehProses di komponen ini adalah tombol "Tunjuk
@@ -311,19 +251,16 @@ const PersiapanWebbingPerluDisiapkan = {
     async function muat() {
       memuat.value = true;
       try {
-        const [tracks, stokSnap, rollSisaSnap] = await Promise.all([
+        const [tracks, stokSnap] = await Promise.all([
           muatSemuaTrackWebbing(),
-          getDocs(collection(db, 'master_bahan_aksesoris')),
-          getDocs(query(collection(db, 'roll_sisa_webbing'), where('status', '==', 'tersedia')))
+          getDocs(collection(db, 'master_bahan_aksesoris'))
         ]);
         daftarTrack.value = tracks;
         const peta = {}; stokSnap.forEach(d => { peta[d.id] = d.data(); });
         petaStokBahan.value = peta;
-        daftarRollSisa.value = rollSisaSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       } catch (e) {
         console.error('Gagal muat Acc Webbing > Perlu Disiapkan:', e);
         daftarTrack.value = [];
-        daftarRollSisa.value = [];
       }
       memuat.value = false;
     }
@@ -333,7 +270,7 @@ const PersiapanWebbingPerluDisiapkan = {
       let kartu = kelompokKartuSpk(baris, petaStokBahan.value);
       const kata = cari.value.trim().toLowerCase();
       if (kata) {
-        kartu = kartu.filter(k => k.kodeSpk.toLowerCase().includes(kata) || k.namaProduk.toLowerCase().includes(kata) || k.baris.some(b => (b.no_spk || '').toLowerCase().includes(kata)));
+        kartu = kartu.filter(k => k.kodeSpk.toLowerCase().includes(kata) || k.namaProduk.toLowerCase().includes(kata) || k.baris.some(b => (b.id_order || '').toLowerCase().includes(kata)));
       }
       return kartu;
     });
@@ -392,10 +329,10 @@ const PersiapanWebbingPerluDisiapkan = {
         // matchFn lama `(b, i) => idxSet.has(i)` TIDAK PERNAH benar:
         // updateBarisWebbingMassal cuma memanggil matchFn(arr[i]) TANPA index
         // kedua, jadi `i` selalu undefined dan baris TIDAK PERNAH tertandai .
-        // Diganti matching by value (no_spk).
+        // Diganti matching by value (id_order).
         await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
-          const noSpkSet = new Set(barisGrup.map(b => b.no_spk));
-          return updateBarisWebbingMassal(trackId, (x) => noSpkSet.has(x.no_spk), () => ({ label_cetak_pada: now }));
+          const noSpkSet = new Set(barisGrup.map(b => b.id_order));
+          return updateBarisWebbingMassal(trackId, (x) => noSpkSet.has(x.id_order), () => ({ label_cetak_pada: now }));
         }));
       } catch (e) { console.error('Gagal catat label_cetak_pada:', e); }
       _pendingCetak = [];
@@ -442,7 +379,7 @@ const PersiapanWebbingPerluDisiapkan = {
       });
       try {
         await addDoc(collection(db, 'cetak_ulang_log'), {
-          kode_spk: p.kartu.kodeSpk,
+          kode_grouping_induk: p.kartu.kodeSpk,
           bahan: p.kartu.namaProduk,
           alasan: p.alasan.trim(), pin_oleh: user.nama || user.email || '',
           pada: serverTimestamp()
@@ -460,7 +397,7 @@ const PersiapanWebbingPerluDisiapkan = {
     // 1 scan anak SPK menandai SEMUA baris komponennya (beda dari Bahan 1 baris/anak SPK).
     function cariBarisSiapTunjuk(kode) {
       const kolamBaris = kartuList.value.flatMap(k => k.baris);
-      return kolamBaris.filter(b => (b.kode_kartu || b.no_spk) === kode && b.label_cetak_pada && b.status === 'perlu_disiapkan');
+      return kolamBaris.filter(b => kodeLabelAcc(b) === kode && b.label_cetak_pada && b.status === 'perlu_disiapkan');
     }
     const scanOperator = buatScanTerpadu({
       judul: 'Scan Operator — Acc Webbing', subjudul: 'Scan QR operator/tim, lalu scan label anak SPK berkali-kali',
@@ -486,7 +423,7 @@ const PersiapanWebbingPerluDisiapkan = {
         }
         return { ok: true, row: { kode, label: targets.length + ' komponen', tagTxt: 'siap', tagCls: 'ok' } };
       },
-      // matchFn tulis Firestore WAJIB pakai fallback `kode_kartu || no_spk`, sama
+      // matchFn tulis Firestore WAJIB pakai fallback `kode_kartu || id_order`, sama
       // dengan validasiIsi; `kena` dicek eksplisit karena updateBarisWebbingMassal
       // commit-tanpa-perubahan tidak melempar exception.
       padaUpload: async (rows, locked) => {
@@ -496,7 +433,7 @@ const PersiapanWebbingPerluDisiapkan = {
           for (const row of rows) {
             const targets = cariBarisSiapTunjuk(row.kode);
             if (!targets.length) { gagal.push(row.kode); continue; }
-            const kena = await updateBarisWebbingMassal(targets[0]._trackId, (x) => (x.kode_kartu || x.no_spk) === row.kode && x.status === 'perlu_disiapkan' && !!x.label_cetak_pada, (lama) => ({
+            const kena = await updateBarisWebbingMassal(targets[0]._trackId, (x) => kodeLabelAcc(x) === row.kode && x.status === 'perlu_disiapkan' && !!x.label_cetak_pada, (lama) => ({
               status: 'sedang_disiapkan', masuk_tahap_pada: now,
               operator_uid: locked.id, operator_nama: locked.nama, ditugaskan_pada: now,
               riwayat_operator: [...(lama.riwayat_operator || []), { operator_uid: locked.id, operator_nama: locked.nama, mulai_pada: now }]
@@ -552,8 +489,7 @@ const PersiapanWebbingPerluDisiapkan = {
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, onCetakSelesai,
       popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang, barisTerpilihCetakUlang,
       scanOperator, bukaPenunjukanGlobal,
-      modalScanSampai, bukaScanSampaiGlobal, tutupScanSampai, hasilScanSampai,
-      daftarRollSisa, rollSisaTerbuka
+      modalScanSampai, bukaScanSampaiGlobal, tutupScanSampai, hasilScanSampai
     };
   },
   template: `
@@ -602,21 +538,6 @@ const PersiapanWebbingPerluDisiapkan = {
       <div style="display:flex; align-items:center; gap:9px; background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:9px 13px; margin-bottom:12px;">
         <i class="fas fa-magnifying-glass" style="font-size:15px; color:var(--text-faint); flex-shrink:0;"></i>
         <input v-model="cari" type="text" placeholder="Cari kode SPK, produk, atau no. SPK..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px; color:var(--text);">
-      </div>
-
-      <div v-if="daftarRollSisa.length" class="gc-card" style="padding:10px 14px; border-radius:16px; margin-bottom:12px; border-color:var(--warn);">
-        <div style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;" @click="rollSisaTerbuka = !rollSisaTerbuka">
-          <div style="font-size:12px; font-weight:700; color:var(--warn);"><i class="fas fa-scroll" style="margin-right:6px;"></i>Roll Sisa Tersedia ({{ daftarRollSisa.length }})</div>
-          <i class="fas" :class="rollSisaTerbuka ? 'fa-chevron-up' : 'fa-chevron-down'" style="color:var(--text-faint);"></i>
-        </div>
-        <div v-if="rollSisaTerbuka" style="display:flex; flex-direction:column; gap:5px; margin-top:8px;">
-          <div v-for="r in daftarRollSisa" :key="r.id" style="display:flex; align-items:center; gap:8px; font-size:11px; padding:5px 0; border-top:1px solid var(--line);">
-            <span class="gc-num" style="font-weight:700; min-width:90px;">{{ r.kode }}</span>
-            <span>{{ r.nama_aksesoris }} <span style="color:var(--text-faint);">{{ r.warna }}</span></span>
-            <span class="gc-num" style="margin-left:auto; color:var(--text-faint);">sisa {{ formatQty(r.sisa_meter) }} m</span>
-            <span style="color:var(--text-faint);">dari {{ r.asal_no_spk }}</span>
-          </div>
-        </div>
       </div>
 
       <div v-if="kartuList.length === 0" class="gc-kosong gc-card">
@@ -704,7 +625,7 @@ const PersiapanWebbingPerluDisiapkan = {
 // sudah sedang_disiapkan DAN ber-entry_qty. Scan Masalah: tlc_asal='TLC-WEB', jalur 'webbing'.
 
 const PersiapanWebbingSedangDisiapkan = {
-  components: { ScanGenerik },
+  components: { ScanGenerik, ScanTerpaduGenerik, PopupPratinjauCetakLabel, CetakUlangLabelStok },
   setup() {
     const memuat = ref(true);
     const daftarTrack = ref([]);
@@ -735,7 +656,7 @@ const PersiapanWebbingSedangDisiapkan = {
         const key = b.operator_uid || b.operator_nama || '-';
         if (!peta[key]) peta[key] = { operatorNama: b.operator_nama || '(tanpa nama)', kelompokSpk: {} };
         const spkKey = b._trackId;
-        if (!peta[key].kelompokSpk[spkKey]) peta[key].kelompokSpk[spkKey] = { trackId: spkKey, kodeSpk: b.kode_spk, baris: [] };
+        if (!peta[key].kelompokSpk[spkKey]) peta[key].kelompokSpk[spkKey] = { trackId: spkKey, kodeSpk: b.kode_kit || b.kode_grouping_induk, baris: [] };
         peta[key].kelompokSpk[spkKey].baris.push(b);
       });
       return Object.values(peta).map(op => {
@@ -756,7 +677,7 @@ const PersiapanWebbingSedangDisiapkan = {
       sedangProsesBatch[g.trackId] = false;
     }
 
-    const modalAksi = reactive({ aktif: false, mode: null, baris: null }); // 'entry' | 'masalah' | 'ganti'
+    const modalAksi = reactive({ aktif: false, mode: null, baris: null }); // 'masalah' | 'ganti'
     function bukaAksi(mode, b) {
       if (sedangProses[barisKey(b)]) return;
       modalAksi.mode = mode; modalAksi.baris = b; modalAksi.aktif = true;
@@ -773,7 +694,7 @@ const PersiapanWebbingSedangDisiapkan = {
     function bukaMasalahBaris(b) {
       if (b.catatan_masalah || sedangProses[barisKey(b)]) return;
       const kurang = (parseFloat(b.butuh) || 0) - (parseFloat(b._stok) || 0);
-      popupMasalah.value = { baris: b, jumlahKurang: kurang > 0 ? kurang : b.butuh, alasan: '' };
+      popupMasalah.value = { baris: b, jumlahKurang: kurang > 0 ? kurang : b.butuh, alasan: '', jenis: 'kurang' };
     }
     async function konfirmasiMasalah() {
       const p = popupMasalah.value;
@@ -788,10 +709,11 @@ const PersiapanWebbingSedangDisiapkan = {
         const kebutuhan = parseFloat(b.butuh) || 0;
         await updateBarisWebbing(b._trackId, b._lineIdx, () => ({ catatan_masalah: p.alasan.trim() }));
         await ajukanPersiapanMasalah({
+          jenisMasalah: p.jenis || 'kurang', kodeLabelAsal: kodeLabelAcc(b) || '', separatingId: b.separating_id || '', kodeSeparating: b.kode_separating || '', idOrder: b.id_order || '',
           tlcAsal: 'TLC-WEB', sumberJalur: 'webbing',
           trackId: b._trackId, lineIdx: b._lineIdx,
           bahanAksesorisId: b.bahan_aksesoris_id, bahanNama: b.nama_aksesoris, bahanWarna: b.warna,
-          satuan: b.satuan, noSpk: b.no_spk,
+          satuan: b.satuan, noSpk: b.id_order,
           qtyKurang: jumlah, qtyEntryAsal: Math.max(0, kebutuhan - jumlah),
           alasan: p.alasan.trim()
         });
@@ -820,23 +742,30 @@ const PersiapanWebbingSedangDisiapkan = {
         sedangProses[key] = false;
         return;
       }
-      // cocokkan ke kode_kartu (fallback no_spk utk data lama), SAMA kode yg
+      // cocokkan ke kode_kartu (fallback id_order utk data lama), SAMA kode yg
       // dicetak (lihat cetakLabelKartu).
-      const kodeLabelBaris = b.kode_kartu || b.no_spk;
+      const kodeLabelBaris = kodeLabelAcc(b);
       if (kode !== kodeLabelBaris) { alert(`Kode yang discan ("${kode}") tidak cocok dengan anak SPK ini (${kodeLabelBaris}).`); return; }
       if (modalAksi.mode === 'masalah') {
         tutupAksi();
-        popupMasalah.value = { baris: b, jumlahKurang: b.butuh, alasan: '' };
+        popupMasalah.value = { baris: b, jumlahKurang: b.butuh, alasan: '', jenis: 'kurang' };
         return;
       }
-      const key = barisKey(b); sedangProses[key] = true;
-      try {
-        if (modalAksi.mode === 'entry') {
-          await konfirmasiEntry(b);
-        }
-        tutupAksi(); await muat();
-      } catch (e) { console.error('Gagal proses scan:', modalAksi.mode, e); alert('Gagal memproses. Coba lagi.'); }
-      sedangProses[key] = false;
+    }
+
+    const barisEntry = ref(null);
+    const entryStok = buatScanEntryStok({
+      pos: 'Persiapan ACC Webbing', sumber: 'Scan Entry Persiapan ACC Webbing',
+      ambilBaris: () => barisEntry.value, kodeLabel: kodeLabelAcc,
+      bahanId: (b) => b.bahan_aksesoris_id, kebutuhan: (b) => parseFloat(b.butuh) || 0,
+      namaBahan: (b) => `${b.nama_aksesoris || ''} ${b.warna || ''}`.trim(), satuan: (b) => b.satuan || '',
+      jejak: (b) => ({ kode_baris: b.kode_baris || kodeLabelAcc(b), separating_id: b.separating_id || '', spk_track_id: b._trackId }),
+      patchTrack: (b, patch) => ({ docId: b._trackId, field: FIELD_RINCIAN, lineIdx: b._lineIdx, patch }),
+      padaSelesai: async () => { barisEntry.value = null; await muat(); }
+    });
+    function bukaEntry(b) {
+      if (sedangProses[barisKey(b)]) return;
+      barisEntry.value = b; entryStok.buka();
     }
 
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await pastikanCachePilihanScan(); await muat(); });
@@ -844,12 +773,13 @@ const PersiapanWebbingSedangDisiapkan = {
     return { muat,
       memuat, kelompokOperator, bolehProses, aksiAktif, sedangProses, sedangProsesBatch, konfirmasiDisiapkan,
       formatQty, formatRoll, formatDiamSejak, tertahan, barisKey,
-      modalAksi, bukaAksi, tutupAksi, hasilScanAksi,
+      modalAksi, bukaAksi, tutupAksi, hasilScanAksi, entryStok, bukaEntry,
       popupMasalah, batalMasalah, konfirmasiMasalah, bukaMasalahBaris,
       TAB_DEFS_WEBBING, gantiTabPill, MY_TARGET
     };
   },
   template: `
+    <cetak-ulang-label-stok pos="persiapan_webbing" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
@@ -888,14 +818,14 @@ const PersiapanWebbingSedangDisiapkan = {
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
               <div v-for="b in g.baris" :key="barisKey(b)" style="border:1px solid var(--line); border-radius:12px; padding:8px;" :style="{ background: tertahan(b.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
                 <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:4px;">
-                  <span class="gc-num" style="font-weight:700; font-size:11.5px;">{{ b.no_spk }}</span>
+                  <span class="gc-num" style="font-weight:700; font-size:11.5px;">{{ b.id_order }}</span>
                   <span v-if="b.entry_qty || b.entry_qty===0" class="tag ok">sudah entry</span>
                   <span v-else class="tag" :class="tertahan(b.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(b.masuk_tahap_pada) }}</span>
                 </div>
                 <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ b.nama_aksesoris }} {{ b.warna }} &middot; {{ formatQty(b.butuh) }} {{ b.satuan }} &middot; {{ formatRoll(b.roll) }} &middot; {{ b.nama_produk }}</div>
                 <div v-if="b.catatan_masalah" style="font-size:10.5px; color:var(--danger); background:var(--danger-light); border-radius:8px; padding:5px 8px; margin-bottom:6px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ b.catatan_masalah }}</div>
                 <div v-if="bolehProses && !(b.entry_qty || b.entry_qty===0)" style="display:flex; gap:6px;">
-                  <button v-if="aksiAktif(MY_TARGET,'entry_webbing')" @click="bukaAksi('entry', b)" :disabled="sedangProses[barisKey(b)]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
+                  <button v-if="aksiAktif(MY_TARGET,'entry_webbing')" @click="bukaEntry(b)" :disabled="sedangProses[barisKey(b)]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
                   <button v-if="aksiAktif(MY_TARGET,'masalah_webbing')" @click="bukaAksi('masalah', b)" :disabled="sedangProses[barisKey(b)]" class="btn-outline" style="flex:1; padding:7px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Masalah</button>
                   <button @click="bukaAksi('ganti', b)" :disabled="sedangProses[barisKey(b)]" class="btn-outline" style="flex:0 0 auto; padding:7px 9px; font-size:11px;" title="Ganti Operator (estafet shift)"><i class="fas fa-arrow-right-arrow-left"></i></button>
                 </div>
@@ -909,15 +839,18 @@ const PersiapanWebbingSedangDisiapkan = {
     </div>
 
     <scan-generik :aktif="modalAksi.aktif"
-      :judul="modalAksi.mode==='ganti' ? 'Scan QR operator pengganti' : ('Scan label ' + (modalAksi.baris?.no_spk || ''))"
-      :subjudul="modalAksi.mode==='entry' ? 'Scan Entry — stok akan berkurang.' : (modalAksi.mode==='masalah' ? 'Scan Masalah — akan diminta jumlah kurang & alasan.' : '')"
+      :judul="modalAksi.mode==='ganti' ? 'Scan QR operator pengganti' : ('Scan label ' + (modalAksi.baris?.id_order || ''))"
+      :subjudul="modalAksi.mode==='masalah' ? 'Scan Masalah — akan diminta jumlah kurang & alasan.' : ''"
       @hasil="hasilScanAksi" @tutup="tutupAksi" />
+    <scan-terpadu-generik :c="entryStok" />
+    <popup-pratinjau-cetak-label :terbuka="entryStok.cetak.aktif" judul="Cetak Label Sisa" :daftar-label="entryStok.cetak.daftar" jenis-cetak="label_roll_pembelian" @tutup="entryStok.selesaiCetak()" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;"><i class="fas fa-triangle-exclamation" style="margin-right:8px; color:var(--danger);"></i>Ajukan Masalah — {{ popupMasalah.baris.no_spk }}</h3>
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;"><i class="fas fa-triangle-exclamation" style="margin-right:8px; color:var(--danger);"></i>Ajukan Masalah — {{ popupMasalah.baris.id_order }}</h3>
         <p style="font-size:11px; color:var(--text-faint); margin:0 0 10px;">{{ popupMasalah.baris.nama_aksesoris }} {{ popupMasalah.baris.warna }} — akan masuk ke Persiapan Produksi &gt; Masalah utk diajukan ke Owner.</p>
         <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah kurang ({{ popupMasalah.baris.satuan }})</label><input v-model="popupMasalah.jumlahKurang" type="number" min="0" step="1"></div>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Jenis Masalah</label><select v-model="popupMasalah.jenis"><option value="kurang">Kurang</option><option value="cacat">Cacat</option><option value="hilang">Hilang</option></select></div>
         <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="Mis. roll rusak/stok fisik kurang"></div>
         <div style="display:flex; gap:8px;">
           <button @click="batalMasalah" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
@@ -994,10 +927,10 @@ const PersiapanWebbingPerluDikirim = {
         const preview = [];
         for (let i = 0; i < n; i++) {
           const kode = await generateKodeHarian('BAG', 'pengaturan_id_bagging');
-          // kode_spk/kode_batch — null sampai diisi Scan Pack.
+          // kode_grouping_induk/kode_separating — null sampai diisi Scan Pack.
           await addDoc(collection(db, 'bagging'), {
             kode, produk_label: grup.label, isi: [], ditutup_pada: null,
-            kode_spk: null, kode_batch: null,
+            kode_grouping_induk: null, kode_separating: null,
             dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
           });
           preview.push({ kode, nama: grup.label, info: 'Kode Bagging &middot; belum diisi', qrDataUrl: buatQrDataUrl(kode) });
@@ -1036,7 +969,7 @@ const PersiapanWebbingPerluDikirim = {
     async function isiTlcAwal() {
       if (daftarTlc.value.length) return;
       const contoh = [
-        ['TLC-BHN', 'Gudang Bahan'], ['TLC-SEW', 'Pos Acc Sewing'], ['TLC-WEB', 'Pos Acc Webbing'],
+        ['TLC-BHN', 'Gudang Bahan'], ['TLC-SER', 'Collection'], ['TLC-SEW', 'Pos Acc Sewing'], ['TLC-WEB', 'Pos Acc Webbing'],
         ['TLC-FIN', 'Pos Acc Finishing'], ['TLC-VDR', 'Vendor'], ['TLC-MSL', 'Persiapan Masalah'],
         ['TLC-PTG-01', 'Meja Potong 1'], ['TLC-SEW-01', 'Line Jahit 1'], ['TLC-FIN-01', 'Line Finishing 1'], ['TLC-QC', 'QC']
       ];
@@ -1051,10 +984,10 @@ const PersiapanWebbingPerluDikirim = {
     // Scan Pack — buatScanTerpadu (kamera tersemat + Draft->Upload), ganti
     // overlay+tulis-langsung lama. Step1 kunci Kode Bagging, step2 kumpulkan
     // kode kartu sebagai draft; Upload baru menulis kode_bagging tiap baris +
-    // bagging.isi[]/kode_spk sekali jalan. 1 kartu bisa menandai SEMUA baris
+    // bagging.isi[]/kode_grouping_induk sekali jalan. 1 kartu bisa menandai SEMUA baris
     // komponen di dalamnya (lintas beberapa baris, satu track/dokumen yang
     // sama) — label yang discan sama dengan yang dicetak Tab 1 (`kode_kartu
-    // || no_spk`, sama fallback chain seperti `cariBarisSiapTunjuk`).
+    // || id_order`, sama fallback chain seperti `cariBarisSiapTunjuk`).
     const packTerpadu = buatScanTerpadu({
       judul: 'Scan Pack — Acc Webbing', subjudul: 'Kaitkan kartu ke satu kode bagging',
       twoStep: {
@@ -1075,31 +1008,31 @@ const PersiapanWebbingPerluDikirim = {
         catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       } }],
       validasiIsi: async (kode, bagging, rowsSaatIni) => {
-        const cocok = barisTertahan.value.filter(x => (x.kode_kartu || x.no_spk) === kode && !x.kode_bagging);
+        const cocok = barisTertahan.value.filter(x => kodeLabelAcc(x) === kode && !x.kode_bagging);
         if (!cocok.length) return { ok: false, pesan: `Kode "${kode}" tidak cocok anak SPK yang masih tertahan / sudah di-pack.` };
         if (labelSepack(cocok[0]) !== bagging.produk_label) {
           return { ok: false, pesan: `Kode "${kode}" bukan produk yang sama dengan bagging ini (${bagging.produk_label}). Syarat sepack: produk dan size harus sama.` };
         }
-        const kodeSpkTerkunci = bagging.kode_spk || rowsSaatIni[0]?._kodeSpk || null;
-        if (kodeSpkTerkunci && cocok[0].kode_spk !== kodeSpkTerkunci) {
-          return { ok: false, pesan: `Kode "${kode}" dari SPK Grouping berbeda (${cocok[0].kode_spk}) dari bagging ini (${kodeSpkTerkunci}). 1 bagging cuma boleh 1 grouping.` };
+        const kodeSpkTerkunci = bagging.kode_separating || rowsSaatIni[0]?._kodeSpk || null;
+        if (kodeSpkTerkunci && cocok[0].kode_separating !== kodeSpkTerkunci) {
+          return { ok: false, pesan: `Kode "${kode}" dari Kode Separating berbeda (${cocok[0].kode_separating}) dari bagging ini (${kodeSpkTerkunci}). 1 bagging cuma boleh 1 separating.` };
         }
-        return { ok: true, row: { kode, label: cocok[0].nama_aksesoris + ' ' + (cocok[0].warna || ''), qty: String(cocok.length), tagTxt: 'cocok', tagCls: 'ok', _kodeSpk: cocok[0].kode_spk || null } };
+        return { ok: true, row: { kode, label: cocok[0].nama_aksesoris + ' ' + (cocok[0].warna || ''), qty: String(cocok.length), tagTxt: 'cocok', tagCls: 'ok', _kodeSpk: cocok[0].kode_separating || null } };
       },
       padaUpload: async (rows, bagging) => {
         try {
-          const kodeSpkBaru = bagging.kode_spk || rows[0]._kodeSpk || null;
+          const kodeSpkBaru = bagging.kode_separating || rows[0]._kodeSpk || null;
           for (const r of rows) {
-            const cocok = barisTertahan.value.filter(x => (x.kode_kartu || x.no_spk) === r.kode && !x.kode_bagging);
+            const cocok = barisTertahan.value.filter(x => kodeLabelAcc(x) === r.kode && !x.kode_bagging);
             const byTrack = {};
             cocok.forEach(b => { (byTrack[b._trackId] ||= []).push(b); });
             const hasil = await Promise.all(Object.keys(byTrack).map(trackId =>
-              updateBarisWebbingMassal(trackId, (x) => (x.kode_kartu || x.no_spk) === r.kode && !x.kode_bagging, () => ({ kode_bagging: bagging.kode }))
+              updateBarisWebbingMassal(trackId, (x) => kodeLabelAcc(x) === r.kode && !x.kode_bagging, () => ({ kode_bagging: bagging.kode }))
             ));
             if (hasil.every(k => k === 0)) return { ok: false, pesan: `Kode "${r.kode}" gagal disimpan (mungkin sudah dipack sesi lain). Muat ulang halaman lalu coba lagi.` };
           }
           const patchBagging = { isi: arrayUnion(...rows.map(r => r.kode)) };
-          if (!bagging.kode_spk) patchBagging.kode_spk = kodeSpkBaru;
+          if (!bagging.kode_separating) patchBagging.kode_separating = kodeSpkBaru;
           await updateDoc(doc(db, 'bagging', bagging.id), patchBagging);
           await muat();
           return { ok: true };
@@ -1144,10 +1077,10 @@ const PersiapanWebbingPerluDikirim = {
                 status: 'sedang_dikirim', masuk_tahap_pada: now, kode_tugas: tugas.kode, tlc_tujuan: tugas.tlc_tujuan || ''
               }))
             ));
-            // kode_spk/kode_batch ikut disalin ke pack[], dilepas oleh Scan Sampai
+            // kode_grouping_induk/kode_separating ikut disalin ke pack[], dilepas oleh Scan Sampai
             // (sampai_pada).
             await updateDoc(doc(db, 'tugas_kirim', tugas.id), {
-              pack: arrayUnion({ kode_bagging: r.kode, kode_spk: anggota[0]?.kode_spk || null, kode_batch: null, pada: now, sampai_pada: null })
+              pack: arrayUnion({ kode_bagging: r.kode, kode_grouping_induk: null, kode_separating: anggota[0]?.kode_separating || null, pada: now, sampai_pada: null })
             });
           }
           await muat();
@@ -1207,7 +1140,7 @@ const PersiapanWebbingPerluDikirim = {
           <div class="gc-heading" style="font-weight:700; font-size:12.5px; margin-bottom:8px;">{{ g.label }}</div>
           <div style="display:flex; flex-direction:column; gap:6px;">
             <div v-for="b in g.baris" :key="barisKey(b)" style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(b.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
-              <span class="gc-num" style="font-weight:700;">{{ b.no_spk }}</span>
+              <span class="gc-num" style="font-weight:700;">{{ b.id_order }}</span>
               <span style="color:var(--text-faint);">{{ b.nama_aksesoris }} {{ b.warna }}</span>
               <span v-if="b.kode_bagging" class="tag ok">{{ b.kode_bagging }}</span>
               <span v-else class="tag neutral">belum di-pack</span>
@@ -1312,7 +1245,7 @@ const PersiapanWebbingSedangDikirim = {
         </div>
         <div style="display:flex; flex-direction:column; gap:5px;">
           <div v-for="b in g.baris" :key="barisKey(b)" style="display:flex; justify-content:space-between; gap:8px; font-size:11px;">
-            <span class="gc-num" style="font-weight:700;">{{ b.no_spk }}</span>
+            <span class="gc-num" style="font-weight:700;">{{ b.id_order }}</span>
             <span style="color:var(--text-faint);">{{ b.nama_aksesoris }} {{ b.warna }} &middot; {{ formatQty(b.butuh) }} {{ b.satuan }}</span>
             <span class="gc-num" style="color:var(--text-faint);">{{ b.kode_bagging }}</span>
           </div>
@@ -1386,7 +1319,7 @@ const PersiapanWebbingSelesai = {
       <div v-else style="display:flex; flex-direction:column; gap:8px;">
         <div v-for="b in barisSaya" :key="barisKey(b)" class="gc-card gc-card-menonjol" style="padding:12px; border-radius:16px;">
           <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:4px;">
-            <span class="gc-num" style="font-weight:700; font-size:12px;">{{ b.no_spk }}</span>
+            <span class="gc-num" style="font-weight:700; font-size:12px;">{{ b.id_order }}</span>
             <span class="tag" :class="keadaan(b)==='lengkap' ? 'ok' : 'warn'">{{ keadaan(b) }}</span>
           </div>
           <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ b.nama_aksesoris }} {{ b.warna }} &middot; {{ formatQty(b.butuh) }} {{ b.satuan }}</div>
@@ -1464,7 +1397,7 @@ const PersiapanWebbingSelesai = {
           <tbody>
             <tr v-for="b in daftarUrut" :key="barisKey(b)" style="border-bottom:1px solid var(--line);">
               <td style="padding:6px 8px;">
-                <div class="gc-num" style="font-weight:700;">{{ b.no_spk }}</div>
+                <div class="gc-num" style="font-weight:700;">{{ b.id_order }}</div>
                 <div style="font-size:9.5px; color:var(--text-faint);">label {{ formatWaktu(b.label_cetak_pada) }}</div>
               </td>
               <td style="padding:6px 8px;">{{ b.nama_aksesoris }} {{ b.warna }}</td>

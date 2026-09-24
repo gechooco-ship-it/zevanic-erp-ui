@@ -451,6 +451,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // Suplayer generik, PINDAH ke 3 entry Master Suplayer di bawah). Tab ini
     // sekarang "TLC & Prefix" (AppConfigTlc, koleksi master_tlc BARU).
     'sub-zh-config-tlc': 'pastikanMountConfigTlc',
+    'sub-zh-config-resettesting': 'pastikanMountConfigResetTesting',
     // DIPINDAH — 'sub-zh-config-riwayatpin': 'pastikanMountConfigRiwayatPin'
     // pindah ke 'sub-scan-cetak-pin' di bawah (lihat js/vue-scan-cetak.js),
     // tombolnya sudah dicopot dari index.html.
@@ -516,6 +517,7 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // js/vue-pp-masalah.js.
     'sub-pp-masalah-perludiajukan': 'pastikanMountPpMasalahPerluDiajukan',
     'sub-pp-masalah-menunggusetuju': 'pastikanMountPpMasalahMenungguSetuju',
+    'sub-pp-masalah-diajukanbelanja': 'pastikanMountPpMasalahDiajukanBelanja',
     'sub-pp-masalah-perludisiapkan': 'pastikanMountPpMasalahPerluDisiapkan',
     'sub-pp-masalah-sedangdisiapkan': 'pastikanMountPpMasalahSedangDisiapkan',
     'sub-pp-masalah-perludikirim': 'pastikanMountPpMasalahPerluDiKirim',
@@ -526,7 +528,6 @@ window.pindahSubTab = function(grupKelas, targetId, tombolEl, opsi) {
     // 'sub-scancetak-stok-opname'/'sub-scancetak-stok-persiapan' (menu top-level
     // baru "Scan & Cetak"). Fungsi mount TIDAK berubah.
     'sub-scancetak-stok-opname': 'pastikanMountScanOpname',
-    'sub-scancetak-stok-persiapan': 'pastikanMountScanPersiapan',
     // Scan & Cetak > PIN (Riwayat PIN, dipindah dari Zevanic House > Config),
     // lihat js/vue-scan-cetak.js.
     'sub-scan-cetak-pin': 'pastikanMountScanCetakRiwayatPin',

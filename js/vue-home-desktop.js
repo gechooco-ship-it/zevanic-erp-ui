@@ -1,18 +1,17 @@
 // js/vue-home-desktop.js
-// Komponen BerandaDesktop — dashboard Beranda desktop: KPI, Pipeline Persiapan,
-// Perlu Tindakan Anda, kartu Absen, Quote. Mount ke #vue-beranda-desktop di
-// dalam #tab-home (hidden md:block).
+// BerandaDesktop — KPI, Pipeline Persiapan, Perlu Tindakan, kartu Absen, Quote.
+// Mount ke #vue-beranda-desktop di dalam #tab-home (hidden md:block).
 //
 // Koleksi & field:
 // - KPI via getCountFromServer (dokumen tidak ditarik): pendaftaran_pending,
 //   absensi (ada_pending + status_acc, 2 query dijumlah), reimburse,
 //   permintaan_bahan_manual, spk_track.
-// - order_spk: getDocs penuh — filter "belum ada id_spk_grouping" harus di
-//   client, Firestore tidak bisa where field yang tidak ada.
+// - order: getDocs status Aktif + qo_diproses, sisa qty belum jadi separating
+//   dihitung di client (qty_order - qty_terseparating).
 // - master_shift, pengumuman, quotes: baca ringan untuk kartu Absen & Quote.
 //
 // Jebakan:
-// - Pipeline Produksi LIVE (cutting_track/separating_batch/sewing_track/
+// - Pipeline Produksi LIVE (cutting_track/spk_separating/sewing_track/
 //   finishing_track), status per koleksi BEDA-BEDA vokabuler — lihat
 //   JALUR_PRODUKSI, jangan disamakan ke STATUS_BELUM_SELESAI milik Persiapan.
 // - Aktivitas Terbaru dan Pintasan Papan Tik masih UI-only/statis.
@@ -37,7 +36,7 @@ const STATUS_BELUM_SELESAI = ['perlu_diproses', 'sedang_diproses', 'perlu_dikiri
 // pos, sengaja tidak disatukan ke STATUS_BELUM_SELESAI milik Persiapan.
 const JALUR_PRODUKSI = [
   { key: 'cutting_track', label: 'Cutting', ico: 'fa-scissors', ket: 'Belum selesai di Cutting', status: ['perlu_diproses', 'sedang_ampar', 'sedang_pola', 'sedang_cutting', 'perlu_dikirim', 'sedang_dikirim'] },
-  { key: 'separating_batch', label: 'Serie', ico: 'fa-list-ol', ket: 'Belum selesai di Serie', status: ['perlu_diproses', 'perlu_dikirim', 'kirim_sewing', 'kirim_gudang'] },
+  { key: 'spk_separating', label: 'Collection', ico: 'fa-list-ol', ket: 'Belum selesai di Collection', status: ['sedang_diproses', 'perlu_dikirim', 'terima_sewing', 'terima_finishing'] },
   { key: 'sewing_track', label: 'Sewing', ico: 'fa-shirt', ket: 'Belum selesai di Sewing', status: ['perlu_diproses', 'sedang_sewing', 'perlu_dikirim', 'sedang_dikirim'] },
   { key: 'finishing_track', label: 'Finishing', ico: 'fa-check-double', ket: 'Belum selesai di Finishing', status: ['perlu_diproses', 'sedang_finishing', 'perlu_dikirim', 'sedang_dikirim'] }
 ];
@@ -110,12 +109,11 @@ const BerandaDesktop = {
 
     async function muatPerluDisiapkan() {
       try {
-        // SAMA PERSIS logic PersiapanDisiapkanManager
-        // (vue-persiapan-produksi-v2.js): tarik order_spk status Aktif, buang
-        // yang SUDAH punya id_spk_grouping.
-        const snap = await getDocs(query(collection(db, 'order_spk'), where('status', '==', 'Aktif')));
+        // Sama dengan antrean Perlu Persiapan: order sudah diputus QO yang masih
+        // punya sisa qty belum jadi SPK Separating.
+        const snap = await getDocs(query(collection(db, 'order'), where('status', '==', 'Aktif'), where('qo_diproses', '==', true)));
         let n = 0;
-        snap.forEach(d => { if (!d.data().id_spk_grouping) n++; });
+        snap.forEach(d => { const x = d.data(); if ((parseFloat(x.qty_order) || 0) - (parseFloat(x.qty_terseparating) || 0) > 0) n++; });
         persiapanDisiapkan.value = n;
       } catch (e) { console.error('Pipeline Perlu Disiapkan gagal dimuat:', e); persiapanDisiapkan.value = null; }
     }
@@ -328,7 +326,7 @@ const BerandaDesktop = {
           </div>
 
           <!-- "Perlu Tindakan Anda" dipecah jadi 2 grup: Persiapan (spk_track) dan
-            Produksi (cutting_track/separating_batch/sewing_track/finishing_track) —
+            Produksi (cutting_track/spk_separating/sewing_track/finishing_track) —
             keduanya data REAL, sama pola dengan pipeline card di atas. -->
           <div class="gc-pipeline-card" style="margin-bottom:0;">
             <div class="gc-pipeline-head" style="margin-bottom:6px;"><b>Perlu Tindakan Anda</b></div>
@@ -336,7 +334,7 @@ const BerandaDesktop = {
             <div class="gc-tindak-subgrup">Persiapan</div>
             <div class="gc-tindak-row">
               <div class="gc-tindak-ico"><i class="fas fa-layer-group"></i></div>
-              <div class="gc-tindak-txt"><b>Perlu Disiapkan</b><span>Klaster SPK siap digrouping</span></div>
+              <div class="gc-tindak-txt"><b>Perlu Persiapan</b><span>Order siap dibuat SPK Separating</span></div>
               <span class="gc-tindak-chip gc-num">{{ persiapanDisiapkan === null ? '…' : persiapanDisiapkan }}</span>
             </div>
             <div class="gc-tindak-row" v-for="j in persiapanJalur" :key="'tindak-persiapan-'+j.key">

@@ -1,28 +1,25 @@
 // js/vue-repack-komponen-acc.js
-// Stock & Pembelian > Repack. Mencatat berapa pak aksesoris yang sudah dikemas
-// ulang per item + ukuran pak (mis. 25 pcs/pak), plus aksi Buka 1 Pak.
+// Stock & Pembelian > Repack. Mengemas ulang stok Aksesoris lepasan jadi pak
+// berisi tetap (mis. 25 pcs/pak). Tiap pak dapat label QR Kode Pak dan
+// dipakai lewat Scan Entry Persiapan, boleh sebagian seperti roll.
 //
 // Koleksi & field:
-// - repack_komponen_acc: SATU DOKUMEN PER PAK FISIK. bahan_aksesoris_id,
-//   nama_aksesoris, warna, satuan (snapshot satuan_pemakaian saat dibuat),
-//   isi_per_pak, status 'tersedia'|'dibuka', dibuat_oleh/dibuat_pada,
-//   dibuka_oleh/dibuka_pada.
-// - master_bahan_aksesoris: picker item, query bertarget
-//   where('kategori_utama','==','Aksesoris') — Repack cuma untuk Aksesoris.
+// - lot_bahan_aksesoris jenis 'pak': kode_lot `{id_tampil}-P{nnn}`, qty_awal =
+//   isi per pak, qty_sisa, satuan, status 'aktif'|'habis', no_pembelian ''.
+// - master_bahan_aksesoris.pak_counter: nomor urut pak per item.
 //
 // Jebakan:
-// - File ini TIDAK PERNAH menyentuh stok_akhir. Murni lapisan visibilitas
-//   kemasan, bukan transaksi stok, jadi tidak butuh runTransaction.
-// - Satu dokumen per pak dipilih supaya Buka 1 Pak cukup updateDoc satu
-//   dokumen tanpa race condition di angka agregat; jangan diubah jadi
-//   dokumen tunggal + counter.
-// - Pak yang dibuka tidak dihapus, cuma status='dibuka' (jejak riwayat).
-// - Belum ada cetak label/QR di modul ini.
+// - Repack tidak mengubah stok_akhir: pak cuma kemasan dari stok yang sama.
+//   Pemakaian pak dipotong lewat catatScanEntryStok seperti roll.
+// - Item Pakai Lot ditolak; satu item cuma punya lot ATAU pak.
+// - Query cukup where('jenis','==','pak'), status disaring di JS supaya tidak
+//   butuh index gabungan.
 
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, updateDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, doc, getDocs, query, where, serverTimestamp, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { DropdownCari } from './vue-components.js?v=13';
+import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=15';
+import { buatQrDataUrl } from './vue-scan-cetak.js?v=10';
 
 const MENU_ID = 'stock_repack';
 const TAMBAH_TAMPIL = 20;
@@ -48,20 +45,18 @@ function pesanErrorFirestore(e) {
   }
   return 'Gagal memuat data Repack. Coba lagi.';
 }
-// kunciGrup — 1 baris tabel = 1 kombinasi item+isi_per_pak (pak beda isi dari
-// item yang sama TETAP baris terpisah, supaya "isi 25" vs "isi 50" tidak
-// tercampur di 1 angka).
-function kunciGrup(d) { return `${d.bahan_aksesoris_id}::${d.isi_per_pak}`; }
+// kunciGrup — 1 baris tabel = 1 kombinasi item + isi awal pak, supaya "isi 25"
+// dan "isi 50" tidak tercampur di 1 angka.
+function kunciGrup(d) { return `${d.bahan_aksesoris_id}::${d.qty_awal}`; }
 
 const RepackKomponenAccManager = {
-  components: { DropdownCari },
+  components: { DropdownCari, PopupPratinjauCetakLabel },
   setup() {
     const memuat = ref(true);
     const errorMuat = ref('');
-    const daftarPak = ref([]); // semua dokumen status:'tersedia' (repack_komponen_acc)
+    const daftarPak = ref([]); // lot_bahan_aksesoris jenis pak yang masih aktif
     const cari = ref('');
     const batasTampil = ref(TAMBAH_TAMPIL);
-    const sedangProses = reactive({}); // kunciGrup -> bool, gerbang klik dobel
 
     const bolehProses = computed(() => window.cekIzinMenu(MENU_ID, 'edit') !== false);
 
@@ -69,8 +64,8 @@ const RepackKomponenAccManager = {
       memuat.value = true;
       errorMuat.value = '';
       try {
-        const snap = await getDocs(query(collection(db, 'repack_komponen_acc'), where('status', '==', 'tersedia')));
-        daftarPak.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const snap = await getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('jenis', '==', 'pak')));
+        daftarPak.value = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(d => d.status === 'aktif');
       } catch (e) {
         console.error('Gagal muat Repack Komponen Acc:', e);
         errorMuat.value = pesanErrorFirestore(e);
@@ -86,19 +81,18 @@ const RepackKomponenAccManager = {
         const key = kunciGrup(d);
         if (!peta[key]) {
           peta[key] = {
-            key, bahanAksesorisId: d.bahan_aksesoris_id, nama: d.nama_aksesoris, warna: d.warna,
-            satuan: d.satuan, isiPerPak: d.isi_per_pak, pak: []
+            key, bahanAksesorisId: d.bahan_aksesoris_id, nama: d.nama_bahan,
+            satuan: d.satuan, isiPerPak: d.qty_awal, pak: []
           };
         }
         peta[key].pak.push(d);
       });
       const list = Object.values(peta);
       list.forEach(g => {
-        // FIFO — pak yang dibuat lebih dulu diambil lebih dulu saat "Ambil 1
-        // Pak"
-        g.pak.sort((a, b) => (a.dibuat_pada?.toMillis ? a.dibuat_pada.toMillis() : 0) - (b.dibuat_pada?.toMillis ? b.dibuat_pada.toMillis() : 0));
+        g.pak.sort((a, b) => (a.kode_lot || '').localeCompare(b.kode_lot || ''));
         g.jumlahPak = g.pak.length;
-        g.totalPcs = g.jumlahPak * (parseFloat(g.isiPerPak) || 0);
+        g.pakTerbuka = g.pak.filter(p => (parseFloat(p.qty_sisa) || 0) < (parseFloat(p.qty_awal) || 0)).length;
+        g.totalPcs = g.pak.reduce((t, p) => t + (parseFloat(p.qty_sisa) || 0), 0);
       });
       list.sort((a, b) => (a.nama || '').localeCompare(b.nama || '') || (a.isiPerPak - b.isiPerPak));
       return list;
@@ -107,7 +101,7 @@ const RepackKomponenAccManager = {
     const kelompokTerfilter = computed(() => {
       const q = cari.value.trim().toLowerCase();
       if (!q) return kelompok.value;
-      return kelompok.value.filter(g => (g.nama || '').toLowerCase().includes(q) || (g.warna || '').toLowerCase().includes(q));
+      return kelompok.value.filter(g => (g.nama || '').toLowerCase().includes(q) || g.pak.some(p => (p.kode_lot || '').toLowerCase().includes(q)));
     });
     const kelompokTampil = computed(() => kelompokTerfilter.value.slice(0, batasTampil.value));
     const adaLebihBanyak = computed(() => kelompokTerfilter.value.length > batasTampil.value);
@@ -118,21 +112,16 @@ const RepackKomponenAccManager = {
       totalPak: kelompokTerfilter.value.reduce((s, g) => s + g.jumlahPak, 0)
     }));
 
-    // Ambil 1 Pak
-    async function ambilSatuPak(g) {
-      if (!bolehProses.value || sedangProses[g.key] || !g.pak.length) return;
-      sedangProses[g.key] = true;
-      try {
-        const pakDiambil = g.pak[0];
-        await updateDoc(doc(db, 'repack_komponen_acc', pakDiambil.id), {
-          status: 'dibuka', dibuka_oleh: window.currentUser?.email || '', dibuka_pada: serverTimestamp()
-        });
-        await muat();
-      } catch (e) {
-        console.error('Gagal membuka pak:', e);
-        alert('Gagal menyimpan. Coba lagi.');
-      }
-      sedangProses[g.key] = false;
+    // Cetak ulang label satu grup (label pak rusak/hilang): kode sama.
+    const popupCetakAktif = ref(false);
+    const daftarLabelPreview = ref([]);
+    function labelDariPak(list) {
+      return list.map(p => ({ kode: p.kode_lot, nama: p.nama_bahan || '', info: `isi ${formatQty(p.qty_sisa)} ${p.satuan || ''}`, qrDataUrl: buatQrDataUrl(p.kode_lot) }));
+    }
+    function cetakLabelGrup(g) {
+      if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
+      daftarLabelPreview.value = labelDariPak(g.pak);
+      popupCetakAktif.value = true;
     }
 
     // Popup
@@ -186,8 +175,11 @@ const RepackKomponenAccManager = {
       itemTerpilih.value = it || null;
     });
 
+    // simpanPakBaru — nomor pak diambil dari pak_counter master di transaksi yang
+    // sama dengan pembuatan dokumen pak, supaya dua admin tidak dapat nomor sama.
     async function simpanPakBaru() {
       if (!itemTerpilih.value) return alert('Pilih item Aksesoris dulu.');
+      if (itemTerpilih.value.pakai_lot_tracking) return alert('Item ini dicentang Pakai Lot: pakai label Kode Lot per roll, tidak bisa di-repack.');
       const isi = parseFloat(isiPerPakBaru.value);
       if (!(isi > 0)) return alert('Isi per pak wajib angka lebih dari 0.');
       const jumlah = parseInt(jumlahPakBaru.value, 10);
@@ -198,14 +190,31 @@ const RepackKomponenAccManager = {
       try {
         const it = itemTerpilih.value;
         const oleh = window.currentUser?.email || '';
-        const data = {
-          bahan_aksesoris_id: it.id, nama_aksesoris: it.nama || '', warna: it.warna || '',
-          satuan: it.satuan_pemakaian || '', isi_per_pak: isi,
-          status: 'tersedia', dibuat_oleh: oleh, dibuat_pada: serverTimestamp()
-        };
-        await Promise.all(Array.from({ length: jumlah }, () => addDoc(collection(db, 'repack_komponen_acc'), data)));
+        const tanggal = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' });
+        const nama = `${it.nama || ''} ${it.warna || ''}`.trim();
+        const refBahan = doc(db, 'master_bahan_aksesoris', it.id);
+        const dibuat = [];
+        await runTransaction(db, async (tx) => {
+          dibuat.length = 0;
+          const snap = await tx.get(refBahan);
+          const data = snap.exists() ? snap.data() : {};
+          let counter = parseInt(data.pak_counter) || 0;
+          const prefix = data.id_tampil || it.id;
+          for (let k = 0; k < jumlah; k++) {
+            counter += 1;
+            const kode = `${prefix}-P${String(counter).padStart(3, '0')}`;
+            tx.set(doc(collection(db, 'lot_bahan_aksesoris')), {
+              jenis: 'pak', bahan_aksesoris_id: it.id, nama_bahan: nama, kode_lot: kode,
+              qty_awal: isi, qty_sisa: isi, satuan: it.satuan_pemakaian || '', tanggal_masuk: tanggal, no_pembelian: '',
+              status: 'aktif', dibuat_oleh: oleh, dibuat_pada: serverTimestamp()
+            });
+            dibuat.push({ kode_lot: kode, nama_bahan: nama, qty_sisa: isi, satuan: it.satuan_pemakaian || '' });
+          }
+          tx.set(refBahan, { pak_counter: counter }, { merge: true });
+        });
         tutupPopupBuat();
         await muat();
+        if (typeof QRCode !== 'undefined') { daftarLabelPreview.value = labelDariPak(dibuat); popupCetakAktif.value = true; }
       } catch (e) {
         console.error('Gagal membuat pak baru:', e);
         alert('Gagal menyimpan. Coba lagi.');
@@ -218,7 +227,7 @@ const RepackKomponenAccManager = {
     return {
       memuat, errorMuat, cari, muat,
       kelompokTampil, kelompokTerfilter, adaLebihBanyak, muatLebihBanyak, ringkasan,
-      bolehProses, sedangProses, ambilSatuPak,
+      bolehProses, cetakLabelGrup, popupCetakAktif, daftarLabelPreview,
       popupTerbuka, bukaPopupBuat, tutupPopupBuat, memuatItem,
       itemEntry, opsiItemNama, itemTerpilih,
       isiPerPakBaru, jumlahPakBaru, menyimpan, simpanPakBaru,
@@ -231,10 +240,10 @@ const RepackKomponenAccManager = {
         <h3 style="font-weight:700; font-size:13.5px; margin:0;"><i class="fas fa-box-archive" style="color:var(--burgundy); margin-right:8px;"></i>Repack</h3>
         <button v-if="bolehProses" @click="bukaPopupBuat" class="btn-primary" style="margin-left:auto; padding:8px 16px; font-size:12px;"><i class="fas fa-plus" style="margin-right:6px;"></i>Buat Pak Baru</button>
       </div>
-      <p style="font-size:11px; color:var(--text-faint); margin:8px 0 0;">Kemasan komponen Acc yang sudah dikemas jadi jumlah tetap per pak (mis. 25pcs) — supaya tidak perlu hitung ulang dari lepasan tiap butuh. Murni catatan jumlah pak; tidak mengubah stok item.</p>
+      <p style="font-size:11px; color:var(--text-faint); margin:8px 0 0;">Stok Acc lepasan dikemas jadi pak berisi tetap (mis. 25 pcs). Tiap pak dapat label QR Kode Pak dan dipakai lewat Scan Entry, boleh sebagian. Stok item tidak berubah saat dikemas.</p>
       <div style="display:flex; align-items:center; gap:9px; background:var(--ivory-dim); border:1px solid var(--line); border-radius:999px; padding:9px 13px; margin-top:12px;">
         <i class="fas fa-magnifying-glass" style="font-size:14px; color:var(--text-faint);"></i>
-        <input v-model="cari" type="text" placeholder="Cari nama item / warna..." style="flex:1; border:none; outline:none; background:none; font-size:12px;">
+        <input v-model="cari" type="text" placeholder="Cari nama item / kode pak..." style="flex:1; border:none; outline:none; background:none; font-size:12px;">
       </div>
     </div>
 
@@ -257,7 +266,7 @@ const RepackKomponenAccManager = {
     <div v-else-if="kelompokTerfilter.length === 0" class="gc-kosong">
       <div class="lingkaran"><i class="fas fa-box-archive"></i></div>
       <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 4px;">Belum ada pak Repack tersedia</h3>
-      <p style="font-size:11.5px; color:var(--text-faint); margin:0;">Klik "Buat Pak Baru" untuk mulai mengemas stok lepasan jadi pak berjumlah tetap.</p>
+      <p style="font-size:11.5px; color:var(--text-faint); margin:0;">Klik "Buat Pak Baru" untuk mengemas stok lepasan jadi pak berlabel.</p>
     </div>
 
     <!-- state: ideal/ekstrem -->
@@ -270,20 +279,21 @@ const RepackKomponenAccManager = {
                 <th>Nama Item</th>
                 <th style="text-align:right;">Isi/Pak</th>
                 <th style="text-align:right;">Jumlah Pak</th>
-                <th style="text-align:right;">Total Pcs</th>
+                <th style="text-align:right;">Total Sisa</th>
                 <th style="text-align:right;">Aksi</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="g in kelompokTampil" :key="g.key">
                 <td>
-                  <div style="font-weight:700; font-size:12px;">{{ g.nama }}<span v-if="g.warna"> &middot; {{ g.warna }}</span></div>
+                  <div style="font-weight:700; font-size:12px;">{{ g.nama }}</div>
+                  <div style="font-size:10.5px; color:var(--text-faint);">{{ g.pak[0]?.kode_lot }}<span v-if="g.pak.length > 1"> … {{ g.pak[g.pak.length-1].kode_lot }}</span></div>
                 </td>
                 <td style="text-align:right; font-size:12px;">{{ formatQty(g.isiPerPak) }} {{ g.satuan }}</td>
-                <td style="text-align:right;"><span class="tag ok" style="font-weight:700;">{{ g.jumlahPak }} pak</span></td>
+                <td style="text-align:right;"><span class="tag ok" style="font-weight:700;">{{ g.jumlahPak }} pak</span><span v-if="g.pakTerbuka" class="tag warn" style="margin-left:4px;">{{ g.pakTerbuka }} terbuka</span></td>
                 <td style="text-align:right; font-size:11.5px; color:var(--text-faint);">{{ formatQty(g.totalPcs) }} {{ g.satuan }}</td>
                 <td style="text-align:right;">
-                  <button v-if="bolehProses" @click="ambilSatuPak(g)" :disabled="sedangProses[g.key]" class="btn-outline" style="padding:6px 12px; font-size:11px;"><i class="fas fa-box-open" style="margin-right:5px;"></i>Ambil 1 Pak</button>
+                  <button v-if="bolehProses" @click="cetakLabelGrup(g)" class="btn-outline" style="padding:6px 12px; font-size:11px;"><i class="fas fa-print" style="margin-right:5px;"></i>Cetak Label</button>
                 </td>
               </tr>
             </tbody>
@@ -318,7 +328,8 @@ const RepackKomponenAccManager = {
           <div class="gc-field" style="margin-bottom:0;"><label>Isi per Pak</label><input v-model.number="isiPerPakBaru" type="number" min="0" placeholder="Mis. 25"></div>
           <div class="gc-field" style="margin-bottom:0;"><label>Jumlah Pak Dibuat</label><input v-model.number="jumlahPakBaru" type="number" min="1" placeholder="1"></div>
         </div>
-        <p style="font-size:10px; color:var(--text-faint); margin:0 0 16px;">Total pcs yang akan dikemas: <b>{{ formatQty((parseFloat(isiPerPakBaru)||0) * (parseInt(jumlahPakBaru)||0)) }}</b> {{ itemTerpilih ? itemTerpilih.satuan_pemakaian : '' }} — stok lepasan TIDAK berkurang otomatis, cuma dicatat sudah dikemas.</p>
+        <p style="font-size:10px; color:var(--text-faint); margin:0 0 16px;">Total yang dikemas: <b>{{ formatQty((parseFloat(isiPerPakBaru)||0) * (parseInt(jumlahPakBaru)||0)) }}</b> {{ itemTerpilih ? itemTerpilih.satuan_pemakaian : '' }}. Label pak langsung tampil untuk dicetak sesudah Simpan.</p>
+        <p v-if="itemTerpilih && itemTerpilih.pakai_lot_tracking" style="font-size:10.5px; color:var(--danger); margin:-8px 0 12px;">Item ini Pakai Lot, tidak bisa di-repack.</p>
 
         <div style="display:flex; gap:8px;">
           <button @click="tutupPopupBuat" class="btn-outline" style="flex:1; padding:11px;">Batal</button>
@@ -326,6 +337,7 @@ const RepackKomponenAccManager = {
         </div>
       </div>
     </div>
+    <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Pak" :daftar-label="daftarLabelPreview" jenis-cetak="label_pak_repack" @tutup="popupCetakAktif = false" />
   `
 };
 

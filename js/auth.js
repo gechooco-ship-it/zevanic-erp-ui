@@ -684,8 +684,10 @@ window.aturTampilanBerdasarkanRole = function() {
   // seperti menuPersiapanProduksi/menuScanCetak di atas, TERMASUK jebakan bug
   // yang sama (tombolnya wajib ditambahkan ke KEDUA array show/hide di bawah).
   const menuProsesProduksi = document.getElementById('menu-proses-produksi');
+  // Collection, grup top-level hub Pengumpulan + Serie; gerbang role sama.
+  const menuCollection = document.getElementById('menu-collection');
 
-  [menuManagement, menuAdminAccBtn, menuKeuanganBtn, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnAksesKeamanan, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuStokPembelian, menuPersiapanProduksi, menuPesanan, menuScanCetak, menuProsesProduksi].forEach(el => {
+  [menuManagement, menuAdminAccBtn, menuKeuanganBtn, menuSuperUserBtn, menuWhatsapp, menuWhatsappBtn, menuMailGatewayBtn, navMobileAdmin, navMobileSuper, navMobileWhatsapp, btnAksesKeamanan, menuDeviceKioskBtn, menuZevanicHouse, menuZevanicHouseBtn, menuStokPembelian, menuPersiapanProduksi, menuPesanan, menuScanCetak, menuProsesProduksi, menuCollection].forEach(el => {
     if (el) el.classList.add('hidden');
   });
 
@@ -709,6 +711,7 @@ window.aturTampilanBerdasarkanRole = function() {
     if (menuPesanan) menuPesanan.classList.remove('hidden');
     if (menuScanCetak) menuScanCetak.classList.remove('hidden');
     if (menuProsesProduksi) menuProsesProduksi.classList.remove('hidden');
+    if (menuCollection) menuCollection.classList.remove('hidden');
     if (navMobileAdmin) {
       navMobileAdmin.classList.remove('hidden');
       navMobileAdmin.classList.add('flex');
@@ -825,6 +828,7 @@ window.terapkanUrutanMenuDesktop = async function() {
     'Persiapan Produksi': 'navgrp-persiapanproduksi',
     // 'Scan & Cetak' grup top-level baru, lihat js/vue-scan-cetak.js.
     'Scan & Cetak': 'navgrp-scancetak',
+    'Collection': 'navgrp-collection',
     // 'Proses Produksi' grup top-level baru, lihat js/vue-pp-cutting.js.
     'Proses Produksi': 'navgrp-prosesproduksi',
     'Master Integrasi': 'navgrp-integrasi'
@@ -864,6 +868,7 @@ window.terapkanUrutanMenuDesktop = async function() {
   // jadi tidak ikut diurutkan di sini) — pola sama seperti Persiapan Produksi di
   // atas.
   _urutkanSiblingMenu(document.getElementById('navgrp-prosesproduksi'), perKategori['Proses Produksi']);
+  _urutkanSiblingMenu(document.getElementById('navgrp-collection'), perKategori['Collection']);
   const stripParent = (kelas) => { const el = document.querySelector('.' + kelas); return el ? el.parentElement : null; };
   _urutkanSiblingMenu(stripParent('sub-absensi-btn'), perKategori['Master Absensi']);
   _urutkanSiblingMenu(stripParent('sub-keuangan-btn'), perKategori['Master Keuangan']);

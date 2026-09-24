@@ -26,7 +26,7 @@ import { DropdownCari } from './vue-components.js?v=13';
 import {
   ambilLotAktif, cariBahanByIdTampil, ambilBahanById, cariLotByKodeSemuaStatus,
   catatPenyesuaianOpnameItem, catatPenyesuaianOpnameLot
-} from './vue-stock-pembelian.js';
+} from './vue-stock-pembelian.js?v=32';
 
 const MENU_ID_SCAN_OPNAME = 'scan_opname';
 

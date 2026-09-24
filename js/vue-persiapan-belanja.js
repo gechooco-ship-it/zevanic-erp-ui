@@ -1,33 +1,28 @@
 // js/vue-persiapan-belanja.js
-// Persiapan Produksi > Persiapan Belanja. Alur: admin input nota → tarik
-// pengajuan dari Persiapan Masalah → ACC Owner (tierOwnerKeAtas) → order ke
-// HP driver → driver beli/pending → nota lanjut ke Stok & Pembelian.
+// Persiapan Produksi > Persiapan Belanja. Admin input nota → tarik pengajuan
+// Persiapan Masalah → ACC Owner (tierOwnerKeAtas) → order driver (DRV…) →
+// driver beli/pending → nota lanjut ke Stok & Pembelian.
 //
 // Koleksi & field:
-// - pesanan_pembelian dipakai BERSAMA modul Stok; dokumen dari sini dibedakan
-//   lewat order_driver_id != null sejak awal (nota manual Stok selalu null).
-//   Status tambahan: menunggu_acc → disetujui → siap_finalisasi.
-// - order_belanja_driver diberi pesanan_pembelian_id sebagai link balik;
-//   tanpa itu aksi "Beli" driver tidak tahu nota mana yang ditulis.
+// - pesanan_pembelian dipakai BERSAMA modul Stok; dokumen dari sini punya
+//   order_driver_id != null. Status: menunggu_acc → disetujui → siap_finalisasi.
+// - order_belanja_driver.pesanan_pembelian_id = link balik untuk aksi "Beli".
 // - Counter no_pembelian (pengaturan_id_pembelian) SATU urutan bareng Stok.
 //
 // Jebakan:
-// - JANGAN set status 'final' dari sini. 'final' memicu
-//   catatRiwayatHargaDanUpdateMaster (stok_akhir + riwayat harga master) yang
-//   hanya boleh dijalankan vue-stock-pembelian.js.
+// - JANGAN set status 'final' dari sini; 'final' (stok_akhir, riwayat harga,
+//   kembalikan masalah ke Perlu Disiapkan) hanya milik vue-stock-pembelian.js.
 // - 1 nota = 1 suplayer_id; suplayer default beda cuma dapat chip peringatan.
-// - Cek Pengajuan gabung 2 sumber: persiapan_masalah 'diajukan_belanja' minus
-//   id di sumber_masalah_ids nota aktif, DAN item Daftar Stok kritis/habis
-//   (muatItemStokKritis, id sintetis 'stokkritis::<bahanId>') minus item yang
-//   bahan_aksesoris_id-nya sudah ada di baris nota aktif manapun. Item stok
-//   kritis TIDAK ditulis ke sumber_masalah_ids (tidak punya dokumen masalah).
+// - Cek Pengajuan gabung persiapan_masalah 'diajukan_belanja' (minus
+//   sumber_masalah_ids nota aktif) DAN item stok kritis/habis (id sintetis
+//   'stokkritis::<bahanId>', tidak ditulis ke sumber_masalah_ids).
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
-import { tierOwnerKeAtas } from './vue-scan-cetak.js?v=9';
-import { hitungTeralokasiSemuaBahan } from './vue-stock-pembelian.js?v=31';
+import { tierOwnerKeAtas } from './vue-scan-cetak.js?v=10';
+import { hitungTeralokasiSemuaBahan } from './vue-stock-pembelian.js?v=32';
 
 const MENU_ID = 'pp_belanja';
 
@@ -108,7 +103,7 @@ async function generateKodeOrderDriver() {
     const counterBaru = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
     if (snap.exists()) trx.update(refDoc, { counter: counterBaru });
     else trx.set(refDoc, { counter: counterBaru, dibuat_pada: tanggalKey });
-    return `ORD${tanggalKey}-${String(counterBaru).padStart(3, '0')}`;
+    return `DRV${tanggalKey}-${String(counterBaru).padStart(3, '0')}`;
   });
 }
 async function uploadFotoBonLokal(noPembelianAtauKode, file) {
@@ -485,7 +480,7 @@ const PersiapanAdminBelanja = {
         <div v-else style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
           <label v-for="m in daftarPengajuan" :key="m.id" style="display:flex; align-items:center; gap:8px; padding:8px; border-radius:8px; background:var(--ivory-dim); font-size:12px;">
             <input type="checkbox" v-model="pengajuanDicentang[m.id]" class="gc-chk">
-            <span style="flex:1;">{{ m.bahan_nama }}<span v-if="m.bahan_warna"> {{ m.bahan_warna }}</span> — {{ formatQty(m.qty_beli) }} {{ m.satuan }} <span v-if="!m.sumber_stok_kritis" style="color:var(--text-faint);">({{ m.no_spk }})</span></span>
+            <span style="flex:1;">{{ m.bahan_nama }}<span v-if="m.bahan_warna"> {{ m.bahan_warna }}</span> — {{ formatQty(m.qty_beli) }} {{ m.satuan }} <span v-if="!m.sumber_stok_kritis" style="color:var(--text-faint);">({{ m.id_order }})</span></span>
             <span v-if="m.sumber_stok_kritis" class="tag" :class="m.status_stok === 'habis' ? 'danger' : 'warn'">stok {{ m.status_stok }}</span>
           </label>
         </div>

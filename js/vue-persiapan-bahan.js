@@ -8,7 +8,8 @@
 //   array bahan_rincian[], 1 baris per (bahan x anak SPK): status, qty,
 //   kebutuhan_kain, masuk_tahap_pada, operator_uid, riwayat_operator[],
 //   entry_qty, kode_bagging, kode_tugas.
-// - master_bahan_aksesoris.stok_akhir: dikurangi saat scan entry.
+// - Scan Entry: label bahan lalu Kode Lot / ID Item; stok, lot, ledger, baris
+//   dan log_scan ditulis catatScanEntryStok (vue-stock-pembelian.js).
 // - bagging, tugas_kirim, master_tlc, cetak_ulang_log: kemasan, kiriman
 //   antar TLC, dan log cetak ulang label.
 //
@@ -16,15 +17,15 @@
 // - Progres UI dibaca dari `status` PER BARIS bahan_rincian, bukan status
 //   dokumen; satu dokumen bisa punya baris di tahap berbeda sekaligus.
 // - Tulis balik wajib runTransaction read-modify-write (updateBarisBahan),
-//   bukan arrayUnion. Scan entry menulis spk_track + master_bahan_aksesoris
-//   dalam satu transaksi. Ambang tertahan >6 jam sejak masuk_tahap_pada.
+//   bukan arrayUnion. kodeLabelBahan satu sumber untuk cetak DAN scan.
 
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunInfoLabelAnakSpk } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah, CetakUlangLabelStok } from './vue-scan-cetak.js?v=10';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
+import { PanelGroupingBahan } from './vue-persiapan-produksi-v2.js?v=20';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier PIC ke atas
 // (pic/pic_owner/owner/superuser), TANPA popup PIN — cukup akun yang login
@@ -116,7 +117,7 @@ function daftarBarisDariTrack(daftarTrack) {
   const baris = [];
   daftarTrack.forEach(t => {
     (t.bahan_rincian || []).forEach((b, idx) => {
-      baris.push({ ...b, _trackId: t.id, _lineIdx: idx, kode_spk: t.kode_spk, grouping_id: t.grouping_id, nama_produk: t.nama_produk });
+      baris.push({ ...b, _trackId: t.id, _lineIdx: idx, kode_grouping_induk: t.kode_grouping_induk, grouping_id: t.grouping_id, nama_produk: t.nama_produk });
     });
   });
   return baris;
@@ -158,30 +159,10 @@ async function updateBarisBahanMassal(trackId, matchFn, patchFn) {
   return kena;
 }
 
-// konfirmasiEntry — SATU-SATUNYA tempat stok master_bahan_aksesoris berkurang.
-// Transaksi rangkap 2 dokumen (spk_track + master_bahan_aksesoris) supaya
-// atomik. Status baris TETAP 'sedang_disiapkan' sesudah entry — perpindahan
-// tahap dilakukan konfirmasiDisiapkan (batch 1 trackId), lihat Tab 2 di bawah.
-async function konfirmasiEntry(b) {
-  const refTrack = doc(db, 'spk_track', b._trackId);
-  const refBahan = doc(db, 'master_bahan_aksesoris', b.bahan_aksesoris_id);
-  const now = new Date().toISOString();
-  const oleh = window.currentUser?.email || '';
-  await runTransaction(db, async (trx) => {
-    const [snapTrack, snapBahan] = await Promise.all([trx.get(refTrack), trx.get(refBahan)]);
-    if (!snapTrack.exists()) throw new Error('SPK Track tidak ditemukan.');
-    const arr = Array.isArray(snapTrack.data().bahan_rincian) ? [...snapTrack.data().bahan_rincian] : [];
-    if (!arr[b._lineIdx]) throw new Error('Baris sudah berubah — muat ulang halaman.');
-    arr[b._lineIdx] = {
-      ...arr[b._lineIdx],
-      entry_qty: arr[b._lineIdx].kebutuhan_kain, entry_oleh: oleh, entry_pada: now
-    };
-    trx.update(refTrack, { bahan_rincian: arr, diperbarui_pada: serverTimestamp() });
-    if (snapBahan.exists()) {
-      const stokBaru = (parseFloat(snapBahan.data().stok_akhir) || 0) - (parseFloat(b.kebutuhan_kain) || 0);
-      trx.update(refBahan, { stok_akhir: stokBaru });
-    }
-  });
+// kodeLabelBahan — isi QR label bahan; dipakai cetak dan pencocokan scan.
+// kode_baris lebih dulu, sisanya untuk data lama.
+function kodeLabelBahan(b) {
+  return b.kode_baris || b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${b.kode_grouping_induk}-${b.bahan_aksesoris_id}`;
 }
 
 // kelompokKartuBahan — kelompokkan baris (sudah difilter status) jadi kartu per
@@ -263,7 +244,7 @@ function gantiTabPill(grupKelas, targetId, ev) {
 // lalu penunjukan (scan operator + scan label anak SPK berkali-kali).
 
 const PersiapanBahanPerluDisiapkan = {
-  components: { PopupPratinjauCetakLabel, ScanGenerik, ScanTerpaduGenerik, PopupPinGenerik },
+  components: { PopupPratinjauCetakLabel, ScanGenerik, ScanTerpaduGenerik, PopupPinGenerik, PanelGroupingBahan },
   setup() {
     const memuat = ref(true);
     const daftarTrack = ref([]);
@@ -305,7 +286,7 @@ const PersiapanBahanPerluDisiapkan = {
       let kartu = kelompokKartuBahan(baris, petaStokBahan.value);
       const kata = cari.value.trim().toLowerCase();
       if (kata) {
-        kartu = kartu.filter(k => (k.nama + ' ' + k.warna).toLowerCase().includes(kata) || k.baris.some(b => (b.no_spk || '').toLowerCase().includes(kata) || (b.kode_spk || '').toLowerCase().includes(kata)));
+        kartu = kartu.filter(k => (k.nama + ' ' + k.warna).toLowerCase().includes(kata) || k.baris.some(b => (b.id_order || '').toLowerCase().includes(kata) || (b.kode_grouping_induk || '').toLowerCase().includes(kata)));
       }
       return kartu;
     });
@@ -344,12 +325,8 @@ const PersiapanBahanPerluDisiapkan = {
     // tanpa qrDataUrl (mahal per render) — pemanggil cetak menambah sendiri.
     // `rincian.lokasi_rak` tampil/tidak diatur rincian_aktif di Pengaturan Cetak.
     function bangunLabelBahan(b, opsi = {}) {
-      const kodeInduk = b.kode_spk;
-      // kode label (teks besar + isi QR): kode_komponen = level PALING DETAIL
-      // (per anak SPK), fallback berturut ke level lebih kasar untuk data lama.
-      // Fallback chain ini WAJIB PERSIS SAMA dengan cocokLabel/hasilScanAksi,
-      // supaya yang dicetak selalu cocok dengan yang discan.
-      const kodeLabel = b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${kodeInduk}-${b.bahan_aksesoris_id}`;
+      const kodeInduk = b.kode_grouping_induk;
+      const kodeLabel = kodeLabelBahan(b);
       // b.nama_produk disalin dari level spk_track oleh daftarBarisDariTrack —
       // SUDAH nama murni, BUKAN string komposit "Nama Warna Size" seperti
       // order_spk.nama_produk.
@@ -441,7 +418,7 @@ const PersiapanBahanPerluDisiapkan = {
       });
       try {
         await addDoc(collection(db, 'cetak_ulang_log'), {
-          kode_spk: sudahDicetak.map(b => b.kode_spk).join(', '),
+          kode_grouping_induk: sudahDicetak.map(b => b.kode_grouping_induk).join(', '),
           bahan: `${p.kartu.nama} ${p.kartu.warna}`.trim(),
           alasan: p.alasan.trim(), pin_oleh: user.nama || user.email || '',
           pada: serverTimestamp()
@@ -459,7 +436,7 @@ const PersiapanBahanPerluDisiapkan = {
     // mengosongkan draft juga (belum ada yang tertulis kalau belum Upload).
     function cariBarisSiapTunjuk(kode) {
       const kolamBaris = kartuList.value.flatMap(k => k.baris);
-      const cocokLabel = (b) => (b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${b.kode_spk}-${b.bahan_aksesoris_id}`) === kode;
+      const cocokLabel = (b) => kodeLabelBahan(b) === kode;
       return kolamBaris.filter(b => cocokLabel(b) && b.label_cetak_pada && b.status === 'perlu_disiapkan');
     }
     const scanOperator = buatScanTerpadu({
@@ -484,7 +461,7 @@ const PersiapanBahanPerluDisiapkan = {
           if (karyawanTerbaca) return { ok: false, pesan: `Kode "${kode}" itu badge OPERATOR (${karyawanTerbaca.nama || karyawanTerbaca.name || kode}), BUKAN label SPK. Scan LABEL SPK anak yang sudah dicetak.` };
           return { ok: false, pesan: `Kode "${kode}" tidak cocok baris manapun yang sudah dicetak labelnya (mungkin belum dicetak, sudah ditunjuk, atau sudah ada di draft).` };
         }
-        return { ok: true, row: { kode, label: targets.length + ' baris: ' + targets.map(b => b.no_spk).join(', '), tagTxt: 'siap', tagCls: 'ok' } };
+        return { ok: true, row: { kode, label: targets.length + ' baris: ' + targets.map(b => b.id_order).join(', '), tagTxt: 'siap', tagCls: 'ok' } };
       },
       padaUpload: async (rows, locked) => {
         try {
@@ -545,12 +522,13 @@ const PersiapanBahanPerluDisiapkan = {
     };
   },
   template: `
+    <panel-grouping-bahan @terbit="muat" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
       <div class="gc-card-head">
         <div>
-          <h3 class="gc-heading">Persiapan Bahan</h3>
+          <h3 class="gc-heading">Disiapkan Bahan</h3>
           <div class="sub">{{ kartuList.length }} bahan menunggu &middot; {{ jumlahSiapDicetak }} siap dicetak</div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -675,12 +653,12 @@ const PersiapanBahanPerluDisiapkan = {
 
 
 // TAB 2: Sedang Disiapkan. Papan dikelompokkan per OPERATOR (bukan per bahan);
-// "diam sejak" dihitung dari masuk_tahap_pada. Scan Entry cuma mengurangi stok +
-// mengisi entry_qty TANPA memindahkan status — pindah tahap massal lewat tombol
-// "Disiapkan" per trackId, syaratnya lihat siapBatch di bawah.
+// "diam sejak" dihitung dari masuk_tahap_pada. Scan Entry mengisi entry_qty
+// TANPA memindahkan status — pindah tahap massal lewat tombol "Disiapkan" per
+// trackId, syaratnya lihat siapBatch di bawah.
 
 const PersiapanBahanSedangDisiapkan = {
-  components: { ScanGenerik },
+  components: { ScanGenerik, ScanTerpaduGenerik, PopupPratinjauCetakLabel, CetakUlangLabelStok },
   setup() {
     const memuat = ref(true);
     const daftarTrack = ref([]);
@@ -712,7 +690,7 @@ const PersiapanBahanSedangDisiapkan = {
         const key = b.operator_uid || b.operator_nama || '-';
         if (!peta[key]) peta[key] = { operatorNama: b.operator_nama || '(tanpa nama)', kelompokSpk: {} };
         const spkKey = b._trackId;
-        if (!peta[key].kelompokSpk[spkKey]) peta[key].kelompokSpk[spkKey] = { trackId: spkKey, kodeSpk: b.kode_spk, baris: [] };
+        if (!peta[key].kelompokSpk[spkKey]) peta[key].kelompokSpk[spkKey] = { trackId: spkKey, kodeSpk: b.kode_grouping_induk, baris: [] };
         peta[key].kelompokSpk[spkKey].baris.push(b);
       });
       return Object.values(peta).map(op => {
@@ -734,7 +712,7 @@ const PersiapanBahanSedangDisiapkan = {
     }
 
     // Scan Entry / Scan Masalah / Ganti Operator (per baris)
-    const modalAksi = reactive({ aktif: false, mode: null, baris: null }); // mode: 'entry' | 'masalah' | 'ganti'
+    const modalAksi = reactive({ aktif: false, mode: null, baris: null }); // mode: 'masalah' | 'ganti'
     function bukaAksi(mode, b) {
       if (sedangProses[barisKey(b)]) return;
       modalAksi.mode = mode; modalAksi.baris = b; modalAksi.aktif = true;
@@ -750,7 +728,7 @@ const PersiapanBahanSedangDisiapkan = {
     // diminta default sebesar kebutuhan baris itu — operator boleh mengubahnya.
     function bukaMasalahBaris(b) {
       if (b.catatan_masalah || sedangProses[barisKey(b)]) return;
-      popupMasalah.value = { baris: b, jumlahKurang: b.kebutuhan_kain, alasan: '' };
+      popupMasalah.value = { baris: b, jumlahKurang: b.kebutuhan_kain, alasan: '', jenis: 'kurang' };
     }
     async function konfirmasiMasalah() {
       const p = popupMasalah.value;
@@ -765,10 +743,11 @@ const PersiapanBahanSedangDisiapkan = {
         const kebutuhan = parseFloat(b.kebutuhan_kain) || 0;
         await updateBarisBahan(b._trackId, b._lineIdx, () => ({ catatan_masalah: p.alasan.trim() }));
         await ajukanPersiapanMasalah({
+          jenisMasalah: p.jenis || 'kurang', kodeLabelAsal: kodeLabelBahan(b) || '', separatingId: b.separating_id || '', kodeSeparating: b.kode_separating || '', idOrder: b.id_order || '',
           tlcAsal: 'TLC-BHN', sumberJalur: 'bahan',
           trackId: b._trackId, lineIdx: b._lineIdx,
           bahanAksesorisId: b.bahan_aksesoris_id, bahanNama: b.bahan_nama, bahanWarna: b.bahan_warna,
-          satuan: 'm', noSpk: b.no_spk,
+          satuan: 'm', noSpk: b.id_order,
           qtyKurang: jumlah, qtyEntryAsal: Math.max(0, kebutuhan - jumlah),
           alasan: p.alasan.trim()
         });
@@ -797,10 +776,8 @@ const PersiapanBahanSedangDisiapkan = {
         sedangProses[key] = false;
         return;
       }
-      // entry / masalah: kode yang discan WAJIB label baris ini sendiri. Fallback
-      // chain kode label PERSIS SAMA dengan bangunPreviewDariBaris supaya yang
-      // discan selalu cocok dengan yang dicetak.
-      const kodeLabelBaris = b.kode_komponen || b.kode_anak_spk || b.kode_kartu || `${b.kode_spk}-${b.bahan_aksesoris_id}`;
+      // masalah: kode yang discan WAJIB label baris ini sendiri.
+      const kodeLabelBaris = kodeLabelBahan(b);
       if (kode !== kodeLabelBaris) { alert(`Kode yang discan ("${kode}") tidak cocok dengan label bahan baris ini (${kodeLabelBaris}).`); return; }
       if (modalAksi.mode === 'masalah') {
         // Jangan langsung tulis: buka popup jumlah kurang + alasan dulu.
@@ -808,17 +785,24 @@ const PersiapanBahanSedangDisiapkan = {
         // koleksi `persiapan_masalah` (status 'perlu_diajukan', tlc_asal
         // 'TLC-BHN', sumber_jalur 'bahan'); status baris sendiri tidak berubah.
         tutupAksi();
-        popupMasalah.value = { baris: b, jumlahKurang: b.kebutuhan_kain, alasan: '' };
+        popupMasalah.value = { baris: b, jumlahKurang: b.kebutuhan_kain, alasan: '', jenis: 'kurang' };
         return;
       }
-      const key = barisKey(b); sedangProses[key] = true;
-      try {
-        if (modalAksi.mode === 'entry') {
-          await konfirmasiEntry(b);
-        }
-        tutupAksi(); await muat();
-      } catch (e) { console.error('Gagal proses scan:', modalAksi.mode, e); alert('Gagal memproses. Coba lagi.'); }
-      sedangProses[key] = false;
+    }
+
+    const barisEntry = ref(null);
+    const entryStok = buatScanEntryStok({
+      pos: 'Persiapan Bahan', sumber: 'Scan Entry Persiapan Bahan',
+      ambilBaris: () => barisEntry.value, kodeLabel: kodeLabelBahan,
+      bahanId: (b) => b.bahan_aksesoris_id, kebutuhan: (b) => parseFloat(b.kebutuhan_kain) || 0,
+      namaBahan: (b) => `${b.bahan_nama || ''} ${b.bahan_warna || ''}`.trim(), satuan: () => 'm',
+      jejak: (b) => ({ kode_baris: kodeLabelBahan(b), separating_id: b.separating_id || '', spk_track_id: b._trackId }),
+      patchTrack: (b, patch) => ({ docId: b._trackId, field: 'bahan_rincian', lineIdx: b._lineIdx, patch }),
+      padaSelesai: async () => { barisEntry.value = null; await muat(); }
+    });
+    function bukaEntry(b) {
+      if (sedangProses[barisKey(b)]) return;
+      barisEntry.value = b; entryStok.buka();
     }
 
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await pastikanCachePilihanScan(); await muat(); });
@@ -826,12 +810,13 @@ const PersiapanBahanSedangDisiapkan = {
     return { muat,
       memuat, kelompokOperator, bolehProses, sedangProses, sedangProsesBatch, konfirmasiDisiapkan, aksiAktif,
       formatMeter, formatQty, formatDiamSejak, tertahan, barisKey,
-      modalAksi, bukaAksi, tutupAksi, hasilScanAksi,
+      modalAksi, bukaAksi, tutupAksi, hasilScanAksi, entryStok, bukaEntry,
       popupMasalah, batalMasalah, konfirmasiMasalah, bukaMasalahBaris,
       TAB_DEFS_BAHAN, gantiTabPill, MY_TARGET
     };
   },
   template: `
+    <cetak-ulang-label-stok pos="persiapan_bahan" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <div v-else class="gc-card gc-card-menonjol" style="padding:20px; border-radius:20px;">
@@ -870,14 +855,14 @@ const PersiapanBahanSedangDisiapkan = {
             <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:8px;">
               <div v-for="b in g.baris" :key="barisKey(b)" style="border:1px solid var(--line); border-radius:12px; padding:8px;" :style="{ background: tertahan(b.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
                 <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:4px;">
-                  <span class="gc-num" style="font-weight:700; font-size:11.5px;">{{ b.no_spk }}</span>
+                  <span class="gc-num" style="font-weight:700; font-size:11.5px;">{{ b.id_order }}</span>
                   <span v-if="b.entry_qty || b.entry_qty===0" class="tag ok">sudah entry</span>
                   <span v-else class="tag" :class="tertahan(b.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(b.masuk_tahap_pada) }}</span>
                 </div>
                 <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ b.bahan_nama }} {{ b.bahan_warna }} &middot; {{ formatMeter(b.kebutuhan_kain) }} &middot; {{ b.nama_produk }}</div>
                 <div v-if="b.catatan_masalah" style="font-size:10.5px; color:var(--danger); background:var(--danger-light); border-radius:8px; padding:5px 8px; margin-bottom:6px;"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>{{ b.catatan_masalah }}</div>
                 <div v-if="bolehProses && !(b.entry_qty || b.entry_qty===0)" style="display:flex; gap:6px;">
-                  <button v-if="aksiAktif(MY_TARGET,'entry_bahan')" @click="bukaAksi('entry', b)" :disabled="sedangProses[barisKey(b)]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
+                  <button v-if="aksiAktif(MY_TARGET,'entry_bahan')" @click="bukaEntry(b)" :disabled="sedangProses[barisKey(b)]" class="btn-primary" style="flex:1; padding:7px; font-size:11px;"><i class="fas fa-qrcode" style="margin-right:4px;"></i>Scan Entry</button>
                   <button v-if="aksiAktif(MY_TARGET,'masalah_bahan')" @click="bukaAksi('masalah', b)" :disabled="sedangProses[barisKey(b)]" class="btn-outline" style="flex:1; padding:7px; font-size:11px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Masalah</button>
                   <button @click="bukaAksi('ganti', b)" :disabled="sedangProses[barisKey(b)]" class="btn-outline" style="flex:0 0 auto; padding:7px 9px; font-size:11px;" title="Ganti Operator (estafet shift)"><i class="fas fa-arrow-right-arrow-left"></i></button>
                 </div>
@@ -891,15 +876,18 @@ const PersiapanBahanSedangDisiapkan = {
     </div>
 
     <scan-generik :aktif="modalAksi.aktif"
-      :judul="modalAksi.mode==='ganti' ? 'Scan QR operator pengganti' : ('Scan label ' + (modalAksi.baris?.no_spk || ''))"
-      :subjudul="modalAksi.mode==='entry' ? 'Scan Entry — stok akan berkurang.' : (modalAksi.mode==='masalah' ? 'Scan Masalah — akan diminta jumlah kurang & alasan.' : '')"
+      :judul="modalAksi.mode==='ganti' ? 'Scan QR operator pengganti' : ('Scan label ' + (modalAksi.baris?.id_order || ''))"
+      :subjudul="modalAksi.mode==='masalah' ? 'Scan Masalah — akan diminta jumlah kurang & alasan.' : ''"
       @hasil="hasilScanAksi" @tutup="tutupAksi" />
+    <scan-terpadu-generik :c="entryStok" />
+    <popup-pratinjau-cetak-label :terbuka="entryStok.cetak.aktif" judul="Cetak Label Sisa" :daftar-label="entryStok.cetak.daftar" jenis-cetak="label_roll_pembelian" @tutup="entryStok.selesaiCetak()" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;"><i class="fas fa-triangle-exclamation" style="margin-right:8px; color:var(--danger);"></i>Ajukan Masalah — {{ popupMasalah.baris.no_spk }}</h3>
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;"><i class="fas fa-triangle-exclamation" style="margin-right:8px; color:var(--danger);"></i>Ajukan Masalah — {{ popupMasalah.baris.id_order }}</h3>
         <p style="font-size:11px; color:var(--text-faint); margin:0 0 10px;">{{ popupMasalah.baris.bahan_nama }} {{ popupMasalah.baris.bahan_warna }} — akan masuk ke Persiapan Produksi &gt; Masalah utk diajukan ke Owner.</p>
         <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah kurang (m)</label><input v-model="popupMasalah.jumlahKurang" type="number" min="0" step="0.1"></div>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Jenis Masalah</label><select v-model="popupMasalah.jenis"><option value="kurang">Kurang</option><option value="cacat">Cacat</option><option value="hilang">Hilang</option></select></div>
         <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="Mis. roll rusak/stok fisik kurang"></div>
         <div style="display:flex; gap:8px;">
           <button @click="batalMasalah" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
@@ -980,11 +968,11 @@ const PersiapanBahanPerluDikirim = {
         const preview = [];
         for (let i = 0; i < n; i++) {
           const kode = await generateKodeHarian('BAG', 'pengaturan_id_bagging');
-          // kode_spk/kode_batch null dulu, diisi Scan Pack pertama (lihat
+          // kode_grouping_induk/kode_separating null dulu, diisi Scan Pack pertama (lihat
           // hasilScanPack di bawah).
           await addDoc(collection(db, 'bagging'), {
             kode, produk_label: grup.label, isi: [], ditutup_pada: null,
-            kode_spk: null, kode_batch: null,
+            kode_grouping_induk: null, kode_separating: null,
             dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
           });
           preview.push({ kode, nama: grup.label, info: 'Kode Bagging &middot; belum diisi', qrDataUrl: buatQrDataUrl(kode) });
@@ -1025,7 +1013,7 @@ const PersiapanBahanPerluDikirim = {
     async function isiTlcAwal() {
       if (daftarTlc.value.length) return;
       const contoh = [
-        ['TLC-BHN', 'Gudang Bahan'], ['TLC-SEW', 'Pos Acc Sewing'], ['TLC-WEB', 'Pos Acc Webbing'],
+        ['TLC-BHN', 'Gudang Bahan'], ['TLC-SER', 'Collection'], ['TLC-SEW', 'Pos Acc Sewing'], ['TLC-WEB', 'Pos Acc Webbing'],
         ['TLC-FIN', 'Pos Acc Finishing'], ['TLC-VDR', 'Vendor'], ['TLC-MSL', 'Persiapan Masalah'],
         ['TLC-PTG-01', 'Meja Potong 1'], ['TLC-SEW-01', 'Line Jahit 1'], ['TLC-FIN-01', 'Line Finishing 1'], ['TLC-QC', 'QC']
       ];
@@ -1040,9 +1028,9 @@ const PersiapanBahanPerluDikirim = {
     // Scan Pack — buatScanTerpadu (kamera tersemat + Draft->Upload), ganti
     // overlay+tulis-langsung lama. Step1 kunci Kode Bagging, step2 kumpulkan
     // anak SPK sebagai draft; Upload baru menulis kode_bagging tiap baris +
-    // bagging.isi[]/kode_spk sekali jalan. kode_spk grouping dikunci dari
+    // bagging.isi[]/kode_grouping_induk sekali jalan. kode_grouping_induk grouping dikunci dari
     // scan PERTAMA ke bagging ini (di draft atau sudah tersimpan sebelumnya),
-    // scan berikutnya (draft ini maupun sesi lain) wajib kode_spk yang sama.
+    // scan berikutnya (draft ini maupun sesi lain) wajib kode_grouping_induk yang sama.
     const packTerpadu = buatScanTerpadu({
       judul: 'Scan Pack — Bahan', subjudul: 'Kaitkan anak SPK ke satu kode bagging',
       twoStep: {
@@ -1063,7 +1051,7 @@ const PersiapanBahanPerluDikirim = {
         catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       } }],
       validasiIsi: async (kode, bagging, rowsSaatIni) => {
-        const target = barisTertahan.value.find(x => x.no_spk === kode && !x.kode_bagging);
+        const target = barisTertahan.value.find(x => kodeLabelBahan(x) === kode && !x.kode_bagging);
         if (!target) return { ok: false, pesan: `Kode "${kode}" tidak cocok anak SPK yang masih tertahan / sudah di-pack.` };
         // syarat sepack : pola+bahan+size harus sama dengan produk yang dipilih
         // SAAT kode bagging ini dicetak (bagging.produk_label = labelSepack
@@ -1072,18 +1060,18 @@ const PersiapanBahanPerluDikirim = {
         if (labelSepack(target) !== bagging.produk_label) {
           return { ok: false, pesan: `Kode "${kode}" bukan produk yang sama dengan bagging ini (${bagging.produk_label}). Syarat sepack: pola, bahan, dan size harus sama.` };
         }
-        const kodeSpkTerkunci = bagging.kode_spk || rowsSaatIni[0]?._kodeSpk || null;
-        if (kodeSpkTerkunci && target.kode_spk !== kodeSpkTerkunci) {
-          return { ok: false, pesan: `Kode "${kode}" dari SPK Grouping berbeda (${target.kode_spk}) dari bagging ini (${kodeSpkTerkunci}). 1 bagging cuma boleh 1 grouping.` };
+        const kodeSpkTerkunci = bagging.kode_grouping_induk || rowsSaatIni[0]?._kodeSpk || null;
+        if (kodeSpkTerkunci && target.kode_grouping_induk !== kodeSpkTerkunci) {
+          return { ok: false, pesan: `Kode "${kode}" dari SPK Grouping berbeda (${target.kode_grouping_induk}) dari bagging ini (${kodeSpkTerkunci}). 1 bagging cuma boleh 1 grouping.` };
         }
-        return { ok: true, row: { kode, label: target.bahan_nama + ' ' + (target.bahan_warna || ''), qty: '1', tagTxt: 'cocok', tagCls: 'ok', _trackId: target._trackId, _lineIdx: target._lineIdx, _kodeSpk: target.kode_spk || null } };
+        return { ok: true, row: { kode, label: target.bahan_nama + ' ' + (target.bahan_warna || ''), qty: '1', tagTxt: 'cocok', tagCls: 'ok', _trackId: target._trackId, _lineIdx: target._lineIdx, _kodeSpk: target.kode_grouping_induk || null } };
       },
       padaUpload: async (rows, bagging) => {
         try {
-          const kodeSpkBaru = bagging.kode_spk || rows[0]._kodeSpk || null;
+          const kodeSpkBaru = bagging.kode_grouping_induk || rows[0]._kodeSpk || null;
           await Promise.all(rows.map(r => updateBarisBahan(r._trackId, r._lineIdx, () => ({ kode_bagging: bagging.kode }))));
           const patchBagging = { isi: arrayUnion(...rows.map(r => r.kode)) };
-          if (!bagging.kode_spk) patchBagging.kode_spk = kodeSpkBaru;
+          if (!bagging.kode_grouping_induk) patchBagging.kode_grouping_induk = kodeSpkBaru;
           await updateDoc(doc(db, 'bagging', bagging.id), patchBagging);
           await muat();
           return { ok: true };
@@ -1129,11 +1117,11 @@ const PersiapanBahanPerluDikirim = {
               // tampilkan kolom "tujuan TLC".
               tlc_tujuan: tugas.tlc_tujuan || ''
             }))));
-            // kode_spk/kode_batch ikut disalin ke tiap entri pack[], diambil dari
+            // kode_grouping_induk/kode_separating ikut disalin ke tiap entri pack[], diambil dari
             // baris anggota (pasti satu grouping, dikunci sejak Scan Pack) — pos ini
-            // tidak pernah punya kode_batch.
+            // tidak pernah punya kode_separating.
             await updateDoc(doc(db, 'tugas_kirim', tugas.id), {
-              pack: arrayUnion({ kode_bagging: r.kode, kode_spk: anggota[0]?.kode_spk || null, kode_batch: null, pada: now, sampai_pada: null })
+              pack: arrayUnion({ kode_bagging: r.kode, kode_grouping_induk: anggota[0]?.kode_grouping_induk || null, kode_separating: null, pada: now, sampai_pada: null })
             });
           }
           await muat();
@@ -1191,7 +1179,7 @@ const PersiapanBahanPerluDikirim = {
           <div class="gc-heading" style="font-weight:700; font-size:12.5px; margin-bottom:8px;">{{ g.label }}</div>
           <div style="display:flex; flex-direction:column; gap:6px;">
             <div v-for="b in g.baris" :key="b._trackId+'-'+b._lineIdx" style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(b.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
-              <span class="gc-num" style="font-weight:700;">{{ b.no_spk }}</span>
+              <span class="gc-num" style="font-weight:700;">{{ b.id_order }}</span>
               <span style="color:var(--text-faint);">{{ b.bahan_nama }} {{ b.bahan_warna }}</span>
               <span v-if="b.kode_bagging" class="tag ok">{{ b.kode_bagging }}</span>
               <span v-else class="tag neutral">belum di-pack</span>
@@ -1298,7 +1286,7 @@ const PersiapanBahanSedangDikirim = {
         </div>
         <div style="display:flex; flex-direction:column; gap:5px;">
           <div v-for="b in g.baris" :key="b._trackId+'-'+b._lineIdx" style="display:flex; justify-content:space-between; gap:8px; font-size:11px;">
-            <span class="gc-num" style="font-weight:700;">{{ b.no_spk }}</span>
+            <span class="gc-num" style="font-weight:700;">{{ b.id_order }}</span>
             <span style="color:var(--text-faint);">{{ b.bahan_nama }} {{ b.bahan_warna }} &middot; {{ formatMeter(b.kebutuhan_kain) }}</span>
             <span class="gc-num" style="color:var(--text-faint);">{{ b.kode_bagging }}</span>
           </div>
@@ -1384,7 +1372,7 @@ const PersiapanBahanSelesai = {
       <div v-else style="display:flex; flex-direction:column; gap:8px;">
         <div v-for="b in barisSaya" :key="b._trackId+'-'+b._lineIdx" class="gc-card gc-card-menonjol" style="padding:12px; border-radius:16px;">
           <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:4px;">
-            <span class="gc-num" style="font-weight:700; font-size:12px;">{{ b.no_spk }}</span>
+            <span class="gc-num" style="font-weight:700; font-size:12px;">{{ b.id_order }}</span>
             <span class="tag" :class="keadaan(b)==='lengkap' ? 'ok' : 'warn'">{{ keadaan(b) }}</span>
           </div>
           <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">{{ b.bahan_nama }} {{ b.bahan_warna }} &middot; {{ formatMeter(b.kebutuhan_kain) }}</div>
@@ -1457,7 +1445,7 @@ const PersiapanBahanSelesai = {
           <tbody>
             <tr v-for="b in daftarUrut" :key="b._trackId+'-'+b._lineIdx" style="border-bottom:1px solid var(--line);">
               <td style="padding:6px 8px;">
-                <div class="gc-num" style="font-weight:700;">{{ b.kode_spk }}</div>
+                <div class="gc-num" style="font-weight:700;">{{ b.kode_grouping_induk }}</div>
                 <div style="font-size:9.5px; color:var(--text-faint);">label {{ formatWaktu(b.label_cetak_pada) }}</div>
               </td>
               <td style="padding:6px 8px;" class="gc-num">{{ formatWaktu(b.entry_pada) }}</td>

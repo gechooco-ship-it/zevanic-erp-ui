@@ -6,7 +6,7 @@
 // Koleksi & field:
 // - tugas_kirim: kode, tlc_asal, tlc_tujuan, pack[], dibuat_pada, dibuat_oleh.
 // - master_tlc: kode, nama, tipe — sumber dropdown asal/tujuan.
-// - cetak_ulang_log: kode_spk, bahan, alasan, pin_oleh, pada.
+// - cetak_ulang_log: kode_grouping_induk, bahan, alasan, pin_oleh, pada.
 // - pengaturan_id_tugas_kirim: counter harian untuk generateKodeHarian.
 //
 // Jebakan:
@@ -22,7 +22,7 @@ import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dis
 import { collection, query, orderBy, limit, getDocs, addDoc, doc, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, HeaderLayar, KolomCari } from './vue-components.js?v=13';
-import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=7';
+import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=10';
 
 const BATAS_TAMPIL = 30;
 const MAKS_BUAT_SEKALIGUS = 10;
@@ -112,7 +112,7 @@ const AppCetakKodeTugas = {
     function toggleRincian(kode) { rincianTerbuka.value[kode] = !rincianTerbuka.value[kode]; }
     function grupDalamPack(t) {
       const set = [];
-      (t.pack || []).forEach(p => { if (p.kode_spk && !set.includes(p.kode_spk)) set.push(p.kode_spk); });
+      (t.pack || []).forEach(p => { if (p.kode_grouping_induk && !set.includes(p.kode_grouping_induk)) set.push(p.kode_grouping_induk); });
       return set;
     }
 
@@ -137,7 +137,7 @@ const AppCetakKodeTugas = {
       const terpilihObj = daftar.value.filter(t => dipilih.value.includes(t.kode));
       try {
         await addDoc(collection(db, 'cetak_ulang_log'), {
-          kode_spk: terpilihObj.flatMap(t => grupDalamPack(t)).join(', ') || '-',
+          kode_grouping_induk: terpilihObj.flatMap(t => grupDalamPack(t)).join(', ') || '-',
           bahan: terpilihObj.map(t => t.kode).join(', '),
           alasan, pin_oleh: user.nama || user.email || '',
           pada: serverTimestamp()

@@ -16,8 +16,8 @@
 //   harga_modal tier terakhir, TIDAK seluruh rantai. Verifikasi manual.
 // - Finalisasi nota dan "Terapkan" butuh PIN (users.pin_hash, cariUserByPin,
 //   tierOwnerKeAtas, kunci 3x salah); user tanpa pin_hash terkunci.
-// - catatPemakaianDariAlokasi juga dipanggil js/vue-scan-persiapan.js —
-//   jangan ubah tanda tangannya tanpa cek pemanggil itu.
+// - lot_bahan_aksesoris juga menampung pak repack (jenis 'pak'); query lot
+//   untuk FIFO/cetak label roll wajib menyaring jenis.
 
 import { createApp, ref, reactive, computed, onMounted, watch, nextTick } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, updateDoc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, runTransaction, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -31,7 +31,7 @@ import { db, storage } from "./firebase-config.js";
 // MasterSuplayerManager (gear Stock & Pembelian), sekarang CRUD Suplayer pindah
 // ke menu Config (vue-config.js). Lihat catatan di PengaturanStockPembelian di
 // bawah.
-import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=14';
+import { DropdownCari, PopupPratinjauCetakLabel } from './vue-components.js?v=15';
 import { usePaginasiFirestore } from './vue-paginasi.js?v=1';
 
 // helper: ambil semua Bahan+Aksesoris (disalin dari vue-bahan-aksesoris.js /
@@ -647,11 +647,10 @@ export async function catatPergerakanKartuStok({ bahanId, namaBahan, tanggal, je
 }
 
 // ambilLotAktif — baca lot AKTIF milik 1 bahan, urut FIFO (tanggal_masuk ASC).
-// Dipakai vue-kartu-stok.js: cek kosong/tidaknya data lot, isi tabel alokasi &
-// saran FIFO default, dan suggestion saat karyawan mengetik kode roll.
+// Pak repack (jenis 'pak') disaring keluar: dokumen lama tanpa `jenis` = lot.
 export async function ambilLotAktif(bahanId) {
   const snap = await getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('bahan_aksesoris_id', '==', bahanId), where('status', '==', 'aktif')));
-  const lots = []; snap.forEach(d => lots.push({ id: d.id, ...d.data() }));
+  const lots = []; snap.forEach(d => { if (d.data().jenis !== 'pak') lots.push({ id: d.id, ...d.data() }); });
   lots.sort((a, b) => (a.tanggal_masuk || '').localeCompare(b.tanggal_masuk || '') || ((a.dibuat_pada?.seconds || 0) - (b.dibuat_pada?.seconds || 0)));
   return lots;
 }
@@ -711,7 +710,7 @@ export async function cariLotByKodeSemuaStatus(kodeLot) {
 // di sistem. Di-export untuk `vue-bahan-aksesoris.js`.
 export async function ambilSemuaLotByBahan(bahanId) {
   const snap = await getDocs(query(collection(db, 'lot_bahan_aksesoris'), where('bahan_aksesoris_id', '==', bahanId)));
-  const lots = []; snap.forEach(d => lots.push({ id: d.id, ...d.data() }));
+  const lots = []; snap.forEach(d => { if (d.data().jenis !== 'pak') lots.push({ id: d.id, ...d.data() }); });
   lots.sort((a, b) => (b.tanggal_masuk || '').localeCompare(a.tanggal_masuk || '') || ((b.dibuat_pada?.seconds || 0) - (b.dibuat_pada?.seconds || 0)));
   return lots;
 }
@@ -808,6 +807,116 @@ export async function catatPemakaianDariAlokasi({ bahanId, namaBahan, tanggal, q
   });
 
   return { rincian: rincianHasil, stokSetelah: stokSetelahFinal };
+}
+
+// resolveLabelStok — terjemahkan hasil scan label barang fisik. Akhiran
+// -L000 / -P000 = dokumen lot_bahan_aksesoris (lot atau pak); selain itu
+// dicari sebagai master_bahan_aksesoris.id_tampil (ID Item).
+export async function resolveLabelStok(kodeMentah) {
+  const kode = String(kodeMentah || '').trim();
+  if (!kode) return { ok: false, pesan: 'Kode kosong.' };
+  if (/-[LP]\d{3,}$/i.test(kode)) {
+    const lot = await cariLotByKodeSemuaStatus(kode);
+    if (!lot) return { ok: false, pesan: `Label "${kode}" tidak ditemukan di data lot/pak.` };
+    if (lot.status !== 'aktif' || !((parseFloat(lot.qty_sisa) || 0) > 0)) return { ok: false, pesan: `${kode} sudah habis di sistem. Kalau fisiknya masih ada, betulkan lewat Scan Opname.` };
+    const bahan = await ambilBahanById(lot.bahan_aksesoris_id);
+    if (!bahan) return { ok: false, pesan: `Master item untuk ${kode} tidak ditemukan.` };
+    return { ok: true, jenis: lot.jenis === 'pak' ? 'pak' : 'lot', kode, lot, bahan };
+  }
+  const bahan = await cariBahanByIdTampil(kode);
+  if (!bahan) return { ok: false, pesan: `"${kode}" bukan label stok (Kode Lot, Kode Pak, atau ID Item).` };
+  return { ok: true, jenis: 'item', kode, lot: null, bahan };
+}
+
+// hitungAmbilLabelStok — murni, tanpa Firestore. Menentukan berapa yang diambil
+// dari label yang baru di-scan, dengan memperhitungkan baris yang sudah ada di
+// sesi. Item Pakai Lot wajib lewat Kode Lot, ID Item-nya ditolak.
+export function hitungAmbilLabelStok({ hasil, bahanIdDibutuhkan, kebutuhan, rows }) {
+  if (hasil.bahan.id !== bahanIdDibutuhkan) {
+    return { ok: false, pesan: `${hasil.kode} adalah ${hasil.bahan.nama || hasil.bahan.id_tampil || 'item lain'}, bukan item yang dibutuhkan baris ini.` };
+  }
+  if (hasil.jenis === 'item' && hasil.bahan.pakai_lot_tracking) {
+    return { ok: false, pesan: `${hasil.bahan.nama || hasil.kode} dicentang Pakai Lot: scan label Kode Lot per roll, bukan ID Item.` };
+  }
+  const sudah = rows.reduce((t, r) => t + (parseFloat(r._ambil) || 0), 0);
+  const sisaButuh = Math.round(((parseFloat(kebutuhan) || 0) - sudah) * 100) / 100;
+  if (sisaButuh <= 0) return { ok: false, pesan: 'Kebutuhan baris ini sudah terpenuhi. Upload, atau hapus baris kalau salah.' };
+  if (hasil.jenis === 'item') {
+    const dariItem = rows.filter(r => r._jenis === 'item').reduce((t, r) => t + (parseFloat(r._ambil) || 0), 0);
+    const stok = (parseFloat(hasil.bahan.stok_akhir) || 0) - dariItem;
+    if (stok < sisaButuh) return { ok: false, pesan: `Stok sistem ${hasil.kode} tinggal ${stok}, kurang dari ${sisaButuh}. Ajukan lewat Scan Masalah.` };
+    return { ok: true, ambil: sisaButuh, sisaSetelah: null };
+  }
+  const qtySisa = parseFloat(hasil.lot.qty_sisa) || 0;
+  const ambil = Math.min(sisaButuh, qtySisa);
+  return { ok: true, ambil, sisaSetelah: Math.round((qtySisa - ambil) * 100) / 100 };
+}
+
+// catatScanEntryStok — Upload Scan Entry Persiapan: SATU transaksi yang
+// memotong lot/pak, stok_akhir, menulis ledger keluar + jejak label kerja,
+// menandai kerja (patchTrack: baris array kalau ada `field`, else field dokumen)
+// dan log_scan. Semua tx.get sebelum tx.set; lempar error kalau sudah di-entry.
+export async function catatScanEntryStok({ bahanId, namaBahan, satuan, qty, rows, sumber, jejak, patchTrack, pos }) {
+  const refBahan = doc(db, 'master_bahan_aksesoris', bahanId);
+  const rowsLot = rows.filter(r => r._lotId);
+  const refLots = rowsLot.map(r => doc(db, 'lot_bahan_aksesoris', r._lotId));
+  const refTrack = patchTrack ? doc(db, patchTrack.koleksi || 'spk_track', patchTrack.docId) : null;
+  const oleh = window.currentUser?.email || null;
+  await runTransaction(db, async (tx) => {
+    const snapBahan = await tx.get(refBahan);
+    const snapLots = [];
+    for (const r of refLots) snapLots.push(await tx.get(r));
+    const snapTrack = refTrack ? await tx.get(refTrack) : null;
+
+    const stokSebelum = snapBahan.exists() ? (parseFloat(snapBahan.data().stok_akhir) || 0) : 0;
+    if (stokSebelum + 0.001 < qty) throw new Error(`Stok sistem ${namaBahan} tinggal ${stokSebelum}, kurang dari ${qty}.`);
+    const rincianLot = [];
+    rowsLot.forEach((r, i) => {
+      if (!snapLots[i].exists()) throw new Error(`${r.kode} sudah tidak ada di data. Scan ulang.`);
+      const d = snapLots[i].data();
+      const sisa = parseFloat(d.qty_sisa) || 0;
+      if (sisa + 0.001 < r._ambil) throw new Error(`${r.kode} baru saja dipakai di tempat lain (sisa ${sisa}). Hapus barisnya lalu scan ulang.`);
+      const sisaBaru = Math.round((sisa - r._ambil) * 100) / 100;
+      const patchLot = { qty_sisa: sisaBaru, status: sisaBaru <= 0 ? 'habis' : 'aktif' };
+      if (sisaBaru > 0 && r._labelSisaDicetak) patchLot.label_sisa_dicetak_pada = new Date().toISOString();
+      tx.update(refLots[i], patchLot);
+      rincianLot.push({ lot_id: r._lotId, kode_lot: d.kode_lot || r.kode, jenis: d.jenis || 'lot', dipotong: r._ambil, sisa_setelah: sisaBaru });
+    });
+
+    let arrBaru = null;
+    let patchDoc = null;
+    if (snapTrack && !patchTrack.field) {
+      if (!snapTrack.exists()) throw new Error('Dokumen kerja tidak ditemukan. Muat ulang halaman.');
+      const lama = snapTrack.data();
+      if (lama.entry_qty !== undefined && lama.entry_qty !== null) throw new Error('Kode ini sudah di-entry oleh orang lain.');
+      patchDoc = { ...patchTrack.patch, stok_dipakai: rows.map(r => ({ kode: r.kode, jenis: r._jenis, qty: r._ambil })) };
+    } else if (snapTrack) {
+      if (!snapTrack.exists()) throw new Error('Kartu kerja tidak ditemukan. Muat ulang halaman.');
+      arrBaru = Array.isArray(snapTrack.data()[patchTrack.field]) ? [...snapTrack.data()[patchTrack.field]] : [];
+      const lama = arrBaru[patchTrack.lineIdx];
+      if (!lama) throw new Error('Baris sudah berubah. Muat ulang halaman.');
+      if (lama.entry_qty !== undefined && lama.entry_qty !== null) throw new Error('Baris ini sudah di-entry oleh orang lain.');
+      arrBaru[patchTrack.lineIdx] = { ...lama, ...patchTrack.patch, stok_dipakai: rows.map(r => ({ kode: r.kode, jenis: r._jenis, qty: r._ambil })) };
+    }
+
+    const stokSetelah = Math.round((stokSebelum - qty) * 100) / 100;
+    tx.set(refBahan, { stok_akhir: stokSetelah }, { merge: true });
+    tx.set(doc(collection(db, 'kartu_stok_bahan_aksesoris')), {
+      bahan_aksesoris_id: bahanId, nama_bahan: namaBahan, tanggal: new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }),
+      jenis: 'keluar', qty, satuan: satuan || '', sumber: sumber || 'Scan Entry Persiapan', no_pembelian: '',
+      keterangan: rows.map(r => r.kode).join(', '), saldo_setelah: stokSetelah, rincian_lot: rincianLot,
+      lot_id: rincianLot[0]?.lot_id || '', kode_lot: rincianLot[0]?.kode_lot || '',
+      kode_baris: jejak?.kode_baris || '', separating_id: jejak?.separating_id || '', spk_track_id: jejak?.spk_track_id || '',
+      dibuat_pada: serverTimestamp(), dibuat_oleh: oleh
+    });
+    if (arrBaru) tx.update(refTrack, { [patchTrack.field]: arrBaru, diperbarui_pada: serverTimestamp() });
+    if (patchDoc) tx.update(refTrack, { ...patchDoc, diperbarui_pada: serverTimestamp() });
+    rows.forEach(r => tx.set(doc(collection(db, 'log_scan')), {
+      operator_uid: oleh, operator_nama: window.currentUser?.nama || window.currentUser?.name || oleh, dicatat_oleh: oleh,
+      aksi: 'scan_entry', pos: pos || '', kode: r.kode, koleksi: r._lotId ? 'lot_bahan_aksesoris' : 'master_bahan_aksesoris',
+      doc_id: r._lotId || bahanId, kode_label_kerja: jejak?.kode_baris || '', separating_id: jejak?.separating_id || '', pada: serverTimestamp()
+    }));
+  });
 }
 
 
@@ -1564,6 +1673,8 @@ const DaftarNotaScreen = {
           } catch (e) {
             console.error('Pesanan tersimpan, TAPI gagal catat Riwayat Harga Pembelian:', e);
           }
+          try { await kembalikanMasalahKePersiapan(draftDocId.value, noPembelian); }
+          catch (e) { console.error('Nota final, TAPI gagal mengembalikan Kode Masalah:', e); alert('Nota final, tapi Kode Masalah dari nota ini gagal dipindah ke Persiapan Masalah. Laporkan ke admin.'); }
         }
         alert(statusBaru === 'final' ? `Nota ${noPembelian} difinalkan (stok bertambah, tidak bisa diubah lagi).` : `Disimpan sebagai draft (${noPembelian}).`);
         if (statusBaru === 'final' && lotUntukCetak.value.length === 0) { mode.value = 'list'; muatDaftarNota(); }
@@ -1572,6 +1683,22 @@ const DaftarNotaScreen = {
         alert(e.message && e.message.includes('Prefix') ? e.message : 'Gagal menyimpan. Coba lagi.');
       }
       menyimpan.value = false;
+    }
+
+    // kembalikanMasalahKePersiapan — nota dari Persiapan Belanja membawa
+    // sumber_masalah_ids; saat final, masalah itu pindah ke Perlu Disiapkan
+    // supaya barangnya disiapkan dan dikirim balik ke pos pelapor.
+    async function kembalikanMasalahKePersiapan(notaId, noPembelian) {
+      if (!notaId) return;
+      const snapNota = await getDoc(doc(db, 'pesanan_pembelian', notaId));
+      const ids = snapNota.exists() ? (snapNota.data().sumber_masalah_ids || []) : [];
+      const now = new Date().toISOString();
+      for (const id of ids) {
+        const ref = doc(db, 'persiapan_masalah', id);
+        const snap = await getDoc(ref);
+        if (!snap.exists() || snap.data().status !== 'diajukan_belanja') continue;
+        await updateDoc(ref, { status: 'perlu_disiapkan', masuk_tahap_pada: now, pesanan_pembelian_id: notaId, no_pembelian: noPembelian, diperbarui_pada: serverTimestamp() });
+      }
     }
 
     // `perbaruiHargaMasterDariRiwayat` HANYA dipanggil kalau harga baru BUKAN

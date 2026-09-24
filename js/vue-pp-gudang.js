@@ -11,18 +11,19 @@
 //   'hilang' status SOFT — dokumennya tidak pernah dihapus fisik.
 // - label_pcs.sampai_pada: penanda pcs sudah lolos Scan Sampai, dipakai
 //   membedakan pcs yang sudah masuk gudang dari yang masih di perjalanan.
-// - Status 'terjual' + terjual_pada + transaksi_kasir_id wewenang modul Kasir,
+// - Status 'terjual' + terjual_pada + pesanan_id wewenang modul Kasir,
 //   bukan file ini.
 //
 // Jebakan:
-// - Scan Sampai di Tab Perlu Disimpan adalah penulis separating_batch
+// - Scan Sampai di Tab Perlu Disimpan adalah penulis spk_separating
 //   .sampai_pada — tab Selesai di Serie kosong selamanya kalau langkah ini
 //   tidak pernah dijalankan.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, serverTimestamp, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=9';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, ajukanPersiapanMasalah, buatQrDataUrl } from './vue-scan-cetak.js?v=10';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=15';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing/Finishing).
@@ -54,7 +55,7 @@ const TLC_ASAL_GUDANG = 'TLC-GBJ'; // sama literal dgn TLC_TUJUAN_GUDANG milik S
 
 // Baca koleksi mentah
 async function muatSemuaSeparatingBatch() {
-  const snap = await getDocs(collection(db, 'separating_batch'));
+  const snap = await getDocs(collection(db, 'spk_separating'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }
 async function muatSemuaSewingTrack() {
@@ -70,33 +71,71 @@ async function muatSemuaLabelPcs() {
 async function alokasikanKePoFifo(pcs) {
   if (!pcs.sku_produk) return null;
   try {
-    const snap = await getDocs(query(collection(db, 'order_spk'), where('sku_produk', '==', pcs.sku_produk), where('status', '==', 'Aktif')));
+    const snap = await getDocs(query(collection(db, 'order'), where('sku_produk', '==', pcs.sku_produk), where('status', '==', 'Aktif')));
     const daftarOrder = snap.docs.map(d => ({ id: d.id, ...d.data() }))
       .sort((a, b) => (a.dibuat_pada?.seconds || 0) - (b.dibuat_pada?.seconds || 0));
     for (const o of daftarOrder) {
-      const snapAlokasi = await getDocs(query(collection(db, 'label_pcs'), where('order_spk_id', '==', o.id)));
+      const snapAlokasi = await getDocs(query(collection(db, 'label_pcs'), where('order_id', '==', o.id)));
       if (snapAlokasi.size < (parseFloat(o.qty_order) || 0)) return o.id;
     }
     return null;
   } catch (e) { console.error('Gagal alokasi FIFO ke order_spk:', e); return null; }
 }
 
-// Scan Sampai (keputusan #4): tutup separating_batch + tandai label_pcs --
+// Scan Sampai (keputusan #4): tutup spk_separating + tandai label_pcs --
 async function prosesScanSampaiBatch(batch) {
   const now = new Date().toISOString();
-  await updateDoc(doc(db, 'separating_batch', batch.id), { status: 'selesai', sampai_pada: now });
-  const sewingCocok = (await muatSemuaSewingTrack()).filter(s => s.batch_id === batch.id);
+  await updateDoc(doc(db, 'spk_separating', batch.id), { status: 'selesai', sampai_pada: now });
+  const sewingCocok = (await muatSemuaSewingTrack()).filter(s => s.separating_id === batch.id);
   if (!sewingCocok.length) return 0;
-  const pcsSnaps = await Promise.all(sewingCocok.map(s => getDocs(query(collection(db, 'label_pcs'), where('batch_id', '==', s.id)))));
+  const pcsSnaps = await Promise.all(sewingCocok.map(s => getDocs(query(collection(db, 'label_pcs'), where('sewing_track_id', '==', s.id)))));
   const daftarPcs = pcsSnaps.flatMap(snap => snap.docs.map(d => ({ id: d.id, ...d.data() })));
   await Promise.all(daftarPcs.map(p => updateDoc(doc(db, 'label_pcs', p.id), { sampai_pada: now })));
   return daftarPcs.length;
 }
 
+// terbitkanBeritaAcaraBilaLengkap — 1 Berita Acara per ID Order, terbit sekali
+// saat SEMUA separating order itu sudah selesai di Gudang. qty_jadi = label_pcs
+// order itu yang tidak berstatus hilang. Order + pesanan ikut ditandai selesai.
+async function terbitkanBeritaAcaraBilaLengkap(orderId) {
+  if (!orderId) return null;
+  const snapSep = await getDocs(query(collection(db, 'spk_separating'), where('order_id', '==', orderId)));
+  const seps = snapSep.docs.map(d => ({ id: d.id, ...d.data() }));
+  if (!seps.length || !seps.every(sp => sp.status === 'selesai')) return null;
+  const refOrder = doc(db, 'order', orderId);
+  const snapOrder = await getDoc(refOrder);
+  if (!snapOrder.exists() || snapOrder.data().kode_ba) return null;
+  const order = snapOrder.data();
+  const snapPcs = await getDocs(query(collection(db, 'label_pcs'), where('order_id', '==', orderId)));
+  const qtyJadi = snapPcs.docs.filter(d => d.data().status !== 'hilang').length;
+  const qtyPesanan = parseFloat(order.qty_order) || 0;
+  const t = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }).slice(2).replace(/-/g, '');
+  const refCounter = doc(db, 'pengaturan_id_berita_acara', t);
+  const kodeBa = await runTransaction(db, async (trx) => {
+    const snap = await trx.get(refCounter);
+    const n = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
+    if (snap.exists()) trx.update(refCounter, { counter: n }); else trx.set(refCounter, { counter: n, dibuat_pada: t });
+    return `BA${t}-${String(n).padStart(3, '0')}`;
+  });
+  await addDoc(collection(db, 'berita_acara'), {
+    kode_ba: kodeBa, order_id: orderId, id_order: order.id_order || '', pesanan_id: order.pesanan_id || '', no_pesanan: order.no_pesanan || '',
+    pelanggan_nama: order.pelanggan_nama || '', nama_produk: order.nama_produk || '', separating_ids: seps.map(sp => sp.id),
+    qty_pesanan: qtyPesanan, qty_jadi: qtyJadi, qty_kurang: Math.max(0, qtyPesanan - qtyJadi),
+    dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
+  });
+  await updateDoc(refOrder, { kode_ba: kodeBa, status_produksi: 'selesai', selesai_pada: new Date().toISOString() });
+  if (order.pesanan_id) {
+    const snapOrderLain = await getDocs(query(collection(db, 'order'), where('pesanan_id', '==', order.pesanan_id)));
+    const semuaBa = snapOrderLain.docs.every(d => d.id === orderId || !!d.data().kode_ba);
+    if (semuaBa) await updateDoc(doc(db, 'pesanan', order.pesanan_id), { status_produksi: 'selesai' });
+  }
+  return { kodeBa, idOrder: order.id_order || '', nama: order.nama_produk || '', qtyPesanan, qtyJadi };
+}
+
 // Popup Scan Masalah generik (jumlah kurang + alasan) — sumberJalur:'gudang'.
 function popupMasalahMixin(kirimFn) {
   const popupMasalah = ref(null);
-  function bukaMasalah(target) { popupMasalah.value = { target, jumlah: 1, alasan: '' }; }
+  function bukaMasalah(target) { popupMasalah.value = { target, jumlah: 1, alasan: '', jenis: 'kurang' }; }
   function batalMasalah() { popupMasalah.value = null; }
   async function konfirmasiMasalah() {
     const p = popupMasalah.value;
@@ -107,26 +146,29 @@ function popupMasalahMixin(kirimFn) {
   }
   return { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah };
 }
-async function kirimMasalahGudang(b, jumlah, alasan) {
+async function kirimMasalahGudang(b, jumlah, alasan, jenis) {
   await ajukanPersiapanMasalah({
     tlcAsal: TLC_ASAL_GUDANG, sumberJalur: 'gudang',
-    trackId: b.id, noSpk: b.kode_batch,
+    trackId: b.id, noSpk: b.kode_separating,
     bahanNama: b.nama_produk, bahanWarna: b.size || '', satuan: 'pcs',
-    qtyKurang: jumlah, alasan
+    qtyKurang: jumlah, alasan, jenisMasalah: jenis || 'kurang', kodeLabelAsal: b.kode_separating || '',
+    separatingId: (b.separating_id || b.id) || '', kodeSeparating: b.kode_separating || '', idOrder: b.id_order || ''
   });
 }
 
 
 // TAB 5.1: Perlu Disimpan — dua seksi: (a) Batch Menunggu Sampai (dari
-// separating_batch status 'kirim_gudang', Scan Sampai + Unpack + Masalah), (b)
+// spk_separating status 'kirim_gudang', Scan Sampai + Unpack + Masalah), (b)
 // Pcs Siap Disimpan (dari label_pcs sudah sampai_pada tapi belum
 // status:'di_gudang', Scan Masuk Gudang per pcs). Lihat keputusan #3/#4/#5/#6.
 
 const GudangPerluDisimpan = {
-  components: { ScanGenerik, ScanTerpaduGenerik },
+  components: { ScanGenerik, ScanTerpaduGenerik, PopupPratinjauCetakLabel },
   setup() {
     const memuat = ref(true);
-    const daftarBatch = ref([]); // menunggu sampai (separating_batch)
+    const popupCetakBa = ref(false);
+    const daftarLabelBa = ref([]);
+    const daftarBatch = ref([]); // menunggu sampai (spk_separating)
     const semuaLabelPcs = ref([]); // seluruh label_pcs, dipakai utk 2 keperluan (siap disimpan + hitung progres X/Y per batch)
     const menuId = 'proses_gudang';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
@@ -142,13 +184,13 @@ const GudangPerluDisimpan = {
     }
 
     // Seksi (b): pcs sudah sampai_pada, belum masuk gudang, dikelompokkan
-    // per kode_batch + hitung progres X/Y dari SELURUH label_pcs batch itu
+    // per kode_separating + hitung progres X/Y dari SELURUH label_pcs batch itu
     // (bukan cuma yang belum, supaya penyebutnya benar).
     const kelompokSiapDisimpan = computed(() => {
       const peta = {};
       semuaLabelPcs.value.forEach(p => {
         if (!p.sampai_pada) return;
-        const key = p.kode_batch || '(tanpa kode batch)';
+        const key = p.kode_separating || '(tanpa kode batch)';
         if (!peta[key]) peta[key] = { kodeBatch: key, namaProduk: p.nama_produk, size: p.size, warna: p.warna, total: 0, sudahMasuk: 0, pending: [] };
         peta[key].total++;
         if (p.status === 'di_gudang' || p.status === 'terjual' || p.status === 'perlu_dicari' || p.status === 'hilang') peta[key].sudahMasuk++;
@@ -158,7 +200,7 @@ const GudangPerluDisimpan = {
     });
 
     // Scan Sampai: step1 kode_tugas, step2 kode_bagging berkali-kali,
-    // dicocokkan ke separating_batch (SAMA pola Finishing/Sewing). Begitu SEMUA
+    // dicocokkan ke spk_separating (SAMA pola Finishing/Sewing). Begitu SEMUA
     // kode_bagging cocok discan -> tutup batch (keputusan #4).
     const modalSampai = reactive({ aktif: false, batch: null, tugasKirim: null, log: [] });
     function bukaScanSampai() { modalSampai.batch = null; modalSampai.tugasKirim = null; modalSampai.log = []; modalSampai.aktif = true; }
@@ -200,7 +242,13 @@ const GudangPerluDisimpan = {
       if (sudahSemua) {
         try {
           const jumlahPcs = await prosesScanSampaiBatch(b);
-          modalSampai.log.unshift('SEMUA bagging sampai — batch ' + (b.kode_batch || '') + ' (' + jumlahPcs + ' pcs) siap discan masuk gudang. Batch ditutup di Serie.');
+          modalSampai.log.unshift('SEMUA bagging sampai — ' + (b.kode_separating || '') + ' (' + jumlahPcs + ' pcs) siap discan masuk gudang.');
+          const ba = await terbitkanBeritaAcaraBilaLengkap(b.order_id);
+          if (ba) {
+            modalSampai.log.unshift('Berita Acara ' + ba.kodeBa + ' terbit untuk ' + ba.idOrder);
+            daftarLabelBa.value = [{ kode: ba.kodeBa, nama: 'Berita Acara ' + ba.idOrder, info: `${ba.nama} &middot; pesanan ${formatQty(ba.qtyPesanan)} &middot; jadi ${formatQty(ba.qtyJadi)} &middot; kurang ${formatQty(Math.max(0, ba.qtyPesanan - ba.qtyJadi))}`, qrDataUrl: buatQrDataUrl(ba.kodeBa) }];
+            popupCetakBa.value = true;
+          }
           await muat();
         } catch (e) { console.error('Gagal tutup batch Gudang:', e); alert('Gagal menyimpan. Coba lagi.'); }
       }
@@ -216,8 +264,8 @@ const GudangPerluDisimpan = {
       const now = new Date().toISOString();
       try {
         await updateDoc(doc(db, 'bagging', b.id), {
-          kode_spk: null, kode_batch: null,
-          kode_spk_asal: b.kode_spk ?? null, kode_batch_asal: b.kode_batch ?? null,
+          kode_grouping_induk: null, kode_separating: null,
+          kode_grouping_induk_asal: b.kode_grouping_induk ?? null, kode_separating_asal: b.kode_separating ?? null,
           unpack_hasil: cocokSemua ? 'komplit' : 'inkomplit',
           unpack_pada: now, unpack_oleh: window.currentUser?.email || null,
           unpack_dicocokkan: dicocokkan, unpack_asing: asing, unpack_hilang: hilang
@@ -281,8 +329,8 @@ const GudangPerluDisimpan = {
         if (p.status === 'terjual' || p.status === 'hilang' || p.status === 'perlu_dicari') { alert(`Pcs "${kode}" berstatus "${p.status}" — tidak bisa discan masuk gudang lagi.`); return; }
         if (!p.sampai_pada) { alert(`Pcs "${kode}" belum discan Scan Sampai dari Serie — scan sampai batch-nya dulu.`); return; }
         const now = new Date().toISOString();
-        const orderSpkId = await alokasikanKePoFifo(p);
-        await updateDoc(doc(db, 'label_pcs', p.id), { status: 'di_gudang', gudang_masuk_pada: now, order_spk_id: orderSpkId });
+        const orderSpkId = p.order_id || await alokasikanKePoFifo(p);
+        await updateDoc(doc(db, 'label_pcs', p.id), { status: 'di_gudang', gudang_masuk_pada: now, order_id: orderSpkId });
         modalMasuk.log.unshift(kode + (orderSpkId ? ' -> masuk gudang (teralokasi ke PO)' : ' -> masuk gudang (stok bebas)'));
         p.status = 'di_gudang'; p.sampai_pada = p.sampai_pada; // update lokal ringan supaya progres kartu langsung berubah tanpa muat ulang penuh
         await muat();
@@ -290,7 +338,7 @@ const GudangPerluDisimpan = {
     }
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
-      await kirimMasalahGudang(p.target, p.jumlah, p.alasan);
+      await kirimMasalahGudang(p.target, p.jumlah, p.alasan, p.jenis);
       await muat();
     });
 
@@ -298,7 +346,7 @@ const GudangPerluDisimpan = {
     // config WAJIB dimuat sebelum render pertama, lihat vue-popup-scan.js.
     onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
-    return { muat,
+    return { popupCetakBa, daftarLabelBa, muat,
       memuat, daftarBatch, kelompokSiapDisimpan, bolehProses, aksiAktif, formatQty, formatDiamSejak, tertahan,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
       unpackTerpadu,
@@ -321,7 +369,7 @@ const GudangPerluDisimpan = {
       <div v-else style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;">
         <div v-for="b in daftarBatch" :key="b.id" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;" :style="{ background: tertahan(b.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
           <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:6px;">
-            <div class="gc-num" style="font-weight:700; font-size:13px;">{{ b.kode_batch }}</div>
+            <div class="gc-num" style="font-weight:700; font-size:13px;">{{ b.kode_separating }}</div>
             <span class="tag" :class="tertahan(b.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(b.masuk_tahap_pada) }}</span>
           </div>
           <div style="font-size:12px; color:var(--text-faint); margin-bottom:10px;">{{ b.nama_produk }} &middot; size {{ b.size || '-' }} &middot; qty {{ formatQty(b.qty) }} &middot; kode tugas {{ b.kode_tugas || '-' }}</div>
@@ -353,6 +401,7 @@ const GudangPerluDisimpan = {
       <div v-for="(l,i) in modalSampai.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
     </div>
 
+    <popup-pratinjau-cetak-label :terbuka="popupCetakBa" :daftar-label="daftarLabelBa" judul="Cetak Berita Acara" jenis-cetak="berita_acara" @tutup="popupCetakBa = false" />
     <scan-terpadu-generik :c="unpackTerpadu" />
 
     <scan-generik :aktif="modalMasuk.aktif" judul="Scan Masuk Gudang" subjudul="Scan QR label pcs satu per satu. Bisa berkali-kali." @hasil="hasilScanMasuk" @tutup="tutupScanMasuk" />
@@ -362,8 +411,9 @@ const GudangPerluDisimpan = {
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.target.kode_batch }}</h3>
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.target.kode_separating }}</h3>
         <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Jenis Masalah</label><select v-model="popupMasalah.jenis"><option value="kurang">Kurang</option><option value="cacat">Cacat</option><option value="hilang">Hilang</option></select></div>
         <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="mis. produk cacat dari luar"></div>
         <div style="display:flex; gap:8px;">
           <button @click="batalMasalah" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
@@ -393,7 +443,7 @@ const GudangStokTersedia = {
           const key = (p.sku_produk || p.nama_produk || '-') + '|' + (p.size || '-') + '|' + (p.warna || '-');
           if (!peta[key]) peta[key] = { sku: p.sku_produk || '-', namaProduk: p.nama_produk || '-', size: p.size || '-', warna: p.warna || '-', jumlah: 0, teralokasi: 0 };
           peta[key].jumlah++;
-          if (p.order_spk_id) peta[key].teralokasi++;
+          if (p.order_id) peta[key].teralokasi++;
         });
         kelompok.value = Object.values(peta).sort((a, b) => a.namaProduk.localeCompare(b.namaProduk));
       } catch (e) { console.error('Gagal muat Gudang > Stok Tersedia:', e); kelompok.value = []; }
@@ -465,7 +515,7 @@ const GudangRiwayatKeluar = {
       try {
         const [pcsList, trxSnap] = await Promise.all([
           muatSemuaLabelPcs(),
-          getDocs(collection(db, 'transaksi_kasir')).catch(() => ({ docs: [] }))
+          getDocs(collection(db, 'pesanan')).catch(() => ({ docs: [] }))
         ]);
         semuaTerjual.value = pcsList.filter(p => p.status === 'terjual').sort((a, b) => new Date(b.terjual_pada || 0) - new Date(a.terjual_pada || 0));
         const peta = {};
@@ -476,8 +526,8 @@ const GudangRiwayatKeluar = {
     }
 
     function infoTransaksi(p) {
-      const t = petaTransaksi.value[p.transaksi_kasir_id];
-      return t ? (t.no_transaksi || p.transaksi_kasir_id) + (t.nama_pelanggan ? ' — ' + t.nama_pelanggan : '') : (p.transaksi_kasir_id || '-');
+      const t = petaTransaksi.value[p.pesanan_id];
+      return t ? (t.no_pesanan || p.pesanan_id) + (t.nama_pelanggan ? ' — ' + t.nama_pelanggan : '') : (p.pesanan_id || '-');
     }
 
     const daftarUrut = computed(() => {

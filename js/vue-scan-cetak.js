@@ -1,27 +1,27 @@
 // js/vue-scan-cetak.js
-// Menu Scan & Cetak, sekaligus FONDASI generik yang diimpor pos lain:
-// PopupPinGenerik, ScanGenerik (overlay, alur tulis-langsung lama),
-// ScanTerpaduGenerik+buatScanTerpadu+KameraTersemat (kamera tersemat, alur
-// Draft->Upload baru — lihat KEPUTUSAN.md > Scan & Cetak), buatUnpackUniversal.
+// Menu Scan & Cetak, sekaligus fondasi scan yang diimpor pos lain:
+// PopupPinGenerik, ScanGenerik (overlay tulis-langsung), ScanTerpaduGenerik +
+// buatScanTerpadu + KameraTersemat (Draft lalu Upload), buatScanEntryStok
+// (Scan Entry Persiapan lewat ledger), CetakUlangLabelStok, buatUnpackUniversal.
 //
 // Koleksi & field:
-// - riwayat_pin: { uid, nama_pengguna, menu, berhasil, waktu }, ditulis tiap
-//   percobaan PIN. PIN cocok tapi role di luar rolesDiizinkan dicatat
-//   berhasil:false; PIN tak dikenali dicatat uid:null.
+// - riwayat_pin: { uid, nama_pengguna, menu, berhasil, waktu }, tiap percobaan
+//   PIN. PIN cocok tapi role di luar rolesDiizinkan dicatat berhasil:false.
 // - persiapan_masalah: dibuat HANYA lewat ajukanPersiapanMasalah di sini.
 // - bagging: unpack_hasil, unpack_pada/oleh, unpack_dicocokkan[]/asing[]/hilang[].
 //
 // Jebakan:
-// - buatScanTerpadu TIDAK menulis Firestore — semua lewat cfg.padaUpload saat
-//   Upload. twoStep.validasi boleh isi `label` (dipakai chip jika ada).
-// - KameraTersemat WAJIB watch({immediate:true}) — instance baru tiap buka()
-//   lewat v-if ScanTerpaduGenerik, kamera diam hitam tanpa error tanpa itu.
-// - FRAC_KOTAK_BACA: SATU angka sumber kotak merah DAN area baca jsQR,
-//   jangan duplikasi angka itu di tempat lain.
+// - buatScanTerpadu TIDAK menulis Firestore — semua lewat cfg.padaUpload.
+// - buatScanEntryStok tidak memotong stok sendiri; semua lewat
+//   catatScanEntryStok (satu transaksi) di vue-stock-pembelian.js.
+// - KameraTersemat WAJIB watch({immediate:true}); FRAC_KOTAK_BACA satu angka
+//   sumber kotak merah DAN area baca jsQR.
 
 import { createApp, ref, reactive, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, getDoc, getDocs, updateDoc, query, where, orderBy, limit, startAfter, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, getDoc, getDocs, updateDoc, query, where, orderBy, limit, startAfter, serverTimestamp, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
+import { resolveLabelStok, hitungAmbilLabelStok, catatScanEntryStok } from './vue-stock-pembelian.js?v=32';
+import { PopupPratinjauCetakLabel } from './vue-components.js?v=15';
 
 
 // PIN per akun — SATU-SATUNYA salinan resmi hashPin/tierOwnerKeAtas/
@@ -163,26 +163,30 @@ export const PopupPinGenerik = {
 // dari "Scan Masalah" di 4 pos Persiapan Produksi. Dipanggil BERSAMA
 // updateBaris<Pos> yang tetap menulis catatan_masalah; status baris tidak berubah.
 
-// Field dokumen mengikuti skema di header js/vue-pp-masalah.js §5.18: tlc_asal,
-// sumber_jalur, spk_track_id, baris_index, bahan_aksesoris_id/bahan_nama/
-// bahan_warna/satuan/no_spk (snapshot), qty_kurang, qty_entry_asal,
-// alasan_masalah, scan_oleh, scan_pada, status:'perlu_diajukan'.
-
+// ajukanPersiapanMasalah — satu-satunya pembuat dokumen persiapan_masalah.
+// Kode Masalah (MSL) lahir di sini, saat pos melapor, dan dipakai sampai
+// barang pengganti di-Unpack lagi di pos itu (tlc_asal).
 export async function ajukanPersiapanMasalah(opsi) {
   const now = new Date().toISOString();
   const oleh = window.currentUser?.email || '';
   const kurang = parseFloat(opsi.qtyKurang) || 0;
   const entryAsal = (opsi.qtyEntryAsal === null || opsi.qtyEntryAsal === undefined || isNaN(opsi.qtyEntryAsal)) ? null : parseFloat(opsi.qtyEntryAsal);
+  const kodeMsl = await generateKodeHarianScan('MSL', 'pengaturan_id_persiapan_masalah');
   await addDoc(collection(db, 'persiapan_masalah'), {
+    kode_msl: kodeMsl,
+    jenis_masalah: opsi.jenisMasalah || 'kurang',
+    kode_label_asal: opsi.kodeLabelAsal || '',
     tlc_asal: opsi.tlcAsal || '',
     sumber_jalur: opsi.sumberJalur || '',
     spk_track_id: opsi.trackId || '',
     baris_index: (opsi.lineIdx === undefined || opsi.lineIdx === null) ? null : opsi.lineIdx,
+    separating_id: opsi.separatingId || '',
+    kode_separating: opsi.kodeSeparating || '',
     bahan_aksesoris_id: opsi.bahanAksesorisId || '',
     bahan_nama: opsi.bahanNama || '',
     bahan_warna: opsi.bahanWarna || '',
     satuan: opsi.satuan || '',
-    no_spk: opsi.noSpk || '',
+    id_order: opsi.idOrder || opsi.noSpk || '',
     qty_kurang: kurang,
     qty_entry_asal: entryAsal,
     alasan_masalah: opsi.alasan || '',
@@ -191,8 +195,23 @@ export async function ajukanPersiapanMasalah(opsi) {
     status: 'perlu_diajukan',
     dibuat_pada: serverTimestamp()
   });
+  return kodeMsl;
 }
 
+// generateKodeHarianScan — kode harian `{prefix}{yymmdd}-{nnn}` dengan counter
+// per hari di koleksi counter sendiri; transaksi supaya tidak dobel.
+export async function generateKodeHarianScan(prefix, koleksiCounter) {
+  const now = new Date();
+  const tanggalKey = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Jakarta' }).slice(2).replace(/-/g, '');
+  const refDoc = doc(db, koleksiCounter, tanggalKey);
+  return await runTransaction(db, async (trx) => {
+    const snap = await trx.get(refDoc);
+    const counterBaru = (snap.exists() ? (snap.data().counter || 0) : 0) + 1;
+    if (snap.exists()) trx.update(refDoc, { counter: counterBaru });
+    else trx.set(refDoc, { counter: counterBaru, dibuat_pada: tanggalKey });
+    return `${prefix}${tanggalKey}-${String(counterBaru).padStart(3, '0')}`;
+  });
+}
 
 // buatUnpackUniversal — satu factory Scan Unpack untuk SEMUA pos. Step 1: scan
 // kode_bagging -> ambil dokumen `bagging` langsung. Step 2: scan tiap kode ISI,
@@ -202,7 +221,7 @@ export async function ajukanPersiapanMasalah(opsi) {
 // tutup(paksaInkomplit): semua isi[] cocok & tidak ada asing -> KOMPLIT; belum
 // lengkap/ada asing dengan paksaInkomplit=false -> DITOLAK tanpa menulis apa pun
 // (hard block); true -> INKOMPLIT, kode HILANG + ASING dicatat. Keduanya menulis
-// unpack_hasil/pada/oleh/dicocokkan/asing/hilang dan me-NULL kode_spk+kode_batch.
+// unpack_hasil/pada/oleh/dicocokkan/asing/hilang dan me-NULL kode_grouping_induk+kode_separating.
 
 export function buatUnpackUniversal() {
   const modalUnpack = reactive({ aktif: false, bagging: null, dicocokkan: [], asing: [], log: [] });
@@ -249,14 +268,14 @@ export function buatUnpackUniversal() {
       return false;
     }
     const now = new Date().toISOString();
-    // kode_spk/kode_batch DINULKAN di sini (melepas kaitan root1/root2), tapi
-    // nilainya disalin dulu ke kode_spk_asal/kode_batch_asal supaya badge
+    // kode_grouping_induk/kode_separating DINULKAN di sini (melepas kaitan root1/root2), tapi
+    // nilainya disalin dulu ke kode_grouping_induk_asal/kode_separating_asal supaya badge
     // riwayat di track masih bisa query. *_asal TIDAK PERNAH dipakai untuk
     // validasi/kunci — murni field baca-saja untuk histori tampilan.
     try {
       await updateDoc(doc(db, 'bagging', b.id), {
-        kode_spk: null, kode_batch: null,
-        kode_spk_asal: b.kode_spk ?? null, kode_batch_asal: b.kode_batch ?? null,
+        kode_grouping_induk: null, kode_separating: null,
+        kode_grouping_induk_asal: b.kode_grouping_induk ?? null, kode_separating_asal: b.kode_separating ?? null,
         unpack_hasil: cocokSemua ? 'komplit' : 'inkomplit',
         unpack_pada: now, unpack_oleh: window.currentUser?.email || null,
         unpack_dicocokkan: modalUnpack.dicocokkan.slice(),
@@ -264,7 +283,7 @@ export function buatUnpackUniversal() {
         unpack_hilang: hilang
       });
       modalUnpack.log.unshift('Bagging ' + (b.kode || '') + ' ditutup: ' + (cocokSemua ? 'KOMPLIT' : `INKOMPLIT (${hilang.length} hilang, ${modalUnpack.asing.length} asing)`));
-      modalUnpack.bagging = { ...b, kode_spk: null, kode_batch: null, kode_spk_asal: b.kode_spk ?? null, kode_batch_asal: b.kode_batch ?? null, unpack_hasil: cocokSemua ? 'komplit' : 'inkomplit' };
+      modalUnpack.bagging = { ...b, kode_grouping_induk: null, kode_separating: null, kode_grouping_induk_asal: b.kode_grouping_induk ?? null, kode_separating_asal: b.kode_separating ?? null, unpack_hasil: cocokSemua ? 'komplit' : 'inkomplit' };
       return true;
     } catch (e) { console.error('Gagal menutup Scan Unpack:', e); alert('Gagal menyimpan. Coba lagi.'); return false; }
   }
@@ -274,7 +293,7 @@ export function buatUnpackUniversal() {
 
 
 // ambilStatusUnpackBagging — dipakai badge "Unpack" pp-cutting.js (kunci
-// kode_spk) & pp-sewing.js (kunci kode_batch): cari semua bagging yang PERNAH
+// kode_grouping_induk) & pp-sewing.js (kunci kode_separating): cari semua bagging yang PERNAH
 // terkait nilai kunci X, aktif maupun sudah di-unpack, supaya badge tidak kosong
 // setelah tutupUnpack menulis null ke kuncinya.
 
@@ -654,6 +673,121 @@ export function buatScanTerpadu(cfg) {
   return { s, cfg, buka, tutup, terimaKode, hapusBaris, resetLock, batal, upload, kirimManual };
 }
 
+
+// buatScanEntryStok — Scan Entry Persiapan: pembuka = label kerja baris yang
+// dipilih, isi = label barang fisik (Kode Lot / Kode Pak / ID Item) berkali-
+// kali. Sistem hitung ambil per label; roll/pak yang bersisa wajib dicetak
+// label sisanya (popup `cetak`) sebelum Upload diterima.
+export function buatScanEntryStok(cfg) {
+  const cetak = reactive({ aktif: false, daftar: [], rows: [] });
+  const ctrl = buatScanTerpadu({
+    twoStep: {
+      labelPertama: 'Label kerja', labelKedua: 'label stok (Kode Lot, Kode Pak, atau ID Item)',
+      validasi: async (kode) => {
+        const b = cfg.ambilBaris();
+        if (!b) return { ok: false, pesan: 'Baris kerja belum dipilih.' };
+        if (kode !== cfg.kodeLabel(b)) return { ok: false, pesan: `"${kode}" bukan label kerja baris ini (${cfg.kodeLabel(b)}).` };
+        return { ok: true, data: b, label: kode + ' · butuh ' + cfg.kebutuhan(b) + ' ' + (cfg.satuan(b) || '') };
+      }
+    },
+    validasiIsi: async (kode, b, rows) => {
+      const hasil = await resolveLabelStok(kode);
+      if (!hasil.ok) return hasil;
+      if (hasil.lot && rows.some(r => r._lotId === hasil.lot.id)) return { ok: false, pesan: `${kode} sudah ada di daftar.` };
+      const h = hitungAmbilLabelStok({ hasil, bahanIdDibutuhkan: cfg.bahanId(b), kebutuhan: cfg.kebutuhan(b), rows });
+      if (!h.ok) return h;
+      const bersisa = h.sisaSetelah !== null && h.sisaSetelah > 0;
+      return { ok: true, row: {
+        kode, label: (hasil.bahan.nama || '') + ' · ' + (hasil.jenis === 'item' ? 'ID Item' : hasil.jenis === 'pak' ? 'Pak' : 'Lot'),
+        qty: String(h.ambil), tagTxt: h.sisaSetelah === null ? 'dari stok' : (bersisa ? 'sisa ' + h.sisaSetelah : 'habis'), tagCls: bersisa ? 'warn' : 'ok',
+        _jenis: hasil.jenis, _lotId: hasil.lot ? hasil.lot.id : null, _ambil: h.ambil, _sisaSetelah: h.sisaSetelah,
+        _perluLabelSisa: bersisa, _labelSisaDicetak: false, _satuan: hasil.lot?.satuan || hasil.bahan.satuan_pemakaian || '', _nama: hasil.bahan.nama || ''
+      } };
+    },
+    padaUpload: async (rows, b) => {
+      const total = Math.round(rows.reduce((t, r) => t + (parseFloat(r._ambil) || 0), 0) * 100) / 100;
+      const butuh = Math.round((parseFloat(cfg.kebutuhan(b)) || 0) * 100) / 100;
+      if (total !== butuh) return { ok: false, pesan: `Baru ${total} dari ${butuh}. Scan label stok lain, atau pakai Scan Masalah kalau stoknya memang kurang.` };
+      const belum = rows.filter(r => r._perluLabelSisa && !r._labelSisaDicetak);
+      if (belum.length) {
+        cetak.rows = belum;
+        cetak.daftar = belum.map(r => ({ kode: r.kode, nama: r._nama, info: `sisa ${r._sisaSetelah} ${r._satuan}`, qrDataUrl: buatQrDataUrl(r.kode) }));
+        cetak.aktif = true;
+        return { ok: false, pesan: 'Cetak label sisa dulu (kode sama, angka sisa baru), tempel di roll/pak, lalu tekan Upload lagi.' };
+      }
+      try {
+        await catatScanEntryStok({
+          bahanId: cfg.bahanId(b), namaBahan: cfg.namaBahan(b), satuan: cfg.satuan(b), qty: butuh, rows,
+          sumber: cfg.sumber, pos: cfg.pos, jejak: cfg.jejak(b),
+          patchTrack: cfg.patchTrack(b, { entry_qty: butuh, entry_oleh: window.currentUser?.email || '', entry_pada: new Date().toISOString() })
+        });
+      } catch (e) { console.error('Gagal upload Scan Entry:', e); return { ok: false, pesan: e.message || 'Gagal menyimpan. Coba lagi.' }; }
+      ctrl.tutup();
+      if (cfg.padaSelesai) await cfg.padaSelesai();
+      return { ok: true };
+    }
+  });
+  function selesaiCetak() {
+    cetak.rows.forEach(r => { r._labelSisaDicetak = true; r.tagTxt = 'sisa ' + r._sisaSetelah + ' · label dicetak'; });
+    cetak.aktif = false; cetak.daftar = []; cetak.rows = [];
+  }
+  return Object.assign(ctrl, { cetak, selesaiCetak });
+}
+
+// CetakUlangLabelStok — tombol + popup cetak ulang label Kode Lot / Kode Pak /
+// ID Item di Sedang Disiapkan. Kode TETAP sama, angka sisa dibaca ulang dari
+// sistem. Wajib alasan + PIN; dicatat ke log_scan aksi 'cetak_ulang'.
+export const CetakUlangLabelStok = {
+  components: { PopupPinGenerik, PopupPratinjauCetakLabel },
+  props: { pos: { type: String, required: true } },
+  setup(props) {
+    const form = ref(null); // { kode, alasan, hasil }
+    const pinAktif = ref(false);
+    const preview = reactive({ aktif: false, daftar: [] });
+    function buka() { form.value = { kode: '', alasan: '', hasil: null }; }
+    async function lanjut() {
+      const f = form.value;
+      if (!f.kode.trim()) { alert('Scan / ketik kode label dulu.'); return; }
+      if (!f.alasan.trim()) { alert('Alasan cetak ulang wajib diisi.'); return; }
+      const h = await resolveLabelStok(f.kode.trim());
+      if (!h.ok) { alert(h.pesan); return; }
+      f.hasil = h; pinAktif.value = true;
+    }
+    async function pinSukses(user) {
+      pinAktif.value = false;
+      const f = form.value; const h = f.hasil;
+      const sisa = h.lot ? `sisa ${h.lot.qty_sisa} ${h.lot.satuan || ''}` : (h.bahan.satuan_pemakaian || '');
+      try {
+        await addDoc(collection(db, 'log_scan'), {
+          kode: h.kode, pos: props.pos, aksi: 'cetak_ulang', jenis_label: h.jenis, alasan: f.alasan.trim(),
+          pin_oleh: user.nama || user.email || '', operator_email: window.currentUser?.email || null,
+          operator_uid: window.currentUser?.uid || null, pada: serverTimestamp()
+        });
+      } catch (e) { console.error('Gagal catat log cetak ulang:', e); alert('Gagal mencatat log. Coba lagi.'); return; }
+      preview.daftar = [{ kode: h.kode, nama: h.bahan.nama || '', info: sisa.trim() + ' · CETAK ULANG', qrDataUrl: buatQrDataUrl(h.kode) }];
+      form.value = null; preview.aktif = true;
+    }
+    return { form, pinAktif, preview, buka, lanjut, pinSukses };
+  },
+  template: `
+    <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
+      <button @click="buka" class="btn-outline" style="padding:6px 10px; font-size:11px;"><i class="fas fa-rotate-right" style="margin-right:4px;"></i>Cetak Ulang Label Stok</button>
+    </div>
+    <div v-if="form" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Cetak Ulang Label Stok</h3>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Kode Lot / Kode Pak / ID Item</label><input v-model="form.kode" type="text" placeholder="scan atau ketik kode"></div>
+        <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="form.alasan" type="text" placeholder="mis. label sobek / basah"></div>
+        <div style="display:flex; gap:8px;">
+          <button @click="form = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+          <button @click="lanjut" class="btn-primary" style="flex:1; padding:9px;">Lanjut PIN</button>
+        </div>
+      </div>
+    </div>
+    <popup-pin-generik v-if="pinAktif" judul="PIN Cetak Ulang" pesan="Kode label tidak berubah. Cetak ulang dicatat." konteks="cetak_ulang_label_stok" @sukses="pinSukses" @batal="pinAktif = false" />
+    <popup-pratinjau-cetak-label :terbuka="preview.aktif" judul="Cetak Ulang Label Stok" :daftar-label="preview.daftar" jenis-cetak="label_roll_pembelian" @tutup="preview.aktif = false" />
+  `
+};
 
 // ScanTerpaduGenerik — UI layar penuh utk buatScanTerpadu(): kamera tersemat
 // (KameraTersemat) + chip kunci tahap-1 (twoStep) + input manual (label

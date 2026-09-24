@@ -25,10 +25,10 @@ import { db } from "./firebase-config.js";
 // daftarMenuGroups di bawah sekarang MEMBACA DAFTAR_MENU langsung dari
 // vue-config-akses.js (satu-satunya tempat menu didaftarkan) — bukan disalin
 // tangan lagi. Lihat catatan lengkap di definisi daftarMenuGroups.
-import { DAFTAR_MENU, KATEGORI_URUTAN } from './vue-config-akses.js';
+import { DAFTAR_MENU, KATEGORI_URUTAN } from './vue-config-akses.js?v=25';
 // dipakai PopupPratinjauCetakLabel di bawah untuk baca ukuran kertas/posisi QR/
 // rincian tambahan PER JENIS CETAK dari koleksi `pengaturan_cetak`.
-import { ambilPengaturanCetak, KATALOG_CETAK } from './vue-pengaturan-cetak.js';
+import { ambilPengaturanCetak, KATALOG_CETAK } from './vue-pengaturan-cetak.js?v=8';
 
 
 // MasterDataCategory — kartu 1 kategori Master Data (tambah/lihat/hapus item).
@@ -1185,7 +1185,7 @@ const _FALLBACK_PENGATURAN_LABEL = { lebar_mm: 101.6, tinggi_mm: 50.8, posisi_qr
 // bangunInfoLabelAnakSpk — GLOBAL, dipakai SEMUA jalur cetak label Kode Grouping
 // (Bahan, Acc Sewing/Webbing/Finishing) untuk menyusun field `info`. Yang
 // distandarkan di sini cuma STRUKTUR-nya: N baris rincian item lalu 1 baris nama
-// pelanggan paling bawah. `no_spk` TIDAK PERNAH ditampilkan di sini.
+// pelanggan paling bawah. `id_order` TIDAK PERNAH ditampilkan di sini.
 export function bangunInfoLabelAnakSpk(barisItem, pelangganNama, opsi = {}) {
   const daftar = Array.isArray(barisItem) ? barisItem : [barisItem];
   const ket = opsi.cetakUlang ? ' <b>(CETAK ULANG)</b>' : '';
@@ -1198,12 +1198,10 @@ export function bangunInfoLabelAnakSpk(barisItem, pelangganNama, opsi = {}) {
 // layar & label fisik identik. `formatQty` diterima dari pemanggil. TIDAK
 // menyertakan qrDataUrl & `rincian` — itu tetap tugas pemanggil.
 export function bangunLabelAksesoris(b, formatQty, opsi = {}) {
-  // kode = kode_kartu (fallback no_spk untuk data lama), SENGAJA BUKAN
-  // kode_komponen: alur scan Acc Sewing/Webbing/Finishing mencocokkan hasil scan
-  // ke `kode_kartu`, jadi QR di SEMUA label fisik 1 anak SPK WAJIB identik walau
-  // dipecah jadi banyak lembar.
-  const kodeLabel = b.kode_kartu || b.no_spk;
-  const namaProduk = `${b.nama_produk || ''} ${b.produk_warna || ''}`.trim() || b.kode_spk || '';
+  // kode = Kode Kit ACC (kode_kit), sisanya fallback data lama. Scan ACC
+  // mencocokkan ke kode ini, jadi QR SEMUA lembar satu kit WAJIB identik.
+  const kodeLabel = b.kode_kit || b.kode_kartu || b.id_order;
+  const namaProduk = `${b.nama_produk || ''} ${b.produk_warna || ''}`.trim() || b.kode_grouping_induk || '';
   const baris3 = b.nama_aksesoris || '(tanpa nama aksesoris)';
   const baris4 = `${b.warna || '-'} &middot; ${formatQty(b.butuh)} ${b.satuan || ''}`;
   return {

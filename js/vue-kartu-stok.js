@@ -1,38 +1,28 @@
 // js/vue-kartu-stok.js
-// Stok & Pembelian > Kartu Stok. DAFTAR STOK dulu (semua bahan+aksesoris:
-// stok/teralokasi/bebas/batas kritis/status/rak/lot, filter kategori+kritis),
-// klik baris -> LEDGER read-only 1 item (masuk/keluar/penyesuaian), tanpa
-// form entry & scan di layar manapun.
+// Stok & Pembelian > Kartu Stok. Daftar stok semua bahan+aksesoris (stok,
+// teralokasi, bebas, batas kritis, rak, lot), klik baris -> ledger read-only.
 //
 // Koleksi & field:
-// - Daftar item: full fetch master_bahan_aksesoris client-side (master data
-//   terbatas, pola ambilDaftarBahanAksesorisLengkap). Badge "Lot Aktif" per
-//   baris dari lot_bahan_aksesoris status=='aktif', dihitung SEKALI (bukan
-//   query per baris) lalu dikelompokkan client-side.
-// - Teralokasi per item: hitungTeralokasiSemuaBahan() dari
-//   vue-stock-pembelian.js (baca spk_track jalur Bahan+3 Acc, baris yang
-//   belum entry_qty). Bebas = stok - teralokasi. Status kritis kalau
-//   bebas <= batas_kritis (field BARU di master_bahan_aksesoris, > 0),
-//   habis kalau bebas <= 0.
-// - kartu_stok_bahan_aksesoris: paginasi cursor lewat usePaginasiFirestore,
-//   perHalaman 15 — bisa ratusan baris per item, jangan di-full-fetch.
+// - master_bahan_aksesoris: full fetch client-side. Badge "Lot Aktif" dari
+//   lot_bahan_aksesoris status 'aktif', dihitung sekali lalu dikelompokkan.
+// - Teralokasi: hitungTeralokasiSemuaBahan() (spk_track baris belum
+//   entry_qty). Bebas = stok - teralokasi; kritis kalau bebas <= batas_kritis.
+// - kartu_stok_bahan_aksesoris: paginasi cursor usePaginasiFirestore, 15 per
+//   halaman — bisa ratusan baris per item, jangan di-full-fetch.
 //
 // Jebakan:
-// - stok_akhir di master_bahan_aksesoris sumber kebenaran tunggal, HANYA
-//   ditulis catatPergerakanKartuStok/catatPemakaianDariAlokasi/Scan Opname
-//   di vue-stock-pembelian.js lewat runTransaction. File ini tidak pernah
-//   menulis stok_akhir/qty_sisa, cuma membaca. batas_kritis PENGECUALIAN:
-//   satu-satunya field milik menu ini yang ditulis dari sini (popup 5.1a).
-// - Catat Pemakaian (FIFO multi-roll) ada di vue-scan-persiapan.js.
-// - Teks empty state "Belum ada transaksi masuk/keluar untuk item ini"
-//   istilah wajib; paginasiDetail.errorPaginasi wajib tetap dirender.
+// - stok_akhir/qty_sisa HANYA ditulis fungsi stok di vue-stock-pembelian.js.
+//   File ini cuma menulis batas_kritis (popup Atur Batas Kritis).
+// - Badge "Lot Aktif" hanya menghitung jenis lot; pak repack tidak ikut.
+// - Teks "Belum ada transaksi masuk/keluar untuk item ini" istilah wajib;
+//   paginasiDetail.errorPaginasi wajib tetap dirender.
 
 import { createApp, ref, computed, onMounted, watch } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, getDocs, doc, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { DropdownCari } from './vue-components.js?v=13';
 import { usePaginasiFirestore } from './vue-paginasi.js';
-import { ambilLotAktif, hitungTeralokasiSemuaBahan } from './vue-stock-pembelian.js?v=31';
+import { ambilLotAktif, hitungTeralokasiSemuaBahan } from './vue-stock-pembelian.js?v=32';
 
 function formatQty(n) {
   const angka = parseFloat(n) || 0;
@@ -151,7 +141,7 @@ const KartuStokManager = {
         const peta = {};
         lotSnap.forEach(d => {
           const id = d.data().bahan_aksesoris_id;
-          if (id) peta[id] = (peta[id] || 0) + 1;
+          if (id && d.data().jenis !== 'pak') peta[id] = (peta[id] || 0) + 1;
         });
         petaLotAktif.value = peta;
       } catch (e) {

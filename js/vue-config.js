@@ -1,6 +1,6 @@
 // js/vue-config.js
-// Zevanic House > Config. Pusat data referensi produksi: 9 child-tab, tiap tab
-// satu Vue app kecil pembungkus komponen master data yang reusable.
+// Zevanic House > Config. Pusat data referensi produksi + Reset Testing:
+// 10 child-tab, tiap tab satu Vue app kecil.
 //
 // Koleksi & field:
 // - master_data/jenis_bahan & /jenis_aksesoris: lewat MasterDataCategory.
@@ -11,17 +11,19 @@
 //   di kolom Nama TLC tabel Kode per Divisi.
 //
 // Jebakan:
-// - Tidak ada UI hapus master_tlc di layar ini; entry salah ketik cuma bisa
-//   dibersihkan lewat Firebase Console.
+// - Tidak ada UI hapus master_tlc; salah ketik dibersihkan lewat Firebase Console.
 // - Ke-9 tab memakai satu menu-id 'config_master_data' (didaftarkan di
 //   vue-config-akses.js), defaultnya Owner saja.
 // - Mount LAZY per tab lewat window.pastikanMountConfigXxx yang dipanggil
 //   dashboard.js; jangan dipanggil saat load, itu membaca 9 koleksi sekaligus.
+// - Tab Reset Testing menghapus koleksi alur produksi + counter harian. Lot,
+//   stok, kartu stok, pembelian, dan semua master TIDAK termasuk. PIN Owner.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { MasterDataCategory, MasterDataTabelManager } from './vue-components.js?v=13';
+import { PopupPinGenerik } from './vue-scan-cetak.js?v=10';
 
 const MENU_ID_CONFIG = 'config_master_data';
 
@@ -88,7 +90,7 @@ const DAFTAR_MENU_DIVISI = [
   { jalur_key: 'finishing', nama_menu: 'Persiapan Produksi › Acc Finishing', aktif: true },
   { jalur_key: 'masalah', nama_menu: 'Persiapan Produksi › Masalah', aktif: false },
   { jalur_key: 'pp_cutting', nama_menu: 'Proses Produksi › Cutting', aktif: false, tlcKodeSekarang: 'TLC-PTG' },
-  { jalur_key: 'pp_serie', nama_menu: 'Proses Produksi › Serie (Separating)', aktif: false, tlcKodeSekarang: 'TLC-SER' },
+  { jalur_key: 'pp_serie', nama_menu: 'Collection › Pengumpulan + Serie', aktif: false, tlcKodeSekarang: 'TLC-SER' },
   { jalur_key: 'pp_sewing', nama_menu: 'Proses Produksi › Sewing', aktif: false, tlcKodeSekarang: 'TLC-JHT' },
   { jalur_key: 'pp_finishing', nama_menu: 'Proses Produksi › Finishing', aktif: false, tlcKodeSekarang: 'TLC-FIN' },
   { jalur_key: 'pp_gudang', nama_menu: 'Proses Produksi › Gudang Barang Jadi', aktif: false, tlcKodeSekarang: 'TLC-GBJ' }
@@ -235,7 +237,7 @@ const AppConfigTlc = {
   template: `
     <div>
       <label style="font-size:11.5px; font-weight:700; color:var(--text-muted); display:block; margin-bottom:8px;">TLC &amp; Prefix</label>
-      <p style="font-size:11px; color:var(--text-faint); margin:-4px 0 10px;">1 baris = 1 titik/menu yang punya kode tugas sendiri. <b>Nama TLC</b> = cari &amp; pilih titik TLC yang sudah ada, atau ketik nama baru (otomatis dibuatkan entry-nya). <b>TLC Divisi</b> = kode TLC-nya, muncul di label cetak (di bawahnya diikuti kode tugas). <b>Kode TLC</b> (2 digit) dipakai gabung ke Kode Grouping utk label+query scan QR (mis. kode_spk <code>G26R0912P001</code> + kode TLC <code>12</code> + urutan bahan+anak SPK+komponen &rarr; <code>G26R0912P001-120101-01</code>) — <b>cuma benar-benar dipakai generator</b> utk 4 baris "Persiapan Produksi" teratas (tanda hijau); baris lain aman diisi/dikosongkan sebagai referensi dulu.</p>
+      <p style="font-size:11px; color:var(--text-faint); margin:-4px 0 10px;">1 baris = 1 titik/menu yang punya kode tugas sendiri. <b>Nama TLC</b> = cari &amp; pilih titik TLC yang sudah ada, atau ketik nama baru (otomatis dibuatkan entry-nya). <b>TLC Divisi</b> = kode TLC-nya, muncul di label cetak (di bawahnya diikuti kode tugas). <b>Kode TLC</b> (2 digit) dipakai gabung ke Kode Grouping utk label+query scan QR (mis. kode_grouping_induk <code>G26R0912P001</code> + kode TLC <code>12</code> + urutan bahan+anak SPK+komponen &rarr; <code>G26R0912P001-120101-01</code>) — <b>cuma benar-benar dipakai generator</b> utk 4 baris "Persiapan Produksi" teratas (tanda hijau); baris lain aman diisi/dikosongkan sebagai referensi dulu.</p>
 
       <div v-if="memuat" style="font-size:11px; color:var(--text-faint);">Memuat...</div>
       <div v-else class="gc-table-scroll">
@@ -287,6 +289,91 @@ const AppConfigTlc = {
 // "05 - Scan dan Cetak" §4.1. Tidak ada salinan komponennya di file ini supaya
 // tidak ada 2 versi kode yang bisa menyimpang.
 
+
+// Reset Testing — hapus data alur produksi hasil uji coba. Daftar koleksi di
+// sini SENGAJA tertutup: lot_bahan_aksesoris, kartu_stok, pesanan_pembelian,
+// master_* tidak boleh masuk. Hapus per 400 dokumen (batas batch 500).
+const KOLEKSI_RESET = [
+  { id: 'pesanan', ket: 'Pesanan kasir' }, { id: 'order', ket: 'ID Order' }, { id: 'order_spk', ket: 'Order SPK lama' },
+  { id: 'spk_separating', ket: 'Separating' }, { id: 'spk_grouping', ket: 'Grouping' }, { id: 'spk_track', ket: 'Track persiapan' },
+  { id: 'cutting_track', ket: 'Cutting' }, { id: 'label_komponen', ket: 'Label komponen' }, { id: 'sewing_track', ket: 'Sewing' },
+  { id: 'finishing_track', ket: 'Finishing' }, { id: 'label_pcs', ket: 'Label pcs' }, { id: 'bagging', ket: 'Bagging' },
+  { id: 'tugas_kirim', ket: 'Kode tugas' }, { id: 'persiapan_masalah', ket: 'Masalah' }, { id: 'berita_acara', ket: 'Berita Acara' },
+  { id: 'log_scan', ket: 'Log scan' }, { id: 'cetak_ulang_log', ket: 'Log cetak ulang' },
+  { id: 'pengaturan_id_spk_separating', ket: 'Counter separating' }, { id: 'pengaturan_id_spk_grouping', ket: 'Counter grouping' },
+  { id: 'pengaturan_id_tugas_kirim', ket: 'Counter tugas' }, { id: 'pengaturan_id_bagging', ket: 'Counter bagging' },
+  { id: 'pengaturan_id_label_komponen', ket: 'Counter label komponen' }, { id: 'pengaturan_id_label_pcs', ket: 'Counter label pcs' },
+  { id: 'pengaturan_id_persiapan_masalah', ket: 'Counter MSL' }, { id: 'pengaturan_id_persiapan_masalah_pengajuan', ket: 'Counter pengajuan masalah' },
+  { id: 'pengaturan_id_berita_acara', ket: 'Counter BA' }
+];
+const AppConfigResetTesting = {
+  components: { PopupPinGenerik },
+  setup() {
+    const jumlah = reactive({});
+    const pilih = reactive(Object.fromEntries(KOLEKSI_RESET.map(k => [k.id, true])));
+    const memuat = ref(false);
+    const sedangHapus = ref(false);
+    const konfirmasi = ref('');
+    const pinAktif = ref(false);
+    const log = ref([]);
+    async function muat() {
+      memuat.value = true;
+      for (const k of KOLEKSI_RESET) {
+        try { jumlah[k.id] = (await getDocs(collection(db, k.id))).size; } catch (e) { jumlah[k.id] = '?'; }
+      }
+      memuat.value = false;
+    }
+    function mulai() {
+      if (konfirmasi.value !== 'RESET') { alert('Ketik RESET (huruf besar) untuk konfirmasi.'); return; }
+      if (!KOLEKSI_RESET.some(k => pilih[k.id])) { alert('Pilih minimal satu koleksi.'); return; }
+      pinAktif.value = true;
+    }
+    async function pinSukses() {
+      pinAktif.value = false; sedangHapus.value = true; log.value = [];
+      for (const k of KOLEKSI_RESET.filter(x => pilih[x.id])) {
+        try {
+          const snap = await getDocs(collection(db, k.id));
+          for (let i = 0; i < snap.docs.length; i += 400) {
+            const batch = writeBatch(db);
+            snap.docs.slice(i, i + 400).forEach(d => batch.delete(d.ref));
+            await batch.commit();
+          }
+          log.value.push(k.id + ': ' + snap.size + ' dihapus');
+        } catch (e) { console.error('Gagal reset ' + k.id + ':', e); log.value.push(k.id + ': GAGAL (' + (e.code || e.message) + ')'); }
+      }
+      konfirmasi.value = ''; sedangHapus.value = false;
+      await muat();
+    }
+    onMounted(async () => { await window.authReady; await muat(); });
+    return { KOLEKSI_RESET, jumlah, pilih, memuat, sedangHapus, konfirmasi, pinAktif, log, muat, mulai, pinSukses };
+  },
+  template: `
+    <div class="gc-card" style="padding:14px;">
+      <h3 class="gc-heading" style="font-size:14px; font-weight:700; margin:0 0 4px;">Reset Data Testing</h3>
+      <p style="font-size:11.5px; color:var(--text-faint); margin:0 0 12px;">Menghapus data alur produksi hasil uji coba. Lot, stok, kartu stok, pembelian, dan master data TIDAK ikut dihapus. Tidak bisa dibatalkan.</p>
+      <div class="gc-table-scroll" style="margin-bottom:12px;">
+        <table style="width:100%; border-collapse:collapse; font-size:11.5px;">
+          <tbody>
+            <tr v-for="k in KOLEKSI_RESET" :key="k.id" style="border-bottom:1px solid var(--line);">
+              <td style="padding:5px 8px; width:28px;"><input type="checkbox" v-model="pilih[k.id]"></td>
+              <td style="padding:5px 8px;" class="gc-num">{{ k.id }}</td>
+              <td style="padding:5px 8px; color:var(--text-faint);">{{ k.ket }}</td>
+              <td style="padding:5px 8px; text-align:right;" class="gc-num">{{ memuat ? '...' : jumlah[k.id] }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="gc-field" style="margin-bottom:10px;"><label>Ketik RESET untuk konfirmasi</label><input v-model="konfirmasi" type="text" autocomplete="off"></div>
+      <div style="display:flex; gap:8px;">
+        <button @click="muat" :disabled="memuat || sedangHapus" class="btn-outline" style="flex:1; padding:9px;">Hitung Ulang</button>
+        <button @click="mulai" :disabled="sedangHapus" class="btn-primary" style="flex:1; padding:9px; background:var(--danger);">{{ sedangHapus ? 'Menghapus...' : 'Hapus Data Testing' }}</button>
+      </div>
+      <div v-if="log.length" style="margin-top:10px; font-size:11px;" class="gc-num"><div v-for="(l,i) in log" :key="i">{{ l }}</div></div>
+    </div>
+    <popup-pin-generik v-if="pinAktif" judul="PIN Owner — Reset Data Testing" pesan="Data yang dicentang akan dihapus permanen." konteks="Config - Reset Data Testing" :roles-diizinkan="['owner','superuser','pic_owner']" @sukses="pinSukses" @batal="pinAktif = false" />
+  `
+};
+
 let vmConfigJenisBahan = null;
 let vmConfigJenisAksesoris = null;
 let vmConfigSatuan = null;
@@ -296,6 +383,7 @@ let vmConfigJenisProduk = null;
 let vmConfigKomponen = null;
 let vmConfigTahapPersiapan = null;
 let vmConfigTlc = null;
+let vmConfigResetTesting = null;
 
 window.pastikanMountConfigJenisBahan = function() {
   if (vmConfigJenisBahan) { const mgr = vmConfigJenisBahan.$refs && vmConfigJenisBahan.$refs.mgr; if (mgr && typeof mgr.muat === 'function') mgr.muat(); return; }
@@ -341,4 +429,9 @@ window.pastikanMountConfigTlc = function() {
   if (vmConfigTlc) { if (typeof vmConfigTlc.muat === 'function') vmConfigTlc.muat(); return; }
   const mountPoint = document.getElementById('vue-config-tlc');
   if (mountPoint) vmConfigTlc = createApp(AppConfigTlc).mount('#vue-config-tlc');
+};
+window.pastikanMountConfigResetTesting = function() {
+  if (vmConfigResetTesting) { if (typeof vmConfigResetTesting.muat === 'function') vmConfigResetTesting.muat(); return; }
+  const mountPoint = document.getElementById('vue-config-resettesting');
+  if (mountPoint) vmConfigResetTesting = createApp(AppConfigResetTesting).mount('#vue-config-resettesting');
 };

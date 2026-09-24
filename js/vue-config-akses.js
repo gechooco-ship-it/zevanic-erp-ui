@@ -173,9 +173,9 @@ const DAFTAR_MENU = [
   { id: 'persiapan_produksi_finishing', label: 'Persiapan Produksi - Persiapan Acc Finishing (LAMA, lihat kategori Persiapan Produksi)', kategori: 'Zevanic House', deprecated: true },
   // Kategori 'Persiapan Produksi' = grup sidebar top-level sendiri, bukan
   // sub-menu Zevanic House. Lihat js/vue-persiapan-produksi-v2.js.
-  { id: 'pp_disiapkan', label: 'Persiapan Produksi - Perlu Disiapkan', labelPendek: 'Perlu Disiapkan', kategori: 'Persiapan Produksi', icon: 'fa-list-check',
+  { id: 'pp_disiapkan', label: 'Persiapan Produksi - Perlu Persiapan', labelPendek: 'Perlu Persiapan', kategori: 'Persiapan Produksi', icon: 'fa-list-check',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-disiapkan', null, {catatRiwayat:true}); } },
-  { id: 'pp_vendor', label: 'Persiapan Produksi - Vendor', labelPendek: 'Vendor', kategori: 'Persiapan Produksi', icon: 'fa-handshake',
+  { id: 'pp_vendor', label: 'Persiapan Produksi - Persiapan Vendor', labelPendek: 'Persiapan Vendor', kategori: 'Persiapan Produksi', icon: 'fa-handshake',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-vendor', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-vendor-tahap', 'sub-pp-vendor-perludiproses', null, {catatRiwayat:true}); } },
   { id: 'pp_bahan', label: 'Persiapan Produksi - Bahan', labelPendek: 'Bahan', kategori: 'Persiapan Produksi', icon: 'fa-scroll',
     aksi: () => { window.pindahTab('tab-persiapan-produksi'); window.pindahSubTab('sub-persiapan-produksi', 'sub-pp-bahan', null, {catatRiwayat:true}); window.pindahSubTab('sub-pp-bahan-tahap', 'sub-pp-bahan-perludisiapkan', null, {catatRiwayat:true}); } },
@@ -197,11 +197,10 @@ const DAFTAR_MENU = [
   // untuk 5 tab). Lihat js/vue-pp-cutting.js.
   { id: 'cut_cutting', label: 'Proses Produksi - Cutting', labelPendek: 'Cutting', kategori: 'Proses Produksi', icon: 'fa-scissors',
     aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-cutting', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-perludiproses', null, {catatRiwayat:true}); } },
-  // Proses Produksi > Serie, NESTED di grup top-level "Proses Produksi" yang
-  // SUDAH ada dari Cutting (bukan grup baru) -- satu izin menu untuk semua 11
-  // tab Serie, sama pola seperti cut_cutting. Lihat js/vue-pp-serie.js.
-  { id: 'proses_serie', label: 'Proses Produksi - Serie', labelPendek: 'Serie', kategori: 'Proses Produksi', icon: 'fa-shuffle',
-    aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-serie', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-perludiproses', null, {catatRiwayat:true}); } },
+  // Collection > Pengumpulan + Serie — grup sidebar sendiri, isinya tetap di
+  // tab-proses-produksi. Satu izin menu untuk semua tab. Lihat js/vue-pp-serie.js.
+  { id: 'proses_serie', label: 'Collection - Pengumpulan + Serie', labelPendek: 'Pengumpulan + Serie', kategori: 'Collection', icon: 'fa-shuffle',
+    aksi: () => { window.pindahTab('tab-proses-produksi'); window.pindahSubTab('sub-proses-produksi', 'sub-pr-serie', null, {catatRiwayat:true}); window.pindahSubTab('sub-pr-serie-tahap', 'sub-pr-serie-perludiproses', null, {catatRiwayat:true}); window.toggleNavGroup && window.toggleNavGroup('navgrp-collection'); } },
   // Proses Produksi > Sewing, NESTED di grup top-level "Proses Produksi" yang
   // SUDAH ada dari Cutting/Serie (bukan grup baru) -- satu izin menu untuk semua
   // 5 tab Sewing, sama pola seperti cut_cutting/proses_serie. Lihat js/vue-pp-
@@ -237,8 +236,7 @@ const DAFTAR_MENU = [
   // vue-scan-opname.js / vue-scan-persiapan.js, bukan di sini.
   { id: 'scan_opname', label: 'Scan Opname', kategori: 'Scan & Cetak', icon: 'fa-qrcode',
     aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-stok', null); window.pindahSubTab('sub-scancetak-stok-tahap', 'sub-scancetak-stok-opname', null); } },
-  { id: 'scan_persiapan', label: 'Scan Persiapan', kategori: 'Scan & Cetak', icon: 'fa-boxes-stacked',
-    aksi: () => { window.pindahTab('tab-scan-cetak'); window.pindahSubTab('sub-scan-cetak', 'sub-scan-cetak-stok', null); window.pindahSubTab('sub-scancetak-stok-tahap', 'sub-scancetak-stok-persiapan', null); } },
+  { id: 'scan_persiapan', label: 'Scan Persiapan (LAMA, Scan Entry ada di tiap pos Persiapan)', kategori: 'Scan & Cetak', deprecated: true },
   // 3 menu-id baru utk 3 sub-tab Scan & Cetak lainnya (Riwayat PIN pindah dari
   // 'config_master_data' ke id sendiri, karena screen ini sekarang di luar
   // Config — beda cakupan izin).
@@ -262,7 +260,7 @@ const DAFTAR_MENU = [
 // dan sidebar desktop. Kategori baru DITAMBAH DI UJUNG — menyisipkan di tengah
 // menggeser urutan yang sudah tersimpan di pengaturan_sistem/urutan_menu_home.
 // Master Karyawan/Absensi/Keuangan tetap terpisah walau sidebar menggabungnya.
-export const KATEGORI_URUTAN = ['Umum', 'Master Karyawan', 'Master Absensi', 'Master Keuangan', 'Zevanic House', 'Stok dan Pembelian', 'Pesanan', 'Persiapan Produksi', 'Proses Produksi', 'Scan & Cetak', 'Master Integrasi'];
+export const KATEGORI_URUTAN = ['Umum', 'Master Karyawan', 'Master Absensi', 'Master Keuangan', 'Zevanic House', 'Stok dan Pembelian', 'Pesanan', 'Persiapan Produksi', 'Collection', 'Proses Produksi', 'Scan & Cetak', 'Master Integrasi'];
 export { DAFTAR_MENU };
 // AppPetaMenu: pill "Petakan Menu". Menentukan kategori menu mana dipakai jenis
 // usaha mana. Dibaca pill Jabatan untuk menyembunyikan kategori yang tidak
@@ -277,6 +275,7 @@ const PETA_USAHA_BAWAAN = {
   'Stok dan Pembelian': ['ZCO'],
   'Pesanan': ['ZCO'],
   'Persiapan Produksi': ['ZCO'],
+  'Collection': ['ZCO'],
   'Proses Produksi': ['ZCO'],
   'Scan & Cetak': ['ZCO']
 };
