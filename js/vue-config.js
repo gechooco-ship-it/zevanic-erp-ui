@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, deleteDoc, getDoc, getDocs, setDoc, serverTimestamp, writeBatch, increment } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { MasterDataCategory, MasterDataTabelManager } from './vue-components.js?v=13';
-import { PopupPinGenerik } from './vue-scan-cetak.js?v=13';
+import { PopupPinGenerik } from './vue-scan-cetak.js?v=14';
 
 const MENU_ID_CONFIG = 'config_master_data';
 

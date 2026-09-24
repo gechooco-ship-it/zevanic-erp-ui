@@ -23,7 +23,7 @@ import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=15';
 import { usePaginasiFirestore } from './vue-paginasi.js';
 import { ambilSemuaLotByBahan, hitungTeralokasiSemuaBahan, catatLogCetakLabel, catatPenyesuaianOpnameItem, catatPenyesuaianOpnameLot, rincianTeralokasiBahan, buatLotSusulan } from './vue-stock-pembelian.js?v=34';
-import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=13';
+import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=14';
 
 function formatQty(n) {
   const angka = parseFloat(n) || 0;

@@ -678,6 +678,14 @@ export function buatScanTerpadu(cfg) {
 // kali. Tiap baris tampil "stok − pakai = sisa"; label fisik TIDAK dicetak
 // ulang, kodenya tetap dan angka sisa cukup dikoreksi tangan.
 function angkaStok(n) { return (Math.round((parseFloat(n) || 0) * 100) / 100).toLocaleString('id-ID', { maximumFractionDigits: 2 }); }
+// Satuan panjang kecil (kain) tampil meter, 2 desimal dipotong ke bawah.
+const KE_METER = { CM: 0.01, CENTIMETER: 0.01, SENTIMETER: 0.01, MM: 0.001, MILIMETER: 0.001 };
+function badgeStok(stok, pakai, sisa, satuan) {
+  const f = KE_METER[String(satuan || '').trim().toUpperCase()];
+  if (!f) return `stok ${angkaStok(stok)} − pakai ${angkaStok(pakai)} = sisa ${angkaStok(sisa)} ${satuan}`.trim();
+  const m = (n) => (Math.floor(Math.round(n * f * 1000) / 10) / 100).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + 'm';
+  return `stok ${m(stok)} − pakai ${m(pakai)} = sisa ${m(sisa)}`;
+}
 export function buatScanEntryStok(cfg) {
   const ctrl = buatScanTerpadu({
     judul: cfg.judul || ('Scan Entry — ' + cfg.pos), subjudul: 'Scan label kerja, lalu label stok yang dipakai',
@@ -703,7 +711,7 @@ export function buatScanEntryStok(cfg) {
       const satuan = hasil.lot?.satuan || hasil.bahan.satuan_pemakaian || '';
       return { ok: true, row: {
         kode, label: (hasil.bahan.nama || '') + ' · ' + (hasil.jenis === 'item' ? 'ID Item' : hasil.jenis === 'pak' ? 'Pak' : 'Lot'),
-        tagTxt: `stok ${angkaStok(stokAwal)} − pakai ${angkaStok(h.ambil)} = sisa ${angkaStok(sisa)} ${satuan}`.trim(), tagCls: sisa > 0 ? 'warn' : 'ok',
+        tagTxt: badgeStok(stokAwal, h.ambil, sisa, satuan), tagCls: sisa > 0 ? 'warn' : 'ok',
         _jenis: hasil.jenis, _lotId: hasil.lot ? hasil.lot.id : null, _ambil: h.ambil
       } };
     },
