@@ -148,8 +148,8 @@ async function generateKodeGroupingInduk() {
 // supaya kit yang tertukar ditolak saat scan.
 const AKHIRAN_KIT = { sewing: 'SEW', webbing: 'WEB', finishing: 'FIN', vendor: 'VDR' };
 
-// usulPecahanMoq — 30 pcs, kelipatan 10 → [10,10,10]; sisa di bawah kelipatan
-// jadi separating sendiri. Kelipatan kosong/0 → satu separating berisi semua.
+// usulPecahanMoq — 30 pcs, kelipatan 10 → [10,10,10]. Kelipatan kosong/0 →
+// satu separating berisi semua.
 export function usulPecahanMoq(qty, moq) {
   const total = Math.max(0, Math.floor(parseFloat(qty) || 0));
   const m = Math.floor(parseFloat(moq) || 0);
@@ -450,19 +450,17 @@ function muatJsQr() {
 }
 
 // cekPecahan — aturan pecahan separating: total WAJIB = qty keputusan QO yang
-// tersisa, tiap pecahan kelipatan acuan order (master_produk.kelipatan). Kalau
-// QO sendiri bukan kelipatan (QO manual), boleh satu pecahan berisi sisanya.
+// tersisa, tiap pecahan kelipatan acuan order (master_produk.kelipatan). QO
+// sendiri sudah dikunci kelipatan di Menunggu Proses, jadi tidak ada sisa.
 // MOQ suplayer (master_suplayer) urusan belanja, tidak dipakai di sini.
 export function cekPecahan(pecahan, sisaQo, kelipatan) {
   const angka = (pecahan || []).map(x => parseFloat(x) || 0);
   if (!angka.length || angka.some(x => x <= 0 || !Number.isInteger(x))) return 'Tiap pecahan wajib angka bulat lebih dari 0.';
+  const k = Math.floor(parseFloat(kelipatan) || 0);
+  if (k > 0 && sisaQo % k !== 0) return `Keputusan QO ${sisaQo} pcs bukan kelipatan ${k}. QO wajib kelipatan acuan order.`;
   const total = angka.reduce((t, x) => t + x, 0);
   if (total !== sisaQo) return `Total pecahan ${total} harus sama dengan keputusan QO ${sisaQo} pcs.`;
-  const k = Math.floor(parseFloat(kelipatan) || 0);
-  if (!(k > 0)) return '';
-  const bukanKelipatan = angka.filter(x => x % k !== 0).length;
-  const boleh = sisaQo % k === 0 ? 0 : 1;
-  if (bukanKelipatan > boleh) return boleh ? `Hanya satu pecahan boleh bukan kelipatan ${k} (sisa ${sisaQo % k} pcs dari QO).` : `Tiap pecahan wajib kelipatan ${k} (acuan order Master Produk).`;
+  if (k > 0 && angka.some(x => x % k !== 0)) return `Tiap pecahan wajib kelipatan ${k} (acuan order Master Produk).`;
   return '';
 }
 

@@ -878,6 +878,9 @@ const PesananMenungguManager = {
       if (jawab === null) return;
       const angka = parseFloat(jawab);
       if (!(angka > 0)) return alert('Isi angka yang valid (lebih dari 0).');
+      // QO manual tetap wajib kelipatan acuan order kalau produk punya kelipatan.
+      const k = opsiUntuk(baris).kelipatan;
+      if (k > 0 && angka % k !== 0) return alert(`QO wajib kelipatan ${k} (acuan order Master Produk).`);
       pilihan[baris.id] = angka;
     }
 
