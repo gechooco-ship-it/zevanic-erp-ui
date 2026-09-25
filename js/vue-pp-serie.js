@@ -22,7 +22,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=15';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=15';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan Produksi,
@@ -77,7 +77,7 @@ function picOwnerKeAtas(userData) {
   return role === 'owner' || role === 'superuser' || role === 'pic';
 }
 // saringMilikOperator — operator hanya lihat baris yang ditugaskan ke dirinya
-// (lewat Tunjuk Operator); role lain lihat semua baris. Gerbang TAMPILAN,
+// (lewat Scan Operator); role lain lihat semua baris. Gerbang TAMPILAN,
 // terpisah dari picOwnerKeAtas yang cuma menggerbang tombol aksi.
 function saringMilikOperator(barisList) {
   if ((window.currentUser?.role || '').toLowerCase() !== 'operator') return barisList;
@@ -212,7 +212,7 @@ function bisaMulaiSerie(sumber) {
 }
 
 const SeriePerluDiProses = {
-  components: { ScanGenerik, ScanTerpaduGenerik, PopupPinGenerik, PopupPratinjauCetakLabel },
+  components: { ScanGenerik, ScanTerpaduGenerik, PopupPratinjauCetakLabel },
   setup() {
     const memuat = ref(true);
     const daftarSep = ref([]);
@@ -567,7 +567,7 @@ const SeriePerluDiProses = {
 // operator, scan entry per komponen, lintas 4 sumber sekaligus)
 
 const SerieSedangDiProses = {
-  components: { ScanGenerik, PopupPinGenerik, PopupPratinjauCetakLabel },
+  components: { ScanGenerik, PopupPratinjauCetakLabel },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -622,12 +622,18 @@ const SerieSedangDiProses = {
       sedangCetak.value = false;
     }
 
-    // Scan Operator (sekali per batch)
-    const popupPinOperator = ref(null);
-    function bukaScanOperator(batch) { popupPinOperator.value = batch; }
-    async function pinSuksesOperator(user) {
-      const batch = popupPinOperator.value;
-      popupPinOperator.value = null;
+    // Scan Operator (sekali per batch): operator dibaca dari QR badge, bukan
+    // akun yang login.
+    const scanOpBatch = ref(null);
+    function bukaScanOperator(batch) { scanOpBatch.value = batch; }
+    async function scanOperator(kode) {
+      const k = await cariKaryawanByQr((kode || '').trim());
+      if (!k) { alert('QR tidak dikenali — operator/tim tidak ditemukan.'); return; }
+      await terapkanOperator({ email: k.id, nama: k.nama || k.name || k.id });
+    }
+    async function terapkanOperator(user) {
+      const batch = scanOpBatch.value;
+      scanOpBatch.value = null;
       try {
         const namaOperator = user.nama || user.name || user.email;
         const pada = new Date().toISOString();
@@ -635,7 +641,7 @@ const SerieSedangDiProses = {
           operator_uid: user.email, operator_nama: namaOperator,
           riwayat_operator: [...(data.riwayat_operator || []), { uid: user.email, nama: namaOperator, pada }],
           // riwayat_scan — dicatat ADITIF.
-          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: namaOperator, pada, qty: data.qty ?? null }]
+          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: window.currentUser?.name || window.currentUser?.email || '', catatan: 'Scan Operator: ' + namaOperator, pada, qty: data.qty ?? null }]
         }));
         await muat();
       } catch (e) { console.error('Gagal scan operator Serie:', e); alert('Gagal menyimpan. Coba lagi.'); }
@@ -713,7 +719,7 @@ const SerieSedangDiProses = {
       ekspand, toggleEkspand, perSumber, progres,
       expandedIds, toggleExpand,
       popupCetakAktif, daftarLabelPreview, sedangCetak, cetakIdKomponen,
-      popupPinOperator, bukaScanOperator, pinSuksesOperator,
+      scanOpBatch, bukaScanOperator, scanOperator,
       modalEntry, bukaScanEntry, tutupScanEntry, hasilScanEntry,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
       pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget,
@@ -816,7 +822,7 @@ const SerieSedangDiProses = {
 
     <popup-pratinjau-cetak-label v-if="popupCetakAktif" :terbuka="popupCetakAktif" :daftar-label="daftarLabelPreview" judul="Cetak ID Komponen" jenis-cetak="id_komponen_serie" @tutup="popupCetakAktif = false" />
     <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.batch ? ('Scan Entry — ' + modalEntry.batch.kode_separating) : 'Scan Entry'" subjudul="Scan ID komponen satu per satu." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
-    <popup-pin-generik v-if="popupPinOperator" judul="Verifikasi PIN — Operator Serie" konteks="Serie - Scan Operator" :roles-diizinkan="['owner','superuser','pic_owner','pic']" @sukses="pinSuksesOperator" @batal="popupPinOperator = null" />
+    <scan-generik :aktif="!!scanOpBatch" judul="Scan QR Operator Serie" :subjudul="scanOpBatch ? ('Batch ' + (scanOpBatch.kode_separating || '')) : ''" @hasil="scanOperator" @tutup="scanOpBatch = null" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">

@@ -1198,8 +1198,8 @@ export function bangunInfoLabelAnakSpk(barisItem, pelangganNama, opsi = {}) {
 // layar & label fisik identik. `formatQty` diterima dari pemanggil. TIDAK
 // menyertakan qrDataUrl & `rincian` — itu tetap tugas pemanggil.
 export function bangunLabelAksesoris(b, formatQty, opsi = {}) {
-  // kode = Kode Kit ACC (kode_kit), sisanya fallback data lama. Scan ACC
-  // mencocokkan ke kode ini, jadi QR SEMUA lembar satu kit WAJIB identik.
+  // kode bawaan = Kode Kit ACC (kode_kit). Persiapan Acc menimpanya dengan
+  // kode_baris per baris (labelBarisAcc) — QR label fisik = kode per baris.
   const kodeLabel = b.kode_kit || b.kode_kartu || b.id_order;
   const namaProduk = `${b.nama_produk || ''} ${b.produk_warna || ''}`.trim() || b.kode_grouping_induk || '';
   const baris3 = b.nama_aksesoris || '(tanpa nama aksesoris)';

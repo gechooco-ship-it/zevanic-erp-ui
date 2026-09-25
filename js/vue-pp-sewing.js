@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=15';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=15';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie, belum ada
@@ -84,7 +84,7 @@ function picOwnerKeAtas(userData) {
   return role === 'owner' || role === 'superuser' || role === 'pic';
 }
 // saringMilikOperator — operator hanya lihat baris yang ditugaskan ke dirinya
-// (lewat Tunjuk Operator); role lain lihat semua baris. Gerbang TAMPILAN,
+// (lewat Scan Operator); role lain lihat semua baris. Gerbang TAMPILAN,
 // terpisah dari picOwnerKeAtas yang cuma menggerbang tombol aksi.
 function saringMilikOperator(barisList) {
   if ((window.currentUser?.role || '').toLowerCase() !== 'operator') return barisList;
@@ -203,7 +203,7 @@ async function kirimMasalahSewing(track, jumlah, alasan, jenis) {
 // TAB 3.1: Perlu Di Proses
 
 const SewingPerluDiProses = {
-  components: { ScanGenerik, ScanTerpaduGenerik, PopupPinGenerik },
+  components: { ScanGenerik, ScanTerpaduGenerik },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -349,16 +349,21 @@ const SewingPerluDiProses = {
       }]
     });
 
-    // Tunjuk Operator (PIN, role PIC/PIC Owner/Owner) — keputusan #9:
-    // diblokir kalau belum Scan Sampai (terima_pada kosong).
-    const popupPinOperator = ref(null); // track
-    function bukaTunjukOperator(track) {
-      if (!track.terima_pada) { alert('Batch ini belum di-Scan Sampai — lakukan Scan Sampai dulu sebelum menunjuk operator.'); return; }
-      popupPinOperator.value = track;
+    // Scan Operator (tombol PIC ke atas): operator dibaca dari QR badge, bukan
+    // akun yang login. Diblokir kalau belum Scan Sampai (terima_pada kosong).
+    const scanOpTrack = ref(null); // track
+    function bukaScanOperator(track) {
+      if (!track.terima_pada) { alert('Batch ini belum di-Scan Sampai — lakukan Scan Sampai dulu sebelum Scan Operator.'); return; }
+      scanOpTrack.value = track;
     }
-    async function pinSuksesOperator(user) {
-      const track = popupPinOperator.value;
-      popupPinOperator.value = null;
+    async function scanOperator(kode) {
+      const k = await cariKaryawanByQr((kode || '').trim());
+      if (!k) { alert('QR tidak dikenali — operator/tim tidak ditemukan.'); return; }
+      await terapkanOperator({ email: k.id, nama: k.nama || k.name || k.id });
+    }
+    async function terapkanOperator(user) {
+      const track = scanOpTrack.value;
+      scanOpTrack.value = null;
       try {
         const now = new Date().toISOString();
         const namaOperator = user.nama || user.name || user.email;
@@ -367,10 +372,10 @@ const SewingPerluDiProses = {
           riwayat_operator: [...(data.riwayat_operator || []), { uid: user.email, nama: namaOperator, pada: now }],
           status: 'sedang_sewing', mulai_sewing_pada: now, masuk_tahap_pada: now,
           // riwayat_scan ditulis ADITIF.
-          riwayat_scan: arrayUnion({ aksi: 'operator', oleh: namaOperator, pada: now, qty: data.qty ?? null })
+          riwayat_scan: arrayUnion({ aksi: 'operator', oleh: window.currentUser?.name || window.currentUser?.email || '', catatan: 'Scan Operator: ' + namaOperator, pada: now, qty: data.qty ?? null })
         }));
         await muat();
-      } catch (e) { console.error('Gagal tunjuk operator Sewing:', e); alert('Gagal menyimpan. Coba lagi.'); }
+      } catch (e) { console.error('Gagal scan operator Sewing:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
@@ -401,7 +406,7 @@ const SewingPerluDiProses = {
       memuat, daftar, unpackEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan, aksiAktif,
       modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
       unpackTerpadu,
-      popupPinOperator, bukaTunjukOperator, pinSuksesOperator,
+      scanOpTrack, bukaScanOperator, scanOperator,
       popupMasalah, batalMasalah, konfirmasiMasalah,
       pilihMasalah, bukaMasalahToolbar, batalPilihMasalah, konfirmasiPilihMasalah
     };
@@ -431,9 +436,9 @@ const SewingPerluDiProses = {
             <span class="tag" :class="t.terima_pada ? 'ok' : 'neutral'">{{ t.terima_pada ? 'sudah sampai' : 'belum sampai' }}</span>
           </div>
           <!-- Satu tombol kontekstual (wireframe §3.1): Scan Operator, mati kalau belum
-            sampai/komplit. Guard alert di bukaTunjukOperator jadi jaring kedua. -->
+            sampai/komplit. Guard alert di bukaScanOperator jadi jaring kedua. -->
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            <button v-if="bolehOperator && aksiAktif('sub-pr-sewing-perludiproses','sewing_operator')" @click="bukaTunjukOperator(t)" :disabled="!t.terima_pada" class="btn-outline" style="flex:1; padding:8px; font-size:11.5px;" :style="{ opacity: t.terima_pada ? 1 : .5 }"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator</button>
+            <button v-if="bolehOperator && aksiAktif('sub-pr-sewing-perludiproses','sewing_operator')" @click="bukaScanOperator(t)" :disabled="!t.terima_pada" class="btn-outline" style="flex:1; padding:8px; font-size:11.5px;" :style="{ opacity: t.terima_pada ? 1 : .5 }"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator</button>
           </div>
           <div v-if="(unpackEnrich[t.kode_separating] || []).length" style="margin-top:8px; font-size:10.5px; color:var(--text-faint);">
             Unpack: <span v-for="(u,i) in unpackEnrich[t.kode_separating]" :key="i" class="tag" :class="u.unpack_hasil==='komplit' ? 'ok' : (u.unpack_hasil==='inkomplit' ? 'warn' : 'neutral')" style="margin-right:4px;">{{ u.kode }}: {{ u.unpack_hasil || 'belum' }}</span>
@@ -449,7 +454,7 @@ const SewingPerluDiProses = {
 
     <scan-terpadu-generik :c="unpackTerpadu" />
 
-    <popup-pin-generik v-if="popupPinOperator" judul="Verifikasi PIN — Operator Sewing" konteks="Sewing - Scan Operator" :roles-diizinkan="['owner','superuser','pic_owner','pic']" @sukses="pinSuksesOperator" @batal="popupPinOperator = null" />
+    <scan-generik :aktif="!!scanOpTrack" judul="Scan QR Operator Sewing" :subjudul="scanOpTrack ? ('Batch ' + (scanOpTrack.kode_separating || '')) : ''" @hasil="scanOperator" @tutup="scanOpTrack = null" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
@@ -1058,7 +1063,7 @@ window.pastikanMountSewingSelesai = function () {
 };
 
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js). sewing_operator
-// TIDAK dijembatani — Tunjuk Operator butuh target baris spesifik (tombol per
+// TIDAK dijembatani — Scan Operator butuh target baris spesifik (tombol per
 // kartu Tab 3.1), tidak ada entri global tanpa memilih batch dulu.
 window.bukaSewingSampai = function () { window.pastikanMountSewingPerluDiProses(); if (vmSewingPerluDiProses) vmSewingPerluDiProses.bukaScanSampai(); };
 window.bukaSewingUnpack = function () { window.pastikanMountSewingPerluDiProses(); if (vmSewingPerluDiProses) vmSewingPerluDiProses.unpackTerpadu.buka(); };

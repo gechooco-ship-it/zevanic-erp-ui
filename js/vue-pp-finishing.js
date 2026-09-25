@@ -19,7 +19,7 @@
 //   menutupnya, jadi Tab 4.4 memang menggantung sampai Serie scan.
 // - Scan tiap tahap DIBLOKIR selama terima_pada pcs itu masih kosong.
 
-import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
@@ -261,7 +261,9 @@ function buatModalTahap(tahap, statusMasuk, statusSetelahSelesai) {
         } catch (e) { console.error('Gagal scan entry tahap ' + tahap + ':', e); alert('Gagal menyimpan. Coba lagi.'); }
       }
       function tutup() { emit('tutup'); }
-      onMounted(mulai);
+      // Modal selalu ter-mount (dibuka lewat prop aktif): reset tiap dibuka,
+      // supaya operator sesi sebelumnya tidak terbawa ke pembukaan berikut.
+      watch(() => props.aktif, (v) => { if (v) mulai(); }, { immediate: true });
       return { langkah, operatorTerpilih, log, hasilScan, tutup, LABEL_TAHAP, tahap };
     },
     template: `
@@ -415,7 +417,7 @@ const FinishingPerluDiProses = {
       }]
     });
 
-    // Tunjuk Operator QC (popup gabungan, keputusan #6)
+    // Scan Operator QC (popup gabungan, keputusan #6)
     const modalOperatorQcAktif = ref(false);
     function bukaOperatorQc() { modalOperatorQcAktif.value = true; }
     function tutupOperatorQc() { modalOperatorQcAktif.value = false; muat(); }
@@ -440,7 +442,7 @@ const FinishingPerluDiProses = {
 
     // Toolbar global (wireframe §4.1, pola sama Sewing 3.1): Scan Sampai & Scan
     // Unpack global secara logic (tanpa parameter batch). Scan Masalah butuh 1
-    // pcs target, jadi lewat popup "pilih batch dulu". "Tunjuk Operator QC"
+    // pcs target, jadi lewat popup "pilih batch dulu". "Scan Operator QC"
     // tetap 1 tombol kontekstual per kartu, nonaktif kalau batch belum sampai.
     const pilihMasalah = ref(null); // { targetId: batchId }
     function bukaMasalahToolbar() {
