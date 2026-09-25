@@ -23,8 +23,8 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=15';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=14';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=15';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier
 // pic/pic_owner/owner/superuser, TANPA popup PIN: cukup tier akun yang login.
@@ -157,9 +157,15 @@ async function updateBarisFinishingMassal(trackId, matchFn, patchFn) {
   return kena;
 }
 
-// kodeLabelAcc — isi QR label kit/kartu jalur ini; dipakai cetak dan
-// pencocokan scan. kode_kit lebih dulu, sisanya untuk data lama.
+// kodeLabelAcc — kode kit jalur ini (kode_kit, sisanya data lama); dipakai
+// pengelompokan kartu dan label lama. QR label fisik memakai kodeQrBarisAcc.
 function kodeLabelAcc(b) { return b.kode_kit || b.kode_kartu || b.id_order; }
+// kodeQrBarisAcc — isi QR label fisik: kode per baris (kode_baris), supaya
+// tiap aksesoris discan satu per satu. Data lama tanpa kode_baris tetap
+// memakai kode kit. cocokLabelAcc dipakai semua scan di file ini.
+function kodeQrBarisAcc(b) { return b.kode_baris || kodeLabelAcc(b); }
+function cocokLabelAcc(b, kode) { return kodeQrBarisAcc(b) === kode; }
+function labelBarisAcc(b, opsi = {}) { return { ...bangunLabelAksesoris(b, formatQty, opsi), kode: kodeQrBarisAcc(b) }; }
 
 // kelompokKartuSpk — kelompokkan baris (SUDAH difilter status tertentu) jadi
 // kartu per SPK TRACK (= per SPK Grouping, ). Beda dari kelompokKartuBahan di
@@ -228,8 +234,8 @@ function gantiTabPill(grupKelas, targetId, ev) {
 
 // TAB 1: Perlu Disiapkan — kartu per SPK Grouping (bukan per bahan seperti Bahan).
 // 1a cek stok per baris + centang baris yang bisa jalan + cetak label; 1b badge
-// "sudah dicetak" + cetak ulang (PIN+alasan); 1c penunjukan (scan operator lalu
-// scan label anak SPK — 1 scan menandai SEMUA baris komponen anak SPK itu).
+// "sudah dicetak" + cetak ulang (PIN+alasan); 1c Scan Operator lalu scan label
+// tiap baris satu per satu (1 scan = 1 baris).
 
 const PersiapanFinishingPerluDisiapkan = {
   components: { PopupPratinjauCetakLabel, ScanGenerik, ScanTerpaduGenerik, PopupPinGenerik },
@@ -297,10 +303,8 @@ const PersiapanFinishingPerluDisiapkan = {
       pilihanCetak[barisKey(b)] = !isChecked(b);
     }
 
-    // Cetak label: 1 label FISIK per BARIS aksesoris (kode_komponen), tidak digabung per
-    // anak SPK — QR/kode_kartu yang sama berulang di tiap label. Isi label dari
-    // bangunLabelAksesoris (js/vue-components.js, dipakai Acc Sewing/Webbing juga),
-    // tapi rincian.varian dibangun per baris di sini; qrDataUrl ditambah di titik cetak.
+    // Cetak label: 1 label FISIK per BARIS aksesoris, QR = kode_baris baris itu.
+    // Isi dari labelBarisAcc + rincian.varian per baris; qrDataUrl di titik cetak.
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
     let _pendingCetak = [];
@@ -312,7 +316,7 @@ const PersiapanFinishingPerluDisiapkan = {
       const terpilih = k.baris.filter(b => isChecked(b) && b._bisa && !b.label_cetak_pada);
       if (!terpilih.length) { alert('Tidak ada baris yang bisa dicetak (stok belum cukup untuk baris manapun, atau sudah dicetak semua).'); return; }
       daftarLabelPreview.value = terpilih.map(b => {
-        const lbl = bangunLabelAksesoris(b, formatQty);
+        const lbl = labelBarisAcc(b);
         return { ...lbl, qrDataUrl: buatQrDataUrl(lbl.kode), rincian: bangunRincianFinishing(b) };
       });
       _pendingCetak = terpilih;
@@ -373,7 +377,7 @@ const PersiapanFinishingPerluDisiapkan = {
       // supaya label cetak-ulang PERSIS format cetak normal, tetap cocok dgn
       // scanOperator.validasiIsi/hasilScanAksi.
       const preview = sudahDicetak.map(b => {
-        const lbl = bangunLabelAksesoris(b, formatQty, { cetakUlang: true });
+        const lbl = labelBarisAcc(b, { cetakUlang: true });
         return { ...lbl, qrDataUrl: buatQrDataUrl(lbl.kode), rincian: bangunRincianFinishing(b) };
       });
       try {
@@ -390,21 +394,20 @@ const PersiapanFinishingPerluDisiapkan = {
       popupCetakAktif.value = true;
     }
 
-    // Scan Operator — disebar dari PILOT #5 vue-persiapan-bahan.js (Draft/Upload),
-    // gantikan modalTunjuk lama. Satu sumber kebenaran: cari di SEMUA kartu tab ini
-    // (tombol per-kartu sudah dibuang, lihat bukaPenunjukanGlobal di bawah).
-    // 1 scan anak SPK menandai SEMUA baris komponennya (beda dari Bahan 1 baris/anak SPK).
+    // Scan Operator — Draft/Upload: scan QR operator, lalu label tiap baris satu
+    // per satu (1 scan = 1 baris). Satu sumber kebenaran: cari di SEMUA kartu tab
+    // ini (lihat bukaPenunjukanGlobal di bawah).
     function cariBarisSiapTunjuk(kode) {
       const kolamBaris = kartuList.value.flatMap(k => k.baris);
-      return kolamBaris.filter(b => kodeLabelAcc(b) === kode && b.label_cetak_pada && b.status === 'perlu_disiapkan');
+      return kolamBaris.filter(b => cocokLabelAcc(b, kode) && b.label_cetak_pada && b.status === 'perlu_disiapkan');
     }
     const scanOperator = buatScanTerpadu({
-      judul: 'Scan Operator — Acc Finishing', subjudul: 'Scan QR operator/tim, lalu scan label anak SPK berkali-kali',
+      judul: 'Scan Operator — Acc Finishing', subjudul: 'Scan QR operator/tim, lalu label aksesoris satu per satu',
       twoStep: {
-        labelPertama: 'Operator/Tim', labelKedua: 'Label Anak SPK',
+        labelPertama: 'Operator/Tim', labelKedua: 'Label Aksesoris',
         placeholderPertama: 'Scan QR badge operator/tim / cari kode (sekali di awal)',
-        placeholderKedua: 'Scan label anak SPK yang sudah dicetak / cari kode (bisa berkali-kali)',
-        camModePertama: 'Mode: Scan QR Operator (sekali)', camModeKedua: 'Mode: Scan Label Anak SPK (berkali-kali)',
+        placeholderKedua: 'Scan label aksesoris yang sudah dicetak / cari kode (satu per satu)',
+        camModePertama: 'Mode: Scan QR Operator (sekali)', camModeKedua: 'Mode: Scan Label Aksesoris (satu per satu)',
         kosongUtama: 'Scan QR Operator/Tim dulu', kosongSub: '1x scan untuk mengunci operator yang ditunjuk.',
         validasi: async (kode) => {
           const karyawan = await cariKaryawanByQr(kode);
@@ -417,14 +420,14 @@ const PersiapanFinishingPerluDisiapkan = {
         const targets = cariBarisSiapTunjuk(kode);
         if (!targets.length) {
           const karyawanTerbaca = await cariKaryawanByQr(kode);
-          if (karyawanTerbaca) return { ok: false, pesan: `Kode "${kode}" itu badge OPERATOR (${karyawanTerbaca.nama || karyawanTerbaca.name || kode}), BUKAN label SPK. Scan LABEL SPK anak yang sudah dicetak.` };
+          if (karyawanTerbaca) return { ok: false, pesan: `Kode "${kode}" itu badge OPERATOR (${karyawanTerbaca.nama || karyawanTerbaca.name || kode}), BUKAN label SPK. Scan LABEL AKSESORIS yang sudah dicetak.` };
           return { ok: false, pesan: `Kode "${kode}" tidak cocok baris manapun yang sudah dicetak labelnya (mungkin belum dicetak, sudah ditunjuk, atau sudah ada di draft).` };
         }
-        return { ok: true, row: { kode, label: targets.length + ' komponen', tagTxt: 'siap', tagCls: 'ok' } };
+        return { ok: true, row: { kode, label: targets.map(t => `${t.nama_aksesoris || ''} ${t.warna || ''}`.trim()).join(', ') || '1 baris', tagTxt: 'siap', tagCls: 'ok' } };
       },
-      // matchFn tulis Firestore WAJIB pakai fallback `kode_kartu || id_order`, sama
-      // dengan validasiIsi; `kena` dicek eksplisit karena updateBarisFinishingMassal
-      // commit-tanpa-perubahan tidak melempar exception.
+      // matchFn tulis Firestore memakai cocokLabelAcc, sama dengan validasiIsi;
+      // `kena` dicek eksplisit karena update massal commit-tanpa-perubahan tidak
+      // melempar exception.
       padaUpload: async (rows, locked) => {
         const now = new Date().toISOString();
         const gagal = [];
@@ -432,7 +435,7 @@ const PersiapanFinishingPerluDisiapkan = {
           for (const row of rows) {
             const targets = cariBarisSiapTunjuk(row.kode);
             if (!targets.length) { gagal.push(row.kode); continue; }
-            const kena = await updateBarisFinishingMassal(targets[0]._trackId, (x) => kodeLabelAcc(x) === row.kode && x.status === 'perlu_disiapkan' && !!x.label_cetak_pada, (lama) => ({
+            const kena = await updateBarisFinishingMassal(targets[0]._trackId, (x) => cocokLabelAcc(x, row.kode) && x.status === 'perlu_disiapkan' && !!x.label_cetak_pada, (lama) => ({
               status: 'sedang_disiapkan', masuk_tahap_pada: now,
               operator_uid: locked.id, operator_nama: locked.nama, ditugaskan_pada: now,
               riwayat_operator: [...(lama.riwayat_operator || []), { operator_uid: locked.id, operator_nama: locked.nama, mulai_pada: now }]
@@ -484,7 +487,7 @@ const PersiapanFinishingPerluDisiapkan = {
       // dari setup. Kalau tidak, begitu kartuList terisi Vue memanggil _ctx.barisKey
       // yang undefined -> render crash -> vnode lama ("Memuat..") tertahan di layar
       // tanpa pesan error yang kelihatan user.
-      barisKey, bangunLabelAksesoris,
+      barisKey, labelBarisAcc,
       TAB_DEFS_FINISHING, gantiTabPill, MY_TARGET, kpiHeader,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, onCetakSelesai,
       popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang, barisTerpilihCetakUlang,
@@ -561,9 +564,9 @@ const PersiapanFinishingPerluDisiapkan = {
             <label v-for="b in k.baris" :key="barisKey(b)" style="display:flex; align-items:flex-start; gap:8px; font-size:11px; padding:8px; border-radius:10px;" :style="{ background: b.label_cetak_pada ? 'var(--ok-light)' : (b._bisa ? 'transparent' : 'var(--danger-light)') }">
               <input type="checkbox" :checked="isChecked(b)" :disabled="!b._bisa || !!b.label_cetak_pada" @change="toggleCheck(b)" style="margin-top:2px;">
               <div style="min-width:0; flex:1;">
-                <div class="gc-num" style="font-weight:700;">{{ bangunLabelAksesoris(b, formatQty).kode }}</div>
-                <div style="font-weight:600;">{{ bangunLabelAksesoris(b, formatQty).nama }}</div>
-                <div style="color:var(--text-faint);" v-html="bangunLabelAksesoris(b, formatQty).info"></div>
+                <div class="gc-num" style="font-weight:700;">{{ labelBarisAcc(b).kode }}</div>
+                <div style="font-weight:600;">{{ labelBarisAcc(b).nama }}</div>
+                <div style="color:var(--text-faint);" v-html="labelBarisAcc(b).info"></div>
                 <div style="color:var(--text-faint); margin-top:2px;">
                   <span v-if="b.varian_jumlah > 1" class="tag neutral">{{ b.varian_jumlah }} varian</span>
                   <span class="gc-num" style="margin-left:4px;">stok {{ formatQty(b._stok) }}</span>
@@ -600,7 +603,7 @@ const PersiapanFinishingPerluDisiapkan = {
         <div style="display:flex; flex-direction:column; gap:4px; max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:12px; padding:8px; margin-bottom:12px;">
           <label v-for="b in popupCetakUlang.kartu.baris.filter(x => x.label_cetak_pada)" :key="barisKey(b)" style="display:flex; align-items:center; gap:8px; font-size:11px; padding:4px 2px;">
             <input type="checkbox" v-model="popupCetakUlang.pilihan[barisKey(b)]">
-            <span class="gc-num" style="font-weight:700;">{{ bangunLabelAksesoris(b, formatQty).kode }}</span>
+            <span class="gc-num" style="font-weight:700;">{{ labelBarisAcc(b).kode }}</span>
           </label>
         </div>
         <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupCetakUlang.alasan" type="text" placeholder="Mis. label rusak/hilang"></div>
@@ -708,7 +711,7 @@ const PersiapanFinishingSedangDisiapkan = {
         const kebutuhan = parseFloat(b.butuh) || 0;
         await updateBarisFinishing(b._trackId, b._lineIdx, () => ({ catatan_masalah: p.alasan.trim() }));
         await ajukanPersiapanMasalah({
-          jenisMasalah: p.jenis || 'kurang', kodeLabelAsal: kodeLabelAcc(b) || '', separatingId: b.separating_id || '', kodeSeparating: b.kode_separating || '', idOrder: b.id_order || '',
+          jenisMasalah: p.jenis || 'kurang', kodeLabelAsal: kodeQrBarisAcc(b) || '', separatingId: b.separating_id || '', kodeSeparating: b.kode_separating || '', idOrder: b.id_order || '',
           tlcAsal: 'TLC-FIN', sumberJalur: 'finishing',
           trackId: b._trackId, lineIdx: b._lineIdx,
           bahanAksesorisId: b.bahan_aksesoris_id, bahanNama: b.nama_aksesoris, bahanWarna: b.warna,
@@ -741,9 +744,8 @@ const PersiapanFinishingSedangDisiapkan = {
         sedangProses[key] = false;
         return;
       }
-      // cocokkan ke kode_kartu (fallback id_order utk data lama), SAMA kode yg
-      // dicetak (lihat cetakLabelKartu).
-      const kodeLabelBaris = kodeLabelAcc(b);
+      // cocokkan ke kode label baris ini (kodeQrBarisAcc), sama dengan yang dicetak.
+      const kodeLabelBaris = kodeQrBarisAcc(b);
       if (kode !== kodeLabelBaris) { alert(`Kode yang discan ("${kode}") tidak cocok dengan anak SPK ini (${kodeLabelBaris}).`); return; }
       if (modalAksi.mode === 'masalah') {
         tutupAksi();
@@ -755,10 +757,10 @@ const PersiapanFinishingSedangDisiapkan = {
     const barisEntry = ref(null);
     const entryStok = buatScanEntryStok({
       pos: 'Persiapan ACC Finishing', sumber: 'Scan Entry Persiapan ACC Finishing',
-      ambilBaris: () => barisEntry.value, kodeLabel: kodeLabelAcc,
+      ambilBaris: () => barisEntry.value, kodeLabel: kodeQrBarisAcc,
       bahanId: (b) => b.bahan_aksesoris_id, kebutuhan: (b) => parseFloat(b.butuh) || 0,
       namaBahan: (b) => `${b.nama_aksesoris || ''} ${b.warna || ''}`.trim(), satuan: (b) => b.satuan || '',
-      jejak: (b) => ({ kode_baris: b.kode_baris || kodeLabelAcc(b), separating_id: b.separating_id || '', spk_track_id: b._trackId }),
+      jejak: (b) => ({ kode_baris: kodeQrBarisAcc(b), separating_id: b.separating_id || '', spk_track_id: b._trackId }),
       patchTrack: (b, patch) => ({ docId: b._trackId, field: FIELD_RINCIAN, lineIdx: b._lineIdx, patch }),
       padaSelesai: async () => { barisEntry.value = null; await muat(); }
     });
@@ -794,7 +796,7 @@ const PersiapanFinishingSedangDisiapkan = {
         });
       } catch (e) { console.error('Gagal catat cetak_ulang_log:', e); }
       daftarLabelPreview.value = terpilih.map(b => {
-        const lbl = bangunLabelAksesoris(b, formatQty, { cetakUlang: true });
+        const lbl = labelBarisAcc(b, { cetakUlang: true });
         return { ...lbl, qrDataUrl: buatQrDataUrl(lbl.kode) };
       });
       popupCetakUlang.value = null;
@@ -813,7 +815,7 @@ const PersiapanFinishingSedangDisiapkan = {
       formatQty, formatDiamSejak, tertahan, barisKey, aksiAktif,
       modalAksi, bukaAksi, tutupAksi, hasilScanAksi, entryStok, bukaEntry,
       popupMasalah, batalMasalah, konfirmasiMasalah, bukaMasalahBaris,
-      bolehCetak, popupCetakUlang, pinCetakUlangAktif, popupCetakAktif, daftarLabelPreview, bukaCetakUlang, barisTerpilihCetakUlang, lanjutCetakUlang, pinCetakUlangSukses, bangunLabelAksesoris,
+      bolehCetak, popupCetakUlang, pinCetakUlangAktif, popupCetakAktif, daftarLabelPreview, bukaCetakUlang, barisTerpilihCetakUlang, lanjutCetakUlang, pinCetakUlangSukses, labelBarisAcc,
       TAB_DEFS_FINISHING, gantiTabPill, MY_TARGET
     };
   },
@@ -904,7 +906,7 @@ const PersiapanFinishingSedangDisiapkan = {
         <div style="display:flex; flex-direction:column; gap:4px; max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:12px; padding:8px; margin-bottom:12px;">
           <label v-for="b in popupCetakUlang.grup.baris" :key="barisKey(b)" style="display:flex; align-items:center; gap:8px; font-size:11px; padding:4px 2px;">
             <input type="checkbox" v-model="popupCetakUlang.pilihan[barisKey(b)]">
-            <span>{{ b.nama_aksesoris }} {{ b.warna }} · <span class="gc-num" style="font-weight:700;">{{ bangunLabelAksesoris(b, formatQty).kode }}</span></span>
+            <span>{{ b.nama_aksesoris }} {{ b.warna }} · <span class="gc-num" style="font-weight:700;">{{ labelBarisAcc(b).kode }}</span></span>
           </label>
         </div>
         <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupCetakUlang.alasan" type="text" placeholder="Mis. label rusak/hilang"></div>
@@ -977,13 +979,14 @@ const PersiapanFinishingPerluDikirim = {
     const jenisCetakAktif = ref('kode_bagging');
     async function konfirmasiCetakBagging() {
       const p = popupBagging.value;
-      const grup = kelompokSepack.value.find(g => g.key === p.sepackKey);
-      if (!grup) return;
+      // '__SEMUA__' = satu set kode bagging untuk tiap kelompok sepack sekaligus
+      const daftarGrup = p.sepackKey === '__SEMUA__' ? kelompokSepack.value : kelompokSepack.value.filter(g => g.key === p.sepackKey);
+      if (!daftarGrup.length) return;
       const n = Math.max(1, parseInt(p.jumlah) || 1);
       sedangProses.value = true;
       try {
         const preview = [];
-        for (let i = 0; i < n; i++) {
+        for (const grup of daftarGrup) for (let i = 0; i < n; i++) {
           const kode = await generateKodeHarian('BAG', 'pengaturan_id_bagging');
           // kode_grouping_induk/kode_separating — null sampai diisi Scan Pack.
           await addDoc(collection(db, 'bagging'), {
@@ -1039,9 +1042,8 @@ const PersiapanFinishingPerluDikirim = {
       sedangProses.value = false;
     }
 
-    // Scan Pack: step1 kode bagging, step2 anak SPK berkali-kali. 1 scan
-    // anak SPK menandai SEMUA baris komponen anak SPK itu (bisa lintas beberapa
-    // baris, tapi selalu di dalam kartu/dokumen yang sama).
+    // Scan Pack: step1 kode bagging, step2 label tiap baris berkali-kali
+    // (1 scan = 1 baris, cocokLabelAcc).
     const modalPack = reactive({ aktif: false, bagging: null, log: [] });
     function bukaScanPack() { modalPack.bagging = null; modalPack.log = []; modalPack.aktif = true; }
     function tutupScanPack() { modalPack.aktif = false; modalPack.bagging = null; modalPack.log = []; muat(); }
@@ -1053,10 +1055,9 @@ const PersiapanFinishingPerluDikirim = {
         modalPack.bagging = b;
         return;
       }
-      // label yang discan di sini adalah kartu yang SAMA dengan yang dicetak Tab 1
-      // (`cetakLabelKartu` pakai `kode_kartu || id_order`), jadi pencocokan di sini
-      // harus memakai fallback chain yang sama seperti `cariBarisSiapTunjuk`.
-      const cocok = barisTertahan.value.filter(x => kodeLabelAcc(x) === kode && !x.kode_bagging);
+      // label yang discan di sini sama dengan yang dicetak Tab 1 (kode per baris),
+      // dicocokkan lewat cocokLabelAcc.
+      const cocok = barisTertahan.value.filter(x => cocokLabelAcc(x, kode) && !x.kode_bagging);
       if (!cocok.length) { alert(`Kode "${kode}" tidak cocok anak SPK yang masih tertahan / sudah di-pack.`); return; }
       if (labelSepack(cocok[0]) !== modalPack.bagging.produk_label) {
         alert(`Kode "${kode}" bukan produk yang sama dengan bagging ini (${modalPack.bagging.produk_label}). Syarat sepack: produk dan size harus sama.`);
@@ -1075,7 +1076,7 @@ const PersiapanFinishingPerluDikirim = {
       try {
         // matchFn value-based .
         const hasil = await Promise.all(Object.entries(byTrack).map(([trackId, barisGrup]) => {
-          return updateBarisFinishingMassal(trackId, (x) => kodeLabelAcc(x) === kode && !x.kode_bagging && x.status === 'perlu_dikirim', () => ({ kode_bagging: modalPack.bagging.kode }));
+          return updateBarisFinishingMassal(trackId, (x) => cocokLabelAcc(x, kode) && !x.kode_bagging && x.status === 'perlu_dikirim', () => ({ kode_bagging: modalPack.bagging.kode }));
         }));
         if (hasil.every(k => k === 0)) { alert(`Kode "${kode}" cocok di layar tapi GAGAL disimpan ke database. Muat ulang halaman lalu coba lagi.`); return; }
         const patchBagging = { isi: arrayUnion(kode) };
@@ -1195,9 +1196,9 @@ const PersiapanFinishingPerluDikirim = {
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Cetak Kode Bagging</h3>
         <div class="gc-field" style="margin-bottom:8px;"><label>Produk</label>
-          <select v-model="popupBagging.sepackKey"><option v-for="g in kelompokSepack" :key="g.key" :value="g.key">{{ g.label }}</option></select>
+          <select v-model="popupBagging.sepackKey"><option v-if="kelompokSepack.length > 1" value="__SEMUA__">Semua produk ({{ kelompokSepack.length }})</option><option v-for="g in kelompokSepack" :key="g.key" :value="g.key">{{ g.label }}</option></select>
         </div>
-        <div class="gc-field" style="margin-bottom:14px;"><label>Jumlah Label</label><input v-model.number="popupBagging.jumlah" type="number" min="1"></div>
+        <div class="gc-field" style="margin-bottom:14px;"><label>{{ popupBagging.sepackKey === '__SEMUA__' ? 'Jumlah Label per Produk' : 'Jumlah Label' }}</label><input v-model.number="popupBagging.jumlah" type="number" min="1"></div>
         <div style="display:flex; gap:8px;">
           <button @click="popupBagging = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
           <button @click="konfirmasiCetakBagging" :disabled="sedangProses" class="btn-primary" style="flex:1; padding:9px;">Cetak</button>

@@ -19,7 +19,7 @@
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, doc, getDocs, setDoc, deleteDoc, serverTimestamp } from 'https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js';
 import { db } from './firebase-config.js';
-import { DAFTAR_AKSI_SCAN, STRUKTUR_MENU_SCAN, DEFAULT_PILIHAN, invalidasiCachePilihanScan } from './vue-popup-scan.js?v=7';
+import { DAFTAR_AKSI_SCAN, STRUKTUR_MENU_SCAN, DEFAULT_PILIHAN, invalidasiCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 export const AppPilihanScanConfig = {
   setup() {

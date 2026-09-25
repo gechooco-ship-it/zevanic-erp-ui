@@ -1414,6 +1414,19 @@ const DaftarNotaScreen = {
       const item = itemAsliDariBaris(baris);
       baris.qty_s = Math.round(qtyBaru * faktorKonversiUntukSatuan(item, baris.satuan_bahan) * 100) / 100;
     }
+    // setQtyKartu — qty diketik langsung di kartu nota (selain tombol − / +).
+    function setQtyKartu(i, nilai) {
+      const baris = daftarPesanan.value[i];
+      if (!baris || baris.pakai_lot_tracking) return;
+      const qty = Math.round((parseFloat(String(nilai).replace(',', '.')) || 0) * 100) / 100;
+      if (qty <= 0) {
+        const lama = baris.qty; baris.qty = 1; kurangiQtyKartu(i); // konfirmasi hapus item
+        if (daftarPesanan.value[i] === baris) baris.qty = lama; // batal hapus
+        return;
+      }
+      baris.qty = qty;
+      baris.qty_s = Math.round(qty * faktorKonversiUntukSatuan(itemAsliDariBaris(baris), baris.satuan_bahan) * 100) / 100;
+    }
     function onKeydownCari(e) {
       if (e.key === 'ArrowDown') { e.preventDefault(); indexSorot.value = Math.min(indexSorot.value + 1, hasilPencarian.value.length - 1); return; }
       if (e.key === 'ArrowUp') { e.preventDefault(); indexSorot.value = Math.max(indexSorot.value - 1, 0); return; }
@@ -1967,7 +1980,7 @@ const DaftarNotaScreen = {
       // keyboard entry
       elCariItem, cariItemTeks, hasilPencarian, indexSorot, onKeydownCari, tambahItemDariPencarian,
       // katalog grid kiri (split-screen §3.1) + qty +/- kartu kanan
-      daftarBahanTampilGrid, qtyDiNota, tambahItemGrid, tambahQtyKartu, kurangiQtyKartu,
+      daftarBahanTampilGrid, qtyDiNota, tambahItemGrid, tambahQtyKartu, kurangiQtyKartu, setQtyKartu,
       // pop up qty
       tampilPopupQty, qtyManualInput, opsiQtyCepatUntuk, konfirmasiQty, tutupPopupQtyTanpaUbah, barisAktifIndex,
       // pop up satuan
@@ -2125,7 +2138,7 @@ const DaftarNotaScreen = {
                   <div v-else style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
                     <template v-if="!formReadOnly">
                       <button @click="kurangiQtyKartu(i)" type="button" class="icon-btn" style="width:24px; height:24px;"><i class="fas fa-minus" style="font-size:9px;"></i></button>
-                      <span style="font-size:12.5px; font-weight:700; min-width:26px; text-align:center;">{{ it.qty }}</span>
+                      <input type="number" min="0" step="any" inputmode="decimal" :value="it.qty" @change="setQtyKartu(i, $event.target.value)" @focus="$event.target.select()" style="width:58px; padding:3px 4px; border:1.5px solid var(--line); border-radius:8px; font-size:12.5px; font-weight:700; text-align:center;">
                       <button @click="tambahQtyKartu(i)" type="button" class="icon-btn" style="width:24px; height:24px;"><i class="fas fa-plus" style="font-size:9px;"></i></button>
                     </template>
                     <span v-else style="font-size:12.5px; font-weight:700;">{{ it.qty }}</span>

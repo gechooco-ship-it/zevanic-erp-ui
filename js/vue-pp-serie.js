@@ -22,8 +22,8 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=14';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=15';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan Produksi,
 // belum ada infrastruktur util generik lintas file).
@@ -417,7 +417,8 @@ const SeriePerluDiProses = {
 
     // Mulai Serie Sewing — separating yang potongan + kit SEW/WEB-nya lengkap
     // dibuka jadi kartu Serie: komponen potongan dibagi prorata qty separating /
-    // qty grouping; baris kit memakai kode_kit sebagai kode_scan.
+    // qty grouping; baris kit memakai kode_baris (label per baris) sebagai
+    // kode_scan, data lama tanpa kode_baris memakai kode_kit.
     const sedangMulai = reactive({});
     async function mulaiSerie(sep) {
       if (sedangMulai[sep.id] || !bisaMulai(sep)) return;
@@ -430,7 +431,7 @@ const SeriePerluDiProses = {
         (src.cutting?.ref?.komponen_rincian || []).forEach(k => komponen.push({ sumber: 'bahan', nama_komponen: k.nama_komponen, qty_per_pcs: k.qty_per_pola || 0, qty_setor: Math.ceil((k.jumlah_label || 0) * rasio), satuan: 'PCS', kode_scan: '', pic_asal: src.cutting.ref.op_pola?.nama || null, ref_asal: src.cutting.ref.id }));
         ['sewing', 'webbing'].forEach(j => {
           const t = src[j]?.ref; if (!t) return;
-          (t[j + '_rincian'] || []).forEach(b => komponen.push({ sumber: j, nama_komponen: b.nama_aksesoris || '(tanpa nama)', qty_per_pcs: b.qty_per_pcs || 1, qty_setor: parseFloat(b.butuh) || 0, satuan: b.satuan || 'PCS', kode_scan: t.kode_kit || '', pic_asal: b.operator_nama || null, ref_asal: t.id }));
+          (t[j + '_rincian'] || []).forEach(b => komponen.push({ sumber: j, nama_komponen: b.nama_aksesoris || '(tanpa nama)', qty_per_pcs: b.qty_per_pcs || 1, qty_setor: parseFloat(b.butuh) || 0, satuan: b.satuan || 'PCS', kode_scan: b.kode_baris || t.kode_kit || '', pic_asal: b.operator_nama || null, ref_asal: t.id }));
         });
         const now = new Date().toISOString();
         await updateSeparatingBatch(sep.id, () => ({
@@ -644,9 +645,9 @@ const SerieSedangDiProses = {
     const modalEntry = reactive({ aktif: false, batch: null, log: [] });
     function bukaScanEntry(batch) { modalEntry.batch = batch; modalEntry.log = []; modalEntry.aktif = true; }
     function tutupScanEntry() { modalEntry.aktif = false; modalEntry.batch = null; modalEntry.log = []; muat(); }
-    // Scan Entry Serie — isi yang diterima: ID komponen hasil cetak, Kode Kit
-    // ACC (menandai semua baris kit itu), atau label komponen Cutting milik
-    // cutting_track asal (menandai satu baris potongan dengan nama sama).
+    // Scan Entry Serie — isi yang diterima: ID komponen hasil cetak, label ACC
+    // (kode per baris; batch lama: Kode Kit, menandai semua baris kit itu), atau
+    // label komponen Cutting milik cutting_track asal (satu baris potongan).
     async function cariTargetEntry(batch, kode) {
       const arr = batch.komponen_rincian || [];
       if (arr.some(k => k.id_komponen === kode)) return arr.filter(k => k.id_komponen === kode);
@@ -1106,12 +1107,12 @@ function buatTabKirim(cfg) {
       const kitFinDari = (b) => kitFin.value.find(t => t.separating_id === b.id);
       const perluSerieFin = (b) => !!(cfg.serieFinishing && kitFinDari(b) && !b.fin_terpasang_pada);
       const serieFinishing = cfg.serieFinishing ? buatScanTerpadu({
-        judul: 'Serie Finishing', subjudul: 'Scan Kode Kit -FIN, lalu tiap label pcs',
+        judul: 'Serie Finishing', subjudul: 'Scan satu label Acc Finishing, lalu tiap label pcs',
         twoStep: {
           labelPertama: 'Kode Kit', labelKedua: 'Label Pcs',
           validasi: async (kode) => {
-            const t = kitFin.value.find(x => x.kode_kit === kode);
-            if (!t) return { ok: false, pesan: `"${kode}" bukan Kode Kit Finishing (akhiran -FIN).` };
+            const t = kitFin.value.find(x => x.kode_kit === kode || (x.finishing_rincian || []).some(b => b.kode_baris === kode));
+            if (!t) return { ok: false, pesan: `"${kode}" bukan label Acc Finishing (kode kit -FIN atau kode per baris).` };
             const sep = daftar.value.find(b => b.id === t.separating_id);
             if (!sep) return { ok: false, pesan: `Separating kit ${kode} belum ada di tab ini (belum setor Sewing).` };
             const snap = await getDocs(query(collection(db, 'label_pcs'), where('separating_id', '==', sep.id)));

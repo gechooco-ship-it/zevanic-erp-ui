@@ -22,9 +22,9 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, serverTimestamp, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, ajukanPersiapanMasalah, buatQrDataUrl } from './vue-scan-cetak.js?v=14';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, ajukanPersiapanMasalah, buatQrDataUrl } from './vue-scan-cetak.js?v=15';
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=15';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing/Finishing).
 // --

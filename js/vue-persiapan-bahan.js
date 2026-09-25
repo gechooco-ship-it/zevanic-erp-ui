@@ -23,9 +23,9 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunInfoLabelAnakSpk } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=14';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
-import { PanelGroupingBahan } from './vue-persiapan-produksi-v2.js?v=21';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=15';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
+import { PanelGroupingBahan } from './vue-persiapan-produksi-v2.js?v=22';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier PIC ke atas
 // (pic/pic_owner/owner/superuser), TANPA popup PIN — cukup akun yang login
@@ -1057,13 +1057,14 @@ const PersiapanBahanPerluDikirim = {
     const jenisCetakAktif = ref('kode_bagging');
     async function konfirmasiCetakBagging() {
       const p = popupBagging.value;
-      const grup = kelompokSepack.value.find(g => g.key === p.sepackKey);
-      if (!grup) return;
+      // '__SEMUA__' = satu set kode bagging untuk tiap kelompok sepack sekaligus
+      const daftarGrup = p.sepackKey === '__SEMUA__' ? kelompokSepack.value : kelompokSepack.value.filter(g => g.key === p.sepackKey);
+      if (!daftarGrup.length) return;
       const n = Math.max(1, parseInt(p.jumlah) || 1);
       sedangProses.value = true;
       try {
         const preview = [];
-        for (let i = 0; i < n; i++) {
+        for (const grup of daftarGrup) for (let i = 0; i < n; i++) {
           const kode = await generateKodeHarian('BAG', 'pengaturan_id_bagging');
           // kode_grouping_induk/kode_separating null dulu, diisi Scan Pack pertama (lihat
           // hasilScanPack di bawah).
@@ -1292,9 +1293,9 @@ const PersiapanBahanPerluDikirim = {
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Cetak Kode Bagging</h3>
         <div class="gc-field" style="margin-bottom:8px;"><label>Produk</label>
-          <select v-model="popupBagging.sepackKey"><option v-for="g in kelompokSepack" :key="g.key" :value="g.key">{{ g.label }}</option></select>
+          <select v-model="popupBagging.sepackKey"><option v-if="kelompokSepack.length > 1" value="__SEMUA__">Semua produk ({{ kelompokSepack.length }})</option><option v-for="g in kelompokSepack" :key="g.key" :value="g.key">{{ g.label }}</option></select>
         </div>
-        <div class="gc-field" style="margin-bottom:14px;"><label>Jumlah Label</label><input v-model.number="popupBagging.jumlah" type="number" min="1"></div>
+        <div class="gc-field" style="margin-bottom:14px;"><label>{{ popupBagging.sepackKey === '__SEMUA__' ? 'Jumlah Label per Produk' : 'Jumlah Label' }}</label><input v-model.number="popupBagging.jumlah" type="number" min="1"></div>
         <div style="display:flex; gap:8px;">
           <button @click="popupBagging = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
           <button @click="konfirmasiCetakBagging" :disabled="sedangProses" class="btn-primary" style="flex:1; padding:9px;">Cetak</button>

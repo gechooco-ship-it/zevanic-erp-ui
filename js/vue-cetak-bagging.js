@@ -21,7 +21,7 @@ import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dis
 import { collection, query, where, orderBy, limit, getDocs, addDoc, doc, runTransaction, serverTimestamp, writeBatch } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, HeaderLayar, KolomCari } from './vue-components.js?v=13';
-import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=14';
+import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=15';
 
 const BATAS_TAMPIL = 30;
 const MAKS_BUAT_SEKALIGUS = 10;

@@ -23,8 +23,8 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, buatQrDataUrl, ajukanPersiapanMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=14';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=7';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=15';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // Format & hitung kecil (disalin pola dari 4 pos Persiapan Produksi, belum
 // dipindah ke helper generik — lihat catatan "belum ada infrastruktur util
@@ -79,7 +79,7 @@ function picOwnerKeAtas(userData) {
   return role === 'owner' || role === 'superuser' || role === 'pic';
 }
 // saringMilikOperator — operator hanya lihat baris yang ditugaskan ke dirinya
-// (lewat Tunjuk Operator); role lain lihat semua baris. Gerbang TAMPILAN,
+// (lewat Scan Operator); role lain lihat semua baris. Gerbang TAMPILAN,
 // terpisah dari picOwnerKeAtas yang cuma menggerbang tombol aksi. Tab per tahap
 // pakai fieldTahap; tab gabungan pakai saringMilikOperatorSemuaTahap.
 const FIELD_OPERATOR_TAHAP = ['op_ampar', 'op_pola', 'op_cutting'];
@@ -319,6 +319,15 @@ function pilihTargetMixin(daftarRef) {
   }
   return { pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget };
 }
+// operatorDariQr — Scan Operator Ampar/Pola/Cutting: QR badge dibaca jadi
+// { email, nama } operator yang BENAR-BENAR mengerjakan, bukan pemilik akun
+// yang login. Tombolnya tetap digerbang PIC ke atas (bolehOperator).
+async function operatorDariQr(kode) {
+  const k = await cariKaryawanByQr((kode || '').trim());
+  if (!k) { alert('QR tidak dikenali — operator/tim tidak ditemukan.'); return null; }
+  return { email: k.id, nama: k.nama || k.name || k.id };
+}
+function pencatat() { return window.currentUser?.name || window.currentUser?.email || ''; }
 // Markup popup pilihTarget — dipakai literal (copy) di template tiap tab,
 // konsisten dengan pola file ini yang memang mengulang markup popup kecil per
 // tab (lihat popupMasalah di 5 tab lain), bukan komponen global baru.
@@ -327,7 +336,7 @@ function pilihTargetMixin(daftarRef) {
 // TAB 1.1: Perlu Di Proses
 
 const CuttingPerluDiProses = {
-  components: { ScanTerpaduGenerik, PopupPinGenerik },
+  components: { ScanTerpaduGenerik, ScanGenerik },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -490,27 +499,31 @@ const CuttingPerluDiProses = {
       }]
     });
 
-    // Tunjuk Operator Ampar (PIN, role PIC/PIC Owner/Owner)
-    const popupPinAmpar = ref(null); // track
-    // Gerbang siapBahan mengunci TITIK MASUK pekerjaan fisik (Tunjuk Operator Ampar),
+    // Scan Operator Ampar: tombol PIC ke atas, operator dibaca dari QR badge
+    const scanOpAmpar = ref(null); // track
+    // Gerbang siapBahan mengunci TITIK MASUK pekerjaan fisik (Scan Operator Ampar),
     // bukan Scan Sampai/Scan Unpack — keduanya justru aksi yang membuat baris jadi
     // siap, mengunci itu bikin buntu. Tab 1.2-1.4 tidak perlu cek ulang.
-    function bukaTunjukAmpar(track) {
-      if (!siapBahan(track)) { alert(`SPK ${track.kode_grouping_induk} masih menunggu bahan dari Collection (kode bagging belum di-Scan Sampai). Tunjuk Operator belum bisa dilakukan.`); return; }
-      popupPinAmpar.value = track;
+    function bukaScanOperatorAmpar(track) {
+      if (!siapBahan(track)) { alert(`SPK ${track.kode_grouping_induk} masih menunggu bahan dari Collection (kode bagging belum di-Scan Sampai). Scan Operator belum bisa dilakukan.`); return; }
+      scanOpAmpar.value = track;
     }
-    async function pinSuksesAmpar(user) {
-      const track = popupPinAmpar.value;
-      popupPinAmpar.value = null;
+    async function scanOperatorAmpar(kode) {
+      const user = await operatorDariQr(kode);
+      if (user) await terapkanOperatorAmpar(user);
+    }
+    async function terapkanOperatorAmpar(user) {
+      const track = scanOpAmpar.value;
+      scanOpAmpar.value = null;
       try {
         await updateCuttingTrack(track.id, (data) => ({
           op_ampar: { uid: user.email, nama: user.nama || user.name || user.email, riwayat: [...((data.op_ampar && data.op_ampar.riwayat) || []), { uid: user.email, nama: user.nama || user.name || user.email, pada: new Date().toISOString() }] },
           status: 'sedang_ampar', masuk_tahap_pada: new Date().toISOString(),
           // riwayat_scan — dicatat ADITIF.
-          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: user.nama || user.name || user.email, pada: new Date().toISOString(), catatan: 'Tunjuk Operator Ampar', qty: track.qty_total ?? null }]
+          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: pencatat(), pada: new Date().toISOString(), catatan: 'Scan Operator Ampar: ' + user.nama, qty: track.qty_total ?? null }]
         }));
         await muat();
-      } catch (e) { console.error('Gagal tunjuk operator ampar:', e); alert('Gagal menyimpan. Coba lagi.'); }
+      } catch (e) { console.error('Gagal scan operator ampar:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
@@ -523,7 +536,7 @@ const CuttingPerluDiProses = {
     // pilihTargetMixin pakai daftarTampil, bukan daftar mentah, supaya grouping yang
     // bahannya belum dikirim tidak bisa dipilih dari toolbar.
     const { pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget } = pilihTargetMixin(daftarTampil);
-    function bukaTunjukAmparToolbar() { bukaPilihTarget('Pilih SPK — Scan Operator Ampar', (track) => bukaTunjukAmpar(track)); }
+    function bukaScanOperatorAmparToolbar() { bukaPilihTarget('Pilih SPK — Scan Operator Ampar', (track) => bukaScanOperatorAmpar(track)); }
 
     onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
@@ -531,9 +544,9 @@ const CuttingPerluDiProses = {
       memuat, daftar, daftarTampil, bahanEnrich, unpackEnrich, bolehProses, bolehOperator, aksiAktif, formatQty, formatDiamSejak, tertahan, siapBahan,
       sampaiTerpadu,
       unpackTerpadu,
-      popupPinAmpar, pinSuksesAmpar,
+      scanOpAmpar, scanOperatorAmpar,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
-      pilihTarget, batalPilihTarget, konfirmasiPilihTarget, bukaTunjukAmparToolbar
+      pilihTarget, batalPilihTarget, konfirmasiPilihTarget, bukaScanOperatorAmparToolbar
     };
   },
   template: `
@@ -546,7 +559,7 @@ const CuttingPerluDiProses = {
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
         <button v-if="bolehProses && aksiAktif('sub-pr-cutting-perludiproses','cutting_sampai')" @click="sampaiTerpadu.buka" class="btn-primary" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-barcode" style="margin-right:6px;"></i>Scan Kode Tugas (Sampai)</button>
         <button v-if="bolehProses && aksiAktif('sub-pr-cutting-perludiproses','cutting_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
-        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting-perludiproses','cutting_operator_ampar')" @click="bukaTunjukAmparToolbar" class="btn-outline" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator Ampar</button>
+        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting-perludiproses','cutting_operator_ampar')" @click="bukaScanOperatorAmparToolbar" class="btn-outline" style="flex:1; min-width:160px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator Ampar</button>
       </div>
       <!--
         daftarTampil (bukan daftar mentah) — grouping yang bahannya belum di-Scan Kirim
@@ -599,7 +612,7 @@ const CuttingPerluDiProses = {
 
     <scan-terpadu-generik :c="unpackTerpadu" />
 
-    <popup-pin-generik v-if="popupPinAmpar" judul="Verifikasi PIN — Operator Ampar" konteks="Cutting - Scan Operator Ampar" :roles-diizinkan="['owner','superuser','pic_owner','pic']" @sukses="pinSuksesAmpar" @batal="popupPinAmpar = null" />
+    <scan-generik :aktif="!!scanOpAmpar" judul="Scan QR Operator Ampar" :subjudul="scanOpAmpar ? ('SPK ' + scanOpAmpar.kode_grouping_induk) : ''" @hasil="scanOperatorAmpar" @tutup="scanOpAmpar = null" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
@@ -636,7 +649,7 @@ const CuttingPerluDiProses = {
 // TAB 1.2: Sedang Ampar
 
 const CuttingSedangAmpar = {
-  components: { ScanGenerik, PopupPinGenerik },
+  components: { ScanGenerik },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -685,18 +698,22 @@ const CuttingSedangAmpar = {
       } catch (e) { console.error('Gagal scan entry ampar:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
-    // Tandai Ampar Selesai & Tunjuk Operator Pola (hitung komponen_rincian
+    // Tandai Ampar Selesai & Scan Operator Pola (hitung komponen_rincian
     // dari BOM)
-    const popupPinPola = ref(null);
-    async function bukaTunjukPola(track) {
+    const scanOpPola = ref(null);
+    async function bukaScanOperatorPola(track) {
       const baris = await barisBahanGrouping(track.grouping_id);
       const belum = baris.filter(b => !b.gelar_pada).length;
       if (belum && !confirm(`${belum} label bahan grouping ini belum digelar (Scan Entry). Lanjut ke Sedang Pola?`)) return;
-      popupPinPola.value = track;
+      scanOpPola.value = track;
     }
-    async function pinSuksesPola(user) {
-      const track = popupPinPola.value;
-      popupPinPola.value = null;
+    async function scanOperatorPola(kode) {
+      const user = await operatorDariQr(kode);
+      if (user) await terapkanOperatorPola(user);
+    }
+    async function terapkanOperatorPola(user) {
+      const track = scanOpPola.value;
+      scanOpPola.value = null;
       try {
         const petaProduk = await ambilPetaProdukBySku();
         const komponen = hitungKomponenRincian(track, petaProduk);
@@ -708,10 +725,10 @@ const CuttingSedangAmpar = {
           komponen_rincian: komponen,
           status: 'sedang_pola', masuk_tahap_pada: new Date().toISOString(),
           // riwayat_scan — dicatat ADITIF.
-          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: user.nama || user.name || user.email, pada: new Date().toISOString(), catatan: 'Ampar Selesai & Tunjuk Operator Pola', qty: track.qty_total ?? null }]
+          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: pencatat(), pada: new Date().toISOString(), catatan: 'Ampar Selesai & Scan Operator Pola: ' + user.nama, qty: track.qty_total ?? null }]
         }));
         await muat();
-      } catch (e) { console.error('Gagal tunjuk operator pola:', e); alert('Gagal menyimpan. Coba lagi.'); }
+      } catch (e) { console.error('Gagal scan operator pola:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
@@ -719,21 +736,20 @@ const CuttingSedangAmpar = {
       await muat();
     });
 
-    // Toolbar global — Scan Entry & Tunjuk Operator Pola dipindah
-    // dari tombol per-kartu jadi toolbar. Handler bukaScanEntry(track)/
-    // bukaTunjukPola(track) TIDAK diubah.
+    // Toolbar global — Scan Entry & Scan Operator Pola: pilih SPK dulu, lalu
+    // handler per baris.
     const { pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget } = pilihTargetMixin(daftar);
     function bukaScanEntryToolbar() { bukaPilihTarget('Pilih SPK — Scan Entry Ampar', (track) => bukaScanEntry(track)); }
-    function bukaTunjukPolaToolbar() { bukaPilihTarget('Pilih SPK — Ampar Selesai & Tunjuk Operator Pola', (track) => bukaTunjukPola(track)); }
+    function bukaScanOperatorPolaToolbar() { bukaPilihTarget('Pilih SPK — Ampar Selesai & Scan Operator Pola', (track) => bukaScanOperatorPola(track)); }
 
     onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, daftar, bahanEnrich, bolehProses, bolehOperator, aksiAktif, formatQty, formatDiamSejak, tertahan,
       modalEntry, tutupScanEntry, hasilScanEntry,
-      popupPinPola, pinSuksesPola,
+      scanOpPola, scanOperatorPola,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
-      pilihTarget, batalPilihTarget, konfirmasiPilihTarget, bukaScanEntryToolbar, bukaTunjukPolaToolbar
+      pilihTarget, batalPilihTarget, konfirmasiPilihTarget, bukaScanEntryToolbar, bukaScanOperatorPolaToolbar
     };
   },
   template: `
@@ -741,7 +757,7 @@ const CuttingSedangAmpar = {
     <template v-else>
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
         <button v-if="bolehProses && aksiAktif('sub-pr-cutting-sedangampar','cutting_entry_ampar')" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
-        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting-sedangampar','cutting_operator_pola')" @click="bukaTunjukPolaToolbar" class="btn-outline" style="flex:1; min-width:200px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Ampar Selesai &amp; Tunjuk Operator Pola</button>
+        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting-sedangampar','cutting_operator_pola')" @click="bukaScanOperatorPolaToolbar" class="btn-outline" style="flex:1; min-width:200px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Ampar Selesai &amp; Scan Operator Pola</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-gears"></i></div>
@@ -777,7 +793,7 @@ const CuttingSedangAmpar = {
     </template>
 
     <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.track ? ('Scan Entry — ' + modalEntry.track.kode_grouping_induk) : 'Scan Entry'" subjudul="Scan label bahan tiap kali kainnya digelar. Satu label sekali." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
-    <popup-pin-generik v-if="popupPinPola" judul="Verifikasi PIN — Operator Pola" konteks="Cutting - Scan Operator Pola" :roles-diizinkan="['owner','superuser','pic_owner','pic']" @sukses="pinSuksesPola" @batal="popupPinPola = null" />
+    <scan-generik :aktif="!!scanOpPola" judul="Scan QR Operator Pola" :subjudul="scanOpPola ? ('SPK ' + scanOpPola.kode_grouping_induk) : ''" @hasil="scanOperatorPola" @tutup="scanOpPola = null" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
@@ -813,7 +829,7 @@ const CuttingSedangAmpar = {
 // status_pola='selesai').
 
 const CuttingSedangPola = {
-  components: { ScanGenerik, PopupPinGenerik, PopupPratinjauCetakLabel },
+  components: { ScanGenerik, PopupPratinjauCetakLabel },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -898,25 +914,29 @@ const CuttingSedangPola = {
       } catch (e) { console.error('Gagal scan entry pola:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
-    // Tandai Pola Selesai & Tunjuk Operator Cutting
-    const popupPinCutting = ref(null);
-    function bukaTunjukCutting(track) {
+    // Tandai Pola Selesai & Scan Operator Cutting
+    const scanOpCutting = ref(null);
+    function bukaScanOperatorCutting(track) {
       const p = progres(track);
       if (p.total > 0 && p.done < p.total && !confirm(`Progress label baru ${p.done}/${p.total}. Lanjut ke Sedang Cutting sekarang?`)) return;
-      popupPinCutting.value = track;
+      scanOpCutting.value = track;
     }
-    async function pinSuksesCutting(user) {
-      const track = popupPinCutting.value;
-      popupPinCutting.value = null;
+    async function scanOperatorCutting(kode) {
+      const user = await operatorDariQr(kode);
+      if (user) await terapkanOperatorCutting(user);
+    }
+    async function terapkanOperatorCutting(user) {
+      const track = scanOpCutting.value;
+      scanOpCutting.value = null;
       try {
         await updateCuttingTrack(track.id, (data) => ({
           op_cutting: { uid: user.email, nama: user.nama || user.name || user.email, riwayat: [...((data.op_cutting && data.op_cutting.riwayat) || []), { uid: user.email, nama: user.nama || user.name || user.email, pada: new Date().toISOString() }] },
           status: 'sedang_cutting', masuk_tahap_pada: new Date().toISOString(),
           // riwayat_scan — dicatat ADITIF.
-          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: user.nama || user.name || user.email, pada: new Date().toISOString(), catatan: 'Pola Selesai & Tunjuk Operator Cutting', qty: track.qty_total ?? null }]
+          riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: pencatat(), pada: new Date().toISOString(), catatan: 'Pola Selesai & Scan Operator Cutting: ' + user.nama, qty: track.qty_total ?? null }]
         }));
         await muat();
-      } catch (e) { console.error('Gagal tunjuk operator cutting:', e); alert('Gagal menyimpan. Coba lagi.'); }
+      } catch (e) { console.error('Gagal scan operator cutting:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
@@ -924,13 +944,13 @@ const CuttingSedangPola = {
       await muat();
     });
 
-    // Toolbar global — Scan Entry & Tunjuk Operator Cutting jadi toolbar. "Cetak
+    // Toolbar global — Scan Entry & Scan Operator Cutting jadi toolbar. "Cetak
     // Label Komponen" TETAP per-baris (wireframe §1.3: tombol di baris SPK, isinya
     // beda tiap baris).
 
     const { pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget } = pilihTargetMixin(daftar);
     function bukaScanEntryToolbar() { bukaPilihTarget('Pilih SPK — Scan Entry Pola', (track) => bukaScanEntry(track)); }
-    function bukaTunjukCuttingToolbar() { bukaPilihTarget('Pilih SPK — Pola Selesai & Tunjuk Operator Cutting', (track) => bukaTunjukCutting(track)); }
+    function bukaScanOperatorCuttingToolbar() { bukaPilihTarget('Pilih SPK — Pola Selesai & Scan Operator Cutting', (track) => bukaScanOperatorCutting(track)); }
 
     onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
@@ -938,9 +958,9 @@ const CuttingSedangPola = {
       memuat, daftar, bahanEnrich, bolehProses, bolehCetak, bolehOperator, aksiAktif, sedangCetak, formatQty, formatDiamSejak, tertahan, progres,
       popupCetakAktif, daftarLabelPreview, cetakLabelKomponen,
       modalEntry, tutupScanEntry, hasilScanEntry,
-      popupPinCutting, pinSuksesCutting,
+      scanOpCutting, scanOperatorCutting,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
-      pilihTarget, batalPilihTarget, konfirmasiPilihTarget, bukaScanEntryToolbar, bukaTunjukCuttingToolbar
+      pilihTarget, batalPilihTarget, konfirmasiPilihTarget, bukaScanEntryToolbar, bukaScanOperatorCuttingToolbar
     };
   },
   template: `
@@ -948,7 +968,7 @@ const CuttingSedangPola = {
     <template v-else>
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
         <button v-if="bolehProses && aksiAktif('sub-pr-cutting-sedangpola','cutting_entry_pola')" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
-        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting-sedangpola','cutting_operator_cutting')" @click="bukaTunjukCuttingToolbar" class="btn-outline" style="flex:1; min-width:220px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Pola Selesai &amp; Tunjuk Operator Cutting</button>
+        <button v-if="bolehOperator && aksiAktif('sub-pr-cutting-sedangpola','cutting_operator_cutting')" @click="bukaScanOperatorCuttingToolbar" class="btn-outline" style="flex:1; min-width:220px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Pola Selesai &amp; Scan Operator Cutting</button>
       </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-shapes"></i></div>
@@ -993,7 +1013,7 @@ const CuttingSedangPola = {
     <div v-if="modalEntry.aktif && modalEntry.log.length" style="position:fixed; left:16px; bottom:16px; z-index:10001; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
       <div v-for="(l,i) in modalEntry.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
     </div>
-    <popup-pin-generik v-if="popupPinCutting" judul="Verifikasi PIN — Operator Cutting" konteks="Cutting - Scan Operator Cutting" :roles-diizinkan="['owner','superuser','pic_owner','pic']" @sukses="pinSuksesCutting" @batal="popupPinCutting = null" />
+    <scan-generik :aktif="!!scanOpCutting" judul="Scan QR Operator Cutting" :subjudul="scanOpCutting ? ('SPK ' + scanOpCutting.kode_grouping_induk) : ''" @hasil="scanOperatorCutting" @tutup="scanOpCutting = null" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
@@ -1628,7 +1648,7 @@ window.pastikanMountCuttingPerluDiProses = function () {
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
 window.bukaScanSampaiCutting = function () { window.pastikanMountCuttingPerluDiProses(); if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.sampaiTerpadu.buka(); };
 window.bukaScanUnpackCutting = function () { window.pastikanMountCuttingPerluDiProses(); if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.unpackTerpadu.buka(); };
-window.bukaCuttingOperatorAmpar = function () { window.pastikanMountCuttingPerluDiProses(); if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.bukaTunjukAmparToolbar(); };
+window.bukaCuttingOperatorAmpar = function () { window.pastikanMountCuttingPerluDiProses(); if (vmCuttingPerluDiProses) vmCuttingPerluDiProses.bukaScanOperatorAmparToolbar(); };
 let vmCuttingSedangAmpar = null;
 window.pastikanMountCuttingSedangAmpar = function () {
   if (vmCuttingSedangAmpar) { if (typeof vmCuttingSedangAmpar.muat === 'function') vmCuttingSedangAmpar.muat(); return; }
@@ -1637,7 +1657,7 @@ window.pastikanMountCuttingSedangAmpar = function () {
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
 window.bukaCuttingEntryAmpar = function () { window.pastikanMountCuttingSedangAmpar(); if (vmCuttingSedangAmpar) vmCuttingSedangAmpar.bukaScanEntryToolbar(); };
-window.bukaCuttingOperatorPola = function () { window.pastikanMountCuttingSedangAmpar(); if (vmCuttingSedangAmpar) vmCuttingSedangAmpar.bukaTunjukPolaToolbar(); };
+window.bukaCuttingOperatorPola = function () { window.pastikanMountCuttingSedangAmpar(); if (vmCuttingSedangAmpar) vmCuttingSedangAmpar.bukaScanOperatorPolaToolbar(); };
 let vmCuttingSedangPola = null;
 window.pastikanMountCuttingSedangPola = function () {
   if (vmCuttingSedangPola) { if (typeof vmCuttingSedangPola.muat === 'function') vmCuttingSedangPola.muat(); return; }
@@ -1646,7 +1666,7 @@ window.pastikanMountCuttingSedangPola = function () {
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
 window.bukaCuttingEntryPola = function () { window.pastikanMountCuttingSedangPola(); if (vmCuttingSedangPola) vmCuttingSedangPola.bukaScanEntryToolbar(); };
-window.bukaCuttingOperatorCutting = function () { window.pastikanMountCuttingSedangPola(); if (vmCuttingSedangPola) vmCuttingSedangPola.bukaTunjukCuttingToolbar(); };
+window.bukaCuttingOperatorCutting = function () { window.pastikanMountCuttingSedangPola(); if (vmCuttingSedangPola) vmCuttingSedangPola.bukaScanOperatorCuttingToolbar(); };
 let vmCuttingSedangCutting = null;
 window.pastikanMountCuttingSedangCutting = function () {
   if (vmCuttingSedangCutting) { if (typeof vmCuttingSedangCutting.muat === 'function') vmCuttingSedangCutting.muat(); return; }
