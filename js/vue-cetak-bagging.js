@@ -52,10 +52,13 @@ const AppCetakBagging = {
     const dipilih = ref([]);
     const sedangProses = ref(false);
 
-    const bolehCetak = computed(() => ROLE_BOLEH_CETAK.includes((window.currentUser?.role || '').toLowerCase()));
+    // ref diisi di muat() sesudah izinSiap: computed terkunci di role awal
+    // 'operator' karena window.currentUser tidak reaktif.
+    const bolehCetak = ref(false);
 
     async function muat() {
       memuat.value = true;
+      bolehCetak.value = ROLE_BOLEH_CETAK.includes((window.currentUser?.role || '').toLowerCase());
       errorMuat.value = '';
       try {
         const q = query(
@@ -210,7 +213,7 @@ const AppCetakBagging = {
       sedangProses.value = false;
     }
 
-    onMounted(async () => { await window.authReady; muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; muat(); });
 
     return {
       memuat, errorMuat, daftar, cari, dipilih, sedangProses, bolehCetak,

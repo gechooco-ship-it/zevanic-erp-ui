@@ -1,11 +1,11 @@
 // js/vue-cetak-kode-tugas.js
 // Layar "Cetak Kode Tugas" (Scan & Cetak). Mencetak ULANG lembar kode tugas
-// kirim yang sudah ada, dan membuat kode tugas baru tanpa lewat jalur produksi.
-// Mount ke #vue-cetak-kode-tugas.
+// kirim yang sudah ada, membuat kode tugas baru, dan mengelola daftar TLC.
 //
 // Koleksi & field:
 // - tugas_kirim: kode, tlc_asal, tlc_tujuan, pack[], dibuat_pada, dibuat_oleh.
-// - master_tlc: kode, nama, tipe — sumber dropdown asal/tujuan.
+// - master_tlc: kode, nama, tipe — sumber dropdown asal/tujuan; tambah, edit
+//   nama/tipe, dan hapus lewat popup Kelola TLC (owner-level).
 // - cetak_ulang_log: kode_grouping_induk, bahan, alasan, pin_oleh, pada.
 // - pengaturan_id_tugas_kirim: counter harian untuk generateKodeHarian.
 //
@@ -15,11 +15,12 @@
 // - Satu kode tugas boleh memuat pack dari beberapa Kode Grouping; tidak ada
 //   aturan satu-grouping seperti di bagging.
 // - Cetak dan cetak ulang digerbang role (pic/pic_owner/owner) DAN PIN.
-// - master_tlc kosong = dropdown kosong; isi dulu lewat Persiapan Produksi >
-//   Bahan (tombol Isi TLC Awal) atau manual di Firestore.
+// - Kode TLC_SISTEM ditulis langsung di kode jalur produksi: tidak boleh
+//   dihapus; kode TLC mana pun tidak bisa diubah (hapus lalu tambah baru).
+// - Role dibaca sesudah izinSiap: authReady selesai sebelum role termuat.
 
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, query, orderBy, limit, getDocs, addDoc, doc, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, query, orderBy, limit, getDocs, addDoc, doc, updateDoc, deleteDoc, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, HeaderLayar, KolomCari } from './vue-components.js?v=13';
 import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=14';
@@ -27,6 +28,8 @@ import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=14';
 const BATAS_TAMPIL = 30;
 const MAKS_BUAT_SEKALIGUS = 10;
 const ROLE_BOLEH_CETAK = ['owner', 'superuser', 'pic_owner', 'pic'];
+const ROLE_KELOLA_TLC = ['owner', 'superuser', 'pic_owner'];
+const TLC_SISTEM = ['TLC-BHN', 'TLC-SEW', 'TLC-WEB', 'TLC-FIN', 'TLC-MSL', 'TLC-PTG', 'TLC-SER', 'TLC-JHT', 'TLC-QC', 'TLC-GBJ', 'TLC-VDR'];
 
 // Sama persis dengan penomoran di jalur produksi: transaksi + counter harian,
 // supaya nomor tidak pernah dobel walau dibuat dari dua layar berbeda.
@@ -56,14 +59,17 @@ const AppCetakKodeTugas = {
     const sedangProses = ref(false);
 
     // ref, BUKAN computed: window.currentUser objek biasa (tidak reaktif) dan
-    // lahir ber-role 'operator' sebelum login selesai. computed akan terkunci
-    // di nilai pertama itu selamanya. Diisi di muat(), sesudah authReady.
+    // lahir ber-role 'operator' sebelum login selesai. Diisi di muat(), yang
+    // baru jalan sesudah izinSiap (role sudah termuat).
     const bolehCetak = ref(false);
+    const bolehKelolaTlc = ref(false);
 
     async function muat() {
       memuat.value = true;
       errorMuat.value = '';
-      bolehCetak.value = ROLE_BOLEH_CETAK.includes((window.currentUser?.role || '').toLowerCase());
+      const role = (window.currentUser?.role || '').toLowerCase();
+      bolehCetak.value = ROLE_BOLEH_CETAK.includes(role);
+      bolehKelolaTlc.value = ROLE_KELOLA_TLC.includes(role);
       try {
         const [snapTugas, snapTlc] = await Promise.all([
           getDocs(query(collection(db, 'tugas_kirim'), orderBy('dibuat_pada', 'desc'), limit(BATAS_TAMPIL))),
@@ -157,7 +163,7 @@ const AppCetakKodeTugas = {
     function bukaBuatBaru() {
       if (!bolehCetak.value) { alert('Role Anda tidak berwenang membuat kode tugas.'); return; }
       if (!daftarTlc.value.length) {
-        alert('Belum ada data TLC. Isi dulu lewat Persiapan Produksi > Bahan (tombol "Isi TLC Awal"), atau tambah manual di Firestore koleksi master_tlc.');
+        alert('Belum ada data TLC. Tambahkan dulu lewat tombol Kelola TLC.');
         return;
       }
       popupBaru.value = { asal: daftarTlc.value[0].kode, tujuan: daftarTlc.value[0].kode, jumlah: 1 };
@@ -193,7 +199,35 @@ const AppCetakKodeTugas = {
       sedangProses.value = false;
     }
 
-    onMounted(async () => { await window.authReady; muat(); });
+    // ---- Kelola TLC: tambah, edit nama/tipe, hapus (bukan kode sistem)
+    const kelolaTlc = ref(null); // { id, kode, nama, tipe, menyimpan } | null
+    function bukaKelolaTlc() { kelolaTlc.value = { id: '', kode: '', nama: '', tipe: '', menyimpan: false }; }
+    function editTlc(t) { kelolaTlc.value = { id: t.id, kode: t.kode || '', nama: t.nama || '', tipe: t.tipe || '', menyimpan: false }; }
+    function formTlcBaru() { Object.assign(kelolaTlc.value, { id: '', kode: '', nama: '', tipe: '' }); }
+    async function simpanTlc() {
+      const f = kelolaTlc.value;
+      const kode = f.kode.trim().toUpperCase(), nama = f.nama.trim(), tipe = f.tipe.trim().toUpperCase();
+      if (!/^[A-Z0-9-]{3,20}$/.test(kode)) return alert('Kode TLC wajib 3-20 karakter: huruf, angka, atau tanda minus (mis. TLC-QC2).');
+      if (!nama) return alert('Nama TLC wajib diisi.');
+      if (!f.id && daftarTlc.value.some(t => (t.kode || '').toUpperCase() === kode)) return alert(`Kode ${kode} sudah ada.`);
+      f.menyimpan = true;
+      try {
+        if (f.id) await updateDoc(doc(db, 'master_tlc', f.id), { nama, tipe, diperbarui_pada: serverTimestamp() });
+        else await addDoc(collection(db, 'master_tlc'), { kode, nama, tipe, dibuat_pada: serverTimestamp() });
+        await muat();
+        formTlcBaru();
+      } catch (e) { console.error('Gagal simpan TLC:', e); alert('Gagal menyimpan TLC: ' + (e.code || e.message || e)); }
+      f.menyimpan = false;
+    }
+    async function hapusTlc(t) {
+      if (TLC_SISTEM.includes((t.kode || '').toUpperCase())) return alert(`${t.kode} dipakai langsung oleh jalur produksi, tidak bisa dihapus. Nama dan tipenya boleh diedit.`);
+      if (!confirm(`Hapus TLC ${t.kode} — ${t.nama || ''}? Kode tugas lama yang memakainya tetap tersimpan.`)) return;
+      try { await deleteDoc(doc(db, 'master_tlc', t.id)); await muat(); if (kelolaTlc.value?.id === t.id) formTlcBaru(); }
+      catch (e) { console.error('Gagal hapus TLC:', e); alert('Gagal menghapus TLC: ' + (e.code || e.message || e)); }
+    }
+    function tlcSistem(kode) { return TLC_SISTEM.includes((kode || '').toUpperCase()); }
+
+    onMounted(async () => { await window.authReady; await window.izinSiap; muat(); });
 
     return {
       memuat, errorMuat, daftar, daftarTlc, cari, filterTujuan, dipilih, sedangProses, bolehCetak,
@@ -201,7 +235,8 @@ const AppCetakKodeTugas = {
       rincianTerbuka, toggleRincian, muat,
       popupAlasan, pinAktif, popupCetak, labelPreview,
       bukaCetakUlang, lanjutKePin, pinSukses,
-      popupBaru, bukaBuatBaru, ubahJumlah, konfirmasiBuatBaru
+      popupBaru, bukaBuatBaru, ubahJumlah, konfirmasiBuatBaru,
+      bolehKelolaTlc, kelolaTlc, bukaKelolaTlc, editTlc, formTlcBaru, simpanTlc, hapusTlc, tlcSistem
     };
   },
   template: `
@@ -210,6 +245,7 @@ const AppCetakKodeTugas = {
 
     <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
       <div style="flex:1; min-width:0;"><kolom-cari v-model="cari" placeholder="Cari kode tugas / TLC..." /></div>
+      <button v-if="bolehKelolaTlc" @click="bukaKelolaTlc" class="btn-outline" style="padding:9px 14px; white-space:nowrap;"><i class="fas fa-gear" style="margin-right:6px;"></i>Kelola TLC</button>
       <button @click="bukaBuatBaru" :disabled="!bolehCetak" class="btn-primary" style="padding:9px 14px; white-space:nowrap;"><i class="fas fa-plus" style="margin-right:6px;"></i>Buat Baru</button>
     </div>
 
@@ -277,6 +313,31 @@ const AppCetakKodeTugas = {
           <button @click="popupAlasan = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
           <button @click="lanjutKePin" class="btn-primary" style="flex:1; padding:9px;">Lanjut Verifikasi PIN</button>
         </div>
+      </div>
+    </div>
+
+    <div v-if="kelolaTlc" class="gc-dialog-backdrop" @click="kelolaTlc = null">
+      <div class="gc-dialog" @click.stop style="text-align:left; max-width:520px; width:100%; max-height:88vh; overflow-y:auto;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 4px;"><i class="fas fa-gear" style="margin-right:8px; color:var(--burgundy);"></i>Kelola TLC</h3>
+        <p style="font-size:11px; color:var(--text-muted); margin:0 0 12px;">Titik asal/tujuan kode tugas. Kode tidak bisa diubah; kode bertanda <b>sistem</b> dipakai jalur produksi dan tidak bisa dihapus.</p>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px; padding:10px; border:1px solid var(--line); border-radius:12px;">
+          <div class="gc-field" style="margin:0; flex:1; min-width:110px;"><label>Kode</label><input v-model="kelolaTlc.kode" :disabled="!!kelolaTlc.id" type="text" maxlength="20" placeholder="TLC-QC2" style="text-transform:uppercase;"></div>
+          <div class="gc-field" style="margin:0; flex:1.6; min-width:140px;"><label>Nama</label><input v-model="kelolaTlc.nama" type="text" placeholder="Mis. QC Lantai 2"></div>
+          <div class="gc-field" style="margin:0; flex:0.8; min-width:80px;"><label>Tipe</label><input v-model="kelolaTlc.tipe" type="text" maxlength="10" placeholder="QC" style="text-transform:uppercase;"></div>
+          <div style="display:flex; gap:6px; width:100%;">
+            <button @click="simpanTlc" :disabled="kelolaTlc.menyimpan" class="btn-primary" style="flex:1; padding:8px;">{{ kelolaTlc.menyimpan ? 'Menyimpan...' : (kelolaTlc.id ? 'Simpan Perubahan' : 'Tambah TLC') }}</button>
+            <button v-if="kelolaTlc.id" @click="formTlcBaru" class="btn-outline" style="padding:8px 12px;">Batal Edit</button>
+          </div>
+        </div>
+        <div v-if="!daftarTlc.length" style="font-size:11px; color:var(--text-faint);">Belum ada TLC.</div>
+        <div v-for="t in daftarTlc" :key="t.id" style="display:flex; align-items:center; gap:8px; padding:7px 4px; border-bottom:1px solid var(--line); font-size:11.5px;">
+          <span class="gc-num" style="font-weight:700; min-width:90px;">{{ t.kode }}</span>
+          <span style="flex:1; min-width:0;">{{ t.nama || '-' }}<span v-if="t.tipe" style="color:var(--text-faint);"> &middot; {{ t.tipe }}</span></span>
+          <span v-if="tlcSistem(t.kode)" class="tag neutral">sistem</span>
+          <button @click="editTlc(t)" class="icon-btn" title="Edit"><i class="fas fa-pen"></i></button>
+          <button v-if="!tlcSistem(t.kode)" @click="hapusTlc(t)" class="icon-btn" title="Hapus" style="color:var(--danger);"><i class="fas fa-trash"></i></button>
+        </div>
+        <button @click="kelolaTlc = null" class="btn-outline" style="width:100%; margin-top:12px; padding:9px;">Tutup</button>
       </div>
     </div>
 

@@ -11,7 +11,7 @@
 //   di kolom Nama TLC tabel Kode per Divisi.
 //
 // Jebakan:
-// - Tidak ada UI hapus master_tlc; salah ketik dibersihkan lewat Firebase Console.
+// - Edit/hapus master_tlc ada di Scan & Cetak > Cetak Kode Tugas (Kelola TLC).
 // - Ke-9 tab memakai satu menu-id 'config_master_data' (didaftarkan di
 //   vue-config-akses.js), defaultnya Owner saja.
 // - Mount LAZY per tab lewat window.pastikanMountConfigXxx yang dipanggil
@@ -80,8 +80,8 @@ const AppConfigTahapPersiapan = {
 };
 
 // AppConfigTlc — satu tabel "Kode per Divisi"; entry master_tlc dibuat otomatis
-// lewat kolom Nama TLC (simpanBaris). Tidak ada UI hapus/ubah master_tlc di sini,
-// perbaikan lewat Firestore Console. Generator kode cuma baca jalur_key
+// lewat kolom Nama TLC (simpanBaris); edit/hapus lewat Kelola TLC di Cetak Kode
+// Tugas. Generator kode cuma baca jalur_key
 // bahan/sewing/webbing/finishing; baris pp_*/masalah/custom murni referensi.
 const DAFTAR_MENU_DIVISI = [
   { jalur_key: 'bahan', nama_menu: 'Persiapan Produksi › Bahan', aktif: true },
