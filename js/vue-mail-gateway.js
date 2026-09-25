@@ -127,9 +127,17 @@ const AppMailGateway = {
         const state = log.delivery && log.delivery.state;
         if (filterStatus.value === 'Terkirim') return state === 'SUCCESS';
         if (filterStatus.value === 'Gagal') return state === 'ERROR';
-        return !state; // 'Diproses'
+        return state !== 'SUCCESS' && state !== 'ERROR'; // 'Diproses'
       });
     });
+    // labelProses — rinci status yang belum final: tanpa field delivery berarti
+    // Extension belum menyentuh dokumen (Extension mati/error), bukan SMTP lambat.
+    function labelProses(log) {
+      const st = log.delivery && log.delivery.state;
+      if (!st) return 'Belum diambil Extension';
+      if (st === 'RETRY') return 'Dicoba ulang';
+      return 'Diproses (' + st + ')';
+    }
     const memuatLog = ref(true);
 
     async function muatMonitoring() {
@@ -171,7 +179,7 @@ const AppMailGateway = {
       tabAktif, pindahTab, muat,
       emailTes, kodeTes, mengirimTes, memverifikasiTes, hasilTes, kirimKodeTes, verifikasiKodeTes,
       template, menyimpanTemplate, simpanTemplate,
-      daftarLog, daftarLogTersaring, filterStatus, memuatLog, muatMonitoring
+      daftarLog, daftarLogTersaring, filterStatus, memuatLog, muatMonitoring, labelProses
     };
   },
   template: `
@@ -321,7 +329,7 @@ const AppMailGateway = {
               <td>
                 <span v-if="log.delivery && log.delivery.state === 'SUCCESS'" class="tag ok">Terkirim</span>
                 <span v-else-if="log.delivery && log.delivery.state === 'ERROR'" class="tag danger">Gagal</span>
-                <span v-else class="tag warn">Diproses...</span>
+                <span v-else class="tag warn" :title="log.delivery && log.delivery.attempts ? ('percobaan ke-' + log.delivery.attempts) : ''">{{ labelProses(log) }}</span>
               </td>
               <td class="gc-cell-muted" style="max-width:220px; overflow:hidden; text-overflow:ellipsis;" :title="(log.delivery && log.delivery.error) || ''">{{ (log.delivery && log.delivery.error) || '-' }}</td>
             </tr>
