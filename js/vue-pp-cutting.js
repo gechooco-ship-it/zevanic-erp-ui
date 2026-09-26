@@ -291,7 +291,8 @@ async function kirimMasalahCutting(track, jumlah, alasan, jenis) {
 // enrichBahanUntukTrack — join READ-ONLY spk_track(jalur:'bahan').bahan_rincian[]
 // via spk_grouping.breakdown[].id_order untuk kolom SKU/pola/amparan/kbt kain Tab
 // 1.1-1.4: `bahan` = 1 baris per bahan+pola BOM (amparan & kain dijumlah lintas
-// separating), ditampilkan bertumpuk per SPK. Satuan 'M'.
+// separating), satu sub-baris per bahan di tabel. Tiap bahan membawa kode_bagging,
+// satuan 'M', dan sampaiPada/kirimPada (dasar Diam Sejak per bahan).
 // siapDiproses = semua baris sampai_cutting_pada; sudahDikirim = semua kirim_cutting_pada.
 async function enrichBahanUntukTrack(daftarTrack, daftarGrouping) {
   const peta = {};
@@ -315,9 +316,14 @@ async function enrichBahanUntukTrack(daftarTrack, daftarGrouping) {
       const perBahan = {};
       cocok.forEach(b => {
         const key = (b.bahan_aksesoris_id || b.bahan_nama) + '::' + (b.nama_pola || '');
-        if (!perBahan[key]) perBahan[key] = { key, sku: [b.bahan_nama, b.bahan_warna].filter(Boolean).join(' ') || '-', panjangPola: b.panjang_pola || 0, isiPola: b.isi_pola_pcs || 0, amparan: 0, kebutuhanKain: 0 };
-        perBahan[key].amparan += parseFloat(b.amparan) || 0;
-        perBahan[key].kebutuhanKain += parseFloat(b.kebutuhan_kain) || 0;
+        if (!perBahan[key]) perBahan[key] = { key, sku: [b.bahan_nama, b.bahan_warna].filter(Boolean).join(' ') || '-', panjangPola: b.panjang_pola || 0, isiPola: b.isi_pola_pcs || 0, amparan: 0, kebutuhanKain: 0, satuan: 'M', bagging: [], sampaiPada: null, kirimPada: null, semuaSampai: true };
+        const x = perBahan[key];
+        x.amparan += parseFloat(b.amparan) || 0;
+        x.kebutuhanKain += parseFloat(b.kebutuhan_kain) || 0;
+        if (b.kode_bagging && !x.bagging.includes(b.kode_bagging)) x.bagging.push(b.kode_bagging);
+        if (!b.sampai_cutting_pada) x.semuaSampai = false;
+        else if (!x.sampaiPada || b.sampai_cutting_pada > x.sampaiPada) x.sampaiPada = b.sampai_cutting_pada;
+        if (b.kirim_cutting_pada && (!x.kirimPada || b.kirim_cutting_pada > x.kirimPada)) x.kirimPada = b.kirim_cutting_pada;
       });
       peta[t.id] = {
         bahan: Object.values(perBahan),
@@ -339,20 +345,42 @@ async function enrichBahanUntukTrack(daftarTrack, daftarGrouping) {
 // Unpack / Scan Operator Ampar/Pola/Cutting / Scan Entry) di tab 1.1-1.4. Beda
 // dari Gudang: kode yang discan di Cutting (kode bagging masuk atau kode SPK)
 // tidak selalu bisa dicari balik ke satu cutting_track, jadi target dipilih dulu.
+// bukaPilihBahan: opsinya SPK + bahan (dari komponen_rincian), untuk Scan Entry
+// label komponen yang dikerjakan per bahan.
 function pilihTargetMixin(daftarRef) {
-  const pilihTarget = ref(null); // { targetId, judul, lanjut(track) }
+  const pilihTarget = ref(null); // { opsi[{id, track, bahan, label}], targetId, labelPilih, judul, lanjut(track, bahan) }
+  function buka(opsi, labelPilih, judul, lanjut) {
+    if (!opsi.length) { alert('Tidak ada baris di tab ini untuk diproses.'); return; }
+    pilihTarget.value = { opsi, targetId: opsi[0].id, labelPilih, judul, lanjut };
+  }
   function bukaPilihTarget(judul, lanjut) {
-    if (!daftarRef.value.length) { alert('Tidak ada baris di tab ini untuk diproses.'); return; }
-    pilihTarget.value = { targetId: daftarRef.value[0].id, judul, lanjut };
+    buka(daftarRef.value.map(t => ({ id: t.id, track: t, bahan: null, label: `${t.kode_grouping_induk} — ${t.nama_produk}` })), 'Pilih SPK Grouping', judul, lanjut);
+  }
+  function bukaPilihBahan(judul, lanjut) {
+    const opsi = [];
+    daftarRef.value.forEach(t => {
+      const grup = [];
+      (t.komponen_rincian || []).forEach(k => { if (k.pola_key && !grup.some(g => g.pola_key === k.pola_key)) grup.push({ pola_key: k.pola_key, nama_bahan: k.nama_bahan, nama_pola: k.nama_pola }); });
+      if (!grup.length) opsi.push({ id: t.id, track: t, bahan: null, label: `${t.kode_grouping_induk} — ${t.nama_produk}` });
+      grup.forEach(g => opsi.push({ id: t.id + '|' + g.pola_key, track: t, bahan: g, label: `${t.kode_grouping_induk} — ${g.nama_bahan}${g.nama_pola ? ' (' + g.nama_pola + ')' : ''}` }));
+    });
+    buka(opsi, 'Pilih SPK & Bahan', judul, lanjut);
   }
   function batalPilihTarget() { pilihTarget.value = null; }
   function konfirmasiPilihTarget() {
     const p = pilihTarget.value;
-    const track = daftarRef.value.find(t => t.id === p.targetId);
+    const o = p.opsi.find(x => x.id === p.targetId);
     pilihTarget.value = null;
-    if (track) p.lanjut(track);
+    if (o) p.lanjut(o.track, o.bahan);
   }
-  return { pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget };
+  return { pilihTarget, bukaPilihTarget, bukaPilihBahan, batalPilihTarget, konfirmasiPilihTarget };
+}
+// labelMilikBahan — label cetakan lama (tanpa pola_key) dianggap milik bahan
+// pertama komponen_rincian, sama aturan Cetak Ulang.
+function labelMilikBahan(label, track, bahan) {
+  if (!bahan) return true;
+  const kunciPertama = ((track.komponen_rincian || [])[0] || {}).pola_key;
+  return (label.pola_key || kunciPertama) === bahan.pola_key;
 }
 // operatorDariQr — Scan Operator Ampar/Pola/Cutting: QR badge dibaca jadi
 // { email, nama } operator yang BENAR-BENAR mengerjakan, bukan pemilik akun
@@ -396,6 +424,18 @@ const CuttingPerluDiProses = {
     // (semua cutting_track status perlu_diproses, TERMASUK yang belum dikirim)
     // tetap dipertahankan buat referensi internal .
     const daftarTampil = computed(() => daftar.value.filter(tampilDiProses));
+    // barisBahanTampil — sub-baris tabel per bahan; bagging yang tidak cocok ke
+    // bahan mana pun ikut di sub-baris terakhir supaya tetap terlihat.
+    function barisBahanTampil(t) {
+      const info = bahanEnrich.value[t.id];
+      const status = {};
+      (unpackEnrich.value[t.kode_grouping_induk] || []).forEach(u => { status[u.kode] = u.unpack_hasil; });
+      const baris = (info && info.bahan.length ? info.bahan : [{ key: '-', sku: '-', bagging: [] }]).map(b => ({ ...b, unpack: (b.bagging || []).map(k => ({ kode: k, unpack_hasil: status[k] || null })) }));
+      const terpakai = new Set(baris.flatMap(b => b.bagging || []));
+      Object.keys(status).filter(k => !terpakai.has(k)).forEach(k => baris[baris.length - 1].unpack.push({ kode: k, unpack_hasil: status[k] }));
+      return baris;
+    }
+    function diamBahan(b) { return b.semuaSampai ? b.sampaiPada : b.kirimPada; }
 
     async function muat() {
       memuat.value = true;
@@ -576,7 +616,7 @@ const CuttingPerluDiProses = {
     onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
-      memuat, daftar, daftarTampil, bahanEnrich, unpackEnrich, bolehProses, bolehOperator, aksiAktif, formatQty, formatDiamSejak, tertahan, siapBahan,
+      memuat, daftar, daftarTampil, bahanEnrich, unpackEnrich, bolehProses, bolehOperator, aksiAktif, formatQty, formatDiamSejak, tertahan, siapBahan, barisBahanTampil, diamBahan,
       sampaiTerpadu,
       unpackTerpadu,
       scanOpAmpar, scanOperatorAmpar,
@@ -614,30 +654,37 @@ const CuttingPerluDiProses = {
             <th style="padding:6px 8px;">Unpack</th><th style="padding:6px 8px;">Diam Sejak</th><th style="padding:6px 8px;">Aksi</th>
           </tr></thead>
           <tbody>
-            <tr v-for="t in daftarTampil" :key="t.id" style="border-bottom:1px solid var(--line); vertical-align:top;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
-              <td style="padding:6px 8px; font-weight:700;" class="gc-num">{{ t.kode_grouping_induk }}</td>
-              <!-- Status Bahan: lihat siapBahan -->
-              <td style="padding:6px 8px;"><span class="tag" :class="siapBahan(t) ? 'ok' : 'warn'">{{ siapBahan(t) ? 'Siap' : 'Menunggu Bahan' }}</span></td>
-              <td style="padding:6px 8px;">{{ t.nama_produk }}<span v-if="t.size" style="color:var(--text-faint);"> ({{ t.size }})</span></td>
-              <td style="padding:6px 8px; color:var(--text-faint);"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ b.sku }}</div></template><template v-else>-</template></td>
-              <td style="padding:6px 8px;" class="gc-num">{{ formatQty(t.qty_total) }}</td>
-              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.panjangPola) }}</div></template><template v-else>-</template></td>
-              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.isiPola) }}</div></template><template v-else>-</template></td>
-              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.amparan) }}</div></template><template v-else>-</template></td>
-              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.kebutuhanKain) }}</div></template><template v-else>-</template></td>
-              <td style="padding:6px 8px;">{{ bahanEnrich[t.id] ? bahanEnrich[t.id].satuan : '-' }}</td>
-              <td style="padding:6px 8px;">
-                <span v-if="!(unpackEnrich[t.kode_grouping_induk] || []).length" class="tag neutral">belum</span>
-                <!-- Kartu Batch (design system): kode bagging + status Unpack, warna dot ikut unpack_hasil -->
-                <div v-else style="display:flex; flex-wrap:wrap; gap:4px;">
-                  <span v-for="(u,i) in unpackEnrich[t.kode_grouping_induk]" :key="i" class="gc-batch-card" :class="{ inkomplit: u.unpack_hasil !== 'komplit' }" style="display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; background:var(--ivory-dim);" :title="u.unpack_hasil || 'belum di-unpack'">
-                    <span class="tag-dot" :style="{ color: u.unpack_hasil==='komplit' ? 'var(--ok)' : (u.unpack_hasil==='inkomplit' ? 'var(--warn)' : 'var(--text-faint)') }"></span>{{ u.kode }}
-                  </span>
-                </div>
-              </td>
-              <td style="padding:6px 8px;"><span class="tag" :class="tertahan(t.masuk_tahap_pada) ? 'warn' : 'neutral'">{{ formatDiamSejak(t.masuk_tahap_pada) }}</span></td>
-              <td style="padding:6px 8px;"><button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:5px 9px; font-size:10.5px; color:var(--danger);" title="Scan Masalah"><i class="fas fa-triangle-exclamation"></i></button></td>
-            </tr>
+            <template v-for="t in daftarTampil" :key="t.id">
+              <tr v-for="(b, i) in barisBahanTampil(t)" :key="t.id + b.key" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '', borderBottom: i === barisBahanTampil(t).length - 1 ? '1px solid var(--line)' : '' }">
+                <template v-if="i === 0">
+                  <td :rowspan="barisBahanTampil(t).length" style="padding:6px 8px; font-weight:700; vertical-align:middle;" class="gc-num">{{ t.kode_grouping_induk }}</td>
+                  <!-- Status Bahan: lihat siapBahan -->
+                  <td :rowspan="barisBahanTampil(t).length" style="padding:6px 8px; vertical-align:middle;"><span class="tag" :class="siapBahan(t) ? 'ok' : 'warn'">{{ siapBahan(t) ? 'Siap' : 'Menunggu Bahan' }}</span></td>
+                  <td :rowspan="barisBahanTampil(t).length" style="padding:6px 8px; vertical-align:middle;">{{ t.nama_produk }}<span v-if="t.size" style="color:var(--text-faint);"> ({{ t.size }})</span></td>
+                </template>
+                <td style="padding:4px 8px; color:var(--text-faint); vertical-align:middle;">{{ b.sku }}</td>
+                <td v-if="i === 0" :rowspan="barisBahanTampil(t).length" style="padding:6px 8px; vertical-align:middle;" class="gc-num">{{ formatQty(t.qty_total) }}</td>
+                <td style="padding:4px 8px; vertical-align:middle;" class="gc-num">{{ b.key === '-' ? '-' : formatQty(b.panjangPola) }}</td>
+                <td style="padding:4px 8px; vertical-align:middle;" class="gc-num">{{ b.key === '-' ? '-' : formatQty(b.isiPola) }}</td>
+                <td style="padding:4px 8px; vertical-align:middle;" class="gc-num">{{ b.key === '-' ? '-' : formatQty(b.amparan) }}</td>
+                <td style="padding:4px 8px; vertical-align:middle;" class="gc-num">{{ b.key === '-' ? '-' : formatQty(b.kebutuhanKain) }}</td>
+                <td style="padding:4px 8px; vertical-align:middle;">{{ b.satuan || '-' }}</td>
+                <td style="padding:4px 8px; vertical-align:middle;">
+                  <span v-if="!b.unpack.length" class="tag neutral">belum</span>
+                  <!-- Kartu Batch (design system): kode bagging + status Unpack, warna dot ikut unpack_hasil -->
+                  <div v-else style="display:flex; flex-wrap:wrap; gap:4px;">
+                    <span v-for="u in b.unpack" :key="u.kode" class="gc-batch-card" :class="{ inkomplit: u.unpack_hasil !== 'komplit' }" style="display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; background:var(--ivory-dim);" :title="u.unpack_hasil || 'belum di-unpack'">
+                      <span class="tag-dot" :style="{ color: u.unpack_hasil==='komplit' ? 'var(--ok)' : (u.unpack_hasil==='inkomplit' ? 'var(--warn)' : 'var(--text-faint)') }"></span>{{ u.kode }}
+                    </span>
+                  </div>
+                </td>
+                <td style="padding:4px 8px; vertical-align:middle;">
+                  <span class="tag" :class="!b.semuaSampai || tertahan(diamBahan(b)) ? 'warn' : 'neutral'">{{ formatDiamSejak(diamBahan(b)) }}</span>
+                  <div v-if="b.key !== '-'" style="font-size:9.5px; color:var(--text-faint); margin-top:2px;">{{ b.semuaSampai ? 'sejak sampai' : 'belum sampai' }}</div>
+                </td>
+                <td v-if="i === 0" :rowspan="barisBahanTampil(t).length" style="padding:6px 8px; vertical-align:middle;"><button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:5px 9px; font-size:10.5px; color:var(--danger);" title="Scan Masalah"><i class="fas fa-triangle-exclamation"></i></button></td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -665,11 +712,8 @@ const CuttingPerluDiProses = {
     <div v-if="pilihTarget" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">{{ pilihTarget.judul }}</h3>
-        <div class="gc-field" style="margin-bottom:14px;"><label>Pilih SPK Grouping</label>
-          <!--
-            daftarTampil (BUKAN daftar) —, konsisten dgn pilihTargetMixin(daftarTampil) di setup.
-          -->
-          <select v-model="pilihTarget.targetId"><option v-for="t in daftarTampil" :key="t.id" :value="t.id">{{ t.kode_grouping_induk }} — {{ t.nama_produk }}</option></select>
+        <div class="gc-field" style="margin-bottom:14px;"><label>{{ pilihTarget.labelPilih }}</label>
+          <select v-model="pilihTarget.targetId"><option v-for="o in pilihTarget.opsi" :key="o.id" :value="o.id">{{ o.label }}</option></select>
         </div>
         <div style="display:flex; gap:8px;">
           <button @click="batalPilihTarget" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
@@ -846,8 +890,8 @@ const CuttingSedangAmpar = {
     <div v-if="pilihTarget" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">{{ pilihTarget.judul }}</h3>
-        <div class="gc-field" style="margin-bottom:14px;"><label>Pilih SPK Grouping</label>
-          <select v-model="pilihTarget.targetId"><option v-for="t in daftar" :key="t.id" :value="t.id">{{ t.kode_grouping_induk }} — {{ t.nama_produk }}</option></select>
+        <div class="gc-field" style="margin-bottom:14px;"><label>{{ pilihTarget.labelPilih }}</label>
+          <select v-model="pilihTarget.targetId"><option v-for="o in pilihTarget.opsi" :key="o.id" :value="o.id">{{ o.label }}</option></select>
         </div>
         <div style="display:flex; gap:8px;">
           <button @click="batalPilihTarget" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
@@ -968,9 +1012,9 @@ const CuttingSedangPola = {
     }
 
     // Scan Entry per label komponen (status_pola -> selesai)
-    const modalEntry = reactive({ aktif: false, track: null, log: [] });
-    function bukaScanEntry(track) { modalEntry.track = track; modalEntry.log = []; modalEntry.aktif = true; }
-    function tutupScanEntry() { modalEntry.aktif = false; modalEntry.track = null; modalEntry.log = []; muat(); }
+    const modalEntry = reactive({ aktif: false, track: null, bahan: null, log: [] });
+    function bukaScanEntry(track, bahan) { modalEntry.track = track; modalEntry.bahan = bahan || null; modalEntry.log = []; modalEntry.aktif = true; }
+    function tutupScanEntry() { modalEntry.aktif = false; modalEntry.track = null; modalEntry.bahan = null; modalEntry.log = []; muat(); }
     async function hasilScanEntry(kodeMentah) {
       const kode = (kodeMentah || '').trim();
       try {
@@ -978,6 +1022,7 @@ const CuttingSedangPola = {
         if (snap.empty) { alert(`Label "${kode}" tidak ditemukan.`); return; }
         const d = snap.docs[0];
         if (d.data().cutting_track_id !== modalEntry.track.id) { alert(`Label "${kode}" bukan milik SPK ${modalEntry.track.kode_grouping_induk}.`); return; }
+        if (!labelMilikBahan(d.data(), modalEntry.track, modalEntry.bahan)) { alert(`Label "${kode}" (${d.data().nama_komponen}) bukan milik bahan ${modalEntry.bahan.nama_bahan}.`); return; }
         await updateDoc(doc(db, 'label_komponen', d.id), { status_pola: 'selesai', pola_pada: new Date().toISOString() });
         modalEntry.log.unshift(kode + ' -> pola selesai');
         semuaLabel.value = semuaLabel.value.map(l => l.id === d.id ? { ...l, status_pola: 'selesai' } : l);
@@ -1027,8 +1072,8 @@ const CuttingSedangPola = {
     // Label Komponen" TETAP per-baris (wireframe §1.3: tombol di baris SPK, isinya
     // beda tiap baris).
 
-    const { pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget } = pilihTargetMixin(daftar);
-    function bukaScanEntryToolbar() { bukaPilihTarget('Pilih SPK — Scan Entry Pola', (track) => bukaScanEntry(track)); }
+    const { pilihTarget, bukaPilihTarget, bukaPilihBahan, batalPilihTarget, konfirmasiPilihTarget } = pilihTargetMixin(daftar);
+    function bukaScanEntryToolbar() { bukaPilihBahan('Pilih Bahan — Scan Entry Pola', (track, bahan) => bukaScanEntry(track, bahan)); }
     function bukaScanOperatorCuttingToolbar() { bukaPilihTarget('Pilih SPK — Pola Selesai & Scan Operator Cutting', (track) => bukaScanOperatorCutting(track)); }
 
     onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
@@ -1103,7 +1148,7 @@ const CuttingSedangPola = {
       </div>
     </div>
     <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Komponen" :daftar-label="daftarLabelPreview" jenis-cetak="label_komponen_cutting" @tutup="popupCetakAktif = false" />
-    <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.track ? ('Scan Entry Pola — ' + modalEntry.track.kode_grouping_induk) : 'Scan Entry Pola'" subjudul="Scan tiap label komponen yang sudah selesai digambar polanya." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
+    <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.track ? ('Scan Entry Pola — ' + modalEntry.track.kode_grouping_induk + (modalEntry.bahan ? ' · ' + modalEntry.bahan.nama_bahan : '')) : 'Scan Entry Pola'" subjudul="Scan tiap label komponen yang sudah selesai digambar polanya." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
     <div v-if="modalEntry.aktif && modalEntry.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
       <div v-for="(l,i) in modalEntry.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
     </div>
@@ -1125,8 +1170,8 @@ const CuttingSedangPola = {
     <div v-if="pilihTarget" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">{{ pilihTarget.judul }}</h3>
-        <div class="gc-field" style="margin-bottom:14px;"><label>Pilih SPK Grouping</label>
-          <select v-model="pilihTarget.targetId"><option v-for="t in daftar" :key="t.id" :value="t.id">{{ t.kode_grouping_induk }} — {{ t.nama_produk }}</option></select>
+        <div class="gc-field" style="margin-bottom:14px;"><label>{{ pilihTarget.labelPilih }}</label>
+          <select v-model="pilihTarget.targetId"><option v-for="o in pilihTarget.opsi" :key="o.id" :value="o.id">{{ o.label }}</option></select>
         </div>
         <div style="display:flex; gap:8px;">
           <button @click="batalPilihTarget" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
@@ -1162,9 +1207,9 @@ const CuttingSedangCutting = {
     }
     function progres(t) { return progresLabel(t, semuaLabel.value, 'status_cutting'); }
 
-    const modalEntry = reactive({ aktif: false, track: null, log: [] });
-    function bukaScanEntry(track) { modalEntry.track = track; modalEntry.log = []; modalEntry.aktif = true; }
-    function tutupScanEntry() { modalEntry.aktif = false; modalEntry.track = null; modalEntry.log = []; muat(); }
+    const modalEntry = reactive({ aktif: false, track: null, bahan: null, log: [] });
+    function bukaScanEntry(track, bahan) { modalEntry.track = track; modalEntry.bahan = bahan || null; modalEntry.log = []; modalEntry.aktif = true; }
+    function tutupScanEntry() { modalEntry.aktif = false; modalEntry.track = null; modalEntry.bahan = null; modalEntry.log = []; muat(); }
     async function hasilScanEntry(kodeMentah) {
       const kode = (kodeMentah || '').trim();
       try {
@@ -1172,6 +1217,7 @@ const CuttingSedangCutting = {
         if (snap.empty) { alert(`Label "${kode}" tidak ditemukan.`); return; }
         const d = snap.docs[0];
         if (d.data().cutting_track_id !== modalEntry.track.id) { alert(`Label "${kode}" bukan milik SPK ${modalEntry.track.kode_grouping_induk}.`); return; }
+        if (!labelMilikBahan(d.data(), modalEntry.track, modalEntry.bahan)) { alert(`Label "${kode}" (${d.data().nama_komponen}) bukan milik bahan ${modalEntry.bahan.nama_bahan}.`); return; }
         await updateDoc(doc(db, 'label_komponen', d.id), { status_cutting: 'selesai', cutting_pada: new Date().toISOString() });
         modalEntry.log.unshift(kode + ' -> cutting selesai');
         semuaLabel.value = semuaLabel.value.map(l => l.id === d.id ? { ...l, status_cutting: 'selesai' } : l);
@@ -1203,8 +1249,8 @@ const CuttingSedangCutting = {
     // Toolbar global — Scan Entry jadi toolbar. "Cutting Selesai" TETAP per-baris
     // (aksi penyelesaian 1 SPK tertentu, sama pola dengan "Cetak Label Komponen"
     // di Tab 1.3).
-    const { pilihTarget, bukaPilihTarget, batalPilihTarget, konfirmasiPilihTarget } = pilihTargetMixin(daftar);
-    function bukaScanEntryToolbar() { bukaPilihTarget('Pilih SPK — Scan Entry Cutting', (track) => bukaScanEntry(track)); }
+    const { pilihTarget, bukaPilihTarget, bukaPilihBahan, batalPilihTarget, konfirmasiPilihTarget } = pilihTargetMixin(daftar);
+    function bukaScanEntryToolbar() { bukaPilihBahan('Pilih Bahan — Scan Entry Cutting', (track, bahan) => bukaScanEntry(track, bahan)); }
 
     onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
@@ -1258,7 +1304,7 @@ const CuttingSedangCutting = {
       </div>
     </template>
 
-    <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.track ? ('Scan Entry Cutting — ' + modalEntry.track.kode_grouping_induk) : 'Scan Entry Cutting'" subjudul="Scan tiap label komponen yang sudah selesai dipotong." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
+    <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.track ? ('Scan Entry Cutting — ' + modalEntry.track.kode_grouping_induk + (modalEntry.bahan ? ' · ' + modalEntry.bahan.nama_bahan : '')) : 'Scan Entry Cutting'" subjudul="Scan tiap label komponen yang sudah selesai dipotong." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
     <div v-if="modalEntry.aktif && modalEntry.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
       <div v-for="(l,i) in modalEntry.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
     </div>
@@ -1279,8 +1325,8 @@ const CuttingSedangCutting = {
     <div v-if="pilihTarget" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">{{ pilihTarget.judul }}</h3>
-        <div class="gc-field" style="margin-bottom:14px;"><label>Pilih SPK Grouping</label>
-          <select v-model="pilihTarget.targetId"><option v-for="t in daftar" :key="t.id" :value="t.id">{{ t.kode_grouping_induk }} — {{ t.nama_produk }}</option></select>
+        <div class="gc-field" style="margin-bottom:14px;"><label>{{ pilihTarget.labelPilih }}</label>
+          <select v-model="pilihTarget.targetId"><option v-for="o in pilihTarget.opsi" :key="o.id" :value="o.id">{{ o.label }}</option></select>
         </div>
         <div style="display:flex; gap:8px;">
           <button @click="batalPilihTarget" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
