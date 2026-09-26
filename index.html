@@ -1122,7 +1122,7 @@
              navgrp-prosesproduksi dan cukup memunculkan alert placeholder. -->
         <div id="tab-proses-produksi" class="tab-content hidden fade-in space-y-4 max-w-5xl mx-auto">
           <div id="sub-pr-cutting" class="sub-proses-produksi-content fade-in space-y-4">
-            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+            <div class="flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-perludiproses', this, {catatRiwayat:true})" class="sub-pr-cutting-tahap-btn gc-sub-tab-btn active" data-target="sub-pr-cutting-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Di Proses</button>
               <button onclick="pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-sedangampar', this, {catatRiwayat:true})" class="sub-pr-cutting-tahap-btn gc-sub-tab-btn" data-target="sub-pr-cutting-sedangampar"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Ampar</button>
               <button onclick="pindahSubTab('sub-pr-cutting-tahap', 'sub-pr-cutting-sedangpola', this, {catatRiwayat:true})" class="sub-pr-cutting-tahap-btn gc-sub-tab-btn" data-target="sub-pr-cutting-sedangpola"><i class="fas fa-shapes" style="margin-right:6px;"></i> Sedang Pola</button>
@@ -1209,7 +1209,7 @@
 
           <!-- Sewing, 5 tab. Lihat komentar besar di js/vue-pp-sewing.js. -->
           <div id="sub-pr-sewing" class="sub-proses-produksi-content hidden fade-in space-y-4">
-            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+            <div class="flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-pr-sewing-tahap', 'sub-pr-sewing-perludiproses', this, {catatRiwayat:true})" class="sub-pr-sewing-tahap-btn gc-sub-tab-btn active" data-target="sub-pr-sewing-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Di Proses</button>
               <button onclick="pindahSubTab('sub-pr-sewing-tahap', 'sub-pr-sewing-sedangsewing', this, {catatRiwayat:true})" class="sub-pr-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pr-sewing-sedangsewing"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Sewing</button>
               <button onclick="pindahSubTab('sub-pr-sewing-tahap', 'sub-pr-sewing-perludikirim', this, {catatRiwayat:true})" class="sub-pr-sewing-tahap-btn gc-sub-tab-btn" data-target="sub-pr-sewing-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Di Kirim</button>
@@ -1237,7 +1237,7 @@
                dengan tracking per-PCS, beda dari Cutting/Serie/Sewing yang per-batch. Lihat komentar besar di
                js/vue-pp-finishing.js. -->
           <div id="sub-pr-finishing" class="sub-proses-produksi-content hidden fade-in space-y-4">
-            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+            <div class="flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-pr-finishing-tahap', 'sub-pr-finishing-perludiproses', this, {catatRiwayat:true})" class="sub-pr-finishing-tahap-btn gc-sub-tab-btn active" data-target="sub-pr-finishing-perludiproses"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Di Proses</button>
               <button onclick="pindahSubTab('sub-pr-finishing-tahap', 'sub-pr-finishing-sedang', this, {catatRiwayat:true}); pindahSubTab('sub-pr-finishing-sedang-sub', 'sub-pr-finishing-sedangqc', null, {catatRiwayat:true})" class="sub-pr-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pr-finishing-sedang"><i class="fas fa-gears" style="margin-right:6px;"></i> Sedang Finishing</button>
               <button onclick="pindahSubTab('sub-pr-finishing-tahap', 'sub-pr-finishing-perludikirim', this, {catatRiwayat:true})" class="sub-pr-finishing-tahap-btn gc-sub-tab-btn" data-target="sub-pr-finishing-perludikirim"><i class="fas fa-box-open" style="margin-right:6px;"></i> Perlu Dikirim</button>
@@ -1281,7 +1281,7 @@
           <!-- Gudang Barang Jadi, 4 tab. Titik akhir rantai produksi, beroperasi langsung di atas koleksi
                label_pcs tanpa koleksi tracking tersendiri. Lihat komentar besar di js/vue-pp-gudang.js. -->
           <div id="sub-pr-gudang" class="sub-proses-produksi-content hidden fade-in space-y-4">
-            <div class="hidden md:flex space-x-2 overflow-x-auto no-scrollbar">
+            <div class="flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-pr-gudang-tahap', 'sub-pr-gudang-perludisimpan', this, {catatRiwayat:true})" class="sub-pr-gudang-tahap-btn gc-sub-tab-btn active" data-target="sub-pr-gudang-perludisimpan"><i class="fas fa-inbox" style="margin-right:6px;"></i> Perlu Disimpan</button>
               <button onclick="pindahSubTab('sub-pr-gudang-tahap', 'sub-pr-gudang-stoktersedia', this, {catatRiwayat:true})" class="sub-pr-gudang-tahap-btn gc-sub-tab-btn" data-target="sub-pr-gudang-stoktersedia"><i class="fas fa-boxes-stacked" style="margin-right:6px;"></i> Stok Tersedia</button>
               <button onclick="pindahSubTab('sub-pr-gudang-tahap', 'sub-pr-gudang-riwayatkeluar', this, {catatRiwayat:true})" class="sub-pr-gudang-tahap-btn gc-sub-tab-btn" data-target="sub-pr-gudang-riwayatkeluar"><i class="fas fa-receipt" style="margin-right:6px;"></i> Riwayat Keluar</button>
@@ -1388,21 +1388,21 @@
        isi placeholder. -->
   <script type="module" src="js/vue-persiapan-produksi-v2.js?v=22"></script>
   <!-- jalur Bahan, lihat komentar besar di file ini. -->
-  <script type="module" src="js/vue-persiapan-bahan.js?v=38"></script>
+  <script type="module" src="js/vue-persiapan-bahan.js?v=39"></script>
   <!--
     jalur Acc Sewing/Webbing/Finishing, kartu = 1 spk_track (beda dari Bahan yang kartu = 1
     bahan+warna), lihat komentar besar di masing-masing file.
   -->
-  <script type="module" src="js/vue-persiapan-sewing.js?v=36"></script>
-  <script type="module" src="js/vue-persiapan-webbing.js?v=37"></script>
-  <script type="module" src="js/vue-persiapan-finishing.js?v=36"></script>
+  <script type="module" src="js/vue-persiapan-sewing.js?v=37"></script>
+  <script type="module" src="js/vue-persiapan-webbing.js?v=38"></script>
+  <script type="module" src="js/vue-persiapan-finishing.js?v=37"></script>
   <!-- Persiapan Produksi > Masalah, 7 tahap, skema TRB. Fitur "Persiapan Masalah" adalah papan
        manual terpisah (js/vue-persiapan-masalah.js) dengan koleksi permintaan_bahan_manual. -->
-  <script type="module" src="js/vue-pp-masalah.js?v=20"></script>
+  <script type="module" src="js/vue-pp-masalah.js?v=21"></script>
   <!-- Grup top-level "Pesanan": Penjualan Kasir (POS), Menunggu Proses (CRUD SPK dari
        OrderSpkManager), dan ringkasan read-only Proses Persiapan/Produksi/Pengiriman dari spk_track. Lihat
        komentar besar di js/vue-pesanan.js untuk latar belakang dan keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-pesanan.js?v=12"></script>
+  <script type="module" src="js/vue-pesanan.js?v=13"></script>
   <!-- Fondasi menu "Scan & Cetak" (PopupPinGenerik/ScanGenerik dst), lihat komentar besar di
        js/vue-scan-cetak.js. Badge operator memakai prefix "ZMS..."; prefix yang salah membuat pesan error
        di Tunjuk Operator/Scan Pack/Scan Kirim ikut salah tunjuk. Semua file pengimpor vue-scan-cetak.js
@@ -1483,27 +1483,27 @@
     Proses Produksi > Cutting, 7 tab. Lihat komentar besar di js/vue-pp-cutting.js untuk latar
     belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-cutting.js?v=27"></script>
+  <script type="module" src="js/vue-pp-cutting.js?v=28"></script>
   <!--
     Proses Produksi > Serie, 11 tab (hub distribusi). Lihat komentar besar di
     js/vue-pp-serie.js untuk latar belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-serie.js?v=27"></script>
+  <script type="module" src="js/vue-pp-serie.js?v=28"></script>
   <!--
     Proses Produksi > Sewing, 5 tab. Lihat komentar besar di js/vue-pp- sewing.js untuk latar
     belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-sewing.js?v=22"></script>
+  <script type="module" src="js/vue-pp-sewing.js?v=23"></script>
   <!--
     Proses Produksi > Finishing, 5 tab (per-PCS tracking via finishing_track). Lihat komentar
     besar di js/vue-pp-finishing.js untuk latar belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-finishing.js?v=22"></script>
+  <script type="module" src="js/vue-pp-finishing.js?v=23"></script>
   <!--
     Proses Produksi > Gudang Barang Jadi, 4 tab (titik akhir rantai produksi). Lihat komentar
     besar di js/vue-pp-gudang.js untuk latar belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-gudang.js?v=17"></script>
+  <script type="module" src="js/vue-pp-gudang.js?v=18"></script>
   <!-- Persiapan Produksi > Persiapan Belanja, folder terakhir grup Persiapan Produksi. Lihat
        komentar besar di js/vue-persiapan-belanja.js untuk latar belakang dan keputusan arsitektur lengkap. -->
   <script type="module" src="js/vue-persiapan-belanja.js?v=15"></script>

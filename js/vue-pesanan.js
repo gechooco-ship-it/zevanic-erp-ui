@@ -405,6 +405,18 @@ const PesananKasirManager = {
     }
     function tambahQty(sku) { if (keranjang[sku]) keranjang[sku].qty++; }
     function kurangiQty(sku) { if (!keranjang[sku]) return; keranjang[sku].qty--; if (keranjang[sku].qty <= 0) delete keranjang[sku]; }
+    // setQty — qty diketik langsung (bilangan bulat); 0 = tanya hapus dari keranjang.
+    function setQty(sku, nilai, el) {
+      if (!keranjang[sku]) return;
+      const qty = Math.floor(parseFloat(nilai) || 0);
+      if (qty <= 0) {
+        if (confirm('Qty 0 — hapus "' + keranjang[sku].nama + '" dari keranjang?')) delete keranjang[sku];
+        else if (el) el.value = keranjang[sku].qty;
+        return;
+      }
+      keranjang[sku].qty = qty;
+      if (el) el.value = qty;
+    }
     function hapusDariKeranjang(sku) { delete keranjang[sku]; }
     function kosongkanKeranjang() { Object.keys(keranjang).forEach(k => delete keranjang[k]); }
 
@@ -620,7 +632,7 @@ const PesananKasirManager = {
     return {
       bolehTambah, muat, memuatProduk, daftarProduk, kategoriAktif, cariProduk,
       daftarKategori, produkTampil, keranjang, daftarKeranjang, totalBelanja, totalKotorBelanja, diskonTotalBelanja, totalItem,
-      subtotalItem, tambahKeKeranjang, tambahQty, kurangiQty, hapusDariKeranjang, kosongkanKeranjang,
+      subtotalItem, tambahKeKeranjang, tambahQty, kurangiQty, setQty, hapusDariKeranjang, kosongkanKeranjang,
       memuatPelanggan, daftarPelanggan, cariPelanggan, pelangganTerpilihId, pelangganTerpilih, pelangganTampil,
       modeGantiPelanggan,
       step, metode, METODE_PEMBAYARAN_OPSI, statusBayar, STATUS_BAYAR_OPSI, JATUH_TEMPO_PRESET,
@@ -703,7 +715,7 @@ const PesananKasirManager = {
                   <div style="font-size:10.5px; color:var(--text-muted);">{{ formatRupiah(i.harga_satuan) }} / pcs</div>
                 </div>
                 <button @click="kurangiQty(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px;"><i class="fas fa-minus" style="font-size:10px;"></i></button>
-                <span style="font-size:12.5px; font-weight:700; min-width:22px; text-align:center;">{{ i.qty }}</span>
+                <input type="number" min="0" step="1" inputmode="numeric" :value="i.qty" @change="setQty(i.sku, $event.target.value, $event.target)" @focus="$event.target.select()" style="width:52px; padding:3px 4px; border:1.5px solid var(--line); border-radius:8px; font-size:12.5px; font-weight:700; text-align:center;">
                 <button @click="tambahQty(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px;"><i class="fas fa-plus" style="font-size:10px;"></i></button>
                 <div style="font-weight:700; font-size:12px; min-width:80px; text-align:right;">{{ formatRupiah(subtotalItem(i)) }}</div>
                 <button @click="hapusDariKeranjang(i.sku)" type="button" class="icon-btn" style="width:26px; height:26px; color:var(--danger);"><i class="fas fa-trash-alt" style="font-size:10px;"></i></button>

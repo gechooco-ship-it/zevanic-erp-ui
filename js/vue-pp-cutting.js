@@ -13,9 +13,9 @@
 // - spk_track.bahan_rincian[].gelar_pada: label bahan di-scan saat digelar.
 //
 // Jebakan:
-// - cutting_track dibuat LAZY & idempoten saat Tab 1.1 dibuka, TAPI ditolak
-//   ditulis selama bahan grouping itu belum dikirim Collection
-//   (spk_track.bahan_rincian[].kirim_cutting_pada).
+// - cutting_track dibuat LAZY saat Tab 1.1 dibuka (id = grouping_id, transaksi
+//   jadi tidak dobel), ditolak selama bahan grouping itu belum dikirim
+//   Collection (spk_track.bahan_rincian[].kirim_cutting_pada).
 // - Scan Sampai Tab 1.1 satu-satunya penulis bahan_rincian[].sampai_cutting_pada.
 //   bahan_rincian[].sampai_pada milik Scan Sampai Collection, jangan disentuh.
 
@@ -154,7 +154,12 @@ async function pastikanCuttingTrackLengkap() {
   const siapDitulis = belum.filter(g => sudahDikirimUntukGrouping(g, semuaBahanRincian));
   if (siapDitulis.length) {
     const now = new Date().toISOString();
-    await Promise.all(siapDitulis.map(g => addDoc(collection(db, 'cutting_track'), {
+    // ID dokumen = id grouping, dibuat lewat transaksi hanya kalau belum ada:
+    // dua layar yang membuka tab bersamaan tidak bisa membuat dokumen dobel.
+    await Promise.all(siapDitulis.map(g => runTransaction(db, async (trx) => {
+      const ref = doc(db, 'cutting_track', g.id);
+      if ((await trx.get(ref)).exists()) return;
+      trx.set(ref, {
       grouping_id: g.id, kode_grouping_induk: g.kode_grouping_induk || '', nama_produk: g.nama_produk || '',
       size: g.size || '', qty_total: parseFloat(g.qty_total) || 0,
       sku_produk_terlibat: g.sku_produk_terlibat || [],
@@ -166,6 +171,7 @@ async function pastikanCuttingTrackLengkap() {
       komponen_rincian: [], kode_bagging: [], kode_tugas: '', tlc_tujuan: '', tujuan_akhir: '',
       catatan_masalah: '', masuk_tahap_pada: now, sampai_pada: null,
       dibuat_pada: serverTimestamp(), diperbarui_pada: serverTimestamp()
+      });
     })));
   }
   return await muatSemuaCuttingTrack();
@@ -1010,7 +1016,7 @@ const CuttingSedangPola = {
 
     <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Komponen" :daftar-label="daftarLabelPreview" jenis-cetak="label_komponen_cutting" @tutup="popupCetakAktif = false" />
     <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.track ? ('Scan Entry Pola — ' + modalEntry.track.kode_grouping_induk) : 'Scan Entry Pola'" subjudul="Scan tiap label komponen yang sudah selesai digambar polanya." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
-    <div v-if="modalEntry.aktif && modalEntry.log.length" style="position:fixed; left:16px; bottom:16px; z-index:10001; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
+    <div v-if="modalEntry.aktif && modalEntry.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
       <div v-for="(l,i) in modalEntry.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
     </div>
     <scan-generik :aktif="!!scanOpCutting" judul="Scan QR Operator Cutting" :subjudul="scanOpCutting ? ('SPK ' + scanOpCutting.kode_grouping_induk) : ''" @hasil="scanOperatorCutting" @tutup="scanOpCutting = null" />
@@ -1165,7 +1171,7 @@ const CuttingSedangCutting = {
     </template>
 
     <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.track ? ('Scan Entry Cutting — ' + modalEntry.track.kode_grouping_induk) : 'Scan Entry Cutting'" subjudul="Scan tiap label komponen yang sudah selesai dipotong." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
-    <div v-if="modalEntry.aktif && modalEntry.log.length" style="position:fixed; left:16px; bottom:16px; z-index:10001; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
+    <div v-if="modalEntry.aktif && modalEntry.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
       <div v-for="(l,i) in modalEntry.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
     </div>
 

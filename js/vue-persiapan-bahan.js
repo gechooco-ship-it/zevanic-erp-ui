@@ -133,11 +133,14 @@ function saringMilikOperator(barisList) {
   return barisList.filter(b => b.operator_uid && b.operator_uid === window.currentUser?.email);
 }
 
+// statusTampil — baris yang sudah di-Scan Sampai Collection (sampai_pada terisi)
+// dianggap selesai walau status tersimpannya masih sedang_dikirim (data lama).
+function statusTampil(b) { return (b.status === 'sedang_dikirim' && b.sampai_pada) ? 'selesai' : b.status; }
 function daftarBarisDariTrack(daftarTrack) {
   const baris = [];
   daftarTrack.forEach(t => {
     (t.bahan_rincian || []).forEach((b, idx) => {
-      baris.push({ ...b, _trackId: t.id, _lineIdx: idx, kode_grouping_induk: t.kode_grouping_induk, grouping_id: t.grouping_id, nama_produk: t.nama_produk });
+      baris.push({ ...b, status: statusTampil(b), _trackId: t.id, _lineIdx: idx, kode_grouping_induk: t.kode_grouping_induk, grouping_id: t.grouping_id, nama_produk: t.nama_produk });
     });
   });
   return baris;
@@ -652,7 +655,7 @@ const PersiapanBahanPerluDisiapkan = {
     <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label SPK Grouping" :daftar-label="daftarLabelPreview" jenis-cetak="label_spk_bahan" @tutup="popupCetakAktif = false" @cetak="onCetakSelesai" />
 
     <scan-generik :aktif="modalScanSampai.aktif" judul="Scan Sampai — kode bagging balik dari Masalah" subjudul="Bisa discan berkali-kali." @hasil="hasilScanSampai" @tutup="tutupScanSampai" />
-    <div v-if="modalScanSampai.aktif && modalScanSampai.log.length" style="position:fixed; left:16px; bottom:16px; z-index:10001; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
+    <div v-if="modalScanSampai.aktif && modalScanSampai.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
       <div v-for="(l,i) in modalScanSampai.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
     </div>
 

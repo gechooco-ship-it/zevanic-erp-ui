@@ -111,11 +111,14 @@ function saringMilikOperator(barisList) {
   return barisList.filter(b => b.operator_uid && b.operator_uid === window.currentUser?.email);
 }
 
+// statusTampil — baris yang sudah di-Scan Sampai Collection (sampai_pada terisi)
+// dianggap selesai walau status tersimpannya masih sedang_dikirim (data lama).
+function statusTampil(b) { return (b.status === 'sedang_dikirim' && b.sampai_pada) ? 'selesai' : b.status; }
 function daftarBarisDariTrack(daftarTrack) {
   const baris = [];
   daftarTrack.forEach(t => {
     (t[FIELD_RINCIAN] || []).forEach((b, idx) => {
-      baris.push({ ...b, _trackId: t.id, _lineIdx: idx, kode_grouping_induk: t.kode_grouping_induk, kode_kit: t.kode_kit || b.kode_kit, kode_separating: t.kode_separating || b.kode_separating, separating_id: t.separating_id || b.separating_id, grouping_id: t.grouping_id, nama_produk: t.nama_produk });
+      baris.push({ ...b, status: statusTampil(b), _trackId: t.id, _lineIdx: idx, kode_grouping_induk: t.kode_grouping_induk, kode_kit: t.kode_kit || b.kode_kit, kode_separating: t.kode_separating || b.kode_separating, separating_id: t.separating_id || b.separating_id, grouping_id: t.grouping_id, nama_produk: t.nama_produk });
     });
   });
   return baris;
@@ -592,7 +595,7 @@ const PersiapanFinishingPerluDisiapkan = {
     <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Anak SPK" :daftar-label="daftarLabelPreview" jenis-cetak="label_spk_acc_finishing" @tutup="popupCetakAktif = false" @cetak="onCetakSelesai" />
 
     <scan-generik :aktif="modalScanSampai.aktif" judul="Scan Sampai — kode bagging balik dari Masalah" subjudul="Bisa discan berkali-kali." @hasil="hasilScanSampai" @tutup="tutupScanSampai" />
-    <div v-if="modalScanSampai.aktif && modalScanSampai.log.length" style="position:fixed; left:16px; bottom:16px; z-index:10001; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
+    <div v-if="modalScanSampai.aktif && modalScanSampai.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
       <div v-for="(l,i) in modalScanSampai.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
     </div>
 
@@ -1222,13 +1225,13 @@ const PersiapanFinishingPerluDikirim = {
     <div v-if="!daftarTlc.length" style="margin-top:10px;"><button @click="isiTlcAwal" class="btn-outline" style="width:100%; padding:8px; font-size:11px;">Isi TLC Awal (10 lokasi contoh)</button></div>
 
     <scan-generik :aktif="modalPack.aktif" :judul="modalPack.bagging ? ('Scan anak SPK — bagging ' + modalPack.bagging.kode) : 'Scan Kode Bagging'" subjudul="Bisa discan berkali-kali. Tutup lewat tombol di bawah kalau sudah selesai." @hasil="hasilScanPack" @tutup="tutupScanPack" />
-    <div v-if="modalPack.aktif && modalPack.bagging" style="position:fixed; left:16px; bottom:16px; z-index:10001; display:flex; flex-direction:column; gap:8px; max-width:260px;">
+    <div v-if="modalPack.aktif && modalPack.bagging" style="position:fixed; left:16px; top:16px; z-index:10001; display:flex; flex-direction:column; gap:8px; max-width:260px;">
       <button @click="tutupBagging" class="btn-primary" style="padding:8px 14px; font-size:11px;">Tutup Bagging Ini</button>
       <div style="background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px;"><div v-for="(l,i) in modalPack.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div></div>
     </div>
 
     <scan-generik :aktif="modalKirim.aktif" :judul="modalKirim.tugas ? ('Scan kode bagging — tugas ' + modalKirim.tugas.kode) : 'Scan Kode Tugas'" subjudul="Bisa discan berkali-kali (tiap kode bagging = 1 pack)." @hasil="hasilScanKirim" @tutup="tutupScanKirim" />
-    <div v-if="modalKirim.aktif && modalKirim.tugas && modalKirim.log.length" style="position:fixed; left:16px; bottom:16px; z-index:10001; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
+    <div v-if="modalKirim.aktif && modalKirim.tugas && modalKirim.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
       <div v-for="(l,i) in modalKirim.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
     </div>
   `
