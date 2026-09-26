@@ -7,9 +7,9 @@
 //   komponen_rincian[], kode_bagging[], kode_tugas, sampai_pada,
 //   masuk_tahap_pada (dasar ambang tertahan 6 jam). Status: perlu_diproses →
 //   sedang_ampar/pola/cutting → perlu_dikirim → sedang_dikirim → selesai.
-// - label_komponen: 1 per komponen per tumpukan, kode {kode_grouping}-{nn}
-//   (GR26092301-1203-01). Jumlah = isi_pola_pcs x komponen.qty; amparan cuma
-//   jumlah lapis. Semua wajib di-scan Cutting sebelum Cutting Selesai.
+// - label_komponen: 1 per komponen per tumpukan, dicetak PER BAHAN (pola_key =
+//   bahan_aksesoris_id::nama_pola), kode {kode_grouping bahan itu}-{nn}. Jumlah
+//   = isi_pola_pcs x komponen.qty. Semua wajib di-scan sebelum Cutting Selesai.
 // - spk_track.bahan_rincian[].gelar_pada: label bahan di-scan saat digelar.
 //
 // Jebakan:
@@ -176,22 +176,42 @@ async function pastikanCuttingTrackLengkap() {
   }
   return await muatSemuaCuttingTrack();
 }
-// hitungKomponenRincian — keputusan §4 di komentar besar atas file.
+// hitungKomponenRincian — komponen SEMUA baris bom_pola, tiap item membawa
+// pola_key + nama_bahan supaya label bisa dicetak per bahan.
+function kunciPola(p) { return (p.bahan_aksesoris_id || p.nama_bahan || '') + '::' + (p.nama_pola || ''); }
 function hitungKomponenRincian(track, petaProduk) {
   const sku = (track.sku_produk_terlibat || [])[0];
   const produk = sku ? petaProduk[sku] : null;
-  const pola = (produk && Array.isArray(produk.bom_pola)) ? produk.bom_pola[0] : null;
-  if (!pola) return [];
-  const isiPola = parseFloat(pola.isi_pola_pcs) || 0;
-  const komponen = Array.isArray(pola.komponen) ? pola.komponen : [];
-  if (isiPola <= 0 || !komponen.length) return [];
-  return komponen.map(k => ({
-    nama_komponen: k.nama_komponen || '(tanpa nama)',
-    qty_per_pola: parseFloat(k.qty) || 0,
-    isi_pola_pcs: isiPola,
-    jumlah_label: isiPola * (parseFloat(k.qty) || 0),
-    label_dicetak_pada: null
-  }));
+  const semuaPola = (produk && Array.isArray(produk.bom_pola)) ? produk.bom_pola : [];
+  const hasil = [];
+  semuaPola.forEach(pola => {
+    const isiPola = parseFloat(pola.isi_pola_pcs) || 0;
+    const komponen = Array.isArray(pola.komponen) ? pola.komponen : [];
+    if (isiPola <= 0) return;
+    komponen.forEach(k => hasil.push({
+      pola_key: kunciPola(pola), nama_pola: pola.nama_pola || '', bahan_aksesoris_id: pola.bahan_aksesoris_id || '',
+      nama_bahan: [pola.nama_bahan, pola.warna_bahan].filter(Boolean).join(' ') || '-',
+      nama_komponen: k.nama_komponen || '(tanpa nama)',
+      qty_per_pola: parseFloat(k.qty) || 0,
+      isi_pola_pcs: isiPola,
+      jumlah_label: isiPola * (parseFloat(k.qty) || 0),
+      label_dicetak_pada: null
+    }));
+  });
+  return hasil;
+}
+// lengkapiRincianPerBahan — rincian lama (tanpa pola_key, cuma bom_pola[0])
+// dihitung ulang dari BOM; status cetak lama dibawa ke bahan pertama.
+function lengkapiRincianPerBahan(track, petaProduk) {
+  const lama = track.komponen_rincian || [];
+  if (lama.length && lama.every(k => k.pola_key)) return null;
+  const baru = hitungKomponenRincian(track, petaProduk);
+  if (!baru.length) return null;
+  const kunciPertama = baru[0].pola_key;
+  return baru.map(k => {
+    const l = k.pola_key === kunciPertama ? lama.find(x => x.nama_komponen === k.nama_komponen) : null;
+    return l ? { ...k, label_dicetak_pada: l.label_dicetak_pada || null } : k;
+  });
 }
 // updateCuttingTrack — read-modify-write ATOMIK (pola sama seperti
 // updateBarisBahan di 4 pos lain), dipakai tiap tulis balik cutting_track.
@@ -733,7 +753,7 @@ const CuttingSedangAmpar = {
         const petaProduk = await ambilPetaProdukBySku();
         const komponen = hitungKomponenRincian(track, petaProduk);
         if (!komponen.length) {
-          if (!confirm('BOM Pola produk ini belum punya rincian Komponen (master_produk.bom_pola[0].komponen kosong) — tidak ada label yang bisa dihitung. Lanjut ke Sedang Pola tanpa rincian komponen?')) return;
+          if (!confirm('BOM Pola produk ini belum punya rincian Komponen (komponen semua baris master_produk.bom_pola kosong) — tidak ada label yang bisa dihitung. Lanjut ke Sedang Pola tanpa rincian komponen?')) return;
         }
         await updateCuttingTrack(track.id, (data) => ({
           op_pola: { uid: user.email, nama: user.nama || user.name || user.email, riwayat: [...((data.op_pola && data.op_pola.riwayat) || []), { uid: user.email, nama: user.nama || user.name || user.email, pada: new Date().toISOString() }] },
@@ -867,40 +887,84 @@ const CuttingSedangPola = {
     }
     function progres(t) { return progresLabel(t, semuaLabel.value, 'status_pola'); }
 
-    // Cetak Label Komponen: N label per komponen belum dicetak
+    // Cetak Label Komponen PER BAHAN: tombol baris membuka daftar bahan, satu
+    // klik mencetak komponen bahan itu saja dengan kode_grouping bahannya.
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
     const sedangCetak = ref(false);
+    const pilihBahanCetak = ref(null); // { track, grup: [{ pola_key, nama_bahan, nama_pola, jumlah, sudah }] }
+    function grupBahanCetak(rincian) {
+      const peta = {};
+      rincian.forEach(k => {
+        const g = peta[k.pola_key] || (peta[k.pola_key] = { pola_key: k.pola_key, nama_bahan: k.nama_bahan, nama_pola: k.nama_pola, jumlah: 0, sudah: true });
+        g.jumlah += Math.max(1, Math.round(k.jumlah_label || 0));
+        if (!k.label_dicetak_pada) g.sudah = false;
+      });
+      return Object.values(peta);
+    }
     async function cetakLabelKomponen(track) {
-      const belum = (track.komponen_rincian || []).filter(k => !k.label_dicetak_pada);
-      if (!belum.length) { alert('Semua komponen produk ini sudah pernah dicetak labelnya.'); return; }
+      sedangCetak.value = true;
+      try {
+        let rincian = track.komponen_rincian || [];
+        const lengkap = lengkapiRincianPerBahan(track, await ambilPetaProdukBySku());
+        if (lengkap) {
+          await updateCuttingTrack(track.id, () => ({ komponen_rincian: lengkap }));
+          rincian = lengkap;
+        }
+        if (!rincian.length) { alert('BOM Pola produk ini belum punya rincian Komponen — tidak ada label yang bisa dicetak.'); return; }
+        pilihBahanCetak.value = { track: { ...track, komponen_rincian: rincian }, grup: grupBahanCetak(rincian) };
+      } catch (e) { console.error('Gagal siapkan cetak label komponen:', e); alert('Gagal memuat rincian komponen. Coba lagi.'); }
+      finally { sedangCetak.value = false; }
+    }
+    async function cetakLabelBahan(g) {
+      const track = pilihBahanCetak.value.track;
+      const belum = track.komponen_rincian.filter(k => k.pola_key === g.pola_key && !k.label_dicetak_pada);
+      if (!belum.length) { cetakUlangLabelBahan(track, g); return; }
+      const target = belum;
       sedangCetak.value = true;
       try {
         const preview = [];
-        const bahan = (await barisBahanGrouping(track.grouping_id))[0];
+        const semuaBahan = await barisBahanGrouping(track.grouping_id);
+        const bahan = semuaBahan.find(b => (b.bahan_aksesoris_id || '') + '::' + (b.nama_pola || '') === g.pola_key) || semuaBahan[0];
         const dasar = (bahan && bahan.kode_grouping) || track.kode_grouping_induk;
-        let urut = semuaLabel.value.filter(l => l.cutting_track_id === track.id).length;
-        for (const k of belum) {
+        let urut = semuaLabel.value.filter(l => l.cutting_track_id === track.id && (l.kode || '').startsWith(dasar + '-')).length;
+        for (const k of target) {
           const n = Math.max(1, Math.round(k.jumlah_label || 0));
           for (let i = 0; i < n; i++) {
             urut++;
             const kode = `${dasar}-${String(urut).padStart(2, '0')}`;
             await addDoc(collection(db, 'label_komponen'), {
               kode, cutting_track_id: track.id, grouping_id: track.grouping_id || '', nama_komponen: k.nama_komponen,
+              pola_key: g.pola_key, nama_bahan: g.nama_bahan,
               status_pola: 'belum', status_cutting: 'belum', pola_pada: null, cutting_pada: null,
               dibuat_pada: serverTimestamp()
             });
-            preview.push({ kode, nama: k.nama_komponen, info: `${track.kode_grouping_induk} &middot; ${track.nama_produk} size ${track.size || '-'}`, qrDataUrl: buatQrDataUrl(kode) });
+            preview.push({ kode, nama: k.nama_komponen, info: `${g.nama_bahan} &middot; ${track.nama_produk} size ${track.size || '-'}`, qrDataUrl: buatQrDataUrl(kode) });
           }
         }
+        const kini = new Date().toISOString();
         await updateCuttingTrack(track.id, (data) => ({
-          komponen_rincian: (data.komponen_rincian || []).map(k => belum.some(b => b.nama_komponen === k.nama_komponen) ? { ...k, label_dicetak_pada: new Date().toISOString() } : k)
+          komponen_rincian: (data.komponen_rincian || []).map(k => k.pola_key === g.pola_key && target.some(b => b.nama_komponen === k.nama_komponen) ? { ...k, label_dicetak_pada: kini } : k)
         }));
+        pilihBahanCetak.value = null;
         daftarLabelPreview.value = preview;
         popupCetakAktif.value = true;
         await muat();
       } catch (e) { console.error('Gagal cetak label komponen:', e); alert('Gagal mencetak. Coba lagi.'); }
       sedangCetak.value = false;
+    }
+
+    // Cetak ulang = kode LAMA yang sama, tanpa dokumen baru. Label tanpa
+    // pola_key (dicetak sebelum per bahan) dianggap milik bahan pertama.
+    function cetakUlangLabelBahan(track, g) {
+      const kunciPertama = (track.komponen_rincian[0] || {}).pola_key;
+      const lama = semuaLabel.value
+        .filter(l => l.cutting_track_id === track.id && (l.pola_key || kunciPertama) === g.pola_key)
+        .sort((x, y) => (x.kode || '').localeCompare(y.kode || ''));
+      if (!lama.length) { alert(`Label ${g.nama_bahan} tidak ditemukan untuk dicetak ulang.`); return; }
+      daftarLabelPreview.value = lama.map(l => ({ kode: l.kode, nama: l.nama_komponen, info: `${g.nama_bahan} &middot; ${track.nama_produk} size ${track.size || '-'}`, qrDataUrl: buatQrDataUrl(l.kode) }));
+      pilihBahanCetak.value = null;
+      popupCetakAktif.value = true;
     }
 
     // Scan Entry per label komponen (status_pola -> selesai)
@@ -971,7 +1035,7 @@ const CuttingSedangPola = {
 
     return { muat,
       memuat, daftar, bahanEnrich, bolehProses, bolehCetak, bolehOperator, aksiAktif, sedangCetak, formatQty, formatDiamSejak, tertahan, progres,
-      popupCetakAktif, daftarLabelPreview, cetakLabelKomponen,
+      popupCetakAktif, daftarLabelPreview, cetakLabelKomponen, pilihBahanCetak, cetakLabelBahan,
       modalEntry, tutupScanEntry, hasilScanEntry,
       scanOpCutting, scanOperatorCutting,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
@@ -1023,6 +1087,21 @@ const CuttingSedangPola = {
       </div>
     </template>
 
+    <div v-if="pilihBahanCetak" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:380px; width:100%; padding:18px; border-radius:18px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 4px;">Cetak Label Komponen — {{ pilihBahanCetak.track.kode_grouping_induk }}</h3>
+        <div style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">Pilih bahan yang mau dicetak labelnya.</div>
+        <div v-for="g in pilihBahanCetak.grup" :key="g.pola_key" style="display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--line);">
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:12px; font-weight:700;">{{ g.nama_bahan }}</div>
+            <div style="font-size:10.5px; color:var(--text-faint);">{{ g.nama_pola || '-' }} &middot; {{ g.jumlah }} label</div>
+          </div>
+          <span class="tag" :class="g.sudah ? 'ok' : 'neutral'">{{ g.sudah ? 'Sudah' : 'Belum' }}</span>
+          <button @click="cetakLabelBahan(g)" :disabled="sedangCetak" :class="g.sudah ? 'btn-outline' : 'btn-primary'" style="padding:5px 10px; font-size:10.5px;"><i class="fas" :class="g.sudah ? 'fa-rotate-right' : 'fa-print'"></i> {{ g.sudah ? 'Cetak Ulang' : 'Cetak' }}</button>
+        </div>
+        <button @click="pilihBahanCetak = null" class="btn-outline" style="width:100%; padding:9px; margin-top:12px;">Tutup</button>
+      </div>
+    </div>
     <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Komponen" :daftar-label="daftarLabelPreview" jenis-cetak="label_komponen_cutting" @tutup="popupCetakAktif = false" />
     <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.track ? ('Scan Entry Pola — ' + modalEntry.track.kode_grouping_induk) : 'Scan Entry Pola'" subjudul="Scan tiap label komponen yang sudah selesai digambar polanya." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
     <div v-if="modalEntry.aktif && modalEntry.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
