@@ -270,7 +270,8 @@ async function kirimMasalahCutting(track, jumlah, alasan, jenis) {
 
 // enrichBahanUntukTrack — join READ-ONLY spk_track(jalur:'bahan').bahan_rincian[]
 // via spk_grouping.breakdown[].id_order untuk kolom SKU/pola/amparan/kbt kain Tab
-// 1.1-1.4: angka pola dari baris cocok pertama, amparan+kain dijumlah, satuan 'M'.
+// 1.1-1.4: `bahan` = 1 baris per bahan+pola BOM (amparan & kain dijumlah lintas
+// separating), ditampilkan bertumpuk per SPK. Satuan 'M'.
 // siapDiproses = semua baris sampai_cutting_pada; sudahDikirim = semua kirim_cutting_pada.
 async function enrichBahanUntukTrack(daftarTrack, daftarGrouping) {
   const peta = {};
@@ -291,7 +292,15 @@ async function enrichBahanUntukTrack(daftarTrack, daftarGrouping) {
       // jadi {sudahDikirim:false} di sini.
       if (!cocok.length) { peta[t.id] = null; return; }
       const rep = cocok[0];
+      const perBahan = {};
+      cocok.forEach(b => {
+        const key = (b.bahan_aksesoris_id || b.bahan_nama) + '::' + (b.nama_pola || '');
+        if (!perBahan[key]) perBahan[key] = { key, sku: [b.bahan_nama, b.bahan_warna].filter(Boolean).join(' ') || '-', panjangPola: b.panjang_pola || 0, isiPola: b.isi_pola_pcs || 0, amparan: 0, kebutuhanKain: 0 };
+        perBahan[key].amparan += parseFloat(b.amparan) || 0;
+        perBahan[key].kebutuhanKain += parseFloat(b.kebutuhan_kain) || 0;
+      });
       peta[t.id] = {
+        bahan: Object.values(perBahan),
         skuBahan: [rep.bahan_nama, rep.bahan_warna].filter(Boolean).join(' ') || '-',
         panjangPola: rep.panjang_pola || 0,
         isiPola: rep.isi_pola_pcs || 0,
@@ -585,17 +594,17 @@ const CuttingPerluDiProses = {
             <th style="padding:6px 8px;">Unpack</th><th style="padding:6px 8px;">Diam Sejak</th><th style="padding:6px 8px;">Aksi</th>
           </tr></thead>
           <tbody>
-            <tr v-for="t in daftarTampil" :key="t.id" style="border-bottom:1px solid var(--line);" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
+            <tr v-for="t in daftarTampil" :key="t.id" style="border-bottom:1px solid var(--line); vertical-align:top;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
               <td style="padding:6px 8px; font-weight:700;" class="gc-num">{{ t.kode_grouping_induk }}</td>
               <!-- Status Bahan: lihat siapBahan -->
               <td style="padding:6px 8px;"><span class="tag" :class="siapBahan(t) ? 'ok' : 'warn'">{{ siapBahan(t) ? 'Siap' : 'Menunggu Bahan' }}</span></td>
               <td style="padding:6px 8px;">{{ t.nama_produk }}<span v-if="t.size" style="color:var(--text-faint);"> ({{ t.size }})</span></td>
-              <td style="padding:6px 8px; color:var(--text-faint);">{{ (bahanEnrich[t.id] && bahanEnrich[t.id].skuBahan) || '-' }}</td>
+              <td style="padding:6px 8px; color:var(--text-faint);"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ b.sku }}</div></template><template v-else>-</template></td>
               <td style="padding:6px 8px;" class="gc-num">{{ formatQty(t.qty_total) }}</td>
-              <td style="padding:6px 8px;" class="gc-num">{{ bahanEnrich[t.id] ? formatQty(bahanEnrich[t.id].panjangPola) : '-' }}</td>
-              <td style="padding:6px 8px;" class="gc-num">{{ bahanEnrich[t.id] ? formatQty(bahanEnrich[t.id].isiPola) : '-' }}</td>
-              <td style="padding:6px 8px;" class="gc-num">{{ bahanEnrich[t.id] ? formatQty(bahanEnrich[t.id].amparan) : '-' }}</td>
-              <td style="padding:6px 8px;" class="gc-num">{{ bahanEnrich[t.id] ? formatQty(bahanEnrich[t.id].kebutuhanKain) : '-' }}</td>
+              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.panjangPola) }}</div></template><template v-else>-</template></td>
+              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.isiPola) }}</div></template><template v-else>-</template></td>
+              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.amparan) }}</div></template><template v-else>-</template></td>
+              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.kebutuhanKain) }}</div></template><template v-else>-</template></td>
               <td style="padding:6px 8px;">{{ bahanEnrich[t.id] ? bahanEnrich[t.id].satuan : '-' }}</td>
               <td style="padding:6px 8px;">
                 <span v-if="!(unpackEnrich[t.kode_grouping_induk] || []).length" class="tag neutral">belum</span>
@@ -779,15 +788,15 @@ const CuttingSedangAmpar = {
             <th style="padding:6px 8px;">Op. Ampar</th><th style="padding:6px 8px;">Diam Sejak</th><th style="padding:6px 8px;">Aksi</th>
           </tr></thead>
           <tbody>
-            <tr v-for="t in daftar" :key="t.id" style="border-bottom:1px solid var(--line);" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
+            <tr v-for="t in daftar" :key="t.id" style="border-bottom:1px solid var(--line); vertical-align:top;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
               <td style="padding:6px 8px; font-weight:700;" class="gc-num">{{ t.kode_grouping_induk }}</td>
               <td style="padding:6px 8px;">{{ t.nama_produk }}<span v-if="t.size" style="color:var(--text-faint);"> ({{ t.size }})</span></td>
-              <td style="padding:6px 8px; color:var(--text-faint);">{{ (bahanEnrich[t.id] && bahanEnrich[t.id].skuBahan) || '-' }}</td>
+              <td style="padding:6px 8px; color:var(--text-faint);"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ b.sku }}</div></template><template v-else>-</template></td>
               <td style="padding:6px 8px;" class="gc-num">{{ formatQty(t.qty_total) }}</td>
-              <td style="padding:6px 8px;" class="gc-num">{{ bahanEnrich[t.id] ? formatQty(bahanEnrich[t.id].panjangPola) : '-' }}</td>
-              <td style="padding:6px 8px;" class="gc-num">{{ bahanEnrich[t.id] ? formatQty(bahanEnrich[t.id].isiPola) : '-' }}</td>
-              <td style="padding:6px 8px;" class="gc-num">{{ bahanEnrich[t.id] ? formatQty(bahanEnrich[t.id].amparan) : '-' }}</td>
-              <td style="padding:6px 8px;" class="gc-num">{{ bahanEnrich[t.id] ? formatQty(bahanEnrich[t.id].kebutuhanKain) : '-' }}</td>
+              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.panjangPola) }}</div></template><template v-else>-</template></td>
+              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.isiPola) }}</div></template><template v-else>-</template></td>
+              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.amparan) }}</div></template><template v-else>-</template></td>
+              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.kebutuhanKain) }}</div></template><template v-else>-</template></td>
               <td style="padding:6px 8px;" class="gc-num">{{ t.entry_ampar_done || 0 }}</td>
               <td style="padding:6px 8px;">{{ (t.op_ampar && t.op_ampar.nama) || '-' }}</td>
               <td style="padding:6px 8px;"><span class="tag" :class="tertahan(t.masuk_tahap_pada) ? 'warn' : 'neutral'">{{ formatDiamSejak(t.masuk_tahap_pada) }}</span></td>
@@ -990,13 +999,13 @@ const CuttingSedangPola = {
             <th style="padding:6px 8px;">Diam Sejak</th><th style="padding:6px 8px;">Aksi</th>
           </tr></thead>
           <tbody>
-            <tr v-for="t in daftar" :key="t.id" style="border-bottom:1px solid var(--line);" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
+            <tr v-for="t in daftar" :key="t.id" style="border-bottom:1px solid var(--line); vertical-align:top;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
               <td style="padding:6px 8px; font-weight:700;" class="gc-num">{{ t.kode_grouping_induk }}</td>
               <td style="padding:6px 8px;">{{ t.nama_produk }}<span v-if="t.size" style="color:var(--text-faint);"> ({{ t.size }})</span></td>
-              <td style="padding:6px 8px; color:var(--text-faint);">{{ (bahanEnrich[t.id] && bahanEnrich[t.id].skuBahan) || '-' }}</td>
+              <td style="padding:6px 8px; color:var(--text-faint);"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ b.sku }}</div></template><template v-else>-</template></td>
               <td style="padding:6px 8px;" class="gc-num">{{ formatQty(t.qty_total) }}</td>
-              <td style="padding:6px 8px;" class="gc-num">{{ bahanEnrich[t.id] ? formatQty(bahanEnrich[t.id].isiPola) : '-' }}</td>
-              <td style="padding:6px 8px;" class="gc-num">{{ bahanEnrich[t.id] ? formatQty(bahanEnrich[t.id].kebutuhanKain) : '-' }}</td>
+              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.isiPola) }}</div></template><template v-else>-</template></td>
+              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.kebutuhanKain) }}</div></template><template v-else>-</template></td>
               <td style="padding:6px 8px;">
                 <div v-if="(t.komponen_rincian||[]).length">{{ progres(t).done }} / {{ progres(t).total }}</div>
                 <div v-else style="color:var(--warn); font-size:10px;">BOM kosong</div>
@@ -1147,12 +1156,12 @@ const CuttingSedangCutting = {
             <th style="padding:6px 8px;">Diam Sejak</th><th style="padding:6px 8px;">Aksi</th>
           </tr></thead>
           <tbody>
-            <tr v-for="t in daftar" :key="t.id" style="border-bottom:1px solid var(--line);" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
+            <tr v-for="t in daftar" :key="t.id" style="border-bottom:1px solid var(--line); vertical-align:top;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
               <td style="padding:6px 8px; font-weight:700;" class="gc-num">{{ t.kode_grouping_induk }}</td>
               <td style="padding:6px 8px;">{{ t.nama_produk }}<span v-if="t.size" style="color:var(--text-faint);"> ({{ t.size }})</span></td>
-              <td style="padding:6px 8px; color:var(--text-faint);">{{ (bahanEnrich[t.id] && bahanEnrich[t.id].skuBahan) || '-' }}</td>
+              <td style="padding:6px 8px; color:var(--text-faint);"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ b.sku }}</div></template><template v-else>-</template></td>
               <td style="padding:6px 8px;" class="gc-num">{{ formatQty(t.qty_total) }}</td>
-              <td style="padding:6px 8px;" class="gc-num">{{ bahanEnrich[t.id] ? formatQty(bahanEnrich[t.id].kebutuhanKain) : '-' }}</td>
+              <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.kebutuhanKain) }}</div></template><template v-else>-</template></td>
               <td style="padding:6px 8px;">{{ progres(t).done }} / {{ progres(t).total }}</td>
               <td style="padding:6px 8px;">{{ (t.op_ampar && t.op_ampar.nama) || '-' }}</td>
               <td style="padding:6px 8px;">{{ (t.op_pola && t.op_pola.nama) || '-' }}</td>
