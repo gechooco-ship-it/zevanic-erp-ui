@@ -876,7 +876,7 @@ const SerieSedangDiProses = {
 };
 
 
-// TAB 2.3: Perlu Di Kirim — cetak kode bagging (bundle per nama_komponen, tanpa
+// TAB 2.3: Perlu Di Kirim — cetak kode bagging (jumlah dipilih, default 1, tanpa
 // kode tugas/tujuan; kode tugas baru dicetak di tab 2.4) + Scan Pack (isi bagging
 // dengan id_komponen). Reuse koleksi `bagging` yang sama dipakai Cutting & Bahan.
 
@@ -886,6 +886,7 @@ const SeriePerluDiKirim = {
     const memuat = ref(true);
     const daftar = ref([]);
     const daftarBaggingAktif = ref([]);
+    const petaBagging = ref({}); // kode -> dokumen bagging milik batch di tab ini (termasuk yang sudah ditutup)
     const sedangProses = ref(false);
     const menuId = 'proses_serie';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
@@ -900,37 +901,67 @@ const SeriePerluDiKirim = {
         ]);
         daftar.value = saringMilikOperator(batch.filter(b => b.status === 'perlu_dikirim'));
         daftarBaggingAktif.value = baggingSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      } catch (e) { console.error('Gagal muat Serie > Perlu Di Kirim:', e); daftar.value = []; daftarBaggingAktif.value = []; }
+        const semuaKode = daftar.value.flatMap(b => b.kode_bagging || []);
+        const peta = {};
+        for (let i = 0; i < semuaKode.length; i += 10) {
+          const snap = await getDocs(query(collection(db, 'bagging'), where('kode', 'in', semuaKode.slice(i, i + 10))));
+          snap.forEach(d => { peta[d.data().kode] = { id: d.id, ...d.data() }; });
+        }
+        petaBagging.value = peta;
+      } catch (e) { console.error('Gagal muat Serie > Perlu Di Kirim:', e); daftar.value = []; daftarBaggingAktif.value = []; petaBagging.value = {}; }
       memuat.value = false;
     }
 
-    // Cetak Kode Bagging: bundle per nama_komponen, TIDAK ada popup pilihan
-    // (tidak ada tujuan yang perlu dipilih di tab ini).
+    // Cetak Kode Bagging: jumlah bagging dipilih sendiri (default 1). Komponen
+    // mana pun boleh masuk bagging mana pun lewat Scan Pack; Kirim Sewing
+    // mewajibkan SEMUA kode_bagging batch discan, jadi bagging kosong dibatalkan.
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
-    async function cetakKodeBagging(batch) {
-      if (batch.kode_bagging && batch.kode_bagging.length) { if (!confirm('Batch ini sudah pernah dicetak kode bagging. Cetak ulang tambahan?')) return; }
-      const jenisKomponen = Array.from(new Set((batch.komponen_rincian || []).map(k => k.nama_komponen)));
-      if (!jenisKomponen.length) { alert('Batch ini belum punya rincian komponen — tidak bisa dibundel.'); return; }
+    const popupJumlah = ref(null); // { batch, jumlah }
+    function cetakKodeBagging(batch) { popupJumlah.value = { batch, jumlah: 1 }; }
+    function labelBagging(batch, kode, ket) { return { kode, nama: ket, info: `Kode Bagging &middot; ${batch.kode_separating} &middot; ${batch.nama_produk || ''}`, qrDataUrl: buatQrDataUrl(kode) }; }
+    async function konfirmasiCetakBagging() {
+      const batch = popupJumlah.value.batch;
+      const jumlah = Math.max(1, Math.min(50, parseInt(popupJumlah.value.jumlah) || 1));
       sedangProses.value = true;
       try {
         const preview = [];
         const kodeBaru = [];
-        for (const jenis of jenisKomponen) {
+        const awal = (batch.kode_bagging || []).length;
+        for (let i = 1; i <= jumlah; i++) {
           const kode = await generateKodeHarianFormat('BAG', 'pengaturan_id_bagging');
+          const ket = `Bagging ${awal + i}`;
           await addDoc(collection(db, 'bagging'), {
-            kode, produk_label: `${batch.kode_separating} &middot; ${jenis}`, isi: [], ditutup_pada: null,
+            kode, produk_label: `${batch.kode_separating} &middot; ${ket}`, isi: [], ditutup_pada: null,
             kode_grouping_induk: batch.kode_grouping_induk || '', kode_separating: batch.kode_separating || null,
             dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
           });
           kodeBaru.push(kode);
-          preview.push({ kode, nama: jenis, info: `Kode Bagging &middot; ${batch.kode_separating}`, qrDataUrl: buatQrDataUrl(kode) });
+          preview.push(labelBagging(batch, kode, ket));
         }
         await updateSeparatingBatch(batch.id, (data) => ({ kode_bagging: [...(data.kode_bagging || []), ...kodeBaru] }));
+        popupJumlah.value = null;
         daftarLabelPreview.value = preview;
         popupCetakAktif.value = true;
         await muat();
       } catch (e) { console.error('Gagal cetak kode bagging Serie:', e); alert('Gagal mencetak. Coba lagi.'); }
+      sedangProses.value = false;
+    }
+    function cetakUlangBagging(batch, kode) {
+      daftarLabelPreview.value = [labelBagging(batch, kode, 'Cetak ulang')];
+      popupCetakAktif.value = true;
+    }
+    function jumlahKosong(batch) { return (batch.kode_bagging || []).filter(k => !((petaBagging.value[k] || {}).isi || []).length).length; }
+    async function batalkanBaggingKosong(batch) {
+      const kosong = (batch.kode_bagging || []).filter(k => !((petaBagging.value[k] || {}).isi || []).length);
+      if (!kosong.length) return;
+      if (!confirm(`Batalkan ${kosong.length} kode bagging yang belum berisi komponen? Label fisiknya tidak dipakai lagi.`)) return;
+      sedangProses.value = true;
+      try {
+        for (const k of kosong) { const b = petaBagging.value[k]; if (b) await updateDoc(doc(db, 'bagging', b.id), { ditutup_pada: serverTimestamp(), dibatalkan_pada: serverTimestamp() }); }
+        await updateSeparatingBatch(batch.id, (data) => ({ kode_bagging: (data.kode_bagging || []).filter(k => !kosong.includes(k)) }));
+        await muat();
+      } catch (e) { console.error('Gagal batalkan bagging kosong:', e); alert('Gagal menyimpan. Coba lagi.'); }
       sedangProses.value = false;
     }
 
@@ -981,7 +1012,7 @@ const SeriePerluDiKirim = {
 
     return { muat,
       memuat, daftar, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
-      popupCetakAktif, daftarLabelPreview, cetakKodeBagging,
+      popupCetakAktif, daftarLabelPreview, cetakKodeBagging, popupJumlah, konfirmasiCetakBagging, cetakUlangBagging, petaBagging, jumlahKosong, batalkanBaggingKosong,
       modalPack, bukaScanPack, tutupScanPack, hasilScanPack, tutupBagging,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
       aksiAktif
@@ -1005,8 +1036,14 @@ const SeriePerluDiKirim = {
           </div>
           <div style="font-size:12px; color:var(--text-faint); margin-bottom:6px;">{{ b.nama_produk }} &middot; size {{ b.size || '-' }} &middot; qty {{ formatQty(b.qty) }}</div>
           <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:10px;">
-            <span v-if="b.kode_bagging && b.kode_bagging.length" class="tag ok">{{ b.kode_bagging.length }} kode bagging dicetak</span>
-            <span v-else class="tag neutral">belum dicetak kode bagging</span>
+            <span v-if="!(b.kode_bagging || []).length" class="tag neutral">belum dicetak kode bagging</span>
+            <div v-else style="display:flex; flex-wrap:wrap; gap:4px; align-items:center;">
+              <!-- Klik kode = cetak ulang kode yang sama. Angka = jumlah komponen di dalamnya. -->
+              <span v-for="k in b.kode_bagging" :key="k" @click="bolehCetak && cetakUlangBagging(b, k)" class="gc-batch-card" style="display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; background:var(--ivory-dim); cursor:pointer;" :title="'Cetak ulang ' + k">
+                <span class="tag-dot" :style="{ color: ((petaBagging[k] || {}).isi || []).length ? 'var(--ok)' : 'var(--text-faint)' }"></span>{{ k }} &middot; {{ ((petaBagging[k] || {}).isi || []).length }}
+              </span>
+              <button v-if="bolehProses && jumlahKosong(b)" @click="batalkanBaggingKosong(b)" :disabled="sedangProses" class="btn-outline" style="padding:3px 9px; font-size:10px; color:var(--danger);">Batalkan {{ jumlahKosong(b) }} bagging kosong</button>
+            </div>
           </div>
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
             <button v-if="bolehCetak" @click="cetakKodeBagging(b)" :disabled="sedangProses" class="btn-outline" style="flex:1; min-width:150px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>Cetak Kode Bagging</button>
@@ -1017,6 +1054,17 @@ const SeriePerluDiKirim = {
     </template>
 
     <popup-pratinjau-cetak-label v-if="popupCetakAktif" :terbuka="popupCetakAktif" :daftar-label="daftarLabelPreview" judul="Cetak Kode Bagging" jenis-cetak="kode_bagging" @tutup="popupCetakAktif = false" />
+    <div v-if="popupJumlah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Cetak Kode Bagging — {{ popupJumlah.batch.kode_separating }}</h3>
+        <div v-if="(popupJumlah.batch.kode_bagging || []).length" style="font-size:11px; color:var(--warn); margin-bottom:8px;">Sudah ada {{ popupJumlah.batch.kode_bagging.length }} kode bagging. Ini menambah bagging baru.</div>
+        <div class="gc-field" style="margin-bottom:14px;"><label>Jumlah Bagging</label><input v-model.number="popupJumlah.jumlah" type="number" min="1" max="50"></div>
+        <div style="display:flex; gap:8px;">
+          <button @click="popupJumlah = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+          <button @click="konfirmasiCetakBagging" :disabled="sedangProses" class="btn-primary" style="flex:1; padding:9px;">Cetak</button>
+        </div>
+      </div>
+    </div>
 
     <scan-generik :aktif="modalPack.aktif" :judul="modalPack.bagging ? ('Scan ID komponen — bagging ' + modalPack.bagging.kode) : 'Scan Kode Bagging'" subjudul="Bisa discan berkali-kali. Tutup lewat tombol di bawah kalau sudah selesai." @hasil="hasilScanPack" @tutup="tutupScanPack" />
     <div v-if="modalPack.aktif && modalPack.bagging" style="position:fixed; left:16px; top:16px; z-index:10001; display:flex; flex-direction:column; gap:8px; max-width:260px;">
@@ -1078,6 +1126,7 @@ function buatTabKirim(cfg) {
       function bukaCetakTugas(batch) {
         if (!batch.kode_bagging || !batch.kode_bagging.length) { alert('Batch ini belum punya kode bagging (harus cetak di Perlu Di Kirim / hasil pack sebelumnya dulu).'); return; }
         if (perluSerieFin(batch)) { alert('Serie Finishing belum selesai: scan kit -FIN lalu semua label pcs dulu.'); return; }
+        if (batch.kode_tugas && !confirm(`Batch ini sudah punya kode tugas ${batch.kode_tugas}. Cetak baru membuat kertas ${batch.kode_tugas} tidak berlaku lagi. Lanjut?`)) return;
         popupCetak.value = { batch, tglKeberangkatan: new Date().toISOString().slice(0, 16) };
       }
       const popupCetakAktif = ref(false);
@@ -1115,12 +1164,25 @@ function buatTabKirim(cfg) {
           try {
             const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
             if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
+            // Kode tugas dipegang batch lewat kode_tugas; kertas lama yang sudah
+            // dicetak ulang tidak dipegang batch mana pun, jadi ditolak di sini.
+            if (!daftar.value.some(b => b.kode_tugas === kode)) {
+              const berlaku = daftar.value.filter(b => b.kode_tugas).map(b => `${b.kode_separating}: ${b.kode_tugas}`);
+              alert(`Kode tugas "${kode}" tidak dipakai batch mana pun di ${cfg.judul}. Mungkin sudah dicetak ulang atau untuk tujuan lain.` + (berlaku.length ? `\nYang berlaku:\n` + berlaku.join('\n') : ''));
+              return;
+            }
             modalKirim.tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
           } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
           return;
         }
         const batch = daftar.value.find(b => b.kode_tugas === modalKirim.tugas.kode && (b.kode_bagging || []).includes(kode));
-        if (!batch) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
+        if (!batch) {
+          const pemilik = daftar.value.find(b => (b.kode_bagging || []).includes(kode));
+          const milikTugas = daftar.value.filter(b => b.kode_tugas === modalKirim.tugas.kode).map(b => b.kode_separating).join(', ');
+          if (pemilik) alert(`Bagging "${kode}" milik ${pemilik.kode_separating} dengan kode tugas ${pemilik.kode_tugas || '(belum dicetak)'}, bukan ${modalKirim.tugas.kode}.`);
+          else alert(`Bagging "${kode}" bukan kode bagging batch ${milikTugas || 'tugas ini'}. Yang discan di sini kode bagging yang dicetak di tab Perlu Di Kirim, bukan bagging kiriman Cutting/Persiapan.`);
+          return;
+        }
         try {
           // kode_grouping_induk/kode_separating ikut disalin ke pack[], dilepas oleh Scan
           // Sampai (sampai_pada).
