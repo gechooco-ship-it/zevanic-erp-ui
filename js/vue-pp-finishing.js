@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, watch, onMounted } from 'https://un
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=15';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=15';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing).
@@ -159,15 +159,14 @@ async function updateFinishingTrack(trackId, mutator) {
     trx.update(ref, { ...patch, diperbarui_pada: serverTimestamp() });
   });
 }
-// cariOperatorByKode — scan QR operator (keputusan #7): cocokkan ke `users` by
-// email (isi QR pribadi karyawan SAMA seperti QR yang dipakai fitur lain, lihat
-// Account > QR code pribadi).
+// cariOperatorByKode — QR badge operator dibaca lewat cariKaryawanByQr (id_app
+// dulu, lalu id dokumen users), sama seperti modul lain.
 async function cariOperatorByKode(kode) {
-  const emailCoba = (kode || '').trim();
-  if (!emailCoba) return null;
+  const k = (kode || '').trim();
+  if (!k) return null;
   try {
-    const snap = await getDoc(doc(db, 'users', emailCoba));
-    if (snap.exists()) { const u = snap.data(); return { uid: emailCoba, nama: u.nama || u.name || emailCoba }; }
+    const u = await cariKaryawanByQr(k);
+    if (u) return { uid: u.id, nama: u.nama || u.name || u.id };
   } catch (e) { console.error('Gagal cari operator by kode:', e); }
   return null;
 }
