@@ -81,7 +81,7 @@ async function generateKodeHarianFormat(prefix, koleksiCounter) {
 function picOwnerKeAtas(userData) {
   if (!userData) return false;
   const role = (userData.role || '').toLowerCase();
-  return role === 'owner' || role === 'superuser' || role === 'pic';
+  return role === 'owner' || role === 'pic_owner' || role === 'superuser' || role === 'pic';
 }
 // saringMilikOperator — operator hanya lihat baris yang ditugaskan ke dirinya
 // (lewat Scan Operator); role lain lihat semua baris. Gerbang TAMPILAN,
@@ -215,11 +215,14 @@ const SewingPerluDiProses = {
     const baggingMasuk = ref(new Set());
     const menuId = 'proses_sewing';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
-    const bolehOperator = computed(() => picOwnerKeAtas(window.currentUser));
+    // ref diisi di muat() sesudah izinSiap: computed terkunci di role awal
+    // 'operator' karena window.currentUser tidak reaktif.
+    const bolehOperator = ref(false);
 
     async function muat() {
       memuat.value = true;
       try {
+        bolehOperator.value = picOwnerKeAtas(window.currentUser);
         daftar.value = saringMilikOperator((await pastikanSewingTrackLengkap()).filter(t => t.status === 'perlu_diproses'));
         // Bagging kiriman = spk_separating.kode_bagging saja. Bagging lama yang
         // sudah dilepas dari batch masih membawa kode_separating, jadi disaring.
@@ -410,7 +413,7 @@ const SewingPerluDiProses = {
       if (t) bukaMasalah(t);
     }
 
-    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, daftar, unpackEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan, aksiAktif,
@@ -560,7 +563,7 @@ const SewingSedangSewing = {
       await muat();
     });
 
-    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, kelompokOperator, bolehProses, formatQty, formatDiamSejak, tertahan, formatJamDurasi, aksiAktif,
@@ -797,7 +800,7 @@ const SewingPerluDikirim = {
       await muat();
     });
 
-    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, daftar, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan, aksiAktif,
@@ -906,7 +909,7 @@ const SewingSedangKirim = {
       await muat();
     });
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; await muat(); });
 
     return { muat, memuat, kelompokTugas, bolehProses, formatQty, formatDiamSejak, tertahan, popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah };
   },
@@ -993,7 +996,7 @@ const SewingSelesai = {
       URL.revokeObjectURL(url);
     }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; await muat(); });
 
     return { muat, memuat, daftarUrut, selesaiHariIni, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, formatQty, formatWaktu };
   },
