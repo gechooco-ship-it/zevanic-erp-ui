@@ -559,11 +559,12 @@ const SewingPerluDiProses = {
 // TAB 3.2: Sedang Sewing — dikelompokkan per operator + KPI (keputusan #5).
 
 const SewingSedangSewing = {
-  components: { ScanTerpaduGenerik, PopupPratinjauCetakLabel },
+  components: { ScanGenerik, PopupPratinjauCetakLabel },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
     const semuaTrack = ref([]);
+    const labelPcs = ref([]); // label_pcs milik batch di tab ini
     const menuId = 'proses_sewing';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
 
@@ -573,8 +574,20 @@ const SewingSedangSewing = {
         const semua = await muatSemuaSewingTrack();
         semuaTrack.value = semua;
         daftar.value = saringMilikOperator(semua.filter(t => t.status === 'sedang_sewing'));
-      } catch (e) { console.error('Gagal muat Sewing > Sedang Sewing:', e); daftar.value = []; semuaTrack.value = []; }
+        const ids = daftar.value.map(t => t.id);
+        const hasil = [];
+        for (let i = 0; i < ids.length; i += 10) {
+          const snap = await getDocs(query(collection(db, 'label_pcs'), where('sewing_track_id', 'in', ids.slice(i, i + 10))));
+          snap.forEach(d => hasil.push({ id: d.id, ...d.data() }));
+        }
+        labelPcs.value = hasil;
+      } catch (e) { console.error('Gagal muat Sewing > Sedang Sewing:', e); daftar.value = []; semuaTrack.value = []; labelPcs.value = []; }
       memuat.value = false;
+    }
+    // progres — label pcs yang sudah di-Scan Entry (sewing_selesai_pada) per batch.
+    function progres(t) {
+      const punya = labelPcs.value.filter(l => l.sewing_track_id === t.id);
+      return { done: punya.filter(l => l.sewing_selesai_pada).length, total: punya.length || (parseInt(t.qty) || 0) };
     }
 
     function kpiOperator(namaOperator) {
@@ -596,46 +609,46 @@ const SewingSedangSewing = {
       return Object.values(peta);
     });
 
-    // Scan Entry: badge operator yang menjahit dikunci dulu, lalu tiap separating
-    // miliknya. Separating operator lain ditolak; koordinator yang login dicatat
-    // sebagai pencatat.
-    const entryTerpadu = buatScanTerpadu({
-      judul: 'Scan Entry — Selesai Dijahit', subjudul: 'Scan badge operator, lalu tiap SPK separating yang selesai',
-      twoStep: {
-        labelPertama: 'Badge Operator', labelKedua: 'SPK Separating',
-        placeholderPertama: 'Scan QR badge operator yang menjahit (sekali di awal)',
-        placeholderKedua: 'Scan kode separating / label turunannya (bisa berkali-kali)',
-        camModePertama: 'Mode: Scan Badge Operator (sekali)', camModeKedua: 'Mode: Scan SPK Separating (berkali-kali)',
-        kosongUtama: 'Scan badge operator dulu', kosongSub: 'Operator yang mengerjakan, bukan koordinator.',
-        validasi: async (kode) => {
-          const k = await cariKaryawanByQr(kode);
-          if (!k) return { ok: false, pesan: 'QR tidak dikenali — operator/tim tidak ditemukan.' };
-          const nama = k.nama || k.name || k.id;
-          return { ok: true, label: nama, data: { email: k.id, nama } };
+    // Scan Entry — pola sama Cutting > Sedang Pola: pilih batch dulu, lalu scan
+    // tiap label pcs yang selesai dijahit. Semua label batch ter-scan = batch
+    // pindah ke Perlu Dikirim.
+    const pilihEntry = ref(null); // { targetId }
+    function bukaScanEntry() {
+      if (!daftar.value.length) { alert('Tidak ada batch yang sedang dijahit.'); return; }
+      pilihEntry.value = { targetId: daftar.value[0].id };
+    }
+    const modalEntry = reactive({ aktif: false, track: null, log: [] });
+    function konfirmasiPilihEntry() {
+      const t = daftar.value.find(x => x.id === pilihEntry.value.targetId);
+      pilihEntry.value = null;
+      if (!t) return;
+      if (!t.label_pcs_dicetak_pada) { alert(`Label pcs ${t.kode_separating} belum dicetak. Cetak Label Pcs dulu.`); return; }
+      modalEntry.track = t; modalEntry.log = []; modalEntry.aktif = true;
+    }
+    function tutupScanEntry() { modalEntry.aktif = false; modalEntry.track = null; modalEntry.log = []; muat(); }
+    async function hasilScanEntry(kodeMentah) {
+      const kode = (kodeMentah || '').trim();
+      const t = modalEntry.track;
+      const l = labelPcs.value.find(x => x.kode_pcs === kode);
+      if (!l) { alert(`Label pcs "${kode}" tidak ditemukan di Sedang Sewing.`); return; }
+      if (l.sewing_track_id !== t.id) { alert(`Label "${kode}" bukan milik batch ${t.kode_separating}.`); return; }
+      if (l.sewing_selesai_pada) { alert(`Label "${kode}" sudah pernah di-scan entry.`); return; }
+      try {
+        const now = new Date().toISOString();
+        await updateDoc(doc(db, 'label_pcs', l.id), { sewing_selesai_pada: now, sewing_entry_oleh: window.currentUser?.email || null });
+        labelPcs.value = labelPcs.value.map(x => x.id === l.id ? { ...x, sewing_selesai_pada: now } : x);
+        const p = progres(t);
+        modalEntry.log.unshift(`${kode} -> selesai (${p.done}/${p.total})`);
+        if (p.total > 0 && p.done >= p.total) {
+          // riwayat_scan ditulis ADITIF, sekali saat batch lengkap.
+          await updateSewingTrack(t.id, (data) => ({
+            status: 'perlu_dikirim', entry_pada: now, masuk_tahap_pada: now,
+            riwayat_scan: arrayUnion({ aksi: 'entry', oleh: window.currentUser?.email || null, operator_uid: data.operator_uid || null, operator_nama: data.operator_nama || null, pada: now, qty: p.done })
+          }));
+          modalEntry.log.unshift(`SEMUA label ${t.kode_separating} selesai — pindah ke Perlu Dikirim`);
         }
-      },
-      validasiIsi: async (kode, operator, rows) => {
-        const t = daftar.value.find(x => cocokSeparating(kode, x.kode_separating, []));
-        if (!t) return { ok: false, pesan: `"${kode}" bukan SPK separating di Sedang Sewing.` };
-        if (t.operator_uid !== operator.email) return { ok: false, pesan: `${t.kode_separating} dikerjakan ${t.operator_nama || 'operator lain'}, bukan ${operator.nama}.` };
-        if ((rows || []).some(r => r._trackId === t.id)) return { ok: false, pesan: `${t.kode_separating} sudah ada di daftar.` };
-        return { ok: true, row: { kode: t.kode_separating, label: t.nama_produk + ' ' + (t.size || ''), qty: formatQty(t.qty), tagTxt: 'selesai', tagCls: 'ok', _trackId: t.id } };
-      },
-      padaUpload: async (rows, operator) => {
-        try {
-          const now = new Date().toISOString();
-          for (const r of rows) {
-            // riwayat_scan ditulis ADITIF.
-            await updateSewingTrack(r._trackId, (data) => ({
-              status: 'perlu_dikirim', entry_pada: now, masuk_tahap_pada: now,
-              riwayat_scan: arrayUnion({ aksi: 'entry', oleh: window.currentUser?.email || null, operator_uid: operator.email, operator_nama: operator.nama, pada: now, qty: data.qty ?? null })
-            }));
-          }
-          await muat();
-          return { ok: true };
-        } catch (e) { console.error('Gagal scan entry Sewing:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
-      }
-    });
+      } catch (e) { console.error('Gagal scan entry Sewing:', e); alert('Gagal menyimpan. Coba lagi.'); }
+    }
 
     // Cetak Label Pcs dilakukan selama menjahit (tab ini).
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
@@ -664,7 +677,7 @@ const SewingSedangSewing = {
 
     return { muat,
       memuat, kelompokOperator, bolehProses, formatQty, formatDiamSejak, tertahan, formatJamDurasi, aksiAktif,
-      entryTerpadu, bolehCetak, sedangCetak, popupCetakPcsAktif, daftarLabelPcsPreview, cetakLabelPcs,
+      progres, pilihEntry, bukaScanEntry, konfirmasiPilihEntry, modalEntry, tutupScanEntry, hasilScanEntry, bolehCetak, sedangCetak, popupCetakPcsAktif, daftarLabelPcsPreview, cetakLabelPcs,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
     };
   },
@@ -672,7 +685,7 @@ const SewingSedangSewing = {
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
       <div v-if="bolehProses && aksiAktif('sub-pr-sewing-sedangsewing','sewing_entry')" style="display:flex; gap:8px; margin-bottom:12px;">
-        <button @click="entryTerpadu.buka" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Entry</button>
+        <button @click="bukaScanEntry" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Entry</button>
       </div>
       <div v-if="kelompokOperator.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-shirt"></i></div>
@@ -691,6 +704,7 @@ const SewingSedangSewing = {
             <div v-for="t in op.daftar" :key="t.id" style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
               <span class="gc-num" style="font-weight:700;">{{ t.kode_separating }}</span>
               <span style="color:var(--text-faint);">{{ t.nama_produk }} size {{ t.size || '-' }}</span>
+              <span class="tag" :class="t.label_pcs_dicetak_pada ? (progres(t).done >= progres(t).total ? 'ok' : 'neutral') : 'warn'">{{ t.label_pcs_dicetak_pada ? progres(t).done + ' / ' + progres(t).total + ' pcs' : 'label pcs belum dicetak' }}</span>
               <span class="gc-num" style="color:var(--text-faint);">diam {{ formatDiamSejak(t.masuk_tahap_pada) }}</span>
               <button v-if="bolehCetak" @click="cetakLabelPcs(t)" :disabled="sedangCetak" class="btn-outline" style="padding:4px 8px; font-size:10px;" :title="t.label_pcs_dicetak_pada ? 'Cetak ulang label pcs' : 'Cetak label pcs'"><i class="fas fa-print"></i> {{ t.label_pcs_dicetak_pada ? 'Ulang Label Pcs' : 'Label Pcs' }}</button>
               <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:4px 8px; font-size:10px; color:var(--danger);"><i class="fas fa-triangle-exclamation"></i></button>
@@ -700,7 +714,22 @@ const SewingSedangSewing = {
       </div>
     </template>
 
-    <scan-terpadu-generik :c="entryTerpadu" />
+    <div v-if="pilihEntry" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Pilih Batch — Scan Entry</h3>
+        <div class="gc-field" style="margin-bottom:14px;"><label>Batch</label>
+          <select v-model="pilihEntry.targetId"><template v-for="op in kelompokOperator" :key="op.operator"><option v-for="t in op.daftar" :key="t.id" :value="t.id">{{ t.kode_separating }} — {{ t.nama_produk }} ({{ op.operator }})</option></template></select>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button @click="pilihEntry = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+          <button @click="konfirmasiPilihEntry" class="btn-primary" style="flex:1; padding:9px;">Lanjut</button>
+        </div>
+      </div>
+    </div>
+    <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.track ? ('Scan Entry — ' + modalEntry.track.kode_separating) : 'Scan Entry'" subjudul="Scan tiap label pcs yang selesai dijahit." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
+    <div v-if="modalEntry.aktif && modalEntry.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:280px;">
+      <div v-for="(l,i) in modalEntry.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
+    </div>
     <popup-pratinjau-cetak-label :terbuka="popupCetakPcsAktif" judul="Cetak Label Pcs" :daftar-label="daftarLabelPcsPreview" jenis-cetak="label_pcs_sewing" @tutup="popupCetakPcsAktif = false" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
@@ -1162,6 +1191,6 @@ window.pastikanMountSewingSelesai = function () {
 window.bukaSewingOperator = function () { window.pastikanMountSewingPerluDiProses(); if (vmSewingPerluDiProses) vmSewingPerluDiProses.operatorTerpadu.buka(); };
 window.bukaSewingSampai = function () { window.pastikanMountSewingPerluDiProses(); if (vmSewingPerluDiProses) vmSewingPerluDiProses.bukaScanSampai(); };
 window.bukaSewingUnpack = function () { window.pastikanMountSewingPerluDiProses(); if (vmSewingPerluDiProses) vmSewingPerluDiProses.unpackTerpadu.buka(); };
-window.bukaSewingEntry = function () { window.pastikanMountSewingSedangSewing(); if (vmSewingSedangSewing) vmSewingSedangSewing.entryTerpadu.buka(); };
+window.bukaSewingEntry = function () { window.pastikanMountSewingSedangSewing(); if (vmSewingSedangSewing) vmSewingSedangSewing.bukaScanEntry(); };
 window.bukaSewingPack = function () { window.pastikanMountSewingPerluDikirim(); if (vmSewingPerluDikirim) vmSewingPerluDikirim.bukaScanPack(); };
 window.bukaSewingKirim = function () { window.pastikanMountSewingPerluDikirim(); if (vmSewingPerluDikirim) vmSewingPerluDikirim.bukaScanKirim(); };
