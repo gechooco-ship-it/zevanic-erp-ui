@@ -687,25 +687,11 @@ const SerieSedangDiProses = {
     const modalEntry = reactive({ aktif: false, batch: null, log: [] });
     function bukaScanEntry(batch) { modalEntry.batch = batch; modalEntry.log = []; modalEntry.aktif = true; }
     function tutupScanEntry() { modalEntry.aktif = false; modalEntry.batch = null; modalEntry.log = []; muat(); }
-    // Scan Entry Serie — isi yang diterima: ID komponen hasil cetak, label ACC
-    // (kode per baris; batch lama: Kode Kit, menandai semua baris kit itu), atau
-    // label komponen Cutting milik cutting_track asal (satu baris potongan).
-    async function cariTargetEntry(batch, kode) {
-      const arr = batch.komponen_rincian || [];
-      if (arr.some(k => k.id_komponen === kode)) return arr.filter(k => k.id_komponen === kode);
-      const kit = arr.filter(k => k.kode_scan && k.kode_scan === kode);
-      if (kit.length) return kit;
-      const snap = await getDocs(query(collection(db, 'label_komponen'), where('kode', '==', kode)));
-      if (snap.empty) return [];
-      const lbl = snap.docs[0].data();
-      const cocok = arr.find(k => k.sumber === 'bahan' && k.ref_asal === lbl.cutting_track_id && k.nama_komponen === lbl.nama_komponen && k.status !== 'selesai');
-      return cocok ? [cocok] : [];
-    }
     async function hasilScanEntry(kodeMentah) {
       const kode = (kodeMentah || '').trim();
       const batch = modalEntry.batch;
       try {
-        const target = await cariTargetEntry(batch, kode);
+        const target = await cariKomponenBatch(batch, kode, k => k.status === 'selesai');
         if (!target.length) { alert(`"${kode}" bukan komponen, kit, atau label potongan milik separating ini.`); return; }
         if (target.every(k => k.status === 'selesai')) { alert(`"${kode}" sudah pernah di-scan entry.`); return; }
         const ids = new Set(target.map(k => k.id_komponen));
@@ -876,7 +862,38 @@ const SerieSedangDiProses = {
 };
 
 
-// TAB 2.3: Perlu Di Kirim — cetak kode bagging (jumlah dipilih, default 1, tanpa
+// cariKomponenBatch — kode yang diterima Scan Entry dan Scan Pack: ID komponen,
+// label ACC (kode per baris; batch lama: Kode Kit = semua baris kit), atau label
+// komponen Cutting (satu baris potongan yang `sudah(k)`-nya masih false).
+async function cariKomponenBatch(batch, kode, sudah) {
+  const arr = batch.komponen_rincian || [];
+  if (arr.some(k => k.id_komponen === kode)) return arr.filter(k => k.id_komponen === kode);
+  const kit = arr.filter(k => k.kode_scan && k.kode_scan === kode);
+  if (kit.length) return kit;
+  const snap = await getDocs(query(collection(db, 'label_komponen'), where('kode', '==', kode)));
+  if (snap.empty) return [];
+  const lbl = snap.docs[0].data();
+  const cocok = arr.find(k => k.sumber === 'bahan' && k.ref_asal === lbl.cutting_track_id && k.nama_komponen === lbl.nama_komponen && !sudah(k));
+  return cocok ? [cocok] : [];
+}
+// muatPetaBagging / komponenBelumPack — isi bagging milik batch dibaca fresh.
+// Syarat kirim ke Sewing: tiap id_komponen batch ada di isi salah satu
+// bagging batch itu (Scan Pack). Dipakai Perlu Di Kirim dan Kirim Sewing.
+async function muatPetaBagging(daftarBatch) {
+  const semuaKode = daftarBatch.flatMap(b => b.kode_bagging || []);
+  const peta = {};
+  for (let i = 0; i < semuaKode.length; i += 10) {
+    const snap = await getDocs(query(collection(db, 'bagging'), where('kode', 'in', semuaKode.slice(i, i + 10))));
+    snap.forEach(d => { peta[d.data().kode] = { id: d.id, ...d.data() }; });
+  }
+  return peta;
+}
+function komponenBelumPack(batch, petaBagging) {
+  const terisi = new Set((batch.kode_bagging || []).flatMap(k => (petaBagging[k] || {}).isi || []));
+  return (batch.komponen_rincian || []).filter(k => !terisi.has(k.id_komponen));
+}
+
+// TAB 2.3: Perlu Di Kirim — cetak kode bagging (satu per batch, tanpa
 // kode tugas/tujuan; kode tugas baru dicetak di tab 2.4) + Scan Pack (isi bagging
 // dengan id_komponen). Reuse koleksi `bagging` yang sama dipakai Cutting & Bahan.
 
@@ -901,47 +918,32 @@ const SeriePerluDiKirim = {
         ]);
         daftar.value = saringMilikOperator(batch.filter(b => b.status === 'perlu_dikirim'));
         daftarBaggingAktif.value = baggingSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const semuaKode = daftar.value.flatMap(b => b.kode_bagging || []);
-        const peta = {};
-        for (let i = 0; i < semuaKode.length; i += 10) {
-          const snap = await getDocs(query(collection(db, 'bagging'), where('kode', 'in', semuaKode.slice(i, i + 10))));
-          snap.forEach(d => { peta[d.data().kode] = { id: d.id, ...d.data() }; });
-        }
-        petaBagging.value = peta;
+        petaBagging.value = await muatPetaBagging(daftar.value);
       } catch (e) { console.error('Gagal muat Serie > Perlu Di Kirim:', e); daftar.value = []; daftarBaggingAktif.value = []; petaBagging.value = {}; }
       memuat.value = false;
     }
 
-    // Cetak Kode Bagging: jumlah bagging dipilih sendiri (default 1). Komponen
-    // mana pun boleh masuk bagging mana pun lewat Scan Pack; Kirim Sewing
-    // mewajibkan SEMUA kode_bagging batch discan, jadi bagging kosong dibatalkan.
+    // Cetak Kode Bagging: SATU bagging per batch. Sudah ada = cetak ulang kode
+    // yang sama. Batch lama dengan banyak bagging: yang kosong dibatalkan.
     const popupCetakAktif = ref(false);
     const daftarLabelPreview = ref([]);
-    const popupJumlah = ref(null); // { batch, jumlah }
-    function cetakKodeBagging(batch) { popupJumlah.value = { batch, jumlah: 1 }; }
     function labelBagging(batch, kode, ket) { return { kode, nama: ket, info: `Kode Bagging &middot; ${batch.kode_separating} &middot; ${batch.nama_produk || ''}`, qrDataUrl: buatQrDataUrl(kode) }; }
-    async function konfirmasiCetakBagging() {
-      const batch = popupJumlah.value.batch;
-      const jumlah = Math.max(1, Math.min(50, parseInt(popupJumlah.value.jumlah) || 1));
+    async function cetakKodeBagging(batch) {
+      if ((batch.kode_bagging || []).length) {
+        daftarLabelPreview.value = batch.kode_bagging.map(k => labelBagging(batch, k, 'Cetak ulang'));
+        popupCetakAktif.value = true;
+        return;
+      }
       sedangProses.value = true;
       try {
-        const preview = [];
-        const kodeBaru = [];
-        const awal = (batch.kode_bagging || []).length;
-        for (let i = 1; i <= jumlah; i++) {
-          const kode = await generateKodeHarianFormat('BAG', 'pengaturan_id_bagging');
-          const ket = `Bagging ${awal + i}`;
-          await addDoc(collection(db, 'bagging'), {
-            kode, produk_label: `${batch.kode_separating} &middot; ${ket}`, isi: [], ditutup_pada: null,
-            kode_grouping_induk: batch.kode_grouping_induk || '', kode_separating: batch.kode_separating || null,
-            dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
-          });
-          kodeBaru.push(kode);
-          preview.push(labelBagging(batch, kode, ket));
-        }
-        await updateSeparatingBatch(batch.id, (data) => ({ kode_bagging: [...(data.kode_bagging || []), ...kodeBaru] }));
-        popupJumlah.value = null;
-        daftarLabelPreview.value = preview;
+        const kode = await generateKodeHarianFormat('BAG', 'pengaturan_id_bagging');
+        await addDoc(collection(db, 'bagging'), {
+          kode, produk_label: batch.kode_separating || '', isi: [], ditutup_pada: null,
+          kode_grouping_induk: batch.kode_grouping_induk || '', kode_separating: batch.kode_separating || null,
+          dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
+        });
+        await updateSeparatingBatch(batch.id, (data) => ({ kode_bagging: [...(data.kode_bagging || []), kode] }));
+        daftarLabelPreview.value = [labelBagging(batch, kode, 'Bagging')];
         popupCetakAktif.value = true;
         await muat();
       } catch (e) { console.error('Gagal cetak kode bagging Serie:', e); alert('Gagal mencetak. Coba lagi.'); }
@@ -951,6 +953,7 @@ const SeriePerluDiKirim = {
       daftarLabelPreview.value = [labelBagging(batch, kode, 'Cetak ulang')];
       popupCetakAktif.value = true;
     }
+    function belumPack(batch) { return komponenBelumPack(batch, petaBagging.value).length; }
     function jumlahKosong(batch) { return (batch.kode_bagging || []).filter(k => !((petaBagging.value[k] || {}).isi || []).length).length; }
     async function batalkanBaggingKosong(batch) {
       const kosong = (batch.kode_bagging || []).filter(k => !((petaBagging.value[k] || {}).isi || []).length);
@@ -979,15 +982,24 @@ const SeriePerluDiKirim = {
         modalPack.bagging = b; modalPack.batch = batch;
         return;
       }
-      const adaKomponen = (modalPack.batch.komponen_rincian || []).some(k => k.id_komponen === kode);
-      if (!adaKomponen) { alert(`ID Komponen "${kode}" tidak ditemukan di batch ${modalPack.batch.kode_separating}.`); return; }
       try {
-        await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { isi: arrayUnion(kode) });
-        modalPack.log.unshift(kode + ' -> ' + modalPack.bagging.kode);
+        const batch = modalPack.batch;
+        const belum = komponenBelumPack(batch, petaBagging.value);
+        const target = await cariKomponenBatch(batch, kode, k => !belum.some(x => x.id_komponen === k.id_komponen));
+        if (!target.length) { alert(`"${kode}" bukan komponen, kit, atau label potongan milik ${batch.kode_separating}.`); return; }
+        const baru = target.filter(k => belum.some(x => x.id_komponen === k.id_komponen)).map(k => k.id_komponen);
+        if (!baru.length) { alert(`"${kode}" sudah pernah di-scan pack.`); return; }
+        await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { isi: arrayUnion(...baru) });
+        const b = petaBagging.value[modalPack.bagging.kode] || { ...modalPack.bagging };
+        petaBagging.value = { ...petaBagging.value, [modalPack.bagging.kode]: { ...b, isi: [...(b.isi || []), ...baru] } };
+        const sisa = komponenBelumPack(batch, petaBagging.value).length;
+        modalPack.log.unshift(`${kode} -> ${modalPack.bagging.kode} (sisa ${sisa})` + (sisa ? '' : ' — semua komponen ter-pack'));
       } catch (e) { console.error('Gagal scan pack Serie:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
     async function tutupBagging() {
       if (!modalPack.bagging) return;
+      const sisa = modalPack.batch ? komponenBelumPack(modalPack.batch, petaBagging.value).length : 0;
+      if (sisa && !confirm(`Masih ${sisa} komponen belum di-scan pack. Bagging yang ditutup tidak bisa diisi lagi. Tetap tutup?`)) return;
       try {
         await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() });
         // riwayat_scan aksi 'pack' — dicatat SEKALI saat 1 bagging
@@ -1012,7 +1024,7 @@ const SeriePerluDiKirim = {
 
     return { muat,
       memuat, daftar, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
-      popupCetakAktif, daftarLabelPreview, cetakKodeBagging, popupJumlah, konfirmasiCetakBagging, cetakUlangBagging, petaBagging, jumlahKosong, batalkanBaggingKosong,
+      popupCetakAktif, daftarLabelPreview, cetakKodeBagging, cetakUlangBagging, petaBagging, belumPack, jumlahKosong, batalkanBaggingKosong,
       modalPack, bukaScanPack, tutupScanPack, hasilScanPack, tutupBagging,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
       aksiAktif
@@ -1042,11 +1054,12 @@ const SeriePerluDiKirim = {
               <span v-for="k in b.kode_bagging" :key="k" @click="bolehCetak && cetakUlangBagging(b, k)" class="gc-batch-card" style="display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:999px; background:var(--ivory-dim); cursor:pointer;" :title="'Cetak ulang ' + k">
                 <span class="tag-dot" :style="{ color: ((petaBagging[k] || {}).isi || []).length ? 'var(--ok)' : 'var(--text-faint)' }"></span>{{ k }} &middot; {{ ((petaBagging[k] || {}).isi || []).length }}
               </span>
-              <button v-if="bolehProses && jumlahKosong(b)" @click="batalkanBaggingKosong(b)" :disabled="sedangProses" class="btn-outline" style="padding:3px 9px; font-size:10px; color:var(--danger);">Batalkan {{ jumlahKosong(b) }} bagging kosong</button>
+              <span class="tag" :class="belumPack(b) ? 'warn' : 'ok'">{{ belumPack(b) ? belumPack(b) + ' komponen belum di-pack' : 'semua komponen ter-pack' }}</span>
+              <button v-if="bolehProses && b.kode_bagging.length > 1 && jumlahKosong(b)" @click="batalkanBaggingKosong(b)" :disabled="sedangProses" class="btn-outline" style="padding:3px 9px; font-size:10px; color:var(--danger);">Batalkan {{ jumlahKosong(b) }} bagging kosong</button>
             </div>
           </div>
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            <button v-if="bolehCetak" @click="cetakKodeBagging(b)" :disabled="sedangProses" class="btn-outline" style="flex:1; min-width:150px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>Cetak Kode Bagging</button>
+            <button v-if="bolehCetak" @click="cetakKodeBagging(b)" :disabled="sedangProses" class="btn-outline" style="flex:1; min-width:150px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>{{ (b.kode_bagging || []).length ? 'Cetak Ulang Kode Bagging' : 'Cetak Kode Bagging' }}</button>
             <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
           </div>
         </div>
@@ -1054,19 +1067,7 @@ const SeriePerluDiKirim = {
     </template>
 
     <popup-pratinjau-cetak-label v-if="popupCetakAktif" :terbuka="popupCetakAktif" :daftar-label="daftarLabelPreview" judul="Cetak Kode Bagging" jenis-cetak="kode_bagging" @tutup="popupCetakAktif = false" />
-    <div v-if="popupJumlah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
-      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Cetak Kode Bagging — {{ popupJumlah.batch.kode_separating }}</h3>
-        <div v-if="(popupJumlah.batch.kode_bagging || []).length" style="font-size:11px; color:var(--warn); margin-bottom:8px;">Sudah ada {{ popupJumlah.batch.kode_bagging.length }} kode bagging. Ini menambah bagging baru.</div>
-        <div class="gc-field" style="margin-bottom:14px;"><label>Jumlah Bagging</label><input v-model.number="popupJumlah.jumlah" type="number" min="1" max="50"></div>
-        <div style="display:flex; gap:8px;">
-          <button @click="popupJumlah = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
-          <button @click="konfirmasiCetakBagging" :disabled="sedangProses" class="btn-primary" style="flex:1; padding:9px;">Cetak</button>
-        </div>
-      </div>
-    </div>
-
-    <scan-generik :aktif="modalPack.aktif" :judul="modalPack.bagging ? ('Scan ID komponen — bagging ' + modalPack.bagging.kode) : 'Scan Kode Bagging'" subjudul="Bisa discan berkali-kali. Tutup lewat tombol di bawah kalau sudah selesai." @hasil="hasilScanPack" @tutup="tutupScanPack" />
+    <scan-generik :aktif="modalPack.aktif" :judul="modalPack.bagging ? ('Scan komponen — bagging ' + modalPack.bagging.kode) : 'Scan Kode Bagging'" subjudul="Scan tiap komponen (ID komponen, label ACC, atau label potongan). Semua komponen wajib masuk bagging sebelum Kirim Sewing." @hasil="hasilScanPack" @tutup="tutupScanPack" />
     <div v-if="modalPack.aktif && modalPack.bagging" style="position:fixed; left:16px; top:16px; z-index:10001; display:flex; flex-direction:column; gap:8px; max-width:260px;">
       <button @click="tutupBagging" class="btn-primary" style="padding:8px 14px; font-size:11px;">Tutup Bagging Ini</button>
       <div style="background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px;"><div v-for="(l,i) in modalPack.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div></div>
@@ -1107,10 +1108,15 @@ function buatTabKirim(cfg) {
       const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
       const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
 
+      // wajibPack (Kirim Sewing): kirim ditolak selama ada komponen batch yang
+      // belum di-Scan Pack ke bagging.
+      const petaBagging = ref({});
+      const belumPack = (b) => cfg.wajibPack ? komponenBelumPack(b, petaBagging.value).length : 0;
       async function muat() {
         memuat.value = true;
         try {
           daftar.value = saringMilikOperator((await muatSemuaSeparatingBatch()).filter(b => b.status === cfg.statusFilter));
+          if (cfg.wajibPack) petaBagging.value = await muatPetaBagging(daftar.value);
           if (cfg.serieFinishing) {
             const snap = await getDocs(query(collection(db, 'spk_track'), where('jalur', '==', 'finishing')));
             kitFin.value = snap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -1126,6 +1132,7 @@ function buatTabKirim(cfg) {
       function bukaCetakTugas(batch) {
         if (!batch.kode_bagging || !batch.kode_bagging.length) { alert('Batch ini belum punya kode bagging (harus cetak di Perlu Di Kirim / hasil pack sebelumnya dulu).'); return; }
         if (perluSerieFin(batch)) { alert('Serie Finishing belum selesai: scan kit -FIN lalu semua label pcs dulu.'); return; }
+        if (belumPack(batch)) { alert(`${belumPack(batch)} komponen ${batch.kode_separating} belum di-scan ke bagging. Selesaikan Scan Pack di Perlu Di Kirim dulu.`); return; }
         if (batch.kode_tugas && !confirm(`Batch ini sudah punya kode tugas ${batch.kode_tugas}. Cetak baru membuat kertas ${batch.kode_tugas} tidak berlaku lagi. Lanjut?`)) return;
         popupCetak.value = { batch, tglKeberangkatan: new Date().toISOString().slice(0, 16) };
       }
@@ -1171,6 +1178,8 @@ function buatTabKirim(cfg) {
               alert(`Kode tugas "${kode}" tidak dipakai batch mana pun di ${cfg.judul}. Mungkin sudah dicetak ulang atau untuk tujuan lain.` + (berlaku.length ? `\nYang berlaku:\n` + berlaku.join('\n') : ''));
               return;
             }
+            const belum = daftar.value.filter(b => b.kode_tugas === kode && belumPack(b));
+            if (belum.length) { alert(`Belum bisa kirim: ${belum.map(b => `${b.kode_separating} (${belumPack(b)} komponen)`).join(', ')} belum di-scan ke bagging. Selesaikan Scan Pack di Perlu Di Kirim dulu.`); return; }
             modalKirim.tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
           } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
           return;
@@ -1255,7 +1264,7 @@ function buatTabKirim(cfg) {
         popupCetak, bukaCetakTugas, konfirmasiCetakTugas, popupCetakAktif, daftarLabelPreview,
         modalKirim, bukaScanKirim, tutupScanKirim, hasilScanKirim,
         popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
-        aksiAktif, serieFinishing, kitFinDari, perluSerieFin
+        aksiAktif, serieFinishing, kitFinDari, perluSerieFin, belumPack
       };
     },
     template: `
@@ -1279,6 +1288,7 @@ function buatTabKirim(cfg) {
             <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:10px;">
               <span v-if="b.kode_tugas" class="tag ok">{{ b.kode_tugas }} &rarr; {{ cfg.namaTujuan }}</span>
               <span v-else class="tag neutral">belum dicetak kode tugas</span>
+              <span v-if="cfg.wajibPack" class="tag" :class="belumPack(b) ? 'warn' : 'ok'" style="margin-left:4px;">{{ belumPack(b) ? belumPack(b) + ' komponen belum di-pack' : 'semua komponen ter-pack' }}</span>
               <span v-if="cfg.serieFinishing && kitFinDari(b)" class="tag" :class="b.fin_terpasang_pada ? 'ok' : 'warn'" style="margin-left:4px;">{{ b.fin_terpasang_pada ? 'ACC finishing terpasang' : 'belum Serie Finishing' }}</span>
             </div>
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
@@ -1327,7 +1337,7 @@ function buatTabKirim(cfg) {
 const SerieKirimSewing = buatTabKirim({
   statusFilter: 'perlu_dikirim', statusSetelah: 'kirim_sewing', tlcTujuan: TLC_TUJUAN_SEWING, namaTujuan: 'Sewing',
   judul: 'Kirim Sewing', kosongTeks: 'Tidak ada batch siap kirim ke Sewing', icon: 'fa-shirt',
-  targetIdScan: 'sub-pr-serie-kirimsewing', aksiIdKirim: 'serie_kirim_sewing'
+  targetIdScan: 'sub-pr-serie-kirimsewing', aksiIdKirim: 'serie_kirim_sewing', wajibPack: true
 });
 const SerieKirimFinishing = buatTabKirim({
   statusFilter: 'terima_sewing', statusSetelah: 'kirim_finishing', tlcTujuan: TLC_TUJUAN_FINISHING, namaTujuan: 'Finishing',
