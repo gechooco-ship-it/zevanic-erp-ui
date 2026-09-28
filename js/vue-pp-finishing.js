@@ -70,7 +70,7 @@ async function generateKodeHarianFormat(prefix, koleksiCounter) {
 function picOwnerKeAtas(userData) {
   if (!userData) return false;
   const role = (userData.role || '').toLowerCase();
-  return role === 'owner' || role === 'superuser' || role === 'pic';
+  return role === 'owner' || role === 'pic_owner' || role === 'superuser' || role === 'pic';
 }
 // saringMilikOperator — operator hanya lihat baris yang ditugaskan ke dirinya
 // (lewat Scan Operator); role lain lihat semua baris. Gerbang TAMPILAN,
@@ -291,7 +291,7 @@ const FinishingPerluDiProses = {
     const daftar = ref([]);
     const menuId = 'proses_finishing';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
-    const bolehOperator = computed(() => picOwnerKeAtas(window.currentUser));
+    const bolehOperator = ref(false); // diisi sesudah izinSiap: window.currentUser tidak reaktif
 
     async function muat() {
       memuat.value = true;
@@ -456,7 +456,7 @@ const FinishingPerluDiProses = {
       if (g) bukaMasalah(g.pcs[0]);
     }
 
-    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; bolehOperator.value = picOwnerKeAtas(window.currentUser); await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, kelompokBatch, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
@@ -475,6 +475,7 @@ const FinishingPerluDiProses = {
         dikumpulkan di sini. Scan Masalah lewat popup pilih-batch. -->
       <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
         <button v-if="bolehProses && aksiAktif('sub-pr-finishing-perludiproses','finishing_sampai')" @click="bukaScanSampai" class="btn-primary" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Sampai</button>
+        <button v-if="bolehOperator && aksiAktif('sub-pr-finishing-perludiproses','finishing_operator_qc_persiapan')" @click="bukaOperatorQc" class="btn-outline" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-user-check" style="margin-right:6px;"></i>Scan Operator QC</button>
         <button v-if="bolehProses && aksiAktif('sub-pr-finishing-perludiproses','finishing_unpack')" @click="unpackTerpadu.buka" class="btn-outline" style="flex:1; min-width:120px; padding:9px;"><i class="fas fa-box-open" style="margin-right:6px;"></i>Scan Unpack</button>
         <button v-if="bolehProses" @click="bukaMasalahToolbar" class="btn-outline" style="flex:1; min-width:120px; padding:9px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:6px;"></i>Scan Masalah</button>
       </div>
@@ -491,13 +492,6 @@ const FinishingPerluDiProses = {
           <div style="font-size:12px; color:var(--text-faint); margin-bottom:6px;">{{ g.namaProduk }} &middot; size {{ g.size || '-' }} &middot; {{ g.pcs.length }} pcs</div>
           <div style="font-size:10.5px; margin-bottom:10px;">
             <span class="tag" :class="g.terimaPada ? 'ok' : 'neutral'">{{ g.terimaPada ? 'sudah sampai' : 'belum sampai' }}</span>
-          </div>
-          <!--
-            Satu tombol kontekstual (wireframe §4.1): Scan Operator QC, mati kalau batch belum
-            sampai (kartu INKOMPLIT wireframe tidak menampilkan tombol apapun).
-          -->
-          <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            <button v-if="bolehOperator && aksiAktif('sub-pr-finishing-perludiproses','finishing_operator_qc_persiapan')" @click="bukaOperatorQc" :disabled="!g.terimaPada" class="btn-outline" style="flex:1; padding:8px; font-size:11.5px;" :style="{ opacity: g.terimaPada ? 1 : .5 }"><i class="fas fa-user-check" style="margin-right:4px;"></i>Scan Operator QC</button>
           </div>
         </div>
       </div>
@@ -554,7 +548,7 @@ function buatSubTabFinishing(tahap) {
       const daftar = ref([]);
       const menuId = 'proses_finishing';
       const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
-      const bolehOperator = computed(() => picOwnerKeAtas(window.currentUser));
+      const bolehOperator = ref(false); // diisi sesudah izinSiap: window.currentUser tidak reaktif
 
       async function muat() {
         memuat.value = true;
@@ -585,7 +579,7 @@ function buatSubTabFinishing(tahap) {
         await muat();
       });
 
-      onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
+      onMounted(async () => { await window.authReady; await window.izinSiap; bolehOperator.value = picOwnerKeAtas(window.currentUser); await pastikanCachePilihanScan(); await muat(); });
 
       return {
         memuat, muat, kelompokBatch, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
@@ -778,7 +772,7 @@ const FinishingPerluDikirim = {
       await muat();
     });
 
-    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, kelompokBatch, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
@@ -882,7 +876,7 @@ const FinishingSedangKirim = {
       await muat();
     });
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; await muat(); });
 
     return { muat, memuat, kelompokTugas, bolehProses, formatDiamSejak, tertahan, popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah };
   },
@@ -965,7 +959,7 @@ const FinishingSelesai = {
       URL.revokeObjectURL(url);
     }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; await muat(); });
 
     return { muat, memuat, daftarUrut, selesaiHariIni, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, formatWaktu };
   },
