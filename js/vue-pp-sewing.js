@@ -212,6 +212,7 @@ const SewingPerluDiProses = {
     // bagging.kode_separating dari Serie Tab 2.3 — lebih presisi daripada t.kode_grouping_induk
     // yang array). Lihat ambilStatusUnpackBagging di vue-scan-cetak.js.
     const unpackEnrich = ref({});
+    const baggingMasuk = ref(new Set());
     const menuId = 'proses_sewing';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
     const bolehOperator = computed(() => picOwnerKeAtas(window.currentUser));
@@ -220,7 +221,15 @@ const SewingPerluDiProses = {
       memuat.value = true;
       try {
         daftar.value = saringMilikOperator((await pastikanSewingTrackLengkap()).filter(t => t.status === 'perlu_diproses'));
-        unpackEnrich.value = await ambilStatusUnpackBagging('kode_separating', 'kode_separating_asal', daftar.value.map(t => t.kode_separating));
+        // Bagging kiriman = spk_separating.kode_bagging saja. Bagging lama yang
+        // sudah dilepas dari batch masih membawa kode_separating, jadi disaring.
+        const petaSep = {};
+        (await muatSemuaSeparatingBatch()).forEach(b => { petaSep[b.id] = b.kode_bagging || []; });
+        baggingMasuk.value = new Set(daftar.value.flatMap(t => petaSep[t.separating_id] || []));
+        const mentah = await ambilStatusUnpackBagging('kode_separating', 'kode_separating_asal', daftar.value.map(t => t.kode_separating));
+        const tersaring = {};
+        Object.keys(mentah).forEach(k => { tersaring[k] = mentah[k].filter(u => baggingMasuk.value.has(u.kode)); });
+        unpackEnrich.value = tersaring;
       }
       catch (e) { console.error('Gagal muat Sewing > Perlu Di Proses:', e); daftar.value = []; }
       memuat.value = false;
@@ -317,6 +326,7 @@ const SewingPerluDiProses = {
         validasi: async (kode) => {
           const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', kode)));
           if (snap.empty) return { ok: false, pesan: `Kode bagging "${kode}" tidak ditemukan.` };
+          if (!baggingMasuk.value.has(kode)) return { ok: false, pesan: `Bagging "${kode}" bukan bagging kiriman batch di tab ini (mungkin bagging lama yang sudah tidak dipakai).` };
           return { ok: true, data: { id: snap.docs[0].id, ...snap.docs[0].data() } };
         }
       },
