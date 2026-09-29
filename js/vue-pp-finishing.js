@@ -235,9 +235,13 @@ function buatModalTahap(tahap, statusMasuk, statusSetelahSelesai) {
         }
         try {
           const snap = await getDocs(query(collection(db, 'finishing_track'), where('kode_pcs', '==', kode)));
-          if (snap.empty) { alert(`Kode pcs "${kode}" tidak ditemukan.`); return; }
-          const t = { id: snap.docs[0].id, ...snap.docs[0].data() };
-          if (t.tahap_aktif !== tahap && !(tahap === 'qc' && t.status === 'perlu_diproses')) { alert(`Pcs "${kode}" tidak sedang di tahap ${LABEL_TAHAP[tahap]}.`); return; }
+          if (snap.empty) { alert(`Kode pcs "${kode}" tidak ditemukan di Finishing.`); return; }
+          // Satu kode pcs bisa punya lebih dari satu finishing_track (batch dikirim
+          // ulang); pakai yang memang sedang di tahap ini.
+          const semua = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const cocokTahap = (x) => x.tahap_aktif === tahap || (tahap === 'qc' && x.status === 'perlu_diproses');
+          const t = semua.find(x => cocokTahap(x) && (tahap !== 'qc' || x.status !== 'perlu_diproses' || x.terima_pada)) || semua.find(cocokTahap) || semua[0];
+          if (!cocokTahap(t)) { alert(`Pcs "${kode}" tidak sedang di tahap ${LABEL_TAHAP[tahap]} (status: ${t.status || '-'}, tahap: ${LABEL_TAHAP[t.tahap_aktif] || t.tahap_aktif || '-'}).`); return; }
           if (tahap === 'qc' && t.status === 'perlu_diproses' && !t.terima_pada) { alert('Pcs ini belum di-Scan Sampai — lakukan Scan Sampai dulu di Tab Perlu Di Proses.'); return; }
           const now = new Date().toISOString();
           const idxTahap = URUTAN_TAHAP.indexOf(tahap);
