@@ -606,7 +606,12 @@ export const KameraTersemat = {
 //   validasiIsi(kode, lockedData, rowsSaatIni) -> {ok, pesan, row},
 //   padaUpload(rows, lockedData) -> {ok, pesan} — SATU-SATUNYA titik tulis,
 //   aksiEkstra: [{label, aksi(lockedData, lockedLabel)}] — tombol tambahan,
-//   tampil hanya saat lockedData terisi (mis. "Tutup Bagging Ini").
+//   tampil hanya saat lockedData terisi (mis. "Tutup Bagging Ini"),
+//   bolehUlang (kode sama boleh masuk draft berkali-kali — HANYA Sedang Ampar),
+//   twoStep.manualHanyaKunci (ketik manual cuma untuk kode pembuka),
+//   twoStep.tetapKunci (sesudah Upload kunci tetap; padaUpload boleh balas
+//   lockedLabel baru atau lepasKunci:true), susunUlang(rows, lockedData)
+//   dipanggil sesudah baris dihapus (mis. nomor ulang lembar).
 // Factory ini SENGAJA tidak tahu Firestore — lihat Jebakan di atas file ini.
 
 export function buatScanTerpadu(cfg) {
@@ -638,7 +643,7 @@ export function buatScanTerpadu(cfg) {
       } finally { s.sedangProses = false; }
       return;
     }
-    if (s.rows.some(r => r.kode === kode)) { alert(`"${kode}" sudah ada di daftar — hapus dulu kalau mau scan ulang.`); return; }
+    if (!cfg.bolehUlang && s.rows.some(r => r.kode === kode)) { alert(`"${kode}" sudah ada di daftar — hapus dulu kalau mau scan ulang.`); return; }
     s.sedangProses = true;
     try {
       const hasil = await cfg.validasiIsi(kode, s.lockedData, s.rows);
@@ -647,7 +652,11 @@ export function buatScanTerpadu(cfg) {
       toast('✓ ' + kode + ' ditambahkan');
     } finally { s.sedangProses = false; }
   }
-  function hapusBaris(id) { s.rows = s.rows.filter(r => r.id !== id); toast('Baris dihapus'); }
+  function hapusBaris(id) {
+    s.rows = s.rows.filter(r => r.id !== id);
+    if (cfg.susunUlang) cfg.susunUlang(s.rows, s.lockedData);
+    toast('Baris dihapus');
+  }
   function resetLock() {
     if (!cfg.twoStep) return;
     s.lockedData = null; s.lockedLabel = ''; s.rows = [];
@@ -661,11 +670,15 @@ export function buatScanTerpadu(cfg) {
       const hasil = await cfg.padaUpload(s.rows.slice(), s.lockedData);
       if (!hasil || hasil.ok === false) { alert((hasil && hasil.pesan) || 'Gagal upload. Coba lagi.'); return; }
       toast(`Diupload — ${s.rows.length} kode tersimpan`);
-      reset();
+      if (cfg.twoStep && cfg.twoStep.tetapKunci && !hasil.lepasKunci) {
+        s.rows = [];
+        if (hasil.lockedLabel) s.lockedLabel = hasil.lockedLabel;
+      } else reset();
     } finally { s.sedangProses = false; }
   }
   function kirimManual() {
     if (!s.manualInput.trim()) return;
+    if (cfg.twoStep && cfg.twoStep.manualHanyaKunci && s.lockedData) { alert('Scan berikutnya wajib lewat kamera.'); s.manualInput = ''; return; }
     const v = s.manualInput.trim(); s.manualInput = '';
     terimaKode(v);
   }
@@ -744,8 +757,12 @@ export const ScanTerpaduGenerik = {
   props: { c: { type: Object, required: true } },
   emits: ['tutup'],
   setup(props, { emit }) {
-    function tutup() { props.c.tutup(); emit('tutup'); }
-    return { tutup };
+    // Konfirmasi buang draft cuma di jalur tombol layar; c.tutup()/c.resetLock()
+    // yang dipanggil pemanggil sesudah upload sukses tidak boleh ikut bertanya.
+    function buangDraftOk(aksi) { return !props.c.s.rows.length || confirm(`${props.c.s.rows.length} scan belum di-upload akan dibuang. ${aksi}?`); }
+    function tutup() { if (!buangDraftOk('Tutup')) return; props.c.tutup(); emit('tutup'); }
+    function ganti() { if (buangDraftOk('Ganti')) props.c.resetLock(); }
+    return { tutup, ganti };
   },
   template: `
   <div v-if="c.s.aktif" style="position:fixed; inset:0; background:var(--ivory); z-index:9998; display:flex; flex-direction:column; padding:14px; overflow-y:auto;">
@@ -761,13 +778,14 @@ export const ScanTerpaduGenerik = {
       <div><span class="tag ok" style="margin-right:6px;">{{ c.cfg.twoStep.labelPertama }}</span><b class="gc-num">{{ c.s.lockedLabel }}</b></div>
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
         <button v-for="a in (c.cfg.aksiEkstra || [])" :key="a.label" @click="a.aksi(c.s.lockedData, c.s.lockedLabel)" class="btn-outline" style="padding:5px 10px; font-size:10.5px;">{{ a.label }}</button>
-        <button @click="c.resetLock()" class="btn-outline" style="padding:5px 10px; font-size:10.5px;">Ganti</button>
+        <button @click="ganti" class="btn-outline" style="padding:5px 10px; font-size:10.5px;">Ganti</button>
       </div>
     </div>
 
     <kamera-tersemat :aktif="c.s.aktif" :mode="c.cfg.twoStep ? (c.s.lockedLabel ? c.cfg.twoStep.camModeKedua : c.cfg.twoStep.camModePertama) : c.cfg.camMode" @hasil="c.terimaKode" style="margin-bottom:8px;" />
 
-    <input v-model="c.s.manualInput" @keydown.enter="c.kirimManual()" type="text"
+    <div v-if="c.cfg.twoStep && c.cfg.twoStep.manualHanyaKunci && c.s.lockedLabel" style="font-size:10.5px; color:var(--text-faint); margin-bottom:10px;">Scan berikutnya wajib lewat kamera.</div>
+    <input v-else v-model="c.s.manualInput" @keydown.enter="c.kirimManual()" type="text"
       :placeholder="c.cfg.twoStep ? (c.s.lockedLabel ? c.cfg.twoStep.placeholderKedua : c.cfg.twoStep.placeholderPertama) : c.cfg.placeholder"
       class="gc-field" style="margin-bottom:10px; padding:9px 12px; border-radius:10px; width:100%; box-sizing:border-box;">
 

@@ -1,7 +1,7 @@
 // js/vue-pp-finishing.js
-// Proses Produksi > Finishing. Menerima kiriman dari Serie, proses 4 tahap
-// berurutan per PCS (QC → Steam → Folding → Packing), lalu kirim balik ke
-// Serie. Tidak mencetak label baru — pakai label_pcs dari Sewing.
+// Proses Produksi > Finishing. Menerima kiriman dari Serie, proses tahap per
+// PCS (QC → Steam → Folding → Packing; tahap berikutnya dipilih saat scan, jadi
+// boleh dilewati), lalu kirim balik ke Serie. Pakai label_pcs dari Sewing.
 //
 // Koleksi & field:
 // - finishing_track: 1 dokumen PER PCS, bukan per batch. tahap_aktif
@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, watch, onMounted } from 'https://un
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=15';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=16';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing).
@@ -216,13 +216,21 @@ function buatModalTahap(tahap, statusMasuk, statusSetelahSelesai) {
     emits: ['tutup'],
     components: { ScanGenerik },
     setup(props, { emit }) {
-      const langkah = ref(1); // 1 = scan operator (mode 'operator' saja), 2 = scan pcs
+      // langkah: 1 = scan operator (mode 'operator'), 'pilih' = pilih proses
+      // berikutnya (tahap boleh dilewati, mis. tas tanpa Steam), 2 = scan pcs.
+      const langkah = ref(1);
       const operatorTerpilih = ref(null);
       const log = ref([]);
+      const idxTahap = URUTAN_TAHAP.indexOf(tahap);
+      const opsiBerikut = [...URUTAN_TAHAP.slice(idxTahap + 1), 'selesai'];
+      const tahapBerikut = ref(opsiBerikut[0]);
+      const labelBerikut = (x) => x === 'selesai' ? 'Selesai (Perlu Dikirim)' : LABEL_TAHAP[x];
+      function lanjutPilih() { langkah.value = opsiBerikut.length > 1 ? 'pilih' : 2; }
       function mulai() {
+        tahapBerikut.value = opsiBerikut[0];
         if (props.mode === 'sendiri') {
           operatorTerpilih.value = { uid: window.currentUser?.email, nama: window.currentUser?.nama || window.currentUser?.name || window.currentUser?.email };
-          langkah.value = 2;
+          lanjutPilih();
         } else { langkah.value = 1; operatorTerpilih.value = null; }
         log.value = [];
       }
@@ -231,7 +239,7 @@ function buatModalTahap(tahap, statusMasuk, statusSetelahSelesai) {
         if (langkah.value === 1) {
           const op = await cariOperatorByKode(kode);
           if (!op) { alert('QR operator tidak dikenali — pastikan scan QR pribadi karyawan.'); return; }
-          operatorTerpilih.value = op; langkah.value = 2; return;
+          operatorTerpilih.value = op; lanjutPilih(); return;
         }
         try {
           const snap = await getDocs(query(collection(db, 'finishing_track'), where('kode_pcs', '==', kode)));
@@ -244,9 +252,8 @@ function buatModalTahap(tahap, statusMasuk, statusSetelahSelesai) {
           if (!cocokTahap(t)) { alert(`Pcs "${kode}" tidak sedang di tahap ${LABEL_TAHAP[tahap]} (status: ${t.status || '-'}, tahap: ${LABEL_TAHAP[t.tahap_aktif] || t.tahap_aktif || '-'}).`); return; }
           if (tahap === 'qc' && t.status === 'perlu_diproses' && !t.terima_pada) { alert('Pcs ini belum di-Scan Sampai — lakukan Scan Sampai dulu di Tab Perlu Di Proses.'); return; }
           const now = new Date().toISOString();
-          const idxTahap = URUTAN_TAHAP.indexOf(tahap);
-          const tahapBerikut = URUTAN_TAHAP[idxTahap + 1] || 'selesai';
-          const progressBaru = idxTahap + 1;
+          const berikut = tahapBerikut.value;
+          const progressBaru = berikut === 'selesai' ? 4 : URUTAN_TAHAP.indexOf(berikut);
           // riwayat_scan ditulis ADITIF. mode 'operator' (PIC scan
           // QR operator lain lalu scan pcs, keputusan #6/#7) dipetakan ke aksi
           // 'operator'; mode 'sendiri' (operator scan dirinya sendiri, keputusan
@@ -254,24 +261,37 @@ function buatModalTahap(tahap, statusMasuk, statusSetelahSelesai) {
           const aksiScan = props.mode === 'operator' ? 'operator' : 'entry';
           const patch = {
             ['op_' + tahap]: operatorTerpilih.value, ['scan_' + tahap + '_pada']: now,
-            progress: progressBaru, tahap_aktif: tahapBerikut, masuk_tahap_pada: now,
+            progress: progressBaru, tahap_aktif: berikut, masuk_tahap_pada: now,
             riwayat_scan: arrayUnion({ aksi: aksiScan, oleh: operatorTerpilih.value.nama || operatorTerpilih.value.uid, pada: now, qty: 1, catatan: 'Tahap ' + LABEL_TAHAP[tahap] })
           };
           if (tahap === 'qc' && t.status === 'perlu_diproses') patch.status = 'sedang_finishing';
           if (progressBaru >= 4) patch.status = 'perlu_dikirim';
           await updateFinishingTrack(t.id, () => patch);
-          log.value.unshift(kode + ' -> ' + LABEL_TAHAP[tahap] + ' selesai (' + operatorTerpilih.value.nama + ')' + (progressBaru >= 4 ? ' — SEMUA TAHAP SELESAI' : ' -> lanjut ' + (LABEL_TAHAP[tahapBerikut] || tahapBerikut)));
+          log.value.unshift(kode + ' -> ' + LABEL_TAHAP[tahap] + ' selesai (' + operatorTerpilih.value.nama + ')' + (progressBaru >= 4 ? ' — SEMUA TAHAP SELESAI' : ' -> lanjut ' + labelBerikut(berikut)));
         } catch (e) { console.error('Gagal scan entry tahap ' + tahap + ':', e); alert('Gagal menyimpan. Coba lagi.'); }
       }
       function tutup() { emit('tutup'); }
       // Modal selalu ter-mount (dibuka lewat prop aktif): reset tiap dibuka,
       // supaya operator sesi sebelumnya tidak terbawa ke pembukaan berikut.
       watch(() => props.aktif, (v) => { if (v) mulai(); }, { immediate: true });
-      return { langkah, operatorTerpilih, log, hasilScan, tutup, LABEL_TAHAP, tahap };
+      return { langkah, operatorTerpilih, log, hasilScan, tutup, LABEL_TAHAP, tahap, opsiBerikut, tahapBerikut, labelBerikut };
     },
     template: `
       <scan-generik :aktif="aktif && langkah===1" judul="Scan QR Operator" :subjudul="'Pilih operator untuk tahap ' + LABEL_TAHAP[tahap] + '.'" @hasil="hasilScan" @tutup="tutup" />
-      <scan-generik :aktif="aktif && langkah===2" :judul="'Scan Kode Pcs — ' + LABEL_TAHAP[tahap] + (operatorTerpilih ? (' (' + operatorTerpilih.nama + ')') : '')" subjudul="Bisa discan berkali-kali, tiap scan = 1 pcs selesai tahap ini." @hasil="hasilScan" @tutup="tutup" />
+      <div v-if="aktif && langkah==='pilih'" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:10002; display:flex; align-items:center; justify-content:center; padding:16px;">
+        <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
+          <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 4px;">Selesai {{ LABEL_TAHAP[tahap] }}, lanjut ke proses apa?</h3>
+          <div style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Berlaku untuk semua pcs yang discan sesudah ini. Operator: {{ operatorTerpilih && operatorTerpilih.nama }}</div>
+          <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
+            <button v-for="x in opsiBerikut" :key="x" @click="tahapBerikut = x" :class="tahapBerikut === x ? 'btn-primary' : 'btn-outline'" style="padding:9px; text-align:left;">{{ labelBerikut(x) }}</button>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button @click="tutup" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+            <button @click="langkah = 2" class="btn-primary" style="flex:1; padding:9px;">Lanjut Scan Pcs</button>
+          </div>
+        </div>
+      </div>
+      <scan-generik :aktif="aktif && langkah===2" :judul="'Scan Kode Pcs — ' + LABEL_TAHAP[tahap] + (operatorTerpilih ? (' (' + operatorTerpilih.nama + ')') : '')" :subjudul="'Tiap scan = 1 pcs selesai ' + LABEL_TAHAP[tahap] + ', lanjut ke ' + labelBerikut(tahapBerikut) + '.'" @hasil="hasilScan" @tutup="tutup" />
       <div v-if="aktif && langkah===2 && log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:300px;">
         <div v-for="(l,i) in log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
       </div>

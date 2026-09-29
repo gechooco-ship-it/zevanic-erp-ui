@@ -22,7 +22,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=15';
+import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=16';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan Produksi,
@@ -1517,8 +1517,13 @@ function buatTabTerima(cfg) {
       const modalSampai = reactive({ aktif: false, log: [] });
       function bukaScanSampai() { modalSampai.log = []; modalSampai.aktif = true; }
       function tutupScanSampai() { modalSampai.aktif = false; modalSampai.log = []; muat(); }
+      // sedangSampai — kamera bisa membaca QR yang sama 2x beruntun; scan kedua
+      // diabaikan selama yang pertama masih menyimpan.
+      let sedangSampai = false;
       async function hasilScanSampai(kodeMentah) {
         const kode = (kodeMentah || '').trim();
+        if (sedangSampai) return;
+        sedangSampai = true;
         const now = new Date().toISOString();
         try {
           const snap = await getDocs(query(collection(db, cfg.koleksi), where('kode_tugas', '==', kode)));
@@ -1526,15 +1531,16 @@ function buatTabTerima(cfg) {
           const batchIds = new Set();
           const kodeBaggingSampai = new Set();
           for (const d of snap.docs) {
-            if (d.data().status === 'selesai') continue;
-            await updateDoc(doc(db, cfg.koleksi, d.id), { status: 'selesai', sampai_pada: now });
-            if (d.data().separating_id) batchIds.add(d.data().separating_id);
+            // Dokumen yang sudah 'selesai' tetap dihitung batch-nya: kalau batch
+            // masih menunggu di tab ini (simpan sebelumnya terputus), dilanjutkan.
+            if (d.data().status !== 'selesai') await updateDoc(doc(db, cfg.koleksi, d.id), { status: 'selesai', sampai_pada: now });
+            if (d.data().separating_id && daftar.value.some(b => b.id === d.data().separating_id)) batchIds.add(d.data().separating_id);
             // kumpulkan kode_bagging milik dokumen ini (array di sewing_track,
             // string tunggal di finishing_track — lihat cfg.baggingArray).
             const kb = d.data()[cfg.fieldBagging];
             (cfg.baggingArray ? (Array.isArray(kb) ? kb : []) : (kb ? [kb] : [])).forEach(k => kodeBaggingSampai.add(k));
           }
-          if (!batchIds.size) { alert(`Kode tugas "${kode}" sudah pernah di-Scan Sampai sebelumnya.`); return; }
+          if (!batchIds.size) { alert(`Kode tugas "${kode}" sudah diterima sebelumnya — batch-nya sudah tidak ada di ${cfg.judul}. Cek tab berikutnya.`); return; }
           // leg ${namaAsal} -> Serie: kode di sini SAMA dengan kode_tugas =
           // tugas_kirim.kode, jadi cari langsung 1 dokumen dan lepas pack[]
           // milik kode_bagging yang baru sampai.
@@ -1563,6 +1569,7 @@ function buatTabTerima(cfg) {
           modalSampai.log.unshift(kode + ' -> ' + cfg.namaAsal + ' selesai (' + batchIds.size + ' batch)');
           await muat();
         } catch (e) { console.error('Gagal scan sampai ' + cfg.judul + ':', e); alert('Gagal menyimpan. Coba lagi.'); }
+        finally { sedangSampai = false; }
       }
 
       // Scan Unpack: lewat bagging.isi[] langsung,
