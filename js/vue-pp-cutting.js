@@ -1572,6 +1572,15 @@ const CuttingPerluDiKirim = {
       sedangProses.value = false;
     }
 
+    // baggingWajibTugas — bagging yang dicetak bersama surat jalan ini (pack[] diisi
+    // saat cetak). Kode yatim di cutting_track.kode_bagging (dokumennya sudah
+    // dihapus / dari cetakan lama) tidak ikut menahan perpindahan status.
+    function baggingWajibTugas(tugas, track) {
+      const diTugas = (tugas.pack || []).map(p => p.kode_bagging);
+      const milikSpk = new Set(track.kode_bagging || []);
+      const wajib = diTugas.filter(kb => milikSpk.has(kb));
+      return wajib.length ? [...new Set(wajib)] : (track.kode_bagging || []);
+    }
     // baggingSpk — bagging per bahan milik SPK (yang masih terbuka), untuk tag progres kartu.
     function baggingSpk(t) { return daftarBaggingAktif.value.filter(bg => bg.cutting_track_id === t.id); }
     // Scan Pack: kunci bagging, lalu label komponen. Bagging per bahan (punya
@@ -1660,7 +1669,7 @@ const CuttingPerluDiKirim = {
             const tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
             const track = daftar.value.find(t => t.kode_tugas === tugas.kode);
             if (!track) return { ok: false, pesan: `Kode tugas "${kode}" tidak terhubung ke SPK manapun yang masih Perlu Di Kirim.` };
-            const sisa = (track.kode_bagging || []).filter(kb => !(tugas.dimuat || []).includes(kb)).length;
+            const sisa = baggingWajibTugas(tugas, track).filter(kb => !(tugas.dimuat || []).includes(kb)).length;
             return { ok: true, data: { tugas, track }, label: `${kode} · SPK ${track.kode_grouping_induk} · ${sisa} bagging belum dimuat` };
           } catch (e) { console.error('Gagal cari kode tugas:', e); return { ok: false, pesan: 'Gagal mencari kode tugas. Coba lagi.' }; }
         }
@@ -1692,7 +1701,8 @@ const CuttingPerluDiKirim = {
           const dimuat = new Set([...(tugas.dimuat || []), ...rows.map(r => r.kode)]);
           await updateDoc(doc(db, 'tugas_kirim', tugas.id), { dimuat: [...dimuat] });
           const tugasSnap = await getDoc(doc(db, 'tugas_kirim', tugas.id));
-          const semuaSudah = (track.kode_bagging || []).every(kb => (tugasSnap.data().dimuat || []).includes(kb));
+          const sisa = baggingWajibTugas(tugasSnap.data(), track).filter(kb => !(tugasSnap.data().dimuat || []).includes(kb));
+          const semuaSudah = sisa.length === 0;
           const now = new Date().toISOString();
           // riwayat_scan ADITIF, digabung 1 transaksi dengan transisi status
           // supaya cutting_track cuma kena 1x update walau banyak baris draft.
@@ -1701,6 +1711,7 @@ const CuttingPerluDiKirim = {
             riwayat_scan: [...(data.riwayat_scan || []), ...rows.map(r => ({ aksi: 'kirim', oleh: window.currentUser?.email || null, pada: now, catatan: `Bagging ${r.kode} -> tugas ${tugas.kode} (tujuan ${tugas.tlc_tujuan || '-'})`, qty: track.qty_total ?? null }))]
           }));
           await muat();
+          alert(semuaSudah ? `Semua bagging SPK ${track.kode_grouping_induk} sudah dimuat — pindah ke Sedang Di Kirim.` : `Tersimpan. Masih ${sisa.length} bagging belum discan: ${sisa.join(', ')}`);
           return { ok: true };
         } catch (e) { console.error('Gagal upload scan kirim:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
       }
