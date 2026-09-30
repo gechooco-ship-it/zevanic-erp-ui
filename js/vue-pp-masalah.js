@@ -20,9 +20,9 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=16';
+import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=16';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
-import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=40';
+import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=41';
 
 // picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (dipakai Setuju/Tolak/Ajukan
 // Belanja, WAJIB Owner/PIC Owner + popup PIN). Yang ini untuk "Scan Operator":
@@ -578,7 +578,7 @@ const MasalahMenungguSetuju = {
 // pos Bahan yang eksplisit memintanya).
 
 const MasalahPerluDisiapkan = {
-  components: { PopupPratinjauCetakLabel, ScanGenerik, ScanTerpaduGenerik },
+  components: { PopupPratinjauCetakLabel, ScanTerpaduGenerik },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -736,7 +736,7 @@ const MasalahPerluDisiapkan = {
 // baris yang sama, TIDAK rekursif membuat dokumen lain (lihat keputusan §5).
 
 const MasalahSedangDisiapkan = {
-  components: { ScanGenerik, ScanTerpaduGenerik, PopupPratinjauCetakLabel },
+  components: { ScanTerpaduGenerik, PopupPratinjauCetakLabel },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -761,40 +761,54 @@ const MasalahSedangDisiapkan = {
       return Object.values(peta).sort((a, b) => b.docs.length - a.docs.length);
     });
 
-    const modalAksi = reactive({ aktif: false, mode: null, item: null }); // mode: 'masalah' | 'ganti'
-    function bukaAksi(mode, d) { if (sedangProses[d.id]) return; modalAksi.mode = mode; modalAksi.item = d; modalAksi.aktif = true; }
-    function tutupAksi() { modalAksi.aktif = false; modalAksi.mode = null; modalAksi.item = null; }
-    async function hasilScanAksi(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      const d = modalAksi.item;
-      if (!kode || !d) return;
-      if (modalAksi.mode === 'ganti') {
-        const karyawan = await cariKaryawanByQr(kode);
-        if (!karyawan) { alert('QR tidak dikenali — operator/tim tidak ditemukan.'); return; }
+    // Scan Masalah / Ganti Operator per baris — satu Scan Terpadu 1 langkah,
+    // mode & baris dipegang ctxAksi. Masalah: label harus kode_msl baris ini,
+    // Upload menutup layar lalu minta catatan. Ganti: 1 badge operator.
+    const ctxAksi = { mode: null, item: null };
+    const aksiTerpadu = buatScanTerpadu({
+      judul: '', subjudul: '', camMode: 'Mode: Scan QR', placeholder: 'Scan QR / ketik kode',
+      validasiIsi: async (kode, _l, rows) => {
+        const d = ctxAksi.item;
+        if (!d) return { ok: false, pesan: 'Baris belum dipilih.' };
+        if (rows.length) return { ok: false, pesan: 'Cukup 1 scan — hapus dulu kalau mau ganti.' };
+        if (ctxAksi.mode === 'ganti') {
+          const karyawan = await cariKaryawanByQr(kode);
+          if (!karyawan) return { ok: false, pesan: 'QR tidak dikenali — operator/tim tidak ditemukan.' };
+          const nama = karyawan.nama || karyawan.name || karyawan.id;
+          return { ok: true, row: { kode, label: nama, tagTxt: 'operator', tagCls: 'ok', _id: karyawan.id, _nama: nama } };
+        }
+        if (kode !== d.kode_msl) return { ok: false, pesan: `Kode yang discan ("${kode}") tidak cocok dengan label baris ini (${d.kode_msl}).` };
+        return { ok: true, row: { kode, label: d.id_order || d.kode_msl, tagTxt: 'cocok', tagCls: 'ok' } };
+      },
+      padaUpload: async (rows) => {
+        const d = ctxAksi.item, mode = ctxAksi.mode, r = rows[0];
+        if (!d) return { ok: false, pesan: 'Baris belum dipilih.' };
+        aksiTerpadu.tutup();
         sedangProses[d.id] = true;
         try {
-          const now = new Date().toISOString();
-          await patchMasalah(d.id, {
-            operator_uid: karyawan.id, operator_nama: karyawan.nama || karyawan.name || karyawan.id, ditugaskan_pada: now,
-            riwayat_operator: arrayUnion({ operator_uid: karyawan.id, operator_nama: karyawan.nama || karyawan.name || karyawan.id, mulai_pada: now })
-          });
-          tutupAksi(); await muat();
-        } catch (e) { console.error('Gagal ganti operator:', e); alert('Gagal menyimpan. Coba lagi.'); }
+          if (mode === 'ganti') {
+            const now = new Date().toISOString();
+            await patchMasalah(d.id, {
+              operator_uid: r._id, operator_nama: r._nama, ditugaskan_pada: now,
+              riwayat_operator: arrayUnion({ operator_uid: r._id, operator_nama: r._nama, mulai_pada: now })
+            });
+          } else {
+            const catatan = prompt('Jelaskan masalahnya:');
+            if (!catatan || !catatan.trim()) { sedangProses[d.id] = false; return { ok: true }; }
+            await patchMasalah(d.id, { catatan_masalah: catatan.trim() });
+          }
+          await muat();
+        } catch (e) { console.error('Gagal proses scan:', mode, e); alert(mode === 'ganti' ? 'Gagal menyimpan. Coba lagi.' : 'Gagal memproses. Coba lagi.'); }
         sedangProses[d.id] = false;
-        return;
+        return { ok: true };
       }
-      // masalah: kode HARUS scan label kode_msl baris ini sendiri.
-      if (kode !== d.kode_msl) { alert(`Kode yang discan ("${kode}") tidak cocok dengan label baris ini (${d.kode_msl}).`); return; }
-      sedangProses[d.id] = true;
-      try {
-        if (modalAksi.mode === 'masalah') {
-          const catatan = prompt('Jelaskan masalahnya:');
-          if (!catatan || !catatan.trim()) { sedangProses[d.id] = false; return; }
-          await patchMasalah(d.id, { catatan_masalah: catatan.trim() });
-        }
-        tutupAksi(); await muat();
-      } catch (e) { console.error('Gagal proses scan:', modalAksi.mode, e); alert('Gagal memproses. Coba lagi.'); }
-      sedangProses[d.id] = false;
+    });
+    function bukaAksi(mode, d) {
+      if (sedangProses[d.id]) return;
+      ctxAksi.mode = mode; ctxAksi.item = d;
+      aksiTerpadu.cfg.judul = mode === 'ganti' ? 'Scan QR operator pengganti' : ('Scan label ' + (d.kode_msl || ''));
+      aksiTerpadu.cfg.subjudul = mode === 'masalah' ? 'Scan Masalah — akan diminta catatan.' : '';
+      aksiTerpadu.buka();
     }
 
     // Scan Entry: qty = qty_disetujui (dikunci Owner) kalau ada, else qty_kurang.
@@ -824,7 +838,7 @@ const MasalahSedangDisiapkan = {
 
     onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
-    return { muat, memuat, kelompokOperator, bolehProses, aksiAktif, sedangProses, formatQty, formatDiamSejak, tertahan, modalAksi, bukaAksi, tutupAksi, hasilScanAksi, entryStok, bukaEntry };
+    return { muat, memuat, kelompokOperator, bolehProses, aksiAktif, sedangProses, formatQty, formatDiamSejak, tertahan, aksiTerpadu, bukaAksi, entryStok, bukaEntry };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -859,10 +873,7 @@ const MasalahSedangDisiapkan = {
       </div>
     </div>
 
-    <scan-generik :aktif="modalAksi.aktif"
-      :judul="modalAksi.mode==='ganti' ? 'Scan QR operator pengganti' : ('Scan label ' + (modalAksi.item?.kode_msl || ''))"
-      :subjudul="modalAksi.mode==='masalah' ? 'Scan Masalah — akan diminta catatan.' : ''"
-      @hasil="hasilScanAksi" @tutup="tutupAksi" />
+    <scan-terpadu-generik :c="aksiTerpadu" />
     <scan-terpadu-generik :c="entryStok" />
   `
 };
@@ -1424,7 +1435,7 @@ window.pastikanMountPpMasalahSelesai = function () {
 
 // Bridge "Pilihan Scan" — window.bukaXxx dipanggil popup scan global
 // (vue-popup-scan.js). entry_masalah/masalah_masalah TIDAK dibuat: keduanya
-// ScanGenerik per-baris yang harus sudah menunjuk 1 dokumen dulu (modalAksi.item),
+// scan per-baris yang harus sudah menunjuk 1 dokumen dulu (bukaAksi/bukaEntry),
 // tidak ada pencarian kode lintas-baris di tab itu untuk dijadikan bridge global
 // (sama seperti entry_bahan/masalah_bahan/entry_sewing/dll — belum ada di modul manapun).
 window.bukaOperatorMasalah = function () { window.pastikanMountPpMasalahPerluDisiapkan(); if (vmPpMasalahPerluDisiapkan) vmPpMasalahPerluDisiapkan.bukaPenunjukanGlobal(); };

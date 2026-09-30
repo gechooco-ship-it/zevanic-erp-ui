@@ -18,12 +18,13 @@
 //   `{S…}-{tujuan}{nn}`; daftar_kode[] disalin ke spk_track untuk pencarian scan.
 // - Menu-id 'pp_disiapkan' dan id mount lama dipertahankan (izin role tetap).
 
-import { createApp, ref, reactive, computed, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, KolomCari } from './vue-components.js?v=13';
 import { ambilSemuaProduk } from './vue-master-produk.js';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
+import { ScanTerpaduGenerik, buatScanTerpadu } from './vue-scan-cetak.js?v=16';
 
 // picOwnerKeAtas — "Buat SPK Grouping" dan "Tunjuk/Scan Operator" wajib akun
 // tier pic/pic_owner/owner/superuser, TANPA popup PIN: cukup tier akun yang
@@ -437,18 +438,6 @@ async function cariKaryawanByQr(qrData) {
   return null;
 }
 
-// muatJsQr — DISALIN dari js/vue-scan-persiapan.js (konvensi yang sama).
-function muatJsQr() {
-  return new Promise((resolve, reject) => {
-    if (window.jsQR) { resolve(); return; }
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.js';
-    script.onload = resolve;
-    script.onerror = reject;
-    document.head.appendChild(script);
-  });
-}
-
 // cekPecahan — aturan pecahan separating: total WAJIB = qty keputusan QO yang
 // tersisa, tiap pecahan kelipatan acuan order (master_produk.kelipatan). QO
 // sendiri sudah dikunci kelipatan di Menunggu Proses, jadi tidak ada sisa.
@@ -770,7 +759,7 @@ const LABEL_AKSI_SCAN = {
 };
 
 const JalurTahapManager = {
-  components: { PopupPratinjauCetakLabel },
+  components: { PopupPratinjauCetakLabel, ScanTerpaduGenerik },
   props: {
     jalur: { type: String, required: true },
     labelJalur: { type: String, required: true },
@@ -845,140 +834,97 @@ const JalurTahapManager = {
       popupCetakLabelAktif.value = true;
     }
 
-    // Kamera/QR — pola SAMA seperti vue-scan-persiapan.js.
-    const modeScan = ref(null); // salah satu key LABEL_AKSI_SCAN, atau null
-    const trackAktifScan = ref(null);
-    const videoScanEl = ref(null);
-    const canvasScanEl = ref(null);
-    const scanMemuatKamera = ref(false);
-    const scanError = ref('');
-    let streamScan = null;
-    let frameScanId = null;
-
-    async function bukaScan(mode, track) {
-      if (sedangProses[track.id]) return;
-      modeScan.value = mode;
-      trackAktifScan.value = track;
-      scanMemuatKamera.value = true;
-      scanError.value = '';
-      try { await muatJsQr(); } catch (e) {
-        scanError.value = 'Gagal memuat modul pembaca QR. Cek koneksi internet.';
-        scanMemuatKamera.value = false;
-        return;
-      }
-      try {
-        streamScan = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-        if (videoScanEl.value) { videoScanEl.value.srcObject = streamScan; await videoScanEl.value.play(); }
-        scanMemuatKamera.value = false;
-        pindaiFrameScan();
-      } catch (e) {
-        scanError.value = 'Gagal mengakses kamera. Pastikan izin kamera diaktifkan.';
-        scanMemuatKamera.value = false;
-      }
-    }
-    function pindaiFrameScan() {
-      if (!streamScan || !modeScan.value) return;
-      const video = videoScanEl.value, canvas = canvasScanEl.value;
-      if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const gambar = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const kode = window.jsQR(gambar.data, gambar.width, gambar.height, { inversionAttempts: 'dontInvert' });
-        if (kode && kode.data) {
-          if (navigator.vibrate) navigator.vibrate(120);
-          tangkapHasilScan(kode.data);
-          return;
-        }
-      }
-      frameScanId = requestAnimationFrame(pindaiFrameScan);
-    }
-    function tutupScan() {
-      if (frameScanId) { cancelAnimationFrame(frameScanId); frameScanId = null; }
-      if (streamScan) { streamScan.getTracks().forEach(t => t.stop()); streamScan = null; }
-      modeScan.value = null;
-      trackAktifScan.value = null;
-      scanError.value = '';
-    }
-
-    async function tangkapHasilScan(kodeMentah) {
-      const mode = modeScan.value;
-      const track = trackAktifScan.value;
-      tutupScan();
-      const kode = (kodeMentah || '').trim();
-      if (!kode || !track) return;
-      sedangProses[track.id] = true;
-      try {
-        const oleh = window.currentUser?.email || null;
-        const pada = new Date().toISOString();
-        // qty — diisi dari qty_total milik track ini (spk_track belum punya
-        // breakdown qty per-baris di jalur ini) supaya audit qty per-scan bisa
-        // dilakukan tanpa join balik ke spk_grouping.
-        const qty = track.qty_total ?? null;
-
+    // Semua aksi scan kartu lewat SATU Scan Terpadu 1 langkah: kartu sudah
+    // dipilih dari tombol (ctxScan), draft cukup 1 kode, tulis saat Upload.
+    // Masalah: Upload menutup layar lalu minta catatan (prompt).
+    const ctxScan = { mode: null, track: null };
+    const KODE_TARGET = {
+      entry: t => [t.kode_kit, 'Kode Kit ini'], masalah: t => [t.kode_kit, 'Kode Kit ini'],
+      pack: t => [t.kode_bagging, 'Label Bagging SPK ini'],
+      kirim: t => [t.kode_tugas, 'Label Tugas SPK ini'], sampai: t => [t.kode_tugas, 'Label Tugas SPK ini']
+    };
+    const scanTerpadu = buatScanTerpadu({
+      judul: '', subjudul: '', camMode: '', placeholder: '',
+      validasiIsi: async (kode, _l, rows) => {
+        const { mode, track } = ctxScan;
+        if (!track) return { ok: false, pesan: 'Kartu SPK belum dipilih.' };
+        if (rows.length) return { ok: false, pesan: 'Cukup 1 scan — hapus dulu kalau mau ganti.' };
         if (mode === 'operator') {
           // Gerbang: label Kode Kit WAJIB sudah dicetak sebelum operator ditunjuk.
-          if (!track.label_dicetak_pada) { alert('Label Kode Kit belum dicetak. Cetak dulu sebelum Scan Operator.'); return; }
+          if (!track.label_dicetak_pada) return { ok: false, pesan: 'Label Kode Kit belum dicetak. Cetak dulu sebelum Scan Operator.' };
           const karyawan = await cariKaryawanByQr(kode);
-          if (!karyawan) { alert('QR tidak dikenali — karyawan tidak ditemukan.'); return; }
-          await updateDoc(doc(db, 'spk_track', track.id), {
-            operator_id: karyawan.id, operator_nama: karyawan.nama || karyawan.name || karyawan.id,
-            status: 'sedang_diproses', diperbarui_pada: serverTimestamp(),
-            riwayat_scan: arrayUnion({ aksi: 'operator', oleh: karyawan.nama || karyawan.name || karyawan.id, pada, qty })
-          });
-        } else if (mode === 'entry') {
-          if (kode !== track.kode_kit) { alert(`Kode yang discan ("${kode}") tidak cocok dengan Kode Kit ini (${track.kode_kit}).`); return; }
-          await updateDoc(doc(db, 'spk_track', track.id), {
-            status: 'perlu_dikirim', diperbarui_pada: serverTimestamp(),
-            riwayat_scan: arrayUnion({ aksi: 'entry', oleh, pada, qty })
-          });
-        } else if (mode === 'masalah') {
-          if (kode !== track.kode_kit) { alert(`Kode yang discan ("${kode}") tidak cocok dengan Kode Kit ini (${track.kode_kit}).`); return; }
-          const catatan = prompt('Jelaskan masalahnya:');
-          if (!catatan || !catatan.trim()) return;
-          await updateDoc(doc(db, 'spk_track', track.id), {
-            catatan_masalah: catatan.trim(), diperbarui_pada: serverTimestamp(),
-            riwayat_scan: arrayUnion({ aksi: 'masalah', oleh, pada, catatan: catatan.trim(), qty })
-          });
-        } else if (mode === 'pack') {
-          if (kode !== track.kode_bagging) { alert(`Kode yang discan ("${kode}") tidak cocok dengan Label Bagging SPK ini (${track.kode_bagging}).`); return; }
-          await updateDoc(doc(db, 'spk_track', track.id), {
-            status: 'sedang_dikirim', diperbarui_pada: serverTimestamp(),
-            riwayat_scan: arrayUnion({ aksi: 'pack', oleh, pada, qty })
-          });
-        } else if (mode === 'kirim') {
-          if (kode !== track.kode_tugas) { alert(`Kode yang discan ("${kode}") tidak cocok dengan Label Tugas SPK ini (${track.kode_tugas}).`); return; }
-          // Status TETAP "Sedang Dikirim" — cuma catat riwayat.
-          await updateDoc(doc(db, 'spk_track', track.id), {
-            diperbarui_pada: serverTimestamp(),
-            riwayat_scan: arrayUnion({ aksi: 'kirim', oleh, pada, qty })
-          });
-        } else if (mode === 'sampai') {
-          if (kode !== track.kode_tugas) { alert(`Kode yang discan ("${kode}") tidak cocok dengan Label Tugas SPK ini (${track.kode_tugas}).`); return; }
-          await updateDoc(doc(db, 'spk_track', track.id), {
-            status: 'selesai', diperbarui_pada: serverTimestamp(),
-            riwayat_scan: arrayUnion({ aksi: 'sampai', oleh, pada, qty })
-          });
+          if (!karyawan) return { ok: false, pesan: 'QR tidak dikenali — karyawan tidak ditemukan.' };
+          const nama = karyawan.nama || karyawan.name || karyawan.id;
+          return { ok: true, row: { kode, label: nama, tagTxt: 'operator', tagCls: 'ok', _id: karyawan.id, _nama: nama } };
         }
-        await muat();
-      } catch (e) {
-        console.error('Gagal proses hasil scan:', mode, e);
-        alert('Gagal memproses hasil scan. Coba lagi.');
+        const [harus, sebutan] = KODE_TARGET[mode](track);
+        if (kode !== harus) return { ok: false, pesan: `Kode yang discan ("${kode}") tidak cocok dengan ${sebutan} (${harus}).` };
+        return { ok: true, row: { kode, label: track.nama_produk || track.kode_kit, tagTxt: 'cocok', tagCls: 'ok' } };
+      },
+      padaUpload: async (rows) => {
+        const { mode, track } = ctxScan, r = rows[0];
+        if (!track) return { ok: false, pesan: 'Kartu SPK belum dipilih.' };
+        scanTerpadu.tutup();
+        sedangProses[track.id] = true;
+        try {
+          const oleh = window.currentUser?.email || null;
+          const pada = new Date().toISOString();
+          // qty dari qty_total track (belum ada breakdown per-baris di jalur ini)
+          // supaya audit qty per-scan tidak perlu join balik ke spk_grouping.
+          const qty = track.qty_total ?? null;
+          const refTrack = doc(db, 'spk_track', track.id);
+          if (mode === 'operator') {
+            await updateDoc(refTrack, {
+              operator_id: r._id, operator_nama: r._nama,
+              status: 'sedang_diproses', diperbarui_pada: serverTimestamp(),
+              riwayat_scan: arrayUnion({ aksi: 'operator', oleh: r._nama, pada, qty })
+            });
+          } else if (mode === 'entry') {
+            await updateDoc(refTrack, { status: 'perlu_dikirim', diperbarui_pada: serverTimestamp(), riwayat_scan: arrayUnion({ aksi: 'entry', oleh, pada, qty }) });
+          } else if (mode === 'masalah') {
+            const catatan = prompt('Jelaskan masalahnya:');
+            if (!catatan || !catatan.trim()) { sedangProses[track.id] = false; return { ok: true }; }
+            await updateDoc(refTrack, {
+              catatan_masalah: catatan.trim(), diperbarui_pada: serverTimestamp(),
+              riwayat_scan: arrayUnion({ aksi: 'masalah', oleh, pada, catatan: catatan.trim(), qty })
+            });
+          } else if (mode === 'pack') {
+            await updateDoc(refTrack, { status: 'sedang_dikirim', diperbarui_pada: serverTimestamp(), riwayat_scan: arrayUnion({ aksi: 'pack', oleh, pada, qty }) });
+          } else if (mode === 'kirim') {
+            // Status TETAP "Sedang Dikirim" — cuma catat riwayat.
+            await updateDoc(refTrack, { diperbarui_pada: serverTimestamp(), riwayat_scan: arrayUnion({ aksi: 'kirim', oleh, pada, qty }) });
+          } else if (mode === 'sampai') {
+            await updateDoc(refTrack, { status: 'selesai', diperbarui_pada: serverTimestamp(), riwayat_scan: arrayUnion({ aksi: 'sampai', oleh, pada, qty }) });
+          }
+          await muat();
+        } catch (e) {
+          console.error('Gagal proses hasil scan:', mode, e);
+          alert('Gagal memproses hasil scan. Coba lagi.');
+        }
+        sedangProses[track.id] = false;
+        return { ok: true };
       }
-      sedangProses[track.id] = false;
+    });
+    function bukaScan(mode, track) {
+      if (sedangProses[track.id]) return;
+      ctxScan.mode = mode; ctxScan.track = track;
+      const c = scanTerpadu.cfg;
+      c.judul = `${LABEL_AKSI_SCAN[mode]} — ${track.kode_kit || track.kode_grouping_induk || ''}`;
+      c.subjudul = mode === 'operator' ? 'Scan QR pribadi karyawan, lalu Upload' : 'Scan label QR SPK/Bagging/Tugas, lalu Upload';
+      c.camMode = mode === 'operator' ? 'Mode: Scan QR Operator' : 'Mode: Scan Label';
+      c.placeholder = mode === 'operator' ? 'Scan QR pribadi / ketik ID karyawan' : 'Scan label / ketik kode';
+      scanTerpadu.buka();
     }
 
     // pastikanCachePilihanScan WAJIB selesai sebelum render pertama yang
     // memanggil aksiAktif() di template (tombol Scan Operator/Entry/dst) —
     // kalau tidak, tombol jatuh ke DEFAULT_PILIHAN walau admin sudah atur beda.
     onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
-    onUnmounted(tutupScan);
 
     return {
       memuat, muat, daftarTrack, sedangProses, bolehProses, bolehCetak, bolehTunjukOperator,
       cetakLabelKit, cetakLabelBagging, cetakLabelTugas, popupCetakLabelAktif, daftarLabelPreview, jenisCetakAktif,
-      modeScan, trackAktifScan, videoScanEl, canvasScanEl, scanMemuatKamera, scanError,
-      bukaScan, tutupScan, LABEL_AKSI_SCAN, formatQty, aksiAktif, MY_TARGET
+      scanTerpadu, bukaScan, LABEL_AKSI_SCAN, formatQty, aksiAktif, MY_TARGET
     };
   },
   template: `
@@ -1038,21 +984,9 @@ const JalurTahapManager = {
       </div>
     </div>
 
-    <div v-if="modeScan" style="position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:10000; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:16px;">
-      <div style="width:100%; max-width:340px; aspect-ratio:1/1; background:#111; border-radius:12px; overflow:hidden; position:relative; margin-bottom:16px;">
-        <video ref="videoScanEl" autoplay playsinline muted style="width:100%; height:100%; object-fit:cover;" :class="{ hidden: scanMemuatKamera }"></video>
-        <canvas ref="canvasScanEl" class="hidden"></canvas>
-        <div v-if="scanMemuatKamera" style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#C9B4A4; text-align:center; padding:16px;">
-          <i class="fas fa-qrcode" style="font-size:36px; margin-bottom:10px;"></i>
-          <span v-if="scanError" style="color:#F2A0A0; font-size:12px;">{{ scanError }}</span>
-          <span v-else style="font-size:12.5px;">Menyiapkan kamera...</span>
-        </div>
-      </div>
-      <p style="color:#fff; font-size:12.5px; margin-bottom:14px; text-align:center;">{{ LABEL_AKSI_SCAN[modeScan] }} — arahkan kamera ke {{ modeScan==='operator' ? 'QR pribadi karyawan' : 'label QR SPK/Bagging/Tugas' }}</p>
-      <button @click="tutupScan" class="btn-outline" style="padding:8px 24px; background:#fff;">Batal</button>
-    </div>
-
     <popup-pratinjau-cetak-label :terbuka="popupCetakLabelAktif" judul="Cetak Label" :daftar-label="daftarLabelPreview" :jenis-cetak="jenisCetakAktif" @tutup="popupCetakLabelAktif = false" />
+
+    <scan-terpadu-generik :c="scanTerpadu" />
   `
 };
 
@@ -1106,10 +1040,9 @@ window.pastikanMountPpVendorSelesai = function() {
 };
 
 // Bridge "Pilihan Scan" (sheet mobile & tombol desktop js/vue-popup-scan.js) —
-// JalurTahapManager BELUM migrasi ke buatScanTerpadu (beda dari Bahan/Sewing
-// dkk), jadi tidak ada alur identifikasi-dari-scan: bukaScan(mode, track) yang
-// sudah ada WAJIB tahu kartu mana duluan. Kartu tunggal di tab itu langsung
-// jalan; kartu jamak diminta pilih manual dari daftar supaya tidak salah SPK.
+// Scan Terpadu JalurTahapManager terikat 1 kartu, tidak ada identifikasi-dari-
+// scan: bukaScan(mode, track) WAJIB tahu kartu mana duluan. Kartu tunggal di
+// tab itu langsung jalan; kartu jamak diminta pilih manual dari daftar.
 function _bukaScanVendorDariTab(vm, mode, labelTahap, filterFn) {
   const mgr = vm && vm.$refs && vm.$refs.mgr;
   if (!mgr) return;

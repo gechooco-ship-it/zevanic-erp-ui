@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=15';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=16';
+import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=16';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier
@@ -206,8 +206,8 @@ function kelompokKartuSpk(barisList, petaStokBahan) {
 function kunciSepack(b) { return `${b.nama_produk}::${b.produk_size}`.toLowerCase(); }
 function labelSepack(b) { return `${b.nama_produk} · size ${b.produk_size || '-'}`; }
 
-// Komponen kamera fullscreen dipakai lewat ScanGenerik (js/vue-scan-cetak.js),
-// diimpor bukan disalin — interface & perilakunya sama di 4 file Persiapan Produksi.
+// Layar scan dipakai lewat buatScanTerpadu + ScanTerpaduGenerik (js/vue-scan-
+// cetak.js), diimpor bukan disalin — perilakunya sama di file Persiapan Produksi.
 
 
 // Tab 1 memakai grid 1 kolom + 4 kotak KPI (SPK menunggu / baris komponen / stok
@@ -240,7 +240,7 @@ function gantiTabPill(grupKelas, targetId, ev) {
 // tiap baris satu per satu (1 scan = 1 baris).
 
 const PersiapanWebbingPerluDisiapkan = {
-  components: { PopupPratinjauCetakLabel, ScanGenerik, ScanTerpaduGenerik, PopupPinGenerik },
+  components: { PopupPratinjauCetakLabel, ScanTerpaduGenerik, PopupPinGenerik },
   setup() {
     const memuat = ref(true);
     const daftarTrack = ref([]);
@@ -378,7 +378,7 @@ const PersiapanWebbingPerluDisiapkan = {
       if (!sudahDicetak.length) { popupCetakUlang.value = null; return; }
       // Sama fungsi dgn cetakLabelKartu di atas (bangunLabelAksesoris bersama)
       // supaya label cetak-ulang PERSIS format cetak normal, tetap cocok dgn
-      // scanOperator.validasiIsi/hasilScanAksi.
+      // validasiIsi scanOperator dan masalahTerpadu.
       const preview = sudahDicetak.map(b => {
         const lbl = labelBarisAcc(b, { cetakUlang: true });
         return { ...lbl, qrDataUrl: buatQrDataUrl(lbl.kode), rincian: bangunRincianWebbing(b) };
@@ -460,26 +460,33 @@ const PersiapanWebbingPerluDisiapkan = {
       scanOperator.buka();
     }
 
-    // Scan Sampai GLOBAL (temuan #1) — lihat komentar besar sama di
-    // vue-persiapan-bahan.js untuk ASUMSI lengkap: konservatif, cuma
-    // membersihkan catatan_masalah baris yang kode_bagging-nya cocok, TIDAK
-    // menulis balik koleksi persiapan_masalah.
-    const modalScanSampai = reactive({ aktif: false, log: [] });
-    function bukaScanSampaiGlobal() { modalScanSampai.log = []; modalScanSampai.aktif = true; }
-    function tutupScanSampai() { modalScanSampai.aktif = false; modalScanSampai.log = []; muat(); }
-    async function hasilScanSampai(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      if (!kode) return;
-      const semuaBaris = daftarBarisDariTrack(daftarTrack.value);
-      const cocok = semuaBaris.filter(b => b.kode_bagging === kode && b.catatan_masalah);
-      if (!cocok.length) { alert(`Kode "${kode}" tidak ditemukan di antara baris yang sedang menunggu kiriman balik Masalah.`); return; }
-      try {
-        const trackIdSet = new Set(cocok.map(b => b._trackId));
-        await Promise.all([...trackIdSet].map(trackId => updateBarisWebbingMassal(trackId, (x) => x.kode_bagging === kode && !!x.catatan_masalah, () => ({ catatan_masalah: '' }))));
-        modalScanSampai.log.unshift(`${kode} → ${cocok.length} baris diterima kembali`);
-        await muat();
-      } catch (e) { console.error('Gagal scan sampai:', e); alert('Gagal menyimpan. Coba lagi.'); }
+    // Scan Sampai GLOBAL — menutup pack yang dikirim balik dari Masalah: kode
+    // bagging di draft, Upload cuma membersihkan catatan_masalah baris yang
+    // kode_bagging-nya cocok, TIDAK menulis balik koleksi persiapan_masalah.
+    // Layar tetap terbuka sesudah Upload.
+    function cariBarisSampaiMasalah(kode) {
+      return daftarBarisDariTrack(daftarTrack.value).filter(b => b.kode_bagging === kode && b.catatan_masalah);
     }
+    const sampaiTerpadu = buatScanTerpadu({
+      judul: 'Scan Sampai — kode bagging balik dari Masalah', subjudul: 'Bisa discan berkali-kali.',
+      camMode: 'Mode: Scan Kode Bagging (berkali-kali)', placeholder: 'Scan QR bagging yang balik / cari kode',
+      validasiIsi: async (kode) => {
+        const cocok = cariBarisSampaiMasalah(kode);
+        if (!cocok.length) return { ok: false, pesan: `Kode "${kode}" tidak ditemukan di antara baris yang sedang menunggu kiriman balik Masalah.` };
+        return { ok: true, row: { kode, label: cocok.length + ' baris: ' + cocok.map(b => b.id_order).join(', '), tagTxt: 'cocok', tagCls: 'ok' } };
+      },
+      padaUpload: async (rows) => {
+        try {
+          for (const row of rows) {
+            const trackIdSet = new Set(cariBarisSampaiMasalah(row.kode).map(b => b._trackId));
+            await Promise.all([...trackIdSet].map(trackId => updateBarisWebbingMassal(trackId, (x) => x.kode_bagging === row.kode && !!x.catatan_masalah, () => ({ catatan_masalah: '' }))));
+          }
+          await muat();
+          return { ok: true };
+        } catch (e) { console.error('Gagal scan sampai:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
+      }
+    });
+    function bukaScanSampaiGlobal() { sampaiTerpadu.buka(); }
 
     onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
@@ -494,7 +501,7 @@ const PersiapanWebbingPerluDisiapkan = {
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, onCetakSelesai,
       popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang, barisTerpilihCetakUlang,
       scanOperator, bukaPenunjukanGlobal,
-      modalScanSampai, bukaScanSampaiGlobal, tutupScanSampai, hasilScanSampai
+      sampaiTerpadu, bukaScanSampaiGlobal
     };
   },
   template: `
@@ -595,10 +602,7 @@ const PersiapanWebbingPerluDisiapkan = {
 
     <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Anak SPK" :daftar-label="daftarLabelPreview" jenis-cetak="label_spk_acc_webbing" @tutup="popupCetakAktif = false" @cetak="onCetakSelesai" />
 
-    <scan-generik :aktif="modalScanSampai.aktif" judul="Scan Sampai — kode bagging balik dari Masalah" subjudul="Bisa discan berkali-kali." @hasil="hasilScanSampai" @tutup="tutupScanSampai" />
-    <div v-if="modalScanSampai.aktif && modalScanSampai.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:260px;">
-      <div v-for="(l,i) in modalScanSampai.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
-    </div>
+    <scan-terpadu-generik :c="sampaiTerpadu" @tutup="muat" />
 
     <div v-if="popupCetakUlang" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
@@ -630,7 +634,7 @@ const PersiapanWebbingPerluDisiapkan = {
 // sudah sedang_disiapkan DAN ber-entry_qty. Scan Masalah: tlc_asal='TLC-WEB', jalur 'webbing'.
 
 const PersiapanWebbingSedangDisiapkan = {
-  components: { ScanGenerik, ScanTerpaduGenerik, PopupPratinjauCetakLabel, PopupPinGenerik },
+  components: { ScanTerpaduGenerik, PopupPratinjauCetakLabel, PopupPinGenerik },
   setup() {
     const memuat = ref(true);
     const daftarTrack = ref([]);
@@ -683,12 +687,15 @@ const PersiapanWebbingSedangDisiapkan = {
       sedangProsesBatch[g.trackId] = false;
     }
 
-    const modalAksi = reactive({ aktif: false, mode: null, baris: null }); // 'masalah' | 'ganti'
+    // Scan Masalah / Ganti Operator per baris — dua layar Scan Terpadu, baris
+    // yang dipilih disimpan di aksiBaris. bukaAksi(mode, b) satu pintu tombol.
+    let aksiBaris = null;
     function bukaAksi(mode, b) {
       if (sedangProses[barisKey(b)]) return;
-      modalAksi.mode = mode; modalAksi.baris = b; modalAksi.aktif = true;
+      aksiBaris = b;
+      if (mode === 'ganti') gantiTerpadu.buka();
+      else { masalahTerpadu.cfg.judul = 'Scan label ' + (b.id_order || ''); masalahTerpadu.buka(); }
     }
-    function tutupAksi() { modalAksi.aktif = false; modalAksi.mode = null; modalAksi.baris = null; }
 
     // Popup "jumlah kurang" + alasan
     const popupMasalah = ref(null); // { baris, jumlahKurang, alasan }
@@ -729,34 +736,55 @@ const PersiapanWebbingSedangDisiapkan = {
       sedangProses[key] = false;
     }
 
-    async function hasilScanAksi(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      const b = modalAksi.baris;
-      if (!kode || !b) return;
-      if (modalAksi.mode === 'ganti') {
+    // Ganti Operator: satu badge per sesi, Upload menulis operator baru +
+    // riwayat_operator lalu menutup layar.
+    const gantiTerpadu = buatScanTerpadu({
+      judul: 'Scan QR operator pengganti', subjudul: 'Scan QR badge operator, lalu Upload',
+      camMode: 'Mode: Scan Badge Operator', placeholder: 'Scan QR badge / ketik ID karyawan',
+      validasiIsi: async (kode, _locked, rows) => {
+        if (rows.length) return { ok: false, pesan: 'Operator sudah discan — hapus dulu kalau salah orang.' };
         const karyawan = await cariKaryawanByQr(kode);
-        if (!karyawan) { alert('QR tidak dikenali — operator/tim tidak ditemukan.'); return; }
+        if (!karyawan) return { ok: false, pesan: 'QR tidak dikenali — operator/tim tidak ditemukan.' };
+        return { ok: true, row: { kode, label: karyawan.nama || karyawan.name || karyawan.id, tagTxt: 'operator', tagCls: 'ok', _karyawan: karyawan } };
+      },
+      padaUpload: async (rows) => {
+        const b = aksiBaris, karyawan = rows[0]._karyawan;
+        if (!b) return { ok: false, pesan: 'Baris kerja belum dipilih.' };
         const key = barisKey(b); sedangProses[key] = true;
         try {
           const now = new Date().toISOString();
+          const nama = karyawan.nama || karyawan.name || karyawan.id;
           await updateBarisWebbing(b._trackId, b._lineIdx, (lama) => ({
-            operator_uid: karyawan.id, operator_nama: karyawan.nama || karyawan.name || karyawan.id, ditugaskan_pada: now,
-            riwayat_operator: [...(lama.riwayat_operator || []), { operator_uid: karyawan.id, operator_nama: karyawan.nama || karyawan.name || karyawan.id, mulai_pada: now }]
+            operator_uid: karyawan.id, operator_nama: nama, ditugaskan_pada: now,
+            riwayat_operator: [...(lama.riwayat_operator || []), { operator_uid: karyawan.id, operator_nama: nama, mulai_pada: now }]
           }));
-          tutupAksi(); await muat();
-        } catch (e) { console.error('Gagal ganti operator:', e); alert('Gagal menyimpan. Coba lagi.'); }
-        sedangProses[key] = false;
-        return;
+          gantiTerpadu.tutup(); aksiBaris = null; await muat();
+          return { ok: true };
+        } catch (e) { console.error('Gagal ganti operator:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
+        finally { sedangProses[key] = false; }
       }
-      // cocokkan ke kode label baris ini (kodeQrBarisAcc), sama dengan yang dicetak.
-      const kodeLabelBaris = kodeQrBarisAcc(b);
-      if (kode !== kodeLabelBaris) { alert(`Kode yang discan ("${kode}") tidak cocok dengan anak SPK ini (${kodeLabelBaris}).`); return; }
-      if (modalAksi.mode === 'masalah') {
-        tutupAksi();
+    });
+    // Scan Masalah: kode WAJIB label baris ini (kodeQrBarisAcc, sama dengan yang
+    // dicetak). Upload tidak menulis — menutup layar lalu membuka popup jumlah
+    // kurang + alasan; konfirmasiMasalah yang menulis.
+    const masalahTerpadu = buatScanTerpadu({
+      judul: 'Scan label', subjudul: 'Scan Masalah — akan diminta jumlah kurang & alasan.',
+      camMode: 'Mode: Scan Label Anak SPK', placeholder: 'Scan label anak SPK baris ini / ketik kode',
+      validasiIsi: async (kode) => {
+        const b = aksiBaris;
+        if (!b) return { ok: false, pesan: 'Baris kerja belum dipilih.' };
+        const kodeLabelBaris = kodeQrBarisAcc(b);
+        if (kode !== kodeLabelBaris) return { ok: false, pesan: `Kode yang discan ("${kode}") tidak cocok dengan anak SPK ini (${kodeLabelBaris}).` };
+        return { ok: true, row: { kode, label: `${b.nama_aksesoris || ''} ${b.warna || ''}`.trim(), tagTxt: 'cocok', tagCls: 'ok' } };
+      },
+      padaUpload: async () => {
+        const b = aksiBaris;
+        if (!b) return { ok: false, pesan: 'Baris kerja belum dipilih.' };
+        masalahTerpadu.tutup(); aksiBaris = null;
         popupMasalah.value = { baris: b, jumlahKurang: b.butuh, alasan: '', jenis: 'kurang' };
-        return;
+        return { ok: true };
       }
-    }
+    });
 
     const barisEntry = ref(null);
     const entryStok = buatScanEntryStok({
@@ -817,7 +845,7 @@ const PersiapanWebbingSedangDisiapkan = {
     return { muat,
       memuat, kelompokOperator, bolehProses, aksiAktif, sedangProses, sedangProsesBatch, konfirmasiDisiapkan,
       formatQty, formatRoll, formatDiamSejak, tertahan, barisKey,
-      modalAksi, bukaAksi, tutupAksi, hasilScanAksi, entryStok, bukaEntry,
+      bukaAksi, gantiTerpadu, masalahTerpadu, entryStok, bukaEntry,
       popupMasalah, batalMasalah, konfirmasiMasalah, bukaMasalahBaris,
       bolehCetak, popupCetakUlang, pinCetakUlangAktif, popupCetakAktif, daftarLabelPreview, bukaCetakUlang, barisTerpilihCetakUlang, lanjutCetakUlang, pinCetakUlangSukses, labelBarisAcc,
       TAB_DEFS_WEBBING, gantiTabPill, MY_TARGET
@@ -883,10 +911,8 @@ const PersiapanWebbingSedangDisiapkan = {
     </div>
     </div>
 
-    <scan-generik :aktif="modalAksi.aktif"
-      :judul="modalAksi.mode==='ganti' ? 'Scan QR operator pengganti' : ('Scan label ' + (modalAksi.baris?.id_order || ''))"
-      :subjudul="modalAksi.mode==='masalah' ? 'Scan Masalah — akan diminta jumlah kurang & alasan.' : ''"
-      @hasil="hasilScanAksi" @tutup="tutupAksi" />
+    <scan-terpadu-generik :c="gantiTerpadu" />
+    <scan-terpadu-generik :c="masalahTerpadu" />
     <scan-terpadu-generik :c="entryStok" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">

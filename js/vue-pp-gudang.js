@@ -22,7 +22,7 @@
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, serverTimestamp, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, ajukanPersiapanMasalah, buatQrDataUrl } from './vue-scan-cetak.js?v=16';
+import { ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, ajukanPersiapanMasalah, buatQrDataUrl } from './vue-scan-cetak.js?v=16';
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=15';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
@@ -163,7 +163,7 @@ async function kirimMasalahGudang(b, jumlah, alasan, jenis) {
 // status:'di_gudang', Scan Masuk Gudang per pcs). Lihat keputusan #3/#4/#5/#6.
 
 const GudangPerluDisimpan = {
-  components: { ScanGenerik, ScanTerpaduGenerik, PopupPratinjauCetakLabel },
+  components: { ScanTerpaduGenerik, PopupPratinjauCetakLabel },
   setup() {
     const memuat = ref(true);
     const popupCetakBa = ref(false);
@@ -199,67 +199,78 @@ const GudangPerluDisimpan = {
       return Object.values(peta).filter(g => g.pending.length > 0);
     });
 
-    // Scan Sampai: step1 kode_tugas, step2 kode_bagging berkali-kali,
-    // dicocokkan ke spk_separating (SAMA pola Finishing/Sewing). Begitu SEMUA
-    // kode_bagging cocok discan -> tutup batch (keputusan #4).
-    const modalSampai = reactive({ aktif: false, batch: null, tugasKirim: null, log: [] });
-    function bukaScanSampai() { modalSampai.batch = null; modalSampai.tugasKirim = null; modalSampai.log = []; modalSampai.aktif = true; }
-    function tutupScanSampai() { modalSampai.aktif = false; modalSampai.batch = null; modalSampai.tugasKirim = null; modalSampai.log = []; muat(); }
-    async function hasilScanSampai(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      if (!modalSampai.batch) {
-        const b = daftarBatch.value.find(x => x.kode_tugas === kode);
-        if (!b) { alert(`Kode tugas "${kode}" tidak ditemukan di antara batch yang sedang dikirim ke Gudang.`); return; }
-        modalSampai.batch = b;
-        // cache tugas_kirim (kode sama dengan kode_tugas).
-        try {
-          const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
-          modalSampai.tugasKirim = snapTugas.empty ? null : { id: snapTugas.docs[0].id, ...snapTugas.docs[0].data() };
-        } catch (e) { console.error('Gagal cari tugas_kirim utk pelepasan sampai:', e); modalSampai.tugasKirim = null; }
-        return;
-      }
-      const b = modalSampai.batch;
-      if (!(b.kode_bagging || []).includes(kode)) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
-      if (modalSampai.log.includes(kode)) { alert(`Kode bagging "${kode}" sudah discan sebelumnya di sesi ini.`); return; }
-      modalSampai.log.unshift(kode);
-      // lepas kaitan root1/root2/bagging di tugas_kirim.pack[] begitu
-      // kode_bagging ini dinyatakan sampai.
-      const tk = modalSampai.tugasKirim;
-      if (tk) {
-        const packArr = Array.isArray(tk.pack) ? tk.pack : [];
-        const idxPack = packArr.findIndex(p => p.kode_bagging === kode && !p.sampai_pada);
-        if (idxPack >= 0) {
+    // Scan Sampai: kunci kode_tugas, lalu kode_bagging batch itu berkali-kali.
+    // Upload menulis sampai_pada di tugas_kirim.pack[]; kunci tetap sampai
+    // SEMUA kode_bagging ter-upload di sesi ini -> tutup batch (keputusan #4).
+    // _terupload = kode yang sudah di-upload selama kunci ini hidup.
+    function labelKunciSampai(d) { return `${d.batch.kode_tugas} · ${d.batch.kode_separating || '-'} · ${d._terupload.length}/${(d.batch.kode_bagging || []).length} bagging`; }
+    const sampaiTerpadu = buatScanTerpadu({
+      judul: 'Scan Sampai — Gudang', subjudul: 'Bisa discan berkali-kali (tiap kode bagging = 1 pack dari Serie).',
+      twoStep: {
+        labelPertama: 'Kode Tugas', labelKedua: 'Kode Bagging',
+        placeholderPertama: 'Scan/ketik kode tugas (sekali di awal)', placeholderKedua: 'Scan tiap kode bagging dari Serie',
+        camModePertama: 'Mode: Scan Kode Tugas', camModeKedua: 'Mode: Scan Kode Bagging (berkali-kali)',
+        kosongUtama: 'Scan Kode Tugas dulu', kosongSub: 'Kode tugas batch yang dikirim Serie ke Gudang.',
+        tetapKunci: true,
+        validasi: async (kode) => {
+          const b = daftarBatch.value.find(x => x.kode_tugas === kode);
+          if (!b) return { ok: false, pesan: `Kode tugas "${kode}" tidak ditemukan di antara batch yang sedang dikirim ke Gudang.` };
+          let tugasKirim = null;
           try {
-            const nowLepas = new Date().toISOString();
+            const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
+            tugasKirim = snapTugas.empty ? null : { id: snapTugas.docs[0].id };
+          } catch (e) { console.error('Gagal cari tugas_kirim utk pelepasan sampai:', e); }
+          const data = { batch: b, tugasKirim, _terupload: [] };
+          return { ok: true, data, label: labelKunciSampai(data) };
+        }
+      },
+      validasiIsi: async (kode, d) => {
+        if (!(d.batch.kode_bagging || []).includes(kode)) return { ok: false, pesan: `Kode bagging "${kode}" tidak cocok dengan tugas ini.` };
+        if (d._terupload.includes(kode)) return { ok: false, pesan: `Kode bagging "${kode}" sudah discan sebelumnya di sesi ini.` };
+        return { ok: true, row: { kode, label: 'batch ' + (d.batch.kode_separating || '-'), tagTxt: 'cocok', tagCls: 'ok' } };
+      },
+      padaUpload: async (rows, d) => {
+        const b = d.batch;
+        const now = new Date().toISOString();
+        // pack[] dibaca ulang per baris supaya tidak menimpa update baris lain;
+        // gagal lepas pack tidak menggagalkan scan.
+        for (const row of rows) {
+          if (!d.tugasKirim) break;
+          try {
+            const snapTk = await getDoc(doc(db, 'tugas_kirim', d.tugasKirim.id));
+            const packArr = Array.isArray(snapTk.data()?.pack) ? snapTk.data().pack : [];
+            const idxPack = packArr.findIndex(p => p.kode_bagging === row.kode && !p.sampai_pada);
+            if (idxPack < 0) continue;
             const packBaru = packArr.slice();
-            packBaru[idxPack] = { ...packBaru[idxPack], sampai_pada: nowLepas };
-            await updateDoc(doc(db, 'tugas_kirim', tk.id), { pack: packBaru });
-            tk.pack = packBaru;
+            packBaru[idxPack] = { ...packBaru[idxPack], sampai_pada: now };
+            await updateDoc(doc(db, 'tugas_kirim', d.tugasKirim.id), { pack: packBaru });
           } catch (e) { console.error('Gagal lepas pack tugas_kirim (Gudang):', e); }
         }
-      }
-      const sudahSemua = (b.kode_bagging || []).every(kb => modalSampai.log.includes(kb));
-      if (sudahSemua) {
+        const terkumpul = d._terupload.concat(rows.map(r => r.kode));
+        if (!(b.kode_bagging || []).every(kb => terkumpul.includes(kb))) {
+          d._terupload = terkumpul;
+          return { ok: true, lockedLabel: labelKunciSampai(d) };
+        }
         try {
           const jumlahPcs = await prosesScanSampaiBatch(b);
-          modalSampai.log.unshift('SEMUA bagging sampai — ' + (b.kode_separating || '') + ' (' + jumlahPcs + ' pcs) siap discan masuk gudang.');
           const ba = await terbitkanBeritaAcaraBilaLengkap(b.order_id);
+          sampaiTerpadu.tutup();
+          await muat();
           if (ba) {
-            modalSampai.log.unshift('Berita Acara ' + ba.kodeBa + ' terbit untuk ' + ba.idOrder);
             daftarLabelBa.value = [{ kode: ba.kodeBa, nama: 'Berita Acara ' + ba.idOrder, info: `${ba.nama} &middot; pesanan ${formatQty(ba.qtyPesanan)} &middot; jadi ${formatQty(ba.qtyJadi)} &middot; kurang ${formatQty(Math.max(0, ba.qtyPesanan - ba.qtyJadi))}`, qrDataUrl: buatQrDataUrl(ba.kodeBa) }];
             popupCetakBa.value = true;
           }
-          await muat();
-        } catch (e) { console.error('Gagal tutup batch Gudang:', e); alert('Gagal menyimpan. Coba lagi.'); }
+          alert('SEMUA bagging sampai — ' + (b.kode_separating || '') + ' (' + jumlahPcs + ' pcs) siap discan masuk gudang.' + (ba ? '\nBerita Acara ' + ba.kodeBa + ' terbit untuk ' + ba.idOrder : ''));
+          return { ok: true, lepasKunci: true };
+        } catch (e) { console.error('Gagal tutup batch Gudang:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
       }
-    }
+    });
+    function bukaScanSampai() { sampaiTerpadu.buka(); }
+    function tutupScanSampai() { sampaiTerpadu.tutup(); muat(); }
 
-    // Scan Unpack: scan ulang tiap isi bagging (bagging.isi[]), lihat
-    // Scan Unpack — konversi ke buatScanTerpadu (Draft/Upload), gantikan
-    // buatUnpackUniversal lama. Sama persis pola vue-pp-cutting.js: kunci Kode
-    // Bagging dulu, scan ulang isi berkali-kali, Upload cuma menutup KOMPLIT
-    // kalau semua isi cocok tanpa kode asing — kalau tidak, pakai "Paksa
-    // INKOMPLIT" di chip atas.
+    // Scan Unpack: kunci Kode Bagging, lalu scan ulang tiap isi (bagging.isi[]).
+    // Upload cuma menutup KOMPLIT kalau semua isi cocok tanpa kode asing;
+    // belum lengkap -> "Paksa INKOMPLIT" di chip atas (baca s.rows langsung).
     async function tulisTutupUnpack(b, dicocokkan, asing, hilang, cocokSemua) {
       const now = new Date().toISOString();
       try {
@@ -316,26 +327,38 @@ const GudangPerluDisimpan = {
       }]
     });
 
-    // Scan Masuk Gudang: scan 1 kode_pcs, alokasi FIFO, set status.
-    const modalMasuk = reactive({ aktif: false, log: [] });
-    function bukaScanMasuk() { modalMasuk.log = []; modalMasuk.aktif = true; }
-    function tutupScanMasuk() { modalMasuk.aktif = false; modalMasuk.log = []; muat(); }
-    async function hasilScanMasuk(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      try {
+    // Scan Masuk Gudang: draft kode_pcs satu per satu, Upload menulis status
+    // 'di_gudang' + alokasi FIFO berurutan (alokasi baris berikut melihat hasil
+    // baris sebelumnya). Pcs yang sudah tertulis ditandai lokal supaya Upload
+    // ulang sesudah gagal di tengah tidak menulis/mengalokasikan dua kali.
+    const masukTerpadu = buatScanTerpadu({
+      judul: 'Scan Masuk Gudang', subjudul: 'Scan QR label pcs satu per satu. Bisa berkali-kali.',
+      camMode: 'Mode: Scan Label Pcs (berkali-kali)', placeholder: 'Scan/ketik kode pcs',
+      validasiIsi: async (kode) => {
         const p = semuaLabelPcs.value.find(x => x.kode_pcs === kode);
-        if (!p) { alert(`Kode pcs "${kode}" tidak ditemukan.`); return; }
-        if (p.status === 'di_gudang') { alert(`Pcs "${kode}" sudah tercatat masuk gudang sebelumnya.`); return; }
-        if (p.status === 'terjual' || p.status === 'hilang' || p.status === 'perlu_dicari') { alert(`Pcs "${kode}" berstatus "${p.status}" — tidak bisa discan masuk gudang lagi.`); return; }
-        if (!p.sampai_pada) { alert(`Pcs "${kode}" belum discan Scan Sampai dari Serie — scan sampai batch-nya dulu.`); return; }
-        const now = new Date().toISOString();
-        const orderSpkId = p.order_id || await alokasikanKePoFifo(p);
-        await updateDoc(doc(db, 'label_pcs', p.id), { status: 'di_gudang', gudang_masuk_pada: now, order_id: orderSpkId });
-        modalMasuk.log.unshift(kode + (orderSpkId ? ' -> masuk gudang (teralokasi ke PO)' : ' -> masuk gudang (stok bebas)'));
-        p.status = 'di_gudang'; p.sampai_pada = p.sampai_pada; // update lokal ringan supaya progres kartu langsung berubah tanpa muat ulang penuh
+        if (!p) return { ok: false, pesan: `Kode pcs "${kode}" tidak ditemukan.` };
+        if (p.status === 'di_gudang') return { ok: false, pesan: `Pcs "${kode}" sudah tercatat masuk gudang sebelumnya.` };
+        if (p.status === 'terjual' || p.status === 'hilang' || p.status === 'perlu_dicari') return { ok: false, pesan: `Pcs "${kode}" berstatus "${p.status}" — tidak bisa discan masuk gudang lagi.` };
+        if (!p.sampai_pada) return { ok: false, pesan: `Pcs "${kode}" belum discan Scan Sampai dari Serie — scan sampai batch-nya dulu.` };
+        return { ok: true, row: { kode, label: [p.nama_produk, p.size, p.warna].filter(Boolean).join(' · '), meta: p.kode_separating || '', tagTxt: p.order_id ? 'PO' : 'siap', tagCls: 'ok', _pcsId: p.id } };
+      },
+      padaUpload: async (rows) => {
+        try {
+          for (const row of rows) {
+            const p = semuaLabelPcs.value.find(x => x.id === row._pcsId);
+            if (!p || p.status === 'di_gudang') continue;
+            const now = new Date().toISOString();
+            const orderSpkId = p.order_id || await alokasikanKePoFifo(p);
+            await updateDoc(doc(db, 'label_pcs', p.id), { status: 'di_gudang', gudang_masuk_pada: now, order_id: orderSpkId });
+            p.status = 'di_gudang'; p.order_id = orderSpkId;
+          }
+        } catch (e) { console.error('Gagal scan masuk gudang:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
         await muat();
-      } catch (e) { console.error('Gagal scan masuk gudang:', e); alert('Gagal menyimpan. Coba lagi.'); }
-    }
+        return { ok: true };
+      }
+    });
+    function bukaScanMasuk() { masukTerpadu.buka(); }
+    function tutupScanMasuk() { masukTerpadu.tutup(); muat(); }
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
       await kirimMasalahGudang(p.target, p.jumlah, p.alasan, p.jenis);
@@ -348,9 +371,9 @@ const GudangPerluDisimpan = {
 
     return { popupCetakBa, daftarLabelBa, muat,
       memuat, daftarBatch, kelompokSiapDisimpan, bolehProses, aksiAktif, formatQty, formatDiamSejak, tertahan,
-      modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
+      sampaiTerpadu, bukaScanSampai, tutupScanSampai,
       unpackTerpadu,
-      modalMasuk, bukaScanMasuk, tutupScanMasuk, hasilScanMasuk,
+      masukTerpadu, bukaScanMasuk, tutupScanMasuk,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
     };
   },
@@ -396,18 +419,12 @@ const GudangPerluDisimpan = {
       </div>
     </template>
 
-    <scan-generik :aktif="modalSampai.aktif" :judul="modalSampai.batch ? ('Scan kode bagging — tugas ' + modalSampai.batch.kode_tugas) : 'Scan Kode Tugas'" subjudul="Bisa discan berkali-kali (tiap kode bagging = 1 pack dari Serie)." @hasil="hasilScanSampai" @tutup="tutupScanSampai" />
-    <div v-if="modalSampai.aktif && modalSampai.batch && modalSampai.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:280px;">
-      <div v-for="(l,i) in modalSampai.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
-    </div>
+    <scan-terpadu-generik :c="sampaiTerpadu" @tutup="muat" />
 
     <popup-pratinjau-cetak-label :terbuka="popupCetakBa" :daftar-label="daftarLabelBa" judul="Cetak Berita Acara" jenis-cetak="berita_acara" @tutup="popupCetakBa = false" />
     <scan-terpadu-generik :c="unpackTerpadu" />
 
-    <scan-generik :aktif="modalMasuk.aktif" judul="Scan Masuk Gudang" subjudul="Scan QR label pcs satu per satu. Bisa berkali-kali." @hasil="hasilScanMasuk" @tutup="tutupScanMasuk" />
-    <div v-if="modalMasuk.aktif && modalMasuk.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:280px;">
-      <div v-for="(l,i) in modalMasuk.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
-    </div>
+    <scan-terpadu-generik :c="masukTerpadu" @tutup="muat" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
@@ -593,7 +610,7 @@ const GudangRiwayatKeluar = {
 // TAB 5.4: Scan Opname + popup 5.4a — sesi scan berulang (keputusan #9/#10).
 
 const GudangScanOpname = {
-  components: { ScanGenerik, PopupPinGenerik },
+  components: { ScanTerpaduGenerik, PopupPinGenerik },
   setup() {
     const memuat = ref(true);
     const daftarAktif = ref([]); // status 'di_gudang' atau 'perlu_dicari' — universe fisik yang relevan
@@ -612,17 +629,30 @@ const GudangScanOpname = {
     // Sesi opname (in-memory, keputusan #9)
     const sesi = reactive({ aktif: false, mulaiPada: null, scanned: new Set(), log: [] });
     function mulaiSesi() { sesi.aktif = true; sesi.mulaiPada = Date.now(); sesi.scanned = new Set(); sesi.log = []; }
-    const modalScanAktif = ref(false);
-    function bukaScan() { modalScanAktif.value = true; }
-    function tutupScan() { modalScanAktif.value = false; }
-    function hasilScanOpname(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      const p = daftarAktif.value.find(x => x.kode_pcs === kode);
-      if (!p) { alert(`Kode "${kode}" tidak dikenali sebagai stok gudang aktif (bukan status di_gudang/perlu_dicari).`); return; }
-      if (sesi.scanned.has(kode)) { alert(`Pcs "${kode}" sudah discan di sesi ini.`); return; }
-      sesi.scanned.add(kode);
-      sesi.log.unshift(kode + (p.status === 'perlu_dicari' ? ' (sebelumnya perlu dicari — akan ditemukan kembali)' : ' (cocok)'));
-    }
+    // Scan per draft: kode yang sudah tercatat di sesi ATAU masih di draft
+    // ditolak; Upload cuma menambah ke sesi.scanned (tidak menulis Firestore,
+    // tulis tetap di Selesaikan Sesi). Meta baris = hitungan tersimpan + draft.
+    const opnameTerpadu = buatScanTerpadu({
+      judul: 'Scan Opname — Pcs Fisik', subjudul: 'Scan QR label pcs satu per satu, bisa berkali-kali.',
+      camMode: 'Mode: Scan Label Pcs (berkali-kali)', placeholder: 'Scan/ketik kode pcs',
+      validasiIsi: async (kode, _locked, rows) => {
+        const p = daftarAktif.value.find(x => x.kode_pcs === kode);
+        if (!p) return { ok: false, pesan: `Kode "${kode}" tidak dikenali sebagai stok gudang aktif (bukan status di_gudang/perlu_dicari).` };
+        if (sesi.scanned.has(kode)) return { ok: false, pesan: `Pcs "${kode}" sudah discan di sesi ini.` };
+        const dicari = p.status === 'perlu_dicari';
+        return { ok: true, row: { kode, label: [p.nama_produk, p.size, p.warna].filter(Boolean).join(' · '), meta: `${sesi.scanned.size + rows.length + 1} / ${daftarAktif.value.length} dicek`, tagTxt: dicari ? 'ditemukan kembali' : 'cocok', tagCls: dicari ? 'warn' : 'ok', _dicari: dicari } };
+      },
+      padaUpload: async (rows) => {
+        if (!sesi.aktif) return { ok: false, pesan: 'Sesi opname sudah tidak aktif.' };
+        rows.forEach(r => {
+          sesi.scanned.add(r.kode);
+          sesi.log.unshift(r.kode + (r._dicari ? ' (sebelumnya perlu dicari — akan ditemukan kembali)' : ' (cocok)'));
+        });
+        return { ok: true };
+      }
+    });
+    function bukaScan() { opnameTerpadu.buka(); }
+    function tutupScan() { opnameTerpadu.tutup(); }
     async function selesaikanSesi() {
       if (!confirm(`Selesaikan sesi opname? ${sesi.scanned.size} dari ${daftarAktif.value.length} pcs sudah discan. Yang TIDAK discan (status di_gudang) akan ditandai "Perlu Dicari".`)) return;
       try {
@@ -667,7 +697,7 @@ const GudangScanOpname = {
 
     return { muat,
       memuat, daftarAktif, daftarPerluDicari, bolehProses,
-      sesi, mulaiSesi, modalScanAktif, bukaScan, tutupScan, hasilScanOpname, selesaikanSesi, batalSesi,
+      sesi, mulaiSesi, opnameTerpadu, bukaScan, tutupScan, selesaikanSesi, batalSesi,
       targetHilang, popupPinAktif, bukaKonfirmasiHilang, pinSuksesHilang
     };
   },
@@ -715,7 +745,7 @@ const GudangScanOpname = {
       </div>
     </template>
 
-    <scan-generik :aktif="modalScanAktif" judul="Scan Opname — Pcs Fisik" subjudul="Scan QR label pcs satu per satu, bisa berkali-kali." @hasil="hasilScanOpname" @tutup="tutupScan" />
+    <scan-terpadu-generik :c="opnameTerpadu" />
 
     <popup-pin-generik v-if="popupPinAktif" judul="Konfirmasi Hilang — PIN Owner" konteks="Gudang Barang Jadi - Konfirmasi Hilang" :roles-diizinkan="['owner']" @sukses="pinSuksesHilang" @batal="popupPinAktif = false" />
   `

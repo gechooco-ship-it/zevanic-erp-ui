@@ -19,11 +19,11 @@
 //   menutupnya, jadi Tab 4.4 memang menggantung sampai Serie scan.
 // - Scan tiap tahap DIBLOKIR selama terima_pada pcs itu masih kosong.
 
-import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=16';
+import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=16';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing).
@@ -207,94 +207,115 @@ async function kirimMasalahFinishing(t, jumlah, alasan, jenis) {
 
 // Popup gabungan "Scan Operator + Entry per Tahap" (wireframe 4.2a, keputusan
 // #6/#7/#8) — dipakai ULANG di Tab 4.1 (tahap dikunci 'qc') & tiap sub-tab Tab
-// 4.2. mode: 'operator' (scan QR operator dulu, gated PIC+) atau 'sendiri'
-// (window.currentUser langsung, siapapun boleh akses menu edit).
+// 4.2. Proses berikutnya dipilih DULU di popup (tahap boleh dilewati), baru
+// Scan Terpadu dibuka. mode 'operator': twoStep kunci QR operator lalu isi
+// kode pcs (gated PIC+). mode 'sendiri': operator = window.currentUser, 1
+// langkah kode pcs. Semua pcs di draft ditulis dengan tahap pilihan itu.
 
-function buatModalTahap(tahap, statusMasuk, statusSetelahSelesai) {
+function buatModalTahap(tahap) {
   return {
     props: { aktif: Boolean, mode: { type: String, default: 'operator' } },
     emits: ['tutup'],
-    components: { ScanGenerik },
+    components: { ScanTerpaduGenerik },
     setup(props, { emit }) {
-      // langkah: 1 = scan operator (mode 'operator'), 'pilih' = pilih proses
-      // berikutnya (tahap boleh dilewati, mis. tas tanpa Steam), 2 = scan pcs.
-      const langkah = ref(1);
-      const operatorTerpilih = ref(null);
-      const log = ref([]);
+      const pilihAktif = ref(false);
       const idxTahap = URUTAN_TAHAP.indexOf(tahap);
       const opsiBerikut = [...URUTAN_TAHAP.slice(idxTahap + 1), 'selesai'];
       const tahapBerikut = ref(opsiBerikut[0]);
       const labelBerikut = (x) => x === 'selesai' ? 'Selesai (Perlu Dikirim)' : LABEL_TAHAP[x];
-      function lanjutPilih() { langkah.value = opsiBerikut.length > 1 ? 'pilih' : 2; }
-      function mulai() {
-        tahapBerikut.value = opsiBerikut[0];
-        if (props.mode === 'sendiri') {
-          operatorTerpilih.value = { uid: window.currentUser?.email, nama: window.currentUser?.nama || window.currentUser?.name || window.currentUser?.email };
-          lanjutPilih();
-        } else { langkah.value = 1; operatorTerpilih.value = null; }
-        log.value = [];
-      }
-      async function hasilScan(kodeMentah) {
-        const kode = (kodeMentah || '').trim();
-        if (langkah.value === 1) {
-          const op = await cariOperatorByKode(kode);
-          if (!op) { alert('QR operator tidak dikenali — pastikan scan QR pribadi karyawan.'); return; }
-          operatorTerpilih.value = op; lanjutPilih(); return;
-        }
+      const modeOperator = props.mode === 'operator';
+      const operatorSendiri = () => ({ uid: window.currentUser?.email, nama: window.currentUser?.nama || window.currentUser?.name || window.currentUser?.email });
+      // Satu kode pcs bisa punya lebih dari satu finishing_track (batch dikirim
+      // ulang); pakai yang memang sedang di tahap ini.
+      const cocokTahap = (x) => x.tahap_aktif === tahap || (tahap === 'qc' && x.status === 'perlu_diproses');
+      async function validasiPcs(kode) {
         try {
           const snap = await getDocs(query(collection(db, 'finishing_track'), where('kode_pcs', '==', kode)));
-          if (snap.empty) { alert(`Kode pcs "${kode}" tidak ditemukan di Finishing.`); return; }
-          // Satu kode pcs bisa punya lebih dari satu finishing_track (batch dikirim
-          // ulang); pakai yang memang sedang di tahap ini.
+          if (snap.empty) return { ok: false, pesan: `Kode pcs "${kode}" tidak ditemukan di Finishing.` };
           const semua = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-          const cocokTahap = (x) => x.tahap_aktif === tahap || (tahap === 'qc' && x.status === 'perlu_diproses');
           const t = semua.find(x => cocokTahap(x) && (tahap !== 'qc' || x.status !== 'perlu_diproses' || x.terima_pada)) || semua.find(cocokTahap) || semua[0];
-          if (!cocokTahap(t)) { alert(`Pcs "${kode}" tidak sedang di tahap ${LABEL_TAHAP[tahap]} (status: ${t.status || '-'}, tahap: ${LABEL_TAHAP[t.tahap_aktif] || t.tahap_aktif || '-'}).`); return; }
-          if (tahap === 'qc' && t.status === 'perlu_diproses' && !t.terima_pada) { alert('Pcs ini belum di-Scan Sampai — lakukan Scan Sampai dulu di Tab Perlu Di Proses.'); return; }
-          const now = new Date().toISOString();
-          const berikut = tahapBerikut.value;
-          const progressBaru = berikut === 'selesai' ? 4 : URUTAN_TAHAP.indexOf(berikut);
-          // riwayat_scan ditulis ADITIF. mode 'operator' (PIC scan
-          // QR operator lain lalu scan pcs, keputusan #6/#7) dipetakan ke aksi
-          // 'operator'; mode 'sendiri' (operator scan dirinya sendiri, keputusan
-          // #8) dipetakan ke aksi 'entry'.
-          const aksiScan = props.mode === 'operator' ? 'operator' : 'entry';
-          const patch = {
-            ['op_' + tahap]: operatorTerpilih.value, ['scan_' + tahap + '_pada']: now,
-            progress: progressBaru, tahap_aktif: berikut, masuk_tahap_pada: now,
-            riwayat_scan: arrayUnion({ aksi: aksiScan, oleh: operatorTerpilih.value.nama || operatorTerpilih.value.uid, pada: now, qty: 1, catatan: 'Tahap ' + LABEL_TAHAP[tahap] })
-          };
-          if (tahap === 'qc' && t.status === 'perlu_diproses') patch.status = 'sedang_finishing';
-          if (progressBaru >= 4) patch.status = 'perlu_dikirim';
-          await updateFinishingTrack(t.id, () => patch);
-          log.value.unshift(kode + ' -> ' + LABEL_TAHAP[tahap] + ' selesai (' + operatorTerpilih.value.nama + ')' + (progressBaru >= 4 ? ' — SEMUA TAHAP SELESAI' : ' -> lanjut ' + labelBerikut(berikut)));
-        } catch (e) { console.error('Gagal scan entry tahap ' + tahap + ':', e); alert('Gagal menyimpan. Coba lagi.'); }
+          if (!cocokTahap(t)) return { ok: false, pesan: `Pcs "${kode}" tidak sedang di tahap ${LABEL_TAHAP[tahap]} (status: ${t.status || '-'}, tahap: ${LABEL_TAHAP[t.tahap_aktif] || t.tahap_aktif || '-'}).` };
+          if (tahap === 'qc' && t.status === 'perlu_diproses' && !t.terima_pada) return { ok: false, pesan: 'Pcs ini belum di-Scan Sampai — lakukan Scan Sampai dulu di Tab Perlu Di Proses.' };
+          return { ok: true, row: { kode, label: (t.nama_produk || '-') + ' · size ' + (t.size || '-'), tagTxt: '-> ' + labelBerikut(tahapBerikut.value), tagCls: 'ok', _trackId: t.id } };
+        } catch (e) { console.error('Gagal cek pcs tahap ' + tahap + ':', e); return { ok: false, pesan: 'Gagal mencari kode pcs. Coba lagi.' }; }
       }
-      function tutup() { emit('tutup'); }
+      // Tulis per pcs. Tahap dicek ulang di transaksi (draft bisa basi); pcs
+      // yang sudah tertulis dibuang dari draft supaya Upload ulang tidak dobel.
+      async function uploadPcs(rows, op) {
+        const berikut = tahapBerikut.value;
+        const progressBaru = berikut === 'selesai' ? 4 : URUTAN_TAHAP.indexOf(berikut);
+        const aksiScan = modeOperator ? 'operator' : 'entry';
+        const gagal = [], sukses = [];
+        for (const r of rows) {
+          try {
+            await updateFinishingTrack(r._trackId, (data) => {
+              if (!cocokTahap(data)) throw new Error(`Pcs "${r.kode}" tidak sedang di tahap ${LABEL_TAHAP[tahap]} (status: ${data.status || '-'}, tahap: ${LABEL_TAHAP[data.tahap_aktif] || data.tahap_aktif || '-'}).`);
+              const now = new Date().toISOString();
+              const patch = {
+                ['op_' + tahap]: op, ['scan_' + tahap + '_pada']: now,
+                progress: progressBaru, tahap_aktif: berikut, masuk_tahap_pada: now,
+                riwayat_scan: arrayUnion({ aksi: aksiScan, oleh: op.nama || op.uid, pada: now, qty: 1, catatan: 'Tahap ' + LABEL_TAHAP[tahap] })
+              };
+              if (tahap === 'qc' && data.status === 'perlu_diproses') patch.status = 'sedang_finishing';
+              if (progressBaru >= 4) patch.status = 'perlu_dikirim';
+              return patch;
+            });
+            sukses.push(r.id);
+          } catch (e) { console.error('Gagal scan entry tahap ' + tahap + ':', e); gagal.push(e.message || r.kode); }
+        }
+        if (!gagal.length) return { ok: true };
+        ctrl.s.rows = ctrl.s.rows.filter(x => !sukses.includes(x.id));
+        return { ok: false, pesan: `${sukses.length} pcs tersimpan, ${gagal.length} gagal:\n` + gagal.join('\n') };
+      }
+      const ctrl = buatScanTerpadu({
+        judul: '', subjudul: '',
+        camMode: 'Mode: Scan Kode Pcs (berkali-kali)', placeholder: 'Scan QR kode pcs / ketik kode',
+        twoStep: modeOperator ? {
+          labelPertama: 'Operator', labelKedua: 'Kode Pcs',
+          placeholderPertama: 'Scan QR operator / ketik ID karyawan', placeholderKedua: 'Scan QR kode pcs / ketik kode (bisa berkali-kali)',
+          camModePertama: 'Mode: Scan QR Operator (sekali)', camModeKedua: 'Mode: Scan Kode Pcs (berkali-kali)',
+          kosongUtama: 'Scan QR Operator dulu', kosongSub: 'Pilih operator untuk tahap ' + LABEL_TAHAP[tahap] + '.',
+          tetapKunci: true,
+          validasi: async (kode) => {
+            const op = await cariOperatorByKode(kode);
+            if (!op) return { ok: false, pesan: 'QR operator tidak dikenali — pastikan scan QR pribadi karyawan.' };
+            return { ok: true, data: op, label: op.nama };
+          }
+        } : null,
+        validasiIsi: (kode) => validasiPcs(kode),
+        padaUpload: (rows, locked) => uploadPcs(rows, modeOperator ? locked : operatorSendiri())
+      });
+      function bukaScan() {
+        pilihAktif.value = false;
+        ctrl.cfg.judul = 'Scan Kode Pcs — ' + LABEL_TAHAP[tahap] + (modeOperator ? '' : ' (' + operatorSendiri().nama + ')');
+        ctrl.cfg.subjudul = 'Tiap scan = 1 pcs selesai ' + LABEL_TAHAP[tahap] + ', lanjut ke ' + labelBerikut(tahapBerikut.value);
+        ctrl.buka();
+      }
+      function mulai() {
+        tahapBerikut.value = opsiBerikut[0];
+        if (opsiBerikut.length > 1) pilihAktif.value = true; else bukaScan();
+      }
+      function tutup() { pilihAktif.value = false; ctrl.tutup(); emit('tutup'); }
       // Modal selalu ter-mount (dibuka lewat prop aktif): reset tiap dibuka,
       // supaya operator sesi sebelumnya tidak terbawa ke pembukaan berikut.
-      watch(() => props.aktif, (v) => { if (v) mulai(); }, { immediate: true });
-      return { langkah, operatorTerpilih, log, hasilScan, tutup, LABEL_TAHAP, tahap, opsiBerikut, tahapBerikut, labelBerikut };
+      watch(() => props.aktif, (v) => { if (v) mulai(); else { pilihAktif.value = false; ctrl.tutup(); } }, { immediate: true });
+      return { ctrl, pilihAktif, bukaScan, tutup, LABEL_TAHAP, tahap, opsiBerikut, tahapBerikut, labelBerikut, modeOperator, operatorSendiri };
     },
     template: `
-      <scan-generik :aktif="aktif && langkah===1" judul="Scan QR Operator" :subjudul="'Pilih operator untuk tahap ' + LABEL_TAHAP[tahap] + '.'" @hasil="hasilScan" @tutup="tutup" />
-      <div v-if="aktif && langkah==='pilih'" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:10002; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div v-if="aktif && pilihAktif" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:10002; display:flex; align-items:center; justify-content:center; padding:16px;">
         <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
           <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 4px;">Selesai {{ LABEL_TAHAP[tahap] }}, lanjut ke proses apa?</h3>
-          <div style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Berlaku untuk semua pcs yang discan sesudah ini. Operator: {{ operatorTerpilih && operatorTerpilih.nama }}</div>
+          <div style="font-size:11px; color:var(--text-faint); margin-bottom:12px;">Berlaku untuk semua pcs yang discan sesudah ini. {{ modeOperator ? 'Operator discan sesudah ini.' : ('Operator: ' + operatorSendiri().nama) }}</div>
           <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
             <button v-for="x in opsiBerikut" :key="x" @click="tahapBerikut = x" :class="tahapBerikut === x ? 'btn-primary' : 'btn-outline'" style="padding:9px; text-align:left;">{{ labelBerikut(x) }}</button>
           </div>
           <div style="display:flex; gap:8px;">
             <button @click="tutup" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
-            <button @click="langkah = 2" class="btn-primary" style="flex:1; padding:9px;">Lanjut Scan Pcs</button>
+            <button @click="bukaScan" class="btn-primary" style="flex:1; padding:9px;">Lanjut Scan Pcs</button>
           </div>
         </div>
       </div>
-      <scan-generik :aktif="aktif && langkah===2" :judul="'Scan Kode Pcs — ' + LABEL_TAHAP[tahap] + (operatorTerpilih ? (' (' + operatorTerpilih.nama + ')') : '')" :subjudul="'Tiap scan = 1 pcs selesai ' + LABEL_TAHAP[tahap] + ', lanjut ke ' + labelBerikut(tahapBerikut) + '.'" @hasil="hasilScan" @tutup="tutup" />
-      <div v-if="aktif && langkah===2 && log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:300px;">
-        <div v-for="(l,i) in log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
-      </div>
+      <scan-terpadu-generik :c="ctrl" @tutup="tutup" />
     `
   };
 }
@@ -308,7 +329,7 @@ const MODAL_PER_TAHAP = { qc: ModalTahapQc, steam: ModalTahapSteam, folding: Mod
 // TAB 4.1: Perlu Di Proses
 
 const FinishingPerluDiProses = {
-  components: { ScanGenerik, ScanTerpaduGenerik, ModalTahapQc },
+  components: { ScanTerpaduGenerik, ModalTahapQc },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -323,62 +344,72 @@ const FinishingPerluDiProses = {
       memuat.value = false;
     }
 
-    // Scan Sampai: step1 kode_tugas, step2 kode_bagging berkali-kali,
-    // dicocokkan ke `spk_separating` (mengikuti pola Sewing keputusan #2).
-    const modalSampai = reactive({ aktif: false, batch: null, tugasKirim: null, log: [] });
-    function bukaScanSampai() { modalSampai.batch = null; modalSampai.tugasKirim = null; modalSampai.log = []; modalSampai.aktif = true; }
-    function tutupScanSampai() { modalSampai.aktif = false; modalSampai.batch = null; modalSampai.tugasKirim = null; modalSampai.log = []; muat(); }
-    async function hasilScanSampai(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      if (!modalSampai.batch) {
-        try {
-          const snap = await getDocs(query(collection(db, 'spk_separating'), where('kode_tugas', '==', kode)));
-          if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
-          modalSampai.batch = { id: snap.docs[0].id, ...snap.docs[0].data() };
-          // cache tugas_kirim (kode sama dengan kode_tugas ini).
+    // Scan Sampai: kunci kode_tugas (spk_separating + tugas_kirim kode sama),
+    // isi kode_bagging dari Serie. Upload melepas pack[] tugas_kirim per bagging;
+    // begitu semua kode_bagging batch ter-upload di sesi ini, terima_pada
+    // ditulis ke semua pcs batch (pola Sewing keputusan #2).
+    const sampaiTerpadu = buatScanTerpadu({
+      judul: 'Scan Sampai — Finishing', subjudul: 'Tiap kode bagging = 1 pack dari Serie',
+      twoStep: {
+        labelPertama: 'Kode Tugas', labelKedua: 'Kode Bagging',
+        placeholderPertama: 'Scan QR Kode Tugas / cari kode (sekali di awal)',
+        placeholderKedua: 'Scan QR bagging yang tiba / cari kode (bisa berkali-kali)',
+        camModePertama: 'Mode: Scan Kode Tugas (sekali)', camModeKedua: 'Mode: Scan Kode Bagging (berkali-kali)',
+        kosongUtama: 'Scan Kode Tugas dulu', kosongSub: '1x scan untuk membuka penerimaan tugas ini.',
+        tetapKunci: true,
+        validasi: async (kode) => {
           try {
-            const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
-            modalSampai.tugasKirim = snapTugas.empty ? null : { id: snapTugas.docs[0].id, ...snapTugas.docs[0].data() };
-          } catch (e) { console.error('Gagal cari tugas_kirim utk pelepasan sampai:', e); modalSampai.tugasKirim = null; }
-        } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
-        return;
-      }
-      const b = modalSampai.batch;
-      if (!(b.kode_bagging || []).includes(kode)) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
-      if (modalSampai.log.includes(kode)) { alert(`Kode bagging "${kode}" sudah discan sebelumnya di sesi ini.`); return; }
-      modalSampai.log.unshift(kode);
-      // lepas kaitan root1/root2/bagging di tugas_kirim.pack[] begitu
-      // kode_bagging ini dinyatakan sampai.
-      const tk = modalSampai.tugasKirim;
-      if (tk) {
-        const packArr = Array.isArray(tk.pack) ? tk.pack : [];
-        const idxPack = packArr.findIndex(p => p.kode_bagging === kode && !p.sampai_pada);
-        if (idxPack >= 0) {
-          try {
-            const nowLepas = new Date().toISOString();
-            const packBaru = packArr.slice();
-            packBaru[idxPack] = { ...packBaru[idxPack], sampai_pada: nowLepas };
-            await updateDoc(doc(db, 'tugas_kirim', tk.id), { pack: packBaru });
-            tk.pack = packBaru;
-          } catch (e) { console.error('Gagal lepas pack tugas_kirim (Finishing):', e); }
+            const snap = await getDocs(query(collection(db, 'spk_separating'), where('kode_tugas', '==', kode)));
+            if (snap.empty) return { ok: false, pesan: `Kode tugas "${kode}" tidak ditemukan.` };
+            const batch = { id: snap.docs[0].id, ...snap.docs[0].data() };
+            let tugasKirim = null;
+            try {
+              const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
+              tugasKirim = snapTugas.empty ? null : { id: snapTugas.docs[0].id, ...snapTugas.docs[0].data() };
+            } catch (e) { console.error('Gagal cari tugas_kirim utk pelepasan sampai:', e); }
+            return { ok: true, data: { batch, tugasKirim, sampaiSesi: [] }, label: kode + ' · ' + (batch.kode_separating || '') };
+          } catch (e) { console.error('Gagal cari kode tugas:', e); return { ok: false, pesan: 'Gagal mencari kode tugas. Coba lagi.' }; }
         }
-      }
-      const sudahSemua = (b.kode_bagging || []).every(kb => modalSampai.log.includes(kb));
-      if (sudahSemua) {
+      },
+      validasiIsi: async (kode, locked) => {
+        if (!(locked.batch.kode_bagging || []).includes(kode)) return { ok: false, pesan: `Kode bagging "${kode}" tidak cocok dengan tugas ini.` };
+        if (locked.sampaiSesi.includes(kode)) return { ok: false, pesan: `Kode bagging "${kode}" sudah discan sebelumnya di sesi ini.` };
+        return { ok: true, row: { kode, label: 'Pack dari Serie — batch ' + (locked.batch.kode_separating || '-'), tagTxt: 'cocok', tagCls: 'ok' } };
+      },
+      padaUpload: async (rows, locked) => {
+        const b = locked.batch, tk = locked.tugasKirim;
         try {
+          for (const r of rows) {
+            if (tk) {
+              const packArr = Array.isArray(tk.pack) ? tk.pack : [];
+              const idxPack = packArr.findIndex(p => p.kode_bagging === r.kode && !p.sampai_pada);
+              if (idxPack >= 0) {
+                try {
+                  const packBaru = packArr.slice();
+                  packBaru[idxPack] = { ...packBaru[idxPack], sampai_pada: new Date().toISOString() };
+                  await updateDoc(doc(db, 'tugas_kirim', tk.id), { pack: packBaru });
+                  tk.pack = packBaru;
+                } catch (e) { console.error('Gagal lepas pack tugas_kirim (Finishing):', e); }
+              }
+            }
+            if (!locked.sampaiSesi.includes(r.kode)) locked.sampaiSesi.push(r.kode);
+          }
+          const sudahSemua = (b.kode_bagging || []).every(kb => locked.sampaiSesi.includes(kb));
+          if (!sudahSemua) { await muat(); return { ok: true }; }
           const pcsBatch = daftar.value.filter(x => x.separating_id === b.id);
-          if (!pcsBatch.length) { alert('Bagging cocok, tapi belum ada finishing_track untuk batch ini — coba tutup lalu buka lagi tab ini.'); return; }
+          if (!pcsBatch.length) return { ok: false, pesan: 'Bagging cocok, tapi belum ada finishing_track untuk batch ini — coba tutup lalu buka lagi tab ini.' };
           const now = new Date().toISOString();
           const olehSampai = window.currentUser?.email || null;
           // riwayat_scan ditulis ADITIF.
           await Promise.all(pcsBatch.map(t => updateFinishingTrack(t.id, () => ({ terima_pada: now, riwayat_scan: arrayUnion({ aksi: 'sampai', oleh: olehSampai, pada: now, qty: 1 }) }))));
-          modalSampai.log.unshift('SEMUA bagging sampai — batch ' + (b.kode_separating || '') + ' (' + pcsBatch.length + ' pcs) siap ditunjuk operator QC');
           await muat();
-        } catch (e) { console.error('Gagal simpan scan sampai Finishing:', e); alert('Gagal menyimpan. Coba lagi.'); }
+          alert('SEMUA bagging sampai — batch ' + (b.kode_separating || '') + ' (' + pcsBatch.length + ' pcs) siap ditunjuk operator QC');
+          return { ok: true, lepasKunci: true };
+        } catch (e) { console.error('Gagal simpan scan sampai Finishing:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
       }
-    }
+    });
+    function bukaScanSampai() { sampaiTerpadu.buka(); }
 
-    // Scan Unpack: scan ULANG tiap isi bagging (bagging.isi[]), lihat
     // Scan Unpack — konversi ke buatScanTerpadu (Draft/Upload), gantikan
     // buatUnpackUniversal lama. Sama persis pola vue-pp-cutting.js: kunci Kode
     // Bagging dulu, scan ulang isi berkali-kali, Upload cuma menutup KOMPLIT
@@ -483,7 +514,7 @@ const FinishingPerluDiProses = {
 
     return { muat,
       memuat, kelompokBatch, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan,
-      modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
+      sampaiTerpadu, bukaScanSampai,
       unpackTerpadu,
       modalOperatorQcAktif, bukaOperatorQc, tutupOperatorQc,
       popupMasalah, batalMasalah, konfirmasiMasalah,
@@ -520,10 +551,7 @@ const FinishingPerluDiProses = {
       </div>
     </template>
 
-    <scan-generik :aktif="modalSampai.aktif" :judul="modalSampai.batch ? ('Scan kode bagging — tugas ' + modalSampai.batch.kode_tugas) : 'Scan Kode Tugas'" subjudul="Bisa discan berkali-kali (tiap kode bagging = 1 pack dari Serie)." @hasil="hasilScanSampai" @tutup="tutupScanSampai" />
-    <div v-if="modalSampai.aktif && modalSampai.batch && modalSampai.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:280px;">
-      <div v-for="(l,i) in modalSampai.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
-    </div>
+    <scan-terpadu-generik :c="sampaiTerpadu" @tutup="muat" />
 
     <scan-terpadu-generik :c="unpackTerpadu" />
 
@@ -668,7 +696,7 @@ const FinishingSedangPacking = buatSubTabFinishing('packing');
 // TAB 4.3: Perlu Dikirim — Cetak Bagging + Kode Tugas -> Serie (keputusan #9).
 
 const FinishingPerluDikirim = {
-  components: { PopupPratinjauCetakLabel, ScanGenerik },
+  components: { PopupPratinjauCetakLabel, ScanTerpaduGenerik },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -725,70 +753,106 @@ const FinishingPerluDikirim = {
       sedangProses.value = false;
     }
 
-    // Scan Pack: step1 kode bagging, step2 kode pcs berkali-kali
-    const modalPack = reactive({ aktif: false, kodeBagging: null, log: [] });
-    function bukaScanPack() { modalPack.kodeBagging = null; modalPack.log = []; modalPack.aktif = true; }
-    function tutupScanPack() { modalPack.aktif = false; modalPack.kodeBagging = null; modalPack.log = []; muat(); }
-    async function hasilScanPack(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      if (!modalPack.kodeBagging) {
+    // Scan Pack: kunci kode bagging yang belum ditutup, isi kode pcs yang
+    // kode_bagging-nya sama. Upload menulis bagging.isi + riwayat_scan pcs.
+    const packTerpadu = buatScanTerpadu({
+      judul: 'Scan Pack — Finishing', subjudul: 'Kaitkan kode pcs ke satu kode bagging',
+      twoStep: {
+        labelPertama: 'Kode Bagging', labelKedua: 'Kode Pcs',
+        placeholderPertama: 'Scan QR Bagging / cari kode (sekali di awal)',
+        placeholderKedua: 'Scan QR kode pcs / cari kode (bisa berkali-kali)',
+        camModePertama: 'Mode: Scan Kode Bagging (sekali)', camModeKedua: 'Mode: Scan Kode Pcs (berkali-kali)',
+        kosongUtama: 'Scan Kode Bagging dulu', kosongSub: '1x scan untuk membuka sesi pack ini.',
+        tetapKunci: true,
+        validasi: async (kode) => {
+          try {
+            const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', kode), where('ditutup_pada', '==', null)));
+            if (snap.empty) return { ok: false, pesan: `Kode bagging "${kode}" tidak ditemukan atau sudah ditutup.` };
+            return { ok: true, data: { id: snap.docs[0].id, ...snap.docs[0].data() } };
+          } catch (e) { console.error('Gagal cari kode bagging:', e); return { ok: false, pesan: 'Gagal mencari kode bagging. Coba lagi.' }; }
+        }
+      },
+      aksiEkstra: [{ label: 'Tutup Bagging Ini', aksi: async (bagging) => {
+        if (!bagging) return;
+        if (packTerpadu.s.rows.length) { alert('Upload dulu kode pcs di draft sebelum menutup bagging.'); return; }
+        try { await updateDoc(doc(db, 'bagging', bagging.id), { ditutup_pada: serverTimestamp() }); packTerpadu.resetLock(); }
+        catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
+      } }],
+      validasiIsi: async (kode, bagging) => {
         try {
-          const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', kode), where('ditutup_pada', '==', null)));
-          if (snap.empty) { alert(`Kode bagging "${kode}" tidak ditemukan atau sudah ditutup.`); return; }
-          modalPack.kodeBagging = kode;
-        } catch (e) { console.error('Gagal cari kode bagging:', e); alert('Gagal mencari kode bagging. Coba lagi.'); }
-        return;
+          const snap = await getDocs(query(collection(db, 'finishing_track'), where('kode_bagging', '==', bagging.kode), where('kode_pcs', '==', kode)));
+          if (snap.empty) return { ok: false, pesan: `Kode pcs "${kode}" tidak terkait bagging ini.` };
+          const t = snap.docs[0].data();
+          return { ok: true, row: { kode, label: (t.nama_produk || '-') + ' · size ' + (t.size || '-'), tagTxt: '-> ' + bagging.kode, tagCls: 'ok', _trackId: snap.docs[0].id } };
+        } catch (e) { console.error('Gagal cek pcs (pack):', e); return { ok: false, pesan: 'Gagal mencari. Coba lagi.' }; }
+      },
+      padaUpload: async (rows, bagging) => {
+        try {
+          await updateDoc(doc(db, 'bagging', bagging.id), { isi: arrayUnion(...rows.map(r => r.kode)) });
+          // riwayat_scan ditulis ADITIF.
+          for (const r of rows) {
+            await updateFinishingTrack(r._trackId, () => ({
+              riwayat_scan: arrayUnion({ aksi: 'pack', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), qty: 1 })
+            }));
+          }
+          return { ok: true };
+        } catch (e) { console.error('Gagal scan pack Finishing:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
       }
-      try {
-        const snap = await getDocs(query(collection(db, 'finishing_track'), where('kode_bagging', '==', modalPack.kodeBagging), where('kode_pcs', '==', kode)));
-        if (snap.empty) { alert(`Kode pcs "${kode}" tidak terkait bagging ini.`); return; }
-        await updateDoc(doc(db, 'bagging', (await getDocs(query(collection(db, 'bagging'), where('kode', '==', modalPack.kodeBagging)))).docs[0].id), { isi: arrayUnion(kode) });
-        // riwayat_scan ditulis ADITIF.
-        await updateFinishingTrack(snap.docs[0].id, () => ({
-          riwayat_scan: arrayUnion({ aksi: 'pack', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), qty: 1 })
-        }));
-        modalPack.log.unshift(kode + ' -> ' + modalPack.kodeBagging);
-      } catch (e) { console.error('Gagal scan pack Finishing:', e); alert('Gagal menyimpan. Coba lagi.'); }
-    }
-    async function tutupBaggingPack() {
-      if (!modalPack.kodeBagging) return;
-      try {
-        const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', modalPack.kodeBagging)));
-        if (!snap.empty) await updateDoc(doc(db, 'bagging', snap.docs[0].id), { ditutup_pada: serverTimestamp() });
-      } catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
-      modalPack.kodeBagging = null;
-    }
+    });
+    function bukaScanPack() { packTerpadu.buka(); }
 
-    // Scan Kirim: step1 kode tugas, step2 kode bagging
-    const modalKirim = reactive({ aktif: false, tugas: null, log: [] });
-    function bukaScanKirim() { modalKirim.tugas = null; modalKirim.log = []; modalKirim.aktif = true; }
-    function tutupScanKirim() { modalKirim.aktif = false; modalKirim.tugas = null; modalKirim.log = []; muat(); }
-    async function hasilScanKirim(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      if (!modalKirim.tugas) {
+    // Scan Kirim: kunci kode tugas, isi kode bagging (1 batch = 1 bagging, harus
+    // cocok kode_tugas+kode_bagging pcs batch). Upload menulis tugas_kirim.pack
+    // lalu semua pcs batch pindah ke sedang_dikirim.
+    const kirimTerpadu = buatScanTerpadu({
+      judul: 'Scan Kirim — Finishing', subjudul: 'Satu batch = satu kode bagging',
+      twoStep: {
+        labelPertama: 'Kode Tugas', labelKedua: 'Kode Bagging',
+        placeholderPertama: 'Scan QR Kode Tugas / cari kode (sekali di awal)',
+        placeholderKedua: 'Scan QR bagging / cari kode (bisa berkali-kali)',
+        camModePertama: 'Mode: Scan Kode Tugas (sekali)', camModeKedua: 'Mode: Scan Kode Bagging (berkali-kali)',
+        kosongUtama: 'Scan Kode Tugas dulu', kosongSub: '1x scan untuk membuka tugas kirim ini.',
+        tetapKunci: true,
+        validasi: async (kode) => {
+          try {
+            const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
+            if (snap.empty) return { ok: false, pesan: `Kode tugas "${kode}" tidak ditemukan.` };
+            return { ok: true, data: { id: snap.docs[0].id, ...snap.docs[0].data() } };
+          } catch (e) { console.error('Gagal cari kode tugas:', e); return { ok: false, pesan: 'Gagal mencari kode tugas. Coba lagi.' }; }
+        }
+      },
+      validasiIsi: async (kode, tugas) => {
+        const g = kelompokBatch.value.find(x => x.pcs[0] && x.pcs[0].kode_tugas === tugas.kode && x.pcs[0].kode_bagging === kode);
+        if (!g) return { ok: false, pesan: `Kode bagging "${kode}" tidak cocok dengan tugas ini.` };
+        return { ok: true, row: { kode, label: g.kodeBatch + ' · ' + g.namaProduk, qty: g.pcs.length + ' pcs', tagTxt: 'cocok', tagCls: 'ok', _pcsIds: g.pcs.map(t => t.id), _kodeSpk: g.kodeSpk || [], _kodeBatch: g.kodeBatch || null } };
+      },
+      padaUpload: async (rows, tugas) => {
+        const sukses = [];
         try {
-          const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
-          if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
-          modalKirim.tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
-        } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
-        return;
+          const olehKirim = window.currentUser?.email || null;
+          for (const r of rows) {
+            // kode_grouping_induk/kode_separating ikut disalin ke pack[], dilepas
+            // oleh Scan Sampai (sampai_pada).
+            await updateDoc(doc(db, 'tugas_kirim', tugas.id), {
+              pack: arrayUnion({ kode_bagging: r.kode, kode_grouping_induk: r._kodeSpk, kode_separating: r._kodeBatch, pada: new Date().toISOString(), sampai_pada: null })
+            });
+            const now = new Date().toISOString();
+            // riwayat_scan ditulis ADITIF.
+            await Promise.all(r._pcsIds.map(id => updateFinishingTrack(id, () => ({ status: 'sedang_dikirim', masuk_tahap_pada: now, riwayat_scan: arrayUnion({ aksi: 'kirim', oleh: olehKirim, pada: now, qty: 1 }) }))));
+            sukses.push(r.id);
+          }
+          await muat();
+          return { ok: true };
+        } catch (e) {
+          // Bagging yang sudah masuk pack[] dibuang dari draft supaya Upload ulang tidak dobel.
+          console.error('Gagal scan kirim Finishing:', e);
+          kirimTerpadu.s.rows = kirimTerpadu.s.rows.filter(x => !sukses.includes(x.id));
+          await muat();
+          return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' };
+        }
       }
-      const g = kelompokBatch.value.find(x => x.pcs[0] && x.pcs[0].kode_tugas === modalKirim.tugas.kode && x.pcs[0].kode_bagging === kode);
-      if (!g) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
-      try {
-        // kode_grouping_induk/kode_separating ikut disalin ke pack[], dilepas oleh Scan
-        // Sampai (sampai_pada).
-        await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), {
-          pack: arrayUnion({ kode_bagging: kode, kode_grouping_induk: g.kodeSpk || [], kode_separating: g.kodeBatch || null, pada: new Date().toISOString(), sampai_pada: null })
-        });
-        const now = new Date().toISOString();
-        const olehKirim = window.currentUser?.email || null;
-        // riwayat_scan ditulis ADITIF.
-        await Promise.all(g.pcs.map(t => updateFinishingTrack(t.id, () => ({ status: 'sedang_dikirim', masuk_tahap_pada: now, riwayat_scan: arrayUnion({ aksi: 'kirim', oleh: olehKirim, pada: now, qty: 1 }) }))));
-        modalKirim.log.unshift(kode + ' -> ' + modalKirim.tugas.kode + ' (' + g.pcs.length + ' pcs pindah ke Sedang Kirim)');
-        await muat();
-      } catch (e) { console.error('Gagal scan kirim Finishing:', e); alert('Gagal menyimpan. Coba lagi.'); }
-    }
+    });
+    function bukaScanKirim() { kirimTerpadu.buka(); }
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
       await kirimMasalahFinishing(p.target, p.jumlah, p.alasan, p.jenis);
@@ -800,8 +864,7 @@ const FinishingPerluDikirim = {
     return { muat,
       memuat, kelompokBatch, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan,
       popupCetakAktif, daftarLabelPreview, cetakBaggingTugas,
-      modalPack, bukaScanPack, tutupScanPack, hasilScanPack, tutupBaggingPack,
-      modalKirim, bukaScanKirim, tutupScanKirim, hasilScanKirim,
+      packTerpadu, bukaScanPack, kirimTerpadu, bukaScanKirim,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
       aksiAktif
     };
@@ -842,16 +905,8 @@ const FinishingPerluDikirim = {
     -->
     <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Bagging + Kode Tugas" :daftar-label="daftarLabelPreview" jenis-cetak="kode_bagging" @tutup="popupCetakAktif = false" />
 
-    <scan-generik :aktif="modalPack.aktif" :judul="modalPack.kodeBagging ? ('Scan kode pcs — bagging ' + modalPack.kodeBagging) : 'Scan Kode Bagging'" subjudul="Bisa discan berkali-kali. Tutup lewat tombol di bawah kalau sudah selesai." @hasil="hasilScanPack" @tutup="tutupScanPack" />
-    <div v-if="modalPack.aktif && modalPack.kodeBagging" style="position:fixed; left:16px; top:16px; z-index:10001; display:flex; flex-direction:column; gap:8px; max-width:260px;">
-      <button @click="tutupBaggingPack" class="btn-primary" style="padding:8px 14px; font-size:11px;">Tutup Bagging Ini</button>
-      <div style="background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px;"><div v-for="(l,i) in modalPack.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div></div>
-    </div>
-
-    <scan-generik :aktif="modalKirim.aktif" :judul="modalKirim.tugas ? ('Scan kode bagging — tugas ' + modalKirim.tugas.kode) : 'Scan Kode Tugas'" subjudul="Satu batch = satu kode bagging." @hasil="hasilScanKirim" @tutup="tutupScanKirim" />
-    <div v-if="modalKirim.aktif && modalKirim.tugas && modalKirim.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:280px;">
-      <div v-for="(l,i) in modalKirim.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
-    </div>
+    <scan-terpadu-generik :c="packTerpadu" @tutup="muat" />
+    <scan-terpadu-generik :c="kirimTerpadu" @tutup="muat" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">

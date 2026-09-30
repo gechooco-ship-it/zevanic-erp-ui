@@ -21,11 +21,11 @@
 // - Kode separating dikenali lewat cocokSeparating: kode persis, label turunan
 //   berawalan kode itu (kit -SEW/-WEB, ID komponen), atau bagging kirimannya.
 
-import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
+import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanGenerik, ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=16';
+import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=16';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // Format & hitung kecil (disalin pola dari Cutting/Serie, belum ada
@@ -240,7 +240,7 @@ async function cetakLabelPcsTrack(t) {
 // TAB 3.1: Perlu Di Proses
 
 const SewingPerluDiProses = {
-  components: { ScanGenerik, ScanTerpaduGenerik },
+  components: { ScanTerpaduGenerik },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -277,67 +277,72 @@ const SewingPerluDiProses = {
       memuat.value = false;
     }
 
-    // Scan Sampai: step1 kode_tugas, step2 kode_bagging berkali-kali —
-    // KEDUANYA dicocokkan ke `spk_separating` (BUKAN sewing_track sendiri,
-    // lihat keputusan #2). Begitu KOMPLIT, tulis `terima_pada` di sewing_track
-    // yang separating_id-nya cocok.
-    const modalSampai = reactive({ aktif: false, batch: null, tugasKirim: null, log: [] });
-    function bukaScanSampai() { modalSampai.batch = null; modalSampai.tugasKirim = null; modalSampai.log = []; modalSampai.aktif = true; }
-    function tutupScanSampai() { modalSampai.aktif = false; modalSampai.batch = null; modalSampai.tugasKirim = null; modalSampai.log = []; muat(); }
-    async function hasilScanSampai(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      if (!modalSampai.batch) {
-        try {
-          const snap = await getDocs(query(collection(db, 'spk_separating'), where('kode_tugas', '==', kode)));
-          if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
-          modalSampai.batch = { id: snap.docs[0].id, ...snap.docs[0].data() };
-          // cache tugas_kirim (kode-nya SAMA dengan kode_tugas yang sudah
-          // dicocokkan di atas) supaya tiap kode_bagging yang lolos di step2
-          // bisa langsung melepas pack[].sampai_pada-nya, persis pola
-          // pp-cutting.js.
+    // Scan Sampai: kunci kode_tugas, lalu kode_bagging berkali-kali — KEDUANYA
+    // dicocokkan ke spk_separating (BUKAN sewing_track sendiri). Upload melepas
+    // tugas_kirim.pack[].sampai_pada tiap bagging; kalau draft memuat SEMUA
+    // bagging batch, tulis terima_pada di sewing_track yang separating_id-nya cocok.
+    const sampaiTerpadu = buatScanTerpadu({
+      judul: 'Scan Sampai — Sewing', subjudul: 'Terima kiriman dari Serie (tiap kode bagging = 1 pack)',
+      twoStep: {
+        labelPertama: 'Kode Tugas', labelKedua: 'Kode Bagging',
+        placeholderPertama: 'Scan QR Kode Tugas / cari kode (sekali di awal)',
+        placeholderKedua: 'Scan QR bagging yang tiba / cari kode (bisa berkali-kali)',
+        camModePertama: 'Mode: Scan Kode Tugas (sekali)', camModeKedua: 'Mode: Scan Kode Bagging (berkali-kali)',
+        kosongUtama: 'Scan Kode Tugas dulu', kosongSub: '1x scan untuk membuka penerimaan tugas kirim ini.',
+        validasi: async (kode) => {
           try {
-            const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
-            modalSampai.tugasKirim = snapTugas.empty ? null : { id: snapTugas.docs[0].id, ...snapTugas.docs[0].data() };
-          } catch (e) { console.error('Gagal cari tugas_kirim utk pelepasan sampai:', e); modalSampai.tugasKirim = null; }
-        } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
-        return;
-      }
-      const b = modalSampai.batch;
-      if (!(b.kode_bagging || []).includes(kode)) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
-      if (modalSampai.log.includes(kode)) { alert(`Kode bagging "${kode}" sudah discan sebelumnya di sesi ini.`); return; }
-      modalSampai.log.unshift(kode);
-      // lepas kaitan root1/root2/bagging di tugas_kirim.pack[] begitu
-      // kode_bagging ini dinyatakan sampai.
-      const tk = modalSampai.tugasKirim;
-      if (tk) {
-        const packArr = Array.isArray(tk.pack) ? tk.pack : [];
-        const idxPack = packArr.findIndex(p => p.kode_bagging === kode && !p.sampai_pada);
-        if (idxPack >= 0) {
-          try {
-            const nowLepas = new Date().toISOString();
-            const packBaru = packArr.slice();
-            packBaru[idxPack] = { ...packBaru[idxPack], sampai_pada: nowLepas };
-            await updateDoc(doc(db, 'tugas_kirim', tk.id), { pack: packBaru });
-            tk.pack = packBaru;
-          } catch (e) { console.error('Gagal lepas pack tugas_kirim (Sewing):', e); }
+            const snap = await getDocs(query(collection(db, 'spk_separating'), where('kode_tugas', '==', kode)));
+            if (snap.empty) return { ok: false, pesan: `Kode tugas "${kode}" tidak ditemukan.` };
+            const batch = { id: snap.docs[0].id, ...snap.docs[0].data() };
+            let tugasKirim = null;
+            try {
+              const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
+              tugasKirim = snapTugas.empty ? null : { id: snapTugas.docs[0].id };
+            } catch (e) { console.error('Gagal cari tugas_kirim utk pelepasan sampai:', e); }
+            return { ok: true, data: { batch, tugasKirim }, label: `${kode} · ${batch.kode_separating || '-'} · ${(batch.kode_bagging || []).length} bagging` };
+          } catch (e) { console.error('Gagal cari kode tugas:', e); return { ok: false, pesan: 'Gagal mencari kode tugas. Coba lagi.' }; }
         }
-      }
-      const sudahSemua = (b.kode_bagging || []).every(kb => modalSampai.log.includes(kb));
-      if (sudahSemua) {
+      },
+      validasiIsi: async (kode, locked, rows) => {
+        const semua = locked.batch.kode_bagging || [];
+        if (!semua.includes(kode)) return { ok: false, pesan: `Kode bagging "${kode}" tidak cocok dengan tugas ini.` };
+        return { ok: true, row: { kode, label: 'Bagging ' + (locked.batch.kode_separating || ''), tagTxt: `${rows.length + 1}/${semua.length}`, tagCls: 'ok' } };
+      },
+      padaUpload: async (rows, locked) => {
+        const b = locked.batch;
         try {
-          const t = daftar.value.find(x => x.separating_id === b.id);
-          if (!t) { alert('Bagging cocok, tapi sewing_track untuk batch ini belum ada — coba tutup lalu buka lagi tab ini.'); return; }
           const now = new Date().toISOString();
+          // pack[] dibaca ulang per baris supaya tidak menimpa update baris lain.
+          if (locked.tugasKirim) {
+            for (const row of rows) {
+              try {
+                const tugasSnap = await getDoc(doc(db, 'tugas_kirim', locked.tugasKirim.id));
+                const packArr = Array.isArray(tugasSnap.data()?.pack) ? tugasSnap.data().pack : [];
+                const idxPack = packArr.findIndex(p => p.kode_bagging === row.kode && !p.sampai_pada);
+                if (idxPack < 0) continue;
+                const packBaru = packArr.slice();
+                packBaru[idxPack] = { ...packBaru[idxPack], sampai_pada: now };
+                await updateDoc(doc(db, 'tugas_kirim', locked.tugasKirim.id), { pack: packBaru });
+              } catch (e) { console.error('Gagal lepas pack tugas_kirim (Sewing):', e); }
+            }
+          }
+          const kodeDraft = rows.map(r => r.kode);
+          const sisa = (b.kode_bagging || []).filter(kb => !kodeDraft.includes(kb));
+          if (sisa.length) { alert(`Tersimpan. Masih ${sisa.length} bagging belum discan: ${sisa.join(', ')}`); return { ok: true }; }
+          const t = daftar.value.find(x => x.separating_id === b.id);
+          if (!t) { alert('Bagging cocok, tapi sewing_track untuk batch ini belum ada — coba tutup lalu buka lagi tab ini.'); return { ok: true }; }
           // riwayat_scan ditulis ADITIF.
           await updateSewingTrack(t.id, () => ({
             terima_pada: now,
             riwayat_scan: arrayUnion({ aksi: 'sampai', oleh: window.currentUser?.email || null, pada: now, qty: t.qty ?? null, catatan: 'Diterima dari Serie — kode tugas ' + (b.kode_tugas || '') })
           }));
-          modalSampai.log.unshift('SEMUA bagging sampai — batch ' + (b.kode_separating || '') + ' siap ditunjuk operator');
+          alert('SEMUA bagging sampai — batch ' + (b.kode_separating || '') + ' siap ditunjuk operator');
           await muat();
-        } catch (e) { console.error('Gagal simpan scan sampai Sewing:', e); alert('Gagal menyimpan. Coba lagi.'); }
+          return { ok: true };
+        } catch (e) { console.error('Gagal simpan scan sampai Sewing:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
       }
-    }
+    });
+    function bukaScanSampai() { sampaiTerpadu.buka(); }
 
     // Scan Unpack — konversi ke buatScanTerpadu (Draft/Upload), gantikan
     // buatUnpackUniversal lama. Sama persis pola vue-pp-cutting.js: kunci Kode
@@ -479,7 +484,7 @@ const SewingPerluDiProses = {
 
     return { muat,
       memuat, daftar, unpackEnrich, bolehProses, bolehOperator, formatQty, formatDiamSejak, tertahan, aksiAktif,
-      modalSampai, bukaScanSampai, tutupScanSampai, hasilScanSampai,
+      sampaiTerpadu, bukaScanSampai,
       unpackTerpadu,
       operatorTerpadu,
       popupMasalah, batalMasalah, konfirmasiMasalah,
@@ -518,10 +523,7 @@ const SewingPerluDiProses = {
       </div>
     </template>
 
-    <scan-generik :aktif="modalSampai.aktif" :judul="modalSampai.batch ? ('Scan kode bagging — tugas ' + modalSampai.batch.kode_tugas) : 'Scan Kode Tugas'" subjudul="Bisa discan berkali-kali (tiap kode bagging = 1 pack dari Serie)." @hasil="hasilScanSampai" @tutup="tutupScanSampai" />
-    <div v-if="modalSampai.aktif && modalSampai.batch && modalSampai.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:280px;">
-      <div v-for="(l,i) in modalSampai.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
-    </div>
+    <scan-terpadu-generik :c="sampaiTerpadu" @tutup="muat" />
 
     <scan-terpadu-generik :c="unpackTerpadu" />
 
@@ -559,7 +561,7 @@ const SewingPerluDiProses = {
 // TAB 3.2: Sedang Sewing — dikelompokkan per operator + KPI (keputusan #5).
 
 const SewingSedangSewing = {
-  components: { ScanGenerik, PopupPratinjauCetakLabel },
+  components: { ScanTerpaduGenerik, PopupPratinjauCetakLabel },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -609,45 +611,58 @@ const SewingSedangSewing = {
       return Object.values(peta);
     });
 
-    // Scan Entry — pola sama Cutting > Sedang Pola: pilih batch dulu, lalu scan
-    // tiap label pcs yang selesai dijahit. Semua label batch ter-scan = batch
-    // pindah ke Perlu Dikirim.
+    // Scan Entry — batch dipilih dulu (popup pilihEntry), lalu label pcs yang
+    // selesai dijahit dikumpulkan di draft. Upload menulis sewing_selesai_pada
+    // per label; semua label batch selesai = batch pindah ke Perlu Dikirim.
     const pilihEntry = ref(null); // { targetId }
     function bukaScanEntry() {
       if (!daftar.value.length) { alert('Tidak ada batch yang sedang dijahit.'); return; }
       pilihEntry.value = { targetId: daftar.value[0].id };
     }
-    const modalEntry = reactive({ aktif: false, track: null, log: [] });
+    const ctxEntry = { track: null };
+    const entryTerpadu = buatScanTerpadu({
+      judul: 'Scan Entry', subjudul: 'Scan tiap label pcs yang selesai dijahit, lalu Upload',
+      camMode: 'Mode: Scan Label Pcs (berkali-kali)', placeholder: 'Scan QR label pcs / ketik kode',
+      validasiIsi: async (kode, _, rows) => {
+        const t = ctxEntry.track;
+        const l = labelPcs.value.find(x => x.kode_pcs === kode);
+        if (!l) return { ok: false, pesan: `Label pcs "${kode}" tidak ditemukan di Sedang Sewing.` };
+        if (l.sewing_track_id !== t.id) return { ok: false, pesan: `Label "${kode}" bukan milik batch ${t.kode_separating}.` };
+        if (l.sewing_selesai_pada) return { ok: false, pesan: `Label "${kode}" sudah pernah di-scan entry.` };
+        const p = progres(t);
+        return { ok: true, row: { kode, label: (l.nama_produk || t.nama_produk || '-') + ' ' + (l.size || t.size || ''), tagTxt: `${p.done + rows.length + 1}/${p.total}`, tagCls: 'ok', _id: l.id, _pada: new Date().toISOString() } };
+      },
+      padaUpload: async (rows) => {
+        const t = ctxEntry.track;
+        try {
+          for (const r of rows) {
+            await updateDoc(doc(db, 'label_pcs', r._id), { sewing_selesai_pada: r._pada, sewing_entry_oleh: window.currentUser?.email || null });
+            labelPcs.value = labelPcs.value.map(x => x.id === r._id ? { ...x, sewing_selesai_pada: r._pada } : x);
+          }
+          const p = progres(t);
+          if (p.total > 0 && p.done >= p.total) {
+            const now = new Date().toISOString();
+            // riwayat_scan ditulis ADITIF, sekali saat batch lengkap.
+            await updateSewingTrack(t.id, (data) => ({
+              status: 'perlu_dikirim', entry_pada: now, masuk_tahap_pada: now,
+              riwayat_scan: arrayUnion({ aksi: 'entry', oleh: window.currentUser?.email || null, operator_uid: data.operator_uid || null, operator_nama: data.operator_nama || null, pada: now, qty: p.done })
+            }));
+            alert(`SEMUA label ${t.kode_separating} selesai — pindah ke Perlu Dikirim`);
+            entryTerpadu.tutup();
+            await muat();
+          }
+          return { ok: true };
+        } catch (e) { console.error('Gagal scan entry Sewing:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
+      }
+    });
     function konfirmasiPilihEntry() {
       const t = daftar.value.find(x => x.id === pilihEntry.value.targetId);
       pilihEntry.value = null;
       if (!t) return;
       if (!t.label_pcs_dicetak_pada) { alert(`Label pcs ${t.kode_separating} belum dicetak. Cetak Label Pcs dulu.`); return; }
-      modalEntry.track = t; modalEntry.log = []; modalEntry.aktif = true;
-    }
-    function tutupScanEntry() { modalEntry.aktif = false; modalEntry.track = null; modalEntry.log = []; muat(); }
-    async function hasilScanEntry(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      const t = modalEntry.track;
-      const l = labelPcs.value.find(x => x.kode_pcs === kode);
-      if (!l) { alert(`Label pcs "${kode}" tidak ditemukan di Sedang Sewing.`); return; }
-      if (l.sewing_track_id !== t.id) { alert(`Label "${kode}" bukan milik batch ${t.kode_separating}.`); return; }
-      if (l.sewing_selesai_pada) { alert(`Label "${kode}" sudah pernah di-scan entry.`); return; }
-      try {
-        const now = new Date().toISOString();
-        await updateDoc(doc(db, 'label_pcs', l.id), { sewing_selesai_pada: now, sewing_entry_oleh: window.currentUser?.email || null });
-        labelPcs.value = labelPcs.value.map(x => x.id === l.id ? { ...x, sewing_selesai_pada: now } : x);
-        const p = progres(t);
-        modalEntry.log.unshift(`${kode} -> selesai (${p.done}/${p.total})`);
-        if (p.total > 0 && p.done >= p.total) {
-          // riwayat_scan ditulis ADITIF, sekali saat batch lengkap.
-          await updateSewingTrack(t.id, (data) => ({
-            status: 'perlu_dikirim', entry_pada: now, masuk_tahap_pada: now,
-            riwayat_scan: arrayUnion({ aksi: 'entry', oleh: window.currentUser?.email || null, operator_uid: data.operator_uid || null, operator_nama: data.operator_nama || null, pada: now, qty: p.done })
-          }));
-          modalEntry.log.unshift(`SEMUA label ${t.kode_separating} selesai — pindah ke Perlu Dikirim`);
-        }
-      } catch (e) { console.error('Gagal scan entry Sewing:', e); alert('Gagal menyimpan. Coba lagi.'); }
+      ctxEntry.track = t;
+      entryTerpadu.cfg.judul = 'Scan Entry — ' + t.kode_separating;
+      entryTerpadu.buka();
     }
 
     // Cetak Label Pcs dilakukan selama menjahit (tab ini).
@@ -677,7 +692,7 @@ const SewingSedangSewing = {
 
     return { muat,
       memuat, kelompokOperator, bolehProses, formatQty, formatDiamSejak, tertahan, formatJamDurasi, aksiAktif,
-      progres, pilihEntry, bukaScanEntry, konfirmasiPilihEntry, modalEntry, tutupScanEntry, hasilScanEntry, bolehCetak, sedangCetak, popupCetakPcsAktif, daftarLabelPcsPreview, cetakLabelPcs,
+      progres, pilihEntry, bukaScanEntry, konfirmasiPilihEntry, entryTerpadu, bolehCetak, sedangCetak, popupCetakPcsAktif, daftarLabelPcsPreview, cetakLabelPcs,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
     };
   },
@@ -726,10 +741,7 @@ const SewingSedangSewing = {
         </div>
       </div>
     </div>
-    <scan-generik :aktif="modalEntry.aktif" :judul="modalEntry.track ? ('Scan Entry — ' + modalEntry.track.kode_separating) : 'Scan Entry'" subjudul="Scan tiap label pcs yang selesai dijahit." @hasil="hasilScanEntry" @tutup="tutupScanEntry" />
-    <div v-if="modalEntry.aktif && modalEntry.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:280px;">
-      <div v-for="(l,i) in modalEntry.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
-    </div>
+    <scan-terpadu-generik :c="entryTerpadu" @tutup="muat" />
     <popup-pratinjau-cetak-label :terbuka="popupCetakPcsAktif" judul="Cetak Label Pcs" :daftar-label="daftarLabelPcsPreview" jenis-cetak="label_pcs_sewing" @tutup="popupCetakPcsAktif = false" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
@@ -752,7 +764,7 @@ const SewingSedangSewing = {
 // Scan Kirim, Scan Masalah. Label pcs dicetak di Sedang Sewing.
 
 const SewingPerluDikirim = {
-  components: { PopupPratinjauCetakLabel, ScanGenerik },
+  components: { PopupPratinjauCetakLabel, ScanTerpaduGenerik },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -835,79 +847,106 @@ const SewingPerluDikirim = {
       sedangProses.value = false;
     }
 
-    // Scan Pack: step1 kode bagging, step2 kode pcs berkali-kali
-    const modalPack = reactive({ aktif: false, bagging: null, batch: null, log: [] });
-    function bukaScanPack() { modalPack.bagging = null; modalPack.batch = null; modalPack.log = []; modalPack.aktif = true; }
-    function tutupScanPack() { modalPack.aktif = false; modalPack.bagging = null; modalPack.batch = null; modalPack.log = []; muat(); }
-    async function hasilScanPack(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      if (!modalPack.bagging) {
-        const b = daftarBaggingAktif.value.find(x => x.kode === kode);
-        if (!b) { alert(`Kode bagging "${kode}" tidak ditemukan atau sudah ditutup.`); return; }
-        const t = daftar.value.find(x => (x.kode_bagging || []).includes(kode));
-        if (!t) { alert(`Kode bagging "${kode}" tidak terkait batch manapun di tab ini.`); return; }
-        modalPack.bagging = b; modalPack.batch = t;
-        return;
-      }
-      try {
-        const snap = await getDocs(query(collection(db, 'label_pcs'), where('sewing_track_id', '==', modalPack.batch.id), where('kode_pcs', '==', kode)));
-        if (snap.empty) { alert(`Kode pcs "${kode}" tidak ditemukan di batch ${modalPack.batch.kode_separating}.`); return; }
-        await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { isi: arrayUnion(kode) });
-        modalPack.log.unshift(kode + ' -> ' + modalPack.bagging.kode);
-      } catch (e) { console.error('Gagal scan pack Sewing:', e); alert('Gagal menyimpan. Coba lagi.'); }
-    }
-    async function tutupBaggingPack() {
-      if (!modalPack.bagging) return;
-      try {
-        await updateDoc(doc(db, 'bagging', modalPack.bagging.id), { ditutup_pada: serverTimestamp() });
-        // riwayat_scan ditulis ADITIF. qty dihitung dari log sesi ini yang
-        // cocok kode bagging ini saja (modalPack.log bisa memuat scan bagging
-        // lain kalau operator ganti bagging tanpa menutup modal), bukan dari
-        // .isi dokumen bagging yang salinan lokalnya tidak ikut arrayUnion.
-        if (modalPack.batch) {
-          const kodeBaggingIni = modalPack.bagging.kode;
-          const qtyPack = modalPack.log.filter(l => l.endsWith(' -> ' + kodeBaggingIni)).length || null;
-          await updateSewingTrack(modalPack.batch.id, () => ({
-            riwayat_scan: arrayUnion({ aksi: 'pack', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), qty: qtyPack, catatan: kodeBaggingIni })
-          }));
-        }
-      } catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
-      modalPack.bagging = null; modalPack.batch = null;
-    }
-
-    // Scan Kirim: step1 kode tugas, step2 kode bagging (1x cukup, lihat
-    // keputusan #11 — satu batch = satu bagging).
-    const modalKirim = reactive({ aktif: false, tugas: null, log: [] });
-    function bukaScanKirim() { modalKirim.tugas = null; modalKirim.log = []; modalKirim.aktif = true; }
-    function tutupScanKirim() { modalKirim.aktif = false; modalKirim.tugas = null; modalKirim.log = []; muat(); }
-    async function hasilScanKirim(kodeMentah) {
-      const kode = (kodeMentah || '').trim();
-      if (!modalKirim.tugas) {
+    // Scan Pack: kunci kode bagging (tetap terkunci antar Upload), lalu kode pcs
+    // batch itu. Upload menambah isi bagging; "Tutup Bagging Ini" menulis
+    // ditutup_pada + riwayat_scan 'pack' dengan qty = pcs yang di-Upload ke
+    // bagging ini selama layar terbuka (packSesi, direset tiap buka).
+    let packSesi = {};
+    const labelKunciPack = (locked) => `${locked.bagging.kode} · ${locked.batch.kode_separating} · ${packSesi[locked.bagging.kode] || 0} pcs di-pack`;
+    const packTerpadu = buatScanTerpadu({
+      judul: 'Scan Pack — Sewing', subjudul: 'Kaitkan label pcs ke satu kode bagging',
+      twoStep: {
+        labelPertama: 'Kode Bagging', labelKedua: 'Kode Pcs',
+        placeholderPertama: 'Scan QR Bagging / cari kode (sekali di awal)',
+        placeholderKedua: 'Scan QR label pcs / cari kode (bisa berkali-kali)',
+        camModePertama: 'Mode: Scan Kode Bagging (sekali)', camModeKedua: 'Mode: Scan Label Pcs (berkali-kali)',
+        kosongUtama: 'Scan Kode Bagging dulu', kosongSub: '1x scan untuk membuka sesi pack ini.',
+        validasi: async (kode) => {
+          const b = daftarBaggingAktif.value.find(x => x.kode === kode);
+          if (!b) return { ok: false, pesan: `Kode bagging "${kode}" tidak ditemukan atau sudah ditutup.` };
+          const t = daftar.value.find(x => (x.kode_bagging || []).includes(kode));
+          if (!t) return { ok: false, pesan: `Kode bagging "${kode}" tidak terkait batch manapun di tab ini.` };
+          const data = { bagging: b, batch: t };
+          return { ok: true, data, label: labelKunciPack(data) };
+        },
+        tetapKunci: true
+      },
+      aksiEkstra: [{ label: 'Tutup Bagging Ini', aksi: async (locked) => {
+        if (!locked) return;
+        if (packTerpadu.s.rows.length) { alert(`${packTerpadu.s.rows.length} kode pcs di draft belum di-Upload — Upload dulu sebelum menutup bagging.`); return; }
         try {
-          const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
-          if (snap.empty) { alert(`Kode tugas "${kode}" tidak ditemukan.`); return; }
-          modalKirim.tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
-        } catch (e) { console.error('Gagal cari kode tugas:', e); alert('Gagal mencari kode tugas. Coba lagi.'); }
-        return;
-      }
-      const t = daftar.value.find(x => x.kode_tugas === modalKirim.tugas.kode && (x.kode_bagging || []).includes(kode));
-      if (!t) { alert(`Kode bagging "${kode}" tidak cocok dengan tugas ini.`); return; }
-      try {
-        const now = new Date().toISOString();
-        // kode_grouping_induk/kode_separating ikut disalin ke pack[], dilepas oleh Scan
-        // Sampai (sampai_pada).
-        await updateDoc(doc(db, 'tugas_kirim', modalKirim.tugas.id), {
-          pack: arrayUnion({ kode_bagging: kode, kode_grouping_induk: t.kode_grouping_induk || [], kode_separating: t.kode_separating || null, pada: now, sampai_pada: null })
-        });
-        // riwayat_scan ditulis ADITIF.
-        await updateSewingTrack(t.id, () => ({
-          status: 'sedang_dikirim', masuk_tahap_pada: now,
-          riwayat_scan: arrayUnion({ aksi: 'kirim', oleh: window.currentUser?.email || null, pada: now, qty: t.qty ?? null, catatan: 'Kirim ke Serie — kode tugas ' + modalKirim.tugas.kode })
-        }));
-        modalKirim.log.unshift(kode + ' -> ' + modalKirim.tugas.kode + ' (status pindah ke Sedang Kirim)');
+          await updateDoc(doc(db, 'bagging', locked.bagging.id), { ditutup_pada: serverTimestamp() });
+          // riwayat_scan ditulis ADITIF.
+          await updateSewingTrack(locked.batch.id, () => ({
+            riwayat_scan: arrayUnion({ aksi: 'pack', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), qty: packSesi[locked.bagging.kode] || null, catatan: locked.bagging.kode })
+          }));
+        } catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); return; }
+        packTerpadu.resetLock();
         await muat();
-      } catch (e) { console.error('Gagal scan kirim Sewing:', e); alert('Gagal menyimpan. Coba lagi.'); }
-    }
+      } }],
+      validasiIsi: async (kode, locked) => {
+        try {
+          const snap = await getDocs(query(collection(db, 'label_pcs'), where('sewing_track_id', '==', locked.batch.id), where('kode_pcs', '==', kode)));
+          if (snap.empty) return { ok: false, pesan: `Kode pcs "${kode}" tidak ditemukan di batch ${locked.batch.kode_separating}.` };
+          return { ok: true, row: { kode, label: locked.batch.nama_produk + ' ' + (locked.batch.size || ''), tagTxt: '-> ' + locked.bagging.kode, tagCls: 'ok' } };
+        } catch (e) { console.error('Gagal cari label pcs (pack):', e); return { ok: false, pesan: 'Gagal mencari. Coba lagi.' }; }
+      },
+      padaUpload: async (rows, locked) => {
+        try {
+          await updateDoc(doc(db, 'bagging', locked.bagging.id), { isi: arrayUnion(...rows.map(r => r.kode)) });
+          packSesi[locked.bagging.kode] = (packSesi[locked.bagging.kode] || 0) + rows.length;
+          return { ok: true, lockedLabel: labelKunciPack(locked) };
+        } catch (e) { console.error('Gagal scan pack Sewing:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
+      }
+    });
+    function bukaScanPack() { packSesi = {}; packTerpadu.buka(); }
+
+    // Scan Kirim: kunci kode tugas, lalu kode bagging (satu batch = satu
+    // bagging). Upload menulis tugas_kirim.pack[] (kode_grouping_induk/
+    // kode_separating ikut disalin, dilepas Scan Sampai lewat sampai_pada) dan
+    // memindah batch ke Sedang Kirim.
+    const kirimTerpadu = buatScanTerpadu({
+      judul: 'Scan Kirim — Sewing', subjudul: 'Satu batch = satu kode bagging',
+      twoStep: {
+        labelPertama: 'Kode Tugas', labelKedua: 'Kode Bagging',
+        placeholderPertama: 'Scan QR Kode Tugas / cari kode (sekali di awal)',
+        placeholderKedua: 'Scan QR bagging / cari kode',
+        camModePertama: 'Mode: Scan Kode Tugas (sekali)', camModeKedua: 'Mode: Scan Kode Bagging',
+        kosongUtama: 'Scan Kode Tugas dulu', kosongSub: '1x scan untuk membuka tugas kirim ini.',
+        validasi: async (kode) => {
+          try {
+            const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
+            if (snap.empty) return { ok: false, pesan: `Kode tugas "${kode}" tidak ditemukan.` };
+            return { ok: true, data: { id: snap.docs[0].id, ...snap.docs[0].data() } };
+          } catch (e) { console.error('Gagal cari kode tugas:', e); return { ok: false, pesan: 'Gagal mencari kode tugas. Coba lagi.' }; }
+        }
+      },
+      validasiIsi: async (kode, tugas, rows) => {
+        const t = daftar.value.find(x => x.kode_tugas === tugas.kode && (x.kode_bagging || []).includes(kode));
+        if (!t) return { ok: false, pesan: `Kode bagging "${kode}" tidak cocok dengan tugas ini.` };
+        if (rows.some(r => r._track.id === t.id)) return { ok: false, pesan: `${t.kode_separating} sudah ada di daftar.` };
+        return { ok: true, row: { kode, label: t.kode_separating + ' · ' + t.nama_produk, qty: formatQty(t.qty), tagTxt: 'cocok', tagCls: 'ok', _track: t } };
+      },
+      padaUpload: async (rows, tugas) => {
+        try {
+          for (const r of rows) {
+            const t = r._track;
+            const now = new Date().toISOString();
+            await updateDoc(doc(db, 'tugas_kirim', tugas.id), {
+              pack: arrayUnion({ kode_bagging: r.kode, kode_grouping_induk: t.kode_grouping_induk || [], kode_separating: t.kode_separating || null, pada: now, sampai_pada: null })
+            });
+            // riwayat_scan ditulis ADITIF.
+            await updateSewingTrack(t.id, () => ({
+              status: 'sedang_dikirim', masuk_tahap_pada: now,
+              riwayat_scan: arrayUnion({ aksi: 'kirim', oleh: window.currentUser?.email || null, pada: now, qty: t.qty ?? null, catatan: 'Kirim ke Serie — kode tugas ' + tugas.kode })
+            }));
+          }
+          await muat();
+          return { ok: true };
+        } catch (e) { console.error('Gagal scan kirim Sewing:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
+      }
+    });
+    function bukaScanKirim() { kirimTerpadu.buka(); }
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
       await kirimMasalahSewing(p.target, p.jumlah, p.alasan, p.jenis);
@@ -920,8 +959,8 @@ const SewingPerluDikirim = {
       memuat, daftar, bolehProses, bolehCetak, sedangProses, formatQty, formatDiamSejak, tertahan, aksiAktif,
       popupCetakPcsAktif, daftarLabelPcsPreview, cetakLabelPcs,
       popupCetakAktif, daftarLabelPreview, judulCetak, jenisCetak, cetakKodeBagging, cetakKodeTugas,
-      modalPack, bukaScanPack, tutupScanPack, hasilScanPack, tutupBaggingPack,
-      modalKirim, bukaScanKirim, tutupScanKirim, hasilScanKirim,
+      packTerpadu, bukaScanPack,
+      kirimTerpadu, bukaScanKirim,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
     };
   },
@@ -962,16 +1001,8 @@ const SewingPerluDikirim = {
     <popup-pratinjau-cetak-label :terbuka="popupCetakPcsAktif" judul="Cetak Label Pcs" :daftar-label="daftarLabelPcsPreview" jenis-cetak="label_pcs_sewing" @tutup="popupCetakPcsAktif = false" />
     <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" :judul="judulCetak" :daftar-label="daftarLabelPreview" :jenis-cetak="jenisCetak" @tutup="popupCetakAktif = false" />
 
-    <scan-generik :aktif="modalPack.aktif" :judul="modalPack.bagging ? ('Scan kode pcs — bagging ' + modalPack.bagging.kode) : 'Scan Kode Bagging'" subjudul="Bisa discan berkali-kali. Tutup lewat tombol di bawah kalau sudah selesai." @hasil="hasilScanPack" @tutup="tutupScanPack" />
-    <div v-if="modalPack.aktif && modalPack.bagging" style="position:fixed; left:16px; top:16px; z-index:10001; display:flex; flex-direction:column; gap:8px; max-width:260px;">
-      <button @click="tutupBaggingPack" class="btn-primary" style="padding:8px 14px; font-size:11px;">Tutup Bagging Ini</button>
-      <div style="background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px;"><div v-for="(l,i) in modalPack.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div></div>
-    </div>
-
-    <scan-generik :aktif="modalKirim.aktif" :judul="modalKirim.tugas ? ('Scan kode bagging — tugas ' + modalKirim.tugas.kode) : 'Scan Kode Tugas'" subjudul="Satu batch = satu kode bagging." @hasil="hasilScanKirim" @tutup="tutupScanKirim" />
-    <div v-if="modalKirim.aktif && modalKirim.tugas && modalKirim.log.length" style="position:fixed; left:16px; top:16px; z-index:10001; pointer-events:none; background:rgba(0,0,0,.75); border-radius:12px; padding:10px 14px; max-width:280px;">
-      <div v-for="(l,i) in modalKirim.log.slice(0,5)" :key="i" style="font-size:10.5px; color:#fff;">{{ l }}</div>
-    </div>
+    <scan-terpadu-generik :c="packTerpadu" @tutup="muat" />
+    <scan-terpadu-generik :c="kirimTerpadu" @tutup="muat" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
