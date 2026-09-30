@@ -7,16 +7,16 @@
 // - spk_separating: status perlu_disiapkan → sedang_diproses → perlu_dikirim →
 //   kirim_sewing → terima_sewing → kirim_finishing → terima_finishing →
 //   kirim_gudang → selesai (ditulis Gudang). komponen_rincian[] dibuat saat
-//   Mulai Serie; fin_terpasang_pada saat semua label_pcs dapat ACC finishing.
+//   Mulai Serie.
 // - spk_track.bahan_rincian[]: sampai_pada (tiba di Collection),
 //   kirim_cutting_pada + kode_tugas_cutting (Scan Kirim ke Cutting).
-// - label_pcs.acc_finishing_pada + kode_kit_finishing (Serie Finishing).
+// - bagging leg Finishing: isi[] = label pcs + satu label kit -FIN batch itu.
 //
 // Jebakan:
 // - TLC Collection tetap 'TLC-SER' (dipakai Sewing/Finishing/Config).
 // - Kit ACC dikenali dari kode_kit berakhiran -SEW/-WEB/-FIN; kit yang
 //   tertukar jalur ditolak saat scan.
-// - Kirim Finishing ditolak selama kit -FIN ada tapi fin_terpasang_pada kosong.
+// - Kirim Finishing ditolak selama kit -FIN batch belum masuk bagging Finishing.
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -1163,7 +1163,16 @@ function buatTabKirim(cfg) {
         const terisi = new Set(baggingLeg(b).flatMap(k => (petaBagging.value[k] || {}).isi || []));
         return labelPcs.value.filter(l => l.separating_id === b.id && !terisi.has(l.kode_pcs));
       }
-      const belumPack = (b) => cfg.wajibPack ? komponenBelumPack(b, petaBagging.value).length : (cfg.legBagging ? pcsBelumPack(b).length : 0);
+      // Kit -FIN (kalau batch punya) wajib ikut satu bagging leg Finishing; label
+      // kit mana pun (kode kit atau kode per baris) dihitung sekali.
+      const kodeKit = (t) => [t.kode_kit, ...(t.finishing_rincian || []).map(r => r.kode_baris)].filter(Boolean);
+      function kitBelumPack(b) {
+        const kit = cfg.serieFinishing ? kitFinDari(b) : null;
+        if (!kit) return 0;
+        const terisi = new Set(baggingLeg(b).flatMap(k => (petaBagging.value[k] || {}).isi || []));
+        return kodeKit(kit).some(k => terisi.has(k)) ? 0 : 1;
+      }
+      const belumPack = (b) => cfg.wajibPack ? komponenBelumPack(b, petaBagging.value).length : (cfg.legBagging ? pcsBelumPack(b).length + kitBelumPack(b) : 0);
       async function muat() {
         memuat.value = true;
         try {
@@ -1193,7 +1202,7 @@ function buatTabKirim(cfg) {
       function bukaCetakTugas(batch) {
         if (cfg.legBagging && !baggingLeg(batch).length) { alert('Cetak Kode Bagging ' + cfg.namaTujuan + ' dulu, lalu Scan Pack semua label pcs.'); return; }
         if (!batch.kode_bagging || !batch.kode_bagging.length) { alert('Batch ini belum punya kode bagging (harus cetak di Perlu Di Kirim / hasil pack sebelumnya dulu).'); return; }
-        if (perluSerieFin(batch)) { alert('Serie Finishing belum selesai: scan kit -FIN lalu semua label pcs dulu.'); return; }
+        if (kitBelumPack(batch)) { alert(`Kit Acc Finishing ${batch.kode_separating} belum masuk bagging. Scan label kit -FIN di Scan Pack dulu.`); return; }
         if (belumPack(batch)) { alert(`${belumPack(batch)} ${cfg.legBagging ? 'label pcs' : 'komponen'} ${batch.kode_separating} belum di-scan ke bagging. Selesaikan Scan Pack dulu.`); return; }
         if (batch.kode_tugas && batch.tlc_tujuan === cfg.tlcTujuan && !confirm(`Batch ini sudah punya kode tugas ${batch.kode_tugas}. Cetak baru membuat kertas ${batch.kode_tugas} tidak berlaku lagi. Lanjut?`)) return;
         popupCetak.value = { batch, tglKeberangkatan: new Date().toISOString().slice(0, 16) };
@@ -1250,9 +1259,9 @@ function buatTabKirim(cfg) {
       }
       // Scan Pack label pcs (legBagging): kunci bagging leg ini (tetap terkunci
       // sesudah Upload), lalu tiap label pcs batch itu masuk draft.
-      function labelKunciPackLeg(bag, batch) { return `${bag.kode} -> ${batch.kode_separating}, sisa ${pcsBelumPack(batch).length} pcs`; }
+      function labelKunciPackLeg(bag, batch) { return `${bag.kode} -> ${batch.kode_separating}, sisa ${pcsBelumPack(batch).length} pcs` + (kitBelumPack(batch) ? ' + kit -FIN' : ''); }
       const packTerpadu = cfg.legBagging ? buatScanTerpadu({
-        judul: 'Scan Pack — ' + cfg.namaTujuan, subjudul: 'Scan bagging sekali, lalu tiap label pcs batch itu.',
+        judul: 'Scan Pack — ' + cfg.namaTujuan, subjudul: cfg.serieFinishing ? 'Scan bagging sekali, lalu label kit -FIN dan tiap label pcs batch itu.' : 'Scan bagging sekali, lalu tiap label pcs batch itu.',
         twoStep: {
           labelPertama: 'Kode Bagging', labelKedua: 'Label Pcs',
           placeholderPertama: 'Scan/ketik kode bagging ' + cfg.namaTujuan, placeholderKedua: 'Scan tiap label pcs batch ini',
@@ -1267,8 +1276,14 @@ function buatTabKirim(cfg) {
           },
           tetapKunci: true
         },
-        validasiIsi: async (kode, locked) => {
+        validasiIsi: async (kode, locked, rows) => {
           const b = locked.batch;
+          const kitSemua = cfg.serieFinishing ? kitFin.value.find(t => kodeKit(t).includes(kode)) : null;
+          if (kitSemua) {
+            if (kitSemua.separating_id !== b.id) return { ok: false, pesan: `"${kode}" label kit Acc Finishing batch lain, bukan ${b.kode_separating}.` };
+            if (!kitBelumPack(b) || rows.some(r => r._kit)) return { ok: false, pesan: `Kit Acc Finishing ${b.kode_separating} sudah masuk bagging.` };
+            return { ok: true, row: { kode, label: 'Kit Acc Finishing ' + (kitSemua.kode_kit || ''), tagTxt: 'kit -FIN', tagCls: 'ok', _kit: true } };
+          }
           const l = labelPcs.value.find(x => x.kode_pcs === kode);
           if (!l) return { ok: false, pesan: `"${kode}" bukan label pcs yang dikenali.` };
           if (l.separating_id !== b.id) return { ok: false, pesan: `Label "${kode}" milik ${l.kode_separating || 'batch lain'}, bukan ${b.kode_separating}.` };
@@ -1281,8 +1296,8 @@ function buatTabKirim(cfg) {
           catch (e) { console.error('Gagal scan pack ' + cfg.namaTujuan + ':', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
           const bag = petaBagging.value[locked.bagging.kode] || locked.bagging;
           petaBagging.value = { ...petaBagging.value, [bag.kode]: { ...bag, isi: [...(bag.isi || []), ...kodeList] } };
-          const sisa = pcsBelumPack(locked.batch).length;
-          return { ok: true, lockedLabel: labelKunciPackLeg(bag, locked.batch) + (sisa ? '' : ' — semua pcs ter-pack') };
+          const sisa = belumPack(locked.batch);
+          return { ok: true, lockedLabel: labelKunciPackLeg(bag, locked.batch) + (sisa ? '' : ' — semua isi ter-pack') };
         }
       }) : null;
       function bukaScanPack() { if (packTerpadu) packTerpadu.buka(); }
@@ -1356,43 +1371,8 @@ function buatTabKirim(cfg) {
       });
       function bukaScanKirim() { kirimTerpadu.buka(); }
 
-      // Serie Finishing — kit -FIN dikunci dulu, lalu tiap label pcs separating
-      // itu discan. Semua pcs terpasang → fin_terpasang_pada, baru boleh kirim.
-      const kitFin = ref([]);
+      const kitFin = ref([]); // spk_track jalur finishing (kit -FIN per separating)
       const kitFinDari = (b) => kitFin.value.find(t => t.separating_id === b.id);
-      const perluSerieFin = (b) => !!(cfg.serieFinishing && kitFinDari(b) && !b.fin_terpasang_pada);
-      const serieFinishing = cfg.serieFinishing ? buatScanTerpadu({
-        judul: 'Serie Finishing', subjudul: 'Scan satu label Acc Finishing, lalu tiap label pcs',
-        twoStep: {
-          labelPertama: 'Kode Kit', labelKedua: 'Label Pcs',
-          validasi: async (kode) => {
-            const t = kitFin.value.find(x => x.kode_kit === kode || (x.finishing_rincian || []).some(b => b.kode_baris === kode));
-            if (!t) return { ok: false, pesan: `"${kode}" bukan label Acc Finishing (kode kit -FIN atau kode per baris).` };
-            const sep = daftar.value.find(b => b.id === t.separating_id);
-            if (!sep) return { ok: false, pesan: `Separating kit ${kode} belum ada di tab ini (belum setor Sewing).` };
-            const snap = await getDocs(query(collection(db, 'label_pcs'), where('separating_id', '==', sep.id)));
-            return { ok: true, label: kode + ' · ' + sep.kode_separating, data: { kit: t, sep, pcs: snap.docs.map(d => ({ id: d.id, ...d.data() })) } };
-          }
-        },
-        validasiIsi: async (kode, kunci) => {
-          const p = kunci.pcs.find(x => x.kode_pcs === kode);
-          if (!p) return { ok: false, pesan: `Label pcs "${kode}" bukan milik ${kunci.sep.kode_separating}.` };
-          if (p.acc_finishing_pada) return { ok: false, pesan: `${kode} sudah dipasang ACC finishing.` };
-          return { ok: true, row: { kode, label: kode, tagTxt: 'pasang', tagCls: 'ok', _pcsId: p.id } };
-        },
-        padaUpload: async (rows, kunci) => {
-          try {
-            const now = new Date().toISOString();
-            const oleh = window.currentUser?.email || null;
-            for (const r of rows) await updateDoc(doc(db, 'label_pcs', r._pcsId), { acc_finishing_pada: now, kode_kit_finishing: kunci.kit.kode_kit });
-            for (const r of rows) await addDoc(collection(db, 'log_scan'), { kode: r.kode, pos: 'serie_finishing', aksi: 'pasang_acc_finishing', kode_kit: kunci.kit.kode_kit, separating_id: kunci.sep.id, operator_email: oleh, operator_uid: window.currentUser?.uid || null, pada: serverTimestamp() });
-            const sisa = kunci.pcs.filter(p => !p.acc_finishing_pada && !rows.some(r => r._pcsId === p.id)).length;
-            if (sisa === 0) await updateSeparatingBatch(kunci.sep.id, () => ({ fin_terpasang_pada: now }));
-            await muat();
-            return { ok: true };
-          } catch (e) { console.error('Gagal Serie Finishing:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
-        }
-      }) : null;
 
       const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
         await kirimMasalahSerie(p.target, p.jumlah, p.alasan, p.jenis);
@@ -1406,15 +1386,14 @@ function buatTabKirim(cfg) {
         popupCetak, bukaCetakTugas, konfirmasiCetakTugas, popupCetakAktif, daftarLabelPreview,
         kirimTerpadu, bukaScanKirim,
         popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
-        aksiAktif, serieFinishing, kitFinDari, perluSerieFin, belumPack,
-        baggingLeg, cetakBaggingLeg, judulCetak, jenisCetak, packTerpadu, bukaScanPack
+        aksiAktif, kitFinDari, kitBelumPack, belumPack,
+        baggingLeg, pcsBelumPack, cetakBaggingLeg, judulCetak, jenisCetak, packTerpadu, bukaScanPack
       };
     },
     template: `
       <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
       <template v-else>
         <div v-if="bolehProses" style="display:flex; gap:8px; margin-bottom:12px;">
-          <button v-if="serieFinishing" @click="serieFinishing.buka()" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-tags" style="margin-right:6px;"></i>Serie Finishing</button>
           <button v-if="cfg.legBagging" @click="bukaScanPack" class="btn-outline" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Pack</button>
           <button v-if="aksiAktif(cfg.targetIdScan, cfg.aksiIdKirim)" @click="bukaScanKirim" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Scan Kirim</button>
         </div>
@@ -1435,9 +1414,9 @@ function buatTabKirim(cfg) {
               <span v-if="cfg.wajibPack" class="tag" :class="belumPack(b) ? 'warn' : 'ok'" style="margin-left:4px;">{{ belumPack(b) ? belumPack(b) + ' komponen belum di-pack' : 'semua komponen ter-pack' }}</span>
               <template v-if="cfg.legBagging">
                 <span class="tag" :class="baggingLeg(b).length ? 'ok' : 'neutral'" style="margin-left:4px;">{{ baggingLeg(b).length ? baggingLeg(b)[0] : 'belum dicetak kode bagging' }}</span>
-                <span v-if="baggingLeg(b).length" class="tag" :class="belumPack(b) ? 'warn' : 'ok'" style="margin-left:4px;">{{ belumPack(b) ? belumPack(b) + ' pcs belum di-pack' : 'semua pcs ter-pack' }}</span>
+                <span v-if="baggingLeg(b).length" class="tag" :class="pcsBelumPack(b).length ? 'warn' : 'ok'" style="margin-left:4px;">{{ pcsBelumPack(b).length ? pcsBelumPack(b).length + ' pcs belum di-pack' : 'semua pcs ter-pack' }}</span>
               </template>
-              <span v-if="cfg.serieFinishing && kitFinDari(b)" class="tag" :class="b.fin_terpasang_pada ? 'ok' : 'warn'" style="margin-left:4px;">{{ b.fin_terpasang_pada ? 'ACC finishing terpasang' : 'belum Serie Finishing' }}</span>
+              <span v-if="cfg.serieFinishing && kitFinDari(b)" class="tag" :class="kitBelumPack(b) ? 'warn' : 'ok'" style="margin-left:4px;">{{ kitBelumPack(b) ? 'kit -FIN belum di-pack' : 'kit -FIN sudah di bagging' }}</span>
             </div>
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
               <button v-if="bolehCetak && cfg.legBagging" @click="cetakBaggingLeg(b)" :disabled="sedangProses" class="btn-outline" style="flex:1; min-width:150px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>{{ baggingLeg(b).length ? 'Cetak Ulang Kode Bagging' : 'Cetak Kode Bagging' }}</button>
@@ -1462,7 +1441,6 @@ function buatTabKirim(cfg) {
         </div>
       </div>
 
-      <scan-terpadu-generik v-if="serieFinishing" :c="serieFinishing" />
       <scan-terpadu-generik v-if="packTerpadu" :c="packTerpadu" @tutup="muat" />
       <scan-terpadu-generik :c="kirimTerpadu" @tutup="muat" />
 
@@ -1573,102 +1551,168 @@ function buatTabTerima(cfg) {
       const menuId = 'proses_serie';
       const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
 
+      // progres[batchId] = { bagging: [{ kode, id, sampai, unpack }] } — bagging dibaca
+      // dari dokumen track asal (cfg.koleksi), status dari dokumen bagging-nya.
+      const progres = ref({});
+      async function muatProgres(batchList) {
+        const peta = {};
+        const ids = batchList.map(x => x.id);
+        const kodePerBatch = {};
+        for (let i = 0; i < ids.length; i += 30) {
+          const snap = await getDocs(query(collection(db, cfg.koleksi), where('separating_id', 'in', ids.slice(i, i + 30))));
+          snap.docs.forEach(d => {
+            const kb = d.data()[cfg.fieldBagging];
+            const list = cfg.baggingArray ? (Array.isArray(kb) ? kb : []) : (kb ? [kb] : []);
+            const set = kodePerBatch[d.data().separating_id] = kodePerBatch[d.data().separating_id] || new Set();
+            list.forEach(k => set.add(k));
+          });
+        }
+        const semuaKode = [...new Set(Object.values(kodePerBatch).flatMap(set => [...set]))];
+        const docBagging = {};
+        for (let i = 0; i < semuaKode.length; i += 30) {
+          const snap = await getDocs(query(collection(db, 'bagging'), where('kode', 'in', semuaKode.slice(i, i + 30))));
+          snap.docs.forEach(d => { docBagging[d.data().kode] = { id: d.id, ...d.data() }; });
+        }
+        ids.forEach(id => {
+          peta[id] = { bagging: [...(kodePerBatch[id] || [])].map(k => {
+            const bg = docBagging[k] || {};
+            return { kode: k, id: bg.id || null, sampai: !!bg.terima_serie_pada, unpack: !!bg.unpack_hasil, data: bg };
+          }) };
+        });
+        return peta;
+      }
       async function muat() {
         memuat.value = true;
-        try { daftar.value = saringMilikOperator((await muatSemuaSeparatingBatch()).filter(b => b.status === cfg.statusMenunggu)); }
-        catch (e) { console.error('Gagal muat Serie > ' + cfg.judul + ':', e); daftar.value = []; }
+        try {
+          daftar.value = saringMilikOperator((await muatSemuaSeparatingBatch()).filter(b => b.status === cfg.statusMenunggu));
+          progres.value = await muatProgres(daftar.value);
+        }
+        catch (e) { console.error('Gagal muat Serie > ' + cfg.judul + ':', e); daftar.value = []; progres.value = {}; }
         memuat.value = false;
       }
+      function ringkas(b) {
+        const list = (progres.value[b.id] || {}).bagging || [];
+        return { total: list.length, sampai: list.filter(x => x.sampai).length, unpack: list.filter(x => x.unpack).length };
+      }
+      function batchPemilikBagging(kode) {
+        return daftar.value.find(b => ((progres.value[b.id] || {}).bagging || []).some(x => x.kode === kode)) || null;
+      }
 
-      // Scan Sampai — satu langkah: kode tugas dari Sewing/Finishing dikumpulkan
-      // di draft, Upload menulis lewat terimaSampai per kode. Batch dihitung dari
-      // dokumen track termasuk yang sudah 'selesai' (simpan sebelumnya terputus).
+      // pindahkanBilaLengkap — batch baru pindah ke tahap berikut kalau SEMUA
+      // bagging-nya sudah Scan Sampai DAN sudah di-Unpack (komplit/inkomplit).
+      // Dibaca ulang dari Firestore, bukan dari cache layar.
+      async function pindahkanBilaLengkap(batchIds) {
+        const batchList = daftar.value.filter(b => batchIds.includes(b.id));
+        if (!batchList.length) return [];
+        const peta = await muatProgres(batchList);
+        const pindah = [];
+        const now = new Date().toISOString();
+        const oleh = window.currentUser?.email || null;
+        for (const b of batchList) {
+          const list = (peta[b.id] || {}).bagging || [];
+          if (!list.length || !list.every(x => x.sampai && x.unpack)) continue;
+          await updateSeparatingBatch(b.id, (data) => ({
+            status: cfg.statusSetelah, masuk_tahap_pada: now,
+            riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'sampai', oleh, pada: now, catatan: cfg.namaAsal + ' — semua bagging sampai & di-unpack', qty: data.qty ?? null }]
+          }));
+          pindah.push(b.kode_separating);
+        }
+        return pindah;
+      }
+
+      // Scan Sampai — kunci Kode Tugas dari Sewing/Finishing, lalu scan tiap label
+      // bagging surat jalan itu. Upload menandai bagging.terima_serie_pada +
+      // tugas_kirim.pack[].sampai_pada; dokumen track asal jadi 'selesai' kalau
+      // semua bagging-nya sampai. Batch BELUM pindah sebelum semua bagging di-Unpack.
       function pesanTidakAda(kode) { return `Kode tugas "${kode}" tidak ditemukan di ${cfg.namaAsal} (mungkin modul ${cfg.namaAsal} belum mengirim, atau belum dibangun).`; }
       function pesanSudahDiterima(kode) { return `Kode tugas "${kode}" sudah diterima sebelumnya — batch-nya sudah tidak ada di ${cfg.judul}. Cek tab berikutnya.`; }
-      function batchIdsDari(snap) {
-        const ids = new Set();
-        snap.docs.forEach(d => { if (d.data().separating_id && daftar.value.some(b => b.id === d.data().separating_id)) ids.add(d.data().separating_id); });
-        return ids;
+      function labelKunciSampai(d) {
+        const n = d.bagging.filter(x => x.sampai).length;
+        return `${d.kode} · ${d.kodeBatch} · sampai ${n}/${d.bagging.length} bagging`;
+      }
+      async function bacaTugasSampai(kode) {
+        const snap = await getDocs(query(collection(db, cfg.koleksi), where('kode_tugas', '==', kode)));
+        if (snap.empty) return { ok: false, pesan: pesanTidakAda(kode) };
+        const batchIds = [...new Set(snap.docs.map(d => d.data().separating_id).filter(id => daftar.value.some(b => b.id === id)))];
+        if (!batchIds.length) return { ok: false, pesan: pesanSudahDiterima(kode) };
+        const peta = await muatProgres(daftar.value.filter(b => batchIds.includes(b.id)));
+        const bagging = batchIds.flatMap(id => (peta[id] || {}).bagging || []);
+        const kodeBatch = daftar.value.filter(b => batchIds.includes(b.id)).map(b => b.kode_separating).join(', ');
+        return { ok: true, data: { kode, batchIds, bagging, kodeBatch, trackDocs: snap.docs.map(d => ({ id: d.id, ...d.data() })) } };
       }
       const sampaiTerpadu = buatScanTerpadu({
-        judul: 'Scan Kode Tugas — dari ' + cfg.namaAsal, subjudul: 'Bisa discan berkali-kali.',
-        camMode: 'Mode: Scan Kode Tugas (berkali-kali)', placeholder: 'Scan/ketik kode tugas dari ' + cfg.namaAsal,
-        validasiIsi: async (kode) => {
-          const snap = await getDocs(query(collection(db, cfg.koleksi), where('kode_tugas', '==', kode)));
-          if (snap.empty) return { ok: false, pesan: pesanTidakAda(kode) };
-          const ids = batchIdsDari(snap);
-          if (!ids.size) return { ok: false, pesan: pesanSudahDiterima(kode) };
-          const kodeBatch = daftar.value.filter(b => ids.has(b.id)).map(b => b.kode_separating).join(', ');
-          return { ok: true, row: { kode, label: kodeBatch, tagTxt: ids.size + ' batch', tagCls: 'ok' } };
+        judul: 'Scan Sampai — dari ' + cfg.namaAsal, subjudul: 'Kunci kode tugas, lalu scan tiap label bagging yang tiba',
+        twoStep: {
+          labelPertama: 'Kode Tugas', labelKedua: 'Label Bagging',
+          placeholderPertama: 'Scan QR kode tugas / ketik kode (sekali di awal)', placeholderKedua: 'Scan QR label bagging (berkali-kali)',
+          camModePertama: 'Mode: Scan Kode Tugas (sekali)', camModeKedua: 'Mode: Scan Label Bagging (berkali-kali)',
+          kosongUtama: 'Scan Kode Tugas dulu', kosongSub: 'Surat jalan dari ' + cfg.namaAsal + '.',
+          tetapKunci: true,
+          validasi: async (kode) => {
+            try {
+              const h = await bacaTugasSampai(kode);
+              if (!h.ok) return h;
+              if (h.data.bagging.length && h.data.bagging.every(x => x.sampai)) return { ok: false, pesan: `Semua bagging kode tugas "${kode}" sudah di-Scan Sampai. Lanjut Scan Unpack.` };
+              return { ok: true, data: h.data, label: labelKunciSampai(h.data) };
+            } catch (e) { console.error('Gagal cari kode tugas:', e); return { ok: false, pesan: 'Gagal mencari kode tugas. Coba lagi.' }; }
+          }
         },
-        padaUpload: async (rows) => {
-          if (sedangSampai) return { ok: false, pesan: 'Masih menyimpan scan sebelumnya. Coba lagi.' };
-          sedangSampai = true;
-          const gagal = [];
+        aksiEkstra: [{ label: 'Terima Tanpa Bagging', aksi: async (d) => {
+          if (d.bagging.length) { alert('Surat jalan ini punya bagging — scan label baggingnya satu per satu.'); return; }
+          if (!confirm(`Batch ${d.kodeBatch} tidak punya bagging. Terima langsung dan pindahkan ke tahap berikut?`)) return;
           try {
-            for (const r of rows) {
-              const h = await terimaSampai(r.kode);
-              if (!h.ok) gagal.push(h.pesan);
+            const now = new Date().toISOString();
+            for (const t of d.trackDocs) if (t.status !== 'selesai') await updateDoc(doc(db, cfg.koleksi, t.id), { status: 'selesai', sampai_pada: now });
+            const oleh = window.currentUser?.email || null;
+            for (const bid of d.batchIds) {
+              await updateSeparatingBatch(bid, (data) => ({
+                status: cfg.statusSetelah, masuk_tahap_pada: now,
+                riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'sampai', oleh, pada: now, catatan: cfg.namaAsal + ' — tanpa bagging', qty: data.qty ?? null }]
+              }));
             }
+            sampaiTerpadu.tutup(); await muat();
+          } catch (e) { console.error('Gagal terima tanpa bagging:', e); alert('Gagal menyimpan. Coba lagi.'); }
+        } }],
+        validasiIsi: async (kode, d) => {
+          const bg = d.bagging.find(x => x.kode === kode);
+          if (!bg) return { ok: false, pesan: `Bagging "${kode}" bukan bagging kode tugas ${d.kode}.` };
+          if (bg.sampai) return { ok: false, pesan: `Bagging "${kode}" sudah di-Scan Sampai sebelumnya.` };
+          if (!bg.id) return { ok: false, pesan: `Dokumen bagging "${kode}" tidak ditemukan.` };
+          return { ok: true, row: { kode, label: (bg.data.isi || []).length + ' isi', tagTxt: 'tiba', tagCls: 'ok', _id: bg.id } };
+        },
+        padaUpload: async (rows, d) => {
+          const now = new Date().toISOString();
+          try {
+            for (const r of rows) await updateDoc(doc(db, 'bagging', r._id), { terima_serie_pada: now, terima_serie_oleh: window.currentUser?.email || null });
+            const tiba = new Set(rows.map(r => r.kode));
+            d.bagging.forEach(x => { if (tiba.has(x.kode)) x.sampai = true; });
+            try {
+              const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', d.kode)));
+              if (!snapTugas.empty) {
+                const dt = snapTugas.docs[0];
+                const packArr = Array.isArray(dt.data().pack) ? dt.data().pack : [];
+                await updateDoc(doc(db, 'tugas_kirim', dt.id), { pack: packArr.map(p => (tiba.has(p.kode_bagging) && !p.sampai_pada) ? { ...p, sampai_pada: now } : p) });
+              }
+            } catch (e) { console.error('Gagal lepas pack tugas_kirim (Terima ' + cfg.namaAsal + '):', e); }
+            const sudah = new Set(d.bagging.filter(x => x.sampai).map(x => x.kode));
+            for (const t of d.trackDocs) {
+              const kb = t[cfg.fieldBagging];
+              const list = cfg.baggingArray ? (Array.isArray(kb) ? kb : []) : (kb ? [kb] : []);
+              if (t.status !== 'selesai' && list.length && list.every(k => sudah.has(k))) { await updateDoc(doc(db, cfg.koleksi, t.id), { status: 'selesai', sampai_pada: now }); t.status = 'selesai'; }
+            }
+            await muat();
+            const semua = d.bagging.every(x => x.sampai);
+            if (semua) { alert(`Semua bagging ${d.kodeBatch} sudah sampai. Lanjut Scan Unpack tiap bagging.`); return { ok: true, lepasKunci: true }; }
+            return { ok: true, lockedLabel: labelKunciSampai(d) };
           } catch (e) { console.error('Gagal scan sampai ' + cfg.judul + ':', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
-          finally { sedangSampai = false; }
-          if (gagal.length) return { ok: false, pesan: gagal.join('\n') };
-          return { ok: true };
         }
       });
       function bukaScanSampai() { sampaiTerpadu.buka(); }
-      // sedangSampai — Upload yang sama tidak boleh jalan 2x beruntun; yang
-      // kedua ditolak selama yang pertama masih menyimpan.
-      let sedangSampai = false;
-      async function terimaSampai(kode) {
-        const now = new Date().toISOString();
-        const snap = await getDocs(query(collection(db, cfg.koleksi), where('kode_tugas', '==', kode)));
-        if (snap.empty) return { ok: false, pesan: pesanTidakAda(kode) };
-        const batchIds = batchIdsDari(snap);
-        const kodeBaggingSampai = new Set();
-        for (const d of snap.docs) {
-          if (d.data().status !== 'selesai') await updateDoc(doc(db, cfg.koleksi, d.id), { status: 'selesai', sampai_pada: now });
-          // kumpulkan kode_bagging milik dokumen ini (array di sewing_track,
-          // string tunggal di finishing_track — lihat cfg.baggingArray).
-          const kb = d.data()[cfg.fieldBagging];
-          (cfg.baggingArray ? (Array.isArray(kb) ? kb : []) : (kb ? [kb] : [])).forEach(k => kodeBaggingSampai.add(k));
-        }
-        if (!batchIds.size) return { ok: false, pesan: pesanSudahDiterima(kode) };
-        // leg ${namaAsal} -> Serie: kode di sini SAMA dengan kode_tugas =
-        // tugas_kirim.kode, jadi cari langsung 1 dokumen dan lepas pack[]
-        // milik kode_bagging yang baru sampai.
-        if (kodeBaggingSampai.size) {
-          try {
-            const snapTugas = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kode)));
-            if (!snapTugas.empty) {
-              const dt = snapTugas.docs[0];
-              const packArr = Array.isArray(dt.data().pack) ? dt.data().pack : [];
-              const packBaru = packArr.map(p => (kodeBaggingSampai.has(p.kode_bagging) && !p.sampai_pada) ? { ...p, sampai_pada: now } : p);
-              await updateDoc(doc(db, 'tugas_kirim', dt.id), { pack: packBaru });
-            }
-          } catch (e) { console.error('Gagal lepas pack tugas_kirim (Terima ' + cfg.namaAsal + '):', e); }
-        }
-        const oleh = window.currentUser?.email || null;
-        for (const bid of batchIds) {
-          try {
-            // riwayat_scan aksi 'sampai' — dicatat ADITIF.
-            await updateSeparatingBatch(bid, (data) => ({
-              status: cfg.statusSetelah, masuk_tahap_pada: now,
-              riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'sampai', oleh, pada: now, catatan: cfg.namaAsal, qty: data.qty ?? null }]
-            }));
-          }
-          catch (e) { console.error('Gagal update spk_separating dari Terima ' + cfg.namaAsal + ':', e); }
-        }
-        await muat();
-        return { ok: true };
-      }
 
-      // Scan Unpack: lewat bagging.isi[] langsung,
-      // Scan Unpack — konversi ke buatScanTerpadu (Draft/Upload), gantikan
-      // buatUnpackUniversal lama. Sama persis pola vue-pp-cutting.js: kunci Kode
-      // Bagging dulu, scan ulang isi berkali-kali, Upload cuma menutup KOMPLIT
-      // kalau semua isi cocok tanpa kode asing — kalau tidak, pakai "Paksa
-      // INKOMPLIT" di chip atas.
+      // Scan Unpack — kunci bagging milik batch di tab ini yang sudah Scan Sampai,
+      // lalu scan ulang tiap label pcs. Upload menutup KOMPLIT kalau semua cocok;
+      // "Paksa INKOMPLIT" mencatat yang kurang sebagai hilang (diurus lewat Scan
+      // Masalah). Sesudah ditutup, batch dicek untuk pindah tahap.
       async function tulisTutupUnpack(b, dicocokkan, asing, hilang, cocokSemua) {
         const now = new Date().toISOString();
         try {
@@ -1679,7 +1723,10 @@ function buatTabTerima(cfg) {
             unpack_pada: now, unpack_oleh: window.currentUser?.email || null,
             unpack_dicocokkan: dicocokkan, unpack_asing: asing, unpack_hilang: hilang
           });
+          const pemilik = batchPemilikBagging(b.kode);
+          const pindah = pemilik ? await pindahkanBilaLengkap([pemilik.id]) : [];
           await muat();
+          if (pindah.length) alert(`Batch ${pindah.join(', ')} lengkap (semua bagging sampai & di-unpack) — pindah ke tahap berikut.`);
           return { ok: true };
         } catch (e) { console.error('Gagal menutup Scan Unpack:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
       }
@@ -1693,7 +1740,12 @@ function buatTabTerima(cfg) {
           validasi: async (kode) => {
             const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', kode)));
             if (snap.empty) return { ok: false, pesan: `Kode bagging "${kode}" tidak ditemukan.` };
-            return { ok: true, data: { id: snap.docs[0].id, ...snap.docs[0].data() } };
+            const bg = { id: snap.docs[0].id, ...snap.docs[0].data() };
+            const pemilik = batchPemilikBagging(kode);
+            if (!pemilik) return { ok: false, pesan: `Bagging "${kode}" bukan bagging batch yang sedang ditunggu di ${cfg.judul}.` };
+            if (!bg.terima_serie_pada) return { ok: false, pesan: `Bagging "${kode}" belum di-Scan Sampai. Scan Sampai dulu.` };
+            if (bg.unpack_hasil) return { ok: false, pesan: `Bagging "${kode}" sudah di-Unpack (${bg.unpack_hasil}).` };
+            return { ok: true, data: bg, label: `${kode} · ${pemilik.kode_separating} · ${(bg.isi || []).length} isi` };
           }
         },
         validasiIsi: async (kode, locked) => {
@@ -1734,7 +1786,7 @@ function buatTabTerima(cfg) {
 
       return {
         cfg, memuat, muat, daftar, bolehProses, formatQty, formatDiamSejak, tertahan,
-        sampaiTerpadu, bukaScanSampai,
+        sampaiTerpadu, bukaScanSampai, ringkas,
         unpackTerpadu,
         popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
         aksiAktif
@@ -1757,7 +1809,11 @@ function buatTabTerima(cfg) {
               <div class="gc-num" style="font-weight:700; font-size:13px;">{{ b.kode_separating }}</div>
               <span class="tag" :class="tertahan(b.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(b.masuk_tahap_pada) }}</span>
             </div>
-            <div style="font-size:12px; color:var(--text-faint); margin-bottom:10px;">{{ b.nama_produk }} &middot; size {{ b.size || '-' }} &middot; qty {{ formatQty(b.qty) }} &middot; kode tugas {{ b.kode_tugas || '-' }}</div>
+            <div style="font-size:12px; color:var(--text-faint); margin-bottom:8px;">{{ b.nama_produk }} &middot; size {{ b.size || '-' }} &middot; qty {{ formatQty(b.qty) }} &middot; kode tugas {{ b.kode_tugas || '-' }}</div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+              <span class="tag" :class="ringkas(b).total && ringkas(b).sampai === ringkas(b).total ? 'ok' : 'warn'">Sampai {{ ringkas(b).sampai }}/{{ ringkas(b).total }} bagging</span>
+              <span class="tag" :class="ringkas(b).total && ringkas(b).unpack === ringkas(b).total ? 'ok' : 'warn'">Unpack {{ ringkas(b).unpack }}/{{ ringkas(b).total }} bagging</span>
+            </div>
             <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="width:100%; padding:8px; font-size:11px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
           </div>
         </div>
@@ -1765,7 +1821,7 @@ function buatTabTerima(cfg) {
 
       <scan-terpadu-generik :c="sampaiTerpadu" @tutup="muat" />
 
-      <scan-terpadu-generik :c="unpackTerpadu" />
+      <scan-terpadu-generik :c="unpackTerpadu" @tutup="muat" />
 
       <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
         <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
