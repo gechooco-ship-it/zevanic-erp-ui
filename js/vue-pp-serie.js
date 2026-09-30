@@ -10,7 +10,7 @@
 //   Mulai Serie.
 // - spk_track.bahan_rincian[]: sampai_pada (tiba di Collection),
 //   kirim_cutting_pada + kode_tugas_cutting (Scan Kirim ke Cutting).
-// - bagging leg Finishing: isi[] = label pcs + satu label kit -FIN batch itu.
+// - bagging leg Finishing: isi[] = label pcs + SEMUA label item kit -FIN batch itu.
 //
 // Jebakan:
 // - TLC Collection tetap 'TLC-SER' (dipakai Sewing/Finishing/Config).
@@ -1163,15 +1163,23 @@ function buatTabKirim(cfg) {
         const terisi = new Set(baggingLeg(b).flatMap(k => (petaBagging.value[k] || {}).isi || []));
         return labelPcs.value.filter(l => l.separating_id === b.id && !terisi.has(l.kode_pcs));
       }
-      // Kit -FIN (kalau batch punya) wajib ikut satu bagging leg Finishing; label
-      // kit mana pun (kode kit atau kode per baris) dihitung sekali.
+      // Kit -FIN (kalau batch punya): SEMUA label item-nya (kode_baris tiap baris
+      // finishing_rincian, mis. talikur/stoper/ziplock) wajib ikut bagging leg
+      // Finishing. Kit tanpa baris cukup label kode kit-nya.
       const kodeKit = (t) => [t.kode_kit, ...(t.finishing_rincian || []).map(r => r.kode_baris)].filter(Boolean);
-      function kitBelumPack(b) {
+      const itemKitWajib = (t) => {
+        const baris = [...new Set((t.finishing_rincian || []).map(r => r.kode_baris).filter(Boolean))];
+        return baris.length ? baris : [t.kode_kit];
+      };
+      const namaItemKit = (t, kode) => { const r = (t.finishing_rincian || []).find(x => x.kode_baris === kode); return r ? [r.nama_aksesoris, r.warna].filter(Boolean).join(' ') || kode : 'Kit ' + kode; };
+      function kitBelumPackDaftar(b) {
         const kit = cfg.serieFinishing ? kitFinDari(b) : null;
-        if (!kit) return 0;
+        if (!kit) return [];
         const terisi = new Set(baggingLeg(b).flatMap(k => (petaBagging.value[k] || {}).isi || []));
-        return kodeKit(kit).some(k => terisi.has(k)) ? 0 : 1;
+        return itemKitWajib(kit).filter(k => !terisi.has(k));
       }
+      function kitBelumPack(b) { return kitBelumPackDaftar(b).length; }
+      function teksKit(b) { const kit = kitFinDari(b); const n = itemKitWajib(kit).length; return `kit -FIN ${n - kitBelumPack(b)}/${n} item`; }
       const belumPack = (b) => cfg.wajibPack ? komponenBelumPack(b, petaBagging.value).length : (cfg.legBagging ? pcsBelumPack(b).length + kitBelumPack(b) : 0);
       async function muat() {
         memuat.value = true;
@@ -1202,7 +1210,7 @@ function buatTabKirim(cfg) {
       function bukaCetakTugas(batch) {
         if (cfg.legBagging && !baggingLeg(batch).length) { alert('Cetak Kode Bagging ' + cfg.namaTujuan + ' dulu, lalu Scan Pack semua label pcs.'); return; }
         if (!batch.kode_bagging || !batch.kode_bagging.length) { alert('Batch ini belum punya kode bagging (harus cetak di Perlu Di Kirim / hasil pack sebelumnya dulu).'); return; }
-        if (kitBelumPack(batch)) { alert(`Kit Acc Finishing ${batch.kode_separating} belum masuk bagging. Scan label kit -FIN di Scan Pack dulu.`); return; }
+        if (kitBelumPack(batch)) { const kit = kitFinDari(batch); alert(`Item Acc Finishing ${batch.kode_separating} belum masuk bagging: ${kitBelumPackDaftar(batch).map(k => namaItemKit(kit, k)).join(', ')}. Scan labelnya di Scan Pack dulu.`); return; }
         if (belumPack(batch)) { alert(`${belumPack(batch)} ${cfg.legBagging ? 'label pcs' : 'komponen'} ${batch.kode_separating} belum di-scan ke bagging. Selesaikan Scan Pack dulu.`); return; }
         if (batch.kode_tugas && batch.tlc_tujuan === cfg.tlcTujuan && !confirm(`Batch ini sudah punya kode tugas ${batch.kode_tugas}. Cetak baru membuat kertas ${batch.kode_tugas} tidak berlaku lagi. Lanjut?`)) return;
         popupCetak.value = { batch, tglKeberangkatan: new Date().toISOString().slice(0, 16) };
@@ -1259,9 +1267,9 @@ function buatTabKirim(cfg) {
       }
       // Scan Pack label pcs (legBagging): kunci bagging leg ini (tetap terkunci
       // sesudah Upload), lalu tiap label pcs batch itu masuk draft.
-      function labelKunciPackLeg(bag, batch) { return `${bag.kode} -> ${batch.kode_separating}, sisa ${pcsBelumPack(batch).length} pcs` + (kitBelumPack(batch) ? ' + kit -FIN' : ''); }
+      function labelKunciPackLeg(bag, batch) { return `${bag.kode} -> ${batch.kode_separating}, sisa ${pcsBelumPack(batch).length} pcs` + (kitBelumPack(batch) ? ` + ${kitBelumPack(batch)} item kit -FIN` : ''); }
       const packTerpadu = cfg.legBagging ? buatScanTerpadu({
-        judul: 'Scan Pack — ' + cfg.namaTujuan, subjudul: cfg.serieFinishing ? 'Scan bagging sekali, lalu label kit -FIN dan tiap label pcs batch itu.' : 'Scan bagging sekali, lalu tiap label pcs batch itu.',
+        judul: 'Scan Pack — ' + cfg.namaTujuan, subjudul: cfg.serieFinishing ? 'Scan bagging sekali, lalu tiap label item kit -FIN dan tiap label pcs batch itu.' : 'Scan bagging sekali, lalu tiap label pcs batch itu.',
         twoStep: {
           labelPertama: 'Kode Bagging', labelKedua: 'Label Pcs',
           placeholderPertama: 'Scan/ketik kode bagging ' + cfg.namaTujuan, placeholderKedua: 'Scan tiap label pcs batch ini',
@@ -1280,9 +1288,11 @@ function buatTabKirim(cfg) {
           const b = locked.batch;
           const kitSemua = cfg.serieFinishing ? kitFin.value.find(t => kodeKit(t).includes(kode)) : null;
           if (kitSemua) {
-            if (kitSemua.separating_id !== b.id) return { ok: false, pesan: `"${kode}" label kit Acc Finishing batch lain, bukan ${b.kode_separating}.` };
-            if (!kitBelumPack(b) || rows.some(r => r._kit)) return { ok: false, pesan: `Kit Acc Finishing ${b.kode_separating} sudah masuk bagging.` };
-            return { ok: true, row: { kode, label: 'Kit Acc Finishing ' + (kitSemua.kode_kit || ''), tagTxt: 'kit -FIN', tagCls: 'ok', _kit: true } };
+            if (kitSemua.separating_id !== b.id) return { ok: false, pesan: `"${kode}" label Acc Finishing batch lain, bukan ${b.kode_separating}.` };
+            const wajib = itemKitWajib(kitSemua);
+            if (!wajib.includes(kode)) return { ok: false, pesan: `Scan label tiap item Acc Finishing (${wajib.map(k => namaItemKit(kitSemua, k)).join(', ')}), bukan label kode kit.` };
+            if (!kitBelumPackDaftar(b).includes(kode)) return { ok: false, pesan: `${namaItemKit(kitSemua, kode)} (${kode}) sudah masuk bagging.` };
+            return { ok: true, row: { kode, label: namaItemKit(kitSemua, kode), tagTxt: 'item kit -FIN', tagCls: 'ok', _kit: true } };
           }
           const l = labelPcs.value.find(x => x.kode_pcs === kode);
           if (!l) return { ok: false, pesan: `"${kode}" bukan label pcs yang dikenali.` };
@@ -1386,7 +1396,7 @@ function buatTabKirim(cfg) {
         popupCetak, bukaCetakTugas, konfirmasiCetakTugas, popupCetakAktif, daftarLabelPreview,
         kirimTerpadu, bukaScanKirim,
         popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
-        aksiAktif, kitFinDari, kitBelumPack, belumPack,
+        aksiAktif, kitFinDari, kitBelumPack, teksKit, belumPack,
         baggingLeg, pcsBelumPack, cetakBaggingLeg, judulCetak, jenisCetak, packTerpadu, bukaScanPack
       };
     },
@@ -1416,7 +1426,7 @@ function buatTabKirim(cfg) {
                 <span class="tag" :class="baggingLeg(b).length ? 'ok' : 'neutral'" style="margin-left:4px;">{{ baggingLeg(b).length ? baggingLeg(b)[0] : 'belum dicetak kode bagging' }}</span>
                 <span v-if="baggingLeg(b).length" class="tag" :class="pcsBelumPack(b).length ? 'warn' : 'ok'" style="margin-left:4px;">{{ pcsBelumPack(b).length ? pcsBelumPack(b).length + ' pcs belum di-pack' : 'semua pcs ter-pack' }}</span>
               </template>
-              <span v-if="cfg.serieFinishing && kitFinDari(b)" class="tag" :class="kitBelumPack(b) ? 'warn' : 'ok'" style="margin-left:4px;">{{ kitBelumPack(b) ? 'kit -FIN belum di-pack' : 'kit -FIN sudah di bagging' }}</span>
+              <span v-if="cfg.serieFinishing && kitFinDari(b)" class="tag" :class="kitBelumPack(b) ? 'warn' : 'ok'" style="margin-left:4px;">{{ teksKit(b) }}</span>
             </div>
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
               <button v-if="bolehCetak && cfg.legBagging" @click="cetakBaggingLeg(b)" :disabled="sedangProses" class="btn-outline" style="flex:1; min-width:150px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>{{ baggingLeg(b).length ? 'Cetak Ulang Kode Bagging' : 'Cetak Kode Bagging' }}</button>
