@@ -7,11 +7,11 @@
 //   komponen_rincian[], kode_bagging[], kode_tugas, sampai_pada,
 //   masuk_tahap_pada (dasar ambang tertahan 6 jam). Status: perlu_diproses →
 //   sedang_ampar/pola/cutting → perlu_dikirim → sedang_dikirim → selesai.
+// - bagging: 1 per bahan (cutting_track_id, pola_key, jumlah_target); tugas_kirim.dimuat[].
 // - label_komponen: 1 per komponen per tumpukan, dicetak PER BAHAN (pola_key =
 //   bahan_aksesoris_id::nama_pola), kode {kode_grouping bahan itu}-{nn}. Jumlah
 //   = isi_pola_pcs x komponen.qty. Semua wajib di-scan sebelum Cutting Selesai.
 // - spk_track.bahan_rincian[].gelar_jumlah/gelar_riwayat[]: 1 scan = 1 lembar amparan.
-//
 // Jebakan:
 // - cutting_track dibuat LAZY saat Tab 1.1 dibuka (id = grouping_id, transaksi
 //   jadi tidak dobel), ditolak selama bahan grouping itu belum dikirim
@@ -107,6 +107,14 @@ async function muatSemuaCuttingTrack() {
 async function muatSemuaLabelKomponen() {
   const snap = await getDocs(collection(db, 'label_komponen'));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+async function muatLabelUntukTrack(trackIds) {
+  const hasil = [];
+  for (let i = 0; i < trackIds.length; i += 30) {
+    const snap = await getDocs(query(collection(db, 'label_komponen'), where('cutting_track_id', 'in', trackIds.slice(i, i + 30))));
+    snap.docs.forEach(d => hasil.push({ id: d.id, ...d.data() }));
+  }
+  return hasil;
 }
 let _cachePetaProduk = null;
 async function ambilPetaProdukBySku() {
@@ -1455,6 +1463,7 @@ const CuttingPerluDiKirim = {
     const daftar = ref([]);
     const daftarBaggingAktif = ref([]);
     const daftarTlc = ref([]);
+    const labelTab = ref([]); // label_komponen milik SPK di tab ini
     const sedangProses = ref(false);
     const menuId = 'cut_cutting';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
@@ -1471,43 +1480,79 @@ const CuttingPerluDiKirim = {
         daftar.value = saringMilikOperatorSemuaTahap(tracks.filter(t => t.status === 'perlu_dikirim'));
         daftarBaggingAktif.value = baggingSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         daftarTlc.value = tlcSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-      } catch (e) { console.error('Gagal muat Cutting > Perlu Di Kirim:', e); daftar.value = []; daftarBaggingAktif.value = []; daftarTlc.value = []; }
+        labelTab.value = await muatLabelUntukTrack(daftar.value.map(t => t.id));
+      } catch (e) { console.error('Gagal muat Cutting > Perlu Di Kirim:', e); daftar.value = []; daftarBaggingAktif.value = []; daftarTlc.value = []; labelTab.value = []; }
       memuat.value = false;
     }
 
-    // Cetak Surat Jalan + Kode Bagging (1 aksi, bundle per jenis komponen)
+    // Cetak Surat Jalan + Kode Bagging: 1 bagging per BAHAN (pola_key, sama
+    // pembagian label komponen), isinya wajib label bahan itu saja. SPK yang
+    // sudah punya kode_tugas dicetak ulang dengan kode yang sama, tidak dibuat baru.
+    function bahanSpk(track) {
+      const peta = {};
+      (track.komponen_rincian || []).forEach(k => {
+        const key = k.pola_key || '';
+        if (!peta[key]) peta[key] = { pola_key: key, nama_bahan: k.nama_bahan || '-', nama_pola: k.nama_pola || '', rencana: 0 };
+        peta[key].rencana += parseFloat(k.jumlah_label) || 0;
+      });
+      return Object.values(peta);
+    }
+    function labelBahanDiTab(trackId, polaKey) {
+      const track = daftar.value.find(t => t.id === trackId);
+      if (!track) return [];
+      return labelTab.value.filter(l => l.cutting_track_id === trackId && (!polaKey || labelMilikBahan(l, track, { pola_key: polaKey })));
+    }
+    function targetBagging(bagging) {
+      const n = labelBahanDiTab(bagging.cutting_track_id, bagging.pola_key).length;
+      return n || parseFloat(bagging.jumlah_target) || 0;
+    }
+    function namaBahanBagging(b) { return b.nama_bahan + (b.nama_pola ? ' (' + b.nama_pola + ')' : ''); }
 
     const popupKirim = ref(null); // { track, tujuanAkhir, tlcTujuan }
-    function bukaCetakKirim(track) {
+    const popupCetakAktif = ref(false);
+    const daftarLabelPreview = ref([]);
+    async function bukaCetakKirim(track) {
+      if (track.kode_tugas) { await cetakUlangKirim(track); return; }
       if (!daftarTlc.value.length) { alert('Belum ada data TLC (Titik Lokasi Cerdas). Tambah dulu di Zevanic House > TLC & Prefix.'); return; }
       popupKirim.value = { track, tujuanAkhir: 'Sewing', tlcTujuan: daftarTlc.value[0].kode };
     }
-    const popupCetakAktif = ref(false);
-    const daftarLabelPreview = ref([]);
+    async function cetakUlangKirim(track) {
+      try {
+        const kodeList = track.kode_bagging || [];
+        const snaps = await Promise.all(kodeList.map(k => getDocs(query(collection(db, 'bagging'), where('kode', '==', k)))));
+        const preview = snaps.filter(sn => !sn.empty).map(sn => {
+          const d = sn.docs[0].data();
+          return { kode: d.kode, nama: d.nama_bahan ? namaBahanBagging(d) : (d.produk_label || '').split('&middot;').pop().trim(), info: `Kode Bagging &middot; ${track.kode_grouping_induk}${d.jumlah_target ? ' &middot; ' + d.jumlah_target + ' label' : ''}`, qrDataUrl: buatQrDataUrl(d.kode) };
+        });
+        preview.push({ kode: track.kode_tugas, nama: 'Surat Jalan (Kode Tugas)', info: `Tujuan: ${track.tujuan_akhir || '-'} &middot; TLC-PTG`, qrDataUrl: buatQrDataUrl(track.kode_tugas) });
+        daftarLabelPreview.value = preview;
+        popupCetakAktif.value = true;
+      } catch (e) { console.error('Gagal cetak ulang surat jalan:', e); alert('Gagal memuat kode lama. Coba lagi.'); }
+    }
     async function konfirmasiCetakKirim() {
       const p = popupKirim.value;
       const track = p.track;
-      const jenisKomponen = Array.from(new Set((track.komponen_rincian || []).map(k => k.nama_komponen)));
-      if (!jenisKomponen.length) { alert('Grouping ini belum punya rincian komponen (BOM Pola kosong) — tidak bisa dibundel per jenis komponen.'); return; }
+      const daftarBahan = bahanSpk(track);
+      if (!daftarBahan.length) { alert('Grouping ini belum punya rincian komponen (BOM Pola kosong) — bagging per bahan tidak bisa dibuat.'); return; }
       sedangProses.value = true;
       try {
         const preview = [];
         const kodeBaggingBaru = [];
-        for (const jenis of jenisKomponen) {
+        for (const g of daftarBahan) {
           const kode = await generateKodeHarian('BAG', 'pengaturan_id_bagging');
+          const target = labelBahanDiTab(track.id, g.pola_key).length || g.rencana;
           await addDoc(collection(db, 'bagging'), {
-            kode, produk_label: `${track.kode_grouping_induk} &middot; ${jenis}`, isi: [], ditutup_pada: null,
+            kode, produk_label: `${track.kode_grouping_induk} &middot; ${namaBahanBagging(g)}`, isi: [], ditutup_pada: null,
             kode_grouping_induk: track.kode_grouping_induk || null, kode_separating: null,
+            cutting_track_id: track.id, pola_key: g.pola_key, nama_bahan: g.nama_bahan, nama_pola: g.nama_pola, jumlah_target: target,
             dibuat_pada: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
           });
           kodeBaggingBaru.push(kode);
-          preview.push({ kode, nama: jenis, info: `Kode Bagging &middot; ${track.kode_grouping_induk}`, qrDataUrl: buatQrDataUrl(kode) });
+          preview.push({ kode, nama: namaBahanBagging(g), info: `Kode Bagging &middot; ${track.kode_grouping_induk} &middot; ${target} label`, qrDataUrl: buatQrDataUrl(kode) });
         }
         const kodeTugas = await generateKodeHarian('TGS', 'pengaturan_id_tugas_kirim');
-        // pack[] diisi LANGSUNG di sini (bukan lewat Scan Kirim terpisah seperti
-        // 4 titik Persiapan) — 1 entri per kode bagging yang baru dicetak,
-        // supaya Scan Sampai di Serie (hasilScanSampai grouping, cabang
-        // cutting_track) bisa melepasnya, konsisten dgn titik lain.
+        // pack[] diisi saat cetak supaya Scan Sampai Serie bisa melepasnya; Scan
+        // Kirim tidak menambah entri untuk kode yang sudah ada di sini.
         const nowKirim = new Date().toISOString();
         await addDoc(collection(db, 'tugas_kirim'), {
           kode: kodeTugas, tlc_asal: 'TLC-PTG', tlc_tujuan: p.tlcTujuan,
@@ -1527,13 +1572,16 @@ const CuttingPerluDiKirim = {
       sedangProses.value = false;
     }
 
-    // Scan Pack — PILOT revisi ScanGenerik (lihat KEPUTUSAN.md > Scan & Cetak):
-    // kamera tersemat + Draft->Upload, ganti overlay+tulis-langsung lama.
-    // Step 1 kunci Kode Bagging (existing & belum ditutup), step 2 kumpulkan
-    // Kode Label Komponen sebagai draft; Upload baru menulis isi[] + riwayat_scan
-    // sekali jalan. label_komponen HANYA ada sejak dicetak (lihat
-    // cetakLabelKomponen di atas) jadi "kode ditemukan" = "sudah dicetak" — tidak
-    // perlu field cetak_pada terpisah untuk gerbang cetak_ok/cetak_no.
+    // baggingSpk — bagging per bahan milik SPK (yang masih terbuka), untuk tag progres kartu.
+    function baggingSpk(t) { return daftarBaggingAktif.value.filter(bg => bg.cutting_track_id === t.id); }
+    // Scan Pack: kunci bagging, lalu label komponen. Bagging per bahan (punya
+    // cutting_track_id) cuma menerima label SPK + bahan yang sama, sudah Entry
+    // Cutting, dan belum ada di bagging lain. Bagging lama per komponen tetap
+    // menerima label apa pun yang sudah dicetak, kecuali yang sudah di-pack.
+    function labelKunciPack(b) {
+      if (!b.cutting_track_id) return b.kode;
+      return `${b.kode} · ${namaBahanBagging(b)} · ${(b.isi || []).length}/${targetBagging(b)} label`;
+    }
     const packTerpadu = buatScanTerpadu({
       judul: 'Scan Pack — Cutting', subjudul: 'Kaitkan label komponen ke satu kode bagging', gated: true,
       twoStep: {
@@ -1545,25 +1593,40 @@ const CuttingPerluDiKirim = {
         validasi: async (kode) => {
           const b = daftarBaggingAktif.value.find(x => x.kode === kode);
           if (!b) return { ok: false, pesan: `Kode bagging "${kode}" tidak ditemukan atau sudah ditutup.` };
-          return { ok: true, data: b };
-        }
+          if (b.cutting_track_id && !daftar.value.some(t => t.id === b.cutting_track_id)) return { ok: false, pesan: `SPK bagging ${kode} tidak ada di Perlu Di Kirim.` };
+          return { ok: true, data: b, label: labelKunciPack(b) };
+        },
+        tetapKunci: true
       },
       aksiEkstra: [{ label: 'Tutup Bagging Ini', aksi: async (bagging) => {
         if (!bagging) return;
         try { await updateDoc(doc(db, 'bagging', bagging.id), { ditutup_pada: serverTimestamp() }); packTerpadu.tutup(); await muat(); }
         catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       } }],
-      validasiIsi: async (kode) => {
+      validasiIsi: async (kode, bagging, rows) => {
         try {
           const snap = await getDocs(query(collection(db, 'label_komponen'), where('kode', '==', kode)));
           if (snap.empty) return { ok: false, pesan: `Kode "${kode}" bukan label komponen yang dikenali.` };
-          const d = snap.docs[0];
-          return { ok: true, row: { kode, label: d.data().nama_komponen || '-', qty: '1', tagTxt: 'sudah dicetak', tagCls: 'ok', _cuttingTrackId: d.data().cutting_track_id || null } };
+          const l = snap.docs[0].data();
+          const lain = await getDocs(query(collection(db, 'bagging'), where('isi', 'array-contains', kode)));
+          if (!lain.empty) return { ok: false, pesan: `${kode} sudah masuk bagging ${lain.docs[0].data().kode}.` };
+          if (bagging.cutting_track_id) {
+            const track = daftar.value.find(t => t.id === bagging.cutting_track_id);
+            if (l.cutting_track_id !== bagging.cutting_track_id) return { ok: false, pesan: `${kode} bukan milik SPK ${track ? track.kode_grouping_induk : 'bagging ini'}.` };
+            if (bagging.pola_key && !labelMilikBahan(l, track, { pola_key: bagging.pola_key })) return { ok: false, pesan: `${kode} (${l.nama_komponen}) bahan ${l.nama_bahan || '-'} — bukan bahan bagging ini (${namaBahanBagging(bagging)}).` };
+            if (l.status_cutting !== 'selesai') return { ok: false, pesan: `${kode} belum di-Scan Entry Cutting.` };
+            const n = (bagging.isi || []).length + rows.length + 1;
+            const target = targetBagging(bagging);
+            if (target && n > target) return { ok: false, pesan: `Bagging ${namaBahanBagging(bagging)} sudah penuh (${target}/${target}).` };
+            return { ok: true, row: { kode, label: l.nama_komponen || '-', tagTxt: `${n}/${target}`, tagCls: 'ok', _cuttingTrackId: l.cutting_track_id } };
+          }
+          return { ok: true, row: { kode, label: l.nama_komponen || '-', qty: '1', tagTxt: 'sudah dicetak', tagCls: 'ok', _cuttingTrackId: l.cutting_track_id || null } };
         } catch (e) { console.error('Gagal cari label komponen (pack):', e); return { ok: false, pesan: 'Gagal mencari. Coba lagi.' }; }
       },
       padaUpload: async (rows, bagging) => {
         try {
           await updateDoc(doc(db, 'bagging', bagging.id), { isi: arrayUnion(...rows.map(r => r.kode)) });
+          bagging.isi = [...(bagging.isi || []), ...rows.map(r => r.kode)];
           // riwayat_scan ADITIF, digrup per cutting_track supaya 1 track cuma
           // kena 1x update walau beberapa labelnya discan dalam draft yang sama.
           const perTrack = {};
@@ -1573,8 +1636,7 @@ const CuttingPerluDiKirim = {
               riwayat_scan: [...(data.riwayat_scan || []), ...kodeList.map(k => ({ aksi: 'pack', oleh: window.currentUser?.email || null, pada: new Date().toISOString(), catatan: `Label ${k} -> bagging ${bagging.kode}`, qty: null }))]
             }));
           }
-          await muat();
-          return { ok: true };
+          return { ok: true, lockedLabel: labelKunciPack(bagging) };
         } catch (e) { console.error('Gagal upload scan pack:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
       }
     });
@@ -1598,20 +1660,39 @@ const CuttingPerluDiKirim = {
             const tugas = { id: snap.docs[0].id, ...snap.docs[0].data() };
             const track = daftar.value.find(t => t.kode_tugas === tugas.kode);
             if (!track) return { ok: false, pesan: `Kode tugas "${kode}" tidak terhubung ke SPK manapun yang masih Perlu Di Kirim.` };
-            return { ok: true, data: { tugas, track } };
+            const sisa = (track.kode_bagging || []).filter(kb => !(tugas.dimuat || []).includes(kb)).length;
+            return { ok: true, data: { tugas, track }, label: `${kode} · SPK ${track.kode_grouping_induk} · ${sisa} bagging belum dimuat` };
           } catch (e) { console.error('Gagal cari kode tugas:', e); return { ok: false, pesan: 'Gagal mencari kode tugas. Coba lagi.' }; }
         }
       },
+      // Bagging per bahan wajib penuh (isi = jumlah label bahan itu); bagging
+      // lama per komponen cukup tidak kosong.
       validasiIsi: async (kode, locked) => {
         if (!(locked.track.kode_bagging || []).includes(kode)) return { ok: false, pesan: `Kode bagging "${kode}" tidak cocok dengan tugas ini.` };
-        return { ok: true, row: { kode, label: 'Bagging -> ' + locked.track.kode_grouping_induk, qty: '1', tagTxt: 'cocok', tagCls: 'ok' } };
+        try {
+          const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', kode)));
+          if (snap.empty) return { ok: false, pesan: `Kode bagging "${kode}" tidak ditemukan.` };
+          const bg = snap.docs[0].data();
+          const isi = (bg.isi || []).length;
+          if (bg.cutting_track_id) {
+            const target = targetBagging(bg);
+            if (isi < target) return { ok: false, pesan: `Bagging ${namaBahanBagging(bg)} baru ${isi}/${target} label — Scan Pack dulu sampai penuh.` };
+            return { ok: true, row: { kode, label: namaBahanBagging(bg), tagTxt: `${isi}/${target}`, tagCls: 'ok' } };
+          }
+          if (!isi) return { ok: false, pesan: `Bagging ${kode} masih kosong — Scan Pack dulu.` };
+          return { ok: true, row: { kode, label: 'Bagging -> ' + locked.track.kode_grouping_induk, qty: isi + ' label', tagTxt: 'cocok', tagCls: 'ok' } };
+        } catch (e) { console.error('Gagal cek bagging (kirim):', e); return { ok: false, pesan: 'Gagal mencari. Coba lagi.' }; }
       },
       padaUpload: async (rows, locked) => {
         try {
           const { tugas, track } = locked;
-          await updateDoc(doc(db, 'tugas_kirim', tugas.id), { pack: arrayUnion(...rows.map(r => ({ kode_bagging: r.kode, pada: new Date().toISOString() }))) });
+          const sudahDiTugas = new Set((tugas.pack || []).map(p => p.kode_bagging));
+          const baru = rows.filter(r => !sudahDiTugas.has(r.kode));
+          if (baru.length) await updateDoc(doc(db, 'tugas_kirim', tugas.id), { pack: arrayUnion(...baru.map(r => ({ kode_bagging: r.kode, pada: new Date().toISOString() }))) });
+          const dimuat = new Set([...(tugas.dimuat || []), ...rows.map(r => r.kode)]);
+          await updateDoc(doc(db, 'tugas_kirim', tugas.id), { dimuat: [...dimuat] });
           const tugasSnap = await getDoc(doc(db, 'tugas_kirim', tugas.id));
-          const semuaSudah = (track.kode_bagging || []).every(kb => (tugasSnap.data().pack || []).some(p => p.kode_bagging === kb));
+          const semuaSudah = (track.kode_bagging || []).every(kb => (tugasSnap.data().dimuat || []).includes(kb));
           const now = new Date().toISOString();
           // riwayat_scan ADITIF, digabung 1 transaksi dengan transisi status
           // supaya cutting_track cuma kena 1x update walau banyak baris draft.
@@ -1634,7 +1715,7 @@ const CuttingPerluDiKirim = {
 
     return { muat,
       memuat, daftar, daftarTlc, bolehProses, bolehCetak, aksiAktif, sedangProses, formatQty, formatDiamSejak, tertahan,
-      popupKirim, bukaCetakKirim, konfirmasiCetakKirim, popupCetakAktif, daftarLabelPreview,
+      popupKirim, bukaCetakKirim, konfirmasiCetakKirim, popupCetakAktif, daftarLabelPreview, baggingSpk, targetBagging, namaBahanBagging,
       packTerpadu, kirimTerpadu,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
     };
@@ -1661,8 +1742,11 @@ const CuttingPerluDiKirim = {
             <span v-if="t.kode_tugas" class="tag ok">{{ t.kode_tugas }} &rarr; {{ t.tujuan_akhir }}</span>
             <span v-else class="tag neutral">belum dicetak surat jalan</span>
           </div>
+          <div v-if="baggingSpk(t).length" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+            <span v-for="bg in baggingSpk(t)" :key="bg.kode" class="tag" :class="(bg.isi || []).length >= targetBagging(bg) ? 'ok' : 'warn'">{{ namaBahanBagging(bg) }} {{ (bg.isi || []).length }}/{{ targetBagging(bg) }}</span>
+          </div>
           <div style="display:flex; gap:6px; flex-wrap:wrap;">
-            <button v-if="bolehCetak" @click="bukaCetakKirim(t)" class="btn-outline" style="flex:1; min-width:170px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>Cetak Surat Jalan + Kode Bagging</button>
+            <button v-if="bolehCetak" @click="bukaCetakKirim(t)" class="btn-outline" style="flex:1; min-width:170px; padding:8px; font-size:11.5px;"><i class="fas fa-print" style="margin-right:4px;"></i>{{ t.kode_tugas ? 'Cetak Ulang Surat Jalan + Bagging' : 'Cetak Surat Jalan + Kode Bagging' }}</button>
             <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="flex:1; min-width:120px; padding:8px; font-size:11.5px; color:var(--danger);"><i class="fas fa-triangle-exclamation" style="margin-right:4px;"></i>Scan Masalah</button>
           </div>
         </div>
@@ -1690,7 +1774,7 @@ const CuttingPerluDiKirim = {
       </div>
     </div>
 
-    <scan-terpadu-generik :c="packTerpadu" />
+    <scan-terpadu-generik :c="packTerpadu" @tutup="muat" />
     <scan-terpadu-generik :c="kirimTerpadu" />
 
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
