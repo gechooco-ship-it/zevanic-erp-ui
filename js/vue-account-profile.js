@@ -194,12 +194,18 @@ const AppAccountProfile = {
       if (!passwordUntukPin.value) return alert("Masukkan password Anda dulu buat konfirmasi.");
       menyimpanPin.value = true;
       try {
-        // Cek tabrakan PIN DULU, sebelum reauthenticate, supaya user tidak diminta
-        // password kalau PIN barunya ternyata sudah dipakai orang lain. Pesan gagal
-        // SENGAJA generik supaya tidak membocorkan PIN orang lain.
+        // Cek tabrakan PIN DULU, sebelum reauthenticate. Pesan gagal SENGAJA generik
+        // supaya tidak membocorkan PIN orang lain. Rules cuma mengizinkan role
+        // admin ke atas membaca users lain — untuk operator query ini ditolak
+        // (permission-denied), cek dilewati dan PIN tetap disimpan.
         const hashUniqBaru = await hashPinUniq(pinBaru.value);
-        const snapTabrakan = await getDocs(query(collection(db, 'users'), where('pin_hash_uniq', '==', hashUniqBaru)));
-        const sudahDipakaiOrangLain = snapTabrakan.docs.some(d => d.id !== window.currentUser.email);
+        let sudahDipakaiOrangLain = false;
+        try {
+          const snapTabrakan = await getDocs(query(collection(db, 'users'), where('pin_hash_uniq', '==', hashUniqBaru)));
+          sudahDipakaiOrangLain = snapTabrakan.docs.some(d => d.id !== window.currentUser.email);
+        } catch (eCek) {
+          if (eCek.code !== 'permission-denied') throw eCek;
+        }
         if (sudahDipakaiOrangLain) {
           alert("Gagal memasang PIN. Coba PIN lain.");
           menyimpanPin.value = false;
