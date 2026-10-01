@@ -22,7 +22,7 @@
 import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
-import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=15';
+import { PopupPratinjauCetakLabel, bangunLabelAksesoris, bangunInfoLabelAnakSpk } from './vue-components.js?v=15';
 import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=16';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
@@ -173,7 +173,24 @@ function kodeLabelAcc(b) { return b.kode_kit || b.kode_kartu || b.id_order; }
 // memakai kode kit. cocokLabelAcc dipakai semua scan di file ini.
 function kodeQrBarisAcc(b) { return b.kode_baris || kodeLabelAcc(b); }
 function cocokLabelAcc(b, kode) { return kodeQrBarisAcc(b) === kode; }
-function labelBarisAcc(b, opsi = {}) { return { ...bangunLabelAksesoris(b, formatQty, opsi), kode: kodeQrBarisAcc(b) }; }
+// kodeW3Total — Kode W3 di label = kode_webbing3 BOM x qty anak SPK (baris).
+// Isian BOM yang bukan angka ditampilkan apa adanya (teks bebas).
+function kodeW3Total(b) {
+  const w3 = (b.kode_webbing3 || '').trim();
+  const n = parseFloat(w3.replace(',', '.'));
+  return (w3 && !isNaN(n) && /^[\d.,]+$/.test(w3)) ? formatQty(n * (parseFloat(b.qty) || 0)) : w3;
+}
+// labelBarisAcc — label Acc Webbing = label Acc standar + 1 baris Kode W2 (apa
+// adanya) / Kode W3 (x qty) sebelum nama pelanggan; tidak tampil kalau keduanya
+// kosong. Dipakai kartu layar DAN cetak, jadi keduanya tetap identik.
+function labelBarisAcc(b, opsi = {}) {
+  const dasar = bangunLabelAksesoris(b, formatQty, opsi);
+  const w2 = (b.kode_webbing2 || '').trim(), w3 = kodeW3Total(b);
+  if (!w2 && !w3) return { ...dasar, kode: kodeQrBarisAcc(b) };
+  const barisW = `Kode W2 : ${w2 || '-'}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Kode W3 : ${w3 || '-'}`;
+  const info = bangunInfoLabelAnakSpk([b.nama_aksesoris || '(tanpa nama aksesoris)', `${b.warna || '-'} &middot; ${formatQty(b.butuh)} ${b.satuan || ''}`, barisW], b.pelanggan_nama, opsi);
+  return { ...dasar, info, kode: kodeQrBarisAcc(b) };
+}
 
 // kelompokKartuSpk — kelompokkan baris (SUDAH difilter status tertentu) jadi
 // kartu per SPK TRACK (= per SPK Grouping, ). Beda dari kelompokKartuBahan di
@@ -312,7 +329,7 @@ const PersiapanWebbingPerluDisiapkan = {
     const daftarLabelPreview = ref([]);
     let _pendingCetak = [];
     function bangunRincianWebbing(b) {
-      return { roll: formatRoll(b.roll), kode_webbing2: b.kode_webbing2 || '-', kode_webbing3: b.kode_webbing3 || '-' };
+      return { roll: formatRoll(b.roll), kode_webbing2: b.kode_webbing2 || '-', kode_webbing3: kodeW3Total(b) || '-' };
     }
     function cetakLabelKartu(k) {
       if (typeof QRCode === 'undefined') { alert('Library pembuat QR belum siap dimuat. Refresh halaman (Ctrl+Shift+R) lalu ulangi.'); return; }
@@ -496,7 +513,7 @@ const PersiapanWebbingPerluDisiapkan = {
       // `barisKey` dipakai sebagai :key v-for di template, jadi WAJIB ikut di-return
       // dari setup. Kalau tidak, begitu kartuList terisi Vue memanggil _ctx.barisKey
       // yang undefined -> render crash -> vnode lama ("Memuat..") tertahan di layar.
-      barisKey, labelBarisAcc,
+      barisKey, labelBarisAcc, kodeW3Total,
       TAB_DEFS_WEBBING, gantiTabPill, MY_TARGET, kpiHeader,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu, onCetakSelesai,
       popupCetakUlang, bukaCetakUlang, lanjutCetakUlang, pinCetakUlangAktif, pinCetakUlangSukses, batalPinCetakUlang, barisTerpilihCetakUlang,
@@ -579,7 +596,7 @@ const PersiapanWebbingPerluDisiapkan = {
                 <div style="color:var(--text-faint); margin-top:2px;">
                   <span :class="{ 'tag warn': b.roll === null }">{{ formatRoll(b.roll) }}</span>
                   <span v-if="b.kode_webbing2" class="tag neutral" style="margin-left:4px;">web2: {{ b.kode_webbing2 }}</span>
-                  <span v-if="b.kode_webbing3" class="tag neutral" style="margin-left:4px;">web3: {{ b.kode_webbing3 }}</span>
+                  <span v-if="b.kode_webbing3" class="tag neutral" style="margin-left:4px;">web3: {{ kodeW3Total(b) }}</span>
                   <span class="gc-num" style="margin-left:4px;">stok {{ formatQty(b._stok) }}</span>
                 </div>
               </div>
