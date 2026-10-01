@@ -518,7 +518,7 @@ const MenungguAccBelanja = {
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
-    const sayaOwnerKeAtas = computed(() => tierOwnerKeAtas(window.currentUser));
+    const sayaOwnerKeAtas = ref(false); // diisi sesudah izinSiap: window.currentUser tidak reaktif
 
     async function muat() {
       memuat.value = true;
@@ -587,7 +587,7 @@ const MenungguAccBelanja = {
       sedangProses[n.id] = false;
     }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; sayaOwnerKeAtas.value = tierOwnerKeAtas(window.currentUser); await muat(); });
 
     return { muat, memuat, daftar, sayaOwnerKeAtas, sedangProses, setujui, tolak, formatRupiah, formatDiamSejak };
   },

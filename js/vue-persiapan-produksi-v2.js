@@ -33,7 +33,7 @@ import { ScanTerpaduGenerik, buatScanTerpadu } from './vue-scan-cetak.js?v=16';
 function picOwnerKeAtas(userData) {
   if (!userData) return false;
   const role = (userData.role || '').toLowerCase();
-  return role === 'owner' || role === 'superuser' || role === 'pic';
+  return role === 'owner' || role === 'pic_owner' || role === 'superuser' || role === 'pic';
 }
 
 
@@ -468,7 +468,7 @@ const PerluPersiapanManager = {
     const hasilTerbit = ref(null); // { idOrder, kode:[...] }
 
     const menuId = 'pp_disiapkan';
-    const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(menuId, 'add') !== false);
+    const bolehProses = ref(false); // diisi sesudah izinSiap: window.currentUser tidak reaktif
 
     async function muat() {
       memuat.value = true;
@@ -564,7 +564,7 @@ const PerluPersiapanManager = {
       sedangProses[o.id] = false;
     }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; bolehProses.value = picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(menuId, 'add') !== false; await muat(); });
     return { memuat, muat, cari, daftarTampil, editor, bukaEditor, tutupEditor, totalPecahan, tambahPecahan, hapusPecahan, galatPecahan,
       buatSeparating, sedangProses, bolehProses, hasilTerbit, formatQty, PETA_JALUR };
   },
@@ -639,7 +639,7 @@ export const PanelGroupingBahan = {
     const pilih = reactive({});
     const sedangProses = ref(false);
     const hasilTerbit = ref(null);
-    const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu('pp_bahan', 'add') !== false);
+    const bolehProses = ref(false); // diisi sesudah izinSiap: window.currentUser tidak reaktif
 
     async function muat() {
       memuat.value = true;
@@ -700,7 +700,7 @@ export const PanelGroupingBahan = {
       } catch (e) { console.error('Gagal buat SPK Grouping:', e); alert('Gagal membuat SPK Grouping. Coba lagi.'); }
       sedangProses.value = false;
     }
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; bolehProses.value = picOwnerKeAtas(window.currentUser) && window.cekIzinMenu('pp_bahan', 'add') !== false; await muat(); });
     return { memuat, muat, klaster, pilih, terpilih, buatGrouping, sedangProses, bolehProses, hasilTerbit, formatQty };
   },
   template: `
@@ -776,7 +776,7 @@ const JalurTahapManager = {
     // tombol "Scan Operator" (menugaskan) wajib akun PIC ke atas. Sengaja computed
     // TERPISAH dari `bolehProses` supaya Scan Entry/Masalah/Pack/Kirim/Sampai/Cetak
     // di tahap lain tidak ikut kena gerbang PIC.
-    const bolehTunjukOperator = computed(() => picOwnerKeAtas(window.currentUser));
+    const bolehTunjukOperator = ref(false); // diisi sesudah izinSiap: window.currentUser tidak reaktif
     // Pilihan Scan per CHILD TAB (bukan per modul) — targetId turunan jalur+tahap,
     // 1 tahap = 1 pengaturan sendiri, kandidat checkbox tetap semua aksi jalur ini.
     const MY_TARGET = computed(() => `sub-pp-${props.jalur}-${props.tahap.replace(/_/g, '')}`);
@@ -919,7 +919,7 @@ const JalurTahapManager = {
     // pastikanCachePilihanScan WAJIB selesai sebelum render pertama yang
     // memanggil aksiAktif() di template (tombol Scan Operator/Entry/dst) —
     // kalau tidak, tombol jatuh ke DEFAULT_PILIHAN walau admin sudah atur beda.
-    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; bolehTunjukOperator.value = picOwnerKeAtas(window.currentUser); await pastikanCachePilihanScan(); await muat(); });
 
     return {
       memuat, muat, daftarTrack, sedangProses, bolehProses, bolehCetak, bolehTunjukOperator,

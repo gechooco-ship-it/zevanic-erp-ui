@@ -74,7 +74,7 @@ async function generateKodeHarianFormat(prefix, koleksiCounter) {
 function picOwnerKeAtas(userData) {
   if (!userData) return false;
   const role = (userData.role || '').toLowerCase();
-  return role === 'owner' || role === 'superuser' || role === 'pic';
+  return role === 'owner' || role === 'pic_owner' || role === 'superuser' || role === 'pic';
 }
 // saringMilikOperator — operator hanya lihat baris yang ditugaskan ke dirinya
 // (lewat Scan Operator); role lain lihat semua baris. Gerbang TAMPILAN,
@@ -223,7 +223,7 @@ const SeriePerluDiProses = {
     const spkTrackByJalur = reactive({ sewing: [], webbing: [], finishing: [] });
     const menuId = 'proses_serie';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
-    const bolehOperator = computed(() => picOwnerKeAtas(window.currentUser));
+    const bolehOperator = ref(false); // diisi sesudah izinSiap: window.currentUser tidak reaktif
 
     async function muat() {
       memuat.value = true;
@@ -488,7 +488,7 @@ const SeriePerluDiProses = {
       await kirimMasalahSerie(p.target, p.jumlah, p.alasan, p.jenis);
     });
 
-    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; bolehOperator.value = picOwnerKeAtas(window.currentUser); await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, daftarSep, bolehProses, bolehOperator, formatQty, sumber, bisaMulai, expandedIds, toggleExpand, LABEL_SUMBER,
@@ -611,7 +611,7 @@ const SerieSedangDiProses = {
     const menuId = 'proses_serie';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
-    const bolehOperator = computed(() => picOwnerKeAtas(window.currentUser));
+    const bolehOperator = ref(false); // diisi sesudah izinSiap: window.currentUser tidak reaktif
 
     // Sesuai wireframe 2.2: tabel bisa di-expand per baris (bukan kartu polos).
     const expandedIds = ref(new Set());
@@ -765,7 +765,7 @@ const SerieSedangDiProses = {
     function bukaScanOperatorToolbar() { bukaPilihTarget('Pilih batch untuk Scan Operator', bukaScanOperator); }
     function bukaScanEntryToolbar() { bukaPilihTarget('Pilih batch untuk Scan Entry', bukaScanEntry); }
 
-    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; bolehOperator.value = picOwnerKeAtas(window.currentUser); await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, daftar, bolehProses, bolehCetak, bolehOperator, formatQty, formatDiamSejak, tertahan, formatWaktu,

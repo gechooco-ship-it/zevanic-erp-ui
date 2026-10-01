@@ -31,7 +31,7 @@ import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 function picOwnerKeAtas(userData) {
   if (!userData) return false;
   const role = (userData.role || '').toLowerCase();
-  return role === 'owner' || role === 'superuser' || role === 'pic';
+  return role === 'owner' || role === 'pic_owner' || role === 'superuser' || role === 'pic';
 }
 
 // Konfigurasi khas pos ini (SATU-SATUNYA tempat yang beda antara file
@@ -268,7 +268,7 @@ const PersiapanWebbingPerluDisiapkan = {
     const MY_TARGET = 'sub-pp-webbing-perludisiapkan';
     // satu-satunya pemakai bolehProses di komponen ini adalah tombol "Tunjuk
     // Operator", jadi digerbang langsung PIC ke atas di sini.
-    const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(MENU_ID, 'edit') !== false);
+    const bolehProses = ref(false); // diisi sesudah izinSiap: window.currentUser tidak reaktif
     const bolehCetak = computed(() => window.cekIzinMenu(MENU_ID, 'print') !== false);
     // bolehEdit — RETROFIT, gerbang tombol "Scan Sampai" global (lihat catatan
     // sama di vue-persiapan-bahan.js/vue-persiapan-sewing.js).
@@ -505,7 +505,7 @@ const PersiapanWebbingPerluDisiapkan = {
     });
     function bukaScanSampaiGlobal() { sampaiTerpadu.buka(); }
 
-    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await pastikanCachePilihanScan(); await muat(); });
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-webbing-tahap'); await window.authReady; await window.izinSiap; bolehProses.value = picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(MENU_ID, 'edit') !== false; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, kartuList, cari, isChecked, toggleCheck,

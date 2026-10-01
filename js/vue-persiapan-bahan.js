@@ -25,7 +25,7 @@ import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunInfoLabelAnakSpk } from './vue-components.js?v=13';
 import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=16';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
-import { PanelGroupingBahan } from './vue-persiapan-produksi-v2.js?v=23';
+import { PanelGroupingBahan } from './vue-persiapan-produksi-v2.js?v=24';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier PIC ke atas
 // (pic/pic_owner/owner/superuser), TANPA popup PIN — cukup akun yang login
@@ -33,7 +33,7 @@ import { PanelGroupingBahan } from './vue-persiapan-produksi-v2.js?v=23';
 function picOwnerKeAtas(userData) {
   if (!userData) return false;
   const role = (userData.role || '').toLowerCase();
-  return role === 'owner' || role === 'superuser' || role === 'pic';
+  return role === 'owner' || role === 'pic_owner' || role === 'superuser' || role === 'pic';
 }
 
 // Format & hitung kecil
@@ -307,7 +307,7 @@ const PersiapanBahanPerluDisiapkan = {
     const MY_TARGET = 'sub-pp-bahan-perludisiapkan';
     // satu-satunya pemakai bolehProses di komponen ini adalah tombol "Scan
     // Operator", jadi digerbang langsung PIC ke atas di sini.
-    const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(menuId, 'edit') !== false);
+    const bolehProses = ref(false); // diisi sesudah izinSiap: window.currentUser tidak reaktif
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
     // bolehEdit — gerbang tombol "Scan Sampai": Admin BOLEH scan masalah/sampai
     // di tab ini tapi TIDAK BOLEH scan operator (itu PIC ke atas lewat
@@ -544,7 +544,7 @@ const PersiapanBahanPerluDisiapkan = {
     });
     function bukaScanSampaiGlobal() { sampaiTerpadu.buka(); }
 
-    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await pastikanCachePilihanScan(); await muat(); });
+    onMounted(async () => { sembunyikanBarisTabAsli('sub-pp-bahan-tahap'); await window.authReady; await window.izinSiap; bolehProses.value = picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(menuId, 'edit') !== false; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, kartuList, cari, isChecked, toggleCheck, bangunLabelBahan, barisKey,

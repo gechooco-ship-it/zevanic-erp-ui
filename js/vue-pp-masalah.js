@@ -22,7 +22,7 @@ import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=16';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
-import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=41';
+import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=42';
 
 // picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (dipakai Setuju/Tolak/Ajukan
 // Belanja, WAJIB Owner/PIC Owner + popup PIN). Yang ini untuk "Scan Operator":
@@ -31,7 +31,7 @@ import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=41';
 function picOwnerKeAtas(userData) {
   if (!userData) return false;
   const role = (userData.role || '').toLowerCase();
-  return role === 'owner' || role === 'superuser' || role === 'pic';
+  return role === 'owner' || role === 'pic_owner' || role === 'superuser' || role === 'pic';
 }
 
 // Format & hitung kecil (SAMA pola dengan vue-persiapan-bahan.js)
@@ -352,7 +352,7 @@ const MasalahMenungguSetuju = {
     const petaStokBahan = ref({});
     const infoTambahan = reactive({}); // docId -> { moq, moqSatuan, pakaiPerMinggu, qtyBeli }
     const prosesKartu = reactive({}); // groupKey -> boolean
-    const sayaOwnerKeAtas = computed(() => tierOwnerKeAtas(window.currentUser));
+    const sayaOwnerKeAtas = ref(false); // diisi sesudah izinSiap: window.currentUser tidak reaktif
 
     async function muat() {
       memuat.value = true;
@@ -478,7 +478,7 @@ const MasalahMenungguSetuju = {
       prosesKartu[k.key] = false;
     }
 
-    onMounted(async () => { await window.authReady; await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; sayaOwnerKeAtas.value = tierOwnerKeAtas(window.currentUser); await muat(); });
 
     return { muat,
       memuat, daftar, kartuPengajuan, infoTambahan, prosesKartu, sayaOwnerKeAtas,
@@ -587,7 +587,7 @@ const MasalahPerluDisiapkan = {
     const menuId = 'pp_masalah';
     // satu-satunya pemakai bolehProses di komponen ini adalah tombol "Scan
     // Operator", jadi digerbang langsung PIC ke atas di sini.
-    const bolehProses = computed(() => picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(menuId, 'edit') !== false);
+    const bolehProses = ref(false); // diisi sesudah izinSiap: window.currentUser tidak reaktif
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
 
     async function muat() {
@@ -678,7 +678,7 @@ const MasalahPerluDisiapkan = {
       scanOperator.buka();
     }
 
-    onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
+    onMounted(async () => { await window.authReady; await window.izinSiap; bolehProses.value = picOwnerKeAtas(window.currentUser) && window.cekIzinMenu(menuId, 'edit') !== false; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
       memuat, kartuList, kartuTerbuka, toggleKartu, isChecked, toggleCheck,
