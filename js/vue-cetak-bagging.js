@@ -327,9 +327,12 @@ const AppCetakBagging = {
   `
 };
 
-// Ekspos muat() seperti layar lain: tab yang sudah ter-mount tidak memuat
-// ulang sendiri saat dibuka lagi.
+// Mount saat sub-tab dibuka (sesudah login), bukan saat halaman dimuat: kalau
+// mount di layar login, role terbaca 'operator' dan checkbox cetak terkunci.
+// Dibuka ulang = muat() lagi, sekalian membaca ulang role.
 let vmCetakBagging = null;
-const mountPoint = document.getElementById('vue-cetak-bagging');
-if (mountPoint) vmCetakBagging = createApp(AppCetakBagging).mount('#vue-cetak-bagging');
-window.refreshCetakBagging = function() { if (vmCetakBagging) vmCetakBagging.muat(); };
+window.pastikanMountCetakBagging = function() {
+  if (vmCetakBagging) { vmCetakBagging.muat(); return; }
+  if (document.getElementById('vue-cetak-bagging')) vmCetakBagging = createApp(AppCetakBagging).mount('#vue-cetak-bagging');
+};
+window.refreshCetakBagging = window.pastikanMountCetakBagging;

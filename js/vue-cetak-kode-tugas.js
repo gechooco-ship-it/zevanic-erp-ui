@@ -374,9 +374,12 @@ const AppCetakKodeTugas = {
   `
 };
 
-// Ekspos muat() seperti layar lain: tab yang sudah ter-mount tidak memuat
-// ulang sendiri saat dibuka lagi.
+// Mount saat sub-tab dibuka (sesudah login), bukan saat halaman dimuat: kalau
+// mount di layar login, role terbaca 'operator' dan checkbox cetak terkunci.
+// Dibuka ulang = muat() lagi, sekalian membaca ulang role.
 let vmCetakKodeTugas = null;
-const mountPoint = document.getElementById('vue-cetak-kode-tugas');
-if (mountPoint) vmCetakKodeTugas = createApp(AppCetakKodeTugas).mount('#vue-cetak-kode-tugas');
-window.refreshCetakKodeTugas = function() { if (vmCetakKodeTugas) vmCetakKodeTugas.muat(); };
+window.pastikanMountCetakKodeTugas = function() {
+  if (vmCetakKodeTugas) { vmCetakKodeTugas.muat(); return; }
+  if (document.getElementById('vue-cetak-kode-tugas')) vmCetakKodeTugas = createApp(AppCetakKodeTugas).mount('#vue-cetak-kode-tugas');
+};
+window.refreshCetakKodeTugas = window.pastikanMountCetakKodeTugas;
