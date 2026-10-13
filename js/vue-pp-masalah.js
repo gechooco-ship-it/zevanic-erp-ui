@@ -22,7 +22,7 @@ import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=17';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
-import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=43';
+import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=44';
 
 // picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (dipakai Setuju/Tolak/Ajukan
 // Belanja, WAJIB Owner/PIC Owner + popup PIN). Yang ini untuk "Scan Operator":
@@ -1102,10 +1102,12 @@ const MasalahPerluDiKirim = {
           <div class="gc-heading" style="font-weight:700; font-size:12.5px; margin-bottom:8px;">{{ g.label }}</div>
           <div style="display:flex; flex-direction:column; gap:6px;">
             <div v-for="d in g.docs" :key="d.id" style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;">
-              <span class="gc-num" style="font-weight:700;">{{ d.kode_msl || d.id_order }}</span>
-              <span style="color:var(--text-faint);">{{ d.bahan_nama }} {{ d.bahan_warna }} &middot; {{ formatQty(d.qty_disetujui || d.qty_kurang) }} {{ d.satuan }}</span>
-              <span v-if="d.kode_bagging" class="tag ok">{{ d.kode_bagging }}</span>
-              <span v-else class="tag neutral">belum di-pack</span>
+              <div style="min-width:0; flex:1;">
+                <div class="gc-num" style="font-weight:700;">{{ d.kode_msl || d.id_order }}</div>
+                <div style="color:var(--text-faint);">{{ d.bahan_nama }} {{ d.bahan_warna }} &middot; {{ formatQty(d.qty_disetujui || d.qty_kurang) }} {{ d.satuan }}</div>
+              </div>
+              <span v-if="d.kode_bagging" class="tag ok" style="flex-shrink:0; white-space:nowrap;">{{ d.kode_bagging }}</span>
+              <span v-else class="tag neutral" style="flex-shrink:0; white-space:nowrap;">belum di-pack</span>
             </div>
           </div>
         </div>

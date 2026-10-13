@@ -716,7 +716,7 @@ const SewingSedangSewing = {
             </div>
           </div>
           <div style="display:flex; flex-direction:column; gap:6px;">
-            <div v-for="t in op.daftar" :key="t.id" style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
+            <div v-for="t in op.daftar" :key="t.id" style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
               <span class="gc-num" style="font-weight:700;">{{ t.kode_separating }}</span>
               <span style="color:var(--text-faint);">{{ t.nama_produk }} size {{ t.size || '-' }}</span>
               <span class="tag" :class="t.label_pcs_dicetak_pada ? (progres(t).done >= progres(t).total ? 'ok' : 'neutral') : 'warn'">{{ t.label_pcs_dicetak_pada ? progres(t).done + ' / ' + progres(t).total + ' pcs' : 'label pcs belum dicetak' }}</span>
@@ -1067,7 +1067,7 @@ const SewingSedangKirim = {
         <div v-for="g in kelompokTugas" :key="g.kodeTugas" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;">
           <div class="gc-heading" style="font-weight:700; font-size:12.5px; margin-bottom:8px;">{{ g.kodeTugas }} &rarr; Serie</div>
           <div style="display:flex; flex-direction:column; gap:6px;">
-            <div v-for="t in g.daftar" :key="t.id" style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
+            <div v-for="t in g.daftar" :key="t.id" style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
               <span class="gc-num" style="font-weight:700;">{{ t.kode_separating }}</span>
               <span style="color:var(--text-faint);">{{ t.nama_produk }} size {{ t.size || '-' }}</span>
               <span class="gc-num" style="color:var(--text-faint);">diam {{ formatDiamSejak(t.masuk_tahap_pada) }}</span>

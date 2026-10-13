@@ -659,7 +659,7 @@ function buatSubTabFinishing(tahap) {
             </div>
             <div style="font-size:11px; color:var(--text-faint); margin-bottom:8px;">{{ g.namaProduk }} size {{ g.size || '-' }}</div>
             <div style="display:flex; flex-direction:column; gap:6px;">
-              <div v-for="t in g.pcs" :key="t.id" style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
+              <div v-for="t in g.pcs" :key="t.id" style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
                 <span class="gc-num" style="font-weight:700;">{{ t.kode_pcs }}</span>
                 <span style="color:var(--text-faint);">progress {{ t.progress }}/4</span>
                 <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:4px 8px; font-size:10px; color:var(--danger);"><i class="fas fa-triangle-exclamation"></i></button>
@@ -969,7 +969,7 @@ const FinishingSedangKirim = {
         <div v-for="g in kelompokTugas" :key="g.kodeTugas" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;">
           <div class="gc-heading" style="font-weight:700; font-size:12.5px; margin-bottom:8px;">{{ g.kodeTugas }} &rarr; Serie</div>
           <div style="display:flex; flex-direction:column; gap:6px;">
-            <div v-for="t in g.pcs" :key="t.id" style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
+            <div v-for="t in g.pcs" :key="t.id" style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:4px 8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
               <span class="gc-num" style="font-weight:700;">{{ t.kode_pcs }}</span>
               <span style="color:var(--text-faint);">{{ t.nama_produk }} size {{ t.size || '-' }}</span>
               <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:4px 8px; font-size:10px; color:var(--danger);"><i class="fas fa-triangle-exclamation"></i></button>
