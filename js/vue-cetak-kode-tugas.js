@@ -23,7 +23,7 @@ import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dis
 import { collection, query, orderBy, limit, getDocs, addDoc, doc, updateDoc, deleteDoc, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, HeaderLayar, KolomCari } from './vue-components.js?v=13';
-import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=16';
+import { PopupPinGenerik, buatQrDataUrl } from './vue-scan-cetak.js?v=17';
 
 const BATAS_TAMPIL = 30;
 const MAKS_BUAT_SEKALIGUS = 10;
@@ -367,7 +367,7 @@ const AppCetakKodeTugas = {
       </div>
     </div>
 
-    <popup-pin-generik v-if="pinAktif" judul="Verifikasi PIN — Cetak Ulang Kode Tugas" konteks="Cetak Kode Tugas - Cetak Ulang" :roles-diizinkan="['owner','superuser','pic_owner','pic']" @sukses="pinSukses" @batal="pinAktif = false" />
+    <popup-pin-generik v-if="pinAktif" judul="Verifikasi PIN — Cetak Ulang Kode Tugas" konteks="Cetak Kode Tugas - Cetak Ulang" :hanya-akun-login="true" :roles-diizinkan="['owner','superuser','pic_owner','pic']" @sukses="pinSukses" @batal="pinAktif = false" />
 
     <popup-pratinjau-cetak-label :terbuka="popupCetak" judul="Cetak Lembar Kode Tugas" :daftar-label="labelPreview" jenis-cetak="lembar_kode_tugas" @tutup="popupCetak = false" />
   </div>

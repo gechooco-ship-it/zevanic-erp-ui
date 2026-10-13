@@ -37,7 +37,7 @@ const MAKS_PERCOBAAN_PIN = 3;
 export function tierOwnerKeAtas(userData) {
   if (!userData) return false;
   const role = (userData.role || '').toLowerCase();
-  if (role === 'owner' || role === 'superuser') return true;
+  if (role === 'owner' || role === 'superuser' || role === 'pic_owner') return true;
   return role === 'pic' && (userData.profil_akses || '').toLowerCase() === 'pic_owner';
 }
 
@@ -49,8 +49,20 @@ function tagRole(userData) {
   return role;
 }
 
-export async function cariUserByPin(pinInput) {
-  const snap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['owner', 'superuser', 'pic', 'admin'])));
+// opsi.hanyaAkunLogin: PIN wajib milik akun yang sedang login (baca dokumen
+// users sendiri); tanpa opsi ini PIN siapa pun yang berwenang diterima
+// (persetujuan atasan). Akun tanpa pin_hash dibalas { _belumPin: true }.
+export async function cariUserByPin(pinInput, opsi = {}) {
+  if (opsi.hanyaAkunLogin) {
+    const email = window.currentUser?.email;
+    if (!email) return null;
+    const s = await getDoc(doc(db, 'users', email));
+    if (!s.exists()) return null;
+    const u = s.data();
+    if (!u.pin_hash) return { _belumPin: true, email, ...u };
+    return (await hashPin(pinInput, email)) === u.pin_hash ? { email, ...u } : null;
+  }
+  const snap = await getDocs(query(collection(db, 'users'), where('role', 'in', ['owner', 'superuser', 'pic', 'pic_owner', 'admin'])));
   for (const d of snap.docs) {
     const u = d.data();
     if (!u.pin_hash) continue;
@@ -81,14 +93,16 @@ export async function catatRiwayatPin(menu, berhasil, user) {
 // PopupPinGenerik — GERBANG PIN per akun (wireframe "05 - Scan dan Cetak" §4.0,
 // 2 state: bersih & salah). Mencatat riwayat_pin di SETIAP percobaan, sukses
 // maupun gagal. Props: judul, pesan, konteks (WAJIB — nama menu/aksi, ditulis ke
-// field `menu`), rolesDiizinkan (null = semua PIN admin-level). Emits: sukses(user), batal
+// field `menu`), rolesDiizinkan (null = semua PIN admin-level), hanyaAkunLogin
+// (PIN wajib milik akun yang login). Emits: sukses(user), batal
 
 export const PopupPinGenerik = {
   props: {
     judul: { type: String, default: 'Verifikasi PIN' },
     pesan: { type: String, default: '' },
     konteks: { type: String, required: true },
-    rolesDiizinkan: { type: Array, default: null }
+    rolesDiizinkan: { type: Array, default: null },
+    hanyaAkunLogin: { type: Boolean, default: false }
   },
   emits: ['sukses', 'batal'],
   setup(props, { emit }) {
@@ -103,7 +117,13 @@ export const PopupPinGenerik = {
       memverifikasi.value = true;
       error.value = '';
       try {
-        const user = await cariUserByPin(pin.value);
+        const user = await cariUserByPin(pin.value, { hanyaAkunLogin: props.hanyaAkunLogin });
+        if (user && user._belumPin) {
+          error.value = 'Akun Anda belum memasang PIN. Pasang dulu di Profile › PIN.';
+          pin.value = '';
+          memverifikasi.value = false;
+          return;
+        }
         if (user) {
           const berwenang = !props.rolesDiizinkan || props.rolesDiizinkan.includes(tagRole(user));
           if (berwenang) {
@@ -142,6 +162,7 @@ export const PopupPinGenerik = {
       <div class="gc-card" style="max-width:360px; width:100%;">
         <h3 style="font-weight:700; font-size:14px; margin-bottom:6px;"><i class="fas fa-lock" style="color:var(--burgundy); margin-right:8px;"></i>{{ judul }}</h3>
         <p v-if="pesan" style="font-size:11.5px; color:var(--text-faint); margin-bottom:12px; line-height:1.5;">{{ pesan }}</p>
+        <p v-if="hanyaAkunLogin" style="font-size:11px; color:var(--text-faint); margin-bottom:10px;">Masukkan PIN akun Anda sendiri.</p>
         <div v-if="!terkunci" class="gc-field">
           <label>PIN (6 angka)</label>
           <input v-model="pin" @keyup.enter="kirim" type="text" inputmode="numeric" autocomplete="off" maxlength="6" placeholder="••••••" autofocus style="letter-spacing:6px; text-align:center; font-size:18px; -webkit-text-security:disc;">

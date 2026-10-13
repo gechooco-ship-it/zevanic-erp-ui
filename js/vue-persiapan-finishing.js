@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunLabelAksesoris } from './vue-components.js?v=15';
-import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=16';
+import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=17';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier
@@ -124,6 +124,19 @@ function daftarBarisDariTrack(daftarTrack) {
   return baris;
 }
 function barisKey(b) { return b._trackId + '::' + b._lineIdx; }
+
+// kelengkapanBagging — isi wajib satu bagging = semua baris separating itu yang
+// belum dikirim. `tambahan` = baris draft yang dianggap sudah masuk. Separating
+// kosong (data lama) dianggap lengkap.
+function kelengkapanBagging(semuaBaris, kodeSep, kodeBagging, tambahan = []) {
+  const draft = new Set(tambahan.map(barisKey));
+  const wajib = semuaBaris.filter(x => kodeSep && x.kode_separating === kodeSep && x.status !== 'sedang_dikirim' && x.status !== 'selesai');
+  const masuk = (x) => x.kode_bagging === kodeBagging || draft.has(barisKey(x));
+  return { wajib: wajib.length, masuk: wajib.filter(masuk).length, kurang: wajib.filter(x => !masuk(x)) };
+}
+function teksKurangBagging(kurang) {
+  return kurang.map(x => `${x.nama_aksesoris || x.kode_baris} (${x.kode_bagging ? 'di ' + x.kode_bagging : (x.status === 'perlu_dikirim' ? 'belum di-pack' : 'masih ' + String(x.status || '').replace(/_/g, ' '))})`).join(', ');
+}
 
 // updateBarisFinishing — read-modify-write ATOMIK 1 baris (dipilih lewat index),
 // SAMA pola seperti updateBarisBahan di vue-persiapan-bahan.js. Dipakai aksi
@@ -990,6 +1003,7 @@ const PersiapanFinishingPerluDikirim = {
         if (!peta[key]) peta[key] = { key, label: labelSepack(b), baris: [] };
         peta[key].baris.push(b);
       });
+      Object.values(peta).forEach(g => g.baris.sort((a, b) => String(a.kode_separating || '').localeCompare(String(b.kode_separating || ''))));
       return Object.values(peta).sort((a, b) => b.baris.length - a.baris.length);
     });
 
@@ -1067,9 +1081,9 @@ const PersiapanFinishingPerluDikirim = {
       sedangProses.value = false;
     }
 
-    // Scan Pack — Draft/Upload. Step1 kunci Kode Bagging, step2 label tiap baris
-    // (1 scan = 1 kode baris, cocokLabelAcc, bisa menandai banyak komponen);
-    // Upload menulis kode_bagging + bagging.isi[]/kode_separating sekali jalan.
+    // Scan Pack — twoStep: kunci Kode Bagging, lalu label tiap baris. 1 bagging
+    // = 1 separating; tag draft menunjukkan progres item separating di bagging
+    // ini, dan Upload yang belum lengkap minta konfirmasi dulu.
     const packTerpadu = buatScanTerpadu({
       judul: 'Scan Pack — Acc Finishing', subjudul: 'Kaitkan label anak SPK ke satu kode bagging',
       twoStep: {
@@ -1101,10 +1115,16 @@ const PersiapanFinishingPerluDikirim = {
         if (kodeSepTerkunci && cocok[0].kode_separating !== kodeSepTerkunci) {
           return { ok: false, pesan: `Kode "${kode}" dari Kode Separating berbeda (${cocok[0].kode_separating}) dari bagging ini (${kodeSepTerkunci}). 1 bagging cuma boleh 1 separating.` };
         }
-        return { ok: true, row: { kode, label: `${cocok[0].nama_aksesoris || ''} ${cocok[0].warna || ''}`.trim(), qty: String(cocok.length), tagTxt: cocok.length + ' komponen', tagCls: 'ok', _kodeSep: cocok[0].kode_separating || null } };
+        const prog = kelengkapanBagging(daftarBarisDariTrack(daftarTrack.value), cocok[0].kode_separating, bagging.kode, [...rowsSaatIni.flatMap(r => r._baris || []), ...cocok]);
+        return { ok: true, row: { kode, label: `${`${cocok[0].nama_aksesoris || ''} ${cocok[0].warna || ''}`.trim()} · ${cocok[0].kode_separating || '-'}`.trim(), qty: String(cocok.length), tagTxt: prog.wajib ? prog.masuk + '/' + prog.wajib + ' item' : 'cocok', tagCls: prog.masuk < prog.wajib ? 'warn' : 'ok', _kodeSep: cocok[0].kode_separating || null, _baris: cocok } };
       },
       padaUpload: async (rows, bagging) => {
         try {
+          const sepCek = bagging.kode_separating || rows[0]._kodeSep || null;
+          const prog = kelengkapanBagging(daftarBarisDariTrack(daftarTrack.value), sepCek, bagging.kode, rows.flatMap(r => r._baris || []));
+          if (prog.kurang.length && !confirm(`Bagging ${bagging.kode} (${sepCek}) baru ${prog.masuk}/${prog.wajib} item.\nBelum masuk: ${teksKurangBagging(prog.kurang)}.\n\nTetap simpan? Scan Kirim menolak bagging ini sampai lengkap.`)) {
+            return { ok: false, pesan: 'Upload dibatalkan. Lengkapi item separating ini dulu.' };
+          }
           for (const r of rows) {
             const cocok = barisTertahan.value.filter(x => cocokLabelAcc(x, r.kode) && !x.kode_bagging);
             const trackIds = [...new Set(cocok.map(b => b._trackId))];
@@ -1123,9 +1143,9 @@ const PersiapanFinishingPerluDikirim = {
     });
     function bukaScanPack() { packTerpadu.buka(); }
 
-    // Scan Kirim — pola sama Scan Pack. Step1 kunci Kode Tugas, step2 kode
-    // bagging tiap pack; Upload menulis status/kode_tugas/tlc_tujuan baris
-    // terkait + tugas_kirim.pack[] (kode_separating dilepas oleh Scan Sampai).
+    // Scan Kirim — twoStep: kunci Kode Tugas, lalu kode bagging. Bagging DITOLAK
+    // kalau item separating-nya belum lengkap di bagging itu. Upload menulis
+    // status/kode_tugas/tlc_tujuan baris + tugas_kirim.pack[].
     const kirimTerpadu = buatScanTerpadu({
       judul: 'Scan Kirim — Acc Finishing', subjudul: 'Muat kode bagging ke satu tugas kirim',
       twoStep: {
@@ -1145,6 +1165,8 @@ const PersiapanFinishingPerluDikirim = {
       validasiIsi: async (kode) => {
         const anggota = barisTertahan.value.filter(x => x.kode_bagging === kode);
         if (!anggota.length) return { ok: false, pesan: `Kode bagging "${kode}" tidak ditemukan di antara yang masih tertahan (mungkin belum di-pack, atau sudah dikirim).` };
+        const prog = kelengkapanBagging(daftarBarisDariTrack(daftarTrack.value), anggota[0].kode_separating, kode);
+        if (prog.kurang.length) return { ok: false, pesan: `Bagging "${kode}" belum lengkap untuk ${anggota[0].kode_separating}: ${prog.masuk}/${prog.wajib} item. Kurang: ${teksKurangBagging(prog.kurang)}.` };
         return { ok: true, row: { kode, label: anggota.length + ' komponen', qty: String(anggota.length), tagTxt: 'cocok', tagCls: 'ok' } };
       },
       padaUpload: async (rows, tugas) => {
@@ -1221,6 +1243,7 @@ const PersiapanFinishingPerluDikirim = {
           <div style="display:flex; flex-direction:column; gap:6px;">
             <div v-for="b in g.baris" :key="barisKey(b)" style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11px; padding:6px 8px; border-radius:10px;" :style="{ background: tertahan(b.masuk_tahap_pada) ? 'var(--warn-light)' : 'transparent' }">
               <span style="font-weight:700;">{{ ((b.nama_produk || '') + ' ' + (b.produk_warna || '')).trim() || b.id_order }}</span>
+              <span class="gc-num" style="color:var(--text-faint);">{{ b.kode_separating || '-' }}</span>
               <span style="color:var(--text-faint);">{{ b.nama_aksesoris }} {{ b.warna }}</span>
               <span v-if="b.kode_bagging" class="tag ok">{{ b.kode_bagging }}</span>
               <span v-else class="tag neutral">belum di-pack</span>
