@@ -22,7 +22,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah } from './vue-scan-cetak.js?v=18';
+import { ScanTerpaduGenerik, PopupPinGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah } from './vue-scan-cetak.js?v=18';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // baggingSudahSampai — potongan Cutting: cutting_track sudah selesai/sampai;
@@ -631,7 +631,7 @@ const SeriePerluDiProses = {
 // operator, scan entry per komponen, lintas 4 sumber sekaligus)
 
 const SerieSedangDiProses = {
-  components: { ScanTerpaduGenerik, PopupPratinjauCetakLabel },
+  components: { ScanTerpaduGenerik, PopupPratinjauCetakLabel, PopupPinGenerik },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -684,6 +684,37 @@ const SerieSedangDiProses = {
         await muat();
       } catch (e) { console.error('Gagal cetak ID komponen:', e); alert('Gagal mencetak. Coba lagi.'); }
       sedangCetak.value = false;
+    }
+    // Cetak ulang ID Komponen: kode LAMA yang sama, komponen dicentang satu-satu
+    // (awal kosong), wajib alasan + PIN, dicatat di cetak_ulang_log.
+    const popupUlang = ref(null); // { batch, alasan, pilihan: {id_komponen: bool} }
+    const pinUlangAktif = ref(false);
+    function bukaCetakUlang(batch) { popupUlang.value = { batch, alasan: '', pilihan: {} }; }
+    function komponenUlangTerpilih() {
+      const p = popupUlang.value;
+      return p ? (p.batch.komponen_rincian || []).filter(k => k.label_dicetak_pada && p.pilihan[k.id_komponen]) : [];
+    }
+    function lanjutCetakUlang() {
+      const p = popupUlang.value;
+      if (!p) return;
+      if (!komponenUlangTerpilih().length) { alert('Centang minimal 1 komponen yang mau dicetak ulang.'); return; }
+      if (!p.alasan.trim()) { alert('Alasan cetak ulang wajib diisi.'); return; }
+      pinUlangAktif.value = true;
+    }
+    async function pinUlangSukses(user) {
+      pinUlangAktif.value = false;
+      const p = popupUlang.value;
+      const pilih = komponenUlangTerpilih();
+      if (!p || !pilih.length) return;
+      try {
+        await addDoc(collection(db, 'cetak_ulang_log'), {
+          kode_separating: p.batch.kode_separating || '', komponen: pilih.map(k => k.id_komponen),
+          alasan: p.alasan.trim(), pin_oleh: user.nama || user.email || '', pada: serverTimestamp()
+        });
+      } catch (e) { console.error('Gagal catat cetak_ulang_log:', e); alert('Gagal mencatat cetak ulang. Coba lagi.'); return; }
+      daftarLabelPreview.value = pilih.map(k => ({ kode: k.id_komponen, nama: k.nama_komponen, info: `${p.batch.kode_separating} &middot; ${p.batch.nama_produk} size ${p.batch.size || '-'} &middot; sumber ${k.sumber} &middot; CETAK ULANG`, qrDataUrl: buatQrDataUrl(k.id_komponen) }));
+      popupUlang.value = null;
+      popupCetakAktif.value = true;
     }
 
     // Scan Operator (sekali per batch): operator dibaca dari QR badge, bukan
@@ -800,6 +831,7 @@ const SerieSedangDiProses = {
       ekspand, toggleEkspand, perSumber, progres,
       expandedIds, toggleExpand,
       popupCetakAktif, daftarLabelPreview, sedangCetak, cetakIdKomponen,
+      popupUlang, pinUlangAktif, bukaCetakUlang, komponenUlangTerpilih, lanjutCetakUlang, pinUlangSukses,
       scanOpTerpadu, bukaScanOperator,
       entryTerpadu, bukaScanEntry,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
@@ -845,6 +877,7 @@ const SerieSedangDiProses = {
                 <td style="padding:8px;"><span class="tag" :class="tertahan(b.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(b.masuk_tahap_pada) }}</span></td>
                 <td style="padding:8px;" @click.stop>
                   <button v-if="bolehCetak" @click="cetakIdKomponen(b)" :disabled="sedangCetak" class="btn-outline" style="padding:5px 8px; font-size:10px;" title="Cetak ID Komponen"><i class="fas fa-print"></i></button>
+                  <button v-if="bolehCetak && (b.komponen_rincian || []).some(k => k.label_dicetak_pada)" @click="bukaCetakUlang(b)" class="btn-outline" style="padding:5px 8px; font-size:10px; color:var(--warn); border-color:var(--warn);" title="Cetak Ulang ID Komponen"><i class="fas fa-rotate"></i></button>
                   <button v-if="bolehProses" @click="bukaMasalah(b)" class="btn-outline" style="padding:5px 8px; font-size:10px; color:var(--danger);" title="Scan Masalah"><i class="fas fa-triangle-exclamation"></i></button>
                 </td>
               </tr>
@@ -902,6 +935,26 @@ const SerieSedangDiProses = {
     </div>
 
     <popup-pratinjau-cetak-label v-if="popupCetakAktif" :terbuka="popupCetakAktif" :daftar-label="daftarLabelPreview" judul="Cetak ID Komponen" jenis-cetak="id_komponen_serie" @tutup="popupCetakAktif = false" />
+
+    <div v-if="popupUlang" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:380px; width:100%; padding:18px; border-radius:18px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 6px;"><i class="fas fa-rotate" style="margin-right:8px; color:var(--warn);"></i>Cetak Ulang ID Komponen</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin:0 0 10px;">{{ popupUlang.batch.kode_separating }} &middot; centang komponen yang labelnya rusak/hilang. Kode tetap sama.</p>
+        <div style="display:flex; flex-direction:column; gap:4px; max-height:240px; overflow-y:auto; border:1px solid var(--line); border-radius:12px; padding:8px; margin-bottom:12px;">
+          <label v-for="k in (popupUlang.batch.komponen_rincian || []).filter(x => x.label_dicetak_pada)" :key="k.id_komponen" style="display:flex; align-items:center; gap:8px; font-size:11px; padding:4px 2px;">
+            <input type="checkbox" v-model="popupUlang.pilihan[k.id_komponen]">
+            <span class="gc-num" style="font-weight:700;">{{ k.id_komponen }}</span>
+            <span style="color:var(--text-faint);">{{ k.nama_komponen }}</span>
+          </label>
+        </div>
+        <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupUlang.alasan" type="text" placeholder="Mis. label rusak/hilang"></div>
+        <div style="display:flex; gap:8px;">
+          <button @click="popupUlang = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+          <button @click="lanjutCetakUlang" :disabled="!komponenUlangTerpilih().length" class="btn-primary" style="flex:1; padding:9px;">Lanjut Verifikasi PIN</button>
+        </div>
+      </div>
+    </div>
+    <popup-pin-generik v-if="pinUlangAktif" judul="Verifikasi PIN — Cetak Ulang ID Komponen" konteks="Collection Serie - Cetak Ulang ID Komponen" @sukses="pinUlangSukses" @batal="pinUlangAktif = false" />
     <scan-terpadu-generik :c="entryTerpadu" @tutup="muat" />
     <scan-terpadu-generik :c="scanOpTerpadu" />
 
