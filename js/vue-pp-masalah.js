@@ -22,7 +22,7 @@ import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas, opsiBarangMasalah } from './vue-scan-cetak.js?v=18';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
-import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=45';
+import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=46';
 
 // picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (dipakai Setuju/Tolak/Ajukan
 // Belanja, WAJIB Owner/PIC Owner + popup PIN). Yang ini untuk "Scan Operator":
@@ -163,6 +163,39 @@ function hitungQtyBeliDefault(kurang, moq) {
 }
 
 
+// PillTahapMasalah — baris tab tahap di DALAM layar (baris tombol asli index.html
+// tersembunyi di HP). Class dan data-target sama dengan tombol asli supaya
+// pindahSubTab menyalakan status active di keduanya.
+const TAB_DEFS_MASALAH = [
+  { target: 'sub-pp-masalah-perludiajukan', icon: 'fa-inbox', label: 'Perlu Diajukan' },
+  { target: 'sub-pp-masalah-menunggusetuju', icon: 'fa-hourglass-half', label: 'Menunggu Setuju' },
+  { target: 'sub-pp-masalah-diajukanbelanja', icon: 'fa-cart-shopping', label: 'Diajukan Belanja' },
+  { target: 'sub-pp-masalah-perludisiapkan', icon: 'fa-list-check', label: 'Perlu Disiapkan' },
+  { target: 'sub-pp-masalah-sedangdisiapkan', icon: 'fa-gears', label: 'Sedang Disiapkan' },
+  { target: 'sub-pp-masalah-perludikirim', icon: 'fa-box-open', label: 'Perlu Di Kirim' },
+  { target: 'sub-pp-masalah-sedangdikirim', icon: 'fa-truck-fast', label: 'Sedang Di Kirim' },
+  { target: 'sub-pp-masalah-selesai', icon: 'fa-circle-check', label: 'Selesai' }
+];
+const PillTahapMasalah = {
+  props: { aktif: { type: String, default: '' } },
+  setup() {
+    function ganti(target, ev) { if (window.pindahSubTab) window.pindahSubTab('sub-pp-masalah-tahap', target, (ev && ev.currentTarget) || null, { catatRiwayat: true }); }
+    onMounted(() => {
+      const contoh = document.querySelector('#sub-pp-masalah > div > .sub-pp-masalah-tahap-btn');
+      if (contoh && contoh.parentElement) contoh.parentElement.style.display = 'none';
+    });
+    return { tabs: TAB_DEFS_MASALAH, ganti };
+  },
+  template: `
+    <div class="no-scrollbar" style="display:flex; gap:6px; overflow-x:auto; margin-bottom:14px;">
+      <button v-for="t in tabs" :key="t.target" type="button" :class="['sub-pp-masalah-tahap-btn','gc-sub-tab-btn', t.target===aktif ? 'active' : '']"
+        :data-target="t.target" @click="ganti(t.target, $event)" style="white-space:nowrap; flex-shrink:0;">
+        <i :class="'fas ' + t.icon" style="margin-right:6px;"></i>{{ t.label }}
+      </button>
+    </div>
+  `
+};
+
 // TAB 1: Perlu Diajukan — satu tabel datar (scan_pada ascending), multi-select
 // lintas-bahan, satu tombol "Ajukan ke Owner" massal. butuh = qty_kurang +
 // qty_entry_asal, entry = qty_entry_asal, kurang = qty_kurang. HATI-HATI (modul
@@ -171,6 +204,7 @@ function hitungQtyBeliDefault(kurang, moq) {
 function butuhAwal(d) { return (parseFloat(d.qty_kurang) || 0) + (parseFloat(d.qty_entry_asal) || 0); }
 
 const MasalahPerluDiajukan = {
+  components: { PillTahapMasalah },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -249,6 +283,7 @@ const MasalahPerluDiajukan = {
     };
   },
   template: `
+    <pill-tahap-masalah aktif="sub-pp-masalah-perludiajukan" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <template v-else>
@@ -346,6 +381,7 @@ const MasalahPerluDiajukan = {
 // muncul di >1 baris: panel Kumulatif tampil TOTAL read-only, edit tetap per baris.
 
 const MasalahMenungguSetuju = {
+  components: { PillTahapMasalah },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -489,6 +525,7 @@ const MasalahMenungguSetuju = {
     };
   },
   template: `
+    <pill-tahap-masalah aktif="sub-pp-masalah-menunggusetuju" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <div v-else-if="!sayaOwnerKeAtas" class="gc-card" style="padding:14px; border-radius:16px; background:var(--warn-light); color:var(--warn); font-size:11.5px; margin-bottom:12px;">
@@ -578,7 +615,7 @@ const MasalahMenungguSetuju = {
 // pos Bahan yang eksplisit memintanya).
 
 const MasalahPerluDisiapkan = {
-  components: { PopupPratinjauCetakLabel, ScanTerpaduGenerik },
+  components: { PillTahapMasalah, PopupPratinjauCetakLabel, ScanTerpaduGenerik },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -712,6 +749,7 @@ const MasalahPerluDisiapkan = {
     };
   },
   template: `
+    <pill-tahap-masalah aktif="sub-pp-masalah-perludisiapkan" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <template v-else>
@@ -786,7 +824,7 @@ const MasalahPerluDisiapkan = {
 // baris yang sama, TIDAK rekursif membuat dokumen lain (lihat keputusan §5).
 
 const MasalahSedangDisiapkan = {
-  components: { ScanTerpaduGenerik, PopupPratinjauCetakLabel },
+  components: { PillTahapMasalah, ScanTerpaduGenerik, PopupPratinjauCetakLabel },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -891,6 +929,7 @@ const MasalahSedangDisiapkan = {
     return { muat, memuat, kelompokOperator, bolehProses, aksiAktif, sedangProses, formatQty, formatDiamSejak, tertahan, aksiTerpadu, bukaAksi, entryStok, bukaEntry };
   },
   template: `
+    <pill-tahap-masalah aktif="sub-pp-masalah-sedangdisiapkan" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <div v-else-if="kelompokOperator.length === 0" class="gc-kosong gc-card">
@@ -938,7 +977,7 @@ function kunciKirimMasalah(d) { return (d.sumber_jalur || '') + '::' + (d.tlc_as
 function labelKirimMasalah(d) { return 'Kembali ke ' + (d.tlc_asal || d.sumber_jalur || 'pos asal (tidak diketahui)'); }
 
 const MasalahPerluDiKirim = {
-  components: { PopupPratinjauCetakLabel, ScanTerpaduGenerik },
+  components: { PillTahapMasalah, PopupPratinjauCetakLabel, ScanTerpaduGenerik },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -1131,6 +1170,7 @@ const MasalahPerluDiKirim = {
     };
   },
   template: `
+    <pill-tahap-masalah aktif="sub-pp-masalah-perludikirim" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <template v-else>
@@ -1205,6 +1245,7 @@ const MasalahPerluDiKirim = {
 // ke Perlu Disiapkan otomatis, jadi tidak ada tombol aksi di sini.
 
 const MasalahDiajukanBelanja = {
+  components: { PillTahapMasalah },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -1218,6 +1259,7 @@ const MasalahDiajukanBelanja = {
     return { muat, memuat, daftar, formatQty, formatDiamSejak };
   },
   template: `
+    <pill-tahap-masalah aktif="sub-pp-masalah-diajukanbelanja" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <div v-else-if="daftar.length === 0" class="gc-kosong gc-card">
       <div class="lingkaran"><i class="fas fa-cart-shopping"></i></div>
@@ -1257,6 +1299,7 @@ const MasalahDiajukanBelanja = {
 // Bahan), BUKAN dari modul ini — jadi tidak ada tombol aksi.
 
 const MasalahSedangDiKirim = {
+  components: { PillTahapMasalah },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -1279,6 +1322,7 @@ const MasalahSedangDiKirim = {
     return { muat, memuat, kelompokTugas, formatQty, formatDiamSejak };
   },
   template: `
+    <pill-tahap-masalah aktif="sub-pp-masalah-sedangdikirim" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <div v-else-if="kelompokTugas.length === 0" class="gc-kosong gc-card">
@@ -1312,6 +1356,7 @@ const MasalahSedangDiKirim = {
 // (label_cetak_pada), supaya lama menunggu keputusan Owner di 6.2 ikut terukur.
 
 const MasalahSelesai = {
+  components: { PillTahapMasalah },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
@@ -1344,6 +1389,7 @@ const MasalahSelesai = {
     return { muat, memuat, isOperatorSaja, barisSaya, daftarUrut, kpi, formatQty, formatWaktu, formatSiklus, siklusJam, keadaan };
   },
   template: `
+    <pill-tahap-masalah aktif="sub-pp-masalah-selesai" />
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <template v-else-if="isOperatorSaja">

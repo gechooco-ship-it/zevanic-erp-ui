@@ -747,6 +747,36 @@ window.pastikanMountPpDisiapkan = function() {
 };
 
 
+// PillTahapVendor — baris tab tahap di DALAM layar (baris tombol asli index.html
+// tersembunyi di HP). Class dan data-target sama dengan tombol asli supaya
+// pindahSubTab menyalakan status active di keduanya.
+const TAB_DEFS_VENDOR = [
+  { target: 'sub-pp-vendor-perludiproses', icon: 'fa-inbox', label: 'Perlu Diproses' },
+  { target: 'sub-pp-vendor-sedangdiproses', icon: 'fa-gears', label: 'Sedang Diproses' },
+  { target: 'sub-pp-vendor-perludikirim', icon: 'fa-box-open', label: 'Perlu Dikirim' },
+  { target: 'sub-pp-vendor-sedangdikirim', icon: 'fa-truck-fast', label: 'Sedang Dikirim' },
+  { target: 'sub-pp-vendor-selesai', icon: 'fa-circle-check', label: 'Selesai' }
+];
+const PillTahapVendor = {
+  props: { aktif: { type: String, default: '' } },
+  setup() {
+    function ganti(target, ev) { if (window.pindahSubTab) window.pindahSubTab('sub-pp-vendor-tahap', target, (ev && ev.currentTarget) || null, { catatRiwayat: true }); }
+    onMounted(() => {
+      const contoh = document.querySelector('#sub-pp-vendor > div > .sub-pp-vendor-tahap-btn');
+      if (contoh && contoh.parentElement) contoh.parentElement.style.display = 'none';
+    });
+    return { tabs: TAB_DEFS_VENDOR, ganti };
+  },
+  template: `
+    <div class="no-scrollbar" style="display:flex; gap:6px; overflow-x:auto; margin-bottom:14px;">
+      <button v-for="t in tabs" :key="t.target" type="button" :class="['sub-pp-vendor-tahap-btn','gc-sub-tab-btn', t.target===aktif ? 'active' : '']"
+        :data-target="t.target" @click="ganti(t.target, $event)" style="white-space:nowrap; flex-shrink:0;">
+        <i :class="'fas ' + t.icon" style="margin-right:6px;"></i>{{ t.label }}
+      </button>
+    </div>
+  `
+};
+
 // JalurTahapManager — komponen reusable lewat prop `jalur`, 1 instance = 1 TAHAP
 // (dipasang 5x independen, satu per child-tab) supaya tiap tahap hanya query dan
 // render kartu miliknya sendiri. Semua aksi scan kecuali Scan Operator menyasar
@@ -759,7 +789,7 @@ const LABEL_AKSI_SCAN = {
 };
 
 const JalurTahapManager = {
-  components: { PopupPratinjauCetakLabel, ScanTerpaduGenerik },
+  components: { PopupPratinjauCetakLabel, ScanTerpaduGenerik, PillTahapVendor },
   props: {
     jalur: { type: String, required: true },
     labelJalur: { type: String, required: true },
@@ -928,6 +958,7 @@ const JalurTahapManager = {
     };
   },
   template: `
+    <pill-tahap-vendor v-if="jalur === 'vendor'" :aktif="MY_TARGET" />
     <div v-if="memuat" class="gc-card" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
 
     <div v-else-if="daftarTrack.length === 0" class="gc-kosong gc-card">
