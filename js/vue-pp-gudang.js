@@ -26,6 +26,20 @@ import { ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, ajukanPersiapanMa
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=15';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
+// baggingSudahSampai — dicek di tugas_kirim.pack[] milik batch pemilik bagging
+// (spk_separating.kode_tugas). null = data tugas tidak ada (data lama),
+// pemanggil membiarkan lewat.
+async function baggingSudahSampai(kode) {
+  const snapSep = await getDocs(query(collection(db, 'spk_separating'), where('kode_bagging', 'array-contains', kode)));
+  for (const d of snapSep.docs) {
+    const kt = d.data().kode_tugas;
+    if (!kt) continue;
+    const snapT = await getDocs(query(collection(db, 'tugas_kirim'), where('kode', '==', kt)));
+    for (const t of snapT.docs) { const p = (t.data().pack || []).find(x => x.kode_bagging === kode); if (p) return !!p.sampai_pada; }
+  }
+  return null;
+}
+
 // Format & hitung kecil (disalin pola dari Cutting/Serie/Sewing/Finishing).
 // --
 function formatQty(n) {
@@ -295,6 +309,7 @@ const GudangPerluDisimpan = {
         validasi: async (kode) => {
           const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', kode)));
           if (snap.empty) return { ok: false, pesan: `Kode bagging "${kode}" tidak ditemukan.` };
+          if (await baggingSudahSampai(kode) === false) return { ok: false, pesan: `Bagging "${kode}" belum di-Scan Sampai. Scan Sampai dulu.` };
           return { ok: true, data: { id: snap.docs[0].id, ...snap.docs[0].data() } };
         }
       },

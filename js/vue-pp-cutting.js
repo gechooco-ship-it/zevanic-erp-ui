@@ -26,6 +26,15 @@ import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=17';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
+// baggingSudahSampai — bagging bahan dianggap sampai kalau semua baris
+// bahan_rincian ber-kode_bagging itu sudah ber-sampai_cutting_pada. null =
+// bukan bagging bahan (data lama/lain), pemanggil membiarkan lewat.
+async function baggingSudahSampai(kode) {
+  const snap = await getDocs(query(collection(db, 'spk_track'), where('jalur', '==', 'bahan')));
+  const baris = snap.docs.flatMap(d => (d.data().bahan_rincian || []).filter(b => b.kode_bagging === kode && b.kirim_cutting_pada));
+  return baris.length ? baris.every(b => !!b.sampai_cutting_pada) : null;
+}
+
 // Format & hitung kecil (disalin pola dari 4 pos Persiapan Produksi, belum
 // dipindah ke helper generik — lihat catatan "belum ada infrastruktur util
 // generik lintas file" di modul-modul itu).
@@ -635,6 +644,7 @@ const CuttingPerluDiProses = {
         validasi: async (kode) => {
           const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', kode)));
           if (snap.empty) return { ok: false, pesan: `Kode bagging "${kode}" tidak ditemukan.` };
+          if (await baggingSudahSampai(kode) === false) return { ok: false, pesan: `Bagging "${kode}" belum di-Scan Sampai. Scan Sampai dulu.` };
           return { ok: true, data: { id: snap.docs[0].id, ...snap.docs[0].data() } };
         }
       },

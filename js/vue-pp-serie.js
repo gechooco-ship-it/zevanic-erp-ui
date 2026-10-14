@@ -25,6 +25,20 @@ import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=17';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
+// baggingSudahSampai — potongan Cutting: cutting_track sudah selesai/sampai;
+// kit ACC: semua baris rincian ber-kode_bagging itu ber-sampai_pada. null =
+// bagging tidak dikenali (data lama), pemanggil membiarkan lewat.
+async function baggingSudahSampai(kode) {
+  const snapCt = await getDocs(query(collection(db, 'cutting_track'), where('kode_bagging', 'array-contains', kode)));
+  if (!snapCt.empty) { const c = snapCt.docs[0].data(); return c.status === 'selesai' || !!c.sampai_pada; }
+  for (const jalur of ['sewing', 'webbing', 'finishing']) {
+    const snap = await getDocs(query(collection(db, 'spk_track'), where('jalur', '==', jalur)));
+    const baris = snap.docs.flatMap(d => (d.data()[jalur + '_rincian'] || []).filter(b => b.kode_bagging === kode));
+    if (baris.length) return baris.every(b => !!b.sampai_pada);
+  }
+  return null;
+}
+
 // Format & hitung kecil (disalin pola dari Cutting/4 pos Persiapan Produksi,
 // belum ada infrastruktur util generik lintas file).
 function formatQty(n) {
@@ -364,6 +378,7 @@ const SeriePerluDiProses = {
         validasi: async (kode) => {
           const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', kode)));
           if (snap.empty) return { ok: false, pesan: `Kode bagging "${kode}" tidak ditemukan.` };
+          if (await baggingSudahSampai(kode) === false) return { ok: false, pesan: `Bagging "${kode}" belum di-Scan Sampai. Scan Sampai dulu.` };
           return { ok: true, data: { id: snap.docs[0].id, ...snap.docs[0].data() } };
         }
       },
