@@ -22,7 +22,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=17';
+import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah } from './vue-scan-cetak.js?v=18';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
 
 // baggingSudahSampai — potongan Cutting: cutting_track sudah selesai/sampai;
@@ -164,23 +164,35 @@ async function updateSeparatingBatch(batchId, mutator) {
 // Popup Scan Masalah generik (jumlah kurang + alasan) — disalin pola sama
 // seperti Cutting (popupMasalahMixin), sumberJalur:'serie'.
 function popupMasalahMixin(kirimFn) {
-  const popupMasalah = ref(null);
-  function bukaMasalah(target) { popupMasalah.value = { target, jumlah: target.qty || 0, alasan: '', jenis: 'kurang' }; }
+  const popupMasalah = ref(null); // { target, jumlah, alasan, jenis, barangId, opsiBarang }
+  let tiketMasalah = 0;
+  // Pilihan barang dimuat dari kit/bahan SPK; laporan tanpa ID barang
+  // tidak bisa disiapkan di Masalah, jadi pilihan wajib kalau datanya ada.
+  async function bukaMasalah(target) {
+    const tiket = ++tiketMasalah;
+    popupMasalah.value = { target, jumlah: '', alasan: '', jenis: 'kurang', barangId: '', opsiBarang: [], memuatBarang: true };
+    let opsi = [];
+    try { opsi = await opsiBarangMasalah({ separatingId: target.id || '' }); } catch (e) { console.error('Gagal muat barang masalah:', e); }
+    if (popupMasalah.value && tiket === tiketMasalah) { popupMasalah.value.opsiBarang = opsi; popupMasalah.value.memuatBarang = false; }
+  }
   function batalMasalah() { popupMasalah.value = null; }
   async function konfirmasiMasalah() {
     const p = popupMasalah.value;
     if (!p) return;
+    if (p.opsiBarang.length && !p.barangId) { alert('Pilih barang yang bermasalah dulu.'); return; }
+    if (!(parseFloat(p.jumlah) > 0)) { alert('Jumlah wajib diisi lebih dari 0.'); return; }
+    p.barang = p.opsiBarang.find(o => o.id === p.barangId) || null;
     if (!p.alasan.trim()) { alert('Alasan wajib diisi.'); return; }
     try { await kirimFn(p); popupMasalah.value = null; }
     catch (e) { console.error('Gagal ajukan masalah:', e); alert('Gagal menyimpan. Coba lagi.'); }
   }
   return { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah };
 }
-async function kirimMasalahSerie(batch, jumlah, alasan, jenis) {
+async function kirimMasalahSerie(batch, jumlah, alasan, jenis, barang) {
   await ajukanPersiapanMasalah({
     tlcAsal: TLC_ASAL_SERIE, sumberJalur: 'serie',
     trackId: batch.id, noSpk: batch.kode_separating,
-    bahanNama: batch.nama_produk, bahanWarna: batch.size, satuan: 'pcs',
+    bahanAksesorisId: barang ? barang.id : '', bahanNama: barang ? barang.nama : batch.nama_produk, bahanWarna: barang ? barang.warna : batch.size, satuan: barang ? barang.satuan : 'pcs',
     qtyKurang: jumlah, alasan, jenisMasalah: jenis || 'kurang', kodeLabelAsal: batch.kode_separating || '',
     separatingId: batch.id || '', kodeSeparating: batch.kode_separating || '', idOrder: batch.id_order || ''
   });
@@ -500,7 +512,7 @@ const SeriePerluDiProses = {
     }
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
-      await kirimMasalahSerie(p.target, p.jumlah, p.alasan, p.jenis);
+      await kirimMasalahSerie(p.target, p.jumlah, p.alasan, p.jenis, p.barang);
     });
 
     onMounted(async () => { await window.authReady; await window.izinSiap; bolehOperator.value = picOwnerKeAtas(window.currentUser); await pastikanCachePilihanScan(); await muat(); });
@@ -601,7 +613,8 @@ const SeriePerluDiProses = {
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.target.kode_separating }}</h3>
-        <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Barang yang Bermasalah</label><select v-model="popupMasalah.barangId" :disabled="popupMasalah.memuatBarang"><option value="">{{ popupMasalah.memuatBarang ? 'Memuat...' : (popupMasalah.opsiBarang.length ? 'Pilih barang...' : 'Data barang SPK ini tidak ada') }}</option><option v-for="o in popupMasalah.opsiBarang" :key="o.id" :value="o.id">{{ o.nama }} {{ o.warna }} ({{ o.satuan }})</option></select></div>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah (satuan barang)</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
         <div class="gc-field" style="margin-bottom:8px;"><label>Jenis Masalah</label><select v-model="popupMasalah.jenis"><option value="kurang">Kurang</option><option value="cacat">Cacat</option><option value="hilang">Hilang</option></select></div>
         <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="mis. komponen tidak lengkap"></div>
         <div style="display:flex; gap:8px;">
@@ -757,7 +770,7 @@ const SerieSedangDiProses = {
     }
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
-      await kirimMasalahSerie(p.target, p.jumlah, p.alasan, p.jenis);
+      await kirimMasalahSerie(p.target, p.jumlah, p.alasan, p.jenis, p.barang);
       await muat();
     });
 
@@ -895,7 +908,8 @@ const SerieSedangDiProses = {
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.target.kode_separating }}</h3>
-        <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Barang yang Bermasalah</label><select v-model="popupMasalah.barangId" :disabled="popupMasalah.memuatBarang"><option value="">{{ popupMasalah.memuatBarang ? 'Memuat...' : (popupMasalah.opsiBarang.length ? 'Pilih barang...' : 'Data barang SPK ini tidak ada') }}</option><option v-for="o in popupMasalah.opsiBarang" :key="o.id" :value="o.id">{{ o.nama }} {{ o.warna }} ({{ o.satuan }})</option></select></div>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah (satuan barang)</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
         <div class="gc-field" style="margin-bottom:8px;"><label>Jenis Masalah</label><select v-model="popupMasalah.jenis"><option value="kurang">Kurang</option><option value="cacat">Cacat</option><option value="hilang">Hilang</option></select></div>
         <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="mis. komponen hilang"></div>
         <div style="display:flex; gap:8px;">
@@ -1080,7 +1094,7 @@ const SeriePerluDiKirim = {
     function bukaScanPack() { packTerpadu.buka(); }
 
     const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
-      await kirimMasalahSerie(p.target, p.jumlah, p.alasan, p.jenis);
+      await kirimMasalahSerie(p.target, p.jumlah, p.alasan, p.jenis, p.barang);
       await muat();
     });
 
@@ -1136,7 +1150,8 @@ const SeriePerluDiKirim = {
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.target.kode_separating }}</h3>
-        <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Barang yang Bermasalah</label><select v-model="popupMasalah.barangId" :disabled="popupMasalah.memuatBarang"><option value="">{{ popupMasalah.memuatBarang ? 'Memuat...' : (popupMasalah.opsiBarang.length ? 'Pilih barang...' : 'Data barang SPK ini tidak ada') }}</option><option v-for="o in popupMasalah.opsiBarang" :key="o.id" :value="o.id">{{ o.nama }} {{ o.warna }} ({{ o.satuan }})</option></select></div>
+        <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah (satuan barang)</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
         <div class="gc-field" style="margin-bottom:8px;"><label>Jenis Masalah</label><select v-model="popupMasalah.jenis"><option value="kurang">Kurang</option><option value="cacat">Cacat</option><option value="hilang">Hilang</option></select></div>
         <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="mis. bundle salah isi"></div>
         <div style="display:flex; gap:8px;">
@@ -1400,7 +1415,7 @@ function buatTabKirim(cfg) {
       const kitFinDari = (b) => kitFin.value.find(t => t.separating_id === b.id);
 
       const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
-        await kirimMasalahSerie(p.target, p.jumlah, p.alasan, p.jenis);
+        await kirimMasalahSerie(p.target, p.jumlah, p.alasan, p.jenis, p.barang);
         await muat();
       });
 
@@ -1472,7 +1487,8 @@ function buatTabKirim(cfg) {
       <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
         <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
           <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.target.kode_separating }}</h3>
-          <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
+          <div class="gc-field" style="margin-bottom:8px;"><label>Barang yang Bermasalah</label><select v-model="popupMasalah.barangId" :disabled="popupMasalah.memuatBarang"><option value="">{{ popupMasalah.memuatBarang ? 'Memuat...' : (popupMasalah.opsiBarang.length ? 'Pilih barang...' : 'Data barang SPK ini tidak ada') }}</option><option v-for="o in popupMasalah.opsiBarang" :key="o.id" :value="o.id">{{ o.nama }} {{ o.warna }} ({{ o.satuan }})</option></select></div>
+          <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah (satuan barang)</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
           <div class="gc-field" style="margin-bottom:8px;"><label>Jenis Masalah</label><select v-model="popupMasalah.jenis"><option value="kurang">Kurang</option><option value="cacat">Cacat</option><option value="hilang">Hilang</option></select></div>
           <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="mis. bagging rusak"></div>
           <div style="display:flex; gap:8px;">
@@ -1803,7 +1819,7 @@ function buatTabTerima(cfg) {
       });
 
       const { popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah } = popupMasalahMixin(async (p) => {
-        await kirimMasalahSerie(p.target, p.jumlah, p.alasan, p.jenis);
+        await kirimMasalahSerie(p.target, p.jumlah, p.alasan, p.jenis, p.barang);
         await muat();
       });
 
@@ -1851,7 +1867,8 @@ function buatTabTerima(cfg) {
       <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
         <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
           <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.target.kode_separating }}</h3>
-          <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
+          <div class="gc-field" style="margin-bottom:8px;"><label>Barang yang Bermasalah</label><select v-model="popupMasalah.barangId" :disabled="popupMasalah.memuatBarang"><option value="">{{ popupMasalah.memuatBarang ? 'Memuat...' : (popupMasalah.opsiBarang.length ? 'Pilih barang...' : 'Data barang SPK ini tidak ada') }}</option><option v-for="o in popupMasalah.opsiBarang" :key="o.id" :value="o.id">{{ o.nama }} {{ o.warna }} ({{ o.satuan }})</option></select></div>
+          <div class="gc-field" style="margin-bottom:8px;"><label>Jumlah Kurang/Bermasalah (satuan barang)</label><input v-model.number="popupMasalah.jumlah" type="number" min="0"></div>
           <div class="gc-field" style="margin-bottom:8px;"><label>Jenis Masalah</label><select v-model="popupMasalah.jenis"><option value="kurang">Kurang</option><option value="cacat">Cacat</option><option value="hilang">Hilang</option></select></div>
           <div class="gc-field" style="margin-bottom:14px;"><label>Alasan</label><input v-model="popupMasalah.alasan" type="text" placeholder="mis. produk cacat dari luar"></div>
           <div style="display:flex; gap:8px;">

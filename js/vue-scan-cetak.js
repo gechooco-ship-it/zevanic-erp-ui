@@ -178,11 +178,6 @@ export const PopupPinGenerik = {
 };
 
 
-// ajukanPersiapanMasalah — SATU-SATUNYA tempat pembuatan dokumen
-// `persiapan_masalah` (skema pos Masalah 7-tahap, header js/vue-pp-masalah.js)
-// dari "Scan Masalah" di 4 pos Persiapan Produksi. Dipanggil BERSAMA
-// updateBaris<Pos> yang tetap menulis catatan_masalah; status baris tidak berubah.
-
 // ajukanPersiapanMasalah — satu-satunya pembuat dokumen persiapan_masalah.
 // Kode Masalah (MSL) lahir di sini, saat pos melapor, dan dipakai sampai
 // barang pengganti di-Unpack lagi di pos itu (tlc_asal).
@@ -216,6 +211,27 @@ export async function ajukanPersiapanMasalah(opsi) {
     dibuat_pada: serverTimestamp()
   });
   return kodeMsl;
+}
+
+// opsiBarangMasalah — bahan & aksesoris milik satu separating (spk_track per
+// kit + baris bahan grouping) atau satu grouping, untuk dipilih di popup
+// Masalah supaya laporan menyimpan ID barang. Bahan memakai satuan meter,
+// sama dengan Minta Kekurangan Bahan di Ampar.
+export async function opsiBarangMasalah({ separatingId = '', groupingId = '' } = {}) {
+  const peta = {};
+  const tambah = (id, nama, warna, satuan, jalur) => { if (id && !peta[id]) peta[id] = { id, nama: nama || '', warna: warna || '', satuan: satuan || '', jalur }; };
+  const kumpul = [];
+  const ambil = async (q) => { (await getDocs(q)).forEach(d => kumpul.push(d.data())); };
+  if (separatingId) {
+    await ambil(query(collection(db, 'spk_track'), where('separating_id', '==', separatingId)));
+    await ambil(query(collection(db, 'spk_track'), where('separating_ids', 'array-contains', separatingId)));
+  }
+  if (groupingId) await ambil(query(collection(db, 'spk_track'), where('grouping_id', '==', groupingId)));
+  kumpul.forEach(t => {
+    (t.bahan_rincian || []).forEach(b => { if (!separatingId || !b.separating_id || b.separating_id === separatingId) tambah(b.bahan_aksesoris_id, b.bahan_nama, b.bahan_warna, 'm', 'bahan'); });
+    ['sewing', 'webbing', 'finishing'].forEach(j => (t[j + '_rincian'] || []).forEach(b => tambah(b.bahan_aksesoris_id, b.nama_aksesoris, b.warna, b.satuan, j)));
+  });
+  return Object.values(peta).sort((a, b) => (a.jalur + a.nama).localeCompare(b.jalur + b.nama));
 }
 
 // generateKodeHarianScan — kode harian `{prefix}{yymmdd}-{nnn}` dengan counter

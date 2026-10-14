@@ -20,9 +20,9 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas } from './vue-scan-cetak.js?v=17';
+import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas, opsiBarangMasalah } from './vue-scan-cetak.js?v=18';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
-import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=44';
+import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=45';
 
 // picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (dipakai Setuju/Tolak/Ajukan
 // Belanja, WAJIB Owner/PIC Owner + popup PIN). Yang ini untuk "Scan Operator":
@@ -164,7 +164,7 @@ function hitungQtyBeliDefault(kurang, moq) {
 
 
 // TAB 1: Perlu Diajukan — satu tabel datar (scan_pada ascending), multi-select
-// lintas-bahan, satu tombol "Ajukan belanja" massal. butuh = qty_kurang +
+// lintas-bahan, satu tombol "Ajukan ke Owner" massal. butuh = qty_kurang +
 // qty_entry_asal, entry = qty_entry_asal, kurang = qty_kurang. HATI-HATI (modul
 // uang): Ajukan tetap patchMasalah PER DOKUMEN; kode_pengajuan PGJ cuma pengikat.
 
@@ -257,7 +257,7 @@ const MasalahPerluDiajukan = {
           <i class="fas fa-magnifying-glass" style="font-size:15px; color:var(--text-faint); flex-shrink:0;"></i>
           <input v-model="cari" type="text" placeholder="Cari bahan, warna, TLC asal, atau no. SPK..." style="flex:1; min-width:0; border:none; outline:none; background:none; font-size:12px; color:var(--text);">
         </div>
-        <button v-if="bolehProses" @click="bukaPopupAjukan" :disabled="!jumlahTerpilih" class="btn-primary" style="padding:9px 16px; white-space:nowrap;"><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Ajukan belanja &middot; {{ jumlahTerpilih }} terpilih</button>
+        <button v-if="bolehProses" @click="bukaPopupAjukan" :disabled="!jumlahTerpilih" class="btn-primary" style="padding:9px 16px; white-space:nowrap;"><i class="fas fa-paper-plane" style="margin-right:6px;"></i>Ajukan ke Owner &middot; {{ jumlahTerpilih }} terpilih</button>
       </div>
 
       <div v-if="daftarTersaring.length === 0" class="gc-kosong gc-card">
@@ -317,7 +317,7 @@ const MasalahPerluDiajukan = {
 
     <div v-if="popupAjukan" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:420px; width:100%; padding:18px; border-radius:18px; max-height:82vh; overflow-y:auto;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 4px;">Ajukan belanja</h3>
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 4px;">Ajukan ke Owner</h3>
         <p style="font-size:11px; color:var(--text-faint); margin:0 0 10px;">{{ jumlahTerpilih }} kekurangan terpilih &middot; digabung per bahan &middot; {{ kumulatifTerpilih.length }} jenis</p>
         <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:12px;">
           <div v-for="k in kumulatifTerpilih" :key="k.bahanAksesorisId" style="display:flex; justify-content:space-between; gap:8px; padding:7px 9px; border-radius:8px; background:var(--ivory-dim); font-size:11.5px;">
@@ -597,6 +597,29 @@ const MasalahPerluDisiapkan = {
       memuat.value = false;
     }
     const kartuList = computed(() => kelompokKumulatifPerBahan(saringOperator(daftar.value)));
+    // Laporan tanpa ID barang (Masalah dari Proses yang dulu hanya mencatat
+    // produk) tidak masuk kartu bahan; dilengkapi lewat Pilih Barang.
+    const belumLengkap = computed(() => saringOperator(daftar.value).filter(d => !d.bahan_aksesoris_id));
+    const popupBarang = ref(null); // { doc, opsi, barangId, memuat }
+    async function bukaPilihBarang(d) {
+      popupBarang.value = { doc: d, opsi: [], barangId: '', memuat: true };
+      let opsi = [];
+      try { opsi = await opsiBarangMasalah(d.sumber_jalur === 'cutting' ? { groupingId: d.spk_track_id } : { separatingId: d.separating_id }); }
+      catch (e) { console.error('Gagal muat barang masalah:', e); }
+      if (popupBarang.value && popupBarang.value.doc.id === d.id) { popupBarang.value.opsi = opsi; popupBarang.value.memuat = false; }
+    }
+    async function simpanPilihBarang() {
+      const p = popupBarang.value;
+      const o = p && p.opsi.find(x => x.id === p.barangId);
+      if (!o) { alert('Pilih barang dulu.'); return; }
+      sedangProses.value = true;
+      try {
+        await patchMasalah(p.doc.id, { bahan_aksesoris_id: o.id, bahan_nama: o.nama, bahan_warna: o.warna, satuan: o.satuan });
+        popupBarang.value = null;
+        await muat();
+      } catch (e) { console.error('Gagal simpan barang masalah:', e); alert('Gagal menyimpan. Coba lagi.'); }
+      sedangProses.value = false;
+    }
     function toggleKartu(k) { kartuTerbuka[k.bahanAksesorisId] = !kartuTerbuka[k.bahanAksesorisId]; }
     function isChecked(d) { return d.id in pilihanCetak ? pilihanCetak[d.id] : !d.label_cetak_pada; }
     function toggleCheck(d) { if (d.label_cetak_pada) return; pilihanCetak[d.id] = !isChecked(d); }
@@ -684,7 +707,8 @@ const MasalahPerluDisiapkan = {
       memuat, kartuList, kartuTerbuka, toggleKartu, isChecked, toggleCheck,
       bolehProses, bolehCetak, aksiAktif, sedangProses, formatQty, formatWaktu,
       popupCetakAktif, daftarLabelPreview, cetakLabelKartu,
-      scanOperator, bukaPenunjukanGlobal
+      scanOperator, bukaPenunjukanGlobal,
+      belumLengkap, popupBarang, bukaPilihBarang, simpanPilihBarang
     };
   },
   template: `
@@ -695,7 +719,19 @@ const MasalahPerluDisiapkan = {
         <button @click="bukaPenunjukanGlobal" class="btn-primary" style="flex:1; padding:9px;"><i class="fas fa-qrcode" style="margin-right:6px;"></i>Scan Operator</button>
       </div>
 
-      <div v-if="kartuList.length === 0" class="gc-kosong gc-card">
+      <div v-if="belumLengkap.length" class="gc-card" style="padding:14px; border-radius:20px; margin-bottom:10px; border-color:var(--warn); background:rgba(var(--warn-rgb),.06);">
+        <div class="gc-heading" style="font-weight:700; font-size:13px; margin-bottom:2px;">Perlu dilengkapi — barang belum dipilih</div>
+        <p style="font-size:10.5px; color:var(--text-faint); margin:0 0 8px;">Laporan ini belum tahu barang apa yang kurang, jadi belum bisa dicetak label.</p>
+        <div v-for="d in belumLengkap" :key="d.id" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:11px; padding:6px 0; border-top:1px solid var(--line);">
+          <div style="flex:1; min-width:0;">
+            <div class="gc-num" style="font-weight:700;">{{ d.kode_msl || d.id_order || '-' }} <span style="font-weight:400; color:var(--text-faint);">&middot; {{ d.kode_separating || d.id_order || '-' }}</span></div>
+            <div style="color:var(--text-faint);">{{ d.bahan_nama }} {{ d.bahan_warna }} &middot; {{ formatQty(d.qty_disetujui || d.qty_kurang) }} {{ d.satuan }} &middot; {{ d.alasan_masalah || '-' }}</div>
+          </div>
+          <button v-if="bolehProses" @click="bukaPilihBarang(d)" class="btn-outline" style="padding:5px 10px; font-size:10.5px; flex-shrink:0;">Pilih Barang</button>
+        </div>
+      </div>
+
+      <div v-if="kartuList.length === 0 && !belumLengkap.length" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-list-check"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada yang perlu disiapkan</h3>
       </div>
@@ -725,6 +761,20 @@ const MasalahPerluDisiapkan = {
     </template>
 
     <popup-pratinjau-cetak-label :terbuka="popupCetakAktif" judul="Cetak Label Masalah" :daftar-label="daftarLabelPreview" jenis-cetak="label_masalah" @tutup="popupCetakAktif = false" />
+
+    <div v-if="popupBarang" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
+        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 6px;">Pilih Barang — {{ popupBarang.doc.kode_msl || popupBarang.doc.id_order }}</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin:0 0 10px;">Alasan: {{ popupBarang.doc.alasan_masalah || '-' }} &middot; {{ formatQty(popupBarang.doc.qty_disetujui || popupBarang.doc.qty_kurang) }}</p>
+        <div class="gc-field" style="margin-bottom:14px;"><label>Barang yang Bermasalah</label>
+          <select v-model="popupBarang.barangId" :disabled="popupBarang.memuat"><option value="">{{ popupBarang.memuat ? 'Memuat...' : (popupBarang.opsi.length ? 'Pilih barang...' : 'Data barang SPK ini tidak ada') }}</option><option v-for="o in popupBarang.opsi" :key="o.id" :value="o.id">{{ o.nama }} {{ o.warna }} ({{ o.satuan }})</option></select>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button @click="popupBarang = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+          <button @click="simpanPilihBarang" :disabled="sedangProses || !popupBarang.barangId" class="btn-primary" style="flex:1; padding:9px;">Simpan</button>
+        </div>
+      </div>
+    </div>
 
     <scan-terpadu-generik :c="scanOperator" />
   `
@@ -964,8 +1014,9 @@ const MasalahPerluDiKirim = {
     const popupTugas = ref(null);
     function bukaCetakTugas() {
       if (!daftarTlc.value.length) { alert('Belum ada data TLC (Titik Lokasi Cerdas). Tambah dulu lewat menu Bahan atau Firestore master_tlc.'); return; }
-      const defaultJalur = daftar.value[0]?.sumber_jalur;
-      const defaultKode = JALUR_TLC[defaultJalur];
+      // tlc_asal = pos pelapor; sumber_jalur 'sewing' dipakai Persiapan Acc
+      // Sewing DAN Proses Sewing, jadi hanya cadangan untuk data lama.
+      const defaultKode = daftar.value[0]?.tlc_asal || JALUR_TLC[daftar.value[0]?.sumber_jalur];
       const cocok = daftarTlc.value.find(t => t.kode === defaultKode);
       popupTugas.value = { tlcTujuan: cocok ? cocok.kode : daftarTlc.value[0].kode };
     }
