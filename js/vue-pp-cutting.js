@@ -1630,7 +1630,9 @@ const CuttingPerluDiKirim = {
             const track = daftar.value.find(t => t.id === bagging.cutting_track_id);
             if (l.cutting_track_id !== bagging.cutting_track_id) return { ok: false, pesan: `${kode} bukan milik SPK ${track ? track.kode_grouping_induk : 'bagging ini'}.` };
             if (bagging.pola_key && !labelMilikBahan(l, track, { pola_key: bagging.pola_key })) return { ok: false, pesan: `${kode} (${l.nama_komponen}) bahan ${l.nama_bahan || '-'} — bukan bahan bagging ini (${namaBahanBagging(bagging)}).` };
-            if (l.status_pola !== 'selesai' && l.status_cutting !== 'selesai') return { ok: false, pesan: `${kode} belum di-Scan Entry Pola.` };
+            // SPK di tab ini sudah lolos Pola Selesai, jadi Entry Pola per label tidak
+            // dicek lagi; SPK lama sempat lolos dengan label yang belum Entry Pola.
+            if (!track && l.status_pola !== 'selesai' && l.status_cutting !== 'selesai') return { ok: false, pesan: `${kode} belum di-Scan Entry Pola.` };
             const n = (bagging.isi || []).length + rows.length + 1;
             const target = targetBagging(bagging);
             if (target && n > target) return { ok: false, pesan: `Bagging ${namaBahanBagging(bagging)} sudah penuh (${target}/${target}).` };
