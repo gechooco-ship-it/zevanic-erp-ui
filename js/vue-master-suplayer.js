@@ -257,6 +257,7 @@ const AliasMoqManager = {
     const menuId = 'suplayer_alias_moq';
     const bolehTambah = computed(() => window.cekIzinMenu(menuId, 'add') !== false);
     const bolehHapus = computed(() => window.cekIzinMenu(menuId, 'delete') !== false);
+    const bolehEdit = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
 
     const memuat = ref(true);
     const daftarAlias = ref([]);
@@ -327,6 +328,50 @@ const AliasMoqManager = {
       catch (e) { console.error('Gagal hapus Alias Pembelian:', e); alert('Gagal menghapus.'); }
     }
 
+    // Edit alias: field dokumen tetap sama (dibaca Nota/Kasir). Ganti item
+    // internal mencabut tanda default supaya tidak ada dua default di item baru.
+    const popupEdit = ref(null);
+    function bukaEdit(a) {
+      popupEdit.value = {
+        id: a.id, bahanLamaId: a.bahan_aksesoris_id, isDefault: !!a.is_default_order,
+        suplayerNama: a.suplayer_nama || '', namaInternal: namaInternalTampil(a), namaDiNota: a.nama_di_nota || '',
+        moq: a.moq === null || a.moq === undefined ? '' : a.moq, moqSatuan: a.moq_satuan || '',
+        leadTimeHari: a.lead_time_hari === null || a.lead_time_hari === undefined ? '' : a.lead_time_hari
+      };
+    }
+    async function simpanEdit() {
+      const f = popupEdit.value;
+      if (!f) return;
+      if (!bolehEdit.value) return alert('Anda tidak punya izin mengubah di sini. Hubungi Owner/PIC.');
+      const suplayer = daftarSuplayer.value.find(x => x.nama === f.suplayerNama);
+      const bahan = daftarBahan.value.find(b => formatNamaBahan(b) === f.namaInternal);
+      if (!suplayer) return alert('Pilih Suplayer dulu.');
+      if (!bahan) return alert('Pilih Nama Bahan/Aksesoris (internal) dulu.');
+      const namaDiNota = String(f.namaDiNota).trim();
+      if (!namaDiNota) return alert('Isi nama barang persis seperti di nota Suplayer.');
+      if (daftarAlias.value.some(a => a.id !== f.id && a.suplayer_id === suplayer.id && (a.nama_di_nota || '').toLowerCase() === namaDiNota.toLowerCase())) {
+        return alert('Alias ini sudah ada untuk Suplayer tersebut.');
+      }
+      const gantiItem = bahan.id !== f.bahanLamaId;
+      if (gantiItem && f.isDefault && !confirm('Item internal diganti — tanda default Petakan Order alias ini akan dicabut. Lanjut?')) return;
+      menyimpan.value = true;
+      try {
+        await updateDoc(doc(db, 'alias_pembelian', f.id), {
+          suplayer_id: suplayer.id, suplayer_nama: suplayer.nama,
+          bahan_aksesoris_id: bahan.id, bahan_aksesoris_nama: formatNamaBahan(bahan),
+          nama_di_nota: namaDiNota,
+          moq: f.moq === '' ? null : (parseFloat(f.moq) || 0),
+          moq_satuan: String(f.moqSatuan).trim(),
+          lead_time_hari: f.leadTimeHari === '' ? null : (parseInt(f.leadTimeHari) || 0),
+          ...(gantiItem ? { is_default_order: false } : {}),
+          diperbarui_pada: serverTimestamp()
+        });
+        popupEdit.value = null;
+        await muatSemua();
+      } catch (e) { console.error('Gagal ubah Alias Pembelian:', e); alert('Gagal menyimpan.'); }
+      menyimpan.value = false;
+    }
+
     async function onSuplayerBaruTersimpan(namaBaru) {
       tampilTambahSuplayer.value = false;
       daftarSuplayer.value = await ambilDaftarSuplayerLengkap();
@@ -335,7 +380,8 @@ const AliasMoqManager = {
 
     onMounted(async () => { await window.authReady; await muatSemua(); });
     return {
-      memuat, muat: muatSemua, daftarAlias, form, opsiNamaInternal, opsiSuplayer, bolehTambah, bolehHapus,
+      memuat, muat: muatSemua, daftarAlias, form, opsiNamaInternal, opsiSuplayer, bolehTambah, bolehHapus, bolehEdit,
+      popupEdit, bukaEdit, simpanEdit,
       menyimpan, tambah, hapus, namaInternalTampil, formatQty,
       tampilTambahSuplayer, onSuplayerBaruTersimpan
     };
@@ -377,13 +423,32 @@ const AliasMoqManager = {
             </div>
             <span v-if="a.is_default_order" class="tag ok"><i class="fas fa-star" style="margin-right:4px;"></i>default</span>
           </div>
-          <div style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px;" :style="{marginBottom: bolehHapus ? '10px' : '0'}">
+          <div style="display:flex; flex-direction:column; gap:5px; background:var(--ivory-dim); border-radius:10px; padding:10px 12px;" :style="{marginBottom: (bolehHapus || bolehEdit) ? '10px' : '0'}">
             <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Nama di Nota</span><span style="font-weight:700;">{{ a.nama_di_nota }}</span></div>
             <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">MOQ</span><span class="gc-num" style="font-weight:700;">{{ formatQty(a.moq) }} {{ a.moq_satuan || '' }}</span></div>
             <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:var(--text-faint);">Lead Time</span><span class="gc-num" style="font-weight:700;">{{ a.lead_time_hari === null || a.lead_time_hari === undefined ? '-' : a.lead_time_hari + ' hari' }}</span></div>
           </div>
-          <div v-if="bolehHapus" style="display:flex; gap:8px;">
-            <button @click="hapus(a)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
+          <div v-if="bolehHapus || bolehEdit" style="display:flex; gap:8px;">
+            <button v-if="bolehEdit" @click="bukaEdit(a)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px;"><i class="fas fa-pen" style="margin-right:6px;"></i>Edit</button>
+            <button v-if="bolehHapus" @click="hapus(a)" class="btn-outline" style="flex:1; font-size:11.5px; padding:7px 12px; color:var(--danger); border-color:var(--danger);"><i class="fas fa-trash-alt" style="margin-right:6px;"></i>Hapus</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="popupEdit" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;" @click.self="popupEdit = null">
+        <div class="gc-card" style="max-width:380px; width:100%; padding:18px; border-radius:18px; max-height:86vh; overflow-y:auto;">
+          <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 12px;"><i class="fas fa-pen" style="margin-right:8px; color:var(--burgundy);"></i>Edit Alias</h3>
+          <div class="gc-field"><label>Suplayer</label><dropdown-cari v-model="popupEdit.suplayerNama" :opsi="opsiSuplayer" placeholder="Pilih Suplayer..." /></div>
+          <div class="gc-field"><label>Nama di Nota Suplayer</label><input v-model="popupEdit.namaDiNota" type="text" placeholder="Persis seperti di nota"></div>
+          <div class="gc-field"><label>Nama Internal</label><dropdown-cari v-model="popupEdit.namaInternal" :opsi="opsiNamaInternal" placeholder="Pilih item internal..." /></div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px;">
+            <div class="gc-field"><label>MOQ</label><input v-model="popupEdit.moq" type="number" min="0"></div>
+            <div class="gc-field"><label>Satuan</label><input v-model="popupEdit.moqSatuan" type="text"></div>
+            <div class="gc-field"><label>Lead (hari)</label><input v-model="popupEdit.leadTimeHari" type="number" min="0"></div>
+          </div>
+          <div style="display:flex; gap:8px; margin-top:4px;">
+            <button @click="popupEdit = null" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
+            <button @click="simpanEdit" :disabled="menyimpan" class="btn-primary" style="flex:1; padding:9px;">{{ menyimpan ? 'Menyimpan...' : 'Simpan' }}</button>
           </div>
         </div>
       </div>
