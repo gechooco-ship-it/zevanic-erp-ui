@@ -152,7 +152,12 @@ const SuplayerEntryList = {
         });
         popupEdit.value = null;
         await muat();
-      } catch (e) { console.error('Gagal ubah Suplayer:', e); alert('Gagal menyimpan.'); }
+      } catch (e) {
+        console.error('Gagal ubah Suplayer:', e);
+        // Dokumen sudah dihapus sejak daftar dimuat: tutup form & segarkan daftar.
+        if (e.code === 'not-found') { alert('Suplayer ini sudah tidak ada (sudah dihapus). Daftar dimuat ulang.'); popupEdit.value = null; await muat(); }
+        else alert('Gagal menyimpan.');
+      }
       menyimpan.value = false;
     }
 
@@ -234,7 +239,8 @@ const SuplayerEntryList = {
                 <td class="gc-cell-muted">{{ s.bank || '-' }} &middot; {{ s.no_rek || '-' }}</td>
                 <td class="gc-num">{{ s.no_wa || '-' }}</td>
                 <td class="gc-num" style="text-align:right;">{{ jumlahAlias(s) }}</td>
-                <td style="text-align:right;">
+                <td style="text-align:right; white-space:nowrap;">
+                  <button v-if="bolehEdit" @click.stop="bukaEdit(s)" class="icon-btn" title="Edit"><i class="fas fa-pen"></i></button>
                   <button v-if="bolehHapus" @click.stop="hapus(s)" class="icon-btn" style="color:var(--danger);" title="Hapus"><i class="fas fa-trash-alt"></i></button>
                 </td>
               </tr>
