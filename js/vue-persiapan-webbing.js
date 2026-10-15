@@ -24,7 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunLabelAksesoris, bangunInfoLabelAnakSpk } from './vue-components.js?v=15';
 import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=18';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier
 // pic/pic_owner/owner/superuser, TANPA popup PIN: cukup tier akun yang login.

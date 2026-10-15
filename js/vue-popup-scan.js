@@ -72,7 +72,6 @@ export const DAFTAR_AKSI_SCAN = {
   cutting_operator_pola: { icon: 'user-check', judul: 'Scan Operator Pola', sub: 'Cutting - Pola', gaya: 'aksen', fungsi: 'bukaCuttingOperatorPola' },
   cutting_entry_pola: { icon: 'check', judul: 'Scan Entry Pola', sub: 'Cutting - Pola', fungsi: 'bukaCuttingEntryPola' },
   cutting_operator_cutting: { icon: 'user-check', judul: 'Scan Operator Cutting', sub: 'Cutting - Potong', gaya: 'aksen', fungsi: 'bukaCuttingOperatorCutting' },
-  cutting_entry_cutting: { icon: 'check', judul: 'Scan Entry Cutting', sub: 'Cutting - Potong', fungsi: 'bukaCuttingEntryCutting' },
   serie_sampai: { icon: 'qrcode', judul: 'Scan Sampai', sub: 'Terima kiriman bagging', fungsi: 'bukaSerieSampai' },
   serie_unpack: { icon: 'box-open', judul: 'Scan Unpack', sub: 'Buka isi bagging dari Cutting', fungsi: 'bukaSerieUnpack' },
   serie_operator: { icon: 'user-check', judul: 'Scan Operator Serie', sub: 'Persiapan Separating', gaya: 'aksen', fungsi: 'bukaSerieOperator' },
@@ -162,7 +161,7 @@ export const STRUKTUR_MENU_SCAN = [
     { sub: 'Persiapan Belanja', childs: [{ label: 'Persiapan Admin' }, { label: 'Menunggu ACC' }, { label: 'List Order Driver' }, { label: 'Riwayat' }] },
   ] },
   { group: 'Proses Produksi', subs: [
-    { sub: 'Cutting', aksiModul: ['cutting_sampai', 'cutting_unpack', 'cutting_operator_ampar', 'cutting_entry_ampar', 'cutting_operator_pola', 'cutting_entry_pola', 'cutting_operator_cutting', 'cutting_entry_cutting', 'cutting_pack', 'cutting_kirim'], childs: [
+    { sub: 'Cutting', aksiModul: ['cutting_sampai', 'cutting_unpack', 'cutting_operator_ampar', 'cutting_entry_ampar', 'cutting_operator_pola', 'cutting_entry_pola', 'cutting_operator_cutting', 'cutting_pack', 'cutting_kirim'], childs: [
       { label: 'Perlu Di Proses', targetId: 'sub-pr-cutting-perludiproses' },
       { label: 'Sedang Ampar', targetId: 'sub-pr-cutting-sedangampar' },
       { label: 'Sedang Pola', targetId: 'sub-pr-cutting-sedangpola' },

@@ -23,7 +23,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanTerpaduGenerik, PopupPinGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah } from './vue-scan-cetak.js?v=18';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
 
 // baggingSudahSampai — potongan Cutting: cutting_track sudah selesai/sampai;
 // kit ACC: semua baris rincian ber-kode_bagging itu ber-sampai_pada. null =

@@ -24,7 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, serv
 import { db } from "./firebase-config.js";
 import { ScanTerpaduGenerik, buatScanTerpadu, PopupPinGenerik, ajukanPersiapanMasalah, buatQrDataUrl } from './vue-scan-cetak.js?v=18';
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=15';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
 
 // baggingSudahSampai — dicek di tugas_kirim.pack[] milik batch pemilik bagging
 // (spk_separating.kode_tugas). null = data tugas tidak ada (data lama),

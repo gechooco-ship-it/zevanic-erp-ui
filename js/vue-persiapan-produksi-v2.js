@@ -23,7 +23,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, KolomCari } from './vue-components.js?v=13';
 import { ambilSemuaProduk } from './vue-master-produk.js';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
 import { ScanTerpaduGenerik, buatScanTerpadu } from './vue-scan-cetak.js?v=18';
 
 // picOwnerKeAtas — "Buat SPK Grouping" dan "Tunjuk/Scan Operator" wajib akun

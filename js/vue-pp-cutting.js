@@ -1,6 +1,5 @@
 // js/vue-pp-cutting.js
-// Proses Produksi > Cutting. Bahan dari Collection, tiga tahap operator (ampar →
-// pola → cutting), cetak label komponen, lalu kirim balik ke Collection.
+// Proses Produksi > Cutting: bahan dari Collection → ampar → pola → cutting → kirim.
 // Koleksi & field:
 // - cutting_track: 1 dokumen per SPK Grouping. grouping_id, kode_grouping_induk,
 //   sku_produk_terlibat[] (untuk cari BOM), op_ampar/op_pola/op_cutting,
@@ -10,7 +9,8 @@
 // - bagging: 1 per bahan (cutting_track_id, pola_key, jumlah_target); tugas_kirim.dimuat[].
 // - label_komponen: 1 per komponen per tumpukan, dicetak PER BAHAN (pola_key =
 //   bahan_aksesoris_id::nama_pola), kode {kode_grouping bahan itu}-{nn}. Jumlah
-//   = isi_pola_pcs x komponen.qty. Semua wajib di-scan sebelum Cutting Selesai.
+//   = isi_pola_pcs x komponen.qty. Semua wajib Scan Entry Pola sebelum Pola Selesai;
+//   tahap Cutting tidak di-scan per label. cutting_mulai_pada/selesai_pada = jam proses.
 // - spk_track.bahan_rincian[].gelar_jumlah/gelar_riwayat[]: 1 scan = 1 lembar amparan.
 // Jebakan:
 // - cutting_track dibuat LAZY saat Tab 1.1 dibuka (id = grouping_id, transaksi
@@ -24,7 +24,7 @@ import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runT
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=18';
-import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=8';
+import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
 
 // baggingSudahSampai — bagging bahan dianggap sampai kalau semua baris
 // bahan_rincian ber-kode_bagging itu sudah ber-sampai_cutting_pada. null =
@@ -56,6 +56,18 @@ function formatDiamSejak(iso) {
   if (j === null) return '-';
   if (j < 1) return Math.max(1, Math.round(j * 60)) + ' menit';
   return j.toLocaleString('id-ID', { maximumFractionDigits: 1 }) + ' jam';
+}
+// formatLamaCutting — selisih Pola Selesai (cutting_mulai_pada) sampai klik
+// Cutting Selesai; SPK lama tanpa cutting_mulai_pada tampil '-'.
+function lamaCuttingMenit(t) {
+  if (!t.cutting_mulai_pada || !t.cutting_selesai_pada) return null;
+  const m = (new Date(t.cutting_selesai_pada) - new Date(t.cutting_mulai_pada)) / 60000;
+  return m >= 0 ? Math.round(m) : null;
+}
+function formatLamaCutting(t) {
+  const m = lamaCuttingMenit(t);
+  if (m === null) return '-';
+  return m < 60 ? m + ' menit' : Math.floor(m / 60) + ' jam ' + (m % 60) + ' menit';
 }
 function formatWaktu(iso) {
   if (!iso) return '-';
@@ -1178,7 +1190,7 @@ const CuttingSedangPola = {
             await addDoc(collection(db, 'label_komponen'), {
               kode, cutting_track_id: track.id, grouping_id: track.grouping_id || '', nama_komponen: k.nama_komponen,
               pola_key: g.pola_key, nama_bahan: g.nama_bahan,
-              status_pola: 'belum', status_cutting: 'belum', pola_pada: null, cutting_pada: null,
+              status_pola: 'belum', pola_pada: null,
               dibuat_pada: serverTimestamp()
             });
             preview.push({ kode, nama: k.nama_komponen, info: `${g.nama_bahan} &middot; ${track.nama_produk} size ${track.size || '-'}`, qrDataUrl: buatQrDataUrl(kode) });
@@ -1216,13 +1228,13 @@ const CuttingSedangPola = {
     const opCutting = buatScanOperator('Pola Selesai & Scan Operator Cutting', terapkanOperatorCutting);
     function bukaScanOperatorCutting(track) {
       const p = progres(track);
-      if (p.total > 0 && p.done < p.total && !confirm(`Progress label baru ${p.done}/${p.total}. Lanjut ke Sedang Cutting sekarang?`)) return;
+      if (p.total > 0 && p.done < p.total) { alert(`Entry Pola baru ${p.done}/${p.total} label. Semua label komponen wajib di-Scan Entry Pola sebelum Pola Selesai.`); return; }
       opCutting.buka(track);
     }
     async function terapkanOperatorCutting(track, user) {
       await updateCuttingTrack(track.id, (data) => ({
         op_cutting: { uid: user.email, nama: user.nama, riwayat: [...((data.op_cutting && data.op_cutting.riwayat) || []), { uid: user.email, nama: user.nama, pada: new Date().toISOString() }] },
-        status: 'sedang_cutting', masuk_tahap_pada: new Date().toISOString(),
+        status: 'sedang_cutting', masuk_tahap_pada: new Date().toISOString(), cutting_mulai_pada: new Date().toISOString(),
         riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'operator', oleh: pencatat(), pada: new Date().toISOString(), catatan: 'Pola Selesai & Scan Operator Cutting: ' + user.nama, qty: track.qty_total ?? null }]
       }));
       await muat();
@@ -1348,11 +1360,9 @@ const CuttingSedangPola = {
 // TAB 1.4: Sedang Cutting
 
 const CuttingSedangCutting = {
-  components: { ScanTerpaduGenerik },
   setup() {
     const memuat = ref(true);
     const daftar = ref([]);
-    const semuaLabel = ref([]);
     const bahanEnrich = ref({});
     const menuId = 'cut_cutting';
     const bolehProses = computed(() => window.cekIzinMenu(menuId, 'edit') !== false);
@@ -1360,23 +1370,20 @@ const CuttingSedangCutting = {
     async function muat() {
       memuat.value = true;
       try {
-        const [tracks, label, groupingList] = await Promise.all([muatSemuaCuttingTrack(), muatSemuaLabelKomponen(), muatSemuaGrouping()]);
+        const [tracks, groupingList] = await Promise.all([muatSemuaCuttingTrack(), muatSemuaGrouping()]);
         daftar.value = saringMilikOperator(tracks.filter(t => t.status === 'sedang_cutting'), 'op_cutting');
-        semuaLabel.value = label;
         bahanEnrich.value = await enrichBahanUntukTrack(daftar.value, groupingList);
-      } catch (e) { console.error('Gagal muat Cutting > Sedang Cutting:', e); daftar.value = []; semuaLabel.value = []; }
+      } catch (e) { console.error('Gagal muat Cutting > Sedang Cutting:', e); daftar.value = []; }
       memuat.value = false;
     }
-    function progres(t) { return progresLabel(t, semuaLabel.value, 'status_cutting'); }
 
-    // Scan Entry per label komponen (status_cutting -> selesai)
-    const entryCutting = buatEntryLabelKomponen({ judul: 'Scan Entry Cutting', fieldStatus: 'status_cutting', fieldPada: 'cutting_pada', catatan: 'Entry Cutting', semuaLabel });
-
+    // Cutting tidak di-scan per label: semua label sudah lolos Entry Pola.
+    // Jam mulai SPK lama (belum ber-cutting_mulai_pada) = masuk tahap ini.
     async function tandaiSelesaiCutting(track) {
-      const p = progres(track);
-      if (p.total > 0 && p.done < p.total) { alert(`Baru ${p.done}/${p.total} label komponen ter-scan. Semua label wajib di-scan sebelum kirim ke Collection.`); return; }
+      if (!confirm(`Cutting SPK ${track.kode_grouping_induk} selesai? SPK pindah ke Perlu Di Kirim.`)) return;
       try {
-        await updateCuttingTrack(track.id, () => ({ status: 'perlu_dikirim', masuk_tahap_pada: new Date().toISOString() }));
+        const kini = new Date().toISOString();
+        await updateCuttingTrack(track.id, (data) => ({ status: 'perlu_dikirim', masuk_tahap_pada: kini, cutting_mulai_pada: data.cutting_mulai_pada || data.masuk_tahap_pada || null, cutting_selesai_pada: kini }));
         await muat();
       } catch (e) { console.error('Gagal tandai cutting selesai:', e); alert('Gagal menyimpan. Coba lagi.'); }
     }
@@ -1386,27 +1393,17 @@ const CuttingSedangCutting = {
       await muat();
     });
 
-    // Toolbar global — Scan Entry jadi toolbar. "Cutting Selesai" TETAP per-baris
-    // (aksi penyelesaian 1 SPK tertentu, sama pola dengan "Cetak Label Komponen"
-    // di Tab 1.3).
-    const { pilihTarget, bukaPilihTarget, bukaPilihBahan, batalPilihTarget, konfirmasiPilihTarget } = pilihTargetMixin(daftar);
-    function bukaScanEntryToolbar() { bukaPilihBahan('Pilih Bahan — Scan Entry Cutting', (track, bahan) => entryCutting.buka(track, bahan)); }
 
     onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
-      memuat, daftar, bahanEnrich, bolehProses, aksiAktif, formatQty, formatDiamSejak, tertahan, progres,
-      entryCutting: entryCutting.c, tandaiSelesaiCutting,
+      memuat, daftar, bahanEnrich, bolehProses, formatQty, formatDiamSejak, formatWaktu, tertahan, tandaiSelesaiCutting,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah,
-      pilihTarget, batalPilihTarget, konfirmasiPilihTarget, bukaScanEntryToolbar
     };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
     <template v-else>
-      <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
-        <button v-if="bolehProses && aksiAktif('sub-pr-cutting-sedangcutting','cutting_entry_cutting')" @click="bukaScanEntryToolbar" class="btn-primary" style="flex:1; min-width:130px; padding:9px;"><i class="fas fa-check" style="margin-right:6px;"></i>Scan Entry</button>
-      </div>
       <div v-if="daftar.length === 0" class="gc-kosong gc-card">
         <div class="lingkaran"><i class="fas fa-scissors"></i></div>
         <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada yang sedang dipotong</h3>
@@ -1416,7 +1413,7 @@ const CuttingSedangCutting = {
           <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
             <th style="padding:6px 8px;">Kode SPK</th><th style="padding:6px 8px;">SKU Produk</th><th style="padding:6px 8px;">SKU Bahan</th>
             <th style="padding:6px 8px;" class="gc-num">Qty</th><th style="padding:6px 8px;" class="gc-num">Kbt Kain</th>
-            <th style="padding:6px 8px;">Progress Komponen</th><th style="padding:6px 8px;">Op. Ampar</th>
+            <th style="padding:6px 8px;">Mulai Cutting</th><th style="padding:6px 8px;">Op. Ampar</th>
             <th style="padding:6px 8px;">Op. Pola</th><th style="padding:6px 8px;">Op. Cutting</th>
             <th style="padding:6px 8px;">Diam Sejak</th><th style="padding:6px 8px;">Aksi</th>
           </tr></thead>
@@ -1427,7 +1424,7 @@ const CuttingSedangCutting = {
               <td style="padding:6px 8px; color:var(--text-faint);"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ b.sku }}</div></template><template v-else>-</template></td>
               <td style="padding:6px 8px;" class="gc-num">{{ formatQty(t.qty_total) }}</td>
               <td style="padding:6px 8px;" class="gc-num"><template v-if="bahanEnrich[t.id]"><div v-for="b in bahanEnrich[t.id].bahan" :key="b.key">{{ formatQty(b.kebutuhanKain) }}</div></template><template v-else>-</template></td>
-              <td style="padding:6px 8px;">{{ progres(t).done }} / {{ progres(t).total }}</td>
+              <td style="padding:6px 8px;" class="gc-num">{{ formatWaktu(t.cutting_mulai_pada || t.masuk_tahap_pada) }}</td>
               <td style="padding:6px 8px;">{{ (t.op_ampar && t.op_ampar.nama) || '-' }}</td>
               <td style="padding:6px 8px;">{{ (t.op_pola && t.op_pola.nama) || '-' }}</td>
               <td style="padding:6px 8px;">{{ (t.op_cutting && t.op_cutting.nama) || '-' }}</td>
@@ -1444,8 +1441,6 @@ const CuttingSedangCutting = {
       </div>
     </template>
 
-    <scan-terpadu-generik :c="entryCutting" @tutup="muat" />
-
     <div v-if="popupMasalah" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
       <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
         <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">Ajukan Masalah — {{ popupMasalah.track.kode_grouping_induk }}</h3>
@@ -1456,19 +1451,6 @@ const CuttingSedangCutting = {
         <div style="display:flex; gap:8px;">
           <button @click="batalMasalah" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
           <button @click="konfirmasiMasalah" class="btn-primary" style="flex:1; padding:9px;">Ajukan</button>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="pilihTarget" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
-      <div class="gc-card" style="max-width:360px; width:100%; padding:18px; border-radius:18px;">
-        <h3 class="gc-heading" style="font-size:13.5px; font-weight:700; margin:0 0 10px;">{{ pilihTarget.judul }}</h3>
-        <div class="gc-field" style="margin-bottom:14px;"><label>{{ pilihTarget.labelPilih }}</label>
-          <select v-model="pilihTarget.targetId"><option v-for="o in pilihTarget.opsi" :key="o.id" :value="o.id">{{ o.label }}</option></select>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <button @click="batalPilihTarget" class="btn-outline" style="flex:1; padding:9px;">Batal</button>
-          <button @click="konfirmasiPilihTarget" class="btn-primary" style="flex:1; padding:9px;">Lanjut</button>
         </div>
       </div>
     </div>
@@ -1648,7 +1630,7 @@ const CuttingPerluDiKirim = {
             const track = daftar.value.find(t => t.id === bagging.cutting_track_id);
             if (l.cutting_track_id !== bagging.cutting_track_id) return { ok: false, pesan: `${kode} bukan milik SPK ${track ? track.kode_grouping_induk : 'bagging ini'}.` };
             if (bagging.pola_key && !labelMilikBahan(l, track, { pola_key: bagging.pola_key })) return { ok: false, pesan: `${kode} (${l.nama_komponen}) bahan ${l.nama_bahan || '-'} — bukan bahan bagging ini (${namaBahanBagging(bagging)}).` };
-            if (l.status_cutting !== 'selesai') return { ok: false, pesan: `${kode} belum di-Scan Entry Cutting.` };
+            if (l.status_pola !== 'selesai' && l.status_cutting !== 'selesai') return { ok: false, pesan: `${kode} belum di-Scan Entry Pola.` };
             const n = (bagging.isi || []).length + rows.length + 1;
             const target = targetBagging(bagging);
             if (target && n > target) return { ok: false, pesan: `Bagging ${namaBahanBagging(bagging)} sudah penuh (${target}/${target}).` };
@@ -1750,7 +1732,7 @@ const CuttingPerluDiKirim = {
     onMounted(async () => { await window.authReady; await pastikanCachePilihanScan(); await muat(); });
 
     return { muat,
-      memuat, daftar, daftarTlc, bolehProses, bolehCetak, aksiAktif, sedangProses, formatQty, formatDiamSejak, tertahan,
+      memuat, daftar, daftarTlc, bolehProses, bolehCetak, aksiAktif, sedangProses, formatQty, formatDiamSejak, tertahan, formatLamaCutting,
       popupKirim, bukaCetakKirim, konfirmasiCetakKirim, popupCetakAktif, daftarLabelPreview, baggingSpk, targetBagging, namaBahanBagging,
       packTerpadu, kirimTerpadu,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
@@ -1770,8 +1752,8 @@ const CuttingPerluDiKirim = {
       <div v-else style="display:flex; flex-direction:column; gap:10px;">
         <div v-for="t in daftar" :key="t.id" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
           <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:6px;">
-            <div class="gc-num" style="font-weight:700; font-size:13px;">{{ t.kode_grouping_induk }}</div>
-            <span class="tag" :class="tertahan(t.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(t.masuk_tahap_pada) }}</span>
+            <div><div class="gc-num" style="font-weight:700; font-size:13px;">{{ t.kode_grouping_induk }}</div><div style="font-size:10.5px; color:var(--text-faint);">lama cutting {{ formatLamaCutting(t) }}</div></div>
+            <span class="tag" :class="tertahan(t.masuk_tahap_pada) ? 'warn' : 'neutral'" style="align-self:flex-start;">diam {{ formatDiamSejak(t.masuk_tahap_pada) }}</span>
           </div>
           <div style="font-size:12px; color:var(--text-faint); margin-bottom:6px;">{{ t.nama_produk }} &middot; size {{ t.size || '-' }} &middot; qty {{ formatQty(t.qty_total) }}</div>
           <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:10px;">
@@ -1940,10 +1922,11 @@ const CuttingSelesai = {
 
     function unduhCsv() {
       if (!daftarUrut.value.length) { alert('Tidak ada data untuk diunduh.'); return; }
-      const header = ['Kode SPK', 'Produk', 'Size', 'Qty', 'Operator Ampar', 'Operator Pola', 'Operator Cutting', 'Kode Tugas', 'Tujuan Akhir', 'Selesai Pada'];
+      const header = ['Kode SPK', 'Produk', 'Size', 'Qty', 'Operator Ampar', 'Operator Pola', 'Operator Cutting', 'Mulai Cutting', 'Selesai Cutting', 'Lama Cutting (menit)', 'Kode Tugas', 'Tujuan Akhir', 'Selesai Pada'];
       const baris = daftarUrut.value.map(t => [
         t.kode_grouping_induk, t.nama_produk, t.size, t.qty_total,
         (t.op_ampar && t.op_ampar.nama) || '', (t.op_pola && t.op_pola.nama) || '', (t.op_cutting && t.op_cutting.nama) || '',
+        formatWaktu(t.cutting_mulai_pada), formatWaktu(t.cutting_selesai_pada), lamaCuttingMenit(t) ?? '',
         t.kode_tugas, t.tujuan_akhir, formatWaktu(t.sampai_pada)
       ]);
       const csv = [header, ...baris].map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -1957,7 +1940,7 @@ const CuttingSelesai = {
 
     onMounted(async () => { await window.authReady; await muat(); });
 
-    return { muat, memuat, daftarUrut, selesaiHariIni, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, formatQty, formatWaktu };
+    return { muat, memuat, daftarUrut, selesaiHariIni, kataKunci, dariTanggal, sampaiTanggal, unduhCsv, formatQty, formatWaktu, formatLamaCutting };
   },
   template: `
     <div v-if="memuat" class="gc-card gc-card-menonjol" style="text-align:center; padding:20px; color:var(--text-faint); font-size:12px;">Memuat...</div>
@@ -1983,7 +1966,7 @@ const CuttingSelesai = {
           <thead><tr style="text-align:left; border-bottom:1px solid var(--line);">
             <th style="padding:6px 8px;">Kode SPK</th><th style="padding:6px 8px;">Produk</th><th style="padding:6px 8px;">Qty</th>
             <th style="padding:6px 8px;">Op. Ampar</th><th style="padding:6px 8px;">Op. Pola</th><th style="padding:6px 8px;">Op. Cutting</th>
-            <th style="padding:6px 8px;">Tujuan</th><th style="padding:6px 8px;">Selesai</th>
+            <th style="padding:6px 8px;">Lama Cutting</th><th style="padding:6px 8px;">Tujuan</th><th style="padding:6px 8px;">Selesai</th>
           </tr></thead>
           <tbody>
             <tr v-for="t in daftarUrut" :key="t.id" style="border-bottom:1px solid var(--line);">
@@ -1993,6 +1976,7 @@ const CuttingSelesai = {
               <td style="padding:6px 8px;">{{ (t.op_ampar && t.op_ampar.nama) || '-' }}</td>
               <td style="padding:6px 8px;">{{ (t.op_pola && t.op_pola.nama) || '-' }}</td>
               <td style="padding:6px 8px;">{{ (t.op_cutting && t.op_cutting.nama) || '-' }}</td>
+              <td style="padding:6px 8px;" class="gc-num">{{ formatLamaCutting(t) }}</td>
               <td style="padding:6px 8px;">{{ t.tujuan_akhir || '-' }}</td>
               <td style="padding:6px 8px;" class="gc-num">{{ formatWaktu(t.sampai_pada) }}</td>
             </tr>
@@ -2041,7 +2025,6 @@ window.pastikanMountCuttingSedangCutting = function () {
   if (mountPoint) vmCuttingSedangCutting = createApp(CuttingSedangCutting).mount('#vue-cutting-sedangcutting');
 };
 // Jembatan Bottom Sheet Pilihan Scan (js/vue-popup-scan.js).
-window.bukaCuttingEntryCutting = function () { window.pastikanMountCuttingSedangCutting(); if (vmCuttingSedangCutting) vmCuttingSedangCutting.bukaScanEntryToolbar(); };
 let vmCuttingPerluDiKirim = null;
 window.pastikanMountCuttingPerluDiKirim = function () {
   if (vmCuttingPerluDiKirim) { if (typeof vmCuttingPerluDiKirim.muat === 'function') vmCuttingPerluDiKirim.muat(); return; }
