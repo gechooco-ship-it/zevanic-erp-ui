@@ -12,17 +12,18 @@
 // - Jabatan yang BELUM diatur di pill Jabatan tidak punya role/jenis_pekerjaan,
 //   jadi tidak bisa dipasang di sini — atur dulu di sana, kalau dipaksa role
 //   karyawan jadi kosong dan Firestore Rules menolak semuanya.
-// - Nilai role wajib tanpa spasi (pic_owner), kalau tidak tidak akan pernah
-//   cocok dengan firestore.rules maupun functions/index.js.
+// - Nilai role wajib tanpa spasi (pic_owner), sesuai firestore.rules & functions.
 // - profil_akses SELALU dikosongkan saat menyimpan; field itu sudah pensiun.
-// - Tabel pakai usePaginasiFirestore + filterPeran, jadi "Pilih Semua" hanya
+// - Tabel memuat SEMUA karyawan Aktif sekali (where kesetaraan saja, tanpa
+//   orderBy), lalu filter/cari/halaman di JS — kombinasi filter+cari di
+//   Firestore butuh index gabungan per kombinasi. "Pilih Semua" hanya
 //   mencentang baris di halaman yang tampil.
 
 import { createApp, ref, reactive, computed, watch, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, query, where, getDocs, getDoc, getCountFromServer, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, query, where, getDocs, getDoc, doc, updateDoc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { GudangRingkas } from './vue-components.js';
-import { usePaginasiFirestore, bangunConstraintFilterPeran } from './vue-paginasi.js';
+import { bangunConstraintFilterPeran } from './vue-paginasi.js';
 
 const DAFTAR_ROLE_BAKU = ['operator', 'admin', 'pic', 'pic_owner', 'owner']; // 5 role baku, satu-satunya nilai sah untuk field `role`
 const NILAI_BELUM_DIATUR = '__BELUM_DIATUR__';
@@ -42,9 +43,6 @@ const AppHakAkses = {
     const petaJabatan = reactive({});
     const filterJabatan = ref('ALL');
 
-    const ringkasanKartu = ref([]);
-    const memuatRingkasan = ref(true);
-    const errorRingkasan = ref('');
 
     const filterRole = ref('ALL');
     const filterGudang = ref('ALL');
@@ -60,75 +58,72 @@ const AppHakAkses = {
       if (railRingkasan.value) railRingkasan.value.scrollBy({ left: arah * 240, behavior: 'smooth' });
     }
 
-    // TABEL: paginasi cursor Firestore sungguhan
-    const paginasi = reactive(usePaginasiFirestore(db, 'users', {
-      perHalaman: 15,
-      urutkanField: 'nama',
-      cariField: 'nama_lower',
-      cariHurufKecil: true,
-      constraintTambahan: () => {
-        // Dimensi jenis pekerjaan dari filterPeran dipakai manual di sini
-        // (fieldGudang:null) supaya bisa digabung fleksibel dengan filterGudang
-        // tanpa bentrok "cuma boleh 1 operator array per query" punya Firestore
-        // (array-contains DAN array-contains-any tidak boleh dipakai bersamaan).
-        const cs = [...bangunConstraintFilterPeran({ fieldGudang: null })];
-        // cuma tampilkan karyawan yang status_kerja-nya "Aktif". Karyawan
-        // nonaktif/resign tidak perlu muncul di Hak Akses (tidak relevan diatur
-        // role-nya).
-        cs.push(where('status_kerja', '==', 'Aktif'));
-        if (filterGudang.value !== 'ALL') {
-          cs.push(where('gudang_penempatan', 'array-contains', filterGudang.value));
-        } else if (!isOwnerRole()) {
+    // TABEL: semua karyawan Aktif dimuat sekali, filter/cari/halaman di JS.
+    // Antarmuka objek paginasi sengaja sama dengan usePaginasiFirestore
+    // supaya template tidak berubah.
+    const PER_HALAMAN = 15;
+    const semuaData = ref([]);
+    const paginasi = reactive({
+      memuat: true, errorPaginasi: '', cariTeks: '', nomorHalaman: 1,
+      dataHalaman: computed(() => {
+        const awal = (paginasi.nomorHalaman - 1) * PER_HALAMAN;
+        return dataTerfilter.value.slice(awal, awal + PER_HALAMAN);
+      }),
+      adaBerikutnya: computed(() => paginasi.nomorHalaman * PER_HALAMAN < dataTerfilter.value.length),
+      halamanSebelumnya() { if (paginasi.nomorHalaman > 1) paginasi.nomorHalaman--; },
+      halamanBerikutnya() { if (paginasi.adaBerikutnya) paginasi.nomorHalaman++; },
+      cariDenganDebounce(v) { paginasi.cariTeks = v; paginasi.nomorHalaman = 1; },
+      muatUlang: muatSemuaKaryawan
+    });
+
+    // Query hanya where kesetaraan / array-contains-any tanpa orderBy, jadi
+    // tidak butuh index gabungan. Gudang admin non-Owner tetap disaring server.
+    async function muatSemuaKaryawan() {
+      paginasi.memuat = true;
+      paginasi.errorPaginasi = '';
+      try {
+        const cs = [...bangunConstraintFilterPeran({ fieldGudang: null }), where('status_kerja', '==', 'Aktif')];
+        if (!isOwnerRole()) {
           const gudangAdmin = window.normalisasiGudang(window.currentUser.gudang_penempatan);
           if (gudangAdmin.length > 0) cs.push(where('gudang_penempatan', 'array-contains-any', gudangAdmin.slice(0, 10)));
         }
-        if (filterJabatan.value !== 'ALL') cs.push(where('jabatan', '==', filterJabatan.value));
-        if (filterRole.value === NILAI_BELUM_DIATUR) {
-          // Keterbatasan: cuma cocok dokumen yang field role-nya PERSIS string
-          // kosong. Dokumen lama yang field role-nya HILANG TOTAL (bukan string
-          // kosong) tidak akan ketemu lewat where ini.
-          cs.push(where('role', '==', ''));
-        } else if (filterRole.value !== 'ALL') {
-          cs.push(where('role', '==', filterRole.value));
-        }
-        return cs;
-      },
-      petakan: (id, d) => ({ email: id, ...d })
-    }));
-    watch([filterRole, filterGudang, filterJabatan], () => paginasi.muatUlang());
-
-    // KARTU RINGKASAN: getCountFromServer terpisah per kartu
-    async function muatRingkasan() {
-      memuatRingkasan.value = true;
-      errorRingkasan.value = '';
-      try {
-        const csDasar = [...bangunConstraintFilterPeran({ fieldGudang: null })];
-        csDasar.push(where('status_kerja', '==', 'Aktif')); // sinkron dengan filter tabel utama
-        if (!isOwnerRole()) {
-          const gudangAdmin = window.normalisasiGudang(window.currentUser.gudang_penempatan);
-          if (gudangAdmin.length > 0) csDasar.push(where('gudang_penempatan', 'array-contains-any', gudangAdmin.slice(0, 10)));
-        }
-        const snapSemua = await getCountFromServer(query(collection(db, 'users'), ...csDasar));
-        const kartu = [{ label: 'Semua', nilaiFilter: 'ALL', angka: snapSemua.data().count }];
-        for (const r of DAFTAR_ROLE) {
-          const snap = await getCountFromServer(query(collection(db, 'users'), ...csDasar, where('role', '==', r)));
-          kartu.push({ label: r, nilaiFilter: r, angka: snap.data().count });
-        }
-        const snapKosong = await getCountFromServer(query(collection(db, 'users'), ...csDasar, where('role', '==', '')));
-        kartu.push({ label: 'Belum diatur', nilaiFilter: NILAI_BELUM_DIATUR, angka: snapKosong.data().count });
-        ringkasanKartu.value = kartu;
+        const snap = await getDocs(query(collection(db, 'users'), ...cs));
+        semuaData.value = snap.docs.map(d => ({ email: d.id, ...d.data() }))
+          .sort((a, b) => String(a.nama || '').localeCompare(String(b.nama || ''), 'id'));
       } catch (e) {
-        console.error('Gagal muat ringkasan Hak Akses:', e);
-        // Error WAJIB tampil ke layar, bukan cuma console.error: tanpa itu area
-        // Ringkasan jadi blank total kalau query gagal (paling sering karena butuh
-        // index Firestore gabungan yang belum dibuat, sebab query di atas
-        // menggabung beberapa where sekaligus).
-        errorRingkasan.value = e.code === 'failed-precondition'
-          ? 'Ringkasan gagal dimuat — butuh index Firestore baru. Buka Console browser (F12), cari link "Create composite index" dari error ini, klik untuk bikin index-nya sekali.'
-          : 'Ringkasan gagal dimuat (' + (e.code || e.message) + ').';
+        console.error('Gagal memuat karyawan Hak Akses:', e);
+        paginasi.errorPaginasi = 'Gagal memuat data karyawan (' + (e.code || e.message) + ').';
+        semuaData.value = [];
       }
-      memuatRingkasan.value = false;
+      paginasi.memuat = false;
     }
+
+    // Cari = potongan nama di mana saja, tidak peka huruf besar/kecil.
+    // "Belum diatur" juga menangkap dokumen yang field role-nya tidak ada.
+    const dataTerfilter = computed(() => {
+      const teks = paginasi.cariTeks.trim().toLowerCase();
+      return semuaData.value.filter(d => {
+        if (teks && !String(d.nama_lower || d.nama || '').toLowerCase().includes(teks)) return false;
+        if (filterGudang.value !== 'ALL' && !window.normalisasiGudang(d.gudang_penempatan).includes(filterGudang.value)) return false;
+        if (filterJabatan.value !== 'ALL' && d.jabatan !== filterJabatan.value) return false;
+        if (filterRole.value === NILAI_BELUM_DIATUR) return !d.role;
+        if (filterRole.value !== 'ALL' && d.role !== filterRole.value) return false;
+        return true;
+      });
+    });
+    watch([filterRole, filterGudang, filterJabatan], () => { paginasi.nomorHalaman = 1; });
+
+    // KARTU RINGKASAN: dihitung dari data yang sama dengan tabel.
+    const memuatRingkasan = computed(() => paginasi.memuat);
+    const errorRingkasan = ref('');
+    const ringkasanKartu = computed(() => {
+      const semua = semuaData.value;
+      return [
+        { label: 'Semua', nilaiFilter: 'ALL', angka: semua.length },
+        ...DAFTAR_ROLE.map(r => ({ label: r, nilaiFilter: r, angka: semua.filter(d => d.role === r).length })),
+        { label: 'Belum diatur', nilaiFilter: NILAI_BELUM_DIATUR, angka: semua.filter(d => !d.role).length }
+      ];
+    });
 
     function klikKartuRingkasan(nilaiFilter) {
       filterRole.value = nilaiFilter;
@@ -158,7 +153,7 @@ const AppHakAkses = {
     async function muat() {
       terpilih.clear();
       await muatMeta();
-      await Promise.all([muatRingkasan(), paginasi.muatUlang()]);
+      await paginasi.muatUlang();
     }
 
     // Badge tabel dan kartu ringkasan membaca sumber yang SAMA (field role di
@@ -186,10 +181,10 @@ const AppHakAkses = {
 
     // Ubah jabatan 1 karyawan langsung dari tabel; "" berarti kosongkan. role dan
     // jenis_pekerjaan DISALIN dari jabatan, tidak pernah diketik di sini.
-    async function ubahJabatanLangsung(item, jabatanBaru) {
+    async function ubahJabatanLangsung(item, jabatanBaru, elSelect) {
       if (jabatanBaru && !jabatanSiap(jabatanBaru)) {
         alert(`Jabatan "${jabatanBaru}" belum diatur di pill Jabatan (belum punya Role dan Jenis Usaha). Atur dulu di sana.`);
-        paginasi.muatUlang();
+        if (elSelect) elSelect.value = item.jabatan || ''; // kembalikan pilihan ke nilai lama
         return;
       }
       const lama = { jabatan: item.jabatan, role: item.role, jenis_pekerjaan: item.jenis_pekerjaan };
@@ -201,7 +196,6 @@ const AppHakAkses = {
         await updateDoc(doc(db, "users", item.email), {
           jabatan: jabatanBaru || '', role: def.role, jenis_pekerjaan: def.jenis_pekerjaan, profil_akses: ''
         });
-        muatRingkasan(); // angka kartu ikut berubah, tidak perlu tunggu Refresh manual
       } catch (e) {
         console.error("Gagal ubah jabatan:", e);
         item.jabatan = lama.jabatan;
@@ -240,7 +234,7 @@ const AppHakAkses = {
       alert(`Update massal selesai. Berhasil: ${sukses}, Gagal: ${gagal}.`);
       bulkRole.value = '__TIDAK_DIUBAH__';
       terpilih.clear();
-      await Promise.all([muatRingkasan(), paginasi.muatUlang()]);
+      await paginasi.muatUlang();
     }
 
     onMounted(async () => { await window.authReady; muat(); });
@@ -302,7 +296,7 @@ const AppHakAkses = {
         <!-- Pencarian -->
         <div style="position:relative; margin-bottom:14px;">
           <i class="fas fa-search" style="position:absolute; left:13px; top:11px; color:var(--text-faint); font-size:12px;"></i>
-          <input :value="paginasi.cariTeks" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama karyawan (awalan nama)..." autocomplete="off" style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; outline:none;">
+          <input :value="paginasi.cariTeks" @input="paginasi.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari nama karyawan..." autocomplete="off" style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px; outline:none;">
         </div>
 
         <!-- Filter -->
@@ -360,7 +354,7 @@ const AppHakAkses = {
                   <br><span style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">{{ roleEfektif(d) || '-' }}</span>
                 </td>
                 <td>
-                  <select :value="d.jabatan || ''" @change="ubahJabatanLangsung(d, $event.target.value)" style="padding:6px 10px; font-size:11.5px; border:1.5px solid var(--line); border-radius:8px; background:var(--surface);">
+                  <select :value="d.jabatan || ''" @change="ubahJabatanLangsung(d, $event.target.value, $event.target)" style="padding:6px 10px; font-size:11.5px; border:1.5px solid var(--line); border-radius:8px; background:var(--surface);">
                     <option value="">(Belum diatur)</option>
                     <option v-for="j in daftarJabatan" :key="j" :value="j" :disabled="!jabatanSiap(j)">{{ j }}{{ jabatanSiap(j) ? '' : ' — belum diatur' }}</option>
                   </select>
