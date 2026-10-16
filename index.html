@@ -978,7 +978,7 @@
                Menunggu ACC (8.1.3, owner-gated), List Order Driver (8.2, HP driver: beli/pending), Riwayat Belanja
                (8.3, read-only). -->
           <div id="sub-pp-belanja" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
-            <div class="flex gap-2 flex-wrap border-b border-gray-200 pb-2">
+            <div class="flex space-x-2 overflow-x-auto no-scrollbar">
               <button onclick="pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-persiapanadmin', this, {catatRiwayat:true})" class="sub-pp-belanja-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-belanja-persiapanadmin"><i class="fas fa-pen-to-square" style="margin-right:6px;"></i> Persiapan Admin</button>
               <button onclick="pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-menungguacc', this, {catatRiwayat:true})" class="sub-pp-belanja-tahap-btn gc-sub-tab-btn" data-target="sub-pp-belanja-menungguacc"><i class="fas fa-hourglass-half" style="margin-right:6px;"></i> Menunggu ACC</button>
               <button onclick="pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-listorderdriver', this, {catatRiwayat:true})" class="sub-pp-belanja-tahap-btn gc-sub-tab-btn" data-target="sub-pp-belanja-listorderdriver"><i class="fas fa-motorcycle" style="margin-right:6px;"></i> List Order Driver</button>
@@ -1506,6 +1506,6 @@
   <script type="module" src="js/vue-pp-gudang.js?v=24"></script>
   <!-- Persiapan Produksi > Persiapan Belanja, folder terakhir grup Persiapan Produksi. Lihat
        komentar besar di js/vue-persiapan-belanja.js untuk latar belakang dan keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-persiapan-belanja.js?v=20"></script>
+  <script type="module" src="js/vue-persiapan-belanja.js?v=21"></script>
 </body>
 </html>

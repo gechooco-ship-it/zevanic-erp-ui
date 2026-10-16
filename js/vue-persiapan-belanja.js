@@ -124,10 +124,36 @@ async function generateKodeOrderDriver() {
     return `DRV${tanggalKey}-${String(counterBaru).padStart(3, '0')}`;
   });
 }
+// Foto bon dikompres dulu (900px, JPEG 0.7) sama seperti uploadFotoBon di
+// Stok & Pembelian — foto HP mentah melewati batas ukuran Storage Rules.
+function kompresFotoKeBlob(file, maxDimensi, kualitas) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const img = new Image();
+      img.onload = function() {
+        let { width, height } = img;
+        if (width > maxDimensi || height > maxDimensi) {
+          if (width > height) { height = Math.round(height * (maxDimensi / width)); width = maxDimensi; }
+          else { width = Math.round(width * (maxDimensi / height)); height = maxDimensi; }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Gagal buat blob foto')), 'image/jpeg', kualitas);
+      };
+      img.onerror = reject;
+      img.src = e.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 async function uploadFotoBonLokal(noPembelianAtauKode, file) {
+  const blob = await kompresFotoKeBlob(file, 900, 0.7);
   const pathFile = `pesanan_pembelian/${noPembelianAtauKode}/bon_${Date.now()}.jpg`;
   const refFile = storageRef(storage, pathFile);
-  await uploadBytes(refFile, file);
+  await uploadBytes(refFile, blob);
   return await getDownloadURL(refFile);
 }
 
@@ -690,6 +716,28 @@ const ListOrderDriver = {
       window.open(`https://wa.me/${nomor}?text=${encodeURIComponent(teks)}`, '_blank');
     }
 
+    // Share semua order di List Order ke WA tanpa nomor tujuan (Admin pilih
+    // grup sendiri). Subtotal dihitung ulang dari qty terkini x harga_estimasi,
+    // bukan total_estimasi tersimpan, karena qty bisa sudah dikurangi.
+    function shareDaftarBelanjaWa() {
+      const order = daftarOrder.value.filter(o => (o.items || []).length > 0);
+      if (!order.length) { alert('Tidak ada order untuk dibagikan.'); return; }
+      let total = 0, jumlahItem = 0;
+      const blok = order.map((o, i) => {
+        let sub = 0;
+        const baris = o.items.map(it => {
+          const qty = parseFloat(it.qty) || 0, harga = parseFloat(it.harga_estimasi) || 0;
+          sub += qty * harga; jumlahItem++;
+          return `- ${it.nama_alias || it.nama_internal} — ${formatQty(qty)} ${it.satuan || ''} × ${formatRupiah(harga)} = ${formatRupiah(qty * harga)}`;
+        }).join('\n');
+        total += sub;
+        return `*${i + 1}. ${o.suplayer_nama || '-'}*\n${baris}\nSubtotal: ${formatRupiah(sub)}`;
+      });
+      const tgl = new Date().toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const teks = `*DAFTAR BELANJA* — ${tgl}\n${order.length} suplayer · ${jumlahItem} item\n\n${blok.join('\n\n')}\n\n*TOTAL ESTIMASI: ${formatRupiah(total)}*`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(teks)}`, '_blank');
+    }
+
     // Ubah qty (minus, keputusan #7: tidak bisa tambah item baru)
     function kurangiQty(o, it) {
       if (!bolehProses.value) return;
@@ -753,7 +801,7 @@ const ListOrderDriver = {
         alert(`Order ${o.kode_order} tercatat dibeli. Nota siap difinalkan di Stok & Pembelian.`);
         popupBeli.value = null;
         await muat();
-      } catch (e) { console.error('Gagal simpan Beli:', e); alert('Gagal menyimpan. Coba lagi.'); }
+      } catch (e) { console.error('Gagal simpan Beli:', e); alert('Gagal menyimpan (' + (e.code || e.message) + '). Coba lagi.'); }
       menyimpanBeli.value = false;
     }
 
@@ -765,7 +813,7 @@ const ListOrderDriver = {
 
     return { muat,
       bolehProses, memuat, subTab, daftarOrder, daftarPending, daftarSuplayerSemua,
-      menuTerbuka, toggleMenu, bukaFormatWa, kurangiQty,
+      menuTerbuka, toggleMenu, bukaFormatWa, shareDaftarBelanjaWa, kurangiQty,
       popupPending, bukaPending, konfirmasiPending,
       popupAssign, bukaAssign, konfirmasiAssign,
       popupBeli, bukaBeli, pilihFotoBon, konfirmasiBeli, menyimpanBeli,
@@ -786,6 +834,7 @@ const ListOrderDriver = {
           <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Tidak ada order yang perlu dibeli</h3>
         </div>
         <div v-else style="display:flex; flex-direction:column; gap:10px;">
+          <button @click="shareDaftarBelanjaWa" class="btn-outline" style="padding:9px; font-size:12px;"><i class="fab fa-whatsapp" style="margin-right:6px; color:#25D366;"></i>Share Daftar Belanja ke WA</button>
           <div v-for="o in daftarOrder" :key="o.id" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px; position:relative;">
             <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:8px;">
               <div class="gc-num" style="font-weight:700; font-size:13px;">{{ o.suplayer_nama }}</div>
