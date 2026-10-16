@@ -60,6 +60,24 @@ async function ambilDaftarBahanAksesorisLengkap() {
     return list;
   } catch (e) { console.error('Gagal ambil daftar Bahan/Aksesoris:', e); return []; }
 }
+// Harga estimasi per SATUAN yang dipakai baris nota: satuan pembelian ->
+// harga_pembelian (fallback harga_modal x isi konversi); satuan pemakaian ->
+// harga_modal. harga_modal di master selalu per satuan pemakaian.
+function hargaEstimasiPerSatuan(b, satuan) {
+  if (!b) return 0;
+  const isi = parseFloat(b.isi_konversi_pembelian) || 1;
+  const modal = parseFloat(b.harga_modal) || 0;
+  if (satuan && satuan === b.satuan_pemakaian && satuan !== b.satuan_pembelian) return modal;
+  return parseFloat(b.harga_pembelian) > 0 ? parseFloat(b.harga_pembelian) : Math.round(modal * isi);
+}
+// Konversi qty antar satuan pemakaian <-> pembelian; satuan lain apa adanya.
+function qtyKeSatuan(b, qty, dari, ke) {
+  if (!b || !dari || !ke || dari === ke) return qty;
+  const isi = parseFloat(b.isi_konversi_pembelian) || 1;
+  if (dari === b.satuan_pemakaian && ke === b.satuan_pembelian) return Math.round(qty / isi * 100) / 100;
+  if (dari === b.satuan_pembelian && ke === b.satuan_pemakaian) return qty * isi;
+  return qty;
+}
 function formatNamaBahan(b) {
   if (!b) return '-';
   return (b.nama || '') + (b.warna ? ` ${b.warna}` : '');
@@ -148,9 +166,14 @@ async function muatItemStokKritis(notaAktif) {
       const batasKritis = parseFloat(b.batas_kritis) || 0;
       const statusStok = bebas <= 0 ? 'habis' : (batasKritis > 0 && bebas <= batasKritis ? 'kritis' : null);
       if (!statusStok || bahanDiNotaAktif.has(b.id)) return;
+      // Kekurangan dihitung dalam satuan pemakaian (stok_akhir), lalu dibulatkan
+      // ke atas ke satuan pembelian kalau master punya isi konversi.
+      const kurang = Math.max(-bebas, batasKritis - bebas, 0);
+      const isi = parseFloat(b.isi_konversi_pembelian) || 0;
+      const keBeli = b.satuan_pembelian && isi > 0;
       hasil.push({
         id: 'stokkritis::' + b.id, bahan_aksesoris_id: b.id, bahan_nama: b.nama, bahan_warna: b.warna || '',
-        qty_beli: Math.max(-bebas, batasKritis - bebas, 0), satuan: b.satuan_pembelian || b.satuan_pemakaian || '',
+        qty_beli: keBeli ? Math.ceil(kurang / isi) : kurang, satuan: keBeli ? b.satuan_pembelian : (b.satuan_pemakaian || ''),
         sumber_stok_kritis: true, status_stok: statusStok
       });
     });
@@ -236,7 +259,7 @@ const PersiapanAdminBelanja = {
         const def = suplayerDefaultUntukBahan(bahan.id);
         items.value.push({
           bahan_aksesoris_id: bahan.id, nama_internal: formatNamaBahan(bahan), nama_alias: extra?.namaAlias || '',
-          qty: qtyTambah, satuan: bahan.satuan_pembelian || '', harga_estimasi: parseFloat(bahan.harga_modal) || 0,
+          qty: qtyTambah, satuan: bahan.satuan_pembelian || '', harga_estimasi: hargaEstimasiPerSatuan(bahan, bahan.satuan_pembelian || ''),
           suplayer_default_id: def?.id || '', suplayer_default_nama: def?.nama || '',
           ...(extra?.dariMasalahId ? { dari_masalah_id: extra.dariMasalahId } : {})
         });
@@ -308,13 +331,17 @@ const PersiapanAdminBelanja = {
       const terpilih = daftarPengajuan.value.filter(m => pengajuanDicentang[m.id]);
       if (!terpilih.length) { popupPengajuanAktif.value = false; return; }
       terpilih.forEach(m => {
+        const bahan = daftarBahan.value.find(b => b.id === m.bahan_aksesoris_id);
         const idxAda = items.value.findIndex(it => it.bahan_aksesoris_id === m.bahan_aksesoris_id);
-        if (idxAda >= 0) items.value[idxAda].qty = (parseFloat(items.value[idxAda].qty) || 0) + (parseFloat(m.qty_beli) || 0);
+        if (idxAda >= 0) {
+          const ada = items.value[idxAda];
+          ada.qty = (parseFloat(ada.qty) || 0) + qtyKeSatuan(bahan, parseFloat(m.qty_beli) || 0, m.satuan || '', ada.satuan || '');
+        }
         else {
           const def = suplayerDefaultUntukBahan(m.bahan_aksesoris_id);
           items.value.push({
             bahan_aksesoris_id: m.bahan_aksesoris_id, nama_internal: m.bahan_nama + (m.bahan_warna ? ' ' + m.bahan_warna : ''),
-            nama_alias: '', qty: parseFloat(m.qty_beli) || 0, satuan: m.satuan || '', harga_estimasi: 0,
+            nama_alias: '', qty: parseFloat(m.qty_beli) || 0, satuan: m.satuan || '', harga_estimasi: hargaEstimasiPerSatuan(bahan, m.satuan || ''),
             ...(m.sumber_stok_kritis ? {} : { dari_masalah_id: m.id }),
             suplayer_default_id: def?.id || '', suplayer_default_nama: def?.nama || ''
           });
