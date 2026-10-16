@@ -15,14 +15,13 @@
 //   spk_separating — kalau tertukar, Serie Tab Terima tidak menemukannya.
 // - terima_pada (Sewing menerima dari Serie) BEDA dari sampai_pada. status
 //   'selesai' + sampai_pada ditulis SERIE lewat buatTabTerima, bukan modul ini.
-// - Cetak Ulang membaca ulang label_pcs lewat separating_id, tidak addDoc lagi.
-// - Satu bagging membundel semua label_pcs satu batch, jadi Scan Kirim tidak
-//   perlu menunggu "semua bagging discan" seperti pos lain.
+// - Kirim Sebagian memecah batch: label yang sudah Entry pindah ke sewing_track
+//   baru (induk_sewing_track_id, separating_id sama). Serie menunggu semua pecahan.
 // - Kode separating dikenali lewat cocokSeparating: kode persis, label turunan
 //   berawalan kode itu (kit -SEW/-WEB, ID komponen), atau bagging kirimannya.
 
 import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion, writeBatch, increment } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=19';
@@ -536,7 +535,7 @@ const SewingPerluDiProses = {
       <div v-else style="display:flex; flex-direction:column; gap:10px;">
         <div v-for="t in daftar" :key="t.id" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
           <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:6px;">
-            <div class="gc-num" style="font-weight:700; font-size:13px;">{{ t.kode_separating }}</div>
+            <div class="gc-num" style="font-weight:700; font-size:13px;">{{ t.kode_separating }}<span v-if="t.pecahan_ke" class="tag neutral" style="margin-left:6px;">kirim sebagian {{ t.pecahan_ke }}</span></div>
             <span class="tag" :class="tertahan(t.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(t.masuk_tahap_pada) }}</span>
           </div>
           <div style="font-size:12px; color:var(--text-faint); margin-bottom:6px;">{{ t.nama_produk }} &middot; size {{ t.size || '-' }} &middot; warna {{ t.warna || '-' }} &middot; qty {{ formatQty(t.qty) }}</div>
@@ -693,6 +692,48 @@ const SewingSedangSewing = {
       entryTerpadu.buka();
     }
 
+    // Kirim Sebagian: label yang sudah Entry dipindah ke sewing_track baru
+    // (pecahan, langsung Perlu Dikirim); sisa tetap di sini dengan qty dikurangi.
+    const sedangPecah = ref(false);
+    async function kirimSebagian(t) {
+      const p = progres(t);
+      if (!p.done) { alert('Belum ada label pcs yang di-Scan Entry.'); return; }
+      if (p.done >= p.total) { alert('Semua label sudah selesai — batch ini otomatis pindah ke Perlu Dikirim.'); return; }
+      if (!confirm(`Kirim sebagian ${t.kode_separating}?\n${p.done} pcs yang sudah di-Entry dipisah jadi kiriman sendiri (Perlu Dikirim).\nSisa ${p.total - p.done} pcs tetap di Sedang Sewing.`)) return;
+      const selesai = labelPcs.value.filter(l => l.sewing_track_id === t.id && l.sewing_selesai_pada);
+      if (selesai.length > 498) { alert('Maksimal 498 pcs per Kirim Sebagian.'); return; }
+      sedangPecah.value = true;
+      try {
+        const now = new Date().toISOString();
+        const ke = (parseInt(t.jumlah_pecahan) || 0) + 1;
+        const oleh = window.currentUser?.email || null;
+        const batch = writeBatch(db);
+        const refBaru = doc(collection(db, 'sewing_track'));
+        batch.set(refBaru, {
+          separating_id: t.separating_id, kode_separating: t.kode_separating || '',
+          kode_grouping_induk: t.kode_grouping_induk || '', order_id: t.order_id || null, id_order: t.id_order || '',
+          nama_produk: t.nama_produk || '', size: t.size || '', sku_produk: t.sku_produk || '', warna: t.warna || '',
+          qty: selesai.length, status: 'perlu_dikirim',
+          operator_uid: t.operator_uid || null, operator_nama: t.operator_nama || null, riwayat_operator: t.riwayat_operator || [],
+          kode_bagging: [], kode_tugas: '', tujuan: t.tujuan || 'Serie', unpack_log: [], catatan_masalah: '',
+          terima_pada: t.terima_pada || null, mulai_sewing_pada: t.mulai_sewing_pada || null, entry_pada: now,
+          label_pcs_dicetak_pada: t.label_pcs_dicetak_pada || now, masuk_tahap_pada: now, sampai_pada: null,
+          induk_sewing_track_id: t.id, pecahan_ke: ke,
+          riwayat_scan: [{ aksi: 'pecah', oleh, pada: now, qty: selesai.length, catatan: 'Kirim sebagian ke-' + ke }],
+          dibuat_pada: serverTimestamp(), diperbarui_pada: serverTimestamp()
+        });
+        selesai.forEach(l => batch.update(doc(db, 'label_pcs', l.id), { sewing_track_id: refBaru.id }));
+        batch.update(doc(db, 'sewing_track', t.id), {
+          qty: increment(-selesai.length), jumlah_pecahan: ke, diperbarui_pada: serverTimestamp(),
+          riwayat_scan: arrayUnion({ aksi: 'pecah', oleh, pada: now, qty: selesai.length, catatan: 'Kirim sebagian ke-' + ke })
+        });
+        await batch.commit();
+        alert(`${selesai.length} pcs ${t.kode_separating} pindah ke Perlu Dikirim (kirim sebagian ke-${ke}).`);
+        await muat();
+      } catch (e) { console.error('Gagal kirim sebagian Sewing:', e); alert('Gagal menyimpan. Coba lagi.'); }
+      sedangPecah.value = false;
+    }
+
     // Cetak Label Pcs dilakukan selama menjahit (tab ini).
     const bolehCetak = computed(() => window.cekIzinMenu(menuId, 'print') !== false);
     const sedangCetak = ref(false);
@@ -721,6 +762,7 @@ const SewingSedangSewing = {
     return { muat,
       memuat, kelompokOperator, bolehProses, formatQty, formatDiamSejak, tertahan, formatJamDurasi, aksiAktif,
       progres, pilihEntry, bukaScanEntry, konfirmasiPilihEntry, entryTerpadu, bolehCetak, sedangCetak, popupCetakPcsAktif, daftarLabelPcsPreview, cetakLabelPcs,
+      sedangPecah, kirimSebagian,
       popupMasalah, bukaMasalah, batalMasalah, konfirmasiMasalah
     };
   },
@@ -749,7 +791,9 @@ const SewingSedangSewing = {
               <span style="color:var(--text-faint);">{{ t.nama_produk }} size {{ t.size || '-' }}</span>
               <span class="tag" :class="t.label_pcs_dicetak_pada ? (progres(t).done >= progres(t).total ? 'ok' : 'neutral') : 'warn'">{{ t.label_pcs_dicetak_pada ? progres(t).done + ' / ' + progres(t).total + ' pcs' : 'label pcs belum dicetak' }}</span>
               <span class="gc-num" style="color:var(--text-faint);">diam {{ formatDiamSejak(t.masuk_tahap_pada) }}</span>
+              <span v-if="t.jumlah_pecahan" class="tag neutral">sisa, {{ t.jumlah_pecahan }}x kirim sebagian</span>
               <button v-if="bolehCetak" @click="cetakLabelPcs(t)" :disabled="sedangCetak" class="btn-outline" style="padding:4px 8px; font-size:10px;" :title="t.label_pcs_dicetak_pada ? 'Cetak ulang label pcs' : 'Cetak label pcs'"><i class="fas fa-print"></i> {{ t.label_pcs_dicetak_pada ? 'Ulang Label Pcs' : 'Label Pcs' }}</button>
+              <button v-if="bolehProses && progres(t).done > 0 && progres(t).done < progres(t).total" @click="kirimSebagian(t)" :disabled="sedangPecah" class="btn-outline" style="padding:4px 8px; font-size:10px;"><i class="fas fa-code-branch"></i> Kirim Sebagian ({{ progres(t).done }})</button>
               <button v-if="bolehProses" @click="bukaMasalah(t)" class="btn-outline" style="padding:4px 8px; font-size:10px; color:var(--danger);"><i class="fas fa-triangle-exclamation"></i></button>
             </div>
           </div>
@@ -1007,7 +1051,7 @@ const SewingPerluDikirim = {
       <div v-else style="display:flex; flex-direction:column; gap:10px;">
         <div v-for="t in daftar" :key="t.id" class="gc-card gc-card-menonjol" style="padding:14px; border-radius:20px;" :style="{ background: tertahan(t.masuk_tahap_pada) ? 'var(--warn-light)' : '' }">
           <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:6px;">
-            <div class="gc-num" style="font-weight:700; font-size:13px;">{{ t.kode_separating }}</div>
+            <div class="gc-num" style="font-weight:700; font-size:13px;">{{ t.kode_separating }}<span v-if="t.pecahan_ke" class="tag neutral" style="margin-left:6px;">kirim sebagian {{ t.pecahan_ke }}</span></div>
             <span class="tag" :class="tertahan(t.masuk_tahap_pada) ? 'warn' : 'neutral'">diam {{ formatDiamSejak(t.masuk_tahap_pada) }}</span>
           </div>
           <div style="font-size:12px; color:var(--text-faint); margin-bottom:6px;">{{ t.nama_produk }} &middot; size {{ t.size || '-' }} &middot; warna {{ t.warna || '-' }} &middot; qty {{ formatQty(t.qty) }}</div>

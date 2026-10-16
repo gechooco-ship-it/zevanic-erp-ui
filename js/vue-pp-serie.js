@@ -1695,16 +1695,24 @@ function buatTabTerima(cfg) {
       // pindahkanBilaLengkap — batch baru pindah ke tahap berikut kalau SEMUA
       // bagging-nya sudah Scan Sampai DAN sudah di-Unpack (komplit/inkomplit).
       // Dibaca ulang dari Firestore, bukan dari cache layar.
+      const tertahanSisa = [];
       async function pindahkanBilaLengkap(batchIds) {
         const batchList = daftar.value.filter(b => batchIds.includes(b.id));
         if (!batchList.length) return [];
         const peta = await muatProgres(batchList);
         const pindah = [];
+        tertahanSisa.length = 0;
         const now = new Date().toISOString();
         const oleh = window.currentUser?.email || null;
         for (const b of batchList) {
           const list = (peta[b.id] || {}).bagging || [];
           if (!list.length || !list.every(x => x.sampai && x.unpack)) continue;
+          // Kirim Sebagian di Sewing: batch menunggu sampai tidak ada pecahan
+          // yang masih di pos asal (belum dikirim).
+          if (cfg.tungguSemuaTrack) {
+            const snapTrack = await getDocs(query(collection(db, cfg.koleksi), where('separating_id', '==', b.id)));
+            if (snapTrack.docs.some(d => !['sedang_dikirim', 'selesai'].includes(d.data().status))) { tertahanSisa.push(b.kode_separating); continue; }
+          }
           await updateSeparatingBatch(b.id, (data) => ({
             status: cfg.statusSetelah, masuk_tahap_pada: now,
             riwayat_scan: [...(data.riwayat_scan || []), { aksi: 'sampai', oleh, pada: now, catatan: cfg.namaAsal + ' — semua bagging sampai & di-unpack', qty: data.qty ?? null }]
@@ -1821,6 +1829,7 @@ function buatTabTerima(cfg) {
           const pindah = pemilik ? await pindahkanBilaLengkap([pemilik.id]) : [];
           await muat();
           if (pindah.length) alert(`Batch ${pindah.join(', ')} lengkap (semua bagging sampai & di-unpack) — pindah ke tahap berikut.`);
+          else if (tertahanSisa.length) alert(`Batch ${tertahanSisa.join(', ')}: kiriman sebagian sudah di-unpack, tapi sisanya masih di ${cfg.namaAsal}. Batch pindah setelah sisa dikirim & diterima.`);
           return { ok: true };
         } catch (e) { console.error('Gagal menutup Scan Unpack:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
       }
@@ -1936,7 +1945,7 @@ function buatTabTerima(cfg) {
 const SerieTerimaSewing = buatTabTerima({
   koleksi: 'sewing_track', statusMenunggu: 'kirim_sewing', statusSetelah: 'terima_sewing', namaAsal: 'Sewing',
   judul: 'Terima Sewing', kosongTeks: 'Tidak ada batch yang sedang ditunggu dari Sewing', icon: 'fa-truck-ramp-box',
-  baggingArray: true, fieldBagging: 'kode_bagging',
+  baggingArray: true, fieldBagging: 'kode_bagging', tungguSemuaTrack: true,
   targetIdScan: 'sub-pr-serie-terimasewing', aksiIdSampai: 'serie_terima_sampai_sewing', aksiIdUnpack: 'serie_terima_unpack_sewing'
 });
 const SerieTerimaFinishing = buatTabTerima({
