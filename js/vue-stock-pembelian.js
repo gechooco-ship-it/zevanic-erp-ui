@@ -71,6 +71,10 @@ function formatRupiah(n) {
 function formatNamaBahan(b) {
   return (b.nama || '') + (b.warna ? ` ${b.warna}` : '');
 }
+// Nota induk Persiapan Belanja (draft/menunggu_acc/disetujui) cuma rencana
+// belanja; yang difinalkan di sini nota hasil Beli driver (dari_beli_driver).
+function notaIndukBelanja(d) { return d.sumber_masalah_ids !== undefined && !d.dari_beli_driver; }
+const LABEL_STATUS_NOTA = { draft: 'draft', siap_finalisasi: 'siap finalisasi', final: 'final' };
 // buatQrDataUrl — di level modul supaya dipakai bareng cetakLabelLot dan
 // CetakLabelManager di file ini. Alasan QR digambar sinkron di window utama
 // (bukan document.write di window print) ada di catatan cetakLabelLot.
@@ -107,7 +111,7 @@ function opsiSatuanBeliUntuk(item) {
   if (akhir && !opsi.includes(akhir)) opsi.push(akhir); // beli langsung di satuan dasar (faktor 1)
   return opsi;
 }
-function faktorKonversiUntukSatuan(item, satuanDipilih) {
+export function faktorKonversiUntukSatuan(item, satuanDipilih) {
   const tingkat = Array.isArray(item.konversi_bertingkat) ? item.konversi_bertingkat : [];
   if (tingkat.length === 0) return parseFloat(item.isi_konversi_pembelian) || 1;
   const idx = tingkat.findIndex(t => t.dari === satuanDipilih);
@@ -128,7 +132,7 @@ function faktorKonversiUntukSatuan(item, satuanDipilih) {
 // hargaUntukSatuan — prefill "Harga Aktual" ambil harga TINGKAT yang dipilih di
 // field Satuan (dari `konversi_bertingkat`), bukan `harga_pembelian` tingkat
 // teratas. Nilai ini cuma default; admin tetap bisa edit di tabel Nota.
-function hargaUntukSatuan(item, satuanDipilih) {
+export function hargaUntukSatuan(item, satuanDipilih) {
   const tingkat = Array.isArray(item.konversi_bertingkat) ? item.konversi_bertingkat : [];
   if (tingkat.length === 0) return parseFloat(item.harga_pembelian) || 0;
   const cocok = tingkat.find(t => t.dari === satuanDipilih);
@@ -1175,14 +1179,15 @@ const DaftarNotaScreen = {
       urutkanField: 'dibuat_pada',
       urutkanArah: 'desc',
       cariField: 'no_pembelian',
-      constraintTambahan: () => filterSumber.value === 'manual' ? [where('order_driver_id', '==', null)] : [],
+      constraintTambahan: () => filterSumber.value === 'manual' ? [where('order_driver_id', '==', null)]
+        : filterSumber.value === 'driver' ? [where('dari_beli_driver', '==', true)] : [],
       petakan: (id, d) => ({ id, ...d })
     });
     function muatDaftarNota() {
-      if (filterSumber.value === 'driver') return; // lihat catatan poin 3 di atas — SELALU kosong, belum ada fitur pengisinya
       paginasiNota.muatUlang();
     }
     watch(filterSumber, muatDaftarNota);
+    const notaTampil = computed(() => paginasiNota.dataHalaman.value.filter(n => !notaIndukBelanja(n)));
     function bukaNotaBaru() {
       formKosong();
       mode.value = 'form';
@@ -1215,7 +1220,8 @@ const DaftarNotaScreen = {
     const suplayerEntry = ref('');
     const daftarPesanan = ref([]);
     const sumberPermintaanIds = ref([]);
-    const orderDriverId = ref(null); // BARU — selalu null sekarang, lihat catatan poin 3
+    const orderDriverId = ref(null);
+    const notaInduk = ref(false); // nota induk Persiapan Belanja: hanya lihat
     const menyimpan = ref(false);
     const lotUntukCetak = ref([]);
 
@@ -1238,7 +1244,7 @@ const DaftarNotaScreen = {
     const suplayerTerkunci = computed(() => daftarPesanan.value.length > 0);
     const estimasiBiaya = computed(() => daftarPesanan.value.reduce((t, i) => t + (parseFloat(i.qty) || 0) * (parseFloat(i.harga) || 0), 0));
     const adaTerpilih = computed(() => daftarPesanan.value.some(i => i.dicentang));
-    const formReadOnly = computed(() => statusNota.value === 'final');
+    const formReadOnly = computed(() => statusNota.value === 'final' || notaInduk.value);
 
     const opsiSuplayer = computed(() => daftarSuplayer.value.map(s => s.nama));
     const opsiNamaBarangMap = computed(() => {
@@ -1658,7 +1664,7 @@ const DaftarNotaScreen = {
       tanggal.value = new Date().toISOString().slice(0, 10);
       suplayerEntry.value = ''; cariItemTeks.value = '';
       daftarPesanan.value = []; sumberPermintaanIds.value = [];
-      orderDriverId.value = null;
+      orderDriverId.value = null; notaInduk.value = false;
       fotoBonUrlTersimpan.value = ''; fotoBonFile.value = null; fotoBonPreview.value = ''; fotoBonDihapus.value = false;
       barisAktifIndex.value = -1; tahapBarisAktif.value = 'selesai';
       lotUntukCetak.value = [];
@@ -1676,6 +1682,7 @@ const DaftarNotaScreen = {
       }));
       sumberPermintaanIds.value = d.sumber_permintaan_ids || [];
       orderDriverId.value = d.order_driver_id || null;
+      notaInduk.value = notaIndukBelanja(d);
       fotoBonUrlTersimpan.value = d.foto_bon || ''; fotoBonFile.value = null;
       fotoBonPreview.value = d.foto_bon || ''; fotoBonDihapus.value = false;
       barisAktifIndex.value = -1; tahapBarisAktif.value = 'selesai';
@@ -1697,6 +1704,7 @@ const DaftarNotaScreen = {
     async function simpanDraft() { await simpan('draft'); }
     async function klikFinalkan() {
       if (!bolehSimpan.value) return alert('Anda tidak punya izin menyimpan di sini. Hubungi Owner/PIC.');
+      if (notaInduk.value) return alert('Nota ini rencana belanja (Persiapan Belanja), bukan nota beli. Finalkan nota hasil Beli driver.');
       if (daftarPesanan.value.length === 0) return alert('Belum ada item di Daftar Pesanan Pembelian.');
       if (!suplayerEntry.value) return alert('Pilih Suplayer dulu.');
       const lotKosong = daftarPesanan.value.findIndex(b => b.pakai_lot_tracking && !((b.detail_lot || []).length && b.detail_lot.every(l => parseFloat(l.qty) > 0)));
@@ -1716,6 +1724,7 @@ const DaftarNotaScreen = {
 
     async function simpan(statusBaru, opsiTambahan) {
       if (!bolehSimpan.value) return alert('Anda tidak punya izin menyimpan di sini. Hubungi Owner/PIC.');
+      if (notaInduk.value) return alert('Nota induk Persiapan Belanja tidak bisa diubah dari sini.');
       if (daftarPesanan.value.length === 0) return alert('Belum ada item di Daftar Pesanan Pembelian.');
       if (!suplayerEntry.value) return alert('Pilih Suplayer dulu.');
       menyimpan.value = true;
@@ -1969,12 +1978,12 @@ const DaftarNotaScreen = {
       memuatReferensi, tampilPengaturan, bolehSimpan, bolehHapus, sayaOwnerKeAtas,
       tampilTambahSuplayer, onSuplayerBaruTersimpan, daftarPermintaan,
       // list
-      mode, filterSumber, paginasiNota, bukaNotaBaru, bukaNota, kembaliKeDaftar,
+      mode, filterSumber, paginasiNota, notaTampil, LABEL_STATUS_NOTA, bukaNotaBaru, bukaNota, kembaliKeDaftar,
       // form
       draftDocId, noPembelianAktif, statusNota, formReadOnly, tanggal, suplayerEntry, suplayerTerkunci,
       daftarPesanan, opsiSuplayer, opsiNamaBarangMap, estimasiBiaya, adaTerpilih, formatRupiah,
       tambahDariPermintaan, isiBarisLot, hapusTerpilih, batal, simpanDraft, klikFinalkan, menyimpan, cetak,
-      orderDriverId,
+      orderDriverId, notaInduk,
       // foto bon
       fotoBonPreview, pilihFotoBon, hapusFotoBon,
       // keyboard entry
@@ -2021,32 +2030,27 @@ const DaftarNotaScreen = {
           <input :value="paginasiNota.cariTeks.value" @input="paginasiNota.cariDenganDebounce($event.target.value)" type="text" placeholder="Cari No. Nota (awalan)..." style="width:100%; padding:9px 13px 9px 34px; background:var(--ivory-dim); border:1.5px solid var(--line); border-radius:10px; font-size:12.5px;">
         </div>
 
-        <div v-if="filterSumber === 'driver'" class="gc-kosong">
-          <div class="lingkaran"><i class="fas fa-truck"></i></div>
-          <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0 0 6px;">Belum ada Nota dari Driver</h3>
-          <p style="font-size:11.5px; color:var(--text-faint); max-width:340px; margin:0 auto;">Fitur "List Order Driver" (Persiapan Produksi &gt; Persiapan Belanja) belum dibangun — sub-tab ini akan otomatis terisi begitu driver klik Beli di fitur itu nanti.</p>
-        </div>
-        <div v-else-if="paginasiNota.memuat.value" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Memuat...</div>
+        <div v-if="paginasiNota.memuat.value" style="text-align:center; padding:24px; color:var(--text-faint); font-size:12px;">Memuat...</div>
         <div v-else-if="paginasiNota.errorPaginasi.value" style="text-align:center; padding:20px; color:var(--danger); font-size:12px;">{{ paginasiNota.errorPaginasi.value }}</div>
-        <div v-else-if="paginasiNota.dataHalaman.value.length === 0" class="gc-kosong">
+        <div v-else-if="notaTampil.length === 0" class="gc-kosong">
           <div class="lingkaran"><i class="fas fa-receipt"></i></div>
           <h3 class="gc-heading" style="font-size:13px; font-weight:700; margin:0;">Belum ada Nota</h3>
           <p style="font-size:11.5px; color:var(--text-faint);">Klik "Nota Baru" untuk mulai mencatat pembelian.</p>
         </div>
         <div v-else style="display:flex; flex-direction:column; gap:8px;">
-          <div v-for="n in paginasiNota.dataHalaman.value" :key="n.id" class="gc-card" style="padding:12px 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div v-for="n in notaTampil" :key="n.id" class="gc-card" style="padding:12px 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
             <div style="flex:1; min-width:160px;">
               <div style="font-weight:700; font-size:13px;">{{ n.no_pembelian }}</div>
               <div style="font-size:11px; color:var(--text-muted);">{{ n.tanggal }} &middot; {{ (n.items && n.items[0] && n.items[0].suplayer_nama) || '-' }}</div>
             </div>
             <span class="tag neutral">{{ (n.items || []).length }} item</span>
             <span style="font-weight:700; font-size:12.5px; min-width:100px; text-align:right;">{{ formatRupiah(n.estimasi_biaya_belanja) }}</span>
-            <span class="tag" :class="n.status === 'final' ? 'ok' : 'warn'">{{ n.status === 'final' ? 'final' : 'draft' }}</span>
+            <span class="tag" :class="n.status === 'final' ? 'ok' : 'warn'">{{ LABEL_STATUS_NOTA[n.status] || n.status }}</span>
             <span class="tag" :class="n.order_driver_id ? 'blue' : 'neutral'">{{ n.order_driver_id ? 'Dari Driver' : 'Manual' }}</span>
             <button @click="bukaNota(n)" class="btn-outline" style="font-size:11px; padding:6px 12px;">Buka</button>
           </div>
         </div>
-        <div v-if="filterSumber !== 'driver' && !paginasiNota.memuat.value && paginasiNota.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
+        <div v-if="!paginasiNota.memuat.value && paginasiNota.dataHalaman.value.length > 0" style="display:flex; justify-content:center; align-items:center; gap:14px; margin-top:16px;">
           <button class="icon-btn" :disabled="paginasiNota.nomorHalaman.value <= 1" @click="paginasiNota.halamanSebelumnya"><i class="fas fa-chevron-left"></i></button>
           <span style="font-size:12px; color:var(--text-muted);">Halaman {{ paginasiNota.nomorHalaman.value }}</span>
           <button class="icon-btn" :disabled="!paginasiNota.adaBerikutnya.value" @click="paginasiNota.halamanBerikutnya"><i class="fas fa-chevron-right"></i></button>
@@ -2059,8 +2063,9 @@ const DaftarNotaScreen = {
           <div>
             <button @click="kembaliKeDaftar" class="btn-outline" style="font-size:11px; padding:5px 12px; margin-bottom:8px;"><i class="fas fa-arrow-left" style="margin-right:6px;"></i>Daftar Nota</button>
             <h3 style="font-weight:700; font-size:16px;"><i class="fas fa-receipt" style="color:var(--burgundy); margin-right:8px;"></i>{{ noPembelianAktif || 'Nota Baru' }}
-              <span class="tag" :class="statusNota === 'final' ? 'ok' : 'warn'" style="margin-left:8px;">{{ statusNota }}</span>
+              <span class="tag" :class="statusNota === 'final' ? 'ok' : 'warn'" style="margin-left:8px;">{{ LABEL_STATUS_NOTA[statusNota] || statusNota }}</span>
               <span class="tag" :class="orderDriverId ? 'blue' : 'neutral'" style="margin-left:6px;">{{ orderDriverId ? 'Dari Driver' : 'Manual' }}</span>
+              <span v-if="notaInduk" class="tag neutral" style="margin-left:6px;">rencana belanja, hanya lihat</span>
             </h3>
           </div>
         </div>

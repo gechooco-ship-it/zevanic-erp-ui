@@ -24,7 +24,7 @@ import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, KolomCari } from './vue-components.js?v=13';
 import { ambilSemuaProduk } from './vue-master-produk.js';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
-import { ScanTerpaduGenerik, buatScanTerpadu } from './vue-scan-cetak.js?v=18';
+import { ScanTerpaduGenerik, buatScanTerpadu } from './vue-scan-cetak.js?v=19';
 
 // picOwnerKeAtas — "Buat SPK Grouping" dan "Tunjuk/Scan Operator" wajib akun
 // tier pic/pic_owner/owner/superuser, TANPA popup PIN: cukup tier akun yang

@@ -4,9 +4,10 @@
 // driver beli/pending → nota lanjut ke Stok & Pembelian.
 //
 // Koleksi & field:
-// - pesanan_pembelian dipakai BERSAMA modul Stok; dokumen dari sini punya
-//   order_driver_id != null. Status: menunggu_acc → disetujui → siap_finalisasi.
-// - order_belanja_driver.pesanan_pembelian_id = link balik untuk aksi "Beli".
+// - pesanan_pembelian dipakai BERSAMA modul Stok. Nota induk (punya
+//   sumber_masalah_ids): draft → menunggu_acc → disetujui. Tiap Beli membuat
+//   nota BARU per order (dari_beli_driver, siap_finalisasi) berformat item Stok.
+// - order_belanja_driver: pesanan_pembelian_id = induk, nota_pembelian_id = hasil Beli.
 // - Counter no_pembelian (pengaturan_id_pembelian) SATU urutan bareng Stok.
 //
 // Jebakan:
@@ -18,11 +19,11 @@
 //   'stokkritis::<bahanId>', tidak ditulis ke sumber_masalah_ids).
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
-import { tierOwnerKeAtas } from './vue-scan-cetak.js?v=18';
-import { hitungTeralokasiSemuaBahan } from './vue-stock-pembelian.js?v=35';
+import { tierOwnerKeAtas } from './vue-scan-cetak.js?v=19';
+import { hitungTeralokasiSemuaBahan, faktorKonversiUntukSatuan, hargaUntukSatuan } from './vue-stock-pembelian.js?v=36';
 
 const MENU_ID = 'pp_belanja';
 
@@ -784,24 +785,69 @@ const ListOrderDriver = {
     const menyimpanBeli = ref(false);
     function bukaBeli(o) { menuTerbuka.value = null; fotoBonFile.value = null; popupBeli.value = o; }
     function pilihFotoBon(e) { fotoBonFile.value = e.target.files?.[0] || null; }
+    // Item order -> format baris Stok & Pembelian (sama dengan buatBarisPesanan
+    // di sana). qty_s = qty x faktor satuan; tanpa qty_s Finalkan menambah stok 0.
+    async function itemFormatStok(o) {
+      const hasil = [];
+      for (const it of (o.items || [])) {
+        if (!(parseFloat(it.qty) > 0)) continue;
+        const snap = await getDoc(doc(db, 'master_bahan_aksesoris', it.bahan_aksesoris_id));
+        if (!snap.exists()) throw new Error(`Bahan "${it.nama_internal}" tidak ada di master.`);
+        const b = { id: snap.id, ...snap.data() };
+        const satuanBeli = it.satuan || b.satuan_pembelian || '';
+        const faktor = satuanBeli === b.satuan_pemakaian && satuanBeli !== b.satuan_pembelian ? 1 : faktorKonversiUntukSatuan(b, satuanBeli);
+        const harga = parseFloat(it.harga_estimasi) > 0 ? parseFloat(it.harga_estimasi) : hargaUntukSatuan(b, satuanBeli);
+        const qty = parseFloat(it.qty) || 0;
+        hasil.push({
+          suplayer_id: o.suplayer_id || '', suplayer_nama: o.suplayer_nama || '',
+          bahan_aksesoris_id: b.id, sku: b.id_tampil || b.id, nama: formatNamaBahan(b), nama_alias: it.nama_alias || '',
+          qty, satuan_bahan: satuanBeli, qty_s: Math.round(qty * faktor * 100) / 100, satuan: b.satuan_pemakaian || '',
+          isi_konversi: faktor, harga, harga_asli: harga, keterangan: '',
+          pakai_lot_tracking: !!b.pakai_lot_tracking, detail_lot: []
+        });
+      }
+      if (!hasil.length) throw new Error('Order ini tidak punya item dengan qty > 0.');
+      return hasil;
+    }
+    // Hanya Kode Masalah yang bahannya ada di order ini yang ikut ke nota baru,
+    // supaya Finalkan nota suplayer lain tidak memindahkan masalah yang belum dibeli.
+    async function masalahMilikOrder(o, items) {
+      const bahanIds = new Set(items.map(it => it.bahan_aksesoris_id));
+      const hasil = [];
+      for (const id of (o.sumber_masalah_ids || [])) {
+        const snap = await getDoc(doc(db, 'persiapan_masalah', id));
+        if (snap.exists() && bahanIds.has(snap.data().bahan_aksesoris_id)) hasil.push(id);
+      }
+      return hasil;
+    }
     async function konfirmasiBeli() {
       const o = popupBeli.value;
       if (!o) return;
       if (!fotoBonFile.value) { alert('Upload foto bon dulu.'); return; }
       menyimpanBeli.value = true;
       try {
+        const items = await itemFormatStok(o);
+        const masalahIds = await masalahMilikOrder(o, items);
         const urlBon = await uploadFotoBonLokal(o.kode_order, fotoBonFile.value);
         const now = new Date().toISOString();
-        await updateDoc(doc(db, 'order_belanja_driver', o.id), { status: 'dibeli', foto_bon: urlBon, dibeli_oleh: window.currentUser?.email || '', dibeli_pada: now });
+        const noPembelian = await generateNoPembelian();
+        const refNota = await addDoc(collection(db, 'pesanan_pembelian'), {
+          no_pembelian: noPembelian, tanggal: now.slice(0, 10), items,
+          estimasi_biaya_belanja: items.reduce((t, it) => t + (parseFloat(it.qty) || 0) * (parseFloat(it.harga) || 0), 0),
+          status: 'siap_finalisasi', dari_beli_driver: true,
+          order_driver_id: o.id, induk_pesanan_pembelian_id: o.pesanan_pembelian_id || null,
+          sumber_masalah_ids: masalahIds, sumber_permintaan_ids: [], foto_bon: urlBon,
+          dibeli_oleh: window.currentUser?.email || '', dibeli_pada: now,
+          dibuat_oleh: window.currentUser?.email || null, dibuat_pada: serverTimestamp(), diupdate_pada: serverTimestamp()
+        });
+        await updateDoc(doc(db, 'order_belanja_driver', o.id), { status: 'dibeli', foto_bon: urlBon, nota_pembelian_id: refNota.id, dibeli_oleh: window.currentUser?.email || '', dibeli_pada: now });
         if (o.pesanan_pembelian_id) {
-          await updateDoc(doc(db, 'pesanan_pembelian', o.pesanan_pembelian_id), {
-            items: o.items, foto_bon: urlBon, status: 'siap_finalisasi', dibeli_oleh: window.currentUser?.email || '', dibeli_pada: now
-          });
+          await updateDoc(doc(db, 'pesanan_pembelian', o.pesanan_pembelian_id), { nota_turunan_ids: arrayUnion(refNota.id) });
         }
-        alert(`Order ${o.kode_order} tercatat dibeli. Nota siap difinalkan di Stok & Pembelian.`);
+        alert(`Order ${o.kode_order} tercatat dibeli → nota ${noPembelian}. Finalkan di Stok & Pembelian.`);
         popupBeli.value = null;
         await muat();
-      } catch (e) { console.error('Gagal simpan Beli:', e); alert('Gagal menyimpan (' + (e.code || e.message) + '). Coba lagi.'); }
+      } catch (e) { console.error('Gagal simpan Beli:', e); alert('Gagal menyimpan (' + (e.code || e.message) + '). Coba lagi.'); await muat(); }
       menyimpanBeli.value = false;
     }
 

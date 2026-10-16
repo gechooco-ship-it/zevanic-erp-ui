@@ -25,7 +25,7 @@ import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dis
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=18';
+import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=19';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
 
 // baggingSudahSampai — dicek di tugas_kirim.pack[] milik batch pemilik bagging

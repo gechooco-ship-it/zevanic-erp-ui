@@ -22,7 +22,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanTerpaduGenerik, PopupPinGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah } from './vue-scan-cetak.js?v=18';
+import { ScanTerpaduGenerik, PopupPinGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah } from './vue-scan-cetak.js?v=19';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
 
 // baggingSudahSampai — potongan Cutting: cutting_track sudah selesai/sampai;
