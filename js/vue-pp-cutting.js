@@ -577,14 +577,15 @@ const CuttingPerluDiProses = {
     // Scan Sampai — Kode Tugas lalu Kode Bagging berkali-kali. Terima bahan yang
     // dikirim Collection (kirim_cutting_pada) dengan menulis sampai_cutting_pada.
     // cariBarisSampai dipanggil ulang FRESH saat Upload supaya idx tidak basi.
+    // Satu bagging bisa membawa BEBERAPA baris bahan_rincian; semuanya ditandai.
     async function cariBarisSampai(kode) {
       const snapTrack = await getDocs(query(collection(db, 'spk_track'), where('jalur', '==', 'bahan')));
       const hasil = [];
       snapTrack.forEach(d => {
         const data = d.data();
         const baris = Array.isArray(data.bahan_rincian) ? data.bahan_rincian : [];
-        const idx = baris.findIndex(b => b.kode_bagging === kode && b.kirim_cutting_pada && !b.sampai_cutting_pada);
-        if (idx >= 0) hasil.push({ id: d.id, kodeSpk: data.kode_grouping_induk, baris, idx });
+        const idxs = baris.map((b, i) => (b.kode_bagging === kode && b.kirim_cutting_pada && !b.sampai_cutting_pada) ? i : -1).filter(i => i >= 0);
+        if (idxs.length) hasil.push({ id: d.id, kodeSpk: data.kode_grouping_induk, baris, idxs });
       });
       return hasil;
     }
@@ -608,7 +609,7 @@ const CuttingPerluDiProses = {
         try {
           const cocok = await cariBarisSampai(kode);
           if (!cocok.length) return { ok: false, pesan: `Kode bagging "${kode}" belum dikirim dari Collection / sudah pernah di-Scan Sampai.` };
-          return { ok: true, row: { kode, label: 'SPK ' + cocok.map(c => c.kodeSpk).join(', '), qty: cocok.length + ' baris', tagTxt: 'cocok', tagCls: 'ok' } };
+          return { ok: true, row: { kode, label: 'SPK ' + cocok.map(c => c.kodeSpk).join(', '), qty: cocok.reduce((t, c) => t + c.idxs.length, 0) + ' baris', tagTxt: 'cocok', tagCls: 'ok' } };
         } catch (e) { console.error('Gagal cari baris sampai:', e); return { ok: false, pesan: 'Gagal mencari. Coba lagi.' }; }
       },
       padaUpload: async (rows, tugas) => {
@@ -618,7 +619,7 @@ const CuttingPerluDiProses = {
             const cocok = await cariBarisSampai(row.kode);
             for (const c of cocok) {
               const barisBaru = c.baris.slice();
-              barisBaru[c.idx] = { ...barisBaru[c.idx], sampai_cutting_pada: now };
+              c.idxs.forEach(i => { barisBaru[i] = { ...barisBaru[i], sampai_cutting_pada: now }; });
               await updateDoc(doc(db, 'spk_track', c.id), { bahan_rincian: barisBaru });
             }
             // pack[] tugas_kirim ditulis sampai_pada juga (melepas kaitan
