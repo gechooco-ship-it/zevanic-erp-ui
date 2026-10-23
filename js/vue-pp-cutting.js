@@ -23,7 +23,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=19';
+import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=20';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
 
 // baggingSudahSampai — bagging bahan dianggap sampai kalau semua baris
@@ -1620,13 +1620,17 @@ const CuttingPerluDiKirim = {
         try { await updateDoc(doc(db, 'bagging', bagging.id), { ditutup_pada: serverTimestamp() }); packTerpadu.tutup(); await muat(); }
         catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       } }],
+      keluarkanLabel: { menu: 'Scan Pack — Cutting', padaSelesai: () => muat(), labelKunci: labelKunciPack },
       validasiIsi: async (kode, bagging, rows) => {
         try {
           const snap = await getDocs(query(collection(db, 'label_komponen'), where('kode', '==', kode)));
           if (snap.empty) return { ok: false, pesan: `Kode "${kode}" bukan label komponen yang dikenali.` };
           const l = snap.docs[0].data();
           const lain = await getDocs(query(collection(db, 'bagging'), where('isi', 'array-contains', kode)));
-          if (!lain.empty) return { ok: false, pesan: `${kode} sudah masuk bagging ${lain.docs[0].data().kode}.` };
+          if (!lain.empty) {
+            const kb = lain.docs[0].data().kode;
+            return kb === bagging.kode ? { ok: false, pesan: `${kode} sudah ada di bagging ini.` } : { ok: false, pesan: `Label ${kode} sudah masuk bagging ${kb}.`, baggingLain: kb };
+          }
           if (bagging.cutting_track_id) {
             const track = daftar.value.find(t => t.id === bagging.cutting_track_id);
             if (l.cutting_track_id !== bagging.cutting_track_id) return { ok: false, pesan: `${kode} bukan milik SPK ${track ? track.kode_grouping_induk : 'bagging ini'}.` };

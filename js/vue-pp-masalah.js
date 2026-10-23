@@ -20,9 +20,9 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas, opsiBarangMasalah } from './vue-scan-cetak.js?v=19';
+import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas, opsiBarangMasalah } from './vue-scan-cetak.js?v=20';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
-import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=48';
+import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=49';
 
 // picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (dipakai Setuju/Tolak/Ajukan
 // Belanja, WAJIB Owner/PIC Owner + popup PIN). Yang ini untuk "Scan Operator":
@@ -1100,9 +1100,18 @@ const MasalahPerluDiKirim = {
         try { await updateDoc(doc(db, 'bagging', bagging.id), { ditutup_pada: serverTimestamp() }); packTerpadu.tutup(); await muat(); }
         catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       } }],
+      keluarkanLabel: { menu: 'Scan Pack — Persiapan Masalah', padaSelesai: () => muat(), padaKeluar: async (b, kode) => {
+        const baris = daftar.value.filter(x => x.kode_bagging === b.kode && (kode.includes(x.kode_msl) || kode.includes(x.id_order)));
+        await Promise.all(baris.map(x => patchMasalah(x.id, { kode_bagging: null })));
+        return null;
+      } },
       validasiIsi: async (kode, bagging) => {
         const target = daftar.value.find(x => (x.kode_msl === kode || x.id_order === kode) && !x.kode_bagging);
-        if (!target) return { ok: false, pesan: `Kode "${kode}" tidak cocok baris manapun yang masih tertahan / sudah di-pack.` };
+        if (!target) {
+          const sudah = daftar.value.find(x => (x.kode_msl === kode || x.id_order === kode) && x.kode_bagging && x.kode_bagging !== bagging.kode);
+          if (sudah) return { ok: false, pesan: `Label ${kode} sudah masuk bagging ${sudah.kode_bagging}.`, baggingLain: sudah.kode_bagging };
+          return { ok: false, pesan: `Kode "${kode}" tidak cocok baris manapun yang masih tertahan / sudah di-pack.` };
+        }
         if (labelKirimMasalah(target) !== bagging.produk_label) {
           return { ok: false, pesan: `Kode "${kode}" tujuannya beda dengan bagging ini (${bagging.produk_label}).` };
         }

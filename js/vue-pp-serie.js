@@ -22,7 +22,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanTerpaduGenerik, PopupPinGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah } from './vue-scan-cetak.js?v=19';
+import { ScanTerpaduGenerik, PopupPinGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah } from './vue-scan-cetak.js?v=20';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
 
 // baggingSudahSampai — potongan Cutting: cutting_track sudah selesai/sampai;
@@ -1123,6 +1123,7 @@ const SeriePerluDiKirim = {
         } catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
         packTerpadu.resetLock();
       } }],
+      keluarkanLabel: { menu: 'Scan Pack — Serie', bagging: (l) => l.bagging, padaSelesai: () => muat(), labelKunci: (l) => labelKunciPack(l.bagging, l.batch) },
       validasiIsi: async (kode, locked, rows) => {
         const { batch } = locked;
         const diDraft = new Set(rows.flatMap(r => r._ids || []));
@@ -1130,7 +1131,12 @@ const SeriePerluDiKirim = {
         const target = await cariKomponenBatch(batch, kode, k => !belum.some(x => x.id_komponen === k.id_komponen));
         if (!target.length) return { ok: false, pesan: `"${kode}" bukan komponen, kit, atau label potongan milik ${batch.kode_separating}.` };
         const baru = target.filter(k => belum.some(x => x.id_komponen === k.id_komponen)).map(k => k.id_komponen);
-        if (!baru.length) return { ok: false, pesan: `"${kode}" sudah pernah di-scan pack.` };
+        if (!baru.length) {
+          const ids = target.map(k => k.id_komponen);
+          const lain = Object.values(petaBagging.value).find(b => b.kode !== locked.bagging.kode && (b.isi || []).some(i => ids.includes(i)));
+          if (lain) return { ok: false, pesan: `Label ${kode} sudah masuk bagging ${lain.kode}.`, baggingLain: lain.kode, kodeKeluar: ids.filter(i => (lain.isi || []).includes(i)) };
+          return { ok: false, pesan: `"${kode}" sudah pernah di-scan pack.` };
+        }
         const sisa = belum.length - baru.length;
         return { ok: true, row: { kode, label: target.filter(k => baru.includes(k.id_komponen)).map(k => k.nama_komponen).join(', '), tagTxt: sisa ? `sisa ${sisa}` : 'semua ter-pack', tagCls: 'ok', _ids: baru } };
       },
@@ -1350,6 +1356,10 @@ function buatTabKirim(cfg) {
       }
       // Scan Pack label pcs (legBagging): kunci bagging leg ini (tetap terkunci
       // sesudah Upload), lalu tiap label pcs batch itu masuk draft.
+      function baggingLainLeg(kode, locked) {
+        const lain = Object.values(petaBagging.value).find(x => x.kode !== locked.bagging.kode && (x.isi || []).includes(kode));
+        return lain ? { ok: false, pesan: `Label ${kode} sudah masuk bagging ${lain.kode}.`, baggingLain: lain.kode } : null;
+      }
       function labelKunciPackLeg(bag, batch) { return `${bag.kode} -> ${batch.kode_separating}, sisa ${pcsBelumPack(batch).length} pcs` + (kitBelumPack(batch) ? ` + ${kitBelumPack(batch)} item kit -FIN` : ''); }
       const packTerpadu = cfg.legBagging ? buatScanTerpadu({
         judul: 'Scan Pack — ' + cfg.namaTujuan, subjudul: cfg.serieFinishing ? 'Scan bagging sekali, lalu tiap label item kit -FIN dan tiap label pcs batch itu.' : 'Scan bagging sekali, lalu tiap label pcs batch itu.',
@@ -1367,6 +1377,7 @@ function buatTabKirim(cfg) {
           },
           tetapKunci: true
         },
+        keluarkanLabel: { menu: 'Scan Pack — ' + cfg.namaTujuan, bagging: (l) => l.bagging, padaSelesai: () => muat(), labelKunci: (l) => labelKunciPackLeg(petaBagging.value[l.bagging.kode] || l.bagging, l.batch) },
         validasiIsi: async (kode, locked, rows) => {
           const b = locked.batch;
           const kitSemua = cfg.serieFinishing ? kitFin.value.find(t => kodeKit(t).includes(kode)) : null;
@@ -1374,13 +1385,13 @@ function buatTabKirim(cfg) {
             if (kitSemua.separating_id !== b.id) return { ok: false, pesan: `"${kode}" label Acc Finishing batch lain, bukan ${b.kode_separating}.` };
             const wajib = itemKitWajib(kitSemua);
             if (!wajib.includes(kode)) return { ok: false, pesan: `Scan label tiap item Acc Finishing (${wajib.map(k => namaItemKit(kitSemua, k)).join(', ')}), bukan label kode kit.` };
-            if (!kitBelumPackDaftar(b).includes(kode)) return { ok: false, pesan: `${namaItemKit(kitSemua, kode)} (${kode}) sudah masuk bagging.` };
+            if (!kitBelumPackDaftar(b).includes(kode)) return baggingLainLeg(kode, locked) || { ok: false, pesan: `${namaItemKit(kitSemua, kode)} (${kode}) sudah masuk bagging.` };
             return { ok: true, row: { kode, label: namaItemKit(kitSemua, kode), tagTxt: 'item kit -FIN', tagCls: 'ok', _kit: true } };
           }
           const l = labelPcs.value.find(x => x.kode_pcs === kode);
           if (!l) return { ok: false, pesan: `"${kode}" bukan label pcs yang dikenali.` };
           if (l.separating_id !== b.id) return { ok: false, pesan: `Label "${kode}" milik ${l.kode_separating || 'batch lain'}, bukan ${b.kode_separating}.` };
-          if (!pcsBelumPack(b).some(x => x.kode_pcs === kode)) return { ok: false, pesan: `Label "${kode}" sudah di-pack.` };
+          if (!pcsBelumPack(b).some(x => x.kode_pcs === kode)) return baggingLainLeg(kode, locked) || { ok: false, pesan: `Label "${kode}" sudah di-pack.` };
           return { ok: true, row: { kode, label: b.kode_separating, tagTxt: 'pcs', tagCls: 'ok' } };
         },
         padaUpload: async (rows, locked) => {

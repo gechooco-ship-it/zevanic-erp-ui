@@ -22,7 +22,7 @@ import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-storage.js";
 import { db, storage } from "./firebase-config.js";
-import { tierOwnerKeAtas } from './vue-scan-cetak.js?v=19';
+import { tierOwnerKeAtas } from './vue-scan-cetak.js?v=20';
 import { hitungTeralokasiSemuaBahan, faktorKonversiUntukSatuan, hargaUntukSatuan } from './vue-stock-pembelian.js?v=36';
 
 const MENU_ID = 'pp_belanja';

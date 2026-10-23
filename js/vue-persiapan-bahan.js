@@ -23,9 +23,9 @@ import { createApp, ref, reactive, computed, watch, onMounted, onUnmounted } fro
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel, bangunInfoLabelAnakSpk } from './vue-components.js?v=13';
-import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=19';
+import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, PopupPinGenerik, buatQrDataUrl, muatJsQr, cariKaryawanByQr, ajukanPersiapanMasalah } from './vue-scan-cetak.js?v=20';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
-import { PanelGroupingBahan } from './vue-persiapan-produksi-v2.js?v=29';
+import { PanelGroupingBahan } from './vue-persiapan-produksi-v2.js?v=30';
 
 // picOwnerKeAtas — gerbang aksi "Scan Operator": WAJIB akun tier PIC ke atas
 // (pic/pic_owner/owner/superuser), TANPA popup PIN — cukup akun yang login
@@ -1172,9 +1172,19 @@ const PersiapanBahanPerluDikirim = {
         try { await updateDoc(doc(db, 'bagging', bagging.id), { ditutup_pada: serverTimestamp() }); packTerpadu.tutup(); await muat(); }
         catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       } }],
+      // Keluarkan Label: lepas kode_bagging baris; bagging kosong lepas kunci grouping.
+      keluarkanLabel: { menu: 'Scan Pack — Bahan', padaSelesai: () => muat(), padaKeluar: async (b, kode, sisaIsi) => {
+        const baris = daftarBarisDariTrack(daftarTrack.value).filter(x => x.kode_bagging === b.kode && kode.includes(kodeLabelBahan(x)));
+        await Promise.all(baris.map(x => updateBarisBahan(x._trackId, x._lineIdx, () => ({ kode_bagging: null }))));
+        return sisaIsi.length ? null : { kode_grouping_induk: null };
+      } },
       validasiIsi: async (kode, bagging, rowsSaatIni) => {
         const target = barisTertahan.value.find(x => kodeLabelBahan(x) === kode && !x.kode_bagging);
-        if (!target) return { ok: false, pesan: `Kode "${kode}" tidak cocok anak SPK yang masih tertahan / sudah di-pack.` };
+        if (!target) {
+          const sudah = barisTertahan.value.find(x => kodeLabelBahan(x) === kode && x.kode_bagging && x.kode_bagging !== bagging.kode);
+          if (sudah) return { ok: false, pesan: `Label ${kode} sudah masuk bagging ${sudah.kode_bagging}.`, baggingLain: sudah.kode_bagging };
+          return { ok: false, pesan: `Kode "${kode}" tidak cocok anak SPK yang masih tertahan / sudah di-pack.` };
+        }
         // syarat sepack : pola+bahan+size harus sama dengan produk yang dipilih
         // SAAT kode bagging ini dicetak (bagging.produk_label = labelSepack
         // persis, lihat konfirmasiCetakBagging). Warna & no SPK boleh beda ->

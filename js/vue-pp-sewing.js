@@ -24,7 +24,7 @@ import { createApp, ref, computed, onMounted } from 'https://unpkg.com/vue@3/dis
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion, writeBatch, increment } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=19';
+import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah, ambilStatusUnpackBagging } from './vue-scan-cetak.js?v=20';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
 
 // baggingSudahSampai — dicek di tugas_kirim.pack[] milik batch pemilik bagging
@@ -957,10 +957,16 @@ const SewingPerluDikirim = {
         packTerpadu.resetLock();
         await muat();
       } }],
+      keluarkanLabel: { menu: 'Scan Pack — Sewing', bagging: (l) => l.bagging, padaSelesai: () => muat() },
       validasiIsi: async (kode, locked) => {
         try {
           const snap = await getDocs(query(collection(db, 'label_pcs'), where('sewing_track_id', '==', locked.batch.id), where('kode_pcs', '==', kode)));
           if (snap.empty) return { ok: false, pesan: `Kode pcs "${kode}" tidak ditemukan di batch ${locked.batch.kode_separating}.` };
+          // Hanya bagging Sewing di tab ini yang dihitung; bagging pos lanjutan juga memuat kode pcs.
+          const baggingSewing = new Set(daftar.value.flatMap(t => t.kode_bagging || []));
+          const lain = (await getDocs(query(collection(db, 'bagging'), where('isi', 'array-contains', kode)))).docs.map(d => d.data().kode).find(kb => baggingSewing.has(kb));
+          if (lain === locked.bagging.kode) return { ok: false, pesan: `${kode} sudah ada di bagging ini.` };
+          if (lain) return { ok: false, pesan: `Label ${kode} sudah masuk bagging ${lain}.`, baggingLain: lain };
           return { ok: true, row: { kode, label: locked.batch.nama_produk + ' ' + (locked.batch.size || ''), tagTxt: '-> ' + locked.bagging.kode, tagCls: 'ok' } };
         } catch (e) { console.error('Gagal cari label pcs (pack):', e); return { ok: false, pesan: 'Gagal mencari. Coba lagi.' }; }
       },

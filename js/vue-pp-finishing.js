@@ -23,7 +23,7 @@ import { createApp, ref, computed, watch, onMounted } from 'https://unpkg.com/vu
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
-import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah } from './vue-scan-cetak.js?v=19';
+import { ScanTerpaduGenerik, buatScanTerpadu, buatQrDataUrl, cariKaryawanByQr, ajukanPersiapanMasalah, opsiBarangMasalah } from './vue-scan-cetak.js?v=20';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
 
 // baggingSudahSampai — dicek di tugas_kirim.pack[] milik batch pemilik bagging
@@ -807,6 +807,7 @@ const FinishingPerluDikirim = {
         try { await updateDoc(doc(db, 'bagging', bagging.id), { ditutup_pada: serverTimestamp() }); packTerpadu.resetLock(); }
         catch (e) { console.error('Gagal tutup bagging:', e); alert('Gagal menutup bagging. Coba lagi.'); }
       } }],
+      keluarkanLabel: { menu: 'Scan Pack — Finishing' },
       validasiIsi: async (kode, bagging) => {
         try {
           const snap = await getDocs(query(collection(db, 'finishing_track'), where('kode_bagging', '==', bagging.kode), where('kode_pcs', '==', kode)));

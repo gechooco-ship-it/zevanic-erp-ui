@@ -9,16 +9,18 @@
 //   PIN. PIN cocok tapi role di luar rolesDiizinkan dicatat berhasil:false.
 // - persiapan_masalah: dibuat HANYA lewat ajukanPersiapanMasalah di sini.
 // - bagging: unpack_hasil, unpack_pada/oleh, unpack_dicocokkan[]/asing[]/hilang[].
+//   Keluarkan Label: isi arrayRemove + ditutup_pada null, log_scan 'keluar_bagging'.
 //
 // Jebakan:
-// - buatScanTerpadu TIDAK menulis Firestore — semua lewat cfg.padaUpload.
+// - buatScanTerpadu TIDAK menulis Firestore — semua lewat cfg.padaUpload,
+//   kecuali Keluarkan Label (keluarkanLabelBagging, wajib PIN admin/PIC).
 // - buatScanEntryStok tidak memotong stok sendiri; semua lewat
 //   catatScanEntryStok (satu transaksi) di vue-stock-pembelian.js.
 // - KameraTersemat WAJIB watch({immediate:true}); FRAC_KOTAK_BACA satu angka
 //   sumber kotak merah DAN area baca jsQR.
 
 import { createApp, ref, reactive, watch, onMounted, onUnmounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
-import { collection, addDoc, doc, getDoc, getDocs, updateDoc, query, where, orderBy, limit, startAfter, serverTimestamp, arrayUnion, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+import { collection, addDoc, doc, getDoc, getDocs, updateDoc, query, where, orderBy, limit, startAfter, serverTimestamp, arrayUnion, arrayRemove, runTransaction } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import { db } from "./firebase-config.js";
 import { resolveLabelStok, hitungAmbilLabelStok, catatScanEntryStok } from './vue-stock-pembelian.js?v=36';
 
@@ -633,6 +635,39 @@ export const KameraTersemat = {
 };
 
 
+// keluarkanLabelBagging — buang label salah pack dari bagging. Ditolak kalau
+// bagging sudah dimuat Scan Kirim. padaKeluar(b, kode, sisaIsi) membereskan
+// tautan di modul pemanggil dan boleh membalas patch tambahan untuk bagging.
+export async function keluarkanLabelBagging({ baggingId, kodeList, menu, pinUser, padaKeluar }) {
+  try {
+    const snap = await getDoc(doc(db, 'bagging', baggingId));
+    if (!snap.exists()) return { ok: false, pesan: 'Bagging tidak ditemukan.' };
+    const b = { id: snap.id, ...snap.data() };
+    const kode = kodeList.filter(k => (b.isi || []).includes(k));
+    if (!kode.length) return { ok: false, pesan: `Label sudah tidak ada di bagging ${b.kode}.` };
+    const tugas = await tugasKirimBagging(b);
+    if (tugas) return { ok: false, pesan: `Bagging ${b.kode} sudah di-Scan Kirim (tugas ${tugas}). Label tidak bisa dikeluarkan lagi — lapor admin.` };
+    const sisaIsi = (b.isi || []).filter(k => !kode.includes(k));
+    const patchModul = padaKeluar ? await padaKeluar(b, kode, sisaIsi) : null;
+    await updateDoc(doc(db, 'bagging', b.id), { ...(patchModul || {}), isi: arrayRemove(...kode), ditutup_pada: null });
+    const oleh = window.currentUser?.email || null;
+    for (const k of kode) {
+      try { await addDoc(collection(db, 'log_scan'), { operator_uid: oleh, operator_nama: window.currentUser?.nama || oleh, dicatat_oleh: oleh, aksi: 'keluar_bagging', pos: menu || '-', kode: k, koleksi: 'bagging', doc_id: b.id, kode_bagging: b.kode, disetujui_oleh: pinUser?.email || null, pada: serverTimestamp() }); }
+      catch (e) { console.error('Gagal catat log_scan keluar_bagging:', e); }
+    }
+    return { ok: true, bagging: { ...b, isi: sisaIsi, ditutup_pada: null } };
+  } catch (e) { console.error('Gagal keluarkan label bagging:', e); return { ok: false, pesan: 'Gagal menyimpan. Coba lagi.' }; }
+}
+// Cutting (TLC-PTG) mengisi pack[] sejak cetak, jadi yang dihitung terkirim
+// hanya dimuat[]; pos lain mengisi pack[] saat Scan Kirim.
+async function tugasKirimBagging(b) {
+  const acuan = b.dibuat_pada && b.dibuat_pada.toDate ? b.dibuat_pada.toDate() : new Date();
+  const snap = await getDocs(query(collection(db, 'tugas_kirim'), where('dibuat_pada', '>=', new Date(acuan.getTime() - 30 * 86400000))));
+  const t = snap.docs.map(d => d.data()).find(x => x.tlc_asal === 'TLC-PTG' ? (x.dimuat || []).includes(b.kode) : (x.pack || []).some(p => p.kode_bagging === b.kode));
+  return t ? (t.kode || '-') : null;
+}
+
+
 // buatScanTerpadu — factory alur Draft->Upload generik, pengganti tulis-
 // langsung per scan (pola lama ScanGenerik). Cfg yang disuplai pemanggil:
 //   judul, subjudul, gated (Boolean, tampilkan hint "sudah dicetak"),
@@ -648,14 +683,19 @@ export const KameraTersemat = {
 //   twoStep.manualHanyaKunci (ketik manual cuma untuk kode pembuka),
 //   twoStep.tetapKunci (sesudah Upload kunci tetap; padaUpload boleh balas
 //   lockedLabel baru atau lepasKunci:true), susunUlang(rows, lockedData)
-//   dipanggil sesudah baris dihapus (mis. nomor ulang lembar).
-// Factory ini SENGAJA tidak tahu Firestore — lihat Jebakan di atas file ini.
+//   dipanggil sesudah baris dihapus (mis. nomor ulang lembar),
+//   keluarkanLabel: { menu, bagging(locked), padaKeluar, padaSelesai,
+//   labelKunci(locked), namaIsi(k) } — tombol Keluarkan Label + tawaran pindah
+//   saat validasiIsi membalas { baggingLain, kodeKeluar }.
 
 export function buatScanTerpadu(cfg) {
   const s = reactive({
     aktif: false, rows: [], lockedData: null, lockedLabel: '',
-    manualInput: '', sedangProses: false, toastTeks: '', toastTampil: false
+    manualInput: '', sedangProses: false, toastTeks: '', toastTampil: false,
+    keluar: { aktif: false, memuat: false, bagging: null, isi: [], pilih: [], cari: '' },
+    pin: { aktif: false, pesan: '', resolve: null }
   });
+  const kl = cfg.keluarkanLabel || null;
   let toastTimer = null;
   function toast(teks) {
     s.toastTeks = teks; s.toastTampil = true;
@@ -683,7 +723,9 @@ export function buatScanTerpadu(cfg) {
     if (!cfg.bolehUlang && s.rows.some(r => r.kode === kode)) { alert(`"${kode}" sudah ada di daftar — hapus dulu kalau mau scan ulang.`); return; }
     s.sedangProses = true;
     try {
-      const hasil = await cfg.validasiIsi(kode, s.lockedData, s.rows);
+      let hasil = await cfg.validasiIsi(kode, s.lockedData, s.rows);
+      if (!hasil.ok && hasil.baggingLain && kl && await tawarkanPindah(hasil, kode)) hasil = await cfg.validasiIsi(kode, s.lockedData, s.rows);
+      else if (!hasil.ok) { alert(hasil.pesan || `Kode "${kode}" tidak dikenali/ditolak.`); return; }
       if (!hasil.ok) { alert(hasil.pesan || `Kode "${kode}" tidak dikenali/ditolak.`); return; }
       s.rows.push({ ...hasil.row, id: 'r' + Date.now() + Math.random().toString(16).slice(2) });
       toast('✓ ' + kode + ' ditambahkan');
@@ -719,7 +761,43 @@ export function buatScanTerpadu(cfg) {
     const v = s.manualInput.trim(); s.manualInput = '';
     terimaKode(v);
   }
-  return { s, cfg, buka, tutup, terimaKode, hapusBaris, resetLock, batal, upload, kirimManual };
+  function mintaPin(pesan) { return new Promise(res => { s.pin = { aktif: true, pesan, resolve: res }; }); }
+  function selesaiPin(user) { const r = s.pin.resolve; s.pin = { aktif: false, pesan: '', resolve: null }; if (r) r(user || null); }
+  async function jalankanKeluar(bagging, kodeList) {
+    const user = await mintaPin(`Keluarkan ${kodeList.join(', ')} dari bagging ${bagging.kode}. Bagging dibuka lagi supaya bisa diisi.`);
+    if (!user) return false;
+    const h = await keluarkanLabelBagging({ baggingId: bagging.id, kodeList, menu: kl.menu || cfg.judul, pinUser: user, padaKeluar: kl.padaKeluar });
+    if (!h.ok) { alert(h.pesan); return false; }
+    const terkunci = s.lockedData ? (kl.bagging ? kl.bagging(s.lockedData) : s.lockedData) : null;
+    if (terkunci && terkunci.id === bagging.id) { terkunci.isi = h.bagging.isi; terkunci.ditutup_pada = null; }
+    if (kl.padaSelesai) await kl.padaSelesai();
+    if (s.lockedData && kl.labelKunci) s.lockedLabel = kl.labelKunci(s.lockedData);
+    toast(`✓ ${kodeList.length} label keluar dari ${bagging.kode}`);
+    return true;
+  }
+  async function tawarkanPindah(hasil, kode) {
+    if (!confirm(`${hasil.pesan}\n\nKeluarkan dari bagging ${hasil.baggingLain} lalu masukkan ke bagging ini? Perlu PIN admin/PIC.`)) return false;
+    try {
+      const snap = await getDocs(query(collection(db, 'bagging'), where('kode', '==', hasil.baggingLain)));
+      if (snap.empty) { alert(`Bagging ${hasil.baggingLain} tidak ditemukan.`); return false; }
+      return await jalankanKeluar({ id: snap.docs[0].id, ...snap.docs[0].data() }, hasil.kodeKeluar || [kode]);
+    } catch (e) { console.error('Gagal cari bagging lain:', e); alert('Gagal mencari bagging. Coba lagi.'); return false; }
+  }
+  async function bukaKeluar() {
+    const b = s.lockedData ? (kl.bagging ? kl.bagging(s.lockedData) : s.lockedData) : null;
+    if (!b) return;
+    s.keluar = { aktif: true, memuat: true, bagging: b, isi: [], pilih: [], cari: '' };
+    try { const snap = await getDoc(doc(db, 'bagging', b.id)); s.keluar.isi = snap.exists() ? (snap.data().isi || []) : []; }
+    catch (e) { console.error('Gagal muat isi bagging:', e); alert('Gagal memuat isi bagging. Coba lagi.'); s.keluar.aktif = false; }
+    s.keluar.memuat = false;
+  }
+  async function konfirmasiKeluar() {
+    if (!s.keluar.pilih.length || s.sedangProses) return;
+    s.sedangProses = true;
+    try { if (await jalankanKeluar(s.keluar.bagging, s.keluar.pilih.slice())) s.keluar.aktif = false; }
+    finally { s.sedangProses = false; }
+  }
+  return { s, cfg, buka, tutup, terimaKode, hapusBaris, resetLock, batal, upload, kirimManual, selesaiPin, bukaKeluar, konfirmasiKeluar };
 }
 
 
@@ -790,7 +868,7 @@ export function buatScanEntryStok(cfg) {
 // controller dari buatScanTerpadu — komponen ini CUMA baca/panggil methodnya.
 
 export const ScanTerpaduGenerik = {
-  components: { KameraTersemat },
+  components: { KameraTersemat, PopupPinGenerik },
   props: { c: { type: Object, required: true } },
   emits: ['tutup'],
   setup(props, { emit }) {
@@ -815,6 +893,7 @@ export const ScanTerpaduGenerik = {
       <div><span class="tag ok" style="margin-right:6px;">{{ c.cfg.twoStep.labelPertama }}</span><b class="gc-num">{{ c.s.lockedLabel }}</b></div>
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
         <button v-for="a in (c.cfg.aksiEkstra || [])" :key="a.label" @click="a.aksi(c.s.lockedData, c.s.lockedLabel)" class="btn-outline" style="padding:5px 10px; font-size:10.5px;">{{ a.label }}</button>
+        <button v-if="c.cfg.keluarkanLabel" @click="c.bukaKeluar()" class="btn-outline" style="padding:5px 10px; font-size:10.5px;">Keluarkan Label</button>
         <button @click="ganti" class="btn-outline" style="padding:5px 10px; font-size:10.5px;">Ganti</button>
       </div>
     </div>
@@ -853,6 +932,28 @@ export const ScanTerpaduGenerik = {
       <button @click="tutup" class="btn-outline" style="padding:9px 16px;">Batal</button>
       <button @click="c.upload()" :disabled="!c.s.rows.length || c.s.sedangProses" class="btn-primary" style="padding:9px 20px;">{{ c.s.sedangProses ? 'Mengupload...' : 'Upload' }}</button>
     </div>
+
+    <div v-if="c.s.keluar.aktif" style="position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9999; display:flex; align-items:center; justify-content:center; padding:16px;">
+      <div class="gc-card" style="max-width:420px; width:100%; max-height:85vh; display:flex; flex-direction:column;">
+        <h3 style="font-weight:700; font-size:14px; margin-bottom:4px;">Keluarkan Label — {{ c.s.keluar.bagging && c.s.keluar.bagging.kode }}</h3>
+        <p style="font-size:11px; color:var(--text-faint); margin-bottom:8px;">Centang label yang salah masuk. Butuh PIN admin/PIC. Bagging yang sudah di-Scan Kirim ditolak.</p>
+        <input v-model="c.s.keluar.cari" type="text" placeholder="Cari kode label" class="gc-field" style="margin-bottom:8px; padding:8px 10px; border-radius:10px; width:100%; box-sizing:border-box;">
+        <div style="flex:1; overflow-y:auto; margin-bottom:10px;">
+          <div v-if="c.s.keluar.memuat" style="font-size:11px; color:var(--text-faint); text-align:center; padding:12px;">Memuat...</div>
+          <div v-else-if="!c.s.keluar.isi.length" style="font-size:11px; color:var(--text-faint); text-align:center; padding:12px;">Bagging ini masih kosong.</div>
+          <label v-for="k in c.s.keluar.isi.filter(x => !c.s.keluar.cari || String(x).toLowerCase().includes(c.s.keluar.cari.toLowerCase()))" :key="k" style="display:flex; align-items:center; gap:8px; padding:7px 4px; border-bottom:1px solid var(--line, #eee); font-size:11.5px;">
+            <input type="checkbox" v-model="c.s.keluar.pilih" :value="k">
+            <span class="gc-num" style="font-weight:600;">{{ k }}</span>
+            <span v-if="c.cfg.keluarkanLabel.namaIsi" style="color:var(--text-faint); font-size:10.5px;">{{ c.cfg.keluarkanLabel.namaIsi(k) }}</span>
+          </label>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button @click="c.s.keluar.aktif = false" class="btn-outline" style="flex:1;">Batal</button>
+          <button @click="c.konfirmasiKeluar()" :disabled="!c.s.keluar.pilih.length || c.s.sedangProses" class="btn-primary" style="flex:1;">Keluarkan ({{ c.s.keluar.pilih.length }})</button>
+        </div>
+      </div>
+    </div>
+    <popup-pin-generik v-if="c.s.pin.aktif" judul="PIN Admin / PIC" :pesan="c.s.pin.pesan" :konteks="((c.cfg.keluarkanLabel && c.cfg.keluarkanLabel.menu) || c.cfg.judul) + ' — Keluarkan Label'" @sukses="c.selesaiPin" @batal="c.selesaiPin(null)" />
 
     <div v-if="c.s.toastTampil" style="position:fixed; top:18px; left:50%; transform:translateX(-50%); background:var(--text); color:var(--ivory); padding:9px 16px; border-radius:12px; font-size:11.5px; font-weight:600; box-shadow:0 8px 20px -8px rgba(0,0,0,.35); z-index:9999; pointer-events:none;">{{ c.s.toastTeks }}</div>
   </div>
