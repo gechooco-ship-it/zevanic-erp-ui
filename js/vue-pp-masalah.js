@@ -22,7 +22,7 @@ import { db } from "./firebase-config.js";
 import { PopupPratinjauCetakLabel } from './vue-components.js?v=13';
 import { ScanTerpaduGenerik, buatScanTerpadu, buatScanEntryStok, buatQrDataUrl, muatJsQr, cariKaryawanByQr, tierOwnerKeAtas, opsiBarangMasalah } from './vue-scan-cetak.js?v=20';
 import { aksiAktif, pastikanCachePilihanScan } from './vue-popup-scan.js?v=9';
-import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=49';
+import { faktorKeSatuanStok } from './vue-persiapan-bahan.js?v=50';
 
 // picOwnerKeAtas — BEDA dari `tierOwnerKeAtas` (dipakai Setuju/Tolak/Ajukan
 // Belanja, WAJIB Owner/PIC Owner + popup PIN). Yang ini untuk "Scan Operator":

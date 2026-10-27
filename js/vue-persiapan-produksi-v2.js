@@ -17,6 +17,7 @@
 // - kode_baris adalah isi QR label: Bahan `{S…}-{GR…}-{tujuan}{nn}`, ACC
 //   `{S…}-{tujuan}{nn}`; daftar_kode[] disalin ke spk_track untuk pencarian scan.
 // - Menu-id 'pp_disiapkan' dan id mount lama dipertahankan (izin role tetap).
+// - Buat Separating/Grouping wajib lewat transaksi baca-ulang (anti dobel).
 
 import { createApp, ref, reactive, computed, onMounted } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 import { collection, addDoc, doc, getDoc, updateDoc, getDocs, query, where, runTransaction, serverTimestamp, arrayUnion } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
@@ -442,6 +443,31 @@ async function cariKaryawanByQr(qrData) {
 // tersisa, tiap pecahan kelipatan acuan order (master_produk.kelipatan). QO
 // sendiri sudah dikunci kelipatan di Menunggu Proses, jadi tidak ada sisa.
 // MOQ suplayer (master_suplayer) urusan belanja, tidak dipakai di sini.
+// cadangkanQtySeparating — qty_terseparating dibaca ulang & dinaikkan dalam
+// satu transaksi SEBELUM separating dibuat, supaya dua layar yang sama-sama
+// basi tidak bisa memecah sisa qty yang sama dua kali.
+function galatPengguna(pesan) { const e = new Error(pesan); e.pesanUser = pesan; return e; }
+async function cadangkanQtySeparating(o, total) {
+  await runTransaction(db, async (trx) => {
+    const snap = await trx.get(doc(db, 'order', o.id));
+    if (!snap.exists()) throw galatPengguna(`Order ${o.id_order} tidak ditemukan. Refresh halaman.`);
+    const d = snap.data();
+    const qtyOrder = parseFloat(d.qty_order) || 0;
+    const sudah = parseFloat(d.qty_terseparating) || 0;
+    if (sudah + total > qtyOrder) throw galatPengguna(`Order ${o.id_order} sudah dipecah orang lain (sisa ${Math.max(0, qtyOrder - sudah)} pcs, bukan ${total}). Refresh halaman.`);
+    trx.update(snap.ref, { qty_terseparating: sudah + total, status_separating: sudah + total >= qtyOrder ? 'terseparating' : 'sebagian' });
+  });
+}
+async function kembalikanQtySeparating(orderId, qty) {
+  await runTransaction(db, async (trx) => {
+    const snap = await trx.get(doc(db, 'order', orderId));
+    if (!snap.exists()) return;
+    const d = snap.data();
+    const sisa = Math.max(0, (parseFloat(d.qty_terseparating) || 0) - qty);
+    trx.update(snap.ref, { qty_terseparating: sisa, status_separating: sisa <= 0 ? '' : (sisa >= (parseFloat(d.qty_order) || 0) ? 'terseparating' : 'sebagian') });
+  });
+}
+
 export function cekPecahan(pecahan, sisaQo, kelipatan) {
   const angka = (pecahan || []).map(x => parseFloat(x) || 0);
   if (!angka.length || angka.some(x => x <= 0 || !Number.isInteger(x))) return 'Tiap pecahan wajib angka bulat lebih dari 0.';
@@ -521,7 +547,10 @@ const PerluPersiapanManager = {
       if (!jalurAktif.length) { alert('Tidak ada jalur produksi terdeteksi dari BOM produk ini.'); return; }
       sedangProses[o.id] = true;
       const kodeTerbit = [];
+      let tercadang = false;
       try {
+        await cadangkanQtySeparating(o, total);
+        tercadang = true;
         const petaBahan = await ambilPetaBahanAksesoris();
         const petaTujuan = await ambilPetaKodeTujuanDivisi();
         const idBaru = [];
@@ -549,17 +578,19 @@ const PerluPersiapanManager = {
             await buatSpkTrackSeparating(sep, j, rincian);
           }
         }
-        const terseparating = (parseFloat(o.qty_terseparating) || 0) + total;
-        await updateDoc(doc(db, 'order', o.id), {
-          qty_terseparating: terseparating, separating_ids: arrayUnion(...idBaru),
-          status_separating: terseparating >= (parseFloat(o.qty_order) || 0) ? 'terseparating' : 'sebagian'
-        });
+        await updateDoc(doc(db, 'order', o.id), { separating_ids: arrayUnion(...idBaru) });
         hasilTerbit.value = { idOrder: o.id_order, kode: kodeTerbit, jalur: jalurAktif };
         tutupEditor(o);
         await muat();
       } catch (e) {
-        console.error('Gagal buat SPK Separating:', e);
-        alert(`Gagal membuat SPK Separating${kodeTerbit.length ? ' (sebagian sudah terbit: ' + kodeTerbit.join(', ') + ')' : ''}. Coba lagi.`);
+        if (e.pesanUser) { alert(e.pesanUser); await muat(); }
+        else {
+          console.error('Gagal buat SPK Separating:', e);
+          // Qty yang sudah dicadangkan tapi separatingnya belum terbit dikembalikan.
+          const belumTerbit = pecahan.slice(kodeTerbit.length).reduce((t, x) => t + x, 0);
+          if (tercadang && belumTerbit > 0) await kembalikanQtySeparating(o.id, belumTerbit).catch(err => console.error('Gagal kembalikan qty separating:', err));
+          alert(`Gagal membuat SPK Separating${kodeTerbit.length ? ' (sebagian sudah terbit: ' + kodeTerbit.join(', ') + ')' : ''}. Coba lagi.`);
+        }
       }
       sedangProses[o.id] = false;
     }
@@ -677,27 +708,42 @@ export const PanelGroupingBahan = {
         const petaTujuan = await ambilPetaKodeTujuanDivisi();
         const qtyTotal = anggota.reduce((t, sp) => t + (parseFloat(sp.qty) || 0), 0);
         const breakdown = anggota.map(sp => ({ separating_id: sp.id, kode_separating: sp.kode_separating, order_id: sp.order_id, id_order: sp.id_order, sku_produk: sp.sku_produk || '', qty: sp.qty }));
-        const refGr = await addDoc(collection(db, 'spk_grouping'), {
-          kode_grouping_induk: kodeGr, nama_produk: k.nama, size: k.size || '', kunci_pola: k.pola || '',
-          sku_produk_terlibat: Array.from(new Set(anggota.map(sp => sp.sku_produk).filter(Boolean))),
-          separating_ids: anggota.map(sp => sp.id), qty_total: qtyTotal, breakdown, jalur_aktif: ['bahan'],
-          tanggal_generate: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
-        });
         const anggotaBaris = anggota.map(sp => ({ order_id: sp.order_id, id_order: sp.id_order, qty: parseFloat(sp.qty) || 0, _produk: sp._produk, pelanggan_nama: sp.pelanggan_nama || '', separating_id: sp.id, kode_separating: sp.kode_separating }));
         const rincian = hitungBahanRincian(anggotaBaris, petaBahan, kodeGr, petaTujuan.bahan);
-        await addDoc(collection(db, 'spk_track'), {
-          jalur: 'bahan', grouping_id: refGr.id, kode_grouping_induk: kodeGr, separating_ids: anggota.map(sp => sp.id),
-          nama_produk: k.nama, qty_total: qtyTotal, status: 'perlu_diproses', operator_id: '', operator_nama: '',
-          kode_bagging: '', kode_tugas: '', riwayat_scan: [], catatan_masalah: '',
-          bahan_rincian: rincian, sewing_rincian: [], webbing_rincian: [], finishing_rincian: [],
-          daftar_kode: rincian.map(b => b.kode_baris), dibuat_pada: serverTimestamp(), diperbarui_pada: serverTimestamp()
+        const refGr = doc(collection(db, 'spk_grouping'));
+        const refTrack = doc(collection(db, 'spk_track'));
+        // Satu transaksi: separating dibaca ulang; yang sudah punya grouping
+        // (layar basi / dua orang bersamaan) membatalkan seluruh grouping.
+        await runTransaction(db, async (trx) => {
+          const snaps = await Promise.all(anggota.map(sp => trx.get(doc(db, 'spk_separating', sp.id))));
+          const bentrok = snaps.find(sn => !sn.exists() || sn.data().grouping_id);
+          if (bentrok) {
+            const d = bentrok.exists() ? bentrok.data() : {};
+            throw galatPengguna(bentrok.exists() ? `${d.kode_separating} sudah masuk ${d.kode_grouping_induk || 'grouping lain'}. Refresh halaman.` : 'Ada separating yang sudah tidak ada. Refresh halaman.');
+          }
+          trx.set(refGr, {
+            kode_grouping_induk: kodeGr, nama_produk: k.nama, size: k.size || '', kunci_pola: k.pola || '',
+            sku_produk_terlibat: Array.from(new Set(anggota.map(sp => sp.sku_produk).filter(Boolean))),
+            separating_ids: anggota.map(sp => sp.id), qty_total: qtyTotal, breakdown, jalur_aktif: ['bahan'],
+            tanggal_generate: serverTimestamp(), dibuat_oleh: window.currentUser?.email || null
+          });
+          trx.set(refTrack, {
+            jalur: 'bahan', grouping_id: refGr.id, kode_grouping_induk: kodeGr, separating_ids: anggota.map(sp => sp.id),
+            nama_produk: k.nama, qty_total: qtyTotal, status: 'perlu_diproses', operator_id: '', operator_nama: '',
+            kode_bagging: '', kode_tugas: '', riwayat_scan: [], catatan_masalah: '',
+            bahan_rincian: rincian, sewing_rincian: [], webbing_rincian: [], finishing_rincian: [],
+            daftar_kode: rincian.map(b => b.kode_baris), dibuat_pada: serverTimestamp(), diperbarui_pada: serverTimestamp()
+          });
+          snaps.forEach(sn => trx.update(sn.ref, { grouping_id: refGr.id, kode_grouping_induk: kodeGr }));
         });
-        await Promise.all(anggota.map(sp => updateDoc(doc(db, 'spk_separating', sp.id), { grouping_id: refGr.id, kode_grouping_induk: kodeGr })));
         anggota.forEach(sp => { delete pilih[sp.id]; });
         hasilTerbit.value = { kode: kodeGr, jumlah: anggota.length, label: rincian.length };
         await muat();
         emit('terbit');
-      } catch (e) { console.error('Gagal buat SPK Grouping:', e); alert('Gagal membuat SPK Grouping. Coba lagi.'); }
+      } catch (e) {
+        if (e.pesanUser) { alert(e.pesanUser); Object.keys(pilih).forEach(id => delete pilih[id]); await muat(); }
+        else { console.error('Gagal buat SPK Grouping:', e); alert('Gagal membuat SPK Grouping. Coba lagi.'); }
+      }
       sedangProses.value = false;
     }
     onMounted(async () => { await window.authReady; await window.izinSiap; bolehProses.value = picOwnerKeAtas(window.currentUser) && window.cekIzinMenu('pp_bahan', 'add') !== false; await muat(); });
