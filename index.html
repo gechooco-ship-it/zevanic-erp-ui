@@ -978,7 +978,7 @@
                Menunggu ACC (8.1.3, owner-gated), List Order Driver (8.2, HP driver: beli/pending), Riwayat Belanja
                (8.3, read-only). -->
           <div id="sub-pp-belanja" class="sub-persiapan-produksi-content hidden fade-in space-y-4">
-            <div class="flex space-x-2 overflow-x-auto no-scrollbar">
+            <div class="flex gap-2 flex-wrap border-b border-gray-200 pb-2">
               <button onclick="pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-persiapanadmin', this, {catatRiwayat:true})" class="sub-pp-belanja-tahap-btn gc-sub-tab-btn active" data-target="sub-pp-belanja-persiapanadmin"><i class="fas fa-pen-to-square" style="margin-right:6px;"></i> Persiapan Admin</button>
               <button onclick="pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-menungguacc', this, {catatRiwayat:true})" class="sub-pp-belanja-tahap-btn gc-sub-tab-btn" data-target="sub-pp-belanja-menungguacc"><i class="fas fa-hourglass-half" style="margin-right:6px;"></i> Menunggu ACC</button>
               <button onclick="pindahSubTab('sub-pp-belanja-tahap', 'sub-pp-belanja-listorderdriver', this, {catatRiwayat:true})" class="sub-pp-belanja-tahap-btn gc-sub-tab-btn" data-target="sub-pp-belanja-listorderdriver"><i class="fas fa-motorcycle" style="margin-right:6px;"></i> List Order Driver</button>
@@ -1381,24 +1381,24 @@
   <script type="module" src="js/app.js?v=5"></script>
   <script type="module" src="js/camera.js"></script>
   <script type="module" src="js/auth.js?v=14"></script>
-  <script type="module" src="js/dashboard.js?v=35"></script>
+  <script type="module" src="js/dashboard.js?v=34"></script>
 
   <!-- Persiapan Produksi V2: Perlu Disiapkan (generator Kode Grouping) fungsional penuh. 5 jalur
        (Vendor/Bahan/Acc Sewing/Acc Webbing/Acc Finishing) sementara hanya struktur navigasi 5 tahap dengan
        isi placeholder. -->
-  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=31"></script>
+  <script type="module" src="js/vue-persiapan-produksi-v2.js?v=22"></script>
   <!-- jalur Bahan, lihat komentar besar di file ini. -->
-  <script type="module" src="js/vue-persiapan-bahan.js?v=50"></script>
+  <script type="module" src="js/vue-persiapan-bahan.js?v=40"></script>
   <!--
     jalur Acc Sewing/Webbing/Finishing, kartu = 1 spk_track (beda dari Bahan yang kartu = 1
     bahan+warna), lihat komentar besar di masing-masing file.
   -->
-  <script type="module" src="js/vue-persiapan-sewing.js?v=47"></script>
-  <script type="module" src="js/vue-persiapan-webbing.js?v=49"></script>
-  <script type="module" src="js/vue-persiapan-finishing.js?v=47"></script>
+  <script type="module" src="js/vue-persiapan-sewing.js?v=38"></script>
+  <script type="module" src="js/vue-persiapan-webbing.js?v=39"></script>
+  <script type="module" src="js/vue-persiapan-finishing.js?v=38"></script>
   <!-- Persiapan Produksi > Masalah, 7 tahap, skema TRB. Fitur "Persiapan Masalah" adalah papan
        manual terpisah (js/vue-persiapan-masalah.js) dengan koleksi permintaan_bahan_manual. -->
-  <script type="module" src="js/vue-pp-masalah.js?v=33"></script>
+  <script type="module" src="js/vue-pp-masalah.js?v=22"></script>
   <!-- Grup top-level "Pesanan": Penjualan Kasir (POS), Menunggu Proses (CRUD SPK dari
        OrderSpkManager), dan ringkasan read-only Proses Persiapan/Produksi/Pengiriman dari spk_track. Lihat
        komentar besar di js/vue-pesanan.js untuk latar belakang dan keputusan arsitektur lengkap. -->
@@ -1407,31 +1407,31 @@
        js/vue-scan-cetak.js. Badge operator memakai prefix "ZMS..."; prefix yang salah membuat pesan error
        di Tunjuk Operator/Scan Pack/Scan Kirim ikut salah tunjuk. Semua file pengimpor vue-scan-cetak.js
        memakai cache-bust versi yang sama. -->
-  <script type="module" src="js/vue-scan-cetak.js?v=20"></script>
+  <script type="module" src="js/vue-scan-cetak.js?v=16"></script>
   <!--
     "Pengaturan Cetak" (ukuran kertas/posisi QR/rincian tambahan per jenis cetak, terpusat),
     lihat komentar besar di js/vue-pengaturan-cetak.js.
   -->
   <script type="module" src="js/vue-pengaturan-cetak.js?v=8"></script>
-  <script type="module" src="js/vue-scan-opname.js?v=7"></script>
+  <script type="module" src="js/vue-scan-opname.js?v=6"></script>
   <script type="module" src="js/vue-config-karyawan.js?v=4"></script>
   <script type="module" src="js/vue-config-info.js?v=4"></script>
   <script type="module" src="js/vue-config-absensi.js?v=4"></script>
   <script type="module" src="js/vue-daftar-karyawan.js?v=7"></script>
   <script type="module" src="js/vue-config-akses.js?v=25"></script>
-  <script type="module" src="js/vue-hak-akses.js?v=9"></script>
+  <script type="module" src="js/vue-hak-akses.js?v=8"></script>
   <script type="module" src="js/vue-antrean-dakar.js?v=6"></script>
   <script type="module" src="js/vue-antrean-absensi.js?v=8"></script>
   <script type="module" src="js/vue-antrean-lembur.js?v=5"></script>
   <script type="module" src="js/vue-reimburse.js?v=10"></script>
   <script type="module" src="js/vue-riwayat-absensi.js?v=5"></script>
-  <script type="module" src="js/vue-report-absensi.js?v=10"></script>
+  <script type="module" src="js/vue-report-absensi.js?v=11"></script>
   <script type="module" src="js/vue-penjadwalan.js?v=7"></script>
-  <script type="module" src="js/vue-whatsapp-gateway.js?v=6"></script>
+  <script type="module" src="js/vue-whatsapp-gateway.js?v=7"></script>
   <script type="module" src="js/vue-otp.js"></script>
   <script type="module" src="js/vue-mail-gateway.js?v=2"></script>
   <script type="module" src="js/vue-device-kiosk.js?v=4"></script>
-  <script type="module" src="js/vue-account-profile.js?v=8"></script>
+  <script type="module" src="js/vue-account-profile.js?v=7"></script>
   <!-- js/vue-profile-drawer.js memegang Profil (mount #vue-sheet-profil di atas); temaPreferensi
        berasal dari script tema inline di <head>. Clock In/Out tersedia lewat kartu Favorit Saya di Beranda,
        tidak di Profil. Tombol tutup memakai class .gc-x-tutup (gechoo-design.css) yang di mode gelap jadi
@@ -1441,10 +1441,10 @@
     Bottom Sheet Picker "Mau scan apa?" (pola M2), lihat js/vue-popup-scan.js + mount
     #vue-popup-scan di atas.
   -->
-  <script type="module" src="js/vue-popup-scan.js?v=9"></script>
-  <script type="module" src="js/vue-pilihan-scan-config.js?v=7"></script>
-  <script type="module" src="js/vue-cetak-bagging.js?v=16"></script>
-  <script type="module" src="js/vue-cetak-kode-tugas.js?v=15"></script>
+  <script type="module" src="js/vue-popup-scan.js?v=8"></script>
+  <script type="module" src="js/vue-pilihan-scan-config.js?v=6"></script>
+  <script type="module" src="js/vue-cetak-bagging.js?v=11"></script>
+  <script type="module" src="js/vue-cetak-kode-tugas.js?v=10"></script>
   <script type="module" src="js/vue-home.js?v=8"></script>
   <script type="module" src="js/vue-home-desktop.js?v=3"></script>
   <script type="module" src="js/vue-header-mobile.js?v=13"></script>
@@ -1457,18 +1457,18 @@
   <script type="module" src="js/vue-absensi-qr.js?v=2"></script>
   <script type="module" src="js/vue-camera.js?v=4"></script>
   <script type="module" src="js/vue-scan-qr.js"></script>
-  <script type="module" src="js/vue-bahan-aksesoris.js?v=31"></script>
+  <script type="module" src="js/vue-bahan-aksesoris.js?v=30"></script>
   <script type="module" src="js/vue-rak-penyimpanan.js?v=8"></script>
-  <script type="module" src="js/vue-stock-pembelian.js?v=36"></script>
-  <script type="module" src="js/vue-kartu-stok.js?v=23"></script>
+  <script type="module" src="js/vue-stock-pembelian.js?v=35"></script>
+  <script type="module" src="js/vue-kartu-stok.js?v=19"></script>
   <!-- Zevanic House > Config. Import Excel diaktifkan lewat prop :izinkan-import-excel="true"
        khusus di AppConfigKomponen, tab Config lain tidak ikut. Tab "TLC & Prefix" (AppConfigTlc) memakai
        koleksi master_tlc; cache-bust mengikuti import firestore/firebase-config di file ini. -->
-  <script type="module" src="js/vue-config.js?v=28"></script>
+  <script type="module" src="js/vue-config.js?v=24"></script>
   <!-- Zevanic House > Master Suplayer: Entry & List (5.1), Alias & MOQ (5.2, dengan
        moq/moq_satuan/lead_time_hari), dan Petakan Order (5.3, total). Lihat komentar panjang di
        js/vue-master-suplayer.js. -->
-  <script type="module" src="js/vue-master-suplayer.js?v=6"></script>
+  <script type="module" src="js/vue-master-suplayer.js?v=4"></script>
   <!--
     Zevanic House > Master Pelanggan: koleksi & menu TOTAL. Lihat komentar panjang di
     js/vue-master-pelanggan.js.
@@ -1483,29 +1483,29 @@
     Proses Produksi > Cutting, 7 tab. Lihat komentar besar di js/vue-pp-cutting.js untuk latar
     belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-cutting.js?v=44"></script>
+  <script type="module" src="js/vue-pp-cutting.js?v=34"></script>
   <!--
     Proses Produksi > Serie, 11 tab (hub distribusi). Lihat komentar besar di
     js/vue-pp-serie.js untuk latar belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-serie.js?v=44"></script>
+  <script type="module" src="js/vue-pp-serie.js?v=33"></script>
   <!--
     Proses Produksi > Sewing, 5 tab. Lihat komentar besar di js/vue-pp- sewing.js untuk latar
     belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-sewing.js?v=37"></script>
+  <script type="module" src="js/vue-pp-sewing.js?v=28"></script>
   <!--
     Proses Produksi > Finishing, 5 tab (per-PCS tracking via finishing_track). Lihat komentar
     besar di js/vue-pp-finishing.js untuk latar belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-finishing.js?v=36"></script>
+  <script type="module" src="js/vue-pp-finishing.js?v=28"></script>
   <!--
     Proses Produksi > Gudang Barang Jadi, 4 tab (titik akhir rantai produksi). Lihat komentar
     besar di js/vue-pp-gudang.js untuk latar belakang & keputusan arsitektur lengkap.
   -->
-  <script type="module" src="js/vue-pp-gudang.js?v=26"></script>
+  <script type="module" src="js/vue-pp-gudang.js?v=19"></script>
   <!-- Persiapan Produksi > Persiapan Belanja, folder terakhir grup Persiapan Produksi. Lihat
        komentar besar di js/vue-persiapan-belanja.js untuk latar belakang dan keputusan arsitektur lengkap. -->
-  <script type="module" src="js/vue-persiapan-belanja.js?v=23"></script>
+  <script type="module" src="js/vue-persiapan-belanja.js?v=16"></script>
 </body>
 </html>

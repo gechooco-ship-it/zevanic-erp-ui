@@ -310,6 +310,20 @@ const AppWhatsappGateway = {
       }
       prosesTemplate.value = '';
     }
+    // Mati = Cloud Function melewati jadwal ini; template & penerima tetap.
+    async function ubahAktifJadwal() {
+      const j = jadwalDipilih.value;
+      if (j.aktif && !confirm(`Nonaktifkan report "${j.nama}"? Pesan berhenti dikirim sampai diaktifkan lagi.`)) return;
+      prosesTemplate.value = 'aktif';
+      try {
+        await updateDoc(doc(db, 'wa_jadwal', j.id), { aktif: !j.aktif, diubah_pada: serverTimestamp() });
+        j.aktif = !j.aktif;
+      } catch (e) {
+        console.error('Gagal ubah status jadwal:', e);
+        alert('Gagal mengubah status report.');
+      }
+      prosesTemplate.value = '';
+    }
     async function perintahTemplate(aksi) {
       prosesTemplate.value = aksi;
       try {
@@ -422,7 +436,7 @@ const AppWhatsappGateway = {
       daftarLog, daftarLogTersaring, filterStatus, memuatLog, muatMonitoring,
       adaLogBerikutnya, memuatLogLagi, muatLagiLog,
       memuatLogLama, daftarLogLama, sudahCekLogLama, muatLogLama,
-      daftarJadwal, memuatJadwal, jadwalDipilih, isiTemplate, areaTemplate, pratinjau, prosesTemplate, muatTemplate,
+      daftarJadwal, memuatJadwal, jadwalDipilih, isiTemplate, areaTemplate, pratinjau, prosesTemplate, muatTemplate, ubahAktifJadwal,
       jadwalPerModul, labelJenis, pilihJadwal, sisipkan, kembalikanBawaan, simpanTemplate, perintahTemplate, PLACEHOLDER_WA
     };
   },
@@ -464,7 +478,7 @@ const AppWhatsappGateway = {
           <div v-if="m.jadwal.length === 0" style="font-size:11.5px; color:var(--text-faint);">{{ m.key === 'absensi' ? 'Belum ada jadwal.' : 'Menyusul.' }}</div>
           <button v-for="j in m.jadwal" :key="j.id" @click="pilihJadwal(j)" class="btn-outline" :class="{ filled: jadwalDipilih && jadwalDipilih.id === j.id }" style="display:block; width:100%; text-align:left; margin-bottom:6px; padding:8px 12px;">
             <div style="font-size:12px; font-weight:700;">{{ j.nama }}</div>
-            <div style="font-size:10.5px; opacity:.8;">{{ labelJenis(j.jenis) }}<span v-if="!j.aktif"> · mati</span></div>
+            <div style="font-size:10.5px; opacity:.8;">{{ labelJenis(j.jenis) }}<span v-if="!j.aktif"> · nonaktif</span></div>
           </button>
         </div>
       </div>
@@ -473,8 +487,11 @@ const AppWhatsappGateway = {
         <div v-if="!jadwalDipilih" style="font-size:12px; color:var(--text-faint); padding:20px 0; text-align:center;">Pilih jadwal di kiri untuk mengubah templatenya.</div>
         <template v-else>
           <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
-            <h3 class="gc-heading" style="font-size:13.5px; font-weight:700;">Template: {{ jadwalDipilih.nama }}</h3>
-            <button v-if="bolehUbah" @click="kembalikanBawaan" class="btn-outline" style="font-size:11px; padding:6px 10px;">Kembalikan ke bawaan</button>
+            <h3 class="gc-heading" style="font-size:13.5px; font-weight:700;">Template: {{ jadwalDipilih.nama }} <span class="tag" :class="jadwalDipilih.aktif ? 'ok' : 'neutral'" style="margin-left:4px;">{{ jadwalDipilih.aktif ? 'Aktif' : 'Nonaktif' }}</span></h3>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button v-if="bolehUbah" @click="ubahAktifJadwal" :disabled="!!prosesTemplate" class="btn-outline" style="font-size:11px; padding:6px 10px;">{{ prosesTemplate === 'aktif' ? 'Menyimpan...' : (jadwalDipilih.aktif ? 'Nonaktifkan report' : 'Aktifkan report') }}</button>
+              <button v-if="bolehUbah" @click="kembalikanBawaan" class="btn-outline" style="font-size:11px; padding:6px 10px;">Kembalikan ke bawaan</button>
+            </div>
           </div>
           <div style="font-size:11px; font-weight:700; margin-bottom:6px;">Sisipkan data (klik untuk menaruh di posisi kursor)</div>
           <div style="display:flex; flex-wrap:wrap; gap:5px; margin-bottom:10px;">
